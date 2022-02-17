@@ -925,7 +925,7 @@ cc_binary {
         ":perfetto_src_ipc_client",
         ":perfetto_src_ipc_common",
         ":perfetto_src_perfetto_cmd_perfetto_cmd",
-        ":perfetto_src_perfetto_cmd_protos_gen",
+        ":perfetto_src_perfetto_cmd_protos_cpp_gen",
         ":perfetto_src_perfetto_cmd_trigger_producer",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_tracing_common",
@@ -986,7 +986,7 @@ cc_binary {
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
         "perfetto_src_perfetto_cmd_gen_cc_config_descriptor",
-        "perfetto_src_perfetto_cmd_protos_gen_headers",
+        "perfetto_src_perfetto_cmd_protos_cpp_gen_headers",
     ],
     defaults: [
         "perfetto_defaults",
@@ -2921,9 +2921,9 @@ genrule {
     ],
 }
 
-// GN: //protos/perfetto/config:perfetto_config_descriptor
+// GN: //protos/perfetto/config:merged_config_descriptor
 genrule {
-    name: "perfetto_protos_perfetto_config_perfetto_config_descriptor",
+    name: "perfetto_protos_perfetto_config_merged_config_descriptor",
     srcs: [
         "protos/perfetto/config/perfetto_config.proto",
     ],
@@ -2932,7 +2932,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
     out: [
-        "perfetto_protos_perfetto_config_perfetto_config_descriptor.bin",
+        "perfetto_protos_perfetto_config_merged_config_descriptor.bin",
     ],
 }
 
@@ -6549,6 +6549,44 @@ genrule {
     ],
 }
 
+// GN: //protos/perfetto/trace/track_event:descriptor
+genrule {
+    name: "perfetto_protos_perfetto_trace_track_event_descriptor",
+    srcs: [
+        "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
+        "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
+        "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
+        "protos/perfetto/trace/track_event/chrome_frame_reporter.proto",
+        "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
+        "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
+        "protos/perfetto/trace/track_event/chrome_latency_info.proto",
+        "protos/perfetto/trace/track_event/chrome_legacy_ipc.proto",
+        "protos/perfetto/trace/track_event/chrome_message_pump.proto",
+        "protos/perfetto/trace/track_event/chrome_mojo_event_info.proto",
+        "protos/perfetto/trace/track_event/chrome_process_descriptor.proto",
+        "protos/perfetto/trace/track_event/chrome_renderer_scheduler_state.proto",
+        "protos/perfetto/trace/track_event/chrome_thread_descriptor.proto",
+        "protos/perfetto/trace/track_event/chrome_user_event.proto",
+        "protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto",
+        "protos/perfetto/trace/track_event/counter_descriptor.proto",
+        "protos/perfetto/trace/track_event/debug_annotation.proto",
+        "protos/perfetto/trace/track_event/log_message.proto",
+        "protos/perfetto/trace/track_event/process_descriptor.proto",
+        "protos/perfetto/trace/track_event/source_location.proto",
+        "protos/perfetto/trace/track_event/task_execution.proto",
+        "protos/perfetto/trace/track_event/thread_descriptor.proto",
+        "protos/perfetto/trace/track_event/track_descriptor.proto",
+        "protos/perfetto/trace/track_event/track_event.proto",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
+    out: [
+        "perfetto_protos_perfetto_trace_track_event_descriptor.bin",
+    ],
+}
+
 // GN: //protos/perfetto/trace/track_event:lite
 genrule {
     name: "perfetto_protos_perfetto_trace_track_event_lite_gen",
@@ -6672,44 +6710,6 @@ genrule {
     export_include_dirs: [
         ".",
         "protos",
-    ],
-}
-
-// GN: //protos/perfetto/trace/track_event:track_event_descriptor
-genrule {
-    name: "perfetto_protos_perfetto_trace_track_event_track_event_descriptor",
-    srcs: [
-        "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
-        "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
-        "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
-        "protos/perfetto/trace/track_event/chrome_frame_reporter.proto",
-        "protos/perfetto/trace/track_event/chrome_histogram_sample.proto",
-        "protos/perfetto/trace/track_event/chrome_keyed_service.proto",
-        "protos/perfetto/trace/track_event/chrome_latency_info.proto",
-        "protos/perfetto/trace/track_event/chrome_legacy_ipc.proto",
-        "protos/perfetto/trace/track_event/chrome_message_pump.proto",
-        "protos/perfetto/trace/track_event/chrome_mojo_event_info.proto",
-        "protos/perfetto/trace/track_event/chrome_process_descriptor.proto",
-        "protos/perfetto/trace/track_event/chrome_renderer_scheduler_state.proto",
-        "protos/perfetto/trace/track_event/chrome_thread_descriptor.proto",
-        "protos/perfetto/trace/track_event/chrome_user_event.proto",
-        "protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto",
-        "protos/perfetto/trace/track_event/counter_descriptor.proto",
-        "protos/perfetto/trace/track_event/debug_annotation.proto",
-        "protos/perfetto/trace/track_event/log_message.proto",
-        "protos/perfetto/trace/track_event/process_descriptor.proto",
-        "protos/perfetto/trace/track_event/source_location.proto",
-        "protos/perfetto/trace/track_event/task_execution.proto",
-        "protos/perfetto/trace/track_event/thread_descriptor.proto",
-        "protos/perfetto/trace/track_event/track_descriptor.proto",
-        "protos/perfetto/trace/track_event/track_event.proto",
-    ],
-    tools: [
-        "aprotoc",
-    ],
-    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
-    out: [
-        "perfetto_protos_perfetto_trace_track_event_track_event_descriptor.bin",
     ],
 }
 
@@ -6841,9 +6841,9 @@ genrule {
     ],
 }
 
-// GN: //protos/third_party/chromium:chrome_track_event_descriptor
+// GN: //protos/third_party/chromium:descriptor
 genrule {
-    name: "perfetto_protos_third_party_chromium_chrome_track_event_descriptor",
+    name: "perfetto_protos_third_party_chromium_descriptor",
     srcs: [
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
@@ -6876,7 +6876,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
     out: [
-        "perfetto_protos_third_party_chromium_chrome_track_event_descriptor.bin",
+        "perfetto_protos_third_party_chromium_descriptor.bin",
     ],
 }
 
@@ -7221,7 +7221,7 @@ filegroup {
 genrule {
     name: "perfetto_src_perfetto_cmd_gen_cc_config_descriptor",
     srcs: [
-        ":perfetto_protos_perfetto_config_perfetto_config_descriptor",
+        ":perfetto_protos_perfetto_config_merged_config_descriptor",
     ],
     cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
     out: [
@@ -7245,9 +7245,9 @@ filegroup {
     ],
 }
 
-// GN: //src/perfetto_cmd:protos
+// GN: //src/perfetto_cmd:protos_cpp
 genrule {
-    name: "perfetto_src_perfetto_cmd_protos_gen",
+    name: "perfetto_src_perfetto_cmd_protos_cpp_gen",
     srcs: [
         "src/perfetto_cmd/perfetto_cmd_state.proto",
     ],
@@ -7261,9 +7261,9 @@ genrule {
     ],
 }
 
-// GN: //src/perfetto_cmd:protos
+// GN: //src/perfetto_cmd:protos_cpp
 genrule {
-    name: "perfetto_src_perfetto_cmd_protos_gen_headers",
+    name: "perfetto_src_perfetto_cmd_protos_cpp_gen_headers",
     srcs: [
         "src/perfetto_cmd/perfetto_cmd_state.proto",
     ],
@@ -8002,7 +8002,7 @@ filegroup {
 genrule {
     name: "perfetto_src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
     srcs: [
-        ":perfetto_protos_third_party_chromium_chrome_track_event_descriptor",
+        ":perfetto_protos_third_party_chromium_descriptor",
     ],
     cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
     out: [
@@ -8032,7 +8032,7 @@ genrule {
 genrule {
     name: "perfetto_src_trace_processor_importers_gen_cc_track_event_descriptor",
     srcs: [
-        ":perfetto_protos_perfetto_trace_track_event_track_event_descriptor",
+        ":perfetto_protos_perfetto_trace_track_event_descriptor",
     ],
     cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
     out: [
@@ -8431,6 +8431,7 @@ filegroup {
         "src/trace_processor/dynamic/experimental_slice_layout_generator_unittest.cc",
         "src/trace_processor/dynamic/thread_state_generator_unittest.cc",
         "src/trace_processor/forwarding_trace_parser_unittest.cc",
+        "src/trace_processor/importers/ftrace/binder_tracker_unittest.cc",
         "src/trace_processor/importers/ftrace/sched_event_tracker_unittest.cc",
         "src/trace_processor/importers/fuchsia/fuchsia_trace_utils_unittest.cc",
         "src/trace_processor/importers/memory_tracker/graph_processor_unittest.cc",
@@ -9452,7 +9453,7 @@ cc_test {
         ":perfetto_src_kallsyms_kallsyms",
         ":perfetto_src_kallsyms_unittests",
         ":perfetto_src_perfetto_cmd_perfetto_cmd",
-        ":perfetto_src_perfetto_cmd_protos_gen",
+        ":perfetto_src_perfetto_cmd_protos_cpp_gen",
         ":perfetto_src_perfetto_cmd_trigger_producer",
         ":perfetto_src_perfetto_cmd_unittests",
         ":perfetto_src_profiling_common_callstack_trie",
@@ -9688,7 +9689,7 @@ cc_test {
         "perfetto_src_ipc_test_messages_cpp_gen_headers",
         "perfetto_src_ipc_test_messages_ipc_gen_headers",
         "perfetto_src_perfetto_cmd_gen_cc_config_descriptor",
-        "perfetto_src_perfetto_cmd_protos_gen_headers",
+        "perfetto_src_perfetto_cmd_protos_cpp_gen_headers",
         "perfetto_src_protozero_testing_messages_cpp_gen_headers",
         "perfetto_src_protozero_testing_messages_lite_gen_headers",
         "perfetto_src_protozero_testing_messages_zero_gen_headers",
@@ -10301,7 +10302,7 @@ cc_binary {
         ":perfetto_src_base_unix_socket",
         ":perfetto_src_ipc_client",
         ":perfetto_src_ipc_common",
-        ":perfetto_src_perfetto_cmd_protos_gen",
+        ":perfetto_src_perfetto_cmd_protos_cpp_gen",
         ":perfetto_src_perfetto_cmd_trigger_perfetto_cmd",
         ":perfetto_src_perfetto_cmd_trigger_producer",
         ":perfetto_src_protozero_protozero",
@@ -10360,7 +10361,7 @@ cc_binary {
         "perfetto_protos_perfetto_trace_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
-        "perfetto_src_perfetto_cmd_protos_gen_headers",
+        "perfetto_src_perfetto_cmd_protos_cpp_gen_headers",
     ],
     defaults: [
         "perfetto_defaults",

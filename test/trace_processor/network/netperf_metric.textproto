@@ -2,6 +2,36 @@ packet {
   ftrace_events {
     cpu: 0
     event {
+      timestamp: 99999900
+      pid: 200
+      napi_gro_receive_entry {
+        name: "rmnet0"
+        len: 512
+      }
+    }
+    event {
+      timestamp: 99999920
+      pid: 300
+      napi_gro_receive_exit {
+        ret: 1
+      }
+    }
+    event {
+      timestamp: 99999930
+      pid: 200
+      napi_gro_receive_entry {
+        name: "rmnet0"
+        len: 512
+      }
+    }
+    event {
+      timestamp: 99999940
+      pid: 300
+      napi_gro_receive_exit {
+        ret: 2
+      }
+    }
+    event {
      timestamp: 100000000
      pid: 200
      cpu_frequency {
@@ -25,6 +55,18 @@ packet {
       }
     }
     event {
+      timestamp: 100090000
+      pid: 234
+      tcp_retransmit_skb {
+        daddr: 19216801
+        saddr: 127001
+        dport: 5001
+        sport: 56789
+        state: 1
+        skaddr: 77889900
+      }
+    }
+    event {
       timestamp: 100100000
       pid: 200
       net_dev_xmit {
@@ -45,6 +87,36 @@ packet {
 packet {
   ftrace_events {
     cpu: 1
+    event {
+      timestamp: 119999900
+      pid: 200
+      napi_gro_receive_entry {
+        name: "rmnet0"
+        len: 512
+      }
+    }
+    event {
+      timestamp: 119999920
+      pid: 300
+      napi_gro_receive_exit {
+        ret: 1
+      }
+    }
+    event {
+      timestamp: 119999930
+      pid: 200
+      napi_gro_receive_entry {
+        name: "rmnet0"
+        len: 512
+      }
+    }
+    event {
+      timestamp: 119999940
+      pid: 300
+      napi_gro_receive_exit {
+        ret: 2
+      }
+    }
     event {
      timestamp: 120000000
      pid: 200
@@ -90,6 +162,36 @@ packet {
   ftrace_events {
     cpu: 0
     event {
+      timestamp: 139999900
+      pid: 200
+      napi_gro_receive_entry {
+        name: "rmnet0"
+        len: 512
+      }
+    }
+    event {
+      timestamp: 139999920
+      pid: 300
+      napi_gro_receive_exit {
+        ret: 1
+      }
+    }
+    event {
+      timestamp: 139999930
+      pid: 200
+      napi_gro_receive_entry {
+        name: "rmnet0"
+        len: 512
+      }
+    }
+    event {
+      timestamp: 139999940
+      pid: 300
+      napi_gro_receive_exit {
+        ret: 2
+      }
+    }
+    event {
      timestamp: 140000000
      pid: 200
      cpu_frequency {
@@ -133,6 +235,21 @@ packet {
 packet {
   ftrace_events {
     cpu: 1
+    event {
+      timestamp: 139999900
+      pid: 200
+      napi_gro_receive_entry {
+        name: "rmnet0"
+        len: 1024
+      }
+    }
+    event {
+      timestamp: 139999920
+      pid: 300
+      napi_gro_receive_exit {
+        ret: 3
+      }
+    }
     event {
      timestamp: 140000000
      pid: 200

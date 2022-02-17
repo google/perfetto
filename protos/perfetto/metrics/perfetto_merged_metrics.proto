@@ -907,13 +907,16 @@ message AndroidNetworkMetric {
 
     // Per core packets statistic.
     repeated CorePacketStatistic core = 2;
+
+    // GRO aggregation ratio.
+    optional string gro_aggregation_ratio = 3;
   }
 
   message Tx {
-    // Total packets statistic
+    // Total packets statistic.
     optional PacketStatistic total = 1;
 
-    // Per core packets statistic
+    // Per core packets statistic.
     repeated CorePacketStatistic core = 2;
   }
 
@@ -967,6 +970,9 @@ message AndroidNetworkMetric {
 
   // SoftIrq NET_RX action metrics.
   optional NetRxAction net_rx_action = 2;
+
+  // Packet retransmission rate.
+  optional double retransmission_rate = 3;
 }
 
 // End of protos/perfetto/metrics/android/network_metric.proto

@@ -57,6 +57,12 @@ namespace base {
 class TaskRunner;
 }  // namespace base
 
+namespace protos {
+namespace gen {
+enum TraceStats_FinalFlushOutcome : int;
+}
+}  // namespace protos
+
 class Consumer;
 class Producer;
 class SharedMemory;
@@ -557,6 +563,14 @@ class TracingServiceImpl : public TracingService {
 
     // Packets that failed validation of the TrustedPacket.
     uint64_t invalid_packets = 0;
+
+    // Flush() stats. See comments in trace_stats.proto for more.
+    uint64_t flushes_requested = 0;
+    uint64_t flushes_succeeded = 0;
+    uint64_t flushes_failed = 0;
+
+    // Outcome of the final Flush() done by FlushAndDisableTracing().
+    protos::gen::TraceStats_FinalFlushOutcome final_flush_outcome{};
 
     // Set to true on the first call to MaybeNotifyAllDataSourcesStarted().
     bool did_notify_all_data_source_started = false;

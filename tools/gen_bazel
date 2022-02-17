@@ -77,14 +77,14 @@ default_targets = [
 # Root proto targets (to force discovery of intermediate proto targets).
 # These targets are marked public.
 proto_targets = [
-    '//protos/perfetto/trace:merged_trace',
-    '//protos/perfetto/trace:non_minimal_lite',
-    '//protos/perfetto/config:merged_config',
-    '//protos/perfetto/metrics:lite',
-    '//protos/perfetto/metrics/android:lite',
-    '//protos/perfetto/trace:lite',
-    '//protos/perfetto/config:lite',
-    '//protos/third_party/chromium:lite',
+    '//protos/perfetto/trace:merged_trace_source_set',
+    '//protos/perfetto/trace:non_minimal_source_set',
+    '//protos/perfetto/config:merged_config_source_set',
+    '//protos/perfetto/metrics:source_set',
+    '//protos/perfetto/metrics/android:source_set',
+    '//protos/perfetto/trace:source_set',
+    '//protos/perfetto/config:source_set',
+    '//protos/third_party/chromium:source_set',
 ]
 
 # Path for the protobuf sources in the standalone build.
@@ -143,7 +143,8 @@ def gen_cc_metrics_descriptor(target):
 
 
 custom_actions = {
-    gn_utils.GEN_VERSION_TARGET: gen_version_header,
+    gn_utils.GEN_VERSION_TARGET:
+        gen_version_header,
     '//src/trace_processor/metrics/sql:gen_amalgamated_sql_metrics':
         gen_amalgamated_sql_metrics,
 }
@@ -171,12 +172,14 @@ class BazelLabel(object):
     self.tools = []
     self.exec_tools = []
     self.outs = []
+    self.exports = []
 
   def __lt__(self, other):
     if isinstance(other, self.__class__):
       return self.name < other.name
-    raise TypeError('\'<\' not supported between instances of \'%s\' and \'%s\''
-                    % (type(self).__name__, type(other).__name__))
+    raise TypeError(
+        '\'<\' not supported between instances of \'%s\' and \'%s\'' %
+        (type(self).__name__, type(other).__name__))
 
   def __str__(self):
     """Converts the object into a Bazel Starlark label."""
@@ -185,8 +188,8 @@ class BazelLabel(object):
     res += '%s(\n' % self.type
     any_deps = len(self.deps) + len(self.external_deps) > 0
     ORD = [
-      'name','srcs', 'hdrs', 'visibility', 'deps', 'outs', 'cmd', 'tools',
-      'exec_tools'
+        'name', 'srcs', 'hdrs', 'visibility', 'deps', 'outs', 'cmd', 'tools',
+        'exec_tools', 'exports'
     ]
     hasher = lambda x: sum((99,) + tuple(ord(c) for c in x))
     key_sorter = lambda kv: ORD.index(kv[0]) if kv[0] in ORD else hasher(kv[0])
@@ -250,15 +253,8 @@ def get_bazel_label_name(gn_name):
   return gn_utils.label_to_target_name_with_path(gn_name)
 
 
-def gen_proto_labels(target):
-  """ Generates the xx_proto_library label for proto targets.
-
-  Bazel requires that each protobuf-related target is modeled with two labels:
-  1. A plugin-agnostic target that defines only the .proto sources and their
-     dependencies.
-  2. A plugin-dependent target (e.g. cc_library, cc_protozero_library) that has
-     only a dependency on 1 and does NOT refer to any .proto sources.
-  """
+def gen_proto_label(target):
+  """ Generates the xx_proto_library label for proto targets."""
   assert (target.type == 'proto_library')
 
   def get_sources_label(target_name):
@@ -267,46 +263,39 @@ def gen_proto_labels(target):
 
   sources_label_name = get_sources_label(target.name)
 
-  # Generates 1.
-  sources_label = BazelLabel(sources_label_name, 'perfetto_proto_library')
-  sources_label.comment = target.name
-  assert (all(x.startswith('//') for x in target.sources))
-  assert (all(x.endswith('.proto') for x in target.sources))
-  sources_label.srcs = sorted([x[2:] for x in target.sources])  # Strip //.
-
-  deps = [
-      ':' + get_sources_label(x)
-      for x in target.proto_deps
-
-      # This is to avoid a dependency-on-self in the case where
-      # protos/perfetto/ipc:ipc depends on protos/perfetto/ipc:cpp and both
-      # targets resolve to "protos_perfetto_ipc_protos".
-      if get_sources_label(x) != sources_label_name
-  ]
-  sources_label.deps = sorted(deps)
-
-  # In Bazel, proto_paths are not a supported concept becauase strong dependency
-  # checking is enabled. Instead, we need to depend on the target which includes
-  # the proto we want to depend on.
-  # For example, we include the proto_path |buildtools_protobuf_src| because we
-  # want to depend on the "google/protobuf/descriptor.proto" proto file. This
-  # will be exposed by the |protobuf_descriptor_proto| dep.
-  if buildtools_protobuf_src in target.proto_paths:
-    sources_label.external_deps = [
-        'PERFETTO_CONFIG.deps.protobuf_descriptor_proto'
-    ]
-
-  if target.name in proto_targets:
-    sources_label.visibility = PUBLIC_VISIBILITY
-  else:
-    sources_label.visibility = ['PERFETTO_CONFIG.proto_library_visibility']
-
   # For 'source_set' plugins, we don't want to generate any plugin-dependent
   # targets so just return the label of the proto sources only.
   if target.proto_plugin == 'source_set':
-    return [sources_label]
+    sources_label = BazelLabel(sources_label_name, 'perfetto_proto_library')
+    sources_label.comment = target.name
+    assert (all(x.startswith('//') for x in target.sources))
+    assert (all(x.endswith('.proto') for x in target.sources))
+    sources_label.srcs = sorted([x[2:] for x in target.sources])  # Strip //.
+    sources_label.deps = sorted(
+        [':' + get_sources_label(x) for x in target.proto_deps])
 
-  # Generates 2.
+    # In Bazel, proto_paths are not a supported concept becauase strong
+    # dependency checking is enabled. Instead, we need to depend on the target
+    # which includes the proto we want to depend on.
+    # For example, we include the proto_path |buildtools_protobuf_src| because
+    # we want to depend on the "google/protobuf/descriptor.proto" proto file.
+    # This will be exposed by the |protobuf_descriptor_proto| dep.
+    if buildtools_protobuf_src in target.proto_paths:
+      sources_label.external_deps = [
+          'PERFETTO_CONFIG.deps.protobuf_descriptor_proto'
+      ]
+
+    if target.name in proto_targets:
+      sources_label.visibility = PUBLIC_VISIBILITY
+    else:
+      sources_label.visibility = ['PERFETTO_CONFIG.proto_library_visibility']
+
+    sources_label.exports = sorted([
+      ':' + get_sources_label(d) for d in target.proto_exports
+    ])
+    return sources_label
+
+  # For all other types of plugins, we need to generate 
   if target.proto_plugin == 'proto':
     plugin_label_type = 'perfetto_cc_proto_library'
   elif target.proto_plugin == 'protozero':
@@ -322,28 +311,39 @@ def gen_proto_labels(target):
   plugin_label_name = get_bazel_label_name(target.name)
   plugin_label = BazelLabel(plugin_label_name, plugin_label_type)
   plugin_label.comment = target.name
-  plugin_label.deps += [':' + sources_label_name]
 
   # When using the plugins we need to pass down also the transitive deps.
   # For instance consider foo.proto including common.proto. The generated
   # foo.cc will #include "common.gen.h". Hence the generated cc_protocpp_library
   # rule need to pass down the dependency on the target that generates
   # common.gen.{cc,h}.
-  if target.proto_deps and target.proto_plugin in (
-      'cppgen', 'ipc', 'protozero'):
+  if target.proto_plugin in ('cppgen', 'ipc', 'protozero'):
     plugin_label.deps += [
         ':' + get_bazel_label_name(x) for x in target.proto_deps
     ]
 
+  # Add any dependencies on source_set targets (i.e. targets containing proto
+  # files). For descriptors, we will have an explicit edge between the
+  # descriptor and source set wheras for other plugin types, this edge is
+  # implicit.
+  if target.proto_plugin == 'descriptor':
+    plugin_label.deps += [
+      ':' + get_sources_label(x) for x in target.proto_deps
+    ]
+  else:
+    plugin_label.deps += [':' + sources_label_name]
+
+  # Since the descriptor generates an explicit output file which can be
+  # referenced by other targets, we specify a name for it.
   if target.proto_plugin == 'descriptor':
     plugin_label.outs = [plugin_label_name + '.bin']
 
-  return [sources_label, plugin_label]
+  return plugin_label
 
 
 def gen_target(gn_target):
   if gn_target.type == 'proto_library':
-    return gen_proto_labels(gn_target)
+    return [gen_proto_label(gn_target)]
   elif gn_target.type == 'action':
     if gn_target.name in custom_actions:
       return custom_actions[gn_target.name](gn_target)
@@ -374,7 +374,7 @@ def gen_target(gn_target):
       label.hdrs += [x[2:] for x in gn_target.public_headers]
     else:
       raise Error('%s: \'public\' currently supported only for cc_library' %
-              gn_target.name)
+                  gn_target.name)
 
   raw_srcs = [x[2:] for x in gn_target.sources]
   if bazel_type == 'perfetto_cc_library':
@@ -511,20 +511,20 @@ exports_files(["NOTICE"])
   for target_name in sorted(proto_targets):
     gn.get_target(target_name)
 
-  # Generate targets for the transitive set of proto targets.
-  # TODO explain deduping here.
-  labels = {}
-  for target in sorted(itervalues(gn.proto_libs)):
-    for label in gen_target(target):
-      # Ensure that if the existing target has public visibility, we preserve
-      # that in the new label; this ensures that we don't accidentaly reduce
-      # the visibility of targets which are meant to be public.
-      existing_label = labels.get(label.name)
-      if existing_label and existing_label.visibility == PUBLIC_VISIBILITY:
-        label.visibility = PUBLIC_VISIBILITY
-      labels[label.name] = label
+  # For any non-source set and non-descriptor targets, ensure the source set
+  # associated to that target is discovered.
+  for target in sorted(itervalues(gn.all_targets)):
+    plugin = target.proto_plugin
+    if plugin is None or plugin == 'source_set' or plugin == 'descriptor':
+      continue
+    gn.get_target(re.sub('(lite|zero|cpp|ipc)$', 'source_set', target.name))
 
-  res += ''.join(str(x) for x in sorted(itervalues(labels)))
+  # Generate targets for the transitive set of proto targets.
+  labels = [
+    l for target in sorted(itervalues(gn.proto_libs))
+    for l in gen_target(target)
+  ]
+  res += ''.join(str(x) for x in sorted(labels))
 
   res += '''
 # ##############################################################################
@@ -541,6 +541,7 @@ exports_files(["NOTICE"])
     checker = gn_utils.ODRChecker(gn, target_name)
 
   return res
+
 
 def main():
   parser = argparse.ArgumentParser(

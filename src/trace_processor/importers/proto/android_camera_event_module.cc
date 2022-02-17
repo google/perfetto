@@ -15,19 +15,13 @@
  */
 #include "src/trace_processor/importers/proto/android_camera_event_module.h"
 
-#include <sstream>
-
-#include "include/perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/string_view.h"
-#include "perfetto/protozero/field.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "protos/perfetto/trace/android/camera_event.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/async_track_set_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/slice_tables.h"
-#include "src/trace_processor/tables/track_tables.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_sorter.h"
 

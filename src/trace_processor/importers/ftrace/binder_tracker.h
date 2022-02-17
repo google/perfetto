@@ -21,6 +21,7 @@
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/destructible.h"
@@ -50,8 +51,8 @@ class BinderTracker : public Destructible {
                    uint32_t tid,
                    int32_t transaction_id,
                    int32_t dest_node,
-                   int32_t dest_tgid,
-                   int32_t dest_tid,
+                   uint32_t dest_tgid,
+                   uint32_t dest_tid,
                    bool is_reply,
                    uint32_t flags,
                    StringId code);
@@ -67,14 +68,19 @@ class BinderTracker : public Destructible {
                            uint64_t offsets_size);
 
  private:
-  TraceProcessorContext* const context_;
-  base::FlatSet<int32_t> awaiting_rcv_for_reply_;
+  struct OutstandingTransaction {
+    bool is_reply = false;
+    bool is_oneway = false;
+    SetArgsCallback args_inserter;
+    base::Optional<TrackId> send_track_id;
+    base::Optional<SliceId> send_slice_id;
+  };
 
-  base::FlatHashMap<int32_t, TrackId> transaction_await_rcv;
-  base::FlatHashMap<int32_t, SetArgsCallback> awaiting_async_rcv_;
+  TraceProcessorContext* const context_;
+
+  base::FlatHashMap<int32_t, OutstandingTransaction> outstanding_transactions_;
 
   base::FlatHashMap<uint32_t, int64_t> attempt_lock_;
-
   base::FlatHashMap<uint32_t, int64_t> lock_acquired_;
 
   const StringId binder_category_id_;
@@ -93,7 +99,6 @@ class BinderTracker : public Destructible {
   const StringId flags_;
   const StringId code_;
   const StringId calling_tid_;
-  const StringId dest_slice_id_;
   const StringId data_size_;
   const StringId offsets_size_;
 };
