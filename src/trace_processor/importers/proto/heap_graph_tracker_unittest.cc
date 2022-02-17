@@ -16,9 +16,9 @@
 
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 
-#include "src/trace_processor/importers/proto/profiler_util.h"
-
 #include "perfetto/base/logging.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/proto/profiler_util.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -53,6 +53,8 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
 
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.process_tracker.reset(new ProcessTracker(&context));
+  context.process_tracker->GetOrCreateProcess(kPid);
 
   HeapGraphTracker tracker(&context);
 
@@ -193,6 +195,8 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
 
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.process_tracker.reset(new ProcessTracker(&context));
+  context.process_tracker->GetOrCreateProcess(kPid);
 
   HeapGraphTracker tracker(&context);
 
