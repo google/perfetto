@@ -289,7 +289,8 @@ declare_args() {
   # Enables Zlib support. This is used both by the "perfetto" cmdline client
   # (for compressing traces) and by trace processor (for compressed traces).
   enable_perfetto_zlib =
-      enable_perfetto_trace_processor || enable_perfetto_platform_services
+      (enable_perfetto_trace_processor && !build_with_chromium) ||
+      enable_perfetto_platform_services
 }
 
 declare_args() {
