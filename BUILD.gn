@@ -133,9 +133,9 @@ if (perfetto_build_standalone) {
   all_targets += [
     "test/configs",
 
-    # For syntax-checking the proto.
-    "protos/perfetto/config:merged_config",
-    "protos/perfetto/trace:merged_trace",  # For syntax-checking the proto.
+    # For syntax-checking the protos.
+    "protos/perfetto/config:merged_config_lite",
+    "protos/perfetto/trace:merged_trace_lite",
 
     # For checking all generated xxx.gen.{cc,h} files without waiting for
     # embedders to try to use them and fail.
