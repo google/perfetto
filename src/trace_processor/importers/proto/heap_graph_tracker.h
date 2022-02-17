@@ -119,10 +119,10 @@ class HeapGraphTracker : public Destructible {
                                uint64_t intern_id,
                                StringPool::Id str);
   void FinalizeProfile(uint32_t seq);
+  void FinalizeAllProfiles();
   void SetPacketIndex(uint32_t seq_id, uint64_t index);
 
   ~HeapGraphTracker() override;
-  void NotifyEndOfFile();
 
   const std::vector<tables::HeapGraphClassTable::Id>* RowsForType(
       base::Optional<StringPool::Id> package_name,
