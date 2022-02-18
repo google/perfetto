@@ -31,7 +31,8 @@ CREATE TABLE android_sysui_cuj_last_cuj AS
   JOIN process_metadata USING (upid)
   WHERE
     slice.name GLOB 'J<*>'
-    AND slice.dur > 0
+    -- Filter out CUJs that are <4ms long - assuming CUJ was cancelled.
+    AND slice.dur > 4000000
     AND (
       process.name GLOB 'com.google.android*'
       OR process.name GLOB 'com.android.*')
