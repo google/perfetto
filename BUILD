@@ -2700,6 +2700,14 @@ perfetto_proto_descriptor(
     ],
 )
 
+# GN target: //protos/perfetto/metrics:lite
+perfetto_cc_proto_library(
+    name = "protos_perfetto_metrics_lite",
+    deps = [
+        ":protos_perfetto_metrics_protos",
+    ],
+)
+
 # GN target: //protos/perfetto/metrics:source_set
 perfetto_proto_library(
     name = "protos_perfetto_metrics_protos",
@@ -3417,6 +3425,14 @@ perfetto_proto_descriptor(
     ],
     outs = [
         "protos_third_party_chromium_descriptor.bin",
+    ],
+)
+
+# GN target: //protos/third_party/chromium:lite
+perfetto_cc_proto_library(
+    name = "protos_third_party_chromium_lite",
+    deps = [
+        ":protos_third_party_chromium_protos",
     ],
 )
 
