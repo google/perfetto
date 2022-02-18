@@ -164,7 +164,6 @@ bool ExecvAtrace(const std::vector<std::string>& args) {
 
   bool ok = WIFEXITED(status) && WEXITSTATUS(status) == 0;
   if (!ok) {
-    // TODO(lalitm): use the stderr result from atrace.
     PERFETTO_ELOG("%s", error.c_str());
   }
   return ok;

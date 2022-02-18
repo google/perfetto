@@ -111,7 +111,8 @@ util::Status AncestorGenerator::ValidateConstraints(
 
 std::unique_ptr<Table> AncestorGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
-    const std::vector<Order>&) {
+    const std::vector<Order>&,
+    const BitVector&) {
   uint32_t column = GetConstraintColumnIndex(type_, context_);
   auto it = std::find_if(cs.begin(), cs.end(), [column](const Constraint& c) {
     return c.col_idx == column && c.op == FilterOp::kEq;

@@ -61,7 +61,7 @@ int SqliteTable::OpenInternal(sqlite3_vtab_cursor** ppCursor) {
 }
 
 int SqliteTable::BestIndexInternal(sqlite3_index_info* idx) {
-  QueryConstraints qc;
+  QueryConstraints qc(idx->colUsed);
 
   for (int i = 0; i < idx->nConstraint; i++) {
     const auto& cs = idx->aConstraint[i];
