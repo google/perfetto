@@ -96,3 +96,14 @@ export function binaryDecode(str: string): Uint8Array {
   }
   return buf;
 }
+
+// A function used to interpolate strings into SQL query. The only replacement
+// is done is that single quote replaced with two single quotes, according to
+// SQLite documentation:
+// https://www.sqlite.org/lang_expr.html#literal_values_constants_
+//
+// The purpose of this function is to use in simple comparisons, to escape
+// strings used in GLOB clauses see escapeQuery function.
+export function sqliteString(str: string): string {
+  return `'${str.replace('\'', '\'\'')}'`;
+}
