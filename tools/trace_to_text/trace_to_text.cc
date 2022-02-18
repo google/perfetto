@@ -31,9 +31,8 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-#include <zlib.h>
-#endif
+#include "src/trace_processor/forwarding_trace_parser.h"
+#include "src/trace_processor/util/gzip_utils.h"
 
 namespace perfetto {
 namespace trace_to_text {
@@ -50,6 +49,8 @@ using google::protobuf::Reflection;
 using google::protobuf::TextFormat;
 using google::protobuf::io::OstreamOutputStream;
 using google::protobuf::io::ZeroCopyOutputStream;
+using trace_processor::TraceType;
+using trace_processor::util::GzipDecompressor;
 
 inline void WriteToZeroCopyOutput(ZeroCopyOutputStream* output,
                                   const char* str,
@@ -83,34 +84,9 @@ void PrintCompressedPackets(const std::string& packets,
                             Message* compressed_msg_scratch,
                             ZeroCopyOutputStream* output) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-  uint8_t out[4096];
-  std::vector<uint8_t> data;
-
-  z_stream stream{};
-  stream.next_in =
-      const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(packets.data()));
-  stream.avail_in = static_cast<unsigned int>(packets.length());
-
-  if (inflateInit(&stream) != Z_OK) {
-    PERFETTO_ELOG("Error when initiliazing zlib to decompress packets");
-    return;
-  }
-
-  int ret;
-  do {
-    stream.next_out = out;
-    stream.avail_out = sizeof(out);
-    ret = inflate(&stream, Z_NO_FLUSH);
-    if (ret != Z_STREAM_END && ret != Z_OK) {
-      PERFETTO_ELOG("Error when decompressing packets: %s",
-                    (stream.msg ? stream.msg : ""));
-      return;
-    }
-    data.insert(data.end(), out, out + (sizeof(out) - stream.avail_out));
-  } while (ret != Z_STREAM_END);
-  inflateEnd(&stream);
-
-  protos::pbzero::Trace::Decoder decoder(data.data(), data.size());
+  std::vector<uint8_t> whole_data = GzipDecompressor::DecompressFully(
+      reinterpret_cast<const uint8_t*>(packets.data()), packets.size());
+  protos::pbzero::Trace::Decoder decoder(whole_data.data(), whole_data.size());
   WriteToZeroCopyOutput(output, kCompressedPacketsPrefix,
                         sizeof(kCompressedPacketsPrefix) - 1);
   TextFormat::Printer printer;
@@ -146,90 +122,171 @@ void PrintCompressedPackets(const std::string& packets,
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 }
 
-}  // namespace
-
-int TraceToText(std::istream* input, std::ostream* output) {
-  DescriptorPool pool;
+// TracePacket descriptor and metadata, used to print a TracePacket proto as a
+// text proto.
+struct TracePacketProtoDescInfo {
+  TracePacketProtoDescInfo();
   FileDescriptorSet desc_set;
+  DescriptorPool pool;
+  std::unique_ptr<DynamicMessageFactory> factory;
+  const Descriptor* trace_descriptor;
+  const Message* prototype;
+  const FieldDescriptor* compressed_desc;
+};
+
+TracePacketProtoDescInfo::TracePacketProtoDescInfo() {
   desc_set.ParseFromArray(kTraceDescriptor.data(), kTraceDescriptor.size());
   for (const auto& desc : desc_set.file()) {
     pool.BuildFile(desc);
   }
-
-  DynamicMessageFactory factory(&pool);
-  const Descriptor* trace_descriptor =
-      pool.FindMessageTypeByName("perfetto.protos.TracePacket");
-  const Message* prototype = factory.GetPrototype(trace_descriptor);
-  std::unique_ptr<Message> msg(prototype->New());
-
-  OstreamOutputStream zero_copy_output(output);
-  OstreamOutputStream* zero_copy_output_ptr = &zero_copy_output;
-
-  const Reflection* reflect = msg->GetReflection();
-  const FieldDescriptor* compressed_desc = trace_descriptor->FindFieldByNumber(
+  factory.reset(new DynamicMessageFactory(&pool));
+  trace_descriptor = pool.FindMessageTypeByName("perfetto.protos.TracePacket");
+  prototype = factory->GetPrototype(trace_descriptor);
+  compressed_desc = trace_descriptor->FindFieldByNumber(
       protos::pbzero::TracePacket::kCompressedPacketsFieldNumber);
+}
 
-  std::unique_ptr<Message> compressed_packets_msg(prototype->New());
-  std::string compressed_packets;
+// Online algorithm to covert trace binary to text format.
+// Usage:
+//  - Feed the trace-binary in a sequence of memblock, and it will continue to
+//    write the output in given std::ostream*.
+class OnlineTraceToText {
+ public:
+  OnlineTraceToText(std::ostream* output)
+      : zero_copy_out_stream_(output),
+        msg_(pb_desc_info_.prototype->New()),
+        compressed_packets_msg_(pb_desc_info_.prototype->New()),
+        reflect_(msg_->GetReflection()) {
+    printer_.SetInitialIndentLevel(1);
+  }
+  OnlineTraceToText(const OnlineTraceToText&) = delete;
+  OnlineTraceToText& operator=(const OnlineTraceToText&) = delete;
+  void Feed(const uint8_t* data, size_t len);
+  bool ok() const { return ok_; }
 
-  TextFormat::Printer printer;
-  printer.SetInitialIndentLevel(1);
+ private:
+  bool ok_ = true;
+  OstreamOutputStream zero_copy_out_stream_;
+  protozero::ProtoRingBuffer ring_buffer_;
+  TextFormat::Printer printer_;
+  TracePacketProtoDescInfo pb_desc_info_;
+  std::unique_ptr<Message> msg_;
+  std::unique_ptr<Message> compressed_packets_msg_;
+  const Reflection* reflect_;
+  std::string compressed_packets_;
+  size_t bytes_processed_ = 0;
+  size_t packet_ = 0;
+};
 
-  static constexpr size_t kMaxMsgSize = protozero::ProtoRingBuffer::kMaxMsgSize;
-  std::unique_ptr<char[]> data(new char[kMaxMsgSize]);
-  protozero::ProtoRingBuffer ring_buffer;
-
-  uint32_t packet = 0;
-  size_t bytes_processed = 0;
-  while (!input->eof()) {
-    input->read(data.get(), kMaxMsgSize);
-    if (input->bad() || (input->fail() && !input->eof())) {
-      PERFETTO_ELOG("Failed while reading trace");
-      return 1;
+void OnlineTraceToText::Feed(const uint8_t* data, size_t len) {
+  ring_buffer_.Append(data, static_cast<size_t>(len));
+  while (true) {
+    auto token = ring_buffer_.ReadMessage();
+    if (token.fatal_framing_error) {
+      PERFETTO_ELOG("Failed to tokenize trace packet");
+      ok_ = false;
+      return;
     }
-    ring_buffer.Append(data.get(), static_cast<size_t>(input->gcount()));
+    if (!token.valid()) {
+      // no need to set `ok_ = false` here because this just means
+      // we've run out of packets in the ring buffer.
+      break;
+    }
 
-    for (;;) {
-      auto token = ring_buffer.ReadMessage();
-      if (token.fatal_framing_error) {
-        PERFETTO_ELOG("Failed to tokenize trace packet");
-        return 1;
-      }
-      if (!token.valid())
-        break;
-      bytes_processed += token.len;
-
-      if (token.field_id != protos::pbzero::Trace::kPacketFieldNumber) {
-        PERFETTO_ELOG("Skipping invalid field");
-        continue;
-      }
-
-      if ((packet++ & 0x3f) == 0) {
-        fprintf(stderr, "Processing trace: %8zu KB%c", bytes_processed / 1024,
-                kProgressChar);
-        fflush(stderr);
-      }
-
-      if (!msg->ParseFromArray(token.start, static_cast<int>(token.len))) {
-        PERFETTO_ELOG("Skipping invalid packet");
-        continue;
-      }
-
-      if (reflect->HasField(*msg, compressed_desc)) {
-        compressed_packets = reflect->GetStringReference(*msg, compressed_desc,
-                                                         &compressed_packets);
-        PrintCompressedPackets(compressed_packets, compressed_packets_msg.get(),
-                               zero_copy_output_ptr);
-      } else {
-        WriteToZeroCopyOutput(zero_copy_output_ptr, kPacketPrefix,
-                              sizeof(kPacketPrefix) - 1);
-        printer.Print(*msg, zero_copy_output_ptr);
-        WriteToZeroCopyOutput(zero_copy_output_ptr, kPacketSuffix,
-                              sizeof(kPacketSuffix) - 1);
-      }
+    if (token.field_id != protos::pbzero::Trace::kPacketFieldNumber) {
+      PERFETTO_ELOG("Skipping invalid field");
+      continue;
+    }
+    if (!msg_->ParseFromArray(token.start, static_cast<int>(token.len))) {
+      PERFETTO_ELOG("Skipping invalid packet");
+      continue;
+    }
+    bytes_processed_ += token.len;
+    if ((packet_++ & 0x3f) == 0) {
+      fprintf(stderr, "Processing trace: %8zu KB%c", bytes_processed_ / 1024,
+              kProgressChar);
+      fflush(stderr);
+    }
+    if (reflect_->HasField(*msg_, pb_desc_info_.compressed_desc)) {
+      // TODO(mohitms): GetStringReference ignores third argument. Why are we
+      // passing ?
+      compressed_packets_ = reflect_->GetStringReference(
+          *msg_, pb_desc_info_.compressed_desc, &compressed_packets_);
+      PrintCompressedPackets(compressed_packets_, compressed_packets_msg_.get(),
+                             &zero_copy_out_stream_);
+    } else {
+      WriteToZeroCopyOutput(&zero_copy_out_stream_, kPacketPrefix,
+                            sizeof(kPacketPrefix) - 1);
+      printer_.Print(*msg_, &zero_copy_out_stream_);
+      WriteToZeroCopyOutput(&zero_copy_out_stream_, kPacketSuffix,
+                            sizeof(kPacketSuffix) - 1);
     }
   }
-  return 0;
+}
+
+class InputReader {
+ public:
+  InputReader(std::istream* input) : input_(input) {}
+  // Request the input-stream to read next |len_limit| bytes and load
+  // it in |data|. It also updates the |len| with actual number of bytes loaded
+  // in |data|. This can be less than requested |len_limit| if we have reached
+  // at the end of the file.
+  bool Read(uint8_t* data, uint32_t* len, uint32_t len_limit) {
+    if (input_->eof())
+      return false;
+    input_->read(reinterpret_cast<char*>(data), std::streamsize(len_limit));
+    if (input_->bad() || (input_->fail() && !input_->eof())) {
+      PERFETTO_ELOG("Failed while reading trace");
+      ok_ = false;
+      return false;
+    }
+    *len = uint32_t(input_->gcount());
+    return true;
+  }
+  bool ok() const { return ok_; }
+
+ private:
+  std::istream* input_;
+  bool ok_ = true;
+};
+
+}  // namespace
+
+bool TraceToText(std::istream* input, std::ostream* output) {
+  constexpr size_t kMaxMsgSize = protozero::ProtoRingBuffer::kMaxMsgSize;
+  std::unique_ptr<uint8_t[]> buffer(new uint8_t[kMaxMsgSize]);
+  uint32_t buffer_len = 0;
+
+  InputReader input_reader(input);
+  OnlineTraceToText online_trace_to_text(output);
+
+  input_reader.Read(buffer.get(), &buffer_len, kMaxMsgSize);
+  TraceType type = trace_processor::GuessTraceType(buffer.get(), buffer_len);
+
+  if (type == TraceType::kGzipTraceType) {
+    GzipDecompressor decompressor;
+    auto consumer = [&](const uint8_t* data, size_t len) {
+      online_trace_to_text.Feed(data, len);
+    };
+    using ResultCode = GzipDecompressor::ResultCode;
+    do {
+      ResultCode code =
+          decompressor.FeedAndExtract(buffer.get(), buffer_len, consumer);
+      if (code == ResultCode::kError || !online_trace_to_text.ok())
+        return false;
+    } while (input_reader.Read(buffer.get(), &buffer_len, kMaxMsgSize));
+    return input_reader.ok();
+  } else if (type == TraceType::kProtoTraceType) {
+    do {
+      online_trace_to_text.Feed(buffer.get(), buffer_len);
+      if (!online_trace_to_text.ok())
+        return false;
+    } while (input_reader.Read(buffer.get(), &buffer_len, kMaxMsgSize));
+    return input_reader.ok();
+  } else {
+    PERFETTO_ELOG("Unrecognised file.");
+    return false;
+  }
 }
 
 }  // namespace trace_to_text
