@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 from typing import BinaryIO, Dict, Optional, Tuple
 
 # Limit parsing file to 32MB to maintain parity with the UI
@@ -43,6 +44,14 @@ def parse_trace_uri(uri: str) -> Tuple[Optional[str], str]:
   # If there's no colon, it cannot be a URI
   idx = uri.find(':')
   if idx == -1:
+    return None, uri
+
+  # If there is only a single character before the colon
+  # this is likely a Windows path; throw an error on other platforms
+  # to prevent single character names causing issues on Windows.
+  if idx == 1:
+    if os.name != 'nt':
+      raise Exception('Single character resolvers are not allowed')
     return None, uri
 
   return (uri[:idx], uri[idx + 1:])
