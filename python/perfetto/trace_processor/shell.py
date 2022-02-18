@@ -15,6 +15,7 @@
 
 import os
 import subprocess
+import sys
 import time
 from urllib import request, error
 
@@ -32,7 +33,7 @@ def load_shell(bin_path: str, unique_port: bool, verbose: bool,
 
   shell_path = platform_delegate.get_shell_path(bin_path=bin_path)
   if os.name == 'nt' and not shell_path.endswith('.exe'):
-    tp_exec = ['python3', shell_path]
+    tp_exec = [sys.executable, shell_path]
   else:
     tp_exec = [shell_path]
 
