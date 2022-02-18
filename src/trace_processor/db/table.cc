@@ -144,57 +144,5 @@ Table Table::Sort(const std::vector<Order>& od) const {
   return table;
 }
 
-Table Table::LookupJoin(JoinKey left, const Table& other, JoinKey right) {
-  // The join table will have the same size and RowMaps as the left (this)
-  // table because the left column is indexing the right table.
-  Table table(string_pool_, nullptr);
-  table.row_count_ = row_count_;
-  for (const RowMap& rm : row_maps_) {
-    table.row_maps_.emplace_back(rm.Copy());
-  }
-
-  for (const Column& col : columns_) {
-    // We skip id columns as they are misleading on join tables.
-    if (col.IsId())
-      continue;
-    table.columns_.emplace_back(col, &table, table.columns_.size(),
-                                col.row_map_idx_);
-  }
-
-  const Column& left_col = columns_[left.col_idx];
-  const Column& right_col = other.columns_[right.col_idx];
-
-  // For each index in the left column, retrieve the index of the row inside
-  // the RowMap of the right column. By getting the index of the row rather
-  // than the row number itself, we can call |Apply| on the other RowMaps
-  // in the right table.
-  std::vector<uint32_t> indices(row_count_);
-  for (uint32_t i = 0; i < row_count_; ++i) {
-    SqlValue val = left_col.Get(i);
-    PERFETTO_CHECK(val.type != SqlValue::Type::kNull);
-    indices[i] = right_col.IndexOf(val).value();
-  }
-
-  // Apply the computed RowMap to each of the right RowMaps, adding it to the
-  // join table as we go.
-  RowMap rm(std::move(indices));
-  for (const RowMap& ot : other.row_maps_) {
-    table.row_maps_.emplace_back(ot.SelectRows(rm));
-  }
-
-  uint32_t left_row_maps_size = static_cast<uint32_t>(row_maps_.size());
-  for (const Column& col : other.columns_) {
-    // We skip id columns as they are misleading on join tables.
-    if (col.IsId())
-      continue;
-
-    // Ensure that we offset the RowMap index by the number of RowMaps in the
-    // left table.
-    table.columns_.emplace_back(col, &table, table.columns_.size(),
-                                col.row_map_idx_ + left_row_maps_size);
-  }
-  return table;
-}
-
 }  // namespace trace_processor
 }  // namespace perfetto
