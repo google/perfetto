@@ -1929,7 +1929,6 @@ perfetto_filegroup(
     srcs = [
         "tools/trace_to_text/proto_full_utils.cc",
         "tools/trace_to_text/proto_full_utils.h",
-        "tools/trace_to_text/trace_to_text.cc",
     ],
 )
 
@@ -1948,6 +1947,16 @@ perfetto_filegroup(
     name = "tools_trace_to_text_pprofbuilder",
     srcs = [
         "tools/trace_to_text/pprof_builder.cc",
+    ],
+)
+
+# GN target: //tools/trace_to_text:trace_to_text_lib
+perfetto_filegroup(
+    name = "tools_trace_to_text_trace_to_text_lib",
+    srcs = [
+        "tools/trace_to_text/proto_full_utils.h",
+        "tools/trace_to_text/trace_to_text.cc",
+        "tools/trace_to_text/trace_to_text.h",
     ],
 )
 
@@ -3721,6 +3730,7 @@ perfetto_cc_binary(
         ":tools_trace_to_text_common",
         ":tools_trace_to_text_full",
         ":tools_trace_to_text_pprofbuilder",
+        ":tools_trace_to_text_trace_to_text_lib",
         ":tools_trace_to_text_utils",
     ],
     visibility = [

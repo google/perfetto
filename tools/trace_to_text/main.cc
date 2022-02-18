@@ -187,8 +187,9 @@ int Main(int argc, char** argv) {
     return 1;
   }
 
-  if (format == "text")
-    return TraceToText(input_stream, output_stream);
+  if (format == "text") {
+    return TraceToText(input_stream, output_stream) ? 0 : 1;
+  }
 
   if (format == "profile") {
     return perf_profile
