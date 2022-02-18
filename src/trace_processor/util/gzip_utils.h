@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_UTIL_GZIP_UTILS_H_
 
 #include <memory>
+#include <vector>
 
 struct z_stream_s;
 
@@ -102,6 +103,11 @@ class GzipDecompressor {
   // This is almost like constructing a new 'GzipDecompressor' object
   // but without paying the cost of internal memory allocation.
   void Reset();
+
+  // Decompress the entire mem-block and return decompressed mem-block.
+  // This is used for decompressing small strings or small files
+  // which doesn't require streaming decompression.
+  static std::vector<uint8_t> DecompressFully(const uint8_t* data, size_t len);
 
  private:
   std::unique_ptr<z_stream_s> z_stream_;
