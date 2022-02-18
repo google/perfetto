@@ -28,9 +28,17 @@ def add_main_thread_atrace(trace, ts, ts_end, buf):
   trace.add_atrace_end(ts=ts_end, tid=PID, pid=PID)
 
 
-def add_render_thread_atrace(trace, ts, ts_end, buf):
+def add_render_thread_atrace_begin(trace, ts, buf):
   trace.add_atrace_begin(ts=ts, tid=RTID, pid=PID, buf=buf)
+
+
+def add_render_thread_atrace_end(trace, ts_end):
   trace.add_atrace_end(ts=ts_end, tid=RTID, pid=PID)
+
+
+def add_render_thread_atrace(trace, ts, ts_end, buf):
+  add_render_thread_atrace_begin(trace, ts, buf)
+  add_render_thread_atrace_end(trace, ts_end)
 
 
 def add_gpu_thread_atrace(trace, ts, ts_end, buf):
@@ -43,14 +51,30 @@ def add_jit_thread_atrace(trace, ts, ts_end, buf):
   trace.add_atrace_end(ts=ts_end, tid=JITID, pid=PID)
 
 
-def add_frame(trace, vsync, ts_do_frame, ts_end_do_frame, ts_draw_frame,
-              ts_end_draw_frame, ts_gpu, ts_end_gpu):
+def add_frame(trace,
+              vsync,
+              ts_do_frame,
+              ts_end_do_frame,
+              ts_draw_frame,
+              ts_end_draw_frame,
+              ts_gpu=None,
+              ts_end_gpu=None):
   add_main_thread_atrace(trace, ts_do_frame, ts_end_do_frame,
                          "Choreographer#doFrame %d" % vsync)
-  add_render_thread_atrace(trace, ts_draw_frame, ts_end_draw_frame,
-                           "DrawFrames %d" % vsync)
-  add_gpu_thread_atrace(trace, ts_gpu, ts_end_gpu,
-                        "waiting for GPU completion 123")
+
+  gpu_idx = 1000 + vsync * 10 + 1
+  if ts_gpu is None:
+    gpu_fence_message = "GPU completion fence %d has signaled"
+  else:
+    gpu_fence_message = "Trace GPU completion fence %d"
+  add_render_thread_atrace_begin(trace, ts_draw_frame, "DrawFrames %d" % vsync)
+  add_render_thread_atrace(trace, ts_end_draw_frame - 100,
+                           ts_end_draw_frame - 1, gpu_fence_message % gpu_idx)
+  add_render_thread_atrace_end(trace, ts_end_draw_frame)
+
+  if ts_gpu is not None:
+    add_gpu_thread_atrace(trace, ts_gpu, ts_end_gpu,
+                          "waiting for GPU completion %d" % gpu_idx)
 
 
 def add_display_frame_events(ts,
@@ -248,13 +272,19 @@ add_frame(
     ts_gpu=108_000_000,
     ts_end_gpu=115_600_000)
 
+add_render_thread_atrace_begin(trace, ts=108_000_000, buf="DrawFrames 90")
 add_render_thread_atrace(
-    trace, ts=108_000_000, ts_end=114_000_000, buf="DrawFrames 90")
+    trace,
+    ts=113_000_000,
+    ts_end=113_500_000,
+    buf="Trace GPU completion fence 1902")
+add_render_thread_atrace_end(trace, ts_end=114_000_000)
+
 add_gpu_thread_atrace(
     trace,
     ts=121_500_000,
     ts_end=122_000_000,
-    buf="waiting for GPU completion 123")
+    buf="waiting for GPU completion 1902")
 
 add_frame(
     trace,
@@ -276,8 +306,8 @@ add_frame(
     ts_end_do_frame=315_000_000,
     ts_draw_frame=302_000_000,
     ts_end_draw_frame=304_000_000,
-    ts_gpu=308_000_000,
-    ts_end_gpu=310_000_000)
+    ts_gpu=None,
+    ts_end_gpu=None)
 
 add_render_thread_atrace(
     trace, ts=305_000_000, ts_end=308_000_000, buf="dispatchFrameCallbacks")

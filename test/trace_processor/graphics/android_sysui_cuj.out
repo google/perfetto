@@ -61,6 +61,12 @@ android_sysui_cuj {
   }
   frames {
     number: 8
+    ts: 300000000
+    dur: 4000000
+    vsync: 110
+  }
+  frames {
+    number: 9
     ts: 400000000
     dur: 10000000
     vsync: 120
