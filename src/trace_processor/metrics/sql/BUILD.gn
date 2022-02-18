@@ -69,6 +69,7 @@ sql_files = [
   "android/android_multiuser_populator.sql",
   "android/span_view_stats.sql",
   "android/android_sysui_cuj.sql",
+  "android/android_sysui_cuj_surfaceflinger.sql",
   "android/android_sysui_cuj_jank_query.sql",
   "android/process_counter_span_view.sql",
   "android/global_counter_span_view.sql",
