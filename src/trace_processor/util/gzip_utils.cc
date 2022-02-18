@@ -93,12 +93,24 @@ GzipDecompressor::Result GzipDecompressor::ExtractOutput(uint8_t* out,
 GzipDecompressor::GzipDecompressor() = default;
 GzipDecompressor::~GzipDecompressor() = default;
 void GzipDecompressor::Reset() {}
-void GzipDecompressor::SetInput(const uint8_t*, size_t) {}
-GzipDecompressor::Result GzipDecompressor::Decompress(uint8_t*, size_t) {
+void GzipDecompressor::Feed(const uint8_t*, size_t) {}
+GzipDecompressor::Result GzipDecompressor::ExtractOutput(uint8_t*, size_t) {
   Result{ResultCode::kError, 0};
 }
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+
+// static
+std::vector<uint8_t> GzipDecompressor::DecompressFully(const uint8_t* data,
+                                                       size_t len) {
+  std::vector<uint8_t> whole_data;
+  GzipDecompressor decompressor;
+  auto decom_output_consumer = [&](const uint8_t* buf, size_t buf_len) {
+    whole_data.insert(whole_data.end(), buf, buf + buf_len);
+  };
+  decompressor.FeedAndExtract(data, len, decom_output_consumer);
+  return whole_data;
+}
 
 }  // namespace util
 }  // namespace trace_processor
