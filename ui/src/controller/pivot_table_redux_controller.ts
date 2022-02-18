@@ -2,7 +2,10 @@ import {Actions} from '../common/actions';
 import {Engine} from '../common/engine';
 import {featureFlags} from '../common/feature_flags';
 import {ColumnType} from '../common/query_result';
-import {PivotTableReduxResult} from '../common/state';
+import {
+  PivotTableReduxQueryMetadata,
+  PivotTableReduxResult
+} from '../common/state';
 import {aggregationIndex} from '../frontend/pivot_table_redux_query_generator';
 
 import {Controller} from './controller';
@@ -99,7 +102,8 @@ class TreeBuilder {
   }
 }
 
-function createEmptyQueryResult(): PivotTableReduxResult {
+function createEmptyQueryResult(metadata: PivotTableReduxQueryMetadata):
+    PivotTableReduxResult {
   return {
     tree: {
       aggregates: [],
@@ -107,10 +111,7 @@ function createEmptyQueryResult(): PivotTableReduxResult {
       children: new Map(),
       rows: [],
     },
-    metadata: {
-      pivotColumns: [],
-      aggregationColumns: [],
-    }
+    metadata
   };
 }
 
@@ -165,7 +166,7 @@ export class PivotTableReduxController extends Controller<{}> {
             pivotTableState: {
               queryId: this.lastStartedQueryId,
               query: null,
-              queryResult: createEmptyQueryResult(),
+              queryResult: createEmptyQueryResult(query.metadata),
               selectionArea: pivotTableState.selectionArea
             }
           }));

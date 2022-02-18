@@ -90,6 +90,14 @@ function aggregationAlias(
   return `agg_${aggregationIndex}_level_${rolloverLevel}`;
 }
 
+export function areaFilter(area: Area): string {
+  return `
+    ts > ${toNs(area.startSec)}
+    and ts < ${toNs(area.endSec)}
+    and track_id in (${getSelectedTrackIds(area).join(', ')})
+  `;
+}
+
 function generateInnerQuery(
     pivots: string[],
     aggregations: string[],
@@ -107,18 +115,11 @@ function generateInnerQuery(
 
   // The condition is inverted because flipped order of literals makes JS
   // formatter insert huge amounts of whitespace for no good reason.
-  const filter = !constrainToArea ? '' : `
-    where
-      ts > ${toNs(area.startSec)}
-      and ts < ${toNs(area.endSec)}
-      and track_id in (${getSelectedTrackIds(area).join(', ')})
-  `;
-
   return `
     select
       ${pivotColumns.concat(aggregationColumns).join(',\n')}
     from ${table}
-    ${filter}
+    ${(constrainToArea ? `where ${areaFilter(area)}` : '')}
     group by ${pivotColumns.join(', ')}
   `;
 }
@@ -232,6 +233,7 @@ export function generateQuery(
   return {
     text,
     metadata: {
+      tableName: sliceTableAggregations.tableName,
       pivotColumns: nonSlicePivots.concat(slicePivots.map(
           column => `${sliceTableAggregations.tableName}.${column}`)),
       aggregationColumns: sliceTableAggregations.flatAggregations.map(
