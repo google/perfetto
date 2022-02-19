@@ -335,6 +335,7 @@ export interface PivotTableState {
 // correctly. Generated together with the text of query and passed without the
 // change to the query response.
 export interface PivotTableReduxQueryMetadata {
+  tableName: string;
   pivotColumns: string[];
   aggregationColumns: string[];
 }

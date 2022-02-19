@@ -22,7 +22,8 @@
 namespace perfetto {
 namespace trace_to_text {
 
-int TraceToText(std::istream* input, std::ostream* output);
+// Returns true in case of success.
+bool TraceToText(std::istream* input, std::ostream* output);
 
 }  // namespace trace_to_text
 }  // namespace perfetto
