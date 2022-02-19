@@ -64,12 +64,12 @@ public_targets = [
 # These targets are required by internal build rules but don't need to be
 # exported publicly.
 default_targets = [
-    '//test:client_api_example',
     '//src/ipc:perfetto_ipc',
     '//src/ipc/protoc_plugin:ipc_plugin',
     '//src/protozero:protozero',
     '//src/protozero/protoc_plugin:protozero_plugin',
     '//src/protozero/protoc_plugin:cppgen_plugin',
+    '//test:client_api_example',
     '//tools/proto_filter:proto_filter',
     '//tools/proto_merger:proto_merger',
 ] + public_targets
@@ -78,12 +78,16 @@ default_targets = [
 # These targets are marked public.
 proto_targets = [
     '//protos/perfetto/trace:merged_trace_source_set',
+    '//protos/perfetto/trace:non_minimal_lite',
     '//protos/perfetto/trace:non_minimal_source_set',
     '//protos/perfetto/config:merged_config_source_set',
+    '//protos/perfetto/metrics:lite',
     '//protos/perfetto/metrics:source_set',
+    '//protos/perfetto/metrics/android:lite',
     '//protos/perfetto/metrics/android:source_set',
     '//protos/perfetto/trace:source_set',
     '//protos/perfetto/config:source_set',
+    '//protos/third_party/chromium:lite',
     '//protos/third_party/chromium:source_set',
 ]
 
