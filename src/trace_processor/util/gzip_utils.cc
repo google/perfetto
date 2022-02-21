@@ -95,7 +95,7 @@ GzipDecompressor::~GzipDecompressor() = default;
 void GzipDecompressor::Reset() {}
 void GzipDecompressor::Feed(const uint8_t*, size_t) {}
 GzipDecompressor::Result GzipDecompressor::ExtractOutput(uint8_t*, size_t) {
-  Result{ResultCode::kError, 0};
+  return Result{ResultCode::kError, 0};
 }
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
