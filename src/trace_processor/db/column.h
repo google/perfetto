@@ -69,11 +69,6 @@ struct Order {
   bool desc;
 };
 
-// Represents a column which is to be joined on.
-struct JoinKey {
-  uint32_t col_idx;
-};
-
 class Table;
 
 // Represents a named, strongly typed list of data.
@@ -388,9 +383,6 @@ class Column {
   // Returns an Order for each Order type for this Column.
   Order ascending() const { return Order{col_idx_in_table_, false}; }
   Order descending() const { return Order{col_idx_in_table_, true}; }
-
-  // Returns the JoinKey for this Column.
-  JoinKey join_key() const { return JoinKey{col_idx_in_table_}; }
 
   // Returns an iterator to the first entry in this column.
   Iterator begin() const { return Iterator(this, 0); }
