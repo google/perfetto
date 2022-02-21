@@ -69,8 +69,17 @@ Column::Column(const char* name,
       PERFETTO_CHECK(nullable_vector<StringPool::Id>().IsDense() == IsDense());
       break;
     case ColumnType::kId:
+    case ColumnType::kDummy:
       break;
   }
+}
+
+Column Column::DummyColumn(const char* name,
+                           Table* table,
+                           uint32_t col_idx_in_table) {
+  return Column(name, ColumnType::kDummy, Flag::kNoFlag, table,
+                col_idx_in_table, std::numeric_limits<uint32_t>::max(), nullptr,
+                nullptr);
 }
 
 Column Column::IdColumn(Table* table, uint32_t col_idx, uint32_t row_map_idx) {
@@ -128,6 +137,8 @@ void Column::FilterIntoSlow(FilterOp op, SqlValue value, RowMap* rm) const {
       FilterIntoIdSlow(op, value, rm);
       break;
     }
+    case ColumnType::kDummy:
+      PERFETTO_FATAL("FilterIntoSlow not allowed on dummy column");
   }
 }
 
@@ -443,6 +454,9 @@ void Column::StableSort(std::vector<uint32_t>* out) const {
         int res = compare::Numeric(a_idx, b_idx);
         return desc ? res > 0 : res < 0;
       });
+      break;
+    case ColumnType::kDummy:
+      PERFETTO_FATAL("StableSort not allowed on dummy column");
   }
 }
 
@@ -469,6 +483,7 @@ void Column::StableSortNumeric(std::vector<uint32_t>* out) const {
 }
 
 const RowMap& Column::row_map() const {
+  PERFETTO_DCHECK(type_ != ColumnType::kDummy);
   return table_->row_maps_[row_map_idx_];
 }
 
