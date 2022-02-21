@@ -51,6 +51,7 @@ constexpr size_t kMaxNumPowerEntities = 256;
 const ProbesDataSource::Descriptor AndroidPowerDataSource::descriptor = {
     /*name*/ "android.power",
     /*flags*/ Descriptor::kHandlesIncrementalState,
+    /*fill_descriptor_func*/ nullptr,
 };
 
 // Dynamically loads the libperfetto_android_internal.so library which

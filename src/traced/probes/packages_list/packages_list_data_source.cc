@@ -32,6 +32,7 @@ namespace perfetto {
 const ProbesDataSource::Descriptor PackagesListDataSource::descriptor = {
     /*name*/ "android.packages_list",
     /*flags*/ Descriptor::kFlagsNone,
+    /*fill_descriptor_func*/ nullptr,
 };
 
 bool ParsePackagesListStream(protos::pbzero::PackagesList* packages_list_packet,

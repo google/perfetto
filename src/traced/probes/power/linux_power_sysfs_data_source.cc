@@ -105,6 +105,7 @@ LinuxPowerSysfsDataSource::BatteryInfo::GetAverageCurrentUa(
 const ProbesDataSource::Descriptor LinuxPowerSysfsDataSource::descriptor = {
     /*name*/ "linux.sysfs_power",
     /*flags*/ Descriptor::kFlagsNone,
+    /*fill_descriptor_func*/ nullptr,
 };
 
 LinuxPowerSysfsDataSource::LinuxPowerSysfsDataSource(
