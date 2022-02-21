@@ -108,55 +108,6 @@ ProbesProducer::~ProbesProducer() {
   ftrace_.reset();
 }
 
-void ProbesProducer::OnConnect() {
-  PERFETTO_DCHECK(state_ == kConnecting);
-  state_ = kConnected;
-  ResetConnectionBackoff();
-  PERFETTO_LOG("Connected to the service");
-
-  std::array<DataSourceDescriptor, base::ArraySize(kAllDataSources)>
-      proto_descs;
-  // Generate all data source descriptors.
-  for (size_t i = 0; i < proto_descs.size(); i++) {
-    DataSourceDescriptor& proto_desc = proto_descs[i];
-    const ProbesDataSource::Descriptor* desc = kAllDataSources[i];
-
-    proto_desc.set_name(desc->name);
-    proto_desc.set_will_notify_on_start(true);
-    proto_desc.set_will_notify_on_stop(true);
-    using Flags = ProbesDataSource::Descriptor::Flags;
-    if (desc->flags & Flags::kHandlesIncrementalState)
-      proto_desc.set_handles_incremental_state_clear(true);
-    if (desc->fill_descriptor_func) {
-      desc->fill_descriptor_func(&proto_desc);
-    }
-  }
-
-  // Register all the data sources. Separate from the above loop because, if
-  // generating a data source descriptor takes too long, we don't want to be in
-  // a state where only some data sources are registered.
-  for (const DataSourceDescriptor& proto_desc : proto_descs) {
-    endpoint_->RegisterDataSource(proto_desc);
-  }
-
-  // Used by tracebox to synchronize with traced_probes being registered.
-  if (all_data_sources_registered_cb_) {
-    endpoint_->Sync(all_data_sources_registered_cb_);
-  }
-}
-
-void ProbesProducer::OnDisconnect() {
-  PERFETTO_DCHECK(state_ == kConnected || state_ == kConnecting);
-  PERFETTO_LOG("Disconnected from tracing service");
-  if (state_ == kConnected)
-    return task_runner_->PostTask([this] { this->Restart(); });
-
-  state_ = kNotConnected;
-  IncreaseConnectionBackoff();
-  task_runner_->PostDelayedTask([this] { this->Connect(); },
-                                connection_backoff_ms_);
-}
-
 void ProbesProducer::Restart() {
   // We lost the connection with the tracing service. At this point we need
   // to reset all the data sources. Trying to handle that manually is going to
@@ -171,73 +122,6 @@ void ProbesProducer::Restart() {
   new (this) ProbesProducer();
 
   ConnectWithRetries(socket_name, task_runner);
-}
-
-void ProbesProducer::SetupDataSource(DataSourceInstanceID instance_id,
-                                     const DataSourceConfig& config) {
-  PERFETTO_DLOG("SetupDataSource(id=%" PRIu64 ", name=%s)", instance_id,
-                config.name().c_str());
-  PERFETTO_DCHECK(data_sources_.count(instance_id) == 0);
-  TracingSessionID session_id = config.tracing_session_id();
-  PERFETTO_CHECK(session_id > 0);
-
-  std::unique_ptr<ProbesDataSource> data_source;
-  if (config.name() == FtraceDataSource::descriptor.name) {
-    data_source = CreateFtraceDataSource(session_id, config);
-  } else if (config.name() == InodeFileDataSource::descriptor.name) {
-    data_source = CreateInodeFileDataSource(session_id, config);
-  } else if (config.name() == ProcessStatsDataSource::descriptor.name) {
-    data_source = CreateProcessStatsDataSource(session_id, config);
-  } else if (config.name() == SysStatsDataSource::descriptor.name) {
-    data_source = CreateSysStatsDataSource(session_id, config);
-  } else if (config.name() == AndroidPowerDataSource::descriptor.name) {
-    data_source = CreateAndroidPowerDataSource(session_id, config);
-  } else if (config.name() == LinuxPowerSysfsDataSource::descriptor.name) {
-    data_source = CreateLinuxPowerSysfsDataSource(session_id, config);
-  } else if (config.name() == AndroidLogDataSource::descriptor.name) {
-    data_source = CreateAndroidLogDataSource(session_id, config);
-  } else if (config.name() == PackagesListDataSource::descriptor.name) {
-    data_source = CreatePackagesListDataSource(session_id, config);
-  } else if (config.name() == MetatraceDataSource::descriptor.name) {
-    data_source = CreateMetatraceDataSource(session_id, config);
-  } else if (config.name() == SystemInfoDataSource::descriptor.name) {
-    data_source = CreateSystemInfoDataSource(session_id, config);
-  } else if (config.name() == InitialDisplayStateDataSource::descriptor.name) {
-    data_source = CreateInitialDisplayStateDataSource(session_id, config);
-  }
-
-  if (!data_source) {
-    PERFETTO_ELOG("Failed to create data source '%s'", config.name().c_str());
-    return;
-  }
-
-  session_data_sources_[session_id].emplace(data_source->descriptor,
-                                            data_source.get());
-  data_sources_[instance_id] = std::move(data_source);
-}
-
-void ProbesProducer::StartDataSource(DataSourceInstanceID instance_id,
-                                     const DataSourceConfig& config) {
-  PERFETTO_DLOG("StartDataSource(id=%" PRIu64 ", name=%s)", instance_id,
-                config.name().c_str());
-  auto it = data_sources_.find(instance_id);
-  if (it == data_sources_.end()) {
-    // Can happen if SetupDataSource() failed (e.g. ftrace was busy).
-    PERFETTO_ELOG("Data source id=%" PRIu64 " not found", instance_id);
-    return;
-  }
-  ProbesDataSource* data_source = it->second.get();
-  if (data_source->started)
-    return;
-  if (config.trace_duration_ms() != 0) {
-    uint32_t timeout = 5000 + 2 * config.trace_duration_ms();
-    watchdogs_.emplace(
-        instance_id, base::Watchdog::GetInstance()->CreateFatalTimer(
-                         timeout, base::WatchdogCrashReason::kTraceDidntStop));
-  }
-  data_source->started = true;
-  data_source->Start();
-  endpoint_->NotifyDataSourceStarted(instance_id);
 }
 
 std::unique_ptr<ProbesDataSource> ProbesProducer::CreateFtraceDataSource(
@@ -369,6 +253,122 @@ ProbesProducer::CreateInitialDisplayStateDataSource(
   return std::unique_ptr<ProbesDataSource>(new InitialDisplayStateDataSource(
       task_runner_, config, session_id,
       endpoint_->CreateTraceWriter(buffer_id)));
+}
+
+void ProbesProducer::OnConnect() {
+  PERFETTO_DCHECK(state_ == kConnecting);
+  state_ = kConnected;
+  ResetConnectionBackoff();
+  PERFETTO_LOG("Connected to the service");
+
+  std::array<DataSourceDescriptor, base::ArraySize(kAllDataSources)>
+      proto_descs;
+  // Generate all data source descriptors.
+  for (size_t i = 0; i < proto_descs.size(); i++) {
+    DataSourceDescriptor& proto_desc = proto_descs[i];
+    const ProbesDataSource::Descriptor* desc = kAllDataSources[i];
+
+    proto_desc.set_name(desc->name);
+    proto_desc.set_will_notify_on_start(true);
+    proto_desc.set_will_notify_on_stop(true);
+    using Flags = ProbesDataSource::Descriptor::Flags;
+    if (desc->flags & Flags::kHandlesIncrementalState)
+      proto_desc.set_handles_incremental_state_clear(true);
+    if (desc->fill_descriptor_func) {
+      desc->fill_descriptor_func(&proto_desc);
+    }
+  }
+
+  // Register all the data sources. Separate from the above loop because, if
+  // generating a data source descriptor takes too long, we don't want to be in
+  // a state where only some data sources are registered.
+  for (const DataSourceDescriptor& proto_desc : proto_descs) {
+    endpoint_->RegisterDataSource(proto_desc);
+  }
+
+  // Used by tracebox to synchronize with traced_probes being registered.
+  if (all_data_sources_registered_cb_) {
+    endpoint_->Sync(all_data_sources_registered_cb_);
+  }
+}
+
+void ProbesProducer::OnDisconnect() {
+  PERFETTO_DCHECK(state_ == kConnected || state_ == kConnecting);
+  PERFETTO_LOG("Disconnected from tracing service");
+  if (state_ == kConnected)
+    return task_runner_->PostTask([this] { this->Restart(); });
+
+  state_ = kNotConnected;
+  IncreaseConnectionBackoff();
+  task_runner_->PostDelayedTask([this] { this->Connect(); },
+                                connection_backoff_ms_);
+}
+
+void ProbesProducer::SetupDataSource(DataSourceInstanceID instance_id,
+                                     const DataSourceConfig& config) {
+  PERFETTO_DLOG("SetupDataSource(id=%" PRIu64 ", name=%s)", instance_id,
+                config.name().c_str());
+  PERFETTO_DCHECK(data_sources_.count(instance_id) == 0);
+  TracingSessionID session_id = config.tracing_session_id();
+  PERFETTO_CHECK(session_id > 0);
+
+  std::unique_ptr<ProbesDataSource> data_source;
+  if (config.name() == FtraceDataSource::descriptor.name) {
+    data_source = CreateFtraceDataSource(session_id, config);
+  } else if (config.name() == InodeFileDataSource::descriptor.name) {
+    data_source = CreateInodeFileDataSource(session_id, config);
+  } else if (config.name() == ProcessStatsDataSource::descriptor.name) {
+    data_source = CreateProcessStatsDataSource(session_id, config);
+  } else if (config.name() == SysStatsDataSource::descriptor.name) {
+    data_source = CreateSysStatsDataSource(session_id, config);
+  } else if (config.name() == AndroidPowerDataSource::descriptor.name) {
+    data_source = CreateAndroidPowerDataSource(session_id, config);
+  } else if (config.name() == LinuxPowerSysfsDataSource::descriptor.name) {
+    data_source = CreateLinuxPowerSysfsDataSource(session_id, config);
+  } else if (config.name() == AndroidLogDataSource::descriptor.name) {
+    data_source = CreateAndroidLogDataSource(session_id, config);
+  } else if (config.name() == PackagesListDataSource::descriptor.name) {
+    data_source = CreatePackagesListDataSource(session_id, config);
+  } else if (config.name() == MetatraceDataSource::descriptor.name) {
+    data_source = CreateMetatraceDataSource(session_id, config);
+  } else if (config.name() == SystemInfoDataSource::descriptor.name) {
+    data_source = CreateSystemInfoDataSource(session_id, config);
+  } else if (config.name() == InitialDisplayStateDataSource::descriptor.name) {
+    data_source = CreateInitialDisplayStateDataSource(session_id, config);
+  }
+
+  if (!data_source) {
+    PERFETTO_ELOG("Failed to create data source '%s'", config.name().c_str());
+    return;
+  }
+
+  session_data_sources_[session_id].emplace(data_source->descriptor,
+                                            data_source.get());
+  data_sources_[instance_id] = std::move(data_source);
+}
+
+void ProbesProducer::StartDataSource(DataSourceInstanceID instance_id,
+                                     const DataSourceConfig& config) {
+  PERFETTO_DLOG("StartDataSource(id=%" PRIu64 ", name=%s)", instance_id,
+                config.name().c_str());
+  auto it = data_sources_.find(instance_id);
+  if (it == data_sources_.end()) {
+    // Can happen if SetupDataSource() failed (e.g. ftrace was busy).
+    PERFETTO_ELOG("Data source id=%" PRIu64 " not found", instance_id);
+    return;
+  }
+  ProbesDataSource* data_source = it->second.get();
+  if (data_source->started)
+    return;
+  if (config.trace_duration_ms() != 0) {
+    uint32_t timeout = 5000 + 2 * config.trace_duration_ms();
+    watchdogs_.emplace(
+        instance_id, base::Watchdog::GetInstance()->CreateFatalTimer(
+                         timeout, base::WatchdogCrashReason::kTraceDidntStop));
+  }
+  data_source->started = true;
+  data_source->Start();
+  endpoint_->NotifyDataSourceStarted(instance_id);
 }
 
 void ProbesProducer::StopDataSource(DataSourceInstanceID id) {
