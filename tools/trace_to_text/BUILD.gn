@@ -186,6 +186,7 @@ perfetto_unittest_source_set("unittests") {
     ":trace_to_text_lib",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
+    "../../gn:protobuf_full",
     "../../include/perfetto/base",
     "../../include/perfetto/ext/base:base",
   ]
