@@ -81,8 +81,8 @@ class BuildContext:
 def GnArgs(platform):
   (os, cpu) = platform.split('-')
   base_args = 'is_debug=false monolithic_binaries=true'
-  if os not in ('android', 'linux'):
-    return base_args  # No cross-compiling on Mac and Windows.
+  if os not in ('android', 'linux', 'mac'):
+    return base_args  # No cross-compiling on Windows.
   cpu = 'x64' if cpu == 'amd64' else cpu  # GN calls it "x64".
   return base_args + ' target_os="{}" target_cpu="{}"'.format(os, cpu)
 
@@ -201,7 +201,10 @@ def RunSteps(api, repository):
   if api.platform.is_win:
     BuildForPlatform(api, ctx, 'windows-amd64')
   elif api.platform.is_mac:
-    BuildForPlatform(api, ctx, 'mac-amd64')
+    with api.step.nest('mac-amd64'):
+      BuildForPlatform(api, ctx, 'mac-amd64')
+    with api.step.nest('mac-arm64'):
+      BuildForPlatform(api, ctx, 'mac-arm64')
   elif 'android' in api.buildbucket.builder_id.builder:
     with api.step.nest('android-arm'):
       BuildForPlatform(api, ctx, 'android-arm')

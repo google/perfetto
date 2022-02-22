@@ -44,7 +44,7 @@ PROPERTIES = {
         ),
         default={
             'sdk_version':
- '12B5025f',
+ '12D4e',
             'tool_package':
  'infra/tools/mac_toolchain/${platform}',
             'tool_version':
