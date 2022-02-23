@@ -130,6 +130,25 @@ DebugAnnotationParser::ParseDebugAnnotationValue(
   } else if (annotation.has_nested_value()) {
     return ParseNestedValueArgs(annotation.nested_value(), context_name,
                                 delegate);
+  } else if (annotation.has_proto_value()) {
+    std::string type_name;
+    if (annotation.has_proto_type_name()) {
+      type_name = annotation.proto_type_name().ToStdString();
+    } else if (annotation.has_proto_type_name_iid()) {
+      auto* interned_name = delegate.GetInternedMessage(
+          protos::pbzero::InternedData::kDebugAnnotationValueTypeNames,
+          annotation.proto_type_name_iid());
+      if (!interned_name)
+        return {base::ErrStatus("Interned proto type name not found"), false};
+      type_name = interned_name->name().ToStdString();
+    } else {
+      return {base::ErrStatus("DebugAnnotation has proto_value, but doesn't "
+                              "have proto type name"),
+              false};
+    }
+    return {proto_to_args_parser_.ParseMessage(annotation.proto_value(),
+                                               type_name, nullptr, delegate),
+            true};
   } else {
     return {base::OkStatus(), /*added_entry=*/false};
   }
