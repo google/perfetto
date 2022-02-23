@@ -374,6 +374,10 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   WHERE (state = 'R' OR state = 'R+')
   GROUP BY frame_number
   HAVING SUM(dur) > 8000000
+  AND SUM(dur) > (
+    SELECT 0.4 * dur_main_thread
+    FROM android_sysui_cuj_frames fs
+    WHERE fs.frame_number = android_sysui_cuj_main_thread_state.frame_number)
 
   UNION ALL
   SELECT
@@ -394,6 +398,10 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   WHERE (state = 'R' OR state = 'R+')
   GROUP BY frame_number
   HAVING SUM(dur) > 8000000
+  AND SUM(dur) > (
+    SELECT 0.4 * dur_render_thread
+    FROM android_sysui_cuj_frames fs
+    WHERE fs.frame_number = android_sysui_cuj_render_thread_state.frame_number)
 
   UNION ALL
   SELECT
