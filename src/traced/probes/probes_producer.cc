@@ -197,7 +197,8 @@ void ProbesProducer::SetupDataSource(DataSourceInstanceID instance_id,
     return;
   }
 
-  session_data_sources_.emplace(session_id, data_source.get());
+  session_data_sources_[session_id].emplace(data_source->descriptor,
+                                            data_source.get());
   data_sources_[instance_id] = std::move(data_source);
 }
 
@@ -374,12 +375,19 @@ void ProbesProducer::StopDataSource(DataSourceInstanceID id) {
   endpoint_->NotifyDataSourceStopped(id);
 
   TracingSessionID session_id = data_source->tracing_session_id;
-  auto range = session_data_sources_.equal_range(session_id);
-  for (auto kv = range.first; kv != range.second; kv++) {
-    if (kv->second != data_source)
-      continue;
-    session_data_sources_.erase(kv);
-    break;
+
+  auto session_it = session_data_sources_.find(session_id);
+  if (session_it != session_data_sources_.end()) {
+    auto desc_range = session_it->second.equal_range(data_source->descriptor);
+    for (auto ds_it = desc_range.first; ds_it != desc_range.second; ds_it++) {
+      if (ds_it->second == data_source) {
+        session_it->second.erase(ds_it);
+        if (session_it->second.empty()) {
+          session_data_sources_.erase(session_it);
+        }
+        break;
+      }
+    }
   }
   data_sources_.erase(it);
   watchdogs_.erase(id);
@@ -476,56 +484,44 @@ void ProbesProducer::ClearIncrementalState(
 // userspace tracing buffer. If more than one ftrace data sources are active,
 // this call typically happens after writing for all session has been handled.
 void ProbesProducer::OnFtraceDataWrittenIntoDataSourceBuffers() {
-  TracingSessionID last_session_id = 0;
-  FtraceMetadata* metadata = nullptr;
-  InodeFileDataSource* inode_data_source = nullptr;
-  ProcessStatsDataSource* ps_data_source = nullptr;
+  for (const auto& tracing_session : session_data_sources_) {
+    // Take the metadata (e.g. new pids) collected from ftrace and pass it to
+    // other interested data sources (e.g. the process scraper to get command
+    // lines on new pids and tgid<>tid mappings). Note: there can be more than
+    // one ftrace data source per session. All of them should be considered
+    // (b/169226092).
+    const std::unordered_multimap<const ProbesDataSource::Descriptor*,
+                                  ProbesDataSource*>& ds_by_type =
+        tracing_session.second;
+    auto ft_range = ds_by_type.equal_range(&FtraceDataSource::descriptor);
 
-  // unordered_multimap guarantees that entries with the same key are contiguous
-  // in the iteration.
-  for (auto it = session_data_sources_.begin(); /* check below*/; it++) {
-    // If this is the last iteration or the session id has changed,
-    // dispatch the metadata update to the linked data sources, if any.
-    if (it == session_data_sources_.end() || it->first != last_session_id) {
-      bool has_inodes = metadata && !metadata->inode_and_device.empty();
-      bool has_pids = metadata && !metadata->pids.empty();
-      bool has_rename_pids = metadata && !metadata->rename_pids.empty();
-      if (has_inodes && inode_data_source)
-        inode_data_source->OnInodes(metadata->inode_and_device);
-      // Ordering the rename pids before the seen pids is important so that any
-      // renamed processes get scraped in the OnPids call.
-      if (has_rename_pids && ps_data_source)
-        ps_data_source->OnRenamePids(metadata->rename_pids);
-      if (has_pids && ps_data_source)
-        ps_data_source->OnPids(metadata->pids);
-      if (metadata)
-        metadata->Clear();
-      metadata = nullptr;
-      inode_data_source = nullptr;
-      ps_data_source = nullptr;
-      if (it == session_data_sources_.end())
-        break;
-      last_session_id = it->first;
-    }
-    ProbesDataSource* ds = it->second;
-    if (!ds->started)
-      continue;
-
-    if (ds->descriptor == &FtraceDataSource::descriptor) {
-      metadata = static_cast<FtraceDataSource*>(ds)->mutable_metadata();
-    } else if (ds->descriptor == &InodeFileDataSource::descriptor) {
-      inode_data_source = static_cast<InodeFileDataSource*>(ds);
-    } else if (ds->descriptor == &ProcessStatsDataSource::descriptor) {
-      // A trace session might have declared more than one ps data source.
-      // In those cases we often use one for a full dump on startup (
-      // targeting a dedicated buffer) and another one for on-demand dumps
-      // targeting the main buffer.
-      // Only use the one that has on-demand dumps enabled, if any.
-      auto ps = static_cast<ProcessStatsDataSource*>(ds);
-      if (ps->on_demand_dumps_enabled())
-        ps_data_source = ps;
-    }
-  }  // for (session_data_sources_)
+    auto ino_range = ds_by_type.equal_range(&InodeFileDataSource::descriptor);
+    auto ps_range = ds_by_type.equal_range(&ProcessStatsDataSource::descriptor);
+    for (auto ft_it = ft_range.first; ft_it != ft_range.second; ft_it++) {
+      auto* ftrace_ds = static_cast<FtraceDataSource*>(ft_it->second);
+      if (!ftrace_ds->started)
+        continue;
+      auto* metadata = ftrace_ds->mutable_metadata();
+      for (auto ps_it = ps_range.first; ps_it != ps_range.second; ps_it++) {
+        auto* ps_ds = static_cast<ProcessStatsDataSource*>(ps_it->second);
+        if (!ps_ds->started || !ps_ds->on_demand_dumps_enabled())
+          continue;
+        // Ordering the rename pids before the seen pids is important so that
+        // any renamed processes get scraped in the OnPids call.
+        if (!metadata->rename_pids.empty())
+          ps_ds->OnRenamePids(metadata->rename_pids);
+        if (!metadata->pids.empty())
+          ps_ds->OnPids(metadata->pids);
+      }
+      for (auto in_it = ino_range.first; in_it != ino_range.second; in_it++) {
+        auto* inode_ds = static_cast<InodeFileDataSource*>(in_it->second);
+        if (!inode_ds->started)
+          continue;
+        inode_ds->OnInodes(metadata->inode_and_device);
+      }
+      metadata->Clear();
+    }  // for (FtraceDataSource)
+  }    // for (tracing_session)
 }
 
 void ProbesProducer::ConnectWithRetries(const char* socket_name,
