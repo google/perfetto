@@ -125,7 +125,7 @@
       "-kind",
       "mac",
       "-xcode-version",
-      "12d4e",
+      "13c5066c",
       "-output-dir",
       "[CACHE]/macos_sdk/XCode.app"
     ],
@@ -677,7 +677,7 @@
       "-kind",
       "mac",
       "-xcode-version",
-      "12d4e",
+      "13c5066c",
       "-output-dir",
       "[CACHE]/macos_sdk/XCode.app"
     ],
