@@ -106,9 +106,9 @@ class Subprocess {
                       // This includes crashes or other signals on UNIX.
   };
 
-  enum OutputMode {
+  enum class OutputMode {
     kInherit = 0,  // Inherit's the caller process stdout/stderr.
-    kDevNull,      // dup() onto /dev/null
+    kDevNull,      // dup() onto /dev/null.
     kBuffer,       // dup() onto a pipe and move it into the output() buffer.
     kFd,           // dup() onto the passed args.fd.
   };
@@ -152,8 +152,8 @@ class Subprocess {
     // The data to push in the child process stdin.
     std::string input;
 
-    OutputMode stdout_mode = kInherit;
-    OutputMode stderr_mode = kInherit;
+    OutputMode stdout_mode = OutputMode::kInherit;
+    OutputMode stderr_mode = OutputMode::kInherit;
 
     base::ScopedPlatformHandle out_fd;
 
@@ -213,7 +213,7 @@ class Subprocess {
   bool timed_out() const { return s_->timed_out; }
 
   // This contains both stdout and stderr (if the corresponding _mode ==
-  // kBuffer). It's non-const so the caller can std::move() it.
+  // OutputMode::kBuffer). It's non-const so the caller can std::move() it.
   std::string& output() { return s_->output; }
   const std::string& output() const { return s_->output; }
 
@@ -236,7 +236,7 @@ class Subprocess {
     PlatformProcessId pid;
     Status status = kNotStarted;
     int returncode = -1;
-    std::string output;  // Stdin+stderr. Only when kBuffer.
+    std::string output;  // Stdin+stderr. Only when OutputMode::kBuffer.
     std::unique_ptr<ResourceUsage> rusage{new ResourceUsage()};
     bool timed_out = false;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)

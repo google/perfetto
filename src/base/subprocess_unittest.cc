@@ -74,8 +74,8 @@ TEST(SubprocessTest, StdoutOnly) {
 #else
   Subprocess p({"sh", "-c", "(echo skip_err >&2); echo out_only"});
 #endif
-  p.args.stdout_mode = Subprocess::kBuffer;
-  p.args.stderr_mode = Subprocess::kDevNull;
+  p.args.stdout_mode = Subprocess::OutputMode::kBuffer;
+  p.args.stderr_mode = Subprocess::OutputMode::kDevNull;
 
   EXPECT_TRUE(p.Call());
   EXPECT_EQ(p.status(), Subprocess::kTerminated);
@@ -88,8 +88,8 @@ TEST(SubprocessTest, StderrOnly) {
 #else
   Subprocess p({"sh", "-c", "(echo err_only >&2); echo skip_out"});
 #endif
-  p.args.stdout_mode = Subprocess::kDevNull;
-  p.args.stderr_mode = Subprocess::kBuffer;
+  p.args.stdout_mode = Subprocess::OutputMode::kDevNull;
+  p.args.stderr_mode = Subprocess::OutputMode::kBuffer;
   EXPECT_TRUE(p.Call());
   EXPECT_EQ(GetOutput(p), "err_only\n");
 }
@@ -100,8 +100,8 @@ TEST(SubprocessTest, BothStdoutAndStderr) {
 #else
   Subprocess p({"sh", "-c", "echo out; (echo err >&2); echo out2"});
 #endif
-  p.args.stdout_mode = Subprocess::kBuffer;
-  p.args.stderr_mode = Subprocess::kBuffer;
+  p.args.stdout_mode = Subprocess::OutputMode::kBuffer;
+  p.args.stderr_mode = Subprocess::OutputMode::kBuffer;
   EXPECT_TRUE(p.Call());
   EXPECT_EQ(GetOutput(p), "out\nerr\nout2\n");
 }
@@ -134,7 +134,7 @@ TEST(SubprocessTest, Echo) {
 #else
   Subprocess p({"echo", "-n", "foobar"});
 #endif
-  p.args.stdout_mode = Subprocess::kBuffer;
+  p.args.stdout_mode = Subprocess::OutputMode::kBuffer;
   EXPECT_TRUE(p.Call());
   EXPECT_EQ(p.status(), Subprocess::kTerminated);
   EXPECT_EQ(p.returncode(), 0);
@@ -148,7 +148,7 @@ TEST(SubprocessTest, FeedbackLongInput) {
 #else
   Subprocess p({"cat", "-"});
 #endif
-  p.args.stdout_mode = Subprocess::kBuffer;
+  p.args.stdout_mode = Subprocess::OutputMode::kBuffer;
   p.args.input = contents;
   EXPECT_TRUE(p.Call());
   EXPECT_EQ(p.status(), Subprocess::kTerminated);
@@ -166,7 +166,7 @@ TEST(SubprocessTest, CatLargeFile) {
 #else
   Subprocess p({"cat", tf.path().c_str()});
 #endif
-  p.args.stdout_mode = Subprocess::kBuffer;
+  p.args.stdout_mode = Subprocess::OutputMode::kBuffer;
   EXPECT_TRUE(p.Call());
   EXPECT_EQ(GetOutput(p), contents);
 }
@@ -201,7 +201,7 @@ TEST(SubprocessTest, TimeoutStopOutput) {
 #else
   Subprocess p({"sh", "-c", "while true; do echo stuff; done"});
 #endif
-  p.args.stdout_mode = Subprocess::kDevNull;
+  p.args.stdout_mode = Subprocess::OutputMode::kDevNull;
   EXPECT_FALSE(p.Call(/*timeout_ms=*/10));
   EXPECT_EQ(p.status(), Subprocess::kTerminated);
   EXPECT_TRUE(p.timed_out());
@@ -214,8 +214,8 @@ TEST(SubprocessTest, ExitBeforeReadingStdin) {
   // 'sh -c' is to avoid closing stdin (sleep closes it before sleeping).
   Subprocess p({"sh", "-c", "sleep 0.01"});
 #endif
-  p.args.stdout_mode = Subprocess::kDevNull;
-  p.args.stderr_mode = Subprocess::kDevNull;
+  p.args.stdout_mode = Subprocess::OutputMode::kDevNull;
+  p.args.stderr_mode = Subprocess::OutputMode::kDevNull;
   p.args.input = GenLargeString();
   EXPECT_TRUE(p.Call());
   EXPECT_EQ(p.status(), Subprocess::kTerminated);
@@ -232,8 +232,8 @@ TEST(SubprocessTest, StdinWriteStall) {
   // still handle the timeout properly.
   Subprocess p({"sh", "-c", "sleep 10"});
 #endif
-  p.args.stdout_mode = Subprocess::kDevNull;
-  p.args.stderr_mode = Subprocess::kDevNull;
+  p.args.stdout_mode = Subprocess::OutputMode::kDevNull;
+  p.args.stderr_mode = Subprocess::OutputMode::kDevNull;
   p.args.input = GenLargeString();
   EXPECT_FALSE(p.Call(/*timeout_ms=*/10));
   EXPECT_EQ(p.status(), Subprocess::kTerminated);
@@ -246,7 +246,7 @@ TEST(SubprocessTest, StartAndWait) {
 #else
   Subprocess p({"sleep", "1000"});
 #endif
-  p.args.stdout_mode = Subprocess::kDevNull;
+  p.args.stdout_mode = Subprocess::OutputMode::kDevNull;
   p.Start();
   EXPECT_EQ(p.Poll(), Subprocess::kRunning);
   p.KillAndWaitForTermination();
@@ -267,7 +267,7 @@ TEST(SubprocessTest, PollBehavesProperly) {
 #else
   Subprocess p({"true"});
 #endif
-  p.args.stdout_mode = Subprocess::kFd;
+  p.args.stdout_mode = Subprocess::OutputMode::kFd;
   p.args.out_fd = std::move(pipe.wr);
   p.Start();
 
@@ -296,7 +296,7 @@ TEST(SubprocessTest, Wait) {
 #else
   Subprocess p({"sh", "-c", "echo exec_done; while true; do true; done"});
 #endif
-  p.args.stdout_mode = Subprocess::kBuffer;
+  p.args.stdout_mode = Subprocess::OutputMode::kBuffer;
   p.Start();
 
   // Wait for the fork()+exec() to complete.
@@ -365,7 +365,7 @@ TEST(SubprocessTest, MoveOperators) {
 #else
     Subprocess initial = Subprocess({"sleep", "10000"});
 #endif
-    initial.args.stdout_mode = Subprocess::kDevNull;
+    initial.args.stdout_mode = Subprocess::OutputMode::kDevNull;
     initial.Start();
     Subprocess moved(std::move(initial));
     EXPECT_EQ(moved.Poll(), Subprocess::kRunning);
@@ -379,7 +379,7 @@ TEST(SubprocessTest, MoveOperators) {
 #endif
     initial.args.stdout_mode = Subprocess::OutputMode::kBuffer;
     initial.Start();
-    initial.Wait(/*timeout=*/5000);
+    initial.Wait(/*timeout_ms=*/5000);
     EXPECT_EQ(initial.status(), Subprocess::kTerminated);
     EXPECT_EQ(initial.returncode(), 0);
     EXPECT_EQ(initial.output(), "hello");
@@ -406,7 +406,7 @@ TEST(SubprocessTest, MoveOperators) {
 TEST(SubprocessTest, Entrypoint) {
   Subprocess p;
   p.args.input = "ping\n";
-  p.args.stdout_mode = Subprocess::kBuffer;
+  p.args.stdout_mode = Subprocess::OutputMode::kBuffer;
   p.args.posix_entrypoint_for_testing = [] {
     char buf[32]{};
     PERFETTO_CHECK(fgets(buf, sizeof(buf), stdin));
@@ -428,7 +428,7 @@ TEST(SubprocessTest, EntrypointAndExec) {
   int pipe2_wr = *pipe2.wr;
 
   Subprocess p({"echo", "123"});
-  p.args.stdout_mode = Subprocess::kBuffer;
+  p.args.stdout_mode = Subprocess::OutputMode::kBuffer;
   p.args.preserve_fds.push_back(pipe2_wr);
   p.args.posix_entrypoint_for_testing = [pipe1_wr, pipe2_wr] {
     base::ignore_result(write(pipe1_wr, "fail", 4));

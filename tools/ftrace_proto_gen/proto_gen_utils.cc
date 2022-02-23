@@ -38,8 +38,8 @@ std::string RunClangFmt(const std::string& input) {
   const std::string platform = "linux64";
 #endif
   base::Subprocess clang_fmt({"buildtools/" + platform + "/clang-format"});
-  clang_fmt.args.stdout_mode = base::Subprocess::kBuffer;
-  clang_fmt.args.stderr_mode = base::Subprocess::kInherit;
+  clang_fmt.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  clang_fmt.args.stderr_mode = base::Subprocess::OutputMode::kInherit;
   clang_fmt.args.input = input;
   PERFETTO_CHECK(clang_fmt.Call());
   return std::move(clang_fmt.output());

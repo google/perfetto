@@ -105,36 +105,36 @@ void __attribute__((noreturn)) ChildProcess(ChildProcessArgs* args) {
   close(args->stdin_pipe_rd);
 
   switch (args->create_args->stdout_mode) {
-    case Subprocess::kInherit:
+    case Subprocess::OutputMode::kInherit:
       break;
-    case Subprocess::kDevNull: {
+    case Subprocess::OutputMode::kDevNull: {
       if (dup2(open("/dev/null", O_RDWR), STDOUT_FILENO) == -1)
         die("Failed to dup2(STDOUT)");
       break;
     }
-    case Subprocess::kBuffer:
+    case Subprocess::OutputMode::kBuffer:
       if (dup2(args->stdouterr_pipe_wr, STDOUT_FILENO) == -1)
         die("Failed to dup2(STDOUT)");
       break;
-    case Subprocess::kFd:
+    case Subprocess::OutputMode::kFd:
       if (dup2(*args->create_args->out_fd, STDOUT_FILENO) == -1)
         die("Failed to dup2(STDOUT)");
       break;
   }
 
   switch (args->create_args->stderr_mode) {
-    case Subprocess::kInherit:
+    case Subprocess::OutputMode::kInherit:
       break;
-    case Subprocess::kDevNull: {
+    case Subprocess::OutputMode::kDevNull: {
       if (dup2(open("/dev/null", O_RDWR), STDERR_FILENO) == -1)
         die("Failed to dup2(STDERR)");
       break;
     }
-    case Subprocess::kBuffer:
+    case Subprocess::OutputMode::kBuffer:
       if (dup2(args->stdouterr_pipe_wr, STDERR_FILENO) == -1)
         die("Failed to dup2(STDERR)");
       break;
-    case Subprocess::kFd:
+    case Subprocess::OutputMode::kFd:
       if (dup2(*args->create_args->out_fd, STDERR_FILENO) == -1)
         die("Failed to dup2(STDERR)");
       break;
