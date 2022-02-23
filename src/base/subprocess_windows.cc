@@ -61,10 +61,12 @@ void Subprocess::Start() {
   if (!cmd.empty())
     cmd.resize(cmd.size() - 1);
 
-  s_->stdin_pipe = Pipe::Create();
-  // Allow the child process to inherit the other end of the pipe.
-  PERFETTO_CHECK(
-      ::SetHandleInformation(*s_->stdin_pipe.rd, HANDLE_FLAG_INHERIT, 1));
+  if (args.stdin_mode == InputMode::kBuffer) {
+    s_->stdin_pipe = Pipe::Create();
+    // Allow the child process to inherit the other end of the pipe.
+    PERFETTO_CHECK(
+        ::SetHandleInformation(*s_->stdin_pipe.rd, HANDLE_FLAG_INHERIT, 1));
+  }
 
   if (args.stderr_mode == OutputMode::kBuffer ||
       args.stdout_mode == OutputMode::kBuffer) {
@@ -76,9 +78,9 @@ void Subprocess::Start() {
   ScopedPlatformHandle nul_handle;
   if (args.stderr_mode == OutputMode::kDevNull ||
       args.stdout_mode == OutputMode::kDevNull) {
-    nul_handle.reset(::CreateFileA("NUL", GENERIC_WRITE, FILE_SHARE_WRITE,
-                                   nullptr, OPEN_EXISTING,
-                                   FILE_ATTRIBUTE_NORMAL, nullptr));
+    nul_handle.reset(::CreateFileA(
+        "NUL", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
     PERFETTO_CHECK(::SetHandleInformation(*nul_handle, HANDLE_FLAG_INHERIT, 1));
   }
 
@@ -114,7 +116,12 @@ void Subprocess::Start() {
     PERFETTO_CHECK(false);
   }
 
-  start_info.hStdInput = *s_->stdin_pipe.rd;
+  if (args.stdin_mode == InputMode::kBuffer) {
+    start_info.hStdInput = *s_->stdin_pipe.rd;
+  } else if (args.stdin_mode == InputMode::kDevNull) {
+    start_info.hStdInput = *nul_handle;
+  }
+
   start_info.dwFlags |= STARTF_USESTDHANDLES;
 
   // Create the child process.
@@ -151,7 +158,9 @@ void Subprocess::Start() {
   s_->status = kRunning;
 
   MovableState* s = s_.get();
-  s_->stdin_thread = std::thread(&Subprocess::StdinThread, s, args.input);
+  if (args.stdin_mode == InputMode::kBuffer) {
+    s_->stdin_thread = std::thread(&Subprocess::StdinThread, s, args.input);
+  }
 
   if (args.stderr_mode == OutputMode::kBuffer ||
       args.stdout_mode == OutputMode::kBuffer) {

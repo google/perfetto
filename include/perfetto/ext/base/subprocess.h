@@ -113,6 +113,11 @@ class Subprocess {
     kFd,           // dup() onto the passed args.fd.
   };
 
+  enum class InputMode {
+    kBuffer = 0,  // dup() onto a pipe and write args.input on it.
+    kDevNull,     // dup() onto /dev/null.
+  };
+
   // Input arguments for configuring the subprocess behavior.
   struct Args {
     Args(std::initializer_list<std::string> _cmd = {}) : exec_cmd(_cmd) {}
@@ -149,9 +154,11 @@ class Subprocess {
     // The file descriptors in this list will not be closed.
     std::vector<int> preserve_fds;
 
-    // The data to push in the child process stdin.
+    // The data to push in the child process stdin, if input_mode ==
+    // InputMode::kBuffer.
     std::string input;
 
+    InputMode stdin_mode = InputMode::kBuffer;
     OutputMode stdout_mode = OutputMode::kInherit;
     OutputMode stderr_mode = OutputMode::kInherit;
 

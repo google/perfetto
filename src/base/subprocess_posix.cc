@@ -100,9 +100,17 @@ void __attribute__((noreturn)) ChildProcess(ChildProcessArgs* args) {
   if (getppid() == 1)
     die("terminating because parent process died");
 
-  if (dup2(args->stdin_pipe_rd, STDIN_FILENO) == -1)
-    die("Failed to dup2(STDIN)");
-  close(args->stdin_pipe_rd);
+  switch (args->create_args->stdin_mode) {
+    case Subprocess::InputMode::kBuffer:
+      if (dup2(args->stdin_pipe_rd, STDIN_FILENO) == -1)
+        die("Failed to dup2(STDIN)");
+      close(args->stdin_pipe_rd);
+      break;
+    case Subprocess::InputMode::kDevNull:
+      if (dup2(open("/dev/null", O_RDONLY), STDIN_FILENO) == -1)
+        die("Failed to dup2(STDOUT)");
+      break;
+  }
 
   switch (args->create_args->stdout_mode) {
     case Subprocess::OutputMode::kInherit:
@@ -220,8 +228,10 @@ void Subprocess::Start() {
   }
 
   // Setup the pipes for stdin/err redirection.
-  s_->stdin_pipe = base::Pipe::Create(base::Pipe::kWrNonBlock);
-  proc_args.stdin_pipe_rd = *s_->stdin_pipe.rd;
+  if (args.stdin_mode == InputMode::kBuffer) {
+    s_->stdin_pipe = base::Pipe::Create(base::Pipe::kWrNonBlock);
+    proc_args.stdin_pipe_rd = *s_->stdin_pipe.rd;
+  }
   s_->stdouterr_pipe = base::Pipe::Create(base::Pipe::kRdNonBlock);
   proc_args.stdouterr_pipe_wr = *s_->stdouterr_pipe.wr;
 
