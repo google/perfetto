@@ -25,6 +25,7 @@
 
 from __future__ import print_function
 import argparse
+import itertools
 import json
 import os
 import re
@@ -76,20 +77,24 @@ default_targets = [
 
 # Root proto targets (to force discovery of intermediate proto targets).
 # These targets are marked public.
+# TODO(lalitm): remove these in a followup.
 proto_targets = [
-    '//protos/perfetto/trace:merged_trace_source_set',
-    '//protos/perfetto/trace:non_minimal_lite',
-    '//protos/perfetto/trace:non_minimal_source_set',
-    '//protos/perfetto/config:merged_config_source_set',
     '//protos/perfetto/metrics:lite',
     '//protos/perfetto/metrics:source_set',
-    '//protos/perfetto/metrics/android:lite',
-    '//protos/perfetto/metrics/android:source_set',
-    '//protos/perfetto/trace:source_set',
-    '//protos/perfetto/config:source_set',
     '//protos/third_party/chromium:lite',
     '//protos/third_party/chromium:source_set',
 ]
+
+# Proto target groups which will be made public.
+proto_groups = {
+  'config': [
+    '//protos/perfetto/config:source_set'
+  ],
+  'trace': [
+    '//protos/perfetto/trace:non_minimal_source_set',
+    '//protos/perfetto/trace:minimal_source_set'
+  ],
+}
 
 # Path for the protobuf sources in the standalone build.
 buildtools_protobuf_src = '//buildtools/protobuf/src'
@@ -257,15 +262,17 @@ def get_bazel_label_name(gn_name):
   return gn_utils.label_to_target_name_with_path(gn_name)
 
 
+def get_bazel_proto_sources_label(target_name):
+  """Converts a GN target name into a Bazel proto label name."""
+  return re.sub('_(lite|zero|cpp|ipc|source_set|descriptor)$', '',
+                get_bazel_label_name(target_name)) + '_protos'
+
+
 def gen_proto_label(target):
   """ Generates the xx_proto_library label for proto targets."""
   assert (target.type == 'proto_library')
 
-  def get_sources_label(target_name):
-    return re.sub('_(lite|zero|cpp|ipc|source_set|descriptor)$', '',
-                  get_bazel_label_name(target_name)) + '_protos'
-
-  sources_label_name = get_sources_label(target.name)
+  sources_label_name = get_bazel_proto_sources_label(target.name)
 
   # For 'source_set' plugins, we don't want to generate any plugin-dependent
   # targets so just return the label of the proto sources only.
@@ -276,7 +283,7 @@ def gen_proto_label(target):
     assert (all(x.endswith('.proto') for x in target.sources))
     sources_label.srcs = sorted([x[2:] for x in target.sources])  # Strip //.
     sources_label.deps = sorted(
-        [':' + get_sources_label(x) for x in target.proto_deps])
+        [':' + get_bazel_proto_sources_label(x) for x in target.proto_deps])
 
     # In Bazel, proto_paths are not a supported concept becauase strong
     # dependency checking is enabled. Instead, we need to depend on the target
@@ -295,7 +302,7 @@ def gen_proto_label(target):
       sources_label.visibility = ['PERFETTO_CONFIG.proto_library_visibility']
 
     sources_label.exports = sorted([
-      ':' + get_sources_label(d) for d in target.proto_exports
+      ':' + get_bazel_proto_sources_label(d) for d in target.proto_exports
     ])
     return sources_label
 
@@ -332,7 +339,7 @@ def gen_proto_label(target):
   # implicit.
   if target.proto_plugin == 'descriptor':
     plugin_label.deps += [
-      ':' + get_sources_label(x) for x in target.proto_deps
+      ':' + get_bazel_proto_sources_label(x) for x in target.proto_deps
     ]
   else:
     plugin_label.deps += [':' + sources_label_name]
@@ -343,6 +350,45 @@ def gen_proto_label(target):
     plugin_label.outs = [plugin_label_name + '.bin']
 
   return plugin_label
+
+
+def gen_proto_group_target(name, targets):
+  names = ', '.join((t.name for t in targets))
+  comment = f'[{names}]'
+
+  # First, create a root source set target which references all the child
+  # source set targets. We publish this as well as depending on this in all
+  # subsequent targets.
+  sources_label = BazelLabel(name + '_proto', 'perfetto_proto_library')
+  sources_label.deps = [
+    ':' + get_bazel_proto_sources_label(target.name)
+    for target in targets
+  ]
+  sources_label.visibility = PUBLIC_VISIBILITY
+  sources_label.comment = comment
+
+  # Next we create a cc proto target depending on the source set target.
+  cc_label = BazelLabel(name + '_cc_proto', 'perfetto_cc_proto_library')
+  cc_label.deps = [':' + sources_label.name]
+  cc_label.visibility = PUBLIC_VISIBILITY
+  sources_label.comment = comment
+
+  # Next we create a java proto target depending on the source set
+  # target.
+  java_label = BazelLabel(name + '_java_proto', 'perfetto_java_proto_library')
+  java_label.deps = [':' + sources_label.name]
+  java_label.visibility = PUBLIC_VISIBILITY
+  sources_label.comment = comment
+
+  # Finally we create a java lite proto target depending on the source
+  # set target.
+  lite_name = name + '_java_proto_lite'
+  java_lite_label = BazelLabel(lite_name, 'perfetto_java_proto_library')
+  java_lite_label.deps = [':' + sources_label.name]
+  java_lite_label.visibility = PUBLIC_VISIBILITY
+  sources_label.comment = comment
+
+  return [sources_label, cc_label, java_label, java_lite_label]
 
 
 def gen_target(gn_target):
@@ -511,6 +557,11 @@ exports_files(["NOTICE"])
 # ##############################################################################
 
 '''.lstrip()
+  # Generate targets for proto groups.
+  for label_name, target_names in proto_groups.items():
+    targets = [gn.get_target(name) for name in target_names]
+    res += ''.join(str(x) for x in gen_proto_group_target(label_name, targets))
+
   # Force discovery of explicilty listed root proto targets.
   for target_name in sorted(proto_targets):
     gn.get_target(target_name)
