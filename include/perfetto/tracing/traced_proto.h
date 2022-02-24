@@ -50,11 +50,15 @@ class EventContext;
 template <typename MessageType>
 class TracedProto {
  public:
+  // implicit
+  TracedProto(TracedValue&& value)
+      : TracedProto(std::move(value).WriteProto<MessageType>()) {}
+  ~TracedProto() = default;
+
   TracedProto(const TracedProto&) = delete;
   TracedProto& operator=(const TracedProto&) = delete;
   TracedProto& operator=(TracedProto&&) = delete;
   TracedProto(TracedProto&&) = default;
-  ~TracedProto() = default;
 
   MessageType* operator->() const { return message_; }
 
@@ -91,10 +95,9 @@ class TracedProto {
     static_assert(std::is_base_of<MessageType,
                                   typename FieldMetadata::message_type>::value,
                   "Field should belong to the current message");
-    return TracedProto<typename FieldMetadata::cpp_field_type>(
+    return Wrap(
         message_->template BeginNestedMessage<
-            typename FieldMetadata::cpp_field_type>(FieldMetadata::kFieldId),
-        context_);
+            typename FieldMetadata::cpp_field_type>(FieldMetadata::kFieldId));
   }
 
   template <typename FieldMetadata>
@@ -105,6 +108,7 @@ class TracedProto {
 
  private:
   friend class EventContext;
+  friend class TracedValue;
   // Allow TracedProto<Foo> to create TracedProto<Bar>.
   template <typename T>
   friend class TracedProto;
@@ -112,7 +116,7 @@ class TracedProto {
   // Wraps a raw protozero message using the same context as the current object.
   template <typename ChildMessageType>
   TracedProto<ChildMessageType> Wrap(ChildMessageType* message) {
-    return TracedProto(message, context_);
+    return TracedProto<ChildMessageType>(message, context_);
   }
 
   // Context might be null here when writing typed message which is
