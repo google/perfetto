@@ -32,6 +32,7 @@ namespace perfetto {
 const ProbesDataSource::Descriptor MetatraceDataSource::descriptor = {
     /*name*/ MetatraceWriter::kDataSourceName,
     /*flags*/ Descriptor::kFlagsNone,
+    /*fill_descriptor_func*/ nullptr,
 };
 
 MetatraceDataSource::MetatraceDataSource(base::TaskRunner* task_runner,
