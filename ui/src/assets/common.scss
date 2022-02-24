@@ -205,10 +205,6 @@ button.close {
   width: 100%;
 }
 
-.x-scrollable {
-  overflow-x: auto;
-}
-
 .query-table {
     width: 100%;
     font-size: 14px;
@@ -479,6 +475,10 @@ canvas.main-canvas {
 
 .notes-panel {
   height: 20px;
+}
+
+.x-scrollable {
+  overflow-x: auto;
 }
 
 header.overview {
