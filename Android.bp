@@ -2934,21 +2934,6 @@ genrule {
     ],
 }
 
-// GN: //protos/perfetto/config:merged_config_descriptor
-genrule {
-    name: "perfetto_protos_perfetto_config_merged_config_descriptor",
-    srcs: [
-        "protos/perfetto/config/perfetto_config.proto",
-    ],
-    tools: [
-        "aprotoc",
-    ],
-    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
-    out: [
-        "perfetto_protos_perfetto_config_merged_config_descriptor.bin",
-    ],
-}
-
 // GN: //protos/perfetto/config/power:cpp
 genrule {
     name: "perfetto_protos_perfetto_config_power_cpp_gen",
@@ -7235,11 +7220,11 @@ filegroup {
 genrule {
     name: "perfetto_src_perfetto_cmd_gen_cc_config_descriptor",
     srcs: [
-        ":perfetto_protos_perfetto_config_merged_config_descriptor",
+        ":perfetto_protos_perfetto_config_descriptor",
     ],
     cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
     out: [
-        "src/perfetto_cmd/perfetto_config.descriptor.h",
+        "src/perfetto_cmd/config.descriptor.h",
     ],
     tool_files: [
         "tools/gen_cc_proto_descriptor.py",

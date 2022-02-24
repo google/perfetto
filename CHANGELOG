@@ -1,6 +1,7 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Removed merged trace and config protos from Bazel. Embedder should
+      instead depend on the non-merged proto targets.
   Trace Processor:
     *
   UI:
