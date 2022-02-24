@@ -20,6 +20,7 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
+#include "protos/perfetto/trace/test_event.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/source_location.pbzero.h"
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
@@ -235,6 +236,33 @@ TEST_F(DebugAnnotationParserTest, NestedArrays) {
   EXPECT_THAT(args(),
               testing::ElementsAre("root root[0][0] 1", "root root[0][1] 2",
                                    "root root[1][0] 3", "root root[1][1] 4"));
+}
+
+TEST_F(DebugAnnotationParserTest, TypedMessageInsideUntyped) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> msg;
+  msg->set_name("root");
+
+  protozero::HeapBuffered<protozero::test::protos::pbzero::EveryField> message;
+  message->set_field_string("value");
+
+  msg->set_proto_type_name(message->GetName());
+  msg->set_proto_value(message.SerializeAsString());
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  EXPECT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  ProtoToArgsParser args_parser(pool);
+  DebugAnnotationParser parser(args_parser);
+
+  status = ParseDebugAnnotation(parser, msg, *this);
+  EXPECT_TRUE(status.ok()) << "DebugAnnotationParser::Parse failed with error: "
+                           << status.message();
+
+  EXPECT_THAT(args(), testing::ElementsAre(
+                          "root.field_string root.field_string value"));
 }
 
 }  // namespace

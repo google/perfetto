@@ -22,6 +22,8 @@ namespace perfetto {
 class TracedValue;
 class TracedArray;
 class TracedDictionary;
+template <typename MessageType>
+class TracedProto;
 
 template <typename T>
 void WriteIntoTracedValue(TracedValue context, T&& value);
