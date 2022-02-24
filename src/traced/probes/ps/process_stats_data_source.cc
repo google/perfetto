@@ -84,6 +84,7 @@ inline uint32_t ToU32(const char* str) {
 const ProbesDataSource::Descriptor ProcessStatsDataSource::descriptor = {
     /*name*/ "linux.process_stats",
     /*flags*/ Descriptor::kHandlesIncrementalState,
+    /*fill_descriptor_func*/ nullptr,
 };
 
 ProcessStatsDataSource::ProcessStatsDataSource(

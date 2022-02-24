@@ -70,6 +70,7 @@ uint32_t ClampTo10Ms(uint32_t period_ms, const char* counter_name) {
 const ProbesDataSource::Descriptor SysStatsDataSource::descriptor = {
     /*name*/ "linux.sys_stats",
     /*flags*/ Descriptor::kFlagsNone,
+    /*fill_descriptor_func*/ nullptr,
 };
 
 SysStatsDataSource::SysStatsDataSource(

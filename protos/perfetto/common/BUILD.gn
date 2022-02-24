@@ -25,6 +25,7 @@ perfetto_proto_library("@TYPE@") {
     "commit_data_request.proto",
     "data_source_descriptor.proto",
     "descriptor.proto",
+    "ftrace_descriptor.proto",
     "gpu_counter_descriptor.proto",
     "interceptor_descriptor.proto",
     "observable_events.proto",

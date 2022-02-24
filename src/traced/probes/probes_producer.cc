@@ -32,6 +32,7 @@
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/android_stats/statsd_logging_helper.h"
 #include "src/traced/probes/android_log/android_log_data_source.h"
@@ -113,15 +114,28 @@ void ProbesProducer::OnConnect() {
   ResetConnectionBackoff();
   PERFETTO_LOG("Connected to the service");
 
-  // Register all the data sources.
-  for (const FtraceDataSource::Descriptor* desc : kAllDataSources) {
-    DataSourceDescriptor proto_desc;
+  std::array<DataSourceDescriptor, base::ArraySize(kAllDataSources)>
+      proto_descs;
+  // Generate all data source descriptors.
+  for (size_t i = 0; i < proto_descs.size(); i++) {
+    DataSourceDescriptor& proto_desc = proto_descs[i];
+    const ProbesDataSource::Descriptor* desc = kAllDataSources[i];
+
     proto_desc.set_name(desc->name);
     proto_desc.set_will_notify_on_start(true);
     proto_desc.set_will_notify_on_stop(true);
     using Flags = ProbesDataSource::Descriptor::Flags;
     if (desc->flags & Flags::kHandlesIncrementalState)
       proto_desc.set_handles_incremental_state_clear(true);
+    if (desc->fill_descriptor_func) {
+      desc->fill_descriptor_func(&proto_desc);
+    }
+  }
+
+  // Register all the data sources. Separate from the above loop because, if
+  // generating a data source descriptor takes too long, we don't want to be in
+  // a state where only some data sources are registered.
+  for (const DataSourceDescriptor& proto_desc : proto_descs) {
     endpoint_->RegisterDataSource(proto_desc);
   }
 
