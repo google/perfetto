@@ -141,8 +141,17 @@ class ProbesProducer : public Producer, public FtraceController::Observer {
   std::unordered_map<DataSourceInstanceID, std::unique_ptr<ProbesDataSource>>
       data_sources_;
 
-  // Keeps (pointers to) data sources ordered by session id.
-  std::unordered_multimap<TracingSessionID, ProbesDataSource*>
+  // Keeps (pointers to) data sources grouped by session id and data source
+  // type. The pointers do not own the data sources (they're owned by
+  // data_sources_).
+  //
+  // const ProbesDataSource::Descriptor* identifies the type.
+  //
+  // Used by OnFtraceDataWrittenIntoDataSourceBuffers().
+  std::unordered_map<
+      TracingSessionID,
+      std::unordered_multimap<const ProbesDataSource::Descriptor*,
+                              ProbesDataSource*>>
       session_data_sources_;
 
   std::unordered_multimap<FlushRequestID, DataSourceInstanceID>
