@@ -33,7 +33,7 @@
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "src/perfetto_cmd/perfetto_config.descriptor.h"
+#include "src/perfetto_cmd/config.descriptor.h"
 
 #include "protos/perfetto/common/descriptor.gen.h"
 
@@ -707,8 +707,7 @@ std::vector<uint8_t> PbtxtToPb(const std::string& input,
 
   {
     file_descriptor_set.ParseFromArray(
-        kPerfettoConfigDescriptor.data(),
-        static_cast<int>(kPerfettoConfigDescriptor.size()));
+        kConfigDescriptor.data(), static_cast<int>(kConfigDescriptor.size()));
     for (const auto& file_descriptor : file_descriptor_set.file()) {
       for (const auto& enum_descriptor : file_descriptor.enum_type()) {
         const std::string name =
