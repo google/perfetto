@@ -350,8 +350,8 @@ class Exec {
   Exec(const std::string& argv0,
        std::initializer_list<std::string> args,
        std::string input = "") {
-    subprocess_.args.stderr_mode = base::Subprocess::kBuffer;
-    subprocess_.args.stdout_mode = base::Subprocess::kDevNull;
+    subprocess_.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+    subprocess_.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
     subprocess_.args.input = input;
 
 #if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)

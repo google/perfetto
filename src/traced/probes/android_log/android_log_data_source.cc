@@ -89,6 +89,7 @@ inline bool ReadAndAdvance(const char** ptr, const char* end, T* out) {
 const ProbesDataSource::Descriptor AndroidLogDataSource::descriptor = {
     /*name*/ "android.log",
     /*flags*/ Descriptor::kFlagsNone,
+    /*fill_descriptor_func*/ nullptr,
 };
 
 AndroidLogDataSource::AndroidLogDataSource(DataSourceConfig ds_config,
