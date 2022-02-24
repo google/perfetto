@@ -83,6 +83,7 @@ class StaticMapDelegate : public FileScanner::Delegate {
 const ProbesDataSource::Descriptor InodeFileDataSource::descriptor = {
     /*name*/ "linux.inode_file_map",
     /*flags*/ Descriptor::kFlagsNone,
+    /*fill_descriptor_func*/ nullptr,
 };
 
 void CreateStaticDeviceToInodeMap(

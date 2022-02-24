@@ -61,22 +61,26 @@ void Subprocess::Start() {
   if (!cmd.empty())
     cmd.resize(cmd.size() - 1);
 
-  s_->stdin_pipe = Pipe::Create();
-  // Allow the child process to inherit the other end of the pipe.
-  PERFETTO_CHECK(
-      ::SetHandleInformation(*s_->stdin_pipe.rd, HANDLE_FLAG_INHERIT, 1));
+  if (args.stdin_mode == InputMode::kBuffer) {
+    s_->stdin_pipe = Pipe::Create();
+    // Allow the child process to inherit the other end of the pipe.
+    PERFETTO_CHECK(
+        ::SetHandleInformation(*s_->stdin_pipe.rd, HANDLE_FLAG_INHERIT, 1));
+  }
 
-  if (args.stderr_mode == kBuffer || args.stdout_mode == kBuffer) {
+  if (args.stderr_mode == OutputMode::kBuffer ||
+      args.stdout_mode == OutputMode::kBuffer) {
     s_->stdouterr_pipe = Pipe::Create();
     PERFETTO_CHECK(
         ::SetHandleInformation(*s_->stdouterr_pipe.wr, HANDLE_FLAG_INHERIT, 1));
   }
 
   ScopedPlatformHandle nul_handle;
-  if (args.stderr_mode == kDevNull || args.stdout_mode == kDevNull) {
-    nul_handle.reset(::CreateFileA("NUL", GENERIC_WRITE, FILE_SHARE_WRITE,
-                                   nullptr, OPEN_EXISTING,
-                                   FILE_ATTRIBUTE_NORMAL, nullptr));
+  if (args.stderr_mode == OutputMode::kDevNull ||
+      args.stdout_mode == OutputMode::kDevNull) {
+    nul_handle.reset(::CreateFileA(
+        "NUL", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
     PERFETTO_CHECK(::SetHandleInformation(*nul_handle, HANDLE_FLAG_INHERIT, 1));
   }
 
@@ -84,13 +88,13 @@ void Subprocess::Start() {
   STARTUPINFOA start_info{};
   start_info.cb = sizeof(STARTUPINFOA);
 
-  if (args.stderr_mode == kInherit) {
+  if (args.stderr_mode == OutputMode::kInherit) {
     start_info.hStdError = ::GetStdHandle(STD_ERROR_HANDLE);
-  } else if (args.stderr_mode == kBuffer) {
+  } else if (args.stderr_mode == OutputMode::kBuffer) {
     start_info.hStdError = *s_->stdouterr_pipe.wr;
-  } else if (args.stderr_mode == kDevNull) {
+  } else if (args.stderr_mode == OutputMode::kDevNull) {
     start_info.hStdError = *nul_handle;
-  } else if (args.stderr_mode == kFd) {
+  } else if (args.stderr_mode == OutputMode::kFd) {
     PERFETTO_CHECK(
         ::SetHandleInformation(*args.out_fd, HANDLE_FLAG_INHERIT, 1));
     start_info.hStdError = *args.out_fd;
@@ -98,13 +102,13 @@ void Subprocess::Start() {
     PERFETTO_CHECK(false);
   }
 
-  if (args.stdout_mode == kInherit) {
+  if (args.stdout_mode == OutputMode::kInherit) {
     start_info.hStdOutput = ::GetStdHandle(STD_OUTPUT_HANDLE);
-  } else if (args.stdout_mode == kBuffer) {
+  } else if (args.stdout_mode == OutputMode::kBuffer) {
     start_info.hStdOutput = *s_->stdouterr_pipe.wr;
-  } else if (args.stdout_mode == kDevNull) {
+  } else if (args.stdout_mode == OutputMode::kDevNull) {
     start_info.hStdOutput = *nul_handle;
-  } else if (args.stdout_mode == kFd) {
+  } else if (args.stdout_mode == OutputMode::kFd) {
     PERFETTO_CHECK(
         ::SetHandleInformation(*args.out_fd, HANDLE_FLAG_INHERIT, 1));
     start_info.hStdOutput = *args.out_fd;
@@ -112,7 +116,12 @@ void Subprocess::Start() {
     PERFETTO_CHECK(false);
   }
 
-  start_info.hStdInput = *s_->stdin_pipe.rd;
+  if (args.stdin_mode == InputMode::kBuffer) {
+    start_info.hStdInput = *s_->stdin_pipe.rd;
+  } else if (args.stdin_mode == InputMode::kDevNull) {
+    start_info.hStdInput = *nul_handle;
+  }
+
   start_info.dwFlags |= STARTF_USESTDHANDLES;
 
   // Create the child process.
@@ -149,9 +158,12 @@ void Subprocess::Start() {
   s_->status = kRunning;
 
   MovableState* s = s_.get();
-  s_->stdin_thread = std::thread(&Subprocess::StdinThread, s, args.input);
+  if (args.stdin_mode == InputMode::kBuffer) {
+    s_->stdin_thread = std::thread(&Subprocess::StdinThread, s, args.input);
+  }
 
-  if (args.stderr_mode == kBuffer || args.stdout_mode == kBuffer) {
+  if (args.stderr_mode == OutputMode::kBuffer ||
+      args.stdout_mode == OutputMode::kBuffer) {
     PERFETTO_DCHECK(s_->stdouterr_pipe.rd);
     s_->stdouterr_thread = std::thread(&Subprocess::StdoutErrThread, s);
   }
@@ -222,14 +234,14 @@ bool Subprocess::Wait(int timeout_ms) {
   const int64_t wait_start_ms = base::GetWallTimeMs().count();
 
   // Break out of the loop only after both conditions are satisfied:
-  // - All stdout/stderr data has been read (if kBuffer).
+  // - All stdout/stderr data has been read (if OutputMode::kBuffer).
   // - The process exited.
   // Note that the two events can happen arbitrary order. After the process
   // exits, there might be still data in the pipe buffer, which we want to
   // read fully.
   // Note also that stdout/err might be "complete" before starting, if neither
-  // is operating in kBuffer mode. In that case we just want to wait for the
-  // process termination.
+  // is operating in OutputMode::kBuffer mode. In that case we just want to wait
+  // for the process termination.
   //
   // Instead, don't wait on the stdin to be fully written. The child process
   // might exit prematurely (or crash). If that happens, we can end up in a
