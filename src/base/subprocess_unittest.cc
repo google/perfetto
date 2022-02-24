@@ -106,13 +106,11 @@ TEST(SubprocessTest, BothStdoutAndStderr) {
   EXPECT_EQ(GetOutput(p), "out\nerr\nout2\n");
 }
 
+//TODO(b/221255133): Fix and re-enable these on Windows.
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 TEST(SubprocessTest, CatInputModeDevNull) {
   std::string ignored_input = "ignored input";
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  Subprocess p({"cmd", "/C", "findstr ."});
-#else
   Subprocess p({"cat", "-"});
-#endif
   p.args.stdout_mode = Subprocess::OutputMode::kBuffer;
   p.args.input = ignored_input;
   p.args.stdin_mode = Subprocess::InputMode::kDevNull;
@@ -122,11 +120,7 @@ TEST(SubprocessTest, CatInputModeDevNull) {
 }
 
 TEST(SubprocessTest, BothStdoutAndStderrInputModeDevNull) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  Subprocess p({"cmd", "/c", "echo out&&(echo err>&2)&&echo out2"});
-#else
   Subprocess p({"sh", "-c", "echo out; (echo err >&2); echo out2"});
-#endif
   p.args.stdout_mode = Subprocess::OutputMode::kBuffer;
   p.args.stderr_mode = Subprocess::OutputMode::kBuffer;
   p.args.stdin_mode = Subprocess::InputMode::kDevNull;
@@ -135,11 +129,7 @@ TEST(SubprocessTest, BothStdoutAndStderrInputModeDevNull) {
 }
 
 TEST(SubprocessTest, AllDevNull) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  Subprocess p({"cmd", "/c", "(exit 1)"});
-#else
   Subprocess p({"false"});
-#endif
   p.args.stdout_mode = Subprocess::OutputMode::kDevNull;
   p.args.stderr_mode = Subprocess::OutputMode::kDevNull;
   p.args.stdin_mode = Subprocess::InputMode::kDevNull;
@@ -147,6 +137,7 @@ TEST(SubprocessTest, AllDevNull) {
   EXPECT_EQ(p.status(), Subprocess::kTerminated);
   EXPECT_EQ(p.returncode(), 1);
 }
+#endif
 
 TEST(SubprocessTest, BinTrue) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
