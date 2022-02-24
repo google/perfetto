@@ -205,11 +205,6 @@ std::string ReplaceAll(std::string str,
   return str;
 }
 
-std::string TrimLeading(const std::string& str) {
-  size_t idx = str.find_first_not_of(' ');
-  return idx == std::string::npos ? str : str.substr(idx);
-}
-
 size_t SprintfTrunc(char* dst, size_t dst_size, const char* fmt, ...) {
   if (PERFETTO_UNLIKELY(dst_size) == 0)
     return 0;
