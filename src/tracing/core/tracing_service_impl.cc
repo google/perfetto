@@ -2073,12 +2073,6 @@ bool TracingServiceImpl::ReadBuffersIntoFile(TracingSessionID tsid) {
       IsWaitingForTrigger(tracing_session))
     return false;
 
-  // Speculative fix for the memory watchdog crash in b/195145848. This function
-  // uses the heap extensively and might need a M_PURGE. window.gc() is back.
-  // TODO(primiano): if this fixes the crash we might want to coalesce the purge
-  // and throttle it.
-  auto on_ret = base::OnScopeExit([] { base::MaybeReleaseAllocatorMemToOS(); });
-
   // ReadBuffers() can allocate memory internally, for filtering. By limiting
   // the data that ReadBuffers() reads to kWriteIntoChunksSize per iteration,
   // we limit the amount of memory used on each iteration.
@@ -2275,6 +2269,13 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   }
 
   MaybeFilterPackets(tracing_session, &packets);
+
+  if (!*has_more) {
+    // We've observed some extremely high memory usage by scudo after
+    // MaybeFilterPackets in the past. The original bug (b/195145848) is fixed
+    // now, but this code asks scudo to release memory just in case.
+    base::MaybeReleaseAllocatorMemToOS();
+  }
 
   return packets;
 }
