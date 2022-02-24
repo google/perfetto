@@ -84,6 +84,10 @@
     "name": "build-deps"
   },
   {
+    "cmd": [],
+    "name": "mac-amd64"
+  },
+  {
     "cmd": [
       "cipd",
       "ensure",
@@ -98,8 +102,9 @@
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
-    "name": "ensure_installed",
+    "name": "mac-amd64.ensure_installed",
     "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
       "@@@STEP_LOG_LINE@json.output@{@@@",
       "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
       "@@@STEP_LOG_LINE@json.output@    \"\": [@@@",
@@ -120,13 +125,16 @@
       "-kind",
       "mac",
       "-xcode-version",
-      "12b5025f",
+      "13c5066c",
       "-output-dir",
       "[CACHE]/macos_sdk/XCode.app"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
-    "name": "install xcode"
+    "name": "mac-amd64.install xcode",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
   },
   {
     "cmd": [
@@ -137,7 +145,10 @@
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
-    "name": "select XCode"
+    "name": "mac-amd64.select XCode",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
   },
   {
     "cmd": [
@@ -145,10 +156,13 @@
       "tools/gn",
       "gen",
       "[CACHE]/builder/perfetto/out/mac-amd64",
-      "--args=is_debug=false monolithic_binaries=true"
+      "--args=is_debug=false monolithic_binaries=true target_os=\"mac\" target_cpu=\"x64\""
     ],
     "cwd": "[CACHE]/builder/perfetto",
-    "name": "gn gen"
+    "name": "mac-amd64.gn gen",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
   },
   {
     "cmd": [
@@ -164,7 +178,10 @@
       "traced_probes"
     ],
     "cwd": "[CACHE]/builder/perfetto",
-    "name": "ninja"
+    "name": "mac-amd64.ninja",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
   },
   {
     "cmd": [
@@ -174,11 +191,17 @@
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
-    "name": "reset XCode"
+    "name": "mac-amd64.reset XCode",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
   },
   {
     "cmd": [],
-    "name": "Artifact upload"
+    "name": "mac-amd64.Artifact upload",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
   },
   {
     "cmd": [
@@ -194,9 +217,9 @@
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
-    "name": "Artifact upload.gsutil upload",
+    "name": "mac-amd64.Artifact upload.gsutil upload",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//mac-amd64/trace_processor_shell@@@"
     ]
   },
@@ -214,9 +237,9 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]/builder/perfetto",
-    "name": "Artifact upload.build perfetto/trace_processor_shell/mac-amd64",
+    "name": "mac-amd64.Artifact upload.build perfetto/trace_processor_shell/mac-amd64",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LOG_LINE@json.output@{@@@",
       "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
       "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
@@ -239,9 +262,9 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]/builder/perfetto",
-    "name": "Artifact upload.register perfetto/trace_processor_shell/mac-amd64",
+    "name": "mac-amd64.Artifact upload.register perfetto/trace_processor_shell/mac-amd64",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LOG_LINE@json.output@{@@@",
       "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
       "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
@@ -266,9 +289,9 @@
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
-    "name": "Artifact upload.gsutil upload (2)",
+    "name": "mac-amd64.Artifact upload.gsutil upload (2)",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//mac-amd64/trace_to_text@@@"
     ]
   },
@@ -286,9 +309,9 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]/builder/perfetto",
-    "name": "Artifact upload.build perfetto/trace_to_text/mac-amd64",
+    "name": "mac-amd64.Artifact upload.build perfetto/trace_to_text/mac-amd64",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LOG_LINE@json.output@{@@@",
       "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
       "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
@@ -311,9 +334,9 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]/builder/perfetto",
-    "name": "Artifact upload.register perfetto/trace_to_text/mac-amd64",
+    "name": "mac-amd64.Artifact upload.register perfetto/trace_to_text/mac-amd64",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LOG_LINE@json.output@{@@@",
       "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
       "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
@@ -338,9 +361,9 @@
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
-    "name": "Artifact upload.gsutil upload (3)",
+    "name": "mac-amd64.Artifact upload.gsutil upload (3)",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//mac-amd64/tracebox@@@"
     ]
   },
@@ -358,9 +381,9 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]/builder/perfetto",
-    "name": "Artifact upload.build perfetto/tracebox/mac-amd64",
+    "name": "mac-amd64.Artifact upload.build perfetto/tracebox/mac-amd64",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LOG_LINE@json.output@{@@@",
       "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
       "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
@@ -383,9 +406,9 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]/builder/perfetto",
-    "name": "Artifact upload.register perfetto/tracebox/mac-amd64",
+    "name": "mac-amd64.Artifact upload.register perfetto/tracebox/mac-amd64",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LOG_LINE@json.output@{@@@",
       "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
       "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
@@ -410,9 +433,9 @@
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
-    "name": "Artifact upload.gsutil upload (4)",
+    "name": "mac-amd64.Artifact upload.gsutil upload (4)",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//mac-amd64/perfetto@@@"
     ]
   },
@@ -430,9 +453,9 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]/builder/perfetto",
-    "name": "Artifact upload.build perfetto/perfetto/mac-amd64",
+    "name": "mac-amd64.Artifact upload.build perfetto/perfetto/mac-amd64",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LOG_LINE@json.output@{@@@",
       "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
       "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
@@ -455,9 +478,9 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]/builder/perfetto",
-    "name": "Artifact upload.register perfetto/perfetto/mac-amd64",
+    "name": "mac-amd64.Artifact upload.register perfetto/perfetto/mac-amd64",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LOG_LINE@json.output@{@@@",
       "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
       "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
@@ -482,9 +505,9 @@
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
-    "name": "Artifact upload.gsutil upload (5)",
+    "name": "mac-amd64.Artifact upload.gsutil upload (5)",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//mac-amd64/traced@@@"
     ]
   },
@@ -502,9 +525,9 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]/builder/perfetto",
-    "name": "Artifact upload.build perfetto/traced/mac-amd64",
+    "name": "mac-amd64.Artifact upload.build perfetto/traced/mac-amd64",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LOG_LINE@json.output@{@@@",
       "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
       "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
@@ -527,9 +550,9 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]/builder/perfetto",
-    "name": "Artifact upload.register perfetto/traced/mac-amd64",
+    "name": "mac-amd64.Artifact upload.register perfetto/traced/mac-amd64",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LOG_LINE@json.output@{@@@",
       "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
       "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
@@ -554,9 +577,9 @@
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
-    "name": "Artifact upload.gsutil upload (6)",
+    "name": "mac-amd64.Artifact upload.gsutil upload (6)",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//mac-amd64/traced_probes@@@"
     ]
   },
@@ -574,9 +597,9 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]/builder/perfetto",
-    "name": "Artifact upload.build perfetto/traced_probes/mac-amd64",
+    "name": "mac-amd64.Artifact upload.build perfetto/traced_probes/mac-amd64",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LOG_LINE@json.output@{@@@",
       "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
       "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
@@ -599,9 +622,9 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]/builder/perfetto",
-    "name": "Artifact upload.register perfetto/traced_probes/mac-amd64",
+    "name": "mac-amd64.Artifact upload.register perfetto/traced_probes/mac-amd64",
     "~followup_annotations": [
-      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LOG_LINE@json.output@{@@@",
       "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
       "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
@@ -610,6 +633,558 @@
       "@@@STEP_LOG_LINE@json.output@}@@@",
       "@@@STEP_LOG_END@json.output@@@",
       "@@@STEP_LINK@perfetto/traced_probes/mac-amd64@https://chrome-infra-packages.appspot.com/p/perfetto/traced_probes/mac-amd64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [],
+    "name": "mac-arm64"
+  },
+  {
+    "cmd": [
+      "cipd",
+      "ensure",
+      "-root",
+      "[CACHE]/macos_sdk",
+      "-ensure-file",
+      "infra/tools/mac_toolchain/${platform} git_revision:e9b1fe29fe21a1cd36428c43ea2aba244bd31280",
+      "-max-threads",
+      "0",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "name": "mac-arm64.ensure_installed",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"\": [@@@",
+      "@@@STEP_LOG_LINE@json.output@      {@@@",
+      "@@@STEP_LOG_LINE@json.output@        \"instance_id\": \"resolved-instance_id-of-git_revision:e9b\", @@@",
+      "@@@STEP_LOG_LINE@json.output@        \"package\": \"infra/tools/mac_toolchain/resolved-platform\"@@@",
+      "@@@STEP_LOG_LINE@json.output@      }@@@",
+      "@@@STEP_LOG_LINE@json.output@    ]@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "[CACHE]/macos_sdk/mac_toolchain",
+      "install",
+      "-kind",
+      "mac",
+      "-xcode-version",
+      "13c5066c",
+      "-output-dir",
+      "[CACHE]/macos_sdk/XCode.app"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "name": "mac-arm64.install xcode",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "sudo",
+      "xcode-select",
+      "--switch",
+      "[CACHE]/macos_sdk/XCode.app"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "name": "mac-arm64.select XCode",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "tools/gn",
+      "gen",
+      "[CACHE]/builder/perfetto/out/mac-arm64",
+      "--args=is_debug=false monolithic_binaries=true target_os=\"mac\" target_cpu=\"arm64\""
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "mac-arm64.gn gen",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "tools/ninja",
+      "-C",
+      "[CACHE]/builder/perfetto/out/mac-arm64",
+      "trace_processor_shell",
+      "trace_to_text",
+      "tracebox",
+      "perfetto",
+      "traced",
+      "traced_probes"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "mac-arm64.ninja",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "sudo",
+      "xcode-select",
+      "--reset"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "name": "mac-arm64.reset XCode",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [],
+    "name": "mac-arm64.Artifact upload",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/mac-arm64/stripped/trace_processor_shell",
+      "gs://perfetto-luci-artifacts//mac-arm64/trace_processor_shell"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "name": "mac-arm64.Artifact upload.gsutil upload",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//mac-arm64/trace_processor_shell@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"trace_processor_shell\"}], \"install_mode\": \"\", \"package\": \"perfetto/trace_processor_shell/mac-arm64\", \"root\": \"[CACHE]/builder/perfetto/out/mac-arm64/stripped\"}",
+      "-out",
+      "[CLEANUP]/trace_processor_shell-mac-arm64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "mac-arm64.Artifact upload.build perfetto/trace_processor_shell/mac-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_processor_shell/mac-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/trace_processor_shell-mac-arm64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "mac-arm64.Artifact upload.register perfetto/trace_processor_shell/mac-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_processor_shell/mac-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/trace_processor_shell/mac-arm64@https://chrome-infra-packages.appspot.com/p/perfetto/trace_processor_shell/mac-arm64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/mac-arm64/stripped/trace_to_text",
+      "gs://perfetto-luci-artifacts//mac-arm64/trace_to_text"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "name": "mac-arm64.Artifact upload.gsutil upload (2)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//mac-arm64/trace_to_text@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"trace_to_text\"}], \"install_mode\": \"\", \"package\": \"perfetto/trace_to_text/mac-arm64\", \"root\": \"[CACHE]/builder/perfetto/out/mac-arm64/stripped\"}",
+      "-out",
+      "[CLEANUP]/trace_to_text-mac-arm64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "mac-arm64.Artifact upload.build perfetto/trace_to_text/mac-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_to_text/mac-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/trace_to_text-mac-arm64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "mac-arm64.Artifact upload.register perfetto/trace_to_text/mac-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_to_text/mac-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/trace_to_text/mac-arm64@https://chrome-infra-packages.appspot.com/p/perfetto/trace_to_text/mac-arm64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/mac-arm64/stripped/tracebox",
+      "gs://perfetto-luci-artifacts//mac-arm64/tracebox"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "name": "mac-arm64.Artifact upload.gsutil upload (3)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//mac-arm64/tracebox@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"tracebox\"}], \"install_mode\": \"\", \"package\": \"perfetto/tracebox/mac-arm64\", \"root\": \"[CACHE]/builder/perfetto/out/mac-arm64/stripped\"}",
+      "-out",
+      "[CLEANUP]/tracebox-mac-arm64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "mac-arm64.Artifact upload.build perfetto/tracebox/mac-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/tracebox/mac-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/tracebox-mac-arm64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "mac-arm64.Artifact upload.register perfetto/tracebox/mac-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/tracebox/mac-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/tracebox/mac-arm64@https://chrome-infra-packages.appspot.com/p/perfetto/tracebox/mac-arm64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/mac-arm64/stripped/perfetto",
+      "gs://perfetto-luci-artifacts//mac-arm64/perfetto"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "name": "mac-arm64.Artifact upload.gsutil upload (4)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//mac-arm64/perfetto@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"perfetto\"}], \"install_mode\": \"\", \"package\": \"perfetto/perfetto/mac-arm64\", \"root\": \"[CACHE]/builder/perfetto/out/mac-arm64/stripped\"}",
+      "-out",
+      "[CLEANUP]/perfetto-mac-arm64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "mac-arm64.Artifact upload.build perfetto/perfetto/mac-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/perfetto/mac-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/perfetto-mac-arm64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "mac-arm64.Artifact upload.register perfetto/perfetto/mac-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/perfetto/mac-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/perfetto/mac-arm64@https://chrome-infra-packages.appspot.com/p/perfetto/perfetto/mac-arm64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/mac-arm64/stripped/traced",
+      "gs://perfetto-luci-artifacts//mac-arm64/traced"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "name": "mac-arm64.Artifact upload.gsutil upload (5)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//mac-arm64/traced@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"traced\"}], \"install_mode\": \"\", \"package\": \"perfetto/traced/mac-arm64\", \"root\": \"[CACHE]/builder/perfetto/out/mac-arm64/stripped\"}",
+      "-out",
+      "[CLEANUP]/traced-mac-arm64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "mac-arm64.Artifact upload.build perfetto/traced/mac-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced/mac-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/traced-mac-arm64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "mac-arm64.Artifact upload.register perfetto/traced/mac-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced/mac-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/traced/mac-arm64@https://chrome-infra-packages.appspot.com/p/perfetto/traced/mac-arm64/+/40-chars-fake-of-the-package-instance_id@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]/resources/gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]/gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]/builder/perfetto/out/mac-arm64/stripped/traced_probes",
+      "gs://perfetto-luci-artifacts//mac-arm64/traced_probes"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "infra_step": true,
+    "name": "mac-arm64.Artifact upload.gsutil upload (6)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//mac-arm64/traced_probes@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-build",
+      "-pkg-def",
+      "{\"data\": [{\"file\": \"traced_probes\"}], \"install_mode\": \"\", \"package\": \"perfetto/traced_probes/mac-arm64\", \"root\": \"[CACHE]/builder/perfetto/out/mac-arm64/stripped\"}",
+      "-out",
+      "[CLEANUP]/traced_probes-mac-arm64.cipd",
+      "-hash-algo",
+      "sha256",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "mac-arm64.Artifact upload.build perfetto/traced_probes/mac-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced_probes/mac-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "cipd",
+      "pkg-register",
+      "[CLEANUP]/traced_probes-mac-arm64.cipd",
+      "-ref",
+      "latest",
+      "-tag",
+      "git_revision:",
+      "-json-output",
+      "/path/to/tmp/json"
+    ],
+    "cwd": "[CACHE]/builder/perfetto",
+    "name": "mac-arm64.Artifact upload.register perfetto/traced_probes/mac-arm64",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@2@@@",
+      "@@@STEP_LOG_LINE@json.output@{@@@",
+      "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traced_probes/mac-arm64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@  }@@@",
+      "@@@STEP_LOG_LINE@json.output@}@@@",
+      "@@@STEP_LOG_END@json.output@@@",
+      "@@@STEP_LINK@perfetto/traced_probes/mac-arm64@https://chrome-infra-packages.appspot.com/p/perfetto/traced_probes/mac-arm64/+/40-chars-fake-of-the-package-instance_id@@@"
     ]
   },
   {
