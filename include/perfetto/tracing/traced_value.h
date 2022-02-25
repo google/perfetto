@@ -141,8 +141,6 @@ class PERFETTO_EXPORT TracedValue {
   void WriteString(const char*, size_t len) &&;
   void WriteString(const std::string&) &&;
   void WritePointer(const void* value) &&;
-  template <typename MessageType>
-  TracedProto<MessageType> WriteProto() &&;
 
   // Rules for writing nested dictionaries and arrays:
   // - Only one scope (TracedArray, TracedDictionary or TracedValue) can be
@@ -174,8 +172,6 @@ class PERFETTO_EXPORT TracedValue {
                               internal::CheckedScope* parent_scope)
       : context_(context), checked_scope_(parent_scope) {}
 
-  protozero::Message* WriteProtoInternal(const char* name);
-
   // Temporary support for perfetto::DebugAnnotation C++ class before it's going
   // to be replaced by TracedValue.
   // TODO(altimin): Convert v8 to use TracedValue directly and delete it.
@@ -185,13 +181,6 @@ class PERFETTO_EXPORT TracedValue {
 
   internal::CheckedScope checked_scope_;
 };
-
-template <typename MessageType>
-TracedProto<MessageType> TracedValue::WriteProto() && {
-  return TracedProto<MessageType>(
-      static_cast<MessageType*>(WriteProtoInternal(MessageType::GetName())),
-      nullptr);
-}
 
 class PERFETTO_EXPORT TracedArray {
  public:
