@@ -18,6 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+import "protos/perfetto/common/ftrace_descriptor.proto";
 import "protos/perfetto/common/gpu_counter_descriptor.proto";
 import "protos/perfetto/common/track_event_descriptor.proto";
 
@@ -54,4 +55,6 @@ message DataSourceDescriptor {
   optional GpuCounterDescriptor gpu_counter_descriptor = 5 [lazy = true];
 
   optional TrackEventDescriptor track_event_descriptor = 6 [lazy = true];
+
+  optional FtraceDescriptor ftrace_descriptor = 8 [lazy = true];
 }
