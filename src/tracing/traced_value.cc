@@ -99,14 +99,6 @@ TracedArray TracedValue::WriteArray() && {
   return TracedArray(context_, checked_scope_.parent_scope());
 }
 
-protozero::Message* TracedValue::WriteProtoInternal(const char* name) {
-  // TODO(altimin): Plumb EventContext to TracedValue and support interning
-  // here.
-  context_->set_proto_type_name(name);
-  return context_->template BeginNestedMessage<protozero::Message>(
-      protos::pbzero::DebugAnnotation::kProtoValueFieldNumber);
-}
-
 TracedValue TracedArray::AppendItem() {
   PERFETTO_DCHECK(checked_scope_.is_active());
   return TracedValue(context_->add_array_values(), &checked_scope_);
