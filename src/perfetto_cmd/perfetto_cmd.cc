@@ -64,6 +64,7 @@
 #include "src/perfetto_cmd/pbtxt_to_pb.h"
 #include "src/perfetto_cmd/trigger_producer.h"
 
+#include "protos/perfetto/common/ftrace_descriptor.gen.h"
 #include "protos/perfetto/common/tracing_service_state.gen.h"
 #include "protos/perfetto/common/track_event_descriptor.gen.h"
 
@@ -1224,10 +1225,18 @@ NAME                                     PRODUCER                     DETAILS
            producer_id_and_name);
     // Print the category names for clients using the track event SDK.
     if (!ds.ds_descriptor().track_event_descriptor_raw().empty()) {
-      auto raw = ds.ds_descriptor().track_event_descriptor_raw();
-      perfetto::protos::gen::TrackEventDescriptor desc;
+      const std::string& raw = ds.ds_descriptor().track_event_descriptor_raw();
+      protos::gen::TrackEventDescriptor desc;
       if (desc.ParseFromArray(raw.data(), raw.size())) {
         for (const auto& cat : desc.available_categories()) {
+          printf("%s,", cat.name().c_str());
+        }
+      }
+    } else if (!ds.ds_descriptor().ftrace_descriptor_raw().empty()) {
+      const std::string& raw = ds.ds_descriptor().ftrace_descriptor_raw();
+      protos::gen::FtraceDescriptor desc;
+      if (desc.ParseFromArray(raw.data(), raw.size())) {
+        for (const auto& cat : desc.atrace_categories()) {
           printf("%s,", cat.name().c_str());
         }
       }
