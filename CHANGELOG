@@ -8,7 +8,7 @@ Unreleased:
     * Added flow arrows between binder transaction pairs (request/reply
       and async send/async recv).
   SDK:
-    * Added support for writing typed proto messages inside DebugAnnotations.
+    *
 
 
 v24.2 - 2022-02-10:
