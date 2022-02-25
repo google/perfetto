@@ -466,6 +466,13 @@ function startServer() {
           absPath = pjoin(ROOT_DIR, uri);
         }
 
+        // Don't serve contents outside of the project root (b/221101533).
+        if (path.relative(ROOT_DIR, absPath).startsWith('..')) {
+          res.writeHead(403);
+          res.end('403 Forbidden - Request path outside of the repo root');
+          return;
+        }
+
         fs.readFile(absPath, function(err, data) {
           if (err) {
             res.writeHead(404);
