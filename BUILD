@@ -2000,6 +2000,7 @@ perfetto_proto_library(
         "protos/perfetto/common/commit_data_request.proto",
         "protos/perfetto/common/data_source_descriptor.proto",
         "protos/perfetto/common/descriptor.proto",
+        "protos/perfetto/common/ftrace_descriptor.proto",
         "protos/perfetto/common/gpu_counter_descriptor.proto",
         "protos/perfetto/common/interceptor_descriptor.proto",
         "protos/perfetto/common/observable_events.proto",
