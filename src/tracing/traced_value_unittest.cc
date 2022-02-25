@@ -32,8 +32,6 @@
 #include "perfetto/test/traced_value_test_support.h"
 #include "perfetto/tracing/debug_annotation.h"
 #include "perfetto/tracing/track_event.h"
-#include "protos/perfetto/trace/test_event.pb.h"
-#include "protos/perfetto/trace/test_event.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.gen.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pb.h"
 #include "test/gtest_and_gmock.h"
@@ -619,45 +617,6 @@ TEST(TracedValueTest, EmptyArray) {
   EXPECT_EQ("{}", TracedValueToString([&](TracedValue context) {
               auto array = std::move(context).WriteArray();
             }));
-}
-
-TEST(TracedValueTest, WriteTypedProto_Explicit) {
-  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
-  WriteIntoTracedValue(
-      internal::CreateTracedValueFromProto(message.get()),
-      [](perfetto::TracedValue context) {
-        perfetto::TracedProto<protos::pbzero::TestEvent::TestPayload> proto =
-            std::move(context)
-                .WriteProto<protos::pbzero::TestEvent::TestPayload>();
-        proto->set_single_string("payload");
-      });
-
-  protos::DebugAnnotation annotation;
-  annotation.ParseFromString(message.SerializeAsString());
-  EXPECT_EQ(annotation.proto_type_name(),
-            ".perfetto.protos.TestEvent.TestPayload");
-
-  protos::TestEvent::TestPayload payload;
-  payload.ParseFromString(annotation.proto_value());
-  EXPECT_EQ(payload.single_string(), "payload");
-}
-
-TEST(TracedValueTest, WriteTypedProto_Implicit) {
-  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
-  WriteIntoTracedValue(
-      internal::CreateTracedValueFromProto(message.get()),
-      [](perfetto::TracedProto<protos::pbzero::TestEvent::TestPayload> proto) {
-        proto->set_single_string("payload");
-      });
-
-  protos::DebugAnnotation annotation;
-  annotation.ParseFromString(message.SerializeAsString());
-  EXPECT_EQ(annotation.proto_type_name(),
-            ".perfetto.protos.TestEvent.TestPayload");
-
-  protos::TestEvent::TestPayload payload;
-  payload.ParseFromString(annotation.proto_value());
-  EXPECT_EQ(payload.single_string(), "payload");
 }
 
 }  // namespace perfetto
