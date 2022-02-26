@@ -2934,21 +2934,6 @@ genrule {
     ],
 }
 
-// GN: //protos/perfetto/config:merged_config_descriptor
-genrule {
-    name: "perfetto_protos_perfetto_config_merged_config_descriptor",
-    srcs: [
-        "protos/perfetto/config/perfetto_config.proto",
-    ],
-    tools: [
-        "aprotoc",
-    ],
-    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
-    out: [
-        "perfetto_protos_perfetto_config_merged_config_descriptor.bin",
-    ],
-}
-
 // GN: //protos/perfetto/config/power:cpp
 genrule {
     name: "perfetto_protos_perfetto_config_power_cpp_gen",
@@ -7235,11 +7220,11 @@ filegroup {
 genrule {
     name: "perfetto_src_perfetto_cmd_gen_cc_config_descriptor",
     srcs: [
-        ":perfetto_protos_perfetto_config_merged_config_descriptor",
+        ":perfetto_protos_perfetto_config_descriptor",
     ],
     cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
     out: [
-        "src/perfetto_cmd/perfetto_config.descriptor.h",
+        "src/perfetto_cmd/config.descriptor.h",
     ],
     tool_files: [
         "tools/gen_cc_proto_descriptor.py",
@@ -9231,14 +9216,6 @@ filegroup {
     ],
 }
 
-// GN: //tools/trace_to_text:unittests
-filegroup {
-    name: "perfetto_tools_trace_to_text_unittests",
-    srcs: [
-        "tools/trace_to_text/trace_to_text_unittest.cc",
-    ],
-}
-
 // GN: //tools/trace_to_text:utils
 filegroup {
     name: "perfetto_tools_trace_to_text_utils",
@@ -9509,7 +9486,6 @@ cc_test {
         ":perfetto_src_profiling_perf_producer_unittests",
         ":perfetto_src_profiling_perf_regs_parsing",
         ":perfetto_src_profiling_perf_unwinding",
-        ":perfetto_src_profiling_symbolizer_symbolize_database",
         ":perfetto_src_profiling_symbolizer_symbolizer",
         ":perfetto_src_profiling_symbolizer_unittests",
         ":perfetto_src_profiling_unittests",
@@ -9610,9 +9586,6 @@ cc_test {
         ":perfetto_src_tracing_test_tracing_integration_test",
         ":perfetto_src_tracing_unittests",
         ":perfetto_tools_sanitizers_unittests_sanitizers_unittests",
-        ":perfetto_tools_trace_to_text_trace_to_text_lib",
-        ":perfetto_tools_trace_to_text_unittests",
-        ":perfetto_tools_trace_to_text_utils",
     ],
     shared_libs: [
         "libandroidicu",
@@ -9738,7 +9711,6 @@ cc_test {
         "perfetto_src_traced_probes_ftrace_test_messages_cpp_gen_headers",
         "perfetto_src_traced_probes_ftrace_test_messages_lite_gen_headers",
         "perfetto_src_traced_probes_ftrace_test_messages_zero_gen_headers",
-        "perfetto_tools_trace_to_text_gen_cc_trace_descriptor",
     ],
     defaults: [
         "perfetto_defaults",

@@ -134,7 +134,6 @@ if (perfetto_build_standalone) {
     "test/configs",
 
     # For syntax-checking the protos.
-    "protos/perfetto/config:merged_config_lite",
     "protos/perfetto/trace:merged_trace_lite",
 
     # For checking all generated xxx.gen.{cc,h} files without waiting for
