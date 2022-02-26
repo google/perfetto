@@ -407,7 +407,7 @@ export class DetailsPanel implements m.ClassComponent {
             return {key: tab.key, name: tab.name};
           }),
         }),
-        m('.details-panel-container',
+        m('.details-panel-container.x-scrollable',
           m(PanelContainer, {doesScroll: true, panels, kind: 'DETAILS'})));
   }
 }
