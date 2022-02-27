@@ -249,15 +249,33 @@ void ProfileModule::ParsePerfSample(
       ts, static_cast<double>(sample.timebase_count()),
       sampling_stream.timebase_track_id);
 
-  // TODO(rsavitski): empty callsite is not an error for counter-only samples.
-  // But consider identifying sequences which *should* have a callstack in every
-  // sample, as an invalid stack there is a bug.
   SequenceStackProfileTracker& stack_tracker =
       sequence_state->state()->sequence_stack_profile_tracker();
   ProfilePacketInternLookup intern_lookup(sequence_state);
   uint64_t callstack_iid = sample.callstack_iid();
   base::Optional<CallsiteId> cs_id =
       stack_tracker.FindOrInsertCallstack(callstack_iid, &intern_lookup);
+
+  // A failed lookup of the interned callstack can mean either:
+  // (a) This is a counter-only profile without callstacks. Due to an
+  //     implementation quirk, these packets still set callstack_iid
+  //     corresponding to a callstack with no frames. To reliably identify this
+  //     case (without resorting to config parsing) we further need to rely on
+  //     the fact that the implementation (callstack_trie.h) always assigns this
+  //     callstack the id "1". Such callstacks should not occur outside of
+  //     counter-only profiles, as there should always be at least a synthetic
+  //     error frame if the unwinding completely failed.
+  // (b) This is a ring-buffer profile where some of the referenced internings
+  //     have been overwritten, and the build predates perf_sample_defaults and
+  //     SEQ_NEEDS_INCREMENTAL_STATE sequence flag in perf_sample packets.
+  //     Such packets should be discarded.
+  if (!cs_id && callstack_iid != 1) {
+    PERFETTO_DLOG("Discarding perf_sample since callstack_iid [%" PRIu64
+                  "] references a missing/partially lost interning according "
+                  "to stack_profile_tracker",
+                  callstack_iid);
+    return;
+  }
 
   UniqueTid utid =
       context_->process_tracker->UpdateThread(sample.tid(), sample.pid());
