@@ -26,7 +26,8 @@ DROP TABLE IF EXISTS process_metadata_table;
 CREATE TABLE process_metadata_table AS
 SELECT
   process.upid,
-  -- TODO(b/169226092) remove this workaround
+  -- workaround for b/169226092: the bug has been fixed it Android T, but
+  -- we support ingesting traces from older Android versions.
   CASE
       -- cmdline gets rewritten after fork, if these are still there we must
       -- have seen a racy capture.
