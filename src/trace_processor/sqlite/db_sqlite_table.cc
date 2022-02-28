@@ -123,7 +123,7 @@ void DbSqliteTable::RegisterTable(
 
   // Figure out if the table needs explicit args (in the form of constraints
   // on hidden columns) passed to it in order to make the query valid.
-  util::Status status = generator->ValidateConstraints(
+  base::Status status = generator->ValidateConstraints(
       QueryConstraints(std::numeric_limits<uint64_t>::max()));
   bool requires_args = !status.ok();
 
@@ -133,9 +133,9 @@ void DbSqliteTable::RegisterTable(
                                                 false, requires_args);
 }
 
-util::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
+base::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
   *schema = ComputeSchema(schema_, name().c_str());
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 SqliteTable::Schema DbSqliteTable::ComputeSchema(const Table::Schema& schema,
@@ -169,7 +169,7 @@ int DbSqliteTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
       BestIndex(schema_, static_table_->row_count(), qc, info);
       break;
     case TableComputation::kDynamic:
-      util::Status status = generator_->ValidateConstraints(qc);
+      base::Status status = generator_->ValidateConstraints(qc);
       if (!status.ok())
         return SQLITE_CONSTRAINT;
       BestIndex(schema_, generator_->EstimateRowCount(), qc, info);
@@ -451,13 +451,21 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
       });
       // If we have a dynamically created table, regenerate the table based on
       // the new constraints.
+      std::unique_ptr<Table> computed_table;
       BitVector cols_used_bv = ColsUsedBitVector(
           qc.cols_used(), db_sqlite_table_->schema_.columns.size());
-      dynamic_table_ = db_sqlite_table_->generator_->ComputeTable(
-          constraints_, orders_, cols_used_bv);
-      upstream_table_ = dynamic_table_.get();
-      if (!upstream_table_)
+      auto status = db_sqlite_table_->generator_->ComputeTable(
+          constraints_, orders_, cols_used_bv, computed_table);
+
+      if (!status.ok()) {
+        auto* sqlite_err = sqlite3_mprintf(
+            "%s: %s", db_sqlite_table_->name().c_str(), status.c_message());
+        db_sqlite_table_->SetErrorMessage(sqlite_err);
         return SQLITE_CONSTRAINT;
+      }
+      PERFETTO_DCHECK(computed_table);
+      dynamic_table_ = std::move(computed_table);
+      upstream_table_ = dynamic_table_.get();
       break;
     }
   }

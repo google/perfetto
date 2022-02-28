@@ -62,21 +62,22 @@ uint32_t ExperimentalSliceLayoutGenerator::EstimateRowCount() {
   return slice_table_->row_count();
 }
 
-util::Status ExperimentalSliceLayoutGenerator::ValidateConstraints(
+base::Status ExperimentalSliceLayoutGenerator::ValidateConstraints(
     const QueryConstraints& cs) {
   for (const auto& c : cs.constraints()) {
     if (c.column == kFilterTrackIdsColumnIndex && sqlite_utils::IsOpEq(c.op)) {
-      return util::OkStatus();
+      return base::OkStatus();
     }
   }
-  return util::ErrStatus(
+  return base::ErrStatus(
       "experimental_slice_layout must have filter_track_ids constraint");
 }
 
-std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::ComputeTable(
+base::Status ExperimentalSliceLayoutGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
     const std::vector<Order>&,
-    const BitVector&) {
+    const BitVector&,
+    std::unique_ptr<Table>& table_return) {
   std::set<TrackId> selected_tracks;
   std::string filter_string = "";
   for (const auto& c : cs) {
@@ -100,7 +101,8 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::ComputeTable(
   // Try and find the table in the cache.
   auto it = layout_table_cache_.find(filter_id);
   if (it != layout_table_cache_.end()) {
-    return std::unique_ptr<Table>(new Table(it->second.Copy()));
+    table_return.reset(new Table(it->second.Copy()));
+    return base::OkStatus();
   }
 
   // Find all the slices for the tracks we want to filter and create a RowMap
@@ -125,7 +127,9 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::ComputeTable(
   // Compute the table and add it to the cache for future use.
   Table layout_table = ComputeLayoutTable(filtered_table, filter_id);
   auto res = layout_table_cache_.emplace(filter_id, std::move(layout_table));
-  return std::unique_ptr<Table>(new Table(res.first->second.Copy()));
+
+  table_return.reset(new Table(res.first->second.Copy()));
+  return base::OkStatus();
 }
 
 // Build up a table of slice id -> root slice id by observing each
