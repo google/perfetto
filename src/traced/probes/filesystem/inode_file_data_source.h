@@ -56,7 +56,7 @@ class InodeFileDataSource : public ProbesDataSource,
   static const ProbesDataSource::Descriptor descriptor;
 
   InodeFileDataSource(
-      DataSourceConfig,
+      const DataSourceConfig&,
       base::TaskRunner*,
       TracingSessionID,
       std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>*

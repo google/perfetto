@@ -107,7 +107,7 @@ void InodeFileDataSource::FillInodeEntry(InodeFileMap* destination,
 }
 
 InodeFileDataSource::InodeFileDataSource(
-    DataSourceConfig ds_config,
+    const DataSourceConfig& ds_config,
     base::TaskRunner* task_runner,
     TracingSessionID session_id,
     std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>*
