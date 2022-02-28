@@ -223,10 +223,8 @@ cc_library_shared {
     srcs: [
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
-        ":perfetto_include_perfetto_profiling_normalize",
         ":perfetto_src_base_base",
         ":perfetto_src_base_unix_socket",
-        ":perfetto_src_profiling_common_proc_utils",
         ":perfetto_src_profiling_memory_client",
         ":perfetto_src_profiling_memory_client_api",
         ":perfetto_src_profiling_memory_ring_buffer",
