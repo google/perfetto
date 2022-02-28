@@ -184,6 +184,8 @@ class GlobalCallstackTrie {
 
   uint64_t next_callstack_id_ = 0;
 
+  // Note: profile_module in trace processor relies on the value of this root
+  // callsite being exactly "1". See the perf_sample parsing code.
   Node root_{MakeRootFrame(), ++next_callstack_id_};
 };
 
