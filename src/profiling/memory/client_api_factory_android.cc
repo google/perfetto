@@ -27,7 +27,6 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/unix_socket.h"
-#include "src/profiling/common/proc_utils.h"
 #include "src/profiling/memory/client.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
