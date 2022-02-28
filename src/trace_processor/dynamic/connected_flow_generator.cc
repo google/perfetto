@@ -34,7 +34,7 @@ ConnectedFlowGenerator::ConnectedFlowGenerator(Mode mode,
 
 ConnectedFlowGenerator::~ConnectedFlowGenerator() = default;
 
-util::Status ConnectedFlowGenerator::ValidateConstraints(
+base::Status ConnectedFlowGenerator::ValidateConstraints(
     const QueryConstraints& qc) {
   const auto& cs = qc.constraints();
 
@@ -47,8 +47,8 @@ util::Status ConnectedFlowGenerator::ValidateConstraints(
       std::find_if(cs.begin(), cs.end(), flow_id_fn) != cs.end();
 
   return has_flow_id_cs
-             ? util::OkStatus()
-             : util::ErrStatus("Failed to find required constraints");
+             ? base::OkStatus()
+             : base::ErrStatus("Failed to find required constraints");
 }
 
 namespace {
@@ -196,24 +196,27 @@ class BFS {
 
 }  // namespace
 
-std::unique_ptr<Table> ConnectedFlowGenerator::ComputeTable(
+base::Status ConnectedFlowGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
     const std::vector<Order>&,
-    const BitVector&) {
+    const BitVector&,
+    std::unique_ptr<Table>& table_return) {
   const auto& flow = context_->storage->flow_table();
   const auto& slice = context_->storage->slice_table();
 
   auto it = std::find_if(cs.begin(), cs.end(), [&flow](const Constraint& c) {
     return c.col_idx == flow.GetColumnCount() && c.op == FilterOp::kEq;
   });
-
   PERFETTO_DCHECK(it != cs.end());
+  if (it == cs.end() || it->value.type != SqlValue::Type::kLong) {
+    return base::ErrStatus("invalid start_id");
+  }
 
   SliceId start_id{static_cast<uint32_t>(it->value.AsLong())};
 
   if (!slice.id().IndexOf(start_id)) {
-    PERFETTO_ELOG("Given slice id is invalid (ConnectedFlowGenerator)");
-    return nullptr;
+    return base::ErrStatus("invalid slice id %" PRIu32 "",
+                           static_cast<uint32_t>(start_id.value));
   }
 
   BFS bfs(context_);
@@ -241,11 +244,12 @@ std::unique_ptr<Table> ConnectedFlowGenerator::ComputeTable(
     start_ids->Append(start_id.value);
   }
 
-  return std::unique_ptr<Table>(
+  table_return.reset(
       new Table(flow.Apply(RowMap(std::move(result_rows)))
                     .ExtendWithColumn("start_id", std::move(start_ids),
                                       TypedColumn<uint32_t>::default_flags() |
                                           TypedColumn<uint32_t>::kHidden)));
+  return base::OkStatus();
 }
 
 Table::Schema ConnectedFlowGenerator::CreateSchema() {

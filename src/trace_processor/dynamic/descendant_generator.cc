@@ -20,6 +20,7 @@
 #include <set>
 
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -40,40 +41,38 @@ Table ExtendTableWithStartId(const T& table, int64_t constraint_value) {
       TypedColumn<uint32_t>::default_flags() | TypedColumn<uint32_t>::kHidden);
 }
 
-base::Optional<RowMap> BuildDescendantsRowMap(const tables::SliceTable& slices,
-                                              SliceId starting_id) {
+base::Status BuildDescendantsRowMap(const tables::SliceTable& slices,
+                                    SliceId starting_id,
+                                    RowMap& rowmap_return) {
   auto start_row = slices.id().IndexOf(starting_id);
   // The query gave an invalid ID that doesn't exist in the slice table.
   if (!start_row) {
-    // TODO(lalitm): Ideally this should result in an error, or be filtered out
-    // during ValidateConstraints so we can just dereference |start_row|
-    // directly. However ValidateConstraints doesn't know the value we're
-    // filtering for so can't ensure it exists. For now we return a nullptr
-    // which will cause the query to surface an error with the message "SQL
-    // error: constraint failed".
-    return base::nullopt;
+    return base::ErrStatus("no row with id %" PRIu32 "",
+                           static_cast<uint32_t>(starting_id.value));
   }
 
   // All nested descendents must be on the same track, with a ts between
   // |start_id.ts| and |start_id.ts| + |start_id.dur|, and who's depth is larger
   // then |start_row|'s. So we just use Filter to select all relevant slices.
-  return slices.FilterToRowMap(
+  rowmap_return = slices.FilterToRowMap(
       {slices.ts().ge(slices.ts()[*start_row]),
        slices.ts().le(slices.ts()[*start_row] + slices.dur()[*start_row]),
        slices.track_id().eq(slices.track_id()[*start_row].value),
        slices.depth().gt(slices.depth()[*start_row])});
+  return base::OkStatus();
 }
 
-std::unique_ptr<Table> BuildDescendantsTable(int64_t constraint_value,
-                                             const tables::SliceTable& slices,
-                                             SliceId starting_id) {
+base::Status BuildDescendantsTable(int64_t constraint_value,
+                                   const tables::SliceTable& slices,
+                                   SliceId starting_id,
+                                   std::unique_ptr<Table>& table_return) {
   // Build up all the children row ids.
-  auto descendants = BuildDescendantsRowMap(slices, starting_id);
-  if (!descendants) {
-    return nullptr;
-  }
-  return std::unique_ptr<Table>(new Table(ExtendTableWithStartId(
-      slices.Apply(std::move(*descendants)), constraint_value)));
+  RowMap descendants;
+  RETURN_IF_ERROR(BuildDescendantsRowMap(slices, starting_id, descendants));
+
+  table_return.reset(new Table(ExtendTableWithStartId(
+      slices.Apply(std::move(descendants)), constraint_value)));
+  return base::OkStatus();
 }
 }  // namespace
 
@@ -81,7 +80,7 @@ DescendantGenerator::DescendantGenerator(Descendant type,
                                          TraceProcessorContext* context)
     : type_(type), context_(context) {}
 
-util::Status DescendantGenerator::ValidateConstraints(
+base::Status DescendantGenerator::ValidateConstraints(
     const QueryConstraints& qc) {
   const auto& cs = qc.constraints();
 
@@ -90,28 +89,38 @@ util::Status DescendantGenerator::ValidateConstraints(
     return c.column == column && c.op == SQLITE_INDEX_CONSTRAINT_EQ;
   };
   bool has_id_cs = std::find_if(cs.begin(), cs.end(), id_fn) != cs.end();
-  return has_id_cs ? util::OkStatus()
-                   : util::ErrStatus("Failed to find required constraints");
+  return has_id_cs ? base::OkStatus()
+                   : base::ErrStatus("Failed to find required constraints");
 }
 
-std::unique_ptr<Table> DescendantGenerator::ComputeTable(
+base::Status DescendantGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
     const std::vector<Order>&,
-    const BitVector&) {
+    const BitVector&,
+    std::unique_ptr<Table>& table_return) {
   const auto& slices = context_->storage->slice_table();
 
   uint32_t column = GetConstraintColumnIndex(context_);
-  auto it = std::find_if(cs.begin(), cs.end(), [column](const Constraint& c) {
-    return c.col_idx == column && c.op == FilterOp::kEq;
-  });
-  PERFETTO_DCHECK(it != cs.end());
-  auto start_id = it->value.AsLong();
+  auto constraint_it =
+      std::find_if(cs.begin(), cs.end(), [column](const Constraint& c) {
+        return c.col_idx == column && c.op == FilterOp::kEq;
+      });
+  PERFETTO_DCHECK(constraint_it != cs.end());
+  if (constraint_it == cs.end() ||
+      constraint_it->value.type != SqlValue::Type::kLong) {
+    return base::ErrStatus("invalid start_id");
+  }
+  auto start_id = constraint_it->value.AsLong();
 
   switch (type_) {
-    case Descendant::kSlice:
-      return BuildDescendantsTable(start_id, slices,
-                                   SliceId(static_cast<uint32_t>(start_id)));
-    case Descendant::kSliceByStack:
+    case Descendant::kSlice: {
+      RETURN_IF_ERROR(BuildDescendantsTable(
+          start_id, slices, SliceId(static_cast<uint32_t>(start_id)),
+          table_return));
+      return base::OkStatus();
+    }
+
+    case Descendant::kSliceByStack: {
       auto result = RowMap();
       auto slice_ids = slices.FilterToRowMap({slices.stack_id().eq(start_id)});
 
@@ -124,10 +133,12 @@ std::unique_ptr<Table> DescendantGenerator::ComputeTable(
         }
       }
 
-      return std::unique_ptr<Table>(new Table(
+      table_return.reset(new Table(
           ExtendTableWithStartId(slices.Apply(std::move(result)), start_id)));
+      return base::OkStatus();
+    }
   }
-  return nullptr;
+  return base::ErrStatus("unknown DescendantGenerator type");
 }
 
 Table::Schema DescendantGenerator::CreateSchema() {
@@ -156,7 +167,11 @@ uint32_t DescendantGenerator::EstimateRowCount() {
 base::Optional<RowMap> DescendantGenerator::GetDescendantSlices(
     const tables::SliceTable& slices,
     SliceId slice_id) {
-  return BuildDescendantsRowMap(slices, slice_id);
+  RowMap ret;
+  auto status = BuildDescendantsRowMap(slices, slice_id, ret);
+  if (!status.ok())
+    return base::nullopt;
+  return std::move(ret);  // -Wreturn-std-move-in-c++11
 }
 
 }  // namespace trace_processor
