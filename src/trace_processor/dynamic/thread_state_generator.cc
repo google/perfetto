@@ -31,15 +31,16 @@ ThreadStateGenerator::ThreadStateGenerator(TraceProcessorContext* context)
 
 ThreadStateGenerator::~ThreadStateGenerator() = default;
 
-util::Status ThreadStateGenerator::ValidateConstraints(
+base::Status ThreadStateGenerator::ValidateConstraints(
     const QueryConstraints&) {
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
-std::unique_ptr<Table> ThreadStateGenerator::ComputeTable(
+base::Status ThreadStateGenerator::ComputeTable(
     const std::vector<Constraint>&,
     const std::vector<Order>&,
-    const BitVector&) {
+    const BitVector&,
+    std::unique_ptr<Table>& table_return) {
   if (!unsorted_thread_state_table_) {
     int64_t trace_end_ts =
         context_->storage->GetTraceTimestampBoundsNs().second;
@@ -53,8 +54,11 @@ std::unique_ptr<Table> ThreadStateGenerator::ComputeTable(
     sorted_thread_state_table_ = unsorted_thread_state_table_->Sort(
         {unsorted_thread_state_table_->ts().ascending()});
   }
+  // TODO(rsavitski): return base::ErrStatus instead?
   PERFETTO_CHECK(sorted_thread_state_table_);
-  return std::unique_ptr<Table>(new Table(sorted_thread_state_table_->Copy()));
+  table_return =
+      std::unique_ptr<Table>(new Table(sorted_thread_state_table_->Copy()));
+  return base::OkStatus();
 }
 
 std::unique_ptr<tables::ThreadStateTable>
@@ -311,7 +315,7 @@ void ThreadStateGenerator::AddBlockedReasonEvent(const Table& blocked_reason,
   ThreadSchedInfo& info = state_map[utid];
 
   base::Optional<Variadic> opt_value;
-  util::Status status =
+  base::Status status =
       context_->storage->ExtractArg(arg_set_id, "io_wait", &opt_value);
 
   // We can't do anything better than ignoring any errors here.
