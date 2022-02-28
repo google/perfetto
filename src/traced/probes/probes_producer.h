@@ -66,42 +66,13 @@ class ProbesProducer : public Producer, public FtraceController::Observer {
   // Our Impl
   void ConnectWithRetries(const char* socket_name,
                           base::TaskRunner* task_runner);
-  std::unique_ptr<ProbesDataSource> CreateFtraceDataSource(
+
+  // Constructs an instance of a data source of type T.
+  template <typename T>
+  std::unique_ptr<ProbesDataSource> CreateDSInstance(
       TracingSessionID session_id,
       const DataSourceConfig& config);
-  std::unique_ptr<ProbesDataSource> CreateProcessStatsDataSource(
-      TracingSessionID session_id,
-      const DataSourceConfig& config);
-  std::unique_ptr<ProbesDataSource> CreateInodeFileDataSource(
-      TracingSessionID session_id,
-      DataSourceConfig config);
-  std::unique_ptr<ProbesDataSource> CreateSysStatsDataSource(
-      TracingSessionID session_id,
-      const DataSourceConfig& config);
-  std::unique_ptr<ProbesDataSource> CreateAndroidPowerDataSource(
-      TracingSessionID session_id,
-      const DataSourceConfig& config);
-  std::unique_ptr<ProbesDataSource> CreateAndroidPowerStatsDataSource(
-      TracingSessionID session_id,
-      const DataSourceConfig& config);
-  std::unique_ptr<ProbesDataSource> CreateAndroidLogDataSource(
-      TracingSessionID session_id,
-      const DataSourceConfig& config);
-  std::unique_ptr<ProbesDataSource> CreateLinuxPowerSysfsDataSource(
-      TracingSessionID session_id,
-      const DataSourceConfig& config);
-  std::unique_ptr<ProbesDataSource> CreatePackagesListDataSource(
-      TracingSessionID session_id,
-      const DataSourceConfig& config);
-  std::unique_ptr<ProbesDataSource> CreateMetatraceDataSource(
-      TracingSessionID session_id,
-      const DataSourceConfig& config);
-  std::unique_ptr<ProbesDataSource> CreateSystemInfoDataSource(
-      TracingSessionID session_id,
-      const DataSourceConfig& config);
-  std::unique_ptr<ProbesDataSource> CreateInitialDisplayStateDataSource(
-      TracingSessionID session_id,
-      const DataSourceConfig& config);
+
   void ActivateTrigger(std::string trigger);
 
   // Calls `cb` when all data sources have been registered.
