@@ -57,17 +57,19 @@ class DbSqliteTable : public SqliteTable {
 
     // Checks that the constraint set is valid.
     //
-    // Returning util::OkStatus means that the required constraints are present
+    // Returning base::OkStatus means that the required constraints are present
     // in |qc| for dynamically computing the table (e.g. any required
     // constraints on hidden columns for table-valued functions are present).
-    virtual util::Status ValidateConstraints(const QueryConstraints& qc) = 0;
+    virtual base::Status ValidateConstraints(const QueryConstraints& qc) = 0;
 
     // Dynamically computes the table given the constraints and order by
     // vectors.
-    virtual std::unique_ptr<Table> ComputeTable(
-        const std::vector<Constraint>& cs,
-        const std::vector<Order>& ob,
-        const BitVector& cols_used) = 0;
+    // The table is returned via |table_return|. There are no guarantees on
+    // its value if the method returns a non-ok status.
+    virtual base::Status ComputeTable(const std::vector<Constraint>& cs,
+                                      const std::vector<Order>& ob,
+                                      const BitVector& cols_used,
+                                      std::unique_ptr<Table>& table_return) = 0;
   };
 
   class Cursor : public SqliteTable::Cursor {
@@ -166,7 +168,7 @@ class DbSqliteTable : public SqliteTable {
   virtual ~DbSqliteTable() override;
 
   // Table implementation.
-  util::Status Init(int,
+  base::Status Init(int,
                     const char* const*,
                     SqliteTable::Schema*) override final;
   std::unique_ptr<SqliteTable::Cursor> CreateCursor() override;
