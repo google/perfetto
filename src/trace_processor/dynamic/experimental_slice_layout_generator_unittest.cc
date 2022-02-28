@@ -104,9 +104,11 @@ TEST(ExperimentalSliceLayoutGeneratorTest, SingleRow) {
 
   ExperimentalSliceLayoutGenerator gen(&pool, &slice_table);
 
-  std::unique_ptr<Table> table = gen.ComputeTable(
+  std::unique_ptr<Table> table;
+  auto status = gen.ComputeTable(
       {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1")}}, {},
-      BitVector());
+      BitVector(), table);
+  EXPECT_TRUE(status.ok());
   ExpectOutput(*table, R"(
  #####
 )");
@@ -123,9 +125,11 @@ TEST(ExperimentalSliceLayoutGeneratorTest, DoubleRow) {
 
   ExperimentalSliceLayoutGenerator gen(&pool, &slice_table);
 
-  std::unique_ptr<Table> table = gen.ComputeTable(
+  std::unique_ptr<Table> table;
+  auto status = gen.ComputeTable(
       {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1")}}, {},
-      BitVector());
+      BitVector(), table);
+  EXPECT_TRUE(status.ok());
   ExpectOutput(*table, R"(
  #####
  #####
@@ -147,9 +151,11 @@ TEST(ExperimentalSliceLayoutGeneratorTest, MultipleRows) {
 
   ExperimentalSliceLayoutGenerator gen(&pool, &slice_table);
 
-  std::unique_ptr<Table> table = gen.ComputeTable(
+  std::unique_ptr<Table> table;
+  auto status = gen.ComputeTable(
       {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1")}}, {},
-      BitVector());
+      BitVector(), table);
+  EXPECT_TRUE(status.ok());
   ExpectOutput(*table, R"(
  #####
  ####
@@ -178,9 +184,11 @@ TEST(ExperimentalSliceLayoutGeneratorTest, MultipleTracks) {
 
   ExperimentalSliceLayoutGenerator gen(&pool, &slice_table);
 
-  std::unique_ptr<Table> table = gen.ComputeTable(
+  std::unique_ptr<Table> table;
+  auto status = gen.ComputeTable(
       {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1,2")}}, {},
-      BitVector());
+      BitVector(), table);
+  EXPECT_TRUE(status.ok());
   ExpectOutput(*table, R"(
  ####
  ##
@@ -214,9 +222,11 @@ TEST(ExperimentalSliceLayoutGeneratorTest, MultipleTracksWithGap) {
 
   ExperimentalSliceLayoutGenerator gen(&pool, &slice_table);
 
-  std::unique_ptr<Table> table = gen.ComputeTable(
+  std::unique_ptr<Table> table;
+  auto status = gen.ComputeTable(
       {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1,2")}}, {},
-      BitVector());
+      BitVector(), table);
+  EXPECT_TRUE(status.ok());
   ExpectOutput(*table, R"(
 #### ####
 ##   ##
@@ -247,9 +257,11 @@ TEST(ExperimentalSliceLayoutGeneratorTest, FilterOutTracks) {
   base::ignore_result(q);
 
   ExperimentalSliceLayoutGenerator gen(&pool, &slice_table);
-  std::unique_ptr<Table> table = gen.ComputeTable(
+  std::unique_ptr<Table> table;
+  auto status = gen.ComputeTable(
       {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1,2")}}, {},
-      BitVector());
+      BitVector(), table);
+  EXPECT_TRUE(status.ok());
   ExpectOutput(*table, R"(
 ####
 ##
