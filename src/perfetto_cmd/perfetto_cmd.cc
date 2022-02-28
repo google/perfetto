@@ -1269,7 +1269,8 @@ ID      UID     STATE      BUF (#) KB   DUR (s)   #DS  STARTED  NAME
     }  // for tracing_sessions()
 
     int sessions_listed = static_cast<int>(svc_state.tracing_sessions().size());
-    if (sessions_listed != svc_state.num_sessions() && geteuid() != 0) {
+    if (sessions_listed != svc_state.num_sessions() &&
+        base::GetCurrentUserId() != 0) {
       printf(
           "\n"
           "NOTE: Some tracing sessions are not reported in the list above.\n"
