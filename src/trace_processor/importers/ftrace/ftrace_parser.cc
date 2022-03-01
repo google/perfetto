@@ -676,6 +676,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseNapiGroReceiveExit(cpu, ts, data);
         break;
       }
+      case FtraceEvent::kCpuFrequencyLimitsFieldNumber: {
+        ParseCpuFrequencyLimits(ts, data);
+        break;
+      }
       default:
         break;
     }
@@ -1851,6 +1855,29 @@ void FtraceParser::ParseNapiGroReceiveExit(uint32_t cpu,
   };
   context_->slice_tracker->End(timestamp, track, napi_gro_id_, {},
                                args_inserter);
+}
+
+void FtraceParser::ParseCpuFrequencyLimits(int64_t timestamp,
+                                           protozero::ConstBytes blob) {
+  protos::pbzero::CpuFrequencyLimitsFtraceEvent::Decoder evt(blob.data,
+                                                             blob.size);
+  base::StackString<255> max_counter_name("Cpu %" PRIu32 " Max Freq Limit",
+                                          evt.cpu_id());
+  base::StackString<255> min_counter_name("Cpu %" PRIu32 " Min Freq Limit",
+                                          evt.cpu_id());
+  // Push max freq to global counter.
+  StringId max_name = context_->storage->InternString(max_counter_name.c_str());
+  TrackId max_track =
+      context_->track_tracker->InternGlobalCounterTrack(max_name);
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(evt.max_freq()), max_track);
+
+  // Push min freq to global counter.
+  StringId min_name = context_->storage->InternString(min_counter_name.c_str());
+  TrackId min_track =
+      context_->track_tracker->InternGlobalCounterTrack(min_name);
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(evt.min_freq()), min_track);
 }
 
 }  // namespace trace_processor
