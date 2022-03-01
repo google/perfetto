@@ -285,7 +285,7 @@ ExperimentalFlamegraphGenerator::~ExperimentalFlamegraphGenerator() = default;
 // For filtering, this method uses the same constraints as
 // ExperimentalFlamegraphGenerator::GetFlamegraphInputValues and should
 // therefore be kept in sync.
-util::Status ExperimentalFlamegraphGenerator::ValidateConstraints(
+base::Status ExperimentalFlamegraphGenerator::ValidateConstraints(
     const QueryConstraints& qc) {
   using T = tables::ExperimentalFlamegraphNodesTable;
 
@@ -318,14 +318,15 @@ util::Status ExperimentalFlamegraphGenerator::ValidateConstraints(
       std::find_if(cs.begin(), cs.end(), profile_type_fn) != cs.end();
 
   return has_ts_cs && (has_upid_cs || has_upid_group_cs) && has_profile_type_cs
-             ? util::OkStatus()
-             : util::ErrStatus("Failed to find required constraints");
+             ? base::OkStatus()
+             : base::ErrStatus("Failed to find required constraints");
 }
 
-std::unique_ptr<Table> ExperimentalFlamegraphGenerator::ComputeTable(
+base::Status ExperimentalFlamegraphGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
     const std::vector<Order>&,
-    const BitVector&) {
+    const BitVector&,
+    std::unique_ptr<Table>& table_return) {
   // Get the input column values and compute the flamegraph using them.
   auto values = GetFlamegraphInputValues(cs);
 
@@ -352,9 +353,8 @@ std::unique_ptr<Table> ExperimentalFlamegraphGenerator::ComputeTable(
       table->mutable_focus_str()->Set(i, focus_id);
     }
   }
-  // We need to explicitly std::move as clang complains about a bug in old
-  // compilers otherwise (-Wreturn-std-move-in-c++11).
-  return std::move(table);
+  table_return = std::move(table);
+  return base::OkStatus();
 }
 
 Table::Schema ExperimentalFlamegraphGenerator::CreateSchema() {

@@ -28,7 +28,7 @@ ExperimentalFlatSliceGenerator::ExperimentalFlatSliceGenerator(
     TraceProcessorContext* context)
     : context_(context) {}
 
-util::Status ExperimentalFlatSliceGenerator::ValidateConstraints(
+base::Status ExperimentalFlatSliceGenerator::ValidateConstraints(
     const QueryConstraints& qc) {
   using CI = tables::ExperimentalFlatSliceTable::ColumnIndex;
   bool has_start_bound = false;
@@ -40,14 +40,15 @@ util::Status ExperimentalFlatSliceGenerator::ValidateConstraints(
                      c.op == SQLITE_INDEX_CONSTRAINT_EQ;
   }
   return has_start_bound && has_end_bound
-             ? util::OkStatus()
-             : util::ErrStatus("Failed to find required constraints");
+             ? base::OkStatus()
+             : base::ErrStatus("Failed to find required constraints");
 }
 
-std::unique_ptr<Table> ExperimentalFlatSliceGenerator::ComputeTable(
+base::Status ExperimentalFlatSliceGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
     const std::vector<Order>&,
-    const BitVector&) {
+    const BitVector&,
+    std::unique_ptr<Table>& table_return) {
   using CI = tables::ExperimentalFlatSliceTable::ColumnIndex;
   auto start_it = std::find_if(cs.begin(), cs.end(), [](const Constraint& c) {
     return c.col_idx == static_cast<uint32_t>(CI::start_bound) &&
@@ -57,11 +58,14 @@ std::unique_ptr<Table> ExperimentalFlatSliceGenerator::ComputeTable(
     return c.col_idx == static_cast<uint32_t>(CI::end_bound) &&
            c.op == FilterOp::kEq;
   });
+  // TODO(rsavitski): consider checking the values' types (in case of erroneous
+  // queries passing e.g. null).
   int64_t start_bound = start_it->value.AsLong();
   int64_t end_bound = end_it->value.AsLong();
-  return ComputeFlatSliceTable(context_->storage->slice_table(),
-                               context_->storage->mutable_string_pool(),
-                               start_bound, end_bound);
+  table_return = ComputeFlatSliceTable(context_->storage->slice_table(),
+                                       context_->storage->mutable_string_pool(),
+                                       start_bound, end_bound);
+  return base::OkStatus();
 }
 
 std::unique_ptr<tables::ExperimentalFlatSliceTable>

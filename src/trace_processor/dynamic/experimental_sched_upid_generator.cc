@@ -41,21 +41,24 @@ uint32_t ExperimentalSchedUpidGenerator::EstimateRowCount() {
   return sched_slice_table_->row_count();
 }
 
-util::Status ExperimentalSchedUpidGenerator::ValidateConstraints(
+base::Status ExperimentalSchedUpidGenerator::ValidateConstraints(
     const QueryConstraints&) {
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
-std::unique_ptr<Table> ExperimentalSchedUpidGenerator::ComputeTable(
+base::Status ExperimentalSchedUpidGenerator::ComputeTable(
     const std::vector<Constraint>&,
     const std::vector<Order>&,
-    const BitVector&) {
+    const BitVector&,
+    std::unique_ptr<Table>& table_return) {
   if (!upid_column_) {
     upid_column_.reset(new NullableVector<uint32_t>(ComputeUpidColumn()));
   }
-  return std::unique_ptr<Table>(new Table(sched_slice_table_->ExtendWithColumn(
-      "upid", upid_column_.get(),
-      TypedColumn<base::Optional<uint32_t>>::default_flags())));
+  table_return =
+      std::unique_ptr<Table>(new Table(sched_slice_table_->ExtendWithColumn(
+          "upid", upid_column_.get(),
+          TypedColumn<base::Optional<uint32_t>>::default_flags())));
+  return base::OkStatus();
 }
 
 NullableVector<uint32_t> ExperimentalSchedUpidGenerator::ComputeUpidColumn() {
