@@ -167,6 +167,7 @@ class FtraceParser {
   void ParseNapiGroReceiveExit(uint32_t cpu,
                                int64_t timestamp,
                                protozero::ConstBytes);
+  void ParseCpuFrequencyLimits(int64_t timestamp, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
