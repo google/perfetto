@@ -64,8 +64,8 @@ CREATE TABLE android_sysui_cuj_frame_expected_timeline_events AS
     CAST(e.name as INTEGER) as vsync,
     e.ts as ts_expected,
     e.dur as dur_expected,
-    MIN(a.ts) as ts_actual,
-    MAX(a.dur) as dur_actual
+    MIN(a.ts) as ts_actual_min,
+    MAX(a.ts + a.dur) as ts_end_actual_max
   FROM android_sysui_cuj_last_cuj cuj
   JOIN expected_frame_timeline_slice e USING (upid)
   JOIN android_sysui_cuj_vsync_boundaries vsync
@@ -111,7 +111,7 @@ LEFT JOIN android_sysui_cuj_frame_expected_timeline_events fte
 -- This may cause the actual/expected timeline to be misaligned with the rest
 -- of the trace for a short period.
 -- Do not use the timelines if it seems that this happened.
-AND slices.ts >= fte.ts_actual AND slices.ts <= (fte.ts_actual + fte.dur_actual);
+AND slices.ts >= fte.ts_actual_min AND slices.ts <= fte.ts_end_actual_max;
 
 DROP TABLE IF EXISTS android_sysui_cuj_ts_boundaries;
 CREATE TABLE android_sysui_cuj_ts_boundaries AS
