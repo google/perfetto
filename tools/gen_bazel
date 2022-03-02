@@ -81,6 +81,8 @@ default_targets = [
 proto_targets = [
     '//protos/perfetto/metrics:lite',
     '//protos/perfetto/metrics:source_set',
+    '//protos/perfetto/metrics/android:lite',
+    '//protos/perfetto/metrics/android:source_set',
     '//protos/third_party/chromium:lite',
     '//protos/third_party/chromium:source_set',
 ]
@@ -93,6 +95,12 @@ proto_groups = {
   'trace': [
     '//protos/perfetto/trace:non_minimal_source_set',
     '//protos/perfetto/trace:minimal_source_set'
+  ],
+  'metrics': [
+    '//protos/perfetto/metrics:source_set',
+  ],
+  'chromium': [
+    '//protos/third_party/chromium:source_set',
   ],
 }
 
