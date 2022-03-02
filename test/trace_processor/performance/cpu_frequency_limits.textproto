@@ -1,0 +1,84 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 90000000
+      pid: 200
+      cpu_frequency_limits {
+        max_freq: 2800000
+        min_freq: 500000
+        cpu_id: 6
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 100000000
+      pid: 500
+      cpu_frequency_limits {
+        max_freq: 1700000
+        min_freq: 500000
+        cpu_id: 6
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 110000000
+      pid: 80
+      cpu_frequency_limits {
+        max_freq: 2800000
+        min_freq: 1400000
+        cpu_id: 6
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 120000000
+      pid: 300
+      cpu_frequency_limits {
+        max_freq: 1500000
+        min_freq: 500000
+        cpu_id: 6
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 4
+    event {
+      timestamp: 120000000
+      pid: 300
+      cpu_frequency_limits {
+        max_freq: 1400000
+        min_freq: 600000
+        cpu_id: 4
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 4
+    event {
+      timestamp: 130000000
+      pid: 600
+      cpu_frequency_limits {
+        max_freq: 2200000
+        min_freq: 800000
+        cpu_id: 4
+      }
+    }
+  }
+}
