@@ -168,6 +168,7 @@ class FtraceParser {
                                int64_t timestamp,
                                protozero::ConstBytes);
   void ParseCpuFrequencyLimits(int64_t timestamp, protozero::ConstBytes);
+  void ParseKfreeSkb(int64_t timestamp, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
@@ -178,6 +179,7 @@ class FtraceParser {
   const StringId cpu_freq_name_id_;
   const StringId gpu_freq_name_id_;
   const StringId cpu_idle_name_id_;
+  const StringId kfree_skb_name_id_;
   const StringId ion_total_id_;
   const StringId ion_change_id_;
   const StringId ion_buffer_id_;
@@ -245,6 +247,9 @@ class FtraceParser {
 
   // Record number of transmitted bytes to the network interface card.
   std::unordered_map<StringId, uint64_t> nic_transmitted_bytes_;
+
+  // Record number of kfree_skb.
+  uint64_t num_of_kfree_skb_ = 0;
 
   // Keep sock to stream number mapping.
   std::unordered_map<uint64_t, uint32_t> skaddr_to_stream_;
