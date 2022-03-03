@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/db/compare.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -73,6 +74,21 @@ TEST(CompareTest, SqlValueString) {
 
   ASSERT_EQ(compare::SqlValue(a, a), 0);
   ASSERT_EQ(compare::SqlValue(aa, SqlValue::String("aa")), 0);
+}
+
+TEST(CompareTest, Glob) {
+  NullTermStringView value = "foobar";
+  NullTermStringView p1 = "foo*";
+  NullTermStringView p2 = "*bar";
+  NullTermStringView p3 = "[f][o][a-z]ba*";
+  NullTermStringView p4 = "?[o][a-z]ba*";
+  NullTermStringView p5 = "[g-z][o][a-z]ba*";
+
+  ASSERT_EQ(compare::Glob(value, p1), 0);
+  ASSERT_EQ(compare::Glob(value, p2), 0);
+  ASSERT_EQ(compare::Glob(value, p3), 0);
+  ASSERT_EQ(compare::Glob(value, p4), 0);
+  ASSERT_NE(compare::Glob(value, p5), 0);
 }
 
 }  // namespace
