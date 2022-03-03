@@ -2841,6 +2841,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/ftrace/scm.proto",
         "protos/perfetto/trace/ftrace/sde.proto",
         "protos/perfetto/trace/ftrace/signal.proto",
+        "protos/perfetto/trace/ftrace/skb.proto",
         "protos/perfetto/trace/ftrace/sock.proto",
         "protos/perfetto/trace/ftrace/sync.proto",
         "protos/perfetto/trace/ftrace/synthetic.proto",
