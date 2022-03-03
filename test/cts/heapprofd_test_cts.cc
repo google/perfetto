@@ -81,11 +81,11 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(
   // (re)start the target app's main activity
   if (IsAppRunning(app_name)) {
     StopApp(app_name, "old.app.stopped", &task_runner);
-    task_runner.RunUntilCheckpoint("old.app.stopped", 1000 /*ms*/);
+    task_runner.RunUntilCheckpoint("old.app.stopped", 10000 /*ms*/);
   }
   StartAppActivity(app_name, activity, "target.app.running", &task_runner,
                    /*delay_ms=*/100);
-  task_runner.RunUntilCheckpoint("target.app.running", 1000 /*ms*/);
+  task_runner.RunUntilCheckpoint("target.app.running", 10000 /*ms*/);
 
   // set up tracing
   TestHelper helper(&task_runner);
@@ -137,7 +137,7 @@ std::vector<protos::gen::TracePacket> ProfileStartup(
 
   if (IsAppRunning(app_name)) {
     StopApp(app_name, "old.app.stopped", &task_runner);
-    task_runner.RunUntilCheckpoint("old.app.stopped", 1000 /*ms*/);
+    task_runner.RunUntilCheckpoint("old.app.stopped", 10000 /*ms*/);
   }
 
   // set up tracing
@@ -171,7 +171,7 @@ std::vector<protos::gen::TracePacket> ProfileStartup(
   // start app
   StartAppActivity(app_name, activity, "target.app.running", &task_runner,
                    /*delay_ms=*/100);
-  task_runner.RunUntilCheckpoint("target.app.running", 2000 /*ms*/);
+  task_runner.RunUntilCheckpoint("target.app.running", 10000 /*ms*/);
 
   helper.WaitForTracingDisabled();
   helper.ReadData();
