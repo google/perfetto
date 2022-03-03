@@ -32,6 +32,9 @@ heap_profile_tracker_twoheaps.textproto heap_profile_tracker_twoheaps.sql heap_p
 heap_graph_branching.textproto heap_graph_flamegraph_focused.sql heap_graph_flamegraph_focused.out
 heap_graph_superclass.textproto heap_graph_superclass.sql heap_graph_superclass.out
 heap_graph_native_size.textproto heap_graph_native_size.sql heap_graph_native_size.out
+# Regression test for b/222297079: when cumulative size in a flamegraph
+# overflows a signed 32-bit integer.
+heap_graph_huge_size.textproto heap_graph_flamegraph_matches_objects.sql heap_graph_flamegraph_matches_objects.out
 
 # TODO(b/153552977): Stop supporting legacy heap graphs. These never made
 #                    it into a public release, so we should eventually stop
