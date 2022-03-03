@@ -1,0 +1,76 @@
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+  heap_graph {
+    pid: 2
+    types {
+      id: 54
+      location_id: 5
+      class_name: "java.lang.Object"
+      object_size: 8
+      kind: KIND_NOREFERENCES
+      classloader_id: 0
+    }
+    types {
+      id: 55
+      location_id: 5
+      class_name: "dev.perfetto.BigStuff"
+      object_size: 1000000000 # Three of these overflow signed 32-bit
+      superclass_id: 54
+      kind: KIND_NORMAL
+      classloader_id: 0
+    }
+    types {
+      id: 56
+      location_id: 5
+      class_name: "dev.perfetto.Container"
+      object_size: 36
+      superclass_id: 54
+      reference_field_id: 601 # obj1
+      reference_field_id: 602 # obj2
+      reference_field_id: 603 # obj3
+      kind: KIND_NORMAL
+      classloader_id: 0
+    }
+    objects {
+      id: 0x1
+      type_id: 55 # dev.perfetto.BigStuff
+    }
+    objects {
+      id: 0x2
+      type_id: 55 # dev.perfetto.BigStuff
+    }
+    objects {
+      id: 0x3
+      type_id: 55 # dev.perfetto.BigStuff
+    }
+    objects {
+      id: 0x4
+      type_id: 56 # dev.perfetto.Container
+      reference_object_id: 0x1 # obj1
+      reference_object_id: 0x2 # obj2
+      reference_object_id: 0x3 # obj3
+    }
+    roots {
+      object_ids: 0x4
+      root_type: ROOT_JAVA_FRAME
+    }
+    field_names {
+      iid: 601
+      str: "dev.perfetto.BigStuff dev.perfetto.Container.obj1"
+    }
+    field_names {
+      iid: 602
+      str: "dev.perfetto.BigStuff dev.perfetto.Container.obj2"
+    }
+    field_names {
+      iid: 603
+      str: "dev.perfetto.BigStuff dev.perfetto.Container.obj3"
+    }
+    location_names {
+      iid: 5
+      str: "/apex/com.android.art/javalib/core-oj.jar"
+    }
+    index: 0
+  }
+}
