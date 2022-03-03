@@ -60,12 +60,12 @@ std::vector<protos::gen::TracePacket> ProfileSystemWide(std::string app_name) {
   // (re)start the target app's main activity
   if (IsAppRunning(app_name)) {
     StopApp(app_name, "old.app.stopped", &task_runner);
-    task_runner.RunUntilCheckpoint("old.app.stopped", 1000 /*ms*/);
+    task_runner.RunUntilCheckpoint("old.app.stopped", 10000 /*ms*/);
   }
   StartAppActivity(app_name, "BusyWaitActivity", "target.app.running",
                    &task_runner,
                    /*delay_ms=*/100);
-  task_runner.RunUntilCheckpoint("target.app.running", 1000 /*ms*/);
+  task_runner.RunUntilCheckpoint("target.app.running", 10000 /*ms*/);
 
   // set up tracing
   TestHelper helper(&task_runner);
