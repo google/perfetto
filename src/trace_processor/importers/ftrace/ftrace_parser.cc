@@ -55,6 +55,7 @@
 #include "protos/perfetto/trace/ftrace/scm.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sde.pbzero.h"
 #include "protos/perfetto/trace/ftrace/signal.pbzero.h"
+#include "protos/perfetto/trace/ftrace/skb.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sock.pbzero.h"
 #include "protos/perfetto/trace/ftrace/systrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
@@ -111,6 +112,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       cpu_freq_name_id_(context->storage->InternString("cpufreq")),
       gpu_freq_name_id_(context->storage->InternString("gpufreq")),
       cpu_idle_name_id_(context->storage->InternString("cpuidle")),
+      kfree_skb_name_id_(context->storage->InternString("Kfree Skb")),
       ion_total_id_(context->storage->InternString("mem.ion")),
       ion_change_id_(context->storage->InternString("mem.ion_change")),
       ion_buffer_id_(context->storage->InternString("mem.ion_buffer")),
@@ -678,6 +680,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kCpuFrequencyLimitsFieldNumber: {
         ParseCpuFrequencyLimits(ts, data);
+        break;
+      }
+      case FtraceEvent::kKfreeSkbFieldNumber: {
+        ParseKfreeSkb(ts, data);
         break;
       }
       default:
@@ -1878,6 +1884,17 @@ void FtraceParser::ParseCpuFrequencyLimits(int64_t timestamp,
       context_->track_tracker->InternGlobalCounterTrack(min_name);
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(evt.min_freq()), min_track);
+}
+
+void FtraceParser::ParseKfreeSkb(int64_t timestamp,
+                                 protozero::ConstBytes blob) {
+  protos::pbzero::KfreeSkbFtraceEvent::Decoder evt(blob.data, blob.size);
+
+  num_of_kfree_skb_ += 1;
+  TrackId track =
+      context_->track_tracker->InternGlobalCounterTrack(kfree_skb_name_id_);
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(num_of_kfree_skb_), track);
 }
 
 }  // namespace trace_processor
