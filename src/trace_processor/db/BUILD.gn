@@ -18,7 +18,6 @@ source_set("db") {
   sources = [
     "column.cc",
     "column.h",
-    "compare.cc",
     "compare.h",
     "table.cc",
     "table.h",
@@ -32,10 +31,6 @@ source_set("db") {
     "../../../include/perfetto/trace_processor",
     "../containers",
   ]
-
-  if (enable_perfetto_trace_processor_sqlite) {
-    deps += [ "../../../gn:sqlite" ]
-  }
 }
 
 perfetto_unittest_source_set("unittests") {
@@ -49,7 +44,6 @@ perfetto_unittest_source_set("unittests") {
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../base:base",
-    "../containers",
     "../tables:tables",
   ]
 }

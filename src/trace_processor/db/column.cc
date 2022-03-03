@@ -160,18 +160,13 @@ void Column::FilterIntoNumericSlow(FilterOp op,
       rm->Intersect(RowMap());
     }
     return;
-  }
-  if (op == FilterOp::kIsNotNull) {
+  } else if (op == FilterOp::kIsNotNull) {
     PERFETTO_DCHECK(value.is_null());
     if (is_nullable) {
       row_map().FilterInto(rm, [this](uint32_t row) {
         return nullable_vector<T>().Get(row).has_value();
       });
     }
-    return;
-  }
-  if (op == FilterOp::kGlob) {
-    rm->Intersect(RowMap());
     return;
   }
 
@@ -280,7 +275,6 @@ void Column::FilterIntoNumericWithComparatorSlow(FilterOp op,
       break;
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
-    case FilterOp::kGlob:
       PERFETTO_FATAL("Should be handled above");
   }
 }
@@ -296,9 +290,7 @@ void Column::FilterIntoStringSlow(FilterOp op,
       return GetStringPoolStringAtIdx(row).data() == nullptr;
     });
     return;
-  }
-
-  if (op == FilterOp::kIsNotNull) {
+  } else if (op == FilterOp::kIsNotNull) {
     PERFETTO_DCHECK(value.is_null());
     row_map().FilterInto(rm, [this](uint32_t row) {
       return GetStringPoolStringAtIdx(row).data() != nullptr;
@@ -351,12 +343,6 @@ void Column::FilterIntoStringSlow(FilterOp op,
         return v.data() != nullptr && compare::String(v, str_value) >= 0;
       });
       break;
-    case FilterOp::kGlob:
-      row_map().FilterInto(rm, [this, str_value](uint32_t idx) {
-        auto v = GetStringPoolStringAtIdx(idx);
-        return v.data() != nullptr && compare::Glob(v, str_value) == 0;
-      });
-      break;
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
       PERFETTO_FATAL("Should be handled above");
@@ -370,15 +356,8 @@ void Column::FilterIntoIdSlow(FilterOp op, SqlValue value, RowMap* rm) const {
     PERFETTO_DCHECK(value.is_null());
     rm->Intersect(RowMap());
     return;
-  }
-
-  if (op == FilterOp::kIsNotNull) {
+  } else if (op == FilterOp::kIsNotNull) {
     PERFETTO_DCHECK(value.is_null());
-    return;
-  }
-
-  if (op == FilterOp::kGlob) {
-    rm->Intersect(RowMap());
     return;
   }
 
@@ -421,7 +400,6 @@ void Column::FilterIntoIdSlow(FilterOp op, SqlValue value, RowMap* rm) const {
       break;
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
-    case FilterOp::kGlob:
       PERFETTO_FATAL("Should be handled above");
   }
 }
