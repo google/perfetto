@@ -52,11 +52,11 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(std::string app_name) {
   // (re)start the target app's main activity
   if (IsAppRunning(app_name)) {
     StopApp(app_name, "old.app.stopped", &task_runner);
-    task_runner.RunUntilCheckpoint("old.app.stopped", 1000 /*ms*/);
+    task_runner.RunUntilCheckpoint("old.app.stopped", 10000 /*ms*/);
   }
   StartAppActivity(app_name, "MainActivity", "target.app.running", &task_runner,
                    /*delay_ms=*/100);
-  task_runner.RunUntilCheckpoint("target.app.running", 1000 /*ms*/);
+  task_runner.RunUntilCheckpoint("target.app.running", 10000 /*ms*/);
   // If we try to dump too early in app initialization, we sometimes deadlock.
   sleep(1);
 
@@ -85,7 +85,7 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(std::string app_name) {
   helper.WaitForReadData();
   PERFETTO_CHECK(IsAppRunning(app_name));
   StopApp(app_name, "new.app.stopped", &task_runner);
-  task_runner.RunUntilCheckpoint("new.app.stopped", 1000 /*ms*/);
+  task_runner.RunUntilCheckpoint("new.app.stopped", 10000 /*ms*/);
   return helper.trace();
 }
 
@@ -142,11 +142,11 @@ TEST(HeapprofdJavaCtsTest, DebuggableAppRuntimeByPid) {
   // (re)start the target app's main activity
   if (IsAppRunning(app_name)) {
     StopApp(app_name, "old.app.stopped", &task_runner);
-    task_runner.RunUntilCheckpoint("old.app.stopped", 1000 /*ms*/);
+    task_runner.RunUntilCheckpoint("old.app.stopped", 10000 /*ms*/);
   }
   StartAppActivity(app_name, "MainActivity", "target.app.running", &task_runner,
                    /*delay_ms=*/100);
-  task_runner.RunUntilCheckpoint("target.app.running", 1000 /*ms*/);
+  task_runner.RunUntilCheckpoint("target.app.running", 10000 /*ms*/);
   // If we try to dump too early in app initialization, we sometimes deadlock.
   sleep(1);
 
@@ -178,7 +178,7 @@ TEST(HeapprofdJavaCtsTest, DebuggableAppRuntimeByPid) {
   helper.WaitForReadData();
   PERFETTO_CHECK(IsAppRunning(app_name));
   StopApp(app_name, "new.app.stopped", &task_runner);
-  task_runner.RunUntilCheckpoint("new.app.stopped", 1000 /*ms*/);
+  task_runner.RunUntilCheckpoint("new.app.stopped", 10000 /*ms*/);
 
   const auto& packets = helper.trace();
   AssertGraphPresent(packets);
