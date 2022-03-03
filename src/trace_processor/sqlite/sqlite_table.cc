@@ -16,9 +16,7 @@
 
 #include "src/trace_processor/sqlite/sqlite_table.h"
 
-#include <ctype.h>
 #include <string.h>
-
 #include <algorithm>
 #include <cinttypes>
 #include <map>
@@ -44,6 +42,66 @@ std::string TypeToString(SqlValue::Type type) {
       PERFETTO_FATAL("Cannot map unknown column type");
   }
   PERFETTO_FATAL("Not reached");  // For gcc
+}
+
+std::string OpToString(int op) {
+  switch (op) {
+    case SQLITE_INDEX_CONSTRAINT_EQ:
+      return "=";
+    case SQLITE_INDEX_CONSTRAINT_NE:
+      return "!=";
+    case SQLITE_INDEX_CONSTRAINT_GE:
+      return ">=";
+    case SQLITE_INDEX_CONSTRAINT_GT:
+      return ">";
+    case SQLITE_INDEX_CONSTRAINT_LE:
+      return "<=";
+    case SQLITE_INDEX_CONSTRAINT_LT:
+      return "<";
+    case SQLITE_INDEX_CONSTRAINT_LIKE:
+      return "like";
+    case SQLITE_INDEX_CONSTRAINT_ISNULL:
+      return "is null";
+    case SQLITE_INDEX_CONSTRAINT_ISNOTNULL:
+      return "is not null";
+    case SQLITE_INDEX_CONSTRAINT_GLOB:
+      return "glob";
+    default:
+      PERFETTO_FATAL("Operator to string conversion not impemented for %d", op);
+  }
+}
+
+std::string QcDebugStr(const QueryConstraints& qc,
+                       const SqliteTable::Schema& schema) {
+  std::string str_result;
+  str_result.reserve(512);
+
+  str_result.append("C");
+  str_result.append(std::to_string(qc.constraints().size()));
+  str_result.append(",");
+  for (const auto& cs : qc.constraints()) {
+    str_result.append(schema.columns()[static_cast<size_t>(cs.column)].name());
+    str_result.append(" ");
+    str_result.append(OpToString(cs.op));
+    str_result.append(",");
+  }
+  str_result.back() = ';';
+
+  str_result.append("O");
+  str_result.append(std::to_string(qc.order_by().size()));
+  str_result.append(",");
+  for (const auto& ob : qc.order_by()) {
+    str_result.append(schema.columns()[static_cast<size_t>(ob.iColumn)].name());
+    str_result.append(" ");
+    str_result.append(std::to_string(ob.desc));
+    str_result.append(",");
+  }
+  str_result.back() = ';';
+
+  str_result.append("U");
+  str_result.append(std::to_string(qc.cols_used()));
+
+  return str_result;
 }
 
 }  // namespace
@@ -126,7 +184,7 @@ int SqliteTable::BestIndexInternal(sqlite3_index_info* idx) {
     PERFETTO_LOG(
         "[%s::BestIndex] constraints=%s orderByConsumed=%d estimatedCost=%f "
         "estimatedRows=%" PRId64,
-        name_.c_str(), out_qc_str.get(), idx->orderByConsumed,
+        name_.c_str(), QcDebugStr(qc, schema()).c_str(), idx->orderByConsumed,
         idx->estimatedCost, static_cast<int64_t>(idx->estimatedRows));
   }
 
@@ -162,7 +220,7 @@ bool SqliteTable::ReadConstraints(int idxNum, const char* idxStr, int argc) {
   // happens precisely when the constraint set from SQLite changes.)
   if (SqliteTable::debug && !cache_hit) {
     PERFETTO_LOG("[%s::ParseConstraints] constraints=%s argc=%d", name_.c_str(),
-                 idxStr, argc);
+                 QcDebugStr(qc_cache_, schema_).c_str(), argc);
   }
   return cache_hit;
 }
