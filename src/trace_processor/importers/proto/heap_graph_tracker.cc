@@ -1010,8 +1010,8 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
     FindPathFromRoot(context_->storage.get(), root, &init_path);
   }
 
-  std::vector<int32_t> node_to_cumulative_size(init_path.nodes.size());
-  std::vector<int32_t> node_to_cumulative_count(init_path.nodes.size());
+  std::vector<int64_t> node_to_cumulative_size(init_path.nodes.size());
+  std::vector<int64_t> node_to_cumulative_count(init_path.nodes.size());
   // i > 0 is to skip the artifical root node.
   for (size_t i = init_path.nodes.size() - 1; i > 0; --i) {
     const PathFromRoot::Node& node = init_path.nodes[i];

@@ -955,6 +955,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/db/column.cc",
         "src/trace_processor/db/column.h",
+        "src/trace_processor/db/compare.cc",
         "src/trace_processor/db/compare.h",
         "src/trace_processor/db/table.cc",
         "src/trace_processor/db/table.h",
@@ -2083,6 +2084,80 @@ perfetto_java_lite_proto_library(
     ],
 )
 
+# GN target: [//protos/perfetto/metrics:source_set]
+perfetto_proto_library(
+    name = "metrics_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":protos_perfetto_metrics_android_protos",
+        ":protos_perfetto_metrics_protos",
+    ],
+)
+
+# GN target: [//protos/perfetto/metrics:source_set]
+perfetto_cc_proto_library(
+    name = "metrics_cc_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":metrics_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/metrics:source_set]
+perfetto_java_proto_library(
+    name = "metrics_java_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":metrics_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/metrics:source_set]
+perfetto_java_lite_proto_library(
+    name = "metrics_java_proto_lite",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":metrics_proto",
+    ],
+)
+
+# GN target: [//protos/third_party/chromium:source_set]
+perfetto_proto_library(
+    name = "chromium_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":protos_perfetto_trace_track_event_protos",
+        ":protos_third_party_chromium_protos",
+    ],
+)
+
+# GN target: [//protos/third_party/chromium:source_set]
+perfetto_cc_proto_library(
+    name = "chromium_cc_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":chromium_proto",
+    ],
+)
+
+# GN target: [//protos/third_party/chromium:source_set]
+perfetto_java_proto_library(
+    name = "chromium_java_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":chromium_proto",
+    ],
+)
+
+# GN target: [//protos/third_party/chromium:source_set]
+perfetto_java_lite_proto_library(
+    name = "chromium_java_proto_lite",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":chromium_proto",
+    ],
+)
+
 # GN target: //protos/perfetto/common:cpp
 perfetto_cc_protocpp_library(
     name = "protos_perfetto_common_cpp",
@@ -2634,9 +2709,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/android/trace_quality.proto",
         "protos/perfetto/metrics/android/unsymbolized_frames.proto",
     ],
-    visibility = [
-        PERFETTO_CONFIG.proto_library_visibility,
-    ],
+    visibility = PERFETTO_CONFIG.public_visibility,
 )
 
 # GN target: //protos/perfetto/metrics/chrome:descriptor

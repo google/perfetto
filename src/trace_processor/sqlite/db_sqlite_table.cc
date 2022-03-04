@@ -47,9 +47,19 @@ base::Optional<FilterOp> SqliteOpToFilterOp(int sqlite_op) {
       return FilterOp::kIsNull;
     case SQLITE_INDEX_CONSTRAINT_ISNOTNULL:
       return FilterOp::kIsNotNull;
-    case SQLITE_INDEX_CONSTRAINT_LIKE:
     case SQLITE_INDEX_CONSTRAINT_GLOB:
+      return FilterOp::kGlob;
+    case SQLITE_INDEX_CONSTRAINT_LIKE:
       return base::nullopt;
+#if SQLITE_VERSION_NUMBER >= 3038000
+    // LIMIT and OFFSET constraints were introduced in 3.38 but we
+    // still build for older versions in most places. We still need
+    // to handle this here as Chrome is very good at staying up to date
+    // with SQLite versions and crashes if we don't have this.
+    case SQLITE_INDEX_CONSTRAINT_LIMIT:
+    case SQLITE_INDEX_CONSTRAINT_OFFSET:
+      return base::nullopt;
+#endif
     default:
       PERFETTO_FATAL("Currently unsupported constraint");
   }
@@ -225,6 +235,10 @@ void DbSqliteTable::ModifyConstraints(const Table::Schema& schema,
     // Sorted columns are also quite cheap to filter so order them after
     // any id columns.
     if (a_col.is_sorted && !b_col.is_sorted)
+      return true;
+
+    // Always prefer constraints which can filter to those we can't.
+    if (SqliteOpToFilterOp(a.op) && !SqliteOpToFilterOp(b.op))
       return true;
 
     // TODO(lalitm): introduce more orderings here based on empirical data.
@@ -502,6 +516,9 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
           break;
         case FilterOp::kIsNotNull:
           writer.AppendString("IS NOT");
+          break;
+        case FilterOp::kGlob:
+          writer.AppendString("GLOB");
           break;
       }
       writer.AppendChar(' ');
