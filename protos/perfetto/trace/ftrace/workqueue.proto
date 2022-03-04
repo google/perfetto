@@ -10,6 +10,7 @@ message WorkqueueActivateWorkFtraceEvent {
 }
 message WorkqueueExecuteEndFtraceEvent {
   optional uint64 work = 1;
+  optional uint64 function = 2;
 }
 message WorkqueueExecuteStartFtraceEvent {
   optional uint64 work = 1;
