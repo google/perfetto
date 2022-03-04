@@ -41,7 +41,6 @@ source_set("unittests") {
     ":tables",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
-    "../containers",
   ]
 }
 

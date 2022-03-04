@@ -22,7 +22,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/nullable_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -55,7 +54,6 @@ enum class FilterOp {
   kLe,
   kIsNull,
   kIsNotNull,
-  kGlob,
 };
 
 // Represents a constraint on a column.
@@ -393,10 +391,6 @@ class Column {
   Constraint is_null() const {
     return Constraint{col_idx_in_table_, FilterOp::kIsNull, SqlValue()};
   }
-  Constraint glob(const char* value) const {
-    return Constraint{col_idx_in_table_, FilterOp::kGlob,
-                      SqlValue::String(value)};
-  }
 
   // Returns an Order for each Order type for this Column.
   Order ascending() const { return Order{col_idx_in_table_, false}; }
@@ -539,10 +533,9 @@ class Column {
       case FilterOp::kNe:
       case FilterOp::kIsNull:
       case FilterOp::kIsNotNull:
-      case FilterOp::kGlob:
-        return false;
+        break;
     }
-    PERFETTO_FATAL("For GCC");
+    return false;
   }
 
   // Slow path filter method which will perform a full table scan.

@@ -80,7 +80,6 @@ action("gen_buildflags") {
     "PERFETTO_VERSION_GEN=$enable_perfetto_version_gen",
     "PERFETTO_TP_PERCENTILE=$enable_perfetto_trace_processor_percentile",
     "PERFETTO_TP_LINENOISE=$enable_perfetto_trace_processor_linenoise",
-    "PERFETTO_TP_SQLITE=$enable_perfetto_trace_processor_sqlite",
     "PERFETTO_TP_HTTPD=$enable_perfetto_trace_processor_httpd",
     "PERFETTO_TP_JSON=$enable_perfetto_trace_processor_json",
     "PERFETTO_LOCAL_SYMBOLIZER=$perfetto_local_symbolizer",
@@ -105,8 +104,7 @@ action("gen_buildflags") {
 # All targets should depend on this target to inherit the right flags and
 # include directories.
 group("default_deps") {
-  visibility = [ "../*" ]  # Prevent chromium targets from depending on this
-                           # (breaks component).
+  visibility = [ "../*" ]  # Prevent chromium targets from depending on this (breaks component).
   public_configs = [ ":default_config" ]
   deps = [ ":gen_buildflags" ]
   if (perfetto_build_standalone) {
@@ -126,8 +124,7 @@ group("default_deps") {
 # embedders that depend on perfetto (e.g. chrome). :public_config (see below) is
 # used for that.
 config("default_config") {
-  visibility = [ "../*" ]  # Prevent chromium targets from depending on this
-                           # (breaks component).
+  visibility = [ "../*" ]  # Prevent chromium targets from depending on this (breaks component).
   configs = [ ":public_config" ]
   defines = [ "PERFETTO_IMPLEMENTATION" ]
   include_dirs = [
