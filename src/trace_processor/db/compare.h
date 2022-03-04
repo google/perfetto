@@ -17,13 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COMPARE_H_
 #define SRC_TRACE_PROCESSOR_DB_COMPARE_H_
 
-#include <stdint.h>
 #include <algorithm>
+#include <stdint.h>
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/containers/null_term_string_view.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -98,13 +97,6 @@ inline int String(base::StringView a, base::StringView b) {
   PERFETTO_DCHECK(b.data() != nullptr);
   return Bytes(a.data(), a.size(), b.data(), b.size());
 }
-
-// Compares two number values by glob matching |pattern| within |value|;
-// returns:
-//  *  0 if pattern matches value
-//  * !0 otherwise.
-// This code matches the behaviour of sqlite3_strglob.
-int Glob(NullTermStringView value, NullTermStringView pattern);
 
 // Compares two nullable numeric values; returns:
 //  *  0 if both a and b are null

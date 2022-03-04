@@ -955,7 +955,6 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/db/column.cc",
         "src/trace_processor/db/column.h",
-        "src/trace_processor/db/compare.cc",
         "src/trace_processor/db/compare.h",
         "src/trace_processor/db/table.cc",
         "src/trace_processor/db/table.h",
