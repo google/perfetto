@@ -285,8 +285,9 @@ void ProtozeroToTextInternal(const std::string& type,
 std::string ProtozeroToText(const DescriptorPool& pool,
                             const std::string& type,
                             protozero::ConstBytes protobytes,
-                            NewLinesMode new_lines_mode) {
-  std::string indent = "";
+                            NewLinesMode new_lines_mode,
+                            uint32_t initial_indent_depth) {
+  std::string indent = std::string(2 * initial_indent_depth, ' ');
   std::string final_result;
   ProtozeroToTextInternal(type, protobytes, new_lines_mode, pool, &indent,
                           &final_result);
