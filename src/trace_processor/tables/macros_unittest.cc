@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/tables/macros.h"
 
-#include "src/trace_processor/containers/string_pool.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -405,60 +404,6 @@ TEST_F(TableMacrosUnittest, StringComparision) {
   ASSERT_EQ(out.row_count(), 2u);
   ASSERT_STREQ(end_state->Get(0).string_value, "R");
   ASSERT_STREQ(end_state->Get(1).string_value, "D");
-}
-
-TEST_F(TableMacrosUnittest, Glob) {
-  cpu_slice_.Insert({});
-
-  TestCpuSliceTable::Row row;
-  row.end_state = pool_.InternString("Running");
-  cpu_slice_.Insert(row);
-
-  row.end_state = pool_.InternString("Disk");
-  cpu_slice_.Insert(row);
-
-  cpu_slice_.Insert({});
-
-  {
-    Table out = cpu_slice_.Filter({cpu_slice_.end_state().glob("?unning")});
-    const auto& end_state =
-        out.GetTypedColumnByName<StringPool::Id>("end_state");
-    ASSERT_EQ(out.row_count(), 1u);
-    ASSERT_EQ(end_state.GetString(0), "Running");
-  }
-
-  {
-    Table out = cpu_slice_.Filter({cpu_slice_.end_state().glob("[D]isk")});
-    const auto& end_state =
-        out.GetTypedColumnByName<StringPool::Id>("end_state");
-    ASSERT_EQ(out.row_count(), 1u);
-    ASSERT_EQ(end_state.GetString(0), "Disk");
-  }
-
-  {
-    Table out = cpu_slice_.Filter({cpu_slice_.end_state().glob("[A-Z]isk")});
-    const auto& end_state =
-        out.GetTypedColumnByName<StringPool::Id>("end_state");
-    ASSERT_EQ(out.row_count(), 1u);
-    ASSERT_EQ(end_state.GetString(0), "Disk");
-  }
-
-  {
-    Table out = cpu_slice_.Filter({cpu_slice_.end_state().glob("Run*")});
-    const auto& end_state =
-        out.GetTypedColumnByName<StringPool::Id>("end_state");
-    ASSERT_EQ(out.row_count(), 1u);
-    ASSERT_EQ(end_state.GetString(0), "Running");
-  }
-
-  {
-    Table out = cpu_slice_.Filter({cpu_slice_.end_state().glob("*")});
-    const auto& end_state =
-        out.GetTypedColumnByName<StringPool::Id>("end_state");
-    ASSERT_EQ(out.row_count(), 2u);
-    ASSERT_EQ(end_state.GetString(0), "Running");
-    ASSERT_EQ(end_state.GetString(1), "Disk");
-  }
 }
 
 TEST_F(TableMacrosUnittest, FilterIdThenOther) {
