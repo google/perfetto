@@ -26,7 +26,7 @@ TP_PORT = 9001
 
 
 def load_shell(bin_path: str, unique_port: bool, verbose: bool,
-               platform_delegate: PlatformDelegate):
+               ingest_ftrace_in_raw: bool, platform_delegate: PlatformDelegate):
   addr, port = platform_delegate.get_bind_addr(
       port=0 if unique_port else TP_PORT)
   url = f'{addr}:{str(port)}'
@@ -37,8 +37,12 @@ def load_shell(bin_path: str, unique_port: bool, verbose: bool,
   else:
     tp_exec = [shell_path]
 
+  args = ['-D', '--http-port', str(port)]
+  if not ingest_ftrace_in_raw:
+    args.append('--no-ftrace-raw')
+
   p = subprocess.Popen(
-      tp_exec + ['-D', '--http-port', str(port)],
+      tp_exec + args,
       stdout=subprocess.DEVNULL,
       stderr=None if verbose else subprocess.DEVNULL)
 
