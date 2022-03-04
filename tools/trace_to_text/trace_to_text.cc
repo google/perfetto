@@ -16,15 +16,10 @@
 
 #include "tools/trace_to_text/trace_to_text.h"
 
-#include <google/protobuf/dynamic_message.h>
-#include <google/protobuf/io/zero_copy_stream_impl.h>
-#include <google/protobuf/text_format.h>
-
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/protozero/proto_ring_buffer.h"
-#include "tools/trace_to_text/proto_full_utils.h"
 #include "tools/trace_to_text/trace.descriptor.h"
 #include "tools/trace_to_text/utils.h"
 
@@ -32,118 +27,21 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 #include "src/trace_processor/forwarding_trace_parser.h"
+#include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/gzip_utils.h"
+#include "src/trace_processor/util/protozero_to_text.h"
 
 namespace perfetto {
 namespace trace_to_text {
 namespace {
 
-using google::protobuf::Descriptor;
-using google::protobuf::DescriptorPool;
-using google::protobuf::DynamicMessageFactory;
-using google::protobuf::FieldDescriptor;
-using google::protobuf::FileDescriptor;
-using google::protobuf::FileDescriptorSet;
-using google::protobuf::Message;
-using google::protobuf::Reflection;
-using google::protobuf::TextFormat;
-using google::protobuf::io::OstreamOutputStream;
-using google::protobuf::io::ZeroCopyOutputStream;
+using perfetto::trace_processor::DescriptorPool;
 using trace_processor::TraceType;
 using trace_processor::util::GzipDecompressor;
 
-inline void WriteToZeroCopyOutput(ZeroCopyOutputStream* output,
-                                  const char* str,
-                                  size_t length) {
-  if (length == 0)
-    return;
-
-  void* data;
-  int size = 0;
-  size_t bytes_to_copy = 0;
-  while (length) {
-    output->Next(&data, &size);
-    bytes_to_copy = std::min(length, static_cast<size_t>(size));
-    memcpy(data, str, bytes_to_copy);
-    length -= bytes_to_copy;
-    str += bytes_to_copy;
-  }
-  output->BackUp(size - static_cast<int>(bytes_to_copy));
-}
-
-constexpr char kCompressedPacketsPrefix[] = "compressed_packets {\n";
-constexpr char kCompressedPacketsSuffix[] = "}\n";
-
-constexpr char kIndentedPacketPrefix[] = "  packet {\n";
-constexpr char kIndentedPacketSuffix[] = "  }\n";
-
-constexpr char kPacketPrefix[] = "packet {\n";
-constexpr char kPacketSuffix[] = "}\n";
-
-void PrintCompressedPackets(const std::string& packets,
-                            Message* compressed_msg_scratch,
-                            ZeroCopyOutputStream* output) {
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-  std::vector<uint8_t> whole_data = GzipDecompressor::DecompressFully(
-      reinterpret_cast<const uint8_t*>(packets.data()), packets.size());
-  protos::pbzero::Trace::Decoder decoder(whole_data.data(), whole_data.size());
-  WriteToZeroCopyOutput(output, kCompressedPacketsPrefix,
-                        sizeof(kCompressedPacketsPrefix) - 1);
-  TextFormat::Printer printer;
-  printer.SetInitialIndentLevel(2);
-  for (auto it = decoder.packet(); it; ++it) {
-    protozero::ConstBytes cb = *it;
-    compressed_msg_scratch->ParseFromArray(cb.data, static_cast<int>(cb.size));
-    WriteToZeroCopyOutput(output, kIndentedPacketPrefix,
-                          sizeof(kIndentedPacketPrefix) - 1);
-    printer.Print(*compressed_msg_scratch, output);
-    WriteToZeroCopyOutput(output, kIndentedPacketSuffix,
-                          sizeof(kIndentedPacketSuffix) - 1);
-  }
-  WriteToZeroCopyOutput(output, kCompressedPacketsSuffix,
-                        sizeof(kCompressedPacketsSuffix) - 1);
-#else
-  base::ignore_result(packets);
-  base::ignore_result(compressed_msg_scratch);
-  base::ignore_result(kIndentedPacketPrefix);
-  base::ignore_result(kIndentedPacketSuffix);
-  WriteToZeroCopyOutput(output, kCompressedPacketsPrefix,
-                        sizeof(kCompressedPacketsPrefix) - 1);
-  static const char kErrMsg[] =
-      "Cannot decode compressed packets. zlib not enabled in the build config";
-  WriteToZeroCopyOutput(output, kErrMsg, sizeof(kErrMsg) - 1);
-  WriteToZeroCopyOutput(output, kCompressedPacketsSuffix,
-                        sizeof(kCompressedPacketsSuffix) - 1);
-  static bool log_once = [] {
-    PERFETTO_ELOG("%s", kErrMsg);
-    return true;
-  }();
-  base::ignore_result(log_once);
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-}
-
-// TracePacket descriptor and metadata, used to print a TracePacket proto as a
-// text proto.
-struct TracePacketProtoDescInfo {
-  TracePacketProtoDescInfo();
-  FileDescriptorSet desc_set;
-  DescriptorPool pool;
-  std::unique_ptr<DynamicMessageFactory> factory;
-  const Descriptor* trace_descriptor;
-  const Message* prototype;
-  const FieldDescriptor* compressed_desc;
-};
-
-TracePacketProtoDescInfo::TracePacketProtoDescInfo() {
-  desc_set.ParseFromArray(kTraceDescriptor.data(), kTraceDescriptor.size());
-  for (const auto& desc : desc_set.file()) {
-    pool.BuildFile(desc);
-  }
-  factory.reset(new DynamicMessageFactory(&pool));
-  trace_descriptor = pool.FindMessageTypeByName("perfetto.protos.TracePacket");
-  prototype = factory->GetPrototype(trace_descriptor);
-  compressed_desc = trace_descriptor->FindFieldByNumber(
-      protos::pbzero::TracePacket::kCompressedPacketsFieldNumber);
+template <size_t N>
+static void WriteToOutput(std::ostream* output, const char (&str)[N]) {
+  output->write(str, sizeof(str) - 1);
 }
 
 // Online algorithm to covert trace binary to text format.
@@ -152,12 +50,9 @@ TracePacketProtoDescInfo::TracePacketProtoDescInfo() {
 //    write the output in given std::ostream*.
 class OnlineTraceToText {
  public:
-  OnlineTraceToText(std::ostream* output)
-      : zero_copy_out_stream_(output),
-        msg_(pb_desc_info_.prototype->New()),
-        compressed_packets_msg_(pb_desc_info_.prototype->New()),
-        reflect_(msg_->GetReflection()) {
-    printer_.SetInitialIndentLevel(1);
+  OnlineTraceToText(std::ostream* output) : output_(output) {
+    pool_.AddFromFileDescriptorSet(kTraceDescriptor.data(),
+                                   kTraceDescriptor.size());
   }
   OnlineTraceToText(const OnlineTraceToText&) = delete;
   OnlineTraceToText& operator=(const OnlineTraceToText&) = delete;
@@ -165,18 +60,52 @@ class OnlineTraceToText {
   bool ok() const { return ok_; }
 
  private:
+  std::string TracePacketToText(protozero::ConstBytes packet,
+                                uint32_t indent_depth);
+  void PrintCompressedPackets(protozero::ConstBytes packets);
+
   bool ok_ = true;
-  OstreamOutputStream zero_copy_out_stream_;
+  std::ostream* output_;
   protozero::ProtoRingBuffer ring_buffer_;
-  TextFormat::Printer printer_;
-  TracePacketProtoDescInfo pb_desc_info_;
-  std::unique_ptr<Message> msg_;
-  std::unique_ptr<Message> compressed_packets_msg_;
-  const Reflection* reflect_;
-  std::string compressed_packets_;
+  DescriptorPool pool_;
   size_t bytes_processed_ = 0;
   size_t packet_ = 0;
 };
+
+std::string OnlineTraceToText::TracePacketToText(protozero::ConstBytes packet,
+                                                 uint32_t indent_depth) {
+  namespace pb0_to_text = trace_processor::protozero_to_text;
+  return pb0_to_text::ProtozeroToText(pool_, ".perfetto.protos.TracePacket",
+                                      packet, pb0_to_text::kIncludeNewLines,
+                                      indent_depth);
+}
+
+void OnlineTraceToText::PrintCompressedPackets(protozero::ConstBytes packets) {
+  WriteToOutput(output_, "compressed_packets {\n");
+  if (trace_processor::util::IsGzipSupported()) {
+    std::vector<uint8_t> whole_data =
+        GzipDecompressor::DecompressFully(packets.data, packets.size);
+    protos::pbzero::Trace::Decoder decoder(whole_data.data(),
+                                           whole_data.size());
+    for (auto it = decoder.packet(); it; ++it) {
+      WriteToOutput(output_, "  packet {\n");
+      std::string text = TracePacketToText(*it, 2);
+      output_->write(text.data(), std::streamsize(text.size()));
+      WriteToOutput(output_, "\n  }\n");
+    }
+  } else {
+    static const char kErrMsg[] =
+        "Cannot decode compressed packets. zlib not enabled in the build "
+        "config";
+    WriteToOutput(output_, kErrMsg);
+    static bool log_once = [] {
+      PERFETTO_ELOG("%s", kErrMsg);
+      return true;
+    }();
+    base::ignore_result(log_once);
+  }
+  WriteToOutput(output_, "}\n");
+}
 
 void OnlineTraceToText::Feed(const uint8_t* data, size_t len) {
   ring_buffer_.Append(data, static_cast<size_t>(len));
@@ -197,29 +126,21 @@ void OnlineTraceToText::Feed(const uint8_t* data, size_t len) {
       PERFETTO_ELOG("Skipping invalid field");
       continue;
     }
-    if (!msg_->ParseFromArray(token.start, static_cast<int>(token.len))) {
-      PERFETTO_ELOG("Skipping invalid packet");
-      continue;
-    }
+    protos::pbzero::TracePacket::Decoder decoder(token.start, token.len);
     bytes_processed_ += token.len;
     if ((packet_++ & 0x3f) == 0) {
       fprintf(stderr, "Processing trace: %8zu KB%c", bytes_processed_ / 1024,
               kProgressChar);
       fflush(stderr);
     }
-    if (reflect_->HasField(*msg_, pb_desc_info_.compressed_desc)) {
-      // TODO(mohitms): GetStringReference ignores third argument. Why are we
-      // passing ?
-      compressed_packets_ = reflect_->GetStringReference(
-          *msg_, pb_desc_info_.compressed_desc, &compressed_packets_);
-      PrintCompressedPackets(compressed_packets_, compressed_packets_msg_.get(),
-                             &zero_copy_out_stream_);
+    if (decoder.has_compressed_packets()) {
+      PrintCompressedPackets(decoder.compressed_packets());
     } else {
-      WriteToZeroCopyOutput(&zero_copy_out_stream_, kPacketPrefix,
-                            sizeof(kPacketPrefix) - 1);
-      printer_.Print(*msg_, &zero_copy_out_stream_);
-      WriteToZeroCopyOutput(&zero_copy_out_stream_, kPacketSuffix,
-                            sizeof(kPacketSuffix) - 1);
+      WriteToOutput(output_, "packet {\n");
+      protozero::ConstBytes packet = {token.start, token.len};
+      std::string text = TracePacketToText(packet, 1 /* indent_depth */);
+      output_->write(text.data(), std::streamsize(text.size()));
+      WriteToOutput(output_, "\n}\n");
     }
   }
 }
