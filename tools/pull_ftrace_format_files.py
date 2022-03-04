@@ -34,7 +34,7 @@ def adb(*cmd, **kwargs):
   if serial:
     prefix += ['-s', serial]
   cmd = prefix + list(cmd)
-  output = subprocess.check_output(cmd).replace('\r', '')
+  output = subprocess.check_output(cmd, encoding='utf-8').replace('\r', '')
   return output
 
 
@@ -88,7 +88,7 @@ def ensure_single_device(serial):
 def pull_format_files(serial, output_directory):
   # Pulling each file individually is 100x slower so we pipe all together then
   # split them on the host.
-  cmd = "find /sys/kernel/debug/tracing/ " \
+  cmd = "find /sys/kernel/tracing/ " \
       "-name available_events -o " \
       "-name format -o " \
       "-name header_event -o " \
@@ -97,14 +97,14 @@ def pull_format_files(serial, output_directory):
       "while read f; do echo 'path:' $f; cat $f; done"
 
   output = adb('shell', cmd, serial=serial)
-  sections = output.split('path: /sys/kernel/debug/tracing/')
+  sections = output.split('path: /sys/kernel/tracing/')
   for section in sections:
     if not section:
       continue
     path, rest = section.split('\n', 1)
     path = os.path.join(output_directory, path)
     ensure_dir(os.path.dirname(path))
-    with open(path, 'wb') as f:
+    with open(path, 'w') as f:
       f.write(rest)
 
 
@@ -116,7 +116,8 @@ def get_output_directory(prefix=None, serial=None):
   parts = ['android', product, build_id, kernel]
   if prefix:
     parts = [prefix] + parts
-  return '_'.join(parts)
+  dir_name = '_'.join(parts)
+  return os.path.join(ROOT_DIR, 'src/traced/probes/ftrace/test/data', dir_name)
 
 
 def main():

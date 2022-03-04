@@ -3256,6 +3256,7 @@ message BinderTransactionAllocBufFtraceEvent {
   optional uint64 data_size = 1;
   optional int32 debug_id = 2;
   optional uint64 offsets_size = 3;
+  optional uint64 extra_buffers_size = 4;
 }
 
 // End of protos/perfetto/trace/ftrace/binder.proto
@@ -3344,6 +3345,7 @@ message BlockRqCompleteFtraceEvent {
   optional int32 errors = 4;
   optional string rwbs = 5;
   optional string cmd = 6;
+  optional int32 error = 7;
 }
 message BlockRqInsertFtraceEvent {
   optional uint64 dev = 1;
@@ -3412,6 +3414,8 @@ message CgroupMkdirFtraceEvent {
   optional int32 root = 1;
   optional int32 id = 2;
   optional string cname = 3;
+  optional int32 level = 4;
+  optional string path = 5;
 }
 message CgroupRemountFtraceEvent {
   optional int32 root = 1;
@@ -3422,6 +3426,8 @@ message CgroupRmdirFtraceEvent {
   optional int32 root = 1;
   optional int32 id = 2;
   optional string cname = 3;
+  optional int32 level = 4;
+  optional string path = 5;
 }
 message CgroupTransferTasksFtraceEvent {
   optional int32 dst_root = 1;
@@ -3429,6 +3435,8 @@ message CgroupTransferTasksFtraceEvent {
   optional int32 pid = 3;
   optional string comm = 4;
   optional string cname = 5;
+  optional int32 dst_level = 6;
+  optional string dst_path = 7;
 }
 message CgroupDestroyRootFtraceEvent {
   optional int32 root = 1;
@@ -3439,11 +3447,15 @@ message CgroupReleaseFtraceEvent {
   optional int32 root = 1;
   optional int32 id = 2;
   optional string cname = 3;
+  optional int32 level = 4;
+  optional string path = 5;
 }
 message CgroupRenameFtraceEvent {
   optional int32 root = 1;
   optional int32 id = 2;
   optional string cname = 3;
+  optional int32 level = 4;
+  optional string path = 5;
 }
 message CgroupSetupRootFtraceEvent {
   optional int32 root = 1;
@@ -3534,6 +3546,7 @@ message MmCompactionKcompactdWakeFtraceEvent {
   optional int32 nid = 1;
   optional int32 order = 2;
   optional uint32 classzone_idx = 3;
+  optional uint32 highest_zoneidx = 4;
 }
 message MmCompactionMigratepagesFtraceEvent {
   optional uint64 nr_migrated = 1;
@@ -3549,11 +3562,13 @@ message MmCompactionTryToCompactPagesFtraceEvent {
   optional int32 order = 1;
   optional uint32 gfp_mask = 2;
   optional uint32 mode = 3;
+  optional int32 prio = 4;
 }
 message MmCompactionWakeupKcompactdFtraceEvent {
   optional int32 nid = 1;
   optional int32 order = 2;
   optional uint32 classzone_idx = 3;
+  optional uint32 highest_zoneidx = 4;
 }
 
 // End of protos/perfetto/trace/ftrace/compaction.proto
@@ -3764,6 +3779,8 @@ message Ext4DiscardBlocksFtraceEvent {
 message Ext4DiscardPreallocationsFtraceEvent {
   optional uint64 dev = 1;
   optional uint64 ino = 2;
+  optional uint32 len = 3;
+  optional uint32 needed = 4;
 }
 message Ext4DropInodeFtraceEvent {
   optional uint64 dev = 1;
@@ -3928,6 +3945,9 @@ message Ext4ExtRemoveSpaceDoneFtraceEvent {
   optional int32 depth = 5;
   optional int64 partial = 6;
   optional uint32 eh_entries = 7;
+  optional uint32 pc_lblk = 8;
+  optional uint64 pc_pclu = 9;
+  optional int32 pc_state = 10;
 }
 message Ext4ExtRmIdxFtraceEvent {
   optional uint64 dev = 1;
@@ -3942,6 +3962,9 @@ message Ext4ExtRmLeafFtraceEvent {
   optional uint32 ee_lblk = 5;
   optional uint64 ee_pblk = 6;
   optional int32 ee_len = 7;
+  optional uint32 pc_lblk = 8;
+  optional uint64 pc_pclu = 9;
+  optional int32 pc_state = 10;
 }
 message Ext4ExtShowExtentFtraceEvent {
   optional uint64 dev = 1;
@@ -4047,6 +4070,7 @@ message Ext4JournalStartFtraceEvent {
   optional int32 blocks = 3;
   optional int32 rsv_blocks = 4;
   optional int32 nblocks = 5;
+  optional int32 revoke_creds = 6;
 }
 message Ext4JournalStartReservedFtraceEvent {
   optional uint64 dev = 1;
@@ -4183,6 +4207,7 @@ message Ext4PunchHoleFtraceEvent {
 message Ext4ReadBlockBitmapLoadFtraceEvent {
   optional uint64 dev = 1;
   optional uint32 group = 2;
+  optional uint32 prefetch = 3;
 }
 message Ext4ReadpageFtraceEvent {
   optional uint64 dev = 1;
@@ -4203,6 +4228,9 @@ message Ext4RemoveBlocksFtraceEvent {
   optional uint64 ee_pblk = 6;
   optional uint32 ee_lblk = 7;
   optional uint32 ee_len = 8;
+  optional uint32 pc_lblk = 9;
+  optional uint64 pc_pclu = 10;
+  optional int32 pc_state = 11;
 }
 message Ext4RequestBlocksFtraceEvent {
   optional uint64 dev = 1;
@@ -4358,6 +4386,7 @@ message F2fsGetVictimFtraceEvent {
   optional uint32 pre_victim = 8;
   optional uint32 prefree = 9;
   optional uint32 free = 10;
+  optional uint32 cost = 11;
 }
 message F2fsIgetFtraceEvent {
   optional uint64 dev = 1;
@@ -4385,6 +4414,9 @@ message F2fsReadpageFtraceEvent {
   optional uint64 index = 3;
   optional uint64 blkaddr = 4;
   optional int32 type = 5;
+  optional int32 dir = 6;
+  optional int32 dirty = 7;
+  optional int32 uptodate = 8;
 }
 message F2fsReserveNewBlockFtraceEvent {
   optional uint64 dev = 1;
@@ -4398,6 +4430,7 @@ message F2fsSetPageDirtyFtraceEvent {
   optional int32 dir = 4;
   optional uint64 index = 5;
   optional int32 dirty = 6;
+  optional int32 uptodate = 7;
 }
 message F2fsSubmitWritePageFtraceEvent {
   optional uint64 dev = 1;
@@ -4422,6 +4455,7 @@ message F2fsSyncFileExitFtraceEvent {
   optional uint32 need_cp = 3;
   optional int32 datasync = 4;
   optional int32 ret = 5;
+  optional int32 cp_reason = 6;
 }
 message F2fsSyncFsFtraceEvent {
   optional uint64 dev = 1;
@@ -4512,6 +4546,7 @@ message F2fsVmPageMkwriteFtraceEvent {
   optional int32 dir = 4;
   optional uint64 index = 5;
   optional int32 dirty = 6;
+  optional int32 uptodate = 7;
 }
 message F2fsWriteBeginFtraceEvent {
   optional uint64 dev = 1;
@@ -4524,6 +4559,7 @@ message F2fsWriteCheckpointFtraceEvent {
   optional uint64 dev = 1;
   optional uint32 is_umount = 2;
   optional string msg = 3;
+  optional int32 reason = 4;
 }
 message F2fsWriteEndFtraceEvent {
   optional uint64 dev = 1;
@@ -5608,6 +5644,7 @@ message MmVmscanDirectReclaimEndFtraceEvent {
 message MmVmscanKswapdWakeFtraceEvent {
   optional int32 nid = 1;
   optional int32 order = 2;
+  optional int32 zid = 3;
 }
 message MmVmscanKswapdSleepFtraceEvent {
   optional int32 nid = 1;
@@ -5622,6 +5659,7 @@ message WorkqueueActivateWorkFtraceEvent {
 }
 message WorkqueueExecuteEndFtraceEvent {
   optional uint64 work = 1;
+  optional uint64 function = 2;
 }
 message WorkqueueExecuteStartFtraceEvent {
   optional uint64 work = 1;
