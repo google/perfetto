@@ -87,6 +87,7 @@ message BlockRqCompleteFtraceEvent {
   optional int32 errors = 4;
   optional string rwbs = 5;
   optional string cmd = 6;
+  optional int32 error = 7;
 }
 message BlockRqInsertFtraceEvent {
   optional uint64 dev = 1;

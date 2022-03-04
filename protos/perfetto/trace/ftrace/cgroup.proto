@@ -18,6 +18,8 @@ message CgroupMkdirFtraceEvent {
   optional int32 root = 1;
   optional int32 id = 2;
   optional string cname = 3;
+  optional int32 level = 4;
+  optional string path = 5;
 }
 message CgroupRemountFtraceEvent {
   optional int32 root = 1;
@@ -28,6 +30,8 @@ message CgroupRmdirFtraceEvent {
   optional int32 root = 1;
   optional int32 id = 2;
   optional string cname = 3;
+  optional int32 level = 4;
+  optional string path = 5;
 }
 message CgroupTransferTasksFtraceEvent {
   optional int32 dst_root = 1;
@@ -35,6 +39,8 @@ message CgroupTransferTasksFtraceEvent {
   optional int32 pid = 3;
   optional string comm = 4;
   optional string cname = 5;
+  optional int32 dst_level = 6;
+  optional string dst_path = 7;
 }
 message CgroupDestroyRootFtraceEvent {
   optional int32 root = 1;
@@ -45,11 +51,15 @@ message CgroupReleaseFtraceEvent {
   optional int32 root = 1;
   optional int32 id = 2;
   optional string cname = 3;
+  optional int32 level = 4;
+  optional string path = 5;
 }
 message CgroupRenameFtraceEvent {
   optional int32 root = 1;
   optional int32 id = 2;
   optional string cname = 3;
+  optional int32 level = 4;
+  optional string path = 5;
 }
 message CgroupSetupRootFtraceEvent {
   optional int32 root = 1;
