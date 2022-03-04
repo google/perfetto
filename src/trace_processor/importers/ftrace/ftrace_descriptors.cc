@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<MessageDescriptor, 368> descriptors{{
+std::array<MessageDescriptor, 404> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -3998,6 +3998,349 @@ std::array<MessageDescriptor, 368> descriptors{{
             {"location", ProtoSchemaType::kUint64},
             {"protocol", ProtoSchemaType::kUint32},
             {"skbaddr", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_access_fault",
+        1,
+        {
+            {},
+            {"ipa", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_ack_irq",
+        2,
+        {
+            {},
+            {"irqchip", ProtoSchemaType::kUint32},
+            {"pin", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "kvm_age_hva",
+        2,
+        {
+            {},
+            {"end", ProtoSchemaType::kUint64},
+            {"start", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_age_page",
+        4,
+        {
+            {},
+            {"gfn", ProtoSchemaType::kUint64},
+            {"hva", ProtoSchemaType::kUint64},
+            {"level", ProtoSchemaType::kUint32},
+            {"referenced", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "kvm_arm_clear_debug",
+        1,
+        {
+            {},
+            {"guest_debug", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "kvm_arm_set_dreg32",
+        2,
+        {
+            {},
+            {"name", ProtoSchemaType::kString},
+            {"value", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "kvm_arm_set_regset",
+        2,
+        {
+            {},
+            {"len", ProtoSchemaType::kInt32},
+            {"name", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "kvm_arm_setup_debug",
+        2,
+        {
+            {},
+            {"guest_debug", ProtoSchemaType::kUint32},
+            {"vcpu", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_entry",
+        1,
+        {
+            {},
+            {"vcpu_pc", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_exit",
+        3,
+        {
+            {},
+            {"esr_ec", ProtoSchemaType::kUint32},
+            {"ret", ProtoSchemaType::kInt32},
+            {"vcpu_pc", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_fpu",
+        1,
+        {
+            {},
+            {"load", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "kvm_get_timer_map",
+        4,
+        {
+            {},
+            {"direct_ptimer", ProtoSchemaType::kInt32},
+            {"direct_vtimer", ProtoSchemaType::kInt32},
+            {"emul_ptimer", ProtoSchemaType::kInt32},
+            {"vcpu_id", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_guest_fault",
+        4,
+        {
+            {},
+            {"hsr", ProtoSchemaType::kUint64},
+            {"hxfar", ProtoSchemaType::kUint64},
+            {"ipa", ProtoSchemaType::kUint64},
+            {"vcpu_pc", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_handle_sys_reg",
+        1,
+        {
+            {},
+            {"hsr", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_hvc_arm64",
+        3,
+        {
+            {},
+            {"imm", ProtoSchemaType::kUint64},
+            {"r0", ProtoSchemaType::kUint64},
+            {"vcpu_pc", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_irq_line",
+        4,
+        {
+            {},
+            {"irq_num", ProtoSchemaType::kInt32},
+            {"level", ProtoSchemaType::kInt32},
+            {"type", ProtoSchemaType::kUint32},
+            {"vcpu_idx", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "kvm_mmio",
+        4,
+        {
+            {},
+            {"gpa", ProtoSchemaType::kUint64},
+            {"len", ProtoSchemaType::kUint32},
+            {"type", ProtoSchemaType::kUint32},
+            {"val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_mmio_emulate",
+        3,
+        {
+            {},
+            {"cpsr", ProtoSchemaType::kUint64},
+            {"instr", ProtoSchemaType::kUint64},
+            {"vcpu_pc", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_set_guest_debug",
+        2,
+        {
+            {},
+            {"guest_debug", ProtoSchemaType::kUint32},
+            {"vcpu", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_set_irq",
+        3,
+        {
+            {},
+            {"gsi", ProtoSchemaType::kUint32},
+            {"irq_source_id", ProtoSchemaType::kInt32},
+            {"level", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "kvm_set_spte_hva",
+        1,
+        {
+            {},
+            {"hva", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_set_way_flush",
+        2,
+        {
+            {},
+            {"cache", ProtoSchemaType::kUint32},
+            {"vcpu_pc", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_sys_access",
+        8,
+        {
+            {},
+            {"CRm", ProtoSchemaType::kUint32},
+            {"CRn", ProtoSchemaType::kUint32},
+            {"Op0", ProtoSchemaType::kUint32},
+            {"Op1", ProtoSchemaType::kUint32},
+            {"Op2", ProtoSchemaType::kUint32},
+            {"is_write", ProtoSchemaType::kUint32},
+            {"name", ProtoSchemaType::kString},
+            {"vcpu_pc", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_test_age_hva",
+        1,
+        {
+            {},
+            {"hva", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_timer_emulate",
+        2,
+        {
+            {},
+            {"should_fire", ProtoSchemaType::kUint32},
+            {"timer_idx", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "kvm_timer_hrtimer_expire",
+        1,
+        {
+            {},
+            {"timer_idx", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "kvm_timer_restore_state",
+        3,
+        {
+            {},
+            {"ctl", ProtoSchemaType::kUint64},
+            {"cval", ProtoSchemaType::kUint64},
+            {"timer_idx", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "kvm_timer_save_state",
+        3,
+        {
+            {},
+            {"ctl", ProtoSchemaType::kUint64},
+            {"cval", ProtoSchemaType::kUint64},
+            {"timer_idx", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "kvm_timer_update_irq",
+        3,
+        {
+            {},
+            {"irq", ProtoSchemaType::kUint32},
+            {"level", ProtoSchemaType::kInt32},
+            {"vcpu_id", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_toggle_cache",
+        3,
+        {
+            {},
+            {"now", ProtoSchemaType::kUint32},
+            {"vcpu_pc", ProtoSchemaType::kUint64},
+            {"was", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "kvm_unmap_hva_range",
+        2,
+        {
+            {},
+            {"end", ProtoSchemaType::kUint64},
+            {"start", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "kvm_userspace_exit",
+        1,
+        {
+            {},
+            {"reason", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "kvm_vcpu_wakeup",
+        3,
+        {
+            {},
+            {"ns", ProtoSchemaType::kUint64},
+            {"valid", ProtoSchemaType::kUint32},
+            {"waited", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "kvm_wfx_arm64",
+        2,
+        {
+            {},
+            {"is_wfe", ProtoSchemaType::kUint32},
+            {"vcpu_pc", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "trap_reg",
+        4,
+        {
+            {},
+            {"fn", ProtoSchemaType::kString},
+            {"is_write", ProtoSchemaType::kUint32},
+            {"reg", ProtoSchemaType::kInt32},
+            {"write_value", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "vgic_update_irq_pending",
+        3,
+        {
+            {},
+            {"irq", ProtoSchemaType::kUint32},
+            {"level", ProtoSchemaType::kUint32},
+            {"vcpu_id", ProtoSchemaType::kUint64},
         },
     },
 }};
