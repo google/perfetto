@@ -133,8 +133,10 @@ struct TypedColumn : public Column {
     if (column->IsColumnType<serialized_type>() &&
         (column->IsNullable() == TH::is_optional) && !column->IsId()) {
       return reinterpret_cast<const TypedColumn<T>*>(column);
+    } else {
+      PERFETTO_FATAL("Unsafe to convert Column TypedColumn (%s)",
+                     column->name());
     }
-    PERFETTO_FATAL("Unsafe to convert Column TypedColumn (%s)", column->name());
   }
 
  private:

@@ -28,6 +28,8 @@ class DescriptorPool;
 
 namespace protozero_to_text {
 
+// If |new_lines_modes| == kIncludeNewLines, new lines will be used between
+// fields, otherwise only a space will be used.
 enum NewLinesMode {
   kIncludeNewLines = 0,
   kSkipNewLines,
@@ -47,13 +49,13 @@ std::string ShortDebugTrackEventProtozeroToText(
 
 // Given a protozero message |protobytes| which is of fully qualified name
 // |type|, convert this into a text proto format string. All types used in
-// message definition of |type| must be available in |pool|. If
-// |new_lines_modes| == kIncludeNewLines, new lines will be used between fields,
-// otherwise only a space will be used.
-std::string ProtozeroToText(const DescriptorPool& pool,
-                            const std::string& type,
-                            protozero::ConstBytes protobytes,
-                            NewLinesMode new_lines_mode);
+// message definition of |type| must be available in |pool|.
+std::string ProtozeroToText(
+    const DescriptorPool& pool,
+    const std::string& type,
+    protozero::ConstBytes protobytes,
+    NewLinesMode new_lines_mode = NewLinesMode::kIncludeNewLines,
+    uint32_t initial_indent_depth = 0);
 
 std::string ProtozeroToText(const DescriptorPool& pool,
                             const std::string& type,
