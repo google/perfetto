@@ -667,6 +667,7 @@ struct CommandLineOptions {
   bool force_full_sort = false;
   std::string metatrace_path;
   bool dev = false;
+  bool no_ftrace_raw = false;
 };
 
 void PrintUsage(char** argv) {
@@ -723,7 +724,12 @@ Options:
                                       local development use only and
                                       *should not* be enabled on production
                                       builds. The features behind this flag can
-                                      break at any time without any warning.)",
+                                      break at any time without any warning.
+ --no-ftrace-raw                      Prevents ingestion of typed ftrace events
+                                      into the raw table. This significantly
+                                      reduces the memory usage of trace
+                                      processor when loading traces containing
+                                      ftrace events.)",
                 argv[0]);
 }
 
@@ -737,6 +743,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_HTTP_PORT,
     OPT_METRIC_EXTENSION,
     OPT_DEV,
+    OPT_NO_FTRACE_RAW,
   };
 
   static const option long_options[] = {
@@ -757,6 +764,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
       {"metric-extension", required_argument, nullptr, OPT_METRIC_EXTENSION},
       {"dev", no_argument, nullptr, OPT_DEV},
+      {"no-ftrace-raw", no_argument, nullptr, OPT_NO_FTRACE_RAW},
       {nullptr, 0, nullptr, 0}};
 
   bool explicit_interactive = false;
@@ -850,6 +858,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_DEV) {
       command_line_options.dev = true;
+      continue;
+    }
+
+    if (option == OPT_NO_FTRACE_RAW) {
+      command_line_options.no_ftrace_raw = true;
       continue;
     }
 
@@ -1285,6 +1298,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   config.sorting_mode = options.force_full_sort
                             ? SortingMode::kForceFullSort
                             : SortingMode::kDefaultHeuristics;
+  config.ingest_ftrace_in_raw_table = !options.no_ftrace_raw;
 
   std::vector<MetricExtension> metric_extensions;
   RETURN_IF_ERROR(ParseMetricExtensionPaths(
