@@ -51,6 +51,7 @@ message F2fsGetVictimFtraceEvent {
   optional uint32 pre_victim = 8;
   optional uint32 prefree = 9;
   optional uint32 free = 10;
+  optional uint32 cost = 11;
 }
 message F2fsIgetFtraceEvent {
   optional uint64 dev = 1;
@@ -78,6 +79,9 @@ message F2fsReadpageFtraceEvent {
   optional uint64 index = 3;
   optional uint64 blkaddr = 4;
   optional int32 type = 5;
+  optional int32 dir = 6;
+  optional int32 dirty = 7;
+  optional int32 uptodate = 8;
 }
 message F2fsReserveNewBlockFtraceEvent {
   optional uint64 dev = 1;
@@ -91,6 +95,7 @@ message F2fsSetPageDirtyFtraceEvent {
   optional int32 dir = 4;
   optional uint64 index = 5;
   optional int32 dirty = 6;
+  optional int32 uptodate = 7;
 }
 message F2fsSubmitWritePageFtraceEvent {
   optional uint64 dev = 1;
@@ -115,6 +120,7 @@ message F2fsSyncFileExitFtraceEvent {
   optional uint32 need_cp = 3;
   optional int32 datasync = 4;
   optional int32 ret = 5;
+  optional int32 cp_reason = 6;
 }
 message F2fsSyncFsFtraceEvent {
   optional uint64 dev = 1;
@@ -205,6 +211,7 @@ message F2fsVmPageMkwriteFtraceEvent {
   optional int32 dir = 4;
   optional uint64 index = 5;
   optional int32 dirty = 6;
+  optional int32 uptodate = 7;
 }
 message F2fsWriteBeginFtraceEvent {
   optional uint64 dev = 1;
@@ -217,6 +224,7 @@ message F2fsWriteCheckpointFtraceEvent {
   optional uint64 dev = 1;
   optional uint32 is_umount = 2;
   optional string msg = 3;
+  optional int32 reason = 4;
 }
 message F2fsWriteEndFtraceEvent {
   optional uint64 dev = 1;
