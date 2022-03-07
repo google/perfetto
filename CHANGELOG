@@ -1,15 +1,94 @@
 Unreleased:
   Tracing service and probes:
+    * Changed output format of perfetto --query. Made the output more compact
+      and added a summary of ongoing tracing sessions for the caller UID.
+  Trace Processor:
+    * Add support for multiple SQL statements to be passed to
+      TraceProcessor::ExecuteQuery. All queries will be executed fully, with
+      the returned iterator yielding rows for the final statement.
+    * Add support for multi-line SQL comments; previously only single line
+      comments were supported.
+  UI:
+    * Changed HTTP+RPC to use the /websocket endpoint available in newer
+      versions of trace_processor --httpd.
+  SDK:
+    *
+
+
+v23.0 - 2022-01-11:
+  Tracing service and probes:
+    * Added workaround for a kernel ftrace bug causing some "comm" fields to be
+      not null-terminated. https://github.com/torvalds/linux/commit/f0a5157803 .
+    * Added ability to talk to the newer AIDL-based health hal in traced_probes.
+      It still falls back on the older HIDL interface for older devices.
+  Trace Processor:
+    * Changed the argument for the trace path in constructor of TraceProcessor
+      in the Python API from |file_path| to |trace|.
+      |file_path| is deprecated and may be removed in the future.
+    * Changed the Python API constructor. Now it takes a TraceProcessorConfig
+      instead of passing parameters directly. This may break existing code
+      but migration should be trivial (all current options are still
+      supported).
+    * Fixed a HTTP keepalive bug in trace_processor --httpd. The bug, introduced
+      in v22.0, caused each RPC request to close the connection, effectively
+      defeating the 'Connection: Keep-Alive', after each query made by the UI.
+    * Added parsing of netif_receive_skb events from proto traces.
+    * Added android_netperf metric based on netif events.
+    * Fixed a bug that would cause fetch errors when loading traces > 32 MB when
+      using trace_processor --httpd.
+    * Added a workaround to tokenize properly /proc/pid/cmdline for chrome
+      processes on Linux/CrOS. Chrome rewrites its cmdline replacing \0 -> ' '.
+  UI:
+    *
+  SDK:
+    *
+
+
+v22.1 - 2021-12-07:
+  Tracing service and probes:
+    * Added workaround for a Linux kernel bug causing some ftrace strings to
+      be non-null-terminated (https://github.com/torvalds/linux/commit/f0a5157).
+  Trace Processor:
+    * Fixed build failures on Windows.
+
+
+v22.0 - 2021-12-03:
+  Tracing service and probes:
     * Added Android SDK version to the SystemInfo trace packet.
     * Changed compiler flags. Assume recent x64 CPUs (-msse4.2 -mavx -mpopcnt).
       This behavior affects only standalone builds and can be changed by setting
       enable_perfetto_x64_cpu_opt=false in the GN args.
+    * The java heap profiler now rescans all the processes every time for
+      continous_dump_config. The scan_pids_only_on_start can be used to restore
+      the old behavior.
+    * Added support for building on ARM Macs.
+    * Added support for the rss_stat_throttled event on Android via
+      FtraceConfig.throttle_rss_stat. In newer Android kernels the base rss_stat
+      event is now unthrottled. rss_stat used to be throttled by a downstream
+      kernel change, unnecessary after https://lkml.org/lkml/2021/10/25/1411 .
+      atrace.rc configures throttling from userspace at boot.
+    * Fixed a bug that caused IPCs to stall traced and hit the watchdog if in
+      the middle of a suspend/resume. Switched from SND_TIMEO to poll(POLLOUT).
+    * Added "linux.sysfs_power" data source to poll /sys/class/power_supply/
+      and report periodically battery charge and drain rate if supported.
+    * Add snapshotting for non-BOOTTIME ftrace clocks. This fixes handling of
+      ftrace events from old Linux kernel versions (i.e. 3.x) and adds
+      proper support for using the "global" clock rather than "boot".
   Trace Processor:
+    * Speeded up proto trace ingestion by 2x (~20 MB/s -> ~40 MB/s).
     * Changed LIKE comparisions to be case-senstive. This may break existing
       queries but was a necessary from a performance perspective.
+      Going forward, GLOB must be used, instead of LIKE, for checked in metrics
+      to avoid unnecessary slowdowns.
     * Changed compiler flags, assume recent x64 CPUs (see above).
+    * Changed how displayTimeUnit is handled in JSON traces to match catapult.
+    * Added websocket endpoint to RPC interface to reduce query latency.
+    * Added support for hot-reloading metrics (see //docs/analysis/metrics.md).
+    * Added ingestion support for non-BOOTTIME ftrace clocks.
   UI:
-    *
+    * Added ability to save/restore record config. Remember last used config.
+    * Fixed bug causing the recording page to hold onto the USB interface making
+      adb unusable after a recording session.
   SDK:
     * Added UpdateDataSource() descriptor IPC endpoint to allow updates of the
       data source capabilities (e.g., category list for track event).

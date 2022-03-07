@@ -72,6 +72,11 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
   if (track.has_name())
     name_id = context_->storage->InternString(track.name());
 
+  if (packet.has_trusted_pid()) {
+    context_->process_tracker->UpdateTrustedPid(
+        static_cast<uint32_t>(packet.trusted_pid()), track.uuid());
+  }
+
   if (track.has_thread()) {
     protos::pbzero::ThreadDescriptor::Decoder thread(track.thread());
 

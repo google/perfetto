@@ -43,7 +43,7 @@ export class FlowEventsPanel extends Panel {
     }
 
     const flowClickHandler = (sliceId: number, trackId: number) => {
-      const uiTrackId = globals.state.uiTrackIdByTraceTrackId.get(trackId);
+      const uiTrackId = globals.state.uiTrackIdByTraceTrackId[trackId];
       if (uiTrackId) {
         globals.makeSelection(
             Actions.selectChromeSlice(

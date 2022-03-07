@@ -147,7 +147,8 @@ inline void MaybeSerializeLastLogsForCrashReporting() {}
                           __LINE__, ##__VA_ARGS__);                           \
   } while (0)
 #elif defined(PERFETTO_DISABLE_LOG)
-#define PERFETTO_XLOG(...) ::perfetto::base::ignore_result(__VA_ARGS__)
+#define PERFETTO_XLOG(level, fmt, ...) ::perfetto::base::ignore_result(level, \
+                                fmt, ##__VA_ARGS__)
 #else
 #define PERFETTO_XLOG(level, fmt, ...)                                      \
   ::perfetto::base::LogMessage(level, ::perfetto::base::Basename(__FILE__), \

@@ -16,67 +16,78 @@
 
 #include "src/android_internal/health_hal.h"
 
+#include <aidl/android/hardware/health/IHealth.h>
+#include <android/binder_manager.h>
 #include <android/hardware/health/2.0/IHealth.h>
 #include <healthhalutils/HealthHalUtils.h>
 
 namespace perfetto {
 namespace android_internal {
 
-using ::android::hardware::health::V2_0::IHealth;
+using HidlHealth = ::android::hardware::health::V2_0::IHealth;
+using ::aidl::android::hardware::health::IHealth;
+using ::android::hardware::Return;
 using ::android::hardware::health::V2_0::Result;
 
 namespace {
 
-android::sp<IHealth> g_svc;
+struct HealthService {
+  android::sp<HidlHealth> hidl;
+  std::shared_ptr<IHealth> aidl;
+};
+
+HealthService g_svc;
 
 void ResetService() {
-  g_svc = ::android::hardware::health::V2_0::get_health_service();
+  auto aidl_name = std::string(IHealth::descriptor) + "/default";
+  if (AServiceManager_isDeclared(aidl_name.c_str())) {
+    ndk::SpAIBinder binder(AServiceManager_waitForService(aidl_name.c_str()));
+    g_svc.aidl = IHealth::fromBinder(binder);
+    if (g_svc.aidl != nullptr) {
+      return;
+    }
+  }
+  g_svc.hidl = ::android::hardware::health::V2_0::get_health_service();
 }
 
-}  // namespace
-
-bool GetBatteryCounter(BatteryCounter counter, int64_t* value) {
-  *value = 0;
-  if (!g_svc)
-    ResetService();
-
-  if (!g_svc)
-    return false;
-
-  // The Android VNDK documentation states that for blocking services, the
+bool GetBatteryCounterHidl(BatteryCounter counter, int64_t* value) {
+  // The Android HIDL documentation states that for blocking services, the
   // caller blocks until the reply is received and the callback is called inline
   // in the same thread.
   // See https://source.android.com/devices/architecture/hidl/threading .
 
-  Result res;
+  Return<void> ret;
+  Result res = Result::UNKNOWN;
   switch (counter) {
     case BatteryCounter::kUnspecified:
-      res = Result::NOT_FOUND;
       break;
 
     case BatteryCounter::kCharge:
-      g_svc->getChargeCounter([&res, value](Result hal_res, int32_t hal_value) {
-        res = hal_res;
-        *value = hal_value;
-      });
+      ret = g_svc.hidl->getChargeCounter(
+          [&res, value](Result hal_res, int32_t hal_value) {
+            res = hal_res;
+            *value = hal_value;
+          });
       break;
 
     case BatteryCounter::kCapacityPercent:
-      g_svc->getCapacity([&res, value](Result hal_res, int64_t hal_value) {
-        res = hal_res;
-        *value = hal_value;
-      });
+      ret = g_svc.hidl->getCapacity(
+          [&res, value](Result hal_res, int32_t hal_value) {
+            res = hal_res;
+            *value = hal_value;
+          });
       break;
 
     case BatteryCounter::kCurrent:
-      g_svc->getCurrentNow([&res, value](Result hal_res, int32_t hal_value) {
-        res = hal_res;
-        *value = hal_value;
-      });
+      ret = g_svc.hidl->getCurrentNow(
+          [&res, value](Result hal_res, int32_t hal_value) {
+            res = hal_res;
+            *value = hal_value;
+          });
       break;
 
     case BatteryCounter::kCurrentAvg:
-      g_svc->getCurrentAverage(
+      ret = g_svc.hidl->getCurrentAverage(
           [&res, value](Result hal_res, int32_t hal_value) {
             res = hal_res;
             *value = hal_value;
@@ -84,10 +95,62 @@ bool GetBatteryCounter(BatteryCounter counter, int64_t* value) {
       break;
   }  // switch(counter)
 
-  if (res == Result::CALLBACK_DIED)
-    g_svc.clear();
+  if (ret.isDeadObject())
+    g_svc.hidl.clear();
 
-  return res == Result::SUCCESS;
+  return ret.isOk() && res == Result::SUCCESS;
+}
+
+bool GetBatteryCounterAidl(BatteryCounter counter, int64_t* value) {
+  ndk::ScopedAStatus status;
+  int32_t value32;
+
+  switch (counter) {
+    case BatteryCounter::kUnspecified:
+      return false;
+
+    case BatteryCounter::kCharge:
+      status = g_svc.aidl->getChargeCounterUah(&value32);
+      break;
+
+    case BatteryCounter::kCapacityPercent:
+      status = g_svc.aidl->getCapacity(&value32);
+      break;
+
+    case BatteryCounter::kCurrent:
+      status = g_svc.aidl->getCurrentNowMicroamps(&value32);
+      break;
+
+    case BatteryCounter::kCurrentAvg:
+      status = g_svc.aidl->getCurrentAverageMicroamps(&value32);
+      break;
+  }  // switch(counter)
+
+  if (status.isOk()) {
+    *value = value32;
+    return true;
+  }
+
+  if (status.getStatus() == STATUS_DEAD_OBJECT)
+    g_svc.aidl.reset();
+
+  return false;
+}
+
+}  // namespace
+
+bool GetBatteryCounter(BatteryCounter counter, int64_t* value) {
+  *value = 0;
+  if (!g_svc.aidl && !g_svc.hidl)
+    ResetService();
+
+  if (!g_svc.aidl && !g_svc.hidl)
+    return false;
+
+  if (g_svc.aidl)
+    return GetBatteryCounterAidl(counter, value);
+
+  return GetBatteryCounterHidl(counter, value);
 }
 
 }  // namespace android_internal

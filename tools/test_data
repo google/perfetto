@@ -141,7 +141,7 @@ def cmd_upload(dir):
     subprocess.check_call(cmd)
     with open(fs.path + SUFFIX + '.swp', 'w') as f:
       f.write(fs.actual_digest)
-    os.rename(fs.path + SUFFIX + '.swp', fs.path + SUFFIX)
+    os.replace(fs.path + SUFFIX + '.swp', fs.path + SUFFIX)
     return fs
 
   map_concurrently(upload_one_file, files_to_upload)
@@ -194,7 +194,7 @@ def cmd_download(dir, overwrite_locally_modified=False):
     if digest != fs.expected_digest:
       raise Exception('Mismatching digest for %s. expected=%s, actual=%s' %
                       (uri, fs.expected_digest, digest))
-    os.rename(tmp_path, fs.path)
+    os.replace(tmp_path, fs.path)
     return fs
 
   map_concurrently(download_one_file, files_to_download)

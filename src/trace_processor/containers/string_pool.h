@@ -21,9 +21,9 @@
 #include <stdint.h>
 
 #include <limits>
-#include <unordered_map>
 #include <vector>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/paged_memory.h"
@@ -107,8 +107,8 @@ class StringPool {
   ~StringPool();
 
   // Allow std::move().
-  StringPool(StringPool&&);
-  StringPool& operator=(StringPool&&);
+  StringPool(StringPool&&) noexcept;
+  StringPool& operator=(StringPool&&) noexcept;
 
   // Disable implicit copy.
   StringPool(const StringPool&) = delete;
@@ -119,12 +119,17 @@ class StringPool {
       return Id::Null();
 
     auto hash = str.Hash();
-    auto id_it = string_index_.find(hash);
-    if (id_it != string_index_.end()) {
-      PERFETTO_DCHECK(Get(id_it->second) == str);
-      return id_it->second;
+
+    // Perform a hashtable insertion with a null ID just to check if the string
+    // is already inserted. If it's not, overwrite 0 with the actual Id.
+    auto it_and_inserted = string_index_.Insert(hash, Id());
+    Id* id = it_and_inserted.first;
+    if (!it_and_inserted.second) {
+      PERFETTO_DCHECK(Get(*id) == str);
+      return *id;
     }
-    return InsertString(str, hash);
+    *id = InsertString(str, hash);
+    return *id;
   }
 
   base::Optional<Id> GetId(base::StringView str) const {
@@ -132,10 +137,10 @@ class StringPool {
       return Id::Null();
 
     auto hash = str.Hash();
-    auto id_it = string_index_.find(hash);
-    if (id_it != string_index_.end()) {
-      PERFETTO_DCHECK(Get(id_it->second) == str);
-      return id_it->second;
+    Id* id = string_index_.Find(hash);
+    if (id) {
+      PERFETTO_DCHECK(Get(*id) == str);
+      return *id;
     }
     return base::nullopt;
   }
@@ -287,10 +292,12 @@ class StringPool {
   std::vector<std::unique_ptr<std::string>> large_strings_;
 
   // Maps hashes of strings to the Id in the string pool.
-  // TODO(lalitm): At some point we should benchmark just using a static
-  // hashtable of 1M elements, we can afford paying a fixed 8MB here
-  std::unordered_map<StringHash, Id, base::AlreadyHashed<StringHash>>
-      string_index_;
+  base::FlatHashMap<StringHash,
+                    Id,
+                    base::AlreadyHashed<StringHash>,
+                    base::LinearProbe,
+                    /*AppendOnly=*/true>
+      string_index_{/*initial_capacity=*/1024u * 1024u};
 };
 
 }  // namespace trace_processor

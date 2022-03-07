@@ -12,13 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createEmptyRecordConfig} from '../controller/validate_config';
-import {
-  autosaveConfigStore,
-  recordTargetStore
-} from '../frontend/record_config';
+import {assertTrue} from '../base/logging';
+import {RecordConfig} from '../controller/record_config_types';
 
-import {featureFlags} from './feature_flags';
 import {
   AggregationAttrs,
   PivotAttrs,
@@ -77,7 +73,11 @@ export const MAX_TIME = 180;
 // 11: Rename updateChromeCategories to fetchChromeCategories.
 // 12: Add a field to cache mapping from UI track ID to trace track ID in order
 //     to speed up flow arrows rendering.
-export const STATE_VERSION = 12;
+// 13: FlamegraphState changed to support area selection.
+// 14: Changed the type of uiTrackIdByTraceTrackId from `Map` to an object with
+// typed key/value because a `Map` does not preserve type during
+// serialisation+deserialisation.
+export const STATE_VERSION = 14;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -120,7 +120,7 @@ export interface TraceArrayBufferSource {
   url?: string;
   fileName?: string;
 
-  // |uuid| is set only when loading from the cache via ?trace_id=123. When set,
+  // |uuid| is set only when loading via ?local_cache_key=1234. When set,
   // this matches global.state.traceUuid, with the exception of the following
   // time window: When a trace T1 is loaded and the user loads another trace T2,
   // this |uuid| will be == T2, but the globals.state.traceUuid will be
@@ -249,9 +249,9 @@ export interface PerfSamplesSelection {
 
 export interface FlamegraphState {
   kind: 'FLAMEGRAPH_STATE';
-  id: number;
-  upid: number;
-  ts: number;
+  upids: number[];
+  startNs: number;
+  endNs: number;
   type: string;
   viewingOption: FlamegraphStateViewingOption;
   focusRegex: string;
@@ -280,6 +280,7 @@ type Selection =
     (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
      CpuProfileSampleSelection|ChromeSliceSelection|ThreadStateSelection|
      AreaSelection|PerfSamplesSelection)&{trackId?: string};
+export type SelectionKind = Selection['kind'];  // 'THREAD_STATE' | 'SLICE' ...
 
 export interface LogsPagination {
   offset: number;
@@ -368,7 +369,7 @@ export interface State {
   traceUuid?: string;
   trackGroups: ObjectById<TrackGroupState>;
   tracks: ObjectById<TrackState>;
-  uiTrackIdByTraceTrackId: Map<number, string>;
+  uiTrackIdByTraceTrackId: {[key: number]: string;};
   areas: ObjectById<AreaById>;
   aggregatePreferences: ObjectById<AggregationState>;
   visibleTracks: string[];
@@ -439,7 +440,12 @@ export declare type RecordMode =
     'STOP_WHEN_FULL' | 'RING_BUFFER' | 'LONG_TRACE';
 
 // 'Q','P','O' for Android, 'L' for Linux, 'C' for Chrome.
-export declare type TargetOs = 'Q' | 'P' | 'O' | 'C' | 'L' | 'CrOS';
+export declare type TargetOs = 'S' | 'R' | 'Q' | 'P' | 'O' | 'C' | 'L' | 'CrOS';
+
+export function isTargetOsAtLeast(target: RecordingTarget, osVersion: string) {
+  assertTrue(osVersion.length === 1);
+  return target.os >= osVersion;
+}
 
 export function isAndroidP(target: RecordingTarget) {
   return target.os === 'P';
@@ -479,87 +485,6 @@ export function hasActiveProbes(config: RecordConfig) {
     return true;
   }
   return config.chromeHighOverheadCategoriesSelected.length > 0;
-}
-
-export interface RecordConfig {
-  // Global settings
-  mode: RecordMode;
-  durationMs: number;
-  bufferSizeMb: number;
-  maxFileSizeMb: number;      // Only for mode == 'LONG_TRACE'.
-  fileWritePeriodMs: number;  // Only for mode == 'LONG_TRACE'.
-
-  cpuSched: boolean;
-  cpuFreq: boolean;
-  cpuCoarse: boolean;
-  cpuCoarsePollMs: number;
-  cpuSyscall: boolean;
-
-  gpuFreq: boolean;
-  gpuMemTotal: boolean;
-
-  ftrace: boolean;
-  atrace: boolean;
-  ftraceEvents: string[];
-  ftraceExtraEvents: string;
-  atraceCats: string[];
-  atraceApps: string;
-  ftraceBufferSizeKb: number;
-  ftraceDrainPeriodMs: number;
-  androidLogs: boolean;
-  androidLogBuffers: string[];
-  androidFrameTimeline: boolean;
-
-  batteryDrain: boolean;
-  batteryDrainPollMs: number;
-
-  boardSensors: boolean;
-
-  memHiFreq: boolean;
-  memLmk: boolean;
-  meminfo: boolean;
-  meminfoPeriodMs: number;
-  meminfoCounters: string[];
-  vmstat: boolean;
-  vmstatPeriodMs: number;
-  vmstatCounters: string[];
-
-  heapProfiling: boolean;
-  hpSamplingIntervalBytes: number;
-  hpProcesses: string;
-  hpContinuousDumpsPhase: number;
-  hpContinuousDumpsInterval: number;
-  hpSharedMemoryBuffer: number;
-  hpBlockClient: boolean;
-  hpAllHeaps: boolean;
-
-  javaHeapDump: boolean;
-  jpProcesses: string;
-  jpContinuousDumpsPhase: number;
-  jpContinuousDumpsInterval: number;
-
-  procStats: boolean;
-  procStatsPeriodMs: number;
-
-  chromeCategoriesSelected: string[];
-  chromeHighOverheadCategoriesSelected: string[];
-
-  chromeLogs: boolean;
-  taskScheduling: boolean;
-  ipcFlows: boolean;
-  jsExecution: boolean;
-  webContentRendering: boolean;
-  uiRendering: boolean;
-  inputEvents: boolean;
-  navigationAndLoading: boolean;
-
-  symbolizeKsyms: boolean;
-}
-
-export interface NamedRecordConfig {
-  title: string;
-  config: RecordConfig;
-  key: string;
 }
 
 export function getDefaultRecordingTargets(): RecordingTarget[] {
@@ -815,90 +740,6 @@ export function getBuiltinChromeCategoryList(): string[] {
     'disabled-by-default-worker.scheduler',
     'disabled-by-default-xr.debug',
   ];
-}
-
-const AUTOLOAD_STARTED_CONFIG_FLAG = featureFlags.register({
-  id: 'autoloadStartedConfig',
-  name: 'Auto-load last used recording config',
-  description: 'Starting a recording automatically saves its configuration. ' +
-      'This flag controls whether this config is automatically loaded.',
-  defaultValue: false,
-});
-
-export function createEmptyState(): State {
-  return {
-    version: STATE_VERSION,
-    nextId: 0,
-    nextNoteId: 1,  // 0 is reserved for ephemeral area marking.
-    nextAreaId: 0,
-    newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE',
-    engines: {},
-    traceTime: {...defaultTraceTime},
-    tracks: {},
-    uiTrackIdByTraceTrackId: new Map<number, string>(),
-    aggregatePreferences: {},
-    trackGroups: {},
-    visibleTracks: [],
-    pinnedTracks: [],
-    scrollingTracks: [],
-    areas: {},
-    queries: {},
-    metrics: {},
-    permalink: {},
-    notes: {},
-    pivotTableConfig: {},
-    pivotTable: {},
-
-    recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get() ?
-        autosaveConfigStore.get() :
-        createEmptyRecordConfig(),
-    displayConfigAsPbtxt: false,
-    lastLoadedConfig: {type: 'NONE'},
-
-    frontendLocalState: {
-      omniboxState: {
-        lastUpdate: 0,
-        omnibox: '',
-        mode: 'SEARCH',
-      },
-
-      visibleState: {
-        ...defaultTraceTime,
-        lastUpdate: 0,
-        resolution: 0,
-      },
-    },
-
-    logsPagination: {
-      offset: 0,
-      count: 0,
-    },
-
-    status: {msg: '', timestamp: 0},
-    currentSelection: null,
-    currentFlamegraphState: null,
-    traceConversionInProgress: false,
-
-    perfDebug: false,
-    sidebarVisible: true,
-    hoveredUtid: -1,
-    hoveredPid: -1,
-    hoveredLogsTimestamp: -1,
-    hoveredNoteTimestamp: -1,
-    highlightedSliceId: -1,
-    focusedFlowIdLeft: -1,
-    focusedFlowIdRight: -1,
-    searchIndex: -1,
-
-    recordingInProgress: false,
-    recordingCancelled: false,
-    extensionInstalled: false,
-    recordingTarget: recordTargetStore.getValidTarget(),
-    availableAdbDevices: [],
-
-    fetchChromeCategories: false,
-    chromeCategories: undefined,
-  };
 }
 
 export function getContainingTrackId(state: State, trackId: string): null|

@@ -89,7 +89,7 @@ void ProcessTracker::EndThread(int64_t timestamp, uint32_t tid) {
   // of the process, we should also finish the process itself.
   PERFETTO_DCHECK(thread_table->is_main_thread()[utid].value());
   process_table->mutable_end_ts()->Set(*opt_upid, timestamp);
-  pids_.erase(tid);
+  pids_.Erase(tid);
 }
 
 base::Optional<UniqueTid> ProcessTracker::GetThreadOrNull(uint32_t tid) {
@@ -156,8 +156,8 @@ bool ProcessTracker::IsThreadAlive(UniqueTid utid) {
 
   // If the process has been replaced in |pids_|, this thread is dead.
   uint32_t current_pid = processes->pid()[current_upid];
-  auto pid_it = pids_.find(current_pid);
-  if (pid_it != pids_.end() && pid_it->second != current_upid)
+  auto pid_it = pids_.Find(current_pid);
+  if (pid_it && *pid_it != current_upid)
     return false;
 
   return true;
@@ -169,13 +169,13 @@ base::Optional<UniqueTid> ProcessTracker::GetThreadOrNull(
   auto* threads = context_->storage->mutable_thread_table();
   auto* processes = context_->storage->mutable_process_table();
 
-  auto vector_it = tids_.find(tid);
-  if (vector_it == tids_.end())
+  auto vector_it = tids_.Find(tid);
+  if (!vector_it)
     return base::nullopt;
 
   // Iterate backwards through the threads so ones later in the trace are more
   // likely to be picked.
-  const auto& vector = vector_it->second;
+  const auto& vector = *vector_it;
   for (auto it = vector.rbegin(); it != vector.rend(); it++) {
     UniqueTid current_utid = *it;
 
@@ -220,12 +220,54 @@ UniqueTid ProcessTracker::UpdateThread(uint32_t tid, uint32_t pid) {
   return utid;
 }
 
+void ProcessTracker::UpdateTrustedPid(uint32_t trusted_pid, uint64_t uuid) {
+  trusted_pids_[uuid] = trusted_pid;
+}
+
+base::Optional<uint32_t> ProcessTracker::GetTrustedPid(uint64_t uuid) {
+  if (trusted_pids_.find(uuid) == trusted_pids_.end())
+    return base::nullopt;
+  return trusted_pids_[uuid];
+}
+
+base::Optional<uint32_t> ProcessTracker::ResolveNamespacedTid(
+    uint32_t root_level_pid,
+    uint32_t tid) {
+  if (root_level_pid <= 0)  // Not a valid pid.
+    return base::nullopt;
+
+  // If the process doesn't run in a namespace (or traced_probes doesn't observe
+  // that), return base::nullopt as failure to resolve.
+  auto process_it = namespaced_processes_.find(root_level_pid);
+  if (process_it == namespaced_processes_.end())
+    return base::nullopt;
+
+  // Check if it's the main thread.
+  const auto& process = process_it->second;
+  auto ns_level = process.nspid.size() - 1;
+  auto pid_local = process.nspid.back();
+  if (pid_local == tid)
+    return root_level_pid;
+
+  // Check if any non-main thread has a matching ns-local thread ID.
+  for (const auto& root_level_tid : process.threads) {
+    const auto& thread = namespaced_threads_[root_level_tid];
+    PERFETTO_DCHECK(thread.nstid.size() > ns_level);
+    auto tid_ns_local = thread.nstid[ns_level];
+    if (tid_ns_local == tid)
+      return thread.tid;
+  }
+
+  // Failed to resolve or the thread isn't namespaced
+  return base::nullopt;
+}
+
 UniquePid ProcessTracker::StartNewProcess(base::Optional<int64_t> timestamp,
                                           base::Optional<uint32_t> parent_tid,
                                           uint32_t pid,
                                           StringId main_thread_name,
                                           ThreadNamePriority priority) {
-  pids_.erase(pid);
+  pids_.Erase(pid);
   // TODO(eseckler): Consider erasing all old entries in |tids_| that match the
   // |pid| (those would be for an older process with the same pid). Right now,
   // we keep them in |tids_| (if they weren't erased by EndThread()), but ignore
@@ -325,18 +367,20 @@ void ProcessTracker::UpdateThreadNameAndMaybeProcessName(
 
 UniquePid ProcessTracker::GetOrCreateProcess(uint32_t pid) {
   auto* process_table = context_->storage->mutable_process_table();
-  auto it = pids_.find(pid);
-  if (it != pids_.end()) {
+
+  // If the insertion succeeds, we'll fill the upid below.
+  auto it_and_ins = pids_.Insert(pid, UniquePid{0});
+  if (!it_and_ins.second) {
     // Ensure that the process has not ended.
-    PERFETTO_DCHECK(!process_table->end_ts()[it->second].has_value());
-    return it->second;
+    PERFETTO_DCHECK(!process_table->end_ts()[*it_and_ins.first].has_value());
+    return *it_and_ins.first;
   }
 
   tables::ProcessTable::Row row;
   row.pid = pid;
 
   UniquePid upid = process_table->Insert(row).row;
-  pids_.emplace(pid, upid);
+  *it_and_ins.first = upid;  // Update the newly inserted hashmap entry.
 
   // Create an entry for the main thread.
   // We cannot call StartNewThread() here, because threads for this process
@@ -459,8 +503,8 @@ void ProcessTracker::AssociateThreadToProcess(UniqueTid utid, UniquePid upid) {
 
 void ProcessTracker::SetPidZeroIgnoredForIdleProcess() {
   // Create a mapping from (t|p)id 0 -> u(t|p)id 0 for the idle process.
-  tids_.emplace(0, std::vector<UniqueTid>{0});
-  pids_.emplace(0, 0);
+  tids_.Insert(0, std::vector<UniqueTid>{0});
+  pids_.Insert(0, 0);
 
   auto swapper_id = context_->storage->InternString("swapper");
   UpdateThreadName(0, swapper_id, ThreadNamePriority::kTraceProcessorConstant);
@@ -472,6 +516,22 @@ ArgsTracker::BoundInserter ProcessTracker::AddArgsTo(UniquePid upid) {
 
 void ProcessTracker::NotifyEndOfFile() {
   args_tracker_.Flush();
+}
+
+void ProcessTracker::UpdateNamespacedProcess(uint32_t pid,
+                                             std::vector<uint32_t> nspid) {
+  namespaced_processes_[pid] = {pid, std::move(nspid), {}};
+}
+
+void ProcessTracker::UpdateNamespacedThread(uint32_t pid,
+                                            uint32_t tid,
+                                            std::vector<uint32_t> nstid) {
+  PERFETTO_DCHECK(namespaced_processes_.find(pid) !=
+                  namespaced_processes_.end());
+  auto& process = namespaced_processes_[pid];
+  process.threads.emplace(tid);
+
+  namespaced_threads_[tid] = {pid, tid, std::move(nstid)};
 }
 
 }  // namespace trace_processor

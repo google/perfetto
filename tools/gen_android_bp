@@ -94,8 +94,13 @@ target_initrc = {
 
 target_host_supported = [
     '//:libperfetto',
+    '//:libperfetto_client_experimental',
     '//protos/perfetto/trace:perfetto_trace_protos',
     '//src/trace_processor:trace_processor_shell',
+]
+
+target_vendor_available = [
+    '//:libperfetto_client_experimental',
 ]
 
 # All module names are prefixed with this string to avoid collisions.
@@ -106,6 +111,7 @@ shared_library_allowlist = [
     'android',
     'android.hardware.atrace@1.0',
     'android.hardware.health@2.0',
+    'android.hardware.health-V1-ndk',
     'android.hardware.power.stats@1.0',
     "android.hardware.power.stats-V1-cpp",
     'base',
@@ -204,15 +210,15 @@ additional_args = {
         ('include_dirs', {'bionic/libc/kernel'}),
     ],
     'perfetto_integrationtests': [
-        ('cflags', {'-fno-finite-loops'}),
         ('test_suites', {'general-tests'}),
         ('test_config', 'PerfettoIntegrationTests.xml'),
     ],
     'traced_probes': [('required', {
         'libperfetto_android_internal', 'trigger_perfetto', 'traced_perf',
         'mm_events'
-    }),],
-    'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
+    }), ],
+    'libperfetto_android_internal': [
+        ('static_libs', {'libhealthhalutils'}), ],
     'trace_processor_shell': [
         ('strip', {
             'all': True
@@ -458,6 +464,7 @@ class Module(object):
     self.tools = set()
     self.cmd = None
     self.host_supported = False
+    self.vendor_available = False
     self.init_rc = set()
     self.out = set()
     self.export_include_dirs = set()
@@ -502,6 +509,7 @@ class Module(object):
     self._output_field(output, 'tools')
     self._output_field(output, 'cmd', sort=False)
     self._output_field(output, 'host_supported')
+    self._output_field(output, 'vendor_available')
     self._output_field(output, 'init_rc')
     self._output_field(output, 'out')
     self._output_field(output, 'export_include_dirs')
@@ -857,6 +865,7 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
 
   blueprint.add_module(module)
   module.host_supported = (name_without_toolchain in target_host_supported)
+  module.vendor_available = (name_without_toolchain in target_vendor_available)
   module.init_rc = target_initrc.get(target.name, [])
   module.srcs.update(
       gn_utils.label_to_path(src)
@@ -873,9 +882,10 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
     module.defaults = [defaults_module]
     for lib in target.libs:
       # Generally library names should be mangled as 'libXXX', unless they
-      # are HAL libraries (e.g., android.hardware.health@2.0) or AIDL c++
+      # are HAL libraries (e.g., android.hardware.health@2.0) or AIDL c++ / NDK
       # libraries (e.g. "android.hardware.power.stats-V1-cpp")
-      android_lib = lib if '@' in lib or "-cpp" in lib else 'lib' + lib
+      android_lib = lib if '@' in lib or "-cpp" in lib or "-ndk" in lib \
+        else 'lib' + lib
       if lib in shared_library_allowlist:
         module.add_android_shared_lib(android_lib)
       if lib in static_library_allowlist:

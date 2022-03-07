@@ -70,7 +70,7 @@
 
 * {
     box-sizing: border-box;
-    -webkit-tap-highlight-color: none;
+    -webkit-tap-highlight-color: transparent;
     touch-action: none;
 }
 
@@ -87,8 +87,11 @@ body>main {
     width: 100%;
     padding: 0;
     margin: 0;
-    user-select: none;
     overscroll-behavior: none;
+}
+
+pre, code {
+  font-family: var(--monospace-font);
 }
 
 // This is to minimize Mac vs Linux Chrome Headless rendering differences
@@ -155,17 +158,13 @@ button.close {
 
 .full-page-loading-screen {
     position: absolute;
-    background: #3e4a5a;
     width: 100%;
     height: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
     flex-direction: row;
-    background-image: url('assets/logo-3d.png');
-    background-attachment: fixed;
-    background-repeat: no-repeat;
-    background-position: center;
+    background: #3e4a5a url('assets/logo-3d.png') no-repeat fixed center;
 }
 
 .page {
@@ -185,9 +184,6 @@ button.close {
 }
 
 .alerts {
-  * {
-    user-select: text;
-  }
   grid-area: alerts;
   background-color: #f2f2f2;
   >div {
@@ -234,6 +230,42 @@ button.close {
       }
       .disabled {
         cursor: default;
+      }
+      .dropdown {
+        display: inline-block;
+        position: relative;
+      }
+      .popup-menu {
+        position: absolute;
+        background-color: white;
+        right: 0;
+        box-shadow: 0 0 4px 0 #999;
+
+        &.closed {
+          display: none;
+        }
+
+        &.open {
+          display: block;
+        }
+
+        button {
+          border-radius: 0;
+          margin: 0;
+          height: auto;
+          background: transparent;
+          color: #111;
+          font-size: 12px;
+          padding: 0.4em 1em;
+          white-space: nowrap;
+          width: 100%;
+          text-align: right;
+          line-height: 1;
+
+          &:hover {
+            background: #c7d0db;
+          }
+        }
       }
     }
     thead td {
@@ -413,6 +445,7 @@ canvas.main-canvas {
 
 .panels {
   grid-area: space;
+  user-select: none;
 }
 
 .panel {
@@ -462,13 +495,8 @@ header.overview {
       color: hsl(213, 22%, 40%);
   }
   span.code {
-    user-select: text;
     flex-grow: 1;
   }
-}
-
-.query-error {
-  user-select: text;
 }
 
 button.query-ctrl {
@@ -484,7 +512,7 @@ button.query-ctrl {
 
 .debug-panel-border {
   position: absolute;
-  top: 0px;
+  top: 0;
   height: 100%;
   width: 100%;
   border: 1px solid rgba(69, 187, 73, 0.5);
@@ -498,7 +526,7 @@ button.query-ctrl {
   left: 0;
   width: 600px;
   color: var(--stroke-color);
-  font-family: monospace;
+  font-family: var(--monospace-font);
   padding: 10px 24px;
   z-index: 100;
   background-color: rgba(27, 28, 29, 0.90);
@@ -522,13 +550,13 @@ button.query-ctrl {
     border-bottom: 1px solid var(--stroke-color);
   }
   div {
-    margin: 2px 0px;
+    margin: 2px 0;
   }
   table, td, th {
     border: 1px solid var(--stroke-color);
     text-align: center;
     padding: 4px;
-    margin: 4px 0px;
+    margin: 4px 0;
   }
   table {
     border-collapse: collapse;
@@ -583,6 +611,19 @@ button.query-ctrl {
     width: var(--track-shell-width);
     min-height: 40px;
     transition: background-color .4s;
+
+    .track-title {
+      user-select: text;
+    }
+
+    .chip {
+      background-color: #bed6ff;
+      border-radius: 3px;
+      font-size: smaller;
+      padding: 0 0.1rem;
+      margin-left: 1ch;
+    }
+
     h1 {
       grid-area: title;
       @include track_shell_title();
@@ -740,7 +781,6 @@ button.query-ctrl {
     }
   }
   span {
-    user-select: text;
     flex-grow: 1;
   }
 }
@@ -754,7 +794,7 @@ button.query-ctrl {
   margin-left: 10px;
   border-radius: 50%;
   border: 2px solid #408ee0;
-  border-color: #408ee0 transparent #408ee0 transparent;
+  border-color: #408ee0 transparent;
   animation: spinner 1.25s linear infinite;
   @keyframes spinner {
     0% { transform: rotate(0deg); }
@@ -765,3 +805,4 @@ button.query-ctrl {
 .allow-white-space {
   white-space: pre
 }
+

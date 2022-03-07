@@ -1,0 +1,205 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+     timestamp: 100000000
+     pid: 200
+     cpu_frequency {
+       cpu_id: 0
+       state: 2000000
+     }
+    }
+    event {
+     timestamp: 100000000
+     pid: 200
+     softirq_entry {
+       vec: 3
+     }
+    }
+    event {
+      timestamp: 100000000
+      pid: 200
+      netif_receive_skb {
+        name: "rmnet0"
+        len: 1024
+      }
+    }
+    event {
+      timestamp: 100100000
+      pid: 200
+      net_dev_xmit {
+        name: "rmnet0"
+        len: 1024
+      }
+    }
+    event {
+      timestamp: 100500000
+      pid: 200
+      softirq_exit {
+        vec: 3
+      }
+    }
+  }
+}
+
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+     timestamp: 120000000
+     pid: 200
+     cpu_frequency {
+       cpu_id: 1
+       state: 2000000
+     }
+    }
+    event {
+     timestamp: 120000000
+     pid: 300
+     softirq_entry {
+       vec: 3
+     }
+    }
+    event {
+      timestamp: 120000000
+      pid: 300
+      netif_receive_skb {
+        name: "rmnet0"
+        len: 1024
+      }
+    }
+    event {
+      timestamp: 120100000
+      pid: 300
+      net_dev_xmit {
+        name: "rmnet0"
+        len: 1024
+      }
+    }
+    event {
+     timestamp: 120500000
+     pid: 300
+     softirq_exit {
+       vec: 3
+     }
+    }
+  }
+}
+
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+     timestamp: 140000000
+     pid: 200
+     cpu_frequency {
+       cpu_id: 0
+       state: 1000000
+     }
+    }
+    event {
+     timestamp: 140000000
+     pid: 400
+     softirq_entry {
+       vec: 3
+     }
+    }
+    event {
+      timestamp: 140000000
+      pid: 400
+      netif_receive_skb {
+        name: "rmnet0"
+        len: 1024
+      }
+    }
+    event {
+      timestamp: 140100000
+      pid: 400
+      net_dev_xmit {
+        name: "rmnet0"
+        len: 1024
+      }
+    }
+    event {
+     timestamp: 140500000
+     pid: 400
+     softirq_exit {
+       vec: 3
+     }
+    }
+  }
+}
+
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+     timestamp: 140000000
+     pid: 200
+     cpu_frequency {
+       cpu_id: 1
+       state: 1000000
+     }
+    }
+    event {
+     timestamp: 140000000
+     pid: 500
+     softirq_entry {
+       vec: 3
+     }
+    }
+    event {
+      timestamp: 140000000
+      pid: 500
+      netif_receive_skb {
+        name: "rmnet0"
+        len: 1024
+      }
+    }
+    event {
+      timestamp: 140100000
+      pid: 500
+      net_dev_xmit {
+        name: "rmnet0"
+        len: 1024
+      }
+    }
+    event {
+     timestamp: 140500000
+     pid: 500
+     softirq_exit {
+       vec: 3
+     }
+    }
+  }
+}
+
+packet {
+  ftrace_events {
+    cpu: 4
+    event {
+     timestamp: 100000000
+     pid: 200
+     cpu_frequency {
+       cpu_id: 4
+       state: 2000000
+     }
+    }
+    event {
+      timestamp: 100000000
+      pid: 600
+      netif_receive_skb {
+        name: "wlan0"
+        len: 512
+      }
+    }
+    event {
+      timestamp: 101000000
+      pid: 600
+      net_dev_xmit {
+        name: "wlan0"
+        len: 512
+      }
+    }
+  }
+}

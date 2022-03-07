@@ -92,6 +92,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/ftrace:cpp",
     "../../../protos/perfetto/trace/perfetto:cpp",
+    "../../../src/protozero/filtering:bytecode_generator",
     "../../base",
     "../../base:test_support",
     "../test:test_support",

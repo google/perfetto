@@ -64,9 +64,9 @@ If omitted traces won't be shareable.
 
 ### Code samples
 
-See https://jsfiddle.net/primiano/1hd0a4wj/68/ (also mirrored on
-[this GitHub gist](https://gist.github.com/primiano/e164868b617844ef8fa4770eb3b323b9)
-)
+See [this example caller](https://gistcdn.rawgit.org/primiano/e164868b617844ef8fa4770eb3b323b9/1d9aa2bf52cf903709ea7dd4d583fd2d07d7a255/open_with_perfetto_ui.html),
+for which the code is in
+[this GitHub gist](https://gist.github.com/primiano/e164868b617844ef8fa4770eb3b323b9).
 
 Googlers: take a look at the
 [existing examples in the internal codesearch](http://go/perfetto-ui-deeplink-cs)

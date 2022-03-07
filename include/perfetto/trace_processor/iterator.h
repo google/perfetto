@@ -31,6 +31,15 @@ namespace trace_processor {
 class IteratorImpl;
 
 // Iterator returning SQL rows satisfied by a query.
+//
+// Example usage:
+// auto sql = "select name, ifnull(cat, "[NULL]") from slice";
+// for (auto it = tp.ExecuteQuery(sql); it.Next();)
+//   for (uint32_t i = 0; i < it.ColumnCount(); ++i) {
+//     printf("%s ", it.Get(i).AsString());
+//   }
+//   printf("\n");
+// }
 class PERFETTO_EXPORT Iterator {
  public:
   explicit Iterator(std::unique_ptr<IteratorImpl>);
@@ -40,7 +49,7 @@ class PERFETTO_EXPORT Iterator {
   Iterator& operator=(Iterator&) = delete;
 
   Iterator(Iterator&&) noexcept;
-  Iterator& operator=(Iterator&&);
+  Iterator& operator=(Iterator&&) noexcept;
 
   // Forwards the iterator to the next result row and returns a boolean of
   // whether there is a next row. If this method returns false,
@@ -60,6 +69,19 @@ class PERFETTO_EXPORT Iterator {
   // Returns the number of columns in this iterator's query. Can be called
   // even before calling |Next()|.
   uint32_t ColumnCount();
+
+  // Returns the number of statements in the provided SQL (including the final
+  // statement which is iterated using this iterator). Comments and empty
+  // statements are *not* counted i.e.
+  // "SELECT 1; /* comment */; select 2;  -- comment"
+  // returns 2 not 4.
+  uint32_t StatementCount();
+
+  // Returns the number of statements which produced output rows in the provided
+  // SQL (including, potentially, the final statement which is iterated using
+  // this iterator).
+  // This value is guaranteed to be <= |StatementCount()|.
+  uint32_t StatementWithOutputCount();
 
   // Returns the status of the iterator.
   util::Status Status();

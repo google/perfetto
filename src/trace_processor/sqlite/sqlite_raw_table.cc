@@ -182,9 +182,9 @@ ArgsSerializer::ArgsSerializer(
   // Go through each field id and find the entry in the args table for that
   for (uint32_t i = 1; i <= max; ++i) {
     for (auto it = row_map_.IterateRows(); it; it.Next()) {
-      base::StringView key = args.key().GetString(it.row());
+      base::StringView key = args.key().GetString(it.index());
       if (key == descriptor->fields[i].name) {
-        (*field_id_to_arg_index)[i] = it.index();
+        (*field_id_to_arg_index)[i] = it.row();
         break;
       }
     }
@@ -468,7 +468,7 @@ void ArgsSerializer::SerializeArgs() {
     return;
   }
   for (auto it = row_map_.IterateRows(); it; it.Next()) {
-    WriteArgAtRow(it.row(), DVW());
+    WriteArgAtRow(it.index(), DVW());
   }
 }
 

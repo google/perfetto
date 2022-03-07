@@ -64,6 +64,7 @@ class FakeProducer : public Producer {
   void RegisterDataSource(const DataSourceDescriptor&);
   void CommitData(const CommitDataRequest&, std::function<void()> callback);
   void Sync(std::function<void()> callback);
+  void ActivateTrigger(const std::string& trigger_name);
 
   bool IsShmemProvidedByProducer() const {
     return endpoint_->IsShmemProvidedByProducer();

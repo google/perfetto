@@ -18,8 +18,6 @@
 
 #include <stddef.h>
 
-#include <unordered_map>
-
 #include "perfetto/base/build_config.h"
 #include "test/gtest_and_gmock.h"
 

@@ -28,6 +28,7 @@
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -36,11 +37,17 @@ class TraceProcessorImpl;
 
 class IteratorImpl {
  public:
+  struct StmtMetadata {
+    uint32_t column_count = 0;
+    uint32_t statement_count = 0;
+    uint32_t statement_count_with_output = 0;
+  };
+
   IteratorImpl(TraceProcessorImpl* impl,
                sqlite3* db,
+               base::Status,
                ScopedStmt,
-               uint32_t column_count,
-               util::Status,
+               StmtMetadata,
                uint32_t sql_stats_row);
   ~IteratorImpl();
 
@@ -52,10 +59,25 @@ class IteratorImpl {
 
   // Methods called by the base Iterator class.
   bool Next() {
-    // Delegate to the cc file to prevent trace_storage.h include in this file.
+    PERFETTO_DCHECK(stmt_ || !status_.ok());
+
     if (!called_next_) {
+      // Delegate to the cc file to prevent trace_storage.h include in this
+      // file.
       RecordFirstNextInSqlStats();
       called_next_ = true;
+
+      // In the past, we used to call sqlite3_step for the first time in this
+      // function which 1:1 matched Next calls to sqlite3_step calls. However,
+      // with the introduction of multi-statement support, we call
+      // sqlite3_step when tokenizing the queries and so we need to *not* call
+      // step the first time Next is called.
+      //
+      // Aside: if we could, we would change the API to match the new setup
+      // (i.e. implement operator bool, make Next return nothing similar to C++
+      // iterators); however, too many clients depend on the current behavior so
+      // we have to keep the API as is.
+      return status_.ok() && !sqlite_utils::IsStmtDone(*stmt_);
     }
 
     if (!status_.ok())
@@ -63,7 +85,8 @@ class IteratorImpl {
 
     int ret = sqlite3_step(*stmt_);
     if (PERFETTO_UNLIKELY(ret != SQLITE_ROW && ret != SQLITE_DONE)) {
-      status_ = util::ErrStatus("%s", sqlite3_errmsg(db_));
+      status_ = base::ErrStatus("%s (errcode %d)", sqlite3_errmsg(db_), ret);
+      stmt_.reset();
       return false;
     }
     return ret == SQLITE_ROW;
@@ -101,12 +124,18 @@ class IteratorImpl {
   }
 
   std::string GetColumnName(uint32_t col) {
-    return sqlite3_column_name(stmt_.get(), static_cast<int>(col));
+    return stmt_ ? sqlite3_column_name(*stmt_, static_cast<int>(col)) : "";
   }
 
-  uint32_t ColumnCount() { return column_count_; }
+  base::Status Status() { return status_; }
 
-  util::Status Status() { return status_; }
+  uint32_t ColumnCount() { return stmt_metadata_.column_count; }
+
+  uint32_t StatementCount() { return stmt_metadata_.statement_count; }
+
+  uint32_t StatementCountWithOutput() {
+    return stmt_metadata_.statement_count_with_output;
+  }
 
  private:
   // Dummy function to pass to ScopedResource.
@@ -125,9 +154,10 @@ class IteratorImpl {
 
   ScopedTraceProcessor trace_processor_;
   sqlite3* db_ = nullptr;
+  base::Status status_;
+
   ScopedStmt stmt_;
-  uint32_t column_count_ = 0;
-  util::Status status_;
+  StmtMetadata stmt_metadata_;
 
   uint32_t sql_stats_row_ = 0;
   bool called_next_ = false;

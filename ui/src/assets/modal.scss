@@ -94,15 +94,11 @@
   -moz-osx-font-smoothing: grayscale;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-  -webkit-transform: translateZ(0);
   transform: translateZ(0);
-  transition: -webkit-transform .25s ease-out;
   transition: transform .25s ease-out;
-  transition: transform .25s ease-out,-webkit-transform .25s ease-out;
 }
 
 .modal-btn:focus, .modal-btn:hover {
-  -webkit-transform: scale(1.05);
   transform: scale(1.05);
 }
 
@@ -187,7 +183,6 @@
 .modal-pre {
   white-space: pre-line;
   font-size: 13px;
-  user-select: text;
 }
 
 .modal-logs, .modal-bash {
@@ -195,8 +190,7 @@
   border: 1px solid #999;
   background: #eee;
   font-size: 10px;
-  font-family: monospace;
-  -webkit-user-select: text;
+  font-family: var(--monospace-font);
   margin-top: 10px;
   margin-bottom: 10px;
   min-height: 50px;

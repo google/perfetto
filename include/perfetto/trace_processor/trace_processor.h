@@ -43,23 +43,29 @@ class PERFETTO_EXPORT TraceProcessor : public TraceProcessorStorage {
 
   ~TraceProcessor() override;
 
-  // Executes a SQLite query on the loaded portion of the trace. The returned
-  // iterator can be used to load rows from the result.
-  virtual Iterator ExecuteQuery(const std::string& sql,
-                                int64_t time_queued = 0) = 0;
+  // Executes the SQL on the loaded portion of the trace.
+  //
+  // More than one SQL statement can be passed to this function; all but the
+  // last will be fully executed by this function before retuning. The last
+  // statement will be executed and will yield rows as the caller calls Next()
+  // over the returned Iterator.
+  //
+  // See documentation of the Iterator class for an example on how to use
+  // the returned iterator.
+  virtual Iterator ExecuteQuery(const std::string& sql) = 0;
 
   // Registers a metric at the given path which will run the specified SQL.
-  virtual util::Status RegisterMetric(const std::string& path,
+  virtual base::Status RegisterMetric(const std::string& path,
                                       const std::string& sql) = 0;
 
   // Reads the FileDescriptorSet proto message given by |data| and |size| and
   // adds any extensions to the metrics proto to allow them to be available as
   // proto builder functions when computing metrics.
-  virtual util::Status ExtendMetricsProto(const uint8_t* data, size_t size) = 0;
+  virtual base::Status ExtendMetricsProto(const uint8_t* data, size_t size) = 0;
 
   // Behaves exactly as ExtendMetricsProto, except any FileDescriptor with
   // filename matching a prefix in |skip_prefixes| is skipped.
-  virtual util::Status ExtendMetricsProto(
+  virtual base::Status ExtendMetricsProto(
       const uint8_t* data,
       size_t size,
       const std::vector<std::string>& skip_prefixes) = 0;
@@ -68,7 +74,7 @@ class PERFETTO_EXPORT TraceProcessor : public TraceProcessorStorage {
   // successful, the output argument |metrics_proto| will be filled with the
   // proto-encoded bytes for the message TraceMetrics in
   // perfetto/metrics/metrics.proto.
-  virtual util::Status ComputeMetric(
+  virtual base::Status ComputeMetric(
       const std::vector<std::string>& metric_names,
       std::vector<uint8_t>* metrics_proto) = 0;
 
@@ -80,7 +86,7 @@ class PERFETTO_EXPORT TraceProcessor : public TraceProcessorStorage {
   // Computes metrics as the ComputeMetric function above, but instead of
   // producing proto encoded bytes, the output argument |metrics_string| is
   // filled with the metric formatted in the requested |format|.
-  virtual util::Status ComputeMetricText(
+  virtual base::Status ComputeMetricText(
       const std::vector<std::string>& metric_names,
       MetricResultFormat format,
       std::string* metrics_string) = 0;
@@ -110,7 +116,7 @@ class PERFETTO_EXPORT TraceProcessor : public TraceProcessorStorage {
   // Disables "meta-tracing" of trace processor and writes the trace as a
   // sequence of |TracePackets| into |trace_proto| returning the status of this
   // read.
-  virtual util::Status DisableAndReadMetatrace(
+  virtual base::Status DisableAndReadMetatrace(
       std::vector<uint8_t>* trace_proto) = 0;
 
   // Gets all the currently loaded proto descriptors used in metric computation.

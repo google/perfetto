@@ -20,14 +20,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
+#include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/ext/tracing/ipc/service_ipc_host.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/base/test/test_task_runner.h"
@@ -44,10 +47,21 @@
 
 namespace perfetto {
 
-// This value has been bumped to 10s in Oct 2020 because the x86 cuttlefish
-// emulator is sensibly slower (up to 10x) than real hw and caused flakes.
+// This value has been bumped to 10s in Oct 2020 because the GCE-based emulator
+// can be sensibly slower than real hw (more than 10x) and caused flakes.
 // See bugs duped against b/171771440.
 constexpr uint32_t kDefaultTestTimeoutMs = 10000;
+
+inline const char* GetTestProducerSockName() {
+// If we're building on Android and starting the daemons ourselves,
+// create the sockets in a world-writable location.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
+    PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+  return "/data/local/tmp/traced_producer";
+#else
+  return ::perfetto::GetProducerSocket();
+#endif
+}
 
 // This is used only in daemon starting integrations tests.
 class ServiceThread {
@@ -241,9 +255,13 @@ class TestHelper : public Consumer {
   bool IsShmemProvidedByProducer();
   void ProduceStartupEventBatch(const protos::gen::TestConfig& config);
 
+  void WaitFor(std::function<bool()> predicate,
+               const std::string& error_msg,
+               uint32_t timeout_ms = kDefaultTestTimeoutMs);
   void WaitForConsumerConnect();
   void WaitForProducerSetup();
   void WaitForProducerEnabled();
+  void WaitForDataSourceConnected(const std::string& ds_name);
   void WaitForTracingDisabled(uint32_t timeout_ms = kDefaultTestTimeoutMs);
   void WaitForReadData(uint32_t read_count = 0,
                        uint32_t timeout_ms = kDefaultTestTimeoutMs);
@@ -297,6 +315,103 @@ class TestHelper : public Consumer {
   FakeProducerThread fake_producer_thread_;
 
   std::unique_ptr<TracingService::ConsumerEndpoint> endpoint_;  // Keep last.
+};
+
+// This class is a reference to a child process that has in essence been execv
+// to the requested binary. The process will start and then wait for Run()
+// before proceeding. We use this to fork new processes before starting any
+// additional threads in the parent process (otherwise you would risk
+// deadlocks), but pause the forked processes until remaining setup (including
+// any necessary threads) in the parent process is complete.
+class Exec {
+ public:
+  // Starts the forked process that was created. If not null then |stderr_out|
+  // will contain the stderr of the process.
+  int Run(std::string* stderr_out = nullptr) {
+    // We can't be the child process.
+    PERFETTO_CHECK(getpid() != subprocess_.pid());
+    // Will cause the entrypoint to continue.
+    PERFETTO_CHECK(write(*sync_pipe_.wr, "1", 1) == 1);
+    sync_pipe_.wr.reset();
+    subprocess_.Wait();
+
+    if (stderr_out) {
+      *stderr_out = std::move(subprocess_.output());
+    } else {
+      PERFETTO_LOG("Child proc %d exited with stderr: \"%s\"",
+                   subprocess_.pid(), subprocess_.output().c_str());
+    }
+    return subprocess_.returncode();
+  }
+
+  Exec(const std::string& argv0,
+       std::initializer_list<std::string> args,
+       std::string input = "") {
+    subprocess_.args.stderr_mode = base::Subprocess::kBuffer;
+    subprocess_.args.stdout_mode = base::Subprocess::kDevNull;
+    subprocess_.args.input = input;
+
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+    constexpr bool kUseSystemBinaries = false;
+#else
+    constexpr bool kUseSystemBinaries = true;
+#endif
+
+    std::vector<std::string>& cmd = subprocess_.args.exec_cmd;
+    if (kUseSystemBinaries) {
+      PERFETTO_CHECK(TestHelper::kDefaultMode ==
+                     TestHelper::Mode::kUseSystemService);
+      cmd.push_back("/system/bin/" + argv0);
+      cmd.insert(cmd.end(), args.begin(), args.end());
+    } else {
+      PERFETTO_CHECK(TestHelper::kDefaultMode ==
+                     TestHelper::Mode::kStartDaemons);
+      subprocess_.args.env.push_back(
+          std::string("PERFETTO_PRODUCER_SOCK_NAME=") +
+          TestHelper::GetDefaultModeProducerSocketName());
+      subprocess_.args.env.push_back(
+          std::string("PERFETTO_CONSUMER_SOCK_NAME=") +
+          TestHelper::GetDefaultModeConsumerSocketName());
+      cmd.push_back(base::GetCurExecutableDir() + "/" + argv0);
+      cmd.insert(cmd.end(), args.begin(), args.end());
+    }
+
+    if (!base::FileExists(cmd[0])) {
+      PERFETTO_FATAL(
+          "Cannot find %s. Make sure that the target has been built and, on "
+          "Android, pushed to the device.",
+          cmd[0].c_str());
+    }
+
+    // This pipe blocks the execution of the child process until the main test
+    // process calls Run(). There are two conflicting problems here:
+    // 1) We can't fork() subprocesses too late, because the test spawns threads
+    //    for hosting the service. fork+threads = bad (see aosp/1089744).
+    // 2) We can't run the subprocess too early, because we need to wait that
+    //    the service threads are ready before trying to connect from the child
+    //    process.
+    sync_pipe_ = base::Pipe::Create();
+    int sync_pipe_rd = *sync_pipe_.rd;
+    subprocess_.args.preserve_fds.push_back(sync_pipe_rd);
+
+    // This lambda will be called on the forked child process after having
+    // setup pipe redirection and closed all FDs, right before the exec().
+    // The Subprocesss harness will take care of closing also |sync_pipe_.wr|.
+    subprocess_.args.posix_entrypoint_for_testing = [sync_pipe_rd] {
+      // Don't add any logging here, all file descriptors are closed and trying
+      // to log will likely cause undefined behaviors.
+      char ignored = 0;
+      PERFETTO_CHECK(PERFETTO_EINTR(read(sync_pipe_rd, &ignored, 1)) > 0);
+      PERFETTO_CHECK(close(sync_pipe_rd) == 0 || errno == EINTR);
+    };
+
+    subprocess_.Start();
+    sync_pipe_.rd.reset();
+  }
+
+ private:
+  base::Subprocess subprocess_;
+  base::Pipe sync_pipe_;
 };
 
 }  // namespace perfetto

@@ -22,7 +22,7 @@ trace.add_packet()
 trace.add_process(1, 0, 'init')
 trace.add_process(2, 1, 'system_server')
 trace.add_process(3, 1, 'com.google.android.calendar', 10001)
-trace.add_process(4, 1, 'com.google.android.calendar')
+trace.add_process(4, 3, 'com.google.android.calendar', 10001)
 
 trace.add_package_list(
     ts=1, name='com.google.android.calendar', uid=10001, version_code=123)
@@ -42,6 +42,13 @@ trace.add_atrace_async_begin(
     ts=110, tid=2, pid=2, buf='launching: com.google.android.calendar')
 
 trace.add_sched(ts=110, prev_pid=0, next_pid=3)
+
+# As the process already existed before intent started, this is a
+# warm/hot start (we choose warm). Therefore, emit an activityStart
+# slice.
+trace.add_atrace_begin(ts=115, tid=3, pid=3, buf='activityStart')
+trace.add_atrace_end(ts=117, tid=3, pid=3)
+
 # P1: 10ns running
 trace.add_sched(ts=120, prev_pid=3, next_pid=0, prev_state='S')
 # P1: 10ns sleep

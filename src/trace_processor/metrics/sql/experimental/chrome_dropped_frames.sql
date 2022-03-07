@@ -46,14 +46,28 @@ INNER JOIN process
 ON dropped_frames_with_upid.upid = process.upid;
 
 -- Create the derived event track for dropped frames.
+-- All tracks generated from chrome_dropped_frames_event are
+-- placed under a track group named 'Dropped Frames', whose summary
+-- track is the first track ('All Processes') in chrome_dropped_frames_event.
 DROP VIEW IF EXISTS chrome_dropped_frames_event;
 CREATE VIEW chrome_dropped_frames_event AS
 SELECT
   'slice' AS track_type,
-  'Dropped Frames' AS track_name,
+  'All Processes' AS track_name,
   ts,
   0 AS dur,
-  'Dropped Frame' AS slice_name
+  'Dropped Frame' AS slice_name,
+  'Dropped Frames' AS group_name
+FROM dropped_frames_with_process_info
+GROUP BY ts
+UNION ALL
+SELECT
+  'slice' AS track_type,
+  process_name || ' ' || process_id AS track_name,
+  ts,
+  0 AS dur,
+  'Dropped Frame' AS slice_name,
+  'Dropped Frames' AS group_name
 FROM dropped_frames_with_process_info
 GROUP BY ts;
 

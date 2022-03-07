@@ -15,8 +15,8 @@
 import {assertExists} from '../base/logging';
 import {TraceConfig} from '../common/protos';
 
+import {createEmptyRecordConfig} from './record_config_types';
 import {genConfigProto, toPbtxt} from './record_controller';
-import {createEmptyRecordConfig} from './validate_config';
 
 test('encodeConfig', () => {
   const config = createEmptyRecordConfig();
@@ -39,7 +39,20 @@ test('SysConfig', () => {
   expect(ftraceEvents.includes('raw_syscalls/sys_exit')).toBe(true);
 });
 
-test('cpu scheduling includes kSyms', () => {
+test('cpu scheduling includes kSyms if OS >= S', () => {
+  const config = createEmptyRecordConfig();
+  config.cpuSched = true;
+  const result =
+      TraceConfig.decode(genConfigProto(config, {os: 'S', name: 'Android S'}));
+  const sources = assertExists(result.dataSources);
+  const srcConfig = assertExists(sources[1].config);
+  const ftraceConfig = assertExists(srcConfig.ftraceConfig);
+  const ftraceEvents = assertExists(ftraceConfig.ftraceEvents);
+  expect(ftraceConfig.symbolizeKsyms).toBe(true);
+  expect(ftraceEvents.includes('sched/sched_blocked_reason')).toBe(true);
+});
+
+test('cpu scheduling does not include kSyms if OS <= S', () => {
   const config = createEmptyRecordConfig();
   config.cpuSched = true;
   const result =
@@ -48,8 +61,8 @@ test('cpu scheduling includes kSyms', () => {
   const srcConfig = assertExists(sources[1].config);
   const ftraceConfig = assertExists(srcConfig.ftraceConfig);
   const ftraceEvents = assertExists(ftraceConfig.ftraceEvents);
-  expect(ftraceConfig.symbolizeKsyms).toBe(true);
-  expect(ftraceEvents.includes('sched/sched_blocked_reason')).toBe(true);
+  expect(ftraceConfig.symbolizeKsyms).toBe(false);
+  expect(ftraceEvents.includes('sched/sched_blocked_reason')).toBe(false);
 });
 
 test('kSyms can be enabled individually', () => {

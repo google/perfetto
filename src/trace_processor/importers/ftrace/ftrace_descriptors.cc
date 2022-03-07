@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<MessageDescriptor, 359> descriptors{{
+std::array<MessageDescriptor, 364> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -3841,6 +3841,68 @@ std::array<MessageDescriptor, 359> descriptors{{
             {"bus_id", ProtoSchemaType::kUint32},
             {"client", ProtoSchemaType::kInt32},
             {"ib_quota", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "rss_stat_throttled",
+        4,
+        {
+            {},
+            {"curr", ProtoSchemaType::kUint32},
+            {"member", ProtoSchemaType::kInt32},
+            {"mm_id", ProtoSchemaType::kUint32},
+            {"size", ProtoSchemaType::kInt64},
+        },
+    },
+    {
+        "netif_receive_skb",
+        3,
+        {
+            {},
+            {"len", ProtoSchemaType::kUint32},
+            {"name", ProtoSchemaType::kString},
+            {"skbaddr", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "net_dev_xmit",
+        4,
+        {
+            {},
+            {"len", ProtoSchemaType::kUint32},
+            {"name", ProtoSchemaType::kString},
+            {"rc", ProtoSchemaType::kInt32},
+            {"skbaddr", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "tcp_retransmit_skb",
+        7,
+        {
+            {},
+            {"daddr", ProtoSchemaType::kUint32},
+            {"dport", ProtoSchemaType::kUint32},
+            {"saddr", ProtoSchemaType::kUint32},
+            {"skaddr", ProtoSchemaType::kUint64},
+            {"skbaddr", ProtoSchemaType::kUint64},
+            {"sport", ProtoSchemaType::kUint32},
+            {"state", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "inet_sock_set_state",
+        9,
+        {
+            {},
+            {"daddr", ProtoSchemaType::kUint32},
+            {"dport", ProtoSchemaType::kUint32},
+            {"family", ProtoSchemaType::kUint32},
+            {"newstate", ProtoSchemaType::kInt32},
+            {"oldstate", ProtoSchemaType::kInt32},
+            {"protocol", ProtoSchemaType::kUint32},
+            {"saddr", ProtoSchemaType::kUint32},
+            {"skaddr", ProtoSchemaType::kUint64},
+            {"sport", ProtoSchemaType::kUint32},
         },
     },
 }};

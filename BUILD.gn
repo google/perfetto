@@ -68,7 +68,10 @@ if (perfetto_build_with_android) {
 }
 
 if (enable_perfetto_tools) {
-  all_targets += [ "tools" ]
+  all_targets += [
+    "tools",
+    "src/websocket_bridge",
+  ]
 }
 
 if (enable_perfetto_unittests) {
@@ -86,6 +89,7 @@ if (enable_perfetto_integration_tests) {
   }
   all_targets += [
     ":perfetto_integrationtests",
+    "examples/sdk:sdk_example",
     "test:client_api_example",
     "test/stress_test",
   ]

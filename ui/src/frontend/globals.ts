@@ -20,10 +20,11 @@ import {
   ConversionJobName,
   ConversionJobStatus
 } from '../common/conversion_jobs';
+import {createEmptyState} from '../common/empty_state';
 import {Engine} from '../common/engine';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
-import {CallsiteInfo, createEmptyState, State} from '../common/state';
+import {CallsiteInfo, State} from '../common/state';
 import {fromNs, toNs} from '../common/time';
 
 import {Analytics, initAnalytics} from './analytics';
@@ -39,6 +40,7 @@ type QueryResultsStore = Map<string, {}|undefined>;
 type PivotTableHelperStore = Map<string, PivotTableHelper>;
 type AggregateDataStore = Map<string, AggregateData>;
 type Description = Map<string, string>;
+
 export interface SliceDetails {
   ts?: number;
   dur?: number;
@@ -103,14 +105,17 @@ export interface ThreadStateDetails {
 export interface FlamegraphDetails {
   type?: string;
   id?: number;
-  ts?: number;
-  tsNs?: number;
-  pid?: number;
-  upid?: number;
+  startNs?: number;
+  durNs?: number;
+  pids?: number[];
+  upids?: number[];
   flamegraph?: CallsiteInfo[];
   expandedCallsite?: CallsiteInfo;
   viewingOption?: string;
   expandedId?: number;
+  // isInAreaSelection is true if a flamegraph is part of the current area
+  // selection.
+  isInAreaSelection?: boolean;
 }
 
 export interface CpuProfileDetails {

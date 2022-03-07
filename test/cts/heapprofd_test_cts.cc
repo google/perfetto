@@ -45,6 +45,13 @@ constexpr uint64_t kExpectedIndividualAllocSz = 4153;
 static_assert(kExpectedIndividualAllocSz > kTestSamplingInterval,
               "kTestSamplingInterval invalid");
 
+// Activity that runs a JNI thread that repeatedly calls
+// malloc(kExpectedIndividualAllocSz).
+static char kMallocActivity[] = "MainActivity";
+// Activity that runs a java thread that repeatedly constructs small java
+// objects.
+static char kJavaAllocActivity[] = "JavaAllocActivity";
+
 std::string RandomSessionName() {
   std::random_device rd;
   std::default_random_engine generator(rd());
@@ -57,8 +64,18 @@ std::string RandomSessionName() {
   return result;
 }
 
+// Starts the activity `activity` of the app `app_name` and later starts
+// recording a trace with the allocations in `heap_names`.
+//
+// `heap_names` is a list of the heap names whose allocations will be recorded.
+// An empty list means that only the allocations in the default malloc heap
+// ("libc.malloc") are recorded.
+//
+// Returns the recorded trace.
 std::vector<protos::gen::TracePacket> ProfileRuntime(
-    const std::string& app_name) {
+    const std::string& app_name,
+    const std::string& activity,
+    const std::vector<std::string>& heap_names) {
   base::TestTaskRunner task_runner;
 
   // (re)start the target app's main activity
@@ -66,7 +83,7 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(
     StopApp(app_name, "old.app.stopped", &task_runner);
     task_runner.RunUntilCheckpoint("old.app.stopped", 1000 /*ms*/);
   }
-  StartAppActivity(app_name, "MainActivity", "target.app.running", &task_runner,
+  StartAppActivity(app_name, activity, "target.app.running", &task_runner,
                    /*delay_ms=*/100);
   task_runner.RunUntilCheckpoint("target.app.running", 1000 /*ms*/);
 
@@ -89,6 +106,9 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(
   heapprofd_config.add_process_cmdline(app_name.c_str());
   heapprofd_config.set_block_client(true);
   heapprofd_config.set_all(false);
+  for (const std::string& heap_name : heap_names) {
+    heapprofd_config.add_heaps(heap_name);
+  }
   ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
 
   // start tracing
@@ -100,8 +120,18 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(
   return helper.trace();
 }
 
+// Starts recording a trace with the allocations in `heap_names` and later
+// starts the activity `activity` of the app `app_name`
+//
+// `heap_names` is a list of the heap names whose allocations will be recorded.
+// An empty list means that only the allocation in the default malloc heap
+// ("libc.malloc") are recorded.
+//
+// Returns the recorded trace.
 std::vector<protos::gen::TracePacket> ProfileStartup(
     const std::string& app_name,
+    const std::string& activity,
+    const std::vector<std::string>& heap_names,
     const bool enable_extra_guardrails = false) {
   base::TestTaskRunner task_runner;
 
@@ -130,13 +160,16 @@ std::vector<protos::gen::TracePacket> ProfileStartup(
   heapprofd_config.add_process_cmdline(app_name.c_str());
   heapprofd_config.set_block_client(true);
   heapprofd_config.set_all(false);
+  for (const std::string& heap_name : heap_names) {
+    heapprofd_config.add_heaps(heap_name);
+  }
   ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
 
   // start tracing
   helper.StartTracing(trace_config);
 
   // start app
-  StartAppActivity(app_name, "MainActivity", "target.app.running", &task_runner,
+  StartAppActivity(app_name, activity, "target.app.running", &task_runner,
                    /*delay_ms=*/100);
   task_runner.RunUntilCheckpoint("target.app.running", 2000 /*ms*/);
 
@@ -147,7 +180,8 @@ std::vector<protos::gen::TracePacket> ProfileStartup(
   return helper.trace();
 }
 
-void AssertExpectedAllocationsPresent(
+// Check that `packets` contain some allocations performed by kMallocActivity.
+void AssertExpectedMallocsPresent(
     const std::vector<protos::gen::TracePacket>& packets) {
   ASSERT_GT(packets.size(), 0u);
 
@@ -176,6 +210,28 @@ void AssertExpectedAllocationsPresent(
   ASSERT_TRUE(found_alloc);
 }
 
+// Check that `packets` contain some allocations performed by
+// kJavaAllocActivity.
+void AssertExpectedArtAllocsPresent(
+    const std::vector<protos::gen::TracePacket>& packets) {
+  ASSERT_GT(packets.size(), 0u);
+
+  bool found_alloc = false;
+  bool found_proc_dump = false;
+  for (const auto& packet : packets) {
+    for (const auto& proc_dump : packet.profile_packet().process_dumps()) {
+      found_proc_dump = true;
+      for (const auto& sample : proc_dump.samples()) {
+        if (sample.self_allocated() > 0) {
+          found_alloc = true;
+        }
+      }
+    }
+  }
+  ASSERT_TRUE(found_proc_dump);
+  ASSERT_TRUE(found_alloc);
+}
+
 void AssertNoProfileContents(
     const std::vector<protos::gen::TracePacket>& packets) {
   // If profile packets are present, they must be empty.
@@ -186,71 +242,95 @@ void AssertNoProfileContents(
 
 TEST(HeapprofdCtsTest, DebuggableAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.debuggable";
-  const auto& packets = ProfileRuntime(app_name);
-  AssertExpectedAllocationsPresent(packets);
+  const auto& packets =
+      ProfileRuntime(app_name, kMallocActivity, /*heap_names=*/{});
+  AssertExpectedMallocsPresent(packets);
   StopApp(app_name);
 }
 
 TEST(HeapprofdCtsTest, DebuggableAppStartup) {
   std::string app_name = "android.perfetto.cts.app.debuggable";
-  const auto& packets = ProfileStartup(app_name);
-  AssertExpectedAllocationsPresent(packets);
+  const auto& packets =
+      ProfileStartup(app_name, kMallocActivity, /*heap_names=*/{});
+  AssertExpectedMallocsPresent(packets);
   StopApp(app_name);
 }
 
 TEST(HeapprofdCtsTest, ProfileableAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.profileable";
-  const auto& packets = ProfileRuntime(app_name);
-  AssertExpectedAllocationsPresent(packets);
+  const auto& packets =
+      ProfileRuntime(app_name, kMallocActivity, /*heap_names=*/{});
+  AssertExpectedMallocsPresent(packets);
   StopApp(app_name);
 }
 
 TEST(HeapprofdCtsTest, ProfileableAppStartup) {
   std::string app_name = "android.perfetto.cts.app.profileable";
-  const auto& packets = ProfileStartup(app_name);
-  AssertExpectedAllocationsPresent(packets);
+  const auto& packets =
+      ProfileStartup(app_name, kMallocActivity, /*heap_names=*/{});
+  AssertExpectedMallocsPresent(packets);
   StopApp(app_name);
 }
 
 TEST(HeapprofdCtsTest, ReleaseAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.release";
-  const auto& packets = ProfileRuntime(app_name);
+  const auto& packets =
+      ProfileRuntime(app_name, kMallocActivity, /*heap_names=*/{});
 
   if (IsUserBuild())
     AssertNoProfileContents(packets);
   else
-    AssertExpectedAllocationsPresent(packets);
+    AssertExpectedMallocsPresent(packets);
   StopApp(app_name);
 }
 
 TEST(HeapprofdCtsTest, ReleaseAppStartup) {
   std::string app_name = "android.perfetto.cts.app.release";
-  const auto& packets = ProfileStartup(app_name);
+  const auto& packets =
+      ProfileStartup(app_name, kMallocActivity, /*heap_names=*/{});
 
   if (IsUserBuild())
     AssertNoProfileContents(packets);
   else
-    AssertExpectedAllocationsPresent(packets);
+    AssertExpectedMallocsPresent(packets);
   StopApp(app_name);
 }
 
 TEST(HeapprofdCtsTest, NonProfileableAppRuntime) {
   std::string app_name = "android.perfetto.cts.app.nonprofileable";
-  const auto& packets = ProfileRuntime(app_name);
+  const auto& packets =
+      ProfileRuntime(app_name, kMallocActivity, /*heap_names=*/{});
   if (IsUserBuild())
     AssertNoProfileContents(packets);
   else
-    AssertExpectedAllocationsPresent(packets);
+    AssertExpectedMallocsPresent(packets);
   StopApp(app_name);
 }
 
 TEST(HeapprofdCtsTest, NonProfileableAppStartup) {
   std::string app_name = "android.perfetto.cts.app.nonprofileable";
-  const auto& packets = ProfileStartup(app_name);
+  const auto& packets =
+      ProfileStartup(app_name, kMallocActivity, /*heap_names=*/{});
   if (IsUserBuild())
     AssertNoProfileContents(packets);
   else
-    AssertExpectedAllocationsPresent(packets);
+    AssertExpectedMallocsPresent(packets);
+  StopApp(app_name);
+}
+
+TEST(HeapprofdCtsTest, JavaHeapRuntime) {
+  std::string app_name = "android.perfetto.cts.app.debuggable";
+  const auto& packets = ProfileRuntime(app_name, kJavaAllocActivity,
+                                       /*heap_names=*/{"com.android.art"});
+  AssertExpectedArtAllocsPresent(packets);
+  StopApp(app_name);
+}
+
+TEST(HeapprofdCtsTest, JavaHeapStartup) {
+  std::string app_name = "android.perfetto.cts.app.debuggable";
+  const auto& packets = ProfileStartup(app_name, kJavaAllocActivity,
+                                       /*heap_names=*/{"com.android.art"});
+  AssertExpectedArtAllocsPresent(packets);
   StopApp(app_name);
 }
 

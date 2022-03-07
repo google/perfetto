@@ -32,12 +32,14 @@ import {
   isLinuxTarget,
   LoadedConfig,
   MAX_TIME,
-  RecordConfig,
   RecordingTarget,
   RecordMode
 } from '../common/state';
 import {AdbOverWebUsb} from '../controller/adb';
-import {createEmptyRecordConfig} from '../controller/validate_config';
+import {
+  createEmptyRecordConfig,
+  RecordConfig
+} from '../controller/record_config_types';
 
 import {globals} from './globals';
 import {createPage, PageAttrs} from './pages';
@@ -66,7 +68,7 @@ const PERSIST_CONFIG_FLAG = featureFlags.register({
   id: 'persistConfigsUI',
   name: 'Config persistence UI',
   description: 'Show experimental config persistence UI on the record page.',
-  defaultValue: false,
+  defaultValue: true,
 });
 
 const POLL_INTERVAL_MS = [250, 500, 1000, 2500, 5000, 30000, 60000];
@@ -754,7 +756,7 @@ function AdvancedSettings(cssClass: string) {
         m(Toggle, {
           title: 'Resolve kernel symbols',
           cssClass: '.thin',
-          descr: `Enables lookup via /proc/kallsyms for workqueue, 
+          descr: `Enables lookup via /proc/kallsyms for workqueue,
               sched_blocked_reason and other events (userdebug/eng builds only).`,
           setEnabled: (cfg, val) => cfg.symbolizeKsyms = val,
           isEnabled: (cfg) => cfg.symbolizeKsyms
@@ -1434,7 +1436,7 @@ function recordMenu(routePage: string) {
                 }
               },
               m(`li${routePage === 'config' ? '.active' : ''}`,
-                m('i.material-icons', 'tune'),
+                m('i.material-icons', 'save'),
                 m('.title', 'Saved configs'),
                 m('.sub', 'Manage local configs'))) :
             null),

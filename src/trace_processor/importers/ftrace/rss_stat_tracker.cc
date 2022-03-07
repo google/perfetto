@@ -20,10 +20,14 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
+#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/kmem.pbzero.h"
+#include "protos/perfetto/trace/ftrace/synthetic.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
+
+using FtraceEvent = protos::pbzero::FtraceEvent;
 
 RssStatTracker::RssStatTracker(TraceProcessorContext* context)
     : context_(context) {
@@ -37,19 +41,41 @@ RssStatTracker::RssStatTracker(TraceProcessorContext* context)
       context->storage->InternString("mem.unknown"));  // Keep this last.
 }
 
-void RssStatTracker::ParseRssStat(int64_t ts, uint32_t pid, ConstBytes blob) {
-  protos::pbzero::RssStatFtraceEvent::Decoder rss(blob.data, blob.size);
-  uint32_t member = static_cast<uint32_t>(rss.member());
-  int64_t size = rss.size();
+void RssStatTracker::ParseRssStat(int64_t ts,
+                                  int32_t field_id,
+                                  uint32_t pid,
+                                  ConstBytes blob) {
+  uint32_t member;
+  int64_t size;
   base::Optional<bool> curr;
   base::Optional<int64_t> mm_id;
-  if (rss.has_curr()) {
+
+  if (field_id == FtraceEvent::kRssStatFieldNumber) {
+    protos::pbzero::RssStatFtraceEvent::Decoder rss(blob.data, blob.size);
+
+    member = static_cast<uint32_t>(rss.member());
+    size = rss.size();
+    if (rss.has_curr()) {
+      curr = base::make_optional(static_cast<bool>(rss.curr()));
+    }
+    if (rss.has_mm_id()) {
+      mm_id = base::make_optional(rss.mm_id());
+    }
+
+    ParseRssStat(ts, pid, size, member, curr, mm_id);
+  } else if (field_id == FtraceEvent::kRssStatThrottledFieldNumber) {
+    protos::pbzero::RssStatThrottledFtraceEvent::Decoder rss(blob.data,
+                                                             blob.size);
+
+    member = static_cast<uint32_t>(rss.member());
+    size = rss.size();
     curr = base::make_optional(static_cast<bool>(rss.curr()));
-  }
-  if (rss.has_mm_id()) {
     mm_id = base::make_optional(rss.mm_id());
+
+    ParseRssStat(ts, pid, size, member, curr, mm_id);
+  } else {
+    PERFETTO_DFATAL("Unexpected field id");
   }
-  ParseRssStat(ts, pid, size, member, curr, mm_id);
 }
 
 void RssStatTracker::ParseRssStat(int64_t ts,
@@ -97,32 +123,33 @@ base::Optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
 
   // If curr is false, try and lookup the utid we previously saw for this
   // mm id.
-  auto it = mm_id_to_utid_.find(mm_id);
-  if (it == mm_id_to_utid_.end())
+  auto* it = mm_id_to_utid_.Find(mm_id);
+  if (!it)
     return base::nullopt;
 
   // If the utid in the map is the same as our current utid but curr is false,
   // that means we are in the middle of a process changing mm structs (i.e. in
   // the middle of a vfork + exec). Therefore, we should discard the association
   // of this vm struct with this thread.
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  if (it->second == utid) {
-    mm_id_to_utid_.erase(it);
+  const UniqueTid mm_utid = *it;
+  const UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  if (mm_utid == utid) {
+    mm_id_to_utid_.Erase(mm_id);
     return base::nullopt;
   }
 
   // Verify that the utid in the map is still alive. This can happen if an mm
   // struct we saw in the past is about to be reused after thread but we don't
   // know the new process that struct will be associated with.
-  if (!context_->process_tracker->IsThreadAlive(it->second)) {
-    mm_id_to_utid_.erase(it);
+  if (!context_->process_tracker->IsThreadAlive(mm_utid)) {
+    mm_id_to_utid_.Erase(mm_id);
     return base::nullopt;
   }
 
   // This case happens when a process is changing the VM of another process and
   // we know that the utid corresponding to the target process. Just return that
   // utid.
-  return it->second;
+  return mm_utid;
 }
 
 }  // namespace trace_processor

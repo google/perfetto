@@ -86,7 +86,7 @@ h3 {
     --sh-padding-y: 5px;
     max-height: var(--site-header-height);
     padding: var(--sh-padding-y) 30px;
-    box-shadow: rgba(0, 0, 0, 0.3) 0px 3px 3px 0px;
+    box-shadow: rgba(0, 0, 0, 0.3) 0 3px 3px 0;
     overflow: hidden;
     display: flex;
     z-index: 10;

@@ -18,6 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+// Next id: 12
 message PerfEvents {
   // What event to sample on, and how often. Commented from the perspective of
   // its use in |PerfEventConfig|.
@@ -49,6 +50,13 @@ message PerfEvents {
       Tracepoint tracepoint = 3;
       RawEvent raw_event = 5;
     }
+
+    // If set, samples will be timestamped with the given clock.
+    // If unset, the clock is chosen by the implementation.
+    // For software events, prefer PERF_CLOCK_BOOTTIME. However it cannot be
+    // used for hardware events (due to interrupt safety), for which the
+    // recommendation is to use one of the monotonic clocks.
+    optional PerfClock timestamp_clock = 11;
 
     // Optional arbitrary name for the event, to identify it in the parsed
     // trace. Does *not* affect the profiling itself. If unset, the trace
@@ -88,5 +96,16 @@ message PerfEvents {
     optional uint64 config = 2;
     optional uint64 config1 = 3;
     optional uint64 config2 = 4;
+  }
+
+  // Subset of clocks that is supported by perf timestamping.
+  // CLOCK_TAI is excluded since it's not expected to be used in practice, but
+  // would require additions to the trace clock synchronisation logic.
+  enum PerfClock {
+    UNKNOWN_PERF_CLOCK = 0;
+    PERF_CLOCK_REALTIME = 1;
+    PERF_CLOCK_MONOTONIC = 2;
+    PERF_CLOCK_MONOTONIC_RAW = 3;
+    PERF_CLOCK_BOOTTIME = 4;
   }
 }

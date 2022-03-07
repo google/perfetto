@@ -18,9 +18,9 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_BINDER_TRACKER_H_
 
 #include <stdint.h>
-#include <unordered_map>
-#include <unordered_set>
 
+#include "perfetto/base/flat_set.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/destructible.h"
@@ -68,14 +68,14 @@ class BinderTracker : public Destructible {
 
  private:
   TraceProcessorContext* const context_;
-  std::unordered_set<int32_t> awaiting_rcv_for_reply_;
+  base::FlatSet<int32_t> awaiting_rcv_for_reply_;
 
-  std::unordered_map<int32_t, TrackId> transaction_await_rcv;
-  std::unordered_map<int32_t, SetArgsCallback> awaiting_async_rcv_;
+  base::FlatHashMap<int32_t, TrackId> transaction_await_rcv;
+  base::FlatHashMap<int32_t, SetArgsCallback> awaiting_async_rcv_;
 
-  std::unordered_map<uint32_t, int64_t> attempt_lock_;
+  base::FlatHashMap<uint32_t, int64_t> attempt_lock_;
 
-  std::unordered_map<uint32_t, int64_t> lock_acquired_;
+  base::FlatHashMap<uint32_t, int64_t> lock_acquired_;
 
   const StringId binder_category_id_;
   const StringId lock_waiting_id_;

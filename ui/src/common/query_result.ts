@@ -187,6 +187,14 @@ export interface QueryResult {
   // This should be called only after having awaited for at least one batch.
   columns(): string[];
 
+  // Returns the number of SQL statements in the query
+  // (e.g. 2 'if SELECT 1; SELECT 2;')
+  statementCount(): number;
+
+  // Returns the number of SQL statement that produced output rows. This number
+  // is <= statementCount().
+  statementWithOutputCount(): number;
+
   // TODO(primiano): next CLs will introduce a waitMoreRows() to allow tracks
   // to await until some more data (but not necessarily all) is available. For
   // now everything uses waitAllRows().
@@ -218,6 +226,8 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   private _numRows = 0;
   private _isComplete = false;
   private _errorInfo: QueryErrorInfo;
+  private _statementCount = 0;
+  private _statementWithOutputCount = 0;
 
   constructor(errorInfo: QueryErrorInfo) {
     this._errorInfo = errorInfo;
@@ -249,6 +259,12 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   }
   columns(): string[] {
     return this.columnNames;
+  }
+  statementCount(): number {
+    return this._statementCount;
+  }
+  statementWithOutputCount(): number {
+    return this._statementWithOutputCount;
   }
 
   iter<T extends Row>(spec: T): RowIterator<T> {
@@ -337,6 +353,15 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
             assertTrue(parsedBatch.numCells === 0);
           }
           break;
+
+        case 4:
+          this._statementCount = reader.uint32();
+          break;
+
+        case 5:
+          this._statementWithOutputCount = reader.uint32();
+          break;
+
         default:
           console.warn(`Unexpected QueryResult field ${tag >>> 3}`);
           reader.skipType(tag & 7);
@@ -754,6 +779,12 @@ class WaitableQueryResultImpl implements QueryResult, WritableQueryResult,
   }
   error() {
      return this.impl.error();
+  }
+  statementCount() {
+    return this.impl.statementCount();
+  }
+  statementWithOutputCount() {
+    return this.impl.statementWithOutputCount();
   }
 
   // WritableQueryResult implementation.

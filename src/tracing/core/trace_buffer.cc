@@ -27,25 +27,6 @@
 #define TRACE_BUFFER_VERBOSE_LOGGING() 0  // Set to 1 when debugging unittests.
 #if TRACE_BUFFER_VERBOSE_LOGGING()
 #define TRACE_BUFFER_DLOG PERFETTO_DLOG
-namespace {
-constexpr char kHexDigits[] = "0123456789abcdef";
-std::string HexDump(const uint8_t* src, size_t size) {
-  std::string buf;
-  buf.reserve(4096 * 4);
-  char line[64];
-  char* c = line;
-  for (size_t i = 0; i < size; i++) {
-    *c++ = kHexDigits[(src[i] >> 4) & 0x0f];
-    *c++ = kHexDigits[(src[i] >> 0) & 0x0f];
-    if (i % 16 == 15) {
-      buf.append("\n");
-      buf.append(line);
-      c = line;
-    }
-  }
-  return buf;
-}
-}  // namespace
 #else
 #define TRACE_BUFFER_DLOG(...) void()
 #endif
@@ -107,6 +88,7 @@ bool TraceBuffer::Initialize(size_t size) {
 // while we execute here. Don't do any processing on it other than memcpy().
 void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
                                      uid_t producer_uid_trusted,
+                                     pid_t producer_pid_trusted,
                                      WriterID writer_id,
                                      ChunkID chunk_id,
                                      uint16_t num_fragments,
@@ -224,7 +206,8 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
     TRACE_BUFFER_DLOG("  copying @ [%lu - %lu] %zu", wptr - begin(),
                       uintptr_t(wptr - begin()) + record_size, record_size);
     WriteChunkRecord(wptr, record, src, size);
-    TRACE_BUFFER_DLOG("Chunk raw: %s", HexDump(wptr, record_size).c_str());
+    TRACE_BUFFER_DLOG("Chunk raw: %s",
+                      base::HexDump(wptr, record_size).c_str());
     stats_.set_chunks_rewritten(stats_.chunks_rewritten() + 1);
     return;
   }
@@ -276,12 +259,12 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
   stats_.set_bytes_written(stats_.bytes_written() + record_size);
   auto it_and_inserted = index_.emplace(
       key, ChunkMeta(GetChunkRecordAt(wptr_), num_fragments, chunk_complete,
-                     chunk_flags, producer_uid_trusted));
+                     chunk_flags, producer_uid_trusted, producer_pid_trusted));
   PERFETTO_DCHECK(it_and_inserted.second);
   TRACE_BUFFER_DLOG("  copying @ [%lu - %lu] %zu", wptr_ - begin(),
                     uintptr_t(wptr_ - begin()) + record_size, record_size);
   WriteChunkRecord(wptr_, record, src, size);
-  TRACE_BUFFER_DLOG("Chunk raw: %s", HexDump(wptr_, record_size).c_str());
+  TRACE_BUFFER_DLOG("Chunk raw: %s", base::HexDump(wptr_, record_size).c_str());
   wptr_ += record_size;
   if (wptr_ >= end()) {
     PERFETTO_DCHECK(padding_size == 0);
@@ -456,7 +439,7 @@ bool TraceBuffer::TryPatchChunkContents(ProducerID producer_id,
   }
   TRACE_BUFFER_DLOG(
       "Chunk raw (after patch): %s",
-      HexDump(chunk_begin, chunk_meta.chunk_record->size).c_str());
+      base::HexDump(chunk_begin, chunk_meta.chunk_record->size).c_str());
 
   stats_.set_patches_succeeded(stats_.patches_succeeded() + patches_size);
   if (!other_patches_pending) {
@@ -553,7 +536,7 @@ bool TraceBuffer::ReadNextTracePacket(
   TRACE_BUFFER_DLOG("ReadNextTracePacket()");
 
   // Just in case we forget to initialize these below.
-  *sequence_properties = {0, kInvalidUid, 0};
+  *sequence_properties = {0, kInvalidUid, base::kInvalidPid, 0};
   *previous_packet_on_sequence_dropped = false;
 
   // At the start of each sequence iteration, we consider the last read packet
@@ -593,6 +576,7 @@ bool TraceBuffer::ReadNextTracePacket(
     const ProducerID trusted_producer_id = read_iter_.producer_id();
     const WriterID writer_id = read_iter_.writer_id();
     const uid_t trusted_uid = chunk_meta->trusted_uid;
+    const pid_t trusted_pid = chunk_meta->trusted_pid;
 
     // At this point we have a chunk in |chunk_meta| that has not been fully
     // read. We don't know yet whether we have enough data to read the full
@@ -666,7 +650,8 @@ bool TraceBuffer::ReadNextTracePacket(
         ReadPacketResult result = ReadNextPacketInChunk(chunk_meta, packet);
 
         if (PERFETTO_LIKELY(result == ReadPacketResult::kSucceeded)) {
-          *sequence_properties = {trusted_producer_id, trusted_uid, writer_id};
+          *sequence_properties = {trusted_producer_id, trusted_uid, trusted_pid,
+                                  writer_id};
           *previous_packet_on_sequence_dropped = previous_packet_dropped;
           return true;
         } else if (result == ReadPacketResult::kFailedEmptyPacket) {
@@ -691,7 +676,8 @@ bool TraceBuffer::ReadNextTracePacket(
       ReadAheadResult ra_res = ReadAhead(packet);
       if (ra_res == ReadAheadResult::kSucceededReturnSlices) {
         stats_.set_readaheads_succeeded(stats_.readaheads_succeeded() + 1);
-        *sequence_properties = {trusted_producer_id, trusted_uid, writer_id};
+        *sequence_properties = {trusted_producer_id, trusted_uid, trusted_pid,
+                                writer_id};
         *previous_packet_on_sequence_dropped = previous_packet_dropped;
         return true;
       }

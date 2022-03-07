@@ -78,6 +78,8 @@ cgroup_attach_task_post_s.textproto print_systrace.sql cgroup_attach_task_post_s
 # Check error handling when parsing print events.
 bad_print.textproto list_slices.sql bad_print_textproto_list_slices.out
 bad_print.systrace list_slices.sql bad_print_systrace_list_slices.out
+instant_atrace.py instant_with_thread.sql instant_atrace_instant_with_thread.out
+instant_async_atrace.py instant_async.sql instant_async_atrace_instant_async.out
 
 # Match legacy Catapult behaviour when we see multiple S events b2b with the same cookie
 # name and upid.
@@ -163,3 +165,10 @@ very_long_sched.py android_trace_quality very_long_sched_android_trace_quality.o
 
 # Multiuser
 android_multiuser_switch.textproto android_multiuser android_multiuser_switch.out
+
+# Output of atrace -z.
+../../data/atrace_compressed.ctrace sched_smoke.sql atrace_compressed_sched_count.out
+
+# Output of adb shell "atrace -t 1 sched" > out.txt". It has extra garbage
+# coming from stderr before the TRACE: marker. See b/208691037.
+../../data/atrace_uncompressed_b_208691037 sched_smoke.sql atrace_uncompressed_sched_count.out

@@ -35,22 +35,28 @@ namespace stats {
   F(ftrace_bundle_tokenizer_errors,     kSingle,  kError,    kAnalysis, ""),   \
   F(ftrace_cpu_bytes_read_begin,        kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_bytes_read_end,          kIndexed, kInfo,     kTrace,    ""),   \
-  F(ftrace_cpu_commit_overrun_begin,    kIndexed, kError,    kTrace,    ""),   \
-  F(ftrace_cpu_commit_overrun_end,      kIndexed, kError,    kTrace,    ""),   \
-  F(ftrace_cpu_dropped_events_begin,    kIndexed, kError,    kTrace,    ""),   \
-  F(ftrace_cpu_dropped_events_end,      kIndexed, kError,    kTrace,    ""),   \
+  F(ftrace_cpu_bytes_read_delta,        kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_cpu_commit_overrun_begin,    kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_cpu_commit_overrun_end,      kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_cpu_commit_overrun_delta,    kIndexed, kError,    kTrace,    ""),   \
+  F(ftrace_cpu_dropped_events_begin,    kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_cpu_dropped_events_end,      kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_cpu_dropped_events_delta,    kIndexed, kError,    kTrace,    ""),   \
   F(ftrace_cpu_entries_begin,           kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_entries_end,             kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_cpu_entries_delta,           kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_now_ts_begin,            kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_now_ts_end,              kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_oldest_event_ts_begin,   kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_oldest_event_ts_end,     kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_overrun_begin,           kIndexed, kInfo,     kTrace,    ""),   \
-  F(ftrace_cpu_overrun_end,             kIndexed, kDataLoss, kTrace,           \
+  F(ftrace_cpu_overrun_end,             kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_cpu_overrun_delta,           kIndexed, kDataLoss, kTrace,           \
       "The kernel ftrace buffer cannot keep up with the rate of events "       \
       "produced. Indexed by CPU. This is likely a misconfiguration."),         \
   F(ftrace_cpu_read_events_begin,       kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_read_events_end,         kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_cpu_read_events_delta,       kIndexed, kInfo,     kTrace,    ""),   \
   F(fuchsia_non_numeric_counters,       kSingle,  kError,    kAnalysis, ""),   \
   F(fuchsia_timestamp_overflow,         kSingle,  kError,    kAnalysis, ""),   \
   F(fuchsia_invalid_event,              kSingle,  kError,    kAnalysis, ""),   \
@@ -124,10 +130,11 @@ namespace stats {
   F(process_tracker_errors,             kSingle,  kError,    kAnalysis, ""),   \
   F(json_tokenizer_failure,             kSingle,  kError,    kTrace,    ""),   \
   F(json_parser_failure,                kSingle,  kError,    kTrace,    ""),   \
-  F(json_display_time_unit_too_late,    kSingle,  kError,    kTrace,           \
-      "The displayTimeUnit key came too late in the JSON trace so was "        \
-      "ignored. Trace processor only supports displayTimeUnit appearing "      \
-      "at the start of JSON traces"),                                          \
+  F(json_display_time_unit,             kSingle,  kInfo,     kTrace,           \
+      "The displayTimeUnit key was set in the JSON trace. In some prior "      \
+      "versions of trace processor this key could effect how the trace "       \
+      "processor parsed timestamps and durations. In this version the key is " \
+      "ignored which more closely matches the bavahiour of catapult."),        \
   F(heap_graph_invalid_string_id,       kIndexed, kError,    kTrace,    ""),   \
   F(heap_graph_non_finalized_graph,     kSingle,  kError,    kTrace,    ""),   \
   F(heap_graph_malformed_packet,        kIndexed, kError,    kTrace,    ""),   \
@@ -205,8 +212,7 @@ enum Severity {
   kInfo,      // Diagnostic counters
   kDataLoss,  // Correct operation that still resulted in data loss
   kError      // If any kError counter is > 0 trace_processor_shell will
-              // raise an error. This is *not* surfaced in the web UI.
-              // TODO(b/148587181): Surface these errors in the UI.
+              // raise an error. This is also surfaced in the web UI.
 };
 
 enum Source {

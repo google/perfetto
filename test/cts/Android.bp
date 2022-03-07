@@ -14,6 +14,7 @@ cc_test {
     "end_to_end_integrationtest_cts.cc",
     "heapprofd_java_test_cts.cc",
     "heapprofd_test_cts.cc",
+    "reporter_test_cts.cc",
     "traced_perf_test_cts.cc",
     ":perfetto_protos_perfetto_config_cpp_gen",
   ],
@@ -48,6 +49,9 @@ cc_test {
         suffix: "64",
     },
   },
+  data: [
+    ":CtsPerfettoReporterApp"
+  ],
   stl: "libc++_static",
   defaults: [
     "perfetto_defaults",

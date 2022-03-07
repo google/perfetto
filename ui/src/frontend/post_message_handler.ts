@@ -30,6 +30,7 @@ function isTrustedOrigin(origin: string): boolean {
     'https://chrometto.googleplex.com',
     'https://uma.googleplex.com',
   ];
+  if (origin === window.origin) return true;
   if (TRUSTED_ORIGINS.includes(origin)) return true;
   if (new URL(origin).hostname.endsWith('corp.google.com')) return true;
   return false;

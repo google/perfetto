@@ -296,6 +296,14 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
     auto pid = static_cast<uint32_t>(proc.pid());
     auto ppid = static_cast<uint32_t>(proc.ppid());
 
+    if (proc.has_nspid()) {
+      std::vector<uint32_t> nspid;
+      for (auto nspid_it = proc.nspid(); nspid_it; nspid_it++) {
+        nspid.emplace_back(static_cast<uint32_t>(*nspid_it));
+      }
+      context_->process_tracker->UpdateNamespacedProcess(pid, std::move(nspid));
+    }
+
     // If the parent pid is kthreadd's pid, even though this pid is of a
     // "process", we want to treat it as being a child thread of
     // kthreadd.
@@ -306,6 +314,14 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
     } else {
       auto raw_cmdline = proc.cmdline();
       base::StringView argv0 = raw_cmdline ? *raw_cmdline : base::StringView();
+      // Chrome child process overwrites /proc/self/cmdline and replaces all
+      // '\0' with ' '. This makes argv0 contain the full command line. Extract
+      // the actual argv0 if it's Chrome.
+      static const char kChromeBinary[] = "/chrome ";
+      auto pos = argv0.find(kChromeBinary);
+      if (pos != base::StringView::npos) {
+        argv0 = argv0.substr(0, pos + strlen(kChromeBinary) - 1);
+      }
 
       std::string cmdline_str;
       for (auto cmdline_it = raw_cmdline; cmdline_it;) {
@@ -335,6 +351,15 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
       StringId thread_name_id = context_->storage->InternString(thd.name());
       context_->process_tracker->UpdateThreadName(
           tid, thread_name_id, ThreadNamePriority::kProcessTree);
+    }
+
+    if (thd.has_nstid()) {
+      std::vector<uint32_t> nstid;
+      for (auto nstid_it = thd.nstid(); nstid_it; nstid_it++) {
+        nstid.emplace_back(static_cast<uint32_t>(*nstid_it));
+      }
+      context_->process_tracker->UpdateNamespacedThread(tgid, tid,
+                                                        std::move(nstid));
     }
   }
 }
