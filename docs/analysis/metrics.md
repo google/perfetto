@@ -496,7 +496,7 @@ GROUP BY process.name
 ORDER BY cpu_time_ms DESC
 LIMIT 5;
 
-CREATE top_five_processes_output AS
+CREATE VIEW top_five_processes_output AS
 SELECT TopProcesses(
   'process_info', (
     SELECT RepeatedField(
