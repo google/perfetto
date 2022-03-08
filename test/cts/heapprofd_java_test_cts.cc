@@ -37,12 +37,12 @@ namespace {
 std::string RandomSessionName() {
   std::random_device rd;
   std::default_random_engine generator(rd());
-  std::uniform_int_distribution<char> distribution('a', 'z');
+  std::uniform_int_distribution<> distribution('a', 'z');
 
   constexpr size_t kSessionNameLen = 20;
   std::string result(kSessionNameLen, '\0');
   for (size_t i = 0; i < kSessionNameLen; ++i)
-    result[i] = distribution(generator);
+    result[i] = static_cast<char>(distribution(generator));
   return result;
 }
 
