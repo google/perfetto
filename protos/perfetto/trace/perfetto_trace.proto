@@ -2463,6 +2463,57 @@ message AndroidCameraFrameEvent {
   optional bytes vendor_data = 16;
 }
 
+// A profiling event that may be emitted periodically (i.e., at a slower rate
+// than `AndroidCameraFrameEvent`s) to record fixed and aggregated camera
+// session-specific values.
+message AndroidCameraSessionStats {
+  // Identifier for the CameraCaptureSession this frame originates from. See:
+  // https://developer.android.com/reference/android/hardware/camera2/CameraCaptureSession
+  optional uint64 session_id = 1;
+
+  // Although vendor implementations may vary, camera pipeline processing is
+  // typically arranged into a directed graph-like structure. This message is
+  // used to record that graph.
+  message CameraGraph {
+    message CameraNode {
+      optional int64 node_id = 1;
+      // A list of inputs consumed by this node.
+      repeated int64 input_ids = 2;
+      // A list of outputs produced by this node.
+      repeated int64 output_ids = 3;
+
+      // These fields capture vendor-specific additions to this proto message. In
+      // practice `vendor_data` typically contains a serialized message of the
+      // vendor's design, and `vendor_data_version` is incremented each time there
+      // is a backwards incompatible change made to the message.
+      optional int32 vendor_data_version = 4;
+      optional bytes vendor_data = 5;
+    }
+    repeated CameraNode nodes = 1;
+
+    // An adjacency list describing connections between CameraNodes, mapping
+    // nodes and their outputs to other nodes that consume them as inputs.
+    message CameraEdge {
+      // The pair of IDs identifying the node and output connected by this edge.
+      optional int64 output_node_id = 1;
+      optional int64 output_id = 2;
+
+      // The pair of IDs identifying the node and input connected by this edge.
+      optional int64 input_node_id = 3;
+      optional int64 input_id = 4;
+
+      // These fields capture vendor-specific additions to this proto message. In
+      // practice `vendor_data` typically contains a serialized message of the
+      // vendor's design, and `vendor_data_version` is incremented each time there
+      // is a backwards incompatible change made to the message.
+      optional int32 vendor_data_version = 5;
+      optional bytes vendor_data = 6;
+    }
+    repeated CameraEdge edges = 2;
+  }
+  optional CameraGraph graph = 2;
+}
+
 // End of protos/perfetto/trace/android/camera_event.proto
 
 // Begin of protos/perfetto/trace/android/frame_timeline_event.proto
@@ -9766,7 +9817,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 81.
+// Next id: 82.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -9829,6 +9880,7 @@ message TracePacket {
     AndroidEnergyEstimationBreakdown android_energy_estimation_breakdown = 77;
     UiState ui_state = 78;
     AndroidCameraFrameEvent android_camera_frame_event = 80;
+    AndroidCameraSessionStats android_camera_session_stats = 81;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
