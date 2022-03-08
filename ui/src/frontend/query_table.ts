@@ -171,12 +171,6 @@ export class QueryTable extends Panel<QueryTableAttrs> {
     return m(
         'div',
         ...headers,
-        // TODO(rsavitski): the x-scrollable works for the
-        // dedicated query page, but is insufficient in the case of
-        // the results being presented within the bottom details
-        // pane in the timeline view. In that case, the
-        // details-panel-container enforces non-scrollability.
-        // Ideally we'd want to make that case scrollable as well.
         resp.error ?
             m('.query-error', `SQL error: ${resp.error}`) :
             m('.query-table-container.x-scrollable',
