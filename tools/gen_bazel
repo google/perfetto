@@ -75,18 +75,6 @@ default_targets = [
     '//tools/proto_merger:proto_merger',
 ] + public_targets
 
-# Root proto targets (to force discovery of intermediate proto targets).
-# These targets are marked public.
-# TODO(lalitm): remove these in a followup.
-proto_targets = [
-    '//protos/perfetto/metrics:lite',
-    '//protos/perfetto/metrics:source_set',
-    '//protos/perfetto/metrics/android:lite',
-    '//protos/perfetto/metrics/android:source_set',
-    '//protos/third_party/chromium:lite',
-    '//protos/third_party/chromium:source_set',
-]
-
 # Proto target groups which will be made public.
 proto_groups = {
   'config': [
@@ -304,10 +292,7 @@ def gen_proto_label(target):
           'PERFETTO_CONFIG.deps.protobuf_descriptor_proto'
       ]
 
-    if target.name in proto_targets:
-      sources_label.visibility = PUBLIC_VISIBILITY
-    else:
-      sources_label.visibility = ['PERFETTO_CONFIG.proto_library_visibility']
+    sources_label.visibility = ['PERFETTO_CONFIG.proto_library_visibility']
 
     sources_label.exports = sorted([
       ':' + get_bazel_proto_sources_label(d) for d in target.proto_exports
@@ -580,10 +565,6 @@ exports_files(["NOTICE"])
   for l_name, t_names in proto_groups.items():
     res += ''.join(str(x) for x in gen_proto_group_target(gn, l_name, t_names))
 
-  # Force discovery of explicilty listed root proto targets.
-  for target_name in sorted(proto_targets):
-    gn.get_target(target_name)
-
   # For any non-source set and non-descriptor targets, ensure the source set
   # associated to that target is discovered.
   for target in sorted(itervalues(gn.all_targets)):
@@ -610,7 +591,7 @@ exports_files(["NOTICE"])
   res += extras
 
   # Check for ODR violations
-  for target_name in default_targets + proto_targets:
+  for target_name in default_targets:
     checker = gn_utils.ODRChecker(gn, target_name)
 
   return res
