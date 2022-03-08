@@ -2647,14 +2647,6 @@ perfetto_proto_library(
     ],
 )
 
-# GN target: //protos/perfetto/metrics/android:lite
-perfetto_cc_proto_library(
-    name = "protos_perfetto_metrics_android_lite",
-    deps = [
-        ":protos_perfetto_metrics_android_protos",
-    ],
-)
-
 # GN target: //protos/perfetto/metrics/android:source_set
 perfetto_proto_library(
     name = "protos_perfetto_metrics_android_protos",
@@ -2697,7 +2689,9 @@ perfetto_proto_library(
         "protos/perfetto/metrics/android/trace_quality.proto",
         "protos/perfetto/metrics/android/unsymbolized_frames.proto",
     ],
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
 )
 
 # GN target: //protos/perfetto/metrics/chrome:descriptor
@@ -2759,21 +2753,15 @@ perfetto_proto_descriptor(
     ],
 )
 
-# GN target: //protos/perfetto/metrics:lite
-perfetto_cc_proto_library(
-    name = "protos_perfetto_metrics_lite",
-    deps = [
-        ":protos_perfetto_metrics_protos",
-    ],
-)
-
 # GN target: //protos/perfetto/metrics:source_set
 perfetto_proto_library(
     name = "protos_perfetto_metrics_protos",
     srcs = [
         "protos/perfetto/metrics/metrics.proto",
     ],
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
     deps = [
         ":protos_perfetto_metrics_android_protos",
     ],
@@ -3309,14 +3297,6 @@ perfetto_proto_descriptor(
     ],
 )
 
-# GN target: //protos/perfetto/trace/track_event:lite
-perfetto_cc_proto_library(
-    name = "protos_perfetto_trace_track_event_lite",
-    deps = [
-        ":protos_perfetto_trace_track_event_protos",
-    ],
-)
-
 # GN target: //protos/perfetto/trace/track_event:source_set
 perfetto_proto_library(
     name = "protos_perfetto_trace_track_event_protos",
@@ -3370,21 +3350,15 @@ perfetto_proto_descriptor(
     ],
 )
 
-# GN target: //protos/third_party/chromium:lite
-perfetto_cc_proto_library(
-    name = "protos_third_party_chromium_lite",
-    deps = [
-        ":protos_third_party_chromium_protos",
-    ],
-)
-
 # GN target: //protos/third_party/chromium:source_set
 perfetto_proto_library(
     name = "protos_third_party_chromium_protos",
     srcs = [
         "protos/third_party/chromium/chrome_track_event.proto",
     ],
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
     deps = [
         ":protos_perfetto_trace_track_event_protos",
     ],
