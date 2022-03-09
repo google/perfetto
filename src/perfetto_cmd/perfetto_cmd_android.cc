@@ -80,14 +80,12 @@ void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash() {
   PERFETTO_CHECK(!cfg.skip_report());
 
   if (bytes_written_ == 0) {
-    // TODO(lalitm): change this to a dedicated atom decoupled from
-    // incidentd.
-    LogUploadEvent(PerfettoStatsdAtom::kNotUploadingEmptyTrace);
+    LogUploadEvent(PerfettoStatsdAtom::kCmdFwReportEmptyTrace);
     PERFETTO_LOG("Skipping reporting trace to Android. Empty trace.");
     return;
   }
 
-  // TODO(lalitm): add atom for beginning report here.
+  LogUploadEvent(PerfettoStatsdAtom::kCmdFwReportBegin);
   base::StackString<128> self_fd("/proc/self/fd/%d",
                                  fileno(*trace_out_stream_));
   base::ScopedFile fd(base::OpenFile(self_fd.c_str(), O_RDONLY | O_CLOEXEC));
@@ -110,6 +108,7 @@ void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash() {
                  uuid.ToPrettyString().c_str(),
                  trace_config_->unique_session_name().c_str(), bytes_written_);
   }
+  LogUploadEvent(PerfettoStatsdAtom::kCmdFwReportHandoff);
 }
 
 // Open a staging file (unlinking the previous instance), copy the trace

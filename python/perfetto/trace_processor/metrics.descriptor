@@ -300,15 +300,19 @@ totalCountc
 
 debuggable (R
 debuggableJJJJ
-œ
-9protos/perfetto/metrics/android/java_heap_histogram.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"•
+À
+9protos/perfetto/metrics/android/java_heap_histogram.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"¹
 JavaHeapHistogramW
-instance_stats (20.perfetto.protos.JavaHeapHistogram.InstanceStatsRinstanceStats‘
+instance_stats (20.perfetto.protos.JavaHeapHistogram.InstanceStatsRinstanceStatsµ
 	TypeCount
 	type_name (	RtypeName
 category (	Rcategory
 	obj_count (RobjCount.
-reachable_obj_count (RreachableObjCounte
+reachable_obj_count (RreachableObjCount
+size_kb (RsizeKb*
+reachable_size_kb (RreachableSizeKb$
+native_size_kb (RnativeSizeKb7
+reachable_native_size_kb (RreachableNativeSizeKbe
 Sample
 ts (RtsK
 
@@ -425,12 +429,13 @@ cpuMcycles%
 
 identifier (	R
 identifier
-¯
-4protos/perfetto/metrics/android/network_metric.protoperfetto.protos"å
+”
+4protos/perfetto/metrics/android/network_metric.protoperfetto.protos"Ê
 AndroidNetworkMetricP
 net_devices (2/.perfetto.protos.AndroidNetworkMetric.NetDeviceR
 netDevicesU
-net_rx_action (21.perfetto.protos.AndroidNetworkMetric.NetRxActionRnetRxActionü
+net_rx_action (21.perfetto.protos.AndroidNetworkMetric.NetRxActionRnetRxAction/
+retransmission_rate (RretransmissionRateü
 PacketStatistic
 packets (Rpackets
 bytes (Rbytes9
@@ -441,10 +446,11 @@ intervalNs$
 data_rate_kbps (RdataRateKbps‡
 CorePacketStatistic
 id (Rid`
-packet_statistic (25.perfetto.protos.AndroidNetworkMetric.PacketStatisticRpacketStatistic 
+packet_statistic (25.perfetto.protos.AndroidNetworkMetric.PacketStatisticRpacketStatisticÔ
 RxK
 total (25.perfetto.protos.AndroidNetworkMetric.PacketStatisticRtotalM
-core (29.perfetto.protos.AndroidNetworkMetric.CorePacketStatisticRcore 
+core (29.perfetto.protos.AndroidNetworkMetric.CorePacketStatisticRcore2
+gro_aggregation_ratio (	RgroAggregationRatio 
 TxK
 total (25.perfetto.protos.AndroidNetworkMetric.PacketStatisticRtotalM
 core (29.perfetto.protos.AndroidNetworkMetric.CorePacketStatisticRcore“

@@ -77,6 +77,9 @@ if (enable_perfetto_tools) {
 if (enable_perfetto_unittests) {
   import("gn/perfetto_unittests.gni")
   test("perfetto_unittests") {
+    if (is_fuchsia) {
+      use_cfv2 = false
+    }
     deps = perfetto_unittests_targets
   }
   all_targets += [ ":perfetto_unittests" ]
@@ -130,9 +133,8 @@ if (perfetto_build_standalone) {
   all_targets += [
     "test/configs",
 
-    # For syntax-checking the proto.
-    "protos/perfetto/config:merged_config",
-    "protos/perfetto/trace:merged_trace",  # For syntax-checking the proto.
+    # For syntax-checking the protos.
+    "protos/perfetto/trace:merged_trace_lite",
 
     # For checking all generated xxx.gen.{cc,h} files without waiting for
     # embedders to try to use them and fail.

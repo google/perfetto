@@ -51,6 +51,7 @@ import {
   LogsPagination,
   NewEngineMode,
   OmniboxState,
+  PivotTableReduxState,
   RecordingTarget,
   SCROLLING_TRACK_GROUP,
   State,
@@ -916,6 +917,10 @@ export const StateActions = {
     }
   },
 
+  togglePivotTableRedux(state: StateDraft, args: {selectionArea: Area|null}) {
+    state.pivotTableRedux.selectionArea = args.selectionArea;
+  },
+
   addNewPivotTable(state: StateDraft, args: {
     name: string,
     pivotTableId: string,
@@ -941,7 +946,9 @@ export const StateActions = {
 
   resetPivotTableRequest(state: StateDraft, args: {pivotTableId: string}):
       void {
-        state.pivotTable[args.pivotTableId].requestedAction = undefined;
+        if (state.pivotTable[args.pivotTableId] !== undefined) {
+          state.pivotTable[args.pivotTableId].requestedAction = undefined;
+        }
       },
 
   setPivotTableRequest(
@@ -988,6 +995,11 @@ export const StateActions = {
     const pivotTable = state.pivotTable[args.pivotTableId];
     pivotTable.traceTime = args.traceTime;
     pivotTable.selectedTrackIds = args.selectedTrackIds;
+  },
+
+  setPivotStateReduxState(
+      state: StateDraft, args: {pivotTableState: PivotTableReduxState}) {
+    state.pivotTableRedux = args.pivotTableState;
   }
 };
 

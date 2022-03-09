@@ -32,6 +32,7 @@ android_netperf{
           data_rate_kbps: 800.0
         }
       }
+      gro_aggregation_ratio: '1:1.75'
     }
     tx {
       total {
@@ -141,4 +142,5 @@ android_netperf{
     }
     avg_interstack_latency_ms: 0.4
   }
+  retransmission_rate: 20.0
 }

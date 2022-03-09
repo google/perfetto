@@ -1,0 +1,4 @@
+"ts","name","dur","cat","name","ret","len"
+10000,"rmnet0",20,"napi_gro","Napi Gro Cpu 2",2,1000
+20000,"rmnet0",20,"napi_gro","Napi Gro Cpu 2",1,1000
+30000,"wlan",20,"napi_gro","Napi Gro Cpu 4",3,500

@@ -135,6 +135,7 @@ struct CategoryTraits<size_t> {
 
 struct TrackEventDataSourceTraits : public perfetto::DefaultDataSourceTraits {
   using IncrementalStateType = TrackEventIncrementalState;
+  using TlsStateType = TrackEventTlsState;
 
   // Use a one shared TLS slot so that all track event data sources write into
   // the same sequence and share interning dictionaries.
@@ -398,6 +399,8 @@ class TrackEventDataSource
   static constexpr protos::pbzero::BuiltinClock GetTraceClockId() {
     return TrackEventInternal::GetClockId();
   }
+
+  const protos::gen::TrackEventConfig& GetConfig() const { return config_; }
 
  private:
   // Each category has its own enabled/disabled state, stored in the category

@@ -84,6 +84,7 @@ inline uint32_t ToU32(const char* str) {
 const ProbesDataSource::Descriptor ProcessStatsDataSource::descriptor = {
     /*name*/ "linux.process_stats",
     /*flags*/ Descriptor::kHandlesIncrementalState,
+    /*fill_descriptor_func*/ nullptr,
 };
 
 ProcessStatsDataSource::ProcessStatsDataSource(
@@ -227,10 +228,16 @@ void ProcessStatsDataSource::WriteProcessOrThread(int32_t pid) {
   if (proc_status.empty())
     return;
   int tgid = ToInt(ReadProcStatusEntry(proc_status, "Tgid:"));
-  if (tgid <= 0)
+  int tid = ToInt(ReadProcStatusEntry(proc_status, "Pid:"));
+  if (tgid <= 0 || tid <= 0)
     return;
-  if (!seen_pids_.count(tgid))
-    WriteProcess(tgid, proc_status);
+
+  if (!seen_pids_.count(tgid)) {
+    // We need to read the status file if |pid| is non-main thread.
+    const std::string& proc_status_tgid =
+        (tgid == tid ? proc_status : ReadProcPidFile(tgid, "status"));
+    WriteProcess(tgid, proc_status_tgid);
+  }
   if (pid != tgid) {
     PERFETTO_DCHECK(!seen_pids_.count(pid));
     std::string thread_name;
@@ -273,6 +280,8 @@ void ProcessStatsDataSource::ReadNamespacedTids(int32_t tid,
 void ProcessStatsDataSource::WriteProcess(int32_t pid,
                                           const std::string& proc_status) {
   PERFETTO_DCHECK(ToInt(ReadProcStatusEntry(proc_status, "Tgid:")) == pid);
+  // Assert that |proc_status| is not for a non-main thread.
+  PERFETTO_DCHECK(ToInt(ReadProcStatusEntry(proc_status, "Pid:")) == pid);
   auto* proc = GetOrCreatePsTree()->add_processes();
   proc->set_pid(pid);
   proc->set_ppid(ToInt(ReadProcStatusEntry(proc_status, "PPid:")));

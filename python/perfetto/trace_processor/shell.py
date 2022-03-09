@@ -13,7 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import subprocess
+import sys
 import time
 from urllib import request, error
 
@@ -24,16 +26,25 @@ TP_PORT = 9001
 
 
 def load_shell(bin_path: str, unique_port: bool, verbose: bool,
-               platform_delegate: PlatformDelegate):
+               ingest_ftrace_in_raw: bool, platform_delegate: PlatformDelegate):
   addr, port = platform_delegate.get_bind_addr(
       port=0 if unique_port else TP_PORT)
   url = f'{addr}:{str(port)}'
 
   shell_path = platform_delegate.get_shell_path(bin_path=bin_path)
-  p = subprocess.Popen([shell_path, '-D', '--http-port',
-                        str(port)],
-                       stdout=subprocess.DEVNULL,
-                       stderr=None if verbose else subprocess.DEVNULL)
+  if os.name == 'nt' and not shell_path.endswith('.exe'):
+    tp_exec = [sys.executable, shell_path]
+  else:
+    tp_exec = [shell_path]
+
+  args = ['-D', '--http-port', str(port)]
+  if not ingest_ftrace_in_raw:
+    args.append('--no-ftrace-raw')
+
+  p = subprocess.Popen(
+      tp_exec + args,
+      stdout=subprocess.DEVNULL,
+      stderr=None if verbose else subprocess.DEVNULL)
 
   while True:
     try:

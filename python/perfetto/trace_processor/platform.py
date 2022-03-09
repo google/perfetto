@@ -46,7 +46,8 @@ class PlatformDelegate:
       req = request.Request(SHELL_URL)
       with request.urlopen(req) as req:
         file.write(req.read())
-    subprocess.check_output(['chmod', '+x', file.name])
+    if os.name != 'nt':
+      subprocess.check_output(['chmod', '+x', file.name])
     return file.name
 
   def get_bind_addr(self, port: int) -> Tuple[str, int]:

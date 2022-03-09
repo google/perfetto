@@ -205,10 +205,6 @@ button.close {
   width: 100%;
 }
 
-.x-scrollable {
-  overflow-x: auto;
-}
-
 .query-table {
     width: 100%;
     font-size: 14px;
@@ -234,6 +230,12 @@ button.close {
       .dropdown {
         display: inline-block;
         position: relative;
+      }
+      .indent {
+        display: inline-block;
+        // 24px is the width of expand_more/expand_less icon to pad out cells
+        // without the button
+        width: 24px;
       }
       .popup-menu {
         position: absolute;
@@ -475,6 +477,10 @@ canvas.main-canvas {
   height: 20px;
 }
 
+.x-scrollable {
+  overflow-x: auto;
+}
+
 header.overview {
   display: flex;
   align-content: center;
@@ -600,6 +606,9 @@ button.query-ctrl {
     .track-button {
       color: white;
     }
+    span.chip {
+      color: #121212;
+    }
   }
   .shell {
     padding: 4px 4px;
@@ -694,6 +703,35 @@ button.query-ctrl {
 
 .disallow-selection {
   user-select: none;
+}
+
+.pivot-table-redux {
+  user-select: text;
+
+  button.mode-button {
+    border-radius: 10px;
+    padding: 7px;
+    margin: 5px;
+    background-color: #c7d0db;
+  }
+
+  &.edit {
+    padding: 10px;
+    display: flex;
+  }
+
+  &.query-error {
+    color: red;
+  }
+
+  .total-values {
+    text-align: right;
+    padding-right: 10px;
+  }
+
+  .empty-result {
+    padding: 10px;
+  }
 }
 
 .pivot-table-editor-container {

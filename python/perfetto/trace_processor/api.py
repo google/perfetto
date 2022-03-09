@@ -45,16 +45,19 @@ class TraceProcessorConfig:
   bin_path: Optional[str]
   unique_port: bool
   verbose: bool
+  ingest_ftrace_in_raw: bool
   resolver_registry: Optional[ResolverRegistry]
 
   def __init__(self,
                bin_path: Optional[str] = None,
                unique_port: bool = True,
                verbose: bool = False,
+               ingest_ftrace_in_raw: bool = False,
                resolver_registry: Optional[ResolverRegistry] = None):
     self.bin_path = bin_path
     self.unique_port = unique_port
     self.verbose = verbose
+    self.ingest_ftrace_in_raw = ingest_ftrace_in_raw
     self.resolver_registry = resolver_registry
 
 
@@ -320,6 +323,7 @@ class TraceProcessor:
     url, self.subprocess = load_shell(self.config.bin_path,
                                       self.config.unique_port,
                                       self.config.verbose,
+                                      self.config.ingest_ftrace_in_raw,
                                       self.platform_delegate)
     return TraceProcessorHttp(url, protos=self.protos)
 

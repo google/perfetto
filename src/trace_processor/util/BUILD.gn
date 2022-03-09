@@ -117,9 +117,13 @@ source_set("unittests") {
     "proto_to_args_parser_unittest.cc",
     "protozero_to_text_unittests.cc",
   ]
+  if (enable_perfetto_zlib) {
+    sources += [ "gzip_utils_unittest.cc" ]
+  }
   testonly = true
   deps = [
     ":descriptors",
+    ":gzip",
     ":proto_to_args_parser",
     ":protozero_to_text",
     "..:gen_cc_test_messages_descriptor",

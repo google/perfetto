@@ -80,6 +80,8 @@ source_set("storage_minimal") {
     "importers/json/json_utils.h",
     "importers/ninja/ninja_log_parser.cc",
     "importers/ninja/ninja_log_parser.h",
+    "importers/proto/android_camera_event_module.cc",
+    "importers/proto/android_camera_event_module.h",
     "importers/proto/async_track_set_tracker.cc",
     "importers/proto/async_track_set_tracker.h",
     "importers/proto/chrome_string_lookup.cc",
@@ -392,6 +394,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "forwarding_trace_parser_unittest.cc",
+    "importers/ftrace/binder_tracker_unittest.cc",
     "importers/ftrace/sched_event_tracker_unittest.cc",
     "importers/fuchsia/fuchsia_trace_utils_unittest.cc",
     "importers/memory_tracker/graph_processor_unittest.cc",
@@ -429,6 +432,7 @@ perfetto_unittest_source_set("unittests") {
     "../base",
     "../protozero",
     "../protozero:testing_messages_zero",
+    "containers",
     "containers:unittests",
     "db:unittests",
     "importers/common",

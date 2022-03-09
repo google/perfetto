@@ -26,6 +26,17 @@ CREATE VIEW rx_packets AS
   WHERE name GLOB "* Received KB"
   ORDER BY ts DESC;
 
+DROP VIEW IF EXISTS gro_rx_packet_count;
+CREATE VIEW gro_rx_packet_count AS
+  SELECT
+    s.name AS dev,
+    COUNT(1) AS cnt
+  FROM slice s
+  LEFT JOIN track t
+    ON s.track_id = t.id
+  WHERE t.name GLOB "Napi Gro Cpu *"
+  GROUP BY s.name;
+
 DROP VIEW IF EXISTS tx_packets;
 CREATE VIEW tx_packets AS
   SELECT
@@ -46,6 +57,16 @@ CREATE VIEW net_devices AS
  UNION
  SELECT DISTINCT dev
  FROM rx_packets;
+
+DROP VIEW IF EXISTS tcp_retransmitted_count;
+CREATE VIEW tcp_retransmitted_count AS
+  SELECT
+     COUNT(1) AS cnt
+  FROM slice s
+  LEFT JOIN track t
+    ON s.track_id = t.id
+  WHERE
+    t.name = "TCP Retransmit Skb";
 
 DROP VIEW IF EXISTS device_per_core_ingress_traffic;
 CREATE VIEW device_per_core_ingress_traffic AS
@@ -128,7 +149,16 @@ CREATE VIEW device_traffic_statistic AS
                 RepeatedField(proto)
               FROM device_per_core_ingress_traffic
               WHERE device_per_core_ingress_traffic.dev = device_total_ingress_traffic.dev
-            )
+            ),
+            'gro_aggregation_ratio', (
+              SELECT
+                CASE
+                  WHEN packets > 0 THEN '1:' || CAST( (cnt*1.0/packets) AS text)
+                  ELSE '0:' || cnt
+               END
+              FROM gro_rx_packet_count
+              WHERE gro_rx_packet_count.dev = net_devices.dev
+	    )
           )
         FROM device_total_ingress_traffic
         WHERE device_total_ingress_traffic.dev = net_devices.dev
@@ -241,6 +271,11 @@ CREATE VIEW android_netperf_output AS
            runtime/total_packet/1e6
          FROM total_net_rx_action_statistic
        )
+    ),
+    'retransmission_rate', (
+      SELECT
+        (SELECT cnt FROM tcp_retransmitted_count) * 100.0 / COUNT(1)
+      FROM tx_packets
     )
   );
 

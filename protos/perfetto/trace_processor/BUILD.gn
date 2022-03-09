@@ -16,7 +16,10 @@ import("../../../gn/proto_library.gni")
 import("proto_files.gni")
 
 perfetto_proto_library("@TYPE@") {
-  proto_generators = [ "zero" ]
+  proto_generators = [
+    "zero",
+    "source_set",
+  ]
   deps = [ "../common:zero" ]  # ../common:zero needed for descriptor.proto.
   sources = []
   foreach(source, trace_processor_protos) {
@@ -24,7 +27,10 @@ perfetto_proto_library("@TYPE@") {
   }
 }
 
-perfetto_proto_library("metrics_impl_zero") {
-  proto_generators = [ "zero" ]
+perfetto_proto_library("metrics_impl_@TYPE@") {
+  proto_generators = [
+    "zero",
+    "source_set",
+  ]
   sources = [ "metrics_impl.proto" ]
 }

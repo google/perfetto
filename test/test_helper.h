@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -317,6 +318,8 @@ class TestHelper : public Consumer {
   std::unique_ptr<TracingService::ConsumerEndpoint> endpoint_;  // Keep last.
 };
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
 // This class is a reference to a child process that has in essence been execv
 // to the requested binary. The process will start and then wait for Run()
 // before proceeding. We use this to fork new processes before starting any
@@ -347,8 +350,8 @@ class Exec {
   Exec(const std::string& argv0,
        std::initializer_list<std::string> args,
        std::string input = "") {
-    subprocess_.args.stderr_mode = base::Subprocess::kBuffer;
-    subprocess_.args.stdout_mode = base::Subprocess::kDevNull;
+    subprocess_.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+    subprocess_.args.stdout_mode = base::Subprocess::OutputMode::kDevNull;
     subprocess_.args.input = input;
 
 #if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
@@ -413,6 +416,8 @@ class Exec {
   base::Subprocess subprocess_;
   base::Pipe sync_pipe_;
 };
+
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 }  // namespace perfetto
 

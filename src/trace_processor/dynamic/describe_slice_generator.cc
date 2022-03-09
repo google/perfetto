@@ -18,6 +18,7 @@
 
 #include "src/trace_processor/analysis/describe_slice.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -34,10 +35,9 @@ DescribeSliceGenerator::InputValues GetDescribeSliceInputValues(
   };
   auto slice_id_it = std::find_if(cs.begin(), cs.end(), slice_id_fn);
 
-  // We should always have valid iterators here because BestIndex should only
-  // allow the constraint set to be chosen when we have an equality constraint
-  // on both ts and upid.
   PERFETTO_CHECK(slice_id_it != cs.end());
+  // TODO(rsavitski): consider checking type of the SqlValue, as erroneous
+  // queries that pass a null here (or otherwise unexpected type) will crash.
 
   uint32_t slice_id_value = static_cast<uint32_t>(slice_id_it->value.AsLong());
   return DescribeSliceGenerator::InputValues{slice_id_value};
@@ -50,7 +50,7 @@ DescribeSliceGenerator::DescribeSliceGenerator(TraceProcessorContext* context)
 
 DescribeSliceGenerator::~DescribeSliceGenerator() = default;
 
-util::Status DescribeSliceGenerator::ValidateConstraints(
+base::Status DescribeSliceGenerator::ValidateConstraints(
     const QueryConstraints& qc) {
   using T = tables::DescribeSliceTable;
 
@@ -64,20 +64,21 @@ util::Status DescribeSliceGenerator::ValidateConstraints(
       std::find_if(cs.begin(), cs.end(), slice_id_fn) != cs.end();
 
   return has_slice_id_cs
-             ? util::OkStatus()
-             : util::ErrStatus("Failed to find required constraints");
+             ? base::OkStatus()
+             : base::ErrStatus("Failed to find required constraints");
 }
 
-std::unique_ptr<Table> DescribeSliceGenerator::ComputeTable(
+base::Status DescribeSliceGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
-    const std::vector<Order>&) {
+    const std::vector<Order>&,
+    const BitVector&,
+    std::unique_ptr<Table>& table_return) {
   auto input = GetDescribeSliceInputValues(cs);
   const auto& slices = context_->storage->slice_table();
 
   base::Optional<SliceDescription> opt_desc;
-  auto status = DescribeSlice(slices, SliceId{input.slice_id_value}, &opt_desc);
-  if (!status.ok())
-    return nullptr;
+  RETURN_IF_ERROR(
+      DescribeSlice(slices, SliceId{input.slice_id_value}, &opt_desc));
 
   auto* pool = context_->storage->mutable_string_pool();
   std::unique_ptr<tables::DescribeSliceTable> table(
@@ -92,9 +93,8 @@ std::unique_ptr<Table> DescribeSliceGenerator::ComputeTable(
     row.slice_id = input.slice_id_value;
     table->Insert(row);
   }
-  // We need to explicitly std::move as clang complains about a bug in old
-  // compilers otherwise (-Wreturn-std-move-in-c++11).
-  return std::move(table);
+  table_return = std::move(table);
+  return base::OkStatus();
 }
 
 Table::Schema DescribeSliceGenerator::CreateSchema() {

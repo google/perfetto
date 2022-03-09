@@ -138,6 +138,7 @@ async function main() {
   parser.addArgument(['--debug', '-d'], {action: 'storeTrue'});
   parser.addArgument(['--interactive', '-i'], {action: 'storeTrue'});
   parser.addArgument(['--rebaseline', '-r'], {action: 'storeTrue'});
+  parser.addArgument(['--no-depscheck'], {action: 'storeTrue'});
 
   const args = parser.parseArgs();
   const clean = !args.no_build;
@@ -175,11 +176,13 @@ async function main() {
     process.exit(130);  // 130 -> Same behavior of bash when killed by SIGINT.
   });
 
-  // Check that deps are current before starting.
-  const installBuildDeps = pjoin(ROOT_DIR, 'tools/install-build-deps');
-  const checkDepsPath = pjoin(cfg.outDir, '.check_deps');
-  const depsArgs = [`--check-only=${checkDepsPath}`, '--ui'];
-  exec(installBuildDeps, depsArgs);
+  if (!args.no_depscheck) {
+    // Check that deps are current before starting.
+    const installBuildDeps = pjoin(ROOT_DIR, 'tools/install-build-deps');
+    const checkDepsPath = pjoin(cfg.outDir, '.check_deps');
+    const depsArgs = [`--check-only=${checkDepsPath}`, '--ui'];
+    exec(installBuildDeps, depsArgs);
+  }
 
   console.log('Entering', cfg.outDir);
   process.chdir(cfg.outDir);
@@ -464,6 +467,13 @@ function startServer() {
         // because 'dist/' gets shipped on the production server.
         if (uri.startsWith('/test/')) {
           absPath = pjoin(ROOT_DIR, uri);
+        }
+
+        // Don't serve contents outside of the project root (b/221101533).
+        if (path.relative(ROOT_DIR, absPath).startsWith('..')) {
+          res.writeHead(403);
+          res.end('403 Forbidden - Request path outside of the repo root');
+          return;
         }
 
         fs.readFile(absPath, function(err, data) {

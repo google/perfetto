@@ -102,5 +102,7 @@ export function createEmptyState(): State {
 
     fetchChromeCategories: false,
     chromeCategories: undefined,
+    pivotTableRedux:
+        {selectionArea: null, query: null, queryId: 0, queryResult: null},
   };
 }

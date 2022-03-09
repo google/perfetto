@@ -82,6 +82,18 @@ class PERFETTO_EXPORT BaseTrackEventInternedDataIndex {
 #endif  // PERFETTO_DCHECK_IS_ON()
 };
 
+struct TrackEventTlsState {
+  template <typename TraceContext>
+  explicit TrackEventTlsState(const TraceContext& trace_context) {
+    auto locked_ds = trace_context.GetDataSourceLocked();
+    if (locked_ds.valid()) {
+      disable_incremental_timestamps =
+          locked_ds->GetConfig().disable_incremental_timestamps();
+    }
+  }
+  bool disable_incremental_timestamps = false;
+};
+
 struct TrackEventIncrementalState {
   static constexpr size_t kMaxInternedDataFields = 32;
 

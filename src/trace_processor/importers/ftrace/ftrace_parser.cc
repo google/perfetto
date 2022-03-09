@@ -55,6 +55,7 @@
 #include "protos/perfetto/trace/ftrace/scm.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sde.pbzero.h"
 #include "protos/perfetto/trace/ftrace/signal.pbzero.h"
+#include "protos/perfetto/trace/ftrace/skb.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sock.pbzero.h"
 #include "protos/perfetto/trace/ftrace/systrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
@@ -111,6 +112,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       cpu_freq_name_id_(context->storage->InternString("cpufreq")),
       gpu_freq_name_id_(context->storage->InternString("gpufreq")),
       cpu_idle_name_id_(context->storage->InternString("cpuidle")),
+      kfree_skb_name_id_(context->storage->InternString("Kfree Skb")),
       ion_total_id_(context->storage->InternString("mem.ion")),
       ion_change_id_(context->storage->InternString("mem.ion_change")),
       ion_buffer_id_(context->storage->InternString("mem.ion_buffer")),
@@ -132,9 +134,11 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       irq_id_(context_->storage->InternString("irq")),
       tcp_state_id_(context_->storage->InternString("tcp_state")),
       tcp_event_id_(context_->storage->InternString("tcp_event")),
+      napi_gro_id_(context_->storage->InternString("napi_gro")),
       tcp_retransmited_name_id_(
           context_->storage->InternString("TCP Retransmit Skb")),
       ret_arg_id_(context_->storage->InternString("ret")),
+      len_arg_id_(context->storage->InternString("len")),
       direct_reclaim_nr_reclaimed_id_(
           context->storage->InternString("direct_reclaim_nr_reclaimed")),
       direct_reclaim_order_id_(
@@ -664,6 +668,22 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kTcpRetransmitSkbFieldNumber: {
         ParseTcpRetransmitSkb(ts, data);
+        break;
+      }
+      case FtraceEvent::kNapiGroReceiveEntryFieldNumber: {
+        ParseNapiGroReceiveEntry(cpu, ts, data);
+        break;
+      }
+      case FtraceEvent::kNapiGroReceiveExitFieldNumber: {
+        ParseNapiGroReceiveExit(cpu, ts, data);
+        break;
+      }
+      case FtraceEvent::kCpuFrequencyLimitsFieldNumber: {
+        ParseCpuFrequencyLimits(ts, data);
+        break;
+      }
+      case FtraceEvent::kKfreeSkbFieldNumber: {
+        ParseKfreeSkb(ts, data);
         break;
       }
       default:
@@ -1279,8 +1299,8 @@ void FtraceParser::ParseBinderTransaction(int64_t timestamp,
   protos::pbzero::BinderTransactionFtraceEvent::Decoder evt(blob.data,
                                                             blob.size);
   int32_t dest_node = static_cast<int32_t>(evt.target_node());
-  int32_t dest_tgid = static_cast<int32_t>(evt.to_proc());
-  int32_t dest_tid = static_cast<int32_t>(evt.to_thread());
+  uint32_t dest_tgid = static_cast<uint32_t>(evt.to_proc());
+  uint32_t dest_tid = static_cast<uint32_t>(evt.to_thread());
   int32_t transaction_id = static_cast<int32_t>(evt.debug_id());
   bool is_reply = static_cast<int32_t>(evt.reply()) == 1;
   uint32_t flags = static_cast<uint32_t>(evt.flags());
@@ -1724,12 +1744,10 @@ void FtraceParser::ParseNetDevXmit(uint32_t cpu,
   if (!id) {
     return;
   }
-  // Store cpu & len as args for metrics computation
-  StringId cpu_key = context_->storage->InternString("cpu");
-  StringId len_key = context_->storage->InternString("len");
+  // Store cpu & len as args for metrics computation.
   context_->args_tracker->AddArgsTo(*id)
-      .AddArg(cpu_key, Variadic::UnsignedInteger(cpu))
-      .AddArg(len_key, Variadic::UnsignedInteger(evt.len()));
+      .AddArg(cpu_id_, Variadic::UnsignedInteger(cpu))
+      .AddArg(len_arg_id_, Variadic::UnsignedInteger(evt.len()));
 }
 
 void FtraceParser::ParseInetSockSetState(int64_t timestamp,
@@ -1807,6 +1825,76 @@ void FtraceParser::ParseTcpRetransmitSkb(int64_t timestamp,
       context_->async_track_set_tracker->Scoped(async_track, timestamp, 0);
   context_->slice_tracker->Scoped(timestamp, track_id, tcp_event_id_,
                                   slice_name_id, 0);
+}
+
+void FtraceParser::ParseNapiGroReceiveEntry(uint32_t cpu,
+                                            int64_t timestamp,
+                                            protozero::ConstBytes blob) {
+  protos::pbzero::NapiGroReceiveEntryFtraceEvent::Decoder evt(blob.data,
+                                                              blob.size);
+  base::StackString<255> track_name("Napi Gro Cpu %d", cpu);
+  StringId track_name_id =
+      context_->storage->InternString(track_name.string_view());
+  base::StringView net_device = evt.name();
+  StringId slice_name_id = context_->storage->InternString(net_device);
+  TrackId track = context_->track_tracker->InternCpuTrack(track_name_id, cpu);
+  auto len = evt.len();
+  auto args_inserter = [this, len](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(len_arg_id_, Variadic::Integer(len));
+  };
+  context_->slice_tracker->Begin(timestamp, track, napi_gro_id_, slice_name_id,
+                                 args_inserter);
+}
+
+void FtraceParser::ParseNapiGroReceiveExit(uint32_t cpu,
+                                           int64_t timestamp,
+                                           protozero::ConstBytes blob) {
+  protos::pbzero::NapiGroReceiveExitFtraceEvent::Decoder evt(blob.data,
+                                                             blob.size);
+  base::StackString<255> track_name("Napi Gro Cpu %d", cpu);
+  StringId track_name_id =
+      context_->storage->InternString(track_name.string_view());
+  TrackId track = context_->track_tracker->InternCpuTrack(track_name_id, cpu);
+  auto ret = evt.ret();
+  auto args_inserter = [this, ret](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(ret_arg_id_, Variadic::Integer(ret));
+  };
+  context_->slice_tracker->End(timestamp, track, napi_gro_id_, {},
+                               args_inserter);
+}
+
+void FtraceParser::ParseCpuFrequencyLimits(int64_t timestamp,
+                                           protozero::ConstBytes blob) {
+  protos::pbzero::CpuFrequencyLimitsFtraceEvent::Decoder evt(blob.data,
+                                                             blob.size);
+  base::StackString<255> max_counter_name("Cpu %" PRIu32 " Max Freq Limit",
+                                          evt.cpu_id());
+  base::StackString<255> min_counter_name("Cpu %" PRIu32 " Min Freq Limit",
+                                          evt.cpu_id());
+  // Push max freq to global counter.
+  StringId max_name = context_->storage->InternString(max_counter_name.c_str());
+  TrackId max_track =
+      context_->track_tracker->InternGlobalCounterTrack(max_name);
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(evt.max_freq()), max_track);
+
+  // Push min freq to global counter.
+  StringId min_name = context_->storage->InternString(min_counter_name.c_str());
+  TrackId min_track =
+      context_->track_tracker->InternGlobalCounterTrack(min_name);
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(evt.min_freq()), min_track);
+}
+
+void FtraceParser::ParseKfreeSkb(int64_t timestamp,
+                                 protozero::ConstBytes blob) {
+  protos::pbzero::KfreeSkbFtraceEvent::Decoder evt(blob.data, blob.size);
+
+  num_of_kfree_skb_ += 1;
+  TrackId track =
+      context_->track_tracker->InternGlobalCounterTrack(kfree_skb_name_id_);
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(num_of_kfree_skb_), track);
 }
 
 }  // namespace trace_processor

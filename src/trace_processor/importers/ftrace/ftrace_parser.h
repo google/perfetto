@@ -161,6 +161,14 @@ class FtraceParser {
                              uint32_t pid,
                              protozero::ConstBytes);
   void ParseTcpRetransmitSkb(int64_t timestamp, protozero::ConstBytes);
+  void ParseNapiGroReceiveEntry(uint32_t cpu,
+                                int64_t timestamp,
+                                protozero::ConstBytes);
+  void ParseNapiGroReceiveExit(uint32_t cpu,
+                               int64_t timestamp,
+                               protozero::ConstBytes);
+  void ParseCpuFrequencyLimits(int64_t timestamp, protozero::ConstBytes);
+  void ParseKfreeSkb(int64_t timestamp, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
@@ -171,6 +179,7 @@ class FtraceParser {
   const StringId cpu_freq_name_id_;
   const StringId gpu_freq_name_id_;
   const StringId cpu_idle_name_id_;
+  const StringId kfree_skb_name_id_;
   const StringId ion_total_id_;
   const StringId ion_change_id_;
   const StringId ion_buffer_id_;
@@ -190,8 +199,10 @@ class FtraceParser {
   const StringId irq_id_;
   const StringId tcp_state_id_;
   const StringId tcp_event_id_;
+  const StringId napi_gro_id_;
   const StringId tcp_retransmited_name_id_;
   const StringId ret_arg_id_;
+  const StringId len_arg_id_;
   const StringId direct_reclaim_nr_reclaimed_id_;
   const StringId direct_reclaim_order_id_;
   const StringId direct_reclaim_may_writepage_id_;
@@ -236,6 +247,9 @@ class FtraceParser {
 
   // Record number of transmitted bytes to the network interface card.
   std::unordered_map<StringId, uint64_t> nic_transmitted_bytes_;
+
+  // Record number of kfree_skb.
+  uint64_t num_of_kfree_skb_ = 0;
 
   // Keep sock to stream number mapping.
   std::unordered_map<uint64_t, uint32_t> skaddr_to_stream_;

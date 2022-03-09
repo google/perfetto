@@ -1656,6 +1656,7 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
     return;
   }
 
+  ++tracing_session->flushes_requested;
   FlushRequestID flush_request_id = ++last_flush_request_id_;
   PendingFlush& pending_flush =
       tracing_session->pending_flushes
@@ -1734,7 +1735,6 @@ void TracingServiceImpl::OnFlushTimeout(TracingSessionID tsid,
 
   // If there were no producers to flush, consider it a success.
   bool success = it->second.producers.empty();
-
   auto callback = std::move(it->second.callback);
   tracing_session->pending_flushes.erase(it);
   CompleteFlush(tsid, std::move(callback), success);
@@ -1758,6 +1758,9 @@ void TracingServiceImpl::CompleteFlush(TracingSessionID tsid,
       tracing_session,
       protos::pbzero::TracingServiceEvent::kAllDataSourcesFlushedFieldNumber,
       true /* snapshot_clocks */);
+
+  tracing_session->flushes_succeeded += success ? 1 : 0;
+  tracing_session->flushes_failed += success ? 0 : 1;
   callback(success);
 }
 
@@ -1889,6 +1892,8 @@ void TracingServiceImpl::FlushAndDisableTracing(TracingSessionID tsid) {
     if (!weak_this)
       return;
     TracingSession* session = weak_this->GetTracingSession(tsid);
+    session->final_flush_outcome = success ? TraceStats::FINAL_FLUSH_SUCCEEDED
+                                           : TraceStats::FINAL_FLUSH_FAILED;
     if (session->consumer_maybe_null) {
       // If the consumer is still attached, just disable the session but give it
       // a chance to read the contents.
@@ -2067,12 +2072,6 @@ bool TracingServiceImpl::ReadBuffersIntoFile(TracingSessionID tsid) {
   if (!tracing_session->seized_for_bugreport &&
       IsWaitingForTrigger(tracing_session))
     return false;
-
-  // Speculative fix for the memory watchdog crash in b/195145848. This function
-  // uses the heap extensively and might need a M_PURGE. window.gc() is back.
-  // TODO(primiano): if this fixes the crash we might want to coalesce the purge
-  // and throttle it.
-  auto on_ret = base::OnScopeExit([] { base::MaybeReleaseAllocatorMemToOS(); });
 
   // ReadBuffers() can allocate memory internally, for filtering. By limiting
   // the data that ReadBuffers() reads to kWriteIntoChunksSize per iteration,
@@ -2270,6 +2269,13 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   }
 
   MaybeFilterPackets(tracing_session, &packets);
+
+  if (!*has_more) {
+    // We've observed some extremely high memory usage by scudo after
+    // MaybeFilterPackets in the past. The original bug (b/195145848) is fixed
+    // now, but this code asks scudo to release memory just in case.
+    base::MaybeReleaseAllocatorMemToOS();
+  }
 
   return packets;
 }
@@ -3187,6 +3193,10 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
   trace_stats.set_chunks_discarded(chunks_discarded_);
   trace_stats.set_patches_discarded(patches_discarded_);
   trace_stats.set_invalid_packets(tracing_session->invalid_packets);
+  trace_stats.set_flushes_requested(tracing_session->flushes_requested);
+  trace_stats.set_flushes_succeeded(tracing_session->flushes_succeeded);
+  trace_stats.set_flushes_failed(tracing_session->flushes_failed);
+  trace_stats.set_final_flush_outcome(tracing_session->final_flush_outcome);
 
   if (tracing_session->trace_filter) {
     auto* filt_stats = trace_stats.mutable_filter_stats();
