@@ -32,7 +32,7 @@ CREATE TABLE android_sysui_cuj_last_cuj AS
   WHERE
     slice.name GLOB 'J<*>'
     -- Filter out CUJs that are <4ms long - assuming CUJ was cancelled.
-    AND slice.dur > 4000000
+    AND slice.dur > 4e6
     AND (
       process.name GLOB 'com.google.android*'
       OR process.name GLOB 'com.android.*')
@@ -111,7 +111,7 @@ LEFT JOIN android_sysui_cuj_frame_expected_timeline_events fte
 -- This may cause the actual/expected timeline to be misaligned with the rest
 -- of the trace for a short period.
 -- Do not use the timelines if it seems that this happened.
-AND slices.ts >= fte.ts_actual_min AND slices.ts <= fte.ts_end_actual_max;
+AND slices.ts >= fte.ts_actual_min - 1e6 AND slices.ts <= fte.ts_end_actual_max;
 
 DROP TABLE IF EXISTS android_sysui_cuj_ts_boundaries;
 CREATE TABLE android_sysui_cuj_ts_boundaries AS
@@ -342,7 +342,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
     ON rts.ts >= f.ts_render_thread_start AND rts.ts < f.ts_render_thread_end
   WHERE rts.name = 'shader_compile'
   AND f.app_missed
-  AND rts.dur > 8000000
+  AND rts.dur > 8e6
 
   UNION ALL
   SELECT
@@ -352,7 +352,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   JOIN android_sysui_cuj_render_thread_slices_in_cuj rts
     ON rts.ts >= f.ts_render_thread_start AND rts.ts < f.ts_render_thread_end
   WHERE rts.name = 'flush layers'
-  AND rts.dur > 8000000
+  AND rts.dur > 8e6
   AND f.app_missed
 
   UNION ALL
@@ -364,7 +364,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
     ((state = 'D' OR state = 'DK') AND io_wait)
     OR (state = 'DK' AND io_wait IS NULL)
   GROUP BY frame_number
-  HAVING SUM(dur) > 8000000
+  HAVING SUM(dur) > 8e6
 
   UNION ALL
   SELECT
@@ -373,7 +373,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   FROM android_sysui_cuj_main_thread_state
   WHERE (state = 'R' OR state = 'R+')
   GROUP BY frame_number
-  HAVING SUM(dur) > 8000000
+  HAVING SUM(dur) > 8e6
   AND SUM(dur) > (
     SELECT 0.4 * dur_main_thread
     FROM android_sysui_cuj_frames fs
@@ -388,7 +388,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
     ((state = 'D' OR state = 'DK') AND io_wait)
     OR (state = 'DK' AND io_wait IS NULL)
   GROUP BY frame_number
-  HAVING SUM(dur) > 8000000
+  HAVING SUM(dur) > 8e6
 
   UNION ALL
   SELECT
@@ -397,7 +397,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   FROM android_sysui_cuj_render_thread_state
   WHERE (state = 'R' OR state = 'R+')
   GROUP BY frame_number
-  HAVING SUM(dur) > 8000000
+  HAVING SUM(dur) > 8e6
   AND SUM(dur) > (
     SELECT 0.4 * dur_render_thread
     FROM android_sysui_cuj_frames fs
@@ -408,7 +408,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   frame_number,
   'MainThread - binder transaction time' AS jank_cause
   FROM android_sysui_cuj_main_thread_binder
-  WHERE dur > 8000000
+  WHERE dur > 8e6
 
   UNION ALL
   SELECT
@@ -422,7 +422,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   frame_number,
   'GPU completion - long completion time' AS jank_cause
   FROM android_sysui_cuj_missed_frames f
-  WHERE dur_gcs > 8000000
+  WHERE dur_gcs > 8e6
   AND app_missed
 
   UNION ALL
@@ -434,7 +434,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   WHERE
     mts.state = 'Running'
     AND rts.state = 'Running'
-    AND mts.dur + rts.dur > 15000000
+    AND mts.dur + rts.dur > 15e6
 
   UNION ALL
   SELECT
@@ -444,7 +444,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   JOIN android_sysui_cuj_jit_slices_join_table jit USING (frame_number)
   WHERE f.app_missed
   GROUP BY f.frame_number
-  HAVING SUM(jit.dur) > 8000000
+  HAVING SUM(jit.dur) > 8e6
 
   UNION ALL
   SELECT frame_number, jank_cause FROM android_sysui_cuj_sf_jank_causes
