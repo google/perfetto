@@ -325,6 +325,20 @@ add_frame(
     ts_gpu=None,
     ts_end_gpu=None)
 
+# Frame start delayed by 8ms by a long binder transaction
+add_main_thread_atrace(
+    trace, ts=600_000_000, ts_end=608_049_000, buf="binder transaction")
+
+add_frame(
+    trace,
+    vsync=140,
+    ts_do_frame=608_500_000,
+    ts_end_do_frame=610_000_000,
+    ts_draw_frame=609_000_000,
+    ts_end_draw_frame=626_000_000,
+    ts_gpu=None,
+    ts_end_gpu=None)
+
 # One more frame after the CUJ is finished
 add_frame(
     trace,
@@ -336,8 +350,8 @@ add_frame(
     ts_gpu=1_400_000_000,
     ts_end_gpu=1_500_000_000)
 
-add_expected_frame_events(ts=1, dur=16_000_000, token_start=10)
-add_actual_frame_events(ts=1, dur=16_000_000, token_start=10)
+add_expected_frame_events(ts=0, dur=16_000_000, token_start=10)
+add_actual_frame_events(ts=0, dur=16_000_000, token_start=10)
 
 add_expected_frame_events(ts=8_000_000, dur=20_000_000, token_start=20)
 add_actual_frame_events(ts=8_000_000, dur=28_000_000, token_start=20, jank=66)
@@ -377,8 +391,13 @@ add_actual_frame_events(ts=500_000_000, dur=2_000_000, token_start=130)
 add_actual_frame_events(
     ts=550_000_000, dur=6_000_000, token_start=130, cookie=132, jank=64)
 
-add_expected_frame_events(ts=1_100_000_000, dur=20_000_000, token_start=140)
+# Single layer but actual frame event is slighly after doFrame start
+add_expected_frame_events(ts=600_000_000, dur=20_000_000, token_start=140)
 add_actual_frame_events(
-    ts=1_100_000_000, dur=500_000_000, token_start=140, jank=64)
+    ts=608_600_000, dur=17_000_000, token_start=140, jank=64)
+
+add_expected_frame_events(ts=1_100_000_000, dur=20_000_000, token_start=1000)
+add_actual_frame_events(
+    ts=1_100_000_000, dur=500_000_000, token_start=1000, jank=64)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
