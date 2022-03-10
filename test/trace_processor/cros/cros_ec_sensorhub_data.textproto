@@ -1,0 +1,18 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 223951135789653
+      pid: 181
+      cros_ec_sensorhub_data {
+        current_time: 223951135778716
+        current_timestamp: 223951052378946
+        delta: -83399770
+        ec_fifo_timestamp: 2128620968
+        ec_sensor_num: 0
+        fifo_timestamp: 223951132978872
+      }
+    }
+  }
+}
+
