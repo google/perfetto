@@ -199,6 +199,7 @@ class FtraceParser {
   const StringId irq_id_;
   const StringId tcp_state_id_;
   const StringId tcp_event_id_;
+  const StringId protocol_arg_id_;
   const StringId napi_gro_id_;
   const StringId tcp_retransmited_name_id_;
   const StringId ret_arg_id_;
@@ -248,8 +249,8 @@ class FtraceParser {
   // Record number of transmitted bytes to the network interface card.
   std::unordered_map<StringId, uint64_t> nic_transmitted_bytes_;
 
-  // Record number of kfree_skb.
-  uint64_t num_of_kfree_skb_ = 0;
+  // Record number of kfree_skb with ip protocol.
+  uint64_t num_of_kfree_skb_ip_prot = 0;
 
   // Keep sock to stream number mapping.
   std::unordered_map<uint64_t, uint32_t> skaddr_to_stream_;
