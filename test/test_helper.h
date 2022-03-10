@@ -51,7 +51,7 @@ namespace perfetto {
 // This value has been bumped to 10s in Oct 2020 because the GCE-based emulator
 // can be sensibly slower than real hw (more than 10x) and caused flakes.
 // See bugs duped against b/171771440.
-constexpr uint32_t kDefaultTestTimeoutMs = 10000;
+constexpr uint32_t kDefaultTestTimeoutMs = 30000;
 
 inline const char* GetTestProducerSockName() {
 // If we're building on Android and starting the daemons ourselves,
