@@ -170,6 +170,8 @@ class FtraceParser {
   void ParseCpuFrequencyLimits(int64_t timestamp, protozero::ConstBytes);
   void ParseKfreeSkb(int64_t timestamp, protozero::ConstBytes);
 
+  void ParseCrosEcSensorhubData(int64_t timestamp, protozero::ConstBytes);
+
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
 
@@ -217,6 +219,9 @@ class FtraceParser {
   const StringId io_wait_id_;
   const StringId function_id_;
   const StringId waker_utid_id_;
+  const StringId cros_ec_arg_num_id_;
+  const StringId cros_ec_arg_ec_id_;
+  const StringId cros_ec_arg_sample_ts_id_;
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).
