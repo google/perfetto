@@ -5,6 +5,7 @@ packet {
       timestamp: 10000
       pid: 200
       kfree_skb {
+        protocol: 2048
       }
     }
   }
@@ -16,6 +17,7 @@ packet {
       timestamp: 10020
       pid: 300
       kfree_skb {
+        protocol: 34525
       }
     }
   }
@@ -27,6 +29,7 @@ packet {
       timestamp: 20000
       pid: 200
       kfree_skb {
+        protocol: 1536
       }
     }
   }
@@ -38,6 +41,7 @@ packet {
       timestamp: 20020
       pid: 300
       kfree_skb {
+        protocol: 2048
       }
     }
   }
