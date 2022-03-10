@@ -20,12 +20,16 @@
 namespace perfetto {
 namespace trace_processor {
 
-// IPV4 protocol
+// Sock IPV4 Protocol Definition, from include/uapi/linux/in.h.
 constexpr int kAfNet = 2;
-// IPV6 protocol
+// Sock IPV6 Protocol Definition, from include/uapi/linux/in.h.
 constexpr int kAfNet6 = 10;
-// TCP protocol
+// Sock TCP protocol Definition, from include/uapi/linux/in.h.
 constexpr int kIpprotoTcp = 6;
+// Skb IPV4 Protocol Definition, from include/uapi/linux/if_ether.h.
+constexpr int kEthPIp = 0x800;
+// Skb IPV6 Protocol Definition, from include/uapi/linux/if_ether.h.
+constexpr int kEthPIp6 = 0x86DD;
 // TCP protocol states, from include/net/tcp_states.h.
 enum {
   TCP_ESTABLISHED = 1,
