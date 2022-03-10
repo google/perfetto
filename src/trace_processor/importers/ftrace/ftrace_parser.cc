@@ -112,7 +112,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       cpu_freq_name_id_(context->storage->InternString("cpufreq")),
       gpu_freq_name_id_(context->storage->InternString("gpufreq")),
       cpu_idle_name_id_(context->storage->InternString("cpuidle")),
-      kfree_skb_name_id_(context->storage->InternString("Kfree Skb")),
+      kfree_skb_name_id_(context->storage->InternString("Kfree Skb IP Prot")),
       ion_total_id_(context->storage->InternString("mem.ion")),
       ion_change_id_(context->storage->InternString("mem.ion_change")),
       ion_buffer_id_(context->storage->InternString("mem.ion_buffer")),
@@ -134,6 +134,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       irq_id_(context_->storage->InternString("irq")),
       tcp_state_id_(context_->storage->InternString("tcp_state")),
       tcp_event_id_(context_->storage->InternString("tcp_event")),
+      protocol_arg_id_(context_->storage->InternString("protocol")),
       napi_gro_id_(context_->storage->InternString("napi_gro")),
       tcp_retransmited_name_id_(
           context_->storage->InternString("TCP Retransmit Skb")),
@@ -1890,11 +1891,24 @@ void FtraceParser::ParseKfreeSkb(int64_t timestamp,
                                  protozero::ConstBytes blob) {
   protos::pbzero::KfreeSkbFtraceEvent::Decoder evt(blob.data, blob.size);
 
-  num_of_kfree_skb_ += 1;
+  // Skip non IP & IPV6 protocol.
+  if (evt.protocol() != kEthPIp && evt.protocol() != kEthPIp6) {
+    return;
+  }
+  num_of_kfree_skb_ip_prot += 1;
+
   TrackId track =
       context_->track_tracker->InternGlobalCounterTrack(kfree_skb_name_id_);
-  context_->event_tracker->PushCounter(
-      timestamp, static_cast<double>(num_of_kfree_skb_), track);
+  base::Optional<CounterId> id = context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(num_of_kfree_skb_ip_prot), track);
+  if (!id) {
+    return;
+  }
+  base::StackString<255> prot("%s", evt.protocol() == kEthPIp ? "IP" : "IPV6");
+  StringId prot_id = context_->storage->InternString(prot.string_view());
+  // Store protocol as args for metrics computation.
+  context_->args_tracker->AddArgsTo(*id).AddArg(
+      protocol_arg_id_, Variadic::String(prot_id));
 }
 
 }  // namespace trace_processor
