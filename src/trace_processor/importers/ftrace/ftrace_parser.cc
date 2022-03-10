@@ -32,6 +32,7 @@
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/ftrace/binder.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cpuhp.pbzero.h"
+#include "protos/perfetto/trace/ftrace/cros_ec.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dmabuf_heap.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dpu.pbzero.h"
 #include "protos/perfetto/trace/ftrace/fastrpc.pbzero.h"
@@ -160,7 +161,10 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
           context->storage->InternString("sched_blocked_reason")),
       io_wait_id_(context->storage->InternString("io_wait")),
       function_id_(context->storage->InternString("function")),
-      waker_utid_id_(context->storage->InternString("waker_utid")) {
+      waker_utid_id_(context->storage->InternString("waker_utid")),
+      cros_ec_arg_num_id_(context->storage->InternString("ec_num")),
+      cros_ec_arg_ec_id_(context->storage->InternString("ec_delta")),
+      cros_ec_arg_sample_ts_id_(context->storage->InternString("sample_ts")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -685,6 +689,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kKfreeSkbFieldNumber: {
         ParseKfreeSkb(ts, data);
+        break;
+      }
+      case FtraceEvent::kCrosEcSensorhubDataFieldNumber: {
+        ParseCrosEcSensorhubData(ts, data);
         break;
       }
       default:
@@ -1909,6 +1917,33 @@ void FtraceParser::ParseKfreeSkb(int64_t timestamp,
   // Store protocol as args for metrics computation.
   context_->args_tracker->AddArgsTo(*id).AddArg(
       protocol_arg_id_, Variadic::String(prot_id));
+}
+
+void FtraceParser::ParseCrosEcSensorhubData(int64_t timestamp,
+                                            protozero::ConstBytes blob) {
+  protos::pbzero::CrosEcSensorhubDataFtraceEvent::Decoder evt(blob.data,
+                                                              blob.size);
+
+  // Push the global counter.
+  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+      context_->storage->InternString(
+          base::StringView("cros_ec.cros_ec_sensorhub_data." +
+                           std::to_string(evt.ec_sensor_num()))));
+
+  auto args_inserter = [this, &evt](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(cros_ec_arg_num_id_,
+                     Variadic::Integer(evt.ec_sensor_num()));
+    inserter->AddArg(
+        cros_ec_arg_ec_id_,
+        Variadic::Integer(evt.fifo_timestamp() - evt.current_timestamp()));
+    inserter->AddArg(cros_ec_arg_sample_ts_id_,
+                     Variadic::Integer(evt.current_timestamp()));
+  };
+
+  context_->event_tracker->PushCounter(
+      timestamp,
+      static_cast<double>(evt.current_time() - evt.current_timestamp()), track,
+      args_inserter);
 }
 
 }  // namespace trace_processor
