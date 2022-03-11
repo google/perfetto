@@ -303,13 +303,13 @@ def enable_sqlite(module):
   elif module.host_supported:
     # Copy what the sqlite3 command line tool does.
     module.android.shared_libs.add('libsqlite')
-    module.android.shared_libs.add('libandroidicu')
+    module.android.shared_libs.add('libicu')
     module.android.shared_libs.add('liblog')
     module.android.shared_libs.add('libutils')
     module.host.static_libs.add('libsqlite')
   else:
     module.shared_libs.add('libsqlite')
-    module.shared_libs.add('libandroidicu')
+    module.shared_libs.add('libicu')
     module.shared_libs.add('liblog')
     module.shared_libs.add('libutils')
 
