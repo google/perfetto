@@ -1817,8 +1817,8 @@ cc_test {
     ],
     shared_libs: [
         "heapprofd_client_api",
-        "libandroidicu",
         "libbase",
+        "libicu",
         "liblog",
         "libprocinfo",
         "libsqlite",
@@ -9604,8 +9604,8 @@ cc_test {
         ":perfetto_tools_sanitizers_unittests_sanitizers_unittests",
     ],
     shared_libs: [
-        "libandroidicu",
         "libbase",
+        "libicu",
         "liblog",
         "libprocinfo",
         "libprotobuf-cpp-full",
@@ -9904,7 +9904,7 @@ cc_binary {
     target: {
         android: {
             shared_libs: [
-                "libandroidicu",
+                "libicu",
                 "liblog",
                 "libprotobuf-cpp-full",
                 "libsqlite",
