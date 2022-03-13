@@ -184,12 +184,13 @@ constexpr bool IsDynamicCategory(const ::perfetto::DynamicCategory&) {
 
 // Allocate storage for each category by using this macro once per track event
 // namespace.
-#define PERFETTO_TRACK_EVENT_STATIC_STORAGE()      \
-  namespace PERFETTO_TRACK_EVENT_NAMESPACE {       \
-  PERFETTO_INTERNAL_CATEGORY_STORAGE()             \
-  } /* namespace PERFETTO_TRACK_EVENT_NAMESPACE */ \
-  PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(      \
-      PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent,  \
+#define PERFETTO_TRACK_EVENT_STATIC_STORAGE()        \
+  namespace PERFETTO_TRACK_EVENT_NAMESPACE {         \
+  PERFETTO_INTERNAL_CATEGORY_STORAGE()               \
+  PERFETTO_INTERNAL_DEFINE_TRACK_EVENT_DATA_SOURCE() \
+  } /* namespace PERFETTO_TRACK_EVENT_NAMESPACE */   \
+  PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(        \
+      PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent,    \
       perfetto::internal::TrackEventDataSourceTraits)
 
 // Ignore GCC warning about a missing argument for a variadic macro parameter.

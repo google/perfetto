@@ -20,7 +20,6 @@ executable("sdk_example") {
     "trace_categories.cc",
     "trace_categories.h",
   ]
-  configs -= [ "//gn/standalone:extra_warnings" ]
   cflags = [ "-DPERFETTO_SDK_EXAMPLE_USE_INTERNAL_HEADERS" ]
   testonly = true
   deps = [
