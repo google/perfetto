@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<MessageDescriptor, 404> descriptors{{
+std::array<MessageDescriptor, 406> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -4341,6 +4341,24 @@ std::array<MessageDescriptor, 404> descriptors{{
             {"irq", ProtoSchemaType::kUint32},
             {"level", ProtoSchemaType::kUint32},
             {"vcpu_id", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "wakeup_source_activate",
+        2,
+        {
+            {},
+            {"name", ProtoSchemaType::kString},
+            {"state", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "wakeup_source_deactivate",
+        2,
+        {
+            {},
+            {"name", ProtoSchemaType::kString},
+            {"state", ProtoSchemaType::kUint64},
         },
     },
 }};
