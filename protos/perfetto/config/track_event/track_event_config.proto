@@ -66,7 +66,6 @@ message TrackEventConfig {
   repeated string enabled_tags = 4;
 
   // Default: false (i.e. enabled by default)
-  // Note: This isn't supported in the SDK yet. It will be supported soon.
   optional bool disable_incremental_timestamps = 5;
 
   // Allows to specify a custom unit different than the default (ns).
