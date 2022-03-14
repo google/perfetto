@@ -1406,7 +1406,7 @@ TEST_P(PerfettoApiTest, TrackEventProcessAndThreadDescriptors) {
     if (packet.has_track_descriptor()) {
       if (packet.trusted_packet_sequence_id() == main_thread_sequence) {
         descs.push_back(packet.track_descriptor());
-      } else {
+      } else if (packet.track_descriptor().has_thread()) {
         thread_descs.push_back(packet.track_descriptor());
       }
     }
@@ -1431,9 +1431,8 @@ TEST_P(PerfettoApiTest, TrackEventProcessAndThreadDescriptors) {
   EXPECT_EQ("goodbye.exe", descs[2].name());
 
   // The child thread records only its own thread descriptor (twice, since it
-  // was mutated). The child thread also emits another copy of the process
-  // descriptor.
-  EXPECT_EQ(3u, thread_descs.size());
+  // was mutated).
+  ASSERT_EQ(2u, thread_descs.size());
   EXPECT_EQ("TestThread", thread_descs[0].name());
   EXPECT_NE(0, thread_descs[0].thread().pid());
   EXPECT_NE(0, thread_descs[0].thread().tid());
@@ -1478,7 +1477,8 @@ TEST_P(PerfettoApiTest, CustomTrackDescriptor) {
       continue;
     if (packet.has_track_descriptor()) {
       auto td = packet.track_descriptor();
-      EXPECT_TRUE(td.has_process());
+      if (!td.has_process())
+        continue;
       EXPECT_NE(0, td.process().pid());
       EXPECT_TRUE(td.has_chrome_process());
       EXPECT_EQ("testing.exe", td.process().process_name());

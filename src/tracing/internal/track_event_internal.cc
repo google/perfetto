@@ -308,8 +308,10 @@ int TrackEventInternal::GetSessionCount() {
 }
 
 // static
-void TrackEventInternal::ResetIncrementalState(TraceWriterBase* trace_writer,
-                                               TraceTimestamp timestamp) {
+void TrackEventInternal::ResetIncrementalState(
+    TraceWriterBase* trace_writer,
+    TrackEventIncrementalState* incr_state,
+    TraceTimestamp timestamp) {
   auto default_track = ThreadTrack::Current();
   {
     // Mark any incremental state before this point invalid. Also set up
@@ -329,8 +331,8 @@ void TrackEventInternal::ResetIncrementalState(TraceWriterBase* trace_writer,
   // trace points won't explicitly reference it. We also write the process
   // descriptor from every thread that writes trace events to ensure it gets
   // emitted at least once.
-  WriteTrackDescriptor(default_track, trace_writer);
-  WriteTrackDescriptor(ProcessTrack::Current(), trace_writer);
+  WriteTrackDescriptor(default_track, trace_writer, incr_state);
+  WriteTrackDescriptor(ProcessTrack::Current(), trace_writer, incr_state);
 }
 
 // static

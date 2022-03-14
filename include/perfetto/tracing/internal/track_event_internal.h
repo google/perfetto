@@ -160,8 +160,15 @@ class PERFETTO_EXPORT TrackEventInternal {
       perfetto::protos::pbzero::TrackEvent::Type,
       TraceTimestamp timestamp = {GetClockId(), GetTimeNs()});
 
-  static void ResetIncrementalState(TraceWriterBase*, TraceTimestamp);
-
+  static void ResetIncrementalStateIfRequired(
+      TraceWriterBase* trace_writer,
+      TrackEventIncrementalState* incr_state,
+      TraceTimestamp timestamp) {
+    if (incr_state->was_cleared) {
+      incr_state->was_cleared = false;
+      ResetIncrementalState(trace_writer, incr_state, timestamp);
+    }
+  }
   // TODO(altimin): Remove this method once Chrome uses
   // EventContext::AddDebugAnnotation directly.
   template <typename T>
@@ -184,15 +191,18 @@ class PERFETTO_EXPORT TrackEventInternal {
     auto it_and_inserted = incr_state->seen_tracks.insert(track.uuid);
     if (PERFETTO_LIKELY(!it_and_inserted.second))
       return;
-    WriteTrackDescriptor(track, trace_writer);
+    WriteTrackDescriptor(track, trace_writer, incr_state);
   }
 
   // Unconditionally write a track descriptor into the trace.
   template <typename TrackType>
   static void WriteTrackDescriptor(const TrackType& track,
-                                   TraceWriterBase* trace_writer) {
-    TrackRegistry::Get()->SerializeTrack(
-        track, NewTracePacket(trace_writer, {GetClockId(), GetTimeNs()}));
+                                   TraceWriterBase* trace_writer,
+                                   TrackEventIncrementalState* incr_state) {
+    TraceTimestamp ts = {GetClockId(), GetTimeNs()};
+    ResetIncrementalStateIfRequired(trace_writer, incr_state, ts);
+    TrackRegistry::Get()->SerializeTrack(track,
+                                         NewTracePacket(trace_writer, ts));
   }
 
   // Get the current time in nanoseconds in the trace clock timebase.
@@ -214,6 +224,10 @@ class PERFETTO_EXPORT TrackEventInternal {
   static const Track kDefaultTrack;
 
  private:
+  static void ResetIncrementalState(TraceWriterBase*,
+                                    TrackEventIncrementalState* incr_state,
+                                    TraceTimestamp);
+
   static protozero::MessageHandle<protos::pbzero::TracePacket> NewTracePacket(
       TraceWriterBase*,
       TraceTimestamp,
