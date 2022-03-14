@@ -9,6 +9,9 @@ Unreleased:
       and async send/async recv).
   SDK:
     * Added support for writing typed proto messages inside DebugAnnotations.
+    * Added support for delta encoding of timestamps for TrackEvents.
+      To disable it, refer to `disable_incremental_timestamps` flag in
+      `track_event_config.proto`.
 
 
 v24.2 - 2022-02-10:
