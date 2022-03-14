@@ -21,7 +21,6 @@
 #include <memory>
 
 #include "perfetto/base/export.h"
-#include "perfetto/base/proc_utils.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/interceptor.h"
 #include "perfetto/tracing/internal/basic_types.h"
@@ -82,8 +81,6 @@ class PERFETTO_EXPORT TracingMuxer {
   virtual void DestroyStoppedTraceWritersForCurrentThread() = 0;
 
   uint32_t generation(std::memory_order ord) { return generation_.load(ord); }
-
-  base::PlatformProcessId GetProcessId() { return platform_->GetProcessId(); }
 
   using InterceptorFactory = std::function<std::unique_ptr<InterceptorBase>()>;
   virtual void RegisterInterceptor(const InterceptorDescriptor&,
