@@ -282,7 +282,7 @@ TODO: we are working on a better UI support for LMKs.
 
 ### SQL
 
-Both newer lmkd and legacy kernel-driven lowmemorykiler events are normalized
+Both newer lmkd and legacy kernel-driven lowmemorykiller events are normalized
 at import time and available under the `mem.lmk` key in the `instants` table.
 
 ```sql
