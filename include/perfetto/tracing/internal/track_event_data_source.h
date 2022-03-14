@@ -361,7 +361,7 @@ class TrackEventDataSource
     TrackRegistry::Get()->UpdateTrack(track, desc.SerializeAsString());
     Base::template Trace([&](typename Base::TraceContext ctx) {
       TrackEventInternal::WriteTrackDescriptor(
-          track, ctx.tls_inst_->trace_writer.get());
+          track, ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState());
     });
   }
 
@@ -453,11 +453,8 @@ class TrackEventDataSource
           // Make sure incremental state is valid.
           TraceWriterBase* trace_writer = ctx.tls_inst_->trace_writer.get();
           TrackEventIncrementalState* incr_state = ctx.GetIncrementalState();
-          if (incr_state->was_cleared) {
-            incr_state->was_cleared = false;
-            TrackEventInternal::ResetIncrementalState(trace_writer,
-                                                      trace_timestamp);
-          }
+          TrackEventInternal::ResetIncrementalStateIfRequired(
+              trace_writer, incr_state, trace_timestamp);
 
           // Write the track descriptor before any event on the track.
           if (track) {
@@ -516,7 +513,7 @@ class TrackEventDataSource
     TrackRegistry::Get()->UpdateTrack(track, std::move(callback));
     Base::template Trace([&](typename Base::TraceContext ctx) {
       TrackEventInternal::WriteTrackDescriptor(
-          track, ctx.tls_inst_->trace_writer.get());
+          track, ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState());
     });
   }
 
