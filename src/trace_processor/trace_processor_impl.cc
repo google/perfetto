@@ -307,6 +307,29 @@ void CreateBuiltinViews(sqlite3* db) {
     PERFETTO_ELOG("Error initializing: %s", error);
     sqlite3_free(error);
   }
+
+  // This should be kept in sync with GlobalArgsTracker::AddArgSet.
+  sqlite3_exec(db,
+               "CREATE VIEW args AS "
+               "SELECT "
+               "*, "
+               "CASE value_type "
+               "  WHEN 'int' THEN CAST(int_value AS text) "
+               "  WHEN 'uint' THEN CAST(int_value AS text) "
+               "  WHEN 'string' THEN string_value "
+               "  WHEN 'real' THEN CAST(real_value AS text) "
+               "  WHEN 'pointer' THEN printf('0x%x', int_value) "
+               "  WHEN 'bool' THEN ( "
+               "    CASE WHEN int_value <> 0 THEN 'true' "
+               "    ELSE 'false' END) "
+               "  WHEN 'json' THEN string_value "
+               "ELSE NULL END AS display_value "
+               "FROM internal_args;",
+               0, 0, &error);
+  if (error) {
+    PERFETTO_ELOG("Error initializing: %s", error);
+    sqlite3_free(error);
+  }
 }
 
 struct ExportJson : public SqlFunction {
