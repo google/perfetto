@@ -398,3 +398,5 @@ kvm/kvm_vcpu_wakeup
 kvm/kvm_wfx_arm64
 kvm/trap_reg
 kvm/vgic_update_irq_pending
+power/wakeup_source_activate
+power/wakeup_source_deactivate
