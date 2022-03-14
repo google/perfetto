@@ -25,7 +25,6 @@
 #include <string>
 
 #include "perfetto/base/export.h"
-#include "perfetto/base/proc_utils.h"
 
 namespace perfetto {
 
@@ -84,14 +83,6 @@ class PERFETTO_EXPORT Platform {
   // kSystemBackend mode. It can be an arbitrary string when using the
   // in-process mode.
   virtual std::string GetCurrentProcessName() = 0;
-
-  // Used to fill the PID in ProcessTrack. Virtual to allow the embedder to
-  // provide a different PID for sandboxed processes.
-  // TODO(khokhlov): make it a pure virtual method after an override is defined
-  // in Chromium.
-  virtual base::PlatformProcessId GetProcessId() {
-    return base::GetProcessId();
-  }
 };
 
 }  // namespace perfetto
