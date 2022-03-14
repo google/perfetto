@@ -6996,7 +6996,8 @@ message ChromeHistogramSample {
 //     }
 //   }
 //
-// Next ID: 13.
+// Next ID: 17.
+// Reserved ID: 15
 message DebugAnnotation {
   // Name fields are set only for dictionary entries.
   oneof name_field {
@@ -7023,6 +7024,18 @@ message DebugAnnotation {
     // NestedValue yet.
     string legacy_json_value = 9;
   }
+
+  // Used to embed arbitrary proto messages (which are also typically used to
+  // represent typed TrackEvent arguments). |proto_type_name| or
+  // |proto_type_name_iid| are storing the full name of the proto messages (e.g.
+  // .perfetto.protos.DebugAnnotation) and |proto_value| contains the serialised
+  // proto messages. See |TracedValue::WriteProto| for more details.
+  oneof proto_type_descriptor {
+    string proto_type_name = 16;
+    // interned DebugAnnotationValueTypeName.
+    uint32 proto_type_name_iid = 13;
+  }
+  optional bytes proto_value = 14;
 
   repeated DebugAnnotation dict_entries = 11;
   repeated DebugAnnotation array_values = 12;
@@ -7054,6 +7067,12 @@ message DebugAnnotation {
 // --------------------
 
 message DebugAnnotationName {
+  optional uint64 iid = 1;
+  optional string name = 2;
+}
+
+// See the |proto_type_descriptor| comment.
+message DebugAnnotationValueTypeName {
   optional uint64 iid = 1;
   optional string name = 2;
 }
@@ -8109,7 +8128,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 27.
+// Next id: 28.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -8124,6 +8143,7 @@ message InternedData {
   repeated EventCategory event_categories = 1;
   repeated EventName event_names = 2;
   repeated DebugAnnotationName debug_annotation_names = 3;
+  repeated DebugAnnotationValueTypeName debug_annotation_value_type_names = 27;
   repeated SourceLocation source_locations = 4;
   repeated LogMessageBody log_message_body = 20;
   repeated HistogramName histogram_names = 25;
