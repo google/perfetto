@@ -86,7 +86,8 @@ class TracedProto {
         "This message does not have a |debug_annotations| field. Please add a"
         "'repeated perfetto.protos.DebugAnnotation debug_annnotations = N;' "
         "field to your message.");
-    return TracedDictionary(message_, MessageType::kDebugAnnotations, nullptr);
+    return TracedDictionary(message_, MessageType::kDebugAnnotations, context_,
+                            nullptr);
   }
 
   // Write a nested message into a field according to the provided metadata.

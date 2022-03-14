@@ -7033,7 +7033,7 @@ message DebugAnnotation {
   oneof proto_type_descriptor {
     string proto_type_name = 16;
     // interned DebugAnnotationValueTypeName.
-    uint32 proto_type_name_iid = 13;
+    uint64 proto_type_name_iid = 13;
   }
   optional bytes proto_value = 14;
 

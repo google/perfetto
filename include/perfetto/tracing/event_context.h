@@ -90,7 +90,7 @@ class PERFETTO_EXPORT EventContext {
   template <typename T>
   void AddDebugAnnotation(const char* name, T&& value) {
     auto annotation = AddDebugAnnotation(name);
-    WriteIntoTracedValue(internal::CreateTracedValueFromProto(annotation),
+    WriteIntoTracedValue(internal::CreateTracedValueFromProto(annotation, this),
                          std::forward<T>(value));
   }
 

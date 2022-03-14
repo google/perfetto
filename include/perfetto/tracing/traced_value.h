@@ -39,6 +39,7 @@ class DebugAnnotation;
 }  // namespace protos
 
 class DebugAnnotation;
+class EventContext;
 
 // These classes provide a JSON-inspired way to write structed data into traces.
 //
@@ -116,8 +117,12 @@ class DebugAnnotation;
 //   }
 // }
 namespace internal {
+// TODO(altimin): Currently EventContext can be null due the need to support
+// TracedValue-based serialisation with the Chrome's TraceLog. After this is
+// gone, the second parameter should be changed to EventContext&.
 PERFETTO_EXPORT TracedValue
-CreateTracedValueFromProto(protos::pbzero::DebugAnnotation*);
+CreateTracedValueFromProto(protos::pbzero::DebugAnnotation*,
+                           EventContext* = nullptr);
 }
 
 class PERFETTO_EXPORT TracedValue {
@@ -125,8 +130,8 @@ class PERFETTO_EXPORT TracedValue {
   TracedValue(const TracedValue&) = delete;
   TracedValue& operator=(const TracedValue&) = delete;
   TracedValue& operator=(TracedValue&&) = delete;
-  TracedValue(TracedValue&&) = default;
-  ~TracedValue() = default;
+  TracedValue(TracedValue&&);
+  ~TracedValue();
 
   // TracedValue represents a context into which a single value can be written
   // (either by writing it directly for primitive types, or by creating a
@@ -166,13 +171,18 @@ class PERFETTO_EXPORT TracedValue {
   friend class TracedArray;
   friend class TracedDictionary;
   friend TracedValue internal::CreateTracedValueFromProto(
-      protos::pbzero::DebugAnnotation*);
+      protos::pbzero::DebugAnnotation*,
+      EventContext*);
 
-  static TracedValue CreateFromProto(protos::pbzero::DebugAnnotation*);
+  static TracedValue CreateFromProto(protos::pbzero::DebugAnnotation* proto,
+                                     EventContext* event_context = nullptr);
 
-  inline explicit TracedValue(protos::pbzero::DebugAnnotation* context,
+  inline explicit TracedValue(protos::pbzero::DebugAnnotation* annotation,
+                              EventContext* event_context,
                               internal::CheckedScope* parent_scope)
-      : context_(context), checked_scope_(parent_scope) {}
+      : annotation_(annotation),
+        event_context_(event_context),
+        checked_scope_(parent_scope) {}
 
   protozero::Message* WriteProtoInternal(const char* name);
 
@@ -181,7 +191,8 @@ class PERFETTO_EXPORT TracedValue {
   // TODO(altimin): Convert v8 to use TracedValue directly and delete it.
   friend class DebugAnnotation;
 
-  protos::pbzero::DebugAnnotation* const context_ = nullptr;
+  protos::pbzero::DebugAnnotation* const annotation_ = nullptr;
+  EventContext* const event_context_ = nullptr;
 
   internal::CheckedScope checked_scope_;
 };
@@ -190,7 +201,7 @@ template <typename MessageType>
 TracedProto<MessageType> TracedValue::WriteProto() && {
   return TracedProto<MessageType>(
       static_cast<MessageType*>(WriteProtoInternal(MessageType::GetName())),
-      nullptr);
+      event_context_);
 }
 
 class PERFETTO_EXPORT TracedArray {
@@ -217,11 +228,15 @@ class PERFETTO_EXPORT TracedArray {
  private:
   friend class TracedValue;
 
-  inline explicit TracedArray(protos::pbzero::DebugAnnotation* context,
+  inline explicit TracedArray(protos::pbzero::DebugAnnotation* annotation,
+                              EventContext* event_context,
                               internal::CheckedScope* parent_scope)
-      : context_(context), checked_scope_(parent_scope) {}
+      : annotation_(annotation),
+        event_context_(event_context),
+        checked_scope_(parent_scope) {}
 
-  protos::pbzero::DebugAnnotation* context_;
+  protos::pbzero::DebugAnnotation* annotation_;
+  EventContext* const event_context_;
 
   internal::CheckedScope checked_scope_;
 };
@@ -274,9 +289,11 @@ class PERFETTO_EXPORT TracedDictionary {
   inline explicit TracedDictionary(
       MessageType* message,
       protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>,
+      EventContext* event_context,
       internal::CheckedScope* parent_scope)
       : message_(message),
         field_id_(FieldMetadata::kFieldId),
+        event_context_(event_context),
         checked_scope_(parent_scope) {
     static_assert(std::is_base_of<protozero::Message, MessageType>::value,
                   "Message should be a subclass of protozero::Message");
@@ -298,6 +315,7 @@ class PERFETTO_EXPORT TracedDictionary {
 
   protozero::Message* const message_;
   const uint32_t field_id_;
+  EventContext* event_context_;
 
   internal::CheckedScope checked_scope_;
 };
