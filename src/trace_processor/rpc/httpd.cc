@@ -173,9 +173,14 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   }
 
   if (req.uri == "/parse") {
-    trace_processor_rpc_.Parse(
+    base::Status status = trace_processor_rpc_.Parse(
         reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
-    return conn.SendResponse("200 OK", headers);
+    protozero::HeapBuffered<protos::pbzero::AppendTraceDataResult> result;
+    if (!status.ok()) {
+      result->set_error(status.c_message());
+    }
+    return conn.SendResponse("200 OK", headers,
+                             Vec2Sv(result.SerializeAsArray()));
   }
 
   if (req.uri == "/notify_eof") {
