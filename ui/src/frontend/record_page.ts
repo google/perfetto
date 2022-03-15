@@ -604,6 +604,21 @@ function MemorySettings(cssClass: string) {
         } as DropdownAttrs)));
 }
 
+function AtraceAppsList() {
+  if (globals.state.recordConfig.allAtraceApps) {
+    return m('div');
+  }
+
+  return m(Textarea, {
+    placeholder: 'Apps to profile, one per line, e.g.:\n' +
+        'com.android.phone\n' +
+        'lmkd\n' +
+        'com.android.nfc',
+    cssClass: '.atrace-apps-list',
+    set: (cfg, val) => cfg.atraceApps = val,
+    get: (cfg) => cfg.atraceApps,
+  } as TextareaAttrs);
+}
 
 function AndroidSettings(cssClass: string) {
   return m(
@@ -624,13 +639,13 @@ function AndroidSettings(cssClass: string) {
           set: (cfg, val) => cfg.atraceCats = val,
           get: (cfg) => cfg.atraceCats
         } as DropdownAttrs),
-        m(Textarea, {
-          placeholder: 'Extra apps to profile, one per line, e.g.:\n' +
-              'com.android.phone\n' +
-              'com.android.nfc',
-          set: (cfg, val) => cfg.atraceApps = val,
-          get: (cfg) => cfg.atraceApps
-        } as TextareaAttrs)),
+        m(Toggle, {
+          title: 'Record events from all Android apps and services',
+          descr: '',
+          setEnabled: (cfg, val) => cfg.allAtraceApps = val,
+          isEnabled: (cfg) => cfg.allAtraceApps,
+        } as ToggleAttrs),
+        AtraceAppsList()),
       m(Probe,
         {
           title: 'Event log (logcat)',
