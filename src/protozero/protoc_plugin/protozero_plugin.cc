@@ -779,6 +779,10 @@ class GeneratorJob {
 
     GenerateConstantsForMessageFields(message);
 
+    stub_h_->Print(
+        "static constexpr const char* GetName() { return \".$name$\"; }\n\n",
+        "name", message->full_name());
+
     // Using statements for nested messages.
     for (int i = 0; i < message->nested_type_count(); ++i) {
       const Descriptor* nested_message = message->nested_type(i);
@@ -848,7 +852,7 @@ using $field_metadata_type$ =
 // It is declared as a function to keep protozero bindings header-only as
 // inline constexpr variables are not available until C++17 (while inline
 // functions are).
-// TODO(altimin): Use inline variable instead after adopting C++17.  
+// TODO(altimin): Use inline variable instead after adopting C++17.
 static constexpr $field_metadata_type$ $field_metadata_var$() { return {}; }
 )";
 
