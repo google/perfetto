@@ -137,8 +137,8 @@ git push origin vX.Y
 
 8. Run `tools/package-prebuilts-for-github-release vX.Y`. It will pull the
    prebuilts under `/tmp/perfetto-prebuilts-vX.Y`.
-  - There must be 9 zips in total: linux-{arm,arm64,amd64},
-    android-{arm,arm64,x86,x64}, mac-amd64, win-amd64.
+  - There must be 10 zips in total: linux-{arm,arm64,amd64},
+    android-{arm,arm64,x86,x64}, mac-{amd64,arm64}, win-amd64.
   - If one or more are missing it means that one of the LUCI bots failed,
     check the logs (follow the "Task URL: " link) from the invocation log.
   - If this happens you'll need to respin a vX.(Y+1) release with the fix
@@ -148,7 +148,7 @@ git push origin vX.Y
   - Select "Choose Tag" -> vX.Y
   - "Release title" -> "Perfetto vX.Y"
   - "Describe release" -> Copy the CHANGELOG, wrapping it in triple backticks.
-  - "Attach binaries" -> Attache the nine .zip files from the previous step.
+  - "Attach binaries" -> Attach the ten .zip files from the previous step.
 
 10. Run `tools/roll-prebuilts vX.Y`. It will update the SHA256 into the various
    scripts under `tools/`. Upload a CL with the changes.
