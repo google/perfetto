@@ -41,6 +41,10 @@ Web UI. See the [UI Development](#ui-development) section below for more.
 
 `--linux-arm` will pull the sysroots for cross-compiling for Linux ARM/64.
 
+WARNING: Note that if you're using an M1 or any later ARM Mac, your Python
+version should be at least 3.9.1 to work around
+[this Python Bug](https://bugs.python.org/issue42704).
+
 #### Generate the build files via GN
 
 Perfetto uses [GN](https://gn.googlesource.com/gn/+/HEAD/docs/quick_start.md)
