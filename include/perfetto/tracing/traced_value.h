@@ -195,6 +195,9 @@ TracedProto<MessageType> TracedValue::WriteProto() && {
 
 class PERFETTO_EXPORT TracedArray {
  public:
+  // implicit
+  TracedArray(TracedValue);
+
   TracedArray(const TracedArray&) = delete;
   TracedArray& operator=(const TracedArray&) = delete;
   TracedArray& operator=(TracedArray&&) = delete;
@@ -225,6 +228,9 @@ class PERFETTO_EXPORT TracedArray {
 
 class PERFETTO_EXPORT TracedDictionary {
  public:
+  // implicit
+  TracedDictionary(TracedValue);
+
   TracedDictionary(const TracedDictionary&) = delete;
   TracedDictionary& operator=(const TracedDictionary&) = delete;
   TracedDictionary& operator=(TracedDictionary&&) = delete;
