@@ -68,6 +68,20 @@ struct PERFETTO_EXPORT InternedDebugAnnotationName
                   const char* value);
 };
 
+struct PERFETTO_EXPORT InternedDebugAnnotationValueTypeName
+    : public TrackEventInternedDataIndex<
+          InternedDebugAnnotationValueTypeName,
+          perfetto::protos::pbzero::InternedData::
+              kDebugAnnotationValueTypeNamesFieldNumber,
+          const char*,
+          SmallInternedDataTraits> {
+  ~InternedDebugAnnotationValueTypeName() override;
+
+  static void Add(protos::pbzero::InternedData* interned_data,
+                  size_t iid,
+                  const char* value);
+};
+
 }  // namespace internal
 }  // namespace perfetto
 

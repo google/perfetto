@@ -201,8 +201,9 @@ class PERFETTO_EXPORT TrackEventInternal {
                                  const char* name,
                                  T&& value) {
     auto annotation = AddDebugAnnotation(event_ctx, name);
-    WriteIntoTracedValue(internal::CreateTracedValueFromProto(annotation),
-                         std::forward<T>(value));
+    WriteIntoTracedValue(
+        internal::CreateTracedValueFromProto(annotation, event_ctx),
+        std::forward<T>(value));
   }
 
   // If the given track hasn't been seen by the trace writer yet, write a

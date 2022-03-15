@@ -2973,6 +2973,61 @@ TEST_P(PerfettoApiTest, DebugAnnotationAndLambda) {
   EXPECT_TRUE(found_args);
 }
 
+TEST_P(PerfettoApiTest, ProtoInsideDebugAnnotation) {
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_INSTANT(
+      "test", "E", "key",
+      [](perfetto::TracedProto<perfetto::protos::pbzero::LogMessage> ctx) {
+        ctx->set_source_location_iid(42);
+      });
+
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  std::string trace(raw_trace.data(), raw_trace.size());
+
+  perfetto::protos::gen::Trace parsed_trace;
+  ASSERT_TRUE(parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+
+  std::vector<std::string> interned_debug_annotation_names;
+  std::vector<std::string> interned_debug_annotation_proto_type_names;
+
+  bool found_args = false;
+  for (const auto& packet : parsed_trace.packet()) {
+    if (packet.has_interned_data()) {
+      for (const auto& interned_name :
+           packet.interned_data().debug_annotation_names()) {
+        interned_debug_annotation_names.push_back(interned_name.name());
+      }
+      for (const auto& interned_type_name :
+           packet.interned_data().debug_annotation_value_type_names()) {
+        interned_debug_annotation_proto_type_names.push_back(
+            interned_type_name.name());
+      }
+    }
+
+    if (!packet.has_track_event())
+      continue;
+    const auto& track_event = packet.track_event();
+    if (track_event.type() != perfetto::protos::gen::TrackEvent::TYPE_INSTANT) {
+      continue;
+    }
+
+    EXPECT_EQ(track_event.debug_annotations_size(), 1);
+    found_args = true;
+  }
+  // TODO(altimin): Use DebugAnnotationParser here to parse the debug
+  // annotations.
+  EXPECT_TRUE(found_args);
+  EXPECT_THAT(interned_debug_annotation_names,
+              testing::UnorderedElementsAre("key"));
+  EXPECT_THAT(interned_debug_annotation_proto_type_names,
+              testing::UnorderedElementsAre(".perfetto.protos.LogMessage"));
+}
+
 TEST_P(PerfettoApiTest, TrackEventComputedName) {
   // Setup the trace config.
   perfetto::TraceConfig cfg;
