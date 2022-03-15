@@ -376,9 +376,15 @@ echo -e "\n\x1b[32mPulling trace into $TRACE.perfetto-trace\x1b[0m"
 pull trace "$TRACE.perfetto-trace"
 
 if [[ SKIP_CONVERTERS -eq 0 ]]; then
+  if is_android "$OUT"; then
+    TRACE_TO_TEXT="$OUT/gcc_like_host/trace_to_text"
+  else
+    TRACE_TO_TEXT="$OUT/trace_to_text"
+  fi
+
   echo -e "\n\x1b[32mPulling trace into $TRACE.pbtext\x1b[0m"
-  "$OUT/trace_to_text" text <"$TRACE.perfetto-trace" >"$TRACE.pbtext"
+  "$TRACE_TO_TEXT" text <"$TRACE.perfetto-trace" >"$TRACE.pbtext"
   echo -e "\n\x1b[32mPulling trace into $TRACE.json\x1b[0m"
-  "$OUT/trace_to_text" systrace <"$TRACE.perfetto-trace" >"$TRACE.json"
+  "$TRACE_TO_TEXT" systrace <"$TRACE.perfetto-trace" >"$TRACE.json"
   # Keep this last so it can fail.
 fi
