@@ -169,6 +169,7 @@ class FtraceParser {
                                protozero::ConstBytes);
   void ParseCpuFrequencyLimits(int64_t timestamp, protozero::ConstBytes);
   void ParseKfreeSkb(int64_t timestamp, protozero::ConstBytes);
+  void ParseUfshcdCommand(int64_t timestamp, protozero::ConstBytes);
 
   void ParseCrosEcSensorhubData(int64_t timestamp, protozero::ConstBytes);
 
@@ -222,6 +223,7 @@ class FtraceParser {
   const StringId cros_ec_arg_num_id_;
   const StringId cros_ec_arg_ec_id_;
   const StringId cros_ec_arg_sample_ts_id_;
+  const StringId ufs_command_count_id_;
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).
