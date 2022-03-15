@@ -492,7 +492,8 @@ export function genConfig(
     protoCfg.dataSources.push(ds);
   }
 
-  if (uiCfg.ftrace || uiCfg.atraceApps.length > 0 || ftraceEvents.size > 0 ||
+  // TODO(octaviant): move all this logic in a follow up CL.
+  if (uiCfg.ftrace || uiCfg.atrace || ftraceEvents.size > 0 ||
       atraceCats.size > 0 || atraceApps.size > 0) {
     const ds = new TraceConfig.DataSource();
     ds.config = new DataSourceConfig();
@@ -511,8 +512,16 @@ export function genConfig(
         if (line.trim().length > 0) ftraceEvents.add(line.trim());
       }
     }
-    for (const line of uiCfg.atraceApps.split('\n')) {
-      if (line.trim().length > 0) atraceApps.add(line.trim());
+
+    if (uiCfg.atrace) {
+      if (uiCfg.allAtraceApps) {
+        atraceApps.clear();
+        atraceApps.add('*');
+      } else {
+        for (const line of uiCfg.atraceApps.split('\n')) {
+          if (line.trim().length > 0) atraceApps.add(line.trim());
+        }
+      }
     }
 
     if (atraceCats.size > 0 || atraceApps.size > 0) {
