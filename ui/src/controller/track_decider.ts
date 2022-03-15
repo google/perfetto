@@ -1053,6 +1053,7 @@ class TrackDecider {
     //    by upid
     //    or (if upid is null) by utid
     // the groups should be sorted by:
+    //  Chrome-based process rank based on process names (e.g. Browser)
     //  has a heap profile or not
     //  total cpu time *for the whole parent process*
     //  upid
@@ -1067,7 +1068,13 @@ class TrackDecider {
       thread.tid as tid,
       process.name as processName,
       thread.name as threadName,
-      process.arg_set_id as argSetId
+      process.arg_set_id as argSetId,
+      (case process.name 
+         when 'Browser' then 3
+         when 'Gpu' then 2
+         when 'Renderer' then 1
+         else 0
+      end) as chromeProcessRank
     from (
       select upid, 0 as utid from process_track
       union
@@ -1113,6 +1120,7 @@ class TrackDecider {
     left join thread using(utid)
     left join process using(upid)
     order by
+      chromeProcessRank desc,
       hasHeapProfiles desc,
       total_dur desc,
       total_cycles desc,
@@ -1240,6 +1248,24 @@ class TrackDecider {
     }
     if (threadName === undefined || threadName === null) {
       return TrackKindPriority.ORDINARY;
+    }
+
+    // Chrome main threads should always come first within their process.
+    if (threadName === 'CrBrowserMain' || threadName === 'CrRendererMain' ||
+        threadName === 'CrGpuMain') {
+      return TrackKindPriority.MAIN_THREAD;
+    }
+
+    // Chrome IO threads should always come immediately after the main thread.
+    if (threadName === 'Chrome_ChildIOThread' ||
+        threadName === 'Chrome_IOThread') {
+      return TrackKindPriority.CHROME_IO_THREAD;
+    }
+
+    // A Chrome process can have only one compositor thread, so we want to put
+    // it next to other named processes.
+    if (threadName === 'Compositor' || threadName === 'VizCompositorThread') {
+      return TrackKindPriority.CHROME_COMPOSITOR;
     }
 
     switch (true) {

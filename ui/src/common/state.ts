@@ -91,7 +91,9 @@ export enum TrackKindPriority {
   'MAIN_THREAD' = 0,
   'RENDER_THREAD' = 1,
   'GPU_COMPLETION' = 2,
-  'ORDINARY' = 3
+  'CHROME_IO_THREAD' = 3,
+  'CHROME_COMPOSITOR' = 4,
+  'ORDINARY' = 5
 }
 
 export type FlamegraphStateViewingOption =
