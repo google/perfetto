@@ -47,6 +47,8 @@ class ProtoFactory:
 
     # Create proto messages to correctly communicate with the RPC API by sending
     # and receiving data as protos
+    self.AppendTraceDataResult = create_message_factory(
+        'perfetto.protos.AppendTraceDataResult')
     self.StatusResult = create_message_factory('perfetto.protos.StatusResult')
     self.ComputeMetricArgs = create_message_factory(
         'perfetto.protos.ComputeMetricArgs')
