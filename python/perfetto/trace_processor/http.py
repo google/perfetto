@@ -48,7 +48,9 @@ class TraceProcessorHttp:
   def parse(self, chunk: bytes):
     self.conn.request('POST', '/parse', body=chunk)
     with self.conn.getresponse() as f:
-      return f.read()
+      result = self.protos.AppendTraceDataResult()
+      result.ParseFromString(f.read())
+      return result
 
   def notify_eof(self):
     self.conn.request('GET', '/notify_eof')
