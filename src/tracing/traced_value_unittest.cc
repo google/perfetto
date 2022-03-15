@@ -660,4 +660,15 @@ TEST(TracedValueTest, WriteTypedProto_Implicit) {
   EXPECT_EQ(payload.single_string(), "payload");
 }
 
+TEST(TracedValueTest, ImplicitTracedDictionary) {
+  EXPECT_EQ("{key:value}", TracedValueToString([&](TracedDictionary dict) {
+              dict.Add("key", "value");
+            }));
+}
+
+TEST(TracedValueTest, ImplicitTracedArray) {
+  EXPECT_EQ("[1]",
+            TracedValueToString([&](TracedArray array) { array.Append(1); }));
+}
+
 }  // namespace perfetto
