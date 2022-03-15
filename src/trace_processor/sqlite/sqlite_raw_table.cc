@@ -406,8 +406,8 @@ void ArgsSerializer::SerializeArgs() {
     WriteArgForField(IEX::kIrqFieldNumber, DVW());
     writer_->AppendString(" ret=");
     WriteValueForField(IEX::kRetFieldNumber, [this](const Variadic& value) {
-      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-      writer_->AppendString(value.uint_value ? "handled" : "unhandled");
+      PERFETTO_DCHECK(value.type == Variadic::Type::kInt);
+      writer_->AppendString(value.int_value ? "handled" : "unhandled");
     });
     return;
   } else if (event_name_ == "softirq_entry") {
