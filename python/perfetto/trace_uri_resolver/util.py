@@ -15,8 +15,8 @@
 import os
 from typing import BinaryIO, Dict, Optional, Tuple
 
-# Limit parsing file to 32MB to maintain parity with the UI
-MAX_BYTES_LOADED = 32 * 1024 * 1024
+# Limit parsing file to 1MB to maintain parity with the UI
+MAX_BYTES_LOADED = 1 * 1024 * 1024
 
 
 def file_generator(path: str):

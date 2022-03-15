@@ -22,7 +22,9 @@ import pandas as pd
 from perfetto.batch_trace_processor.api import BatchTraceProcessor
 from perfetto.batch_trace_processor.api import BatchTraceProcessorConfig
 from perfetto.batch_trace_processor.api import TraceListReference
-from perfetto.trace_processor.api import PLATFORM_DELEGATE, TraceProcessor
+from perfetto.trace_processor.api import PLATFORM_DELEGATE
+from perfetto.trace_processor.api import TraceProcessor
+from perfetto.trace_processor.api import TraceProcessorException
 from perfetto.trace_processor.api import TraceProcessorConfig
 from perfetto.trace_processor.api import TraceReference
 from perfetto.trace_uri_resolver.resolver import TraceUriResolver
@@ -108,6 +110,11 @@ def example_android_trace_path():
 
 
 class TestApi(unittest.TestCase):
+
+  def test_invalid_trace(self):
+    f = io.BytesIO(b'<foo></foo>')
+    with self.assertRaises(TraceProcessorException):
+      _ = create_tp(trace=f)
 
   def test_trace_path(self):
     # Get path to trace_processor_shell and construct TraceProcessor

@@ -130,10 +130,8 @@ class TraceProcessor:
           break
         batch_index += 1
 
-      # If there are no rows in the query result, exit since
-      # we won't be returning anything and don't need to go
-      # through the process of generating the mapping between
-      # columns and data_list indices
+      # If there are no rows in the query result, don't bother updating the
+      # counts to avoid dealing with / 0 errors.
       if len(self.__cells) == 0:
         return
 
@@ -341,7 +339,10 @@ class TraceProcessor:
 
     resolved = resolved_lst[0]
     for chunk in resolved.generator:
-      self.http.parse(chunk)
+      result = self.http.parse(chunk)
+      if result.error:
+        raise TraceProcessorException(
+            f'Failed while parsing trace. Error message: {result.error}')
     self.http.notify_eof()
 
   def __enter__(self):
