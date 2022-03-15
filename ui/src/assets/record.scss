@@ -921,6 +921,11 @@
     &::placeholder { color: #aaa; }
   }
 
+  textarea.atrace-apps-list {
+    margin-top: 16px;
+    height: 100px;
+  }
+
   .code-snippet {
     display: grid;
     position: relative;
