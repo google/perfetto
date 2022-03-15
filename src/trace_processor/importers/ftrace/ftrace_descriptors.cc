@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<MessageDescriptor, 406> descriptors{{
+std::array<MessageDescriptor, 408> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -4359,6 +4359,32 @@ std::array<MessageDescriptor, 406> descriptors{{
             {},
             {"name", ProtoSchemaType::kString},
             {"state", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "ufshcd_command",
+        10,
+        {
+            {},
+            {"dev_name", ProtoSchemaType::kString},
+            {"doorbell", ProtoSchemaType::kUint32},
+            {"intr", ProtoSchemaType::kUint32},
+            {"lba", ProtoSchemaType::kUint64},
+            {"opcode", ProtoSchemaType::kUint32},
+            {"str", ProtoSchemaType::kString},
+            {"tag", ProtoSchemaType::kUint32},
+            {"transfer_len", ProtoSchemaType::kInt32},
+            {"group_id", ProtoSchemaType::kUint32},
+            {"str_t", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "ufshcd_clk_gating",
+        2,
+        {
+            {},
+            {"dev_name", ProtoSchemaType::kString},
+            {"state", ProtoSchemaType::kUint32},
         },
     },
 }};
