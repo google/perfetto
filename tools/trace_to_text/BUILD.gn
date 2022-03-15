@@ -18,7 +18,7 @@ import("../../gn/perfetto_host_executable.gni")
 import("../../gn/test.gni")
 import("../../gn/wasm.gni")
 
-perfetto_host_executable("trace_to_text") {
+executable("trace_to_text") {
   testonly = true
   deps = [
     ":main",
