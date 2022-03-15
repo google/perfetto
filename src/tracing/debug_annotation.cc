@@ -24,7 +24,7 @@ namespace perfetto {
 DebugAnnotation::~DebugAnnotation() = default;
 
 void DebugAnnotation::WriteIntoTracedValue(TracedValue context) const {
-  Add(context.context_);
+  Add(context.annotation_);
 }
 
 }  // namespace perfetto
