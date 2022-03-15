@@ -107,6 +107,9 @@ protozero::Message* TracedValue::WriteProtoInternal(const char* name) {
       protos::pbzero::DebugAnnotation::kProtoValueFieldNumber);
 }
 
+TracedArray::TracedArray(TracedValue context)
+    : TracedArray(std::move(context).WriteArray()) {}
+
 TracedValue TracedArray::AppendItem() {
   PERFETTO_DCHECK(checked_scope_.is_active());
   return TracedValue(context_->add_array_values(), &checked_scope_);
@@ -121,6 +124,9 @@ TracedArray TracedArray::AppendArray() {
   PERFETTO_DCHECK(checked_scope_.is_active());
   return AppendItem().WriteArray();
 }
+
+TracedDictionary::TracedDictionary(TracedValue context)
+    : TracedDictionary(std::move(context).WriteDictionary()) {}
 
 TracedValue TracedDictionary::AddItem(StaticString key) {
   PERFETTO_DCHECK(checked_scope_.is_active());
