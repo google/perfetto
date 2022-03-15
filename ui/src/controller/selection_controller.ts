@@ -219,7 +219,7 @@ export class SelectionController extends Controller<'main'> {
     const query = `
       select
         key AS name,
-        CAST(COALESCE(int_value, string_value, real_value) AS text) AS value
+        display_value AS value
       FROM args
       WHERE arg_set_id = ${argId}
     `;
