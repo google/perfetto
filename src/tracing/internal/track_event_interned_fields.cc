@@ -54,5 +54,18 @@ void InternedDebugAnnotationName::Add(
   name->set_name(value);
 }
 
+InternedDebugAnnotationValueTypeName::~InternedDebugAnnotationValueTypeName() =
+    default;
+
+// static
+void InternedDebugAnnotationValueTypeName::Add(
+    protos::pbzero::InternedData* interned_data,
+    size_t iid,
+    const char* value) {
+  auto name = interned_data->add_debug_annotation_value_type_names();
+  name->set_iid(iid);
+  name->set_name(value);
+}
+
 }  // namespace internal
 }  // namespace perfetto
