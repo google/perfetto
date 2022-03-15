@@ -1,8 +1,10 @@
 Unreleased:
   Tracing service and probes:
+    * Added prebuilts for mac-arm64.
     * Removed merged trace and config protos from Bazel. Embedder should
       instead depend on the non-merged proto targets.
   Trace Processor:
+    * Added prebuilts for mac-arm64.
     *
   UI:
     * Added flow arrows between binder transaction pairs (request/reply
