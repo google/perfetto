@@ -600,7 +600,7 @@ NOTE: The TraceProcessor can be initialized in a combination of ways including:
 
 The `trace_processor.api` module contains the `TraceProcessor` class which provides various
 functions that can be called on the loaded trace. For more information on how to use
-these functions, see this [`example`](/src/trace_processor/python/example.py).
+these functions, see this [`example`](/python/example.py).
 
 #### Query
 The query() function takes an SQL query as input and returns an iterator through the rows
