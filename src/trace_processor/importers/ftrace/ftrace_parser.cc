@@ -701,6 +701,14 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseUfshcdCommand(ts, data);
         break;
       }
+      case FtraceEvent::kWakeupSourceActivateFieldNumber: {
+        ParseWakeSourceActivate(ts, data);
+        break;
+      }
+      case FtraceEvent::kWakeupSourceDeactivateFieldNumber: {
+        ParseWakeSourceDeactivate(ts, data);
+        break;
+      }
       default:
         break;
     }
@@ -1962,6 +1970,53 @@ void FtraceParser::ParseUfshcdCommand(int64_t timestamp,
       ufs_command_count_id_);
   context_->event_tracker->PushCounter(timestamp, static_cast<double>(num),
                                        track);
+}
+
+void FtraceParser::ParseWakeSourceActivate(int64_t timestamp,
+                                           protozero::ConstBytes blob) {
+  protos::pbzero::WakeupSourceActivateFtraceEvent::Decoder evt(blob.data,
+                                                               blob.size);
+  std::string event_name = evt.name().ToStdString();
+
+  uint32_t count = active_wakelock_to_count_[event_name];
+
+  active_wakelock_to_count_[event_name] += 1;
+
+  // There is already an active track with this name, don't create another.
+  if (count > 0) {
+    return;
+  }
+
+  base::StackString<32> str("Wakelock(%s)", event_name.c_str());
+  StringId stream_id = context_->storage->InternString(str.string_view());
+
+  auto async_track =
+      context_->async_track_set_tracker->InternGlobalTrackSet(stream_id);
+
+  TrackId start_id = context_->async_track_set_tracker->Begin(async_track, 0);
+
+  context_->slice_tracker->Begin(timestamp, start_id, kNullStringId, stream_id);
+}
+
+void FtraceParser::ParseWakeSourceDeactivate(int64_t timestamp,
+                                             protozero::ConstBytes blob) {
+  protos::pbzero::WakeupSourceDeactivateFtraceEvent::Decoder evt(blob.data,
+                                                                 blob.size);
+
+  std::string event_name = evt.name().ToStdString();
+  uint32_t count = active_wakelock_to_count_[event_name];
+  active_wakelock_to_count_[event_name] = count > 0 ? count - 1 : 0;
+  if (count != 1) {
+    return;
+  }
+
+  base::StackString<32> str("Wakelock(%s)", event_name.c_str());
+  StringId stream_id = context_->storage->InternString(str.string_view());
+  auto async_track =
+      context_->async_track_set_tracker->InternGlobalTrackSet(stream_id);
+
+  TrackId end_id = context_->async_track_set_tracker->End(async_track, 0);
+  context_->slice_tracker->End(timestamp, end_id);
 }
 
 }  // namespace trace_processor
