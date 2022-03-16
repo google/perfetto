@@ -74,7 +74,8 @@ void EventFd::Notify() {
 
 void EventFd::Clear() {
   uint64_t value;
-  ssize_t ret = read(event_handle_.get(), &value, sizeof(value));
+  ssize_t ret =
+      PERFETTO_EINTR(read(event_handle_.get(), &value, sizeof(value)));
   if (ret <= 0 && errno != EAGAIN)
     PERFETTO_DFATAL("EventFd::Clear()");
 }
@@ -100,7 +101,8 @@ void EventFd::Clear() {
   // Drain the byte(s) written to the wake-up pipe. We can potentially read
   // more than one byte if several wake-ups have been scheduled.
   char buffer[16];
-  ssize_t ret = read(event_handle_.get(), &buffer[0], sizeof(buffer));
+  ssize_t ret =
+      PERFETTO_EINTR(read(event_handle_.get(), &buffer[0], sizeof(buffer)));
   if (ret <= 0 && errno != EAGAIN)
     PERFETTO_DFATAL("EventFd::Clear()");
 }
