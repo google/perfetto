@@ -359,45 +359,73 @@ export class CodeSnippet implements m.ClassComponent<CodeSnippetAttrs> {
   }
 }
 
-// Dropdown augmented with select all/none buttons
-export function SelectAllNoneDropdown(args: {
-  categories: Map<string, string>,
-  title: string,
-  get: Getter<string[]>,
-  set: Setter<string[]>,
-}) {
-  return m(
-      '.categories-list',
-      m('button.config-button',
-        {
-          onclick: () => {
-            const config = produce(globals.state.recordConfig, draft => {
-              args.set(draft, Array.from(args.categories.keys()));
-            });
-            globals.dispatch(Actions.setRecordConfig({config}));
-          }
-        },
-        'All'),
-      m('button.config-button',
-        {
-          onclick: () => {
-            const config = produce(globals.state.recordConfig, draft => {
-              args.set(draft, Array.from([]));
-            });
-            globals.dispatch(Actions.setRecordConfig({config}));
-          },
-        },
-        'None'),
-      m('br'),
-      m(Dropdown, {
-        cssClass: '.singlecolumn',
-        title: args.title,
-        options: args.categories,
-        set: args.set,
-        get: args.get,
-        sort: (a, b) => {
-          return a.localeCompare(b);
-        },
-      } as DropdownAttrs),
-  );
+
+interface CategoriesCheckboxListParams {
+  categories: Map<string, string>;
+  title: string;
+  get: Getter<string[]>;
+  set: Setter<string[]>;
+}
+
+export class CategoriesCheckboxList implements
+    m.ClassComponent<CategoriesCheckboxListParams> {
+  updateValue(
+      attrs: CategoriesCheckboxListParams, value: string, enabled: boolean) {
+    const traceCfg = produce(globals.state.recordConfig, draft => {
+      const values = attrs.get(draft);
+      const index = values.indexOf(value);
+      if (enabled && index === -1) {
+        values.push(value);
+      }
+      if (!enabled && index !== -1) {
+        values.splice(index, 1);
+      }
+    });
+    globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
+  }
+
+  view({attrs}: m.CVnode<CategoriesCheckboxListParams>) {
+    const enabled = new Set(attrs.get(globals.state.recordConfig));
+    return m(
+        '.categories-list',
+        m('h3',
+          attrs.title,
+          m('button.config-button',
+            {
+              onclick: () => {
+                const config = produce(globals.state.recordConfig, draft => {
+                  attrs.set(draft, Array.from(attrs.categories.keys()));
+                });
+                globals.dispatch(Actions.setRecordConfig({config}));
+              }
+            },
+            'All'),
+          m('button.config-button',
+            {
+              onclick: () => {
+                const config = produce(globals.state.recordConfig, draft => {
+                  attrs.set(draft, []);
+                });
+                globals.dispatch(Actions.setRecordConfig({config}));
+              },
+            },
+            'None')),
+        m('ul.checkboxes',
+          Array.from(attrs.categories.entries()).map(([key, value]) => {
+            const id = `category-checkbox-${key}`;
+            return m(
+                'label',
+                {'for': id},
+                m('li',
+                  m('input[type=checkbox]', {
+                    id,
+                    checked: enabled.has(key),
+                    onclick: (e: InputEvent) => {
+                      const target = e.target as HTMLInputElement;
+                      this.updateValue(attrs, key, target.checked);
+                    }
+                  }),
+                  value));
+          })));
+  }
 }
