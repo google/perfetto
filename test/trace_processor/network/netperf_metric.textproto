@@ -32,6 +32,13 @@ packet {
       }
     }
     event {
+      timestamp: 99999945
+      pid: 200
+      kfree_skb {
+        protocol: 2048
+      }
+    }
+    event {
      timestamp: 100000000
      pid: 200
      cpu_frequency {
@@ -87,6 +94,13 @@ packet {
 packet {
   ftrace_events {
     cpu: 1
+    event {
+      timestamp: 1119999800
+      pid: 200
+      kfree_skb {
+        protocol: 600
+      }
+    }
     event {
       timestamp: 119999900
       pid: 200
