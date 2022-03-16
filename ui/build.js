@@ -180,8 +180,22 @@ async function main() {
     // Check that deps are current before starting.
     const installBuildDeps = pjoin(ROOT_DIR, 'tools/install-build-deps');
     const checkDepsPath = pjoin(cfg.outDir, '.check_deps');
-    const depsArgs = [`--check-only=${checkDepsPath}`, '--ui'];
-    exec(installBuildDeps, depsArgs);
+    let args = [installBuildDeps, `--check-only=${checkDepsPath}`, '--ui'];
+
+    if (process.platform === "darwin") {
+      const result = child_process.spawnSync("arch", ["-arm64", "true"]);
+      const isArm64Capable = result.status === 0;
+      if (isArm64Capable) {
+        const archArgs = [
+          "arch",
+          "-arch",
+          "arm64",
+        ];
+        args = archArgs.concat(args);
+      }
+    }
+    const cmd = args.shift();
+    exec(cmd, args);
   }
 
   console.log('Entering', cfg.outDir);
