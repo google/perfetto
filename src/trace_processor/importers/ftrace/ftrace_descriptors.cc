@@ -4384,7 +4384,7 @@ std::array<MessageDescriptor, 408> descriptors{{
         {
             {},
             {"dev_name", ProtoSchemaType::kString},
-            {"state", ProtoSchemaType::kUint32},
+            {"state", ProtoSchemaType::kInt32},
         },
     },
 }};
