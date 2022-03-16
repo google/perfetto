@@ -27,6 +27,8 @@ class TracedProto;
 
 template <typename T>
 void WriteIntoTracedValue(TracedValue context, T&& value);
+template <typename MessageType, typename T>
+void WriteIntoTracedProto(TracedProto<MessageType> context, T&& value);
 
 template <typename T, class = void>
 struct TraceFormatTraits;
