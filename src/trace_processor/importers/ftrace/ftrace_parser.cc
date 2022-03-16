@@ -62,6 +62,7 @@
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
 #include "protos/perfetto/trace/ftrace/tcp.pbzero.h"
 #include "protos/perfetto/trace/ftrace/thermal.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ufs.pbzero.h"
 #include "protos/perfetto/trace/ftrace/vmscan.pbzero.h"
 #include "protos/perfetto/trace/ftrace/workqueue.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
@@ -164,7 +165,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       waker_utid_id_(context->storage->InternString("waker_utid")),
       cros_ec_arg_num_id_(context->storage->InternString("ec_num")),
       cros_ec_arg_ec_id_(context->storage->InternString("ec_delta")),
-      cros_ec_arg_sample_ts_id_(context->storage->InternString("sample_ts")) {
+      cros_ec_arg_sample_ts_id_(context->storage->InternString("sample_ts")),
+      ufs_command_count_id_(context->storage->InternString("UFS Command Count")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -693,6 +695,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kCrosEcSensorhubDataFieldNumber: {
         ParseCrosEcSensorhubData(ts, data);
+        break;
+      }
+      case FtraceEvent::kUfshcdCommandFieldNumber: {
+        ParseUfshcdCommand(ts, data);
         break;
       }
       default:
@@ -1944,6 +1950,18 @@ void FtraceParser::ParseCrosEcSensorhubData(int64_t timestamp,
       timestamp,
       static_cast<double>(evt.current_time() - evt.current_timestamp()), track,
       args_inserter);
+}
+
+void FtraceParser::ParseUfshcdCommand(int64_t timestamp,
+                                      protozero::ConstBytes blob) {
+  protos::pbzero::UfshcdCommandFtraceEvent::Decoder evt(blob.data, blob.size);
+  uint32_t num = evt.doorbell() > 0 ?
+      static_cast<uint32_t>(PERFETTO_POPCOUNT(evt.doorbell())) : 1;
+
+  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+      ufs_command_count_id_);
+  context_->event_tracker->PushCounter(timestamp, static_cast<double>(num),
+                                       track);
 }
 
 }  // namespace trace_processor

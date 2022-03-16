@@ -1,0 +1,52 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 10000
+      pid: 200
+      ufshcd_command {
+        dev_name: "cat"
+        doorbell: 0x200
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 10008
+      pid: 300
+      ufshcd_command {
+        dev_name: "cat"
+        doorbell: 0x240
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 10010
+      pid: 400
+      ufshcd_command {
+        dev_name: "dd"
+        doorbell: 0x111
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 10011
+      pid: 500
+      ufshcd_command {
+        dev_name: "dd"
+        doorbell: 0x400
+      }
+    }
+  }
+}
