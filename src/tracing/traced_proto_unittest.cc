@@ -127,6 +127,49 @@ TEST_F(TracedProtoTest, SingleNestedMessage_TraceFormatTraits) {
   EXPECT_EQ(result.payload().single_string(), "value");
 }
 
+TEST_F(TracedProtoTest, SingleNestedMessage_Pointer) {
+  protozero::HeapBuffered<protos::pbzero::TestEvent> event;
+  Bar bar;
+  WriteTracedProtoField(context().Wrap(event.get()),
+                        protos::pbzero::TestEvent::kPayload, &bar);
+
+  protos::TestEvent result;
+  result.ParseFromString(event.SerializeAsString());
+  EXPECT_EQ(result.payload().single_string(), "value");
+}
+
+TEST_F(TracedProtoTest, SingleNestedMessage_UniquePtr) {
+  protozero::HeapBuffered<protos::pbzero::TestEvent> event;
+  std::unique_ptr<Bar> bar(new Bar);
+  WriteTracedProtoField(context().Wrap(event.get()),
+                        protos::pbzero::TestEvent::kPayload, bar);
+
+  protos::TestEvent result;
+  result.ParseFromString(event.SerializeAsString());
+  EXPECT_EQ(result.payload().single_string(), "value");
+}
+
+TEST_F(TracedProtoTest, SingleNestedMessage_EmptyUniquePtr) {
+  protozero::HeapBuffered<protos::pbzero::TestEvent> event;
+  std::unique_ptr<Bar> bar;
+  WriteTracedProtoField(context().Wrap(event.get()),
+                        protos::pbzero::TestEvent::kPayload, bar);
+
+  protos::TestEvent result;
+  result.ParseFromString(event.SerializeAsString());
+  EXPECT_FALSE(result.payload().has_single_string());
+}
+
+TEST_F(TracedProtoTest, SingleNestedMessage_Nullptr) {
+  protozero::HeapBuffered<protos::pbzero::TestEvent> event;
+  WriteTracedProtoField(context().Wrap(event.get()),
+                        protos::pbzero::TestEvent::kPayload, nullptr);
+
+  protos::TestEvent result;
+  result.ParseFromString(event.SerializeAsString());
+  EXPECT_FALSE(result.payload().has_single_string());
+}
+
 TEST_F(TracedProtoTest, RepeatedNestedMessage_Method) {
   protozero::HeapBuffered<TestPayload> event;
   WriteTracedProtoField(context().Wrap(event.get()), TestPayload::kNested,
@@ -149,6 +192,22 @@ TEST_F(TracedProtoTest, RepeatedNestedMessage_TraceFormatTraits) {
   EXPECT_EQ(result.nested_size(), 2);
   EXPECT_EQ(result.nested(0).single_string(), "value");
   EXPECT_EQ(result.nested(1).single_string(), "value");
+}
+
+TEST_F(TracedProtoTest, RepeatedNestedMessage_Pointer) {
+  protozero::HeapBuffered<TestPayload> event;
+  Bar bar;
+  std::vector<Bar*> bars;
+  bars.push_back(&bar);
+  bars.push_back(nullptr);
+  WriteTracedProtoField(context().Wrap(event.get()), TestPayload::kNested,
+                        bars);
+
+  protos::TestEvent::TestPayload result;
+  result.ParseFromString(event.SerializeAsString());
+  EXPECT_EQ(result.nested_size(), 2);
+  EXPECT_EQ(result.nested(0).single_string(), "value");
+  EXPECT_FALSE(result.nested(1).has_single_string());
 }
 
 TEST_F(TracedProtoTest, WriteDebugAnnotations) {
