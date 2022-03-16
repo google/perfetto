@@ -24,6 +24,12 @@
 
 namespace perfetto {
 class EventContext;
+namespace internal {
+template <typename FieldMetadata,
+          bool is_message,
+          protozero::proto_utils::RepetitionType repetition_type>
+struct TypedProtoWriterImpl;
+}
 
 // A Wrapper around a protozero message to allow C++ classes to specify how it
 // should be serialised into the trace:
@@ -90,21 +96,111 @@ class TracedProto {
                             nullptr);
   }
 
-  // Write a nested message into a field according to the provided metadata.
+  // Start writing a single entry corresponding to the given |field| and return
+  // TracedProto should be used to populate this further.
+  // This method requires |field|'s type to be a nested message, but both
+  // repeated and non-repeated complex fields are supported.
   template <typename FieldMetadata>
-  TracedProto<typename FieldMetadata::cpp_field_type> WriteNestedMessage() {
+  TracedProto<typename FieldMetadata::cpp_field_type> WriteNestedMessage(
+      protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>) {
     static_assert(std::is_base_of<MessageType,
                                   typename FieldMetadata::message_type>::value,
                   "Field should belong to the current message");
+    static_assert(
+        FieldMetadata::kProtoFieldType ==
+            protozero::proto_utils::ProtoSchemaType::kMessage,
+        "AddItem() can be used only for nested message fields. To write a "
+        "primitive field, use traced_proto->set_field() or traced_proto.Add()");
     return Wrap(
         message_->template BeginNestedMessage<
             typename FieldMetadata::cpp_field_type>(FieldMetadata::kFieldId));
   }
 
+  // Write a given |value| into proto  as a new |field| of the current message.
+  // This method supports both nested messages and primitive types (i.e. int or
+  // string), but requires the |field| to be non-repeateable (i.e. optional).
+  // For repeatable fields, AppendValue or AppendFrom should be used.
+  template <typename FieldMetadata, typename ValueType>
+  void Add(protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>,
+           ValueType&& value) {
+    static_assert(std::is_base_of<MessageType,
+                                  typename FieldMetadata::message_type>::value,
+                  "Field should belong to the current message");
+    static_assert(
+        FieldMetadata::kRepetitionType ==
+            protozero::proto_utils::RepetitionType::kNotRepeated,
+        "Add() can't be used with repeated fields due to ambiguity between "
+        "writing |value| as a single entry or treating |value| as a container "
+        "and writing all contained items as multiple entries. Please use "
+        "dedicated AppendValue() or AppendFrom() methods to differentiate "
+        "between "
+        "these two situations");
+
+    internal::TypedProtoWriterImpl<
+        FieldMetadata,
+        FieldMetadata::kProtoFieldType ==
+            protozero::proto_utils::ProtoSchemaType::kMessage,
+        protozero::proto_utils::RepetitionType::kNotRepeated>::
+        Write(*this, std::forward<ValueType>(value));
+  }
+
+  // Write a given |value| a single entry into the repeated |field| of the
+  // current message. If the field is not repeated, Add() should be used
+  // instead.
+  template <typename FieldMetadata, typename ValueType>
+  void AppendValue(
+      protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>,
+      ValueType&& value) {
+    static_assert(std::is_base_of<MessageType,
+                                  typename FieldMetadata::message_type>::value,
+                  "Field should belong to the current message");
+    static_assert(
+        FieldMetadata::kRepetitionType ==
+            protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+        "Append*() methods can be used only with repeated fields. "
+        "Please use Add() for non-repeated");
+
+    // Write a single value into a given repeated field by explicitly passing
+    // "kNotRepeated" to the TypedProtoWriterImpl.
+    internal::TypedProtoWriterImpl<
+        FieldMetadata,
+        FieldMetadata::kProtoFieldType ==
+            protozero::proto_utils::ProtoSchemaType::kMessage,
+        protozero::proto_utils::RepetitionType::kNotRepeated>::
+        Write(*this, std::forward<ValueType>(value));
+  }
+
+  // Write a given |value| as a set of entries into the repeated |field| of the
+  // current message. If the field is not repeated, Add() should be used
+  // instead.
+  template <typename FieldMetadata, typename ValueType>
+  void AppendFrom(
+      protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>,
+      ValueType&& value) {
+    static_assert(std::is_base_of<MessageType,
+                                  typename FieldMetadata::message_type>::value,
+                  "Field should belong to the current message");
+    static_assert(
+        FieldMetadata::kRepetitionType ==
+            protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
+        "Append*() methods can be used only with repeated fields. "
+        "Please use Add() for non-repeated");
+
+    internal::TypedProtoWriterImpl<
+        FieldMetadata,
+        FieldMetadata::kProtoFieldType ==
+            protozero::proto_utils::ProtoSchemaType::kMessage,
+        protozero::proto_utils::RepetitionType::kRepeatedNotPacked>::
+        Write(*this, std::forward<ValueType>(value));
+  }
+
+  // Write a nested message into a field according to the provided metadata.
+  // TODO(altimin): Replace the current usages in Chrome with the functions
+  // above and make these methods private.
   template <typename FieldMetadata>
-  TracedProto<typename FieldMetadata::cpp_field_type> WriteNestedMessage(
-      protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>) {
-    return WriteNestedMessage<FieldMetadata>();
+  TracedProto<typename FieldMetadata::cpp_field_type> WriteNestedMessage() {
+    return WriteNestedMessage(
+        protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>());
   }
 
  private:
@@ -150,7 +246,7 @@ struct TypedProtoWriterImpl<
     /*is_message=*/false,
     protozero::proto_utils::RepetitionType::kNotRepeated> {
   template <typename Proto, typename ValueType>
-  static void Write(TracedProto<Proto> context, ValueType&& value) {
+  static void Write(TracedProto<Proto>& context, ValueType&& value) {
     protozero::internal::FieldWriter<FieldMetadata::kProtoFieldType>::Append(
         *context.message(), FieldMetadata::kFieldId, value);
   }
@@ -163,7 +259,7 @@ struct TypedProtoWriterImpl<
     /*is_message=*/false,
     protozero::proto_utils::RepetitionType::kRepeatedNotPacked> {
   template <typename Proto, typename ValueType>
-  static void Write(TracedProto<Proto> context, ValueType&& value) {
+  static void Write(TracedProto<Proto>& context, ValueType&& value) {
     for (auto&& item : value) {
       protozero::internal::FieldWriter<FieldMetadata::kProtoFieldType>::Append(
           *context.message(), FieldMetadata::kFieldId, item);
@@ -178,7 +274,7 @@ struct TypedProtoWriterImpl<
     /*is_message=*/true,
     protozero::proto_utils::RepetitionType::kNotRepeated> {
   template <typename Proto, typename ValueType>
-  static void Write(TracedProto<Proto> context, ValueType&& value) {
+  static void Write(TracedProto<Proto>& context, ValueType&& value) {
     WriteIntoTracedProto(context.template WriteNestedMessage<FieldMetadata>(),
                          std::forward<ValueType>(value));
   }
@@ -191,7 +287,7 @@ struct TypedProtoWriterImpl<
     /*is_message=*/true,
     protozero::proto_utils::RepetitionType::kRepeatedNotPacked> {
   template <typename Proto, typename ValueType>
-  static void Write(TracedProto<Proto> context, ValueType&& value) {
+  static void Write(TracedProto<Proto>& context, ValueType&& value) {
     for (auto&& item : value) {
       WriteIntoTracedProto(context.template WriteNestedMessage<FieldMetadata>(),
                            item);
@@ -251,11 +347,11 @@ struct TypedProtoWriter {
 
  public:
   template <typename Proto, typename ValueType>
-  static void Write(TracedProto<Proto> context, ValueType&& value) {
+  static void Write(TracedProto<Proto>& context, ValueType&& value) {
     TypedProtoWriterImpl<
         FieldMetadata,
         FieldMetadata::kProtoFieldType == ProtoSchemaType::kMessage,
-        FieldMetadata::kRepetitionType>::Write(std::move(context),
+        FieldMetadata::kRepetitionType>::Write(context,
                                                std::forward<ValueType>(value));
   }
 };
@@ -306,7 +402,7 @@ void WriteIntoTracedProto(TracedProto<MessageType> message, ValueType&& value) {
 
 template <typename MessageType, typename FieldMetadataType, typename ValueType>
 void WriteTracedProtoField(
-    TracedProto<MessageType> message,
+    TracedProto<MessageType>& message,
     protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadataType>,
     ValueType&& value) {
   static_assert(
@@ -319,7 +415,7 @@ void WriteTracedProtoField(
       "Field's parent type should match the context.");
 
   internal::TypedProtoWriter<FieldMetadataType>::Write(
-      std::move(message), std::forward<ValueType>(value));
+      message, std::forward<ValueType>(value));
 }
 
 }  // namespace perfetto
