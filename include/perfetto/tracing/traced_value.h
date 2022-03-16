@@ -634,6 +634,12 @@ struct TraceFormatTraits<std::unique_ptr<T>, check_traced_value_support_t<T>> {
                                     const std::unique_ptr<T>& value) {
     ::perfetto::WriteIntoTracedValue(std::move(context), value.get());
   }
+
+  template <typename MessageType>
+  inline static void WriteIntoTrace(TracedProto<MessageType> message,
+                                    const std::unique_ptr<T>& value) {
+    ::perfetto::WriteIntoTracedProto(std::move(message), value.get());
+  }
 };
 
 // Specialisation for raw pointer, which writes either nullptr or the object it
@@ -647,6 +653,18 @@ struct TraceFormatTraits<T*, check_traced_value_support_t<T>> {
     }
     ::perfetto::WriteIntoTracedValue(std::move(context), *value);
   }
+
+  template <typename MessageType>
+  inline static void WriteIntoTrace(TracedProto<MessageType> message,
+                                    T* value) {
+    if (!value) {
+      // Start the message, but do not write anything. TraceProcessor will emit
+      // a NULL value.
+      return;
+    }
+
+    ::perfetto::WriteIntoTracedProto(std::move(message), *value);
+  }
 };
 
 // Specialisation for nullptr.
@@ -654,6 +672,12 @@ template <>
 struct TraceFormatTraits<std::nullptr_t> {
   inline static void WriteIntoTrace(TracedValue context, std::nullptr_t) {
     std::move(context).WritePointer(nullptr);
+  }
+
+  template <typename MessageType>
+  inline static void WriteIntoTrace(TracedProto<MessageType>, std::nullptr_t) {
+    // Start the message, but do not write anything. TraceProcessor will emit a
+    // NULL value.
   }
 };
 
