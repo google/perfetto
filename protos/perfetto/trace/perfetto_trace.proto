@@ -1526,7 +1526,6 @@ message TrackEventConfig {
   repeated string enabled_tags = 4;
 
   // Default: false (i.e. enabled by default)
-  // Note: This isn't supported in the SDK yet. It will be supported soon.
   optional bool disable_incremental_timestamps = 5;
 
   // Allows to specify a custom unit different than the default (ns).
@@ -5858,6 +5857,27 @@ message CdevUpdateFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/thermal.proto
 
+// Begin of protos/perfetto/trace/ftrace/ufs.proto
+
+message UfshcdCommandFtraceEvent {
+  optional string dev_name = 1;
+  optional uint32 doorbell = 2;
+  optional uint32 intr = 3;
+  optional uint64 lba = 4;
+  optional uint32 opcode = 5;
+  optional string str = 6;
+  optional uint32 tag = 7;
+  optional int32 transfer_len = 8;
+  optional uint32 group_id = 9;
+  optional uint32 str_t = 10;
+}
+message UfshcdClkGatingFtraceEvent {
+  optional string dev_name = 1;
+  optional int32 state = 2;
+}
+
+// End of protos/perfetto/trace/ftrace/ufs.proto
+
 // Begin of protos/perfetto/trace/ftrace/vmscan.proto
 
 message MmVmscanDirectReclaimBeginFtraceEvent {
@@ -6335,6 +6355,8 @@ message FtraceEvent {
     VgicUpdateIrqPendingFtraceEvent vgic_update_irq_pending = 403;
     WakeupSourceActivateFtraceEvent wakeup_source_activate = 404;
     WakeupSourceDeactivateFtraceEvent wakeup_source_deactivate = 405;
+    UfshcdCommandFtraceEvent ufshcd_command = 406;
+    UfshcdClkGatingFtraceEvent ufshcd_clk_gating = 407;
   }
 }
 
@@ -7033,7 +7055,7 @@ message DebugAnnotation {
   oneof proto_type_descriptor {
     string proto_type_name = 16;
     // interned DebugAnnotationValueTypeName.
-    uint32 proto_type_name_iid = 13;
+    uint64 proto_type_name_iid = 13;
   }
   optional bytes proto_value = 14;
 
