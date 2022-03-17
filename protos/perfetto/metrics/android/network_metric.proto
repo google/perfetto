@@ -116,4 +116,8 @@ message AndroidNetworkMetric {
 
   // Packet retransmission rate.
   optional double retransmission_rate = 3;
+
+  // Kfree Skb rate (i.e. kfree_skb count divided by the packet count from all
+  // net devices).
+  optional double kfree_skb_rate = 4;
 }
