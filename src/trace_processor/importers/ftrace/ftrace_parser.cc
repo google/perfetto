@@ -22,6 +22,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
 #include "src/trace_processor/importers/proto/async_track_set_tracker.h"
+#include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/storage/stats.h"
@@ -357,6 +358,31 @@ void FtraceParser::ParseFtraceStats(ConstBytes blob) {
       storage->SetIndexedStats(stats::ftrace_cpu_oldest_event_ts_begin + phase,
                                cpu, static_cast<int64_t>(oldest_event_ts));
     }
+  }
+
+  // Compute atrace + ftrace setup errors. We do two things here:
+  // 1. We add up all the errors and put the counter in the stats table (which
+  //    can hold only numerals). This will raise an orange flag in the UI.
+  // 2. We concatenate together all the errors in a string and put that in the
+  //    medatata table.
+  // Both will be reported in the 'Info & stats' page in the UI.
+  if (is_start) {
+    std::string error_str;
+    for (auto it = evt.failed_ftrace_events(); it; ++it) {
+      storage->IncrementStats(stats::ftrace_setup_errors, 1);
+      error_str += "Ftrace event failed: " + it->as_std_string() + "\n";
+    }
+    for (auto it = evt.unknown_ftrace_events(); it; ++it) {
+      storage->IncrementStats(stats::ftrace_setup_errors, 1);
+      error_str += "Ftrace event unknown: " + it->as_std_string() + "\n";
+    }
+    if (evt.atrace_errors().size > 0) {
+      storage->IncrementStats(stats::ftrace_setup_errors, 1);
+      error_str += "Atrace failures: " + evt.atrace_errors().ToStdString();
+    }
+    auto error_str_id = storage->InternString(base::StringView(error_str));
+    context_->metadata_tracker->SetMetadata(metadata::ftrace_setup_errors,
+                                            Variadic::String(error_str_id));
   }
 }
 
