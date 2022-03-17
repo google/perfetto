@@ -26,6 +26,12 @@ void FtraceStats::Write(protos::pbzero::FtraceStats* writer) const {
   }
   writer->set_kernel_symbols_parsed(kernel_symbols_parsed);
   writer->set_kernel_symbols_mem_kb(kernel_symbols_mem_kb);
+  if (!setup_errors.atrace_errors.empty())
+    writer->set_atrace_errors(setup_errors.atrace_errors);
+  for (const std::string& err : setup_errors.unknown_ftrace_events)
+    writer->add_unknown_ftrace_events(err);
+  for (const std::string& err : setup_errors.failed_ftrace_events)
+    writer->add_failed_ftrace_events(err);
 }
 
 void FtraceCpuStats::Write(protos::pbzero::FtraceCpuStats* writer) const {
