@@ -33,3 +33,6 @@ thread_main_thread.textproto thread_main_thread.sql thread_main_thread.out
 
 # Processes as a metric
 process_uids.textproto android_task_names android_task_names.out
+
+# Ftrace stats imports in metadata and stats tables
+../../data/ftrace_error_stats.pftrace ftrace_setup_errors.sql ftrace_setup_errors.out
