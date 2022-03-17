@@ -65,6 +65,7 @@ using ::testing::ElementsAreArray;
 using ::testing::HasSubstr;
 using ::testing::Property;
 using ::testing::SizeIs;
+using ::testing::UnorderedElementsAreArray;
 
 class PerfettoFtraceIntegrationTest : public ::testing::Test {
  public:
@@ -275,6 +276,67 @@ TEST_F(PerfettoFtraceIntegrationTest, MAYBE_KernelAddressSymbolization) {
         static_cast<int>(packet.ftrace_stats().kernel_symbols_parsed());
   }
   ASSERT_GT(symbols_parsed, 100);
+}
+
+TEST_F(PerfettoFtraceIntegrationTest, ReportFtraceFailuresInStats) {
+  base::TestTaskRunner task_runner;
+
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
+
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+  ProbesProducerThread probes(GetTestProducerSockName());
+  probes.Connect();
+#endif
+
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  // Wait for the traced_probes service to connect. We want to start tracing
+  // only after it connects, otherwise we'll start a tracing session with 0
+  // producers connected (which is valid but not what we want here).
+  helper.WaitForDataSourceConnected("linux.ftrace");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(32);
+  trace_config.set_duration_ms(1);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("linux.ftrace");
+
+  protos::gen::FtraceConfig ftrace_config;
+  ftrace_config.add_ftrace_events("sched/sched_process_fork");    // Good.
+  ftrace_config.add_ftrace_events("sched/does_not_exist");        // Bad.
+  ftrace_config.add_ftrace_events("foobar/i_just_made_this_up");  // Bad.
+  ftrace_config.add_atrace_categories("madeup_atrace_cat");       // Bad.
+  ds_config->set_ftrace_config_raw(ftrace_config.SerializeAsString());
+
+  helper.StartTracing(trace_config);
+  helper.WaitForTracingDisabled(kDefaultTestTimeoutMs);
+
+  helper.ReadData();
+  helper.WaitForReadData();
+  const auto& packets = helper.trace();
+  ASSERT_GT(packets.size(), 0u);
+
+  base::Optional<protos::gen::FtraceStats> stats;
+  for (const auto& packet : packets) {
+    if (!packet.has_ftrace_stats() ||
+        packet.ftrace_stats().phase() !=
+            protos::gen::FtraceStats::START_OF_TRACE) {
+      continue;
+    }
+    stats = packet.ftrace_stats();
+  }
+  ASSERT_TRUE(stats.has_value());
+  EXPECT_THAT(stats->unknown_ftrace_events(),
+              UnorderedElementsAreArray(
+                  {"sched/does_not_exist", "foobar/i_just_made_this_up"}));
+
+  // Atrace is not available on Linux and on the O-based emulator on the CI.
+  if (base::FileExists("/system/bin/atrace")) {
+    EXPECT_THAT(stats->atrace_errors(), HasSubstr("madeup_atrace_cat"));
+  }
 }
 
 }  // namespace perfetto
