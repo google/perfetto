@@ -132,6 +132,13 @@
                     margin-top: 8px;
                     font-weight: 400;
                 }
+                &:before {
+                  @include material-icon('expand_more');
+                  float: right;
+                  color: rgba(255, 255, 255, 0.3);
+                  margin-right: 12px;
+                  margin-top: -4px;
+                }
             }
             &:hover {
                 background-color: #373f4b;
@@ -139,9 +146,16 @@
             &.expanded {
                 background-color: #19212b;
                 max-height: unset;
-                .section-header h2 {
+                .section-header {
+                  h2 {
                     opacity: 0;
+                  }
+
+                  &:before {
+                    content: 'expand_less';
+                  }
                 }
+
                 .section-content {
                     pointer-events: inherit;
                     opacity: 1;
