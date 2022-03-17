@@ -16,6 +16,7 @@ import * as m from 'mithril';
 import {QueryResponse} from 'src/common/queries';
 
 import {Actions} from '../common/actions';
+import {isEmptyData} from '../common/aggregation_data';
 import {LogExists, LogExistsKey} from '../common/logs';
 import {DEFAULT_PIVOT_TABLE_ID} from '../common/pivot_table_common';
 
@@ -364,7 +365,7 @@ export class DetailsPanel implements m.ClassComponent {
     }
 
     for (const [key, value] of globals.aggregateDataStore.entries()) {
-      if (value.columns.length > 0 && value.columns[0].data.length > 0) {
+      if (!isEmptyData(value)) {
         detailsPanels.push({
           key: value.tabName,
           name: value.tabName,
