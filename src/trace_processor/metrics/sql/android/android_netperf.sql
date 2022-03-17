@@ -68,6 +68,16 @@ CREATE VIEW tcp_retransmitted_count AS
   WHERE
     t.name = "TCP Retransmit Skb";
 
+DROP VIEW IF EXISTS kfree_skb_count;
+CREATE VIEW kfree_skb_count AS
+  SELECT
+     MAX(value) AS cnt
+  FROM counter c
+  LEFT JOIN track t
+    ON c.track_id = t.id
+  WHERE
+    t.name = "Kfree Skb IP Prot";
+
 DROP VIEW IF EXISTS device_per_core_ingress_traffic;
 CREATE VIEW device_per_core_ingress_traffic AS
   SELECT
@@ -276,6 +286,11 @@ CREATE VIEW android_netperf_output AS
       SELECT
         (SELECT cnt FROM tcp_retransmitted_count) * 100.0 / COUNT(1)
       FROM tx_packets
+    ),
+    'kfree_skb_rate', (
+      SELECT
+        cnt * 100.0 / ((SELECT count(1) FROM rx_packets) + (SELECT count(1) FROM tx_packets))
+      FROM kfree_skb_count
     )
   );
 
