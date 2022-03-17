@@ -43,7 +43,8 @@ base::Optional<bool> g_is_old_atrace_for_testing{};
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 // Args should include "atrace" for argv[0].
-bool ExecvAtrace(const std::vector<std::string>& args) {
+bool ExecvAtrace(const std::vector<std::string>& args,
+                 std::string* atrace_errors) {
   int status = 1;
 
   std::vector<char*> argv;
@@ -163,20 +164,22 @@ bool ExecvAtrace(const std::vector<std::string>& args) {
   PERFETTO_EINTR(waitpid(pid, &status, 0));
 
   bool ok = WIFEXITED(status) && WEXITSTATUS(status) == 0;
-  if (!ok) {
+  if (!ok)
     PERFETTO_ELOG("%s", error.c_str());
-  }
+  if (atrace_errors)
+    atrace_errors->append(error);
   return ok;
 }
 #endif
 
 }  // namespace
 
-bool RunAtrace(const std::vector<std::string>& args) {
+bool RunAtrace(const std::vector<std::string>& args,
+               std::string* atrace_errors) {
   if (g_run_atrace_for_testing)
-    return g_run_atrace_for_testing(args);
+    return g_run_atrace_for_testing(args, atrace_errors);
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  return ExecvAtrace(args);
+  return ExecvAtrace(args, atrace_errors);
 #else
   PERFETTO_LOG("Atrace only supported on Android.");
   return false;
