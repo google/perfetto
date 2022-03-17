@@ -111,11 +111,13 @@ void FtraceDataSource::Start() {
   if (!ftrace->StartDataSource(this))
     return;
   DumpFtraceStats(&stats_before_);
+  setup_errors_ = FtraceSetupErrors();  // Dump only on START_OF_TRACE.
 }
 
 void FtraceDataSource::DumpFtraceStats(FtraceStats* stats) {
   if (controller_weak_)
     controller_weak_->DumpFtraceStats(stats);
+  stats->setup_errors = std::move(setup_errors_);
 }
 
 void FtraceDataSource::Flush(FlushRequestID flush_request_id,
