@@ -70,6 +70,11 @@ SCRIPTS_TO_UPDATE = [
         'archs': ['mac-amd64', 'mac-arm64', 'windows-amd64', 'linux-amd64']
     },
     {
+        'script': 'cpu_profile',
+        'tool': 'trace_to_text',
+        'archs': ['mac-amd64', 'windows-amd64', 'linux-amd64']
+    },
+    {
         'script': 'record_android_trace',
         'tool': 'tracebox',
         'archs': ['android-arm', 'android-arm64', 'android-x86', 'android-x64']
