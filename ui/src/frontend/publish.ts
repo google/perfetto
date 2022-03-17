@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Actions} from '../common/actions';
-import {AggregateData} from '../common/aggregation_data';
+import {AggregateData, isEmptyData} from '../common/aggregation_data';
 import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
 import {
   LogBoundsKey,
@@ -140,6 +140,9 @@ export function publishMetricError(error: string) {
 export function publishAggregateData(
     args: {data: AggregateData, kind: string}) {
   globals.setAggregateData(args.kind, args.data);
+  if (!isEmptyData(args.data)) {
+    globals.dispatch(Actions.setCurrentTab({tab: args.data.tabName}));
+  }
   globals.publishRedraw();
 }
 
