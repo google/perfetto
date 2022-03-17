@@ -150,6 +150,8 @@ message FrameTreeNodeInfo {
 
   // Whether there's a speculative RenderFrameHost or not.
   optional bool has_speculative_render_frame_host = 3;
+
+  optional RenderFrameHost current_frame_host = 4;
 }
 
 message ChromeHashedPerformanceMark {
@@ -268,8 +270,23 @@ message SiteInstance {
   // related SiteInstances in the same BrowsingInstance.
   optional int32 related_active_contents_count = 5;
 
-  // The number of active RenderFrameHosts which belong to this SiteInstance.
+  // The number of active RenderFrameHosts this SiteInstance's SiteInstanceGroup
+  // has.
   optional int32 active_rfh_count = 6;
+
+  // The SiteInstanceGroup this SiteInstance belongs to.
+  optional SiteInstanceGroup site_instance_group = 7;
+}
+
+message SiteInstanceGroup {
+  // The ID of the SiteInstanceGroup.
+  optional int32 site_instance_group_id = 1;
+
+  // The number of active frames in this SiteInstanceGroup.
+  optional int32 active_frame_count = 2;
+
+  // The process ID of the SiteInstanceGroup.
+  optional RenderProcessHost process = 3;
 }
 
 message RenderViewHost {
@@ -306,6 +323,10 @@ message RenderFrameProxyHost {
 
   // Whether the renderer-side RenderFrameProxy is live or not.
   optional bool is_render_frame_proxy_live = 5;
+
+  // The SiteInstanceGroupId of the SiteInstanceGroup associated with the
+  // RenderFrameProxyHost.
+  optional int32 site_instance_group_id = 6;
 }
 
 message AndroidView {
@@ -396,6 +417,11 @@ message GlobalRenderFrameHostId {
   optional int32 process_id = 2;
 }
 
+message BrowsingContextState {
+  // The ID of the BrowsingInstance that the BrowsingContextState belongs to.
+  optional int32 browsing_instance_id = 1;
+}
+
 message RenderFrameHost {
   optional RenderProcessHost process = 1;
   optional GlobalRenderFrameHostId render_frame_host_id = 2;
@@ -421,6 +447,7 @@ message RenderFrameHost {
   optional RenderFrameHost parent = 8;
   optional RenderFrameHost outer_document = 9;
   optional RenderFrameHost embedder = 10;
+  optional BrowsingContextState browsing_context_state = 11;
 }
 
 message ChromeThreadPoolTask {
@@ -515,6 +542,7 @@ message BackForwardCacheCanStoreDocumentResult {
     CACHE_CONTROL_NO_STORE_HTTP_ONLY_COOKIE_MODIFIED = 51;
     NO_RESPONSE_HEAD = 52;
     ACTIVATION_NAVIGATION_DISALLOWED_FOR_BUG_1234857 = 53;
+    ERROR_DOCUMENT = 54;
   }
 
   optional BackForwardCacheNotRestoredReason
@@ -683,9 +711,17 @@ message ProcessSingleton {
   optional RemoteHungProcessTerminateReason remote_process_terminate_reason = 2;
 }
 
+enum DeviceThermalState {
+  DEVICE_THERMAL_STATE_UNKNOWN = 0;
+  DEVICE_THERMAL_STATE_NOMINAL = 1;
+  DEVICE_THERMAL_STATE_FAIR = 2;
+  DEVICE_THERMAL_STATE_SERIOUS = 3;
+  DEVICE_THERMAL_STATE_CRITICAL = 4;
+}
+
 message ChromeTrackEvent {
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1034
+  // Next ID: 1037
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -759,5 +795,11 @@ message ChromeTrackEvent {
     optional EventLatency event_latency = 1032;
 
     optional ProcessSingleton process_singleton = 1033;
+
+    optional SiteInstanceGroup site_instance_group = 1034;
+
+    optional BrowsingContextState browsing_context_state = 1035;
+
+    optional DeviceThermalState device_thermal_state = 1036;
   }
 }

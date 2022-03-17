@@ -49,13 +49,13 @@ import {
   recordTargetStore
 } from './record_config';
 import {
+  CategoriesCheckboxList,
   CodeSnippet,
   CompactProbe,
   Dropdown,
   DropdownAttrs,
   Probe,
   ProbeAttrs,
-  SelectAllNoneDropdown,
   Slider,
   SliderAttrs,
   Textarea,
@@ -741,15 +741,15 @@ function ChromeCategoriesSelection() {
 
   return m(
       '.chrome-categories',
-      SelectAllNoneDropdown({
+      m(CategoriesCheckboxList, {
         categories: defaultCategories,
-        title: 'Additional Chrome categories',
+        title: 'Additional categories',
         get: (cfg) => cfg.chromeCategoriesSelected,
         set: (cfg, val) => cfg.chromeCategoriesSelected = val,
       }),
-      SelectAllNoneDropdown({
+      m(CategoriesCheckboxList, {
         categories: disabledByDefaultCategories,
-        title: 'Additional high overhead Chrome categories',
+        title: 'High overhead categories',
         get: (cfg) => cfg.chromeHighOverheadCategoriesSelected,
         set: (cfg, val) => cfg.chromeHighOverheadCategoriesSelected = val,
       }));
