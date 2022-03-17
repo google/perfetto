@@ -175,6 +175,7 @@
 "ftrace_cpu_read_events_delta",5,"info","trace",23232
 "ftrace_cpu_read_events_delta",6,"info","trace",36733
 "ftrace_cpu_read_events_delta",7,"info","trace",39240
+"traced_buf_abi_violations",0,"data_loss","trace",0
 "traced_buf_buffer_size",0,"info","trace",0
 "traced_buf_bytes_overwritten",0,"info","trace",0
 "traced_buf_bytes_read",0,"info","trace",0
