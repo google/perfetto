@@ -314,7 +314,6 @@ CREATE VIEW descendant_blocking_tasks_queuing_delay AS
   GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20
   ORDER BY descendant_cpu_percentage DESC;
 
-
 SELECT CREATE_FUNCTION(
   -- Function prototype: takes a '-' separated list of slice names (formed by
   -- the GROUP_CONCAT above) and returns the first slice if any or NULL
@@ -330,6 +329,58 @@ SELECT CREATE_FUNCTION(
       LENGTH($name)+1 ELSE
       INSTR($name, "-")
     END)'
+);
+
+SELECT CREATE_FUNCTION(
+  -- Function prototype: takes a '-' separated list of slice names (formed by
+  -- the GROUP_CONCAT above) and checks for certain important view names and
+  -- falls back on GetFirstSliceNameOrNull if it can't find one.
+  'GetJavaSliceSummaryOrNull(name STRING)',
+  -- Returns the summary of the provided list of java slice names.
+  'STRING',
+  -- Performs a bunch of GLOB matches in an order, now there could be multiple
+  -- matches (both Toolbar & TabList could be true) so the order matters in
+  -- tagging since we don't support multiple tagging of values. Ideally we would
+  -- determine which one was the longest duration, but this should be sufficient
+  -- for now.
+  'SELECT
+    CASE WHEN $name GLOB "*ToolbarControlContainer*" THEN
+      "ToolbarControlContainer"
+    WHEN $name GLOB "*ToolbarProgressBar*" THEN
+      "ToolbarProgressBar"
+    WHEN $name GLOB "*TabGroupUiToolbarView*" THEN
+      "TabGroupUiToolbarView"
+    WHEN $name GLOB "*TabGridThumbnailView*" THEN
+      "TabGridThumbnailView"
+    WHEN $name GLOB "*TabGridDialogView*" THEN
+      "TabGridDialogView"
+    WHEN $name GLOB "*BottomContainer*" THEN
+      "BottomContainer"
+    WHEN $name GLOB "*FeedSwipeRefreshLayout*" THEN
+      "FeedSwipeRefreshLayout"
+    WHEN $name GLOB "*AutocompleteEditText*" THEN
+      "AutocompleteEditText"
+    WHEN $name GLOB "*HomeButton*" THEN
+      "HomeButton"
+    WHEN $name GLOB "*ToggleTabStackButton*" THEN
+      "ToggleTabStackButton"
+    WHEN $name GLOB "*ListMenuButton*" THEN
+      "ListMenuButton"
+    WHEN $name GLOB "*ScrimView*" THEN
+      "ScrimView"
+    WHEN $name GLOB "*ChromeImageView*" THEN
+      "ChromeImageView"
+    WHEN $name GLOB "*AppCompatImageView*" THEN
+      "AppCompatImageView"
+    WHEN $name GLOB "*ChromeImageButton*" THEN
+      "ChromeImageButton"
+    WHEN $name GLOB "*AppCompatImageButton*" THEN
+      "AppCompatImageButton"
+    WHEN $name GLOB "*TabListRecyclerView*" THEN
+      "TabListRecyclerView"
+    ELSE
+      GetFirstSliceNameOrNull($name)
+    END'
 );
 
 SELECT CREATE_FUNCTION(
@@ -394,7 +445,7 @@ CREATE VIEW scroll_jank_cause_queuing_delay_temp AS
     TopLevelName(name, function, file) || COALESCE(
       "-" || GetFirstSliceNameOrNull(mojom_name),
       "-" || GetFirstSliceNameOrNull(toplevel_name),
-      "-" || GetFirstSliceNameOrNull(java_name),
+      "-" || GetJavaSliceSummaryOrNull(java_name),
       UnknownEventOrEmptyString(name, category, descendant_name)
     ) AS restricted_location,
     base.*
