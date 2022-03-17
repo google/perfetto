@@ -57,6 +57,9 @@ namespace stats {
   F(ftrace_cpu_read_events_begin,       kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_read_events_end,         kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_read_events_delta,       kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_setup_errors,                kSingle,  kError,    kTrace,           \
+  "One or more atrace/ftrace categories were not found or failed to enable. "  \
+  "See ftrace_setup_errors in the metadata table for more details."),          \
   F(fuchsia_non_numeric_counters,       kSingle,  kError,    kAnalysis, ""),   \
   F(fuchsia_timestamp_overflow,         kSingle,  kError,    kAnalysis, ""),   \
   F(fuchsia_invalid_event,              kSingle,  kError,    kAnalysis, ""),   \
