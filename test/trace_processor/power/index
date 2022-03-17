@@ -7,3 +7,4 @@ power_rails_well_known.textproto power_rails.sql power_rails_well_known_power_ra
 # Dynamic Voltage and Frequency Scaling
 
 dvfs_metric.textproto android_dvfs dvfs_metric.out
+wakesource.textproto wakesource.sql wakesource_wakesource.out

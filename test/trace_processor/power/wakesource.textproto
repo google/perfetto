@@ -1,0 +1,88 @@
+packet {
+  ftrace_events: {
+    cpu: 0
+    event: {
+      timestamp: 34298714043271
+      pid: 38
+      wakeup_source_activate: {
+        name: "s2mpw02-power-keys"
+        state: 3376218114
+      }
+    }
+    event: {
+      timestamp: 34298714043273
+      pid: 38
+      wakeup_source_activate: {
+        name: "s2mpw02-power-keys"
+        state: 3376218114
+      }
+    }
+    event: {
+      timestamp: 34298721846504
+      pid: 11174
+      wakeup_source_activate: {
+        name: "event0"
+        state: 3376218115
+      }
+    }
+    event: {
+      timestamp: 34298721915735
+      pid: 11174
+      wakeup_source_deactivate: {
+        name: "s2mpw02-power-keys"
+        state: 3376283650
+      }
+    }
+    event: {
+      timestamp: 34298721915738
+      pid: 11174
+      wakeup_source_deactivate: {
+        name: "s2mpw02-power-keys"
+        state: 3376283651
+      }
+    }
+    event: {
+      timestamp: 34298721915739
+      pid: 38
+      wakeup_source_activate: {
+        name: "s2mpw02-power-keys"
+        state: 3376218114
+      }
+    }
+    event: {
+      timestamp: 34298721915755
+      pid: 11174
+      wakeup_source_deactivate: {
+        name: "s2mpw02-power-keys"
+        state: 3376283651
+      }
+    }
+    event: {
+      timestamp: 34298764569658
+      pid: 743
+      wakeup_source_activate: {
+        name: "eventpoll"
+        state: 3376414723
+      }
+    }
+    event: {
+      timestamp: 34298764579158
+      pid: 743
+      wakeup_source_deactivate: {
+        name: "event0"
+        state: 3376480258
+      }
+    }
+    event: {
+      timestamp: 34298764584196
+      pid: 743
+      wakeup_source_deactivate: {
+        name: "eventpoll"
+        state: 3376545793
+      }
+    }
+  }
+  trusted_uid: 0
+  trusted_packet_sequence_id: 2
+  trusted_pid: 11246
+}
