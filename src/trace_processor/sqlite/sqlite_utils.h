@@ -35,9 +35,17 @@ const auto kSqliteTransient = reinterpret_cast<sqlite3_destructor_type>(-1);
 inline bool IsOpEq(int op) {
   return op == SQLITE_INDEX_CONSTRAINT_EQ;
 }
-
 inline bool IsOpLe(int op) {
   return op == SQLITE_INDEX_CONSTRAINT_LE;
+}
+inline bool IsOpLt(int op) {
+  return op == SQLITE_INDEX_CONSTRAINT_LT;
+}
+inline bool IsOpGe(int op) {
+  return op == SQLITE_INDEX_CONSTRAINT_GE;
+}
+inline bool IsOpGt(int op) {
+  return op == SQLITE_INDEX_CONSTRAINT_GT;
 }
 
 inline SqlValue::Type SqliteTypeToSqlValueType(int sqlite_type) {
