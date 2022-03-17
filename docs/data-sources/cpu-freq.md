@@ -7,14 +7,44 @@ It involves three aspects:
 
 #### Frequency scaling
 
-Records changes in the frequency of a CPU. An event is emitted every time the
-scaling governor scales the CPU frequency up or down.
+There are two way to get CPU frequency data:
+
+1. Enabling the `power/cpu_frequency` ftrace event. (See
+   [TraceConfig](#traceconfig) below). This will record an event every time the
+   in-kernel cpufreq scaling driver changes the frequency. Note that this is not
+   supported on all platforms. In our experience it works reliably on ARM-based
+   SoCs but produces no data on most modern Intel-based platforms. This is
+   because recent Intel CPUs use an internal DVFS which is directly controlled
+   by the CPU, and that doesn't expose frequency change events to the kernel.
+   Also note that even on ARM-based platforms, the event is emitted only
+   when a CPU frequency changes. In many cases the CPU frequency won't
+   change for several seconds, which will show up as an empty block at the start
+   of the trace.
+   We suggest always combining this with polling (below) to get a reliable
+   snapshot of the initial frequency.
+2. Polling sysfs by enabling the `linux.sys_stats` data source and setting
+   `cpufreq_period_ms` to a value > 0. This will periodically poll
+   `/sys/devices/system/cpu/cpu*/cpufreq/cpuinfo_cur_freq` and record the
+   current value in the trace buffer. Works on both Intel and ARM-based
+   platforms.
 
 On most Android devices the frequency scaling is per-cluster (group of
 big/little cores) so it's not unusual to see groups of four CPUs changing
 frequency at the same time.
 
-#### idle states
+#### Available frequencies
+
+It is possible to record one-off also the full list of frequencies supported by
+each CPU by enabling the `linux.system_info` data source. This will
+record `/sys/devices/system/cpu/cpu*/cpufreq/scaling_available_frequencies` when
+the trace recording start. This information is typically used to tell apart
+big/little cores by inspecting the
+[`cpu_freq` table](/docs/analysis/sql-tables.autogen#cpu_freq).
+
+This is not supported on modern Intel platforms for the same aforementioned
+reasons of `power/cpu_frequency`.
+
+#### Idle states
 
 When no threads are eligible to be executed (e.g. they are all in sleep states)
 the kernel sets the CPU into an idle state, turning off some of the circuitry
@@ -85,9 +115,13 @@ ts | name | cpu | value
 261187013665683 | cpuidle | 1 | 0
 261187013845058 | cpufreq | 0 | 1900800
 
+The list of known CPU frequencies, can be queried using the
+[`cpu_freq` table](/docs/analysis/sql-tables.autogen#cpu_freq).
+
 ### TraceConfig
 
 ```protobuf
+// Event-driven recording of frequency and idle state changes.
 data_sources: {
     config {
         name: "linux.ftrace"
@@ -96,6 +130,23 @@ data_sources: {
             ftrace_events: "power/cpu_idle"
             ftrace_events: "power/suspend_resume"
         }
+    }
+}
+
+// Polling the current cpu frequency.
+data_sources: {
+    config {
+        name: "linux.sys_stats"
+        sys_stats_config {
+            cpufreq_period_ms: 500
+        }
+    }
+}
+
+// Reporting the list of available frequency for each CPU.
+data_sources {
+    config {
+        name: "linux.system_info"
     }
 }
 ```
