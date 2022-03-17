@@ -221,6 +221,8 @@ void ProtoTraceParser::ParseTraceStats(ConstBytes blob) {
                              static_cast<int64_t>(buf.readaheads_succeeded()));
     storage->SetIndexedStats(stats::traced_buf_readaheads_failed, buf_num,
                              static_cast<int64_t>(buf.readaheads_failed()));
+    storage->SetIndexedStats(stats::traced_buf_abi_violations, buf_num,
+                             static_cast<int64_t>(buf.abi_violations()));
     storage->SetIndexedStats(
         stats::traced_buf_trace_writer_packet_loss, buf_num,
         static_cast<int64_t>(buf.trace_writer_packet_loss()));
