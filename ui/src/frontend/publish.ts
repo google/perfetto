@@ -35,6 +35,7 @@ import {
   ThreadDesc,
   ThreadStateDetails
 } from './globals';
+import {findCurrentSelection} from './keyboard_event_handler';
 import {PivotTableHelper} from './pivot_table_helper';
 
 export function publishOverviewData(
@@ -164,6 +165,11 @@ export function publishThreads(data: ThreadDesc[]) {
 
 export function publishSliceDetails(click: SliceDetails) {
   globals.sliceDetails = click;
+  const id = click.id;
+  if (id !== undefined && id === globals.state.pendingScrollId) {
+    findCurrentSelection();
+    globals.dispatch(Actions.clearPendingScrollId({id: undefined}));
+  }
   globals.publishRedraw();
 }
 
