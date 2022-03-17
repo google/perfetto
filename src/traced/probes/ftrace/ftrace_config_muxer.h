@@ -34,6 +34,8 @@ enum FtraceClock : int32_t;
 }  // namespace pbzero
 }  // namespace protos
 
+struct FtraceSetupErrors;
+
 // State held by the muxer per data source, used to parse ftrace according to
 // that data source's config.
 struct FtraceDataSourceConfig {
@@ -93,7 +95,8 @@ class FtraceConfigMuxer {
   // (if you enable an atrace category we try to give you the matching events).
   // If someone else is tracing we won't touch atrace (since it resets the
   // buffer).
-  FtraceConfigId SetupConfig(const FtraceConfig& request);
+  FtraceConfigId SetupConfig(const FtraceConfig& request,
+                             FtraceSetupErrors* = nullptr);
 
   // Activate ftrace for the given config (if not already active).
   bool ActivateConfig(FtraceConfigId);
@@ -131,7 +134,8 @@ class FtraceConfigMuxer {
 
  private:
   static bool StartAtrace(const std::vector<std::string>& apps,
-                          const std::vector<std::string>& categories);
+                          const std::vector<std::string>& categories,
+                          std::string* atrace_errors);
 
   struct FtraceState {
     EventFilter ftrace_events;
@@ -148,7 +152,7 @@ class FtraceConfigMuxer {
 
   void SetupClock(const FtraceConfig& request);
   void SetupBufferSize(const FtraceConfig& request);
-  void UpdateAtrace(const FtraceConfig& request);
+  void UpdateAtrace(const FtraceConfig& request, std::string* atrace_errors);
   void DisableAtrace();
 
   // This processes the config to get the exact events.
