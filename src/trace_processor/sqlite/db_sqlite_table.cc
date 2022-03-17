@@ -300,9 +300,13 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
       break;
     const auto& col_schema = schema.columns[static_cast<uint32_t>(c.column)];
     if (sqlite_utils::IsOpEq(c.op) && col_schema.is_id) {
-      // If we have an id equality constraint, it's a bit expensive to find
-      // the exact row but it filters down to a single row.
-      filter_cost += 100;
+      // If we have an id equality constraint, we can very efficiently filter
+      // down to a single row in C++. However, if we're joining with another
+      // table, SQLite will do this once per row which can be extremely
+      // expensive because of all the virtual table (which is implemented using
+      // virtual function calls) machinery. Indicate this by saying that an
+      // entire filter call is ~10x the cost of iterating a single row.
+      filter_cost += 10;
       current_row_count = 1;
     } else if (sqlite_utils::IsOpEq(c.op)) {
       // If there is only a single equality constraint, we have special logic
@@ -313,12 +317,26 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
       // search logic so we have the same low cost (even better because we don't
       // have to sort at all).
       filter_cost += cs.size() == 1 || col_schema.is_sorted
-                         ? (2 * current_row_count) / log2(current_row_count)
+                         ? log2(current_row_count)
                          : current_row_count;
 
-      // We assume that an equalty constraint will cut down the number of rows
-      // by approximate log of the number of rows.
-      double estimated_rows = current_row_count / log2(current_row_count);
+      // As an extremely rough heuristic, assume that an equalty constraint will
+      // cut down the number of rows by approximately double log of the number
+      // of rows.
+      double estimated_rows = current_row_count / (2 * log2(current_row_count));
+      current_row_count = std::max(static_cast<uint32_t>(estimated_rows), 1u);
+    } else if (col_schema.is_sorted &&
+               (sqlite_utils::IsOpLe(c.op) || sqlite_utils::IsOpLt(c.op) ||
+                sqlite_utils::IsOpGt(c.op) || sqlite_utils::IsOpGe(c.op))) {
+      // On a sorted column, if we see any partition constraints, we can do this
+      // filter very efficiently. Model this using the log of the  number of
+      // rows as a good approximation.
+      filter_cost += log2(current_row_count);
+
+      // As an extremely rough heuristic, assume that an partition constraint
+      // will cut down the number of rows by approximately double log of the
+      // number of rows.
+      double estimated_rows = current_row_count / (2 * log2(current_row_count));
       current_row_count = std::max(static_cast<uint32_t>(estimated_rows), 1u);
     } else {
       // Otherwise, we will need to do a full table scan and we estimate we will
@@ -335,7 +353,7 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
       static_cast<double>(qc.order_by().size() * current_row_count) *
       log2(current_row_count);
 
-  // The cost of iterating rows is more expensive than filtering the rows
+  // The cost of iterating rows is more expensive than just filtering the rows
   // so multiply by an appropriate factor.
   double iteration_cost = current_row_count * 2.0;
 
@@ -409,10 +427,6 @@ void DbSqliteTable::Cursor::TryCacheCreateSortedTable(
 int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
                                   sqlite3_value** argv,
                                   FilterHistory history) {
-  PERFETTO_TP_TRACE("DB_TABLE_XFILTER", [this](metatrace::Record* r) {
-    r->AddArg("Table", db_sqlite_table_->name());
-  });
-
   // Clear out the iterator before filtering to ensure the destructor is run
   // before the table's destructor.
   iterator_ = base::nullopt;
@@ -534,6 +548,7 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
           break;
         }
       }
+      r->AddArg("Table", db_sqlite_table_->name());
       r->AddArg("Constraint", writer.GetStringView());
     }
 
