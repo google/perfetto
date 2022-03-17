@@ -180,10 +180,6 @@ TEST(ProtozeroToTextTest, ProtozeroEnumToText) {
                                 TrackEvent::TYPE_SLICE_END));
 }
 
-TEST(ProtozeroToTextTest, BytesToHexEncodedString) {
-  EXPECT_EQ(BytesToHexEncodedStringForTesting("abc"), R"(\x61\x62\x63)");
-}
-
 // Sets up a descriptor pool with all the messages from
 // "src/protozero/test/example_proto/test_messages.proto"
 class ProtozeroToTextTestMessageTest : public testing::Test {
@@ -278,8 +274,7 @@ TEST_F(ProtozeroToTextTestMessageTest, FieldVarIntBigEnum) {
             "big_enum: END");
 }
 
-// TODO(b/224800278): Fix ProtozeroToText() crash and reenable.
-TEST_F(ProtozeroToTextTestMessageTest, DISABLED_FieldVarIntEnumUnknown) {
+TEST_F(ProtozeroToTextTestMessageTest, FieldVarIntEnumUnknown) {
   protozero::HeapBuffered<EveryField> msg;
   msg->AppendVarInt(EveryField::kSmallEnumFieldNumber, 42);
   ASSERT_EQ(EveryField::kSmallEnumFieldNumber, 51);
@@ -293,15 +288,12 @@ TEST_F(ProtozeroToTextTestMessageTest, FieldVarIntUnknown) {
   protozero::HeapBuffered<EveryField> msg;
   msg->AppendVarInt(/*field_id=*/9999, /*value=*/42);
 
-  // TODO(b/224800278): "protoc --decode" also prints the varint value, which is
-  // more useful.
   EXPECT_EQ(ProtozeroToText(pool_, ".protozero.test.protos.EveryField",
                             msg.SerializeAsArray(), kIncludeNewLines),
-            "# Ignoring unknown field with id: 9999");
+            "9999: 42");
 }
 
-// TODO(b/224800278): Fix ProtozeroToText() crash and reenable.
-TEST_F(ProtozeroToTextTestMessageTest, DISABLED_FieldVarIntMismatch) {
+TEST_F(ProtozeroToTextTestMessageTest, FieldVarIntMismatch) {
   protozero::HeapBuffered<EveryField> msg;
   ASSERT_EQ(EveryField::kFieldStringFieldNumber, 500);
   msg->AppendVarInt(EveryField::kFieldStringFieldNumber, 42);
@@ -336,11 +328,9 @@ TEST_F(ProtozeroToTextTestMessageTest, FieldFixed32Unsigned) {
   protozero::HeapBuffered<EveryField> msg;
   msg->set_field_fixed32(3000000000);
 
-  // TODO(b/224800278): This is a bug. fixed32 is supposed to be unsigned, but
-  // the code prints it as signed.
   EXPECT_EQ(ProtozeroToText(pool_, ".protozero.test.protos.EveryField",
                             msg.SerializeAsArray(), kIncludeNewLines),
-            "field_fixed32: -1294967296");
+            "field_fixed32: 3000000000");
 }
 
 TEST_F(ProtozeroToTextTestMessageTest, FieldFixed32Float) {
@@ -356,15 +346,12 @@ TEST_F(ProtozeroToTextTestMessageTest, FieldFixed32Unknown) {
   protozero::HeapBuffered<EveryField> msg;
   msg->AppendFixed<uint32_t>(/*field_id=*/9999, /*value=*/0x1);
 
-  // TODO(b/224800278): "protoc --decode" also prints the 32-bit value, which is
-  // more useful.
   EXPECT_EQ(ProtozeroToText(pool_, ".protozero.test.protos.EveryField",
                             msg.SerializeAsArray(), kIncludeNewLines),
-            "# Ignoring unknown field with id: 9999");
+            "9999: 0x00000001");
 }
 
-// TODO(b/224800278): Fix ProtozeroToText() crash and reenable.
-TEST_F(ProtozeroToTextTestMessageTest, DISABLED_FieldFixed32Mismatch) {
+TEST_F(ProtozeroToTextTestMessageTest, FieldFixed32Mismatch) {
   protozero::HeapBuffered<EveryField> msg;
   ASSERT_EQ(EveryField::kFieldStringFieldNumber, 500);
   msg->AppendFixed<uint32_t>(EveryField::kFieldStringFieldNumber, 0x1);
@@ -405,15 +392,12 @@ TEST_F(ProtozeroToTextTestMessageTest, FieldFixed64Unknown) {
   protozero::HeapBuffered<EveryField> msg;
   msg->AppendFixed<uint64_t>(/*field_id=*/9999, /*value=*/0x1);
 
-  // TODO(b/224800278): "protoc --decode" also prints the 64-bit value, which is
-  // more useful.
   EXPECT_EQ(ProtozeroToText(pool_, ".protozero.test.protos.EveryField",
                             msg.SerializeAsArray(), kIncludeNewLines),
-            "# Ignoring unknown field with id: 9999");
+            "9999: 0x0000000000000001");
 }
 
-// TODO(b/224800278): Fix ProtozeroToText() crash and reenable.
-TEST_F(ProtozeroToTextTestMessageTest, DISABLED_FieldFixed64Mismatch) {
+TEST_F(ProtozeroToTextTestMessageTest, FieldFixed64Mismatch) {
   protozero::HeapBuffered<EveryField> msg;
   ASSERT_EQ(EveryField::kFieldStringFieldNumber, 500);
   msg->AppendFixed<uint64_t>(EveryField::kFieldStringFieldNumber, 0x1);
@@ -436,26 +420,21 @@ TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedBytes) {
   protozero::HeapBuffered<EveryField> msg;
   msg->set_field_bytes("Hello");
 
-  // TODO(b/224800278): "protoc --decode" always tries to print the value as
-  // ASCII.
   EXPECT_EQ(ProtozeroToText(pool_, ".protozero.test.protos.EveryField",
                             msg.SerializeAsArray(), kIncludeNewLines),
-            R"(field_bytes: "\x48\x65\x6c\x6c\x6f")");
+            R"(field_bytes: "Hello")");
 }
 
 TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedUnknown) {
   protozero::HeapBuffered<EveryField> msg;
   msg->AppendString(9999, "Hello");
 
-  // TODO(b/224800278): "protoc --decode" also prints the string value, which is
-  // more useful.
   EXPECT_EQ(ProtozeroToText(pool_, ".protozero.test.protos.EveryField",
                             msg.SerializeAsArray(), kIncludeNewLines),
-            "# Ignoring unknown field with id: 9999");
+            R"(9999: "Hello")");
 }
 
-// TODO(b/224800278): Fix ProtozeroToText() crash and reenable.
-TEST_F(ProtozeroToTextTestMessageTest, DISABLED_FieldLengthLimitedMismatch) {
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedMismatch) {
   protozero::HeapBuffered<EveryField> msg;
   ASSERT_EQ(EveryField::kFieldBoolFieldNumber, 13);
   msg->AppendString(EveryField::kFieldBoolFieldNumber, "Hello");

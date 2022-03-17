@@ -71,8 +71,6 @@ std::string ProtozeroEnumToText(const std::string& type, Enum enum_value) {
   return ProtozeroEnumToText(type, static_cast<int32_t>(enum_value));
 }
 
-std::string BytesToHexEncodedStringForTesting(const std::string&);
-
 }  // namespace protozero_to_text
 }  // namespace trace_processor
 }  // namespace perfetto
