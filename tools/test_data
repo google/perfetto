@@ -210,6 +210,8 @@ def cmd_status(dir):
     file_by_status[fs.status].append(relpath(fs.path))
     num_files += 1
   for status, rpaths in sorted(file_by_status.items()):
+    if status == FS_NEW_FILE and args.ignore_new:
+      continue
     if status != FS_MATCH:
       for rpath in rpaths:
         num_out_of_sync += 1
@@ -232,6 +234,7 @@ def main():
   parser.add_argument('--dry-run', '-n', action='store_true')
   parser.add_argument('--quiet', '-q', action='store_true')
   parser.add_argument('--verbose', '-v', action='store_true')
+  parser.add_argument('--ignore-new', action='store_true')
   parser.add_argument('cmd', choices=['status', 'download', 'upload'])
   global args
   args = parser.parse_args()
