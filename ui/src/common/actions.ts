@@ -694,7 +694,8 @@ export const StateActions = {
       },
 
   selectChromeSlice(
-      state: StateDraft, args: {id: number, trackId: string, table: string}):
+      state: StateDraft,
+      args: {id: number, trackId: string, table: string, scroll?: boolean}):
       void {
         state.currentSelection = {
           kind: 'CHROME_SLICE',
@@ -702,7 +703,12 @@ export const StateActions = {
           trackId: args.trackId,
           table: args.table
         };
+        state.pendingScrollId = args.scroll ? args.id : undefined;
       },
+
+  clearPendingScrollId(state: StateDraft, _: {}): void {
+    state.pendingScrollId = undefined;
+  },
 
   selectThreadState(state: StateDraft, args: {id: number, trackId: string}):
       void {
