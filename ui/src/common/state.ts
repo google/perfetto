@@ -452,6 +452,7 @@ export interface State {
   highlightedSliceId: number;
   focusedFlowIdLeft: number;
   focusedFlowIdRight: number;
+  pendingScrollId?: number;
 
   searchIndex: number;
   currentTab?: string;
