@@ -24,7 +24,8 @@
 namespace perfetto {
 
 using RunAtraceFunction =
-    std::add_pointer<bool(const std::vector<std::string>& /*args*/)>::type;
+    std::add_pointer<bool(const std::vector<std::string>& /*args*/,
+                          std::string* /*atrace_errors*/)>::type;
 
 // When we are sideloaded on an old version of Android (pre P), we cannot use
 // atrace --only_userspace because that option doesn't exist. In that case we:
@@ -35,7 +36,8 @@ bool IsOldAtrace();
 void SetIsOldAtraceForTesting(bool);
 void ClearIsOldAtraceForTesting();
 
-bool RunAtrace(const std::vector<std::string>& args);
+bool RunAtrace(const std::vector<std::string>& args,
+               std::string* atrace_errors);
 void SetRunAtraceForTesting(RunAtraceFunction);
 
 }  // namespace perfetto

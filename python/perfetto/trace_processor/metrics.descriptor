@@ -429,13 +429,14 @@ cpuMcycles%
 
 identifier (	R
 identifier
-”
-4protos/perfetto/metrics/android/network_metric.protoperfetto.protos"Ê
+º
+4protos/perfetto/metrics/android/network_metric.protoperfetto.protos"ð
 AndroidNetworkMetricP
 net_devices (2/.perfetto.protos.AndroidNetworkMetric.NetDeviceR
 netDevicesU
 net_rx_action (21.perfetto.protos.AndroidNetworkMetric.NetRxActionRnetRxAction/
-retransmission_rate (RretransmissionRateü
+retransmission_rate (RretransmissionRate$
+kfree_skb_rate (RkfreeSkbRateü
 PacketStatistic
 packets (Rpackets
 bytes (Rbytes9
