@@ -188,6 +188,14 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
                                          track);
   }
 
+  int c = 0;
+  for (auto it = sys_stats.cpufreq_khz(); it; ++it, ++c) {
+    base::StackString<255> counter_name("CPU %d Freq in kHz", c);
+    StringId name = context_->storage->InternString(counter_name.string_view());
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
+    context_->event_tracker->PushCounter(ts, static_cast<double>(*it), track);
+  }
+
   for (auto it = sys_stats.vmstat(); it; ++it) {
     protos::pbzero::SysStats::VmstatValue::Decoder vm(*it);
     auto key = static_cast<size_t>(vm.key());
