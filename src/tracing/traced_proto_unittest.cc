@@ -52,10 +52,10 @@ TEST_F(TracedProtoTest, SingleInt_WriteField) {
   EXPECT_EQ(result.single_int(), 42);
 }
 
-TEST_F(TracedProtoTest, SingleInt_Add) {
+TEST_F(TracedProtoTest, SingleInt_Set) {
   protozero::HeapBuffered<TestPayload> event;
   perfetto::TracedProto<TestPayload> proto = context().Wrap(event.get());
-  proto.Add(TestPayload::kSingleInt, 42);
+  proto.Set(TestPayload::kSingleInt, 42);
 
   protos::TestEvent::TestPayload result;
   result.ParseFromString(event.SerializeAsString());
@@ -105,10 +105,10 @@ TEST_F(TracedProtoTest, SingleString_WriteField) {
   EXPECT_EQ(result.single_string(), "foo");
 }
 
-TEST_F(TracedProtoTest, SingleString_Add) {
+TEST_F(TracedProtoTest, SingleString_Set) {
   protozero::HeapBuffered<TestPayload> event;
   perfetto::TracedProto<TestPayload> proto = context().Wrap(event.get());
-  proto.Add(TestPayload::kSingleString, "foo");
+  proto.Set(TestPayload::kSingleString, "foo");
 
   protos::TestEvent::TestPayload result;
   result.ParseFromString(event.SerializeAsString());
@@ -240,7 +240,7 @@ TEST_F(TracedProtoTest, SingleNestedMessage_Nullptr) {
   EXPECT_FALSE(result.payload().has_single_string());
 }
 
-TEST_F(TracedProtoTest, SingleNestedMessage_Method_Add) {
+TEST_F(TracedProtoTest, SingleNestedMessage_Method_Set) {
   protozero::HeapBuffered<protos::pbzero::TestEvent> event;
   perfetto::TracedProto<protos::pbzero::TestEvent> proto =
       context().Wrap(event.get());
@@ -251,58 +251,58 @@ TEST_F(TracedProtoTest, SingleNestedMessage_Method_Add) {
   EXPECT_EQ(result.payload().single_int(), 42);
 }
 
-TEST_F(TracedProtoTest, SingleNestedMessage_TraceFormatTraits_Add) {
+TEST_F(TracedProtoTest, SingleNestedMessage_TraceFormatTraits_Set) {
   protozero::HeapBuffered<protos::pbzero::TestEvent> event;
   perfetto::TracedProto<protos::pbzero::TestEvent> proto =
       context().Wrap(event.get());
-  proto.Add(protos::pbzero::TestEvent::kPayload, Bar());
+  proto.Set(protos::pbzero::TestEvent::kPayload, Bar());
 
   protos::TestEvent result;
   result.ParseFromString(event.SerializeAsString());
   EXPECT_EQ(result.payload().single_string(), "value");
 }
 
-TEST_F(TracedProtoTest, SingleNestedMessage_Pointer_Add) {
+TEST_F(TracedProtoTest, SingleNestedMessage_Pointer_Set) {
   protozero::HeapBuffered<protos::pbzero::TestEvent> event;
   perfetto::TracedProto<protos::pbzero::TestEvent> proto =
       context().Wrap(event.get());
   Bar bar;
-  proto.Add(protos::pbzero::TestEvent::kPayload, &bar);
+  proto.Set(protos::pbzero::TestEvent::kPayload, &bar);
 
   protos::TestEvent result;
   result.ParseFromString(event.SerializeAsString());
   EXPECT_EQ(result.payload().single_string(), "value");
 }
 
-TEST_F(TracedProtoTest, SingleNestedMessage_UniquePtr_Add) {
+TEST_F(TracedProtoTest, SingleNestedMessage_UniquePtr_Set) {
   protozero::HeapBuffered<protos::pbzero::TestEvent> event;
   perfetto::TracedProto<protos::pbzero::TestEvent> proto =
       context().Wrap(event.get());
   std::unique_ptr<Bar> bar(new Bar);
-  proto.Add(protos::pbzero::TestEvent::kPayload, bar);
+  proto.Set(protos::pbzero::TestEvent::kPayload, bar);
 
   protos::TestEvent result;
   result.ParseFromString(event.SerializeAsString());
   EXPECT_EQ(result.payload().single_string(), "value");
 }
 
-TEST_F(TracedProtoTest, SingleNestedMessage_EmptyUniquePtr_Add) {
+TEST_F(TracedProtoTest, SingleNestedMessage_EmptyUniquePtr_Set) {
   protozero::HeapBuffered<protos::pbzero::TestEvent> event;
   perfetto::TracedProto<protos::pbzero::TestEvent> proto =
       context().Wrap(event.get());
   std::unique_ptr<Bar> bar;
-  proto.Add(protos::pbzero::TestEvent::kPayload, bar);
+  proto.Set(protos::pbzero::TestEvent::kPayload, bar);
 
   protos::TestEvent result;
   result.ParseFromString(event.SerializeAsString());
   EXPECT_FALSE(result.payload().has_single_string());
 }
 
-TEST_F(TracedProtoTest, SingleNestedMessage_Nullptr_Add) {
+TEST_F(TracedProtoTest, SingleNestedMessage_Nullptr_Set) {
   protozero::HeapBuffered<protos::pbzero::TestEvent> event;
   perfetto::TracedProto<protos::pbzero::TestEvent> proto =
       context().Wrap(event.get());
-  proto.Add(protos::pbzero::TestEvent::kPayload, nullptr);
+  proto.Set(protos::pbzero::TestEvent::kPayload, nullptr);
 
   protos::TestEvent result;
   result.ParseFromString(event.SerializeAsString());
