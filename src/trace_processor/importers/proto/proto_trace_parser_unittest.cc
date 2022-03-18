@@ -595,6 +595,28 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
   EXPECT_EQ(context_.storage->cpu_counter_track_table().cpu()[0], 10u);
 }
 
+TEST_F(ProtoTraceParserTest, LoadCpuFreqKHz) {
+  auto* packet = trace_->add_packet();
+  uint64_t ts = 1000;
+  packet->set_timestamp(ts);
+  auto* bundle = packet->set_sys_stats();
+  bundle->add_cpufreq_khz(2650000u);
+  bundle->add_cpufreq_khz(3698200u);
+
+  EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), DoubleEq(2650000u),
+                                   TrackId{0u}));
+  EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), DoubleEq(3698200u),
+                                   TrackId{1u}));
+  Tokenize();
+  context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
+  EXPECT_EQ(context_.storage->track_table().name().GetString(0),
+            "CPU 0 Freq in kHz");
+  EXPECT_EQ(context_.storage->track_table().name().GetString(1),
+            "CPU 1 Freq in kHz");
+}
+
 TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   auto* packet = trace_->add_packet();
   uint64_t ts = 1000;
