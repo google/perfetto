@@ -110,7 +110,7 @@ class TracedProto {
         FieldMetadata::kProtoFieldType ==
             protozero::proto_utils::ProtoSchemaType::kMessage,
         "AddItem() can be used only for nested message fields. To write a "
-        "primitive field, use traced_proto->set_field() or traced_proto.Add()");
+        "primitive field, use traced_proto->set_field() or traced_proto.Set()");
     return Wrap(
         message_->template BeginNestedMessage<
             typename FieldMetadata::cpp_field_type>(FieldMetadata::kFieldId));
@@ -121,7 +121,7 @@ class TracedProto {
   // string), but requires the |field| to be non-repeateable (i.e. optional).
   // For repeatable fields, AppendValue or AppendFrom should be used.
   template <typename FieldMetadata, typename ValueType>
-  void Add(protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>,
+  void Set(protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>,
            ValueType&& value) {
     static_assert(std::is_base_of<MessageType,
                                   typename FieldMetadata::message_type>::value,
@@ -129,7 +129,7 @@ class TracedProto {
     static_assert(
         FieldMetadata::kRepetitionType ==
             protozero::proto_utils::RepetitionType::kNotRepeated,
-        "Add() can't be used with repeated fields due to ambiguity between "
+        "Set() can't be used with repeated fields due to ambiguity between "
         "writing |value| as a single entry or treating |value| as a container "
         "and writing all contained items as multiple entries. Please use "
         "dedicated AppendValue() or AppendFrom() methods to differentiate "
@@ -145,7 +145,7 @@ class TracedProto {
   }
 
   // Write a given |value| a single entry into the repeated |field| of the
-  // current message. If the field is not repeated, Add() should be used
+  // current message. If the field is not repeated, Set() should be used
   // instead.
   template <typename FieldMetadata, typename ValueType>
   void AppendValue(
@@ -158,7 +158,7 @@ class TracedProto {
         FieldMetadata::kRepetitionType ==
             protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
         "Append*() methods can be used only with repeated fields. "
-        "Please use Add() for non-repeated");
+        "Please use Set() for non-repeated");
 
     // Write a single value into a given repeated field by explicitly passing
     // "kNotRepeated" to the TypedProtoWriterImpl.
@@ -171,7 +171,7 @@ class TracedProto {
   }
 
   // Write a given |value| as a set of entries into the repeated |field| of the
-  // current message. If the field is not repeated, Add() should be used
+  // current message. If the field is not repeated, Set() should be used
   // instead.
   template <typename FieldMetadata, typename ValueType>
   void AppendFrom(
@@ -184,7 +184,7 @@ class TracedProto {
         FieldMetadata::kRepetitionType ==
             protozero::proto_utils::RepetitionType::kRepeatedNotPacked,
         "Append*() methods can be used only with repeated fields. "
-        "Please use Add() for non-repeated");
+        "Please use Set() for non-repeated");
 
     internal::TypedProtoWriterImpl<
         FieldMetadata,
