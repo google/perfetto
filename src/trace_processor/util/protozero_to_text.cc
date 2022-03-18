@@ -235,6 +235,42 @@ void ProtozeroToTextInternal(const std::string& type,
                              std::string* indents,
                              std::string* output);
 
+template <protozero::proto_utils::ProtoWireType wire_type, typename T>
+void PrintPackedField(const FieldDescriptor& fd,
+                      const protozero::Field& field,
+                      NewLinesMode new_lines_mode,
+                      const std::string& indents,
+                      std::string* out) {
+  const bool include_new_lines = new_lines_mode == kIncludeNewLines;
+  bool err = false;
+  bool first_output = true;
+  for (protozero::PackedRepeatedFieldIterator<wire_type, T> it(
+           field.data(), field.size(), &err);
+       it; it++) {
+    T value = *it;
+    if (!first_output) {
+      if (include_new_lines) {
+        StrAppend(out, "\n", indents);
+      } else {
+        StrAppend(out, " ");
+      }
+    }
+    StrAppend(out, fd.name(), ": ", std::to_string(value));
+    first_output = false;
+  }
+
+  if (err) {
+    if (!first_output) {
+      if (include_new_lines) {
+        StrAppend(out, "\n", indents);
+      } else {
+        StrAppend(out, " ");
+      }
+    }
+    StrAppend(out, "# Packed decoding failure for field ", fd.name(), "\n");
+  }
+}
+
 void PrintLengthDelimitedField(const FieldDescriptor* fd,
                                const protozero::Field& field,
                                NewLinesMode new_lines_mode,
@@ -248,7 +284,7 @@ void PrintLengthDelimitedField(const FieldDescriptor* fd,
     case FieldDescriptorProto::TYPE_STRING: {
       std::string value = QuoteAndEscapeTextProtoString(field.as_std_string());
       StrAppend(out, fd->name(), ": ", value);
-      break;
+      return;
     }
     case FieldDescriptorProto::TYPE_MESSAGE:
       StrAppend(out, FormattedFieldDescriptorName(*fd), ": {");
@@ -263,13 +299,63 @@ void PrintLengthDelimitedField(const FieldDescriptor* fd,
       } else {
         StrAppend(out, " }");
       }
+      return;
+    case FieldDescriptorProto::TYPE_DOUBLE:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed64, double>(
+          *fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_FLOAT:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed32, float>(
+          *fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_INT64:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kVarInt, int64_t>(
+          *fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_UINT64:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kVarInt,
+                       uint64_t>(*fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_INT32:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kVarInt, int32_t>(
+          *fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_FIXED64:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed64,
+                       uint64_t>(*fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_FIXED32:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed32,
+                       uint32_t>(*fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_UINT32:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kVarInt,
+                       uint32_t>(*fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_SFIXED32:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed32,
+                       int32_t>(*fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_SFIXED64:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed64,
+                       int64_t>(*fd, field, new_lines_mode, *indents, out);
+      return;
+    // Our protoc plugin cannot generate code for packed repeated fields with
+    // these types. Output a comment and then fall back to the raw field_id:
+    // string representation.
+    case FieldDescriptorProto::TYPE_BOOL:
+    case FieldDescriptorProto::TYPE_ENUM:
+    case FieldDescriptorProto::TYPE_SINT32:
+    case FieldDescriptorProto::TYPE_SINT64:
+      StrAppend(out, "# Packed type ", std::to_string(type),
+                " not supported. Printing raw string.", "\n", *indents);
       break;
     case 0:
     default:
-      std::string value = QuoteAndEscapeTextProtoString(field.as_std_string());
-      StrAppend(out, std::to_string(field.id()), ": ", value);
       break;
   }
+  std::string value = QuoteAndEscapeTextProtoString(field.as_std_string());
+  StrAppend(out, std::to_string(field.id()), ": ", value);
 }
 
 // Recursive case function, Will parse |protobytes| assuming it is a proto of
