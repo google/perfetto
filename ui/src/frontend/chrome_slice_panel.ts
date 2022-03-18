@@ -214,7 +214,7 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
               row.contents.key));
         const value = row.contents.value;
         if (typeof value === 'string') {
-          renderedRow.push(m('td', value));
+          renderedRow.push(m('td.value', value));
         } else {
           // Type of value being a record is not propagated into the callback
           // for some reason, extracting necessary parts as constants instead.
