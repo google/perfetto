@@ -250,6 +250,10 @@
       text-align: left;
       width: 30%;
       font-weight: normal;
+      vertical-align: top;
+    }
+    td.value {
+      white-space: pre-wrap;
     }
     .array-index {
       text-align: right;
