@@ -20,6 +20,18 @@ java_library_host {
     ],
 }
 
+// TODO(b/225381015): add fix to include all the trace protos.
+java_library {
+    name: "perfetto_trace_java_protos",
+    proto: {
+        type: "lite",
+        canonical_path_from_root: false,
+    },
+    srcs: [
+        "protos/perfetto/common/*.proto",
+    ]
+}
+
 // This sample target shows how to use the perfetto client API from within the
 // Android tree.
 cc_binary {
