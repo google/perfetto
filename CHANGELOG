@@ -3,6 +3,9 @@ Unreleased:
     * Added prebuilts for mac-arm64.
     * Removed merged trace and config protos from Bazel. Embedder should
       instead depend on the non-merged proto targets.
+    * Added FtraceConfig.disable_generic_events. If set, the ftrace data source
+      will not emit events for which it doesn't have a compile-time proto
+      message.
   Trace Processor:
     * Added prebuilts for mac-arm64.
     *
