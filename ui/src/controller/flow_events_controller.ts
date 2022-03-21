@@ -122,6 +122,7 @@ export class FlowEventsController extends Controller<'main'> {
             sliceEndTs: endSliceEndTs,
             depth: endDepth
           },
+          dur: endSliceStartTs - beginSliceEndTs,
           category,
           name
         });

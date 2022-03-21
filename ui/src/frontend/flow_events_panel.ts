@@ -15,6 +15,7 @@
 import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {timeToCode} from '../common/time';
 
 import {Flow, globals} from './globals';
 import {BLANK_CHECKBOX, CHECKBOX} from './icons';
@@ -58,6 +59,7 @@ export class FlowEventsPanel extends Panel {
 
     const columns = [
       m('th', 'Direction'),
+      m('th', 'Duration'),
       m('th', 'Connected Slice ID'),
       m('th', 'Connected Slice Name')
     ];
@@ -89,6 +91,7 @@ export class FlowEventsPanel extends Panel {
 
       const data = [
         m('td.flow-link', args, outgoing ? 'Outgoing' : 'Incoming'),
+        m('td.flow-link', args, timeToCode(flow.dur)),
         m('td.flow-link', args, otherEnd.sliceId.toString()),
         m('td.flow-link', args, otherEnd.sliceName)
       ];
