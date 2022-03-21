@@ -46,7 +46,11 @@ void FlowTracker::Begin(TrackId track_id, FlowId flow_id) {
     context_->storage->IncrementStats(stats::flow_no_enclosing_slice);
     return;
   }
-  auto it_and_ins = flow_to_slice_map_.Insert(flow_id, open_slice_id.value());
+  Begin(open_slice_id.value(), flow_id);
+}
+
+void FlowTracker::Begin(SliceId slice_id, FlowId flow_id) {
+  auto it_and_ins = flow_to_slice_map_.Insert(flow_id, slice_id);
   if (!it_and_ins.second) {
     context_->storage->IncrementStats(stats::flow_duplicate_id);
     return;
@@ -60,14 +64,18 @@ void FlowTracker::Step(TrackId track_id, FlowId flow_id) {
     context_->storage->IncrementStats(stats::flow_no_enclosing_slice);
     return;
   }
+  Step(open_slice_id.value(), flow_id);
+}
+
+void FlowTracker::Step(SliceId slice_id, FlowId flow_id) {
   auto* it = flow_to_slice_map_.Find(flow_id);
   if (!it) {
     context_->storage->IncrementStats(stats::flow_step_without_start);
     return;
   }
   SliceId slice_out_id = *it;
-  InsertFlow(flow_id, slice_out_id, open_slice_id.value());
-  *it = open_slice_id.value();
+  InsertFlow(flow_id, slice_out_id, slice_id);
+  *it = slice_id;
 }
 
 void FlowTracker::End(TrackId track_id,
@@ -84,6 +92,10 @@ void FlowTracker::End(TrackId track_id,
     context_->storage->IncrementStats(stats::flow_no_enclosing_slice);
     return;
   }
+  End(open_slice_id.value(), flow_id, close_flow);
+}
+
+void FlowTracker::End(SliceId slice_id, FlowId flow_id, bool close_flow) {
   auto* it = flow_to_slice_map_.Find(flow_id);
   if (!it) {
     context_->storage->IncrementStats(stats::flow_end_without_start);
@@ -92,7 +104,7 @@ void FlowTracker::End(TrackId track_id,
   SliceId slice_out_id = *it;
   if (close_flow)
     flow_to_slice_map_.Erase(flow_id);
-  InsertFlow(flow_id, slice_out_id, open_slice_id.value());
+  InsertFlow(flow_id, slice_out_id, slice_id);
 }
 
 bool FlowTracker::IsActive(FlowId flow_id) const {
