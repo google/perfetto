@@ -37,9 +37,14 @@ using testing::MatchesRegex;
 using testing::NiceMock;
 using testing::Not;
 using testing::Return;
+using testing::UnorderedElementsAre;
 
 namespace perfetto {
 namespace {
+
+constexpr int kFakeSchedSwitchEventId = 1;
+constexpr int kCgroupMkdirEventId = 12;
+constexpr int kFakePrintEventId = 20;
 
 class MockFtraceProcfs : public FtraceProcfs {
  public:
@@ -60,6 +65,9 @@ class MockFtraceProcfs : public FtraceProcfs {
   MOCK_CONST_METHOD0(NumberOfCpus, size_t());
   MOCK_CONST_METHOD1(GetEventNamesForGroup,
                      const std::set<std::string>(const std::string& path));
+  MOCK_CONST_METHOD2(ReadEventFormat,
+                     std::string(const std::string& group,
+                                 const std::string& name));
 };
 
 struct MockRunAtrace {
@@ -115,17 +123,13 @@ class FtraceConfigMuxerTest : public ::testing::Test {
             InvalidCompactSchedEventFormatForTesting()));
   }
 
-  static constexpr int kFakeSchedSwitchEventId = 1;
-  static constexpr int kCgroupMkdirEventId = 12;
-  static constexpr int kFakePrintEventId = 20;
-
   std::unique_ptr<ProtoTranslationTable> CreateFakeTable(
       CompactSchedEventFormat compact_format =
           InvalidCompactSchedEventFormatForTesting()) {
     std::vector<Field> common_fields;
     std::vector<Event> events;
     {
-      Event event;
+      Event event = {};
       event.name = "sched_switch";
       event.group = "sched";
       event.ftrace_event_id = kFakeSchedSwitchEventId;
@@ -133,7 +137,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
     }
 
     {
-      Event event;
+      Event event = {};
       event.name = "sched_wakeup";
       event.group = "sched";
       event.ftrace_event_id = 10;
@@ -141,7 +145,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
     }
 
     {
-      Event event;
+      Event event = {};
       event.name = "sched_new";
       event.group = "sched";
       event.ftrace_event_id = 11;
@@ -149,7 +153,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
     }
 
     {
-      Event event;
+      Event event = {};
       event.name = "cgroup_mkdir";
       event.group = "cgroup";
       event.ftrace_event_id = kCgroupMkdirEventId;
@@ -157,7 +161,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
     }
 
     {
-      Event event;
+      Event event = {};
       event.name = "mm_vmscan_direct_reclaim_begin";
       event.group = "vmscan";
       event.ftrace_event_id = 13;
@@ -165,7 +169,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
     }
 
     {
-      Event event;
+      Event event = {};
       event.name = "lowmemory_kill";
       event.group = "lowmemorykiller";
       event.ftrace_event_id = 14;
@@ -173,7 +177,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
     }
 
     {
-      Event event;
+      Event event = {};
       event.name = "print";
       event.group = "ftrace";
       event.ftrace_event_id = kFakePrintEventId;
@@ -430,14 +434,12 @@ TEST_F(FtraceConfigMuxerTest, TurnFtraceOnOff) {
 
   const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
   ASSERT_TRUE(ds_config);
-  ASSERT_THAT(
-      ds_config->event_filter.GetEnabledEvents(),
-      ElementsAreArray({FtraceConfigMuxerTest::kFakeSchedSwitchEventId}));
+  ASSERT_THAT(ds_config->event_filter.GetEnabledEvents(),
+              ElementsAreArray({kFakeSchedSwitchEventId}));
 
   const EventFilter* central_filter = model.GetCentralEventFilterForTesting();
-  ASSERT_THAT(
-      central_filter->GetEnabledEvents(),
-      ElementsAreArray({FtraceConfigMuxerTest::kFakeSchedSwitchEventId}));
+  ASSERT_THAT(central_filter->GetEnabledEvents(),
+              ElementsAreArray({kFakeSchedSwitchEventId}));
 
   ASSERT_TRUE(testing::Mock::VerifyAndClearExpectations(&ftrace));
   EXPECT_CALL(ftrace, NumberOfCpus()).Times(AnyNumber());
@@ -492,13 +494,13 @@ TEST_F(FtraceConfigMuxerTest, Atrace) {
   const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
   ASSERT_TRUE(ds_config);
   EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kFakeSchedSwitchEventId));
+              Contains(kFakeSchedSwitchEventId));
   EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kFakePrintEventId));
+              Contains(kFakePrintEventId));
 
   const EventFilter* central_filter = model.GetCentralEventFilterForTesting();
   EXPECT_THAT(central_filter->GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kFakeSchedSwitchEventId));
+              Contains(kFakeSchedSwitchEventId));
 
   EXPECT_CALL(
       atrace,
@@ -535,7 +537,7 @@ TEST_F(FtraceConfigMuxerTest, AtraceTwoApps) {
   const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
   ASSERT_TRUE(ds_config);
   ASSERT_THAT(ds_config->event_filter.GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kFakePrintEventId));
+              Contains(kFakePrintEventId));
 
   EXPECT_CALL(
       atrace,
@@ -915,15 +917,15 @@ TEST_F(FtraceConfigMuxerTest, FallbackOnSetEvent) {
   const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
   ASSERT_TRUE(ds_config);
   EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kFakeSchedSwitchEventId));
+              Contains(kFakeSchedSwitchEventId));
   EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kCgroupMkdirEventId));
+              Contains(kCgroupMkdirEventId));
 
   const EventFilter* central_filter = model.GetCentralEventFilterForTesting();
   EXPECT_THAT(central_filter->GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kFakeSchedSwitchEventId));
+              Contains(kFakeSchedSwitchEventId));
   EXPECT_THAT(central_filter->GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kCgroupMkdirEventId));
+              Contains(kCgroupMkdirEventId));
 
   EXPECT_CALL(ftrace, WriteToFile("/root/tracing_on", "0"));
   EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", "4"));
@@ -964,7 +966,7 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
     const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
     ASSERT_TRUE(ds_config);
     EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
-                Contains(FtraceConfigMuxerTest::kFakeSchedSwitchEventId));
+                Contains(kFakeSchedSwitchEventId));
     EXPECT_TRUE(ds_config->compact_sched.enabled);
   }
   {
@@ -973,7 +975,7 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
     const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
     ASSERT_TRUE(ds_config);
     EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
-                Contains(FtraceConfigMuxerTest::kFakeSchedSwitchEventId));
+                Contains(kFakeSchedSwitchEventId));
     EXPECT_FALSE(ds_config->compact_sched.enabled);
   }
 }
@@ -995,8 +997,54 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfigWithInvalidFormat) {
   const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
   ASSERT_TRUE(ds_config);
   EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kFakeSchedSwitchEventId));
+              Contains(kFakeSchedSwitchEventId));
   EXPECT_FALSE(ds_config->compact_sched.enabled);
+}
+
+TEST_F(FtraceConfigMuxerTest, SkipGenericEventsOption) {
+  NiceMock<MockFtraceProcfs> ftrace;
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+
+  static constexpr int kFtraceGenericEventId = 42;
+  ON_CALL(table_procfs_, ReadEventFormat("sched", "generic"))
+      .WillByDefault(Return(R"(name: generic
+ID: 42
+format:
+	field:int common_pid;	offset:0;	size:4;	signed:1;
+
+	field:u32 field_a;	offset:4;	size:4;	signed:0;
+	field:int field_b;	offset:8;	size:4;	signed:1;
+
+print fmt: "unused")"));
+
+  // Data source asking for one known and one generic event.
+  FtraceConfig config_default =
+      CreateFtraceConfig({"sched/sched_switch", "sched/generic"});
+
+  // As above, but with an option to suppress generic events.
+  FtraceConfig config_with_disable =
+      CreateFtraceConfig({"sched/sched_switch", "sched/generic"});
+  config_with_disable.set_disable_generic_events(true);
+
+  {
+    FtraceConfigId id = model.SetupConfig(config_default);
+    ASSERT_TRUE(id);
+    const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
+    ASSERT_TRUE(ds_config);
+    // Both events enabled for the data source by default.
+    EXPECT_THAT(
+        ds_config->event_filter.GetEnabledEvents(),
+        UnorderedElementsAre(kFakeSchedSwitchEventId, kFtraceGenericEventId));
+  }
+  {
+    FtraceConfigId id = model.SetupConfig(config_with_disable);
+    ASSERT_TRUE(id);
+    const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
+    ASSERT_TRUE(ds_config);
+    // Only the statically known event is enabled.
+    EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
+                UnorderedElementsAre(kFakeSchedSwitchEventId));
+  }
 }
 
 }  // namespace
