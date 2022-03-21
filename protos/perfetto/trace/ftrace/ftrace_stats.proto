@@ -88,6 +88,8 @@ message FtraceStats {
   // Ftrace events requested by the config but not present on device.
   repeated string unknown_ftrace_events = 6;
 
-  // Ftrace events requested by the config, present, which we failed to enable.
+  // Ftrace events requested by the config and present on device, but which we
+  // failed to enable due to permissions, or due to a conflicting option
+  // (currently FtraceConfig.disable_generic_events).
   repeated string failed_ftrace_events = 7;
 }

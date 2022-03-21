@@ -674,7 +674,6 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
     for (const Field& field : info.fields) {
       auto generic_field = nested->BeginNestedMessage<protozero::Message>(
           GenericFtraceEvent::kFieldFieldNumber);
-      // TODO(hjd): Avoid outputting field names every time.
       generic_field->AppendString(GenericFtraceEvent::Field::kNameFieldNumber,
                                   field.ftrace_name);
       success &= ParseField(field, start, end, table, generic_field, metadata);
