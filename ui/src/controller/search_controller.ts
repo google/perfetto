@@ -277,12 +277,12 @@ export class SearchController extends Controller<'main'> {
       utids: new Float64Array(rows),
       trackIds: [],
       sources: [],
-      totalResults: queryRes.numRows(),
+      totalResults: 0,
     };
 
     const it = queryRes.iter(
         {sliceId: NUM, ts: NUM, source: STR, sourceId: NUM, utid: NUM});
-    for (let i = 0; it.valid(); it.next(), ++i) {
+    for (; it.valid(); it.next()) {
       let trackId = undefined;
       if (it.source === 'cpu') {
         trackId = cpuToTrackId.get(it.sourceId);
@@ -292,9 +292,10 @@ export class SearchController extends Controller<'main'> {
 
       // The .get() calls above could return undefined, this isn't just an else.
       if (trackId === undefined) {
-        searchResults.totalResults--;
         continue;
       }
+
+      const i = searchResults.totalResults++;
       searchResults.trackIds.push(trackId);
       searchResults.sources.push(it.source);
       searchResults.sliceIds[i] = it.sliceId;
