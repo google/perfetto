@@ -9824,6 +9824,29 @@ message TrackDescriptor {
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto
 
+// Begin of protos/perfetto/trace/translation/translation_table.proto
+
+// Translation rules for the trace processor.
+// See the comments for each rule type for specific meaning.
+message TranslationTable {
+  oneof table {
+    ChromeHistorgramTranslationTable chrome_histogram = 1;
+    ChromeUserEventTranslationTable chrome_user_event = 2;
+  }
+}
+
+// Chrome histogram sample hash -> name translation rules.
+message ChromeHistorgramTranslationTable {
+  map<uint64, string> hash_to_name = 1;
+}
+
+// Chrome user event action hash -> name translation rules.
+message ChromeUserEventTranslationTable {
+  map<uint64, string> action_hash_to_name = 1;
+}
+
+// End of protos/perfetto/trace/translation/translation_table.proto
+
 // Begin of protos/perfetto/trace/trigger.proto
 
 // When a TracingSession receives a trigger it records the boot time nanoseconds
@@ -9902,7 +9925,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 82.
+// Next id: 83.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -9966,6 +9989,7 @@ message TracePacket {
     UiState ui_state = 78;
     AndroidCameraFrameEvent android_camera_frame_event = 80;
     AndroidCameraSessionStats android_camera_session_stats = 81;
+    TranslationTable translation_table = 82;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
