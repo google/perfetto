@@ -32,10 +32,13 @@
 #include <unistd.h>
 #endif
 
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <random>
 #include <sstream>
+#include <thread>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -569,6 +572,12 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     uuid_ = uuid.ToString();
   }
 
+  const auto& delay = trace_config_->cmd_trace_start_delay();
+  if (delay.has_max_delay_ms() != delay.has_min_delay_ms()) {
+    PERFETTO_ELOG("cmd_trace_start_delay field is only partially specified.");
+    return 1;
+  }
+
   bool has_incidentd_package =
       !trace_config_->incident_report_config().destination_package().empty();
   if (has_incidentd_package && !upload_flag_) {
@@ -878,6 +887,16 @@ int PerfettoCmd::ConnectToServiceAndRun() {
       max_stop_delay_ms = std::max(max_stop_delay_ms, trigger.stop_delay_ms());
     }
     expected_duration_ms_ = timeout_ms + max_stop_delay_ms;
+  }
+
+  const auto& delay = trace_config_->cmd_trace_start_delay();
+  if (delay.has_min_delay_ms()) {
+    PERFETTO_DCHECK(delay.has_max_delay_ms());
+    std::random_device r;
+    std::minstd_rand minstd(r());
+    std::uniform_int_distribution<uint32_t> dist(delay.min_delay_ms(),
+                                                 delay.max_delay_ms());
+    std::this_thread::sleep_for(std::chrono::milliseconds(dist(minstd)));
   }
 
   if (trace_config_->trigger_config().trigger_timeout_ms() == 0) {
