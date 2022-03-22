@@ -470,6 +470,56 @@ TEST_F(ProtoToArgsParserTest, EmptyMessage) {
   EXPECT_THAT(args(), testing::ElementsAre("super_nested super_nested [NULL]"));
 }
 
+TEST_F(ProtoToArgsParserTest, WidthAndSignednessOfScalars) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};
+
+  // Set fields to values with the top bit set, and check that the parser
+  // retains the full value with the correct sign.
+  msg->set_field_int32(-0x80000000ll);
+  msg->set_field_sint32(-0x80000000ll);
+  msg->set_field_sfixed32(-0x80000000ll);
+
+  msg->set_field_uint32(0x80000000ull);
+  msg->set_field_fixed32(0x80000000ull);
+
+  msg->set_field_int64(-0x7FFFFFFFFFFFFFFFll - 1);
+  msg->set_field_sint64(-0x7FFFFFFFFFFFFFFFll - 1);
+  msg->set_field_sfixed64(-0x7FFFFFFFFFFFFFFFll - 1);
+
+  msg->set_field_uint64(0x8000000000000000ull);
+  msg->set_field_fixed64(0x8000000000000000ull);
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ProtoToArgsParser parser(pool);
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.EveryField", nullptr, *this);
+
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
+
+  EXPECT_THAT(args(), testing::ElementsAre(
+                          "field_int32 field_int32 -2147483648",
+                          "field_sint32 field_sint32 -2147483648",
+                          "field_sfixed32 field_sfixed32 -2147483648",
+                          "field_uint32 field_uint32 2147483648",
+                          "field_fixed32 field_fixed32 2147483648",
+                          "field_int64 field_int64 -9223372036854775808",
+                          "field_sint64 field_sint64 -9223372036854775808",
+                          "field_sfixed64 field_sfixed64 -9223372036854775808",
+                          "field_uint64 field_uint64 9223372036854775808",
+                          "field_fixed64 field_fixed64 9223372036854775808"));
+}
+
 }  // namespace
 }  // namespace util
 }  // namespace trace_processor

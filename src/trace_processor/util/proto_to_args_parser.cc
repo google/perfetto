@@ -228,7 +228,6 @@ base::Status ProtoToArgsParser::ParseSimpleField(
   switch (descriptor.type()) {
     case FieldDescriptorProto::TYPE_INT32:
     case FieldDescriptorProto::TYPE_SFIXED32:
-    case FieldDescriptorProto::TYPE_FIXED32:
       delegate.AddInteger(key_prefix_, field.as_int32());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT32:
@@ -236,16 +235,17 @@ base::Status ProtoToArgsParser::ParseSimpleField(
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_INT64:
     case FieldDescriptorProto::TYPE_SFIXED64:
-    case FieldDescriptorProto::TYPE_FIXED64:
       delegate.AddInteger(key_prefix_, field.as_int64());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_SINT64:
       delegate.AddInteger(key_prefix_, field.as_sint64());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_UINT32:
+    case FieldDescriptorProto::TYPE_FIXED32:
       delegate.AddUnsignedInteger(key_prefix_, field.as_uint32());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_UINT64:
+    case FieldDescriptorProto::TYPE_FIXED64:
       delegate.AddUnsignedInteger(key_prefix_, field.as_uint64());
       return base::OkStatus();
     case FieldDescriptorProto::TYPE_BOOL:
