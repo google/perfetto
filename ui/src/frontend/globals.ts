@@ -57,6 +57,13 @@ export interface SliceDetails {
   wakerCpu?: number;
   category?: string;
   name?: string;
+  tid?: number;
+  threadName?: string;
+  pid?: number;
+  processName?: string;
+  uid?: number;
+  packageName?: string;
+  versionCode?: string;
   args?: Args;
   argsTree?: ArgsTree;
   description?: Description;
