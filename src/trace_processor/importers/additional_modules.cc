@@ -20,6 +20,7 @@
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
 #include "src/trace_processor/importers/proto/system_probes_module.h"
+#include "src/trace_processor/importers/proto/translation_table_module.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -29,6 +30,7 @@ void RegisterAdditionalModules(TraceProcessorContext* context) {
   context->modules.emplace_back(new GraphicsEventModule(context));
   context->modules.emplace_back(new HeapGraphModule(context));
   context->modules.emplace_back(new SystemProbesModule(context));
+  context->modules.emplace_back(new TranslationTableModule(context));
   context->modules.emplace_back(new FtraceModuleImpl(context));
   // Ftrace module is special, because it has one extra method for parsing
   // ftrace packets. So we need to store a pointer to it separately.
