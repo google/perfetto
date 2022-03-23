@@ -45,43 +45,48 @@ export class SliceDetailsPanel extends SlicePanel {
         sliceInfo.dur === undefined) {
       return null;
     } else {
+      const tableRows = [
+        m('tr',
+          m('th', `Process`),
+          m('td', `${threadInfo.procName} [${threadInfo.pid}]`)),
+        m('tr',
+          m('th', `Thread`),
+          m('td',
+            `${threadInfo.threadName} [${threadInfo.tid}]`,
+            m('i.material-icons.grey',
+              {onclick: () => this.goToThread(), title: 'Go to thread'},
+              'call_made'))),
+        m('tr', m('th', `Cmdline`), m('td', threadInfo.cmdline)),
+        m('tr', m('th', `Start time`), m('td', `${timeToCode(sliceInfo.ts)}`)),
+        m('tr',
+          m('th', `Duration`),
+          m('td', this.computeDuration(sliceInfo.ts, sliceInfo.dur))),
+        (sliceInfo.thread_dur === undefined ||
+         sliceInfo.thread_ts === undefined) ?
+            '' :
+            m('tr',
+              m('th', 'Thread duration'),
+              m('td',
+                this.computeDuration(
+                    sliceInfo.thread_ts, sliceInfo.thread_dur))),
+        m('tr', m('th', `Prio`), m('td', `${sliceInfo.priority}`)),
+        m('tr',
+          m('th', `End State`),
+          m('td', translateState(sliceInfo.endState))),
+        m('tr',
+          m('th', `Slice ID`),
+          m('td', sliceInfo.id ? sliceInfo.id.toString() : 'Unknown'))
+      ];
+
+      for (const [key, value] of this.getProcessThreadDetails(sliceInfo)) {
+        if (value !== undefined) {
+          tableRows.push(m('tr', m('th', key), m('td', value)));
+        }
+      }
+
       return m(
           '.details-table',
-          m('table.half-width',
-            [
-              m('tr',
-                m('th', `Process`),
-                m('td', `${threadInfo.procName} [${threadInfo.pid}]`)),
-              m('tr',
-                m('th', `Thread`),
-                m('td',
-                  `${threadInfo.threadName} [${threadInfo.tid}]`,
-                  m('i.material-icons.grey',
-                    {onclick: () => this.goToThread(), title: 'Go to thread'},
-                    'call_made'))),
-              m('tr', m('th', `Cmdline`), m('td', threadInfo.cmdline)),
-              m('tr',
-                m('th', `Start time`),
-                m('td', `${timeToCode(sliceInfo.ts)}`)),
-              m('tr',
-                m('th', `Duration`),
-                m('td', this.computeDuration(sliceInfo.ts, sliceInfo.dur))),
-              (sliceInfo.thread_dur === undefined ||
-               sliceInfo.thread_ts === undefined) ?
-                  '' :
-                  m('tr',
-                    m('th', 'Thread duration'),
-                    m('td',
-                      this.computeDuration(
-                          sliceInfo.thread_ts, sliceInfo.thread_dur))),
-              m('tr', m('th', `Prio`), m('td', `${sliceInfo.priority}`)),
-              m('tr',
-                m('th', `End State`),
-                m('td', translateState(sliceInfo.endState))),
-              m('tr',
-                m('th', `Slice ID`),
-                m('td', sliceInfo.id ? sliceInfo.id.toString() : 'Unknown'))
-            ]),
+          m('table.half-width', tableRows),
       );
     }
   }
