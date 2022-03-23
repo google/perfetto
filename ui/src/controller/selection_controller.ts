@@ -50,7 +50,7 @@ interface ProcessDetails {
   processName?: string;
   uid?: number;
   packageName?: string;
-  versionCode?: string;
+  versionCode?: number;
 }
 
 // This class queries the TP for the details on a specific slice that has
@@ -536,7 +536,7 @@ export class SelectionController extends Controller<'main'> {
     // check if the result has returned any rows.
     if (packageResult.numRows() > 0) {
       const packageDetails =
-          packageResult.firstRow({package_name: STR, version_code: STR});
+          packageResult.firstRow({package_name: STR, version_code: NUM});
       details.packageName = packageDetails.package_name;
       details.versionCode = packageDetails.version_code;
     }
