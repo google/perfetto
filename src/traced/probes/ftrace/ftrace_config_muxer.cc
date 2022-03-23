@@ -26,10 +26,11 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/utils.h"
-#include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
+
+#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 
 namespace perfetto {
 namespace {
@@ -544,10 +545,20 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
         errors->unknown_ftrace_events.push_back(group_and_name.ToString());
       continue;
     }
+    // Niche option to skip events that are in the config, but don't have a
+    // dedicated proto for the event in perfetto. Otherwise such events will be
+    // encoded as GenericFtraceEvent.
+    if (request.disable_generic_events() &&
+        event->proto_field_id ==
+            protos::pbzero::FtraceEvent::kGenericFieldNumber) {
+      if (errors)
+        errors->failed_ftrace_events.push_back(group_and_name.ToString());
+      continue;
+    }
     // Note: ftrace events are always implicitly enabled (and don't have an
     // "enable" file). So they aren't tracked by the central event filter (but
-    // still need to be added to the per data source event filter to retain the
-    // events during parsing).
+    // still need to be added to the per data source event filter to retain
+    // the events during parsing).
     if (current_state_.ftrace_events.IsEventEnabled(event->ftrace_event_id) ||
         std::string("ftrace") == event->group) {
       filter.AddEnabledEvent(event->ftrace_event_id);

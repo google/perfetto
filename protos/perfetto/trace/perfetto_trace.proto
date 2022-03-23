@@ -484,6 +484,15 @@ message FtraceConfig {
   // TODO(kaleshsingh): implement the logic behind this. Right now this flag
   // does nothing.
   optional bool throttle_rss_stat = 15;
+
+  // If true, avoid enabling events that aren't statically known by
+  // traced_probes. Otherwise, the default is to emit such events as
+  // GenericFtraceEvent protos.
+  // Prefer to keep this flag at its default. This was added for Android
+  // tracing, where atrace categories and/or atrace HAL requested events can
+  // expand to events that aren't of interest to the tracing user.
+  // Introduced in: Android T.
+  optional bool disable_generic_events = 16;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
@@ -2130,6 +2139,18 @@ message TraceConfig {
     optional bool use_pipe_in_framework_for_testing = 4;
   }
   optional AndroidReportConfig android_report_config = 34;
+
+  // If set, delays the start of tracing by a random duration. The duration is
+  // chosen from a uniform distribution between the specified minimum and
+  // maximum.
+  // Note: this delay is implemented by perfetto_cmd *not* by traced so will
+  // not work if you communicate with traced directly over the consumer API.
+  // Introduced in Android T.
+  message CmdTraceStartDelay {
+    optional uint32 min_delay_ms = 1;
+    optional uint32 max_delay_ms = 2;
+  }
+  optional CmdTraceStartDelay cmd_trace_start_delay = 35;
 }
 
 // End of protos/perfetto/config/trace_config.proto
@@ -6524,7 +6545,9 @@ message FtraceStats {
   // Ftrace events requested by the config but not present on device.
   repeated string unknown_ftrace_events = 6;
 
-  // Ftrace events requested by the config, present, which we failed to enable.
+  // Ftrace events requested by the config and present on device, but which we
+  // failed to enable due to permissions, or due to a conflicting option
+  // (currently FtraceConfig.disable_generic_events).
   repeated string failed_ftrace_events = 7;
 }
 
@@ -9801,6 +9824,29 @@ message TrackDescriptor {
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto
 
+// Begin of protos/perfetto/trace/translation/translation_table.proto
+
+// Translation rules for the trace processor.
+// See the comments for each rule type for specific meaning.
+message TranslationTable {
+  oneof table {
+    ChromeHistorgramTranslationTable chrome_histogram = 1;
+    ChromeUserEventTranslationTable chrome_user_event = 2;
+  }
+}
+
+// Chrome histogram sample hash -> name translation rules.
+message ChromeHistorgramTranslationTable {
+  map<uint64, string> hash_to_name = 1;
+}
+
+// Chrome user event action hash -> name translation rules.
+message ChromeUserEventTranslationTable {
+  map<uint64, string> action_hash_to_name = 1;
+}
+
+// End of protos/perfetto/trace/translation/translation_table.proto
+
 // Begin of protos/perfetto/trace/trigger.proto
 
 // When a TracingSession receives a trigger it records the boot time nanoseconds
@@ -9879,7 +9925,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 82.
+// Next id: 83.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -9943,6 +9989,7 @@ message TracePacket {
     UiState ui_state = 78;
     AndroidCameraFrameEvent android_camera_frame_event = 80;
     AndroidCameraSessionStats android_camera_session_stats = 81;
+    TranslationTable translation_table = 82;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;

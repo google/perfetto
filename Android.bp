@@ -71,6 +71,7 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_system_info_zero_gen",
         ":perfetto_protos_perfetto_trace_track_event_cpp_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
+        ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_src_base_base",
         ":perfetto_src_base_unix_socket",
         ":perfetto_src_ipc_client",
@@ -149,6 +150,7 @@ cc_binary {
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
     ],
     defaults: [
@@ -323,6 +325,7 @@ cc_library_shared {
         ":perfetto_protos_perfetto_trace_system_info_zero_gen",
         ":perfetto_protos_perfetto_trace_track_event_cpp_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
+        ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_src_base_base",
         ":perfetto_src_base_unix_socket",
         ":perfetto_src_ipc_client",
@@ -410,6 +413,7 @@ cc_library_shared {
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
     ],
     defaults: [
@@ -510,6 +514,7 @@ cc_library_shared {
         ":perfetto_protos_perfetto_trace_system_info_zero_gen",
         ":perfetto_protos_perfetto_trace_track_event_cpp_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
+        ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_src_android_internal_headers",
         ":perfetto_src_android_internal_lazy_library_loader",
         ":perfetto_src_android_stats_android_stats",
@@ -601,6 +606,7 @@ cc_library_shared {
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
     ],
     defaults: [
@@ -715,6 +721,7 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_system_info_zero_gen",
         ":perfetto_protos_perfetto_trace_track_event_cpp_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
+        ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_src_android_internal_headers",
         ":perfetto_src_android_internal_lazy_library_loader",
         ":perfetto_src_android_stats_android_stats",
@@ -794,6 +801,7 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
     ],
     export_generated_headers: [
@@ -840,6 +848,7 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
     ],
     defaults: [
@@ -914,6 +923,7 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_system_info_zero_gen",
         ":perfetto_protos_perfetto_trace_track_event_cpp_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
+        ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_src_android_internal_headers",
         ":perfetto_src_android_internal_lazy_library_loader",
         ":perfetto_src_android_stats_android_stats",
@@ -982,6 +992,7 @@ cc_binary {
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
         "perfetto_src_perfetto_cmd_gen_cc_config_descriptor",
         "perfetto_src_perfetto_cmd_protos_cpp_gen_headers",
@@ -1068,6 +1079,8 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_system_info_zero_gen",
         ":perfetto_protos_perfetto_trace_track_event_cpp_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
+        ":perfetto_protos_perfetto_trace_translation_cpp_gen",
+        ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_src_android_internal_headers",
         ":perfetto_src_android_internal_lazy_library_loader",
         ":perfetto_src_android_stats_android_stats",
@@ -1183,6 +1196,8 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
     ],
     export_generated_headers: [
@@ -1243,6 +1258,8 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
     ],
     defaults: [
@@ -1326,6 +1343,8 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_system_info_zero_gen",
         ":perfetto_protos_perfetto_trace_track_event_cpp_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
+        ":perfetto_protos_perfetto_trace_translation_cpp_gen",
+        ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_src_android_internal_headers",
         ":perfetto_src_android_internal_lazy_library_loader",
         ":perfetto_src_android_stats_android_stats",
@@ -1426,6 +1445,8 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
     ],
     export_generated_headers: [
@@ -1486,6 +1507,8 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
     ],
     defaults: [
@@ -1728,6 +1751,8 @@ cc_test {
         ":perfetto_protos_perfetto_trace_system_info_zero_gen",
         ":perfetto_protos_perfetto_trace_track_event_cpp_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
+        ":perfetto_protos_perfetto_trace_translation_cpp_gen",
+        ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_src_android_internal_headers",
         ":perfetto_src_android_internal_lazy_library_loader",
         ":perfetto_src_android_stats_android_stats",
@@ -1894,6 +1919,8 @@ cc_test {
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
         "perfetto_src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
         "perfetto_src_trace_processor_importers_gen_cc_config_descriptor",
@@ -4237,6 +4264,7 @@ genrule {
         "protos/perfetto/trace/track_event/thread_descriptor.proto",
         "protos/perfetto/trace/track_event/track_descriptor.proto",
         "protos/perfetto/trace/track_event/track_event.proto",
+        "protos/perfetto/trace/translation/translation_table.proto",
         "protos/perfetto/trace/trigger.proto",
         "protos/perfetto/trace/ui_state.proto",
     ],
@@ -6877,6 +6905,112 @@ genrule {
     ],
 }
 
+// GN: //protos/perfetto/trace/translation:cpp
+genrule {
+    name: "perfetto_protos_perfetto_trace_translation_cpp_gen",
+    srcs: [
+        "protos/perfetto/trace/translation/translation_table.proto",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/translation/translation_table.gen.cc",
+    ],
+}
+
+// GN: //protos/perfetto/trace/translation:cpp
+genrule {
+    name: "perfetto_protos_perfetto_trace_translation_cpp_gen_headers",
+    srcs: [
+        "protos/perfetto/trace/translation/translation_table.proto",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/translation/translation_table.gen.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
+// GN: //protos/perfetto/trace/translation:lite
+genrule {
+    name: "perfetto_protos_perfetto_trace_translation_lite_gen",
+    srcs: [
+        "protos/perfetto/trace/translation/translation_table.proto",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/translation/translation_table.pb.cc",
+    ],
+}
+
+// GN: //protos/perfetto/trace/translation:lite
+genrule {
+    name: "perfetto_protos_perfetto_trace_translation_lite_gen_headers",
+    srcs: [
+        "protos/perfetto/trace/translation/translation_table.proto",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/translation/translation_table.pb.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
+// GN: //protos/perfetto/trace/translation:zero
+genrule {
+    name: "perfetto_protos_perfetto_trace_translation_zero_gen",
+    srcs: [
+        "protos/perfetto/trace/translation/translation_table.proto",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/translation/translation_table.pbzero.cc",
+    ],
+}
+
+// GN: //protos/perfetto/trace/translation:zero
+genrule {
+    name: "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
+    srcs: [
+        "protos/perfetto/trace/translation/translation_table.proto",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+    out: [
+        "external/perfetto/protos/perfetto/trace/translation/translation_table.pbzero.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
 // GN: //protos/third_party/chromium:descriptor
 genrule {
     name: "perfetto_protos_third_party_chromium_descriptor",
@@ -9284,6 +9418,7 @@ cc_library_static {
         ":perfetto_protos_perfetto_trace_sys_stats_lite_gen",
         ":perfetto_protos_perfetto_trace_system_info_lite_gen",
         ":perfetto_protos_perfetto_trace_track_event_lite_gen",
+        ":perfetto_protos_perfetto_trace_translation_lite_gen",
     ],
     shared_libs: [
         "libprotobuf-cpp-lite",
@@ -9317,6 +9452,7 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_sys_stats_lite_gen_headers",
         "perfetto_protos_perfetto_trace_system_info_lite_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_lite_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_lite_gen_headers",
     ],
     export_generated_headers: [
         "perfetto_protos_perfetto_common_lite_gen_headers",
@@ -9346,6 +9482,7 @@ cc_library_static {
         "perfetto_protos_perfetto_trace_sys_stats_lite_gen_headers",
         "perfetto_protos_perfetto_trace_system_info_lite_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_lite_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_lite_gen_headers",
     ],
     defaults: [
         "perfetto_defaults",
@@ -9471,6 +9608,9 @@ cc_test {
         ":perfetto_protos_perfetto_trace_track_event_cpp_gen",
         ":perfetto_protos_perfetto_trace_track_event_lite_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
+        ":perfetto_protos_perfetto_trace_translation_cpp_gen",
+        ":perfetto_protos_perfetto_trace_translation_lite_gen",
+        ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_src_android_internal_headers",
         ":perfetto_src_android_internal_lazy_library_loader",
         ":perfetto_src_android_stats_android_stats",
@@ -9722,6 +9862,9 @@ cc_test {
         "perfetto_protos_perfetto_trace_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_lite_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_cpp_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_lite_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
         "perfetto_src_ipc_test_messages_cpp_gen_headers",
         "perfetto_src_ipc_test_messages_ipc_gen_headers",
@@ -9829,6 +9972,7 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_sys_stats_zero_gen",
         ":perfetto_protos_perfetto_trace_system_info_zero_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
+        ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_src_base_base",
         ":perfetto_src_base_http_http",
         ":perfetto_src_base_unix_socket",
@@ -9895,6 +10039,7 @@ cc_binary {
         "perfetto_protos_perfetto_trace_sys_stats_zero_gen_headers",
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
         "perfetto_src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
         "perfetto_src_trace_processor_importers_gen_cc_config_descriptor",
@@ -9984,6 +10129,7 @@ cc_binary_host {
         ":perfetto_protos_perfetto_trace_sys_stats_zero_gen",
         ":perfetto_protos_perfetto_trace_system_info_zero_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
+        ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_protos_third_party_pprof_zero_gen",
         ":perfetto_src_base_base",
         ":perfetto_src_profiling_deobfuscator",
@@ -10052,6 +10198,7 @@ cc_binary_host {
         "perfetto_protos_perfetto_trace_sys_stats_zero_gen_headers",
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
         "perfetto_protos_third_party_pprof_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
         "perfetto_src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
@@ -10148,6 +10295,7 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_system_info_zero_gen",
         ":perfetto_protos_perfetto_trace_track_event_cpp_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
+        ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_src_android_internal_headers",
         ":perfetto_src_android_internal_lazy_library_loader",
         ":perfetto_src_android_stats_android_stats",
@@ -10237,6 +10385,7 @@ cc_binary {
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
     ],
     defaults: [
@@ -10330,6 +10479,7 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_system_info_zero_gen",
         ":perfetto_protos_perfetto_trace_track_event_cpp_gen",
         ":perfetto_protos_perfetto_trace_track_event_zero_gen",
+        ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_src_android_internal_headers",
         ":perfetto_src_android_internal_lazy_library_loader",
         ":perfetto_src_android_stats_android_stats",
@@ -10396,6 +10546,7 @@ cc_binary {
         "perfetto_protos_perfetto_trace_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
+        "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
         "perfetto_src_base_version_gen_h",
         "perfetto_src_perfetto_cmd_protos_cpp_gen_headers",
     ],
