@@ -368,8 +368,6 @@ bool AndroidLogDataSource::ParseBinaryEvent(
   if (!ReadAndAdvance(&buf, end, &eid))
     return false;
 
-  // TODO test events with 0 arguments. DNS.
-
   const EventFormat* fmt = GetEventFormat(eid);
   if (!fmt) {
     // We got an event which doesn't have a corresponding entry in
