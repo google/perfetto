@@ -76,40 +76,16 @@ std::string QuoteAndEscapeTextProtoString(const std::string& raw) {
   return '"' + ret + '"';
 }
 
-// Recursively determine the size of all the string like things passed in the
-// parameter pack |rest|.
-size_t SizeOfStr() {
-  return 0;
-}
-template <typename T, typename... Rest>
-size_t SizeOfStr(const T& first, Rest... rest) {
-  return base::StringView(first).size() + SizeOfStr(rest...);
-}
-
-// Append |to_add| which is something string like to |out|.
-template <typename T>
-void StrAppendInternal(std::string* out, const T& to_add) {
-  out->append(to_add);
-}
-
-template <typename T, typename... strings>
-void StrAppendInternal(std::string* out, const T& first, strings... values) {
-  StrAppendInternal(out, first);
-  StrAppendInternal(out, values...);
-}
-
 // Append |to_add| which is something string like to |out|.
 template <typename T>
 void StrAppend(std::string* out, const T& to_add) {
-  out->reserve(out->size() + base::StringView(to_add).size());
   out->append(to_add);
 }
 
 template <typename T, typename... strings>
 void StrAppend(std::string* out, const T& first, strings... values) {
-  out->reserve(out->size() + SizeOfStr(values...));
-  StrAppendInternal(out, first);
-  StrAppendInternal(out, values...);
+  StrAppend(out, first);
+  StrAppend(out, values...);
 }
 
 void IncreaseIndents(std::string* out) {
