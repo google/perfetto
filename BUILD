@@ -971,6 +971,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/common/args_tracker.cc",
         "src/trace_processor/importers/common/args_tracker.h",
+        "src/trace_processor/importers/common/args_translation_table.cc",
+        "src/trace_processor/importers/common/args_translation_table.h",
         "src/trace_processor/importers/common/chunked_trace_reader.h",
         "src/trace_processor/importers/common/clock_tracker.cc",
         "src/trace_processor/importers/common/clock_tracker.h",
@@ -1529,6 +1531,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/track_event_tokenizer.h",
         "src/trace_processor/importers/proto/track_event_tracker.cc",
         "src/trace_processor/importers/proto/track_event_tracker.h",
+        "src/trace_processor/importers/proto/translation_table_module.cc",
+        "src/trace_processor/importers/proto/translation_table_module.h",
         "src/trace_processor/importers/syscalls/syscall_tracker.h",
         "src/trace_processor/importers/systrace/systrace_line.h",
         "src/trace_processor/timestamped_trace_piece.h",

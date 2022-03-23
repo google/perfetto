@@ -8145,6 +8145,7 @@ filegroup {
     name: "perfetto_src_trace_processor_importers_common_common",
     srcs: [
         "src/trace_processor/importers/common/args_tracker.cc",
+        "src/trace_processor/importers/common/args_translation_table.cc",
         "src/trace_processor/importers/common/clock_tracker.cc",
         "src/trace_processor/importers/common/event_tracker.cc",
         "src/trace_processor/importers/common/flow_tracker.cc",
@@ -8160,6 +8161,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_importers_common_unittests",
     srcs: [
+        "src/trace_processor/importers/common/args_translation_table_unittest.cc",
         "src/trace_processor/importers/common/clock_tracker_unittest.cc",
         "src/trace_processor/importers/common/event_tracker_unittest.cc",
         "src/trace_processor/importers/common/flow_tracker_unittest.cc",
@@ -8541,6 +8543,7 @@ filegroup {
         "src/trace_processor/importers/proto/track_event_parser.cc",
         "src/trace_processor/importers/proto/track_event_tokenizer.cc",
         "src/trace_processor/importers/proto/track_event_tracker.cc",
+        "src/trace_processor/importers/proto/translation_table_module.cc",
         "src/trace_processor/trace_blob.cc",
         "src/trace_processor/trace_processor_context.cc",
         "src/trace_processor/trace_processor_storage.cc",
