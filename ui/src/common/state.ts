@@ -155,7 +155,10 @@ export interface TrackState {
   labels?: string[];
   trackKindPriority: TrackKindPriority;
   trackGroup?: string;
-  config: {};
+  config: {
+    trackId?: number;
+    trackIds?: number[];
+  };
 }
 
 export interface TrackGroupState {
