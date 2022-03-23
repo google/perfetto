@@ -79,6 +79,7 @@ export interface Flow {
 
   begin: FlowPoint;
   end: FlowPoint;
+  dur: number;
 
   category?: string;
   name?: string;
