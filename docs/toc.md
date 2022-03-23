@@ -6,6 +6,7 @@
   * [SQL analysis and metrics](quickstart/trace-analysis.md)
   * [Trace conversion](quickstart/traceconv.md)
   * [Heap profiling](quickstart/heap-profiling.md)
+  * [Callstack sampling on Android](quickstart/callstack-sampling.md)
 
 * [Case studies](#)
   * [Android boot tracing](case-studies/android-boot-tracing.md)

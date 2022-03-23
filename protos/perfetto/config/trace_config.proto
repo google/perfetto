@@ -485,4 +485,16 @@ message TraceConfig {
     optional bool use_pipe_in_framework_for_testing = 4;
   }
   optional AndroidReportConfig android_report_config = 34;
+
+  // If set, delays the start of tracing by a random duration. The duration is
+  // chosen from a uniform distribution between the specified minimum and
+  // maximum.
+  // Note: this delay is implemented by perfetto_cmd *not* by traced so will
+  // not work if you communicate with traced directly over the consumer API.
+  // Introduced in Android T.
+  message CmdTraceStartDelay {
+    optional uint32 min_delay_ms = 1;
+    optional uint32 max_delay_ms = 2;
+  }
+  optional CmdTraceStartDelay cmd_trace_start_delay = 35;
 }
