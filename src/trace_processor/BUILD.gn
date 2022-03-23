@@ -131,6 +131,8 @@ source_set("storage_minimal") {
     "importers/proto/track_event_tokenizer.h",
     "importers/proto/track_event_tracker.cc",
     "importers/proto/track_event_tracker.h",
+    "importers/proto/translation_table_module.cc",
+    "importers/proto/translation_table_module.h",
     "importers/syscalls/syscall_tracker.h",
     "importers/systrace/systrace_line.h",
     "timestamped_trace_piece.h",
@@ -177,6 +179,7 @@ source_set("storage_minimal") {
     "../../protos/perfetto/trace/sys_stats:zero",
     "../../protos/perfetto/trace/system_info:zero",
     "../../protos/perfetto/trace/track_event:zero",
+    "../../protos/perfetto/trace/translation:zero",
   ]
 
   # json_utils optionally depends on jsoncpp.
