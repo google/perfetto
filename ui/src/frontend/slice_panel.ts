@@ -32,7 +32,10 @@ export abstract class SlicePanel extends Panel {
       ['Process name', sliceInfo.processName],
       ['User ID', sliceInfo.uid ? String(sliceInfo.uid) : undefined],
       ['Package name', sliceInfo.packageName],
-      ['Version code', sliceInfo.versionCode]
+      [
+        'Version code',
+        sliceInfo.versionCode ? String(sliceInfo.versionCode) : undefined
+      ]
     ]);
   }
 }
