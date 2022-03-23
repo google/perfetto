@@ -191,6 +191,13 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
             'Thread duration',
             this.computeDuration(sliceInfo.thread_ts, sliceInfo.thread_dur));
       }
+
+      for (const [key, value] of this.getProcessThreadDetails(sliceInfo)) {
+        if (value !== undefined) {
+          builder.add(key, value);
+        }
+      }
+
       builder.add(
           'Slice ID', sliceInfo.id ? sliceInfo.id.toString() : 'Unknown');
       if (sliceInfo.description) {
