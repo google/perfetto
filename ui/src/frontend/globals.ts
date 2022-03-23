@@ -63,7 +63,7 @@ export interface SliceDetails {
   processName?: string;
   uid?: number;
   packageName?: string;
-  versionCode?: string;
+  versionCode?: number;
   args?: Args;
   argsTree?: ArgsTree;
   description?: Description;
