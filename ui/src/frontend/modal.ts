@@ -84,3 +84,13 @@ function makeButtons(buttonDefinition: Button[]): Array<m.Vnode<Button>> {
   });
   return buttons;
 }
+
+export function showPartialModal(attrs: ModalDefinition): m.Vnode {
+  return m(
+      '.partial-modal-overlay',
+      {tabindex: -1},
+      m('.partial-modal-container',
+        m('header.partial-modal-header', m('h2.modal-title', attrs.title)),
+        m('main.modal-content', attrs.content),
+        m('footer.modal-footer', ...makeButtons(attrs.buttons))));
+}
