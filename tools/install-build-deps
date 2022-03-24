@@ -211,6 +211,17 @@ BUILD_DEPS_HOST = [
         'all',
         'all'),
 
+    # Archive with only the demangling sources from llvm-project.
+    # See tools/repackage_llvm_demangler.sh on how to update this.
+    # File suffix is the git reference to the commit at which we rearchived the
+    # sources, as hosted on https://llvm.googlesource.com/llvm-project.
+    # If updating the version, also update bazel/deps.bzl.
+    Dependency(
+        'buildtools/llvm-project.tgz',
+        'https://storage.googleapis.com/perfetto/llvm-project-3b4c59c156919902c785ce3cbae0eee2ee53064d.tgz',
+        'f4a52e7f36edd7cacc844d5ae0e5f60b6f57c5afc40683e99f295886c9ce8ff4',
+        'all', 'all'),
+
     # These dependencies are for libunwindstack, which is used by src/profiling.
     Dependency('buildtools/android-core',
                'https://android.googlesource.com/platform/system/core.git',

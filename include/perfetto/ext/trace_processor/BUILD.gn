@@ -21,3 +21,7 @@ source_set("export_json") {
     sources += [ "export_json.h" ]
   }
 }
+
+source_set("demangle") {
+  sources = [ "demangle.h" ]
+}
