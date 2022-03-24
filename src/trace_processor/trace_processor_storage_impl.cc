@@ -50,7 +50,8 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.track_tracker.reset(new TrackTracker(&context_));
   context_.async_track_set_tracker.reset(new AsyncTrackSetTracker(&context_));
   context_.args_tracker.reset(new ArgsTracker(&context_));
-  context_.args_translation_table.reset(new ArgsTranslationTable());
+  context_.args_translation_table.reset(
+      new ArgsTranslationTable(context_.storage.get()));
   context_.slice_tracker.reset(new SliceTracker(&context_));
   context_.flow_tracker.reset(new FlowTracker(&context_));
   context_.event_tracker.reset(new EventTracker(&context_));

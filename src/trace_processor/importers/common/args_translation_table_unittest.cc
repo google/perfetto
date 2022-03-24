@@ -22,19 +22,21 @@ namespace trace_processor {
 namespace {
 
 TEST(ArgsTranslationTable, EmptyTableByDefault) {
-  ArgsTranslationTable table;
-  EXPECT_EQ(table.TranslateChromeHistogramHash(1), base::nullopt);
+  TraceStorage storage;
+  ArgsTranslationTable table(&storage);
+  EXPECT_EQ(table.TranslateChromeHistogramHashForTesting(1), base::nullopt);
 }
 
 TEST(ArgsTranslationTable, TranslatesHashes) {
-  ArgsTranslationTable table;
+  TraceStorage storage;
+  ArgsTranslationTable table(&storage);
   table.AddChromeHistogramTranslationRule(1, "hash1");
   table.AddChromeHistogramTranslationRule(10, "hash2");
-  EXPECT_EQ(table.TranslateChromeHistogramHash(1),
+  EXPECT_EQ(table.TranslateChromeHistogramHashForTesting(1),
             base::Optional<base::StringView>("hash1"));
-  EXPECT_EQ(table.TranslateChromeHistogramHash(10),
+  EXPECT_EQ(table.TranslateChromeHistogramHashForTesting(10),
             base::Optional<base::StringView>("hash2"));
-  EXPECT_EQ(table.TranslateChromeHistogramHash(2), base::nullopt);
+  EXPECT_EQ(table.TranslateChromeHistogramHashForTesting(2), base::nullopt);
 }
 
 }  // namespace
