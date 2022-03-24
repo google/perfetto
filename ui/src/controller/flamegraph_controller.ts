@@ -101,7 +101,7 @@ export class FlamegraphController extends Controller<'main'> {
     if (hasAreaChanged) {
       const upids = [];
       if (!area) {
-        publishFlamegraphDetails(
+        this.checkCompletionAndPublishFlamegraph(
             {...frontendGlobals.flamegraphDetails, isInAreaSelection: false});
         return;
       }
@@ -114,7 +114,7 @@ export class FlamegraphController extends Controller<'main'> {
         upids.push((trackState.config as PerfSampleConfig).upid);
       }
       if (upids.length === 0) {
-        publishFlamegraphDetails(
+        this.checkCompletionAndPublishFlamegraph(
             {...frontendGlobals.flamegraphDetails, isInAreaSelection: false});
         return;
       }
@@ -228,7 +228,17 @@ export class FlamegraphController extends Controller<'main'> {
     this.flamegraphDetails.expandedCallsite = expandedCallsite;
     this.flamegraphDetails.viewingOption = viewingOption;
     this.flamegraphDetails.isInAreaSelection = hasAreaChanged;
-    publishFlamegraphDetails(this.flamegraphDetails);
+    this.checkCompletionAndPublishFlamegraph(this.flamegraphDetails);
+  }
+
+  private async checkCompletionAndPublishFlamegraph(flamegraphDetails:
+                                                        FlamegraphDetails) {
+    flamegraphDetails.graphIncomplete =
+        (await this.args.engine.query(`select value from stats
+       where severity = 'error' and name = 'heap_graph_non_finalized_graph'`))
+            .firstRow({value: NUM})
+            .value > 0;
+    publishFlamegraphDetails(flamegraphDetails);
   }
 
   async getFlamegraphData(
