@@ -167,7 +167,7 @@ void TrackRegistry::InitializeInstance() {
   if (uint64_t start_time = GetProcessStartTime()) {
     base::Hash hash;
     hash.Update(start_time);
-    hash.Update(base::GetProcessId());
+    hash.Update(Platform::GetCurrentProcessId());
     Track::process_uuid = hash.digest();
   } else {
     // Fall back to a randomly generated identifier.

@@ -87,9 +87,16 @@
   }  // namespace internal
 
 // Defines the TrackEvent data source for the current track event namespace.
+// `virtual ~TrackEvent` is added to avoid `-Wweak-vtables` warning.
+// Learn more : aosp/2019906
 #define PERFETTO_INTERNAL_DECLARE_TRACK_EVENT_DATA_SOURCE()              \
   struct TrackEvent : public ::perfetto::internal::TrackEventDataSource< \
-                          TrackEvent, &internal::kCategoryRegistry> {}
+                          TrackEvent, &internal::kCategoryRegistry> {    \
+    virtual ~TrackEvent();                                               \
+  }
+
+#define PERFETTO_INTERNAL_DEFINE_TRACK_EVENT_DATA_SOURCE() \
+  TrackEvent::~TrackEvent() = default;
 
 // At compile time, turns a category name represented by a static string into an
 // index into the current category registry. A build error will be generated if

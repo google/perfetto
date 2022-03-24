@@ -270,36 +270,21 @@ GROUP BY launch_id;
 DROP TABLE IF EXISTS long_binder_transactions;
 CREATE TABLE long_binder_transactions AS
 SELECT
-  slice_id, arg_set_id, launch_id, slice_dur, thread_name
-FROM
-  main_process_slice_unaggregated
-WHERE
-  slice_name = 'binder transaction'
-  AND slice_dur >= 5e7;
-
-DROP TABLE IF EXISTS binder_to_destination_process;
-CREATE TABLE binder_to_destination_process AS
-SELECT
-  s.slice_id, process.name AS destination_process
-FROM long_binder_transactions s
-JOIN args USING(arg_set_id)
-JOIN process ON(args.int_value = process.pid)
-WHERE args.key = 'destination process';
-
--- Enriched binder transactions.
-DROP TABLE IF EXISTS long_binder_transactions_enriched;
-CREATE TABLE long_binder_transactions_enriched AS
-SELECT
+  s.slice_id,
   s.launch_id,
   s.slice_dur,
   s.thread_name,
   EXTRACT_ARG(s.arg_set_id, 'destination name') AS destination_thread,
-  bdp.destination_process,
+  process.name AS destination_process,
   EXTRACT_ARG(s.arg_set_id, 'flags') AS flags,
   EXTRACT_ARG(s.arg_set_id, 'code') AS code,
   EXTRACT_ARG(s.arg_set_id, 'data_size') AS data_size
-FROM long_binder_transactions s
-LEFT JOIN binder_to_destination_process bdp USING(slice_id);
+FROM
+  main_process_slice_unaggregated s
+JOIN process ON (EXTRACT_ARG(s.arg_set_id, 'destination process') = process.pid)
+WHERE
+  s.slice_name = 'binder transaction' AND
+  s.slice_dur >= 5e7;
 
 SELECT CREATE_FUNCTION(
   'MAIN_PROCESS_SLICE_PROTO(launch_id LONG, name STRING)',
@@ -352,7 +337,7 @@ SELECT
         'code', lbt.code,
         'data_size', lbt.data_size
       ))
-      FROM long_binder_transactions_enriched lbt
+      FROM long_binder_transactions lbt
       WHERE lbt.launch_id = launches.id
     ),
     'zygote_new_process', EXISTS(SELECT TRUE FROM zygote_forks_by_id WHERE id = launches.id),

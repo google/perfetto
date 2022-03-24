@@ -23,6 +23,7 @@
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/internal/compile_time_hash.h"
+#include "perfetto/tracing/platform.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.gen.h"
@@ -114,6 +115,15 @@ struct PERFETTO_EXPORT Track {
                  parent);
   }
 
+  // Construct a track using |ptr| as identifier within thread-scope.
+  // Shorthand for `Track::FromPointer(ptr, ThreadTrack::Current())`
+  // Usage: TRACE_EVENT_BEGIN("...", "...", perfetto::Track::ThreadScoped(this))
+  static Track ThreadScoped(
+      const void* ptr,
+      Track parent = MakeThreadTrack(base::GetThreadId())) {
+    return Track::FromPointer(ptr, parent);
+  }
+
  protected:
   constexpr Track(uint64_t uuid_, uint64_t parent_uuid_)
       : uuid(uuid_), parent_uuid(parent_uuid_) {}
@@ -152,7 +162,8 @@ struct PERFETTO_EXPORT ProcessTrack : public Track {
   protos::gen::TrackDescriptor Serialize() const;
 
  private:
-  ProcessTrack() : Track(MakeProcessTrack()), pid(base::GetProcessId()) {}
+  ProcessTrack()
+      : Track(MakeProcessTrack()), pid(Platform::GetCurrentProcessId()) {}
 };
 
 // A thread track is associated with a specific thread of execution. Currently

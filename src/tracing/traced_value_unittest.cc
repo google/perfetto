@@ -32,6 +32,8 @@
 #include "perfetto/test/traced_value_test_support.h"
 #include "perfetto/tracing/debug_annotation.h"
 #include "perfetto/tracing/track_event.h"
+#include "protos/perfetto/trace/test_event.pb.h"
+#include "protos/perfetto/trace/test_event.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.gen.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pb.h"
 #include "test/gtest_and_gmock.h"
@@ -617,6 +619,125 @@ TEST(TracedValueTest, EmptyArray) {
   EXPECT_EQ("{}", TracedValueToString([&](TracedValue context) {
               auto array = std::move(context).WriteArray();
             }));
+}
+
+TEST(TracedValueTest, WriteTypedProto_Explicit) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
+  WriteIntoTracedValue(
+      internal::CreateTracedValueFromProto(message.get()),
+      [](perfetto::TracedValue context) {
+        perfetto::TracedProto<protos::pbzero::TestEvent::TestPayload> proto =
+            std::move(context)
+                .WriteProto<protos::pbzero::TestEvent::TestPayload>();
+        proto->set_single_string("payload");
+      });
+
+  protos::DebugAnnotation annotation;
+  annotation.ParseFromString(message.SerializeAsString());
+  EXPECT_EQ(annotation.proto_type_name(),
+            ".perfetto.protos.TestEvent.TestPayload");
+
+  protos::TestEvent::TestPayload payload;
+  payload.ParseFromString(annotation.proto_value());
+  EXPECT_EQ(payload.single_string(), "payload");
+}
+
+TEST(TracedValueTest, WriteTypedProto_Implicit) {
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
+  WriteIntoTracedValue(
+      internal::CreateTracedValueFromProto(message.get()),
+      [](perfetto::TracedProto<protos::pbzero::TestEvent::TestPayload> proto) {
+        proto->set_single_string("payload");
+      });
+
+  protos::DebugAnnotation annotation;
+  annotation.ParseFromString(message.SerializeAsString());
+  EXPECT_EQ(annotation.proto_type_name(),
+            ".perfetto.protos.TestEvent.TestPayload");
+
+  protos::TestEvent::TestPayload payload;
+  payload.ParseFromString(annotation.proto_value());
+  EXPECT_EQ(payload.single_string(), "payload");
+}
+
+TEST(TracedValueTest, ImplicitTracedDictionary) {
+  EXPECT_EQ("{key:value}", TracedValueToString([&](TracedDictionary dict) {
+              dict.Add("key", "value");
+            }));
+}
+
+TEST(TracedValueTest, ImplicitTracedArray) {
+  EXPECT_EQ("[1]",
+            TracedValueToString([&](TracedArray array) { array.Append(1); }));
+}
+
+TEST(TracedValueTest, TracedProtoInDict) {
+  struct Foo {
+    void WriteIntoTrace(
+        perfetto::TracedProto<protos::pbzero::TestEvent::TestPayload> message) {
+      message->set_single_int(42);
+    }
+  };
+  Foo foo;
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
+  WriteIntoTracedValue(internal::CreateTracedValueFromProto(message.get()),
+                       [&](TracedDictionary dict) { dict.Add("foo", foo); });
+  protos::DebugAnnotation annotation;
+  annotation.ParseFromString(message.SerializeAsString());
+  EXPECT_EQ(annotation.dict_entries_size(), 1);
+  EXPECT_EQ(annotation.dict_entries(0).name(), "foo");
+  EXPECT_EQ(annotation.dict_entries(0).proto_type_name(),
+            ".perfetto.protos.TestEvent.TestPayload");
+
+  protos::TestEvent::TestPayload payload;
+  payload.ParseFromString(annotation.dict_entries(0).proto_value());
+  EXPECT_EQ(payload.single_int(), 42);
+}
+
+TEST(TracedValueTest, PointerToTracedProtoInDict) {
+  struct Foo {
+    void WriteIntoTrace(
+        perfetto::TracedProto<protos::pbzero::TestEvent::TestPayload> message) {
+      message->set_single_int(42);
+    }
+  };
+  Foo foo;
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
+  WriteIntoTracedValue(internal::CreateTracedValueFromProto(message.get()),
+                       [&](TracedDictionary dict) { dict.Add("foo", &foo); });
+  protos::DebugAnnotation annotation;
+  annotation.ParseFromString(message.SerializeAsString());
+  EXPECT_EQ(annotation.dict_entries_size(), 1);
+  EXPECT_EQ(annotation.dict_entries(0).name(), "foo");
+  EXPECT_EQ(annotation.dict_entries(0).proto_type_name(),
+            ".perfetto.protos.TestEvent.TestPayload");
+
+  protos::TestEvent::TestPayload payload;
+  payload.ParseFromString(annotation.dict_entries(0).proto_value());
+  EXPECT_EQ(payload.single_int(), 42);
+}
+
+TEST(TracedValueTest, UniquePointerToTracedProtoInDict) {
+  struct Foo {
+    void WriteIntoTrace(
+        perfetto::TracedProto<protos::pbzero::TestEvent::TestPayload> message) {
+      message->set_single_int(42);
+    }
+  };
+  std::unique_ptr<Foo> foo(new Foo());
+  protozero::HeapBuffered<protos::pbzero::DebugAnnotation> message;
+  WriteIntoTracedValue(internal::CreateTracedValueFromProto(message.get()),
+                       [&](TracedDictionary dict) { dict.Add("foo", foo); });
+  protos::DebugAnnotation annotation;
+  annotation.ParseFromString(message.SerializeAsString());
+  EXPECT_EQ(annotation.dict_entries_size(), 1);
+  EXPECT_EQ(annotation.dict_entries(0).name(), "foo");
+  EXPECT_EQ(annotation.dict_entries(0).proto_type_name(),
+            ".perfetto.protos.TestEvent.TestPayload");
+
+  protos::TestEvent::TestPayload payload;
+  payload.ParseFromString(annotation.dict_entries(0).proto_value());
+  EXPECT_EQ(payload.single_int(), 42);
 }
 
 }  // namespace perfetto

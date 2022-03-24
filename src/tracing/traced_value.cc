@@ -18,6 +18,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/tracing/debug_annotation.h"
+#include "perfetto/tracing/internal/track_event_interned_fields.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 
 namespace perfetto {
@@ -25,56 +26,61 @@ namespace perfetto {
 namespace internal {
 
 TracedValue CreateTracedValueFromProto(
-    protos::pbzero::DebugAnnotation* context) {
-  return TracedValue::CreateFromProto(context);
+    protos::pbzero::DebugAnnotation* annotation,
+    EventContext* event_context) {
+  return TracedValue::CreateFromProto(annotation, event_context);
 }
 
 }  // namespace internal
 
 // static
 TracedValue TracedValue::CreateFromProto(
-    protos::pbzero::DebugAnnotation* context) {
-  return TracedValue(context, nullptr);
+    protos::pbzero::DebugAnnotation* annotation,
+    EventContext* event_context) {
+  return TracedValue(annotation, event_context, nullptr);
 }
+
+TracedValue::TracedValue(TracedValue&&) = default;
+TracedValue::~TracedValue() = default;
 
 void TracedValue::WriteInt64(int64_t value) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  context_->set_int_value(value);
+  annotation_->set_int_value(value);
 }
 
 void TracedValue::WriteUInt64(uint64_t value) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  context_->set_uint_value(value);
+  annotation_->set_uint_value(value);
 }
 
 void TracedValue::WriteDouble(double value) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  context_->set_double_value(value);
+  annotation_->set_double_value(value);
 }
 
 void TracedValue::WriteBoolean(bool value) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  context_->set_bool_value(value);
+  annotation_->set_bool_value(value);
 }
 
 void TracedValue::WriteString(const char* value) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  context_->set_string_value(value);
+  annotation_->set_string_value(value);
 }
 
 void TracedValue::WriteString(const char* value, size_t len) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  context_->set_string_value(value, len);
+  annotation_->set_string_value(value, len);
 }
 
 void TracedValue::WriteString(const std::string& value) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  context_->set_string_value(value);
+  annotation_->set_string_value(value);
 }
 
 void TracedValue::WritePointer(const void* value) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  context_->set_pointer_value(reinterpret_cast<uint64_t>(value));
+  annotation_->set_pointer_value(reinterpret_cast<uint64_t>(value));
 }
 
 TracedDictionary TracedValue::WriteDictionary() && {
@@ -83,10 +89,10 @@ TracedDictionary TracedValue::WriteDictionary() && {
   PERFETTO_DCHECK(checked_scope_.is_active());
   checked_scope_.Reset();
 
-  PERFETTO_DCHECK(!context_->is_finalized());
-  return TracedDictionary(context_,
+  PERFETTO_DCHECK(!annotation_->is_finalized());
+  return TracedDictionary(annotation_,
                           protos::pbzero::DebugAnnotation::kDictEntries,
-                          checked_scope_.parent_scope());
+                          event_context_, checked_scope_.parent_scope());
 }
 
 TracedArray TracedValue::WriteArray() && {
@@ -95,13 +101,30 @@ TracedArray TracedValue::WriteArray() && {
   PERFETTO_DCHECK(checked_scope_.is_active());
   checked_scope_.Reset();
 
-  PERFETTO_DCHECK(!context_->is_finalized());
-  return TracedArray(context_, checked_scope_.parent_scope());
+  PERFETTO_DCHECK(!annotation_->is_finalized());
+  return TracedArray(annotation_, event_context_,
+                     checked_scope_.parent_scope());
 }
+
+protozero::Message* TracedValue::WriteProtoInternal(const char* name) {
+  if (event_context_) {
+    annotation_->set_proto_type_name_iid(
+        internal::InternedDebugAnnotationValueTypeName::Get(event_context_,
+                                                            name));
+  } else {
+    annotation_->set_proto_type_name(name);
+  }
+  return annotation_->template BeginNestedMessage<protozero::Message>(
+      protos::pbzero::DebugAnnotation::kProtoValueFieldNumber);
+}
+
+TracedArray::TracedArray(TracedValue annotation)
+    : TracedArray(std::move(annotation).WriteArray()) {}
 
 TracedValue TracedArray::AppendItem() {
   PERFETTO_DCHECK(checked_scope_.is_active());
-  return TracedValue(context_->add_array_values(), &checked_scope_);
+  return TracedValue(annotation_->add_array_values(), event_context_,
+                     &checked_scope_);
 }
 
 TracedDictionary TracedArray::AppendDictionary() {
@@ -114,12 +137,15 @@ TracedArray TracedArray::AppendArray() {
   return AppendItem().WriteArray();
 }
 
+TracedDictionary::TracedDictionary(TracedValue annotation)
+    : TracedDictionary(std::move(annotation).WriteDictionary()) {}
+
 TracedValue TracedDictionary::AddItem(StaticString key) {
   PERFETTO_DCHECK(checked_scope_.is_active());
   protos::pbzero::DebugAnnotation* item =
       message_->BeginNestedMessage<protos::pbzero::DebugAnnotation>(field_id_);
   item->set_name(key.value);
-  return TracedValue(item, &checked_scope_);
+  return TracedValue(item, event_context_, &checked_scope_);
 }
 
 TracedValue TracedDictionary::AddItem(DynamicString key) {
@@ -127,7 +153,7 @@ TracedValue TracedDictionary::AddItem(DynamicString key) {
   protos::pbzero::DebugAnnotation* item =
       message_->BeginNestedMessage<protos::pbzero::DebugAnnotation>(field_id_);
   item->set_name(key.value);
-  return TracedValue(item, &checked_scope_);
+  return TracedValue(item, event_context_, &checked_scope_);
 }
 
 TracedDictionary TracedDictionary::AddDictionary(StaticString key) {

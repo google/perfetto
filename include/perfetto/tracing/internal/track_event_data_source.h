@@ -35,14 +35,16 @@
 
 namespace perfetto {
 
-// This template provides a way to convert an abstract timestamp into the trace
-// clock timebase in nanoseconds. By specialising this template and defining
+// A function for converting an abstract timestamp into a
+// perfetto::TraceTimestamp struct. By specialising this template and defining
 // static ConvertTimestampToTraceTimeNs function in it the user can register
-// additional timestamp types. The return value should specify the clock used by
-// the timestamp as well as its value in nanoseconds.
+// additional timestamp types. The return value should specify the
+// clock domain used by the timestamp as well as its value.
 //
-// The users should see the specialisation for uint64_t below as an example.
-// Note that the specialisation should be defined in perfetto namespace.
+// The supported clock domains are the ones described in
+// perfetto.protos.ClockSnapshot. However, custom clock IDs (>=64) are
+// reserved for internal use by the SDK for the time being.
+// The timestamp value should be in nanoseconds regardless of the clock domain.
 template <typename T>
 struct TraceTimestampTraits;
 
@@ -240,7 +242,7 @@ class TrackEventDataSource
                                Arguments&&... args) PERFETTO_NO_INLINE {
     TraceForCategoryImpl(instances, category, event_name, type,
                          TrackEventInternal::kDefaultTrack,
-                         TrackEventInternal::GetTimeNs(),
+                         TrackEventInternal::GetTraceTime(),
                          std::forward<Arguments>(args)...);
   }
 
@@ -262,7 +264,7 @@ class TrackEventDataSource
                                Arguments&&... args) PERFETTO_NO_INLINE {
     TraceForCategoryImpl(
         instances, category, event_name, type, std::forward<TrackType>(track),
-        TrackEventInternal::GetTimeNs(), std::forward<Arguments>(args)...);
+        TrackEventInternal::GetTraceTime(), std::forward<Arguments>(args)...);
   }
 
   // Trace point which takes a timestamp, but not track.
@@ -315,7 +317,7 @@ class TrackEventDataSource
                                ValueType value) PERFETTO_ALWAYS_INLINE {
     PERFETTO_DCHECK(type == perfetto::protos::pbzero::TrackEvent::TYPE_COUNTER);
     TraceForCategory(instances, category, /*name=*/nullptr, type, track,
-                     TrackEventInternal::GetTimeNs(), value);
+                     TrackEventInternal::GetTraceTime(), value);
   }
 
   // Trace point with with a timestamp and a counter sample.
@@ -361,7 +363,8 @@ class TrackEventDataSource
     TrackRegistry::Get()->UpdateTrack(track, desc.SerializeAsString());
     Base::template Trace([&](typename Base::TraceContext ctx) {
       TrackEventInternal::WriteTrackDescriptor(
-          track, ctx.tls_inst_->trace_writer.get());
+          track, ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState(),
+          *ctx.GetCustomTlsState(), TrackEventInternal::GetTraceTime());
     });
   }
 
@@ -447,29 +450,27 @@ class TrackEventDataSource
             return;
           }
 
+          const TrackEventTlsState& tls_state = *ctx.GetCustomTlsState();
           TraceTimestamp trace_timestamp = ::perfetto::TraceTimestampTraits<
               TimestampType>::ConvertTimestampToTraceTimeNs(timestamp);
 
-          // Make sure incremental state is valid.
           TraceWriterBase* trace_writer = ctx.tls_inst_->trace_writer.get();
+          // Make sure incremental state is valid.
           TrackEventIncrementalState* incr_state = ctx.GetIncrementalState();
-          if (incr_state->was_cleared) {
-            incr_state->was_cleared = false;
-            TrackEventInternal::ResetIncrementalState(trace_writer,
-                                                      trace_timestamp);
-          }
+          TrackEventInternal::ResetIncrementalStateIfRequired(
+              trace_writer, incr_state, tls_state, trace_timestamp);
 
           // Write the track descriptor before any event on the track.
           if (track) {
             TrackEventInternal::WriteTrackDescriptorIfNeeded(
-                track, trace_writer, incr_state);
+                track, trace_writer, incr_state, tls_state, trace_timestamp);
           }
 
           // Write the event itself.
           {
             auto event_ctx = TrackEventInternal::WriteEvent(
-                trace_writer, incr_state, static_category, event_name, type,
-                trace_timestamp);
+                trace_writer, incr_state, tls_state, static_category,
+                event_name, type, trace_timestamp);
             // Write dynamic categories (except for events that don't require
             // categories). For counter events, the counter name (and optional
             // category) is stored as part of the track descriptor instead being
@@ -516,7 +517,8 @@ class TrackEventDataSource
     TrackRegistry::Get()->UpdateTrack(track, std::move(callback));
     Base::template Trace([&](typename Base::TraceContext ctx) {
       TrackEventInternal::WriteTrackDescriptor(
-          track, ctx.tls_inst_->trace_writer.get());
+          track, ctx.tls_inst_->trace_writer.get(), ctx.GetIncrementalState(),
+          *ctx.GetCustomTlsState(), TrackEventInternal::GetTraceTime());
     });
   }
 

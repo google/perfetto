@@ -18,9 +18,11 @@
 
 #include <memory>
 
+#include "ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/ftrace_stats.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 #include "test/gtest_and_gmock.h"
 
@@ -29,14 +31,20 @@ using testing::AnyNumber;
 using testing::Contains;
 using testing::ElementsAreArray;
 using testing::Eq;
+using testing::Invoke;
 using testing::IsEmpty;
 using testing::MatchesRegex;
 using testing::NiceMock;
 using testing::Not;
 using testing::Return;
+using testing::UnorderedElementsAre;
 
 namespace perfetto {
 namespace {
+
+constexpr int kFakeSchedSwitchEventId = 1;
+constexpr int kCgroupMkdirEventId = 12;
+constexpr int kFakePrintEventId = 20;
 
 class MockFtraceProcfs : public FtraceProcfs {
  public:
@@ -57,20 +65,24 @@ class MockFtraceProcfs : public FtraceProcfs {
   MOCK_CONST_METHOD0(NumberOfCpus, size_t());
   MOCK_CONST_METHOD1(GetEventNamesForGroup,
                      const std::set<std::string>(const std::string& path));
+  MOCK_CONST_METHOD2(ReadEventFormat,
+                     std::string(const std::string& group,
+                                 const std::string& name));
 };
 
 struct MockRunAtrace {
   MockRunAtrace() {
     static MockRunAtrace* instance;
     instance = this;
-    SetRunAtraceForTesting([](const std::vector<std::string>& args) {
-      return instance->RunAtrace(args);
-    });
+    SetRunAtraceForTesting(
+        [](const std::vector<std::string>& args, std::string* atrace_errors) {
+          return instance->RunAtrace(args, atrace_errors);
+        });
   }
 
   ~MockRunAtrace() { SetRunAtraceForTesting(nullptr); }
 
-  MOCK_METHOD1(RunAtrace, bool(const std::vector<std::string>&));
+  MOCK_METHOD2(RunAtrace, bool(const std::vector<std::string>&, std::string*));
 };
 
 class MockProtoTranslationTable : public ProtoTranslationTable {
@@ -111,17 +123,13 @@ class FtraceConfigMuxerTest : public ::testing::Test {
             InvalidCompactSchedEventFormatForTesting()));
   }
 
-  static constexpr int kFakeSchedSwitchEventId = 1;
-  static constexpr int kCgroupMkdirEventId = 12;
-  static constexpr int kFakePrintEventId = 20;
-
   std::unique_ptr<ProtoTranslationTable> CreateFakeTable(
       CompactSchedEventFormat compact_format =
           InvalidCompactSchedEventFormatForTesting()) {
     std::vector<Field> common_fields;
     std::vector<Event> events;
     {
-      Event event;
+      Event event = {};
       event.name = "sched_switch";
       event.group = "sched";
       event.ftrace_event_id = kFakeSchedSwitchEventId;
@@ -129,7 +137,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
     }
 
     {
-      Event event;
+      Event event = {};
       event.name = "sched_wakeup";
       event.group = "sched";
       event.ftrace_event_id = 10;
@@ -137,7 +145,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
     }
 
     {
-      Event event;
+      Event event = {};
       event.name = "sched_new";
       event.group = "sched";
       event.ftrace_event_id = 11;
@@ -145,7 +153,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
     }
 
     {
-      Event event;
+      Event event = {};
       event.name = "cgroup_mkdir";
       event.group = "cgroup";
       event.ftrace_event_id = kCgroupMkdirEventId;
@@ -153,7 +161,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
     }
 
     {
-      Event event;
+      Event event = {};
       event.name = "mm_vmscan_direct_reclaim_begin";
       event.group = "vmscan";
       event.ftrace_event_id = 13;
@@ -161,7 +169,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
     }
 
     {
-      Event event;
+      Event event = {};
       event.name = "lowmemory_kill";
       event.group = "lowmemorykiller";
       event.ftrace_event_id = 14;
@@ -169,7 +177,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
     }
 
     {
-      Event event;
+      Event event = {};
       event.name = "print";
       event.group = "ftrace";
       event.ftrace_event_id = kFakePrintEventId;
@@ -426,14 +434,12 @@ TEST_F(FtraceConfigMuxerTest, TurnFtraceOnOff) {
 
   const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
   ASSERT_TRUE(ds_config);
-  ASSERT_THAT(
-      ds_config->event_filter.GetEnabledEvents(),
-      ElementsAreArray({FtraceConfigMuxerTest::kFakeSchedSwitchEventId}));
+  ASSERT_THAT(ds_config->event_filter.GetEnabledEvents(),
+              ElementsAreArray({kFakeSchedSwitchEventId}));
 
   const EventFilter* central_filter = model.GetCentralEventFilterForTesting();
-  ASSERT_THAT(
-      central_filter->GetEnabledEvents(),
-      ElementsAreArray({FtraceConfigMuxerTest::kFakeSchedSwitchEventId}));
+  ASSERT_THAT(central_filter->GetEnabledEvents(),
+              ElementsAreArray({kFakeSchedSwitchEventId}));
 
   ASSERT_TRUE(testing::Mock::VerifyAndClearExpectations(&ftrace));
   EXPECT_CALL(ftrace, NumberOfCpus()).Times(AnyNumber());
@@ -474,9 +480,9 @@ TEST_F(FtraceConfigMuxerTest, Atrace) {
 
   EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
       .WillOnce(Return('0'));
-  EXPECT_CALL(atrace,
-              RunAtrace(ElementsAreArray(
-                  {"atrace", "--async_start", "--only_userspace", "sched"})))
+  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
+                                                  "--only_userspace", "sched"}),
+                                _))
       .WillOnce(Return(true));
 
   FtraceConfigId id = model.SetupConfig(config);
@@ -488,16 +494,18 @@ TEST_F(FtraceConfigMuxerTest, Atrace) {
   const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
   ASSERT_TRUE(ds_config);
   EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kFakeSchedSwitchEventId));
+              Contains(kFakeSchedSwitchEventId));
   EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kFakePrintEventId));
+              Contains(kFakePrintEventId));
 
   const EventFilter* central_filter = model.GetCentralEventFilterForTesting();
   EXPECT_THAT(central_filter->GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kFakeSchedSwitchEventId));
+              Contains(kFakeSchedSwitchEventId));
 
-  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray(
-                          {"atrace", "--async_stop", "--only_userspace"})))
+  EXPECT_CALL(
+      atrace,
+      RunAtrace(
+          ElementsAreArray({"atrace", "--async_stop", "--only_userspace"}), _))
       .WillOnce(Return(true));
   ASSERT_TRUE(model.RemoveConfig(id));
 }
@@ -516,9 +524,11 @@ TEST_F(FtraceConfigMuxerTest, AtraceTwoApps) {
       .WillOnce(Return('0'));
   EXPECT_CALL(
       atrace,
-      RunAtrace(ElementsAreArray(
-          {"atrace", "--async_start", "--only_userspace", "-a",
-           "com.google.android.gms,com.google.android.gms.persistent"})))
+      RunAtrace(
+          ElementsAreArray(
+              {"atrace", "--async_start", "--only_userspace", "-a",
+               "com.google.android.gms,com.google.android.gms.persistent"}),
+          _))
       .WillOnce(Return(true));
 
   FtraceConfigId id = model.SetupConfig(config);
@@ -527,10 +537,12 @@ TEST_F(FtraceConfigMuxerTest, AtraceTwoApps) {
   const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
   ASSERT_TRUE(ds_config);
   ASSERT_THAT(ds_config->event_filter.GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kFakePrintEventId));
+              Contains(kFakePrintEventId));
 
-  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray(
-                          {"atrace", "--async_stop", "--only_userspace"})))
+  EXPECT_CALL(
+      atrace,
+      RunAtrace(
+          ElementsAreArray({"atrace", "--async_stop", "--only_userspace"}), _))
       .WillOnce(Return(true));
   ASSERT_TRUE(model.RemoveConfig(id));
 }
@@ -555,7 +567,8 @@ TEST_F(FtraceConfigMuxerTest, AtraceMultipleConfigs) {
 
   EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
                                                   "--only_userspace", "cat_a",
-                                                  "-a", "app_a"})))
+                                                  "-a", "app_a"}),
+                                _))
       .WillOnce(Return(true));
   FtraceConfigId id_a = model.SetupConfig(config_a);
   ASSERT_TRUE(id_a);
@@ -563,7 +576,8 @@ TEST_F(FtraceConfigMuxerTest, AtraceMultipleConfigs) {
   EXPECT_CALL(
       atrace,
       RunAtrace(ElementsAreArray({"atrace", "--async_start", "--only_userspace",
-                                  "cat_a", "cat_b", "-a", "app_a,app_b"})))
+                                  "cat_a", "cat_b", "-a", "app_a,app_b"}),
+                _))
       .WillOnce(Return(true));
   FtraceConfigId id_b = model.SetupConfig(config_b);
   ASSERT_TRUE(id_b);
@@ -571,7 +585,8 @@ TEST_F(FtraceConfigMuxerTest, AtraceMultipleConfigs) {
   EXPECT_CALL(atrace,
               RunAtrace(ElementsAreArray({"atrace", "--async_start",
                                           "--only_userspace", "cat_a", "cat_b",
-                                          "cat_c", "-a", "app_a,app_b,app_c"})))
+                                          "cat_c", "-a", "app_a,app_b,app_c"}),
+                        _))
       .WillOnce(Return(true));
   FtraceConfigId id_c = model.SetupConfig(config_c);
   ASSERT_TRUE(id_c);
@@ -579,18 +594,22 @@ TEST_F(FtraceConfigMuxerTest, AtraceMultipleConfigs) {
   EXPECT_CALL(
       atrace,
       RunAtrace(ElementsAreArray({"atrace", "--async_start", "--only_userspace",
-                                  "cat_a", "cat_c", "-a", "app_a,app_c"})))
+                                  "cat_a", "cat_c", "-a", "app_a,app_c"}),
+                _))
       .WillOnce(Return(true));
   ASSERT_TRUE(model.RemoveConfig(id_b));
 
   EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
                                                   "--only_userspace", "cat_c",
-                                                  "-a", "app_c"})))
+                                                  "-a", "app_c"}),
+                                _))
       .WillOnce(Return(true));
   ASSERT_TRUE(model.RemoveConfig(id_a));
 
-  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray(
-                          {"atrace", "--async_stop", "--only_userspace"})))
+  EXPECT_CALL(
+      atrace,
+      RunAtrace(
+          ElementsAreArray({"atrace", "--async_stop", "--only_userspace"}), _))
       .WillOnce(Return(true));
   ASSERT_TRUE(model.RemoveConfig(id_c));
 }
@@ -620,15 +639,17 @@ TEST_F(FtraceConfigMuxerTest, AtraceFailedConfig) {
   EXPECT_CALL(
       atrace,
       RunAtrace(ElementsAreArray({"atrace", "--async_start", "--only_userspace",
-                                  "cat_1", "cat_2", "-a", "app_1,app_2"})))
+                                  "cat_1", "cat_2", "-a", "app_1,app_2"}),
+                _))
       .WillOnce(Return(true));
   FtraceConfigId id_a = model.SetupConfig(config_a);
   ASSERT_TRUE(id_a);
 
-  EXPECT_CALL(atrace,
-              RunAtrace(ElementsAreArray(
-                  {"atrace", "--async_start", "--only_userspace", "cat_1",
-                   "cat_2", "cat_fail", "-a", "app_1,app_2,app_fail"})))
+  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
+                                                  "--only_userspace", "cat_1",
+                                                  "cat_2", "cat_fail", "-a",
+                                                  "app_1,app_2,app_fail"}),
+                                _))
       .WillOnce(Return(false));
   FtraceConfigId id_b = model.SetupConfig(config_b);
   ASSERT_TRUE(id_b);
@@ -636,7 +657,8 @@ TEST_F(FtraceConfigMuxerTest, AtraceFailedConfig) {
   EXPECT_CALL(atrace,
               RunAtrace(ElementsAreArray({"atrace", "--async_start",
                                           "--only_userspace", "cat_1", "cat_2",
-                                          "cat_3", "-a", "app_1,app_2,app_3"})))
+                                          "cat_3", "-a", "app_1,app_2,app_3"}),
+                        _))
       .WillOnce(Return(true));
   FtraceConfigId id_c = model.SetupConfig(config_c);
   ASSERT_TRUE(id_c);
@@ -644,7 +666,8 @@ TEST_F(FtraceConfigMuxerTest, AtraceFailedConfig) {
   EXPECT_CALL(
       atrace,
       RunAtrace(ElementsAreArray({"atrace", "--async_start", "--only_userspace",
-                                  "cat_1", "cat_2", "-a", "app_1,app_2"})))
+                                  "cat_1", "cat_2", "-a", "app_1,app_2"}),
+                _))
       .WillOnce(Return(true));
   ASSERT_TRUE(model.RemoveConfig(id_c));
 
@@ -652,8 +675,10 @@ TEST_F(FtraceConfigMuxerTest, AtraceFailedConfig) {
   // so we don't expect a call here.
   ASSERT_TRUE(model.RemoveConfig(id_b));
 
-  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray(
-                          {"atrace", "--async_stop", "--only_userspace"})))
+  EXPECT_CALL(
+      atrace,
+      RunAtrace(
+          ElementsAreArray({"atrace", "--async_stop", "--only_userspace"}), _))
       .WillOnce(Return(true));
   ASSERT_TRUE(model.RemoveConfig(id_a));
 }
@@ -674,7 +699,8 @@ TEST_F(FtraceConfigMuxerTest, AtraceDuplicateConfigs) {
 
   EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
                                                   "--only_userspace", "cat_1",
-                                                  "-a", "app_1"})))
+                                                  "-a", "app_1"}),
+                                _))
       .WillOnce(Return(true));
   FtraceConfigId id_a = model.SetupConfig(config_a);
   ASSERT_TRUE(id_a);
@@ -684,8 +710,10 @@ TEST_F(FtraceConfigMuxerTest, AtraceDuplicateConfigs) {
 
   ASSERT_TRUE(model.RemoveConfig(id_a));
 
-  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray(
-                          {"atrace", "--async_stop", "--only_userspace"})))
+  EXPECT_CALL(
+      atrace,
+      RunAtrace(
+          ElementsAreArray({"atrace", "--async_stop", "--only_userspace"}), _))
       .WillOnce(Return(true));
   ASSERT_TRUE(model.RemoveConfig(id_b));
 }
@@ -710,7 +738,8 @@ TEST_F(FtraceConfigMuxerTest, AtraceAndFtraceConfigs) {
   ASSERT_TRUE(id_a);
 
   EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
-                                                  "--only_userspace", "b"})))
+                                                  "--only_userspace", "b"}),
+                                _))
       .WillOnce(Return(true));
   FtraceConfigId id_b = model.SetupConfig(config_b);
   ASSERT_TRUE(id_b);
@@ -719,25 +748,59 @@ TEST_F(FtraceConfigMuxerTest, AtraceAndFtraceConfigs) {
   ASSERT_TRUE(id_c);
 
   EXPECT_CALL(atrace,
-              RunAtrace(ElementsAreArray(
-                  {"atrace", "--async_start", "--only_userspace", "b", "d"})))
+              RunAtrace(ElementsAreArray({"atrace", "--async_start",
+                                          "--only_userspace", "b", "d"}),
+                        _))
       .WillOnce(Return(true));
   FtraceConfigId id_d = model.SetupConfig(config_d);
   ASSERT_TRUE(id_d);
 
   EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
-                                                  "--only_userspace", "b"})))
+                                                  "--only_userspace", "b"}),
+                                _))
       .WillOnce(Return(true));
   ASSERT_TRUE(model.RemoveConfig(id_d));
 
   ASSERT_TRUE(model.RemoveConfig(id_c));
 
-  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray(
-                          {"atrace", "--async_stop", "--only_userspace"})))
+  EXPECT_CALL(
+      atrace,
+      RunAtrace(
+          ElementsAreArray({"atrace", "--async_stop", "--only_userspace"}), _))
       .WillOnce(Return(true));
   ASSERT_TRUE(model.RemoveConfig(id_b));
 
   ASSERT_TRUE(model.RemoveConfig(id_a));
+}
+
+TEST_F(FtraceConfigMuxerTest, AtraceErrorsPropagated) {
+  NiceMock<MockFtraceProcfs> ftrace;
+  MockRunAtrace atrace;
+
+  FtraceConfig config = CreateFtraceConfig({});
+  *config.add_atrace_categories() = "cat_1";
+  *config.add_atrace_categories() = "cat_2";
+
+  EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
+      .WillRepeatedly(Return('0'));
+
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+
+  EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
+                                                  "--only_userspace", "cat_1",
+                                                  "cat_2"}),
+                                _))
+      .WillOnce(Invoke([](const std::vector<std::string>&, std::string* err) {
+        EXPECT_NE(err, nullptr);
+        if (err)
+          err->append("foo\nbar\n");
+        return true;
+      }));
+
+  FtraceSetupErrors errors{};
+  FtraceConfigId id_a = model.SetupConfig(config, &errors);
+  ASSERT_TRUE(id_a);
+  EXPECT_EQ(errors.atrace_errors, "foo\nbar\n");
 }
 
 TEST_F(FtraceConfigMuxerTest, SetupClockForTesting) {
@@ -854,15 +917,15 @@ TEST_F(FtraceConfigMuxerTest, FallbackOnSetEvent) {
   const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
   ASSERT_TRUE(ds_config);
   EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kFakeSchedSwitchEventId));
+              Contains(kFakeSchedSwitchEventId));
   EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kCgroupMkdirEventId));
+              Contains(kCgroupMkdirEventId));
 
   const EventFilter* central_filter = model.GetCentralEventFilterForTesting();
   EXPECT_THAT(central_filter->GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kFakeSchedSwitchEventId));
+              Contains(kFakeSchedSwitchEventId));
   EXPECT_THAT(central_filter->GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kCgroupMkdirEventId));
+              Contains(kCgroupMkdirEventId));
 
   EXPECT_CALL(ftrace, WriteToFile("/root/tracing_on", "0"));
   EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", "4"));
@@ -903,7 +966,7 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
     const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
     ASSERT_TRUE(ds_config);
     EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
-                Contains(FtraceConfigMuxerTest::kFakeSchedSwitchEventId));
+                Contains(kFakeSchedSwitchEventId));
     EXPECT_TRUE(ds_config->compact_sched.enabled);
   }
   {
@@ -912,7 +975,7 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
     const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
     ASSERT_TRUE(ds_config);
     EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
-                Contains(FtraceConfigMuxerTest::kFakeSchedSwitchEventId));
+                Contains(kFakeSchedSwitchEventId));
     EXPECT_FALSE(ds_config->compact_sched.enabled);
   }
 }
@@ -934,8 +997,54 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfigWithInvalidFormat) {
   const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
   ASSERT_TRUE(ds_config);
   EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
-              Contains(FtraceConfigMuxerTest::kFakeSchedSwitchEventId));
+              Contains(kFakeSchedSwitchEventId));
   EXPECT_FALSE(ds_config->compact_sched.enabled);
+}
+
+TEST_F(FtraceConfigMuxerTest, SkipGenericEventsOption) {
+  NiceMock<MockFtraceProcfs> ftrace;
+  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+
+  static constexpr int kFtraceGenericEventId = 42;
+  ON_CALL(table_procfs_, ReadEventFormat("sched", "generic"))
+      .WillByDefault(Return(R"(name: generic
+ID: 42
+format:
+	field:int common_pid;	offset:0;	size:4;	signed:1;
+
+	field:u32 field_a;	offset:4;	size:4;	signed:0;
+	field:int field_b;	offset:8;	size:4;	signed:1;
+
+print fmt: "unused")"));
+
+  // Data source asking for one known and one generic event.
+  FtraceConfig config_default =
+      CreateFtraceConfig({"sched/sched_switch", "sched/generic"});
+
+  // As above, but with an option to suppress generic events.
+  FtraceConfig config_with_disable =
+      CreateFtraceConfig({"sched/sched_switch", "sched/generic"});
+  config_with_disable.set_disable_generic_events(true);
+
+  {
+    FtraceConfigId id = model.SetupConfig(config_default);
+    ASSERT_TRUE(id);
+    const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
+    ASSERT_TRUE(ds_config);
+    // Both events enabled for the data source by default.
+    EXPECT_THAT(
+        ds_config->event_filter.GetEnabledEvents(),
+        UnorderedElementsAre(kFakeSchedSwitchEventId, kFtraceGenericEventId));
+  }
+  {
+    FtraceConfigId id = model.SetupConfig(config_with_disable);
+    ASSERT_TRUE(id);
+    const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
+    ASSERT_TRUE(ds_config);
+    // Only the statically known event is enabled.
+    EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
+                UnorderedElementsAre(kFakeSchedSwitchEventId));
+  }
 }
 
 }  // namespace

@@ -618,8 +618,10 @@ def Main():
       InstallNodeModules(force_clean=nodejs_updated)
 
   cur_python_interpreter = sys.executable
-  test_data_synced = 0 == subprocess.call(
-      [cur_python_interpreter, TEST_DATA_SCRIPT, 'status', '--quiet'])
+  test_data_synced = 0 == subprocess.call([
+      cur_python_interpreter, TEST_DATA_SCRIPT, 'status', '--quiet',
+      '--ignore-new'
+  ])
   if args.check_only:
     if not deps_updated and test_data_synced:
       with open(args.check_only, 'w') as f:
@@ -629,6 +631,8 @@ def Main():
         [x for x in sys.argv[1:] if not x.startswith('--check-only')])
     print('\033[91mBuild deps are stale. ' +
           'Please run tools/install-build-deps %s\033[0m' % argz)
+    if not test_data_synced:
+      print('//test/data/ is out of sync. `tools/test_data status` for details')
     return 1
 
   if not test_data_synced:

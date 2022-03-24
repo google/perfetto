@@ -40,6 +40,19 @@ export interface SelectionControllerArgs {
   engine: Engine;
 }
 
+interface ThreadDetails {
+  tid: number;
+  threadName?: string;
+}
+
+interface ProcessDetails {
+  pid?: number;
+  processName?: string;
+  uid?: number;
+  packageName?: string;
+  versionCode?: number;
+}
+
 // This class queries the TP for the details on a specific slice that has
 // been clicked.
 export class SelectionController extends Controller<'main'> {
@@ -143,6 +156,7 @@ export class SelectionController extends Controller<'main'> {
     let thread_dur = undefined;
     // tslint:disable-next-line:variable-name
     let thread_ts = undefined;
+    let trackId = undefined;
 
     for (const k of details.columns()) {
       const v = rowIter.get(k);
@@ -168,6 +182,9 @@ export class SelectionController extends Controller<'main'> {
         case 'cat':
           category = `${v}`;
           break;
+        case 'track_id':
+          trackId = Number(v);
+          break;
         default:
           args.set(k, `${v}`);
       }
@@ -184,8 +201,46 @@ export class SelectionController extends Controller<'main'> {
       category,
       args,
       argsTree,
-      description,
+      description
     };
+
+    if (trackId !== undefined) {
+      const columnInfo = (await this.args.engine.query(`
+        WITH
+           leafTrackTable AS (SELECT type FROM track WHERE id = ${trackId}),
+           cols AS (
+                SELECT name
+                FROM pragma_table_info((SELECT type FROM leafTrackTable))
+            )
+        SELECT
+           type as leafTrackTable,
+          'upid' in cols AS hasUpid,
+          'utid' in cols AS hasUtid
+        FROM leafTrackTable
+      `)).firstRow({hasUpid: NUM, hasUtid: NUM, leafTrackTable: STR});
+      const hasUpid = columnInfo.hasUpid !== 0;
+      const hasUtid = columnInfo.hasUtid !== 0;
+
+      if (hasUtid) {
+        const utid = (await this.args.engine.query(`
+            SELECT utid
+            FROM ${columnInfo.leafTrackTable}
+            WHERE id = ${trackId};
+        `)).firstRow({
+             utid: NUM
+           }).utid;
+        Object.assign(selected, await this.computeThreadDetails(utid));
+      } else if (hasUpid) {
+        const upid = (await this.args.engine.query(`
+            SELECT upid
+            FROM ${columnInfo.leafTrackTable}
+            WHERE id = ${trackId};
+        `)).firstRow({
+             upid: NUM
+           }).upid;
+        Object.assign(selected, await this.computeProcessDetails(upid));
+      }
+    }
 
     // Check selection is still the same on completion of query.
     if (selection === globals.state.currentSelection) {
@@ -219,7 +274,7 @@ export class SelectionController extends Controller<'main'> {
     const query = `
       select
         key AS name,
-        CAST(COALESCE(int_value, string_value, real_value) AS text) AS value
+        display_value AS value
       FROM args
       WHERE arg_set_id = ${argId}
     `;
@@ -347,6 +402,8 @@ export class SelectionController extends Controller<'main'> {
         utid,
         threadStateId
       };
+      Object.assign(selected, await this.computeThreadDetails(utid));
+
       this.schedulingDetails(ts, utid)
           .then(wakeResult => {
             Object.assign(selected, wakeResult);
@@ -442,5 +499,50 @@ export class SelectionController extends Controller<'main'> {
       wakerUtid: wakerRow.utid,
       wakerCpu: wakerRow.cpu
     };
+  }
+
+  async computeThreadDetails(utid: number):
+      Promise<ThreadDetails&ProcessDetails> {
+    const threadInfo = (await this.args.engine.query(`
+          SELECT tid, name, upid
+          FROM thread
+          WHERE utid = ${utid};
+      `)).firstRow({tid: NUM, name: STR_NULL, upid: NUM_NULL});
+    const threadDetails = {
+      tid: threadInfo.tid,
+      threadName: threadInfo.name || undefined
+    };
+    if (threadInfo.upid) {
+      return Object.assign(
+          {}, threadDetails, await this.computeProcessDetails(threadInfo.upid));
+    }
+    return threadDetails;
+  }
+
+  async computeProcessDetails(upid: number): Promise<ProcessDetails> {
+    const details: ProcessDetails = {};
+    const processResult = (await this.args.engine.query(`
+                SELECT pid, name, uid FROM process WHERE upid = ${upid};
+              `)).firstRow({pid: NUM, name: STR_NULL, uid: NUM_NULL});
+    details.pid = processResult.pid;
+    details.processName = processResult.name || undefined;
+    if (processResult.uid === null) {
+      return details;
+    }
+    details.uid = processResult.uid;
+
+    const packageResult = (await this.args.engine.query(`
+                  SELECT package_name, version_code
+                  FROM package_list WHERE uid = ${details.uid};
+                `));
+    // The package_list table is not populated in some traces so we need to
+    // check if the result has returned any rows.
+    if (packageResult.numRows() > 0) {
+      const packageDetails =
+          packageResult.firstRow({package_name: STR, version_code: NUM});
+      details.packageName = packageDetails.package_name;
+      details.versionCode = packageDetails.version_code;
+    }
+    return details;
   }
 }

@@ -80,4 +80,16 @@ message FtraceStats {
 
   // The memory used by the kernel symbolizer (KernelSymbolMap.size_bytes()).
   optional uint32 kernel_symbols_mem_kb = 4;
+
+  // Atrace errors (even non-fatal ones) are reported here. A typical example is
+  // one or more atrace categories not available on the device.
+  optional string atrace_errors = 5;
+
+  // Ftrace events requested by the config but not present on device.
+  repeated string unknown_ftrace_events = 6;
+
+  // Ftrace events requested by the config and present on device, but which we
+  // failed to enable due to permissions, or due to a conflicting option
+  // (currently FtraceConfig.disable_generic_events).
+  repeated string failed_ftrace_events = 7;
 }

@@ -44,6 +44,7 @@ export const recordConfigValidator = record({
   ftraceEvents: arrayOf(str()),
   ftraceExtraEvents: str(),
   atraceCats: arrayOf(str()),
+  allAtraceApps: bool(true),
   atraceApps: str(),
   ftraceBufferSizeKb: num(2 * 1024),
   ftraceDrainPeriodMs: num(250),

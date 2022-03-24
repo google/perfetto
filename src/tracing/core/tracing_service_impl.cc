@@ -53,7 +53,6 @@
 #include "perfetto/base/status.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/android_utils.h"
-#include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/string_utils.h"

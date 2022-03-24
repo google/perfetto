@@ -1,14 +1,22 @@
 Unreleased:
   Tracing service and probes:
+    * Added prebuilts for mac-arm64.
     * Removed merged trace and config protos from Bazel. Embedder should
       instead depend on the non-merged proto targets.
+    * Added FtraceConfig.disable_generic_events. If set, the ftrace data source
+      will not emit events for which it doesn't have a compile-time proto
+      message.
   Trace Processor:
+    * Added prebuilts for mac-arm64.
     *
   UI:
     * Added flow arrows between binder transaction pairs (request/reply
       and async send/async recv).
   SDK:
-    *
+    * Added support for writing typed proto messages inside DebugAnnotations.
+    * Added support for delta encoding of timestamps for TrackEvents.
+      To disable it, refer to `disable_incremental_timestamps` flag in
+      `track_event_config.proto`.
 
 
 v24.2 - 2022-02-10:

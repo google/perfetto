@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Actions} from '../common/actions';
-import {AggregateData} from '../common/aggregation_data';
+import {AggregateData, isEmptyData} from '../common/aggregation_data';
 import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
 import {
   LogBoundsKey,
@@ -35,6 +35,7 @@ import {
   ThreadDesc,
   ThreadStateDetails
 } from './globals';
+import {findCurrentSelection} from './keyboard_event_handler';
 import {PivotTableHelper} from './pivot_table_helper';
 
 export function publishOverviewData(
@@ -139,6 +140,9 @@ export function publishMetricError(error: string) {
 export function publishAggregateData(
     args: {data: AggregateData, kind: string}) {
   globals.setAggregateData(args.kind, args.data);
+  if (!isEmptyData(args.data)) {
+    globals.dispatch(Actions.setCurrentTab({tab: args.data.tabName}));
+  }
   globals.publishRedraw();
 }
 
@@ -164,6 +168,11 @@ export function publishThreads(data: ThreadDesc[]) {
 
 export function publishSliceDetails(click: SliceDetails) {
   globals.sliceDetails = click;
+  const id = click.id;
+  if (id !== undefined && id === globals.state.pendingScrollId) {
+    findCurrentSelection();
+    globals.dispatch(Actions.clearPendingScrollId({id: undefined}));
+  }
   globals.publishRedraw();
 }
 

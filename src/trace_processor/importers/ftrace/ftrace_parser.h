@@ -169,6 +169,11 @@ class FtraceParser {
                                protozero::ConstBytes);
   void ParseCpuFrequencyLimits(int64_t timestamp, protozero::ConstBytes);
   void ParseKfreeSkb(int64_t timestamp, protozero::ConstBytes);
+  void ParseUfshcdCommand(int64_t timestamp, protozero::ConstBytes);
+
+  void ParseCrosEcSensorhubData(int64_t timestamp, protozero::ConstBytes);
+  void ParseWakeSourceActivate(int64_t timestamp, protozero::ConstBytes);
+  void ParseWakeSourceDeactivate(int64_t timestamp, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
@@ -199,6 +204,7 @@ class FtraceParser {
   const StringId irq_id_;
   const StringId tcp_state_id_;
   const StringId tcp_event_id_;
+  const StringId protocol_arg_id_;
   const StringId napi_gro_id_;
   const StringId tcp_retransmited_name_id_;
   const StringId ret_arg_id_;
@@ -216,6 +222,10 @@ class FtraceParser {
   const StringId io_wait_id_;
   const StringId function_id_;
   const StringId waker_utid_id_;
+  const StringId cros_ec_arg_num_id_;
+  const StringId cros_ec_arg_ec_id_;
+  const StringId cros_ec_arg_sample_ts_id_;
+  const StringId ufs_command_count_id_;
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).
@@ -248,14 +258,18 @@ class FtraceParser {
   // Record number of transmitted bytes to the network interface card.
   std::unordered_map<StringId, uint64_t> nic_transmitted_bytes_;
 
-  // Record number of kfree_skb.
-  uint64_t num_of_kfree_skb_ = 0;
+  // Record number of kfree_skb with ip protocol.
+  uint64_t num_of_kfree_skb_ip_prot = 0;
 
   // Keep sock to stream number mapping.
   std::unordered_map<uint64_t, uint32_t> skaddr_to_stream_;
 
   // Record number of tcp steams.
   uint32_t num_of_tcp_stream_ = 0;
+
+  // A name collision is possible, always show if active wakelock exists
+  // with a give name
+  std::unordered_map<std::string, uint32_t> active_wakelock_to_count_;
 
   bool has_seen_first_ftrace_packet_ = false;
 

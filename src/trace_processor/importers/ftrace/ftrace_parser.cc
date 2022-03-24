@@ -22,6 +22,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
 #include "src/trace_processor/importers/proto/async_track_set_tracker.h"
+#include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/storage/stats.h"
@@ -32,6 +33,7 @@
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/ftrace/binder.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cpuhp.pbzero.h"
+#include "protos/perfetto/trace/ftrace/cros_ec.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dmabuf_heap.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dpu.pbzero.h"
 #include "protos/perfetto/trace/ftrace/fastrpc.pbzero.h"
@@ -61,6 +63,7 @@
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
 #include "protos/perfetto/trace/ftrace/tcp.pbzero.h"
 #include "protos/perfetto/trace/ftrace/thermal.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ufs.pbzero.h"
 #include "protos/perfetto/trace/ftrace/vmscan.pbzero.h"
 #include "protos/perfetto/trace/ftrace/workqueue.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
@@ -112,7 +115,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       cpu_freq_name_id_(context->storage->InternString("cpufreq")),
       gpu_freq_name_id_(context->storage->InternString("gpufreq")),
       cpu_idle_name_id_(context->storage->InternString("cpuidle")),
-      kfree_skb_name_id_(context->storage->InternString("Kfree Skb")),
+      kfree_skb_name_id_(context->storage->InternString("Kfree Skb IP Prot")),
       ion_total_id_(context->storage->InternString("mem.ion")),
       ion_change_id_(context->storage->InternString("mem.ion_change")),
       ion_buffer_id_(context->storage->InternString("mem.ion_buffer")),
@@ -134,6 +137,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       irq_id_(context_->storage->InternString("irq")),
       tcp_state_id_(context_->storage->InternString("tcp_state")),
       tcp_event_id_(context_->storage->InternString("tcp_event")),
+      protocol_arg_id_(context_->storage->InternString("protocol")),
       napi_gro_id_(context_->storage->InternString("napi_gro")),
       tcp_retransmited_name_id_(
           context_->storage->InternString("TCP Retransmit Skb")),
@@ -159,7 +163,11 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
           context->storage->InternString("sched_blocked_reason")),
       io_wait_id_(context->storage->InternString("io_wait")),
       function_id_(context->storage->InternString("function")),
-      waker_utid_id_(context->storage->InternString("waker_utid")) {
+      waker_utid_id_(context->storage->InternString("waker_utid")),
+      cros_ec_arg_num_id_(context->storage->InternString("ec_num")),
+      cros_ec_arg_ec_id_(context->storage->InternString("ec_delta")),
+      cros_ec_arg_sample_ts_id_(context->storage->InternString("sample_ts")),
+      ufs_command_count_id_(context->storage->InternString("UFS Command Count")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -350,6 +358,31 @@ void FtraceParser::ParseFtraceStats(ConstBytes blob) {
       storage->SetIndexedStats(stats::ftrace_cpu_oldest_event_ts_begin + phase,
                                cpu, static_cast<int64_t>(oldest_event_ts));
     }
+  }
+
+  // Compute atrace + ftrace setup errors. We do two things here:
+  // 1. We add up all the errors and put the counter in the stats table (which
+  //    can hold only numerals). This will raise an orange flag in the UI.
+  // 2. We concatenate together all the errors in a string and put that in the
+  //    medatata table.
+  // Both will be reported in the 'Info & stats' page in the UI.
+  if (is_start) {
+    std::string error_str;
+    for (auto it = evt.failed_ftrace_events(); it; ++it) {
+      storage->IncrementStats(stats::ftrace_setup_errors, 1);
+      error_str += "Ftrace event failed: " + it->as_std_string() + "\n";
+    }
+    for (auto it = evt.unknown_ftrace_events(); it; ++it) {
+      storage->IncrementStats(stats::ftrace_setup_errors, 1);
+      error_str += "Ftrace event unknown: " + it->as_std_string() + "\n";
+    }
+    if (evt.atrace_errors().size > 0) {
+      storage->IncrementStats(stats::ftrace_setup_errors, 1);
+      error_str += "Atrace failures: " + evt.atrace_errors().ToStdString();
+    }
+    auto error_str_id = storage->InternString(base::StringView(error_str));
+    context_->metadata_tracker->SetMetadata(metadata::ftrace_setup_errors,
+                                            Variadic::String(error_str_id));
   }
 }
 
@@ -684,6 +717,22 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kKfreeSkbFieldNumber: {
         ParseKfreeSkb(ts, data);
+        break;
+      }
+      case FtraceEvent::kCrosEcSensorhubDataFieldNumber: {
+        ParseCrosEcSensorhubData(ts, data);
+        break;
+      }
+      case FtraceEvent::kUfshcdCommandFieldNumber: {
+        ParseUfshcdCommand(ts, data);
+        break;
+      }
+      case FtraceEvent::kWakeupSourceActivateFieldNumber: {
+        ParseWakeSourceActivate(ts, data);
+        break;
+      }
+      case FtraceEvent::kWakeupSourceDeactivateFieldNumber: {
+        ParseWakeSourceDeactivate(ts, data);
         break;
       }
       default:
@@ -1890,11 +1939,110 @@ void FtraceParser::ParseKfreeSkb(int64_t timestamp,
                                  protozero::ConstBytes blob) {
   protos::pbzero::KfreeSkbFtraceEvent::Decoder evt(blob.data, blob.size);
 
-  num_of_kfree_skb_ += 1;
+  // Skip non IP & IPV6 protocol.
+  if (evt.protocol() != kEthPIp && evt.protocol() != kEthPIp6) {
+    return;
+  }
+  num_of_kfree_skb_ip_prot += 1;
+
   TrackId track =
       context_->track_tracker->InternGlobalCounterTrack(kfree_skb_name_id_);
+  base::Optional<CounterId> id = context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(num_of_kfree_skb_ip_prot), track);
+  if (!id) {
+    return;
+  }
+  base::StackString<255> prot("%s", evt.protocol() == kEthPIp ? "IP" : "IPV6");
+  StringId prot_id = context_->storage->InternString(prot.string_view());
+  // Store protocol as args for metrics computation.
+  context_->args_tracker->AddArgsTo(*id).AddArg(
+      protocol_arg_id_, Variadic::String(prot_id));
+}
+
+void FtraceParser::ParseCrosEcSensorhubData(int64_t timestamp,
+                                            protozero::ConstBytes blob) {
+  protos::pbzero::CrosEcSensorhubDataFtraceEvent::Decoder evt(blob.data,
+                                                              blob.size);
+
+  // Push the global counter.
+  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+      context_->storage->InternString(
+          base::StringView("cros_ec.cros_ec_sensorhub_data." +
+                           std::to_string(evt.ec_sensor_num()))));
+
+  auto args_inserter = [this, &evt](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(cros_ec_arg_num_id_,
+                     Variadic::Integer(evt.ec_sensor_num()));
+    inserter->AddArg(
+        cros_ec_arg_ec_id_,
+        Variadic::Integer(evt.fifo_timestamp() - evt.current_timestamp()));
+    inserter->AddArg(cros_ec_arg_sample_ts_id_,
+                     Variadic::Integer(evt.current_timestamp()));
+  };
+
   context_->event_tracker->PushCounter(
-      timestamp, static_cast<double>(num_of_kfree_skb_), track);
+      timestamp,
+      static_cast<double>(evt.current_time() - evt.current_timestamp()), track,
+      args_inserter);
+}
+
+void FtraceParser::ParseUfshcdCommand(int64_t timestamp,
+                                      protozero::ConstBytes blob) {
+  protos::pbzero::UfshcdCommandFtraceEvent::Decoder evt(blob.data, blob.size);
+  uint32_t num = evt.doorbell() > 0 ?
+      static_cast<uint32_t>(PERFETTO_POPCOUNT(evt.doorbell())) : 1;
+
+  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+      ufs_command_count_id_);
+  context_->event_tracker->PushCounter(timestamp, static_cast<double>(num),
+                                       track);
+}
+
+void FtraceParser::ParseWakeSourceActivate(int64_t timestamp,
+                                           protozero::ConstBytes blob) {
+  protos::pbzero::WakeupSourceActivateFtraceEvent::Decoder evt(blob.data,
+                                                               blob.size);
+  std::string event_name = evt.name().ToStdString();
+
+  uint32_t count = active_wakelock_to_count_[event_name];
+
+  active_wakelock_to_count_[event_name] += 1;
+
+  // There is already an active track with this name, don't create another.
+  if (count > 0) {
+    return;
+  }
+
+  base::StackString<32> str("Wakelock(%s)", event_name.c_str());
+  StringId stream_id = context_->storage->InternString(str.string_view());
+
+  auto async_track =
+      context_->async_track_set_tracker->InternGlobalTrackSet(stream_id);
+
+  TrackId start_id = context_->async_track_set_tracker->Begin(async_track, 0);
+
+  context_->slice_tracker->Begin(timestamp, start_id, kNullStringId, stream_id);
+}
+
+void FtraceParser::ParseWakeSourceDeactivate(int64_t timestamp,
+                                             protozero::ConstBytes blob) {
+  protos::pbzero::WakeupSourceDeactivateFtraceEvent::Decoder evt(blob.data,
+                                                                 blob.size);
+
+  std::string event_name = evt.name().ToStdString();
+  uint32_t count = active_wakelock_to_count_[event_name];
+  active_wakelock_to_count_[event_name] = count > 0 ? count - 1 : 0;
+  if (count != 1) {
+    return;
+  }
+
+  base::StackString<32> str("Wakelock(%s)", event_name.c_str());
+  StringId stream_id = context_->storage->InternString(str.string_view());
+  auto async_track =
+      context_->async_track_set_tracker->InternGlobalTrackSet(stream_id);
+
+  TrackId end_id = context_->async_track_set_tracker->End(async_track, 0);
+  context_->slice_tracker->End(timestamp, end_id);
 }
 
 }  // namespace trace_processor

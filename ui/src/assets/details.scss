@@ -244,12 +244,25 @@
     word-wrap: break-word;
     padding: 0 10px;
     tr:hover {
-      background-color: hsl(214, 22%, 90%);
+      td, th {
+        background-color: hsl(214, 22%, 90%);
+
+        &.no-highlight {
+          background-color: white;
+        }
+      }
     }
     th {
       text-align: left;
       width: 30%;
       font-weight: normal;
+      vertical-align: top;
+    }
+    td.value {
+      white-space: pre-wrap;
+    }
+    td.padding {
+      min-width: 10px;
     }
     .array-index {
       text-align: right;

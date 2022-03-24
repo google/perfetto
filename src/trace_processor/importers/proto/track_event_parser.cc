@@ -653,7 +653,7 @@ class TrackEventParser::EventImporter {
         [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
 
     if (opt_slice_id.has_value()) {
-      MaybeParseFlowEvents();
+      MaybeParseFlowEvents(opt_slice_id.value());
     }
 
     return util::OkStatus();
@@ -684,6 +684,7 @@ class TrackEventParser::EventImporter {
         thread_slices->mutable_thread_instruction_delta()->Set(
             *maybe_row, *event_data_->thread_instruction_count - *tic);
       }
+      MaybeParseFlowEvents(opt_slice_id.value());
     }
 
     return util::OkStatus();
@@ -713,7 +714,7 @@ class TrackEventParser::EventImporter {
         [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
 
     if (opt_slice_id.has_value()) {
-      MaybeParseFlowEvents();
+      MaybeParseFlowEvents(opt_slice_id.value());
     }
 
     return util::OkStatus();
@@ -754,16 +755,16 @@ class TrackEventParser::EventImporter {
     return util::OkStatus();
   }
 
-  void MaybeParseTrackEventFlows() {
+  void MaybeParseTrackEventFlows(SliceId slice_id) {
     if (event_.has_flow_ids()) {
       auto it = event_.flow_ids();
       for (; it; ++it) {
         FlowId flow_id = *it;
         if (!context_->flow_tracker->IsActive(flow_id)) {
-          context_->flow_tracker->Begin(track_id_, flow_id);
+          context_->flow_tracker->Begin(slice_id, flow_id);
           continue;
         }
-        context_->flow_tracker->Step(track_id_, flow_id);
+        context_->flow_tracker->Step(slice_id, flow_id);
       }
     }
     if (event_.has_terminating_flow_ids()) {
@@ -775,14 +776,13 @@ class TrackEventParser::EventImporter {
           // active already.
           continue;
         }
-        context_->flow_tracker->End(track_id_, flow_id,
-                                    /* bind_enclosing_slice = */ true,
+        context_->flow_tracker->End(slice_id, flow_id,
                                     /* close_flow = */ true);
       }
     }
   }
 
-  void MaybeParseFlowEventV2() {
+  void MaybeParseFlowEventV2(SliceId slice_id) {
     if (!legacy_event_.has_bind_id()) {
       return;
     }
@@ -794,14 +794,13 @@ class TrackEventParser::EventImporter {
     auto bind_id = legacy_event_.bind_id();
     switch (legacy_event_.flow_direction()) {
       case LegacyEvent::FLOW_OUT:
-        context_->flow_tracker->Begin(track_id_, bind_id);
+        context_->flow_tracker->Begin(slice_id, bind_id);
         break;
       case LegacyEvent::FLOW_INOUT:
-        context_->flow_tracker->Step(track_id_, bind_id);
+        context_->flow_tracker->Step(slice_id, bind_id);
         break;
       case LegacyEvent::FLOW_IN:
-        context_->flow_tracker->End(track_id_, bind_id,
-                                    /* bind_enclosing_slice = */ true,
+        context_->flow_tracker->End(slice_id, bind_id,
                                     /* close_flow = */ false);
         break;
       default:
@@ -809,9 +808,9 @@ class TrackEventParser::EventImporter {
     }
   }
 
-  void MaybeParseFlowEvents() {
-    MaybeParseFlowEventV2();
-    MaybeParseTrackEventFlows();
+  void MaybeParseFlowEvents(SliceId slice_id) {
+    MaybeParseFlowEventV2(slice_id);
+    MaybeParseTrackEventFlows(slice_id);
   }
 
   util::Status ParseThreadInstantEvent(char phase) {
@@ -850,7 +849,7 @@ class TrackEventParser::EventImporter {
     if (!opt_slice_id.has_value()) {
       return util::OkStatus();
     }
-    MaybeParseFlowEvents();
+    MaybeParseFlowEvents(opt_slice_id.value());
     return util::OkStatus();
   }
 
@@ -872,7 +871,7 @@ class TrackEventParser::EventImporter {
     if (!opt_slice_id.has_value()) {
       return util::OkStatus();
     }
-    MaybeParseFlowEvents();
+    MaybeParseFlowEvents(opt_slice_id.value());
     // For the time being, we only create vtrack slice rows if we need to
     // store thread timestamps/counters.
     if (legacy_event_.use_async_tts()) {
@@ -895,7 +894,10 @@ class TrackEventParser::EventImporter {
     auto opt_slice_id = context_->slice_tracker->End(
         ts_, track_id_, category_id_, name_id_,
         [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
-    if (legacy_event_.use_async_tts() && opt_slice_id.has_value()) {
+    if (!opt_slice_id.has_value())
+      return util::OkStatus();
+    MaybeParseFlowEvents(opt_slice_id.value());
+    if (legacy_event_.use_async_tts()) {
       auto* vtrack_slices = storage_->mutable_virtual_track_slices();
       int64_t tts =
           event_data_->thread_timestamp ? *event_data_->thread_timestamp : 0;
@@ -940,7 +942,7 @@ class TrackEventParser::EventImporter {
     if (!opt_slice_id.has_value()) {
       return util::OkStatus();
     }
-    MaybeParseFlowEvents();
+    MaybeParseFlowEvents(opt_slice_id.value());
     if (legacy_event_.use_async_tts()) {
       auto* vtrack_slices = storage_->mutable_virtual_track_slices();
       PERFETTO_DCHECK(!vtrack_slices->slice_count() ||

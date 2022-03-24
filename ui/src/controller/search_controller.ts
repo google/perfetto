@@ -217,13 +217,12 @@ export class SearchController extends Controller<'main'> {
         cpuToTrackId.set((track.config as {cpu: number}).cpu, track.id);
         continue;
       }
-      if (track.kind === 'ChromeSliceTrack') {
-        const config = (track.config as {trackId: number});
+      const config = track.config || {};
+      if (config.trackId !== undefined) {
         engineTrackIdToTrackId.set(config.trackId, track.id);
         continue;
       }
-      if (track.kind === 'AsyncSliceTrack') {
-        const config = (track.config as {trackIds: number[]});
+      if (config.trackIds !== undefined) {
         for (const trackId of config.trackIds) {
           engineTrackIdToTrackId.set(trackId, track.id);
         }
@@ -277,12 +276,12 @@ export class SearchController extends Controller<'main'> {
       utids: new Float64Array(rows),
       trackIds: [],
       sources: [],
-      totalResults: queryRes.numRows(),
+      totalResults: 0,
     };
 
     const it = queryRes.iter(
         {sliceId: NUM, ts: NUM, source: STR, sourceId: NUM, utid: NUM});
-    for (let i = 0; it.valid(); it.next(), ++i) {
+    for (; it.valid(); it.next()) {
       let trackId = undefined;
       if (it.source === 'cpu') {
         trackId = cpuToTrackId.get(it.sourceId);
@@ -292,9 +291,10 @@ export class SearchController extends Controller<'main'> {
 
       // The .get() calls above could return undefined, this isn't just an else.
       if (trackId === undefined) {
-        searchResults.totalResults--;
         continue;
       }
+
+      const i = searchResults.totalResults++;
       searchResults.trackIds.push(trackId);
       searchResults.sources.push(it.source);
       searchResults.sliceIds[i] = it.sliceId;

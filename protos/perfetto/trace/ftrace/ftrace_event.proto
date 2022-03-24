@@ -64,6 +64,7 @@ import "protos/perfetto/trace/ftrace/systrace.proto";
 import "protos/perfetto/trace/ftrace/task.proto";
 import "protos/perfetto/trace/ftrace/tcp.proto";
 import "protos/perfetto/trace/ftrace/thermal.proto";
+import "protos/perfetto/trace/ftrace/ufs.proto";
 import "protos/perfetto/trace/ftrace/vmscan.proto";
 import "protos/perfetto/trace/ftrace/workqueue.proto";
 import "protos/perfetto/trace/ftrace/generic.proto";
@@ -499,5 +500,9 @@ message FtraceEvent {
     KvmWfxArm64FtraceEvent kvm_wfx_arm64 = 401;
     TrapRegFtraceEvent trap_reg = 402;
     VgicUpdateIrqPendingFtraceEvent vgic_update_irq_pending = 403;
+    WakeupSourceActivateFtraceEvent wakeup_source_activate = 404;
+    WakeupSourceDeactivateFtraceEvent wakeup_source_deactivate = 405;
+    UfshcdCommandFtraceEvent ufshcd_command = 406;
+    UfshcdClkGatingFtraceEvent ufshcd_clk_gating = 407;
   }
 }
