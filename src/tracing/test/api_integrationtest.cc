@@ -24,6 +24,7 @@
 #include <mutex>
 #include <regex>
 #include <thread>
+#include <unordered_set>
 #include <vector>
 
 // We also want to test legacy trace events.
@@ -2803,6 +2804,56 @@ TEST_P(PerfettoApiTest, TrackEventTrackFromPointer) {
   auto slices = ReadSlicesFromTrace(tracing_session->get());
   EXPECT_THAT(slices, ElementsAre("[track=" + std::to_string(track.uuid) +
                                   "]I:test.Event"));
+}
+
+TEST_P(PerfettoApiTest, TrackEventTrackFromThreadScopedPointer) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  int num = 2;
+  TRACE_EVENT_INSTANT("test", "Event0.1");
+  TRACE_EVENT_INSTANT("test", "Event0.2");
+  TRACE_EVENT_INSTANT("test", "Event1.1", perfetto::Track::ThreadScoped(&num));
+  TRACE_EVENT_INSTANT("test", "Event1.2", perfetto::Track::ThreadScoped(&num));
+  std::thread t1([&]() {
+    TRACE_EVENT_INSTANT("test", "Event2.1",
+                        perfetto::Track::ThreadScoped(&num));
+    TRACE_EVENT_INSTANT("test", "Event2.2",
+                        perfetto::Track::ThreadScoped(&num));
+  });
+  t1.join();
+  std::thread t2([&]() {
+    TRACE_EVENT_INSTANT("test", "Event3.1",
+                        perfetto::Track::ThreadScoped(&num));
+    TRACE_EVENT_INSTANT("test", "Event3.2",
+                        perfetto::Track::ThreadScoped(&num));
+  });
+  t2.join();
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace parsed_trace;
+  ASSERT_TRUE(parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+
+  std::unordered_map<std::string, uint64_t> track_uuid_map;
+  for (auto packet : parsed_trace.packet()) {
+    if (packet.has_interned_data()) {
+      for (auto& ename : packet.interned_data().event_names()) {
+        track_uuid_map.emplace(ename.name(), packet.track_event().track_uuid());
+      }
+    }
+  }
+  EXPECT_EQ(track_uuid_map.at("Event0.1"), track_uuid_map.at("Event0.2"));
+  EXPECT_EQ(track_uuid_map.at("Event1.1"), track_uuid_map.at("Event1.2"));
+  EXPECT_EQ(track_uuid_map.at("Event2.1"), track_uuid_map.at("Event2.2"));
+  EXPECT_EQ(track_uuid_map.at("Event3.1"), track_uuid_map.at("Event3.2"));
+
+  EXPECT_EQ(4u,
+            (std::unordered_set<uint64_t>{
+                 track_uuid_map.at("Event0.1"), track_uuid_map.at("Event1.1"),
+                 track_uuid_map.at("Event2.1"), track_uuid_map.at("Event3.1")})
+                .size());
 }
 
 TEST_P(PerfettoApiTest, TrackEventDebugAnnotations) {

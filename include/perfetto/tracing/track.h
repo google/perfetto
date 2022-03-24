@@ -115,6 +115,15 @@ struct PERFETTO_EXPORT Track {
                  parent);
   }
 
+  // Construct a track using |ptr| as identifier within thread-scope.
+  // Shorthand for `Track::FromPointer(ptr, ThreadTrack::Current())`
+  // Usage: TRACE_EVENT_BEGIN("...", "...", perfetto::Track::ThreadScoped(this))
+  static Track ThreadScoped(
+      const void* ptr,
+      Track parent = MakeThreadTrack(base::GetThreadId())) {
+    return Track::FromPointer(ptr, parent);
+  }
+
  protected:
   constexpr Track(uint64_t uuid_, uint64_t parent_uuid_)
       : uuid(uuid_), parent_uuid(parent_uuid_) {}
