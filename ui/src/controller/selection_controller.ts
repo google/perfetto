@@ -42,7 +42,7 @@ export interface SelectionControllerArgs {
 
 interface ThreadDetails {
   tid: number;
-  threadName: string;
+  threadName?: string;
 }
 
 interface ProcessDetails {
@@ -507,8 +507,11 @@ export class SelectionController extends Controller<'main'> {
           SELECT tid, name, upid
           FROM thread
           WHERE utid = ${utid};
-      `)).firstRow({tid: NUM, name: STR, upid: NUM_NULL});
-    const threadDetails = {tid: threadInfo.tid, threadName: threadInfo.name};
+      `)).firstRow({tid: NUM, name: STR_NULL, upid: NUM_NULL});
+    const threadDetails = {
+      tid: threadInfo.tid,
+      threadName: threadInfo.name || undefined
+    };
     if (threadInfo.upid) {
       return Object.assign(
           {}, threadDetails, await this.computeProcessDetails(threadInfo.upid));
@@ -520,9 +523,9 @@ export class SelectionController extends Controller<'main'> {
     const details: ProcessDetails = {};
     const processResult = (await this.args.engine.query(`
                 SELECT pid, name, uid FROM process WHERE upid = ${upid};
-              `)).firstRow({pid: NUM, name: STR, uid: NUM_NULL});
+              `)).firstRow({pid: NUM, name: STR_NULL, uid: NUM_NULL});
     details.pid = processResult.pid;
-    details.processName = processResult.name;
+    details.processName = processResult.name || undefined;
     if (processResult.uid === null) {
       return details;
     }
