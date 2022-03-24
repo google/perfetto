@@ -423,6 +423,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //include/perfetto/ext/trace_processor:demangle
+perfetto_filegroup(
+    name = "include_perfetto_ext_trace_processor_demangle",
+    srcs = [
+        "include/perfetto/ext/trace_processor/demangle.h",
+    ],
+)
+
 # GN target: //include/perfetto/ext/trace_processor:export_json
 perfetto_filegroup(
     name = "include_perfetto_ext_trace_processor_export_json",
@@ -1330,6 +1338,20 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/util/status_macros.h",
     ],
+)
+
+# GN target: //src/trace_processor:demangle
+perfetto_cc_library(
+    name = "src_trace_processor_demangle",
+    srcs = [
+        "src/trace_processor/demangle.cc",
+    ],
+    hdrs = [
+        ":include_perfetto_base_base",
+        ":include_perfetto_ext_base_base",
+        ":include_perfetto_ext_trace_processor_demangle",
+    ],
+    linkstatic = True,
 )
 
 # GN target: //src/trace_processor:export_json
@@ -3692,7 +3714,8 @@ perfetto_cc_library(
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib + [
         ":cc_amalgamated_sql_metrics",
-    ],
+    ] +
+           PERFETTO_CONFIG.deps.demangle_wrapper,
     linkstatic = True,
 )
 
@@ -3790,7 +3813,8 @@ perfetto_cc_binary(
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib + [
         ":cc_amalgamated_sql_metrics",
-    ],
+    ] +
+           PERFETTO_CONFIG.deps.demangle_wrapper,
 )
 
 # GN target: //src/traced/probes:traced_probes
@@ -3974,7 +3998,8 @@ perfetto_cc_binary(
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib + [
         ":cc_amalgamated_sql_metrics",
-    ],
+    ] +
+           PERFETTO_CONFIG.deps.demangle_wrapper,
 )
 
 # Content from BUILD.extras
