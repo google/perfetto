@@ -147,6 +147,7 @@ bool CreateConfigFromOptions(const ConfigOptions& options,
     ftrace_cfg.add_atrace_categories(cat);
   for (const auto& app : atrace_apps)
     ftrace_cfg.add_atrace_apps(app);
+  ftrace_cfg.set_symbolize_ksyms(true);
   ds_config->set_ftrace_config_raw(ftrace_cfg.SerializeAsString());
 
   auto* ps_config = config->add_data_sources()->mutable_config();
