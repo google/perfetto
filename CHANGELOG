@@ -8,7 +8,11 @@ Unreleased:
       message.
   Trace Processor:
     * Added prebuilts for mac-arm64.
-    *
+    * Added an optional dependency from trace processor onto a subset of
+      sources from llvm-project for function name demangling. Bazel embedders
+      might need to update their PERFETTO_CONFIG in perfetto_cfg.bzl to opt in
+      or out of the new dependency. See
+      perfetto/bazel/standalone/perfetto_cfg.bzl for details.
   UI:
     * Added flow arrows between binder transaction pairs (request/reply
       and async send/async recv).
