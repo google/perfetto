@@ -57,6 +57,13 @@ export interface SliceDetails {
   wakerCpu?: number;
   category?: string;
   name?: string;
+  tid?: number;
+  threadName?: string;
+  pid?: number;
+  processName?: string;
+  uid?: number;
+  packageName?: string;
+  versionCode?: number;
   args?: Args;
   argsTree?: ArgsTree;
   description?: Description;
@@ -79,6 +86,7 @@ export interface Flow {
 
   begin: FlowPoint;
   end: FlowPoint;
+  dur: number;
 
   category?: string;
   name?: string;
