@@ -167,6 +167,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       cros_ec_arg_num_id_(context->storage->InternString("ec_num")),
       cros_ec_arg_ec_id_(context->storage->InternString("ec_delta")),
       cros_ec_arg_sample_ts_id_(context->storage->InternString("sample_ts")),
+      ufs_clkgating_id_(context->storage->InternString("UFS clkgating (OFF/REQ_OFF/REQ_ON/ON)")),
       ufs_command_count_id_(context->storage->InternString("UFS Command Count")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
@@ -733,6 +734,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kWakeupSourceDeactivateFieldNumber: {
         ParseWakeSourceDeactivate(ts, data);
+        break;
+      }
+      case FtraceEvent::kUfshcdClkGatingFieldNumber: {
+        ParseUfshcdClkGating(ts, data);
         break;
       }
       default:
@@ -1984,6 +1989,31 @@ void FtraceParser::ParseCrosEcSensorhubData(int64_t timestamp,
       timestamp,
       static_cast<double>(evt.current_time() - evt.current_timestamp()), track,
       args_inserter);
+}
+
+void FtraceParser::ParseUfshcdClkGating(int64_t timestamp,
+                                      protozero::ConstBytes blob) {
+  protos::pbzero::UfshcdClkGatingFtraceEvent::Decoder evt(blob.data, blob.size);
+  int32_t clk_state = 0;
+
+  switch (evt.state()) {
+      case 1:
+          // Change ON state to 3
+          clk_state = 3;
+          break;
+      case 2:
+          // Change REQ_OFF state to 1
+          clk_state = 1;
+          break;
+      case 3:
+          // Change REQ_ON state to 2
+          clk_state = 2;
+          break;
+  }
+  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+      ufs_clkgating_id_);
+  context_->event_tracker->PushCounter(timestamp, static_cast<double>(clk_state),
+                                       track);
 }
 
 void FtraceParser::ParseUfshcdCommand(int64_t timestamp,
