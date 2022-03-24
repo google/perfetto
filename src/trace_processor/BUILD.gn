@@ -54,6 +54,19 @@ source_set("metatrace") {
   ]
 }
 
+static_library("demangle") {
+  sources = [ "demangle.cc" ]
+  deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/base",
+    "../../include/perfetto/ext/base",
+  ]
+  public_deps = [ "../../include/perfetto/ext/trace_processor:demangle" ]
+  if (enable_perfetto_llvm_demangle) {
+    deps += [ "../../gn:llvm_demangle" ]
+  }
+}
+
 source_set("ftrace_descriptors") {
   sources = [
     "importers/ftrace/ftrace_descriptors.cc",
@@ -330,6 +343,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     ]
 
     deps = [
+      ":demangle",
       ":export_json",
       ":metatrace",
       ":storage_full",
