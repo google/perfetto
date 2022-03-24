@@ -101,8 +101,26 @@ message CamelCaseFields {
 
 message PackedRepeatedFields {
   repeated int32 field_int32 = 1 [packed = true];
+  repeated int64 field_int64 = 4 [packed = true];
+  repeated uint32 field_uint32 = 5 [packed = true];
+  repeated uint64 field_uint64 = 6 [packed = true];
+  // Repeated packed Zig-zag fields are currently unsupported by our protoc
+  // plugin.
+  // repeated sint32 field_sint32 = 7 [packed = true];
+  // repeated sint64 field_sint64 = 8 [packed = true];
   repeated fixed32 field_fixed32 = 2 [packed = true];
+  repeated fixed64 field_fixed64 = 9 [packed = true];
+  repeated sfixed32 field_sfixed32 = 10 [packed = true];
   repeated sfixed64 field_sfixed64 = 3 [packed = true];
+  repeated float field_float = 11 [packed = true];
+  repeated double field_double = 12 [packed = true];
+  // Repeated (even non-packed) bool fields are currently unsupported by our
+  // protoc plugin.
+  // repeated bool field_bool = 13 [packed = true];
+  // Repeated packed enum fields are currently unsupported by our protoc plugin.
+  // repeated SmallEnum small_enum = 51 [packed = true];
+  // repeated SignedEnum signed_enum = 52 [packed = true];
+  // repeated BigEnum big_enum = 53 [packed = true];
 }
 
 // The following two messages are for testing that unknown fields being
