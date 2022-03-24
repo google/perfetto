@@ -46,6 +46,7 @@ gn_args = ' '.join([
     'enable_perfetto_heapprofd=false',
     'enable_perfetto_traced_perf=false',
     'perfetto_force_dcheck="off"',
+    'enable_perfetto_llvm_demangle=false',
 ])
 
 # Default targets to translate to the blueprint file.
@@ -113,6 +114,10 @@ external_deps = {
         'PERFETTO_CONFIG.deps.sqlite_ext_percentile'
     ],
     '//gn:zlib': ['PERFETTO_CONFIG.deps.zlib'],
+    '//gn:llvm_demangle': ['PERFETTO_CONFIG.deps.llvm_demangle'],
+    '//src/trace_processor:demangle': [
+        'PERFETTO_CONFIG.deps.demangle_wrapper'
+    ],
     '//src/trace_processor/metrics/sql:gen_amalgamated_sql_metrics': [[
         ':cc_amalgamated_sql_metrics'
     ]],

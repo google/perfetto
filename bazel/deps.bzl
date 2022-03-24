@@ -74,6 +74,15 @@ def perfetto_deps():
         shallow_since = "1557160162 -0700",
     )
 
+    _add_repo_if_not_existing(
+        http_archive,
+        name = "perfetto_dep_llvm_demangle",
+        url = "https://storage.googleapis.com/perfetto/llvm-project-3b4c59c156919902c785ce3cbae0eee2ee53064d.tgz",
+        sha256 = "f4a52e7f36edd7cacc844d5ae0e5f60b6f57c5afc40683e99f295886c9ce8ff4",
+        strip_prefix = "llvm-project",
+        build_file = "//bazel:llvm_demangle.BUILD",
+    )
+
     # Without this protobuf.bzl fails. This seems a bug in protobuf_deps().
     _add_repo_if_not_existing(
         http_archive,
