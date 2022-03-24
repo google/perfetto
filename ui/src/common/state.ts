@@ -79,7 +79,8 @@ export const MAX_TIME = 180;
 // typed key/value because a `Map` does not preserve type during
 // serialisation+deserialisation.
 // 15: Added state for Pivot Table V2
-export const STATE_VERSION = 15;
+// 16: Added boolean tracking if the flamegraph modal was dismissed
+export const STATE_VERSION = 16;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -466,6 +467,7 @@ export interface State {
   recordingInProgress: boolean;
   recordingCancelled: boolean;
   extensionInstalled: boolean;
+  flamegraphModalDismissed: boolean;
   recordingTarget: RecordingTarget;
   availableAdbDevices: AdbRecordingTarget[];
   lastRecordingError?: string;

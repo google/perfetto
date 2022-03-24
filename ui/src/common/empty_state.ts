@@ -97,6 +97,7 @@ export function createEmptyState(): State {
     recordingInProgress: false,
     recordingCancelled: false,
     extensionInstalled: false,
+    flamegraphModalDismissed: false,
     recordingTarget: recordTargetStore.getValidTarget(),
     availableAdbDevices: [],
 

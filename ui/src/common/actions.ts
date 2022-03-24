@@ -1006,6 +1006,10 @@ export const StateActions = {
   setPivotStateReduxState(
       state: StateDraft, args: {pivotTableState: PivotTableReduxState}) {
     state.pivotTableRedux = args.pivotTableState;
+  },
+
+  dismissFlamegraphModal(state: StateDraft, _: {}) {
+    state.flamegraphModalDismissed = true;
   }
 };
 
