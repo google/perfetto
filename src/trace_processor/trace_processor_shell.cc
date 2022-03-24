@@ -600,8 +600,9 @@ base::Status RunQueriesAndPrintResult(const std::string& sql_query,
 
   auto dur = query_end - query_start;
   PERFETTO_ILOG(
-      "Query execution time: %lld ms",
-      std::chrono::duration_cast<std::chrono::milliseconds>(dur).count());
+      "Query execution time: %" PRIi64 " ms",
+      static_cast<int64_t>(
+          std::chrono::duration_cast<std::chrono::milliseconds>(dur).count()));
   return base::OkStatus();
 }
 
