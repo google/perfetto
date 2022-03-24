@@ -124,6 +124,9 @@ export interface FlamegraphDetails {
   // isInAreaSelection is true if a flamegraph is part of the current area
   // selection.
   isInAreaSelection?: boolean;
+  // When heap_graph_non_finalized_graph has a count >0, we mark the graph
+  // as incomplete.
+  graphIncomplete?: boolean;
 }
 
 export interface CpuProfileDetails {
