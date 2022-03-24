@@ -180,10 +180,6 @@ TEST(ProtozeroToTextTest, ProtozeroEnumToText) {
                                 TrackEvent::TYPE_SLICE_END));
 }
 
-TEST(ProtozeroToTextTest, BytesToHexEncodedString) {
-  EXPECT_EQ(BytesToHexEncodedStringForTesting("abc"), R"(\x61\x62\x63)");
-}
-
 // Sets up a descriptor pool with all the messages from
 // "src/protozero/test/example_proto/test_messages.proto"
 class ProtozeroToTextTestMessageTest : public testing::Test {
@@ -278,8 +274,7 @@ TEST_F(ProtozeroToTextTestMessageTest, FieldVarIntBigEnum) {
             "big_enum: END");
 }
 
-// TODO(b/224800278): Fix ProtozeroToText() crash and reenable.
-TEST_F(ProtozeroToTextTestMessageTest, DISABLED_FieldVarIntEnumUnknown) {
+TEST_F(ProtozeroToTextTestMessageTest, FieldVarIntEnumUnknown) {
   protozero::HeapBuffered<EveryField> msg;
   msg->AppendVarInt(EveryField::kSmallEnumFieldNumber, 42);
   ASSERT_EQ(EveryField::kSmallEnumFieldNumber, 51);
@@ -293,15 +288,12 @@ TEST_F(ProtozeroToTextTestMessageTest, FieldVarIntUnknown) {
   protozero::HeapBuffered<EveryField> msg;
   msg->AppendVarInt(/*field_id=*/9999, /*value=*/42);
 
-  // TODO(b/224800278): "protoc --decode" also prints the varint value, which is
-  // more useful.
   EXPECT_EQ(ProtozeroToText(pool_, ".protozero.test.protos.EveryField",
                             msg.SerializeAsArray(), kIncludeNewLines),
-            "# Ignoring unknown field with id: 9999");
+            "9999: 42");
 }
 
-// TODO(b/224800278): Fix ProtozeroToText() crash and reenable.
-TEST_F(ProtozeroToTextTestMessageTest, DISABLED_FieldVarIntMismatch) {
+TEST_F(ProtozeroToTextTestMessageTest, FieldVarIntMismatch) {
   protozero::HeapBuffered<EveryField> msg;
   ASSERT_EQ(EveryField::kFieldStringFieldNumber, 500);
   msg->AppendVarInt(EveryField::kFieldStringFieldNumber, 42);
@@ -336,11 +328,9 @@ TEST_F(ProtozeroToTextTestMessageTest, FieldFixed32Unsigned) {
   protozero::HeapBuffered<EveryField> msg;
   msg->set_field_fixed32(3000000000);
 
-  // TODO(b/224800278): This is a bug. fixed32 is supposed to be unsigned, but
-  // the code prints it as signed.
   EXPECT_EQ(ProtozeroToText(pool_, ".protozero.test.protos.EveryField",
                             msg.SerializeAsArray(), kIncludeNewLines),
-            "field_fixed32: -1294967296");
+            "field_fixed32: 3000000000");
 }
 
 TEST_F(ProtozeroToTextTestMessageTest, FieldFixed32Float) {
@@ -356,15 +346,12 @@ TEST_F(ProtozeroToTextTestMessageTest, FieldFixed32Unknown) {
   protozero::HeapBuffered<EveryField> msg;
   msg->AppendFixed<uint32_t>(/*field_id=*/9999, /*value=*/0x1);
 
-  // TODO(b/224800278): "protoc --decode" also prints the 32-bit value, which is
-  // more useful.
   EXPECT_EQ(ProtozeroToText(pool_, ".protozero.test.protos.EveryField",
                             msg.SerializeAsArray(), kIncludeNewLines),
-            "# Ignoring unknown field with id: 9999");
+            "9999: 0x00000001");
 }
 
-// TODO(b/224800278): Fix ProtozeroToText() crash and reenable.
-TEST_F(ProtozeroToTextTestMessageTest, DISABLED_FieldFixed32Mismatch) {
+TEST_F(ProtozeroToTextTestMessageTest, FieldFixed32Mismatch) {
   protozero::HeapBuffered<EveryField> msg;
   ASSERT_EQ(EveryField::kFieldStringFieldNumber, 500);
   msg->AppendFixed<uint32_t>(EveryField::kFieldStringFieldNumber, 0x1);
@@ -405,15 +392,12 @@ TEST_F(ProtozeroToTextTestMessageTest, FieldFixed64Unknown) {
   protozero::HeapBuffered<EveryField> msg;
   msg->AppendFixed<uint64_t>(/*field_id=*/9999, /*value=*/0x1);
 
-  // TODO(b/224800278): "protoc --decode" also prints the 64-bit value, which is
-  // more useful.
   EXPECT_EQ(ProtozeroToText(pool_, ".protozero.test.protos.EveryField",
                             msg.SerializeAsArray(), kIncludeNewLines),
-            "# Ignoring unknown field with id: 9999");
+            "9999: 0x0000000000000001");
 }
 
-// TODO(b/224800278): Fix ProtozeroToText() crash and reenable.
-TEST_F(ProtozeroToTextTestMessageTest, DISABLED_FieldFixed64Mismatch) {
+TEST_F(ProtozeroToTextTestMessageTest, FieldFixed64Mismatch) {
   protozero::HeapBuffered<EveryField> msg;
   ASSERT_EQ(EveryField::kFieldStringFieldNumber, 500);
   msg->AppendFixed<uint64_t>(EveryField::kFieldStringFieldNumber, 0x1);
@@ -436,33 +420,255 @@ TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedBytes) {
   protozero::HeapBuffered<EveryField> msg;
   msg->set_field_bytes("Hello");
 
-  // TODO(b/224800278): "protoc --decode" always tries to print the value as
-  // ASCII.
   EXPECT_EQ(ProtozeroToText(pool_, ".protozero.test.protos.EveryField",
                             msg.SerializeAsArray(), kIncludeNewLines),
-            R"(field_bytes: "\x48\x65\x6c\x6c\x6f")");
+            R"(field_bytes: "Hello")");
 }
 
 TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedUnknown) {
   protozero::HeapBuffered<EveryField> msg;
   msg->AppendString(9999, "Hello");
 
-  // TODO(b/224800278): "protoc --decode" also prints the string value, which is
-  // more useful.
   EXPECT_EQ(ProtozeroToText(pool_, ".protozero.test.protos.EveryField",
                             msg.SerializeAsArray(), kIncludeNewLines),
-            "# Ignoring unknown field with id: 9999");
+            R"(9999: "Hello")");
 }
 
-// TODO(b/224800278): Fix ProtozeroToText() crash and reenable.
-TEST_F(ProtozeroToTextTestMessageTest, DISABLED_FieldLengthLimitedMismatch) {
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedMismatch) {
   protozero::HeapBuffered<EveryField> msg;
   ASSERT_EQ(EveryField::kFieldBoolFieldNumber, 13);
   msg->AppendString(EveryField::kFieldBoolFieldNumber, "Hello");
 
   EXPECT_EQ(ProtozeroToText(pool_, ".protozero.test.protos.EveryField",
                             msg.SerializeAsArray(), kIncludeNewLines),
+            "# Packed type 8 not supported. Printing raw string.\n"
             R"(13: "Hello")");
+}
+
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedForNonPacked) {
+  // Even though repeated_int32 doesn't have [packed = true], it still accepts a
+  // packed representation.
+  protozero::HeapBuffered<EveryField> msg;
+  protozero::PackedVarInt buf;
+  buf.Append<int32_t>(-42);
+  buf.Append<int32_t>(2147483647);
+  msg->AppendBytes(EveryField::kRepeatedInt32FieldNumber, buf.data(),
+                   buf.size());
+
+  EXPECT_EQ(ProtozeroToText(pool_, ".protozero.test.protos.EveryField",
+                            msg.SerializeAsArray(), kIncludeNewLines),
+            "repeated_int32: -42\nrepeated_int32: 2147483647");
+}
+
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedVarIntInt32) {
+  protozero::HeapBuffered<PackedRepeatedFields> msg;
+  protozero::PackedVarInt buf;
+  buf.Append<int32_t>(-42);
+  buf.Append<int32_t>(2147483647);
+  msg->set_field_int32(buf);
+
+  EXPECT_EQ(
+      ProtozeroToText(pool_, ".protozero.test.protos.PackedRepeatedFields",
+                      msg.SerializeAsArray(), kIncludeNewLines),
+      "field_int32: -42\nfield_int32: 2147483647");
+}
+
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedVarIntInt64) {
+  protozero::HeapBuffered<PackedRepeatedFields> msg;
+  protozero::PackedVarInt buf;
+  buf.Append<int64_t>(-42);
+  buf.Append<int64_t>(3000000000);
+  msg->set_field_int64(buf);
+
+  EXPECT_EQ(
+      ProtozeroToText(pool_, ".protozero.test.protos.PackedRepeatedFields",
+                      msg.SerializeAsArray(), kIncludeNewLines),
+      "field_int64: -42\nfield_int64: 3000000000");
+}
+
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedVarIntUint32) {
+  protozero::HeapBuffered<PackedRepeatedFields> msg;
+  protozero::PackedVarInt buf;
+  buf.Append<uint32_t>(42);
+  buf.Append<uint32_t>(3000000000);
+  msg->set_field_uint32(buf);
+
+  EXPECT_EQ(
+      ProtozeroToText(pool_, ".protozero.test.protos.PackedRepeatedFields",
+                      msg.SerializeAsArray(), kIncludeNewLines),
+      "field_uint32: 42\nfield_uint32: 3000000000");
+}
+
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedVarIntUint64) {
+  protozero::HeapBuffered<PackedRepeatedFields> msg;
+  protozero::PackedVarInt buf;
+  buf.Append<uint64_t>(42);
+  buf.Append<uint64_t>(3000000000000);
+  msg->set_field_uint64(buf);
+
+  EXPECT_EQ(
+      ProtozeroToText(pool_, ".protozero.test.protos.PackedRepeatedFields",
+                      msg.SerializeAsArray(), kIncludeNewLines),
+      "field_uint64: 42\nfield_uint64: 3000000000000");
+}
+
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedFixed32Uint32) {
+  protozero::HeapBuffered<PackedRepeatedFields> msg;
+  protozero::PackedFixedSizeInt<uint32_t> buf;
+  buf.Append(42);
+  buf.Append(3000000000);
+  msg->set_field_fixed32(buf);
+
+  EXPECT_EQ(
+      ProtozeroToText(pool_, ".protozero.test.protos.PackedRepeatedFields",
+                      msg.SerializeAsArray(), kIncludeNewLines),
+      "field_fixed32: 42\nfield_fixed32: 3000000000");
+}
+
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedFixed32Int32) {
+  protozero::HeapBuffered<PackedRepeatedFields> msg;
+  protozero::PackedFixedSizeInt<int32_t> buf;
+  buf.Append(-42);
+  buf.Append(42);
+  msg->set_field_sfixed32(buf);
+
+  EXPECT_EQ(
+      ProtozeroToText(pool_, ".protozero.test.protos.PackedRepeatedFields",
+                      msg.SerializeAsArray(), kIncludeNewLines),
+      "field_sfixed32: -42\nfield_sfixed32: 42");
+}
+
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedFixed32Float) {
+  protozero::HeapBuffered<PackedRepeatedFields> msg;
+  protozero::PackedFixedSizeInt<float> buf;
+  buf.Append(-42);
+  buf.Append(42.125);
+  msg->set_field_float(buf);
+
+  std::string output =
+      ProtozeroToText(pool_, ".protozero.test.protos.PackedRepeatedFields",
+                      msg.SerializeAsArray(), kIncludeNewLines);
+
+  EXPECT_THAT(base::SplitString(output, "\n"),
+              ElementsAre(StartsWith("field_float: -42"),
+                          StartsWith("field_float: 42.125")));
+}
+
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedFixed64Uint64) {
+  protozero::HeapBuffered<PackedRepeatedFields> msg;
+  protozero::PackedFixedSizeInt<uint64_t> buf;
+  buf.Append(42);
+  buf.Append(3000000000000);
+  msg->set_field_fixed64(buf);
+
+  EXPECT_EQ(
+      ProtozeroToText(pool_, ".protozero.test.protos.PackedRepeatedFields",
+                      msg.SerializeAsArray(), kIncludeNewLines),
+      "field_fixed64: 42\nfield_fixed64: 3000000000000");
+}
+
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedFixed64Int64) {
+  protozero::HeapBuffered<PackedRepeatedFields> msg;
+  protozero::PackedFixedSizeInt<int64_t> buf;
+  buf.Append(-42);
+  buf.Append(3000000000000);
+  msg->set_field_sfixed64(buf);
+
+  EXPECT_EQ(
+      ProtozeroToText(pool_, ".protozero.test.protos.PackedRepeatedFields",
+                      msg.SerializeAsArray(), kIncludeNewLines),
+      "field_sfixed64: -42\nfield_sfixed64: 3000000000000");
+}
+
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedFixed64Double) {
+  protozero::HeapBuffered<PackedRepeatedFields> msg;
+  protozero::PackedFixedSizeInt<double> buf;
+  buf.Append(-42);
+  buf.Append(42.125);
+  msg->set_field_double(buf);
+
+  EXPECT_THAT(
+      base::SplitString(
+          ProtozeroToText(pool_, ".protozero.test.protos.PackedRepeatedFields",
+                          msg.SerializeAsArray(), kIncludeNewLines),
+          "\n"),
+      ElementsAre(StartsWith("field_double: -42"),
+                  StartsWith("field_double: 42.125")));
+}
+
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedFixedErrShort) {
+  protozero::HeapBuffered<PackedRepeatedFields> msg;
+  std::string buf;
+  buf = "\x01";
+  // buf does not contain enough data for a fixed 64
+  msg->AppendBytes(PackedRepeatedFields::kFieldFixed64FieldNumber, buf.data(),
+                   buf.size());
+
+  // "protoc --decode", instead, returns an error on stderr and doesn't output
+  // anything at all.
+  EXPECT_EQ(
+      ProtozeroToText(pool_, ".protozero.test.protos.PackedRepeatedFields",
+                      msg.SerializeAsArray(), kIncludeNewLines),
+      "# Packed decoding failure for field field_fixed64\n");
+}
+
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedFixedGarbage) {
+  protozero::HeapBuffered<PackedRepeatedFields> msg;
+  protozero::PackedFixedSizeInt<uint64_t> buf;
+  buf.Append(42);
+  buf.Append(3000000000000);
+  std::string buf_and_garbage(reinterpret_cast<const char*>(buf.data()),
+                              buf.size());
+  buf_and_garbage += "\x01";
+  // buf contains extra garbage
+  msg->AppendBytes(PackedRepeatedFields::kFieldFixed64FieldNumber,
+                   buf_and_garbage.data(), buf_and_garbage.size());
+
+  // "protoc --decode", instead, returns an error on stderr and doesn't output
+  // anything at all.
+  EXPECT_EQ(
+      ProtozeroToText(pool_, ".protozero.test.protos.PackedRepeatedFields",
+                      msg.SerializeAsArray(), kIncludeNewLines),
+      "# Packed decoding failure for field field_fixed64\n");
+}
+
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedVarIntShort) {
+  protozero::HeapBuffered<PackedRepeatedFields> msg;
+  std::string buf;
+  buf = "\xFF";
+  // for the varint to be valid, buf should contain another byte.
+  msg->AppendBytes(PackedRepeatedFields::kFieldInt32FieldNumber, buf.data(),
+                   buf.size());
+
+  // "protoc --decode", instead, returns an error on stderr and doesn't output
+  // anything at all.
+  EXPECT_EQ(
+      ProtozeroToText(pool_, ".protozero.test.protos.PackedRepeatedFields",
+                      msg.SerializeAsArray(), kIncludeNewLines),
+      "# Packed decoding failure for field field_int32\n");
+}
+
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedVarIntGarbage) {
+  protozero::HeapBuffered<PackedRepeatedFields> msg;
+  protozero::PackedVarInt buf;
+  buf.Append(42);
+  buf.Append(105);
+  std::string buf_and_garbage(reinterpret_cast<const char*>(buf.data()),
+                              buf.size());
+  buf_and_garbage += "\xFF";
+  // buf contains extra garbage
+  msg->AppendBytes(PackedRepeatedFields::kFieldInt32FieldNumber,
+                   buf_and_garbage.data(), buf_and_garbage.size());
+
+  // "protoc --decode", instead:
+  // * doesn't output anything.
+  // * returns an error on stderr.
+  EXPECT_EQ(
+      ProtozeroToText(pool_, ".protozero.test.protos.PackedRepeatedFields",
+                      msg.SerializeAsArray(), kIncludeNewLines),
+      "field_int32: 42\n"
+      "field_int32: 105\n"
+      "# Packed decoding failure for field field_int32\n");
 }
 
 }  // namespace
