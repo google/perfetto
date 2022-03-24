@@ -88,6 +88,7 @@ action("gen_buildflags") {
     "PERFETTO_HEAPPROFD=$enable_perfetto_heapprofd",
     "PERFETTO_STDERR_CRASH_DUMP=$enable_perfetto_stderr_crash_dump",
     "PERFETTO_X64_CPU_OPT=$enable_perfetto_x64_cpu_opt",
+    "PERFETTO_LLVM_DEMANGLE=$enable_perfetto_llvm_demangle",
   ]
 
   rel_out_path = rebase_path(gen_header_path, "$root_build_dir")
@@ -104,7 +105,8 @@ action("gen_buildflags") {
 # All targets should depend on this target to inherit the right flags and
 # include directories.
 group("default_deps") {
-  visibility = [ "../*" ]  # Prevent chromium targets from depending on this (breaks component).
+  visibility = [ "../*" ]  # Prevent chromium targets from depending on this
+                           # (breaks component).
   public_configs = [ ":default_config" ]
   deps = [ ":gen_buildflags" ]
   if (perfetto_build_standalone) {
@@ -124,7 +126,8 @@ group("default_deps") {
 # embedders that depend on perfetto (e.g. chrome). :public_config (see below) is
 # used for that.
 config("default_config") {
-  visibility = [ "../*" ]  # Prevent chromium targets from depending on this (breaks component).
+  visibility = [ "../*" ]  # Prevent chromium targets from depending on this
+                           # (breaks component).
   configs = [ ":public_config" ]
   defines = [ "PERFETTO_IMPLEMENTATION" ]
   include_dirs = [
@@ -390,6 +393,12 @@ if (enable_perfetto_zlib) {
       public_configs = [ "//third_party/zlib:zlib_config" ]
       public_deps = [ "//third_party/zlib" ]
     }
+  }
+}
+
+if (enable_perfetto_llvm_demangle) {
+  group("llvm_demangle") {
+    public_deps = [ "//buildtools:llvm_demangle" ]
   }
 }
 

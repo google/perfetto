@@ -116,7 +116,16 @@ config("c++11") {
   }
 }
 
-# This is needed to compile libunwindstack.
+# Used in buildtools dependencies for standalone builds.
+config("c++14") {
+  if (is_win) {
+    cflags_cc = [ "/std:c++14" ]
+  } else {
+    cflags_cc = [ "-std=c++14" ]
+  }
+}
+
+# Used in buildtools dependencies for standalone builds.
 config("c++17") {
   if (is_win) {
     cflags_cc = [ "/std:c++17" ]
