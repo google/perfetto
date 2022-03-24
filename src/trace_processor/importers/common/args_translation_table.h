@@ -22,6 +22,9 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/util/proto_to_args_parser.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -30,18 +33,34 @@ namespace trace_processor {
 // to map for example hashes to their names.
 class ArgsTranslationTable {
  public:
+  using Key = util::ProtoToArgsParser::Key;
+
+  ArgsTranslationTable(TraceStorage* storage);
+
+  // Returns true if the translation table fully handles the arg, in which case
+  // the original arg doesn't need to be processed. This function has not added
+  // anything if returning false.
+  bool TranslateUnsignedIntegerArg(const Key& key,
+                                   uint64_t value,
+                                   ArgsTracker::BoundInserter& inserter);
+
+  void AddChromeHistogramTranslationRule(uint64_t hash, base::StringView name);
+
+  base::Optional<base::StringView> TranslateChromeHistogramHashForTesting(
+      uint64_t hash) const;
+
+ private:
   static constexpr char kChromeHistogramHashKey[] =
       "chrome_histogram_sample.name_hash";
   static constexpr char kChromeHistogramNameKey[] =
       "chrome_histogram_sample.name";
 
+  TraceStorage* storage_;
+  StringId interned_chrome_histogram_name_key_;
+  base::FlatHashMap<uint64_t, std::string> chrome_histogram_hash_to_name_;
+
   base::Optional<base::StringView> TranslateChromeHistogramHash(
       uint64_t hash) const;
-
-  void AddChromeHistogramTranslationRule(uint64_t hash, base::StringView name);
-
- private:
-  base::FlatHashMap<uint64_t, std::string> chrome_histogram_hash_to_name_;
 };
 
 }  // namespace trace_processor

@@ -1,0 +1,53 @@
+# Chrome histogram hashes translation rules
+packet {
+  translation_table {
+    chrome_histogram {
+      hash_to_name { key: 10 value: "histogram_name1" }
+      hash_to_name { key: 20 value: "histogram_name2" }
+    }
+  }
+}
+# Known histogram hash, should be translated to a name
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_event {
+    categories: "cat1"
+    type: 3
+    name_iid: 1
+    chrome_histogram_sample {
+      name_hash: 10
+      sample: 100
+    }
+  }
+}
+# Another known hash, should be translated to a name
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_event {
+    categories: "cat2"
+    type: 3
+    name_iid: 2
+    chrome_histogram_sample {
+      name_hash: 20
+    }
+  }
+}
+# Unknown hash, should not be translated to any name
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_event {
+    categories: "cat3"
+    type: 3
+    name_iid: 3
+    chrome_histogram_sample {
+      name_hash: 30
+    }
+  }
+}
+
