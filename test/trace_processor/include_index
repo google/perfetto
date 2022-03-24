@@ -1,11 +1,14 @@
 camera/index
-cros/index
 chrome/index
+cros/index
 dynamic/index
 fuchsia/index
 graphics/index
+io/index
 memory/index
+network/index
 parsing/index
+performance/index
 power/index
 process_tracking/index
 profiling/index
@@ -14,6 +17,4 @@ span_join/index
 startup/index
 tables/index
 track_event/index
-network/index
-performance/index
-io/index
+translation/index
