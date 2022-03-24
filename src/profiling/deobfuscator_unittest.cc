@@ -71,12 +71,11 @@ TEST(ProguardParserTest, Member) {
   ASSERT_TRUE(
       p.AddLine("    android.arch.core.executor.TaskExecutor mDelegate -> b")
           .ok());
-  std::map<std::string, std::string> deobfuscated_fields{{"b", "mDelegate"}};
-  ASSERT_THAT(
+  EXPECT_THAT(
       p.ConsumeMapping(),
       ElementsAre(std::pair<std::string, ObfuscatedClass>(
           "android.arch.a.a.a", {"android.arch.core.executor.ArchTaskExecutor",
-                                 std::move(deobfuscated_fields),
+                                 {{"b", "mDelegate"}},
                                  {}})));
 }
 
@@ -222,6 +221,25 @@ TEST(ProguardParserTest, DuplicateFieldSame) {
       p.AddLine(
            "    1:1:android.arch.core.executor.TaskExecutor mDelegate -> b")
           .ok());
+}
+
+TEST(ProguardParserTest, EmptyLinesAndComments) {
+  ProguardParser p;
+  const char input[] = R"(
+# comment
+
+Example$$Class -> C:
+
+    int first -> q
+    # indented comment
+    long second -> o
+)";
+
+  ASSERT_TRUE(p.AddLines(std::string(input)));
+  EXPECT_THAT(
+      p.ConsumeMapping(),
+      ElementsAre(std::pair<std::string, ObfuscatedClass>(
+          "C", {"Example$$Class", {{"q", "first"}, {"o", "second"}}, {}})));
 }
 
 }  // namespace
