@@ -285,7 +285,7 @@ UniquePid ProcessTracker::StartNewProcess(base::Optional<int64_t> timestamp,
   auto* process_table = context_->storage->mutable_process_table();
   auto* thread_table = context_->storage->mutable_thread_table();
 
-  PERFETTO_DCHECK(process_table->name()[upid].is_null());
+  PERFETTO_DCHECK(!process_table->name()[upid].has_value());
   PERFETTO_DCHECK(!process_table->start_ts()[upid].has_value());
 
   if (timestamp) {
@@ -339,7 +339,7 @@ void ProcessTracker::SetProcessUid(UniquePid upid, uint32_t uid) {
 void ProcessTracker::SetProcessNameIfUnset(UniquePid upid,
                                            StringId process_name_id) {
   auto* process_table = context_->storage->mutable_process_table();
-  if (process_table->name()[upid].is_null())
+  if (!process_table->name()[upid].has_value())
     process_table->mutable_name()->Set(upid, process_name_id);
 }
 
