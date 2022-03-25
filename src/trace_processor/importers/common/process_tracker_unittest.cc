@@ -86,8 +86,8 @@ TEST_F(ProcessTrackerTest, PushTwoProcessEntries_DifferentPid) {
 TEST_F(ProcessTrackerTest, AddProcessEntry_CorrectName) {
   context.process_tracker->SetProcessMetadata(1, base::nullopt, "test",
                                               base::StringView());
-  auto name =
-      context.storage->GetString(context.storage->process_table().name()[1]);
+  auto name = context.storage->process_table().name().GetString(1);
+
   ASSERT_EQ(name, "test");
 }
 
