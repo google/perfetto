@@ -110,6 +110,7 @@ sql_files = [
   "chrome/touch_jank.sql",
   "experimental/blink_gc_metric.sql",
   "experimental/chrome_dropped_frames.sql",
+  "experimental/chrome_long_latency.sql",
   "experimental/frame_times.sql",
   "experimental/media_metric.sql",
   "experimental/reported_by_page.sql",
