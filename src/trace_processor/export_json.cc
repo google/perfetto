@@ -709,7 +709,7 @@ class JsonExporter {
     const auto& thread_table = storage_->thread_table();
     for (UniqueTid utid = 0; utid < thread_table.row_count(); ++utid) {
       auto opt_name = thread_table.name()[utid];
-      if (!opt_name.is_null()) {
+      if (opt_name.has_value()) {
         const char* thread_name = GetNonNullString(storage_, opt_name);
         auto pid_and_tid = UtidToPidAndTid(utid);
         writer_.WriteMetadataEvent("thread_name", "name", thread_name,
@@ -723,7 +723,7 @@ class JsonExporter {
     const auto& process_table = storage_->process_table();
     for (UniquePid upid = 0; upid < process_table.row_count(); ++upid) {
       auto opt_name = process_table.name()[upid];
-      if (!opt_name.is_null()) {
+      if (opt_name.has_value()) {
         const char* process_name = GetNonNullString(storage_, opt_name);
         writer_.WriteMetadataEvent("process_name", "name", process_name,
                                    UpidToPid(upid), /*tid=*/0);

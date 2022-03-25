@@ -113,12 +113,13 @@ void BinderTracker::Transaction(int64_t ts,
     if (is_reply) {
       UniqueTid utid = context_->process_tracker->GetOrCreateThread(
           static_cast<uint32_t>(dest_tid));
-      StringId dest_thread_name =
-          context_->storage->thread_table().name()[utid];
+      auto dest_thread_name = context_->storage->thread_table().name()[utid];
       auto dest_args_inserter = [this, dest_tid, &dest_thread_name](
                                     ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(dest_thread_, Variadic::Integer(dest_tid));
-        inserter->AddArg(dest_name_, Variadic::String(dest_thread_name));
+        if (dest_thread_name.has_value()) {
+          inserter->AddArg(dest_name_, Variadic::String(*dest_thread_name));
+        }
       };
       context_->slice_tracker->AddArgs(track_id, binder_category_id_, reply_id_,
                                        dest_args_inserter);
@@ -179,9 +180,10 @@ void BinderTracker::TransactionReceived(int64_t ts,
       auto args_inserter = [this, utid,
                             pid](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(dest_thread_, Variadic::UnsignedInteger(pid));
-        inserter->AddArg(
-            dest_name_,
-            Variadic::String(context_->storage->thread_table().name()[utid]));
+        auto dest_thread_name = context_->storage->thread_table().name()[utid];
+        if (dest_thread_name.has_value()) {
+          inserter->AddArg(dest_name_, Variadic::String(*dest_thread_name));
+        }
       };
       context_->slice_tracker->AddArgs(*transaction.send_track_id,
                                        binder_category_id_,
