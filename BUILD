@@ -1117,6 +1117,7 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/chrome/chrome_histogram_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_processes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_thread_slice.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_user_event_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/cpu_time_by_category.sql",
         "src/trace_processor/metrics/sql/chrome/cpu_time_by_rail_mode.sql",
         "src/trace_processor/metrics/sql/chrome/estimated_power_by_category.sql",
@@ -2751,6 +2752,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/chrome/scroll_jank.proto",
         "protos/perfetto/metrics/chrome/test_chrome_metric.proto",
         "protos/perfetto/metrics/chrome/touch_jank.proto",
+        "protos/perfetto/metrics/chrome/user_event_hashes.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
