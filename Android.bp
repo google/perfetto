@@ -1586,6 +1586,11 @@ filegroup {
     name: "perfetto_include_perfetto_ext_ipc_ipc",
 }
 
+// GN: //include/perfetto/ext/trace_processor:demangle
+filegroup {
+    name: "perfetto_include_perfetto_ext_trace_processor_demangle",
+}
+
 // GN: //include/perfetto/ext/trace_processor:export_json
 filegroup {
     name: "perfetto_include_perfetto_ext_trace_processor_export_json",
@@ -1855,6 +1860,7 @@ cc_test {
         "libgmock",
         "libgtest",
         "libperfetto_client_experimental",
+        "perfetto_src_trace_processor_demangle",
     ],
     whole_static_libs: [
         "perfetto_gtest_logcat_printer",
@@ -3730,6 +3736,7 @@ genrule {
         "protos/perfetto/metrics/chrome/blink_gc_metric.proto",
         "protos/perfetto/metrics/chrome/dropped_frames.proto",
         "protos/perfetto/metrics/chrome/frame_times.proto",
+        "protos/perfetto/metrics/chrome/histogram_hashes.proto",
         "protos/perfetto/metrics/chrome/long_latency.proto",
         "protos/perfetto/metrics/chrome/media_metric.proto",
         "protos/perfetto/metrics/chrome/reported_by_page.proto",
@@ -8110,6 +8117,21 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor:demangle
+cc_library_static {
+    name: "perfetto_src_trace_processor_demangle",
+    srcs: [
+        ":perfetto_include_perfetto_base_base",
+        ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_ext_trace_processor_demangle",
+        "src/trace_processor/demangle.cc",
+    ],
+    host_supported: true,
+    defaults: [
+        "perfetto_defaults",
+    ],
+}
+
 // GN: //src/trace_processor:export_json
 filegroup {
     name: "perfetto_src_trace_processor_export_json",
@@ -8367,6 +8389,7 @@ genrule {
         "src/trace_processor/metrics/sql/chrome/actual_power_by_category.sql",
         "src/trace_processor/metrics/sql/chrome/actual_power_by_rail_mode.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_event_metadata.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_histogram_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_processes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_thread_slice.sql",
         "src/trace_processor/metrics/sql/chrome/cpu_time_by_category.sql",
@@ -9776,6 +9799,7 @@ cc_test {
     static_libs: [
         "libgmock",
         "libgtest",
+        "perfetto_src_trace_processor_demangle",
     ],
     whole_static_libs: [
         "perfetto_gtest_logcat_printer",
@@ -10013,6 +10037,9 @@ cc_binary {
         "src/trace_processor/trace_processor_shell.cc",
         "src/trace_processor/util/proto_to_json.cc",
     ],
+    static_libs: [
+        "perfetto_src_trace_processor_demangle",
+    ],
     host_supported: true,
     generated_headers: [
         "perfetto_protos_perfetto_common_zero_gen_headers",
@@ -10172,6 +10199,7 @@ cc_binary_host {
     static_libs: [
         "libsqlite",
         "libz",
+        "perfetto_src_trace_processor_demangle",
     ],
     generated_headers: [
         "perfetto_protos_perfetto_common_zero_gen_headers",
