@@ -88,7 +88,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_METADATA_TABLE_DEF);
   NAME(ThreadTable, "internal_thread")                \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                   \
   C(uint32_t, tid)                                    \
-  C(StringPool::Id, name)                             \
+  C(base::Optional<StringPool::Id>, name)             \
   C(base::Optional<int64_t>, start_ts)                \
   C(base::Optional<int64_t>, end_ts)                  \
   C(base::Optional<uint32_t>, upid)                   \
@@ -129,7 +129,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_TABLE_DEF);
   NAME(ProcessTable, "internal_process")               \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                    \
   C(uint32_t, pid)                                     \
-  C(StringPool::Id, name)                              \
+  C(base::Optional<StringPool::Id>, name)              \
   C(base::Optional<int64_t>, start_ts)                 \
   C(base::Optional<int64_t>, end_ts)                   \
   C(base::Optional<uint32_t>, parent_upid)             \
