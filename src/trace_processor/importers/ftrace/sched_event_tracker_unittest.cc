@@ -69,8 +69,7 @@ TEST_F(SchedEventTrackerTest, InsertSecondSched) {
   ASSERT_EQ(timestamps[0], timestamp);
   ASSERT_EQ(context.storage->thread_table().start_ts()[1], base::nullopt);
 
-  auto name =
-      context.storage->GetString(context.storage->thread_table().name()[1]);
+  auto name = context.storage->thread_table().name().GetString(1);
   ASSERT_STREQ(name.c_str(), kCommProc1);
   ASSERT_EQ(context.storage->sched_slice_table().utid()[0], 1u);
   ASSERT_EQ(context.storage->sched_slice_table().dur()[0], 1);

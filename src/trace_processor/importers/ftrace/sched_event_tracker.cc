@@ -175,7 +175,9 @@ void SchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
 
   // Do a fresh task name lookup in case it was updated by a task_rename while
   // scheduled.
-  StringId prev_comm_id = context_->storage->thread_table().name()[prev_utid];
+  StringId prev_comm_id =
+      context_->storage->thread_table().name()[prev_utid].value_or(
+          kNullStringId);
 
   auto new_slice_idx = AddRawEventAndStartSlice(
       cpu, ts, prev_utid, prev_pid, prev_comm_id, prev_prio, prev_state,
