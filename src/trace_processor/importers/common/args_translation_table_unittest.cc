@@ -25,9 +25,10 @@ TEST(ArgsTranslationTable, EmptyTableByDefault) {
   TraceStorage storage;
   ArgsTranslationTable table(&storage);
   EXPECT_EQ(table.TranslateChromeHistogramHashForTesting(1), base::nullopt);
+  EXPECT_EQ(table.TranslateChromeUserEventHashForTesting(1), base::nullopt);
 }
 
-TEST(ArgsTranslationTable, TranslatesHashes) {
+TEST(ArgsTranslationTable, TranslatesHistogramHashes) {
   TraceStorage storage;
   ArgsTranslationTable table(&storage);
   table.AddChromeHistogramTranslationRule(1, "hash1");
@@ -37,6 +38,18 @@ TEST(ArgsTranslationTable, TranslatesHashes) {
   EXPECT_EQ(table.TranslateChromeHistogramHashForTesting(10),
             base::Optional<base::StringView>("hash2"));
   EXPECT_EQ(table.TranslateChromeHistogramHashForTesting(2), base::nullopt);
+}
+
+TEST(ArgsTranslationTable, TranslatesUserEventHashes) {
+  TraceStorage storage;
+  ArgsTranslationTable table(&storage);
+  table.AddChromeUserEventTranslationRule(1, "action1");
+  table.AddChromeUserEventTranslationRule(10, "action2");
+  EXPECT_EQ(table.TranslateChromeUserEventHashForTesting(1),
+            base::Optional<base::StringView>("action1"));
+  EXPECT_EQ(table.TranslateChromeUserEventHashForTesting(10),
+            base::Optional<base::StringView>("action2"));
+  EXPECT_EQ(table.TranslateChromeUserEventHashForTesting(2), base::nullopt);
 }
 
 }  // namespace
