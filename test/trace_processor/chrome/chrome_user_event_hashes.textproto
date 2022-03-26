@@ -1,0 +1,27 @@
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_event {
+    categories: "cat1"
+    type: 3
+    name_iid: 1
+    chrome_user_event {
+      action_hash: 10
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_event {
+    categories: "cat2"
+    type: 3
+    name_iid: 2
+    chrome_user_event {
+      action_hash: 20
+    }
+  }
+}
+

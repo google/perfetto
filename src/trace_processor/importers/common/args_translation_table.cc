@@ -19,6 +19,54 @@
 namespace perfetto {
 namespace trace_processor {
 
+constexpr char ArgsTranslationTable::kChromeHistogramHashKey[];
+constexpr char ArgsTranslationTable::kChromeHistogramNameKey[];
+
+constexpr char ArgsTranslationTable::kChromeUserEventHashKey[];
+constexpr char ArgsTranslationTable::kChromeUserEventActionKey[];
+
+ArgsTranslationTable::ArgsTranslationTable(TraceStorage* storage)
+    : storage_(storage),
+      interned_chrome_histogram_hash_key_(
+          storage->InternString(kChromeHistogramHashKey)),
+      interned_chrome_histogram_name_key_(
+          storage->InternString(kChromeHistogramNameKey)),
+      interned_chrome_user_event_hash_key_(
+          storage->InternString(kChromeUserEventHashKey)),
+      interned_chrome_user_event_action_key_(
+          storage->InternString(kChromeUserEventActionKey)) {}
+
+bool ArgsTranslationTable::TranslateUnsignedIntegerArg(
+    const Key& key,
+    uint64_t value,
+    ArgsTracker::BoundInserter& inserter) {
+  if (key.key == kChromeHistogramHashKey) {
+    inserter.AddArg(interned_chrome_histogram_hash_key_,
+                    Variadic::UnsignedInteger(value));
+    const base::Optional<base::StringView> translated_value =
+        TranslateChromeHistogramHash(value);
+    if (translated_value) {
+      inserter.AddArg(
+          interned_chrome_histogram_name_key_,
+          Variadic::String(storage_->InternString(*translated_value)));
+    }
+    return true;
+  }
+  if (key.key == kChromeUserEventHashKey) {
+    inserter.AddArg(interned_chrome_user_event_hash_key_,
+                    Variadic::UnsignedInteger(value));
+    const base::Optional<base::StringView> translated_value =
+        TranslateChromeUserEventHash(value);
+    if (translated_value) {
+      inserter.AddArg(
+          interned_chrome_user_event_action_key_,
+          Variadic::String(storage_->InternString(*translated_value)));
+    }
+    return true;
+  }
+  return false;
+}
+
 base::Optional<base::StringView>
 ArgsTranslationTable::TranslateChromeHistogramHash(uint64_t hash) const {
   auto* value = chrome_histogram_hash_to_name_.Find(hash);
@@ -28,10 +76,13 @@ ArgsTranslationTable::TranslateChromeHistogramHash(uint64_t hash) const {
   return base::StringView(*value);
 }
 
-void ArgsTranslationTable::AddChromeHistogramTranslationRule(
-    uint64_t hash,
-    base::StringView name) {
-  chrome_histogram_hash_to_name_.Insert(hash, name.ToStdString());
+base::Optional<base::StringView>
+ArgsTranslationTable::TranslateChromeUserEventHash(uint64_t hash) const {
+  auto* value = chrome_user_event_hash_to_action_.Find(hash);
+  if (!value) {
+    return base::nullopt;
+  }
+  return base::StringView(*value);
 }
 
 }  // namespace trace_processor

@@ -619,7 +619,7 @@ void SystraceSerializer::SerializePrefix(uint32_t raw_row,
   if (opt_upid.has_value()) {
     tgid = storage_->process_table().pid()[*opt_upid];
   }
-  auto name = storage_->GetString(storage_->thread_table().name()[utid]);
+  auto name = storage_->thread_table().name().GetString(utid);
 
   FtraceTime ftrace_time(ts);
   if (tid == 0) {

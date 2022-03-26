@@ -22,19 +22,34 @@ namespace trace_processor {
 namespace {
 
 TEST(ArgsTranslationTable, EmptyTableByDefault) {
-  ArgsTranslationTable table;
-  EXPECT_EQ(table.TranslateChromeHistogramHash(1), base::nullopt);
+  TraceStorage storage;
+  ArgsTranslationTable table(&storage);
+  EXPECT_EQ(table.TranslateChromeHistogramHashForTesting(1), base::nullopt);
+  EXPECT_EQ(table.TranslateChromeUserEventHashForTesting(1), base::nullopt);
 }
 
-TEST(ArgsTranslationTable, TranslatesHashes) {
-  ArgsTranslationTable table;
+TEST(ArgsTranslationTable, TranslatesHistogramHashes) {
+  TraceStorage storage;
+  ArgsTranslationTable table(&storage);
   table.AddChromeHistogramTranslationRule(1, "hash1");
   table.AddChromeHistogramTranslationRule(10, "hash2");
-  EXPECT_EQ(table.TranslateChromeHistogramHash(1),
+  EXPECT_EQ(table.TranslateChromeHistogramHashForTesting(1),
             base::Optional<base::StringView>("hash1"));
-  EXPECT_EQ(table.TranslateChromeHistogramHash(10),
+  EXPECT_EQ(table.TranslateChromeHistogramHashForTesting(10),
             base::Optional<base::StringView>("hash2"));
-  EXPECT_EQ(table.TranslateChromeHistogramHash(2), base::nullopt);
+  EXPECT_EQ(table.TranslateChromeHistogramHashForTesting(2), base::nullopt);
+}
+
+TEST(ArgsTranslationTable, TranslatesUserEventHashes) {
+  TraceStorage storage;
+  ArgsTranslationTable table(&storage);
+  table.AddChromeUserEventTranslationRule(1, "action1");
+  table.AddChromeUserEventTranslationRule(10, "action2");
+  EXPECT_EQ(table.TranslateChromeUserEventHashForTesting(1),
+            base::Optional<base::StringView>("action1"));
+  EXPECT_EQ(table.TranslateChromeUserEventHashForTesting(10),
+            base::Optional<base::StringView>("action2"));
+  EXPECT_EQ(table.TranslateChromeUserEventHashForTesting(2), base::nullopt);
 }
 
 }  // namespace

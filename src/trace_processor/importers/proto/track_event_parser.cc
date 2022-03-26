@@ -24,6 +24,7 @@
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -70,10 +71,13 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
  public:
   TrackEventArgsParser(BoundInserter& inserter,
                        TraceStorage& storage,
-                       PacketSequenceStateGeneration& sequence_state)
+                       PacketSequenceStateGeneration& sequence_state,
+                       ArgsTranslationTable& args_translation_table)
       : inserter_(inserter),
         storage_(storage),
-        sequence_state_(sequence_state) {}
+        sequence_state_(sequence_state),
+        args_translation_table_(args_translation_table) {}
+
   ~TrackEventArgsParser() override;
 
   using Key = util::ProtoToArgsParser::Key;
@@ -84,6 +88,10 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
                      Variadic::Integer(value));
   }
   void AddUnsignedInteger(const Key& key, uint64_t value) final {
+    if (args_translation_table_.TranslateUnsignedIntegerArg(key, value,
+                                                            inserter_)) {
+      return;
+    }
     inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
                      storage_.InternString(base::StringView(key.key)),
                      Variadic::UnsignedInteger(value));
@@ -141,6 +149,7 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
   BoundInserter& inserter_;
   TraceStorage& storage_;
   PacketSequenceStateGeneration& sequence_state_;
+  ArgsTranslationTable& args_translation_table_;
 };
 
 TrackEventArgsParser::~TrackEventArgsParser() = default;
@@ -1121,7 +1130,8 @@ class TrackEventParser::EventImporter {
           ParseHistogramName(event_.chrome_histogram_sample(), inserter));
     }
 
-    TrackEventArgsParser args_writer(*inserter, *storage_, *sequence_state_);
+    TrackEventArgsParser args_writer(*inserter, *storage_, *sequence_state_,
+                                     *context_->args_translation_table);
     int unknown_extensions = 0;
     log_errors(parser_->args_parser_.ParseMessage(
         blob_, ".perfetto.protos.TrackEvent", &parser_->reflect_fields_,

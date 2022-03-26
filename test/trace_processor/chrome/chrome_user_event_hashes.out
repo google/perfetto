@@ -1,0 +1,5 @@
+[perfetto.protos.chrome_user_event_hashes]: {
+  action_hash: 10
+  action_hash: 20
+}
+

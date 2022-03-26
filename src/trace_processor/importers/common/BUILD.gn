@@ -41,6 +41,7 @@ source_set("common") {
   ]
   public_deps = [
     "../:gen_cc_config_descriptor",
+    "../../util:proto_to_args_parser",
     "../../util:protozero_to_text",
   ]
   deps = [

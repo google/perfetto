@@ -96,6 +96,7 @@ target_host_supported = [
     '//:libperfetto',
     '//:libperfetto_client_experimental',
     '//protos/perfetto/trace:perfetto_trace_protos',
+    '//src/trace_processor:demangle',
     '//src/trace_processor:trace_processor_shell',
 ]
 
