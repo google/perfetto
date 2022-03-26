@@ -13,14 +13,14 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-DROP VIEW IF EXISTS chrome_histogram_hashes_output;
+DROP VIEW IF EXISTS chrome_user_event_hashes_output;
 
-CREATE VIEW chrome_histogram_hashes_output AS
-SELECT ChromeHistogramHashes(
-  'hash', (
+CREATE VIEW chrome_user_event_hashes_output AS
+SELECT ChromeUserEventHashes(
+  'action_hash', (
     SELECT RepeatedField(int_value)
     FROM args
-    WHERE key = 'chrome_histogram_sample.name_hash'
+    WHERE key = 'chrome_user_event.action_hash'
     ORDER BY int_value
   )
 );
