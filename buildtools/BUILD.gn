@@ -1162,7 +1162,7 @@ config("llvm_demangle_config") {
 # writing, the only c++14 specific code is behind an #ifndef NDEBUG, so we
 # could keep building as c++11 in non-debug builds, but we always use c++14 for
 # consistency.
-static_library("llvm_demangle") {
+source_set("llvm_demangle") {
   visibility = _buildtools_visibility
   configs -= [
     "//gn/standalone:extra_warnings",
