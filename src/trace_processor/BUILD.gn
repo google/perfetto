@@ -54,7 +54,18 @@ source_set("metatrace") {
   ]
 }
 
-static_library("demangle") {
+# In Bazel builds the ":demangle" target (below) should be a static_library so
+# it gets mapped to an actual target (rather than being squashed as a filegroup)
+# and can be replaced in Google internal builds via perfetto_cfg.bzl.
+# Unfortunately, however, static_library targets seem to break Wasm builds on
+# Mac. For this reason we just make it a source_set for all other build types.
+if (is_perfetto_build_generator) {
+  _demangle_target_type = "static_library"
+} else {
+  _demangle_target_type = "source_set"
+}
+
+target(_demangle_target_type, "demangle") {
   sources = [ "demangle.cc" ]
   deps = [
     "../../gn:default_deps",
