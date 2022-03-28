@@ -20,6 +20,7 @@ import unittest
 import pandas as pd
 
 from perfetto.batch_trace_processor.api import BatchTraceProcessor
+from perfetto.batch_trace_processor.api import LoadFailureHandling
 from perfetto.batch_trace_processor.api import BatchTraceProcessorConfig
 from perfetto.batch_trace_processor.api import TraceListReference
 from perfetto.trace_processor.api import PLATFORM_DELEGATE
@@ -87,14 +88,18 @@ class RecursiveResolver(SimpleResolver):
     ]
 
 
-def create_batch_tp(traces: TraceListReference):
+def create_batch_tp(
+    traces: TraceListReference,
+    failure_handling: LoadFailureHandling = LoadFailureHandling.RAISE_EXCEPTION
+):
   default = PLATFORM_DELEGATE().default_resolver_registry()
   default.register(SimpleResolver)
   default.register(RecursiveResolver)
   return BatchTraceProcessor(
       traces=traces,
       config=BatchTraceProcessorConfig(
-          TraceProcessorConfig(
+          load_failure_handling=failure_handling,
+          tp_config=TraceProcessorConfig(
               bin_path=os.environ["SHELL_PATH"], resolver_registry=default)))
 
 
@@ -223,3 +228,14 @@ class TestApi(unittest.TestCase):
             path=example_android_trace_path(), skip_resolve_file=True)) as btp:
       df = btp.query_and_flatten('select dur from slice limit 1')
       pd.testing.assert_frame_equal(df, expected, check_dtype=False)
+
+  def test_btp_failure(self):
+    f = io.BytesIO(b'<foo></foo>')
+    with self.assertRaises(TraceProcessorException):
+      _ = create_batch_tp(traces=f)
+
+  def test_btp_failure_increment_stat(self):
+    f = io.BytesIO(b'<foo></foo>')
+    btp = create_batch_tp(
+        traces=f, failure_handling=LoadFailureHandling.INCREMENT_STAT)
+    self.assertEqual(btp.stats().load_failures, 1)
