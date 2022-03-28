@@ -80,11 +80,8 @@ class FlowTracker {
 
   struct V1FlowIdHasher {
     size_t operator()(const V1FlowId& c) const {
-      base::Hash hasher;
-      hasher.Update(c.source_id);
-      hasher.Update(c.cat.raw_id());
-      hasher.Update(c.name.raw_id());
-      return std::hash<uint64_t>{}(hasher.digest());
+      return std::hash<uint64_t>{}(
+          base::Hash::Combine(c.source_id, c.cat.raw_id(), c.name.raw_id()));
     }
   };
 
