@@ -16,8 +16,9 @@
 
 import concurrent.futures as cf
 import dataclasses as dc
+from enum import Enum
 import multiprocessing
-from typing import Any, Callable, Dict, Tuple, List
+from typing import Any, Callable, Dict, Tuple, List, Optional
 
 import pandas as pd
 
@@ -39,12 +40,42 @@ PLATFORM_DELEGATE = PlatformDelegate
 TraceListReference = registry.TraceListReference
 
 
+# Enum encoding how errors while loading traces in BatchTraceProcessor should
+# be handled.
+class LoadFailureHandling(Enum):
+  # If any trace fails to load, raises an exception causing the entire batch
+  # trace processor to fail.
+  # This is the default behaviour and the method which should be preferred for
+  # any interactive use of BatchTraceProcessor.
+  RAISE_EXCEPTION = 0
+
+  # If a trace fails to load, the trace processor for that trace is dropped but
+  # loading of other traces is unaffected. |load_failures| is incremented in the
+  # Stats class for the batch trace processor instance.
+  INCREMENT_STAT = 1
+
+
 @dc.dataclass
 class BatchTraceProcessorConfig:
   tp_config: TraceProcessorConfig
+  load_failure_handling: LoadFailureHandling
 
-  def __init__(self, tp_config: TraceProcessorConfig = TraceProcessorConfig()):
+  def __init__(self,
+               tp_config: TraceProcessorConfig = TraceProcessorConfig(),
+               load_failure_handling: LoadFailureHandling = LoadFailureHandling
+               .RAISE_EXCEPTION):
     self.tp_config = tp_config
+    self.load_failure_handling = load_failure_handling
+
+
+# Contains stats about the events which happened during the use of
+# BatchTraceProcessor.
+@dc.dataclass
+class Stats:
+  # The number of traces which failed to load; only non-zero if
+  # LoadFailureHandling.INCREMENT_STAT is chosen as the handling type.
+  load_failures: int = 0
+
 
 class BatchTraceProcessor:
   """Run ad-hoc SQL queries across many Perfetto traces.
@@ -92,6 +123,7 @@ class BatchTraceProcessor:
 
     self.tps = None
     self.closed = False
+    self._stats = Stats()
 
     self.platform_delegate = PLATFORM_DELEGATE()
     self.tp_platform_delegate = TP_PLATFORM_DELEGATE()
@@ -117,7 +149,9 @@ class BatchTraceProcessor:
 
     self.query_executor = query_executor
     self.metadata = [t.metadata for t in resolved]
-    self.tps = list(load_exectuor.map(self._create_tp, resolved))
+    self.tps = [
+        x for x in load_exectuor.map(self._create_tp, resolved) if x is not None
+    ]
 
   def metric(self, metrics: List[str]):
     """Computes the provided metrics.
@@ -279,8 +313,22 @@ class BatchTraceProcessor:
       for tp in self.tps:
         tp.close()
 
-  def _create_tp(self, trace: ResolverRegistry.Result) -> TraceProcessor:
-    return TraceProcessor(trace=trace.generator, config=self.config.tp_config)
+  def stats(self):
+    """Statistics about the operation of this batch trace processor instance.
+    
+    See |Stats| class definition for the list of the statistics available."""
+    return self._stats
+
+  def _create_tp(self,
+                 trace: ResolverRegistry.Result) -> Optional[TraceProcessor]:
+    try:
+      return TraceProcessor(trace=trace.generator, config=self.config.tp_config)
+    except TraceProcessorException as ex:
+      if self.config.load_failure_handling == \
+        LoadFailureHandling.RAISE_EXCEPTION:
+        raise ex
+      self._stats.load_failures += 1
+      return None
 
   def __enter__(self):
     return self
