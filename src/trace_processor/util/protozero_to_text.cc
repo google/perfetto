@@ -279,7 +279,7 @@ void PrintLengthDelimitedField(const FieldDescriptor* fd,
       return;
     }
     case FieldDescriptorProto::TYPE_MESSAGE:
-      StrAppend(out, FormattedFieldDescriptorName(*fd), ": {");
+      StrAppend(out, FormattedFieldDescriptorName(*fd), " {");
       if (include_new_lines) {
         IncreaseIndents(indents);
       }
