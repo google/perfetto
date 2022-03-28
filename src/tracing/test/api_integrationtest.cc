@@ -4181,6 +4181,51 @@ TEST_P(PerfettoApiTest, LegacyTraceEventsWithId) {
                                   "string\"):cat.WithScope"));
 }
 
+TEST_P(PerfettoApiTest, NestableAsyncTraceEvent) {
+  auto* tracing_session = NewTraceWithCategories({"cat"});
+  tracing_session->get()->StartBlocking();
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("cat", "foo",
+                                    TRACE_ID_WITH_SCOPE("foo", 1));
+  // Same id, different scope.
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("cat", "bar",
+                                    TRACE_ID_WITH_SCOPE("bar", 1));
+  // Same scope, different id.
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("cat", "bar",
+                                    TRACE_ID_WITH_SCOPE("bar", 2));
+
+  TRACE_EVENT_NESTABLE_ASYNC_END0("cat", "bar", TRACE_ID_WITH_SCOPE("bar", 2));
+  TRACE_EVENT_NESTABLE_ASYNC_END0("cat", "bar", TRACE_ID_WITH_SCOPE("bar", 1));
+  TRACE_EVENT_NESTABLE_ASYNC_END0("cat", "foo", TRACE_ID_WITH_SCOPE("foo", 1));
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace parsed_trace;
+  ASSERT_TRUE(parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+  using LegacyEvent = perfetto::protos::gen::TrackEvent::LegacyEvent;
+  std::vector<const LegacyEvent*> legacy_events;
+  for (const auto& packet : parsed_trace.packet()) {
+    if (packet.has_track_event() && packet.track_event().has_legacy_event()) {
+      legacy_events.push_back(&packet.track_event().legacy_event());
+    }
+  }
+  ASSERT_EQ(6u, legacy_events.size());
+  EXPECT_EQ("foo", legacy_events[0]->id_scope());
+  EXPECT_EQ("bar", legacy_events[1]->id_scope());
+  EXPECT_EQ("bar", legacy_events[2]->id_scope());
+  EXPECT_EQ("bar", legacy_events[3]->id_scope());
+  EXPECT_EQ("bar", legacy_events[4]->id_scope());
+  EXPECT_EQ("foo", legacy_events[5]->id_scope());
+
+  EXPECT_EQ(legacy_events[0]->unscoped_id(), legacy_events[5]->unscoped_id());
+  EXPECT_EQ(legacy_events[1]->unscoped_id(), legacy_events[4]->unscoped_id());
+  EXPECT_EQ(legacy_events[2]->unscoped_id(), legacy_events[3]->unscoped_id());
+
+  EXPECT_NE(legacy_events[0]->unscoped_id(), legacy_events[1]->unscoped_id());
+  EXPECT_NE(legacy_events[1]->unscoped_id(), legacy_events[2]->unscoped_id());
+  EXPECT_NE(legacy_events[2]->unscoped_id(), legacy_events[0]->unscoped_id());
+}
+
 TEST_P(PerfettoApiTest, LegacyTraceEventsWithFlow) {
   auto* tracing_session = NewTraceWithCategories({"cat"});
   tracing_session->get()->StartBlocking();
