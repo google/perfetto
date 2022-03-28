@@ -1,5 +1,6 @@
 import * as m from 'mithril';
 
+import {GenericSet} from '../base/generic_set';
 import {sqliteString} from '../base/string_utils';
 import {Actions} from '../common/actions';
 import {ColumnType} from '../common/query_result';
@@ -15,7 +16,7 @@ import {Panel} from './panel';
 import {
   aggregationIndex,
   areaFilter,
-  ColumnSet,
+  createColumnSet,
   generateQuery,
   QueryGeneratorError,
   sliceAggregationColumns,
@@ -26,7 +27,7 @@ import {
 } from './pivot_table_redux_query_generator';
 
 interface ColumnSetCheckboxAttrs {
-  set: ColumnSet;
+  set: GenericSet<TableColumn>;
   setKey: TableColumn;
 }
 
@@ -74,8 +75,8 @@ function renderDrillFilter(filter: DrillFilter): string {
 }
 
 export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
-  selectedPivotsMap = new ColumnSet();
-  selectedAggregations = new ColumnSet();
+  selectedPivotsMap = createColumnSet();
+  selectedAggregations = createColumnSet();
   constrainToArea = true;
   editMode = true;
 
