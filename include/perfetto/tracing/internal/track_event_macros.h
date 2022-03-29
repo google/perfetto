@@ -89,10 +89,11 @@
 // Defines the TrackEvent data source for the current track event namespace.
 // `virtual ~TrackEvent` is added to avoid `-Wweak-vtables` warning.
 // Learn more : aosp/2019906
-#define PERFETTO_INTERNAL_DECLARE_TRACK_EVENT_DATA_SOURCE()              \
-  struct TrackEvent : public ::perfetto::internal::TrackEventDataSource< \
-                          TrackEvent, &internal::kCategoryRegistry> {    \
-    virtual ~TrackEvent();                                               \
+#define PERFETTO_INTERNAL_DECLARE_TRACK_EVENT_DATA_SOURCE() \
+  struct PERFETTO_COMPONENT_EXPORT TrackEvent               \
+      : public ::perfetto::internal::TrackEventDataSource<  \
+            TrackEvent, &internal::kCategoryRegistry> {     \
+    virtual ~TrackEvent();                                  \
   }
 
 #define PERFETTO_INTERNAL_DEFINE_TRACK_EVENT_DATA_SOURCE() \
