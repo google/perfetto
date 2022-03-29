@@ -245,7 +245,8 @@ class ODRChecker(object):
     for ssdep in target.source_set_deps:
       name_and_path = '%s (via %s)' % (target_name, path)
       self.source_sets[ssdep].add(name_and_path)
-    deps = set(target.deps).union(target.proto_deps) - self.deps_visited
+    deps = set(target.deps).union(
+        target.transitive_proto_deps) - self.deps_visited
     for dep_name in deps:
       dep = self.gn.get_target(dep_name)
       if dep.type == 'executable':
@@ -332,7 +333,8 @@ class GnParser(object):
       self.include_dirs = set()
       self.ldflags = set()
       self.source_set_deps = set()  # Transitive set of source_set deps.
-      self.proto_deps = set()  # Transitive set of protobuf deps.
+      self.proto_deps = set()
+      self.transitive_proto_deps = set()
 
       # Deps on //gn:xxx have this flag set to True. These dependencies
       # are special because they pull third_party code from buildtools/.
@@ -358,7 +360,8 @@ class GnParser(object):
 
     def update(self, other):
       for key in ('cflags', 'defines', 'deps', 'include_dirs', 'ldflags',
-                  'source_set_deps', 'proto_deps', 'libs', 'proto_paths'):
+                  'source_set_deps', 'proto_deps', 'transitive_proto_deps',
+                  'libs', 'proto_paths'):
         self.__dict__[key].update(other.__dict__.get(key, []))
 
   def __init__(self, gn_desc):
@@ -443,11 +446,9 @@ class GnParser(object):
         target.deps.add(dep_name)
       elif dep.type == 'proto_library':
         target.proto_deps.add(dep_name)
+        target.transitive_proto_deps.add(dep_name)
         target.proto_paths.update(dep.proto_paths)
-
-        # Don't bubble deps for action targets
-        if target.type != 'action' and proto_target_type != 'descriptor':
-          target.proto_deps.update(dep.proto_deps)  # Bubble up deps.
+        target.transitive_proto_deps.update(dep.transitive_proto_deps)
       elif dep.type == 'source_set':
         target.source_set_deps.add(dep_name)
         target.update(dep)  # Bubble up source set's cflags/ldflags etc.
