@@ -26,10 +26,8 @@ export abstract class SlicePanel extends Panel {
 
   protected getProcessThreadDetails(sliceInfo: SliceDetails) {
     return new Map<string, string|undefined>([
-      ['Thread ID', sliceInfo.tid ? String(sliceInfo.tid) : undefined],
-      ['Thread name', sliceInfo.threadName],
-      ['Process ID', sliceInfo.pid ? String(sliceInfo.pid) : undefined],
-      ['Process name', sliceInfo.processName],
+      ['Thread', `${sliceInfo.threadName} ${sliceInfo.tid}`],
+      ['Process', `${sliceInfo.processName} ${sliceInfo.pid}`],
       ['User ID', sliceInfo.uid ? String(sliceInfo.uid) : undefined],
       ['Package name', sliceInfo.packageName],
       [
