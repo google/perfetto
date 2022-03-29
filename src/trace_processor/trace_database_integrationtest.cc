@@ -283,7 +283,7 @@ TEST_F(TraceProcessorIntegrationTest, ComputeMetricsFormattedExtension) {
   ASSERT_TRUE(status.ok());
   // Extension fields are output as [fully.qualified.name].
   ASSERT_EQ(metric_output,
-            "[perfetto.protos.test_chrome_metric]: {\n"
+            "[perfetto.protos.test_chrome_metric] {\n"
             "  test_value: 1\n"
             "}");
 }
@@ -296,7 +296,7 @@ TEST_F(TraceProcessorIntegrationTest, ComputeMetricsFormattedNoExtension) {
   ASSERT_TRUE(status.ok());
   // Check that metric result starts with trace_metadata field. Since this is
   // not an extension field, the field name is not fully qualified.
-  ASSERT_TRUE(metric_output.rfind("trace_metadata: {") == 0);
+  ASSERT_TRUE(metric_output.rfind("trace_metadata {") == 0);
 }
 
 // TODO(hjd): Add trace to test_data.
