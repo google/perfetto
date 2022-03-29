@@ -187,9 +187,15 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
           'Duration', this.computeDuration(sliceInfo.ts, sliceInfo.dur));
       if (sliceInfo.thread_ts !== undefined &&
           sliceInfo.thread_dur !== undefined) {
+        // If we have valid thread duration, also display a percentage of
+        // |thread_dur| compared to |dur|.
+        const threadDurFractionSuffix = sliceInfo.thread_dur === -1 ?
+            '' :
+            ` (${(sliceInfo.thread_dur / sliceInfo.dur * 100).toFixed(2)}%)`;
         builder.add(
             'Thread duration',
-            this.computeDuration(sliceInfo.thread_ts, sliceInfo.thread_dur));
+            this.computeDuration(sliceInfo.thread_ts, sliceInfo.thread_dur) +
+                threadDurFractionSuffix);
       }
 
       for (const [key, value] of this.getProcessThreadDetails(sliceInfo)) {
