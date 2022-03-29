@@ -258,6 +258,13 @@ class CounterTrack : public Track {
                         unit_multiplier_, is_incremental_);
   }
 
+  constexpr CounterTrack set_is_incremental(bool is_incremental = true) const {
+    return CounterTrack(uuid, parent_uuid, name_, category_, unit_, unit_name_,
+                        unit_multiplier_, is_incremental);
+  }
+
+  constexpr bool is_incremental() const { return is_incremental_; }
+
   void Serialize(protos::pbzero::TrackDescriptor*) const;
   protos::gen::TrackDescriptor Serialize() const;
 
@@ -278,19 +285,12 @@ class CounterTrack : public Track {
         unit_multiplier_(unit_multiplier),
         is_incremental_(is_incremental) {}
 
-  // TODO(skyostil): Expose incremental counters once we decide how to manage
-  // their incremental state.
-  constexpr CounterTrack set_is_incremental(bool is_incremental = true) const {
-    return CounterTrack(uuid, parent_uuid, name_, category_, unit_, unit_name_,
-                        unit_multiplier_, is_incremental);
-  }
-
   const char* const name_;
   const char* const category_;
   Unit unit_ = perfetto::protos::pbzero::CounterDescriptor::UNIT_UNSPECIFIED;
   const char* const unit_name_ = nullptr;
   int64_t unit_multiplier_ = 1;
-  bool is_incremental_ = false;
+  const bool is_incremental_ = false;
 };
 
 namespace internal {
