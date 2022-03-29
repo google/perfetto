@@ -52,3 +52,10 @@ panel_fps.py display_metrics panel_fps.out
 
 # DPU vote clock and bandwidth
 dpu_vote_clock_bw.textproto android_hwcomposer dpu_vote_clock_bw.out
+
+# DRM-related ftrace events
+drm_vblank.textproto drm_gpu_track.sql drm_vblank_gpu_track.out
+drm_sched.textproto drm_gpu_track.sql drm_sched_gpu_track.out
+drm_sched.textproto drm_thread_track.sql drm_sched_thread_track.out
+drm_dma_fence.textproto drm_gpu_track.sql drm_dma_fence_gpu_track.out
+drm_dma_fence.textproto drm_thread_track.sql drm_dma_fence_thread_track.out

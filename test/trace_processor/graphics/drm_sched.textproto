@@ -1,0 +1,184 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 9246165326050
+      pid: 365
+      drm_sched_job {
+        entity: 18446743526218327296
+        fence: 18446743526909918272
+        hw_job_count: 0
+        id: 13481
+        job_count: 0
+        name: "ring0"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 7
+    event {
+      timestamp: 9246165349383
+      pid: 191
+      drm_run_job {
+        entity: 18446743526218327296
+        fence: 18446743526909918272
+        hw_job_count: 1
+        id: 13481
+        job_count: 0
+        name: "ring0"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 4
+    event {
+      timestamp: 9246166957616
+      pid: 762
+      drm_sched_job {
+        entity: 18446743526854133248
+        fence: 18446743526610453312
+        hw_job_count: 1
+        id: 13482
+        job_count: 0
+        name: "ring0"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 7
+    event {
+      timestamp: 9246166978033
+      pid: 191
+      drm_run_job {
+        entity: 18446743526854133248
+        fence: 18446743526610453312
+        hw_job_count: 2
+        id: 13482
+        job_count: 0
+        name: "ring0"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 4
+    event {
+      timestamp: 9246167272512
+      pid: 762
+      drm_sched_job {
+        entity: 18446743526854133248
+        fence: 18446743526610452736
+        hw_job_count: 2
+        id: 13483
+        job_count: 0
+        name: "ring0"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 7
+    event {
+      timestamp: 9246167288190
+      pid: 191
+      drm_run_job {
+        entity: 18446743526854133248
+        fence: 18446743526610452736
+        hw_job_count: 3
+        id: 13483
+        job_count: 0
+        name: "ring0"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 9246170078456
+      pid: 0
+      drm_sched_process_job {
+        fence: 18446743526909918272
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 9246174020027
+      pid: 0
+      drm_sched_process_job {
+        fence: 18446743526610453312
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 9246174045183
+      pid: 0
+      drm_sched_process_job {
+        fence: 18446743526610452736
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 9246181907439
+      pid: 365
+      drm_sched_job {
+        entity: 18446743526218327296
+        fence: 18446743526909915584
+        hw_job_count: 0
+        id: 13484
+        job_count: 0
+        name: "ring0"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 7
+    event {
+      timestamp: 9246181933273
+      pid: 191
+      drm_run_job {
+        entity: 18446743526218327296
+        fence: 18446743526909915584
+        hw_job_count: 1
+        id: 13484
+        job_count: 0
+        name: "ring0"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 9246186659585
+      pid: 0
+      drm_sched_process_job {
+        fence: 18446743526909915584
+      }
+    }
+  }
+}
