@@ -29,21 +29,30 @@ using ::testing::UnorderedElementsAre;
 
 TEST(HeapGraphTrackerTest, PackageFromLocationApp) {
   std::unique_ptr<TraceStorage> storage(new TraceStorage());
-  EXPECT_EQ(
-      PackageFromLocation(storage.get(),
-                          "/data/app/~~ASDFGH1234QWerT==/"
-                          "com.twitter.android-MNBVCX7890SDTst6==/test.apk"),
-      "com.twitter.android");
-  EXPECT_EQ(PackageFromLocation(
-                storage.get(),
-                "/data/app/com.google.android.webview-6XfQhnaSkFwGK0sYL9is0G==/"
-                "base.apk"),
-            "com.google.android.webview");
-  EXPECT_EQ(PackageFromLocation(storage.get(),
-                                "/data/app/"
-                                "com.google.android.apps.wellbeing-"
-                                "qfQCaB4uJ7P0OPpZQqOu0Q==/oat/arm64/base.odex"),
+
+  const char data_app_path[] =
+      "/data/app/org.perfetto.test-6XfQhnaSkFwGK0sYL9is0G==/base.apk";
+  EXPECT_EQ(PackageFromLocation(storage.get(), data_app_path),
+            "org.perfetto.test");
+
+  const char with_extra_dir[] =
+      "/data/app/~~ASDFGH1234QWerT==/"
+      "com.perfetto.test-MNBVCX7890SDTst6==/test.apk";
+  EXPECT_EQ(PackageFromLocation(storage.get(), with_extra_dir),
+            "com.perfetto.test");
+
+  const char odex[] =
+      "/data/app/com.google.android.apps.wellbeing-"
+      "qfQCaB4uJ7P0OPpZQqOu0Q==/oat/arm64/base.odex";
+  EXPECT_EQ(PackageFromLocation(storage.get(), odex),
             "com.google.android.apps.wellbeing");
+
+  const char inmem_dex[] =
+      "[anon:dalvik-classes.dex extracted in memory from "
+      "/data/app/~~uUgHYtbjPNr2VFa3byIF4Q==/"
+      "com.perfetto.example-aC94wTfXRC60l2HJU5YvjQ==/base.apk]";
+  EXPECT_EQ(PackageFromLocation(storage.get(), inmem_dex),
+            "com.perfetto.example");
 }
 
 TEST(HeapGraphTrackerTest, PopulateNativeSize) {
