@@ -111,6 +111,7 @@ const METRICS = [
   'android_jank',
   'android_camera',
   'chrome_dropped_frames',
+  'chrome_long_latency',
   'trace_metadata',
   'android_trusty_workqueues',
 ];
