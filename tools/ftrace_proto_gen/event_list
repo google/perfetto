@@ -402,3 +402,4 @@ power/wakeup_source_activate
 power/wakeup_source_deactivate
 ufs/ufshcd_command
 ufs/ufshcd_clk_gating
+printk/console
