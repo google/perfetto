@@ -81,8 +81,7 @@ void TraceSorter::Queue::Sort() {
 // time in a profiler.
 void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_packet_idx) {
   constexpr int64_t kTsMax = std::numeric_limits<int64_t>::max();
-  size_t iterations = 0;
-  for (;; iterations++) {
+  for (;;) {
     size_t min_queue_idx = 0;  // The index of the queue with the min(ts).
 
     // The top-2 min(ts) among all queues.
