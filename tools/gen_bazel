@@ -78,19 +78,13 @@ default_targets = [
 
 # Proto target groups which will be made public.
 proto_groups = {
-  'config': [
-    '//protos/perfetto/config:source_set'
-  ],
-  'trace': [
-    '//protos/perfetto/trace:non_minimal_source_set',
-    '//protos/perfetto/trace:minimal_source_set'
-  ],
-  'metrics': [
-    '//protos/perfetto/metrics:source_set',
-  ],
-  'chromium': [
-    '//protos/third_party/chromium:source_set',
-  ],
+    'config': ['//protos/perfetto/config:source_set'],
+    'trace': [
+        '//protos/perfetto/trace:non_minimal_source_set',
+        '//protos/perfetto/trace:minimal_source_set'
+    ],
+    'metrics': ['//protos/perfetto/metrics:source_set',],
+    'chromium': ['//protos/third_party/chromium:source_set',],
 }
 
 # Path for the protobuf sources in the standalone build.
@@ -115,9 +109,7 @@ external_deps = {
     ],
     '//gn:zlib': ['PERFETTO_CONFIG.deps.zlib'],
     '//gn:llvm_demangle': ['PERFETTO_CONFIG.deps.llvm_demangle'],
-    '//src/trace_processor:demangle': [
-        'PERFETTO_CONFIG.deps.demangle_wrapper'
-    ],
+    '//src/trace_processor:demangle': ['PERFETTO_CONFIG.deps.demangle_wrapper'],
     '//src/trace_processor/metrics/sql:gen_amalgamated_sql_metrics': [[
         ':cc_amalgamated_sql_metrics'
     ]],
@@ -283,8 +275,10 @@ def gen_proto_label(target):
     assert (all(x.startswith('//') for x in target.sources))
     assert (all(x.endswith('.proto') for x in target.sources))
     sources_label.srcs = sorted([x[2:] for x in target.sources])  # Strip //.
-    sources_label.deps = sorted(
-        [':' + get_bazel_proto_sources_label(x) for x in target.proto_deps])
+    sources_label.deps = sorted([
+        ':' + get_bazel_proto_sources_label(x)
+        for x in target.transitive_proto_deps
+    ])
 
     # In Bazel, proto_paths are not a supported concept becauase strong
     # dependency checking is enabled. Instead, we need to depend on the target
@@ -299,12 +293,11 @@ def gen_proto_label(target):
 
     sources_label.visibility = ['PERFETTO_CONFIG.proto_library_visibility']
 
-    sources_label.exports = sorted([
-      ':' + get_bazel_proto_sources_label(d) for d in target.proto_exports
-    ])
+    sources_label.exports = sorted(
+        [':' + get_bazel_proto_sources_label(d) for d in target.proto_exports])
     return sources_label
 
-  # For all other types of plugins, we need to generate 
+  # For all other types of plugins, we need to generate
   if target.proto_plugin == 'proto':
     plugin_label_type = 'perfetto_cc_proto_library'
   elif target.proto_plugin == 'protozero':
@@ -328,7 +321,7 @@ def gen_proto_label(target):
   # common.gen.{cc,h}.
   if target.proto_plugin in ('cppgen', 'ipc', 'protozero'):
     plugin_label.deps += [
-        ':' + get_bazel_label_name(x) for x in target.proto_deps
+        ':' + get_bazel_label_name(x) for x in target.transitive_proto_deps
     ]
 
   # Add any dependencies on source_set targets (i.e. targets containing proto
@@ -337,7 +330,7 @@ def gen_proto_label(target):
   # implicit.
   if target.proto_plugin == 'descriptor':
     plugin_label.deps += [
-      ':' + get_bazel_proto_sources_label(x) for x in target.proto_deps
+        ':' + get_bazel_proto_sources_label(x) for x in target.proto_deps
     ]
   else:
     plugin_label.deps += [':' + sources_label_name]
@@ -354,40 +347,35 @@ def gen_proto_group_target(gn, name, target_names):
   # Get a recursive list of the proto_library targets rooted here which
   # have src.
   deps_set = set()
-  def recursive_deps(name, deps_set):
-    target = gn.get_target(name)
-    deps_set.add(target.name)
-    for name in target.proto_deps:
-      recursive_deps(name, deps_set)
-
-  for n in target_names:
-    recursive_deps(n, deps_set)
-
-  deps_list = sorted(list(deps_set))
-  comment = f'''[{', '.join(target_names)}]'''
+  for target_name in target_names:
+    target = gn.get_target(target_name)
+    for dep_name in target.transitive_proto_deps:
+      deps_set.add(dep_name)
+    deps_set.add(target_name)
 
   # First, create a root source set target which references all the child
   # source set targets. We publish this as well as depending on this in all
   # subsequent targets.
   sources_label = BazelLabel(name + '_proto', 'perfetto_proto_library')
   sources_label.deps = [
-    ':' + get_bazel_proto_sources_label(name) for name in deps_set
+      ':' + get_bazel_proto_sources_label(name)
+      for name in sorted(list(deps_set))
   ]
   sources_label.visibility = PUBLIC_VISIBILITY
-  sources_label.comment = comment
+  sources_label.comment = f'''[{', '.join(target_names)}]'''
 
   # Next we create a cc proto target depending on the source set target.
   cc_label = BazelLabel(name + '_cc_proto', 'perfetto_cc_proto_library')
   cc_label.deps = [':' + sources_label.name]
   cc_label.visibility = PUBLIC_VISIBILITY
-  cc_label.comment = comment
+  cc_label.comment = sources_label.comment
 
   # Next we create a java proto target depending on the source set
   # target.
   java_label = BazelLabel(name + '_java_proto', 'perfetto_java_proto_library')
   java_label.deps = [':' + sources_label.name]
   java_label.visibility = PUBLIC_VISIBILITY
-  java_label.comment = comment
+  java_label.comment = sources_label.comment
 
   # Finally we create a java lite proto target depending on the source
   # set target.
@@ -395,7 +383,7 @@ def gen_proto_group_target(gn, name, target_names):
   java_lite_label = BazelLabel(lite_name, 'perfetto_java_lite_proto_library')
   java_lite_label.deps = [':' + sources_label.name]
   java_lite_label.visibility = PUBLIC_VISIBILITY
-  java_lite_label.comment = comment
+  java_lite_label.comment = sources_label.comment
 
   return [sources_label, cc_label, java_label, java_lite_label]
 
@@ -466,7 +454,9 @@ def gen_target(gn_target):
         label.external_deps += external_deps[dep]
       else:
         label.deps += [':' + get_bazel_label_name(dep)]
-    label.deps += [':' + get_bazel_label_name(x) for x in gn_target.proto_deps]
+    label.deps += [
+        ':' + get_bazel_label_name(x) for x in gn_target.transitive_proto_deps
+    ]
 
   # All items starting with : need to be sorted to the end of the list.
   # However, Python makes specifying a comparator function hard so cheat
@@ -580,8 +570,8 @@ exports_files(["NOTICE"])
 
   # Generate targets for the transitive set of proto targets.
   labels = [
-    l for target in sorted(itervalues(gn.proto_libs))
-    for l in gen_target(target)
+      l for target in sorted(itervalues(gn.proto_libs))
+      for l in gen_target(target)
   ]
   res += ''.join(str(x) for x in sorted(labels))
 
