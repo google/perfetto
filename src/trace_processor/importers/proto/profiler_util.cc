@@ -24,23 +24,28 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
+// Try to extract the package name from a path like:
+// * /data/app/[packageName]-[randomString]/base.apk
+// * /data/app/~~[randomStringA]/[packageName]-[randomStringB]/base.apk
+// The latter is newer (R+), and was added to avoid leaking package names via
+// mountinfo of incremental apk mounts.
 base::Optional<base::StringView> PackageFromApp(base::StringView location) {
   location = location.substr(base::StringView("/data/app/").size());
   size_t start = 0;
   if (location.at(0) == '~') {
     size_t slash = location.find('/');
-    if (slash == std::string::npos) {
+    if (slash == base::StringView::npos) {
       return base::nullopt;
     }
     start = slash + 1;
   }
   size_t end = location.find('/', start + 1);
-  if (end == std::string::npos) {
+  if (end == base::StringView::npos) {
     return base::nullopt;
   }
   location = location.substr(start, end);
   size_t minus = location.find('-');
-  if (minus == std::string::npos) {
+  if (minus == base::StringView::npos) {
     return base::nullopt;
   }
   return location.substr(0, minus);
@@ -114,8 +119,8 @@ base::Optional<std::string> PackageFromLocation(TraceStorage* storage,
     return "com.google.android.gm";
   }
 
-  if (location.find("PrebuiltGmsCore") != std::string::npos ||
-      location.find("com.google.android.gms") != std::string::npos) {
+  if (location.find("PrebuiltGmsCore") != base::StringView::npos ||
+      location.find("com.google.android.gms") != base::StringView::npos) {
     return "com.google.android.gms";
   }
 
@@ -138,16 +143,39 @@ base::Optional<std::string> PackageFromLocation(TraceStorage* storage,
     return "com.google.android.apps.messaging";
   }
 
-  base::StringView data_app("/data/app/");
-  if (location.substr(0, data_app.size()) == data_app) {
-    auto package = PackageFromApp(location);
+  // Deal with paths to /data/app/...
+
+  auto extract_package =
+      [storage](base::StringView path) -> base::Optional<std::string> {
+    auto package = PackageFromApp(path);
     if (!package) {
-      PERFETTO_DLOG("Failed to parse %s", location.ToStdString().c_str());
+      PERFETTO_DLOG("Failed to parse %s", path.ToStdString().c_str());
       storage->IncrementStats(stats::deobfuscate_location_parse_error);
       return base::nullopt;
     }
     return package->ToStdString();
+  };
+
+  base::StringView data_app("/data/app/");
+  size_t data_app_sz = data_app.size();
+  if (location.substr(0, data_app.size()) == data_app) {
+    return extract_package(location);
   }
+
+  // Check for in-memory decompressed dexfile, example prefixes:
+  // * "[anon:dalvik-classes.dex extracted in memory from"
+  // * "/dev/ashmem/dalvik-classes.dex extracted in memory from"
+  // The latter form is for older devices (Android P and before).
+  // We cannot hardcode the filename since it could be for example
+  // "classes2.dex" for multidex apks.
+  base::StringView inmem_dex("dex extracted in memory from /data/app/");
+  size_t match_pos = location.find(inmem_dex);
+  if (match_pos != base::StringView::npos) {
+    auto data_app_path =
+        location.substr(match_pos + inmem_dex.size() - data_app_sz);
+    return extract_package(data_app_path);
+  }
+
   return base::nullopt;
 }
 

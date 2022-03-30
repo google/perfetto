@@ -179,7 +179,8 @@ TEST_F(TraceProcessorIntegrationTest, Hash) {
   ASSERT_EQ(it.Get(0).long_value, static_cast<int64_t>(0xa9cb070fdc15f7a4));
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if !PERFETTO_BUILDFLAG(PERFETTO_LLVM_DEMANGLE) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #define MAYBE_Demangle DISABLED_Demangle
 #else
 #define MAYBE_Demangle Demangle
@@ -187,14 +188,37 @@ TEST_F(TraceProcessorIntegrationTest, Hash) {
 TEST_F(TraceProcessorIntegrationTest, MAYBE_Demangle) {
   auto it = Query("select DEMANGLE('_Znwm')");
   ASSERT_TRUE(it.Next());
-  ASSERT_STRCASEEQ(it.Get(0).string_value, "operator new(unsigned long)");
+  EXPECT_STRCASEEQ(it.Get(0).string_value, "operator new(unsigned long)");
 
   it = Query("select DEMANGLE('_ZN3art6Thread14CreateCallbackEPv')");
   ASSERT_TRUE(it.Next());
-  ASSERT_STRCASEEQ(it.Get(0).string_value,
+  EXPECT_STRCASEEQ(it.Get(0).string_value,
                    "art::Thread::CreateCallback(void*)");
 
   it = Query("select DEMANGLE('test')");
+  ASSERT_TRUE(it.Next());
+  EXPECT_TRUE(it.Get(0).is_null());
+}
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_LLVM_DEMANGLE)
+#define MAYBE_DemangleRust DISABLED_DemangleRust
+#else
+#define MAYBE_DemangleRust DemangleRust
+#endif
+TEST_F(TraceProcessorIntegrationTest, MAYBE_DemangleRust) {
+  auto it = Query(
+      "select DEMANGLE("
+      "'_RNvNvMs0_NtNtNtCsg1Z12QU66Yk_3std3sys4unix6threadNtB7_"
+      "6Thread3new12thread_start')");
+  ASSERT_TRUE(it.Next());
+  EXPECT_STRCASEEQ(it.Get(0).string_value,
+                   "<std::sys::unix::thread::Thread>::new::thread_start");
+
+  it = Query("select DEMANGLE('_RNvCsdV139EorvfX_14keystore2_main4main')");
+  ASSERT_TRUE(it.Next());
+  ASSERT_STRCASEEQ(it.Get(0).string_value, "keystore2_main::main");
+
+  it = Query("select DEMANGLE('_R')");
   ASSERT_TRUE(it.Next());
   ASSERT_TRUE(it.Get(0).is_null());
 }
@@ -259,7 +283,7 @@ TEST_F(TraceProcessorIntegrationTest, ComputeMetricsFormattedExtension) {
   ASSERT_TRUE(status.ok());
   // Extension fields are output as [fully.qualified.name].
   ASSERT_EQ(metric_output,
-            "[perfetto.protos.test_chrome_metric]: {\n"
+            "[perfetto.protos.test_chrome_metric] {\n"
             "  test_value: 1\n"
             "}");
 }
@@ -272,7 +296,7 @@ TEST_F(TraceProcessorIntegrationTest, ComputeMetricsFormattedNoExtension) {
   ASSERT_TRUE(status.ok());
   // Check that metric result starts with trace_metadata field. Since this is
   // not an extension field, the field name is not fully qualified.
-  ASSERT_TRUE(metric_output.rfind("trace_metadata: {") == 0);
+  ASSERT_TRUE(metric_output.rfind("trace_metadata {") == 0);
 }
 
 // TODO(hjd): Add trace to test_data.

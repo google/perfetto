@@ -24,6 +24,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/trace_processor/demangle.h"
 #include "src/trace_processor/dynamic/ancestor_generator.h"
 #include "src/trace_processor/dynamic/connected_flow_generator.h"
 #include "src/trace_processor/dynamic/descendant_generator.h"
@@ -71,9 +72,6 @@
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <cxxabi.h>
-#endif
 
 // In Android and Chromium tree builds, we don't have the percentile module.
 // Just don't include it.
@@ -422,20 +420,16 @@ base::Status Demangle::Run(void*,
   if (sqlite3_value_type(value) != SQLITE_TEXT)
     return base::ErrStatus("Unsupported type of arg passed to DEMANGLE");
 
-  const char* ptr = reinterpret_cast<const char*>(sqlite3_value_text(value));
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  int ignored = 0;
-  // This memory was allocated by malloc and will be passed to SQLite to free.
-  char* demangled_name = abi::__cxa_demangle(ptr, nullptr, nullptr, &ignored);
-  if (!demangled_name)
+  const char* mangled =
+      reinterpret_cast<const char*>(sqlite3_value_text(value));
+
+  std::unique_ptr<char, base::FreeDeleter> demangled =
+      demangle::Demangle(mangled);
+  if (!demangled)
     return base::OkStatus();
 
   destructors.string_destructor = free;
-  out = SqlValue::String(demangled_name);
-#else
-  destructors.string_destructor = sqlite_utils::kSqliteTransient;
-  out = SqlValue::String(ptr);
-#endif
+  out = SqlValue::String(demangled.release());
   return base::OkStatus();
 }
 

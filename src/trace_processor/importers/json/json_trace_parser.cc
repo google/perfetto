@@ -302,16 +302,14 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       break;
     }
     case 'M': {  // Metadata events (process and thread names).
-      if (strcmp(value["name"].asCString(), "thread_name") == 0 &&
-          !value["args"]["name"].empty()) {
+      if (name == "thread_name" && !value["args"]["name"].empty()) {
         const char* thread_name = value["args"]["name"].asCString();
         auto thread_name_id = context_->storage->InternString(thread_name);
         procs->UpdateThreadName(tid, thread_name_id,
                                 ThreadNamePriority::kOther);
         break;
       }
-      if (strcmp(value["name"].asCString(), "process_name") == 0 &&
-          !value["args"]["name"].empty()) {
+      if (name == "process_name" && !value["args"]["name"].empty()) {
         const char* proc_name = value["args"]["name"].asCString();
         procs->SetProcessMetadata(pid, base::nullopt, proc_name,
                                   base::StringView());

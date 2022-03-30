@@ -147,6 +147,7 @@ TEST_F(CreateConfigFromOptionsTest, FullConfig) {
   ASSERT_TRUE(ftrace.ParseFromString(
       config.data_sources()[0].config().ftrace_config_raw()));
   EXPECT_THAT(ftrace.ftrace_events(), Contains("sched/sched_switch"));
+  EXPECT_TRUE(ftrace.symbolize_ksyms());
   EXPECT_THAT(ftrace.atrace_categories(), Contains("sw"));
   EXPECT_THAT(ftrace.atrace_apps(), Contains("com.android.chrome"));
 }

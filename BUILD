@@ -423,6 +423,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //include/perfetto/ext/trace_processor:demangle
+perfetto_filegroup(
+    name = "include_perfetto_ext_trace_processor_demangle",
+    srcs = [
+        "include/perfetto/ext/trace_processor/demangle.h",
+    ],
+)
+
 # GN target: //include/perfetto/ext/trace_processor:export_json
 perfetto_filegroup(
     name = "include_perfetto_ext_trace_processor_export_json",
@@ -1106,8 +1114,10 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/chrome/actual_power_by_category.sql",
         "src/trace_processor/metrics/sql/chrome/actual_power_by_rail_mode.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_event_metadata.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_histogram_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_processes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_thread_slice.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_user_event_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/cpu_time_by_category.sql",
         "src/trace_processor/metrics/sql/chrome/cpu_time_by_rail_mode.sql",
         "src/trace_processor/metrics/sql/chrome/estimated_power_by_category.sql",
@@ -1330,6 +1340,20 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/util/status_macros.h",
     ],
+)
+
+# GN target: //src/trace_processor:demangle
+perfetto_cc_library(
+    name = "src_trace_processor_demangle",
+    srcs = [
+        "src/trace_processor/demangle.cc",
+    ],
+    hdrs = [
+        ":include_perfetto_base_base",
+        ":include_perfetto_ext_base_base",
+        ":include_perfetto_ext_trace_processor_demangle",
+    ],
+    linkstatic = True,
 )
 
 # GN target: //src/trace_processor:export_json
@@ -2154,6 +2178,45 @@ perfetto_java_lite_proto_library(
     ],
 )
 
+# GN target: [//protos/perfetto/metrics/chrome:source_set]
+perfetto_proto_library(
+    name = "chrome_metrics_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":protos_perfetto_metrics_android_protos",
+        ":protos_perfetto_metrics_chrome_protos",
+        ":protos_perfetto_metrics_custom_options_protos",
+        ":protos_perfetto_metrics_protos",
+    ],
+)
+
+# GN target: [//protos/perfetto/metrics/chrome:source_set]
+perfetto_cc_proto_library(
+    name = "chrome_metrics_cc_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":chrome_metrics_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/metrics/chrome:source_set]
+perfetto_java_proto_library(
+    name = "chrome_metrics_java_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":chrome_metrics_proto",
+    ],
+)
+
+# GN target: [//protos/perfetto/metrics/chrome:source_set]
+perfetto_java_lite_proto_library(
+    name = "chrome_metrics_java_proto_lite",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":chrome_metrics_proto",
+    ],
+)
+
 # GN target: //protos/perfetto/common:cpp
 perfetto_cc_protocpp_library(
     name = "protos_perfetto_common_cpp",
@@ -2721,12 +2784,14 @@ perfetto_proto_library(
         "protos/perfetto/metrics/chrome/blink_gc_metric.proto",
         "protos/perfetto/metrics/chrome/dropped_frames.proto",
         "protos/perfetto/metrics/chrome/frame_times.proto",
+        "protos/perfetto/metrics/chrome/histogram_hashes.proto",
         "protos/perfetto/metrics/chrome/long_latency.proto",
         "protos/perfetto/metrics/chrome/media_metric.proto",
         "protos/perfetto/metrics/chrome/reported_by_page.proto",
         "protos/perfetto/metrics/chrome/scroll_jank.proto",
         "protos/perfetto/metrics/chrome/test_chrome_metric.proto",
         "protos/perfetto/metrics/chrome/touch_jank.proto",
+        "protos/perfetto/metrics/chrome/user_event_hashes.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
@@ -3692,7 +3757,8 @@ perfetto_cc_library(
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib + [
         ":cc_amalgamated_sql_metrics",
-    ],
+    ] +
+           PERFETTO_CONFIG.deps.demangle_wrapper,
     linkstatic = True,
 )
 
@@ -3790,7 +3856,8 @@ perfetto_cc_binary(
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib + [
         ":cc_amalgamated_sql_metrics",
-    ],
+    ] +
+           PERFETTO_CONFIG.deps.demangle_wrapper,
 )
 
 # GN target: //src/traced/probes:traced_probes
@@ -3974,7 +4041,8 @@ perfetto_cc_binary(
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib + [
         ":cc_amalgamated_sql_metrics",
-    ],
+    ] +
+           PERFETTO_CONFIG.deps.demangle_wrapper,
 )
 
 # Content from BUILD.extras

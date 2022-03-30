@@ -42,6 +42,8 @@ void TranslationTableModule::ParsePacket(const TracePacket::Decoder& decoder,
       protos::pbzero::TranslationTable::Decoder(decoder.translation_table());
   if (translation_table.has_chrome_histogram()) {
     ParseChromeHistogramRules(translation_table.chrome_histogram());
+  } else if (translation_table.has_chrome_user_event()) {
+    ParseChromeUserEventRules(translation_table.chrome_user_event());
   }
 }
 
@@ -53,6 +55,18 @@ void TranslationTableModule::ParseChromeHistogramRules(
     protos::pbzero::ChromeHistorgramTranslationTable::HashToNameEntry::Decoder
         entry(*it);
     context_->args_translation_table->AddChromeHistogramTranslationRule(
+        entry.key(), entry.value());
+  }
+}
+
+void TranslationTableModule::ParseChromeUserEventRules(
+    protozero::ConstBytes bytes) {
+  const auto chrome_user_event =
+      protos::pbzero::ChromeUserEventTranslationTable::Decoder(bytes);
+  for (auto it = chrome_user_event.action_hash_to_name(); it; ++it) {
+    protos::pbzero::ChromeUserEventTranslationTable::ActionHashToNameEntry::
+        Decoder entry(*it);
+    context_->args_translation_table->AddChromeUserEventTranslationRule(
         entry.key(), entry.value());
   }
 }

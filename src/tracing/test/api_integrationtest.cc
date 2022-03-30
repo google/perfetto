@@ -128,6 +128,22 @@ struct std::hash<SourceLocation> {
   }
 };
 
+static void WriteFile(const std::string& file_name,
+                      const char* content,
+                      size_t len) {
+  std::ofstream output;
+  output.open(file_name.c_str(), std::ios::out | std::ios::binary);
+  output.write(content, static_cast<std::streamsize>(len));
+  output.close();
+}
+
+// Unused in merged code, but very handy for debugging when trace generated in
+// a test needs to be exported, to understand it further with other tools.
+__attribute__((unused)) static void WriteFile(const std::string& file_name,
+                                              const std::vector<char>& data) {
+  return WriteFile(file_name, data.data(), data.size());
+}
+
 // Represents an opaque (from Perfetto's point of view) thread identifier (e.g.,
 // base::PlatformThreadId in Chromium).
 struct MyThreadId {
@@ -4165,6 +4181,51 @@ TEST_P(PerfettoApiTest, LegacyTraceEventsWithId) {
                                   "string\"):cat.WithScope"));
 }
 
+TEST_P(PerfettoApiTest, NestableAsyncTraceEvent) {
+  auto* tracing_session = NewTraceWithCategories({"cat"});
+  tracing_session->get()->StartBlocking();
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("cat", "foo",
+                                    TRACE_ID_WITH_SCOPE("foo", 1));
+  // Same id, different scope.
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("cat", "bar",
+                                    TRACE_ID_WITH_SCOPE("bar", 1));
+  // Same scope, different id.
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("cat", "bar",
+                                    TRACE_ID_WITH_SCOPE("bar", 2));
+
+  TRACE_EVENT_NESTABLE_ASYNC_END0("cat", "bar", TRACE_ID_WITH_SCOPE("bar", 2));
+  TRACE_EVENT_NESTABLE_ASYNC_END0("cat", "bar", TRACE_ID_WITH_SCOPE("bar", 1));
+  TRACE_EVENT_NESTABLE_ASYNC_END0("cat", "foo", TRACE_ID_WITH_SCOPE("foo", 1));
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace parsed_trace;
+  ASSERT_TRUE(parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+  using LegacyEvent = perfetto::protos::gen::TrackEvent::LegacyEvent;
+  std::vector<const LegacyEvent*> legacy_events;
+  for (const auto& packet : parsed_trace.packet()) {
+    if (packet.has_track_event() && packet.track_event().has_legacy_event()) {
+      legacy_events.push_back(&packet.track_event().legacy_event());
+    }
+  }
+  ASSERT_EQ(6u, legacy_events.size());
+  EXPECT_EQ("foo", legacy_events[0]->id_scope());
+  EXPECT_EQ("bar", legacy_events[1]->id_scope());
+  EXPECT_EQ("bar", legacy_events[2]->id_scope());
+  EXPECT_EQ("bar", legacy_events[3]->id_scope());
+  EXPECT_EQ("bar", legacy_events[4]->id_scope());
+  EXPECT_EQ("foo", legacy_events[5]->id_scope());
+
+  EXPECT_EQ(legacy_events[0]->unscoped_id(), legacy_events[5]->unscoped_id());
+  EXPECT_EQ(legacy_events[1]->unscoped_id(), legacy_events[4]->unscoped_id());
+  EXPECT_EQ(legacy_events[2]->unscoped_id(), legacy_events[3]->unscoped_id());
+
+  EXPECT_NE(legacy_events[0]->unscoped_id(), legacy_events[1]->unscoped_id());
+  EXPECT_NE(legacy_events[1]->unscoped_id(), legacy_events[2]->unscoped_id());
+  EXPECT_NE(legacy_events[2]->unscoped_id(), legacy_events[0]->unscoped_id());
+}
+
 TEST_P(PerfettoApiTest, LegacyTraceEventsWithFlow) {
   auto* tracing_session = NewTraceWithCategories({"cat"});
   tracing_session->get()->StartBlocking();
@@ -4691,6 +4752,70 @@ TEST_P(PerfettoApiTest, ThreadSafetyAnnotation) {
                                   "B:cat.ScopedLegacy(value=(int)1)", "E"));
 }
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_COMPILER_CLANG)
+
+TEST_P(PerfettoApiTest, CountersDeltaEncoding) {
+  auto* tracing_session = NewTraceWithCategories({"cat"});
+  tracing_session->get()->StartBlocking();
+
+  // Describe a counter track.
+  perfetto::CounterTrack track1 =
+      perfetto::CounterTrack("Framerate1", "fps1").set_is_incremental(true);
+  // Global tracks can be constructed at build time.
+  constexpr perfetto::CounterTrack track2 =
+      perfetto::CounterTrack::Global("Framerate2", "fps2")
+          .set_is_incremental(true);
+  perfetto::CounterTrack track3 = perfetto::CounterTrack("Framerate3", "fps3");
+
+  TRACE_COUNTER("cat", track1, 120);
+  TRACE_COUNTER("cat", track2, 1000);
+  TRACE_COUNTER("cat", track3, 10009);
+
+  TRACE_COUNTER("cat", track1, 10);
+  TRACE_COUNTER("cat", track1, 1200);
+  TRACE_COUNTER("cat", track1, 34);
+
+  TRACE_COUNTER("cat", track3, 975);
+  TRACE_COUNTER("cat", track2, 449);
+  TRACE_COUNTER("cat", track2, 2);
+
+  TRACE_COUNTER("cat", track3, 1091);
+  TRACE_COUNTER("cat", track3, 110);
+  TRACE_COUNTER("cat", track3, 1081);
+
+  TRACE_COUNTER("cat", track1, 98);
+  TRACE_COUNTER("cat", track2, 1084);
+
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+  std::unordered_map<uint64_t, std::string> counter_names;
+  // Map(Counter name -> counter values)
+  std::unordered_map<std::string, std::vector<int64_t>> values;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_track_descriptor()) {
+      auto& desc = packet.track_descriptor();
+      if (!desc.has_counter())
+        continue;
+      counter_names[desc.uuid()] = desc.name();
+      EXPECT_EQ((desc.name() != "Framerate3"), desc.counter().is_incremental());
+    }
+    if (packet.has_track_event()) {
+      auto event = packet.track_event();
+      EXPECT_EQ(perfetto::protos::gen::TrackEvent_Type_TYPE_COUNTER,
+                event.type());
+      auto& counter_name = counter_names.at(event.track_uuid());
+      values[counter_name].push_back(event.counter_value());
+    }
+  }
+  ASSERT_EQ(3u, values.size());
+  using IntVector = std::vector<int64_t>;
+  EXPECT_EQ((IntVector{120, -110, 1190, -1166, 64}), values.at("Framerate1"));
+  EXPECT_EQ((IntVector{1000, -551, -447, 1082}), values.at("Framerate2"));
+  EXPECT_EQ((IntVector{10009, 975, 1091, 110, 1081}), values.at("Framerate3"));
+}
 
 TEST_P(PerfettoApiTest, Counters) {
   auto* tracing_session = NewTraceWithCategories({"cat"});

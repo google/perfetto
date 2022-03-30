@@ -1963,13 +1963,11 @@ void TracingServiceImpl::PeriodicClearIncrementalStateTask(
 
   // Queue the IPCs to producers with active data sources that opted in.
   std::map<ProducerID, std::vector<DataSourceInstanceID>> clear_map;
-  int ds_clear_count = 0;
   for (const auto& kv : tracing_session->data_source_instances) {
     ProducerID producer_id = kv.first;
     const DataSourceInstance& data_source = kv.second;
     if (data_source.handles_incremental_state_clear) {
       clear_map[producer_id].push_back(data_source.instance_id);
-      ++ds_clear_count;
     }
   }
 
