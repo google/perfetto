@@ -85,6 +85,7 @@ proto_groups = {
     ],
     'metrics': ['//protos/perfetto/metrics:source_set',],
     'chromium': ['//protos/third_party/chromium:source_set',],
+    'chrome_metrics': ['//protos/perfetto/metrics/chrome:source_set',],
 }
 
 # Path for the protobuf sources in the standalone build.
