@@ -56,6 +56,10 @@ class PERFETTO_EXPORT EventContext {
 
   ~EventContext();
 
+  internal::TrackEventIncrementalState* GetIncrementalState() const {
+    return incremental_state_;
+  }
+
   // Get a TrackEvent message to write typed arguments to.
   //
   // event() is a template method to allow callers to specify a subclass of

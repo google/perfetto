@@ -4753,6 +4753,70 @@ TEST_P(PerfettoApiTest, ThreadSafetyAnnotation) {
 }
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_COMPILER_CLANG)
 
+TEST_P(PerfettoApiTest, CountersDeltaEncoding) {
+  auto* tracing_session = NewTraceWithCategories({"cat"});
+  tracing_session->get()->StartBlocking();
+
+  // Describe a counter track.
+  perfetto::CounterTrack track1 =
+      perfetto::CounterTrack("Framerate1", "fps1").set_is_incremental(true);
+  // Global tracks can be constructed at build time.
+  constexpr perfetto::CounterTrack track2 =
+      perfetto::CounterTrack::Global("Framerate2", "fps2")
+          .set_is_incremental(true);
+  perfetto::CounterTrack track3 = perfetto::CounterTrack("Framerate3", "fps3");
+
+  TRACE_COUNTER("cat", track1, 120);
+  TRACE_COUNTER("cat", track2, 1000);
+  TRACE_COUNTER("cat", track3, 10009);
+
+  TRACE_COUNTER("cat", track1, 10);
+  TRACE_COUNTER("cat", track1, 1200);
+  TRACE_COUNTER("cat", track1, 34);
+
+  TRACE_COUNTER("cat", track3, 975);
+  TRACE_COUNTER("cat", track2, 449);
+  TRACE_COUNTER("cat", track2, 2);
+
+  TRACE_COUNTER("cat", track3, 1091);
+  TRACE_COUNTER("cat", track3, 110);
+  TRACE_COUNTER("cat", track3, 1081);
+
+  TRACE_COUNTER("cat", track1, 98);
+  TRACE_COUNTER("cat", track2, 1084);
+
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+  std::unordered_map<uint64_t, std::string> counter_names;
+  // Map(Counter name -> counter values)
+  std::unordered_map<std::string, std::vector<int64_t>> values;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_track_descriptor()) {
+      auto& desc = packet.track_descriptor();
+      if (!desc.has_counter())
+        continue;
+      counter_names[desc.uuid()] = desc.name();
+      EXPECT_EQ((desc.name() != "Framerate3"), desc.counter().is_incremental());
+    }
+    if (packet.has_track_event()) {
+      auto event = packet.track_event();
+      EXPECT_EQ(perfetto::protos::gen::TrackEvent_Type_TYPE_COUNTER,
+                event.type());
+      auto& counter_name = counter_names.at(event.track_uuid());
+      values[counter_name].push_back(event.counter_value());
+    }
+  }
+  ASSERT_EQ(3u, values.size());
+  using IntVector = std::vector<int64_t>;
+  EXPECT_EQ((IntVector{120, -110, 1190, -1166, 64}), values.at("Framerate1"));
+  EXPECT_EQ((IntVector{1000, -551, -447, 1082}), values.at("Framerate2"));
+  EXPECT_EQ((IntVector{10009, 975, 1091, 110, 1081}), values.at("Framerate3"));
+}
+
 TEST_P(PerfettoApiTest, Counters) {
   auto* tracing_session = NewTraceWithCategories({"cat"});
   tracing_session->get()->StartBlocking();
