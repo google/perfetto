@@ -14,7 +14,7 @@
 
 import * as m from 'mithril';
 
-import {assertExists, assertFalse, assertTrue} from '../base/logging';
+import {assertExists, assertTrue} from '../base/logging';
 
 import {TOPBAR_HEIGHT, TRACK_SHELL_WIDTH} from './css_constants';
 import {
@@ -22,7 +22,7 @@ import {
   FlowEventsRendererArgs
 } from './flow_events_renderer';
 import {globals} from './globals';
-import {isPanelVNode, Panel, PanelSize} from './panel';
+import {isPanelVNode, Panel, PanelSize, PanelVNode} from './panel';
 import {
   debugNow,
   perfDebug,
@@ -47,9 +47,8 @@ export interface Attrs {
   kind: 'TRACKS'|'OVERVIEW'|'DETAILS';
 }
 
-interface PanelInfo {
-  id: string;  // Can be == '' for singleton panels.
-  vnode: AnyAttrsVnode;
+interface PanelPosition {
+  id: string;
   height: number;
   width: number;
   x: number;
@@ -61,8 +60,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
   private parentWidth = 0;
   private parentHeight = 0;
   private scrollTop = 0;
-  private panelInfos: PanelInfo[] = [];
-  private panelByKey = new Map<string, AnyAttrsVnode>();
+  private panelPositions: PanelPosition[] = [];
   private totalPanelHeight = 0;
   private canvasHeight = 0;
 
@@ -97,13 +95,13 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     const minY = Math.min(startY, endY);
     const maxY = Math.max(startY, endY);
     const panels: AnyAttrsVnode[] = [];
-    for (let i = 0; i < this.panelInfos.length; i++) {
-      const pos = this.panelInfos[i];
+    for (let i = 0; i < this.panelPositions.length; i++) {
+      const pos = this.panelPositions[i];
       const realPosX = pos.x - TRACK_SHELL_WIDTH;
       if (realPosX + pos.width >= minX && realPosX <= maxX &&
           pos.y + pos.height >= minY && pos.y <= maxY &&
-          pos.vnode.attrs.selectable) {
-        panels.push(pos.vnode);
+          this.attrs.panels[i].attrs.selectable) {
+        panels.push(this.attrs.panels[i]);
       }
     }
     return panels;
@@ -116,14 +114,15 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     if (area === undefined ||
         globals.frontendLocalState.areaY.start === undefined ||
         globals.frontendLocalState.areaY.end === undefined ||
-        this.panelInfos.length === 0) {
+        this.panelPositions.length === 0) {
       return;
     }
     // Only get panels from the current panel container if the selection began
     // in this container.
-    const panelContainerTop = this.panelInfos[0].y;
-    const panelContainerBottom = this.panelInfos[this.panelInfos.length - 1].y +
-        this.panelInfos[this.panelInfos.length - 1].height;
+    const panelContainerTop = this.panelPositions[0].y;
+    const panelContainerBottom =
+        this.panelPositions[this.panelPositions.length - 1].y +
+        this.panelPositions[this.panelPositions.length - 1].height;
     if (globals.frontendLocalState.areaY.start + TOPBAR_HEIGHT <
             panelContainerTop ||
         globals.frontendLocalState.areaY.start + TOPBAR_HEIGHT >
@@ -218,26 +217,18 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
 
   view({attrs}: m.CVnode<Attrs>) {
     this.attrs = attrs;
-    this.panelByKey.clear();
-    const children = [];
-    for (const panel of attrs.panels) {
-      const key = assertExists(panel.key) as string;
-      assertFalse(this.panelByKey.has(key));
-      this.panelByKey.set(key, panel);
-      children.push(
-          m('.panel',
-            {key: panel.key, 'data-key': panel.key},
-            perfDebug() ?
-                [panel, m('.debug-panel-border', {key: 'debug-panel-border'})] :
-                panel));
-    }
+    const renderPanel = (panel: m.Vnode) => perfDebug() ?
+        m('.panel',
+          {key: panel.key},
+          [panel, m('.debug-panel-border', {key: 'debug-panel-border'})]) :
+        m('.panel', {key: panel.key}, panel);
 
     return [
       m(
           '.scroll-limiter',
           m('canvas.main-canvas'),
           ),
-      m('.panels', children)
+      m('.panels', attrs.panels.map(renderPanel))
     ];
   }
 
@@ -310,26 +301,19 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
    */
   private readPanelHeightsFromDom(dom: Element): boolean {
     const prevHeight = this.totalPanelHeight;
-    this.panelInfos = [];
+    this.panelPositions = [];
     this.totalPanelHeight = 0;
 
-    dom.parentElement!.querySelectorAll('.panel').forEach(panel => {
-      const key = assertExists(panel.getAttribute('data-key'));
-      const vnode = assertExists(this.panelByKey.get(key));
-
-      // NOTE: the id can be undefined for singletons like overview timeline.
-      const id = vnode.attrs.id || vnode.attrs.trackGroupId || '';
-      const rect = panel.getBoundingClientRect();
-      this.panelInfos.push({
-        id,
-        height: rect.height,
-        width: rect.width,
-        x: rect.x,
-        y: rect.y,
-        vnode
-      });
+    const panels = dom.parentElement!.querySelectorAll('.panel');
+    assertTrue(panels.length === this.attrs.panels.length);
+    for (let i = 0; i < panels.length; i++) {
+      const rect = panels[i].getBoundingClientRect();
+      const id = this.attrs.panels[i].attrs.id ||
+          this.attrs.panels[i].attrs.trackGroupId;
+      this.panelPositions[i] =
+          {id, height: rect.height, width: rect.width, x: rect.x, y: rect.y};
       this.totalPanelHeight += rect.height;
-    });
+    }
 
     return this.totalPanelHeight !== prevHeight;
   }
@@ -348,19 +332,23 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     this.handleAreaSelection();
 
     let panelYStart = 0;
+    const panels = assertExists(this.attrs).panels;
+    assertTrue(panels.length === this.panelPositions.length);
     let totalOnCanvas = 0;
     const flowEventsRendererArgs =
         new FlowEventsRendererArgs(this.parentWidth, this.canvasHeight);
-    for (let i = 0; i < this.panelInfos.length; i++) {
-      const panel = this.panelInfos[i].vnode;
-      const panelHeight = this.panelInfos[i].height;
+    for (let i = 0; i < panels.length; i++) {
+      const panel = panels[i];
+      const panelHeight = this.panelPositions[i].height;
       const yStartOnCanvas = panelYStart - canvasYStart;
 
       if (!isPanelVNode(panel)) {
         throw new Error('Vnode passed to panel container is not a panel');
       }
 
-      flowEventsRendererArgs.registerPanel(panel, yStartOnCanvas, panelHeight);
+      // TODO(hjd): This cast should be unnecessary given the type guard above.
+      const p = panel as PanelVNode<{}>;
+      flowEventsRendererArgs.registerPanel(p, yStartOnCanvas, panelHeight);
 
       if (!this.overlapsCanvas(yStartOnCanvas, yStartOnCanvas + panelHeight)) {
         panelYStart += panelHeight;
@@ -376,9 +364,9 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
       clipRect.rect(0, 0, size.width, size.height);
       this.ctx.clip(clipRect);
       const beforeRender = debugNow();
-      panel.state.renderCanvas(this.ctx, size, panel);
+      p.state.renderCanvas(this.ctx, size, p);
       this.updatePanelStats(
-          i, panel.state, debugNow() - beforeRender, this.ctx, size);
+          i, p.state, debugNow() - beforeRender, this.ctx, size);
       this.ctx.restore();
       panelYStart += panelHeight;
     }
@@ -387,7 +375,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     this.flowEventsRenderer.render(this.ctx, flowEventsRendererArgs);
     // Collect performance as the last thing we do.
     const redrawDur = debugNow() - redrawStart;
-    this.updatePerfStats(redrawDur, this.panelInfos.length, totalOnCanvas);
+    this.updatePerfStats(redrawDur, panels.length, totalOnCanvas);
   }
 
   // The panels each draw on the canvas but some details need to be drawn across
@@ -400,22 +388,24 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
         globals.frontendLocalState.areaY.end === undefined) {
       return;
     }
-    if (this.panelInfos.length === 0 || area.tracks.length === 0) return;
+    if (this.panelPositions.length === 0 || area.tracks.length === 0) return;
 
     // Find the minY and maxY of the selected tracks in this panel container.
-    const panelContainerTop = this.panelInfos[0].y;
-    const panelContainerBottom = this.panelInfos[this.panelInfos.length - 1].y +
-        this.panelInfos[this.panelInfos.length - 1].height;
+    const panelContainerTop = this.panelPositions[0].y;
+    const panelContainerBottom =
+        this.panelPositions[this.panelPositions.length - 1].y +
+        this.panelPositions[this.panelPositions.length - 1].height;
     let selectedTracksMinY = panelContainerBottom;
     let selectedTracksMaxY = panelContainerTop;
     let trackFromCurrentContainerSelected = false;
-    for (let i = 0; i < this.panelInfos.length; i++) {
-      if (area.tracks.includes(this.panelInfos[i].id)) {
+    for (let i = 0; i < this.panelPositions.length; i++) {
+      if (area.tracks.includes(this.panelPositions[i].id)) {
         trackFromCurrentContainerSelected = true;
-        selectedTracksMinY = Math.min(selectedTracksMinY, this.panelInfos[i].y);
+        selectedTracksMinY =
+            Math.min(selectedTracksMinY, this.panelPositions[i].y);
         selectedTracksMaxY = Math.max(
             selectedTracksMaxY,
-            this.panelInfos[i].y + this.panelInfos[i].height);
+            this.panelPositions[i].y + this.panelPositions[i].height);
       }
     }
 
