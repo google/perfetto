@@ -8,6 +8,9 @@ Unreleased:
       message.
   Trace Processor:
     * Added prebuilts for mac-arm64.
+    * Changed LIKE comparisions to be case-insenstive. This reverts the change
+      introduced in v22. GLOB should be used where case senstive searches are
+      desired; built-in metrics continue to require the use of GLOB.
     * Added an optional dependency from trace processor onto a subset of
       sources from llvm-project for function name demangling. Bazel embedders
       might need to update their PERFETTO_CONFIG in perfetto_cfg.bzl to opt in
