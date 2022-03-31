@@ -53,23 +53,14 @@ CREATE VIEW activity_intent_launch_successful AS
 SELECT ts FROM slice
 WHERE name = 'MetricsLogger:launchObserverNotifyActivityLaunchFinished';
 
--- All activity launches in the trace, keyed by ID.
-DROP TABLE IF EXISTS launches;
-CREATE TABLE launches(
-  ts BIG INT,
-  ts_end BIG INT,
-  dur BIG INT,
-  id INT,
-  package STRING);
-
 -- Use the starting event package name. The finish event package name
 -- is not reliable in the case of failed launches.
-INSERT INTO launches
+INSERT INTO launches(id, ts, ts_end, dur, package)
 SELECT
+  lpart.id AS id,
   lpart.ts AS ts,
   launching_events.ts_end AS ts_end,
   launching_events.ts_end - lpart.ts AS dur,
-  lpart.id AS id,
   package_name AS package
 FROM launch_partitions AS lpart
 JOIN launching_events ON
