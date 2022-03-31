@@ -198,7 +198,7 @@ base::Status PrintStats() {
       "where severity IN ('error', 'data_loss') and value > 0");
 
   bool first = true;
-  for (uint32_t rows = 0; it.Next(); rows++) {
+  while (it.Next()) {
     if (first) {
       fprintf(stderr, "Error stats for this trace:\n");
 
@@ -269,7 +269,7 @@ base::Status ExportTraceToDatabase(const std::string& output_name) {
   auto tables_it = g_tp->ExecuteQuery(
       "SELECT name FROM perfetto_tables UNION "
       "SELECT name FROM sqlite_master WHERE type='table'");
-  for (uint32_t rows = 0; tables_it.Next(); rows++) {
+  while (tables_it.Next()) {
     std::string table_name = tables_it.Get(0).string_value;
     PERFETTO_CHECK(!base::Contains(table_name, '\''));
     std::string export_sql = "CREATE TABLE perfetto_export." + table_name +
@@ -290,7 +290,7 @@ base::Status ExportTraceToDatabase(const std::string& output_name) {
   // Export views.
   auto views_it =
       g_tp->ExecuteQuery("SELECT sql FROM sqlite_master WHERE type='view'");
-  for (uint32_t rows = 0; views_it.Next(); rows++) {
+  while (views_it.Next()) {
     std::string sql = views_it.Get(0).string_value;
     // View statements are of the form "CREATE VIEW name AS stmt". We need to
     // rewrite name to point to the exported db.
@@ -523,8 +523,7 @@ base::Status PrintQueryResultAsCsv(Iterator* it, bool has_more, FILE* output) {
   }
   fprintf(output, "\n");
 
-  uint32_t rows;
-  for (rows = 0; has_more; rows++, has_more = it->Next()) {
+  for (; has_more; has_more = it->Next()) {
     for (uint32_t c = 0; c < it->ColumnCount(); c++) {
       if (c > 0)
         fprintf(output, ",");
