@@ -326,6 +326,13 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     }
   }
 
+  onremove() {
+    if (this.track !== undefined) {
+      this.track.onDestroy();
+      this.track = undefined;
+    }
+  }
+
   highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const localState = globals.frontendLocalState;
     const selection = globals.state.currentSelection;
