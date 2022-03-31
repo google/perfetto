@@ -360,7 +360,9 @@ LocationTracker PreprocessLocations(trace_processor::TraceProcessor* tp,
                                  StringId func_sysname_id, StringId filename_id,
                                  const std::string& anno) {
         std::string func_name = interner->Get(func_sysname_id).ToStdString();
-        MaybeDemangle(&func_name);
+        if (base::StartsWith(func_name, "_Z")) {
+          MaybeDemangle(&func_name);
+        }
         if (annotate_frames && !anno.empty() && !func_name.empty())
           func_name = func_name + " [" + anno + "]";
         StringId func_name_id =
