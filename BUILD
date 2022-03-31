@@ -1354,6 +1354,8 @@ perfetto_cc_library(
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_trace_processor_demangle",
     ],
+    deps = [
+    ] + PERFETTO_CONFIG.deps.llvm_demangle,
     linkstatic = True,
 )
 
