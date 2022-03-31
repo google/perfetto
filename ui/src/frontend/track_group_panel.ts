@@ -172,6 +172,13 @@ export class TrackGroupPanel extends Panel<Attrs> {
     }
   }
 
+  onremove() {
+    if (this.summaryTrack !== undefined) {
+      this.summaryTrack.onDestroy();
+      this.summaryTrack = undefined;
+    }
+  }
+
   highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const localState = globals.frontendLocalState;
     const selection = globals.state.currentSelection;
