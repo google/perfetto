@@ -64,6 +64,8 @@ export class FlowEventsController extends Controller<'main'> {
         beginSliceStartTs: NUM,
         beginSliceEndTs: NUM,
         beginDepth: NUM,
+        beginThreadName: STR_NULL,
+        beginProcessName: STR_NULL,
         endSliceId: NUM,
         endTrackId: NUM,
         endSliceName: STR_NULL,
@@ -71,6 +73,8 @@ export class FlowEventsController extends Controller<'main'> {
         endSliceStartTs: NUM,
         endSliceEndTs: NUM,
         endDepth: NUM,
+        endThreadName: STR_NULL,
+        endProcessName: STR_NULL,
         name: STR_NULL,
         category: STR_NULL,
         id: NUM,
@@ -85,6 +89,10 @@ export class FlowEventsController extends Controller<'main'> {
         const beginSliceStartTs = fromNs(it.beginSliceStartTs);
         const beginSliceEndTs = fromNs(it.beginSliceEndTs);
         const beginDepth = it.beginDepth;
+        const beginThreadName =
+            it.beginThreadName === null ? 'NULL' : it.beginThreadName;
+        const beginProcessName =
+            it.beginProcessName === null ? 'NULL' : it.beginProcessName;
 
         const endSliceId = it.endSliceId;
         const endTrackId = it.endTrackId;
@@ -95,6 +103,10 @@ export class FlowEventsController extends Controller<'main'> {
         const endSliceStartTs = fromNs(it.endSliceStartTs);
         const endSliceEndTs = fromNs(it.endSliceEndTs);
         const endDepth = it.endDepth;
+        const endThreadName =
+            it.endThreadName === null ? 'NULL' : it.endThreadName;
+        const endProcessName =
+            it.endProcessName === null ? 'NULL' : it.endProcessName;
 
         // Category and name present only in version 1 flow events
         // It is most likelly NULL for all other versions
@@ -111,7 +123,9 @@ export class FlowEventsController extends Controller<'main'> {
             sliceCategory: beginSliceCategory,
             sliceStartTs: beginSliceStartTs,
             sliceEndTs: beginSliceEndTs,
-            depth: beginDepth
+            depth: beginDepth,
+            threadName: beginThreadName,
+            processName: beginProcessName
           },
           end: {
             trackId: endTrackId,
@@ -120,7 +134,9 @@ export class FlowEventsController extends Controller<'main'> {
             sliceCategory: endSliceCategory,
             sliceStartTs: endSliceStartTs,
             sliceEndTs: endSliceEndTs,
-            depth: endDepth
+            depth: endDepth,
+            threadName: endThreadName,
+            processName: endProcessName
           },
           dur: endSliceStartTs - beginSliceEndTs,
           category,
@@ -156,6 +172,8 @@ export class FlowEventsController extends Controller<'main'> {
       t1.ts as beginSliceStartTs,
       (t1.ts+t1.dur) as beginSliceEndTs,
       t1.depth as beginDepth,
+      (thread_out.name || ' ' || thread_out.tid) as beginThreadName,
+      (process_out.name || ' ' || process_out.pid) as beginProcessName,
       f.slice_in as endSliceId,
       t2.track_id as endTrackId,
       t2.name as endSliceName,
@@ -163,12 +181,20 @@ export class FlowEventsController extends Controller<'main'> {
       t2.ts as endSliceStartTs,
       (t2.ts+t2.dur) as endSliceEndTs,
       t2.depth as endDepth,
+      (thread_in.name || ' ' || thread_in.tid) as endThreadName,
+      (process_in.name || ' ' || process_in.pid) as endProcessName,
       extract_arg(f.arg_set_id, 'cat') as category,
       extract_arg(f.arg_set_id, 'name') as name,
       f.id as id
     from ${connectedFlows} f
     join slice t1 on f.slice_out = t1.slice_id
     join slice t2 on f.slice_in = t2.slice_id
+    join thread_track track_out on track_out.id = t1.track_id
+    join thread thread_out on thread_out.utid = track_out.utid
+    join thread_track track_in on track_in.id = t2.track_id
+    join thread thread_in on thread_in.utid = track_in.utid
+    join process process_out on process_out.upid = thread_out.upid
+    join process process_in on process_in.upid = thread_in.upid
     `;
     this.queryFlowEvents(
         query, (flows: Flow[]) => publishConnectedFlows(flows));
@@ -217,6 +243,8 @@ export class FlowEventsController extends Controller<'main'> {
       t1.ts as beginSliceStartTs,
       (t1.ts+t1.dur) as beginSliceEndTs,
       t1.depth as beginDepth,
+      NULL as beginThreadName,
+      NULL as beginProcessName,
       f.slice_in as endSliceId,
       t2.track_id as endTrackId,
       t2.name as endSliceName,
@@ -224,6 +252,8 @@ export class FlowEventsController extends Controller<'main'> {
       t2.ts as endSliceStartTs,
       (t2.ts+t2.dur) as endSliceEndTs,
       t2.depth as endDepth,
+      NULL as endThreadName,
+      NULL as endProcessName,
       extract_arg(f.arg_set_id, 'cat') as category,
       extract_arg(f.arg_set_id, 'name') as name,
       f.id as id
