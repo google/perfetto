@@ -2020,7 +2020,8 @@ void FtraceParser::ParseUfshcdCommand(int64_t timestamp,
                                       protozero::ConstBytes blob) {
   protos::pbzero::UfshcdCommandFtraceEvent::Decoder evt(blob.data, blob.size);
   uint32_t num = evt.doorbell() > 0 ?
-      static_cast<uint32_t>(PERFETTO_POPCOUNT(evt.doorbell())) : 1;
+      static_cast<uint32_t>(PERFETTO_POPCOUNT(evt.doorbell())) :
+      (evt.str_t() == 1 ? 0 : 1);
 
   TrackId track = context_->track_tracker->InternGlobalCounterTrack(
       ufs_command_count_id_);
