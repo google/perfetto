@@ -108,11 +108,6 @@ void InitializeSqlite(sqlite3* db) {
   if (error) {
     PERFETTO_FATAL("Error setting pragma temp_store: %s", error);
   }
-  sqlite3_exec(db, "PRAGMA case_sensitive_like = 1", 0, 0, &error);
-  if (error) {
-    PERFETTO_FATAL("Error setting pragma case_sensitive_like: %s", error);
-  }
-
   sqlite3_str_split_init(db);
 // In Android tree builds, we don't have the percentile module.
 // Just don't include it.
