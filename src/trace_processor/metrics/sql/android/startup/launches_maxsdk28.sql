@@ -14,23 +14,15 @@
 -- limitations under the License.
 --
 
--- All activity launches in the trace, keyed by ID.
-DROP TABLE IF EXISTS launches;
-CREATE TABLE launches(
-  id INTEGER PRIMARY KEY,
-  ts BIG INT,
-  ts_end BIG INT,
-  dur BIG INT,
-  package STRING
-);
-
 -- Cold/warm starts emitted launching slices on API level 28-.
-INSERT INTO launches(ts, ts_end, dur, package)
+INSERT INTO launches(id, ts, ts_end, dur, package)
 SELECT
+  ROW_NUMBER() OVER(ORDER BY ts) AS id,
   launching_events.ts AS ts,
   launching_events.ts_end AS ts_end,
   launching_events.ts_end - launching_events.ts AS dur,
   package_name AS package
-FROM launching_events;
+FROM launching_events
+ORDER BY ts;
 
 -- TODO(lalitm): add handling of hot starts using frame timings.

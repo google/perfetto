@@ -187,6 +187,9 @@ class Trace(object):
   def add_atrace_async_end(self, ts, tid, pid, buf):
     self.add_print(ts, tid, 'F|{}|{}|0'.format(pid, buf))
 
+  def add_atrace_instant(self, ts, tid, pid, buf):
+    self.add_print(ts, tid, 'I|{}|{}'.format(pid, buf))
+
   def add_process(self, pid, ppid, cmdline, uid=None):
     process = self.packet.process_tree.processes.add()
     process.pid = pid
