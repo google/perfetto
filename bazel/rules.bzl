@@ -84,11 +84,16 @@ def perfetto_java_lite_proto_library(**kwargs):
     if not _rule_override("java_lite_proto_library", **kwargs):
         native.java_lite_proto_library(**kwargs)
 
+# Unlike the other rules, this is an noop by default because Bazel does not
+# support Python proto libraries.
+def perfetto_py_proto_library(**kwargs):
+    _rule_override("py_proto_library", **kwargs)
+
 # +----------------------------------------------------------------------------+
 # | Misc rules.                                                                |
 # +----------------------------------------------------------------------------+
 
-# Unlike all the other rules, this is an noop by default because Bazel does not
+# Unlike the other rules, this is an noop by default because Bazel does not
 # support gensignature.
 def perfetto_gensignature_internal_only(**kwargs):
     _rule_override("gensignature_internal_only", **kwargs)
