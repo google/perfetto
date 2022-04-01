@@ -6648,6 +6648,16 @@ std::vector<Event> GetStaticEventInfo() {
        kUnsetFtraceId,
        405,
        kUnsetSize},
+      {"console",
+       "printk",
+       {
+           {kUnsetOffset, kUnsetSize, FtraceFieldType::kInvalidFtraceFieldType,
+            "msg", 1, ProtoSchemaType::kString,
+            TranslationStrategy::kInvalidTranslationStrategy},
+       },
+       kUnsetFtraceId,
+       408,
+       kUnsetSize},
       {"sys_enter",
        "raw_syscalls",
        {

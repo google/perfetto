@@ -30,25 +30,31 @@ WHERE s.name GLOB 'launching: *'
 AND (process.name IS NULL OR process.name = 'system_server');
 
 SELECT CREATE_FUNCTION(
-  'ANDROID_SDK_LEVEL()',
-  'INT', "
-    SELECT int_value
-    FROM metadata
-    WHERE name = 'android_sdk_version'
-  ");
-
-SELECT CREATE_FUNCTION(
-  'METRICS_LOGGER_SLICE_COUNT()',
+  'SLICE_COUNT(slice_glob STRING)',
   'INT',
-  "SELECT COUNT(1) FROM slice WHERE name GLOB 'MetricsLogger:*'"
+  'SELECT COUNT(1) FROM slice WHERE name GLOB $slice_glob'
+);
+
+-- All activity launches in the trace, keyed by ID.
+-- Populated by different scripts depending on the platform version / contents.
+-- See android/startup/launches*.sql
+DROP TABLE IF EXISTS launches;
+CREATE TABLE launches(
+  id INTEGER PRIMARY KEY,
+  ts BIG INT,
+  ts_end BIG INT,
+  dur BIG INT,
+  package STRING
 );
 
 -- Note: on Q, we didn't have Android fingerprints but we *did*
 -- have ActivityMetricsLogger events so we will use this approach
 -- if we see any such events.
 SELECT CASE
-  WHEN (ANDROID_SDK_LEVEL() >= 29 OR METRICS_LOGGER_SLICE_COUNT() > 0)
-  THEN RUN_METRIC('android/startup/launches_minsdk29.sql')
+  WHEN SLICE_COUNT('launchingActivity#*:*') > 0
+    THEN RUN_METRIC('android/startup/launches_minsdk33.sql')
+  WHEN SLICE_COUNT('MetricsLogger:*') > 0
+    THEN RUN_METRIC('android/startup/launches_minsdk29.sql')
   ELSE RUN_METRIC('android/startup/launches_maxsdk28.sql')
 END;
 

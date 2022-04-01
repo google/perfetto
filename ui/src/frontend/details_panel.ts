@@ -332,9 +332,10 @@ export class DetailsPanel implements m.ClassComponent {
       detailsPanels.push({
         key: 'pivot_table_redux',
         name: 'Pivot Table',
-        vnode:
-            m(PivotTableRedux,
-              {selectionArea: globals.state.pivotTableRedux.selectionArea})
+        vnode: m(PivotTableRedux, {
+          key: 'pivot_table_redux',
+          selectionArea: globals.state.pivotTableRedux.selectionArea
+        })
       });
     }
 
@@ -379,7 +380,7 @@ export class DetailsPanel implements m.ClassComponent {
       detailsPanels.push({
         key: 'selected_flows',
         name: 'Flow Events',
-        vnode: m(FlowEventsAreaSelectedPanel)
+        vnode: m(FlowEventsAreaSelectedPanel, {key: 'flow_events_area'})
       });
     }
 

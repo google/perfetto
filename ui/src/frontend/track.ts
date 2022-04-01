@@ -77,6 +77,10 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
     this.lastTrackState = assertExists(globals.state.tracks[this.trackId]);
   }
 
+  // Last call the track will receive. Called just before the last reference to
+  // this object is removed.
+  onDestroy() {}
+
   protected abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
 
   protected get trackState(): TrackState {

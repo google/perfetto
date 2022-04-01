@@ -50,6 +50,7 @@ ftrace_proto_names = [
   "net.proto",
   "oom.proto",
   "power.proto",
+  "printk.proto",
   "raw_syscalls.proto",
   "regulator.proto",
   "sched.proto",
