@@ -44,6 +44,9 @@ void TranslationTableModule::ParsePacket(const TracePacket::Decoder& decoder,
     ParseChromeHistogramRules(translation_table.chrome_histogram());
   } else if (translation_table.has_chrome_user_event()) {
     ParseChromeUserEventRules(translation_table.chrome_user_event());
+  } else if (translation_table.has_chrome_performance_mark()) {
+    ParseChromePerformanceMarkRules(
+        translation_table.chrome_performance_mark());
   }
 }
 
@@ -68,6 +71,26 @@ void TranslationTableModule::ParseChromeUserEventRules(
         Decoder entry(*it);
     context_->args_translation_table->AddChromeUserEventTranslationRule(
         entry.key(), entry.value());
+  }
+}
+
+void TranslationTableModule::ParseChromePerformanceMarkRules(
+    protozero::ConstBytes bytes) {
+  const auto chrome_performance_mark =
+      protos::pbzero::ChromePerformanceMarkTranslationTable::Decoder(bytes);
+  for (auto it = chrome_performance_mark.site_hash_to_name(); it; ++it) {
+    protos::pbzero::ChromePerformanceMarkTranslationTable::SiteHashToNameEntry::
+        Decoder entry(*it);
+    context_->args_translation_table
+        ->AddChromePerformanceMarkSiteTranslationRule(entry.key(),
+                                                      entry.value());
+  }
+  for (auto it = chrome_performance_mark.mark_hash_to_name(); it; ++it) {
+    protos::pbzero::ChromePerformanceMarkTranslationTable::MarkHashToNameEntry::
+        Decoder entry(*it);
+    context_->args_translation_table
+        ->AddChromePerformanceMarkMarkTranslationRule(entry.key(),
+                                                      entry.value());
   }
 }
 
