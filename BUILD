@@ -1109,6 +1109,7 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/android/startup/launches.sql",
         "src/trace_processor/metrics/sql/android/startup/launches_maxsdk28.sql",
         "src/trace_processor/metrics/sql/android/startup/launches_minsdk29.sql",
+        "src/trace_processor/metrics/sql/android/startup/launches_minsdk33.sql",
         "src/trace_processor/metrics/sql/android/thread_counter_span_view.sql",
         "src/trace_processor/metrics/sql/android/unsymbolized_frames.sql",
         "src/trace_processor/metrics/sql/chrome/actual_power_by_category.sql",
@@ -1353,6 +1354,8 @@ perfetto_cc_library(
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_trace_processor_demangle",
     ],
+    deps = [
+    ] + PERFETTO_CONFIG.deps.llvm_demangle,
     linkstatic = True,
 )
 
