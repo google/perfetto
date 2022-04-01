@@ -52,6 +52,32 @@ TEST(ArgsTranslationTable, TranslatesUserEventHashes) {
   EXPECT_EQ(table.TranslateChromeUserEventHashForTesting(2), base::nullopt);
 }
 
+TEST(ArgsTranslationTable, TranslatesPerformanceMarkSiteHashes) {
+  TraceStorage storage;
+  ArgsTranslationTable table(&storage);
+  table.AddChromePerformanceMarkSiteTranslationRule(1, "hash1");
+  table.AddChromePerformanceMarkSiteTranslationRule(10, "hash2");
+  EXPECT_EQ(table.TranslateChromePerformanceMarkSiteHashForTesting(1),
+            base::Optional<base::StringView>("hash1"));
+  EXPECT_EQ(table.TranslateChromePerformanceMarkSiteHashForTesting(10),
+            base::Optional<base::StringView>("hash2"));
+  EXPECT_EQ(table.TranslateChromePerformanceMarkSiteHashForTesting(2),
+            base::nullopt);
+}
+
+TEST(ArgsTranslationTable, TranslatesPerformanceMarkMarkHashes) {
+  TraceStorage storage;
+  ArgsTranslationTable table(&storage);
+  table.AddChromePerformanceMarkMarkTranslationRule(1, "hash1");
+  table.AddChromePerformanceMarkMarkTranslationRule(10, "hash2");
+  EXPECT_EQ(table.TranslateChromePerformanceMarkMarkHashForTesting(1),
+            base::Optional<base::StringView>("hash1"));
+  EXPECT_EQ(table.TranslateChromePerformanceMarkMarkHashForTesting(10),
+            base::Optional<base::StringView>("hash2"));
+  EXPECT_EQ(table.TranslateChromePerformanceMarkMarkHashForTesting(2),
+            base::nullopt);
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
