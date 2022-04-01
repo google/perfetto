@@ -252,3 +252,10 @@ class TestApi(unittest.TestCase):
         execute_failure_handling=FailureHandling.INCREMENT_STAT)
     _ = btp.query('select * from sl')
     self.assertEqual(btp.stats().execute_failures, 1)
+
+  def test_btp_query_failure_message(self):
+    btp = create_batch_tp(
+        traces='simple:path={}'.format(example_android_trace_path()))
+    with self.assertRaisesRegex(
+        TraceProcessorException, expected_regex='.*source.*generator.*'):
+      _ = btp.query('select * from sl')

@@ -38,6 +38,7 @@ from perfetto.trace_uri_resolver.registry import ResolverRegistry
 PLATFORM_DELEGATE = PlatformDelegate
 
 TraceListReference = registry.TraceListReference
+Metadata = Dict[str, str]
 
 
 # Enum encoding how errors while loading/querying traces in BatchTraceProcessor
@@ -131,7 +132,7 @@ class BatchTraceProcessor:
         trace processor and underlying trace processors.
     """
 
-    self.tps = None
+    self.tps_and_metadata = None
     self.closed = False
     self._stats = Stats()
 
@@ -158,8 +159,7 @@ class BatchTraceProcessor:
         len(resolved)) or query_executor
 
     self.query_executor = query_executor
-    self.metadata = [t.metadata for t in resolved]
-    self.tps = [
+    self.tps_and_metadata = [
         x for x in load_exectuor.map(self._create_tp, resolved) if x is not None
     ]
 
@@ -277,10 +277,11 @@ class BatchTraceProcessor:
       trace).
     """
 
-    def wrapped(tp: TraceProcessor):
-      return self._execute_handling_failure(fn, tp)
+    def wrapped(pair: Tuple[TraceProcessor, Metadata]):
+      (tp, metadata) = pair
+      return self._execute_handling_failure(fn, tp, metadata)
 
-    return list(self.query_executor.map(wrapped, self.tps))
+    return list(self.query_executor.map(wrapped, self.tps_and_metadata))
 
   def execute_and_flatten(self, fn: Callable[[TraceProcessor], pd.DataFrame]
                          ) -> pd.DataFrame:
@@ -299,15 +300,15 @@ class BatchTraceProcessor:
       be added to the dataframe (see |query_and_flatten| for details).
     """
 
-    def wrapped(pair: Tuple[TraceProcessor, Dict[str, str]]):
+    def wrapped(pair: Tuple[TraceProcessor, Metadata]):
       (tp, metadata) = pair
-      df = self._execute_handling_failure(fn, tp)
+      df = self._execute_handling_failure(fn, tp, metadata)
       for key, value in metadata.items():
         df[key] = value
       return df
 
     df = pd.concat(
-        list(self.query_executor.map(wrapped, zip(self.tps, self.metadata))))
+        list(self.query_executor.map(wrapped, self.tps_and_metadata)))
     return df.reset_index(drop=True)
 
   def close(self):
@@ -323,8 +324,8 @@ class BatchTraceProcessor:
       return
     self.closed = True
 
-    if self.tps:
-      for tp in self.tps:
+    if self.tps_and_metadata:
+      for tp, _ in self.tps_and_metadata:
         tp.close()
 
   def stats(self):
@@ -333,23 +334,25 @@ class BatchTraceProcessor:
     See |Stats| class definition for the list of the statistics available."""
     return self._stats
 
-  def _create_tp(self,
-                 trace: ResolverRegistry.Result) -> Optional[TraceProcessor]:
+  def _create_tp(self, trace: ResolverRegistry.Result
+                ) -> Optional[Tuple[TraceProcessor, Metadata]]:
     try:
-      return TraceProcessor(trace=trace.generator, config=self.config.tp_config)
+      return TraceProcessor(
+          trace=trace.generator, config=self.config.tp_config), trace.metadata
     except TraceProcessorException as ex:
       if self.config.load_failure_handling == FailureHandling.RAISE_EXCEPTION:
         raise ex
       self._stats.load_failures += 1
       return None
 
-  def _execute_handling_failure(self, fn, tp):
+  def _execute_handling_failure(self, fn: Callable[[TraceProcessor], Any],
+                                tp: TraceProcessor, metadata: Metadata):
     try:
       return fn(tp)
     except TraceProcessorException as ex:
       if self.config.execute_failure_handling == \
           FailureHandling.RAISE_EXCEPTION:
-        raise ex
+        raise TraceProcessorException(f'{metadata} {ex}') from None
       self._stats.execute_failures += 1
       return pd.DataFrame()
 
