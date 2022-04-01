@@ -103,6 +103,8 @@ PERFETTO_CONFIG = struct(
     # |rule_overrides| or invidivual keys. They are assigned to None or noop
     # actions here just for documentation purposes.
     rule_overrides = struct(
+        proto_library = None,
+
         cc_binary = None,
         cc_library = None,
         cc_proto_library = None,
@@ -112,9 +114,9 @@ PERFETTO_CONFIG = struct(
         java_proto_library = _noop_override,
         java_lite_proto_library = _noop_override,
 
-        proto_library = None,
         py_binary = None,
         py_library = None,
+        py_proto_library = None,
 
         # We only need this for internal binaries. No other embeedder should
         # care about this.
