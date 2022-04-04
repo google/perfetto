@@ -86,6 +86,7 @@ sql_files = [
   "chrome/actual_power_by_rail_mode.sql",
   "chrome/chrome_event_metadata.sql",
   "chrome/chrome_histogram_hashes.sql",
+  "chrome/chrome_performance_mark_hashes.sql",
   "chrome/chrome_processes.sql",
   "chrome/chrome_thread_slice.sql",
   "chrome/chrome_user_event_hashes.sql",
