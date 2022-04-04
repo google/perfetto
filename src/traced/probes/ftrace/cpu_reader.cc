@@ -282,22 +282,28 @@ size_t CpuReader::ReadAndProcessBatch(
     return pages_read;
 
   for (FtraceDataSource* data_source : started_data_sources) {
-    bool pages_parsed_ok = ProcessPagesForDataSource(
+    size_t pages_parsed_ok = ProcessPagesForDataSource(
         data_source->trace_writer(), data_source->mutable_metadata(), cpu_,
         data_source->parsing_config(), parsing_buf, pages_read, table_,
         symbolizer_, ftrace_clock_snapshot_, ftrace_clock_);
-    // If this CHECK fires, it means that we did not know how to parse the
-    // kernel binary format. This is a bug in either perfetto or the kernel, and
-    // must be investigated. Hence we CHECK instead of recording a bit
-    // in the ftrace stats proto, which is easier to overlook.
-    PERFETTO_CHECK(pages_parsed_ok);
+    // If this happens, it means that we did not know how to parse the kernel
+    // binary format. This is a bug in either perfetto or the kernel, and must
+    // be investigated. Hence we abort instead of recording a bit in the ftrace
+    // stats proto, which is easier to overlook.
+    if (pages_parsed_ok != pages_read) {
+      const size_t first_bad_page_idx = pages_parsed_ok;
+      const uint8_t* curr_page =
+          parsing_buf + (first_bad_page_idx * base::kPageSize);
+      LogInvalidPage(curr_page, base::kPageSize);
+      PERFETTO_FATAL("Failed to parse ftrace page");
+    }
   }
 
   return pages_read;
 }
 
 // static
-bool CpuReader::ProcessPagesForDataSource(
+size_t CpuReader::ProcessPagesForDataSource(
     TraceWriter* trace_writer,
     FtraceMetadata* metadata,
     size_t cpu,
@@ -405,7 +411,7 @@ bool CpuReader::ProcessPagesForDataSource(
       bundle->set_lost_events(true);
   };
 
-  bool pages_parsed_ok = true;
+  size_t correctly_parsed_pages = pages_read;
   start_new_packet(/*lost_events=*/false);
   for (size_t i = 0; i < pages_read; i++) {
     const uint8_t* curr_page = parsing_buf + (i * base::kPageSize);
@@ -417,9 +423,7 @@ bool CpuReader::ProcessPagesForDataSource(
     if (!page_header.has_value() || page_header->size == 0 ||
         parse_pos >= curr_page_end ||
         parse_pos + page_header->size > curr_page_end) {
-      LogInvalidPage(curr_page, base::kPageSize);
-      PERFETTO_DFATAL("invalid page header");
-      return false;
+      return i;
     }
 
     // Start a new bundle if either:
@@ -442,14 +446,16 @@ bool CpuReader::ProcessPagesForDataSource(
                          &compact_sched, bundle, metadata);
 
     if (evt_size != page_header->size) {
-      pages_parsed_ok = false;
-      LogInvalidPage(curr_page, base::kPageSize);
-      PERFETTO_DFATAL("could not parse ftrace page");
+      // TODO(ddiproietto,rsavitski): Consider returning early here instead, to
+      // improve readability.
+      if (correctly_parsed_pages == pages_read) {
+        correctly_parsed_pages = i;
+      }
     }
   }
   finalize_cur_packet();
 
-  return pages_parsed_ok;
+  return correctly_parsed_pages;
 }
 
 // A page header consists of:
