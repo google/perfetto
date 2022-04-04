@@ -36,6 +36,7 @@ cc_library(
         "include/json/writer.h",
     ],
     copts = [
+        "-Wno-deprecated-declarations",
         "-Isrc/lib_json",
     ] + PERFETTO_CONFIG.deps_copts.jsoncpp,
     defines = [
