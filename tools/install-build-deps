@@ -190,6 +190,7 @@ BUILD_DEPS_HOST = [
     # This is the amalgamated source whose compiled output is meant to be faster.
     # We still pull the full source for the extensions (which are not available
     # in the amalgamation).
+    # If updating the version, also update bazel/deps.bzl.
     Dependency(
         'buildtools/sqlite.zip',
         'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3350400.zip',
@@ -204,6 +205,7 @@ BUILD_DEPS_HOST = [
 
     # JsonCpp for legacy json import. Used only by the trace processor in
     # standalone builds.
+    # If updating the version, also update bazel/deps.bzl.
     Dependency(
         'buildtools/jsoncpp',
         'https://chromium.googlesource.com/external/github.com/open-source-parsers/jsoncpp.git',
@@ -243,14 +245,19 @@ BUILD_DEPS_HOST = [
     Dependency('buildtools/lzma',
                'https://android.googlesource.com/platform/external/lzma.git',
                '7851dce6f4ca17f5caa1c93a4e0a45686b1d56c3', 'all', 'all'),
-    Dependency('buildtools/zlib',
-               'https://android.googlesource.com/platform/external/zlib.git',
-               '5c85a2da4c13eda07f69d81a1579a5afddd35f59', 'all', 'all'),
     Dependency('buildtools/bionic',
                'https://android.googlesource.com/platform/bionic.git',
                '332065d57e734b65f56474d136d22d767e36cbcd', 'all', 'all'),
 
+    # Zlib used both in the tracing binaries, as well as the trace processor and
+    # assorted tools.
+    # If updating the version, also update bazel/deps.bzl.
+    Dependency('buildtools/zlib',
+               'https://android.googlesource.com/platform/external/zlib.git',
+               '5c85a2da4c13eda07f69d81a1579a5afddd35f59', 'all', 'all'),
+
     # Linenoise, used only by trace_processor in standalone builds.
+    # If updating the version, also update bazel/deps.bzl.
     Dependency('buildtools/linenoise',
                'https://fuchsia.googlesource.com/third_party/linenoise.git',
                'c894b9e59f02203dbe4e2be657572cf88c4230c3', 'all', 'all'),
