@@ -25,7 +25,7 @@
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/utils.h"
-#include "perfetto/profiling/normalize.h"
+#include "src/profiling/common/proc_utils.h"
 #include "src/profiling/perf/regs_parsing.h"
 
 #include "protos/perfetto/common/perf_events.gen.h"

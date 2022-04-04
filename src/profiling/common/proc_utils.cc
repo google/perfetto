@@ -24,7 +24,6 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/profiling/normalize.h"
 
 namespace perfetto {
 namespace profiling {
@@ -46,6 +45,35 @@ base::Optional<uint32_t> ParseProcStatusSize(const std::string& status,
   return static_cast<uint32_t>(val);
 }
 }  // namespace
+
+// Normalize cmdline in place. Stores new beginning of string in *cmdline_ptr.
+// Returns new size of string (from new beginning).
+// Modifies string in *cmdline_ptr.
+ssize_t NormalizeCmdLine(char** cmdline_ptr, size_t size) {
+  char* cmdline = *cmdline_ptr;
+  char* first_arg = static_cast<char*>(memchr(cmdline, '\0', size));
+  if (first_arg == nullptr) {
+    errno = EOVERFLOW;
+    return -1;
+  }
+  // For consistency with what we do with Java app cmdlines, trim everything
+  // after the @ sign of the first arg.
+  char* first_at = static_cast<char*>(memchr(cmdline, '@', size));
+  if (first_at != nullptr && first_at < first_arg) {
+    *first_at = '\0';
+    first_arg = first_at;
+  }
+  char* start = static_cast<char*>(
+      memrchr(cmdline, '/', static_cast<size_t>(first_arg - cmdline)));
+  if (start == nullptr) {
+    start = cmdline;
+  } else {
+    // Skip the /.
+    start++;
+  }
+  *cmdline_ptr = start;
+  return first_arg - start;
+}
 
 base::Optional<std::vector<std::string>> NormalizeCmdlines(
     const std::vector<std::string>& cmdlines) {
