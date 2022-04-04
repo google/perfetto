@@ -1,0 +1,28 @@
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_event {
+    categories: "cat1"
+    type: 3
+    name: "name1"
+    [perfetto.protos.ChromeTrackEvent.chrome_hashed_performance_mark] {
+      site_hash: 10
+      mark_hash: 100
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_event {
+    categories: "cat2"
+    type: 3
+    name: "name2"
+    [perfetto.protos.ChromeTrackEvent.chrome_hashed_performance_mark] {
+      site_hash: 20
+      mark_hash: 200
+    }
+  }
+}
