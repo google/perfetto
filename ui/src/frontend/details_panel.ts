@@ -104,6 +104,7 @@ interface DragHandleAttrs {
   height: number;
   resize: (height: number) => void;
   tabs: Tab[];
+  currentTabKey?: string;
 }
 
 class DragHandle implements m.ClassComponent<DragHandleAttrs> {
@@ -153,17 +154,8 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   view({attrs}: m.CVnode<DragHandleAttrs>) {
     const icon = this.isClosed ? UP_ICON : DOWN_ICON;
     const title = this.isClosed ? 'Show panel' : 'Hide panel';
-    const activeTabExists = globals.state.currentTab &&
-        attrs.tabs.map(tab => tab.key).includes(globals.state.currentTab);
-    if (!activeTabExists) {
-      globals.dispatch(Actions.setCurrentTab({tab: undefined}));
-    }
     const renderTab = (tab: Tab) => {
-      if (globals.state.currentTab === tab.key ||
-          globals.state.currentTab === undefined &&
-              attrs.tabs[0].key === tab.key) {
-        // Update currentTab in case we didn't have one before.
-        globals.dispatch(Actions.setCurrentTab({tab: tab.key}));
+      if (attrs.currentTabKey === tab.key) {
         return m('.tab[active]', tab.name);
       }
       return m(
@@ -384,12 +376,13 @@ export class DetailsPanel implements m.ClassComponent {
       });
     }
 
-    const currentTabDetails =
-        detailsPanels.filter(tab => tab.key === globals.state.currentTab)[0];
+    let currentTabDetails =
+        detailsPanels.find(tab => tab.key === globals.state.currentTab);
+    if (currentTabDetails === undefined && detailsPanels.length > 0) {
+      currentTabDetails = detailsPanels[0];
+    }
 
-    const panel = currentTabDetails ?
-        currentTabDetails.vnode :
-        detailsPanels.values().next().value?.vnode;
+    const panel = currentTabDetails?.vnode;
     const panels = panel ? [panel] : [];
 
     return m(
@@ -408,6 +401,7 @@ export class DetailsPanel implements m.ClassComponent {
           tabs: detailsPanels.map(tab => {
             return {key: tab.key, name: tab.name};
           }),
+          currentTabKey: currentTabDetails?.key
         }),
         m('.details-panel-container.x-scrollable',
           m(PanelContainer, {doesScroll: true, panels, kind: 'DETAILS'})));
