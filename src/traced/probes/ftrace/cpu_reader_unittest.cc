@@ -641,7 +641,6 @@ TEST(CpuReaderTest, ParseSinglePrintZeroSize) {
   EXPECT_EQ(event.print().buf(), "");
 }
 
-
 TEST(CpuReaderTest, FilterByEvent) {
   const ExamplePage* test_case = &g_single_print;
 
@@ -1244,6 +1243,17 @@ static char g_switch_page_lost_events[] =
     00000050: 0000 0000 950e 0000 7800 0000 0000 0000  ................
     )";
 
+// Page with invalid data.
+static char g_invalid_page[] =
+    R"(
+    00000000: 2b16 c3be 90b6 0300 4b00 0000 0000 0000  ................
+    00000010: 1e00 0000 0000 0000 1000 0000 2f00 0103  ................
+    00000020: 0300 0000 6b73 6f66 7469 7271 642f 3000  ................
+    00000030: 0000 0000 0300 0000 7800 0000 0100 0000  ................
+    00000040: 0000 0000 736c 6565 7000 722f 3000 0000  ................
+    00000050: 0000 0000 950e 0000 7800 0000 0000 0000  ................
+    )";
+
 TEST(CpuReaderTest, NewPacketOnLostEvents) {
   auto page_ok = PageFromXxd(g_switch_page);
   auto page_loss = PageFromXxd(g_switch_page_lost_events);
@@ -1269,10 +1279,12 @@ TEST(CpuReaderTest, NewPacketOnLostEvents) {
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   TraceWriterForTesting trace_writer;
-  CpuReader::ProcessPagesForDataSource(
+  size_t processed_pages = CpuReader::ProcessPagesForDataSource(
       &trace_writer, &metadata, /*cpu=*/1, &ds_config, buf.get(), kTestPages,
       table, /*symbolizer=*/nullptr, /*ftrace_clock_snapshot=*/nullptr,
       protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+
+  ASSERT_EQ(processed_pages, kTestPages);
 
   // Each packet should contain the parsed contents of a contiguous run of pages
   // without data loss.
@@ -1289,6 +1301,39 @@ TEST(CpuReaderTest, NewPacketOnLostEvents) {
 
   EXPECT_TRUE(packets[2].ftrace_events().lost_events());
   EXPECT_EQ(4u, packets[2].ftrace_events().event().size());
+}
+
+TEST(CpuReaderTest, ProcessPagesForDataSourceError) {
+  auto page_ok = PageFromXxd(g_switch_page);
+  auto page_err = PageFromXxd(g_invalid_page);
+
+  std::vector<const void*> test_page_order = {
+      page_ok.get(), page_ok.get(), page_ok.get(),  page_err.get(),
+      page_ok.get(), page_ok.get(), page_err.get(), page_ok.get()};
+
+  // Prepare a buffer with 8 contiguous pages, with the above contents.
+  static constexpr size_t kTestPages = 8;
+
+  std::unique_ptr<uint8_t[]> buf(new uint8_t[base::kPageSize * kTestPages]());
+  for (size_t i = 0; i < kTestPages; i++) {
+    void* dest = buf.get() + (i * base::kPageSize);
+    memcpy(dest, static_cast<const void*>(test_page_order[i]), base::kPageSize);
+  }
+
+  BundleProvider bundle_provider(base::kPageSize);
+  ProtoTranslationTable* table = GetTable("synthetic");
+  FtraceMetadata metadata{};
+  FtraceDataSourceConfig ds_config = EmptyConfig();
+  ds_config.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
+
+  TraceWriterForTesting trace_writer;
+  size_t processed_pages = CpuReader::ProcessPagesForDataSource(
+      &trace_writer, &metadata, /*cpu=*/1, &ds_config, buf.get(), kTestPages,
+      table, /*symbolizer=*/nullptr, /*ftrace_clock_snapshot=*/nullptr,
+      protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+
+  EXPECT_EQ(processed_pages, 3u);
 }
 
 // Page containing an absolute timestamp (RINGBUF_TYPE_TIME_STAMP).
