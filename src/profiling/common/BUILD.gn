@@ -66,6 +66,7 @@ source_set("interning_output") {
 
 source_set("proc_utils") {
   deps = [
+    ":proc_cmdline",
     "../../../gn:default_deps",
     "../../base",
   ]
