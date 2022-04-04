@@ -1,11 +1,26 @@
 Unreleased:
   Tracing service and probes:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v25.0 - 2022-04-01:
+  Tracing service and probes:
     * Added prebuilts for mac-arm64.
     * Removed merged trace and config protos from Bazel. Embedder should
       instead depend on the non-merged proto targets.
     * Added FtraceConfig.disable_generic_events. If set, the ftrace data source
       will not emit events for which it doesn't have a compile-time proto
       message.
+    * Added ingestion support for cros_ec (CrOS sensors) ftrace events.
+    * Added ingestion support for kvm trace events.
+    * Added reporting of atrace failures. Now they are bubbled up to the UI
+      rather than causing atrace data to be silently missing.
   Trace Processor:
     * Added prebuilts for mac-arm64.
     * Changed LIKE comparisions to be case-insenstive. This reverts the change
@@ -24,6 +39,13 @@ Unreleased:
     * Added support for delta encoding of timestamps for TrackEvents.
       To disable it, refer to `disable_incremental_timestamps` flag in
       `track_event_config.proto`.
+  Tools:
+    * Added support of gzip-compressed traces to traceconv.
+    * Changed `traceconv text` to use an internal proto->pbtx converter rather
+      than relying on libprotobuf. It could cause some small divergencies in the
+      output format vs past releases.
+    * Added tools/cpu_profile helper script to capture traces with callstack
+      samples.
 
 
 v24.2 - 2022-02-10:
