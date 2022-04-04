@@ -64,7 +64,7 @@ source_set("producer") {
     "../common:callstack_trie",
     "../common:interner",
     "../common:interning_output",
-    "../common:proc_utils",
+    "../common:proc_cmdline",
     "../common:producer_support",
     "../common:profiler_guardrails",
   ]

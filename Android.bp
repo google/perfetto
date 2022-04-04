@@ -10525,6 +10525,7 @@ cc_binary {
         ":perfetto_src_profiling_common_callstack_trie",
         ":perfetto_src_profiling_common_interner",
         ":perfetto_src_profiling_common_interning_output",
+        ":perfetto_src_profiling_common_proc_cmdline",
         ":perfetto_src_profiling_common_proc_utils",
         ":perfetto_src_profiling_common_producer_support",
         ":perfetto_src_profiling_common_profiler_guardrails",
