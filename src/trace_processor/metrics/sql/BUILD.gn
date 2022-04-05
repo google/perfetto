@@ -39,6 +39,7 @@ sql_files = [
   "android/android_jank.sql",
   "android/android_lmk_reason.sql",
   "android/android_lmk.sql",
+  "android/android_other_traces.sql",
   "android/android_powrails.sql",
   "android/android_proxy_power.sql",
   "android/android_simpleperf.sql",
