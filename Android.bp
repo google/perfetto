@@ -23,7 +23,6 @@ cc_binary {
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_tracing_core_core",
         ":perfetto_include_perfetto_ext_tracing_ipc_ipc",
-        ":perfetto_include_perfetto_profiling_normalize",
         ":perfetto_include_perfetto_protozero_protozero",
         ":perfetto_include_perfetto_tracing_core_core",
         ":perfetto_include_perfetto_tracing_core_forward_decls",
@@ -79,6 +78,7 @@ cc_binary {
         ":perfetto_src_profiling_common_callstack_trie",
         ":perfetto_src_profiling_common_interner",
         ":perfetto_src_profiling_common_interning_output",
+        ":perfetto_src_profiling_common_proc_cmdline",
         ":perfetto_src_profiling_common_proc_utils",
         ":perfetto_src_profiling_common_producer_support",
         ":perfetto_src_profiling_common_profiler_guardrails",
@@ -277,7 +277,6 @@ cc_library_shared {
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_tracing_core_core",
         ":perfetto_include_perfetto_ext_tracing_ipc_ipc",
-        ":perfetto_include_perfetto_profiling_normalize",
         ":perfetto_include_perfetto_protozero_protozero",
         ":perfetto_include_perfetto_tracing_core_core",
         ":perfetto_include_perfetto_tracing_core_forward_decls",
@@ -333,6 +332,7 @@ cc_library_shared {
         ":perfetto_src_profiling_common_callstack_trie",
         ":perfetto_src_profiling_common_interner",
         ":perfetto_src_profiling_common_interning_output",
+        ":perfetto_src_profiling_common_proc_cmdline",
         ":perfetto_src_profiling_common_proc_utils",
         ":perfetto_src_profiling_common_producer_support",
         ":perfetto_src_profiling_common_profiler_guardrails",
@@ -1621,11 +1621,6 @@ filegroup {
     name: "perfetto_include_perfetto_ext_tracing_ipc_ipc",
 }
 
-// GN: //include/perfetto/profiling:normalize
-filegroup {
-    name: "perfetto_include_perfetto_profiling_normalize",
-}
-
 // GN: //include/perfetto/profiling:pprof_builder
 filegroup {
     name: "perfetto_include_perfetto_profiling_pprof_builder",
@@ -1689,7 +1684,6 @@ cc_test {
         ":perfetto_include_perfetto_ext_traced_traced",
         ":perfetto_include_perfetto_ext_tracing_core_core",
         ":perfetto_include_perfetto_ext_tracing_ipc_ipc",
-        ":perfetto_include_perfetto_profiling_normalize",
         ":perfetto_include_perfetto_protozero_protozero",
         ":perfetto_include_perfetto_trace_processor_basic_types",
         ":perfetto_include_perfetto_trace_processor_storage",
@@ -1773,6 +1767,7 @@ cc_test {
         ":perfetto_src_profiling_common_callstack_trie",
         ":perfetto_src_profiling_common_interner",
         ":perfetto_src_profiling_common_interning_output",
+        ":perfetto_src_profiling_common_proc_cmdline",
         ":perfetto_src_profiling_common_proc_utils",
         ":perfetto_src_profiling_common_producer_support",
         ":perfetto_src_profiling_common_profiler_guardrails",
@@ -3739,6 +3734,7 @@ genrule {
         "protos/perfetto/metrics/chrome/histogram_hashes.proto",
         "protos/perfetto/metrics/chrome/long_latency.proto",
         "protos/perfetto/metrics/chrome/media_metric.proto",
+        "protos/perfetto/metrics/chrome/performance_mark_hashes.proto",
         "protos/perfetto/metrics/chrome/reported_by_page.proto",
         "protos/perfetto/metrics/chrome/scroll_jank.proto",
         "protos/perfetto/metrics/chrome/test_chrome_metric.proto",
@@ -7521,6 +7517,14 @@ filegroup {
     ],
 }
 
+// GN: //src/profiling/common:proc_cmdline
+filegroup {
+    name: "perfetto_src_profiling_common_proc_cmdline",
+    srcs: [
+        "src/profiling/common/proc_cmdline.cc",
+    ],
+}
+
 // GN: //src/profiling/common:proc_utils
 filegroup {
     name: "perfetto_src_profiling_common_proc_utils",
@@ -7550,6 +7554,7 @@ filegroup {
     name: "perfetto_src_profiling_common_unittests",
     srcs: [
         "src/profiling/common/interner_unittest.cc",
+        "src/profiling/common/proc_cmdline_unittest.cc",
         "src/profiling/common/proc_utils_unittest.cc",
         "src/profiling/common/producer_support_unittest.cc",
         "src/profiling/common/profiler_guardrails_unittest.cc",
@@ -8405,6 +8410,7 @@ genrule {
         "src/trace_processor/metrics/sql/chrome/actual_power_by_rail_mode.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_event_metadata.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_histogram_hashes.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_performance_mark_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_processes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_thread_slice.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_user_event_hashes.sql",
@@ -9725,7 +9731,6 @@ cc_test {
         ":perfetto_include_perfetto_ext_traced_traced",
         ":perfetto_include_perfetto_ext_tracing_core_core",
         ":perfetto_include_perfetto_ext_tracing_ipc_ipc",
-        ":perfetto_include_perfetto_profiling_normalize",
         ":perfetto_include_perfetto_protozero_protozero",
         ":perfetto_include_perfetto_test_test_support",
         ":perfetto_include_perfetto_trace_processor_basic_types",
@@ -9848,6 +9853,7 @@ cc_test {
         ":perfetto_src_profiling_common_callstack_trie",
         ":perfetto_src_profiling_common_interner",
         ":perfetto_src_profiling_common_interning_output",
+        ":perfetto_src_profiling_common_proc_cmdline",
         ":perfetto_src_profiling_common_proc_utils",
         ":perfetto_src_profiling_common_producer_support",
         ":perfetto_src_profiling_common_profiler_guardrails",
@@ -10464,7 +10470,6 @@ cc_binary {
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_tracing_core_core",
         ":perfetto_include_perfetto_ext_tracing_ipc_ipc",
-        ":perfetto_include_perfetto_profiling_normalize",
         ":perfetto_include_perfetto_protozero_protozero",
         ":perfetto_include_perfetto_tracing_core_core",
         ":perfetto_include_perfetto_tracing_core_forward_decls",
@@ -10525,6 +10530,7 @@ cc_binary {
         ":perfetto_src_profiling_common_callstack_trie",
         ":perfetto_src_profiling_common_interner",
         ":perfetto_src_profiling_common_interning_output",
+        ":perfetto_src_profiling_common_proc_cmdline",
         ":perfetto_src_profiling_common_proc_utils",
         ":perfetto_src_profiling_common_producer_support",
         ":perfetto_src_profiling_common_profiler_guardrails",

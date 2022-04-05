@@ -66,13 +66,24 @@ source_set("interning_output") {
 
 source_set("proc_utils") {
   deps = [
+    ":proc_cmdline",
     "../../../gn:default_deps",
-    "../../../include/perfetto/profiling:normalize",
     "../../base",
   ]
   sources = [
     "proc_utils.cc",
     "proc_utils.h",
+  ]
+}
+
+source_set("proc_cmdline") {
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+  sources = [
+    "proc_cmdline.cc",
+    "proc_cmdline.h",
   ]
 }
 
@@ -106,18 +117,19 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
     ":interner",
+    ":proc_cmdline",
     ":proc_utils",
     ":producer_support",
     ":profiler_guardrails",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
-    "../../../include/perfetto/profiling:normalize",
     "../../base",
     "../../base:test_support",
     "../../tracing/core",
   ]
   sources = [
     "interner_unittest.cc",
+    "proc_cmdline_unittest.cc",
     "proc_utils_unittest.cc",
     "producer_support_unittest.cc",
     "profiler_guardrails_unittest.cc",

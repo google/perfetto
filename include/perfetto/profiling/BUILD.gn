@@ -15,7 +15,3 @@
 source_set("pprof_builder") {
   sources = [ "pprof_builder.h" ]
 }
-
-source_set("normalize") {
-  sources = [ "normalize.h" ]
-}
