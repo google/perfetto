@@ -521,6 +521,7 @@ void ValueAtMaxTsStep(sqlite3_context* ctx, int, sqlite3_value** argv) {
       return;
     }
 
+    fn_ctx->max_ts = std::numeric_limits<int64_t>::min();
     fn_ctx->initialized = true;
   }
 
@@ -539,7 +540,7 @@ void ValueAtMaxTsStep(sqlite3_context* ctx, int, sqlite3_value** argv) {
 #endif
 
   int64_t ts_int = sqlite3_value_int64(ts);
-  if (PERFETTO_LIKELY(fn_ctx->max_ts < ts_int)) {
+  if (PERFETTO_LIKELY(fn_ctx->max_ts <= ts_int)) {
     fn_ctx->max_ts = ts_int;
 
     if (fn_ctx->value_type == SQLITE_INTEGER) {
