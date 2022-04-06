@@ -53,7 +53,7 @@ template <>
 struct TraceTimestampTraits<uint64_t> {
   static inline TraceTimestamp ConvertTimestampToTraceTimeNs(
       const uint64_t& timestamp) {
-    return {internal::TrackEventInternal::GetClockId(), timestamp};
+    return {static_cast<uint32_t>(internal::TrackEventInternal::GetClockId()), timestamp};
   }
 };
 
