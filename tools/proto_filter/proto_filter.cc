@@ -226,7 +226,7 @@ int Main(int argc, char** argv) {
     }
     std::string oct_str;
     oct_str.reserve(filter_data.size() * 4 + 64);
-    oct_str.append("trace_filter{\n  bytecode: \"");
+    oct_str.append("trace_filter {\n  bytecode: \"");
     for (char c : filter_data) {
       uint8_t octect = static_cast<uint8_t>(c);
       char buf[5]{'\\', '0', '0', '0', 0};
