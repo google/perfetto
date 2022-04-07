@@ -169,6 +169,42 @@ TEST(CanProfileAndroidTest, UserProfileableFromShellWithInstallerOldPackages) {
                                  "user", tmp.path()));
 }
 
+TEST(CanProfileAndroidTest, UserProfileableAppSdkSandbox) {
+    DataSourceConfig ds_config;
+  ds_config.set_enable_extra_guardrails(false);
+  auto tmp = base::TempFile::Create();
+  constexpr char content[] =
+      "invalid.example.profileable 10001 0 "
+      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
+      "none 1 1\n";
+  base::WriteAll(tmp.fd(), content, sizeof(content));
+  EXPECT_TRUE(CanProfileAndroid(ds_config, 20001, {}, "user", tmp.path()));
+}
+
+TEST(CanProfileAndroidTest, UserNonProfileableAppSdkSandbox) {
+    DataSourceConfig ds_config;
+  ds_config.set_enable_extra_guardrails(false);
+  auto tmp = base::TempFile::Create();
+  constexpr char content[] =
+      "invalid.example.profileable 10001 0 "
+      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
+      "none 0 1\n";
+  base::WriteAll(tmp.fd(), content, sizeof(content));
+  EXPECT_FALSE(CanProfileAndroid(ds_config, 20001, {}, "user", tmp.path()));
+}
+
+TEST(CanProfileAndroidTest, UserDebuggableAppSdkSandbox) {
+  DataSourceConfig ds_config;
+  ds_config.set_enable_extra_guardrails(false);
+  auto tmp = base::TempFile::Create();
+  constexpr char content[] =
+      "invalid.example.profileable 10001 1 "
+      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
+      "none 0 1\n";
+  base::WriteAll(tmp.fd(), content, sizeof(content));
+  EXPECT_TRUE(CanProfileAndroid(ds_config, 20001, {}, "user", tmp.path()));
+}
+
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
