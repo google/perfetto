@@ -430,14 +430,17 @@ cpuMcycles%
 
 identifier (	R
 identifier
-º
-4protos/perfetto/metrics/android/network_metric.protoperfetto.protos"ð
+µ
+4protos/perfetto/metrics/android/network_metric.protoperfetto.protos"ë
 AndroidNetworkMetricP
 net_devices (2/.perfetto.protos.AndroidNetworkMetric.NetDeviceR
 netDevicesU
 net_rx_action (21.perfetto.protos.AndroidNetworkMetric.NetRxActionRnetRxAction/
 retransmission_rate (RretransmissionRate$
-kfree_skb_rate (RkfreeSkbRateü
+kfree_skb_rate (RkfreeSkbRateU
+net_tx_action (21.perfetto.protos.AndroidNetworkMetric.NetTxActionRnetTxActionN
+
+ipi_action (2/.perfetto.protos.AndroidNetworkMetric.IpiActionR	ipiActionü
 PacketStatistic
 packets (Rpackets
 bytes (Rbytes9
@@ -467,14 +470,35 @@ runtime_ms (R	runtimeMs$
 avg_runtime_ms (RavgRuntimeMs
 mcycles (Rmcycles 
 avg_freq_khz (R
-avgFreqKhz
+avgFreqKhz­
+NetTxActionStatistic
+count (Rcount
+
+runtime_ms (R	runtimeMs$
+avg_runtime_ms (RavgRuntimeMs
+mcycles (Rmcycles 
+avg_freq_khz (R
+avgFreqKhzo
+IpiActionStatistic
+count (Rcount
+
+runtime_ms (R	runtimeMs$
+avg_runtime_ms (RavgRuntimeMs
 CoreNetRxActionStatistic
 id (Ridq
-net_rx_action_statistic (2:.perfetto.protos.AndroidNetworkMetric.NetRxActionStatisticRnetRxActionStatisticî
+net_rx_action_statistic (2:.perfetto.protos.AndroidNetworkMetric.NetRxActionStatisticRnetRxActionStatistic
+CoreNetTxActionStatistic
+id (Ridq
+net_tx_action_statistic (2:.perfetto.protos.AndroidNetworkMetric.NetTxActionStatisticRnetTxActionStatisticî
 NetRxActionP
 total (2:.perfetto.protos.AndroidNetworkMetric.NetRxActionStatisticRtotalR
 core (2>.perfetto.protos.AndroidNetworkMetric.CoreNetRxActionStatisticRcore9
-avg_interstack_latency_ms (RavgInterstackLatencyMs
+avg_interstack_latency_ms (RavgInterstackLatencyMs³
+NetTxActionP
+total (2:.perfetto.protos.AndroidNetworkMetric.NetTxActionStatisticRtotalR
+core (2>.perfetto.protos.AndroidNetworkMetric.CoreNetTxActionStatisticRcore[
+	IpiActionN
+total (28.perfetto.protos.AndroidNetworkMetric.IpiActionStatisticRtotal
 •
 2protos/perfetto/metrics/android/other_traces.protoperfetto.protos"N
 AndroidOtherTracesMetric2

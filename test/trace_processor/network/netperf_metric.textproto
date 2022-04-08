@@ -88,6 +88,36 @@ packet {
         vec: 3
       }
     }
+    event {
+      timestamp: 100505000
+      pid: 200
+      irq_handler_entry {
+        irq: 1
+        name: "IPI"
+      }
+    }
+    event {
+      timestamp: 100515000
+      pid: 200
+      irq_handler_exit {
+        irq: 1
+        ret: 1
+      }
+    }
+    event {
+      timestamp: 100520000
+      pid: 200
+      softirq_entry {
+        vec: 2
+      }
+    }
+    event {
+      timestamp: 100540000
+      pid: 200
+      softirq_exit {
+        vec: 2
+      }
+    }
   }
 }
 
@@ -163,11 +193,41 @@ packet {
       }
     }
     event {
-     timestamp: 120500000
-     pid: 300
-     softirq_exit {
-       vec: 3
-     }
+      timestamp: 120500000
+      pid: 300
+      softirq_exit {
+        vec: 3
+      }
+    }
+    event {
+      timestamp: 120505000
+      pid: 200
+      irq_handler_entry {
+        irq: 1
+        name: "IPI"
+      }
+    }
+    event {
+      timestamp: 120515000
+      pid: 200
+      irq_handler_exit {
+        irq: 1
+        ret: 1
+      }
+    }
+    event {
+      timestamp: 120520000
+      pid: 200
+      softirq_entry {
+        vec: 2
+      }
+    }
+    event {
+      timestamp: 120540000
+      pid: 200
+      softirq_exit {
+        vec: 2
+      }
     }
   }
 }
@@ -237,11 +297,11 @@ packet {
       }
     }
     event {
-     timestamp: 140500000
-     pid: 400
-     softirq_exit {
-       vec: 3
-     }
+      timestamp: 140500000
+      pid: 400
+      softirq_exit {
+        vec: 3
+      }
     }
   }
 }
@@ -265,19 +325,19 @@ packet {
       }
     }
     event {
-     timestamp: 140000000
-     pid: 200
-     cpu_frequency {
-       cpu_id: 1
-       state: 1000000
-     }
+      timestamp: 140000000
+      pid: 200
+      cpu_frequency {
+        cpu_id: 1
+        state: 1000000
+      }
     }
     event {
-     timestamp: 140000000
-     pid: 500
-     softirq_entry {
-       vec: 3
-     }
+      timestamp: 140000000
+      pid: 500
+      softirq_entry {
+        vec: 3
+      }
     }
     event {
       timestamp: 140000000
@@ -296,11 +356,11 @@ packet {
       }
     }
     event {
-     timestamp: 140500000
-     pid: 500
-     softirq_exit {
-       vec: 3
-     }
+      timestamp: 140500000
+      pid: 500
+      softirq_exit {
+        vec: 3
+      }
     }
   }
 }
