@@ -53,10 +53,12 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
                        const std::string& build_type,
                        const std::string& packages_list_path) {
   // These are replicated constants from libcutils android_filesystem_config.h
-  constexpr auto kAidAppStart = 10000;     // AID_APP_START
-  constexpr auto kAidAppEnd = 19999;       // AID_APP_END
-  constexpr auto kAidUserOffset = 100000;  // AID_USER_OFFSET
-  constexpr auto kAidSystem = 1000;        // AID_SYSTEM
+  constexpr auto kAidAppStart = 10000;        // AID_APP_START
+  constexpr auto kAidAppEnd = 19999;          // AID_APP_END
+  constexpr auto kAidUserOffset = 100000;     // AID_USER_OFFSET
+  constexpr auto kAidSystem = 1000;           // AID_SYSTEM
+  constexpr auto kAidSdkSandboxStart = 20000; // AID_SDK_SANDBOX_PROCESS_START
+  constexpr auto kAidSdkSandboxEnd = 29999;   // AID_SDK_SANDBOX_PROCESS_END
 
   if (!build_type.empty() && build_type != "user") {
     return true;
@@ -69,10 +71,21 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
   }
 
   uint64_t uid_without_profile = uid % kAidUserOffset;
-  if (uid_without_profile < kAidAppStart || kAidAppEnd < uid_without_profile) {
+  uint64_t uid_for_lookup = 0;
+
+  if (uid_without_profile >= kAidAppStart &&
+      uid_without_profile <= kAidAppEnd) {
+    uid_for_lookup = uid_without_profile;
+  } else if (uid_without_profile >= kAidSdkSandboxStart &&
+             uid_without_profile <= kAidSdkSandboxEnd) {
+    // Map SDK sandbox process to corresponding app
+    uint64_t sdk_sandbox_offset = kAidSdkSandboxStart - kAidAppStart;
+    uid_for_lookup = uid_without_profile - sdk_sandbox_offset;
+  } else {
     // TODO(fmayer): relax this.
     return false;  // no native services on user.
   }
+
 
   std::string content;
   if (!base::ReadFile(packages_list_path, &content)) {
@@ -85,7 +98,7 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
       PERFETTO_ELOG("Failed to parse packages.list.");
       return false;
     }
-    if (pkg.uid != uid_without_profile)
+    if (pkg.uid != uid_for_lookup)
       continue;
     if (!installed_by.empty()) {
       if (pkg.installed_by.empty()) {
