@@ -40,11 +40,11 @@ def main():
   if args.address is None and args.file is None:
     raise Exception("You must specify an address or a file path to trace")
   elif args.address is None:
-    tp = TraceProcessor(trace=args.file, config=config)
+    tp = TraceProcessor(file_path=args.file, config=config)
   elif args.file is None:
     tp = TraceProcessor(addr=args.address, config=config)
   else:
-    tp = TraceProcessor(trace=args.file, addr=args.address, config=config)
+    tp = TraceProcessor(file_path=args.file, addr=args.address, config=config)
 
   # Iterate through QueryResultIterator
   res_it = tp.query('select * from slice limit 10')
