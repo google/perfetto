@@ -8,6 +8,7 @@ android_lmk.py android_lmk android_mem_lmk.out
 android_systrace_lmk.py android_lmk android_mem_lmk.out
 android_lmk_reason.py android_lmk_reason android_lmk_reason.out
 ../common/oom_kill.textproto android_lmk android_lmk_oom.out
+android_mem_delta.py android_mem android_mem_delta.out
 
 # ION metric
 android_ion.py android_ion android_ion.out
