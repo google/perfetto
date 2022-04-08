@@ -657,7 +657,11 @@ button.query-ctrl {
     }
   }
   .track-content {
-    @include track_shell_title();
+    display: grid;
+    span {
+      @include track_shell_title();
+      align-self: center;
+    }
   }
 }
 

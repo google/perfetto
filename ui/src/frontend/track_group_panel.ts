@@ -106,10 +106,10 @@ export class TrackGroupPanel extends Panel<Attrs> {
       }
     }
 
-    let child = '';
+    let child = null;
     if (this.summaryTrackState.labels &&
         this.summaryTrackState.labels.length > 0) {
-      child = this.summaryTrackState.labels.join(', ');
+      child = m('span', this.summaryTrackState.labels.join(', '));
     }
 
     return m(
