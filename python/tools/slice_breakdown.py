@@ -27,7 +27,7 @@ from perfetto.trace_processor import TraceProcessorConfig
 
 def compute_breakdown_wrapper(args):
   config = TraceProcessorConfig(bin_path=args.shell_path, verbose=args.verbose)
-  with TraceProcessor(trace=args.file, config=config) as tp:
+  with TraceProcessor(file_path=args.file, config=config) as tp:
     if args.startup_bounds:
       breakdown = compute_breakdown_for_startup(tp, args.startup_package,
                                                 args.process_name)
