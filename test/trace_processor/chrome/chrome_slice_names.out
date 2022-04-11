@@ -1,0 +1,5 @@
+[perfetto.protos.chrome_slice_names]: {
+  chrome_version_code: 123
+  slice_name: "Looper.Dispatch: class1"
+  slice_name: "name2"
+}
