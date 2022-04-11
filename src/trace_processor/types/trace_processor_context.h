@@ -44,6 +44,7 @@ class MetadataTracker;
 class ProtoImporterModule;
 class ProcessTracker;
 class SliceTracker;
+class SliceTranslationTable;
 class FlowTracker;
 class TraceParser;
 class TraceSorter;
@@ -73,6 +74,7 @@ class TraceProcessorContext {
   std::unique_ptr<TrackTracker> track_tracker;
   std::unique_ptr<AsyncTrackSetTracker> async_track_set_tracker;
   std::unique_ptr<SliceTracker> slice_tracker;
+  std::unique_ptr<SliceTranslationTable> slice_translation_table;
   std::unique_ptr<FlowTracker> flow_tracker;
   std::unique_ptr<ProcessTracker> process_tracker;
   std::unique_ptr<EventTracker> event_tracker;
