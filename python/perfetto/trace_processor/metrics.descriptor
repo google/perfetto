@@ -373,8 +373,8 @@ swap_bytes (R	swapBytes—
 ion_heaps_bytes (RionHeapsBytes/
 system_ion_heap_size (RsystemIonHeapSizeM
 	processes (2/.perfetto.protos.AndroidLmkReasonMetric.ProcessR	processes
-è
-0protos/perfetto/metrics/android/mem_metric.protoperfetto.protos"…
+•
+0protos/perfetto/metrics/android/mem_metric.protoperfetto.protos"ﬂ
 AndroidMemoryMetric\
 process_metrics (23.perfetto.protos.AndroidMemoryMetric.ProcessMetricsRprocessMetrics˝
 ProcessMetrics!
@@ -389,11 +389,12 @@ swap_bytes (R	swapBytes—
 file_rss (2,.perfetto.protos.AndroidMemoryMetric.CounterRfileRss@
 swap (2,.perfetto.protos.AndroidMemoryMetric.CounterRswapP
 anon_and_swap (2,.perfetto.protos.AndroidMemoryMetric.CounterRanonAndSwapI
-	java_heap (2,.perfetto.protos.AndroidMemoryMetric.CounterRjavaHeap?
+	java_heap (2,.perfetto.protos.AndroidMemoryMetric.CounterRjavaHeapU
 Counter
 min (Rmin
 max (Rmax
-avg (Ravg
+avg (Ravg
+delta (Rdelta
 †
 6protos/perfetto/metrics/android/mem_unagg_metric.protoperfetto.protos"‘
 AndroidMemoryUnaggregatedMetrice
