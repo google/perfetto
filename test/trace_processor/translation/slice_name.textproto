@@ -1,0 +1,35 @@
+packet {
+  translation_table {
+    slice_name {
+      raw_to_deobfuscated_name { key: "raw_name1" value: "mapped_name1" }
+      raw_to_deobfuscated_name { key: "raw_name2" value: "mapped_name2" }
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  track_event {
+    categories: "cat"
+    name: "raw_name1"
+    type: 3
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2000
+  track_event {
+    categories: "cat"
+    name: "raw_name2"
+    type: 3
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 3000
+  track_event {
+    categories: "cat"
+    name: "raw_name3"
+    type: 3
+  }
+}
