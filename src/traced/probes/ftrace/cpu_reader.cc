@@ -410,10 +410,10 @@ size_t CpuReader::ProcessPagesForDataSource(
       bundle->set_lost_events(true);
   };
 
-  size_t correctly_parsed_pages = pages_read;
   start_new_packet(/*lost_events=*/false);
-  for (size_t i = 0; i < pages_read; i++) {
-    const uint8_t* curr_page = parsing_buf + (i * base::kPageSize);
+  size_t pages_parsed = 0;
+  for (; pages_parsed < pages_read; pages_parsed++) {
+    const uint8_t* curr_page = parsing_buf + (pages_parsed * base::kPageSize);
     const uint8_t* curr_page_end = curr_page + base::kPageSize;
     const uint8_t* parse_pos = curr_page;
     base::Optional<PageHeader> page_header =
@@ -422,7 +422,7 @@ size_t CpuReader::ProcessPagesForDataSource(
     if (!page_header.has_value() || page_header->size == 0 ||
         parse_pos >= curr_page_end ||
         parse_pos + page_header->size > curr_page_end) {
-      return i;
+      break;
     }
 
     // Start a new bundle if either:
@@ -445,16 +445,12 @@ size_t CpuReader::ProcessPagesForDataSource(
                          &compact_sched, bundle, metadata);
 
     if (evt_size != page_header->size) {
-      // TODO(ddiproietto,rsavitski): Consider returning early here instead, to
-      // improve readability.
-      if (correctly_parsed_pages == pages_read) {
-        correctly_parsed_pages = i;
-      }
+      break;
     }
   }
   finalize_cur_packet();
 
-  return correctly_parsed_pages;
+  return pages_parsed;
 }
 
 // A page header consists of:
