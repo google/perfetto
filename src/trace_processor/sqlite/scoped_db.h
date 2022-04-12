@@ -37,6 +37,13 @@ using ScopedStmt = base::ScopedResource<sqlite3_stmt*,
                                         nullptr,
                                         /*CheckClose=*/false>;
 
+inline int FreeSqliteString(char* ptr) {
+  sqlite3_free(ptr);
+  return 0;
+}
+using ScopedSqliteString =
+    base::ScopedResource<char*, FreeSqliteString, nullptr>;
+
 }  // namespace trace_processor
 }  // namespace perfetto
 
