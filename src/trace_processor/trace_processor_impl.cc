@@ -48,6 +48,7 @@
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/sqlite/create_function.h"
+#include "src/trace_processor/sqlite/create_view_function.h"
 #include "src/trace_processor/sqlite/register_function.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/span_join_operator_table.h"
@@ -890,6 +891,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       db, "CREATE_FUNCTION", 3,
       std::unique_ptr<CreateFunction::Context>(
           new CreateFunction::Context{db_.get(), &create_function_state_}));
+  RegisterFunction<CreateViewFunction>(
+      db, "CREATE_VIEW_FUNCTION", 3,
+      std::unique_ptr<CreateViewFunction::Context>(
+          new CreateViewFunction::Context{db_.get()}));
 
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
@@ -910,6 +915,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // Operator tables.
   SpanJoinOperatorTable::RegisterTable(*db_, storage);
   WindowOperatorTable::RegisterTable(*db_, storage);
+  CreateViewFunction::RegisterTable(*db_, &create_view_function_state_);
 
   // New style tables but with some custom logic.
   SqliteRawTable::RegisterTable(*db_, query_cache_.get(), &context_);
