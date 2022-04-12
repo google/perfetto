@@ -212,6 +212,50 @@ FROM launches
 JOIN slice ON IS_TS_IN_RANGE(slice.ts, launches.ts, launches.end_ts)
 ```
 
+### CREATE_VIEW_FUNCTION.
+Similar to `CREATE_FUNCTION`, `CREATE_VIEW_FUNCTION` can be used to
+define a parameterized SQL statement but returning multiple rows and
+columns. Such functions can be invoked any place where a table or
+view is used.
+
+Usage of `CREATE_VIEW_FUNCTION` is as follows:
+```sql
+-- First, we define the view function we'll use in the following
+-- statement.
+SELECT CREATE_VIEW_FUNCTION(
+  -- First argument: prototype of the function; this is very similar to
+  -- function definitions in other languages - you set the function name
+  -- (NAMED_SLICE_IN_RANGE in this example) and the arguments
+  -- (name_glob, begin_ts and end_ts) along with their types (STRING and
+  -- LONG for arguments here).
+  'NAMED_SLICE_IN_RANGE(name_glob STRING, begin_ts LONG, end_ts LONG)',
+  -- Second argument: the columns returned by the function; both the
+  -- name and type is specified.
+  'id INT, ts LONG, ts_end LONG, name STRING, track_id STRING',
+  -- Third argument: the SQL body of the function. This should always be a
+  -- SELECT statement. Arguments can be accessed by prefixing argument names
+  -- with $ (e.g. $ts, $begin_ts, $end_ts).
+  'SELECT id, ts, ts + dur as ts_end, name, track_id
+   FROM slice
+   WHERE name GLOB $name_glob AND ts >= $begin_ts and ts <= $end_ts'
+);
+
+-- Now we can use the function in queries in the same way we'd query a
+-- table or view.
+SELECT id, ts, ts_end, name
+FROM NAMED_SLICE_IN_RANGE('launching:*', 12345, 67890);
+
+-- This is exactly equivalent to the query:
+SELECT id, ts, ts + dur as ts_end, name
+FROM slice
+WHERE name GLOB 'launching:*' AND ts >= 12345 AND ts <= 67890;
+
+-- View functions can also be used in joins.
+SELECT sl.id, sl.ts, sl.ts_end, sl.name
+FROM trace_bounds AS b
+JOIN NAMED_SLICE_IN_RANGE('launching:*', b.start_ts, b.end_ts) AS sl;
+```
+
 ### RUN_METRIC
 `RUN_METRIC` allows you to run another metric file. This allows you to use views
 or tables defined in that file without repeatition.
