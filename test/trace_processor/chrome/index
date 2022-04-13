@@ -60,3 +60,9 @@ chrome_histogram_hashes.textproto chrome_histogram_hashes chrome_histogram_hashe
 
 # Chrome user events
 chrome_user_event_hashes.textproto chrome_user_event_hashes chrome_user_event_hashes.out
+
+# Chrome performance mark
+chrome_performance_mark_hashes.textproto chrome_performance_mark_hashes chrome_performance_mark_hashes.out
+
+# Chrome slices
+chrome_slice_names.textproto chrome_slice_names chrome_slice_names.out

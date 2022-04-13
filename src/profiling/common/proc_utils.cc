@@ -24,7 +24,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/profiling/normalize.h"
+#include "src/profiling/common/proc_cmdline.h"
 
 namespace perfetto {
 namespace profiling {
@@ -46,6 +46,105 @@ base::Optional<uint32_t> ParseProcStatusSize(const std::string& status,
   return static_cast<uint32_t>(val);
 }
 }  // namespace
+
+base::Optional<std::string> ReadStatus(pid_t pid) {
+  std::string path = "/proc/" + std::to_string(pid) + "/status";
+  std::string status;
+  bool read_proc = base::ReadFile(path, &status);
+  if (!read_proc) {
+    PERFETTO_ELOG("Failed to read %s", path.c_str());
+    return base::nullopt;
+  }
+  return base::Optional<std::string>(status);
+}
+
+base::Optional<uint32_t> GetRssAnonAndSwap(const std::string& status) {
+  auto anon_rss = ParseProcStatusSize(status, "RssAnon:");
+  auto swap = ParseProcStatusSize(status, "VmSwap:");
+  if (anon_rss.has_value() && swap.has_value()) {
+    return *anon_rss + *swap;
+  }
+  return base::nullopt;
+}
+
+void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids) {
+  for (auto it = pids->begin(); it != pids->end();) {
+    const pid_t pid = *it;
+
+    base::Optional<std::string> status = ReadStatus(pid);
+    base::Optional<uint32_t> rss_and_swap;
+    if (status)
+      rss_and_swap = GetRssAnonAndSwap(*status);
+
+    if (rss_and_swap && rss_and_swap < min_size_kb) {
+      PERFETTO_LOG("Removing pid %d from profiled set (anon: %d kB < %" PRIu32
+                   ")",
+                   pid, *rss_and_swap, min_size_kb);
+      it = pids->erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+base::Optional<Uids> GetUids(const std::string& status) {
+  auto entry_idx = status.find("Uid:");
+  if (entry_idx == std::string::npos)
+    return base::nullopt;
+
+  Uids uids;
+  const char* str = &status[entry_idx + 4];
+  char* endptr;
+
+  uids.real = strtoull(str, &endptr, 10);
+  if (*endptr != ' ' && *endptr != '\t')
+    return base::nullopt;
+
+  str = endptr;
+  uids.effective = strtoull(str, &endptr, 10);
+  if (*endptr != ' ' && *endptr != '\t')
+    return base::nullopt;
+
+  str = endptr;
+  uids.saved_set = strtoull(str, &endptr, 10);
+  if (*endptr != ' ' && *endptr != '\t')
+    return base::nullopt;
+
+  str = endptr;
+  uids.filesystem = strtoull(str, &endptr, 10);
+  if (*endptr != '\n' && *endptr != '\0')
+    return base::nullopt;
+  return uids;
+}
+
+// Normalize cmdline in place. Stores new beginning of string in *cmdline_ptr.
+// Returns new size of string (from new beginning).
+// Modifies string in *cmdline_ptr.
+ssize_t NormalizeCmdLine(char** cmdline_ptr, size_t size) {
+  char* cmdline = *cmdline_ptr;
+  char* first_arg = static_cast<char*>(memchr(cmdline, '\0', size));
+  if (first_arg == nullptr) {
+    errno = EOVERFLOW;
+    return -1;
+  }
+  // For consistency with what we do with Java app cmdlines, trim everything
+  // after the @ sign of the first arg.
+  char* first_at = static_cast<char*>(memchr(cmdline, '@', size));
+  if (first_at != nullptr && first_at < first_arg) {
+    *first_at = '\0';
+    first_arg = first_at;
+  }
+  char* start = static_cast<char*>(
+      memrchr(cmdline, '/', static_cast<size_t>(first_arg - cmdline)));
+  if (start == nullptr) {
+    start = cmdline;
+  } else {
+    // Skip the /.
+    start++;
+  }
+  *cmdline_ptr = start;
+  return first_arg - start;
+}
 
 base::Optional<std::vector<std::string>> NormalizeCmdlines(
     const std::vector<std::string>& cmdlines) {
@@ -142,75 +241,27 @@ void FindPidsForCmdlines(const std::vector<std::string>& cmdlines,
   });
 }
 
-base::Optional<std::string> ReadStatus(pid_t pid) {
-  std::string path = "/proc/" + std::to_string(pid) + "/status";
-  std::string status;
-  bool read_proc = base::ReadFile(path, &status);
-  if (!read_proc) {
-    PERFETTO_ELOG("Failed to read %s", path.c_str());
-    return base::nullopt;
-  }
-  return base::Optional<std::string>(status);
-}
+namespace glob_aware {
+void FindPidsForCmdlinePatterns(const std::vector<std::string>& patterns,
+                                std::set<pid_t>* pids) {
+  ForEachPid([&patterns, pids](pid_t pid) {
+    if (pid == getpid())
+      return;
+    std::string cmdline;
+    if (!glob_aware::ReadProcCmdlineForPID(pid, &cmdline))
+      return;
+    const char* binname =
+        glob_aware::FindBinaryName(cmdline.c_str(), cmdline.size());
 
-base::Optional<uint32_t> GetRssAnonAndSwap(const std::string& status) {
-  auto anon_rss = ParseProcStatusSize(status, "RssAnon:");
-  auto swap = ParseProcStatusSize(status, "VmSwap:");
-  if (anon_rss.has_value() && swap.has_value()) {
-    return *anon_rss + *swap;
-  }
-  return base::nullopt;
-}
-
-void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids) {
-  for (auto it = pids->begin(); it != pids->end();) {
-    const pid_t pid = *it;
-
-    base::Optional<std::string> status = ReadStatus(pid);
-    base::Optional<uint32_t> rss_and_swap;
-    if (status)
-      rss_and_swap = GetRssAnonAndSwap(*status);
-
-    if (rss_and_swap && rss_and_swap < min_size_kb) {
-      PERFETTO_LOG("Removing pid %d from profiled set (anon: %d kB < %" PRIu32
-                   ")",
-                   pid, *rss_and_swap, min_size_kb);
-      it = pids->erase(it);
-    } else {
-      ++it;
+    for (const std::string& pattern : patterns) {
+      if (glob_aware::MatchGlobPattern(pattern.c_str(), cmdline.c_str(),
+                                       binname)) {
+        pids->insert(pid);
+      }
     }
-  }
+  });
 }
-
-base::Optional<Uids> GetUids(const std::string& status) {
-  auto entry_idx = status.find("Uid:");
-  if (entry_idx == std::string::npos)
-    return base::nullopt;
-
-  Uids uids;
-  const char* str = &status[entry_idx + 4];
-  char* endptr;
-
-  uids.real = strtoull(str, &endptr, 10);
-  if (*endptr != ' ' && *endptr != '\t')
-    return base::nullopt;
-
-  str = endptr;
-  uids.effective = strtoull(str, &endptr, 10);
-  if (*endptr != ' ' && *endptr != '\t')
-    return base::nullopt;
-
-  str = endptr;
-  uids.saved_set = strtoull(str, &endptr, 10);
-  if (*endptr != ' ' && *endptr != '\t')
-    return base::nullopt;
-
-  str = endptr;
-  uids.filesystem = strtoull(str, &endptr, 10);
-  if (*endptr != '\n' && *endptr != '\0')
-    return base::nullopt;
-  return uids;
-}
+}  // namespace glob_aware
 
 }  // namespace profiling
 }  // namespace perfetto

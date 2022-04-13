@@ -98,11 +98,13 @@ struct TrackEventTlsState {
   explicit TrackEventTlsState(const TraceContext& trace_context) {
     auto locked_ds = trace_context.GetDataSourceLocked();
     if (locked_ds.valid()) {
-      disable_incremental_timestamps =
-          locked_ds->GetConfig().disable_incremental_timestamps();
+      const auto& config = locked_ds->GetConfig();
+      disable_incremental_timestamps = config.disable_incremental_timestamps();
+      filter_debug_annotations = config.filter_debug_annotations();
     }
   }
   bool disable_incremental_timestamps = false;
+  bool filter_debug_annotations = false;
 };
 
 struct TrackEventIncrementalState {

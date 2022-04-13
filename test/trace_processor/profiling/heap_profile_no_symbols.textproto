@@ -52,3 +52,58 @@ packet {
     }
   }
 }
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 11
+  profile_packet {
+    strings {
+      iid: 1
+      str: "f1"
+    }
+    strings {
+      iid: 2
+      str: "f2"
+    }
+    strings {
+      iid: 4
+      str: "libmonochrome_64.so"
+    }
+    strings {
+      iid: 5
+      str: "\x7f\x07\x15\xc2\x86\xf8\xb1\x6c\x10\xe4\xad\x34\x9c\xda\x3b\x9b\x56\xc7\xa7\x73"
+    }
+    frames {
+      iid: 1
+      function_name_id: 1
+      mapping_id: 1
+      rel_pc: 0x1000
+    }
+    frames {
+      iid: 2
+      function_name_id: 2
+      mapping_id: 1
+      rel_pc: 0x2000
+    }
+    callstacks {
+      iid: 1
+      frame_ids: 1
+      frame_ids: 2
+    }
+    mappings {
+      iid: 1
+      path_string_ids: 4
+      build_id: 5
+    }
+    process_dumps {
+      pid: 2
+      samples {
+        callstack_id: 1
+        self_allocated: 2000
+        self_freed: 1000
+        alloc_count: 2
+        free_count: 1
+      }
+    }
+  }
+}
+

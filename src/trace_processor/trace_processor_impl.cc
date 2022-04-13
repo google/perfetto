@@ -48,6 +48,7 @@
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/sqlite/create_function.h"
+#include "src/trace_processor/sqlite/create_view_function.h"
 #include "src/trace_processor/sqlite/register_function.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/span_join_operator_table.h"
@@ -521,6 +522,7 @@ void ValueAtMaxTsStep(sqlite3_context* ctx, int, sqlite3_value** argv) {
       return;
     }
 
+    fn_ctx->max_ts = std::numeric_limits<int64_t>::min();
     fn_ctx->initialized = true;
   }
 
@@ -539,7 +541,7 @@ void ValueAtMaxTsStep(sqlite3_context* ctx, int, sqlite3_value** argv) {
 #endif
 
   int64_t ts_int = sqlite3_value_int64(ts);
-  if (PERFETTO_LIKELY(fn_ctx->max_ts < ts_int)) {
+  if (PERFETTO_LIKELY(fn_ctx->max_ts <= ts_int)) {
     fn_ctx->max_ts = ts_int;
 
     if (fn_ctx->value_type == SQLITE_INTEGER) {
@@ -889,6 +891,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       db, "CREATE_FUNCTION", 3,
       std::unique_ptr<CreateFunction::Context>(
           new CreateFunction::Context{db_.get(), &create_function_state_}));
+  RegisterFunction<CreateViewFunction>(
+      db, "CREATE_VIEW_FUNCTION", 3,
+      std::unique_ptr<CreateViewFunction::Context>(
+          new CreateViewFunction::Context{db_.get()}));
 
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
@@ -909,6 +915,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // Operator tables.
   SpanJoinOperatorTable::RegisterTable(*db_, storage);
   WindowOperatorTable::RegisterTable(*db_, storage);
+  CreateViewFunction::RegisterTable(*db_, &create_view_function_state_);
 
   // New style tables but with some custom logic.
   SqliteRawTable::RegisterTable(*db_, query_cache_.get(), &context_);
@@ -1201,15 +1208,16 @@ base::Status TraceProcessorImpl::ExtendMetricsProto(
   if (!status.ok())
     return status;
 
-  for (const auto& desc : pool_.descriptors()) {
+  for (uint32_t i = 0; i < pool_.descriptors().size(); ++i) {
     // Convert the full name (e.g. .perfetto.protos.TraceMetrics.SubMetric)
     // into a function name of the form (TraceMetrics_SubMetric).
+    const auto& desc = pool_.descriptors()[i];
     auto fn_name = desc.full_name().substr(desc.package_name().size() + 1);
     std::replace(fn_name.begin(), fn_name.end(), '.', '_');
     RegisterFunction<metrics::BuildProto>(
         db_.get(), fn_name.c_str(), -1,
         std::unique_ptr<metrics::BuildProto::Context>(
-            new metrics::BuildProto::Context{this, &pool_, &desc}));
+            new metrics::BuildProto::Context{this, &pool_, i}));
   }
   return base::OkStatus();
 }
