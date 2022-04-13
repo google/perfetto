@@ -1202,15 +1202,16 @@ base::Status TraceProcessorImpl::ExtendMetricsProto(
   if (!status.ok())
     return status;
 
-  for (const auto& desc : pool_.descriptors()) {
+  for (uint32_t i = 0; i < pool_.descriptors().size(); ++i) {
     // Convert the full name (e.g. .perfetto.protos.TraceMetrics.SubMetric)
     // into a function name of the form (TraceMetrics_SubMetric).
+    const auto& desc = pool_.descriptors()[i];
     auto fn_name = desc.full_name().substr(desc.package_name().size() + 1);
     std::replace(fn_name.begin(), fn_name.end(), '.', '_');
     RegisterFunction<metrics::BuildProto>(
         db_.get(), fn_name.c_str(), -1,
         std::unique_ptr<metrics::BuildProto::Context>(
-            new metrics::BuildProto::Context{this, &pool_, &desc}));
+            new metrics::BuildProto::Context{this, &pool_, i}));
   }
   return base::OkStatus();
 }
