@@ -189,12 +189,12 @@ export class FlowEventsController extends Controller<'main'> {
     from ${connectedFlows} f
     join slice t1 on f.slice_out = t1.slice_id
     join slice t2 on f.slice_in = t2.slice_id
-    join thread_track track_out on track_out.id = t1.track_id
-    join thread thread_out on thread_out.utid = track_out.utid
-    join thread_track track_in on track_in.id = t2.track_id
-    join thread thread_in on thread_in.utid = track_in.utid
-    join process process_out on process_out.upid = thread_out.upid
-    join process process_in on process_in.upid = thread_in.upid
+    left join thread_track track_out on track_out.id = t1.track_id
+    left join thread thread_out on thread_out.utid = track_out.utid
+    left join thread_track track_in on track_in.id = t2.track_id
+    left join thread thread_in on thread_in.utid = track_in.utid
+    left join process process_out on process_out.upid = thread_out.upid
+    left join process process_in on process_in.upid = thread_in.upid
     `;
     this.queryFlowEvents(
         query, (flows: Flow[]) => publishConnectedFlows(flows));
