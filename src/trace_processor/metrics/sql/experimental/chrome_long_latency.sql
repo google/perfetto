@@ -47,7 +47,7 @@ DROP VIEW IF EXISTS long_latency_with_process_info;
 CREATE VIEW long_latency_with_process_info AS
 SELECT
   long_latency_with_upid.ts,
-  long_latency_with_upid.event_type,
+  GROUP_CONCAT(DISTINCT long_latency_with_upid.event_type) AS event_type,
   process.name AS process_name,
   process.pid AS process_id
 FROM long_latency_with_upid
