@@ -23,7 +23,6 @@
 
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
-#include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/metatrace.h"
@@ -55,10 +54,6 @@ namespace {
 // was provided in the config. The cache is trimmed if it exceeds this size.
 const size_t kThreadTimeInStateCacheSize = 10000;
 
-// TODO(b/189749310): For debugging of b/189749310. Remove by Jan 2022.
-base::CrashKey g_crash_key_proc_file("proc_file");
-base::CrashKey g_crash_key_proc_count("proc_count");
-
 int32_t ReadNextNumericDir(DIR* dirp) {
   while (struct dirent* dir_ent = readdir(dirp)) {
     if (dir_ent->d_type != DT_DIR)
@@ -84,6 +79,7 @@ inline uint32_t ToU32(const char* str) {
 const ProbesDataSource::Descriptor ProcessStatsDataSource::descriptor = {
     /*name*/ "linux.process_stats",
     /*flags*/ Descriptor::kHandlesIncrementalState,
+    /*fill_descriptor_func*/ nullptr,
 };
 
 ProcessStatsDataSource::ProcessStatsDataSource(
@@ -227,10 +223,16 @@ void ProcessStatsDataSource::WriteProcessOrThread(int32_t pid) {
   if (proc_status.empty())
     return;
   int tgid = ToInt(ReadProcStatusEntry(proc_status, "Tgid:"));
-  if (tgid <= 0)
+  int tid = ToInt(ReadProcStatusEntry(proc_status, "Pid:"));
+  if (tgid <= 0 || tid <= 0)
     return;
-  if (!seen_pids_.count(tgid))
-    WriteProcess(tgid, proc_status);
+
+  if (!seen_pids_.count(tgid)) {
+    // We need to read the status file if |pid| is non-main thread.
+    const std::string& proc_status_tgid =
+        (tgid == tid ? proc_status : ReadProcPidFile(tgid, "status"));
+    WriteProcess(tgid, proc_status_tgid);
+  }
   if (pid != tgid) {
     PERFETTO_DCHECK(!seen_pids_.count(pid));
     std::string thread_name;
@@ -273,6 +275,8 @@ void ProcessStatsDataSource::ReadNamespacedTids(int32_t tid,
 void ProcessStatsDataSource::WriteProcess(int32_t pid,
                                           const std::string& proc_status) {
   PERFETTO_DCHECK(ToInt(ReadProcStatusEntry(proc_status, "Tgid:")) == pid);
+  // Assert that |proc_status| is not for a non-main thread.
+  PERFETTO_DCHECK(ToInt(ReadProcStatusEntry(proc_status, "Pid:")) == pid);
   auto* proc = GetOrCreatePsTree()->add_processes();
   proc->set_pid(pid);
   proc->set_ppid(ToInt(ReadProcStatusEntry(proc_status, "PPid:")));
@@ -335,8 +339,6 @@ base::ScopedDir ProcessStatsDataSource::OpenProcDir() {
 std::string ProcessStatsDataSource::ReadProcPidFile(int32_t pid,
                                                     const std::string& file) {
   base::StackString<128> path("/proc/%" PRId32 "/%s", pid, file.c_str());
-  auto scoped_key = g_crash_key_proc_file.SetScoped(path.string_view());
-  g_crash_key_proc_count.Set(g_crash_key_proc_count.int_value() + 1);
   std::string contents;
   contents.reserve(4096);
   if (!base::ReadFile(path.c_str(), &contents))
@@ -424,7 +426,6 @@ void ProcessStatsDataSource::Tick(
     base::WeakPtr<ProcessStatsDataSource> weak_this) {
   if (!weak_this)
     return;
-  g_crash_key_proc_count.Clear();
   ProcessStatsDataSource& thiz = *weak_this;
   uint32_t period_ms = thiz.poll_period_ms_;
   uint32_t delay_ms =

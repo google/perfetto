@@ -16,6 +16,7 @@ import * as m from 'mithril';
 import {QueryResponse} from 'src/common/queries';
 
 import {Actions} from '../common/actions';
+import {isEmptyData} from '../common/aggregation_data';
 import {LogExists, LogExistsKey} from '../common/logs';
 import {DEFAULT_PIVOT_TABLE_ID} from '../common/pivot_table_common';
 
@@ -37,6 +38,7 @@ import {AnyAttrsVnode, PanelContainer} from './panel_container';
 import {PivotTable} from './pivot_table';
 import {ColumnDisplay, ColumnPicker} from './pivot_table_editor';
 import {PivotTableHelper} from './pivot_table_helper';
+import {PivotTableRedux} from './pivot_table_redux';
 import {QueryTable} from './query_table';
 import {SliceDetailsPanel} from './slice_details_panel';
 import {ThreadStatePanel} from './thread_state_panel';
@@ -44,7 +46,7 @@ import {ThreadStatePanel} from './thread_state_panel';
 const UP_ICON = 'keyboard_arrow_up';
 const DOWN_ICON = 'keyboard_arrow_down';
 const DRAG_HANDLE_HEIGHT_PX = 28;
-const DEFAULT_DETAILS_HEIGHT_PX = 230 + DRAG_HANDLE_HEIGHT_PX;
+const DEFAULT_DETAILS_HEIGHT_PX = 280 + DRAG_HANDLE_HEIGHT_PX;
 
 function getFullScreenHeight() {
   const panelContainer =
@@ -102,6 +104,7 @@ interface DragHandleAttrs {
   height: number;
   resize: (height: number) => void;
   tabs: Tab[];
+  currentTabKey?: string;
 }
 
 class DragHandle implements m.ClassComponent<DragHandleAttrs> {
@@ -151,17 +154,8 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   view({attrs}: m.CVnode<DragHandleAttrs>) {
     const icon = this.isClosed ? UP_ICON : DOWN_ICON;
     const title = this.isClosed ? 'Show panel' : 'Hide panel';
-    const activeTabExists = globals.state.currentTab &&
-        attrs.tabs.map(tab => tab.key).includes(globals.state.currentTab);
-    if (!activeTabExists) {
-      globals.dispatch(Actions.setCurrentTab({tab: undefined}));
-    }
     const renderTab = (tab: Tab) => {
-      if (globals.state.currentTab === tab.key ||
-          globals.state.currentTab === undefined &&
-              attrs.tabs[0].key === tab.key) {
-        // Update currentTab in case we didn't have one before.
-        globals.dispatch(Actions.setCurrentTab({tab: tab.key}));
+      if (attrs.currentTabKey === tab.key) {
         return m('.tab[active]', tab.name);
       }
       return m(
@@ -326,6 +320,17 @@ export class DetailsPanel implements m.ClassComponent {
       });
     }
 
+    if (globals.state.pivotTableRedux.selectionArea !== null) {
+      detailsPanels.push({
+        key: 'pivot_table_redux',
+        name: 'Pivot Table',
+        vnode: m(PivotTableRedux, {
+          key: 'pivot_table_redux',
+          selectionArea: globals.state.pivotTableRedux.selectionArea
+        })
+      });
+    }
+
     for (const pivotTableId of Object.keys(globals.state.pivotTable)) {
       const pivotTable = globals.state.pivotTable[pivotTableId];
       const helper = globals.pivotTableHelper.get(pivotTableId);
@@ -353,7 +358,7 @@ export class DetailsPanel implements m.ClassComponent {
     }
 
     for (const [key, value] of globals.aggregateDataStore.entries()) {
-      if (value.columns.length > 0 && value.columns[0].data.length > 0) {
+      if (!isEmptyData(value)) {
         detailsPanels.push({
           key: value.tabName,
           name: value.tabName,
@@ -367,16 +372,17 @@ export class DetailsPanel implements m.ClassComponent {
       detailsPanels.push({
         key: 'selected_flows',
         name: 'Flow Events',
-        vnode: m(FlowEventsAreaSelectedPanel)
+        vnode: m(FlowEventsAreaSelectedPanel, {key: 'flow_events_area'})
       });
     }
 
-    const currentTabDetails =
-        detailsPanels.filter(tab => tab.key === globals.state.currentTab)[0];
+    let currentTabDetails =
+        detailsPanels.find(tab => tab.key === globals.state.currentTab);
+    if (currentTabDetails === undefined && detailsPanels.length > 0) {
+      currentTabDetails = detailsPanels[0];
+    }
 
-    const panel = currentTabDetails ?
-        currentTabDetails.vnode :
-        detailsPanels.values().next().value?.vnode;
+    const panel = currentTabDetails?.vnode;
     const panels = panel ? [panel] : [];
 
     return m(
@@ -395,8 +401,9 @@ export class DetailsPanel implements m.ClassComponent {
           tabs: detailsPanels.map(tab => {
             return {key: tab.key, name: tab.name};
           }),
+          currentTabKey: currentTabDetails?.key
         }),
-        m('.details-panel-container',
+        m('.details-panel-container.x-scrollable',
           m(PanelContainer, {doesScroll: true, panels, kind: 'DETAILS'})));
   }
 }

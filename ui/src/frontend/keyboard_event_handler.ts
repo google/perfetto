@@ -40,23 +40,28 @@ type Direction = 'Forward'|'Backward';
 export function handleKey(e: KeyboardEvent, down: boolean) {
   const key = e.key.toLowerCase();
   const selection = globals.state.currentSelection;
-  if (down && 'm' === key) {
+  const noModifiers = !(e.ctrlKey || e.metaKey || e.altKey || e.shiftKey);
+  const ctrlOrMeta = (e.ctrlKey || e.metaKey) && !(e.altKey || e.shiftKey);
+  // No other modifiers other than possibly Shift.
+  const maybeShift = !(e.ctrlKey || e.metaKey || e.altKey);
+
+  if (down && 'm' === key && maybeShift) {
     if (selection && selection.kind === 'AREA') {
       globals.dispatch(Actions.toggleMarkCurrentArea({persistent: e.shiftKey}));
     } else if (selection) {
       lockSliceSpan(e.shiftKey);
     }
   }
-  if (down && 'f' === key) {
+  if (down && 'f' === key && noModifiers) {
     findCurrentSelection();
   }
-  if (down && 'b' === key && (e.ctrlKey || e.metaKey)) {
+  if (down && 'b' === key && ctrlOrMeta) {
     globals.dispatch(Actions.toggleSidebar({}));
   }
-  if (down && '?' === key) {
+  if (down && '?' === key && maybeShift) {
     toggleHelp();
   }
-  if (down && 'enter' === key) {
+  if (down && 'enter' === key && maybeShift) {
     e.preventDefault();
     executeSearch(e.shiftKey);
   }
@@ -65,21 +70,19 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
     globals.makeSelection(Actions.deselect({}));
     globals.dispatch(Actions.removeNote({id: '0'}));
   }
-  if (down && ']' === key) {
-    if (e.ctrlKey) {
-      focusOtherFlow('Forward');
-    } else {
-      moveByFocusedFlow('Forward');
-    }
+  if (down && ']' === key && ctrlOrMeta) {
+    focusOtherFlow('Forward');
   }
-  if (down && '[' === key) {
-    if (e.ctrlKey) {
-      focusOtherFlow('Backward');
-    } else {
-      moveByFocusedFlow('Backward');
-    }
+  if (down && ']' === key && noModifiers) {
+    moveByFocusedFlow('Forward');
   }
-  if (down && 'p' === key && !e.ctrlKey && PIVOT_TABLE_FLAG.get()) {
+  if (down && '[' === key && ctrlOrMeta) {
+    focusOtherFlow('Backward');
+  }
+  if (down && '[' === key && noModifiers) {
+    moveByFocusedFlow('Backward');
+  }
+  if (down && 'p' === key && noModifiers && PIVOT_TABLE_FLAG.get()) {
     e.preventDefault();
     globals.frontendLocalState.togglePivotTable();
     const pivotTableId = DEFAULT_PIVOT_TABLE_ID;
@@ -143,7 +146,7 @@ function focusOtherFlow(direction: Direction) {
 }
 
 // Select the slice connected to the flow in focus
-function moveByFocusedFlow(direction: Direction) {
+function moveByFocusedFlow(direction: Direction): void {
   if (!globals.state.currentSelection ||
       globals.state.currentSelection.kind !== 'CHROME_SLICE') {
     return;
@@ -165,8 +168,12 @@ function moveByFocusedFlow(direction: Direction) {
       const uiTrackId =
           globals.state.uiTrackIdByTraceTrackId[flowPoint.trackId];
       if (uiTrackId) {
-        globals.makeSelection(Actions.selectChromeSlice(
-            {id: flowPoint.sliceId, trackId: uiTrackId, table: 'slice'}));
+        globals.makeSelection(Actions.selectChromeSlice({
+          id: flowPoint.sliceId,
+          trackId: uiTrackId,
+          table: 'slice',
+          scroll: true
+        }));
       }
     }
   }
@@ -232,7 +239,7 @@ function lockSliceSpan(persistent = false) {
   }
 }
 
-function findCurrentSelection() {
+export function findCurrentSelection() {
   const selection = globals.state.currentSelection;
   if (selection === null) return;
 

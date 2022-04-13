@@ -81,6 +81,7 @@ class FtraceDataSource : public ProbesDataSource {
   }
 
   FtraceMetadata* mutable_metadata() { return &metadata_; }
+  FtraceSetupErrors* mutable_setup_errors() { return &setup_errors_; }
   TraceWriter* trace_writer() { return writer_.get(); }
 
  private:
@@ -95,7 +96,8 @@ class FtraceDataSource : public ProbesDataSource {
 
   const FtraceConfig config_;
   FtraceMetadata metadata_;
-  FtraceStats stats_before_ = {};
+  FtraceStats stats_before_{};
+  FtraceSetupErrors setup_errors_{};
   std::map<FlushRequestID, std::function<void()>> pending_flushes_;
 
   // -- Fields initialized by the Initialize() call:

@@ -319,6 +319,14 @@ TEST(TranslationTableTest, InferFtraceType) {
   ASSERT_TRUE(InferFtraceType("char foo[16]", 16, false, &type));
   EXPECT_EQ(type, kFtraceFixedCString);
 
+  ASSERT_TRUE(InferFtraceType("char comm[TASK_COMM_LEN]", 16, false, &type));
+  EXPECT_EQ(type, kFtraceFixedCString);
+
+  ASSERT_TRUE(InferFtraceType("char identifier22[16]", 16, false, &type));
+  EXPECT_EQ(type, kFtraceFixedCString);
+
+  EXPECT_FALSE(InferFtraceType("char 2invalid[16]", 16, false, &type));
+
   ASSERT_TRUE(InferFtraceType("char[] foo", 8, false, &type));
   EXPECT_EQ(type, kFtraceStringPtr);
 

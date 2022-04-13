@@ -117,15 +117,20 @@ source_set("unittests") {
     "proto_to_args_parser_unittest.cc",
     "protozero_to_text_unittests.cc",
   ]
+  if (enable_perfetto_zlib) {
+    sources += [ "gzip_utils_unittest.cc" ]
+  }
   testonly = true
   deps = [
     ":descriptors",
+    ":gzip",
     ":proto_to_args_parser",
     ":protozero_to_text",
     "..:gen_cc_test_messages_descriptor",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../protos/perfetto/common:zero",
+    "../../../protos/perfetto/trace:non_minimal_zero",
     "../../../protos/perfetto/trace/track_event:zero",
     "../../protozero",
     "../../protozero:testing_messages_zero",

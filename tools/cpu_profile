@@ -1,0 +1,568 @@
+#!/usr/bin/env python3
+
+# Copyright (C) 2022 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Runs tracing with CPU profiling enabled, and symbolizes traces if requested.
+
+For usage instructions, please see:
+https://perfetto.dev/docs/quickstart/callstack-sampling
+
+Adapted in large part from `heap_profile`.
+"""
+
+import argparse
+import os
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import uuid
+
+# Used for creating directories, etc.
+UUID = str(uuid.uuid4())[-6:]
+
+# See `sigint_handler` below.
+IS_INTERRUPTED = False
+
+
+def sigint_handler(signal, frame):
+  """Useful for cleanly interrupting tracing."""
+  global IS_INTERRUPTED
+  IS_INTERRUPTED = True
+
+
+def exit_with_no_profile():
+  sys.exit("No profiles generated.")
+
+
+def exit_with_bug_report(error):
+  sys.exit(
+      "{}\n\n If this is unexpected, please consider filing a bug at: \n"
+      "https://perfetto.dev/docs/contributing/getting-started#bugs.".format(
+          error))
+
+
+def adb_check_output(command):
+  """Runs an `adb` command and returns its output."""
+  try:
+    return subprocess.check_output(command).decode('utf-8')
+  except FileNotFoundError:
+    sys.exit("`adb` not found: Is it installed or on PATH?")
+  except subprocess.CalledProcessError as error:
+    sys.exit("`adb` error: Are any (or multiple) devices connected?\n"
+             "If multiple devices are connected, please select one by "
+             "setting `ANDROID_SERIAL=device_id`.\n"
+             "{}".format(error))
+  except Exception as error:
+    exit_with_bug_report(error)
+
+
+def parse_and_validate_args():
+  """Parses, validates, and returns command-line arguments for this script."""
+  DESCRIPTION = """Runs tracing with CPU profiling enabled, and symbolizes
+  traces if requested.
+
+  For usage instructions, please see:
+  https://perfetto.dev/docs/quickstart/cpu-profiling
+  """
+  parser = argparse.ArgumentParser(description=DESCRIPTION)
+  parser.add_argument(
+      "-f",
+      "--frequency",
+      help="Sampling frequency (Hz). "
+      "Default: 100 Hz.",
+      metavar="FREQUENCY",
+      type=int,
+      default=100)
+  parser.add_argument(
+      "-d",
+      "--duration",
+      help="Duration of profile (ms). 0 to run until interrupted. "
+      "Default: until interrupted by user.",
+      metavar="DURATION",
+      type=int,
+      default=0)
+  parser.add_argument(
+      "-n",
+      "--name",
+      help="Comma-separated list of names of processes to be profiled.",
+      metavar="NAMES",
+      default=None)
+  parser.add_argument(
+      "-p",
+      "--partial-matching",
+      help="If set, enables \"partial matching\" on the strings in --names/-n."
+      "Processes that are already running when profiling is started, and whose "
+      "names include any of the values in --names/-n as substrings will be profiled.",
+      action="store_true")
+  parser.add_argument(
+      "-c",
+      "--config",
+      help="A custom configuration file, if any, to be used for profiling. "
+      "If provided, --frequency/-f, --duration/-d, and --name/-n are not used.",
+      metavar="CONFIG",
+      default=None)
+  parser.add_argument(
+      "-o",
+      "--output",
+      help="Output directory for recorded trace.",
+      metavar="DIRECTORY",
+      default=None)
+
+  args = parser.parse_args()
+  if args.config is not None and args.name is not None:
+    sys.exit("--name/-n should not be provided when --config/-c is provided.")
+  elif args.config is None and args.name is None:
+    sys.exit("One of --names/-n or --config/-c is required.")
+
+  return args
+
+
+def get_matching_processes(args, names_to_match):
+  """Returns a list of currently-running processes whose names match `names_to_match`.
+
+  Args:
+    args: The command-line arguments provided to this script.
+    names_to_match: The list of process names provided by the user.
+  """
+  # Returns names as they are.
+  if not args.partial_matching:
+    return names_to_match
+
+  # Attempt to match names to names of currently running processes.
+  PS_PROCESS_OFFSET = 8
+  matching_processes = []
+  for line in adb_check_output(['adb', 'shell', 'ps', '-A']).splitlines():
+    line_split = line.split()
+    if len(line_split) <= PS_PROCESS_OFFSET:
+      continue
+    process = line_split[PS_PROCESS_OFFSET]
+    for name in names_to_match:
+      if name in process:
+        matching_processes.append(process)
+        break
+
+  return matching_processes
+
+
+def get_perfetto_config(args):
+  """Returns a Perfetto config with CPU profiling enabled for the selected processes.
+
+  Args:
+    args: The command-line arguments provided to this script.
+  """
+  if args.config is not None:
+    try:
+      with open(args.config, 'r') as config_file:
+        return config_file.read()
+    except IOError as error:
+      sys.exit("Unable to read config file: {}".format(error))
+
+  CONFIG_INDENT = '      '
+  CONFIG = '''buffers {{
+    size_kb: 2048
+  }}
+
+  buffers {{
+    size_kb: 63488
+  }}
+
+  data_sources {{
+    config {{
+      name: "linux.process_stats"
+      target_buffer: 0
+      process_stats_config {{
+        proc_stats_poll_ms: 100
+      }}
+    }}
+  }}
+
+  data_sources {{
+    config {{
+      name: "linux.perf"
+      target_buffer: 1
+      perf_event_config {{
+        all_cpus: true
+        sampling_frequency: {frequency}
+{target_config}
+      }}
+    }}
+  }}
+
+  duration_ms: {duration}
+  write_into_file: true
+  flush_timeout_ms: 30000
+  flush_period_ms: 604800000
+  '''
+
+  target_config = ""
+  matching_processes = []
+  if args.name is not None:
+    names_to_match = [name.strip() for name in args.name.split(',')]
+    matching_processes = get_matching_processes(args, names_to_match)
+
+  if not matching_processes:
+    sys.exit("No running processes matched for profiling.")
+
+  for process in matching_processes:
+    target_config += CONFIG_INDENT + 'target_cmdline: "{}"\n'.format(process)
+
+  print("Configured profiling for these processes:\n")
+  for matching_process in matching_processes:
+    print(matching_process)
+  print()
+
+  config = CONFIG.format(
+      frequency=args.frequency,
+      duration=args.duration,
+      target_config=target_config)
+
+  return config
+
+
+def release_or_newer(release):
+  """Returns whether a new enough Android release is being used."""
+  SDK = {'R': 30}
+  sdk = int(
+      adb_check_output(
+          ['adb', 'shell', 'getprop', 'ro.system.build.version.sdk']).strip())
+  if sdk >= SDK[release]:
+    return True
+
+  codename = adb_check_output(
+      ['adb', 'shell', 'getprop', 'ro.build.version.codename']).strip()
+  return codename == release
+
+
+def get_and_prepare_profile_target(args):
+  """Returns the target where the trace/profile will be output. Creates a new directory if necessary.
+
+  Args:
+    args: The command-line arguments provided to this script.
+  """
+  profile_target = os.path.join(tempfile.gettempdir(), UUID)
+  if args.output is not None:
+    profile_target = args.output
+  else:
+    os.makedirs(profile_target, exist_ok=True)
+  if not os.path.isdir(profile_target):
+    sys.exit("Output directory {} not found.".format(profile_target))
+  if os.listdir(profile_target):
+    sys.exit("Output directory {} not empty.".format(profile_target))
+
+  return profile_target
+
+
+def record_trace(config, profile_target):
+  """Runs Perfetto with the provided configuration to record a trace.
+
+  Args:
+    config: The Perfetto config to be used for tracing/profiling.
+    profile_target: The directory where the recorded trace is output.
+  """
+  NULL = open(os.devnull)
+  NO_OUT = {
+      'stdout': NULL,
+      'stderr': NULL,
+  }
+  if not release_or_newer('R'):
+    sys.exit("This tool requires Android R+ to run.")
+  profile_device_path = '/data/misc/perfetto-traces/profile-' + UUID
+  perfetto_command = ('CONFIG=\'{}\'; echo ${{CONFIG}} | '
+                      'perfetto --txt -c - -o {} -d')
+  try:
+    perfetto_pid = int(
+        adb_check_output([
+            'adb', 'exec-out',
+            perfetto_command.format(config, profile_device_path)
+        ]).strip())
+  except ValueError as error:
+    sys.exit("Unable to start profiling: {}".format(error))
+
+  print("Profiling active. Press Ctrl+C to terminate.")
+
+  old_handler = signal.signal(signal.SIGINT, sigint_handler)
+
+  perfetto_alive = True
+  while perfetto_alive and not IS_INTERRUPTED:
+    perfetto_alive = subprocess.call(
+        ['adb', 'shell', '[ -d /proc/{} ]'.format(perfetto_pid)], **NO_OUT) == 0
+    time.sleep(0.25)
+
+  print("Finishing profiling and symbolization...")
+
+  if IS_INTERRUPTED:
+    adb_check_output(['adb', 'shell', 'kill', '-INT', str(perfetto_pid)])
+
+  # Restore old handler.
+  signal.signal(signal.SIGINT, old_handler)
+
+  while perfetto_alive:
+    perfetto_alive = subprocess.call(
+        ['adb', 'shell', '[ -d /proc/{} ]'.format(perfetto_pid)]) == 0
+    time.sleep(0.25)
+
+  profile_host_path = os.path.join(profile_target, 'raw-trace')
+  adb_check_output(['adb', 'pull', profile_device_path, profile_host_path])
+  adb_check_output(['adb', 'shell', 'rm', profile_device_path])
+
+
+def get_trace_to_text():
+  """Sets up and returns the path to `trace_to_text`."""
+  try:
+    trace_to_text = get_perfetto_prebuilt('trace_to_text', soft_fail=True)
+  except Exception as error:
+    exit_with_bug_report(error)
+  if trace_to_text is None:
+    exit_with_bug_report(
+        "Unable to download `trace_to_text` for symbolizing profiles.")
+
+  return trace_to_text
+
+
+def concatenate_files(files_to_concatenate, output_file):
+  """Concatenates files.
+
+  Args:
+    files_to_concatenate: Paths for input files to concatenate.
+    output_file: Path to the resultant output file.
+  """
+  with open(output_file, 'wb') as output:
+    for file in files_to_concatenate:
+      with open(file, 'rb') as input:
+        shutil.copyfileobj(input, output)
+
+
+def symbolize_trace(trace_to_text, profile_target):
+  """Attempts symbolization of the recorded trace/profile, if symbols are available.
+
+  Args:
+    trace_to_text: The path to the `trace_to_text` binary used for symbolization.
+    profile_target: The directory where the recorded trace was output.
+
+  Returns:
+    The path to the symbolized trace file if symbolization was completed,
+    and the original trace file, if it was not.
+  """
+  binary_path = os.getenv('PERFETTO_BINARY_PATH')
+  trace_file = os.path.join(profile_target, 'raw-trace')
+  files_to_concatenate = [trace_file]
+
+  if binary_path is not None:
+    try:
+      with open(os.path.join(profile_target, 'symbols'), 'w') as symbols_file:
+        return_code = subprocess.call([trace_to_text, 'symbolize', trace_file],
+                                      env=dict(
+                                          os.environ,
+                                          PERFETTO_BINARY_PATH=binary_path),
+                                      stdout=symbols_file)
+    except IOError as error:
+      sys.exit("Unable to write symbols to disk: {}".format(error))
+    if return_code == 0:
+      files_to_concatenate.append(os.path.join(profile_target, 'symbols'))
+    else:
+      print("Failed to symbolize. Continuing without symbols.", file=sys.stderr)
+
+  if len(files_to_concatenate) > 1:
+    trace_file = os.path.join(profile_target, 'symbolized-trace')
+    try:
+      concatenate_files(files_to_concatenate, trace_file)
+    except Exception as error:
+      sys.exit("Unable to write symbolized profile to disk: {}".format(error))
+
+  return trace_file
+
+
+def generate_pprof_profiles(trace_to_text, trace_file):
+  """Generates pprof profiles from the recorded trace.
+
+  Args:
+    trace_to_text: The path to the `trace_to_text` binary used for generating profiles.
+    trace_file: The oath to the recorded and potentially symbolized trace file.
+
+  Returns:
+    The directory where pprof profiles are output.
+  """
+  try:
+    trace_to_text_output = subprocess.check_output(
+        [trace_to_text, 'profile', '--perf', trace_file])
+  except Exception as error:
+    exit_with_bug_report(
+        "Unable to extract profiles from trace: {}".format(error))
+
+  profiles_output_directory = None
+  for word in trace_to_text_output.decode('utf-8').split():
+    if 'perf_profile-' in word:
+      profiles_output_directory = word
+  if profiles_output_directory is None:
+    exit_with_no_profile()
+  return profiles_output_directory
+
+
+def copy_profiles_to_destination(profile_target, profile_path):
+  """Copies recorded profiles to `profile_target` from `profile_path`."""
+  profile_files = os.listdir(profile_path)
+  if not profile_files:
+    exit_with_no_profile()
+
+  try:
+    for profile_file in profile_files:
+      shutil.copy(os.path.join(profile_path, profile_file), profile_target)
+  except Exception as error:
+    sys.exit("Unable to copy profiles to {}: {}".format(profile_target, error))
+
+  print("Wrote profiles to {}".format(profile_target))
+
+
+def main(argv):
+  args = parse_and_validate_args()
+  profile_target = get_and_prepare_profile_target(args)
+  record_trace(get_perfetto_config(args), profile_target)
+  trace_to_text = get_trace_to_text()
+  trace_file = symbolize_trace(trace_to_text, profile_target)
+  copy_profiles_to_destination(
+      profile_target, generate_pprof_profiles(trace_to_text, trace_file))
+  return 0
+
+
+# BEGIN_SECTION_GENERATED_BY(roll-prebuilts)
+# Revision: v24.1
+PERFETTO_PREBUILT_MANIFEST = [{
+    'tool':
+        'trace_to_text',
+    'arch':
+        'mac-amd64',
+    'file_name':
+        'trace_to_text',
+    'file_size':
+        6972736,
+    'url':
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v24.1/mac-amd64/trace_to_text',
+    'sha256':
+        'cd963e3f63b23977302fcbcb19a9fe64e98aeb2f419ce4212cfafa4e52b8faec',
+    'platform':
+        'darwin',
+    'machine': ['x86_64']
+}, {
+    'tool':
+        'trace_to_text',
+    'arch':
+        'windows-amd64',
+    'file_name':
+        'trace_to_text.exe',
+    'file_size':
+        6685696,
+    'url':
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v24.1/windows-amd64/trace_to_text.exe',
+    'sha256':
+        'bc951b12148338ff151f33af87e79926d18b7ea3180419a7e6c6c150b604fe25',
+    'platform':
+        'win32',
+    'machine': ['amd64']
+}, {
+    'tool':
+        'trace_to_text',
+    'arch':
+        'linux-amd64',
+    'file_name':
+        'trace_to_text',
+    'file_size':
+        7539312,
+    'url':
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v24.1/linux-amd64/trace_to_text',
+    'sha256':
+        'e40fbf44fca2673be1e6aedbc3159ce3cd4f6f33911f9dd1298471bd5b4a05ab',
+    'platform':
+        'linux',
+    'machine': ['x86_64']
+}]
+
+
+# DO NOT EDIT. If you wish to make edits to this code, you need to change only
+# //tools/get_perfetto_prebuilt.py and run /tools/roll-prebuilts to regenerate
+# all the others scripts this is embedded into.
+def get_perfetto_prebuilt(tool_name, soft_fail=False, arch=None):
+  """ Downloads the prebuilt, if necessary, and returns its path on disk. """
+
+  # The first time this is invoked, it downloads the |url| and caches it into
+  # ~/.perfetto/prebuilts/$tool_name. On subsequent invocations it just runs the
+  # cached version.
+  def download_or_get_cached(file_name, url, sha256):
+    import os, hashlib, subprocess
+    dir = os.path.join(
+        os.path.expanduser('~'), '.local', 'share', 'perfetto', 'prebuilts')
+    os.makedirs(dir, exist_ok=True)
+    bin_path = os.path.join(dir, file_name)
+    sha256_path = os.path.join(dir, file_name + '.sha256')
+    needs_download = True
+
+    # Avoid recomputing the SHA-256 on each invocation. The SHA-256 of the last
+    # download is cached into file_name.sha256, just check if that matches.
+    if os.path.exists(bin_path) and os.path.exists(sha256_path):
+      with open(sha256_path, 'rb') as f:
+        digest = f.read().decode()
+        if digest == sha256:
+          needs_download = False
+
+    if needs_download:
+      # Either the filed doesn't exist or the SHA256 doesn't match.
+      tmp_path = bin_path + '.tmp'
+      print('Downloading ' + url)
+      subprocess.check_call(['curl', '-f', '-L', '-#', '-o', tmp_path, url])
+      with open(tmp_path, 'rb') as fd:
+        actual_sha256 = hashlib.sha256(fd.read()).hexdigest()
+      if actual_sha256 != sha256:
+        raise Exception('Checksum mismatch for %s (actual: %s, expected: %s)' %
+                        (url, actual_sha256, sha256))
+      os.chmod(tmp_path, 0o755)
+      os.rename(tmp_path, bin_path)
+      with open(sha256_path, 'w') as f:
+        f.write(sha256)
+    return bin_path
+    # --- end of download_or_get_cached() ---
+
+  # --- get_perfetto_prebuilt() function starts here. ---
+  import os, platform, sys
+  plat = sys.platform.lower()
+  machine = platform.machine().lower()
+  manifest_entry = None
+  for entry in PERFETTO_PREBUILT_MANIFEST:
+    # If the caller overrides the arch, just match that (for Android prebuilts).
+    if arch and entry.get('arch') == arch:
+      manifest_entry = entry
+      break
+    # Otherwise guess the local machine arch.
+    if entry.get('tool') == tool_name and entry.get(
+        'platform') == plat and machine in entry.get('machine', []):
+      manifest_entry = entry
+      break
+  if manifest_entry is None:
+    if soft_fail:
+      return None
+    raise Exception(
+        ('No prebuilts available for %s-%s\n' % (plat, machine)) +
+        'See https://perfetto.dev/docs/contributing/build-instructions')
+
+  return download_or_get_cached(
+      file_name=manifest_entry['file_name'],
+      url=manifest_entry['url'],
+      sha256=manifest_entry['sha256'])
+
+
+# END_SECTION_GENERATED_BY(roll-prebuilts)
+
+if __name__ == '__main__':
+  sys.exit(main(sys.argv))

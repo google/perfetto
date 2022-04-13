@@ -16,19 +16,68 @@
 
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
 
+#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/subprocess.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/tracing/core/data_source_descriptor.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 
+#include "protos/perfetto/common/ftrace_descriptor.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
+namespace {
+
+void FillFtraceDataSourceDescriptor(DataSourceDescriptor* dsd) {
+  protozero::HeapBuffered<protos::pbzero::FtraceDescriptor> ftd;
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  base::Subprocess p({"/system/bin/atrace", "--list_categories"});
+  p.args.stdin_mode = base::Subprocess::InputMode::kDevNull;
+  p.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
+  p.args.stderr_mode = base::Subprocess::OutputMode::kBuffer;
+  bool res = p.Call(/*timeout_ms=*/20000);
+  if (res) {
+    for (base::StringSplitter ss(std::move(p.output()), '\n'); ss.Next();) {
+      base::StringView line(ss.cur_token(), ss.cur_token_size());
+      size_t pos = line.find(" - ");
+      if (pos == line.npos) {
+        continue;
+      }
+      base::StringView name = line.substr(0, pos);
+      // Trim initial whitespaces
+      auto it = std::find_if(name.begin(), name.end(),
+                             [](char c) { return c != ' '; });
+      name = name.substr(static_cast<size_t>(it - name.begin()));
+
+      base::StringView desc = line.substr(pos + 3);
+
+      protos::pbzero::FtraceDescriptor::AtraceCategory* cat =
+          ftd->add_atrace_categories();
+      cat->set_name(name.data(), name.size());
+      cat->set_description(desc.data(), desc.size());
+    }
+  } else {
+    PERFETTO_ELOG("Failed to run atrace --list_categories code(%d): %s",
+                  p.returncode(), p.output().c_str());
+  }
+#endif
+
+  dsd->set_ftrace_descriptor_raw(ftd.SerializeAsString());
+}
+
+}  // namespace
 
 // static
 const ProbesDataSource::Descriptor FtraceDataSource::descriptor = {
     /*name*/ "linux.ftrace",
     /*flags*/ Descriptor::kFlagsNone,
+    /*fill_descriptor_func*/ &FillFtraceDataSourceDescriptor,
 };
 
 FtraceDataSource::FtraceDataSource(
@@ -62,11 +111,13 @@ void FtraceDataSource::Start() {
   if (!ftrace->StartDataSource(this))
     return;
   DumpFtraceStats(&stats_before_);
+  setup_errors_ = FtraceSetupErrors();  // Dump only on START_OF_TRACE.
 }
 
 void FtraceDataSource::DumpFtraceStats(FtraceStats* stats) {
   if (controller_weak_)
     controller_weak_->DumpFtraceStats(stats);
+  stats->setup_errors = std::move(setup_errors_);
 }
 
 void FtraceDataSource::Flush(FlushRequestID flush_request_id,

@@ -34,6 +34,7 @@ const InitialDisplayStateDataSource::Descriptor
     InitialDisplayStateDataSource::descriptor = {
         /* name */ "android.polled_state",
         /* flags */ Descriptor::kFlagsNone,
+        /*fill_descriptor_func*/ nullptr,
 };
 
 InitialDisplayStateDataSource::InitialDisplayStateDataSource(

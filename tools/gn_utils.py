@@ -245,7 +245,8 @@ class ODRChecker(object):
     for ssdep in target.source_set_deps:
       name_and_path = '%s (via %s)' % (target_name, path)
       self.source_sets[ssdep].add(name_and_path)
-    deps = set(target.deps).union(target.proto_deps) - self.deps_visited
+    deps = set(target.deps).union(
+        target.transitive_proto_deps) - self.deps_visited
     for dep_name in deps:
       dep = self.gn.get_target(dep_name)
       if dep.type == 'executable':
@@ -310,6 +311,7 @@ class GnParser(object):
       # This is typically: 'proto', 'protozero', 'ipc'.
       self.proto_plugin = None
       self.proto_paths = set()
+      self.proto_exports = set()
 
       self.sources = set()
       # TODO(primiano): consider whether the public section should be part of
@@ -331,7 +333,8 @@ class GnParser(object):
       self.include_dirs = set()
       self.ldflags = set()
       self.source_set_deps = set()  # Transitive set of source_set deps.
-      self.proto_deps = set()  # Transitive set of protobuf deps.
+      self.proto_deps = set()
+      self.transitive_proto_deps = set()
 
       # Deps on //gn:xxx have this flag set to True. These dependencies
       # are special because they pull third_party code from buildtools/.
@@ -357,7 +360,8 @@ class GnParser(object):
 
     def update(self, other):
       for key in ('cflags', 'defines', 'deps', 'include_dirs', 'ldflags',
-                  'source_set_deps', 'proto_deps', 'libs', 'proto_paths'):
+                  'source_set_deps', 'proto_deps', 'transitive_proto_deps',
+                  'libs', 'proto_paths'):
         self.__dict__[key].update(other.__dict__.get(key, []))
 
   def __init__(self, gn_desc):
@@ -395,12 +399,13 @@ class GnParser(object):
       target.is_third_party_dep_ = True
       return target
 
-    proto_target_type, proto_desc = self.get_proto_target_type_(target)
+    proto_target_type, proto_desc = self.get_proto_target_type(target)
     if proto_target_type is not None:
       self.proto_libs[target.name] = target
       target.type = 'proto_library'
       target.proto_plugin = proto_target_type
       target.proto_paths.update(self.get_proto_paths(proto_desc))
+      target.proto_exports.update(self.get_proto_exports(proto_desc))
       target.sources.update(proto_desc.get('sources', []))
       assert (all(x.endswith('.proto') for x in target.sources))
     elif target.type == 'source_set':
@@ -441,11 +446,9 @@ class GnParser(object):
         target.deps.add(dep_name)
       elif dep.type == 'proto_library':
         target.proto_deps.add(dep_name)
+        target.transitive_proto_deps.add(dep_name)
         target.proto_paths.update(dep.proto_paths)
-
-        # Don't bubble deps for action targets
-        if target.type != 'action':
-          target.proto_deps.update(dep.proto_deps)  # Bubble up deps.
+        target.transitive_proto_deps.update(dep.transitive_proto_deps)
       elif dep.type == 'source_set':
         target.source_set_deps.add(dep_name)
         target.update(dep)  # Bubble up source set's cflags/ldflags etc.
@@ -459,24 +462,17 @@ class GnParser(object):
 
     return target
 
+  def get_proto_exports(self, proto_desc):
+    # exports in metadata will be available for source_set targets.
+    metadata = proto_desc.get('metadata', {})
+    return metadata.get('exports', [])
+
   def get_proto_paths(self, proto_desc):
     # import_dirs in metadata will be available for source_set targets.
     metadata = proto_desc.get('metadata', {})
-    import_dirs = metadata.get('import_dirs', [])
-    if import_dirs:
-      return import_dirs
+    return metadata.get('import_dirs', [])
 
-    # For all non-source-set targets, we need to parse the command line
-    # of the protoc invocation.
-    proto_paths = []
-    args = proto_desc.get('args', [])
-    for i, arg in enumerate(args):
-      if arg != '--proto_path':
-        continue
-      proto_paths.append(re.sub('^../../', '//', args[i + 1]))
-    return proto_paths
-
-  def get_proto_target_type_(self, target):
+  def get_proto_target_type(self, target):
     """ Checks if the target is a proto library and return the plugin.
 
         Returns:
@@ -497,7 +493,7 @@ class GnParser(object):
       return 'descriptor', desc
 
     # Source set proto targets have a non-empty proto_library_sources in the
-    # metadata of the descirption.
+    # metadata of the description.
     metadata = desc.get('metadata', {})
     if 'proto_library_sources' in metadata:
       return 'source_set', desc

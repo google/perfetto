@@ -181,7 +181,6 @@ source_set("client_api") {
     ":wire_protocol",
     "../../../gn:default_deps",
     "../../base",
-    "../common:proc_utils",
   ]
   sources = [ "client_api.cc" ]
 }
@@ -296,7 +295,6 @@ source_set("client") {
     "../../../gn:default_deps",
     "../../base",
     "../../base:unix_socket",
-    "../common:proc_utils",
   ]
   public_deps = [ "../../../gn:libunwindstack" ]
   sources = [

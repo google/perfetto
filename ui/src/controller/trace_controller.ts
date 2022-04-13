@@ -78,8 +78,9 @@ import {
   PivotTableController,
   PivotTableControllerArgs
 } from './pivot_table_controller';
-import { QueryController, QueryControllerArgs } from './query_controller';
-import { SearchController } from './search_controller';
+import {PivotTableReduxController} from './pivot_table_redux_controller';
+import {QueryController, QueryControllerArgs} from './query_controller';
+import {SearchController} from './search_controller';
 import {
   SelectionController,
   SelectionControllerArgs
@@ -110,6 +111,7 @@ const METRICS = [
   'android_jank',
   'android_camera',
   'chrome_dropped_frames',
+  'chrome_long_latency',
   'trace_metadata',
   'android_trusty_workqueues',
 ];
@@ -230,6 +232,8 @@ export class TraceController extends Controller<States> {
           engine,
           app: globals,
         }));
+        childControllers.push(
+            Child('pivot_table_redux', PivotTableReduxController, {engine}));
 
         childControllers.push(Child('logs', LogsController, {
           engine,
@@ -540,7 +544,7 @@ export class TraceController extends Controller<States> {
     const sliceResult = await engine.query(`select
            bucket,
            upid,
-           sum(utid_sum) / cast(${stepSecNs} as float) as load
+           ifnull(sum(utid_sum) / cast(${stepSecNs} as float), 0) as load
          from thread
          inner join (
            select

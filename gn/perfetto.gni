@@ -100,7 +100,7 @@ perfetto_build_standalone =
 
 # Only relevant for GN builds. Sets the path where perfetto lives. This is //
 # for standalone builds and //third_party/perfetto/ in embedders. The embedder
-# can ovverride it in its GN files.
+# can override it in its GN files.
 if (perfetto_build_standalone || is_perfetto_build_generator) {
   perfetto_root_path = "//"
   import("//gn/standalone/android.gni")  # For android_api_level
@@ -289,7 +289,14 @@ declare_args() {
   # Enables Zlib support. This is used both by the "perfetto" cmdline client
   # (for compressing traces) and by trace processor (for compressed traces).
   enable_perfetto_zlib =
-      enable_perfetto_trace_processor || enable_perfetto_platform_services
+      (enable_perfetto_trace_processor && !build_with_chromium) ||
+      enable_perfetto_platform_services
+
+  # Enables function name demangling using sources from llvm. Otherwise
+  # trace_processor falls back onto using the c++ runtime demangler, which
+  # typically handles only itanium mangling.
+  enable_perfetto_llvm_demangle =
+      enable_perfetto_trace_processor && perfetto_build_standalone
 }
 
 declare_args() {

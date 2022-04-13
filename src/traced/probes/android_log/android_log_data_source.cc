@@ -89,6 +89,7 @@ inline bool ReadAndAdvance(const char** ptr, const char* end, T* out) {
 const ProbesDataSource::Descriptor AndroidLogDataSource::descriptor = {
     /*name*/ "android.log",
     /*flags*/ Descriptor::kFlagsNone,
+    /*fill_descriptor_func*/ nullptr,
 };
 
 AndroidLogDataSource::AndroidLogDataSource(DataSourceConfig ds_config,
@@ -366,8 +367,6 @@ bool AndroidLogDataSource::ParseBinaryEvent(
   int32_t eid;
   if (!ReadAndAdvance(&buf, end, &eid))
     return false;
-
-  // TODO test events with 0 arguments. DNS.
 
   const EventFormat* fmt = GetEventFormat(eid);
   if (!fmt) {

@@ -14,7 +14,7 @@
 
 import {timeToCode, toNs} from '../common/time';
 
-import {globals} from './globals';
+import {globals, SliceDetails} from './globals';
 import {Panel} from './panel';
 
 export abstract class SlicePanel extends Panel {
@@ -22,5 +22,18 @@ export abstract class SlicePanel extends Panel {
     return toNs(dur) === -1 ?
         `${globals.state.traceTime.endSec - ts} (Did not end)` :
         timeToCode(dur);
+  }
+
+  protected getProcessThreadDetails(sliceInfo: SliceDetails) {
+    return new Map<string, string|undefined>([
+      ['Thread', `${sliceInfo.threadName} ${sliceInfo.tid}`],
+      ['Process', `${sliceInfo.processName} ${sliceInfo.pid}`],
+      ['User ID', sliceInfo.uid ? String(sliceInfo.uid) : undefined],
+      ['Package name', sliceInfo.packageName],
+      [
+        'Version code',
+        sliceInfo.versionCode ? String(sliceInfo.versionCode) : undefined
+      ]
+    ]);
   }
 }

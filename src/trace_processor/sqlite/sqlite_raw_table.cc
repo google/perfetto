@@ -406,8 +406,8 @@ void ArgsSerializer::SerializeArgs() {
     WriteArgForField(IEX::kIrqFieldNumber, DVW());
     writer_->AppendString(" ret=");
     WriteValueForField(IEX::kRetFieldNumber, [this](const Variadic& value) {
-      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
-      writer_->AppendString(value.uint_value ? "handled" : "unhandled");
+      PERFETTO_DCHECK(value.type == Variadic::Type::kInt);
+      writer_->AppendString(value.int_value ? "handled" : "unhandled");
     });
     return;
   } else if (event_name_ == "softirq_entry") {
@@ -619,7 +619,7 @@ void SystraceSerializer::SerializePrefix(uint32_t raw_row,
   if (opt_upid.has_value()) {
     tgid = storage_->process_table().pid()[*opt_upid];
   }
-  auto name = storage_->GetString(storage_->thread_table().name()[utid]);
+  auto name = storage_->thread_table().name().GetString(utid);
 
   FtraceTime ftrace_time(ts);
   if (tid == 0) {

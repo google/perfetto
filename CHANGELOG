@@ -1,18 +1,99 @@
 Unreleased:
   Tracing service and probes:
-    * Changed output format of perfetto --query. Made the output more compact
-      and added a summary of ongoing tracing sessions for the caller UID.
+    *
   Trace Processor:
-    * Add support for multiple SQL statements to be passed to
-      TraceProcessor::ExecuteQuery. All queries will be executed fully, with
-      the returned iterator yielding rows for the final statement.
-    * Add support for multi-line SQL comments; previously only single line
-      comments were supported.
+    *
   UI:
-    * Changed HTTP+RPC to use the /websocket endpoint available in newer
-      versions of trace_processor --httpd.
+    *
   SDK:
     *
+
+
+v25.0 - 2022-04-01:
+  Tracing service and probes:
+    * Added prebuilts for mac-arm64.
+    * Removed merged trace and config protos from Bazel. Embedder should
+      instead depend on the non-merged proto targets.
+    * Added FtraceConfig.disable_generic_events. If set, the ftrace data source
+      will not emit events for which it doesn't have a compile-time proto
+      message.
+    * Added ingestion support for cros_ec (CrOS sensors) ftrace events.
+    * Added ingestion support for kvm trace events.
+    * Added reporting of atrace failures. Now they are bubbled up to the UI
+      rather than causing atrace data to be silently missing.
+  Trace Processor:
+    * Added prebuilts for mac-arm64.
+    * Changed LIKE comparisions to be case-insenstive. This reverts the change
+      introduced in v22. GLOB should be used where case senstive searches are
+      desired; built-in metrics continue to require the use of GLOB.
+    * Added an optional dependency from trace processor onto a subset of
+      sources from llvm-project for function name demangling. Bazel embedders
+      might need to update their PERFETTO_CONFIG in perfetto_cfg.bzl to opt in
+      or out of the new dependency. See
+      perfetto/bazel/standalone/perfetto_cfg.bzl for details.
+  UI:
+    * Added flow arrows between binder transaction pairs (request/reply
+      and async send/async recv).
+  SDK:
+    * Added support for writing typed proto messages inside DebugAnnotations.
+    * Added support for delta encoding of timestamps for TrackEvents.
+      To disable it, refer to `disable_incremental_timestamps` flag in
+      `track_event_config.proto`.
+  Tools:
+    * Added support of gzip-compressed traces to traceconv.
+    * Changed `traceconv text` to use an internal proto->pbtx converter rather
+      than relying on libprotobuf. It could cause some small divergencies in the
+      output format vs past releases.
+    * Added tools/cpu_profile helper script to capture traces with callstack
+      samples.
+
+
+v24.2 - 2022-02-10:
+  SDK:
+    * Revert of incremental timestamps, introduced in v24.0.
+      Some clients were depending on non-incremental timestamps.
+      Future releases will re-enable this but offer an opt-out.
+
+
+v24.1 - 2022-02-09:
+  Tracing service and probes:
+    * Fixed build failures on Windows.
+  Trace Processor:
+    * Fixed build failures on Windows.
+
+
+v24.0 - 2022-02-08:
+  Tracing service and probes:
+    * Added "cpufreq_period_ms" in data source "linux.sys_stats" to poll
+      /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq periodically.
+    * Added support for Trusty TEE workqueue events.
+    * Added support for more PMU events in traced_perf.
+    * Changed output format of perfetto --query. Made the output more compact
+      and added a summary of ongoing tracing sessions for the caller UID.
+    * Changed timeout for traced stall detection from 2s to 4s.
+    * Changed internal buffer management to split trace filtering in smaller
+      tasks and avoid too large memory allocation when filtering.
+    * Fixed a bug that could cause producers to see Flush() requests after an
+      OnStop() and mis-behave if the tracing session is extremely short.
+  Trace Processor:
+    * Added support for passing multiple SQL statements to ExecuteQuery(). All
+      queries will be executed fully, with the returned iterator yielding rows
+      for the final statement.
+    * Added support for multi-line SQL comments; previously only single line
+      comments were supported.
+  UI:
+    * Added support for parsing instant events from legacy systrace formats.
+    * Added ingestion and visualization for inet_sock_set_state and
+      tcp_retransmit_skb events, showing TCP connections on dedicated tracks.
+    * Changed HTTP+RPC to use the /websocket endpoint available in newer
+      versions of trace_processor --httpd.
+    * Changed text selection/copy: now allowed by default for DOM elements.
+    * Changed search to also lookup slices by ID when the term is a number.
+    * Changed postMessage() API, suppressed confirmation dialog when the opener
+      is in the same origin, for cases when the UI is self-hosted.
+  SDK:
+    * Changed timestamps emitted by the SDK to be incremental by default, using
+      ClockSnapshot + TracePacketDefaults.
 
 
 v23.0 - 2022-01-11:

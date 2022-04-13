@@ -17,6 +17,7 @@
 ../track_event/track_event_counters.textproto chrome_thread_slice_repeated.sql chrome_thread_slice_repeated.out
 ../../data/chrome_rendering_desktop.pftrace frame_times frame_times_metric.out
 ../../data/chrome_rendering_desktop.pftrace chrome_dropped_frames chrome_dropped_frames_metric.out
+../chrome/long_event_latency.textproto chrome_long_latency_metric.sql chrome_long_latency_metric.out
 scroll_jank_mojo_simple_watcher.py scroll_jank_mojo_simple_watcher.sql scroll_jank_mojo_simple_watcher.out
 scroll_jank_gpu_check.py scroll_jank_gpu_check.sql scroll_jank_gpu_check.out
 
@@ -53,3 +54,9 @@ modified_rail_modes_extra_long.py modified_rail_modes.sql modified_rail_modes_ex
 ../../data/chrome_android_systrace.pftrace chrome_processes.sql chrome_processes_android_systrace.out
 ../../data/chrome_scroll_without_vsync.pftrace chrome_threads.sql chrome_threads.out
 ../../data/chrome_android_systrace.pftrace chrome_threads.sql chrome_threads_android_systrace.out
+
+# Chrome histogram hashes
+chrome_histogram_hashes.textproto chrome_histogram_hashes chrome_histogram_hashes.out
+
+# Chrome user events
+chrome_user_event_hashes.textproto chrome_user_event_hashes chrome_user_event_hashes.out

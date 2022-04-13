@@ -31,12 +31,16 @@ class ProbesDataSource {
   // Static properties for a data source. Needs to be available before
   // instantiating each data source. It must have static lifetime.
   struct Descriptor {
+    using FillDescriptorFunc = void (*)(DataSourceDescriptor*);
     enum Flags : uint32_t {
       kFlagsNone = 0,
       kHandlesIncrementalState = 1 << 0,
     };
     const char* const name;
     uint32_t flags;
+    // If not nullptr, called to fill data source specific fields in
+    // DataSourceDescriptor.
+    FillDescriptorFunc fill_descriptor_func;
   };
 
   ProbesDataSource(TracingSessionID, const Descriptor*);

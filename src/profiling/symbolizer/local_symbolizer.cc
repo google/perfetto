@@ -423,8 +423,8 @@ base::Optional<FoundBinary> LocalBinaryFinder::FindBinaryInRoot(
   }
 
   if (base::StartsWith(filename, kApkPrefix)) {
-    symbol_file =
-        root_str + "/" + dirname + "/" + filename.substr(sizeof(kApkPrefix));
+    symbol_file = root_str + "/" + dirname + "/" +
+                  filename.substr(sizeof(kApkPrefix) - 1);
     result = IsCorrectFile(symbol_file, build_id);
     if (result) {
       return result;
@@ -438,7 +438,7 @@ base::Optional<FoundBinary> LocalBinaryFinder::FindBinaryInRoot(
   }
 
   if (base::StartsWith(filename, kApkPrefix)) {
-    symbol_file = root_str + "/" + filename.substr(sizeof(kApkPrefix));
+    symbol_file = root_str + "/" + filename.substr(sizeof(kApkPrefix) - 1);
     result = IsCorrectFile(symbol_file, build_id);
     if (result) {
       return result;

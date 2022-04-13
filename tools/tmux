@@ -195,10 +195,17 @@ else
   DIR=$(mktemp -p $TMPDIR -d perfetto.XXXXXX)
 fi
 
+if is_android "$OUT"; then
+  TRACE_TO_TEXT="gcc_like_host/trace_to_text"
+else
+  TRACE_TO_TEXT="trace_to_text"
+fi
+
+
 # (re)build the binaries
 BUILD_TARGETS=(traced traced_probes perfetto test/configs)
 if [[ SKIP_CONVERTERS -eq 0 ]]; then
-  BUILD_TARGETS+=(trace_to_text)
+  BUILD_TARGETS+=($TRACE_TO_TEXT)
 fi
 
 "$SCRIPT_DIR/ninja" -C "$OUT" ${BUILD_TARGETS[*]}
@@ -377,8 +384,5 @@ pull trace "$TRACE.perfetto-trace"
 
 if [[ SKIP_CONVERTERS -eq 0 ]]; then
   echo -e "\n\x1b[32mPulling trace into $TRACE.pbtext\x1b[0m"
-  "$OUT/trace_to_text" text <"$TRACE.perfetto-trace" >"$TRACE.pbtext"
-  echo -e "\n\x1b[32mPulling trace into $TRACE.json\x1b[0m"
-  "$OUT/trace_to_text" systrace <"$TRACE.perfetto-trace" >"$TRACE.json"
-  # Keep this last so it can fail.
+  "$OUT/$TRACE_TO_TEXT" text <"$TRACE.perfetto-trace" >"$TRACE.pbtext"
 fi

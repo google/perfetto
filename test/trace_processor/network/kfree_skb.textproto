@@ -1,0 +1,48 @@
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 10000
+      pid: 200
+      kfree_skb {
+        protocol: 2048
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 10020
+      pid: 300
+      kfree_skb {
+        protocol: 34525
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 20000
+      pid: 200
+      kfree_skb {
+        protocol: 1536
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 20020
+      pid: 300
+      kfree_skb {
+        protocol: 2048
+      }
+    }
+  }
+}

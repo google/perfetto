@@ -97,10 +97,13 @@ export function createEmptyState(): State {
     recordingInProgress: false,
     recordingCancelled: false,
     extensionInstalled: false,
+    flamegraphModalDismissed: false,
     recordingTarget: recordTargetStore.getValidTarget(),
     availableAdbDevices: [],
 
     fetchChromeCategories: false,
     chromeCategories: undefined,
+    pivotTableRedux:
+        {selectionArea: null, query: null, queryId: 0, queryResult: null},
   };
 }

@@ -28,26 +28,21 @@ util::Status ProtoTraceTokenizer::Decompress(TraceBlobView input,
                                              TraceBlobView* output) {
   PERFETTO_DCHECK(util::IsGzipSupported());
 
-  uint8_t zbuf[4096];
-
   std::vector<uint8_t> data;
   data.reserve(input.length());
 
   // Ensure that the decompressor is able to cope with a new stream of data.
   decompressor_.Reset();
-  decompressor_.SetInput(input.data(), input.length());
-
   using ResultCode = util::GzipDecompressor::ResultCode;
-  for (auto ret = ResultCode::kOk; ret != ResultCode::kEof;) {
-    auto res = decompressor_.Decompress(zbuf, base::ArraySize(zbuf));
-    ret = res.ret;
-    if (ret == ResultCode::kError || ret == ResultCode::kNoProgress ||
-        ret == ResultCode::kNeedsMoreInput) {
-      return util::ErrStatus("Failed to decompress (error code: %d)",
-                             static_cast<int>(ret));
-    }
+  ResultCode ret = decompressor_.FeedAndExtract(
+      input.data(), input.length(),
+      [&data](const uint8_t* buffer, size_t buffer_len) {
+        data.insert(data.end(), buffer, buffer + buffer_len);
+      });
 
-    data.insert(data.end(), zbuf, zbuf + res.bytes_written);
+  if (ret == ResultCode::kError || ret == ResultCode::kNeedsMoreInput) {
+    return util::ErrStatus("Failed to decompress (error code: %d)",
+                           static_cast<int>(ret));
   }
 
   TraceBlob out_blob = TraceBlob::CopyFrom(data.data(), data.size());

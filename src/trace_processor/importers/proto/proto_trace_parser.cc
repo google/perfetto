@@ -166,6 +166,22 @@ void ProtoTraceParser::ParseTraceStats(ConstBytes blob) {
                     static_cast<int64_t>(evt.chunks_discarded()));
   storage->SetStats(stats::traced_patches_discarded,
                     static_cast<int64_t>(evt.patches_discarded()));
+  storage->SetStats(stats::traced_flushes_requested,
+                    static_cast<int64_t>(evt.flushes_requested()));
+  storage->SetStats(stats::traced_flushes_succeeded,
+                    static_cast<int64_t>(evt.flushes_succeeded()));
+  storage->SetStats(stats::traced_flushes_failed,
+                    static_cast<int64_t>(evt.flushes_failed()));
+  switch (evt.final_flush_outcome()) {
+    case protos::pbzero::TraceStats::FINAL_FLUSH_SUCCEEDED:
+      storage->IncrementStats(stats::traced_final_flush_succeeded, 1);
+      break;
+    case protos::pbzero::TraceStats::FINAL_FLUSH_FAILED:
+      storage->IncrementStats(stats::traced_final_flush_failed, 1);
+      break;
+    case protos::pbzero::TraceStats::FINAL_FLUSH_UNSPECIFIED:
+      break;
+  }
 
   int buf_num = 0;
   for (auto it = evt.buffer_stats(); it; ++it, ++buf_num) {
@@ -205,6 +221,8 @@ void ProtoTraceParser::ParseTraceStats(ConstBytes blob) {
                              static_cast<int64_t>(buf.readaheads_succeeded()));
     storage->SetIndexedStats(stats::traced_buf_readaheads_failed, buf_num,
                              static_cast<int64_t>(buf.readaheads_failed()));
+    storage->SetIndexedStats(stats::traced_buf_abi_violations, buf_num,
+                             static_cast<int64_t>(buf.abi_violations()));
     storage->SetIndexedStats(
         stats::traced_buf_trace_writer_packet_loss, buf_num,
         static_cast<int64_t>(buf.trace_writer_packet_loss()));

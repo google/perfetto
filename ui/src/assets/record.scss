@@ -819,6 +819,30 @@
 
     .categories-list {
       width: 50%;
+
+      h3 {
+        margin: 6px 0;
+      }
+
+      .config-button {
+        border-radius: 10px;
+        border: 1px solid #eee;
+        margin: 0 5px;
+        font-size: .8rem;
+      }
+
+      .checkboxes {
+        list-style-type: none;
+        padding: 0;
+        font-size: .9rem;
+
+        li {
+          margin: 6px 0;
+        }
+        input {
+          margin-right: 8px;
+        }
+      }
     }
   }
 
@@ -919,6 +943,11 @@
     font-family: var(--monospace-font);
 
     &::placeholder { color: #aaa; }
+  }
+
+  textarea.atrace-apps-list {
+    margin-top: 16px;
+    height: 100px;
   }
 
   .code-snippet {

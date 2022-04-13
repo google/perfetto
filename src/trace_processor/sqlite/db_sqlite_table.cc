@@ -17,6 +17,7 @@
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 
 #include "perfetto/ext/base/string_writer.h"
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -49,6 +50,15 @@ base::Optional<FilterOp> SqliteOpToFilterOp(int sqlite_op) {
     case SQLITE_INDEX_CONSTRAINT_LIKE:
     case SQLITE_INDEX_CONSTRAINT_GLOB:
       return base::nullopt;
+#if SQLITE_VERSION_NUMBER >= 3038000
+    // LIMIT and OFFSET constraints were introduced in 3.38 but we
+    // still build for older versions in most places. We still need
+    // to handle this here as Chrome is very good at staying up to date
+    // with SQLite versions and crashes if we don't have this.
+    case SQLITE_INDEX_CONSTRAINT_LIMIT:
+    case SQLITE_INDEX_CONSTRAINT_OFFSET:
+      return base::nullopt;
+#endif
     default:
       PERFETTO_FATAL("Currently unsupported constraint");
   }
@@ -83,6 +93,17 @@ SqlValue SqliteValueToSqlValue(sqlite3_value* sqlite_val) {
   return value;
 }
 
+BitVector ColsUsedBitVector(uint64_t sqlite_cols_used, size_t col_count) {
+  return BitVector::Range(
+      0, static_cast<uint32_t>(col_count), [sqlite_cols_used](uint32_t idx) {
+        // If the lowest bit of |sqlite_cols_used| is set, the first column is
+        // used. The second lowest bit corresponds to the second column etc. If
+        // the most significant bit of |sqlite_cols_used| is set, that means
+        // that any column after the first 63 columns could be used.
+        return sqlite_cols_used & (1ull << std::min(idx, 63u));
+      });
+}
+
 }  // namespace
 
 DbSqliteTable::DbSqliteTable(sqlite3*, Context context)
@@ -111,7 +132,8 @@ void DbSqliteTable::RegisterTable(
 
   // Figure out if the table needs explicit args (in the form of constraints
   // on hidden columns) passed to it in order to make the query valid.
-  util::Status status = generator->ValidateConstraints({});
+  base::Status status = generator->ValidateConstraints(
+      QueryConstraints(std::numeric_limits<uint64_t>::max()));
   bool requires_args = !status.ok();
 
   Context context{cache, std::move(schema), TableComputation::kDynamic, nullptr,
@@ -120,9 +142,9 @@ void DbSqliteTable::RegisterTable(
                                                 false, requires_args);
 }
 
-util::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
+base::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
   *schema = ComputeSchema(schema_, name().c_str());
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 SqliteTable::Schema DbSqliteTable::ComputeSchema(const Table::Schema& schema,
@@ -156,7 +178,7 @@ int DbSqliteTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
       BestIndex(schema_, static_table_->row_count(), qc, info);
       break;
     case TableComputation::kDynamic:
-      util::Status status = generator_->ValidateConstraints(qc);
+      base::Status status = generator_->ValidateConstraints(qc);
       if (!status.ok())
         return SQLITE_CONSTRAINT;
       BestIndex(schema_, generator_->EstimateRowCount(), qc, info);
@@ -278,9 +300,13 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
       break;
     const auto& col_schema = schema.columns[static_cast<uint32_t>(c.column)];
     if (sqlite_utils::IsOpEq(c.op) && col_schema.is_id) {
-      // If we have an id equality constraint, it's a bit expensive to find
-      // the exact row but it filters down to a single row.
-      filter_cost += 100;
+      // If we have an id equality constraint, we can very efficiently filter
+      // down to a single row in C++. However, if we're joining with another
+      // table, SQLite will do this once per row which can be extremely
+      // expensive because of all the virtual table (which is implemented using
+      // virtual function calls) machinery. Indicate this by saying that an
+      // entire filter call is ~10x the cost of iterating a single row.
+      filter_cost += 10;
       current_row_count = 1;
     } else if (sqlite_utils::IsOpEq(c.op)) {
       // If there is only a single equality constraint, we have special logic
@@ -291,12 +317,26 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
       // search logic so we have the same low cost (even better because we don't
       // have to sort at all).
       filter_cost += cs.size() == 1 || col_schema.is_sorted
-                         ? (2 * current_row_count) / log2(current_row_count)
+                         ? log2(current_row_count)
                          : current_row_count;
 
-      // We assume that an equalty constraint will cut down the number of rows
-      // by approximate log of the number of rows.
-      double estimated_rows = current_row_count / log2(current_row_count);
+      // As an extremely rough heuristic, assume that an equalty constraint will
+      // cut down the number of rows by approximately double log of the number
+      // of rows.
+      double estimated_rows = current_row_count / (2 * log2(current_row_count));
+      current_row_count = std::max(static_cast<uint32_t>(estimated_rows), 1u);
+    } else if (col_schema.is_sorted &&
+               (sqlite_utils::IsOpLe(c.op) || sqlite_utils::IsOpLt(c.op) ||
+                sqlite_utils::IsOpGt(c.op) || sqlite_utils::IsOpGe(c.op))) {
+      // On a sorted column, if we see any partition constraints, we can do this
+      // filter very efficiently. Model this using the log of the  number of
+      // rows as a good approximation.
+      filter_cost += log2(current_row_count);
+
+      // As an extremely rough heuristic, assume that an partition constraint
+      // will cut down the number of rows by approximately double log of the
+      // number of rows.
+      double estimated_rows = current_row_count / (2 * log2(current_row_count));
       current_row_count = std::max(static_cast<uint32_t>(estimated_rows), 1u);
     } else {
       // Otherwise, we will need to do a full table scan and we estimate we will
@@ -313,7 +353,7 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
       static_cast<double>(qc.order_by().size() * current_row_count) *
       log2(current_row_count);
 
-  // The cost of iterating rows is more expensive than filtering the rows
+  // The cost of iterating rows is more expensive than just filtering the rows
   // so multiply by an appropriate factor.
   double iteration_cost = current_row_count * 2.0;
 
@@ -387,10 +427,6 @@ void DbSqliteTable::Cursor::TryCacheCreateSortedTable(
 int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
                                   sqlite3_value** argv,
                                   FilterHistory history) {
-  PERFETTO_TP_TRACE("DB_TABLE_XFILTER", [this](metatrace::Record* r) {
-    r->AddArg("Table", db_sqlite_table_->name());
-  });
-
   // Clear out the iterator before filtering to ensure the destructor is run
   // before the table's destructor.
   iterator_ = base::nullopt;
@@ -438,11 +474,21 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
       });
       // If we have a dynamically created table, regenerate the table based on
       // the new constraints.
-      dynamic_table_ =
-          db_sqlite_table_->generator_->ComputeTable(constraints_, orders_);
-      upstream_table_ = dynamic_table_.get();
-      if (!upstream_table_)
+      std::unique_ptr<Table> computed_table;
+      BitVector cols_used_bv = ColsUsedBitVector(
+          qc.cols_used(), db_sqlite_table_->schema_.columns.size());
+      auto status = db_sqlite_table_->generator_->ComputeTable(
+          constraints_, orders_, cols_used_bv, computed_table);
+
+      if (!status.ok()) {
+        auto* sqlite_err = sqlite3_mprintf(
+            "%s: %s", db_sqlite_table_->name().c_str(), status.c_message());
+        db_sqlite_table_->SetErrorMessage(sqlite_err);
         return SQLITE_CONSTRAINT;
+      }
+      PERFETTO_DCHECK(computed_table);
+      dynamic_table_ = std::move(computed_table);
+      upstream_table_ = dynamic_table_.get();
       break;
     }
   }
@@ -502,6 +548,7 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
           break;
         }
       }
+      r->AddArg("Table", db_sqlite_table_->name());
       r->AddArg("Constraint", writer.GetStringView());
     }
 

@@ -32,14 +32,23 @@ using FlowId = uint64_t;
 class FlowTracker {
  public:
   explicit FlowTracker(TraceProcessorContext*);
-  virtual ~FlowTracker();
+  ~FlowTracker();
 
   void InsertFlow(SliceId slice_out_id, SliceId slice_in_id);
 
-  // These methods assume you have created a FlowId via GetFlowIdForV1Event.
-  // If you don't have a v1 event you should use the InsertFlow method above.
-  virtual void Begin(TrackId track_id, FlowId flow_id);
-  virtual void Step(TrackId track_id, FlowId flow_id);
+  // These methods track flow ids associated with slices and create flows as
+  // needed.
+  // If you don't have flow ids associated with slices, you should use the
+  // InsertFlow method above.
+  void Begin(SliceId slice_id, FlowId flow_id);
+  void Step(SliceId slice_id, FlowId flow_id);
+  void End(SliceId track_id, FlowId flow_id, bool close_flow);
+
+  // These methods assume you have created a FlowId via GetFlowIdForV1Event and
+  // tie the flow id to the currently open slice on a given track. If you don't
+  // have a v1 event you should use the methods above.
+  void Begin(TrackId track_id, FlowId flow_id);
+  void Step(TrackId track_id, FlowId flow_id);
 
   // When |bind_enclosing_slice| is true we will connect the flow to the
   // currently open slice on the track, when false we will connect the flow to
@@ -47,10 +56,10 @@ class FlowTracker {
   // When |close_flow| is true it will mark this as the singular end of the
   // flow, however if there are multiple end points this should be set to
   // false. Both parameters are only needed for v1 flow events support
-  virtual void End(TrackId track_id,
-                   FlowId flow_id,
-                   bool bind_enclosing_slice,
-                   bool close_flow);
+  void End(TrackId track_id,
+           FlowId flow_id,
+           bool bind_enclosing_slice,
+           bool close_flow);
 
   bool IsActive(FlowId flow_id) const;
 
@@ -71,11 +80,8 @@ class FlowTracker {
 
   struct V1FlowIdHasher {
     size_t operator()(const V1FlowId& c) const {
-      base::Hash hasher;
-      hasher.Update(c.source_id);
-      hasher.Update(c.cat.raw_id());
-      hasher.Update(c.name.raw_id());
-      return std::hash<uint64_t>{}(hasher.digest());
+      return std::hash<uint64_t>{}(
+          base::Hash::Combine(c.source_id, c.cat.raw_id(), c.name.raw_id()));
     }
   };
 

@@ -44,6 +44,7 @@ CpuFreqInfoForTesting::CpuFreqInfoForTesting() {
           kCpuFrequenciesAndroidLittleCore);
   tmpdir_.AddFile("cpu0/cpufreq/scaling_boost_frequencies",
           kCpuBoostFrequenciesAndroidLittleCore);
+  tmpdir_.AddFile("cpu0/cpufreq/scaling_cur_freq", "2650000");
   tmpdir_.AddDir("cpufreq");
   tmpdir_.AddDir("cpu1");
   tmpdir_.AddDir("cpu1/cpufreq");
@@ -51,6 +52,7 @@ CpuFreqInfoForTesting::CpuFreqInfoForTesting() {
           kCpuFrequenciesAndroidBigCore);
   tmpdir_.AddFile("cpu1/cpufreq/scaling_boost_frequencies",
           kCpuBoostFrequenciesAndroidBigCore);
+  tmpdir_.AddFile("cpu1/cpufreq/scaling_cur_freq", "3698200");
   tmpdir_.AddDir("power");
 }
 

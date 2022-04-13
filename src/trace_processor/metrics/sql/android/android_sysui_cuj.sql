@@ -31,7 +31,8 @@ CREATE TABLE android_sysui_cuj_last_cuj AS
   JOIN process_metadata USING (upid)
   WHERE
     slice.name GLOB 'J<*>'
-    AND slice.dur > 0
+    -- Filter out CUJs that are <4ms long - assuming CUJ was cancelled.
+    AND slice.dur > 4e6
     AND (
       process.name GLOB 'com.google.android*'
       OR process.name GLOB 'com.android.*')
@@ -56,6 +57,22 @@ DROP TABLE IF EXISTS android_sysui_cuj_vsync_boundaries;
 CREATE TABLE android_sysui_cuj_vsync_boundaries AS
 SELECT MIN(vsync) as vsync_min, MAX(vsync) as vsync_max
 FROM android_sysui_cuj_do_frame_slices_in_cuj;
+
+DROP TABLE IF EXISTS android_sysui_cuj_frame_expected_timeline_events;
+CREATE TABLE android_sysui_cuj_frame_expected_timeline_events AS
+  SELECT
+    CAST(e.name as INTEGER) as vsync,
+    e.ts as ts_expected,
+    e.dur as dur_expected,
+    MIN(a.ts) as ts_actual_min,
+    MAX(a.ts + a.dur) as ts_end_actual_max
+  FROM android_sysui_cuj_last_cuj cuj
+  JOIN expected_frame_timeline_slice e USING (upid)
+  JOIN android_sysui_cuj_vsync_boundaries vsync
+    ON CAST(e.name as INTEGER) >= vsync.vsync_min
+    AND CAST(e.name as INTEGER) <= vsync.vsync_max
+  JOIN actual_frame_timeline_slice a ON e.upid = a.upid AND e.name = a.name
+  GROUP BY e.name, e.ts, e.dur;
 
 DROP TABLE IF EXISTS android_sysui_cuj_frame_timeline_events;
 CREATE TABLE android_sysui_cuj_frame_timeline_events AS
@@ -83,18 +100,18 @@ CREATE TABLE android_sysui_cuj_do_frame_slices_in_cuj_adjusted AS
 SELECT
   slices.*,
   CASE
-    WHEN fte.ts_actual IS NULL
+    WHEN fte.ts_expected IS NULL
     THEN ts
-    ELSE MAX(COALESCE(slices.ts_prev_frame_end, 0), fte.ts_actual)
+    ELSE MAX(COALESCE(slices.ts_prev_frame_end, 0), fte.ts_expected)
   END as ts_adjusted
 FROM android_sysui_cuj_do_frame_slices_in_cuj slices
-LEFT JOIN android_sysui_cuj_frame_timeline_events fte
-ON slices.vsync = fte.vsync
+LEFT JOIN android_sysui_cuj_frame_expected_timeline_events fte
+  ON slices.vsync = fte.vsync
 -- In rare cases there is a clock drift after device suspends
 -- This may cause the actual/expected timeline to be misaligned with the rest
 -- of the trace for a short period.
 -- Do not use the timelines if it seems that this happened.
-AND slices.ts >= fte.ts_actual AND slices.ts <= fte.ts_actual + fte.dur_actual;
+AND slices.ts >= fte.ts_actual_min - 1e6 AND slices.ts <= fte.ts_end_actual_max;
 
 DROP TABLE IF EXISTS android_sysui_cuj_ts_boundaries;
 CREATE TABLE android_sysui_cuj_ts_boundaries AS
@@ -169,57 +186,47 @@ AND parent_id IS NULL;
 DROP TABLE IF EXISTS android_sysui_cuj_frames;
 CREATE TABLE android_sysui_cuj_frames AS
   WITH gcs_to_rt_match AS (
-    -- Match GPU Completion with the last RT slice before it
     SELECT
-      gcs.ts as gcs_ts,
-      gcs.ts_end as gcs_ts_end,
-      gcs.dur as gcs_dur,
-      gcs.idx as idx,
-      MAX(rts.ts) as rts_ts
-    FROM android_sysui_cuj_gpu_completion_slices_in_cuj gcs
-    JOIN android_sysui_cuj_render_thread_slices_in_cuj rts ON rts.ts < gcs.ts
+      rts.ts,
+      CASE
+        WHEN rtfence.name GLOB 'GPU completion fence *'
+          THEN CAST(STR_SPLIT(rtfence.name, ' ', 3) AS INTEGER)
+        WHEN rtfence.name GLOB 'Trace GPU completion fence *'
+          THEN CAST(STR_SPLIT(rtfence.name, ' ', 4) AS INTEGER)
+        ELSE NULL
+      END AS idx
+    FROM android_sysui_cuj_render_thread_slices_in_cuj rts
+    JOIN descendant_slice(rts.id) rtfence ON rtfence.name GLOB '*GPU completion fence*'
     -- dispatchFrameCallbacks might be seen in case of
     -- drawing that happens on RT only (e.g. ripple effect)
     WHERE (rts.name GLOB 'DrawFrame*' OR rts.name = 'dispatchFrameCallbacks')
-    GROUP BY gcs.ts, gcs.ts_end, gcs.dur, gcs.idx
-  ),
-  frame_boundaries AS (
-    -- Match main thread doFrame with RT DrawFrame and optional GPU Completion
-    SELECT
-      mts.ts_adjusted as mts_ts,
-      mts.ts_end as mts_ts_end,
-      mts.ts_end - mts.ts_adjusted as mts_dur,
-      mts.vsync as vsync,
-      MAX(gcs_rt.gcs_ts) as gcs_ts_start,
-      MAX(gcs_rt.gcs_ts_end) as gcs_ts_end
-    FROM android_sysui_cuj_do_frame_slices_in_cuj_adjusted mts
-    JOIN android_sysui_cuj_draw_frame_slices_in_cuj rts
-      ON mts.vsync = rts.vsync
-    LEFT JOIN gcs_to_rt_match gcs_rt ON gcs_rt.rts_ts = rts.ts
-    GROUP BY mts.ts, mts.ts_end, mts.dur
   )
   SELECT
-    ROW_NUMBER() OVER (ORDER BY f.mts_ts) AS frame_number,
-    f.vsync as vsync,
-    f.mts_ts as ts_main_thread_start,
-    f.mts_ts_end as ts_main_thread_end,
-    f.mts_dur AS dur_main_thread,
+    ROW_NUMBER() OVER (ORDER BY mts.ts) AS frame_number,
+    mts.vsync as vsync,
+    -- Main thread timings
+    mts.ts_adjusted as ts_main_thread_start,
+    mts.ts_end as ts_main_thread_end,
+    mts.ts_end - mts.ts_adjusted AS dur_main_thread,
+    -- RenderThread timings
     MIN(rts.ts) AS ts_render_thread_start,
     MAX(rts.ts_end) AS ts_render_thread_end,
     SUM(rts.dur) AS dur_render_thread,
-    MAX(gcs_rt.gcs_ts_end) AS ts_frame_end,
-    MAX(gcs_rt.gcs_ts_end) - f.mts_ts AS dur_frame,
-    SUM(gcs_rt.gcs_ts_end - MAX(COALESCE(hwc.ts_end, 0), gcs_rt.gcs_ts)) as dur_gcs,
-    COUNT(DISTINCT(rts.ts)) as draw_frames,
-    COUNT(DISTINCT(gcs_rt.gcs_ts)) as gpu_completions
-  FROM frame_boundaries f
-  JOIN android_sysui_cuj_draw_frame_slices_in_cuj rts
-    ON f.vsync = rts.vsync
-  LEFT JOIN gcs_to_rt_match gcs_rt
-    ON rts.ts = gcs_rt.rts_ts
-  LEFT JOIN android_sysui_cuj_hwc_release_slices_in_cuj hwc USING (idx)
-  GROUP BY f.mts_ts
-  HAVING gpu_completions >= 1;
+    -- HWC and GPU
+    SUM(gcs.ts_end - MAX(COALESCE(hwc.ts_end, 0), gcs.ts)) as dur_gcs,
+    -- Overall frame timings
+    COALESCE(MAX(gcs.ts_end), MAX(rts.ts_end)) AS ts_frame_end,
+    COALESCE(MAX(gcs.ts_end), MAX(rts.ts_end)) - mts.ts_adjusted AS dur_frame,
+    MAX(gcs_rt.idx) IS NOT NULL as drew_anything
+    -- Match main thread doFrame with RT DrawFrame and optional GPU Completion
+    FROM android_sysui_cuj_do_frame_slices_in_cuj_adjusted mts
+    JOIN android_sysui_cuj_draw_frame_slices_in_cuj rts
+      ON mts.vsync = rts.vsync
+    LEFT JOIN gcs_to_rt_match gcs_rt ON gcs_rt.ts = rts.ts
+    LEFT JOIN android_sysui_cuj_gpu_completion_slices_in_cuj gcs USING(idx)
+    LEFT JOIN android_sysui_cuj_hwc_release_slices_in_cuj hwc USING (idx)
+    GROUP BY mts.vsync, mts.ts_adjusted, mts.ts_end
+    HAVING drew_anything;
 
 DROP TABLE IF EXISTS android_sysui_cuj_missed_frames;
 CREATE TABLE android_sysui_cuj_missed_frames AS
@@ -335,7 +342,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
     ON rts.ts >= f.ts_render_thread_start AND rts.ts < f.ts_render_thread_end
   WHERE rts.name = 'shader_compile'
   AND f.app_missed
-  AND rts.dur > 8000000
+  AND rts.dur > 8e6
 
   UNION ALL
   SELECT
@@ -345,7 +352,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   JOIN android_sysui_cuj_render_thread_slices_in_cuj rts
     ON rts.ts >= f.ts_render_thread_start AND rts.ts < f.ts_render_thread_end
   WHERE rts.name = 'flush layers'
-  AND rts.dur > 8000000
+  AND rts.dur > 8e6
   AND f.app_missed
 
   UNION ALL
@@ -357,7 +364,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
     ((state = 'D' OR state = 'DK') AND io_wait)
     OR (state = 'DK' AND io_wait IS NULL)
   GROUP BY frame_number
-  HAVING SUM(dur) > 8000000
+  HAVING SUM(dur) > 8e6
 
   UNION ALL
   SELECT
@@ -366,7 +373,11 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   FROM android_sysui_cuj_main_thread_state
   WHERE (state = 'R' OR state = 'R+')
   GROUP BY frame_number
-  HAVING SUM(dur) > 8000000
+  HAVING SUM(dur) > 8e6
+  AND SUM(dur) > (
+    SELECT 0.4 * dur_main_thread
+    FROM android_sysui_cuj_frames fs
+    WHERE fs.frame_number = android_sysui_cuj_main_thread_state.frame_number)
 
   UNION ALL
   SELECT
@@ -377,7 +388,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
     ((state = 'D' OR state = 'DK') AND io_wait)
     OR (state = 'DK' AND io_wait IS NULL)
   GROUP BY frame_number
-  HAVING SUM(dur) > 8000000
+  HAVING SUM(dur) > 8e6
 
   UNION ALL
   SELECT
@@ -386,14 +397,18 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   FROM android_sysui_cuj_render_thread_state
   WHERE (state = 'R' OR state = 'R+')
   GROUP BY frame_number
-  HAVING SUM(dur) > 8000000
+  HAVING SUM(dur) > 8e6
+  AND SUM(dur) > (
+    SELECT 0.4 * dur_render_thread
+    FROM android_sysui_cuj_frames fs
+    WHERE fs.frame_number = android_sysui_cuj_render_thread_state.frame_number)
 
   UNION ALL
   SELECT
   frame_number,
   'MainThread - binder transaction time' AS jank_cause
   FROM android_sysui_cuj_main_thread_binder
-  WHERE dur > 8000000
+  WHERE dur > 8e6
 
   UNION ALL
   SELECT
@@ -407,7 +422,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   frame_number,
   'GPU completion - long completion time' AS jank_cause
   FROM android_sysui_cuj_missed_frames f
-  WHERE dur_gcs > 8000000
+  WHERE dur_gcs > 8e6
   AND app_missed
 
   UNION ALL
@@ -419,7 +434,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   WHERE
     mts.state = 'Running'
     AND rts.state = 'Running'
-    AND mts.dur + rts.dur > 15000000
+    AND mts.dur + rts.dur > 15e6
 
   UNION ALL
   SELECT
@@ -429,7 +444,7 @@ CREATE TABLE android_sysui_cuj_jank_causes AS
   JOIN android_sysui_cuj_jit_slices_join_table jit USING (frame_number)
   WHERE f.app_missed
   GROUP BY f.frame_number
-  HAVING SUM(jit.dur) > 8000000
+  HAVING SUM(jit.dur) > 8e6
 
   UNION ALL
   SELECT frame_number, jank_cause FROM android_sysui_cuj_sf_jank_causes

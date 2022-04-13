@@ -15,24 +15,13 @@
 import("../../gn/perfetto.gni")
 import("../../gn/perfetto_cc_proto_descriptor.gni")
 import("../../gn/perfetto_host_executable.gni")
+import("../../gn/test.gni")
 import("../../gn/wasm.gni")
 
-perfetto_host_executable("trace_to_text") {
+executable("trace_to_text") {
   testonly = true
   deps = [
-    ":full",
-    "../../gn:default_deps",
-  ]
-}
-
-# This is just to check that we can build a version of trace_to_text against
-# libprotobuf-lite. This configuration is only used by WASM. Unfortunately,
-# however, the WASM linker is very permissive and failures show up only when
-# loading the executable in the browser.
-perfetto_host_executable("trace_to_text_lite") {
-  testonly = true
-  deps = [
-    ":lite",
+    ":main",
     "../../gn:default_deps",
   ]
 }
@@ -83,10 +72,9 @@ static_library("libpprofbuilder") {
   public_deps = [ ":pprofbuilder" ]
 }
 
-# The core source files that are used both by the "full" version (the host
-# executable) and by the "lite" version (the WASM module for the UI).
-source_set("common") {
+source_set("lib") {
   deps = [
+    ":gen_cc_trace_descriptor",
     ":pprofbuilder",
     ":utils",
     "../../gn:default_deps",
@@ -97,12 +85,16 @@ source_set("common") {
     "../../src/profiling:deobfuscator",
     "../../src/profiling/symbolizer",
     "../../src/profiling/symbolizer:symbolize_database",
+    "../../src/protozero:proto_ring_buffer",
     "../../src/trace_processor:lib",
+    "../../src/trace_processor:storage_minimal",
+    "../../src/trace_processor/util:descriptors",
+    "../../src/trace_processor/util:gzip",
+    "../../src/trace_processor/util:protozero_to_text",
   ]
   sources = [
     "deobfuscate_profile.cc",
     "deobfuscate_profile.h",
-    "main.cc",
     "symbolize_profile.cc",
     "symbolize_profile.h",
     "trace_to_hprof.cc",
@@ -113,47 +105,26 @@ source_set("common") {
     "trace_to_profile.h",
     "trace_to_systrace.cc",
     "trace_to_systrace.h",
+    "trace_to_text.cc",
+    "trace_to_text.h",
     "trace_to_text.h",
   ]
 }
 
-# Lite target for the WASM UI. Doesn't have any dependency on libprotobuf-full.
-source_set("lite") {
+source_set("main") {
   deps = [
-    ":common",
+    ":lib",
     "../../gn:default_deps",
-    "../../include/perfetto/base",
+    "../../include/perfetto/ext/base:base",
   ]
-  sources = [ "lite_fallbacks.cc" ]
-}
-
-# Full target for the host. Depends on libprotobuf-full.
-source_set("full") {
-  testonly = true
-  deps = [
-    ":common",
-    ":gen_cc_trace_descriptor",
-    ":utils",
-    "../../gn:default_deps",
-    "../../gn:protobuf_full",
-    "../../protos/perfetto/trace:zero",
-    "../../src/protozero:proto_ring_buffer",
-  ]
-  if (enable_perfetto_zlib) {
-    deps += [ "../../gn:zlib" ]
-  }
-  sources = [
-    "proto_full_utils.cc",
-    "proto_full_utils.h",
-    "trace_to_text.cc",
-  ]
+  sources = [ "main.cc" ]
 }
 
 if (enable_perfetto_ui) {
   wasm_lib("trace_to_text_wasm") {
     name = "trace_to_text"
     deps = [
-      ":lite",
+      ":main",
       "../../gn:default_deps",
     ]
   }
@@ -162,4 +133,16 @@ if (enable_perfetto_ui) {
 perfetto_cc_proto_descriptor("gen_cc_trace_descriptor") {
   descriptor_name = "trace.descriptor"
   descriptor_target = "../../protos/perfetto/trace:descriptor"
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":lib",
+    "../../gn:default_deps",
+    "../../gn:gtest_and_gmock",
+    "../../include/perfetto/base",
+    "../../include/perfetto/ext/base:base",
+  ]
+  sources = [ "trace_to_text_unittest.cc" ]
 }

@@ -2,6 +2,7 @@
 
 # Startup metric tests.
 android_startup.py android_startup android_startup.out
+android_startup_minsdk33.py android_startup android_startup_minsdk33.out
 android_startup_breakdown.py android_startup android_startup_breakdown.out
 android_startup_process_track.py android_startup android_startup_process_track.out
 android_startup_attribution.py android_startup android_startup_attribution.out

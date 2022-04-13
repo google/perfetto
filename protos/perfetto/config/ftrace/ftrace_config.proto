@@ -64,4 +64,13 @@ message FtraceConfig {
   // TODO(kaleshsingh): implement the logic behind this. Right now this flag
   // does nothing.
   optional bool throttle_rss_stat = 15;
+
+  // If true, avoid enabling events that aren't statically known by
+  // traced_probes. Otherwise, the default is to emit such events as
+  // GenericFtraceEvent protos.
+  // Prefer to keep this flag at its default. This was added for Android
+  // tracing, where atrace categories and/or atrace HAL requested events can
+  // expand to events that aren't of interest to the tracing user.
+  // Introduced in: Android T.
+  optional bool disable_generic_events = 16;
 }

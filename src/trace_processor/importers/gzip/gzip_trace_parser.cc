@@ -75,7 +75,7 @@ util::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
   constexpr size_t kUncompressedBufferSize = 32 * 1024 * 1024;
 
   needs_more_input_ = false;
-  decompressor_.SetInput(start, len);
+  decompressor_.Feed(start, len);
 
   for (auto ret = ResultCode::kOk; ret != ResultCode::kEof;) {
     if (!buffer_) {
@@ -84,10 +84,10 @@ util::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
     }
 
     auto result =
-        decompressor_.Decompress(buffer_.get() + bytes_written_,
-                                 kUncompressedBufferSize - bytes_written_);
+        decompressor_.ExtractOutput(buffer_.get() + bytes_written_,
+                                    kUncompressedBufferSize - bytes_written_);
     ret = result.ret;
-    if (ret == ResultCode::kError || ret == ResultCode::kNoProgress)
+    if (ret == ResultCode::kError)
       return util::ErrStatus("Failed to decompress trace chunk");
 
     if (ret == ResultCode::kNeedsMoreInput) {

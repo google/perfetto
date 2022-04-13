@@ -19,6 +19,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "src/base/test/test_task_runner.h"
+#include "src/traced/probes/common/cpu_freq_info_for_testing.h"
 #include "src/traced/probes/sys_stats/sys_stats_data_source.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"
@@ -196,11 +197,13 @@ class TestSysStatsDataSource : public SysStatsDataSource {
                          TracingSessionID id,
                          std::unique_ptr<TraceWriter> writer,
                          const DataSourceConfig& config,
+                         std::unique_ptr<CpuFreqInfo> cpu_freq_info,
                          OpenFunction open_fn)
       : SysStatsDataSource(task_runner,
                            id,
                            std::move(writer),
                            config,
+                           std::move(cpu_freq_info),
                            open_fn) {}
 
   MOCK_METHOD0(OpenDevfreqDir, base::ScopedDir());
@@ -230,7 +233,8 @@ class SysStatsDataSourceTest : public ::testing::Test {
     writer_raw_ = writer.get();
     auto instance =
         std::unique_ptr<TestSysStatsDataSource>(new TestSysStatsDataSource(
-            &task_runner_, 0, std::move(writer), cfg, MockOpenReadOnly));
+            &task_runner_, 0, std::move(writer), cfg,
+            cpu_freq_info_for_testing_.GetInstance(), MockOpenReadOnly));
     instance->set_ns_per_user_hz_for_testing(1000000000ull / 100);  // 100 Hz.
     instance->Start();
     return instance;
@@ -252,6 +256,7 @@ class SysStatsDataSourceTest : public ::testing::Test {
 
   TraceWriterForTesting* writer_raw_ = nullptr;
   base::TestTaskRunner task_runner_;
+  CpuFreqInfoForTesting cpu_freq_info_for_testing_;
 };
 
 TEST_F(SysStatsDataSourceTest, Meminfo) {
@@ -480,6 +485,32 @@ TEST_F(SysStatsDataSourceTest, StatForksOnly) {
   ASSERT_EQ(sys_stats.num_irq_size(), 0);
   EXPECT_EQ(sys_stats.num_softirq_total(), 0u);
   ASSERT_EQ(sys_stats.num_softirq_size(), 0);
+}
+
+TEST_F(SysStatsDataSourceTest, Cpufreq) {
+  protos::gen::SysStatsConfig cfg;
+  cfg.set_cpufreq_period_ms(10);
+  DataSourceConfig config_obj;
+  config_obj.set_sys_stats_config_raw(cfg.SerializeAsString());
+  auto data_source = GetSysStatsDataSource(config_obj);
+
+  WaitTick(data_source.get());
+
+  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_sys_stats());
+  const auto& sys_stats = packet.sys_stats();
+  EXPECT_GT(sys_stats.cpufreq_khz_size(), 0);
+  EXPECT_EQ(sys_stats.cpufreq_khz()[0], 2650000u);
+  if (sys_stats.cpufreq_khz_size() > 1) {
+    // We emulated 2 CPUs but it is possible the test system is single core.
+    EXPECT_EQ(sys_stats.cpufreq_khz()[1], 3698200u);
+  }
+  for (unsigned int i = 2;
+       i < static_cast<unsigned int>(sys_stats.cpufreq_khz_size()); i++) {
+    // For cpux which scaling_cur_freq was not emulated in unittest, cpufreq
+    // should be recorded as 0
+    EXPECT_EQ(sys_stats.cpufreq_khz()[i], 0u);
+  }
 }
 
 }  // namespace

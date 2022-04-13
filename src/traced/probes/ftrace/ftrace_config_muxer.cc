@@ -26,9 +26,11 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/utils.h"
-#include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
+#include "src/traced/probes/ftrace/ftrace_stats.h"
+
+#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 
 namespace perfetto {
 namespace {
@@ -485,7 +487,8 @@ FtraceConfigMuxer::FtraceConfigMuxer(
       vendor_events_(vendor_events) {}
 FtraceConfigMuxer::~FtraceConfigMuxer() = default;
 
-FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
+FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
+                                              FtraceSetupErrors* errors) {
   EventFilter filter;
   bool is_ftrace_enabled = ftrace_->IsTracingEnabled();
   if (ds_configs_.empty()) {
@@ -530,7 +533,7 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
           "bailing out.");
       return 0;
     }
-    UpdateAtrace(request);
+    UpdateAtrace(request, errors ? &errors->atrace_errors : nullptr);
   }
 
   for (const auto& group_and_name : events) {
@@ -538,12 +541,24 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
     if (!event) {
       PERFETTO_DLOG("Can't enable %s, event not known",
                     group_and_name.ToString().c_str());
+      if (errors)
+        errors->unknown_ftrace_events.push_back(group_and_name.ToString());
+      continue;
+    }
+    // Niche option to skip events that are in the config, but don't have a
+    // dedicated proto for the event in perfetto. Otherwise such events will be
+    // encoded as GenericFtraceEvent.
+    if (request.disable_generic_events() &&
+        event->proto_field_id ==
+            protos::pbzero::FtraceEvent::kGenericFieldNumber) {
+      if (errors)
+        errors->failed_ftrace_events.push_back(group_and_name.ToString());
       continue;
     }
     // Note: ftrace events are always implicitly enabled (and don't have an
     // "enable" file). So they aren't tracked by the central event filter (but
-    // still need to be added to the per data source event filter to retain the
-    // events during parsing).
+    // still need to be added to the per data source event filter to retain
+    // the events during parsing).
     if (current_state_.ftrace_events.IsEventEnabled(event->ftrace_event_id) ||
         std::string("ftrace") == event->group) {
       filter.AddEnabledEvent(event->ftrace_event_id);
@@ -554,6 +569,8 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request) {
       filter.AddEnabledEvent(event->ftrace_event_id);
     } else {
       PERFETTO_DPLOG("Failed to enable %s.", group_and_name.ToString().c_str());
+      if (errors)
+        errors->failed_ftrace_events.push_back(group_and_name.ToString());
     }
   }
 
@@ -662,7 +679,8 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
       // some categories this won't disable them (e.g. categories that just
       // enable ftrace events) for those there is nothing we can do till the
       // last ftrace config is removed.
-      if (StartAtrace(expected_apps, expected_categories)) {
+      if (StartAtrace(expected_apps, expected_categories,
+                      /*atrace_errors=*/nullptr)) {
         // Update current_state_ to reflect this change.
         current_state_.atrace_apps = expected_apps;
         current_state_.atrace_categories = expected_categories;
@@ -720,7 +738,8 @@ size_t FtraceConfigMuxer::GetPerCpuBufferSizePages() {
   return current_state_.cpu_buffer_size_pages;
 }
 
-void FtraceConfigMuxer::UpdateAtrace(const FtraceConfig& request) {
+void FtraceConfigMuxer::UpdateAtrace(const FtraceConfig& request,
+                                     std::string* atrace_errors) {
   // We want to avoid poisoning current_state_.atrace_{categories, apps}
   // if for some reason these args make atrace unhappy so we stash the
   // union into temps and only update current_state_ if we successfully
@@ -738,7 +757,7 @@ void FtraceConfigMuxer::UpdateAtrace(const FtraceConfig& request) {
     return;
   }
 
-  if (StartAtrace(combined_apps, combined_categories)) {
+  if (StartAtrace(combined_apps, combined_categories, atrace_errors)) {
     current_state_.atrace_categories = combined_categories;
     current_state_.atrace_apps = combined_apps;
     current_state_.atrace_on = true;
@@ -746,9 +765,9 @@ void FtraceConfigMuxer::UpdateAtrace(const FtraceConfig& request) {
 }
 
 // static
-bool FtraceConfigMuxer::StartAtrace(
-    const std::vector<std::string>& apps,
-    const std::vector<std::string>& categories) {
+bool FtraceConfigMuxer::StartAtrace(const std::vector<std::string>& apps,
+                                    const std::vector<std::string>& categories,
+                                    std::string* atrace_errors) {
   PERFETTO_DLOG("Update atrace config...");
 
   std::vector<std::string> args;
@@ -771,7 +790,7 @@ bool FtraceConfigMuxer::StartAtrace(
     args.push_back(arg);
   }
 
-  bool result = RunAtrace(args);
+  bool result = RunAtrace(args, atrace_errors);
   PERFETTO_DLOG("...done (%s)", result ? "success" : "fail");
   return result;
 }
@@ -784,7 +803,7 @@ void FtraceConfigMuxer::DisableAtrace() {
   std::vector<std::string> args{"atrace", "--async_stop"};
   if (!IsOldAtrace())
     args.push_back("--only_userspace");
-  if (RunAtrace(args)) {
+  if (RunAtrace(args, /*atrace_errors=*/nullptr)) {
     current_state_.atrace_categories.clear();
     current_state_.atrace_apps.clear();
     current_state_.atrace_on = false;

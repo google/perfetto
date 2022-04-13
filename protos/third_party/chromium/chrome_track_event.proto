@@ -5,6 +5,7 @@
 syntax = "proto2";
 
 import public "protos/perfetto/trace/track_event/track_event.proto";
+import public "protos/perfetto/trace/track_event/debug_annotation.proto";
 
 package perfetto.protos;
 
@@ -130,6 +131,7 @@ enum ShouldSwapBrowsingInstance {
   SHOULD_SWAP_BROWSING_INSTANCE_NO_HAS_NOT_COMMITTED_ANY_NAVIGATION = 20;
   SHOULD_SWAP_BROWSING_INSTANCE_NO_UNLOAD_HANDLER_EXISTS_ON_SAME_SITE_NAVIGATION =
       21;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_NOT_PRIMARY_MAIN_FRAME = 22;
 }
 
 message ShouldSwapBrowsingInstancesResult {
@@ -149,6 +151,13 @@ message FrameTreeNodeInfo {
 
   // Whether there's a speculative RenderFrameHost or not.
   optional bool has_speculative_render_frame_host = 3;
+
+  optional RenderFrameHost current_frame_host = 4;
+  optional RenderFrameHost speculative_frame_host = 5;
+
+  // Additional untyped debug information associated with this
+  // FrameTreeNode, populated via TracedProto::AddDebugAnnotations API.
+  repeated DebugAnnotation debug_annotations = 99;
 }
 
 message ChromeHashedPerformanceMark {
@@ -201,6 +210,10 @@ message RenderProcessHost {
 
   // Details about the associated browser context.
   optional ChromeBrowserContext browser_context = 4;
+
+  // Additional untyped debug information associated with this
+  // RenderProcessHost, populated via TracedProto::AddDebugAnnotations API.
+  repeated DebugAnnotation debug_annotations = 99;
 }
 
 message RenderProcessHostListener {
@@ -267,10 +280,34 @@ message SiteInstance {
   // related SiteInstances in the same BrowsingInstance.
   optional int32 related_active_contents_count = 5;
 
-  // The number of active RenderFrameHosts which belong to this SiteInstance.
+  // The number of active RenderFrameHosts this SiteInstance's SiteInstanceGroup
+  // has.
   optional int32 active_rfh_count = 6;
+
+  // The SiteInstanceGroup this SiteInstance belongs to.
+  optional SiteInstanceGroup site_instance_group = 7;
+
+  // Additional untyped debug information associated with this
+  // SiteInstance, populated via TracedProto::AddDebugAnnotations API.
+  repeated DebugAnnotation debug_annotations = 99;
 }
 
+message SiteInstanceGroup {
+  // The ID of the SiteInstanceGroup.
+  optional int32 site_instance_group_id = 1;
+
+  // The number of active frames in this SiteInstanceGroup.
+  optional int32 active_frame_count = 2;
+
+  // The process ID of the SiteInstanceGroup.
+  optional RenderProcessHost process = 3;
+
+  // Additional untyped debug information associated with this
+  // SiteInstanceGroup, populated via TracedProto::AddDebugAnnotations API.
+  repeated DebugAnnotation debug_annotations = 99;
+}
+
+// Next ID: 7
 message RenderViewHost {
   // The RenderViewHostMapId for the RenderViewHost.
   optional int32 rvh_map_id = 1;
@@ -278,14 +315,21 @@ message RenderViewHost {
   // The routing ID for the RenderViewHost.
   optional int32 routing_id = 2;
 
-  // The process ID of the RenderViewHost.
+  // The process ID of the RenderViewHost. Deprecated in favour of |process|.
   optional int32 process_id = 3;
+
+  // Process this RenderViewHost is associated with.
+  optional RenderProcessHost process = 6;
 
   // Whether the RenderViewHost is in back/forward cache or not.
   optional bool is_in_back_forward_cache = 4;
 
   // Whether the renderer-side RenderView is created.
   optional bool renderer_view_created = 5;
+
+  // Additional untyped debug information associated with this
+  // RenderViewHost, populated via TracedProto::AddDebugAnnotations API.
+  repeated DebugAnnotation debug_annotations = 99;
 }
 
 message RenderFrameProxyHost {
@@ -305,6 +349,14 @@ message RenderFrameProxyHost {
 
   // Whether the renderer-side RenderFrameProxy is live or not.
   optional bool is_render_frame_proxy_live = 5;
+
+  // The SiteInstanceGroupId of the SiteInstanceGroup associated with the
+  // RenderFrameProxyHost.
+  optional int32 site_instance_group_id = 6;
+
+  // Additional untyped debug information associated with this
+  // RenderFrameProxyHost, populated via TracedProto::AddDebugAnnotations API.
+  repeated DebugAnnotation debug_annotations = 99;
 }
 
 message AndroidView {
@@ -395,6 +447,15 @@ message GlobalRenderFrameHostId {
   optional int32 process_id = 2;
 }
 
+message BrowsingContextState {
+  // The ID of the BrowsingInstance that the BrowsingContextState belongs to.
+  optional int32 browsing_instance_id = 1;
+
+  // Additional untyped debug information associated with this
+  // FrameTreeNode, populated via TracedProto::AddDebugAnnotations API.
+  repeated DebugAnnotation debug_annotations = 99;
+}
+
 message RenderFrameHost {
   optional RenderProcessHost process = 1;
   optional GlobalRenderFrameHostId render_frame_host_id = 2;
@@ -420,6 +481,11 @@ message RenderFrameHost {
   optional RenderFrameHost parent = 8;
   optional RenderFrameHost outer_document = 9;
   optional RenderFrameHost embedder = 10;
+  optional BrowsingContextState browsing_context_state = 11;
+
+  // Additional untyped debug information associated with this
+  // RenderViewHost, populated via TracedProto::AddDebugAnnotations API.
+  repeated DebugAnnotation debug_annotations = 99;
 }
 
 message ChromeThreadPoolTask {
@@ -514,6 +580,8 @@ message BackForwardCacheCanStoreDocumentResult {
     CACHE_CONTROL_NO_STORE_HTTP_ONLY_COOKIE_MODIFIED = 51;
     NO_RESPONSE_HEAD = 52;
     ACTIVATION_NAVIGATION_DISALLOWED_FOR_BUG_1234857 = 53;
+    ERROR_DOCUMENT = 54;
+    FENCED_FRAMES_EMBEDDER = 55;
   }
 
   optional BackForwardCacheNotRestoredReason
@@ -615,9 +683,97 @@ message RendererMainThreadTaskExecution {
   optional FrameType frame_type = 4;
 }
 
+message EventLatency {
+  enum EventType {
+    EVENT_TYPE_UNSPECIFIED = 0;
+    MOUSE_PRESSED = 1;
+    MOUSE_RELEASED = 2;
+    MOUSE_WHEEL = 3;
+    KEY_PRESSED = 4;
+    KEY_RELEASED = 5;
+    TOUCH_PRESSED = 6;
+    TOUCH_RELEASED = 7;
+    TOUCH_MOVED = 8;
+    GESTURE_SCROLL_BEGIN = 9;
+    GESTURE_SCROLL_UPDATE = 10;
+    GESTURE_SCROLL_END = 11;
+    GESTURE_DOUBLE_TAP = 12;
+    GESTURE_LONG_PRESS = 13;
+    GESTURE_LONG_TAP = 14;
+    GESTURE_SHOW_PRESS = 15;
+    GESTURE_TAP = 16;
+    GESTURE_TAP_CANCEL = 17;
+    GESTURE_TAP_DOWN = 18;
+    GESTURE_TAP_UNCONFIRMED = 19;
+    GESTURE_TWO_FINGER_TAP = 20;
+    FIRST_GESTURE_SCROLL_UPDATE = 21;
+    MOUSE_DRAGGED = 22;
+    GESTURE_PINCH_BEGIN = 23;
+    GESTURE_PINCH_END = 24;
+    GESTURE_PINCH_UPDATE = 25;
+    INERTIAL_GESTURE_SCROLL_UPDATE = 26;
+  }
+
+  optional EventType event_type = 1;
+}
+
+message ProcessSingleton {
+  enum RemoteProcessInteractionResult {
+    INTERACTION_RESULT_UNSPECIFIED = 0;
+    TERMINATE_FAILED = 1;
+    REMOTE_PROCESS_NOT_FOUND = 2;
+    TERMINATE_WAIT_TIMEOUT = 3;
+    RUNNING_PROCESS_NOTIFY_ERROR = 4;
+    TERMINATE_NOT_ENOUGH_PERMISSIONS = 5;
+    REMOTE_PROCESS_SHUTTING_DOWN = 6;
+    PROFILE_UNLOCKED = 7;
+    PROFILE_UNLOCKED_BEFORE_KILL = 8;
+    SAME_BROWSER_INSTANCE = 9;
+    SAME_BROWSER_INSTANCE_BEFORE_KILL = 10;
+    FAILED_TO_EXTRACT_PID = 11;
+    INVALID_LOCK_FILE = 12;
+    ORPHANED_LOCK_FILE = 13;
+    USER_REFUSED_TERMINATION = 14;
+    TERMINATE_SUCCEEDED = 100;
+  }
+
+  enum RemoteHungProcessTerminateReason {
+    TERMINATE_REASON_UNSPECIFIED = 0;
+    USER_ACCEPTED_TERMINATION = 1;
+    NO_VISIBLE_WINDOW_FOUND = 2;
+    NOTIFY_ATTEMPTS_EXCEEDED = 3;
+    SOCKET_WRITE_FAILED = 4;
+    SOCKET_READ_FAILED = 5;
+  }
+
+  optional RemoteProcessInteractionResult remote_process_interaction_result = 1;
+  optional RemoteHungProcessTerminateReason remote_process_terminate_reason = 2;
+}
+
+message NavigationHandle {
+  optional int64 navigation_id = 1;
+  optional bool has_committed = 2;
+  optional bool is_error_page = 3;
+  optional FrameTreeNodeInfo frame_tree_node = 4;
+  optional RenderFrameHost render_frame_host = 5;
+
+  // Additional untyped debug information associated with this
+  // NavigationHandle/Request, populated via TracedProto::AddDebugAnnotations
+  // API.
+  repeated DebugAnnotation debug_annotations = 99;
+}
+
+enum DeviceThermalState {
+  DEVICE_THERMAL_STATE_UNKNOWN = 0;
+  DEVICE_THERMAL_STATE_NOMINAL = 1;
+  DEVICE_THERMAL_STATE_FAIR = 2;
+  DEVICE_THERMAL_STATE_SERIOUS = 3;
+  DEVICE_THERMAL_STATE_CRITICAL = 4;
+}
+
 message ChromeTrackEvent {
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1032
+  // Next ID: 1037
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -687,5 +843,17 @@ message ChromeTrackEvent {
 
     optional RendererMainThreadTaskExecution
         renderer_main_thread_task_execution = 1031;
+
+    optional EventLatency event_latency = 1032;
+
+    optional ProcessSingleton process_singleton = 1033;
+
+    optional SiteInstanceGroup site_instance_group = 1034;
+
+    optional BrowsingContextState browsing_context_state = 1035;
+
+    optional DeviceThermalState device_thermal_state = 1036;
+
+    optional NavigationHandle navigation = 1037;
   }
 }

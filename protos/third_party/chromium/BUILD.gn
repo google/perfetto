@@ -4,14 +4,14 @@ import("sources.gni")
 
 perfetto_proto_library("@TYPE@") {
   sources = chrome_track_event_sources
-  deps = [ "../../perfetto/trace/track_event:@TYPE@" ]
+  public_deps = [ "../../perfetto/trace/track_event:@TYPE@" ]
 }
 
-perfetto_proto_library("chrome_track_event_@TYPE@") {
+perfetto_proto_library("@TYPE@") {
   proto_generators = [ "descriptor" ]
   sources = chrome_track_event_sources
   generate_descriptor = "chrome_track_event.descriptor"
-  deps = [ "../../perfetto/trace/track_event:source_set" ]
+  deps = [ ":source_set" ]
 
   # When rolled into Chrome, extension descriptor is going to be linked into
   # binary, therefore increasing its size. Including imports means that the

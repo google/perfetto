@@ -22,11 +22,14 @@ import "protos/perfetto/metrics/metrics.proto";
 import "protos/perfetto/metrics/chrome/blink_gc_metric.proto";
 import "protos/perfetto/metrics/chrome/dropped_frames.proto";
 import "protos/perfetto/metrics/chrome/frame_times.proto";
+import "protos/perfetto/metrics/chrome/histogram_hashes.proto";
+import "protos/perfetto/metrics/chrome/long_latency.proto";
 import "protos/perfetto/metrics/chrome/media_metric.proto";
 import "protos/perfetto/metrics/chrome/reported_by_page.proto";
 import "protos/perfetto/metrics/chrome/scroll_jank.proto";
 import "protos/perfetto/metrics/chrome/test_chrome_metric.proto";
 import "protos/perfetto/metrics/chrome/touch_jank.proto";
+import "protos/perfetto/metrics/chrome/user_event_hashes.proto";
 
 // TODO(lalitm): rename metrics below to include a "chrome_" prefix.
 extend TraceMetrics {
@@ -38,4 +41,7 @@ extend TraceMetrics {
   optional MediaMetric media_metric = 1006;
   optional TouchJank touch_jank = 1007;
   optional ChromeDroppedFrames chrome_dropped_frames = 1008;
+  optional ChromeLongLatency chrome_long_latency = 1009;
+  optional ChromeHistogramHashes chrome_histogram_hashes = 1010;
+  optional ChromeUserEventHashes chrome_user_event_hashes = 1011;
 }

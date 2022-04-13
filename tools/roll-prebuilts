@@ -45,14 +45,14 @@ SCRIPTS_TO_UPDATE = [
         'tool':
             'trace_processor_shell',
         'archs': [
-            'mac-amd64', 'windows-amd64', 'linux-amd64', 'linux-arm',
-            'linux-arm64'
+            'mac-amd64', 'mac-arm64', 'windows-amd64', 'linux-amd64',
+            'linux-arm', 'linux-arm64'
         ]
     },
     {
         'script': 'traceconv',
         'tool': 'trace_to_text',
-        'archs': ['mac-amd64', 'linux-amd64', 'windows-amd64']
+        'archs': ['mac-amd64', 'mac-arm64', 'linux-amd64', 'windows-amd64']
     },
     {
         'script':
@@ -60,12 +60,17 @@ SCRIPTS_TO_UPDATE = [
         'tool':
             'tracebox',
         'archs': [
-            'mac-amd64', 'linux-amd64', 'linux-amd64', 'linux-arm',
+            'mac-amd64', 'mac-arm64', 'linux-amd64', 'linux-amd64', 'linux-arm',
             'linux-arm64'
         ]
     },
     {
         'script': 'heap_profile',
+        'tool': 'trace_to_text',
+        'archs': ['mac-amd64', 'mac-arm64', 'windows-amd64', 'linux-amd64']
+    },
+    {
+        'script': 'cpu_profile',
         'tool': 'trace_to_text',
         'archs': ['mac-amd64', 'windows-amd64', 'linux-amd64']
     },
@@ -83,6 +88,10 @@ ARCH_TO_PYTHON = {
     'mac-amd64': {
         'platform': 'darwin',
         'machine': ['x86_64'],
+    },
+    'mac-arm64': {
+        'platform': 'darwin',
+        'machine': ['arm64'],
     },
     'windows-amd64': {
         'platform': 'win32',

@@ -51,6 +51,7 @@ import {
   LogsPagination,
   NewEngineMode,
   OmniboxState,
+  PivotTableReduxState,
   RecordingTarget,
   SCROLLING_TRACK_GROUP,
   State,
@@ -693,7 +694,8 @@ export const StateActions = {
       },
 
   selectChromeSlice(
-      state: StateDraft, args: {id: number, trackId: string, table: string}):
+      state: StateDraft,
+      args: {id: number, trackId: string, table: string, scroll?: boolean}):
       void {
         state.currentSelection = {
           kind: 'CHROME_SLICE',
@@ -701,7 +703,12 @@ export const StateActions = {
           trackId: args.trackId,
           table: args.table
         };
+        state.pendingScrollId = args.scroll ? args.id : undefined;
       },
+
+  clearPendingScrollId(state: StateDraft, _: {}): void {
+    state.pendingScrollId = undefined;
+  },
 
   selectThreadState(state: StateDraft, args: {id: number, trackId: string}):
       void {
@@ -916,6 +923,10 @@ export const StateActions = {
     }
   },
 
+  togglePivotTableRedux(state: StateDraft, args: {selectionArea: Area|null}) {
+    state.pivotTableRedux.selectionArea = args.selectionArea;
+  },
+
   addNewPivotTable(state: StateDraft, args: {
     name: string,
     pivotTableId: string,
@@ -941,7 +952,9 @@ export const StateActions = {
 
   resetPivotTableRequest(state: StateDraft, args: {pivotTableId: string}):
       void {
-        state.pivotTable[args.pivotTableId].requestedAction = undefined;
+        if (state.pivotTable[args.pivotTableId] !== undefined) {
+          state.pivotTable[args.pivotTableId].requestedAction = undefined;
+        }
       },
 
   setPivotTableRequest(
@@ -988,6 +1001,15 @@ export const StateActions = {
     const pivotTable = state.pivotTable[args.pivotTableId];
     pivotTable.traceTime = args.traceTime;
     pivotTable.selectedTrackIds = args.selectedTrackIds;
+  },
+
+  setPivotStateReduxState(
+      state: StateDraft, args: {pivotTableState: PivotTableReduxState}) {
+    state.pivotTableRedux = args.pivotTableState;
+  },
+
+  dismissFlamegraphModal(state: StateDraft, _: {}) {
+    state.flamegraphModalDismissed = true;
   }
 };
 

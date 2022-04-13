@@ -665,7 +665,11 @@ TEST_F(ProcessStatsDataSourceTest, NamespacedProcess) {
       .WillOnce(Return(
           "Name: foo\nTgid:\t42\nPid:   43\nPPid:  17\nNSpid:\t43\t3\n"));
 
-  data_source->OnPids({42, 43});
+  // It's possible that OnPids() is called with a non-main thread is seen before
+  // the main thread for a process. When this happens, the data source
+  // will WriteProcess(42) first and then WriteThread(43).
+  data_source->OnPids({43});
+  data_source->OnPids({42});  // This will be a no-op.
 
   auto trace = writer_raw_->GetAllTracePackets();
   ASSERT_EQ(trace.size(), 1u);

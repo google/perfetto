@@ -57,6 +57,9 @@ namespace stats {
   F(ftrace_cpu_read_events_begin,       kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_read_events_end,         kIndexed, kInfo,     kTrace,    ""),   \
   F(ftrace_cpu_read_events_delta,       kIndexed, kInfo,     kTrace,    ""),   \
+  F(ftrace_setup_errors,                kSingle,  kError,    kTrace,           \
+  "One or more atrace/ftrace categories were not found or failed to enable. "  \
+  "See ftrace_setup_errors in the metadata table for more details."),          \
   F(fuchsia_non_numeric_counters,       kSingle,  kError,    kAnalysis, ""),   \
   F(fuchsia_timestamp_overflow,         kSingle,  kError,    kAnalysis, ""),   \
   F(fuchsia_invalid_event,              kSingle,  kError,    kAnalysis, ""),   \
@@ -92,6 +95,7 @@ namespace stats {
   F(stackprofile_parser_error,          kSingle,  kError,    kTrace,    ""),   \
   F(systrace_parse_failure,             kSingle,  kError,    kAnalysis, ""),   \
   F(task_state_invalid,                 kSingle,  kError,    kAnalysis, ""),   \
+  F(traced_buf_abi_violations,          kIndexed, kDataLoss, kTrace,    ""),   \
   F(traced_buf_buffer_size,             kIndexed, kInfo,     kTrace,    ""),   \
   F(traced_buf_bytes_overwritten,       kIndexed, kInfo,     kTrace,    ""),   \
   F(traced_buf_bytes_read,              kIndexed, kInfo,     kTrace,    ""),   \
@@ -114,6 +118,11 @@ namespace stats {
   F(traced_chunks_discarded,            kSingle,  kInfo,     kTrace,    ""),   \
   F(traced_data_sources_registered,     kSingle,  kInfo,     kTrace,    ""),   \
   F(traced_data_sources_seen,           kSingle,  kInfo,     kTrace,    ""),   \
+  F(traced_final_flush_failed,          kSingle,  kDataLoss, kTrace,    ""),   \
+  F(traced_final_flush_succeeded,       kSingle,  kInfo,     kTrace,    ""),   \
+  F(traced_flushes_failed,              kSingle,  kDataLoss, kTrace,    ""),   \
+  F(traced_flushes_requested,           kSingle,  kInfo,     kTrace,    ""),   \
+  F(traced_flushes_succeeded,           kSingle,  kInfo,     kTrace,    ""),   \
   F(traced_patches_discarded,           kSingle,  kInfo,     kTrace,    ""),   \
   F(traced_producers_connected,         kSingle,  kInfo,     kTrace,    ""),   \
   F(traced_producers_seen,              kSingle,  kInfo,     kTrace,    ""),   \

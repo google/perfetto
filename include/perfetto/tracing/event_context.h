@@ -56,6 +56,10 @@ class PERFETTO_EXPORT EventContext {
 
   ~EventContext();
 
+  internal::TrackEventIncrementalState* GetIncrementalState() const {
+    return incremental_state_;
+  }
+
   // Get a TrackEvent message to write typed arguments to.
   //
   // event() is a template method to allow callers to specify a subclass of
@@ -90,7 +94,7 @@ class PERFETTO_EXPORT EventContext {
   template <typename T>
   void AddDebugAnnotation(const char* name, T&& value) {
     auto annotation = AddDebugAnnotation(name);
-    WriteIntoTracedValue(internal::CreateTracedValueFromProto(annotation),
+    WriteIntoTracedValue(internal::CreateTracedValueFromProto(annotation, this),
                          std::forward<T>(value));
   }
 

@@ -83,6 +83,7 @@ class StaticMapDelegate : public FileScanner::Delegate {
 const ProbesDataSource::Descriptor InodeFileDataSource::descriptor = {
     /*name*/ "linux.inode_file_map",
     /*flags*/ Descriptor::kFlagsNone,
+    /*fill_descriptor_func*/ nullptr,
 };
 
 void CreateStaticDeviceToInodeMap(
@@ -106,7 +107,7 @@ void InodeFileDataSource::FillInodeEntry(InodeFileMap* destination,
 }
 
 InodeFileDataSource::InodeFileDataSource(
-    DataSourceConfig ds_config,
+    const DataSourceConfig& ds_config,
     base::TaskRunner* task_runner,
     TracingSessionID session_id,
     std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>*

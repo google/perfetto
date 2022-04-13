@@ -16,8 +16,9 @@
 
 import concurrent.futures as cf
 import dataclasses as dc
+from enum import Enum
 import multiprocessing
-from typing import Any, Callable, Dict, Tuple, List
+from typing import Any, Callable, Dict, Tuple, List, Optional
 
 import pandas as pd
 
@@ -37,14 +38,55 @@ from perfetto.trace_uri_resolver.registry import ResolverRegistry
 PLATFORM_DELEGATE = PlatformDelegate
 
 TraceListReference = registry.TraceListReference
+Metadata = Dict[str, str]
+
+
+# Enum encoding how errors while loading/querying traces in BatchTraceProcessor
+# should be handled.
+class FailureHandling(Enum):
+  # If any trace fails to load or be queried, raises an exception causing the
+  # entire batch trace processor to fail.
+  # This is the default behaviour and the method which should be preferred for
+  # any interactive use of BatchTraceProcessor.
+  RAISE_EXCEPTION = 0
+
+  # If a trace fails to load or be queried, the trace processor for that trace
+  # is dropped but loading of other traces is unaffected. A failure integer is
+  # incremented in the Stats class for the batch trace processor instance.
+  INCREMENT_STAT = 1
 
 
 @dc.dataclass
 class BatchTraceProcessorConfig:
   tp_config: TraceProcessorConfig
+  load_failure_handling: FailureHandling
+  query_failure_handling: FailureHandling
 
-  def __init__(self, tp_config: TraceProcessorConfig = TraceProcessorConfig()):
+  def __init__(
+      self,
+      tp_config: TraceProcessorConfig = TraceProcessorConfig(),
+      load_failure_handling: FailureHandling = FailureHandling.RAISE_EXCEPTION,
+      execute_failure_handling: FailureHandling = FailureHandling
+      .RAISE_EXCEPTION,
+  ):
     self.tp_config = tp_config
+    self.load_failure_handling = load_failure_handling
+    self.execute_failure_handling = execute_failure_handling
+
+
+# Contains stats about the events which happened during the use of
+# BatchTraceProcessor.
+@dc.dataclass
+class Stats:
+  # The number of traces which failed to load; only non-zero if
+  # FailureHanding.INCREMENT_STAT is chosen as the load failure handling type.
+  load_failures: int = 0
+
+  # The number of traces which failed while executing (query, metric or
+  # arbitary function); only non-zero if FailureHanding.INCREMENT_STAT is
+  # chosen as the execute failure handling type.
+  execute_failures: int = 0
+
 
 class BatchTraceProcessor:
   """Run ad-hoc SQL queries across many Perfetto traces.
@@ -90,8 +132,9 @@ class BatchTraceProcessor:
         trace processor and underlying trace processors.
     """
 
-    self.tps = None
+    self.tps_and_metadata = None
     self.closed = False
+    self._stats = Stats()
 
     self.platform_delegate = PLATFORM_DELEGATE()
     self.tp_platform_delegate = TP_PLATFORM_DELEGATE()
@@ -116,8 +159,9 @@ class BatchTraceProcessor:
         len(resolved)) or query_executor
 
     self.query_executor = query_executor
-    self.metadata = [t.metadata for t in resolved]
-    self.tps = list(load_exectuor.map(self._create_tp, resolved))
+    self.tps_and_metadata = [
+        x for x in load_exectuor.map(self._create_tp, resolved) if x is not None
+    ]
 
   def metric(self, metrics: List[str]):
     """Computes the provided metrics.
@@ -232,7 +276,12 @@ class BatchTraceProcessor:
       A list of values with the result of executing the fucntion (one per
       trace).
     """
-    return list(self.query_executor.map(fn, self.tps))
+
+    def wrapped(pair: Tuple[TraceProcessor, Metadata]):
+      (tp, metadata) = pair
+      return self._execute_handling_failure(fn, tp, metadata)
+
+    return list(self.query_executor.map(wrapped, self.tps_and_metadata))
 
   def execute_and_flatten(self, fn: Callable[[TraceProcessor], pd.DataFrame]
                          ) -> pd.DataFrame:
@@ -251,15 +300,15 @@ class BatchTraceProcessor:
       be added to the dataframe (see |query_and_flatten| for details).
     """
 
-    def wrapped(pair: Tuple[TraceProcessor, Dict[str, str]]):
+    def wrapped(pair: Tuple[TraceProcessor, Metadata]):
       (tp, metadata) = pair
-      df = fn(tp)
+      df = self._execute_handling_failure(fn, tp, metadata)
       for key, value in metadata.items():
         df[key] = value
       return df
 
     df = pd.concat(
-        list(self.query_executor.map(wrapped, zip(self.tps, self.metadata))))
+        list(self.query_executor.map(wrapped, self.tps_and_metadata)))
     return df.reset_index(drop=True)
 
   def close(self):
@@ -275,12 +324,37 @@ class BatchTraceProcessor:
       return
     self.closed = True
 
-    if self.tps:
-      for tp in self.tps:
+    if self.tps_and_metadata:
+      for tp, _ in self.tps_and_metadata:
         tp.close()
 
-  def _create_tp(self, trace: ResolverRegistry.Result) -> TraceProcessor:
-    return TraceProcessor(trace=trace.generator, config=self.config.tp_config)
+  def stats(self):
+    """Statistics about the operation of this batch trace processor instance.
+    
+    See |Stats| class definition for the list of the statistics available."""
+    return self._stats
+
+  def _create_tp(self, trace: ResolverRegistry.Result
+                ) -> Optional[Tuple[TraceProcessor, Metadata]]:
+    try:
+      return TraceProcessor(
+          trace=trace.generator, config=self.config.tp_config), trace.metadata
+    except TraceProcessorException as ex:
+      if self.config.load_failure_handling == FailureHandling.RAISE_EXCEPTION:
+        raise ex
+      self._stats.load_failures += 1
+      return None
+
+  def _execute_handling_failure(self, fn: Callable[[TraceProcessor], Any],
+                                tp: TraceProcessor, metadata: Metadata):
+    try:
+      return fn(tp)
+    except TraceProcessorException as ex:
+      if self.config.execute_failure_handling == \
+          FailureHandling.RAISE_EXCEPTION:
+        raise TraceProcessorException(f'{metadata} {ex}') from None
+      self._stats.execute_failures += 1
+      return pd.DataFrame()
 
   def __enter__(self):
     return self

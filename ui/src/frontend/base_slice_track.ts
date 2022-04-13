@@ -109,6 +109,12 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   private computedSliceHeight = 0;
   private computedRowSpacing = 0;
 
+  // True if this track (and any views tables it might have created) has been
+  // destroyed. This is unfortunately error prone (since we must manually check
+  // this between each query).
+  // TODO(hjd): Replace once we have cancellable query sequences.
+  private isDestroyed = false;
+
   // TODO(hjd): Remove when updating selection.
   // We shouldn't know here about CHROME_SLICE. Maybe should be set by
   // whatever deals with that. Dunno the namespace of selection is weird. For
@@ -357,6 +363,12 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     }  // if (howSlice)
   }
 
+  onDestroy() {
+    super.onDestroy();
+    this.isDestroyed = true;
+    this.engine.query(`DROP VIEW IF EXISTS ${this.tableName}`);
+  }
+
   // This method figures out if the visible window is outside the bounds of
   // the cached data and if so issues new queries (i.e. sorta subsumes the
   // onBoundsChange).
@@ -366,16 +378,14 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     if (this.sqlState === 'UNINITIALIZED') {
       this.sqlState = 'INITIALIZING';
 
-      // TODO(hjd): we need an onDestroy. Right now if you contract and expand a
-      // track group this will crash, because the 2nd time we create the track
-      // we end up re-issuing the CREATE VIEW table_name.
-      // Right now this DROP VIEW is a hack, because it: (1) assumes that
-      // tableName is a VIEW and not a TABLE; (2) assume the impl track didn't
-      // create any other TABLE/VIEW (which happens to be true right now but
-      // might now be in future).
-      await this.engine.query(`DROP VIEW IF EXISTS ${this.tableName}`);
+      if (this.isDestroyed) {
+        return;
+      }
       await this.initSqlTable(this.tableName);
 
+      if (this.isDestroyed) {
+        return;
+      }
       const queryRes = await this.engine.query(`select
           ifnull(max(dur), 0) as maxDur, count(1) as rowCount
           from ${this.tableName}`);
@@ -424,6 +434,9 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     // - Materialize the unfinished slices one off.
     // - Avoid the union if we know we don't have any -1 slices.
     // - Maybe we don't need the union at all and can deal in TS?
+    if (this.isDestroyed) {
+      return;
+    }
     const queryRes = await this.engine.query(`
     with q1 as (
       select

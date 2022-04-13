@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2022 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "src/trace_processor/util/protozero_to_text.h"
 
 #include "perfetto/ext/base/string_utils.h"
@@ -16,19 +32,8 @@ namespace protozero_to_text {
 
 namespace {
 
-std::string BytesToHexEncodedString(const std::string& bytes) {
-  // Each byte becomes four chars 'A' -> "\x41" + 1 for trailing null.
-  std::string value(4 * bytes.size() + 1, 'Z');
-  for (size_t i = 0; i < bytes.size(); ++i) {
-    // snprintf prints 5 characters: '\x', then two hex digits, and finally a
-    // null byte. As we write left to right, we keep overwriting the null
-    // byte, except for the last call to snprintf.
-    snprintf(&(value[4 * i]), 5, "\\x%02hhx", bytes[i]);
-  }
-  // Trim trailing null.
-  value.resize(4 * bytes.size());
-  return value;
-}
+using protozero::proto_utils::ProtoWireType;
+using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
 
 // This function matches the implementation of TextFormatEscaper.escapeBytes
 // from the Java protobuf library.
@@ -87,118 +92,16 @@ std::string QuoteAndEscapeTextProtoString(const std::string& raw) {
   return '"' + ret + '"';
 }
 
-// Recursively determine the size of all the string like things passed in the
-// parameter pack |rest|.
-size_t SizeOfStr() {
-  return 0;
-}
-template <typename T, typename... Rest>
-size_t SizeOfStr(const T& first, Rest... rest) {
-  return base::StringView(first).size() + SizeOfStr(rest...);
-}
-
-// Append |to_add| which is something string like to |out|.
-template <typename T>
-void StrAppendInternal(std::string* out, const T& to_add) {
-  out->append(to_add);
-}
-
-template <typename T, typename... strings>
-void StrAppendInternal(std::string* out, const T& first, strings... values) {
-  StrAppendInternal(out, first);
-  StrAppendInternal(out, values...);
-}
-
 // Append |to_add| which is something string like to |out|.
 template <typename T>
 void StrAppend(std::string* out, const T& to_add) {
-  out->reserve(out->size() + base::StringView(to_add).size());
   out->append(to_add);
 }
 
 template <typename T, typename... strings>
 void StrAppend(std::string* out, const T& first, strings... values) {
-  out->reserve(out->size() + SizeOfStr(values...));
-  StrAppendInternal(out, first);
-  StrAppendInternal(out, values...);
-}
-
-void ConvertProtoTypeToFieldAndValueString(const FieldDescriptor& fd,
-                                           const protozero::Field& field,
-                                           const std::string& separator,
-                                           const std::string& indent,
-                                           const DescriptorPool& pool,
-                                           std::string* out) {
-  using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
-  switch (fd.type()) {
-    case FieldDescriptorProto::TYPE_INT32:
-    case FieldDescriptorProto::TYPE_SFIXED32:
-    case FieldDescriptorProto::TYPE_FIXED32:
-      StrAppend(out, separator, indent, fd.name(), ": ",
-                std::to_string(field.as_int32()));
-      return;
-    case FieldDescriptorProto::TYPE_SINT32:
-      StrAppend(out, separator, indent, fd.name(), ": ",
-                std::to_string(field.as_sint32()));
-      return;
-    case FieldDescriptorProto::TYPE_INT64:
-    case FieldDescriptorProto::TYPE_SFIXED64:
-    case FieldDescriptorProto::TYPE_FIXED64:
-      StrAppend(out, separator, indent, fd.name(), ": ",
-                std::to_string(field.as_int64()));
-      return;
-    case FieldDescriptorProto::TYPE_SINT64:
-      StrAppend(out, separator, indent, fd.name(), ": ",
-                std::to_string(field.as_sint64()));
-      return;
-    case FieldDescriptorProto::TYPE_UINT32:
-      StrAppend(out, separator, indent, fd.name(), ": ",
-                std::to_string(field.as_uint32()));
-      return;
-    case FieldDescriptorProto::TYPE_UINT64:
-      StrAppend(out, separator, indent, fd.name(), ": ",
-                std::to_string(field.as_uint64()));
-      return;
-    case FieldDescriptorProto::TYPE_BOOL:
-      StrAppend(out, separator, indent, fd.name(), ": ",
-                field.as_bool() ? "true" : "false");
-      return;
-    case FieldDescriptorProto::TYPE_DOUBLE:
-      StrAppend(out, separator, indent, fd.name(), ": ",
-                std::to_string(field.as_double()));
-      return;
-    case FieldDescriptorProto::TYPE_FLOAT:
-      StrAppend(out, separator, indent, fd.name(), ": ",
-                std::to_string(field.as_float()));
-      return;
-    case FieldDescriptorProto::TYPE_STRING: {
-      auto s = QuoteAndEscapeTextProtoString(field.as_std_string());
-      StrAppend(out, separator, indent, fd.name(), ": ", s);
-      return;
-    }
-    case FieldDescriptorProto::TYPE_BYTES: {
-      std::string value = BytesToHexEncodedString(field.as_std_string());
-      StrAppend(out, separator, indent, fd.name(), ": \"", value, "\"");
-      return;
-    }
-    case FieldDescriptorProto::TYPE_ENUM: {
-      auto opt_enum_descriptor_idx =
-          pool.FindDescriptorIdx(fd.resolved_type_name());
-      PERFETTO_DCHECK(opt_enum_descriptor_idx);
-      auto opt_enum_string =
-          pool.descriptors()[*opt_enum_descriptor_idx].FindEnumString(
-              field.as_int32());
-      PERFETTO_DCHECK(opt_enum_string);
-      StrAppend(out, separator, indent, fd.name(), ": ", *opt_enum_string);
-      return;
-    }
-    default: {
-      PERFETTO_FATAL(
-          "Tried to write value of type field %s (in proto type "
-          "%s) which has type enum %d",
-          fd.name().c_str(), fd.resolved_type_name().c_str(), fd.type());
-    }
-  }
+  StrAppend(out, first);
+  StrAppend(out, values...);
 }
 
 void IncreaseIndents(std::string* out) {
@@ -224,9 +127,232 @@ std::string FormattedFieldDescriptorName(
   }
 }
 
+void PrintVarIntField(const FieldDescriptor* fd,
+                      const protozero::Field& field,
+                      const DescriptorPool& pool,
+                      std::string* out) {
+  uint32_t type = fd ? fd->type() : 0;
+  switch (type) {
+    case FieldDescriptorProto::TYPE_INT32:
+      StrAppend(out, fd->name(), ": ", std::to_string(field.as_int32()));
+      return;
+    case FieldDescriptorProto::TYPE_SINT32:
+      StrAppend(out, fd->name(), ": ", std::to_string(field.as_sint32()));
+      return;
+    case FieldDescriptorProto::TYPE_UINT32:
+      StrAppend(out, fd->name(), ": ", std::to_string(field.as_uint32()));
+      return;
+    case FieldDescriptorProto::TYPE_INT64:
+      StrAppend(out, fd->name(), ": ", std::to_string(field.as_int64()));
+      return;
+    case FieldDescriptorProto::TYPE_SINT64:
+      StrAppend(out, fd->name(), ": ", std::to_string(field.as_sint64()));
+      return;
+    case FieldDescriptorProto::TYPE_UINT64:
+      StrAppend(out, fd->name(), ": ", std::to_string(field.as_uint64()));
+      return;
+    case FieldDescriptorProto::TYPE_BOOL:
+      StrAppend(out, fd->name(), ": ", field.as_bool() ? "true" : "false");
+      return;
+    case FieldDescriptorProto::TYPE_ENUM: {
+      // If the enum value is unknown, treat it like a completely unknown field.
+      auto opt_enum_descriptor_idx =
+          pool.FindDescriptorIdx(fd->resolved_type_name());
+      if (!opt_enum_descriptor_idx)
+        break;
+      auto opt_enum_string =
+          pool.descriptors()[*opt_enum_descriptor_idx].FindEnumString(
+              field.as_int32());
+      if (!opt_enum_string)
+        break;
+      StrAppend(out, fd->name(), ": ", *opt_enum_string);
+      return;
+    }
+    case 0:
+    default:
+      break;
+  }
+  StrAppend(out, std::to_string(field.id()), ": ",
+            std::to_string(field.as_uint64()));
+}
+
+void PrintFixed32Field(const FieldDescriptor* fd,
+                       const protozero::Field& field,
+                       std::string* out) {
+  uint32_t type = fd ? fd->type() : 0;
+  switch (type) {
+    case FieldDescriptorProto::TYPE_SFIXED32:
+      StrAppend(out, fd->name(), ": ", std::to_string(field.as_int32()));
+      break;
+    case FieldDescriptorProto::TYPE_FIXED32:
+      StrAppend(out, fd->name(), ": ", std::to_string(field.as_uint32()));
+      break;
+    case FieldDescriptorProto::TYPE_FLOAT:
+      StrAppend(out, fd->name(), ": ", std::to_string(field.as_float()));
+      break;
+    case 0:
+    default:
+      base::StackString<12> padded_hex("0x%08" PRIx32, field.as_uint32());
+      StrAppend(out, std::to_string(field.id()), ": ", padded_hex.c_str());
+      break;
+  }
+}
+
+void PrintFixed64Field(const FieldDescriptor* fd,
+                       const protozero::Field& field,
+                       std::string* out) {
+  uint32_t type = fd ? fd->type() : 0;
+  switch (type) {
+    case FieldDescriptorProto::TYPE_SFIXED64:
+      StrAppend(out, fd->name(), ": ", std::to_string(field.as_int64()));
+      break;
+    case FieldDescriptorProto::TYPE_FIXED64:
+      StrAppend(out, fd->name(), ": ", std::to_string(field.as_uint64()));
+      break;
+    case FieldDescriptorProto::TYPE_DOUBLE:
+      StrAppend(out, fd->name(), ": ", std::to_string(field.as_double()));
+      break;
+    case 0:
+    default:
+      base::StackString<20> padded_hex("0x%016" PRIx64, field.as_uint64());
+      StrAppend(out, std::to_string(field.id()), ": ", padded_hex.c_str());
+      break;
+  }
+}
+
+void ProtozeroToTextInternal(const std::string& type,
+                             protozero::ConstBytes protobytes,
+                             NewLinesMode new_lines_mode,
+                             const DescriptorPool& pool,
+                             std::string* indents,
+                             std::string* output);
+
+template <protozero::proto_utils::ProtoWireType wire_type, typename T>
+void PrintPackedField(const FieldDescriptor& fd,
+                      const protozero::Field& field,
+                      NewLinesMode new_lines_mode,
+                      const std::string& indents,
+                      std::string* out) {
+  const bool include_new_lines = new_lines_mode == kIncludeNewLines;
+  bool err = false;
+  bool first_output = true;
+  for (protozero::PackedRepeatedFieldIterator<wire_type, T> it(
+           field.data(), field.size(), &err);
+       it; it++) {
+    T value = *it;
+    if (!first_output) {
+      if (include_new_lines) {
+        StrAppend(out, "\n", indents);
+      } else {
+        StrAppend(out, " ");
+      }
+    }
+    StrAppend(out, fd.name(), ": ", std::to_string(value));
+    first_output = false;
+  }
+
+  if (err) {
+    if (!first_output) {
+      if (include_new_lines) {
+        StrAppend(out, "\n", indents);
+      } else {
+        StrAppend(out, " ");
+      }
+    }
+    StrAppend(out, "# Packed decoding failure for field ", fd.name(), "\n");
+  }
+}
+
+void PrintLengthDelimitedField(const FieldDescriptor* fd,
+                               const protozero::Field& field,
+                               NewLinesMode new_lines_mode,
+                               std::string* indents,
+                               const DescriptorPool& pool,
+                               std::string* out) {
+  const bool include_new_lines = new_lines_mode == kIncludeNewLines;
+  uint32_t type = fd ? fd->type() : 0;
+  switch (type) {
+    case FieldDescriptorProto::TYPE_BYTES:
+    case FieldDescriptorProto::TYPE_STRING: {
+      std::string value = QuoteAndEscapeTextProtoString(field.as_std_string());
+      StrAppend(out, fd->name(), ": ", value);
+      return;
+    }
+    case FieldDescriptorProto::TYPE_MESSAGE:
+      StrAppend(out, FormattedFieldDescriptorName(*fd), " {");
+      if (include_new_lines) {
+        IncreaseIndents(indents);
+      }
+      ProtozeroToTextInternal(fd->resolved_type_name(), field.as_bytes(),
+                              new_lines_mode, pool, indents, out);
+      if (include_new_lines) {
+        DecreaseIndents(indents);
+        StrAppend(out, "\n", *indents, "}");
+      } else {
+        StrAppend(out, " }");
+      }
+      return;
+    case FieldDescriptorProto::TYPE_DOUBLE:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed64, double>(
+          *fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_FLOAT:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed32, float>(
+          *fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_INT64:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kVarInt, int64_t>(
+          *fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_UINT64:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kVarInt,
+                       uint64_t>(*fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_INT32:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kVarInt, int32_t>(
+          *fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_FIXED64:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed64,
+                       uint64_t>(*fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_FIXED32:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed32,
+                       uint32_t>(*fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_UINT32:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kVarInt,
+                       uint32_t>(*fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_SFIXED32:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed32,
+                       int32_t>(*fd, field, new_lines_mode, *indents, out);
+      return;
+    case FieldDescriptorProto::TYPE_SFIXED64:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed64,
+                       int64_t>(*fd, field, new_lines_mode, *indents, out);
+      return;
+    // Our protoc plugin cannot generate code for packed repeated fields with
+    // these types. Output a comment and then fall back to the raw field_id:
+    // string representation.
+    case FieldDescriptorProto::TYPE_BOOL:
+    case FieldDescriptorProto::TYPE_ENUM:
+    case FieldDescriptorProto::TYPE_SINT32:
+    case FieldDescriptorProto::TYPE_SINT64:
+      StrAppend(out, "# Packed type ", std::to_string(type),
+                " not supported. Printing raw string.", "\n", *indents);
+      break;
+    case 0:
+    default:
+      break;
+  }
+  std::string value = QuoteAndEscapeTextProtoString(field.as_std_string());
+  StrAppend(out, std::to_string(field.id()), ": ", value);
+}
+
 // Recursive case function, Will parse |protobytes| assuming it is a proto of
 // |type| and will use |pool| to look up the |type|. All output will be placed
-// in |output| and between fields |separator| will be placed. When called for
+// in |output|, using |new_lines_mode| to separate fields. When called for
 // |indents| will be increased by 2 spaces to improve readability.
 void ProtozeroToTextInternal(const std::string& type,
                              protozero::ConstBytes protobytes,
@@ -237,44 +363,35 @@ void ProtozeroToTextInternal(const std::string& type,
   auto opt_proto_descriptor_idx = pool.FindDescriptorIdx(type);
   PERFETTO_DCHECK(opt_proto_descriptor_idx);
   auto& proto_descriptor = pool.descriptors()[*opt_proto_descriptor_idx];
-  bool include_new_lines = new_lines_mode == kIncludeNewLines;
+  const bool include_new_lines = new_lines_mode == kIncludeNewLines;
 
   protozero::ProtoDecoder decoder(protobytes.data, protobytes.size);
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
-    auto opt_field_descriptor = proto_descriptor.FindFieldByTag(field.id());
-    if (!opt_field_descriptor) {
-      StrAppend(
-          output, output->empty() ? "" : "\n", *indents,
-          "# Ignoring unknown field with id: ", std::to_string(field.id()));
-      continue;
-    }
-    const auto& field_descriptor = *opt_field_descriptor;
-
-    if (field_descriptor.type() ==
-        protos::pbzero::FieldDescriptorProto::TYPE_MESSAGE) {
+    if (!output->empty()) {
       if (include_new_lines) {
-        StrAppend(output, output->empty() ? "" : "\n", *indents,
-                  FormattedFieldDescriptorName(field_descriptor), ": {");
-        IncreaseIndents(indents);
+        StrAppend(output, "\n", *indents);
       } else {
-        StrAppend(output, output->empty() ? "" : " ",
-                  FormattedFieldDescriptorName(field_descriptor), ": {");
-      }
-      ProtozeroToTextInternal(field_descriptor.resolved_type_name(),
-                              field.as_bytes(), new_lines_mode, pool, indents,
-                              output);
-      if (include_new_lines) {
-        DecreaseIndents(indents);
-        StrAppend(output, "\n", *indents, "}");
-      } else {
-        StrAppend(output, " }");
+        StrAppend(output, " ", *indents);
       }
     } else {
-      ConvertProtoTypeToFieldAndValueString(
-          field_descriptor, field,
-          output->empty() ? "" : include_new_lines ? "\n" : " ", *indents, pool,
-          output);
+      StrAppend(output, *indents);
+    }
+    auto* opt_field_descriptor = proto_descriptor.FindFieldByTag(field.id());
+    switch (field.type()) {
+      case ProtoWireType::kVarInt:
+        PrintVarIntField(opt_field_descriptor, field, pool, output);
+        break;
+      case ProtoWireType::kLengthDelimited:
+        PrintLengthDelimitedField(opt_field_descriptor, field, new_lines_mode,
+                                  indents, pool, output);
+        break;
+      case ProtoWireType::kFixed32:
+        PrintFixed32Field(opt_field_descriptor, field, output);
+        break;
+      case ProtoWireType::kFixed64:
+        PrintFixed64Field(opt_field_descriptor, field, output);
+        break;
     }
   }
   PERFETTO_DCHECK(decoder.bytes_left() == 0);
@@ -285,8 +402,9 @@ void ProtozeroToTextInternal(const std::string& type,
 std::string ProtozeroToText(const DescriptorPool& pool,
                             const std::string& type,
                             protozero::ConstBytes protobytes,
-                            NewLinesMode new_lines_mode) {
-  std::string indent = "";
+                            NewLinesMode new_lines_mode,
+                            uint32_t initial_indent_depth) {
+  std::string indent = std::string(2 * initial_indent_depth, ' ');
   std::string final_result;
   ProtozeroToTextInternal(type, protobytes, new_lines_mode, pool, &indent,
                           &final_result);
@@ -338,10 +456,6 @@ std::string ProtozeroToText(const DescriptorPool& pool,
   return ProtozeroToText(
       pool, type, protozero::ConstBytes{protobytes.data(), protobytes.size()},
       new_lines_mode);
-}
-
-std::string BytesToHexEncodedStringForTesting(const std::string& s) {
-  return BytesToHexEncodedString(s);
 }
 
 }  // namespace protozero_to_text

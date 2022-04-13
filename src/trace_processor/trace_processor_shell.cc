@@ -198,7 +198,7 @@ base::Status PrintStats() {
       "where severity IN ('error', 'data_loss') and value > 0");
 
   bool first = true;
-  for (uint32_t rows = 0; it.Next(); rows++) {
+  while (it.Next()) {
     if (first) {
       fprintf(stderr, "Error stats for this trace:\n");
 
@@ -269,7 +269,7 @@ base::Status ExportTraceToDatabase(const std::string& output_name) {
   auto tables_it = g_tp->ExecuteQuery(
       "SELECT name FROM perfetto_tables UNION "
       "SELECT name FROM sqlite_master WHERE type='table'");
-  for (uint32_t rows = 0; tables_it.Next(); rows++) {
+  while (tables_it.Next()) {
     std::string table_name = tables_it.Get(0).string_value;
     PERFETTO_CHECK(!base::Contains(table_name, '\''));
     std::string export_sql = "CREATE TABLE perfetto_export." + table_name +
@@ -290,7 +290,7 @@ base::Status ExportTraceToDatabase(const std::string& output_name) {
   // Export views.
   auto views_it =
       g_tp->ExecuteQuery("SELECT sql FROM sqlite_master WHERE type='view'");
-  for (uint32_t rows = 0; views_it.Next(); rows++) {
+  while (views_it.Next()) {
     std::string sql = views_it.Get(0).string_value;
     // View statements are of the form "CREATE VIEW name AS stmt". We need to
     // rewrite name to point to the exported db.
@@ -523,8 +523,7 @@ base::Status PrintQueryResultAsCsv(Iterator* it, bool has_more, FILE* output) {
   }
   fprintf(output, "\n");
 
-  uint32_t rows;
-  for (rows = 0; has_more; rows++, has_more = it->Next()) {
+  for (; has_more; has_more = it->Next()) {
     for (uint32_t c = 0; c < it->ColumnCount(); c++) {
       if (c > 0)
         fprintf(output, ",");
@@ -566,6 +565,7 @@ base::Status RunQueriesWithoutOutput(const std::string& sql_query) {
 base::Status RunQueriesAndPrintResult(const std::string& sql_query,
                                       FILE* output) {
   PERFETTO_ILOG("Executing query: %s", sql_query.c_str());
+  auto query_start = std::chrono::steady_clock::now();
 
   auto it = g_tp->ExecuteQuery(sql_query);
   RETURN_IF_ERROR(it.Status());
@@ -593,7 +593,16 @@ base::Status RunQueriesAndPrintResult(const std::string& sql_query,
     PERFETTO_DCHECK(!has_more);
     return base::OkStatus();
   }
-  return PrintQueryResultAsCsv(&it, has_more, output);
+
+  auto query_end = std::chrono::steady_clock::now();
+  RETURN_IF_ERROR(PrintQueryResultAsCsv(&it, has_more, output));
+
+  auto dur = query_end - query_start;
+  PERFETTO_ILOG(
+      "Query execution time: %" PRIi64 " ms",
+      static_cast<int64_t>(
+          std::chrono::duration_cast<std::chrono::milliseconds>(dur).count()));
+  return base::OkStatus();
 }
 
 base::Status PrintPerfFile(const std::string& perf_file_path,
@@ -658,6 +667,7 @@ struct CommandLineOptions {
   bool force_full_sort = false;
   std::string metatrace_path;
   bool dev = false;
+  bool no_ftrace_raw = false;
 };
 
 void PrintUsage(char** argv) {
@@ -714,7 +724,12 @@ Options:
                                       local development use only and
                                       *should not* be enabled on production
                                       builds. The features behind this flag can
-                                      break at any time without any warning.)",
+                                      break at any time without any warning.
+ --no-ftrace-raw                      Prevents ingestion of typed ftrace events
+                                      into the raw table. This significantly
+                                      reduces the memory usage of trace
+                                      processor when loading traces containing
+                                      ftrace events.)",
                 argv[0]);
 }
 
@@ -728,6 +743,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_HTTP_PORT,
     OPT_METRIC_EXTENSION,
     OPT_DEV,
+    OPT_NO_FTRACE_RAW,
   };
 
   static const option long_options[] = {
@@ -748,6 +764,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
       {"metric-extension", required_argument, nullptr, OPT_METRIC_EXTENSION},
       {"dev", no_argument, nullptr, OPT_DEV},
+      {"no-ftrace-raw", no_argument, nullptr, OPT_NO_FTRACE_RAW},
       {nullptr, 0, nullptr, 0}};
 
   bool explicit_interactive = false;
@@ -841,6 +858,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_DEV) {
       command_line_options.dev = true;
+      continue;
+    }
+
+    if (option == OPT_NO_FTRACE_RAW) {
+      command_line_options.no_ftrace_raw = true;
       continue;
     }
 
@@ -1276,6 +1298,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   config.sorting_mode = options.force_full_sort
                             ? SortingMode::kForceFullSort
                             : SortingMode::kDefaultHeuristics;
+  config.ingest_ftrace_in_raw_table = !options.no_ftrace_raw;
 
   std::vector<MetricExtension> metric_extensions;
   RETURN_IF_ERROR(ParseMetricExtensionPaths(

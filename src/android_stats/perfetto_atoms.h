@@ -73,12 +73,19 @@ enum class PerfettoStatsdAtom {
 
   // Checkpoints inside perfetto_cmd after tracing has finished.
   kOnTracingDisabled = 4,
-  kUploadIncidentBegin = 8,
   kFinalizeTraceAndExit = 11,
+  kCmdFwReportBegin = 49,
+  // Will be removed once incidentd is no longer used.
+  kUploadIncidentBegin = 8,
   kNotUploadingEmptyTrace = 17,
 
   // Guardrails inside perfetto_cmd after tracing has finished.
+  kCmdFwReportEmptyTrace = 50,
+  // Will be removed once incidentd is no longer used.
   kUploadIncidentFailure = 10,
+
+  // "Successful" terminal states inside perfetto_cmd.
+  kCmdFwReportHandoff = 51,
 
   // Deprecated as "success" is misleading; it simply means we were
   // able to communicate with incidentd. Will be removed once

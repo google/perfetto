@@ -55,6 +55,10 @@ export interface AggregateData {
   extra?: ThreadStateExtra;
 }
 
+export function isEmptyData(data: AggregateData) {
+  return data.columns.length === 0 || data.columns[0].data.length === 0;
+}
+
 export interface ThreadStateExtra {
   kind: 'THREAD_STATE';
   states: string[];

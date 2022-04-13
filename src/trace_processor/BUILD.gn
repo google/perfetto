@@ -54,6 +54,30 @@ source_set("metatrace") {
   ]
 }
 
+# In Bazel builds the ":demangle" target (below) should be a static_library so
+# it gets mapped to an actual target (rather than being squashed as a filegroup)
+# and can be replaced in Google internal builds via perfetto_cfg.bzl.
+# Unfortunately, however, static_library targets seem to break Wasm builds on
+# Mac. For this reason we just make it a source_set for all other build types.
+if (is_perfetto_build_generator) {
+  _demangle_target_type = "static_library"
+} else {
+  _demangle_target_type = "source_set"
+}
+
+target(_demangle_target_type, "demangle") {
+  sources = [ "demangle.cc" ]
+  deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/base",
+    "../../include/perfetto/ext/base",
+  ]
+  public_deps = [ "../../include/perfetto/ext/trace_processor:demangle" ]
+  if (enable_perfetto_llvm_demangle) {
+    deps += [ "../../gn:llvm_demangle" ]
+  }
+}
+
 source_set("ftrace_descriptors") {
   sources = [
     "importers/ftrace/ftrace_descriptors.cc",
@@ -80,6 +104,8 @@ source_set("storage_minimal") {
     "importers/json/json_utils.h",
     "importers/ninja/ninja_log_parser.cc",
     "importers/ninja/ninja_log_parser.h",
+    "importers/proto/android_camera_event_module.cc",
+    "importers/proto/android_camera_event_module.h",
     "importers/proto/async_track_set_tracker.cc",
     "importers/proto/async_track_set_tracker.h",
     "importers/proto/chrome_string_lookup.cc",
@@ -129,6 +155,8 @@ source_set("storage_minimal") {
     "importers/proto/track_event_tokenizer.h",
     "importers/proto/track_event_tracker.cc",
     "importers/proto/track_event_tracker.h",
+    "importers/proto/translation_table_module.cc",
+    "importers/proto/translation_table_module.h",
     "importers/syscalls/syscall_tracker.h",
     "importers/systrace/systrace_line.h",
     "timestamped_trace_piece.h",
@@ -175,6 +203,7 @@ source_set("storage_minimal") {
     "../../protos/perfetto/trace/sys_stats:zero",
     "../../protos/perfetto/trace/system_info:zero",
     "../../protos/perfetto/trace/track_event:zero",
+    "../../protos/perfetto/trace/translation:zero",
   ]
 
   # json_utils optionally depends on jsoncpp.
@@ -325,6 +354,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     ]
 
     deps = [
+      ":demangle",
       ":export_json",
       ":metatrace",
       ":storage_full",
@@ -392,6 +422,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "forwarding_trace_parser_unittest.cc",
+    "importers/ftrace/binder_tracker_unittest.cc",
     "importers/ftrace/sched_event_tracker_unittest.cc",
     "importers/fuchsia/fuchsia_trace_utils_unittest.cc",
     "importers/memory_tracker/graph_processor_unittest.cc",
@@ -429,6 +460,7 @@ perfetto_unittest_source_set("unittests") {
     "../base",
     "../protozero",
     "../protozero:testing_messages_zero",
+    "containers",
     "containers:unittests",
     "db:unittests",
     "importers/common",

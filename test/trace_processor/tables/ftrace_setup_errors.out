@@ -1,0 +1,7 @@
+"value"
+3
+"Ftrace event unknown: foo/bar
+Ftrace event unknown: sched/foobar
+Atrace failures: error: unknown tracing category "bar"
+error enabling tracing category "bar"
+"

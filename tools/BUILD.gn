@@ -37,12 +37,6 @@ group("tools") {
       "skippy",
     ]
   }
-  if (enable_perfetto_tools_trace_to_text) {
-    deps += [
-      "trace_to_text",
-      "trace_to_text:trace_to_text_lite",
-    ]
-  }
 }
 
 if (is_linux && enable_perfetto_heapprofd) {

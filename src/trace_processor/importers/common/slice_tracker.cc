@@ -152,10 +152,6 @@ base::Optional<SliceId> SliceTracker::StartSlice(
   MaybeCloseStack(timestamp, stack, track_id);
 
   const uint8_t depth = static_cast<uint8_t>(stack->size());
-  if (depth >= std::numeric_limits<uint8_t>::max()) {
-    PERFETTO_DFATAL("Slices with too large depth found.");
-    return base::nullopt;
-  }
   int64_t parent_stack_id =
       depth == 0 ? 0 : slices->stack_id()[stack->back().row];
   base::Optional<tables::SliceTable::Id> parent_id =
@@ -164,6 +160,14 @@ base::Optional<SliceId> SliceTracker::StartSlice(
 
   SliceId id = inserter();
   uint32_t slice_idx = *slices->id().IndexOf(id);
+  if (depth >= std::numeric_limits<uint8_t>::max()) {
+    auto last_slice_name = slices->name().GetString(stack->back().row);
+    auto current_slice_name = slices->name().GetString(slice_idx);
+    PERFETTO_DLOG("Last slice: %s", last_slice_name.c_str());
+    PERFETTO_DLOG("Current slice: %s", current_slice_name.c_str());
+    PERFETTO_DFATAL("Slices with too large depth found.");
+    return base::nullopt;
+  }
   StackPush(track_id, slice_idx);
 
   // Post fill all the relevant columns. All the other columns should have

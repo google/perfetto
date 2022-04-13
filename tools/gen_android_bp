@@ -96,12 +96,21 @@ target_host_supported = [
     '//:libperfetto',
     '//:libperfetto_client_experimental',
     '//protos/perfetto/trace:perfetto_trace_protos',
+    '//src/trace_processor:demangle',
     '//src/trace_processor:trace_processor_shell',
 ]
 
 target_vendor_available = [
     '//:libperfetto_client_experimental',
 ]
+
+# Proto target groups which will be made public.
+proto_groups = {
+    'trace': [
+        '//protos/perfetto/trace:non_minimal_source_set',
+        '//protos/perfetto/trace:minimal_source_set'
+    ],
+}
 
 # All module names are prefixed with this string to avoid collisions.
 module_prefix = 'perfetto_'
@@ -216,9 +225,8 @@ additional_args = {
     'traced_probes': [('required', {
         'libperfetto_android_internal', 'trigger_perfetto', 'traced_perf',
         'mm_events'
-    }), ],
-    'libperfetto_android_internal': [
-        ('static_libs', {'libhealthhalutils'}), ],
+    }),],
+    'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
     'trace_processor_shell': [
         ('strip', {
             'all': True
@@ -289,7 +297,7 @@ def enable_libunwindstack(module):
     module.static_libs.add('libbase')
     module.static_libs.add('liblzma')
     module.static_libs.add('libdexfile_support')
-    module.runtime_libs.add('libdexfile') # libdexfile_support dependency
+    module.runtime_libs.add('libdexfile')  # libdexfile_support dependency
 
 
 def enable_libunwind(module):
@@ -303,13 +311,13 @@ def enable_sqlite(module):
   elif module.host_supported:
     # Copy what the sqlite3 command line tool does.
     module.android.shared_libs.add('libsqlite')
-    module.android.shared_libs.add('libandroidicu')
+    module.android.shared_libs.add('libicu')
     module.android.shared_libs.add('liblog')
     module.android.shared_libs.add('libutils')
     module.host.static_libs.add('libsqlite')
   else:
     module.shared_libs.add('libsqlite')
-    module.shared_libs.add('libandroidicu')
+    module.shared_libs.add('libicu')
     module.shared_libs.add('liblog')
     module.shared_libs.add('libutils')
 
@@ -385,6 +393,12 @@ class ThrowingArgumentParser(argparse.ArgumentParser):
 def write_blueprint_key_value(output, name, value, sort=True):
   """Writes a Blueprint key-value pair to the output"""
 
+  if isinstance(value, bool):
+    if value:
+      output.append('    %s: true,' % name)
+    else:
+      output.append('    %s: false,' % name)
+    return
   if not value:
     return
   if isinstance(value, set):
@@ -394,9 +408,6 @@ def write_blueprint_key_value(output, name, value, sort=True):
     for item in sorted(value) if sort else value:
       output.append('        "%s",' % item)
     output.append('    ],')
-    return
-  if isinstance(value, bool):
-    output.append('    %s: true,' % name)
     return
   if isinstance(value, Target):
     value.to_string(output)
@@ -486,6 +497,7 @@ class Module(object):
     self.data = set()
     self.apex_available = set()
     self.min_sdk_version = None
+    self.proto = dict()
     # The genrule_XXX below are properties that must to be propagated back
     # on the module(s) that depend on the genrule.
     self.genrule_headers = set()
@@ -508,8 +520,10 @@ class Module(object):
     self._output_field(output, 'runtime_libs')
     self._output_field(output, 'tools')
     self._output_field(output, 'cmd', sort=False)
-    self._output_field(output, 'host_supported')
-    self._output_field(output, 'vendor_available')
+    if self.host_supported:
+      self._output_field(output, 'host_supported')
+    if self.vendor_available:
+      self._output_field(output, 'vendor_available')
     self._output_field(output, 'init_rc')
     self._output_field(output, 'out')
     self._output_field(output, 'export_include_dirs')
@@ -531,6 +545,7 @@ class Module(object):
     self._output_field(output, 'test_suites')
     self._output_field(output, 'test_config')
     self._output_field(output, 'stubs')
+    self._output_field(output, 'proto')
 
     target_out = []
     self._output_field(target_out, 'android')
@@ -552,7 +567,8 @@ class Module(object):
       output.append('    target: {')
       output.append('        android: {')
       output.append('            lto: {')
-      output.append('                thin: %s,' % 'true' if self.lto else 'false')
+      output.append('                thin: %s,' %
+                    'true' if self.lto else 'false')
       output.append('            },')
       output.append('        },')
       output.append('    },')
@@ -670,18 +686,12 @@ def create_proto_modules(blueprint, gn, target):
 
     # Recursively extract the .proto files of all the dependencies and
     # add them to srcs.
-    target_queue = collections.deque([target.name])
-    seen_targets = set()
-    while target_queue:
-      dep = target_queue.popleft()
-      if dep in seen_targets:
-        continue
-      seen_targets.add(dep)
-
+    descriptor_module.srcs.update(
+        gn_utils.label_to_path(src) for src in target.sources)
+    for dep in target.transitive_proto_deps:
       current_target = gn.get_target(dep)
       descriptor_module.srcs.update(
           gn_utils.label_to_path(src) for src in current_target.sources)
-      target_queue.extend(current_target.proto_deps)
 
     return descriptor_module
 
@@ -803,6 +813,25 @@ def create_gen_version_module(blueprint, target, bp_module_name):
   return module
 
 
+def create_proto_group_modules(blueprint, gn, module_name, target_names):
+  # TODO(lalitm): today, we're only adding a Java lite module because that's
+  # the only one used in practice. In the future, if we need other target types
+  # (e.g. C++, Java full etc.) add them here.
+  bp_module_name = label_to_module_name(module_name) + '_java_protos'
+  module = Module('java_library', bp_module_name, bp_module_name)
+  module.comment = f'''GN: [{', '.join(target_names)}]'''
+  module.proto = {'type': 'lite', 'canonical_path_from_root': False}
+
+  for name in target_names:
+    target = gn.get_target(name)
+    module.srcs.update(gn_utils.label_to_path(src) for src in target.sources)
+    for dep_label in target.transitive_proto_deps:
+      dep = gn.get_target(dep_label)
+      module.srcs.update(gn_utils.label_to_path(src) for src in dep.sources)
+
+  blueprint.add_module(module)
+
+
 def _get_cflags(target):
   cflags = {flag for flag in target.cflags if re.match(cflag_allowlist, flag)}
   cflags |= set("-D%s" % define
@@ -913,7 +942,8 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
                   (type(add_val), key))
 
   # dep_name is an unmangled GN target name (e.g. //foo:bar(toolchain)).
-  for dep_name in target.deps | target.source_set_deps | target.proto_deps:
+  all_deps = target.deps | target.source_set_deps | target.transitive_proto_deps
+  for dep_name in all_deps:
     # If the dependency refers to a library which we can replace with an
     # Android equivalent, stop recursing and patch the dependency in.
     # Don't recurse into //buildtools, builtin_deps are intercepted at
@@ -992,7 +1022,6 @@ def create_blueprint_for_targets(gn, desc, targets):
   defaults.lto = True
 
   blueprint.add_module(defaults)
-  gn = gn_utils.GnParser(desc)
   for target in targets:
     create_modules_from_target(blueprint, gn, target)
   return blueprint
@@ -1042,6 +1071,10 @@ def main():
   # Check for ODR violations
   # for target_name in default_targets:
   # checker = gn_utils.ODRChecker(gn, target_name)
+
+  # Add any proto groups to the blueprint.
+  for l_name, t_names in proto_groups.items():
+    create_proto_group_modules(blueprint, gn, l_name, t_names)
 
   output = [
       """// Copyright (C) 2017 The Android Open Source Project
