@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<MessageDescriptor, 408> descriptors{{
+std::array<MessageDescriptor, 419> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -4385,6 +4385,124 @@ std::array<MessageDescriptor, 408> descriptors{{
             {},
             {"dev_name", ProtoSchemaType::kString},
             {"state", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "console",
+        1,
+        {
+            {},
+            {"msg", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "drm_vblank_event",
+        4,
+        {
+            {},
+            {"crtc", ProtoSchemaType::kInt32},
+            {"high_prec", ProtoSchemaType::kUint32},
+            {"seq", ProtoSchemaType::kUint32},
+            {"time", ProtoSchemaType::kInt64},
+        },
+    },
+    {
+        "drm_vblank_event_delivered",
+        3,
+        {
+            {},
+            {"crtc", ProtoSchemaType::kInt32},
+            {"file", ProtoSchemaType::kUint64},
+            {"seq", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "drm_sched_job",
+        6,
+        {
+            {},
+            {"entity", ProtoSchemaType::kUint64},
+            {"fence", ProtoSchemaType::kUint64},
+            {"hw_job_count", ProtoSchemaType::kInt32},
+            {"id", ProtoSchemaType::kUint64},
+            {"job_count", ProtoSchemaType::kUint32},
+            {"name", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "drm_run_job",
+        6,
+        {
+            {},
+            {"entity", ProtoSchemaType::kUint64},
+            {"fence", ProtoSchemaType::kUint64},
+            {"hw_job_count", ProtoSchemaType::kInt32},
+            {"id", ProtoSchemaType::kUint64},
+            {"job_count", ProtoSchemaType::kUint32},
+            {"name", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "drm_sched_process_job",
+        1,
+        {
+            {},
+            {"fence", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "dma_fence_init",
+        4,
+        {
+            {},
+            {"context", ProtoSchemaType::kUint32},
+            {"driver", ProtoSchemaType::kString},
+            {"seqno", ProtoSchemaType::kUint32},
+            {"timeline", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "dma_fence_emit",
+        4,
+        {
+            {},
+            {"context", ProtoSchemaType::kUint32},
+            {"driver", ProtoSchemaType::kString},
+            {"seqno", ProtoSchemaType::kUint32},
+            {"timeline", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "dma_fence_signaled",
+        4,
+        {
+            {},
+            {"context", ProtoSchemaType::kUint32},
+            {"driver", ProtoSchemaType::kString},
+            {"seqno", ProtoSchemaType::kUint32},
+            {"timeline", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "dma_fence_wait_start",
+        4,
+        {
+            {},
+            {"context", ProtoSchemaType::kUint32},
+            {"driver", ProtoSchemaType::kString},
+            {"seqno", ProtoSchemaType::kUint32},
+            {"timeline", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "dma_fence_wait_end",
+        4,
+        {
+            {},
+            {"context", ProtoSchemaType::kUint32},
+            {"driver", ProtoSchemaType::kString},
+            {"seqno", ProtoSchemaType::kUint32},
+            {"timeline", ProtoSchemaType::kString},
         },
     },
 }};
