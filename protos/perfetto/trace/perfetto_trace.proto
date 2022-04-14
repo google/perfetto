@@ -1575,6 +1575,12 @@ message TrackEventConfig {
   // For now, this multiplier only affects incremental timestamps.
   // Note: This isn't supported in the SDK yet. It will be supported soon.
   optional uint64 timestamp_unit_multipler = 6;
+
+  // Default: false (i.e. debug_annotations is NOT filtered out by default)
+  // When true, any debug annotations provided as arguments to the
+  // TRACE_EVENT macros are not written into the trace. Typed arguments will
+  // still be emitted even if set to true.
+  optional bool filter_debug_annotations = 7;
 }
 
 // End of protos/perfetto/config/track_event/track_event_config.proto
@@ -3723,6 +3729,41 @@ message CrosEcSensorhubDataFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/cros_ec.proto
 
+// Begin of protos/perfetto/trace/ftrace/dma_fence.proto
+
+message DmaFenceInitFtraceEvent {
+  optional uint32 context = 1;
+  optional string driver = 2;
+  optional uint32 seqno = 3;
+  optional string timeline = 4;
+}
+message DmaFenceEmitFtraceEvent {
+  optional uint32 context = 1;
+  optional string driver = 2;
+  optional uint32 seqno = 3;
+  optional string timeline = 4;
+}
+message DmaFenceSignaledFtraceEvent {
+  optional uint32 context = 1;
+  optional string driver = 2;
+  optional uint32 seqno = 3;
+  optional string timeline = 4;
+}
+message DmaFenceWaitStartFtraceEvent {
+  optional uint32 context = 1;
+  optional string driver = 2;
+  optional uint32 seqno = 3;
+  optional string timeline = 4;
+}
+message DmaFenceWaitEndFtraceEvent {
+  optional uint32 context = 1;
+  optional string driver = 2;
+  optional uint32 seqno = 3;
+  optional string timeline = 4;
+}
+
+// End of protos/perfetto/trace/ftrace/dma_fence.proto
+
 // Begin of protos/perfetto/trace/ftrace/dmabuf_heap.proto
 
 message DmaHeapStatFtraceEvent {
@@ -3745,6 +3786,22 @@ message DpuTracingMarkWriteFtraceEvent {
 }
 
 // End of protos/perfetto/trace/ftrace/dpu.proto
+
+// Begin of protos/perfetto/trace/ftrace/drm.proto
+
+message DrmVblankEventFtraceEvent {
+  optional int32 crtc = 1;
+  optional uint32 high_prec = 2;
+  optional uint32 seq = 3;
+  optional int64 time = 4;
+}
+message DrmVblankEventDeliveredFtraceEvent {
+  optional int32 crtc = 1;
+  optional uint64 file = 2;
+  optional uint32 seq = 3;
+}
+
+// End of protos/perfetto/trace/ftrace/drm.proto
 
 // Begin of protos/perfetto/trace/ftrace/ext4.proto
 
@@ -4781,6 +4838,30 @@ message GpuMemTotalFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/gpu_mem.proto
 
+// Begin of protos/perfetto/trace/ftrace/gpu_scheduler.proto
+
+message DrmSchedJobFtraceEvent {
+  optional uint64 entity = 1;
+  optional uint64 fence = 2;
+  optional int32 hw_job_count = 3;
+  optional uint64 id = 4;
+  optional uint32 job_count = 5;
+  optional string name = 6;
+}
+message DrmRunJobFtraceEvent {
+  optional uint64 entity = 1;
+  optional uint64 fence = 2;
+  optional int32 hw_job_count = 3;
+  optional uint64 id = 4;
+  optional uint32 job_count = 5;
+  optional string name = 6;
+}
+message DrmSchedProcessJobFtraceEvent {
+  optional uint64 fence = 1;
+}
+
+// End of protos/perfetto/trace/ftrace/gpu_scheduler.proto
+
 // Begin of protos/perfetto/trace/ftrace/i2c.proto
 
 message I2cReadFtraceEvent {
@@ -5728,7 +5809,8 @@ message ScmCallStartFtraceEvent {
   optional uint64 x0 = 2;
   optional uint64 x5 = 3;
 }
-message ScmCallEndFtraceEvent {}
+message ScmCallEndFtraceEvent {
+}
 
 // End of protos/perfetto/trace/ftrace/scm.proto
 
@@ -6418,6 +6500,16 @@ message FtraceEvent {
     UfshcdCommandFtraceEvent ufshcd_command = 406;
     UfshcdClkGatingFtraceEvent ufshcd_clk_gating = 407;
     ConsoleFtraceEvent console = 408;
+    DrmVblankEventFtraceEvent drm_vblank_event = 409;
+    DrmVblankEventDeliveredFtraceEvent drm_vblank_event_delivered = 410;
+    DrmSchedJobFtraceEvent drm_sched_job = 411;
+    DrmRunJobFtraceEvent drm_run_job = 412;
+    DrmSchedProcessJobFtraceEvent drm_sched_process_job = 413;
+    DmaFenceInitFtraceEvent dma_fence_init = 414;
+    DmaFenceEmitFtraceEvent dma_fence_emit = 415;
+    DmaFenceSignaledFtraceEvent dma_fence_signaled = 416;
+    DmaFenceWaitStartFtraceEvent dma_fence_wait_start = 417;
+    DmaFenceWaitEndFtraceEvent dma_fence_wait_end = 418;
   }
 }
 
