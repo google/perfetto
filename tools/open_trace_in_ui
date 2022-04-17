@@ -53,6 +53,7 @@ def prt(msg, colors=ANSI.END):
 def open_trace(path, open_browser):
   # We reuse the HTTP+RPC port because it's the only one allowed by the CSP.
   PORT = 9001
+  path = os.path.abspath(path)
   os.chdir(os.path.dirname(path))
   fname = os.path.basename(path)
   socketserver.TCPServer.allow_reuse_address = True
