@@ -29,7 +29,6 @@ namespace profiling {
 namespace {
 base::Optional<Package> FindInPackagesList(
     uint64_t lookup_uid,
-    const std::vector<std::string>& installed_by,
     const std::string& packages_list_path) {
   std::string content;
   if (!base::ReadFile(packages_list_path, &content)) {
@@ -43,23 +42,9 @@ base::Optional<Package> FindInPackagesList(
       return base::nullopt;
     }
 
-    if (pkg.uid != lookup_uid)
-      continue;
-
-    // found package, check installer constraint if given
-    if (installed_by.empty())
-      return std::move(pkg);  // -Wreturn-std-move-in-c++11
-
-    if (pkg.installed_by.empty()) {
-      PERFETTO_ELOG("Cannot parse installer from packages.list");
-      return base::nullopt;
-    }
-    if (std::find(installed_by.cbegin(), installed_by.cend(),
-                  pkg.installed_by) != installed_by.cend()) {
-      // found matching installer
+    if (pkg.uid == lookup_uid) {
       return std::move(pkg);  // -Wreturn-std-move-in-c++11
     }
-    return base::nullopt;
   }
   return base::nullopt;
 }
@@ -71,7 +56,6 @@ bool AllPackagesProfileableByTrustedInitiator(
     PERFETTO_ELOG("Failed to read %s", packages_list_path.c_str());
     return false;
   }
-
   bool ret = true;
   for (base::StringSplitter ss(std::move(content), '\n'); ss.Next();) {
     Package pkg;
@@ -79,7 +63,8 @@ bool AllPackagesProfileableByTrustedInitiator(
       PERFETTO_ELOG("Failed to parse packages.list");
       return false;
     }
-    ret &= (pkg.profileable || pkg.debuggable);
+
+    ret = ret && (pkg.profileable || pkg.debuggable);
   }
   return ret;
 }
@@ -153,7 +138,8 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
     // packages are profileable, then any isolated process must be profileable
     // as well, regardless of which package it's running for (which might not
     // even be the package in which the service was defined).
-    // TODO(b/217368496): remove this.
+    // TODO(rsavitski): find a way for the platform to tell native services
+    // about isolated<->app relations.
     bool trusted_initiator = ds_config.session_initiator() ==
                              DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM;
     return trusted_initiator &&
@@ -165,10 +151,23 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
   }
 
   base::Optional<Package> pkg =
-      FindInPackagesList(uid_for_lookup, installed_by, packages_list_path);
+      FindInPackagesList(uid_for_lookup, packages_list_path);
 
   if (!pkg)
     return false;
+
+  // check installer constraint if given
+  if (!installed_by.empty()) {
+    if (pkg->installed_by.empty()) {
+      PERFETTO_ELOG("Cannot parse installer from packages.list");
+      return false;
+    }
+    if (std::find(installed_by.cbegin(), installed_by.cend(),
+                  pkg->installed_by) == installed_by.cend()) {
+      // not installed by one of the requested origins
+      return false;
+    }
+  }
 
   switch (ds_config.session_initiator()) {
     case DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED:
