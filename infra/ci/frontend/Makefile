@@ -13,13 +13,13 @@
 # limitations under the License.
 
 
-include $(shell python ../config.py makefile)
+include $(shell python3 ../config.py makefile)
 
 SHASUM=shasum
 
 test: LOGLEVEL=info
 test: static_3p config.py common_utils.py static/config.js
-	dev_appserver.py app.yaml --dev_appserver_log_level ${LOGLEVEL}
+	python3 `which dev_appserver.py` app.yaml --dev_appserver_log_level ${LOGLEVEL}
 
 deploy: static_3p config.py common_utils.py static/config.js
 	gcloud app deploy -q app.yaml \
