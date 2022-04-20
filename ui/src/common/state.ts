@@ -390,8 +390,6 @@ export type LoadedConfig =
     LoadedConfigNone|LoadedConfigAutomatic|LoadedConfigNamed;
 
 export interface State {
-  // tslint:disable-next-line:no-any
-  [key: string]: any;
   version: number;
   nextId: number;
   nextNoteId: number;
