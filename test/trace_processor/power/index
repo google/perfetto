@@ -8,3 +8,4 @@ power_rails_well_known.textproto power_rails.sql power_rails_well_known_power_ra
 
 dvfs_metric.textproto android_dvfs dvfs_metric.out
 wakesource.textproto wakesource.sql wakesource_wakesource.out
+suspend_resume.textproto suspend_resume.sql suspend_resume.out
