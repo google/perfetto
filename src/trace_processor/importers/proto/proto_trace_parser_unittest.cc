@@ -236,6 +236,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.process_tracker.reset(process_);
     slice_ = new MockSliceTracker(&context_);
     context_.slice_tracker.reset(slice_);
+    context_.slice_translation_table.reset(new SliceTranslationTable(storage_));
     clock_ = new ClockTracker(&context_);
     context_.clock_tracker.reset(clock_);
     context_.flow_tracker.reset(new FlowTracker(&context_));
