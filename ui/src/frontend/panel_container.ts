@@ -30,6 +30,7 @@ import {
   RunningStatistics,
   runningStatStr
 } from './perf';
+import {TrackGroupAttrs} from './viewer_page';
 
 /**
  * If the panel container scrolls, the backing canvas height is
@@ -216,21 +217,45 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     perfDisplay.removeContainer(this);
   }
 
+  isTrackGroupAttrs(attrs: unknown): attrs is TrackGroupAttrs {
+    return (attrs as {collapsed?: boolean}).collapsed !== undefined;
+  }
+
+  renderPanel(node: AnyAttrsVnode, key: string, extraClass = ''): m.Vnode {
+    assertFalse(this.panelByKey.has(key));
+    this.panelByKey.set(key, node);
+
+    return m(
+        `.panel${extraClass}`,
+        {key, 'data-key': key},
+        perfDebug() ?
+            [node, m('.debug-panel-border', {key: 'debug-panel-border'})] :
+            node);
+  }
+
+  // Render a tree of panels into one vnode. Argument `path` is used to build
+  // `key` attribute for intermediate tree vnodes: otherwise Mithril internals
+  // will complain about keyed and non-keyed vnodes mixed together.
+  renderTree(node: AnyAttrsVnode, path: string): m.Vnode {
+    if (this.isTrackGroupAttrs(node.attrs)) {
+      return m(
+          'div',
+          {key: path},
+          this.renderPanel(
+              node.attrs.header,
+              `${path}-header`,
+              node.attrs.collapsed ? '' : '.sticky'),
+          ...node.attrs.childTracks.map(
+              (child, index) => this.renderTree(child, `${path}-${index}`)));
+    }
+    return this.renderPanel(node, assertExists(node.key) as string);
+  }
+
   view({attrs}: m.CVnode<Attrs>) {
     this.attrs = attrs;
     this.panelByKey.clear();
-    const children = [];
-    for (const panel of attrs.panels) {
-      const key = assertExists(panel.key) as string;
-      assertFalse(this.panelByKey.has(key));
-      this.panelByKey.set(key, panel);
-      children.push(
-          m('.panel',
-            {key: panel.key, 'data-key': panel.key},
-            perfDebug() ?
-                [panel, m('.debug-panel-border', {key: 'debug-panel-border'})] :
-                panel));
-    }
+    const children = attrs.panels.map(
+        (panel, index) => this.renderTree(panel, `track-tree-${index}`));
 
     return [
       m(
