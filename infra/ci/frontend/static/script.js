@@ -254,7 +254,7 @@ function renderCLRow(cl) {
         `${cl.subject}`, m('span.ps', `#${cl.psNum}`))
     ),
     m('td', cl.status),
-    m('td', stripEmail(cl.owner)),
+    m('td', stripEmail(cl.owner || '')),
     m('td', getLastUpdate(cl.lastUpdate)),
     JOB_TYPES.map(x => renderClJobCell(`cls/${cl.num}-${cl.psNum}`, x.id))
   ));
