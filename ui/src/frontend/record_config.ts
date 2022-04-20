@@ -195,12 +195,8 @@ export class RecordTargetStore {
   recordTargetOS: string|null;
 
   constructor() {
-    this.recordTargetOS = null;
-    const savedTarget =
+    this.recordTargetOS =
         window.localStorage.getItem(LOCAL_STORAGE_RECORD_TARGET_OS_KEY);
-    if (typeof savedTarget === 'string') {
-      this.recordTargetOS = savedTarget;
-    }
   }
 
   get(): string|null {
