@@ -19,6 +19,7 @@
 #include <stdio.h>
 
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -58,12 +59,11 @@ std::string PackageListLine(unsigned long uid,
                             bool profileable_from_shell,
                             bool profileable,
                             const char* installer) {
-  char buf[1024] = {};
-  snprintf(buf, sizeof(buf),
-           "com.package.name %lu %d /data/user/0/com.package.name "
-           "platform:privapp:targetSdkVersion=29 1065,3003 %d 500 %d %s\n",
-           uid, debuggable, profileable_from_shell, profileable, installer);
-  return std::string(buf);
+  base::StackString<256> ss(
+      "com.package.name %lu %d /data/user/0/com.package.name "
+      "platform:privapp:targetSdkVersion=29 1065,3003 %d 500 %d %s\n",
+      uid, debuggable, profileable_from_shell, profileable, installer);
+  return ss.ToStdString();
 }
 
 TEST(CanProfileAndroidTest, DebuggableBuild) {
