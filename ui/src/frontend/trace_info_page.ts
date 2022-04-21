@@ -64,7 +64,7 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
       const idx = row.idx !== '' ? `[${row.idx}]` : '';
       tableRows.push(m(
           'tr',
-          m('td', {title: row.description}, `${row.name}${idx}`, help),
+          m('td.name', {title: row.description}, `${row.name}${idx}`, help),
           m('td', `${row.value}`),
           m('td', `${row.severity} (${row.source})`),
           ));
@@ -119,7 +119,7 @@ class TraceMetadata implements m.ClassComponent {
     for (const row of resp.rows) {
       tableRows.push(m(
           'tr',
-          m('td', `${row.name}`),
+          m('td.name', `${row.name}`),
           m('td', `${row.value}`),
           ));
     }
@@ -160,7 +160,7 @@ class PackageList implements m.ClassComponent {
     for (const row of resp.rows) {
       tableRows.push(m(
           'tr',
-          m('td', `${row.package_name}`),
+          m('td.name', `${row.package_name}`),
           m('td', `${row.version_code}`),
           m('td',
             `${row.debuggable ? 'debuggable' : ''} ${
