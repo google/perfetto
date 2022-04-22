@@ -126,8 +126,10 @@ ModuleResult AndroidProbesModule::TokenizePacket(
       writer.AppendStringView(desc.rail_name());
       writer.AppendStringView("_uws");
     }
-    AndroidProbesTracker::GetOrCreate(context_)->SetPowerRailName(
-        desc.index(), context_->storage->InternString(writer.GetStringView()));
+    AndroidProbesTracker::GetOrCreate(context_)->SetPowerRailNames(
+        desc.index(),
+        {context_->storage->InternString(desc.rail_name()),
+         context_->storage->InternString(writer.GetStringView())});
   }
 
   // For each energy data message, turn it into its own trace packet
