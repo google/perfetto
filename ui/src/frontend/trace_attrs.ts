@@ -19,11 +19,10 @@ export function isShareable() {
 }
 
 export function isDownloadable() {
-  const engine = Object.values(globals.state.engines)[0];
+  const engine = globals.getCurrentEngine();
   if (engine && engine.source.type === 'ARRAY_BUFFER' &&
       engine.source.localOnly) {
     return false;
   }
-  if (engine && engine.source.type === 'HTTP_RPC') return false;
-  return true;
+  return !(engine && engine.source.type === 'HTTP_RPC');
 }
