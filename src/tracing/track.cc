@@ -100,8 +100,16 @@ protos::gen::TrackDescriptor CounterTrack::Serialize() const {
     counter->add_categories(category_);
   if (unit_ != perfetto::protos::pbzero::CounterDescriptor::UNIT_UNSPECIFIED)
     counter->set_unit(static_cast<protos::gen::CounterDescriptor_Unit>(unit_));
-  if (unit_name_)
-    counter->set_unit_name(unit_name_);
+  {
+    // if |type| is set, we don't want to emit |unit_name|. Trace processor
+    // infers the track name from the type in that case.
+    if (type_ !=
+        perfetto::protos::gen::CounterDescriptor::COUNTER_UNSPECIFIED) {
+      counter->set_type(type_);
+    } else if (unit_name_) {
+      counter->set_unit_name(unit_name_);
+    }
+  }
   if (unit_multiplier_ != 1)
     counter->set_unit_multiplier(unit_multiplier_);
   if (is_incremental_)
