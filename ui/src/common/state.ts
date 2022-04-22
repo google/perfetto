@@ -80,7 +80,11 @@ export const MAX_TIME = 180;
 // serialisation+deserialisation.
 // 15: Added state for Pivot Table V2
 // 16: Added boolean tracking if the flamegraph modal was dismissed
-export const STATE_VERSION = 16;
+// 17:
+// - add currentEngineId to track the id of the current engine
+// - remove nextNoteId, nextAreaId and use nextId as a unique counter for all
+//   indexing except the indexing of the engines
+export const STATE_VERSION = 17;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -180,7 +184,7 @@ export interface EngineConfig {
 
 export interface QueryConfig {
   id: string;
-  engineId: string;
+  engineId?: string;
   query: string;
 }
 
@@ -393,9 +397,8 @@ export interface State {
   // tslint:disable-next-line:no-any
   [key: string]: any;
   version: number;
-  nextId: number;
-  nextNoteId: number;
-  nextAreaId: number;
+  currentEngineId?: string;
+  nextId: string;
 
   /**
    * State of the ConfigEditor.
