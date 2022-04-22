@@ -15,7 +15,6 @@
 import * as m from 'mithril';
 
 import {Actions} from '../common/actions';
-import {EngineConfig} from '../common/state';
 import * as version from '../gen/perfetto_version';
 
 import {globals} from './globals';
@@ -77,8 +76,8 @@ function onKeyUp(e: Event) {
     return;
   }
   if (mode === COMMAND && key === 'Enter') {
-    globals.dispatch(Actions.executeQuery(
-        {engineId: '0', queryId: 'command', query: txt.value}));
+    globals.dispatch(
+        Actions.executeQuery({queryId: 'command', query: txt.value}));
   }
 }
 
@@ -176,9 +175,9 @@ class Progress implements m.ClassComponent {
 
   loadingAnimation() {
     if (this.progressBar === undefined) return;
-    const engine: EngineConfig = globals.state.engines['0'];
-    if ((engine !== undefined && !engine.ready) ||
-        globals.numQueuedQueries > 0 || taskTracker.hasPendingTasks()) {
+    const engine = globals.getCurrentEngine();
+    if ((engine && !engine.ready) || globals.numQueuedQueries > 0 ||
+        taskTracker.hasPendingTasks()) {
       this.progressBar.classList.add('progress-anim');
     } else {
       this.progressBar.classList.remove('progress-anim');

@@ -15,7 +15,6 @@
 import {Draft} from 'immer';
 
 import {assertExists, assertTrue} from '../base/logging';
-import {randomColor} from '../common/colorizer';
 import {RecordConfig} from '../controller/record_config_types';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames/common';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/common';
@@ -33,6 +32,7 @@ import {
 } from '../tracks/process_scheduling/common';
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
 
+import {randomColor} from './colorizer';
 import {createEmptyState} from './empty_state';
 import {DEFAULT_VIEWING_OPTION, PERF_SAMPLES_KEY} from './flamegraph_util';
 import {
@@ -134,11 +134,18 @@ function rankIndex<T>(element: T, array: T[]): number {
   return index;
 }
 
+function generateNextId(draft: StateDraft): string {
+  const nextId = String(Number(draft.nextId) + 1);
+  draft.nextId = nextId;
+  return nextId;
+}
+
 export const StateActions = {
 
   openTraceFromFile(state: StateDraft, args: {file: File}): void {
     clearTraceState(state);
-    const id = `${state.nextId++}`;
+    const id = generateNextId(state);
+    state.currentEngineId = id;
     state.engines[id] = {
       id,
       ready: false,
@@ -148,7 +155,8 @@ export const StateActions = {
 
   openTraceFromBuffer(state: StateDraft, args: PostedTrace): void {
     clearTraceState(state);
-    const id = `${state.nextId++}`;
+    const id = generateNextId(state);
+    state.currentEngineId = id;
     state.engines[id] = {
       id,
       ready: false,
@@ -158,7 +166,8 @@ export const StateActions = {
 
   openTraceFromUrl(state: StateDraft, args: {url: string}): void {
     clearTraceState(state);
-    const id = `${state.nextId++}`;
+    const id = generateNextId(state);
+    state.currentEngineId = id;
     state.engines[id] = {
       id,
       ready: false,
@@ -168,7 +177,8 @@ export const StateActions = {
 
   openTraceFromHttpRpc(state: StateDraft, _args: {}): void {
     clearTraceState(state);
-    const id = `${state.nextId++}`;
+    const id = generateNextId(state);
+    state.currentEngineId = id;
     state.engines[id] = {
       id,
       ready: false,
@@ -198,7 +208,7 @@ export const StateActions = {
 
   addTracks(state: StateDraft, args: {tracks: AddTrackArgs[]}) {
     args.tracks.forEach(track => {
-      const id = track.id === undefined ? `${state.nextId++}` : track.id;
+      const id = track.id === undefined ? generateNextId(state) : track.id;
       track.id = id;
       state.tracks[id] = track as TrackState;
       this.fillUiTrackIdByTraceTrackId(state, track as TrackState, id);
@@ -214,7 +224,7 @@ export const StateActions = {
     id?: string; engineId: string; kind: string; name: string;
     trackGroup?: string; config: {}; trackKindPriority: TrackKindPriority;
   }): void {
-    const id = args.id !== undefined ? args.id : `${state.nextId++}`;
+    const id = args.id !== undefined ? args.id : generateNextId(state);
     state.tracks[id] = {
       id,
       engineId: args.engineId,
@@ -252,7 +262,7 @@ export const StateActions = {
   addDebugTrack(state: StateDraft, args: {engineId: string, name: string}):
       void {
         if (state.debugTrackId !== undefined) return;
-        const trackId = `${state.nextId++}`;
+        const trackId = generateNextId(state);
         state.debugTrackId = trackId;
         this.addTrack(state, {
           id: trackId,
@@ -334,11 +344,11 @@ export const StateActions = {
 
   executeQuery(
       state: StateDraft,
-      args: {queryId: string; engineId: string; query: string}): void {
+      args: {queryId: string; query: string, engineId?: string}): void {
     state.queries[args.queryId] = {
       id: args.queryId,
-      engineId: args.engineId,
       query: args.query,
+      engineId: args.engineId
     };
   },
 
@@ -433,7 +443,7 @@ export const StateActions = {
 
   createPermalink(state: StateDraft, args: {isRecordingConfig: boolean}): void {
     state.permalink = {
-      requestId: `${state.nextId++}`,
+      requestId: generateNextId(state),
       hash: undefined,
       isRecordingConfig: args.isRecordingConfig
     };
@@ -447,7 +457,7 @@ export const StateActions = {
       },
 
   loadPermalink(state: StateDraft, args: {hash: string}): void {
-    state.permalink = {requestId: `${state.nextId++}`, hash: args.hash};
+    state.permalink = {requestId: generateNextId(state), hash: args.hash};
   },
 
   clearPermalink(state: StateDraft, _: {}): void {
@@ -497,7 +507,7 @@ export const StateActions = {
   },
 
   addNote(state: StateDraft, args: {timestamp: number, color: string}): void {
-    const id = `${state.nextNoteId++}`;
+    const id = generateNextId(state);
     state.notes[id] = {
       noteType: 'DEFAULT',
       id,
@@ -515,7 +525,7 @@ export const StateActions = {
             state.currentSelection.kind !== 'AREA') {
           return;
         }
-        const id = args.persistent ? `${state.nextNoteId++}` : '0';
+        const id = args.persistent ? generateNextId(state) : '0';
         const color = args.persistent ? args.color : '#344596';
         state.notes[id] = {
           noteType: 'AREA',
@@ -539,7 +549,7 @@ export const StateActions = {
   },
 
   markArea(state: StateDraft, args: {area: Area, persistent: boolean}): void {
-    const areaId = `${state.nextAreaId++}`;
+    const areaId = generateNextId(state);
     assertTrue(args.area.endSec >= args.area.startSec);
     state.areas[areaId] = {
       id: areaId,
@@ -547,11 +557,11 @@ export const StateActions = {
       endSec: args.area.endSec,
       tracks: args.area.tracks
     };
-    const id = args.persistent ? `${state.nextNoteId++}` : '0';
+    const noteId = args.persistent ? generateNextId(state) : '0';
     const color = args.persistent ? randomColor() : '#344596';
-    state.notes[id] = {
+    state.notes[noteId] = {
       noteType: 'AREA',
-      id,
+      id: noteId,
       areaId,
       color,
       text: '',
@@ -768,7 +778,7 @@ export const StateActions = {
   },
 
   selectArea(state: StateDraft, args: {area: Area}): void {
-    const areaId = `${state.nextAreaId++}`;
+    const areaId = generateNextId(state);
     assertTrue(args.area.endSec >= args.area.startSec);
     state.areas[areaId] = {
       id: areaId,

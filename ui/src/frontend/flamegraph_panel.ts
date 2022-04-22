@@ -248,7 +248,7 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
   }
 
   downloadPprof() {
-    const engine = Object.values(globals.state.engines)[0];
+    const engine = globals.getCurrentEngine();
     if (!engine) return;
     getCurrentTrace()
         .then(file => {
