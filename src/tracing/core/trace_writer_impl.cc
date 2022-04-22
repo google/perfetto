@@ -302,7 +302,6 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
     // Descend in the stack of non-finalized nested submessages (if any) and
     // detour their |size_field| into the |patch_list_|. At this point we have
     // to release the chunk and they cannot write anymore into that.
-    // TODO(primiano): add tests to cover this logic.
     bool chunk_needs_patching = false;
     for (auto* nested_msg = cur_packet_->nested_message(); nested_msg;
          nested_msg = nested_msg->nested_message()) {
