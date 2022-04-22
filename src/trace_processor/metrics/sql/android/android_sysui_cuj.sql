@@ -328,6 +328,14 @@ SELECT
   ts_render_thread_end - ts_main_thread_start AS dur
 FROM android_sysui_cuj_missed_frames;
 
+DROP TABLE IF EXISTS android_sysui_cuj_missed_frames_render_thread_times;
+CREATE TABLE android_sysui_cuj_missed_frames_render_thread_times AS
+SELECT
+  *,
+  ts_render_thread_start AS ts,
+  dur_render_thread AS dur
+FROM android_sysui_cuj_missed_frames;
+
 DROP TABLE IF EXISTS android_sysui_cuj_jit_slices_join_table;
 CREATE VIRTUAL TABLE android_sysui_cuj_jit_slices_join_table
 USING span_join(android_sysui_cuj_missed_frames_hwui_times partitioned frame_number, android_sysui_cuj_jit_slices);
