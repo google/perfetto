@@ -22,6 +22,7 @@ shared_library("libperfetto_c") {
     "../tracing:platform_impl",
   ]
   sources = [
+    "data_source.cc",
     "producer.cc",
     "stream_writer.cc",
     "stream_writer.h",
