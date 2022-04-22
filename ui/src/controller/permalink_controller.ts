@@ -26,6 +26,7 @@ import {
   saveTrace,
   toSha256
 } from '../common/upload_utils';
+import {globals as frontendGlobals} from '../frontend/globals';
 import {publishConversionJobStatusUpdate} from '../frontend/publish';
 import {Router} from '../frontend/router';
 
@@ -120,7 +121,7 @@ export class PermalinkController extends Controller<'main'> {
     if (isRecordingConfig) {
       uploadState = globals.state.recordConfig;
     } else {
-      const engine = assertExists(Object.values(globals.state.engines)[0]);
+      const engine = assertExists(frontendGlobals.getCurrentEngine());
       let dataToUpload: File|ArrayBuffer|undefined = undefined;
       let traceName = `trace ${engine.id}`;
       if (engine.source.type === 'FILE') {

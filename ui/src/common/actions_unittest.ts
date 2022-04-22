@@ -259,7 +259,6 @@ test('unpin', () => {
 
 test('open trace', () => {
   const state = createEmptyState();
-  state.nextId = 100;
   const recordConfig = state.recordConfig;
   const after = produce(state, draft => {
     StateActions.openTraceFromUrl(draft, {
@@ -268,7 +267,6 @@ test('open trace', () => {
   });
 
   const engineKeys = Object.keys(after.engines);
-  expect(after.nextId).toBe(101);
   expect(engineKeys.length).toBe(1);
   expect((after.engines[engineKeys[0]].source as TraceUrlSource).url)
       .toBe('https://example.com/bar');
@@ -316,15 +314,17 @@ test('setEngineReady with missing engine is ignored', () => {
 
 test('setEngineReady', () => {
   const state = createEmptyState();
-  state.nextId = 100;
+  let latestEngineId = 'dummy value will be replaced';
+  state.currentEngineId = '100';
   const after = produce(state, draft => {
     StateActions.openTraceFromUrl(draft, {
       url: 'https://example.com/bar',
     });
+    latestEngineId = assertExists(draft.currentEngineId);
     StateActions.setEngineReady(
-        draft, {engineId: '100', ready: true, mode: 'WASM'});
+        draft, {engineId: latestEngineId, ready: true, mode: 'WASM'});
   });
-  expect(after.engines['100'].ready).toBe(true);
+  expect(after.engines[latestEngineId].ready).toBe(true);
 });
 
 test('sortTracksByPriority', () => {
