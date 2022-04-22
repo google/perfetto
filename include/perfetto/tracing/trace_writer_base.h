@@ -46,12 +46,27 @@ class TraceWriterBase {
   // the TraceWriter instance is destroyed, (ii) a subsequence NewTracePacket()
   // call is made on the same TraceWriter instance.
   //
+  // The caller can use protozero::MessageHandle::TakeStreamWriter() to write.
+  //
+  // The caller must call ->Finalize() on the returned trace packet (the handle
+  // destructor will take care of that) or explicitly call FinishTracePacket (if
+  // using TakeStreamWriter) before calling any method on the same TraceWriter
+  // instance.
+  //
   // The returned packet handle is always valid, but note that, when using
   // BufferExhaustedPolicy::kDrop and the SMB is exhausted, it may be assigned
   // a garbage chunk and any trace data written into it will be lost. For more
   // details on buffer size choices: https://perfetto.dev/docs/concepts/buffers.
   virtual protozero::MessageHandle<protos::pbzero::TracePacket>
   NewTracePacket() = 0;
+
+  // Tells the TraceWriterBase that the previous packet started with
+  // NewTracePacket() is finished.
+  //
+  // Calling this is optional: the TraceWriterBase can realize that the previous
+  // packet is finished when the next NewTracePacket() is called. It is still
+  // useful, because the next NewTracePacket may not happen for a while.
+  virtual void FinishTracePacket() = 0;
 
   // Commits the data pending for the current chunk. This can be called
   // only if the handle returned by NewTracePacket() has been destroyed (i.e. we

@@ -45,8 +45,23 @@ class PERFETTO_EXPORT_COMPONENT ScatteredStreamWriter {
  public:
   class PERFETTO_EXPORT_COMPONENT Delegate {
    public:
+    static constexpr size_t kPatchSize = 4;
     virtual ~Delegate();
+
+    // Returns a new chunk for writing.
     virtual ContiguousMemoryRange GetNewBuffer() = 0;
+
+    // Signals the delegate that the location pointed by `to_patch` (which must
+    // be in the last chunk returned by GetNewBuffer()), kPatchSize long, needs
+    // to be updated later (after potentially multiple GetNewBuffer calls).
+    //
+    // The caller must write to the returned location later. If the returned
+    // pointer is nullptr, the caller should not write anything.
+    //
+    // The implementation considers the patch ready to apply when the caller
+    // writes the the first byte a value that's different than 0 (the
+    // implementation periodically checks for this).
+    virtual uint8_t* AnnotatePatch(uint8_t* patch_addr);
   };
 
   explicit ScatteredStreamWriter(Delegate* delegate);
@@ -122,6 +137,10 @@ class PERFETTO_EXPORT_COMPONENT ScatteredStreamWriter {
   }
 
   uint64_t written_previously() const { return written_previously_; }
+
+  uint8_t* AnnotatePatch(uint8_t* patch_addr) {
+    return delegate_->AnnotatePatch(patch_addr);
+  }
 
  private:
   ScatteredStreamWriter(const ScatteredStreamWriter&) = delete;

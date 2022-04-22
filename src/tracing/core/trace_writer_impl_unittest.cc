@@ -23,7 +23,9 @@
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/protozero/message.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "perfetto/protozero/scattered_stream_writer.h"
 #include "src/base/test/gtest_test_suite.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
@@ -40,7 +42,10 @@ namespace perfetto {
 namespace {
 
 using ChunkHeader = SharedMemoryABI::ChunkHeader;
+using ::protozero::ScatteredStreamWriter;
 using ::testing::AllOf;
+using ::testing::ElementsAre;
+using ::testing::IsNull;
 using ::testing::MockFunction;
 using ::testing::Ne;
 using ::testing::NiceMock;
@@ -180,8 +185,13 @@ class TraceWriterImplTest : public AlignedBufferTest {
   std::unique_ptr<SharedMemoryArbiterImpl> arbiter_;
 };
 
+using TraceWriterImplDeathTest = TraceWriterImplTest;
+
 size_t const kPageSizes[] = {4096, 65536};
 INSTANTIATE_TEST_SUITE_P(PageSize, TraceWriterImplTest, ValuesIn(kPageSizes));
+INSTANTIATE_TEST_SUITE_P(PageSize,
+                         TraceWriterImplDeathTest,
+                         ValuesIn(kPageSizes));
 
 TEST_P(TraceWriterImplTest, NewTracePacket) {
   const BufferID kBufId = 42;
@@ -239,6 +249,216 @@ TEST_P(TraceWriterImplTest, NewTracePacketLargePackets) {
     EXPECT_EQ(packet.for_testing().str(),
               std::string("PACKET_2") + std::string(chunk_size, 'x'));
   }
+}
+
+TEST_P(TraceWriterImplTest, NewTracePacketTakeWriter) {
+  const BufferID kBufId = 42;
+  std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(kBufId);
+  const size_t kNumPackets = 32;
+  for (size_t i = 0; i < kNumPackets; i++) {
+    ScatteredStreamWriter* sw = writer->NewTracePacket().TakeStreamWriter();
+    std::string raw_proto_bytes =
+        std::string("RAW_PROTO_BYTES_") + std::to_string(i);
+    sw->WriteBytes(reinterpret_cast<const uint8_t*>(raw_proto_bytes.data()),
+                   raw_proto_bytes.size());
+    writer->FinishTracePacket();
+  }
+
+  // Destroying the TraceWriteImpl should cause the last packet to be finalized
+  // and the chunk to be put back in the kChunkComplete state.
+  writer.reset();
+
+  std::vector<std::string> packets = GetPacketsFromShmemAndPatches();
+  ASSERT_THAT(packets, SizeIs(kNumPackets));
+  for (size_t i = 0; i < kNumPackets; i++) {
+    EXPECT_EQ(packets[i], std::string("RAW_PROTO_BYTES_" + std::to_string(i)));
+  }
+}
+
+#if defined(GTEST_HAS_DEATH_TEST)
+TEST_P(TraceWriterImplDeathTest, NewTracePacketTakeWriterNoFinish) {
+  const BufferID kBufId = 42;
+  std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(kBufId);
+
+  ScatteredStreamWriter* sw = writer->NewTracePacket().TakeStreamWriter();
+  std::string raw_proto_bytes = std::string("RAW_PROTO_BYTES");
+  sw->WriteBytes(reinterpret_cast<const uint8_t*>(raw_proto_bytes.data()),
+                 raw_proto_bytes.size());
+
+  EXPECT_DEATH({ writer->NewTracePacket(); }, "");
+}
+#endif  // defined(GTEST_HAS_DEATH_TEST)
+
+TEST_P(TraceWriterImplTest, AnnotatePatch) {
+  const BufferID kBufId = 42;
+  std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(kBufId);
+  ScatteredStreamWriter* sw = writer->NewTracePacket().TakeStreamWriter();
+  std::string raw_proto_bytes = std::string("RAW_PROTO_BYTES");
+  sw->WriteBytes(reinterpret_cast<const uint8_t*>(raw_proto_bytes.data()),
+                 raw_proto_bytes.size());
+
+  uint8_t* patch1 =
+      sw->ReserveBytes(ScatteredStreamWriter::Delegate::kPatchSize);
+  ASSERT_THAT(patch1, NotNull());
+  patch1[0] = 0;
+  patch1[1] = 0;
+  patch1[2] = 0;
+  patch1[3] = 0;
+  const uint8_t* old_chunk_pointer = patch1;
+  patch1 = sw->AnnotatePatch(patch1);
+  EXPECT_NE(patch1, old_chunk_pointer);
+  ASSERT_THAT(patch1, NotNull());
+
+  sw->WriteByte('X');
+
+  uint8_t* patch2 =
+      sw->ReserveBytes(ScatteredStreamWriter::Delegate::kPatchSize);
+  ASSERT_THAT(patch2, NotNull());
+  patch2[0] = 0;
+  patch2[1] = 0;
+  patch2[2] = 0;
+  patch2[3] = 0;
+  old_chunk_pointer = patch2;
+  patch2 = sw->AnnotatePatch(patch2);
+  EXPECT_NE(patch2, old_chunk_pointer);
+  ASSERT_THAT(patch2, NotNull());
+
+  const size_t chunk_size = page_size() / 4;
+  std::string large_string(chunk_size, 'x');
+
+  sw->WriteBytes(reinterpret_cast<const uint8_t*>(large_string.data()),
+                 large_string.size());
+
+  uint8_t* patch3 =
+      sw->ReserveBytes(ScatteredStreamWriter::Delegate::kPatchSize);
+  ASSERT_THAT(patch3, NotNull());
+  patch3[0] = 0;
+  patch3[1] = 0;
+  patch3[2] = 0;
+  patch3[3] = 0;
+  old_chunk_pointer = patch3;
+  patch3 = sw->AnnotatePatch(patch3);
+  EXPECT_NE(patch3, old_chunk_pointer);
+  ASSERT_THAT(patch3, NotNull());
+
+  sw->WriteBytes(reinterpret_cast<const uint8_t*>(large_string.data()),
+                 large_string.size());
+
+  patch1[0] = 0x11;
+  patch1[1] = 0x11;
+  patch1[2] = 0x11;
+  patch1[3] = 0x11;
+
+  patch2[0] = 0x22;
+  patch2[1] = 0x22;
+  patch2[2] = 0x22;
+  patch2[3] = 0x22;
+
+  patch3[0] = 0x33;
+  patch3[1] = 0x33;
+  patch3[2] = 0x33;
+  patch3[3] = 0x33;
+
+  writer->FinishTracePacket();
+
+  // Destroying the TraceWriteImpl should cause the last packet to be finalized
+  // and the chunk to be put back in the kChunkComplete state.
+  writer.reset();
+
+  std::vector<std::string> packets = GetPacketsFromShmemAndPatches();
+  EXPECT_THAT(packets,
+              ElementsAre(std::string("RAW_PROTO_BYTES") +
+                          std::string("\x11\x11\x11\x11") + std::string("X") +
+                          std::string("\x22\x22\x22\x22") +
+                          std::string(chunk_size, 'x') +
+                          std::string("\x33\x33\x33\x33") +
+                          std::string(chunk_size, 'x')));
+}
+
+TEST_P(TraceWriterImplTest, MixManualTakeAndMessage) {
+  const BufferID kBufId = 42;
+  const size_t chunk_size = page_size() / 4;
+  const std::string large_string(chunk_size, 'x');
+
+  std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(kBufId);
+
+  {
+    ScatteredStreamWriter* sw = writer->NewTracePacket().TakeStreamWriter();
+    std::string packet1 = std::string("PACKET_1_");
+    sw->WriteBytes(reinterpret_cast<const uint8_t*>(packet1.data()),
+                   packet1.size());
+    uint8_t* patch =
+        sw->ReserveBytes(ScatteredStreamWriter::Delegate::kPatchSize);
+    ASSERT_THAT(patch, NotNull());
+    patch[0] = 0;
+    patch[1] = 0;
+    patch[2] = 0;
+    patch[3] = 0;
+    const uint8_t* old_chunk_pointer = patch;
+    patch = sw->AnnotatePatch(patch);
+    EXPECT_NE(patch, old_chunk_pointer);
+    ASSERT_THAT(patch, NotNull());
+    sw->WriteBytes(reinterpret_cast<const uint8_t*>(large_string.data()),
+                   large_string.size());
+    patch[0] = 0xFF;
+    patch[1] = 0xFF;
+    patch[2] = 0xFF;
+    patch[3] = 0xFF;
+    writer->FinishTracePacket();
+  }
+
+  {
+    auto msg = writer->NewTracePacket();
+    std::string packet2 = std::string("PACKET_2_");
+    msg->AppendRawProtoBytes(packet2.data(), packet2.size());
+    auto* nested = msg->BeginNestedMessage<protozero::Message>(1);
+    nested->AppendRawProtoBytes(large_string.data(), large_string.size());
+  }
+
+  {
+    ScatteredStreamWriter* sw = writer->NewTracePacket().TakeStreamWriter();
+    std::string packet3 = std::string("PACKET_3_");
+    sw->WriteBytes(reinterpret_cast<const uint8_t*>(packet3.data()),
+                   packet3.size());
+    uint8_t* patch =
+        sw->ReserveBytes(ScatteredStreamWriter::Delegate::kPatchSize);
+    ASSERT_THAT(patch, NotNull());
+    patch[0] = 0;
+    patch[1] = 0;
+    patch[2] = 0;
+    patch[3] = 0;
+    const uint8_t* old_chunk_pointer = patch;
+    patch = sw->AnnotatePatch(patch);
+    EXPECT_NE(patch, old_chunk_pointer);
+    ASSERT_THAT(patch, NotNull());
+    sw->WriteBytes(reinterpret_cast<const uint8_t*>(large_string.data()),
+                   large_string.size());
+    patch[0] = 0xFF;
+    patch[1] = 0xFF;
+    patch[2] = 0xFF;
+    patch[3] = 0xFF;
+    writer->FinishTracePacket();
+  }
+
+  // Destroying the TraceWriteImpl should cause the last packet to be finalized
+  // and the chunk to be put back in the kChunkComplete state.
+  writer.reset();
+
+  uint8_t buf[protozero::proto_utils::kMessageLengthFieldSize];
+  protozero::proto_utils::WriteRedundantVarInt(
+      static_cast<uint32_t>(large_string.size()), buf,
+      protozero::proto_utils::kMessageLengthFieldSize);
+  std::string encoded_size(reinterpret_cast<char*>(buf), sizeof(buf));
+
+  std::vector<std::string> packets = GetPacketsFromShmemAndPatches();
+  EXPECT_THAT(
+      packets,
+      ElementsAre(std::string("PACKET_1_") + std::string("\xFF\xFF\xFF\xFF") +
+                      std::string(chunk_size, 'x'),
+                  std::string("PACKET_2_") + std::string("\x0A") +
+                      encoded_size + std::string(chunk_size, 'x'),
+                  std::string("PACKET_3_") + std::string("\xFF\xFF\xFF\xFF") +
+                      std::string(chunk_size, 'x')));
 }
 
 TEST_P(TraceWriterImplTest, FragmentingPacketWithProducerAndServicePatching) {
@@ -610,6 +830,60 @@ TEST_P(TraceWriterImplTest, FlushAfterFragmentingPacketWhileBufferExhausted) {
   // Flushing should succeed, even though some patches are still in the
   // writer's patch list.
   packet2->Finalize();
+  writer->Flush();
+}
+
+TEST_P(TraceWriterImplTest, AnnotatePatchWhileBufferExhausted) {
+  const BufferID kBufId = 42;
+  std::unique_ptr<TraceWriter> writer =
+      arbiter_->CreateTraceWriter(kBufId, BufferExhaustedPolicy::kDrop);
+
+  // Write a small first packet, so that |writer| owns a chunk.
+  ScatteredStreamWriter* sw = writer->NewTracePacket().TakeStreamWriter();
+  sw->WriteBytes(reinterpret_cast<const uint8_t*>("X"), 1);
+  writer->FinishTracePacket();
+  EXPECT_FALSE(reinterpret_cast<TraceWriterImpl*>(writer.get())
+                   ->drop_packets_for_testing());
+
+  // Grab all but one of the remaining chunks in the SMB in new writers.
+  std::array<std::unique_ptr<TraceWriter>, kNumPages * 4 - 2> other_writers;
+  for (size_t i = 0; i < other_writers.size(); i++) {
+    other_writers[i] =
+        arbiter_->CreateTraceWriter(kBufId, BufferExhaustedPolicy::kDrop);
+    auto other_writer_packet = other_writers[i]->NewTracePacket();
+    EXPECT_FALSE(reinterpret_cast<TraceWriterImpl*>(other_writers[i].get())
+                     ->drop_packets_for_testing());
+  }
+
+  // Write a packet that's guaranteed to span more than a two chunks, causing
+  // |writer| to attempt to acquire two new chunks, but fail to acquire the
+  // second.
+  sw = writer->NewTracePacket().TakeStreamWriter();
+  size_t chunk_size = page_size() / 4;
+  std::string large_string(chunk_size * 2, 'x');
+  sw->WriteBytes(reinterpret_cast<const uint8_t*>(large_string.data()),
+                 large_string.size());
+
+  EXPECT_TRUE(reinterpret_cast<TraceWriterImpl*>(writer.get())
+                  ->drop_packets_for_testing());
+
+  uint8_t* patch1 =
+      sw->ReserveBytes(ScatteredStreamWriter::Delegate::kPatchSize);
+  ASSERT_THAT(patch1, NotNull());
+  patch1[0] = 0;
+  patch1[1] = 0;
+  patch1[2] = 0;
+  patch1[3] = 0;
+  patch1 = sw->AnnotatePatch(patch1);
+  EXPECT_THAT(patch1, IsNull());
+
+  // First two chunks should be committed.
+  arbiter_->FlushPendingCommitDataRequests();
+  ASSERT_THAT(last_commit_.chunks_to_move(), SizeIs(2));
+
+  // Flushing should succeed, even though some patches are still in the
+  // writer's patch list.
+  writer->FinishTracePacket();
   writer->Flush();
 }
 

@@ -76,6 +76,24 @@ PERFETTO_SDK_EXPORT void PerfettoStreamWriterAppendBytesSlowpath(
     const uint8_t* src,
     size_t size);
 
+#define PERFETTO_STREAM_WRITER_PATCH_SIZE 4
+
+// Tells the stream writer that the part of the current chunk pointed by
+// `patch_addr` (until `patch_addr`+`PERFETTO_STREAM_WRITER_PATCH_SIZE`) needs
+// to be changed after the current chunk goes away.
+//
+// The caller can write to the returned location (which may have been redirected
+// by the stream writer) after the current chunk has gone away. The caller
+// **must write a non-zero value as the first byte** eventually.
+//
+// The stream writer can also return NULL, in which case the caller should not
+// write anything.
+//
+// This can be used to backfill the size of a protozero message.
+PERFETTO_SDK_EXPORT uint8_t* PerfettoStreamWriterAnnotatePatch(
+    struct PerfettoStreamWriter*,
+    uint8_t* patch_addr);
+
 // Returns a pointer to an area of the chunk long `size` for writing. The
 // returned area is considered already written by the writer (it will not be
 // used again).

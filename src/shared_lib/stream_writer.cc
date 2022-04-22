@@ -35,6 +35,16 @@ void PerfettoStreamWriterNewChunk(struct PerfettoStreamWriter* w) {
   perfetto::UpdateStreamWriter(*sw, w);
 }
 
+uint8_t* PerfettoStreamWriterAnnotatePatch(struct PerfettoStreamWriter* w,
+                                           uint8_t* patch_addr) {
+  auto* sw = reinterpret_cast<protozero::ScatteredStreamWriter*>(w->impl);
+  static_assert(PERFETTO_STREAM_WRITER_PATCH_SIZE ==
+                    protozero::ScatteredStreamWriter::Delegate::kPatchSize,
+                "Size mismatch");
+  memset(patch_addr, 0, PERFETTO_STREAM_WRITER_PATCH_SIZE);
+  return sw->AnnotatePatch(patch_addr);
+}
+
 void PerfettoStreamWriterAppendBytesSlowpath(struct PerfettoStreamWriter* w,
                                              const uint8_t* src,
                                              size_t size) {
