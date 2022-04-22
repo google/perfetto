@@ -18,3 +18,10 @@ source_set("base") {
   ]
   public_deps = [ "./abi:base" ]
 }
+
+source_set("protozero") {
+  sources = [
+    "stream_writer.h",
+  ]
+  public_deps = [ "./abi:protozero" ]
+}

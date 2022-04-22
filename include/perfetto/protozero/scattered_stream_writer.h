@@ -98,24 +98,34 @@ class PERFETTO_EXPORT_COMPONENT ScatteredStreamWriter {
   // Subsequent WriteByte(s) will write into |range|.
   void Reset(ContiguousMemoryRange range);
 
+  // Commits the current chunk and gets a new chunk from the delegate.
+  void Extend();
+
   // Number of contiguous free bytes in |cur_range_| that can be written without
   // requesting a new buffer.
   size_t bytes_available() const {
     return static_cast<size_t>(cur_range_.end - write_ptr_);
   }
 
+  ContiguousMemoryRange cur_range() const { return cur_range_; }
+
   uint8_t* write_ptr() const { return write_ptr_; }
+
+  void set_write_ptr(uint8_t* write_ptr) {
+    assert(cur_range_.begin <= write_ptr && write_ptr <= cur_range_.end);
+    write_ptr_ = write_ptr;
+  }
 
   uint64_t written() const {
     return written_previously_ +
            static_cast<uint64_t>(write_ptr_ - cur_range_.begin);
   }
 
+  uint64_t written_previously() const { return written_previously_; }
+
  private:
   ScatteredStreamWriter(const ScatteredStreamWriter&) = delete;
   ScatteredStreamWriter& operator=(const ScatteredStreamWriter&) = delete;
-
-  void Extend();
 
   Delegate* const delegate_;
   ContiguousMemoryRange cur_range_;
