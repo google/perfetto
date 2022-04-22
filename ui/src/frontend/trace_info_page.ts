@@ -40,7 +40,6 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
     if (!this.queryDispatched) {
       this.queryDispatched = true;
       globals.dispatch(Actions.executeQuery({
-        engineId: '0',
         queryId: attrs.queryId,
         query: `select name, value, cast(ifnull(idx, '') as text) as idx,
                 description, severity, source from stats
@@ -103,7 +102,6 @@ class TraceMetadata implements m.ClassComponent {
     if (!this.queryDispatched) {
       this.queryDispatched = true;
       globals.dispatch(Actions.executeQuery({
-        engineId: '0',
         queryId: this.QUERY_ID,
         query: `select name, ifnull(str_value, cast(int_value as text)) as value
                 from metadata order by name`,
@@ -144,7 +142,6 @@ class PackageList implements m.ClassComponent {
     if (!this.queryDispatched) {
       this.queryDispatched = true;
       globals.dispatch(Actions.executeQuery({
-        engineId: '0',
         queryId: this.QUERY_ID,
         query: `select package_name, version_code, debuggable,
                 profileable_from_shell from package_list`,
