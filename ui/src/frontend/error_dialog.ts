@@ -14,6 +14,7 @@
 
 import * as m from 'mithril';
 
+import {assertExists} from '../base/logging';
 import {TraceUrlSource} from '../common/state';
 import {saveTrace} from '../common/upload_utils';
 
@@ -74,7 +75,7 @@ export function maybeShowErrorDialog(errLog: string) {
   const errTitle = errLog.split('\n', 1)[0].substr(0, 80);
   const userDescription = '';
   let checked = false;
-  const engine = Object.values(globals.state.engines)[0];
+  const engine = globals.getCurrentEngine();
 
   const shareTraceSection: m.Vnode[] = [];
   if (isShareable() && !urlExists()) {
@@ -83,7 +84,7 @@ export function maybeShowErrorDialog(errLog: string) {
           checked,
           oninput: (ev: InputEvent) => {
             checked = (ev.target as HTMLInputElement).checked;
-            if (checked && engine.source.type === 'FILE') {
+            if (checked && engine && engine.source.type === 'FILE') {
               saveTrace(engine.source.file).then(url => {
                 const errMessage = createErrorMessage(errLog, checked, url);
                 renderModal(
@@ -152,7 +153,7 @@ function renderModal(
 
 // If there is a trace URL to share, we don't have to show the upload checkbox.
 function urlExists() {
-  const engine = Object.values(globals.state.engines)[0];
+  const engine = globals.getCurrentEngine();
   return engine !== undefined &&
       (engine.source.type === 'ARRAY_BUFFER' || engine.source.type === 'URL') &&
       engine.source.url !== undefined;
@@ -160,11 +161,12 @@ function urlExists() {
 
 function createErrorMessage(errLog: string, checked: boolean, url?: string) {
   let errMessage = '';
-  const engine = Object.values(globals.state.engines)[0];
+  const engine = globals.getCurrentEngine();
   if (checked && url !== undefined) {
     errMessage += `Trace: ${url}`;
   } else if (urlExists()) {
-    errMessage += `Trace: ${(engine.source as TraceUrlSource).url}`;
+    errMessage +=
+        `Trace: ${(assertExists(engine).source as TraceUrlSource).url}`;
   } else {
     errMessage += 'To assist with debugging please attach or link to the ' +
         'trace you were viewing.';
