@@ -146,7 +146,7 @@ CREATE TABLE android_sysui_cuj_surfaceflinger_composite_slices AS
     slice.ts + slice.dur AS ts_end
   FROM slice
   JOIN android_sysui_cuj_sf_main_thread_track main_track ON slice.track_id = main_track.id
-  WHERE slice.dur > 0 AND slice.name = 'composite';
+  WHERE slice.dur > 0 AND slice.name GLOB 'composite*';
 
 DROP VIEW IF EXISTS android_sysui_cuj_surfaceflinger_commit_composite_frames_in_cuj;
 CREATE VIEW android_sysui_cuj_surfaceflinger_commit_composite_frames_in_cuj AS
