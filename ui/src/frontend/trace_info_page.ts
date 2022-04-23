@@ -40,7 +40,6 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
     if (!this.queryDispatched) {
       this.queryDispatched = true;
       globals.dispatch(Actions.executeQuery({
-        engineId: '0',
         queryId: attrs.queryId,
         query: `select name, value, cast(ifnull(idx, '') as text) as idx,
                 description, severity, source from stats
@@ -64,7 +63,7 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
       const idx = row.idx !== '' ? `[${row.idx}]` : '';
       tableRows.push(m(
           'tr',
-          m('td', {title: row.description}, `${row.name}${idx}`, help),
+          m('td.name', {title: row.description}, `${row.name}${idx}`, help),
           m('td', `${row.value}`),
           m('td', `${row.severity} (${row.source})`),
           ));
@@ -103,7 +102,6 @@ class TraceMetadata implements m.ClassComponent {
     if (!this.queryDispatched) {
       this.queryDispatched = true;
       globals.dispatch(Actions.executeQuery({
-        engineId: '0',
         queryId: this.QUERY_ID,
         query: `select name, ifnull(str_value, cast(int_value as text)) as value
                 from metadata order by name`,
@@ -119,7 +117,7 @@ class TraceMetadata implements m.ClassComponent {
     for (const row of resp.rows) {
       tableRows.push(m(
           'tr',
-          m('td', `${row.name}`),
+          m('td.name', `${row.name}`),
           m('td', `${row.value}`),
           ));
     }
@@ -144,7 +142,6 @@ class PackageList implements m.ClassComponent {
     if (!this.queryDispatched) {
       this.queryDispatched = true;
       globals.dispatch(Actions.executeQuery({
-        engineId: '0',
         queryId: this.QUERY_ID,
         query: `select package_name, version_code, debuggable,
                 profileable_from_shell from package_list`,
@@ -160,7 +157,7 @@ class PackageList implements m.ClassComponent {
     for (const row of resp.rows) {
       tableRows.push(m(
           'tr',
-          m('td', `${row.package_name}`),
+          m('td.name', `${row.package_name}`),
           m('td', `${row.version_code}`),
           m('td',
             `${row.debuggable ? 'debuggable' : ''} ${

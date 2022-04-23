@@ -234,7 +234,7 @@ void ProtoTraceReader::ParseTraceConfig(protozero::ConstBytes blob) {
     PERFETTO_ELOG(
         "It is strongly recommended to have flush_period_ms set when "
         "write_into_file is turned on. This trace will be loaded fully "
-        "into memory before sorting which increases the likliehoold of "
+        "into memory before sorting which increases the likelihood of "
         "OOMs.");
   }
 }

@@ -15,7 +15,6 @@
  */
 
 import * as m from 'mithril';
-
 import {GenericSet} from '../base/generic_set';
 import {sqliteString} from '../base/string_utils';
 import {Actions} from '../common/actions';
@@ -171,7 +170,6 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
               // TODO(ddrone): the UI of running query as if it was a canned or
               // custom query is a temporary one, replace with a proper UI.
               globals.dispatch(Actions.executeQuery({
-                engineId: '0',
                 queryId: 'command',
                 query,
               }));

@@ -76,6 +76,10 @@
           background-color: rgba(0, 0, 0, 0.04);
         }
 
+        td.name {
+          min-width: 150px;
+        }
+
         td {
           font-family: var(--monospace-font);
           font-size: 12px;

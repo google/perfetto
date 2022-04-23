@@ -323,9 +323,8 @@ function onCssLoaded() {
 
     // Don't allow postMessage or opening trace from route when the user says
     // that they want to reuse the already loaded trace in trace processor.
-    const values = Object.values(globals.state.engines);
-    if (values.length > 0 &&
-        globals.state.engines[values.length - 1].source.type === 'HTTP_RPC') {
+    const engine = globals.getCurrentEngine();
+    if (engine && engine.source.type === 'HTTP_RPC') {
       return;
     }
 
