@@ -144,4 +144,40 @@ android_netperf{
   }
   retransmission_rate: 20.0
   kfree_skb_rate: 10.0
+  net_tx_action {
+    total {
+      count: 2
+      runtime_ms: 0.04
+      avg_runtime_ms: 0.02
+      mcycles: 0
+      avg_freq_khz: 2000000
+    }
+    core {
+      id: 0
+      net_tx_action_statistic {
+        count: 1
+        runtime_ms: 0.02
+        avg_runtime_ms: 0.02
+        mcycles: 0
+        avg_freq_khz: 2000000
+      }
+    }
+    core {
+      id: 1
+      net_tx_action_statistic {
+        count: 1
+        runtime_ms: 0.02
+        avg_runtime_ms: 0.02
+        mcycles: 0
+        avg_freq_khz: 2000000
+      }
+    }
+  }
+  ipi_action {
+    total {
+      count: 2
+      runtime_ms: 0.02
+      avg_runtime_ms: 0.01
+    }
+  }
 }
