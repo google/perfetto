@@ -772,6 +772,8 @@ source_set("benchmark") {
     "benchmark/src/json_reporter.cc",
     "benchmark/src/log.h",
     "benchmark/src/mutex.h",
+    "benchmark/src/perf_counters.cc",
+    "benchmark/src/perf_counters.h",
     "benchmark/src/re.h",
     "benchmark/src/reporter.cc",
     "benchmark/src/sleep.cc",
