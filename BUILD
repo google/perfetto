@@ -1085,7 +1085,6 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/android/android_sysui_cuj_jank_query.sql",
         "src/trace_processor/metrics/sql/android/android_sysui_cuj_surfaceflinger.sql",
         "src/trace_processor/metrics/sql/android/android_task_names.sql",
-        "src/trace_processor/metrics/sql/android/android_thread_time_in_state.sql",
         "src/trace_processor/metrics/sql/android/android_trace_quality.sql",
         "src/trace_processor/metrics/sql/android/android_trusty_workqueues.sql",
         "src/trace_processor/metrics/sql/android/composer_execution.sql",
