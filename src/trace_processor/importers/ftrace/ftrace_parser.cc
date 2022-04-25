@@ -109,6 +109,7 @@ constexpr auto kKernelFunctionFields = std::array<FtraceEventAndFieldId, 3>{
 FtraceParser::FtraceParser(TraceProcessorContext* context)
     : context_(context),
       rss_stat_tracker_(context),
+      drm_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
@@ -744,6 +745,19 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kSuspendResumeFieldNumber: {
         ParseSuspendResume(ts, data);
+        break;
+      }
+      case FtraceEvent::kDrmVblankEventFieldNumber:
+      case FtraceEvent::kDrmVblankEventDeliveredFieldNumber:
+      case FtraceEvent::kDrmSchedJobFieldNumber:
+      case FtraceEvent::kDrmRunJobFieldNumber:
+      case FtraceEvent::kDrmSchedProcessJobFieldNumber:
+      case FtraceEvent::kDmaFenceInitFieldNumber:
+      case FtraceEvent::kDmaFenceEmitFieldNumber:
+      case FtraceEvent::kDmaFenceSignaledFieldNumber:
+      case FtraceEvent::kDmaFenceWaitStartFieldNumber:
+      case FtraceEvent::kDmaFenceWaitEndFieldNumber: {
+        drm_tracker_.ParseDrm(ts, fld.id(), pid, data);
         break;
       }
       default:

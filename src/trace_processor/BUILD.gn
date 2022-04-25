@@ -218,6 +218,8 @@ source_set("storage_full") {
     "importers/additional_modules.h",
     "importers/ftrace/binder_tracker.cc",
     "importers/ftrace/binder_tracker.h",
+    "importers/ftrace/drm_tracker.cc",
+    "importers/ftrace/drm_tracker.h",
     "importers/ftrace/ftrace_module_impl.cc",
     "importers/ftrace/ftrace_module_impl.h",
     "importers/ftrace/ftrace_parser.cc",
