@@ -110,8 +110,9 @@ export class PermalinkController extends Controller<'main'> {
 
   private static isRecordConfig(stateOrConfig: State|
                                 RecordConfig): stateOrConfig is RecordConfig {
-    return ['STOP_WHEN_FULL', 'RING_BUFFER', 'LONG_TRACE'].includes(
-        stateOrConfig.mode);
+    const mode = (stateOrConfig as {mode?: string}).mode;
+    return mode !== undefined &&
+        ['STOP_WHEN_FULL', 'RING_BUFFER', 'LONG_TRACE'].includes(mode);
   }
 
   private static async createPermalink(isRecordingConfig: boolean):
