@@ -756,10 +756,6 @@ export const StateActions = {
     state.extensionInstalled = args.available;
   },
 
-  updateBufferUsage(state: StateDraft, args: {percentage: number}): void {
-    state.bufferUsage = args.percentage;
-  },
-
   setRecordingTarget(state: StateDraft, args: {target: RecordingTarget}): void {
     state.recordingTarget = args.target;
   },
