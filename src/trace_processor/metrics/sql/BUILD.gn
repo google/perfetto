@@ -46,7 +46,6 @@ sql_files = [
   "android/android_startup.sql",
   "android/android_package_list.sql",
   "android/android_task_names.sql",
-  "android/android_thread_time_in_state.sql",
   "android/android_trace_quality.sql",
   "android/cpu_info.sql",
   "android/display_metrics.sql",

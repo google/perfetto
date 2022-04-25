@@ -92,12 +92,6 @@ synth_oom.py oom_query.sql synth_oom_oom_query.out
 # Syscalls
 syscall.py sys.sql sys_syscall.out
 
-# Thread time_in_state
-thread_time_in_state.textproto thread_time_in_state.sql thread_time_in_state.out
-thread_time_in_state_event.py thread_time_in_state_event.sql thread_time_in_state_event.out
-thread_time_in_state.textproto android_thread_time_in_state android_thread_time_in_state.out
-thread_time_in_state_unknown.textproto android_thread_time_in_state android_thread_time_in_state_unknown.out
-
 # thread_slice tables.
 flow_events_json_v2.json thread_time_in_thread_slice.sql thread_time_in_thread_slice.out
 
