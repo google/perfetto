@@ -51,7 +51,6 @@ import "protos/perfetto/metrics/android/startup_metric.proto";
 import "protos/perfetto/metrics/android/surfaceflinger.proto";
 import "protos/perfetto/metrics/android/sysui_cuj_metrics.proto";
 import "protos/perfetto/metrics/android/task_names.proto";
-import "protos/perfetto/metrics/android/thread_time_in_state_metric.proto";
 import "protos/perfetto/metrics/android/trace_quality.proto";
 import "protos/perfetto/metrics/android/android_trusty_workqueues.proto";
 import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
@@ -161,7 +160,8 @@ message TraceMetrics {
 
   optional AndroidTaskNames android_task_names = 23;
 
-  optional AndroidThreadTimeInStateMetric android_thread_time_in_state = 24;
+  // Deprecated was AndroidThreadTimeInStateMetric
+  reserved 24;
 
   // Metric associated with surfaceflinger.
   optional AndroidSurfaceflingerMetric android_surfaceflinger = 25;
