@@ -1441,37 +1441,6 @@ message AndroidTaskNames {
 
 // End of protos/perfetto/metrics/android/task_names.proto
 
-// Begin of protos/perfetto/metrics/android/thread_time_in_state_metric.proto
-
-message AndroidThreadTimeInStateMetric {
-  message MetricsByCoreType {
-    optional int32 time_in_state_cpu = 5;
-    optional string core_type = 1;
-
-    optional int64 runtime_ms = 2;
-    // CPU megacycles (i.e. cycles divided by 1e6).
-    optional int64 mcycles = 3;
-    // Power cost as predicted by the power profile.
-    optional double power_profile_mah = 4;
-  }
-
-  message Thread {
-    optional string name = 1;
-    optional bool main_thread = 3;
-    repeated MetricsByCoreType metrics_by_core_type = 2;
-  }
-
-  message Process {
-    optional AndroidProcessMetadata metadata = 1;
-    repeated MetricsByCoreType metrics_by_core_type = 2;
-    repeated Thread threads = 3;
-  }
-
-  repeated Process processes = 1;
-}
-
-// End of protos/perfetto/metrics/android/thread_time_in_state_metric.proto
-
 // Begin of protos/perfetto/metrics/android/trace_quality.proto
 
 // Metric which checks the data in the trace processor tables is "reasonble"
@@ -1616,7 +1585,8 @@ message TraceMetrics {
 
   optional AndroidTaskNames android_task_names = 23;
 
-  optional AndroidThreadTimeInStateMetric android_thread_time_in_state = 24;
+  // Deprecated was AndroidThreadTimeInStateMetric
+  reserved 24;
 
   // Metric associated with surfaceflinger.
   optional AndroidSurfaceflingerMetric android_surfaceflinger = 25;
