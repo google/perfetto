@@ -8572,6 +8572,7 @@ filegroup {
     srcs: [
         "src/trace_processor/importers/additional_modules.cc",
         "src/trace_processor/importers/ftrace/binder_tracker.cc",
+        "src/trace_processor/importers/ftrace/drm_tracker.cc",
         "src/trace_processor/importers/ftrace/ftrace_module_impl.cc",
         "src/trace_processor/importers/ftrace/ftrace_parser.cc",
         "src/trace_processor/importers/ftrace/ftrace_tokenizer.cc",

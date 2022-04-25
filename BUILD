@@ -1439,6 +1439,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/additional_modules.h",
         "src/trace_processor/importers/ftrace/binder_tracker.cc",
         "src/trace_processor/importers/ftrace/binder_tracker.h",
+        "src/trace_processor/importers/ftrace/drm_tracker.cc",
+        "src/trace_processor/importers/ftrace/drm_tracker.h",
         "src/trace_processor/importers/ftrace/ftrace_module_impl.cc",
         "src/trace_processor/importers/ftrace/ftrace_module_impl.h",
         "src/trace_processor/importers/ftrace/ftrace_parser.cc",
