@@ -51,21 +51,27 @@ class AndroidProbesTracker : public Destructible {
     seen_packages_.emplace(std::move(package_name));
   }
 
-  base::Optional<StringId> GetPowerRailName(uint32_t index) {
-    if (index >= power_rails_strs_id_.size())
+  struct PowerRailsNames {
+    StringId raw;
+    StringId friendly;
+  };
+
+  base::Optional<PowerRailsNames> GetPowerRailName(uint32_t index) {
+    if (index >= power_rails_names_str_id_.size())
       return base::nullopt;
-    return power_rails_strs_id_[index];
+    return power_rails_names_str_id_[index];
   }
 
-  void SetPowerRailName(uint32_t index, StringId name) {
-    if (power_rails_strs_id_.size() <= index)
-      power_rails_strs_id_.resize(index + 1);
-    power_rails_strs_id_[index] = name;
+  void SetPowerRailNames(uint32_t index, PowerRailsNames names) {
+    if (power_rails_names_str_id_.size() <= index)
+      power_rails_names_str_id_.resize(index + 1);
+    power_rails_names_str_id_[index] = names;
   }
 
  private:
   std::set<std::string> seen_packages_;
-  std::vector<StringId> power_rails_strs_id_;
+  std::vector<PowerRailsNames> power_rails_names_str_id_;
+  std::vector<StringId> power_rails_raw_names_str_id_;
 };
 
 }  // namespace trace_processor
