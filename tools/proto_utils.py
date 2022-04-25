@@ -18,7 +18,7 @@ import os
 import subprocess
 import tempfile
 
-from google.protobuf import descriptor, descriptor_pb2, message_factory, descriptor_pool
+from google.protobuf import descriptor, descriptor_pb2, message_factory
 from google.protobuf import reflection, text_format
 
 
@@ -26,14 +26,15 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def create_message_factory(descriptor_file_paths, proto_type):
-  pool = descriptor_pool.DescriptorPool()
+  files = []
   for file_path in descriptor_file_paths:
-    descriptor = read_descriptor(file_path)
-    for file in descriptor.file:
-      pool.Add(file)
+    files.extend(read_descriptor(file_path).file)
 
-  return message_factory.MessageFactory().GetPrototype(
-      pool.FindMessageTypeByName(proto_type))
+  # We use this method rather than working directly with DescriptorPool
+  # because, when the pure-Python protobuf runtime is used, extensions
+  # need to be explicitly registered with the message type. See
+  # https://github.com/protocolbuffers/protobuf/blob/9e09343a49e9e75be576b31ed7402bf8502b080c/python/google/protobuf/message_factory.py#L145
+  return message_factory.GetMessages(files)[proto_type]
 
 
 def read_descriptor(file_name):
