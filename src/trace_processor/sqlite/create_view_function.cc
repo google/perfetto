@@ -186,12 +186,14 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
       return SQLITE_ERROR;
     }
 
-    SqlValue::Type type =
-        sqlite_utils::SqliteTypeToSqlValueType(sqlite3_value_type(argv[i]));
-    if (type != table_->prototype_.arguments[col_to_arg_idx(cs.column)].type) {
+    const auto& arg = table_->prototype_.arguments[col_to_arg_idx(cs.column)];
+    SqlValue::Type expected_type = arg.type;
+    base::Status status = TypeCheckSqliteValue(argv[i], expected_type);
+    if (!status.ok()) {
       table_->SetErrorMessage(
-          sqlite3_mprintf("%s: type of input argument does not match",
-                          table_->prototype_.function_name.c_str()));
+          sqlite3_mprintf("%s: argument %s (index %u) %s",
+                          table_->prototype_.function_name.c_str(),
+                          arg.name.c_str(), i, status.c_message()));
       return SQLITE_ERROR;
     }
 
@@ -218,7 +220,9 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
   stmt.reset(stmt_);
   if (ret != SQLITE_OK) {
     table_->SetErrorMessage(sqlite3_mprintf(
-        "%s: SQLite error when preparing statement %s",
+        "%s: Failed to prepare SQL statement for function. "
+        "Check the SQL defintion this function for syntax errors. "
+        "(SQLite error: %s).",
         table_->prototype_.function_name.c_str(), sqlite3_errmsg(table_->db_)));
     return SQLITE_ERROR;
   }
@@ -324,7 +328,7 @@ base::Status CreateViewFunction::Run(CreateViewFunction::Context* ctx,
   RETURN_IF_ERROR(ParseFunctionName(prototype_str, function_name));
 
   base::StackString<1024> sql(
-      "CREATE OR REPLACE VIRTUAL TABLE %s USING "
+      "CREATE VIRTUAL TABLE IF NOT EXISTS %s USING "
       "INTERNAL_VIEW_FUNCTION_IMPL('%s', '%s', '%s');",
       function_name.ToStdString().c_str(), prototype_str, return_prototype_str,
       sql_defn_str);
