@@ -1,0 +1,150 @@
+packet {
+  ftrace_events {
+    cpu: 7
+    event {
+      timestamp: 11303602488073
+      pid: 191
+      dma_fence_init {
+        context: 1
+        driver: "msm"
+        seqno: 16665
+        timeline: "gpu-ring-0"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 7
+    event {
+      timestamp: 11303602500886
+      pid: 191
+      dma_fence_emit {
+        context: 1
+        driver: "msm"
+        seqno: 16665
+        timeline: "gpu-ring-0"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 7
+    event {
+      timestamp: 11303604370470
+      pid: 191
+      dma_fence_init {
+        context: 1
+        driver: "msm"
+        seqno: 16666
+        timeline: "gpu-ring-0"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 7
+    event {
+      timestamp: 11303604372188
+      pid: 191
+      dma_fence_emit {
+        context: 1
+        driver: "msm"
+        seqno: 16666
+        timeline: "gpu-ring-0"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 11303607306512
+      pid: 0
+      dma_fence_signaled {
+        context: 1
+        driver: "msm"
+        seqno: 16665
+        timeline: "gpu-ring-0"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 11303611157295
+      pid: 0
+      dma_fence_signaled {
+        context: 1
+        driver: "msm"
+        seqno: 16666
+        timeline: "gpu-ring-0"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 3
+    event {
+      timestamp: 11303702681699
+      pid: 365
+      dma_fence_init {
+        context: 9
+        driver: "drm_sched"
+        seqno: 5065
+        timeline: "ring0"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 5
+    event {
+      timestamp: 11303702851231
+      pid: 144
+      dma_fence_wait_start {
+        context: 9
+        driver: "drm_sched"
+        seqno: 5065
+        timeline: "ring0"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 11303707550086
+      pid: 0
+      dma_fence_signaled {
+        context: 9
+        driver: "drm_sched"
+        seqno: 5065
+        timeline: "ring0"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 5
+    event {
+      timestamp: 11303707718889
+      pid: 144
+      dma_fence_wait_end {
+        context: 9
+        driver: "drm_sched"
+        seqno: 5065
+        timeline: "ring0"
+      }
+    }
+  }
+}
