@@ -152,9 +152,8 @@ class NullableVector : public NullableVectorBase {
       } else {
         valid_.Insert(idx);
 
-        opt_row = valid_.RowOf(idx);
-        PERFETTO_DCHECK(opt_row);
-        data_.insert(data_.begin() + static_cast<ptrdiff_t>(*opt_row), val);
+        uint32_t inserted_row = *valid_.RowOf(idx);
+        data_.insert(data_.begin() + static_cast<ptrdiff_t>(inserted_row), val);
       }
     }
   }
