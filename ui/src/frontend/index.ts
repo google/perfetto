@@ -81,7 +81,8 @@ class FrontendApi {
     globals.frontendLocalState.mergeState(this.state.frontendLocalState);
 
     // Only redraw if something other than the frontendLocalState changed.
-    for (const key in this.state) {
+    let key: keyof State;
+    for (key in this.state) {
       if (key !== 'frontendLocalState' && key !== 'visibleTracks' &&
           oldState[key] !== this.state[key]) {
         globals.rafScheduler.scheduleFullRedraw();
