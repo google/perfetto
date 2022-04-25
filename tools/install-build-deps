@@ -176,7 +176,7 @@ BUILD_DEPS_HOST = [
     Dependency(
         'buildtools/benchmark',
         'https://chromium.googlesource.com/external/github.com/google/benchmark.git',
-        '090faecb454fbd6e6e17a75ef8146acb037118d4', 'all', 'all'),
+        'e991355c02b93fe17713efe04cbc2e278e00fdbd', 'all', 'all'),
 
     # Libbacktrace, for stacktraces in Linux/Android debug builds.
     # From https://github.com/ianlancetaylor/libbacktrace/archive/177940370e4a6b2509e92a0aaa9749184e64af43.zip
