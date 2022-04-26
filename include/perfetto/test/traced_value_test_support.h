@@ -25,7 +25,7 @@
 namespace perfetto {
 
 namespace internal {
-PERFETTO_EXPORT std::string DebugAnnotationToString(
+PERFETTO_COMPONENT_EXPORT std::string DebugAnnotationToString(
     const std::string& proto_message);
 }  // namespace internal
 

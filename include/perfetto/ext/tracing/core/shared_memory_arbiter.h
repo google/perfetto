@@ -39,7 +39,7 @@ class TraceWriter;
 
 // Used by the Producer-side of the transport layer to vend TraceWriters
 // from the SharedMemory it receives from the Service-side.
-class PERFETTO_EXPORT SharedMemoryArbiter {
+class PERFETTO_COMPONENT_EXPORT SharedMemoryArbiter {
  public:
   virtual ~SharedMemoryArbiter();
 

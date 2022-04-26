@@ -33,9 +33,9 @@ namespace perfetto {
 // memory for the out-of-process case (see src/unix_rpc).
 // Both this class and the Factory are subclassed by the transport layer, which
 // will attach platform specific fields to it (e.g., a unix file descriptor).
-class PERFETTO_EXPORT SharedMemory {
+class PERFETTO_COMPONENT_EXPORT SharedMemory {
  public:
-  class PERFETTO_EXPORT Factory {
+  class PERFETTO_COMPONENT_EXPORT Factory {
    public:
     virtual ~Factory();
     virtual std::unique_ptr<SharedMemory> CreateSharedMemory(size_t) = 0;
