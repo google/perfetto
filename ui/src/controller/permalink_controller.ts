@@ -94,10 +94,16 @@ export class PermalinkController extends Controller<'main'> {
   private static upgradeState(state: State): State {
     if (state.version !== STATE_VERSION) {
       const newState = createEmptyState();
+      let maxEngineId = Number.MIN_SAFE_INTEGER;
       // Copy the URL of the trace into the empty state.
       for (const cfg of Object.values(state.engines)) {
         newState
             .engines[cfg.id] = {id: cfg.id, ready: false, source: cfg.source};
+        maxEngineId = Math.max(maxEngineId, Number(cfg.id));
+      }
+      if (maxEngineId !== Number.MIN_SAFE_INTEGER) {
+        // set the current engine Id to the maximum engine Id in the permalink
+        newState.currentEngineId = String(maxEngineId);
       }
       const message = `Unable to parse old state version. Discarding state ` +
           `and loading trace.`;
