@@ -104,7 +104,6 @@ const METRICS = [
   'android_ion',
   'android_lmk',
   'android_dma_heap',
-  'android_thread_time_in_state',
   'android_surfaceflinger',
   'android_batt',
   'android_sysui_cuj',
