@@ -136,7 +136,7 @@ the following frame types:
     If a method return signature is marked as `stream` (e.g.
     `returns (stream GetAsyncCommandResponse)`), the method invocation can be
     followed by more than one `InvokeMethodReply`, all with the same
-    `request_id`. All replies in the stream but the last one will have
+    `request_id`. All replies in the stream except for the last one will have
     `has_more: true`, to notify the client more responses for the same invocation
     will follow.
 
