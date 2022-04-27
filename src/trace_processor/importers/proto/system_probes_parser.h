@@ -44,7 +44,6 @@ class SystemProbesParser {
 
  private:
   void ParseThreadStats(int64_t timestamp, uint32_t pid, ConstBytes);
-  inline bool IsValidCpuFreqIndex(uint32_t freq) const;
 
   TraceProcessorContext* const context_;
 
@@ -62,8 +61,6 @@ class SystemProbesParser {
   const StringId cpu_times_irq_ns_id_;
   const StringId cpu_times_softirq_ns_id_;
   const StringId oom_score_adj_id_;
-  const StringId thread_time_in_state_id_;
-  const StringId thread_time_in_state_cpu_id_;
   const StringId cpu_freq_id_;
   std::vector<StringId> meminfo_strs_id_;
   std::vector<StringId> vmstat_strs_id_;
@@ -76,21 +73,8 @@ class SystemProbesParser {
   std::array<StringId, kProcStatsProcessSize> proc_stats_process_names_{};
 
   uint64_t ms_per_tick_ = 0;
-
-  // Maps CPU frequency indices to frequencies from the cpu_freq table to be
-  // stored in the args table as a dimension of the time_in_state counter.
-  // Includes guards at both ends.
-  std::vector<uint32_t> thread_time_in_state_cpu_freqs_;
-
-  // thread_time_in_state_freq_index_[cpu] points to the first frequency for
-  // cpu in thread_time_in_state_cpu_freq_ids_. Includes a guard at the end.
-  std::vector<size_t> thread_time_in_state_freq_index_;
-
-  // Exhaustive set of CPU indices that are reported by time_in_state. Ticks are
-  // counted per core cluster. See time_in_state_cpu_id column of the cpu table.
-  // For example: on bonito (Pixel 3a XL) this set is 0 (little) and 6 (big).
-  std::set<uint32_t> thread_time_in_state_cpus_;
 };
+
 }  // namespace trace_processor
 }  // namespace perfetto
 
