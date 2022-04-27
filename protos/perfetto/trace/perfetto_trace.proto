@@ -1581,6 +1581,16 @@ message TrackEventConfig {
   // TRACE_EVENT macros are not written into the trace. Typed arguments will
   // still be emitted even if set to true.
   optional bool filter_debug_annotations = 7;
+
+  // Default : false (i.e. disabled)
+  // When true, the SDK samples and emits the current thread time counter value
+  // for each event on the current thread's track. This value represents the
+  // total CPU time consumed by that thread since its creation. Note that if a
+  // thread is not scheduled by OS for some duration, that time won't be
+  // included in thread_time.
+  // Learn more : "CLOCK_THREAD_CPUTIME_ID" flag at
+  // https://linux.die.net/man/3/clock_gettime
+  optional bool enable_thread_time_sampling = 8;
 }
 
 // End of protos/perfetto/config/track_event/track_event_config.proto
@@ -2348,7 +2358,7 @@ message TraceStats {
   // periodic flushes). The final Flush() is also included in the count.
   optional uint64 flushes_requested = 12;
 
-  // The count of the Flush() requests that were completed succesfully.
+  // The count of the Flush() requests that were completed successfully.
   // In a well behaving trace this should always be == `flush_requests`.
   optional uint64 flushes_succeeded = 13;
 
@@ -9097,6 +9107,9 @@ message Profiling {
     UNWIND_ERROR_SYSTEM_CALL = 9;
     UNWIND_ERROR_THREAD_TIMEOUT = 10;
     UNWIND_ERROR_THREAD_DOES_NOT_EXIST = 11;
+    UNWIND_ERROR_BAD_ARCH = 12;
+    UNWIND_ERROR_MAPS_PARSE = 13;
+    UNWIND_ERROR_INVALID_PARAMETER = 14;
   }
 }
 

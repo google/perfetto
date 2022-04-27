@@ -284,6 +284,12 @@ protos::pbzero::Profiling::StackUnwindError ToProtoEnum(
       return Profiling::UNWIND_ERROR_THREAD_TIMEOUT;
     case unwindstack::ERROR_THREAD_DOES_NOT_EXIST:
       return Profiling::UNWIND_ERROR_THREAD_DOES_NOT_EXIST;
+    case unwindstack::ERROR_BAD_ARCH:
+      return Profiling::UNWIND_ERROR_BAD_ARCH;
+    case unwindstack::ERROR_MAPS_PARSE:
+      return Profiling::UNWIND_ERROR_MAPS_PARSE;
+    case unwindstack::ERROR_INVALID_PARAMETER:
+      return Profiling::UNWIND_ERROR_INVALID_PARAMETER;
   }
   return Profiling::UNWIND_ERROR_UNKNOWN;
 }

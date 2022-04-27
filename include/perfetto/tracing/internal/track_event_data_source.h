@@ -157,7 +157,7 @@ class TrackEventDataSource
  public:
   // Add or remove a session observer for this track event data source. The
   // observer will be notified about started and stopped tracing sessions.
-  // Returns |true| if the observer was succesfully added (i.e., the maximum
+  // Returns |true| if the observer was successfully added (i.e., the maximum
   // number of observers wasn't exceeded).
   static bool AddSessionObserver(TrackEventSessionObserver* observer) {
     return TrackEventInternal::AddSessionObserver(observer);
@@ -480,9 +480,11 @@ class TrackEventDataSource
 
           // Write the event itself.
           {
+            bool on_current_thread_track =
+                (&track == &TrackEventInternal::kDefaultTrack);
             auto event_ctx = TrackEventInternal::WriteEvent(
                 trace_writer, incr_state, tls_state, static_category,
-                event_name, type, trace_timestamp);
+                event_name, type, trace_timestamp, on_current_thread_track);
             // Write dynamic categories (except for events that don't require
             // categories). For counter events, the counter name (and optional
             // category) is stored as part of the track descriptor instead being
@@ -499,7 +501,7 @@ class TrackEventDataSource
                     return true;
                   });
             }
-            if (&track != &TrackEventInternal::kDefaultTrack)
+            if (!on_current_thread_track)
               event_ctx.event()->set_track_uuid(track.uuid);
             WriteTrackEventArgs(std::move(event_ctx),
                                 std::forward<Arguments>(args)...);

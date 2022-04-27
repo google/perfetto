@@ -267,9 +267,8 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
           break;
         }
         case kCounter: {
-          UniqueTid utid =
-              procs->UpdateThread(static_cast<uint32_t>(tinfo.tid),
-                                  static_cast<uint32_t>(tinfo.pid));
+          UniquePid upid =
+              procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
           std::string name_str =
               context_->storage->GetString(name).ToStdString();
           // Note: In the Fuchsia trace format, counter values are stored in the
@@ -315,8 +314,9 @@ void FuchsiaTraceParser::ParseTracePacket(int64_t, TimestampedTracePiece ttp) {
             if (is_valid_value) {
               StringId counter_name_id = context_->storage->InternString(
                   base::StringView(counter_name_str));
-              TrackId track = context_->track_tracker->InternThreadCounterTrack(
-                  counter_name_id, utid);
+              TrackId track =
+                  context_->track_tracker->InternProcessCounterTrack(
+                      counter_name_id, upid);
               context_->event_tracker->PushCounter(ts, counter_value, track);
             }
           }

@@ -109,12 +109,15 @@ constexpr auto kKernelFunctionFields = std::array<FtraceEventAndFieldId, 3>{
 FtraceParser::FtraceParser(TraceProcessorContext* context)
     : context_(context),
       rss_stat_tracker_(context),
+      drm_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
       cpu_freq_name_id_(context->storage->InternString("cpufreq")),
       gpu_freq_name_id_(context->storage->InternString("gpufreq")),
       cpu_idle_name_id_(context->storage->InternString("cpuidle")),
+      suspend_resume_name_id_(
+          context->storage->InternString("Suspend/Resume Latency")),
       kfree_skb_name_id_(context->storage->InternString("Kfree Skb IP Prot")),
       ion_total_id_(context->storage->InternString("mem.ion")),
       ion_change_id_(context->storage->InternString("mem.ion_change")),
@@ -738,6 +741,23 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kUfshcdClkGatingFieldNumber: {
         ParseUfshcdClkGating(ts, data);
+        break;
+      }
+      case FtraceEvent::kSuspendResumeFieldNumber: {
+        ParseSuspendResume(ts, data);
+        break;
+      }
+      case FtraceEvent::kDrmVblankEventFieldNumber:
+      case FtraceEvent::kDrmVblankEventDeliveredFieldNumber:
+      case FtraceEvent::kDrmSchedJobFieldNumber:
+      case FtraceEvent::kDrmRunJobFieldNumber:
+      case FtraceEvent::kDrmSchedProcessJobFieldNumber:
+      case FtraceEvent::kDmaFenceInitFieldNumber:
+      case FtraceEvent::kDmaFenceEmitFieldNumber:
+      case FtraceEvent::kDmaFenceSignaledFieldNumber:
+      case FtraceEvent::kDmaFenceWaitStartFieldNumber:
+      case FtraceEvent::kDmaFenceWaitEndFieldNumber: {
+        drm_tracker_.ParseDrm(ts, fld.id(), pid, data);
         break;
       }
       default:
@@ -2074,6 +2094,29 @@ void FtraceParser::ParseWakeSourceDeactivate(int64_t timestamp,
 
   TrackId end_id = context_->async_track_set_tracker->End(async_track, 0);
   context_->slice_tracker->End(timestamp, end_id);
+}
+
+void FtraceParser::ParseSuspendResume(int64_t timestamp,
+                                      protozero::ConstBytes blob) {
+  protos::pbzero::SuspendResumeFtraceEvent::Decoder evt(blob.data, blob.size);
+
+  auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
+      suspend_resume_name_id_);
+
+  base::StackString<64> str("%s(%" PRIu32 ")",
+                            evt.action().ToStdString().c_str(), evt.val());
+  StringId slice_name_id = context_->storage->InternString(str.string_view());
+
+  if (evt.start()) {
+    TrackId start_id = context_->async_track_set_tracker->Begin(
+        async_track, static_cast<int64_t>(evt.val()));
+    context_->slice_tracker->Begin(timestamp, start_id, suspend_resume_name_id_,
+                                   slice_name_id);
+  } else {
+    TrackId end_id = context_->async_track_set_tracker->End(
+        async_track, static_cast<int64_t>(evt.val()));
+    context_->slice_tracker->End(timestamp, end_id);
+  }
 }
 
 }  // namespace trace_processor

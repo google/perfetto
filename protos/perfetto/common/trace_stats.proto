@@ -172,7 +172,7 @@ message TraceStats {
   // periodic flushes). The final Flush() is also included in the count.
   optional uint64 flushes_requested = 12;
 
-  // The count of the Flush() requests that were completed succesfully.
+  // The count of the Flush() requests that were completed successfully.
   // In a well behaving trace this should always be == `flush_requests`.
   optional uint64 flushes_succeeded = 13;
 

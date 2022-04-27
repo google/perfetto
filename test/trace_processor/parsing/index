@@ -56,9 +56,6 @@ ion_stat.textproto ion_stat.sql ion_stat.out
 # Mm Event
 ../../data/mm_event.pb mm_event.sql mm_event.out
 
-# Android userspace async slices
-android_async_slice.textproto process_track_slices.sql process_track_slices_android_async_slice.out
-
 # Check the systrace conversion code in the raw table.
 # Print events
 ../../data/lmk_userspace.pb print_systrace.sql print_systrace_lmk_userspace.out
@@ -74,16 +71,6 @@ cgroup_attach_task_post_s.textproto print_systrace.sql cgroup_attach_task_post_s
 # Parsing systrace files
 ../../data/systrace.html systrace_html.sql systrace_html.out
 ../../data/trailing_empty.systrace sched_smoke.sql sched_smoke_trailing_empty.out
-
-# Check error handling when parsing print events.
-bad_print.textproto list_slices.sql bad_print_textproto_list_slices.out
-bad_print.systrace list_slices.sql bad_print_systrace_list_slices.out
-instant_atrace.py instant_with_thread.sql instant_atrace_instant_with_thread.out
-instant_async_atrace.py instant_async.sql instant_async_atrace_instant_async.out
-
-# Match legacy Catapult behaviour when we see multiple S events b2b with the same cookie
-# name and upid.
-android_b2b_async_begin.textproto list_slices.sql android_b2b_async_begin_list_slices.out
 
 # LMK handling
 kernel_lmk.py lmk.sql lmk_kernel_lmk.out
@@ -104,12 +91,6 @@ synth_oom.py oom_query.sql synth_oom_oom_query.out
 
 # Syscalls
 syscall.py sys.sql sys_syscall.out
-
-# Thread time_in_state
-thread_time_in_state.textproto thread_time_in_state.sql thread_time_in_state.out
-thread_time_in_state_event.py thread_time_in_state_event.sql thread_time_in_state_event.out
-thread_time_in_state.textproto android_thread_time_in_state android_thread_time_in_state.out
-thread_time_in_state_unknown.textproto android_thread_time_in_state android_thread_time_in_state_unknown.out
 
 # thread_slice tables.
 flow_events_json_v2.json thread_time_in_thread_slice.sql thread_time_in_thread_slice.out

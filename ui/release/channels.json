@@ -2,11 +2,11 @@
   "channels": [
     {
       "name": "stable",
-      "rev": "525b3b84e74e372dd33969edd2f43dbb7080b23c"
+      "rev": "d1f7cc5758b10aa536178aaccc01ea8b90d42b58"
     },
     {
       "name": "canary",
-      "rev": "e098281a773323c0a7a1ff24368441fab3e0771d"
+      "rev": "ff45349b21ea7dbae1731464e0efd96458468817"
     },
     {
       "name": "autopush",

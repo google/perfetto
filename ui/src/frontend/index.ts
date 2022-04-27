@@ -81,7 +81,8 @@ class FrontendApi {
     globals.frontendLocalState.mergeState(this.state.frontendLocalState);
 
     // Only redraw if something other than the frontendLocalState changed.
-    for (const key in this.state) {
+    let key: keyof State;
+    for (key in this.state) {
       if (key !== 'frontendLocalState' && key !== 'visibleTracks' &&
           oldState[key] !== this.state[key]) {
         globals.rafScheduler.scheduleFullRedraw();
@@ -323,9 +324,8 @@ function onCssLoaded() {
 
     // Don't allow postMessage or opening trace from route when the user says
     // that they want to reuse the already loaded trace in trace processor.
-    const values = Object.values(globals.state.engines);
-    if (values.length > 0 &&
-        globals.state.engines[values.length - 1].source.type === 'HTTP_RPC') {
+    const engine = globals.getCurrentEngine();
+    if (engine && engine.source.type === 'HTTP_RPC') {
       return;
     }
 

@@ -135,6 +135,8 @@ CREATE VIEW all_descendant_blocking_tasks_queuing_delay AS
               "chrome_mojo_event_info.mojo_interface_tag"),
           NULL),
       descendant.name) AS descendant_name,
+    EXTRACT_ARG(descendant.arg_set_id,
+        "chrome_mojo_event_info.ipc_hash") AS descendant_ipc_hash,
     descendant.parent_id As descendant_parent_id,
     descendant.depth AS descendant_depth,
     descendant.category AS descendant_category,
@@ -293,6 +295,8 @@ CREATE VIEW descendant_blocking_tasks_queuing_delay AS
         NULL
       END
     , "-") AS mojom_name,
+    -- All ipc_hashes should be equal so just select the first non-null one.
+    MIN(descendant_ipc_hash) AS mojom_ipc_hash,
     GROUP_CONCAT(
       CASE WHEN
         descendant_category = "toplevel" AND
@@ -443,8 +447,10 @@ CREATE VIEW scroll_jank_cause_queuing_delay_temp AS
     TopLevelName(name, function, file) || COALESCE(
       "-" || descendant_name, "") AS location,
     TopLevelName(name, function, file) || COALESCE(
-      "-" || GetFirstSliceNameOrNull(mojom_name),
-      "-" || GetFirstSliceNameOrNull(toplevel_name),
+      "-" || GetFirstSliceNameOrNull(mojom_name)
+          || COALESCE("(ipc=" || mojom_ipc_hash || ")", ""),
+      "-" || GetFirstSliceNameOrNull(toplevel_name)
+          || COALESCE("(ipc=" || mojom_ipc_hash || ")", ""),
       "-" || GetJavaSliceSummaryOrNull(java_name),
       UnknownEventOrEmptyString(name, category, descendant_name)
     ) AS restricted_location,

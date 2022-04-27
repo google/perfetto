@@ -209,6 +209,28 @@ CREATE VIEW net_rx_actions AS
     ON s.track_id = t.id
   WHERE s.name = "NET_RX";
 
+DROP VIEW IF EXISTS net_tx_actions;
+CREATE VIEW net_tx_actions AS
+  SELECT
+    s.ts,
+    s.dur,
+    CAST(SUBSTR(t.name, 13, 1) AS int) AS cpu
+  FROM slice s
+  LEFT JOIN track t
+    ON s.track_id = t.id
+  WHERE s.name = "NET_TX";
+
+DROP VIEW IF EXISTS ipi_actions;
+CREATE VIEW ipi_actions AS
+  SELECT
+    s.ts,
+    s.dur,
+    CAST(SUBSTR(t.name, 13, 1) AS int) AS cpu
+  FROM slice s
+  LEFT JOIN track t
+    ON s.track_id = t.id
+  WHERE s.name = "IRQ (IPI)";
+
 DROP VIEW IF EXISTS cpu_freq_view;
 CREATE VIEW cpu_freq_view AS
 SELECT
@@ -225,6 +247,10 @@ DROP TABLE IF EXISTS cpu_freq_net_rx_action_per_core;
 CREATE VIRTUAL TABLE cpu_freq_net_rx_action_per_core
 USING SPAN_LEFT_JOIN(net_rx_actions PARTITIONED cpu, cpu_freq_view PARTITIONED cpu);
 
+DROP TABLE IF EXISTS cpu_freq_net_tx_action_per_core;
+CREATE VIRTUAL TABLE cpu_freq_net_tx_action_per_core
+USING SPAN_LEFT_JOIN(net_tx_actions PARTITIONED cpu, cpu_freq_view PARTITIONED cpu);
+
 DROP VIEW IF EXISTS total_net_rx_action_statistic;
 CREATE VIEW total_net_rx_action_statistic AS
   SELECT
@@ -234,11 +260,33 @@ CREATE VIEW total_net_rx_action_statistic AS
     (SELECT COUNT(1) FROM rx_packets) AS total_packet
   FROM net_rx_actions;
 
-DROP VIEW IF EXISTS activated_cores;
-CREATE VIEW activated_cores AS
+DROP VIEW IF EXISTS total_net_tx_action_statistic;
+CREATE VIEW total_net_tx_action_statistic AS
+  SELECT
+    COUNT(1) AS times,
+    SUM(dur) AS runtime,
+    AVG(dur) AS avg_runtime
+  FROM net_tx_actions;
+
+DROP VIEW IF EXISTS total_ipi_action_statistic;
+CREATE VIEW total_ipi_action_statistic AS
+  SELECT
+    COUNT(1) AS times,
+    SUM(dur) AS runtime,
+    AVG(dur) AS avg_runtime
+  FROM ipi_actions;
+
+DROP VIEW IF EXISTS activated_cores_net_rx;
+CREATE VIEW activated_cores_net_rx AS
  SELECT
    DISTINCT cpu
  FROM net_rx_actions;
+
+DROP VIEW IF EXISTS activated_cores_net_tx;
+CREATE VIEW activated_cores_net_tx AS
+ SELECT
+   DISTINCT cpu
+ FROM net_tx_actions;
 
 DROP VIEW IF EXISTS per_core_net_rx_action_statistic;
 CREATE VIEW per_core_net_rx_action_statistic AS
@@ -253,7 +301,22 @@ CREATE VIEW per_core_net_rx_action_statistic AS
         'mcycles', (SELECT CAST(SUM(dur * freq_khz / 1000) / 1e9 AS INT) FROM cpu_freq_net_rx_action_per_core AS cc WHERE cc.cpu = ac.cpu)
       )
     ) AS proto
-  FROM activated_cores AS ac;
+  FROM activated_cores_net_rx AS ac;
+
+DROP VIEW IF EXISTS per_core_net_tx_action_statistic;
+CREATE VIEW per_core_net_tx_action_statistic AS
+  SELECT
+    AndroidNetworkMetric_CoreNetTxActionStatistic(
+      'id', cpu,
+      'net_tx_action_statistic', AndroidNetworkMetric_NetTxActionStatistic(
+        'count', (SELECT COUNT(1) FROM net_tx_actions AS na WHERE na.cpu = ac.cpu),
+        'runtime_ms',  (SELECT SUM(dur)/1e6 FROM net_tx_actions AS na WHERE na.cpu = ac.cpu),
+        'avg_runtime_ms', (SELECT AVG(dur)/1e6 FROM net_tx_actions AS na WHERE na.cpu = ac.cpu),
+        'avg_freq_khz', (SELECT SUM(dur * freq_khz) / SUM(dur) FROM cpu_freq_net_tx_action_per_core AS cc WHERE cc.cpu = ac.cpu),
+        'mcycles', (SELECT CAST(SUM(dur * freq_khz / 1000) / 1e9 AS INT) FROM cpu_freq_net_tx_action_per_core AS cc WHERE cc.cpu = ac.cpu)
+      )
+    ) AS proto
+  FROM activated_cores_net_tx AS ac;
 
 DROP VIEW IF EXISTS android_netperf_output;
 CREATE VIEW android_netperf_output AS
@@ -291,6 +354,27 @@ CREATE VIEW android_netperf_output AS
       SELECT
         cnt * 100.0 / ((SELECT count(1) FROM rx_packets) + (SELECT count(1) FROM tx_packets))
       FROM kfree_skb_count
+    ),
+    'net_tx_action', AndroidNetworkMetric_NetTxAction(
+       'total', AndroidNetworkMetric_NetTxActionStatistic(
+         'count', (SELECT times FROM total_net_tx_action_statistic),
+         'runtime_ms', (SELECT runtime/1e6 FROM total_net_tx_action_statistic),
+         'avg_runtime_ms', (SELECT avg_runtime/1e6 FROM total_net_tx_action_statistic),
+         'avg_freq_khz', (SELECT SUM(dur * freq_khz) / SUM(dur) FROM cpu_freq_net_tx_action_per_core),
+         'mcycles', (SELECT CAST(SUM(dur * freq_khz / 1000) / 1e9 AS INT) FROM cpu_freq_net_tx_action_per_core)
+       ),
+       'core', (
+         SELECT
+           RepeatedField(proto)
+         FROM per_core_net_tx_action_statistic
+       )
+    ),
+    'ipi_action', AndroidNetworkMetric_IpiAction(
+       'total', AndroidNetworkMetric_IpiActionStatistic(
+         'count', (SELECT times FROM total_ipi_action_statistic),
+         'runtime_ms', (SELECT runtime/1e6 FROM total_ipi_action_statistic),
+         'avg_runtime_ms', (SELECT avg_runtime/1e6 FROM total_ipi_action_statistic)
+       )
     )
   );
 

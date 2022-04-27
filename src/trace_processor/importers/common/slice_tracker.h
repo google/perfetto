@@ -21,6 +21,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -61,6 +62,9 @@ class SliceTracker {
       SetArgsCallback args_callback = SetArgsCallback()) {
     // Ensure that the duration is pending for this row.
     row.dur = kPendingDuration;
+    if (row.name) {
+      row.name = context_->slice_translation_table->TranslateName(*row.name);
+    }
     return StartSlice(row.ts, row.track_id, args_callback,
                       [table, &row]() { return table->Insert(row).id; });
   }
@@ -77,9 +81,12 @@ class SliceTracker {
   template <typename Table>
   base::Optional<SliceId> ScopedTyped(
       Table* table,
-      const typename Table::Row& row,
+      typename Table::Row row,
       SetArgsCallback args_callback = SetArgsCallback()) {
     PERFETTO_DCHECK(row.dur >= 0);
+    if (row.name) {
+      row.name = context_->slice_translation_table->TranslateName(*row.name);
+    }
     return StartSlice(row.ts, row.track_id, args_callback,
                       [table, &row]() { return table->Insert(row).id; });
   }

@@ -113,7 +113,6 @@ function createCannedQuery(query: string): (_: Event) => void {
   return (e: Event) => {
     e.preventDefault();
     globals.dispatch(Actions.executeQuery({
-      engineId: '0',
       queryId: 'command',
       query,
     }));
@@ -124,7 +123,7 @@ function showDebugTrack(): (_: Event) => void {
   return (e: Event) => {
     e.preventDefault();
     globals.dispatch(Actions.addDebugTrack({
-      engineId: Object.keys(globals.state.engines)[0],
+      engineId: assertExists(globals.state.currentEngineId),
       name: 'Debug Slices',
     }));
   };
@@ -355,7 +354,7 @@ function downloadTraceFromUrl(url: string): Promise<File> {
 
 export async function getCurrentTrace(): Promise<Blob> {
   // Caller must check engine exists.
-  const engine = assertExists(Object.values(globals.state.engines)[0]);
+  const engine = assertExists(globals.getCurrentEngine());
   const src = engine.source;
   if (src.type === 'ARRAY_BUFFER') {
     return new Blob([src.buffer]);
@@ -411,8 +410,7 @@ function convertTraceToJson(e: Event) {
 }
 
 export function isTraceLoaded(): boolean {
-  const engine = Object.values(globals.state.engines)[0];
-  return engine !== undefined;
+  return globals.getCurrentEngine() !== undefined;
 }
 
 function openTraceUrl(url: string): (e: Event) => void {
@@ -539,7 +537,7 @@ function navigateViewer(e: Event) {
 
 function shareTrace(e: Event) {
   e.preventDefault();
-  const engine = assertExists(Object.values(globals.state.engines)[0]);
+  const engine = assertExists(globals.getCurrentEngine());
   const traceUrl = (engine.source as (TraceArrayBufferSource)).url || '';
 
   // If the trace is not shareable (has been pushed via postMessage()) but has
@@ -579,7 +577,7 @@ function downloadTrace(e: Event) {
   if (!isDownloadable() || !isTraceLoaded()) return;
   globals.logging.logEvent('Trace Actions', 'Download trace');
 
-  const engine = Object.values(globals.state.engines)[0];
+  const engine = globals.getCurrentEngine();
   if (!engine) return;
   let url = '';
   let fileName = `trace${TRACE_SUFFIX}`;

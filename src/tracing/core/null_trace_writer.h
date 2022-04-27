@@ -26,7 +26,7 @@ namespace perfetto {
 
 // A specialization of TraceWriter which no-ops all the writes routing them
 // into a fixed region of memory
-// See //include/perfetto/tracing/core/trace_writer.h for docs.
+// See //include/perfetto/ext/tracing/core/trace_writer.h for docs.
 class NullTraceWriter : public TraceWriter {
  public:
   NullTraceWriter();

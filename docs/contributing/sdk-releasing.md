@@ -133,7 +133,7 @@ git push origin vX.Y
 
 7. Within few mins the LUCI scheduler will trigger builds of prebuilt binaries
    on https://luci-scheduler.appspot.com/jobs/perfetto . Wait for all the bots
-   to have completed succesfully and be back into the WAITING state.
+   to have completed successfully and be back into the WAITING state.
 
 8. Run `tools/package-prebuilts-for-github-release vX.Y`. It will pull the
    prebuilts under `/tmp/perfetto-prebuilts-vX.Y`.

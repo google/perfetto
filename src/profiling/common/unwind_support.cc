@@ -161,6 +161,12 @@ std::string StringifyLibUnwindstackError(unwindstack::ErrorCode e) {
       return "THREAD_DOES_NOT_EXIST";
     case unwindstack::ERROR_THREAD_TIMEOUT:
       return "THREAD_TIMEOUT";
+    case unwindstack::ERROR_BAD_ARCH:
+      return "BAD_ARCH";
+    case unwindstack::ERROR_MAPS_PARSE:
+      return "MAPS_PARSE";
+    case unwindstack::ERROR_INVALID_PARAMETER:
+      return "INVALID_PARAMETER";
   }
 }
 

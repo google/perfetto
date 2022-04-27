@@ -26,6 +26,7 @@ import {
   saveTrace,
   toSha256
 } from '../common/upload_utils';
+import {globals as frontendGlobals} from '../frontend/globals';
 import {publishConversionJobStatusUpdate} from '../frontend/publish';
 import {Router} from '../frontend/router';
 
@@ -93,10 +94,16 @@ export class PermalinkController extends Controller<'main'> {
   private static upgradeState(state: State): State {
     if (state.version !== STATE_VERSION) {
       const newState = createEmptyState();
+      let maxEngineId = Number.MIN_SAFE_INTEGER;
       // Copy the URL of the trace into the empty state.
       for (const cfg of Object.values(state.engines)) {
         newState
             .engines[cfg.id] = {id: cfg.id, ready: false, source: cfg.source};
+        maxEngineId = Math.max(maxEngineId, Number(cfg.id));
+      }
+      if (maxEngineId !== Number.MIN_SAFE_INTEGER) {
+        // set the current engine Id to the maximum engine Id in the permalink
+        newState.currentEngineId = String(maxEngineId);
       }
       const message = `Unable to parse old state version. Discarding state ` +
           `and loading trace.`;
@@ -109,8 +116,9 @@ export class PermalinkController extends Controller<'main'> {
 
   private static isRecordConfig(stateOrConfig: State|
                                 RecordConfig): stateOrConfig is RecordConfig {
-    return ['STOP_WHEN_FULL', 'RING_BUFFER', 'LONG_TRACE'].includes(
-        stateOrConfig.mode);
+    const mode = (stateOrConfig as {mode?: string}).mode;
+    return mode !== undefined &&
+        ['STOP_WHEN_FULL', 'RING_BUFFER', 'LONG_TRACE'].includes(mode);
   }
 
   private static async createPermalink(isRecordingConfig: boolean):
@@ -120,7 +128,7 @@ export class PermalinkController extends Controller<'main'> {
     if (isRecordingConfig) {
       uploadState = globals.state.recordConfig;
     } else {
-      const engine = assertExists(Object.values(globals.state.engines)[0]);
+      const engine = assertExists(frontendGlobals.getCurrentEngine());
       let dataToUpload: File|ArrayBuffer|undefined = undefined;
       let traceName = `trace ${engine.id}`;
       if (engine.source.type === 'FILE') {
