@@ -180,7 +180,7 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     }  // scoped_lock
 
     if (buffer_exhausted_policy == BufferExhaustedPolicy::kDrop) {
-      PERFETTO_DLOG("Shared memory buffer exhaused, returning invalid Chunk!");
+      PERFETTO_DLOG("Shared memory buffer exhausted, returning invalid Chunk!");
       return Chunk();
     }
 
