@@ -9398,6 +9398,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_unittests",
     srcs: [
+        "src/tracing/internal/interceptor_trace_writer_unittest.cc",
         "src/tracing/traced_proto_unittest.cc",
         "src/tracing/traced_value_unittest.cc",
     ],

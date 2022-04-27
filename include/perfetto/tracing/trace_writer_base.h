@@ -27,17 +27,46 @@ class TracePacket;
 }  // namespace pbzero
 }  // namespace protos
 
-// The bare-minimum subset of the TraceWriter interface that is exposed as a
-// fully public API.
-// See comments in /include/perfetto/ext/tracing/core/trace_writer.h.
+// This is a single-thread write interface that allows to write protobufs
+// directly into the tracing shared buffer without making any copies.
+// The idea is that each data source creates one (or more) TraceWriter for each
+// thread it wants to write from. Each TraceWriter will get its own dedicated
+// chunk and will write into the shared buffer without any locking most of the
+// time.
+
 class TraceWriterBase {
  public:
   virtual ~TraceWriterBase();
 
+  // Creates a new trace packet and returns a handle to a protozero Message that
+  // will write to it. The message will be finalized either by calling directly
+  // handle.Finalize() or by letting the handle go out of scope (the message
+  // should be finalized before a new call to NewTracePacket is made). The
+  // returned handle can be std::move()'d but cannot be used after either: (i)
+  // the TraceWriter instance is destroyed, (ii) a subsequence NewTracePacket()
+  // call is made on the same TraceWriter instance.
+  //
+  // The returned packet handle is always valid, but note that, when using
+  // BufferExhaustedPolicy::kDrop and the SMB is exhausted, it may be assigned
+  // a garbage chunk and any trace data written into it will be lost. For more
+  // details on buffer size choices: https://perfetto.dev/docs/concepts/buffers.
   virtual protozero::MessageHandle<protos::pbzero::TracePacket>
   NewTracePacket() = 0;
 
+  // Commits the data pending for the current chunk. This can be called
+  // only if the handle returned by NewTracePacket() has been destroyed (i.e. we
+  // cannot Flush() while writing a TracePacket).
+  //
+  // Note: Flush() also happens implicitly when destroying the TraceWriter.
+  //
+  // |callback| is an optional callback. When non-null it will request the
+  // service to ACK the flush and will be invoked after the service has
+  // acknowledged it. The callback might be NEVER INVOKED if the service crashes
+  // or the IPC connection is dropped. The callback should be used only by tests
+  // and best-effort features (logging).
   virtual void Flush(std::function<void()> callback = {}) = 0;
+
+  // Bytes written since creation. Not reset when new chunks are acquired.
   virtual uint64_t written() const = 0;
 };
 

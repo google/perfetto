@@ -145,12 +145,12 @@ perfetto_unittest_source_set("unittests") {
     "test:test_support",
   ]
 
-  sources = []
+  sources = [ "internal/interceptor_trace_writer_unittest.cc" ]
 
   # TODO(primiano): remove the build_with_chromium conditional once the root
   # //BUILD.gn:libperfetto (in chromium) stops adding tracing:platform_fake.
   # The problem is the following: in chrome builds we end up with duplicate
-  # symbol definitions in the test because both platorm (impl and fake) are
+  # symbol definitions in the test because both platforms (impl and fake) are
   # present: impl added here and fake coming from chromium's base (full path:
   # perfetto_unittests -> //(chromium)base:test_support -> //(chromium)base
   # -> libperfetto -> platform_fake.
