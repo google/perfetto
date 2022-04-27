@@ -43,7 +43,21 @@ import StatCounters = protos.perfetto.protos.SysStatsConfig.StatCounters;
 import SysStatsConfig = protos.perfetto.protos.SysStatsConfig;
 import TraceConfig = protos.perfetto.protos.TraceConfig;
 import VmstatCounters = protos.perfetto.protos.VmstatCounters;
-
+import IPCFrame = protos.perfetto.protos.IPCFrame;
+import IMethodInfo =
+    protos.perfetto.protos.IPCFrame.BindServiceReply.IMethodInfo;
+import ITraceStats = protos.perfetto.protos.ITraceStats;
+import ISlice = protos.perfetto.protos.ReadBuffersResponse.ISlice;
+import EnableTracingRequest = protos.perfetto.protos.EnableTracingRequest;
+import DisableTracingRequest = protos.perfetto.protos.DisableTracingRequest;
+import GetTraceStatsRequest = protos.perfetto.protos.GetTraceStatsRequest;
+import FreeBuffersRequest = protos.perfetto.protos.FreeBuffersRequest;
+import ReadBuffersRequest = protos.perfetto.protos.ReadBuffersRequest;
+import EnableTracingResponse = protos.perfetto.protos.EnableTracingResponse;
+import DisableTracingResponse = protos.perfetto.protos.DisableTracingResponse;
+import GetTraceStatsResponse = protos.perfetto.protos.GetTraceStatsResponse;
+import FreeBuffersResponse = protos.perfetto.protos.FreeBuffersResponse;
+import ReadBuffersResponse = protos.perfetto.protos.ReadBuffersResponse;
 // Trace Processor protos.
 import QueryArgs = protos.perfetto.protos.QueryArgs;
 import StatusResult = protos.perfetto.protos.StatusResult;
@@ -61,18 +75,32 @@ export {
   ComputeMetricArgs,
   ComputeMetricResult,
   DataSourceConfig,
+  DisableTracingRequest,
+  DisableTracingResponse,
+  EnableTracingRequest,
+  EnableTracingResponse,
+  FreeBuffersRequest,
+  FreeBuffersResponse,
   FtraceConfig,
+  GetTraceStatsRequest,
+  GetTraceStatsResponse,
   HeapprofdConfig,
   IAndroidPowerConfig,
   IBufferConfig,
+  IMethodInfo,
+  IPCFrame,
   IProcessStatsConfig,
+  ISlice,
   ISysStatsConfig,
   ITraceConfig,
+  ITraceStats,
   JavaContinuousDumpConfig,
   JavaHprofConfig,
   MeminfoCounters,
   NativeContinuousDumpConfig,
   ProcessStatsConfig,
+  ReadBuffersRequest,
+  ReadBuffersResponse,
   QueryArgs,
   StatCounters,
   StatusResult,
