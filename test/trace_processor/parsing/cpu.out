@@ -1,4 +1,4 @@
-"id","time_in_state_cpu_id","processor"
+"id","cluster_id","processor"
 0,0,"AArch64 Processor rev 13 (aarch64)"
 1,0,"AArch64 Processor rev 13 (aarch64)"
 2,0,"AArch64 Processor rev 13 (aarch64)"
