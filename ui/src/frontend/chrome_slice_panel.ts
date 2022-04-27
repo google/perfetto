@@ -50,7 +50,6 @@ function appendPrefix(p1: string, p2: string): string {
   return `${p1}.${p2}`;
 }
 
-
 // During building the table, sometimes we want to add an extra cell to the
 // table. It might be either an index of array element (represented as number),
 // a special indentation cell to ensure minimum column width when indenting
@@ -185,16 +184,16 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
       builder.add('Start time', timeToCode(sliceInfo.ts));
       builder.add(
           'Duration', this.computeDuration(sliceInfo.ts, sliceInfo.dur));
-      if (sliceInfo.thread_ts !== undefined &&
-          sliceInfo.thread_dur !== undefined) {
+      if (sliceInfo.threadTs !== undefined &&
+          sliceInfo.threadDur !== undefined) {
         // If we have valid thread duration, also display a percentage of
-        // |thread_dur| compared to |dur|.
-        const threadDurFractionSuffix = sliceInfo.thread_dur === -1 ?
+        // |threadDur| compared to |dur|.
+        const threadDurFractionSuffix = sliceInfo.threadDur === -1 ?
             '' :
-            ` (${(sliceInfo.thread_dur / sliceInfo.dur * 100).toFixed(2)}%)`;
+            ` (${(sliceInfo.threadDur / sliceInfo.dur * 100).toFixed(2)}%)`;
         builder.add(
             'Thread duration',
-            this.computeDuration(sliceInfo.thread_ts, sliceInfo.thread_dur) +
+            this.computeDuration(sliceInfo.threadTs, sliceInfo.threadDur) +
                 threadDurFractionSuffix);
       }
 
@@ -207,7 +206,9 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
       builder.add(
           'Slice ID', sliceInfo.id ? sliceInfo.id.toString() : 'Unknown');
       if (sliceInfo.description) {
-        this.fillDescription(sliceInfo.description, builder);
+        for (const [key, value] of sliceInfo.description) {
+          builder.add(key, value);
+        }
       }
       this.fillArgs(sliceInfo, builder);
       return m(
@@ -307,11 +308,5 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
     }
 
     return m('table.half-width.auto-layout', rows);
-  }
-
-  fillDescription(description: Map<string, string>, builder: TableBuilder) {
-    for (const [key, value] of description) {
-      builder.add(key, value);
-    }
   }
 }

@@ -152,10 +152,8 @@ export class SelectionController extends Controller<'main'> {
     let dur = undefined;
     let name = undefined;
     let category = undefined;
-    // tslint:disable-next-line:variable-name
-    let thread_dur = undefined;
-    // tslint:disable-next-line:variable-name
-    let thread_ts = undefined;
+    let threadDur = undefined;
+    let threadTs = undefined;
     let trackId = undefined;
 
     for (const k of details.columns()) {
@@ -167,7 +165,7 @@ export class SelectionController extends Controller<'main'> {
           ts = fromNs(Number(v)) - globals.state.traceTime.startSec;
           break;
         case 'thread_ts':
-          thread_ts = fromNs(Number(v));
+          threadTs = fromNs(Number(v));
           break;
         case 'name':
           name = `${v}`;
@@ -176,7 +174,7 @@ export class SelectionController extends Controller<'main'> {
           dur = fromNs(Number(v));
           break;
         case 'thread_dur':
-          thread_dur = fromNs(Number(v));
+          threadDur = fromNs(Number(v));
           break;
         case 'category':
         case 'cat':
@@ -194,9 +192,9 @@ export class SelectionController extends Controller<'main'> {
     const selected: SliceDetails = {
       id: selectedId,
       ts,
-      thread_ts,
+      threadTs,
       dur,
-      thread_dur,
+      threadDur,
       name,
       category,
       args,
@@ -531,17 +529,21 @@ export class SelectionController extends Controller<'main'> {
     }
     details.uid = processResult.uid;
 
-    const packageResult = (await this.args.engine.query(`
-                  SELECT package_name, version_code
+    const packageResult = await this.args.engine.query(`
+                  SELECT
+                    package_name as packageName,
+                    version_code as versionCode
                   FROM package_list WHERE uid = ${details.uid};
-                `));
+                `);
     // The package_list table is not populated in some traces so we need to
     // check if the result has returned any rows.
     if (packageResult.numRows() > 0) {
-      const packageDetails =
-          packageResult.firstRow({package_name: STR, version_code: NUM});
-      details.packageName = packageDetails.package_name;
-      details.versionCode = packageDetails.version_code;
+      const packageDetails = packageResult.firstRow({
+        packageName: STR,
+        versionCode: NUM,
+      });
+      details.packageName = packageDetails.packageName;
+      details.versionCode = packageDetails.versionCode;
     }
     return details;
   }
