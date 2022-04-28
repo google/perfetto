@@ -360,12 +360,12 @@ export class SelectionController extends Controller<'main'> {
 
   async sliceDetails(id: number) {
     const sqlQuery = `SELECT
-      ts,
-      dur,
-      priority,
-      end_state as endState,
-      utid,
-      cpu,
+      sched.ts,
+      sched.dur,
+      sched.priority,
+      sched.end_state as endState,
+      sched.utid,
+      sched.cpu,
       thread_state.id as threadStateId
     FROM sched left join thread_state using(ts, utid, cpu)
     WHERE sched.id = ${id}`;
