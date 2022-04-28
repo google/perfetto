@@ -73,7 +73,6 @@ cgroup_attach_task_post_s.textproto print_systrace.sql cgroup_attach_task_post_s
 ../../data/trailing_empty.systrace sched_smoke.sql sched_smoke_trailing_empty.out
 
 # LMK handling
-kernel_lmk.py lmk.sql lmk_kernel_lmk.out
 ../../data/lmk_userspace.pb lmk.sql lmk_userspace_lmk.out
 ../common/oom_kill.textproto oom_kill.sql oom_kill.out
 

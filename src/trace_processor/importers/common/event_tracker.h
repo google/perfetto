@@ -65,13 +65,6 @@ class EventTracker {
       StringId name_id,
       UniqueTid utid);
 
-  // This method is called when a instant event is seen in the trace.
-  virtual InstantId PushInstant(int64_t timestamp,
-                                StringId name_id,
-                                int64_t ref,
-                                RefType ref_type,
-                                bool resolve_utid_to_upid = false);
-
   // Called at the end of trace to flush any events which are pending to the
   // storage.
   void FlushPendingEvents();
@@ -90,17 +83,8 @@ class EventTracker {
     UniqueTid utid = 0;
   };
 
-  // Represents a instant event which is currently pending upid resolution.
-  struct PendingUpidResolutionInstant {
-    uint32_t row = 0;
-    UniqueTid utid = 0;
-  };
-
   // Store the rows in the counters table which need upids resolved.
   std::vector<PendingUpidResolutionCounter> pending_upid_resolution_counter_;
-
-  // Store the rows in the instants table which need upids resolved.
-  std::vector<PendingUpidResolutionInstant> pending_upid_resolution_instant_;
 
   // Timestamp of the previous event. Used to discard events arriving out
   // of order.
