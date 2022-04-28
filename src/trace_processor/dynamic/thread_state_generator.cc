@@ -67,25 +67,25 @@ ThreadStateGenerator::ComputeThreadStateTable(int64_t trace_end_ts) {
       context_->storage->mutable_string_pool(), nullptr));
 
   const auto& raw_sched = context_->storage->sched_slice_table();
-  const auto& instants = context_->storage->instant_table();
+  const auto& instants = context_->storage->legacy_instant_table();
 
   // In both tables, exclude utid == 0 which represents the idle thread.
   Table sched = raw_sched.Filter({raw_sched.utid().ne(0)},
                                  RowMap::OptimizeFor::kLookupSpeed);
   Table waking = instants.Filter(
-      {instants.name().eq("sched_waking"), instants.ref().ne(0)},
+      {instants.name().eq("sched_waking"), instants.utid().ne(0)},
       RowMap::OptimizeFor::kLookupSpeed);
 
   // We prefer to use waking if at all possible and fall back to wakeup if not
   // available.
   if (waking.row_count() == 0) {
     waking = instants.Filter(
-        {instants.name().eq("sched_wakeup"), instants.ref().ne(0)},
+        {instants.name().eq("sched_wakeup"), instants.utid().ne(0)},
         RowMap::OptimizeFor::kLookupSpeed);
   }
 
   Table sched_blocked_reason = instants.Filter(
-      {instants.name().eq("sched_blocked_reason"), instants.ref().ne(0)},
+      {instants.name().eq("sched_blocked_reason"), instants.utid().ne(0)},
       RowMap::OptimizeFor::kLookupSpeed);
 
   const auto& sched_ts_col = sched.GetTypedColumnByName<int64_t>("ts");
@@ -210,8 +210,7 @@ void ThreadStateGenerator::AddWakingEvent(const Table& waking,
                                           uint32_t waking_idx,
                                           TidInfoMap& state_map) {
   int64_t ts = waking.GetTypedColumnByName<int64_t>("ts")[waking_idx];
-  UniqueTid utid = static_cast<UniqueTid>(
-      waking.GetTypedColumnByName<int64_t>("ref")[waking_idx]);
+  UniqueTid utid = waking.GetTypedColumnByName<uint32_t>("utid")[waking_idx];
   ThreadSchedInfo* info = &state_map[utid];
 
   // Occasionally, it is possible to get a waking event for a thread
@@ -306,7 +305,7 @@ void ThreadStateGenerator::FlushPendingEventsForThread(
 void ThreadStateGenerator::AddBlockedReasonEvent(const Table& blocked_reason,
                                                  uint32_t blocked_idx,
                                                  TidInfoMap& state_map) {
-  const auto& utid_col = blocked_reason.GetTypedColumnByName<int64_t>("ref");
+  const auto& utid_col = blocked_reason.GetTypedColumnByName<uint32_t>("utid");
   const auto& arg_set_id_col =
       blocked_reason.GetTypedColumnByName<uint32_t>("arg_set_id");
 
