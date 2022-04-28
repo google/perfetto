@@ -193,6 +193,7 @@ TrackId TrackTracker::GetOrCreateTriggerTrack() {
 }
 
 TrackId TrackTracker::InternGlobalCounterTrack(StringId name,
+                                               SetArgsCallback callback,
                                                StringId unit,
                                                StringId description) {
   auto it = global_counter_tracks_by_name_.find(name);
@@ -206,6 +207,10 @@ TrackId TrackTracker::InternGlobalCounterTrack(StringId name,
   TrackId track =
       context_->storage->mutable_counter_track_table()->Insert(row).id;
   global_counter_tracks_by_name_[name] = track;
+  if (callback) {
+    auto inserter = context_->args_tracker->AddArgsTo(track);
+    callback(inserter);
+  }
   return track;
 }
 

@@ -94,25 +94,16 @@ void AndroidProbesParser::ParsePowerRails(int64_t ts, ConstBytes blob) {
   auto it = evt.energy_data();
   protos::pbzero::PowerRails::EnergyData::Decoder desc(*it);
 
-  auto opt_rail_name =
-      AndroidProbesTracker::GetOrCreate(context_)->GetPowerRailName(
-          desc.index());
-  if (opt_rail_name) {
+  auto* tracker = AndroidProbesTracker::GetOrCreate(context_);
+  auto opt_track = tracker->GetPowerRailTrack(desc.index());
+  if (opt_track.has_value()) {
     // The tokenization makes sure that this field is always present and
     // is equal to the packet's timestamp (as the packet was forged in
     // the tokenizer).
     PERFETTO_DCHECK(desc.has_timestamp_ms());
     PERFETTO_DCHECK(ts / 1000000 == static_cast<int64_t>(desc.timestamp_ms()));
-
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
-        opt_rail_name->friendly);
-    context_->event_tracker->PushCounter(
-        ts, static_cast<double>(desc.energy()), track,
-        [this, opt_rail_name](ArgsTracker::BoundInserter* args_table) {
-          args_table->AddArg(
-              context_->storage->InternString("power_rails.names.raw"),
-              Variadic::String(opt_rail_name->raw));
-        });
+    context_->event_tracker->PushCounter(ts, static_cast<double>(desc.energy()),
+                                         *opt_track);
   } else {
     context_->storage->IncrementStats(stats::power_rail_unknown_index);
   }

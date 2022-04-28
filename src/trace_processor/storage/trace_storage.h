@@ -95,10 +95,8 @@ using ProcessMemorySnapshotId = tables::ProcessMemorySnapshotTable::Id;
 
 using SnapshotNodeId = tables::MemorySnapshotNodeTable::Id;
 
-// TODO(lalitm): this is a temporary hack while migrating the counters table and
-// will be removed when the migration is complete.
 static const TrackId kInvalidTrackId =
-    TrackId(std::numeric_limits<TrackId>::max());
+    TrackId(std::numeric_limits<uint32_t>::max());
 
 enum class RefType {
   kRefNoRef = 0,
