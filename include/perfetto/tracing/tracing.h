@@ -138,7 +138,7 @@ struct TracingInitArgs {
 };
 
 // The entry-point for using perfetto.
-class PERFETTO_EXPORT Tracing {
+class PERFETTO_COMPONENT_EXPORT Tracing {
  public:
   // Initializes Perfetto with the given backends in the calling process and/or
   // with a user-provided backend. No-op if called more than once.
@@ -188,7 +188,7 @@ class PERFETTO_EXPORT Tracing {
   Tracing() = delete;
 };
 
-class PERFETTO_EXPORT TracingSession {
+class PERFETTO_COMPONENT_EXPORT TracingSession {
  public:
   virtual ~TracingSession();
 

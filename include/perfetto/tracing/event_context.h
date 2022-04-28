@@ -43,7 +43,7 @@ class TrackEventInternal;
 //                       ctx.AddDebugAnnotation("name", 1234);
 //                     });
 //
-class PERFETTO_EXPORT EventContext {
+class PERFETTO_COMPONENT_EXPORT EventContext {
  public:
   EventContext(EventContext&&) = default;
 

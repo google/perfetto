@@ -39,7 +39,7 @@ using ArgumentFilterPredicate =
 using MetadataFilterPredicate = std::function<bool(const char* metadata_name)>;
 using LabelFilterPredicate = std::function<bool(const char* label_name)>;
 
-class PERFETTO_EXPORT OutputWriter {
+class PERFETTO_COMPONENT_EXPORT OutputWriter {
  public:
   OutputWriter();
   virtual ~OutputWriter();
@@ -49,11 +49,12 @@ class PERFETTO_EXPORT OutputWriter {
 
 // Public for Chrome. Exports the trace loaded in TraceProcessorStorage to json,
 // applying argument, metadata and label filtering using the callbacks.
-util::Status PERFETTO_EXPORT ExportJson(TraceProcessorStorage*,
-                                        OutputWriter*,
-                                        ArgumentFilterPredicate = nullptr,
-                                        MetadataFilterPredicate = nullptr,
-                                        LabelFilterPredicate = nullptr);
+util::Status PERFETTO_COMPONENT_EXPORT
+ExportJson(TraceProcessorStorage*,
+           OutputWriter*,
+           ArgumentFilterPredicate = nullptr,
+           MetadataFilterPredicate = nullptr,
+           LabelFilterPredicate = nullptr);
 
 }  // namespace json
 }  // namespace trace_processor

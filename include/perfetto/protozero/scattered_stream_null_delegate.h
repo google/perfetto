@@ -27,7 +27,7 @@
 
 namespace protozero {
 
-class PERFETTO_EXPORT ScatteredStreamWriterNullDelegate
+class PERFETTO_COMPONENT_EXPORT ScatteredStreamWriterNullDelegate
     : public ScatteredStreamWriter::Delegate {
  public:
   explicit ScatteredStreamWriterNullDelegate(size_t chunk_size);

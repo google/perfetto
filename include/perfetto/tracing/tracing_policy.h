@@ -27,7 +27,7 @@ namespace perfetto {
 // Applies policy decisions, such as allowing or denying connections, when
 // certain tracing SDK events occur. All methods are called on an internal
 // perfetto thread.
-class PERFETTO_EXPORT TracingPolicy {
+class PERFETTO_COMPONENT_EXPORT TracingPolicy {
  public:
   virtual ~TracingPolicy();
 
