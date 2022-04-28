@@ -48,6 +48,9 @@ class AndroidProbesModule : public ProtoImporterModule {
  private:
   AndroidProbesParser parser_;
   TraceProcessorContext* context_ = nullptr;
+
+  const StringId power_rail_raw_name_id_;
+  const StringId power_rail_subsys_name_arg_id_;
 };
 
 }  // namespace trace_processor
