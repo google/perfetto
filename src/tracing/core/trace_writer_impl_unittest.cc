@@ -24,7 +24,7 @@
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/test/aligned_buffer_test.h"
-#include "src/tracing/test/fake_producer_endpoint.h"
+#include "src/tracing/test/mock_producer_endpoint.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/test_event.pbzero.h"
@@ -36,6 +36,7 @@ namespace {
 using ::testing::AllOf;
 using ::testing::MockFunction;
 using ::testing::Ne;
+using ::testing::NiceMock;
 using ::testing::NotNull;
 using ::testing::SizeIs;
 using ::testing::ValuesIn;
@@ -48,8 +49,14 @@ class TraceWriterImplTest : public AlignedBufferTest {
     AlignedBufferTest::SetUp();
     task_runner_.reset(new base::TestTaskRunner());
     arbiter_.reset(new SharedMemoryArbiterImpl(buf(), buf_size(), page_size(),
-                                               &fake_producer_endpoint_,
+                                               &mock_producer_endpoint_,
                                                task_runner_.get()));
+    ON_CALL(mock_producer_endpoint_, CommitData)
+        .WillByDefault([&](const CommitDataRequest& req,
+                           MockProducerEndpoint::CommitDataCallback cb) {
+          last_commit_ = req;
+          last_commit_callback_ = cb;
+        });
   }
 
   void TearDown() override {
@@ -57,7 +64,10 @@ class TraceWriterImplTest : public AlignedBufferTest {
     task_runner_.reset();
   }
 
-  FakeProducerEndpoint fake_producer_endpoint_;
+  CommitDataRequest last_commit_;
+  ProducerEndpoint::CommitDataCallback last_commit_callback_;
+  NiceMock<MockProducerEndpoint> mock_producer_endpoint_;
+
   std::unique_ptr<base::TestTaskRunner> task_runner_;
   std::unique_ptr<SharedMemoryArbiterImpl> arbiter_;
 };
@@ -111,12 +121,11 @@ TEST_P(TraceWriterImplTest, FragmentingPacketWithProducerAndServicePatching) {
 
   // First chunk should be committed.
   arbiter_->FlushPendingCommitDataRequests();
-  const auto& last_commit = fake_producer_endpoint_.last_commit_data_request;
-  ASSERT_THAT(last_commit.chunks_to_move(), SizeIs(1));
-  EXPECT_EQ(last_commit.chunks_to_move()[0].page(), 0u);
-  EXPECT_EQ(last_commit.chunks_to_move()[0].chunk(), 0u);
-  EXPECT_EQ(last_commit.chunks_to_move()[0].target_buffer(), kBufId);
-  EXPECT_THAT(last_commit.chunks_to_patch(), SizeIs(0));
+  ASSERT_THAT(last_commit_.chunks_to_move(), SizeIs(1));
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].page(), 0u);
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].chunk(), 0u);
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].target_buffer(), kBufId);
+  EXPECT_THAT(last_commit_.chunks_to_patch(), SizeIs(0));
 
   // We will simulate a batching cycle by first setting the batching period to a
   // very large value and then force-flushing when we are done writing data.
@@ -157,19 +166,19 @@ TEST_P(TraceWriterImplTest, FragmentingPacketWithProducerAndServicePatching) {
               SharedMemoryABI::ChunkHeader::kLastPacketContinuesOnNextChunk);
 
   // Verify that a patch for the first chunk was sent to the service.
-  ASSERT_THAT(last_commit.chunks_to_patch(), SizeIs(1));
-  EXPECT_EQ(last_commit.chunks_to_patch()[0].writer_id(), writer->writer_id());
-  EXPECT_EQ(last_commit.chunks_to_patch()[0].target_buffer(), kBufId);
-  EXPECT_EQ(last_commit.chunks_to_patch()[0].chunk_id(),
+  ASSERT_THAT(last_commit_.chunks_to_patch(), SizeIs(1));
+  EXPECT_EQ(last_commit_.chunks_to_patch()[0].writer_id(), writer->writer_id());
+  EXPECT_EQ(last_commit_.chunks_to_patch()[0].target_buffer(), kBufId);
+  EXPECT_EQ(last_commit_.chunks_to_patch()[0].chunk_id(),
             chunk.header()->chunk_id.load());
-  EXPECT_FALSE(last_commit.chunks_to_patch()[0].has_more_patches());
-  EXPECT_THAT(last_commit.chunks_to_patch()[0].patches(), SizeIs(1));
+  EXPECT_FALSE(last_commit_.chunks_to_patch()[0].has_more_patches());
+  EXPECT_THAT(last_commit_.chunks_to_patch()[0].patches(), SizeIs(1));
 
   // Verify that the second chunk was committed.
-  ASSERT_THAT(last_commit.chunks_to_move(), SizeIs(1));
-  EXPECT_EQ(last_commit.chunks_to_move()[0].page(), 0u);
-  EXPECT_EQ(last_commit.chunks_to_move()[0].chunk(), 1u);
-  EXPECT_EQ(last_commit.chunks_to_move()[0].target_buffer(), kBufId);
+  ASSERT_THAT(last_commit_.chunks_to_move(), SizeIs(1));
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].page(), 0u);
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].chunk(), 1u);
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].target_buffer(), kBufId);
 
   // The second chunk should be in a complete state and should not need
   // patching, as the patches to it should have been applied in the producer.
@@ -220,20 +229,19 @@ TEST_P(TraceWriterImplTest, FragmentingPacketWithoutEnablingProducerPatching) {
               SharedMemoryABI::ChunkHeader::kLastPacketContinuesOnNextChunk);
 
   // The first chunk was committed.
-  const auto& last_commit = fake_producer_endpoint_.last_commit_data_request;
-  ASSERT_THAT(last_commit.chunks_to_move(), SizeIs(1));
-  EXPECT_EQ(last_commit.chunks_to_move()[0].page(), 0u);
-  EXPECT_EQ(last_commit.chunks_to_move()[0].chunk(), 0u);
-  EXPECT_EQ(last_commit.chunks_to_move()[0].target_buffer(), kBufId);
+  ASSERT_THAT(last_commit_.chunks_to_move(), SizeIs(1));
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].page(), 0u);
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].chunk(), 0u);
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].target_buffer(), kBufId);
 
   // The patches for the first chunk were committed.
-  ASSERT_THAT(last_commit.chunks_to_patch(), SizeIs(1));
-  EXPECT_EQ(last_commit.chunks_to_patch()[0].writer_id(), writer->writer_id());
-  EXPECT_EQ(last_commit.chunks_to_patch()[0].target_buffer(), kBufId);
-  EXPECT_EQ(last_commit.chunks_to_patch()[0].chunk_id(),
+  ASSERT_THAT(last_commit_.chunks_to_patch(), SizeIs(1));
+  EXPECT_EQ(last_commit_.chunks_to_patch()[0].writer_id(), writer->writer_id());
+  EXPECT_EQ(last_commit_.chunks_to_patch()[0].target_buffer(), kBufId);
+  EXPECT_EQ(last_commit_.chunks_to_patch()[0].chunk_id(),
             chunk.header()->chunk_id.load());
-  EXPECT_FALSE(last_commit.chunks_to_patch()[0].has_more_patches());
-  EXPECT_THAT(last_commit.chunks_to_patch()[0].patches(), SizeIs(1));
+  EXPECT_FALSE(last_commit_.chunks_to_patch()[0].has_more_patches());
+  EXPECT_THAT(last_commit_.chunks_to_patch()[0].patches(), SizeIs(1));
 }
 
 // Sets up a scenario in which the SMB is exhausted and TraceWriter fails to get
@@ -272,12 +280,11 @@ TEST_P(TraceWriterImplTest, FragmentingPacketWhileBufferExhausted) {
 
   // First chunk should be committed.
   arbiter_->FlushPendingCommitDataRequests();
-  const auto& last_commit = fake_producer_endpoint_.last_commit_data_request;
-  ASSERT_THAT(last_commit.chunks_to_move(), SizeIs(1));
-  EXPECT_EQ(last_commit.chunks_to_move()[0].page(), 0u);
-  EXPECT_EQ(last_commit.chunks_to_move()[0].chunk(), 0u);
-  EXPECT_EQ(last_commit.chunks_to_move()[0].target_buffer(), kBufId);
-  EXPECT_THAT(last_commit.chunks_to_patch(), SizeIs(0));
+  ASSERT_THAT(last_commit_.chunks_to_move(), SizeIs(1));
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].page(), 0u);
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].chunk(), 0u);
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].target_buffer(), kBufId);
+  EXPECT_THAT(last_commit_.chunks_to_patch(), SizeIs(0));
 
   // It should not need patching and not have the continuation flag set.
   SharedMemoryABI* abi = arbiter_->shmem_abi_for_testing();
@@ -313,10 +320,10 @@ TEST_P(TraceWriterImplTest, FragmentingPacketWhileBufferExhausted) {
 
   // Flushing the writer causes the chunk to be released again.
   writer->Flush();
-  EXPECT_THAT(last_commit.chunks_to_move(), SizeIs(1));
-  EXPECT_EQ(last_commit.chunks_to_move()[0].page(), 0u);
-  EXPECT_EQ(last_commit.chunks_to_move()[0].chunk(), 0u);
-  EXPECT_THAT(last_commit.chunks_to_patch(), SizeIs(0));
+  EXPECT_THAT(last_commit_.chunks_to_move(), SizeIs(1));
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].page(), 0u);
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].chunk(), 0u);
+  EXPECT_THAT(last_commit_.chunks_to_patch(), SizeIs(0));
 
   // Chunk should contain only |packet4| and not have any continuation flag set.
   ASSERT_EQ(abi->GetChunkState(0u, 0u), SharedMemoryABI::kChunkComplete);
@@ -352,10 +359,9 @@ TEST_P(TraceWriterImplTest, FlushBeforeBufferExhausted) {
 
   // First chunk should be committed. Don't release it as free just yet.
   arbiter_->FlushPendingCommitDataRequests();
-  const auto& last_commit = fake_producer_endpoint_.last_commit_data_request;
-  ASSERT_THAT(last_commit.chunks_to_move(), SizeIs(1));
-  EXPECT_EQ(last_commit.chunks_to_move()[0].page(), 0u);
-  EXPECT_EQ(last_commit.chunks_to_move()[0].chunk(), 0u);
+  ASSERT_THAT(last_commit_.chunks_to_move(), SizeIs(1));
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].page(), 0u);
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].chunk(), 0u);
 
   // Grab all the remaining chunks in the SMB in new writers.
   std::array<std::unique_ptr<TraceWriter>, kNumPages * 4 - 1> other_writers;
@@ -408,10 +414,10 @@ TEST_P(TraceWriterImplTest, FlushBeforeBufferExhausted) {
 
   // Flushing the writer causes the chunk to be released again.
   writer->Flush();
-  ASSERT_THAT(last_commit.chunks_to_move(), SizeIs(1));
-  EXPECT_EQ(last_commit.chunks_to_move()[0].page(), 0u);
-  EXPECT_EQ(last_commit.chunks_to_move()[0].chunk(), 0u);
-  EXPECT_THAT(last_commit.chunks_to_patch(), SizeIs(0));
+  ASSERT_THAT(last_commit_.chunks_to_move(), SizeIs(1));
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].page(), 0u);
+  EXPECT_EQ(last_commit_.chunks_to_move()[0].chunk(), 0u);
+  EXPECT_THAT(last_commit_.chunks_to_patch(), SizeIs(0));
 
   // Chunk should contain only |packet4| and not have any continuation flag set.
   ASSERT_EQ(SharedMemoryABI::kChunkComplete, abi->GetChunkState(0u, 0u));
@@ -464,8 +470,7 @@ TEST_P(TraceWriterImplTest, FlushAfterFragmentingPacketWhileBufferExhausted) {
 
   // First two chunks should be committed.
   arbiter_->FlushPendingCommitDataRequests();
-  const auto& last_commit = fake_producer_endpoint_.last_commit_data_request;
-  ASSERT_THAT(last_commit.chunks_to_move(), SizeIs(2));
+  ASSERT_THAT(last_commit_.chunks_to_move(), SizeIs(2));
 
   // Flushing should succeed, even though some patches are still in the writer's
   // patch list.
@@ -484,11 +489,11 @@ TEST_P(TraceWriterImplTest, Flush) {
   }
 
   EXPECT_CALL(flush_cb, Call).Times(0);
-  ASSERT_FALSE(fake_producer_endpoint_.last_commit_data_callback);
+  ASSERT_FALSE(last_commit_callback_);
   writer->Flush(flush_cb.AsStdFunction());
-  ASSERT_TRUE(fake_producer_endpoint_.last_commit_data_callback);
+  ASSERT_TRUE(last_commit_callback_);
   EXPECT_CALL(flush_cb, Call).Times(1);
-  fake_producer_endpoint_.last_commit_data_callback();
+  last_commit_callback_();
 }
 
 TEST_P(TraceWriterImplTest, NestedMsgsPatches) {
@@ -539,12 +544,11 @@ TEST_P(TraceWriterImplTest, NestedMsgsPatches) {
 
   arbiter_->FlushPendingCommitDataRequests();
 
-  const auto& last_commit = fake_producer_endpoint_.last_commit_data_request;
-  ASSERT_THAT(last_commit.chunks_to_patch(), SizeIs(1));
-  EXPECT_EQ(last_commit.chunks_to_patch()[0].writer_id(), writer->writer_id());
-  EXPECT_EQ(last_commit.chunks_to_patch()[0].target_buffer(), kBufId);
-  EXPECT_FALSE(last_commit.chunks_to_patch()[0].has_more_patches());
-  EXPECT_THAT(last_commit.chunks_to_patch()[0].patches(), SizeIs(3));
+  ASSERT_THAT(last_commit_.chunks_to_patch(), SizeIs(1));
+  EXPECT_EQ(last_commit_.chunks_to_patch()[0].writer_id(), writer->writer_id());
+  EXPECT_EQ(last_commit_.chunks_to_patch()[0].target_buffer(), kBufId);
+  EXPECT_FALSE(last_commit_.chunks_to_patch()[0].has_more_patches());
+  EXPECT_THAT(last_commit_.chunks_to_patch()[0].patches(), SizeIs(3));
 }
 
 // TODO(primiano): add multi-writer test.
