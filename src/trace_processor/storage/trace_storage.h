@@ -71,7 +71,7 @@ using CounterId = tables::CounterTable::Id;
 
 using SliceId = tables::SliceTable::Id;
 
-using InstantId = tables::InstantTable::Id;
+using InstantId = tables::LegacyInstantTable::Id;
 
 using SchedId = tables::SchedSliceTable::Id;
 
@@ -433,8 +433,12 @@ class TraceStorage {
   const SqlStats& sql_stats() const { return sql_stats_; }
   SqlStats* mutable_sql_stats() { return &sql_stats_; }
 
-  const tables::InstantTable& instant_table() const { return instant_table_; }
-  tables::InstantTable* mutable_instant_table() { return &instant_table_; }
+  const tables::LegacyInstantTable& legacy_instant_table() const {
+    return instant_table_;
+  }
+  tables::LegacyInstantTable* mutable_legacy_instant_table() {
+    return &instant_table_;
+  }
 
   const tables::AndroidLogTable& android_log_table() const {
     return android_log_table_;
@@ -799,7 +803,7 @@ class TraceStorage {
   // These are instantaneous events in the trace. They have no duration
   // and do not have a value that make sense to track over time.
   // e.g. signal events
-  tables::InstantTable instant_table_{&string_pool_, nullptr};
+  tables::LegacyInstantTable instant_table_{&string_pool_, nullptr};
 
   // Raw events are every ftrace event in the trace. The raw event includes
   // the timestamp and the pid. The args for the raw event will be in the

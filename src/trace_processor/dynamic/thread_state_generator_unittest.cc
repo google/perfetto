@@ -43,19 +43,19 @@ class ThreadStateGeneratorUnittest : public testing::Test {
   void ForwardSchedTo(Ts ts) { sched_insert_ts_ = ts.ts; }
 
   void AddWaking(Ts ts, UniqueTid utid) {
-    tables::InstantTable::Row row;
+    tables::LegacyInstantTable::Row row;
     row.ts = ts.ts;
-    row.ref = utid;
+    row.utid = utid;
     row.name = context_.storage->InternString("sched_waking");
-    context_.storage->mutable_instant_table()->Insert(row);
+    context_.storage->mutable_legacy_instant_table()->Insert(row);
   }
 
   void AddWakup(Ts ts, UniqueTid utid) {
-    tables::InstantTable::Row row;
+    tables::LegacyInstantTable::Row row;
     row.ts = ts.ts;
-    row.ref = utid;
+    row.utid = utid;
     row.name = context_.storage->InternString("sched_wakeup");
-    context_.storage->mutable_instant_table()->Insert(row);
+    context_.storage->mutable_legacy_instant_table()->Insert(row);
   }
 
   void AddSched(base::Optional<Ts> end, UniqueTid utid, const char* end_state) {
@@ -77,12 +77,12 @@ class ThreadStateGeneratorUnittest : public testing::Test {
   }
 
   void AddBlockedReason(Ts ts, UniqueTid utid, bool io_wait) {
-    tables::InstantTable::Row row;
+    tables::LegacyInstantTable::Row row;
     row.ts = ts.ts;
-    row.ref = utid;
+    row.utid = utid;
     row.name = context_.storage->InternString("sched_blocked_reason");
 
-    auto id = context_.storage->mutable_instant_table()->Insert(row).id;
+    auto id = context_.storage->mutable_legacy_instant_table()->Insert(row).id;
     auto inserter = context_.args_tracker->AddArgsTo(id);
     inserter.AddArg(context_.storage->InternString("io_wait"),
                     Variadic::Boolean(io_wait));
