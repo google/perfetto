@@ -57,7 +57,7 @@ class TrackEvent_Decoder;
 
 struct ConsoleColor;
 
-class PERFETTO_EXPORT ConsoleInterceptor
+class PERFETTO_COMPONENT_EXPORT ConsoleInterceptor
     : public Interceptor<ConsoleInterceptor> {
  public:
   ~ConsoleInterceptor() override;

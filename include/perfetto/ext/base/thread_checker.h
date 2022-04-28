@@ -37,7 +37,7 @@ using ThreadID = unsigned long;
 using ThreadID = pthread_t;
 #endif
 
-class PERFETTO_EXPORT ThreadChecker {
+class PERFETTO_COMPONENT_EXPORT ThreadChecker {
  public:
   ThreadChecker();
   ~ThreadChecker();

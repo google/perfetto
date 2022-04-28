@@ -27,7 +27,7 @@ namespace internal {
 // to share the interning buffers with Perfetto internals (e.g.
 // perfetto::TracedValue implementation).
 
-struct PERFETTO_EXPORT InternedEventCategory
+struct PERFETTO_COMPONENT_EXPORT InternedEventCategory
     : public TrackEventInternedDataIndex<
           InternedEventCategory,
           perfetto::protos::pbzero::InternedData::kEventCategoriesFieldNumber,
@@ -41,7 +41,7 @@ struct PERFETTO_EXPORT InternedEventCategory
                   size_t length);
 };
 
-struct PERFETTO_EXPORT InternedEventName
+struct PERFETTO_COMPONENT_EXPORT InternedEventName
     : public TrackEventInternedDataIndex<
           InternedEventName,
           perfetto::protos::pbzero::InternedData::kEventNamesFieldNumber,
@@ -54,7 +54,7 @@ struct PERFETTO_EXPORT InternedEventName
                   const char* value);
 };
 
-struct PERFETTO_EXPORT InternedDebugAnnotationName
+struct PERFETTO_COMPONENT_EXPORT InternedDebugAnnotationName
     : public TrackEventInternedDataIndex<
           InternedDebugAnnotationName,
           perfetto::protos::pbzero::InternedData::
@@ -68,7 +68,7 @@ struct PERFETTO_EXPORT InternedDebugAnnotationName
                   const char* value);
 };
 
-struct PERFETTO_EXPORT InternedDebugAnnotationValueTypeName
+struct PERFETTO_COMPONENT_EXPORT InternedDebugAnnotationValueTypeName
     : public TrackEventInternedDataIndex<
           InternedDebugAnnotationValueTypeName,
           perfetto::protos::pbzero::InternedData::

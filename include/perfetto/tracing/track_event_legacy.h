@@ -182,7 +182,7 @@ ThreadTrack ConvertThreadId(const T&);
 
 // Built-in implementation for events referring to the current thread.
 template <>
-ThreadTrack PERFETTO_EXPORT
+ThreadTrack PERFETTO_COMPONENT_EXPORT
 ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
 
 }  // namespace legacy
@@ -190,7 +190,7 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
 namespace internal {
 
 // LegacyTraceId encapsulates an ID that can either be an integer or pointer.
-class PERFETTO_EXPORT LegacyTraceId {
+class PERFETTO_COMPONENT_EXPORT LegacyTraceId {
  public:
   // Can be combined with WithScope.
   class LocalId {
@@ -303,7 +303,7 @@ class PERFETTO_EXPORT LegacyTraceId {
 namespace perfetto {
 namespace internal {
 
-class PERFETTO_EXPORT TrackEventLegacy {
+class PERFETTO_COMPONENT_EXPORT TrackEventLegacy {
  public:
   static constexpr protos::pbzero::TrackEvent::Type PhaseToType(char phase) {
     // clang-format off

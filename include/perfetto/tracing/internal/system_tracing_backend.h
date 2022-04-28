@@ -35,7 +35,7 @@ class Producer;
 // together with system traces, useful to correlate on the timeline system
 // events (e.g. scheduling slices from the kernel) with in-app events.
 namespace internal {
-class PERFETTO_EXPORT SystemTracingBackend : public TracingBackend {
+class PERFETTO_COMPONENT_EXPORT SystemTracingBackend : public TracingBackend {
  public:
   static TracingBackend* GetInstance();
 
