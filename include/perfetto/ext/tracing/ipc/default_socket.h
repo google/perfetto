@@ -21,8 +21,8 @@
 
 namespace perfetto {
 
-PERFETTO_EXPORT const char* GetConsumerSocket();
-PERFETTO_EXPORT const char* GetProducerSocket();
+PERFETTO_COMPONENT_EXPORT const char* GetConsumerSocket();
+PERFETTO_COMPONENT_EXPORT const char* GetProducerSocket();
 
 }  // namespace perfetto
 

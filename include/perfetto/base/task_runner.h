@@ -37,7 +37,7 @@ namespace base {
 // memory barrier between tasks.
 //
 // All methods of this interface can be called from any thread.
-class PERFETTO_EXPORT TaskRunner {
+class PERFETTO_COMPONENT_EXPORT TaskRunner {
  public:
   virtual ~TaskRunner();
 

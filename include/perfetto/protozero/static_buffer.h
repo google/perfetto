@@ -32,7 +32,7 @@ class Message;
 // A simple implementation of ScatteredStreamWriter::Delegate backed by a
 // fixed-size buffer. It doesn't support expansion. The caller needs to ensure
 // to never write more than the size of the buffer. Will CHECK() otherwise.
-class PERFETTO_EXPORT StaticBufferDelegate
+class PERFETTO_COMPONENT_EXPORT StaticBufferDelegate
     : public ScatteredStreamWriter::Delegate {
  public:
   StaticBufferDelegate(uint8_t* buf, size_t len) : range_{buf, buf + len} {}

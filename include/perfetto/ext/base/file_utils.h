@@ -68,7 +68,7 @@ ScopedFile OpenFile(const std::string& path,
 // This is an alias for close(). It's to avoid leaking Windows.h in headers.
 // Exported because ScopedFile is used in the /include/ext API by Chromium
 // component builds.
-int PERFETTO_EXPORT CloseFile(int fd);
+int PERFETTO_COMPONENT_EXPORT CloseFile(int fd);
 
 bool FlushFile(int fd);
 
