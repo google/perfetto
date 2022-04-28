@@ -409,9 +409,9 @@ SpanJoinOperatorTable::Cursor::Cursor(SpanJoinOperatorTable* table, sqlite3* db)
       t2_(table, &table->t2_defn_, db),
       table_(table) {}
 
-int SpanJoinOperatorTable::Cursor::Filter(const QueryConstraints& qc,
-                                          sqlite3_value** argv,
-                                          FilterHistory) {
+base::Status SpanJoinOperatorTable::Cursor::FilterInner(
+    const QueryConstraints& qc,
+    sqlite3_value** argv) {
   PERFETTO_TP_TRACE("SPAN_JOIN_XFILTER");
 
   bool t1_partitioned_mixed =
@@ -420,9 +420,7 @@ int SpanJoinOperatorTable::Cursor::Filter(const QueryConstraints& qc,
   auto t1_eof = table_->IsOuterJoin() && !t1_partitioned_mixed
                     ? Query::InitialEofBehavior::kTreatAsMissingPartitionShadow
                     : Query::InitialEofBehavior::kTreatAsEof;
-  util::Status status = t1_.Initialize(qc, argv, t1_eof);
-  if (!status.ok())
-    return SQLITE_ERROR;
+  RETURN_IF_ERROR(t1_.Initialize(qc, argv, t1_eof));
 
   bool t2_partitioned_mixed =
       t2_.definition()->IsPartitioned() &&
@@ -431,21 +429,13 @@ int SpanJoinOperatorTable::Cursor::Filter(const QueryConstraints& qc,
       (table_->IsLeftJoin() || table_->IsOuterJoin()) && !t2_partitioned_mixed
           ? Query::InitialEofBehavior::kTreatAsMissingPartitionShadow
           : Query::InitialEofBehavior::kTreatAsEof;
-  status = t2_.Initialize(qc, argv, t2_eof);
-  if (!status.ok())
-    return SQLITE_ERROR;
-
-  status = FindOverlappingSpan();
-  return status.ok() ? SQLITE_OK : SQLITE_ERROR;
+  RETURN_IF_ERROR(t2_.Initialize(qc, argv, t2_eof));
+  return FindOverlappingSpan();
 }
 
-int SpanJoinOperatorTable::Cursor::Next() {
-  util::Status status = next_query_->Next();
-  if (!status.ok())
-    return SQLITE_ERROR;
-
-  status = FindOverlappingSpan();
-  return status.ok() ? SQLITE_OK : SQLITE_ERROR;
+base::Status SpanJoinOperatorTable::Cursor::NextInner() {
+  RETURN_IF_ERROR(next_query_->Next());
+  return FindOverlappingSpan();
 }
 
 bool SpanJoinOperatorTable::Cursor::IsOverlappingSpan() {
