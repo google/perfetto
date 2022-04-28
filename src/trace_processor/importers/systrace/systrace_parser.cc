@@ -256,8 +256,9 @@ void SystraceParser::ParseSystracePoint(
         if (killed_pid != 0) {
           UniquePid killed_upid =
               context_->process_tracker->GetOrCreateProcess(killed_pid);
-          context_->event_tracker->PushInstant(ts, lmk_id_, killed_upid,
-                                               RefType::kRefUpid);
+          TrackId track =
+              context_->track_tracker->InternProcessTrack(killed_upid);
+          context_->slice_tracker->Scoped(ts, track, kNullStringId, lmk_id_, 0);
         }
         // TODO(lalitm): we should not add LMK events to the counters table
         // once the UI has support for displaying instants.
@@ -311,13 +312,13 @@ void SystraceParser::PostProcessSpecialSliceBegin(int64_t ts,
     UniquePid killed_upid =
         context_->process_tracker->GetOrCreateProcess(*killed_pid);
     // Add the oom score entry
-    TrackId track = context_->track_tracker->InternProcessCounterTrack(
+    TrackId counter_track = context_->track_tracker->InternProcessCounterTrack(
         oom_score_adj_id_, killed_upid);
-    context_->event_tracker->PushCounter(ts, *oom_score_adj, track);
+    context_->event_tracker->PushCounter(ts, *oom_score_adj, counter_track);
 
     // Add mem.lmk instant event for consistency with other methods.
-    context_->event_tracker->PushInstant(ts, lmk_id_, killed_upid,
-                                         RefType::kRefUpid);
+    TrackId track = context_->track_tracker->InternProcessTrack(killed_upid);
+    context_->slice_tracker->Scoped(ts, track, kNullStringId, lmk_id_, 0);
   }
 }
 

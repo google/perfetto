@@ -286,7 +286,11 @@ Both newer lmkd and legacy kernel-driven lowmemorykiller events are normalized
 at import time and available under the `mem.lmk` key in the `instants` table.
 
 ```sql
-select ts, process.name, process.pid from instants left join process on instants.ref = process.upid where instants.name = 'mem.lmk'
+SELECT ts, process.name, process.pid 
+FROM instant 
+JOIN process_track ON instant.track_id = process_track.id
+JOIN process USING (upid)
+WHERE instant.name = 'mem.lmk'
 ```
 
 | ts | name | pid |

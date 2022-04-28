@@ -104,7 +104,7 @@ class ArgsTracker {
   }
 
   BoundInserter AddArgsTo(InstantId id) {
-    return AddArgsTo(context_->storage->mutable_instant_table(), id);
+    return AddArgsTo(context_->storage->mutable_legacy_instant_table(), id);
   }
 
   BoundInserter AddArgsTo(SliceId id) {
