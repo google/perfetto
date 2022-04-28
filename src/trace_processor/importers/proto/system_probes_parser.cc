@@ -516,7 +516,6 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
 
 void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
   protos::pbzero::CpuInfo::Decoder packet(blob.data, blob.size);
-  size_t freq_index = 1;
   uint32_t cluster_id = 0;
   std::vector<uint32_t> last_cpu_freqs;
   uint32_t cpu_index = 0;
@@ -547,7 +546,6 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
       cpu_freq_row.cpu_id = cpu_row_id;
       cpu_freq_row.freq = freq;
       context_->storage->mutable_cpu_freq_table()->Insert(cpu_freq_row);
-      freq_index++;
     }
   }
 }
