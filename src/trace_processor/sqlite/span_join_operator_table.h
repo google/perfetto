@@ -324,9 +324,24 @@ class SpanJoinOperatorTable : public SqliteTable {
 
     int Filter(const QueryConstraints& qc,
                sqlite3_value** argv,
-               FilterHistory) override;
+               FilterHistory) override {
+      base::Status status = FilterInner(qc, argv);
+      if (!status.ok()) {
+        table_->SetErrorMessage(sqlite3_mprintf("%s", status.c_message()));
+        return SQLITE_ERROR;
+      }
+      return SQLITE_OK;
+    }
+    int Next() override {
+      base::Status status = NextInner();
+      if (!status.ok()) {
+        table_->SetErrorMessage(sqlite3_mprintf("%s", status.c_message()));
+        return SQLITE_ERROR;
+      }
+      return SQLITE_OK;
+    }
+
     int Column(sqlite3_context* context, int N) override;
-    int Next() override;
     int Eof() override;
 
    private:
@@ -338,6 +353,8 @@ class SpanJoinOperatorTable : public SqliteTable {
 
     bool IsOverlappingSpan();
 
+    base::Status NextInner();
+    base::Status FilterInner(const QueryConstraints& qc, sqlite3_value** argv);
     util::Status FindOverlappingSpan();
 
     Query* FindEarliestFinishQuery();
