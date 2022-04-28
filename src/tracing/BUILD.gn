@@ -138,6 +138,7 @@ source_set("client_api_without_backends") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
+    "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace/track_event:lite",
