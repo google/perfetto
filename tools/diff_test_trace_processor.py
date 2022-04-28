@@ -20,8 +20,6 @@ from __future__ import print_function
 import argparse
 import datetime
 import difflib
-import glob
-import importlib
 import json
 import os
 import re
@@ -29,8 +27,7 @@ import subprocess
 import sys
 import tempfile
 
-from itertools import chain
-from google.protobuf import reflection, text_format
+from google.protobuf import text_format
 
 from proto_utils import create_message_factory, serialize_textproto_trace, serialize_python_trace
 
@@ -120,13 +117,13 @@ def run_metrics_test(trace_processor_path, gen_trace_path, metric,
     expected_text = expected
     actual_text = stdout.decode('utf8')
   else:
-    # Expected will be in text proto format and we'll need to parse it to a real
-    # proto.
+    # Expected will be in text proto format and we'll need to parse it to
+    # a real proto.
     expected_message = metrics_message_factory()
     text_format.Merge(expected, expected_message)
 
-    # Actual will be the raw bytes of the proto and we'll need to parse it into
-    # a message.
+    # Actual will be the raw bytes of the proto and we'll need to parse it
+    # into a message.
     actual_message = metrics_message_factory()
     actual_message.ParseFromString(stdout)
 
@@ -169,11 +166,11 @@ def run_all_tests(trace_processor, trace_descriptor_path,
     trace_path = test.trace_path
     expected_path = test.expected_path
     if not os.path.exists(trace_path):
-      sys.stderr.write('Trace file not found {}\n'.format(trace_path))
+      sys.stderr.write(f"Trace file not found {trace_path}\n")
       test_failure += 1
       continue
     elif not os.path.exists(expected_path):
-      sys.stderr.write('Expected file not found {}\n'.format(expected_path))
+      sys.stderr.write(f"Expected file not found {expected_path}")
       test_failure += 1
       continue
 
@@ -193,21 +190,21 @@ def run_all_tests(trace_processor, trace_descriptor_path,
       gen_trace_file = None
       gen_trace_path = trace_path
 
-    # We can't use delete=True here. When using that on Windwows, the resulting
-    # file is opened in exclusive mode (in turn that's a subtle side-effect of
-    # the underlying CreateFile(FILE_ATTRIBUTE_TEMPORARY)) and TP fails to open
-    # the passed path.
+    # We can't use delete=True here. When using that on Windwows, the
+    # resulting file is opened in exclusive mode (in turn that's a subtle
+    # side-effect of the underlying CreateFile(FILE_ATTRIBUTE_TEMPORARY))
+    # and TP fails to open the passed path.
     tmp_perf_file = tempfile.NamedTemporaryFile(delete=False)
-    sys.stderr.write('[ RUN      ] {} {}\n'.format(
-        os.path.basename(test.query_path_or_metric),
-        os.path.basename(trace_path)))
+    sys.stderr.write(
+        f"[ RUN      ] {os.path.basename(test.query_path_or_metric)} \
+             {os.path.basename(trace_path)}\n")
 
     tmp_perf_path = tmp_perf_file.name
     if test.type == 'queries':
       query_path = test.query_path_or_metric
 
       if not os.path.exists(test.query_path_or_metric):
-        print('Query file not found {}'.format(query_path))
+        print(f"Query file not found {query_path}")
         test_failure += 1
         continue
 
@@ -240,37 +237,37 @@ def run_all_tests(trace_processor, trace_descriptor_path,
                 os.path.relpath(trace_descriptor_path, ROOT_DIR),
                 os.path.relpath(trace_path, ROOT_DIR),
                 os.path.relpath(gen_trace_path, ROOT_DIR)))
-      sys.stderr.write('Command line:\n{}\n'.format(' '.join(result.cmd)))
+      sys.stderr.write(f"Command line:\n{' '.join(result.cmd)}\n")
 
-    contents_equal = (
-        result.expected.replace('\r\n',
-                                '\n') == result.actual.replace('\r\n', '\n'))
+    expected_content = result.expected.replace('\r\n', '\n')
+    actual_content = result.actual.replace('\r\n', '\n')
+    contents_equal = (expected_content == actual_content)
     if result.exit_code != 0 or not contents_equal:
       sys.stderr.write(result.stderr)
 
       if result.exit_code == 0:
         sys.stderr.write(
-            'Expected did not match actual for trace {} and {} {}\n'.format(
-                trace_path, result.test_type, result.input_name))
-        sys.stderr.write('Expected file: {}\n'.format(expected_path))
+            f"Expected did not match actual for trace {trace_path} \
+                    and {result.test_type} {result.input_name}\n")
+        sys.stderr.write(f"Expected file: {expected_path}\n")
         write_cmdlines()
         write_diff(result.expected, result.actual)
       else:
         write_cmdlines()
 
-      sys.stderr.write('[     FAIL ] {} {}\n'.format(
-          os.path.basename(test.query_path_or_metric),
-          os.path.basename(trace_path)))
+      sys.stderr.write(
+          f"[     FAIL ] {os.path.basename(test.query_path_or_metric)} \
+                {os.path.basename(trace_path)}\n")
 
       if rebase:
         if result.exit_code == 0:
-          sys.stderr.write('Rebasing {}\n'.format(expected_path))
+          sys.stderr.write(f"Rebasing {expected_path}\n")
           with open(expected_path, 'w') as f:
             f.write(result.actual)
           rebase += 1
         else:
           sys.stderr.write(
-              'Rebase failed for {} as query failed\n'.format(expected_path))
+              f"Rebase failed for {expected_path} as query failed\n")
 
       test_failure += 1
     else:
@@ -283,11 +280,10 @@ def run_all_tests(trace_processor, trace_descriptor_path,
       perf_data.append(perf_result)
 
       sys.stderr.write(
-          '[       OK ] {} {} (ingest: {} ms, query: {} ms)\n'.format(
-              os.path.basename(test.query_path_or_metric),
-              os.path.basename(trace_path),
-              perf_result.ingest_time_ns / 1000000,
-              perf_result.real_time_ns / 1000000))
+          f"[       OK ] {os.path.basename(test.query_path_or_metric)} \
+                {os.path.basename(trace_path)}                               \
+                (ingest: {perf_result.ingest_time_ns / 1000000} ms,          \
+                query: {perf_result.real_time_ns / 1000000} ms)\n")
 
   return test_failure, perf_data, rebased
 
@@ -352,13 +348,12 @@ def main():
       '--query-metric-filter',
       default='.*',
       type=str,
-      help=
-      'Filter the name of query files or metrics to diff test (regex syntax)')
+      help='Filter the name of query files or metrics to test (regex syntax)')
   parser.add_argument(
       '--trace-filter',
       default='.*',
       type=str,
-      help='Filter the name of trace files to diff test (regex syntax)')
+      help='Filter the name of trace files to test (regex syntax)')
   parser.add_argument(
       '--keep-input',
       action='store_true',
@@ -375,12 +370,13 @@ def main():
   trace_pattern = re.compile(args.trace_filter)
 
   tests = read_all_tests(query_metric_pattern, trace_pattern)
-  sys.stderr.write('[==========] Running {} tests.\n'.format(len(tests)))
+  sys.stderr.write(f"[==========] Running {len(tests)} tests.\n")
 
   out_path = os.path.dirname(args.trace_processor)
   if args.trace_descriptor:
     trace_descriptor_path = args.trace_descriptor
   else:
+
     def find_trace_descriptor(parent):
       trace_protos_path = os.path.join(parent, 'gen', 'protos', 'perfetto',
                                        'trace')
@@ -390,7 +386,6 @@ def main():
     if not os.path.exists(trace_descriptor_path):
       trace_descriptor_path = find_trace_descriptor(
           os.path.join(out_path, 'gcc_like_host'))
-
 
   if args.metrics_descriptor:
     metrics_descriptor_paths = [args.metrics_descriptor]
@@ -412,19 +407,20 @@ def main():
       metrics_descriptor_paths)
 
   test_run_start = datetime.datetime.now()
-  test_failure, perf_data, rebased = run_all_tests(
+  test_failures, perf_data, rebased = run_all_tests(
       args.trace_processor, trace_descriptor_path,
       [chrome_extensions, test_extensions], metrics_message_factory, tests,
       args.keep_input, args.rebase)
   test_run_end = datetime.datetime.now()
+  test_time_ms = int((test_run_end - test_run_start).total_seconds()) * 1000
 
-  sys.stderr.write('[==========] {} tests ran. ({} ms total)\n'.format(
-      len(tests), int((test_run_end - test_run_start).total_seconds() * 1000)))
-  sys.stderr.write('[  PASSED  ] {} tests.\n'.format(len(tests) - test_failure))
+  sys.stderr.write(
+      f"[==========] {len(tests)} tests ran. ({test_time_ms} ms total)\n")
+  sys.stderr.write(f"[  PASSED  ] {len(tests) - test_failures} tests.\n")
   if args.rebase:
-    sys.stderr.write('{} tests rebased.\n'.format(rebased))
+    sys.stderr.write(f"{rebased} tests rebased.\n")
 
-  if test_failure == 0:
+  if test_failures == 0:
     if args.perf_file:
       test_dir = os.path.join(ROOT_DIR, 'test')
       trace_processor_dir = os.path.join(test_dir, 'trace_processor')
@@ -446,11 +442,8 @@ def main():
             'value': float(perf_args.ingest_time_ns) / 1.0e9,
             'unit': 's',
             'tags': {
-                'test_name':
-                    '{}-{}'.format(trace_short_path,
-                                   query_short_path_or_metric),
-                'test_type':
-                    perf_args.test_type,
+                'test_name': f"{trace_short_path}-{query_short_path_or_metric}",
+                'test_type': perf_args.test_type,
             },
             'labels': {},
         })
@@ -459,12 +452,8 @@ def main():
             'value': float(perf_args.real_time_ns) / 1.0e9,
             'unit': 's',
             'tags': {
-                'test_name':
-                    '{}-{}'.format(
-                        os.path.relpath(perf_args.trace_path, test_dir),
-                        query_short_path_or_metric),
-                'test_type':
-                    perf_args.test_type,
+                'test_name': f"{trace_short_path}-{query_short_path_or_metric}",
+                'test_type': perf_args.test_type,
             },
             'labels': {},
         })
@@ -474,7 +463,7 @@ def main():
         perf_file.write(json.dumps(output_data, indent=2))
     return 0
   else:
-    sys.stderr.write('[  FAILED  ] {} tests.\n'.format(test_failure))
+    sys.stderr.write(f"[  FAILED  ] {test_failures} tests.\n")
     return 1
 
 
