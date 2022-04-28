@@ -54,7 +54,7 @@ std::string GetBugreportPath();
 //    to the ConnectProducer() method.
 // 2. The transport layer (e.g., src/ipc) when the producer and
 //    the service don't talk locally but via some IPC mechanism.
-class PERFETTO_EXPORT ProducerEndpoint {
+class PERFETTO_COMPONENT_EXPORT ProducerEndpoint {
  public:
   virtual ~ProducerEndpoint();
 
@@ -156,7 +156,7 @@ class PERFETTO_EXPORT ProducerEndpoint {
 //    the ConnectConsumer() method.
 // 2. The transport layer (e.g., src/ipc) when the consumer and
 //    the service don't talk locally but via some IPC mechanism.
-class PERFETTO_EXPORT ConsumerEndpoint {
+class PERFETTO_COMPONENT_EXPORT ConsumerEndpoint {
  public:
   virtual ~ConsumerEndpoint();
 
@@ -253,7 +253,7 @@ class PERFETTO_EXPORT ConsumerEndpoint {
 //
 // Subclassed by:
 //   The service business logic in src/core/tracing_service_impl.cc.
-class PERFETTO_EXPORT TracingService {
+class PERFETTO_COMPONENT_EXPORT TracingService {
  public:
   using ProducerEndpoint = perfetto::ProducerEndpoint;
   using ConsumerEndpoint = perfetto::ConsumerEndpoint;

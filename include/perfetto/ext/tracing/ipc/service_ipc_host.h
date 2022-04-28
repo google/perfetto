@@ -36,7 +36,7 @@ class TracingService;
 //   The code in the tracing client that will host the service e.g., traced.
 // Implemented in:
 //   src/tracing/ipc/service/service_ipc_host_impl.cc
-class PERFETTO_EXPORT ServiceIPCHost {
+class PERFETTO_COMPONENT_EXPORT ServiceIPCHost {
  public:
   static std::unique_ptr<ServiceIPCHost> CreateInstance(base::TaskRunner*);
   virtual ~ServiceIPCHost();
