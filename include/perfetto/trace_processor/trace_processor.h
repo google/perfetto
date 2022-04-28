@@ -32,7 +32,7 @@ namespace trace_processor {
 
 // Extends TraceProcessorStorage to support execution of SQL queries on loaded
 // traces. See TraceProcessorStorage for parsing of trace files.
-class PERFETTO_EXPORT TraceProcessor : public TraceProcessorStorage {
+class PERFETTO_COMPONENT_EXPORT TraceProcessor : public TraceProcessorStorage {
  public:
   // For legacy API clients. Iterator used to be a nested class here. Many API
   // clients depends on it at this point.
@@ -127,7 +127,7 @@ class PERFETTO_EXPORT TraceProcessor : public TraceProcessorStorage {
 };
 
 // When set, logs SQLite actions on the console.
-void PERFETTO_EXPORT EnableSQLiteVtableDebugging();
+void PERFETTO_COMPONENT_EXPORT EnableSQLiteVtableDebugging();
 
 }  // namespace trace_processor
 }  // namespace perfetto

@@ -27,7 +27,7 @@ namespace perfetto {
 
 class TracePacket;
 
-class PERFETTO_EXPORT Consumer {
+class PERFETTO_COMPONENT_EXPORT Consumer {
  public:
   virtual ~Consumer();
 
