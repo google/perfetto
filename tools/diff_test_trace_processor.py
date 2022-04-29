@@ -196,8 +196,8 @@ def run_all_tests(trace_processor, trace_descriptor_path,
     # and TP fails to open the passed path.
     tmp_perf_file = tempfile.NamedTemporaryFile(delete=False)
     sys.stderr.write(
-        f"[ RUN      ] {os.path.basename(test.query_path_or_metric)} \
-             {os.path.basename(trace_path)}\n")
+        f"[ RUN      ] {os.path.basename(test.query_path_or_metric)} "
+        f"{os.path.basename(trace_path)}\n")
 
     tmp_perf_path = tmp_perf_file.name
     if test.type == 'queries':
@@ -247,8 +247,8 @@ def run_all_tests(trace_processor, trace_descriptor_path,
 
       if result.exit_code == 0:
         sys.stderr.write(
-            f"Expected did not match actual for trace {trace_path} \
-                    and {result.test_type} {result.input_name}\n")
+            f"Expected did not match actual for trace "
+            f"{trace_path}and {result.test_type} {result.input_name}\n")
         sys.stderr.write(f"Expected file: {expected_path}\n")
         write_cmdlines()
         write_diff(result.expected, result.actual)
@@ -256,8 +256,8 @@ def run_all_tests(trace_processor, trace_descriptor_path,
         write_cmdlines()
 
       sys.stderr.write(
-          f"[     FAIL ] {os.path.basename(test.query_path_or_metric)} \
-                {os.path.basename(trace_path)}\n")
+          f"[     FAIL ] {os.path.basename(test.query_path_or_metric)} "
+          f"{os.path.basename(trace_path)}\n")
 
       if rebase:
         if result.exit_code == 0:
@@ -280,10 +280,10 @@ def run_all_tests(trace_processor, trace_descriptor_path,
       perf_data.append(perf_result)
 
       sys.stderr.write(
-          f"[       OK ] {os.path.basename(test.query_path_or_metric)} \
-                {os.path.basename(trace_path)}                               \
-                (ingest: {perf_result.ingest_time_ns / 1000000} ms,          \
-                query: {perf_result.real_time_ns / 1000000} ms)\n")
+          f"[       OK ] {os.path.basename(test.query_path_or_metric)} "
+          f"{os.path.basename(trace_path)} "
+          f"(ingest: {perf_result.ingest_time_ns / 1000000} ms "
+          f"query: {perf_result.real_time_ns / 1000000} ms)\n")
 
   return test_failure, perf_data, rebased
 
