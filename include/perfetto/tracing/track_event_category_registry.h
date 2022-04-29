@@ -29,7 +29,7 @@ class DynamicCategory;
 
 // A compile-time representation of a track event category. See
 // PERFETTO_DEFINE_CATEGORIES for registering your own categories.
-struct PERFETTO_COMPONENT_EXPORT Category {
+struct PERFETTO_EXPORT_COMPONENT Category {
   using Tags = std::array<const char*, 4>;
 
   const char* const name = nullptr;
@@ -150,7 +150,7 @@ struct PERFETTO_COMPONENT_EXPORT Category {
 // container type to make it less likely for trace points to accidentally start
 // using dynamic categories. Events with dynamic categories will always be
 // slightly more expensive than regular events, so use them sparingly.
-class PERFETTO_COMPONENT_EXPORT DynamicCategory final {
+class PERFETTO_EXPORT_COMPONENT DynamicCategory final {
  public:
   explicit DynamicCategory(const std::string& name_) : name(name_) {}
   explicit DynamicCategory(const char* name_) : name(name_) {}
@@ -190,7 +190,7 @@ constexpr bool IsStringInPrefixList(const char* str,
 
 // Holds all the registered categories for one category namespace. See
 // PERFETTO_DEFINE_CATEGORIES for building the registry.
-class PERFETTO_COMPONENT_EXPORT TrackEventCategoryRegistry {
+class PERFETTO_EXPORT_COMPONENT TrackEventCategoryRegistry {
  public:
   constexpr TrackEventCategoryRegistry(size_t category_count,
                                        const Category* categories,

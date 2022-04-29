@@ -26,7 +26,7 @@ namespace perfetto {
 
 // A wrapper for marking strings that can't be determined to be static at build
 // time, but are in fact static.
-class PERFETTO_COMPONENT_EXPORT StaticString {
+class PERFETTO_EXPORT_COMPONENT StaticString {
  public:
   // Implicit constructor for string literals.
   template <size_t N>
@@ -70,7 +70,7 @@ constexpr const char* GetStaticString(StaticString string) {
 
 // A explicit wrapper for marking strings as dynamic to ensure that perfetto
 // doesn't try to cache the pointer value.
-class PERFETTO_COMPONENT_EXPORT DynamicString {
+class PERFETTO_EXPORT_COMPONENT DynamicString {
  public:
   explicit DynamicString(const std::string& str)
       : value(str.data()), length(str.length()) {}

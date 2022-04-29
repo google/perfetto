@@ -41,9 +41,9 @@ namespace protozero {
 // The purpose of this class is to abstract away the non-contiguous write logic.
 // This class knows how to deal with writes as long as they fall in the same
 // ContiguousMemoryRange and defers the chunk-chaining logic to the Delegate.
-class PERFETTO_COMPONENT_EXPORT ScatteredStreamWriter {
+class PERFETTO_EXPORT_COMPONENT ScatteredStreamWriter {
  public:
-  class PERFETTO_COMPONENT_EXPORT Delegate {
+  class PERFETTO_EXPORT_COMPONENT Delegate {
    public:
     virtual ~Delegate();
     virtual ContiguousMemoryRange GetNewBuffer() = 0;
