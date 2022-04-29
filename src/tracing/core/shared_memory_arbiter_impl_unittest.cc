@@ -27,7 +27,7 @@
 #include "src/base/test/test_task_runner.h"
 #include "src/tracing/core/patch_list.h"
 #include "src/tracing/test/aligned_buffer_test.h"
-#include "src/tracing/test/fake_producer_endpoint.h"
+#include "src/tracing/test/mock_producer_endpoint.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/test_event.pbzero.h"
@@ -38,31 +38,8 @@ namespace perfetto {
 using testing::_;
 using testing::Invoke;
 using testing::Mock;
-
-class MockProducerEndpoint : public TracingService::ProducerEndpoint {
- public:
-  void RegisterDataSource(const DataSourceDescriptor&) override {}
-  void UpdateDataSource(const DataSourceDescriptor&) override {}
-  void UnregisterDataSource(const std::string&) override {}
-  void NotifyFlushComplete(FlushRequestID) override {}
-  void NotifyDataSourceStarted(DataSourceInstanceID) override {}
-  void NotifyDataSourceStopped(DataSourceInstanceID) override {}
-  void ActivateTriggers(const std::vector<std::string>&) {}
-  void Sync(std::function<void()>) override {}
-  SharedMemory* shared_memory() const override { return nullptr; }
-  size_t shared_buffer_page_size_kb() const override { return 0; }
-  std::unique_ptr<TraceWriter> CreateTraceWriter(
-      BufferID,
-      BufferExhaustedPolicy) override {
-    return nullptr;
-  }
-  SharedMemoryArbiter* MaybeSharedMemoryArbiter() override { return nullptr; }
-  bool IsShmemProvidedByProducer() const override { return false; }
-
-  MOCK_METHOD2(CommitData, void(const CommitDataRequest&, CommitDataCallback));
-  MOCK_METHOD2(RegisterTraceWriter, void(uint32_t, uint32_t));
-  MOCK_METHOD1(UnregisterTraceWriter, void(uint32_t));
-};
+using testing::NiceMock;
+using testing::UnorderedElementsAreArray;
 
 class SharedMemoryArbiterImplTest : public AlignedBufferTest {
  public:
@@ -83,7 +60,7 @@ class SharedMemoryArbiterImplTest : public AlignedBufferTest {
 
   std::unique_ptr<base::TestTaskRunner> task_runner_;
   std::unique_ptr<SharedMemoryArbiterImpl> arbiter_;
-  MockProducerEndpoint mock_producer_endpoint_;
+  NiceMock<MockProducerEndpoint> mock_producer_endpoint_;
   std::function<void(const std::vector<uint32_t>&)> on_pages_complete_;
 };
 
@@ -225,49 +202,23 @@ TEST_P(SharedMemoryArbiterImplTest, BatchCommits) {
   arbiter_->FlushPendingCommitDataRequests();
 }
 
-// Helper for verifying trace writer id allocations.
-class TraceWriterIdChecker : public FakeProducerEndpoint {
- public:
-  TraceWriterIdChecker(std::function<void()> checkpoint)
-      : checkpoint_(std::move(checkpoint)) {}
-
-  void RegisterTraceWriter(uint32_t id, uint32_t) override {
-    EXPECT_GT(id, 0u);
-    EXPECT_LE(id, kMaxWriterID);
-    if (id > 0 && id <= kMaxWriterID) {
-      registered_ids_.set(id - 1);
-    }
-  }
-
-  void UnregisterTraceWriter(uint32_t id) override {
-    if (++unregister_calls_ == kMaxWriterID)
-      checkpoint_();
-
-    EXPECT_GT(id, 0u);
-    EXPECT_LE(id, kMaxWriterID);
-    if (id > 0 && id <= kMaxWriterID) {
-      unregistered_ids_.set(id - 1);
-    }
-  }
-
-  // bit N corresponds to id N+1
-  std::bitset<kMaxWriterID> registered_ids_;
-  std::bitset<kMaxWriterID> unregistered_ids_;
-
-  int unregister_calls_ = 0;
-
- private:
-  std::function<void()> checkpoint_;
-};
-
 // Check that we can actually create up to kMaxWriterID TraceWriter(s).
 TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
   auto checkpoint = task_runner_->CreateCheckpoint("last_unregistered");
 
-  TraceWriterIdChecker id_checking_endpoint(checkpoint);
-  arbiter_.reset(new SharedMemoryArbiterImpl(buf(), buf_size(), page_size(),
-                                             &id_checking_endpoint,
-                                             task_runner_.get()));
+  std::vector<uint32_t> registered_ids;
+  std::vector<uint32_t> unregistered_ids;
+
+  ON_CALL(mock_producer_endpoint_, RegisterTraceWriter)
+      .WillByDefault(
+          [&](uint32_t id, uint32_t) { registered_ids.push_back(id); });
+  ON_CALL(mock_producer_endpoint_, UnregisterTraceWriter)
+      .WillByDefault([&](uint32_t id) {
+        unregistered_ids.push_back(id);
+        if (unregistered_ids.size() == kMaxWriterID) {
+          checkpoint();
+        }
+      });
   {
     std::map<WriterID, std::unique_ptr<TraceWriter>> writers;
 
@@ -287,8 +238,11 @@ TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
   // memory arbiter.
   task_runner_->RunUntilCheckpoint("last_unregistered", 15000);
 
-  EXPECT_TRUE(id_checking_endpoint.registered_ids_.all());
-  EXPECT_TRUE(id_checking_endpoint.unregistered_ids_.all());
+  std::vector<uint32_t> expected_ids;  // 1..kMaxWriterID
+  for (uint32_t i = 1; i <= kMaxWriterID; i++)
+    expected_ids.push_back(i);
+  EXPECT_THAT(registered_ids, UnorderedElementsAreArray(expected_ids));
+  EXPECT_THAT(unregistered_ids, UnorderedElementsAreArray(expected_ids));
 }
 
 TEST_P(SharedMemoryArbiterImplTest, Shutdown) {
