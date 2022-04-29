@@ -1069,7 +1069,7 @@ class TrackDecider {
       process.name as processName,
       thread.name as threadName,
       process.arg_set_id as argSetId,
-      (case process.name 
+      (case process.name
          when 'Browser' then 3
          when 'Gpu' then 2
          when 'Renderer' then 1

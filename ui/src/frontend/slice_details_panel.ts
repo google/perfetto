@@ -61,14 +61,13 @@ export class SliceDetailsPanel extends SlicePanel {
         m('tr',
           m('th', `Duration`),
           m('td', this.computeDuration(sliceInfo.ts, sliceInfo.dur))),
-        (sliceInfo.thread_dur === undefined ||
-         sliceInfo.thread_ts === undefined) ?
+        (sliceInfo.threadDur === undefined ||
+         sliceInfo.threadTs === undefined) ?
             '' :
             m('tr',
               m('th', 'Thread duration'),
               m('td',
-                this.computeDuration(
-                    sliceInfo.thread_ts, sliceInfo.thread_dur))),
+                this.computeDuration(sliceInfo.threadTs, sliceInfo.threadDur))),
         m('tr', m('th', `Prio`), m('td', `${sliceInfo.priority}`)),
         m('tr',
           m('th', `End State`),
