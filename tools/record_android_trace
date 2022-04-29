@@ -107,6 +107,9 @@ def main():
   help = 'Don\'t run `adb root` run as user (only when sideloading)'
   parser.add_argument('-u', '--user', action='store_true', help=help)
 
+  help = 'Specify the ADB device serial'
+  parser.add_argument('--serial', '-s', default=None, help=help)
+
   grp = parser.add_argument_group(
       'Short options: (only when not using -c/--config)')
 
@@ -143,9 +146,6 @@ def main():
 
   help = 'Can be generated with https://ui.perfetto.dev/#!/record'
   grp.add_argument('-c', '--config', default=None, help=help)
-
-  help = 'Specify the ADB device serial'
-  grp.add_argument('--serial', '-s', default=None, help=help)
 
   args = parser.parse_args()
   args.sideload = args.sideload or args.sideload_path is not None
