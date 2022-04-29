@@ -65,7 +65,7 @@ class DebugAnnotation;
 // A callback interface for observing track event tracing sessions starting and
 // stopping. See TrackEvent::{Add,Remove}SessionObserver. Note that all methods
 // will be called on an internal Perfetto thread.
-class PERFETTO_COMPONENT_EXPORT TrackEventSessionObserver {
+class PERFETTO_EXPORT_COMPONENT TrackEventSessionObserver {
  public:
   virtual ~TrackEventSessionObserver();
   // Called when a track event tracing session is configured. Note tracing isn't
@@ -83,7 +83,7 @@ class PERFETTO_COMPONENT_EXPORT TrackEventSessionObserver {
 namespace internal {
 class TrackEventCategoryRegistry;
 
-class PERFETTO_COMPONENT_EXPORT BaseTrackEventInternedDataIndex {
+class PERFETTO_EXPORT_COMPONENT BaseTrackEventInternedDataIndex {
  public:
   virtual ~BaseTrackEventInternedDataIndex();
 
@@ -165,7 +165,7 @@ struct TrackEventIncrementalState {
 // The backend portion of the track event trace point implemention. Outlined to
 // a separate .cc file so it can be shared by different track event category
 // namespaces.
-class PERFETTO_COMPONENT_EXPORT TrackEventInternal {
+class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
  public:
   static bool Initialize(
       const TrackEventCategoryRegistry&,
