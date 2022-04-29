@@ -50,7 +50,7 @@ perfetto_unittest_source_set("test_support") {
   # has no implementation for Windows or NaCL.
   if (!is_win && !is_nacl) {
     sources += [
-      "fake_producer_endpoint.h",
+      "mock_producer_endpoint.h",
       "mock_consumer.cc",
       "mock_consumer.h",
       "mock_producer.cc",
