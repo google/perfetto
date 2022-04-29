@@ -29,7 +29,7 @@ namespace protozero {
 // Base class for generated .gen.h classes, which are full C++ objects that
 // support both ser and deserialization (but are not zero-copy).
 // This is only used by the "cpp" targets not the "pbzero" ones.
-class PERFETTO_COMPONENT_EXPORT CppMessageObj {
+class PERFETTO_EXPORT_COMPONENT CppMessageObj {
  public:
   virtual ~CppMessageObj();
   virtual std::string SerializeAsString() const = 0;

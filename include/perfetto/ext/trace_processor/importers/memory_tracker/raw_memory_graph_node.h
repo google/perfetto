@@ -54,7 +54,7 @@ enum class LevelOfDetail : uint32_t {
 };
 
 // Data model for user-land memory nodes.
-class PERFETTO_COMPONENT_EXPORT RawMemoryGraphNode {
+class PERFETTO_EXPORT_COMPONENT RawMemoryGraphNode {
  public:
   enum Flags {
     kDefault = 0,
@@ -67,7 +67,7 @@ class PERFETTO_COMPONENT_EXPORT RawMemoryGraphNode {
   // In the UI table each MemoryAllocatorNode becomes
   // a row and each Entry generates a column (if it doesn't already
   // exist).
-  struct PERFETTO_COMPONENT_EXPORT MemoryNodeEntry {
+  struct PERFETTO_EXPORT_COMPONENT MemoryNodeEntry {
     enum EntryType {
       kUint64,
       kString,

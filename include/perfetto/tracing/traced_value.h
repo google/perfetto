@@ -120,12 +120,12 @@ namespace internal {
 // TODO(altimin): Currently EventContext can be null due the need to support
 // TracedValue-based serialisation with the Chrome's TraceLog. After this is
 // gone, the second parameter should be changed to EventContext&.
-PERFETTO_COMPONENT_EXPORT TracedValue
+PERFETTO_EXPORT_COMPONENT TracedValue
 CreateTracedValueFromProto(protos::pbzero::DebugAnnotation*,
                            EventContext* = nullptr);
 }
 
-class PERFETTO_COMPONENT_EXPORT TracedValue {
+class PERFETTO_EXPORT_COMPONENT TracedValue {
  public:
   TracedValue(const TracedValue&) = delete;
   TracedValue& operator=(const TracedValue&) = delete;
@@ -204,7 +204,7 @@ TracedProto<MessageType> TracedValue::WriteProto() && {
       event_context_);
 }
 
-class PERFETTO_COMPONENT_EXPORT TracedArray {
+class PERFETTO_EXPORT_COMPONENT TracedArray {
  public:
   // implicit
   TracedArray(TracedValue);
@@ -241,7 +241,7 @@ class PERFETTO_COMPONENT_EXPORT TracedArray {
   internal::CheckedScope checked_scope_;
 };
 
-class PERFETTO_COMPONENT_EXPORT TracedDictionary {
+class PERFETTO_EXPORT_COMPONENT TracedDictionary {
  public:
   // implicit
   TracedDictionary(TracedValue);

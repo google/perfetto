@@ -35,7 +35,7 @@ namespace internal {
 // instance in-process. Instantiated when the embedder calls
 // Tracing::Initialize(kInProcessBackend). Solves most in-app-only tracing
 // use-cases.
-class PERFETTO_COMPONENT_EXPORT InProcessTracingBackend
+class PERFETTO_EXPORT_COMPONENT InProcessTracingBackend
     : public TracingBackend {
  public:
   static TracingBackend* GetInstance();

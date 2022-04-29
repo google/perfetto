@@ -48,7 +48,7 @@ class DebugAnnotation;
 }  // namespace protos
 
 // A base class for custom track event debug annotations.
-class PERFETTO_COMPONENT_EXPORT DebugAnnotation {
+class PERFETTO_EXPORT_COMPONENT DebugAnnotation {
  public:
   DebugAnnotation() = default;
   virtual ~DebugAnnotation();

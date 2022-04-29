@@ -25,7 +25,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-class PERFETTO_COMPONENT_EXPORT MemoryGraphEdge {
+class PERFETTO_EXPORT_COMPONENT MemoryGraphEdge {
  public:
   MemoryGraphEdge(MemoryAllocatorNodeId s,
                   MemoryAllocatorNodeId t,

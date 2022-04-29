@@ -53,7 +53,7 @@ std::atomic<LogMessageCallback> g_log_callback{};
 #if PERFETTO_BUILDFLAG(PERFETTO_STDERR_CRASH_DUMP)
 // __attribute__((constructor)) causes a static initializer that automagically
 // early runs this function before the main().
-void PERFETTO_COMPONENT_EXPORT __attribute__((constructor))
+void PERFETTO_EXPORT_COMPONENT __attribute__((constructor))
 InitDebugCrashReporter() {
   // This function is defined in debug_crash_stack_trace.cc.
   // The dynamic initializer is in logging.cc because logging.cc is included
