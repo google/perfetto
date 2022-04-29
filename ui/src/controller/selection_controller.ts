@@ -441,9 +441,9 @@ export class SelectionController extends Controller<'main'> {
   async schedulingDetails(ts: number, utid: number|Long) {
     let event = 'sched_waking';
     const waking = await this.args.engine.query(
-        `select * from instants where name = 'sched_waking' limit 1`);
+        `select * from legacy_instant where name = 'sched_waking' limit 1`);
     const wakeup = await this.args.engine.query(
-        `select * from instants where name = 'sched_wakeup' limit 1`);
+        `select * from legacy_instant where name = 'sched_wakeup' limit 1`);
     if (waking.numRows() === 0) {
       if (wakeup.numRows() === 0) return undefined;
       // Only use sched_wakeup if waking is not in the trace.
@@ -451,8 +451,8 @@ export class SelectionController extends Controller<'main'> {
     }
 
     // Find the ts of the first sched_wakeup before the current slice.
-    const queryWakeupTs = `select ts from instants where name = '${event}'
-    and ref = ${utid} and ts < ${ts} order by ts desc limit 1`;
+    const queryWakeupTs = `select ts from legacy_instant where name = '${event}'
+    and utid = ${utid} and ts < ${ts} order by ts desc limit 1`;
     const wakeResult = await this.args.engine.query(queryWakeupTs);
     if (wakeResult.numRows() === 0) {
       return undefined;
@@ -472,10 +472,16 @@ export class SelectionController extends Controller<'main'> {
     }
     // Find the sched slice with the utid of the waker running when the
     // sched wakeup occurred. This is the waker.
-    let queryWaker = `select utid, cpu from sched where utid =
-    (select EXTRACT_ARG(arg_set_id, 'waker_utid') from instants where name =
-     '${event}' and ts = ${wakeupTs})
-    and ts < ${wakeupTs} and ts + dur >= ${wakeupTs};`;
+    let queryWaker = `
+      select utid, cpu
+      from sched
+      where utid = (
+        select EXTRACT_ARG(arg_set_id, 'waker_utid')
+        from legacy_instant
+        where name = '${event}' and ts = ${wakeupTs}
+      )
+      and ts < ${wakeupTs} and ts + dur >= ${wakeupTs};
+    `;
     let wakerResult = await this.args.engine.query(queryWaker);
     if (wakerResult.numRows() === 0) {
       // An old version of trace processor (that does not populate the

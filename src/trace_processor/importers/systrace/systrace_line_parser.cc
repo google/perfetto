@@ -119,9 +119,9 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     StringId event_name_id = line.event_name == "sched_wakeup"
                                  ? sched_wakeup_name_id_
                                  : sched_waking_name_id_;
-    InstantId instant_id = context_->event_tracker->PushInstant(
-        line.ts, event_name_id, wakee_utid, RefType::kRefUtid);
-    context_->args_tracker->AddArgsTo(instant_id)
+    auto instant = context_->storage->mutable_legacy_instant_table()->Insert(
+        {line.ts, event_name_id, wakee_utid});
+    context_->args_tracker->AddArgsTo(instant.id)
         .AddArg(waker_utid_id_, Variadic::UnsignedInteger(utid));
 
   } else if (line.event_name == "cpu_frequency") {
@@ -252,18 +252,14 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
       return util::Status("sched_blocked_reason: could not parse wakee_pid");
     }
     auto wakee_utid = context_->process_tracker->GetOrCreateThread(*wakee_pid);
-
-    InstantId id = context_->event_tracker->PushInstant(
-        line.ts, sched_blocked_reason_id_, wakee_utid, RefType::kRefUtid,
-        false);
-
-    auto inserter = context_->args_tracker->AddArgsTo(id);
     auto io_wait = base::StringToInt32(args["iowait"]);
     if (!io_wait.has_value()) {
       return util::Status("sched_blocked_reason: could not parse io_wait");
     }
-    inserter.AddArg(io_wait_id_, Variadic::Boolean(*io_wait));
-    context_->args_tracker->Flush();
+    auto instant = context_->storage->mutable_legacy_instant_table()->Insert(
+        {line.ts, sched_blocked_reason_id_, wakee_utid});
+    context_->args_tracker->AddArgsTo(instant.id)
+        .AddArg(io_wait_id_, Variadic::Boolean(*io_wait));
   } else if (line.event_name == "rss_stat") {
     // Format: rss_stat: size=8437760 member=1 curr=1 mm_id=2824390453
     auto size = base::StringToInt64(args["size"]);

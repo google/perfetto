@@ -79,7 +79,6 @@ class FtraceParser {
   void ParseSignalDeliver(int64_t timestamp,
                           uint32_t pid,
                           protozero::ConstBytes);
-  void ParseLowmemoryKill(int64_t timestamp, protozero::ConstBytes);
   void ParseOOMScoreAdjUpdate(int64_t timestamp, protozero::ConstBytes);
   void ParseOOMKill(int64_t timestamp, protozero::ConstBytes);
   void ParseMmEventRecord(int64_t timestamp,
