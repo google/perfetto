@@ -30,8 +30,10 @@ Table::Table(StringPool* pool, const Table* parent) : string_pool_(pool) {
   // empty RowMaps.
   for (uint32_t i = 0; i < parent->row_maps_.size(); ++i)
     row_maps_.emplace_back();
-  for (const Column& col : parent->columns_)
-    columns_.emplace_back(col, this, columns_.size(), col.row_map_idx_);
+  for (const Column& col : parent->columns_) {
+    columns_.emplace_back(col, this, static_cast<uint32_t>(columns_.size()),
+                          col.row_map_idx_);
+  }
 }
 
 Table& Table::operator=(Table&& other) noexcept {
