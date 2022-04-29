@@ -31,7 +31,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-class PERFETTO_COMPONENT_EXPORT GraphProcessor {
+class PERFETTO_EXPORT_COMPONENT GraphProcessor {
  public:
   // This map does not own the pointers inside.
   using RawMemoryNodeMap =

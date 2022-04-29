@@ -31,7 +31,7 @@ namespace internal {
 // being active and the inner scope becomes active instead.
 // - Only an active scope can be destroyed. When this happens, its parent scope
 // becomes active.
-class PERFETTO_COMPONENT_EXPORT CheckedScope {
+class PERFETTO_EXPORT_COMPONENT CheckedScope {
  public:
   explicit CheckedScope(CheckedScope* parent_scope);
   ~CheckedScope();
