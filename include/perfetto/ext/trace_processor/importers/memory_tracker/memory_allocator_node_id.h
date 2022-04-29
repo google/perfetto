@@ -26,7 +26,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-class PERFETTO_EXPORT MemoryAllocatorNodeId {
+class PERFETTO_COMPONENT_EXPORT MemoryAllocatorNodeId {
  public:
   MemoryAllocatorNodeId();
   explicit MemoryAllocatorNodeId(uint64_t id);

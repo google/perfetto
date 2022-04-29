@@ -32,7 +32,7 @@ namespace base {
 // * the UnixTaskRunner will be constructed and destructed on the task thread.
 // * the task thread will live for the lifetime of the UnixTaskRunner.
 //
-class PERFETTO_EXPORT ThreadTaskRunner : public TaskRunner {
+class PERFETTO_COMPONENT_EXPORT ThreadTaskRunner : public TaskRunner {
  public:
   static ThreadTaskRunner CreateAndStart(const std::string& name = "") {
     return ThreadTaskRunner(name);

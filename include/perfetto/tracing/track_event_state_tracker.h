@@ -36,7 +36,7 @@ class TrackEvent_Decoder;
 
 // A helper for keeping track of incremental state when intercepting track
 // events.
-class PERFETTO_EXPORT TrackEventStateTracker {
+class PERFETTO_COMPONENT_EXPORT TrackEventStateTracker {
  public:
   ~TrackEventStateTracker();
 

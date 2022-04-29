@@ -532,7 +532,8 @@ void CppObjGenerator::GenEnumAliases(const EnumDescriptor* enum_desc,
 void CppObjGenerator::GenClassDecl(const Descriptor* msg, Printer* p) const {
   std::string full_name = GetFullName(msg);
   p->Print(
-      "\nclass PERFETTO_EXPORT $n$ : public ::protozero::CppMessageObj {\n",
+      "\nclass PERFETTO_COMPONENT_EXPORT $n$ : public "
+      "::protozero::CppMessageObj {\n",
       "n", full_name);
   p->Print(" public:\n");
   p->Indent();
