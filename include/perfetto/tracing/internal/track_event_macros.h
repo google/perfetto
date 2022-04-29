@@ -79,7 +79,7 @@
   namespace internal {                                   \
   PERFETTO_COMPONENT_EXPORT std::atomic<uint8_t>         \
       g_category_state_storage[kCategoryCount];          \
-  PERFETTO_COMPONENT_EXPORT const ::perfetto::internal:: \
+  PERFETTO_EXPORT_COMPONENT const ::perfetto::internal:: \
       TrackEventCategoryRegistry kCategoryRegistry(      \
           kCategoryCount,                                \
           &kCategories[0],                               \

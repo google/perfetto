@@ -24,24 +24,24 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 #if defined(PERFETTO_IMPLEMENTATION)
-#define PERFETTO_COMPONENT_EXPORT __declspec(dllexport)
+#define PERFETTO_EXPORT_COMPONENT __declspec(dllexport)
 #else
-#define PERFETTO_COMPONENT_EXPORT __declspec(dllimport)
+#define PERFETTO_EXPORT_COMPONENT __declspec(dllimport)
 #endif
 
 #else  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 #if defined(PERFETTO_IMPLEMENTATION)
-#define PERFETTO_COMPONENT_EXPORT __attribute__((visibility("default")))
+#define PERFETTO_EXPORT_COMPONENT __attribute__((visibility("default")))
 #else
-#define PERFETTO_COMPONENT_EXPORT
+#define PERFETTO_EXPORT_COMPONENT
 #endif
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 #else  // !PERFETTO_BUILDFLAG(PERFETTO_COMPONENT_BUILD)
 
-#define PERFETTO_COMPONENT_EXPORT
+#define PERFETTO_EXPORT_COMPONENT
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_COMPONENT_BUILD)
 

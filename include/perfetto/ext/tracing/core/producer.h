@@ -41,7 +41,7 @@ class SharedMemory;
 // This interface is subclassed by:
 //  1. The actual producer code in the clients e.g., the ftrace reader process.
 //  2. The transport layer when interposing RPC between service and producers.
-class PERFETTO_COMPONENT_EXPORT Producer {
+class PERFETTO_EXPORT_COMPONENT Producer {
  public:
   virtual ~Producer();
 
