@@ -367,7 +367,7 @@ export class SelectionController extends Controller<'main'> {
       utid,
       cpu,
       thread_state.id as threadStateId
-    FROM sched join thread_state using(ts, utid, dur, cpu)
+    FROM sched left join thread_state using(ts, utid, cpu)
     WHERE sched.id = ${id}`;
     const result = await this.args.engine.query(sqlQuery);
     // Check selection is still the same on completion of query.
@@ -380,7 +380,7 @@ export class SelectionController extends Controller<'main'> {
         endState: STR,
         utid: NUM,
         cpu: NUM,
-        threadStateId: NUM,
+        threadStateId: NUM_NULL,
       });
       const ts = row.ts;
       const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
@@ -389,7 +389,7 @@ export class SelectionController extends Controller<'main'> {
       const endState = row.endState;
       const utid = row.utid;
       const cpu = row.cpu;
-      const threadStateId = row.threadStateId;
+      const threadStateId = row.threadStateId || undefined;
       const selected: SliceDetails = {
         ts: timeFromStart,
         dur,
