@@ -19,6 +19,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 #include "src/trace_processor/importers/proto/android_probes_tracker.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
@@ -76,7 +77,11 @@ const char* MapToFriendlyPowerRailName(base::StringView raw) {
 using perfetto::protos::pbzero::TracePacket;
 
 AndroidProbesModule::AndroidProbesModule(TraceProcessorContext* context)
-    : parser_(context), context_(context) {
+    : parser_(context),
+      context_(context),
+      power_rail_raw_name_id_(context->storage->InternString("raw_name")),
+      power_rail_subsys_name_arg_id_(
+          context->storage->InternString("subsystem_name")) {
   RegisterForField(TracePacket::kBatteryFieldNumber, context);
   RegisterForField(TracePacket::kPowerRailsFieldNumber, context);
   RegisterForField(TracePacket::kAndroidLogFieldNumber, context);
@@ -115,21 +120,28 @@ ModuleResult AndroidProbesModule::TokenizePacket(
                     idx);
       continue;
     }
-    char counter_name[255];
-    base::StringWriter writer(counter_name, base::ArraySize(counter_name));
+    base::StackString<255> counter_name("overwritten");
     const char* friendly_name = MapToFriendlyPowerRailName(desc.rail_name());
     if (friendly_name) {
-      writer.AppendStringView("power.rails.");
-      writer.AppendStringView(friendly_name);
+      counter_name = base::StackString<255>("power.rails.%s", friendly_name);
     } else {
-      writer.AppendStringView("power.");
-      writer.AppendStringView(desc.rail_name());
-      writer.AppendStringView("_uws");
+      counter_name = base::StackString<255>(
+          "power.%s_uws", desc.rail_name().ToStdString().c_str());
     }
-    AndroidProbesTracker::GetOrCreate(context_)->SetPowerRailNames(
-        desc.index(),
-        {context_->storage->InternString(desc.rail_name()),
-         context_->storage->InternString(writer.GetStringView())});
+    StringId counter_name_id =
+        context_->storage->InternString(counter_name.string_view());
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        counter_name_id, [this, &desc](ArgsTracker::BoundInserter& inserter) {
+          StringId raw_name = context_->storage->InternString(desc.rail_name());
+          inserter.AddArg(power_rail_raw_name_id_, Variadic::String(raw_name));
+
+          StringId subsys_name =
+              context_->storage->InternString(desc.subsys_name());
+          inserter.AddArg(power_rail_subsys_name_arg_id_,
+                          Variadic::String(subsys_name));
+        });
+    AndroidProbesTracker::GetOrCreate(context_)->SetPowerRailTrack(desc.index(),
+                                                                   track);
   }
 
   // For each energy data message, turn it into its own trace packet
