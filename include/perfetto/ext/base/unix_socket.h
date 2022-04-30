@@ -217,7 +217,7 @@ class UnixSocketRaw {
 //                             | (failure or Shutdown())
 //                             V
 //                       OnDisconnect()
-class PERFETTO_EXPORT UnixSocket {
+class PERFETTO_COMPONENT_EXPORT UnixSocket {
  public:
   class EventListener {
    public:

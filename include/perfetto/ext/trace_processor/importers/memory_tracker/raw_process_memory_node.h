@@ -34,7 +34,7 @@ namespace trace_processor {
 
 // ProcessMemoryNode is as a strongly typed container which holds the nodes
 // produced by the MemoryNodeProvider(s) for a specific process.
-class PERFETTO_EXPORT RawProcessMemoryNode {
+class PERFETTO_COMPONENT_EXPORT RawProcessMemoryNode {
  public:
   // Maps allocator nodes absolute names (allocator_name/heap/subheap) to
   // MemoryAllocatorNode instances.

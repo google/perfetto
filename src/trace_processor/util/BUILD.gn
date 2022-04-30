@@ -117,9 +117,6 @@ source_set("unittests") {
     "proto_to_args_parser_unittest.cc",
     "protozero_to_text_unittests.cc",
   ]
-  if (enable_perfetto_zlib) {
-    sources += [ "gzip_utils_unittest.cc" ]
-  }
   testonly = true
   deps = [
     ":descriptors",
@@ -136,4 +133,8 @@ source_set("unittests") {
     "../../protozero:testing_messages_zero",
     "../importers:gen_cc_track_event_descriptor",
   ]
+  if (enable_perfetto_zlib) {
+    sources += [ "gzip_utils_unittest.cc" ]
+    deps += [ "../../../gn:zlib" ]
+  }
 }

@@ -35,7 +35,7 @@ class Producer;
 //   Producer(s) of the tracing library.
 // Implemented in:
 //   src/tracing/ipc/producer/producer_ipc_client_impl.cc
-class PERFETTO_EXPORT ProducerIPCClient {
+class PERFETTO_COMPONENT_EXPORT ProducerIPCClient {
  public:
   enum class ConnectionFlags {
     // Fails immediately with OnConnect(false) if the service connection cannot

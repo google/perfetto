@@ -245,7 +245,8 @@ class MacroTable : public Table {
 // Invokes the chosen column constructor by passing the given args.
 #define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN(type, name, ...)               \
   columns_.emplace_back(#name, &name##_, FlagsForColumn(ColumnIndex::name), \
-                        this, columns_.size(), row_maps_.size() - 1);
+                        this, static_cast<uint32_t>(columns_.size()), \
+                        static_cast<uint32_t>(row_maps_.size()) - 1);
 
 // Inserts the value into the corresponding column.
 #define PERFETTO_TP_COLUMN_APPEND(type, name, ...) \
@@ -363,9 +364,11 @@ class MacroTable : public Table {
       /*                                                                      \
        * Expands to                                                           \
        * columns_.emplace_back("col1", col1_, Column::kNoFlag, this,          \
-       *                        columns_.size(), row_maps_.size() - 1);       \
+       *                       static_cast<uint32_t>(columns_.size()),        \
+       *                       static_cast<uint32_t>(row_maps_.size()) - 1);  \
        * columns_.emplace_back("col2", col2_, Column::kNoFlag, this,          \
-       *                       columns_.size(), row_maps_.size() - 1);        \
+       *                       static_cast<uint32_t>(columns_.size()),        \
+       *                       static_cast<uint32_t>(row_maps_.size()) - 1);  \
        * ...                                                                  \
        */                                                                     \
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN);   \

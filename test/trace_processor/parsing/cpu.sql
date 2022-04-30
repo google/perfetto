@@ -1,5 +1,5 @@
 SELECT
   id,
-  time_in_state_cpu_id,
+  cluster_id,
   processor
 FROM cpu;

@@ -330,6 +330,10 @@ the same table in the same partition *cannot* overlap. For performance
 reasons, span join does not attempt to detect and error out in this situation;
 instead, incorrect rows will silently be produced.
 
+WARNING: Partitions mush be integers. Importantly, string partitions are *not*
+supported; note that strings *can* be converted to integers by
+applying the `HASH` function to the string column.
+
 Left and outer span joins are also supported; both function analogously to
 the left and outer joins from SQL.
 ```sql

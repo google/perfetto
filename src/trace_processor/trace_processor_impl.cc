@@ -189,6 +189,13 @@ void CreateBuiltinTables(sqlite3* db) {
   BuildBoundsTable(db, std::make_pair(0, 0));
 }
 
+void MaybeRegisterError(char* error) {
+  if (error) {
+    PERFETTO_ELOG("Error initializing: %s", error);
+    sqlite3_free(error);
+  }
+}
+
 void CreateBuiltinViews(sqlite3* db) {
   char* error = nullptr;
   sqlite3_exec(db,
@@ -198,10 +205,7 @@ void CreateBuiltinViews(sqlite3* db) {
                "  id AS counter_id "
                "FROM counter_track",
                0, 0, &error);
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
+  MaybeRegisterError(error);
 
   sqlite3_exec(db,
                "CREATE VIEW counter_values AS "
@@ -210,10 +214,7 @@ void CreateBuiltinViews(sqlite3* db) {
                "  track_id as counter_id "
                "FROM counter",
                0, 0, &error);
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
+  MaybeRegisterError(error);
 
   sqlite3_exec(db,
                "CREATE VIEW counters AS "
@@ -223,10 +224,7 @@ void CreateBuiltinViews(sqlite3* db) {
                "ON v.track_id = t.id "
                "ORDER BY ts;",
                0, 0, &error);
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
+  MaybeRegisterError(error);
 
   sqlite3_exec(db,
                "CREATE VIEW slice AS "
@@ -236,23 +234,16 @@ void CreateBuiltinViews(sqlite3* db) {
                "  id AS slice_id "
                "FROM internal_slice;",
                0, 0, &error);
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
+  MaybeRegisterError(error);
 
   sqlite3_exec(db,
-               "CREATE VIEW instants AS "
+               "CREATE VIEW instant AS "
                "SELECT "
-               "*, "
-               "0.0 as value "
-               "FROM instant;",
+               "ts, track_id, name, arg_set_id "
+               "FROM slice "
+               "WHERE dur = 0;",
                0, 0, &error);
-
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
+  MaybeRegisterError(error);
 
   sqlite3_exec(db,
                "CREATE VIEW sched AS "
@@ -261,11 +252,7 @@ void CreateBuiltinViews(sqlite3* db) {
                "ts + dur as ts_end "
                "FROM sched_slice;",
                0, 0, &error);
-
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
+  MaybeRegisterError(error);
 
   // Legacy view for "slice" table with a deprecated table name.
   // TODO(eseckler): Remove this view when all users have switched to "slice".
@@ -273,10 +260,7 @@ void CreateBuiltinViews(sqlite3* db) {
                "CREATE VIEW slices AS "
                "SELECT * FROM slice;",
                0, 0, &error);
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
+  MaybeRegisterError(error);
 
   sqlite3_exec(db,
                "CREATE VIEW thread AS "
@@ -285,10 +269,7 @@ void CreateBuiltinViews(sqlite3* db) {
                "* "
                "FROM internal_thread;",
                0, 0, &error);
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
+  MaybeRegisterError(error);
 
   sqlite3_exec(db,
                "CREATE VIEW process AS "
@@ -297,10 +278,7 @@ void CreateBuiltinViews(sqlite3* db) {
                "* "
                "FROM internal_process;",
                0, 0, &error);
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
+  MaybeRegisterError(error);
 
   // This should be kept in sync with GlobalArgsTracker::AddArgSet.
   sqlite3_exec(db,
@@ -320,10 +298,7 @@ void CreateBuiltinViews(sqlite3* db) {
                "ELSE NULL END AS display_value "
                "FROM internal_args;",
                0, 0, &error);
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
+  MaybeRegisterError(error);
 }
 
 struct ExportJson : public SqlFunction {
@@ -971,7 +946,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->flow_table());
   RegisterDbTable(storage->thread_slice_table());
   RegisterDbTable(storage->sched_slice_table());
-  RegisterDbTable(storage->instant_table());
+  RegisterDbTable(storage->legacy_instant_table());
   RegisterDbTable(storage->gpu_slice_table());
 
   RegisterDbTable(storage->track_table());
