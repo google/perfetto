@@ -22,6 +22,7 @@
 #include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "src/base/test/test_task_runner.h"
+#include "src/tracing/test/mock_producer_endpoint.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -31,29 +32,6 @@ using ::testing::Contains;
 using ::testing::Eq;
 using ::testing::Pair;
 using ::testing::Property;
-
-class MockProducerEndpoint : public TracingService::ProducerEndpoint {
- public:
-  MOCK_METHOD1(UnregisterDataSource, void(const std::string&));
-  MOCK_METHOD1(NotifyFlushComplete, void(FlushRequestID));
-  MOCK_METHOD1(NotifyDataSourceStarted, void(DataSourceInstanceID));
-  MOCK_METHOD1(NotifyDataSourceStopped, void(DataSourceInstanceID));
-
-  MOCK_CONST_METHOD0(shared_memory, SharedMemory*());
-  MOCK_CONST_METHOD0(shared_buffer_page_size_kb, size_t());
-  MOCK_METHOD2(CreateTraceWriter,
-               std::unique_ptr<TraceWriter>(BufferID, BufferExhaustedPolicy));
-  MOCK_METHOD0(MaybeSharedMemoryArbiter, SharedMemoryArbiter*());
-  MOCK_CONST_METHOD0(IsShmemProvidedByProducer, bool());
-  MOCK_METHOD1(ActivateTriggers, void(const std::vector<std::string>&));
-
-  MOCK_METHOD1(RegisterDataSource, void(const DataSourceDescriptor&));
-  MOCK_METHOD1(UpdateDataSource, void(const DataSourceDescriptor&));
-  MOCK_METHOD2(CommitData, void(const CommitDataRequest&, CommitDataCallback));
-  MOCK_METHOD2(RegisterTraceWriter, void(uint32_t, uint32_t));
-  MOCK_METHOD1(UnregisterTraceWriter, void(uint32_t));
-  MOCK_METHOD1(Sync, void(std::function<void()>));
-};
 
 TEST(LogHistogramTest, Simple) {
   LogHistogram h;
