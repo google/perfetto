@@ -114,10 +114,10 @@ using LogMessageCallback = void (*)(LogMessageCallbackArgs);
 
 // This is not thread safe and must be called before using tracing from other
 // threads.
-PERFETTO_COMPONENT_EXPORT void SetLogMessageCallback(
+PERFETTO_EXPORT_COMPONENT void SetLogMessageCallback(
     LogMessageCallback callback);
 
-PERFETTO_COMPONENT_EXPORT void LogMessage(LogLev,
+PERFETTO_EXPORT_COMPONENT void LogMessage(LogLev,
                                           const char* fname,
                                           int line,
                                           const char* fmt,
@@ -126,7 +126,7 @@ PERFETTO_COMPONENT_EXPORT void LogMessage(LogLev,
 // This is defined in debug_crash_stack_trace.cc, but that is only linked in
 // standalone && debug builds, see enable_perfetto_stderr_crash_dump in
 // perfetto.gni.
-PERFETTO_COMPONENT_EXPORT void EnableStacktraceOnCrashForDebug();
+PERFETTO_EXPORT_COMPONENT void EnableStacktraceOnCrashForDebug();
 
 #if PERFETTO_ENABLE_LOG_RING_BUFFER()
 // Gets a snapshot of the logs from the internal log ring buffer and:
@@ -135,7 +135,7 @@ PERFETTO_COMPONENT_EXPORT void EnableStacktraceOnCrashForDebug();
 // - On standalone builds (all otther OSes) prints that on stderr.
 // This function must called only once, right before inducing a crash (This is
 // because android_set_abort_message() can only be called once).
-PERFETTO_COMPONENT_EXPORT void MaybeSerializeLastLogsForCrashReporting();
+PERFETTO_EXPORT_COMPONENT void MaybeSerializeLastLogsForCrashReporting();
 #else
 inline void MaybeSerializeLastLogsForCrashReporting() {}
 #endif

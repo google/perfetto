@@ -138,6 +138,7 @@ source_set("client_api_without_backends") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
+    "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
     "../../protos/perfetto/trace:lite",
     "../../protos/perfetto/trace/track_event:lite",
@@ -146,7 +147,7 @@ perfetto_unittest_source_set("unittests") {
     "test:test_support",
   ]
 
-  sources = [ "internal/interceptor_trace_writer_unittest.cc" ]
+  sources = []
 
   # TODO(primiano): remove the build_with_chromium conditional once the root
   # //BUILD.gn:libperfetto (in chromium) stops adding tracing:platform_fake.
@@ -162,6 +163,7 @@ perfetto_unittest_source_set("unittests") {
     ]
 
     sources += [
+      "internal/interceptor_trace_writer_unittest.cc",
       "traced_proto_unittest.cc",
       "traced_value_unittest.cc",
     ]

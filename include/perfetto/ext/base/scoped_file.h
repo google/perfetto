@@ -91,7 +91,7 @@ class ScopedResource {
 };
 
 // Declared in file_utils.h. Forward declared to avoid #include cycles.
-int PERFETTO_COMPONENT_EXPORT CloseFile(int fd);
+int PERFETTO_EXPORT_COMPONENT CloseFile(int fd);
 
 // Use this for file resources obtained via open() and similar APIs.
 using ScopedFile = ScopedResource<int, CloseFile, -1>;
