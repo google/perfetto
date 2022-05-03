@@ -549,6 +549,20 @@ TEST(PbtxtToPb, BadEnumValue) {
   ToErrors(R"(compression_type: FOO)", &reporter);
 }
 
+TEST(PbtxtToPb, UnexpectedBracket) {
+  MockErrorReporter reporter;
+  EXPECT_CALL(reporter, AddError(1, 0, 0, "Unexpected character '{'"));
+  ToErrors(R"({)", &reporter);
+}
+
+TEST(PbtxtToPb, UnknownNested) {
+  MockErrorReporter reporter;
+  EXPECT_CALL(reporter, AddError(1, 0, 3,
+                                 "No field named \"foo\" in "
+                                 "proto TraceConfig"));
+  ToErrors(R"(foo {}; bar: 42)", &reporter);
+}
+
 // TODO(hjd): Add these tests.
 // TEST(PbtxtToPb, WrongTypeString)
 // TEST(PbtxtToPb, OverflowOnIntegers)
