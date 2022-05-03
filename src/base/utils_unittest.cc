@@ -142,7 +142,7 @@ TEST(UtilsTest, ReadWritePlatformHandle) {
 }
 
 // Fuchsia doesn't currently support sigaction(), see
-// fuchsia.atlassian.net/browse/ZX-560.
+// https://fxbug.dev/30518 .
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
