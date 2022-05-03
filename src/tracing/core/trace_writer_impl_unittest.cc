@@ -153,6 +153,7 @@ class TraceWriterImplTest : public AlignedBufferTest {
           if (!was_fragmenting || packets.empty()) {
             packets.push_back(std::string());
           }
+          was_fragmenting = false;
           if (read_ptr + len > end_read_ptr) {
             ADD_FAILURE() << "Page " << page_idx << " chunk " << chunk_idx
                           << " malformed chunk";
@@ -162,9 +163,8 @@ class TraceWriterImplTest : public AlignedBufferTest {
           read_ptr += len;
         }
         EXPECT_EQ(num_fragments, 0u);
-        if (p.flags & ChunkHeader::kLastPacketContinuesOnNextChunk) {
-          was_fragmenting = true;
-        }
+        was_fragmenting =
+            p.flags & ChunkHeader::kLastPacketContinuesOnNextChunk;
       }
     }
     return packets;
@@ -201,8 +201,43 @@ TEST_P(TraceWriterImplTest, NewTracePacket) {
   ASSERT_THAT(packets, SizeIs(kNumPackets));
   for (size_t i = 0; i < kNumPackets; i++) {
     protos::gen::TracePacket packet;
-    packet.ParseFromString(packets[i]);
+    EXPECT_TRUE(packet.ParseFromString(packets[i]));
     EXPECT_EQ(packet.for_testing().str(), "foobar " + std::to_string(i));
+  }
+}
+
+TEST_P(TraceWriterImplTest, NewTracePacketLargePackets) {
+  const BufferID kBufId = 42;
+  const size_t chunk_size = page_size() / 4;
+  std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(kBufId);
+  {
+    auto packet = writer->NewTracePacket();
+    packet->set_for_testing()->set_str(std::string("PACKET_1") +
+                                       std::string(chunk_size, 'x'));
+  }
+  {
+    auto packet = writer->NewTracePacket();
+    packet->set_for_testing()->set_str(std::string("PACKET_2") +
+                                       std::string(chunk_size, 'x'));
+  }
+
+  // Destroying the TraceWriteImpl should cause the last packet to be finalized
+  // and the chunk to be put back in the kChunkComplete state.
+  writer.reset();
+
+  std::vector<std::string> packets = GetPacketsFromShmemAndPatches();
+  ASSERT_THAT(packets, SizeIs(2));
+  {
+    protos::gen::TracePacket packet;
+    EXPECT_TRUE(packet.ParseFromString(packets[0]));
+    EXPECT_EQ(packet.for_testing().str(),
+              std::string("PACKET_1") + std::string(chunk_size, 'x'));
+  }
+  {
+    protos::gen::TracePacket packet;
+    EXPECT_TRUE(packet.ParseFromString(packets[1]));
+    EXPECT_EQ(packet.for_testing().str(),
+              std::string("PACKET_2") + std::string(chunk_size, 'x'));
   }
 }
 
