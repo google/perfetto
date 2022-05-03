@@ -79,7 +79,7 @@ struct FtraceDataSourceConfig {
 // When you are finished with a config you can signal that with |RemoveConfig|.
 class FtraceConfigMuxer {
  public:
-  // The FtraceConfigMuxer and ProtoTranslationTable
+  // The FtraceProcfs and ProtoTranslationTable
   // should outlive this instance.
   FtraceConfigMuxer(
       FtraceProcfs* ftrace,
