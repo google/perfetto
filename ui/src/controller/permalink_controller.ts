@@ -17,7 +17,10 @@ import {produce} from 'immer';
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {ConversionJobStatus} from '../common/conversion_jobs';
-import {createEmptyState} from '../common/empty_state';
+import {
+  createEmptyNonSerializableState,
+  createEmptyState
+} from '../common/empty_state';
 import {State} from '../common/state';
 import {STATE_VERSION} from '../common/state';
 import {
@@ -110,6 +113,11 @@ export class PermalinkController extends Controller<'main'> {
       console.warn(message);
       PermalinkController.updateStatus(message);
       return newState;
+    } else {
+      // Loaded state is presumed to be compatible with the State type
+      // definition in the app. However, a non-serializable part has to be
+      // recreated.
+      state.nonSerializableState = createEmptyNonSerializableState();
     }
     return state;
   }
