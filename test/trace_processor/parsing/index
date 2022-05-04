@@ -153,3 +153,6 @@ android_multiuser_switch.textproto android_multiuser android_multiuser_switch.ou
 # coming from stderr before the TRACE: marker. See b/208691037.
 ../../data/atrace_uncompressed_b_208691037 sched_smoke.sql atrace_uncompressed_sched_count.out
 otheruuids.textproto android_other_traces otheruuids_android_other_traces.out
+
+# Per-process Binder transaction metrics
+android_binder.py android_binder android_binder.out

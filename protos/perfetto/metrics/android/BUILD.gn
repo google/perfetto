@@ -22,6 +22,7 @@ perfetto_proto_library("@TYPE@") {
   sources = [
     "android_trusty_workqueues.proto",
     "batt_metric.proto",
+    "binder_metric.proto",
     "camera_metric.proto",
     "camera_unagg_metric.proto",
     "cpu_metric.proto",
