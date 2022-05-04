@@ -16,6 +16,9 @@ import {Draft} from 'immer';
 
 import {assertExists, assertTrue} from '../base/logging';
 import {RecordConfig} from '../controller/record_config_types';
+import {globals} from '../frontend/globals';
+import {columnKey} from '../frontend/pivot_table_redux';
+import {TableColumn} from '../frontend/pivot_table_redux_query_generator';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames/common';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/common';
 import {COUNTER_TRACK_KIND} from '../tracks/counter/common';
@@ -51,7 +54,7 @@ import {
   LogsPagination,
   NewEngineMode,
   OmniboxState,
-  PivotTableReduxState,
+  PivotTableReduxResult,
   RecordingTarget,
   SCROLLING_TRACK_GROUP,
   State,
@@ -929,8 +932,15 @@ export const StateActions = {
     }
   },
 
-  togglePivotTableRedux(state: StateDraft, args: {selectionArea: Area|null}) {
-    state.pivotTableRedux.selectionArea = args.selectionArea;
+  togglePivotTableRedux(state: StateDraft, args: {areaId: string|null}) {
+    state.nonSerializableState.pivotTableRedux.selectionArea =
+        args.areaId === null ?
+        null :
+        {areaId: args.areaId, tracks: globals.state.areas[args.areaId].tracks};
+    if (args.areaId !==
+        state.nonSerializableState.pivotTableRedux.selectionArea?.areaId) {
+      state.nonSerializableState.pivotTableRedux.queryResult = null;
+    }
   },
 
   addNewPivotTable(state: StateDraft, args: {
@@ -1009,14 +1019,55 @@ export const StateActions = {
     pivotTable.selectedTrackIds = args.selectedTrackIds;
   },
 
-  setPivotStateReduxState(
-      state: StateDraft, args: {pivotTableState: PivotTableReduxState}) {
-    state.pivotTableRedux = args.pivotTableState;
+  setPivotStateQueryResult(
+      state: StateDraft, args: {queryResult: PivotTableReduxResult|null}) {
+    state.nonSerializableState.pivotTableRedux.queryResult = args.queryResult;
+  },
+
+  setPivotTableReduxConstrainToArea(
+      state: StateDraft, args: {constrain: boolean}) {
+    state.nonSerializableState.pivotTableRedux.constrainToArea = args.constrain;
   },
 
   dismissFlamegraphModal(state: StateDraft, _: {}) {
     state.flamegraphModalDismissed = true;
-  }
+  },
+
+  setPivotTableEditMode(state: StateDraft, args: {editMode: boolean}) {
+    state.nonSerializableState.pivotTableRedux.editMode = args.editMode;
+    if (!args.editMode) {
+      // Switching from edit mode to view mode, need to request query
+      state.nonSerializableState.pivotTableRedux.queryRequested = true;
+    }
+  },
+
+  setPivotTableQueryRequested(
+      state: StateDraft, args: {queryRequested: boolean}) {
+    state.nonSerializableState.pivotTableRedux.queryRequested =
+        args.queryRequested;
+  },
+
+  setPivotTablePivotSelected(
+      state: StateDraft, args: {column: TableColumn, selected: boolean}) {
+    if (args.selected) {
+      state.nonSerializableState.pivotTableRedux.selectedPivotsMap.set(
+          columnKey(args.column), args.column);
+    } else {
+      state.nonSerializableState.pivotTableRedux.selectedPivotsMap.delete(
+          columnKey(args.column));
+    }
+  },
+
+  setPivotTableAggregationSelected(
+      state: StateDraft, args: {column: TableColumn, selected: boolean}) {
+    if (args.selected) {
+      state.nonSerializableState.pivotTableRedux.selectedAggregations.set(
+          columnKey(args.column), args.column);
+    } else {
+      state.nonSerializableState.pivotTableRedux.selectedAggregations.delete(
+          columnKey(args.column));
+    }
+  },
 };
 
 // When we are on the frontend side, we don't really want to execute the

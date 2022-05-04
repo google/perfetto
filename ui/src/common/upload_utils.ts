@@ -36,7 +36,9 @@ export async function saveTrace(trace: File|ArrayBuffer): Promise<string> {
 
 export async function saveState(stateOrConfig: State|
                                 RecordConfig): Promise<string> {
-  const text = JSON.stringify(stateOrConfig);
+  const text = JSON.stringify(stateOrConfig, (key, value) => {
+    return key === 'nonSerializableState' ? undefined : value;
+  });
   const hash = await toSha256(text);
   const url = 'https://www.googleapis.com/upload/storage/v1/b/' +
       `${BUCKET_NAME}/o?uploadType=media` +
