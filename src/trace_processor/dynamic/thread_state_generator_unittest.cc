@@ -89,10 +89,8 @@ class ThreadStateGeneratorUnittest : public testing::Test {
     context_.args_tracker->Flush();
   }
 
-  void RunThreadStateComputation(Ts trace_end_ts = Ts{
-                                     std::numeric_limits<int64_t>::max()}) {
-    unsorted_table_ =
-        thread_state_generator_->ComputeThreadStateTable(trace_end_ts.ts);
+  void RunThreadStateComputation() {
+    unsorted_table_ = thread_state_generator_->ComputeThreadStateTable();
     table_.reset(
         new Table(unsorted_table_->Sort({unsorted_table_->ts().ascending()})));
   }
@@ -293,11 +291,11 @@ TEST_F(ThreadStateGeneratorUnittest, SchedDataLoss) {
   VerifyEndOfThreadState();
 }
 
-TEST_F(ThreadStateGeneratorUnittest, StrechedSchedIgnored) {
+TEST_F(ThreadStateGeneratorUnittest, HandlingNotFinishedSched) {
   ForwardSchedTo(Ts{10});
-  AddSched(Ts{100}, thread_a_, "");
+  AddSched(base::nullopt, thread_a_, "S");
 
-  RunThreadStateComputation(Ts{100});
+  RunThreadStateComputation();
 
   VerifyThreadState(Ts{10}, base::nullopt, thread_a_, kRunning);
 
@@ -306,11 +304,11 @@ TEST_F(ThreadStateGeneratorUnittest, StrechedSchedIgnored) {
 
 TEST_F(ThreadStateGeneratorUnittest, WakingAfterStrechedSched) {
   ForwardSchedTo(Ts{10});
-  AddSched(Ts{100}, thread_a_, "");
+  AddSched(base::nullopt, thread_a_, "");
 
   AddWaking(Ts{15}, thread_a_);
 
-  RunThreadStateComputation(Ts{100});
+  RunThreadStateComputation();
 
   VerifyThreadState(Ts{10}, base::nullopt, thread_a_, kRunning);
   VerifyThreadState(Ts{15}, base::nullopt, thread_a_, "R");

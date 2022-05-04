@@ -42,10 +42,7 @@ base::Status ThreadStateGenerator::ComputeTable(
     const BitVector&,
     std::unique_ptr<Table>& table_return) {
   if (!unsorted_thread_state_table_) {
-    int64_t trace_end_ts =
-        context_->storage->GetTraceTimestampBoundsNs().second;
-
-    unsorted_thread_state_table_ = ComputeThreadStateTable(trace_end_ts);
+    unsorted_thread_state_table_ = ComputeThreadStateTable();
 
     // We explicitly sort by ts here as ComputeThreadStateTable does not insert
     // rows in sorted order but we expect our clients to always want to sort
@@ -62,7 +59,7 @@ base::Status ThreadStateGenerator::ComputeTable(
 }
 
 std::unique_ptr<tables::ThreadStateTable>
-ThreadStateGenerator::ComputeThreadStateTable(int64_t trace_end_ts) {
+ThreadStateGenerator::ComputeThreadStateTable() {
   std::unique_ptr<tables::ThreadStateTable> table(new tables::ThreadStateTable(
       context_->storage->mutable_string_pool(), nullptr));
 
@@ -113,7 +110,7 @@ ThreadStateGenerator::ComputeThreadStateTable(int64_t trace_end_ts) {
     // to process that event.
     int64_t min_ts = std::min({sched_ts, waking_ts, blocked_ts});
     if (min_ts == sched_ts) {
-      AddSchedEvent(sched, sched_idx++, state_map, trace_end_ts, table.get());
+      AddSchedEvent(sched, sched_idx++, state_map, table.get());
     } else if (min_ts == waking_ts) {
       AddWakingEvent(waking, waking_idx++, state_map);
     } else /* (min_ts == blocked_ts) */ {
@@ -135,7 +132,6 @@ ThreadStateGenerator::ComputeThreadStateTable(int64_t trace_end_ts) {
 void ThreadStateGenerator::AddSchedEvent(const Table& sched,
                                          uint32_t sched_idx,
                                          TidInfoMap& state_map,
-                                         int64_t trace_end_ts,
                                          tables::ThreadStateTable* table) {
   int64_t ts = sched.GetTypedColumnByName<int64_t>("ts")[sched_idx];
   UniqueTid utid = sched.GetTypedColumnByName<uint32_t>("utid")[sched_idx];
@@ -171,15 +167,7 @@ void ThreadStateGenerator::AddSchedEvent(const Table& sched,
   // Reset so we don't have any leftover data on the next round.
   *info = {};
 
-  // Undo the expansion of the final sched slice for each CPU to the end of the
-  // trace by setting the duration back to -1. This counteracts the code in
-  // SchedEventTracker::FlushPendingEvents
-  // TODO(lalitm): remove this hack when we stop expanding the last slice to the
-  // end of the trace.
   int64_t dur = sched.GetTypedColumnByName<int64_t>("dur")[sched_idx];
-  if (ts + dur == trace_end_ts) {
-    dur = -1;
-  }
 
   // Now add the sched slice itself as "Running" with the other fields
   // unchanged.
