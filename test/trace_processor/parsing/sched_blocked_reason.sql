@@ -1,5 +1,5 @@
-select ts, tid, EXTRACT_ARG(arg_set_id, 'io_wait') as io_wait
-from legacy_instant
-join thread USING (utid)
-where legacy_instant.name = 'sched_blocked_reason'
+select ts, tid, io_wait
+from thread_state
+join thread using (utid)
+where state = 'D'
 order by ts
