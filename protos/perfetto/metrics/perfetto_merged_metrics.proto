@@ -65,6 +65,22 @@ message AndroidBatteryMetric {
 
 // End of protos/perfetto/metrics/android/batt_metric.proto
 
+// Begin of protos/perfetto/metrics/android/binder_metric.proto
+
+// This metric provides per-process Binder statistics for traces with binder_driver enabled
+// Specifically, transactions are categorized and counted
+message AndroidBinderMetric {
+  message PerProcessBreakdown {
+    optional string process_name = 1;
+    optional uint32 pid = 2;
+    optional string slice_name = 3;
+    optional uint32 count = 4;
+  }
+
+  repeated PerProcessBreakdown process_breakdown = 1;
+}
+// End of protos/perfetto/metrics/android/binder_metric.proto
+
 // Begin of protos/perfetto/metrics/android/camera_metric.proto
 
 message AndroidCameraMetric {
@@ -1524,7 +1540,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 46
+// Next id: 47
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -1646,6 +1662,9 @@ message TraceMetrics {
 
   // Summary of other concurrent trace recording.
   optional AndroidOtherTracesMetric android_other_traces = 45;
+
+  // Per-process Binder transaction metrics.
+  optional AndroidBinderMetric android_binder = 46;
 
   // Demo extensions.
   extensions 450 to 499;
