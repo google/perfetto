@@ -77,10 +77,6 @@ class SchedEventTracker : public Destructible {
                               int32_t prio,
                               StringId comm_id);
 
-  // Called at the end of trace to flush any events which are pending to the
-  // storage.
-  void FlushPendingEvents();
-
  private:
   // Information retained from the preceding sched_switch seen on a given cpu.
   struct PendingSchedInfo {
