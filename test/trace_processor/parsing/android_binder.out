@@ -1,0 +1,20 @@
+android_binder {
+  process_breakdown {
+    process_name: "test_process_a"
+    pid: 1
+    slice_name: "binder transaction"
+    count: 2
+  }
+  process_breakdown {
+    process_name: "test_process_b"
+    pid: 2
+    slice_name: "binder reply"
+    count: 1
+  }
+  process_breakdown {
+    process_name: "test_process_c"
+    pid: 3
+    slice_name: "binder reply"
+    count: 1
+  }
+}

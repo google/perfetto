@@ -18,6 +18,7 @@ sql_files = [
   "trace_metadata.sql",
   "trace_stats.sql",
   "android/android_batt.sql",
+  "android/android_binder.sql",
   "android/android_camera.sql",
   "android/android_camera_unagg.sql",
   "android/android_cpu.sql",
