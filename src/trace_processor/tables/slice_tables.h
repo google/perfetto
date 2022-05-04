@@ -85,9 +85,10 @@ PERFETTO_TP_TABLE(PERFETTO_TP_SCHED_SLICE_TABLE_DEF);
   C(int64_t, dur)                                           \
   C(base::Optional<uint32_t>, cpu)                          \
   C(uint32_t, utid)                                         \
-  C(StringPool::Id, state)                                  \
+  C(base::Optional<StringPool::Id>, state)                  \
   C(base::Optional<uint32_t>, io_wait)                      \
-  C(base::Optional<StringPool::Id>, blocked_function)
+  C(base::Optional<StringPool::Id>, blocked_function)       \
+  C(base::Optional<uint32_t>, waker_utid)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_STATE_TABLE_DEF);
 

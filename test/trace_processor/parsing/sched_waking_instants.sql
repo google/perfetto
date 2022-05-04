@@ -13,8 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-SELECT ts, legacy_instant.name, thread.name, thread.tid
-FROM legacy_instant
+SELECT ts, thread.name, thread.tid
+FROM thread_state
 JOIN thread USING (utid)
-WHERE legacy_instant.name = 'sched_waking'
+WHERE state = 'R'
 ORDER BY ts

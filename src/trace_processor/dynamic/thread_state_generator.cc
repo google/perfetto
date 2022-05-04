@@ -209,7 +209,6 @@ void ThreadStateGenerator::AddSchedEvent(const Table& sched,
 void ThreadStateGenerator::AddWakingEvent(const Table& waking,
                                           uint32_t waking_idx,
                                           TidInfoMap& state_map) {
-  int64_t ts = waking.GetTypedColumnByName<int64_t>("ts")[waking_idx];
   UniqueTid utid = waking.GetTypedColumnByName<uint32_t>("utid")[waking_idx];
   ThreadSchedInfo* info = &state_map[utid];
 
@@ -236,6 +235,7 @@ void ThreadStateGenerator::AddWakingEvent(const Table& waking,
 
   // Case 1 described above. In this situation, we should drop the waking
   // entirely.
+  int64_t ts = waking.GetTypedColumnByName<int64_t>("ts")[waking_idx];
   if (info->desched_ts && *info->desched_ts > ts) {
     return;
   }
@@ -245,6 +245,19 @@ void ThreadStateGenerator::AddWakingEvent(const Table& waking,
   // already not set because we could have data-loss which leads to us getting
   // back to back waking for a single thread.
   info->runnable_ts = ts;
+
+  // We can't do anything better than ignoring any errors here.
+  // TODO(b/229983659): expose error messages properly once we move to real
+  // time.
+  base::Optional<Variadic> opt_value;
+  ArgSetId arg_set_id =
+      waking.GetTypedColumnByName<ArgSetId>("arg_set_id")[waking_idx];
+  base::Status status =
+      context_->storage->ExtractArg(arg_set_id, "waker_utid", &opt_value);
+  if (status.ok() && opt_value) {
+    PERFETTO_CHECK(opt_value->type == Variadic::Type::kUint);
+    info->runnable_waker_utid = static_cast<UniqueTid>(opt_value->uint_value);
+  }
 }
 
 Table::Schema ThreadStateGenerator::CreateSchema() {
@@ -298,6 +311,7 @@ void ThreadStateGenerator::FlushPendingEventsForThread(
     row.dur = end_ts ? *end_ts - row.ts : -1;
     row.state = runnable_string_id_;
     row.utid = utid;
+    row.waker_utid = info.runnable_waker_utid;
     table->Insert(row);
   }
 }
@@ -318,7 +332,8 @@ void ThreadStateGenerator::AddBlockedReasonEvent(const Table& blocked_reason,
       context_->storage->ExtractArg(arg_set_id, "io_wait", &opt_value);
 
   // We can't do anything better than ignoring any errors here.
-  // TODO(lalitm): see if there's a better way to handle this.
+  // TODO(b/229983659): expose error messages properly once we move to real
+  // time.
   if (status.ok() && opt_value) {
     PERFETTO_CHECK(opt_value->type == Variadic::Type::kBool);
     info.io_wait = opt_value->bool_value;
