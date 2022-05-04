@@ -690,6 +690,19 @@ TEST_F(ProtozeroToTextTestMessageTest, ExtraBytes) {
 })");
 }
 
+TEST_F(ProtozeroToTextTestMessageTest, NonExistingType) {
+  protozero::HeapBuffered<EveryField> msg;
+  msg->set_field_string("hello");
+  ASSERT_EQ(EveryField::kFieldStringFieldNumber, 500);
+
+  // "protoc --decode", instead:
+  // * doesn't output anything.
+  // * returns an error on stderr.
+  EXPECT_EQ(ProtozeroToText(pool_, ".non.existing.type", msg.SerializeAsArray(),
+                            kIncludeNewLines),
+            R"(500: "hello")");
+}
+
 }  // namespace
 }  // namespace protozero_to_text
 }  // namespace trace_processor

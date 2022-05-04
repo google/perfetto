@@ -360,9 +360,9 @@ void ProtozeroToTextInternal(const std::string& type,
                              const DescriptorPool& pool,
                              std::string* indents,
                              std::string* output) {
-  auto opt_proto_descriptor_idx = pool.FindDescriptorIdx(type);
-  PERFETTO_DCHECK(opt_proto_descriptor_idx);
-  auto& proto_descriptor = pool.descriptors()[*opt_proto_descriptor_idx];
+  base::Optional<uint32_t> opt_proto_desc_idx = pool.FindDescriptorIdx(type);
+  const ProtoDescriptor* opt_proto_descriptor =
+      opt_proto_desc_idx ? &pool.descriptors()[*opt_proto_desc_idx] : nullptr;
   const bool include_new_lines = new_lines_mode == kIncludeNewLines;
 
   protozero::ProtoDecoder decoder(protobytes.data, protobytes.size);
@@ -377,7 +377,9 @@ void ProtozeroToTextInternal(const std::string& type,
     } else {
       StrAppend(output, *indents);
     }
-    auto* opt_field_descriptor = proto_descriptor.FindFieldByTag(field.id());
+    auto* opt_field_descriptor =
+        opt_proto_descriptor ? opt_proto_descriptor->FindFieldByTag(field.id())
+                             : nullptr;
     switch (field.type()) {
       case ProtoWireType::kVarInt:
         PrintVarIntField(opt_field_descriptor, field, pool, output);
