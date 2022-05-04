@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
-import {GenericSet} from '../base/generic_set';
-import {Area, PivotTableReduxQuery} from '../common/state';
+import {
+  Area,
+  PivotTableReduxQuery,
+  PivotTableReduxState
+} from '../common/state';
 import {toNs} from '../common/time';
 import {
   getSelectedTrackIds
 } from '../controller/aggregation/slice_aggregation_controller';
+import {globals} from './globals';
 
 export interface Table {
   name: string;
@@ -64,10 +68,6 @@ export const tables: Table[] = [
 
 // Pair of table name and column name.
 export type TableColumn = [string, string];
-
-export function createColumnSet(): GenericSet<TableColumn> {
-  return new GenericSet((column: TableColumn) => `${column[0]}.${column[1]}`);
-}
 
 // Exception thrown by query generator in case incoming parameters are not
 // suitable in order to build a correct query; these are caught by the UI and
@@ -115,10 +115,10 @@ function generateInnerQuery(
 }
 
 function computeSliceTableAggregations(
-    selectedAggregations: GenericSet<TableColumn>):
+    selectedAggregations: Map<string, TableColumn>):
     {tableName: string, flatAggregations: string[]} {
   let hasThreadSliceColumn = false;
-  const allColumns = [];
+  const allColumns: string[] = [];
   for (const [table, column] of selectedAggregations.values()) {
     if (table === 'thread_slice') {
       hasThreadSliceColumn = true;
@@ -144,9 +144,22 @@ export function aggregationIndex(
       (pivotColumns - depth);
 }
 
+export function generateQueryFromState(
+    state: PivotTableReduxState,
+    ): PivotTableReduxQuery {
+  if (state.selectionArea === null) {
+    throw new QueryGeneratorError('Should not be called without area');
+  }
+  return generateQuery(
+      state.selectedPivotsMap,
+      state.selectedAggregations,
+      globals.state.areas[state.selectionArea.areaId],
+      state.constrainToArea);
+}
+
 export function generateQuery(
-    selectedPivots: GenericSet<TableColumn>,
-    selectedAggregations: GenericSet<TableColumn>,
+    selectedPivots: Map<string, TableColumn>,
+    selectedAggregations: Map<string, TableColumn>,
     area: Area,
     constrainToArea: boolean): PivotTableReduxQuery {
   const sliceTableAggregations =
