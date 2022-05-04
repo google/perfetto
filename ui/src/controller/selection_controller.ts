@@ -377,7 +377,7 @@ export class SelectionController extends Controller<'main'> {
         ts: NUM,
         dur: NUM,
         priority: NUM,
-        endState: STR,
+        endState: STR_NULL,
         utid: NUM,
         cpu: NUM,
         threadStateId: NUM_NULL,
