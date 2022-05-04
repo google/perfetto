@@ -56,6 +56,7 @@ class ThreadStateGenerator : public DbSqliteTable::DynamicTableGenerator {
     base::Optional<bool> io_wait;
     base::Optional<int64_t> runnable_ts;
     base::Optional<StringId> blocked_function;
+    base::Optional<UniqueTid> runnable_waker_utid;
   };
   using TidInfoMap = base::FlatHashMap<UniqueTid,
                                        ThreadSchedInfo,
