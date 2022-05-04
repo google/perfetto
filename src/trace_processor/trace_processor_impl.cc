@@ -1023,7 +1023,6 @@ void TraceProcessorImpl::NotifyEndOfFile() {
 
   TraceProcessorStorageImpl::NotifyEndOfFile();
 
-  SchedEventTracker::GetOrCreate(&context_)->FlushPendingEvents();
   context_.metadata_tracker->SetMetadata(
       metadata::trace_size_bytes,
       Variadic::Integer(static_cast<int64_t>(bytes_parsed_)));
