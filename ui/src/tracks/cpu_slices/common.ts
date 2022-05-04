@@ -22,6 +22,8 @@ export interface Data extends TrackData {
   starts: Float64Array;
   ends: Float64Array;
   utids: Uint32Array;
+  isIncomplete: Uint8Array;
+  lastRowId: number;
 }
 
 export interface Config { cpu: number; }

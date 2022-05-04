@@ -26,5 +26,6 @@ from
       from sched join thread using(utid)
       group by upid
     ) using(upid)
+where total_dur != -1
 group by utid, upid
 order by total_dur desc, pid, tid
