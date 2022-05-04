@@ -14,8 +14,8 @@
 -- limitations under the License.
 --
 SELECT ts, tid
-FROM legacy_instant
+FROM thread_state
 JOIN thread USING (utid)
-WHERE legacy_instant.name = 'sched_wakeup'
+WHERE state = 'R'
 ORDER BY ts
 LIMIT 20
