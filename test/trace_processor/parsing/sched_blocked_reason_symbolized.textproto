@@ -2,7 +2,29 @@ packet {
   ftrace_events {
     cpu: 1
     event {
+      timestamp: 50
+      pid: 0
+      sched_switch {
+        prev_comm: "swapper/1"
+        prev_pid: 0
+        prev_state: 2
+        next_comm: "100"
+        next_pid: 100
+      }
+    }
+    event {
       timestamp: 1000000
+      pid: 100
+      sched_switch {
+        prev_comm: "100"
+        prev_pid: 100
+        prev_state: 2
+        next_comm: "101"
+        next_pid: 101
+      }
+    }
+    event {
+      timestamp: 1000010
       pid: 0
       sched_blocked_reason {
         pid: 100
@@ -12,6 +34,17 @@ packet {
     }
     event {
       timestamp: 1001000
+      pid: 101
+      sched_switch {
+        prev_comm: "101"
+        prev_pid: 101
+        prev_state: 2
+        next_comm: "100"
+        next_pid: 100
+      }
+    }
+    event {
+      timestamp: 1001010
       pid: 0
       sched_blocked_reason {
         pid: 101
@@ -35,7 +68,29 @@ packet {
   ftrace_events {
     cpu: 2
     event {
+      timestamp: 60
+      pid: 0
+      sched_switch {
+        prev_comm: "swapper/2"
+        prev_pid: 0
+        prev_state: 2
+        next_comm: "102"
+        next_pid: 102
+      }
+    }
+    event {
       timestamp: 999000
+      pid: 102
+      sched_switch {
+        prev_comm: "102"
+        prev_pid: 102
+        prev_state: 2
+        next_comm: "103"
+        next_pid: 103
+      }
+    }
+    event {
+      timestamp: 999010
       pid: 0
       sched_blocked_reason {
         pid: 102
@@ -45,6 +100,17 @@ packet {
     }
     event {
       timestamp: 1002000
+      pid: 103
+      sched_switch {
+        prev_comm: "103"
+        prev_pid: 103
+        prev_state: 2
+        next_comm: "104"
+        next_pid: 104
+      }
+    }
+    event {
+      timestamp: 1002010
       pid: 0
       sched_blocked_reason {
         pid: 103
@@ -54,6 +120,17 @@ packet {
     }
     event {
       timestamp: 1005000
+      pid: 102
+      sched_switch {
+        prev_comm: "104"
+        prev_pid: 104
+        prev_state: 2
+        next_comm: "swapper/2"
+        next_pid: 0
+      }
+    }
+    event {
+      timestamp: 1005010
       pid: 0
       sched_blocked_reason {
         pid: 104
@@ -68,6 +145,28 @@ packet {
 packet {
   ftrace_events {
     cpu: 3
+    event {
+      timestamp: 60
+      pid: 0
+      sched_switch {
+        prev_comm: "swapper/2"
+        prev_pid: 0
+        prev_state: 2
+        next_comm: "105"
+        next_pid: 105
+      }
+    }
+    event {
+      timestamp: 999000
+      pid: 105
+      sched_switch {
+        prev_comm: "105"
+        prev_pid: 105
+        prev_state: 2
+        next_comm: "swapper/3"
+        next_pid: 0
+      }
+    }
     event {
       timestamp: 999000
       pid: 0
@@ -92,6 +191,17 @@ packet {
     cpu: 1
     event {
       timestamp: 1003000
+      pid: 100
+      sched_switch {
+        prev_comm: "100"
+        prev_pid: 100
+        prev_state: 2
+        next_comm: "swapper/1"
+        next_pid: 0
+      }
+    }
+    event {
+      timestamp: 1003010
       pid: 0
       sched_blocked_reason {
         pid: 100
