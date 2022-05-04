@@ -161,6 +161,11 @@ def main():
     index_file.write('{} {} {}\n'.format(trace_file, sql_file_or_metric,
                                          out_file))
 
+  index_rel_path = os.path.join(chosen_folder_path_rel_root, 'index')
+  print()
+  print(f'Please modify the index file at {index_rel_path} by adding a '
+        f'comment and grouping with related tests')
+
   return 0
 
 
