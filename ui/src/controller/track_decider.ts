@@ -50,6 +50,13 @@ import {
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state/common';
 
+const NULL_TRACKS_FLAG = featureFlags.register({
+  id: 'nullTracks',
+  name: 'Null tracks',
+  description: 'Display some empty tracks.',
+  defaultValue: false,
+});
+
 const TRACKS_V2_FLAG = featureFlags.register({
   id: 'tracksV2',
   name: 'Tracks V2',
@@ -137,6 +144,26 @@ class TrackDecider {
       return `Unnamed ${kind}`;
     }
     return 'Unknown';
+  }
+
+  addNullTracks(): void {
+    this.tracksToAdd.push({
+      engineId: this.engineId,
+      kind: 'NullTrack',
+      trackKindPriority: TrackKindPriority.ORDINARY,
+      name: `Null track foo`,
+      trackGroup: SCROLLING_TRACK_GROUP,
+      config: {},
+    });
+
+    this.tracksToAdd.push({
+      engineId: this.engineId,
+      kind: 'NullTrack',
+      trackKindPriority: TrackKindPriority.ORDINARY,
+      name: `Null track bar`,
+      trackGroup: SCROLLING_TRACK_GROUP,
+      config: {},
+    });
   }
 
   async addCpuSchedulingTracks(): Promise<void> {
@@ -1201,6 +1228,9 @@ class TrackDecider {
 
   async decideTracks(): Promise<DeferredAction[]> {
     // Add first the global tracks that don't require per-process track groups.
+    if (NULL_TRACKS_FLAG.get()) {
+      await this.addNullTracks();
+    }
     await this.addCpuSchedulingTracks();
     await this.addCpuFreqTracks();
     await this.addGlobalAsyncTracks();
