@@ -51,7 +51,7 @@ class BitVector {
   explicit BitVector(std::initializer_list<bool> init);
 
   // Creates a bitvector of |count| size filled with |value|.
-  BitVector(uint32_t count, bool value = false);
+  explicit BitVector(uint32_t count, bool value = false);
 
   // Enable moving bitvectors as they have no unmovable state.
   BitVector(BitVector&&) noexcept = default;
