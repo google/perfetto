@@ -134,10 +134,7 @@ class HeapGraphTracker : public Destructible {
   }
 
   const std::vector<int64_t>* RowsForField(StringPool::Id field_name) const {
-    auto it = field_to_rows_.find(field_name);
-    if (it == field_to_rows_.end())
-      return nullptr;
-    return &it->second;
+    return field_to_rows_.Find(field_name);
   }
 
   std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildFlamegraph(
@@ -168,13 +165,26 @@ class HeapGraphTracker : public Destructible {
     int64_t current_ts = 0;
     uint64_t last_object_id = 0;
     std::vector<SourceRoot> current_roots;
+
+    // Note: the below maps are a mix of std::map and base::FlatHashMap because
+    // of the incremental evolution of this code (i.e. when the code was written
+    // FlatHashMap did not exist and pieces were migrated as they were found to
+    // be performance problems).
+    //
+    // In the future, likely all of these should be base::FlatHashMap. This
+    // was not done when the first use of base::FlatHashMap happened because
+    // there are some subtle cases where base::FlatHashMap *regresses* perf and
+    // there was not time for investigation.
+
     std::map<uint64_t, InternedType> interned_types;
     std::map<uint64_t, StringPool::Id> interned_location_names;
-    std::map<uint64_t, tables::HeapGraphObjectTable::Id> object_id_to_db_id;
-    std::map<uint64_t, tables::HeapGraphClassTable::Id> type_id_to_db_id;
+    base::FlatHashMap<uint64_t, tables::HeapGraphObjectTable::Id>
+        object_id_to_db_id;
+    base::FlatHashMap<uint64_t, tables::HeapGraphClassTable::Id>
+        type_id_to_db_id;
     std::map<uint64_t, std::vector<tables::HeapGraphReferenceTable::Id>>
         references_for_field_name_id;
-    std::map<uint64_t, InternedField> interned_fields;
+    base::FlatHashMap<uint64_t, InternedField> interned_fields;
     std::map<tables::HeapGraphClassTable::Id,
              std::vector<tables::HeapGraphObjectTable::Id>>
         deferred_reference_objects_for_type_;
@@ -222,7 +232,7 @@ class HeapGraphTracker : public Destructible {
   std::map<std::pair<base::Optional<StringPool::Id>, StringPool::Id>,
            std::vector<tables::HeapGraphClassTable::Id>>
       class_to_rows_;
-  std::map<StringPool::Id, std::vector<int64_t>> field_to_rows_;
+  base::FlatHashMap<StringPool::Id, std::vector<int64_t>> field_to_rows_;
 
   std::map<std::pair<base::Optional<StringPool::Id>, StringPool::Id>,
            StringPool::Id>
