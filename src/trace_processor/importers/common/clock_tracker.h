@@ -28,7 +28,6 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
-#include "perfetto/ext/base/string_utils.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -186,16 +185,6 @@ class ClockTracker {
       return timestamp;
     return Convert(clock_id, timestamp, trace_time_clock_id_);
   }
-
-  base::Optional<int64_t> FromTraceTime(ClockId to_clock_id,
-                                        int64_t timestamp) {
-    trace_time_clock_id_used_for_conversion_ = true;
-    if (to_clock_id == trace_time_clock_id_)
-      return timestamp;
-    return Convert(trace_time_clock_id_, timestamp, to_clock_id);
-  }
-
-  base::Optional<std::string> FromTraceTimeAsISO8601(int64_t timestamp);
 
   void SetTraceTimeClock(ClockId clock_id) {
     PERFETTO_DCHECK(!IsReservedSeqScopedClockId(clock_id));
