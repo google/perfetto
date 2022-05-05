@@ -946,7 +946,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->flow_table());
   RegisterDbTable(storage->thread_slice_table());
   RegisterDbTable(storage->sched_slice_table());
-  RegisterDbTable(storage->legacy_instant_table());
   RegisterDbTable(storage->gpu_slice_table());
 
   RegisterDbTable(storage->track_table());
@@ -1024,7 +1023,6 @@ void TraceProcessorImpl::NotifyEndOfFile() {
 
   TraceProcessorStorageImpl::NotifyEndOfFile();
 
-  SchedEventTracker::GetOrCreate(&context_)->FlushPendingEvents();
   context_.metadata_tracker->SetMetadata(
       metadata::trace_size_bytes,
       Variadic::Integer(static_cast<int64_t>(bytes_parsed_)));

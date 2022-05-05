@@ -42,10 +42,7 @@ base::Status ThreadStateGenerator::ComputeTable(
     const BitVector&,
     std::unique_ptr<Table>& table_return) {
   if (!unsorted_thread_state_table_) {
-    int64_t trace_end_ts =
-        context_->storage->GetTraceTimestampBoundsNs().second;
-
-    unsorted_thread_state_table_ = ComputeThreadStateTable(trace_end_ts);
+    unsorted_thread_state_table_ = ComputeThreadStateTable();
 
     // We explicitly sort by ts here as ComputeThreadStateTable does not insert
     // rows in sorted order but we expect our clients to always want to sort
@@ -62,7 +59,7 @@ base::Status ThreadStateGenerator::ComputeTable(
 }
 
 std::unique_ptr<tables::ThreadStateTable>
-ThreadStateGenerator::ComputeThreadStateTable(int64_t trace_end_ts) {
+ThreadStateGenerator::ComputeThreadStateTable() {
   std::unique_ptr<tables::ThreadStateTable> table(new tables::ThreadStateTable(
       context_->storage->mutable_string_pool(), nullptr));
 
@@ -113,7 +110,7 @@ ThreadStateGenerator::ComputeThreadStateTable(int64_t trace_end_ts) {
     // to process that event.
     int64_t min_ts = std::min({sched_ts, waking_ts, blocked_ts});
     if (min_ts == sched_ts) {
-      AddSchedEvent(sched, sched_idx++, state_map, trace_end_ts, table.get());
+      AddSchedEvent(sched, sched_idx++, state_map, table.get());
     } else if (min_ts == waking_ts) {
       AddWakingEvent(waking, waking_idx++, state_map);
     } else /* (min_ts == blocked_ts) */ {
@@ -135,7 +132,6 @@ ThreadStateGenerator::ComputeThreadStateTable(int64_t trace_end_ts) {
 void ThreadStateGenerator::AddSchedEvent(const Table& sched,
                                          uint32_t sched_idx,
                                          TidInfoMap& state_map,
-                                         int64_t trace_end_ts,
                                          tables::ThreadStateTable* table) {
   int64_t ts = sched.GetTypedColumnByName<int64_t>("ts")[sched_idx];
   UniqueTid utid = sched.GetTypedColumnByName<uint32_t>("utid")[sched_idx];
@@ -171,15 +167,7 @@ void ThreadStateGenerator::AddSchedEvent(const Table& sched,
   // Reset so we don't have any leftover data on the next round.
   *info = {};
 
-  // Undo the expansion of the final sched slice for each CPU to the end of the
-  // trace by setting the duration back to -1. This counteracts the code in
-  // SchedEventTracker::FlushPendingEvents
-  // TODO(lalitm): remove this hack when we stop expanding the last slice to the
-  // end of the trace.
   int64_t dur = sched.GetTypedColumnByName<int64_t>("dur")[sched_idx];
-  if (ts + dur == trace_end_ts) {
-    dur = -1;
-  }
 
   // Now add the sched slice itself as "Running" with the other fields
   // unchanged.
@@ -209,7 +197,6 @@ void ThreadStateGenerator::AddSchedEvent(const Table& sched,
 void ThreadStateGenerator::AddWakingEvent(const Table& waking,
                                           uint32_t waking_idx,
                                           TidInfoMap& state_map) {
-  int64_t ts = waking.GetTypedColumnByName<int64_t>("ts")[waking_idx];
   UniqueTid utid = waking.GetTypedColumnByName<uint32_t>("utid")[waking_idx];
   ThreadSchedInfo* info = &state_map[utid];
 
@@ -236,6 +223,7 @@ void ThreadStateGenerator::AddWakingEvent(const Table& waking,
 
   // Case 1 described above. In this situation, we should drop the waking
   // entirely.
+  int64_t ts = waking.GetTypedColumnByName<int64_t>("ts")[waking_idx];
   if (info->desched_ts && *info->desched_ts > ts) {
     return;
   }
@@ -245,6 +233,19 @@ void ThreadStateGenerator::AddWakingEvent(const Table& waking,
   // already not set because we could have data-loss which leads to us getting
   // back to back waking for a single thread.
   info->runnable_ts = ts;
+
+  // We can't do anything better than ignoring any errors here.
+  // TODO(b/229983659): expose error messages properly once we move to real
+  // time.
+  base::Optional<Variadic> opt_value;
+  ArgSetId arg_set_id =
+      waking.GetTypedColumnByName<ArgSetId>("arg_set_id")[waking_idx];
+  base::Status status =
+      context_->storage->ExtractArg(arg_set_id, "waker_utid", &opt_value);
+  if (status.ok() && opt_value) {
+    PERFETTO_CHECK(opt_value->type == Variadic::Type::kUint);
+    info->runnable_waker_utid = static_cast<UniqueTid>(opt_value->uint_value);
+  }
 }
 
 Table::Schema ThreadStateGenerator::CreateSchema() {
@@ -298,6 +299,7 @@ void ThreadStateGenerator::FlushPendingEventsForThread(
     row.dur = end_ts ? *end_ts - row.ts : -1;
     row.state = runnable_string_id_;
     row.utid = utid;
+    row.waker_utid = info.runnable_waker_utid;
     table->Insert(row);
   }
 }
@@ -318,7 +320,8 @@ void ThreadStateGenerator::AddBlockedReasonEvent(const Table& blocked_reason,
       context_->storage->ExtractArg(arg_set_id, "io_wait", &opt_value);
 
   // We can't do anything better than ignoring any errors here.
-  // TODO(lalitm): see if there's a better way to handle this.
+  // TODO(b/229983659): expose error messages properly once we move to real
+  // time.
   if (status.ok() && opt_value) {
     PERFETTO_CHECK(opt_value->type == Variadic::Type::kBool);
     info.io_wait = opt_value->bool_value;

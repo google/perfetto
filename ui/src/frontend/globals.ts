@@ -47,7 +47,7 @@ export interface SliceDetails {
   threadTs?: number;
   threadDur?: number;
   priority?: number;
-  endState?: string;
+  endState?: string|null;
   cpu?: number;
   id?: number;
   threadStateId?: number;

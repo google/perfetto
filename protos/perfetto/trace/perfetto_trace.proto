@@ -659,12 +659,11 @@ message ProcessStatsConfig {
   // multiple.
   optional uint32 proc_stats_cache_ttl_ms = 6;
 
-  // Whether to record /proc/tid/time_in_state.
-  optional bool record_thread_time_in_state = 7;
+  // DEPRECATED record_thread_time_in_state
+  reserved 7;
 
-  // Size of the cache for thread time_in_state cpu freq values.
-  // If not specificed, the default is used.
-  optional uint32 thread_time_in_state_cache_size = 8;
+  // DEPRECATED thread_time_in_state_cache_size
+  reserved 8;
 }
 
 // End of protos/perfetto/config/process_stats/process_stats_config.proto
@@ -9241,17 +9240,14 @@ message ProcessStats {
   message Thread {
     optional int32 tid = 1;
 
-    // Pairs of frequency (represented as a (1-based) index to CpuInfo
-    // frequencies) and time at that frequency (represented as a number of
-    // ticks, see SystemInfo for the HZ (ticks / second) value to convert this
-    // to time). Frequencies with zero ticks are never uploaded. Read from
-    // /proc/tid/time_in_state.
-    repeated uint32 cpu_freq_indices = 2;
-    repeated uint64 cpu_freq_ticks = 3;
-    // Whether all frequencies with non-zero ticks are present in
-    // `cpu_freq_indices`. This marker is used to detect packets that describe
-    // time_in_state exhaustively.
-    optional bool cpu_freq_full = 4;
+    // DEPRECATED cpu_freq_indices
+    reserved 2;
+
+    // DEPRECATED cpu_freq_ticks
+    reserved 3;
+
+    // DEPRECATED cpu_freq_full
+    reserved 4;
   }
 
   message Process {

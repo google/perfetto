@@ -15,7 +15,11 @@
 import {search, searchEq, searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
-import {cropText, drawDoubleHeadedArrow} from '../../common/canvas_utils';
+import {
+  cropText,
+  drawDoubleHeadedArrow,
+  drawIncompleteSlice
+} from '../../common/canvas_utils';
 import {colorForThread} from '../../common/colorizer';
 import {timeToString} from '../../common/time';
 import {checkerboardExcept} from '../../frontend/checkerboard';
@@ -88,9 +92,15 @@ class CpuSliceTrack extends Track<Config, Data> {
 
     for (let i = startIdx; i < endIdx; i++) {
       const tStart = data.starts[i];
-      const tEnd = data.ends[i];
+      let tEnd = data.ends[i];
       const utid = data.utids[i];
 
+      // If the last slice is incomplete, it should end with the end of the
+      // window, else it might spill over the window and the end would not be
+      // visible as a zigzag line.
+      if (data.ids[i] === data.lastRowId && data.isIncomplete[i]) {
+        tEnd = visibleWindowTime.end;
+      }
       const rectStart = timeScale.timeToPx(tStart);
       const rectEnd = timeScale.timeToPx(tEnd);
       const rectWidth = Math.max(1, rectEnd - rectStart);
@@ -115,7 +125,11 @@ class CpuSliceTrack extends Track<Config, Data> {
         color.s -= 20;
       }
       ctx.fillStyle = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
-      ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
+      if (data.isIncomplete[i]) {
+        drawIncompleteSlice(ctx, rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
+      } else {
+        ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
+      }
 
       // Don't render text when we have less than 5px to play with.
       if (rectWidth < 5) continue;

@@ -45,8 +45,7 @@ class ThreadStateGenerator : public DbSqliteTable::DynamicTableGenerator {
                             std::unique_ptr<Table>& table_return) override;
 
   // Visible for testing.
-  std::unique_ptr<tables::ThreadStateTable> ComputeThreadStateTable(
-      int64_t trace_end_ts);
+  std::unique_ptr<tables::ThreadStateTable> ComputeThreadStateTable();
 
  private:
   struct ThreadSchedInfo {
@@ -56,6 +55,7 @@ class ThreadStateGenerator : public DbSqliteTable::DynamicTableGenerator {
     base::Optional<bool> io_wait;
     base::Optional<int64_t> runnable_ts;
     base::Optional<StringId> blocked_function;
+    base::Optional<UniqueTid> runnable_waker_utid;
   };
   using TidInfoMap = base::FlatHashMap<UniqueTid,
                                        ThreadSchedInfo,
@@ -66,7 +66,6 @@ class ThreadStateGenerator : public DbSqliteTable::DynamicTableGenerator {
   void AddSchedEvent(const Table& sched,
                      uint32_t sched_idx,
                      TidInfoMap& state_map,
-                     int64_t trace_end_ts,
                      tables::ThreadStateTable* table);
 
   void AddWakingEvent(const Table& wakeup,

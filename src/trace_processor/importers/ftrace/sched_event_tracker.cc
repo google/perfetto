@@ -229,10 +229,11 @@ uint32_t SchedEventTracker::AddRawEventAndStartSlice(uint32_t cpu,
   }
 
   // Open a new scheduling slice, corresponding to the task that was
-  // just switched to.
+  // just switched to. Set the duration to -1, to indicate that the event is not
+  // finished. Duration will be updated later after event finish.
   auto* sched = context_->storage->mutable_sched_slice_table();
   auto row_and_id = sched->Insert(
-      {ts, 0 /* duration */, cpu, next_utid, kNullStringId, next_prio});
+      {ts, /* duration */ -1, cpu, next_utid, kNullStringId, next_prio});
   SchedId sched_id = row_and_id.id;
   return *sched->id().IndexOf(sched_id);
 }
@@ -323,32 +324,6 @@ void SchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
       instants->Insert({ts, sched_waking_id_, wakee_utid}).id;
   context_->args_tracker->AddArgsTo(id).AddArg(
       waker_utid_id_, Variadic::UnsignedInteger(curr_utid));
-}
-
-void SchedEventTracker::FlushPendingEvents() {
-  // TODO(lalitm): the day this method is called before end of trace, don't
-  // flush the sched events as they will probably be pushed in the next round
-  // of ftrace events.
-  int64_t end_ts = context_->storage->GetTraceTimestampBoundsNs().second;
-  auto* slices = context_->storage->mutable_sched_slice_table();
-  for (const auto& pending_sched : pending_sched_per_cpu_) {
-    uint32_t row = pending_sched.pending_slice_storage_idx;
-    if (row == std::numeric_limits<uint32_t>::max())
-      continue;
-
-    int64_t duration = end_ts - slices->ts()[row];
-    slices->mutable_dur()->Set(row, duration);
-
-    auto state = ftrace_utils::TaskState(ftrace_utils::TaskState::kRunnable);
-    auto id = context_->storage->InternString(state.ToString().data());
-    slices->mutable_end_state()->Set(row, id);
-  }
-
-  // Re-initialize the pending_sched_per_cpu_ vector with default values, we do
-  // this instead of calling .clear() to avoid having to frequently resize the
-  // vector.
-  std::fill(pending_sched_per_cpu_.begin(), pending_sched_per_cpu_.end(),
-            PendingSchedInfo{});
 }
 
 }  // namespace trace_processor
