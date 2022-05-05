@@ -100,6 +100,8 @@ class Table {
   Table Filter(
       const std::vector<Constraint>& cs,
       RowMap::OptimizeFor optimize_for = RowMap::OptimizeFor::kMemory) const {
+    if (cs.empty())
+      return Copy();
     return Apply(FilterToRowMap(cs, optimize_for));
   }
 
@@ -139,7 +141,7 @@ class Table {
   Table ExtendWithColumn(const char* name,
                          std::unique_ptr<NullableVector<T>> sv,
                          uint32_t flags) const {
-    PERFETTO_CHECK(sv->size() == row_count_);
+    PERFETTO_CHECK(sv->size() == row_count());
     uint32_t size = sv->size();
     uint32_t row_map_count = static_cast<uint32_t>(row_maps_.size());
     Table ret = Copy();
@@ -154,7 +156,7 @@ class Table {
   Table ExtendWithColumn(const char* name,
                          NullableVector<T>* sv,
                          uint32_t flags) const {
-    PERFETTO_CHECK(sv->size() == row_count_);
+    PERFETTO_CHECK(sv->size() == row_count());
     uint32_t size = sv->size();
     uint32_t row_map_count = static_cast<uint32_t>(row_maps_.size());
     Table ret = Copy();
@@ -167,14 +169,22 @@ class Table {
   // Returns the column at index |idx| in the Table.
   const Column& GetColumn(uint32_t idx) const { return columns_[idx]; }
 
-  // Returns the column with the given name or nullptr otherwise.
-  const Column* GetColumnByName(const char* name) const {
+  // Returns the column index with the given name or base::nullopt otherwise.
+  base::Optional<uint32_t> GetColumnIndexByName(const char* name) const {
     auto it = std::find_if(
         columns_.begin(), columns_.end(),
         [name](const Column& col) { return strcmp(col.name(), name) == 0; });
     if (it == columns_.end())
+      return base::nullopt;
+    return static_cast<uint32_t>(std::distance(columns_.begin(), it));
+  }
+
+  // Returns the column with the given name or nullptr otherwise.
+  const Column* GetColumnByName(const char* name) const {
+    base::Optional<uint32_t> opt_idx = GetColumnIndexByName(name);
+    if (!opt_idx)
       return nullptr;
-    return &*it;
+    return &columns_[*opt_idx];
   }
 
   template <typename T>
@@ -197,6 +207,17 @@ class Table {
 
   // Creates a copy of this table.
   Table Copy() const;
+
+  // Computes the schema of this table and returns it.
+  Schema ComputeSchema() const {
+    Schema schema;
+    schema.columns.reserve(columns_.size());
+    for (const auto& col : columns_) {
+      schema.columns.emplace_back(Schema::Column{
+          col.name(), col.type(), col.IsId(), col.IsSorted(), col.IsHidden()});
+    }
+    return schema;
+  }
 
   uint32_t row_count() const { return row_count_; }
   const std::vector<RowMap>& row_maps() const { return row_maps_; }
