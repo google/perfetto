@@ -238,6 +238,12 @@ class RowMap {
   // Creates a RowMap backed by an std::vector<uint32_t>.
   explicit RowMap(std::vector<OutputIndex> vec);
 
+  RowMap(const RowMap&) noexcept = delete;
+  RowMap& operator=(const RowMap&) = delete;
+
+  RowMap(RowMap&&) noexcept = default;
+  RowMap& operator=(RowMap&&) = default;
+
   // Creates a RowMap containing just |index|.
   // By default this will be implemented using a range.
   static RowMap SingleRow(OutputIndex index) {
@@ -651,8 +657,16 @@ class RowMap {
   void InsertIntoBitVector(uint32_t row) {
     PERFETTO_DCHECK(mode_ == Mode::kBitVector);
 
-    if (row >= bit_vector_.size())
+    // If we're adding a row to precisely the end of the BitVector, just append
+    // true instead of resizing and then setting.
+    if (row == bit_vector_.size()) {
+      bit_vector_.AppendTrue();
+      return;
+    }
+
+    if (row > bit_vector_.size()) {
       bit_vector_.Resize(row + 1, false);
+    }
     bit_vector_.Set(row);
   }
 
