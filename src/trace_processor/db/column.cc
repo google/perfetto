@@ -25,8 +25,9 @@ namespace trace_processor {
 Column::Column(const Column& column,
                Table* table,
                uint32_t col_idx,
-               uint32_t row_map_idx)
-    : Column(column.name_,
+               uint32_t row_map_idx,
+               const char* name)
+    : Column(name ? name : column.name_,
              column.type_,
              column.flags_,
              table,
