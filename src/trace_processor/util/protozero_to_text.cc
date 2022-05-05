@@ -37,10 +37,10 @@ using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
 
 // This function matches the implementation of TextFormatEscaper.escapeBytes
 // from the Java protobuf library.
-std::string QuoteAndEscapeTextProtoString(const std::string& raw) {
+std::string QuoteAndEscapeTextProtoString(base::StringView raw) {
   std::string ret;
-  for (auto it = raw.cbegin(); it != raw.cend(); it++) {
-    switch (*it) {
+  for (char c : raw) {
+    switch (c) {
       case '\a':
         ret += "\\a";
         break;
@@ -75,16 +75,16 @@ std::string QuoteAndEscapeTextProtoString(const std::string& raw) {
         // Only ASCII characters between 0x20 (space) and 0x7e (tilde) are
         // printable; other byte values are escaped with 3-character octal
         // codes.
-        if (*it >= 0x20 && *it <= 0x7e) {
-          ret += *it;
+        if (c >= 0x20 && c <= 0x7e) {
+          ret += c;
         } else {
           ret += '\\';
 
           // Cast to unsigned char to make the right shift unsigned as well.
-          unsigned char c = static_cast<unsigned char>(*it);
-          ret += ('0' + ((c >> 6) & 3));
-          ret += ('0' + ((c >> 3) & 7));
-          ret += ('0' + (c & 7));
+          unsigned char uc = static_cast<unsigned char>(c);
+          ret += ('0' + ((uc >> 6) & 3));
+          ret += ('0' + ((uc >> 3) & 7));
+          ret += ('0' + (uc & 7));
         }
         break;
     }
@@ -274,7 +274,7 @@ void PrintLengthDelimitedField(const FieldDescriptor* fd,
   switch (type) {
     case FieldDescriptorProto::TYPE_BYTES:
     case FieldDescriptorProto::TYPE_STRING: {
-      std::string value = QuoteAndEscapeTextProtoString(field.as_std_string());
+      std::string value = QuoteAndEscapeTextProtoString(field.as_string());
       StrAppend(out, fd->name(), ": ", value);
       return;
     }
@@ -346,7 +346,7 @@ void PrintLengthDelimitedField(const FieldDescriptor* fd,
     default:
       break;
   }
-  std::string value = QuoteAndEscapeTextProtoString(field.as_std_string());
+  std::string value = QuoteAndEscapeTextProtoString(field.as_string());
   StrAppend(out, std::to_string(field.id()), ": ", value);
 }
 
@@ -360,9 +360,9 @@ void ProtozeroToTextInternal(const std::string& type,
                              const DescriptorPool& pool,
                              std::string* indents,
                              std::string* output) {
-  auto opt_proto_descriptor_idx = pool.FindDescriptorIdx(type);
-  PERFETTO_DCHECK(opt_proto_descriptor_idx);
-  auto& proto_descriptor = pool.descriptors()[*opt_proto_descriptor_idx];
+  base::Optional<uint32_t> opt_proto_desc_idx = pool.FindDescriptorIdx(type);
+  const ProtoDescriptor* opt_proto_descriptor =
+      opt_proto_desc_idx ? &pool.descriptors()[*opt_proto_desc_idx] : nullptr;
   const bool include_new_lines = new_lines_mode == kIncludeNewLines;
 
   protozero::ProtoDecoder decoder(protobytes.data, protobytes.size);
@@ -377,7 +377,9 @@ void ProtozeroToTextInternal(const std::string& type,
     } else {
       StrAppend(output, *indents);
     }
-    auto* opt_field_descriptor = proto_descriptor.FindFieldByTag(field.id());
+    auto* opt_field_descriptor =
+        opt_proto_descriptor ? opt_proto_descriptor->FindFieldByTag(field.id())
+                             : nullptr;
     switch (field.type()) {
       case ProtoWireType::kVarInt:
         PrintVarIntField(opt_field_descriptor, field, pool, output);
@@ -394,7 +396,21 @@ void ProtozeroToTextInternal(const std::string& type,
         break;
     }
   }
-  PERFETTO_DCHECK(decoder.bytes_left() == 0);
+  if (decoder.bytes_left() != 0) {
+    if (!output->empty()) {
+      if (include_new_lines) {
+        StrAppend(output, "\n", *indents);
+      } else {
+        StrAppend(output, " ", *indents);
+      }
+    }
+    StrAppend(
+        output, "# Extra bytes: ",
+        QuoteAndEscapeTextProtoString(base::StringView(
+            reinterpret_cast<const char*>(decoder.end() - decoder.bytes_left()),
+            decoder.bytes_left())),
+        "\n");
+  }
 }
 
 }  // namespace
