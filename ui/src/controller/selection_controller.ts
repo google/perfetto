@@ -135,7 +135,8 @@ export class SelectionController extends Controller<'main'> {
     }
 
     const promisedDetails = this.args.engine.query(`
-      SELECT * FROM ${leafTable} WHERE id = ${selectedId};
+      SELECT *, ABS_TIME_STR(ts) as absTime FROM ${leafTable} WHERE id = ${
+        selectedId};
     `);
 
     const [details, args, description] =
@@ -149,6 +150,8 @@ export class SelectionController extends Controller<'main'> {
     // Long term these should be handled generically as args but for now
     // handle them specially:
     let ts = undefined;
+    // tslint:disable-next-line:variable-name
+    let absTime = undefined;
     let dur = undefined;
     let name = undefined;
     let category = undefined;
@@ -166,6 +169,9 @@ export class SelectionController extends Controller<'main'> {
           break;
         case 'thread_ts':
           threadTs = fromNs(Number(v));
+          break;
+        case 'absTime':
+          if (v) absTime = `${v}`;
           break;
         case 'name':
           name = `${v}`;
@@ -193,6 +199,7 @@ export class SelectionController extends Controller<'main'> {
       id: selectedId,
       ts,
       threadTs,
+      absTime,
       dur,
       threadDur,
       name,
