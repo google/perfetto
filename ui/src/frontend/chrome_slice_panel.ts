@@ -182,6 +182,9 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
               'N/A' :
               sliceInfo.category);
       builder.add('Start time', timeToCode(sliceInfo.ts));
+      if (sliceInfo.absTime !== undefined) {
+        builder.add('Absolute Time', sliceInfo.absTime);
+      }
       builder.add(
           'Duration', this.computeDuration(sliceInfo.ts, sliceInfo.dur));
       if (sliceInfo.threadTs !== undefined &&
