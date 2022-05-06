@@ -653,6 +653,7 @@ perfetto_filegroup(
         "include/perfetto/tracing/internal/checked_scope.h",
         "include/perfetto/tracing/internal/compile_time_hash.h",
         "include/perfetto/tracing/internal/data_source_internal.h",
+        "include/perfetto/tracing/internal/data_source_type.h",
         "include/perfetto/tracing/internal/in_process_tracing_backend.h",
         "include/perfetto/tracing/internal/interceptor_trace_writer.h",
         "include/perfetto/tracing/internal/system_tracing_backend.h",
