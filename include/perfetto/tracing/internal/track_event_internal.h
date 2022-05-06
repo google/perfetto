@@ -95,28 +95,26 @@ class PERFETTO_EXPORT_COMPONENT BaseTrackEventInternedDataIndex {
 
 struct TrackEventTlsState {
   template <typename TraceContext>
-  explicit TrackEventTlsState(const TraceContext& trace_context) {
-    auto locked_ds = trace_context.GetDataSourceLocked();
-    if (locked_ds.valid()) {
-      const auto& config = locked_ds->GetConfig();
-      disable_incremental_timestamps = config.disable_incremental_timestamps();
-      filter_debug_annotations = config.filter_debug_annotations();
-      enable_thread_time_sampling = config.enable_thread_time_sampling();
-    }
-  }
-  bool disable_incremental_timestamps = false;
+  explicit TrackEventTlsState(const TraceContext& trace_context);
   bool filter_debug_annotations = false;
   bool enable_thread_time_sampling = false;
+  uint64_t timestamp_unit_multiplier = 1;
+  uint32_t default_clock;
 };
 
 struct TrackEventIncrementalState {
   static constexpr size_t kMaxInternedDataFields = 32;
 
-  // Packet-sequence-scoped clock that encodes microsecond timestamps in the
+  // Packet-sequence-scoped clock that encodes nanosecond timestamps in the
   // domain of the clock returned by GetClockId() as delta values - see
   // Clock::is_incremental in perfetto/trace/clock_snapshot.proto.
   // Default unit: nanoseconds.
   static constexpr uint32_t kClockIdIncremental = 64;
+
+  // Packet-sequence-scoped clock that encodes timestamps in the domain of the
+  // clock returned by GetClockId() with custom unit_multiplier.
+  // Default unit: nanoseconds.
+  static constexpr uint32_t kClockIdAbsolute = 65;
 
   bool was_cleared = true;
 
@@ -285,6 +283,30 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
 
   static std::atomic<int> session_count_;
 };
+
+template <typename TraceContext>
+TrackEventTlsState::TrackEventTlsState(const TraceContext& trace_context) {
+  auto locked_ds = trace_context.GetDataSourceLocked();
+  bool disable_incremental_timestamps = false;
+  if (locked_ds.valid()) {
+    const auto& config = locked_ds->GetConfig();
+    disable_incremental_timestamps = config.disable_incremental_timestamps();
+    filter_debug_annotations = config.filter_debug_annotations();
+    enable_thread_time_sampling = config.enable_thread_time_sampling();
+    if (config.has_timestamp_unit_multiplier()) {
+      timestamp_unit_multiplier = config.timestamp_unit_multiplier();
+    }
+  }
+  if (disable_incremental_timestamps) {
+    if (timestamp_unit_multiplier == 1) {
+      default_clock = TrackEventInternal::GetClockId();
+    } else {
+      default_clock = TrackEventIncrementalState::kClockIdAbsolute;
+    }
+  } else {
+    default_clock = TrackEventIncrementalState::kClockIdIncremental;
+  }
+}
 
 }  // namespace internal
 }  // namespace perfetto
