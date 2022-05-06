@@ -51,16 +51,11 @@ std::atomic<perfetto::base::PlatformThreadId> g_main_thread;
 static constexpr const char kLegacySlowPrefix[] = "disabled-by-default-";
 static constexpr const char kSlowTag[] = "slow";
 static constexpr const char kDebugTag[] = "debug";
-// Allows to specify a custom unit different than the default (ns) for
-// the incremental clock.
-// A multiplier of 1000 means that a timestamp = 3 should be
-// interpreted as 3000 ns = 3 us.
-// TODO(mohitms): Move it to TrackEventConfig.
-constexpr uint64_t kIncrementalTimestampUnitMultiplier = 1;
-static_assert(kIncrementalTimestampUnitMultiplier >= 1, "");
 
 constexpr auto kClockIdIncremental =
     TrackEventIncrementalState::kClockIdIncremental;
+
+constexpr auto kClockIdAbsolute = TrackEventIncrementalState::kClockIdAbsolute;
 
 void ForEachObserver(
     std::function<bool(TrackEventSessionObserver*&)> callback) {
@@ -339,9 +334,11 @@ void TrackEventInternal::ResetIncrementalState(
 
   incr_state->last_timestamp_ns = sequence_timestamp.value;
   auto default_track = ThreadTrack::Current();
+  auto ts_unit_multiplier = tls_state.timestamp_unit_multiplier;
   auto thread_time_counter_track =
       CounterTrack("thread_time", default_track)
           .set_is_incremental(true)
+          .set_unit_multiplier(static_cast<int64_t>(ts_unit_multiplier))
           .set_type(protos::gen::CounterDescriptor::COUNTER_THREAD_TIME_NS);
   {
     // Mark any incremental state before this point invalid. Also set up
@@ -350,7 +347,7 @@ void TrackEventInternal::ResetIncrementalState(
         trace_writer, incr_state, tls_state, timestamp,
         protos::pbzero::TracePacket::SEQ_INCREMENTAL_STATE_CLEARED);
     auto defaults = packet->set_trace_packet_defaults();
-
+    defaults->set_timestamp_clock_id(tls_state.default_clock);
     // Establish the default track for this event sequence.
     auto track_defaults = defaults->set_track_event_defaults();
     track_defaults->set_track_uuid(default_track.uuid);
@@ -359,25 +356,32 @@ void TrackEventInternal::ResetIncrementalState(
           thread_time_counter_track.uuid);
     }
 
-    if (PERFETTO_LIKELY(!tls_state.disable_incremental_timestamps)) {
-      defaults->set_timestamp_clock_id(kClockIdIncremental);
+    if (tls_state.default_clock != GetClockId()) {
       ClockSnapshot* clocks = packet->set_clock_snapshot();
       // Trace clock.
       ClockSnapshot::Clock* trace_clock = clocks->add_clocks();
       trace_clock->set_clock_id(GetClockId());
       trace_clock->set_timestamp(sequence_timestamp.value);
-      // Delta-encoded incremental clock in nano seconds.
-      // TODO(b/168311581): Make the unit of this clock configurable to allow
-      // trade-off between precision and encoded trace size.
-      ClockSnapshot::Clock* clock_incremental = clocks->add_clocks();
-      clock_incremental->set_clock_id(kClockIdIncremental);
-      auto ts_unit_multiplier = kIncrementalTimestampUnitMultiplier;
-      clock_incremental->set_timestamp(sequence_timestamp.value /
-                                       ts_unit_multiplier);
-      clock_incremental->set_is_incremental(true);
-      clock_incremental->set_unit_multiplier_ns(ts_unit_multiplier);
-    } else {
-      defaults->set_timestamp_clock_id(GetClockId());
+
+      if (PERFETTO_LIKELY(tls_state.default_clock == kClockIdIncremental)) {
+        // Delta-encoded incremental clock in nanoseconds by default but
+        // configurable by |tls_state.timestamp_unit_multiplier|.
+        ClockSnapshot::Clock* clock_incremental = clocks->add_clocks();
+        clock_incremental->set_clock_id(kClockIdIncremental);
+        clock_incremental->set_timestamp(sequence_timestamp.value /
+                                         ts_unit_multiplier);
+        clock_incremental->set_is_incremental(true);
+        clock_incremental->set_unit_multiplier_ns(ts_unit_multiplier);
+      }
+      if (ts_unit_multiplier > 1) {
+        // absolute clock with custom timestamp_unit_multiplier.
+        ClockSnapshot::Clock* absolute_clock = clocks->add_clocks();
+        absolute_clock->set_clock_id(kClockIdAbsolute);
+        absolute_clock->set_timestamp(sequence_timestamp.value /
+                                      ts_unit_multiplier);
+        absolute_clock->set_is_incremental(false);
+        absolute_clock->set_unit_multiplier_ns(ts_unit_multiplier);
+      }
     }
   }
 
@@ -404,31 +408,30 @@ TrackEventInternal::NewTracePacket(TraceWriterBase* trace_writer,
                                    const TrackEventTlsState& tls_state,
                                    TraceTimestamp timestamp,
                                    uint32_t seq_flags) {
-  if (PERFETTO_UNLIKELY(tls_state.disable_incremental_timestamps &&
+  if (PERFETTO_UNLIKELY(tls_state.default_clock != kClockIdIncremental &&
                         timestamp.clock_id == kClockIdIncremental)) {
-    timestamp.clock_id = GetClockId();
+    timestamp.clock_id = tls_state.default_clock;
   }
   auto packet = trace_writer->NewTracePacket();
-  // TODO(mohitms): Consider using kIncrementalTimestampUnitMultiplier.
+  auto ts_unit_multiplier = tls_state.timestamp_unit_multiplier;
   if (PERFETTO_LIKELY(timestamp.clock_id == kClockIdIncremental)) {
     if (PERFETTO_LIKELY(incr_state->last_timestamp_ns <= timestamp.value)) {
       // No need to set the clock id here, since kClockIdIncremental is the
       // clock id assumed by default.
-      auto ts_unit_multiplier = kIncrementalTimestampUnitMultiplier;
       auto time_diff_ns = timestamp.value - incr_state->last_timestamp_ns;
       packet->set_timestamp(time_diff_ns / ts_unit_multiplier);
       incr_state->last_timestamp_ns = timestamp.value;
     } else {
-      packet->set_timestamp(timestamp.value);
-      packet->set_timestamp_clock_id(GetClockId());
+      packet->set_timestamp(timestamp.value / ts_unit_multiplier);
+      packet->set_timestamp_clock_id(ts_unit_multiplier == 1
+                                         ? static_cast<uint32_t>(GetClockId())
+                                         : kClockIdAbsolute);
     }
+  } else if (PERFETTO_LIKELY(timestamp.clock_id == tls_state.default_clock)) {
+    packet->set_timestamp(timestamp.value / ts_unit_multiplier);
   } else {
     packet->set_timestamp(timestamp.value);
-    auto default_clock = tls_state.disable_incremental_timestamps
-                             ? static_cast<uint32_t>(GetClockId())
-                             : kClockIdIncremental;
-    if (PERFETTO_UNLIKELY(timestamp.clock_id != default_clock))
-      packet->set_timestamp_clock_id(timestamp.clock_id);
+    packet->set_timestamp_clock_id(timestamp.clock_id);
   }
   packet->set_sequence_flags(seq_flags);
   return packet;
@@ -458,7 +461,9 @@ EventContext TrackEventInternal::WriteEvent(
     auto thread_time_delta_ns =
         thread_time_ns - incr_state->last_thread_time_ns;
     incr_state->last_thread_time_ns = thread_time_ns;
-    track_event->add_extra_counter_values(thread_time_delta_ns);
+    track_event->add_extra_counter_values(
+        thread_time_delta_ns /
+        static_cast<int64_t>(tls_state.timestamp_unit_multiplier));
   }
 
   // We assume that |category| and |name| point to strings with static lifetime.
