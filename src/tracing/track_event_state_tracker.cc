@@ -54,7 +54,7 @@ void TrackEventStateTracker::ProcessTracePacket(
     clock_id = sequence_state.default_clock_id;
   uint64_t timestamp = packet.timestamp();
   // TODO(mohitms): Incorporate unit multiplier as well.
-  if (clock_id == TrackEventIncrementalState::kClockIdIncremental) {
+  if (clock_id == internal::TrackEventIncrementalState::kClockIdIncremental) {
     timestamp += sequence_state.most_recent_absolute_time_ns;
     sequence_state.most_recent_absolute_time_ns = timestamp;
   }
@@ -180,7 +180,8 @@ void TrackEventStateTracker::UpdateIncrementalState(
     perfetto::protos::pbzero::ClockSnapshot::Clock::Decoder clock(*it);
     // TODO(mohitms) : Handle the incremental clock other than default one.
     if (clock.is_incremental() &&
-        clock.clock_id() == TrackEventIncrementalState::kClockIdIncremental) {
+        clock.clock_id() ==
+            internal::TrackEventIncrementalState::kClockIdIncremental) {
       sequence_state.most_recent_absolute_time_ns =
           clock.timestamp() * clock.unit_multiplier_ns();
       break;
