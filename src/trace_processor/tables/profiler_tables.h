@@ -359,14 +359,14 @@ PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_OBJECT_DEF);
 // @param deobfuscated_field_name if field_name was obfuscated and a
 // deobfuscation mapping was provided for it, the deobfuscated name.
 // @tablegroup ART Heap Graphs
-#define PERFETTO_TP_HEAP_GRAPH_REFERENCE_DEF(NAME, PARENT, C) \
-  NAME(HeapGraphReferenceTable, "heap_graph_reference")       \
-  PERFETTO_TP_ROOT_TABLE(PARENT, C)                           \
-  C(uint32_t, reference_set_id, Column::Flag::kSorted)        \
-  C(HeapGraphObjectTable::Id, owner_id)                       \
-  C(base::Optional<HeapGraphObjectTable::Id>, owned_id)       \
-  C(StringPool::Id, field_name)                               \
-  C(StringPool::Id, field_type_name)                          \
+#define PERFETTO_TP_HEAP_GRAPH_REFERENCE_DEF(NAME, PARENT, C)                 \
+  NAME(HeapGraphReferenceTable, "heap_graph_reference")                       \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                                           \
+  C(uint32_t, reference_set_id, Column::Flag::kSorted | Column::Flag::kSetId) \
+  C(HeapGraphObjectTable::Id, owner_id)                                       \
+  C(base::Optional<HeapGraphObjectTable::Id>, owned_id)                       \
+  C(StringPool::Id, field_name)                                               \
+  C(StringPool::Id, field_type_name)                                          \
   C(base::Optional<StringPool::Id>, deobfuscated_field_name)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_HEAP_GRAPH_REFERENCE_DEF);

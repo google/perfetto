@@ -48,7 +48,7 @@ namespace trace_processor {
 // different based on T. See their class documentation and below for details
 // on their purpose.
 template <typename T>
-struct TypedColumn : public Column {
+class TypedColumn : public Column {
  private:
   using TH = tc_internal::TypeHandler<T>;
 
@@ -159,7 +159,8 @@ struct TypedColumn : public Column {
 // TODO(lalitm): think about unifying this with TypedColumn in the
 // future.
 template <typename Id>
-struct IdColumn : public Column {
+class IdColumn : public Column {
+ public:
   Id operator[](uint32_t row) const { return Id(row_map().Get(row)); }
   base::Optional<uint32_t> IndexOf(Id id) const {
     return row_map().RowOf(id.value);

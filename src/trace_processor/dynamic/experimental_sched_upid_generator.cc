@@ -27,9 +27,9 @@ ExperimentalSchedUpidGenerator::~ExperimentalSchedUpidGenerator() = default;
 
 Table::Schema ExperimentalSchedUpidGenerator::CreateSchema() {
   Table::Schema schema = tables::SchedSliceTable::Schema();
-  schema.columns.emplace_back(
-      Table::Schema::Column{"upid", SqlValue::Type::kLong, false /* is_id */,
-                            false /* is_sorted */, false /* is_hidden */});
+  schema.columns.emplace_back(Table::Schema::Column{
+      "upid", SqlValue::Type::kLong, false /* is_id */, false /* is_sorted */,
+      false /* is_hidden */, false /* is_set_id */});
   return schema;
 }
 
