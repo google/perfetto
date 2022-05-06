@@ -285,6 +285,18 @@ TEST_F(ClockTrackerTest, CacheDoesntAffectResults) {
   }
 }
 
+TEST_F(ClockTrackerTest, FromTraceTimeAsISO8601) {
+  EXPECT_EQ(ct_.FromTraceTimeAsISO8601(0), base::nullopt);
+
+  ct_.AddSnapshot({{REALTIME, 1603224822123456789}, {BOOTTIME, 42}});
+  ct_.AddSnapshot({{REALTIME, 1641092645000000001}, {BOOTTIME, 43}});
+
+  EXPECT_EQ(ct_.FromTraceTimeAsISO8601(42).value(),
+            "2020-10-20T20:13:42.123456789");
+  EXPECT_EQ(ct_.FromTraceTimeAsISO8601(43).value(),
+            "2022-01-02T03:04:05.000000001");
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
