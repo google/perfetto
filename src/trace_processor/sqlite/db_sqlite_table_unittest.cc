@@ -26,15 +26,20 @@ namespace {
 Table::Schema CreateSchema() {
   Table::Schema schema;
   schema.columns.push_back({"id", SqlValue::Type::kLong, true /* is_id */,
-                            true /* is_sorted */, false /* is_hidden */});
+                            true /* is_sorted */, false /* is_hidden */,
+                            false /* is_set_id */});
   schema.columns.push_back({"type", SqlValue::Type::kLong, false /* is_id */,
-                            false /* is_sorted */, false /* is_hidden */});
+                            false /* is_sorted */, false /* is_hidden */,
+                            false /* is_set_id */});
   schema.columns.push_back({"test1", SqlValue::Type::kLong, false /* is_id */,
-                            true /* is_sorted */, false /* is_hidden */});
+                            true /* is_sorted */, false /* is_hidden */,
+                            false /* is_set_id */});
   schema.columns.push_back({"test2", SqlValue::Type::kLong, false /* is_id */,
-                            false /* is_sorted */, false /* is_hidden */});
+                            false /* is_sorted */, false /* is_hidden */,
+                            false /* is_set_id */});
   schema.columns.push_back({"test3", SqlValue::Type::kLong, false /* is_id */,
-                            false /* is_sorted */, false /* is_hidden */});
+                            false /* is_sorted */, false /* is_hidden */,
+                            false /* is_set_id */});
   return schema;
 }
 
