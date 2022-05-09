@@ -256,7 +256,7 @@ Table::Schema ConnectedFlowGenerator::CreateSchema() {
   auto schema = tables::FlowTable::Schema();
   schema.columns.push_back(Table::Schema::Column{
       "start_id", SqlValue::Type::kLong, /* is_id = */ false,
-      /* is_sorted = */ false, /* is_hidden = */ true});
+      /* is_sorted = */ false, /* is_hidden = */ true, /* is_set_id */ false});
   return schema;
 }
 
