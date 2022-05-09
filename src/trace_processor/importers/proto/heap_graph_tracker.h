@@ -58,6 +58,7 @@ struct PathFromRoot {
 void MarkRoot(TraceStorage* s,
               tables::HeapGraphObjectTable::Id id,
               StringPool::Id type);
+void UpdateShortestPaths(TraceStorage* s, tables::HeapGraphObjectTable::Id id);
 void FindPathFromRoot(TraceStorage* storage,
                       tables::HeapGraphObjectTable::Id id,
                       PathFromRoot* path);
