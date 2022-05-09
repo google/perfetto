@@ -15,7 +15,7 @@
 export interface HasKind { kind: string; }
 
 export class Registry<T extends HasKind> {
-  private registry: Map<string, T>;
+  protected registry: Map<string, T>;
 
   constructor() {
     this.registry = new Map<string, T>();
