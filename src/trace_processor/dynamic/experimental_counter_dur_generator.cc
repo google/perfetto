@@ -26,12 +26,12 @@ ExperimentalCounterDurGenerator::~ExperimentalCounterDurGenerator() = default;
 
 Table::Schema ExperimentalCounterDurGenerator::CreateSchema() {
   Table::Schema schema = tables::CounterTable::Schema();
-  schema.columns.emplace_back(
-      Table::Schema::Column{"dur", SqlValue::Type::kLong, false /* is_id */,
-                            false /* is_sorted */, false /* is_hidden */});
-  schema.columns.emplace_back(
-      Table::Schema::Column{"delta", SqlValue::Type::kLong, false /* is_id */,
-                            false /* is_sorted */, false /* is_hidden */});
+  schema.columns.emplace_back(Table::Schema::Column{
+      "dur", SqlValue::Type::kLong, false /* is_id */, false /* is_sorted */,
+      false /* is_hidden */, false /* is_set_id */});
+  schema.columns.emplace_back(Table::Schema::Column{
+      "delta", SqlValue::Type::kLong, false /* is_id */, false /* is_sorted */,
+      false /* is_hidden */, false /* is_set_id */});
   return schema;
 }
 

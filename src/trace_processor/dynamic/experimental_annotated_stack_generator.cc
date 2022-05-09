@@ -97,10 +97,10 @@ Table::Schema ExperimentalAnnotatedStackGenerator::CreateSchema() {
   auto schema = tables::StackProfileCallsiteTable::Schema();
   schema.columns.push_back(Table::Schema::Column{
       "annotation", SqlValue::Type::kString, /* is_id = */ false,
-      /* is_sorted = */ false, /* is_hidden = */ false});
+      /* is_sorted = */ false, /* is_hidden = */ false, false /* is_set_id */});
   schema.columns.push_back(Table::Schema::Column{
       "start_id", SqlValue::Type::kLong, /* is_id = */ false,
-      /* is_sorted = */ false, /* is_hidden = */ true});
+      /* is_sorted = */ false, /* is_hidden = */ true, false /* is_set_id */});
   return schema;
 }
 
