@@ -48,7 +48,10 @@ interface PathItem {
 // Used to convert TableColumn to a string in order to store it in a Map, as
 // ES6 does not support compound Set/Map keys.
 export function columnKey(tableColumn: TableColumn): string {
-  return `${tableColumn[0]}.${tableColumn[1]}`;
+  if (tableColumn === 'count') {
+    return '1';
+  }
+  return `${tableColumn.table}.${tableColumn.column}`;
 }
 
 // Arguments to an action to toggle a table column in a particular part of
@@ -135,7 +138,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
                     m(ColumnSetCheckbox, {
                       get: this.selectedPivotsMap,
                       set: Actions.setPivotTablePivotSelected,
-                      setKey: [t.name, col],
+                      setKey: {table: t.name, column: col},
                     }),
                     col))));
   }
@@ -372,13 +375,20 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         m('div',
           m('h2', 'Aggregations'),
           m('ul',
+            m('li',
+              m(ColumnSetCheckbox, {
+                get: this.selectedAggregations,
+                set: Actions.setPivotTableAggregationSelected,
+                setKey: 'count'
+              }),
+              'count'),
             ...sliceAggregationColumns.map(
                 t =>
                     m('li',
                       m(ColumnSetCheckbox, {
                         get: this.selectedAggregations,
                         set: Actions.setPivotTableAggregationSelected,
-                        setKey: ['slice', t],
+                        setKey: {table: 'slice', column: t},
                       }),
                       t)),
             ...threadSliceAggregationColumns.map(
@@ -387,7 +397,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
                       m(ColumnSetCheckbox, {
                         get: this.selectedAggregations,
                         set: Actions.setPivotTableAggregationSelected,
-                        setKey: ['thread_slice', t],
+                        setKey: {table: 'thread_slice', column: t},
                       }),
                       `thread_slice.${t}`)))),
         this.renderQuery(attrs));
