@@ -47,10 +47,10 @@ Table::Schema ExperimentalSliceLayoutGenerator::CreateSchema() {
   Table::Schema schema = tables::SliceTable::Schema();
   schema.columns.emplace_back(Table::Schema::Column{
       "layout_depth", SqlValue::Type::kLong, false /* is_id */,
-      false /* is_sorted */, false /* is_hidden */});
+      false /* is_sorted */, false /* is_hidden */, false /* is_set_id */});
   schema.columns.emplace_back(Table::Schema::Column{
       "filter_track_ids", SqlValue::Type::kString, false /* is_id */,
-      false /* is_sorted */, true /* is_hidden */});
+      false /* is_sorted */, true /* is_hidden */, false /* is_set_id */});
   return schema;
 }
 
