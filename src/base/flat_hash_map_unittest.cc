@@ -53,7 +53,7 @@ struct Key {
     val = other.val;
     other.val = -1;
   }
-  bool operator==(const Key& other) { return val == other.val; }
+  bool operator==(const Key& other) const { return val == other.val; }
   int val = 0;
   int id = instances++;
 };
