@@ -21,11 +21,11 @@
 #include <unordered_map>
 
 #include "perfetto/ext/base/optional.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables.h"
 
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
-#include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/profiler_tables.h"
 
 template <>
 struct std::hash<std::pair<uint32_t, int64_t>> {

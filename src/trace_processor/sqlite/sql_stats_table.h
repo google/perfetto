@@ -71,7 +71,7 @@ class SqlStatsTable : public SqliteTable {
   static void RegisterTable(sqlite3* db, const TraceStorage* storage);
 
   // Table implementation.
-  util::Status Init(int, const char* const*, Schema*) override;
+  base::Status Init(int, const char* const*, Schema*) override;
   std::unique_ptr<SqliteTable::Cursor> CreateCursor() override;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
 

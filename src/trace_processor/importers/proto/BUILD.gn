@@ -1,0 +1,66 @@
+# Copyright (C) 2022 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+source_set("storage_minimal") {
+  sources = [
+    "heap_profile_tracker.cc",
+    "heap_profile_tracker.h",
+    "profiler_util.cc",
+    "profiler_util.h",
+    "stack_profile_tracker.cc",
+    "stack_profile_tracker.h",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../protos/perfetto/trace/profiling:zero",
+    "../../../base",
+    "../../storage",
+    "../../tables",
+    "../../types",
+    "../common",
+  ]
+}
+
+source_set("storage_full") {
+  sources = [
+    "heap_graph_tracker.cc",
+    "heap_graph_tracker.h",
+  ]
+  deps = [
+    ":storage_minimal",
+    "../../../../gn:default_deps",
+    "../../../../protos/perfetto/trace:zero",
+    "../../../../protos/perfetto/trace/profiling:zero",
+    "../../../base",
+    "../../storage",
+    "../../tables",
+    "../../types",
+  ]
+}
+
+source_set("unittests") {
+  testonly = true
+  sources = [
+    "heap_graph_tracker_unittest.cc",
+    "heap_profile_tracker_unittest.cc",
+  ]
+  deps = [
+    ":storage_full",
+    ":storage_minimal",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../types",
+    "../common",
+  ]
+}

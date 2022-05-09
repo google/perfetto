@@ -19,14 +19,13 @@
 
 #include <set>
 
-#include "src/trace_processor/sqlite/db_sqlite_table.h"
+#include "src/trace_processor/dynamic/dynamic_table_generator.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-class ExperimentalSliceLayoutGenerator
-    : public DbSqliteTable::DynamicTableGenerator {
+class ExperimentalSliceLayoutGenerator : public DynamicTableGenerator {
  public:
   static constexpr uint32_t kFilterTrackIdsColumnIndex =
       static_cast<uint32_t>(tables::SliceTable::ColumnIndex::arg_set_id) + 2;
