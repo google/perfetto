@@ -29,7 +29,7 @@ Column::Column(const Column& column,
                const char* name)
     : Column(name ? name : column.name_,
              column.type_,
-             column.flags_,
+             column.flags_ & ~kNoCrossTableInheritFlags,
              table,
              col_idx,
              row_map_idx,
@@ -53,26 +53,28 @@ Column::Column(const char* name,
       col_idx_in_table_(col_idx_in_table),
       row_map_idx_(row_map_idx),
       string_pool_(table->string_pool_) {
+  // Check that the dense-ness of the column and the nullable vector match.
   switch (type_) {
     case ColumnType::kInt32:
-      PERFETTO_CHECK(nullable_vector<int32_t>().IsDense() == IsDense());
+      PERFETTO_DCHECK(nullable_vector<int32_t>().IsDense() == IsDense());
       break;
     case ColumnType::kUint32:
-      PERFETTO_CHECK(nullable_vector<uint32_t>().IsDense() == IsDense());
+      PERFETTO_DCHECK(nullable_vector<uint32_t>().IsDense() == IsDense());
       break;
     case ColumnType::kInt64:
-      PERFETTO_CHECK(nullable_vector<int64_t>().IsDense() == IsDense());
+      PERFETTO_DCHECK(nullable_vector<int64_t>().IsDense() == IsDense());
       break;
     case ColumnType::kDouble:
-      PERFETTO_CHECK(nullable_vector<double>().IsDense() == IsDense());
+      PERFETTO_DCHECK(nullable_vector<double>().IsDense() == IsDense());
       break;
     case ColumnType::kString:
-      PERFETTO_CHECK(nullable_vector<StringPool::Id>().IsDense() == IsDense());
+      PERFETTO_DCHECK(nullable_vector<StringPool::Id>().IsDense() == IsDense());
       break;
     case ColumnType::kId:
     case ColumnType::kDummy:
       break;
   }
+  PERFETTO_DCHECK(IsFlagsAndTypeValid(flags_, type_));
 }
 
 Column Column::DummyColumn(const char* name,
@@ -148,7 +150,7 @@ void Column::FilterIntoNumericSlow(FilterOp op,
                                    SqlValue value,
                                    RowMap* rm) const {
   PERFETTO_DCHECK(IsNullable() == is_nullable);
-  PERFETTO_DCHECK(type_ == ToColumnType<T>());
+  PERFETTO_DCHECK(type_ == ColumnTypeHelper<T>::ToColumnType());
   PERFETTO_DCHECK(std::is_arithmetic<T>::value);
 
   if (op == FilterOp::kIsNull) {
@@ -464,7 +466,7 @@ void Column::StableSort(std::vector<uint32_t>* out) const {
 template <bool desc, typename T, bool is_nullable>
 void Column::StableSortNumeric(std::vector<uint32_t>* out) const {
   PERFETTO_DCHECK(IsNullable() == is_nullable);
-  PERFETTO_DCHECK(ToColumnType<T>() == type_);
+  PERFETTO_DCHECK(ColumnTypeHelper<T>::ToColumnType() == type_);
 
   const auto& nv = nullable_vector<T>();
   row_map().StableSort(out, [&nv](uint32_t a_idx, uint32_t b_idx) {
