@@ -42,6 +42,9 @@ composition_layer.py composition_layer_count.sql composition_layer_count.out
 android_jank.py android_jank android_jank.out
 
 # G2D metrics
+# TODO(rsavitski): find a real trace and double-check that the textproto is
+# realistic. One kernel's source I checked had tgid=0 for all counter events.
+# Initial support was added/discussed in b/171296908.
 g2d_metrics.textproto g2d g2d_metrics.out
 
 # Composer execution
