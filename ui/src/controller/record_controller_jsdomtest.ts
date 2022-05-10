@@ -232,7 +232,7 @@ test('ChromeCpuProfilerConfig', () => {
 
   const expectedTraceConfig = '{\"record_mode\":\"record-until-full\",' +
       '\"included_categories\":[\"disabled-by-default-cpu_profiler\"],' +
-      '\"memory_dump_config\":{}}'
+      '\"memory_dump_config\":{}}';
   expect(traceEventConfig).toEqual(expectedTraceConfig);
   expect(traceMetadataConfig).toEqual(expectedTraceConfig);
   expect(profilerConfig).toEqual(expectedTraceConfig);
@@ -263,7 +263,7 @@ test('ChromeCpuProfilerDebugConfig', () => {
 
   const expectedTraceConfig = '{\"record_mode\":\"record-until-full\",' +
       '\"included_categories\":[\"disabled-by-default-cpu_profiler.debug\"],' +
-      '\"memory_dump_config\":{}}'
+      '\"memory_dump_config\":{}}';
   expect(traceEventConfig).toEqual(expectedTraceConfig);
   expect(traceMetadataConfig).toEqual(expectedTraceConfig);
   expect(profilerConfig).toEqual(expectedTraceConfig);
