@@ -47,7 +47,6 @@ class ProcessStats_Process;
 }  // namespace pbzero
 }  // namespace protos
 
-
 class ProcessStatsDataSource : public ProbesDataSource {
  public:
   static const ProbesDataSource::Descriptor descriptor;

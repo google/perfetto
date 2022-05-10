@@ -1789,7 +1789,6 @@ INSTANTIATE_TEST_CASE_P(
 #endif
 #endif
 
-
 }  // namespace
 }  // namespace profiling
 }  // namespace perfetto
