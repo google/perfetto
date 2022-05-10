@@ -124,17 +124,17 @@ TEST(PacketWriterTest, ZipPacketWriter) {
   base::ScopedResource<FILE*, fclose, nullptr> f(
       fdopen(tmp.ReleaseFD().release(), "wb"));
 
-    std::vector<perfetto::TracePacket> packets;
-    packets.push_back(CreateTracePacket([](TracePacketProto* msg) {
-      auto* for_testing = msg->mutable_for_testing();
-      for_testing->set_str("abc");
-    }));
+  std::vector<perfetto::TracePacket> packets;
+  packets.push_back(CreateTracePacket([](TracePacketProto* msg) {
+    auto* for_testing = msg->mutable_for_testing();
+    for_testing->set_str("abc");
+  }));
 
-    {
-      std::unique_ptr<PacketWriter> writer =
-          CreateZipPacketWriter(CreateFilePacketWriter(*f));
-      EXPECT_TRUE(writer->WritePackets(std::move(packets)));
-    }
+  {
+    std::unique_ptr<PacketWriter> writer =
+        CreateZipPacketWriter(CreateFilePacketWriter(*f));
+    EXPECT_TRUE(writer->WritePackets(std::move(packets)));
+  }
 
   std::string s;
   fseek(*f, 0, SEEK_SET);

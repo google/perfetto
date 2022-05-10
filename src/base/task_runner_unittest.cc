@@ -233,7 +233,6 @@ TEST_F(TaskRunnerTest, FileDescriptorWatchWithMultipleEvents) {
   task_runner.Run();
 }
 
-
 TEST_F(TaskRunnerTest, PostManyDelayedTasks) {
   // Check that PostTask doesn't start failing if there are too many scheduled
   // wake-ups.

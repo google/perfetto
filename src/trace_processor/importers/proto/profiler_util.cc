@@ -105,12 +105,12 @@ base::Optional<std::string> PackageFromLocation(TraceStorage* storage,
   }
 
   if (location.find("DeviceIntelligenceNetworkPrebuilt") !=
-          base::StringView::npos) {
+      base::StringView::npos) {
     return "com.google.android.as.oss";
   }
 
   if (location.find("SettingsIntelligenceGooglePrebuilt") !=
-          base::StringView::npos) {
+      base::StringView::npos) {
     return "com.google.android.settings.intelligence";
   }
 

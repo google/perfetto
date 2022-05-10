@@ -27,15 +27,15 @@
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 
 using testing::_;
-using testing::Values;
-using testing::ValuesIn;
-using testing::TestWithParam;
-using testing::Return;
 using testing::AnyNumber;
-using testing::IsNull;
 using testing::Contains;
 using testing::Eq;
+using testing::IsNull;
 using testing::Pointee;
+using testing::Return;
+using testing::TestWithParam;
+using testing::Values;
+using testing::ValuesIn;
 
 namespace perfetto {
 namespace {
@@ -68,7 +68,8 @@ class AllTranslationTableTest : public TestWithParam<const char*> {
 class TranslationTableCreationTest : public TestWithParam<uint16_t> {};
 
 const char* kDevices[] = {
-    "android_seed_N2F62_3.10.49", "android_hammerhead_MRA59G_3.4.0",
+    "android_seed_N2F62_3.10.49",
+    "android_hammerhead_MRA59G_3.4.0",
 };
 
 TEST_P(AllTranslationTableTest, Create) {

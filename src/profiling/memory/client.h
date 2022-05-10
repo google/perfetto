@@ -122,7 +122,6 @@ class Client {
 
   bool IsPostFork();
 
-
   ClientConfiguration client_config_;
   uint64_t max_shmem_tries_;
   base::UnixSocketRaw sock_;

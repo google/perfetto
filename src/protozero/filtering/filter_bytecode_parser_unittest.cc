@@ -26,7 +26,6 @@ namespace protozero {
 
 namespace {
 
-
 bool LoadBytecode(FilterBytecodeParser* parser,
                   std::initializer_list<uint32_t> bytecode) {
   perfetto::base::Hash hasher;

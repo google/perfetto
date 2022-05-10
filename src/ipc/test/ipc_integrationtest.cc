@@ -26,14 +26,14 @@
 namespace ipc_test {
 namespace {
 
-using ::testing::_;
-using ::testing::Invoke;
 using ::perfetto::ipc::AsyncResult;
 using ::perfetto::ipc::Client;
 using ::perfetto::ipc::Deferred;
 using ::perfetto::ipc::Host;
 using ::perfetto::ipc::Service;
 using ::perfetto::ipc::ServiceProxy;
+using ::testing::_;
+using ::testing::Invoke;
 
 using namespace ::ipc_test::gen;
 
