@@ -105,8 +105,7 @@ class TraceProcessorImpl : public TraceProcessor,
                                  &table, table.table_name());
   }
 
-  void RegisterDynamicTable(
-      std::unique_ptr<DbSqliteTable::DynamicTableGenerator> generator) {
+  void RegisterDynamicTable(std::unique_ptr<DynamicTableGenerator> generator) {
     DbSqliteTable::RegisterTable(*db_, query_cache_.get(),
                                  std::move(generator));
   }
