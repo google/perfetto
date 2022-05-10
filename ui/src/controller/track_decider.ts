@@ -1074,6 +1074,76 @@ class TrackDecider {
     return uuid;
   }
 
+  setUuidForUpid(upid: number, uuid: string) {
+    this.upidToUuid.set(upid, uuid);
+  }
+
+  async addKernelThreadGrouping(): Promise<void> {
+    // Identify kernel threads if this is a linux system trace, and sufficient
+    // process information is available. Kernel threads are identified by being
+    // children of kthreadd (always pid 2).
+    // The query will return the kthreadd process row first, which must exist
+    // for any other kthreads to be returned by the query.
+    // TODO(rsavitski): figure out how to handle the idle process (swapper),
+    // which has pid 0 but appears as a distinct process (with its own comm) on
+    // each cpu. It'd make sense to exclude its thread state track, but still
+    // put process-scoped tracks in this group.
+    const result = await this.engine.query(`
+      select
+        t.utid, p.upid, (case p.pid when 2 then 1 else 0 end) isKthreadd
+      from
+        thread t
+        join process p using (upid)
+        left join process parent on (p.parent_upid = parent.upid)
+        join
+          (select true from metadata m
+             where (m.name = 'system_name' and m.str_value = 'Linux')
+           union
+           select 1 from (select true from sched limit 1))
+      where
+        p.pid = 2 or parent.pid = 2
+      order by isKthreadd desc
+    `);
+
+    const it = result.iter({
+      utid: NUM,
+      upid: NUM,
+    });
+
+    // Not applying kernel thread grouping.
+    if (!it.valid()) {
+      return;
+    }
+
+    // Create the track group. Use kthreadd's PROCESS_SUMMARY_TRACK for the
+    // main track. It doesn't summarise the kernel threads within the group,
+    // but creating a dedicated track type is out of scope at the time of
+    // writing.
+    const kthreadGroupUuid = uuidv4();
+    const summaryTrackId = uuidv4();
+    this.tracksToAdd.push({
+      id: summaryTrackId,
+      engineId: this.engineId,
+      kind: PROCESS_SUMMARY_TRACK,
+      trackKindPriority: TrackKindPriority.MAIN_THREAD,
+      name: `Kernel thread summary`,
+      config: {pidForColor: 2, upid: it.upid, utid: it.utid},
+    });
+    const addTrackGroup = Actions.addTrackGroup({
+      engineId: this.engineId,
+      summaryTrackId,
+      name: `Kernel threads`,
+      id: kthreadGroupUuid,
+      collapsed: true
+    });
+    this.addTrackGroupActions.push(addTrackGroup);
+
+    // Set the group for all kernel threads (including kthreadd itself).
+    for (; it.valid(); it.next()) {
+      this.setUuidForUpid(it.upid, kthreadGroupUuid);
+    }
+  }
+
   async addProcessTrackGroups(): Promise<void> {
     // We want to create groups of tracks in a specific order.
     // The tracks should be grouped:
@@ -1239,6 +1309,14 @@ class TrackDecider {
     await this.addCpuPerfCounterTracks();
     await this.addAnnotationTracks();
     await this.groupGlobalIonTracks();
+
+    // Pre-group all kernel "threads" (actually processes) if this is a linux
+    // system trace. Below, addProcessTrackGroups will skip them due to an
+    // existing group uuid, and addThreadStateTracks will fill in the
+    // per-thread tracks. Quirk: since all threads will appear to be
+    // TrackKindPriority.MAIN_THREAD, any process-level tracks will end up
+    // pushed to the bottom of the group in the UI.
+    await this.addKernelThreadGrouping();
 
     // Create the per-process track groups. Note that this won't necessarily
     // create a track per process. If a process has been completely idle and has

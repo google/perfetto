@@ -75,7 +75,7 @@ sql_files = [
   "android/process_counter_span_view.sql",
   "android/global_counter_span_view.sql",
   "android/gpu_counter_span_view.sql",
-  "android/thread_counter_span_view.sql",
+  "android/process_counter_span_view.sql",
   "android/android_trusty_workqueues.sql",
   "android/unsymbolized_frames.sql",
   "android/startup/launches_maxsdk28.sql",
