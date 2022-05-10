@@ -38,7 +38,6 @@ namespace perfetto {
 namespace profiling {
 
 // Read /proc/[pid]/maps from an open file descriptor.
-// TODO(fmayer): Figure out deduplication to other maps.
 class FDMaps : public unwindstack::Maps {
  public:
   explicit FDMaps(base::ScopedFile fd);
