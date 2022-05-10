@@ -49,56 +49,58 @@ SELECT RUN_METRIC(
 );
 
 
-SELECT RUN_METRIC('android/thread_counter_span_view.sql',
+SELECT RUN_METRIC('android/process_counter_span_view.sql',
   'table_name', 'dpu_vote_clock',
   'counter_name', 'dpu_vote_clock'
 );
 
-SELECT RUN_METRIC('android/thread_counter_span_view.sql',
+SELECT RUN_METRIC('android/process_counter_span_view.sql',
   'table_name', 'dpu_vote_avg_bw',
   'counter_name', 'dpu_vote_avg_bw'
 );
 
-SELECT RUN_METRIC('android/thread_counter_span_view.sql',
+SELECT RUN_METRIC('android/process_counter_span_view.sql',
   'table_name', 'dpu_vote_peak_bw',
   'counter_name', 'dpu_vote_peak_bw'
 );
 
-SELECT RUN_METRIC('android/thread_counter_span_view.sql',
+SELECT RUN_METRIC('android/process_counter_span_view.sql',
   'table_name', 'dpu_vote_rt_bw',
   'counter_name', 'dpu_vote_rt_bw'
 );
 
-DROP VIEW IF EXISTS dpu_vote_thread;
-CREATE VIEW dpu_vote_thread AS
-SELECT DISTINCT s.utid, t.tid
+DROP VIEW IF EXISTS dpu_vote_process;
+CREATE VIEW dpu_vote_process AS
+SELECT DISTINCT p.upid, p.pid
 FROM (
-  SELECT utid FROM dpu_vote_clock_span
+  SELECT upid FROM dpu_vote_clock_span
   UNION
-  SELECT utid FROM dpu_vote_avg_bw_span
+  SELECT upid FROM dpu_vote_avg_bw_span
   UNION
-  SELECT utid FROM dpu_vote_peak_bw_span
-) s JOIN thread t ON s.utid = t.utid;
+  SELECT upid FROM dpu_vote_peak_bw_span
+) s JOIN process p USING (upid);
 
+-- These systrace counters are coming from dedicated kernel threads, so we can
+-- assume pid == tid.
 DROP VIEW IF EXISTS dpu_vote_metrics;
 CREATE VIEW dpu_vote_metrics AS
 SELECT AndroidHwcomposerMetrics_DpuVoteMetrics(
-  'tid', tid,
+  'tid', pid,
   'avg_dpu_vote_clock',
       (SELECT SUM(dpu_vote_clock_val * dur) / SUM(dur)
-      FROM dpu_vote_clock_span s WHERE s.utid = t.utid),
+      FROM dpu_vote_clock_span s WHERE s.upid = p.upid),
   'avg_dpu_vote_avg_bw',
       (SELECT SUM(dpu_vote_avg_bw_val * dur) / SUM(dur)
-      FROM dpu_vote_avg_bw_span s WHERE s.utid = t.utid),
+      FROM dpu_vote_avg_bw_span s WHERE s.upid = p.upid),
   'avg_dpu_vote_peak_bw',
       (SELECT SUM(dpu_vote_peak_bw_val * dur) / SUM(dur)
-      FROM dpu_vote_peak_bw_span s WHERE s.utid = t.utid),
+      FROM dpu_vote_peak_bw_span s WHERE s.upid = p.upid),
   'avg_dpu_vote_rt_bw',
       (SELECT SUM(dpu_vote_rt_bw_val * dur) / SUM(dur)
-      FROM dpu_vote_rt_bw_span s WHERE s.utid = t.utid)
+      FROM dpu_vote_rt_bw_span s WHERE s.upid = p.upid)
 ) AS proto
-FROM dpu_vote_thread t
-ORDER BY tid;
+FROM dpu_vote_process p
+ORDER BY pid;
 
 DROP VIEW IF EXISTS android_hwcomposer_output;
 CREATE VIEW android_hwcomposer_output AS

@@ -28,8 +28,8 @@ trace.add_process(10, 0, "process")
 
 trace.add_ftrace_packet(0)
 
-# Create a new child process (treated internally as a thread) of kthreadd.
-trace.add_newtask(ts=50, tid=2, new_tid=3, new_comm="kthread_child", flags=0)
+# Create a kernel "thread", which is a single-thread process child of kthreadd.
+trace.add_newtask(ts=50, tid=2, new_tid=3, new_comm="kthreadd_child", flags=0)
 
 # Add an event on tid 3 which affects its own rss.
 trace.add_rss_stat(ts=90, tid=3, member=0, size=9, mm_id=4321, curr=True)
@@ -45,7 +45,7 @@ trace.add_rss_stat(ts=99, tid=10, member=0, size=10, mm_id=4321, curr=False)
 # Add an event on tid 10 which affects its own rss.
 trace.add_rss_stat(ts=100, tid=10, member=0, size=1000, mm_id=1234, curr=True)
 
-# Add an event on tid 10 from tid 3. This emlates e.g. background reclaim
+# Add an event on tid 10 from tid 3. This emulates e.g. background reclaim
 # where kthreadd is cleaning up the mm struct of another process.
 trace.add_rss_stat(ts=101, tid=3, member=0, size=900, mm_id=1234, curr=False)
 
