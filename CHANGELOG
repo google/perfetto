@@ -1,9 +1,14 @@
-CHANGELOGUnreleased:
+Unreleased:
   Tracing service and probes:
-    * Android perf profiler ("linux.perf" data source) and Java heap snapshots
-      ("android.java_hprof") now support a single wildcard (*) in the config
-      options that name process command lines to target.
+    * Added wildcard (*) support when targeting processes by their command line
+      in the Android perf profiler ("linux.perf" data source) and Java heap
+      snapshots ("android.java_hprof").
+    * Added support for kernel thread sampling, and kernel-only callstacks in
+      the Android perf profiler.
   Trace Processor:
+    * Changed kernel threads to be represented as single-thread processes in
+      Linux system traces. The (incorrect) legacy behaviour was to treat them
+      as threads of the kthreadd process.
     * Added ABS_TIME_STR function which converts a trace timestamp to
       an ISO8601 string.
   UI:
