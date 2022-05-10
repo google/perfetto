@@ -235,6 +235,14 @@ class Table {
  protected:
   explicit Table(StringPool* pool);
 
+  std::vector<RowMap> CopyRowMaps() const {
+    std::vector<RowMap> rm(row_maps_.size());
+    for (uint32_t i = 0; i < row_maps_.size(); ++i) {
+      rm[i] = row_maps_[i].Copy();
+    }
+    return rm;
+  }
+
   std::vector<RowMap> row_maps_;
   std::vector<Column> columns_;
   uint32_t row_count_ = 0;
