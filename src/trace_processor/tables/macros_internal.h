@@ -375,6 +375,8 @@ class MacroTable : public Table {
       DefinedId() = default;                                                  \
       explicit constexpr DefinedId(uint32_t v) : BaseId(v) {}                 \
     };                                                                        \
+    static_assert(std::is_trivially_destructible<DefinedId>::value,           \
+                  "Inheritance used without trivial destruction");            \
                                                                               \
     static constexpr uint32_t id_flags() { return Column::kIdFlags; }         \
     static constexpr uint32_t type_flags() { return Column::kNoFlag; }        \
@@ -418,6 +420,8 @@ class MacroTable : public Table {
        */                                                                     \
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_ROW_DEFINITION)              \
     };                                                                        \
+    static_assert(std::is_trivially_destructible<Row>::value,                 \
+                  "Inheritance used without trivial destruction");            \
                                                                               \
     enum class ColumnIndex : uint32_t {                                       \
       id,                                                                     \
@@ -458,6 +462,8 @@ class MacroTable : public Table {
       const class_name* table_ = nullptr;                                     \
       uint32_t row_number_ = 0;                                               \
     };                                                                        \
+    static_assert(std::is_trivially_destructible<ConstRowReference>::value,   \
+                  "Inheritance used without trivial destruction");            \
                                                                               \
     /*                                                                        \
      * Reference to a rosrc/trace_processor/tables/macros_internal.h          \
@@ -481,6 +487,8 @@ class MacroTable : public Table {
         return const_cast<class_name*>(table_);                               \
       }                                                                       \
     };                                                                        \
+    static_assert(std::is_trivially_destructible<RowReference>::value,        \
+                  "Inheritance used without trivial destruction");            \
                                                                               \
     /*                                                                        \
      * Strongly typed wrapper around the row index. Prefer storing this over  \
@@ -523,13 +531,6 @@ class MacroTable : public Table {
      */                                                                       \
     class ConstIterator {                                                     \
      public:                                                                  \
-      explicit ConstIterator(const class_name* table, std::vector<RowMap> rm) \
-          : row_maps_(std::move(rm)), table_(table) {                         \
-        for (const auto& rm : row_maps_) {                                    \
-          its_.emplace_back(rm.IterateRows());                                \
-        }                                                                     \
-      }                                                                       \
-                                                                              \
       explicit operator bool() { return its_[0]; }                            \
                                                                               \
       ConstIterator& operator++() {                                           \
@@ -556,10 +557,15 @@ class MacroTable : public Table {
                                                                               \
      protected:                                                               \
       /*                                                                      \
-       * Must not be modified as |its_| contains pointers into this vector.   \
+       * Must not be public to avoid buggy code because of inheritance        \
+       * without virtual destructor.                                          \
        */                                                                     \
-      std::vector<RowMap> row_maps_;                                          \
-      std::vector<RowMap::Iterator> its_;                                     \
+      explicit ConstIterator(const class_name* table, std::vector<RowMap> rm) \
+          : row_maps_(std::move(rm)), table_(table) {                         \
+        for (const auto& rm : row_maps_) {                                    \
+          its_.emplace_back(rm.IterateRows());                                \
+        }                                                                     \
+      }                                                                       \
                                                                               \
       void Next() {                                                           \
         for (RowMap::Iterator & it : its_) {                                  \
@@ -577,7 +583,14 @@ class MacroTable : public Table {
         return its_.back().index();                                           \
       }                                                                       \
                                                                               \
+      /*                                                                      \
+       * Must not be modified as |its_| contains pointers into this vector.   \
+       */                                                                     \
+      std::vector<RowMap> row_maps_;                                          \
+      std::vector<RowMap::Iterator> its_;                                     \
+                                                                              \
      private:                                                                 \
+      friend class class_name;                                                \
       const class_name* table_ = nullptr;                                     \
     };                                                                        \
                                                                               \
@@ -589,9 +602,6 @@ class MacroTable : public Table {
      */                                                                       \
     class Iterator : public ConstIterator {                                   \
      public:                                                                  \
-      explicit Iterator(class_name* table, std::vector<RowMap> rm)            \
-          : ConstIterator(table, std::move(rm)), table_(table) {}             \
-                                                                              \
       Iterator& operator++() {                                                \
         Next();                                                               \
         return *this;                                                         \
@@ -612,6 +622,14 @@ class MacroTable : public Table {
       }                                                                       \
                                                                               \
      private:                                                                 \
+      /*                                                                      \
+       * Must not be public to avoid buggy code because of inheritance        \
+       * without virtual destructor.                                          \
+       */                                                                     \
+      explicit Iterator(class_name* table, std::vector<RowMap> rm)            \
+          : ConstIterator(table, std::move(rm)), table_(table) {}             \
+                                                                              \
+      friend class class_name;                                                \
       class_name* table_ = nullptr;                                           \
     };                                                                        \
                                                                               \
