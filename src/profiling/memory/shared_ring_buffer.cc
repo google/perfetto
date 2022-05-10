@@ -51,7 +51,6 @@ constexpr auto kFDSeals = F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL;
 
 }  // namespace
 
-
 SharedRingBuffer::SharedRingBuffer(CreateFlag, size_t size) {
   size_t size_with_meta = size + kMetaPageSize;
   base::ScopedFile fd;

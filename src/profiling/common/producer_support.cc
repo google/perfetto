@@ -98,14 +98,14 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
                        const std::string& packages_list_path) {
   // These constants are replicated from libcutils android_filesystem_config.h,
   // to allow for building and testing the profilers outside the android tree.
-  constexpr auto kAidSystem = 1000;           // AID_SYSTEM
-  constexpr auto kAidUserOffset = 100000;     // AID_USER_OFFSET
-  constexpr auto kAidAppStart = 10000;        // AID_APP_START
-  constexpr auto kAidAppEnd = 19999;          // AID_APP_END
-  constexpr auto kAidSdkSandboxStart = 20000; // AID_SDK_SANDBOX_PROCESS_START
-  constexpr auto kAidSdkSandboxEnd = 29999;   // AID_SDK_SANDBOX_PROCESS_END
-  constexpr auto kAidIsolatedStart = 90000;   // AID_ISOLATED_START
-  constexpr auto kAidIsolatedEnd = 99999;     // AID_ISOLATED_END
+  constexpr auto kAidSystem = 1000;            // AID_SYSTEM
+  constexpr auto kAidUserOffset = 100000;      // AID_USER_OFFSET
+  constexpr auto kAidAppStart = 10000;         // AID_APP_START
+  constexpr auto kAidAppEnd = 19999;           // AID_APP_END
+  constexpr auto kAidSdkSandboxStart = 20000;  // AID_SDK_SANDBOX_PROCESS_START
+  constexpr auto kAidSdkSandboxEnd = 29999;    // AID_SDK_SANDBOX_PROCESS_END
+  constexpr auto kAidIsolatedStart = 90000;    // AID_ISOLATED_START
+  constexpr auto kAidIsolatedEnd = 99999;      // AID_ISOLATED_END
 
   if (!build_type.empty() && build_type != "user") {
     return true;
@@ -114,7 +114,7 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
   // TODO(b/217368496): remove this.
   if (uid == kAidSystem) {
     return ds_config.session_initiator() ==
-      DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM;
+           DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM;
   }
 
   uint64_t uid_without_profile = uid % kAidUserOffset;

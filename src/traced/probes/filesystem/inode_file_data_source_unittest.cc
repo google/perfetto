@@ -30,11 +30,11 @@
 namespace perfetto {
 namespace {
 
+using ::testing::_;
 using ::testing::Eq;
 using ::testing::InvokeWithoutArgs;
 using ::testing::IsNull;
 using ::testing::Pointee;
-using ::testing::_;
 
 class TestInodeFileDataSource : public InodeFileDataSource {
  public:

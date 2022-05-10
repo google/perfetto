@@ -29,8 +29,8 @@
 namespace perfetto {
 namespace {
 
-using ::testing::Eq;
 using ::testing::Contains;
+using ::testing::Eq;
 using ::testing::UnorderedElementsAre;
 
 class TestDelegate : public FileScanner::Delegate {

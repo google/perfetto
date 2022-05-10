@@ -101,7 +101,8 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
   tracker.AddInternedType(
       kSeqId, kTypeCleaner, context.storage->InternString("sun.misc.Cleaner"),
       kLocation, /*object_size=*/0,
-      /*reference_field_name_ids=*/{kReferent, kThunk, kNext}, /*superclass_id=*/0,
+      /*reference_field_name_ids=*/{kReferent, kThunk, kNext},
+      /*superclass_id=*/0,
       /*classloader_id=*/0, /*no_reference_fields=*/false,
       /*kind=*/normal_kind);
 

@@ -104,18 +104,17 @@ std::vector<protos::gen::TracePacket> MockConsumer::ReadBuffers() {
   std::string checkpoint_name = "on_read_buffers_" + std::to_string(i++);
   auto on_read_buffers = task_runner_->CreateCheckpoint(checkpoint_name);
   EXPECT_CALL(*this, OnTraceData(_, _))
-      .WillRepeatedly(
-          Invoke([&decoded_packets, on_read_buffers](
-                     std::vector<TracePacket>* packets, bool has_more) {
-            for (TracePacket& packet : *packets) {
-              decoded_packets.emplace_back();
-              protos::gen::TracePacket* decoded_packet =
-                  &decoded_packets.back();
-              decoded_packet->ParseFromString(packet.GetRawBytesForTesting());
-            }
-            if (!has_more)
-              on_read_buffers();
-          }));
+      .WillRepeatedly(Invoke([&decoded_packets, on_read_buffers](
+                                 std::vector<TracePacket>* packets,
+                                 bool has_more) {
+        for (TracePacket& packet : *packets) {
+          decoded_packets.emplace_back();
+          protos::gen::TracePacket* decoded_packet = &decoded_packets.back();
+          decoded_packet->ParseFromString(packet.GetRawBytesForTesting());
+        }
+        if (!has_more)
+          on_read_buffers();
+      }));
   service_endpoint_->ReadBuffers();
   task_runner_->RunUntilCheckpoint(checkpoint_name);
   return decoded_packets;
