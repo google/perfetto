@@ -459,6 +459,16 @@ export function genConfig(
       HeapProfDs.config.chromeConfig.traceConfig = traceConfigJson;
       protoCfg.dataSources.push(HeapProfDs);
     }
+
+    if (chromeCategories.has('disabled-by-default-cpu_profiler') ||
+        chromeCategories.has('disabled-by-default-cpu_profiler.debug')) {
+      const dataSource = new TraceConfig.DataSource();
+      dataSource.config = new DataSourceConfig();
+      dataSource.config.name = 'org.chromium.sampler_profiler';
+      dataSource.config.chromeConfig = new ChromeConfig();
+      dataSource.config.chromeConfig.traceConfig = traceConfigJson;
+      protoCfg.dataSources.push(dataSource);
+    }
   }
 
   // Keep these last. The stages above can enrich them.
