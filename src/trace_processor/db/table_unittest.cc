@@ -25,12 +25,12 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-constexpr uint32_t kColumnCount = 1024;
+constexpr uint32_t kRowCount = 1024;
 
 std::unique_ptr<NullableVector<int64_t>> Column() {
   auto c =
       std::unique_ptr<NullableVector<int64_t>>(new NullableVector<int64_t>());
-  for (int64_t i = 0; i < kColumnCount; ++i)
+  for (int64_t i = 0; i < kRowCount; ++i)
     c->Append(i);
   return c;
 }
@@ -43,16 +43,108 @@ uint32_t Flags() {
   NAME(TestEventTable, "event")                           \
   PARENT(PERFETTO_TP_ROOT_TABLE_PARENT_DEF, C)            \
   C(int64_t, ts, Column::Flag::kSorted)                   \
-  C(int64_t, arg_set_id)
+  C(int64_t, dur)                                         \
+  C(uint32_t, arg_set_id, Column::Flag::kSorted | Column::Flag::kSetId)
 PERFETTO_TP_TABLE(PERFETTO_TP_TEST_EVENT_TABLE_DEF);
 
 TestEventTable::~TestEventTable() = default;
+
+TEST(TableTest, SetIdColumns) {
+  StringPool pool;
+  TestEventTable table{&pool, nullptr};
+
+  table.Insert(TestEventTable::Row(0, 0, 0));
+  table.Insert(TestEventTable::Row(1, 0, 0));
+  table.Insert(TestEventTable::Row(2, 0, 2));
+  table.Insert(TestEventTable::Row(3, 0, 3));
+  table.Insert(TestEventTable::Row(4, 0, 4));
+  table.Insert(TestEventTable::Row(5, 0, 4));
+  table.Insert(TestEventTable::Row(6, 0, 4));
+  table.Insert(TestEventTable::Row(7, 0, 4));
+  table.Insert(TestEventTable::Row(8, 0, 8));
+
+  ASSERT_EQ(table.row_count(), 9u);
+  ASSERT_TRUE(table.arg_set_id().IsSetId());
+
+  // Verify that not-present ids are not returned.
+  {
+    static constexpr uint32_t kFilterArgSetId = 1;
+    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
+    ASSERT_EQ(res.row_count(), 0u);
+  }
+  {
+    static constexpr uint32_t kFilterArgSetId = 9;
+    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
+    ASSERT_EQ(res.row_count(), 0u);
+  }
+
+  // Verify that kSetId flag is correctly removed after filtering/sorting.
+  {
+    static constexpr uint32_t kFilterArgSetId = 3;
+    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
+    ASSERT_EQ(res.row_count(), 1u);
+    ASSERT_FALSE(res.GetColumnByName("arg_set_id")->IsSetId());
+  }
+  {
+    auto res = table.Sort({table.dur().descending()});
+    ASSERT_FALSE(res.GetColumnByName("arg_set_id")->IsSetId());
+  }
+
+  uint32_t arg_set_id_col_idx =
+      static_cast<uint32_t>(TestEventTable::ColumnIndex::arg_set_id);
+
+  // Verify that filtering equality for real arg set ids works as expected.
+  {
+    static constexpr uint32_t kFilterArgSetId = 4;
+    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
+    ASSERT_EQ(res.row_count(), 4u);
+    for (auto it = res.IterateRows(); it; it.Next()) {
+      uint32_t arg_set_id =
+          static_cast<uint32_t>(it.Get(arg_set_id_col_idx).AsLong());
+      ASSERT_EQ(arg_set_id, kFilterArgSetId);
+    }
+  }
+  {
+    static constexpr uint32_t kFilterArgSetId = 0;
+    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
+    ASSERT_EQ(res.row_count(), 2u);
+    for (auto it = res.IterateRows(); it; it.Next()) {
+      uint32_t arg_set_id =
+          static_cast<uint32_t>(it.Get(arg_set_id_col_idx).AsLong());
+      ASSERT_EQ(arg_set_id, kFilterArgSetId);
+    }
+  }
+  {
+    static constexpr uint32_t kFilterArgSetId = 8;
+    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
+    ASSERT_EQ(res.row_count(), 1u);
+    for (auto it = res.IterateRows(); it; it.Next()) {
+      uint32_t arg_set_id =
+          static_cast<uint32_t>(it.Get(arg_set_id_col_idx).AsLong());
+      ASSERT_EQ(arg_set_id, kFilterArgSetId);
+    }
+  }
+
+  // Verify that filtering equality for arg set ids after filtering another
+  // column works.
+  {
+    static constexpr uint32_t kFilterArgSetId = 4;
+    auto res = table.Filter(
+        {table.ts().ge(6), table.arg_set_id().eq(kFilterArgSetId)});
+    ASSERT_EQ(res.row_count(), 2u);
+    for (auto it = res.IterateRows(); it; it.Next()) {
+      uint32_t arg_set_id =
+          static_cast<uint32_t>(it.Get(arg_set_id_col_idx).AsLong());
+      ASSERT_EQ(arg_set_id, kFilterArgSetId);
+    }
+  }
+}
 
 TEST(TableTest, ExtendingTableTwice) {
   StringPool pool;
   TestEventTable table{&pool, nullptr};
 
-  for (uint32_t i = 0; i < kColumnCount; ++i)
+  for (uint32_t i = 0; i < kRowCount; ++i)
     table.Insert(TestEventTable::Row(i));
 
   Table filtered_table;

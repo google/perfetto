@@ -51,10 +51,24 @@ PERFETTO_TP_TABLE(PERFETTO_TP_TEST_SLICE_TABLE_DEF);
   C(StringPool::Id, end_state)
 PERFETTO_TP_TABLE(PERFETTO_TP_TEST_CPU_SLICE_TABLE_DEF);
 
+#define PERFETTO_TP_TEST_ARGS_TABLE_DEF(NAME, PARENT, C) \
+  NAME(TestArgsTable, "args")                            \
+  PARENT(PERFETTO_TP_ROOT_TABLE_PARENT_DEF, C)           \
+  C(uint32_t, arg_set_id, Column::Flag::kSetId | Column::Flag::kSorted)
+PERFETTO_TP_TABLE(PERFETTO_TP_TEST_ARGS_TABLE_DEF);
+
+#define PERFETTO_TP_TEST_ARGS_CHILD_TABLE_DEF(NAME, PARENT, C) \
+  NAME(TestArgsChildTable, "args_child")                       \
+  PARENT(PERFETTO_TP_TEST_ARGS_TABLE_DEF, C)                   \
+  C(uint32_t, child_col)
+PERFETTO_TP_TABLE(PERFETTO_TP_TEST_ARGS_CHILD_TABLE_DEF);
+
 TestEventTable::~TestEventTable() = default;
 TestCounterTable::~TestCounterTable() = default;
 TestSliceTable::~TestSliceTable() = default;
 TestCpuSliceTable::~TestCpuSliceTable() = default;
+TestArgsTable::~TestArgsTable() = default;
+TestArgsChildTable::~TestArgsChildTable() = default;
 
 class TableMacrosUnittest : public ::testing::Test {
  protected:
@@ -64,6 +78,8 @@ class TableMacrosUnittest : public ::testing::Test {
   TestCounterTable counter_{&pool_, &event_};
   TestSliceTable slice_{&pool_, &event_};
   TestCpuSliceTable cpu_slice_{&pool_, &slice_};
+  TestArgsTable args_{&pool_, nullptr};
+  TestArgsChildTable args_child_{&pool_, &args_};
 };
 
 TEST_F(TableMacrosUnittest, Name) {
@@ -443,6 +459,13 @@ TEST_F(TableMacrosUnittest, Sort) {
   ASSERT_EQ(arg_set_id->Get(0).long_value, 1);
   ASSERT_EQ(arg_set_id->Get(1).long_value, 3);
   ASSERT_EQ(arg_set_id->Get(2).long_value, 100);
+}
+
+TEST_F(TableMacrosUnittest, ChildDoesntInheritArgsSetFlag) {
+  ASSERT_FALSE(args_child_.arg_set_id().IsSetId());
+  ASSERT_FALSE(TestArgsChildTable::Schema()
+                   .columns[args_child_.arg_set_id().index_in_table()]
+                   .is_set_id);
 }
 
 }  // namespace

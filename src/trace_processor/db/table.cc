@@ -22,19 +22,7 @@ namespace trace_processor {
 Table::Table() = default;
 Table::~Table() = default;
 
-Table::Table(StringPool* pool, const Table* parent) : string_pool_(pool) {
-  if (!parent)
-    return;
-
-  // If this table has a parent, then copy over all the columns pointing to
-  // empty RowMaps.
-  for (uint32_t i = 0; i < parent->row_maps_.size(); ++i)
-    row_maps_.emplace_back();
-  for (const Column& col : parent->columns_) {
-    columns_.emplace_back(col, this, static_cast<uint32_t>(columns_.size()),
-                          col.row_map_idx_);
-  }
-}
+Table::Table(StringPool* pool) : string_pool_(pool) {}
 
 Table& Table::operator=(Table&& other) noexcept {
   row_count_ = other.row_count_;
@@ -57,7 +45,7 @@ Table Table::Copy() const {
 }
 
 Table Table::CopyExceptRowMaps() const {
-  Table table(string_pool_, nullptr);
+  Table table(string_pool_);
   table.row_count_ = row_count_;
   for (const Column& col : columns_) {
     table.columns_.emplace_back(col, &table, col.index_in_table(),
@@ -132,9 +120,10 @@ Table Table::Sort(const std::vector<Order>& od) const {
     PERFETTO_DCHECK(table.row_maps_.back().size() == table.row_count());
   }
 
-  // Remove the sorted flag from all the columns.
+  // Remove the sorted and row set flags from all the columns.
   for (auto& col : table.columns_) {
     col.flags_ &= ~Column::Flag::kSorted;
+    col.flags_ &= ~Column::Flag::kSetId;
   }
 
   // For the first order by, make the column flag itself as sorted but
