@@ -66,8 +66,14 @@ export const tables: Table[] = [
   {name: 'thread_track', columns: ['type', 'name', 'utid']},
 ];
 
-// Pair of table name and column name.
-export type TableColumn = [string, string];
+// Queried "table column" is either:
+// 1. A real one, represented as object with table and column name.
+// 2. Pseudo-column 'count' that's rendered as '1' in SQL to use in queries like
+// `select sum(1), name from slice group by name`.
+export type TableColumn = {
+  table: string,
+  column: string
+}|'count';
 
 // Exception thrown by query generator in case incoming parameters are not
 // suitable in order to build a correct query; these are caught by the UI and
@@ -119,11 +125,15 @@ function computeSliceTableAggregations(
     {tableName: string, flatAggregations: string[]} {
   let hasThreadSliceColumn = false;
   const allColumns: string[] = [];
-  for (const [table, column] of selectedAggregations.values()) {
-    if (table === 'thread_slice') {
+  for (const tableColumn of selectedAggregations.values()) {
+    if (tableColumn === 'count') {
+      allColumns.push('1');
+      continue;
+    }
+    if (tableColumn.table === 'thread_slice') {
       hasThreadSliceColumn = true;
     }
-    allColumns.push(column);
+    allColumns.push(tableColumn.column);
   }
 
   return {
@@ -171,11 +181,14 @@ export function generateQuery(
     throw new QueryGeneratorError('No aggregations selected');
   }
 
-  for (const [table, pivot] of selectedPivots.values()) {
-    if (table === 'slice' || table === 'thread_slice') {
-      slicePivots.push(pivot);
+  for (const tableColumn of selectedPivots.values()) {
+    if (tableColumn === 'count') {
+      throw new Error('count can not be used as a pivot');
+    }
+    if (tableColumn.table === 'slice' || tableColumn.table === 'thread_slice') {
+      slicePivots.push(tableColumn.column);
     } else {
-      nonSlicePivots.push(`${table}.${pivot}`);
+      nonSlicePivots.push(`${tableColumn.table}.${tableColumn.column}`);
     }
   }
 
