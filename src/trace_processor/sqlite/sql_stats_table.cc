@@ -35,7 +35,7 @@ void SqlStatsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
   SqliteTable::Register<SqlStatsTable>(db, storage, "sqlstats");
 }
 
-util::Status SqlStatsTable::Init(int, const char* const*, Schema* schema) {
+base::Status SqlStatsTable::Init(int, const char* const*, Schema* schema) {
   *schema = Schema(
       {
           SqliteTable::Column(Column::kQuery, "query", SqlValue::Type::kString),

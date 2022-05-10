@@ -17,9 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_DYNAMIC_THREAD_STATE_GENERATOR_H_
 #define SRC_TRACE_PROCESSOR_DYNAMIC_THREAD_STATE_GENERATOR_H_
 
-#include "src/trace_processor/sqlite/db_sqlite_table.h"
-
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "src/trace_processor/dynamic/dynamic_table_generator.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -30,7 +29,7 @@ class TraceProcessorContext;
 // Dynamic table implementing the thread state table.
 // This table is a basically the same as sched with extra information added
 // about wakeups (obtained from sched_waking/sched_wakeup).
-class ThreadStateGenerator : public DbSqliteTable::DynamicTableGenerator {
+class ThreadStateGenerator : public DynamicTableGenerator {
  public:
   explicit ThreadStateGenerator(TraceProcessorContext* context);
   ~ThreadStateGenerator() override;

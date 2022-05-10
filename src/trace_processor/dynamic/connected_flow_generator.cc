@@ -22,7 +22,7 @@
 
 #include "src/trace_processor/dynamic/ancestor_generator.h"
 #include "src/trace_processor/dynamic/descendant_generator.h"
-#include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -41,7 +41,7 @@ base::Status ConnectedFlowGenerator::ValidateConstraints(
   auto flow_id_fn = [this](const QueryConstraints::Constraint& c) {
     return c.column == static_cast<int>(
                            context_->storage->flow_table().GetColumnCount()) &&
-           c.op == SQLITE_INDEX_CONSTRAINT_EQ;
+           sqlite_utils::IsOpEq(c.op);
   };
   bool has_flow_id_cs =
       std::find_if(cs.begin(), cs.end(), flow_id_fn) != cs.end();
