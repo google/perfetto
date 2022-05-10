@@ -102,14 +102,14 @@ static void BM_TableIteratorChild(benchmark::State& state) {
     root.Insert({});
   }
 
-  auto it = child.IterateRows();
+  auto it = static_cast<Table&>(child).IterateRows();
   for (auto _ : state) {
     for (uint32_t i = 0; i < child.GetColumnCount(); ++i) {
       benchmark::DoNotOptimize(it.Get(i));
     }
     it.Next();
     if (!it)
-      it = child.IterateRows();
+      it = static_cast<Table&>(child).IterateRows();
   }
 }
 BENCHMARK(BM_TableIteratorChild)->Apply(TableFilterArgs);
