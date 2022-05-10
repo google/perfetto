@@ -819,8 +819,8 @@ class JsonExporter {
 
       const auto& track_table = storage_->track_table();
 
-      uint32_t track_row = *track_table.id().IndexOf(track_id);
-      auto track_args_id = track_table.source_arg_set_id()[track_row];
+      auto track_row_ref = *track_table.FindById(track_id);
+      auto track_args_id = track_row_ref.source_arg_set_id();
       const Json::Value* track_args = nullptr;
       bool legacy_chrome_track = false;
       bool is_child_track = false;
