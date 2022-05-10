@@ -76,11 +76,6 @@ namespace {
 using protozero::ConstBytes;
 using protozero::ProtoDecoder;
 
-// kthreadd is the parent process for all kernel threads and always has
-// pid == 2 on Linux and Android.
-const uint32_t kKthreaddPid = 2;
-const char kKthreaddName[] = "kthreadd";
-
 struct FtraceEventAndFieldId {
   uint32_t event_id;
   uint32_t field_id;
@@ -1006,7 +1001,7 @@ void FtraceParser::ParseSdeTracingMarkWrite(int64_t timestamp,
   }
 
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
-  SystraceParser::GetOrCreate(context_)->ParseTracingMarkWrite(
+  SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
       timestamp, pid, static_cast<char>(evt.trace_type()), evt.trace_begin(),
       evt.trace_name(), tgid, evt.value());
 }
@@ -1022,14 +1017,7 @@ void FtraceParser::ParseDpuTracingMarkWrite(int64_t timestamp,
   }
 
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
-  // For kernel counter events, they will become thread counter tracks.
-  // But, we want to use the pid field specified in the event as the thread ID
-  // of the thread_counter_track instead of using the thread ID that emitted
-  // the events. So here, we need to override pid = tgid.
-  if (static_cast<char>(evt.type()) == 'C') {
-    pid = tgid;
-  }
-  SystraceParser::GetOrCreate(context_)->ParseTracingMarkWrite(
+  SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
       timestamp, pid, static_cast<char>(evt.type()), false /*trace_begin*/,
       evt.name(), tgid, evt.value());
 }
@@ -1045,14 +1033,7 @@ void FtraceParser::ParseG2dTracingMarkWrite(int64_t timestamp,
   }
 
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
-  // For kernel counter events, they will become thread counter tracks.
-  // But, we want to use the pid field specified in the event as the thread ID
-  // of the thread_counter_track instead of using the thread ID that emitted
-  // the events. So here, we need to override pid = tgid.
-  if (static_cast<char>(evt.type()) == 'C') {
-    pid = tgid;
-  }
-  SystraceParser::GetOrCreate(context_)->ParseTracingMarkWrite(
+  SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
       timestamp, pid, static_cast<char>(evt.type()), false /*trace_begin*/,
       evt.name(), tgid, evt.value());
 }
@@ -1068,7 +1049,7 @@ void FtraceParser::ParseMaliTracingMarkWrite(int64_t timestamp,
   }
 
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
-  SystraceParser::GetOrCreate(context_)->ParseTracingMarkWrite(
+  SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
       timestamp, pid, static_cast<char>(evt.type()), false /*trace_begin*/,
       evt.name(), tgid, evt.value());
 }
@@ -1311,19 +1292,12 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   // family) and thread creation (clone(CLONE_THREAD, ...)).
   static const uint32_t kCloneThread = 0x00010000;  // From kernel's sched.h.
 
-  // If the process is a fork, start a new process except if the source tid is
-  // kthreadd in which case just make it a new thread associated with
-  // kthreadd.
-  if ((clone_flags & kCloneThread) == 0 && source_tid != kKthreaddPid) {
+  // If the process is a fork, start a new process.
+  if ((clone_flags & kCloneThread) == 0) {
     // This is a plain-old fork() or equivalent.
     proc_tracker->StartNewProcess(timestamp, source_tid, new_tid, new_comm,
                                   ThreadNamePriority::kFtrace);
     return;
-  }
-
-  if (source_tid == kKthreaddPid) {
-    context_->process_tracker->SetProcessMetadata(
-        kKthreaddPid, base::nullopt, kKthreaddName, base::StringView());
   }
 
   // This is a pthread_create or similar. Bind the two threads together, so

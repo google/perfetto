@@ -279,14 +279,16 @@ class SystraceParser : public Destructible {
 
   void ParsePrintEvent(int64_t ts, uint32_t pid, base::StringView event);
 
-  void ParseTracingMarkWrite(int64_t ts,
-                             uint32_t pid,
-                             char trace_type,
-                             bool trace_begin,
-                             base::StringView trace_name,
-                             uint32_t tgid,
-                             int64_t value);
+  // Parse a kernel event that mimics the systrace format.
+  void ParseKernelTracingMarkWrite(int64_t ts,
+                                   uint32_t pid,
+                                   char trace_type,
+                                   bool trace_begin,
+                                   base::StringView trace_name,
+                                   uint32_t tgid,
+                                   int64_t value);
 
+  // Parse a kernel "systrace/0" event which mimics the systrace format.
   void ParseZeroEvent(int64_t ts,
                       uint32_t pid,
                       int32_t flag,
