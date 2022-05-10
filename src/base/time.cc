@@ -44,10 +44,10 @@ TimeNanos GetThreadCPUTimeNs() {
   FILETIME dummy, kernel_ftime, user_ftime;
   ::GetThreadTimes(GetCurrentThread(), &dummy, &dummy, &kernel_ftime,
                    &user_ftime);
-  uint64_t kernel_time = kernel_ftime.dwHighDateTime * 0x100000000 +
-                         kernel_ftime.dwLowDateTime;
-  uint64_t user_time = user_ftime.dwHighDateTime * 0x100000000 +
-                       user_ftime.dwLowDateTime;
+  uint64_t kernel_time =
+      kernel_ftime.dwHighDateTime * 0x100000000 + kernel_ftime.dwLowDateTime;
+  uint64_t user_time =
+      user_ftime.dwHighDateTime * 0x100000000 + user_ftime.dwLowDateTime;
 
   return TimeNanos((kernel_time + user_time) * 100);
 }

@@ -82,8 +82,7 @@ bool FDMaps::Parse() {
           name = unwindstack::SharedString(mapinfo.name);
         }
         maps_.emplace_back(unwindstack::MapInfo::Create(
-            prev_map, mapinfo.start, mapinfo.end, mapinfo.pgoff,
-            flags, name));
+            prev_map, mapinfo.start, mapinfo.end, mapinfo.pgoff, flags, name));
         prev_map = maps_.back();
       });
 }
@@ -111,7 +110,8 @@ void UnwindingMetadata::ReparseMaps() {
 }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-unwindstack::JitDebug* UnwindingMetadata::GetJitDebug(unwindstack::ArchEnum arch) {
+unwindstack::JitDebug* UnwindingMetadata::GetJitDebug(
+    unwindstack::ArchEnum arch) {
   if (jit_debug.get() == nullptr) {
     std::vector<std::string> search_libs{"libart.so", "libartd.so"};
     jit_debug = unwindstack::CreateJitDebug(arch, fd_mem, search_libs);
@@ -119,7 +119,8 @@ unwindstack::JitDebug* UnwindingMetadata::GetJitDebug(unwindstack::ArchEnum arch
   return jit_debug.get();
 }
 
-unwindstack::DexFiles* UnwindingMetadata::GetDexFiles(unwindstack::ArchEnum arch) {
+unwindstack::DexFiles* UnwindingMetadata::GetDexFiles(
+    unwindstack::ArchEnum arch) {
   if (dex_files.get() == nullptr) {
     std::vector<std::string> search_libs{"libart.so", "libartd.so"};
     dex_files = unwindstack::CreateDexFiles(arch, fd_mem, search_libs);
