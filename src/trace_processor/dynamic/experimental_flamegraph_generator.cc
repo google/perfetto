@@ -23,6 +23,7 @@
 
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/proto/heap_profile_tracker.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -45,9 +46,9 @@ ExperimentalFlamegraphGenerator::ProfileType extractProfileType(
 }
 
 bool IsValidTimestampOp(int op) {
-  return op == SQLITE_INDEX_CONSTRAINT_EQ || op == SQLITE_INDEX_CONSTRAINT_GT ||
-         op == SQLITE_INDEX_CONSTRAINT_LE || op == SQLITE_INDEX_CONSTRAINT_LT ||
-         op == SQLITE_INDEX_CONSTRAINT_GE;
+  return sqlite_utils::IsOpEq(op) || sqlite_utils::IsOpGt(op) ||
+         sqlite_utils::IsOpLe(op) || sqlite_utils::IsOpLt(op) ||
+         sqlite_utils::IsOpGe(op);
 }
 
 bool IsValidFilterOp(FilterOp filterOp) {

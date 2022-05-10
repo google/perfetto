@@ -25,10 +25,10 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/sqlite/query_constraints.h"
 
 namespace perfetto {
@@ -218,7 +218,7 @@ class SqliteTable : public sqlite3_vtab {
       table->name_ = xdesc->name;
 
       Schema schema;
-      util::Status status = table->Init(argc, argv, &schema);
+      base::Status status = table->Init(argc, argv, &schema);
       if (!status.ok()) {
         *pzErr = sqlite3_mprintf("%s", status.c_message());
         return SQLITE_ERROR;
@@ -320,7 +320,7 @@ class SqliteTable : public sqlite3_vtab {
   }
 
   // Methods to be implemented by derived table classes.
-  virtual util::Status Init(int argc, const char* const* argv, Schema*) = 0;
+  virtual base::Status Init(int argc, const char* const* argv, Schema*) = 0;
   virtual std::unique_ptr<Cursor> CreateCursor() = 0;
   virtual int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) = 0;
 

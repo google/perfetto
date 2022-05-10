@@ -18,7 +18,7 @@
 #define SRC_TRACE_PROCESSOR_DYNAMIC_EXPERIMENTAL_FLAT_SLICE_GENERATOR_H_
 
 #include "perfetto/ext/base/optional.h"
-#include "src/trace_processor/sqlite/db_sqlite_table.h"
+#include "src/trace_processor/dynamic/dynamic_table_generator.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -52,8 +52,7 @@ class TraceProcessorContext;
 // (which picks all slices with ts + dur >= bound) and is more akin to doing
 // a simple ts >= bound. However, slices *will* be truncated at the end
 // if they would spill past the provided end bound.
-class ExperimentalFlatSliceGenerator
-    : public DbSqliteTable::DynamicTableGenerator {
+class ExperimentalFlatSliceGenerator : public DynamicTableGenerator {
  public:
   ExperimentalFlatSliceGenerator(TraceProcessorContext* context);
 
