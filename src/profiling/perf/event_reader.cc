@@ -359,8 +359,6 @@ ParsedSample EventReader::ParseSampleRecord(uint32_t cpu,
     if (max_stack_size > 0) {
       uint64_t filled_stack_size;
       parse_pos = ReadValue(&filled_stack_size, parse_pos);
-      PERFETTO_DLOG("sampled stack size: %" PRIu64 " / %" PRIu64 "",
-                    filled_stack_size, max_stack_size);
 
       // copy stack bytes into a vector
       size_t payload_sz = static_cast<size_t>(filled_stack_size);

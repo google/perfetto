@@ -126,36 +126,6 @@ TEST(EventConfigTest, RemotePeriodTimeoutDefaultedIfUnset) {
   }
 }
 
-TEST(EventConfigTest, EnableKernelFrames) {
-  {
-    protos::gen::PerfEventConfig cfg;
-    cfg.mutable_callstack_sampling()->set_kernel_frames(true);
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
-
-    ASSERT_TRUE(event_config.has_value());
-    EXPECT_TRUE(event_config->kernel_frames());
-  }
-  {  // legacy config:
-    protos::gen::PerfEventConfig cfg;
-    cfg.set_all_cpus(true);  // used to detect compat mode
-    cfg.set_kernel_frames(true);
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
-
-    ASSERT_TRUE(event_config.has_value());
-    EXPECT_TRUE(event_config->kernel_frames());
-  }
-  {  // default is false
-    protos::gen::PerfEventConfig cfg;
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
-
-    ASSERT_TRUE(event_config.has_value());
-    EXPECT_FALSE(event_config->kernel_frames());
-  }
-}
-
 TEST(EventConfigTest, SelectSamplingInterval) {
   {  // period:
     protos::gen::PerfEventConfig cfg;
@@ -311,7 +281,7 @@ TEST(EventConfigTest, CounterOnlyModeDetection) {
 }
 
 TEST(EventConfigTest, CallstackSamplingModeDetection) {
-  {  // set-but-empty |callstack_sampling| field enables callstacks
+  {  // set-but-empty |callstack_sampling| field enables userspace callstacks
     protos::gen::PerfEventConfig cfg;
     cfg.mutable_callstack_sampling();  // set field
 
@@ -319,6 +289,9 @@ TEST(EventConfigTest, CallstackSamplingModeDetection) {
         EventConfig::Create(AsDataSourceConfig(cfg));
 
     ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->sample_callstacks());
+    EXPECT_TRUE(event_config->user_frames());
+    EXPECT_FALSE(event_config->kernel_frames());
     EXPECT_EQ(
         event_config->perf_attr()->sample_type &
             (PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER),
@@ -326,6 +299,60 @@ TEST(EventConfigTest, CallstackSamplingModeDetection) {
 
     EXPECT_NE(event_config->perf_attr()->sample_regs_user, 0u);
     EXPECT_NE(event_config->perf_attr()->sample_stack_user, 0u);
+  }
+  {  // kernel-only callstacks
+    protos::gen::PerfEventConfig cfg;
+    cfg.mutable_callstack_sampling()->set_kernel_frames(true);
+    cfg.mutable_callstack_sampling()->set_user_frames(
+        protos::gen::PerfEventConfig::UNWIND_SKIP);
+
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->sample_callstacks());
+    EXPECT_FALSE(event_config->user_frames());
+    EXPECT_TRUE(event_config->kernel_frames());
+    EXPECT_EQ(event_config->perf_attr()->sample_type &
+                  (PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER),
+              0u);
+    EXPECT_EQ(event_config->perf_attr()->sample_type & (PERF_SAMPLE_CALLCHAIN),
+              static_cast<uint64_t>(PERF_SAMPLE_CALLCHAIN));
+
+    EXPECT_EQ(event_config->perf_attr()->sample_regs_user, 0u);
+    EXPECT_EQ(event_config->perf_attr()->sample_stack_user, 0u);
+
+    EXPECT_NE(event_config->perf_attr()->exclude_callchain_user, 0u);
+  }
+}
+
+TEST(EventConfigTest, EnableKernelFrames) {
+  {
+    protos::gen::PerfEventConfig cfg;
+    cfg.mutable_callstack_sampling()->set_kernel_frames(true);
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->kernel_frames());
+  }
+  {  // legacy config:
+    protos::gen::PerfEventConfig cfg;
+    cfg.set_all_cpus(true);  // used to detect compat mode
+    cfg.set_kernel_frames(true);
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_TRUE(event_config->kernel_frames());
+  }
+  {  // default is false
+    protos::gen::PerfEventConfig cfg;
+    base::Optional<EventConfig> event_config =
+        EventConfig::Create(AsDataSourceConfig(cfg));
+
+    ASSERT_TRUE(event_config.has_value());
+    EXPECT_FALSE(event_config->kernel_frames());
   }
 }
 
