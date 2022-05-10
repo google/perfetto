@@ -40,7 +40,7 @@ enum TraceProcessorApiVersion {
   // mismatches between UI and trace_processor_shell --httpd. Increment this
   // every time a new feature that the UI depends on is being introduced (e.g.
   // new tables, new SQL operators, metrics that are required by the UI).
-  // See also TraceProcessorVersion (below).
+  // See also StatusResult.api_version (below).
   TRACE_PROCESSOR_CURRENT_API_VERSION = 5;
 }
 
