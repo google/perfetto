@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "flamegraph_construction_algorithms.h"
+#include "src/trace_processor/dynamic/flamegraph_construction_algorithms.h"
 
 #include <set>
 #include <unordered_set>

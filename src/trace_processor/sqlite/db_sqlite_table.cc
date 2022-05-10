@@ -638,7 +638,5 @@ int DbSqliteTable::Cursor::Column(sqlite3_context* ctx, int raw_col) {
   return SQLITE_OK;
 }
 
-DbSqliteTable::DynamicTableGenerator::~DynamicTableGenerator() = default;
-
 }  // namespace trace_processor
 }  // namespace perfetto

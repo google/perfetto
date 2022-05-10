@@ -19,6 +19,7 @@
 #include <memory>
 #include <set>
 
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -100,7 +101,7 @@ base::Status AncestorGenerator::ValidateConstraints(
 
   int column = static_cast<int>(GetConstraintColumnIndex(type_, context_));
   auto id_fn = [column](const QueryConstraints::Constraint& c) {
-    return c.column == column && c.op == SQLITE_INDEX_CONSTRAINT_EQ;
+    return c.column == column && sqlite_utils::IsOpEq(c.op);
   };
   bool has_id_cs = std::find_if(cs.begin(), cs.end(), id_fn) != cs.end();
   return has_id_cs ? base::OkStatus()

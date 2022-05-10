@@ -17,11 +17,11 @@
 #include "src/trace_processor/dynamic/experimental_annotated_stack_generator.h"
 
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-
-#include "perfetto/ext/base/string_utils.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -110,7 +110,7 @@ base::Status ExperimentalAnnotatedStackGenerator::ValidateConstraints(
   int column = static_cast<int>(GetConstraintColumnIndex(context_));
 
   auto id_fn = [column](const QueryConstraints::Constraint& c) {
-    return c.column == column && c.op == SQLITE_INDEX_CONSTRAINT_EQ;
+    return c.column == column && sqlite_utils::IsOpEq(c.op);
   };
   bool has_id_cs = std::find_if(cs.begin(), cs.end(), id_fn) != cs.end();
   return has_id_cs ? base::OkStatus()

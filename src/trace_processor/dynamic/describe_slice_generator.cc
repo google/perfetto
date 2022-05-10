@@ -17,6 +17,7 @@
 #include "src/trace_processor/dynamic/describe_slice_generator.h"
 
 #include "src/trace_processor/analysis/describe_slice.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -58,7 +59,7 @@ base::Status DescribeSliceGenerator::ValidateConstraints(
 
   auto slice_id_fn = [](const QueryConstraints::Constraint& c) {
     return c.column == static_cast<int>(T::ColumnIndex::slice_id) &&
-           c.op == SQLITE_INDEX_CONSTRAINT_EQ;
+           sqlite_utils::IsOpEq(c.op);
   };
   bool has_slice_id_cs =
       std::find_if(cs.begin(), cs.end(), slice_id_fn) != cs.end();
