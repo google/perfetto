@@ -63,6 +63,8 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
   private parentHeight = 0;
   private scrollTop = 0;
   private panelInfos: PanelInfo[] = [];
+  private panelContainerTop = 0;
+  private panelContainerHeight = 0;
   private panelByKey = new Map<string, AnyAttrsVnode>();
   private totalPanelHeight = 0;
   private canvasHeight = 0;
@@ -337,6 +339,9 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     const prevHeight = this.totalPanelHeight;
     this.panelInfos = [];
     this.totalPanelHeight = 0;
+    const domRect = dom.getBoundingClientRect();
+    this.panelContainerTop = domRect.y;
+    this.panelContainerHeight = domRect.height;
 
     dom.parentElement!.querySelectorAll('.panel').forEach(panel => {
       const key = assertExists(panel.getAttribute('data-key'));
@@ -428,11 +433,8 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     if (this.panelInfos.length === 0 || area.tracks.length === 0) return;
 
     // Find the minY and maxY of the selected tracks in this panel container.
-    const panelContainerTop = this.panelInfos[0].y;
-    const panelContainerBottom = this.panelInfos[this.panelInfos.length - 1].y +
-        this.panelInfos[this.panelInfos.length - 1].height;
-    let selectedTracksMinY = panelContainerBottom;
-    let selectedTracksMaxY = panelContainerTop;
+    let selectedTracksMinY = this.panelContainerHeight + this.panelContainerTop;
+    let selectedTracksMaxY = this.panelContainerTop;
     let trackFromCurrentContainerSelected = false;
     for (let i = 0; i < this.panelInfos.length; i++) {
       if (area.tracks.includes(this.panelInfos[i].id)) {
@@ -453,8 +455,8 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     const startX = globals.frontendLocalState.timeScale.timeToPx(area.startSec);
     const endX = globals.frontendLocalState.timeScale.timeToPx(area.endSec);
     // To align with where to draw on the canvas subtract the first panel Y.
-    selectedTracksMinY -= panelContainerTop;
-    selectedTracksMaxY -= panelContainerTop;
+    selectedTracksMinY -= this.panelContainerTop;
+    selectedTracksMaxY -= this.panelContainerTop;
     this.ctx.save();
     this.ctx.strokeStyle = 'rgba(52,69,150)';
     this.ctx.lineWidth = 1;
