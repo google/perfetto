@@ -19,6 +19,7 @@
 
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/table.h"
+#include "src/trace_processor/dynamic/dynamic_table_generator.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 
@@ -35,41 +36,6 @@ class DbSqliteTable : public SqliteTable {
 
     // Mode when table is dynamically computed at filter time.
     kDynamic,
-  };
-
-  // Interface which can be subclassed to allow generation of tables dynamically
-  // at filter time.
-  // This class is used to implement table-valued functions and other similar
-  // tables.
-  class DynamicTableGenerator {
-   public:
-    virtual ~DynamicTableGenerator();
-
-    // Returns the schema of the table that will be returned by ComputeTable.
-    virtual Table::Schema CreateSchema() = 0;
-
-    // Returns the name of the dynamic table.
-    // This will be used to register the table with SQLite.
-    virtual std::string TableName() = 0;
-
-    // Returns the estimated number of rows the table would generate.
-    virtual uint32_t EstimateRowCount() = 0;
-
-    // Checks that the constraint set is valid.
-    //
-    // Returning base::OkStatus means that the required constraints are present
-    // in |qc| for dynamically computing the table (e.g. any required
-    // constraints on hidden columns for table-valued functions are present).
-    virtual base::Status ValidateConstraints(const QueryConstraints& qc) = 0;
-
-    // Dynamically computes the table given the constraints and order by
-    // vectors.
-    // The table is returned via |table_return|. There are no guarantees on
-    // its value if the method returns a non-ok status.
-    virtual base::Status ComputeTable(const std::vector<Constraint>& cs,
-                                      const std::vector<Order>& ob,
-                                      const BitVector& cols_used,
-                                      std::unique_ptr<Table>& table_return) = 0;
   };
 
   class Cursor : public SqliteTable::Cursor {

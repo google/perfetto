@@ -17,9 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_DYNAMIC_ANCESTOR_GENERATOR_H_
 #define SRC_TRACE_PROCESSOR_DYNAMIC_ANCESTOR_GENERATOR_H_
 
-#include "src/trace_processor/sqlite/db_sqlite_table.h"
-
 #include "perfetto/ext/base/optional.h"
+#include "src/trace_processor/dynamic/dynamic_table_generator.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -33,7 +32,7 @@ class TraceProcessorContext;
 // * ancestor_slice_by_stack
 //
 // See docs/analysis/trace-processor for usage.
-class AncestorGenerator : public DbSqliteTable::DynamicTableGenerator {
+class AncestorGenerator : public DynamicTableGenerator {
  public:
   enum class Ancestor {
     kSlice = 1,

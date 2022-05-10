@@ -21,9 +21,9 @@
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
-#include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {

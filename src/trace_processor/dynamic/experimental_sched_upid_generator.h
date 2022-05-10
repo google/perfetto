@@ -19,14 +19,13 @@
 
 #include <set>
 
-#include "src/trace_processor/sqlite/db_sqlite_table.h"
+#include "src/trace_processor/dynamic/dynamic_table_generator.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-class ExperimentalSchedUpidGenerator
-    : public DbSqliteTable::DynamicTableGenerator {
+class ExperimentalSchedUpidGenerator : public DynamicTableGenerator {
  public:
   ExperimentalSchedUpidGenerator(const tables::SchedSliceTable&,
                                  const tables::ThreadTable&);
