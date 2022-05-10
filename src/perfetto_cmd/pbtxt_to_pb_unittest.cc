@@ -30,9 +30,9 @@
 namespace perfetto {
 namespace {
 
-using ::testing::StrictMock;
 using ::testing::Contains;
 using ::testing::ElementsAre;
+using ::testing::StrictMock;
 
 class MockErrorReporter : public ErrorReporter {
  public:

@@ -51,9 +51,8 @@ bool IsMapped(void* start, size_t size) {
 
   std::vector<char> buffer;
   for (;;) {
-    size_t buffer_size =
-      sizeof(PSAPI_WORKING_SET_INFORMATION) +
-      (number_of_entries * sizeof(PSAPI_WORKING_SET_BLOCK));
+    size_t buffer_size = sizeof(PSAPI_WORKING_SET_INFORMATION) +
+                         (number_of_entries * sizeof(PSAPI_WORKING_SET_BLOCK));
 
     buffer.resize(buffer_size);
     ws_info = reinterpret_cast<PSAPI_WORKING_SET_INFORMATION*>(&buffer[0]);

@@ -65,7 +65,6 @@ struct FtraceClockSnapshot {
 // Utility class for controlling ftrace.
 class FtraceController {
  public:
-
   class Observer {
    public:
     virtual ~Observer();
