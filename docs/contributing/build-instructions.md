@@ -141,6 +141,14 @@ The server supports live reloading of CSS and TS/JS contents. Whenever a ui
 source file is changed it, the script will automatically re-build it and show a
 prompt in the web page.
 
+UI unit tests are located next to the functionality being tested, and have
+`_unittest.ts` or `_jsdomtest.ts` suffixes. The following command runs all unit
+tests:
+
+```bash
+ui/run-unittests
+```
+
 ## Build files
 
 The source of truth of our build file is in the BUILD.gn files, which are based
