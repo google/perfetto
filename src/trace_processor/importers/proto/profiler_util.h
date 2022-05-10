@@ -35,7 +35,7 @@ std::string FullyQualifiedDeobfuscatedName(
 base::Optional<std::string> PackageFromLocation(TraceStorage* storage,
                                                 base::StringView location);
 
-}
+}  // namespace trace_processor
 }  // namespace perfetto
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILER_UTIL_H_

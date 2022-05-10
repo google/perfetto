@@ -188,8 +188,7 @@ class TraceStorage {
   class SqlStats {
    public:
     static constexpr size_t kMaxLogEntries = 100;
-    uint32_t RecordQueryBegin(const std::string& query,
-                              int64_t time_started);
+    uint32_t RecordQueryBegin(const std::string& query, int64_t time_started);
     void RecordQueryFirstNext(uint32_t row, int64_t time_first_next);
     void RecordQueryEnd(uint32_t row, int64_t time_end);
     size_t size() const { return queries_.size(); }

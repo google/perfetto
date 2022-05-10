@@ -35,8 +35,8 @@ ReportTrace(const char* reporter_package_name,
             int64_t uuid_msb,
             bool use_pipe_in_framework_for_testing);
 
-} // extern "C"
+}  // extern "C"
 
-} // namespace android_internal
-} // namespace perfetto
+}  // namespace android_internal
+}  // namespace perfetto
 #endif  // SRC_ANDROID_INTERNAL_TRACING_SERVICE_PROXY_H_

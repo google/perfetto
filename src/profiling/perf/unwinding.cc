@@ -416,8 +416,8 @@ CompletedSample Unwinder::UnwindSample(const ParsedSample& sample,
 
 std::vector<unwindstack::FrameData> Unwinder::SymbolizeKernelCallchain(
     const ParsedSample& sample) {
-  static base::NoDestructor<std::shared_ptr<unwindstack::MapInfo>> kernel_map_info(
-      unwindstack::MapInfo::Create(0, 0, 0, 0, "kernel"));
+  static base::NoDestructor<std::shared_ptr<unwindstack::MapInfo>>
+      kernel_map_info(unwindstack::MapInfo::Create(0, 0, 0, 0, "kernel"));
   std::vector<unwindstack::FrameData> ret;
   if (sample.kernel_ips.empty())
     return ret;

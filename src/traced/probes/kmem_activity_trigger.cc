@@ -90,13 +90,14 @@ KmemActivityTrigger::WorkerData::WorkerData(base::TaskRunner* task_runner)
       // Deliberately keeping this into the |trace_pipe_fds_| array so there is
       // a 1:1 mapping between CPU number and index in the array.
     } else {
-        // Attempt reading from the trace pipe to detect if the CPU is disabled,
-        // since open() doesn't fail. (b/169210648, b/178929757) This doesn't block
-        // as OpenPipeForCpu() opens the pipe in non-blocking mode.
-        char ch;
-        if (base::Read(scoped_fd.get(), &ch, sizeof(char)) < 0 && errno == ENODEV) {
-            scoped_fd.reset();
-        }
+      // Attempt reading from the trace pipe to detect if the CPU is disabled,
+      // since open() doesn't fail. (b/169210648, b/178929757) This doesn't
+      // block as OpenPipeForCpu() opens the pipe in non-blocking mode.
+      char ch;
+      if (base::Read(scoped_fd.get(), &ch, sizeof(char)) < 0 &&
+          errno == ENODEV) {
+        scoped_fd.reset();
+      }
     }
   }
 

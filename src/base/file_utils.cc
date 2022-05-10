@@ -319,7 +319,7 @@ base::Optional<size_t> GetFileSize(const std::string& file_path) {
   if (!fd) {
     return nullopt;
   }
-  struct stat buf{};
+  struct stat buf {};
   if (fstat(*fd, &buf) == -1) {
     return nullopt;
   }
