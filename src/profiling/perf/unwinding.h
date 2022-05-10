@@ -43,12 +43,14 @@ namespace profiling {
 
 constexpr static uint32_t kUnwindQueueCapacity = 1024;
 
-// Unwinds callstacks based on the sampled stack and register state (see
-// |ParsedSample|). Has a single unwinding ring queue, shared across
-// all data sources.
+// Unwinds and symbolises callstacks. For userspace this uses the sampled stack
+// and register state (see |ParsedSample|). For kernelspace, the kernel itself
+// unwinds the stack (recording a list of instruction pointers), so only
+// symbolisation using /proc/kallsyms is necessary. Has a single unwinding ring
+// queue, shared across all data sources.
 //
-// Samples cannot be unwound without having /proc/<pid>/{maps,mem} file
-// descriptors for that process. This lookup can be asynchronous (e.g. on
+// Userspace samples cannot be unwound without having /proc/<pid>/{maps,mem}
+// file descriptors for that process. This lookup can be asynchronous (e.g. on
 // Android), so the unwinder might have to wait before it can process (or
 // discard) some of the enqueued samples. To avoid blocking the entire queue,
 // the unwinder is allowed to process the entries out of order.
@@ -94,6 +96,7 @@ class Unwinder {
                                 base::ScopedFile maps_fd,
                                 base::ScopedFile mem_fd);
   void PostRecordTimedOutProcDescriptors(DataSourceInstanceID ds_id, pid_t pid);
+  void PostRecordNoUserspaceProcess(DataSourceInstanceID ds_id, pid_t pid);
   void PostProcessQueue();
   void PostInitiateDataSourceStop(DataSourceInstanceID ds_id);
   void PostPurgeDataSource(DataSourceInstanceID ds_id);
@@ -123,14 +126,17 @@ class Unwinder {
 
  private:
   struct ProcessState {
-    enum class Status {
-      kResolving,  // unwinder waiting on proc-fds for the process
-      kResolved,   // proc-fds available, can unwind samples
-      kExpired     // proc-fd lookup timed out, will discard samples
-    };
+    // kInitial: unwinder waiting for more info on the process (proc-fds, their
+    //           lookup expiration, or that there is no need for them).
+    // kFdsResolved: proc-fds available, can unwind samples.
+    // kFdsTimedOut: proc-fd lookup timed out, will discard samples. Can still
+    //               transition to kFdsResolved if the fds are received later.
+    // kNoUserspace: only handling kernel callchains (the sample might
+    //               still be for a userspace process), can process samples.
+    enum class Status { kInitial, kFdsResolved, kFdsTimedOut, kNoUserspace };
 
-    Status status = Status::kResolving;
-    // Present iff status == kResolved.
+    Status status = Status::kInitial;
+    // Present iff status == kFdsResolved.
     base::Optional<UnwindingMetadata> unwind_state;
     // Used to distinguish first-time unwinding attempts for a process, for
     // logging purposes.
@@ -164,7 +170,9 @@ class Unwinder {
                             pid_t pid,
                             base::ScopedFile maps_fd,
                             base::ScopedFile mem_fd);
-  void RecordTimedOutProcDescriptors(DataSourceInstanceID ds_id, pid_t pid);
+  void UpdateProcessStateStatus(DataSourceInstanceID ds_id,
+                                pid_t pid,
+                                ProcessState::Status new_status);
 
   // Primary task. Processes the enqueued samples using
   // |ConsumeAndUnwindReadySamples|, and re-evaluates data source state.
@@ -176,7 +184,7 @@ class Unwinder {
   base::FlatSet<DataSourceInstanceID> ConsumeAndUnwindReadySamples();
 
   CompletedSample UnwindSample(const ParsedSample& sample,
-                               UnwindingMetadata* unwind_state,
+                               UnwindingMetadata* opt_user_state,
                                bool pid_unwound_before);
 
   // Returns a list of symbolized kernel frames in the sample (if any).

@@ -42,7 +42,8 @@ class PerfEventConfig;
 namespace profiling {
 
 // Parsed allow/deny-list for filtering samples.
-// An empty filter set means that all targets are allowed.
+// An empty allow-list means that all targets are allowed unless explicitly
+// denied.
 struct TargetFilter {
   std::vector<std::string> cmdlines;
   std::vector<std::string> exclude_cmdlines;
@@ -131,9 +132,10 @@ class EventConfig {
   uint64_t max_enqueued_footprint_bytes() const {
     return max_enqueued_footprint_bytes_;
   }
-  bool sample_callstacks() const { return sample_callstacks_; }
-  const TargetFilter& filter() const { return target_filter_; }
+  bool sample_callstacks() const { return user_frames_ || kernel_frames_; }
+  bool user_frames() const { return user_frames_; }
   bool kernel_frames() const { return kernel_frames_; }
+  const TargetFilter& filter() const { return target_filter_; }
   perf_event_attr* perf_attr() const {
     return const_cast<perf_event_attr*>(&perf_event_attr_);
   }
@@ -147,9 +149,9 @@ class EventConfig {
   EventConfig(const DataSourceConfig& raw_ds_config,
               const perf_event_attr& pe,
               const PerfCounter& timebase_event,
-              bool sample_callstacks,
-              TargetFilter target_filter,
+              bool user_frames,
               bool kernel_frames,
+              TargetFilter target_filter,
               uint32_t ring_buffer_pages,
               uint32_t read_tick_period_ms,
               uint64_t samples_per_tick_limit,
@@ -166,16 +168,16 @@ class EventConfig {
   // ioctl after creating the event.
   const PerfCounter timebase_event_;
 
-  // TODO(rsavitski): consider adding an Optional<CallstackSampling> that
-  // contains the kernel_frames_ and target_filter, once the complexity warrants
-  // it.
-  const bool sample_callstacks_;
+  // TODO(rsavitski): consider adding an Optional<CallstackSampling> once the
+  // complexity warrants it.
+  // If true, include userspace frames in sampled callstacks.
+  const bool user_frames_;
+
+  // If true, include kernel frames in sampled callstacks.
+  const bool kernel_frames_;
 
   // Parsed allow/deny-list for filtering samples.
   const TargetFilter target_filter_;
-
-  // If true, include kernel frames in the callstacks.
-  const bool kernel_frames_;
 
   // Size (in 4k pages) of each per-cpu ring buffer shared with the kernel.
   // Must be a power of two.
