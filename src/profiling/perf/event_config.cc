@@ -352,12 +352,33 @@ base::Optional<EventConfig> EventConfig::Create(
   }
 
   // Callstack sampling.
-  bool sample_callstacks = false;
+  bool user_frames = false;
   bool kernel_frames = false;
   TargetFilter target_filter;
   bool legacy_config = pb_config.all_cpus();  // all_cpus was mandatory before
   if (pb_config.has_callstack_sampling() || legacy_config) {
-    sample_callstacks = true;
+    user_frames = true;
+
+    // Userspace callstacks.
+    using protos::gen::PerfEventConfig;
+    switch (static_cast<int>(pb_config.callstack_sampling().user_frames())) {
+      case PerfEventConfig::UNWIND_UNKNOWN:
+        // default to true, both for backwards compatibility and because it's
+        // almost always what the user wants.
+        user_frames = true;
+        break;
+      case PerfEventConfig::UNWIND_SKIP:
+        user_frames = false;
+        break;
+      case PerfEventConfig::UNWIND_DWARF:
+        user_frames = true;
+        break;
+      default:
+        // enum value from the future that we don't yet know, refuse the config
+        // TODO(rsavitski): double-check that both pbzero and ::gen propagate
+        // unknown enum values.
+        return base::nullopt;
+    }
 
     // Process scoping.
     target_filter =
@@ -365,7 +386,7 @@ base::Optional<EventConfig> EventConfig::Create(
             ? ParseTargetFilter(pb_config.callstack_sampling().scope())
             : ParseTargetFilter(pb_config);  // backwards compatibility
 
-    // Inclusion of kernel callchains.
+    // Kernel callstacks.
     kernel_frames = pb_config.callstack_sampling().kernel_frames() ||
                     pb_config.kernel_frames();
   }
@@ -439,7 +460,7 @@ base::Optional<EventConfig> EventConfig::Create(
   pe.clockid = ToClockId(pb_config.timebase().timestamp_clock());
   pe.use_clockid = true;
 
-  if (sample_callstacks) {
+  if (user_frames) {
     pe.sample_type |= PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER;
     // PERF_SAMPLE_STACK_USER:
     // Needs to be < ((u16)(~0u)), and have bottom 8 bits clear.
@@ -450,18 +471,16 @@ base::Optional<EventConfig> EventConfig::Create(
     // PERF_SAMPLE_REGS_USER:
     pe.sample_regs_user =
         PerfUserRegsMaskForArch(unwindstack::Regs::CurrentArch());
-
-    // Optional kernel callchains:
-    if (kernel_frames) {
-      pe.sample_type |= PERF_SAMPLE_CALLCHAIN;
-      pe.exclude_callchain_user = true;
-    }
+  }
+  if (kernel_frames) {
+    pe.sample_type |= PERF_SAMPLE_CALLCHAIN;
+    pe.exclude_callchain_user = true;
   }
 
   return EventConfig(
-      raw_ds_config, pe, timebase_event, sample_callstacks,
-      std::move(target_filter), kernel_frames, ring_buffer_pages.value(),
-      read_tick_period_ms, samples_per_tick_limit, remote_descriptor_timeout_ms,
+      raw_ds_config, pe, timebase_event, user_frames, kernel_frames,
+      std::move(target_filter), ring_buffer_pages.value(), read_tick_period_ms,
+      samples_per_tick_limit, remote_descriptor_timeout_ms,
       pb_config.unwind_state_clear_period_ms(), max_enqueued_footprint_bytes,
       pb_config.target_installed_by());
 }
@@ -469,9 +488,9 @@ base::Optional<EventConfig> EventConfig::Create(
 EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
                          const perf_event_attr& pe,
                          const PerfCounter& timebase_event,
-                         bool sample_callstacks,
-                         TargetFilter target_filter,
+                         bool user_frames,
                          bool kernel_frames,
+                         TargetFilter target_filter,
                          uint32_t ring_buffer_pages,
                          uint32_t read_tick_period_ms,
                          uint64_t samples_per_tick_limit,
@@ -481,9 +500,9 @@ EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
                          std::vector<std::string> target_installed_by)
     : perf_event_attr_(pe),
       timebase_event_(timebase_event),
-      sample_callstacks_(sample_callstacks),
-      target_filter_(std::move(target_filter)),
+      user_frames_(user_frames),
       kernel_frames_(kernel_frames),
+      target_filter_(std::move(target_filter)),
       ring_buffer_pages_(ring_buffer_pages),
       read_tick_period_ms_(read_tick_period_ms),
       samples_per_tick_limit_(samples_per_tick_limit),
