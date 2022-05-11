@@ -38,6 +38,7 @@
 #include "src/trace_processor/dynamic/thread_state_generator.h"
 #include "src/trace_processor/export_json.h"
 #include "src/trace_processor/importers/additional_modules.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
@@ -619,6 +620,52 @@ base::Status ExtractArg::Run(TraceStorage* storage,
   PERFETTO_FATAL("For GCC");
 }
 
+struct AbsTimeStr : public SqlFunction {
+  using Context = ClockTracker;
+  static base::Status Run(ClockTracker* tracker,
+                          size_t argc,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors& destructors);
+};
+
+base::Status AbsTimeStr::Run(ClockTracker* tracker,
+                             size_t argc,
+                             sqlite3_value** argv,
+                             SqlValue& out,
+                             Destructors& destructors) {
+  if (argc != 1) {
+    return base::ErrStatus("ABS_TIME_STR: 1 arg required");
+  }
+
+  // If the timestamp is null, just return null as the result.
+  if (sqlite3_value_type(argv[0]) == SQLITE_NULL) {
+    return base::OkStatus();
+  }
+  if (sqlite3_value_type(argv[0]) != SQLITE_INTEGER) {
+    return base::ErrStatus("ABS_TIME_STR: first argument should be timestamp");
+  }
+
+  int64_t ts = sqlite3_value_int64(argv[0]);
+  base::Optional<std::string> iso8601 = tracker->FromTraceTimeAsISO8601(ts);
+
+  if (!iso8601) {
+    return base::OkStatus();
+  }
+
+  std::string value = iso8601.value();
+  std::unique_ptr<char, base::FreeDeleter> s(
+      static_cast<char*>(malloc(value.size() + 1)));
+  for (size_t i = 0; i < value.size(); ++i) {
+    s.get()[i] = value[i];
+  }
+  s.get()[value.size() + 1] = '\0';
+
+  destructors.string_destructor = free;
+  out = SqlValue::String(s.release());
+  return base::OkStatus();
+}
+
 std::vector<std::string> SanitizeMetricMountPaths(
     const std::vector<std::string>& mount_paths) {
   std::vector<std::string> sanitized;
@@ -862,6 +909,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterFunction<ExportJson>(db, "EXPORT_JSON", 1, context_.storage.get(),
                                false);
   RegisterFunction<ExtractArg>(db, "EXTRACT_ARG", 2, context_.storage.get());
+  RegisterFunction<AbsTimeStr>(db, "ABS_TIME_STR", 1,
+                               context_.clock_tracker.get());
   RegisterFunction<CreateFunction>(
       db, "CREATE_FUNCTION", 3,
       std::unique_ptr<CreateFunction::Context>(

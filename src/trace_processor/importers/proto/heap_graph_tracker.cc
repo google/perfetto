@@ -198,10 +198,32 @@ int64_t GetSizeFromNativeAllocationRegistry(int64_t nar_size) {
 void MarkRoot(TraceStorage* storage,
               tables::HeapGraphObjectTable::Id id,
               StringPool::Id type) {
+  // Set root type
   uint32_t row = *storage->heap_graph_object_table().id().IndexOf(id);
   storage->mutable_heap_graph_object_table()->mutable_root_type()->Set(row,
                                                                        type);
+  // DFS to mark reachability for all children
+  std::vector<tables::HeapGraphObjectTable::Id> stack{id};
+  while (!stack.empty()) {
+    tables::HeapGraphObjectTable::Id cur_node = stack.back();
+    stack.pop_back();
+    uint32_t cur_row =
+        *storage->heap_graph_object_table().id().IndexOf(cur_node);
+    if (storage->heap_graph_object_table().reachable()[cur_row] > 0) {
+      continue;
+    }
+    storage->mutable_heap_graph_object_table()->mutable_reachable()->Set(
+        cur_row, 1);
 
+    for (tables::HeapGraphObjectTable::Id child_node :
+         GetChildren(storage, cur_node)) {
+      stack.push_back(child_node);
+    }
+  }
+}
+
+void UpdateShortestPaths(TraceStorage* storage,
+                         tables::HeapGraphObjectTable::Id id) {
   // Calculate shortest distance to a GC root.
   std::deque<std::pair<int32_t, tables::HeapGraphObjectTable::Id>>
       reachable_nodes{{0, id}};
@@ -215,10 +237,6 @@ void MarkRoot(TraceStorage* storage,
     int32_t cur_distance =
         storage->heap_graph_object_table().root_distance()[cur_row];
     if (cur_distance == -1 || cur_distance > distance) {
-      if (cur_distance == -1) {
-        storage->mutable_heap_graph_object_table()->mutable_reachable()->Set(
-            cur_row, 1);
-      }
       storage->mutable_heap_graph_object_table()->mutable_root_distance()->Set(
           cur_row, distance);
 
@@ -1004,6 +1022,10 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
 
   const std::set<tables::HeapGraphObjectTable::Id>& roots = it->second;
 
+  // First pass to calculate shortest paths
+  for (tables::HeapGraphObjectTable::Id root : roots) {
+    UpdateShortestPaths(context_->storage.get(), root);
+  }
   PathFromRoot init_path;
   for (tables::HeapGraphObjectTable::Id root : roots) {
     FindPathFromRoot(context_->storage.get(), root, &init_path);

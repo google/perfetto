@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/importers/common/clock_tracker.h"
 
+#include <time.h>
+
 #include <algorithm>
 #include <atomic>
 #include <cinttypes>
@@ -304,6 +306,35 @@ base::Optional<int64_t> ClockTracker::ConvertSlowpath(ClockId src_clock_id,
   }
 
   return ns;
+}
+
+base::Optional<std::string> ClockTracker::FromTraceTimeAsISO8601(
+    int64_t timestamp) {
+  constexpr ClockId unix_epoch_clock =
+      protos::pbzero::ClockSnapshot::Clock::REALTIME;
+  base::Optional<int64_t> opt_ts = FromTraceTime(unix_epoch_clock, timestamp);
+  if (!opt_ts) {
+    return base::nullopt;
+  }
+  int64_t ts = opt_ts.value();
+
+  constexpr int64_t one_second_in_ns = 1LL * 1000LL * 1000LL * 1000LL;
+  int64_t s = ts / one_second_in_ns;
+  int64_t ns = ts % one_second_in_ns;
+
+  time_t time_s = static_cast<time_t>(s);
+  struct tm* time_tm = gmtime(&time_s);
+
+  int seconds = time_tm->tm_sec;
+  int minutes = time_tm->tm_min;
+  int hours = time_tm->tm_hour;
+  int day = time_tm->tm_mday;
+  int month = time_tm->tm_mon + 1;
+  int year = time_tm->tm_year + 1900;
+
+  base::StackString<64> buf("%04d-%02d-%02dT%02d:%02d:%02d.%09" PRId64, year,
+                            month, day, hours, minutes, seconds, ns);
+  return buf.ToStdString();
 }
 
 }  // namespace trace_processor

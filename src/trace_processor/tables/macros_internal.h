@@ -81,8 +81,9 @@ struct IdHelper<RootParentTable, Class> {
 class MacroTable : public Table {
  public:
   MacroTable(const char* name, StringPool* pool, Table* parent)
-      : Table(pool, parent), name_(name), parent_(parent) {
+      : Table(pool), name_(name), parent_(parent) {
     row_maps_.emplace_back();
+
     if (!parent) {
       columns_.emplace_back(
           Column::IdColumn(this, static_cast<uint32_t>(columns_.size()),
@@ -91,6 +92,16 @@ class MacroTable : public Table {
           Column("type", &type_, Column::kNoFlag, this,
                  static_cast<uint32_t>(columns_.size()),
                  static_cast<uint32_t>(row_maps_.size()) - 1));
+      return;
+    }
+
+    // If this table has a parent, then copy over all the columns pointing to
+    // empty RowMaps.
+    for (uint32_t i = 0; i < parent->row_maps().size(); ++i)
+      row_maps_.emplace_back();
+    for (const Column& col : parent->columns()) {
+      columns_.emplace_back(col, this, static_cast<uint32_t>(columns_.size()),
+                            col.row_map_idx());
     }
   }
   ~MacroTable() override;
@@ -215,13 +226,28 @@ class MacroTable : public Table {
 #define PERFETTO_TP_TABLE_MEMBER(type, name, ...) \
   NullableVector<TypedColumn<type>::serialized_type> name##_;
 
-#define PERFETTO_TP_COLUMN_FLAG_HAS_FLAG_COL(type, name, flags) \
-  case ColumnIndex::name:                                       \
-    return static_cast<uint32_t>(flags) | TypedColumn<type>::default_flags();
+#define PERFETTO_TP_COLUMN_FLAG_HAS_FLAG_COL(type, name, flags)               \
+  static constexpr uint32_t name##_flags() {                                  \
+    return static_cast<uint32_t>(flags) | TypedColumn<type>::default_flags(); \
+  }
 
 #define PERFETTO_TP_COLUMN_FLAG_NO_FLAG_COL(type, name) \
-  case ColumnIndex::name:                               \
-    return TypedColumn<type>::default_flags();
+  static constexpr uint32_t name##_flags() {            \
+    return TypedColumn<type>::default_flags();          \
+  }
+
+#define PERFETTO_TP_PARENT_COLUMN_FLAG_HAS_FLAG_COL(type, name, flags) \
+  static constexpr uint32_t name##_flags() {                           \
+    return (static_cast<uint32_t>(flags) |                             \
+            TypedColumn<type>::default_flags()) &                      \
+           ~Column::kNoCrossTableInheritFlags;                         \
+  }
+
+#define PERFETTO_TP_PARENT_COLUMN_FLAG_NO_FLAG_COL(type, name) \
+  static constexpr uint32_t name##_flags() {                   \
+    return TypedColumn<type>::default_flags() &                \
+           ~Column::kNoCrossTableInheritFlags;                 \
+  }
 
 #define PERFETTO_TP_COLUMN_FLAG_CHOOSER(type, name, maybe_flags, fn, ...) fn
 
@@ -235,17 +261,22 @@ class MacroTable : public Table {
       __VA_ARGS__, PERFETTO_TP_COLUMN_FLAG_HAS_FLAG_COL,      \
       PERFETTO_TP_COLUMN_FLAG_NO_FLAG_COL)(__VA_ARGS__))
 
+#define PERFETTO_TP_PARENT_COLUMN_FLAG(...)                     \
+  PERFETTO_TP_EXPAND_VA_ARGS(PERFETTO_TP_COLUMN_FLAG_CHOOSER(   \
+      __VA_ARGS__, PERFETTO_TP_PARENT_COLUMN_FLAG_HAS_FLAG_COL, \
+      PERFETTO_TP_PARENT_COLUMN_FLAG_NO_FLAG_COL)(__VA_ARGS__))
+
 // Creates the sparse vector with the given flags.
 #define PERFETTO_TP_TABLE_CONSTRUCTOR_SV(type, name, ...)               \
   name##_ =                                                             \
-      (FlagsForColumn(ColumnIndex::name) & Column::Flag::kDense)        \
+      (name##_flags() & Column::Flag::kDense)                           \
           ? NullableVector<TypedColumn<type>::serialized_type>::Dense() \
           : NullableVector<TypedColumn<type>::serialized_type>::Sparse();
 
 // Invokes the chosen column constructor by passing the given args.
-#define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN(type, name, ...)               \
-  columns_.emplace_back(#name, &name##_, FlagsForColumn(ColumnIndex::name), \
-                        this, static_cast<uint32_t>(columns_.size()), \
+#define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN(type, name, ...)   \
+  columns_.emplace_back(#name, &name##_, name##_flags(), this,  \
+                        static_cast<uint32_t>(columns_.size()), \
                         static_cast<uint32_t>(row_maps_.size()) - 1);
 
 // Inserts the value into the corresponding column.
@@ -253,13 +284,12 @@ class MacroTable : public Table {
   mutable_##name()->Append(std::move(row.name));
 
 // Creates a schema entry for the corresponding column.
-#define PERFETTO_TP_COLUMN_SCHEMA(type, name, ...)          \
-  schema.columns.emplace_back(Table::Schema::Column{        \
-      #name, TypedColumn<type>::SqlValueType(), false,      \
-      static_cast<bool>(FlagsForColumn(ColumnIndex::name) & \
-                        Column::Flag::kSorted),             \
-      static_cast<bool>(FlagsForColumn(ColumnIndex::name) & \
-                        Column::Flag::kHidden)});
+#define PERFETTO_TP_COLUMN_SCHEMA(type, name, ...)               \
+  schema.columns.emplace_back(Table::Schema::Column{             \
+      #name, TypedColumn<type>::SqlValueType(), false,           \
+      static_cast<bool>(name##_flags() & Column::Flag::kSorted), \
+      static_cast<bool>(name##_flags() & Column::Flag::kHidden), \
+      static_cast<bool>(name##_flags() & Column::Flag::kSetId)});
 
 // Defines the accessors for a column.
 #define PERFETTO_TP_TABLE_COL_ACCESSOR(type, name, ...)       \
@@ -272,6 +302,13 @@ class MacroTable : public Table {
     return static_cast<TypedColumn<type>*>(                   \
         &columns_[static_cast<uint32_t>(ColumnIndex::name)]); \
   }
+
+// Defines the accessors for a column.
+#define PERFETTO_TP_TABLE_STATIC_ASSERT_FLAG(type, name, ...)          \
+  static_assert(                                                       \
+      Column::IsFlagsAndTypeValid<TypedColumn<type>::serialized_type>( \
+          name##_flags()),                                             \
+      "Column type and flag combination is not valid");
 
 // Definition used as the parent of root tables.
 #define PERFETTO_TP_ROOT_TABLE_PARENT_DEF(NAME, PARENT, C) \
@@ -299,6 +336,11 @@ class MacroTable : public Table {
       DefinedId() = default;                                                  \
       explicit constexpr DefinedId(uint32_t v) : BaseId(v) {}                 \
     };                                                                        \
+                                                                              \
+    static constexpr uint32_t id_flags() { return Column::kIdFlags; }         \
+    static constexpr uint32_t type_flags() { return Column::kNoFlag; }        \
+    PERFETTO_TP_PARENT_COLUMNS(DEF, PERFETTO_TP_PARENT_COLUMN_FLAG)           \
+    PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_COLUMN_FLAG)                   \
                                                                               \
    public:                                                                    \
     /*                                                                        \
@@ -355,6 +397,7 @@ class MacroTable : public Table {
     class_name(StringPool* pool, parent_class_name* parent)                   \
         : macros_internal::MacroTable(table_name, pool, parent),              \
           parent_(parent) {                                                   \
+      PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_STATIC_ASSERT_FLAG)      \
       /*                                                                      \
        * Expands to                                                           \
        * col1_ = NullableVector<col1_type>(mode)                              \
@@ -409,9 +452,9 @@ class MacroTable : public Table {
     static Table::Schema Schema() {                                           \
       Table::Schema schema;                                                   \
       schema.columns.emplace_back(Table::Schema::Column{                      \
-          "id", SqlValue::Type::kLong, true, true, false});                   \
+          "id", SqlValue::Type::kLong, true, true, false, false});            \
       schema.columns.emplace_back(Table::Schema::Column{                      \
-          "type", SqlValue::Type::kString, false, false, false});             \
+          "type", SqlValue::Type::kString, false, false, false, false});      \
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_COLUMN_SCHEMA);                \
       return schema;                                                          \
     }                                                                         \
@@ -427,25 +470,6 @@ class MacroTable : public Table {
     PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_COL_ACCESSOR)              \
                                                                               \
    private:                                                                   \
-    static uint32_t FlagsForColumn(const ColumnIndex index) {                 \
-      switch (index) {                                                        \
-        case ColumnIndex::kNumCols:                                           \
-          PERFETTO_FATAL("Invalid index");                                    \
-        case ColumnIndex::id:                                                 \
-          return Column::kIdFlags;                                            \
-        case ColumnIndex::type:                                               \
-          return Column::kNoFlag;                                             \
-          /*                                                                  \
-           * Expands to:                                                      \
-           *  case ColumnIndex::col1:                                         \
-           *    return TypedColumn<col_type1>::default_flags();               \
-           *  ...                                                             \
-           */                                                                 \
-          PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_COLUMN_FLAG)               \
-      }                                                                       \
-      PERFETTO_FATAL("For GCC");                                              \
-    }                                                                         \
-                                                                              \
     parent_class_name* parent_;                                               \
                                                                               \
     /*                                                                        \
