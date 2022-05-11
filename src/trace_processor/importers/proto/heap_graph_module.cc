@@ -30,6 +30,10 @@ namespace trace_processor {
 
 namespace {
 
+using ClassTable = tables::HeapGraphClassTable;
+using ObjectTable = tables::HeapGraphObjectTable;
+using ReferenceTable = tables::HeapGraphReferenceTable;
+
 const char* HeapGraphRootTypeToString(int32_t type) {
   switch (type) {
     case protos::pbzero::HeapGraphRoot::ROOT_UNKNOWN:
@@ -230,7 +234,7 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
         entry.kind() == protos::pbzero::HeapGraphType::KIND_ARRAY ||
         entry.kind() == protos::pbzero::HeapGraphType::KIND_STRING;
 
-    StringPool::Id kind = context_->storage->InternString(
+    StringId kind = context_->storage->InternString(
         HeapGraphTypeKindToString(entry.kind()));
     base::Optional<uint64_t> location_id;
     if (entry.has_location_id())
@@ -282,30 +286,26 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
 }
 
 void HeapGraphModule::DeobfuscateClass(
-    base::Optional<StringPool::Id> package_name_id,
-    StringPool::Id obfuscated_class_name_id,
+    base::Optional<StringId> package_name_id,
+    StringId obfuscated_class_name_id,
     const protos::pbzero::ObfuscatedClass::Decoder& cls) {
   auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
-  const std::vector<tables::HeapGraphClassTable::Id>* cls_objects =
+  const std::vector<ClassTable::RowNumber>* cls_objects =
       heap_graph_tracker->RowsForType(package_name_id,
                                       obfuscated_class_name_id);
   if (cls_objects) {
-    for (tables::HeapGraphClassTable::Id id : *cls_objects) {
-      uint32_t row =
-          *context_->storage->heap_graph_class_table().id().IndexOf(id);
-      const StringPool::Id obfuscated_type_name_id =
-          context_->storage->heap_graph_class_table().name()[row];
+    auto* class_table = context_->storage->mutable_heap_graph_class_table();
+    for (ClassTable::RowNumber class_row_num : *cls_objects) {
+      auto class_ref = class_row_num.ToRowReference(class_table);
+      const StringId obfuscated_type_name_id = class_ref.name();
       const base::StringView obfuscated_type_name =
           context_->storage->GetString(obfuscated_type_name_id);
       NormalizedType normalized_type = GetNormalizedType(obfuscated_type_name);
       std::string deobfuscated_type_name =
           DenormalizeTypeName(normalized_type, cls.deobfuscated_name());
-      StringPool::Id deobfuscated_type_name_id =
-          context_->storage->InternString(
-              base::StringView(deobfuscated_type_name));
-      context_->storage->mutable_heap_graph_class_table()
-          ->mutable_deobfuscated_name()
-          ->Set(row, deobfuscated_type_name_id);
+      StringId deobfuscated_type_name_id = context_->storage->InternString(
+          base::StringView(deobfuscated_type_name));
+      class_ref.set_deobfuscated_name(deobfuscated_type_name_id);
     }
   } else {
     PERFETTO_DLOG("Class %s not found",
@@ -317,12 +317,14 @@ void HeapGraphModule::ParseDeobfuscationMapping(protozero::ConstBytes blob) {
   auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
   protos::pbzero::DeobfuscationMapping::Decoder deobfuscation_mapping(
       blob.data, blob.size);
-  base::Optional<StringPool::Id> package_name_id;
+  base::Optional<StringId> package_name_id;
   if (deobfuscation_mapping.package_name().size > 0) {
     package_name_id = context_->storage->string_pool().GetId(
         deobfuscation_mapping.package_name());
   }
 
+  auto* reference_table =
+      context_->storage->mutable_heap_graph_reference_table();
   for (auto class_it = deobfuscation_mapping.obfuscated_classes(); class_it;
        ++class_it) {
     protos::pbzero::ObfuscatedClass::Decoder cls(*class_it);
@@ -356,15 +358,14 @@ void HeapGraphModule::ParseDeobfuscationMapping(protozero::ConstBytes blob) {
         continue;
       }
 
-      const std::vector<int64_t>* field_references =
+      const std::vector<ReferenceTable::RowNumber>* field_references =
           heap_graph_tracker->RowsForField(*obfuscated_field_name_id);
       if (field_references) {
         auto interned_deobfuscated_name = context_->storage->InternString(
             base::StringView(merged_deobfuscated));
-        for (int64_t row : *field_references) {
-          context_->storage->mutable_heap_graph_reference_table()
-              ->mutable_deobfuscated_field_name()
-              ->Set(static_cast<uint32_t>(row), interned_deobfuscated_name);
+        for (ReferenceTable::RowNumber row_number : *field_references) {
+          auto row_ref = row_number.ToRowReference(reference_table);
+          row_ref.set_deobfuscated_field_name(interned_deobfuscated_name);
         }
       } else {
         PERFETTO_DLOG("Field %s not found", merged_obfuscated.c_str());

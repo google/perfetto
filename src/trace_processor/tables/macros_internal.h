@@ -19,6 +19,7 @@
 
 #include <type_traits>
 
+#include "perfetto/ext/base/small_vector.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/db/typed_column.h"
 
@@ -129,6 +130,18 @@ class MacroTable : public Table {
     // Also add the index of the new row to the identity row map and increment
     // the size.
     row_maps_.back().Insert(row_count_++);
+  }
+
+  std::vector<RowMap> FilterAndSelectRowMaps(
+      const std::vector<Constraint>& cs,
+      RowMap::OptimizeFor optimize_for) const {
+    RowMap rm = FilterToRowMap(cs, optimize_for);
+    std::vector<RowMap> rms;
+    rms.reserve(row_maps_.size());
+    for (uint32_t i = 0; i < row_maps_.size(); ++i) {
+      rms.emplace_back(row_maps_[i].SelectRows(rm));
+    }
+    return rms;
   }
 
   // Stores the most specific "derived" type of this row in the table.
@@ -291,13 +304,15 @@ class MacroTable : public Table {
       static_cast<bool>(name##_flags() & Column::Flag::kHidden), \
       static_cast<bool>(name##_flags() & Column::Flag::kSetId)});
 
+// Defines the immutable accessor for a column.
+#define PERFETTO_TP_TABLE_COL_GETTER(type, name, ...)        \
+  const TypedColumn<type>& name() const {                    \
+    return static_cast<const TypedColumn<type>&>(            \
+        columns_[static_cast<uint32_t>(ColumnIndex::name)]); \
+  }
+
 // Defines the accessors for a column.
-#define PERFETTO_TP_TABLE_COL_ACCESSOR(type, name, ...)       \
-  const TypedColumn<type>& name() const {                     \
-    return static_cast<const TypedColumn<type>&>(             \
-        columns_[static_cast<uint32_t>(ColumnIndex::name)]);  \
-  }                                                           \
-                                                              \
+#define PERFETTO_TP_TABLE_MUTABLE_COL_GETTER(type, name, ...) \
   TypedColumn<type>* mutable_##name() {                       \
     return static_cast<TypedColumn<type>*>(                   \
         &columns_[static_cast<uint32_t>(ColumnIndex::name)]); \
@@ -314,6 +329,30 @@ class MacroTable : public Table {
 #define PERFETTO_TP_ROOT_TABLE_PARENT_DEF(NAME, PARENT, C) \
   NAME(macros_internal::RootParentTable, "root")
 
+// Defines the getter for the column value in the RowReference.
+#define PERFETTO_TP_TABLE_CONST_ROW_REF_GETTER(type, name, ...) \
+  type name() const { return table_->name()[row_number_]; }
+
+// Defines the accessor for the column value in the RowReference.
+#define PERFETTO_TP_TABLE_ROW_REF_SETTER(type, name, ...)          \
+  void set_##name(TypedColumn<type>::non_optional_type v) const {  \
+    return mutable_table()->mutable_##name()->Set(row_number_, v); \
+  }
+
+// Defines the getter for the column value in the ConstIterator.
+#define PERFETTO_TP_TABLE_CONST_IT_GETTER(type, name, ...) \
+  type name() const {                                      \
+    const auto& col = table_->name();                      \
+    return col.GetAtIdx(its_[col.row_map_idx()].index());  \
+  }
+
+// Defines the setter for the column value in the Iterator.
+#define PERFETTO_TP_TABLE_IT_SETTER(type, name, ...)        \
+  void set_##name(TypedColumn<type>::non_optional_type v) { \
+    auto* col = table_->mutable_##name();                   \
+    col->SetAtIdx(its_[col->row_map_idx()].index(), v);     \
+  }
+
 // For more general documentation, see PERFETTO_TP_TABLE in macros.h.
 #define PERFETTO_TP_TABLE_INTERNAL(table_name, class_name, parent_class_name, \
                                    DEF)                                       \
@@ -327,7 +366,7 @@ class MacroTable : public Table {
     friend struct macros_internal::IdHelper<parent_class_name, class_name>;   \
                                                                               \
     /*                                                                        \
-     * Defines a new id type for a heirarchy of tables.                       \
+     * Defines a new id type for a hierarchy of tables.                       \
      * We define it here as we need this type to be visible for the public    \
      * using declaration of Id below.                                         \
      * Note: This type will only used if this table is a root table.          \
@@ -363,7 +402,6 @@ class MacroTable : public Table {
         /*                                                                    \
          * Expands to                                                         \
          * col1 = col1_c;                                                     \
-         * col2 = col2_c;                                                     \
          * ...                                                                \
          */                                                                   \
         PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_ROW_INITIALIZER)           \
@@ -376,7 +414,6 @@ class MacroTable : public Table {
       /*                                                                      \
        * Expands to                                                           \
        * col_type1 col1 = {};                                                 \
-       * base::Optional<col_type2> col2 = {};                                 \
        * ...                                                                  \
        */                                                                     \
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_ROW_DEFINITION)              \
@@ -388,16 +425,201 @@ class MacroTable : public Table {
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_NAME_COMMA) kNumCols           \
     };                                                                        \
                                                                               \
+    class RowNumber;                                                          \
+                                                                              \
+    /*                                                                        \
+     * Reference to a row which exists in the table.                          \
+     *                                                                        \
+     * Allows caller code to store and instances of this object without       \
+     * having to interact with row numbers.                                   \
+     */                                                                       \
+    class ConstRowReference {                                                 \
+     public:                                                                  \
+      ConstRowReference(const class_name* table, uint32_t row_number)         \
+          : table_(table), row_number_(row_number) {}                         \
+                                                                              \
+      PERFETTO_TP_TABLE_CONST_ROW_REF_GETTER(Id, id)                          \
+      PERFETTO_TP_TABLE_CONST_ROW_REF_GETTER(StringPool::Id, type)            \
+                                                                              \
+      /*                                                                      \
+       * Expands to                                                           \
+       * col1_type col1() const { return table_->col1()[row_]; }              \
+       * ...                                                                  \
+       */                                                                     \
+      PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_CONST_ROW_REF_GETTER)    \
+                                                                              \
+      /*                                                                      \
+       * Converts this RowReference to a RowNumber object which is more       \
+       * memory efficient to store.                                           \
+       */                                                                     \
+      RowNumber ToRowNumber();                                                \
+                                                                              \
+     protected:                                                               \
+      const class_name* table_ = nullptr;                                     \
+      uint32_t row_number_ = 0;                                               \
+    };                                                                        \
+                                                                              \
+    /*                                                                        \
+     * Reference to a rosrc/trace_processor/tables/macros_internal.h          \
+     * Allows caller code to store and instances of this object without       \
+     * having to interact with row numbers.                                   \
+     */                                                                       \
+    class RowReference : public ConstRowReference {                           \
+     public:                                                                  \
+      RowReference(class_name* table, uint32_t row_number)                    \
+          : ConstRowReference(table, row_number) {}                           \
+                                                                              \
+      /*                                                                      \
+       * Expands to                                                           \
+       * void set_col1(col1_type v) { table_->mutable_col1()->Set(row, v); }  \
+       * ...                                                                  \
+       */                                                                     \
+      PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_ROW_REF_SETTER)          \
+                                                                              \
+     private:                                                                 \
+      class_name* mutable_table() const {                                     \
+        return const_cast<class_name*>(table_);                               \
+      }                                                                       \
+    };                                                                        \
+                                                                              \
+    /*                                                                        \
+     * Strongly typed wrapper around the row index. Prefer storing this over  \
+     * storing RowReference to reduce memory usage                            \
+     */                                                                       \
+    class RowNumber {                                                         \
+     public:                                                                  \
+      explicit RowNumber(uint32_t row_number) : row_number_(row_number) {}    \
+                                                                              \
+      RowReference ToRowReference(class_name* table) {                        \
+        return RowReference(table, row_number_);                              \
+      }                                                                       \
+      ConstRowReference ToRowReference(const class_name& table) {             \
+        return ConstRowReference(&table, row_number_);                        \
+      }                                                                       \
+                                                                              \
+      bool operator<(const RowNumber& other) const {                          \
+        return row_number_ < other.row_number_;                               \
+      }                                                                       \
+                                                                              \
+      uint32_t row_number() const { return row_number_; }                     \
+                                                                              \
+     private:                                                                 \
+      uint32_t row_number_;                                                   \
+    };                                                                        \
+                                                                              \
     /* Return value of Insert giving access to id and row number */           \
     struct IdAndRow {                                                         \
       Id id;                                                                  \
       uint32_t row;                                                           \
+      RowReference row_reference;                                             \
+      RowNumber row_number;                                                   \
+    };                                                                        \
+                                                                              \
+    /*                                                                        \
+     * Strongly typed const iterator for this macro table.                    \
+     *                                                                        \
+     * Allows efficient retrieval of values from this table without having to \
+     * deal with row numbers, RowMaps or indices.                             \
+     */                                                                       \
+    class ConstIterator {                                                     \
+     public:                                                                  \
+      explicit ConstIterator(const class_name* table, std::vector<RowMap> rm) \
+          : row_maps_(std::move(rm)), table_(table) {                         \
+        for (const auto& rm : row_maps_) {                                    \
+          its_.emplace_back(rm.IterateRows());                                \
+        }                                                                     \
+      }                                                                       \
+                                                                              \
+      explicit operator bool() { return its_[0]; }                            \
+                                                                              \
+      ConstIterator& operator++() {                                           \
+        Next();                                                               \
+        return *this;                                                         \
+      }                                                                       \
+                                                                              \
+      PERFETTO_TP_TABLE_CONST_IT_GETTER(Id, id)                               \
+      PERFETTO_TP_TABLE_CONST_IT_GETTER(StringPool::Id, type)                 \
+                                                                              \
+      /*                                                                      \
+       * Expands to                                                           \
+       * col1_type col1() const { return table_->col1().GetAtIdx(i); }        \
+       * ...                                                                  \
+       */                                                                     \
+      PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_CONST_IT_GETTER)         \
+                                                                              \
+      /*                                                                      \
+       * Returns a RowReference to the current row.                           \
+       */                                                                     \
+      ConstRowReference row_reference() {                                     \
+        return ConstRowReference(table_, CurrentRowNumberInTable());          \
+      }                                                                       \
+                                                                              \
+     protected:                                                               \
+      /*                                                                      \
+       * Must not be modified as |its_| contains pointers into this vector.   \
+       */                                                                     \
+      std::vector<RowMap> row_maps_;                                          \
+      std::vector<RowMap::Iterator> its_;                                     \
+                                                                              \
+      void Next() {                                                           \
+        for (RowMap::Iterator & it : its_) {                                  \
+          it.Next();                                                          \
+        }                                                                     \
+      }                                                                       \
+                                                                              \
+      uint32_t CurrentRowNumberInTable() const {                              \
+        /*                                                                    \
+         * Because the last RowMap belongs to this table it will be dense     \
+         * (i.e. every row in the table will be part of this RowMap + will    \
+         * be represented with a range). This means that the index() of the   \
+         * last RowMap iterator is precisely the row number in table!         \
+         */                                                                   \
+        return its_.back().index();                                           \
+      }                                                                       \
+                                                                              \
+     private:                                                                 \
+      const class_name* table_ = nullptr;                                     \
+    };                                                                        \
+                                                                              \
+    /*                                                                        \
+     * Strongly typed iterator for this macro table.                          \
+     *                                                                        \
+     * Enhances ConstIterator by also allowing values in the table to be set  \
+     * as well as retrieved.                                                  \
+     */                                                                       \
+    class Iterator : public ConstIterator {                                   \
+     public:                                                                  \
+      explicit Iterator(class_name* table, std::vector<RowMap> rm)            \
+          : ConstIterator(table, std::move(rm)), table_(table) {}             \
+                                                                              \
+      Iterator& operator++() {                                                \
+        Next();                                                               \
+        return *this;                                                         \
+      }                                                                       \
+                                                                              \
+      /*                                                                      \
+       * Expands to                                                           \
+       * void set_col1(col1_type v) { table_->mut_col1()->SetAtIdx(i, v); }   \
+       * ...                                                                  \
+       */                                                                     \
+      PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_IT_SETTER)               \
+                                                                              \
+      /*                                                                      \
+       * Returns a RowReference to the current row.                           \
+       */                                                                     \
+      RowReference row_reference() {                                          \
+        return RowReference(table_, CurrentRowNumberInTable());               \
+      }                                                                       \
+                                                                              \
+     private:                                                                 \
+      class_name* table_ = nullptr;                                           \
     };                                                                        \
                                                                               \
     class_name(StringPool* pool, parent_class_name* parent)                   \
         : macros_internal::MacroTable(table_name, pool, parent),              \
           parent_(parent) {                                                   \
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_STATIC_ASSERT_FLAG)      \
+                                                                              \
       /*                                                                      \
        * Expands to                                                           \
        * col1_ = NullableVector<col1_type>(mode)                              \
@@ -407,9 +629,6 @@ class MacroTable : public Table {
       /*                                                                      \
        * Expands to                                                           \
        * columns_.emplace_back("col1", col1_, Column::kNoFlag, this,          \
-       *                       static_cast<uint32_t>(columns_.size()),        \
-       *                       static_cast<uint32_t>(row_maps_.size()) - 1);  \
-       * columns_.emplace_back("col2", col2_, Column::kNoFlag, this,          \
        *                       static_cast<uint32_t>(columns_.size()),        \
        *                       static_cast<uint32_t>(row_maps_.size()) - 1);  \
        * ...                                                                  \
@@ -432,21 +651,11 @@ class MacroTable : public Table {
       /*                                                                      \
        * Expands to                                                           \
        * col1_.Append(row.col1);                                              \
-       * col2_.Append(row.col2);                                              \
        * ...                                                                  \
        */                                                                     \
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_COLUMN_APPEND);              \
-      return {id, row_number};                                                \
-    }                                                                         \
-                                                                              \
-    const IdColumn<Id>& id() const {                                          \
-      return static_cast<const IdColumn<Id>&>(                                \
-          columns_[static_cast<uint32_t>(ColumnIndex::id)]);                  \
-    }                                                                         \
-                                                                              \
-    const TypedColumn<StringPool::Id>& type() const {                         \
-      return static_cast<const TypedColumn<StringPool::Id>&>(                 \
-          columns_[static_cast<uint32_t>(ColumnIndex::type)]);                \
+      return {id, row_number, RowReference(this, row_number),                 \
+              RowNumber(row_number)};                                         \
     }                                                                         \
                                                                               \
     static Table::Schema Schema() {                                           \
@@ -459,15 +668,55 @@ class MacroTable : public Table {
       return schema;                                                          \
     }                                                                         \
                                                                               \
+    /* Filters the Table using the specified filter constraints. */           \
+    ConstIterator FilterToIterator(                                           \
+        const std::vector<Constraint>& cs,                                    \
+        RowMap::OptimizeFor opt = RowMap::OptimizeFor::kMemory) const {       \
+      return ConstIterator(this, FilterAndSelectRowMaps(cs, opt));            \
+    }                                                                         \
+                                                                              \
+    /* Filters the Table using the specified filter constraints. */           \
+    Iterator FilterToIterator(                                                \
+        const std::vector<Constraint>& cs,                                    \
+        RowMap::OptimizeFor opt = RowMap::OptimizeFor::kMemory) {             \
+      return Iterator(this, FilterAndSelectRowMaps(cs, opt));                 \
+    }                                                                         \
+                                                                              \
+    /* Returns a ConstRowReference to the row pointed to by |find_id|. */     \
+    base::Optional<ConstRowReference> FindById(Id find_id) const {            \
+      base::Optional<uint32_t> row = id().IndexOf(find_id);                   \
+      if (!row)                                                               \
+        return base::nullopt;                                                 \
+      return ConstRowReference(this, *row);                                   \
+    }                                                                         \
+                                                                              \
+    /* Returns a RowReference to the row pointed to by |find_id|. */          \
+    base::Optional<RowReference> FindById(Id find_id) {                       \
+      base::Optional<uint32_t> row = id().IndexOf(find_id);                   \
+      if (!row)                                                               \
+        return base::nullopt;                                                 \
+      return RowReference(this, *row);                                        \
+    }                                                                         \
+                                                                              \
+    const IdColumn<Id>& id() const {                                          \
+      return static_cast<const IdColumn<Id>&>(                                \
+          columns_[static_cast<uint32_t>(ColumnIndex::id)]);                  \
+    }                                                                         \
+    PERFETTO_TP_TABLE_COL_GETTER(StringPool::Id, type)                        \
+                                                                              \
     /*                                                                        \
      * Expands to                                                             \
      * const TypedColumn<col1_type>& col1() { return col1_; }                 \
-     * TypedColumn<col1_type>* mutable_col1() { return &col1_; }              \
-     * const TypedColumn<col2_type>& col2() { return col2_; }                 \
-     * TypedColumn<col2_type>* mutable_col2() { return &col2_; }              \
      * ...                                                                    \
      */                                                                       \
-    PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_COL_ACCESSOR)              \
+    PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_COL_GETTER)                \
+                                                                              \
+    /*                                                                        \
+     * Expands to                                                             \
+     * TypedColumn<col1_type>* mutable_col1() { return &col1_; }              \
+     * ...                                                                    \
+     */                                                                       \
+    PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_MUTABLE_COL_GETTER)        \
                                                                               \
    private:                                                                   \
     parent_class_name* parent_;                                               \
@@ -475,11 +724,16 @@ class MacroTable : public Table {
     /*                                                                        \
      * Expands to                                                             \
      * NullableVector<col1_type> col1_;                                       \
-     * NullableVector<col2_type> col2_;                                       \
      * ...                                                                    \
      */                                                                       \
     PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_MEMBER)                  \
-  }
+  };                                                                          \
+                                                                              \
+  inline class_name::RowNumber class_name::ConstRowReference::ToRowNumber() { \
+    return RowNumber(row_number_);                                            \
+  }                                                                           \
+                                                                              \
+  PERFETTO_UNUSED inline void UnusedFunctionForTrailingSemicolon()
 
 }  // namespace trace_processor
 }  // namespace perfetto
