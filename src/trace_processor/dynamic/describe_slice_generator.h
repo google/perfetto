@@ -17,8 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_DYNAMIC_DESCRIBE_SLICE_GENERATOR_H_
 #define SRC_TRACE_PROCESSOR_DYNAMIC_DESCRIBE_SLICE_GENERATOR_H_
 
-#include "src/trace_processor/sqlite/db_sqlite_table.h"
-
+#include "src/trace_processor/dynamic/dynamic_table_generator.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -29,7 +28,7 @@ class TraceProcessorContext;
 // Dynamic table for implementing the describe_slice table.
 // See /docs/analysis.md for details about the functionality and usage of this
 // table.
-class DescribeSliceGenerator : public DbSqliteTable::DynamicTableGenerator {
+class DescribeSliceGenerator : public DynamicTableGenerator {
  public:
   struct InputValues {
     uint32_t slice_id_value;

@@ -17,9 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_DYNAMIC_EXPERIMENTAL_FLAMEGRAPH_GENERATOR_H_
 #define SRC_TRACE_PROCESSOR_DYNAMIC_EXPERIMENTAL_FLAMEGRAPH_GENERATOR_H_
 
-#include "src/trace_processor/importers/proto/flamegraph_construction_algorithms.h"
-#include "src/trace_processor/sqlite/db_sqlite_table.h"
-
+#include "src/trace_processor/dynamic/dynamic_table_generator.h"
+#include "src/trace_processor/dynamic/flamegraph_construction_algorithms.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -27,8 +26,7 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
-class ExperimentalFlamegraphGenerator
-    : public DbSqliteTable::DynamicTableGenerator {
+class ExperimentalFlamegraphGenerator : public DynamicTableGenerator {
  public:
   enum class ProfileType { kGraph, kNative, kPerf };
 

@@ -17,8 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_DYNAMIC_CONNECTED_FLOW_GENERATOR_H_
 #define SRC_TRACE_PROCESSOR_DYNAMIC_CONNECTED_FLOW_GENERATOR_H_
 
-#include "src/trace_processor/sqlite/db_sqlite_table.h"
-
+#include "src/trace_processor/dynamic/dynamic_table_generator.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 #include <queue>
@@ -33,7 +32,7 @@ class TraceProcessorContext;
 // - DIRECTLY_CONNECTED_FLOW
 // - PRECEDING_FLOW
 // - FOLLOWING_FLOW
-class ConnectedFlowGenerator : public DbSqliteTable::DynamicTableGenerator {
+class ConnectedFlowGenerator : public DynamicTableGenerator {
  public:
   enum class Mode {
     // Directly connected slices through the same flow ID given by the trace

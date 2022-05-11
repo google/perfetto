@@ -17,8 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_QUERY_CONSTRAINTS_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_QUERY_CONSTRAINTS_H_
 
-#include <sqlite3.h>
-
 #include <limits>
 #include <vector>
 
@@ -51,8 +49,10 @@ class QueryConstraints {
     // read or modified by subclasses of SqliteTable.
     int a_constraint_idx;
   };
-
-  using OrderBy = sqlite3_index_info::sqlite3_index_orderby;
+  struct OrderBy {
+    int iColumn;
+    unsigned char desc;
+  };
 
   static int FreeSqliteString(char* resource);
 

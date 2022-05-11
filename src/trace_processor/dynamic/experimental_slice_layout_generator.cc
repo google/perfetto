@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/dynamic/experimental_slice_layout_generator.h"
+
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"

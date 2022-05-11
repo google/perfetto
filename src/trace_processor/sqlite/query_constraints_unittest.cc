@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/sqlite/query_constraints.h"
 
+#include <sqlite3.h>
+
 #include "perfetto/base/logging.h"
 #include "test/gtest_and_gmock.h"
 
