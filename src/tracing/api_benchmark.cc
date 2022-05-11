@@ -16,6 +16,8 @@
 
 #include "perfetto/tracing.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/track_event/log_message.pbzero.h"
 
 PERFETTO_DEFINE_CATEGORIES(perfetto::Category("benchmark"));
@@ -75,6 +77,49 @@ static void BM_TracingDataSourceLambda(benchmark::State& state) {
   PERFETTO_CHECK(!tracing_session->ReadTraceBlocking().empty());
 }
 
+// Parses `trace` and returns the size of the first trace packet that contains
+// `for_testing()`.
+size_t GetForTestingPacketSizeFromTrace(const std::vector<char>& trace) {
+  size_t packet_size = 0;
+  perfetto::protos::pbzero::Trace::Decoder decoder(
+      reinterpret_cast<const uint8_t*>(trace.data()), trace.size());
+  for (auto packet = decoder.packet(); packet; packet++) {
+    perfetto::protos::pbzero::TracePacket::Decoder packet_decoder(*packet);
+
+    if (packet_decoder.has_for_testing()) {
+      packet_size = packet->size();
+      break;
+    }
+  }
+  return packet_size;
+}
+
+static void BM_TracingDataSourceLambdaDifferentPacketSize(
+    benchmark::State& state) {
+  auto tracing_session = StartTracing("benchmark");
+  // The number of string fields added in the nested submessage. This controls
+  // the size of the trace packet (reported by the "PacketSize" counter).
+  const size_t kNumFields = static_cast<size_t>(state.range(0));
+
+  for (auto _ : state) {
+    BenchmarkDataSource::Trace([&](BenchmarkDataSource::TraceContext ctx) {
+      auto packet = ctx.NewTracePacket();
+      auto* payload = packet->set_for_testing()->set_payload();
+      for (size_t i = 0; i < kNumFields; i++) {
+        payload->add_str("ABCDEFGH");
+      }
+    });
+    benchmark::ClobberMemory();
+  }
+
+  tracing_session->StopBlocking();
+
+  std::vector<char> trace = tracing_session->ReadTraceBlocking();
+  PERFETTO_CHECK(!trace.empty());
+  state.counters["PacketSize"] =
+      static_cast<double>(GetForTestingPacketSizeFromTrace(trace));
+}
+
 static void BM_TracingTrackEventDisabled(benchmark::State& state) {
   while (state.KeepRunning()) {
     TRACE_EVENT_BEGIN("benchmark", "DisabledEvent");
@@ -126,6 +171,7 @@ static void BM_TracingTrackEventLambda(benchmark::State& state) {
 
 BENCHMARK(BM_TracingDataSourceDisabled);
 BENCHMARK(BM_TracingDataSourceLambda);
+BENCHMARK(BM_TracingDataSourceLambdaDifferentPacketSize)->Range(1, 1000);
 BENCHMARK(BM_TracingTrackEventBasic);
 BENCHMARK(BM_TracingTrackEventDebugAnnotations);
 BENCHMARK(BM_TracingTrackEventDisabled);
