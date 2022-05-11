@@ -55,9 +55,8 @@ async function updateLogBounds(
       vizEndNs}`);
   const endNs = maxResult.firstRow({minTs: NUM}).minTs;
 
-  const trace = await engine.getTraceTimeBounds();
-  const startTs = startNs ? fromNs(startNs) : trace.start;
-  const endTs = endNs ? fromNs(endNs) : trace.end;
+  const startTs = startNs ? fromNs(startNs) : 0;
+  const endTs = endNs ? fromNs(endNs) : Number.MAX_SAFE_INTEGER;
   const firstRowTs = firstRowNs ? fromNs(firstRowNs) : endTs;
   const lastRowTs = lastRowNs ? fromNs(lastRowNs) : startTs;
   return {
