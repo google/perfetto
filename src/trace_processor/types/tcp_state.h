@@ -48,10 +48,10 @@ enum {
 };
 // TCP protocol state to string mapping.
 static constexpr const char* const kTcpStateNames[] = {
-    "TCP_UNKNOWN", "TCP_ESTABLISHED", "TCP_SYN_SENT", "TCP_SYN_RECV",
-    "TCP_FIN_WAIT1", "TCP_FIN_WAIT2","TCP_TIME_WAIT", "TCP_CLOSE",
-    "TCP_CLOSE_WAIT","TCP_LAST_ACK", "TCP_LISTEN", "TCP_CLOSING",
-    "TCP_NEW_SYN_RECV","TCP_MAX_STATES"};
+    "TCP_UNKNOWN",      "TCP_ESTABLISHED", "TCP_SYN_SENT",  "TCP_SYN_RECV",
+    "TCP_FIN_WAIT1",    "TCP_FIN_WAIT2",   "TCP_TIME_WAIT", "TCP_CLOSE",
+    "TCP_CLOSE_WAIT",   "TCP_LAST_ACK",    "TCP_LISTEN",    "TCP_CLOSING",
+    "TCP_NEW_SYN_RECV", "TCP_MAX_STATES"};
 
 }  // namespace trace_processor
 }  // namespace perfetto

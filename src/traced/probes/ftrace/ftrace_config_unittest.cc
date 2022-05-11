@@ -25,7 +25,8 @@ namespace {
 
 TEST(ConfigTest, CreateFtraceConfig) {
   FtraceConfig config = CreateFtraceConfig({
-      "aaa", "bbb",
+      "aaa",
+      "bbb",
   });
 
   EXPECT_THAT(config.ftrace_events(), Contains("aaa"));

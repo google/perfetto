@@ -69,12 +69,14 @@ bool ConvertValue(const std::string& arg,
 }
 
 bool ConvertTimeToMs(const std::string& arg, uint64_t* out) {
-  return ConvertValue(
-      arg,
-      {
-          {"ms", 1}, {"s", 1000}, {"m", 1000 * 60}, {"h", 1000 * 60 * 60},
-      },
-      out);
+  return ConvertValue(arg,
+                      {
+                          {"ms", 1},
+                          {"s", 1000},
+                          {"m", 1000 * 60},
+                          {"h", 1000 * 60 * 60},
+                      },
+                      out);
 }
 
 bool ConvertSizeToKb(const std::string& arg, uint64_t* out) {

@@ -259,7 +259,7 @@ TEST(BookkeepingTest, ArbitraryOrder) {
     uint64_t sequence_number;
     OperationType type;
     uint64_t address;
-    uint64_t bytes;                       // 0 for free
+    uint64_t bytes;                                    // 0 for free
     const std::vector<unwindstack::FrameData>* stack;  // nullptr for free
     const std::vector<std::string>* build_ids;         // nullptr for free
 

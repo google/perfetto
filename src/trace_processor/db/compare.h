@@ -17,8 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COMPARE_H_
 #define SRC_TRACE_PROCESSOR_DB_COMPARE_H_
 
-#include <algorithm>
 #include <stdint.h>
+
+#include <algorithm>
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
