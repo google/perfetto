@@ -75,6 +75,13 @@ export type TableColumn = {
   column: string
 }|'count';
 
+export function tableColumnEquals(first: TableColumn, second: TableColumn) {
+  if (first === 'count' || second === 'count') {
+    return first === second;
+  }
+  return first.table === second.table && first.column === second.column;
+}
+
 // Exception thrown by query generator in case incoming parameters are not
 // suitable in order to build a correct query; these are caught by the UI and
 // displayed to the user.
@@ -96,7 +103,7 @@ export function areaFilter(area: Area): string {
 
 function generateInnerQuery(
     pivots: string[],
-    aggregations: string[],
+    aggregations: TableColumn[],
     table: string,
     includeTrack: boolean,
     area: Area,
@@ -105,7 +112,8 @@ function generateInnerQuery(
   const aggregationColumns: string[] = [];
 
   for (let i = 0; i < aggregations.length; i++) {
-    const agg = aggregations[i];
+    const rawAgg = aggregations[i];
+    const agg = rawAgg === 'count' ? '1' : rawAgg.column;
     aggregationColumns.push(`SUM(${agg}) as ${aggregationAlias(i, 0)}`);
   }
 
@@ -122,18 +130,14 @@ function generateInnerQuery(
 
 function computeSliceTableAggregations(
     selectedAggregations: Map<string, TableColumn>):
-    {tableName: string, flatAggregations: string[]} {
+    {tableName: string, flatAggregations: TableColumn[]} {
   let hasThreadSliceColumn = false;
-  const allColumns: string[] = [];
+  const allColumns: TableColumn[] = [];
   for (const tableColumn of selectedAggregations.values()) {
-    if (tableColumn === 'count') {
-      allColumns.push('1');
-      continue;
-    }
-    if (tableColumn.table === 'thread_slice') {
+    if (tableColumn !== 'count' && tableColumn.table === 'thread_slice') {
       hasThreadSliceColumn = true;
     }
-    allColumns.push(tableColumn.column);
+    allColumns.push(tableColumn);
   }
 
   return {
@@ -199,6 +203,9 @@ export function generateQuery(
   const outerAggregations = [];
   const prefixedSlicePivots = slicePivots.map(p => `preaggregated.${p}`);
   const totalPivotsArray = nonSlicePivots.concat(prefixedSlicePivots);
+  const sortCriteria =
+      globals.state.nonSerializableState.pivotTableRedux.sortCriteria;
+  const sortClauses: string[] = [];
   for (let i = 0; i < sliceTableAggregations.flatAggregations.length; i++) {
     const agg = `preaggregated.${aggregationAlias(i, 0)}`;
     outerAggregations.push(`SUM(${agg}) as ${aggregationAlias(i, 0)}`);
@@ -221,6 +228,14 @@ export function generateQuery(
 
     outerAggregations.push(`SUM(SUM(${agg})) over () as ${
         aggregationAlias(i, totalPivotsArray.length)}`);
+
+    if (sortCriteria !== undefined &&
+        tableColumnEquals(
+            sliceTableAggregations.flatAggregations[i], sortCriteria.column)) {
+      for (let level = totalPivotsArray.length - 1; level >= 0; level--) {
+        sortClauses.push(`${aggregationAlias(i, level)} ${sortCriteria.order}`);
+      }
+    }
   }
 
   const joins = `
@@ -245,6 +260,7 @@ export function generateQuery(
     ) preaggregated
     ${nonSlicePivots.length > 0 ? joins : ''}
     group by ${nonSlicePivots.concat(prefixedSlicePivots).join(', ')}
+    ${sortClauses.length > 0 ? ('order by ' + sortClauses.join(', ')) : ''}
   `;
 
   return {
@@ -253,8 +269,7 @@ export function generateQuery(
       tableName: sliceTableAggregations.tableName,
       pivotColumns: nonSlicePivots.concat(slicePivots.map(
           column => `${sliceTableAggregations.tableName}.${column}`)),
-      aggregationColumns: sliceTableAggregations.flatAggregations.map(
-          agg => `SUM(${sliceTableAggregations.tableName}.${agg})`)
+      aggregationColumns: sliceTableAggregations.flatAggregations
     }
   };
 }
