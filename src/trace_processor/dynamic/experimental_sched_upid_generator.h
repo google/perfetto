@@ -45,7 +45,7 @@ class ExperimentalSchedUpidGenerator : public DynamicTableGenerator {
 
   const tables::SchedSliceTable* sched_slice_table_;
   const tables::ThreadTable* thread_table_;
-  std::unique_ptr<NullableVector<uint32_t>> upid_column_;
+  std::unique_ptr<Table> sched_upid_table_;
 };
 
 }  // namespace trace_processor
