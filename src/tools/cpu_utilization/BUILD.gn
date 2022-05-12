@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-executable("dump_ftrace_stats") {
+executable("cpu_utilization") {
   testonly = true
   deps = [
-    "../../gn:default_deps",
-    "../../include/perfetto/base",
-    "../../src/base",
+    "../../../gn:default_deps",
+    "../../base",
   ]
-  sources = [ "main.cc" ]
+  sources = [ "cpu_utilization.cc" ]
 }

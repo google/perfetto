@@ -20,7 +20,50 @@ assert(enable_perfetto_tools)
 # Lists all tools. The root "all" target depends on this.
 group("tools") {
   testonly = true
-  deps = [ "ftrace_proto_gen" ]
+  deps = [
+    ":copy_protoc",
+    "compact_reencode",
+    "ftrace_proto_gen",
+    "proto_filter",
+    "proto_merger",
+    "protoprofile",
+  ]
+  if (is_linux || is_android) {
+    deps += [
+      ":idle_alloc",
+      "busy_threads",
+      "cpu_utilization",
+      "dump_ftrace_stats",
+      "skippy",
+    ]
+  }
+}
+
+if (is_linux && enable_perfetto_heapprofd) {
+  executable("profiling_sample_distribution") {
+    sources = [ "profiling_sample_distribution.cc" ]
+    deps = [
+      "../../gn:default_deps",
+      "../base",
+      "../profiling/memory:client",
+    ]
+  }
+
+  executable("multithreaded_alloc") {
+    sources = [ "multithreaded_alloc.cc" ]
+    deps = [
+      "../../gn:default_deps",
+      "../base",
+      "../profiling/memory:client_api_standalone",
+    ]
+  }
+}
+
+if (is_linux || is_android) {
+  executable("idle_alloc") {
+    deps = [ "../../gn:default_deps" ]
+    sources = [ "idle_alloc.cc" ]
+  }
 }
 
 group("unittests") {
@@ -29,5 +72,25 @@ group("unittests") {
 
   if (current_toolchain == host_toolchain) {
     deps += [ "ftrace_proto_gen:unittests" ]
+  }
+}
+
+# The protoc binary can end up in out/protoc or out/gcc_like_host/protoc
+# depending on whether this is a pure-host build vs a host+target (i.e. android)
+# build. This rule ensures that in both cases we end up with a host binary in
+# out/protoc, so tools can consistently refer to that one location.
+protoc_target = "../../gn:protoc($host_toolchain)"
+if (current_toolchain != host_toolchain) {
+  copy("copy_protoc") {
+    testonly = true
+    deps = [ protoc_target ]
+    host_out_dir = get_label_info(protoc_target, "root_out_dir")
+    sources = [ "$host_out_dir/protoc" ]
+    outputs = [ "$root_build_dir/protoc" ]
+  }
+} else {
+  # Nothing to do, in this case protoc is already built in the root out dir.
+  group("copy_protoc") {
+    public_deps = [ protoc_target ]
   }
 }

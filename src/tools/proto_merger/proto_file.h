@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef TOOLS_PROTO_MERGER_PROTO_FILE_H_
-#define TOOLS_PROTO_MERGER_PROTO_FILE_H_
+#ifndef SRC_TOOLS_PROTO_MERGER_PROTO_FILE_H_
+#define SRC_TOOLS_PROTO_MERGER_PROTO_FILE_H_
 
 #include <string>
 #include <vector>
@@ -88,4 +88,4 @@ ProtoFile ProtoFileFromDescriptor(const google::protobuf::FileDescriptor&);
 }  // namespace proto_merger
 }  // namespace perfetto
 
-#endif  // TOOLS_PROTO_MERGER_PROTO_FILE_H_
+#endif  // SRC_TOOLS_PROTO_MERGER_PROTO_FILE_H_
