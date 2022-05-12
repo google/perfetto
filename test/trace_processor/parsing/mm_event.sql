@@ -13,10 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select ts, name, value, upid
+select ts, name, value
 from counter
-inner join process_counter_track
-  on counter.track_id = process_counter_track.id
-where name GLOB 'mem.mm.*'
+inner join counter_track
+  on counter.track_id = counter_track.id
+where name glob 'mem.mm.*'
 order by ts
 limit 40
