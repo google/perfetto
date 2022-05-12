@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#ifndef TOOLS_FTRACE_PROTO_GEN_FTRACE_DESCRIPTOR_GEN_H_
-#define TOOLS_FTRACE_PROTO_GEN_FTRACE_DESCRIPTOR_GEN_H_
+#ifndef SRC_TOOLS_FTRACE_PROTO_GEN_FTRACE_DESCRIPTOR_GEN_H_
+#define SRC_TOOLS_FTRACE_PROTO_GEN_FTRACE_DESCRIPTOR_GEN_H_
 
 #include "perfetto/base/logging.h"
-#include "tools/ftrace_proto_gen/ftrace_proto_gen.h"
+#include "src/tools/ftrace_proto_gen/ftrace_proto_gen.h"
 
 namespace google {
 namespace protobuf {
@@ -35,4 +35,4 @@ void GenerateFtraceDescriptors(
     std::ostream* fout);
 
 }  // namespace perfetto
-#endif  // TOOLS_FTRACE_PROTO_GEN_FTRACE_DESCRIPTOR_GEN_H_
+#endif  // SRC_TOOLS_FTRACE_PROTO_GEN_FTRACE_DESCRIPTOR_GEN_H_
