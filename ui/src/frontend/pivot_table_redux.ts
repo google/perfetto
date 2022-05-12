@@ -22,7 +22,8 @@ import {
   Area,
   PivotTableReduxAreaState,
   PivotTableReduxQuery,
-  PivotTableReduxResult
+  PivotTableReduxResult,
+  SortDirection
 } from '../common/state';
 import {PivotTree} from '../controller/pivot_table_redux_controller';
 
@@ -36,9 +37,11 @@ import {
   sliceAggregationColumns,
   Table,
   TableColumn,
+  tableColumnEquals,
   tables,
   threadSliceAggregationColumns
 } from './pivot_table_redux_query_generator';
+import {PopupMenuButton, PopupMenuItem} from './popup_menu';
 
 interface PathItem {
   tree: PivotTree;
@@ -285,6 +288,44 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
     return m('tr', overallValuesRow);
   }
 
+  sortingItem(column: TableColumn, order: SortDirection): PopupMenuItem {
+    // Arrow contains unicode character for up or down arrow, according to the
+    // direction of sorting.
+    const arrow = order === 'DESC' ? '\u25BC' : '\u25B2';
+    return {
+      text: `Sort ${arrow}`,
+      callback() {
+        globals.dispatch(Actions.setPivotTableSortColumn({column, order}));
+        globals.dispatch(
+            Actions.setPivotTableQueryRequested({queryRequested: true}));
+      }
+    };
+  }
+
+  renderAggregationHeaderCell(aggregation: TableColumn): m.Child {
+    const readableName =
+        aggregation === 'count' ? 'Count' : `SUM(${aggregation.column})`;
+
+    const popupItems: PopupMenuItem[] = [];
+    const state = globals.state.nonSerializableState.pivotTableRedux;
+    if (state.sortCriteria === undefined ||
+        !tableColumnEquals(aggregation, state.sortCriteria.column)) {
+      popupItems.push(
+          this.sortingItem(aggregation, 'DESC'),
+          this.sortingItem(aggregation, 'ASC'));
+    } else {
+      // Table is already sorted by the same column, return one item with
+      // opposite direction.
+      popupItems.push(this.sortingItem(
+          aggregation, state.sortCriteria.order === 'DESC' ? 'ASC' : 'DESC'));
+    }
+
+    return m('td', readableName, m(PopupMenuButton, {
+               icon: 'arrow_drop_down',
+               items: popupItems,
+             }));
+  }
+
   renderResultsTable(attrs: PivotTableReduxAttrs) {
     const state = globals.state.nonSerializableState.pivotTableRedux;
     if (state.queryResult === null) {
@@ -306,13 +347,23 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         state.queryResult,
         renderedRows);
 
-    const allColumns = state.queryResult.metadata.pivotColumns.concat(
-        state.queryResult.metadata.aggregationColumns);
+    const pivotTableHeaders =
+        state.queryResult.metadata.pivotColumns.map(pivot => m('td', pivot));
+    const aggregationTableHeaders =
+        state.queryResult.metadata.aggregationColumns.map(
+            aggregation => this.renderAggregationHeaderCell(aggregation));
+
     return m(
         'table.query-table.pivot-table',
-        m('thead', m('tr', allColumns.map(column => m('td', column)), m('td'))),
+        m('thead',
+          // First row of the table, containing names of pivot and aggregation
+          // columns, as well as popup menus to modify the columns. Last cell
+          // is empty because of an extra column with "drill down" button for
+          // each pivot table row.
+          m('tr', pivotTableHeaders, aggregationTableHeaders, m('td'))),
         m('tbody', this.renderTotalsRow(state.queryResult), renderedRows));
   }
+
 
   renderQuery(attrs: PivotTableReduxAttrs): m.Vnode {
     // Prepare a button to switch to results mode.
