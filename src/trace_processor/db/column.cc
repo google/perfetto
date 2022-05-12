@@ -33,8 +33,7 @@ Column::Column(const Column& column,
              table,
              col_idx,
              row_map_idx,
-             column.nullable_vector_,
-             column.owned_nullable_vector_) {}
+             column.nullable_vector_) {}
 
 Column::Column(const char* name,
                ColumnType type,
@@ -42,10 +41,8 @@ Column::Column(const char* name,
                Table* table,
                uint32_t col_idx_in_table,
                uint32_t row_map_idx,
-               NullableVectorBase* nv,
-               std::shared_ptr<NullableVectorBase> owned_nullable_vector)
-    : owned_nullable_vector_(owned_nullable_vector),
-      type_(type),
+               NullableVectorBase* nv)
+    : type_(type),
       nullable_vector_(nv),
       name_(name),
       flags_(flags),
@@ -81,13 +78,13 @@ Column Column::DummyColumn(const char* name,
                            Table* table,
                            uint32_t col_idx_in_table) {
   return Column(name, ColumnType::kDummy, Flag::kNoFlag, table,
-                col_idx_in_table, std::numeric_limits<uint32_t>::max(), nullptr,
+                col_idx_in_table, std::numeric_limits<uint32_t>::max(),
                 nullptr);
 }
 
 Column Column::IdColumn(Table* table, uint32_t col_idx, uint32_t row_map_idx) {
   return Column("id", ColumnType::kId, kIdFlags, table, col_idx, row_map_idx,
-                nullptr, nullptr);
+                nullptr);
 }
 
 void Column::StableSort(bool desc, std::vector<uint32_t>* idx) const {

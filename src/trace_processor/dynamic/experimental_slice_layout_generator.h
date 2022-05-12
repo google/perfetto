@@ -44,7 +44,9 @@ class ExperimentalSliceLayoutGenerator : public DynamicTableGenerator {
                             std::unique_ptr<Table>& table_return) override;
 
  private:
-  Table ComputeLayoutTable(const Table& table, StringPool::Id filter_id);
+  std::unique_ptr<Table> ComputeLayoutTable(
+      std::vector<tables::SliceTable::RowNumber> rows,
+      StringPool::Id filter_id);
   tables::SliceTable::Id InsertSlice(
       std::map<tables::SliceTable::Id, tables::SliceTable::Id>& id_map,
       tables::SliceTable::Id id,
@@ -52,7 +54,7 @@ class ExperimentalSliceLayoutGenerator : public DynamicTableGenerator {
 
   // TODO(lalitm): remove this cache and move to having explicitly scoped
   // lifetimes of dynamic tables.
-  std::unordered_map<StringId, Table> layout_table_cache_;
+  std::unordered_map<StringId, std::unique_ptr<Table>> layout_table_cache_;
 
   StringPool* string_pool_;
   const tables::SliceTable* slice_table_;
