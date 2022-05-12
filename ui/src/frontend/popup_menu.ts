@@ -15,7 +15,7 @@
 import * as m from 'mithril';
 import {globals} from './globals';
 
-interface PopupMenuItem {
+export interface PopupMenuItem {
   // Display text
   text: string;
   // Action on menu item click

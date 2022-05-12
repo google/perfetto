@@ -57,6 +57,7 @@ import {
   PivotTableReduxResult,
   RecordingTarget,
   SCROLLING_TRACK_GROUP,
+  SortDirection,
   State,
   Status,
   TraceTime,
@@ -1068,6 +1069,14 @@ export const StateActions = {
           columnKey(args.column));
     }
   },
+
+  setPivotTableSortColumn(
+      state: StateDraft, args: {column: TableColumn, order: SortDirection}) {
+    state.nonSerializableState.pivotTableRedux.sortCriteria = {
+      column: args.column,
+      order: args.order
+    };
+  }
 };
 
 // When we are on the frontend side, we don't really want to execute the
