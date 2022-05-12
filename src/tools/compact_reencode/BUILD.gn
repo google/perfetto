@@ -1,4 +1,4 @@
-# Copyright (C) 2021 The Android Open Source Project
+# Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,24 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../gn/perfetto_host_executable.gni")
+import("../../../gn/perfetto_host_executable.gni")
 
-perfetto_host_executable("proto_merger") {
+perfetto_host_executable("compact_reencode") {
   testonly = true
   deps = [
-    "../../gn:default_deps",
-    "../../gn:protobuf_full",
-    "../../src/base",
+    ":common",
+    "../../../gn:default_deps",
   ]
-  sources = [
-    "allowlist.cc",
-    "allowlist.h",
-    "main.cc",
-    "proto_file.cc",
-    "proto_file.h",
-    "proto_file_serializer.cc",
-    "proto_file_serializer.h",
-    "proto_merger.cc",
-    "proto_merger.h",
+}
+
+source_set("common") {
+  testonly = true
+  public_deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/protozero",
+    "../../../protos/perfetto/trace:zero",
+    "../../../protos/perfetto/trace/ftrace:zero",
+    "../../base",
   ]
+  sources = [ "main.cc" ]
 }

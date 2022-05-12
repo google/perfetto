@@ -26,10 +26,10 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
-#include "tools/proto_merger/allowlist.h"
-#include "tools/proto_merger/proto_file.h"
-#include "tools/proto_merger/proto_file_serializer.h"
-#include "tools/proto_merger/proto_merger.h"
+#include "src/tools/proto_merger/allowlist.h"
+#include "src/tools/proto_merger/proto_file.h"
+#include "src/tools/proto_merger/proto_file_serializer.h"
+#include "src/tools/proto_merger/proto_merger.h"
 
 namespace perfetto {
 namespace proto_merger {

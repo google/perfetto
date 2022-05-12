@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef TOOLS_PROTO_MERGER_ALLOWLIST_H_
-#define TOOLS_PROTO_MERGER_ALLOWLIST_H_
+#ifndef SRC_TOOLS_PROTO_MERGER_ALLOWLIST_H_
+#define SRC_TOOLS_PROTO_MERGER_ALLOWLIST_H_
 
 #include <map>
 #include <set>
@@ -57,4 +57,4 @@ base::Status AllowlistFromFieldList(
 }  // namespace proto_merger
 }  // namespace perfetto
 
-#endif  // TOOLS_PROTO_MERGER_ALLOWLIST_H_
+#endif  // SRC_TOOLS_PROTO_MERGER_ALLOWLIST_H_
