@@ -23,7 +23,7 @@ DESCRIPTOR='gen/protos/perfetto/trace/ftrace/ftrace.descriptor'
 cd "$DIR/.."
 
 "$BUILDDIR/ftrace_proto_gen" \
-  --event_list "$DIR/ftrace_proto_gen/event_list" \
+  --event_list "$DIR/../src/tools/ftrace_proto_gen/event_list" \
   --output_dir "$DIR/../protos/perfetto/trace/ftrace/" \
   --proto_descriptor "$BUILDDIR/$DESCRIPTOR" \
   --update_build_files \

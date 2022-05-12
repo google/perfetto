@@ -239,7 +239,7 @@ def CheckMergedTraceConfigProto(input_api, output_api):
 # Prevent removing or changing lines in event_list.
 def CheckProtoEventList(input_api, output_api):
   for f in input_api.AffectedFiles():
-    if f.LocalPath() != 'tools/ftrace_proto_gen/event_list':
+    if f.LocalPath() != 'src/tools/ftrace_proto_gen/event_list':
       continue
     if any((not new_line.startswith('removed')) and new_line != old_line
            for old_line, new_line in zip(f.OldContents(), f.NewContents())):
