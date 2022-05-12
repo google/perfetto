@@ -23,20 +23,9 @@
 
 namespace perfetto {
 namespace trace_processor {
-
 namespace tables {
-
-#define PERFETTO_TP_SLICE_LAYOUT_TABLE_DEF(NAME, PARENT, C)       \
-  NAME(ExperimentalSliceLayoutTable, "experimental_slice_layout") \
-  PARENT(PERFETTO_TP_SLICE_TABLE_DEF, C)                          \
-  C(uint32_t, layout_depth, Column::kHidden)                      \
-  C(StringPool::Id, filter_track_ids, Column::kHidden)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_SLICE_LAYOUT_TABLE_DEF);
-
 ExperimentalSliceLayoutTable::~ExperimentalSliceLayoutTable() = default;
-
-}  // namespace tables
+}
 
 namespace {
 
@@ -48,6 +37,9 @@ struct GroupInfo {
   uint32_t max_height;
   uint32_t layout_depth;
 };
+
+static constexpr uint32_t kFilterTrackIdsColumnIndex =
+    tables::ExperimentalSliceLayoutTable::ColumnIndex::filter_track_ids;
 
 }  // namespace
 
