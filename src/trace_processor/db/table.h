@@ -64,7 +64,7 @@ class Table {
     // Returns the value at the current row for column |col_idx|.
     SqlValue Get(uint32_t col_idx) const {
       const auto& col = table_->columns_[col_idx];
-      return col.GetAtIdx(its_[col.row_map_idx()].index());
+      return col.GetAtIdx(its_[col.row_map_index()].index());
     }
 
    private:
@@ -144,36 +144,6 @@ class Table {
   // Sorts the Table using the specified order by constraints.
   Table Sort(const std::vector<Order>& od) const;
 
-  // Extends the table with a new column called |name| with data |sv|.
-  template <typename T>
-  Table ExtendWithColumn(const char* name,
-                         std::unique_ptr<NullableVector<T>> sv,
-                         uint32_t flags) const {
-    PERFETTO_CHECK(sv->size() == row_count());
-    uint32_t size = sv->size();
-    uint32_t row_map_count = static_cast<uint32_t>(row_maps_.size());
-    Table ret = Copy();
-    ret.columns_.push_back(Column::WithOwnedStorage(
-        name, std::move(sv), flags, &ret, GetColumnCount(), row_map_count));
-    ret.row_maps_.emplace_back(RowMap(0, size));
-    return ret;
-  }
-
-  // Extends the table with a new column called |name| with data |sv|.
-  template <typename T>
-  Table ExtendWithColumn(const char* name,
-                         NullableVector<T>* sv,
-                         uint32_t flags) const {
-    PERFETTO_CHECK(sv->size() == row_count());
-    uint32_t size = sv->size();
-    uint32_t row_map_count = static_cast<uint32_t>(row_maps_.size());
-    Table ret = Copy();
-    ret.columns_.push_back(
-        Column(name, sv, flags, &ret, GetColumnCount(), row_map_count));
-    ret.row_maps_.emplace_back(RowMap(0, size));
-    return ret;
-  }
-
   // Returns the column at index |idx| in the Table.
   const Column& GetColumn(uint32_t idx) const { return columns_[idx]; }
 
@@ -229,6 +199,7 @@ class Table {
   }
 
   uint32_t row_count() const { return row_count_; }
+  StringPool* string_pool() const { return string_pool_; }
   const std::vector<RowMap>& row_maps() const { return row_maps_; }
   const std::vector<Column>& columns() const { return columns_; }
 

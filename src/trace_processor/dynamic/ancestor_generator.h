@@ -51,12 +51,11 @@ class AncestorGenerator : public DynamicTableGenerator {
                             const BitVector& cols_used,
                             std::unique_ptr<Table>& table_return) override;
 
-  // Returns a RowMap of slice IDs which are ancestors of |slice_id|. Returns
-  // NULL if an invalid |slice_id| is given. This is used by
+  // Returns a vector of rows numbers which are ancestors of |slice_id|.
+  // Returns base::nullopt if an invalid |slice_id| is given. This is used by
   // ConnectedFlowGenerator to traverse flow indirectly connected flow events.
-  static base::Optional<RowMap> GetAncestorSlices(
-      const tables::SliceTable& slices,
-      SliceId slice_id);
+  static base::Optional<std::vector<tables::SliceTable::RowNumber>>
+  GetAncestorSlices(const tables::SliceTable& slices, SliceId slice_id);
 
  private:
   Ancestor type_;

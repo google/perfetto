@@ -83,9 +83,9 @@ class TableMacrosUnittest : public ::testing::Test {
 };
 
 TEST_F(TableMacrosUnittest, Name) {
-  ASSERT_STREQ(event_.table_name(), "event");
-  ASSERT_STREQ(slice_.table_name(), "slice");
-  ASSERT_STREQ(cpu_slice_.table_name(), "cpu_slice");
+  ASSERT_STREQ(TestEventTable::Name(), "event");
+  ASSERT_STREQ(TestSliceTable::Name(), "slice");
+  ASSERT_STREQ(TestCpuSliceTable::Name(), "cpu_slice");
 }
 
 TEST_F(TableMacrosUnittest, InsertParent) {
