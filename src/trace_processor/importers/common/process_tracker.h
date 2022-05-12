@@ -170,7 +170,7 @@ class ProcessTracker {
   // Creates the mapping from tid 0 <-> utid 0 and pid 0 <-> upid 0. This is
   // done for Linux-based system traces (proto or ftrace format) as for these
   // traces, we always have the "swapper" (idle) process having tid/pid 0.
-  void SetPidZeroIsUpidZeroIdleProcess();
+  void SetPidZeroIgnoredForIdleProcess();
 
   // Returns a BoundInserter to add arguments to the arg set of a process.
   // Arguments are flushed into trace storage only after the trace was loaded in

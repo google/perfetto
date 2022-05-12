@@ -26,20 +26,15 @@ namespace trace_processor {
 ProcessTracker::ProcessTracker(TraceProcessorContext* context)
     : context_(context), args_tracker_(context) {
   // Reserve utid/upid 0. These are special as embedders (e.g. Perfetto UI)
-  // exclude them from certain views (e.g. thread state) under the assumption
-  // that they correspond to the idle (swapper) process. When parsing Linux
-  // system traces, SetPidZeroIsUpidZeroIdleProcess will be called to associate
-  // tid0/pid0 to utid0/upid0. If other types of traces refer to tid0/pid0,
-  // then they will get their own non-zero utid/upid, so that those threads are
-  // still surfaced in embedder UIs.
+  // exclude them by filtering them out. If the parsed trace contains ftrace
+  // data, SetPidZeroIgnoredForIdleProcess will create a mapping
+  // to these rows for tid/pid 0.
   tables::ThreadTable::Row thread_row;
-  thread_row.tid = 0u;
-  thread_row.upid = 0u;
-  thread_row.is_main_thread = true;
+  thread_row.tid = 0;
   context_->storage->mutable_thread_table()->Insert(thread_row);
 
   tables::ProcessTable::Row process_row;
-  process_row.pid = 0u;
+  process_row.pid = 0;
   context_->storage->mutable_process_table()->Insert(process_row);
 
   // An element to match the reserved tid = 0.
@@ -506,10 +501,10 @@ void ProcessTracker::AssociateThreadToProcess(UniqueTid utid, UniquePid upid) {
   thread_table->mutable_is_main_thread()->Set(utid, main_thread);
 }
 
-void ProcessTracker::SetPidZeroIsUpidZeroIdleProcess() {
+void ProcessTracker::SetPidZeroIgnoredForIdleProcess() {
   // Create a mapping from (t|p)id 0 -> u(t|p)id 0 for the idle process.
   tids_.Insert(0, std::vector<UniqueTid>{0});
-  pids_.Insert(0, UniquePid{0});
+  pids_.Insert(0, 0);
 
   auto swapper_id = context_->storage->InternString("swapper");
   UpdateThreadName(0, swapper_id, ThreadNamePriority::kTraceProcessorConstant);
