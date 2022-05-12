@@ -19,6 +19,7 @@
 #include <math.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -83,14 +84,22 @@ base::Optional<CounterId> EventTracker::PushCounter(
 void EventTracker::FlushPendingEvents() {
   const auto& thread_table = context_->storage->thread_table();
   for (const auto& pending_counter : pending_upid_resolution_counter_) {
-    // TODO(lalitm): having upid == 0 is probably not the correct approach here
-    // but it's unclear what may be better.
     UniqueTid utid = pending_counter.utid;
-    UniquePid upid = thread_table.upid()[utid].value_or(0);
-    TrackId id = context_->track_tracker->InternProcessCounterTrack(
-        pending_counter.name_id, upid);
+    base::Optional<UniquePid> upid = thread_table.upid()[utid];
+
+    TrackId track_id = kInvalidTrackId;
+    if (upid.has_value()) {
+      track_id = context_->track_tracker->InternProcessCounterTrack(
+          pending_counter.name_id, *upid);
+    } else {
+      // If we still don't know which process this thread belongs to, fall back
+      // onto creating a thread counter track. It's too late to drop data
+      // because the counter values have already been inserted.
+      track_id = context_->track_tracker->InternThreadCounterTrack(
+          pending_counter.name_id, utid);
+    }
     context_->storage->mutable_counter_table()->mutable_track_id()->Set(
-        pending_counter.row, id);
+        pending_counter.row, track_id);
   }
   pending_upid_resolution_counter_.clear();
 }
