@@ -169,11 +169,20 @@ uint32_t ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
 // timestamp from clock C1 to C2 you need to first convert C1 -> C3 using the
 // snapshot hash A, then convert C3 -> C2 via snapshot hash B".
 ClockTracker::ClockPath ClockTracker::FindPath(ClockId src, ClockId target) {
+  PERFETTO_CHECK(src != target);
+
+  // If we've never heard of the clock before there is no hope:
+  if (clocks_.find(target) == clocks_.end()) {
+    return ClockPath();
+  }
+  if (clocks_.find(src) == clocks_.end()) {
+    return ClockPath();
+  }
+
   // This is a classic breadth-first search. Each node in the queue holds also
   // the full path to reach that node.
   // We assume the graph is acyclic, if it isn't the ClockPath::kMaxLen will
   // stop the search anyways.
-  PERFETTO_CHECK(src != target);
   std::queue<ClockPath> queue;
   queue.emplace(src);
 
