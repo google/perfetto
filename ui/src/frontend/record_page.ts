@@ -779,16 +779,18 @@ function AdvancedSettings(cssClass: string) {
         m(Slider, {
           title: 'Buf size',
           cssClass: '.thin',
-          values: [512, 1024, 2 * 1024, 4 * 1024, 16 * 1024, 32 * 1024],
+          values: [0, 512, 1024, 2 * 1024, 4 * 1024, 16 * 1024, 32 * 1024],
           unit: 'KB',
+          zeroIsDefault: true,
           set: (cfg, val) => cfg.ftraceBufferSizeKb = val,
           get: (cfg) => cfg.ftraceBufferSizeKb
         } as SliderAttrs),
         m(Slider, {
           title: 'Drain rate',
           cssClass: '.thin',
-          values: [100, 250, 500, 1000, 2500, 5000],
+          values: [0, 100, 250, 500, 1000, 2500, 5000],
           unit: 'ms',
+          zeroIsDefault: true,
           set: (cfg, val) => cfg.ftraceDrainPeriodMs = val,
           get: (cfg) => cfg.ftraceDrainPeriodMs
         } as SliderAttrs),
