@@ -1248,7 +1248,6 @@
 5799,5799,"irq/166-arm-smm","irq/166-arm-smm",19478
 524,524,"irq/752-mnh_pci","irq/752-mnh_pci",14271
 93,93,"kworker/u16:1","kworker/u16:1",10729
-0,"[NULL]","swapper","[NULL]","[NULL]"
 1610,"[NULL]","ReferenceQueueD","[NULL]","[NULL]"
 1611,"[NULL]","FinalizerDaemon","[NULL]","[NULL]"
 1612,"[NULL]","FinalizerWatchd","[NULL]","[NULL]"
