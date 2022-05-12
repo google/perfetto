@@ -1,195 +1,195 @@
 "tid","pid","threadName","processName","totalDur"
-5506,5506,"id.GoogleCamera","com.google.android.GoogleCamera",15154766430
-5511,5506,"Jit thread pool","com.google.android.GoogleCamera",15154766430
-5512,5506,"Signal Catcher","com.google.android.GoogleCamera",15154766430
-5513,5506,"ADB-JDWP Connec","com.google.android.GoogleCamera",15154766430
-5514,5506,"ReferenceQueueD","com.google.android.GoogleCamera",15154766430
-5515,5506,"FinalizerDaemon","com.google.android.GoogleCamera",15154766430
-5516,5506,"FinalizerWatchd","com.google.android.GoogleCamera",15154766430
-5517,5506,"HeapTaskDaemon","com.google.android.GoogleCamera",15154766430
-5518,5506,"Binder:5506_1","com.google.android.GoogleCamera",15154766430
-5519,5506,"Binder:5506_2","com.google.android.GoogleCamera",15154766430
-5520,5506,"Profile Saver","com.google.android.GoogleCamera",15154766430
-5522,5506,"GoogleApiHandle","com.google.android.GoogleCamera",15154766430
-5524,5506,"queued-work-loo","com.google.android.GoogleCamera",15154766430
-5525,5506,"Executor-1","com.google.android.GoogleCamera",15154766430
-5526,5506,"Executor-2","com.google.android.GoogleCamera",15154766430
-5527,5506,"Executor-3","com.google.android.GoogleCamera",15154766430
-5528,5506,"Executor-4","com.google.android.GoogleCamera",15154766430
-5529,5506,"IOExecutor-1","com.google.android.GoogleCamera",15154766430
-5530,5506,"IndicatorUpdate","com.google.android.GoogleCamera",15154766430
-5531,5506,"CamcorderCamera","com.google.android.GoogleCamera",15154766430
-5532,5506,"Thread-11","com.google.android.GoogleCamera",15154766430
-5533,5506,"Thread-12","com.google.android.GoogleCamera",15154766430
-5534,5506,"Thread-92","com.google.android.GoogleCamera",15154766430
-5536,5506,"Executor-5","com.google.android.GoogleCamera",15154766430
-5537,5506,"Executor-6","com.google.android.GoogleCamera",15154766430
-5538,5506,"RenderThread","com.google.android.GoogleCamera",15154766430
-5541,5506,"Executor-7","com.google.android.GoogleCamera",15154766430
-5557,5506,"RenderThread","com.google.android.GoogleCamera",15154766430
-5559,5506,"RenderThread","com.google.android.GoogleCamera",15154766430
-5595,5506,"Executor-8","com.google.android.GoogleCamera",15154766430
-5596,5506,"Camera-Hndlr","com.google.android.GoogleCamera",15154766430
-5597,5506,"SoundPool","com.google.android.GoogleCamera",15154766430
-5598,5506,"SoundPoolThread","com.google.android.GoogleCamera",15154766430
-5599,5506,"UsageStatEx","com.google.android.GoogleCamera",15154766430
-5600,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766430
-5601,5506,"HwBinder:5506_1","com.google.android.GoogleCamera",15154766430
-5604,5506,"Camera-Ex","com.google.android.GoogleCamera",15154766430
-5626,5506,"Camera Handler ","com.google.android.GoogleCamera",15154766430
-5632,5506,"Camera Job Disp","com.google.android.GoogleCamera",15154766430
-5634,5506,"Binder:5506_3","com.google.android.GoogleCamera",15154766430
-5641,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766430
-5648,5506,"camera.wearable","com.google.android.GoogleCamera",15154766430
-5649,5506,"CamcorderCamera","com.google.android.GoogleCamera",15154766430
-5650,5506,"Binder:5506_4","com.google.android.GoogleCamera",15154766430
-5651,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766430
-5654,5506,"IR-RAW10w4032","com.google.android.GoogleCamera",15154766430
-5655,5506,"Binder:5506_5","com.google.android.GoogleCamera",15154766430
-5657,5506,"MicrovideoFrame","com.google.android.GoogleCamera",15154766430
-5658,5506,"AsyncTask #1","com.google.android.GoogleCamera",15154766430
-5673,5506,"IR-YUV_420_888w","com.google.android.GoogleCamera",15154766430
-5674,5506,"IR-JPEGw4032","com.google.android.GoogleCamera",15154766430
-5675,5506,"reproc-write","com.google.android.GoogleCamera",15154766430
-5676,5506,"reproc-read","com.google.android.GoogleCamera",15154766430
-5679,5506,"CameraEx-1","com.google.android.GoogleCamera",15154766430
-5680,5506,"CameraEx-2","com.google.android.GoogleCamera",15154766430
-5681,5506,"MicrovideoQShar","com.google.android.GoogleCamera",15154766430
-5682,5506,"n.StateCallback","com.google.android.GoogleCamera",15154766430
-5684,5506,"mv-vid-encoder","com.google.android.GoogleCamera",15154766430
-5686,5506,"SharedPreferenc","com.google.android.GoogleCamera",15154766430
-5696,5506,"AsyncTask #2","com.google.android.GoogleCamera",15154766430
-5701,5506,"GcaMetadataHand","com.google.android.GoogleCamera",15154766430
-5702,5506,"r.ImageListener","com.google.android.GoogleCamera",15154766430
-5703,5506,"Binder:5506_6","com.google.android.GoogleCamera",15154766430
-5706,5506,"OnDemandLoader","com.google.android.GoogleCamera",15154766430
-5713,5506,"NotificationDot","com.google.android.GoogleCamera",15154766430
-5722,5506,"GAC_Executor[0]","com.google.android.GoogleCamera",15154766430
-5729,5506,"Timer-0","com.google.android.GoogleCamera",15154766430
-5732,5506,"GAC_Executor[1]","com.google.android.GoogleCamera",15154766430
-5733,5506,"Timer-1","com.google.android.GoogleCamera",15154766430
-5734,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766430
-5743,5506,"AsyncTask #3","com.google.android.GoogleCamera",15154766430
-5760,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766430
-5769,5506,"hwuiTask1","com.google.android.GoogleCamera",15154766430
-5772,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766430
-5775,5506,"Timer-2","com.google.android.GoogleCamera",15154766430
-5781,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766430
-5793,5506,"mv-ctrl-exec","com.google.android.GoogleCamera",15154766430
-5794,5506,"ois-exec","com.google.android.GoogleCamera",15154766430
-5795,5506,"mv-meta-exec","com.google.android.GoogleCamera",15154766430
-5796,5506,"mv-gyro-exec-0","com.google.android.GoogleCamera",15154766430
-5797,5506,"DelHDR+Ind","com.google.android.GoogleCamera",15154766430
-5801,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766430
-5804,5506,"FilterHDR+Ind","com.google.android.GoogleCamera",15154766430
-5805,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766430
-5808,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766430
-5811,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766430
-5814,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766430
-5817,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766430
-5824,5506,"CameraProcessin","com.google.android.GoogleCamera",15154766430
-5825,5506,"ProcServ","com.google.android.GoogleCamera",15154766430
-5826,5506,"MediaCodec_loop","com.google.android.GoogleCamera",15154766430
-5827,5506,"CodecLooper","com.google.android.GoogleCamera",15154766430
-5829,5506,"Binder:5506_7","com.google.android.GoogleCamera",15154766430
-5834,5506,"IOExecutor-2","com.google.android.GoogleCamera",15154766430
-5839,5506,"AudioTrack","com.google.android.GoogleCamera",15154766430
-5845,5506,"Thread-38","com.google.android.GoogleCamera",15154766430
-5847,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766430
-5848,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766430
-5849,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766430
-5850,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766430
-5851,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766430
-5852,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766430
-5853,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766430
-5865,5506,"AsyncTask #4","com.google.android.GoogleCamera",15154766430
-5869,5506,"glide-source-th","com.google.android.GoogleCamera",15154766430
-5870,5506,"Thread-72","com.google.android.GoogleCamera",15154766430
-5872,5506,"Thread-56","com.google.android.GoogleCamera",15154766430
-5873,5506,"Thread-49","com.google.android.GoogleCamera",15154766430
-5875,5506,"Thread-52","com.google.android.GoogleCamera",15154766430
-5876,5506,"Thread-66","com.google.android.GoogleCamera",15154766430
-5877,5506,"Thread-65","com.google.android.GoogleCamera",15154766430
-5878,5506,"Thread-61","com.google.android.GoogleCamera",15154766430
-5879,5506,"Thread-58","com.google.android.GoogleCamera",15154766430
-5923,5506,"DelLifetime","com.google.android.GoogleCamera",15154766430
-5938,5506,"Thread-91","com.google.android.GoogleCamera",15154766430
-5940,5506,"Finish Thread","com.google.android.GoogleCamera",15154766430
-5941,5506,"Finish Thread","com.google.android.GoogleCamera",15154766430
-5943,5506,"Thread-85","com.google.android.GoogleCamera",15154766430
-5944,5506,"Thread-80","com.google.android.GoogleCamera",15154766430
-5945,5506,"Thread-84","com.google.android.GoogleCamera",15154766430
-5946,5506,"Thread-79","com.google.android.GoogleCamera",15154766430
-5947,5506,"Thread-81","com.google.android.GoogleCamera",15154766430
-5948,5506,"Thread-83","com.google.android.GoogleCamera",15154766430
-5949,5506,"Thread-82","com.google.android.GoogleCamera",15154766430
-6011,5506,"mv-disk-writer","com.google.android.GoogleCamera",15154766430
-1204,1204,"system_server","system_server",6809850360
-1211,1204,"ReferenceQueueD","system_server",6809850360
-1212,1204,"FinalizerDaemon","system_server",6809850360
-1213,1204,"FinalizerWatchd","system_server",6809850360
-1214,1204,"HeapTaskDaemon","system_server",6809850360
-1216,1204,"Binder:1204_1","system_server",6809850360
-1246,1204,"android.io","system_server",6809850360
-1249,1204,"android.bg","system_server",6809850360
-1250,1204,"ActivityManager","system_server",6809850360
-1251,1204,"android.ui","system_server",6809850360
-1252,1204,"ActivityManager","system_server",6809850360
-1253,1204,"ActivityManager","system_server",6809850360
-1254,1204,"batterystats-wo","system_server",6809850360
-1255,1204,"FileObserver","system_server",6809850360
-1256,1204,"android.fg","system_server",6809850360
-1257,1204,"android.display","system_server",6809850360
-1259,1204,"PowerManagerSer","system_server",6809850360
-1260,1204,"HwBinder:1204_1","system_server",6809850360
-1363,1204,"android.anim","system_server",6809850360
-1364,1204,"android.anim.lf","system_server",6809850360
-1373,1204,"SensorEventAckR","system_server",6809850360
-1374,1204,"SensorService","system_server",6809850360
-1383,1204,"SettingsProvide","system_server",6809850360
-1396,1204,"AlarmManager","system_server",6809850360
-1419,1204,"UEventObserver","system_server",6809850360
-1420,1204,"InputDispatcher","system_server",6809850360
-1421,1204,"InputReader","system_server",6809850360
-1423,1204,"NetworkWatchlis","system_server",6809850360
-1441,1204,"NetdConnector","system_server",6809850360
-1444,1204,"NetworkStats","system_server",6809850360
-1445,1204,"NetworkPolicy","system_server",6809850360
-1446,1204,"tworkPolicy.uid","system_server",6809850360
-1453,1204,"WifiService","system_server",6809850360
-1454,1204,"ClientModeImpl","system_server",6809850360
-1460,1204,"WifiScanningSer","system_server",6809850360
-1463,1204,"ConnectivitySer","system_server",6809850360
-1468,1204,"notification-sq","system_server",6809850360
-1469,1204,"ranker","system_server",6809850360
-1480,1204,"AudioService","system_server",6809850360
-1489,1204,"HwBinder:1204_3","system_server",6809850360
-1492,1204,"ConnectivityThr","system_server",6809850360
-1516,1204,"wifiAwareServic","system_server",6809850360
-1517,1204,"EthernetService","system_server",6809850360
-1519,1204,"TaskSnapshotPer","system_server",6809850360
-1525,1204,"PhotonicModulat","system_server",6809850360
-1529,1204,"LazyTaskWriterT","system_server",6809850360
-1581,1204,"NetworkStatsObs","system_server",6809850360
-1597,1204,"watchdog","system_server",6809850360
-1648,1204,"NetworkTimeUpda","system_server",6809850360
-1699,1204,"Binder:1204_4","system_server",6809850360
-1700,1204,"Binder:1204_5","system_server",6809850360
-1739,1204,"hidl_ssvc_poll","system_server",6809850360
-2274,1204,"IpClient.wlan0","system_server",6809850360
-2381,1204,"backup","system_server",6809850360
-2483,1204,"Binder:1204_A","system_server",6809850360
-2688,1204,"Binder:1204_10","system_server",6809850360
-2692,1204,"Binder:1204_12","system_server",6809850360
-2695,1204,"Binder:1204_15","system_server",6809850360
-2697,1204,"Binder:1204_16","system_server",6809850360
-3342,1204,"pool-4-thread-1","system_server",6809850360
-3482,1204,"Binder:1204_17","system_server",6809850360
-4064,1204,"Binder:1204_18","system_server",6809850360
-4743,1204,"Binder:1204_1A","system_server",6809850360
-5332,1204,"GrallocUploadTh","system_server",6809850360
-5498,1204,"RenderThread","system_server",6809850360
-5499,1204,"RenderThread","system_server",6809850360
+5506,5506,"id.GoogleCamera","com.google.android.GoogleCamera",15154766434
+5511,5506,"Jit thread pool","com.google.android.GoogleCamera",15154766434
+5512,5506,"Signal Catcher","com.google.android.GoogleCamera",15154766434
+5513,5506,"ADB-JDWP Connec","com.google.android.GoogleCamera",15154766434
+5514,5506,"ReferenceQueueD","com.google.android.GoogleCamera",15154766434
+5515,5506,"FinalizerDaemon","com.google.android.GoogleCamera",15154766434
+5516,5506,"FinalizerWatchd","com.google.android.GoogleCamera",15154766434
+5517,5506,"HeapTaskDaemon","com.google.android.GoogleCamera",15154766434
+5518,5506,"Binder:5506_1","com.google.android.GoogleCamera",15154766434
+5519,5506,"Binder:5506_2","com.google.android.GoogleCamera",15154766434
+5520,5506,"Profile Saver","com.google.android.GoogleCamera",15154766434
+5522,5506,"GoogleApiHandle","com.google.android.GoogleCamera",15154766434
+5524,5506,"queued-work-loo","com.google.android.GoogleCamera",15154766434
+5525,5506,"Executor-1","com.google.android.GoogleCamera",15154766434
+5526,5506,"Executor-2","com.google.android.GoogleCamera",15154766434
+5527,5506,"Executor-3","com.google.android.GoogleCamera",15154766434
+5528,5506,"Executor-4","com.google.android.GoogleCamera",15154766434
+5529,5506,"IOExecutor-1","com.google.android.GoogleCamera",15154766434
+5530,5506,"IndicatorUpdate","com.google.android.GoogleCamera",15154766434
+5531,5506,"CamcorderCamera","com.google.android.GoogleCamera",15154766434
+5532,5506,"Thread-11","com.google.android.GoogleCamera",15154766434
+5533,5506,"Thread-12","com.google.android.GoogleCamera",15154766434
+5534,5506,"Thread-92","com.google.android.GoogleCamera",15154766434
+5536,5506,"Executor-5","com.google.android.GoogleCamera",15154766434
+5537,5506,"Executor-6","com.google.android.GoogleCamera",15154766434
+5538,5506,"RenderThread","com.google.android.GoogleCamera",15154766434
+5541,5506,"Executor-7","com.google.android.GoogleCamera",15154766434
+5557,5506,"RenderThread","com.google.android.GoogleCamera",15154766434
+5559,5506,"RenderThread","com.google.android.GoogleCamera",15154766434
+5595,5506,"Executor-8","com.google.android.GoogleCamera",15154766434
+5596,5506,"Camera-Hndlr","com.google.android.GoogleCamera",15154766434
+5597,5506,"SoundPool","com.google.android.GoogleCamera",15154766434
+5598,5506,"SoundPoolThread","com.google.android.GoogleCamera",15154766434
+5599,5506,"UsageStatEx","com.google.android.GoogleCamera",15154766434
+5600,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+5601,5506,"HwBinder:5506_1","com.google.android.GoogleCamera",15154766434
+5604,5506,"Camera-Ex","com.google.android.GoogleCamera",15154766434
+5626,5506,"Camera Handler ","com.google.android.GoogleCamera",15154766434
+5632,5506,"Camera Job Disp","com.google.android.GoogleCamera",15154766434
+5634,5506,"Binder:5506_3","com.google.android.GoogleCamera",15154766434
+5641,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+5648,5506,"camera.wearable","com.google.android.GoogleCamera",15154766434
+5649,5506,"CamcorderCamera","com.google.android.GoogleCamera",15154766434
+5650,5506,"Binder:5506_4","com.google.android.GoogleCamera",15154766434
+5651,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+5654,5506,"IR-RAW10w4032","com.google.android.GoogleCamera",15154766434
+5655,5506,"Binder:5506_5","com.google.android.GoogleCamera",15154766434
+5657,5506,"MicrovideoFrame","com.google.android.GoogleCamera",15154766434
+5658,5506,"AsyncTask #1","com.google.android.GoogleCamera",15154766434
+5673,5506,"IR-YUV_420_888w","com.google.android.GoogleCamera",15154766434
+5674,5506,"IR-JPEGw4032","com.google.android.GoogleCamera",15154766434
+5675,5506,"reproc-write","com.google.android.GoogleCamera",15154766434
+5676,5506,"reproc-read","com.google.android.GoogleCamera",15154766434
+5679,5506,"CameraEx-1","com.google.android.GoogleCamera",15154766434
+5680,5506,"CameraEx-2","com.google.android.GoogleCamera",15154766434
+5681,5506,"MicrovideoQShar","com.google.android.GoogleCamera",15154766434
+5682,5506,"n.StateCallback","com.google.android.GoogleCamera",15154766434
+5684,5506,"mv-vid-encoder","com.google.android.GoogleCamera",15154766434
+5686,5506,"SharedPreferenc","com.google.android.GoogleCamera",15154766434
+5696,5506,"AsyncTask #2","com.google.android.GoogleCamera",15154766434
+5701,5506,"GcaMetadataHand","com.google.android.GoogleCamera",15154766434
+5702,5506,"r.ImageListener","com.google.android.GoogleCamera",15154766434
+5703,5506,"Binder:5506_6","com.google.android.GoogleCamera",15154766434
+5706,5506,"OnDemandLoader","com.google.android.GoogleCamera",15154766434
+5713,5506,"NotificationDot","com.google.android.GoogleCamera",15154766434
+5722,5506,"GAC_Executor[0]","com.google.android.GoogleCamera",15154766434
+5729,5506,"Timer-0","com.google.android.GoogleCamera",15154766434
+5732,5506,"GAC_Executor[1]","com.google.android.GoogleCamera",15154766434
+5733,5506,"Timer-1","com.google.android.GoogleCamera",15154766434
+5734,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+5743,5506,"AsyncTask #3","com.google.android.GoogleCamera",15154766434
+5760,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+5769,5506,"hwuiTask1","com.google.android.GoogleCamera",15154766434
+5772,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+5775,5506,"Timer-2","com.google.android.GoogleCamera",15154766434
+5781,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+5793,5506,"mv-ctrl-exec","com.google.android.GoogleCamera",15154766434
+5794,5506,"ois-exec","com.google.android.GoogleCamera",15154766434
+5795,5506,"mv-meta-exec","com.google.android.GoogleCamera",15154766434
+5796,5506,"mv-gyro-exec-0","com.google.android.GoogleCamera",15154766434
+5797,5506,"DelHDR+Ind","com.google.android.GoogleCamera",15154766434
+5801,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+5804,5506,"FilterHDR+Ind","com.google.android.GoogleCamera",15154766434
+5805,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+5808,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+5811,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+5814,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+5817,5506,"NDK MediaCodec_","com.google.android.GoogleCamera",15154766434
+5824,5506,"CameraProcessin","com.google.android.GoogleCamera",15154766434
+5825,5506,"ProcServ","com.google.android.GoogleCamera",15154766434
+5826,5506,"MediaCodec_loop","com.google.android.GoogleCamera",15154766434
+5827,5506,"CodecLooper","com.google.android.GoogleCamera",15154766434
+5829,5506,"Binder:5506_7","com.google.android.GoogleCamera",15154766434
+5834,5506,"IOExecutor-2","com.google.android.GoogleCamera",15154766434
+5839,5506,"AudioTrack","com.google.android.GoogleCamera",15154766434
+5845,5506,"Thread-38","com.google.android.GoogleCamera",15154766434
+5847,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766434
+5848,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766434
+5849,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766434
+5850,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766434
+5851,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766434
+5852,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766434
+5853,5506,"Capture tasks: ","com.google.android.GoogleCamera",15154766434
+5865,5506,"AsyncTask #4","com.google.android.GoogleCamera",15154766434
+5869,5506,"glide-source-th","com.google.android.GoogleCamera",15154766434
+5870,5506,"Thread-72","com.google.android.GoogleCamera",15154766434
+5872,5506,"Thread-56","com.google.android.GoogleCamera",15154766434
+5873,5506,"Thread-49","com.google.android.GoogleCamera",15154766434
+5875,5506,"Thread-52","com.google.android.GoogleCamera",15154766434
+5876,5506,"Thread-66","com.google.android.GoogleCamera",15154766434
+5877,5506,"Thread-65","com.google.android.GoogleCamera",15154766434
+5878,5506,"Thread-61","com.google.android.GoogleCamera",15154766434
+5879,5506,"Thread-58","com.google.android.GoogleCamera",15154766434
+5923,5506,"DelLifetime","com.google.android.GoogleCamera",15154766434
+5938,5506,"Thread-91","com.google.android.GoogleCamera",15154766434
+5940,5506,"Finish Thread","com.google.android.GoogleCamera",15154766434
+5941,5506,"Finish Thread","com.google.android.GoogleCamera",15154766434
+5943,5506,"Thread-85","com.google.android.GoogleCamera",15154766434
+5944,5506,"Thread-80","com.google.android.GoogleCamera",15154766434
+5945,5506,"Thread-84","com.google.android.GoogleCamera",15154766434
+5946,5506,"Thread-79","com.google.android.GoogleCamera",15154766434
+5947,5506,"Thread-81","com.google.android.GoogleCamera",15154766434
+5948,5506,"Thread-83","com.google.android.GoogleCamera",15154766434
+5949,5506,"Thread-82","com.google.android.GoogleCamera",15154766434
+6011,5506,"mv-disk-writer","com.google.android.GoogleCamera",15154766434
+1204,1204,"system_server","system_server",6809850362
+1211,1204,"ReferenceQueueD","system_server",6809850362
+1212,1204,"FinalizerDaemon","system_server",6809850362
+1213,1204,"FinalizerWatchd","system_server",6809850362
+1214,1204,"HeapTaskDaemon","system_server",6809850362
+1216,1204,"Binder:1204_1","system_server",6809850362
+1246,1204,"android.io","system_server",6809850362
+1249,1204,"android.bg","system_server",6809850362
+1250,1204,"ActivityManager","system_server",6809850362
+1251,1204,"android.ui","system_server",6809850362
+1252,1204,"ActivityManager","system_server",6809850362
+1253,1204,"ActivityManager","system_server",6809850362
+1254,1204,"batterystats-wo","system_server",6809850362
+1255,1204,"FileObserver","system_server",6809850362
+1256,1204,"android.fg","system_server",6809850362
+1257,1204,"android.display","system_server",6809850362
+1259,1204,"PowerManagerSer","system_server",6809850362
+1260,1204,"HwBinder:1204_1","system_server",6809850362
+1363,1204,"android.anim","system_server",6809850362
+1364,1204,"android.anim.lf","system_server",6809850362
+1373,1204,"SensorEventAckR","system_server",6809850362
+1374,1204,"SensorService","system_server",6809850362
+1383,1204,"SettingsProvide","system_server",6809850362
+1396,1204,"AlarmManager","system_server",6809850362
+1419,1204,"UEventObserver","system_server",6809850362
+1420,1204,"InputDispatcher","system_server",6809850362
+1421,1204,"InputReader","system_server",6809850362
+1423,1204,"NetworkWatchlis","system_server",6809850362
+1441,1204,"NetdConnector","system_server",6809850362
+1444,1204,"NetworkStats","system_server",6809850362
+1445,1204,"NetworkPolicy","system_server",6809850362
+1446,1204,"tworkPolicy.uid","system_server",6809850362
+1453,1204,"WifiService","system_server",6809850362
+1454,1204,"ClientModeImpl","system_server",6809850362
+1460,1204,"WifiScanningSer","system_server",6809850362
+1463,1204,"ConnectivitySer","system_server",6809850362
+1468,1204,"notification-sq","system_server",6809850362
+1469,1204,"ranker","system_server",6809850362
+1480,1204,"AudioService","system_server",6809850362
+1489,1204,"HwBinder:1204_3","system_server",6809850362
+1492,1204,"ConnectivityThr","system_server",6809850362
+1516,1204,"wifiAwareServic","system_server",6809850362
+1517,1204,"EthernetService","system_server",6809850362
+1519,1204,"TaskSnapshotPer","system_server",6809850362
+1525,1204,"PhotonicModulat","system_server",6809850362
+1529,1204,"LazyTaskWriterT","system_server",6809850362
+1581,1204,"NetworkStatsObs","system_server",6809850362
+1597,1204,"watchdog","system_server",6809850362
+1648,1204,"NetworkTimeUpda","system_server",6809850362
+1699,1204,"Binder:1204_4","system_server",6809850362
+1700,1204,"Binder:1204_5","system_server",6809850362
+1739,1204,"hidl_ssvc_poll","system_server",6809850362
+2274,1204,"IpClient.wlan0","system_server",6809850362
+2381,1204,"backup","system_server",6809850362
+2483,1204,"Binder:1204_A","system_server",6809850362
+2688,1204,"Binder:1204_10","system_server",6809850362
+2692,1204,"Binder:1204_12","system_server",6809850362
+2695,1204,"Binder:1204_15","system_server",6809850362
+2697,1204,"Binder:1204_16","system_server",6809850362
+3342,1204,"pool-4-thread-1","system_server",6809850362
+3482,1204,"Binder:1204_17","system_server",6809850362
+4064,1204,"Binder:1204_18","system_server",6809850362
+4743,1204,"Binder:1204_1A","system_server",6809850362
+5332,1204,"GrallocUploadTh","system_server",6809850362
+5498,1204,"RenderThread","system_server",6809850362
+5499,1204,"RenderThread","system_server",6809850362
 5313,5313,".android.chrome","com.android.chrome",5125412570
 5318,5313,"Jit thread pool","com.android.chrome",5125412570
 5319,5313,"Signal Catcher","com.android.chrome",5125412570
@@ -268,100 +268,100 @@
 5455,5348,"ScriptStreamer ","com.android.chrome:sandboxed_process0",3569713072
 5462,5348,"Media","com.android.chrome:sandboxed_process0",3569713072
 5475,5348,"AudioOutputDevi","com.android.chrome:sandboxed_process0",3569713072
-759,759,"provider@2.4-se","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-1543,759,"CAM_imgTh","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-1696,759,"provider@2.4-se","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-1926,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5606,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5607,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5608,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5609,759,"QCamera3HdrPlus","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5610,759,"CAM_MctServ","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5611,759,"CAM_MctBus","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5614,759,"CAM_sensor","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5617,759,"CAM_iface_ses","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5620,759,"CAM_img_msg","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5621,759,"CAM_img_msg","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5622,759,"CAM_cpp","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5623,759,"CAM_isp_trigger","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5624,759,"CAM_c2d","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5625,759,"CAM_hw_update","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5627,759,"CAM_isp_parser","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5628,759,"CAM_startsensor","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5629,759,"CAM_gyro_sens","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5630,759,"CAM_startsensor","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5631,759,"CAM_startsensor","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5633,759,"CAM_img_msg","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5635,759,"CAM_AECAWB","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5636,759,"CAM_AF","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5637,759,"CAM_AFD","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5638,759,"CAM_ASD","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5639,759,"CAM_Dispatch","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5640,759,"CAM_evntPoll","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5644,759,"CAM_dataPoll","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5704,759,"cam_data_proc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5705,759,"cam_data_proc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5707,759,"mm_jpeg_thread","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5708,759,"OMX_ImgEnc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5709,759,"cam_data_proc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5710,759,"cam_data_proc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5711,759,"cam_data_proc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5719,759,"CAM_img","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5720,759,"CAM_img","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5721,759,"CAM_METADATA","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5723,759,"CAM_ANALYSISCAM","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5724,759,"CAM_PREVIEW","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5725,759,"CAM_SNAPSHOT","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5726,759,"CAM_CALLBACK","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5727,759,"CAM_CALLBACK","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5728,759,"CAM_RAW","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5730,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5731,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5742,759,"CAM_iface_poll","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5744,759,"CAM_iface_hw","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5752,759,"HwBinder:759_2","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5756,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5757,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5758,759,"CAM_laser_sens","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5762,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5765,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5766,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5767,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5768,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5770,759,"HwBinder:759_3","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5776,759,"CAM_sof_timer","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-5862,759,"HwBinder:759_4","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433438
-1572,1572,"ndroid.systemui","com.android.systemui",3072242741
-1580,1572,"Jit thread pool","com.android.systemui",3072242741
-1584,1572,"ReferenceQueueD","com.android.systemui",3072242741
-1585,1572,"FinalizerDaemon","com.android.systemui",3072242741
-1586,1572,"FinalizerWatchd","com.android.systemui",3072242741
-1587,1572,"HeapTaskDaemon","com.android.systemui",3072242741
-1589,1572,"Binder:1572_1","com.android.systemui",3072242741
-1593,1572,"Binder:1572_2","com.android.systemui",3072242741
-1876,1572,"pool-1-thread-1","com.android.systemui",3072242741
-1932,1572,"VolumeDialogCon","com.android.systemui",3072242741
-1934,1572,"SysUiBg","com.android.systemui",3072242741
-1981,1572,"RenderThread","com.android.systemui",3072242741
-1994,1572,"ConnectivityThr","com.android.systemui",3072242741
-2002,1572,"AsyncTask #1","com.android.systemui",3072242741
-2021,1572,"async_sensor","com.android.systemui",3072242741
-2044,1572,"Binder:1572_5","com.android.systemui",3072242741
-2059,1572,"FlashlightContr","com.android.systemui",3072242741
-2079,1572,"Binder:1572_7","com.android.systemui",3072242741
-2090,1572,"recents.fg","com.android.systemui",3072242741
-2121,1572,"ScreenDecoratio","com.android.systemui",3072242741
-2256,1572,"GrallocUploadTh","com.android.systemui",3072242741
-2270,1572,"hwuiTask1","com.android.systemui",3072242741
-2275,1572,"Thread-2","com.android.systemui",3072242741
-2285,1572,"Binder:1572_8","com.android.systemui",3072242741
-5155,1572,"AsyncTask #6","com.android.systemui",3072242741
-5486,1572,"AsyncTask #7","com.android.systemui",3072242741
-5487,1572,"AsyncTask #8","com.android.systemui",3072242741
-5488,1572,"InflaterThread ","com.android.systemui",3072242741
-5489,1572,"InflaterThread ","com.android.systemui",3072242741
-5490,1572,"InflaterThread ","com.android.systemui",3072242741
-5493,1572,"InflaterThread ","com.android.systemui",3072242741
+759,759,"provider@2.4-se","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1543,759,"CAM_imgTh","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1696,759,"provider@2.4-se","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1926,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5606,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5607,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5608,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5609,759,"QCamera3HdrPlus","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5610,759,"CAM_MctServ","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5611,759,"CAM_MctBus","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5614,759,"CAM_sensor","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5617,759,"CAM_iface_ses","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5620,759,"CAM_img_msg","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5621,759,"CAM_img_msg","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5622,759,"CAM_cpp","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5623,759,"CAM_isp_trigger","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5624,759,"CAM_c2d","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5625,759,"CAM_hw_update","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5627,759,"CAM_isp_parser","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5628,759,"CAM_startsensor","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5629,759,"CAM_gyro_sens","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5630,759,"CAM_startsensor","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5631,759,"CAM_startsensor","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5633,759,"CAM_img_msg","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5635,759,"CAM_AECAWB","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5636,759,"CAM_AF","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5637,759,"CAM_AFD","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5638,759,"CAM_ASD","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5639,759,"CAM_Dispatch","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5640,759,"CAM_evntPoll","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5644,759,"CAM_dataPoll","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5704,759,"cam_data_proc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5705,759,"cam_data_proc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5707,759,"mm_jpeg_thread","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5708,759,"OMX_ImgEnc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5709,759,"cam_data_proc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5710,759,"cam_data_proc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5711,759,"cam_data_proc","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5719,759,"CAM_img","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5720,759,"CAM_img","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5721,759,"CAM_METADATA","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5723,759,"CAM_ANALYSISCAM","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5724,759,"CAM_PREVIEW","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5725,759,"CAM_SNAPSHOT","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5726,759,"CAM_CALLBACK","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5727,759,"CAM_CALLBACK","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5728,759,"CAM_RAW","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5730,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5731,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5742,759,"CAM_iface_poll","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5744,759,"CAM_iface_hw","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5752,759,"HwBinder:759_2","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5756,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5757,759,"HwBinder:759_1","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5758,759,"CAM_laser_sens","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5762,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5765,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5766,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5767,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5768,759,"CAM_StrmAppDat","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5770,759,"HwBinder:759_3","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5776,759,"CAM_sof_timer","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+5862,759,"HwBinder:759_4","/vendor/bin/hw/android.hardware.camera.provider@2.4-service",3337433441
+1572,1572,"ndroid.systemui","com.android.systemui",3072242745
+1580,1572,"Jit thread pool","com.android.systemui",3072242745
+1584,1572,"ReferenceQueueD","com.android.systemui",3072242745
+1585,1572,"FinalizerDaemon","com.android.systemui",3072242745
+1586,1572,"FinalizerWatchd","com.android.systemui",3072242745
+1587,1572,"HeapTaskDaemon","com.android.systemui",3072242745
+1589,1572,"Binder:1572_1","com.android.systemui",3072242745
+1593,1572,"Binder:1572_2","com.android.systemui",3072242745
+1876,1572,"pool-1-thread-1","com.android.systemui",3072242745
+1932,1572,"VolumeDialogCon","com.android.systemui",3072242745
+1934,1572,"SysUiBg","com.android.systemui",3072242745
+1981,1572,"RenderThread","com.android.systemui",3072242745
+1994,1572,"ConnectivityThr","com.android.systemui",3072242745
+2002,1572,"AsyncTask #1","com.android.systemui",3072242745
+2021,1572,"async_sensor","com.android.systemui",3072242745
+2044,1572,"Binder:1572_5","com.android.systemui",3072242745
+2059,1572,"FlashlightContr","com.android.systemui",3072242745
+2079,1572,"Binder:1572_7","com.android.systemui",3072242745
+2090,1572,"recents.fg","com.android.systemui",3072242745
+2121,1572,"ScreenDecoratio","com.android.systemui",3072242745
+2256,1572,"GrallocUploadTh","com.android.systemui",3072242745
+2270,1572,"hwuiTask1","com.android.systemui",3072242745
+2275,1572,"Thread-2","com.android.systemui",3072242745
+2285,1572,"Binder:1572_8","com.android.systemui",3072242745
+5155,1572,"AsyncTask #6","com.android.systemui",3072242745
+5486,1572,"AsyncTask #7","com.android.systemui",3072242745
+5487,1572,"AsyncTask #8","com.android.systemui",3072242745
+5488,1572,"InflaterThread ","com.android.systemui",3072242745
+5489,1572,"InflaterThread ","com.android.systemui",3072242745
+5490,1572,"InflaterThread ","com.android.systemui",3072242745
+5493,1572,"InflaterThread ","com.android.systemui",3072242745
 2400,2400,"earchbox:search","com.google.android.googlequicksearchbox:search",2487567838
 2428,2400,"Jit thread pool","com.google.android.googlequicksearchbox:search",2487567838
 2442,2400,"ReferenceQueueD","com.google.android.googlequicksearchbox:search",2487567838
@@ -408,31 +408,31 @@
 5491,2400,"TaskSchedulerFo","com.google.android.googlequicksearchbox:search",2487567838
 5539,2400,"TaskSchedulerBa","com.google.android.googlequicksearchbox:search",2487567838
 5540,2400,"TaskSchedulerFo","com.google.android.googlequicksearchbox:search",2487567838
-5377,5377,"ileged_process0","com.android.chrome:privileged_process0",2338957109
-5384,5377,"Jit thread pool","com.android.chrome:privileged_process0",2338957109
-5385,5377,"Signal Catcher","com.android.chrome:privileged_process0",2338957109
-5386,5377,"ADB-JDWP Connec","com.android.chrome:privileged_process0",2338957109
-5387,5377,"ReferenceQueueD","com.android.chrome:privileged_process0",2338957109
-5388,5377,"FinalizerDaemon","com.android.chrome:privileged_process0",2338957109
-5389,5377,"FinalizerWatchd","com.android.chrome:privileged_process0",2338957109
-5390,5377,"HeapTaskDaemon","com.android.chrome:privileged_process0",2338957109
-5391,5377,"Binder:5377_1","com.android.chrome:privileged_process0",2338957109
-5392,5377,"Binder:5377_2","com.android.chrome:privileged_process0",2338957109
-5393,5377,"Binder:5377_3","com.android.chrome:privileged_process0",2338957109
-5394,5377,"Profile Saver","com.android.chrome:privileged_process0",2338957109
-5395,5377,"CrGpuMain","com.android.chrome:privileged_process0",2338957109
-5397,5377,"Watchdog","com.android.chrome:privileged_process0",2338957109
-5409,5377,"TaskSchedulerSe","com.android.chrome:privileged_process0",2338957109
-5410,5377,"TaskSchedulerFo","com.android.chrome:privileged_process0",2338957109
-5411,5377,"TaskSchedulerFo","com.android.chrome:privileged_process0",2338957109
-5412,5377,"Chrome_ChildIOT","com.android.chrome:privileged_process0",2338957109
-5463,5377,"CrGpuMain","com.android.chrome:privileged_process0",2338957109
-5464,5377,"TaskSchedulerSi","com.android.chrome:privileged_process0",2338957109
-5476,5377,"AVDAAutoThread","com.android.chrome:privileged_process0",2338957109
-5477,5377,"AVDASWThread","com.android.chrome:privileged_process0",2338957109
-5478,5377,"MediaCodec_loop","com.android.chrome:privileged_process0",2338957109
-5479,5377,"JNISurfaceTextu","com.android.chrome:privileged_process0",2338957109
-5480,5377,"HwBinder:5377_1","com.android.chrome:privileged_process0",2338957109
+5377,5377,"ileged_process0","com.android.chrome:privileged_process0",2338957110
+5384,5377,"Jit thread pool","com.android.chrome:privileged_process0",2338957110
+5385,5377,"Signal Catcher","com.android.chrome:privileged_process0",2338957110
+5386,5377,"ADB-JDWP Connec","com.android.chrome:privileged_process0",2338957110
+5387,5377,"ReferenceQueueD","com.android.chrome:privileged_process0",2338957110
+5388,5377,"FinalizerDaemon","com.android.chrome:privileged_process0",2338957110
+5389,5377,"FinalizerWatchd","com.android.chrome:privileged_process0",2338957110
+5390,5377,"HeapTaskDaemon","com.android.chrome:privileged_process0",2338957110
+5391,5377,"Binder:5377_1","com.android.chrome:privileged_process0",2338957110
+5392,5377,"Binder:5377_2","com.android.chrome:privileged_process0",2338957110
+5393,5377,"Binder:5377_3","com.android.chrome:privileged_process0",2338957110
+5394,5377,"Profile Saver","com.android.chrome:privileged_process0",2338957110
+5395,5377,"CrGpuMain","com.android.chrome:privileged_process0",2338957110
+5397,5377,"Watchdog","com.android.chrome:privileged_process0",2338957110
+5409,5377,"TaskSchedulerSe","com.android.chrome:privileged_process0",2338957110
+5410,5377,"TaskSchedulerFo","com.android.chrome:privileged_process0",2338957110
+5411,5377,"TaskSchedulerFo","com.android.chrome:privileged_process0",2338957110
+5412,5377,"Chrome_ChildIOT","com.android.chrome:privileged_process0",2338957110
+5463,5377,"CrGpuMain","com.android.chrome:privileged_process0",2338957110
+5464,5377,"TaskSchedulerSi","com.android.chrome:privileged_process0",2338957110
+5476,5377,"AVDAAutoThread","com.android.chrome:privileged_process0",2338957110
+5477,5377,"AVDASWThread","com.android.chrome:privileged_process0",2338957110
+5478,5377,"MediaCodec_loop","com.android.chrome:privileged_process0",2338957110
+5479,5377,"JNISurfaceTextu","com.android.chrome:privileged_process0",2338957110
+5480,5377,"HwBinder:5377_1","com.android.chrome:privileged_process0",2338957110
 622,622,"surfaceflinger","/system/bin/surfaceflinger",2155181851
 651,622,"Binder:622_1","/system/bin/surfaceflinger",2155181851
 652,622,"Binder:622_2","/system/bin/surfaceflinger",2155181851
@@ -556,44 +556,44 @@
 5911,2238,"raService] idle","com.google.android.gms",1130387110
 6013,2238,"IntentService[M","com.google.android.gms",1130387110
 6014,2238,"MediaTracker bu","com.google.android.gms",1130387110
-943,943,"omx@1.0-service","media.codec",930299907
-1107,943,"HwBinder:943_1","media.codec",930299907
-1110,943,"HwBinder:943_2","media.codec",930299907
-2165,943,"HwBinder:943_3","media.codec",930299907
-2184,943,"HwBinder:943_4","media.codec",930299907
-2229,943,"HwBinder:943_5","media.codec",930299907
-5481,943,"VideoDecCallBac","media.codec",930299907
-5483,943,"VideoDecMsgThre","media.codec",930299907
-5484,943,"OMXCallbackDisp","media.codec",930299907
-5835,943,"VideoEncMsgThre","media.codec",930299907
-5836,943,"VideoEncCallBac","media.codec",930299907
-5837,943,"OMXCallbackDisp","media.codec",930299907
-5841,943,"HwBinder:943_6","media.codec",930299907
-5854,943,"VideoEncMsgThre","media.codec",930299907
-5855,943,"VideoEncMsgThre","media.codec",930299907
-5737,5737,"oid.apps.photos","com.google.android.apps.photos",748904788
-5746,5737,"Jit thread pool","com.google.android.apps.photos",748904788
-5747,5737,"Signal Catcher","com.google.android.apps.photos",748904788
-5748,5737,"ADB-JDWP Connec","com.google.android.apps.photos",748904788
-5749,5737,"ReferenceQueueD","com.google.android.apps.photos",748904788
-5750,5737,"FinalizerDaemon","com.google.android.apps.photos",748904788
-5751,5737,"FinalizerWatchd","com.google.android.apps.photos",748904788
-5753,5737,"HeapTaskDaemon","com.google.android.apps.photos",748904788
-5754,5737,"Binder:5737_1","com.google.android.apps.photos",748904788
-5755,5737,"Binder:5737_2","com.google.android.apps.photos",748904788
-5761,5737,"Binder:5737_3","com.google.android.apps.photos",748904788
-5771,5737,"Profile Saver","com.google.android.apps.photos",748904788
-5777,5737,"default_backgro","com.google.android.apps.photos",748904788
-5779,5737,"Primes-init-1","com.google.android.apps.photos",748904788
-5787,5737,"queued-work-loo","com.google.android.apps.photos",748904788
-5788,5737,"MediaPageFetche","com.google.android.apps.photos",748904788
-5832,5737,"glide-source-th","com.google.android.apps.photos",748904788
-5866,5737,"glide-source-th","com.google.android.apps.photos",748904788
-6012,5737,"glide-source-th","com.google.android.apps.photos",748904788
-6017,5737,"Binder:5737_4","com.google.android.apps.photos",748904788
-6021,5737,"GrallocUploadTh","com.google.android.apps.photos",748904788
-6022,5737,"glide-active-re","com.google.android.apps.photos",748904788
-6025,5737,"BackgroundTask ","com.google.android.apps.photos",748904788
+943,943,"omx@1.0-service","media.codec",930299908
+1107,943,"HwBinder:943_1","media.codec",930299908
+1110,943,"HwBinder:943_2","media.codec",930299908
+2165,943,"HwBinder:943_3","media.codec",930299908
+2184,943,"HwBinder:943_4","media.codec",930299908
+2229,943,"HwBinder:943_5","media.codec",930299908
+5481,943,"VideoDecCallBac","media.codec",930299908
+5483,943,"VideoDecMsgThre","media.codec",930299908
+5484,943,"OMXCallbackDisp","media.codec",930299908
+5835,943,"VideoEncMsgThre","media.codec",930299908
+5836,943,"VideoEncCallBac","media.codec",930299908
+5837,943,"OMXCallbackDisp","media.codec",930299908
+5841,943,"HwBinder:943_6","media.codec",930299908
+5854,943,"VideoEncMsgThre","media.codec",930299908
+5855,943,"VideoEncMsgThre","media.codec",930299908
+5737,5737,"oid.apps.photos","com.google.android.apps.photos",748904789
+5746,5737,"Jit thread pool","com.google.android.apps.photos",748904789
+5747,5737,"Signal Catcher","com.google.android.apps.photos",748904789
+5748,5737,"ADB-JDWP Connec","com.google.android.apps.photos",748904789
+5749,5737,"ReferenceQueueD","com.google.android.apps.photos",748904789
+5750,5737,"FinalizerDaemon","com.google.android.apps.photos",748904789
+5751,5737,"FinalizerWatchd","com.google.android.apps.photos",748904789
+5753,5737,"HeapTaskDaemon","com.google.android.apps.photos",748904789
+5754,5737,"Binder:5737_1","com.google.android.apps.photos",748904789
+5755,5737,"Binder:5737_2","com.google.android.apps.photos",748904789
+5761,5737,"Binder:5737_3","com.google.android.apps.photos",748904789
+5771,5737,"Profile Saver","com.google.android.apps.photos",748904789
+5777,5737,"default_backgro","com.google.android.apps.photos",748904789
+5779,5737,"Primes-init-1","com.google.android.apps.photos",748904789
+5787,5737,"queued-work-loo","com.google.android.apps.photos",748904789
+5788,5737,"MediaPageFetche","com.google.android.apps.photos",748904789
+5832,5737,"glide-source-th","com.google.android.apps.photos",748904789
+5866,5737,"glide-source-th","com.google.android.apps.photos",748904789
+6012,5737,"glide-source-th","com.google.android.apps.photos",748904789
+6017,5737,"Binder:5737_4","com.google.android.apps.photos",748904789
+6021,5737,"GrallocUploadTh","com.google.android.apps.photos",748904789
+6022,5737,"glide-active-re","com.google.android.apps.photos",748904789
+6025,5737,"BackgroundTask ","com.google.android.apps.photos",748904789
 1657,1657,"reel.wallpapers","com.breel.wallpapers",638226980
 1663,1657,"Jit thread pool","com.breel.wallpapers",638226980
 1774,1657,"Binder:1657_3","com.breel.wallpapers",638226980
@@ -606,33 +606,33 @@
 686,624,"HWC_UeventThrea","/vendor/bin/hw/android.hardware.graphics.composer@2.1-service",617056001
 687,624,"HwBinder:624_1","/vendor/bin/hw/android.hardware.graphics.composer@2.1-service",617056001
 741,624,"HwBinder:624_2","/vendor/bin/hw/android.hardware.graphics.composer@2.1-service",617056001
-804,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-955,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-959,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-975,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-976,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-977,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1015,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1016,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1040,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1041,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1046,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1047,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1050,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1051,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1069,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1070,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1075,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1076,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1082,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1083,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1085,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1368,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1391,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1392,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-1393,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-5694,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
-5695,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607815
+804,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+955,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+959,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+975,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+976,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+977,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1015,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1016,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1040,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1041,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1046,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1047,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1050,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1051,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1069,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1070,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1075,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1076,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1082,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1083,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1085,804,"sensors@1.0-ser","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1368,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1391,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1392,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+1393,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+5694,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
+5695,804,"HwBinder:804_1","/vendor/bin/hw/android.hardware.sensors@1.0-service",536607816
 5542,5542,"ssioncontroller","com.google.android.permissioncontroller",521893072
 5547,5542,"Jit thread pool","com.google.android.permissioncontroller",521893072
 5548,5542,"Signal Catcher","com.google.android.permissioncontroller",521893072
@@ -811,8 +811,8 @@
 5593,2712,"acquisitions.db","com.android.vending",177335230
 6020,2712,"Binder:2712_7","com.android.vending",177335230
 561,561,"kworker/u16:10","kworker/u16:10",162785755
-834,834,"wifi@1.0-servic","/vendor/bin/hw/android.hardware.wifi@1.0-service",158591003
-2265,834,"wifi@1.0-servic","/vendor/bin/hw/android.hardware.wifi@1.0-service",158591003
+834,834,"wifi@1.0-servic","/vendor/bin/hw/android.hardware.wifi@1.0-service",158591004
+2265,834,"wifi@1.0-servic","/vendor/bin/hw/android.hardware.wifi@1.0-service",158591004
 968,968,"[NULL]","/vendor/bin/hw/android.hardware.biometrics.fingerprint@2.1-service.fpc",154062201
 1165,968,"fingerprint@2.1","/vendor/bin/hw/android.hardware.biometrics.fingerprint@2.1-service.fpc",154062201
 292,292,"kgsl_worker_thr","kgsl_worker_thr",151947892
@@ -825,22 +825,22 @@
 1381,924,"Binder:924_5","/system/bin/installd",125398920
 360,360,"kworker/u16:6","kworker/u16:6",120714225
 7,7,"rcu_preempt","rcu_preempt",119952293
-5659,5659,"e.process.gapps","com.google.process.gapps",116729959
-5664,5659,"Jit thread pool","com.google.process.gapps",116729959
-5665,5659,"Signal Catcher","com.google.process.gapps",116729959
-5666,5659,"ADB-JDWP Connec","com.google.process.gapps",116729959
-5667,5659,"ReferenceQueueD","com.google.process.gapps",116729959
-5668,5659,"FinalizerDaemon","com.google.process.gapps",116729959
-5669,5659,"FinalizerWatchd","com.google.process.gapps",116729959
-5670,5659,"HeapTaskDaemon","com.google.process.gapps",116729959
-5671,5659,"Binder:5659_1","com.google.process.gapps",116729959
-5672,5659,"Binder:5659_2","com.google.process.gapps",116729959
-5677,5659,"Binder:5659_3","com.google.process.gapps",116729959
-5678,5659,"Profile Saver","com.google.process.gapps",116729959
-5692,5659,"RefQueueWorker@","com.google.process.gapps",116729959
-665,665,"kworker/0:3","kworker/0:3",106548860
+5659,5659,"e.process.gapps","com.google.process.gapps",116729960
+5664,5659,"Jit thread pool","com.google.process.gapps",116729960
+5665,5659,"Signal Catcher","com.google.process.gapps",116729960
+5666,5659,"ADB-JDWP Connec","com.google.process.gapps",116729960
+5667,5659,"ReferenceQueueD","com.google.process.gapps",116729960
+5668,5659,"FinalizerDaemon","com.google.process.gapps",116729960
+5669,5659,"FinalizerWatchd","com.google.process.gapps",116729960
+5670,5659,"HeapTaskDaemon","com.google.process.gapps",116729960
+5671,5659,"Binder:5659_1","com.google.process.gapps",116729960
+5672,5659,"Binder:5659_2","com.google.process.gapps",116729960
+5677,5659,"Binder:5659_3","com.google.process.gapps",116729960
+5678,5659,"Profile Saver","com.google.process.gapps",116729960
+5692,5659,"RefQueueWorker@","com.google.process.gapps",116729960
+665,665,"kworker/0:3","kworker/0:3",106548861
 568,568,"irq/760-synapti","irq/760-synapti",106209494
-193,193,"spi_wdsp","spi_wdsp",100615235
+193,193,"spi_wdsp","spi_wdsp",100615236
 253,253,"kworker/3:1","kworker/3:1",92350845
 5252,5252,"android.ramdump","com.android.ramdump",88012042
 5257,5252,"Jit thread pool","com.android.ramdump",88012042
@@ -856,7 +856,7 @@
 5267,5252,"Profile Saver","com.android.ramdump",88012042
 5269,5252,"queued-work-loo","com.android.ramdump",88012042
 5400,5252,"android.bg","com.android.ramdump",88012042
-2189,2189,"cds_ol_rx_threa","cds_ol_rx_threa",85880167
+2189,2189,"cds_ol_rx_threa","cds_ol_rx_threa",85880168
 734,734,"main","zygote64",84352921
 5253,734,"ReferenceQueueD","zygote64",84352921
 5254,734,"FinalizerDaemon","zygote64",84352921
@@ -914,7 +914,7 @@
 2052,2024,"Profile Saver","com.google.android.ext.services",70194314
 2505,2024,"Binder:2024_3","com.google.android.ext.services",70194314
 87,87,"smem_native_rpm","smem_native_rpm",66468457
-10,10,"rcuop/0","rcuop/0",66117920
+10,10,"rcuop/0","rcuop/0",66117921
 930,930,"mediaextractor","media.extractor",65836741
 2195,930,"Binder:930_3","media.extractor",65836741
 588,588,"hwservicemanage","/system/bin/hwservicemanager",63243286
@@ -928,7 +928,7 @@
 641,641,"jbd2/sda45-8","jbd2/sda45-8",49714183
 849,849,"msm_irqbalance","/vendor/bin/msm_irqbalance",46455318
 749,749,"suspend@1.0-ser","/system/bin/hw/android.system.suspend@1.0-service",43663325
-593,593,"sugov:4","sugov:4",41041663
+593,593,"sugov:4","sugov:4",41041664
 28,28,"rcuop/2","rcuop/2",40951065
 767,767,"light@2.0-servi","/vendor/bin/hw/android.hardware.light@2.0-service",39666625
 1815,1815,"m.android.phone","com.android.phone",37507869
@@ -973,7 +973,7 @@
 188,188,"vsync_retire_wo","vsync_retire_wo",19256755
 20,20,"rcuop/1","rcuop/1",19090257
 215,215,"hwrng","hwrng",18838324
-2287,2287,"irq/35-1008000.","irq/35-1008000.",18035089
+2287,2287,"irq/35-1008000.","irq/35-1008000.",18035090
 60,60,"rcuop/6","rcuop/6",17623175
 8,8,"rcu_sched","rcu_sched",17556886
 2405,2405,"com.android.nfc","com.android.nfc",17234063
@@ -1047,7 +1047,7 @@
 747,747,"[NULL]","/vendor/bin/thermal-engine",10386569
 768,747,"HwBinder:747_1","/vendor/bin/thermal-engine",10386569
 782,747,"thermal-engine","/vendor/bin/thermal-engine",10386569
-330,330,"spi2","spi2",10153283
+330,330,"spi2","spi2",10153284
 521,521,"set_state_work","set_state_work",9652813
 85,85,"smem_native_dsp","smem_native_dsp",9464583
 368,368,"rot_commitq_0_0","rot_commitq_0_0",9046302
@@ -1120,7 +1120,7 @@
 913,913,"cnd","/vendor/bin/cnd",2234739
 1006,913,"HwBinder:913_1","/vendor/bin/cnd",2234739
 29,29,"rcuos/2","rcuos/2",2107032
-57,57,"ksoftirqd/6","ksoftirqd/6",1972814
+57,57,"ksoftirqd/6","ksoftirqd/6",1972815
 711,711,"iptables-restor","/system/bin/iptables-restore",1913334
 3776,3776,"kworker/3:3","kworker/3:3",1896459
 545,545,"kworker/6:1H","kworker/6:1H",1883224
@@ -1248,3 +1248,408 @@
 5799,5799,"irq/166-arm-smm","irq/166-arm-smm",19478
 524,524,"irq/752-mnh_pci","irq/752-mnh_pci",14271
 93,93,"kworker/u16:1","kworker/u16:1",10729
+0,"[NULL]","swapper","[NULL]","[NULL]"
+1610,"[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+1611,"[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+1612,"[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+1613,"[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+2088,"[NULL]","AsyncTask #4","[NULL]","[NULL]"
+2281,"[NULL]","InflaterThread ","[NULL]","[NULL]"
+2282,"[NULL]","InflaterThread ","[NULL]","[NULL]"
+2283,"[NULL]","InflaterThread ","[NULL]","[NULL]"
+2329,"[NULL]","InflaterThread ","[NULL]","[NULL]"
+2817,"[NULL]","BlockingExecuto","[NULL]","[NULL]"
+2968,"[NULL]","Jit thread pool","[NULL]","[NULL]"
+2969,"[NULL]","Signal Catcher","[NULL]","[NULL]"
+2970,"[NULL]","ADB-JDWP Connec","[NULL]","[NULL]"
+2971,"[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+2972,"[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+2973,"[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+2974,"[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+2982,"[NULL]","Binder:2963_1","[NULL]","[NULL]"
+2985,"[NULL]","Binder:2963_2","[NULL]","[NULL]"
+2986,"[NULL]","Binder:2963_3","[NULL]","[NULL]"
+2992,"[NULL]","Profile Saver","[NULL]","[NULL]"
+3073,"[NULL]","RefQueueWorker@","[NULL]","[NULL]"
+3095,"[NULL]","AsyncTask #1","[NULL]","[NULL]"
+3097,"[NULL]","AsyncTask #2","[NULL]","[NULL]"
+3140,"[NULL]","AsyncTask #3","[NULL]","[NULL]"
+3434,"[NULL]","measurement-1","[NULL]","[NULL]"
+3513,"[NULL]","Binder:2963_4","[NULL]","[NULL]"
+3607,"[NULL]","pool-4-thread-1","[NULL]","[NULL]"
+3941,"[NULL]","Jit thread pool","[NULL]","[NULL]"
+3942,"[NULL]","Signal Catcher","[NULL]","[NULL]"
+3944,"[NULL]","ADB-JDWP Connec","[NULL]","[NULL]"
+3945,"[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+3946,"[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+3947,"[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+3948,"[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+3949,"[NULL]","Binder:3934_1","[NULL]","[NULL]"
+3954,"[NULL]","Binder:3934_3","[NULL]","[NULL]"
+3960,"[NULL]","Profile Saver","[NULL]","[NULL]"
+4143,"[NULL]","unnerJobService","[NULL]","[NULL]"
+4200,"[NULL]","Binder:2963_5","[NULL]","[NULL]"
+4207,"[NULL]","oundTaskService","[NULL]","[NULL]"
+4230,"[NULL]","OkHttp Dispatch","[NULL]","[NULL]"
+4237,"[NULL]","OkHttp Http2Con","[NULL]","[NULL]"
+4285,"[NULL]","oundTaskService","[NULL]","[NULL]"
+4380,"[NULL]","Binder:2963_6","[NULL]","[NULL]"
+4476,"[NULL]","Binder:2963_7","[NULL]","[NULL]"
+4580,"[NULL]","Jit thread pool","[NULL]","[NULL]"
+4581,"[NULL]","Signal Catcher","[NULL]","[NULL]"
+4582,"[NULL]","ADB-JDWP Connec","[NULL]","[NULL]"
+4583,"[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+4584,"[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+4585,"[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+4586,"[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+4587,"[NULL]","Binder:4572_1","[NULL]","[NULL]"
+4589,"[NULL]","Binder:4572_3","[NULL]","[NULL]"
+4593,"[NULL]","Profile Saver","[NULL]","[NULL]"
+4600,"[NULL]","queued-work-loo","[NULL]","[NULL]"
+4608,"[NULL]","movies_logging","[NULL]","[NULL]"
+4610,"[NULL]","RefQueueWorker@","[NULL]","[NULL]"
+4611,"[NULL]","Thread-3","[NULL]","[NULL]"
+4612,"[NULL]","Thread-4","[NULL]","[NULL]"
+4613,"[NULL]","Thread-5","[NULL]","[NULL]"
+4614,"[NULL]","RefQueueWorker@","[NULL]","[NULL]"
+4615,"[NULL]","Thread-7","[NULL]","[NULL]"
+4616,"[NULL]","Thread-8","[NULL]","[NULL]"
+4617,"[NULL]","Thread-9","[NULL]","[NULL]"
+4618,"[NULL]","Thread-10","[NULL]","[NULL]"
+4619,"[NULL]","Thread-11","[NULL]","[NULL]"
+4620,"[NULL]","tentative-gc-ru","[NULL]","[NULL]"
+4625,"[NULL]","queued-work-loo","[NULL]","[NULL]"
+4635,"[NULL]","PlayEventLogger","[NULL]","[NULL]"
+4638,"[NULL]","network-1","[NULL]","[NULL]"
+4639,"[NULL]","network-2","[NULL]","[NULL]"
+4640,"[NULL]","network-3","[NULL]","[NULL]"
+4643,"[NULL]","network-4","[NULL]","[NULL]"
+4645,"[NULL]","local-1","[NULL]","[NULL]"
+4653,"[NULL]","local-2","[NULL]","[NULL]"
+4657,"[NULL]","ConnectivityThr","[NULL]","[NULL]"
+4659,"[NULL]","Jit thread pool","[NULL]","[NULL]"
+4660,"[NULL]","Signal Catcher","[NULL]","[NULL]"
+4661,"[NULL]","ADB-JDWP Connec","[NULL]","[NULL]"
+4662,"[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+4663,"[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+4664,"[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+4665,"[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+4667,"[NULL]","pool-5-thread-1","[NULL]","[NULL]"
+4668,"[NULL]","Binder:4650_2","[NULL]","[NULL]"
+4669,"[NULL]","sync-1","[NULL]","[NULL]"
+4672,"[NULL]","Profile Saver","[NULL]","[NULL]"
+4676,"[NULL]","GoogleApiHandle","[NULL]","[NULL]"
+4683,"[NULL]","GAC_Executor[0]","[NULL]","[NULL]"
+4684,"[NULL]","Binder:4650_3","[NULL]","[NULL]"
+4686,"[NULL]","queued-work-loo","[NULL]","[NULL]"
+4694,"[NULL]","Jit thread pool","[NULL]","[NULL]"
+4695,"[NULL]","Signal Catcher","[NULL]","[NULL]"
+4696,"[NULL]","ADB-JDWP Connec","[NULL]","[NULL]"
+4697,"[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+4698,"[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+4699,"[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+4700,"[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+4701,"[NULL]","GAC_Executor[1]","[NULL]","[NULL]"
+4702,"[NULL]","Binder:4689_1","[NULL]","[NULL]"
+4703,"[NULL]","Binder:4689_2","[NULL]","[NULL]"
+4709,"[NULL]","Profile Saver","[NULL]","[NULL]"
+4713,"[NULL]","Binder:4689_3","[NULL]","[NULL]"
+4730,"[NULL]","queued-work-loo","[NULL]","[NULL]"
+4872,"[NULL]","pool-17-thread-","[NULL]","[NULL]"
+4873,"[NULL]","pool-17-thread-","[NULL]","[NULL]"
+4874,"[NULL]","pool-17-thread-","[NULL]","[NULL]"
+4876,"[NULL]","pool-17-thread-","[NULL]","[NULL]"
+4887,"[NULL]","Jit thread pool","[NULL]","[NULL]"
+4888,"[NULL]","Signal Catcher","[NULL]","[NULL]"
+4889,"[NULL]","ADB-JDWP Connec","[NULL]","[NULL]"
+4890,"[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+4891,"[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+4892,"[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+4893,"[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+4894,"[NULL]","Binder:4881_1","[NULL]","[NULL]"
+4895,"[NULL]","Binder:4881_2","[NULL]","[NULL]"
+4900,"[NULL]","Profile Saver","[NULL]","[NULL]"
+4901,"[NULL]","pool-17-thread-","[NULL]","[NULL]"
+4902,"[NULL]","pool-17-thread-","[NULL]","[NULL]"
+4903,"[NULL]","pool-17-thread-","[NULL]","[NULL]"
+4904,"[NULL]","pool-17-thread-","[NULL]","[NULL]"
+4905,"[NULL]","pool-17-thread-","[NULL]","[NULL]"
+4906,"[NULL]","pool-17-thread-","[NULL]","[NULL]"
+4969,"[NULL]","Jit thread pool","[NULL]","[NULL]"
+4970,"[NULL]","Signal Catcher","[NULL]","[NULL]"
+4971,"[NULL]","ADB-JDWP Connec","[NULL]","[NULL]"
+4972,"[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+4973,"[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+4974,"[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+4975,"[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+4977,"[NULL]","Binder:4964_2","[NULL]","[NULL]"
+4978,"[NULL]","Binder:4964_3","[NULL]","[NULL]"
+4980,"[NULL]","Profile Saver","[NULL]","[NULL]"
+4985,"[NULL]","dScanJobService","[NULL]","[NULL]"
+5064,"[NULL]","AsyncTask #5","[NULL]","[NULL]"
+5072,"[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+5073,"[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+5074,"[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+5075,"[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+5097,"[NULL]","AsyncTask #5","[NULL]","[NULL]"
+5103,"[NULL]","AsyncTask #1","[NULL]","[NULL]"
+5108,"[NULL]","AsyncTask #2","[NULL]","[NULL]"
+5115,"[NULL]","TaskSchedulerFo","[NULL]","[NULL]"
+5119,"[NULL]",".lowPriority #0","[NULL]","[NULL]"
+5126,"[NULL]",".lowPriority #3","[NULL]","[NULL]"
+5129,"[NULL]","AsyncTask #3","[NULL]","[NULL]"
+5131,"[NULL]","AsyncTask #4","[NULL]","[NULL]"
+5157,"[NULL]","TaskSchedulerBa","[NULL]","[NULL]"
+5158,"[NULL]","TaskSchedulerFo","[NULL]","[NULL]"
+5174,"[NULL]","TaskSchedulerBa","[NULL]","[NULL]"
+5175,"[NULL]","TaskSchedulerFo","[NULL]","[NULL]"
+5176,"[NULL]","TaskSchedulerFo","[NULL]","[NULL]"
+5194,"[NULL]","ReferenceQueueD","[NULL]","[NULL]"
+5195,"[NULL]","FinalizerDaemon","[NULL]","[NULL]"
+5196,"[NULL]","FinalizerWatchd","[NULL]","[NULL]"
+5197,"[NULL]","HeapTaskDaemon","[NULL]","[NULL]"
+5218,"[NULL]","Measurement Wor","[NULL]","[NULL]"
+5228,"[NULL]","Measurement Wor","[NULL]","[NULL]"
+5238,"[NULL]","pool-6-thread-1","[NULL]","[NULL]"
+5239,"[NULL]","pool-7-thread-1","[NULL]","[NULL]"
+5243,"[NULL]","atrace","[NULL]","[NULL]"
+5268,"[NULL]","Thread-2","[NULL]","[NULL]"
+5272,"[NULL]","applyRouting","[NULL]","[NULL]"
+5280,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5291,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5296,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5305,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5309,"[NULL]","gcm-task#1","[NULL]","[NULL]"
+5329,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5331,"[NULL]","EGL Init","[NULL]","[NULL]"
+5337,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5338,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5340,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5341,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5383,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5398,"[NULL]","gcm-task#1","[NULL]","[NULL]"
+5407,"[NULL]","IntentService[D","[NULL]","[NULL]"
+5433,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5434,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5435,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5439,"[NULL]","Thread-25","[NULL]","[NULL]"
+5454,"[NULL]","netd","[NULL]","[NULL]"
+5456,"[NULL]","netd","[NULL]","[NULL]"
+5459,"[NULL]","sensors.qcom","[NULL]","[NULL]"
+5460,"[NULL]","netd","[NULL]","[NULL]"
+5469,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5470,"[NULL]","netd","[NULL]","[NULL]"
+5472,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5474,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5494,"[NULL]","netd","[NULL]","[NULL]"
+5501,"[NULL]","netd","[NULL]","[NULL]"
+5504,"[NULL]","netd","[NULL]","[NULL]"
+5505,"[NULL]","netd","[NULL]","[NULL]"
+5521,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5523,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5535,"[NULL]","EGL Init","[NULL]","[NULL]"
+5558,"[NULL]","EGL Init","[NULL]","[NULL]"
+5580,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5583,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5584,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5586,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5587,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5594,"[NULL]","sensors.qcom","[NULL]","[NULL]"
+5602,"[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+5603,"[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+5612,"[NULL]","CAM_startsensor","[NULL]","[NULL]"
+5613,"[NULL]","CAM_startiface","[NULL]","[NULL]"
+5615,"[NULL]","CAM_startisp","[NULL]","[NULL]"
+5616,"[NULL]","CAM_startstats","[NULL]","[NULL]"
+5618,"[NULL]","CAM_startpproc","[NULL]","[NULL]"
+5619,"[NULL]","CAM_startimglib","[NULL]","[NULL]"
+5642,"[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+5643,"[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+5652,"[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+5653,"[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+5683,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5685,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5687,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5688,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5689,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5690,"[NULL]","cam_data_proc","[NULL]","[NULL]"
+5691,"[NULL]","cam_data_proc","[NULL]","[NULL]"
+5693,"[NULL]","CAM_jpeg_jobmgr","[NULL]","[NULL]"
+5697,"[NULL]","OMX_ImgEnc","[NULL]","[NULL]"
+5698,"[NULL]","cam_data_proc","[NULL]","[NULL]"
+5699,"[NULL]","cam_data_proc","[NULL]","[NULL]"
+5700,"[NULL]","cam_data_proc","[NULL]","[NULL]"
+5714,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5715,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5716,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5717,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5718,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5735,"[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+5736,"[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+5763,"[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+5764,"[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+5773,"[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+5774,"[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+5782,"[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+5783,"[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+5784,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5785,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5786,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5789,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5790,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5791,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5792,"[NULL]","applyRouting","[NULL]","[NULL]"
+5802,"[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+5803,"[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+5806,"[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+5807,"[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+5809,"[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+5810,"[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+5812,"[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+5813,"[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+5815,"[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+5816,"[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+5818,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5819,"[NULL]",".vorbis.decoder","[NULL]","[NULL]"
+5820,"[NULL]","OMXCallbackDisp","[NULL]","[NULL]"
+5821,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5822,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5823,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5828,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5830,"[NULL]","HwBinder:943_4","[NULL]","[NULL]"
+5831,"[NULL]","HwBinder:943_4","[NULL]","[NULL]"
+5833,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5838,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5842,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5843,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5844,"[NULL]","gcm-task#1","[NULL]","[NULL]"
+5846,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5856,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5857,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5858,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5859,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5860,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5861,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5863,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5864,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5867,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5868,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5871,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5874,"[NULL]","gcm-task#1","[NULL]","[NULL]"
+5880,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5881,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5882,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5883,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5887,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5888,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5889,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5890,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5891,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5892,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5893,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5894,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5895,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5896,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5897,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5898,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5899,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5900,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5901,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5902,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5903,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5904,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5905,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5906,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5907,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5908,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5909,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5912,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5913,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+5914,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5915,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5916,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5917,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5918,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5919,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5920,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5921,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5922,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5924,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5925,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5926,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5927,"[NULL]","applyRouting","[NULL]","[NULL]"
+5928,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5929,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5930,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5931,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5933,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5934,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5937,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5939,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5942,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5950,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5951,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5952,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5953,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5954,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5955,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5956,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5957,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5958,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5959,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5960,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5961,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5962,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5963,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5964,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5965,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5966,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5967,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5968,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5969,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5970,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5971,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5972,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5973,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5974,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5975,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5976,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5977,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5978,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5979,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5980,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5981,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5982,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5983,"[NULL]","driver_slow_ae:","[NULL]","[NULL]"
+5984,"[NULL]","CAM_METADATA","[NULL]","[NULL]"
+5985,"[NULL]","CAM_PREVIEW","[NULL]","[NULL]"
+5986,"[NULL]","CAM_SNAPSHOT","[NULL]","[NULL]"
+5987,"[NULL]","CAM_CALLBACK","[NULL]","[NULL]"
+5988,"[NULL]","CAM_CALLBACK","[NULL]","[NULL]"
+5989,"[NULL]","CAM_RAW","[NULL]","[NULL]"
+5990,"[NULL]","CAM_ANALYSISCAM","[NULL]","[NULL]"
+5991,"[NULL]","CAM_StrmAppDat","[NULL]","[NULL]"
+5992,"[NULL]","CAM_StrmAppDat","[NULL]","[NULL]"
+5993,"[NULL]","CAM_iface_poll","[NULL]","[NULL]"
+5994,"[NULL]","CAM_iface_hw","[NULL]","[NULL]"
+5995,"[NULL]","irq/164-arm-smm","[NULL]","[NULL]"
+5996,"[NULL]","CAM_StrmAppDat","[NULL]","[NULL]"
+5997,"[NULL]","CAM_StrmAppDat","[NULL]","[NULL]"
+5998,"[NULL]","CAM_StrmAppDat","[NULL]","[NULL]"
+5999,"[NULL]","CAM_StrmAppDat","[NULL]","[NULL]"
+6000,"[NULL]","CAM_StrmAppDat","[NULL]","[NULL]"
+6001,"[NULL]","irq/165-arm-smm","[NULL]","[NULL]"
+6002,"[NULL]","CAM_sof_timer","[NULL]","[NULL]"
+6003,"[NULL]","HwBinder:759_2","[NULL]","[NULL]"
+6004,"[NULL]","CAM_stopsensor","[NULL]","[NULL]"
+6005,"[NULL]","CAM_stopiface","[NULL]","[NULL]"
+6006,"[NULL]","CAM_stopisp","[NULL]","[NULL]"
+6007,"[NULL]","CAM_stopstats","[NULL]","[NULL]"
+6008,"[NULL]","CAM_stoppproc","[NULL]","[NULL]"
+6009,"[NULL]","CAM_stopimglib","[NULL]","[NULL]"
+6010,"[NULL]","ProPrgsFin","[NULL]","[NULL]"
+6015,"[NULL]","gcm-task#1","[NULL]","[NULL]"
+6016,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+6023,"[NULL]","SharedPreferenc","[NULL]","[NULL]"
+6024,"[NULL]","sensors.qcom","[NULL]","[NULL]"
+950,950,"[NULL]","[NULL]","[NULL]"
