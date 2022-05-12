@@ -74,7 +74,6 @@
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
 
-
 // In Android and Chromium tree builds, we don't have the percentile module.
 // Just don't include it.
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_PERCENTILE)

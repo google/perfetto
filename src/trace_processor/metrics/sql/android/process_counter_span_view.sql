@@ -1,5 +1,5 @@
 --
--- Copyright 2019 The Android Open Source Project
+-- Copyright 2021 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -23,10 +23,10 @@ SELECT
       end_ts,
       (SELECT end_ts FROM trace_bounds)
     )
-    FROM process p WHERE p.upid = t.upid) + 1
+    FROM process p WHERE p.upid = pct.upid) + 1
   ) OVER(PARTITION BY track_id ORDER BY ts) - ts AS dur,
   upid,
   value AS {{table_name}}_val
-FROM counter c JOIN process_counter_track t
-  ON t.id = c.track_id
+FROM counter c JOIN process_counter_track pct
+  ON pct.id = c.track_id
 WHERE name = '{{counter_name}}' AND upid IS NOT NULL;

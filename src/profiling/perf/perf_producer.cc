@@ -177,12 +177,15 @@ uint32_t TimeToNextReadTickMs(DataSourceInstanceID ds_id, uint32_t period_ms) {
 }
 
 bool ShouldRejectDueToFilter(pid_t pid,
-                             base::FlatSet<std::string>* additional_cmdlines,
-                             const TargetFilter& filter) {
+                             const TargetFilter& filter,
+                             bool skip_cmdline,
+                             base::FlatSet<std::string>* additional_cmdlines) {
   PERFETTO_CHECK(additional_cmdlines);
 
   std::string cmdline;
-  bool have_cmdline = glob_aware::ReadProcCmdlineForPID(pid, &cmdline);
+  bool have_cmdline = false;
+  if (!skip_cmdline)
+    have_cmdline = glob_aware::ReadProcCmdlineForPID(pid, &cmdline);
 
   const char* binname = "";
   if (have_cmdline) {
@@ -588,65 +591,99 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
       return false;  // caught up to the writer
     }
 
-    // Counter-only mode: skip the unwinding stage, enqueue the sample for
-    // output immediately.
-    if (!ds->event_config.sample_callstacks()) {
+    // Counter-only mode: skip the unwinding stage, serialise the sample
+    // immediately.
+    const EventConfig& event_config = ds->event_config;
+    if (!event_config.sample_callstacks()) {
       CompletedSample output;
       output.common = sample->common;
       EmitSample(ds_id, std::move(output));
       continue;
     }
 
-    // If sampling callstacks, we're not interested in kernel threads/workers.
-    if (!sample->regs) {
-      continue;
-    }
-
-    // Request proc-fds for the process if this is the first time we see it.
+    // Sampling either or both of userspace and kernel callstacks.
     pid_t pid = sample->common.pid;
     auto& process_state = ds->process_states[pid];  // insert if new
 
-    if (process_state == ProcessTrackingStatus::kExpired) {
-      PERFETTO_DLOG("Skipping sample for previously expired pid [%d]",
+    // Asynchronous proc-fd lookup timed out.
+    if (process_state == ProcessTrackingStatus::kFdsTimedOut) {
+      PERFETTO_DLOG("Skipping sample for pid [%d]: kFdsTimedOut",
                     static_cast<int>(pid));
       EmitSkippedSample(ds_id, std::move(sample.value()),
                         SampleSkipReason::kReadStage);
       continue;
     }
 
-    // Previously failed the target filter check.
+    // Previously excluded, e.g. due to failing the target filter check.
     if (process_state == ProcessTrackingStatus::kRejected) {
-      PERFETTO_DLOG("Skipping sample for pid [%d] due to target filter",
+      PERFETTO_DLOG("Skipping sample for pid [%d]: kRejected",
                     static_cast<int>(pid));
       continue;
     }
 
-    // Seeing pid for the first time.
+    // Seeing pid for the first time. We need to consider whether the process
+    // is a kernel thread, and which callstacks we're recording.
+    //
+    // {user} stacks -> user processes: signal for proc-fd lookup
+    //               -> kthreads: reject
+    //
+    // {kernel} stacks -> user processes: accept without proc-fds
+    //                 -> kthreads: accept without proc-fds
+    //
+    // {kernel+user} stacks -> user processes: signal for proc-fd lookup
+    //                      -> kthreads: accept without proc-fds
+    //
     if (process_state == ProcessTrackingStatus::kInitial) {
       PERFETTO_DLOG("New pid: [%d]", static_cast<int>(pid));
 
-      // Check whether samples for this new process should be
-      // dropped due to the target filtering.
-      const TargetFilter& filter = ds->event_config.filter();
-      if (ShouldRejectDueToFilter(pid, &ds->additional_cmdlines, filter)) {
+      // Kernel threads (which have no userspace state) are never relevant if
+      // we're not recording kernel callchains.
+      bool is_kthread = !sample->regs;  // no userspace regs
+      if (is_kthread && !event_config.kernel_frames()) {
         process_state = ProcessTrackingStatus::kRejected;
         continue;
       }
 
-      // At this point, sampled process is known to be of interest, so start
-      // resolving the proc-fds. Response is async.
-      process_state = ProcessTrackingStatus::kResolving;
-      InitiateDescriptorLookup(ds_id, pid,
-                               ds->event_config.remote_descriptor_timeout_ms());
+      // Check whether samples for this new process should be dropped due to
+      // the target filtering. Kernel threads don't have a cmdline, but we
+      // still check against pid inclusion/exclusion.
+      if (ShouldRejectDueToFilter(pid, event_config.filter(), is_kthread,
+                                  &ds->additional_cmdlines)) {
+        process_state = ProcessTrackingStatus::kRejected;
+        continue;
+      }
+
+      // At this point, sampled process is known to be of interest.
+      if (!is_kthread && event_config.user_frames()) {
+        // Start resolving the proc-fds. Response is async.
+        process_state = ProcessTrackingStatus::kFdsResolving;
+        InitiateDescriptorLookup(ds_id, pid,
+                                 event_config.remote_descriptor_timeout_ms());
+        // note: fallthrough
+      } else {
+        // Either a kernel thread (no need to obtain proc-fds), or a userspace
+        // process but we're not recording userspace callstacks.
+        process_state = ProcessTrackingStatus::kAccepted;
+        unwinding_worker_->PostRecordNoUserspaceProcess(ds_id, pid);
+        // note: fallthrough
+      }
     }
 
-    PERFETTO_CHECK(process_state == ProcessTrackingStatus::kResolved ||
-                   process_state == ProcessTrackingStatus::kResolving);
+    PERFETTO_CHECK(process_state == ProcessTrackingStatus::kAccepted ||
+                   process_state == ProcessTrackingStatus::kFdsResolving);
+
+    // If we're only interested in the kernel callchains, then userspace
+    // process samples are relevant only if they were sampled during kernel
+    // context.
+    if (!event_config.user_frames() &&
+        sample->common.cpu_mode == PERF_RECORD_MISC_USER) {
+      PERFETTO_DLOG("Skipping usermode sample for kernel-only config");
+      continue;
+    }
 
     // Optionally: drop sample if above a given threshold of sampled stacks
     // that are waiting in the unwinding queue.
-    uint64_t max_footprint_bytes =
-        ds->event_config.max_enqueued_footprint_bytes();
+    uint64_t max_footprint_bytes = event_config.max_enqueued_footprint_bytes();
     uint64_t sample_stack_size = sample->stack.size();
     if (max_footprint_bytes) {
       uint64_t footprint_bytes = unwinding_worker_->GetEnqueuedFootprint();
@@ -671,7 +708,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
       EmitSkippedSample(ds_id, std::move(sample.value()),
                         SampleSkipReason::kUnwindEnqueue);
     }
-  }
+  }  // for (i < max_samples)
 
   // Most likely more events in the kernel buffer. Though we might be exactly on
   // the boundary due to |max_samples|.
@@ -691,6 +728,8 @@ void PerfProducer::OnProcDescriptors(pid_t pid,
     if (proc_status_it == ds.process_states.end())
       continue;
 
+    // TODO(rsavitski): consider checking ProcessTrackingStatus before
+    // CanProfile.
     if (!CanProfile(ds.event_config.raw_ds_config(), uid,
                     ds.event_config.target_installed_by())) {
       PERFETTO_DLOG("Not profileable: pid [%d], uid [%d] for DS [%zu]",
@@ -703,12 +742,12 @@ void PerfProducer::OnProcDescriptors(pid_t pid,
     // case, it means that the async response was slow enough that we've marked
     // the lookup as expired (but can now recover for future samples).
     auto proc_status = proc_status_it->second;
-    if (proc_status == ProcessTrackingStatus::kResolving ||
-        proc_status == ProcessTrackingStatus::kExpired) {
+    if (proc_status == ProcessTrackingStatus::kFdsResolving ||
+        proc_status == ProcessTrackingStatus::kFdsTimedOut) {
       PERFETTO_DLOG("Handing off proc-fds for pid [%d] to DS [%zu]",
                     static_cast<int>(pid), static_cast<size_t>(it.first));
 
-      proc_status_it->second = ProcessTrackingStatus::kResolved;
+      proc_status_it->second = ProcessTrackingStatus::kAccepted;
       unwinding_worker_->PostAdoptProcDescriptors(
           it.first, pid, std::move(maps_fd), std::move(mem_fd));
       return;  // done
@@ -765,11 +804,11 @@ void PerfProducer::EvaluateDescriptorLookupTimeout(DataSourceInstanceID ds_id,
   // If the request is still outstanding, mark the process as expired (causing
   // outstanding and future samples to be discarded).
   auto proc_status = proc_status_it->second;
-  if (proc_status == ProcessTrackingStatus::kResolving) {
+  if (proc_status == ProcessTrackingStatus::kFdsResolving) {
     PERFETTO_DLOG("Descriptor lookup timeout of pid [%d] for DS [%zu]",
                   static_cast<int>(pid), static_cast<size_t>(ds_it->first));
 
-    proc_status_it->second = ProcessTrackingStatus::kExpired;
+    proc_status_it->second = ProcessTrackingStatus::kFdsTimedOut;
     // Also inform the unwinder of the state change (so that it can discard any
     // of the already-enqueued samples).
     unwinding_worker_->PostRecordTimedOutProcDescriptors(ds_id, pid);

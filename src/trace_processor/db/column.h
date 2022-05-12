@@ -43,6 +43,8 @@ struct BaseId {
 
   uint32_t value;
 };
+static_assert(std::is_trivially_destructible<BaseId>::value,
+              "Inheritance used without trivial destruction");
 
 // Represents the possible filter operations on a column.
 enum class FilterOp {

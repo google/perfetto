@@ -248,7 +248,7 @@ def run_all_tests(trace_processor, trace_descriptor_path,
       if result.exit_code == 0:
         sys.stderr.write(
             f"Expected did not match actual for trace "
-            f"{trace_path}and {result.test_type} {result.input_name}\n")
+            f"{trace_path} and {result.test_type} {result.input_name}\n")
         sys.stderr.write(f"Expected file: {expected_path}\n")
         write_cmdlines()
         write_diff(result.expected, result.actual)

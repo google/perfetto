@@ -17,15 +17,13 @@
 #ifndef SRC_TRACE_PROCESSOR_DYNAMIC_EXPERIMENTAL_COUNTER_DUR_GENERATOR_H_
 #define SRC_TRACE_PROCESSOR_DYNAMIC_EXPERIMENTAL_COUNTER_DUR_GENERATOR_H_
 
-#include "src/trace_processor/sqlite/db_sqlite_table.h"
-
+#include "src/trace_processor/dynamic/dynamic_table_generator.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-class ExperimentalCounterDurGenerator
-    : public DbSqliteTable::DynamicTableGenerator {
+class ExperimentalCounterDurGenerator : public DynamicTableGenerator {
  public:
   explicit ExperimentalCounterDurGenerator(const tables::CounterTable& table);
   virtual ~ExperimentalCounterDurGenerator() override;

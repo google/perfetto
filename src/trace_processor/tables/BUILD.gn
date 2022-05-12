@@ -30,6 +30,7 @@ source_set("tables") {
   ]
   deps = [
     "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base",
     "../db",
   ]
 }

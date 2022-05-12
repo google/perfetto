@@ -26,11 +26,8 @@ if (enable_perfetto_trace_processor_sqlite) {
       "db_sqlite_table.cc",
       "db_sqlite_table.h",
       "query_cache.h",
-      "query_constraints.cc",
-      "query_constraints.h",
       "register_function.cc",
       "register_function.h",
-      "scoped_db.h",
       "span_join_operator_table.cc",
       "span_join_operator_table.h",
       "sql_stats_table.cc",
@@ -39,8 +36,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "sqlite3_str_split.h",
       "sqlite_raw_table.cc",
       "sqlite_raw_table.h",
-      "sqlite_table.cc",
-      "sqlite_table.h",
       "sqlite_utils.h",
       "stats_table.cc",
       "stats_table.h",
@@ -52,15 +47,33 @@ if (enable_perfetto_trace_processor_sqlite) {
       "..:metatrace",
       "../../../gn:default_deps",
       "../../../gn:sqlite",
-      "../../../include/perfetto/trace_processor",
       "../../../protos/perfetto/trace/ftrace:zero",
       "../../base",
       "../containers",
       "../db",
+      "../dynamic",
       "../importers/common",
       "../storage",
       "../types",
       "../util",
+    ]
+    public_deps = [ ":sqlite_minimal" ]
+  }
+
+  source_set("sqlite_minimal") {
+    sources = [
+      "query_constraints.cc",
+      "query_constraints.h",
+      "scoped_db.h",
+      "sqlite_table.cc",
+      "sqlite_table.h",
+      "sqlite_utils.h",
+    ]
+    deps = [
+      "../../../gn:default_deps",
+      "../../../gn:sqlite",
+      "../../../include/perfetto/trace_processor",
+      "../../base",
     ]
   }
 
@@ -75,6 +88,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     ]
     deps = [
       ":sqlite",
+      ":sqlite_minimal",
       "../../../gn:default_deps",
       "../../../gn:gtest_and_gmock",
       "../../../gn:sqlite",
