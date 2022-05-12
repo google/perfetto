@@ -109,6 +109,10 @@ const GITILES_URL =
 
 let lastTabTitle = '';
 
+function shouldShowHiringBanner(): boolean {
+  return globals.isInternalUser;
+}
+
 function createCannedQuery(query: string): (_: Event) => void {
   return (e: Event) => {
     e.preventDefault();
@@ -762,6 +766,18 @@ const SidebarFooter: m.Component = {
   }
 };
 
+class HiringBanner implements m.ClassComponent {
+  view() {
+    return m(
+        '.hiring-banner',
+        m('a',
+          {
+            href: 'http://go/perfetto-open-roles',
+            target: '_blank',
+          },
+          'We\'re hiring!'));
+  }
+}
 
 export class Sidebar implements m.ClassComponent {
   private _redrawWhileAnimating =
@@ -861,6 +877,7 @@ export class Sidebar implements m.ClassComponent {
           ontransitionstart: () => this._redrawWhileAnimating.start(150),
           ontransitionend: () => this._redrawWhileAnimating.stop(),
         },
+        shouldShowHiringBanner() ? m(HiringBanner) : null,
         m(
             `header.${getCurrentChannel()}`,
             m(`img[src=${globals.root}assets/brand.png].brand`),
