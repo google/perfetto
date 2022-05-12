@@ -15,6 +15,7 @@
 --
 
 -- Count Binder transactions per process
+DROP VIEW IF EXISTS binder_metrics_by_process;
 CREATE VIEW binder_metrics_by_process AS
 SELECT
   process.name as process_name,
@@ -26,11 +27,12 @@ FROM slice
   INNER JOIN thread ON thread.utid=thread_track.utid
   INNER JOIN process ON thread.upid=process.upid
 WHERE
-  slice.name like 'binder%'
+  slice.name glob 'binder*'
 GROUP BY
   process_name,
   slice_name;
 
+DROP VIEW IF EXISTS android_binder_output;
 CREATE VIEW android_binder_output AS
 SELECT AndroidBinderMetric(
   'process_breakdown', (
