@@ -117,9 +117,5 @@ PERFETTO_CONFIG = struct(
         py_binary = None,
         py_library = None,
         py_proto_library = None,
-
-        # We only need this for internal binaries. No other embeedder should
-        # care about this.
-        gensignature_internal_only = None,
     ),
 )
