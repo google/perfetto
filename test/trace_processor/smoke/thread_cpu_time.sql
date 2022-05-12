@@ -28,4 +28,5 @@ from
       where dur != -1
       group by upid
     ) using(upid)
+where utid != 0
 order by total_dur desc, pid, tid
