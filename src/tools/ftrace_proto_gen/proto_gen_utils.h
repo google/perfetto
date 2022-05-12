@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef TOOLS_FTRACE_PROTO_GEN_PROTO_GEN_UTILS_H_
-#define TOOLS_FTRACE_PROTO_GEN_PROTO_GEN_UTILS_H_
+#ifndef SRC_TOOLS_FTRACE_PROTO_GEN_PROTO_GEN_UTILS_H_
+#define SRC_TOOLS_FTRACE_PROTO_GEN_PROTO_GEN_UTILS_H_
 
 #include <map>
 #include <set>
@@ -94,4 +94,4 @@ ProtoType InferProtoType(const FtraceEvent::Field& field);
 
 }  // namespace perfetto
 
-#endif  // TOOLS_FTRACE_PROTO_GEN_PROTO_GEN_UTILS_H_
+#endif  // SRC_TOOLS_FTRACE_PROTO_GEN_PROTO_GEN_UTILS_H_

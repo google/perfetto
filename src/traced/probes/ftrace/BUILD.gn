@@ -59,9 +59,9 @@ perfetto_unittest_source_set("unittests") {
     "../../../../protos/perfetto/trace/ftrace:zero",
     "../../../base:test_support",
     "../../../tracing/test:test_support",
-    "format_parser",
     "format_parser:unittests",
   ]
+
   sources = [
     "cpu_reader_unittest.cc",
     "cpu_stats_parser_unittest.cc",
