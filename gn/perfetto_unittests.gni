@@ -25,13 +25,13 @@ perfetto_unittests_targets = [
   "src/profiling/symbolizer:unittests",
 ]
 
-if (enable_perfetto_tools && current_toolchain == host_toolchain) {
-  perfetto_unittests_targets += [ "tools/ftrace_proto_gen:unittests" ]
-}
-
 if ((is_linux || is_android) && !perfetto_build_with_embedder) {
   # This test depends on pthread and can't run on non-Linux-based OS.
   perfetto_unittests_targets += [ "test/sanitizers:unittests" ]
+}
+
+if (enable_perfetto_tools) {
+  perfetto_unittests_targets += [ "src/tools:unittests" ]
 }
 
 if (enable_perfetto_ipc) {
