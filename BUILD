@@ -34,7 +34,6 @@ load(
     "perfetto_py_binary",
     "perfetto_py_library",
     "perfetto_py_proto_library",
-    "perfetto_gensignature_internal_only",
 )
 
 package(default_visibility = ["//visibility:private"])
@@ -4205,18 +4204,6 @@ perfetto_java_proto_library(
         ":protos_perfetto_metrics_android_protos",
     ],
     visibility = PERFETTO_CONFIG.public_visibility,
-)
-
-perfetto_gensignature_internal_only(
-    name = "trace_processor_sig",
-    srcs = [
-        ":trace_processor_shell",
-        ":trace_to_text",
-    ],
-    tags = [
-        "__TRACE_PROCESSOR_SIG_TAG1",
-        "__TRACE_PROCESSOR_SIG_TAG2",
-    ],
 )
 
 # This is overridden in google internal builds via
