@@ -145,18 +145,6 @@ int SqliteTable::BestIndexInternal(sqlite3_index_info* idx) {
 
   ret = BestIndex(qc, &info);
 
-  // Although the SQLite documentation promises that if we return
-  // SQLITE_CONSTRAINT, it won't chose this query plan, in practice, this causes
-  // the entire query to be abandonned even if there is another query plan which
-  // would definitely work. For this reason, we reserve idxNum == INT_MAX for
-  // invalid constraints and just keep the default estimated cost (which should
-  // lead to the plan not being chosen). In xFilter, we can then return
-  // SQLITE_CONSTRAINT if this query plan is still chosen.
-  if (ret == SQLITE_CONSTRAINT) {
-    idx->idxNum = kInvalidConstraintsInBestIndexNum;
-    return SQLITE_OK;
-  }
-
   if (ret != SQLITE_OK)
     return ret;
 
