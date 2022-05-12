@@ -47,9 +47,14 @@ class RootParentTable : public Table {
   // the typechecker.
   struct IdAndRow {
     uint32_t id;
-    uint32_t row;
+  };
+  struct RowNumber {
+    uint32_t row_number() { PERFETTO_FATAL("Should not be called"); }
   };
   IdAndRow Insert(const Row&) { PERFETTO_FATAL("Should not be called"); }
+
+ private:
+  explicit RootParentTable(std::nullptr_t);
 };
 
 // IdHelper is used to figure out the Id type for a table.
@@ -80,29 +85,40 @@ struct IdHelper<RootParentTable, Class> {
 // This class is used to extract common code from the macro tables to reduce
 // code size.
 class MacroTable : public Table {
- public:
-  MacroTable(const char* name, StringPool* pool, Table* parent)
-      : Table(pool), name_(name), parent_(parent) {
-    row_maps_.emplace_back();
-
+ protected:
+  // Constructors for tables created by the regular constructor.
+  MacroTable(StringPool* pool, const Table* parent)
+      : Table(pool), allow_inserts_(true), parent_(parent) {
     if (!parent) {
+      row_maps_.emplace_back();
+      columns_.emplace_back(Column::IdColumn(this, 0, 0));
       columns_.emplace_back(
-          Column::IdColumn(this, static_cast<uint32_t>(columns_.size()),
-                           static_cast<uint32_t>(row_maps_.size()) - 1));
-      columns_.emplace_back(
-          Column("type", &type_, Column::kNoFlag, this,
-                 static_cast<uint32_t>(columns_.size()),
-                 static_cast<uint32_t>(row_maps_.size()) - 1));
+          Column("type", &type_, Column::kNoFlag, this, 1, 0));
       return;
     }
 
-    // If this table has a parent, then copy over all the columns pointing to
-    // empty RowMaps.
-    for (uint32_t i = 0; i < parent->row_maps().size(); ++i)
-      row_maps_.emplace_back();
+    row_maps_.resize(parent->row_maps().size() + 1);
     for (const Column& col : parent->columns()) {
-      columns_.emplace_back(col, this, static_cast<uint32_t>(columns_.size()),
-                            col.row_map_idx());
+      columns_.emplace_back(col, this, col.index_in_table(),
+                            col.row_map_index());
+    }
+  }
+
+  // Constructor for tables created by SelectAndExtendParent.
+  MacroTable(StringPool* pool,
+             const Table& parent,
+             const RowMap& parent_selector)
+      : Table(pool), allow_inserts_(false) {
+    row_count_ = parent_selector.size();
+    for (const auto& rm : parent.row_maps()) {
+      row_maps_.emplace_back(rm.SelectRows(parent_selector));
+      PERFETTO_DCHECK(row_maps_.back().size() == row_count_);
+    }
+    row_maps_.emplace_back(RowMap(0, row_count_));
+
+    for (const Column& col : parent.columns()) {
+      columns_.emplace_back(col, this, col.index_in_table(),
+                            col.row_map_index());
     }
   }
   ~MacroTable() override;
@@ -115,18 +131,16 @@ class MacroTable : public Table {
   MacroTable(MacroTable&&) = delete;
   MacroTable& operator=(MacroTable&&) noexcept = delete;
 
-  const char* table_name() const { return name_; }
-
- protected:
   void UpdateRowMapsAfterParentInsert() {
-    if (parent_ != nullptr) {
-      // If there is a parent table, add the last inserted row in each of the
-      // parent row maps to the corresponding row map in the child.
-      for (uint32_t i = 0; i < parent_->row_maps().size(); ++i) {
-        const RowMap& parent_rm = parent_->row_maps()[i];
-        row_maps_[i].Insert(parent_rm.Get(parent_rm.size() - 1));
-      }
+    // Add the last inserted row in each of the parent row maps to the
+    // corresponding row map in the child.
+    for (uint32_t i = 0; i < parent_->row_maps().size(); ++i) {
+      const RowMap& parent_rm = parent_->row_maps()[i];
+      row_maps_[i].Insert(parent_rm.Get(parent_rm.size() - 1));
     }
+  }
+
+  void UpdateSelfRowMapAfterInsert() {
     // Also add the index of the new row to the identity row map and increment
     // the size.
     row_maps_.back().Insert(row_count_++);
@@ -144,6 +158,13 @@ class MacroTable : public Table {
     return rms;
   }
 
+  // Stores whether inserts are allowed into this macro table; by default
+  // inserts are allowed but they are disallowed when a parent table is extended
+  // with |ExtendParent|; the rationale for this is that extensions usually
+  // happen in dynamic tables and they should not be allowed to insert rows into
+  // the real (static) tables.
+  bool allow_inserts_ = true;
+
   // Stores the most specific "derived" type of this row in the table.
   //
   // For example, suppose a row is inserted into the gpu_slice table. This will
@@ -157,8 +178,7 @@ class MacroTable : public Table {
   NullableVector<StringPool::Id> type_;
 
  private:
-  const char* name_ = nullptr;
-  Table* parent_ = nullptr;
+  const Table* parent_ = nullptr;
 };
 
 }  // namespace macros_internal
@@ -305,17 +325,15 @@ class MacroTable : public Table {
       static_cast<bool>(name##_flags() & Column::Flag::kSetId)});
 
 // Defines the immutable accessor for a column.
-#define PERFETTO_TP_TABLE_COL_GETTER(type, name, ...)        \
-  const TypedColumn<type>& name() const {                    \
-    return static_cast<const TypedColumn<type>&>(            \
-        columns_[static_cast<uint32_t>(ColumnIndex::name)]); \
+#define PERFETTO_TP_TABLE_COL_GETTER(type, name, ...)                          \
+  const TypedColumn<type>& name() const {                                      \
+    return static_cast<const TypedColumn<type>&>(columns_[ColumnIndex::name]); \
   }
 
 // Defines the accessors for a column.
-#define PERFETTO_TP_TABLE_MUTABLE_COL_GETTER(type, name, ...) \
-  TypedColumn<type>* mutable_##name() {                       \
-    return static_cast<TypedColumn<type>*>(                   \
-        &columns_[static_cast<uint32_t>(ColumnIndex::name)]); \
+#define PERFETTO_TP_TABLE_MUTABLE_COL_GETTER(type, name, ...)             \
+  TypedColumn<type>* mutable_##name() {                                   \
+    return static_cast<TypedColumn<type>*>(&columns_[ColumnIndex::name]); \
   }
 
 // Defines the accessors for a column.
@@ -324,6 +342,19 @@ class MacroTable : public Table {
       Column::IsFlagsAndTypeValid<TypedColumn<type>::serialized_type>( \
           name##_flags()),                                             \
       "Column type and flag combination is not valid");
+
+// Defines the parameter for the |ExtendParent| function.
+#define PERFETTO_TP_TABLE_EXTEND_PARAM(type, name, ...) \
+  NullableVector<TypedColumn<type>::serialized_type> name,
+
+// Defines the parameter passing for the |ExtendParent| function.
+#define PERFETTO_TP_TABLE_EXTEND_PARAM_PASSING(type, name, ...) std::move(name),
+
+// Sets the table nullable vector to the parameter passed in the
+// |SelectAndExtendParent| function.
+#define PERFETTO_TP_TABLE_EXTEND_SET_NV(type, name, ...)  \
+  PERFETTO_DCHECK(name.size() == parent_selector.size()); \
+  name##_ = std::move(name);
 
 // Definition used as the parent of root tables.
 #define PERFETTO_TP_ROOT_TABLE_PARENT_DEF(NAME, PARENT, C) \
@@ -340,18 +371,22 @@ class MacroTable : public Table {
   }
 
 // Defines the getter for the column value in the ConstIterator.
-#define PERFETTO_TP_TABLE_CONST_IT_GETTER(type, name, ...) \
-  type name() const {                                      \
-    const auto& col = table_->name();                      \
-    return col.GetAtIdx(its_[col.row_map_idx()].index());  \
+#define PERFETTO_TP_TABLE_CONST_IT_GETTER(type, name, ...)  \
+  type name() const {                                       \
+    const auto& col = table_->name();                       \
+    return col.GetAtIdx(its_[col.row_map_index()].index()); \
   }
 
 // Defines the setter for the column value in the Iterator.
 #define PERFETTO_TP_TABLE_IT_SETTER(type, name, ...)        \
   void set_##name(TypedColumn<type>::non_optional_type v) { \
     auto* col = table_->mutable_##name();                   \
-    col->SetAtIdx(its_[col->row_map_idx()].index(), v);     \
+    col->SetAtIdx(its_[col->row_map_index()].index(), v);   \
   }
+
+// Defines the column index constexpr declaration.
+#define PERFETTO_TP_COLUMN_INDEX(type, name, ...) \
+  static constexpr uint32_t name = static_cast<uint32_t>(ColumnIndexEnum::name);
 
 // For more general documentation, see PERFETTO_TP_TABLE in macros.h.
 #define PERFETTO_TP_TABLE_INTERNAL(table_name, class_name, parent_class_name, \
@@ -364,6 +399,16 @@ class MacroTable : public Table {
      * below to work correctly.                                               \
      */                                                                       \
     friend struct macros_internal::IdHelper<parent_class_name, class_name>;   \
+                                                                              \
+    static constexpr bool kIsRootTable =                                      \
+        std::is_same<parent_class_name,                                       \
+                     macros_internal::RootParentTable>::value;                \
+                                                                              \
+    enum class ColumnIndexEnum {                                              \
+      id,                                                                     \
+      type, /* Expands to col1, col2, ... */                                  \
+      PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_NAME_COMMA) kNumCols           \
+    };                                                                        \
                                                                               \
     /*                                                                        \
      * Defines a new id type for a hierarchy of tables.                       \
@@ -389,6 +434,15 @@ class MacroTable : public Table {
      * table of the hierarchy - see IdHelper for more details.                \
      */                                                                       \
     using Id = macros_internal::IdHelper<parent_class_name, class_name>::Id;  \
+                                                                              \
+    struct ColumnIndex {                                                      \
+      static constexpr uint32_t id =                                          \
+          static_cast<uint32_t>(ColumnIndexEnum::id);                         \
+      static constexpr uint32_t type =                                        \
+          static_cast<uint32_t>(ColumnIndexEnum::type);                       \
+      PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_COLUMN_INDEX)                  \
+    };                                                                        \
+                                                                              \
     struct Row : parent_class_name::Row {                                     \
       /*                                                                      \
        * Expands to Row(col_type1 col1_c, base::Optional<col_type2> col2_c,   \
@@ -422,12 +476,6 @@ class MacroTable : public Table {
     };                                                                        \
     static_assert(std::is_trivially_destructible<Row>::value,                 \
                   "Inheritance used without trivial destruction");            \
-                                                                              \
-    enum class ColumnIndex : uint32_t {                                       \
-      id,                                                                     \
-      type, /* Expands to col1, col2, ... */                                  \
-      PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_NAME_COMMA) kNumCols           \
-    };                                                                        \
                                                                               \
     class RowNumber;                                                          \
                                                                               \
@@ -548,10 +596,13 @@ class MacroTable : public Table {
        */                                                                     \
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_CONST_IT_GETTER)         \
                                                                               \
-      /*                                                                      \
-       * Returns a RowReference to the current row.                           \
-       */                                                                     \
-      ConstRowReference row_reference() {                                     \
+      /* Returns a RowNumber for the current row. */                          \
+      RowNumber row_number() const {                                          \
+        return RowNumber(CurrentRowNumberInTable());                          \
+      }                                                                       \
+                                                                              \
+      /* Returns a RowReference to the current row. */                        \
+      ConstRowReference row_reference() const {                               \
         return ConstRowReference(table_, CurrentRowNumberInTable());          \
       }                                                                       \
                                                                               \
@@ -634,8 +685,9 @@ class MacroTable : public Table {
     };                                                                        \
                                                                               \
     class_name(StringPool* pool, parent_class_name* parent)                   \
-        : macros_internal::MacroTable(table_name, pool, parent),              \
-          parent_(parent) {                                                   \
+        : macros_internal::MacroTable(pool, parent), parent_(parent) {        \
+      PERFETTO_CHECK(kIsRootTable == (parent == nullptr));                    \
+                                                                              \
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_STATIC_ASSERT_FLAG)      \
                                                                               \
       /*                                                                      \
@@ -644,6 +696,7 @@ class MacroTable : public Table {
        * ...                                                                  \
        */                                                                     \
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_SV);       \
+                                                                              \
       /*                                                                      \
        * Expands to                                                           \
        * columns_.emplace_back("col1", col1_, Column::kNoFlag, this,          \
@@ -656,15 +709,18 @@ class MacroTable : public Table {
     ~class_name() override;                                                   \
                                                                               \
     IdAndRow Insert(const Row& row) {                                         \
+      PERFETTO_DCHECK(allow_inserts_);                                        \
+                                                                              \
       Id id;                                                                  \
       uint32_t row_number = row_count();                                      \
-      if (parent_ == nullptr) {                                               \
+      if (kIsRootTable) {                                                     \
         id = Id{row_number};                                                  \
         type_.Append(string_pool_->InternString(row.type()));                 \
       } else {                                                                \
+        PERFETTO_DCHECK(parent_);                                             \
         id = Id{parent_->Insert(row).id};                                     \
+        UpdateRowMapsAfterParentInsert();                                     \
       }                                                                       \
-      UpdateRowMapsAfterParentInsert();                                       \
                                                                               \
       /*                                                                      \
        * Expands to                                                           \
@@ -672,6 +728,8 @@ class MacroTable : public Table {
        * ...                                                                  \
        */                                                                     \
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_COLUMN_APPEND);              \
+                                                                              \
+      UpdateSelfRowMapAfterInsert();                                          \
       return {id, row_number, RowReference(this, row_number),                 \
               RowNumber(row_number)};                                         \
     }                                                                         \
@@ -685,6 +743,14 @@ class MacroTable : public Table {
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_COLUMN_SCHEMA);                \
       return schema;                                                          \
     }                                                                         \
+                                                                              \
+    /* Iterates the table. */                                                 \
+    ConstIterator IterateRows() const {                                       \
+      return ConstIterator(this, CopyRowMaps());                              \
+    }                                                                         \
+                                                                              \
+    /* Iterates the table. */                                                 \
+    Iterator IterateRows() { return Iterator(this, CopyRowMaps()); }          \
                                                                               \
     /* Filters the Table using the specified filter constraints. */           \
     ConstIterator FilterToIterator(                                           \
@@ -722,6 +788,43 @@ class MacroTable : public Table {
     }                                                                         \
     PERFETTO_TP_TABLE_COL_GETTER(StringPool::Id, type)                        \
                                                                               \
+    /* Returns the name of the table */                                       \
+    static constexpr const char* Name() { return table_name; }                \
+                                                                              \
+    /*                                                                        \
+     * Creates a filled instance of this class by selecting all rows in       \
+     * parent and filling the table columns with the provided vectors.        \
+     */                                                                       \
+    static std::unique_ptr<Table> ExtendParent(                               \
+        const parent_class_name& parent,                                      \
+        PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_EXTEND_PARAM)        \
+            std::nullptr_t = nullptr) {                                       \
+      return std::unique_ptr<Table>(new class_name(                           \
+          parent.string_pool(), parent, RowMap(0, parent.row_count()),        \
+          PERFETTO_TP_TABLE_COLUMNS(                                          \
+              DEF, PERFETTO_TP_TABLE_EXTEND_PARAM_PASSING) nullptr));         \
+    }                                                                         \
+                                                                              \
+    /*                                                                        \
+     * Creates a filled instance of this class by first selecting all rows in \
+     * parent given by |rows| and filling the table columns with the provided \
+     * vectors.                                                               \
+     */                                                                       \
+    static std::unique_ptr<Table> SelectAndExtendParent(                      \
+        const parent_class_name& parent,                                      \
+        std::vector<parent_class_name::RowNumber> parent_row_selector,        \
+        PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_EXTEND_PARAM)        \
+            std::nullptr_t = nullptr) {                                       \
+      std::vector<uint32_t> prs_untyped(parent_row_selector.size());          \
+      for (uint32_t i = 0; i < parent_row_selector.size(); ++i) {             \
+        prs_untyped[i] = parent_row_selector[i].row_number();                 \
+      }                                                                       \
+      return std::unique_ptr<Table>(new class_name(                           \
+          parent.string_pool(), parent, RowMap(std::move(prs_untyped)),       \
+          PERFETTO_TP_TABLE_COLUMNS(                                          \
+              DEF, PERFETTO_TP_TABLE_EXTEND_PARAM_PASSING) nullptr));         \
+    }                                                                         \
+                                                                              \
     /*                                                                        \
      * Expands to                                                             \
      * const TypedColumn<col1_type>& col1() { return col1_; }                 \
@@ -737,7 +840,26 @@ class MacroTable : public Table {
     PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_MUTABLE_COL_GETTER)        \
                                                                               \
    private:                                                                   \
-    parent_class_name* parent_;                                               \
+    class_name(StringPool* pool,                                              \
+               const parent_class_name& parent,                               \
+               RowMap parent_selector,                                        \
+               PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_EXTEND_PARAM) \
+                   std::nullptr_t = nullptr)                                  \
+        : macros_internal::MacroTable(pool, parent, parent_selector) {        \
+      PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_STATIC_ASSERT_FLAG)      \
+      PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_EXTEND_SET_NV)         \
+                                                                              \
+      /*                                                                      \
+       * Expands to                                                           \
+       * columns_.emplace_back("col1", col1_, Column::kNoFlag, this,          \
+       *                       static_cast<uint32_t>(columns_.size()),        \
+       *                       static_cast<uint32_t>(row_maps_.size()) - 1);  \
+       * ...                                                                  \
+       */                                                                     \
+      PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN);   \
+    }                                                                         \
+                                                                              \
+    parent_class_name* parent_ = nullptr;                                     \
                                                                               \
     /*                                                                        \
      * Expands to                                                             \

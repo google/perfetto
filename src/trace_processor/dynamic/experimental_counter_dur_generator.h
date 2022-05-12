@@ -43,8 +43,7 @@ class ExperimentalCounterDurGenerator : public DynamicTableGenerator {
 
  private:
   const tables::CounterTable* counter_table_ = nullptr;
-  std::unique_ptr<NullableVector<int64_t>> dur_column_;
-  std::unique_ptr<NullableVector<double>> delta_column_;
+  std::unique_ptr<Table> counter_dur_table_;
 };
 
 }  // namespace trace_processor
