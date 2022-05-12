@@ -95,7 +95,7 @@ util::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
             context_,
             std::unique_ptr<TraceParser>(new ProtoTraceParser(context_)),
             sorting_mode));
-        context_->process_tracker->SetPidZeroIgnoredForIdleProcess();
+        context_->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
         break;
       }
       case kNinjaLogTraceType: {
@@ -120,7 +120,7 @@ util::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
       }
       case kSystraceTraceType:
         PERFETTO_DLOG("Systrace trace detected");
-        context_->process_tracker->SetPidZeroIgnoredForIdleProcess();
+        context_->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
         if (context_->systrace_trace_parser) {
           reader_ = std::move(context_->systrace_trace_parser);
           break;
