@@ -29,9 +29,9 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
+#include "src/tools/ftrace_proto_gen/ftrace_descriptor_gen.h"
+#include "src/tools/ftrace_proto_gen/ftrace_proto_gen.h"
 #include "src/traced/probes/ftrace/format_parser/format_parser.h"
-#include "tools/ftrace_proto_gen/ftrace_descriptor_gen.h"
-#include "tools/ftrace_proto_gen/ftrace_proto_gen.h"
 
 namespace {
 inline std::unique_ptr<std::ostream> MakeOFStream(const std::string& filename) {
