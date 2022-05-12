@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "tools/proto_merger/proto_merger.h"
+#include "src/tools/proto_merger/proto_merger.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"

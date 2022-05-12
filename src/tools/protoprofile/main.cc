@@ -35,7 +35,6 @@ namespace perfetto {
 namespace protoprofile {
 namespace {
 
-using protozero::proto_utils::ProtoWireType;
 using ::google::protobuf::Descriptor;
 using ::google::protobuf::DynamicMessageFactory;
 using ::google::protobuf::FieldDescriptor;
@@ -44,6 +43,7 @@ using ::google::protobuf::Message;
 using ::google::protobuf::compiler::DiskSourceTree;
 using ::google::protobuf::compiler::Importer;
 using ::google::protobuf::compiler::MultiFileErrorCollector;
+using protozero::proto_utils::ProtoWireType;
 
 class MultiFileErrorCollectorImpl : public MultiFileErrorCollector {
  public:
