@@ -245,8 +245,7 @@ class Column {
                table,
                col_idx_in_table,
                row_map_idx,
-               storage,
-               nullptr) {}
+               storage) {}
 
   // Create a Column backed by the same data as |column| but is associated to a
   // different table and, optionally, having a different name.
@@ -259,18 +258,6 @@ class Column {
   // Columns are movable but not copyable.
   Column(Column&&) noexcept = default;
   Column& operator=(Column&&) = default;
-
-  template <typename T>
-  static Column WithOwnedStorage(const char* name,
-                                 std::unique_ptr<NullableVector<T>> storage,
-                                 /* Flag */ uint32_t flags,
-                                 Table* table,
-                                 uint32_t col_idx_in_table,
-                                 uint32_t row_map_idx) {
-    NullableVector<T>* ptr = storage.get();
-    return Column(name, ColumnTypeHelper<T>::ToColumnType(), flags, table,
-                  col_idx_in_table, row_map_idx, ptr, std::move(storage));
-  }
 
   // Creates a Column which does not have any data backing it.
   static Column DummyColumn(const char* name,
@@ -444,11 +431,11 @@ class Column {
   // Public for testing.
   bool IsSetId() const { return IsSetId(flags_); }
 
+  // Returns the index of the RowMap in the containing table.
+  uint32_t row_map_index() const { return row_map_idx_; }
+
   // Returns the index of the current column in the containing table.
   uint32_t index_in_table() const { return col_idx_in_table_; }
-
-  // Returns the index of the RowMap used in the containing table.
-  uint32_t row_map_idx() const { return row_map_idx_; }
 
   // Returns a Constraint for each type of filter operation for this Column.
   Constraint eq_value(SqlValue value) const {
@@ -537,8 +524,7 @@ class Column {
          Table* table,
          uint32_t col_idx_in_table,
          uint32_t row_map_idx,
-         NullableVectorBase* nv,
-         std::shared_ptr<NullableVectorBase> owned_nullable_vector);
+         NullableVectorBase* nullable_vector);
 
   Column(const Column&) = delete;
   Column& operator=(const Column&) = delete;
@@ -740,11 +726,6 @@ class Column {
     PERFETTO_DCHECK(type_ == ColumnType::kString);
     return string_pool_->Get(nullable_vector<StringPool::Id>().GetNonNull(idx));
   }
-
-  // Only filled for columns which own the data inside them. Generally this is
-  // only true for columns which are dynamically generated at runtime.
-  // Keep this before |nullable_vector_|.
-  std::shared_ptr<NullableVectorBase> owned_nullable_vector_;
 
   // type_ is used to cast nullable_vector_ to the correct type.
   ColumnType type_ = ColumnType::kInt64;
