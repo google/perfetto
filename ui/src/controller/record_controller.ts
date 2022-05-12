@@ -512,8 +512,12 @@ export function genConfig(
     // Override the advanced ftrace parameters only if the user has ticked the
     // "Advanced ftrace config" tab.
     if (uiCfg.ftrace) {
-      ds.config.ftraceConfig.bufferSizeKb = uiCfg.ftraceBufferSizeKb;
-      ds.config.ftraceConfig.drainPeriodMs = uiCfg.ftraceDrainPeriodMs;
+      if (uiCfg.ftraceBufferSizeKb) {
+        ds.config.ftraceConfig.bufferSizeKb = uiCfg.ftraceBufferSizeKb;
+      }
+      if (uiCfg.ftraceDrainPeriodMs) {
+        ds.config.ftraceConfig.drainPeriodMs = uiCfg.ftraceDrainPeriodMs;
+      }
       if (uiCfg.symbolizeKsyms) {
         ds.config.ftraceConfig.symbolizeKsyms = true;
         ftraceEvents.add('sched/sched_blocked_reason');
