@@ -505,8 +505,7 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
   protos::pbzero::CpuInfo::Decoder packet(blob.data, blob.size);
   uint32_t cluster_id = 0;
   std::vector<uint32_t> last_cpu_freqs;
-  uint32_t cpu_index = 0;
-  for (auto it = packet.cpus(); it; it++, cpu_index++) {
+  for (auto it = packet.cpus(); it; it++) {
     protos::pbzero::CpuInfo::Cpu::Decoder cpu(*it);
     tables::CpuTable::Row cpu_row;
     if (cpu.has_processor()) {
@@ -518,11 +517,11 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     }
 
     // Here we assume that cluster of CPUs are 'next' to each other.
-    if (freqs != last_cpu_freqs) {
-      cluster_id = cpu_index;
+    if (freqs != last_cpu_freqs && !last_cpu_freqs.empty()) {
+      cluster_id++;
     }
     cpu_row.cluster_id = cluster_id;
-    cpu_row.time_in_state_cpu_id = cluster_id;
+
     last_cpu_freqs = freqs;
     tables::CpuTable::Id cpu_row_id =
         context_->storage->mutable_cpu_table()->Insert(cpu_row).id;
