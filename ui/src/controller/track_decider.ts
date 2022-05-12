@@ -1197,6 +1197,7 @@ class TrackDecider {
     ) the_tracks
     left join (select upid, sum(dur) as total_dur
       from sched join thread using(utid)
+      where dur != -1 and utid != 0
       group by upid
     ) using(upid)
     left join (
