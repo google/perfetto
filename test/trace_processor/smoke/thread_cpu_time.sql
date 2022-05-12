@@ -22,10 +22,10 @@ select
 from
   thread
   left join process using(upid)
-  left join (select upid, sum(dur) as total_dur
+  left join
+    (select upid, sum(dur) as total_dur
       from sched join thread using(utid)
+      where dur != -1
       group by upid
     ) using(upid)
-where total_dur != -1
-group by utid, upid
 order by total_dur desc, pid, tid
