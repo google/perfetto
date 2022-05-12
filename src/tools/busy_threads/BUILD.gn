@@ -12,24 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../gn/perfetto_host_executable.gni")
-
-perfetto_host_executable("compact_reencode") {
+executable("busy_threads") {
   testonly = true
   deps = [
-    ":common",
-    "../../gn:default_deps",
+    "../../../gn:default_deps",
+    "../../base",
   ]
-}
-
-source_set("common") {
-  testonly = true
-  public_deps = [
-    "../../gn:default_deps",
-    "../../include/perfetto/protozero",
-    "../../protos/perfetto/trace:zero",
-    "../../protos/perfetto/trace/ftrace:zero",
-    "../../src/base",
-  ]
-  sources = [ "main.cc" ]
+  sources = [ "busy_threads.cc" ]
 }

@@ -1,4 +1,4 @@
-# Copyright (C) 2021 The Android Open Source Project
+# Copyright (C) 2019 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,18 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../gn/perfetto_host_executable.gni")
-
-perfetto_host_executable("proto_filter") {
+executable("dump_ftrace_stats") {
   testonly = true
   deps = [
-    "../../gn:default_deps",
-    "../../gn:protobuf_full",
-    "../../src/base",
-    "../../src/protozero",
-    "../../src/protozero/filtering:bytecode_generator",
-    "../../src/protozero/filtering:filter_util",
-    "../../src/protozero/filtering:message_filter",
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../base",
   ]
-  sources = [ "proto_filter.cc" ]
+  sources = [ "main.cc" ]
 }

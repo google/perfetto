@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "tools/proto_merger/proto_file_serializer.h"
+#include "src/tools/proto_merger/proto_file_serializer.h"
 
 #include "perfetto/ext/base/string_utils.h"
 
