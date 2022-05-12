@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "tools/proto_merger/allowlist.h"
+#include "src/tools/proto_merger/allowlist.h"
 
 #include <google/protobuf/descriptor.pb.h>
 
