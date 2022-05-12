@@ -47,18 +47,6 @@ perfetto_java_proto_library(
     visibility = PERFETTO_CONFIG.public_visibility,
 )
 
-perfetto_gensignature_internal_only(
-    name = "trace_processor_sig",
-    srcs = [
-        ":trace_processor_shell",
-        ":trace_to_text",
-    ],
-    tags = [
-        "__TRACE_PROCESSOR_SIG_TAG1",
-        "__TRACE_PROCESSOR_SIG_TAG2",
-    ],
-)
-
 # This is overridden in google internal builds via
 # PERFETTO_CONFIG.deps.version_header (see perfetto_cfg.bzl).
 perfetto_cc_library(

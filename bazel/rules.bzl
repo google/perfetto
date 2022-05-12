@@ -93,11 +93,6 @@ def perfetto_py_proto_library(**kwargs):
 # | Misc rules.                                                                |
 # +----------------------------------------------------------------------------+
 
-# Unlike the other rules, this is an noop by default because Bazel does not
-# support gensignature.
-def perfetto_gensignature_internal_only(**kwargs):
-    _rule_override("gensignature_internal_only", **kwargs)
-
 # Generates .pbzero.{cc,h} from .proto(s). We deliberately do NOT generate
 # conventional .pb.{cc,h} from here as protozero gen sources do not have any
 # dependency on libprotobuf.
