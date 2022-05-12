@@ -31,7 +31,7 @@ class TraceProcessorContext;
 // always have the same annotation.
 class ExperimentalAnnotatedStackGenerator : public DynamicTableGenerator {
  public:
-  ExperimentalAnnotatedStackGenerator(TraceProcessorContext* context)
+  explicit ExperimentalAnnotatedStackGenerator(TraceProcessorContext* context)
       : context_(context) {}
 
   Table::Schema CreateSchema() override;
