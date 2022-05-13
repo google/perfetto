@@ -83,7 +83,6 @@ if (perfetto_build_with_android) {
 
 if (enable_perfetto_tools) {
   all_targets += [
-    "tools",
     "src/tools",
     "src/websocket_bridge",
   ]

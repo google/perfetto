@@ -72,8 +72,8 @@ default_targets = [
     '//src/protozero/protoc_plugin:protozero_plugin',
     '//src/protozero/protoc_plugin:cppgen_plugin',
     '//test:client_api_example',
-    '//tools/proto_filter:proto_filter',
-    '//tools/proto_merger:proto_merger',
+    '//src/tools/proto_filter:proto_filter',
+    '//src/tools/proto_merger:proto_merger',
 ] + public_targets
 
 # Proto target groups which will be made public.
