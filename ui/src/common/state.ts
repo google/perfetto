@@ -348,7 +348,7 @@ export interface PivotTableState {
 export interface PivotTableReduxQueryMetadata {
   tableName: string;
   pivotColumns: string[];
-  aggregationColumns: string[];
+  aggregationColumns: TableColumn[];
 }
 
 // Everything that's necessary to run the query for pivot table
@@ -372,6 +372,8 @@ export interface PivotTableReduxAreaState {
   tracks: string[];
 }
 
+export type SortDirection = 'DESC'|'ASC';
+
 export interface PivotTableReduxState {
   // Currently selected area, if null, pivot table is not going to be visible.
   selectionArea: PivotTableReduxAreaState|null;
@@ -384,6 +386,8 @@ export interface PivotTableReduxState {
   selectedPivotsMap: Map<string, TableColumn>;
   // Selected aggregation columns. Stored same way as pivots.
   selectedAggregations: Map<string, TableColumn>;
+  // Present if the result should be sorted, and in which direction.
+  sortCriteria?: {column: TableColumn, order: SortDirection};
   // Whether the pivot table results should be constrained to the selected area.
   constrainToArea: boolean;
   // Set to true by frontend to request controller to perform the query to

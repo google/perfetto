@@ -562,6 +562,13 @@ export function genConfig(
     ds.config.ftraceConfig.ftraceEvents = ftraceEventsArray;
     ds.config.ftraceConfig.atraceCategories = Array.from(atraceCats);
     ds.config.ftraceConfig.atraceApps = Array.from(atraceApps);
+
+    if (isTargetOsAtLeast(target, 'S')) {
+      const compact = new FtraceConfig.CompactSchedConfig();
+      compact.enabled = true;
+      ds.config.ftraceConfig.compactSched = compact;
+    }
+
     if (!isChromeTarget(target) || isCrOSTarget(target)) {
       protoCfg.dataSources.push(ds);
     }
