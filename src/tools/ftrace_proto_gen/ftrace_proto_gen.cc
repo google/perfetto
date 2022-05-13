@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "tools/ftrace_proto_gen/ftrace_proto_gen.h"
+#include "src/tools/ftrace_proto_gen/ftrace_proto_gen.h"
 
 #include <algorithm>
 #include <fstream>

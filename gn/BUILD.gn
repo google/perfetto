@@ -211,6 +211,7 @@ protobuf_full_deps_allowlist = [
   "../src/trace_processor:trace_processor_shell",
   "../src/protozero/filtering:filter_util",
   "../tools/*",
+  "../src/tools/*",
 ]
 
 group("protoc") {
