@@ -25,20 +25,6 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-constexpr uint32_t kRowCount = 1024;
-
-std::unique_ptr<NullableVector<int64_t>> Column() {
-  auto c =
-      std::unique_ptr<NullableVector<int64_t>>(new NullableVector<int64_t>());
-  for (int64_t i = 0; i < kRowCount; ++i)
-    c->Append(i);
-  return c;
-}
-
-uint32_t Flags() {
-  return TypedColumn<int64_t>::default_flags();
-}
-
 #define PERFETTO_TP_TEST_EVENT_TABLE_DEF(NAME, PARENT, C) \
   NAME(TestEventTable, "event")                           \
   PARENT(PERFETTO_TP_ROOT_TABLE_PARENT_DEF, C)            \
@@ -138,23 +124,6 @@ TEST(TableTest, SetIdColumns) {
       ASSERT_EQ(arg_set_id, kFilterArgSetId);
     }
   }
-}
-
-TEST(TableTest, ExtendingTableTwice) {
-  StringPool pool;
-  TestEventTable table{&pool, nullptr};
-
-  for (uint32_t i = 0; i < kRowCount; ++i)
-    table.Insert(TestEventTable::Row(i));
-
-  Table filtered_table;
-  {
-    filtered_table = table.ExtendWithColumn("a", Column(), Flags())
-                         .ExtendWithColumn("b", Column(), Flags())
-                         .Filter({});
-  }
-  ASSERT_TRUE(filtered_table.GetColumnByName("a")->Max().has_value());
-  ASSERT_TRUE(filtered_table.GetColumnByName("b")->Max().has_value());
 }
 
 }  // namespace

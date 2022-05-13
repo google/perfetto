@@ -27,6 +27,18 @@
 
 namespace perfetto {
 namespace trace_processor {
+namespace tables {
+
+#define PERFETTO_TP_CONNECTED_FLOW_TABLE_DEF(NAME, PARENT, C) \
+  NAME(ConnectedFlowTable, "not_exposed_to_sql")              \
+  PARENT(PERFETTO_TP_FLOW_TABLE_DEF, C)                       \
+  C(uint32_t, start_id, Column::Flag::kHidden)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_CONNECTED_FLOW_TABLE_DEF);
+
+ConnectedFlowTable::~ConnectedFlowTable() = default;
+
+}  // namespace tables
 
 ConnectedFlowGenerator::ConnectedFlowGenerator(Mode mode,
                                                TraceProcessorContext* context)
@@ -80,9 +92,11 @@ enum RelativesVisitMode : uint8_t {
 //  bfs.TakeResultingFlows();
 class BFS {
  public:
-  BFS(TraceProcessorContext* context) : context_(context) {}
+  explicit BFS(TraceProcessorContext* context) : context_(context) {}
 
-  RowMap TakeResultingFlows() && { return RowMap(std::move(flow_rows_)); }
+  std::vector<tables::FlowTable::RowNumber> TakeResultingFlows() && {
+    return std::move(flow_rows_);
+  }
 
   // Includes a starting slice ID to search.
   BFS& Start(SliceId start_id) {
@@ -119,17 +133,18 @@ class BFS {
 
   // Includes the relatives of |slice_id| to the list of slices to visit.
   BFS& GoToRelatives(SliceId slice_id, RelativesVisitMode visit_relatives) {
+    const auto& slice_table = context_->storage->slice_table();
     if (visit_relatives & VISIT_ANCESTORS) {
-      base::Optional<RowMap> ancestors = AncestorGenerator::GetAncestorSlices(
-          context_->storage->slice_table(), slice_id);
-      if (ancestors)
-        GoToRelativesImpl(ancestors->IterateRows());
+      auto opt_ancestors =
+          AncestorGenerator::GetAncestorSlices(slice_table, slice_id);
+      if (opt_ancestors)
+        GoToRelativesImpl(*opt_ancestors);
     }
     if (visit_relatives & VISIT_DESCENDANTS) {
-      base::Optional<RowMap> descendants =
-          DescendantGenerator::GetDescendantSlices(
-              context_->storage->slice_table(), slice_id);
-      GoToRelativesImpl(descendants->IterateRows());
+      auto opt_descendants =
+          DescendantGenerator::GetDescendantSlices(slice_table, slice_id);
+      if (opt_descendants)
+        GoToRelativesImpl(*opt_descendants);
     }
     return *this;
   }
@@ -153,20 +168,17 @@ class BFS {
     const auto& flow = context_->storage->flow_table();
 
     const TypedColumn<SliceId>& start_col =
-        (flow_direction == FlowDirection::OUTGOING ? flow.slice_out()
-                                                   : flow.slice_in());
-    const TypedColumn<SliceId>& end_col =
-        (flow_direction == FlowDirection::OUTGOING ? flow.slice_in()
-                                                   : flow.slice_out());
+        flow_direction == FlowDirection::OUTGOING ? flow.slice_out()
+                                                  : flow.slice_in();
+    auto it = flow.FilterToIterator({start_col.eq(slice_id.value)});
+    for (; it; ++it) {
+      flow_rows_.push_back(it.row_number());
 
-    auto rows = flow.FilterToRowMap({start_col.eq(slice_id.value)});
-
-    for (auto row_it = rows.IterateRows(); row_it; row_it.Next()) {
-      flow_rows_.push_back(row_it.index());
-      SliceId next_slice_id = end_col[row_it.index()];
-      if (known_slices_.count(next_slice_id) != 0) {
+      SliceId next_slice_id = flow_direction == FlowDirection::OUTGOING
+                                  ? it.slice_in()
+                                  : it.slice_out();
+      if (known_slices_.count(next_slice_id))
         continue;
-      }
 
       known_slices_.insert(next_slice_id);
       slices_to_visit_.push(
@@ -176,10 +188,11 @@ class BFS {
     }
   }
 
-  void GoToRelativesImpl(RowMap::Iterator it) {
+  void GoToRelativesImpl(
+      const std::vector<tables::SliceTable::RowNumber>& rows) {
     const auto& slice = context_->storage->slice_table();
-    for (; it; it.Next()) {
-      auto relative_slice_id = slice.id()[it.index()];
+    for (tables::SliceTable::RowNumber row : rows) {
+      auto relative_slice_id = row.ToRowReference(slice).id();
       if (known_slices_.count(relative_slice_id))
         continue;
       known_slices_.insert(relative_slice_id);
@@ -189,7 +202,7 @@ class BFS {
 
   std::queue<std::pair<SliceId, VisitType>> slices_to_visit_;
   std::set<SliceId> known_slices_;
-  std::vector<uint32_t> flow_rows_;
+  std::vector<tables::FlowTable::RowNumber> flow_rows_;
 
   TraceProcessorContext* context_;
 };
@@ -234,30 +247,21 @@ base::Status ConnectedFlowGenerator::ComputeTable(
       break;
   }
 
-  RowMap result_rows = std::move(bfs).TakeResultingFlows();
+  std::vector<tables::FlowTable::RowNumber> result_rows =
+      std::move(bfs).TakeResultingFlows();
 
   // Aditional column for start_id
-  std::unique_ptr<NullableVector<uint32_t>> start_ids(
-      new NullableVector<uint32_t>());
-
+  NullableVector<uint32_t> start_ids;
   for (size_t i = 0; i < result_rows.size(); i++) {
-    start_ids->Append(start_id.value);
+    start_ids.Append(start_id.value);
   }
-
-  table_return.reset(
-      new Table(flow.Apply(RowMap(std::move(result_rows)))
-                    .ExtendWithColumn("start_id", std::move(start_ids),
-                                      TypedColumn<uint32_t>::default_flags() |
-                                          TypedColumn<uint32_t>::kHidden)));
+  table_return = tables::ConnectedFlowTable::SelectAndExtendParent(
+      flow, result_rows, std::move(start_ids));
   return base::OkStatus();
 }
 
 Table::Schema ConnectedFlowGenerator::CreateSchema() {
-  auto schema = tables::FlowTable::Schema();
-  schema.columns.push_back(Table::Schema::Column{
-      "start_id", SqlValue::Type::kLong, /* is_id = */ false,
-      /* is_sorted = */ false, /* is_hidden = */ true, /* is_set_id */ false});
-  return schema;
+  return tables::ConnectedFlowTable::Schema();
 }
 
 std::string ConnectedFlowGenerator::TableName() {
