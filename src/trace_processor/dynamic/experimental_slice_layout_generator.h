@@ -25,11 +25,20 @@
 namespace perfetto {
 namespace trace_processor {
 
+namespace tables {
+
+#define PERFETTO_TP_SLICE_LAYOUT_TABLE_DEF(NAME, PARENT, C)       \
+  NAME(ExperimentalSliceLayoutTable, "experimental_slice_layout") \
+  PARENT(PERFETTO_TP_SLICE_TABLE_DEF, C)                          \
+  C(uint32_t, layout_depth)                                       \
+  C(StringPool::Id, filter_track_ids, Column::kHidden)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_SLICE_LAYOUT_TABLE_DEF);
+
+}  // namespace tables
+
 class ExperimentalSliceLayoutGenerator : public DynamicTableGenerator {
  public:
-  static constexpr uint32_t kFilterTrackIdsColumnIndex =
-      static_cast<uint32_t>(tables::SliceTable::ColumnIndex::arg_set_id) + 2;
-
   ExperimentalSliceLayoutGenerator(StringPool* string_pool,
                                    const tables::SliceTable* table);
   virtual ~ExperimentalSliceLayoutGenerator() override;
@@ -44,7 +53,9 @@ class ExperimentalSliceLayoutGenerator : public DynamicTableGenerator {
                             std::unique_ptr<Table>& table_return) override;
 
  private:
-  Table ComputeLayoutTable(const Table& table, StringPool::Id filter_id);
+  std::unique_ptr<Table> ComputeLayoutTable(
+      std::vector<tables::SliceTable::RowNumber> rows,
+      StringPool::Id filter_id);
   tables::SliceTable::Id InsertSlice(
       std::map<tables::SliceTable::Id, tables::SliceTable::Id>& id_map,
       tables::SliceTable::Id id,
@@ -52,7 +63,7 @@ class ExperimentalSliceLayoutGenerator : public DynamicTableGenerator {
 
   // TODO(lalitm): remove this cache and move to having explicitly scoped
   // lifetimes of dynamic tables.
-  std::unordered_map<StringId, Table> layout_table_cache_;
+  std::unordered_map<StringId, std::unique_ptr<Table>> layout_table_cache_;
 
   StringPool* string_pool_;
   const tables::SliceTable* slice_table_;

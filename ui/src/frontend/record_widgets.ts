@@ -159,6 +159,7 @@ export interface SliderAttrs {
   min?: number;
   description?: string;
   disabled?: boolean;
+  zeroIsDefault?: boolean;
 }
 
 export class Slider implements m.ClassComponent<SliderAttrs> {
@@ -168,7 +169,6 @@ export class Slider implements m.ClassComponent<SliderAttrs> {
     });
     globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
   }
-
 
   onTimeValueChange(attrs: SliderAttrs, hms: string) {
     try {
@@ -187,7 +187,10 @@ export class Slider implements m.ClassComponent<SliderAttrs> {
     const id = attrs.title.replace(/[^a-z0-9]/gmi, '_').toLowerCase();
     const maxIdx = attrs.values.length - 1;
     const val = attrs.get(globals.state.recordConfig);
-    const min = attrs.min;
+    let min = attrs.min || 1;
+    if (attrs.zeroIsDefault) {
+      min = Math.min(0, min);
+    }
     const description = attrs.description;
     const disabled = attrs.disabled;
 
@@ -207,11 +210,13 @@ export class Slider implements m.ClassComponent<SliderAttrs> {
         },
       };
     } else {
+      const isDefault = attrs.zeroIsDefault && val === 0;
       spinnerCfg = {
         type: 'number',
-        value: val,
+        value: isDefault ? '' : val,
+        placeholder: isDefault ? '(default)' : '',
         oninput: (e: InputEvent) => {
-          this.onTimeValueChange(attrs, (e.target as HTMLInputElement).value);
+          this.onValueChange(attrs, +(e.target as HTMLInputElement).value);
         },
       };
     }
@@ -220,15 +225,13 @@ export class Slider implements m.ClassComponent<SliderAttrs> {
         m('header', attrs.title),
         description ? m('header.descr', attrs.description) : '',
         attrs.icon !== undefined ? m('i.material-icons', attrs.icon) : [],
-        m(`input[id="${id}"][type=range][min=0][max=${maxIdx}][value=${idx}]
-        ${disabled ? '[disabled]' : ''}`,
-          {
-            oninput: (e: InputEvent) => {
-              this.onSliderChange(attrs, +(e.target as HTMLInputElement).value);
-            },
-          }),
-        m(`input.spinner[min=${min !== undefined ? min : 1}][for=${id}]`,
-          spinnerCfg),
+        m(`input[id="${id}"][type=range][min=0][max=${maxIdx}][value=${idx}]`, {
+          disabled,
+          oninput: (e: InputEvent) => {
+            this.onSliderChange(attrs, +(e.target as HTMLInputElement).value);
+          },
+        }),
+        m(`input.spinner[min=${min}][for=${id}]`, spinnerCfg),
         m('.unit', attrs.unit));
   }
 }
