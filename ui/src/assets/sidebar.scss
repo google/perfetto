@@ -21,6 +21,7 @@
     overflow: hidden;
     width: var(--sidebar-width);
     display: flex;
+    position: relative;
     flex-direction: column;
     transition: margin-left var(--anim-easing) var(--sidebar-timing),
                 visibility linear var(--sidebar-timing);
@@ -64,7 +65,7 @@
         }
     }
     .sidebar-button {
-      position: absolute;
+      position: fixed;
       z-index: 5;
       background-color: #262f3c;
       height: var(--topbar-height);
@@ -84,6 +85,10 @@
       margin-left: calc(var(--sidebar-width) * -1);
       .sidebar-button {
         left: 0;
+        background-color: transparent;
+        border-radius: unset;
+        border-bottom: none;
+        color: #aaaaaa;
       }
     }
     .sidebar-scroll {
