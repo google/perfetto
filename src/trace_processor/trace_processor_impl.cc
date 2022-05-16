@@ -647,18 +647,13 @@ base::Status AbsTimeStr::Run(ClockTracker* tracker,
 
   int64_t ts = sqlite3_value_int64(argv[0]);
   base::Optional<std::string> iso8601 = tracker->FromTraceTimeAsISO8601(ts);
-
-  if (!iso8601) {
+  if (!iso8601.has_value()) {
     return base::OkStatus();
   }
 
-  std::string value = iso8601.value();
   std::unique_ptr<char, base::FreeDeleter> s(
-      static_cast<char*>(malloc(value.size() + 1)));
-  for (size_t i = 0; i < value.size(); ++i) {
-    s.get()[i] = value[i];
-  }
-  s.get()[value.size() + 1] = '\0';
+      static_cast<char*>(malloc(iso8601->size() + 1)));
+  memcpy(s.get(), iso8601->c_str(), iso8601->size() + 1);
 
   destructors.string_destructor = free;
   out = SqlValue::String(s.release());
