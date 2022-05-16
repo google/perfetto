@@ -324,14 +324,20 @@ TYPEFACES_SHA256 = 'f5f78f8f4395db65cdf5fdc1bf51da65f2161e6d61a305091d6ea54d3094
 UI_DEPS = [
     Dependency(
         'buildtools/mac/nodejs.tgz',
-        'https://storage.googleapis.com/chromium-nodejs/14.15.4/17ba7216e09de1bffb9dc80b7ec617a1cee40330',
-        'b81a466347d2ae34b1370b6681ba173e9fb082338170a41624b37be7a2052b7e',
-        'darwin', 'all'),
+        'https://storage.googleapis.com/chromium-nodejs/16.13.0/31859fc1fa0994a95f44f09c367d6ff63607cfde',
+        'd9cf1f36b16e08ce52cfbdef427c6596eed2bd2f3608a79112d25b4ec8f75753',
+        'darwin', 'arm64'),
+    Dependency(
+        'buildtools/mac/nodejs.tgz',
+        'https://storage.googleapis.com/chromium-nodejs/16.13.0/16dfd094763b71988933a31735f9dea966f9abd6',
+        '065ced7e93f0e26276cb74d9688706674323865c4a8fc89e4adfa6868d4ebb4d',
+        'darwin', 'x64'),
     Dependency(
         'buildtools/linux64/nodejs.tgz',
-        'https://storage.googleapis.com/chromium-nodejs/14.15.4/b2e40ddbac04d05baafbb007f203c6663c9d4ca9',
-        '5aa88f1e2bf036950790277f3431634f64044ec78362f3e4f0dc8da28d61e9a4',
+        'https://storage.googleapis.com/chromium-nodejs/16.13.0/ab9544e24e752d3d17f335fb7b2055062e582d11',
+        '3b5ca150a55f3aadfa18f3a10a4495aaf9653614ba3e460647170fef5287ec4f',
         'linux', 'x64'),
+
     Dependency(
         'buildtools/mac/emsdk.tgz',
         'https://storage.googleapis.com/perfetto/emscripten-2.0.12-mac.tgz',
