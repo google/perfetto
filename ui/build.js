@@ -84,7 +84,7 @@ const cfg = {
   startHttpServer: false,
   httpServerListenHost: '127.0.0.1',
   httpServerListenPort: 10000,
-  wasmModules: ['trace_processor', 'trace_to_text'],
+  wasmModules: ['trace_processor', 'traceconv'],
 
   // The fields below will be changed by main() after cmdline parsing.
   // Directory structure:
@@ -373,7 +373,7 @@ function updateSymlinks() {
       pjoin(ROOT_DIR, 'ui/node_modules'), pjoin(cfg.outTscDir, 'node_modules'))
 }
 
-// Invokes ninja for building the {trace_processor, trace_to_text} Wasm modules.
+// Invokes ninja for building the {trace_processor, traceconv} Wasm modules.
 // It copies the .wasm directly into the out/dist/ dir, and the .js/.ts into
 // out/tsc/, so the typescript compiler and the bundler can pick them up.
 function buildWasm(skipWasmBuild) {

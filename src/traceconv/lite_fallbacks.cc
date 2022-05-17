@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,23 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef TOOLS_TRACE_TO_TEXT_TRACE_TO_JSON_H_
-#define TOOLS_TRACE_TO_TEXT_TRACE_TO_JSON_H_
+// This file is used when targeting the protobuf-lite only target. It provides
+// fallback implementations for TraceToText which simply return an error
+// message.
 
-#include <iostream>
-
-#include "tools/trace_to_text/trace_to_systrace.h"
+#include "perfetto/base/logging.h"
+#include "src/traceconv/trace_to_text.h"
 
 namespace perfetto {
 namespace trace_to_text {
 
-int TraceToJson(std::istream* input,
-                std::ostream* output,
-                bool compress,
-                Keep truncate_keep,
-                bool full_sort);
+bool TraceToText(std::istream*, std::ostream*) {
+  PERFETTO_FATAL(
+      "The 'text' command is not available in lite builds of trace_to_text");
+}
 
 }  // namespace trace_to_text
 }  // namespace perfetto
-
-#endif  // TOOLS_TRACE_TO_TEXT_TRACE_TO_JSON_H_

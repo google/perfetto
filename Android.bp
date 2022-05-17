@@ -8882,6 +8882,59 @@ filegroup {
     name: "perfetto_src_trace_processor_util_util",
 }
 
+// GN: //src/traceconv:gen_cc_trace_descriptor
+genrule {
+    name: "perfetto_src_traceconv_gen_cc_trace_descriptor",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_descriptor",
+    ],
+    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    out: [
+        "src/traceconv/trace.descriptor.h",
+    ],
+    tool_files: [
+        "tools/gen_cc_proto_descriptor.py",
+    ],
+}
+
+// GN: //src/traceconv:lib
+filegroup {
+    name: "perfetto_src_traceconv_lib",
+    srcs: [
+        "src/traceconv/deobfuscate_profile.cc",
+        "src/traceconv/symbolize_profile.cc",
+        "src/traceconv/trace_to_hprof.cc",
+        "src/traceconv/trace_to_json.cc",
+        "src/traceconv/trace_to_profile.cc",
+        "src/traceconv/trace_to_systrace.cc",
+        "src/traceconv/trace_to_text.cc",
+    ],
+}
+
+// GN: //src/traceconv:main
+filegroup {
+    name: "perfetto_src_traceconv_main",
+    srcs: [
+        "src/traceconv/main.cc",
+    ],
+}
+
+// GN: //src/traceconv:pprofbuilder
+filegroup {
+    name: "perfetto_src_traceconv_pprofbuilder",
+    srcs: [
+        "src/traceconv/pprof_builder.cc",
+    ],
+}
+
+// GN: //src/traceconv:utils
+filegroup {
+    name: "perfetto_src_traceconv_utils",
+    srcs: [
+        "src/traceconv/utils.cc",
+    ],
+}
+
 // GN: //src/traced/probes/android_log:android_log
 filegroup {
     name: "perfetto_src_traced_probes_android_log_android_log",
@@ -9540,59 +9593,6 @@ filegroup {
         "test/android_test_utils.cc",
         "test/fake_producer.cc",
         "test/test_helper.cc",
-    ],
-}
-
-// GN: //tools/trace_to_text:gen_cc_trace_descriptor
-genrule {
-    name: "perfetto_tools_trace_to_text_gen_cc_trace_descriptor",
-    srcs: [
-        ":perfetto_protos_perfetto_trace_descriptor",
-    ],
-    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
-    out: [
-        "tools/trace_to_text/trace.descriptor.h",
-    ],
-    tool_files: [
-        "tools/gen_cc_proto_descriptor.py",
-    ],
-}
-
-// GN: //tools/trace_to_text:lib
-filegroup {
-    name: "perfetto_tools_trace_to_text_lib",
-    srcs: [
-        "tools/trace_to_text/deobfuscate_profile.cc",
-        "tools/trace_to_text/symbolize_profile.cc",
-        "tools/trace_to_text/trace_to_hprof.cc",
-        "tools/trace_to_text/trace_to_json.cc",
-        "tools/trace_to_text/trace_to_profile.cc",
-        "tools/trace_to_text/trace_to_systrace.cc",
-        "tools/trace_to_text/trace_to_text.cc",
-    ],
-}
-
-// GN: //tools/trace_to_text:main
-filegroup {
-    name: "perfetto_tools_trace_to_text_main",
-    srcs: [
-        "tools/trace_to_text/main.cc",
-    ],
-}
-
-// GN: //tools/trace_to_text:pprofbuilder
-filegroup {
-    name: "perfetto_tools_trace_to_text_pprofbuilder",
-    srcs: [
-        "tools/trace_to_text/pprof_builder.cc",
-    ],
-}
-
-// GN: //tools/trace_to_text:utils
-filegroup {
-    name: "perfetto_tools_trace_to_text_utils",
-    srcs: [
-        "tools/trace_to_text/utils.cc",
     ],
 }
 
@@ -10479,9 +10479,9 @@ cc_binary {
     },
 }
 
-// GN: //tools/trace_to_text:trace_to_text
+// GN: //src/traceconv:traceconv
 cc_binary_host {
-    name: "trace_to_text",
+    name: "traceconv",
     srcs: [
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
@@ -10556,10 +10556,10 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_util",
-        ":perfetto_tools_trace_to_text_lib",
-        ":perfetto_tools_trace_to_text_main",
-        ":perfetto_tools_trace_to_text_pprofbuilder",
-        ":perfetto_tools_trace_to_text_utils",
+        ":perfetto_src_traceconv_lib",
+        ":perfetto_src_traceconv_main",
+        ":perfetto_src_traceconv_pprofbuilder",
+        ":perfetto_src_traceconv_utils",
     ],
     static_libs: [
         "libsqlite",
@@ -10605,7 +10605,7 @@ cc_binary_host {
         "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
-        "perfetto_tools_trace_to_text_gen_cc_trace_descriptor",
+        "perfetto_src_traceconv_gen_cc_trace_descriptor",
     ],
     defaults: [
         "perfetto_defaults",

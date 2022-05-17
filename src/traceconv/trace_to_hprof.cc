@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "tools/trace_to_text/trace_to_hprof.h"
+#include "src/traceconv/trace_to_hprof.h"
 
 #include <algorithm>
 #include <limits>
@@ -27,7 +27,7 @@
 #include "perfetto/ext/base/endian.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "tools/trace_to_text/utils.h"
+#include "src/traceconv/utils.h"
 
 // Spec
 // http://hg.openjdk.java.net/jdk6/jdk6/jdk/raw-file/tip/src/share/demo/jvmti/hprof/manual.html#Basic_Type

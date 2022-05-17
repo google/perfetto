@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef TOOLS_TRACE_TO_TEXT_PROTO_FULL_UTILS_H_
-#define TOOLS_TRACE_TO_TEXT_PROTO_FULL_UTILS_H_
+#ifndef SRC_TRACECONV_PROTO_FULL_UTILS_H_
+#define SRC_TRACECONV_PROTO_FULL_UTILS_H_
 
 // This file provides a wrapper around protobuf libraries that can be used only
 // when targeting libprotobuf-full.
@@ -46,4 +46,4 @@ class MultiFileErrorCollectorImpl
 }  // namespace trace_to_text
 }  // namespace perfetto
 
-#endif  // TOOLS_TRACE_TO_TEXT_PROTO_FULL_UTILS_H_
+#endif  // SRC_TRACECONV_PROTO_FULL_UTILS_H_

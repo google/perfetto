@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "tools/trace_to_text/trace_to_text.h"
+#include "src/traceconv/trace_to_text.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/hash.h"
