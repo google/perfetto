@@ -26,6 +26,7 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
+#include "src/trace_processor/importers/ftrace/thread_state_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/types/task_state.h"
 
@@ -104,8 +105,7 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
              line.event_name == "0" || line.event_name == "print") {
     SystraceParser::GetOrCreate(context_)->ParsePrintEvent(
         line.ts, line.pid, line.args_str.c_str());
-  } else if (line.event_name == "sched_wakeup" ||
-             line.event_name == "sched_waking") {
+  } else if (line.event_name == "sched_waking") {
     auto comm = args["comm"];
     base::Optional<uint32_t> wakee_pid = base::StringToUInt32(args["pid"]);
     if (!wakee_pid.has_value()) {
@@ -116,13 +116,8 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     auto wakee_utid = context_->process_tracker->UpdateThreadName(
         wakee_pid.value(), name_id, ThreadNamePriority::kFtrace);
 
-    StringId event_name_id = line.event_name == "sched_wakeup"
-                                 ? sched_wakeup_name_id_
-                                 : sched_waking_name_id_;
-    auto instant = context_->storage->mutable_legacy_instant_table()->Insert(
-        {line.ts, event_name_id, wakee_utid});
-    context_->args_tracker->AddArgsTo(instant.id)
-        .AddArg(waker_utid_id_, Variadic::UnsignedInteger(utid));
+    ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(
+        line.ts, wakee_utid, utid);
 
   } else if (line.event_name == "cpu_frequency") {
     base::Optional<uint32_t> event_cpu = base::StringToUInt32(args["cpu_id"]);
@@ -256,10 +251,8 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     if (!io_wait.has_value()) {
       return util::Status("sched_blocked_reason: could not parse io_wait");
     }
-    auto instant = context_->storage->mutable_legacy_instant_table()->Insert(
-        {line.ts, sched_blocked_reason_id_, wakee_utid});
-    context_->args_tracker->AddArgsTo(instant.id)
-        .AddArg(io_wait_id_, Variadic::Boolean(*io_wait));
+    ThreadStateTracker::GetOrCreate(context_)->PushBlockedReason(
+        wakee_utid, static_cast<bool>(*io_wait), base::nullopt);
   } else if (line.event_name == "rss_stat") {
     // Format: rss_stat: size=8437760 member=1 curr=1 mm_id=2824390453
     auto size = base::StringToInt64(args["size"]);

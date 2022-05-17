@@ -1002,8 +1002,6 @@ perfetto_filegroup(
         "src/trace_processor/dynamic/experimental_slice_layout_generator.h",
         "src/trace_processor/dynamic/flamegraph_construction_algorithms.cc",
         "src/trace_processor/dynamic/flamegraph_construction_algorithms.h",
-        "src/trace_processor/dynamic/thread_state_generator.cc",
-        "src/trace_processor/dynamic/thread_state_generator.h",
     ],
 )
 
@@ -1491,6 +1489,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/ftrace/rss_stat_tracker.h",
         "src/trace_processor/importers/ftrace/sched_event_tracker.cc",
         "src/trace_processor/importers/ftrace/sched_event_tracker.h",
+        "src/trace_processor/importers/ftrace/thread_state_tracker.cc",
+        "src/trace_processor/importers/ftrace/thread_state_tracker.h",
         "src/trace_processor/importers/fuchsia/fuchsia_record.cc",
         "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.cc",
         "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h",
