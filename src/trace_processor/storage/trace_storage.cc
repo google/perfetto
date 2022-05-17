@@ -128,7 +128,7 @@ std::pair<int64_t, int64_t> TraceStorage::GetTraceTimestampBoundsNs() const {
                            &slice_table_.dur());
   DbTableMaybeUpdateMinMax(heap_profile_allocation_table_.ts(), &start_ns,
                            &end_ns);
-  DbTableMaybeUpdateMinMax(instant_table_.ts(), &start_ns, &end_ns);
+  DbTableMaybeUpdateMinMax(thread_state_table_.ts(), &start_ns, &end_ns);
   DbTableMaybeUpdateMinMax(android_log_table_.ts(), &start_ns, &end_ns);
   DbTableMaybeUpdateMinMax(heap_graph_object_table_.graph_sample_ts(),
                            &start_ns, &end_ns);
