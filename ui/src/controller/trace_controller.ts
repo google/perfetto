@@ -375,14 +375,23 @@ export class TraceController extends Controller<States> {
       Actions.setTraceTime(traceTimeState)
     ];
 
-    const [startVisibleTime, endVisibleTime] =
-        await computeVisibleTime(startSec, endSec, this.engine);
+    let visibleStartSec = startSec;
+    let visibleEndSec = endSec;
+    const mdTime = await this.engine.getTracingMetadataTimeBounds();
+    // make sure the bounds hold
+    if (Math.max(visibleStartSec, mdTime.start - TRACE_MARGIN_TIME_S) <
+      Math.min(visibleEndSec, mdTime.end + TRACE_MARGIN_TIME_S)) {
+      visibleStartSec =
+        Math.max(visibleStartSec, mdTime.start - TRACE_MARGIN_TIME_S);
+      visibleEndSec = Math.min(visibleEndSec, mdTime.end + TRACE_MARGIN_TIME_S);
+    }
+
     // We don't know the resolution at this point. However this will be
     // replaced in 50ms so a guess is fine.
-    const resolution = (endVisibleTime - startVisibleTime) / 1000;
+    const resolution = (visibleStartSec - visibleEndSec) / 1000;
     actions.push(Actions.setVisibleTraceTime({
-      startSec: startVisibleTime,
-      endSec: endVisibleTime,
+      startSec: visibleStartSec,
+      endSec: visibleEndSec,
       lastUpdate: Date.now() / 1000,
       resolution
     }));
@@ -778,29 +787,4 @@ export class TraceController extends Controller<States> {
       timestamp: Date.now() / 1000,
     }));
   }
-}
-
-async function computeVisibleTime(
-    traceStartSec: number, traceEndSec: number, engine: Engine):
-    Promise<[number, number]> {
-  // if we have non-default visible state, update the visible time to it
-  const previousVisibleState = globals.state.frontendLocalState.visibleState;
-  if (previousVisibleState.lastUpdate > 0) {
-    return [previousVisibleState.startSec, previousVisibleState.endSec];
-  }
-
-  // initialise visible time to the trace time bounds
-  let visibleStartSec = traceStartSec;
-  let visibleEndSec = traceEndSec;
-
-  // compare start and end with metadata computed by the trace processor
-  const mdTime = await engine.getTracingMetadataTimeBounds();
-  // make sure the bounds hold
-  if (Math.max(visibleStartSec, mdTime.start - TRACE_MARGIN_TIME_S) <
-      Math.min(visibleEndSec, mdTime.end + TRACE_MARGIN_TIME_S)) {
-    visibleStartSec =
-        Math.max(visibleStartSec, mdTime.start - TRACE_MARGIN_TIME_S);
-    visibleEndSec = Math.min(visibleEndSec, mdTime.end + TRACE_MARGIN_TIME_S);
-  }
-  return [visibleStartSec, visibleEndSec];
 }
