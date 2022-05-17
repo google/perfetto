@@ -103,10 +103,6 @@ class ArgsTracker {
     return AddArgsTo(context_->storage->mutable_counter_table(), id);
   }
 
-  BoundInserter AddArgsTo(InstantId id) {
-    return AddArgsTo(context_->storage->mutable_legacy_instant_table(), id);
-  }
-
   BoundInserter AddArgsTo(SliceId id) {
     return AddArgsTo(context_->storage->mutable_slice_table(), id);
   }

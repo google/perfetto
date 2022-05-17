@@ -8276,7 +8276,6 @@ filegroup {
         "src/trace_processor/dynamic/experimental_sched_upid_generator.cc",
         "src/trace_processor/dynamic/experimental_slice_layout_generator.cc",
         "src/trace_processor/dynamic/flamegraph_construction_algorithms.cc",
-        "src/trace_processor/dynamic/thread_state_generator.cc",
     ],
 }
 
@@ -8287,7 +8286,6 @@ filegroup {
         "src/trace_processor/dynamic/experimental_counter_dur_generator_unittest.cc",
         "src/trace_processor/dynamic/experimental_flat_slice_generator_unittest.cc",
         "src/trace_processor/dynamic/experimental_slice_layout_generator_unittest.cc",
-        "src/trace_processor/dynamic/thread_state_generator_unittest.cc",
     ],
 }
 
@@ -8698,6 +8696,7 @@ filegroup {
         "src/trace_processor/importers/ftrace/ftrace_tokenizer.cc",
         "src/trace_processor/importers/ftrace/rss_stat_tracker.cc",
         "src/trace_processor/importers/ftrace/sched_event_tracker.cc",
+        "src/trace_processor/importers/ftrace/thread_state_tracker.cc",
         "src/trace_processor/importers/fuchsia/fuchsia_record.cc",
         "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.cc",
         "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.cc",
@@ -8814,6 +8813,7 @@ filegroup {
         "src/trace_processor/forwarding_trace_parser_unittest.cc",
         "src/trace_processor/importers/ftrace/binder_tracker_unittest.cc",
         "src/trace_processor/importers/ftrace/sched_event_tracker_unittest.cc",
+        "src/trace_processor/importers/ftrace/thread_state_tracker_unittest.cc",
         "src/trace_processor/importers/fuchsia/fuchsia_trace_utils_unittest.cc",
         "src/trace_processor/importers/memory_tracker/graph_processor_unittest.cc",
         "src/trace_processor/importers/memory_tracker/graph_unittest.cc",
