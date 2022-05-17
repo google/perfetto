@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "tools/trace_to_text/trace_to_json.h"
+#include "src/traceconv/trace_to_json.h"
 
 #include <stdio.h>
 
@@ -22,7 +22,7 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "tools/trace_to_text/utils.h"
+#include "src/traceconv/utils.h"
 
 namespace perfetto {
 namespace trace_to_text {

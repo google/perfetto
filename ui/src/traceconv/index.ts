@@ -18,7 +18,7 @@ import {
   ConversionJobName,
   ConversionJobStatus
 } from '../common/conversion_jobs';
-import * as trace_to_text from '../gen/trace_to_text';
+import * as traceconv from '../gen/traceconv';
 
 const selfWorker = self as {} as Worker;
 
@@ -66,14 +66,14 @@ function forwardError(error: string) {
   });
 }
 
-function fsNodeToBuffer(fsNode: trace_to_text.FileSystemNode): Uint8Array {
+function fsNodeToBuffer(fsNode: traceconv.FileSystemNode): Uint8Array {
   const fileSize = assertExists(fsNode.usedBytes);
   return new Uint8Array(fsNode.contents.buffer, 0, fileSize);
 }
 
 async function runTraceconv(trace: Blob, args: string[]) {
   const deferredRuntimeInitialized = defer<void>();
-  const module = trace_to_text({
+  const module = traceconv({
     noInitialRun: true,
     locateFile: (s: string) => s,
     print: updateStatus,

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "tools/trace_to_text/symbolize_profile.h"
+#include "src/traceconv/symbolize_profile.h"
 
 #include <vector>
 
@@ -28,7 +28,7 @@
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "tools/trace_to_text/utils.h"
+#include "src/traceconv/utils.h"
 
 namespace perfetto {
 namespace trace_to_text {

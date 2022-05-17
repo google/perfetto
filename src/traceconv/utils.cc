@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "tools/trace_to_text/utils.h"
+#include "src/traceconv/utils.h"
 
 #include <stdio.h>
 

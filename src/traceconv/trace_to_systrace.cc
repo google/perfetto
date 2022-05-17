@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "tools/trace_to_text/trace_to_systrace.h"
+#include "src/traceconv/trace_to_systrace.h"
 
 #include <stdio.h>
 
@@ -30,7 +30,7 @@
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "tools/trace_to_text/utils.h"
+#include "src/traceconv/utils.h"
 
 #define FILTER_RAW_EVENTS \
   " where not (name like \"chrome_event.%\" or name like \"track_event.%\")"

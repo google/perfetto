@@ -40,7 +40,7 @@
 #include "src/profiling/symbolizer/symbolize_database.h"
 #include "src/profiling/symbolizer/symbolizer.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "tools/trace_to_text/utils.h"
+#include "src/traceconv/utils.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"

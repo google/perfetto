@@ -14,35 +14,30 @@
  * limitations under the License.
  */
 
-#ifndef TOOLS_TRACE_TO_TEXT_TRACE_TO_SYSTRACE_H_
-#define TOOLS_TRACE_TO_TEXT_TRACE_TO_SYSTRACE_H_
+#ifndef SRC_TRACECONV_TRACE_TO_PROFILE_H_
+#define SRC_TRACECONV_TRACE_TO_PROFILE_H_
 
 #include <iostream>
+#include <vector>
 
 namespace perfetto {
-
-namespace trace_processor {
-class TraceProcessor;
-}  // namespace trace_processor
-
 namespace trace_to_text {
 
-class TraceWriter;
+// 0: success
+int TraceToHeapProfile(std::istream* input,
+                       std::ostream* output,
+                       uint64_t pid,
+                       std::vector<uint64_t> timestamps,
+                       bool annotate_frames);
 
-enum class Keep { kStart = 0, kEnd, kAll };
-
-int TraceToSystrace(std::istream* input,
-                    std::ostream* output,
-                    bool ctrace,
-                    Keep truncate_keep,
-                    bool full_sort);
-
-int ExtractSystrace(trace_processor::TraceProcessor*,
-                    TraceWriter*,
-                    bool wrapped_in_json,
-                    Keep truncate_keep);
+// 0: success
+int TraceToPerfProfile(std::istream* input,
+                       std::ostream* output,
+                       uint64_t pid,
+                       std::vector<uint64_t> timestamps,
+                       bool annotate_frames);
 
 }  // namespace trace_to_text
 }  // namespace perfetto
 
-#endif  // TOOLS_TRACE_TO_TEXT_TRACE_TO_SYSTRACE_H_
+#endif  // SRC_TRACECONV_TRACE_TO_PROFILE_H_
