@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "tools/trace_to_text/trace_to_profile.h"
+#include "src/traceconv/trace_to_profile.h"
 
 #include <random>
 #include <string>
@@ -23,7 +23,7 @@
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/profiling/symbolizer/local_symbolizer.h"
 #include "src/profiling/symbolizer/symbolize_database.h"
-#include "tools/trace_to_text/utils.h"
+#include "src/traceconv/utils.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"

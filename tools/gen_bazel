@@ -59,8 +59,8 @@ public_targets = [
     '//src/traced/service:traced',
     '//src/trace_processor:trace_processor_shell',
     '//src/trace_processor:trace_processor',
-    '//tools/trace_to_text:trace_to_text',
-    '//tools/trace_to_text:libpprofbuilder',
+    '//src/traceconv:traceconv',
+    '//src/traceconv:libpprofbuilder',
 ]
 
 # These targets are required by internal build rules but don't need to be

@@ -24,13 +24,13 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/version.h"
-#include "tools/trace_to_text/deobfuscate_profile.h"
-#include "tools/trace_to_text/symbolize_profile.h"
-#include "tools/trace_to_text/trace_to_hprof.h"
-#include "tools/trace_to_text/trace_to_json.h"
-#include "tools/trace_to_text/trace_to_profile.h"
-#include "tools/trace_to_text/trace_to_systrace.h"
-#include "tools/trace_to_text/trace_to_text.h"
+#include "src/traceconv/deobfuscate_profile.h"
+#include "src/traceconv/symbolize_profile.h"
+#include "src/traceconv/trace_to_hprof.h"
+#include "src/traceconv/trace_to_json.h"
+#include "src/traceconv/trace_to_profile.h"
+#include "src/traceconv/trace_to_systrace.h"
+#include "src/traceconv/trace_to_text.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <unistd.h>

@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "tools/trace_to_text/trace_to_text.h"
+#include "src/traceconv/trace_to_text.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/protozero/proto_ring_buffer.h"
-#include "tools/trace_to_text/trace.descriptor.h"
-#include "tools/trace_to_text/utils.h"
+#include "src/traceconv/trace.descriptor.h"
+#include "src/traceconv/utils.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
