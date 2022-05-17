@@ -51,7 +51,7 @@ SCRIPTS_TO_UPDATE = [
     },
     {
         'script': 'traceconv',
-        'tool': 'trace_to_text',
+        'tool': 'traceconv',
         'archs': ['mac-amd64', 'mac-arm64', 'linux-amd64', 'windows-amd64']
     },
     {
@@ -66,12 +66,12 @@ SCRIPTS_TO_UPDATE = [
     },
     {
         'script': 'heap_profile',
-        'tool': 'trace_to_text',
+        'tool': 'traceconv',
         'archs': ['mac-amd64', 'mac-arm64', 'windows-amd64', 'linux-amd64']
     },
     {
         'script': 'cpu_profile',
-        'tool': 'trace_to_text',
+        'tool': 'traceconv',
         'archs': ['mac-amd64', 'windows-amd64', 'linux-amd64']
     },
     {

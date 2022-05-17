@@ -196,16 +196,16 @@ else
 fi
 
 if is_android "$OUT"; then
-  TRACE_TO_TEXT="gcc_like_host/trace_to_text"
+  TRACECONV="gcc_like_host/traceconv"
 else
-  TRACE_TO_TEXT="trace_to_text"
+  TRACECONV="traceconv"
 fi
 
 
 # (re)build the binaries
 BUILD_TARGETS=(traced traced_probes perfetto test/configs)
 if [[ SKIP_CONVERTERS -eq 0 ]]; then
-  BUILD_TARGETS+=($TRACE_TO_TEXT)
+  BUILD_TARGETS+=($TRACECONV)
 fi
 
 "$SCRIPT_DIR/ninja" -C "$OUT" ${BUILD_TARGETS[*]}
@@ -384,5 +384,5 @@ pull trace "$TRACE.perfetto-trace"
 
 if [[ SKIP_CONVERTERS -eq 0 ]]; then
   echo -e "\n\x1b[32mPulling trace into $TRACE.pbtext\x1b[0m"
-  "$OUT/$TRACE_TO_TEXT" text <"$TRACE.perfetto-trace" >"$TRACE.pbtext"
+  "$OUT/$TRACECONV" text <"$TRACE.perfetto-trace" >"$TRACE.pbtext"
 fi

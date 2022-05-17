@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,27 +14,18 @@
  * limitations under the License.
  */
 
-#ifndef TOOLS_TRACE_TO_TEXT_TRACE_TO_HPROF_H_
-#define TOOLS_TRACE_TO_TEXT_TRACE_TO_HPROF_H_
+#ifndef SRC_TRACECONV_SYMBOLIZE_PROFILE_H_
+#define SRC_TRACECONV_SYMBOLIZE_PROFILE_H_
 
+#include <functional>
 #include <iostream>
-#include <vector>
-#include "perfetto/trace_processor/trace_processor.h"
 
 namespace perfetto {
 namespace trace_to_text {
 
-int TraceToHprof(trace_processor::TraceProcessor* tp,
-                 std::ostream* output,
-                 uint64_t pid,
-                 uint64_t timestamp);
-
-int TraceToHprof(std::istream* input,
-                 std::ostream* output,
-                 uint64_t pid = 0,
-                 std::vector<uint64_t> timestamps = {});
+int SymbolizeProfile(std::istream* input, std::ostream* output);
 
 }  // namespace trace_to_text
 }  // namespace perfetto
 
-#endif  // TOOLS_TRACE_TO_TEXT_TRACE_TO_HPROF_H_
+#endif  // SRC_TRACECONV_SYMBOLIZE_PROFILE_H_

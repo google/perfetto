@@ -299,8 +299,8 @@ declare_args() {
 }
 
 declare_args() {
-  # Enables the trace_to_text tool.
-  enable_perfetto_tools_trace_to_text =
+  # Enables the traceconv tool.
+  enable_perfetto_traceconv =
       enable_perfetto_tools && enable_perfetto_trace_processor_sqlite
 
   # Allows to build the UI (TypeScript/ HTML / WASM)

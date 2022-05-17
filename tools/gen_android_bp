@@ -79,7 +79,7 @@ cppgen_plugin = '//src/protozero/protoc_plugin:cppgen_plugin(%s)' % (
     gn_utils.HOST_TOOLCHAIN)
 
 default_targets += [
-    '//tools/trace_to_text:trace_to_text(%s)' % gn_utils.HOST_TOOLCHAIN,
+    '//src/traceconv:traceconv(%s)' % gn_utils.HOST_TOOLCHAIN,
     protozero_plugin,
     ipc_plugin,
 ]
@@ -620,7 +620,7 @@ def label_to_module_name(label):
   """Turn a GN label (e.g., //:perfetto_tests) into a module name."""
   # If the label is explicibly listed in the default target list, don't prefix
   # its name and return just the target name. This is so tools like
-  # "trace_to_text" stay as such in the Android tree.
+  # "traceconv" stay as such in the Android tree.
   label_without_toolchain = gn_utils.label_without_toolchain(label)
   if label in default_targets or label_without_toolchain in default_targets:
     return label_without_toolchain.split(':')[-1]
