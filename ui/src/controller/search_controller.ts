@@ -30,6 +30,10 @@ export function escapeQuery(s: string): string {
   return `'%${s}%' escape '^'`;
 }
 
+export function escapeSingleQuotes(s: string): string {
+  return s.replace(/\'/g, '\'\'');
+}
+
 export interface SearchControllerArgs {
   engine: Engine;
   app: App;
@@ -256,7 +260,10 @@ export class SearchController extends Controller<'main'> {
       0 as utid
       from slice
       where slice.name like ${searchLiteral}
-        ${isNaN(Number(search)) ? '' : `or sliceId = ${search}`}
+        or (
+          0 != CAST('${escapeSingleQuotes(search)}' AS INT) and
+          sliceId = CAST('${escapeSingleQuotes(search)}' AS INT)
+        )
     union
     select
       slice_id as sliceId,
