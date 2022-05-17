@@ -109,7 +109,7 @@
       "-C",
       "[CACHE]/builder/perfetto/out/linux-amd64",
       "trace_processor_shell",
-      "trace_to_text",
+      "traceconv",
       "tracebox",
       "perfetto",
       "traced",

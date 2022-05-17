@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "tools/trace_to_text/proto_full_utils.h"
+#include "src/traceconv/proto_full_utils.h"
 
 namespace perfetto {
 namespace trace_to_text {

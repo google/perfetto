@@ -84,7 +84,7 @@ tools/ninja -C out/android \
   traced_probes \          # Ftrace interop and /proc poller.
   perfetto \               # Cmdline client.
   trace_processor_shell \  # Trace parsing.
-  trace_to_text            # Trace conversion.
+  traceconv                # Trace conversion.
 ...
 ```
 
@@ -202,7 +202,7 @@ chrome://tracing). The MSVC build is maintained best-effort.
 The following targets are supported on Windows:
 
 - `trace_processor_shell`: the trace importer and SQL query engine.
-- `trace_to_text`: the trace conversion tool.
+- `traceconv`: the trace conversion tool.
 - `traced` and `perfetto`: the tracing service and cmdline client. They use an
   alternative implementation of the [inter-process tracing protocol](/docs/design-docs/api-and-abi.md#tracing-protocol-abi)
   based on a TCP socket and named shared memory. This configuration is only for

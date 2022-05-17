@@ -23,8 +23,8 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/profiling/deobfuscator.h"
-#include "tools/trace_to_text/deobfuscate_profile.h"
-#include "tools/trace_to_text/utils.h"
+#include "src/traceconv/deobfuscate_profile.h"
+#include "src/traceconv/utils.h"
 
 namespace perfetto {
 namespace trace_to_text {

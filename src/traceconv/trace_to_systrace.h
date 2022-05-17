@@ -14,18 +14,35 @@
  * limitations under the License.
  */
 
-#ifndef TOOLS_TRACE_TO_TEXT_TRACE_TO_TEXT_H_
-#define TOOLS_TRACE_TO_TEXT_TRACE_TO_TEXT_H_
+#ifndef SRC_TRACECONV_TRACE_TO_SYSTRACE_H_
+#define SRC_TRACECONV_TRACE_TO_SYSTRACE_H_
 
 #include <iostream>
 
 namespace perfetto {
+
+namespace trace_processor {
+class TraceProcessor;
+}  // namespace trace_processor
+
 namespace trace_to_text {
 
-// Returns true in case of success.
-bool TraceToText(std::istream* input, std::ostream* output);
+class TraceWriter;
+
+enum class Keep { kStart = 0, kEnd, kAll };
+
+int TraceToSystrace(std::istream* input,
+                    std::ostream* output,
+                    bool ctrace,
+                    Keep truncate_keep,
+                    bool full_sort);
+
+int ExtractSystrace(trace_processor::TraceProcessor*,
+                    TraceWriter*,
+                    bool wrapped_in_json,
+                    Keep truncate_keep);
 
 }  // namespace trace_to_text
 }  // namespace perfetto
 
-#endif  // TOOLS_TRACE_TO_TEXT_TRACE_TO_TEXT_H_
+#endif  // SRC_TRACECONV_TRACE_TO_SYSTRACE_H_
