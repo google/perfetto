@@ -36,7 +36,6 @@ import {
   ThreadStateDetails
 } from './globals';
 import {findCurrentSelection} from './keyboard_event_handler';
-import {PivotTableHelper} from './pivot_table_helper';
 
 export function publishOverviewData(
     data: {[key: string]: QuantizedLoad|QuantizedLoad[]}) {
@@ -149,12 +148,6 @@ export function publishAggregateData(
 export function publishQueryResult(args: {id: string, data?: {}}) {
   globals.queryResults.set(args.id, args.data);
   globals.dispatch(Actions.setCurrentTab({tab: 'query_result'}));
-  globals.publishRedraw();
-}
-
-export function publishPivotTableHelper(
-    args: {id: string, data: PivotTableHelper}) {
-  globals.pivotTableHelper.set(args.id, args.data);
   globals.publishRedraw();
 }
 
