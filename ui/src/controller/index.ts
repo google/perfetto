@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import '../gen/all_tracks';
+import '../common/recordingV2/target_factories';
 
 import {assertTrue} from '../base/logging';
 import {ControllerWorkerInitMessage} from '../common/worker_messages';
