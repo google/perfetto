@@ -26,9 +26,10 @@ INSERT INTO device VALUES ('walleye');
 
 -- Select the top 10 threads by power usage.
 SELECT
-  utid,
+  tid,
   SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
 FROM power_per_thread
+JOIN thread USING (utid)
 GROUP BY utid
 ORDER BY power_mas DESC
 LIMIT 10;

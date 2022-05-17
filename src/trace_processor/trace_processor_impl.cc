@@ -35,7 +35,6 @@
 #include "src/trace_processor/dynamic/experimental_flat_slice_generator.h"
 #include "src/trace_processor/dynamic/experimental_sched_upid_generator.h"
 #include "src/trace_processor/dynamic/experimental_slice_layout_generator.h"
-#include "src/trace_processor/dynamic/thread_state_generator.h"
 #include "src/trace_processor/export_json.h"
 #include "src/trace_processor/importers/additional_modules.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -973,8 +972,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDynamicTable(std::unique_ptr<ExperimentalSchedUpidGenerator>(
       new ExperimentalSchedUpidGenerator(storage->sched_slice_table(),
                                          storage->thread_table())));
-  RegisterDynamicTable(std::unique_ptr<ThreadStateGenerator>(
-      new ThreadStateGenerator(&context_)));
   RegisterDynamicTable(std::unique_ptr<ExperimentalAnnotatedStackGenerator>(
       new ExperimentalAnnotatedStackGenerator(&context_)));
   RegisterDynamicTable(std::unique_ptr<ExperimentalFlatSliceGenerator>(
@@ -989,6 +986,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->flow_table());
   RegisterDbTable(storage->thread_slice_table());
   RegisterDbTable(storage->sched_slice_table());
+  RegisterDbTable(storage->thread_state_table());
   RegisterDbTable(storage->gpu_slice_table());
 
   RegisterDbTable(storage->track_table());
