@@ -38,8 +38,6 @@ source_set("dynamic") {
     "experimental_slice_layout_generator.h",
     "flamegraph_construction_algorithms.cc",
     "flamegraph_construction_algorithms.h",
-    "thread_state_generator.cc",
-    "thread_state_generator.h",
   ]
   deps = [
     "../../../gn:default_deps",
@@ -64,7 +62,6 @@ source_set("unittests") {
     "experimental_counter_dur_generator_unittest.cc",
     "experimental_flat_slice_generator_unittest.cc",
     "experimental_slice_layout_generator_unittest.cc",
-    "thread_state_generator_unittest.cc",
   ]
   deps = [
     ":dynamic",

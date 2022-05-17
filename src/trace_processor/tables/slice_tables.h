@@ -47,21 +47,6 @@ PERFETTO_TP_TABLE(PERFETTO_TP_SLICE_TABLE_DEF);
 
 // @tablegroup Events
 // @param ts timestamp of the start of the slice (in nanoseconds)
-// @param arg_set_id {@joinable args.arg_set_id}
-// Deprecated: use table "instant"
-// TODO(b/174007010): Remove after nobody uses it anymore
-#define PERFETTO_TP_LEGACY_INSTANT_TABLE_DEF(NAME, PARENT, C) \
-  NAME(LegacyInstantTable, "legacy_instant")                  \
-  PERFETTO_TP_ROOT_TABLE(PARENT, C)                           \
-  C(int64_t, ts, Column::Flag::kSorted)                       \
-  C(StringPool::Id, name)                                     \
-  C(uint32_t, utid)                                           \
-  C(uint32_t, arg_set_id)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_LEGACY_INSTANT_TABLE_DEF);
-
-// @tablegroup Events
-// @param ts timestamp of the start of the slice (in nanoseconds)
 // @param dur duration of the slice (in nanoseconds)
 // @param utid {@joinable thread.utid}
 #define PERFETTO_TP_SCHED_SLICE_TABLE_DEF(NAME, PARENT, C) \
