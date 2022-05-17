@@ -14,30 +14,18 @@
  * limitations under the License.
  */
 
-#ifndef TOOLS_TRACE_TO_TEXT_TRACE_TO_PROFILE_H_
-#define TOOLS_TRACE_TO_TEXT_TRACE_TO_PROFILE_H_
+#ifndef SRC_TRACECONV_TRACE_TO_TEXT_H_
+#define SRC_TRACECONV_TRACE_TO_TEXT_H_
 
 #include <iostream>
-#include <vector>
 
 namespace perfetto {
 namespace trace_to_text {
 
-// 0: success
-int TraceToHeapProfile(std::istream* input,
-                       std::ostream* output,
-                       uint64_t pid,
-                       std::vector<uint64_t> timestamps,
-                       bool annotate_frames);
-
-// 0: success
-int TraceToPerfProfile(std::istream* input,
-                       std::ostream* output,
-                       uint64_t pid,
-                       std::vector<uint64_t> timestamps,
-                       bool annotate_frames);
+// Returns true in case of success.
+bool TraceToText(std::istream* input, std::ostream* output);
 
 }  // namespace trace_to_text
 }  // namespace perfetto
 
-#endif  // TOOLS_TRACE_TO_TEXT_TRACE_TO_PROFILE_H_
+#endif  // SRC_TRACECONV_TRACE_TO_TEXT_H_

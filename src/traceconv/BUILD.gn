@@ -18,7 +18,7 @@ import("../../gn/perfetto_host_executable.gni")
 import("../../gn/test.gni")
 import("../../gn/wasm.gni")
 
-executable("trace_to_text") {
+executable("traceconv") {
   testonly = true
   deps = [
     ":main",
@@ -121,8 +121,8 @@ source_set("main") {
 }
 
 if (enable_perfetto_ui) {
-  wasm_lib("trace_to_text_wasm") {
-    name = "trace_to_text"
+  wasm_lib("traceconv_wasm") {
+    name = "traceconv"
     deps = [
       ":main",
       "../../gn:default_deps",
