@@ -47,7 +47,11 @@ export interface Route {
  *   This is client-only. All the routing logic in the Perfetto UI uses only
  *   this.
  */
-export interface RouteArgs {
+
+// This must be a type literial to avoid having to duplicate the
+// index type logic of Params.
+// tslint:disable-next-line interface-over-type-literal
+export type RouteArgs = {
   // The local_cache_key is special and is persisted across navigations.
   local_cache_key?: string;
 
@@ -56,7 +60,7 @@ export interface RouteArgs {
   s?: string;    // For permalinks.
   p?: string;    // DEPRECATED: for #!/record?p=cpu subpages (b/191255021).
   url?: string;  // For fetching traces from Cloud Storage.
-}
+};
 
 export interface RoutesMap {
   [key: string]: m.Component<PageAttrs>;
