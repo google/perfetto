@@ -181,6 +181,108 @@ class MacroTable : public Table {
   const Table* parent_ = nullptr;
 };
 
+// Abstract iterator class for macro tables.
+// Extracted to allow sharing with view code.
+template <typename Iterator,
+          typename MacroTable,
+          typename RowNumber,
+          typename ConstRowReference>
+class AbstractConstIterator {
+ public:
+  explicit operator bool() const { return its_[0]; }
+
+  Iterator& operator++() {
+    for (RowMap::Iterator& it : its_) {
+      it.Next();
+    }
+    return *this_it();
+  }
+
+  // Returns a RowNumber for the current row.
+  RowNumber row_number() const {
+    return RowNumber(this_it()->CurrentRowNumber());
+  }
+
+  // Returns a ConstRowReference to the current row.
+  ConstRowReference row_reference() const {
+    return ConstRowReference(table_, this_it()->CurrentRowNumber());
+  }
+
+ protected:
+  explicit AbstractConstIterator(const MacroTable* table,
+                                 std::vector<RowMap> row_maps)
+      : row_maps_(std::move(row_maps)), table_(table) {
+    static_assert(std::is_base_of<Table, MacroTable>::value,
+                  "Template param should be a subclass of Table.");
+
+    for (const auto& rm : row_maps_) {
+      its_.emplace_back(rm.IterateRows());
+    }
+  }
+
+  // Must not be modified as |its_| contains pointers into this vector.
+  std::vector<RowMap> row_maps_;
+  std::vector<RowMap::Iterator> its_;
+
+  const MacroTable* table_;
+
+ private:
+  Iterator* this_it() { return static_cast<Iterator*>(this); }
+  const Iterator* this_it() const { return static_cast<const Iterator*>(this); }
+};
+
+// Abstract RowNumber class for macro tables.
+// Extracted to allow sharing with view code.
+template <typename MacroTable,
+          typename ConstRowReference,
+          typename RowReference = void>
+class AbstractRowNumber {
+ public:
+  // Converts this RowNumber to a RowReference for the given |table|.
+  template <
+      typename RR = RowReference,
+      typename = typename std::enable_if<!std::is_same<RR, void>::value>::type>
+  RR ToRowReference(MacroTable* table) const {
+    return RR(table, row_number_);
+  }
+
+  // Converts this RowNumber to a ConstRowReference for the given |table|.
+  ConstRowReference ToRowReference(const MacroTable& table) const {
+    return ConstRowReference(&table, row_number_);
+  }
+
+  // Converts this object to the underlying int value.
+  uint32_t row_number() const { return row_number_; }
+
+  // Allows sorting + storage in a map/set.
+  bool operator<(const AbstractRowNumber& other) const {
+    return row_number_ < other.row_number_;
+  }
+
+ protected:
+  explicit AbstractRowNumber(uint32_t row_number) : row_number_(row_number) {}
+
+ private:
+  uint32_t row_number_ = 0;
+};
+
+// Abstract ConstRowReference class for macro tables.
+// Extracted to allow sharing with view code.
+template <typename MacroTable, typename RowNumber>
+class AbstractConstRowReference {
+ public:
+  // Converts this RowReference to a RowNumber object which is more memory
+  // efficient to store.
+  RowNumber ToRowNumber() { return RowNumber(row_number_); }
+
+ protected:
+  AbstractConstRowReference(const MacroTable* table, uint32_t row_number)
+      : table_(table), row_number_(row_number) {}
+
+  const MacroTable* table_ = nullptr;
+  uint32_t row_number_ = 0;
+};
+
 }  // namespace macros_internal
 
 // Ignore GCC warning about a missing argument for a variadic macro parameter.
@@ -380,7 +482,7 @@ class MacroTable : public Table {
 // Defines the setter for the column value in the Iterator.
 #define PERFETTO_TP_TABLE_IT_SETTER(type, name, ...)        \
   void set_##name(TypedColumn<type>::non_optional_type v) { \
-    auto* col = table_->mutable_##name();                   \
+    auto* col = mutable_table_->mutable_##name();           \
     col->SetAtIdx(its_[col->row_map_index()].index(), v);   \
   }
 
@@ -392,6 +494,13 @@ class MacroTable : public Table {
 #define PERFETTO_TP_TABLE_INTERNAL(table_name, class_name, parent_class_name, \
                                    DEF)                                       \
   class class_name : public macros_internal::MacroTable {                     \
+   public:                                                                    \
+    /* Forward declaration to allow free usage below. */                      \
+    class ConstRowReference;                                                  \
+    class RowReference;                                                       \
+    class RowNumber;                                                          \
+    class ConstIterator;                                                      \
+                                                                              \
    private:                                                                   \
     /*                                                                        \
      * Allows IdHelper to access DefinedId for root tables.                   \
@@ -400,9 +509,21 @@ class MacroTable : public Table {
      */                                                                       \
     friend struct macros_internal::IdHelper<parent_class_name, class_name>;   \
                                                                               \
+    /* Whether or not this is a root table */                                 \
     static constexpr bool kIsRootTable =                                      \
         std::is_same<parent_class_name,                                       \
                      macros_internal::RootParentTable>::value;                \
+                                                                              \
+    /* Aliases to reduce clutter in class defintions below. */                \
+    using AbstractRowNumber = macros_internal::                               \
+        AbstractRowNumber<class_name, ConstRowReference, RowReference>;       \
+    using AbstractConstRowReference =                                         \
+        macros_internal::AbstractConstRowReference<class_name, RowNumber>;    \
+    using AbstractConstIterator =                                             \
+        macros_internal::AbstractConstIterator<ConstIterator,                 \
+                                               class_name,                    \
+                                               RowNumber,                     \
+                                               ConstRowReference>;            \
                                                                               \
     enum class ColumnIndexEnum {                                              \
       id,                                                                     \
@@ -477,18 +598,16 @@ class MacroTable : public Table {
     static_assert(std::is_trivially_destructible<Row>::value,                 \
                   "Inheritance used without trivial destruction");            \
                                                                               \
-    class RowNumber;                                                          \
-                                                                              \
     /*                                                                        \
      * Reference to a row which exists in the table.                          \
      *                                                                        \
      * Allows caller code to store and instances of this object without       \
      * having to interact with row numbers.                                   \
      */                                                                       \
-    class ConstRowReference {                                                 \
+    class ConstRowReference : public AbstractConstRowReference {              \
      public:                                                                  \
       ConstRowReference(const class_name* table, uint32_t row_number)         \
-          : table_(table), row_number_(row_number) {}                         \
+          : AbstractConstRowReference(table, row_number) {}                   \
                                                                               \
       PERFETTO_TP_TABLE_CONST_ROW_REF_GETTER(Id, id)                          \
       PERFETTO_TP_TABLE_CONST_ROW_REF_GETTER(StringPool::Id, type)            \
@@ -499,22 +618,13 @@ class MacroTable : public Table {
        * ...                                                                  \
        */                                                                     \
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_CONST_ROW_REF_GETTER)    \
-                                                                              \
-      /*                                                                      \
-       * Converts this RowReference to a RowNumber object which is more       \
-       * memory efficient to store.                                           \
-       */                                                                     \
-      RowNumber ToRowNumber();                                                \
-                                                                              \
-     protected:                                                               \
-      const class_name* table_ = nullptr;                                     \
-      uint32_t row_number_ = 0;                                               \
     };                                                                        \
     static_assert(std::is_trivially_destructible<ConstRowReference>::value,   \
                   "Inheritance used without trivial destruction");            \
                                                                               \
     /*                                                                        \
-     * Reference to a rosrc/trace_processor/tables/macros_internal.h          \
+     * Reference to a row which exists in the table.                          \
+     *                                                                        \
      * Allows caller code to store and instances of this object without       \
      * having to interact with row numbers.                                   \
      */                                                                       \
@@ -542,26 +652,13 @@ class MacroTable : public Table {
      * Strongly typed wrapper around the row index. Prefer storing this over  \
      * storing RowReference to reduce memory usage                            \
      */                                                                       \
-    class RowNumber {                                                         \
+    class RowNumber : public AbstractRowNumber {                              \
      public:                                                                  \
-      explicit RowNumber(uint32_t row_number) : row_number_(row_number) {}    \
-                                                                              \
-      RowReference ToRowReference(class_name* table) {                        \
-        return RowReference(table, row_number_);                              \
-      }                                                                       \
-      ConstRowReference ToRowReference(const class_name& table) {             \
-        return ConstRowReference(&table, row_number_);                        \
-      }                                                                       \
-                                                                              \
-      bool operator<(const RowNumber& other) const {                          \
-        return row_number_ < other.row_number_;                               \
-      }                                                                       \
-                                                                              \
-      uint32_t row_number() const { return row_number_; }                     \
-                                                                              \
-     private:                                                                 \
-      uint32_t row_number_;                                                   \
+      explicit RowNumber(uint32_t row_number)                                 \
+          : AbstractRowNumber(row_number) {}                                  \
     };                                                                        \
+    static_assert(std::is_trivially_destructible<RowNumber>::value,           \
+                  "Inheritance used without trivial destruction");            \
                                                                               \
     /* Return value of Insert giving access to id and row number */           \
     struct IdAndRow {                                                         \
@@ -577,15 +674,8 @@ class MacroTable : public Table {
      * Allows efficient retrieval of values from this table without having to \
      * deal with row numbers, RowMaps or indices.                             \
      */                                                                       \
-    class ConstIterator {                                                     \
+    class ConstIterator : public AbstractConstIterator {                      \
      public:                                                                  \
-      explicit operator bool() { return its_[0]; }                            \
-                                                                              \
-      ConstIterator& operator++() {                                           \
-        Next();                                                               \
-        return *this;                                                         \
-      }                                                                       \
-                                                                              \
       PERFETTO_TP_TABLE_CONST_IT_GETTER(Id, id)                               \
       PERFETTO_TP_TABLE_CONST_IT_GETTER(StringPool::Id, type)                 \
                                                                               \
@@ -596,35 +686,15 @@ class MacroTable : public Table {
        */                                                                     \
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_CONST_IT_GETTER)         \
                                                                               \
-      /* Returns a RowNumber for the current row. */                          \
-      RowNumber row_number() const {                                          \
-        return RowNumber(CurrentRowNumberInTable());                          \
-      }                                                                       \
-                                                                              \
-      /* Returns a RowReference to the current row. */                        \
-      ConstRowReference row_reference() const {                               \
-        return ConstRowReference(table_, CurrentRowNumberInTable());          \
-      }                                                                       \
-                                                                              \
      protected:                                                               \
       /*                                                                      \
        * Must not be public to avoid buggy code because of inheritance        \
        * without virtual destructor.                                          \
        */                                                                     \
       explicit ConstIterator(const class_name* table, std::vector<RowMap> rm) \
-          : row_maps_(std::move(rm)), table_(table) {                         \
-        for (const auto& rm : row_maps_) {                                    \
-          its_.emplace_back(rm.IterateRows());                                \
-        }                                                                     \
-      }                                                                       \
+          : AbstractConstIterator(table, std::move(rm)) {}                    \
                                                                               \
-      void Next() {                                                           \
-        for (RowMap::Iterator & it : its_) {                                  \
-          it.Next();                                                          \
-        }                                                                     \
-      }                                                                       \
-                                                                              \
-      uint32_t CurrentRowNumberInTable() const {                              \
+      uint32_t CurrentRowNumber() const {                                     \
         /*                                                                    \
          * Because the last RowMap belongs to this table it will be dense     \
          * (i.e. every row in the table will be part of this RowMap + will    \
@@ -634,15 +704,9 @@ class MacroTable : public Table {
         return its_.back().index();                                           \
       }                                                                       \
                                                                               \
-      /*                                                                      \
-       * Must not be modified as |its_| contains pointers into this vector.   \
-       */                                                                     \
-      std::vector<RowMap> row_maps_;                                          \
-      std::vector<RowMap::Iterator> its_;                                     \
-                                                                              \
      private:                                                                 \
       friend class class_name;                                                \
-      const class_name* table_ = nullptr;                                     \
+      friend class AbstractConstIterator;                                     \
     };                                                                        \
                                                                               \
     /*                                                                        \
@@ -653,11 +717,6 @@ class MacroTable : public Table {
      */                                                                       \
     class Iterator : public ConstIterator {                                   \
      public:                                                                  \
-      Iterator& operator++() {                                                \
-        Next();                                                               \
-        return *this;                                                         \
-      }                                                                       \
-                                                                              \
       /*                                                                      \
        * Expands to                                                           \
        * void set_col1(col1_type v) { table_->mut_col1()->SetAtIdx(i, v); }   \
@@ -668,20 +727,21 @@ class MacroTable : public Table {
       /*                                                                      \
        * Returns a RowReference to the current row.                           \
        */                                                                     \
-      RowReference row_reference() {                                          \
-        return RowReference(table_, CurrentRowNumberInTable());               \
+      RowReference row_reference() const {                                    \
+        return RowReference(mutable_table_, CurrentRowNumber());              \
       }                                                                       \
                                                                               \
      private:                                                                 \
+      friend class class_name;                                                \
+                                                                              \
       /*                                                                      \
        * Must not be public to avoid buggy code because of inheritance        \
        * without virtual destructor.                                          \
        */                                                                     \
-      explicit Iterator(class_name* table, std::vector<RowMap> rm)            \
-          : ConstIterator(table, std::move(rm)), table_(table) {}             \
+      explicit Iterator(class_name* table, std::vector<RowMap> rms)           \
+          : ConstIterator(table, std::move(rms)), mutable_table_(table) {}    \
                                                                               \
-      friend class class_name;                                                \
-      class_name* table_ = nullptr;                                           \
+      class_name* mutable_table_ = nullptr;                                   \
     };                                                                        \
                                                                               \
     class_name(StringPool* pool, parent_class_name* parent)                   \
@@ -867,13 +927,7 @@ class MacroTable : public Table {
      * ...                                                                    \
      */                                                                       \
     PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_MEMBER)                  \
-  };                                                                          \
-                                                                              \
-  inline class_name::RowNumber class_name::ConstRowReference::ToRowNumber() { \
-    return RowNumber(row_number_);                                            \
-  }                                                                           \
-                                                                              \
-  PERFETTO_UNUSED inline void UnusedFunctionForTrailingSemicolon()
+  }
 
 }  // namespace trace_processor
 }  // namespace perfetto
