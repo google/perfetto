@@ -74,7 +74,7 @@ if (enable_perfetto_trace_processor) {
 
   # TODO(mohitms): reenable this once we no longer link lite and full protobuf
   # simultaneously.
-  # perfetto_unittests_targets += [ "tools/trace_to_text:unittests" ]
+  # perfetto_unittests_targets += [ "src/traceconv:unittests" ]
 
   if (enable_perfetto_trace_processor_sqlite) {
     perfetto_unittests_targets += [ "src/trace_processor/metrics:unittests" ]

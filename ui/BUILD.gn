@@ -23,7 +23,7 @@ group("ui") {
   deps = [
     ":ui_build($host_toolchain)",
     "//src/trace_processor:trace_processor.wasm($wasm_toolchain)",
-    "//tools/trace_to_text:trace_to_text.wasm($wasm_toolchain)",
+    "//src/traceconv:traceconv.wasm($wasm_toolchain)",
   ]
 }
 

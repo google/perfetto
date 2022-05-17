@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef TOOLS_TRACE_TO_TEXT_UTILS_H_
-#define TOOLS_TRACE_TO_TEXT_UTILS_H_
+#ifndef SRC_TRACECONV_UTILS_H_
+#define SRC_TRACECONV_UTILS_H_
 
 #include <stdio.h>
 
@@ -101,4 +101,4 @@ class DeflateTraceWriter : public TraceWriter {
 }  // namespace trace_to_text
 }  // namespace perfetto
 
-#endif  // TOOLS_TRACE_TO_TEXT_UTILS_H_
+#endif  // SRC_TRACECONV_UTILS_H_

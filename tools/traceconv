@@ -24,17 +24,17 @@ BASH_FALLBACK = """ "
 exec python3 - "$@" <<'#'EOF
 #"""
 
-TOOL_NAME = 'trace_to_text'
+TOOL_NAME = 'traceconv'
 
 # BEGIN_SECTION_GENERATED_BY(roll-prebuilts)
 # Revision: v25.0
 PERFETTO_PREBUILT_MANIFEST = [{
     'tool':
-        'trace_to_text',
+        'traceconv',
     'arch':
         'mac-amd64',
     'file_name':
-        'trace_to_text',
+        'traceconv',
     'file_size':
         6525752,
     'url':
@@ -46,11 +46,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'machine': ['x86_64']
 }, {
     'tool':
-        'trace_to_text',
+        'traceconv',
     'arch':
         'mac-arm64',
     'file_name':
-        'trace_to_text',
+        'traceconv',
     'file_size':
         5661424,
     'url':
@@ -62,11 +62,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'machine': ['arm64']
 }, {
     'tool':
-        'trace_to_text',
+        'traceconv',
     'arch':
         'linux-amd64',
     'file_name':
-        'trace_to_text',
+        'traceconv',
     'file_size':
         6939560,
     'url':
@@ -78,11 +78,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'machine': ['x86_64']
 }, {
     'tool':
-        'trace_to_text',
+        'traceconv',
     'arch':
         'windows-amd64',
     'file_name':
-        'trace_to_text.exe',
+        'traceconv.exe',
     'file_size':
         5925888,
     'url':

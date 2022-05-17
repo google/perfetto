@@ -14,18 +14,17 @@
  * limitations under the License.
  */
 
-#ifndef TOOLS_TRACE_TO_TEXT_SYMBOLIZE_PROFILE_H_
-#define TOOLS_TRACE_TO_TEXT_SYMBOLIZE_PROFILE_H_
+#ifndef SRC_TRACECONV_DEOBFUSCATE_PROFILE_H_
+#define SRC_TRACECONV_DEOBFUSCATE_PROFILE_H_
 
-#include <functional>
 #include <iostream>
 
 namespace perfetto {
 namespace trace_to_text {
 
-int SymbolizeProfile(std::istream* input, std::ostream* output);
+int DeobfuscateProfile(std::istream* input, std::ostream* output);
 
-}  // namespace trace_to_text
+}
 }  // namespace perfetto
 
-#endif  // TOOLS_TRACE_TO_TEXT_SYMBOLIZE_PROFILE_H_
+#endif  // SRC_TRACECONV_DEOBFUSCATE_PROFILE_H_
