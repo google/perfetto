@@ -240,11 +240,9 @@ perfetto_cc_library(
         ":src_traced_probes_system_info_system_info",
         ":src_traced_service_service",
         ":src_tracing_common",
-        ":src_tracing_consumer_api_deprecated_consumer_api_deprecated",
         ":src_tracing_core_core",
         ":src_tracing_core_service",
         ":src_tracing_ipc_common",
-        ":src_tracing_ipc_consumer_consumer",
         ":src_tracing_ipc_default_socket",
         ":src_tracing_ipc_producer_producer",
         ":src_tracing_ipc_service_service",
@@ -258,7 +256,6 @@ perfetto_cc_library(
         ":include_perfetto_ext_tracing_core_core",
         ":include_perfetto_ext_tracing_ipc_ipc",
         ":include_perfetto_protozero_protozero",
-        ":include_perfetto_public_public",
         ":include_perfetto_tracing_core_core",
         ":include_perfetto_tracing_core_forward_decls",
         ":include_perfetto_tracing_tracing",
@@ -515,14 +512,6 @@ perfetto_filegroup(
         "include/perfetto/protozero/scattered_stream_null_delegate.h",
         "include/perfetto/protozero/scattered_stream_writer.h",
         "include/perfetto/protozero/static_buffer.h",
-    ],
-)
-
-# GN target: //include/perfetto/public:public
-perfetto_filegroup(
-    name = "include_perfetto_public_public",
-    srcs = [
-        "include/perfetto/public/consumer_api.h",
     ],
 )
 
@@ -1875,14 +1864,6 @@ perfetto_filegroup(
         "src/traced/service/builtin_producer.cc",
         "src/traced/service/builtin_producer.h",
         "src/traced/service/service.cc",
-    ],
-)
-
-# GN target: //src/tracing/consumer_api_deprecated:consumer_api_deprecated
-perfetto_filegroup(
-    name = "src_tracing_consumer_api_deprecated_consumer_api_deprecated",
-    srcs = [
-        "src/tracing/consumer_api_deprecated/consumer_api_deprecated.cc",
     ],
 )
 
