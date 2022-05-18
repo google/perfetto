@@ -77,6 +77,8 @@ class TraceProcessor:
   # class, with the value corresponding to the column name and row in
   # the query results table.
   class Row(object):
+    # Required for pytype to correctly infer attributes from Row objects
+    _HAS_DYNAMIC_ATTRIBUTES = True
 
     def __str__(self):
       return str(self.__dict__)
