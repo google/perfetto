@@ -2,3 +2,4 @@ chrome_histogram.textproto chrome_args.sql chrome_histogram.out
 chrome_user_event.textproto chrome_args.sql chrome_user_event.out
 chrome_performance_mark.textproto chrome_args.sql chrome_performance_mark.out
 slice_name.textproto slice_name.sql slice_name.out
+slice_name_negative_timestamp.textproto slice_name.sql slice_name.out
