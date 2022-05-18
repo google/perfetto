@@ -1,0 +1,76 @@
+packet {
+  translation_table {
+    slice_name {
+      raw_to_deobfuscated_name { key: "raw_name1" value: "mapped_name1" }
+      raw_to_deobfuscated_name { key: "raw_name2" value: "mapped_name2" }
+      raw_to_deobfuscated_name { key: "raw_slice_begin" value: "slice_begin" }
+    }
+  }
+}
+# Timestamps are >= 2**63, so they overflow int64_t (except for the first one,
+# otherwise the test triggers a DHCECK in TraceSorter, and fails).
+# This breaks the sorting order, forcing track events to go before the
+# translation table.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1
+  track_event {
+    categories: "cat"
+    name: "raw_name1"
+    type: 3
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 9223372036854775809
+  track_event {
+    categories: "cat"
+    name: "raw_name2"
+    type: 3
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 9223372036854775810
+  track_event {
+    categories: "cat"
+    name: "raw_name3"
+    type: 3
+  }
+}
+# Track for slice begin/end events.
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 9223372036854775811
+  track_descriptor {
+    uuid: 12345
+    thread {
+      pid: 123
+      tid: 345
+    }
+    parent_uuid: 0
+    chrome_thread {
+      thread_type: THREAD_POOL_FG_WORKER
+    }
+  }
+}
+# Slice begin/end events
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 9223372036854775812
+  track_event {
+    track_uuid: 12345
+    categories: "cat"
+    name: "raw_slice_begin"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 9223372036854775813
+  track_event {
+    track_uuid: 12345
+    categories: "cat"
+    type: 2
+  }
+}
