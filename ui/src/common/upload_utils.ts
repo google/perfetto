@@ -15,7 +15,7 @@
 import {RecordConfig} from '../controller/record_config_types';
 
 export const BUCKET_NAME = 'perfetto-ui-data';
-import * as uuidv4 from 'uuid/v4';
+import {v4 as uuidv4} from 'uuid';
 import {State} from './state';
 
 export async function saveTrace(trace: File|ArrayBuffer): Promise<string> {
