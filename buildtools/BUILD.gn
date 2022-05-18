@@ -854,6 +854,11 @@ config("sqlite_config") {
     "-DSQLITE_OMIT_AUTOINIT",
     "-DSQLITE_ENABLE_JSON1",
   ]
+  if (is_clang && is_win) {
+    # SQLite uses __int64 which clang complains about unless
+    # we specify this flag.
+    cflags += [ "-Wno-language-extension-token" ]
+  }
 }
 
 source_set("sqlite") {
