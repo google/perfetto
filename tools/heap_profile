@@ -270,7 +270,7 @@ def main(argv):
       help="Get simpleperf profile of heapprofd. This is "
       "only for heapprofd development.")
   parser.add_argument(
-      "--trace-to-text-binary",
+      "--traceconv-binary",
       help="Path to local trace to text. For debugging.")
   parser.add_argument(
       "--print-config",
@@ -619,7 +619,7 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_size':
         5925888,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v25.0/windows-amd64/trace_to_text.exe'
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v25.0/windows-amd64/trace_to_text.exe',
     'sha256':
         '29e50ec4d8e28c7c322ba13273afcce80c63fe7d9f182b83af0e2077b4d2b952',
     'platform':
