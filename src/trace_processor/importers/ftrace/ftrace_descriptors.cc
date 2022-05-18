@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<MessageDescriptor, 419> descriptors{{
+std::array<MessageDescriptor, 420> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -4503,6 +4503,36 @@ std::array<MessageDescriptor, 419> descriptors{{
             {"driver", ProtoSchemaType::kString},
             {"seqno", ProtoSchemaType::kUint32},
             {"timeline", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "f2fs_iostat",
+        23,
+        {
+            {},
+            {"app_bio", ProtoSchemaType::kUint64},
+            {"app_brio", ProtoSchemaType::kUint64},
+            {"app_dio", ProtoSchemaType::kUint64},
+            {"app_drio", ProtoSchemaType::kUint64},
+            {"app_mio", ProtoSchemaType::kUint64},
+            {"app_mrio", ProtoSchemaType::kUint64},
+            {"app_rio", ProtoSchemaType::kUint64},
+            {"app_wio", ProtoSchemaType::kUint64},
+            {"dev", ProtoSchemaType::kUint64},
+            {"fs_cdrio", ProtoSchemaType::kUint64},
+            {"fs_cp_dio", ProtoSchemaType::kUint64},
+            {"fs_cp_mio", ProtoSchemaType::kUint64},
+            {"fs_cp_nio", ProtoSchemaType::kUint64},
+            {"fs_dio", ProtoSchemaType::kUint64},
+            {"fs_discard", ProtoSchemaType::kUint64},
+            {"fs_drio", ProtoSchemaType::kUint64},
+            {"fs_gc_dio", ProtoSchemaType::kUint64},
+            {"fs_gc_nio", ProtoSchemaType::kUint64},
+            {"fs_gdrio", ProtoSchemaType::kUint64},
+            {"fs_mio", ProtoSchemaType::kUint64},
+            {"fs_mrio", ProtoSchemaType::kUint64},
+            {"fs_nio", ProtoSchemaType::kUint64},
+            {"fs_nrio", ProtoSchemaType::kUint64},
         },
     },
 }};
