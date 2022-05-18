@@ -15,7 +15,7 @@
     "@types/node": "^14.0.10",
     "@types/pako": "^1.0.1",
     "@types/pngjs": "^6.0.1",
-    "@types/uuid": "^3.4.9",
+    "@types/uuid": "^8.3.4",
     "@types/w3c-web-usb": "^1.0.4",
     "color-convert": "^2.0.1",
     "custom_utils": "file:src/base/utils",
@@ -29,7 +29,7 @@
     "pako": "^1.0.11",
     "protobufjs": "^6.9.0",
     "util": "^0.12.3",
-    "uuid": "^3.4.0"
+    "uuid": "^8.3.2"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^14.0.0",
