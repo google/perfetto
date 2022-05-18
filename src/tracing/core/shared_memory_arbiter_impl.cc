@@ -81,12 +81,12 @@ SharedMemoryArbiterImpl::SharedMemoryArbiterImpl(
     size_t page_size,
     TracingService::ProducerEndpoint* producer_endpoint,
     base::TaskRunner* task_runner)
-    : initially_bound_(task_runner && producer_endpoint),
-      producer_endpoint_(producer_endpoint),
+    : producer_endpoint_(producer_endpoint),
       task_runner_(task_runner),
       shmem_abi_(reinterpret_cast<uint8_t*>(start), size, page_size),
       active_writer_ids_(kMaxWriterID),
-      fully_bound_(initially_bound_),
+      fully_bound_(task_runner && producer_endpoint),
+      was_always_bound_(fully_bound_),
       weak_ptr_factory_(this) {}
 
 Chunk SharedMemoryArbiterImpl::GetNewChunk(
@@ -94,12 +94,6 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     BufferExhaustedPolicy buffer_exhausted_policy,
     size_t size_hint) {
   PERFETTO_DCHECK(size_hint == 0);  // Not implemented yet.
-  // If initially unbound, we do not support stalling. In theory, we could
-  // support stalling for TraceWriters created after the arbiter and startup
-  // buffer reservations were bound, but to avoid raciness between the creation
-  // of startup writers and binding, we categorically forbid kStall mode.
-  PERFETTO_DCHECK(initially_bound_ ||
-                  buffer_exhausted_policy == BufferExhaustedPolicy::kDrop);
 
   int stall_count = 0;
   unsigned stall_interval_us = 0;
@@ -115,6 +109,14 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
     // SharedMemoryABI. But let's not be too adventurous for the moment.
     {
       std::unique_lock<std::mutex> scoped_lock(lock_);
+
+      // If ever unbound, we do not support stalling. In theory, we could
+      // support stalling for TraceWriters created after the arbiter and startup
+      // buffer reservations were bound, but to avoid raciness between the
+      // creation of startup writers and binding, we categorically forbid kStall
+      // mode.
+      PERFETTO_DCHECK(was_always_bound_ ||
+                      buffer_exhausted_policy == BufferExhaustedPolicy::kDrop);
 
       task_runner_runs_on_current_thread =
           task_runner_ && task_runner_->RunsTasksOnCurrentThread();
@@ -184,7 +186,8 @@ Chunk SharedMemoryArbiterImpl::GetNewChunk(
       return Chunk();
     }
 
-    PERFETTO_DCHECK(initially_bound_);
+    // Stalling is not supported if we were ever unbound (see earlier comment).
+    PERFETTO_CHECK(was_always_bound_);
 
     // All chunks are taken (either kBeingWritten by us or kBeingRead by the
     // Service).
@@ -577,7 +580,6 @@ std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriter(
 
 std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateStartupTraceWriter(
     uint16_t target_buffer_reservation_id) {
-  PERFETTO_CHECK(!initially_bound_);
   return CreateTraceWriterInternal(
       MakeTargetBufferIdForReservation(target_buffer_reservation_id),
       BufferExhaustedPolicy::kDrop);
@@ -588,7 +590,6 @@ void SharedMemoryArbiterImpl::BindToProducerEndpoint(
     base::TaskRunner* task_runner) {
   PERFETTO_DCHECK(producer_endpoint && task_runner);
   PERFETTO_DCHECK(task_runner->RunsTasksOnCurrentThread());
-  PERFETTO_CHECK(!initially_bound_);
 
   bool should_flush = false;
   std::function<void()> flush_callback;
@@ -631,7 +632,6 @@ void SharedMemoryArbiterImpl::BindStartupTargetBuffer(
     uint16_t target_buffer_reservation_id,
     BufferID target_buffer_id) {
   PERFETTO_DCHECK(target_buffer_id > 0);
-  PERFETTO_CHECK(!initially_bound_);
 
   std::unique_lock<std::mutex> scoped_lock(lock_);
 
@@ -647,8 +647,6 @@ void SharedMemoryArbiterImpl::BindStartupTargetBuffer(
 
 void SharedMemoryArbiterImpl::AbortStartupTracingForReservation(
     uint16_t target_buffer_reservation_id) {
-  PERFETTO_CHECK(!initially_bound_);
-
   std::unique_lock<std::mutex> scoped_lock(lock_);
 
   // If we are already bound to an arbiter, we may need to flush after aborting
@@ -686,6 +684,10 @@ void SharedMemoryArbiterImpl::BindStartupTargetBufferImpl(
   // We should already be bound to an endpoint if the target buffer is valid.
   PERFETTO_DCHECK((producer_endpoint_ && task_runner_) ||
                   target_buffer_id == kInvalidBufferId);
+
+  PERFETTO_DLOG("Binding startup target buffer reservation %" PRIu16
+                " to buffer %" PRIu16,
+                target_buffer_reservation_id, target_buffer_id);
 
   MaybeUnboundBufferID reserved_id =
       MakeTargetBufferIdForReservation(target_buffer_reservation_id);
@@ -818,11 +820,21 @@ std::unique_ptr<TraceWriter> SharedMemoryArbiterImpl::CreateTraceWriterInternal(
       // Mark the arbiter as not fully bound, since we now have at least one
       // unbound trace writer / target buffer reservation.
       fully_bound_ = false;
+      was_always_bound_ = false;
     } else if (target_buffer != kInvalidBufferId) {
       // Trace writer is bound, so arbiter should be bound to an endpoint, too.
       PERFETTO_CHECK(producer_endpoint_ && task_runner_);
       task_runner_to_register_on = task_runner_;
     }
+
+    // All trace writers must use kDrop policy if the arbiter ever becomes
+    // unbound.
+    bool uses_drop_policy =
+        buffer_exhausted_policy == BufferExhaustedPolicy::kDrop;
+    all_writers_have_drop_policy_ &= uses_drop_policy;
+    PERFETTO_DCHECK(fully_bound_ || uses_drop_policy);
+    PERFETTO_CHECK(fully_bound_ || all_writers_have_drop_policy_);
+    PERFETTO_CHECK(was_always_bound_ || uses_drop_policy);
   }  // scoped_lock
 
   // We shouldn't post tasks while locked. |task_runner_to_register_on|
@@ -913,6 +925,8 @@ bool SharedMemoryArbiterImpl::UpdateFullyBoundLocked() {
       [](std::pair<MaybeUnboundBufferID, TargetBufferReservation> entry) {
         return !entry.second.resolved;
       });
+  if (!fully_bound_)
+    was_always_bound_ = false;
   return fully_bound_;
 }
 
