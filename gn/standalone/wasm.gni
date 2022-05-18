@@ -56,7 +56,7 @@ template("wasm_lib") {
 
       # This forces the MEMFS filesystem library to always use typed arrays
       # instead of building strings/arrays when appending to a file. This allows
-      # to deal with pseudo-files larger than 128 MB when calling trace_to_text.
+      # to deal with pseudo-files larger than 128 MB when calling traceconv.
       "-s",
       "MEMFS_APPEND_TO_TYPED_ARRAYS=1",
 

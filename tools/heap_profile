@@ -349,7 +349,7 @@ def main(argv):
     parser.print_help()
     return 1
 
-  trace_to_text_binary = args.trace_to_text_binary
+  traceconv_binary = args.traceconv_binary
 
   if args.continuous_dump:
     target_cfg += CONTINUOUS_DUMP.format(dump_interval=args.continuous_dump)
@@ -365,11 +365,11 @@ def main(argv):
     print(cfg)
     return 0
 
-  # Do this AFTER print_config so we do not download trace_to_text only to
+  # Do this AFTER print_config so we do not download traceconv only to
   # print out the config.
-  if trace_to_text_binary is None:
-    trace_to_text_binary = get_perfetto_prebuilt(
-        'trace_to_text', soft_fail=True)
+  if traceconv_binary is None:
+    traceconv_binary = get_perfetto_prebuilt(
+        'traceconv', soft_fail=True)
 
   known_issues = maybe_known_issues()
   if known_issues:
@@ -468,7 +468,7 @@ def main(argv):
     subprocess.check_call(['adb', 'shell', 'rm', profile_device_path],
                           stdout=NULL)
 
-  if trace_to_text_binary is None:
+  if traceconv_binary is None:
     print('Wrote profile to {}'.format(profile_host_path))
     print(
         'This file can be opened using the Perfetto UI, https://ui.perfetto.dev'
@@ -494,7 +494,7 @@ def main(argv):
   if binary_path is not None:
     with open(os.path.join(profile_target, 'symbols'), 'w') as fd:
       ret = subprocess.call([
-          trace_to_text_binary, 'symbolize',
+          traceconv_binary, 'symbolize',
           os.path.join(profile_target, 'raw-trace')
       ],
                             env=dict(
@@ -509,7 +509,7 @@ def main(argv):
   if proguard_map is not None:
     with open(os.path.join(profile_target, 'deobfuscation-packets'), 'w') as fd:
       ret = subprocess.call([
-          trace_to_text_binary, 'deobfuscate',
+          traceconv_binary, 'deobfuscate',
           os.path.join(profile_target, 'raw-trace')
       ],
                             env=dict(
@@ -533,10 +533,10 @@ def main(argv):
             out.write(buf)
     trace_file = os.path.join(profile_target, 'symbolized-trace')
 
-  trace_to_text_output = subprocess.check_output(
-      [trace_to_text_binary, 'profile', trace_file])
+  traceconv_output = subprocess.check_output(
+      [traceconv_binary, 'profile', trace_file])
   profile_path = None
-  for word in trace_to_text_output.decode('utf-8').split():
+  for word in traceconv_output.decode('utf-8').split():
     if 'heap_profile-' in word:
       profile_path = word
   if profile_path is None:
@@ -579,11 +579,11 @@ def main(argv):
 # Revision: v25.0
 PERFETTO_PREBUILT_MANIFEST = [{
     'tool':
-        'trace_to_text',
+        'traceconv',
     'arch':
         'mac-amd64',
     'file_name':
-        'trace_to_text',
+        'traceconv',
     'file_size':
         6525752,
     'url':
@@ -595,15 +595,15 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'machine': ['x86_64']
 }, {
     'tool':
-        'trace_to_text',
+        'traceconv',
     'arch':
         'mac-arm64',
     'file_name':
-        'trace_to_text',
+        'traceconv',
     'file_size':
         5661424,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v25.0/mac-arm64/trace_to_text',
+      'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v25.0/mac-arm64/trace_to_text',
     'sha256':
         'fbb6d256c96cdc296f2faec2965d16a1527c4900e66a33aca979ff1c336a9f2f',
     'platform':
@@ -611,15 +611,15 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'machine': ['arm64']
 }, {
     'tool':
-        'trace_to_text',
+        'traceconv',
     'arch':
         'windows-amd64',
     'file_name':
-        'trace_to_text.exe',
+        'traceconv.exe',
     'file_size':
         5925888,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v25.0/windows-amd64/trace_to_text.exe',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v25.0/windows-amd64/trace_to_text.exe'
     'sha256':
         '29e50ec4d8e28c7c322ba13273afcce80c63fe7d9f182b83af0e2077b4d2b952',
     'platform':
@@ -627,11 +627,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'machine': ['amd64']
 }, {
     'tool':
-        'trace_to_text',
+        'traceconv',
     'arch':
         'linux-amd64',
     'file_name':
-        'trace_to_text',
+        'traceconv',
     'file_size':
         6939560,
     'url':

@@ -104,7 +104,9 @@ class SchedEventTracker : public Destructible {
                                     StringId next_comm_id,
                                     int32_t next_prio);
 
-  void ClosePendingSlice(uint32_t slice_idx, int64_t ts, int64_t prev_state);
+  StringId TaskStateToStringId(int64_t task_state);
+
+  void ClosePendingSlice(uint32_t slice_idx, int64_t ts, StringId prev_state);
 
   // Information retained from the preceding sched_switch seen on a given cpu.
   std::vector<PendingSchedInfo> pending_sched_per_cpu_;

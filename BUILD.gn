@@ -45,17 +45,17 @@ if (enable_perfetto_trace_processor && enable_perfetto_trace_processor_sqlite) {
   all_targets += [ "src/trace_processor:trace_processor_shell" ]
 }
 
-if (enable_perfetto_tools_trace_to_text) {
-  all_targets += [ "tools/trace_to_text" ]
+if (enable_perfetto_traceconv) {
+  all_targets += [ "src/traceconv" ]
   if (is_cross_compiling) {
     # In many cross-compilation scenarios (typically Android) developers expect
-    # the host version of trace_to_text to be available somewhere in out/, so
+    # the host version of traceconv to be available somewhere in out/, so
     # they can convert Android traces on their dev machine. Also
     # tools/gen_android_bp explicitly depends on the host version for the
-    # cc_binary_host("trace_to_text") target in Android.bp.
+    # cc_binary_host("traceconv") target in Android.bp.
     # Note that when cross-compiling the host executable will be available in
-    # out/xxx/gcc_like_host/trace_to_text NOT just out/xxx/trace_to_text.
-    all_targets += [ "tools/trace_to_text($host_toolchain)" ]
+    # out/xxx/gcc_like_host/traceconv NOT just out/xxx/traceconv.
+    all_targets += [ "src/traceconv($host_toolchain)" ]
   }
 }
 

@@ -11,6 +11,8 @@ Unreleased:
       as threads of the kthreadd process.
     * Added ABS_TIME_STR function which converts a trace timestamp to
       an ISO8601 string.
+    * Changed 'trace_to_text' to be named 'traceconv'. The source
+      location also moved from 'tools/trace_to_text' to 'src/traceconv'.
   UI:
     *
   SDK:
