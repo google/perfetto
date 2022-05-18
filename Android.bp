@@ -467,7 +467,6 @@ cc_library_shared {
         ":perfetto_include_perfetto_ext_tracing_core_core",
         ":perfetto_include_perfetto_ext_tracing_ipc_ipc",
         ":perfetto_include_perfetto_protozero_protozero",
-        ":perfetto_include_perfetto_public_public",
         ":perfetto_include_perfetto_tracing_core_core",
         ":perfetto_include_perfetto_tracing_core_forward_decls",
         ":perfetto_include_perfetto_tracing_tracing",
@@ -548,11 +547,9 @@ cc_library_shared {
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_traced_service_service",
         ":perfetto_src_tracing_common",
-        ":perfetto_src_tracing_consumer_api_deprecated_consumer_api_deprecated",
         ":perfetto_src_tracing_core_core",
         ":perfetto_src_tracing_core_service",
         ":perfetto_src_tracing_ipc_common",
-        ":perfetto_src_tracing_ipc_consumer_consumer",
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
@@ -1629,11 +1626,6 @@ filegroup {
 // GN: //include/perfetto/protozero:protozero
 filegroup {
     name: "perfetto_include_perfetto_protozero_protozero",
-}
-
-// GN: //include/perfetto/public:public
-filegroup {
-    name: "perfetto_include_perfetto_public_public",
 }
 
 // GN: //include/perfetto/test:test_support
@@ -9379,14 +9371,6 @@ filegroup {
     name: "perfetto_src_tracing_common",
     srcs: [
         "src/tracing/trace_writer_base.cc",
-    ],
-}
-
-// GN: //src/tracing/consumer_api_deprecated:consumer_api_deprecated
-filegroup {
-    name: "perfetto_src_tracing_consumer_api_deprecated_consumer_api_deprecated",
-    srcs: [
-        "src/tracing/consumer_api_deprecated/consumer_api_deprecated.cc",
     ],
 }
 
