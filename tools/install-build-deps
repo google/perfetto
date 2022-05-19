@@ -137,11 +137,11 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
 ]
 
 BUILD_DEPS_HOST = [
-    # Keep in sync with Android's //external/googletest/README.version.
+    # Keep in sync with Android's //external/googletest/METADATA.
     Dependency(
         'buildtools/googletest',
         'https://android.googlesource.com/platform/external/googletest.git',
-        '3f05f651ae3621db58468153e32016bc1397800b', 'all', 'all'),
+        '609281088cfefc76f9d0ce82e1ff6c30cc3591e5', 'all', 'all'),
 
     # Keep in sync with Chromium's //third_party/protobuf.
     Dependency(
