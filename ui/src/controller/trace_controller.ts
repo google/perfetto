@@ -104,12 +104,12 @@ const METRICS = [
   'android_ion',
   'android_lmk',
   'android_dma_heap',
-  'android_thread_time_in_state',
   'android_surfaceflinger',
   'android_batt',
   'android_sysui_cuj',
   'android_jank',
   'android_camera',
+  'android_other_traces',
   'chrome_dropped_frames',
   'chrome_long_latency',
   'trace_metadata',
@@ -185,6 +185,16 @@ export class TraceController extends Controller<States> {
 
         // Create a QueryController for each query.
         for (const queryId of Object.keys(globals.state.queries)) {
+          // If the expected engineId was not specified in the query, we
+          // assume it's `state.currentEngineId`. The engineId is not specified
+          // for instances with queries created prior to the creation of the
+          // first engine.
+          const expectedEngineId = globals.state.queries[queryId].engineId ||
+              frontendGlobals.state.currentEngineId;
+          // Check that we are executing the query on the correct engine.
+          if (expectedEngineId !== engine.id) {
+            continue;
+          }
           const queryArgs: QueryControllerArgs = { queryId, engine };
           childControllers.push(Child(queryId, QueryController, queryArgs));
         }

@@ -25,7 +25,9 @@ import "protos/perfetto/metrics/chrome/frame_times.proto";
 import "protos/perfetto/metrics/chrome/histogram_hashes.proto";
 import "protos/perfetto/metrics/chrome/long_latency.proto";
 import "protos/perfetto/metrics/chrome/media_metric.proto";
+import "protos/perfetto/metrics/chrome/performance_mark_hashes.proto";
 import "protos/perfetto/metrics/chrome/reported_by_page.proto";
+import "protos/perfetto/metrics/chrome/slice_names.proto";
 import "protos/perfetto/metrics/chrome/scroll_jank.proto";
 import "protos/perfetto/metrics/chrome/test_chrome_metric.proto";
 import "protos/perfetto/metrics/chrome/touch_jank.proto";
@@ -44,4 +46,6 @@ extend TraceMetrics {
   optional ChromeLongLatency chrome_long_latency = 1009;
   optional ChromeHistogramHashes chrome_histogram_hashes = 1010;
   optional ChromeUserEventHashes chrome_user_event_hashes = 1011;
+  optional ChromePerformanceMarkHashes chrome_performance_mark_hashes = 1012;
+  optional ChromeSliceNames chrome_slice_names = 1013;
 }

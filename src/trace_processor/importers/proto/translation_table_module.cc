@@ -16,6 +16,7 @@
 #include "src/trace_processor/importers/proto/translation_table_module.h"
 
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "src/trace_processor/importers/common/slice_translation_table.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/translation/translation_table.pbzero.h"
@@ -47,6 +48,8 @@ void TranslationTableModule::ParsePacket(const TracePacket::Decoder& decoder,
   } else if (translation_table.has_chrome_performance_mark()) {
     ParseChromePerformanceMarkRules(
         translation_table.chrome_performance_mark());
+  } else if (translation_table.has_slice_name()) {
+    ParseSliceNameRules(translation_table.slice_name());
   }
 }
 
@@ -91,6 +94,17 @@ void TranslationTableModule::ParseChromePerformanceMarkRules(
     context_->args_translation_table
         ->AddChromePerformanceMarkMarkTranslationRule(entry.key(),
                                                       entry.value());
+  }
+}
+
+void TranslationTableModule::ParseSliceNameRules(protozero::ConstBytes bytes) {
+  const auto slice_name =
+      protos::pbzero::SliceNameTranslationTable::Decoder(bytes);
+  for (auto it = slice_name.raw_to_deobfuscated_name(); it; ++it) {
+    protos::pbzero::SliceNameTranslationTable::RawToDeobfuscatedNameEntry::
+        Decoder entry(*it);
+    context_->slice_translation_table->AddNameTranslationRule(entry.key(),
+                                                              entry.value());
   }
 }
 

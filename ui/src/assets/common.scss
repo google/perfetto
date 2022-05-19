@@ -452,6 +452,13 @@ canvas.main-canvas {
 
 .panel {
   position: relative;  // Otherwise canvas covers panel dom.
+
+  &.sticky {
+    position: sticky;
+    z-index: 3;
+    top: 0;
+    background-color: hsl(215, 22%, 19%);
+  }
 }
 
 .pan-and-zoom-content {
@@ -657,7 +664,11 @@ button.query-ctrl {
     }
   }
   .track-content {
-    @include track_shell_title();
+    display: grid;
+    span {
+      @include track_shell_title();
+      align-self: center;
+    }
   }
 }
 

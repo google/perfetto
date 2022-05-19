@@ -234,17 +234,22 @@ class CpuReader {
   // Parses & encodes the given range of contiguous tracing pages. Called by
   // |ReadAndProcessBatch| for each active data source.
   //
+  // Returns the number of correctly processed pages. If the return value is
+  // equal to |pages_read|, there was no error. Otherwise, the return value
+  // points to the first page that contains an error.
+  //
   // public and static for testing
-  static bool ProcessPagesForDataSource(TraceWriter* trace_writer,
-                                        FtraceMetadata* metadata,
-                                        size_t cpu,
-                                        const FtraceDataSourceConfig* ds_config,
-                                        const uint8_t* parsing_buf,
-                                        const size_t pages_read,
-                                        const ProtoTranslationTable* table,
-                                        LazyKernelSymbolizer* symbolizer,
-                                        const FtraceClockSnapshot*,
-                                        protos::pbzero::FtraceClock);
+  static size_t ProcessPagesForDataSource(
+      TraceWriter* trace_writer,
+      FtraceMetadata* metadata,
+      size_t cpu,
+      const FtraceDataSourceConfig* ds_config,
+      const uint8_t* parsing_buf,
+      const size_t pages_read,
+      const ProtoTranslationTable* table,
+      LazyKernelSymbolizer* symbolizer,
+      const FtraceClockSnapshot*,
+      protos::pbzero::FtraceClock);
 
   void set_ftrace_clock(protos::pbzero::FtraceClock clock) {
     ftrace_clock_ = clock;

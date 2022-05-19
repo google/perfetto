@@ -1,5 +1,5 @@
 
 "ts","event_type","process_name","process_id"
-200111000,"GestureScrollUpdate","Renderer",1001
+200111000,"FirstGestureScrollUpdate,GestureScrollUpdate","Renderer",1001
 200111000,"GestureScrollUpdate","Renderer",1002
 280111001,"GestureScrollUpdate","Renderer",1001

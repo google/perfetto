@@ -13,8 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from perfetto.trace_processor.api import TraceProcessor
+from perfetto.trace_processor.api import TraceProcessorException
 
-def compute_breakdown(tp, start_ts=None, end_ts=None, process_name=None):
+
+def compute_breakdown(tp: TraceProcessor,
+                      start_ts=None,
+                      end_ts=None,
+                      process_name=None):
   """For each userspace slice in the trace processor instance |tp|, computes
   the self-time of that slice grouping by process name, thread name
   and thread state.
@@ -149,7 +155,9 @@ def compute_breakdown(tp, start_ts=None, end_ts=None, process_name=None):
   return breakdown
 
 
-def compute_breakdown_for_startup(tp, package_name=None, process_name=None):
+def compute_breakdown_for_startup(tp: TraceProcessor,
+                                  package_name=None,
+                                  process_name=None):
   """Computes the slice breakdown (like |compute_breakdown|) but only
   considering slices which happened during an app startup
 
@@ -176,9 +184,9 @@ def compute_breakdown_for_startup(tp, package_name=None, process_name=None):
     {}
   '''.format(filter)).as_pandas_dataframe()
   if len(launches) == 0:
-    raise Exception("Didn't find startup in trace")
+    raise TraceProcessorException("Didn't find startup in trace")
   if len(launches) > 1:
-    raise Exception("Found multiple startups in trace")
+    raise TraceProcessorException("Found multiple startups in trace")
 
   start = launches['ts'][0]
   end = launches['ts_end'][0]

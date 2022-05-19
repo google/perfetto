@@ -160,7 +160,6 @@ declare_args() {
        (is_linux || (is_android && android_api_level >= 26)))
 
   # Build the perf event profiler (traced_perf).
-  # TODO(b/144281346): under development.
   # TODO(rsavitski): figure out how to make the android-core dependencies build
   # under gcc (_Atomic and other issues).
   enable_perfetto_traced_perf =

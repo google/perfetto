@@ -22,6 +22,7 @@
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "test/gtest_and_gmock.h"
@@ -38,6 +39,8 @@ class BinderTrackerTest : public ::testing::Test {
     context.global_args_tracker.reset(new GlobalArgsTracker(&context));
     context.args_tracker.reset(new ArgsTracker(&context));
     context.slice_tracker.reset(new SliceTracker(&context));
+    context.slice_translation_table.reset(
+        new SliceTranslationTable(context.storage.get()));
     context.process_tracker.reset(new ProcessTracker(&context));
     context.track_tracker.reset(new TrackTracker(&context));
     context.flow_tracker.reset(new FlowTracker(&context));

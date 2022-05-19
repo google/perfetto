@@ -201,7 +201,7 @@ data_sources: {
             vmstat_counters: VMSTAT_NR_INACTIVE_ANON
             vmstat_counters: VMSTAT_NR_ACTIVE_ANON
 
-            stat_period_ms: 2500
+            stat_period_ms: 1000
             stat_counters: STAT_CPU_TIMES
             stat_counters: STAT_FORK_COUNT
         }

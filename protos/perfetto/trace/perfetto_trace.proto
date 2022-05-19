@@ -858,7 +858,7 @@ message HeapprofdConfig {
 
 // Begin of protos/perfetto/config/profiling/java_hprof_config.proto
 
-// Configuration for go/heapprofd.
+// Configuration for managed app heap graph snapshots.
 message JavaHprofConfig {
   // If dump_interval_ms != 0, the following configuration is used.
   message ContinuousDumpConfig {
@@ -876,12 +876,27 @@ message JavaHprofConfig {
     optional bool scan_pids_only_on_start = 3;
   }
 
-  // This input is normalized in the following way: if it contains slashes,
-  // everything up to the last slash is discarded. If it contains "@",
-  // everything after the first @ is discared.
-  // E.g. /system/bin/surfaceflinger@1.0 normalizes to surfaceflinger.
-  // This transformation is also applied to the processes' command lines when
-  // matching.
+  // Command line allowlist, matched against the /proc/<pid>/cmdline (not the
+  // comm string). The semantics of this field were changed since its original
+  // introduction.
+  //
+  // On Android T+ (13+), this field can specify a single wildcard (*), and
+  // the profiler will attempt to match it in two possible ways:
+  // * if the pattern starts with a '/', then it is matched against the first
+  //   segment of the cmdline (i.e. argv0). For example "/bin/e*" would match
+  //   "/bin/echo".
+  // * otherwise the pattern is matched against the part of argv0
+  //   corresponding to the binary name (this is unrelated to /proc/pid/exe).
+  //   For example "echo" would match "/bin/echo".
+  //
+  // On Android S (12) and below, both this pattern and /proc/pid/cmdline get
+  // normalized prior to an exact string comparison. Normalization is as
+  // follows: (1) trim everything beyond the first null or "@" byte; (2) if
+  // the string contains forward slashes, trim everything up to and including
+  // the last one.
+  //
+  // Implementation note: in either case, at most 511 characters of cmdline
+  // are considered.
   repeated string process_cmdline = 1;
 
   // For watermark based triggering or local debugging.
@@ -1184,18 +1199,34 @@ message PerfEventConfig {
     // process.
     repeated int32 target_pid = 1;
 
-    // Command line allowlist, matched against the
-    // /proc/<pid>/cmdline (not the comm string), with both sides being
-    // "normalized". Normalization is as follows: (1) trim everything beyond the
-    // first null or "@" byte; (2) if the string contains forward slashes, trim
-    // everything up to and including the last one.
+    // Command line allowlist, matched against the /proc/<pid>/cmdline (not the
+    // comm string). The semantics of this field were changed since its original
+    // introduction.
+    //
+    // On Android T+ (13+), this field can specify a single wildcard (*), and
+    // the profiler will attempt to match it in two possible ways:
+    // * if the pattern starts with a '/', then it is matched against the first
+    //   segment of the cmdline (i.e. argv0). For example "/bin/e*" would match
+    //   "/bin/echo".
+    // * otherwise the pattern is matched against the part of argv0
+    //   corresponding to the binary name (this is unrelated to /proc/pid/exe).
+    //   For example "echo" would match "/bin/echo".
+    //
+    // On Android S (12) and below, both this pattern and /proc/pid/cmdline get
+    // normalized prior to an exact string comparison. Normalization is as
+    // follows: (1) trim everything beyond the first null or "@" byte; (2) if
+    // the string contains forward slashes, trim everything up to and including
+    // the last one.
+    //
+    // Implementation note: in either case, at most 511 characters of cmdline
+    // are considered.
     repeated string target_cmdline = 2;
 
     // List of excluded pids.
     repeated int32 exclude_pid = 3;
 
-    // List of excluded cmdlines. Normalized in the same way as
-    // |target_cmdline|.
+    // List of excluded cmdlines. See description of |target_cmdline| for how
+    // this is handled.
     repeated string exclude_cmdline = 4;
 
     // Number of additional command lines to sample. Only those which are
@@ -1544,6 +1575,22 @@ message TrackEventConfig {
   // For now, this multiplier only affects incremental timestamps.
   // Note: This isn't supported in the SDK yet. It will be supported soon.
   optional uint64 timestamp_unit_multipler = 6;
+
+  // Default: false (i.e. debug_annotations is NOT filtered out by default)
+  // When true, any debug annotations provided as arguments to the
+  // TRACE_EVENT macros are not written into the trace. Typed arguments will
+  // still be emitted even if set to true.
+  optional bool filter_debug_annotations = 7;
+
+  // Default : false (i.e. disabled)
+  // When true, the SDK samples and emits the current thread time counter value
+  // for each event on the current thread's track. This value represents the
+  // total CPU time consumed by that thread since its creation. Note that if a
+  // thread is not scheduled by OS for some duration, that time won't be
+  // included in thread_time.
+  // Learn more : "CLOCK_THREAD_CPUTIME_ID" flag at
+  // https://linux.die.net/man/3/clock_gettime
+  optional bool enable_thread_time_sampling = 8;
 }
 
 // End of protos/perfetto/config/track_event/track_event_config.proto
@@ -2311,7 +2358,7 @@ message TraceStats {
   // periodic flushes). The final Flush() is also included in the count.
   optional uint64 flushes_requested = 12;
 
-  // The count of the Flush() requests that were completed succesfully.
+  // The count of the Flush() requests that were completed successfully.
   // In a well behaving trace this should always be == `flush_requests`.
   optional uint64 flushes_succeeded = 13;
 
@@ -3692,6 +3739,41 @@ message CrosEcSensorhubDataFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/cros_ec.proto
 
+// Begin of protos/perfetto/trace/ftrace/dma_fence.proto
+
+message DmaFenceInitFtraceEvent {
+  optional uint32 context = 1;
+  optional string driver = 2;
+  optional uint32 seqno = 3;
+  optional string timeline = 4;
+}
+message DmaFenceEmitFtraceEvent {
+  optional uint32 context = 1;
+  optional string driver = 2;
+  optional uint32 seqno = 3;
+  optional string timeline = 4;
+}
+message DmaFenceSignaledFtraceEvent {
+  optional uint32 context = 1;
+  optional string driver = 2;
+  optional uint32 seqno = 3;
+  optional string timeline = 4;
+}
+message DmaFenceWaitStartFtraceEvent {
+  optional uint32 context = 1;
+  optional string driver = 2;
+  optional uint32 seqno = 3;
+  optional string timeline = 4;
+}
+message DmaFenceWaitEndFtraceEvent {
+  optional uint32 context = 1;
+  optional string driver = 2;
+  optional uint32 seqno = 3;
+  optional string timeline = 4;
+}
+
+// End of protos/perfetto/trace/ftrace/dma_fence.proto
+
 // Begin of protos/perfetto/trace/ftrace/dmabuf_heap.proto
 
 message DmaHeapStatFtraceEvent {
@@ -3714,6 +3796,22 @@ message DpuTracingMarkWriteFtraceEvent {
 }
 
 // End of protos/perfetto/trace/ftrace/dpu.proto
+
+// Begin of protos/perfetto/trace/ftrace/drm.proto
+
+message DrmVblankEventFtraceEvent {
+  optional int32 crtc = 1;
+  optional uint32 high_prec = 2;
+  optional uint32 seq = 3;
+  optional int64 time = 4;
+}
+message DrmVblankEventDeliveredFtraceEvent {
+  optional int32 crtc = 1;
+  optional uint64 file = 2;
+  optional uint32 seq = 3;
+}
+
+// End of protos/perfetto/trace/ftrace/drm.proto
 
 // Begin of protos/perfetto/trace/ftrace/ext4.proto
 
@@ -4750,6 +4848,30 @@ message GpuMemTotalFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/gpu_mem.proto
 
+// Begin of protos/perfetto/trace/ftrace/gpu_scheduler.proto
+
+message DrmSchedJobFtraceEvent {
+  optional uint64 entity = 1;
+  optional uint64 fence = 2;
+  optional int32 hw_job_count = 3;
+  optional uint64 id = 4;
+  optional uint32 job_count = 5;
+  optional string name = 6;
+}
+message DrmRunJobFtraceEvent {
+  optional uint64 entity = 1;
+  optional uint64 fence = 2;
+  optional int32 hw_job_count = 3;
+  optional uint64 id = 4;
+  optional uint32 job_count = 5;
+  optional string name = 6;
+}
+message DrmSchedProcessJobFtraceEvent {
+  optional uint64 fence = 1;
+}
+
+// End of protos/perfetto/trace/ftrace/gpu_scheduler.proto
+
 // Begin of protos/perfetto/trace/ftrace/i2c.proto
 
 message I2cReadFtraceEvent {
@@ -5697,7 +5819,8 @@ message ScmCallStartFtraceEvent {
   optional uint64 x0 = 2;
   optional uint64 x5 = 3;
 }
-message ScmCallEndFtraceEvent {}
+message ScmCallEndFtraceEvent {
+}
 
 // End of protos/perfetto/trace/ftrace/scm.proto
 
@@ -6387,6 +6510,16 @@ message FtraceEvent {
     UfshcdCommandFtraceEvent ufshcd_command = 406;
     UfshcdClkGatingFtraceEvent ufshcd_clk_gating = 407;
     ConsoleFtraceEvent console = 408;
+    DrmVblankEventFtraceEvent drm_vblank_event = 409;
+    DrmVblankEventDeliveredFtraceEvent drm_vblank_event_delivered = 410;
+    DrmSchedJobFtraceEvent drm_sched_job = 411;
+    DrmRunJobFtraceEvent drm_run_job = 412;
+    DrmSchedProcessJobFtraceEvent drm_sched_process_job = 413;
+    DmaFenceInitFtraceEvent dma_fence_init = 414;
+    DmaFenceEmitFtraceEvent dma_fence_emit = 415;
+    DmaFenceSignaledFtraceEvent dma_fence_signaled = 416;
+    DmaFenceWaitStartFtraceEvent dma_fence_wait_start = 417;
+    DmaFenceWaitEndFtraceEvent dma_fence_wait_end = 418;
   }
 }
 
@@ -8974,6 +9107,9 @@ message Profiling {
     UNWIND_ERROR_SYSTEM_CALL = 9;
     UNWIND_ERROR_THREAD_TIMEOUT = 10;
     UNWIND_ERROR_THREAD_DOES_NOT_EXIST = 11;
+    UNWIND_ERROR_BAD_ARCH = 12;
+    UNWIND_ERROR_MAPS_PARSE = 13;
+    UNWIND_ERROR_INVALID_PARAMETER = 14;
   }
 }
 
@@ -9842,6 +9978,7 @@ message TranslationTable {
     ChromeHistorgramTranslationTable chrome_histogram = 1;
     ChromeUserEventTranslationTable chrome_user_event = 2;
     ChromePerformanceMarkTranslationTable chrome_performance_mark = 3;
+    SliceNameTranslationTable slice_name = 4;
   }
 }
 
@@ -9859,6 +9996,11 @@ message ChromeUserEventTranslationTable {
 message ChromePerformanceMarkTranslationTable {
   map<uint32, string> site_hash_to_name = 1;
   map<uint32, string> mark_hash_to_name = 2;
+};
+
+// Raw -> deobfuscated slice name translation rules.
+message SliceNameTranslationTable {
+  map<string, string> raw_to_deobfuscated_name = 1;
 };
 
 // End of protos/perfetto/trace/translation/translation_table.proto

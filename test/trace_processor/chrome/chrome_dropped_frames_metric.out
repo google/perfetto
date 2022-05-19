@@ -2,11 +2,11 @@
   dropped_frame: {
     ts: 166479338462000
     process_name: "Renderer"
-    process_id: 12743
+    pid: 12743
   }
   dropped_frame: {
     ts: 166479355302000
     process_name: "Renderer"
-    process_id: 12743
+    pid: 12743
   }
 }

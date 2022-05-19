@@ -25,7 +25,6 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_splitter.h"
@@ -53,22 +52,21 @@ namespace {
 // If the compact_sched buffer accumulates more unique strings, the reader will
 // flush it to reset the interning state (and make it cheap again).
 // This is not an exact cap, since we check only at tracing page boundaries.
-// TODO(rsavitski): consider making part of compact_sched config.
 constexpr size_t kCompactSchedInternerThreshold = 64;
 
 // For further documentation of these constants see the kernel source:
-// linux/include/linux/ring_buffer.h
-// Some information about the values of these constants are exposed to user
-// space at: /sys/kernel/debug/tracing/events/header_event
+//   linux/include/linux/ring_buffer.h
+// Some of this is also available to userspace at runtime via:
+//   /sys/kernel/tracing/events/header_event
 constexpr uint32_t kTypeDataTypeLengthMax = 28;
 constexpr uint32_t kTypePadding = 29;
 constexpr uint32_t kTypeTimeExtend = 30;
 constexpr uint32_t kTypeTimeStamp = 31;
 
-base::CrashKey g_crash_key_cpu("ftrace_cpu");
-
 struct EventHeader {
+  // bottom 5 bits
   uint32_t type_or_length : 5;
+  // top 27 bits
   uint32_t time_delta : 27;
 };
 
@@ -88,20 +86,22 @@ bool ReadDataLoc(const uint8_t* start,
                  const Field& field,
                  protozero::Message* message) {
   PERFETTO_DCHECK(field.ftrace_size == 4);
-  // See
-  // https://github.com/torvalds/linux/blob/master/include/trace/trace_events.h
+  // See kernel header include/trace/trace_events.h
   uint32_t data = 0;
   const uint8_t* ptr = field_start;
   if (!CpuReader::ReadAndAdvance(&ptr, end, &data)) {
-    PERFETTO_DFATAL("Buffer overflowed.");
+    PERFETTO_DFATAL("couldn't read __data_loc value");
     return false;
   }
 
   const uint16_t offset = data & 0xffff;
   const uint16_t len = (data >> 16) & 0xffff;
   const uint8_t* const string_start = start + offset;
-  if (string_start <= start || string_start + len > end) {
-    PERFETTO_DFATAL("Buffer overflowed.");
+
+  if (PERFETTO_UNLIKELY(len == 0))
+    return true;
+  if (PERFETTO_UNLIKELY(string_start < start || string_start + len > end)) {
+    PERFETTO_DFATAL("__data_loc points at invalid location");
     return false;
   }
   ReadIntoString(string_start, len, field.proto_field_id, message);
@@ -173,7 +173,6 @@ size_t CpuReader::ReadCycle(
     size_t max_pages,
     const std::set<FtraceDataSource*>& started_data_sources) {
   PERFETTO_DCHECK(max_pages > 0 && parsing_buf_size_pages > 0);
-  auto scoped_key = g_crash_key_cpu.SetScoped(static_cast<int>(cpu_));
   metatrace::ScopedEvent evt(metatrace::TAG_FTRACE,
                              metatrace::FTRACE_CPU_READ_CYCLE);
 
@@ -282,22 +281,28 @@ size_t CpuReader::ReadAndProcessBatch(
     return pages_read;
 
   for (FtraceDataSource* data_source : started_data_sources) {
-    bool pages_parsed_ok = ProcessPagesForDataSource(
+    size_t pages_parsed_ok = ProcessPagesForDataSource(
         data_source->trace_writer(), data_source->mutable_metadata(), cpu_,
         data_source->parsing_config(), parsing_buf, pages_read, table_,
         symbolizer_, ftrace_clock_snapshot_, ftrace_clock_);
-    // If this CHECK fires, it means that we did not know how to parse the
-    // kernel binary format. This is a bug in either perfetto or the kernel, and
-    // must be investigated. Hence we CHECK instead of recording a bit
-    // in the ftrace stats proto, which is easier to overlook.
-    PERFETTO_CHECK(pages_parsed_ok);
+    // If this happens, it means that we did not know how to parse the kernel
+    // binary format. This is a bug in either perfetto or the kernel, and must
+    // be investigated. Hence we abort instead of recording a bit in the ftrace
+    // stats proto, which is easier to overlook.
+    if (pages_parsed_ok != pages_read) {
+      const size_t first_bad_page_idx = pages_parsed_ok;
+      const uint8_t* curr_page =
+          parsing_buf + (first_bad_page_idx * base::kPageSize);
+      LogInvalidPage(curr_page, base::kPageSize);
+      PERFETTO_FATAL("Failed to parse ftrace page");
+    }
   }
 
   return pages_read;
 }
 
 // static
-bool CpuReader::ProcessPagesForDataSource(
+size_t CpuReader::ProcessPagesForDataSource(
     TraceWriter* trace_writer,
     FtraceMetadata* metadata,
     size_t cpu,
@@ -405,10 +410,10 @@ bool CpuReader::ProcessPagesForDataSource(
       bundle->set_lost_events(true);
   };
 
-  bool pages_parsed_ok = true;
   start_new_packet(/*lost_events=*/false);
-  for (size_t i = 0; i < pages_read; i++) {
-    const uint8_t* curr_page = parsing_buf + (i * base::kPageSize);
+  size_t pages_parsed = 0;
+  for (; pages_parsed < pages_read; pages_parsed++) {
+    const uint8_t* curr_page = parsing_buf + (pages_parsed * base::kPageSize);
     const uint8_t* curr_page_end = curr_page + base::kPageSize;
     const uint8_t* parse_pos = curr_page;
     base::Optional<PageHeader> page_header =
@@ -417,9 +422,7 @@ bool CpuReader::ProcessPagesForDataSource(
     if (!page_header.has_value() || page_header->size == 0 ||
         parse_pos >= curr_page_end ||
         parse_pos + page_header->size > curr_page_end) {
-      LogInvalidPage(curr_page, base::kPageSize);
-      PERFETTO_DFATAL("invalid page header");
-      return false;
+      break;
     }
 
     // Start a new bundle if either:
@@ -442,14 +445,12 @@ bool CpuReader::ProcessPagesForDataSource(
                          &compact_sched, bundle, metadata);
 
     if (evt_size != page_header->size) {
-      pages_parsed_ok = false;
-      LogInvalidPage(curr_page, base::kPageSize);
-      PERFETTO_DFATAL("could not parse ftrace page");
+      break;
     }
   }
   finalize_cur_packet();
 
-  return pages_parsed_ok;
+  return pages_parsed;
 }
 
 // A page header consists of:

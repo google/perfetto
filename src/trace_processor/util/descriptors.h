@@ -94,11 +94,11 @@ class ProtoDescriptor {
 
   const FieldDescriptor* FindFieldByName(const std::string& name) const {
     PERFETTO_DCHECK(type_ == Type::kMessage);
-    auto it =
-        std::find_if(fields_.begin(), fields_.end(),
-                     [name](std::pair<int32_t, const FieldDescriptor&> p) {
-                       return p.second.name() == name;
-                     });
+    auto it = std::find_if(
+        fields_.begin(), fields_.end(),
+        [name](const std::pair<const uint32_t, FieldDescriptor>& p) {
+          return p.second.name() == name;
+        });
     if (it == fields_.end()) {
       return nullptr;
     }

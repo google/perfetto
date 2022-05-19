@@ -73,7 +73,7 @@ SELECT
   'Dropped Frame' AS slice_name,
   'Dropped Frames' AS group_name
 FROM dropped_frames_with_process_info
-GROUP BY ts;
+GROUP BY process_id, ts;
 
 -- Create the dropped frames metric output.
 DROP VIEW IF EXISTS chrome_dropped_frames_output;
@@ -84,7 +84,7 @@ SELECT ChromeDroppedFrames(
       ChromeDroppedFrames_DroppedFrame(
         'ts', ts,
         'process_name', process_name,
-        'process_id', process_id
+        'pid', process_id
       )
     )
     FROM dropped_frames_with_process_info

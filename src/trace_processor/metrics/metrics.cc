@@ -26,6 +26,7 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
+#include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/common/descriptor.pbzero.h"
@@ -572,12 +573,13 @@ base::Status BuildProto::Run(BuildProto::Context* ctx,
                              sqlite3_value** argv,
                              SqlValue& out,
                              Destructors& destructors) {
+  const ProtoDescriptor& desc = ctx->pool->descriptors()[ctx->descriptor_idx];
   if (argc % 2 != 0) {
     return base::ErrStatus("Invalid number of args to %s BuildProto (got %zu)",
-                           ctx->desc->full_name().c_str(), argc);
+                           desc.full_name().c_str(), argc);
   }
 
-  ProtoBuilder builder(ctx->pool, ctx->desc);
+  ProtoBuilder builder(ctx->pool, &desc);
   for (size_t i = 0; i < argc; i += 2) {
     if (sqlite3_value_type(argv[i]) != SQLITE_TEXT) {
       return base::ErrStatus("BuildProto: Invalid args");

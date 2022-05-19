@@ -44,8 +44,8 @@ namespace profiling {
 // Parsed allow/deny-list for filtering samples.
 // An empty filter set means that all targets are allowed.
 struct TargetFilter {
-  base::FlatSet<std::string> cmdlines;
-  base::FlatSet<std::string> exclude_cmdlines;
+  std::vector<std::string> cmdlines;
+  std::vector<std::string> exclude_cmdlines;
   base::FlatSet<pid_t> pids;
   base::FlatSet<pid_t> exclude_pids;
   uint32_t additional_cmdline_count = 0;

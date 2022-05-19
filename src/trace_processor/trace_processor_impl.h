@@ -30,6 +30,7 @@
 #include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/sqlite/create_function.h"
+#include "src/trace_processor/sqlite/create_view_function.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
@@ -119,6 +120,11 @@ class TraceProcessorImpl : public TraceProcessor,
   // State necessary for CREATE_FUNCTION invocations. We store this here as we
   // need to finalize any prepared statements *before* we destroy the database.
   CreateFunction::State create_function_state_;
+
+  // State necessary for CREATE_VIEW_FUNCTION invocations. We store this here as
+  // we need to finalize any prepared statements *before* we destroy the
+  // database.
+  CreateViewFunction::State create_view_function_state_;
 
   std::unique_ptr<QueryCache> query_cache_;
 

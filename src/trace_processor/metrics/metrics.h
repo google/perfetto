@@ -163,7 +163,7 @@ struct BuildProto : public SqlFunction {
   struct Context {
     TraceProcessor* tp;
     const DescriptorPool* pool;
-    const ProtoDescriptor* desc;
+    uint32_t descriptor_idx;
   };
   static base::Status Run(Context* ctx,
                           size_t argc,

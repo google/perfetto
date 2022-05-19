@@ -339,6 +339,10 @@ void TrackEventInternal::ResetIncrementalState(
 
   incr_state->last_timestamp_ns = sequence_timestamp.value;
   auto default_track = ThreadTrack::Current();
+  auto thread_time_counter_track =
+      CounterTrack("thread_time", default_track)
+          .set_is_incremental(true)
+          .set_type(protos::gen::CounterDescriptor::COUNTER_THREAD_TIME_NS);
   {
     // Mark any incremental state before this point invalid. Also set up
     // defaults so that we don't need to repeat constant data for each packet.
@@ -350,6 +354,10 @@ void TrackEventInternal::ResetIncrementalState(
     // Establish the default track for this event sequence.
     auto track_defaults = defaults->set_track_event_defaults();
     track_defaults->set_track_uuid(default_track.uuid);
+    if (tls_state.enable_thread_time_sampling) {
+      track_defaults->add_extra_counter_track_uuids(
+          thread_time_counter_track.uuid);
+    }
 
     if (PERFETTO_LIKELY(!tls_state.disable_incremental_timestamps)) {
       defaults->set_timestamp_clock_id(kClockIdIncremental);
@@ -382,6 +390,11 @@ void TrackEventInternal::ResetIncrementalState(
 
   WriteTrackDescriptor(ProcessTrack::Current(), trace_writer, incr_state,
                        tls_state, sequence_timestamp);
+
+  if (tls_state.enable_thread_time_sampling) {
+    WriteTrackDescriptor(thread_time_counter_track, trace_writer, incr_state,
+                         tls_state, sequence_timestamp);
+  }
 }
 
 // static
@@ -429,15 +442,24 @@ EventContext TrackEventInternal::WriteEvent(
     const Category* category,
     const char* name,
     perfetto::protos::pbzero::TrackEvent::Type type,
-    const TraceTimestamp& timestamp) {
+    const TraceTimestamp& timestamp,
+    bool on_current_thread_track) {
   PERFETTO_DCHECK(g_main_thread);
   PERFETTO_DCHECK(!incr_state->was_cleared);
   auto packet = NewTracePacket(trace_writer, incr_state, tls_state, timestamp);
-  EventContext ctx(std::move(packet), incr_state);
+  EventContext ctx(std::move(packet), incr_state, &tls_state);
 
   auto track_event = ctx.event();
   if (type != protos::pbzero::TrackEvent::TYPE_UNSPECIFIED)
     track_event->set_type(type);
+
+  if (tls_state.enable_thread_time_sampling && on_current_thread_track) {
+    int64_t thread_time_ns = base::GetThreadCPUTimeNs().count();
+    auto thread_time_delta_ns =
+        thread_time_ns - incr_state->last_thread_time_ns;
+    incr_state->last_thread_time_ns = thread_time_ns;
+    track_event->add_extra_counter_values(thread_time_delta_ns);
+  }
 
   // We assume that |category| and |name| point to strings with static lifetime.
   // This means we can use their addresses as interning keys.

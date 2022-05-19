@@ -83,7 +83,7 @@ enum class State {
   // either to the kTraceEnded state (if successful) or an error state.
   kTracing = 3,
 
-  // Tracing ended succesfully. The trace buffer can now be retrieved through
+  // Tracing ended successfully. The trace buffer can now be retrieved through
   // the ReadTrace() call.
   // This state is final.
   kTraceEnded = 4,

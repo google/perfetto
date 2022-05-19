@@ -148,18 +148,34 @@ message PerfEventConfig {
     // process.
     repeated int32 target_pid = 1;
 
-    // Command line allowlist, matched against the
-    // /proc/<pid>/cmdline (not the comm string), with both sides being
-    // "normalized". Normalization is as follows: (1) trim everything beyond the
-    // first null or "@" byte; (2) if the string contains forward slashes, trim
-    // everything up to and including the last one.
+    // Command line allowlist, matched against the /proc/<pid>/cmdline (not the
+    // comm string). The semantics of this field were changed since its original
+    // introduction.
+    //
+    // On Android T+ (13+), this field can specify a single wildcard (*), and
+    // the profiler will attempt to match it in two possible ways:
+    // * if the pattern starts with a '/', then it is matched against the first
+    //   segment of the cmdline (i.e. argv0). For example "/bin/e*" would match
+    //   "/bin/echo".
+    // * otherwise the pattern is matched against the part of argv0
+    //   corresponding to the binary name (this is unrelated to /proc/pid/exe).
+    //   For example "echo" would match "/bin/echo".
+    //
+    // On Android S (12) and below, both this pattern and /proc/pid/cmdline get
+    // normalized prior to an exact string comparison. Normalization is as
+    // follows: (1) trim everything beyond the first null or "@" byte; (2) if
+    // the string contains forward slashes, trim everything up to and including
+    // the last one.
+    //
+    // Implementation note: in either case, at most 511 characters of cmdline
+    // are considered.
     repeated string target_cmdline = 2;
 
     // List of excluded pids.
     repeated int32 exclude_pid = 3;
 
-    // List of excluded cmdlines. Normalized in the same way as
-    // |target_cmdline|.
+    // List of excluded cmdlines. See description of |target_cmdline| for how
+    // this is handled.
     repeated string exclude_cmdline = 4;
 
     // Number of additional command lines to sample. Only those which are

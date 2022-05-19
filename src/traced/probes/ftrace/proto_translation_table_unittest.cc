@@ -379,7 +379,7 @@ TEST(TranslationTableTest, Getters) {
   std::vector<Event> events;
 
   {
-    Event event;
+    Event event{};
     event.name = "foo";
     event.group = "group_one";
     event.ftrace_event_id = 1;
@@ -387,7 +387,7 @@ TEST(TranslationTableTest, Getters) {
   }
 
   {
-    Event event;
+    Event event{};
     event.name = "bar";
     event.group = "group_one";
     event.ftrace_event_id = 2;
@@ -395,7 +395,7 @@ TEST(TranslationTableTest, Getters) {
   }
 
   {
-    Event event;
+    Event event{};
     event.name = "baz";
     event.group = "group_two";
     event.ftrace_event_id = 100;

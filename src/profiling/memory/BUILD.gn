@@ -256,6 +256,7 @@ source_set("daemon") {
     "../common:callstack_trie",
     "../common:interner",
     "../common:interning_output",
+    "../common:proc_cmdline",
     "../common:proc_utils",
     "../common:producer_support",
     "../common:profiler_guardrails",

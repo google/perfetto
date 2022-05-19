@@ -82,6 +82,7 @@ def official_builder(name, os, caches=[]):
             name = "perfetto",
             cipd_package = "infra/recipe_bundles/android.googlesource.com/platform/external/perfetto",
             cipd_version = "refs/heads/master",
+            use_python3 = True,
         ),
         dimensions = {
             "pool": "luci.perfetto.official",

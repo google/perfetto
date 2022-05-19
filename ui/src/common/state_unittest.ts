@@ -17,7 +17,7 @@ import {getContainingTrackId, State, TrackKindPriority} from './state';
 
 test('createEmptyState', () => {
   const state: State = createEmptyState();
-  expect(state.nextId).toEqual(0);
+  expect(state.currentEngineId).toEqual(undefined);
 });
 
 test('getContainingTrackId', () => {

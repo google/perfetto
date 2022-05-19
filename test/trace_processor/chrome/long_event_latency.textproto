@@ -42,7 +42,7 @@ packet {
     categories: "cat"
     debug_annotations: {
       name: "event"
-      string_value: "GestureScrollUpdate"
+      string_value: "FirstGestureScrollUpdate"
     }
     name: "EventLatency"
     type: 1

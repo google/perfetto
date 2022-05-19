@@ -27,8 +27,10 @@ import "protos/perfetto/trace/ftrace/clk.proto";
 import "protos/perfetto/trace/ftrace/compaction.proto";
 import "protos/perfetto/trace/ftrace/cpuhp.proto";
 import "protos/perfetto/trace/ftrace/cros_ec.proto";
+import "protos/perfetto/trace/ftrace/dma_fence.proto";
 import "protos/perfetto/trace/ftrace/dmabuf_heap.proto";
 import "protos/perfetto/trace/ftrace/dpu.proto";
+import "protos/perfetto/trace/ftrace/drm.proto";
 import "protos/perfetto/trace/ftrace/ext4.proto";
 import "protos/perfetto/trace/ftrace/f2fs.proto";
 import "protos/perfetto/trace/ftrace/fastrpc.proto";
@@ -37,6 +39,7 @@ import "protos/perfetto/trace/ftrace/filemap.proto";
 import "protos/perfetto/trace/ftrace/ftrace.proto";
 import "protos/perfetto/trace/ftrace/g2d.proto";
 import "protos/perfetto/trace/ftrace/gpu_mem.proto";
+import "protos/perfetto/trace/ftrace/gpu_scheduler.proto";
 import "protos/perfetto/trace/ftrace/i2c.proto";
 import "protos/perfetto/trace/ftrace/ion.proto";
 import "protos/perfetto/trace/ftrace/ipi.proto";
@@ -506,5 +509,15 @@ message FtraceEvent {
     UfshcdCommandFtraceEvent ufshcd_command = 406;
     UfshcdClkGatingFtraceEvent ufshcd_clk_gating = 407;
     ConsoleFtraceEvent console = 408;
+    DrmVblankEventFtraceEvent drm_vblank_event = 409;
+    DrmVblankEventDeliveredFtraceEvent drm_vblank_event_delivered = 410;
+    DrmSchedJobFtraceEvent drm_sched_job = 411;
+    DrmRunJobFtraceEvent drm_run_job = 412;
+    DrmSchedProcessJobFtraceEvent drm_sched_process_job = 413;
+    DmaFenceInitFtraceEvent dma_fence_init = 414;
+    DmaFenceEmitFtraceEvent dma_fence_emit = 415;
+    DmaFenceSignaledFtraceEvent dma_fence_signaled = 416;
+    DmaFenceWaitStartFtraceEvent dma_fence_wait_start = 417;
+    DmaFenceWaitEndFtraceEvent dma_fence_wait_end = 418;
   }
 }

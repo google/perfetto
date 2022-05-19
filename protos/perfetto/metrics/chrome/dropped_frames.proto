@@ -22,7 +22,7 @@ message ChromeDroppedFrames {
   message DroppedFrame {
     optional int64 ts = 1;
     optional string process_name = 2;
-    optional int64 process_id = 3;
+    optional int64 pid = 3;
   }
 
   repeated DroppedFrame dropped_frame = 1;

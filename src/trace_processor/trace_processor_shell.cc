@@ -901,7 +901,7 @@ void ExtendPoolWithBinaryDescriptor(google::protobuf::DescriptorPool& pool,
                                     int size,
                                     std::vector<std::string>& skip_prefixes) {
   google::protobuf::FileDescriptorSet desc_set;
-  desc_set.ParseFromArray(data, size);
+  PERFETTO_CHECK(desc_set.ParseFromArray(data, size));
   for (const auto& file_desc : desc_set.file()) {
     if (base::StartsWithAny(file_desc.name(), skip_prefixes))
       continue;

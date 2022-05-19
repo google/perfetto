@@ -18,6 +18,7 @@
 
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
@@ -32,6 +33,8 @@ TEST(FlowTrackerTest, SingleFlowEventExplicitInSliceBinding) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
   context.slice_tracker.reset(new SliceTracker(&context));
+  context.slice_translation_table.reset(
+      new SliceTranslationTable(context.storage.get()));
   auto& slice_tracker = context.slice_tracker;
   FlowTracker tracker(&context);
   slice_tracker->SetOnSliceBeginCallback(
@@ -64,6 +67,8 @@ TEST(FlowTrackerTest, SingleFlowEventWaitForNextSlice) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
   context.slice_tracker.reset(new SliceTracker(&context));
+  context.slice_translation_table.reset(
+      new SliceTranslationTable(context.storage.get()));
   auto& slice_tracker = context.slice_tracker;
   FlowTracker tracker(&context);
   slice_tracker->SetOnSliceBeginCallback(
@@ -100,6 +105,8 @@ TEST(FlowTrackerTest, SingleFlowEventWaitForNextSliceScoped) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
   context.slice_tracker.reset(new SliceTracker(&context));
+  context.slice_translation_table.reset(
+      new SliceTranslationTable(context.storage.get()));
   auto& slice_tracker = context.slice_tracker;
   FlowTracker tracker(&context);
   slice_tracker->SetOnSliceBeginCallback(
@@ -135,6 +142,8 @@ TEST(FlowTrackerTest, TwoFlowEventsWaitForNextSlice) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
   context.slice_tracker.reset(new SliceTracker(&context));
+  context.slice_translation_table.reset(
+      new SliceTranslationTable(context.storage.get()));
   auto& slice_tracker = context.slice_tracker;
   FlowTracker tracker(&context);
   slice_tracker->SetOnSliceBeginCallback(
@@ -185,6 +194,8 @@ TEST(FlowTrackerTest, TwoFlowEventsSliceInSlice) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
   context.slice_tracker.reset(new SliceTracker(&context));
+  context.slice_translation_table.reset(
+      new SliceTranslationTable(context.storage.get()));
   auto& slice_tracker = context.slice_tracker;
   FlowTracker tracker(&context);
   slice_tracker->SetOnSliceBeginCallback(
@@ -235,6 +246,8 @@ TEST(FlowTrackerTest, FlowEventsWithStep) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
   context.slice_tracker.reset(new SliceTracker(&context));
+  context.slice_translation_table.reset(
+      new SliceTranslationTable(context.storage.get()));
   auto& slice_tracker = context.slice_tracker;
   FlowTracker tracker(&context);
   slice_tracker->SetOnSliceBeginCallback(

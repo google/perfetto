@@ -1,6 +1,8 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Android perf profiler ("linux.perf" data source) and Java heap snapshots
+      ("android.java_hprof") now support a single wildcard (*) in the config
+      options that name process command lines to target.
   Trace Processor:
     *
   UI:

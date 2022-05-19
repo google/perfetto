@@ -25,7 +25,6 @@
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/utils.h"
-#include "perfetto/profiling/normalize.h"
 #include "src/profiling/perf/regs_parsing.h"
 
 #include "protos/perfetto/common/perf_events.gen.h"
@@ -39,23 +38,6 @@ constexpr uint64_t kDefaultSamplingFrequencyHz = 10;
 constexpr uint32_t kDefaultDataPagesPerRingBuffer = 256;  // 1 MB: 256x 4k pages
 constexpr uint32_t kDefaultReadTickPeriodMs = 100;
 constexpr uint32_t kDefaultRemoteDescriptorTimeoutMs = 100;
-
-base::Optional<std::string> Normalize(const std::string& src) {
-  // Construct a null-terminated string that will be mutated by the normalizer.
-  std::vector<char> base(src.size() + 1);
-  memcpy(base.data(), src.data(), src.size());
-  base[src.size()] = '\0';
-
-  char* new_start = base.data();
-  ssize_t new_sz = NormalizeCmdLine(&new_start, base.size());
-  if (new_sz < 0) {
-    PERFETTO_ELOG("Failed to normalize config cmdline [%s], aborting",
-                  base.data());
-    return base::nullopt;
-  }
-  return base::make_optional<std::string>(new_start,
-                                          static_cast<size_t>(new_sz));
-}
 
 // Acceptable forms: "sched/sched_switch" or "sched:sched_switch".
 std::pair<std::string, std::string> SplitTracepointString(
@@ -100,40 +82,29 @@ base::Optional<uint32_t> ParseTracepointAndResolveId(
   return base::make_optional(tracepoint_id);
 }
 
-// Returns |base::nullopt| if any of the input cmdlines couldn't be normalized.
 // |T| is either gen::PerfEventConfig or gen::PerfEventConfig::Scope.
+// Note: the semantics of target_cmdline and exclude_cmdline were changed since
+// their original introduction. They used to be put through a canonicalization
+// function that simplified them to the binary name alone. We no longer do this,
+// regardless of whether we're parsing an old-style config. The overall outcome
+// shouldn't change for almost all existing uses.
 template <typename T>
-base::Optional<TargetFilter> ParseTargetFilter(const T& cfg) {
+TargetFilter ParseTargetFilter(const T& cfg) {
   TargetFilter filter;
   for (const auto& str : cfg.target_cmdline()) {
-    base::Optional<std::string> opt = Normalize(str);
-    if (!opt.has_value()) {
-      PERFETTO_ELOG("Failure normalizing cmdline: [%s]", str.c_str());
-      return base::nullopt;
-    }
-    filter.cmdlines.insert(std::move(opt.value()));
+    filter.cmdlines.push_back(str);
   }
-
   for (const auto& str : cfg.exclude_cmdline()) {
-    base::Optional<std::string> opt = Normalize(str);
-    if (!opt.has_value()) {
-      PERFETTO_ELOG("Failure normalizing cmdline: [%s]", str.c_str());
-      return base::nullopt;
-    }
-    filter.exclude_cmdlines.insert(std::move(opt.value()));
+    filter.exclude_cmdlines.push_back(str);
   }
-
   for (const int32_t pid : cfg.target_pid()) {
     filter.pids.insert(pid);
   }
-
   for (const int32_t pid : cfg.exclude_pid()) {
     filter.exclude_pids.insert(pid);
   }
-
   filter.additional_cmdline_count = cfg.additional_cmdline_count();
-
-  return base::make_optional(std::move(filter));
+  return filter;
 }
 
 constexpr bool IsPowerOfTwo(size_t v) {
@@ -389,14 +360,10 @@ base::Optional<EventConfig> EventConfig::Create(
     sample_callstacks = true;
 
     // Process scoping.
-    auto maybe_filter =
+    target_filter =
         pb_config.callstack_sampling().has_scope()
             ? ParseTargetFilter(pb_config.callstack_sampling().scope())
             : ParseTargetFilter(pb_config);  // backwards compatibility
-    if (!maybe_filter.has_value())
-      return base::nullopt;
-
-    target_filter = std::move(maybe_filter.value());
 
     // Inclusion of kernel callchains.
     kernel_frames = pb_config.callstack_sampling().kernel_frames() ||

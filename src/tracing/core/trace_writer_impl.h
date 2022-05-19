@@ -33,7 +33,15 @@ namespace perfetto {
 
 class SharedMemoryArbiterImpl;
 
-// See //include/perfetto/tracing/core/trace_writer.h for docs.
+// See //include/perfetto/ext/tracing/core/trace_writer.h for docs.
+//
+// Locking will happen only when a chunk is exhausted and a new one is
+// acquired from the arbiter.
+//
+// TODO: TraceWriter needs to keep the shared memory buffer alive (refcount?).
+// Otherwise if the shared memory buffer goes away (e.g. the Service crashes)
+// the TraceWriter will keep writing into unmapped memory.
+//
 class TraceWriterImpl : public TraceWriter,
                         public protozero::ScatteredStreamWriter::Delegate {
  public:
@@ -46,6 +54,11 @@ class TraceWriterImpl : public TraceWriter,
 
   // TraceWriter implementation. See documentation in trace_writer.h.
   TracePacketHandle NewTracePacket() override;
+  // Commits the data pending for the current chunk into the shared memory
+  // buffer and sends a CommitDataRequest() to the service.
+  // TODO(primiano): right now the |callback| will be called on the IPC thread.
+  // This is fine in the current single-thread scenario, but long-term
+  // trace_writer_impl.cc should be smarter and post it on the right thread.
   void Flush(std::function<void()> callback = {}) override;
   WriterID writer_id() const override;
   uint64_t written() const override {

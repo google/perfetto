@@ -403,3 +403,13 @@ power/wakeup_source_deactivate
 ufs/ufshcd_command
 ufs/ufshcd_clk_gating
 printk/console
+drm/drm_vblank_event
+drm/drm_vblank_event_delivered
+gpu_scheduler/drm_sched_job
+gpu_scheduler/drm_run_job
+gpu_scheduler/drm_sched_process_job
+dma_fence/dma_fence_init
+dma_fence/dma_fence_emit
+dma_fence/dma_fence_signaled
+dma_fence/dma_fence_wait_start
+dma_fence/dma_fence_wait_end

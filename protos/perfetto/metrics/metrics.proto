@@ -41,6 +41,7 @@ import "protos/perfetto/metrics/android/mem_metric.proto";
 import "protos/perfetto/metrics/android/mem_unagg_metric.proto";
 import "protos/perfetto/metrics/android/multiuser_metric.proto";
 import "protos/perfetto/metrics/android/network_metric.proto";
+import "protos/perfetto/metrics/android/other_traces.proto";
 import "protos/perfetto/metrics/android/package_list.proto";
 import "protos/perfetto/metrics/android/powrails_metric.proto";
 import "protos/perfetto/metrics/android/profiler_smaps.proto";
@@ -50,7 +51,6 @@ import "protos/perfetto/metrics/android/startup_metric.proto";
 import "protos/perfetto/metrics/android/surfaceflinger.proto";
 import "protos/perfetto/metrics/android/sysui_cuj_metrics.proto";
 import "protos/perfetto/metrics/android/task_names.proto";
-import "protos/perfetto/metrics/android/thread_time_in_state_metric.proto";
 import "protos/perfetto/metrics/android/trace_quality.proto";
 import "protos/perfetto/metrics/android/android_trusty_workqueues.proto";
 import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
@@ -99,7 +99,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 45
+// Next id: 46
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -160,7 +160,8 @@ message TraceMetrics {
 
   optional AndroidTaskNames android_task_names = 23;
 
-  optional AndroidThreadTimeInStateMetric android_thread_time_in_state = 24;
+  // Deprecated was AndroidThreadTimeInStateMetric
+  reserved 24;
 
   // Metric associated with surfaceflinger.
   optional AndroidSurfaceflingerMetric android_surfaceflinger = 25;
@@ -217,6 +218,9 @@ message TraceMetrics {
 
   // Metrics for the Trusty team.
   optional AndroidTrustyWorkqueues android_trusty_workqueues = 44;
+
+  // Summary of other concurrent trace recording.
+  optional AndroidOtherTracesMetric android_other_traces = 45;
 
   // Demo extensions.
   extensions 450 to 499;

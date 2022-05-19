@@ -643,7 +643,7 @@ class TrackDecider {
     from thread_counter_track
     join thread using(utid)
     left join process using(upid)
-    where thread_counter_track.name not in ('time_in_state', 'thread_time')
+    where thread_counter_track.name != 'thread_time'
   `);
 
     const it = result.iter({
@@ -1069,7 +1069,7 @@ class TrackDecider {
       process.name as processName,
       thread.name as threadName,
       process.arg_set_id as argSetId,
-      (case process.name 
+      (case process.name
          when 'Browser' then 3
          when 'Gpu' then 2
          when 'Renderer' then 1
@@ -1102,10 +1102,6 @@ class TrackDecider {
       from sched join thread using(utid)
       group by upid
     ) using(upid)
-    left join (select upid, max(value) as total_cycles
-      from android_thread_time_in_state_event
-      group by upid
-    ) using(upid)
     left join (
       select
         distinct(upid) as upid,
@@ -1123,7 +1119,6 @@ class TrackDecider {
       chromeProcessRank desc,
       hasHeapProfiles desc,
       total_dur desc,
-      total_cycles desc,
       the_tracks.upid,
       the_tracks.utid;
   `);

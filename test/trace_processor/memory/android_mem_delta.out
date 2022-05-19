@@ -1,0 +1,13 @@
+android_mem {
+  process_metrics {
+    process_name: "com.my.pkg"
+    total_counters {
+      file_rss {
+        min: 2000.0
+        max: 10000.0
+        avg: 6666.666666666667
+        delta: 7000.0
+      }
+    }
+  }
+}

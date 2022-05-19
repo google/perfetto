@@ -1,0 +1,23 @@
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  track_event {
+    categories: "cat"
+    name: "Looper.Dispatch: class1"
+    type: 3
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2000
+  track_event {
+    categories: "cat"
+    name: "name2"
+    type: 3
+  }
+}
+packet {
+  chrome_metadata {
+    chrome_version_code: 123
+  }
+}

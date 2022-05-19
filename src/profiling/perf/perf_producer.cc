@@ -36,7 +36,7 @@
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "src/profiling/common/callstack_trie.h"
-#include "src/profiling/common/proc_utils.h"
+#include "src/profiling/common/proc_cmdline.h"
 #include "src/profiling/common/producer_support.h"
 #include "src/profiling/common/profiler_guardrails.h"
 #include "src/profiling/common/unwind_support.h"
@@ -180,14 +180,27 @@ bool ShouldRejectDueToFilter(pid_t pid,
                              base::FlatSet<std::string>* additional_cmdlines,
                              const TargetFilter& filter) {
   PERFETTO_CHECK(additional_cmdlines);
+
   std::string cmdline;
-  bool have_cmdline = GetCmdlineForPID(pid, &cmdline);  // normalized form
-  if (!have_cmdline) {
-    PERFETTO_DLOG("Failed to look up cmdline for pid [%d]",
-                  static_cast<int>(pid));
+  bool have_cmdline = glob_aware::ReadProcCmdlineForPID(pid, &cmdline);
+
+  const char* binname = "";
+  if (have_cmdline) {
+    binname = glob_aware::FindBinaryName(cmdline.c_str(), cmdline.size());
   }
 
-  if (have_cmdline && filter.exclude_cmdlines.count(cmdline)) {
+  auto has_matching_pattern = [](const std::vector<std::string>& patterns,
+                                 const char* cmd, const char* name) {
+    for (const std::string& pattern : patterns) {
+      if (glob_aware::MatchGlobPattern(pattern.c_str(), cmd, name)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  if (have_cmdline &&
+      has_matching_pattern(filter.exclude_cmdlines, cmdline.c_str(), binname)) {
     PERFETTO_DLOG("Explicitly rejecting samples for pid [%d] due to cmdline",
                   static_cast<int>(pid));
     return true;
@@ -198,20 +211,21 @@ bool ShouldRejectDueToFilter(pid_t pid,
     return true;
   }
 
-  if (have_cmdline && filter.cmdlines.count(cmdline)) {
+  if (have_cmdline &&
+      has_matching_pattern(filter.cmdlines, cmdline.c_str(), binname)) {
     return false;
   }
   if (filter.pids.count(pid)) {
     return false;
   }
+
+  // Empty allow filter means keep everything that isn't explicitly excluded.
   if (filter.cmdlines.empty() && filter.pids.empty() &&
       !filter.additional_cmdline_count) {
-    // If no filters are set allow everything.
     return false;
   }
 
-  // If we didn't read the command line that's a good prediction we will not be
-  // able to profile either.
+  // Config option that allows to profile just the N first seen cmdlines.
   if (have_cmdline) {
     if (additional_cmdlines->count(cmdline)) {
       return false;
@@ -270,6 +284,12 @@ protos::pbzero::Profiling::StackUnwindError ToProtoEnum(
       return Profiling::UNWIND_ERROR_THREAD_TIMEOUT;
     case unwindstack::ERROR_THREAD_DOES_NOT_EXIST:
       return Profiling::UNWIND_ERROR_THREAD_DOES_NOT_EXIST;
+    case unwindstack::ERROR_BAD_ARCH:
+      return Profiling::UNWIND_ERROR_BAD_ARCH;
+    case unwindstack::ERROR_MAPS_PARSE:
+      return Profiling::UNWIND_ERROR_MAPS_PARSE;
+    case unwindstack::ERROR_INVALID_PARAMETER:
+      return Profiling::UNWIND_ERROR_INVALID_PARAMETER;
   }
   return Profiling::UNWIND_ERROR_UNKNOWN;
 }

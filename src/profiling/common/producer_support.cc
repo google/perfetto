@@ -18,14 +18,58 @@
 
 #include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/tracing/core/data_source_config.h"
-
-#include "perfetto/tracing/core/forward_decls.h"
 #include "src/traced/probes/packages_list/packages_list_parser.h"
 
 namespace perfetto {
 namespace profiling {
+
+namespace {
+base::Optional<Package> FindInPackagesList(
+    uint64_t lookup_uid,
+    const std::string& packages_list_path) {
+  std::string content;
+  if (!base::ReadFile(packages_list_path, &content)) {
+    PERFETTO_ELOG("Failed to read %s", packages_list_path.c_str());
+    return base::nullopt;
+  }
+  for (base::StringSplitter ss(std::move(content), '\n'); ss.Next();) {
+    Package pkg;
+    if (!ReadPackagesListLine(ss.cur_token(), &pkg)) {
+      PERFETTO_ELOG("Failed to parse packages.list");
+      return base::nullopt;
+    }
+
+    if (pkg.uid == lookup_uid) {
+      return std::move(pkg);  // -Wreturn-std-move-in-c++11
+    }
+  }
+  return base::nullopt;
+}
+
+bool AllPackagesProfileableByTrustedInitiator(
+    const std::string& packages_list_path) {
+  std::string content;
+  if (!base::ReadFile(packages_list_path, &content)) {
+    PERFETTO_ELOG("Failed to read %s", packages_list_path.c_str());
+    return false;
+  }
+  bool ret = true;
+  for (base::StringSplitter ss(std::move(content), '\n'); ss.Next();) {
+    Package pkg;
+    if (!ReadPackagesListLine(ss.cur_token(), &pkg)) {
+      PERFETTO_ELOG("Failed to parse packages.list");
+      return false;
+    }
+
+    ret = ret && (pkg.profileable || pkg.debuggable);
+  }
+  return ret;
+}
+
+}  // namespace
 
 bool CanProfile(const DataSourceConfig& ds_config,
                 uint64_t uid,
@@ -52,11 +96,16 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
                        const std::vector<std::string>& installed_by,
                        const std::string& build_type,
                        const std::string& packages_list_path) {
-  // These are replicated constants from libcutils android_filesystem_config.h
-  constexpr auto kAidAppStart = 10000;     // AID_APP_START
-  constexpr auto kAidAppEnd = 19999;       // AID_APP_END
-  constexpr auto kAidUserOffset = 100000;  // AID_USER_OFFSET
-  constexpr auto kAidSystem = 1000;        // AID_SYSTEM
+  // These constants are replicated from libcutils android_filesystem_config.h,
+  // to allow for building and testing the profilers outside the android tree.
+  constexpr auto kAidSystem = 1000;           // AID_SYSTEM
+  constexpr auto kAidUserOffset = 100000;     // AID_USER_OFFSET
+  constexpr auto kAidAppStart = 10000;        // AID_APP_START
+  constexpr auto kAidAppEnd = 19999;          // AID_APP_END
+  constexpr auto kAidSdkSandboxStart = 20000; // AID_SDK_SANDBOX_PROCESS_START
+  constexpr auto kAidSdkSandboxEnd = 29999;   // AID_SDK_SANDBOX_PROCESS_END
+  constexpr auto kAidIsolatedStart = 90000;   // AID_ISOLATED_START
+  constexpr auto kAidIsolatedEnd = 99999;     // AID_ISOLATED_END
 
   if (!build_type.empty() && build_type != "user") {
     return true;
@@ -69,44 +118,63 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
   }
 
   uint64_t uid_without_profile = uid % kAidUserOffset;
-  if (uid_without_profile < kAidAppStart || kAidAppEnd < uid_without_profile) {
-    // TODO(fmayer): relax this.
-    return false;  // no native services on user.
-  }
+  uint64_t uid_for_lookup = 0;
+  if (uid_without_profile >= kAidAppStart &&
+      uid_without_profile <= kAidAppEnd) {
+    // normal app
+    uid_for_lookup = uid_without_profile;
 
-  std::string content;
-  if (!base::ReadFile(packages_list_path, &content)) {
-    PERFETTO_ELOG("Failed to read %s.", packages_list_path.c_str());
+  } else if (uid_without_profile >= kAidSdkSandboxStart &&
+             uid_without_profile <= kAidSdkSandboxEnd) {
+    // sdk sandbox process, has deterministic mapping to corresponding app
+    uint64_t sdk_sandbox_offset = kAidSdkSandboxStart - kAidAppStart;
+    uid_for_lookup = uid_without_profile - sdk_sandbox_offset;
+
+  } else if (uid_without_profile >= kAidIsolatedStart &&
+             uid_without_profile <= kAidIsolatedEnd) {
+    // Isolated process. Such processes run under random UIDs and have no
+    // straightforward link to the original app's UID without consulting
+    // system_server. So we have to perform a very conservative check - if *all*
+    // packages are profileable, then any isolated process must be profileable
+    // as well, regardless of which package it's running for (which might not
+    // even be the package in which the service was defined).
+    // TODO(rsavitski): find a way for the platform to tell native services
+    // about isolated<->app relations.
+    bool trusted_initiator = ds_config.session_initiator() ==
+                             DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM;
+    return trusted_initiator &&
+           AllPackagesProfileableByTrustedInitiator(packages_list_path);
+
+  } else {
+    // disallow everything else on release builds
     return false;
   }
-  for (base::StringSplitter ss(std::move(content), '\n'); ss.Next();) {
-    Package pkg;
-    if (!ReadPackagesListLine(ss.cur_token(), &pkg)) {
-      PERFETTO_ELOG("Failed to parse packages.list.");
+
+  base::Optional<Package> pkg =
+      FindInPackagesList(uid_for_lookup, packages_list_path);
+
+  if (!pkg)
+    return false;
+
+  // check installer constraint if given
+  if (!installed_by.empty()) {
+    if (pkg->installed_by.empty()) {
+      PERFETTO_ELOG("Cannot parse installer from packages.list");
       return false;
     }
-    if (pkg.uid != uid_without_profile)
-      continue;
-    if (!installed_by.empty()) {
-      if (pkg.installed_by.empty()) {
-        PERFETTO_ELOG(
-            "installed_by given in TraceConfig, but cannot parse "
-            "installer from packages.list.");
-        return false;
-      }
-      if (std::find(installed_by.cbegin(), installed_by.cend(),
-                    pkg.installed_by) == installed_by.cend()) {
-        return false;
-      }
-    }
-    switch (ds_config.session_initiator()) {
-      case DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED:
-        return pkg.profileable_from_shell || pkg.debuggable;
-      case DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM:
-        return pkg.profileable || pkg.debuggable;
+    if (std::find(installed_by.cbegin(), installed_by.cend(),
+                  pkg->installed_by) == installed_by.cend()) {
+      // not installed by one of the requested origins
+      return false;
     }
   }
-  // Did not find package.
+
+  switch (ds_config.session_initiator()) {
+    case DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED:
+      return pkg->profileable_from_shell || pkg->debuggable;
+    case DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM:
+      return pkg->profileable || pkg->debuggable;
+  }
   return false;
 }
 

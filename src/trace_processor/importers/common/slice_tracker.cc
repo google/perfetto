@@ -20,6 +20,7 @@
 
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -39,8 +40,10 @@ SliceTracker::~SliceTracker() = default;
 base::Optional<SliceId> SliceTracker::Begin(int64_t timestamp,
                                             TrackId track_id,
                                             StringId category,
-                                            StringId name,
+                                            StringId raw_name,
                                             SetArgsCallback args_callback) {
+  const StringId name =
+      context_->slice_translation_table->TranslateName(raw_name);
   tables::SliceTable::Row row(timestamp, kPendingDuration, track_id, category,
                               name);
   return StartSlice(timestamp, track_id, args_callback, [this, &row]() {
@@ -50,6 +53,10 @@ base::Optional<SliceId> SliceTracker::Begin(int64_t timestamp,
 
 void SliceTracker::BeginLegacyUnnestable(tables::SliceTable::Row row,
                                          SetArgsCallback args_callback) {
+  if (row.name) {
+    row.name = context_->slice_translation_table->TranslateName(*row.name);
+  }
+
   // Ensure that the duration is pending for this row.
   // TODO(lalitm): change this to eventually use null instead of -1.
   row.dur = kPendingDuration;
@@ -72,11 +79,13 @@ void SliceTracker::BeginLegacyUnnestable(tables::SliceTable::Row row,
 base::Optional<SliceId> SliceTracker::Scoped(int64_t timestamp,
                                              TrackId track_id,
                                              StringId category,
-                                             StringId name,
+                                             StringId raw_name,
                                              int64_t duration,
                                              SetArgsCallback args_callback) {
   PERFETTO_DCHECK(duration >= 0);
 
+  const StringId name =
+      context_->slice_translation_table->TranslateName(raw_name);
   tables::SliceTable::Row row(timestamp, duration, track_id, category, name);
   return StartSlice(timestamp, track_id, args_callback, [this, &row]() {
     return context_->storage->mutable_slice_table()->Insert(row).id;
@@ -86,8 +95,10 @@ base::Optional<SliceId> SliceTracker::Scoped(int64_t timestamp,
 base::Optional<SliceId> SliceTracker::End(int64_t timestamp,
                                           TrackId track_id,
                                           StringId category,
-                                          StringId name,
+                                          StringId raw_name,
                                           SetArgsCallback args_callback) {
+  const StringId name =
+      context_->slice_translation_table->TranslateName(raw_name);
   auto finder = [this, category, name](const SlicesStack& stack) {
     return MatchingIncompleteSliceIndex(stack, name, category);
   };

@@ -3,10 +3,24 @@ unsymbolized_frames {
     module: "/liblib.so"
     build_id: "6275696c642d6964"
     address: 4096
+    google_lookup_id: "6275696c642d6964"
   }
   frames {
     module: "/liblib.so"
     build_id: "6275696c642d6964"
     address: 8192
+    google_lookup_id: "6275696c642d6964"
+  }
+  frames {
+    module: "/libmonochrome_64.so"
+    build_id: "7f0715c286f8b16c10e4ad349cda3b9b56c7a773"
+    address: 4096
+    google_lookup_id: "c215077ff8866cb110e4ad349cda3b9b0"
+  }
+  frames {
+    module: "/libmonochrome_64.so"
+    build_id: "7f0715c286f8b16c10e4ad349cda3b9b56c7a773"
+    address: 8192
+    google_lookup_id: "c215077ff8866cb110e4ad349cda3b9b0"
   }
 }

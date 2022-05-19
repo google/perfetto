@@ -23,6 +23,13 @@ message UnsymbolizedFrames {
     optional string module = 1;
     optional string build_id = 2;
     optional int64 address = 3;
+
+    // In some cases (Chrome/Webview) the ID that should be used to query
+    // symbols in Google's internal tera-scale symbolization service is !=
+    // `build_id` and requires some mangling.
+    // This field is == 'build_id` for non-chromium cases, and is the breakpad
+    // module ID (with lowercase hex digics) for chromium cases.
+    optional string google_lookup_id = 4;
   }
 
   repeated Frame frames = 1;

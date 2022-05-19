@@ -16,7 +16,10 @@
 
 #include "src/profiling/common/producer_support.h"
 
+#include <stdio.h>
+
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -26,147 +29,268 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
-TEST(CanProfileAndroidTest, NonUserSystemExtraGuardrails) {
-  DataSourceConfig ds_config;
-  ds_config.set_enable_extra_guardrails(true);
-  EXPECT_TRUE(CanProfileAndroid(ds_config, 1, {}, "userdebug", "/dev/null"));
-}
-
-TEST(CanProfileAndroidTest, NonUserNonProfileableApp) {
-  DataSourceConfig ds_config;
-  ds_config.set_enable_extra_guardrails(false);
-  auto tmp = base::TempFile::Create();
-  constexpr char content[] =
-      "invalid.example.profileable 10001 0 "
-      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
-      "none 0 1\n";
-  base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, {}, "userdebug", tmp.path()));
-}
-
-TEST(CanProfileAndroidTest, NonUserNonProfileableAppExtraGuardrails) {
-  DataSourceConfig ds_config;
-  ds_config.set_enable_extra_guardrails(true);
-  auto tmp = base::TempFile::Create();
-  constexpr char content[] =
-      "invalid.example.profileable 10001 0 "
-      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
-      "none 0 1\n";
-  base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, {}, "userdebug", tmp.path()));
-}
-
-TEST(CanProfileAndroidTest, UserProfileableApp) {
-  DataSourceConfig ds_config;
-  ds_config.set_enable_extra_guardrails(false);
-  auto tmp = base::TempFile::Create();
-  constexpr char content[] =
-      "invalid.example.profileable 10001 0 "
-      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
-      "none 1 1\n";
-  base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, {}, "user", tmp.path()));
-}
-
-TEST(CanProfileAndroidTest, UserProfileableAppMultiuser) {
-  DataSourceConfig ds_config;
-  ds_config.set_enable_extra_guardrails(false);
-  auto tmp = base::TempFile::Create();
-  constexpr char content[] =
-      "invalid.example.profileable 10001 0 "
-      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
-      "none 1 1\n";
-  base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_TRUE(CanProfileAndroid(ds_config, 210001, {}, "user", tmp.path()));
-}
-
-TEST(CanProfileAndroidTest, UserNonProfileableApp) {
-  DataSourceConfig ds_config;
-  ds_config.set_enable_extra_guardrails(false);
-  auto tmp = base::TempFile::Create();
-  constexpr char content[] =
-      "invalid.example.profileable 10001 0 "
-      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
-      "none 0 1\n";
-  base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_FALSE(CanProfileAndroid(ds_config, 10001, {}, "user", tmp.path()));
-}
-
-TEST(CanProfileAndroidTest, UserDebuggableApp) {
-  DataSourceConfig ds_config;
-  ds_config.set_enable_extra_guardrails(false);
-  auto tmp = base::TempFile::Create();
-  constexpr char content[] =
-      "invalid.example.profileable 10001 1 "
-      "/data/user/0/invalid.example.profileable default:targetSdkVersion=10000 "
-      "none 0 1\n";
-  base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, {}, "user", tmp.path()));
-}
-
-TEST(CanProfileAndroidTest, UserProfileableMatchingInstallerStatsd) {
-  DataSourceConfig ds_config;
-  ds_config.set_session_initiator(
-      DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM);
-  auto tmp = base::TempFile::Create();
-  constexpr char content[] =
-      "invalid.example 10001 0 /data/user/0/invalid.example "
-      "default:targetSdkVersion=29 3002,3003 0 13030407 1 invalid.store";
-  base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_TRUE(CanProfileAndroid(ds_config, 10001, {"invalid.store"}, "user",
-                                tmp.path()));
-}
-
-TEST(CanProfileAndroidTest, UserProfileableMatchingInstallerShell) {
+DataSourceConfig ShellInitiator() {
   DataSourceConfig ds_config;
   ds_config.set_session_initiator(
       DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED);
+  return ds_config;
+}
+
+DataSourceConfig TrustedInitiator() {
+  DataSourceConfig ds_config;
+  ds_config.set_session_initiator(
+      DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM);
+  return ds_config;
+}
+
+// pkgName    - package name
+// userId     - application-specific user id
+// debugFlag  - 0 or 1 if the package is debuggable.
+// dataPath   - path to package's data path
+// seinfo     - seinfo label for the app (assigned at install time)
+// gids       - supplementary gids this app launches with
+// profileableFromShellFlag  - 0 or 1 if the package is profileable from shell.
+// longVersionCode - integer version of the package.
+// profileable - 0 or 1 if the package is profileable by the platform.
+// packageInstaller - the package that installed this app, or @system, @product
+//                     or @null.
+std::string PackageListLine(unsigned long uid,
+                            bool debuggable,
+                            bool profileable_from_shell,
+                            bool profileable,
+                            const char* installer) {
+  base::StackString<256> ss(
+      "com.package.name %lu %d /data/user/0/com.package.name "
+      "platform:privapp:targetSdkVersion=29 1065,3003 %d 500 %d %s\n",
+      uid, debuggable, profileable_from_shell, profileable, installer);
+  return ss.ToStdString();
+}
+
+TEST(CanProfileAndroidTest, DebuggableBuild) {
+  unsigned pkg_uid = 10001;
+  std::string content = PackageListLine(
+      pkg_uid, /*debuggable=*/false, /*profileable_from_shell=*/false,
+      /*profileable=*/false, /*installer=*/"@system");
   auto tmp = base::TempFile::Create();
-  constexpr char content[] =
-      "invalid.example 10001 0 /data/user/0/invalid.example "
-      "default:targetSdkVersion=29 3002,3003 0 13030407 1 invalid.store";
-  base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_FALSE(CanProfileAndroid(ds_config, 10001, {"invalid.store"}, "user",
+  base::WriteAll(tmp.fd(), content.c_str(), content.size());
+
+  // non-app UIDs can be profiled
+  EXPECT_TRUE(CanProfileAndroid(ShellInitiator(), /*uid=*/200,
+                                /*installed_by=*/{}, "userdebug", tmp.path()));
+  EXPECT_TRUE(CanProfileAndroid(TrustedInitiator(), /*uid=*/200,
+                                /*installed_by=*/{}, "userdebug", tmp.path()));
+
+  // app UIDs can be profiled, regardless of manifest
+  EXPECT_TRUE(CanProfileAndroid(ShellInitiator(), pkg_uid, /*installed_by=*/{},
+                                "userdebug", tmp.path()));
+  EXPECT_TRUE(CanProfileAndroid(TrustedInitiator(), pkg_uid,
+                                /*installed_by=*/{}, "userdebug", tmp.path()));
+}
+
+TEST(CanProfileAndroidTest, DebuggableApp) {
+  unsigned uid = 10001;
+  std::string content = PackageListLine(
+      uid, /*debuggable=*/true, /*profileable_from_shell=*/false,
+      /*profileable=*/false, /*installer=*/"@system");
+  auto tmp = base::TempFile::Create();
+  base::WriteAll(tmp.fd(), content.c_str(), content.size());
+
+  // Debuggable apps can always be profiled (without installer constraint)
+  EXPECT_TRUE(CanProfileAndroid(ShellInitiator(), uid, /*installed_by=*/{},
+                                "user", tmp.path()));
+  EXPECT_TRUE(CanProfileAndroid(TrustedInitiator(), uid, /*installed_by=*/{},
+                                "user", tmp.path()));
+}
+
+TEST(CanProfileAndroidTest, NonProfileableApp) {
+  unsigned uid = 10002;
+  std::string content = PackageListLine(
+      uid, /*debuggable=*/false, /*profileable_from_shell=*/false,
+      /*profileable=*/false, /*installer=*/"@system");
+  auto tmp = base::TempFile::Create();
+  base::WriteAll(tmp.fd(), content.c_str(), content.size());
+
+  // Opted out packages cannot be profiled
+  EXPECT_FALSE(CanProfileAndroid(ShellInitiator(), uid, /*installed_by=*/{},
+                                 "user", tmp.path()));
+  EXPECT_FALSE(CanProfileAndroid(TrustedInitiator(), uid, /*installed_by=*/{},
+                                 "user", tmp.path()));
+}
+
+TEST(CanProfileAndroidTest, ProfileableApp) {
+  unsigned uid = 10004;
+  std::string content = PackageListLine(
+      uid, /*debuggable=*/false, /*profileable_from_shell=*/false,
+      /*profileable=*/true, /*installer=*/"@system");
+  auto tmp = base::TempFile::Create();
+  base::WriteAll(tmp.fd(), content.c_str(), content.size());
+
+  // Only profileable by the platform
+  EXPECT_FALSE(CanProfileAndroid(ShellInitiator(), uid, /*installed_by=*/{},
+                                 "user", tmp.path()));
+  EXPECT_TRUE(CanProfileAndroid(TrustedInitiator(), uid, /*installed_by=*/{},
+                                "user", tmp.path()));
+}
+
+TEST(CanProfileAndroidTest, ProfileableFromShellApp) {
+  unsigned uid = 10001;
+  std::string content = PackageListLine(
+      uid, /*debuggable=*/false, /*profileable_from_shell=*/true,
+      /*profileable=*/true, /*installer=*/"@system");
+  auto tmp = base::TempFile::Create();
+  base::WriteAll(tmp.fd(), content.c_str(), content.size());
+
+  EXPECT_TRUE(CanProfileAndroid(ShellInitiator(), uid, /*installed_by=*/{},
+                                "user", tmp.path()));
+  EXPECT_TRUE(CanProfileAndroid(TrustedInitiator(), uid, /*installed_by=*/{},
+                                "user", tmp.path()));
+}
+
+// As ProfileableApp, but with a user profile offset
+TEST(CanProfileAndroidTest, UserProfileUidOffset) {
+  unsigned u0_uid = 10199;
+  std::string content = PackageListLine(
+      u0_uid, /*debuggable=*/false, /*profileable_from_shell=*/false,
+      /*profileable=*/true, /*installer=*/"@system");
+  auto tmp = base::TempFile::Create();
+  base::WriteAll(tmp.fd(), content.c_str(), content.size());
+
+  // Only profileable by the platform
+  EXPECT_FALSE(CanProfileAndroid(ShellInitiator(), u0_uid, /*installed_by=*/{},
+                                 "user", tmp.path()));
+  EXPECT_TRUE(CanProfileAndroid(TrustedInitiator(), u0_uid, /*installed_by=*/{},
+                                "user", tmp.path()));
+  unsigned u10_uid = 1010199;
+  EXPECT_FALSE(CanProfileAndroid(ShellInitiator(), u10_uid, /*installed_by=*/{},
+                                 "user", tmp.path()));
+  EXPECT_TRUE(CanProfileAndroid(TrustedInitiator(), u10_uid,
+                                /*installed_by=*/{}, "user", tmp.path()));
+}
+
+// As ProfileableFromShellApp, but with installer constraints
+TEST(CanProfileAndroidTest, InstallerPackageConstraint) {
+  unsigned uid_installed_by_system = 10001;
+  unsigned uid_installed_by_store = 10003;
+  std::string content =
+      PackageListLine(uid_installed_by_system, /*debuggable=*/false,
+                      /*profileable_from_shell=*/true,
+                      /*profileable=*/true, /*installer=*/"@system");
+  content += PackageListLine(  //
+      uid_installed_by_store, /*debuggable=*/false,
+      /*profileable_from_shell=*/true,
+      /*profileable=*/true, /*installer=*/"com.installer.package");
+  auto tmp = base::TempFile::Create();
+  base::WriteAll(tmp.fd(), content.c_str(), content.size());
+
+  // Can profile if installer in the list (and other checks pass)
+  // @system installer:
+  EXPECT_TRUE(CanProfileAndroid(ShellInitiator(), uid_installed_by_system,
+                                /*installed_by=*/{"@product", "@system"},
+                                "user", tmp.path()));
+  EXPECT_TRUE(CanProfileAndroid(TrustedInitiator(), uid_installed_by_system,
+                                /*installed_by=*/{"@product", "@system"},
+                                "user", tmp.path()));
+  EXPECT_FALSE(CanProfileAndroid(ShellInitiator(), uid_installed_by_system,
+                                 /*installed_by=*/{"@product"}, "user",
+                                 tmp.path()));
+  EXPECT_FALSE(CanProfileAndroid(TrustedInitiator(), uid_installed_by_system,
+                                 /*installed_by=*/{"@product"}, "user",
+                                 tmp.path()));
+
+  // com.installer.package installer:
+  EXPECT_TRUE(CanProfileAndroid(ShellInitiator(), uid_installed_by_store,
+                                /*installed_by=*/{"com.installer.package"},
+                                "user", tmp.path()));
+  EXPECT_TRUE(CanProfileAndroid(TrustedInitiator(), uid_installed_by_store,
+                                /*installed_by=*/{"com.installer.package"},
+                                "user", tmp.path()));
+  EXPECT_FALSE(CanProfileAndroid(ShellInitiator(), uid_installed_by_store,
+                                 /*installed_by=*/{"@product"}, "user",
+                                 tmp.path()));
+  EXPECT_FALSE(CanProfileAndroid(TrustedInitiator(), uid_installed_by_store,
+                                 /*installed_by=*/{"@product"}, "user",
                                  tmp.path()));
 }
 
-TEST(CanProfileAndroidTest, UserProfileableNonMatchingInstallerStatsd) {
-  DataSourceConfig ds_config;
-  ds_config.set_session_initiator(
-      DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM);
+TEST(CanProfileAndroidTest, AppSandboxProcess) {
+  unsigned uid_profileable_app = 10004;
+  unsigned uid_nonprofileable_app = 10007;
+  std::string content =
+      PackageListLine(uid_profileable_app, /*debuggable=*/false,
+                      /*profileable_from_shell=*/true,
+                      /*profileable=*/true, /*installer=*/"@system");
+  content +=  //
+      PackageListLine(uid_nonprofileable_app, /*debuggable=*/false,
+                      /*profileable_from_shell=*/false,
+                      /*profileable=*/false, /*installer=*/"@system");
   auto tmp = base::TempFile::Create();
-  constexpr char content[] =
-      "invalid.example 10001 0 /data/user/0/invalid.example "
-      "default:targetSdkVersion=29 3002,3003 0 13030407 1 invalid.store";
-  base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_FALSE(CanProfileAndroid(ds_config, 10001, {"invalid.otherstore"},
-                                 "user", tmp.path()));
+  base::WriteAll(tmp.fd(), content.c_str(), content.size());
+
+  // Sandbox profileable if the app is profileable
+  unsigned uid_profileable_sandbox = 20004;
+  EXPECT_TRUE(CanProfileAndroid(ShellInitiator(), uid_profileable_sandbox,
+                                /*installed_by=*/{}, "user", tmp.path()));
+  EXPECT_TRUE(CanProfileAndroid(TrustedInitiator(), uid_profileable_sandbox,
+                                /*installed_by=*/{}, "user", tmp.path()));
+
+  unsigned uid_nonprofileable_sandbox = 20007;
+  EXPECT_FALSE(CanProfileAndroid(ShellInitiator(), uid_nonprofileable_sandbox,
+                                 /*installed_by=*/{}, "user", tmp.path()));
+  EXPECT_FALSE(CanProfileAndroid(TrustedInitiator(), uid_nonprofileable_sandbox,
+                                 /*installed_by=*/{}, "user", tmp.path()));
 }
 
-TEST(CanProfileAndroidTest, UserProfileableNonMatchingInstallerShell) {
-  DataSourceConfig ds_config;
-  ds_config.set_session_initiator(
-      DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED);
-  auto tmp = base::TempFile::Create();
-  constexpr char content[] =
-      "invalid.example 10001 0 /data/user/0/invalid.example "
-      "default:targetSdkVersion=29 3002,3003 0 13030407 1 invalid.store";
-  base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_FALSE(CanProfileAndroid(ds_config, 10001, {"invalid.otherstore"},
-                                 "user", tmp.path()));
-}
+TEST(CanProfileAndroidTest, IsolatedProcess) {
+  {
+    // Packages list with only profileable packages
+    unsigned uid_app = 10199;
+    std::string content =
+        PackageListLine(10003, /*debuggable=*/false,
+                        /*profileable_from_shell=*/true,
+                        /*profileable=*/true, /*installer=*/"@system");
+    content +=  //
+        PackageListLine(uid_app, /*debuggable=*/false,
+                        /*profileable_from_shell=*/false,
+                        /*profileable=*/true, /*installer=*/"@system");
+    content +=  //
+        PackageListLine(10008, /*debuggable=*/true,
+                        /*profileable_from_shell=*/true,
+                        /*profileable=*/true, /*installer=*/"@system");
+    auto tmp = base::TempFile::Create();
+    base::WriteAll(tmp.fd(), content.c_str(), content.size());
 
-TEST(CanProfileAndroidTest, UserProfileableFromShellWithInstallerOldPackages) {
-  DataSourceConfig ds_config;
-  ds_config.set_session_initiator(
-      DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED);
-  auto tmp = base::TempFile::Create();
-  constexpr char content[] =
-      "invalid.example 10001 0 /data/user/0/invalid.example "
-      "default:targetSdkVersion=29 3002,3003 1 13030407";
-  base::WriteAll(tmp.fd(), content, sizeof(content));
-  EXPECT_FALSE(CanProfileAndroid(ds_config, 10001, {"invalid.otherstore"},
-                                 "user", tmp.path()));
+    // Any isolated process is thus profileable by trusted initiators
+    unsigned uid_isolated = 90100;
+    EXPECT_FALSE(CanProfileAndroid(ShellInitiator(), uid_isolated,
+                                   /*installed_by=*/{}, "user", tmp.path()));
+    EXPECT_TRUE(CanProfileAndroid(TrustedInitiator(), uid_isolated,
+                                  /*installed_by=*/{}, "user", tmp.path()));
+  }
+  {
+    // Packages list with an opted out package
+    unsigned uid_app = 10199;
+    std::string content =
+        PackageListLine(10003, /*debuggable=*/false,
+                        /*profileable_from_shell=*/true,
+                        /*profileable=*/true, /*installer=*/"@system");
+    content +=  //
+        PackageListLine(uid_app, /*debuggable=*/false,
+                        /*profileable_from_shell=*/false,
+                        /*profileable=*/true, /*installer=*/"@system");
+    content +=  //
+        PackageListLine(10008, /*debuggable=*/false,
+                        /*profileable_from_shell=*/false,
+                        /*profileable=*/false, /*installer=*/"@system");
+    auto tmp = base::TempFile::Create();
+    base::WriteAll(tmp.fd(), content.c_str(), content.size());
+
+    // Conservatively conclude that an isolated process is not profileable
+    unsigned uid_isolated = 90100;
+    EXPECT_FALSE(CanProfileAndroid(ShellInitiator(), uid_isolated,
+                                   /*installed_by=*/{}, "user", tmp.path()));
+    EXPECT_FALSE(CanProfileAndroid(TrustedInitiator(), uid_isolated,
+                                   /*installed_by=*/{}, "user", tmp.path()));
+  }
 }
 
 }  // namespace

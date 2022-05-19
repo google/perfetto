@@ -1,5 +1,5 @@
 --
--- Copyright 2020 The Android Open Source Project
+-- Copyright 2022 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -13,9 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
--- Create so that RUN_METRIC will run without outputting any rows.
-SELECT RUN_METRIC('android/android_thread_time_in_state.sql')
-    AS suppress_query_output;
-
-SELECT * FROM android_thread_time_in_state_event
-ORDER BY ts, upid, track_name;
+select
+  id,
+  name,
+  type
+from track
+limit 10;

@@ -19,6 +19,10 @@ if (enable_perfetto_trace_processor_sqlite) {
     sources = [
       "create_function.cc",
       "create_function.h",
+      "create_function_internal.cc",
+      "create_function_internal.h",
+      "create_view_function.cc",
+      "create_view_function.h",
       "db_sqlite_table.cc",
       "db_sqlite_table.h",
       "query_cache.h",

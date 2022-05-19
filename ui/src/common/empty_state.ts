@@ -32,9 +32,8 @@ const AUTOLOAD_STARTED_CONFIG_FLAG = featureFlags.register({
 export function createEmptyState(): State {
   return {
     version: STATE_VERSION,
-    nextId: 0,
-    nextNoteId: 1,  // 0 is reserved for ephemeral area marking.
-    nextAreaId: 0,
+    currentEngineId: undefined,
+    nextId: '-1',
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE',
     engines: {},
     traceTime: {...defaultTraceTime},

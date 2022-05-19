@@ -73,7 +73,7 @@ class JavaHprofProducer : public Producer {
    public:
     DataSource(DataSourceConfig ds_config,
                JavaHprofConfig config,
-               std::vector<std::string> normalized_cmdlines);
+               std::vector<std::string> target_cmdlines);
     void CollectPids();
     void SendSignal() const;
 
@@ -83,7 +83,7 @@ class JavaHprofProducer : public Producer {
    private:
     DataSourceConfig ds_config_;
     JavaHprofConfig config_;
-    std::vector<std::string> normalized_cmdlines_;
+    std::vector<std::string> target_cmdlines_;
 
     std::set<pid_t> pids_;
   };

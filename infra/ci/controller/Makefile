@@ -13,11 +13,11 @@
 # limitations under the License.
 
 
-include $(shell python ../config.py makefile)
+include $(shell python3 ../config.py makefile)
 
 test: lib/.stamp config.py common_utils.py
 	GOOGLE_APPLICATION_CREDENTIALS=../test-credentials.json \
-		dev_appserver.py app.yaml --dev_appserver_log_level ${LOGLEVEL}
+		python3 `which dev_appserver.py` app.yaml --dev_appserver_log_level ${LOGLEVEL}
 
 deploy: lib/.stamp config.py common_utils.py
 	gcloud app deploy -q app.yaml queue.yaml cron.yaml \

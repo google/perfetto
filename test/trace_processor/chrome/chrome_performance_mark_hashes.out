@@ -1,0 +1,6 @@
+[perfetto.protos.chrome_performance_mark_hashes]: {
+  site_hash: 10
+  site_hash: 20
+  mark_hash: 100
+  mark_hash: 200
+}

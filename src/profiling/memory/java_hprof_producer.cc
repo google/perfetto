@@ -21,6 +21,7 @@
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "src/profiling/common/proc_cmdline.h"
 #include "src/profiling/common/proc_utils.h"
 #include "src/profiling/common/producer_support.h"
 
@@ -58,10 +59,10 @@ void JavaHprofProducer::DoContinuousDump(DataSourceInstanceID id,
 JavaHprofProducer::DataSource::DataSource(
     DataSourceConfig ds_config,
     JavaHprofConfig config,
-    std::vector<std::string> normalized_cmdlines)
-    : ds_config_(ds_config),
-      config_(config),
-      normalized_cmdlines_(normalized_cmdlines) {}
+    std::vector<std::string> target_cmdlines)
+    : ds_config_(std::move(ds_config)),
+      config_(std::move(config)),
+      target_cmdlines_(std::move(target_cmdlines)) {}
 
 void JavaHprofProducer::DataSource::SendSignal() const {
   for (pid_t pid : pids_) {
@@ -97,9 +98,9 @@ void JavaHprofProducer::DataSource::SendSignal() const {
 void JavaHprofProducer::DataSource::CollectPids() {
   pids_.clear();
   for (uint64_t pid : config_.pid()) {
-    pids_.emplace(static_cast<pid_t>(pid));
+    pids_.insert(static_cast<pid_t>(pid));
   }
-  FindPidsForCmdlines(normalized_cmdlines_, &pids_);
+  glob_aware::FindPidsForCmdlinePatterns(target_cmdlines_, &pids_);
   if (config_.min_anonymous_memory_kb() > 0)
     RemoveUnderAnonThreshold(config_.min_anonymous_memory_kb(), &pids_);
 }
@@ -122,13 +123,8 @@ void JavaHprofProducer::SetupDataSource(DataSourceInstanceID id,
   }
   JavaHprofConfig config;
   config.ParseFromString(ds_config.java_hprof_config_raw());
-  base::Optional<std::vector<std::string>> normalized_cmdlines =
-      NormalizeCmdlines(config.process_cmdline());
-  if (!normalized_cmdlines.has_value()) {
-    PERFETTO_ELOG("Rejecting data source due to invalid cmdline in config.");
-    return;
-  }
-  DataSource ds(ds_config, std::move(config), std::move(*normalized_cmdlines));
+  std::vector<std::string> cmdline_patterns = config.process_cmdline();
+  DataSource ds(ds_config, std::move(config), std::move(cmdline_patterns));
   ds.CollectPids();
   data_sources_.emplace(id, ds);
 }

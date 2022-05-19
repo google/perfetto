@@ -24,7 +24,7 @@ import {createEmptyState} from '../common/empty_state';
 import {Engine} from '../common/engine';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
-import {CallsiteInfo, State} from '../common/state';
+import {CallsiteInfo, EngineConfig, State} from '../common/state';
 import {fromNs, toNs} from '../common/time';
 
 import {Analytics, initAnalytics} from './analytics';
@@ -44,8 +44,8 @@ type Description = Map<string, string>;
 export interface SliceDetails {
   ts?: number;
   dur?: number;
-  thread_ts?: number;
-  thread_dur?: number;
+  threadTs?: number;
+  threadDur?: number;
   priority?: number;
   endState?: string;
   cpu?: number;
@@ -512,6 +512,13 @@ class Globals {
         log2: ${Math.log2(toNs(resolution))}`);
     }
     return resolution;
+  }
+
+  getCurrentEngine(): EngineConfig|undefined {
+    if (!this.state.currentEngineId) {
+      return undefined;
+    }
+    return this.state.engines[this.state.currentEngineId];
   }
 
   makeSelection(action: DeferredAction<{}>, tabToOpen = 'current_selection') {

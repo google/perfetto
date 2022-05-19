@@ -98,11 +98,15 @@ struct TrackEventTlsState {
   explicit TrackEventTlsState(const TraceContext& trace_context) {
     auto locked_ds = trace_context.GetDataSourceLocked();
     if (locked_ds.valid()) {
-      disable_incremental_timestamps =
-          locked_ds->GetConfig().disable_incremental_timestamps();
+      const auto& config = locked_ds->GetConfig();
+      disable_incremental_timestamps = config.disable_incremental_timestamps();
+      filter_debug_annotations = config.filter_debug_annotations();
+      enable_thread_time_sampling = config.enable_thread_time_sampling();
     }
   }
   bool disable_incremental_timestamps = false;
+  bool filter_debug_annotations = false;
+  bool enable_thread_time_sampling = false;
 };
 
 struct TrackEventIncrementalState {
@@ -155,6 +159,7 @@ struct TrackEventIncrementalState {
   // counter track. The key (uint64_t) is the uuid of counter track.
   // The value is used for delta encoding of counter values.
   std::unordered_map<uint64_t, int64_t> last_counter_value_per_track;
+  int64_t last_thread_time_ns = 0;
 };
 
 // The backend portion of the track event trace point implemention. Outlined to
@@ -186,7 +191,8 @@ class PERFETTO_EXPORT TrackEventInternal {
       const Category* category,
       const char* name,
       perfetto::protos::pbzero::TrackEvent::Type,
-      const TraceTimestamp& timestamp);
+      const TraceTimestamp& timestamp,
+      bool on_current_thread_track);
 
   static void ResetIncrementalStateIfRequired(
       TraceWriterBase* trace_writer,
