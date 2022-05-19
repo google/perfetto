@@ -519,5 +519,6 @@ message FtraceEvent {
     DmaFenceSignaledFtraceEvent dma_fence_signaled = 416;
     DmaFenceWaitStartFtraceEvent dma_fence_wait_start = 417;
     DmaFenceWaitEndFtraceEvent dma_fence_wait_end = 418;
+    F2fsIostatFtraceEvent f2fs_iostat = 419;
   }
 }
