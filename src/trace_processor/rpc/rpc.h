@@ -31,7 +31,6 @@ namespace perfetto {
 
 namespace protos {
 namespace pbzero {
-class RawQueryResult;
 class ComputeMetricResult;
 class DisableAndReadMetatraceResult;
 }  // namespace pbzero
@@ -130,17 +129,11 @@ class Rpc {
       void(const uint8_t* /*buf*/, size_t /*len*/, bool /*has_more*/)>;
   void Query(const uint8_t* args, size_t len, QueryResultBatchCallback);
 
-  // DEPRECATED, only for legacy clients. Use |Query()| above.
-  std::vector<uint8_t> RawQuery(const uint8_t* args, size_t len);
-
  private:
   void ParseRpcRequest(const uint8_t* data, size_t len);
   void ResetTraceProcessor();
   void MaybePrintProgress();
   Iterator QueryInternal(const uint8_t* args, size_t len);
-  void RawQueryInternal(const uint8_t* args,
-                        size_t len,
-                        protos::pbzero::RawQueryResult*);
   void ComputeMetricInternal(const uint8_t* args,
                              size_t len,
                              protos::pbzero::ComputeMetricResult*);
