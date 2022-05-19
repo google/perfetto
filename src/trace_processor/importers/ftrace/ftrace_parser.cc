@@ -106,6 +106,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
     : context_(context),
       rss_stat_tracker_(context),
       drm_tracker_(context),
+      iostat_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
@@ -746,6 +747,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       case FtraceEvent::kDmaFenceWaitStartFieldNumber:
       case FtraceEvent::kDmaFenceWaitEndFieldNumber: {
         drm_tracker_.ParseDrm(ts, fld.id(), pid, data);
+        break;
+      }
+      case FtraceEvent::kF2fsIostatFieldNumber: {
+        iostat_tracker_.ParseF2fsIostat(ts, data);
         break;
       }
       default:
