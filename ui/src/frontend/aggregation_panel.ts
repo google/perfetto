@@ -18,7 +18,7 @@ import {Actions} from '../common/actions';
 import {
   AggregateData,
   Column,
-  ThreadStateExtra
+  ThreadStateExtra,
 } from '../common/aggregation_data';
 import {colorForState, textColorForState} from '../common/colorizer';
 import {translateState} from '../common/thread_state';
@@ -44,8 +44,8 @@ export class AggregationPanel extends Panel<AggregationPanelAttrs> {
           m('table',
             m('tr',
               attrs.data.columns.map(
-                  col => this.formatColumnHeading(col, attrs.kind))),
-            m('tr.sum', attrs.data.columnSums.map(sum => {
+                  (col) => this.formatColumnHeading(col, attrs.kind))),
+            m('tr.sum', attrs.data.columnSums.map((sum) => {
               const sumClass = sum === '' ? 'td' : 'td.sum-data';
               return m(sumClass, sum);
             })))),
@@ -68,7 +68,7 @@ export class AggregationPanel extends Panel<AggregationPanelAttrs> {
           onclick: () => {
             globals.dispatch(
                 Actions.updateAggregateSorting({id, column: col.columnId}));
-          }
+          },
         },
         col.title,
         m('i.material-icons', sortIcon));
@@ -129,8 +129,8 @@ export class AggregationPanel extends Panel<AggregationPanelAttrs> {
               style: {
                 background: `hsl(${color.h},${color.s}%,${color.l}%)`,
                 color: `${textColor}`,
-                width: `${width}%`
-              }
+                width: `${width}%`,
+              },
             },
             `${data.states[i]}: ${data.values[i]} ms`));
     }
