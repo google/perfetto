@@ -4751,6 +4751,31 @@ message F2fsWriteEndFtraceEvent {
   optional uint32 len = 4;
   optional uint32 copied = 5;
 }
+message F2fsIostatFtraceEvent {
+  optional uint64 app_bio = 1;
+  optional uint64 app_brio = 2;
+  optional uint64 app_dio = 3;
+  optional uint64 app_drio = 4;
+  optional uint64 app_mio = 5;
+  optional uint64 app_mrio = 6;
+  optional uint64 app_rio = 7;
+  optional uint64 app_wio = 8;
+  optional uint64 dev = 9;
+  optional uint64 fs_cdrio = 10;
+  optional uint64 fs_cp_dio = 11;
+  optional uint64 fs_cp_mio = 12;
+  optional uint64 fs_cp_nio = 13;
+  optional uint64 fs_dio = 14;
+  optional uint64 fs_discard = 15;
+  optional uint64 fs_drio = 16;
+  optional uint64 fs_gc_dio = 17;
+  optional uint64 fs_gc_nio = 18;
+  optional uint64 fs_gdrio = 19;
+  optional uint64 fs_mio = 20;
+  optional uint64 fs_mrio = 21;
+  optional uint64 fs_nio = 22;
+  optional uint64 fs_nrio = 23;
+}
 
 // End of protos/perfetto/trace/ftrace/f2fs.proto
 
@@ -6534,6 +6559,7 @@ message FtraceEvent {
     DmaFenceSignaledFtraceEvent dma_fence_signaled = 416;
     DmaFenceWaitStartFtraceEvent dma_fence_wait_start = 417;
     DmaFenceWaitEndFtraceEvent dma_fence_wait_end = 418;
+    F2fsIostatFtraceEvent f2fs_iostat = 419;
   }
 }
 
