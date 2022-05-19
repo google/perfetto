@@ -17,3 +17,7 @@ connected_flow_data.json connected_flow.sql connected_flow.out
 
 # Annotated callstacks.
 ../../data/perf_sample_sc.pb annotated_callstack.sql perf_sample_sc_annotated_callstack.out
+
+# ABS_TIME_STR function
+various_clocks.textproto abs_time_str.sql various_clocks_abs_time_str.out
+../common/empty.textproto abs_time_str.sql empty_abs_time_str.out
