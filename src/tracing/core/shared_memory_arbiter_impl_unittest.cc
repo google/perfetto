@@ -36,6 +36,7 @@
 namespace perfetto {
 
 using testing::_;
+using testing::Between;
 using testing::Invoke;
 using testing::Mock;
 using testing::NiceMock;
@@ -530,6 +531,9 @@ class SharedMemoryArbiterImplStartupTracingTest
 
     // Destroy a writer that was created before the abort. This should not cause
     // crashes.
+    EXPECT_CALL(mock_producer_endpoint_,
+                UnregisterTraceWriter(writer2->writer_id()))
+        .Times(Between(0, 1));  // Depending on `initial_state`.
     writer2.reset();
 
     // Bind to producer endpoint if unbound. The trace writer should not be
@@ -653,6 +657,10 @@ class SharedMemoryArbiterImplStartupTracingTest
       EXPECT_TRUE(shmem_abi->is_page_free(i));
   }
 };
+
+INSTANTIATE_TEST_SUITE_P(PageSize,
+                         SharedMemoryArbiterImplStartupTracingTest,
+                         ::testing::ValuesIn(kPageSizes));
 
 TEST_P(SharedMemoryArbiterImplStartupTracingTest, StartupTracingUnbound) {
   TestStartupTracing(InitialBindingState::kUnbound);
