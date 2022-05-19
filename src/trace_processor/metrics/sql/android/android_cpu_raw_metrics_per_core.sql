@@ -38,4 +38,5 @@ SELECT
   CAST(SUM(dur * freq_khz / 1000) / SUM(dur / 1000) AS INT) AS avg_freq_khz
 FROM {{input_table}}
 LEFT JOIN core_type_per_cpu USING (cpu)
+WHERE utid != 0 and dur != -1
 GROUP BY utid, cpu;

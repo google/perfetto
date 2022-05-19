@@ -13,8 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-SELECT ts, instants.name, thread.name, thread.tid
-FROM instants
-JOIN thread ON instants.ref = thread.utid
-WHERE instants.name = 'sched_waking'
+SELECT ts, thread.name, thread.tid
+FROM thread_state
+JOIN thread USING (utid)
+WHERE state = 'R'
 ORDER BY ts

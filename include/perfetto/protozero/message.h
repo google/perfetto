@@ -46,7 +46,7 @@ class MessageHandleBase;
 // append-only operations and is designed for performance. None of the methods
 // require any dynamic memory allocation, unless more than 16 nested messages
 // are created via BeginNestedMessage() calls.
-class PERFETTO_EXPORT Message {
+class PERFETTO_EXPORT_COMPONENT Message {
  public:
   friend class MessageHandleBase;
 

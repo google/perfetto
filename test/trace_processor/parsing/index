@@ -16,9 +16,6 @@
 ../../data/android_sched_and_ps.pb end_reason_eq.sql android_sched_and_ps_end_reason_eq.out
 ../../data/android_sched_and_ps.pb end_reason_neq.sql android_sched_and_ps_end_reason_neq.out
 
-# Sched wakeup
-../../data/android_sched_and_ps.pb sched_wakeup.sql sched_wakeup_android_sched_and_ps.out
-
 # CPU Frequency
 ../../data/cpu_counters.pb b120487929.sql cpu_counters_b120487929.out
 
@@ -59,8 +56,8 @@ ion_stat.textproto ion_stat.sql ion_stat.out
 # Check the systrace conversion code in the raw table.
 # Print events
 ../../data/lmk_userspace.pb print_systrace.sql print_systrace_lmk_userspace.out
-kernel_tmw_counter.textproto thread_counter_and_track.sql kernel_tmw_counter_thread_counter_and_track.out
-kernel_dpu_tmw_counter.textproto thread_counter_and_track.sql kernel_dpu_tmw_counter_thread_counter_and_track.out
+kernel_tmw_counter.textproto process_counter_and_track.sql kernel_tmw_counter_process_counter_and_track.out
+kernel_dpu_tmw_counter.textproto process_counter_and_track.sql kernel_dpu_tmw_counter_process_counter_and_track.out
 # Unsigned integers
 print_systrace_unsigned.py print_systrace.sql print_systrace_unsigned.out
 
@@ -73,7 +70,6 @@ cgroup_attach_task_post_s.textproto print_systrace.sql cgroup_attach_task_post_s
 ../../data/trailing_empty.systrace sched_smoke.sql sched_smoke_trailing_empty.out
 
 # LMK handling
-kernel_lmk.py lmk.sql lmk_kernel_lmk.out
 ../../data/lmk_userspace.pb lmk.sql lmk_userspace_lmk.out
 ../common/oom_kill.textproto oom_kill.sql oom_kill.out
 
@@ -154,3 +150,6 @@ android_multiuser_switch.textproto android_multiuser android_multiuser_switch.ou
 # coming from stderr before the TRACE: marker. See b/208691037.
 ../../data/atrace_uncompressed_b_208691037 sched_smoke.sql atrace_uncompressed_sched_count.out
 otheruuids.textproto android_other_traces otheruuids_android_other_traces.out
+
+# Per-process Binder transaction metrics
+android_binder.py android_binder android_binder.out

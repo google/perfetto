@@ -65,7 +65,7 @@ class DebugAnnotation;
 // A callback interface for observing track event tracing sessions starting and
 // stopping. See TrackEvent::{Add,Remove}SessionObserver. Note that all methods
 // will be called on an internal Perfetto thread.
-class PERFETTO_EXPORT TrackEventSessionObserver {
+class PERFETTO_EXPORT_COMPONENT TrackEventSessionObserver {
  public:
   virtual ~TrackEventSessionObserver();
   // Called when a track event tracing session is configured. Note tracing isn't
@@ -83,7 +83,7 @@ class PERFETTO_EXPORT TrackEventSessionObserver {
 namespace internal {
 class TrackEventCategoryRegistry;
 
-class PERFETTO_EXPORT BaseTrackEventInternedDataIndex {
+class PERFETTO_EXPORT_COMPONENT BaseTrackEventInternedDataIndex {
  public:
   virtual ~BaseTrackEventInternedDataIndex();
 
@@ -95,28 +95,26 @@ class PERFETTO_EXPORT BaseTrackEventInternedDataIndex {
 
 struct TrackEventTlsState {
   template <typename TraceContext>
-  explicit TrackEventTlsState(const TraceContext& trace_context) {
-    auto locked_ds = trace_context.GetDataSourceLocked();
-    if (locked_ds.valid()) {
-      const auto& config = locked_ds->GetConfig();
-      disable_incremental_timestamps = config.disable_incremental_timestamps();
-      filter_debug_annotations = config.filter_debug_annotations();
-      enable_thread_time_sampling = config.enable_thread_time_sampling();
-    }
-  }
-  bool disable_incremental_timestamps = false;
+  explicit TrackEventTlsState(const TraceContext& trace_context);
   bool filter_debug_annotations = false;
   bool enable_thread_time_sampling = false;
+  uint64_t timestamp_unit_multiplier = 1;
+  uint32_t default_clock;
 };
 
 struct TrackEventIncrementalState {
   static constexpr size_t kMaxInternedDataFields = 32;
 
-  // Packet-sequence-scoped clock that encodes microsecond timestamps in the
+  // Packet-sequence-scoped clock that encodes nanosecond timestamps in the
   // domain of the clock returned by GetClockId() as delta values - see
   // Clock::is_incremental in perfetto/trace/clock_snapshot.proto.
   // Default unit: nanoseconds.
   static constexpr uint32_t kClockIdIncremental = 64;
+
+  // Packet-sequence-scoped clock that encodes timestamps in the domain of the
+  // clock returned by GetClockId() with custom unit_multiplier.
+  // Default unit: nanoseconds.
+  static constexpr uint32_t kClockIdAbsolute = 65;
 
   bool was_cleared = true;
 
@@ -165,7 +163,7 @@ struct TrackEventIncrementalState {
 // The backend portion of the track event trace point implemention. Outlined to
 // a separate .cc file so it can be shared by different track event category
 // namespaces.
-class PERFETTO_EXPORT TrackEventInternal {
+class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
  public:
   static bool Initialize(
       const TrackEventCategoryRegistry&,
@@ -285,6 +283,30 @@ class PERFETTO_EXPORT TrackEventInternal {
 
   static std::atomic<int> session_count_;
 };
+
+template <typename TraceContext>
+TrackEventTlsState::TrackEventTlsState(const TraceContext& trace_context) {
+  auto locked_ds = trace_context.GetDataSourceLocked();
+  bool disable_incremental_timestamps = false;
+  if (locked_ds.valid()) {
+    const auto& config = locked_ds->GetConfig();
+    disable_incremental_timestamps = config.disable_incremental_timestamps();
+    filter_debug_annotations = config.filter_debug_annotations();
+    enable_thread_time_sampling = config.enable_thread_time_sampling();
+    if (config.has_timestamp_unit_multiplier()) {
+      timestamp_unit_multiplier = config.timestamp_unit_multiplier();
+    }
+  }
+  if (disable_incremental_timestamps) {
+    if (timestamp_unit_multiplier == 1) {
+      default_clock = TrackEventInternal::GetClockId();
+    } else {
+      default_clock = TrackEventIncrementalState::kClockIdAbsolute;
+    }
+  } else {
+    default_clock = TrackEventIncrementalState::kClockIdIncremental;
+  }
+}
 
 }  // namespace internal
 }  // namespace perfetto

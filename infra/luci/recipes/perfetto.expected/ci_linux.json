@@ -109,7 +109,7 @@
       "-C",
       "[CACHE]/builder/perfetto/out/linux-amd64",
       "trace_processor_shell",
-      "trace_to_text",
+      "traceconv",
       "tracebox",
       "perfetto",
       "traced",
@@ -209,15 +209,15 @@
       "RECIPE_REPO[depot_tools]/gsutil.py",
       "----",
       "cp",
-      "[CACHE]/builder/perfetto/out/linux-amd64/stripped/trace_to_text",
-      "gs://perfetto-luci-artifacts//linux-amd64/trace_to_text"
+      "[CACHE]/builder/perfetto/out/linux-amd64/stripped/traceconv",
+      "gs://perfetto-luci-artifacts//linux-amd64/traceconv"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
     "name": "linux-amd64.Artifact upload.gsutil upload (2)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//linux-amd64/trace_to_text@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//linux-amd64/traceconv@@@"
     ]
   },
   {
@@ -225,22 +225,22 @@
       "cipd",
       "pkg-build",
       "-pkg-def",
-      "{\"data\": [{\"file\": \"trace_to_text\"}], \"install_mode\": \"\", \"package\": \"perfetto/trace_to_text/linux-amd64\", \"root\": \"[CACHE]/builder/perfetto/out/linux-amd64/stripped\"}",
+      "{\"data\": [{\"file\": \"traceconv\"}], \"install_mode\": \"\", \"package\": \"perfetto/traceconv/linux-amd64\", \"root\": \"[CACHE]/builder/perfetto/out/linux-amd64/stripped\"}",
       "-out",
-      "[CLEANUP]/trace_to_text-linux-amd64.cipd",
+      "[CLEANUP]/traceconv-linux-amd64.cipd",
       "-hash-algo",
       "sha256",
       "-json-output",
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]/builder/perfetto",
-    "name": "linux-amd64.Artifact upload.build perfetto/trace_to_text/linux-amd64",
+    "name": "linux-amd64.Artifact upload.build perfetto/traceconv/linux-amd64",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LOG_LINE@json.output@{@@@",
       "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
       "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
-      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_to_text/linux-amd64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traceconv/linux-amd64\"@@@",
       "@@@STEP_LOG_LINE@json.output@  }@@@",
       "@@@STEP_LOG_LINE@json.output@}@@@",
       "@@@STEP_LOG_END@json.output@@@"
@@ -250,7 +250,7 @@
     "cmd": [
       "cipd",
       "pkg-register",
-      "[CLEANUP]/trace_to_text-linux-amd64.cipd",
+      "[CLEANUP]/traceconv-linux-amd64.cipd",
       "-ref",
       "latest",
       "-tag",
@@ -259,17 +259,17 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]/builder/perfetto",
-    "name": "linux-amd64.Artifact upload.register perfetto/trace_to_text/linux-amd64",
+    "name": "linux-amd64.Artifact upload.register perfetto/traceconv/linux-amd64",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
       "@@@STEP_LOG_LINE@json.output@{@@@",
       "@@@STEP_LOG_LINE@json.output@  \"result\": {@@@",
       "@@@STEP_LOG_LINE@json.output@    \"instance_id\": \"40-chars-fake-of-the-package-instance_id\", @@@",
-      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/trace_to_text/linux-amd64\"@@@",
+      "@@@STEP_LOG_LINE@json.output@    \"package\": \"perfetto/traceconv/linux-amd64\"@@@",
       "@@@STEP_LOG_LINE@json.output@  }@@@",
       "@@@STEP_LOG_LINE@json.output@}@@@",
       "@@@STEP_LOG_END@json.output@@@",
-      "@@@STEP_LINK@perfetto/trace_to_text/linux-amd64@https://chrome-infra-packages.appspot.com/p/perfetto/trace_to_text/linux-amd64/+/40-chars-fake-of-the-package-instance_id@@@"
+      "@@@STEP_LINK@perfetto/traceconv/linux-amd64@https://chrome-infra-packages.appspot.com/p/perfetto/traceconv/linux-amd64/+/40-chars-fake-of-the-package-instance_id@@@"
     ]
   },
   {

@@ -210,7 +210,7 @@ declare_args() {
   # On Windows we default to monolithic executables, because pairing
   # dllexport/import adds extra complexity for little benefit. Te only reason
   # for monolithic_binaries=false is saving binary size, which matters mainly on
-  # Android. See also comments on PERFETTO_EXPORTED_ENTRYPOINT in compiler.h.
+  # Android. See also comments on PERFETTO_EXPORT_ENTRYPOINT in compiler.h.
   monolithic_binaries = is_win
 
   # Whether DLOG should be enabled on debug builds (""), all builds ("on"), or
@@ -299,8 +299,8 @@ declare_args() {
 }
 
 declare_args() {
-  # Enables the trace_to_text tool.
-  enable_perfetto_tools_trace_to_text =
+  # Enables the traceconv tool.
+  enable_perfetto_traceconv =
       enable_perfetto_tools && enable_perfetto_trace_processor_sqlite
 
   # Allows to build the UI (TypeScript/ HTML / WASM)

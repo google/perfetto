@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_DYNAMIC_EXPERIMENTAL_ANNOTATED_STACK_GENERATOR_H_
 #define SRC_TRACE_PROCESSOR_DYNAMIC_EXPERIMENTAL_ANNOTATED_STACK_GENERATOR_H_
 
-#include "src/trace_processor/sqlite/db_sqlite_table.h"
+#include "src/trace_processor/dynamic/dynamic_table_generator.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -29,10 +29,9 @@ class TraceProcessorContext;
 // Given a leaf callsite id, returns the full callstack (including the leaf),
 // with optional (currently Android-specific) annotations. A given callsite will
 // always have the same annotation.
-class ExperimentalAnnotatedStackGenerator
-    : public DbSqliteTable::DynamicTableGenerator {
+class ExperimentalAnnotatedStackGenerator : public DynamicTableGenerator {
  public:
-  ExperimentalAnnotatedStackGenerator(TraceProcessorContext* context)
+  explicit ExperimentalAnnotatedStackGenerator(TraceProcessorContext* context)
       : context_(context) {}
 
   Table::Schema CreateSchema() override;

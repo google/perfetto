@@ -26,9 +26,9 @@ download and run them without checking out the repo.
 
 The manifest argument looks as follows in the generated files:
 PERFETTO_PREBUILT_MANIFEST = [{
-    'tool': 'trace_to_text',
+    'tool': 'traceconv',
     'arch': 'mac-amd64',
-    'file_name': 'trace_to_text',
+    'file_name': 'traceconv',
     'file_size': 7087080,
     'url': https://commondatastorage.googleapis.com/.../trace_to_text',
     'sha256': 7d957c005b0dc130f5bd855d6cec27e060d38841b320d04840afc569f9087490',

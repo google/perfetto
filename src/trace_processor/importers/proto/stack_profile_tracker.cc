@@ -16,11 +16,10 @@
 
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
 
-#include "src/trace_processor/importers/proto/profiler_util.h"
-#include "src/trace_processor/types/trace_processor_context.h"
-
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/importers/proto/profiler_util.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
 namespace trace_processor {

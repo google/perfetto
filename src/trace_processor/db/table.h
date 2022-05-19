@@ -39,6 +39,7 @@ class Table {
   class Iterator {
    public:
     explicit Iterator(const Table* table) : table_(table) {
+      its_.reserve(table->row_maps().size());
       for (const auto& rm : table->row_maps()) {
         its_.emplace_back(rm.IterateRows());
       }
@@ -46,6 +47,9 @@ class Table {
 
     Iterator(Iterator&&) noexcept = default;
     Iterator& operator=(Iterator&&) = default;
+
+    Iterator(const Iterator&) = delete;
+    Iterator& operator=(const Iterator&) = delete;
 
     // Advances the iterator to the next row of the table.
     void Next() {
@@ -55,18 +59,15 @@ class Table {
     }
 
     // Returns whether the row the iterator is pointing at is valid.
-    operator bool() const { return its_[0]; }
+    explicit operator bool() const { return its_[0]; }
 
     // Returns the value at the current row for column |col_idx|.
     SqlValue Get(uint32_t col_idx) const {
       const auto& col = table_->columns_[col_idx];
-      return col.GetAtIdx(its_[col.row_map_idx_].index());
+      return col.GetAtIdx(its_[col.row_map_index()].index());
     }
 
    private:
-    Iterator(const Iterator&) = delete;
-    Iterator& operator=(const Iterator&) = delete;
-
     const Table* table_ = nullptr;
     std::vector<RowMap::Iterator> its_;
   };
@@ -84,6 +85,7 @@ class Table {
       bool is_id;
       bool is_sorted;
       bool is_hidden;
+      bool is_set_id;
     };
     std::vector<Column> columns;
   };
@@ -100,6 +102,8 @@ class Table {
   Table Filter(
       const std::vector<Constraint>& cs,
       RowMap::OptimizeFor optimize_for = RowMap::OptimizeFor::kMemory) const {
+    if (cs.empty())
+      return Copy();
     return Apply(FilterToRowMap(cs, optimize_for));
   }
 
@@ -124,9 +128,15 @@ class Table {
   Table Apply(RowMap rm) const {
     Table table = CopyExceptRowMaps();
     table.row_count_ = rm.size();
+    table.row_maps_.reserve(row_maps_.size());
     for (const RowMap& map : row_maps_) {
       table.row_maps_.emplace_back(map.SelectRows(rm));
       PERFETTO_DCHECK(table.row_maps_.back().size() == table.row_count());
+    }
+    // Pretty much any application of a RowMap will break the requirements on
+    // kSetId so remove it.
+    for (auto& col : table.columns_) {
+      col.flags_ &= ~Column::Flag::kSetId;
     }
     return table;
   }
@@ -134,47 +144,25 @@ class Table {
   // Sorts the Table using the specified order by constraints.
   Table Sort(const std::vector<Order>& od) const;
 
-  // Extends the table with a new column called |name| with data |sv|.
-  template <typename T>
-  Table ExtendWithColumn(const char* name,
-                         std::unique_ptr<NullableVector<T>> sv,
-                         uint32_t flags) const {
-    PERFETTO_CHECK(sv->size() == row_count_);
-    uint32_t size = sv->size();
-    uint32_t row_map_count = static_cast<uint32_t>(row_maps_.size());
-    Table ret = Copy();
-    ret.columns_.push_back(Column::WithOwnedStorage(
-        name, std::move(sv), flags, &ret, GetColumnCount(), row_map_count));
-    ret.row_maps_.emplace_back(RowMap(0, size));
-    return ret;
-  }
-
-  // Extends the table with a new column called |name| with data |sv|.
-  template <typename T>
-  Table ExtendWithColumn(const char* name,
-                         NullableVector<T>* sv,
-                         uint32_t flags) const {
-    PERFETTO_CHECK(sv->size() == row_count_);
-    uint32_t size = sv->size();
-    uint32_t row_map_count = static_cast<uint32_t>(row_maps_.size());
-    Table ret = Copy();
-    ret.columns_.push_back(
-        Column(name, sv, flags, &ret, GetColumnCount(), row_map_count));
-    ret.row_maps_.emplace_back(RowMap(0, size));
-    return ret;
-  }
-
   // Returns the column at index |idx| in the Table.
   const Column& GetColumn(uint32_t idx) const { return columns_[idx]; }
 
-  // Returns the column with the given name or nullptr otherwise.
-  const Column* GetColumnByName(const char* name) const {
+  // Returns the column index with the given name or base::nullopt otherwise.
+  base::Optional<uint32_t> GetColumnIndexByName(const char* name) const {
     auto it = std::find_if(
         columns_.begin(), columns_.end(),
         [name](const Column& col) { return strcmp(col.name(), name) == 0; });
     if (it == columns_.end())
+      return base::nullopt;
+    return static_cast<uint32_t>(std::distance(columns_.begin(), it));
+  }
+
+  // Returns the column with the given name or nullptr otherwise.
+  const Column* GetColumnByName(const char* name) const {
+    base::Optional<uint32_t> opt_idx = GetColumnIndexByName(name);
+    if (!opt_idx)
       return nullptr;
-    return &*it;
+    return &columns_[*opt_idx];
   }
 
   template <typename T>
@@ -198,11 +186,33 @@ class Table {
   // Creates a copy of this table.
   Table Copy() const;
 
+  // Computes the schema of this table and returns it.
+  Schema ComputeSchema() const {
+    Schema schema;
+    schema.columns.reserve(columns_.size());
+    for (const auto& col : columns_) {
+      schema.columns.emplace_back(
+          Schema::Column{col.name(), col.type(), col.IsId(), col.IsSorted(),
+                         col.IsHidden(), col.IsSetId()});
+    }
+    return schema;
+  }
+
   uint32_t row_count() const { return row_count_; }
+  StringPool* string_pool() const { return string_pool_; }
   const std::vector<RowMap>& row_maps() const { return row_maps_; }
+  const std::vector<Column>& columns() const { return columns_; }
 
  protected:
-  Table(StringPool* pool, const Table* parent);
+  explicit Table(StringPool* pool);
+
+  std::vector<RowMap> CopyRowMaps() const {
+    std::vector<RowMap> rm(row_maps_.size());
+    for (uint32_t i = 0; i < row_maps_.size(); ++i) {
+      rm[i] = row_maps_[i].Copy();
+    }
+    return rm;
+  }
 
   std::vector<RowMap> row_maps_;
   std::vector<Column> columns_;

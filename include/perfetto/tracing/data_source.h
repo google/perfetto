@@ -64,7 +64,7 @@ class TrackEventDataSource;
 
 // Base class with the virtual methods to get start/stop notifications.
 // Embedders are supposed to derive the templated version below, not this one.
-class PERFETTO_EXPORT DataSourceBase {
+class PERFETTO_EXPORT_COMPONENT DataSourceBase {
  public:
   virtual ~DataSourceBase();
 

@@ -17,9 +17,8 @@
 #ifndef SRC_PROFILING_PERF_PERF_PRODUCER_H_
 #define SRC_PROFILING_PERF_PERF_PRODUCER_H_
 
-#include <deque>
 #include <map>
-#include <queue>
+#include <memory>
 
 #include <unistd.h>
 
@@ -106,17 +105,26 @@ class PerfProducer : public Producer,
     kConnected,
   };
 
-  // Represents the data source scoped view of a process. Specifically:
+  // Represents the data source scoped view of a process:
   // * whether the process is in scope of the tracing session (if the latter
-  //   specifies a target filter).
-  // * the state of the (possibly asynchronous) lookup of /proc/<pid>/{maps,mem}
-  //   file descriptors, which are necessary for callstack unwinding of samples.
+  //   specifies a callstack sampling target filter).
+  // * for userspace processes, the state of the (possibly asynchronous) lookup
+  //   of /proc/<pid>/{maps,mem} file descriptors, which are necessary for
+  //   callstack unwinding of samples.
+  // For kernel threads (or when sampling only kernelspace callstacks) the
+  // proc-fds are not necessary, so those processes transition directly to
+  // either kAccepted or kRejected.
+  // TODO(rsavitski): double-check and clarify pid reuse semantics. For
+  // userspace sampling, at most one incarnation of the pid is handled since we
+  // do not obtain new proc descriptors. But counter-only and kernel-only cases
+  // aren't as stateful and will keep emitting samples.
   enum class ProcessTrackingStatus {
-    kInitial,
-    kResolving,  // waiting on proc-fd lookup
-    kResolved,   // proc-fds obtained, and process considered relevant
-    kExpired,    // proc-fd lookup timed out
-    kRejected    // process not considered relevant for the data source
+    kInitial = 0,
+    kFdsResolving,  // waiting on proc-fd lookup
+    kAccepted,      // process relevant and ready for unwinding (for userspace -
+                    // procfds received)
+    kFdsTimedOut,   // proc-fd lookup timed out
+    kRejected       // process not considered relevant for the data source
   };
 
   struct DataSourceState {

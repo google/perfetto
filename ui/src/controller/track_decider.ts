@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as uuidv4 from 'uuid/v4';
+import {v4 as uuidv4} from 'uuid';
 
 import {assertExists} from '../base/logging';
 import {
@@ -49,6 +49,13 @@ import {
 } from '../tracks/process_scheduling/common';
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state/common';
+
+const NULL_TRACKS_FLAG = featureFlags.register({
+  id: 'nullTracks',
+  name: 'Null tracks',
+  description: 'Display some empty tracks.',
+  defaultValue: false,
+});
 
 const TRACKS_V2_FLAG = featureFlags.register({
   id: 'tracksV2',
@@ -137,6 +144,26 @@ class TrackDecider {
       return `Unnamed ${kind}`;
     }
     return 'Unknown';
+  }
+
+  addNullTracks(): void {
+    this.tracksToAdd.push({
+      engineId: this.engineId,
+      kind: 'NullTrack',
+      trackKindPriority: TrackKindPriority.ORDINARY,
+      name: `Null track foo`,
+      trackGroup: SCROLLING_TRACK_GROUP,
+      config: {},
+    });
+
+    this.tracksToAdd.push({
+      engineId: this.engineId,
+      kind: 'NullTrack',
+      trackKindPriority: TrackKindPriority.ORDINARY,
+      name: `Null track bar`,
+      trackGroup: SCROLLING_TRACK_GROUP,
+      config: {},
+    });
   }
 
   async addCpuSchedulingTracks(): Promise<void> {
@@ -1047,6 +1074,76 @@ class TrackDecider {
     return uuid;
   }
 
+  setUuidForUpid(upid: number, uuid: string) {
+    this.upidToUuid.set(upid, uuid);
+  }
+
+  async addKernelThreadGrouping(): Promise<void> {
+    // Identify kernel threads if this is a linux system trace, and sufficient
+    // process information is available. Kernel threads are identified by being
+    // children of kthreadd (always pid 2).
+    // The query will return the kthreadd process row first, which must exist
+    // for any other kthreads to be returned by the query.
+    // TODO(rsavitski): figure out how to handle the idle process (swapper),
+    // which has pid 0 but appears as a distinct process (with its own comm) on
+    // each cpu. It'd make sense to exclude its thread state track, but still
+    // put process-scoped tracks in this group.
+    const result = await this.engine.query(`
+      select
+        t.utid, p.upid, (case p.pid when 2 then 1 else 0 end) isKthreadd
+      from
+        thread t
+        join process p using (upid)
+        left join process parent on (p.parent_upid = parent.upid)
+        join
+          (select true from metadata m
+             where (m.name = 'system_name' and m.str_value = 'Linux')
+           union
+           select 1 from (select true from sched limit 1))
+      where
+        p.pid = 2 or parent.pid = 2
+      order by isKthreadd desc
+    `);
+
+    const it = result.iter({
+      utid: NUM,
+      upid: NUM,
+    });
+
+    // Not applying kernel thread grouping.
+    if (!it.valid()) {
+      return;
+    }
+
+    // Create the track group. Use kthreadd's PROCESS_SUMMARY_TRACK for the
+    // main track. It doesn't summarise the kernel threads within the group,
+    // but creating a dedicated track type is out of scope at the time of
+    // writing.
+    const kthreadGroupUuid = uuidv4();
+    const summaryTrackId = uuidv4();
+    this.tracksToAdd.push({
+      id: summaryTrackId,
+      engineId: this.engineId,
+      kind: PROCESS_SUMMARY_TRACK,
+      trackKindPriority: TrackKindPriority.MAIN_THREAD,
+      name: `Kernel thread summary`,
+      config: {pidForColor: 2, upid: it.upid, utid: it.utid},
+    });
+    const addTrackGroup = Actions.addTrackGroup({
+      engineId: this.engineId,
+      summaryTrackId,
+      name: `Kernel threads`,
+      id: kthreadGroupUuid,
+      collapsed: true
+    });
+    this.addTrackGroupActions.push(addTrackGroup);
+
+    // Set the group for all kernel threads (including kthreadd itself).
+    for (; it.valid(); it.next()) {
+      this.setUuidForUpid(it.upid, kthreadGroupUuid);
+    }
+  }
+
   async addProcessTrackGroups(): Promise<void> {
     // We want to create groups of tracks in a specific order.
     // The tracks should be grouped:
@@ -1100,6 +1197,7 @@ class TrackDecider {
     ) the_tracks
     left join (select upid, sum(dur) as total_dur
       from sched join thread using(utid)
+      where dur != -1 and utid != 0
       group by upid
     ) using(upid)
     left join (
@@ -1201,6 +1299,9 @@ class TrackDecider {
 
   async decideTracks(): Promise<DeferredAction[]> {
     // Add first the global tracks that don't require per-process track groups.
+    if (NULL_TRACKS_FLAG.get()) {
+      await this.addNullTracks();
+    }
     await this.addCpuSchedulingTracks();
     await this.addCpuFreqTracks();
     await this.addGlobalAsyncTracks();
@@ -1209,6 +1310,14 @@ class TrackDecider {
     await this.addCpuPerfCounterTracks();
     await this.addAnnotationTracks();
     await this.groupGlobalIonTracks();
+
+    // Pre-group all kernel "threads" (actually processes) if this is a linux
+    // system trace. Below, addProcessTrackGroups will skip them due to an
+    // existing group uuid, and addThreadStateTracks will fill in the
+    // per-thread tracks. Quirk: since all threads will appear to be
+    // TrackKindPriority.MAIN_THREAD, any process-level tracks will end up
+    // pushed to the bottom of the group in the UI.
+    await this.addKernelThreadGrouping();
 
     // Create the per-process track groups. Note that this won't necessarily
     // create a track per process. If a process has been completely idle and has

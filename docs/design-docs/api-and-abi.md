@@ -497,9 +497,10 @@ attempting to build the tracing library as shared library and use it from a
 different linker unit. It is fine to link AND use the client library within
 the same shared library, as long as none of the perfetto C++ API is exported.
 
-The `PERFETTO_EXPORT` annotations are only used when building the third tier of
-the client library in chromium component builds and cannot be easily repurposed
-for delineating shared library boundaries for the other two API tiers.
+The `PERFETTO_EXPORT_COMPONENT` annotations are only used when building the
+third tier of the client library in chromium component builds and cannot be
+easily repurposed for delineating shared library boundaries for the other two
+API tiers.
 
 This is because the C++ the first two tiers of the Client Library C++ API make
 extensive use of inline headers and C++ templates, in order to allow the

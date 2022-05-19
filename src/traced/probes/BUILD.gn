@@ -99,6 +99,7 @@ perfetto_unittest_source_set("unittests") {
     "android_log:unittests",
     "common:unittests",
     "filesystem:unittests",
+    "ftrace:unittests",
     "initial_display_state:unittests",
     "packages_list:unittests",
     "power:unittests",

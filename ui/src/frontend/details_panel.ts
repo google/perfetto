@@ -320,13 +320,15 @@ export class DetailsPanel implements m.ClassComponent {
       });
     }
 
-    if (globals.state.pivotTableRedux.selectionArea !== null) {
+    if (globals.state.nonSerializableState.pivotTableRedux.selectionArea !==
+        null) {
       detailsPanels.push({
         key: 'pivot_table_redux',
         name: 'Pivot Table',
         vnode: m(PivotTableRedux, {
           key: 'pivot_table_redux',
-          selectionArea: globals.state.pivotTableRedux.selectionArea
+          selectionArea:
+              globals.state.nonSerializableState.pivotTableRedux.selectionArea
         })
       });
     }

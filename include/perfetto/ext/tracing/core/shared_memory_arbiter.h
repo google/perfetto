@@ -39,7 +39,7 @@ class TraceWriter;
 
 // Used by the Producer-side of the transport layer to vend TraceWriters
 // from the SharedMemory it receives from the Service-side.
-class PERFETTO_EXPORT SharedMemoryArbiter {
+class PERFETTO_EXPORT_COMPONENT SharedMemoryArbiter {
  public:
   virtual ~SharedMemoryArbiter();
 
@@ -48,8 +48,8 @@ class PERFETTO_EXPORT SharedMemoryArbiter {
   // the Service to reconstruct TracePackets written by the same TraceWriter.
   // Returns null impl of TraceWriter if all WriterID slots are exhausted. The
   // writer will commit to the provided |target_buffer|. If the arbiter was
-  // created via CreateUnbound(), only BufferExhaustedPolicy::kDrop is
-  // supported.
+  // created via CreateUnbound() or CreateStartupTraceWriter() is later used,
+  // only BufferExhaustedPolicy::kDrop is supported.
   virtual std::unique_ptr<TraceWriter> CreateTraceWriter(
       BufferID target_buffer,
       BufferExhaustedPolicy buffer_exhausted_policy =
@@ -58,9 +58,10 @@ class PERFETTO_EXPORT SharedMemoryArbiter {
   // Creates a TraceWriter that will commit to the target buffer with the given
   // reservation ID (creating a new reservation for this ID if none exists yet).
   // The buffer reservation should be bound to an actual BufferID via
-  // BindStartupTargetBuffer() once the actual BufferID is known. Only supported
-  // if the arbiter was created using CreateUnbound(), and may be called while
-  // the arbiter is unbound.
+  // BindStartupTargetBuffer() once the actual BufferID is known. Calling this
+  // method may transition the arbiter into unbound state (see state diagram in
+  // SharedMemoryArbiterImpl's class comment) and requires that all (past and
+  // future) TraceWriters are created with BufferExhaustedPolicy::kDrop.
   //
   // While any unbound buffer reservation exists, all commits will be buffered
   // until all reservations were bound. Thus, until all reservations are bound,
@@ -79,7 +80,7 @@ class PERFETTO_EXPORT SharedMemoryArbiter {
   // in the meantime), and increments the reservation ID between sessions.
   // Similarly, if more than a single target buffer per session is required
   // (e.g. for two different data sources), different reservation IDs should be
-  // chosen for different targets buffers.
+  // chosen for different target buffers.
   virtual std::unique_ptr<TraceWriter> CreateStartupTraceWriter(
       uint16_t target_buffer_reservation_id) = 0;
 

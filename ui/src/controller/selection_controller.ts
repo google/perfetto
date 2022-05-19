@@ -135,7 +135,8 @@ export class SelectionController extends Controller<'main'> {
     }
 
     const promisedDetails = this.args.engine.query(`
-      SELECT * FROM ${leafTable} WHERE id = ${selectedId};
+      SELECT *, ABS_TIME_STR(ts) as absTime FROM ${leafTable} WHERE id = ${
+        selectedId};
     `);
 
     const [details, args, description] =
@@ -149,6 +150,8 @@ export class SelectionController extends Controller<'main'> {
     // Long term these should be handled generically as args but for now
     // handle them specially:
     let ts = undefined;
+    // tslint:disable-next-line:variable-name
+    let absTime = undefined;
     let dur = undefined;
     let name = undefined;
     let category = undefined;
@@ -166,6 +169,9 @@ export class SelectionController extends Controller<'main'> {
           break;
         case 'thread_ts':
           threadTs = fromNs(Number(v));
+          break;
+        case 'absTime':
+          if (v) absTime = `${v}`;
           break;
         case 'name':
           name = `${v}`;
@@ -193,6 +199,7 @@ export class SelectionController extends Controller<'main'> {
       id: selectedId,
       ts,
       threadTs,
+      absTime,
       dur,
       threadDur,
       name,
@@ -360,14 +367,14 @@ export class SelectionController extends Controller<'main'> {
 
   async sliceDetails(id: number) {
     const sqlQuery = `SELECT
-      ts,
-      dur,
-      priority,
-      end_state as endState,
-      utid,
-      cpu,
+      sched.ts,
+      sched.dur,
+      sched.priority,
+      sched.end_state as endState,
+      sched.utid,
+      sched.cpu,
       thread_state.id as threadStateId
-    FROM sched join thread_state using(ts, utid, dur, cpu)
+    FROM sched left join thread_state using(ts, utid, cpu)
     WHERE sched.id = ${id}`;
     const result = await this.args.engine.query(sqlQuery);
     // Check selection is still the same on completion of query.
@@ -377,10 +384,10 @@ export class SelectionController extends Controller<'main'> {
         ts: NUM,
         dur: NUM,
         priority: NUM,
-        endState: STR,
+        endState: STR_NULL,
         utid: NUM,
         cpu: NUM,
-        threadStateId: NUM,
+        threadStateId: NUM_NULL,
       });
       const ts = row.ts;
       const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
@@ -389,7 +396,7 @@ export class SelectionController extends Controller<'main'> {
       const endState = row.endState;
       const utid = row.utid;
       const cpu = row.cpu;
-      const threadStateId = row.threadStateId;
+      const threadStateId = row.threadStateId || undefined;
       const selected: SliceDetails = {
         ts: timeFromStart,
         dur,
@@ -439,30 +446,33 @@ export class SelectionController extends Controller<'main'> {
   }
 
   async schedulingDetails(ts: number, utid: number|Long) {
-    let event = 'sched_waking';
-    const waking = await this.args.engine.query(
-        `select * from instants where name = 'sched_waking' limit 1`);
-    const wakeup = await this.args.engine.query(
-        `select * from instants where name = 'sched_wakeup' limit 1`);
-    if (waking.numRows() === 0) {
-      if (wakeup.numRows() === 0) return undefined;
-      // Only use sched_wakeup if waking is not in the trace.
-      event = 'sched_wakeup';
-    }
-
-    // Find the ts of the first sched_wakeup before the current slice.
-    const queryWakeupTs = `select ts from instants where name = '${event}'
-    and ref = ${utid} and ts < ${ts} order by ts desc limit 1`;
-    const wakeResult = await this.args.engine.query(queryWakeupTs);
+    // Find the ts of the first wakeup before the current slice.
+    const wakeResult = await this.args.engine.query(`
+      select ts, waker_utid as wakerUtid
+      from thread_state
+      where utid = ${utid} and ts < ${ts} and state = 'R'
+      order by ts desc
+      limit 1
+    `);
     if (wakeResult.numRows() === 0) {
       return undefined;
     }
-    const wakeupTs = wakeResult.firstRow({ts: NUM}).ts;
+
+    const wakeFirstRow = wakeResult.firstRow({ts: NUM, wakerUtid: NUM_NULL});
+    const wakeupTs = wakeFirstRow.ts;
+    const wakerUtid = wakeFirstRow.wakerUtid;
+    if (wakerUtid === null) {
+      return undefined;
+    }
 
     // Find the previous sched slice for the current utid.
-    const queryPrevSched = `select ts from sched where utid = ${utid}
-    and ts < ${ts} order by ts desc limit 1`;
-    const prevSchedResult = await this.args.engine.query(queryPrevSched);
+    const prevSchedResult = await this.args.engine.query(`
+      select ts
+      from sched
+      where utid = ${utid} and ts < ${ts}
+      order by ts desc
+      limit 1
+    `);
 
     // If this is the first sched slice for this utid or if the wakeup found
     // was after the previous slice then we know the wakeup was for this slice.
@@ -470,33 +480,23 @@ export class SelectionController extends Controller<'main'> {
         wakeupTs < prevSchedResult.firstRow({ts: NUM}).ts) {
       return undefined;
     }
+
     // Find the sched slice with the utid of the waker running when the
     // sched wakeup occurred. This is the waker.
-    let queryWaker = `select utid, cpu from sched where utid =
-    (select EXTRACT_ARG(arg_set_id, 'waker_utid') from instants where name =
-     '${event}' and ts = ${wakeupTs})
-    and ts < ${wakeupTs} and ts + dur >= ${wakeupTs};`;
-    let wakerResult = await this.args.engine.query(queryWaker);
-    if (wakerResult.numRows() === 0) {
-      // An old version of trace processor (that does not populate the
-      // 'waker_utid' arg) might be in use. Try getting the same info from the
-      // raw table).
-      // TODO(b/206390308): Remove this workaround when
-      // TRACE_PROCESSOR_CURRENT_API_VERSION is incremented.
-      queryWaker = `select utid, cpu from sched where utid =
-      (select utid from raw where name = '${event}' and ts = ${wakeupTs})
-      and ts < ${wakeupTs} and ts + dur >= ${wakeupTs};`;
-      wakerResult =  await this.args.engine.query(queryWaker);
-    }
+    const wakerResult = await this.args.engine.query(`
+      select cpu
+      from sched
+      where
+        utid = ${wakerUtid} and
+        ts < ${wakeupTs} and
+        ts + dur >= ${wakeupTs};
+    `);
     if (wakerResult.numRows() === 0) {
       return undefined;
     }
-    const wakerRow = wakerResult.firstRow({utid: NUM, cpu: NUM});
-    return {
-      wakeupTs: fromNs(wakeupTs),
-      wakerUtid: wakerRow.utid,
-      wakerCpu: wakerRow.cpu
-    };
+
+    const wakerRow = wakerResult.firstRow({cpu: NUM});
+    return {wakeupTs: fromNs(wakeupTs), wakerUtid, wakerCpu: wakerRow.cpu};
   }
 
   async computeThreadDetails(utid: number):

@@ -179,7 +179,7 @@ class TracingMuxerImpl;
 
 // A virtual base class for interceptors. Users should derive from the templated
 // subclass below instead of this one.
-class PERFETTO_EXPORT InterceptorBase {
+class PERFETTO_EXPORT_COMPONENT InterceptorBase {
  public:
   virtual ~InterceptorBase();
 
@@ -246,7 +246,7 @@ class PERFETTO_EXPORT InterceptorBase {
 
 // Templated interceptor instantiation. See above for usage.
 template <class InterceptorType>
-class PERFETTO_EXPORT Interceptor : public InterceptorBase {
+class PERFETTO_EXPORT_COMPONENT Interceptor : public InterceptorBase {
  public:
   // A context object provided to the ThreadLocalState constructor. Provides
   // access to the per-instance interceptor object.

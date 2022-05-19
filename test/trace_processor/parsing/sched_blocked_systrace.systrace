@@ -1,2 +1,6 @@
-           <...>-3694  ( 3694) [006] d..3    20.258854: sched_blocked_reason: pid=269 iowait=0 caller=worker_thread+0x534/0x820
-          <idle>-0     (-----) [000] d.s4    21.123838: sched_blocked_reason: pid=2172 iowait=1 caller=__filemap_fdatawait_range+0x134/0x150
+          <idle>-0     (-----) [006] ....    10.258854: sched_switch: prev_comm=swapper/6 prev_pid=0 prev_prio=120 prev_state=D ==> next_comm=foo next_pid=269 next_prio=130
+             foo-269   (-----) [006] ....    20.258854: sched_switch: prev_comm=foo prev_pid=269 prev_prio=120 prev_state=D ==> next_comm=swapper/6 next_pid=0 next_prio=130
+          <idle>-0     (-----) [006] d..3    20.258855: sched_blocked_reason: pid=269 iowait=0 caller=worker_thread+0x534/0x820
+          <idle>-0     (-----) [000] ....    21.058854: sched_switch: prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=D ==> next_comm=foo next_pid=2172 next_prio=130
+             bar-269   (-----) [000] ....    21.123838: sched_switch: prev_comm=bar prev_pid=2172 prev_prio=120 prev_state=D ==> next_comm=swapper/0 next_pid=0 next_prio=130
+          <idle>-0     (-----) [000] d.s4    21.123839: sched_blocked_reason: pid=2172 iowait=1 caller=__filemap_fdatawait_range+0x134/0x150

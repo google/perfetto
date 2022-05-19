@@ -49,7 +49,6 @@ class FtraceParser {
                              protozero::ConstBytes,
                              PacketSequenceStateGeneration*);
   void ParseSchedSwitch(uint32_t cpu, int64_t timestamp, protozero::ConstBytes);
-  void ParseSchedWakeup(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
   void ParseSchedWaking(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
   void ParseSchedProcessFree(int64_t timestamp, protozero::ConstBytes);
   void ParseCpuFreq(int64_t timestamp, protozero::ConstBytes);
@@ -79,7 +78,6 @@ class FtraceParser {
   void ParseSignalDeliver(int64_t timestamp,
                           uint32_t pid,
                           protozero::ConstBytes);
-  void ParseLowmemoryKill(int64_t timestamp, protozero::ConstBytes);
   void ParseOOMScoreAdjUpdate(int64_t timestamp, protozero::ConstBytes);
   void ParseOOMKill(int64_t timestamp, protozero::ConstBytes);
   void ParseMmEventRecord(int64_t timestamp,
@@ -147,8 +145,7 @@ class FtraceParser {
   void ParseGpuMemTotal(int64_t timestamp, protozero::ConstBytes);
   void ParseThermalTemperature(int64_t timestamp, protozero::ConstBytes);
   void ParseCdevUpdate(int64_t timestamp, protozero::ConstBytes);
-  void ParseSchedBlockedReason(int64_t timestamp,
-                               protozero::ConstBytes,
+  void ParseSchedBlockedReason(protozero::ConstBytes,
                                PacketSequenceStateGeneration*);
   void ParseFastRpcDmaStat(int64_t timestamp,
                            uint32_t pid,
@@ -223,7 +220,6 @@ class FtraceParser {
   const StringId gpu_mem_total_unit_id_;
   const StringId gpu_mem_total_global_desc_id_;
   const StringId gpu_mem_total_proc_desc_id_;
-  const StringId sched_blocked_reason_id_;
   const StringId io_wait_id_;
   const StringId function_id_;
   const StringId waker_utid_id_;

@@ -659,12 +659,11 @@ message ProcessStatsConfig {
   // multiple.
   optional uint32 proc_stats_cache_ttl_ms = 6;
 
-  // Whether to record /proc/tid/time_in_state.
-  optional bool record_thread_time_in_state = 7;
+  // DEPRECATED record_thread_time_in_state
+  reserved 7;
 
-  // Size of the cache for thread time_in_state cpu freq values.
-  // If not specificed, the default is used.
-  optional uint32 thread_time_in_state_cache_size = 8;
+  // DEPRECATED thread_time_in_state_cache_size
+  reserved 8;
 }
 
 // End of protos/perfetto/config/process_stats/process_stats_config.proto
@@ -1190,6 +1189,12 @@ message PerfEventConfig {
     // on debug builds.
     // This does *not* disclose KASLR, as only the function names are emitted.
     optional bool kernel_frames = 2;
+
+    // Whether to record and unwind userspace callstacks. If unset, defaults to
+    // including userspace (UNWIND_DWARF) both for backwards compatibility and
+    // as the most common default (this defaulting is only applicable if the
+    // outer CallstackSampling message is explicitly set).
+    optional UnwindMode user_frames = 3;
   }
 
   message Scope {
@@ -1233,6 +1238,16 @@ message PerfEventConfig {
     // neither explicitly included nor excluded will be considered. Processes
     // are accepted on a first come, first served basis.
     optional uint32 additional_cmdline_count = 5;
+  }
+
+  // Userspace unwinding mode. A possible future addition is kernel-unwound
+  // callchains for frame pointer based systems.
+  enum UnwindMode {
+    UNWIND_UNKNOWN = 0;
+    // Do not unwind userspace:
+    UNWIND_SKIP = 1;
+    // Use libunwindstack (default):
+    UNWIND_DWARF = 2;
   }
 }
 
@@ -1569,12 +1584,11 @@ message TrackEventConfig {
   optional bool disable_incremental_timestamps = 5;
 
   // Allows to specify a custom unit different than the default (ns).
+  // Also affects thread timestamps if enable_thread_time_sampling = true.
   // A multiplier of 1000 means that a timestamp = 3 should be interpreted as
   // 3000 ns = 3 us.
   // Default: 1 (if unset, it should be read as 1).
-  // For now, this multiplier only affects incremental timestamps.
-  // Note: This isn't supported in the SDK yet. It will be supported soon.
-  optional uint64 timestamp_unit_multipler = 6;
+  optional uint64 timestamp_unit_multiplier = 6;
 
   // Default: false (i.e. debug_annotations is NOT filtered out by default)
   // When true, any debug annotations provided as arguments to the

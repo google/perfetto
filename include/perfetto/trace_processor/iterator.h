@@ -40,7 +40,7 @@ class IteratorImpl;
 //   }
 //   printf("\n");
 // }
-class PERFETTO_EXPORT Iterator {
+class PERFETTO_EXPORT_COMPONENT Iterator {
  public:
   explicit Iterator(std::unique_ptr<IteratorImpl>);
   ~Iterator();

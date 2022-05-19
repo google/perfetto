@@ -64,16 +64,16 @@ import {
   ToggleAttrs
 } from './record_widgets';
 
-const PERSIST_CONFIG_FLAG = featureFlags.register({
+export const PERSIST_CONFIG_FLAG = featureFlags.register({
   id: 'persistConfigsUI',
   name: 'Config persistence UI',
   description: 'Show experimental config persistence UI on the record page.',
   defaultValue: true,
 });
 
-const POLL_INTERVAL_MS = [250, 500, 1000, 2500, 5000, 30000, 60000];
+export const POLL_INTERVAL_MS = [250, 500, 1000, 2500, 5000, 30000, 60000];
 
-const ATRACE_CATEGORIES = new Map<string, string>();
+export const ATRACE_CATEGORIES = new Map<string, string>();
 ATRACE_CATEGORIES.set('adb', 'ADB');
 ATRACE_CATEGORIES.set('aidl', 'AIDL calls');
 ATRACE_CATEGORIES.set('am', 'Activity Manager');
@@ -102,7 +102,7 @@ ATRACE_CATEGORIES.set('view', 'View System');
 ATRACE_CATEGORIES.set('webview', 'WebView');
 ATRACE_CATEGORIES.set('wm', 'Window Manager');
 
-const LOG_BUFFERS = new Map<string, string>();
+export const LOG_BUFFERS = new Map<string, string>();
 LOG_BUFFERS.set('LID_CRASH', 'Crash');
 LOG_BUFFERS.set('LID_DEFAULT', 'Main');
 LOG_BUFFERS.set('LID_EVENTS', 'Binary events');
@@ -112,7 +112,7 @@ LOG_BUFFERS.set('LID_SECURITY', 'Security');
 LOG_BUFFERS.set('LID_STATS', 'Stats');
 LOG_BUFFERS.set('LID_SYSTEM', 'System');
 
-const FTRACE_CATEGORIES = new Map<string, string>();
+export const FTRACE_CATEGORIES = new Map<string, string>();
 FTRACE_CATEGORIES.set('binder/*', 'binder');
 FTRACE_CATEGORIES.set('block/*', 'block');
 FTRACE_CATEGORIES.set('clk/*', 'clk');
@@ -133,7 +133,7 @@ FTRACE_CATEGORIES.set('task/*', 'task');
 FTRACE_CATEGORIES.set('vmscan/*', 'vmscan');
 FTRACE_CATEGORIES.set('fastrpc/*', 'fastrpc');
 
-function RecSettings(cssClass: string) {
+export function RecSettings(cssClass: string) {
   const S = (x: number) => x * 1000;
   const M = (x: number) => x * 1000 * 60;
   const H = (x: number) => x * 1000 * 60 * 60;
@@ -205,7 +205,7 @@ function RecSettings(cssClass: string) {
       } as SliderAttrs));
 }
 
-function PowerSettings(cssClass: string) {
+export function PowerSettings(cssClass: string) {
   const DOC_URL = 'https://perfetto.dev/docs/data-sources/battery-counters';
   const descr =
       [m('div',
@@ -252,7 +252,7 @@ function PowerSettings(cssClass: string) {
       } as ProbeAttrs));
 }
 
-function GpuSettings(cssClass: string) {
+export function GpuSettings(cssClass: string) {
   return m(
       `.record-section${cssClass}`,
       m(Probe, {
@@ -272,7 +272,7 @@ function GpuSettings(cssClass: string) {
       } as ProbeAttrs));
 }
 
-function CpuSettings(cssClass: string) {
+export function CpuSettings(cssClass: string) {
   return m(
       `.record-section${cssClass}`,
       m(Probe,
@@ -316,7 +316,7 @@ function CpuSettings(cssClass: string) {
       } as ProbeAttrs));
 }
 
-function HeapSettings(cssClass: string) {
+export function HeapSettings(cssClass: string) {
   const valuesForMS = [
     0,
     1000,
@@ -429,7 +429,7 @@ sample from those.`,
   );
 }
 
-function JavaHeapDumpSettings(cssClass: string) {
+export function JavaHeapDumpSettings(cssClass: string) {
   const valuesForMS = [
     0,
     1000,
@@ -481,7 +481,7 @@ function JavaHeapDumpSettings(cssClass: string) {
   );
 }
 
-function MemorySettings(cssClass: string) {
+export function MemorySettings(cssClass: string) {
   const meminfoOpts = new Map<string, string>();
   for (const x in MeminfoCounters) {
     if (typeof MeminfoCounters[x] === 'number' &&
@@ -620,7 +620,7 @@ function AtraceAppsList() {
   } as TextareaAttrs);
 }
 
-function AndroidSettings(cssClass: string) {
+export function AndroidSettings(cssClass: string) {
   return m(
       `.record-section${cssClass}`,
       m(Probe,
@@ -673,7 +673,7 @@ function AndroidSettings(cssClass: string) {
 }
 
 
-function ChromeSettings(cssClass: string) {
+export function ChromeSettings(cssClass: string) {
   return m(
       `.record-section${cssClass}`,
       CompactProbe({
@@ -755,7 +755,7 @@ function ChromeCategoriesSelection() {
       }));
 }
 
-function AdvancedSettings(cssClass: string) {
+export function AdvancedSettings(cssClass: string) {
   return m(
       `.record-section${cssClass}`,
       m(Probe,
@@ -779,16 +779,18 @@ function AdvancedSettings(cssClass: string) {
         m(Slider, {
           title: 'Buf size',
           cssClass: '.thin',
-          values: [512, 1024, 2 * 1024, 4 * 1024, 16 * 1024, 32 * 1024],
+          values: [0, 512, 1024, 2 * 1024, 4 * 1024, 16 * 1024, 32 * 1024],
           unit: 'KB',
+          zeroIsDefault: true,
           set: (cfg, val) => cfg.ftraceBufferSizeKb = val,
           get: (cfg) => cfg.ftraceBufferSizeKb
         } as SliderAttrs),
         m(Slider, {
           title: 'Drain rate',
           cssClass: '.thin',
-          values: [100, 250, 500, 1000, 2500, 5000],
+          values: [0, 100, 250, 500, 1000, 2500, 5000],
           unit: 'ms',
+          zeroIsDefault: true,
           set: (cfg, val) => cfg.ftraceDrainPeriodMs = val,
           get: (cfg) => cfg.ftraceDrainPeriodMs
         } as SliderAttrs),
@@ -905,13 +907,14 @@ function Instructions(cssClass: string) {
       recordingLog());
 }
 
-function loadedConfigEqual(cfg1: LoadedConfig, cfg2: LoadedConfig): boolean {
+export function loadedConfigEqual(
+    cfg1: LoadedConfig, cfg2: LoadedConfig): boolean {
   return cfg1.type === 'NAMED' && cfg2.type === 'NAMED' ?
       cfg1.name === cfg2.name :
       cfg1.type === cfg2.type;
 }
 
-function loadConfigButton(
+export function loadConfigButton(
     config: RecordConfig, configType: LoadedConfig): m.Vnode {
   return m(
       'button',
@@ -927,7 +930,7 @@ function loadConfigButton(
       m('i.material-icons', 'file_upload'));
 }
 
-function displayRecordConfigs() {
+export function displayRecordConfigs() {
   const configs = [];
   if (autosaveConfigStore.hasSavedConfig) {
     configs.push(m('.config', [
@@ -1002,7 +1005,7 @@ export const ConfigTitleState = {
   }
 };
 
-function Configurations(cssClass: string) {
+export function Configurations(cssClass: string) {
   const canSave = recordConfigStore.canSave(ConfigTitleState.getTitle());
   return m(
       `.record-section${cssClass}`,
@@ -1259,13 +1262,13 @@ function onStartRecordingPressed() {
   }
 }
 
-function RecordingStatusLabel() {
+export function RecordingStatusLabel() {
   const recordingStatus = globals.state.recordingStatus;
   if (!recordingStatus) return [];
   return m('label', recordingStatus);
 }
 
-function ErrorLabel() {
+export function ErrorLabel() {
   const lastRecordingError = globals.state.lastRecordingError;
   if (!lastRecordingError) return [];
   return m('label.error-label', `Error:  ${lastRecordingError}`);

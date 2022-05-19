@@ -31,7 +31,7 @@ namespace perfetto {
 namespace trace_processor {
 
 // Coordinates the loading of traces from an arbitrary source.
-class PERFETTO_EXPORT TraceProcessorStorage {
+class PERFETTO_EXPORT_COMPONENT TraceProcessorStorage {
  public:
   // Creates a new instance of TraceProcessorStorage.
   static std::unique_ptr<TraceProcessorStorage> CreateInstance(const Config&);

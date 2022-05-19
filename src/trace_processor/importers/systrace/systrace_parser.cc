@@ -58,20 +58,12 @@ void SystraceParser::ParseZeroEvent(int64_t ts,
                                     uint32_t pid,
                                     int32_t flag,
                                     base::StringView name,
-                                    uint32_t /* tgid */,
+                                    uint32_t tgid,
                                     int64_t value) {
   systrace_utils::SystraceTracePoint point{};
   point.name = name;
   point.int_value = value;
-
-  // Hardcode the tgid to 0 (i.e. no tgid available) because zero events can
-  // come from kernel threads and as we group kernel threads into the kthreadd
-  // process, we would want |point.tgid == kKthreaddPid|. However, we don't have
-  // acces to the ppid of this process so we have to not associate to any
-  // process and leave the resolution of process to other events.
-  // TODO(lalitm): remove this hack once we move kernel thread grouping to
-  // the UI.
-  point.tgid = 0;
+  point.tgid = tgid;
 
   // The value of these constants can be found in the msm-google kernel.
   constexpr int32_t kSystraceEventBegin = 1 << 0;
@@ -88,30 +80,23 @@ void SystraceParser::ParseZeroEvent(int64_t ts,
     context_->storage->IncrementStats(stats::systrace_parse_failure);
     return;
   }
+  // Note: for counter (C) events, we cannot assume that pid is within tgid.
+  // See ParseKernelTracingMarkWrite for rationale.
   ParseSystracePoint(ts, pid, point);
 }
 
-void SystraceParser::ParseTracingMarkWrite(int64_t ts,
-                                           uint32_t pid,
-                                           char trace_type,
-                                           bool trace_begin,
-                                           base::StringView trace_name,
-                                           uint32_t /* tgid */,
-                                           int64_t value) {
+void SystraceParser::ParseKernelTracingMarkWrite(int64_t ts,
+                                                 uint32_t pid,
+                                                 char trace_type,
+                                                 bool trace_begin,
+                                                 base::StringView trace_name,
+                                                 uint32_t tgid,
+                                                 int64_t value) {
   systrace_utils::SystraceTracePoint point{};
   point.name = trace_name;
-
-  // Hardcode the tgid to 0 (i.e. no tgid available) because
-  // sde_tracing_mark_write events can come from kernel threads and because we
-  // group kernel threads into the kthreadd process, we would want |point.tgid
-  // == kKthreaddPid|. However, we don't have acces to the ppid of this process
-  // so we have to not associate to any process and leave the resolution of
-  // process to other events.
-  // TODO(lalitm): remove this hack once we move kernel thread grouping to
-  // the UI.
-  point.tgid = 0;
-
   point.int_value = value;
+  point.tgid = tgid;
+
   // Some versions of this trace point fill trace_type with one of (B/E/C),
   // others use the trace_begin boolean and only support begin/end events:
   if (trace_type == 0) {
@@ -123,9 +108,25 @@ void SystraceParser::ParseTracingMarkWrite(int64_t ts,
     return;
   }
 
+  // Note: |pid| is the thread id of the emitting thread, |tgid| is taken from
+  // the event payload. The begin/end event kernel atrace macros seem well
+  // behaved (i.e. they always put current->tgid into the payload). However the
+  // counter events have cases where a placeholder/unrelated pid is used (e.g.
+  // 0, 1, or a specific kthread, see g2d_frame_* counters for an example).
+  //
+  // Further, the counter events expect to be grouped at the process (tgid)
+  // level (multiple distinct pids will be emitting values for the same
+  // logical counter).
+  //
+  // Therefore we must never assume that pid is within tgid for counter events,
+  // but still trust that the tgid value is for a valid process (which will
+  // usually fall onto swapper/init or some kthread) to have a
+  // process_counter_track for the counter values.
   ParseSystracePoint(ts, pid, point);
 }
 
+// TODO(rsavitski): try to remove most special casing of tgid 0, as it is valid
+// for kernel systrace points (due to systrace from interrupts).
 void SystraceParser::ParseSystracePoint(
     int64_t ts,
     uint32_t pid,
@@ -245,6 +246,10 @@ void SystraceParser::ParseSystracePoint(
       break;
     }
 
+    // Warning: counter event handling must never assume that the |pid| thread
+    // is within the |tgid| process due to kernel systrace quirks. If you need
+    // to change this, update ParseKernelTracingMarkWrite and ParseZeroEvent to
+    // pretend that pid is the same as tgid for C events.
     case 'C': {
       // LMK events from userspace are hacked as counter events with the "value"
       // of the counter representing the pid of the killed process which is
@@ -256,8 +261,9 @@ void SystraceParser::ParseSystracePoint(
         if (killed_pid != 0) {
           UniquePid killed_upid =
               context_->process_tracker->GetOrCreateProcess(killed_pid);
-          context_->event_tracker->PushInstant(ts, lmk_id_, killed_upid,
-                                               RefType::kRefUpid);
+          TrackId track =
+              context_->track_tracker->InternProcessTrack(killed_upid);
+          context_->slice_tracker->Scoped(ts, track, kNullStringId, lmk_id_, 0);
         }
         // TODO(lalitm): we should not add LMK events to the counters table
         // once the UI has support for displaying instants.
@@ -270,22 +276,14 @@ void SystraceParser::ParseSystracePoint(
         return;
       }
 
+      // This is per upid on purpose. Some long-standing counters are pushed
+      // from arbitrary threads but expect to be per process (b/123560328).
+      // This affects both userspace and kernel counters.
       StringId name_id = context_->storage->InternString(point.name);
-      TrackId track_id;
-      if (point.tgid == 0) {
-        // If tgid is 0 (likely because this is a kernel thread), we can do no
-        // better than using a thread track with the pid of the process.
-        UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-        track_id =
-            context_->track_tracker->InternThreadCounterTrack(name_id, utid);
-      } else {
-        // This is per upid on purpose. Some counters are pushed from arbitrary
-        // threads but are really per process.
-        UniquePid upid =
-            context_->process_tracker->GetOrCreateProcess(point.tgid);
-        track_id =
-            context_->track_tracker->InternProcessCounterTrack(name_id, upid);
-      }
+      UniquePid upid =
+          context_->process_tracker->GetOrCreateProcess(point.tgid);
+      TrackId track_id =
+          context_->track_tracker->InternProcessCounterTrack(name_id, upid);
       context_->event_tracker->PushCounter(
           ts, static_cast<double>(point.int_value), track_id);
     }
@@ -311,13 +309,13 @@ void SystraceParser::PostProcessSpecialSliceBegin(int64_t ts,
     UniquePid killed_upid =
         context_->process_tracker->GetOrCreateProcess(*killed_pid);
     // Add the oom score entry
-    TrackId track = context_->track_tracker->InternProcessCounterTrack(
+    TrackId counter_track = context_->track_tracker->InternProcessCounterTrack(
         oom_score_adj_id_, killed_upid);
-    context_->event_tracker->PushCounter(ts, *oom_score_adj, track);
+    context_->event_tracker->PushCounter(ts, *oom_score_adj, counter_track);
 
     // Add mem.lmk instant event for consistency with other methods.
-    context_->event_tracker->PushInstant(ts, lmk_id_, killed_upid,
-                                         RefType::kRefUpid);
+    TrackId track = context_->track_tracker->InternProcessTrack(killed_upid);
+    context_->slice_tracker->Scoped(ts, track, kNullStringId, lmk_id_, 0);
   }
 }
 

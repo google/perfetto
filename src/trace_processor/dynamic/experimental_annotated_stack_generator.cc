@@ -17,14 +17,29 @@
 #include "src/trace_processor/dynamic/experimental_annotated_stack_generator.h"
 
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-#include "perfetto/ext/base/string_utils.h"
-
 namespace perfetto {
 namespace trace_processor {
+namespace tables {
+
+#define PERFETTO_TP_ANNOTATED_CALLSTACK_TABLE_DEF(NAME, PARENT, C) \
+  NAME(ExperimentalAnnotatedCallstackTable,                        \
+       "experimental_annotated_callstack")                         \
+  PARENT(PERFETTO_TP_STACK_PROFILE_CALLSITE_DEF, C)                \
+  C(StringId, annotation)                                          \
+  C(tables::StackProfileCallsiteTable::Id, start_id, Column::Flag::kHidden)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_ANNOTATED_CALLSTACK_TABLE_DEF);
+
+ExperimentalAnnotatedCallstackTable::~ExperimentalAnnotatedCallstackTable() =
+    default;
+
+}  // namespace tables
 
 namespace {
 
@@ -81,36 +96,24 @@ MapType ClassifyMap(NullTermStringView map) {
   return MapType::kOther;
 }
 
-uint32_t GetConstraintColumnIndex(TraceProcessorContext* context) {
-  // The dynamic table adds two columns on top of the callsite table. Last
-  // column is the hidden constrain (i.e. input arg) column.
-  return context->storage->stack_profile_callsite_table().GetColumnCount() + 1;
-}
-
 }  // namespace
 
 std::string ExperimentalAnnotatedStackGenerator::TableName() {
-  return "experimental_annotated_callstack";
+  return tables::ExperimentalAnnotatedCallstackTable::Name();
 }
 
 Table::Schema ExperimentalAnnotatedStackGenerator::CreateSchema() {
-  auto schema = tables::StackProfileCallsiteTable::Schema();
-  schema.columns.push_back(Table::Schema::Column{
-      "annotation", SqlValue::Type::kString, /* is_id = */ false,
-      /* is_sorted = */ false, /* is_hidden = */ false});
-  schema.columns.push_back(Table::Schema::Column{
-      "start_id", SqlValue::Type::kLong, /* is_id = */ false,
-      /* is_sorted = */ false, /* is_hidden = */ true});
-  return schema;
+  return tables::ExperimentalAnnotatedCallstackTable::Schema();
 }
 
 base::Status ExperimentalAnnotatedStackGenerator::ValidateConstraints(
     const QueryConstraints& qc) {
   const auto& cs = qc.constraints();
-  int column = static_cast<int>(GetConstraintColumnIndex(context_));
+  int column = static_cast<int>(
+      tables::ExperimentalAnnotatedCallstackTable::ColumnIndex::start_id);
 
   auto id_fn = [column](const QueryConstraints::Constraint& c) {
-    return c.column == column && c.op == SQLITE_INDEX_CONSTRAINT_EQ;
+    return c.column == column && sqlite_utils::IsOpEq(c.op);
   };
   bool has_id_cs = std::find_if(cs.begin(), cs.end(), id_fn) != cs.end();
   return has_id_cs ? base::OkStatus()
@@ -122,16 +125,18 @@ base::Status ExperimentalAnnotatedStackGenerator::ComputeTable(
     const std::vector<Order>&,
     const BitVector&,
     std::unique_ptr<Table>& table_return) {
+  using CallsiteTable = tables::StackProfileCallsiteTable;
+
   const auto& cs_table = context_->storage->stack_profile_callsite_table();
   const auto& f_table = context_->storage->stack_profile_frame_table();
   const auto& m_table = context_->storage->stack_profile_mapping_table();
 
   // Input (id of the callsite leaf) is the constraint on the hidden |start_id|
   // column.
-  uint32_t constraint_col = GetConstraintColumnIndex(context_);
+  using ColumnIndex = tables::ExperimentalAnnotatedCallstackTable::ColumnIndex;
   auto constraint_it =
-      std::find_if(cs.begin(), cs.end(), [constraint_col](const Constraint& c) {
-        return c.col_idx == constraint_col && c.op == FilterOp::kEq;
+      std::find_if(cs.begin(), cs.end(), [](const Constraint& c) {
+        return c.col_idx == ColumnIndex::start_id && c.op == FilterOp::kEq;
       });
   PERFETTO_DCHECK(constraint_it != cs.end());
   if (constraint_it == cs.end() ||
@@ -139,22 +144,23 @@ base::Status ExperimentalAnnotatedStackGenerator::ComputeTable(
     return base::ErrStatus("invalid input callsite id");
   }
 
-  uint32_t start_id = static_cast<uint32_t>(constraint_it->value.AsLong());
-  base::Optional<uint32_t> start_row =
-      cs_table.id().IndexOf(CallsiteId(start_id));
-  if (!start_row) {
-    return base::ErrStatus("callsite with id %" PRIu32 " not found", start_id);
+  CallsiteId start_id =
+      CallsiteId(static_cast<uint32_t>(constraint_it->value.AsLong()));
+  auto opt_start_ref = cs_table.FindById(start_id);
+  if (!opt_start_ref) {
+    return base::ErrStatus("callsite with id %" PRIu32 " not found",
+                           start_id.value);
   }
 
   // Iteratively walk the parent_id chain to construct the list of callstack
   // entries, each pointing at a frame.
-  std::vector<uint32_t> cs_rows;
-  cs_rows.push_back(*start_row);
-  base::Optional<CallsiteId> maybe_parent_id = cs_table.parent_id()[*start_row];
+  std::vector<CallsiteTable::RowNumber> cs_rows;
+  cs_rows.push_back(opt_start_ref->ToRowNumber());
+  base::Optional<CallsiteId> maybe_parent_id = opt_start_ref->parent_id();
   while (maybe_parent_id) {
-    uint32_t parent_row = cs_table.id().IndexOf(*maybe_parent_id).value();
-    cs_rows.push_back(parent_row);
-    maybe_parent_id = cs_table.parent_id()[parent_row];
+    auto parent_ref = *cs_table.FindById(*maybe_parent_id);
+    cs_rows.push_back(parent_ref.ToRowNumber());
+    maybe_parent_id = parent_ref.parent_id();
   }
 
   // Walk the callsites root-to-leaf, annotating:
@@ -192,11 +198,9 @@ base::Status ExperimentalAnnotatedStackGenerator::ComputeTable(
 
   std::vector<StringPool::Id> annotations_reversed;
   for (auto it = cs_rows.rbegin(); it != cs_rows.rend(); ++it) {
-    FrameId frame_id = cs_table.frame_id()[*it];
-    uint32_t frame_row = f_table.id().IndexOf(frame_id).value();
-
-    MappingId map_id = f_table.mapping()[frame_row];
-    uint32_t map_row = m_table.id().IndexOf(map_id).value();
+    auto cs_ref = it->ToRowReference(cs_table);
+    auto frame_ref = *f_table.FindById(cs_ref.frame_id());
+    auto map_ref = *m_table.FindById(frame_ref.mapping());
 
     // Keep immediate callee of a JNI trampoline, but keep tagging all
     // successive libart frames as common.
@@ -216,15 +220,14 @@ base::Status ExperimentalAnnotatedStackGenerator::ComputeTable(
     // TODO(rsavitski): consider detecting standard JNI upcall entrypoints -
     // _JNIEnv::Call*. These are sometimes inlined into other DSOs, so erasing
     // only the libart frames does not clean up all of the JNI-related frames.
-    StringId fname_id = f_table.name()[frame_row];
+    StringId fname_id = frame_ref.name();
     if (fname_id == art_jni_trampoline) {
       annotations_reversed.push_back(common_frame);
       annotation_state = State::kKeepNext;
       continue;
     }
 
-    NullTermStringView map_view =
-        context_->storage->GetString(m_table.name()[map_row]);
+    NullTermStringView map_view = context_->storage->GetString(map_ref.name());
     MapType map_type = ClassifyMap(map_view);
 
     // Annotate managed frames.
@@ -254,29 +257,22 @@ base::Status ExperimentalAnnotatedStackGenerator::ComputeTable(
   }
 
   // Build the dynamic table.
-  auto base_rowmap = RowMap(std::move(cs_rows));
-
-  PERFETTO_DCHECK(base_rowmap.size() == annotations_reversed.size());
-  std::unique_ptr<NullableVector<StringPool::Id>> annotation_vals(
-      new NullableVector<StringPool::Id>());
+  PERFETTO_DCHECK(cs_rows.size() == annotations_reversed.size());
+  NullableVector<StringPool::Id> annotation_vals;
   for (auto it = annotations_reversed.rbegin();
        it != annotations_reversed.rend(); ++it) {
-    annotation_vals->Append(*it);
+    annotation_vals.Append(*it);
   }
 
   // Hidden column - always the input, i.e. the callsite leaf.
-  std::unique_ptr<NullableVector<uint32_t>> start_id_vals(
-      new NullableVector<uint32_t>());
-  for (uint32_t i = 0; i < base_rowmap.size(); i++)
-    start_id_vals->Append(start_id);
+  NullableVector<uint32_t> start_id_vals;
+  for (uint32_t i = 0; i < cs_rows.size(); i++)
+    start_id_vals.Append(start_id.value);
 
-  table_return.reset(new Table(
-      cs_table.Apply(std::move(base_rowmap))
-          .ExtendWithColumn("annotation", std::move(annotation_vals),
-                            TypedColumn<StringPool::Id>::default_flags())
-          .ExtendWithColumn("start_id", std::move(start_id_vals),
-                            TypedColumn<uint32_t>::default_flags() |
-                                TypedColumn<uint32_t>::kHidden)));
+  table_return =
+      tables::ExperimentalAnnotatedCallstackTable::SelectAndExtendParent(
+          cs_table, std::move(cs_rows), std::move(annotation_vals),
+          std::move(start_id_vals));
   return base::OkStatus();
 }
 

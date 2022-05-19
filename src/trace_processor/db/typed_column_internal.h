@@ -90,7 +90,6 @@ struct Serializer<StringPool::Id> {
 template <typename T, typename Enable = void>
 struct TypeHandler {
   using non_optional_type = T;
-  using get_type = T;
   using sql_value_type =
       typename Serializer<non_optional_type>::serialized_type;
 
@@ -115,7 +114,6 @@ struct TypeHandler {
 template <typename T>
 struct TypeHandler<base::Optional<T>> {
   using non_optional_type = T;
-  using get_type = base::Optional<T>;
   using sql_value_type =
       typename Serializer<non_optional_type>::serialized_type;
 
@@ -143,10 +141,7 @@ struct TypeHandler<base::Optional<T>> {
 // Specialization for Optional<StringId> types.
 template <>
 struct TypeHandler<StringPool::Id> {
-  // get_type removes the base::Optional since we convert base::nullopt ->
-  // StringPool::Id::Null (see Serializer<StringPool> above).
   using non_optional_type = StringPool::Id;
-  using get_type = StringPool::Id;
   using sql_value_type = NullTermStringView;
 
   static constexpr bool is_optional = false;
@@ -166,7 +161,6 @@ struct TypeHandler<base::Optional<StringPool::Id>> {
   // get_type removes the base::Optional since we convert base::nullopt ->
   // StringPool::Id::Null (see Serializer<StringPool> above).
   using non_optional_type = StringPool::Id;
-  using get_type = base::Optional<StringPool::Id>;
   using sql_value_type = NullTermStringView;
 
   // is_optional is false again because we always unwrap

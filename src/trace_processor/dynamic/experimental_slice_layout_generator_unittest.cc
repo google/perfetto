@@ -26,7 +26,7 @@ namespace trace_processor {
 namespace {
 
 constexpr uint32_t kColumn =
-    ExperimentalSliceLayoutGenerator::kFilterTrackIdsColumnIndex;
+    tables::ExperimentalSliceLayoutTable::ColumnIndex::filter_track_ids;
 
 std::string ToVis(const Table& table) {
   const Column* layout_depth_column = table.GetColumnByName("layout_depth");

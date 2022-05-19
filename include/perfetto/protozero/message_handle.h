@@ -37,7 +37,7 @@ class Message;
 // Think about this as a WeakPtr<Message> which calls
 // Message::Finalize() when going out of scope.
 
-class PERFETTO_EXPORT MessageHandleBase {
+class PERFETTO_EXPORT_COMPONENT MessageHandleBase {
  public:
   ~MessageHandleBase();
 

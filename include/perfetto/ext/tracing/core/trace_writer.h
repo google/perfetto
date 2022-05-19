@@ -33,7 +33,7 @@ class TracePacket;
 }  // namespace protos
 
 // See comments in include/perfetto/tracing/trace_writer_base.h
-class PERFETTO_EXPORT TraceWriter : public TraceWriterBase {
+class PERFETTO_EXPORT_COMPONENT TraceWriter : public TraceWriterBase {
  public:
   using TracePacketHandle =
       protozero::MessageHandle<protos::pbzero::TracePacket>;

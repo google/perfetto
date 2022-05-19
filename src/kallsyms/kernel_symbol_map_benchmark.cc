@@ -126,7 +126,8 @@ static void BM_KallSymsLoad(benchmark::State& state) {
   // which slows down significantly the CI.
   const bool skip = IsBenchmarkFunctionalOnly();
 
-  const std::string kallsyms_path = perfetto::base::GetTestDataPath("test/data/kallsyms.txt");
+  const std::string kallsyms_path =
+      perfetto::base::GetTestDataPath("test/data/kallsyms.txt");
   if (!skip) {
     std::string tmp;
     // Read the whole file once, so that it's cached.

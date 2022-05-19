@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select ts, process.pid
-from instants
-inner join process
-on instants.ref = process.upid;
+SELECT ts, process.pid
+FROM instant
+JOIN process_track ON instant.track_id = process_track.id
+JOIN process USING (upid);

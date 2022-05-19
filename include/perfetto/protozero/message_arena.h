@@ -37,7 +37,7 @@ class Message;
 // allocating new blocks only when using deeply nested messages (which are
 // extremely rare).
 // This is used by RootMessage<T> to handle the storage for root-level messages.
-class PERFETTO_EXPORT MessageArena {
+class PERFETTO_EXPORT_COMPONENT MessageArena {
  public:
   MessageArena();
   ~MessageArena();

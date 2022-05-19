@@ -71,8 +71,6 @@ using CounterId = tables::CounterTable::Id;
 
 using SliceId = tables::SliceTable::Id;
 
-using InstantId = tables::InstantTable::Id;
-
 using SchedId = tables::SchedSliceTable::Id;
 
 using MappingId = tables::StackProfileMappingTable::Id;
@@ -95,10 +93,8 @@ using ProcessMemorySnapshotId = tables::ProcessMemorySnapshotTable::Id;
 
 using SnapshotNodeId = tables::MemorySnapshotNodeTable::Id;
 
-// TODO(lalitm): this is a temporary hack while migrating the counters table and
-// will be removed when the migration is complete.
 static const TrackId kInvalidTrackId =
-    TrackId(std::numeric_limits<TrackId>::max());
+    TrackId(std::numeric_limits<uint32_t>::max());
 
 enum class RefType {
   kRefNoRef = 0,
@@ -190,8 +186,7 @@ class TraceStorage {
   class SqlStats {
    public:
     static constexpr size_t kMaxLogEntries = 100;
-    uint32_t RecordQueryBegin(const std::string& query,
-                              int64_t time_started);
+    uint32_t RecordQueryBegin(const std::string& query, int64_t time_started);
     void RecordQueryFirstNext(uint32_t row, int64_t time_first_next);
     void RecordQueryEnd(uint32_t row, int64_t time_end);
     size_t size() const { return queries_.size(); }
@@ -318,6 +313,55 @@ class TraceStorage {
   const tables::TrackTable& track_table() const { return track_table_; }
   tables::TrackTable* mutable_track_table() { return &track_table_; }
 
+  const tables::CounterTrackTable& counter_track_table() const {
+    return counter_track_table_;
+  }
+  tables::CounterTrackTable* mutable_counter_track_table() {
+    return &counter_track_table_;
+  }
+
+  const tables::CpuCounterTrackTable& cpu_counter_track_table() const {
+    return cpu_counter_track_table_;
+  }
+  tables::CpuCounterTrackTable* mutable_cpu_counter_track_table() {
+    return &cpu_counter_track_table_;
+  }
+
+  const tables::GpuCounterGroupTable& gpu_counter_group_table() const {
+    return gpu_counter_group_table_;
+  }
+  tables::GpuCounterGroupTable* mutable_gpu_counter_group_table() {
+    return &gpu_counter_group_table_;
+  }
+
+  const tables::GpuCounterTrackTable& gpu_counter_track_table() const {
+    return gpu_counter_track_table_;
+  }
+  tables::GpuCounterTrackTable* mutable_gpu_counter_track_table() {
+    return &gpu_counter_track_table_;
+  }
+
+  const tables::IrqCounterTrackTable& irq_counter_track_table() const {
+    return irq_counter_track_table_;
+  }
+  tables::IrqCounterTrackTable* mutable_irq_counter_track_table() {
+    return &irq_counter_track_table_;
+  }
+
+  const tables::PerfCounterTrackTable& perf_counter_track_table() const {
+    return perf_counter_track_table_;
+  }
+  tables::PerfCounterTrackTable* mutable_perf_counter_track_table() {
+    return &perf_counter_track_table_;
+  }
+
+  const tables::ProcessCounterTrackTable& process_counter_track_table() const {
+    return process_counter_track_table_;
+  }
+  tables::ProcessCounterTrackTable* mutable_process_counter_track_table() {
+    return &process_counter_track_table_;
+  }
+
   const tables::ProcessTrackTable& process_track_table() const {
     return process_track_table_;
   }
@@ -332,11 +376,11 @@ class TraceStorage {
     return &thread_track_table_;
   }
 
-  const tables::CounterTrackTable& counter_track_table() const {
-    return counter_track_table_;
+  const tables::ThreadStateTable& thread_state_table() const {
+    return thread_state_table_;
   }
-  tables::CounterTrackTable* mutable_counter_track_table() {
-    return &counter_track_table_;
+  tables::ThreadStateTable* mutable_thread_state_table() {
+    return &thread_state_table_;
   }
 
   const tables::ThreadCounterTrackTable& thread_counter_track_table() const {
@@ -346,53 +390,11 @@ class TraceStorage {
     return &thread_counter_track_table_;
   }
 
-  const tables::ProcessCounterTrackTable& process_counter_track_table() const {
-    return process_counter_track_table_;
-  }
-  tables::ProcessCounterTrackTable* mutable_process_counter_track_table() {
-    return &process_counter_track_table_;
-  }
-
-  const tables::CpuCounterTrackTable& cpu_counter_track_table() const {
-    return cpu_counter_track_table_;
-  }
-  tables::CpuCounterTrackTable* mutable_cpu_counter_track_table() {
-    return &cpu_counter_track_table_;
-  }
-
-  const tables::IrqCounterTrackTable& irq_counter_track_table() const {
-    return irq_counter_track_table_;
-  }
-  tables::IrqCounterTrackTable* mutable_irq_counter_track_table() {
-    return &irq_counter_track_table_;
-  }
-
   const tables::SoftirqCounterTrackTable& softirq_counter_track_table() const {
     return softirq_counter_track_table_;
   }
   tables::SoftirqCounterTrackTable* mutable_softirq_counter_track_table() {
     return &softirq_counter_track_table_;
-  }
-
-  const tables::GpuCounterTrackTable& gpu_counter_track_table() const {
-    return gpu_counter_track_table_;
-  }
-  tables::GpuCounterTrackTable* mutable_gpu_counter_track_table() {
-    return &gpu_counter_track_table_;
-  }
-
-  const tables::GpuCounterGroupTable& gpu_counter_group_table() const {
-    return gpu_counter_group_table_;
-  }
-  tables::GpuCounterGroupTable* mutable_gpu_counter_group_table() {
-    return &gpu_counter_group_table_;
-  }
-
-  const tables::PerfCounterTrackTable& perf_counter_track_table() const {
-    return perf_counter_track_table_;
-  }
-  tables::PerfCounterTrackTable* mutable_perf_counter_track_table() {
-    return &perf_counter_track_table_;
   }
 
   const tables::SchedSliceTable& sched_slice_table() const {
@@ -432,9 +434,6 @@ class TraceStorage {
 
   const SqlStats& sql_stats() const { return sql_stats_; }
   SqlStats* mutable_sql_stats() { return &sql_stats_; }
-
-  const tables::InstantTable& instant_table() const { return instant_table_; }
-  tables::InstantTable* mutable_instant_table() { return &instant_table_; }
 
   const tables::AndroidLogTable& android_log_table() const {
     return android_log_table_;
@@ -741,6 +740,7 @@ class TraceStorage {
 
   // Metadata for tracks.
   tables::TrackTable track_table_{&string_pool_, nullptr};
+  tables::ThreadStateTable thread_state_table_{&string_pool_, nullptr};
   tables::GpuTrackTable gpu_track_table_{&string_pool_, &track_table_};
   tables::ProcessTrackTable process_track_table_{&string_pool_, &track_table_};
   tables::ThreadTrackTable thread_track_table_{&string_pool_, &track_table_};
@@ -795,11 +795,6 @@ class TraceStorage {
   tables::CounterTable counter_table_{&string_pool_, nullptr};
 
   SqlStats sql_stats_;
-
-  // These are instantaneous events in the trace. They have no duration
-  // and do not have a value that make sense to track over time.
-  // e.g. signal events
-  tables::InstantTable instant_table_{&string_pool_, nullptr};
 
   // Raw events are every ftrace event in the trace. The raw event includes
   // the timestamp and the pid. The args for the raw event will be in the
@@ -885,6 +880,9 @@ struct std::hash<::perfetto::trace_processor::CallsiteId>
     : std::hash<::perfetto::trace_processor::BaseId> {};
 template <>
 struct std::hash<::perfetto::trace_processor::FrameId>
+    : std::hash<::perfetto::trace_processor::BaseId> {};
+template <>
+struct std::hash<::perfetto::trace_processor::tables::HeapGraphObjectTable::Id>
     : std::hash<::perfetto::trace_processor::BaseId> {};
 
 template <>
