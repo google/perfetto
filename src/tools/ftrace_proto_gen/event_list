@@ -413,3 +413,4 @@ dma_fence/dma_fence_emit
 dma_fence/dma_fence_signaled
 dma_fence/dma_fence_wait_start
 dma_fence/dma_fence_wait_end
+f2fs/f2fs_iostat
