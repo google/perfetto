@@ -297,7 +297,7 @@ class StringPool {
                     base::AlreadyHashed<StringHash>,
                     base::LinearProbe,
                     /*AppendOnly=*/true>
-      string_index_{/*initial_capacity=*/1024u * 1024u};
+      string_index_{/*initial_capacity=*/4096u};
 };
 
 }  // namespace trace_processor
