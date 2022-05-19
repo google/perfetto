@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {RECORDING_V2_FLAG} from '../common/feature_flags';
 import {globals} from '../controller/globals';
 
 import {Child, Controller, ControllerInitializerAny} from './controller';
@@ -39,13 +40,14 @@ export class AppController extends Controller<'main'> {
   // - An internal promise of a nested controller being resolved and manually
   //   re-triggering the controllers.
   run() {
-    const childControllers: ControllerInitializerAny[] = [
-      Child('permalink', PermalinkController, {}),
-      Child(
+    const childControllers: ControllerInitializerAny[] =
+        [Child('permalink', PermalinkController, {})];
+    if (!RECORDING_V2_FLAG.get()) {
+      childControllers.push(Child(
           'record',
           RecordController,
-          {app: globals, extensionPort: this.extensionPort}),
-    ];
+          {app: globals, extensionPort: this.extensionPort}));
+    }
     for (const engineCfg of Object.values(globals.state.engines)) {
       childControllers.push(Child(engineCfg.id, TraceController, engineCfg.id));
     }
