@@ -226,15 +226,6 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     return;
   }
 
-  // Legacy endpoint.
-  // Returns a columnar-oriented one-shot result. Very inefficient for large
-  // result sets. Very inefficient in general too.
-  if (req.uri == "/raw_query") {
-    std::vector<uint8_t> response = trace_processor_rpc_.RawQuery(
-        reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
-    return conn.SendResponse("200 OK", headers, Vec2Sv(response));
-  }
-
   if (req.uri == "/compute_metric") {
     std::vector<uint8_t> res = trace_processor_rpc_.ComputeMetric(
         reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
