@@ -26,7 +26,7 @@ class TraceProcessorHttp:
     self.conn = http.client.HTTPConnection(url)
 
   def execute_query(self, query: str):
-    args = self.protos.RawQueryArgs()
+    args = self.protos.QueryArgs()
     args.sql_query = query
     byte_data = args.SerializeToString()
     self.conn.request('POST', '/query', body=byte_data)
