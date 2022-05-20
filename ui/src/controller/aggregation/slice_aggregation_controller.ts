@@ -12,15 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Actions} from '../../common/actions';
 import {ColumnDef} from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
-import {
-  SLICE_AGGREGATION_PIVOT_TABLE_ID
-} from '../../common/pivot_table_common';
 import {Area, Sorting} from '../../common/state';
 import {toNs} from '../../common/time';
-import {PIVOT_TABLE_FLAG} from '../../frontend/keyboard_event_handler';
 import {
   ASYNC_SLICE_TRACK_KIND,
   Config as AsyncSliceConfig
@@ -32,30 +27,6 @@ import {
 import {globals} from '../globals';
 
 import {AggregationController} from './aggregation_controller';
-
-function addPivotTableOnAreaSelection(
-    selectedTrackIds: number[], startSec: number, endSec: number) {
-  const selectedPivots =
-      [{tableName: 'slice', columnName: 'name', isStackPivot: false}];
-
-  const selectedAggregations = [
-    {tableName: 'slice', columnName: 'dur', aggregation: 'SUM', order: 'DESC'},
-    {tableName: 'slice', columnName: 'dur', aggregation: 'AVG', order: 'DESC'},
-    {tableName: 'slice', columnName: 'id', aggregation: 'COUNT', order: 'DESC'}
-  ];
-
-  globals.dispatch(Actions.addNewPivotTable({
-    name: 'Pivot Table - Slices',
-    pivotTableId: SLICE_AGGREGATION_PIVOT_TABLE_ID,
-    selectedPivots,
-    selectedAggregations,
-    traceTime: {startSec, endSec},
-    selectedTrackIds
-  }));
-
-  globals.dispatch(Actions.setPivotTableRequest(
-      {pivotTableId: SLICE_AGGREGATION_PIVOT_TABLE_ID, action: 'QUERY'}));
-}
 
 export function getSelectedTrackIds(area: Area): number[] {
   const selectedTrackIds = [];
@@ -84,11 +55,6 @@ export class SliceAggregationController extends AggregationController {
     const selectedTrackIds = getSelectedTrackIds(area);
 
     if (selectedTrackIds.length === 0) return false;
-
-    if (PIVOT_TABLE_FLAG.get()) {
-      addPivotTableOnAreaSelection(
-          selectedTrackIds, area.startSec, area.endSec);
-    }
 
     const query = `create view ${this.kind} as
         SELECT
