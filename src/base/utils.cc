@@ -99,16 +99,21 @@ CheckCpuOptimizations() {
       (ecx & (1u << 28)) &&  // AVX supported in hardware
       ((GetXCR0EAX() & xcr0_avx_mask) == xcr0_avx_mask);
 
-  if (!have_sse4_2 || !have_popcnt || !have_avx) {
+  // Get level 7 features (eax = 7 and ecx= 0), to check for AVX2 support.
+  // (See Intel 64 and IA-32 Architectures Software Developer's Manual
+  //  Volume 2A: Instruction Set Reference, A-M CPUID).
+  PERFETTO_GETCPUID(eax, ebx, ecx, edx, 7, 0);
+  const bool have_avx2 = have_avx && ((ebx >> 5) & 0x1);
+
+  if (!have_sse4_2 || !have_popcnt || !have_avx2) {
     fprintf(
         stderr,
-        "This executable requires a X86_64 cpu that supports SSE4.2 and AVX.\n"
+        "This executable requires a X86_64 cpu that supports SSE4.2 and AVX2.\n"
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
         "On MacOS, this might be caused by running x86_64 binaries on arm64.\n"
         "See https://github.com/google/perfetto/issues/294 for more.\n"
 #endif
-        "Rebuild with enable_perfetto_x64_cpu_opt=false (ebx=%x, ecx=%x).\n",
-        ebx, ecx);
+        "Rebuild with enable_perfetto_x64_cpu_opt=false.\n");
     _exit(126);
   }
 }
