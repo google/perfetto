@@ -16,13 +16,6 @@ import {PivotTree} from '../controller/pivot_table_redux_controller';
 import {RecordConfig} from '../controller/record_config_types';
 import {TableColumn} from '../frontend/pivot_table_redux_query_generator';
 
-import {
-  AggregationAttrs,
-  PivotAttrs,
-  SubQueryAttrs,
-  TableAttrs
-} from './pivot_table_common';
-
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
  * We use this instead of using |Map| object since it is simpler and faster to
@@ -324,23 +317,6 @@ export interface MetricsState {
   requestedMetric?: string;  // Unset after metric request is handled.
 }
 
-export interface PivotTableConfig {
-  availableColumns?: TableAttrs[];   // Undefined until list is loaded.
-  availableAggregations?: string[];  // Undefined until list is loaded.
-}
-
-export interface PivotTableState {
-  id: string;
-  name: string;
-  selectedPivots: PivotAttrs[];
-  selectedAggregations: AggregationAttrs[];
-  requestedAction?:  // Unset after pivot table column request is handled.
-      {action: string, attrs?: SubQueryAttrs};
-  isLoadingQuery: boolean;
-  traceTime?: TraceTime;
-  selectedTrackIds?: number[];
-}
-
 // Auxiliary metadata needed to parse the query result, as well as to render it
 // correctly. Generated together with the text of query and passed without the
 // change to the query response.
@@ -452,8 +428,6 @@ export interface State {
   currentFlamegraphState: FlamegraphState|null;
   logsPagination: LogsPagination;
   traceConversionInProgress: boolean;
-  pivotTableConfig: PivotTableConfig;
-  pivotTable: ObjectById<PivotTableState>;
 
   /**
    * This state is updated on the frontend at 60Hz and eventually syncronised to

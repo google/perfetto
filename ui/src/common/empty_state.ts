@@ -83,8 +83,6 @@ export function createEmptyState(): State {
     metrics: {},
     permalink: {},
     notes: {},
-    pivotTableConfig: {},
-    pivotTable: {},
 
     recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get() ?
         autosaveConfigStore.get() :
