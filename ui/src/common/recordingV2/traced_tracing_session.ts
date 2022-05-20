@@ -263,7 +263,9 @@ export class TracedTracingSession implements TracingSession {
   }
 
   private parseFrame(frameBuffer: Uint8Array): void {
-    const frame = IPCFrame.decode(frameBuffer);
+    // Get a copy of the ArrayBuffer to avoid the original being overriden.
+    // See 170256902#comment21
+    const frame = IPCFrame.decode(frameBuffer.slice());
     if (frame.msg === 'msgBindServiceReply') {
       const msgBindServiceReply = frame.msgBindServiceReply;
       if (msgBindServiceReply && msgBindServiceReply.methods &&
@@ -317,9 +319,6 @@ export class TracedTracingSession implements TracingSession {
           }
         }
         if (msgInvokeMethodReply.hasMore === false) {
-          // TODO(octaviant): b/227429044
-          // See if it's possible to stream the trace into the TP while still
-          // being able to cache the trace.
           this.tracingSessionListener.onTraceData(
               this.traceProtoWriter.finish());
           this.terminateConnection();
