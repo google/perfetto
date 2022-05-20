@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Actions} from '../../common/actions';
 import {
   AggregateData,
   Column,
@@ -20,9 +19,6 @@ import {
   ThreadStateExtra,
 } from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
-import {
-  SLICE_AGGREGATION_PIVOT_TABLE_ID
-} from '../../common/pivot_table_common';
 import {NUM} from '../../common/query_result';
 import {Area, Sorting} from '../../common/state';
 import {publishAggregateData} from '../../frontend/publish';
@@ -63,8 +59,6 @@ export abstract class AggregationController extends Controller<'main'> {
   run() {
     const selection = globals.state.currentSelection;
     if (selection === null || selection.kind !== 'AREA') {
-      globals.dispatch(Actions.deletePivotTable(
-          {pivotTableId: SLICE_AGGREGATION_PIVOT_TABLE_ID}));
       publishAggregateData({
         data: {
           tabName: this.getTabName(),
