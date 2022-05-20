@@ -63,6 +63,12 @@ class CheckedScope {
   inline explicit CheckedScope(CheckedScope*) {}
   inline ~CheckedScope() {}
 
+  CheckedScope(const CheckedScope&) = delete;
+  CheckedScope& operator=(const CheckedScope&) = delete;
+
+  CheckedScope(CheckedScope&&) = default;
+  CheckedScope& operator=(CheckedScope&&) = default;
+
   inline void Reset() {}
 
   inline CheckedScope* parent_scope() const { return nullptr; }
