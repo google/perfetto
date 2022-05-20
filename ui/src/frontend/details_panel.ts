@@ -18,7 +18,6 @@ import {QueryResponse} from 'src/common/queries';
 import {Actions} from '../common/actions';
 import {isEmptyData} from '../common/aggregation_data';
 import {LogExists, LogExistsKey} from '../common/logs';
-import {DEFAULT_PIVOT_TABLE_ID} from '../common/pivot_table_common';
 
 import {AggregationPanel} from './aggregation_panel';
 import {ChromeSliceDetailsPanel} from './chrome_slice_panel';
@@ -32,12 +31,8 @@ import {
 } from './flow_events_panel';
 import {globals} from './globals';
 import {LogPanel} from './logs_panel';
-import {showModal} from './modal';
 import {NotesEditorPanel} from './notes_panel';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
-import {PivotTable} from './pivot_table';
-import {ColumnDisplay, ColumnPicker} from './pivot_table_editor';
-import {PivotTableHelper} from './pivot_table_helper';
 import {PivotTableRedux} from './pivot_table_redux';
 import {QueryTable} from './query_table';
 import {SliceDetailsPanel} from './slice_details_panel';
@@ -61,38 +56,6 @@ function getFullScreenHeight() {
 function hasLogs(): boolean {
   const data = globals.trackDataStore.get(LogExistsKey) as LogExists;
   return data && data.exists;
-}
-
-function showPivotTableEditorModal(helper?: PivotTableHelper) {
-  if (helper !== undefined && helper.editPivotTableModalOpen) {
-    let content;
-    if (helper.availableColumns.length === 0 ||
-        helper.availableAggregations.length === 0) {
-      content =
-          m('.pivot-table-editor-container',
-            helper.availableColumns.length === 0 ?
-                m('div', 'No columns available.') :
-                null,
-            helper.availableAggregations.length === 0 ?
-                m('div', 'No aggregations available.') :
-                null);
-    } else {
-      const attrs = {helper};
-      content =
-          m('.pivot-table-editor-container',
-            m(ColumnPicker, attrs),
-            m(ColumnDisplay, attrs));
-    }
-
-    showModal({
-      title: 'Edit Pivot Table',
-      content,
-      buttons: [],
-    }).finally(() => {
-      helper.toggleEditPivotTableModal();
-      globals.rafScheduler.scheduleFullRedraw();
-    });
-  }
 }
 
 interface Tab {
@@ -331,24 +294,6 @@ export class DetailsPanel implements m.ClassComponent {
               globals.state.nonSerializableState.pivotTableRedux.selectionArea
         })
       });
-    }
-
-    for (const pivotTableId of Object.keys(globals.state.pivotTable)) {
-      const pivotTable = globals.state.pivotTable[pivotTableId];
-      const helper = globals.pivotTableHelper.get(pivotTableId);
-      if (pivotTableId !== DEFAULT_PIVOT_TABLE_ID ||
-          globals.frontendLocalState.showPivotTable) {
-        if (helper !== undefined) {
-          helper.setSelectedPivotsAndAggregations(
-              pivotTable.selectedPivots, pivotTable.selectedAggregations);
-        }
-        detailsPanels.push({
-          key: pivotTableId,
-          name: pivotTable.name,
-          vnode: m(PivotTable, {key: pivotTableId, pivotTableId, helper})
-        });
-      }
-      showPivotTableEditorModal(helper);
     }
 
     if (globals.connectedFlows.length > 0) {
