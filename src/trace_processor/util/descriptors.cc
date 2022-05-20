@@ -106,20 +106,20 @@ util::Status DescriptorPool::AddNestedProtoDescriptors(
   auto full_name =
       parent_name + "." + base::StringView(decoder.name()).ToStdString();
 
-  auto prev_idx = FindDescriptorIdx(full_name);
-  if (prev_idx.has_value() && !merge_existing_messages) {
-    const auto& existing_descriptor = descriptors_[*prev_idx];
+  auto idx = FindDescriptorIdx(full_name);
+  if (idx.has_value() && !merge_existing_messages) {
+    const auto& existing_descriptor = descriptors_[*idx];
     return util::ErrStatus("%s: %s was already defined in file %s",
                            file_name.c_str(), full_name.c_str(),
                            existing_descriptor.file_name().c_str());
   }
-  if (!prev_idx.has_value()) {
+  if (!idx.has_value()) {
     ProtoDescriptor proto_descriptor(file_name, package_name, full_name,
                                      ProtoDescriptor::Type::kMessage,
                                      parent_idx);
-    prev_idx = AddProtoDescriptor(std::move(proto_descriptor));
+    idx = AddProtoDescriptor(std::move(proto_descriptor));
   }
-  ProtoDescriptor& proto_descriptor = descriptors_[*prev_idx];
+  ProtoDescriptor& proto_descriptor = descriptors_[*idx];
   if (proto_descriptor.type() != ProtoDescriptor::Type::kMessage) {
     return util::ErrStatus("%s was enum, redefined as message",
                            full_name.c_str());
@@ -148,7 +148,6 @@ util::Status DescriptorPool::AddNestedProtoDescriptors(
     }
   }
 
-  auto idx = static_cast<uint32_t>(descriptors_.size()) - 1;
   for (auto it = decoder.enum_type(); it; ++it) {
     RETURN_IF_ERROR(AddEnumProtoDescriptors(file_name, package_name, idx, *it,
                                             merge_existing_messages));
