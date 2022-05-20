@@ -221,7 +221,14 @@ class PERFETTO_EXPORT_COMPONENT UnixSocket {
  public:
   class EventListener {
    public:
+    EventListener() = default;
     virtual ~EventListener();
+
+    EventListener(const EventListener&) = delete;
+    EventListener& operator=(const EventListener&) = delete;
+
+    EventListener(EventListener&&) noexcept = default;
+    EventListener& operator=(EventListener&&) noexcept = default;
 
     // After Listen().
     virtual void OnNewIncomingConnection(
