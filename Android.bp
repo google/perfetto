@@ -156,10 +156,6 @@ cc_binary {
     defaults: [
         "perfetto_defaults",
     ],
-    cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-    ],
     header_libs: [
         "bionic_libc_platform_headers",
     ],
@@ -420,8 +416,6 @@ cc_library_shared {
         "perfetto_defaults",
     ],
     cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
         "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG",
     ],
     header_libs: [
@@ -608,10 +602,6 @@ cc_library_shared {
     ],
     defaults: [
         "perfetto_defaults",
-    ],
-    cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     ],
     target: {
         android: {
@@ -851,10 +841,6 @@ cc_library_static {
     defaults: [
         "perfetto_defaults",
     ],
-    cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-    ],
     apex_available: [
         "//apex_available:platform",
         "com.android.art",
@@ -998,8 +984,6 @@ cc_binary {
         "perfetto_defaults",
     ],
     cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
         "-DHAVE_HIDDEN",
     ],
 }
@@ -1262,10 +1246,6 @@ cc_library_static {
     defaults: [
         "perfetto_defaults",
     ],
-    cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-    ],
 }
 
 // GN: //test/cts:perfetto_cts_jni_deps
@@ -1510,10 +1490,6 @@ cc_library_static {
     ],
     defaults: [
         "perfetto_defaults",
-    ],
-    cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     ],
 }
 
@@ -10596,8 +10572,6 @@ cc_binary_host {
         "perfetto_defaults",
     ],
     cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
         "-DHAVE_HIDDEN",
     ],
 }
@@ -10774,10 +10748,6 @@ cc_binary {
     defaults: [
         "perfetto_defaults",
     ],
-    cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-    ],
     include_dirs: [
         "bionic/libc/kernel",
     ],
@@ -10935,10 +10905,6 @@ cc_binary {
     ],
     defaults: [
         "perfetto_defaults",
-    ],
-    cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     ],
 }
 
