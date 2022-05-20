@@ -154,6 +154,12 @@
       /* scope if used in a single line if statement.                      */ \
       EventFinalizer(...) {}                                                  \
       ~EventFinalizer() { TRACE_EVENT_END(category); }                        \
+                                                                              \
+      EventFinalizer(const EventFinalizer&) = delete;                         \
+      inline EventFinalizer& operator=(const EventFinalizer&) = delete;       \
+                                                                              \
+      EventFinalizer(EventFinalizer&&) = default;                             \
+      EventFinalizer& operator=(EventFinalizer&&) = delete;                   \
     } finalizer;                                                              \
   } PERFETTO_UID(scoped_event) {                                              \
     [&]() {                                                                   \
