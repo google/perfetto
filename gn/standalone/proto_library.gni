@@ -261,10 +261,13 @@ template("proto_library") {
         public_configs = []
       }
 
-      public_configs += [
-        "//gn:protobuf_gen_config",
-        ":$config_name",
-      ]
+      public_configs += [ ":$config_name" ]
+
+      # Only include the protobuf_gen_config when generating .pb.cc files.
+      # Note that |generate_cc| is false for .{pbzero,ipc,gen etc.}.cc
+      if (generate_cc) {
+        public_configs += [ "//gn:protobuf_gen_config" ]
+      }
 
       # By default, propagate the config for |include_dirs| to dependent
       # targets, so that public imports can be resolved to corresponding header
