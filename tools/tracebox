@@ -201,8 +201,10 @@ def get_perfetto_prebuilt(tool_name, soft_fail=False, arch=None):
 # END_SECTION_GENERATED_BY(roll-prebuilts)
 
 if __name__ == '__main__':
-  import sys, os
+  import sys, subprocess, os
   bin_path = get_perfetto_prebuilt(TOOL_NAME)
+  if sys.platform.lower() == 'win32':
+    exit(subprocess.check_call([bin_path, *sys.argv[1:]]))
   os.execv(bin_path, [bin_path] + sys.argv[1:])
 
 #EOF

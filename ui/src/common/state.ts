@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertTrue} from '../base/logging';
 import {PivotTree} from '../controller/pivot_table_redux_controller';
 import {RecordConfig} from '../controller/record_config_types';
 import {TableColumn} from '../frontend/pivot_table_redux_query_generator';
@@ -515,11 +514,6 @@ export declare type RecordMode =
 
 // 'Q','P','O' for Android, 'L' for Linux, 'C' for Chrome.
 export declare type TargetOs = 'S' | 'R' | 'Q' | 'P' | 'O' | 'C' | 'L' | 'CrOS';
-
-export function isTargetOsAtLeast(target: RecordingTarget, osVersion: string) {
-  assertTrue(osVersion.length === 1);
-  return target.os >= osVersion;
-}
 
 export function isAndroidP(target: RecordingTarget) {
   return target.os === 'P';

@@ -3,6 +3,7 @@ camera/index
 chrome/index
 cros/index
 dynamic/index
+fs/index
 fuchsia/index
 graphics/index
 io/index

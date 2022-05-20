@@ -42,9 +42,15 @@ export function maybeShowErrorDialog(errLog: string) {
     return;
   }
 
-  if (errLog.includes('Unable to claim interface.') ||
-      errLog.includes('A transfer error has occurred')) {
+  if (errLog.includes('Unable to claim interface')) {
     showWebUSBError();
+    timeLastReport = now;
+  }
+
+  if (errLog.includes('A transfer error has occurred') ||
+      errLog.includes('The device was disconnected') ||
+      errLog.includes('The transfer was cancelled')) {
+    showConnectionLostError();
     timeLastReport = now;
   }
 
@@ -254,6 +260,19 @@ function showWebUSBError() {
         m('span', 'For details see '),
         m('a', {href: 'http://b/159048331', target: '_blank'}, 'b/159048331'),
         ),
+    buttons: []
+  });
+}
+
+// TODO(octaviant) from aosp/1918377 - look at handling adb errors
+// uniformly in the adb logic
+function showConnectionLostError(): void {
+  showModal({
+    title: 'Connection with the ADB device lost',
+    content: m(
+        'div',
+        m('span', `Please connect the device again to restart the recording.`),
+        m('br')),
     buttons: []
   });
 }
