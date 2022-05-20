@@ -29,6 +29,7 @@ function isTrustedOrigin(origin: string): boolean {
   const TRUSTED_ORIGINS = [
     'https://chrometto.googleplex.com',
     'https://uma.googleplex.com',
+    'https://android-build.googleplex.com',
   ];
   if (origin === window.origin) return true;
   if (TRUSTED_ORIGINS.includes(origin)) return true;
