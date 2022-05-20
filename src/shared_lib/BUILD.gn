@@ -15,7 +15,6 @@
 shared_library("libperfetto_c") {
   deps = [
     "../../gn:default_deps",
-    "../../include/perfetto/base",
     "../../include/perfetto/protozero",
     "../../include/perfetto/public:protozero",
     "../tracing:client_api",
@@ -23,6 +22,7 @@ shared_library("libperfetto_c") {
   ]
   sources = [
     "data_source.cc",
+    "heap_buffer.cc",
     "producer.cc",
     "stream_writer.cc",
     "stream_writer.h",
