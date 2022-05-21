@@ -70,7 +70,7 @@ per-CPU buffers. These are unavoidable because the kernel cannot write directly
 into user-space buffers. The `traced_probes` process will periodically read
 those buffers, convert the data into binary protos and follow the same dataflow
 of userspace tracing. These buffers need to be just large enough to hold data
-between two frace read cycles (`TraceConfig.FtraceConfig.drain_period_ms`).
+between two ftrace read cycles (`TraceConfig.FtraceConfig.drain_period_ms`).
 
 ## Life of a trace packet
 
@@ -306,7 +306,7 @@ In some cases, however, they can have _incremental state_ and behave similarly
 to inter-frame video encoding techniques, where some frames require the keyframe
 to be present to be meaningfully decoded.
 
-Here are are two concrete examples:
+Here are two concrete examples:
 
 1. Ftrace scheduling slices and /proc/pid scans. ftrace scheduling events are
    keyed by thread id. In most cases users want to map those events back to the
@@ -330,7 +330,7 @@ Here are are two concrete examples:
   details for all the other ftrace events that refer to that PID.
 
 2. The [Track Event library](/docs/instrumentation/track-events) in the Perfetto
-   SDK makes extensive use of string interning. Mos strings and descriptors
+   SDK makes extensive use of string interning. Most strings and descriptors
    (e.g. details about processes / threads) are emitted only once and later
    referred to using a monotonic ID. In case a loss of the descriptor packet,
    it is not possible to make fully sense of those events.
