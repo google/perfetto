@@ -157,6 +157,12 @@ class PERFETTO_EXPORT_COMPONENT DynamicCategory final {
   DynamicCategory() {}
   ~DynamicCategory() = default;
 
+  DynamicCategory(const DynamicCategory&) = default;
+  DynamicCategory& operator=(const DynamicCategory&) = delete;
+
+  DynamicCategory(DynamicCategory&&) = default;
+  DynamicCategory& operator=(DynamicCategory&&) = delete;
+
   const std::string name;
 };
 

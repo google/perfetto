@@ -1774,13 +1774,13 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
 #error "Need to start daemons for Linux test."
 #endif
 
-INSTANTIATE_TEST_CASE_P(Run,
-                        HeapprofdEndToEnd,
-                        Values(std::make_tuple(TestMode::kStatic,
-                                               AllocatorMode::kCustom)),
-                        TestSuffix);
+INSTANTIATE_TEST_SUITE_P(Run,
+                         HeapprofdEndToEnd,
+                         Values(std::make_tuple(TestMode::kStatic,
+                                                AllocatorMode::kCustom)),
+                         TestSuffix);
 #elif !PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     Run,
     HeapprofdEndToEnd,
     Values(std::make_tuple(TestMode::kCentral, AllocatorMode::kMalloc),
