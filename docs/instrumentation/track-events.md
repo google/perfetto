@@ -70,7 +70,7 @@ PERFETTO_TRACK_EVENT_STATIC_STORAGE();
 Finally, initialize track events after the client library is brought up:
 
 ```C++
-int main(int argv, char** argc) {
+int main(int argc, char** argv) {
   ...
   perfetto::Tracing::Initialize(args);
   perfetto::TrackEvent::Register();  // Add this.
@@ -206,7 +206,7 @@ tracing. *Debug* and *slow* categories are categories with special tags:
   - `"slow"` categories record enough data that they can affect the interactive
     performance of your app.
 
-Category tags can be can be defined like this:
+Category tags can be defined like this:
 
 ```C++
 perfetto::Category("rendering.debug")

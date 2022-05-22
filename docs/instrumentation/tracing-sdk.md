@@ -59,7 +59,7 @@ Next, initialize Perfetto in your program:
 ```C++
 #include <perfetto.h>
 
-int main(int argv, char** argc) {
+int main(int argc, char** argv) {
   perfetto::TracingInitArgs args;
 
   // The backends determine where trace events are recorded. You may select one
@@ -105,7 +105,7 @@ PERFETTO_DEFINE_CATEGORIES(
 
 ...
 
-int main(int argv, char** argc) {
+int main(int argc, char** argv) {
   ...
   perfetto::Tracing::Initialize(args);
   perfetto::TrackEvent::Register();
@@ -199,7 +199,7 @@ PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(CustomDataSource);
 Custom data sources need to be registered with Perfetto:
 
 ```C++
-int main(int argv, char** argc) {
+int main(int argc, char** argv) {
   ...
   perfetto::Tracing::Initialize(args);
   // Add the following:
