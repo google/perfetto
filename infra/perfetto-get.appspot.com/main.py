@@ -22,6 +22,7 @@ BASE = 'https://android.googlesource.com/platform/external/perfetto.git/' \
        '+/master/%s?format=TEXT'
 
 RESOURCES = {
+    'tracebox': 'tools/tracebox',
     'traceconv': 'tools/traceconv',
     'trace_processor': 'tools/trace_processor',
 }
