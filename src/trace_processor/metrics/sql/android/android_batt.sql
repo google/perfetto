@@ -85,104 +85,20 @@ GROUP BY group_id;
 
 DROP TABLE IF EXISTS suspend_slice_;
 CREATE TABLE suspend_slice_ AS
--- Traces from after b/70292203 was fixed have the action string so just look
--- for it.
+-- TODO(simonmacm): remove trustworthy hard coding.
 SELECT
     ts,
     dur,
     true as trustworthy
-FROM (
-    SELECT
-        ts,
-        LEAD(ts) OVER (ORDER BY ts, start DESC) - ts AS dur,
-        start
-    FROM (
-        SELECT
-               ts,
-               EXTRACT_ARG(arg_set_id, 'action') AS action,
-               EXTRACT_ARG(arg_set_id, 'start') AS start
-        FROM raw
-        WHERE name = 'suspend_resume'
-    )
-    -- Different device kernels log different actions when suspending.
-    -- Fortunately each action only appears in the kernel in which it's
-    -- relevant so we can simply look for any of them.
-    WHERE action IN ('timekeeping_freeze', 'syscore_resume')
-)
-WHERE start = 1
-UNION ALL
--- Traces from before b/70292203 was fixed (approx Nov 2020) do not have the
--- action string so we do some convoluted pattern matching that mostly works.
--- TODO(simonmacm) remove this when we no longer need suspend-resume from R
--- phones.
-SELECT
-    ts,
-    dur,
-    false as trustworthy
-FROM (
-    SELECT
-       ts,
-       ts - lag(ts) OVER w AS lag_dur,
-       lead(ts) OVER w - ts AS dur,
-       action,
-       start,
-       event,
-       lag(start) OVER w AS lag_start,
-       lag(event) OVER w AS lag_event,
-       lag(start, 2) OVER w AS lag_2_start,
-       lag(event, 2) OVER w AS lag_2_event,
-       lead(start) OVER w AS lead_start,
-       lead(event) OVER w AS lead_event,
-       lead(start, 2) OVER w AS lead_2_start,
-       lead(event, 2) OVER w AS lead_2_event
-    FROM (
-        SELECT
-               ts,
-               EXTRACT_ARG(arg_set_id, 'action') AS action,
-               EXTRACT_ARG(arg_set_id, 'start') AS start,
-               EXTRACT_ARG(arg_set_id, 'val') AS event
-        FROM raw
-        WHERE name = 'suspend_resume'
-    )
-    WINDOW w AS (ORDER BY ts)
-)
-WHERE action IS NULL AND (
--- We want to find the start and end events with action='timekeeping_freeze'.
--- In practice, these events often show up in a sequence like the following:
--- start = 1, event = 1     [string would have been 'machine_suspend']
--- start = 1, event = (any) [string would have been 'timekeeping_freeze'] *
---
---                             (sleep happens here)
---
--- start = 0, event = (any) [string would have been 'timekeeping_freeze']
--- start = 0, event = 1     [string would have been 'machine_suspend']
---
--- So we look for this pattern of start and event, anchored on the event marked
--- with "*".
-    (
-        lag_start = 1 AND lag_event = 1
-        AND start = 1
-        AND lead_start = 0
-        AND lead_2_start = 0 AND lead_2_event = 1
-    )
--- Or in newer kernels we seem to have a very different pattern. We can take
--- advantage of that fact that we get several events with identical timestamp
--- just before sleeping (normally this never happens):
--- gap = 0, start = 1, event = 3
--- gap = 0, start = 0, event = 3
--- gap = 0, start = 1, event = 0
---
---  (sleep happens here)
---
--- gap = (any), start = 0, event = 0
-    OR (
-        lag_dur = 0
-        AND lead_start = 0 AND lead_event = 0
-        AND start = 1 AND event = 0
-        AND lag_start = 0 AND lag_event = 3
-        AND lag_2_start = 1 AND lag_2_event = 3
-    )
-);
+FROM
+    slice
+    JOIN
+    track
+    ON slice.track_id = track.id
+WHERE
+    track.name = 'Suspend/Resume Latency'
+    AND slice.name = 'syscore_resume(0)'
+;
 
 SELECT RUN_METRIC('android/global_counter_span_view.sql',
   'table_name', 'screen_state',
