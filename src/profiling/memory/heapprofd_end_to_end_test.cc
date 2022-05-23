@@ -1787,6 +1787,9 @@ INSTANTIATE_TEST_SUITE_P(
            std::make_tuple(TestMode::kCentral, AllocatorMode::kCustom)),
     TestSuffix);
 #endif
+#else  // defined(ADDRESS_SANITIZER) || defined(THREAD_SANITIZER) ||
+       // defined(MEMORY_SANITIZER) || defined(LEAK_SANITIZER)
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(HeapprofdEndToEnd);
 #endif
 
 }  // namespace
