@@ -200,8 +200,7 @@ ClockTracker::ClockPath ClockTracker::FindPath(ClockId src, ClockId target) {
     // Expore all the adjacent clocks.
     // The lower_bound() below returns an iterator to the first edge that starts
     // on |cur_clock_id|. The edges are sorted by (src, target, hash).
-    for (auto it = std::lower_bound(graph_.begin(), graph_.end(),
-                                    ClockGraphEdge(cur_clock_id, 0, 0));
+    for (auto it = graph_.lower_bound(ClockGraphEdge(cur_clock_id, 0, 0));
          it != graph_.end() && std::get<0>(*it) == cur_clock_id; ++it) {
       ClockId next_clock_id = std::get<1>(*it);
       SnapshotHash hash = std::get<2>(*it);
