@@ -26,12 +26,18 @@ DROP VIEW IF EXISTS avg_used_powers;
 CREATE VIEW avg_used_powers AS
 SELECT
   name,
-  avg_used_power
+  avg_used_power,
+  tot_used_power,
+  powrail_start_ts,
+  powrail_end_ts
 FROM (
   SELECT
     name,
     (LEAD(value) OVER (PARTITION BY name ORDER BY ts) - value) /
-      (LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts) AS avg_used_power
+      (LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts) AS avg_used_power,
+    (LEAD(value) OVER (PARTITION BY name ORDER BY ts) - value) AS tot_used_power,
+    ts AS powrail_start_ts,
+    (LEAD(ts) OVER (PARTITION BY name ORDER BY ts)) as powrail_end_ts
   FROM (
     SELECT name, MIN(ts) AS ts, value
     FROM power_rails_counters
@@ -71,5 +77,8 @@ SELECT AndroidPowerRails(
   'power_rails', (
     SELECT RepeatedField(power_rails_proto)
     FROM power_rails_view
+  ),
+  'avg_total_used_power_mw', (
+    SELECT SUM(tot_used_power) / (MAX(powrail_end_ts) - MIN(powrail_start_ts)) FROM avg_used_powers
   )
 );
