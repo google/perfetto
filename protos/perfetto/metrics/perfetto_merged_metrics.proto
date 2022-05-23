@@ -1101,6 +1101,10 @@ message AndroidPowerRails {
 
   // Energy data per Power Rail.
   repeated PowerRails power_rails = 1;
+
+  // The average used power between the first and last sampled rail across all
+  // the rails in milliwatts (mw).
+  optional double avg_total_used_power_mw = 2;
 }
 // End of protos/perfetto/metrics/android/powrails_metric.proto
 
