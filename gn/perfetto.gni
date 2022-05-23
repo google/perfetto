@@ -147,8 +147,9 @@ declare_args() {
   # For now the IPC layer is conservatively not enabled on Chromium+Windows
   # builds.
   enable_perfetto_ipc =
-      !is_nacl && (perfetto_build_standalone || perfetto_build_with_android ||
-                   (build_with_chromium && !is_win))
+      !is_fuchsia && !is_nacl &&
+      (perfetto_build_standalone || perfetto_build_with_android ||
+       (build_with_chromium && !is_win))
 
   # Makes the heap profiling daemon target reachable. It works only on Android,
   # but is built on Linux as well for test/compiler coverage.
