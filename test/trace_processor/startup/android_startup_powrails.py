@@ -30,9 +30,9 @@ trace.add_power_rails_data(5, 1, 12)
 trace.add_power_rails_data(5, 2, 10)
 trace.add_power_rails_data(5, 3, 8)
 
-# Add data at ts = 6 ms.
-trace.add_power_rails_data(6, 1, 50)
-trace.add_power_rails_data(6, 2, 70)
-trace.add_power_rails_data(6, 3, 15)
+# Add data at ts = 7 ms.
+trace.add_power_rails_data(7, 1, 50)
+trace.add_power_rails_data(7, 2, 70)
+trace.add_power_rails_data(7, 3, 16)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
