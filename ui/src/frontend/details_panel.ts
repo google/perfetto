@@ -310,15 +310,31 @@ export class DetailsPanel implements m.ClassComponent {
       });
     }
 
+    const queryResults = [];
+
     if (globals.queryResults.has('command')) {
+      queryResults.push({queryId: 'command', name: 'Omnibox Query'});
+    }
+    if (globals.queryResults.has('analyze-page-query')) {
+      queryResults.push(
+          {queryId: 'analyze-page-query', name: 'Standalone Query'});
+    }
+    for (const queryId of globals.queryResults.keys()) {
+      if (queryId.startsWith('command_')) {
+        queryResults.push({queryId, name: 'Pinned Query'});
+      }
+    }
+
+    for (const {queryId, name} of queryResults) {
       const count =
-          (globals.queryResults.get('command') as QueryResponse).rows.length;
+          (globals.queryResults.get(queryId) as QueryResponse).rows.length;
       detailsPanels.push({
-        key: 'query_result',
-        name: `Query Result (${count})`,
-        vnode: m(QueryTable, {key: 'query', queryId: 'command'})
+        key: `query_result_${queryId}`,
+        name: `${name} (${count})`,
+        vnode: m(QueryTable, {key: `query_${queryId}`, queryId})
       });
     }
+
 
     if (globals.state.nonSerializableState.pivotTableRedux.selectionArea !==
         null) {
