@@ -1,0 +1,9 @@
+android_batt {
+  battery_aggregates {
+    sleep_ns: 10000
+  }
+  suspend_period {
+    timestamp_ns: 30000
+    duration_ns: 10000
+  }
+}

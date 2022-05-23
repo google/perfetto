@@ -1,0 +1,56 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 20000
+      pid: 0
+      suspend_resume {
+        action: "syscore_suspend"
+        val: 0
+        start: 1
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 29999
+      pid: 0
+      suspend_resume {
+        action: "syscore_suspend"
+        val: 0
+        start: 0
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 30000
+      pid: 0
+      suspend_resume {
+        action: "syscore_resume"
+        val: 0
+        start: 1
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 40000
+      pid: 0
+      suspend_resume {
+        action: "syscore_resume"
+        val: 0
+        start: 0
+      }
+    }
+  }
+}
