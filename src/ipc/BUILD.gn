@@ -117,6 +117,13 @@ perfetto_unittest_source_set("unittests") {
     "host_impl_unittest.cc",
     "test/ipc_integrationtest.cc",
   ]
+
+  if (is_fuchsia) {
+    deps += [
+      "//third_party/fuchsia-sdk/sdk/pkg/zx",
+      "//third_party/fuchsia-sdk/sdk/pkg/fdio",
+    ]
+  }
 }
 
 perfetto_proto_library("test_messages_@TYPE@") {
