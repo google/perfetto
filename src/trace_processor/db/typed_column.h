@@ -120,22 +120,14 @@ class TypedColumn : public Column {
     return Column::ToSqlValueType<serialized_type>();
   }
 
-  // Reinterpret cast a Column to TypedColumn or crash if that is likely to be
-  // unsafe.
-  static const TypedColumn<T>* FromColumn(const Column* column) {
-    // While casting from a base to derived without constructing as a derived is
-    // technically UB, in practice, this is at the heart of protozero (see
-    // Message::BeginNestedMessage) so we use it here.
-    static_assert(sizeof(TypedColumn<T>) == sizeof(Column),
-                  "TypedColumn cannot introduce extra state.");
+  // Cast a Column to TypedColumn or crash if that is unsafe.
+  static TypedColumn<T>* FromColumn(Column* column) {
+    return FromColumnInternal<TypedColumn<T>>(column);
+  }
 
-    if (column->IsColumnType<serialized_type>() &&
-        (column->IsNullable() == TH::is_optional) && !column->IsId()) {
-      return static_cast<const TypedColumn<T>*>(column);
-    } else {
-      PERFETTO_FATAL("Unsafe to convert Column TypedColumn (%s)",
-                     column->name());
-    }
+  // Cast a Column to TypedColumn or crash if that is unsafe.
+  static const TypedColumn<T>* FromColumn(const Column* column) {
+    return FromColumnInternal<const TypedColumn<T>>(column);
   }
 
   // Public for use by macro tables.
@@ -157,6 +149,23 @@ class TypedColumn : public Column {
 
  private:
   friend class Table;
+
+  template <typename Output, typename Input>
+  static Output* FromColumnInternal(Input* column) {
+    // While casting from a base to derived without constructing as a derived is
+    // technically UB, in practice, this is at the heart of protozero (see
+    // Message::BeginNestedMessage) so we use it here.
+    static_assert(sizeof(TypedColumn<T>) == sizeof(Column),
+                  "TypedColumn cannot introduce extra state.");
+
+    if (column->template IsColumnType<serialized_type>() &&
+        (column->IsNullable() == TH::is_optional) && !column->IsId()) {
+      return static_cast<Output*>(column);
+    } else {
+      PERFETTO_FATAL("Unsafe to convert Column TypedColumn (%s)",
+                     column->name());
+    }
+  }
 
   static SqlValue ToValue(double value) { return SqlValue::Double(value); }
   static SqlValue ToValue(uint32_t value) { return SqlValue::Long(value); }
