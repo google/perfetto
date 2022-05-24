@@ -169,6 +169,24 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   }
 }
 
+// For queries that are supposed to be displayed in the bottom bar, return a
+// name for a tab. Otherwise, return null.
+function userVisibleQueryName(id: string): string|null {
+  if (id === 'command') {
+    return 'Omnibox Query';
+  }
+  if (id === 'analyze-page-query') {
+    return 'Standalone Query';
+  }
+  if (id.startsWith('command_')) {
+    return 'Pinned Query';
+  }
+  if (id.startsWith('pivot_table_details_')) {
+    return 'Pivot Table Details';
+  }
+  return null;
+}
+
 export class DetailsPanel implements m.ClassComponent {
   private detailsHeight = DEFAULT_DETAILS_HEIGHT_PX;
 
@@ -274,17 +292,10 @@ export class DetailsPanel implements m.ClassComponent {
     }
 
     const queryResults = [];
-
-    if (globals.queryResults.has('command')) {
-      queryResults.push({queryId: 'command', name: 'Omnibox Query'});
-    }
-    if (globals.queryResults.has('analyze-page-query')) {
-      queryResults.push(
-          {queryId: 'analyze-page-query', name: 'Standalone Query'});
-    }
     for (const queryId of globals.queryResults.keys()) {
-      if (queryId.startsWith('command_')) {
-        queryResults.push({queryId, name: 'Pinned Query'});
+      const readableName = userVisibleQueryName(queryId);
+      if (readableName !== null) {
+        queryResults.push({queryId, name: readableName});
       }
     }
 
