@@ -118,14 +118,6 @@ class NullableVector : public NullableVectorBase {
     valid_.Insert(size_++);
   }
 
-  // Adds a null value to the NullableVector.
-  void AppendNull() {
-    if (mode_ == Mode::kDense) {
-      data_.emplace_back();
-    }
-    size_++;
-  }
-
   // Adds the given optional value to the NullableVector.
   void Append(base::Optional<T> val) {
     if (val) {
@@ -166,6 +158,13 @@ class NullableVector : public NullableVectorBase {
 
  private:
   explicit NullableVector(Mode mode) : mode_(mode) {}
+
+  void AppendNull() {
+    if (mode_ == Mode::kDense) {
+      data_.emplace_back();
+    }
+    size_++;
+  }
 
   Mode mode_ = Mode::kSparse;
 
