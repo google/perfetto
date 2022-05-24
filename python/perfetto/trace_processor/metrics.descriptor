@@ -511,11 +511,12 @@ runtime_ms (R	runtimeMs$
 package_name (	RpackageName
 uid (Ruid!
 version_code (RversionCode
-œ
-5protos/perfetto/metrics/android/powrails_metric.protoperfetto.protos"Ñ
+Ò
+5protos/perfetto/metrics/android/powrails_metric.protoperfetto.protos"‡
 AndroidPowerRailsN
 power_rails (2-.perfetto.protos.AndroidPowerRails.PowerRailsR
-powerRailsN
+powerRails4
+avg_total_used_power_mw (RavgTotalUsedPowerMwN
 
 EnergyData!
 timestamp_ms (RtimestampMs
