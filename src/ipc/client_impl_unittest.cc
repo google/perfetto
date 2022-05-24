@@ -340,8 +340,9 @@ TEST_F(ClientImplTest, BindAndInvokeStreamingMethod) {
   ASSERT_EQ(kNumReplies, replies_seen);
 }
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-// File descriptor sending over IPC is not supported on Windows.
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+// File descriptor sending over IPC is not supported on Windows or Fuchsia.
 TEST_F(ClientImplTest, ReceiveFileDescriptor) {
   auto* host_svc = host_->AddFakeService("FakeSvc");
   auto* host_method = host_svc->AddFakeMethod("FakeMethod1");

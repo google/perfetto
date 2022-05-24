@@ -41,7 +41,8 @@ struct TestSocket {
   inline void Destroy();
 };
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
 
 const char* TestSocket::name() {
   uint64_t hash = 5381;
