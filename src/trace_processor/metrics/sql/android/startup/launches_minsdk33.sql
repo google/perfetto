@@ -30,12 +30,14 @@ DROP VIEW IF EXISTS launch_complete_events;
 CREATE VIEW launch_complete_events AS
 SELECT
   STR_SPLIT(completed, ':completed:', 0) id,
-  STR_SPLIT(completed, ':completed:', 1) package_name
+  STR_SPLIT(completed, ':completed:', 1) package_name,
+  MIN(ts)
 FROM (
-  SELECT SUBSTR(name, 19) completed
+  SELECT ts, SUBSTR(name, 19) completed
   FROM slice
   WHERE dur = 0 AND name GLOB 'launchingActivity#*:completed:*'
-);
+)
+GROUP BY 1, 2;
 
 INSERT INTO launches(id, ts, ts_end, dur, package)
 SELECT
