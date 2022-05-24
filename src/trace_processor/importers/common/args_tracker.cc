@@ -67,20 +67,23 @@ void ArgsTracker::Flush() {
   std::stable_sort(args_.begin(), args_.end(), comparator);
 
   for (uint32_t i = 0; i < args_.size();) {
-    const auto& arg = args_[i];
-    Column* column = arg.column;
-    auto row = arg.row;
+    const GlobalArgsTracker::Arg& arg = args_[i];
+    auto* col = arg.column;
+    uint32_t row = arg.row;
 
     uint32_t next_rid_idx = i + 1;
-    while (next_rid_idx < args_.size() &&
-           column == args_[next_rid_idx].column &&
+    while (next_rid_idx < args_.size() && col == args_[next_rid_idx].column &&
            row == args_[next_rid_idx].row) {
       next_rid_idx++;
     }
 
     ArgSetId set_id =
         context_->global_args_tracker->AddArgSet(&args_[0], i, next_rid_idx);
-    column->Set(row, SqlValue::Long(set_id));
+    if (col->IsNullable()) {
+      TypedColumn<base::Optional<uint32_t>>::FromColumn(col)->Set(row, set_id);
+    } else {
+      TypedColumn<uint32_t>::FromColumn(col)->Set(row, set_id);
+    }
 
     i = next_rid_idx;
   }
