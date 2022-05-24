@@ -30,22 +30,6 @@
 namespace perfetto {
 namespace trace_processor {
 
-// Id type which can be used as a base for strongly typed ids.
-// TypedColumn has support for storing descendents of BaseId seamlessly
-// in a Column.
-struct BaseId {
-  BaseId() = default;
-  explicit constexpr BaseId(uint32_t v) : value(v) {}
-
-  bool operator==(const BaseId& o) const { return o.value == value; }
-  bool operator!=(const BaseId& o) const { return !(*this == o); }
-  bool operator<(const BaseId& o) const { return value < o.value; }
-
-  uint32_t value;
-};
-static_assert(std::is_trivially_destructible<BaseId>::value,
-              "Inheritance used without trivial destruction");
-
 // Represents the possible filter operations on a column.
 enum class FilterOp {
   kEq,
