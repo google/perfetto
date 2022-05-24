@@ -141,6 +141,7 @@ function createEmptyQueryResult(metadata: PivotTableReduxQueryMetadata):
 // Controller responsible for showing the panel with pivot table, as well as
 // executing its queries and post-processing query results.
 export class PivotTableReduxController extends Controller<{}> {
+  static detailsCount = 0;
   engine: Engine;
   lastQueryAreaId = '';
   lastQueryAreaTracks = new Set<string>();
