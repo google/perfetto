@@ -33,10 +33,13 @@ using MethodID = uint32_t;
 using ClientID = uint64_t;
 using RequestID = uint64_t;
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
 // AF_UNIX on Windows is supported only on Windows 10 from build 17063.
 // Also it doesn't bring major advantages compared to a TCP socket.
 // See go/perfetto-win .
+// AF_UNIX sockets are not supported on Fuchsia. The typical IPC flow involves
+// adoption of connected kernel sockets.
 constexpr bool kUseTCPSocket = true;
 #else
 // On Android, Linux, Mac use a AF_UNIX socket.
