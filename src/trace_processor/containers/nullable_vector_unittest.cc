@@ -26,7 +26,7 @@ TEST(NullableVector, Append) {
   NullableVector<int64_t> sv;
   sv.Append(10);
   sv.Append(20);
-  sv.AppendNull();
+  sv.Append(base::nullopt);
   sv.Append(40);
 
   ASSERT_FALSE(sv.IsDense());
@@ -41,8 +41,8 @@ TEST(NullableVector, Set) {
   NullableVector<int64_t> sv;
   sv.Append(10);
   sv.Append(20);
-  sv.AppendNull();
-  sv.AppendNull();
+  sv.Append(base::nullopt);
+  sv.Append(base::nullopt);
   sv.Append(40);
 
   sv.Set(0, 15);
@@ -74,10 +74,10 @@ TEST(NullableVector, Dense) {
   auto sv = NullableVector<int64_t>::Dense();
 
   sv.Append(0);
-  sv.AppendNull();
+  sv.Append(base::nullopt);
   sv.Append(2);
   sv.Append(3);
-  sv.AppendNull();
+  sv.Append(base::nullopt);
 
   ASSERT_TRUE(sv.IsDense());
   ASSERT_EQ(sv.Get(0), 0);
