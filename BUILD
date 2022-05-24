@@ -953,6 +953,7 @@ perfetto_cc_library(
 perfetto_filegroup(
     name = "src_trace_processor_db_db",
     srcs = [
+        "src/trace_processor/db/base_id.h",
         "src/trace_processor/db/column.cc",
         "src/trace_processor/db/column.h",
         "src/trace_processor/db/compare.h",

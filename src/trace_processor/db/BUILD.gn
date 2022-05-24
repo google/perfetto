@@ -16,6 +16,7 @@ import("../../../gn/test.gni")
 
 source_set("db") {
   sources = [
+    "base_id.h",
     "column.cc",
     "column.h",
     "compare.h",
