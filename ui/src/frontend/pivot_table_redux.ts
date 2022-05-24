@@ -25,7 +25,10 @@ import {
   PivotTableReduxResult,
   SortDirection
 } from '../common/state';
-import {PivotTree} from '../controller/pivot_table_redux_controller';
+import {
+  PivotTableReduxController,
+  PivotTree
+} from '../controller/pivot_table_redux_controller';
 
 import {globals} from './globals';
 import {Panel} from './panel';
@@ -179,7 +182,8 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
               // TODO(ddrone): the UI of running query as if it was a canned or
               // custom query is a temporary one, replace with a proper UI.
               globals.dispatch(Actions.executeQuery({
-                queryId: 'command',
+                queryId: `pivot_table_details_${
+                    PivotTableReduxController.detailsCount++}`,
                 query,
               }));
             }
