@@ -284,41 +284,6 @@ class Column {
     PERFETTO_FATAL("For GCC");
   }
 
-  // Sets the value of the column at the given |row|.
-  void Set(uint32_t row, SqlValue value) {
-    PERFETTO_CHECK(value.type == type());
-    switch (type_) {
-      case ColumnType::kInt32: {
-        mutable_nullable_vector<int32_t>()->Set(
-            row, static_cast<int32_t>(value.long_value));
-        break;
-      }
-      case ColumnType::kUint32: {
-        mutable_nullable_vector<uint32_t>()->Set(
-            row, static_cast<uint32_t>(value.long_value));
-        break;
-      }
-      case ColumnType::kInt64: {
-        mutable_nullable_vector<int64_t>()->Set(
-            row, static_cast<int64_t>(value.long_value));
-        break;
-      }
-      case ColumnType::kDouble: {
-        mutable_nullable_vector<double>()->Set(row, value.double_value);
-        break;
-      }
-      case ColumnType::kString: {
-        PERFETTO_FATAL(
-            "Setting a generic value on a string column is not implemented");
-      }
-      case ColumnType::kId: {
-        PERFETTO_FATAL("Cannot set value on a id column");
-      }
-      case ColumnType::kDummy:
-        PERFETTO_FATAL("Set not allowed on dummy column");
-    }
-  }
-
   // Sorts |idx| in ascending or descending order (determined by |desc|) based
   // on the contents of this column.
   void StableSort(bool desc, std::vector<uint32_t>* idx) const;
