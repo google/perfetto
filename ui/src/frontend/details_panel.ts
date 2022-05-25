@@ -169,6 +169,24 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   }
 }
 
+// For queries that are supposed to be displayed in the bottom bar, return a
+// name for a tab. Otherwise, return null.
+function userVisibleQueryName(id: string): string|null {
+  if (id === 'command') {
+    return 'Omnibox Query';
+  }
+  if (id === 'analyze-page-query') {
+    return 'Standalone Query';
+  }
+  if (id.startsWith('command_')) {
+    return 'Pinned Query';
+  }
+  if (id.startsWith('pivot_table_details_')) {
+    return 'Pivot Table Details';
+  }
+  return null;
+}
+
 export class DetailsPanel implements m.ClassComponent {
   private detailsHeight = DEFAULT_DETAILS_HEIGHT_PX;
 
@@ -273,15 +291,24 @@ export class DetailsPanel implements m.ClassComponent {
       });
     }
 
-    if (globals.queryResults.has('command')) {
+    const queryResults = [];
+    for (const queryId of globals.queryResults.keys()) {
+      const readableName = userVisibleQueryName(queryId);
+      if (readableName !== null) {
+        queryResults.push({queryId, name: readableName});
+      }
+    }
+
+    for (const {queryId, name} of queryResults) {
       const count =
-          (globals.queryResults.get('command') as QueryResponse).rows.length;
+          (globals.queryResults.get(queryId) as QueryResponse).rows.length;
       detailsPanels.push({
-        key: 'query_result',
-        name: `Query Result (${count})`,
-        vnode: m(QueryTable, {key: 'query', queryId: 'command'})
+        key: `query_result_${queryId}`,
+        name: `${name} (${count})`,
+        vnode: m(QueryTable, {key: `query_${queryId}`, queryId})
       });
     }
+
 
     if (globals.state.nonSerializableState.pivotTableRedux.selectionArea !==
         null) {

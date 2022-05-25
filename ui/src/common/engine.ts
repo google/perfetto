@@ -190,12 +190,17 @@ export abstract class Engine {
         break;
       case TPM.TPM_COMPUTE_METRIC:
         const metricRes = assertExists(rpc.metricResult) as ComputeMetricResult;
+        const pendingComputeMetric =
+            assertExists(this.pendingComputeMetrics.shift());
         if (metricRes.error && metricRes.error.length > 0) {
-          throw new QueryError(`ComputeMetric() error: ${metricRes.error}`, {
-            query: 'COMPUTE_METRIC',
-          });
+          const error =
+              new QueryError(`ComputeMetric() error: ${metricRes.error}`, {
+                query: 'COMPUTE_METRIC',
+              });
+          pendingComputeMetric.reject(error);
+        } else {
+          pendingComputeMetric.resolve(metricRes);
         }
-        assertExists(this.pendingComputeMetrics.shift()).resolve(metricRes);
         break;
       default:
         console.log(

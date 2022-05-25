@@ -30,22 +30,6 @@
 namespace perfetto {
 namespace trace_processor {
 
-// Id type which can be used as a base for strongly typed ids.
-// TypedColumn has support for storing descendents of BaseId seamlessly
-// in a Column.
-struct BaseId {
-  BaseId() = default;
-  explicit constexpr BaseId(uint32_t v) : value(v) {}
-
-  bool operator==(const BaseId& o) const { return o.value == value; }
-  bool operator!=(const BaseId& o) const { return !(*this == o); }
-  bool operator<(const BaseId& o) const { return value < o.value; }
-
-  uint32_t value;
-};
-static_assert(std::is_trivially_destructible<BaseId>::value,
-              "Inheritance used without trivial destruction");
-
 // Represents the possible filter operations on a column.
 enum class FilterOp {
   kEq,
@@ -298,41 +282,6 @@ class Column {
         PERFETTO_FATAL("IndexOf not allowed on dummy column");
     }
     PERFETTO_FATAL("For GCC");
-  }
-
-  // Sets the value of the column at the given |row|.
-  void Set(uint32_t row, SqlValue value) {
-    PERFETTO_CHECK(value.type == type());
-    switch (type_) {
-      case ColumnType::kInt32: {
-        mutable_nullable_vector<int32_t>()->Set(
-            row, static_cast<int32_t>(value.long_value));
-        break;
-      }
-      case ColumnType::kUint32: {
-        mutable_nullable_vector<uint32_t>()->Set(
-            row, static_cast<uint32_t>(value.long_value));
-        break;
-      }
-      case ColumnType::kInt64: {
-        mutable_nullable_vector<int64_t>()->Set(
-            row, static_cast<int64_t>(value.long_value));
-        break;
-      }
-      case ColumnType::kDouble: {
-        mutable_nullable_vector<double>()->Set(row, value.double_value);
-        break;
-      }
-      case ColumnType::kString: {
-        PERFETTO_FATAL(
-            "Setting a generic value on a string column is not implemented");
-      }
-      case ColumnType::kId: {
-        PERFETTO_FATAL("Cannot set value on a id column");
-      }
-      case ColumnType::kDummy:
-        PERFETTO_FATAL("Set not allowed on dummy column");
-    }
   }
 
   // Sorts |idx| in ascending or descending order (determined by |desc|) based

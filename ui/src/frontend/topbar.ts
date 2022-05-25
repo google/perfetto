@@ -34,6 +34,7 @@ export const DISMISSED_PANNING_HINT_KEY = 'dismissedPanningHint';
 
 let mode: Mode = SEARCH;
 let displayStepThrough = false;
+let queryCount = 0;
 
 function onKeyDown(e: Event) {
   const event = (e as KeyboardEvent);
@@ -59,6 +60,12 @@ function onKeyDown(e: Event) {
   if (mode === SEARCH && key === 'Enter') {
     txt.blur();
   }
+
+  if (mode === COMMAND && key === 'Enter') {
+    const queryId =
+        (event.metaKey || event.ctrlKey) ? `command_${queryCount++}` : 'command';
+    globals.dispatch(Actions.executeQuery({queryId, query: txt.value}));
+  }
 }
 
 function onKeyUp(e: Event) {
@@ -74,10 +81,6 @@ function onKeyUp(e: Event) {
     txt.blur();
     globals.rafScheduler.scheduleFullRedraw();
     return;
-  }
-  if (mode === COMMAND && key === 'Enter') {
-    globals.dispatch(
-        Actions.executeQuery({queryId: 'command', query: txt.value}));
   }
 }
 

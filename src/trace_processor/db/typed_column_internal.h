@@ -17,7 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_TYPED_COLUMN_INTERNAL_H_
 #define SRC_TRACE_PROCESSOR_DB_TYPED_COLUMN_INTERNAL_H_
 
-#include "src/trace_processor/db/column.h"
+#include "src/trace_processor/containers/nullable_vector.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/base_id.h"
 
 namespace perfetto {
 namespace trace_processor {
