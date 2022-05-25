@@ -33,7 +33,10 @@ function isTrustedOrigin(origin: string): boolean {
   ];
   if (origin === window.origin) return true;
   if (TRUSTED_ORIGINS.includes(origin)) return true;
-  if (new URL(origin).hostname.endsWith('corp.google.com')) return true;
+
+  const hostname = new URL(origin).hostname;
+  if (hostname.endsWith('corp.google.com')) return true;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
   return false;
 }
 
