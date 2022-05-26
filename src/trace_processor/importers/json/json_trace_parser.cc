@@ -293,6 +293,7 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       }
       break;
     }
+    case 'R':
     case 'I':
     case 'i': {  // TRACE_EVENT_INSTANT
       base::StringView scope;
