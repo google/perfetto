@@ -15,6 +15,7 @@
  */
 
 import * as m from 'mithril';
+
 import {sqliteString} from '../base/string_utils';
 import {Actions, DeferredAction} from '../common/actions';
 import {ColumnType} from '../common/query_result';
@@ -35,6 +36,7 @@ import {Panel} from './panel';
 import {
   aggregationIndex,
   areaFilter,
+  extractArgumentExpression,
   generateQuery,
   QueryGeneratorError,
   sliceAggregationColumns,
@@ -52,12 +54,24 @@ interface PathItem {
 }
 
 // Used to convert TableColumn to a string in order to store it in a Map, as
-// ES6 does not support compound Set/Map keys.
+// ES6 does not support compound Set/Map keys. This function should only be used
+// for interning keys, and does not have any requirements beyond different
+// TableColumn objects mapping to different strings.
 export function columnKey(tableColumn: TableColumn): string {
-  if (tableColumn === 'count') {
-    return '1';
+  switch (tableColumn.kind) {
+    case 'count': {
+      return 'count';
+    }
+    case 'argument': {
+      return `argument:${tableColumn.argument}`;
+    }
+    case 'regular': {
+      return `${tableColumn.table}.${tableColumn.column}`;
+    }
+    default: {
+      throw new Error(`malformed table column ${tableColumn}`);
+    }
   }
-  return `${tableColumn.table}.${tableColumn.column}`;
 }
 
 // Arguments to an action to toggle a table column in a particular part of
@@ -95,18 +109,57 @@ interface PivotTableReduxAttrs {
 }
 
 interface DrillFilter {
-  column: string;
+  column: TableColumn;
   value: ColumnType;
+}
+
+function drillFilterExpression(column: TableColumn) {
+  switch (column.kind) {
+    case 'count': {
+      throw new Error('pivot cannot be count!');
+    }
+
+    case 'regular': {
+      // TODO(b/231429468): This would not work for non-slice column.
+      return column.column;
+    }
+
+    case 'argument': {
+      return extractArgumentExpression(column.argument);
+    }
+
+    default: {
+      throw new Error(`malformed table column ${column}`);
+    }
+  }
 }
 
 // Convert DrillFilter to SQL condition to be used in WHERE clause.
 function renderDrillFilter(filter: DrillFilter): string {
+  const column = drillFilterExpression(filter.column);
   if (filter.value === null) {
-    return `${filter.column} IS NULL`;
+    return `${column} IS NULL`;
   } else if (typeof filter.value === 'number') {
-    return `${filter.column} = ${filter.value}`;
+    return `${column} = ${filter.value}`;
   }
-  return `${filter.column} = ${sqliteString(filter.value)}`;
+  return `${column} = ${sqliteString(filter.value)}`;
+}
+
+function readableColumnName(column: TableColumn) {
+  switch (column.kind) {
+    case 'count': {
+      return 'Count';
+    }
+    case 'argument': {
+      return `Argument ${column.argument}`;
+    }
+    case 'regular': {
+      return `${column.table}.${column.column}`;
+    }
+    default: {
+      throw new Error(`malformed table column ${column}`);
+    }
+  }
 }
 
 export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
@@ -144,7 +197,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
                     m(ColumnSetCheckbox, {
                       get: this.selectedPivotsMap,
                       set: Actions.setPivotTablePivotSelected,
-                      setKey: {table: t.name, column: col},
+                      setKey: {kind: 'regular', table: t.name, column: col},
                     }),
                     col))));
   }
@@ -306,10 +359,24 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
     };
   }
 
-  renderAggregationHeaderCell(aggregation: TableColumn): m.Child {
-    const readableName =
-        aggregation === 'count' ? 'Count' : `SUM(${aggregation.column})`;
+  readableAggregationName(column: TableColumn) {
+    switch (column.kind) {
+      case 'count': {
+        return 'Count';
+      }
+      case 'argument': {
+        return `SUM(Argument ${column.argument})`;
+      }
+      case 'regular': {
+        return `SUM(${column.column})`;
+      }
+      default: {
+        throw new Error(`malformed table column ${column}`);
+      }
+    }
+  }
 
+  renderAggregationHeaderCell(aggregation: TableColumn): m.Child {
     const popupItems: PopupMenuItem[] = [];
     const state = globals.state.nonSerializableState.pivotTableRedux;
     if (state.sortCriteria === undefined ||
@@ -324,10 +391,11 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
           aggregation, state.sortCriteria.order === 'DESC' ? 'ASC' : 'DESC'));
     }
 
-    return m('td', readableName, m(PopupMenuButton, {
-               icon: 'arrow_drop_down',
-               items: popupItems,
-             }));
+    return m(
+        'td', this.readableAggregationName(aggregation), m(PopupMenuButton, {
+          icon: 'arrow_drop_down',
+          items: popupItems,
+        }));
   }
 
   renderResultsTable(attrs: PivotTableReduxAttrs) {
@@ -351,8 +419,39 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         state.queryResult,
         renderedRows);
 
-    const pivotTableHeaders =
-        state.queryResult.metadata.pivotColumns.map(pivot => m('td', pivot));
+    const pivotTableHeaders = [];
+    for (const pivot of state.queryResult.metadata.pivotColumns) {
+      const items = [{
+        text: 'Add argument pivot',
+        callback: () => {
+          // TODO(ddrone): Replace this with modal using argument name
+          // completion after the modal mithrilization CL is landed.
+          const argument = prompt('Enter argument name');
+          if (argument !== null) {
+            globals.dispatch(Actions.setPivotTablePivotSelected(
+                {column: {kind: 'argument', argument}, selected: true}));
+            globals.dispatch(
+                Actions.setPivotTableQueryRequested({queryRequested: true}));
+          }
+        }
+      }];
+      if (state.queryResult.metadata.pivotColumns.length > 1) {
+        items.push({
+          text: 'Remove',
+          callback() {
+            globals.dispatch(Actions.setPivotTablePivotSelected(
+                {column: pivot, selected: false}));
+            globals.dispatch(
+                Actions.setPivotTableQueryRequested({queryRequested: true}));
+          }
+        });
+      }
+      pivotTableHeaders.push(
+          m('td',
+            readableColumnName(pivot),
+            m(PopupMenuButton, {icon: 'arrow_drop_down', items})));
+    }
+
     const aggregationTableHeaders =
         state.queryResult.metadata.aggregationColumns.map(
             aggregation => this.renderAggregationHeaderCell(aggregation));
@@ -412,7 +511,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         innerElement);
   }
 
-  view({attrs}: m.Vnode<PivotTableReduxAttrs>) {
+  view({attrs}: m.Vnode<PivotTableReduxAttrs>): m.Children {
     return globals.state.nonSerializableState.pivotTableRedux.editMode ?
         this.renderEditView(attrs) :
         this.renderResultsView(attrs);
@@ -434,7 +533,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
               m(ColumnSetCheckbox, {
                 get: this.selectedAggregations,
                 set: Actions.setPivotTableAggregationSelected,
-                setKey: 'count'
+                setKey: {kind: 'count'}
               }),
               'count'),
             ...sliceAggregationColumns.map(
@@ -443,7 +542,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
                       m(ColumnSetCheckbox, {
                         get: this.selectedAggregations,
                         set: Actions.setPivotTableAggregationSelected,
-                        setKey: {table: 'slice', column: t},
+                        setKey: {kind: 'regular', table: 'slice', column: t},
                       }),
                       t)),
             ...threadSliceAggregationColumns.map(
@@ -452,7 +551,8 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
                       m(ColumnSetCheckbox, {
                         get: this.selectedAggregations,
                         set: Actions.setPivotTableAggregationSelected,
-                        setKey: {table: 'thread_slice', column: t},
+                        setKey:
+                            {kind: 'regular', table: 'thread_slice', column: t},
                       }),
                       `thread_slice.${t}`)))),
         this.renderQuery(attrs));
