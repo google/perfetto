@@ -753,6 +753,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         iostat_tracker_.ParseF2fsIostat(ts, data);
         break;
       }
+      case FtraceEvent::kF2fsIostatLatencyFieldNumber: {
+        iostat_tracker_.ParseF2fsIostatLatency(ts, data);
+        break;
+      }
       default:
         break;
     }
