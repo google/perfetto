@@ -358,6 +358,9 @@ function updateSymlinks() {
   // /ui/out -> /out/ui.
   mklink(cfg.outUiDir, pjoin(ROOT_DIR, 'ui/out'));
 
+  // /ui/src/gen -> /out/ui/ui/tsc/gen)
+  mklink(cfg.outGenDir , pjoin(ROOT_DIR, 'ui/src/gen'));
+
   // /out/ui/test/data -> /test/data (For UI tests).
   mklink(
       pjoin(ROOT_DIR, 'test/data'),
