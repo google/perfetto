@@ -147,7 +147,6 @@ void FlowTracker::InsertFlow(FlowId flow_id,
   auto* it = flow_id_to_v1_flow_id_map_.Find(flow_id);
   if (it) {
     // TODO(b/168007725): Add any args from v1 flow events and also export them.
-    auto args_tracker = ArgsTracker(context_);
     auto inserter = context_->args_tracker->AddArgsTo(id);
     inserter.AddArg(name_key_id_, Variadic::String(it->name));
     inserter.AddArg(cat_key_id_, Variadic::String(it->cat));
