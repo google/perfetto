@@ -93,3 +93,13 @@ Area selection pops up a pre-filled pivot table restricted over the selected
 timestamps and track ids.
 
 ![Pivot table area selection](/docs/images/pivot-tables/pivot-table-area-selection.png)
+
+### Disabling metrics
+
+Some metrics execute at trace load time to annotate the trace with
+additional tracks and events. You can stop these metrics from
+running by disabling them in the 'Flags' page:
+
+![Disable metrics from running at trace load time](/docs/images/perfetto-ui-disable-metrics.png)
+
+
