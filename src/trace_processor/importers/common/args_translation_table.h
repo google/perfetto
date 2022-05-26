@@ -37,12 +37,15 @@ class ArgsTranslationTable {
 
   ArgsTranslationTable(TraceStorage* storage);
 
+  // Returns true if an arg with the given key and type requires translation.
+  bool NeedsTranslation(StringId key_id, Variadic::Type type) const;
+
   // Returns true if the translation table fully handles the arg, in which case
   // the original arg doesn't need to be processed. This function has not added
   // anything if returning false.
-  bool TranslateUnsignedIntegerArg(const Key& key,
-                                   uint64_t value,
-                                   ArgsTracker::BoundInserter& inserter);
+  bool TranslateArg(StringId key_id,
+                    Variadic value,
+                    ArgsTracker::BoundInserter& inserter);
 
   void AddChromeHistogramTranslationRule(uint64_t hash, base::StringView name) {
     chrome_histogram_hash_to_name_.Insert(hash, name.ToStdString());
@@ -78,6 +81,13 @@ class ArgsTranslationTable {
   }
 
  private:
+  enum class KeyType {
+    kChromeHistogramHash = 0,
+    kChromeUserEventHash = 1,
+    kChromePerformanceMarkMarkHash = 2,
+    kChromePerformanceMarkSiteHash = 3
+  };
+
   static constexpr char kChromeHistogramHashKey[] =
       "chrome_histogram_sample.name_hash";
   static constexpr char kChromeHistogramNameKey[] =
@@ -113,6 +123,11 @@ class ArgsTranslationTable {
       chrome_performance_mark_site_hash_to_name_;
   base::FlatHashMap<uint64_t, std::string>
       chrome_performance_mark_mark_hash_to_name_;
+
+  // Returns the corresponding SupportedKey enum if the table knows how to
+  // translate the argument with the given key and type, and nullopt otherwise.
+  base::Optional<KeyType> KeyIdAndTypeToEnum(StringId key_id,
+                                             Variadic::Type type) const;
 
   base::Optional<base::StringView> TranslateChromeHistogramHash(
       uint64_t hash) const;
