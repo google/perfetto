@@ -286,6 +286,13 @@ export const StateActions = {
     state.debugTrackId = undefined;
   },
 
+  maybeExpandOnlyTrackGroup(state: StateDraft, _: {}): void {
+    const trackGroups = Object.values(state.trackGroups);
+    if (trackGroups.length === 1) {
+      trackGroups[0].collapsed = false;
+    }
+  },
+
   sortThreadTracks(state: StateDraft, _: {}): void {
     // Use a numeric collator so threads are sorted as T1, T2, ..., T10, T11,
     // rather than T1, T10, T11, ..., T2, T20, T21 .
