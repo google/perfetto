@@ -23,6 +23,7 @@
     "events": "^3.1.0",
     "hsluv": "^0.1.0",
     "immer": "^9.0.2",
+    "jsbn-rsa": "^1.0.4",
     "micromodal": "^0.4.6",
     "mithril": "^2.2.0",
     "noice-json-rpc": "^1.2.0",
