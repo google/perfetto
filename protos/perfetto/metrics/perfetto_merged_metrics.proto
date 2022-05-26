@@ -13,6 +13,27 @@ package perfetto.protos;
 
 option go_package = "github.com/google/perfetto/perfetto_proto";
 
+// Begin of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
+
+// Measure app deadline missed.
+message AndroidFrameTimelineMetric {
+  message ProcessBreakdown {
+    // Process name
+    optional string process_name = 1;
+    // Count of app deadline missed in the process
+    optional int64 app_deadline_missed_count = 2;
+  }
+
+  // Total count for app deadline missed
+  optional int64 app_deadline_missed_total_count = 1;
+
+  // Process name and app deadline missed metrics
+  repeated ProcessBreakdown process = 2;
+}
+
+
+// End of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
+
 // Begin of protos/perfetto/metrics/android/android_trusty_workqueues.proto
 
 // Metric used to generate a simplified view of the Trusty kworker events.
@@ -1544,7 +1565,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 47
+// Next id: 48
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -1669,6 +1690,9 @@ message TraceMetrics {
 
   // Per-process Binder transaction metrics.
   optional AndroidBinderMetric android_binder = 46;
+
+  // Metrics for app deadline missed.
+  optional AndroidFrameTimelineMetric android_frame_timeline_metric = 47;
 
   // Demo extensions.
   extensions 450 to 499;
