@@ -57,6 +57,80 @@ base::Optional<uint64_t> MaybeExtractFlowIdentifier(const Json::Value& value,
 }  // namespace
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
+namespace {
+
+class JsonTraceParserDelegate : public util::ProtoToArgsParser::Delegate {
+ public:
+  JsonTraceParserDelegate(TraceStorage& storage,
+                          ArgsTracker::BoundInserter& inserter)
+      : storage_(storage), inserter_(inserter) {}
+
+  using Key = util::ProtoToArgsParser::Key;
+
+  void AddInteger(const Key& key, int64_t value) final {
+    inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
+                     storage_.InternString(base::StringView(key.key)),
+                     Variadic::Integer(value));
+  }
+
+  void AddUnsignedInteger(const Key& key, uint64_t value) final {
+    inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
+                     storage_.InternString(base::StringView(key.key)),
+                     Variadic::UnsignedInteger(value));
+  }
+  void AddString(const Key& key, const protozero::ConstChars& value) final {
+    inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
+                     storage_.InternString(base::StringView(key.key)),
+                     Variadic::String(storage_.InternString(value)));
+  }
+  void AddDouble(const Key& key, double value) final {
+    inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
+                     storage_.InternString(base::StringView(key.key)),
+                     Variadic::Real(value));
+  }
+  void AddPointer(const Key& key, const void* value) final {
+    inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
+                     storage_.InternString(base::StringView(key.key)),
+                     Variadic::Pointer(reinterpret_cast<uintptr_t>(value)));
+  }
+  void AddBoolean(const Key& key, bool value) final {
+    inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
+                     storage_.InternString(base::StringView(key.key)),
+                     Variadic::Boolean(value));
+  }
+  bool AddJson(const Key& /*key*/,
+               const protozero::ConstChars& /*value*/) final {
+    PERFETTO_FATAL("JsonTraceParserDelegate cannot handle AddJson");
+  }
+  void AddNull(const Key& key) final {
+    inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
+                     storage_.InternString(base::StringView(key.key)),
+                     Variadic::Null());
+  }
+
+  size_t GetArrayEntryIndex(const std::string& array_key) final {
+    return inserter_.GetNextArrayEntryIndex(
+        storage_.InternString(base::StringView(array_key)));
+  }
+
+  size_t IncrementArrayEntryIndex(const std::string& array_key) final {
+    return inserter_.IncrementArrayEntryIndex(
+        storage_.InternString(base::StringView(array_key)));
+  }
+
+  InternedMessageView* GetInternedMessageView(uint32_t /*field_id*/,
+                                              uint64_t /*iid*/) final {
+    PERFETTO_FATAL(
+        "JsonTraceParserDelegate cannot handle GetInternedMessageView");
+  }
+
+ private:
+  TraceStorage& storage_;
+  ArgsTracker::BoundInserter& inserter_;
+};
+
+}  // namespace
+
 JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
     : context_(context), systrace_line_parser_(context) {}
 
@@ -121,9 +195,10 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
 
   auto args_inserter = [this, &value](ArgsTracker::BoundInserter* inserter) {
     if (value.isMember("args")) {
+      JsonTraceParserDelegate delegate(*context_->storage, *inserter);
       json::AddJsonValueToArgs(value["args"], /* flat_key = */ "args",
                                /* key = */ "args", context_->storage.get(),
-                               inserter);
+                               &delegate);
     }
   };
 
