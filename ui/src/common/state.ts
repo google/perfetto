@@ -322,7 +322,7 @@ export interface MetricsState {
 // change to the query response.
 export interface PivotTableReduxQueryMetadata {
   tableName: string;
-  pivotColumns: string[];
+  pivotColumns: TableColumn[];
   aggregationColumns: TableColumn[];
 }
 
@@ -352,22 +352,32 @@ export type SortDirection = 'DESC'|'ASC';
 export interface PivotTableReduxState {
   // Currently selected area, if null, pivot table is not going to be visible.
   selectionArea: PivotTableReduxAreaState|null;
+
   // Query response
   queryResult: PivotTableReduxResult|null;
+
   // Whether the panel is in edit mode
   editMode: boolean;
+
   // Selected pivots. Map instead of Set because ES6 Set can't have
   // non-primitive keys; here keys are concatenated values.
   selectedPivotsMap: Map<string, TableColumn>;
+
   // Selected aggregation columns. Stored same way as pivots.
   selectedAggregations: Map<string, TableColumn>;
+
   // Present if the result should be sorted, and in which direction.
   sortCriteria?: {column: TableColumn, order: SortDirection};
+
   // Whether the pivot table results should be constrained to the selected area.
   constrainToArea: boolean;
+
   // Set to true by frontend to request controller to perform the query to
   // acquire the necessary data from the engine.
   queryRequested: boolean;
+
+  // Argument names in the current trace, used for autocompletion purposes.
+  argumentNames: string[];
 }
 
 export interface LoadedConfigNone {
