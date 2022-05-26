@@ -88,13 +88,14 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
                      Variadic::Integer(value));
   }
   void AddUnsignedInteger(const Key& key, uint64_t value) final {
-    if (args_translation_table_.TranslateUnsignedIntegerArg(key, value,
-                                                            inserter_)) {
+    StringId flat_key_id =
+        storage_.InternString(base::StringView(key.flat_key));
+    StringId key_id = storage_.InternString(base::StringView(key.key));
+    Variadic variadic_val = Variadic::UnsignedInteger(value);
+    if (args_translation_table_.TranslateArg(key_id, variadic_val, inserter_)) {
       return;
     }
-    inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
-                     storage_.InternString(base::StringView(key.key)),
-                     Variadic::UnsignedInteger(value));
+    inserter_.AddArg(flat_key_id, key_id, variadic_val);
   }
   void AddString(const Key& key, const protozero::ConstChars& value) final {
     inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
