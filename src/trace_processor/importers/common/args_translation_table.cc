@@ -50,59 +50,86 @@ ArgsTranslationTable::ArgsTranslationTable(TraceStorage* storage)
       interned_chrome_performance_mark_mark_key_(
           storage->InternString(kChromePerformanceMarkMarkKey)) {}
 
-bool ArgsTranslationTable::TranslateUnsignedIntegerArg(
-    const Key& key,
-    uint64_t value,
-    ArgsTracker::BoundInserter& inserter) {
-  if (key.key == kChromeHistogramHashKey) {
-    inserter.AddArg(interned_chrome_histogram_hash_key_,
-                    Variadic::UnsignedInteger(value));
-    const base::Optional<base::StringView> translated_value =
-        TranslateChromeHistogramHash(value);
-    if (translated_value) {
-      inserter.AddArg(
-          interned_chrome_histogram_name_key_,
-          Variadic::String(storage_->InternString(*translated_value)));
-    }
-    return true;
+bool ArgsTranslationTable::NeedsTranslation(StringId key_id,
+                                            Variadic::Type type) const {
+  return KeyIdAndTypeToEnum(key_id, type).has_value();
+}
+
+bool ArgsTranslationTable::TranslateArg(StringId key_id,
+                                        Variadic value,
+                                        ArgsTracker::BoundInserter& inserter) {
+  const auto key_type = KeyIdAndTypeToEnum(key_id, value.type);
+  if (!key_type.has_value()) {
+    return false;
   }
-  if (key.key == kChromeUserEventHashKey) {
-    inserter.AddArg(interned_chrome_user_event_hash_key_,
-                    Variadic::UnsignedInteger(value));
-    const base::Optional<base::StringView> translated_value =
-        TranslateChromeUserEventHash(value);
-    if (translated_value) {
-      inserter.AddArg(
-          interned_chrome_user_event_action_key_,
-          Variadic::String(storage_->InternString(*translated_value)));
+  switch (*key_type) {
+    case KeyType::kChromeHistogramHash: {
+      inserter.AddArg(interned_chrome_histogram_hash_key_, value);
+      const base::Optional<base::StringView> translated_value =
+          TranslateChromeHistogramHash(value.uint_value);
+      if (translated_value) {
+        inserter.AddArg(
+            interned_chrome_histogram_name_key_,
+            Variadic::String(storage_->InternString(*translated_value)));
+      }
+      return true;
     }
-    return true;
-  }
-  if (key.key == kChromePerformanceMarkSiteHashKey) {
-    inserter.AddArg(interned_chrome_performance_mark_site_hash_key_,
-                    Variadic::UnsignedInteger(value));
-    const base::Optional<base::StringView> translated_value =
-        TranslateChromePerformanceMarkSiteHash(value);
-    if (translated_value) {
-      inserter.AddArg(
-          interned_chrome_performance_mark_site_key_,
-          Variadic::String(storage_->InternString(*translated_value)));
+    case KeyType::kChromeUserEventHash: {
+      inserter.AddArg(interned_chrome_user_event_hash_key_, value);
+      const base::Optional<base::StringView> translated_value =
+          TranslateChromeUserEventHash(value.uint_value);
+      if (translated_value) {
+        inserter.AddArg(
+            interned_chrome_user_event_action_key_,
+            Variadic::String(storage_->InternString(*translated_value)));
+      }
+      return true;
     }
-    return true;
-  }
-  if (key.key == kChromePerformanceMarkMarkHashKey) {
-    inserter.AddArg(interned_chrome_performance_mark_mark_hash_key_,
-                    Variadic::UnsignedInteger(value));
-    const base::Optional<base::StringView> translated_value =
-        TranslateChromePerformanceMarkMarkHash(value);
-    if (translated_value) {
-      inserter.AddArg(
-          interned_chrome_performance_mark_mark_key_,
-          Variadic::String(storage_->InternString(*translated_value)));
+    case KeyType::kChromePerformanceMarkMarkHash: {
+      inserter.AddArg(interned_chrome_performance_mark_mark_hash_key_, value);
+      const base::Optional<base::StringView> translated_value =
+          TranslateChromePerformanceMarkMarkHash(value.uint_value);
+      if (translated_value) {
+        inserter.AddArg(
+            interned_chrome_performance_mark_mark_key_,
+            Variadic::String(storage_->InternString(*translated_value)));
+      }
+      return true;
     }
-    return true;
+    case KeyType::kChromePerformanceMarkSiteHash: {
+      inserter.AddArg(interned_chrome_performance_mark_site_hash_key_, value);
+      const base::Optional<base::StringView> translated_value =
+          TranslateChromePerformanceMarkSiteHash(value.uint_value);
+      if (translated_value) {
+        inserter.AddArg(
+            interned_chrome_performance_mark_site_key_,
+            Variadic::String(storage_->InternString(*translated_value)));
+      }
+      return true;
+    }
   }
   return false;
+}
+
+base::Optional<ArgsTranslationTable::KeyType>
+ArgsTranslationTable::KeyIdAndTypeToEnum(StringId key_id,
+                                         Variadic::Type type) const {
+  if (type != Variadic::Type::kUint) {
+    return base::nullopt;
+  }
+  if (key_id == interned_chrome_histogram_hash_key_) {
+    return KeyType::kChromeHistogramHash;
+  }
+  if (key_id == interned_chrome_user_event_hash_key_) {
+    return KeyType::kChromeUserEventHash;
+  }
+  if (key_id == interned_chrome_performance_mark_mark_hash_key_) {
+    return KeyType::kChromePerformanceMarkMarkHash;
+  }
+  if (key_id == interned_chrome_performance_mark_site_hash_key_) {
+    return KeyType::kChromePerformanceMarkSiteHash;
+  }
+  return base::nullopt;
 }
 
 base::Optional<base::StringView>
