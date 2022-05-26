@@ -53,12 +53,14 @@ export function createEmptyNonSerializableState(): NonSerializableState {
       queryResult: null,
       editMode: true,
       selectedPivotsMap: columnSet(
-          {table: 'slice', column: 'category'},
-          {table: 'slice', column: 'name'}),
-      selectedAggregations:
-          columnSet({table: 'thread_slice', column: 'thread_dur'}, 'count'),
+          {kind: 'regular', table: 'slice', column: 'category'},
+          {kind: 'regular', table: 'slice', column: 'name'}),
+      selectedAggregations: columnSet(
+          {kind: 'regular', table: 'thread_slice', column: 'thread_dur'},
+          {kind: 'count'}),
       constrainToArea: true,
       queryRequested: false,
+      argumentNames: [],
     },
   };
 }
