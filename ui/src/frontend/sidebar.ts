@@ -109,6 +109,14 @@ const GITILES_URL =
 
 let lastTabTitle = '';
 
+function getBugReportUrl(): string {
+  if (globals.isInternalUser) {
+    return 'https://goto.google.com/perfetto-ui-bug';
+  } else {
+    return 'https://github.com/google/perfetto/issues/new';
+  }
+}
+
 function shouldShowHiringBanner(): boolean {
   return globals.isInternalUser;
 }
@@ -266,7 +274,7 @@ const SECTIONS: Section[] = [
       {t: 'Flags', a: navigateFlags, i: 'emoji_flags'},
       {
         t: 'Report a bug',
-        a: 'https://goto.google.com/perfetto-ui-bug',
+        a: () => window.open(getBugReportUrl()),
         i: 'bug_report'
       },
     ],
