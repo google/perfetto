@@ -121,7 +121,8 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
     if (!json_value)
       return false;
     return json::AddJsonValueToArgs(*json_value, base::StringView(key.flat_key),
-                                    base::StringView(key.key), &storage_, this);
+                                    base::StringView(key.key), &storage_,
+                                    &inserter_);
   }
   void AddNull(const Key& key) final {
     inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
