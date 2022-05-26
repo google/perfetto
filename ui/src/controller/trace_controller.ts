@@ -411,6 +411,7 @@ export class TraceController extends Controller<States> {
 
     globals.dispatch(Actions.removeDebugTrack({}));
     globals.dispatch(Actions.sortThreadTracks({}));
+    globals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));
 
     await this.selectFirstHeapProfile();
     if (PERF_SAMPLE_FLAG.get()) {
