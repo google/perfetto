@@ -490,6 +490,10 @@ class AbstractConstRowReference {
 #define PERFETTO_TP_COLUMN_INDEX(type, name, ...) \
   static constexpr uint32_t name = static_cast<uint32_t>(ColumnIndexEnum::name);
 
+// Defines an alias for column type for each column.
+#define PERFETTO_TP_COLUMN_TYPE_USING(type, name, ...) \
+  using name = TypedColumn<type>;
+
 // For more general documentation, see PERFETTO_TP_TABLE in macros.h.
 #define PERFETTO_TP_TABLE_INTERNAL(table_name, class_name, parent_class_name, \
                                    DEF)                                       \
@@ -562,6 +566,12 @@ class AbstractConstRowReference {
       static constexpr uint32_t type =                                        \
           static_cast<uint32_t>(ColumnIndexEnum::type);                       \
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_COLUMN_INDEX)                  \
+    };                                                                        \
+                                                                              \
+    struct ColumnType {                                                       \
+      using id = IdColumn<Id>;                                                \
+      using type = TypedColumn<StringPool::Id>;                               \
+      PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_COLUMN_TYPE_USING)             \
     };                                                                        \
                                                                               \
     struct Row : parent_class_name::Row {                                     \

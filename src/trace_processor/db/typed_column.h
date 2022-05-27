@@ -53,6 +53,9 @@ class TypedColumn : public Column {
   using TH = tc_internal::TypeHandler<T>;
 
  public:
+  // The type of the data in this column.
+  using type = T;
+
   // The non-optional type of the data in this column.
   using non_optional_type = typename TH::non_optional_type;
 
@@ -186,6 +189,12 @@ class TypedColumn : public Column {
 template <typename Id>
 class IdColumn : public Column {
  public:
+  // The type of the data in this column.
+  using type = Id;
+
+  // The underlying type used when comparing ids.
+  using serialized_type = uint32_t;
+
   Id operator[](uint32_t row) const { return Id(row_map().Get(row)); }
 
   base::Optional<uint32_t> IndexOf(Id id) const {
