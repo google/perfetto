@@ -23,7 +23,6 @@
 #include "perfetto/ext/base/string_view.h"
 
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 #include <json/value.h>
@@ -60,7 +59,7 @@ bool AddJsonValueToArgs(const Json::Value& value,
                         base::StringView flat_key,
                         base::StringView key,
                         TraceStorage* storage,
-                        util::ProtoToArgsParser::Delegate* delegate);
+                        ArgsTracker::BoundInserter* inserter);
 
 }  // namespace json
 }  // namespace trace_processor
