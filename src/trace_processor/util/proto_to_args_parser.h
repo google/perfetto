@@ -72,7 +72,6 @@ class ProtoToArgsParser {
     std::string key;
   };
 
-  // TODO(kraskevich): move this out into a top-level class.
   class Delegate {
    public:
     virtual ~Delegate();
