@@ -961,6 +961,8 @@ perfetto_filegroup(
         "src/trace_processor/db/table.h",
         "src/trace_processor/db/typed_column.h",
         "src/trace_processor/db/typed_column_internal.h",
+        "src/trace_processor/db/view.cc",
+        "src/trace_processor/db/view.h",
     ],
 )
 
@@ -1401,6 +1403,15 @@ perfetto_filegroup(
     name = "src_trace_processor_util_util",
     srcs = [
         "src/trace_processor/util/status_macros.h",
+    ],
+)
+
+# GN target: //src/trace_processor/views:views
+perfetto_filegroup(
+    name = "src_trace_processor_views_views",
+    srcs = [
+        "src/trace_processor/views/macros.h",
+        "src/trace_processor/views/macros_internal.h",
     ],
 )
 
@@ -3787,6 +3798,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_util",
+        ":src_trace_processor_views_views",
     ],
     hdrs = [
         ":include_perfetto_base_base",
@@ -3894,6 +3906,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_util",
+        ":src_trace_processor_views_views",
         "src/trace_processor/trace_processor_shell.cc",
         "src/trace_processor/util/proto_to_json.cc",
         "src/trace_processor/util/proto_to_json.h",
@@ -4053,6 +4066,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_util",
+        ":src_trace_processor_views_views",
         ":src_traceconv_lib",
         ":src_traceconv_main",
         ":src_traceconv_pprofbuilder",
