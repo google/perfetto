@@ -94,5 +94,9 @@ void TrackEventModule::OnIncrementalStateCleared(uint32_t packet_sequence_id) {
   track_event_tracker_->OnIncrementalStateCleared(packet_sequence_id);
 }
 
+void TrackEventModule::NotifyEndOfFile() {
+  track_event_tracker_->NotifyEndOfFile();
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto
