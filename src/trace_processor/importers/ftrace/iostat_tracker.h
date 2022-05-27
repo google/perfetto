@@ -30,6 +30,7 @@ class IostatTracker {
   explicit IostatTracker(TraceProcessorContext*);
 
   void ParseF2fsIostat(int64_t timestamp, protozero::ConstBytes blob);
+  void ParseF2fsIostatLatency(int64_t timestamp, protozero::ConstBytes blob);
 
  private:
   TraceProcessorContext* const context_;
