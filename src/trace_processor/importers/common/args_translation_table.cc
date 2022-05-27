@@ -55,9 +55,10 @@ bool ArgsTranslationTable::NeedsTranslation(StringId key_id,
   return KeyIdAndTypeToEnum(key_id, type).has_value();
 }
 
-bool ArgsTranslationTable::TranslateArg(StringId key_id,
-                                        Variadic value,
-                                        ArgsTracker::BoundInserter& inserter) {
+bool ArgsTranslationTable::TranslateArg(
+    StringId key_id,
+    Variadic value,
+    ArgsTracker::BoundInserter& inserter) const {
   const auto key_type = KeyIdAndTypeToEnum(key_id, value.type);
   if (!key_type.has_value()) {
     return false;
