@@ -377,8 +377,13 @@ class Column {
   // Returns true if this column is a sorted column.
   bool IsSorted() const { return IsSorted(flags_); }
 
+  // Returns true if this column is a set id column.
   // Public for testing.
   bool IsSetId() const { return IsSetId(flags_); }
+
+  // Returns true if this column is a dummy column.
+  // Public for testing.
+  bool IsDummy() const { return type_ == ColumnType::kDummy; }
 
   // Returns the index of the RowMap in the containing table.
   uint32_t row_map_index() const { return row_map_idx_; }
@@ -452,9 +457,6 @@ class Column {
     return ToSqlValueType(ColumnTypeHelper<T>::ToColumnType());
   }
 
-  // Returns true if this column is a dummy column.
-  bool IsDummy() const { return type_ == ColumnType::kDummy; }
-
   // Returns true if this column is a dense column.
   bool IsDense() const { return IsDense(flags_); }
 
@@ -465,6 +467,7 @@ class Column {
 
  private:
   friend class Table;
+  friend class View;
 
   // Base constructor for this class which all other constructors call into.
   Column(const char* name,
