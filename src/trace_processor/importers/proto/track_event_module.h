@@ -45,6 +45,8 @@ class TrackEventModule : public ProtoImporterModule {
                    const TimestampedTracePiece& ttp,
                    uint32_t field_id) override;
 
+  void NotifyEndOfFile() override;
+
  private:
   std::unique_ptr<TrackEventTracker> track_event_tracker_;
   TrackEventTokenizer tokenizer_;
