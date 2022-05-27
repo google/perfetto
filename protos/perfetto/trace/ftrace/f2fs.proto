@@ -258,3 +258,33 @@ message F2fsIostatFtraceEvent {
   optional uint64 fs_nio = 22;
   optional uint64 fs_nrio = 23;
 }
+message F2fsIostatLatencyFtraceEvent {
+  optional uint32 d_rd_avg = 1;
+  optional uint32 d_rd_cnt = 2;
+  optional uint32 d_rd_peak = 3;
+  optional uint32 d_wr_as_avg = 4;
+  optional uint32 d_wr_as_cnt = 5;
+  optional uint32 d_wr_as_peak = 6;
+  optional uint32 d_wr_s_avg = 7;
+  optional uint32 d_wr_s_cnt = 8;
+  optional uint32 d_wr_s_peak = 9;
+  optional uint64 dev = 10;
+  optional uint32 m_rd_avg = 11;
+  optional uint32 m_rd_cnt = 12;
+  optional uint32 m_rd_peak = 13;
+  optional uint32 m_wr_as_avg = 14;
+  optional uint32 m_wr_as_cnt = 15;
+  optional uint32 m_wr_as_peak = 16;
+  optional uint32 m_wr_s_avg = 17;
+  optional uint32 m_wr_s_cnt = 18;
+  optional uint32 m_wr_s_peak = 19;
+  optional uint32 n_rd_avg = 20;
+  optional uint32 n_rd_cnt = 21;
+  optional uint32 n_rd_peak = 22;
+  optional uint32 n_wr_as_avg = 23;
+  optional uint32 n_wr_as_cnt = 24;
+  optional uint32 n_wr_as_peak = 25;
+  optional uint32 n_wr_s_avg = 26;
+  optional uint32 n_wr_s_cnt = 27;
+  optional uint32 n_wr_s_peak = 28;
+}

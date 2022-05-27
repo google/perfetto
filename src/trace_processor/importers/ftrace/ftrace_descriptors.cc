@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<MessageDescriptor, 420> descriptors{{
+std::array<MessageDescriptor, 421> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -4533,6 +4533,41 @@ std::array<MessageDescriptor, 420> descriptors{{
             {"fs_mrio", ProtoSchemaType::kUint64},
             {"fs_nio", ProtoSchemaType::kUint64},
             {"fs_nrio", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "f2fs_iostat_latency",
+        28,
+        {
+            {},
+            {"d_rd_avg", ProtoSchemaType::kUint32},
+            {"d_rd_cnt", ProtoSchemaType::kUint32},
+            {"d_rd_peak", ProtoSchemaType::kUint32},
+            {"d_wr_as_avg", ProtoSchemaType::kUint32},
+            {"d_wr_as_cnt", ProtoSchemaType::kUint32},
+            {"d_wr_as_peak", ProtoSchemaType::kUint32},
+            {"d_wr_s_avg", ProtoSchemaType::kUint32},
+            {"d_wr_s_cnt", ProtoSchemaType::kUint32},
+            {"d_wr_s_peak", ProtoSchemaType::kUint32},
+            {"dev", ProtoSchemaType::kUint64},
+            {"m_rd_avg", ProtoSchemaType::kUint32},
+            {"m_rd_cnt", ProtoSchemaType::kUint32},
+            {"m_rd_peak", ProtoSchemaType::kUint32},
+            {"m_wr_as_avg", ProtoSchemaType::kUint32},
+            {"m_wr_as_cnt", ProtoSchemaType::kUint32},
+            {"m_wr_as_peak", ProtoSchemaType::kUint32},
+            {"m_wr_s_avg", ProtoSchemaType::kUint32},
+            {"m_wr_s_cnt", ProtoSchemaType::kUint32},
+            {"m_wr_s_peak", ProtoSchemaType::kUint32},
+            {"n_rd_avg", ProtoSchemaType::kUint32},
+            {"n_rd_cnt", ProtoSchemaType::kUint32},
+            {"n_rd_peak", ProtoSchemaType::kUint32},
+            {"n_wr_as_avg", ProtoSchemaType::kUint32},
+            {"n_wr_as_cnt", ProtoSchemaType::kUint32},
+            {"n_wr_as_peak", ProtoSchemaType::kUint32},
+            {"n_wr_s_avg", ProtoSchemaType::kUint32},
+            {"n_wr_s_cnt", ProtoSchemaType::kUint32},
+            {"n_wr_s_peak", ProtoSchemaType::kUint32},
         },
     },
 }};
