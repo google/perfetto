@@ -1806,6 +1806,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_util",
+        ":perfetto_src_trace_processor_views_views",
         ":perfetto_src_traced_probes_android_log_android_log",
         ":perfetto_src_traced_probes_common_common",
         ":perfetto_src_traced_probes_data_source",
@@ -8203,6 +8204,7 @@ filegroup {
     srcs: [
         "src/trace_processor/db/column.cc",
         "src/trace_processor/db/table.cc",
+        "src/trace_processor/db/view.cc",
     ],
 }
 
@@ -8212,6 +8214,7 @@ filegroup {
     srcs: [
         "src/trace_processor/db/compare_unittest.cc",
         "src/trace_processor/db/table_unittest.cc",
+        "src/trace_processor/db/view_unittest.cc",
     ],
 }
 
@@ -8852,6 +8855,11 @@ filegroup {
 // GN: //src/trace_processor/util:util
 filegroup {
     name: "perfetto_src_trace_processor_util_util",
+}
+
+// GN: //src/trace_processor/views:views
+filegroup {
+    name: "perfetto_src_trace_processor_views_views",
 }
 
 // GN: //src/traceconv:gen_cc_trace_descriptor
@@ -10053,6 +10061,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_unittests",
         ":perfetto_src_trace_processor_util_util",
+        ":perfetto_src_trace_processor_views_views",
         ":perfetto_src_traced_probes_android_log_android_log",
         ":perfetto_src_traced_probes_android_log_unittests",
         ":perfetto_src_traced_probes_common_common",
@@ -10359,6 +10368,7 @@ cc_binary {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_util",
+        ":perfetto_src_trace_processor_views_views",
         "src/trace_processor/trace_processor_shell.cc",
         "src/trace_processor/util/proto_to_json.cc",
     ],
@@ -10520,6 +10530,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_util",
+        ":perfetto_src_trace_processor_views_views",
         ":perfetto_src_traceconv_lib",
         ":perfetto_src_traceconv_main",
         ":perfetto_src_traceconv_pprofbuilder",
