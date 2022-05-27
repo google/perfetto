@@ -24,6 +24,8 @@ source_set("db") {
     "table.h",
     "typed_column.h",
     "typed_column_internal.h",
+    "view.cc",
+    "view.h",
   ]
   deps = [
     "../../../gn:default_deps",
@@ -39,12 +41,14 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "compare_unittest.cc",
     "table_unittest.cc",
+    "view_unittest.cc",
   ]
   deps = [
     ":db",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
-    "../../base:base",
-    "../tables:tables",
+    "../../base",
+    "../tables",
+    "../views",
   ]
 }
