@@ -26,6 +26,7 @@ import {
   PivotTableReduxResult,
   SortDirection
 } from '../common/state';
+import {fromNs, timeToCode} from '../common/time';
 import {
   PivotTableReduxController,
   PivotTree
@@ -268,8 +269,10 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
     renderedCells.push(
         m('td', {colspan}, button, `${path[path.length - 1].nextKey}`));
 
-    for (const value of tree.aggregates) {
-      renderedCells.push(m('td', `${value}`));
+    for (let i = 0; i < tree.aggregates.length; i++) {
+      const renderedValue = this.renderCell(
+          result.metadata.aggregationColumns[i], tree.aggregates[i]);
+      renderedCells.push(m('td', renderedValue));
     }
 
     const drillFilters: DrillFilter[] = [];
@@ -282,6 +285,16 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
 
     renderedCells.push(this.renderDrillDownCell(area, result, drillFilters));
     return m('tr', renderedCells);
+  }
+
+  renderCell(column: TableColumn, value: ColumnType): string {
+    if (column.kind === 'regular' &&
+        (column.column === 'dur' || column.column === 'thread_dur')) {
+      if (typeof value === 'number') {
+        return timeToCode(fromNs(value));
+      }
+    }
+    return `${value}`;
   }
 
   renderTree(
@@ -315,17 +328,20 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
       const drillFilters: DrillFilter[] = [];
       const treeDepth = result.metadata.pivotColumns.length;
       for (let j = 0; j < treeDepth; j++) {
+        const value = this.renderCell(result.metadata.pivotColumns[j], row[j]);
         if (j < path.length) {
-          renderedCells.push(m('td', m('span.indent', ' '), `${row[j]}`));
+          renderedCells.push(m('td', m('span.indent', ' '), value));
         } else {
-          renderedCells.push(m(`td`, `${row[j]}`));
+          renderedCells.push(m(`td`, value));
         }
         drillFilters.push(
             {column: result.metadata.pivotColumns[j], value: row[j]});
       }
       for (let j = 0; j < result.metadata.aggregationColumns.length; j++) {
         const value = row[aggregationIndex(treeDepth, j, treeDepth)];
-        renderedCells.push(m('td', `${value}`));
+        const renderedValue =
+            this.renderCell(result.metadata.aggregationColumns[j], value);
+        renderedCells.push(m('td', renderedValue));
       }
 
       renderedCells.push(this.renderDrillDownCell(area, result, drillFilters));
@@ -338,8 +354,12 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         [m('td.total-values',
            {'colspan': queryResult.metadata.pivotColumns.length},
            m('strong', 'Total values:'))];
-    for (const aggValue of queryResult.tree.aggregates) {
-      overallValuesRow.push(m('td', `${aggValue}`));
+    for (let i = 0; i < queryResult.tree.aggregates.length; i++) {
+      overallValuesRow.push(
+          m('td',
+            this.renderCell(
+                queryResult.metadata.aggregationColumns[i],
+                queryResult.tree.aggregates[i])));
     }
     overallValuesRow.push(m('td'));
     return m('tr', overallValuesRow);
