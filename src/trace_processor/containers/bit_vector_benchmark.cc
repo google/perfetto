@@ -143,8 +143,10 @@ static void BM_BitVectorIndexOfNthSet(benchmark::State& state) {
   static constexpr uint32_t kPoolSize = 1024 * 1024;
   std::vector<uint32_t> row_pool(kPoolSize);
   uint32_t set_bit_count = bv.GetNumBitsSet();
-  if (set_bit_count == 0)
+  if (set_bit_count == 0) {
+    state.SkipWithError("Cannot find set bit in all zeros bitvector");
     return;
+  }
 
   for (uint32_t i = 0; i < kPoolSize; ++i) {
     row_pool[i] = rnd_engine() % set_bit_count;

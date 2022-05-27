@@ -55,10 +55,18 @@ export function base64Encode(buffer: Uint8Array): string {
 }
 
 export function base64Decode(str: string): Uint8Array {
-  const arr = new Uint8Array(b64Len(str));
-  const written = b64Decode(str, arr, 0);
+  // if the string is in base64url format, convert to base64
+  const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  const arr = new Uint8Array(b64Len(b64));
+  const written = b64Decode(b64, arr, 0);
   assertTrue(written === arr.length);
   return arr;
+}
+
+// encode binary array to hex string
+export function hexEncode(bytes: Uint8Array): string {
+  return bytes.reduce(
+      (prev, cur) => prev + ('0' + cur.toString(16)).slice(-2), '');
 }
 
 export function utf8Encode(str: string): Uint8Array {

@@ -88,13 +88,14 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
                      Variadic::Integer(value));
   }
   void AddUnsignedInteger(const Key& key, uint64_t value) final {
-    if (args_translation_table_.TranslateUnsignedIntegerArg(key, value,
-                                                            inserter_)) {
+    StringId flat_key_id =
+        storage_.InternString(base::StringView(key.flat_key));
+    StringId key_id = storage_.InternString(base::StringView(key.key));
+    Variadic variadic_val = Variadic::UnsignedInteger(value);
+    if (args_translation_table_.TranslateArg(key_id, variadic_val, inserter_)) {
       return;
     }
-    inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
-                     storage_.InternString(base::StringView(key.key)),
-                     Variadic::UnsignedInteger(value));
+    inserter_.AddArg(flat_key_id, key_id, variadic_val);
   }
   void AddString(const Key& key, const protozero::ConstChars& value) final {
     inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
@@ -121,8 +122,7 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
     if (!json_value)
       return false;
     return json::AddJsonValueToArgs(*json_value, base::StringView(key.flat_key),
-                                    base::StringView(key.key), &storage_,
-                                    &inserter_);
+                                    base::StringView(key.key), &storage_, this);
   }
   void AddNull(const Key& key) final {
     inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
@@ -1031,9 +1031,7 @@ class TrackEventParser::EventImporter {
                    ->Insert({ts_, parser_->raw_legacy_event_id_, 0, *utid_})
                    .id;
 
-    ArgsTracker args(context_);
-    auto inserter = args.AddArgsTo(id);
-
+    auto inserter = context_->args_tracker->AddArgsTo(id);
     inserter
         .AddArg(parser_->legacy_event_category_key_id_,
                 Variadic::String(category_id_))

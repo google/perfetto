@@ -192,7 +192,7 @@ Table::Schema AncestorGenerator::CreateSchema() {
     case Ancestor::kSlice:
       return tables::AncestorSliceTable::Schema();
     case Ancestor::kStackProfileCallsite:
-      return tables::StackProfileCallsiteTable::Schema();
+      return tables::AncestorStackProfileCallsiteTable::Schema();
     case Ancestor::kSliceByStack:
       return tables::AncestorSliceByStackTable::Schema();
   }
@@ -204,7 +204,7 @@ std::string AncestorGenerator::TableName() {
     case Ancestor::kSlice:
       return tables::AncestorSliceTable::Name();
     case Ancestor::kStackProfileCallsite:
-      return tables::StackProfileCallsiteTable::Name();
+      return tables::AncestorStackProfileCallsiteTable::Name();
     case Ancestor::kSliceByStack:
       return tables::AncestorSliceByStackTable::Name();
   }
