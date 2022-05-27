@@ -107,7 +107,7 @@ MATCHER_P(DoubleEq, exp, "Double matcher that satisfies -Wfloat-equal") {
 
 class MockSchedEventTracker : public SchedEventTracker {
  public:
-  MockSchedEventTracker(TraceProcessorContext* context)
+  explicit MockSchedEventTracker(TraceProcessorContext* context)
       : SchedEventTracker(context) {}
 
   MOCK_METHOD9(PushSchedSwitch,
@@ -124,7 +124,8 @@ class MockSchedEventTracker : public SchedEventTracker {
 
 class MockEventTracker : public EventTracker {
  public:
-  MockEventTracker(TraceProcessorContext* context) : EventTracker(context) {}
+  explicit MockEventTracker(TraceProcessorContext* context)
+      : EventTracker(context) {}
   virtual ~MockEventTracker() = default;
 
   MOCK_METHOD9(PushSchedSwitch,
@@ -146,7 +147,7 @@ class MockEventTracker : public EventTracker {
 
 class MockProcessTracker : public ProcessTracker {
  public:
-  MockProcessTracker(TraceProcessorContext* context)
+  explicit MockProcessTracker(TraceProcessorContext* context)
       : ProcessTracker(context) {}
 
   MOCK_METHOD4(SetProcessMetadata,
@@ -190,7 +191,16 @@ class MockBoundInserter : public ArgsTracker::BoundInserter {
 
 class MockSliceTracker : public SliceTracker {
  public:
-  MockSliceTracker(TraceProcessorContext* context) : SliceTracker(context) {}
+  explicit MockSliceTracker(TraceProcessorContext* context)
+      : SliceTracker(context) {
+    ON_CALL(*this, EndMaybePreservingArgs(_, _, _, _, _))
+        .WillByDefault([this](int64_t timestamp, TrackId track_id, StringId cat,
+                              StringId name, SetArgsCallback args_callback) {
+          auto id = End(timestamp, track_id, cat, name, args_callback);
+          return id ? base::make_optional(IdAndArgsTracker{*id, base::nullopt})
+                    : base::nullopt;
+        });
+  }
 
   MOCK_METHOD5(Begin,
                base::Optional<SliceId>(int64_t timestamp,
@@ -204,6 +214,12 @@ class MockSliceTracker : public SliceTracker {
                                        StringId cat,
                                        StringId name,
                                        SetArgsCallback args_callback));
+  MOCK_METHOD5(EndMaybePreservingArgs,
+               base::Optional<IdAndArgsTracker>(int64_t timestamp,
+                                                TrackId track_id,
+                                                StringId cat,
+                                                StringId name,
+                                                SetArgsCallback args_callback));
   MOCK_METHOD6(Scoped,
                base::Optional<SliceId>(int64_t timestamp,
                                        TrackId track_id,
@@ -234,9 +250,9 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.event_tracker.reset(event_);
     sched_ = new MockSchedEventTracker(&context_);
     context_.sched_tracker.reset(sched_);
-    process_ = new MockProcessTracker(&context_);
+    process_ = new NiceMock<MockProcessTracker>(&context_);
     context_.process_tracker.reset(process_);
-    slice_ = new MockSliceTracker(&context_);
+    slice_ = new NiceMock<MockSliceTracker>(&context_);
     context_.slice_tracker.reset(slice_);
     context_.slice_translation_table.reset(new SliceTranslationTable(storage_));
     clock_ = new ClockTracker(&context_);
