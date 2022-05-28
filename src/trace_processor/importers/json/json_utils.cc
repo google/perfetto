@@ -15,7 +15,6 @@
  */
 
 #include "src/trace_processor/importers/json/json_utils.h"
-#include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include "perfetto/base/build_config.h"
 
@@ -146,7 +145,7 @@ bool AddJsonValueToArgs(const Json::Value& value,
                         base::StringView flat_key,
                         base::StringView key,
                         TraceStorage* storage,
-                        util::ProtoToArgsParser::Delegate* delegate) {
+                        ArgsTracker::BoundInserter* inserter) {
   PERFETTO_DCHECK(IsJsonSupported());
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
@@ -159,7 +158,7 @@ bool AddJsonValueToArgs(const Json::Value& value,
       std::string child_key = key.ToStdString() + "." + child_name;
       inserted |=
           AddJsonValueToArgs(*it, base::StringView(child_flat_key),
-                             base::StringView(child_key), storage, delegate);
+                             base::StringView(child_key), storage, inserter);
     }
     return inserted;
   }
@@ -168,43 +167,44 @@ bool AddJsonValueToArgs(const Json::Value& value,
     auto it = value.begin();
     bool inserted_any = false;
     std::string array_key = key.ToStdString();
+    StringId array_key_id = storage->InternString(key);
     for (; it != value.end(); ++it) {
-      size_t array_index = delegate->GetArrayEntryIndex(array_key);
+      size_t array_index = inserter->GetNextArrayEntryIndex(array_key_id);
       std::string child_key =
           array_key + "[" + std::to_string(array_index) + "]";
       bool inserted = AddJsonValueToArgs(
-          *it, flat_key, base::StringView(child_key), storage, delegate);
+          *it, flat_key, base::StringView(child_key), storage, inserter);
       if (inserted)
-        delegate->IncrementArrayEntryIndex(array_key);
+        inserter->IncrementArrayEntryIndex(array_key_id);
       inserted_any |= inserted;
     }
     return inserted_any;
   }
 
   // Leaf value.
-  const util::ProtoToArgsParser::Key full_key(flat_key.ToStdString(),
-                                              key.ToStdString());
+  auto flat_key_id = storage->InternString(flat_key);
+  auto key_id = storage->InternString(key);
 
   switch (value.type()) {
     case Json::ValueType::nullValue:
       break;
     case Json::ValueType::intValue:
-      delegate->AddInteger(full_key, value.asInt64());
+      inserter->AddArg(flat_key_id, key_id, Variadic::Integer(value.asInt64()));
       return true;
     case Json::ValueType::uintValue:
-      delegate->AddUnsignedInteger(full_key, value.asUInt64());
+      inserter->AddArg(flat_key_id, key_id,
+                       Variadic::UnsignedInteger(value.asUInt64()));
       return true;
     case Json::ValueType::realValue:
-      delegate->AddDouble(full_key, value.asDouble());
+      inserter->AddArg(flat_key_id, key_id, Variadic::Real(value.asDouble()));
       return true;
-    case Json::ValueType::stringValue: {
-      const std::string str_val = value.asString();
-      delegate->AddString(
-          full_key, protozero::ConstChars{str_val.data(), str_val.size()});
+    case Json::ValueType::stringValue:
+      inserter->AddArg(flat_key_id, key_id,
+                       Variadic::String(storage->InternString(
+                           base::StringView(value.asString()))));
       return true;
-    }
     case Json::ValueType::booleanValue:
-      delegate->AddBoolean(full_key, value.asBool());
+      inserter->AddArg(flat_key_id, key_id, Variadic::Boolean(value.asBool()));
       return true;
     case Json::ValueType::objectValue:
     case Json::ValueType::arrayValue:
@@ -217,7 +217,7 @@ bool AddJsonValueToArgs(const Json::Value& value,
   perfetto::base::ignore_result(flat_key);
   perfetto::base::ignore_result(key);
   perfetto::base::ignore_result(storage);
-  perfetto::base::ignore_result(delegate);
+  perfetto::base::ignore_result(inserter);
   return false;
 #endif
 }

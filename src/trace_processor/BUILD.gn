@@ -179,6 +179,7 @@ source_set("storage_minimal") {
     "util:gzip",
     "util:interned_message_view",
     "util:proto_to_args_parser",
+    "views",
   ]
   public_deps = [
     "../../include/perfetto/trace_processor:storage",
@@ -295,6 +296,7 @@ source_set("storage_full") {
     "types",
     "util",
     "util:gzip",
+    "views",
   ]
   if (enable_perfetto_trace_processor_json) {
     deps += [ "../../gn:jsoncpp" ]
@@ -351,6 +353,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "util",
       "util:gzip",
       "util:protozero_to_text",
+      "views",
     ]
     public_deps = [
       "../../gn:sqlite",  # iterator_impl.h includes sqlite3.h.

@@ -222,6 +222,7 @@ class Table {
 
  private:
   friend class Column;
+  friend class View;
 
   Table CopyExceptRowMaps() const;
 };
