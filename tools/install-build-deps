@@ -137,11 +137,11 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
 ]
 
 BUILD_DEPS_HOST = [
-    # Keep in sync with Android's //external/googletest/README.version.
+    # Keep in sync with Android's //external/googletest/METADATA.
     Dependency(
         'buildtools/googletest',
         'https://android.googlesource.com/platform/external/googletest.git',
-        '3f05f651ae3621db58468153e32016bc1397800b', 'all', 'all'),
+        '609281088cfefc76f9d0ce82e1ff6c30cc3591e5', 'all', 'all'),
 
     # Keep in sync with Chromium's //third_party/protobuf.
     Dependency(
@@ -613,7 +613,7 @@ def Main():
       # Decompress the archive.
       if local_path.endswith('.tgz'):
         MkdirRecursive(zip_target_dir)
-        subprocess.check_call(['tar', '-xf', local_path], cwd=zip_target_dir)
+        subprocess.check_call(['tar', '-oxf', local_path], cwd=zip_target_dir)
       elif local_path.endswith('.zip'):
         with zipfile.ZipFile(local_path, 'r') as zf:
           for info in zf.infolist():

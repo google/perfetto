@@ -164,7 +164,7 @@ void LogMessage(LogLev level,
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   // Logcat has already timestamping, don't re-emit it.
-  __android_log_print(ANDROID_LOG_DEBUG + level, "perfetto", "%s %s",
+  __android_log_print(int{ANDROID_LOG_DEBUG} + level, "perfetto", "%s %s",
                       file_and_line.c_str(), log_msg);
 #endif
 

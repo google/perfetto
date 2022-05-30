@@ -1,0 +1,42 @@
+packet {
+  clock_snapshot {
+    clocks {
+      clock_id: 1
+      timestamp: 0
+    }
+    clocks {
+      clock_id: 6
+      timestamp: 10
+    }
+  }
+  trusted_packet_sequence_id: 1
+  timestamp: 10
+}
+packet {
+  clock_snapshot {
+    clocks {
+      clock_id: 1
+      timestamp: 1652904000000000000
+    }
+    clocks {
+      clock_id: 6
+      timestamp: 20
+    }
+  }
+  trusted_packet_sequence_id: 1
+  timestamp: 20
+}
+packet {
+  clock_snapshot {
+    clocks {
+      clock_id: 1
+      timestamp: 1652903999999999995
+    }
+    clocks {
+      clock_id: 6
+      timestamp: 30
+    }
+  }
+  trusted_packet_sequence_id: 1
+  timestamp: 30
+}

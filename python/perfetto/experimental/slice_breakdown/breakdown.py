@@ -20,7 +20,8 @@ from perfetto.trace_processor.api import TraceProcessorException
 def compute_breakdown(tp: TraceProcessor,
                       start_ts=None,
                       end_ts=None,
-                      process_name=None):
+                      process_name=None,
+                      main_thread: bool = False):
   """For each userspace slice in the trace processor instance |tp|, computes
   the self-time of that slice grouping by process name, thread name
   and thread state.
@@ -31,6 +32,8 @@ def compute_breakdown(tp: TraceProcessor,
     end_ts: optional bound to only consider slices until this ts
     process_name: optional process name to filter for slices; specifying
         this argument can make computing the breakdown a lot faster.
+    main_thread: whether to only consider slices on the main thread of each
+        process.
 
   Returns:
     A Pandas dataframe containing the total self time taken by a slice stack
@@ -70,7 +73,7 @@ def compute_breakdown(tp: TraceProcessor,
     DROP VIEW IF EXISTS thread_slice_stack
   """)
 
-  tp.query("""
+  tp.query(f"""
     CREATE VIEW thread_slice_stack AS
     SELECT
       efs.ts,
@@ -89,10 +92,10 @@ def compute_breakdown(tp: TraceProcessor,
         ) || ' > ' || n.modded_name,
         n.modded_name
       )) AS stack_name
-    FROM experimental_flat_slice({}, {}) efs
+    FROM experimental_flat_slice({start_ts}, {end_ts}) efs
     LEFT JOIN modded_names n ON efs.source_id = n.id
     JOIN thread_track t ON t.id = efs.track_id
-  """.format(start_ts, end_ts))
+  """)
 
   tp.query("""
     DROP TABLE IF EXISTS thread_slice_stack_with_state
@@ -107,11 +110,16 @@ def compute_breakdown(tp: TraceProcessor,
   """)
 
   if process_name:
-    where_process = "AND process.name = '{}'".format(process_name)
+    where_process = f"AND process.name GLOB '{process_name}'"
   else:
     where_process = ''
 
-  breakdown = tp.query("""
+  if main_thread:
+    where_main_thread = "AND thread.is_main_thread"
+  else:
+    where_main_thread = ""
+
+  breakdown = tp.query(f"""
     SELECT
       process.name AS process_name,
       thread.name AS thread_name,
@@ -147,17 +155,20 @@ def compute_breakdown(tp: TraceProcessor,
     FROM process
     JOIN thread USING (upid)
     JOIN thread_slice_stack_with_state slice USING (utid)
-    WHERE dur != -1 {}
+    WHERE dur != -1
+      {where_main_thread}
+      {where_process}
     GROUP BY thread.name, stack_id, state
     ORDER BY dur_sum DESC
-  """.format(where_process)).as_pandas_dataframe()
+  """).as_pandas_dataframe()
 
   return breakdown
 
 
 def compute_breakdown_for_startup(tp: TraceProcessor,
                                   package_name=None,
-                                  process_name=None):
+                                  process_name=None,
+                                  main_thread: bool = False):
   """Computes the slice breakdown (like |compute_breakdown|) but only
   considering slices which happened during an app startup
 
@@ -168,6 +179,8 @@ def compute_breakdown_for_startup(tp: TraceProcessor,
         only a single startup of any app should be in the trace.
     process_name: optional process name to filter for slices; specifying
         this argument can make computing the breakdown a lot faster.
+    main_thread: whether to only consider slices on the main thread of each
+        process.
 
   Returns:
     The same as |compute_breakdown| but only containing slices which happened
@@ -178,11 +191,11 @@ def compute_breakdown_for_startup(tp: TraceProcessor,
   # Verify there was only one startup in the trace matching the package
   # name.
   filter = "WHERE package = '{}'".format(package_name) if package_name else ''
-  launches = tp.query('''
+  launches = tp.query(f'''
     SELECT ts, ts_end, dur
     FROM launches
-    {}
-  '''.format(filter)).as_pandas_dataframe()
+    {filter}
+  ''').as_pandas_dataframe()
   if len(launches) == 0:
     raise TraceProcessorException("Didn't find startup in trace")
   if len(launches) > 1:
@@ -191,4 +204,4 @@ def compute_breakdown_for_startup(tp: TraceProcessor,
   start = launches['ts'][0]
   end = launches['ts_end'][0]
 
-  return compute_breakdown(tp, start, end, process_name)
+  return compute_breakdown(tp, start, end, process_name, main_thread)

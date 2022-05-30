@@ -74,10 +74,6 @@ import { globals } from './globals';
 import { LoadingManager } from './loading_manager';
 import { LogsController } from './logs_controller';
 import { MetricsController } from './metrics_controller';
-import {
-  PivotTableController,
-  PivotTableControllerArgs
-} from './pivot_table_controller';
 import {PivotTableReduxController} from './pivot_table_redux_controller';
 import {QueryController, QueryControllerArgs} from './query_controller';
 import {SearchController} from './search_controller';
@@ -253,14 +249,6 @@ export class TraceController extends Controller<States> {
           Child('traceError', TraceErrorController, { engine }));
         childControllers.push(Child('metrics', MetricsController, { engine }));
 
-        // Create a PivotTableController for each pivot table.
-        for (const pivotTableId of Object.keys(globals.state.pivotTable)) {
-          const pivotTableArgs:
-            PivotTableControllerArgs = { pivotTableId, engine };
-          childControllers.push(
-            Child(pivotTableId, PivotTableController, pivotTableArgs));
-        }
-
         return childControllers;
 
       default:
@@ -423,6 +411,7 @@ export class TraceController extends Controller<States> {
 
     globals.dispatch(Actions.removeDebugTrack({}));
     globals.dispatch(Actions.sortThreadTracks({}));
+    globals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));
 
     await this.selectFirstHeapProfile();
     if (PERF_SAMPLE_FLAG.get()) {

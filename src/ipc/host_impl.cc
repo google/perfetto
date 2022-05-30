@@ -43,7 +43,8 @@ constexpr base::SockFamily kHostSockFamily =
 base::CrashKey g_crash_key_uid("ipc_uid");
 
 uid_t GetPosixPeerUid(base::UnixSocket* sock) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
   base::ignore_result(sock);
   // Unsupported. Must be != kInvalidUid or the PacketValidator will fail.
   return 0;

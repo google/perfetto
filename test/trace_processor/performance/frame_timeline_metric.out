@@ -1,0 +1,12 @@
+android_frame_timeline_metric {
+  app_deadline_missed_total_count: 3
+  process {
+    process_name: "process1"
+    app_deadline_missed_count: 2
+  }
+  process {
+    process_name: "process2"
+    app_deadline_missed_count: 1
+  }
+}
+

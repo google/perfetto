@@ -39,12 +39,6 @@ import {randomColor} from './colorizer';
 import {createEmptyState} from './empty_state';
 import {DEFAULT_VIEWING_OPTION, PERF_SAMPLES_KEY} from './flamegraph_util';
 import {
-  AggregationAttrs,
-  PivotAttrs,
-  SubQueryAttrs,
-  TableAttrs
-} from './pivot_table_common';
-import {
   AdbRecordingTarget,
   Area,
   CallsiteInfo,
@@ -290,6 +284,13 @@ export const StateActions = {
         state.scrollingTracks.filter(id => id !== debugTrackId);
     state.pinnedTracks = state.pinnedTracks.filter(id => id !== debugTrackId);
     state.debugTrackId = undefined;
+  },
+
+  maybeExpandOnlyTrackGroup(state: StateDraft, _: {}): void {
+    const trackGroups = Object.values(state.trackGroups);
+    if (trackGroups.length === 1) {
+      trackGroups[0].collapsed = false;
+    }
   },
 
   sortThreadTracks(state: StateDraft, _: {}): void {
@@ -942,82 +943,6 @@ export const StateActions = {
         state.nonSerializableState.pivotTableRedux.selectionArea?.areaId) {
       state.nonSerializableState.pivotTableRedux.queryResult = null;
     }
-  },
-
-  addNewPivotTable(state: StateDraft, args: {
-    name: string,
-    pivotTableId: string,
-    selectedPivots: PivotAttrs[],
-    selectedAggregations: AggregationAttrs[],
-    traceTime?: TraceTime,
-    selectedTrackIds?: number[]
-  }): void {
-    state.pivotTable[args.pivotTableId] = {
-      id: args.pivotTableId,
-      name: args.name,
-      selectedPivots: args.selectedPivots,
-      selectedAggregations: args.selectedAggregations,
-      isLoadingQuery: false,
-      traceTime: args.traceTime,
-      selectedTrackIds: args.selectedTrackIds
-    };
-  },
-
-  deletePivotTable(state: StateDraft, args: {pivotTableId: string}): void {
-    delete state.pivotTable[args.pivotTableId];
-  },
-
-  resetPivotTableRequest(state: StateDraft, args: {pivotTableId: string}):
-      void {
-        if (state.pivotTable[args.pivotTableId] !== undefined) {
-          state.pivotTable[args.pivotTableId].requestedAction = undefined;
-        }
-      },
-
-  setPivotTableRequest(
-      state: StateDraft,
-      args: {pivotTableId: string, action: string, attrs?: SubQueryAttrs}):
-      void {
-        state.pivotTable[args.pivotTableId].requestedAction = {
-          action: args.action,
-          attrs: args.attrs
-        };
-      },
-
-  setAvailablePivotTableColumns(
-      state: StateDraft,
-      args: {availableColumns: TableAttrs[], availableAggregations: string[]}):
-      void {
-        state.pivotTableConfig.availableColumns = args.availableColumns;
-        state.pivotTableConfig.availableAggregations =
-            args.availableAggregations;
-      },
-
-  toggleQueryLoading(state: StateDraft, args: {pivotTableId: string}): void {
-    state.pivotTable[args.pivotTableId].isLoadingQuery =
-        !state.pivotTable[args.pivotTableId].isLoadingQuery;
-  },
-
-  setSelectedPivotsAndAggregations(state: StateDraft, args: {
-    pivotTableId: string,
-    selectedPivots: PivotAttrs[],
-    selectedAggregations: AggregationAttrs[]
-  }) {
-    state.pivotTable[args.pivotTableId].selectedPivots =
-        args.selectedPivots.map(pivot => Object.assign({}, pivot));
-    state.pivotTable[args.pivotTableId].selectedAggregations =
-        args.selectedAggregations.map(
-            aggregation => Object.assign({}, aggregation));
-  },
-
-  setPivotTableRange(state: StateDraft, args: {
-    pivotTableId: string,
-    traceTime?: TraceTime,
-    selectedTrackIds?: number[]
-  }) {
-    const pivotTable = state.pivotTable[args.pivotTableId];
-    pivotTable.traceTime = args.traceTime;
-    pivotTable.selectedTrackIds = args.selectedTrackIds;
   },
 
   setPivotStateQueryResult(

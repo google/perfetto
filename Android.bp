@@ -156,10 +156,6 @@ cc_binary {
     defaults: [
         "perfetto_defaults",
     ],
-    cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-    ],
     header_libs: [
         "bionic_libc_platform_headers",
     ],
@@ -420,8 +416,6 @@ cc_library_shared {
         "perfetto_defaults",
     ],
     cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
         "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG",
     ],
     header_libs: [
@@ -608,10 +602,6 @@ cc_library_shared {
     ],
     defaults: [
         "perfetto_defaults",
-    ],
-    cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     ],
     target: {
         android: {
@@ -851,10 +841,6 @@ cc_library_static {
     defaults: [
         "perfetto_defaults",
     ],
-    cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-    ],
     apex_available: [
         "//apex_available:platform",
         "com.android.art",
@@ -998,8 +984,6 @@ cc_binary {
         "perfetto_defaults",
     ],
     cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
         "-DHAVE_HIDDEN",
     ],
 }
@@ -1262,10 +1246,6 @@ cc_library_static {
     defaults: [
         "perfetto_defaults",
     ],
-    cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-    ],
 }
 
 // GN: //test/cts:perfetto_cts_jni_deps
@@ -1510,10 +1490,6 @@ cc_library_static {
     ],
     defaults: [
         "perfetto_defaults",
-    ],
-    cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     ],
 }
 
@@ -1830,6 +1806,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_util",
+        ":perfetto_src_trace_processor_views_views",
         ":perfetto_src_traced_probes_android_log_android_log",
         ":perfetto_src_traced_probes_common_common",
         ":perfetto_src_traced_probes_data_source",
@@ -3747,6 +3724,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_metrics_chrome_descriptor",
     srcs: [
+        "protos/perfetto/metrics/android/android_frame_timeline_metric.proto",
         "protos/perfetto/metrics/android/android_trusty_workqueues.proto",
         "protos/perfetto/metrics/android/batt_metric.proto",
         "protos/perfetto/metrics/android/binder_metric.proto",
@@ -3816,6 +3794,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_metrics_descriptor",
     srcs: [
+        "protos/perfetto/metrics/android/android_frame_timeline_metric.proto",
         "protos/perfetto/metrics/android/android_trusty_workqueues.proto",
         "protos/perfetto/metrics/android/batt_metric.proto",
         "protos/perfetto/metrics/android/binder_metric.proto",
@@ -8225,6 +8204,7 @@ filegroup {
     srcs: [
         "src/trace_processor/db/column.cc",
         "src/trace_processor/db/table.cc",
+        "src/trace_processor/db/view.cc",
     ],
 }
 
@@ -8234,6 +8214,7 @@ filegroup {
     srcs: [
         "src/trace_processor/db/compare_unittest.cc",
         "src/trace_processor/db/table_unittest.cc",
+        "src/trace_processor/db/view_unittest.cc",
     ],
 }
 
@@ -8499,6 +8480,7 @@ genrule {
         "src/trace_processor/metrics/sql/android/android_dma_heap.sql",
         "src/trace_processor/metrics/sql/android/android_dvfs.sql",
         "src/trace_processor/metrics/sql/android/android_fastrpc.sql",
+        "src/trace_processor/metrics/sql/android/android_frame_timeline_metric.sql",
         "src/trace_processor/metrics/sql/android/android_gpu.sql",
         "src/trace_processor/metrics/sql/android/android_hwcomposer.sql",
         "src/trace_processor/metrics/sql/android/android_hwui_metric.sql",
@@ -8686,6 +8668,7 @@ filegroup {
         "src/trace_processor/importers/ftrace/ftrace_module_impl.cc",
         "src/trace_processor/importers/ftrace/ftrace_parser.cc",
         "src/trace_processor/importers/ftrace/ftrace_tokenizer.cc",
+        "src/trace_processor/importers/ftrace/iostat_tracker.cc",
         "src/trace_processor/importers/ftrace/rss_stat_tracker.cc",
         "src/trace_processor/importers/ftrace/sched_event_tracker.cc",
         "src/trace_processor/importers/ftrace/thread_state_tracker.cc",
@@ -8872,6 +8855,11 @@ filegroup {
 // GN: //src/trace_processor/util:util
 filegroup {
     name: "perfetto_src_trace_processor_util_util",
+}
+
+// GN: //src/trace_processor/views:views
+filegroup {
+    name: "perfetto_src_trace_processor_views_views",
 }
 
 // GN: //src/traceconv:gen_cc_trace_descriptor
@@ -10073,6 +10061,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_unittests",
         ":perfetto_src_trace_processor_util_util",
+        ":perfetto_src_trace_processor_views_views",
         ":perfetto_src_traced_probes_android_log_android_log",
         ":perfetto_src_traced_probes_android_log_unittests",
         ":perfetto_src_traced_probes_common_common",
@@ -10379,6 +10368,7 @@ cc_binary {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_util",
+        ":perfetto_src_trace_processor_views_views",
         "src/trace_processor/trace_processor_shell.cc",
         "src/trace_processor/util/proto_to_json.cc",
     ],
@@ -10540,6 +10530,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_util",
+        ":perfetto_src_trace_processor_views_views",
         ":perfetto_src_traceconv_lib",
         ":perfetto_src_traceconv_main",
         ":perfetto_src_traceconv_pprofbuilder",
@@ -10595,8 +10586,6 @@ cc_binary_host {
         "perfetto_defaults",
     ],
     cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
         "-DHAVE_HIDDEN",
     ],
 }
@@ -10773,10 +10762,6 @@ cc_binary {
     defaults: [
         "perfetto_defaults",
     ],
-    cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-    ],
     include_dirs: [
         "bionic/libc/kernel",
     ],
@@ -10934,10 +10919,6 @@ cc_binary {
     ],
     defaults: [
         "perfetto_defaults",
-    ],
-    cflags: [
-        "-DGOOGLE_PROTOBUF_NO_RTTI",
-        "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
     ],
 }
 

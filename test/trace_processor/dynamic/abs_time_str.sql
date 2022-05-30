@@ -1,0 +1,4 @@
+SELECT
+  ABS_TIME_STR(15) as t15,
+  ABS_TIME_STR(25) as t25,
+  ABS_TIME_STR(35) as t35;
