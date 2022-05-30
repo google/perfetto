@@ -137,6 +137,14 @@ bool SetBlocking(int fd, bool is_blocking) {
   return fcntl(fd, F_SETFL, flags) == 0;
 }
 
+bool ZeroPaddedPageTail(const uint8_t* start, const uint8_t* end) {
+  for (auto p = start; p < end; p++) {
+    if (*p != 0)
+      return false;
+  }
+  return true;
+}
+
 void LogInvalidPage(const void* start, size_t size) {
   PERFETTO_ELOG("Invalid ftrace page");
   std::string hexdump = base::HexDump(start, size);
@@ -576,11 +584,21 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
         // Kernel's include/linux/ring_buffer.h
         uint32_t event_size = 0;
         if (event_header.type_or_length == 0) {
-          if (!ReadAndAdvance<uint32_t>(&ptr, end, &event_size))
+          if (!ReadAndAdvance<uint32_t>(&ptr, end, &event_size)) {
             return 0;
-          // Size includes the size field itself.
-          if (event_size < 4)
+          }
+          // Size includes the size field itself. Special case for invalid
+          // tracing pages seen on select Android 4.19 kernels: the page header
+          // says there's still valid data, but the rest of the page is full of
+          // zeroes (which would not decode to a valid event). We pretend that
+          // such pages have been fully parsed. b/204564312.
+          if (PERFETTO_UNLIKELY(event_size == 0 &&
+                                event_header.time_delta == 0 &&
+                                ZeroPaddedPageTail(ptr, end))) {
+            return static_cast<size_t>(page_header->size);
+          } else if (PERFETTO_UNLIKELY(event_size < 4)) {
             return 0;
+          }
           event_size -= 4;
         } else {
           event_size = 4 * event_header.type_or_length;
