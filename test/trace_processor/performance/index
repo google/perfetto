@@ -1,6 +1,6 @@
 # IRQ max runtime and count over 1ms
 irq_runtime_metric.textproto android_irq_runtime irq_runtime_metric.out
 # CPU frequency maximum & minimum limits change
-cpu_frequency_limits.textproto cpu_frequency_limits.sql cpu_frequency_limits.out
+cpu_frequency_limits.textproto cpu_frequency_limits_test.sql cpu_frequency_limits.out
 # frame_timeline_metric collects App_Deadline_Missed metrics
 frame_timeline_metric.py android_frame_timeline_metric frame_timeline_metric.out

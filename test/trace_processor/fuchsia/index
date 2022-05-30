@@ -1,13 +1,13 @@
 # Contains tests for parsing Fuchsia traces.
 
 # Smoke test a bunch of different event types.
-../../data/fuchsia_trace.fxt ../common/smoke.sql fuchsia_smoke.out
-../../data/fuchsia_trace.fxt ../common/smoke_slices.sql fuchsia_smoke_slices.out
-../../data/fuchsia_trace.fxt smoke_instants.sql fuchsia_smoke_instants.out
-../../data/fuchsia_trace.fxt smoke_counters.sql fuchsia_smoke_counters.out
-../../data/fuchsia_trace.fxt smoke_flow.sql fuchsia_smoke_flow.out
-../../data/fuchsia_trace.fxt smoke_type.sql fuchsia_smoke_type.out
+../../data/fuchsia_trace.fxt ../common/smoke_test.sql fuchsia_smoke.out
+../../data/fuchsia_trace.fxt ../common/smoke_slices_test.sql fuchsia_smoke_slices.out
+../../data/fuchsia_trace.fxt smoke_instants_test.sql fuchsia_smoke_instants.out
+../../data/fuchsia_trace.fxt smoke_counters_test.sql fuchsia_smoke_counters.out
+../../data/fuchsia_trace.fxt smoke_flow_test.sql fuchsia_smoke_flow.out
+../../data/fuchsia_trace.fxt smoke_type_test.sql fuchsia_smoke_type.out
 
 # Smoke test a high-CPU trace.
-../../data/fuchsia_workstation.fxt ../common/smoke_slices.sql fuchsia_workstation_smoke_slices.out
-../../data/fuchsia_workstation.fxt smoke_args.sql fuchsia_workstation_smoke_args.out
+../../data/fuchsia_workstation.fxt ../common/smoke_slices_test.sql fuchsia_workstation_smoke_slices.out
+../../data/fuchsia_workstation.fxt smoke_args_test.sql fuchsia_workstation_smoke_args.out
