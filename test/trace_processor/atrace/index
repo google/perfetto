@@ -1,13 +1,13 @@
 # Check error handling when parsing print events.
-bad_print.textproto ../common/list_slices.sql bad_print_textproto_list_slices.out
-bad_print.systrace ../common/list_slices.sql bad_print_systrace_list_slices.out
-instant_atrace.py instant_with_thread.sql instant_atrace_instant_with_thread.out
-instant_async_atrace.py instant_async.sql instant_async_atrace_instant_async.out
+bad_print.textproto ../common/list_slices_test.sql bad_print_textproto_list_slices.out
+bad_print.systrace ../common/list_slices_test.sql bad_print_systrace_list_slices.out
+instant_atrace.py instant_with_thread_test.sql instant_atrace_instant_with_thread.out
+instant_async_atrace.py instant_async_test.sql instant_async_atrace_instant_async.out
 
 # Match legacy Catapult behaviour when we see multiple S events b2b with the same cookie
 # name and upid.
-android_b2b_async_begin.textproto ../common/list_slices.sql android_b2b_async_begin_list_slices.out
+android_b2b_async_begin.textproto ../common/list_slices_test.sql android_b2b_async_begin_list_slices.out
 
 # Android userspace async slices
-android_async_slice.textproto ../common/process_track_slices.sql process_track_slices_android_async_slice.out
-async_track_atrace.py ../common/process_track_slices.sql async_track_atrace_process_track_slices.out
+android_async_slice.textproto ../common/process_track_slices_test.sql process_track_slices_android_async_slice.out
+async_track_atrace.py ../common/process_track_slices_test.sql async_track_atrace_process_track_slices.out
