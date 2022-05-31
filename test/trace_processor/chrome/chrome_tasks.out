@@ -1,0 +1,52 @@
+
+"full_name","task_type","count"
+"OnLibevent","other",2208
+"RunTask(posted_from=components/favicon/core/large_icon_worker.cc:OnIconLookupComplete)","scheduler",694
+"RunTask(posted_from=components/history/core/browser/history_service.cc:GetLargestFaviconForURL)","scheduler",694
+"Choreographer(java_views=)","choreographer",627
+"VSync","other",624
+"viz.mojom.BeginFrameObserver message (hash=2365631060)","mojo",344
+"RunTask(posted_from=base/tracing/perfetto_task_runner.cc:PostDelayedTask)","scheduler",342
+"RunTask(posted_from=mojo/public/cpp/system/simple_watcher.cc:Notify)","mojo",269
+"RunTask(posted_from=ipc/ipc_mojo_bootstrap.cc:SendMessage)","scheduler",262
+"RunTask(posted_from=base/task/thread_pool/delayed_task_manager.cc:ScheduleProcessRipeTasksOnServiceThread)","scheduler",218
+"RunTask(posted_from=base/task/sequence_manager/task_queue_impl.cc:PushOntoDelayedIncomingQueue)","scheduler",210
+"RunTask(posted_from=components/power_scheduler/power_mode_arbiter.cc:OnVotesUpdated)","scheduler",198
+"ChromePowerModeVoter.onCoordinatorTouchEvent","java",197
+"sendTouchEvent","java",194
+"viz.mojom.CompositorFrameSinkClient message (hash=3114070324)","mojo",178
+"viz.mojom.CompositorFrameSink message (hash=3089589715)","mojo",170
+"RunTask(posted_from=mojo/public/cpp/system/simple_watcher.cc:ArmOrNotify)","scheduler",158
+"RunTask(posted_from=cc/scheduler/scheduler.cc:ScheduleBeginImplFrameDeadline)","scheduler",149
+"RunTask(posted_from=net/quic/quic_chromium_alarm_factory.cc:SetImpl)","scheduler",135
+"RunTask(posted_from=mojo/public/cpp/bindings/lib/interface_endpoint_client.cc:SendMessage)","scheduler",114
+"RunTask(posted_from=components/power_scheduler/power_mode_arbiter.cc:UpdatePendingResets)","scheduler",105
+"blink.mojom.WidgetInputHandler message (hash=3392143105)","mojo",97
+"blink.mojom.WidgetInputHandler reply (hash=3392143105)","mojo",97
+"tracing.mojom.ProducerHost message (hash=3013694824)","mojo",82
+"RunTask(posted_from=net/disk_cache/simple/simple_entry_impl.cc:WriteDataInternal)","scheduler",81
+"RunTask(posted_from=net/disk_cache/simple/simple_entry_impl.cc:CloseInternal)","scheduler",73
+"RunTask(posted_from=base/android/task_scheduler/task_runner_android.cc:PostDelayedTask)","scheduler",63
+"RunTask(posted_from=base/android/application_status_listener.cc:NotifyApplicationStateChange)","scheduler",54
+"Looper.dispatch: android.view.ViewRootImpl$ViewRootHandler(null)","other",53
+"TaskGraphRunner::RunTask","other",53
+"tracing.mojom.ProducerHost message (hash=2180696659)","mojo",51
+"tracing.mojom.ProducerHost reply (hash=2180696659)","mojo",49
+"RunTask(posted_from=components/power_scheduler/power_mode_arbiter.cc:ResetVoteAfterTimeout)","scheduler",48
+"RunTask(posted_from=gpu/command_buffer/service/scheduler.cc:RunNextTask)","scheduler",48
+"RunTask(posted_from=cc/trees/proxy_impl.cc:ScheduledActionSendBeginMainFrame)","scheduler",47
+"RunTask(posted_from=cc/trees/proxy_main.cc:BeginMainFrame)","scheduler",47
+"network.mojom.URLLoaderClient message (hash=374770486)","mojo",46
+"viz.mojom.CompositorFrameSink message (hash=1654984935)","mojo",46
+"RunTask(posted_from=components/update_client/component.cc:ChangeState)","scheduler",45
+"network.mojom.URLLoaderFactory message (hash=2397174083)","mojo",45
+"Choreographer(java_views=OmniboxSuggestionsList)","choreographer",44
+"RunTask(posted_from=net/disk_cache/simple/simple_entry_impl.cc:CreateEntryInternal)","scheduler",44
+"network.mojom.ProxyConfigPollerClient message (hash=2347231843)","mojo",43
+"blink.mojom.AssociatedInterfaceProvider message (hash=2648115757)","mojo",37
+"network.mojom.URLLoaderNetworkServiceObserver message (hash=3598259070)","mojo",35
+"Looper.dispatch: com.android.internal.view.IInputConnectionWrapper$MyHandler(null)","other",34
+"RunTask(posted_from=net/disk_cache/simple/simple_entry_impl.cc:OpenOrCreateEntryInternal)","scheduler",34
+"network.mojom.URLLoaderClient message (hash=3734484340)","mojo",34
+"RunTask(posted_from=components/update_client/component.cc:TransitionState)","scheduler",31
+"RunTask(posted_from=net/http/http_stream_factory_job.cc:RunLoop)","scheduler",31

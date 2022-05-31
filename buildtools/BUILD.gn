@@ -55,6 +55,7 @@ config("test_warning_suppressions") {
     cflags = [
       "-Wno-unknown-warning-option",
       "-Wno-deprecated-copy",
+      "-Wno-uninitialized",
     ]
   }
 }
