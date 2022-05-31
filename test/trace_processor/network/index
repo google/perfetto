@@ -1,8 +1,8 @@
 # Network performance
-netif_receive_skb.textproto netif_receive_skb.sql netif_receive_skb.out
-net_dev_xmit.textproto net_dev_xmit.sql net_dev_xmit.out
+netif_receive_skb.textproto netif_receive_skb_test.sql netif_receive_skb.out
+net_dev_xmit.textproto net_dev_xmit_test.sql net_dev_xmit.out
 netperf_metric.textproto android_netperf netperf_metric.out
-inet_sock_set_state.textproto inet_sock_set_state.sql inet_sock_set_state.out
-tcp_retransmit_skb.textproto tcp_retransmit_skb.sql tcp_retransmit_skb.out
-napi_gro_receive.textproto napi_gro_receive.sql napi_gro_receive.out
-kfree_skb.textproto kfree_skb.sql kfree_skb.out
+inet_sock_set_state.textproto inet_sock_set_state_test.sql inet_sock_set_state.out
+tcp_retransmit_skb.textproto tcp_retransmit_skb_test.sql tcp_retransmit_skb.out
+napi_gro_receive.textproto napi_gro_receive_test.sql napi_gro_receive.out
+kfree_skb.textproto kfree_skb_test.sql kfree_skb.out
