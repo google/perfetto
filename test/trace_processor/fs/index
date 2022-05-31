@@ -1,2 +1,2 @@
-f2fs_iostat.textproto f2fs_iostat.sql f2fs_iostat.out
-f2fs_iostat_latency.textproto f2fs_iostat_latency.sql f2fs_iostat_latency.out
+f2fs_iostat.textproto f2fs_iostat_test.sql f2fs_iostat.out
+f2fs_iostat_latency.textproto f2fs_iostat_latency_test.sql f2fs_iostat_latency.out

@@ -1,2 +1,2 @@
 # UFS command
-ufshcd_command.textproto ufshcd_command.sql ufshcd_command.out
+ufshcd_command.textproto ufshcd_command_test.sql ufshcd_command.out
