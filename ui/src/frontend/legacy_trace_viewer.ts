@@ -149,7 +149,6 @@ export function openBufferWithLegacyTraceViewer(
     buttons: [{
       text: 'Open legacy UI',
       primary: true,
-      id: 'open_legacy',
       action: () => openBufferWithLegacyTraceViewer(name, data, size),
     }],
   });
