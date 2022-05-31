@@ -7337,14 +7337,21 @@ message LogMessageBody {
 
 // Begin of protos/perfetto/trace/track_event/source_location.proto
 
+// A source location, represented as a native symbol.
+// This is similar to `message Frame` from
+// protos/perfetto/trace/profiling/profile_common.proto, but for abitrary
+// source code locations (for example in track event args), not stack frames.
+message UnsymbolizedSourceLocation {
+  optional uint64 mapping_id = 1;
+  optional uint64 rel_pc = 2;
+}
+
 // --------------------
 // Interned data types:
 // --------------------
 
 message SourceLocation {
   optional uint64 iid = 1;
-
-  // We intend to add a binary symbol version of this in the future.
   optional string file_name = 2;
   optional string function_name = 3;
   optional uint32 line_number = 4;
@@ -7888,6 +7895,16 @@ message ChromeMojoEventInfo {
   // A static string representing the mojo interface name of the message that is
   // being handled.
   optional string mojo_interface_tag = 3;
+
+  // Refers to an interned UnsymbolizedSourceLocation.
+  // The UnsymbolizedSourceLocation contains the interface method that's being
+  // handled, represented as a native symbol.
+  // The native symbol can be symbolized after the trace is recorded.
+  // Not using a symbolized source location for official Chromium builds to
+  // reduce binary size - emitting file/function names as strings into the
+  // trace requires storing them in the binary, which causes a significant
+  // binary size bloat for Chromium.
+  optional uint64 mojo_interface_method_iid = 4;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_mojo_event_info.proto
@@ -8365,7 +8382,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 28.
+// Next id: 29.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -8382,6 +8399,7 @@ message InternedData {
   repeated DebugAnnotationName debug_annotation_names = 3;
   repeated DebugAnnotationValueTypeName debug_annotation_value_type_names = 27;
   repeated SourceLocation source_locations = 4;
+  repeated UnsymbolizedSourceLocation unsymbolized_source_locations = 28;
   repeated LogMessageBody log_message_body = 20;
   repeated HistogramName histogram_names = 25;
 
