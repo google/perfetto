@@ -43,15 +43,7 @@ ARTIFACTS = [
         'name': 'trace_processor_shell'
     },
     {
-        'name':
-            'traceconv',
-
-        # traceconv is really a host exeutable, doesn't make sense to build
-        # it when cross-compiling .
-        'exclude_platforms': [
-            'android-arm', 'android-arm64', 'android-x86', 'android-x64',
-            'linux-arm', 'linux-arm64'
-        ]
+        'name': 'traceconv',
     },
     {
         'name': 'tracebox',
