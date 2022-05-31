@@ -329,6 +329,18 @@ enum BuiltinClock {
 
 // End of protos/perfetto/common/builtin_clock.proto
 
+// Begin of protos/perfetto/config/android/android_game_intervention_list_config.proto
+
+// Data source that lists game modes and game interventions of games
+// on an Android device.
+message AndroidGameInterventionListConfig {
+  // If not empty, emit info about only the following list of package names
+  // (exact match, no regex). Otherwise, emit info about all packages.
+  repeated string package_name_filter = 1;
+}
+
+// End of protos/perfetto/config/android/android_game_intervention_list_config.proto
+
 // Begin of protos/perfetto/common/android_log_constants.proto
 
 // Values from NDK's android/log.h.
@@ -1688,6 +1700,9 @@ message DataSourceConfig {
   optional AndroidLogConfig android_log_config = 107 [lazy = true];
   // TODO(fmayer): Add data source name for this.
   optional GpuCounterConfig gpu_counter_config = 108 [lazy = true];
+  // Data source name: android.game_intervention_list
+  optional AndroidGameInterventionListConfig
+      android_game_intervention_list_config = 116 [lazy = true];
   // Data source name: android.packages_list
   optional PackagesListConfig packages_list_config = 109 [lazy = true];
   // Data source name: linux.perf
@@ -2389,6 +2404,34 @@ message TraceStats {
 }
 
 // End of protos/perfetto/common/trace_stats.proto
+
+// Begin of protos/perfetto/trace/android/android_game_intervention_list.proto
+
+message AndroidGameInterventionList {
+  message GameModeInfo {
+    optional uint32 mode = 1;
+    optional bool use_angle = 2;
+    optional float resolution_downscale = 3;
+    optional float fps = 4;
+  }
+  message GamePackageInfo {
+    optional string name = 1;
+    optional uint64 uid = 2;
+    optional uint32 current_mode = 3;
+    repeated GameModeInfo game_mode_info = 4;
+  }
+
+  repeated GamePackageInfo game_packages = 1;
+
+  // True when at least one error occured when parsing
+  // game_mode_intervention.list
+  optional bool parse_error = 2;
+
+  // Failed to open / read game_mode_intervention.list
+  optional bool read_error = 3;
+}
+
+// End of protos/perfetto/trace/android/android_game_intervention_list.proto
 
 // Begin of protos/perfetto/trace/android/android_log.proto
 
@@ -10216,6 +10259,7 @@ message TracePacket {
     AndroidCameraFrameEvent android_camera_frame_event = 80;
     AndroidCameraSessionStats android_camera_session_stats = 81;
     TranslationTable translation_table = 82;
+    AndroidGameInterventionList android_game_intervention_list = 83;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
