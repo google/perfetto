@@ -18,14 +18,21 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+// A source location, represented as a native symbol.
+// This is similar to `message Frame` from
+// protos/perfetto/trace/profiling/profile_common.proto, but for abitrary
+// source code locations (for example in track event args), not stack frames.
+message UnsymbolizedSourceLocation {
+  optional uint64 mapping_id = 1;
+  optional uint64 rel_pc = 2;
+}
+
 // --------------------
 // Interned data types:
 // --------------------
 
 message SourceLocation {
   optional uint64 iid = 1;
-
-  // We intend to add a binary symbol version of this in the future.
   optional string file_name = 2;
   optional string function_name = 3;
   optional uint32 line_number = 4;
