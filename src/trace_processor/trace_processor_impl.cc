@@ -35,6 +35,7 @@
 #include "src/trace_processor/dynamic/experimental_flat_slice_generator.h"
 #include "src/trace_processor/dynamic/experimental_sched_upid_generator.h"
 #include "src/trace_processor/dynamic/experimental_slice_layout_generator.h"
+#include "src/trace_processor/dynamic/view_generator.h"
 #include "src/trace_processor/export_json.h"
 #include "src/trace_processor/importers/additional_modules.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -871,6 +872,12 @@ base::Status PrepareAndStepUntilLastValidStmt(
 
 }  // namespace
 
+template <typename View>
+void TraceProcessorImpl::RegisterView(const View& view) {
+  RegisterDynamicTable(
+      std::unique_ptr<ViewGenerator>(new ViewGenerator(&view, View::Name())));
+}
+
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg) {
   context_.fuchsia_trace_tokenizer.reset(new FuchsiaTraceTokenizer(&context_));
@@ -978,6 +985,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       new ExperimentalAnnotatedStackGenerator(&context_)));
   RegisterDynamicTable(std::unique_ptr<ExperimentalFlatSliceGenerator>(
       new ExperimentalFlatSliceGenerator(&context_)));
+
+  // Views.
+  RegisterView(storage->thread_slice_view());
 
   // New style db-backed tables.
   RegisterDbTable(storage->arg_table());
