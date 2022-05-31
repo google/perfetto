@@ -442,8 +442,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventLegacy {
 #define PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(phase, category, name, track, \
                                                 ...)                          \
   PERFETTO_INTERNAL_TRACK_EVENT(                                              \
-      category,                                                               \
-      ::perfetto::internal::GetStaticString(::perfetto::StaticString{name}),  \
+      category, ::perfetto::StaticString{name},                               \
       ::perfetto::internal::TrackEventLegacy::PhaseToType(phase), track,      \
       ##__VA_ARGS__);
 
