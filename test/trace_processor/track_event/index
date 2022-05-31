@@ -1,46 +1,46 @@
 # Contains tests on the parsing and ingestion of TrackEvent packets.
 
 # Same tid handling
-track_event_same_tids.textproto ../common/process_tracking.sql track_event_same_tids_threads.out
-track_event_same_tids.textproto track_event_slices.sql track_event_same_tids_slices.out
+track_event_same_tids.textproto ../common/process_tracking_test.sql track_event_same_tids_threads.out
+track_event_same_tids.textproto track_event_slices_test.sql track_event_same_tids_slices.out
 
 # Typed args
-track_event_typed_args.textproto track_event_slices.sql track_event_typed_args_slices.out
-track_event_typed_args.textproto track_event_args.sql track_event_typed_args_args.out
+track_event_typed_args.textproto track_event_slices_test.sql track_event_typed_args_slices.out
+track_event_typed_args.textproto track_event_args_test.sql track_event_typed_args_args.out
 
 # Track handling
-track_event_tracks.textproto track_event_slices.sql track_event_tracks_slices.out
-track_event_tracks.textproto track_event_processes.sql track_event_tracks_processes.out
+track_event_tracks.textproto track_event_slices_test.sql track_event_tracks_slices.out
+track_event_tracks.textproto track_event_processes_test.sql track_event_tracks_processes.out
 
 # Instant events
-track_event_instant.textproto track_event_slices.sql track_event_instant_slices.out
+track_event_instant.textproto track_event_slices_test.sql track_event_instant_slices.out
 
 # Legacy async events
-legacy_async_event.textproto track_event_slice_with_args.sql legacy_async_event.out
+legacy_async_event.textproto track_event_slice_with_args_test.sql legacy_async_event.out
 
 # Legacy atrace
-track_event_with_atrace.textproto track_event_slices.sql track_event_with_atrace.out
+track_event_with_atrace.textproto track_event_slices_test.sql track_event_with_atrace.out
 
 # Debug annotations
-track_event_merged_debug_annotations.textproto track_event_args.sql track_event_merged_debug_annotations_args.out
+track_event_merged_debug_annotations.textproto track_event_args_test.sql track_event_merged_debug_annotations_args.out
 
 # Counters
-track_event_counters.textproto track_event_slices.sql track_event_counters_slices.out
-track_event_counters.textproto track_event_counters.sql track_event_counters_counters.out
+track_event_counters.textproto track_event_slices_test.sql track_event_counters_slices.out
+track_event_counters.textproto track_event_counters_test.sql track_event_counters_counters.out
 
 # Clock handling
-track_event_monotonic_trace_clock.textproto track_event_slices.sql track_event_monotonic_trace_clock_slices.out
+track_event_monotonic_trace_clock.textproto track_event_slices_test.sql track_event_monotonic_trace_clock_slices.out
 
 # HistogramName interning
-track_event_chrome_histogram_sample.textproto track_event_args.sql track_event_chrome_histogram_sample_args.out
+track_event_chrome_histogram_sample.textproto track_event_args_test.sql track_event_chrome_histogram_sample_args.out
 
 # Flow events importing from proto
-flow_events_track_event.textproto flow_events.sql flow_events_track_event.out
-flow_events_proto_v2.textproto flow_events.sql flow_events_proto_v2.out
-flow_events_proto_v1.textproto flow_events.sql flow_events_proto_v1.out
+flow_events_track_event.textproto flow_events_test.sql flow_events_track_event.out
+flow_events_proto_v2.textproto flow_events_test.sql flow_events_proto_v2.out
+flow_events_proto_v1.textproto flow_events_test.sql flow_events_proto_v1.out
 
 # Async slices starting and ending at the same time
-experimental_slice_layout_depth.py experimental_slice_layout_depth.sql experimental_slice_layout_depth.out
+experimental_slice_layout_depth.py experimental_slice_layout_depth_test.sql experimental_slice_layout_depth.out
 
 # Descriptor merging regression test (bug: b/197203390)
-../../data/trace_with_descriptor.pftrace merging_regression.sql merging_regression.out
+../../data/trace_with_descriptor.pftrace merging_regression_test.sql merging_regression.out
