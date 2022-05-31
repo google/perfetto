@@ -1,24 +1,24 @@
 # Tests for the core process and thread tracking logic.
 
 # Smoke tests
-synth_process_tracking.py ../common/process_tracking.sql process_tracking.out
+synth_process_tracking.py ../common/process_tracking_test.sql process_tracking.out
 
 # Short lived threads/processes
-process_tracking_short_lived_1.py ../common/process_tracking.sql process_tracking_process_tracking_short_lived_1.out
-process_tracking_short_lived_2.py ../common/process_tracking.sql process_tracking_process_tracking_short_lived_2.out
+process_tracking_short_lived_1.py ../common/process_tracking_test.sql process_tracking_process_tracking_short_lived_1.out
+process_tracking_short_lived_2.py ../common/process_tracking_test.sql process_tracking_process_tracking_short_lived_2.out
 
 # Process uid handling
-synth_process_tracking.py process_tracking_uid.sql process_tracking_uid.out
+synth_process_tracking.py process_tracking_uid_test.sql process_tracking_uid.out
 
 # Tracking across execs
-process_tracking_exec.py ../common/process_tracking.sql process_tracking_process_tracking_exec.out
+process_tracking_exec.py ../common/process_tracking_test.sql process_tracking_process_tracking_exec.out
 
 # Tracking parent threads
-process_parent_pid_tracking_1.py process_parent_pid.sql process_parent_pid_process_parent_pid_tracking_1.out
-process_parent_pid_tracking_2.py process_parent_pid.sql process_parent_pid_process_parent_pid_tracking_2.out
+process_parent_pid_tracking_1.py process_parent_pid_test.sql process_parent_pid_process_parent_pid_tracking_1.out
+process_parent_pid_tracking_2.py process_parent_pid_test.sql process_parent_pid_process_parent_pid_tracking_2.out
 
 # Tracking thread reuse
-reused_thread_print.py ../common/process_tracking.sql process_tracking_reused_thread_print.out
+reused_thread_print.py ../common/process_tracking_test.sql process_tracking_reused_thread_print.out
 
 # TODO(lalitm): move this out of this folder.
-sde_tracing_mark_write.textproto slice_with_pid.sql slice_with_pid_sde_tracing_mark_write.out
+sde_tracing_mark_write.textproto slice_with_pid_test.sql slice_with_pid_sde_tracing_mark_write.out

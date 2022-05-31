@@ -1,34 +1,34 @@
 # Contains tests on the behaviour of the SPAN_JOIN operator table.
 
 # Smoke tests
-../common/synth_1.py span_join_unordered_cols.sql span_join_unordered_cols_synth_1.out
-../common/synth_1.py span_join_unordered_cols_reverse.sql span_join_unordered_cols_synth_1.out
-../../data/android_sched_and_ps.pb span_join_zero_negative_dur.sql span_join_zero_negative_dur.out
+../common/synth_1.py span_join_unordered_cols_test.sql span_join_unordered_cols_synth_1.out
+../common/synth_1.py span_join_unordered_cols_reverse_test.sql span_join_unordered_cols_synth_1.out
+../../data/android_sched_and_ps.pb span_join_zero_negative_dur_test.sql span_join_zero_negative_dur.out
 
 # Regression tests
-../../data/android_sched_and_ps.pb slice_span_join_b118665515.sql android_sched_and_ps_slice_span_join_b118665515.out
-../../data/android_sched_and_ps.pb span_join_unpartitioned_empty.sql span_join_unpartitioned_empty.out
+../../data/android_sched_and_ps.pb slice_span_join_b118665515_test.sql android_sched_and_ps_slice_span_join_b118665515.out
+../../data/android_sched_and_ps.pb span_join_unpartitioned_empty_test.sql span_join_unpartitioned_empty.out
 
 # Outer join
-../common/synth_1.py span_outer_join.sql span_outer_join.out
+../common/synth_1.py span_outer_join_test.sql span_outer_join.out
 
-../common/synth_1.py span_outer_join_empty.sql span_outer_join_empty.out
-../common/synth_1.py span_outer_join_unpartitioned_empty.sql span_outer_join_unpartitioned_empty.out
-../common/synth_1.py span_outer_join_unpartitioned_left_empty.sql span_outer_join_unpartitioned_left_empty.out
-../common/synth_1.py span_outer_join_unpartitioned_right_empty.sql span_outer_join_unpartitioned_right_empty.out
+../common/synth_1.py span_outer_join_empty_test.sql span_outer_join_empty.out
+../common/synth_1.py span_outer_join_unpartitioned_empty_test.sql span_outer_join_unpartitioned_empty.out
+../common/synth_1.py span_outer_join_unpartitioned_left_empty_test.sql span_outer_join_unpartitioned_left_empty.out
+../common/synth_1.py span_outer_join_unpartitioned_right_empty_test.sql span_outer_join_unpartitioned_right_empty.out
 
-../common/synth_1.py span_outer_join_mixed.sql span_outer_join_mixed.out
-../common/synth_1.py span_outer_join_mixed_empty.sql span_outer_join_mixed_empty.out
-../common/synth_1.py span_outer_join_mixed_left_empty.sql span_outer_join_mixed_left_empty.out
-../common/synth_1.py span_outer_join_mixed_left_empty_rev.sql span_outer_join_mixed_left_empty_rev.out
-../common/synth_1.py span_outer_join_mixed_right_empty.sql span_outer_join_mixed_right_empty.out
-../common/synth_1.py span_outer_join_mixed_right_empty_rev.sql span_outer_join_mixed_right_empty_rev.out
-../common/synth_1.py span_outer_join_mixed.sql span_outer_join_mixed.out
+../common/synth_1.py span_outer_join_mixed_test.sql span_outer_join_mixed.out
+../common/synth_1.py span_outer_join_mixed_empty_test.sql span_outer_join_mixed_empty.out
+../common/synth_1.py span_outer_join_mixed_left_empty_test.sql span_outer_join_mixed_left_empty.out
+../common/synth_1.py span_outer_join_mixed_left_empty_rev_test.sql span_outer_join_mixed_left_empty_rev.out
+../common/synth_1.py span_outer_join_mixed_right_empty_test.sql span_outer_join_mixed_right_empty.out
+../common/synth_1.py span_outer_join_mixed_right_empty_rev_test.sql span_outer_join_mixed_right_empty_rev.out
+../common/synth_1.py span_outer_join_mixed_test.sql span_outer_join_mixed.out
 
 # Left join
-../common/synth_1.py span_left_join.sql span_left_join.out
-../common/synth_1.py span_left_join_unpartitioned.sql span_left_join_unpartitioned.out
-../common/synth_1.py span_left_join_left_unpartitioned.sql span_left_join_left_unpartitioned.out
-../common/synth_1.py span_left_join_left_partitioned.sql span_left_join_left_partitioned.out
-../common/synth_1.py span_left_join_empty_right.sql span_left_join_empty_right.out
-../common/synth_1.py span_left_join_unordered.sql span_left_join_unordered_android_sched_and_ps.out
+../common/synth_1.py span_left_join_test.sql span_left_join.out
+../common/synth_1.py span_left_join_unpartitioned_test.sql span_left_join_unpartitioned.out
+../common/synth_1.py span_left_join_left_unpartitioned_test.sql span_left_join_left_unpartitioned.out
+../common/synth_1.py span_left_join_left_partitioned_test.sql span_left_join_left_partitioned.out
+../common/synth_1.py span_left_join_empty_right_test.sql span_left_join_empty_right.out
+../common/synth_1.py span_left_join_unordered_test.sql span_left_join_unordered_android_sched_and_ps.out
