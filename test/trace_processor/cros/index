@@ -1,5 +1,5 @@
 # Tests related to cros's use of Perfetto.
 
 # cros_ec_sensorhub_data
-cros_ec_sensorhub_data.textproto cros_ec_sensorhub_data.sql cros_ec_sensorhub_data.out
+cros_ec_sensorhub_data.textproto cros_ec_sensorhub_data_test.sql cros_ec_sensorhub_data.out
 
