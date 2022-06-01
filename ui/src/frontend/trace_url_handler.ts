@@ -140,7 +140,6 @@ async function maybeOpenCachedTrace(traceUuid: string) {
                 'for too long, or if you just mis-pasted the URL.'),
           m('pre', `Trace UUID: ${traceUuid}`),
           ),
-      buttons: [],
     });
     navigateToOldTraceUuid();
     return;
@@ -178,14 +177,14 @@ async function maybeOpenCachedTrace(traceUuid: string) {
     buttons: [
       {
         text: 'Continue',
+        id: 'trace_id_open',  // Used by tests.
         primary: true,
-        id: 'trace_id_open',
         action: () => {
           hasOpenedNewTrace = true;
           globals.dispatch(Actions.openTraceFromBuffer(maybeTrace));
         }
       },
-      {text: 'Cancel', primary: false, id: 'trace_id_cancel', action: () => {}},
+      {text: 'Cancel'},
     ],
   });
 

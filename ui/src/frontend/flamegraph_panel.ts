@@ -29,7 +29,7 @@ import {timeToCode} from '../common/time';
 import {PerfettoMouseEvent} from './events';
 import {Flamegraph, NodeRendering} from './flamegraph';
 import {globals} from './globals';
-import {showPartialModal} from './modal';
+import {Modal, ModalDefinition} from './modal';
 import {Panel, PanelSize} from './panel';
 import {debounce} from './rate_limiters';
 import {Router} from './router';
@@ -169,36 +169,30 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
   }
 
 
-  private maybeShowModal(graphIncomplete?: boolean): m.Vnode|undefined {
+  private maybeShowModal(graphIncomplete?: boolean) {
     if (!graphIncomplete || globals.state.flamegraphModalDismissed) {
       return undefined;
     }
-    return showPartialModal({
+    return m(Modal, {
       title: 'The flamegraph is incomplete',
-      content:
-          m('div',
-            m('div',
-              'The current trace does not have a fully formed flamegraph.')),
+      vAlign: 'TOP',
+      content: m('div',
+          'The current trace does not have a fully formed flamegraph'),
       buttons: [
         {
           text: 'Show the errors',
           primary: true,
-          id: 'incomplete_graph_show',
-          action: () => {
-            Router.navigate('#!/info');
-          }
+          action: () => Router.navigate('#!/info'),
         },
         {
           text: 'Skip',
-          primary: false,
-          id: 'incomplete_graph_skip',
           action: () => {
             globals.dispatch(Actions.dismissFlamegraphModal({}));
             globals.rafScheduler.scheduleFullRedraw();
-          }
-        }
+          },
+        },
       ],
-    });
+    } as ModalDefinition);
   }
 
   private getTitle(): string {
