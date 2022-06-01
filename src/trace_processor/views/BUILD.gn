@@ -25,3 +25,14 @@ source_set("views") {
     "../tables",
   ]
 }
+
+source_set("unittests") {
+  testonly = true
+  sources = [ "macros_unittest.cc" ]
+  deps = [
+    ":views",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+    "../tables",
+  ]
+}

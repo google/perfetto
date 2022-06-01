@@ -49,12 +49,23 @@ namespace trace_processor {
 //   COL(name, slice, name)
 //   COL(track_id, slice, track_id)
 //   COL(track_name, track, name)
-//   FROM(SliceTable, slice)
+//   FROM(SliceTable, slice, PERFETTO_TP_VIEW_NO_FROM_COLUMNS)
 //   JOIN(TrackTable, track, id, slice, track_id, View::kIdAlwaysPresent)
 // PERFETTO_TP_DECLARE_VIEW(PERFETTO_TP_SLICE_TRACK_VIEW_DEF);
 //
 // And in a .cc file:
 // PERFETTO_TP_DEFINE_VIEW(SliceWithTrackView);
+//
+// A shorter (and less error prone) version of the syntax, can be used if you
+// want to expose all the columns from the slice table. This involves passing
+// the table defintion macro for the slice table instead of
+// PERFETTO_TP_VIEW_NO_FROM_COLUMNS to the FROM macro:
+// #define PERFETTO_TP_SLICE_TRACK_VIEW_DEF(NAME, FROM, JOIN, COL)
+//   NAME(SliceWithTrackView, "slice_with_track")
+//   COL(track_name, track, name)
+//   FROM(SliceTable, slice, PERFETTO_TP_SLICE_TABLE_DEF)
+//   JOIN(TrackTable, track, id, slice, track_id, View::kIdAlwaysPresent)
+// PERFETTO_TP_DECLARE_VIEW(PERFETTO_TP_SLICE_TRACK_VIEW_DEF);
 
 // The macro used to define C++ views.
 // See the top of the file for how this should be used.
@@ -63,9 +74,12 @@ namespace trace_processor {
 // definition is a function macro taking four arguments:
 // 1. NAME, a function macro taking two arguments: the name of the new class
 //    being defined and the name of the table when exposed to SQLite.
-// 2. FROM, a function macro taking two arguments: a) the class name of the
-//    "root" table of this view b) the name of this table for use in the
-//    JOIN and COL macros (see below).
+// 2. FROM, a function macro taking 3 arguments:
+//      a) the class name of the "root" table of this view
+//      b) the name of this table for use in the JOIN and COL macros (see below)
+//      c) the table defintion macro of the FROM table if columns should be
+//         automatically added or PERFETTO_TP_VIEW_NO_FROM_COLUMNS to instead
+//         explicitly define every column.
 // 3. JOIN, a function macro taking 6 arguments:
 //      a) the class name of the table which will be joined into this view on
 //         the "right" side of the join.
@@ -90,6 +104,11 @@ namespace trace_processor {
   PERFETTO_TP_VIEW_INTERNAL(                                     \
       PERFETTO_TP_VIEW_NAME(DEF, PERFETTO_TP_VIEW_NAME_EXTRACT), \
       PERFETTO_TP_VIEW_NAME(DEF, PERFETTO_TP_VIEW_CLASS_EXTRACT), DEF)
+
+// Macro used to supress automatically adding columns in the FROM column to
+// the view. Should be passed instead of the table defintion to the FROM
+// function macro when defining views.
+#define PERFETTO_TP_VIEW_NO_FROM_COLUMNS(...)
 
 // Macro used to define destructors for C++ views.
 // See the top of the file for how this should be used.
