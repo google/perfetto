@@ -8800,6 +8800,7 @@ filegroup {
         "src/trace_processor/importers/syscalls/syscall_tracker_unittest.cc",
         "src/trace_processor/importers/systrace/systrace_parser_unittest.cc",
         "src/trace_processor/ref_counted_unittest.cc",
+        "src/trace_processor/trace_sorter_queue_unittest.cc",
         "src/trace_processor/trace_sorter_unittest.cc",
     ],
 }

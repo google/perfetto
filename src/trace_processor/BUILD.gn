@@ -159,6 +159,7 @@ source_set("storage_minimal") {
     "trace_processor_storage_impl.h",
     "trace_sorter.cc",
     "trace_sorter.h",
+    "trace_sorter_queue.h",
     "virtual_destructors.cc",
   ]
   deps = [
@@ -416,6 +417,7 @@ perfetto_unittest_source_set("unittests") {
     "importers/syscalls/syscall_tracker_unittest.cc",
     "importers/systrace/systrace_parser_unittest.cc",
     "ref_counted_unittest.cc",
+    "trace_sorter_queue_unittest.cc",
     "trace_sorter_unittest.cc",
   ]
   deps = [
