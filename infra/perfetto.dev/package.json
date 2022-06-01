@@ -7,16 +7,16 @@
   "author": "Perfetto Team",
   "license": "Apache-2.0",
   "dependencies": {
-    "mermaid": "^8.5.0"
+    "mermaid": "^9.1.1"
   },
   "devDependencies": {
     "argparse": "^2.0.1",
     "ejs": "^3.0.1",
     "fs-extra": "^9.0.0",
     "highlight.js": "^10.1.2",
-    "marked": "^0.8.0",
-    "node-sass": "^5.0.0",
-    "node-watch": "^0.7.1",
+    "marked": "^4.0.16",
+    "node-sass": "^7.0.1",
+    "node-watch": "^0.7.3",
     "protobufjs": "^6.9.0"
   }
 }

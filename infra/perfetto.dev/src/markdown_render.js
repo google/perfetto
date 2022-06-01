@@ -180,7 +180,7 @@ function render(rawMarkdown) {
   renderer.heading = renderHeading;
   renderer.paragraph = renderParagraph;
 
-  return marked(rawMarkdown, {renderer: renderer});
+  return marked.marked.parse(rawMarkdown, {renderer: renderer});
 }
 
 function main() {
