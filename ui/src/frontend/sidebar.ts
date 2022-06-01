@@ -489,29 +489,17 @@ function openInOldUIWithSizeCheck(trace: Blob) {
     buttons: [
       {
         text: 'Open full trace (not recommended)',
-        primary: false,
-        id: 'open',
-        action: () => {
-          convertToJson(trace);
-        }
+        action: () => convertToJson(trace),
       },
       {
         text: 'Open beginning of trace',
-        primary: true,
-        id: 'truncate-start',
-        action: () => {
-          convertToJson(trace, /*truncate*/ 'start');
-        }
+        action: () => convertToJson(trace, /*truncate*/ 'start'),
       },
       {
         text: 'Open end of trace',
         primary: true,
-        id: 'truncate-end',
-        action: () => {
-          convertToJson(trace, /*truncate*/ 'end');
-        }
-      }
-
+        action: () => convertToJson(trace, /*truncate*/ 'end'),
+      },
     ]
   });
   return;
@@ -568,7 +556,6 @@ function shareTrace(e: Event) {
     showModal({
       title: 'Cannot create permalink from external trace',
       content: m('div', msg),
-      buttons: []
     });
     return;
   }
@@ -721,18 +708,12 @@ const ServiceWorkerWidget: m.Component = {
           {
             text: 'Disable and reload',
             primary: true,
-            id: 'sw-bypass-enable',
             action: () => {
               globals.serviceWorkerController.setBypass(true).then(
                   () => location.reload());
             }
           },
-          {
-            text: 'Cancel',
-            primary: false,
-            id: 'sw-bypass-cancel',
-            action: () => {}
-          }
+          {text: 'Cancel'},
         ]
       });
     };

@@ -108,7 +108,6 @@ async function showDialogTraceProcessorTooOld(tpStatus: StatusResult) {
       {
         text: 'Use builtin Wasm',
         primary: true,
-        id: 'tp_old_wasm',
         action: () => {
           globals.dispatch(
               Actions.setNewEngineMode({mode: 'FORCE_BUILTIN_WASM'}));
@@ -117,7 +116,6 @@ async function showDialogTraceProcessorTooOld(tpStatus: StatusResult) {
       {
         text: 'Use old version regardless (might crash)',
         primary: false,
-        id: 'tp_old_cont',
         action: () => {
           forceUseOldVersion = true;
         }
@@ -136,21 +134,15 @@ async function showDialogToUsePreloadedTrace(tpStatus: StatusResult) {
       {
         text: 'YES, use loaded trace',
         primary: true,
-        id: 'rpc_load',
         action: () => {
           globals.dispatch(Actions.openTraceFromHttpRpc({}));
         }
       },
       {
         text: 'YES, but reset state',
-        primary: false,
-        id: 'rpc_reset',
-        action: () => {}
       },
       {
         text: 'NO, Use builtin Wasm',
-        primary: false,
-        id: 'rpc_force_wasm',
         action: () => {
           globals.dispatch(
               Actions.setNewEngineMode({mode: 'FORCE_BUILTIN_WASM'}));
