@@ -68,6 +68,15 @@ class ViewColumnBlueprint {
   uint32_t index_in_view_ = 0;
 };
 
+// Ignore GCC warning about a missing argument for a variadic macro parameter.
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC system_header
+#endif
+
+// Invokes a View column function using data from a table column definition.
+#define PERFETTO_TP_VIEW_INVOKE_VIEW_COL_FN_FROM_TABLE(FN, col_name) \
+  FN(col_name, from_table, col_name)
+
 // Invokes FN on the name and class name declaration of the view.
 #define PERFETTO_TP_VIEW_NAME(DEF, FN) \
   DEF(FN, PERFETTO_TP_NOOP, PERFETTO_TP_NOOP, PERFETTO_TP_NOOP)
@@ -80,8 +89,13 @@ class ViewColumnBlueprint {
 #define PERFETTO_TP_VIEW_JOINS(DEF, FN) \
   DEF(PERFETTO_TP_NOOP, PERFETTO_TP_NOOP, FN, PERFETTO_TP_NOOP)
 
+// Returns the DEF for a FROM macro.
+#define PERFETTO_TP_VIEW_FROM_DEF(_, __, DEF) DEF
+
 // Invokes FN on every join which is part of the view definition.
-#define PERFETTO_TP_VIEW_COLS(DEF, FN) \
+#define PERFETTO_TP_VIEW_COLS(DEF, FROM_FN, FN)                       \
+  PERFETTO_TP_ALL_COLUMNS(                                            \
+      PERFETTO_TP_VIEW_FROM(DEF, PERFETTO_TP_VIEW_FROM_DEF), FROM_FN) \
   DEF(PERFETTO_TP_NOOP, PERFETTO_TP_NOOP, PERFETTO_TP_NOOP, FN)
 
 // Gets the class name from a view definition.
@@ -91,14 +105,16 @@ class ViewColumnBlueprint {
 #define PERFETTO_TP_VIEW_NAME_EXTRACT(_, view_name) view_name
 
 // Defines a table pointer for the macro constructor.
-#define PERFETTO_TP_VIEW_CLASS_TABLE_COMMA_FROM(class_name, table_name) \
+#define PERFETTO_TP_VIEW_CLASS_TABLE_COMMA_FROM(class_name, table_name, ...) \
   class_name *table_name,
 
 // Defines a table pointer for the macro constructor.
 #define PERFETTO_TP_VIEW_CLASS_TABLE_COMMA_JOIN(class_name, table_name, ...) \
   class_name *table_name,
 
-#define PERFETTO_TP_VIEW_FROM_PTR_NAME(_, table_name) table_name, #table_name
+// Defines a View table for the FROM table.
+#define PERFETTO_TP_VIEW_FROM_PTR_NAME(_, table_name, ...) \
+  table_name, #table_name
 
 // Defines a View::Join struct for a join defined in the macro.
 #define PERFETTO_TP_VIEW_JOIN_DEFN(_, join_table, join_col, prev_table, \
@@ -108,31 +124,64 @@ class ViewColumnBlueprint {
 
 // Defines a View::Column struct for a column defined in the macro.
 #define PERFETTO_TP_VIEW_COL_DEFN(col_name, source_table, source_col) \
-  View::OutputColumn{#col_name, #source_table, #source_col},
+  View::OutputColumn{#col_name, TableName::source_table(), #source_col},
 
-// Define a TableType alias for each table.
-#define PERFETTO_TP_VIEW_TABLE_TYPE_FROM(class_name, table_name) \
+// Defines a View::Column struct for a column defined in the FROM table.
+#define PERFETTO_TP_VIEW_FROM_COL_DEFN(_, col_name, ...)                    \
+  PERFETTO_TP_VIEW_INVOKE_VIEW_COL_FN_FROM_TABLE(PERFETTO_TP_VIEW_COL_DEFN, \
+                                                 col_name)
+
+// Define a TableType alias for the FROM table.
+#define PERFETTO_TP_VIEW_TABLE_TYPE(class_name, table_name, ...) \
   using table_name = class_name;
 
-// Define a TableType alias for each table.
-#define PERFETTO_TP_VIEW_TABLE_TYPE_JOIN(class_name, table_name, ...) \
-  using table_name = class_name;
+// Define a special "from_table" TableType alias for the "FROM" table.
+#define PERFETTO_TP_VIEW_TABLE_TYPE_FROM_ALIAS(_, table_name, ...) \
+  using from_table = table_name;
+
+// Defines the table name for each table in the view.
+#define PERFETTO_TP_VIEW_TABLE_NAME(_, table_name, ...) \
+  static constexpr const char* table_name() { return #table_name; }
+
+// Define a special "from_table" TableType alias for the "FROM" table.
+#define PERFETTO_TP_VIEW_TABLE_NAME_FROM_ALIAS(_, table_name, ...) \
+  static constexpr const char* from_table() { return #table_name; }
 
 // Define a ColumnType alias for each column.
 #define PERFETTO_TP_VIEW_COLUMN_TYPE(col_name, source_table, source_col) \
   using col_name = typename TableType::source_table::ColumnType::source_col;
 
+// Define a ColumnType alias for each column in the FROM table.
+#define PERFETTO_TP_VIEW_FROM_COLUMN_TYPE(_, col_name, ...)                    \
+  PERFETTO_TP_VIEW_INVOKE_VIEW_COL_FN_FROM_TABLE(PERFETTO_TP_VIEW_COLUMN_TYPE, \
+                                                 col_name)
+
 // Define a ColumnDataType alias for each column.
-#define PERFETTO_TP_VIEW_COLUMN_DATA_TYPE(col_name, source_table, source_col) \
+#define PERFETTO_TP_VIEW_COLUMN_DATA_TYPE(col_name, ...) \
   using col_name = typename ColumnType::col_name::type;
 
-// Defines an enum member from the column name.
+// Define a ColumnDataType alias for each column in the FROM table.
+#define PERFETTO_TP_VIEW_FROM_COLUMN_DATA_TYPE(_, col_name, ...) \
+  PERFETTO_TP_VIEW_INVOKE_VIEW_COL_FN_FROM_TABLE(                \
+      PERFETTO_TP_VIEW_COLUMN_DATA_TYPE, col_name)
+
+// Defines an enum member for each column name.
 #define PERFETTO_TP_VIEW_COLUMN_ENUM_INDEX(col_name, ...) col_name,
+
+// Defines an enum member for each column name in the FROM table..
+#define PERFETTO_TP_VIEW_FROM_COLUMN_ENUM_INDEX(_, col_name, ...) \
+  PERFETTO_TP_VIEW_INVOKE_VIEW_COL_FN_FROM_TABLE(                 \
+      PERFETTO_TP_VIEW_COLUMN_ENUM_INDEX, col_name)
 
 // Defines a column index alias.
 #define PERFETTO_TP_VIEW_COLUMN_INDEX(col_name, ...) \
   static constexpr uint32_t col_name =               \
       static_cast<uint32_t>(ColumnEnumIndex::col_name);
+
+// Defines a column index alias for columns from the FROM table.
+#define PERFETTO_TP_VIEW_FROM_COLUMN_INDEX(_, col_name, ...) \
+  PERFETTO_TP_VIEW_INVOKE_VIEW_COL_FN_FROM_TABLE(            \
+      PERFETTO_TP_VIEW_COLUMN_INDEX, col_name)
 
 // Defines a getter for the column in QueryResult.
 #define PERFETTO_TP_VIEW_QUERY_RESULT_COL_GETTER(col_name, ...) \
@@ -141,7 +190,12 @@ class ViewColumnBlueprint {
         &columns()[ColumnIndex::col_name]);                     \
   }
 
-// Defines a getter for the blueprint in the View.
+// Defines a getter for the FROM column in QueryResult.
+#define PERFETTO_TP_VIEW_FROM_QUERY_RESULT_COL_GETTER(_, col_name, ...) \
+  PERFETTO_TP_VIEW_INVOKE_VIEW_COL_FN_FROM_TABLE(                       \
+      PERFETTO_TP_VIEW_QUERY_RESULT_COL_GETTER, col_name)
+
+// Defines a getter for the blueprint for each column.
 #define PERFETTO_TP_VIEW_COL_BLUEPRINT_GETTER(col_name, ...)                \
   macros_internal::ViewColumnBlueprint<ColumnDataType::col_name> col_name() \
       const {                                                               \
@@ -149,11 +203,20 @@ class ViewColumnBlueprint {
         ColumnIndex::col_name);                                             \
   }
 
+// Defines a getter for the blueprint for each column in the FROM table.
+#define PERFETTO_TP_VIEW_FROM_COL_BLUEPRINT_GETTER(_, col_name, ...) \
+  PERFETTO_TP_VIEW_INVOKE_VIEW_COL_FN_FROM_TABLE(                    \
+      PERFETTO_TP_VIEW_COL_BLUEPRINT_GETTER, col_name)
+
 // Defines a getter for a column in the RowReference.
 #define PERFETTO_TP_VIEW_ROW_REF_GETTER(col_name, ...) \
   ColumnDataType::col_name col_name() const {          \
     return table_->col_name()[row_number_];            \
   }
+// Defines a getter for a FROM column in the RowReference.
+#define PERFETTO_TP_VIEW_FROM_ROW_REF_GETTER(_, col_name, ...) \
+  PERFETTO_TP_VIEW_INVOKE_VIEW_COL_FN_FROM_TABLE(              \
+      PERFETTO_TP_VIEW_ROW_REF_GETTER, col_name)
 
 // Defines a getter for a column in the Iterator.
 #define PERFETTO_TP_VIEW_IT_GETTER(col_name, ...)           \
@@ -161,6 +224,10 @@ class ViewColumnBlueprint {
     const auto& col = table_->col_name();                   \
     return col.GetAtIdx(its_[col.row_map_index()].index()); \
   }
+// Defines a getter for a FROM column in the RowReference.
+#define PERFETTO_TP_VIEW_FROM_IT_GETTER(_, col_name, ...)                    \
+  PERFETTO_TP_VIEW_INVOKE_VIEW_COL_FN_FROM_TABLE(PERFETTO_TP_VIEW_IT_GETTER, \
+                                                 col_name)
 
 // Defines a static assert for ensuring a given join clause is valid.
 #define PERFETTO_TP_VIEW_JOIN_STATIC_ASSERT(_, join_table, join_col,           \
@@ -187,17 +254,31 @@ class ViewColumnBlueprint {
                                                                                \
    private:                                                                    \
     struct TableType {                                                         \
-      PERFETTO_TP_VIEW_FROM(DEF, PERFETTO_TP_VIEW_TABLE_TYPE_FROM)             \
-      PERFETTO_TP_VIEW_JOINS(DEF, PERFETTO_TP_VIEW_TABLE_TYPE_JOIN)            \
+      PERFETTO_TP_VIEW_FROM(DEF, PERFETTO_TP_VIEW_TABLE_TYPE)                  \
+      PERFETTO_TP_VIEW_JOINS(DEF, PERFETTO_TP_VIEW_TABLE_TYPE)                 \
+      PERFETTO_TP_VIEW_FROM(DEF, PERFETTO_TP_VIEW_TABLE_TYPE_FROM_ALIAS)       \
     };                                                                         \
+                                                                               \
+    struct TableName {                                                         \
+      PERFETTO_TP_VIEW_FROM(DEF, PERFETTO_TP_VIEW_TABLE_NAME)                  \
+      PERFETTO_TP_VIEW_JOINS(DEF, PERFETTO_TP_VIEW_TABLE_NAME)                 \
+      PERFETTO_TP_VIEW_FROM(DEF, PERFETTO_TP_VIEW_TABLE_NAME_FROM_ALIAS)       \
+    };                                                                         \
+                                                                               \
     enum class ColumnEnumIndex {                                               \
-      PERFETTO_TP_VIEW_COLS(DEF, PERFETTO_TP_VIEW_COLUMN_ENUM_INDEX)           \
+      PERFETTO_TP_VIEW_COLS(DEF,                                               \
+                            PERFETTO_TP_VIEW_FROM_COLUMN_ENUM_INDEX,           \
+                            PERFETTO_TP_VIEW_COLUMN_ENUM_INDEX)                \
     };                                                                         \
     struct ColumnType {                                                        \
-      PERFETTO_TP_VIEW_COLS(DEF, PERFETTO_TP_VIEW_COLUMN_TYPE)                 \
+      PERFETTO_TP_VIEW_COLS(DEF,                                               \
+                            PERFETTO_TP_VIEW_FROM_COLUMN_TYPE,                 \
+                            PERFETTO_TP_VIEW_COLUMN_TYPE)                      \
     };                                                                         \
     struct ColumnDataType {                                                    \
-      PERFETTO_TP_VIEW_COLS(DEF, PERFETTO_TP_VIEW_COLUMN_DATA_TYPE)            \
+      PERFETTO_TP_VIEW_COLS(DEF,                                               \
+                            PERFETTO_TP_VIEW_FROM_COLUMN_DATA_TYPE,            \
+                            PERFETTO_TP_VIEW_COLUMN_DATA_TYPE)                 \
     };                                                                         \
                                                                                \
     /* Aliases to reduce clutter in class defintions below. */                 \
@@ -210,9 +291,10 @@ class ViewColumnBlueprint {
                                                                                \
    public:                                                                     \
     struct ColumnIndex {                                                       \
-      PERFETTO_TP_VIEW_COLS(DEF, PERFETTO_TP_VIEW_COLUMN_INDEX)                \
+      PERFETTO_TP_VIEW_COLS(DEF,                                               \
+                            PERFETTO_TP_VIEW_FROM_COLUMN_INDEX,                \
+                            PERFETTO_TP_VIEW_COLUMN_INDEX)                     \
     };                                                                         \
-                                                                               \
     class RowNumber : public AbstractRowNumber {                               \
      public:                                                                   \
       explicit RowNumber(uint32_t row_number)                                  \
@@ -226,14 +308,18 @@ class ViewColumnBlueprint {
       RowReference(const QueryResult* table, uint32_t row_number)              \
           : AbstractConstRowReference(table, row_number) {}                    \
                                                                                \
-      PERFETTO_TP_VIEW_COLS(DEF, PERFETTO_TP_VIEW_ROW_REF_GETTER)              \
+      PERFETTO_TP_VIEW_COLS(DEF,                                               \
+                            PERFETTO_TP_VIEW_FROM_ROW_REF_GETTER,              \
+                            PERFETTO_TP_VIEW_ROW_REF_GETTER)                   \
     };                                                                         \
     static_assert(std::is_trivially_destructible<RowReference>::value,         \
                   "Inheritance used without trivial destruction");             \
                                                                                \
     class Iterator : public AbstractConstIterator {                            \
      public:                                                                   \
-      PERFETTO_TP_VIEW_COLS(DEF, PERFETTO_TP_VIEW_IT_GETTER)                   \
+      PERFETTO_TP_VIEW_COLS(DEF,                                               \
+                            PERFETTO_TP_VIEW_FROM_IT_GETTER,                   \
+                            PERFETTO_TP_VIEW_IT_GETTER)                        \
                                                                                \
       Iterator& operator++() {                                                 \
         row_number_++;                                                         \
@@ -264,7 +350,9 @@ class ViewColumnBlueprint {
                                                                                \
       ~QueryResult() override;                                                 \
                                                                                \
-      PERFETTO_TP_VIEW_COLS(DEF, PERFETTO_TP_VIEW_QUERY_RESULT_COL_GETTER)     \
+      PERFETTO_TP_VIEW_COLS(DEF,                                               \
+                            PERFETTO_TP_VIEW_FROM_QUERY_RESULT_COL_GETTER,     \
+                            PERFETTO_TP_VIEW_QUERY_RESULT_COL_GETTER)          \
                                                                                \
       class_name::Iterator IterateRows() {                                     \
         return class_name::Iterator(this, CopyRowMaps());                      \
@@ -284,7 +372,9 @@ class ViewColumnBlueprint {
                 std::nullptr_t = nullptr)                                      \
         : View(PERFETTO_TP_VIEW_FROM(DEF, PERFETTO_TP_VIEW_FROM_PTR_NAME),     \
                {PERFETTO_TP_VIEW_JOINS(DEF, PERFETTO_TP_VIEW_JOIN_DEFN)},      \
-               {PERFETTO_TP_VIEW_COLS(DEF, PERFETTO_TP_VIEW_COL_DEFN)}) {      \
+               {PERFETTO_TP_VIEW_COLS(DEF,                                     \
+                                      PERFETTO_TP_VIEW_FROM_COL_DEFN,          \
+                                      PERFETTO_TP_VIEW_COL_DEFN)}) {           \
       PERFETTO_TP_VIEW_JOINS(DEF, PERFETTO_TP_VIEW_JOIN_STATIC_ASSERT)         \
     }                                                                          \
     ~class_name() override;                                                    \
@@ -297,7 +387,9 @@ class ViewColumnBlueprint {
       return result;                                                           \
     }                                                                          \
                                                                                \
-    PERFETTO_TP_VIEW_COLS(DEF, PERFETTO_TP_VIEW_COL_BLUEPRINT_GETTER)          \
+    PERFETTO_TP_VIEW_COLS(DEF,                                                 \
+                          PERFETTO_TP_VIEW_FROM_COL_BLUEPRINT_GETTER,          \
+                          PERFETTO_TP_VIEW_COL_BLUEPRINT_GETTER)               \
                                                                                \
     static const char* Name() { return view_name; }                            \
   }
