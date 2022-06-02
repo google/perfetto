@@ -26,7 +26,7 @@
     "mithril": "^2.2.0",
     "noice-json-rpc": "^1.2.0",
     "pako": "^1.0.11",
-    "protobufjs": "^6.9.0",
+    "protobufjs": "^6.11.3",
     "util": "^0.12.3",
     "uuid": "^8.3.2"
   },
