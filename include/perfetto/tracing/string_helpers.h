@@ -40,34 +40,6 @@ class PERFETTO_EXPORT_COMPONENT StaticString {
   const char* value;
 };
 
-namespace internal {
-
-// Ensure that |string| is a static constant string.
-//
-// If you get a compiler failure here, you are most likely trying to use
-// TRACE_EVENT with a dynamic event name. There are two ways to fix this:
-//
-// 1) If the event name is actually dynamic (e.g., std::string), write it into
-//    the event manually:
-//
-//      TRACE_EVENT("category", nullptr, [&](perfetto::EventContext ctx) {
-//        ctx.event()->set_name(dynamic_name);
-//      });
-//
-// 2) If the name is static, but the pointer is computed at runtime, wrap it
-//    with perfetto::StaticString:
-//
-//      TRACE_EVENT("category", perfetto::StaticString{name});
-//
-//    DANGER: Using perfetto::StaticString with strings whose contents change
-//            dynamically can cause silent trace data corruption.
-//
-constexpr const char* GetStaticString(StaticString string) {
-  return string.value;
-}
-
-}  // namespace internal
-
 // A explicit wrapper for marking strings as dynamic to ensure that perfetto
 // doesn't try to cache the pointer value.
 class PERFETTO_EXPORT_COMPONENT DynamicString {
@@ -81,6 +53,22 @@ class PERFETTO_EXPORT_COMPONENT DynamicString {
   size_t length;
 };
 
+namespace internal {
+
+template <size_t N>
+constexpr const char* GetStaticString(const char (&string)[N]) {
+  return string;
+}
+
+constexpr std::nullptr_t GetStaticString(std::nullptr_t) {
+  return nullptr;
+}
+
+constexpr const char* GetStaticString(perfetto::StaticString string) {
+  return string.value;
+}
+
+}  // namespace internal
 }  // namespace perfetto
 
 #endif  // INCLUDE_PERFETTO_TRACING_STRING_HELPERS_H_
