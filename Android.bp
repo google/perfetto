@@ -8800,6 +8800,7 @@ filegroup {
         "src/trace_processor/importers/syscalls/syscall_tracker_unittest.cc",
         "src/trace_processor/importers/systrace/systrace_parser_unittest.cc",
         "src/trace_processor/ref_counted_unittest.cc",
+        "src/trace_processor/trace_sorter_queue_unittest.cc",
         "src/trace_processor/trace_sorter_unittest.cc",
     ],
 }
@@ -8856,6 +8857,14 @@ filegroup {
 // GN: //src/trace_processor/util:util
 filegroup {
     name: "perfetto_src_trace_processor_util_util",
+}
+
+// GN: //src/trace_processor/views:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_views_unittests",
+    srcs: [
+        "src/trace_processor/views/macros_unittest.cc",
+    ],
 }
 
 // GN: //src/trace_processor/views:views
@@ -10062,6 +10071,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_unittests",
         ":perfetto_src_trace_processor_util_util",
+        ":perfetto_src_trace_processor_views_unittests",
         ":perfetto_src_trace_processor_views_views",
         ":perfetto_src_traced_probes_android_log_android_log",
         ":perfetto_src_traced_probes_android_log_unittests",
