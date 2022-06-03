@@ -434,6 +434,23 @@ class PERFETTO_EXPORT_COMPONENT TrackEventLegacy {
   }
 };
 
+// In legacy macro, `const char*` is considered static by default, unless it's
+// wrapped in `TRACE_STR_COPY`.
+// Given a `nullptr`, `const char (&)[N]`, `const char*` or `StaticString`,
+// convert it to `perfetto::StaticString`.
+template <typename T>
+inline ::perfetto::StaticString ConvertToStaticStringByDefault(const T& name);
+
+inline ::perfetto::DynamicString ConvertToStaticStringByDefault(
+    ::perfetto::DynamicString name) {
+  return name;
+}
+
+template <typename T>
+inline ::perfetto::StaticString ConvertToStaticStringByDefault(const T& name) {
+  return ::perfetto::StaticString{name};
+}
+
 }  // namespace internal
 }  // namespace perfetto
 
@@ -442,8 +459,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventLegacy {
 #define PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(phase, category, name, track, \
                                                 ...)                          \
   PERFETTO_INTERNAL_TRACK_EVENT(                                              \
-      category,                                                               \
-      ::perfetto::internal::GetStaticString(::perfetto::StaticString{name}),  \
+      category, ::perfetto::internal::ConvertToStaticStringByDefault(name),   \
       ::perfetto::internal::TrackEventLegacy::PhaseToType(phase), track,      \
       ##__VA_ARGS__);
 
@@ -503,12 +519,12 @@ class PERFETTO_EXPORT_COMPONENT TrackEventLegacy {
 
 // PERFETTO_INTERNAL_SCOPED_TRACK_EVENT does not require GetStaticString, as it
 // uses TRACE_EVENT_BEGIN/END internally, which already have this call.
-#define INTERNAL_TRACE_EVENT_ADD_SCOPED(category, name, ...)               \
-  PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(                                    \
-      category, ::perfetto::StaticString{name},                            \
-      [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS { \
-        using ::perfetto::internal::TrackEventLegacy;                      \
-        TrackEventLegacy::AddDebugAnnotations(&ctx, ##__VA_ARGS__);        \
+#define INTERNAL_TRACE_EVENT_ADD_SCOPED(category, name, ...)                \
+  PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(                                     \
+      category, ::perfetto::internal::ConvertToStaticStringByDefault(name), \
+      [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {  \
+        using ::perfetto::internal::TrackEventLegacy;                       \
+        TrackEventLegacy::AddDebugAnnotations(&ctx, ##__VA_ARGS__);         \
       })
 
 // PERFETTO_INTERNAL_SCOPED_TRACK_EVENT does not require GetStaticString, as it
@@ -516,7 +532,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventLegacy {
 #define INTERNAL_TRACE_EVENT_ADD_SCOPED_WITH_FLOW(category, name, bind_id,   \
                                                   flags, ...)                \
   PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(                                      \
-      category, ::perfetto::StaticString{name},                              \
+      category, ::perfetto::internal::ConvertToStaticStringByDefault(name),  \
       [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {   \
         using ::perfetto::internal::TrackEventLegacy;                        \
         ::perfetto::internal::LegacyTraceId PERFETTO_UID(trace_id){bind_id}; \
@@ -1230,7 +1246,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventLegacy {
 // involvement from the embedder. APIs such as TRACE_EVENT_API_ADD_TRACE_EVENT
 // are still up to the embedder to define.
 
-#define TRACE_STR_COPY(str) (str)
+#define TRACE_STR_COPY(str) (perfetto::DynamicString{str})
 
 #define TRACE_ID_WITH_SCOPE(scope, ...) \
   ::perfetto::internal::LegacyTraceId::WithScope(scope, ##__VA_ARGS__)

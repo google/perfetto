@@ -182,12 +182,31 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
                                 const protos::gen::TrackEventConfig& config,
                                 const Category& category);
 
+  static void WriteEventName(const perfetto::DynamicString& event_name,
+                             perfetto::EventContext& event_ctx,
+                             perfetto::protos::pbzero::TrackEvent::Type);
+
+  static void WriteStaticEventName(const char* static_event_name,
+                                   perfetto::EventContext& event_ctx);
+
+  template <typename EventNameType,
+            typename Checker =
+                decltype(GetStaticString(std::declval<const EventNameType&>()))>
+  static void WriteEventName(const EventNameType& event_name,
+                             perfetto::EventContext& event_ctx,
+                             perfetto::protos::pbzero::TrackEvent::Type type) {
+    auto static_name = GetStaticString(event_name);
+    if (static_name != nullptr &&
+        type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
+      WriteStaticEventName(static_name, event_ctx);
+    }
+  }
+
   static perfetto::EventContext WriteEvent(
       TraceWriterBase*,
       TrackEventIncrementalState*,
       const TrackEventTlsState& tls_state,
       const Category* category,
-      const char* name,
       perfetto::protos::pbzero::TrackEvent::Type,
       const TraceTimestamp& timestamp,
       bool on_current_thread_track);
