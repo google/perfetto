@@ -157,7 +157,7 @@ void Column::FilterIntoNumericSlow(FilterOp op,
         return !nullable_vector<T>().Get(row).has_value();
       });
     } else {
-      rm->Intersect(RowMap());
+      rm->Clear();
     }
     return;
   } else if (op == FilterOp::kIsNotNull) {
@@ -210,7 +210,7 @@ void Column::FilterIntoNumericSlow(FilterOp op,
       FilterIntoNumericWithComparatorSlow<T, is_nullable>(op, rm, fn);
     }
   } else {
-    rm->Intersect(RowMap());
+    rm->Clear();
   }
 }
 
@@ -299,7 +299,7 @@ void Column::FilterIntoStringSlow(FilterOp op,
   }
 
   if (value.type != SqlValue::Type::kString) {
-    rm->Intersect(RowMap());
+    rm->Clear();
     return;
   }
 
@@ -354,7 +354,7 @@ void Column::FilterIntoIdSlow(FilterOp op, SqlValue value, RowMap* rm) const {
 
   if (op == FilterOp::kIsNull) {
     PERFETTO_DCHECK(value.is_null());
-    rm->Intersect(RowMap());
+    rm->Clear();
     return;
   } else if (op == FilterOp::kIsNotNull) {
     PERFETTO_DCHECK(value.is_null());
@@ -362,7 +362,7 @@ void Column::FilterIntoIdSlow(FilterOp op, SqlValue value, RowMap* rm) const {
   }
 
   if (value.type != SqlValue::Type::kLong) {
-    rm->Intersect(RowMap());
+    rm->Clear();
     return;
   }
 
