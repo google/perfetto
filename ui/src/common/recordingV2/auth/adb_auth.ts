@@ -18,7 +18,7 @@ import {assertExists, assertTrue} from '../../../base/logging';
 import {
   base64Decode,
   base64Encode,
-  hexEncode
+  hexEncode,
 } from '../../../base/string_utils';
 
 const WORD_SIZE = 4;
@@ -30,7 +30,7 @@ const ADB_WEB_CRYPTO_ALGORITHM = {
   name: 'RSASSA-PKCS1-v1_5',
   hash: {name: 'SHA-1'},
   publicExponent: new Uint8Array([0x01, 0x00, 0x01]),  // 65537
-  modulusLength: MODULUS_SIZE_BITS
+  modulusLength: MODULUS_SIZE_BITS,
 };
 
 const ADB_WEB_CRYPTO_EXPORTABLE = true;
@@ -52,7 +52,7 @@ const SIGNING_ASN1_PREFIX = [
   0x05,
   0x00,
   0x04,
-  0x14
+  0x14,
 ];
 
 const R32 = BigInteger.ONE.shiftLeft(32);  // 1 << 32

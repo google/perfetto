@@ -69,7 +69,7 @@ export class HttpRpcEngine extends Engine {
   }
 
   private onWebsocketMessage(e: MessageEvent) {
-    assertExists(e.data as Blob).arrayBuffer().then(buf => {
+    assertExists(e.data as Blob).arrayBuffer().then((buf) => {
       super.onRpcResponseBytes(new Uint8Array(buf));
     });
   }

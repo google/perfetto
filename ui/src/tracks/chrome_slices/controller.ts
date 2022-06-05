@@ -94,7 +94,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       titles: new Uint16Array(numRows),
       isInstant: new Uint16Array(numRows),
       isIncomplete: new Uint16Array(numRows),
-      cpuTimeRatio: new Float64Array(numRows)
+      cpuTimeRatio: new Float64Array(numRows),
     };
 
     const stringIndexes = new Map<string, number>();
@@ -116,7 +116,7 @@ class ChromeSliceTrackController extends TrackController<Config, Data> {
       name: STR,
       isInstant: NUM,
       isIncomplete: NUM,
-      threadDur: NUM
+      threadDur: NUM,
     });
     for (let row = 0; it.valid(); it.next(), row++) {
       const startNsQ = it.tsq;

@@ -118,7 +118,7 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
     const frame = new perfetto.protos.IPCFrame({
       requestId,
       msgInvokeMethod: new perfetto.protos.IPCFrame.InvokeMethod(
-          {serviceId: this.serviceId, methodId, argsProto})
+          {serviceId: this.serviceId, methodId, argsProto}),
     });
     this.requestMethods.set(requestId, method);
     this.sendFrame(frame);
@@ -300,7 +300,7 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
     const frame = new perfetto.protos.IPCFrame({
       requestId,
       msgBindService: new perfetto.protos.IPCFrame.BindService(
-          {serviceName: 'ConsumerPort'})
+          {serviceName: 'ConsumerPort'}),
     });
     return new Promise<void>((resolve, _) => {
       this.resolveBindingPromise = resolve;

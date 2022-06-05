@@ -21,7 +21,7 @@ test('textGoingToMultipleLines', () => {
 
   expect(lineSplitter).toEqual({
     lines: ['Dummy t', 'ext to ', 'go to m', 'ultiple', ' lines.'],
-    lineWidth: 7
+    lineWidth: 7,
   });
 });
 
@@ -48,6 +48,6 @@ test('textGoingToTwoLines', () => {
 
   expect(lineSplitter).toEqual({
     lines: ['Dummy text to g', 'o to two lines.'],
-    lineWidth: text.length / 2
+    lineWidth: text.length / 2,
   });
 });

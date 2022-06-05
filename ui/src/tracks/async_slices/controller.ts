@@ -98,7 +98,7 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
       name: STR,
       id: NUM,
       isInstant: NUM,
-      isIncomplete: NUM
+      isIncomplete: NUM,
     });
     for (let row = 0; it.valid(); it.next(), row++) {
       const startNsQ = it.tsq;

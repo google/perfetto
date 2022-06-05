@@ -91,7 +91,7 @@ export function maybeShowErrorDialog(errLog: string) {
           oninput: (ev: InputEvent) => {
             checked = (ev.target as HTMLInputElement).checked;
             if (checked && engine && engine.source.type === 'FILE') {
-              saveTrace(engine.source.file).then(url => {
+              saveTrace(engine.source.file).then((url) => {
                 const errMessage = createErrorMessage(errLog, checked, url);
                 renderModal(
                     errTitle, errMessage, userDescription, shareTraceSection);
@@ -151,9 +151,9 @@ function renderModal(
         action: () => {
           window.open(
               createLink(errTitle, errMessage, userDescription), '_blank');
-        }
+        },
       },
-    ]
+    ],
   });
 }
 
@@ -221,7 +221,7 @@ function showOutOfMemoryDialog() {
         m('span', 'For details see '),
         m('a', {href: url, target: '_blank'}, url),
         ),
-    buttons: []
+    buttons: [],
   });
 }
 
@@ -243,7 +243,7 @@ function showUnknownFileError() {
             m('li', 'Ninja build log'),
             ),
         ),
-    buttons: []
+    buttons: [],
   });
 }
 
@@ -260,7 +260,7 @@ function showWebUSBError() {
         m('span', 'For details see '),
         m('a', {href: 'http://b/159048331', target: '_blank'}, 'b/159048331'),
         ),
-    buttons: []
+    buttons: [],
   });
 }
 
@@ -273,7 +273,7 @@ function showConnectionLostError(): void {
         'div',
         m('span', `Please connect the device again to restart the recording.`),
         m('br')),
-    buttons: []
+    buttons: [],
   });
 }
 
@@ -289,6 +289,6 @@ restarting the trace processor while still in use by UI.`),
         m('p', `Please refresh this tab and ensure that trace processor is used
 at most one tab at a time.`),
         ),
-    buttons: []
+    buttons: [],
   });
 }

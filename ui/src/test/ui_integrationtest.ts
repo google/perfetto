@@ -22,10 +22,10 @@ import {
   compareScreenshots,
   failIfTraceProcessorHttpdIsActive,
   getTestTracePath,
-  waitForPerfettoIdle
+  waitForPerfettoIdle,
 } from './perfetto_ui_test_helper';
 
-declare var global: {__BROWSER__: puppeteer.Browser;};
+declare let global: {__BROWSER__: puppeteer.Browser;};
 const browser = assertExists(global.__BROWSER__);
 const expectedScreenshotPath = path.join('test', 'data', 'ui-screenshots');
 
@@ -104,7 +104,7 @@ describe('android_trace_30s', () => {
   //    await page.keyboard.type('\n');
   //  }
   //  await waitForPerfettoIdle(page);
-  //});
+  // });
 });
 
 describe('chrome_rendering_desktop', () => {

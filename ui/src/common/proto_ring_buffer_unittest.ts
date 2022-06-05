@@ -27,7 +27,7 @@ function Rnd(max: number) {
 
 function MakeProtoMessage(fieldId: number, len: number) {
   const writer = protobuf.Writer.create();
-  const tag = (fieldId << 3) | 2 /*length-delimited*/;
+  const tag = (fieldId << 3) | 2;
   assertTrue(tag < 0x80 && (tag & 7) === 2);
   writer.uint32(tag);
   const data = new Uint8Array(len);
@@ -88,7 +88,7 @@ test('ProtoRingBufferTest.CoalescingStream', () => {
 
   const fragLens = [120, 20, 471, 1];
   let fragSum = 0;
-  fragLens.map(fragLen => {
+  fragLens.map((fragLen) => {
     buf.append(mergedBuf.subarray(fragSum, fragSum + fragLen));
     fragSum += fragLen;
     for (;;) {

@@ -18,7 +18,7 @@ import {
   NamedRecordConfig,
   namedRecordConfigValidator,
   RecordConfig,
-  recordConfigValidator
+  recordConfigValidator,
 } from '../controller/record_config_types';
 import {runValidator, ValidationResult} from '../controller/validators';
 
@@ -51,7 +51,7 @@ export class RecordConfigStore {
     const config: NamedRecordConfig = {
       title: savedTitle,
       config: recordConfig,
-      key: new Date().toJSON()
+      key: new Date().toJSON(),
     };
 
     this.recordConfigs.push({result: config, invalidKeys: [], extraKeys: []});

@@ -113,7 +113,7 @@ class TableBuilder {
         indentLevel: row[0],
         extraCell: row[1],
         contents: {kind: 'TableHeader', header: prefix},
-        tooltip: completePrefix
+        tooltip: completePrefix,
       });
 
       for (let i = 0; i < record.length; i++) {
@@ -145,7 +145,7 @@ class TableBuilder {
             indentLevel: row[0],
             extraCell: row[1],
             contents: {kind: 'TableHeader', header: prefix},
-            tooltip: completePrefix
+            tooltip: completePrefix,
           });
           this.stack.push('whitespace');
         }
@@ -163,7 +163,7 @@ class TableBuilder {
         indentLevel: row[0],
         extraCell: row[1],
         contents: {kind: 'KVPair', key: prefix, value: record},
-        tooltip: completePrefix
+        tooltip: completePrefix,
       });
     }
   }
@@ -301,7 +301,7 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
                       // scrolling to ts.
                       verticalScrollToTrack(trackId, true);
                     },
-                    title: 'Go to destination slice'
+                    title: 'Go to destination slice',
                   },
                   'call_made')));
         }

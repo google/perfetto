@@ -66,7 +66,7 @@ export abstract class AggregationController extends Controller<'main'> {
           strings: [],
           columnSums: [],
         },
-        kind: this.args.kind
+        kind: this.args.kind,
       });
       return;
     }
@@ -84,7 +84,7 @@ export abstract class AggregationController extends Controller<'main'> {
       this.requestingData = true;
       if (sortingChanged) this.previousSorting = aggregatePreferences.sorting;
       this.getAggregateData(area, hasAreaChanged)
-          .then(data => publishAggregateData({data, kind: this.args.kind}))
+          .then((data) => publishAggregateData({data, kind: this.args.kind}))
           .finally(() => {
             this.requestingData = false;
             if (this.queuedRequest) {
@@ -110,7 +110,7 @@ export abstract class AggregationController extends Controller<'main'> {
     }
 
     const defs = this.getColumnDefinitions();
-    const colIds = defs.map(col => col.columnId);
+    const colIds = defs.map((col) => col.columnId);
     const pref = globals.state.aggregatePreferences[this.kind];
     let sorting = `${this.getDefaultSorting().column} ${
         this.getDefaultSorting().direction}`;
@@ -121,8 +121,8 @@ export abstract class AggregationController extends Controller<'main'> {
     const result = await this.args.engine.query(query);
 
     const numRows = result.numRows();
-    const columns = defs.map(def => this.columnFromColumnDef(def, numRows));
-    const columnSums = await Promise.all(defs.map(def => this.getSum(def)));
+    const columns = defs.map((def) => this.columnFromColumnDef(def, numRows));
+    const columnSums = await Promise.all(defs.map((def) => this.getSum(def)));
     const extraData = await this.getExtra(this.args.engine, area);
     const extra = extraData ? extraData : undefined;
     const data: AggregateData =

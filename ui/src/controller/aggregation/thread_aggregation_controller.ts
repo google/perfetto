@@ -20,7 +20,7 @@ import {translateState} from '../../common/thread_state';
 import {toNs} from '../../common/time';
 import {
   Config,
-  THREAD_STATE_TRACK_KIND
+  THREAD_STATE_TRACK_KIND,
 } from '../../tracks/thread_state/common';
 import {globals} from '../globals';
 
@@ -93,7 +93,7 @@ export class ThreadAggregationController extends AggregationController {
       kind: 'THREAD_STATE',
       states: [],
       values: new Float64Array(result.numRows()),
-      totalMs: 0
+      totalMs: 0,
     };
     summary.totalMs = 0;
     for (let i = 0; it.valid(); ++i, it.next()) {
@@ -119,46 +119,46 @@ export class ThreadAggregationController extends AggregationController {
         title: 'PID',
         kind: 'NUMBER',
         columnConstructor: Uint16Array,
-        columnId: 'pid'
+        columnId: 'pid',
       },
       {
         title: 'Thread',
         kind: 'STRING',
         columnConstructor: Uint16Array,
-        columnId: 'thread_name'
+        columnId: 'thread_name',
       },
       {
         title: 'TID',
         kind: 'NUMBER',
         columnConstructor: Uint16Array,
-        columnId: 'tid'
+        columnId: 'tid',
       },
       {
         title: 'State',
         kind: 'STATE',
         columnConstructor: Uint16Array,
-        columnId: 'concat_state'
+        columnId: 'concat_state',
       },
       {
         title: 'Wall duration (ms)',
         kind: 'TIMESTAMP_NS',
         columnConstructor: Float64Array,
         columnId: 'total_dur',
-        sum: true
+        sum: true,
       },
       {
         title: 'Avg Wall duration (ms)',
         kind: 'TIMESTAMP_NS',
         columnConstructor: Float64Array,
-        columnId: 'avg_dur'
+        columnId: 'avg_dur',
       },
       {
         title: 'Occurrences',
         kind: 'NUMBER',
         columnConstructor: Uint16Array,
         columnId: 'occurrences',
-        sum: true
-      }
+        sum: true,
+      },
     ];
   }
 

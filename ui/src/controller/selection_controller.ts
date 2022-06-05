@@ -28,7 +28,7 @@ import {SliceDetails, ThreadStateDetails} from '../frontend/globals';
 import {
   publishCounterDetails,
   publishSliceDetails,
-  publishThreadStateDetails
+  publishThreadStateDetails,
 } from '../frontend/publish';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
 
@@ -83,7 +83,7 @@ export class SelectionController extends Controller<'main'> {
 
     if (selection.kind === 'COUNTER') {
       this.counterDetails(selection.leftTs, selection.rightTs, selection.id)
-          .then(results => {
+          .then((results) => {
             if (results !== undefined && selection &&
                 selection.kind === selectedKind &&
                 selection.id === selectedId) {
@@ -206,7 +206,7 @@ export class SelectionController extends Controller<'main'> {
       category,
       args,
       argsTree,
-      description
+      description,
     };
 
     if (trackId !== undefined) {
@@ -232,7 +232,7 @@ export class SelectionController extends Controller<'main'> {
             FROM ${columnInfo.leafTrackTable}
             WHERE id = ${trackId};
         `)).firstRow({
-             utid: NUM
+             utid: NUM,
            }).utid;
         Object.assign(selected, await this.computeThreadDetails(utid));
       } else if (hasUpid) {
@@ -241,7 +241,7 @@ export class SelectionController extends Controller<'main'> {
             FROM ${columnInfo.leafTrackTable}
             WHERE id = ${trackId};
         `)).firstRow({
-             upid: NUM
+             upid: NUM,
            }).upid;
         Object.assign(selected, await this.computeProcessDetails(upid));
       }
@@ -405,12 +405,12 @@ export class SelectionController extends Controller<'main'> {
         cpu,
         id,
         utid,
-        threadStateId
+        threadStateId,
       };
       Object.assign(selected, await this.computeThreadDetails(utid));
 
       this.schedulingDetails(ts, utid)
-          .then(wakeResult => {
+          .then((wakeResult) => {
             Object.assign(selected, wakeResult);
           })
           .finally(() => {
@@ -508,7 +508,7 @@ export class SelectionController extends Controller<'main'> {
       `)).firstRow({tid: NUM, name: STR_NULL, upid: NUM_NULL});
     const threadDetails = {
       tid: threadInfo.tid,
-      threadName: threadInfo.name || undefined
+      threadName: threadInfo.name || undefined,
     };
     if (threadInfo.upid) {
       return Object.assign(

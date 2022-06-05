@@ -212,7 +212,7 @@ class TraceViewer implements m.ClassComponent {
         globals.frontendLocalState.deselectArea();
         // Full redraw to color track shell.
         globals.rafScheduler.scheduleFullRedraw();
-      }
+      },
     });
   }
 
@@ -223,13 +223,13 @@ class TraceViewer implements m.ClassComponent {
 
   view() {
     const scrollingPanels: AnyAttrsVnode[] = globals.state.scrollingTracks.map(
-        id => m(TrackPanel, {key: id, id, selectable: true}));
+        (id) => m(TrackPanel, {key: id, id, selectable: true}));
 
     for (const group of Object.values(globals.state.trackGroups)) {
       const headerPanel = m(TrackGroupPanel, {
         trackGroupId: group.id,
         key: `trackgroup-${group.id}`,
-        selectable: true
+        selectable: true,
       });
 
       const childTracks: AnyAttrsVnode[] = [];
@@ -264,7 +264,7 @@ class TraceViewer implements m.ClassComponent {
                   return;
                 }
                 globals.makeSelection(Actions.deselect({}));
-              }
+              },
             },
             m('.pinned-panel-container', m(PanelContainer, {
                 doesScroll: false,
@@ -275,7 +275,7 @@ class TraceViewer implements m.ClassComponent {
                   m(NotesPanel, {key: 'notes'}),
                   m(TickmarkPanel, {key: 'searchTickmarks'}),
                   ...globals.state.pinnedTracks.map(
-                      id => m(TrackPanel, {key: id, id, selectable: true})),
+                      (id) => m(TrackPanel, {key: id, id, selectable: true})),
                 ],
                 kind: 'OVERVIEW',
               })),
@@ -291,5 +291,5 @@ class TraceViewer implements m.ClassComponent {
 export const ViewerPage = createPage({
   view() {
     return m(TraceViewer);
-  }
+  },
 });

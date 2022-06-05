@@ -182,7 +182,7 @@ async function maybeOpenCachedTrace(traceUuid: string) {
         action: () => {
           hasOpenedNewTrace = true;
           globals.dispatch(Actions.openTraceFromBuffer(maybeTrace));
-        }
+        },
       },
       {text: 'Cancel'},
     ],
@@ -207,13 +207,13 @@ function loadTraceFromUrl(url: string) {
     // when users click on share we don't fail the re-fetch().
     const fileName = url.split('/').pop() || 'local_trace.pftrace';
     const request = fetch(url)
-                        .then(response => response.blob())
-                        .then(blob => {
+                        .then((response) => response.blob())
+                        .then((blob) => {
                           globals.dispatch(Actions.openTraceFromFile({
                             file: new File([blob], fileName),
                           }));
                         })
-                        .catch(e => alert(`Could not load local trace ${e}`));
+                        .catch((e) => alert(`Could not load local trace ${e}`));
     taskTracker.trackPromise(request, 'Downloading local trace');
   } else {
     globals.dispatch(Actions.openTraceFromUrl({url}));
@@ -227,12 +227,12 @@ function openTraceFromAndroidBugTool() {
   const loadInfo = loadAndroidBugToolInfo();
   taskTracker.trackPromise(loadInfo, 'Loading trace from ABT extension');
   loadInfo
-      .then(info => {
+      .then((info) => {
         globals.dispatch(Actions.openTraceFromFile({
           file: info.file,
         }));
       })
-      .catch(e => {
+      .catch((e) => {
         console.error(e);
       });
 }

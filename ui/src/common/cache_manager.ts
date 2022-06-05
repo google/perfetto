@@ -26,8 +26,12 @@ const TRACE_CACHE_SIZE = 10;
 
 export async function cacheTrace(
     traceSource: TraceSource, traceUuid: string): Promise<boolean> {
-  let trace, title = '', fileName = '', url = '', contentLength = 0,
-             localOnly = false;
+  let trace;
+  let title = '';
+  let fileName = '';
+  let url = '';
+  let contentLength = 0;
+  let localOnly = false;
   switch (traceSource.type) {
     case 'ARRAY_BUFFER':
       trace = traceSource.buffer;
@@ -58,8 +62,8 @@ export async function cacheTrace(
       'expires',
       // Expires in a week from now (now = upload time)
       (new Date((new Date()).getTime() + (1000 * 60 * 60 * 24 * 7)))
-          .toUTCString()
-    ]
+          .toUTCString(),
+    ],
   ]);
   const traceCache = await caches.open(TRACE_CACHE_NAME);
   await deleteStaleEntries(traceCache);
@@ -82,7 +86,7 @@ export async function tryGetTrace(traceUuid: string):
     fileName: response.headers.get('x-trace-filename') || undefined,
     url: response.headers.get('x-trace-url') || undefined,
     uuid: traceUuid,
-    localOnly: response.headers.get('x-trace-local-only') === 'true'
+    localOnly: response.headers.get('x-trace-local-only') === 'true',
   };
 }
 

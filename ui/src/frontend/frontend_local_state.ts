@@ -126,7 +126,7 @@ export class FrontendLocalState {
   sendVisibleTracks() {
     if (this.prevVisibleTracks.size !== this.visibleTracks.size ||
         ![...this.prevVisibleTracks].every(
-            value => this.visibleTracks.has(value))) {
+            (value) => this.visibleTracks.has(value))) {
       globals.dispatch(
           Actions.setVisibleTracks({tracks: Array.from(this.visibleTracks)}));
       this.prevVisibleTracks = new Set(this.visibleTracks);

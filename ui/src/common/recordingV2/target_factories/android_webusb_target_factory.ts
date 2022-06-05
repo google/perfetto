@@ -15,12 +15,12 @@
 import {assertExists} from '../../../base/logging';
 import {
   ADB_DEVICE_FILTER,
-  findInterfaceAndEndpoint
+  findInterfaceAndEndpoint,
 } from '../adb_over_webusb_utils';
 import {
   OnTargetChangedCallback,
   RecordingTargetV2,
-  TargetFactory
+  TargetFactory,
 } from '../recording_interfaces_v2';
 import {targetFactoryRegistry} from '../target_factory_registry';
 import {AndroidWebusbTarget} from '../targets/android_webusb_target';

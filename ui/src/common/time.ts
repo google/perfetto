@@ -63,9 +63,9 @@ export function timeToCode(sec: number): string {
     ['s', 1000000000],
     ['ms', 1000000],
     ['us', 1000],
-    ['ns', 1]
+    ['ns', 1],
   ];
-  unitAndValue.forEach(pair => {
+  unitAndValue.forEach((pair) => {
     const unit = pair[0] as string;
     const val = pair[1] as number;
     if (ns >= val) {

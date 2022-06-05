@@ -57,7 +57,7 @@ export function loadAndroidBugToolInfo(): Promise<TraceFromBuganizer> {
           case WebContentScriptMessageType.CONVERT_OBJECT_URL_RESPONSE:
           if (response.attachments?.length > 0) {
             const filesBlobPromises =
-                response.attachments.map(async attachment => {
+                response.attachments.map(async (attachment) => {
                   const fileQueryResponse = await fetch(attachment.objectUrl);
                   const blob = await fileQueryResponse.blob();
                   // Note: The blob's media type is always set to "image/png".

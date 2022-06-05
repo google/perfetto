@@ -20,8 +20,8 @@ export function fetchWithTimeout(
             new Error(`fetch(${input}) timed out after ${timeoutMs} ms`)),
         timeoutMs);
     fetch(input, init)
-        .then(response => resolve(response))
-        .catch(err => reject(err))
+        .then((response) => resolve(response))
+        .catch((err) => reject(err))
         .finally(() => clearTimeout(timer));
   });
 }
