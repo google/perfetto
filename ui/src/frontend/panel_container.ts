@@ -32,10 +32,8 @@ import {
 } from './perf';
 import {TrackGroupAttrs} from './viewer_page';
 
-/**
- * If the panel container scrolls, the backing canvas height is
- * SCROLLING_CANVAS_OVERDRAW_FACTOR * parent container height.
- */
+// If the panel container scrolls, the backing canvas height is
+// SCROLLING_CANVAS_OVERDRAW_FACTOR * parent container height.
 const SCROLLING_CANVAS_OVERDRAW_FACTOR = 1.2;
 
 // We need any here so we can accept vnodes with arbitrary attrs.
@@ -314,10 +312,8 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     canvas.style.transform = `translateY(${canvasYStart}px)`;
   }
 
-  /**
-   * Reads dimensions of parent node. Returns true if read dimensions are
-   * different from what was cached in the state.
-   */
+  // Reads dimensions of parent node. Returns true if read dimensions are
+  // different from what was cached in the state.
   private readParentSizeFromDom(dom: Element): boolean {
     const oldWidth = this.parentWidth;
     const oldHeight = this.parentHeight;
@@ -331,10 +327,8 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     return this.parentHeight !== oldHeight || this.parentWidth !== oldWidth;
   }
 
-  /**
-   * Reads dimensions of panels. Returns true if total panel height is different
-   * from what was cached in state.
-   */
+  // Reads dimensions of panels. Returns true if total panel height is different
+  // from what was cached in state.
   private readPanelHeightsFromDom(dom: Element): boolean {
     const prevHeight = this.totalPanelHeight;
     this.panelInfos = [];
