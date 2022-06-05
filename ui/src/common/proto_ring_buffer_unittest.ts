@@ -123,18 +123,18 @@ test('ProtoRingBufferTest.RandomSizes', () => {
     mergedLen += msg.length;
   }
 
-  for (let fragSum = 0; fragSum < mergedLen;) {
-      let fragLen = 1 + Rnd(1024 * 32);
-      fragLen = Math.min(fragLen, mergedLen - fragSum);
-      buf.append(mergedBuf.subarray(fragSum, fragSum + fragLen));
-      fragSum += fragLen;
-      for (;;) {
-        const msg = buf.readMessage();
-        if (msg === undefined) break;
-        const expLen = expectedLengths.shift();
-        expect(expLen).toBeDefined();
-        expect(msg.length).toEqual(expLen);
-      }
+  for (let fragSum = 0; fragSum < mergedLen; /**/) {
+    let fragLen = 1 + Rnd(1024 * 32);
+    fragLen = Math.min(fragLen, mergedLen - fragSum);
+    buf.append(mergedBuf.subarray(fragSum, fragSum + fragLen));
+    fragSum += fragLen;
+    for (;;) {
+      const msg = buf.readMessage();
+      if (msg === undefined) break;
+      const expLen = expectedLengths.shift();
+      expect(expLen).toBeDefined();
+      expect(msg.length).toEqual(expLen);
     }
+  }
   expect(expectedLengths.length).toEqual(0);
 });

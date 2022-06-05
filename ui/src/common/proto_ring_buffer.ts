@@ -131,7 +131,7 @@ export class ProtoRingBuffer {
     }
 
     let len = 0;
-    for (let shift = 0;; shift += 7) {
+    for (let shift = 0; /* no check */; shift += 7) {
       if (pos >= dataEnd) {
         return undefined;  // Not enough data to read varint.
       }

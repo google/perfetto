@@ -54,5 +54,11 @@ module.exports = {
     // construtor.
     'no-array-constructor': 'off',
     '@typescript-eslint/no-array-constructor': ['error'],
+
+    // We have a lot normal functions which are capitalised.
+    // TODO(hjd): Switch these to be lowercase and remove capIsNew.
+    // There are also some properties like: foo.factory these should
+    // stay.
+    'new-cap': ['error', {'capIsNew': false, 'properties': false}]
   },
 };
