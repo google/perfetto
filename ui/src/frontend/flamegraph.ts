@@ -109,10 +109,8 @@ export class Flamegraph {
     return `hsl(${x}deg, 45%, ${l}%)`;
   }
 
-  /**
-   * Caller will have to call draw method after updating data to have updated
-   * graph.
-   */
+  // Caller will have to call draw method after updating data to have updated
+  // graph.
   updateDataIfChanged(
       nodeRendering: NodeRendering, flamegraphData: CallsiteInfo[],
       clickedCallsite?: CallsiteInfo) {
