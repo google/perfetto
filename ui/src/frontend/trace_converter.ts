@@ -15,11 +15,11 @@
 import {Actions} from '../common/actions';
 import {
   ConversionJobName,
-  ConversionJobStatus
+  ConversionJobStatus,
 } from '../common/conversion_jobs';
 
-import {maybeShowErrorDialog} from './error_dialog';
 import {download} from './clipboard';
+import {maybeShowErrorDialog} from './error_dialog';
 import {globals} from './globals';
 import {openBufferWithLegacyTraceViewer} from './legacy_trace_viewer';
 

@@ -18,7 +18,7 @@ import {
   LogBoundsKey,
   LogEntries,
   LogEntriesKey,
-  LogExistsKey
+  LogExistsKey,
 } from '../common/logs';
 import {NUM, STR} from '../common/query_result';
 import {fromNs, TimeSpan, toNsCeil, toNsFloor} from '../common/time';
@@ -167,7 +167,7 @@ export class LogsController extends Controller<'main'> {
     this.engine = args.engine;
     this.span = new TimeSpan(0, 10);
     this.pagination = new Pagination(0, 0);
-    this.hasAnyLogs().then(exists => {
+    this.hasAnyLogs().then((exists) => {
       this.hasLogs = exists;
       publishTrackData({
         id: LogExistsKey,
@@ -211,7 +211,7 @@ export class LogsController extends Controller<'main'> {
     // We should avoid enqueuing a request when one is in progress.
     if (needSpanUpdate) {
       this.span = newSpan;
-      updateLogBounds(this.engine, newSpan).then(data => {
+      updateLogBounds(this.engine, newSpan).then((data) => {
         if (!newSpan.equals(this.span)) return;
         publishTrackData({
           id: LogBoundsKey,
@@ -225,7 +225,7 @@ export class LogsController extends Controller<'main'> {
     if (needSpanUpdate || needPaginationUpdate) {
       this.pagination = requestedPagination.grow(100);
 
-      updateLogEntries(this.engine, newSpan, this.pagination).then(data => {
+      updateLogEntries(this.engine, newSpan, this.pagination).then((data) => {
         if (!this.pagination.contains(requestedPagination)) return;
         publishTrackData({
           id: LogEntriesKey,

@@ -21,7 +21,7 @@ export interface UsbInterfaceAndEndpoint {
 export const ADB_DEVICE_FILTER = {
   classCode: 255,    // USB vendor specific code
   subclassCode: 66,  // Android vendor specific subclass
-  protocolCode: 1    // Adb protocol
+  protocolCode: 1,   // Adb protocol
 };
 
 export function findInterfaceAndEndpoint(device: USBDevice):
@@ -36,7 +36,7 @@ export function findInterfaceAndEndpoint(device: USBDevice):
           return {
             configurationValue: config.configurationValue,
             usbInterfaceNumber: interface_.interfaceNumber,
-            endpoints: alt.endpoints
+            endpoints: alt.endpoints,
           };
         }  // if (alternate)
       }    // for (interface.alternates)

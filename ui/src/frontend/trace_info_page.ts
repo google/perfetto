@@ -119,7 +119,7 @@ class TraceMetadata implements m.ClassComponent {
           )
           select name, value
           from metadata_with_priorities 
-          order by priority desc, name`
+          order by priority desc, name`,
       }));
     }
 
@@ -234,5 +234,5 @@ export const TraceInfoPage = createPage({
 
         }),
     );
-  }
+  },
 });

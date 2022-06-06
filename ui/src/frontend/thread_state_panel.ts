@@ -94,9 +94,9 @@ export class ThreadStatePanel extends Panel {
                     trackId, toNs(ts + globals.state.traceTime.startSec));
               }
             },
-            title: 'Go to CPU slice'
+            title: 'Go to CPU slice',
           },
-          'call_made')
+          'call_made'),
     ];
   }
 

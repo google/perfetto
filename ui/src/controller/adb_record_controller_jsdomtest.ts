@@ -25,7 +25,7 @@ function generateMockConsumer(): Consumer {
   return {
     onConsumerPortResponse: jest.fn(),
     onError: jest.fn(),
-    onStatus: jest.fn()
+    onStatus: jest.fn(),
   };
 }
 const mainCallback = generateMockConsumer();
@@ -66,7 +66,7 @@ test('enableTracing', async () => {
   const adbController = new AdbConsumerPort(adbMock, mainCallback);
 
   adbController.sendErrorMessage =
-      jest.fn().mockImplementation(s => console.error(s));
+      jest.fn().mockImplementation((s) => console.error(s));
 
   const findDevice = jest.fn().mockImplementation(() => {
     return Promise.resolve({} as unknown as USBDevice);

@@ -17,7 +17,7 @@ import {columnKey} from '../frontend/pivot_table_redux';
 import {TableColumn} from '../frontend/pivot_table_redux_query_generator';
 import {
   autosaveConfigStore,
-  recordTargetStore
+  recordTargetStore,
 } from '../frontend/record_config';
 
 import {featureFlags} from './feature_flags';
@@ -25,7 +25,7 @@ import {
   defaultTraceTime,
   NonSerializableState,
   State,
-  STATE_VERSION
+  STATE_VERSION,
 } from './state';
 
 const AUTOLOAD_STARTED_CONFIG_FLAG = featureFlags.register({
@@ -136,6 +136,6 @@ export function createEmptyState(): State {
 
     fetchChromeCategories: false,
     chromeCategories: undefined,
-    nonSerializableState: createEmptyNonSerializableState()
+    nonSerializableState: createEmptyNonSerializableState(),
   };
 }

@@ -212,7 +212,7 @@ test('ChromeCpuProfilerConfig', () => {
   config.chromeHighOverheadCategoriesSelected =
       ['disabled-by-default-cpu_profiler'];
   const decoded =
-    TraceConfig.decode(genConfigProto(config, { os: 'C', name: 'Chrome' }));
+      TraceConfig.decode(genConfigProto(config, {os: 'C', name: 'Chrome'}));
   const sources = assertExists(decoded.dataSources);
 
   const traceConfigSource = assertExists(sources[0].config);
@@ -243,7 +243,7 @@ test('ChromeCpuProfilerDebugConfig', () => {
   config.chromeHighOverheadCategoriesSelected =
       ['disabled-by-default-cpu_profiler.debug'];
   const decoded =
-    TraceConfig.decode(genConfigProto(config, { os: 'C', name: 'Chrome' }));
+      TraceConfig.decode(genConfigProto(config, {os: 'C', name: 'Chrome'}));
   const sources = assertExists(decoded.dataSources);
 
   const traceConfigSource = assertExists(sources[0].config);

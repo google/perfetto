@@ -36,7 +36,7 @@ export class QueryController extends Controller<'init'|'querying'> {
       case 'init':
         const config = assertExists(globals.state.queries[this.args.queryId]);
         runQuery(this.args.queryId, config.query, this.args.engine)
-            .then(result => {
+            .then((result) => {
               console.log(`Query ${config.query} took ${result.durationMs} ms`);
               publishQueryResult({id: this.args.queryId, data: result});
               globals.dispatch(

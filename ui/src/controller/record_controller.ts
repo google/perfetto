@@ -27,7 +27,7 @@ import {
   AdbRecordingTarget,
   isAdbTarget,
   isChromeTarget,
-  RecordingTarget
+  RecordingTarget,
 } from '../common/state';
 import {publishBufferUsage, publishTrackData} from '../frontend/publish';
 
@@ -84,7 +84,7 @@ export function toPbtxt(configBuffer: Uint8Array): string {
   const msg = TraceConfig.decode(configBuffer);
   const json = msg.toJSON();
   function snakeCase(s: string): string {
-    return s.replace(/[A-Z]/g, c => '_' + c.toLowerCase());
+    return s.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
   }
   // With the ahead of time compiled protos we can't seem to tell which
   // fields are enums.
@@ -105,7 +105,7 @@ export function toPbtxt(configBuffer: Uint8Array): string {
       'maxFileSizeBytes',
       'samplingIntervalBytes',
       'shmemSizeBytes',
-      'pid'
+      'pid',
     ].includes(key);
   }
   function* message(msg: {}, indent: number): IterableIterator<string> {
@@ -199,8 +199,8 @@ export class RecordController extends Controller<'main'> implements Consumer {
         commandline,
         pbBase64: configProtoBase64,
         pbtxt: configProtoText,
-        traceConfig
-      }
+        traceConfig,
+      },
     });
 
     // If the recordingInProgress boolean state is different, it means that we
@@ -369,7 +369,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
 
   private async hasSocketAccess(target: AdbRecordingTarget) {
     const devices = await navigator.usb.getDevices();
-    const device = devices.find(d => d.serialNumber === target.serial);
+    const device = devices.find((d) => d.serialNumber === target.serial);
     console.assert(device);
     if (!device) return Promise.resolve(false);
     return AdbSocketConsumerPort.hasSocketAccess(device, this.adb);

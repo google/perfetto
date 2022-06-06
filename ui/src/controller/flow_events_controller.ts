@@ -21,11 +21,11 @@ import {Flow} from '../frontend/globals';
 import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
-  Config as ActualConfig
+  Config as ActualConfig,
 } from '../tracks/actual_frames/common';
 import {
   Config as SliceConfig,
-  SLICE_TRACK_KIND
+  SLICE_TRACK_KIND,
 } from '../tracks/chrome_slices/common';
 
 import {Controller} from './controller';
@@ -54,7 +54,7 @@ export class FlowEventsController extends Controller<'main'> {
   }
 
   queryFlowEvents(query: string, callback: (flows: Flow[]) => void) {
-    this.args.engine.query(query).then(result => {
+    this.args.engine.query(query).then((result) => {
       const flows: Flow[] = [];
       const it = result.iter({
         beginSliceId: NUM,
@@ -125,7 +125,7 @@ export class FlowEventsController extends Controller<'main'> {
             sliceEndTs: beginSliceEndTs,
             depth: beginDepth,
             threadName: beginThreadName,
-            processName: beginProcessName
+            processName: beginProcessName,
           },
           end: {
             trackId: endTrackId,
@@ -136,11 +136,11 @@ export class FlowEventsController extends Controller<'main'> {
             sliceEndTs: endSliceEndTs,
             depth: endDepth,
             threadName: endThreadName,
-            processName: endProcessName
+            processName: endProcessName,
           },
           dur: endSliceStartTs - beginSliceEndTs,
           category,
-          name
+          name,
         });
       }
       callback(flows);

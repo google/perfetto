@@ -15,7 +15,7 @@
 import {NUM} from '../../common/query_result';
 import {
   TrackController,
-  trackControllerRegistry
+  trackControllerRegistry,
 } from '../../controller/track_controller';
 
 import {
@@ -34,7 +34,7 @@ class PerfSamplesProfileTrackController extends TrackController<Config, Data> {
         end,
         resolution,
         length: 0,
-        tsStartsNs: new Float64Array()
+        tsStartsNs: new Float64Array(),
       };
     }
     const queryRes = await this.query(`
@@ -48,7 +48,7 @@ class PerfSamplesProfileTrackController extends TrackController<Config, Data> {
       end,
       resolution,
       length: numRows,
-      tsStartsNs: new Float64Array(numRows)
+      tsStartsNs: new Float64Array(numRows),
     };
 
     const it = queryRes.iter({ts: NUM});
