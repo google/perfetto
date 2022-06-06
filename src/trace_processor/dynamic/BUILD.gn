@@ -38,6 +38,8 @@ source_set("dynamic") {
     "experimental_slice_layout_generator.h",
     "flamegraph_construction_algorithms.cc",
     "flamegraph_construction_algorithms.h",
+    "view_generator.cc",
+    "view_generator.h",
   ]
   deps = [
     "../../../gn:default_deps",
