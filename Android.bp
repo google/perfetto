@@ -8276,6 +8276,7 @@ filegroup {
         "src/trace_processor/dynamic/experimental_sched_upid_generator.cc",
         "src/trace_processor/dynamic/experimental_slice_layout_generator.cc",
         "src/trace_processor/dynamic/flamegraph_construction_algorithms.cc",
+        "src/trace_processor/dynamic/view_generator.cc",
     ],
 }
 
@@ -8897,6 +8898,9 @@ filegroup {
 // GN: //src/trace_processor/views:views
 filegroup {
     name: "perfetto_src_trace_processor_views_views",
+    srcs: [
+        "src/trace_processor/views/view_destructors.cc",
+    ],
 }
 
 // GN: //src/traceconv:gen_cc_trace_descriptor
