@@ -505,6 +505,15 @@ class TraceStorage {
     return &package_list_table_;
   }
 
+  const tables::AndroidGameInterventionListTable&
+  android_game_intervention_list_table() const {
+    return android_game_intervention_list_table_;
+  }
+  tables::AndroidGameInterventionListTable*
+  mutable_android_game_intervenion_list_table() {
+    return &android_game_intervention_list_table_;
+  }
+
   const tables::ProfilerSmapsTable& profiler_smaps_table() const {
     return profiler_smaps_table_;
   }
@@ -821,6 +830,8 @@ class TraceStorage {
       &string_pool_, &stack_sample_table_};
   tables::PerfSampleTable perf_sample_table_{&string_pool_, nullptr};
   tables::PackageListTable package_list_table_{&string_pool_, nullptr};
+  tables::AndroidGameInterventionListTable
+      android_game_intervention_list_table_{&string_pool_, nullptr};
   tables::ProfilerSmapsTable profiler_smaps_table_{&string_pool_, nullptr};
 
   // Symbol tables (mappings from frames to symbol names)
