@@ -303,7 +303,8 @@ export class AdbOverWebUsb implements Adb {
         stream.onClose = () => {};
         resolve(stream);
       };
-      stream.onClose = () => reject(`Failed to openStream svc=${svc}`);
+      stream.onClose = () =>
+          reject(new Error(`Failed to openStream svc=${svc}`));
     });
   }
 
