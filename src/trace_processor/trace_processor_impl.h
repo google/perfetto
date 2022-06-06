@@ -110,6 +110,9 @@ class TraceProcessorImpl : public TraceProcessor,
                                  std::move(generator));
   }
 
+  template <typename View>
+  void RegisterView(const View& view);
+
   bool IsRootMetricField(const std::string& metric_name);
 
   // Keep this first: we need this to be destroyed after we clean up
