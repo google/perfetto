@@ -32,7 +32,7 @@ import {
   ProcessStatsConfig,
   SysStatsConfig,
   TraceConfig,
-  VmstatCounters
+  VmstatCounters,
 } from '../protos';
 
 import {RecordingTargetV2, TargetInfo} from './recording_interfaces_v2';
@@ -53,7 +53,7 @@ export class RecordingConfigUtils {
     if (recordConfig === this.lastConfig) {
       return {
         configProtoText: this.configProtoText,
-        configProtoBase64: this.configProtoBase64
+        configProtoBase64: this.configProtoBase64,
       };
     }
     this.lastConfig = recordConfig;
@@ -64,7 +64,7 @@ export class RecordingConfigUtils {
     this.configProtoBase64 = base64Encode(configProto);
     return {
       configProtoText: this.configProtoText,
-      configProtoBase64: this.configProtoBase64
+      configProtoBase64: this.configProtoBase64,
     };
   }
 }
@@ -112,9 +112,9 @@ export function genTraceConfig(
   const atraceCats = new Set<string>(uiCfg.atrace ? uiCfg.atraceCats : []);
   const atraceApps = new Set<string>();
   const chromeCategories = new Set<string>();
-  uiCfg.chromeCategoriesSelected.forEach(it => chromeCategories.add(it));
+  uiCfg.chromeCategoriesSelected.forEach((it) => chromeCategories.add(it));
   uiCfg.chromeHighOverheadCategoriesSelected.forEach(
-      it => chromeCategories.add(it));
+      (it) => chromeCategories.add(it));
 
   let procThreadAssociationPolling = false;
   let procThreadAssociationFtrace = false;
@@ -225,7 +225,7 @@ export function genTraceConfig(
   if (uiCfg.meminfo) {
     if (sysStatsCfg === undefined) sysStatsCfg = new SysStatsConfig();
     sysStatsCfg.meminfoPeriodMs = uiCfg.meminfoPeriodMs;
-    sysStatsCfg.meminfoCounters = uiCfg.meminfoCounters.map(name => {
+    sysStatsCfg.meminfoCounters = uiCfg.meminfoCounters.map((name) => {
       // tslint:disable-next-line no-any
       return MeminfoCounters[name as any as number] as any as number;
     });
@@ -234,7 +234,7 @@ export function genTraceConfig(
   if (uiCfg.vmstat) {
     if (sysStatsCfg === undefined) sysStatsCfg = new SysStatsConfig();
     sysStatsCfg.vmstatPeriodMs = uiCfg.vmstatPeriodMs;
-    sysStatsCfg.vmstatCounters = uiCfg.vmstatCounters.map(name => {
+    sysStatsCfg.vmstatCounters = uiCfg.vmstatCounters.map((name) => {
       // tslint:disable-next-line no-any
       return VmstatCounters[name as any as number] as any as number;
     });
@@ -331,7 +331,7 @@ export function genTraceConfig(
     ds.config = new DataSourceConfig();
     ds.config.name = 'android.log';
     ds.config.androidLogConfig = new AndroidLogConfig();
-    ds.config.androidLogConfig.logIds = uiCfg.androidLogBuffers.map(name => {
+    ds.config.androidLogConfig.logIds = uiCfg.androidLogBuffers.map((name) => {
       // tslint:disable-next-line no-any
       return AndroidLogId[name as any as number] as any as number;
     });
@@ -581,7 +581,7 @@ function toPbtxt(configBuffer: Uint8Array): string {
   const msg = TraceConfig.decode(configBuffer);
   const json = msg.toJSON();
   function snakeCase(s: string): string {
-    return s.replace(/[A-Z]/g, c => '_' + c.toLowerCase());
+    return s.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
   }
   // With the ahead of time compiled protos we can't seem to tell which
   // fields are enums.
@@ -602,7 +602,7 @@ function toPbtxt(configBuffer: Uint8Array): string {
       'maxFileSizeBytes',
       'samplingIntervalBytes',
       'shmemSizeBytes',
-      'pid'
+      'pid',
     ].includes(key);
   }
   function* message(msg: {}, indent: number): IterableIterator<string> {

@@ -19,7 +19,7 @@ import {
   RecordingTargetV2,
   TargetInfo,
   TracingSession,
-  TracingSessionListener
+  TracingSessionListener,
 } from '../recording_interfaces_v2';
 import {TracedTracingSession} from '../traced_tracing_session';
 

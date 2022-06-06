@@ -17,7 +17,7 @@ import {fromNs, toNs} from '../../common/time';
 import {LIMIT} from '../../common/track_data';
 import {
   TrackController,
-  trackControllerRegistry
+  trackControllerRegistry,
 } from '../../controller/track_controller';
 
 import {

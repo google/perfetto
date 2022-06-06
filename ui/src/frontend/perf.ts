@@ -117,7 +117,7 @@ class PerfDisplay {
           onclick: () => globals.dispatch(Actions.togglePerfDebug({})),
         },
         m('i.material-icons', 'close')),
-      this.containers.map((c, i) => m('section', c.renderPerfStats(i)))
+      this.containers.map((c, i) => m('section', c.renderPerfStats(i))),
     ]);
   }
 }

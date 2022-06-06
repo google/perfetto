@@ -19,7 +19,7 @@ import {
   ConsumerPortResponse,
   hasProperty,
   isReadBuffersResponse,
-  Typed
+  Typed,
 } from './consumer_port_types';
 import {Consumer, RpcConsumerPort} from './record_controller_interfaces';
 

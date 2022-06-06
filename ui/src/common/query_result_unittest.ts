@@ -73,7 +73,7 @@ test('QueryResult.BigNumbers', () => {
   ];
   const batch = QueryResultProto.CellsBatch.create({
     cells: new Array<number>(numAndExpectedStr.length).fill(T.CELL_VARINT),
-    varintCells: numAndExpectedStr.map(x => x[0]) as number[],
+    varintCells: numAndExpectedStr.map((x) => x[0]) as number[],
     isLastBatch: true,
   });
   const resProto = QueryResultProto.create({
@@ -87,7 +87,7 @@ test('QueryResult.BigNumbers', () => {
   for (const iter = qr.iter({n: NUM}); iter.valid(); iter.next()) {
     actual.push(BigInt(iter.n).toString());
   }
-  expect(actual).toEqual(numAndExpectedStr.map(x => x[1]) as string[]);
+  expect(actual).toEqual(numAndExpectedStr.map((x) => x[1]) as string[]);
 });
 
 test('QueryResult.Floats', () => {
@@ -128,7 +128,7 @@ test('QueryResult.Strings', () => {
     '',
     'hello world',
     'In einem Bächlein helle da schoß in froher Eil',
-    '色は匂へど散りぬるを我が世誰ぞ常ならん有為の奥山今日越えて浅き夢見じ酔ひもせず'
+    '色は匂へど散りぬるを我が世誰ぞ常ならん有為の奥山今日越えて浅き夢見じ酔ひもせず',
   ];
   const batch = QueryResultProto.CellsBatch.create({
     cells: new Array<number>(strings.length).fill(T.CELL_STRING),
@@ -269,7 +269,7 @@ test('QueryResult.DuplicateColumnNames', () => {
       T.CELL_STRING,
       T.CELL_FLOAT64,
       T.CELL_STRING,
-      T.CELL_STRING
+      T.CELL_STRING,
     ],
     varintCells: [42],
     stringCells: ['a', 'b', 'c'].join('\0'),

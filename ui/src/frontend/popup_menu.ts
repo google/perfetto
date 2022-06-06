@@ -101,19 +101,19 @@ export class PopupMenuButton implements m.ClassComponent<PopupMenuButtonAttrs> {
           {
             onclick: () => {
               this.setVisible(!this.popupShown);
-            }
+            },
           },
           vnode.attrs.icon),
         m(this.popupShown ? '.popup-menu.opened' : '.popup-menu.closed',
           vnode.attrs.items.map(
-              item =>
+              (item) =>
                   m('button',
                     {
                       onclick: () => {
                         item.callback();
                         // Hide the menu item after the action has been invoked
                         this.setVisible(false);
-                      }
+                      },
                     },
                     item.text))));
   }

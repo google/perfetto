@@ -55,8 +55,8 @@ export class WasmBridge {
       const fn = this.connection.addFunction(this.onReply.bind(this), 'vii');
       this.reqBufferAddr = this.connection.ccall(
           'trace_processor_rpc_init',
-          /*return=*/ 'number',
-          /*args=*/['number', 'number'],
+          /* return=*/ 'number',
+          /* args=*/['number', 'number'],
           [fn, REQ_BUF_SIZE]);
     });
   }
@@ -90,7 +90,7 @@ export class WasmBridge {
             'trace_processor_on_rpc_request',  // C function name.
             'void',                            // Return type.
             ['number'],                        // Arg types.
-            [sliceLen]                         // Args.
+            [sliceLen],                        // Args.
         );
       } catch (err) {
         this.aborted = true;

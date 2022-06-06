@@ -40,7 +40,7 @@
 // 6. The 'activate' handler is triggered. The old v1 cache is deleted at this
 //    point.
 
-declare var self: ServiceWorkerGlobalScope;
+declare let self: ServiceWorkerGlobalScope;
 export {};
 
 const LOG_TAG = `ServiceWorker: `;
@@ -65,7 +65,7 @@ const INSTALL_TIMEOUT_MS = 30000;
 // The service_worker.js script itself never changes, but the browser
 // re-installs it because the version in the V? query-string argument changes.
 // The reinstallation will cache the new files from the v.1.2-sha/manifest.json.
-self.addEventListener('install', event => {
+self.addEventListener('install', (event) => {
   const doInstall = async () => {
     if (await caches.has('BYPASS_SERVICE_WORKER')) {
       // Throw will prevent the installation.
@@ -112,7 +112,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(doActivate());
 });
 
-self.addEventListener('fetch', event => {
+self.addEventListener('fetch', (event) => {
   // The early return here will cause the browser to fall back on standard
   // network-based fetch.
   if (!shouldHandleHttpRequest(event.request)) {
@@ -210,7 +210,7 @@ async function installAppVersionIntoCache(version: string) {
       const reqOpts: RequestInit = {
         cache: 'no-cache',
         mode: 'same-origin',
-        integrity: `${integrity}`
+        integrity: `${integrity}`,
       };
       urlsToCache.push(new Request(`${version}/${resource}`, reqOpts));
     }
@@ -229,7 +229,7 @@ function fetchWithTimeout(req: Request|string, timeoutMs: number) {
     const timerId = setTimeout(() => {
       reject(`Timed out while fetching ${url}`);
     }, timeoutMs);
-    fetch(req).then(resp => {
+    fetch(req).then((resp) => {
       clearTimeout(timerId);
       if (resp.ok) {
         resolve(resp);

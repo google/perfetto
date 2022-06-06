@@ -266,7 +266,7 @@ export abstract class TrackController<
                   visibleState.endSec + dur,
                   resolution);
             })
-            .then(data => {
+            .then((data) => {
               this.publish(data);
             })
             .finally(() => {

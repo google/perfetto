@@ -16,7 +16,7 @@ import {defer} from '../base/deferred';
 import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {
   ConversionJobName,
-  ConversionJobStatus
+  ConversionJobStatus,
 } from '../common/conversion_jobs';
 import * as traceconv from '../gen/traceconv';
 
@@ -78,7 +78,7 @@ async function runTraceconv(trace: Blob, args: string[]) {
     locateFile: (s: string) => s,
     print: updateStatus,
     printErr: updateStatus,
-    onRuntimeInitialized: () => deferredRuntimeInitialized.resolve()
+    onRuntimeInitialized: () => deferredRuntimeInitialized.resolve(),
   });
   await deferredRuntimeInitialized;
   module.FS.mkdir('/fs');
@@ -196,7 +196,7 @@ trace: Blob, pid: number, ts: number) {
     `${pid}`,
     `--timestamps`,
     `${ts}`,
-    '/fs/trace.proto'
+    '/fs/trace.proto',
   ];
 
   try {
@@ -219,8 +219,8 @@ trace: Blob, pid: number, ts: number) {
 }
 
 selfWorker.onmessage = (msg: MessageEvent) => {
-  self.addEventListener('error', e => reportError(e));
-  self.addEventListener('unhandledrejection', e => reportError(e));
+  self.addEventListener('error', (e) => reportError(e));
+  self.addEventListener('unhandledrejection', (e) => reportError(e));
   setErrorHandler((err: string) => forwardError(err));
   const args = msg.data as Args;
   if (isConvertTraceAndDownload(args)) {

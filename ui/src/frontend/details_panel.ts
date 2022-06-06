@@ -27,7 +27,7 @@ import {DragGestureHandler} from './drag_gesture_handler';
 import {FlamegraphDetailsPanel} from './flamegraph_panel';
 import {
   FlowEventsAreaSelectedPanel,
-  FlowEventsPanel
+  FlowEventsPanel,
 } from './flow_events_panel';
 import {globals} from './globals';
 import {LogPanel} from './logs_panel';
@@ -126,7 +126,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
           {
             onclick: () => {
               globals.dispatch(Actions.setCurrentTab({tab: tab.key}));
-            }
+            },
           },
           tab.name);
     };
@@ -143,7 +143,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
                 globals.rafScheduler.scheduleFullRedraw();
               },
               title: 'Open fullscreen',
-              disabled: this.isFullscreen
+              disabled: this.isFullscreen,
             },
             'vertical_align_top'),
           m('i.material-icons',
@@ -163,7 +163,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
                 }
                 globals.rafScheduler.scheduleFullRedraw();
               },
-              title
+              title,
             },
             icon)));
   }
@@ -208,7 +208,7 @@ export class DetailsPanel implements m.ClassComponent {
             vnode: m(NotesEditorPanel, {
               key: 'notes',
               id: curSelection.id,
-            })
+            }),
           });
           break;
         case 'AREA':
@@ -219,14 +219,14 @@ export class DetailsPanel implements m.ClassComponent {
               vnode: m(NotesEditorPanel, {
                 key: 'area_notes',
                 id: curSelection.noteId,
-              })
+              }),
             });
           }
           if (globals.flamegraphDetails.isInAreaSelection) {
             detailsPanels.push({
               key: 'flamegraph_selection',
               name: 'Flamegraph Selection',
-              vnode: m(FlamegraphDetailsPanel, {key: 'flamegraph'})
+              vnode: m(FlamegraphDetailsPanel, {key: 'flamegraph'}),
             });
           }
           break;
@@ -236,7 +236,7 @@ export class DetailsPanel implements m.ClassComponent {
             name: 'Current Selection',
             vnode: m(SliceDetailsPanel, {
               key: 'slice',
-            })
+            }),
           });
           break;
         case 'COUNTER':
@@ -245,7 +245,7 @@ export class DetailsPanel implements m.ClassComponent {
             name: 'Current Selection',
             vnode: m(CounterDetailsPanel, {
               key: 'counter',
-            })
+            }),
           });
           break;
         case 'PERF_SAMPLES':
@@ -253,7 +253,7 @@ export class DetailsPanel implements m.ClassComponent {
           detailsPanels.push({
             key: 'current_selection',
             name: 'Current Selection',
-            vnode: m(FlamegraphDetailsPanel, {key: 'flamegraph'})
+            vnode: m(FlamegraphDetailsPanel, {key: 'flamegraph'}),
           });
           break;
         case 'CPU_PROFILE_SAMPLE':
@@ -262,21 +262,21 @@ export class DetailsPanel implements m.ClassComponent {
             name: 'Current Selection',
             vnode: m(CpuProfileDetailsPanel, {
               key: 'cpu_profile_sample',
-            })
+            }),
           });
           break;
         case 'CHROME_SLICE':
           detailsPanels.push({
             key: 'current_selection',
             name: 'Current Selection',
-            vnode: m(ChromeSliceDetailsPanel, {key: 'chrome_slice'})
+            vnode: m(ChromeSliceDetailsPanel, {key: 'chrome_slice'}),
           });
           break;
         case 'THREAD_STATE':
           detailsPanels.push({
             key: 'current_selection',
             name: 'Current Selection',
-            vnode: m(ThreadStatePanel, {key: 'thread_state'})
+            vnode: m(ThreadStatePanel, {key: 'thread_state'}),
           });
           break;
         default:
@@ -287,7 +287,7 @@ export class DetailsPanel implements m.ClassComponent {
       detailsPanels.push({
         key: 'android_logs',
         name: 'Android Logs',
-        vnode: m(LogPanel, {key: 'logs_panel'})
+        vnode: m(LogPanel, {key: 'logs_panel'}),
       });
     }
 
@@ -305,7 +305,7 @@ export class DetailsPanel implements m.ClassComponent {
       detailsPanels.push({
         key: `query_result_${queryId}`,
         name: `${name} (${count})`,
-        vnode: m(QueryTable, {key: `query_${queryId}`, queryId})
+        vnode: m(QueryTable, {key: `query_${queryId}`, queryId}),
       });
     }
 
@@ -318,8 +318,8 @@ export class DetailsPanel implements m.ClassComponent {
         vnode: m(PivotTableRedux, {
           key: 'pivot_table_redux',
           selectionArea:
-              globals.state.nonSerializableState.pivotTableRedux.selectionArea
-        })
+              globals.state.nonSerializableState.pivotTableRedux.selectionArea,
+        }),
       });
     }
 
@@ -327,7 +327,7 @@ export class DetailsPanel implements m.ClassComponent {
       detailsPanels.push({
         key: 'bound_flows',
         name: 'Flow Events',
-        vnode: m(FlowEventsPanel, {key: 'flow_events'})
+        vnode: m(FlowEventsPanel, {key: 'flow_events'}),
       });
     }
 
@@ -336,7 +336,7 @@ export class DetailsPanel implements m.ClassComponent {
         detailsPanels.push({
           key: value.tabName,
           name: value.tabName,
-          vnode: m(AggregationPanel, {kind: key, key, data: value})
+          vnode: m(AggregationPanel, {kind: key, key, data: value}),
         });
       }
     }
@@ -346,12 +346,12 @@ export class DetailsPanel implements m.ClassComponent {
       detailsPanels.push({
         key: 'selected_flows',
         name: 'Flow Events',
-        vnode: m(FlowEventsAreaSelectedPanel, {key: 'flow_events_area'})
+        vnode: m(FlowEventsAreaSelectedPanel, {key: 'flow_events_area'}),
       });
     }
 
     let currentTabDetails =
-        detailsPanels.find(tab => tab.key === globals.state.currentTab);
+        detailsPanels.find((tab) => tab.key === globals.state.currentTab);
     if (currentTabDetails === undefined && detailsPanels.length > 0) {
       currentTabDetails = detailsPanels[0];
     }
@@ -364,18 +364,18 @@ export class DetailsPanel implements m.ClassComponent {
         {
           style: {
             height: `${this.detailsHeight}px`,
-            display: detailsPanels.length > 0 ? null : 'none'
-          }
+            display: detailsPanels.length > 0 ? null : 'none',
+          },
         },
         m(DragHandle, {
           resize: (height: number) => {
             this.detailsHeight = Math.max(height, DRAG_HANDLE_HEIGHT_PX);
           },
           height: this.detailsHeight,
-          tabs: detailsPanels.map(tab => {
+          tabs: detailsPanels.map((tab) => {
             return {key: tab.key, name: tab.name};
           }),
-          currentTabKey: currentTabDetails?.key
+          currentTabKey: currentTabDetails?.key,
         }),
         m('.details-panel-container.x-scrollable',
           m(PanelContainer, {doesScroll: true, panels, kind: 'DETAILS'})));

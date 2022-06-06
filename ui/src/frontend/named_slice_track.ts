@@ -60,7 +60,7 @@ export abstract class NamedSliceTrack<
     // Ignore PIDs or numeric arguments when hashing.
     const name = row.name || '';
     const nameForHashing = name.replace(/\s?\d+/g, '');
-    const hsl = hslForSlice(nameForHashing, /*isSelected=*/ false);
+    const hsl = hslForSlice(nameForHashing, /* isSelected=*/ false);
     // We cache the color so we hash only once per query.
     const baseColor: Color = {c: '', h: hsl[0], s: hsl[1], l: hsl[2]};
     return {...baseSlice, title: name, baseColor};

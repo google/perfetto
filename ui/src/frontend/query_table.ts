@@ -26,7 +26,7 @@ import {Panel} from './panel';
 import {Router} from './router';
 import {
   horizontalScrollAndZoomToRange,
-  verticalScrollToTrack
+  verticalScrollToTrack,
 } from './scroll_helper';
 
 interface QueryTableRowAttrs {
@@ -93,11 +93,11 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     return m(
         'tr',
         {
-          onclick: maybeOnClick,
+          'onclick': maybeOnClick,
           // TODO(altimin): Consider improving the logic here (e.g. delay?) to
           // account for cases when dblclick fires late.
-          ondblclick: maybeOnDblClick,
-          'clickable': containsSliceLocation
+          'ondblclick': maybeOnDblClick,
+          'clickable': containsSliceLocation,
         },
         cells);
   }
@@ -153,7 +153,7 @@ export class QueryTable extends Panel<QueryTableAttrs> {
               onclick: () => {
                 globals.queryResults.delete(queryId);
                 globals.rafScheduler.scheduleFullRedraw();
-              }
+              },
             },
             'Close'),
           ),

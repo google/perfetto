@@ -111,14 +111,14 @@ async function showDialogTraceProcessorTooOld(tpStatus: StatusResult) {
         action: () => {
           globals.dispatch(
               Actions.setNewEngineMode({mode: 'FORCE_BUILTIN_WASM'}));
-        }
+        },
       },
       {
         text: 'Use old version regardless (might crash)',
         primary: false,
         action: () => {
           forceUseOldVersion = true;
-        }
+        },
       },
     ],
   });
@@ -136,7 +136,7 @@ async function showDialogToUsePreloadedTrace(tpStatus: StatusResult) {
         primary: true,
         action: () => {
           globals.dispatch(Actions.openTraceFromHttpRpc({}));
-        }
+        },
       },
       {
         text: 'YES, but reset state',
@@ -146,7 +146,7 @@ async function showDialogToUsePreloadedTrace(tpStatus: StatusResult) {
         action: () => {
           globals.dispatch(
               Actions.setNewEngineMode({mode: 'FORCE_BUILTIN_WASM'}));
-        }
+        },
       },
     ],
   });

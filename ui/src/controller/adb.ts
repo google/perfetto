@@ -81,7 +81,7 @@ export class AdbOverWebUsb implements Adb {
   private filter = {
     classCode: 255,    // USB vendor specific code
     subclassCode: 66,  // Android vendor specific subclass
-    protocolCode: 1    // Adb protocol
+    protocolCode: 1,   // Adb protocol
   };
 
   async findDevice() {
@@ -173,7 +173,7 @@ export class AdbOverWebUsb implements Adb {
             return {
               configValue: config.configurationValue,
               usbInterfaceNumber: interface_.interfaceNumber,
-              endpoints: alt.endpoints
+              endpoints: alt.endpoints,
             };
           }  // if (alternate)
         }    // for (interface.alternates)
@@ -195,11 +195,11 @@ export class AdbOverWebUsb implements Adb {
 
   receiveDeviceMessages() {
     this.recv()
-        .then(msg => {
+        .then((msg) => {
           this.onMessage(msg);
           this.receiveDeviceMessages();
         })
-        .catch(e => {
+        .catch((e) => {
           // Ignore error with "DEVICE_NOT_SET_ERROR" message since it is always
           // thrown after the device disconnects.
           if (e.message !== DEVICE_NOT_SET_ERROR) {
@@ -222,7 +222,7 @@ export class AdbOverWebUsb implements Adb {
     } else if (this.state === AdbState.CONNECTED && [
                  'OKAY',
                  'WRTE',
-                 'CLSE'
+                 'CLSE',
                ].indexOf(msg.cmd) >= 0) {
       const stream = this.streams.get(msg.arg1);
       if (!stream) {
@@ -312,7 +312,7 @@ export class AdbOverWebUsb implements Adb {
 
     return new Promise<string>((resolve, _) => {
       const output: string[] = [];
-      shell.onData = raw => output.push(textDecoder.decode(raw));
+      shell.onData = (raw) => output.push(textDecoder.decode(raw));
       shell.onClose = () => resolve(output.join());
     });
   }
@@ -360,7 +360,7 @@ export class AdbOverWebUsb implements Adb {
     };
 
     const key = await crypto.subtle.generateKey(
-        keySpec, /*extractable=*/ true, ['sign', 'verify']);
+        keySpec, /* extractable=*/ true, ['sign', 'verify']);
     return key;
   }
 
@@ -586,7 +586,7 @@ export class AdbMsgImpl implements AdbMsg {
 
 function base64StringToArray(s: string) {
   const decoded = atob(s.replace(/-/g, '+').replace(/_/g, '/'));
-  return [...decoded].map(char => char.charCodeAt(0));
+  return [...decoded].map((char) => char.charCodeAt(0));
 }
 
 const ANDROID_PUBKEY_MODULUS_SIZE = 2048;
@@ -626,13 +626,13 @@ async function encodePubKey(key: CryptoKey) {
   dv.setUint32(0, MODULUS_SIZE_BYTES / 4, true);
 
   // The Mongomery params (n0inv and rr) are not computed.
-  dv.setUint32(4, 0 /*n0inv*/, true);
+  dv.setUint32(4, 0 /* n0inv*/, true);
   // Modulus
   for (let i = 0; i < MODULUS_SIZE_BYTES; i++) dv.setUint8(8 + i, nArr[i]);
 
   // rr:
   for (let i = 0; i < MODULUS_SIZE_BYTES; i++) {
-    dv.setUint8(8 + MODULUS_SIZE_BYTES + i, 0 /*rr*/);
+    dv.setUint8(8 + MODULUS_SIZE_BYTES + i, 0 /* rr*/);
   }
   // Exponent
   for (let i = 0; i < 4; i++) {

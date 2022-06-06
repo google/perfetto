@@ -39,7 +39,7 @@ test('UndefinedAreaAfterValidArea', () => {
   frontendGlobals.state = createEmptyState();
   frontendGlobals.state.currentSelection = {
     kind: 'AREA',
-    areaId: previousAreaId
+    areaId: previousAreaId,
   };
   frontendGlobals.state.areas[previousAreaId] = previous;
   const areaSelectionHandler = new AreaSelectionHandler();
@@ -48,7 +48,7 @@ test('UndefinedAreaAfterValidArea', () => {
   const currentAreaId = '1';
   frontendGlobals.state.currentSelection = {
     kind: 'AREA',
-    areaId: currentAreaId
+    areaId: currentAreaId,
   };
   const [hasAreaChanged, selectedArea] = areaSelectionHandler.getAreaChange();
 
@@ -75,7 +75,7 @@ test('validAreaAfterValidArea', () => {
   frontendGlobals.state = createEmptyState();
   frontendGlobals.state.currentSelection = {
     kind: 'AREA',
-    areaId: previousAreaId
+    areaId: previousAreaId,
   };
   frontendGlobals.state.areas[previousAreaId] = previous;
   const areaSelectionHandler = new AreaSelectionHandler();
@@ -86,7 +86,7 @@ test('validAreaAfterValidArea', () => {
       AreaById = {startSec: 1, endSec: 2, tracks: [], id: currentAreaId};
   frontendGlobals.state.currentSelection = {
     kind: 'AREA',
-    areaId: currentAreaId
+    areaId: currentAreaId,
   };
   frontendGlobals.state.areas[currentAreaId] = current;
   const [hasAreaChanged, selectedArea] = areaSelectionHandler.getAreaChange();
@@ -102,7 +102,7 @@ test('sameAreaSelected', () => {
   frontendGlobals.state = createEmptyState();
   frontendGlobals.state.currentSelection = {
     kind: 'AREA',
-    areaId: previousAreaId
+    areaId: previousAreaId,
   };
   frontendGlobals.state.areas[previousAreaId] = previous;
   const areaSelectionHandler = new AreaSelectionHandler();
@@ -113,7 +113,7 @@ test('sameAreaSelected', () => {
       AreaById = {startSec: 0, endSec: 1, tracks: [], id: currentAreaId};
   frontendGlobals.state.currentSelection = {
     kind: 'AREA',
-    areaId: currentAreaId
+    areaId: currentAreaId,
   };
   frontendGlobals.state.areas[currentAreaId] = current;
   const [hasAreaChanged, selectedArea] = areaSelectionHandler.getAreaChange();
