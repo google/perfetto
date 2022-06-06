@@ -18,6 +18,8 @@ source_set("views") {
   sources = [
     "macros.h",
     "macros_internal.h",
+    "slice_views.h",
+    "view_destructors.cc",
   ]
   deps = [
     "../../../gn:default_deps",
