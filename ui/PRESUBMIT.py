@@ -32,6 +32,7 @@ def RunAndReportIfLong(func, *args, **kargs):
 
 def CheckChange(input, output):
   results = []
+  results += RunAndReportIfLong(CheckEslint, input, output)
   return results
 
 
@@ -41,3 +42,34 @@ def CheckChangeOnUpload(input_api, output_api):
 
 def CheckChangeOnCommit(input_api, output_api):
   return CheckChange(input_api, output_api)
+
+
+def CheckEslint(input_api, output_api):
+  path = input_api.os_path
+  ui_path = input_api.PresubmitLocalPath()
+  node = path.join(ui_path, 'node')
+  lint_path = path.join(ui_path, 'node_modules', '.bin', 'eslint')
+
+  if not path.exists(lint_path):
+    repo_root = input_api.change.RepositoryRoot()
+    install_path = path.join(repo_root, 'tools', 'install-build-deps')
+    return [
+        output_api.PresubmitError(
+            f"eslint not found. Please first run\n $ {install_path} --ui")
+    ]
+
+  def file_filter(x):
+    return input_api.FilterSourceFile(
+        x, files_to_check=[r'.*\.ts$', r'.*\.js$'])
+
+  files = input_api.AffectedSourceFiles(file_filter)
+
+  if not files:
+    return []
+  paths = [f.AbsoluteLocalPath() for f in files]
+
+  cmd = [node, lint_path] + paths
+  if subprocess.call(cmd):
+    s = ' '.join(cmd)
+    return [output_api.PresubmitError(f"eslint errors. Run: $ {s}")]
+  return []
