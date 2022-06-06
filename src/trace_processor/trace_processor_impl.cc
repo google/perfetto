@@ -1020,6 +1020,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->stack_profile_mapping_table());
   RegisterDbTable(storage->stack_profile_frame_table());
   RegisterDbTable(storage->package_list_table());
+  RegisterDbTable(storage->android_game_intervention_list_table());
   RegisterDbTable(storage->profiler_smaps_table());
 
   RegisterDbTable(storage->android_log_table());
