@@ -151,7 +151,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     // we know about (ts, dur, ...).
     const allCols = Object.keys(this.getRowSpec());
     const baseCols = Object.keys(BASE_SLICE_ROW);
-    this.extraSqlColumns = allCols.filter(key => !baseCols.includes(key));
+    this.extraSqlColumns = allCols.filter((key) => !baseCols.includes(key));
   }
 
   setSliceLayout(sliceLayout: SliceLayout) {
@@ -693,7 +693,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
           c: slice.baseColor.c,
           h: slice.baseColor.h,
           s: slice.baseColor.s,
-          l: 30
+          l: 30,
         };
       } else {
         slice.color = slice.baseColor;

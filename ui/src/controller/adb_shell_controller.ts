@@ -85,7 +85,7 @@ export class AdbConsumerPort extends AdbBaseConsumerPort {
     const recordCommand = this.generateStartTracingCommand(configProto);
     this.recordShell = await this.adb.shell(recordCommand);
     const output: string[] = [];
-    this.recordShell.onData = raw => output.push(textDecoder.decode(raw));
+    this.recordShell.onData = (raw) => output.push(textDecoder.decode(raw));
     this.recordShell.onClose = () => {
       const response = output.join();
       if (!this.tracingEndedSuccessfully(response)) {
@@ -109,7 +109,7 @@ export class AdbConsumerPort extends AdbBaseConsumerPort {
 
     const readTraceShell =
         await this.adb.shell(this.generateReadTraceCommand());
-    readTraceShell.onData = raw =>
+    readTraceShell.onData = (raw) =>
         this.sendMessage(this.generateChunkReadResponse(raw));
 
     readTraceShell.onClose = () => {
@@ -123,7 +123,7 @@ export class AdbConsumerPort extends AdbBaseConsumerPort {
         await this.adb.shellOutputAsString(`ps -u shell | grep perfetto`);
     // We used to use awk '{print $2}' but older phones/Go phones don't have
     // awk installed. Instead we implement similar functionality here.
-    const awk = pidStr.split(' ').filter(str => str !== '');
+    const awk = pidStr.split(' ').filter((str) => str !== '');
     if (awk.length < 1) {
       throw Error(`Unabled to find perfetto pid in string "${pidStr}"`);
     }
@@ -167,7 +167,7 @@ export class AdbConsumerPort extends AdbBaseConsumerPort {
       ReadBuffersResponse {
     return {
       type: 'ReadBuffersResponse',
-      slices: [{data, lastSliceForPacket: last}]
+      slices: [{data, lastSliceForPacket: last}],
     };
   }
 

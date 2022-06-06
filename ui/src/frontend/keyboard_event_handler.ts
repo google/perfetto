@@ -19,7 +19,7 @@ import {Flow, globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {
   horizontalScrollAndZoomToRange,
-  verticalScrollToTrack
+  verticalScrollToTrack,
 } from './scroll_helper';
 import {executeSearch} from './search_handler';
 
@@ -109,7 +109,7 @@ function focusOtherFlow(direction: Direction) {
   }
 
   const boundFlows = globals.connectedFlows.filter(
-      flow => flow.begin.sliceId === sliceId && direction === 'Forward' ||
+      (flow) => flow.begin.sliceId === sliceId && direction === 'Forward' ||
           flow.end.sliceId === sliceId && direction === 'Backward');
 
   if (direction === 'Backward') {
@@ -150,7 +150,7 @@ function moveByFocusedFlow(direction: Direction): void {
           id: flowPoint.sliceId,
           trackId: uiTrackId,
           table: 'slice',
-          scroll: true
+          scroll: true,
         }));
       }
     }

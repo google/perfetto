@@ -36,7 +36,7 @@ import {isDownloadable, isShareable} from './trace_attrs';
 import {
   convertToJson,
   convertTraceToJsonAndDownload,
-  convertTraceToSystraceAndDownload
+  convertTraceToSystraceAndDownload,
 } from './trace_converter';
 
 const ALL_PROCESSES_QUERY = 'select name, pid from process order by name;';
@@ -177,7 +177,7 @@ const SECTIONS: Section[] = [
       {
         t: 'Open with legacy UI',
         a: popupFileSelectionDialogOldUI,
-        i: 'filter_none'
+        i: 'filter_none',
       },
       {t: 'Record new trace', a: navigateRecord, i: 'fiber_smart_record'},
     ],
@@ -254,12 +254,12 @@ const SECTIONS: Section[] = [
       {
         t: 'Open Android example',
         a: openTraceUrl(EXAMPLE_ANDROID_TRACE_URL),
-        i: 'description'
+        i: 'description',
       },
       {
         t: 'Open Chrome example',
         a: openTraceUrl(EXAMPLE_CHROME_TRACE_URL),
-        i: 'description'
+        i: 'description',
       },
     ],
   },
@@ -275,7 +275,7 @@ const SECTIONS: Section[] = [
       {
         t: 'Report a bug',
         a: () => window.open(getBugReportUrl()),
-        i: 'bug_report'
+        i: 'bug_report',
       },
     ],
   },
@@ -288,32 +288,32 @@ const SECTIONS: Section[] = [
       {
         t: 'All Processes',
         a: createCannedQuery(ALL_PROCESSES_QUERY),
-        i: 'search'
+        i: 'search',
       },
       {
         t: 'CPU Time by process',
         a: createCannedQuery(CPU_TIME_FOR_PROCESSES),
-        i: 'search'
+        i: 'search',
       },
       {
         t: 'Cycles by p-state by CPU',
         a: createCannedQuery(CYCLES_PER_P_STATE_PER_CPU),
-        i: 'search'
+        i: 'search',
       },
       {
         t: 'CPU Time by CPU by process',
         a: createCannedQuery(CPU_TIME_BY_CPU_BY_PROCESS),
-        i: 'search'
+        i: 'search',
       },
       {
         t: 'Heap Graph: Bytes per type',
         a: createCannedQuery(HEAP_GRAPH_BYTES_PER_TYPE),
-        i: 'search'
+        i: 'search',
       },
       {
         t: 'Debug SQL performance',
         a: createCannedQuery(SQL_STATS),
-        i: 'bug_report'
+        i: 'bug_report',
       },
     ],
   },
@@ -348,9 +348,9 @@ function downloadTraceFromUrl(url: string): Promise<File> {
     url,
     // TODO(hjd): Once mithril is updated we can use responseType here rather
     // than using config and remove the extract below.
-    config: xhr => {
+    config: (xhr) => {
       xhr.responseType = 'blob';
-      xhr.onprogress = progress => {
+      xhr.onprogress = (progress) => {
         const percent = (100 * progress.loaded / progress.total).toFixed(1);
         globals.dispatch(Actions.updateStatus({
           msg: `Downloading trace ${percent}%`,
@@ -358,9 +358,9 @@ function downloadTraceFromUrl(url: string): Promise<File> {
         }));
       };
     },
-    extract: xhr => {
+    extract: (xhr) => {
       return xhr.response;
-    }
+    },
   });
 }
 
@@ -385,10 +385,10 @@ function openCurrentTraceWithOldUI(e: Event) {
   globals.logging.logEvent('Trace Actions', 'Open current trace in legacy UI');
   if (!isTraceLoaded) return;
   getCurrentTrace()
-      .then(file => {
+      .then((file) => {
         openInOldUIWithSizeCheck(file);
       })
-      .catch(error => {
+      .catch((error) => {
         throw new Error(`Failed to get current trace ${error}`);
       });
 }
@@ -399,10 +399,10 @@ function convertTraceToSystrace(e: Event) {
   globals.logging.logEvent('Trace Actions', 'Convert to .systrace');
   if (!isTraceLoaded) return;
   getCurrentTrace()
-      .then(file => {
+      .then((file) => {
         convertTraceToSystraceAndDownload(file);
       })
-      .catch(error => {
+      .catch((error) => {
         throw new Error(`Failed to get current trace ${error}`);
       });
 }
@@ -413,10 +413,10 @@ function convertTraceToJson(e: Event) {
   globals.logging.logEvent('Trace Actions', 'Convert to .json');
   if (!isTraceLoaded) return;
   getCurrentTrace()
-      .then(file => {
+      .then((file) => {
         convertTraceToJsonAndDownload(file);
       })
-      .catch(error => {
+      .catch((error) => {
         throw new Error(`Failed to get current trace ${error}`);
       });
 }
@@ -426,7 +426,7 @@ export function isTraceLoaded(): boolean {
 }
 
 function openTraceUrl(url: string): (e: Event) => void {
-  return e => {
+  return (e) => {
     globals.logging.logEvent('Trace Actions', 'Open example trace');
     e.preventDefault();
     globals.dispatch(Actions.openTraceFromUrl({url}));
@@ -482,7 +482,7 @@ function openInOldUIWithSizeCheck(trace: Blob) {
             m('a',
               {
                 href: 'https://goto.google.com/opening-large-traces',
-                target: '_blank'
+                target: '_blank',
               },
               'go/opening-large-traces'),
             '.')),
@@ -493,14 +493,14 @@ function openInOldUIWithSizeCheck(trace: Blob) {
       },
       {
         text: 'Open beginning of trace',
-        action: () => convertToJson(trace, /*truncate*/ 'start'),
+        action: () => convertToJson(trace, /* truncate*/ 'start'),
       },
       {
         text: 'Open end of trace',
         primary: true,
-        action: () => convertToJson(trace, /*truncate*/ 'end'),
+        action: () => convertToJson(trace, /* truncate*/ 'end'),
       },
-    ]
+    ],
   });
   return;
 }
@@ -657,7 +657,7 @@ const EngineRPCWidget: m.Component = {
         {title},
         m('div', label),
         m('div', `${failed ? 'FAIL' : globals.numQueuedQueries}`));
-  }
+  },
 };
 
 const ServiceWorkerWidget: m.Component = {
@@ -711,10 +711,10 @@ const ServiceWorkerWidget: m.Component = {
             action: () => {
               globals.serviceWorkerController.setBypass(true).then(
                   () => location.reload());
-            }
+            },
           },
           {text: 'Cancel'},
-        ]
+        ],
       });
     };
 
@@ -723,7 +723,7 @@ const ServiceWorkerWidget: m.Component = {
         {title, ondblclick: toggle},
         m('div', 'SW'),
         m('div', label));
-  }
+  },
 };
 
 const SidebarFooter: m.Component = {
@@ -750,7 +750,7 @@ const SidebarFooter: m.Component = {
               `${version.VERSION.substr(0, 11)}`),
             ),
     );
-  }
+  },
 };
 
 class HiringBanner implements m.ClassComponent {
@@ -784,10 +784,10 @@ export class Sidebar implements m.ClassComponent {
           href: typeof item.a === 'string' ? item.a : '#',
           target: typeof item.a === 'string' ? '_blank' : null,
           disabled: false,
-          id: item.t.toLowerCase().replace(/[^\w]/g, '_')
+          id: item.t.toLowerCase().replace(/[^\w]/g, '_'),
         };
         if (item.isPending && item.isPending()) {
-          attrs.onclick = e => e.preventDefault();
+          attrs.onclick = (e) => e.preventDefault();
           css = '.pending';
         }
         if (item.internalUserOnly && !globals.isInternalUser) {
@@ -795,14 +795,14 @@ export class Sidebar implements m.ClassComponent {
         }
         if (item.checkDownloadDisabled && !isDownloadable()) {
           attrs = {
-            onclick: e => {
+            onclick: (e) => {
               e.preventDefault();
               alert('Can not download external trace.');
             },
             href: '#',
             target: null,
             disabled: true,
-            id: ''
+            id: '',
           };
         }
         vdomItems.push(m(
@@ -850,7 +850,7 @@ export class Sidebar implements m.ClassComponent {
                 onclick: () => {
                   section.expanded = !section.expanded;
                   globals.rafScheduler.scheduleFullRedraw();
-                }
+                },
               },
               m('h1', {title: section.summary}, section.title),
               m('h2', section.summary)),
@@ -901,7 +901,7 @@ function createTraceLink(title: string, url: string) {
     href: url,
     title: 'Click to copy the URL',
     target: '_blank',
-    onclick: onClickCopy(url)
+    onclick: onClickCopy(url),
   };
   return m('a.trace-file-name', linkProps, title);
 }

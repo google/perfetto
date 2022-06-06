@@ -18,11 +18,11 @@ import {sqliteString} from '../base/string_utils';
 import {
   Area,
   PivotTableReduxQuery,
-  PivotTableReduxState
+  PivotTableReduxState,
 } from '../common/state';
 import {toNs} from '../common/time';
 import {
-  getSelectedTrackIds
+  getSelectedTrackIds,
 } from '../controller/aggregation/slice_aggregation_controller';
 
 import {globals} from './globals';
@@ -34,7 +34,7 @@ export interface Table {
 
 export const sliceTable = {
   name: 'slice',
-  columns: ['type', 'ts', 'dur', 'category', 'name']
+  columns: ['type', 'ts', 'dur', 'category', 'name'],
 };
 
 // Columns of `slice` table available for aggregation.
@@ -45,7 +45,7 @@ export const threadSliceAggregationColumns = [
   'thread_ts',
   'thread_dur',
   'thread_instruction_count',
-  'thread_instruction_delta'
+  'thread_instruction_delta',
 ];
 
 // List of available tables to query, used to populate selectors of pivot
@@ -61,8 +61,8 @@ export const tables: Table[] = [
       'parent_upid',
       'uid',
       'android_appid',
-      'cmdline'
-    ]
+      'cmdline',
+    ],
   },
   {name: 'thread', columns: ['type', 'name', 'tid', 'upid', 'is_main_thread']},
   {name: 'thread_track', columns: ['type', 'name', 'utid']},
@@ -222,7 +222,7 @@ function computeSliceTableAggregations(
     // be the base table for the pivot table query. Otherwise, `slice` is used.
     // This later is going to be controllable by a UI element.
     tableName: hasThreadSliceColumn ? 'thread_slice' : 'slice',
-    flatAggregations: allColumns
+    flatAggregations: allColumns,
   };
 }
 
@@ -300,9 +300,9 @@ export function generateQuery(
       constrainToArea);
 
   const prefixedSlicePivots =
-      innerQuery.groupByColumns.map(p => `preaggregated.${p}`);
+      innerQuery.groupByColumns.map((p) => `preaggregated.${p}`);
   const renderedNonSlicePivots =
-      nonSlicePivots.map(pivot => `${pivot.table}.${pivot.column}`);
+      nonSlicePivots.map((pivot) => `${pivot.table}.${pivot.column}`);
   const totalPivotsArray = renderedNonSlicePivots.concat(prefixedSlicePivots);
   const sortCriteria =
       globals.state.nonSerializableState.pivotTableRedux.sortCriteria;
@@ -363,7 +363,7 @@ export function generateQuery(
     metadata: {
       tableName: sliceTableAggregations.tableName,
       pivotColumns: (nonSlicePivots as TableColumn[]).concat(slicePivots),
-      aggregationColumns: sliceTableAggregations.flatAggregations
-    }
+      aggregationColumns: sliceTableAggregations.flatAggregations,
+    },
   };
 }

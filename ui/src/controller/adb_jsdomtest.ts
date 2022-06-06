@@ -19,7 +19,7 @@ import {
   AdbOverWebUsb,
   AdbState,
   DEFAULT_MAX_PAYLOAD_BYTES,
-  VERSION_WITH_CHECKSUM
+  VERSION_WITH_CHECKSUM,
 } from './adb';
 
 test('startAuthentication', async () => {
@@ -36,7 +36,7 @@ test('startAuthentication', async () => {
     arg0: VERSION_WITH_CHECKSUM,
     arg1: DEFAULT_MAX_PAYLOAD_BYTES,
     data: 'host:1:UsbADB',
-    useChecksum: true
+    useChecksum: true,
   });
   await adb.startAuthentication();
 
@@ -59,7 +59,7 @@ test('connectedMessage', async () => {
     arg0: VERSION_WITH_CHECKSUM,
     arg1: expectedMaxPayload,
     data: new TextEncoder().encode('device'),
-    useChecksum: true
+    useChecksum: true,
   });
   await adb.onMessage(connectedMsg);
 

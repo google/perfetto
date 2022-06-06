@@ -80,7 +80,7 @@ export class NotesPanel extends Panel {
                   e.preventDefault();
                   globals.dispatch(
                       Actions.toggleAllTrackGroups({collapsed: !allCollapsed}));
-                }
+                },
               },
               m('i.material-icons',
                 {title: allCollapsed ? 'Expand all' : 'Collapse all'},
@@ -302,7 +302,7 @@ export class NotesEditorPanel extends Panel<NotesEditorPanelAttrs> {
                 globals.dispatch(Actions.removeNote({id: attrs.id}));
                 globals.dispatch(Actions.setCurrentTab({tab: undefined}));
                 globals.rafScheduler.scheduleFullRedraw();
-              }
+              },
             },
             'Remove')),
     );

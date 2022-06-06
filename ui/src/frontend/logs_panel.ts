@@ -20,7 +20,7 @@ import {
   LogBounds,
   LogBoundsKey,
   LogEntries,
-  LogEntriesKey
+  LogEntriesKey,
 } from '../common/logs';
 import {formatTimestamp} from '../common/time';
 import {TimeSpan} from '../common/time';
@@ -49,13 +49,12 @@ export class LogPanel extends Panel<{}> {
     this.visibleRowCount = Math.ceil(scrollContainer.clientHeight / ROW_H);
 
     if (this.visibleRowOffset !== prevOffset ||
-        this.visibleRowCount !== prevCount)
-       {
-        globals.dispatch(Actions.updateLogsPagination({
-          offset: this.visibleRowOffset,
-          count: this.visibleRowCount,
-        }));
-      }
+        this.visibleRowCount !== prevCount) {
+      globals.dispatch(Actions.updateLogsPagination({
+        offset: this.visibleRowOffset,
+        count: this.visibleRowCount,
+      }));
+    }
   }
 
   oncreate({dom}: m.CVnodeDOM) {
@@ -124,9 +123,9 @@ export class LogPanel extends Panel<{}> {
             m(`.row.${prioClass}`,
               {
                 'class': isStale ? 'stale' : '',
-                style: {top: `${(offset + i) * ROW_H}px`},
-                onmouseover: this.onRowOver.bind(this, ts / 1e9),
-                onmouseout: this.onRowOut.bind(this),
+                'style': {top: `${(offset + i) * ROW_H}px`},
+                'onmouseover': this.onRowOver.bind(this, ts / 1e9),
+                'onmouseout': this.onRowOut.bind(this),
               },
               m('.cell',
                 formatTimestamp(ts / 1e9 - globals.state.traceTime.startSec)),

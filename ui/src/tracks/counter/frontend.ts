@@ -64,7 +64,7 @@ function getCounterScaleAttribute(scale?: CounterScaleOptions):
       return {
         follower: 'DELTA_FROM_PREVIOUS',
         tooltip: 'min/max',
-        icon: 'show_chart'
+        icon: 'show_chart',
       };
     case 'DELTA_FROM_PREVIOUS':
       return {follower: 'ZERO_BASED', tooltip: 'delta', icon: 'bar_chart'};
@@ -73,7 +73,7 @@ function getCounterScaleAttribute(scale?: CounterScaleOptions):
       return {
         follower: 'MIN_MAX',
         tooltip: 'zero based',
-        icon: 'waterfall_chart'
+        icon: 'waterfall_chart',
       };
   }
 }
@@ -256,7 +256,8 @@ class CounterTrack extends Track<Config, Data> {
 
       // Draw change marker.
       ctx.beginPath();
-      ctx.arc(xStart, y, 3 /*r*/, 0 /*start angle*/, 2 * Math.PI /*end angle*/);
+      ctx.arc(
+          xStart, y, 3 /* r*/, 0 /* start angle*/, 2 * Math.PI /* end angle*/);
       ctx.fill();
       ctx.stroke();
 
@@ -332,7 +333,7 @@ class CounterTrack extends Track<Config, Data> {
         leftTs: toNs(data.timestamps[left]),
         rightTs: right !== -1 ? toNs(data.timestamps[right]) : -1,
         id: counterId,
-        trackId: this.trackState.id
+        trackId: this.trackState.id,
       }));
       return true;
     }

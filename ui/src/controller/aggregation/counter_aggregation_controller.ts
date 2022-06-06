@@ -83,19 +83,19 @@ export class CounterAggregationController extends AggregationController {
         title: 'Delta value',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
-        columnId: 'delta_value'
+        columnId: 'delta_value',
       },
       {
         title: 'Rate /s',
         kind: 'Number',
         columnConstructor: Float64Array,
-        columnId: 'rate'
+        columnId: 'rate',
       },
       {
         title: 'Weighted avg value',
         kind: 'Number',
         columnConstructor: Float64Array,
-        columnId: 'avg_value'
+        columnId: 'avg_value',
       },
       {
         title: 'Count',
@@ -108,25 +108,25 @@ export class CounterAggregationController extends AggregationController {
         title: 'First value',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
-        columnId: 'first_value'
+        columnId: 'first_value',
       },
       {
         title: 'Last value',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
-        columnId: 'last_value'
+        columnId: 'last_value',
       },
       {
         title: 'Min value',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
-        columnId: 'min_value'
+        columnId: 'min_value',
       },
       {
         title: 'Max value',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
-        columnId: 'max_value'
+        columnId: 'max_value',
       },
 
     ];

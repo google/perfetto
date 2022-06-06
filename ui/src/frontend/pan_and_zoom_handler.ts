@@ -106,7 +106,7 @@ export class PanAndZoomHandler {
     onZoomed,
     editSelection,
     onSelection,
-    endSelection
+    endSelection,
   }: {
     element: HTMLElement,
     contentOffsetX: number,

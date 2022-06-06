@@ -18,7 +18,7 @@ import {Actions} from '../../common/actions';
 import {
   cropText,
   drawDoubleHeadedArrow,
-  drawIncompleteSlice
+  drawIncompleteSlice,
 } from '../../common/canvas_utils';
 import {colorForThread} from '../../common/colorizer';
 import {timeToString} from '../../common/time';
@@ -84,7 +84,7 @@ class CpuSliceTrack extends Track<Config, Data> {
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
     const rawStartIdx =
-        data.ends.findIndex(end => end >= visibleWindowTime.start);
+        data.ends.findIndex((end) => end >= visibleWindowTime.start);
     const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
 
     const [, rawEndIdx] = searchSegment(data.starts, visibleWindowTime.end);

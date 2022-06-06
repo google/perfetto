@@ -45,7 +45,7 @@ export const HomePage = createPage({
         m('a.privacy',
           {href: 'https://policies.google.com/privacy', target: '_blank'},
           'Privacy policy'));
-  }
+  },
 });
 
 function mkChan(chan: string) {
@@ -54,7 +54,7 @@ function mkChan(chan: string) {
     m(`input[type=radio][name=chan][id=chan_${chan}]${checked}`, {
       onchange: () => {
         setChannel(chan);
-      }
+      },
     }),
     m(`label[for=chan_${chan}]`, chan),
   ];

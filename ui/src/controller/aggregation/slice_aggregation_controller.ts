@@ -18,11 +18,11 @@ import {Area, Sorting} from '../../common/state';
 import {toNs} from '../../common/time';
 import {
   ASYNC_SLICE_TRACK_KIND,
-  Config as AsyncSliceConfig
+  Config as AsyncSliceConfig,
 } from '../../tracks/async_slices/common';
 import {
   Config as SliceConfig,
-  SLICE_TRACK_KIND
+  SLICE_TRACK_KIND,
 } from '../../tracks/chrome_slices/common';
 import {globals} from '../globals';
 
@@ -94,21 +94,21 @@ export class SliceAggregationController extends AggregationController {
         kind: 'TIMESTAMP_NS',
         columnConstructor: Float64Array,
         columnId: 'total_dur',
-        sum: true
+        sum: true,
       },
       {
         title: 'Avg Wall duration (ms)',
         kind: 'TIMESTAMP_NS',
         columnConstructor: Float64Array,
-        columnId: 'avg_dur'
+        columnId: 'avg_dur',
       },
       {
         title: 'Occurrences',
         kind: 'NUMBER',
         columnConstructor: Uint16Array,
         columnId: 'occurrences',
-        sum: true
-      }
+        sum: true,
+      },
     ];
   }
 }

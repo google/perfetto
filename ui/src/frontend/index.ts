@@ -25,7 +25,7 @@ import {State} from '../common/state';
 import {initWasm} from '../common/wasm_engine_proxy';
 import {ControllerWorkerInitMessage} from '../common/worker_messages';
 import {
-  isGetCategoriesResponse
+  isGetCategoriesResponse,
 } from '../controller/chrome_proxy_record_controller';
 import {initController} from '../controller/index';
 
@@ -105,7 +105,7 @@ class FrontendApi {
     // immutable changes to the returned state.
     this.state = produce(
         this.state,
-        draft => {
+        (draft) => {
           // tslint:disable-next-line no-any
           (StateActions as any)[action.type](draft, action.args);
         },
@@ -118,7 +118,6 @@ class FrontendApi {
         });
     return patches;
   }
-
 }
 
 function setExtensionAvailability(available: boolean) {
@@ -202,8 +201,8 @@ function main() {
 
   // Add Error handlers for JS error and for uncaught exceptions in promises.
   setErrorHandler((err: string) => maybeShowErrorDialog(err));
-  window.addEventListener('error', e => reportError(e));
-  window.addEventListener('unhandledrejection', e => reportError(e));
+  window.addEventListener('error', (e) => reportError(e));
+  window.addEventListener('unhandledrejection', (e) => reportError(e));
 
   const controllerChannel = new MessageChannel();
   const extensionLocalChannel = new MessageChannel();
@@ -255,7 +254,7 @@ function main() {
   setExtensionAvailability(extensionPort !== undefined);
 
   if (extensionPort) {
-    extensionPort.onDisconnect.addListener(_ => {
+    extensionPort.onDisconnect.addListener((_) => {
       setExtensionAvailability(false);
       // tslint:disable-next-line: no-unused-expression
       void chrome.runtime.lastError;  // Needed to not receive an error log.

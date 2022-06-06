@@ -19,8 +19,8 @@ test('cropHelper regular text', () => {
   const emoji = '\uD83D\uDE00';
   expect(cropText(
              'com.android.camera [4096]',
-             /*charWidth=*/ 5,
-             /*rectWidth=*/ 2 * 5))
+             /* charWidth=*/ 5,
+             /* rectWidth=*/ 2 * 5))
       .toBe('c');
   expect(cropText('com.android.camera [4096]', 5, 4 * 5 + 2))
       .toBe('co' + tripleDot);

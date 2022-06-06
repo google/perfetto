@@ -55,7 +55,7 @@ export class CpuProfileController extends Controller<'main'> {
     this.lastSelectedSample = this.copyCpuProfileSample(selection);
 
     this.getSampleData(selectedSample.id)
-        .then(sampleData => {
+        .then((sampleData) => {
           if (sampleData !== undefined && selectedSample &&
               this.lastSelectedSample &&
               this.lastSelectedSample.id === selectedSample.id) {
@@ -154,7 +154,7 @@ export class CpuProfileController extends Controller<'main'> {
       mapping: STR,
     });
 
-    const sampleData: CallsiteInfo[] = new Array();
+    const sampleData: CallsiteInfo[] = [];
     for (; it.valid(); it.next()) {
       sampleData.push({
         id: it.id,
@@ -165,7 +165,7 @@ export class CpuProfileController extends Controller<'main'> {
         selfSize: 0,
         mapping: it.mapping,
         merged: false,
-        highlighted: false
+        highlighted: false,
       });
     }
 

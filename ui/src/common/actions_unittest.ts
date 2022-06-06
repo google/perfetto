@@ -18,7 +18,7 @@ import {assertExists} from '../base/logging';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
 import {
-  PROCESS_SCHEDULING_TRACK_KIND
+  PROCESS_SCHEDULING_TRACK_KIND,
 } from '../tracks/process_scheduling/common';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state/common';
 
@@ -39,7 +39,7 @@ function fakeTrack(state: State, args: {
   name?: string,
   tid?: string
 }): State {
-  return produce(state, draft => {
+  return produce(state, (draft) => {
     StateActions.addTrack(draft, {
       id: args.id,
       engineId: '0',
@@ -49,20 +49,20 @@ function fakeTrack(state: State, args: {
           TrackKindPriority.ORDINARY :
           args.trackKindPriority,
       trackGroup: args.trackGroup || SCROLLING_TRACK_GROUP,
-      config: {tid: args.tid || '0'}
+      config: {tid: args.tid || '0'},
     });
   });
 }
 
 function fakeTrackGroup(
     state: State, args: {id: string, summaryTrackId: string}): State {
-  return produce(state, draft => {
+  return produce(state, (draft) => {
     StateActions.addTrackGroup(draft, {
       name: 'A group',
       id: args.id,
       engineId: '0',
       collapsed: false,
-      summaryTrackId: args.summaryTrackId
+      summaryTrackId: args.summaryTrackId,
     });
   });
 }
@@ -75,7 +75,7 @@ function pinnedAndScrollingTracks(
   for (const id of ids) {
     state = fakeTrack(state, {id});
   }
-  state = produce(state, draft => {
+  state = produce(state, (draft) => {
     draft.pinnedTracks = pinnedTracks;
     draft.scrollingTracks = scrollingTracks;
   });
@@ -83,7 +83,7 @@ function pinnedAndScrollingTracks(
 }
 
 test('add scrolling tracks', () => {
-  const once = produce(createEmptyState(), draft => {
+  const once = produce(createEmptyState(), (draft) => {
     StateActions.addTrack(draft, {
       engineId: '1',
       kind: 'cpu',
@@ -93,7 +93,7 @@ test('add scrolling tracks', () => {
       config: {},
     });
   });
-  const twice = produce(once, draft => {
+  const twice = produce(once, (draft) => {
     StateActions.addTrack(draft, {
       engineId: '2',
       kind: 'cpu',
@@ -112,7 +112,7 @@ test('add track to track group', () => {
   let state = createEmptyState();
   state = fakeTrack(state, {id: 's'});
 
-  const afterGroup = produce(state, draft => {
+  const afterGroup = produce(state, (draft) => {
     StateActions.addTrackGroup(draft, {
       engineId: '1',
       name: 'A track group',
@@ -122,7 +122,7 @@ test('add track to track group', () => {
     });
   });
 
-  const afterTrackAdd = produce(afterGroup, draft => {
+  const afterTrackAdd = produce(afterGroup, (draft) => {
     StateActions.addTrack(draft, {
       id: '1',
       engineId: '1',
@@ -139,7 +139,7 @@ test('add track to track group', () => {
 });
 
 test('reorder tracks', () => {
-  const once = produce(createEmptyState(), draft => {
+  const once = produce(createEmptyState(), (draft) => {
     StateActions.addTrack(draft, {
       engineId: '1',
       kind: 'cpu',
@@ -159,7 +159,7 @@ test('reorder tracks', () => {
   const firstTrackId = once.scrollingTracks[0];
   const secondTrackId = once.scrollingTracks[1];
 
-  const twice = produce(once, draft => {
+  const twice = produce(once, (draft) => {
     StateActions.moveTrack(draft, {
       srcId: `${firstTrackId}`,
       op: 'after',
@@ -175,7 +175,7 @@ test('reorder pinned to scrolling', () => {
   let state = createEmptyState();
   state = pinnedAndScrollingTracks(state, ['a', 'b', 'c'], ['a', 'b'], ['c']);
 
-  const after = produce(state, draft => {
+  const after = produce(state, (draft) => {
     StateActions.moveTrack(draft, {
       srcId: 'b',
       op: 'before',
@@ -191,7 +191,7 @@ test('reorder scrolling to pinned', () => {
   let state = createEmptyState();
   state = pinnedAndScrollingTracks(state, ['a', 'b', 'c'], ['a'], ['b', 'c']);
 
-  const after = produce(state, draft => {
+  const after = produce(state, (draft) => {
     StateActions.moveTrack(draft, {
       srcId: 'b',
       op: 'after',
@@ -207,7 +207,7 @@ test('reorder clamp bottom', () => {
   let state = createEmptyState();
   state = pinnedAndScrollingTracks(state, ['a', 'b', 'c'], ['a', 'b'], ['c']);
 
-  const after = produce(state, draft => {
+  const after = produce(state, (draft) => {
     StateActions.moveTrack(draft, {
       srcId: 'a',
       op: 'before',
@@ -221,7 +221,7 @@ test('reorder clamp top', () => {
   let state = createEmptyState();
   state = pinnedAndScrollingTracks(state, ['a', 'b', 'c'], ['a'], ['b', 'c']);
 
-  const after = produce(state, draft => {
+  const after = produce(state, (draft) => {
     StateActions.moveTrack(draft, {
       srcId: 'c',
       op: 'after',
@@ -235,7 +235,7 @@ test('pin', () => {
   let state = createEmptyState();
   state = pinnedAndScrollingTracks(state, ['a', 'b', 'c'], ['a'], ['b', 'c']);
 
-  const after = produce(state, draft => {
+  const after = produce(state, (draft) => {
     StateActions.toggleTrackPinned(draft, {
       trackId: 'c',
     });
@@ -248,7 +248,7 @@ test('unpin', () => {
   let state = createEmptyState();
   state = pinnedAndScrollingTracks(state, ['a', 'b', 'c'], ['a', 'b'], ['c']);
 
-  const after = produce(state, draft => {
+  const after = produce(state, (draft) => {
     StateActions.toggleTrackPinned(draft, {
       trackId: 'a',
     });
@@ -260,7 +260,7 @@ test('unpin', () => {
 test('open trace', () => {
   const state = createEmptyState();
   const recordConfig = state.recordConfig;
-  const after = produce(state, draft => {
+  const after = produce(state, (draft) => {
     StateActions.openTraceFromUrl(draft, {
       url: 'https://example.com/bar',
     });
@@ -274,13 +274,13 @@ test('open trace', () => {
 });
 
 test('open second trace from file', () => {
-  const once = produce(createEmptyState(), draft => {
+  const once = produce(createEmptyState(), (draft) => {
     StateActions.openTraceFromUrl(draft, {
       url: 'https://example.com/bar',
     });
   });
 
-  const twice = produce(once, draft => {
+  const twice = produce(once, (draft) => {
     StateActions.addTrack(draft, {
       engineId: '1',
       kind: 'cpu',
@@ -290,7 +290,7 @@ test('open second trace from file', () => {
     });
   });
 
-  const thrice = produce(twice, draft => {
+  const thrice = produce(twice, (draft) => {
     StateActions.openTraceFromUrl(draft, {
       url: 'https://example.com/foo',
     });
@@ -306,7 +306,7 @@ test('open second trace from file', () => {
 
 test('setEngineReady with missing engine is ignored', () => {
   const state = createEmptyState();
-  produce(state, draft => {
+  produce(state, (draft) => {
     StateActions.setEngineReady(
         draft, {engineId: '1', ready: true, mode: 'WASM'});
   });
@@ -316,7 +316,7 @@ test('setEngineReady', () => {
   const state = createEmptyState();
   let latestEngineId = 'dummy value will be replaced';
   state.currentEngineId = '100';
-  const after = produce(state, draft => {
+  const after = produce(state, (draft) => {
     StateActions.openTraceFromUrl(draft, {
       url: 'https://example.com/bar',
     });
@@ -335,7 +335,7 @@ test('sortTracksByPriority', () => {
   state = fakeTrack(
       state, {id: 'a', kind: PROCESS_SCHEDULING_TRACK_KIND, trackGroup: 'g'});
 
-  const after = produce(state, draft => {
+  const after = produce(state, (draft) => {
     StateActions.sortThreadTracks(draft, {});
   });
 
@@ -353,19 +353,19 @@ test('sortTracksByPriorityAndKindAndName', () => {
     id: 'b',
     kind: SLICE_TRACK_KIND,
     trackGroup: 'g',
-    trackKindPriority: TrackKindPriority.MAIN_THREAD
+    trackKindPriority: TrackKindPriority.MAIN_THREAD,
   });
   state = fakeTrack(state, {
     id: 'c',
     kind: SLICE_TRACK_KIND,
     trackGroup: 'g',
-    trackKindPriority: TrackKindPriority.RENDER_THREAD
+    trackKindPriority: TrackKindPriority.RENDER_THREAD,
   });
   state = fakeTrack(state, {
     id: 'd',
     kind: SLICE_TRACK_KIND,
     trackGroup: 'g',
-    trackKindPriority: TrackKindPriority.GPU_COMPLETION
+    trackKindPriority: TrackKindPriority.GPU_COMPLETION,
   });
   state = fakeTrack(
       state, {id: 'e', kind: HEAP_PROFILE_TRACK_KIND, trackGroup: 'g'});
@@ -374,7 +374,7 @@ test('sortTracksByPriorityAndKindAndName', () => {
   state = fakeTrack(
       state, {id: 'g', kind: SLICE_TRACK_KIND, trackGroup: 'g', name: 'T10'});
 
-  const after = produce(state, draft => {
+  const after = produce(state, (draft) => {
     StateActions.sortThreadTracks(draft, {});
   });
 
@@ -395,24 +395,24 @@ test('sortTracksByTidThenName', () => {
     kind: SLICE_TRACK_KIND,
     trackGroup: 'g',
     name: 'aaa',
-    tid: '1'
+    tid: '1',
   });
   state = fakeTrack(state, {
     id: 'b',
     kind: SLICE_TRACK_KIND,
     trackGroup: 'g',
     name: 'bbb',
-    tid: '2'
+    tid: '2',
   });
   state = fakeTrack(state, {
     id: 'c',
     kind: THREAD_STATE_TRACK_KIND,
     trackGroup: 'g',
     name: 'ccc',
-    tid: '1'
+    tid: '1',
   });
 
-  const after = produce(state, draft => {
+  const after = produce(state, (draft) => {
     StateActions.sortThreadTracks(draft, {});
   });
 
@@ -423,7 +423,7 @@ test('perf samples open flamegraph', () => {
   const state = createEmptyState();
   const perfType = 'perf';
 
-  const afterSelectingPerf = produce(state, draft => {
+  const afterSelectingPerf = produce(state, (draft) => {
     StateActions.selectPerfSamples(
         draft, {id: 0, upid: 0, ts: 0, type: perfType});
   });
@@ -436,7 +436,7 @@ test('heap profile opens flamegraph', () => {
   const state = createEmptyState();
   const heapType = 'graph';
 
-  const afterSelectingPerf = produce(state, draft => {
+  const afterSelectingPerf = produce(state, (draft) => {
     StateActions.selectHeapProfile(
         draft, {id: 0, upid: 0, ts: 0, type: heapType});
   });
