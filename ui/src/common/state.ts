@@ -86,12 +86,12 @@ export type EngineMode = 'WASM'|'HTTP_RPC';
 export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE'|'FORCE_BUILTIN_WASM';
 
 export enum TrackKindPriority {
-  'MAIN_THREAD' = 0,
-  'RENDER_THREAD' = 1,
-  'GPU_COMPLETION' = 2,
-  'CHROME_IO_THREAD' = 3,
-  'CHROME_COMPOSITOR' = 4,
-  'ORDINARY' = 5
+  MAIN_THREAD = 0,
+  RENDER_THREAD = 1,
+  GPU_COMPLETION = 2,
+  CHROME_IO_THREAD = 3,
+  CHROME_COMPOSITOR = 4,
+  ORDINARY = 5
 }
 
 export type FlamegraphStateViewingOption =
