@@ -29,7 +29,7 @@ module.exports = {
         'ignoreUrls': true,
         'ignoreTemplateLiterals': true,
         'ignoreStrings': true,
-      }
+      },
     ],
 
     // Indentation handled by clang-format --js:
@@ -59,6 +59,6 @@ module.exports = {
     // TODO(hjd): Switch these to be lowercase and remove capIsNew.
     // There are also some properties like: foo.factory these should
     // stay.
-    'new-cap': ['error', {'capIsNew': false, 'properties': false}]
+    'new-cap': ['error', {'capIsNew': false, 'properties': false}],
   },
 };
