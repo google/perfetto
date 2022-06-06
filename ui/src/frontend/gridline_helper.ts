@@ -19,13 +19,11 @@ import {TimeScale} from './time_scale';
 
 export const DESIRED_PX_PER_STEP = 80;
 
-/**
- * Returns the step size of a grid line in seconds.
- * The returned step size has two properties:
- * (1) It is 1, 2, or 5, multiplied by some integer power of 10.
- * (2) The number steps in |range| produced by |stepSize| is as close as
- *     possible to |desiredSteps|.
- */
+// Returns the step size of a grid line in seconds.
+// The returned step size has two properties:
+// (1) It is 1, 2, or 5, multiplied by some integer power of 10.
+// (2) The number steps in |range| produced by |stepSize| is as close as
+//     possible to |desiredSteps|.
 export function getGridStepSize(range: number, desiredSteps: number): number {
   // First, get the largest possible power of 10 that is smaller than the
   // desired step size, and set it to the current step size.
@@ -61,11 +59,9 @@ export function getGridStepSize(range: number, desiredSteps: number): number {
   return minimizingStepSize;
 }
 
-/**
- * Generator that returns that (given a width im px, span, and scale) returns
- * pairs of [xInPx, timestampInS] pairs describing where gridlines should be
- * drawn.
- */
+// Generator that returns that (given a width im px, span, and scale) returns
+// pairs of [xInPx, timestampInS] pairs describing where gridlines should be
+// drawn.
 export function gridlines(width: number, span: TimeSpan, timescale: TimeScale):
     Array<[number, number]> {
   const desiredSteps = width / DESIRED_PX_PER_STEP;

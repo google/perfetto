@@ -45,9 +45,7 @@ class Alerts implements m.ClassComponent {
   }
 }
 
-/**
- * Wrap component with common UI elements (nav bar etc).
- */
+// Wrap component with common UI elements (nav bar etc).
 export function createPage(component: m.Component<PageAttrs>):
     m.Component<PageAttrs> {
   const pageComponent = {
