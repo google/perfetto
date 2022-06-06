@@ -62,6 +62,7 @@ HeapGraphClassTable::~HeapGraphClassTable() = default;
 HeapGraphReferenceTable::~HeapGraphReferenceTable() = default;
 VulkanMemoryAllocationsTable::~VulkanMemoryAllocationsTable() = default;
 PackageListTable::~PackageListTable() = default;
+AndroidGameInterventionListTable::~AndroidGameInterventionListTable() = default;
 ProfilerSmapsTable::~ProfilerSmapsTable() = default;
 GpuCounterGroupTable::~GpuCounterGroupTable() = default;
 

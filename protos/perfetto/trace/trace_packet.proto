@@ -19,6 +19,7 @@ syntax = "proto2";
 import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";
 import "protos/perfetto/trace/extension_descriptor.proto";
+import "protos/perfetto/trace/android/android_game_intervention_list.proto";
 import "protos/perfetto/trace/android/android_log.proto";
 import "protos/perfetto/trace/android/camera_event.proto";
 import "protos/perfetto/trace/android/frame_timeline_event.proto";
@@ -152,6 +153,7 @@ message TracePacket {
     AndroidCameraFrameEvent android_camera_frame_event = 80;
     AndroidCameraSessionStats android_camera_session_stats = 81;
     TranslationTable translation_table = 82;
+    AndroidGameInterventionList android_game_intervention_list = 83;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
