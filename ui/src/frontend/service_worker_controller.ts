@@ -123,7 +123,7 @@ export class ServiceWorkerController {
   }
 
   get bypassed() {
-     return this._bypassed;
+    return this._bypassed;
   }
   get installing() {
     return this._installing;

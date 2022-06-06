@@ -111,16 +111,16 @@ test('generateStartTracing', () => {
 });
 
 test('tracingEndedSuccessfully', () => {
-  expect(adbController.tracingEndedSuccessfully(
-             'Connected to the Perfetto traced service,\ starting tracing for \
-10000 ms\nWrote 564 bytes into /data/misc/perfetto-traces/trace'))
+  expect(
+      adbController.tracingEndedSuccessfully(
+          'Connected to the Perfetto traced service, starting tracing for 10000 ms\nWrote 564 bytes into /data/misc/perfetto-traces/trace'))
       .toBe(true);
-  expect(adbController.tracingEndedSuccessfully(
-             'Connected to the Perfetto traced service, starting tracing for \
-10000 ms'))
+  expect(
+      adbController.tracingEndedSuccessfully(
+          'Connected to the Perfetto traced service, starting tracing for 10000 ms'))
       .toBe(false);
-  expect(adbController.tracingEndedSuccessfully(
-             'Connected to the Perfetto traced service, starting tracing for \
-0 ms'))
+  expect(
+      adbController.tracingEndedSuccessfully(
+          'Connected to the Perfetto traced service, starting tracing for 0 ms'))
       .toBe(false);
 });
