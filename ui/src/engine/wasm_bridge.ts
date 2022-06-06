@@ -14,7 +14,7 @@
 
 import {defer} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/logging';
-import * as init_trace_processor from '../gen/trace_processor';
+import * as initTraceProcessor from '../gen/trace_processor';
 
 // The Initialize() call will allocate a buffer of REQ_BUF_SIZE bytes which
 // will be used to copy the input request data. This is to avoid passing the
@@ -37,7 +37,7 @@ export class WasmBridge {
   whenInitialized: Promise<void>;
 
   private aborted: boolean;
-  private connection: init_trace_processor.Module;
+  private connection: initTraceProcessor.Module;
   private reqBufferAddr = 0;
   private lastStderr: string[] = [];
   private messagePort?: MessagePort;
@@ -45,7 +45,7 @@ export class WasmBridge {
   constructor() {
     this.aborted = false;
     const deferredRuntimeInitialized = defer<void>();
-    this.connection = init_trace_processor({
+    this.connection = initTraceProcessor({
       locateFile: (s: string) => s,
       print: (line: string) => console.log(line),
       printErr: (line: string) => this.appendAndLogErr(line),

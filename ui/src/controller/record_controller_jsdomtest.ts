@@ -222,8 +222,10 @@ test('ChromeCpuProfilerConfig', () => {
 
   const metadataConfigSource = assertExists(sources[1].config);
   expect(metadataConfigSource.name).toBe('org.chromium.trace_metadata');
-  const traceMetadataChromeConfig = assertExists(metadataConfigSource.chromeConfig);
-  const traceMetadataConfig = assertExists(traceMetadataChromeConfig.traceConfig);
+  const traceMetadataChromeConfig =
+      assertExists(metadataConfigSource.chromeConfig);
+  const traceMetadataConfig =
+      assertExists(traceMetadataChromeConfig.traceConfig);
 
   const profilerConfigSource = assertExists(sources[2].config);
   expect(profilerConfigSource.name).toBe('org.chromium.sampler_profiler');
@@ -253,8 +255,10 @@ test('ChromeCpuProfilerDebugConfig', () => {
 
   const metadataConfigSource = assertExists(sources[1].config);
   expect(metadataConfigSource.name).toBe('org.chromium.trace_metadata');
-  const traceMetadataChromeConfig = assertExists(metadataConfigSource.chromeConfig);
-  const traceMetadataConfig = assertExists(traceMetadataChromeConfig.traceConfig);
+  const traceMetadataChromeConfig =
+      assertExists(metadataConfigSource.chromeConfig);
+  const traceMetadataConfig =
+      assertExists(traceMetadataChromeConfig.traceConfig);
 
   const profilerConfigSource = assertExists(sources[2].config);
   expect(profilerConfigSource.name).toBe('org.chromium.sampler_profiler');
