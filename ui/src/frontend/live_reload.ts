@@ -22,7 +22,7 @@ export function initLiveReloadIfLocalhost() {
   if (!location.origin.startsWith('http://localhost:')) return;
 
   const monitor = new EventSource('/live_reload');
-  monitor.onmessage = msg => {
+  monitor.onmessage = (msg) => {
     const change = msg.data;
     console.log('Live reload:', change);
     changedPaths.add(change);

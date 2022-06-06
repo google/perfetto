@@ -201,7 +201,7 @@ export class OverviewTimelinePanel extends Panel {
     const vizTime = globals.frontendLocalState.getVisibleStateBounds();
     return [
       Math.floor(timeScale.timeToPx(vizTime[0])),
-      Math.ceil(timeScale.timeToPx(vizTime[1]))
+      Math.ceil(timeScale.timeToPx(vizTime[1])),
     ];
   }
 

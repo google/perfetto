@@ -18,7 +18,7 @@ import {Area, Sorting} from '../../common/state';
 import {toNs} from '../../common/time';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
-  Config
+  Config,
 } from '../../tracks/actual_frames/common';
 import {globals} from '../globals';
 
@@ -96,8 +96,8 @@ export class FrameAggregationController extends AggregationController {
         kind: 'NUMBER',
         columnConstructor: Uint16Array,
         columnId: 'occurrences',
-        sum: true
-      }
+        sum: true,
+      },
     ];
   }
 }

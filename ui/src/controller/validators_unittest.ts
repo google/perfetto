@@ -20,7 +20,7 @@ import {
   requiredStr,
   runValidator,
   ValidatedType,
-  ValidationError
+  ValidationError,
 } from './validators';
 
 const colors = ['RED', 'GREEN', 'BLUE'] as const;
@@ -32,7 +32,7 @@ const point = record({
   color: oneOf<Color>(colors, 'RED'),
   x: num(),
   y: num(1),
-  properties: record({mass: num(10)})
+  properties: record({mass: num(10)}),
 });
 
 type Point = ValidatedType<typeof point>;
@@ -79,7 +79,7 @@ test('validator keeps information about extra and invalid keys', () => {
     id: 'test',
     x: 'should not be a string',
     extra: 'should not be here',
-    properties: {mass: 'should be a number', weight: 'should not be here'}
+    properties: {mass: 'should be a number', weight: 'should not be here'},
   });
 
   expect(result.extraKeys).toContain('extra');
@@ -96,10 +96,10 @@ test('validator correctly keeps track of path when reporting keys', () => {
       nested: {
         array: [
           {id: 'point1', x: 'should not be a string'},
-          {id: 'point2', extra3: 'should not be here'}
-        ]
-      }
-    }
+          {id: 'point2', extra3: 'should not be here'},
+        ],
+      },
+    },
   });
 
   expect(result.extraKeys).toContain('extra1');

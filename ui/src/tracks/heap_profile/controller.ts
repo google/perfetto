@@ -15,7 +15,7 @@
 import {NUM, STR} from '../../common/query_result';
 import {
   TrackController,
-  trackControllerRegistry
+  trackControllerRegistry,
 } from '../../controller/track_controller';
 
 import {
@@ -35,7 +35,7 @@ class HeapProfileTrackController extends TrackController<Config, Data> {
         resolution,
         length: 0,
         tsStarts: new Float64Array(),
-        types: new Array<string>()
+        types: new Array<string>(),
       };
     }
     const queryRes = await this.query(`

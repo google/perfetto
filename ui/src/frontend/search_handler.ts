@@ -40,8 +40,8 @@ export function executeSearch(reverse = false) {
   // select the first/last item in the viewport.
   if (index === -1 || currentTs < startNs || currentTs > endNs) {
     if (reverse) {
-      const [smaller,] =
-        searchSegment(globals.currentSearchResults.tsStarts, endNs);
+      const [smaller] =
+          searchSegment(globals.currentSearchResults.tsStarts, endNs);
       // If there is no item in the viewport just go to the previous.
       if (smaller === -1) {
         setToPrevious(index);

@@ -75,7 +75,8 @@ class DebugSliceTrackController extends TrackController<Config, Data> {
     const it = queryRes.iter(
         {id: NUM, name: STR, ts: NUM_NULL, dur: NUM_NULL, depth: NUM});
     for (let row = 0; it.valid(); it.next(), row++) {
-      let sliceStart: number, sliceEnd: number;
+      let sliceStart: number;
+      let sliceEnd: number;
       if (it.ts === null || it.dur === null) {
         sliceStart = sliceEnd = -1;
       } else {

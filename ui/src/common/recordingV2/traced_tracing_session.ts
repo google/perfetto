@@ -31,13 +31,13 @@ import {
   ITraceStats,
   ReadBuffersRequest,
   ReadBuffersResponse,
-  TraceConfig
+  TraceConfig,
 } from '../protos';
 
 import {
   ByteStream,
   TracingSession,
-  TracingSessionListener
+  TracingSessionListener,
 } from './recording_interfaces_v2';
 
 // See wire_protocol.proto for more details.
@@ -142,7 +142,7 @@ export class TracedTracingSession implements TracingSession {
     const requestId = this.requestId++;
     const frame = new IPCFrame({
       requestId,
-      msgBindService: new IPCFrame.BindService({serviceName: 'ConsumerPort'})
+      msgBindService: new IPCFrame.BindService({serviceName: 'ConsumerPort'}),
     });
     this.writeFrame(frame);
 
@@ -197,7 +197,7 @@ export class TracedTracingSession implements TracingSession {
     const frame = new IPCFrame({
       requestId,
       msgInvokeMethod: new IPCFrame.InvokeMethod(
-          {serviceId: this.serviceId, methodId: method.id, argsProto})
+          {serviceId: this.serviceId, methodId: method.id, argsProto}),
     });
     this.requestMethods.set(requestId, methodName);
     this.writeFrame(frame);

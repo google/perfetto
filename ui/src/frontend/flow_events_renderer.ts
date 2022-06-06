@@ -135,7 +135,7 @@ export class FlowEventsRenderer {
 
     return {
       y: Math.min(Math.max(0, y), args.canvasHeight),
-      connection: 'TRACK'
+      connection: 'TRACK',
     };
   }
 
@@ -159,11 +159,11 @@ export class FlowEventsRenderer {
     ctx.rect(0, 0, args.canvasWidth - TRACK_SHELL_WIDTH, args.canvasHeight);
     ctx.clip();
 
-    globals.connectedFlows.forEach(flow => {
+    globals.connectedFlows.forEach((flow) => {
       this.drawFlow(ctx, args, flow, CONNECTED_FLOW_HUE);
     });
 
-    globals.selectedFlows.forEach(flow => {
+    globals.selectedFlows.forEach((flow) => {
       const categories = getFlowCategories(flow);
       for (const cat of categories) {
         if (globals.visibleFlowCategories.get(cat) ||
@@ -204,12 +204,12 @@ export class FlowEventsRenderer {
     const begin = {
       x: this.getXCoordinate(flow.begin.sliceEndTs),
       y: beginYConnection.y,
-      dir: beginDir
+      dir: beginDir,
     };
     const end = {
       x: this.getXCoordinate(flow.end.sliceStartTs),
       y: endYConnection.y,
-      dir: endDir
+      dir: endDir,
     };
     const highlighted = flow.end.sliceId === globals.state.highlightedSliceId ||
         flow.begin.sliceId === globals.state.highlightedSliceId;

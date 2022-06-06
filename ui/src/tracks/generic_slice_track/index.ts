@@ -14,7 +14,7 @@
 
 import {
   NamedSliceTrack,
-  NamedSliceTrackTypes
+  NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';

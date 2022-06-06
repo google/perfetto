@@ -24,7 +24,7 @@ import {
   perfDebug,
   perfDisplay,
   RunningStatistics,
-  runningStatStr
+  runningStatStr,
 } from './perf';
 
 function statTableHeader() {
@@ -33,7 +33,7 @@ function statTableHeader() {
       m('th', ''),
       m('th', 'Last (ms)'),
       m('th', 'Avg (ms)'),
-      m('th', 'Avg-10 (ms)'), );
+      m('th', 'Avg-10 (ms)'));
 }
 
 function statTableRow(title: string, stat: RunningStatistics) {
@@ -42,7 +42,7 @@ function statTableRow(title: string, stat: RunningStatistics) {
       m('td', title),
       m('td', stat.last.toFixed(2)),
       m('td', stat.mean.toFixed(2)),
-      m('td', stat.bufferMean.toFixed(2)), );
+      m('td', stat.bufferMean.toFixed(2)));
 }
 
 export type ActionCallback = (nowMs: number) => void;
@@ -59,7 +59,7 @@ export type RedrawCallback = (nowMs: number) => void;
 export class RafScheduler {
   private actionCallbacks = new Set<ActionCallback>();
   private canvasRedrawCallbacks = new Set<RedrawCallback>();
-  private _syncDomRedraw: RedrawCallback = _ => {};
+  private _syncDomRedraw: RedrawCallback = (_) => {};
   private hasScheduledNextFrame = false;
   private requestedFullRedraw = false;
   private isRedrawing = false;
@@ -99,7 +99,7 @@ export class RafScheduler {
   }
 
   set domRedraw(cb: RedrawCallback|null) {
-    this._syncDomRedraw = cb || (_ => {});
+    this._syncDomRedraw = cb || ((_) => {});
   }
 
   scheduleFullRedraw() {
@@ -196,10 +196,10 @@ export class RafScheduler {
           statTableRow('Actions', this.perfStats.rafActions),
           statTableRow('Dom', this.perfStats.rafDom),
           statTableRow('Canvas', this.perfStats.rafCanvas),
-          statTableRow('Total', this.perfStats.rafTotal), ),
+          statTableRow('Total', this.perfStats.rafTotal)),
         m('div',
           'Dom redraw: ' +
               `Count: ${this.perfStats.domRedraw.count} | ` +
-              runningStatStr(this.perfStats.domRedraw)), );
+              runningStatStr(this.perfStats.domRedraw)));
   }
 }
