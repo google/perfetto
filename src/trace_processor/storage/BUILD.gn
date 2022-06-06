@@ -28,5 +28,6 @@ source_set("storage") {
     "../containers",
     "../tables",
     "../types",
+    "../views",
   ]
 }

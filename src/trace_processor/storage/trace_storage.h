@@ -45,6 +45,7 @@
 #include "src/trace_processor/tables/slice_tables.h"
 #include "src/trace_processor/tables/track_tables.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/views/slice_views.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -636,10 +637,13 @@ class TraceStorage {
   actual_frame_timeline_slice_table() const {
     return actual_frame_timeline_slice_table_;
   }
-
   tables::ActualFrameTimelineSliceTable*
   mutable_actual_frame_timeline_slice_table() {
     return &actual_frame_timeline_slice_table_;
+  }
+
+  const views::ThreadSliceView& thread_slice_view() const {
+    return thread_slice_view_;
   }
 
   const StringPool& string_pool() const { return string_pool_; }
@@ -861,6 +865,9 @@ class TraceStorage {
       &string_pool_, &slice_table_};
   tables::ActualFrameTimelineSliceTable actual_frame_timeline_slice_table_{
       &string_pool_, &slice_table_};
+
+  views::ThreadSliceView thread_slice_view_{&slice_table_, &thread_track_table_,
+                                            &thread_table_};
 
   // The below array allow us to map between enums and their string
   // representations.
