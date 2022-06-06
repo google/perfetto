@@ -994,6 +994,8 @@ perfetto_filegroup(
         "src/trace_processor/dynamic/experimental_slice_layout_generator.h",
         "src/trace_processor/dynamic/flamegraph_construction_algorithms.cc",
         "src/trace_processor/dynamic/flamegraph_construction_algorithms.h",
+        "src/trace_processor/dynamic/view_generator.cc",
+        "src/trace_processor/dynamic/view_generator.h",
     ],
 )
 
@@ -1413,6 +1415,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/views/macros.h",
         "src/trace_processor/views/macros_internal.h",
+        "src/trace_processor/views/slice_views.h",
+        "src/trace_processor/views/view_destructors.cc",
     ],
 )
 
