@@ -6,6 +6,7 @@
 .cproject
 .deps_sha1
 .DS_Store
+.eslintcache
 .gclient*
 .gm-actuals
 .gradle
