@@ -19,7 +19,7 @@ import {assertExists, assertFalse, assertTrue} from '../base/logging';
 import {TOPBAR_HEIGHT, TRACK_SHELL_WIDTH} from './css_constants';
 import {
   FlowEventsRenderer,
-  FlowEventsRendererArgs
+  FlowEventsRendererArgs,
 } from './flow_events_renderer';
 import {globals} from './globals';
 import {isPanelVNode, Panel, PanelSize} from './panel';
@@ -28,7 +28,7 @@ import {
   perfDebug,
   perfDisplay,
   RunningStatistics,
-  runningStatStr
+  runningStatStr,
 } from './perf';
 import {TrackGroupAttrs} from './viewer_page';
 
@@ -264,7 +264,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
           '.scroll-limiter',
           m('canvas.main-canvas'),
           ),
-      m('.panels', children)
+      m('.panels', children),
     ];
   }
 
@@ -343,7 +343,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     this.panelContainerTop = domRect.y;
     this.panelContainerHeight = domRect.height;
 
-    dom.parentElement!.querySelectorAll('.panel').forEach(panel => {
+    dom.parentElement!.querySelectorAll('.panel').forEach((panel) => {
       const key = assertExists(panel.getAttribute('data-key'));
       const vnode = assertExists(this.panelByKey.get(key));
 
@@ -356,7 +356,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
         width: rect.width,
         x: rect.x,
         y: rect.y,
-        vnode
+        vnode,
       });
       this.totalPanelHeight += rect.height;
     });
@@ -506,7 +506,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
         m('div',
           `${this.perfStats.totalPanels} panels, ` +
               `${this.perfStats.panelsOnCanvas} on canvas.`),
-        m('div', runningStatStr(this.perfStats.renderStats)), )];
+        m('div', runningStatStr(this.perfStats.renderStats)))];
   }
 
   private getCanvasOverdrawHeightPerSide() {

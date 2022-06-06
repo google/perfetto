@@ -547,7 +547,7 @@ export function getDefaultRecordingTargets(): RecordingTarget[] {
     {os: 'O', name: 'Android O-'},
     {os: 'C', name: 'Chrome'},
     {os: 'CrOS', name: 'Chrome OS (system trace)'},
-    {os: 'L', name: 'Linux desktop'}
+    {os: 'L', name: 'Linux desktop'},
   ];
 }
 

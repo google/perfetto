@@ -26,7 +26,7 @@ import {
   OnDisconnectCallback,
   OnMessageCallback,
   OnStreamCloseCallback,
-  OnStreamDataCallback
+  OnStreamDataCallback,
 } from './recording_interfaces_v2';
 
 const textEncoder = new _TextEncoder();
@@ -155,7 +155,7 @@ export class AdbConnectionOverWebusb implements AdbConnection {
 
   streamClose(stream: AdbOverWebusbStream): void {
     const otherStreamsQueue = this.writeQueue.filter(
-        queueElement => queueElement.localStreamId !== stream.localStreamId);
+        (queueElement) => queueElement.localStreamId !== stream.localStreamId);
     const droppedPacketCount =
         this.writeQueue.length - otherStreamsQueue.length;
     if (droppedPacketCount > 0) {
@@ -200,7 +200,7 @@ export class AdbConnectionOverWebusb implements AdbConnection {
     }
     this.connectingStreams.clear();
 
-    this.streams.forEach(stream => stream.close());
+    this.streams.forEach((stream) => stream.close());
     this.onDisconnect(disconnectMessage);
 
     try {
@@ -314,7 +314,8 @@ export class AdbConnectionOverWebusb implements AdbConnection {
 
         // This will resolve the promises awaited by
         // "ensureConnectionEstablished".
-        this.pendingConnPromises.forEach(connPromise => connPromise.resolve());
+        this.pendingConnPromises.forEach(
+            (connPromise) => connPromise.resolve());
         this.pendingConnPromises = [];
       } else if (msg.cmd === 'OKAY') {
         if (this.connectingStreams.has(msg.arg1)) {

@@ -43,7 +43,7 @@ export async function waitForPerfettoIdle(
   let consecutiveIdleTicks = 0;
   let reasons: string[] = [];
   for (let ticks = 0; ticks < timeoutTicks; ticks++) {
-    await new Promise(r => setTimeout(r, tickMs));
+    await new Promise((r) => setTimeout(r, tickMs));
     const isShowingMsg = !!(await page.$('.omnibox.message-mode'));
     const isShowingAnim = !!(await page.$('.progress.progress-anim'));
     const hasPendingRedraws =
@@ -97,7 +97,7 @@ export async function compareScreenshots(
   const diffPng = new PNG({width, height});
   const diff = await pixelmatch(
       actualImg.data, expectedImg.data, diffPng.data, width, height, {
-        threshold: DIFF_PER_PIXEL_THRESHOLD
+        threshold: DIFF_PER_PIXEL_THRESHOLD,
       });
   if (diff > DIFF_MAX_PIXELS) {
     const diffFilename = actualFilename.replace('.png', '-diff.png');

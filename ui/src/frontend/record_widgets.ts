@@ -63,7 +63,7 @@ export interface ProbeAttrs {
 export class Probe implements m.ClassComponent<ProbeAttrs> {
   view({attrs, children}: m.CVnode<ProbeAttrs>) {
     const onToggle = (enabled: boolean) => {
-      const traceCfg = produce(globals.state.recordConfig, draft => {
+      const traceCfg = produce(globals.state.recordConfig, (draft) => {
         attrs.setEnabled(draft, enabled);
       });
       globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
@@ -102,7 +102,7 @@ export function CompactProbe(args: {
     compact: true,
     descr: '',
     isEnabled: args.isEnabled,
-    setEnabled: args.setEnabled
+    setEnabled: args.setEnabled,
   } as ProbeAttrs);
 }
 
@@ -121,7 +121,7 @@ export interface ToggleAttrs {
 export class Toggle implements m.ClassComponent<ToggleAttrs> {
   view({attrs}: m.CVnode<ToggleAttrs>) {
     const onToggle = (enabled: boolean) => {
-      const traceCfg = produce(globals.state.recordConfig, draft => {
+      const traceCfg = produce(globals.state.recordConfig, (draft) => {
         attrs.setEnabled(draft, enabled);
       });
       globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
@@ -164,7 +164,7 @@ export interface SliderAttrs {
 
 export class Slider implements m.ClassComponent<SliderAttrs> {
   onValueChange(attrs: SliderAttrs, newVal: number) {
-    const traceCfg = produce(globals.state.recordConfig, draft => {
+    const traceCfg = produce(globals.state.recordConfig, (draft) => {
       attrs.set(draft, newVal);
     });
     globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
@@ -266,7 +266,7 @@ export class Dropdown implements m.ClassComponent<DropdownAttrs> {
       const item = assertExists(dom.selectedOptions.item(i));
       selKeys.push(item.value);
     }
-    const traceCfg = produce(globals.state.recordConfig, draft => {
+    const traceCfg = produce(globals.state.recordConfig, (draft) => {
       attrs.set(draft, selKeys);
     });
     globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
@@ -317,7 +317,7 @@ export interface TextareaAttrs {
 
 export class Textarea implements m.ClassComponent<TextareaAttrs> {
   onChange(attrs: TextareaAttrs, dom: HTMLTextAreaElement) {
-    const traceCfg = produce(globals.state.recordConfig, draft => {
+    const traceCfg = produce(globals.state.recordConfig, (draft) => {
       attrs.set(draft, dom.value);
     });
     globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
@@ -333,7 +333,7 @@ export class Textarea implements m.ClassComponent<TextareaAttrs> {
           onchange: (e: Event) =>
               this.onChange(attrs, e.target as HTMLTextAreaElement),
           placeholder: attrs.placeholder,
-          value: attrs.get(globals.state.recordConfig)
+          value: attrs.get(globals.state.recordConfig),
         }));
   }
 }
@@ -374,7 +374,7 @@ export class CategoriesCheckboxList implements
     m.ClassComponent<CategoriesCheckboxListParams> {
   updateValue(
       attrs: CategoriesCheckboxListParams, value: string, enabled: boolean) {
-    const traceCfg = produce(globals.state.recordConfig, draft => {
+    const traceCfg = produce(globals.state.recordConfig, (draft) => {
       const values = attrs.get(draft);
       const index = values.indexOf(value);
       if (enabled && index === -1) {
@@ -396,17 +396,17 @@ export class CategoriesCheckboxList implements
           m('button.config-button',
             {
               onclick: () => {
-                const config = produce(globals.state.recordConfig, draft => {
+                const config = produce(globals.state.recordConfig, (draft) => {
                   attrs.set(draft, Array.from(attrs.categories.keys()));
                 });
                 globals.dispatch(Actions.setRecordConfig({config}));
-              }
+              },
             },
             'All'),
           m('button.config-button',
             {
               onclick: () => {
-                const config = produce(globals.state.recordConfig, draft => {
+                const config = produce(globals.state.recordConfig, (draft) => {
                   attrs.set(draft, []);
                 });
                 globals.dispatch(Actions.setRecordConfig({config}));
@@ -426,7 +426,7 @@ export class CategoriesCheckboxList implements
                     onclick: (e: InputEvent) => {
                       const target = e.target as HTMLInputElement;
                       this.updateValue(attrs, key, target.checked);
-                    }
+                    },
                   }),
                   value));
           })));

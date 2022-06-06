@@ -128,13 +128,13 @@ export class SearchController extends Controller<'main'> {
     }
 
     this.updateInProgress = true;
-    const computeSummary =
-        this.update(newSearch, startNs, endNs, newResolution).then(summary => {
-          publishSearch(summary);
-        });
+    const computeSummary = this.update(newSearch, startNs, endNs, newResolution)
+                               .then((summary) => {
+                                 publishSearch(summary);
+                               });
 
     const computeResults =
-        this.specificSearch(newSearch).then(searchResults => {
+        this.specificSearch(newSearch).then((searchResults) => {
           publishSearchResult(searchResults);
         });
 
@@ -198,7 +198,7 @@ export class SearchController extends Controller<'main'> {
     const summary = {
       tsStarts: new Float64Array(numRows),
       tsEnds: new Float64Array(numRows),
-      count: new Uint8Array(numRows)
+      count: new Uint8Array(numRows),
     };
 
     const it = res.iter({tsStart: NUM, tsEnd: NUM, count: NUM});

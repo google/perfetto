@@ -77,7 +77,8 @@ export class Flamegraph {
   }
 
   private findMaxDepth() {
-    this.maxDepth = Math.max(...this.flamegraphData.map(value => value.depth));
+    this.maxDepth =
+        Math.max(...this.flamegraphData.map((value) => value.depth));
   }
 
   // Instead of highlighting the interesting nodes, we actually want to
@@ -131,7 +132,6 @@ export class Flamegraph {
   draw(
       ctx: CanvasRenderingContext2D, width: number, height: number, x = 0,
       y = 0, unit = 'B') {
-
     if (this.flamegraphData === undefined) {
       return;
     }
@@ -207,14 +207,14 @@ export class Flamegraph {
         width,
         nextXForChildren: currentX,
         size: value.totalSize,
-        x: currentX
+        x: currentX,
       });
       // Update next x coordinate in parent.
       nodesMap.set(value.parentId, {
         width: parentNode.width,
         nextXForChildren: currentX + width,
         size: parentNode.size,
-        x: parentNode.x
+        x: parentNode.x,
       });
 
       // Draw name.
@@ -363,7 +363,7 @@ export class Flamegraph {
       ['', 1],
       ['K', step],
       ['M', Math.pow(step, 2)],
-      ['G', Math.pow(step, 3)]
+      ['G', Math.pow(step, 3)],
     ];
     let unitsIndex = Math.trunc(Math.log(totalSize) / Math.log(step));
     unitsIndex = unitsIndex > units.length - 1 ? units.length - 1 : unitsIndex;
@@ -418,7 +418,7 @@ export class Flamegraph {
 
   searchSmallest(haystack: number[], needle: number): number {
     haystack = haystack.sort((n1, n2) => n1 - n2);
-    const [left, ] = searchSegment(haystack, needle);
+    const [left] = searchSegment(haystack, needle);
     return left === -1 ? -1 : haystack[left];
   }
 

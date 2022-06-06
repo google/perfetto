@@ -48,7 +48,7 @@ export async function queryResponseToClipboard(resp: QueryResponse):
     }
     lines.push(line);
   }
-  copyToClipboard(lines.map(line => line.join('\t')).join('\n'));
+  copyToClipboard(lines.map((line) => line.join('\t')).join('\n'));
 }
 
 export function download(file: File, name?: string): void {

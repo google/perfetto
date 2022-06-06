@@ -21,7 +21,7 @@ import {
   requiredStr,
   record,
   runValidator,
-  ValidatedType
+  ValidatedType,
 } from './validators';
 
 const recordModes = ['STOP_WHEN_FULL', 'RING_BUFFER', 'LONG_TRACE'] as const;

@@ -48,8 +48,8 @@ export abstract class SlicePanel extends Panel {
       ['Package name', sliceInfo.packageName],
       [
         'Version code',
-        sliceInfo.versionCode ? String(sliceInfo.versionCode) : undefined
-      ]
+        sliceInfo.versionCode ? String(sliceInfo.versionCode) : undefined,
+      ],
     ]);
   }
 }

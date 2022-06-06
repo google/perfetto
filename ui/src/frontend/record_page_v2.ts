@@ -20,19 +20,19 @@ import {Actions} from '../common/actions';
 import {TRACE_SUFFIX} from '../common/constants';
 import {
   genTraceConfig,
-  RecordingConfigUtils
+  RecordingConfigUtils,
 } from '../common/recordingV2/recording_config_utils';
 import {
   OnTargetChangedCallback,
   RecordingTargetV2,
   TargetInfo,
-  TracingSession
+  TracingSession,
 } from '../common/recordingV2/recording_interfaces_v2';
 import {
-  ANDROID_WEBUSB_TARGET_FACTORY
+  ANDROID_WEBUSB_TARGET_FACTORY,
 } from '../common/recordingV2/target_factories/android_webusb_target_factory';
 import {
-  targetFactoryRegistry
+  targetFactoryRegistry,
 } from '../common/recordingV2/target_factory_registry';
 import {hasActiveProbes} from '../common/state';
 
@@ -51,7 +51,7 @@ import {
   PERSIST_CONFIG_FLAG,
   PowerSettings,
   RecordingStatusLabel,
-  RecSettings
+  RecSettings,
 } from './record_page';
 import {CodeSnippet} from './record_widgets';
 
@@ -111,7 +111,7 @@ function RecordingPlatformSelection() {
               // select's options at that time, we have to reselect the
               // correct index here after any new children were added.
               (select.dom as HTMLSelectElement).selectedIndex = selectedIndex;
-            }
+            },
           },
           ...targets),
         ));
@@ -140,7 +140,7 @@ async function addAndroidDevice(): Promise<void> {
 function onTargetChange(targetName: string): void {
   const allTargets = targetFactoryRegistry.listTargets();
   recordingTargetV2 =
-      allTargets.find(t => t.getInfo().name === targetName) || allTargets[0];
+      allTargets.find((t) => t.getInfo().name === targetName) || allTargets[0];
   globals.rafScheduler.scheduleFullRedraw();
 }
 
@@ -167,7 +167,7 @@ function Instructions(cssClass: string) {
 function BufferUsageProgressBar() {
   if (!tracingSession) return [];
 
-  tracingSession.then(session => session.getTraceBufferUsage())
+  tracingSession.then((session) => session.getTraceBufferUsage())
       .then((percentage) => {
         publishBufferUsage({percentage});
       });
@@ -237,7 +237,7 @@ function RecordingNotes() {
     notes.push(msgZeroProbes);
   }
 
-  targetFactoryRegistry.listRecordingProblems().map(recordingProblem => {
+  targetFactoryRegistry.listRecordingProblems().map((recordingProblem) => {
     notes.push(m('.note', recordingProblem));
   });
 
@@ -323,7 +323,7 @@ function recordingButtons() {
       m(`button`,
         {
           class: tracingSession ? '' : 'selected',
-          onclick: onStartRecordingPressed
+          onclick: onStartRecordingPressed,
         },
         'Start Recording');
 
@@ -346,7 +346,7 @@ function StopCancelButtons() {
       m(`button.selected`,
         {
           onclick: async () => {
-            assertExists(tracingSession).then(async session => {
+            assertExists(tracingSession).then(async (session) => {
               // If this tracing session is not the one currently in focus,
               // then we interpret 'Stop' as 'Cancel'. Otherwise, this
               // trace will be processed and rendered even though the user
@@ -359,7 +359,7 @@ function StopCancelButtons() {
             });
             tracingSession = undefined;
             globals.dispatch(Actions.setRecordingStatus({status: undefined}));
-          }
+          },
         },
         'Stop');
 
@@ -367,12 +367,12 @@ function StopCancelButtons() {
       m(`button`,
         {
           onclick: async () => {
-            assertExists(tracingSession).then(session => session.cancel());
+            assertExists(tracingSession).then((session) => session.cancel());
             tracingSession = undefined;
             globals.dispatch(
                 Actions.setLastRecordingError({error: 'Recording cancelled.'}));
             publishBufferUsage({percentage: 0});
-          }
+          },
         },
         'Cancel');
 
@@ -505,7 +505,7 @@ function recordMenu(routePage: string) {
       '.record-menu',
       {
         class: tracingSession ? 'disabled' : '',
-        onclick: () => globals.rafScheduler.scheduleFullRedraw()
+        onclick: () => globals.rafScheduler.scheduleFullRedraw(),
       },
       m('header', 'Trace config'),
       m('ul',
@@ -524,7 +524,7 @@ function recordMenu(routePage: string) {
               {
                 onclick: () => {
                   recordConfigStore.reloadFromLocalStorage();
-                }
+                },
               },
               m(`li${routePage === 'config' ? '.active' : ''}`,
                 m('i.material-icons', 'save'),
@@ -543,48 +543,49 @@ const onDevicesChanged: OnTargetChangedCallback = () => {
 
 export const RecordPageV2 = createPage({
   view({attrs}: m.Vnode<PageAttrs>): void |
-  m.Children {
-    if (!recordingTargetV2) {
-      recordingTargetV2 = targetFactoryRegistry.listTargets()[0];
-    }
+      m.Children {
+        if (!recordingTargetV2) {
+          recordingTargetV2 = targetFactoryRegistry.listTargets()[0];
+        }
 
-    const androidWebusbTarget =
-        targetFactoryRegistry.get(ANDROID_WEBUSB_TARGET_FACTORY);
-    if (!androidWebusbTarget.onDevicesChanged) {
-      androidWebusbTarget.onDevicesChanged = onDevicesChanged;
-    }
+        const androidWebusbTarget =
+            targetFactoryRegistry.get(ANDROID_WEBUSB_TARGET_FACTORY);
+        if (!androidWebusbTarget.onDevicesChanged) {
+          androidWebusbTarget.onDevicesChanged = onDevicesChanged;
+        }
 
-    const components: m.Children[] = [RecordHeader()];
-    if (recordingTargetV2) {
-      const SECTIONS: {[property: string]: (cssClass: string) => m.Child} = {
-        buffers: RecSettings,
-        instructions: Instructions,
-        config: Configurations,
-        cpu: CpuSettings,
-        gpu: GpuSettings,
-        power: PowerSettings,
-        memory: MemorySettings,
-        android: AndroidSettings,
-        advanced: AdvancedSettings,
-      };
+        const components: m.Children[] = [RecordHeader()];
+        if (recordingTargetV2) {
+          const SECTIONS:
+              {[property: string]: (cssClass: string) => m.Child} = {
+                buffers: RecSettings,
+                instructions: Instructions,
+                config: Configurations,
+                cpu: CpuSettings,
+                gpu: GpuSettings,
+                power: PowerSettings,
+                memory: MemorySettings,
+                android: AndroidSettings,
+                advanced: AdvancedSettings,
+              };
 
-      const pages: m.Children = [];
-      // we need to remove the `/` character from the route
-      let routePage = attrs.subpage ? attrs.subpage.substr(1) : '';
-      if (!Object.keys(SECTIONS).includes(routePage)) {
-        routePage = 'buffers';
-      }
-      for (const key of Object.keys(SECTIONS)) {
-        const cssClass = routePage === key ? '.active' : '';
-        pages.push(SECTIONS[key](cssClass));
-      }
-      components.push(recordMenu(routePage));
-      components.push(...pages);
-    }
+          const pages: m.Children = [];
+          // we need to remove the `/` character from the route
+          let routePage = attrs.subpage ? attrs.subpage.substr(1) : '';
+          if (!Object.keys(SECTIONS).includes(routePage)) {
+            routePage = 'buffers';
+          }
+          for (const key of Object.keys(SECTIONS)) {
+            const cssClass = routePage === key ? '.active' : '';
+            pages.push(SECTIONS[key](cssClass));
+          }
+          components.push(recordMenu(routePage));
+          components.push(...pages);
+        }
 
-    return m(
-        '.record-page',
-        tracingSession ? m('.hider') : [],
-        m('.record-container', components));
-  }
+        return m(
+            '.record-page',
+            tracingSession ? m('.hider') : [],
+            m('.record-container', components));
+      },
 });

@@ -25,10 +25,10 @@ test('it knows if a task is pending', () => {
   const tracker = new TaskTracker();
   const deferred = defer();
 
-  tracker.trackPromise(deferred, "Some task");
+  tracker.trackPromise(deferred, 'Some task');
 
   expect(tracker.hasPendingTasks()).toEqual(true);
-  expect(tracker.progressMessage()).toEqual("Some task (0s)");
+  expect(tracker.progressMessage()).toEqual('Some task (0s)');
   deferred.resolve();
 });
 

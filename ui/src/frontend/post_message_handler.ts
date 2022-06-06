@@ -133,7 +133,7 @@ export function postMessageHandler(messageEvent: MessageEvent) {
 function sanitizePostedTrace(postedTrace: PostedTrace): PostedTrace {
   const result: PostedTrace = {
     title: sanitizeString(postedTrace.title),
-    buffer: postedTrace.buffer
+    buffer: postedTrace.buffer,
   };
   if (postedTrace.url !== undefined) {
     result.url = sanitizeString(postedTrace.url);

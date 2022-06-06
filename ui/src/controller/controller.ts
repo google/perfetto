@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // tslint:disable-next-line no-any
-export type ControllerAny = Controller</*StateType=*/any>;
+export type ControllerAny = Controller</* StateType=*/ any>;
 
 export interface ControllerFactory<ConstructorArgs> {
   new(args: ConstructorArgs): ControllerAny;
