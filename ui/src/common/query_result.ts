@@ -129,7 +129,7 @@ function columnTypeToString(t: ColumnType): string {
 // accepting the 2**53 limitation. This is consistent with passing
 // --force-number in the protobuf.js codegen invocation in //ui/BUILD.gn .
 // See also https://github.com/protobufjs/protobuf.js/issues/1253 .
-(protobuf.util as {} as {Long: undefined}).Long = undefined;
+(protobuf.util as {} as {Long: undefined}).Long = undefined;
 protobuf.configure();
 
 // This has to match CellType in trace_processor.proto.
@@ -381,7 +381,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     return assertExists(this.allRowsPromise);
   }
 
-  private resolveOrReject(promise: Deferred<QueryResult>, arg: QueryResult) {
+  private resolveOrReject(promise: Deferred<QueryResult>, arg: QueryResult) {
     if (this._error === undefined) {
       promise.resolve(arg);
     } else {
@@ -760,25 +760,25 @@ class WaitableQueryResultImpl implements QueryResult, WritableQueryResult,
 
   // QueryResult implementation. Proxies all calls to the impl object.
   iter<T extends Row>(spec: T) {
-     return this.impl.iter(spec);
+    return this.impl.iter(spec);
   }
   firstRow<T extends Row>(spec: T) {
-     return this.impl.firstRow(spec);
+    return this.impl.firstRow(spec);
   }
   waitAllRows() {
-     return this.impl.waitAllRows();
+    return this.impl.waitAllRows();
   }
   isComplete() {
-     return this.impl.isComplete();
+    return this.impl.isComplete();
   }
   numRows() {
-     return this.impl.numRows();
+    return this.impl.numRows();
   }
   columns() {
     return this.impl.columns();
   }
   error() {
-     return this.impl.error();
+    return this.impl.error();
   }
   statementCount() {
     return this.impl.statementCount();
@@ -811,6 +811,9 @@ class WaitableQueryResultImpl implements QueryResult, WritableQueryResult,
     return this.impl.ensureAllRowsPromise().finally(callback);
   }
 
+  // eslint and clang-format disagree on how to format get[foo](). Let
+  // clang-format win:
+  // eslint-disable-next-line keyword-spacing
   get[Symbol.toStringTag](): string {
     return 'Promise<WaitableQueryResult>';
   }

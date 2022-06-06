@@ -227,14 +227,15 @@ function fetchWithTimeout(req: Request|string, timeoutMs: number) {
   const url = (req as {url?: string}).url || `${req}`;
   return new Promise<Response>((resolve, reject) => {
     const timerId = setTimeout(() => {
-      reject(`Timed out while fetching ${url}`);
+      reject(new Error(`Timed out while fetching ${url}`));
     }, timeoutMs);
     fetch(req).then((resp) => {
       clearTimeout(timerId);
       if (resp.ok) {
         resolve(resp);
       } else {
-        reject(`Fetch failed for ${url}: ${resp.status} ${resp.statusText}`);
+        reject(new Error(
+            `Fetch failed for ${url}: ${resp.status} ${resp.statusText}`));
       }
     }, reject);
   });
