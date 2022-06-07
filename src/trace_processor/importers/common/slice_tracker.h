@@ -32,11 +32,6 @@ class TraceProcessorContext;
 
 class SliceTracker {
  public:
-  struct IdAndArgsTracker {
-    SliceId id;
-    base::Optional<ArgsTracker> args_tracker;
-  };
-
   using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter*)>;
   using OnSliceBeginCallback = std::function<void(TrackId, SliceId)>;
 
@@ -104,17 +99,6 @@ class SliceTracker {
       StringId opt_raw_name = {},
       SetArgsCallback args_callback = SetArgsCallback());
 
-  // Ends (completes) the slice on |track_id| matching the given parameters.
-  // Returns the id slice completed and, if the slice was at the bottom of the
-  // stack, the ArgsTracker associated to the slice.
-  // virtual for testing
-  virtual base::Optional<IdAndArgsTracker> EndMaybePreservingArgs(
-      int64_t timestamp,
-      TrackId track_id,
-      StringId opt_category = {},
-      StringId opt_raw_name = {},
-      SetArgsCallback args_callback = SetArgsCallback());
-
   // Usually args should be added in the Begin or End args_callback but this
   // method is for the situation where new args need to be added to an
   // in-progress slice.
@@ -156,7 +140,7 @@ class SliceTracker {
                                              SetArgsCallback args_callback,
                                              std::function<SliceId()> inserter);
 
-  base::Optional<IdAndArgsTracker> CompleteSlice(
+  base::Optional<SliceId> CompleteSlice(
       int64_t timestamp,
       TrackId track_id,
       SetArgsCallback args_callback,

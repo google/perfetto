@@ -35,7 +35,7 @@ class ArgsTranslationTable {
  public:
   using Key = util::ProtoToArgsParser::Key;
 
-  explicit ArgsTranslationTable(TraceStorage* storage);
+  ArgsTranslationTable(TraceStorage* storage);
 
   // Returns true if an arg with the given key and type requires translation.
   bool NeedsTranslation(StringId key_id, Variadic::Type type) const;
@@ -45,7 +45,7 @@ class ArgsTranslationTable {
   // anything if returning false.
   bool TranslateArg(StringId key_id,
                     Variadic value,
-                    ArgsTracker::BoundInserter& inserter) const;
+                    ArgsTracker::BoundInserter& inserter);
 
   void AddChromeHistogramTranslationRule(uint64_t hash, base::StringView name) {
     chrome_histogram_hash_to_name_.Insert(hash, name.ToStdString());
