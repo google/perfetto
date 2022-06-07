@@ -146,24 +146,8 @@ def main():
       action='store_true',
       help='Whether to ingest ftrace into raw table',
       default=False)
-  parser.add_argument(
-      '--kill-existing',
-      action='store_true',
-      help='Kill traced, perfetto_cmd '
-      'and trace processor shell if running')
   parser.add_argument('trace_file', type=str, help='Path to trace')
   args = parser.parse_args()
-
-  if args.kill_existing:
-    subprocess.run(['killall', 'traced'],
-                   stdout=subprocess.DEVNULL,
-                   stderr=subprocess.DEVNULL)
-    subprocess.run(['killall', 'perfetto'],
-                   stdout=subprocess.DEVNULL,
-                   stderr=subprocess.DEVNULL)
-    subprocess.run(['killall', 'trace_processor_shell'],
-                   stdout=subprocess.DEVNULL,
-                   stderr=subprocess.DEVNULL)
 
   traced = subprocess.Popen([os.path.join(args.out, 'traced')],
                             stdout=subprocess.DEVNULL,
