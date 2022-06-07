@@ -17,8 +17,11 @@ import {Draft} from 'immer';
 import {assertExists, assertTrue} from '../base/logging';
 import {RecordConfig} from '../controller/record_config_types';
 import {globals} from '../frontend/globals';
-import {columnKey} from '../frontend/pivot_table_redux';
-import {TableColumn} from '../frontend/pivot_table_redux_query_generator';
+import {aggregationKey, columnKey} from '../frontend/pivot_table_redux';
+import {
+  Aggregation,
+  TableColumn,
+} from '../frontend/pivot_table_redux_query_generator';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames/common';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/common';
 import {COUNTER_TRACK_KIND} from '../tracks/counter/common';
@@ -985,13 +988,13 @@ export const StateActions = {
   },
 
   setPivotTableAggregationSelected(
-      state: StateDraft, args: {column: TableColumn, selected: boolean}) {
+      state: StateDraft, args: {column: Aggregation, selected: boolean}) {
     if (args.selected) {
       state.nonSerializableState.pivotTableRedux.selectedAggregations.set(
-          columnKey(args.column), args.column);
+          aggregationKey(args.column), args.column);
     } else {
       state.nonSerializableState.pivotTableRedux.selectedAggregations.delete(
-          columnKey(args.column));
+          aggregationKey(args.column));
     }
   },
 
