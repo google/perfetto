@@ -515,7 +515,11 @@ class TrackEventDataSource
             auto event_ctx = TrackEventInternal::WriteEvent(
                 trace_writer, incr_state, tls_state, static_category, type,
                 trace_timestamp, on_current_thread_track);
-            TrackEventInternal::WriteEventName(event_name, event_ctx, type);
+            // event name should be emitted with `TRACE_EVENT_BEGIN` macros
+            // but not with `TRACE_EVENT_END`.
+            if (type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
+              TrackEventInternal::WriteEventName(event_name, event_ctx);
+            }
             // Write dynamic categories (except for events that don't require
             // categories). For counter events, the counter name (and optional
             // category) is stored as part of the track descriptor instead being
