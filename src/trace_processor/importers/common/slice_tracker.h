@@ -119,7 +119,7 @@ class SliceTracker {
   static constexpr int64_t kPendingDuration = -1;
 
   struct SliceInfo {
-    tables::SliceTable::RowNumber row;
+    uint32_t row;
     ArgsTracker args_tracker;
   };
   using SlicesStack = std::vector<SliceInfo>;
@@ -146,7 +146,7 @@ class SliceTracker {
       SetArgsCallback args_callback,
       std::function<base::Optional<uint32_t>(const SlicesStack&)> finder);
 
-  void MaybeCloseStack(int64_t end_ts, const SlicesStack&, TrackId track_id);
+  void MaybeCloseStack(int64_t end_ts, SlicesStack*, TrackId track_id);
 
   base::Optional<uint32_t> MatchingIncompleteSliceIndex(
       const SlicesStack& stack,
@@ -156,7 +156,7 @@ class SliceTracker {
   int64_t GetStackHash(const SlicesStack&);
 
   void StackPop(TrackId track_id);
-  void StackPush(TrackId track_id, tables::SliceTable::RowReference);
+  void StackPush(TrackId track_id, uint32_t slice_idx);
   void FlowTrackerUpdate(TrackId track_id);
 
   OnSliceBeginCallback on_slice_begin_callback_;
