@@ -81,11 +81,17 @@ struct TrackEventData : public TracePacketData {
 // compiler (even clang-cl) requires -D_ENABLE_EXTENDED_ALIGNED_STORAGE. Given
 // the alignment here is purely a performance enhancment with no other
 // functional requirement, disable it on Win.
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#define PERFETTO_TTS_ALIGNMENT alignas(64)
+#else
+#define PERFETTO_TTS_ALIGNMENT
+#endif
 
 // A TimestampedTracePiece is (usually a reference to) a piece of a trace that
 // is sorted by TraceSorter.
-struct TimestampedTracePiece {
-  enum class Type : uint8_t {
+struct PERFETTO_TTS_ALIGNMENT TimestampedTracePiece {
+  enum class Type {
+    kInvalid = 0,
     kFtraceEvent,
     kTracePacket,
     kInlineSchedSwitch,
@@ -94,45 +100,63 @@ struct TimestampedTracePiece {
     kFuchsiaRecord,
     kTrackEvent,
     kSystraceLine,
-    kInvalid,
-    kSize = kInvalid,
   };
 
-  TimestampedTracePiece(int64_t ts, TracePacketData tpd)
-      : packet_data(std::move(tpd)), timestamp(ts), type(Type::kTracePacket) {}
+  TimestampedTracePiece(int64_t ts,
+                        uint64_t idx,
+                        TraceBlobView tbv,
+                        RefPtr<PacketSequenceStateGeneration> sequence_state)
+      : packet_data{std::move(tbv), std::move(sequence_state)},
+        timestamp(ts),
+        packet_idx(idx),
+        type(Type::kTracePacket) {}
 
-  TimestampedTracePiece(int64_t ts, FtraceEventData fed)
-      : ftrace_event(std::move(fed)), timestamp(ts), type(Type::kFtraceEvent) {}
+  TimestampedTracePiece(int64_t ts, uint64_t idx, FtraceEventData fed)
+      : ftrace_event(std::move(fed)),
+        timestamp(ts),
+        packet_idx(idx),
+        type(Type::kFtraceEvent) {}
 
-  TimestampedTracePiece(int64_t ts, std::string value)
-      : json_value(std::move(value)), timestamp(ts), type(Type::kJsonValue) {}
+  TimestampedTracePiece(int64_t ts, uint64_t idx, std::string value)
+      : json_value(std::move(value)),
+        timestamp(ts),
+        packet_idx(idx),
+        type(Type::kJsonValue) {}
 
-  // TODO(b/234446893): Remove unique_ptr
-  TimestampedTracePiece(int64_t ts, std::unique_ptr<FuchsiaRecord> fr)
+  TimestampedTracePiece(int64_t ts,
+                        uint64_t idx,
+                        std::unique_ptr<FuchsiaRecord> fr)
       : fuchsia_record(std::move(fr)),
         timestamp(ts),
+        packet_idx(idx),
         type(Type::kFuchsiaRecord) {}
 
-  // TODO(b/234446893): Remove unique_ptr
-  TimestampedTracePiece(int64_t ts, std::unique_ptr<TrackEventData> ted)
+  TimestampedTracePiece(int64_t ts,
+                        uint64_t idx,
+                        std::unique_ptr<TrackEventData> ted)
       : track_event_data(std::move(ted)),
         timestamp(ts),
+        packet_idx(idx),
         type(Type::kTrackEvent) {}
 
-  // TODO(b/234446893): Remove unique_ptr
-  TimestampedTracePiece(int64_t ts, std::unique_ptr<SystraceLine> ted)
+  TimestampedTracePiece(int64_t ts,
+                        uint64_t idx,
+                        std::unique_ptr<SystraceLine> ted)
       : systrace_line(std::move(ted)),
         timestamp(ts),
+        packet_idx(idx),
         type(Type::kSystraceLine) {}
 
-  TimestampedTracePiece(int64_t ts, InlineSchedSwitch iss)
+  TimestampedTracePiece(int64_t ts, uint64_t idx, InlineSchedSwitch iss)
       : sched_switch(std::move(iss)),
         timestamp(ts),
+        packet_idx(idx),
         type(Type::kInlineSchedSwitch) {}
 
-  TimestampedTracePiece(int64_t ts, InlineSchedWaking isw)
+  TimestampedTracePiece(int64_t ts, uint64_t idx, InlineSchedWaking isw)
       : sched_waking(std::move(isw)),
         timestamp(ts),
+        packet_idx(idx),
         type(Type::kInlineSchedWaking) {}
 
   TimestampedTracePiece(TimestampedTracePiece&& ttp) noexcept {
@@ -170,6 +194,7 @@ struct TimestampedTracePiece {
             std::unique_ptr<SystraceLine>(std::move(ttp.systrace_line));
     }
     timestamp = ttp.timestamp;
+    packet_idx = ttp.packet_idx;
     type = ttp.type;
 
     // Invalidate |ttp|.
@@ -216,6 +241,33 @@ struct TimestampedTracePiece {
     }
   }
 
+  // For std::lower_bound().
+  static inline bool Compare(const TimestampedTracePiece& x, int64_t ts) {
+    return x.timestamp < ts;
+  }
+
+  // For std::sort().
+  inline bool operator<(const TimestampedTracePiece& o) const {
+    return timestamp < o.timestamp ||
+           (timestamp == o.timestamp && packet_idx < o.packet_idx);
+  }
+
+  // For std::sort(). Without this the compiler will fall back on invoking
+  // move operators on temporary objects.
+  friend void swap(TimestampedTracePiece& a, TimestampedTracePiece& b) {
+    // We know that TimestampedTracePiece is 64-byte aligned (because of the
+    // alignas(64) in the declaration above). We also know that swapping it is
+    // trivial and we can just swap the memory without invoking move operators.
+    // The cast to aligned_storage below allows the compiler to turn this into
+    // a bunch of movaps with large XMM registers (128/256/512 bit depending on
+    // -mavx).
+    using AS =
+        typename std::aligned_storage<sizeof(TimestampedTracePiece),
+                                      alignof(TimestampedTracePiece)>::type;
+    using std::swap;
+    swap(reinterpret_cast<AS&>(a), reinterpret_cast<AS&>(b));
+  }
+
   // Fields ordered for packing.
 
   // Data for different types of TimestampedTracePiece.
@@ -231,8 +283,17 @@ struct TimestampedTracePiece {
   };
 
   int64_t timestamp;
+  uint64_t packet_idx;
   Type type;
 };
+
+// std::sort<TTS> is an extremely hot path in TraceProcessor (in trace_sorter.h)
+// When TTS is 512-bit wide, we can leverage SIMD instructions to swap it by
+// declaring it aligned at its own size, without losing any space in the
+// CircularQueue due to fragmentation. This makes a 6% difference in the
+// ingestion time of a large trace. See the comments above in the swap() above.
+static_assert(sizeof(TimestampedTracePiece) <= 64,
+              "TimestampedTracePiece cannot grow beyond 64 bytes");
 
 }  // namespace trace_processor
 }  // namespace perfetto
