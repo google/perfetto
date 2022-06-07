@@ -18,6 +18,7 @@ import * as m from 'mithril';
 
 import {sqliteString} from '../base/string_utils';
 import {Actions, DeferredAction} from '../common/actions';
+import {COUNT_AGGREGATION} from '../common/empty_state';
 import {ColumnType} from '../common/query_result';
 import {
   Area,
@@ -35,9 +36,11 @@ import {
 import {globals} from './globals';
 import {Panel} from './panel';
 import {
+  Aggregation,
+  AggregationFunction,
   aggregationIndex,
   areaFilter,
-  extractArgumentExpression,
+  expression,
   generateQuery,
   QueryGeneratorError,
   sliceAggregationColumns,
@@ -60,9 +63,6 @@ interface PathItem {
 // TableColumn objects mapping to different strings.
 export function columnKey(tableColumn: TableColumn): string {
   switch (tableColumn.kind) {
-    case 'count': {
-      return 'count';
-    }
     case 'argument': {
       return `argument:${tableColumn.argument}`;
     }
@@ -75,23 +75,28 @@ export function columnKey(tableColumn: TableColumn): string {
   }
 }
 
+export function aggregationKey(aggregation: Aggregation): string {
+  return `${aggregation.aggregationFunction}:${columnKey(aggregation.column)}`;
+}
+
 // Arguments to an action to toggle a table column in a particular part of
 // application's state.
-interface ColumnSetArgs {
-  column: TableColumn;
+interface ColumnSetArgs<T> {
+  column: T;
   selected: boolean;
 }
 
-interface ColumnSetCheckboxAttrs {
-  set: (args: ColumnSetArgs) => DeferredAction<ColumnSetArgs>;
-  get: Map<string, TableColumn>;
-  setKey: TableColumn;
+interface ColumnSetCheckboxAttrs<T> {
+  set: (args: ColumnSetArgs<T>) => DeferredAction<ColumnSetArgs<T>>;
+  get: Map<string, T>;
+  setKey: T;
 }
 
-// Helper component that controls whether a particular key is present in a
-// ColumnSet.
-class ColumnSetCheckbox implements m.ClassComponent<ColumnSetCheckboxAttrs> {
-  view({attrs}: m.Vnode<ColumnSetCheckboxAttrs>) {
+abstract class GenericCheckbox<T> implements
+    m.ClassComponent<ColumnSetCheckboxAttrs<T>> {
+  abstract keyFn(value: T): string;
+
+  view({attrs}: m.Vnode<ColumnSetCheckboxAttrs<T>>) {
     return m('input[type=checkbox]', {
       onclick: (e: InputEvent) => {
         const target = e.target as HTMLInputElement;
@@ -100,8 +105,20 @@ class ColumnSetCheckbox implements m.ClassComponent<ColumnSetCheckboxAttrs> {
             attrs.set({column: attrs.setKey, selected: target.checked}));
         globals.rafScheduler.scheduleFullRedraw();
       },
-      checked: attrs.get.has(columnKey(attrs.setKey)),
+      checked: attrs.get.has(this.keyFn(attrs.setKey)),
     });
+  }
+}
+
+class ColumnSetCheckbox extends GenericCheckbox<TableColumn> {
+  keyFn(value: TableColumn): string {
+    return columnKey(value);
+  }
+}
+
+class AggregationCheckbox extends GenericCheckbox<Aggregation> {
+  keyFn(value: Aggregation): string {
+    return aggregationKey(value);
   }
 }
 
@@ -114,30 +131,10 @@ interface DrillFilter {
   value: ColumnType;
 }
 
-function drillFilterExpression(column: TableColumn) {
-  switch (column.kind) {
-    case 'count': {
-      throw new Error('pivot cannot be count!');
-    }
-
-    case 'regular': {
-      // TODO(b/231429468): This would not work for non-slice column.
-      return column.column;
-    }
-
-    case 'argument': {
-      return extractArgumentExpression(column.argument);
-    }
-
-    default: {
-      throw new Error(`malformed table column ${column}`);
-    }
-  }
-}
-
 // Convert DrillFilter to SQL condition to be used in WHERE clause.
 function renderDrillFilter(filter: DrillFilter): string {
-  const column = drillFilterExpression(filter.column);
+  // TODO(b/231429468): This would not work for non-slice column.
+  const column = expression(filter.column);
   if (filter.value === null) {
     return `${column} IS NULL`;
   } else if (typeof filter.value === 'number') {
@@ -148,9 +145,6 @@ function renderDrillFilter(filter: DrillFilter): string {
 
 function readableColumnName(column: TableColumn) {
   switch (column.kind) {
-    case 'count': {
-      return 'Count';
-    }
     case 'argument': {
       return `Argument ${column.argument}`;
     }
@@ -271,7 +265,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
 
     for (let i = 0; i < tree.aggregates.length; i++) {
       const renderedValue = this.renderCell(
-          result.metadata.aggregationColumns[i], tree.aggregates[i]);
+          result.metadata.aggregationColumns[i].column, tree.aggregates[i]);
       renderedCells.push(m('td', renderedValue));
     }
 
@@ -339,8 +333,8 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
       }
       for (let j = 0; j < result.metadata.aggregationColumns.length; j++) {
         const value = row[aggregationIndex(treeDepth, j, treeDepth)];
-        const renderedValue =
-            this.renderCell(result.metadata.aggregationColumns[j], value);
+        const renderedValue = this.renderCell(
+            result.metadata.aggregationColumns[j].column, value);
         renderedCells.push(m('td', renderedValue));
       }
 
@@ -358,7 +352,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
       overallValuesRow.push(
           m('td',
             this.renderCell(
-                queryResult.metadata.aggregationColumns[i],
+                queryResult.metadata.aggregationColumns[i].column,
                 queryResult.tree.aggregates[i])));
     }
     overallValuesRow.push(m('td'));
@@ -379,36 +373,50 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
     };
   }
 
-  readableAggregationName(column: TableColumn) {
-    switch (column.kind) {
-      case 'count': {
-        return 'Count';
-      }
-      case 'argument': {
-        return `SUM(Argument ${column.argument})`;
-      }
-      case 'regular': {
-        return `SUM(${column.column})`;
-      }
-      default: {
-        throw new Error(`malformed table column ${column}`);
-      }
+  readableAggregationName(aggregation: Aggregation) {
+    if (aggregation.aggregationFunction === 'COUNT') {
+      return 'Count';
     }
+    return `${aggregation.aggregationFunction}(${
+        readableColumnName(aggregation.column)})`;
   }
 
-  renderAggregationHeaderCell(aggregation: TableColumn): m.Child {
+  renderAggregationHeaderCell(aggregation: Aggregation): m.Child {
+    const column = aggregation.column;
     const popupItems: PopupMenuItem[] = [];
     const state = globals.state.nonSerializableState.pivotTableRedux;
     if (state.sortCriteria === undefined ||
-        !tableColumnEquals(aggregation, state.sortCriteria.column)) {
+        !tableColumnEquals(column, state.sortCriteria.column)) {
       popupItems.push(
-          this.sortingItem(aggregation, 'DESC'),
-          this.sortingItem(aggregation, 'ASC'));
+          this.sortingItem(column, 'DESC'), this.sortingItem(column, 'ASC'));
     } else {
       // Table is already sorted by the same column, return one item with
       // opposite direction.
       popupItems.push(this.sortingItem(
-          aggregation, state.sortCriteria.order === 'DESC' ? 'ASC' : 'DESC'));
+          column, state.sortCriteria.order === 'DESC' ? 'ASC' : 'DESC'));
+    }
+    const otherAggs: AggregationFunction[] = ['SUM', 'MAX', 'MIN'];
+    if (aggregation.aggregationFunction !== 'COUNT') {
+      for (const otherAgg of otherAggs) {
+        if (aggregation.aggregationFunction === otherAgg) {
+          continue;
+        }
+
+        popupItems.push({
+          text: otherAgg,
+          callback() {
+            globals.dispatch(Actions.setPivotTableAggregationSelected(
+                {column: aggregation, selected: false}));
+            globals.dispatch(Actions.setPivotTableAggregationSelected({
+              column:
+                  {aggregationFunction: otherAgg, column: aggregation.column},
+              selected: true,
+            }));
+            globals.dispatch(
+                Actions.setPivotTableQueryRequested({queryRequested: true}));
+          },
+        });
+      }
     }
 
     return m(
@@ -550,31 +558,37 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
           m('h2', 'Aggregations'),
           m('ul',
             m('li',
-              m(ColumnSetCheckbox, {
+              m(AggregationCheckbox, {
                 get: this.selectedAggregations,
                 set: Actions.setPivotTableAggregationSelected,
-                setKey: {kind: 'count'},
+                setKey: COUNT_AGGREGATION,
               }),
               'count'),
             ...sliceAggregationColumns.map(
                 (t) =>
                     m('li',
-                      m(ColumnSetCheckbox, {
+                      m(AggregationCheckbox, {
                         get: this.selectedAggregations,
                         set: Actions.setPivotTableAggregationSelected,
-                        setKey: {kind: 'regular', table: 'slice', column: t},
+                        setKey: {
+                          aggregationFunction: 'SUM',
+                          column: {kind: 'regular', table: 'slice', column: t},
+                        },
                       }),
                       t)),
             ...threadSliceAggregationColumns.map(
-                (t) =>
-                    m('li',
-                      m(ColumnSetCheckbox, {
-                        get: this.selectedAggregations,
-                        set: Actions.setPivotTableAggregationSelected,
-                        setKey:
+                (t) => m(
+                    'li',
+                    m(AggregationCheckbox, {
+                      get: this.selectedAggregations,
+                      set: Actions.setPivotTableAggregationSelected,
+                      setKey: {
+                        aggregationFunction: 'SUM',
+                        column:
                             {kind: 'regular', table: 'thread_slice', column: t},
-                      }),
-                      `thread_slice.${t}`)))),
+                      },
+                    }),
+                    `thread_slice.${t}`)))),
         this.renderQuery(attrs));
   }
 }
