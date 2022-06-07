@@ -14,7 +14,10 @@
 
 import {PivotTree} from '../controller/pivot_table_redux_controller';
 import {RecordConfig} from '../controller/record_config_types';
-import {TableColumn} from '../frontend/pivot_table_redux_query_generator';
+import {
+  Aggregation,
+  TableColumn,
+} from '../frontend/pivot_table_redux_query_generator';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
@@ -323,7 +326,7 @@ export interface MetricsState {
 export interface PivotTableReduxQueryMetadata {
   tableName: string;
   pivotColumns: TableColumn[];
-  aggregationColumns: TableColumn[];
+  aggregationColumns: Aggregation[];
 }
 
 // Everything that's necessary to run the query for pivot table
@@ -364,7 +367,7 @@ export interface PivotTableReduxState {
   selectedPivotsMap: Map<string, TableColumn>;
 
   // Selected aggregation columns. Stored same way as pivots.
-  selectedAggregations: Map<string, TableColumn>;
+  selectedAggregations: Map<string, Aggregation>;
 
   // Present if the result should be sorted, and in which direction.
   sortCriteria?: {column: TableColumn, order: SortDirection};
