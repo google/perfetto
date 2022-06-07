@@ -23,11 +23,11 @@ import {
   PivotTableReduxQuery,
   PivotTableReduxQueryMetadata,
   PivotTableReduxResult,
-  PivotTableReduxState
+  PivotTableReduxState,
 } from '../common/state';
 import {
   aggregationIndex,
-  generateQueryFromState
+  generateQueryFromState,
 } from '../frontend/pivot_table_redux_query_generator';
 
 import {Controller} from './controller';
@@ -133,7 +133,7 @@ function createEmptyQueryResult(metadata: PivotTableReduxQueryMetadata):
       children: new Map(),
       rows: [],
     },
-    metadata
+    metadata,
   };
 }
 

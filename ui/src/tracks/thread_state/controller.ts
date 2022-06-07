@@ -18,7 +18,7 @@ import {translateState} from '../../common/thread_state';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
-  trackControllerRegistry
+  trackControllerRegistry,
 } from '../../controller/track_controller';
 
 import {

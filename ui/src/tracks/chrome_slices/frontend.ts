@@ -187,7 +187,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       ctx.fillStyle = lightness > 65 ? '#404040' : 'white';
       const displayText = cropText(title, charWidth, rect.width);
       const rectXCenter = rect.left + rect.width / 2;
-      ctx.textBaseline = "middle";
+      ctx.textBaseline = 'middle';
       ctx.fillText(displayText, rectXCenter, rect.top + SLICE_HEIGHT / 2);
     }
     drawRectOnSelected();
@@ -261,7 +261,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       globals.makeSelection(Actions.selectChromeSlice({
         id: sliceId,
         trackId: this.trackState.id,
-        table: this.config.namespace
+        table: this.config.namespace,
       }));
       return true;
     }
@@ -284,7 +284,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       top: TRACK_PADDING + depth * SLICE_HEIGHT,
       height: SLICE_HEIGHT,
       visible:
-          !(tEnd <= visibleWindowTime.start || tStart >= visibleWindowTime.end)
+          !(tEnd <= visibleWindowTime.start || tStart >= visibleWindowTime.end),
     };
   }
 }

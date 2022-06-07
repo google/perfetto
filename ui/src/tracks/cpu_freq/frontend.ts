@@ -95,8 +95,8 @@ class CpuFreqTrack extends Track<Config, Data> {
       return zeroY - Math.round((value / yMax) * RECT_HEIGHT);
     };
 
-    const [rawStartIdx,] =
-      searchSegment(data.timestamps, visibleWindowTime.start);
+    const [rawStartIdx] =
+        searchSegment(data.timestamps, visibleWindowTime.start);
     const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
 
     const [, rawEndIdx] = searchSegment(data.timestamps, visibleWindowTime.end);
@@ -181,7 +181,8 @@ class CpuFreqTrack extends Track<Config, Data> {
 
       // Draw change marker.
       ctx.beginPath();
-      ctx.arc(xStart, y, 3 /*r*/, 0 /*start angle*/, 2 * Math.PI /*end angle*/);
+      ctx.arc(
+          xStart, y, 3 /* r*/, 0 /* start angle*/, 2 * Math.PI /* end angle*/);
       ctx.fill();
       ctx.stroke();
 

@@ -105,7 +105,7 @@ function copyCallsite(callsite: CallsiteInfo): CallsiteInfo {
     selfSize: callsite.selfSize,
     merged: callsite.merged,
     highlighted: callsite.highlighted,
-    location: callsite.location
+    location: callsite.location,
   };
 }
 

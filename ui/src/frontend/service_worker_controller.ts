@@ -104,7 +104,7 @@ export class ServiceWorkerController {
     // version code).
     const versionDir = globals.root.split('/').slice(-2)[0];
     const swUri = `/service_worker.js?v=${versionDir}`;
-    navigator.serviceWorker.register(swUri).then(registration => {
+    navigator.serviceWorker.register(swUri).then((registration) => {
       this._initialWorker = registration.active;
 
       // At this point there are two options:
@@ -123,7 +123,7 @@ export class ServiceWorkerController {
   }
 
   get bypassed() {
-     return this._bypassed;
+    return this._bypassed;
   }
   get installing() {
     return this._installing;

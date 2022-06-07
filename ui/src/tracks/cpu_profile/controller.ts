@@ -15,7 +15,7 @@
 import {NUM} from '../../common/query_result';
 import {
   TrackController,
-  trackControllerRegistry
+  trackControllerRegistry,
 } from '../../controller/track_controller';
 
 import {

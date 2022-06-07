@@ -25,7 +25,7 @@ function generateMockConsumer(): Consumer {
   return {
     onConsumerPortResponse: jest.fn(),
     onError: jest.fn(),
-    onStatus: jest.fn()
+    onStatus: jest.fn(),
   };
 }
 const mainCallback = generateMockConsumer();
@@ -66,7 +66,7 @@ test('enableTracing', async () => {
   const adbController = new AdbConsumerPort(adbMock, mainCallback);
 
   adbController.sendErrorMessage =
-      jest.fn().mockImplementation(s => console.error(s));
+      jest.fn().mockImplementation((s) => console.error(s));
 
   const findDevice = jest.fn().mockImplementation(() => {
     return Promise.resolve({} as unknown as USBDevice);
@@ -111,16 +111,16 @@ test('generateStartTracing', () => {
 });
 
 test('tracingEndedSuccessfully', () => {
-  expect(adbController.tracingEndedSuccessfully(
-             'Connected to the Perfetto traced service,\ starting tracing for \
-10000 ms\nWrote 564 bytes into /data/misc/perfetto-traces/trace'))
+  expect(
+      adbController.tracingEndedSuccessfully(
+          'Connected to the Perfetto traced service, starting tracing for 10000 ms\nWrote 564 bytes into /data/misc/perfetto-traces/trace'))
       .toBe(true);
-  expect(adbController.tracingEndedSuccessfully(
-             'Connected to the Perfetto traced service, starting tracing for \
-10000 ms'))
+  expect(
+      adbController.tracingEndedSuccessfully(
+          'Connected to the Perfetto traced service, starting tracing for 10000 ms'))
       .toBe(false);
-  expect(adbController.tracingEndedSuccessfully(
-             'Connected to the Perfetto traced service, starting tracing for \
-0 ms'))
+  expect(
+      adbController.tracingEndedSuccessfully(
+          'Connected to the Perfetto traced service, starting tracing for 0 ms'))
       .toBe(false);
 });

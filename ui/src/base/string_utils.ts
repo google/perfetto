@@ -15,12 +15,12 @@
 import {
   decode as b64Decode,
   encode as b64Encode,
-  length as b64Len
+  length as b64Len,
 } from '@protobufjs/base64';
 import {
   length as utf8Len,
   read as utf8Read,
-  write as utf8Write
+  write as utf8Write,
 } from '@protobufjs/utf8';
 
 import {assertTrue} from './logging';
@@ -46,7 +46,7 @@ try {
       const written = utf8Write(str, arr, 0);
       assertTrue(written === arr.length);
       return arr;
-    }
+    },
   };
 }
 

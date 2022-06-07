@@ -24,12 +24,12 @@ import {
   PivotTableReduxAreaState,
   PivotTableReduxQuery,
   PivotTableReduxResult,
-  SortDirection
+  SortDirection,
 } from '../common/state';
 import {fromNs, timeToCode} from '../common/time';
 import {
   PivotTableReduxController,
-  PivotTree
+  PivotTree,
 } from '../controller/pivot_table_redux_controller';
 
 import {globals} from './globals';
@@ -45,7 +45,7 @@ import {
   TableColumn,
   tableColumnEquals,
   tables,
-  threadSliceAggregationColumns
+  threadSliceAggregationColumns,
 } from './pivot_table_redux_query_generator';
 import {PopupMenuButton, PopupMenuItem} from './popup_menu';
 
@@ -100,7 +100,7 @@ class ColumnSetCheckbox implements m.ClassComponent<ColumnSetCheckboxAttrs> {
             attrs.set({column: attrs.setKey, selected: target.checked}));
         globals.rafScheduler.scheduleFullRedraw();
       },
-      checked: attrs.get.has(columnKey(attrs.setKey))
+      checked: attrs.get.has(columnKey(attrs.setKey)),
     });
   }
 }
@@ -193,7 +193,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         t.name,
         m('ul',
           t.columns.map(
-              col =>
+              (col) =>
                   m('li',
                     m(ColumnSetCheckbox, {
                       get: this.selectedPivotsMap,
@@ -211,7 +211,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
             onclick: () => {
               globals.dispatch(Actions.setPivotTableEditMode({editMode: true}));
               globals.rafScheduler.scheduleFullRedraw();
-            }
+            },
           },
           'Edit'),
         this.renderResultsTable(attrs));
@@ -240,7 +240,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
                     PivotTableReduxController.detailsCount++}`,
                 query,
               }));
-            }
+            },
           },
           m('i.material-icons', 'arrow_right')));
   }
@@ -261,7 +261,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
             onclick: () => {
               tree.isCollapsed = !tree.isCollapsed;
               globals.rafScheduler.scheduleFullRedraw();
-            }
+            },
           },
           m('i.material-icons',
             tree.isCollapsed ? 'expand_more' : 'expand_less'));
@@ -279,7 +279,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
     for (let i = 0; i < path.length; i++) {
       drillFilters.push({
         value: `${path[i].nextKey}`,
-        column: result.metadata.pivotColumns[i]
+        column: result.metadata.pivotColumns[i],
       });
     }
 
@@ -375,7 +375,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         globals.dispatch(Actions.setPivotTableSortColumn({column, order}));
         globals.dispatch(
             Actions.setPivotTableQueryRequested({queryRequested: true}));
-      }
+      },
     };
   }
 
@@ -453,7 +453,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
             globals.dispatch(
                 Actions.setPivotTableQueryRequested({queryRequested: true}));
           }
-        }
+        },
       }];
       if (state.queryResult.metadata.pivotColumns.length > 1) {
         items.push({
@@ -463,7 +463,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
                 {column: pivot, selected: false}));
             globals.dispatch(
                 Actions.setPivotTableQueryRequested({queryRequested: true}));
-          }
+          },
         });
       }
       pivotTableHeaders.push(
@@ -474,7 +474,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
 
     const aggregationTableHeaders =
         state.queryResult.metadata.aggregationColumns.map(
-            aggregation => this.renderAggregationHeaderCell(aggregation));
+            (aggregation) => this.renderAggregationHeaderCell(aggregation));
 
     return m(
         'table.query-table.pivot-table',
@@ -496,7 +496,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
           onclick: () => {
             globals.dispatch(Actions.setPivotTableEditMode({editMode: false}));
             globals.rafScheduler.scheduleFullRedraw();
-          }
+          },
         },
         'Execute');
     try {
@@ -521,7 +521,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
               const checkbox = e.target as HTMLInputElement;
               globals.dispatch(Actions.setPivotTableReduxConstrainToArea(
                   {constrain: checkbox.checked}));
-            }
+            },
           }),
           m('label',
             {
@@ -544,7 +544,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
           m('h2', 'Pivots'),
           m('ul',
             tables.map(
-                t => this.renderTablePivotColumns(t),
+                (t) => this.renderTablePivotColumns(t),
                 ))),
         m('div',
           m('h2', 'Aggregations'),
@@ -553,11 +553,11 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
               m(ColumnSetCheckbox, {
                 get: this.selectedAggregations,
                 set: Actions.setPivotTableAggregationSelected,
-                setKey: {kind: 'count'}
+                setKey: {kind: 'count'},
               }),
               'count'),
             ...sliceAggregationColumns.map(
-                t =>
+                (t) =>
                     m('li',
                       m(ColumnSetCheckbox, {
                         get: this.selectedAggregations,
@@ -566,7 +566,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
                       }),
                       t)),
             ...threadSliceAggregationColumns.map(
-                t =>
+                (t) =>
                     m('li',
                       m(ColumnSetCheckbox, {
                         get: this.selectedAggregations,

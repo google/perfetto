@@ -15,16 +15,16 @@
 import {Actions} from '../common/actions';
 import {
   ConversionJobName,
-  ConversionJobStatus
+  ConversionJobStatus,
 } from '../common/conversion_jobs';
 
-import {maybeShowErrorDialog} from './error_dialog';
 import {download} from './clipboard';
+import {maybeShowErrorDialog} from './error_dialog';
 import {globals} from './globals';
 import {openBufferWithLegacyTraceViewer} from './legacy_trace_viewer';
 
-type Args =
-    UpdateStatusArgs|UpdateJobStatusArgs|DownloadFileArgs|OpenTraceInLegacyArgs|ErrorArgs;
+type Args = UpdateStatusArgs|UpdateJobStatusArgs|DownloadFileArgs|
+    OpenTraceInLegacyArgs|ErrorArgs;
 
 interface UpdateStatusArgs {
   kind: 'updateStatus';
@@ -105,7 +105,8 @@ export function convertToJson(trace: Blob, truncate?: 'start'|'end') {
   });
 }
 
-export function convertTraceToPprofAndDownload(trace: Blob, pid: number, ts: number) {
+export function convertTraceToPprofAndDownload(
+    trace: Blob, pid: number, ts: number) {
   makeWorkerAndPost({
     kind: 'ConvertTraceToPprof',
     trace,

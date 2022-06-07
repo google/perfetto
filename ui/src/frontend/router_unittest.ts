@@ -15,7 +15,7 @@
 import {Router} from './router';
 
 const mockComponent = {
-  view() {}
+  view() {},
 };
 
 beforeEach(() => {

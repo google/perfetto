@@ -212,7 +212,7 @@ test('ChromeCpuProfilerConfig', () => {
   config.chromeHighOverheadCategoriesSelected =
       ['disabled-by-default-cpu_profiler'];
   const decoded =
-    TraceConfig.decode(genConfigProto(config, { os: 'C', name: 'Chrome' }));
+      TraceConfig.decode(genConfigProto(config, {os: 'C', name: 'Chrome'}));
   const sources = assertExists(decoded.dataSources);
 
   const traceConfigSource = assertExists(sources[0].config);
@@ -222,8 +222,10 @@ test('ChromeCpuProfilerConfig', () => {
 
   const metadataConfigSource = assertExists(sources[1].config);
   expect(metadataConfigSource.name).toBe('org.chromium.trace_metadata');
-  const traceMetadataChromeConfig = assertExists(metadataConfigSource.chromeConfig);
-  const traceMetadataConfig = assertExists(traceMetadataChromeConfig.traceConfig);
+  const traceMetadataChromeConfig =
+      assertExists(metadataConfigSource.chromeConfig);
+  const traceMetadataConfig =
+      assertExists(traceMetadataChromeConfig.traceConfig);
 
   const profilerConfigSource = assertExists(sources[2].config);
   expect(profilerConfigSource.name).toBe('org.chromium.sampler_profiler');
@@ -243,7 +245,7 @@ test('ChromeCpuProfilerDebugConfig', () => {
   config.chromeHighOverheadCategoriesSelected =
       ['disabled-by-default-cpu_profiler.debug'];
   const decoded =
-    TraceConfig.decode(genConfigProto(config, { os: 'C', name: 'Chrome' }));
+      TraceConfig.decode(genConfigProto(config, {os: 'C', name: 'Chrome'}));
   const sources = assertExists(decoded.dataSources);
 
   const traceConfigSource = assertExists(sources[0].config);
@@ -253,8 +255,10 @@ test('ChromeCpuProfilerDebugConfig', () => {
 
   const metadataConfigSource = assertExists(sources[1].config);
   expect(metadataConfigSource.name).toBe('org.chromium.trace_metadata');
-  const traceMetadataChromeConfig = assertExists(metadataConfigSource.chromeConfig);
-  const traceMetadataConfig = assertExists(traceMetadataChromeConfig.traceConfig);
+  const traceMetadataChromeConfig =
+      assertExists(metadataConfigSource.chromeConfig);
+  const traceMetadataConfig =
+      assertExists(traceMetadataChromeConfig.traceConfig);
 
   const profilerConfigSource = assertExists(sources[2].config);
   expect(profilerConfigSource.name).toBe('org.chromium.sampler_profiler');

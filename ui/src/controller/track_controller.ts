@@ -97,10 +97,8 @@ export abstract class TrackController<
     publishTrackData({id: this.trackId, data});
   }
 
-  /**
-   * Returns a valid SQL table name with the given prefix that should be unique
-   * for each track.
-   */
+  // Returns a valid SQL table name with the given prefix that should be unique
+  // for each track.
   tableName(prefix: string) {
     // Derive table name from, since that is unique for each track.
     // Track ID can be UUID but '-' is not valid for sql table name.
@@ -266,7 +264,7 @@ export abstract class TrackController<
                   visibleState.endSec + dur,
                   resolution);
             })
-            .then(data => {
+            .then((data) => {
               this.publish(data);
             })
             .finally(() => {

@@ -20,10 +20,8 @@ import {globals} from './globals';
 
 const INCOMPLETE_SLICE_TIME_S = 0.00003;
 
-/**
- * Given a timestamp, if |ts| is not currently in view move the view to
- * center |ts|, keeping the same zoom level.
- */
+// Given a timestamp, if |ts| is not currently in view move the view to
+// center |ts|, keeping the same zoom level.
 export function horizontalScrollToTs(ts: number) {
   const startNs = toNs(globals.frontendLocalState.visibleWindowTime.start);
   const endNs = toNs(globals.frontendLocalState.visibleWindowTime.end);
@@ -35,10 +33,8 @@ export function horizontalScrollToTs(ts: number) {
   }
 }
 
-/**
- * Given a start and end timestamp (in ns), move the view to center this range
- * and zoom to a level where the range is 1/5 of the viewport.
- */
+// Given a start and end timestamp (in ns), move the view to center this range
+// and zoom to a level where the range is 1/5 of the viewport.
 export function horizontalScrollAndZoomToRange(startTs: number, endTs: number) {
   const visibleDur = globals.frontendLocalState.visibleWindowTime.end -
       globals.frontendLocalState.visibleWindowTime.start;
@@ -56,11 +52,9 @@ export function horizontalScrollAndZoomToRange(startTs: number, endTs: number) {
   }
 }
 
-/**
- * Given a track id, find a track with that id and scroll it into view. If the
- * track is nested inside a track group, scroll to that track group instead.
- * If |openGroup| then open the track group and scroll to the track.
- */
+// Given a track id, find a track with that id and scroll it into view. If the
+// track is nested inside a track group, scroll to that track group instead.
+// If |openGroup| then open the track group and scroll to the track.
 export function verticalScrollToTrack(
     trackId: string|number, openGroup = false) {
   const trackIdString = `${trackId}`;
@@ -97,9 +91,7 @@ export function verticalScrollToTrack(
 }
 
 
-/**
- * Scroll vertically and horizontally to reach track (|trackId|) at |ts|.
- */
+// Scroll vertically and horizontally to reach track (|trackId|) at |ts|.
 export function scrollToTrackAndTs(
     trackId: string|number|undefined, ts: number, openGroup = false) {
   if (trackId !== undefined) {

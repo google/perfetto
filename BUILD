@@ -994,6 +994,8 @@ perfetto_filegroup(
         "src/trace_processor/dynamic/experimental_slice_layout_generator.h",
         "src/trace_processor/dynamic/flamegraph_construction_algorithms.cc",
         "src/trace_processor/dynamic/flamegraph_construction_algorithms.h",
+        "src/trace_processor/dynamic/view_generator.cc",
+        "src/trace_processor/dynamic/view_generator.h",
     ],
 )
 
@@ -1413,6 +1415,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/views/macros.h",
         "src/trace_processor/views/macros_internal.h",
+        "src/trace_processor/views/slice_views.h",
+        "src/trace_processor/views/view_destructors.cc",
     ],
 )
 
@@ -2360,6 +2364,7 @@ perfetto_cc_protocpp_library(
 perfetto_proto_library(
     name = "protos_perfetto_config_android_protos",
     srcs = [
+        "protos/perfetto/config/android/android_game_intervention_list_config.proto",
         "protos/perfetto/config/android/android_log_config.proto",
         "protos/perfetto/config/android/android_polled_state_config.proto",
         "protos/perfetto/config/android/packages_list_config.proto",
@@ -2938,6 +2943,7 @@ perfetto_proto_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_protos",
     srcs = [
+        "protos/perfetto/trace/android/android_game_intervention_list.proto",
         "protos/perfetto/trace/android/android_log.proto",
         "protos/perfetto/trace/android/camera_event.proto",
         "protos/perfetto/trace/android/frame_timeline_event.proto",

@@ -26,7 +26,7 @@ test('zeroCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 2,
@@ -37,7 +37,7 @@ test('zeroCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 3,
@@ -48,7 +48,7 @@ test('zeroCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 4,
@@ -59,7 +59,7 @@ test('zeroCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
   ];
 
@@ -80,7 +80,7 @@ test('zeroCallsitesMerged2', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 2,
@@ -91,7 +91,7 @@ test('zeroCallsitesMerged2', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 3,
@@ -102,7 +102,7 @@ test('zeroCallsitesMerged2', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 4,
@@ -113,7 +113,7 @@ test('zeroCallsitesMerged2', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 5,
@@ -124,7 +124,7 @@ test('zeroCallsitesMerged2', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
   ];
 
@@ -145,7 +145,7 @@ test('twoCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 2,
@@ -156,7 +156,7 @@ test('twoCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 3,
@@ -167,7 +167,7 @@ test('twoCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
   ];
 
@@ -183,7 +183,7 @@ test('twoCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 2,
@@ -194,7 +194,7 @@ test('twoCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: true,
-      highlighted: false
+      highlighted: false,
     },
   ]);
 });
@@ -210,7 +210,7 @@ test('manyCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 2,
@@ -221,7 +221,7 @@ test('manyCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 3,
@@ -232,7 +232,7 @@ test('manyCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 4,
@@ -243,7 +243,7 @@ test('manyCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 5,
@@ -254,7 +254,7 @@ test('manyCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 6,
@@ -265,7 +265,7 @@ test('manyCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 7,
@@ -276,7 +276,7 @@ test('manyCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 8,
@@ -287,7 +287,7 @@ test('manyCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
   ];
 
@@ -301,7 +301,7 @@ test('manyCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 2,
@@ -312,7 +312,7 @@ test('manyCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 3,
@@ -323,7 +323,7 @@ test('manyCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: true,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 6,
@@ -334,7 +334,7 @@ test('manyCallsitesMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: true,
-      highlighted: false
+      highlighted: false,
     },
   ];
 
@@ -357,7 +357,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 2,
@@ -368,7 +368,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 3,
@@ -379,7 +379,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 4,
@@ -390,7 +390,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 5,
@@ -401,7 +401,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 6,
@@ -412,7 +412,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 7,
@@ -423,7 +423,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 8,
@@ -434,7 +434,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
   ];
 
@@ -448,7 +448,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 2,
@@ -459,7 +459,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 3,
@@ -470,7 +470,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       selfSize: 0,
       mapping: 'x',
       merged: true,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 6,
@@ -481,7 +481,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 7,
@@ -492,7 +492,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 8,
@@ -503,7 +503,7 @@ test('manyCallsitesMergedWithoutChildren', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
   ];
 
@@ -527,7 +527,7 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 2,
@@ -538,7 +538,7 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 3,
@@ -549,7 +549,7 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 4,
@@ -560,7 +560,7 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 5,
@@ -571,7 +571,7 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
   ];
 
@@ -585,7 +585,7 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 2,
@@ -596,7 +596,7 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 3,
@@ -607,7 +607,7 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
       selfSize: 0,
       mapping: 'x',
       merged: true,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 4,
@@ -618,7 +618,7 @@ test('smallCallsitesNotNextToEachOtherInArray', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
   ];
 
@@ -642,7 +642,7 @@ test('smallCallsitesNotMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 2,
@@ -653,7 +653,7 @@ test('smallCallsitesNotMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 3,
@@ -664,7 +664,7 @@ test('smallCallsitesNotMerged', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
   ];
 
@@ -684,7 +684,7 @@ test('mergingRootCallsites', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 2,
@@ -695,7 +695,7 @@ test('mergingRootCallsites', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
   ];
 
@@ -711,7 +711,7 @@ test('mergingRootCallsites', () => {
       selfSize: 0,
       mapping: 'x',
       merged: true,
-      highlighted: false
+      highlighted: false,
     },
   ]);
 });
@@ -727,7 +727,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 2,
@@ -738,7 +738,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 3,
@@ -749,7 +749,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 4,
@@ -760,7 +760,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 5,
@@ -771,7 +771,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 6,
@@ -782,7 +782,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 7,
@@ -793,7 +793,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 8,
@@ -804,7 +804,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 9,
@@ -815,7 +815,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 10,
@@ -826,7 +826,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 11,
@@ -837,7 +837,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 12,
@@ -848,7 +848,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 13,
@@ -859,7 +859,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 14,
@@ -870,7 +870,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 15,
@@ -881,7 +881,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 16,
@@ -892,7 +892,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 17,
@@ -903,7 +903,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 18,
@@ -914,7 +914,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 19,
@@ -925,7 +925,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 20,
@@ -936,7 +936,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
   ];
 
@@ -950,7 +950,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 2,
@@ -961,7 +961,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 3,
@@ -972,7 +972,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 4,
@@ -983,7 +983,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: true,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 7,
@@ -994,7 +994,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 8,
@@ -1005,7 +1005,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 9,
@@ -1016,7 +1016,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 10,
@@ -1027,7 +1027,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: true,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 15,
@@ -1038,7 +1038,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: true,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 19,
@@ -1049,7 +1049,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
     {
       id: 20,
@@ -1060,7 +1060,7 @@ test('largerFlamegraph', () => {
       selfSize: 0,
       mapping: 'x',
       merged: false,
-      highlighted: false
+      highlighted: false,
     },
   ];
 

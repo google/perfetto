@@ -124,7 +124,7 @@ export abstract class AdbBaseConsumerPort extends RpcConsumerPort {
       ReadBuffersResponse {
     return {
       type: 'ReadBuffersResponse',
-      slices: [{data, lastSliceForPacket: last}]
+      slices: [{data, lastSliceForPacket: last}],
     };
   }
 
@@ -133,6 +133,6 @@ export abstract class AdbBaseConsumerPort extends RpcConsumerPort {
     const connectedDevice = globals.state.recordingTarget;
     if (!isAdbTarget(connectedDevice)) return undefined;
     const devices = await navigator.usb.getDevices();
-    return devices.find(d => d.serialNumber === connectedDevice.serial);
+    return devices.find((d) => d.serialNumber === connectedDevice.serial);
   }
 }

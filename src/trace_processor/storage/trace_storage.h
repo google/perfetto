@@ -45,6 +45,7 @@
 #include "src/trace_processor/tables/slice_tables.h"
 #include "src/trace_processor/tables/track_tables.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/views/slice_views.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -505,6 +506,15 @@ class TraceStorage {
     return &package_list_table_;
   }
 
+  const tables::AndroidGameInterventionListTable&
+  android_game_intervention_list_table() const {
+    return android_game_intervention_list_table_;
+  }
+  tables::AndroidGameInterventionListTable*
+  mutable_android_game_intervenion_list_table() {
+    return &android_game_intervention_list_table_;
+  }
+
   const tables::ProfilerSmapsTable& profiler_smaps_table() const {
     return profiler_smaps_table_;
   }
@@ -627,10 +637,13 @@ class TraceStorage {
   actual_frame_timeline_slice_table() const {
     return actual_frame_timeline_slice_table_;
   }
-
   tables::ActualFrameTimelineSliceTable*
   mutable_actual_frame_timeline_slice_table() {
     return &actual_frame_timeline_slice_table_;
+  }
+
+  const views::ThreadSliceView& thread_slice_view() const {
+    return thread_slice_view_;
   }
 
   const StringPool& string_pool() const { return string_pool_; }
@@ -821,6 +834,8 @@ class TraceStorage {
       &string_pool_, &stack_sample_table_};
   tables::PerfSampleTable perf_sample_table_{&string_pool_, nullptr};
   tables::PackageListTable package_list_table_{&string_pool_, nullptr};
+  tables::AndroidGameInterventionListTable
+      android_game_intervention_list_table_{&string_pool_, nullptr};
   tables::ProfilerSmapsTable profiler_smaps_table_{&string_pool_, nullptr};
 
   // Symbol tables (mappings from frames to symbol names)
@@ -850,6 +865,9 @@ class TraceStorage {
       &string_pool_, &slice_table_};
   tables::ActualFrameTimelineSliceTable actual_frame_timeline_slice_table_{
       &string_pool_, &slice_table_};
+
+  views::ThreadSliceView thread_slice_view_{&slice_table_, &thread_track_table_,
+                                            &thread_table_};
 
   // The below array allow us to map between enums and their string
   // representations.

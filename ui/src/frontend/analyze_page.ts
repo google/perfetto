@@ -167,5 +167,5 @@ export const AnalyzePage = createPage({
         m(QueryInput),
         m(QueryTable, {queryId: QUERY_ID}),
     );
-  }
+  },
 });
