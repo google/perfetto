@@ -1622,7 +1622,6 @@ perfetto_filegroup(
         "src/trace_processor/trace_processor_storage_impl.h",
         "src/trace_processor/trace_sorter.cc",
         "src/trace_processor/trace_sorter.h",
-        "src/trace_processor/trace_sorter_queue.h",
         "src/trace_processor/virtual_destructors.cc",
     ],
 )
