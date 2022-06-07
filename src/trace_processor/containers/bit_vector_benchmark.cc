@@ -47,6 +47,15 @@ void BitVectorArgs(benchmark::internal::Benchmark* b) {
   }
 }
 
+void UpdateSetBitsArgs(benchmark::internal::Benchmark* b) {
+  if (IsBenchmarkFunctionalOnly()) {
+    b->Args({64, 50, 50});
+  } else {
+    std::vector<int64_t> set_percentages{1, 5, 50, 95, 99};
+    b->ArgsProduct({{1234567}, set_percentages, set_percentages});
+  }
+}
+
 BitVector BvWithSizeAndSetPercentage(uint32_t size, uint32_t set_percentage) {
   static constexpr uint32_t kRandomSeed = 29;
   std::minstd_rand0 rnd_engine(kRandomSeed);
@@ -241,6 +250,7 @@ static void BM_BitVectorUpdateSetBits(benchmark::State& state) {
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
   uint32_t set_percentage = static_cast<uint32_t>(state.range(1));
+  uint32_t picker_set_percentage = static_cast<uint32_t>(state.range(2));
 
   BitVector bv;
   BitVector picker;
@@ -249,7 +259,7 @@ static void BM_BitVectorUpdateSetBits(benchmark::State& state) {
     if (value) {
       bv.AppendTrue();
 
-      bool picker_value = rnd_engine() % 2;
+      bool picker_value = rnd_engine() % 100 < picker_set_percentage;
       if (picker_value) {
         picker.AppendTrue();
       } else {
@@ -260,16 +270,23 @@ static void BM_BitVectorUpdateSetBits(benchmark::State& state) {
     }
   }
 
-  for (auto _ : state) {
-    state.PauseTiming();
-    BitVector copy = bv.Copy();
-    state.ResumeTiming();
+  uint32_t set_bit_count = bv.GetNumBitsSet();
+  uint32_t picker_set_bit_count = picker.GetNumBitsSet();
 
+  for (auto _ : state) {
+    BitVector copy = bv.Copy();
     copy.UpdateSetBits(picker);
-    benchmark::ClobberMemory();
+    benchmark::DoNotOptimize(copy);
   }
+
+  state.counters["s/set bit"] = benchmark::Counter(
+      set_bit_count, benchmark::Counter::kIsIterationInvariantRate |
+                         benchmark::Counter::kInvert);
+  state.counters["s/set picker bit"] = benchmark::Counter(
+      picker_set_bit_count, benchmark::Counter::kIsIterationInvariantRate |
+                                benchmark::Counter::kInvert);
 }
-BENCHMARK(BM_BitVectorUpdateSetBits)->Apply(BitVectorArgs);
+BENCHMARK(BM_BitVectorUpdateSetBits)->Apply(UpdateSetBitsArgs);
 
 static void BM_BitVectorSetBitsIterator(benchmark::State& state) {
   uint32_t size = static_cast<uint32_t>(state.range(0));
