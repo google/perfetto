@@ -296,9 +296,9 @@ class Column {
       // single row with the id (if it exists).
       auto opt_idx = IndexOf(value);
       if (opt_idx) {
-        rm->Intersect(RowMap::SingleRow(*opt_idx));
+        rm->IntersectExact(*opt_idx);
       } else {
-        rm->Intersect(RowMap());
+        rm->Clear();
       }
       return;
     }
@@ -526,31 +526,31 @@ class Column {
             b, std::lower_bound(b, e, value, &compare::SqlValueComparator));
         uint32_t end = std::distance(
             b, std::upper_bound(b, e, value, &compare::SqlValueComparator));
-        rm->Intersect(RowMap(beg, end));
+        rm->Intersect(beg, end);
         return true;
       }
       case FilterOp::kLe: {
         uint32_t end = std::distance(
             b, std::upper_bound(b, e, value, &compare::SqlValueComparator));
-        rm->Intersect(RowMap(0, end));
+        rm->Intersect(0, end);
         return true;
       }
       case FilterOp::kLt: {
         uint32_t end = std::distance(
             b, std::lower_bound(b, e, value, &compare::SqlValueComparator));
-        rm->Intersect(RowMap(0, end));
+        rm->Intersect(0, end);
         return true;
       }
       case FilterOp::kGe: {
         uint32_t beg = std::distance(
             b, std::lower_bound(b, e, value, &compare::SqlValueComparator));
-        rm->Intersect(RowMap(beg, row_map().size()));
+        rm->Intersect(beg, row_map().size());
         return true;
       }
       case FilterOp::kGt: {
         uint32_t beg = std::distance(
             b, std::upper_bound(b, e, value, &compare::SqlValueComparator));
-        rm->Intersect(RowMap(beg, row_map().size()));
+        rm->Intersect(beg, row_map().size());
         return true;
       }
       case FilterOp::kNe:
@@ -588,11 +588,11 @@ class Column {
     // Otherwise, find the end of the set and return the intersection for this.
     for (uint32_t i = set_id + 1; i < col_rm.size(); ++i) {
       if (nv.GetNonNull(col_rm.Get(i)) != filter_set_id) {
-        rm->Intersect(RowMap(set_id, i));
+        rm->Intersect(set_id, i);
         return;
       }
     }
-    rm->Intersect(RowMap(set_id, col_rm.size()));
+    rm->Intersect(set_id, col_rm.size());
   }
 
   // Slow path filter method which will perform a full table scan.
