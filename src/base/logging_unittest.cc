@@ -39,8 +39,8 @@ TEST(LoggingTest, Basic) {
   LogMessage(kLogDebug, "file.cc", 100, "test message %d", 1);
 
   SetLogMessageCallback(+[](LogMessageCallbackArgs log) {
-    sprintf(g_last_line, "%d:%s:%d:%s", log.level, log.filename, log.line,
-            log.message);
+    base::SprintfTrunc(g_last_line, sizeof(g_last_line), "%d:%s:%d:%s",
+                       log.level, log.filename, log.line, log.message);
   });
 
   g_last_line[0] = 0;
