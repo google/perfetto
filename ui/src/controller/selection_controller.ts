@@ -159,6 +159,23 @@ export class SelectionController extends Controller<'main'> {
     let threadTs = undefined;
     let trackId = undefined;
 
+    // We select all columns from the leafTable to ensure that we include
+    // additional fields from the child tables (like `thread_dur` from
+    // `thread_slice` or `frame_number` from `frame_slice`).
+    // However, this also includes some basic columns (especially from `slice`)
+    // that are not interesting (i.e. `arg_set_id`, which has already been used
+    // to resolve and show the arguments) and should not be shown to the user.
+    const ignoredColumns = [
+      'type',
+      'depth',
+      'parent_id',
+      'stack_id',
+      'parent_stack_id',
+      'arg_set_id',
+      'thread_instruction_count',
+      'thread_instruction_delta',
+    ];
+
     for (const k of details.columns()) {
       const v = rowIter.get(k);
       switch (k) {
@@ -190,7 +207,7 @@ export class SelectionController extends Controller<'main'> {
           trackId = Number(v);
           break;
         default:
-          args.set(k, `${v}`);
+          if (!ignoredColumns.includes(k)) args.set(k, `${v}`);
       }
     }
 
