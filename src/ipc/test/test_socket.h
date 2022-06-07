@@ -41,8 +41,7 @@ struct TestSocket {
   inline void Destroy();
 };
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 const char* TestSocket::name() {
   uint64_t hash = 5381;
@@ -61,6 +60,16 @@ void TestSocket::Destroy() {}
 const char* TestSocket::name() {
   snprintf(buf_, sizeof(buf_), "@%s", test_name_);
   return buf_;
+}
+base::SockFamily TestSocket::family() {
+  return base::SockFamily::kUnix;
+}
+void TestSocket::Destroy() {}
+
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+
+const char* TestSocket::name() {
+  return "zx_socket";
 }
 base::SockFamily TestSocket::family() {
   return base::SockFamily::kUnix;

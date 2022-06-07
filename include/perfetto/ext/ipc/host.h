@@ -49,6 +49,11 @@ class Host {
   static std::unique_ptr<Host> CreateInstance(base::ScopedSocketHandle,
                                               base::TaskRunner*);
 
+  // Creates a Host which is not backed by a POSIX listening socket.
+  // Instead, it accepts sockets passed in via AdoptConnectedSocket_Fuchsia().
+  // See go/fuchsetto for more details.
+  static std::unique_ptr<Host> CreateInstance_Fuchsia(base::TaskRunner*);
+
   virtual ~Host();
 
   // Registers a new service and makes it available to remote IPC peers.
@@ -59,6 +64,10 @@ class Host {
   // case of errors (e.g., another service with the same name is already
   // registered).
   virtual bool ExposeService(std::unique_ptr<Service>) = 0;
+
+  // Accepts a pre-connected socket handle.
+  // Should only be used in conjunction with CreateInstance_Fuchsia().
+  virtual void AdoptConnectedSocket_Fuchsia(base::ScopedSocketHandle) = 0;
 };
 
 }  // namespace ipc
