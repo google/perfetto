@@ -103,21 +103,27 @@ class FakeHost : public base::UnixSocket::EventListener {
     MethodID last_method_id = 0;
   };  // FakeService.
 
-  explicit FakeHost(base::TaskRunner* task_runner) {
-    kTestSocket.Destroy();
-    listening_sock =
-        base::UnixSocket::Listen(kTestSocket.name(), this, task_runner,
-                                 kTestSocket.family(), base::SockType::kStream);
-    EXPECT_TRUE(listening_sock->is_listening());
+  // If |should_listen| is set, then a listening socket is created.
+  // Otherwise, incoming connections should be delivered via
+  // OnNewIncomingConnection().
+  FakeHost(bool should_listen, base::TaskRunner* task_runner) {
+    if (should_listen) {
+      kTestSocket.Destroy();
+      listening_sock_ = base::UnixSocket::Listen(
+          kTestSocket.name(), this, task_runner, kTestSocket.family(),
+          base::SockType::kStream);
+      EXPECT_TRUE(listening_sock_->is_listening());
+    }
   }
+
   ~FakeHost() override { kTestSocket.Destroy(); }
 
   FakeService* AddFakeService(const std::string& name) {
-    auto it_and_inserted =
-        services.emplace(name, std::unique_ptr<FakeService>(new FakeService()));
+    auto it_and_inserted = services_.emplace(
+        name, std::unique_ptr<FakeService>(new FakeService()));
     EXPECT_TRUE(it_and_inserted.second);
     FakeService* svc = it_and_inserted.first->second.get();
-    svc->id = ++last_service_id;
+    svc->id = ++last_service_id_;
     return svc;
   }
 
@@ -125,27 +131,27 @@ class FakeHost : public base::UnixSocket::EventListener {
   void OnNewIncomingConnection(
       base::UnixSocket*,
       std::unique_ptr<base::UnixSocket> new_connection) override {
-    ASSERT_FALSE(client_sock);
-    client_sock = std::move(new_connection);
+    ASSERT_FALSE(client_sock_);
+    client_sock_ = std::move(new_connection);
   }
 
   void OnDataAvailable(base::UnixSocket* sock) override {
-    if (sock != client_sock.get())
+    if (sock != client_sock_.get())
       return;
-    auto buf = frame_deserializer.BeginReceive();
+    auto buf = frame_deserializer_.BeginReceive();
     base::ScopedFile fd;
-    size_t rsize = client_sock->Receive(buf.data, buf.size, &fd);
+    size_t rsize = client_sock_->Receive(buf.data, buf.size, &fd);
     if (fd)
       received_fd_ = std::move(fd);
-    EXPECT_TRUE(frame_deserializer.EndReceive(rsize));
-    while (std::unique_ptr<Frame> frame = frame_deserializer.PopNextFrame())
+    EXPECT_TRUE(frame_deserializer_.EndReceive(rsize));
+    while (std::unique_ptr<Frame> frame = frame_deserializer_.PopNextFrame())
       OnFrameReceived(*frame);
   }
 
   void OnFrameReceived(const Frame& req) {
     if (req.has_msg_bind_service()) {
-      auto svc_it = services.find(req.msg_bind_service().service_name());
-      ASSERT_NE(services.end(), svc_it);
+      auto svc_it = services_.find(req.msg_bind_service().service_name());
+      ASSERT_NE(services_.end(), svc_it);
       const FakeService& svc = *svc_it->second;
       Frame reply;
       reply.set_request_id(req.request_id());
@@ -163,7 +169,7 @@ class FakeHost : public base::UnixSocket::EventListener {
       do {
         Frame reply;
         reply.set_request_id(req.request_id());
-        for (const auto& svc : services) {
+        for (const auto& svc : services_) {
           if (svc.second->id != req.msg_invoke_method().service_id())
             continue;
           for (const auto& method : svc.second->methods) {
@@ -185,17 +191,17 @@ class FakeHost : public base::UnixSocket::EventListener {
 
   void Reply(const Frame& frame) {
     auto buf = BufferedFrameDeserializer::Serialize(frame);
-    ASSERT_TRUE(client_sock->is_connected());
-    EXPECT_TRUE(client_sock->Send(buf.data(), buf.size(), next_reply_fd));
-    next_reply_fd = -1;
+    ASSERT_TRUE(client_sock_->is_connected());
+    EXPECT_TRUE(client_sock_->Send(buf.data(), buf.size(), next_reply_fd_));
+    next_reply_fd_ = -1;
   }
 
-  BufferedFrameDeserializer frame_deserializer;
-  std::unique_ptr<base::UnixSocket> listening_sock;
-  std::unique_ptr<base::UnixSocket> client_sock;
-  std::map<std::string, std::unique_ptr<FakeService>> services;
-  ServiceID last_service_id = 0;
-  int next_reply_fd = -1;
+  BufferedFrameDeserializer frame_deserializer_;
+  std::unique_ptr<base::UnixSocket> listening_sock_;
+  std::unique_ptr<base::UnixSocket> client_sock_;
+  std::map<std::string, std::unique_ptr<FakeService>> services_;
+  ServiceID last_service_id_ = 0;
+  int next_reply_fd_ = -1;
   base::ScopedFile received_fd_;
 };  // FakeHost.
 
@@ -203,9 +209,25 @@ class ClientImplTest : public ::testing::Test {
  public:
   void SetUp() override {
     task_runner_.reset(new base::TestTaskRunner());
-    host_.reset(new FakeHost(task_runner_.get()));
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+    base::ScopedSocketHandle client_server, server_socket;
+    std::tie(client_socket, server_socket) =
+        perfetto::base::UnixSocketRaw::CreatePairPosix(
+            perfetto::base::SockFamily::kUnix,
+            perfetto::base::SockType::kStream);
+    host_.reset(new FakeHost(false, task_runner_.get()));
+    host_->OnNewIncomingConnection(
+        nullptr, base::UnixSocket::AdoptConnected(
+                     server_socket.ReleaseFd(), host_.get(), task_runner_.get(),
+                     kTestSocket.family(), base::SockType::kStream));
+    cli_ = Client::CreateInstance(Client::ConnArgs(client_socket.ReleaseFd()),
+                                  task_runner_.get());
+#else
+    host_.reset(new FakeHost(true, task_runner_.get()));
     cli_ = Client::CreateInstance({kTestSocket.name(), /*retry=*/false},
                                   task_runner_.get());
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
   }
 
   void TearDown() override {
@@ -359,7 +381,7 @@ TEST_F(ClientImplTest, ReceiveFileDescriptor) {
   ASSERT_EQ(static_cast<size_t>(base::WriteAll(tx_file.fd(), kFileContent,
                                                sizeof(kFileContent))),
             sizeof(kFileContent));
-  host_->next_reply_fd = tx_file.fd();
+  host_->next_reply_fd_ = tx_file.fd();
 
   EXPECT_CALL(*host_method, OnInvoke(_, _))
       .WillOnce(Invoke(
@@ -579,6 +601,9 @@ TEST_F(ClientImplTest, HostDisconnection) {
   task_runner_->RunUntilCheckpoint("on_disconnect");
 }
 
+// Disabled on Fuchsia because Fuchsia kernel sockets are non-addressable
+// so there is no connect() step which may fail.
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
 TEST_F(ClientImplTest, HostConnectionFailure) {
   ipc::TestSocket kNonexistentSock{"client_impl_unittest_nonexistent"};
   std::unique_ptr<Client> client = Client::CreateInstance(
@@ -599,6 +624,7 @@ TEST_F(ClientImplTest, HostConnectionFailure) {
   EXPECT_CALL(proxy_events_, OnDisconnect()).WillOnce(Invoke(on_disconnect));
   task_runner_->RunUntilCheckpoint("on_disconnect");
 }
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
 
 // TODO(primiano): add the tests below.
 // TEST(ClientImplTest, UnparsableReply) {}
