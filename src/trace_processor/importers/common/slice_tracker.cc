@@ -97,18 +97,6 @@ base::Optional<SliceId> SliceTracker::End(int64_t timestamp,
                                           StringId category,
                                           StringId raw_name,
                                           SetArgsCallback args_callback) {
-  auto id_and_args_tracker = EndMaybePreservingArgs(
-      timestamp, track_id, category, raw_name, args_callback);
-  return id_and_args_tracker ? base::make_optional(id_and_args_tracker->id)
-                             : base::nullopt;
-}
-
-base::Optional<SliceTracker::IdAndArgsTracker>
-SliceTracker::EndMaybePreservingArgs(int64_t timestamp,
-                                     TrackId track_id,
-                                     StringId category,
-                                     StringId raw_name,
-                                     SetArgsCallback args_callback) {
   const StringId name =
       context_->slice_translation_table->TranslateName(raw_name);
   auto finder = [this, category, name](const SlicesStack& stack) {
@@ -137,8 +125,8 @@ base::Optional<uint32_t> SliceTracker::AddArgs(TrackId track_id,
 
   tables::SliceTable::RowNumber num = stack[*stack_idx].row;
   tables::SliceTable::RowReference ref = num.ToRowReference(slices);
-  PERFETTO_DCHECK(ref.dur() == kPendingDuration);
 
+  PERFETTO_DCHECK(ref.dur() == kPendingDuration);
   // Add args to current pending slice.
   ArgsTracker* tracker = &stack[*stack_idx].args_tracker;
   auto bound_inserter = tracker->AddArgsTo(ref.id());
@@ -215,7 +203,7 @@ base::Optional<SliceId> SliceTracker::StartSlice(
   return id;
 }
 
-base::Optional<SliceTracker::IdAndArgsTracker> SliceTracker::CompleteSlice(
+base::Optional<SliceId> SliceTracker::CompleteSlice(
     int64_t timestamp,
     TrackId track_id,
     SetArgsCallback args_callback,
@@ -269,12 +257,9 @@ base::Optional<SliceTracker::IdAndArgsTracker> SliceTracker::CompleteSlice(
   }
 
   // If this slice is the top slice on the stack, pop it off.
-  if (*stack_idx == stack.size() - 1) {
-    ArgsTracker moved = std::move(tracker);
+  if (*stack_idx == stack.size() - 1)
     stack.pop_back();
-    return IdAndArgsTracker{ref.id(), std::move(moved)};
-  }
-  return IdAndArgsTracker{ref.id(), base::nullopt};
+  return ref.id();
 }
 
 // Returns the first incomplete slice in the stack with matching name and
