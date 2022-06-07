@@ -189,7 +189,6 @@ class TrackEventParser::EventImporter {
         track_event_tracker_(parser->track_event_tracker_),
         storage_(context_->storage.get()),
         parser_(parser),
-        args_translation_table_(context_->args_translation_table.get()),
         ts_(ts),
         event_data_(event_data),
         sequence_state_(event_data->sequence_state.get()),
@@ -666,6 +665,7 @@ class TrackEventParser::EventImporter {
     if (opt_slice_id.has_value()) {
       MaybeParseFlowEvents(opt_slice_id.value());
     }
+
     return util::OkStatus();
   }
 
@@ -675,32 +675,28 @@ class TrackEventParser::EventImporter {
           "TrackEvent with phase E without thread association");
     }
 
-    auto opt_slice_id_and_args_tracker =
-        context_->slice_tracker->EndMaybePreservingArgs(
-            ts_, track_id_, category_id_, name_id_,
-            [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
-    if (!opt_slice_id_and_args_tracker)
-      return base::OkStatus();
-
-    SliceId id = opt_slice_id_and_args_tracker->id;
-    MaybeParseFlowEvents(id);
-    MaybeTranslateArgsForSlice(
-        id, std::move(opt_slice_id_and_args_tracker->args_tracker));
-
-    auto* thread_slices = storage_->mutable_thread_slice_table();
-    auto thread_slice_ref = *thread_slices->FindById(id);
-
-    base::Optional<int64_t> tts = thread_slice_ref.thread_ts();
-    if (tts) {
-      PERFETTO_DCHECK(event_data_->thread_timestamp);
-      thread_slice_ref.set_thread_dur(*event_data_->thread_timestamp - *tts);
+    auto opt_slice_id = context_->slice_tracker->End(
+        ts_, track_id_, category_id_, name_id_,
+        [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
+    if (opt_slice_id.has_value()) {
+      auto* thread_slices = storage_->mutable_thread_slice_table();
+      auto maybe_row = thread_slices->id().IndexOf(*opt_slice_id);
+      PERFETTO_DCHECK(maybe_row.has_value());
+      auto tts = thread_slices->thread_ts()[*maybe_row];
+      if (tts) {
+        PERFETTO_DCHECK(event_data_->thread_timestamp);
+        thread_slices->mutable_thread_dur()->Set(
+            *maybe_row, *event_data_->thread_timestamp - *tts);
+      }
+      auto tic = thread_slices->thread_instruction_count()[*maybe_row];
+      if (tic) {
+        PERFETTO_DCHECK(event_data_->thread_instruction_count);
+        thread_slices->mutable_thread_instruction_delta()->Set(
+            *maybe_row, *event_data_->thread_instruction_count - *tic);
+      }
+      MaybeParseFlowEvents(opt_slice_id.value());
     }
-    base::Optional<int64_t> tic = thread_slice_ref.thread_instruction_count();
-    if (tic) {
-      PERFETTO_DCHECK(event_data_->thread_instruction_count);
-      thread_slice_ref.set_thread_instruction_delta(
-          *event_data_->thread_instruction_count - *tic);
-    }
+
     return util::OkStatus();
   }
 
@@ -730,6 +726,7 @@ class TrackEventParser::EventImporter {
     if (opt_slice_id.has_value()) {
       MaybeParseFlowEvents(opt_slice_id.value());
     }
+
     return util::OkStatus();
   }
 
@@ -904,18 +901,12 @@ class TrackEventParser::EventImporter {
   }
 
   util::Status ParseAsyncEndEvent() {
-    auto opt_slice_id_and_args_tracker =
-        context_->slice_tracker->EndMaybePreservingArgs(
-            ts_, track_id_, category_id_, name_id_,
-            [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
-    if (!opt_slice_id_and_args_tracker)
-      return base::OkStatus();
-
-    SliceId id = opt_slice_id_and_args_tracker->id;
-    MaybeParseFlowEvents(id);
-    MaybeTranslateArgsForSlice(
-        id, std::move(opt_slice_id_and_args_tracker->args_tracker));
-
+    auto opt_slice_id = context_->slice_tracker->End(
+        ts_, track_id_, category_id_, name_id_,
+        [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
+    if (!opt_slice_id.has_value())
+      return util::OkStatus();
+    MaybeParseFlowEvents(opt_slice_id.value());
     if (legacy_event_.use_async_tts()) {
       auto* vtrack_slices = storage_->mutable_virtual_track_slices();
       int64_t tts =
@@ -923,7 +914,8 @@ class TrackEventParser::EventImporter {
       int64_t tic = event_data_->thread_instruction_count
                         ? *event_data_->thread_instruction_count
                         : 0;
-      vtrack_slices->UpdateThreadDeltasForSliceId(id, tts, tic);
+      vtrack_slices->UpdateThreadDeltasForSliceId(opt_slice_id.value(), tts,
+                                                  tic);
     }
     return util::OkStatus();
   }
@@ -1286,24 +1278,10 @@ class TrackEventParser::EventImporter {
     return row;
   }
 
-  void MaybeTranslateArgsForSlice(SliceId id,
-                                  base::Optional<ArgsTracker> args_tracker) {
-    if (!args_tracker ||
-        !args_tracker->NeedsTranslation(*args_translation_table_)) {
-      return;
-    }
-
-    const auto& table = context_->storage->slice_table();
-    uint32_t row = table.FindById(id)->ToRowNumber().row_number();
-    track_event_tracker_->AddTranslatableArgs(
-        id, std::move(*args_tracker).ToCompactArgSet(table.arg_set_id(), row));
-  }
-
   TraceProcessorContext* context_;
   TrackEventTracker* track_event_tracker_;
   TraceStorage* storage_;
   TrackEventParser* parser_;
-  ArgsTranslationTable* args_translation_table_;
   int64_t ts_;
   TrackEventData* event_data_;
   PacketSequenceStateGeneration* sequence_state_;
