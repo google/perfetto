@@ -69,6 +69,19 @@ bool ServiceIPCHostImpl::Start(base::ScopedSocketHandle producer_socket_fd,
   return DoStart();
 }
 
+bool ServiceIPCHostImpl::Start(std::unique_ptr<ipc::Host> producer_host,
+                               std::unique_ptr<ipc::Host> consumer_host) {
+  PERFETTO_CHECK(!svc_);  // Check if already started.
+  PERFETTO_DCHECK(producer_host);
+  PERFETTO_DCHECK(consumer_host);
+
+  // Initialize the IPC transport.
+  producer_ipc_port_ = std::move(producer_host);
+  consumer_ipc_port_ = std::move(consumer_host);
+
+  return DoStart();
+}
+
 bool ServiceIPCHostImpl::DoStart() {
   // Create and initialize the platform-independent tracing business logic.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
