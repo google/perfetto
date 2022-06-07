@@ -3232,15 +3232,26 @@ TEST_P(PerfettoApiTest, TrackEventEventNameDynamicString) {
   tracing_session->get()->StartBlocking();
   TRACE_EVENT_BEGIN("foo", perfetto::DynamicString{std::string("Event1")});
   TRACE_EVENT_BEGIN("foo", perfetto::DynamicString{std::string("Event2")});
+
   TRACE_EVENT0("foo", TRACE_STR_COPY(std::string("Event3")));
   const char* event4 = "Event4";
   TRACE_EVENT0("foo", event4);
+
+  // Ensure that event-name is not emitted in case of `_END` events.
+  PERFETTO_INTERNAL_TRACK_EVENT(
+      "foo", perfetto::DynamicString{std::string("Event5")},
+      ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_END);
+  PERFETTO_INTERNAL_TRACK_EVENT(
+      "foo", "Event6", ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_END);
+
   auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
-  ASSERT_EQ(4u, slices.size());
+  ASSERT_EQ(6u, slices.size());
   EXPECT_EQ("B:foo.Event1", slices[0]);
   EXPECT_EQ("B:foo.Event2", slices[1]);
   EXPECT_EQ("B:foo.Event3", slices[2]);
   EXPECT_EQ("B:foo.Event4", slices[3]);
+  EXPECT_EQ("E", slices[4]);
+  EXPECT_EQ("E", slices[5]);
 }
 
 TEST_P(PerfettoApiTest, TrackEventDynamicStringInDebugArgs) {
