@@ -135,10 +135,10 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
   if (req.seq() != 0 && rx_seq_id_ != 0 && req.seq() != rx_seq_id_ + 1) {
     char err_str[255];
     // "(ERR:rpc_seq)" is intercepted by error_dialog.ts in the UI.
-    sprintf(err_str,
-            "RPC request out of order. Expected %" PRId64 ", got %" PRId64
-            " (ERR:rpc_seq)",
-            rx_seq_id_ + 1, req.seq());
+    snprintf(err_str, sizeof(err_str),
+             "RPC request out of order. Expected %" PRId64 ", got %" PRId64
+             " (ERR:rpc_seq)",
+             rx_seq_id_ + 1, req.seq());
     PERFETTO_ELOG("%s", err_str);
     protozero::HeapBuffered<TraceProcessorRpcStream> err_msg;
     err_msg->add_msg()->set_fatal_error(err_str);
