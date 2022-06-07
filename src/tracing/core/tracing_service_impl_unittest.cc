@@ -19,6 +19,7 @@
 #include <string.h>
 
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/consumer.h"
@@ -2065,7 +2066,7 @@ TEST_F(TracingServiceImplTest, PeriodicFlush) {
         {
           auto tp = writer->NewTracePacket();
           char payload[32];
-          sprintf(payload, "f_%d", flushes_seen);
+          base::SprintfTrunc(payload, sizeof(payload), "f_%d", flushes_seen);
           tp->set_for_testing()->set_str(payload);
         }
         writer->Flush();
