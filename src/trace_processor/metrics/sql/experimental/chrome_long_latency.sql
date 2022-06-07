@@ -43,12 +43,20 @@ ON long_eventlatency_slice.track_id = process_track.id;
 -- Find the name and pid of the processes.
 -- Long latency events with the same timestamp and from the same process
 -- are considered one single long latency occurrence.
+-- If the process name represents a file's pathname, the path part will be
+-- removed from the display name of the process.
 DROP VIEW IF EXISTS long_latency_with_process_info;
 CREATE VIEW long_latency_with_process_info AS
 SELECT
   long_latency_with_upid.ts,
   GROUP_CONCAT(DISTINCT long_latency_with_upid.event_type) AS event_type,
-  process.name AS process_name,
+  REPLACE(
+    process.name,
+    RTRIM(
+      process.name,
+      REPLACE(process.name, '/', '')
+    ),
+    '') AS process_name,
   process.pid AS process_id
 FROM long_latency_with_upid
 INNER JOIN process
