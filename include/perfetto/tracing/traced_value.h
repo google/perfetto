@@ -602,6 +602,23 @@ struct TraceFormatTraits<char[N]> {
   }
 };
 
+// Specialization for Perfetto strings.
+template <>
+struct TraceFormatTraits<perfetto::StaticString> {
+  inline static void WriteIntoTrace(TracedValue context,
+                                    perfetto::StaticString str) {
+    std::move(context).WriteString(str.value);
+  }
+};
+
+template <>
+struct TraceFormatTraits<perfetto::DynamicString> {
+  inline static void WriteIntoTrace(TracedValue context,
+                                    perfetto::DynamicString str) {
+    std::move(context).WriteString(str.value, str.length);
+  }
+};
+
 // Specialisation for C++ strings.
 template <>
 struct TraceFormatTraits<std::string> {

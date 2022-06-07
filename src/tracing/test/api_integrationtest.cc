@@ -3232,10 +3232,46 @@ TEST_P(PerfettoApiTest, TrackEventEventNameDynamicString) {
   tracing_session->get()->StartBlocking();
   TRACE_EVENT_BEGIN("foo", perfetto::DynamicString{std::string("Event1")});
   TRACE_EVENT_BEGIN("foo", perfetto::DynamicString{std::string("Event2")});
+  TRACE_EVENT0("foo", TRACE_STR_COPY(std::string("Event3")));
+  const char* event4 = "Event4";
+  TRACE_EVENT0("foo", event4);
   auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
-  ASSERT_EQ(2u, slices.size());
+  ASSERT_EQ(4u, slices.size());
   EXPECT_EQ("B:foo.Event1", slices[0]);
   EXPECT_EQ("B:foo.Event2", slices[1]);
+  EXPECT_EQ("B:foo.Event3", slices[2]);
+  EXPECT_EQ("B:foo.Event4", slices[3]);
+}
+
+TEST_P(PerfettoApiTest, TrackEventDynamicStringInDebugArgs) {
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT1("foo", "Event1", "arg1",
+               TRACE_STR_COPY(std::string("arg1_value1")));
+  const char* value2 = "arg1_value2";
+  TRACE_EVENT1("foo", "Event2", "arg1", value2);
+  const char* value4 = "arg1_value4";
+  TRACE_EVENT1("foo", "Event3", "arg1",
+               perfetto::DynamicString(std::string("arg1_value3")));
+  TRACE_EVENT1("foo", "Event4", "arg1", perfetto::StaticString(value4));
+
+  TRACE_EVENT_BEGIN("foo", "Event5", "arg1",
+                    TRACE_STR_COPY(std::string("arg1_value5")));
+  TRACE_EVENT_BEGIN("foo", "Event6", "arg1",
+                    perfetto::DynamicString(std::string("arg1_value6")));
+  const char* value7 = "arg1_value7";
+  TRACE_EVENT_BEGIN("foo", "Event7", "arg1", perfetto::StaticString(value7));
+
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
+  ASSERT_EQ(7u, slices.size());
+  EXPECT_EQ("B:foo.Event1(arg1=(string)arg1_value1)", slices[0]);
+  EXPECT_EQ("B:foo.Event2(arg1=(string)arg1_value2)", slices[1]);
+  EXPECT_EQ("B:foo.Event3(arg1=(string)arg1_value3)", slices[2]);
+  EXPECT_EQ("B:foo.Event4(arg1=(string)arg1_value4)", slices[3]);
+  EXPECT_EQ("B:foo.Event5(arg1=(string)arg1_value5)", slices[4]);
+  EXPECT_EQ("B:foo.Event6(arg1=(string)arg1_value6)", slices[5]);
+  EXPECT_EQ("B:foo.Event7(arg1=(string)arg1_value7)", slices[6]);
 }
 
 TEST_P(PerfettoApiTest, TrackEventArgumentsNotEvaluatedWhenDisabled) {
