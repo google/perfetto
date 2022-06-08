@@ -95,14 +95,6 @@ class FakeClient : public base::UnixSocket::EventListener {
                                       base::SockType::kStream);
   }
 
-  FakeClient(base::ScopedSocketHandle connected_socket,
-             base::TaskRunner* task_runner) {
-    sock_ = base::UnixSocket::AdoptConnected(std::move(connected_socket), this,
-                                             task_runner, kTestSocket.family(),
-                                             base::SockType::kStream);
-    task_runner->PostTask([this]() { OnConnect(); });
-  }
-
   ~FakeClient() override = default;
 
   void BindService(const std::string& service_name) {
@@ -178,23 +170,11 @@ class HostImplTest : public ::testing::Test {
   void SetUp() override {
     kTestSocket.Destroy();
     task_runner_.reset(new base::TestTaskRunner());
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
-    Host* host = Host::CreateInstance(task_runner_.get()).release();
-    base::ScopedSocketHandle client_server, server_socket;
-    std::tie(client_socket, server_socket) =
-        perfetto::base::UnixSocketRaw::CreatePairPosix(
-            perfetto::base::SockFamily::kUnix,
-            perfetto::base::SockType::kStream);
-    host->AdoptConnectedSocket(server_socket.ReleaseFd(),
-                               perfetto::base::SockType::kStream);
-    cli_.reset(new FakeClient(client_socket.ReleaseFd(), task_runner_.get()));
-#else
     Host* host =
         Host::CreateInstance(kTestSocket.name(), task_runner_.get()).release();
-    cli_.reset(new FakeClient(task_runner_.get()));
-#endif
     ASSERT_NE(nullptr, host);
     host_.reset(static_cast<HostImpl*>(host));
+    cli_.reset(new FakeClient(task_runner_.get()));
     auto on_connect = task_runner_->CreateCheckpoint("on_connect");
     EXPECT_CALL(*cli_, OnConnect()).WillOnce(Invoke(on_connect));
     task_runner_->RunUntilCheckpoint("on_connect");
