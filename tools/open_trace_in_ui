@@ -35,12 +35,17 @@ class ANSI:
 class HttpHandler(http.server.SimpleHTTPRequestHandler):
 
   def end_headers(self):
-    self.send_header('Access-Control-Allow-Origin', '*')
-    return super().end_headers()
+    self.send_header('Access-Control-Allow-Origin', 'https://ui.perfetto.dev')
+    self.send_header('Cache-Control', 'no-cache')
+    super().end_headers()
 
   def do_GET(self):
-    self.server.last_request = self.path
-    return super().do_GET()
+    if self.path != '/' + self.server.expected_fname:
+      self.send_error(404, "File not found")
+      return
+
+    self.server.fname_get_completed = True
+    super().do_GET()
 
   def do_POST(self):
     self.send_error(404, "File not found")
@@ -67,7 +72,9 @@ def open_trace(path, open_browser):
             'https://ui.perfetto.dev/#!/?url=http://127.0.0.1:%d/%s' %
             (PORT, fname))
 
-    while httpd.__dict__.get('last_request') != '/' + fname:
+    httpd.expected_fname = fname
+    httpd.fname_get_completed = None
+    while httpd.fname_get_completed is None:
       httpd.handle_request()
 
 
