@@ -201,14 +201,6 @@ base::Optional<TrackId> TrackEventTracker::GetDescriptorTrackImpl(
   PERFETTO_CHECK(reserved_it != reserved_descriptor_tracks_.end());
 
   const auto& reservation = reserved_it->second;
-
-  // We resolve parent_id here to ensure that it's going to be smaller
-  // than the id of the child.
-  base::Optional<TrackId> parent_id;
-  if (reservation.parent_uuid != 0) {
-    parent_id = GetDescriptorTrackImpl(reservation.parent_uuid);
-  }
-
   TrackId track_id = CreateTrackFromResolved(*resolved_track);
   descriptor_tracks_[uuid] = track_id;
 
@@ -220,18 +212,14 @@ base::Optional<TrackId> TrackEventTracker::GetDescriptorTrackImpl(
   if (!reservation.category.is_null())
     args.AddArg(category_key_, Variadic::String(reservation.category));
 
-  auto* tracks = context_->storage->mutable_track_table();
-  auto row_ref = *tracks->FindById(track_id);
-  if (parent_id) {
-    row_ref.set_parent_id(*parent_id);
-  }
-
   if (reservation.name.is_null())
     return track_id;
 
   // Initialize the track name here, so that, if a name was given in the
   // reservation, it is set immediately after resolution takes place.
-  row_ref.set_name(reservation.name);
+  auto* tracks = context_->storage->mutable_track_table();
+  tracks->mutable_name()->Set(*tracks->id().IndexOf(track_id),
+                              reservation.name);
   return track_id;
 }
 
