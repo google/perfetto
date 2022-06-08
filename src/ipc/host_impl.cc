@@ -84,12 +84,6 @@ std::unique_ptr<Host> Host::CreateInstance(base::ScopedSocketHandle socket_fd,
   return std::unique_ptr<Host>(std::move(host));
 }
 
-// static
-std::unique_ptr<Host> Host::CreateInstance_Fuchsia(
-    base::TaskRunner* task_runner) {
-  return std::unique_ptr<HostImpl>(new HostImpl(task_runner));
-}
-
 HostImpl::HostImpl(base::ScopedSocketHandle socket_fd,
                    base::TaskRunner* task_runner)
     : task_runner_(task_runner), weak_ptr_factory_(this) {
@@ -108,11 +102,6 @@ HostImpl::HostImpl(const char* socket_name, base::TaskRunner* task_runner)
   }
 }
 
-HostImpl::HostImpl(base::TaskRunner* task_runner)
-    : task_runner_(task_runner), weak_ptr_factory_(this) {
-  PERFETTO_DCHECK_THREAD(thread_checker_);
-}
-
 HostImpl::~HostImpl() = default;
 
 bool HostImpl::ExposeService(std::unique_ptr<Service> service) {
@@ -126,20 +115,6 @@ bool HostImpl::ExposeService(std::unique_ptr<Service> service) {
   ExposedService exposed_service(sid, service_name, std::move(service));
   services_.emplace(sid, std::move(exposed_service));
   return true;
-}
-
-void HostImpl::AdoptConnectedSocket_Fuchsia(
-    base::ScopedSocketHandle connected_socket) {
-  PERFETTO_DCHECK_THREAD(thread_checker_);
-  PERFETTO_DCHECK(connected_socket);
-  // Should not be used in conjunction with listen sockets.
-  PERFETTO_DCHECK(!sock_);
-
-  auto unix_socket = base::UnixSocket::AdoptConnected(
-      std::move(connected_socket), this, task_runner_, kHostSockFamily,
-      base::SockType::kStream);
-
-  OnNewIncomingConnection(nullptr, std::move(unix_socket));
 }
 
 void HostImpl::OnNewIncomingConnection(

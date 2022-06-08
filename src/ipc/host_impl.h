@@ -36,12 +36,10 @@ class HostImpl : public Host, public base::UnixSocket::EventListener {
  public:
   HostImpl(const char* socket_name, base::TaskRunner*);
   HostImpl(base::ScopedSocketHandle, base::TaskRunner*);
-  HostImpl(base::TaskRunner* task_runner);
   ~HostImpl() override;
 
   // Host implementation.
   bool ExposeService(std::unique_ptr<Service>) override;
-  void AdoptConnectedSocket_Fuchsia(base::ScopedSocketHandle) override;
 
   // base::UnixSocket::EventListener implementation.
   void OnNewIncomingConnection(base::UnixSocket*,
