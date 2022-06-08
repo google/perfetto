@@ -259,6 +259,16 @@ export class ModalContainer {
     // the same component. `key` works only when returning arrays.
     return [m(Modal, {
       ...this.attrs,
+      onClose: () => {
+        // Remember the fact that the dialog was dismissed, in case the whole
+        // ModalContainer gets instantiated from a different page (which would
+        // cause the Modal to be destroyed and recreated).
+        this.closeGeneration = this.generation;
+        if (this.attrs?.onClose !== undefined) {
+          this.attrs.onClose();
+          globals.rafScheduler.scheduleFullRedraw();
+        }
+      },
       close: this.closeGeneration === this.generation ? true : this.attrs.close,
       key: this.generation,
     })];
