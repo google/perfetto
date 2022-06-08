@@ -50,6 +50,11 @@ const TRACE_PACKET_PROTO_ID = 1;
 const TRACE_PACKET_PROTO_TAG =
     (TRACE_PACKET_PROTO_ID << 3) | PROTO_LEN_DELIMITED_WIRE_TYPE;
 
+export const PARSING_UNKNWON_REQUEST_ID = 'Unknown request id';
+export const PARSING_UNABLE_TO_DECODE_METHOD = 'Unable to decode method';
+export const PARSING_UNRECOGNIZED_PORT = 'Unrecognized consumer port response';
+export const PARSING_UNRECOGNIZED_MESSAGE = 'Unrecognized frame message';
+
 function parseMessageSize(buffer: Uint8Array) {
   const dv = new DataView(buffer.buffer, buffer.byteOffset, buffer.length);
   return dv.getUint32(0, true);
@@ -286,12 +291,12 @@ export class TracedTracingSession implements TracingSession {
 
       const method = this.requestMethods.get(frame.requestId);
       if (!method) {
-        this.raiseError(`Unknown request id: ${frame.requestId}`);
+        this.raiseError(`${PARSING_UNKNWON_REQUEST_ID}: ${frame.requestId}`);
         return;
       }
       const decoder = decoders.get(method);
       if (decoder === undefined) {
-        this.raiseError(`Unable to decode method: ${method}`);
+        this.raiseError(`${PARSING_UNABLE_TO_DECODE_METHOD}: ${method}`);
         return;
       }
       const data = {...decoder(msgInvokeMethodReply.replyProto)};
@@ -337,10 +342,10 @@ export class TracedTracingSession implements TracingSession {
       } else if (method === 'DisableTracing') {
         // No action required.
       } else {
-        this.raiseError(`Unrecognized consumer port response: ${method}`);
+        this.raiseError(`${PARSING_UNRECOGNIZED_PORT}: ${method}`);
       }
     } else {
-      this.raiseError(`Unrecognized frame message: ${frame.msg}`);
+      this.raiseError(`${PARSING_UNRECOGNIZED_MESSAGE}: ${frame.msg}`);
     }
   }
 
