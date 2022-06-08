@@ -39,14 +39,23 @@ export interface TargetFactory {
   connectNewTarget(): Promise<RecordingTargetV2>;
 }
 
+export interface AndroidTargetInfo {
+  name: string;
+  targetType: 'ANDROID'
+  // This is the Android API level. For instance, it can be 32, 31, 30 etc.
+  // It is the "API level" column here:
+  // https://source.android.com/setup/start/build-numbers
+  androidApiLevel: number;
+}
+
+export interface OtherTargetInfo {
+  name: string;
+  targetType: 'CHROME'|'CHROME_OS'|'LINUX';
+}
+
 // Holds information about a target. It's used by the logic which generates a
 // config.
-export interface TargetInfo {
-  name: string;
-  targetType: 'ANDROID'|'CHROME'|'CHROME_OS'|'LINUX';
-  // This is the os version. For example for ANDROID it can be 'P', 'Q', etc.
-  osVersion?: string;
-}
+export type TargetInfo = AndroidTargetInfo|OtherTargetInfo;
 
 // RecordingTargetV2 is subclassed by Android devices and the Chrome browser/OS.
 // It creates tracing sessions which are used by the UI. For Android, it manages

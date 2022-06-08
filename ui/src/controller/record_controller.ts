@@ -14,6 +14,7 @@
 
 import {Message, Method, rpc, RPCImplCallback} from 'protobufjs';
 
+import {assertExists} from '../base/logging';
 import {base64Encode} from '../base/string_utils';
 import {Actions} from '../common/actions';
 import {TRACE_SUFFIX} from '../common/constants';
@@ -63,6 +64,7 @@ export function genConfigProto(
 function convertToRecordingV2Input(
     uiCfg: RecordConfig, target: RecordingTarget): TraceConfig {
   let targetType: 'ANDROID'|'CHROME'|'CHROME_OS'|'LINUX';
+  let androidApiLevel: number|undefined;
   switch (target.os) {
     case 'L':
       targetType = 'LINUX';
@@ -73,10 +75,38 @@ function convertToRecordingV2Input(
     case 'CrOS':
       targetType = 'CHROME_OS';
       break;
+    case 'S':
+      androidApiLevel = 31;
+      targetType = 'ANDROID';
+      break;
+    case 'R':
+      androidApiLevel = 30;
+      targetType = 'ANDROID';
+      break;
+    case 'Q':
+      androidApiLevel = 29;
+      targetType = 'ANDROID';
+      break;
+    case 'P':
+      androidApiLevel = 28;
+      targetType = 'ANDROID';
+      break;
     default:
+      androidApiLevel = 26;
       targetType = 'ANDROID';
   }
-  const targetInfo: TargetInfo = {targetType, osVersion: target.os, name: ''};
+
+  let targetInfo: TargetInfo;
+  if (targetType == 'ANDROID') {
+    targetInfo = {
+      targetType,
+      androidApiLevel: assertExists(androidApiLevel),
+      name: '',
+    };
+  } else {
+    targetInfo = {targetType, name: ''};
+  }
+
   return genTraceConfig(uiCfg, targetInfo);
 }
 
