@@ -96,8 +96,9 @@ class PERFETTO_EXPORT_COMPONENT BaseTrackEventInternedDataIndex {
 struct TrackEventTlsState {
   template <typename TraceContext>
   explicit TrackEventTlsState(const TraceContext& trace_context);
-  bool filter_debug_annotations = false;
   bool enable_thread_time_sampling = false;
+  bool filter_debug_annotations = false;
+  bool filter_dynamic_event_names = false;
   uint64_t timestamp_unit_multiplier = 1;
   uint32_t default_clock;
 };
@@ -183,10 +184,12 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
                                 const Category& category);
 
   static void WriteEventName(perfetto::DynamicString event_name,
-                             perfetto::EventContext& event_ctx);
+                             perfetto::EventContext& event_ctx,
+                             const TrackEventTlsState&);
 
   static void WriteEventName(perfetto::StaticString event_name,
-                             perfetto::EventContext& event_ctx);
+                             perfetto::EventContext& event_ctx,
+                             const TrackEventTlsState&);
 
   static perfetto::EventContext WriteEvent(
       TraceWriterBase*,
@@ -297,6 +300,7 @@ TrackEventTlsState::TrackEventTlsState(const TraceContext& trace_context) {
     const auto& config = locked_ds->GetConfig();
     disable_incremental_timestamps = config.disable_incremental_timestamps();
     filter_debug_annotations = config.filter_debug_annotations();
+    filter_dynamic_event_names = config.filter_dynamic_event_names();
     enable_thread_time_sampling = config.enable_thread_time_sampling();
     if (config.has_timestamp_unit_multiplier()) {
       timestamp_unit_multiplier = config.timestamp_unit_multiplier();
