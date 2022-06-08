@@ -122,6 +122,8 @@ base::Optional<uint32_t> SliceTracker::AddArgs(TrackId track_id,
       MatchingIncompleteSliceIndex(stack, name, category);
   if (!stack_idx.has_value())
     return base::nullopt;
+  PERFETTO_DCHECK(*stack_idx < stack.size());
+
   uint32_t slice_idx = stack[*stack_idx].row;
   PERFETTO_DCHECK(slices->dur()[slice_idx] == kPendingDuration);
   // Add args to current pending slice.
@@ -227,12 +229,14 @@ base::Optional<SliceId> SliceTracker::CompleteSlice(
   if (!stack_idx)
     return base::nullopt;
 
-  const auto& slice_info = stack[stack_idx.value()];
+  PERFETTO_DCHECK(*stack_idx < stack.size());
+
+  auto& slice_info = stack[stack_idx.value()];
   uint32_t slice_idx = slice_info.row;
   PERFETTO_DCHECK(slices->dur()[slice_idx] == kPendingDuration);
   slices->mutable_dur()->Set(slice_idx, timestamp - slices->ts()[slice_idx]);
 
-  ArgsTracker* tracker = &stack[stack_idx.value()].args_tracker;
+  ArgsTracker* tracker = &slice_info.args_tracker;
   if (args_callback) {
     auto bound_inserter = tracker->AddArgsTo(slices->id()[slice_idx]);
     args_callback(&bound_inserter);

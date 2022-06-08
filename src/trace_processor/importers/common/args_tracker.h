@@ -92,7 +92,13 @@ class ArgsTracker {
   };
 
   explicit ArgsTracker(TraceProcessorContext*);
-  ArgsTracker(const ArgsTracker&) = default;
+
+  ArgsTracker(const ArgsTracker&) = delete;
+  ArgsTracker& operator=(const ArgsTracker&) = delete;
+
+  ArgsTracker(ArgsTracker&&) = default;
+  ArgsTracker& operator=(ArgsTracker&&) = default;
+
   virtual ~ArgsTracker();
 
   BoundInserter AddArgsTo(RawId id) {
@@ -158,7 +164,7 @@ class ArgsTracker {
               UpdatePolicy);
 
   base::SmallVector<GlobalArgsTracker::Arg, 16> args_;
-  TraceProcessorContext* const context_;
+  TraceProcessorContext* context_ = nullptr;
 
   using ArrayKeyTuple =
       std::tuple<Column* /*arg_set_id*/, uint32_t /*row*/, StringId /*key*/>;
