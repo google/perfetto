@@ -306,7 +306,7 @@ PERFETTO_DEFINE_TEST_CATEGORY_PREFIXES(
 
 Ideally all event name should be compile time string constants. For example:
 
-```C+++
+```C++
 TRACE_EVENT_BEGIN("rendering", "DrawGame");
 ```
 
