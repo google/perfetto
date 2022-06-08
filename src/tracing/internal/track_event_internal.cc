@@ -439,8 +439,9 @@ TrackEventInternal::NewTracePacket(TraceWriterBase* trace_writer,
 
 // static
 void TrackEventInternal::WriteEventName(StaticString event_name,
-                                        perfetto::EventContext& event_ctx) {
-  if (event_name.value) {
+                                        perfetto::EventContext& event_ctx,
+                                        const TrackEventTlsState&) {
+  if (PERFETTO_LIKELY(event_name.value != nullptr)) {
     size_t name_iid = InternedEventName::Get(&event_ctx, event_name.value);
     event_ctx.event()->set_name_iid(name_iid);
   }
@@ -448,8 +449,11 @@ void TrackEventInternal::WriteEventName(StaticString event_name,
 
 // static
 void TrackEventInternal::WriteEventName(perfetto::DynamicString event_name,
-                                        perfetto::EventContext& event_ctx) {
-  event_ctx.event()->set_name(event_name.value, event_name.length);
+                                        perfetto::EventContext& event_ctx,
+                                        const TrackEventTlsState& tls_state) {
+  if (PERFETTO_LIKELY(!tls_state.filter_dynamic_event_names)) {
+    event_ctx.event()->set_name(event_name.value, event_name.length);
+  }
 }
 
 // static
