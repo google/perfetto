@@ -518,7 +518,8 @@ class TrackEventDataSource
             // event name should be emitted with `TRACE_EVENT_BEGIN` macros
             // but not with `TRACE_EVENT_END`.
             if (type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
-              TrackEventInternal::WriteEventName(event_name, event_ctx);
+              TrackEventInternal::WriteEventName(event_name, event_ctx,
+                                                 tls_state);
             }
             // Write dynamic categories (except for events that don't require
             // categories). For counter events, the counter name (and optional
