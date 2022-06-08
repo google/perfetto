@@ -7795,6 +7795,9 @@ message ChromeFrameReporter {
 
   // The id of layer_tree_host that the frame has been produced for.
   optional uint64 layer_tree_host_id = 11;
+
+  // If total latency of PipelineReporter exceeds a certain limit.
+  optional bool has_high_latency = 12;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_frame_reporter.proto
