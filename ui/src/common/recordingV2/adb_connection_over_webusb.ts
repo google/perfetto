@@ -20,6 +20,7 @@ import {CmdType} from '../../controller/adb_interfaces';
 
 import {findInterfaceAndEndpoint} from './adb_over_webusb_utils';
 import {AdbKey} from './auth/adb_auth';
+import {wrapRecordingError} from './recording_error_handling';
 import {
   AdbConnection,
   ByteStream,
@@ -119,7 +120,7 @@ export class AdbConnectionOverWebusb implements AdbConnection {
     }
 
     if (this.state === AdbState.DISCONNECTED) {
-      await this.device.open();
+      await this.wrapUsb(this.device.open());
       // Setup USB endpoint.
       const interfaceAndEndpoint = findInterfaceAndEndpoint(this.device);
       const {configurationValue, usbInterfaceNumber, endpoints} =
@@ -129,19 +130,8 @@ export class AdbConnectionOverWebusb implements AdbConnection {
       this.usbWriteEpEndpoint = this.findEndpointNumber(endpoints, 'out');
       assertTrue(this.usbReadEndpoint >= 0 && this.usbWriteEpEndpoint >= 0);
 
-      await this.device.selectConfiguration(configurationValue);
-      try {
-        // This can throw if the user is also running adb on the machine.
-        // The adb server takes control over the same USB endpoint.
-        await this.device.claimInterface(usbInterfaceNumber);
-      } catch (e) {
-        // Here, we are unable to claim the interface so we don't need to
-        // disconnect. However, we signal to the code that the connection ended.
-        this.onDisconnect('Unable to claim adb interface.');
-        // TODO(octaviant) from aosp/1918377 - look at handling adb errors
-        // uniformly in the adb logic
-        throw e;
-      }
+      await this.wrapUsb(this.device.selectConfiguration(configurationValue));
+      await this.wrapUsb(this.device.claimInterface(usbInterfaceNumber));
     }
 
     await this.startAdbAuth();
@@ -181,12 +171,31 @@ export class AdbConnectionOverWebusb implements AdbConnection {
   }
 
   // We disconnect in 2 cases:
-  // 1.When we close the last stream of the connection. This is to prevent the
+  // 1. When we close the last stream of the connection. This is to prevent the
   // browser holding onto the USB interface after having finished a trace
   // recording, which would make it impossible to use "adb shell" from the same
-  // machine until the browser is closed. 2.When we get a USB disconnect event.
+  // machine until the browser is closed.
+  // 2. When we get a USB disconnect event.
   // This happens for instance when the device is unplugged.
   async disconnect(disconnectMessage?: string): Promise<void> {
+    if (this.state === AdbState.DISCONNECTED) {
+      return;
+    }
+    // Clear the resources in a synchronous method, because this can be used
+    // for error handling callbacks as well.
+    this.reachDisconnectState(disconnectMessage);
+
+    // We have already disconnected so there is no need to pass a callback
+    // which clears resources or notifies the user into 'wrapRecordingError'.
+    await wrapRecordingError(
+        this.device.releaseInterface(assertExists(this.usbInterfaceNumber)),
+        () => {});
+    this.usbInterfaceNumber = undefined;
+  }
+
+  // This is a synchronous method which clears all resources.
+  // It can be used as a callback for error handling.
+  reachDisconnectState(disconnectMessage?: string): void {
     if (this.state === AdbState.DISCONNECTED) {
       return;
     }
@@ -199,17 +208,10 @@ export class AdbConnectionOverWebusb implements AdbConnection {
           `Failed to open stream with id ${id} because adb was disconnected.`);
     }
     this.connectingStreams.clear();
+    this.writeQueue = [];
 
     this.streams.forEach((stream) => stream.close());
     this.onDisconnect(disconnectMessage);
-
-    try {
-      await this.device.releaseInterface(assertExists(this.usbInterfaceNumber));
-    } catch (_) {
-      // We may not be able to release the interface because the device has been
-      // already disconnected.
-    }
-    this.usbInterfaceNumber = undefined;
   }
 
   private async startAdbAuth(): Promise<void> {
@@ -233,14 +235,20 @@ export class AdbConnectionOverWebusb implements AdbConnection {
     assertFalse(this.isUsbReceiveLoopRunning);
     this.isUsbReceiveLoopRunning = true;
     for (; this.state !== AdbState.DISCONNECTED;) {
-      const res =
-          await this.device.transferIn(this.usbReadEndpoint, ADB_MSG_SIZE);
+      const res = await this.wrapUsb(
+          this.device.transferIn(this.usbReadEndpoint, ADB_MSG_SIZE));
+      if (!res) {
+        return;
+      }
       assertTrue(res.status === 'ok');
 
       const msg = AdbMsg.decodeHeader(res.data!);
       if (msg.dataLen > 0) {
-        const resp =
-            await this.device.transferIn(this.usbReadEndpoint, msg.dataLen);
+        const resp = await this.wrapUsb(
+            this.device.transferIn(this.usbReadEndpoint, msg.dataLen));
+        if (!resp) {
+          return;
+        }
         msg.data = new Uint8Array(
             resp.data!.buffer, resp.data!.byteOffset, resp.data!.byteLength);
       }
@@ -378,13 +386,17 @@ export class AdbConnectionOverWebusb implements AdbConnection {
         msgHeader.length <= this.maxPayload &&
         msgData.length <= this.maxPayload);
 
-    const sendPromises =
-        [this.device.transferOut(this.usbWriteEpEndpoint, msgHeader.buffer)];
+    const sendPromises = [this.wrapUsb(
+        this.device.transferOut(this.usbWriteEpEndpoint, msgHeader.buffer))];
     if (msg.data.length > 0) {
-      sendPromises.push(
-          this.device.transferOut(this.usbWriteEpEndpoint, msgData.buffer));
+      sendPromises.push(this.wrapUsb(
+          this.device.transferOut(this.usbWriteEpEndpoint, msgData.buffer)));
     }
     await Promise.all(sendPromises);
+  }
+
+  private wrapUsb<T>(promise: Promise<T>): Promise<T|undefined> {
+    return wrapRecordingError(promise, this.reachDisconnectState.bind(this));
   }
 }
 

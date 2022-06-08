@@ -42,18 +42,6 @@ export function maybeShowErrorDialog(errLog: string) {
     return;
   }
 
-  if (errLog.includes('Unable to claim interface')) {
-    showWebUSBError();
-    timeLastReport = now;
-  }
-
-  if (errLog.includes('A transfer error has occurred') ||
-      errLog.includes('The device was disconnected') ||
-      errLog.includes('The transfer was cancelled')) {
-    showConnectionLostError();
-    timeLastReport = now;
-  }
-
   if (errLog.includes('(ERR:fmt)')) {
     showUnknownFileError();
     return;
@@ -247,7 +235,7 @@ function showUnknownFileError() {
   });
 }
 
-function showWebUSBError() {
+export function showWebUSBError() {
   showModal({
     title: 'A WebUSB error occurred',
     content: m(
@@ -264,15 +252,25 @@ function showWebUSBError() {
   });
 }
 
-// TODO(octaviant) from aosp/1918377 - look at handling adb errors
-// uniformly in the adb logic
-function showConnectionLostError(): void {
+export function showConnectionLostError(): void {
   showModal({
     title: 'Connection with the ADB device lost',
     content: m(
         'div',
         m('span', `Please connect the device again to restart the recording.`),
         m('br')),
+    buttons: [],
+  });
+}
+
+export function showNoDeviceSelected(): void {
+  showModal({
+    title: 'No device was selected for recording',
+    content:
+        m('div',
+          m('span', `If you want to connect to an ADB device,
+           please select it from the list.`),
+          m('br')),
     buttons: [],
   });
 }
