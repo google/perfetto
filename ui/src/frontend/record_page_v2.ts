@@ -251,16 +251,11 @@ function RecordingNotes() {
         notes.push(msgLinux);
         break;
       case 'ANDROID': {
-        switch (targetInfo.osVersion) {
-          case 'Q':
-            break;
-          case 'P':
-            notes.push(m('.note', msgFeatNotSupported, msgSideload));
-            break;
-          case 'O':
-            notes.push(m('.note', msgPerfettoNotSupported, msgSideload));
-            break;
-          default:
+        if (targetInfo.androidApiLevel == 28) {
+          notes.push(m('.note', msgFeatNotSupported, msgSideload));
+        } else if (
+            targetInfo.androidApiLevel && targetInfo.androidApiLevel <= 27) {
+          notes.push(m('.note', msgPerfettoNotSupported, msgSideload));
         }
         break;
       }
@@ -296,7 +291,8 @@ function getRecordCommand(targetInfo: TargetInfo): string {
   const pbBase64 = data ? data.configProtoBase64 : '';
   const pbtx = data ? data.configProtoText : '';
   let cmd = '';
-  if (targetInfo.osVersion === 'P') {
+  if (targetInfo.targetType === 'ANDROID' &&
+      targetInfo.androidApiLevel === 28) {
     cmd += `echo '${pbBase64}' | \n`;
     cmd += 'base64 --decode | \n';
     cmd += 'adb shell "perfetto -c - -o /data/misc/perfetto-traces/trace"\n';
