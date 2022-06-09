@@ -13,7 +13,6 @@
 // limitations under the License.
 
 
-import {assertExists} from '../../base/logging';
 import {base64Encode} from '../../base/string_utils';
 import {RecordConfig} from '../../controller/record_config_types';
 import {
@@ -125,7 +124,7 @@ export function genTraceConfig(
     procThreadAssociationFtrace = true;
     uiCfg.ftrace = true;
     if (targetInfo.targetType === 'ANDROID' &&
-        assertExists(targetInfo.osVersion) >= 'S') {
+        targetInfo.androidApiLevel >= 31) {
       uiCfg.symbolizeKsyms = true;
     }
     ftraceEvents.add('sched/sched_switch');
@@ -548,7 +547,7 @@ export function genTraceConfig(
 
     let ftraceEventsArray: string[] = [];
     if (targetInfo.targetType === 'ANDROID' &&
-        assertExists(targetInfo.osVersion) === 'P') {
+        targetInfo.androidApiLevel === 28) {
       for (const ftraceEvent of ftraceEvents) {
         // On P, we don't support groups so strip all group names from ftrace
         // events.
@@ -573,7 +572,7 @@ export function genTraceConfig(
     ds.config.ftraceConfig.atraceApps = Array.from(atraceApps);
 
     if (targetInfo.targetType === 'ANDROID' &&
-        assertExists(targetInfo.osVersion) >= 'S') {
+        targetInfo.androidApiLevel >= 31) {
       const compact = new FtraceConfig.CompactSchedConfig();
       compact.enabled = true;
       ds.config.ftraceConfig.compactSched = compact;
