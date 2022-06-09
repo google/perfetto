@@ -23,6 +23,10 @@ import {
   RecordingConfigUtils,
 } from '../common/recordingV2/recording_config_utils';
 import {
+  showRecordingModal,
+  wrapRecordingError,
+} from '../common/recordingV2/recording_error_handling';
+import {
   OnTargetChangedCallback,
   RecordingTargetV2,
   TargetInfo,
@@ -121,19 +125,13 @@ function RecordingPlatformSelection() {
 }
 
 async function addAndroidDevice(): Promise<void> {
-  try {
-    recordingTargetV2 =
-        await targetFactoryRegistry.get(ANDROID_WEBUSB_TARGET_FACTORY)
-            .connectNewTarget();
+  const target = await wrapRecordingError(
+      targetFactoryRegistry.get(ANDROID_WEBUSB_TARGET_FACTORY)
+          .connectNewTarget(),
+      (message) => showRecordingModal(message));
+  if (target) {
+    recordingTargetV2 = target;
     globals.rafScheduler.scheduleFullRedraw();
-  } catch (e) {
-    if (e.name === 'NotFoundError') {
-      const errorMessage = `No device found. ${e.name}: ${e.message}`;
-      console.error(errorMessage);
-      alert(errorMessage);
-    } else {
-      throw e;
-    }
   }
 }
 
@@ -357,8 +355,7 @@ function StopCancelButtons() {
               }
               session.stop();
             });
-            tracingSession = undefined;
-            globals.dispatch(Actions.setRecordingStatus({status: undefined}));
+            clearRecordingState();
           },
         },
         'Stop');
@@ -368,10 +365,7 @@ function StopCancelButtons() {
         {
           onclick: async () => {
             assertExists(tracingSession).then((session) => session.cancel());
-            tracingSession = undefined;
-            globals.dispatch(
-                Actions.setLastRecordingError({error: 'Recording cancelled.'}));
-            publishBufferUsage({percentage: 0});
+            clearRecordingState();
           },
         },
         'Cancel');
@@ -394,20 +388,17 @@ async function onStartRecordingPressed(): Promise<void> {
     globals.logging.logEvent(
         'Record Trace',
         `Record trace (${targetInfo.targetType}${targetInfo.targetType})`);
-    Actions.setLastRecordingError({error: undefined});
 
     const traceConfig =
         genTraceConfig(globals.state.recordConfig, recordingTargetV2.getInfo());
 
     const onTraceData = (trace: Uint8Array) => {
-      publishBufferUsage({percentage: 0});
+      clearRecordingState();
       globals.dispatch(Actions.openTraceFromBuffer({
         title: 'Recorded trace',
         buffer: trace.buffer,
         fileName: `recorded_trace${TRACE_SUFFIX}`,
       }));
-      tracingSession = undefined;
-      globals.dispatch(Actions.setRecordingStatus({status: undefined}));
     };
 
     const onStatus = (message: string) => {
@@ -415,17 +406,15 @@ async function onStartRecordingPressed(): Promise<void> {
     };
 
     const onDisconnect = (errorMessage?: string) => {
-      publishBufferUsage({percentage: 0});
-      tracingSession = undefined;
+      clearRecordingState();
       if (errorMessage) {
-        globals.dispatch(Actions.setLastRecordingError({error: errorMessage}));
+        showRecordingModal(errorMessage);
       }
     };
 
     const onError = (message: string) => {
-      publishBufferUsage({percentage: 0});
-      globals.dispatch(
-          Actions.setLastRecordingError({error: message.substr(0, 150)}));
+      clearRecordingState();
+      showRecordingModal(message);
     };
 
     const tracingSessionListener =
@@ -440,6 +429,7 @@ async function onStartRecordingPressed(): Promise<void> {
       }
       tracingSession.start(traceConfig);
     });
+    wrapRecordingError(tracingSession, onError);
   }
 }
 
@@ -447,6 +437,12 @@ function recordingLog() {
   const logs = globals.recordingLog;
   if (logs === undefined) return [];
   return m('.code-snippet.no-top-bar', m('code', logs));
+}
+
+function clearRecordingState() {
+  publishBufferUsage({percentage: 0});
+  globals.dispatch(Actions.setRecordingStatus({status: undefined}));
+  tracingSession = undefined;
 }
 
 function recordMenu(routePage: string) {

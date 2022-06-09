@@ -468,7 +468,7 @@ class AbstractConstRowReference {
 
 // Defines the accessor for the column value in the RowReference.
 #define PERFETTO_TP_TABLE_ROW_REF_SETTER(type, name, ...)          \
-  void set_##name(TypedColumn<type>::non_optional_type v) const {  \
+  void set_##name(TypedColumn<type>::non_optional_type v) {        \
     return mutable_table()->mutable_##name()->Set(row_number_, v); \
   }
 
@@ -641,7 +641,7 @@ class AbstractConstRowReference {
     class RowReference : public ConstRowReference {                           \
      public:                                                                  \
       RowReference(class_name* table, uint32_t row_number)                    \
-          : ConstRowReference(table, row_number) {}                           \
+          : ConstRowReference(table, row_number), mutable_table_(table) {}    \
                                                                               \
       /*                                                                      \
        * Expands to                                                           \
@@ -651,9 +651,9 @@ class AbstractConstRowReference {
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_ROW_REF_SETTER)          \
                                                                               \
      private:                                                                 \
-      class_name* mutable_table() const {                                     \
-        return const_cast<class_name*>(table_);                               \
-      }                                                                       \
+      class_name* mutable_table() { return mutable_table_; }                  \
+                                                                              \
+      class_name* mutable_table_ = nullptr;                                   \
     };                                                                        \
     static_assert(std::is_trivially_destructible<RowReference>::value,        \
                   "Inheritance used without trivial destruction");            \
