@@ -86,6 +86,7 @@ const cfg = {
   httpServerListenHost: '127.0.0.1',
   httpServerListenPort: 10000,
   wasmModules: ['trace_processor', 'traceconv'],
+  testFilter: '',
 
   // The fields below will be changed by main() after cmdline parsing.
   // Directory structure:
@@ -141,6 +142,9 @@ async function main() {
   parser.addArgument(['--interactive', '-i'], {action: 'storeTrue'});
   parser.addArgument(['--rebaseline', '-r'], {action: 'storeTrue'});
   parser.addArgument(['--no-depscheck'], {action: 'storeTrue'});
+  parser.addArgument(
+      ['--test-filter', '-f'],
+      {help: 'filter Jest tests by regex, e.g. \'chrome_render\''});
 
   const args = parser.parseArgs();
   const clean = !args.no_build;
@@ -153,6 +157,7 @@ async function main() {
   cfg.outDistDir = ensureDir(pjoin(cfg.outDistRootDir, cfg.version));
   cfg.outTscDir = ensureDir(pjoin(cfg.outUiDir, 'tsc'));
   cfg.outGenDir = ensureDir(pjoin(cfg.outUiDir, 'tsc/gen'));
+  cfg.testFilter = args.test_filter || '';
   cfg.watch = !!args.watch;
   cfg.verbose = !!args.verbose;
   cfg.debug = !!args.debug;
@@ -267,6 +272,9 @@ function runTests(cfgFile) {
     '--projects',
     pjoin(ROOT_DIR, 'ui/config', cfgFile),
   ];
+  if (cfg.testFilter.length > 0) {
+    args.push('-t', cfg.testFilter);
+  }
   if (cfg.watch) {
     args.push('--watchAll');
     addTask(execNode, ['jest', args, {async: true}]);
