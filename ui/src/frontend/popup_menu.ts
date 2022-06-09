@@ -107,7 +107,7 @@ export class PopupMenuButton implements m.ClassComponent<PopupMenuButtonAttrs> {
         m(this.popupShown ? '.popup-menu.opened' : '.popup-menu.closed',
           vnode.attrs.items.map(
               (item) =>
-                  m('button',
+                  m('button.open-menu',
                     {
                       onclick: () => {
                         item.callback();
