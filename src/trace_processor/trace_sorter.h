@@ -99,6 +99,7 @@ class TraceSorter {
   TraceSorter(TraceProcessorContext* context,
               std::unique_ptr<TraceParser> parser,
               SortingMode);
+  ~TraceSorter();
 
   inline void PushTracePacket(int64_t timestamp,
                               PacketSequenceState* state,
@@ -314,23 +315,37 @@ class TraceSorter {
     global_max_ts_ = std::max(global_max_ts_, queue->max_ts_);
   }
 
-  template <typename T>
-  void ParseTracePacket(size_t queue_idx,
-                        const TimestampedDescriptor& ts_desc) {
-    if (queue_idx == 0) {
-      // queues_[0] is for non-ftrace packets.
-      parser_->ParseTracePacket(
-          ts_desc.ts,
-          TimestampedTracePiece(ts_desc.ts, variadic_queue_.Evict<T>(
-                                                ts_desc.descriptor.offset())));
-    } else {
-      // Ftrace queues start at offset 1. So queues_[1] = cpu[0] and so on.
-      uint32_t cpu = static_cast<uint32_t>(queue_idx - 1);
-      parser_->ParseFtracePacket(
-          cpu, ts_desc.ts,
-          TimestampedTracePiece(ts_desc.ts, variadic_queue_.Evict<T>(
-                                                ts_desc.descriptor.offset())));
+  TimestampedTracePiece EvictVariadicAsTtp(
+      const TimestampedDescriptor& ts_desc) {
+    switch (ts_desc.descriptor.type()) {
+      case Type::kInlineSchedSwitch:
+        return EvictTypedVariadicAsTtp<InlineSchedSwitch>(ts_desc);
+      case Type::kInlineSchedWaking:
+        return EvictTypedVariadicAsTtp<InlineSchedWaking>(ts_desc);
+      case Type::kFtraceEvent:
+        return EvictTypedVariadicAsTtp<FtraceEventData>(ts_desc);
+      case Type::kTracePacket:
+        return EvictTypedVariadicAsTtp<TracePacketData>(ts_desc);
+      case Type::kTrackEvent:
+        return EvictTypedVariadicAsTtp<std::unique_ptr<TrackEventData>>(
+            ts_desc);
+      case Type::kFuchsiaRecord:
+        return EvictTypedVariadicAsTtp<std::unique_ptr<FuchsiaRecord>>(ts_desc);
+      case Type::kJsonValue:
+        return EvictTypedVariadicAsTtp<std::string>(ts_desc);
+      case Type::kSystraceLine:
+        return EvictTypedVariadicAsTtp<std::unique_ptr<SystraceLine>>(ts_desc);
+      case Type::kInvalid:
+        PERFETTO_FATAL("Invalid TimestampedTracePiece type");
     }
+    PERFETTO_FATAL("For GCC");
+  }
+
+  template <typename T>
+  TimestampedTracePiece EvictTypedVariadicAsTtp(
+      const TimestampedDescriptor& ts_desc) {
+    return TimestampedTracePiece(
+        ts_desc.ts, variadic_queue_.Evict<T>(ts_desc.descriptor.offset()));
   }
 
   void MaybePushEvent(size_t queue_idx, const TimestampedDescriptor& ts_desc)
