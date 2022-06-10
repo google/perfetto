@@ -193,16 +193,29 @@ export const StateActions = {
 
   fillUiTrackIdByTraceTrackId(
       state: StateDraft, trackState: TrackState, uiTrackId: string) {
+    const namespace = (trackState.config as {namespace?: string}).namespace;
+    if (namespace !== undefined) return;
+
+    const setUiTrackId = (trackId: number, uiTrackId: string) => {
+      if (state.uiTrackIdByTraceTrackId[trackId] !== undefined &&
+          state.uiTrackIdByTraceTrackId[trackId] !== uiTrackId) {
+        throw new Error(`Trying to map track id ${trackId} to UI track ${
+            uiTrackId}, already mapped to ${
+            state.uiTrackIdByTraceTrackId[trackId]}`);
+      }
+      state.uiTrackIdByTraceTrackId[trackId] = uiTrackId;
+    };
+
     const config = trackState.config as {trackId: number};
     if (config.trackId !== undefined) {
-      state.uiTrackIdByTraceTrackId[config.trackId] = uiTrackId;
+      setUiTrackId(config.trackId, uiTrackId);
       return;
     }
 
     const multiple = trackState.config as {trackIds: number[]};
     if (multiple.trackIds !== undefined) {
       for (const trackId of multiple.trackIds) {
-        state.uiTrackIdByTraceTrackId[trackId] = uiTrackId;
+        setUiTrackId(trackId, uiTrackId);
       }
     }
   },

@@ -32,7 +32,3 @@ SELECT RUN_METRIC(
     'gesture_end', 'GestureScrollEnd',
     'id_field', 'gesture_scroll_id',
     'proto_name', 'ScrollJank');
-
--- TODO(b/200149773): Remove this once chrometto no longer depends on it.
-DROP VIEW IF EXISTS gesture_scroll_update;
-CREATE VIEW gesture_scroll_update AS SELECT * FROM gesture_scroll_id_update;
