@@ -678,25 +678,24 @@ class TrackEventParser::EventImporter {
     auto opt_slice_id = context_->slice_tracker->End(
         ts_, track_id_, category_id_, name_id_,
         [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
-    if (!opt_slice_id)
-      return util::OkStatus();
-
-    auto* thread_slices = storage_->mutable_thread_slice_table();
-    tables::ThreadSliceTable::RowReference row_ref =
-        *thread_slices->FindById(*opt_slice_id);
-
-    auto tts = row_ref.thread_ts();
-    if (tts) {
-      PERFETTO_DCHECK(event_data_->thread_timestamp);
-      row_ref.set_thread_dur(*event_data_->thread_timestamp - *tts);
+    if (opt_slice_id.has_value()) {
+      auto* thread_slices = storage_->mutable_thread_slice_table();
+      auto maybe_row = thread_slices->id().IndexOf(*opt_slice_id);
+      PERFETTO_DCHECK(maybe_row.has_value());
+      auto tts = thread_slices->thread_ts()[*maybe_row];
+      if (tts) {
+        PERFETTO_DCHECK(event_data_->thread_timestamp);
+        thread_slices->mutable_thread_dur()->Set(
+            *maybe_row, *event_data_->thread_timestamp - *tts);
+      }
+      auto tic = thread_slices->thread_instruction_count()[*maybe_row];
+      if (tic) {
+        PERFETTO_DCHECK(event_data_->thread_instruction_count);
+        thread_slices->mutable_thread_instruction_delta()->Set(
+            *maybe_row, *event_data_->thread_instruction_count - *tic);
+      }
+      MaybeParseFlowEvents(opt_slice_id.value());
     }
-    auto tic = row_ref.thread_instruction_count();
-    if (tic) {
-      PERFETTO_DCHECK(event_data_->thread_instruction_count);
-      row_ref.set_thread_instruction_delta(
-          *event_data_->thread_instruction_count - *tic);
-    }
-    MaybeParseFlowEvents(opt_slice_id.value());
 
     return util::OkStatus();
   }
