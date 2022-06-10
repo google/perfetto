@@ -58,7 +58,16 @@ export function postMessageHandler(messageEvent: MessageEvent) {
 
   const fromOpener = messageEvent.source === window.opener;
   const fromIframeHost = messageEvent.source === window.parent;
-  if (messageEvent.source === null || !(fromOpener || fromIframeHost)) {
+  // This adds support for the folowing flow:
+  // * A (page that whats to open a trace in perfetto) opens B
+  // * B (does something to get the traceBuffer)
+  // * A is navigated to Perfetto UI
+  // * B sends the traceBuffer to A
+  // * closes itself
+  const fromOpenee = (messageEvent.source as WindowProxy).opener === window;
+
+  if (messageEvent.source === null ||
+      !(fromOpener || fromIframeHost || fromOpenee)) {
     // This can happen if an extension tries to postMessage.
     return;
   }
