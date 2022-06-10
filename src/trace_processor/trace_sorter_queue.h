@@ -32,6 +32,20 @@ static constexpr uint32_t kDefaultSize = 1 * 1024 * 1024;  // 1MB
 class VariadicQueue {
  public:
   VariadicQueue() : VariadicQueue(kDefaultSize) {}
+  ~VariadicQueue() {
+    // These checks verify that we evicted all elements from this queue. This is
+    // important as we need to call the destructor to make sure we're not
+    // leaking memory.
+    FreeMemory();
+    PERFETTO_CHECK(mem_blocks_.size() == 1);
+    PERFETTO_CHECK(mem_blocks_.back().empty());
+  }
+
+  VariadicQueue(const VariadicQueue&) = delete;
+  VariadicQueue& operator=(const VariadicQueue&) = delete;
+
+  VariadicQueue(VariadicQueue&&) = default;
+  VariadicQueue& operator=(VariadicQueue&&) noexcept = default;
 
   // Moves TimestampedTracePiece data type to the end of the queue storage.
   template <typename T>
@@ -125,31 +139,31 @@ class VariadicQueue {
       char* ptr = reinterpret_cast<char*>(storage_.get()) + offset;
 #if PERFETTO_DCHECK_IS_ON()
       uint64_t size = *reinterpret_cast<uint64_t*>(ptr);
-      ptr += sizeof(uint64_t);
       PERFETTO_DCHECK(size == sizeof(T));
+      ptr += sizeof(uint64_t);
 #endif
       T* type_ptr = reinterpret_cast<T*>(ptr);
       T out(std::move(*type_ptr));
-      if (!std::is_trivially_destructible<T>::value) {
-        type_ptr->~T();
-      }
-
+      type_ptr->~T();
       num_elements_evicted_++;
       return out;
     }
 
     uint32_t offset() const { return offset_; }
-    bool empty() { return num_elements_ == num_elements_evicted_; }
+    bool empty() const { return num_elements_ == num_elements_evicted_; }
 
    private:
     static inline uint32_t RoundUpToPowerOf8(uint32_t offset) {
       return (offset + 7) & (~0u << 3);
     }
+
     uint32_t size_;
+    uint32_t offset_ = 0;
+
     uint32_t num_elements_ = 0;
     uint32_t num_elements_evicted_ = 0;
+
     base::AlignedUniquePtr<uint64_t> storage_;
-    uint32_t offset_ = 0;
   };
 
   explicit VariadicQueue(uint32_t block_size) : block_size_(block_size) {
@@ -162,8 +176,9 @@ class VariadicQueue {
            block_offset;
   }
 
-  const uint32_t block_size_ = kDefaultSize;
   std::deque<Block> mem_blocks_;
+
+  uint32_t block_size_ = kDefaultSize;
   uint32_t deleted_blocks_ = 0;
 };
 

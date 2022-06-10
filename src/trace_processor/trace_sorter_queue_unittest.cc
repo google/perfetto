@@ -52,7 +52,8 @@ TEST(VariadicQueueUnittest, AppendAfterEviction) {
       VariadicQueue::VariadicQueueForTesting(8 + RESERVED_SIZE_BYTES);
   auto offset = queue.Append<int64_t>(10);
   ASSERT_EQ(queue.Evict<int64_t>(offset), 10);
-  queue.Append<int64_t>(20);
+  offset = queue.Append<int64_t>(20);
+  ASSERT_EQ(queue.Evict<int64_t>(offset), 20);
 }
 
 TEST(VariadicQueueUnittest, FreeAllMemory) {
@@ -68,19 +69,21 @@ TEST(VariadicQueueUnittest, FreeAllMemory) {
 TEST(VariadicQueueUnittest, FreeMemoryPartially) {
   VariadicQueue queue =
       VariadicQueue::VariadicQueueForTesting(8 + RESERVED_SIZE_BYTES);
-  auto offset1 = queue.Append<int64_t>(10);
-  queue.Append<int64_t>(20);
+  uint32_t offset1 = queue.Append<int64_t>(10);
+  uint32_t offset2 = queue.Append<int64_t>(20);
   ASSERT_EQ(queue.Evict<int64_t>(offset1), 10);
+  queue.FreeMemory();
+  ASSERT_EQ(queue.Evict<int64_t>(offset2), 20);
   queue.FreeMemory();
 }
 
 TEST(VariadicQueueUnittest, AppendDifferentSizes) {
   VariadicQueue queue =
       VariadicQueue::VariadicQueueForTesting(8 + RESERVED_SIZE_BYTES);
-  auto offset_long_long = queue.Append<int64_t>(10);
-  auto offset_int = queue.Append<int32_t>(20);
-  auto offset_short = queue.Append<int16_t>(30);
-  auto offset_char = queue.Append<char>('s');
+  uint32_t offset_long_long = queue.Append<int64_t>(10);
+  uint32_t offset_int = queue.Append<int32_t>(20);
+  uint32_t offset_short = queue.Append<int16_t>(30);
+  uint32_t offset_char = queue.Append<char>('s');
   ASSERT_EQ(queue.Evict<int64_t>(offset_long_long), 10l);
   ASSERT_EQ(queue.Evict<int32_t>(offset_int), 20);
   ASSERT_EQ(queue.Evict<int16_t>(offset_short), static_cast<int16_t>(30));
