@@ -41,7 +41,7 @@ namespace trace_processor {
 // JOIN track ON track.id = slice.track_id;
 //
 // The corresponding C++ macro invocation would be:
-// #define PERFETTO_TP_SLICE_TRACK_VIEW_DEF(NAME, FROM, JOIN, COL)
+// #define PERFETTO_TP_SLICE_TRACK_VIEW_DEF(NAME, FROM, JOIN, COL, _)
 //   NAME(SliceWithTrackView, "slice_with_track")
 //   COL(id, slice, id)
 //   COL(ts, slice, ts)
@@ -49,7 +49,7 @@ namespace trace_processor {
 //   COL(name, slice, name)
 //   COL(track_id, slice, track_id)
 //   COL(track_name, track, name)
-//   FROM(SliceTable, slice, PERFETTO_TP_VIEW_NO_FROM_COLUMNS)
+//   FROM(SliceTable, slice)
 //   JOIN(TrackTable, track, id, slice, track_id, View::kIdAlwaysPresent)
 // PERFETTO_TP_DECLARE_VIEW(PERFETTO_TP_SLICE_TRACK_VIEW_DEF);
 //
@@ -58,12 +58,13 @@ namespace trace_processor {
 //
 // A shorter (and less error prone) version of the syntax, can be used if you
 // want to expose all the columns from the slice table. This involves passing
-// the table defintion macro for the slice table instead of
-// PERFETTO_TP_VIEW_NO_FROM_COLUMNS to the FROM macro:
-// #define PERFETTO_TP_SLICE_TRACK_VIEW_DEF(NAME, FROM, JOIN, COL)
+// the table defintion macro for the slice table to
+// PERFETTO_TP_VIEW_EXPORT_FROM_COLS along with the FCOL argument: #define
+// PERFETTO_TP_SLICE_TRACK_VIEW_DEF(NAME, FROM, JOIN, COL, FCOL)
 //   NAME(SliceWithTrackView, "slice_with_track")
+//   PERFETTO_TP_VIEW_EXPORT_FROM_COLS(PERFETTO_TP_SLICE_TABLE_DEF, FCOL)
 //   COL(track_name, track, name)
-//   FROM(SliceTable, slice, PERFETTO_TP_SLICE_TABLE_DEF)
+//   FROM(SliceTable, slice)
 //   JOIN(TrackTable, track, id, slice, track_id, View::kIdAlwaysPresent)
 // PERFETTO_TP_DECLARE_VIEW(PERFETTO_TP_SLICE_TRACK_VIEW_DEF);
 
@@ -74,12 +75,9 @@ namespace trace_processor {
 // definition is a function macro taking four arguments:
 // 1. NAME, a function macro taking two arguments: the name of the new class
 //    being defined and the name of the table when exposed to SQLite.
-// 2. FROM, a function macro taking 3 arguments:
+// 2. FROM, a function macro taking 2 arguments:
 //      a) the class name of the "root" table of this view
 //      b) the name of this table for use in the JOIN and COL macros (see below)
-//      c) the table defintion macro of the FROM table if columns should be
-//         automatically added or PERFETTO_TP_VIEW_NO_FROM_COLUMNS to instead
-//         explicitly define every column.
 // 3. JOIN, a function macro taking 6 arguments:
 //      a) the class name of the table which will be joined into this view on
 //         the "right" side of the join.
@@ -100,15 +98,22 @@ namespace trace_processor {
 //      c) the name of the column in the table this column is created from
 //    This macro should be invoked as many times as there are columns in the
 //    view.
+// 5. FCOL, an opaque macros which should be passed to
+//    PERFETTO_TP_VIEW_EXPORT_FROM_COLS if all the columns in the FROM table
+//    should be exposed in this view; see above for how this call should look
+//    like.
 #define PERFETTO_TP_DECLARE_VIEW(DEF)                            \
   PERFETTO_TP_VIEW_INTERNAL(                                     \
       PERFETTO_TP_VIEW_NAME(DEF, PERFETTO_TP_VIEW_NAME_EXTRACT), \
       PERFETTO_TP_VIEW_NAME(DEF, PERFETTO_TP_VIEW_CLASS_EXTRACT), DEF)
 
-// Macro used to supress automatically adding columns in the FROM column to
-// the view. Should be passed instead of the table defintion to the FROM
-// function macro when defining views.
-#define PERFETTO_TP_VIEW_NO_FROM_COLUMNS(...)
+// Macro used to automatically expose all the columns in the FROM table
+// in a view.
+// See the top of the file for how this should be used.
+#define PERFETTO_TP_VIEW_EXPORT_FROM_COLS(DEF, FCOL) \
+  FCOL(from_table::Id, id)                           \
+  FCOL(StringPool::Id, type)                         \
+  PERFETTO_TP_ALL_COLUMNS(DEF, FCOL)
 
 // Macro used to define destructors for C++ views.
 // See the top of the file for how this should be used.

@@ -41,18 +41,21 @@ PERFETTO_TP_TABLE(PERFETTO_TP_TEST_EVENT_TABLE_DEF);
 TestEventTable::~TestEventTable() = default;
 TestThreadTable::~TestThreadTable() = default;
 
-#define PERFETTO_TP_EVENT_VIEW_DEF(NAME, FROM, JOIN, COL)                     \
-  NAME(TestEventView, "event_view")                                           \
-  FROM(TestEventTable, event, PERFETTO_TP_TEST_EVENT_TABLE_DEF)               \
-  JOIN(TestThreadTable, thread, id, event, thread_id, View::kIdAlwaysPresent) \
-  COL(thread_name, thread, name)                                              \
-  COL(thread_start_ts, thread, start_ts)
+#define PERFETTO_TP_EVENT_VIEW_DEF(NAME, FROM, JOIN, COL, FCOL)             \
+  NAME(TestEventView, "event_view")                                         \
+  PERFETTO_TP_VIEW_EXPORT_FROM_COLS(PERFETTO_TP_TEST_EVENT_TABLE_DEF, FCOL) \
+  COL(thread_name, thread, name)                                            \
+  COL(thread_start_ts, thread, start_ts)                                    \
+  FROM(TestEventTable, event)                                               \
+  JOIN(TestThreadTable, thread, id, event, thread_id, View::kIdAlwaysPresent)
 PERFETTO_TP_DECLARE_VIEW(PERFETTO_TP_EVENT_VIEW_DEF);
 PERFETTO_TP_DEFINE_VIEW(TestEventView);
 
 TEST(ViewMacrosUnittest, ColIdx) {
   // Note: inlining these will cause myserious linker errors which don't have a
   // good explanation as to their cause.
+  static constexpr uint32_t id = TestEventView::ColumnIndex::id;
+  static constexpr uint32_t type = TestEventView::ColumnIndex::type;
   static constexpr uint32_t ts = TestEventView::ColumnIndex::ts;
   static constexpr uint32_t thread_id = TestEventView::ColumnIndex::thread_id;
   static constexpr uint32_t thread_name =
@@ -60,10 +63,12 @@ TEST(ViewMacrosUnittest, ColIdx) {
   static constexpr uint32_t thread_start_ts =
       TestEventView::ColumnIndex::thread_start_ts;
 
-  ASSERT_EQ(ts, 0u);
-  ASSERT_EQ(thread_id, 1u);
-  ASSERT_EQ(thread_name, 2u);
-  ASSERT_EQ(thread_start_ts, 3u);
+  ASSERT_EQ(id, 0u);
+  ASSERT_EQ(type, 1u);
+  ASSERT_EQ(ts, 2u);
+  ASSERT_EQ(thread_id, 3u);
+  ASSERT_EQ(thread_name, 4u);
+  ASSERT_EQ(thread_start_ts, 5u);
 }
 
 TEST(ViewMacrosUnittest, Schema) {
@@ -73,16 +78,23 @@ TEST(ViewMacrosUnittest, Schema) {
   TestEventView view{&event, &thread};
   auto schema = view.schema();
 
-  ASSERT_EQ(schema.columns.size(), 4u);
-  ASSERT_EQ(schema.columns[0].name, "ts");
-  ASSERT_TRUE(schema.columns[0].is_sorted);
+  ASSERT_EQ(schema.columns.size(), 6u);
 
-  ASSERT_EQ(schema.columns[1].name, "thread_id");
+  ASSERT_EQ(schema.columns[0].name, "id");
+  ASSERT_EQ(schema.columns[0].is_id, true);
+  ASSERT_EQ(schema.columns[0].is_sorted, true);
 
-  ASSERT_EQ(schema.columns[2].name, "thread_name");
+  ASSERT_EQ(schema.columns[1].name, "type");
 
-  ASSERT_EQ(schema.columns[3].name, "thread_start_ts");
-  ASSERT_FALSE(schema.columns[3].is_sorted);
+  ASSERT_EQ(schema.columns[2].name, "ts");
+  ASSERT_TRUE(schema.columns[2].is_sorted);
+
+  ASSERT_EQ(schema.columns[3].name, "thread_id");
+
+  ASSERT_EQ(schema.columns[4].name, "thread_name");
+
+  ASSERT_EQ(schema.columns[5].name, "thread_start_ts");
+  ASSERT_FALSE(schema.columns[5].is_sorted);
 }
 
 }  // namespace
