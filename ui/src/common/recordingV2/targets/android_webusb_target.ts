@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {assertExists} from '../../../base/logging';
-
 import {AdbConnectionOverWebusb} from '../adb_connection_over_webusb';
+import {AdbKeyManager} from '../auth/adb_key_manager';
 import {
   RecordingTargetV2,
   TargetInfo,
@@ -26,8 +26,8 @@ import {TracedTracingSession} from '../traced_tracing_session';
 export class AndroidWebusbTarget implements RecordingTargetV2 {
   private adbConnection: AdbConnectionOverWebusb;
 
-  constructor(private device: USBDevice) {
-    this.adbConnection = new AdbConnectionOverWebusb(device);
+  constructor(private device: USBDevice, keyManager: AdbKeyManager) {
+    this.adbConnection = new AdbConnectionOverWebusb(device, keyManager);
   }
 
   getInfo(): TargetInfo {

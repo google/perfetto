@@ -19,7 +19,7 @@ import {assertExists, assertFalse, assertTrue} from '../../base/logging';
 import {CmdType} from '../../controller/adb_interfaces';
 
 import {findInterfaceAndEndpoint} from './adb_over_webusb_utils';
-import {AdbKey} from './auth/adb_auth';
+import {AdbKeyManager, maybeStoreKey} from './auth/adb_key_manager';
 import {wrapRecordingError} from './recording_error_handling';
 import {
   AdbConnection,
@@ -40,9 +40,9 @@ export const DEFAULT_MAX_PAYLOAD_BYTES = 256 * 1024;
 export enum AdbState {
   DISCONNECTED = 0,
   // Authentication steps, see AdbConnectionOverWebUsb's handleAuthentication().
-  AUTH_STEP1 = 1,
-  AUTH_STEP2 = 2,
-  AUTH_STEP3 = 3,
+  AUTH_STARTED = 1,
+  AUTH_WITH_PRIVATE = 2,
+  AUTH_WITH_PUBLIC = 3,
 
   CONNECTED = 4,
 }
@@ -74,18 +74,6 @@ export class AdbConnectionOverWebusb implements AdbConnection {
   private writeInProgress = false;
   private writeQueue: WriteQueueElement[] = [];
 
-  // We use this key pair for authenticating with the device, which we do in
-  // two ways:
-  // - Firstly, signing with the private key.
-  // - Secondly, sending over the public key(at which point the device asks the
-  //   user for permissions).
-  // Once we've sent the public key, for future recordings we only need to
-  // sign with the private key, so the user doesn't need to give permissions
-  // again.
-  // TODO(octaviant): implement storing of the key so we can reuse it after
-  // the device is unplugged.
-  private key?: AdbKey;
-
   // Devices after Dec 2017 don't use checksum. This will be auto-detected
   // during the connection.
   private useChecksum = true;
@@ -103,7 +91,15 @@ export class AdbConnectionOverWebusb implements AdbConnection {
   onStatus: OnMessageCallback = () => {};
   onDisconnect: OnDisconnectCallback = (_) => {};
 
-  constructor(private device: USBDevice) {}
+  // We use a key pair for authenticating with the device, which we do in
+  // two ways:
+  // - Firstly, signing with the private key.
+  // - Secondly, sending over the public key (at which point the device asks the
+  //   user for permissions).
+  // Once we've sent the public key, for future recordings we only need to
+  // sign with the private key, so the user doesn't need to give permissions
+  // again.
+  constructor(private device: USBDevice, private keyManager: AdbKeyManager) {}
 
   async connectSocket(path: string): Promise<AdbOverWebusbStream> {
     await this.ensureConnectionEstablished();
@@ -217,7 +213,7 @@ export class AdbConnectionOverWebusb implements AdbConnection {
   private async startAdbAuth(): Promise<void> {
     const VERSION =
         this.useChecksum ? VERSION_WITH_CHECKSUM : VERSION_NO_CHECKSUM;
-    this.state = AdbState.AUTH_STEP1;
+    this.state = AdbState.AUTH_STARTED;
     await this.sendMessage('CNXN', VERSION, this.maxPayload, 'host:1:UsbADB');
   }
 
@@ -252,10 +248,12 @@ export class AdbConnectionOverWebusb implements AdbConnection {
         msg.data = new Uint8Array(
             resp.data!.buffer, resp.data!.byteOffset, resp.data!.byteLength);
       }
-      if (this.useChecksum) {
-        assertTrue(generateChecksum(msg.data) === msg.dataChecksum);
-      }
 
+      if (this.useChecksum && generateChecksum(msg.data) !== msg.dataChecksum) {
+        // We ignore messages with an invalid checksum. These sometimes appear
+        // when the page is re-loaded in a middle of a recording.
+        continue;
+      }
       // The server can still send messages streams for previous streams.
       // This happens for instance if we record, reload the recording page and
       // then record again. We can also receive a 'WRTE' or 'OKAY' after
@@ -269,7 +267,7 @@ export class AdbConnectionOverWebusb implements AdbConnection {
         continue;
       } else if (
           msg.cmd === 'AUTH' && msg.arg0 === AuthCmd.TOKEN &&
-          this.state === AdbState.AUTH_STEP3) {
+          this.state === AdbState.AUTH_WITH_PUBLIC) {
         // If we start a recording but fail because of a faulty physical
         // connection to the device, when we start a new recording, we will
         // received multiple AUTH tokens, of which we should ignore all but
@@ -281,33 +279,28 @@ export class AdbConnectionOverWebusb implements AdbConnection {
       if (msg.cmd === 'CLSE') {
         assertExists(this.getStreamForLocalStreamId(msg.arg1)).close();
       } else if (msg.cmd === 'AUTH' && msg.arg0 === AuthCmd.TOKEN) {
-        const token = msg.data;
-        if (this.state === AdbState.AUTH_STEP1) {
+        const key = await this.keyManager.getKey();
+        if (this.state === AdbState.AUTH_STARTED) {
           // During this step, we send back the token received signed with our
           // private key. If the device has previously received our public key,
-          // the dialog will not be displayed. Otherwise we will receive another
-          // message ending up in AUTH_STEP3.
-          this.state = AdbState.AUTH_STEP2;
-
-          if (!this.key) {
-            this.key = await AdbKey.GenerateNewKeyPair();
-          }
-          const signature = this.key.sign(token);
-          this.sendMessage('AUTH', AuthCmd.SIGNATURE, 0, signature);
+          // the dialog asking for user confirmation will not be displayed on
+          // the device.
+          this.state = AdbState.AUTH_WITH_PRIVATE;
+          await this.sendMessage(
+              'AUTH', AuthCmd.SIGNATURE, 0, key.sign(msg.data));
         } else {
-          // During this step, we send our public key. The dialog asking for
-          // authorisation will appear on device, and if the user chooses to
-          // remember our public key, it will be saved, so that the next time we
-          // will only pass through AUTH_STEP1.
-
-          this.state = AdbState.AUTH_STEP3;
-          const publicKey = assertExists(this.key).getPublicKey();
-          this.sendMessage('AUTH', AuthCmd.RSAPUBLICKEY, 0, publicKey + '\0');
+          // If our signature with the private key is not accepted by the
+          // device, we generate a new keypair and send the public key.
+          this.state = AdbState.AUTH_WITH_PUBLIC;
+          await this.sendMessage(
+              'AUTH', AuthCmd.RSAPUBLICKEY, 0, key.getPublicKey() + '\0');
           this.onStatus('Please allow USB debugging on device.');
+          await maybeStoreKey(key);
         }
       } else if (msg.cmd === 'CNXN') {
         assertTrue(
-            [AdbState.AUTH_STEP2, AdbState.AUTH_STEP3].includes(this.state));
+            [AdbState.AUTH_WITH_PRIVATE, AdbState.AUTH_WITH_PUBLIC].includes(
+                this.state));
         this.state = AdbState.CONNECTED;
         this.maxPayload = msg.arg1;
 
