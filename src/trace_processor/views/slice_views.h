@@ -28,11 +28,12 @@ namespace trace_processor {
 namespace views {
 
 // TODO(lalitm): add support in document generator for views.
-#define PERFETTO_TP_THREAD_SLICE_VIEW_DEF(NAME, FROM, JOIN, COL)            \
+#define PERFETTO_TP_THREAD_SLICE_VIEW_DEF(NAME, FROM, JOIN, COL, FCOL)      \
   NAME(ThreadSliceView, "exp_thread_slice")                                 \
+  PERFETTO_TP_VIEW_EXPORT_FROM_COLS(PERFETTO_TP_SLICE_TABLE_DEF, FCOL)      \
   COL(utid, track, utid)                                                    \
   COL(thread_name, thread, name)                                            \
-  FROM(tables::SliceTable, slice, PERFETTO_TP_SLICE_TABLE_DEF)              \
+  FROM(tables::SliceTable, slice)                                           \
   JOIN(tables::ThreadTrackTable, track, id, slice, track_id, View::kNoFlag) \
   JOIN(tables::ThreadTable, thread, id, track, utid,                        \
        View::kIdAlwaysPresent | View::kTypeCheckSerialized)
