@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {featureFlags} from '../common/feature_flags';
+import {globals} from './globals';
 
 let lastReloadDialogTime = 0;
 const kMinTimeBetweenDialogsMs = 10000;
@@ -20,6 +21,7 @@ const changedPaths = new Set<string>();
 
 export function initLiveReloadIfLocalhost() {
   if (!location.origin.startsWith('http://localhost:')) return;
+  if (globals.embeddedMode) return;
 
   const monitor = new EventSource('/live_reload');
   monitor.onmessage = (msg) => {

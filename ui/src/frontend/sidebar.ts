@@ -770,6 +770,7 @@ export class Sidebar implements m.ClassComponent {
   private _redrawWhileAnimating =
       new Animation(() => globals.rafScheduler.scheduleFullRedraw());
   view() {
+    if (globals.hideSidebar) return null;
     const vdomSections = [];
     for (const section of SECTIONS) {
       if (section.hideIfNoTraceLoaded && !isTraceLoaded()) continue;
