@@ -20,15 +20,24 @@ import {timeToCode} from '../common/time';
 
 import {globals, SliceDetails} from './globals';
 import {PanelSize} from './panel';
+import {PopupMenuButton, PopupMenuItem} from './popup_menu';
 import {verticalScrollToTrack} from './scroll_helper';
 import {SlicePanel} from './slice_panel';
 
 // Table row contents is one of two things:
 // 1. Key-value pair
-interface KVPair {
-  kind: 'KVPair';
+interface TableRow {
+  kind: 'TableRow';
   key: string;
   value: Arg;
+
+  // Whether it's an argument (from the `args` table) or whether it's a property
+  // of the slice (i.e. `dur`, coming from `slice` table). Args have additional
+  // actions associated with them.
+  isArg: boolean;
+
+  // A full key for the arguments displayed in a tree.
+  full_key?: string;
 }
 
 // 2. Common prefix for values in an array
@@ -37,7 +46,7 @@ interface TableHeader {
   header: string;
 }
 
-type RowContents = KVPair|TableHeader;
+type RowContents = TableRow|TableHeader;
 
 function isTableHeader(contents: RowContents): contents is TableHeader {
   return contents.kind === 'TableHeader';
@@ -81,7 +90,7 @@ class TableBuilder {
     this.rows.push({
       indentLevel: 0,
       extraCell: 'none',
-      contents: {kind: 'KVPair', key, value},
+      contents: {kind: 'TableRow', key, value, isArg: false},
     });
   }
 
@@ -162,7 +171,13 @@ class TableBuilder {
       this.rows.push({
         indentLevel: row[0],
         extraCell: row[1],
-        contents: {kind: 'KVPair', key: prefix, value: record},
+        contents: {
+          kind: 'TableRow',
+          key: prefix,
+          value: record,
+          full_key: completePrefix,
+          isArg: true,
+        },
         tooltip: completePrefix,
       });
     }
@@ -254,6 +269,22 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
     }
   }
 
+  private getArgumentContextMenuItems(argument: TableRow): PopupMenuItem[] {
+    const items = [];
+
+    if (argument.full_key !== undefined) {
+      const fullKey = argument.full_key;
+      items.push({
+        text: 'Copy full key',
+        callback: () => {
+          navigator.clipboard.writeText(fullKey);
+        },
+      });
+    }
+
+    return items;
+  }
+
   renderTable(builder: TableBuilder): m.Vnode {
     const rows: m.Vnode[] = [];
     const keyColumnCount = builder.maxIndent + 1;
@@ -280,10 +311,18 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
             {colspan: keyColumnCount + 1 - row.indentLevel, title: row.tooltip},
             row.contents.header));
       } else {
+        const contents: any[] = [row.contents.key];
+        if (row.contents.isArg) {
+          contents.push(m(PopupMenuButton, {
+            icon: 'arrow_drop_down',
+            items: this.getArgumentContextMenuItems(row.contents),
+          }));
+        }
+
         renderedRow.push(
             m('th',
               {colspan: keyColumnCount - row.indentLevel, title: row.tooltip},
-              row.contents.key));
+              contents));
         const value = row.contents.value;
         if (typeof value === 'string') {
           renderedRow.push(m('td.value', value));

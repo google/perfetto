@@ -13,10 +13,12 @@
 // limitations under the License.
 
 import {assertExists} from '../../../base/logging';
+import {RECORDING_V2_FLAG} from '../../feature_flags';
 import {
   ADB_DEVICE_FILTER,
   findInterfaceAndEndpoint,
 } from '../adb_over_webusb_utils';
+import {AdbKeyManager} from '../auth/adb_key_manager';
 import {
   OnTargetChangedCallback,
   RecordingTargetV2,
@@ -45,6 +47,9 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
   private recordingProblems: string[] = [];
   private targets: Map<string, AndroidWebusbTarget> =
       new Map<string, AndroidWebusbTarget>();
+  // AdbKeyManager should only be instantiated once, so we can use the same key
+  // for all devices.
+  private keyManager: AdbKeyManager = new AdbKeyManager();
 
   constructor(private usb: USB) {
     this.init();
@@ -70,7 +75,7 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
       return Promise.reject(new Error(deviceValid.issues.join('\n')));
     }
 
-    const androidTarget = new AndroidWebusbTarget(device);
+    const androidTarget = new AndroidWebusbTarget(device, this.keyManager);
     this.targets.set(assertExists(device.serialNumber), androidTarget);
     return androidTarget;
   }
@@ -79,7 +84,8 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
     for (const device of await this.usb.getDevices()) {
       if (this.checkDeviceValidity(device).isValid) {
         this.targets.set(
-            assertExists(device.serialNumber), new AndroidWebusbTarget(device));
+            assertExists(device.serialNumber),
+            new AndroidWebusbTarget(device, this.keyManager));
       }
     }
 
@@ -87,7 +93,7 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
       if (this.checkDeviceValidity(ev.device).isValid) {
         this.targets.set(
             assertExists(ev.device.serialNumber),
-            new AndroidWebusbTarget(ev.device));
+            new AndroidWebusbTarget(ev.device, this.keyManager));
         if (this.onDevicesChanged) {
           this.onDevicesChanged();
         }
@@ -124,6 +130,9 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
   }
 }
 
-if (navigator.usb) {
+// We only want to instantiate this class if:
+// 1. The browser implements the USB functionality.
+// 2. Recording V2 is enabled.
+if (navigator.usb && RECORDING_V2_FLAG.get()) {
   targetFactoryRegistry.register(new AndroidWebusbTargetFactory(navigator.usb));
 }
