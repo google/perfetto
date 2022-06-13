@@ -55,7 +55,7 @@ BitVector::SetBitsIterator BitVector::IterateSetBits() const {
 }
 
 void BitVector::UpdateSetBits(const BitVector& o) {
-  PERFETTO_DCHECK(o.size() <= GetNumBitsSet());
+  PERFETTO_DCHECK(o.size() <= CountSetBits());
 
   // For each set bit in this bitvector, we lookup whether the bit in |other|
   // at that index (if in bounds) is set. If not, we clear the bit.
@@ -66,7 +66,7 @@ void BitVector::UpdateSetBits(const BitVector& o) {
 
   // After the loop, we should have precisely the same number of bits
   // set as |other|.
-  PERFETTO_DCHECK(o.GetNumBitsSet() == GetNumBitsSet());
+  PERFETTO_DCHECK(o.CountSetBits() == CountSetBits());
 }
 
 }  // namespace trace_processor
