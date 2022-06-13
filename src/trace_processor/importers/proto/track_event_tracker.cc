@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 
@@ -532,6 +533,22 @@ void TrackEventTracker::OnIncrementalStateCleared(uint32_t packet_sequence_id) {
     // Reset their value to 0, see CounterDescriptor's |is_incremental|.
     reservation.latest_value = 0;
   }
+}
+
+void TrackEventTracker::AddTranslatableArgs(
+    SliceId id,
+    ArgsTracker::CompactArgSet arg_set) {
+  translatable_args_.emplace_back(TranslatableArgs{id, std::move(arg_set)});
+}
+
+void TrackEventTracker::NotifyEndOfFile() {
+  for (const auto& translatable_arg : translatable_args_) {
+    auto bound_inserter =
+        context_->args_tracker->AddArgsTo(translatable_arg.slice_id);
+    bound_inserter.TranslateAndAddArgs(*context_->args_translation_table,
+                                       translatable_arg.compact_arg_set);
+  }
+  translatable_args_.clear();
 }
 
 TrackEventTracker::ResolvedDescriptorTrack

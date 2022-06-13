@@ -18,6 +18,8 @@
 
 #include <algorithm>
 
+#include "src/trace_processor/importers/common/args_translation_table.h"
+
 namespace perfetto {
 namespace trace_processor {
 
@@ -90,6 +92,26 @@ void ArgsTracker::Flush() {
   args_.clear();
 }
 
+ArgsTracker::CompactArgSet ArgsTracker::ToCompactArgSet(
+    const Column& column,
+    uint32_t row_number) && {
+  CompactArgSet compact_args;
+  for (const auto& arg : args_) {
+    PERFETTO_DCHECK(arg.column == &column);
+    PERFETTO_DCHECK(arg.row == row_number);
+    compact_args.emplace_back(arg.ToCompactArg());
+  }
+  args_.clear();
+  return compact_args;
+}
+
+bool ArgsTracker::NeedsTranslation(const ArgsTranslationTable& table) const {
+  return std::any_of(args_.begin(), args_.end(),
+                     [&table](const GlobalArgsTracker::Arg& arg) {
+                       return table.NeedsTranslation(arg.key, arg.value.type);
+                     });
+}
+
 ArgsTracker::BoundInserter::BoundInserter(ArgsTracker* args_tracker,
                                           Column* arg_set_id_column,
                                           uint32_t row)
@@ -97,11 +119,18 @@ ArgsTracker::BoundInserter::BoundInserter(ArgsTracker* args_tracker,
       arg_set_id_column_(arg_set_id_column),
       row_(row) {}
 
-ArgsTracker::BoundInserter::~BoundInserter() {}
+ArgsTracker::BoundInserter::~BoundInserter() = default;
 
-ArgsTracker::BoundInserter::BoundInserter(BoundInserter&&) noexcept = default;
-ArgsTracker::BoundInserter& ArgsTracker::BoundInserter::operator=(
-    BoundInserter&&) noexcept = default;
+ArgsTracker::BoundInserter& ArgsTracker::BoundInserter::TranslateAndAddArgs(
+    const ArgsTranslationTable& table,
+    const CompactArgSet& set) {
+  for (const auto& arg : set) {
+    if (table.TranslateArg(arg.key, arg.value, *this))
+      continue;
+    AddArg(arg.key, arg.value, arg.update_policy);
+  }
+  return *this;
+}
 
 }  // namespace trace_processor
 }  // namespace perfetto
