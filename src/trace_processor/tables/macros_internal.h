@@ -175,7 +175,7 @@ class MacroTable : public Table {
   //
   // Only relevant for parentless tables. Will be empty and unreferenced by
   // tables with parents.
-  NullableVector<StringPool::Id> type_;
+  TypedColumn<StringPool::Id>::storage_type type_;
 
  private:
   const Table* parent_ = nullptr;
@@ -359,7 +359,7 @@ class AbstractConstRowReference {
 
 // Defines the member variable in the Table.
 #define PERFETTO_TP_TABLE_MEMBER(type, name, ...) \
-  NullableVector<TypedColumn<type>::serialized_type> name##_;
+  TypedColumn<type>::storage_type name##_;
 
 #define PERFETTO_TP_COLUMN_FLAG_HAS_FLAG_COL(type, name, flags)               \
   static constexpr uint32_t name##_flags() {                                  \
@@ -402,11 +402,9 @@ class AbstractConstRowReference {
       PERFETTO_TP_PARENT_COLUMN_FLAG_NO_FLAG_COL)(__VA_ARGS__))
 
 // Creates the sparse vector with the given flags.
-#define PERFETTO_TP_TABLE_CONSTRUCTOR_SV(type, name, ...)               \
-  name##_ =                                                             \
-      (name##_flags() & Column::Flag::kDense)                           \
-          ? NullableVector<TypedColumn<type>::serialized_type>::Dense() \
-          : NullableVector<TypedColumn<type>::serialized_type>::Sparse();
+#define PERFETTO_TP_TABLE_CONSTRUCTOR_SV(type, name, ...)      \
+  name##_ = TypedColumn<type>::CreateStorage<(name##_flags() & \
+                                              Column::Flag::kDense) != 0>();
 
 // Invokes the chosen column constructor by passing the given args.
 #define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN(type, name, ...)   \
@@ -447,7 +445,7 @@ class AbstractConstRowReference {
 
 // Defines the parameter for the |ExtendParent| function.
 #define PERFETTO_TP_TABLE_EXTEND_PARAM(type, name, ...) \
-  NullableVector<TypedColumn<type>::serialized_type> name,
+  TypedColumn<type>::storage_type name,
 
 // Defines the parameter passing for the |ExtendParent| function.
 #define PERFETTO_TP_TABLE_EXTEND_PARAM_PASSING(type, name, ...) std::move(name),
