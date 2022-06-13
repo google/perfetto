@@ -62,6 +62,9 @@ class TypedColumn : public Column {
   // The type which should be passed to SqlValue functions.
   using sql_value_type = typename TH::sql_value_type;
 
+  // The type of the container which holds data for this column.
+  using storage_type = typename TH::storage_type;
+
  private:
   using Serializer = tc_internal::Serializer<non_optional_type>;
 
@@ -121,6 +124,11 @@ class TypedColumn : public Column {
   // Converts the static type T into the dynamic SqlValue type of this column.
   static SqlValue::Type SqlValueType() {
     return Column::ToSqlValueType<serialized_type>();
+  }
+
+  template <bool is_dense>
+  static storage_type CreateStorage() {
+    return TH::template CreateStorage<is_dense>();
   }
 
   // Cast a Column to TypedColumn or crash if that is unsafe.
