@@ -37,13 +37,13 @@ trace.add_atrace_end(ts=500, tid=10335, pid=10335)
 trace.add_atrace_end(ts=600, tid=10335, pid=10335)
 
 # skipped validation
-trace.add_atrace_begin(ts=1_100, tid=10335, pid=10335, buf="onMessageRefresh")
+trace.add_atrace_begin(ts=1_100, tid=10335, pid=10335, buf="composite 2")
 trace.add_atrace_begin(ts=1_200, tid=10335, pid=10335, buf="HwcPresentOrValidateDisplay")
 trace.add_atrace_end(ts=1_300, tid=10335, pid=10335)
 trace.add_atrace_end(ts=1_400, tid=10335, pid=10335)
 
 # separated validation
-trace.add_atrace_begin(ts=2_100, tid=10335, pid=10335, buf="onMessageRefresh")
+trace.add_atrace_begin(ts=2_100, tid=10335, pid=10335, buf="composite 3")
 trace.add_atrace_begin(ts=2_200, tid=10335, pid=10335, buf="otherFunction")
 trace.add_atrace_begin(ts=2_300, tid=10335, pid=10335, buf="HwcValidateDisplay")
 trace.add_atrace_end(ts=2_400, tid=10335, pid=10335)
