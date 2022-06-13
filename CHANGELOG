@@ -9,6 +9,11 @@ Unreleased:
     *
 
 
+v26.1 - 2022-06-13:
+  Trace Processor:
+    * Fixed build failures on Windows.
+
+
 v26.0 - 2022-06-13:
   Tracing service and probes:
     * Added wildcard (*) support when targeting processes by their command line
