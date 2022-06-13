@@ -70,6 +70,8 @@ perfetto_cc_library(
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_ipc_ipc",
         ":include_perfetto_protozero_protozero",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
     ],
     deps = [
         ":protos_perfetto_ipc_wire_protocol_cpp",
@@ -120,6 +122,8 @@ perfetto_cc_library(
     hdrs = [
         ":include_perfetto_base_base",
         ":include_perfetto_protozero_protozero",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
     ],
     deps = [
         ":src_base_base",
@@ -169,6 +173,8 @@ perfetto_cc_binary(
     srcs = [
         ":include_perfetto_base_base",
         ":include_perfetto_protozero_protozero",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
         ":include_perfetto_tracing_core_forward_decls",
         ":include_perfetto_tracing_tracing",
         "test/client_api_example.cc",
@@ -256,6 +262,8 @@ perfetto_cc_library(
         ":include_perfetto_ext_tracing_core_core",
         ":include_perfetto_ext_tracing_ipc_ipc",
         ":include_perfetto_protozero_protozero",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
         ":include_perfetto_tracing_core_core",
         ":include_perfetto_tracing_core_forward_decls",
         ":include_perfetto_tracing_tracing",
@@ -515,6 +523,22 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //include/perfetto/public/abi:base
+perfetto_filegroup(
+    name = "include_perfetto_public_abi_base",
+    srcs = [
+        "include/perfetto/public/abi/export.h",
+    ],
+)
+
+# GN target: //include/perfetto/public:base
+perfetto_filegroup(
+    name = "include_perfetto_public_base",
+    srcs = [
+        "include/perfetto/public/compiler.h",
+    ],
+)
+
 # GN target: //include/perfetto/trace_processor:basic_types
 perfetto_filegroup(
     name = "include_perfetto_trace_processor_basic_types",
@@ -662,6 +686,8 @@ perfetto_cc_library(
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_base_http_http",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
     ],
     deps = [
         ":src_base_base",
@@ -709,6 +735,8 @@ perfetto_cc_library(
     hdrs = [
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
     ],
     deps = [
     ] + PERFETTO_CONFIG.deps.version_header,
@@ -724,6 +752,8 @@ perfetto_cc_library(
     hdrs = [
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
     ],
     linkstatic = True,
 )
@@ -935,6 +965,8 @@ perfetto_cc_library(
     hdrs = [
         ":include_perfetto_base_base",
         ":include_perfetto_protozero_protozero",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
         "src/trace_processor/containers/bit_vector.h",
         "src/trace_processor/containers/bit_vector_iterators.h",
         "src/trace_processor/containers/null_term_string_view.h",
@@ -1430,6 +1462,8 @@ perfetto_cc_library(
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_trace_processor_demangle",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
     ],
     deps = [
     ] + PERFETTO_CONFIG.deps.llvm_demangle,
@@ -3637,6 +3671,8 @@ perfetto_cc_library(
         ":include_perfetto_ext_tracing_core_core",
         ":include_perfetto_ext_tracing_ipc_ipc",
         ":include_perfetto_protozero_protozero",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
         ":include_perfetto_tracing_core_core",
         ":include_perfetto_tracing_core_forward_decls",
         ":include_perfetto_tracing_tracing",
@@ -3707,6 +3743,8 @@ perfetto_cc_binary(
         ":include_perfetto_ext_tracing_core_core",
         ":include_perfetto_ext_tracing_ipc_ipc",
         ":include_perfetto_protozero_protozero",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
         ":include_perfetto_tracing_core_core",
         ":include_perfetto_tracing_core_forward_decls",
         ":include_perfetto_tracing_tracing",
@@ -3814,6 +3852,8 @@ perfetto_cc_library(
         ":include_perfetto_ext_trace_processor_export_json",
         ":include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
         ":include_perfetto_ext_traced_sys_stats_counters",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
@@ -3880,6 +3920,8 @@ perfetto_cc_binary(
         ":include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
         ":include_perfetto_ext_traced_sys_stats_counters",
         ":include_perfetto_protozero_protozero",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
@@ -3988,6 +4030,8 @@ perfetto_cc_library(
         ":include_perfetto_ext_base_base",
         ":include_perfetto_profiling_pprof_builder",
         ":include_perfetto_protozero_protozero",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
@@ -4042,6 +4086,8 @@ perfetto_cc_binary(
         ":include_perfetto_ext_traced_sys_stats_counters",
         ":include_perfetto_profiling_pprof_builder",
         ":include_perfetto_protozero_protozero",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
