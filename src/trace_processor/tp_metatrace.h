@@ -77,6 +77,10 @@ struct Record {
   void AddArg(base::StringView key, const std::string& value) {
     AddArg(key, base::StringView(value));
   }
+
+  void AddArg(base::StringView key, const char* value) {
+    AddArg(key, base::StringView(value));
+  }
 };
 
 // Implementation of fixed-size ring buffer. The implementation of this
