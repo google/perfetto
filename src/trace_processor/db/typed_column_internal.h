@@ -89,18 +89,23 @@ struct Serializer<StringPool::Id> {
 // TypeHandler (and it's specializations) allow for specialied handling of
 // functions of a TypedColumn based on what is being stored inside.
 // Default implementation of TypeHandler.
-template <typename T, typename Enable = void>
+template <typename T>
 struct TypeHandler {
   using non_optional_type = T;
-  using sql_value_type =
+  using serialized_type =
       typename Serializer<non_optional_type>::serialized_type;
+  using sql_value_type = serialized_type;
+  using storage_type = NullableVector<serialized_type>;
 
   static constexpr bool is_optional = false;
   static constexpr bool is_string = false;
 
-  template <typename SerializedType>
-  static SerializedType Get(const NullableVector<SerializedType>& nv,
-                            uint32_t idx) {
+  template <bool IsDense, typename = typename std::enable_if<!IsDense>::type>
+  static storage_type CreateStorage() {
+    return storage_type();
+  }
+
+  static serialized_type Get(const storage_type& nv, uint32_t idx) {
     return nv.GetNonNull(idx);
   }
 
@@ -116,16 +121,21 @@ struct TypeHandler {
 template <typename T>
 struct TypeHandler<base::Optional<T>> {
   using non_optional_type = T;
-  using sql_value_type =
+  using serialized_type =
       typename Serializer<non_optional_type>::serialized_type;
+  using sql_value_type = serialized_type;
+  using storage_type = NullableVector<serialized_type>;
 
   static constexpr bool is_optional = true;
   static constexpr bool is_string = false;
 
-  template <typename SerializedType>
-  static base::Optional<SerializedType> Get(
-      const NullableVector<SerializedType>& nv,
-      uint32_t idx) {
+  template <bool IsDense>
+  static storage_type CreateStorage() {
+    return IsDense ? storage_type::Dense() : storage_type::Sparse();
+  }
+
+  static base::Optional<serialized_type> Get(const storage_type& nv,
+                                             uint32_t idx) {
     return nv.Get(idx);
   }
 
@@ -144,13 +154,19 @@ struct TypeHandler<base::Optional<T>> {
 template <>
 struct TypeHandler<StringPool::Id> {
   using non_optional_type = StringPool::Id;
+  using serialized_type = StringPool::Id;
   using sql_value_type = NullTermStringView;
+  using storage_type = NullableVector<serialized_type>;
 
   static constexpr bool is_optional = false;
   static constexpr bool is_string = true;
 
-  static StringPool::Id Get(const NullableVector<StringPool::Id>& nv,
-                            uint32_t idx) {
+  template <bool IsDense, typename = typename std::enable_if<!IsDense>::type>
+  static storage_type CreateStorage() {
+    return storage_type();
+  }
+
+  static StringPool::Id Get(const storage_type& nv, uint32_t idx) {
     return nv.GetNonNull(idx);
   }
 
@@ -163,16 +179,22 @@ struct TypeHandler<base::Optional<StringPool::Id>> {
   // get_type removes the base::Optional since we convert base::nullopt ->
   // StringPool::Id::Null (see Serializer<StringPool> above).
   using non_optional_type = StringPool::Id;
+  using serialized_type = StringPool::Id;
   using sql_value_type = NullTermStringView;
+  using storage_type = NullableVector<serialized_type>;
 
   // is_optional is false again because we always unwrap
   // base::Optional<StringPool::Id> into StringPool::Id.
   static constexpr bool is_optional = false;
   static constexpr bool is_string = true;
 
-  static base::Optional<StringPool::Id> Get(
-      const NullableVector<StringPool::Id>& nv,
-      uint32_t idx) {
+  template <bool IsDense, typename = typename std::enable_if<!IsDense>::type>
+  static storage_type CreateStorage() {
+    return storage_type();
+  }
+
+  static base::Optional<StringPool::Id> Get(const storage_type& nv,
+                                            uint32_t idx) {
     StringPool::Id id = nv.GetNonNull(idx);
     return id.is_null() ? base::nullopt : base::make_optional(id);
   }
