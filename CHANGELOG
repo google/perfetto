@@ -1,24 +1,61 @@
 Unreleased:
   Tracing service and probes:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v26.0 - 2022-06-13:
+  Tracing service and probes:
     * Added wildcard (*) support when targeting processes by their command line
       in the Android perf profiler ("linux.perf" data source) and Java heap
       snapshots ("android.java_hprof").
     * Added support for kernel thread sampling, and kernel-only callstacks in
       the Android perf profiler.
+    * Fixed rare crash when parsing zero-length ftrace __data_loc strings.
+    * Fixed rare crash on 4.19 kernel when encountering unexpected zero-padded
+      ftrace pages.
+    * Removed capturing of thread_time_in_state (per-UID, per-OOM-adj time).
+      The data was unused and subsumed by correlating sched data with power
+      rail monitors.
   Trace Processor:
+    * Added CREATE_VIEW_FUNCTION operator to define a SQL function that can
+      return a temporary table and yield multiple rows and columns.
     * Changed kernel threads to be represented as single-thread processes in
       Linux system traces. The (incorrect) legacy behaviour was to treat them
       as threads of the kthreadd process.
     * Added ABS_TIME_STR function which converts a trace timestamp to
       an ISO8601 string.
+    * Added ingestion for phase='R' events, used by performance.{now,mark}().
     * Changed 'trace_to_text' to be named 'traceconv'. The source
       location also moved from 'tools/trace_to_text' to 'src/traceconv'.
     * Changed compiler flags, added -mavx2. The previous patch in v22.0 was
       supposed to add AVX2 support but added only AVX.
+    * Changed the handling of the last per-cpu sched slices: rather than
+      extending the last event to the end of the trace, the last scheduling
+      event has a -1 duration. UIs are supposed to deal with visual extension.
+    * Removed android_thread_time_in_state metric. It was an experiment and was
+      unused.
+    * Removed `instant` table. All instant events are now 0-duration events in
+      the `slice` table.
+    * Removed the /raw_query REST endpoint from --httpd. This will break very
+      old clients that have not switched over the new streaming-based /query
+      endoint or even newer /websocket.
   UI:
-    *
+    * Changed detail panel to separate slice args from generic slice properties.
+    * Automatically enabled sched_compact when generating trace configs for 
+      Android S+ targets.
   SDK:
-    *
+    * Added option for recording thread CPU times at the beginning and end of
+      each slice.
+    * Added perfetto::DynamicString() to use non-literal strings as event names
+      in the TRACE_EVENT API.
+    * Remove the pre-SDK consumer_api_deprecated interface. It was introduced
+      for iorapd, now deleted from the Android tree.
 
 
 v25.0 - 2022-04-01:
