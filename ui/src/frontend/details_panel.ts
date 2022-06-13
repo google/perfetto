@@ -184,6 +184,9 @@ function userVisibleQueryName(id: string): string|null {
   if (id.startsWith('pivot_table_details_')) {
     return 'Pivot Table Details';
   }
+  if (id.startsWith('slices_with_arg_value_')) {
+    return `Arg: ${id.substr('slices_with_arg_value_'.length)}`;
+  }
   return null;
 }
 
