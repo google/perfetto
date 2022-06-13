@@ -77,12 +77,12 @@ RowMap SelectBvWithRange(const BitVector& bv,
                          uint32_t selector_start,
                          uint32_t selector_end) {
   PERFETTO_DCHECK(selector_start <= selector_end);
-  PERFETTO_DCHECK(selector_end <= bv.GetNumBitsSet());
+  PERFETTO_DCHECK(selector_end <= bv.CountSetBits());
 
   // If we're simply selecting every element in the bitvector, just
   // return a copy of the BitVector without iterating.
   BitVector ret = bv.Copy();
-  if (selector_start == 0 && selector_end == bv.GetNumBitsSet()) {
+  if (selector_start == 0 && selector_end == bv.CountSetBits()) {
     return RowMap(std::move(ret));
   }
 
@@ -105,14 +105,14 @@ RowMap SelectBvWithIv(const BitVector& bv,
   // The value of this constant was found by considering the benchmarks
   // |BM_SelectBvWithIvByConvertToIv| and |BM_SelectBvWithIvByIndexOfNthSet|.
   //
-  // We use this to find the ratio between |bv.GetNumBitsSet()| and
+  // We use this to find the ratio between |bv.CountSetBits()| and
   // |selector.size()| where |SelectBvWithIvByIndexOfNthSet| was found to be
   // faster than |SelectBvWithIvByConvertToIv|.
   //
   // Note: as of writing this, the benchmarks do not take into account the fill
   // ratio of the BitVector; they assume 50% rate which almost never happens in
   // practice. In the future, we could also take this into account (by
-  // considering the ratio between bv.size() and bv.GetNumBitsSet()) but this
+  // considering the ratio between bv.size() and bv.CountSetBits()) but this
   // causes an explosion in the state space for the benchmark so we're not
   // considering this today.
   //
@@ -122,7 +122,7 @@ RowMap SelectBvWithIv(const BitVector& bv,
 
   // If the selector is larger than a threshold, it's more efficient to convert
   // the entire BitVector to an index vector and use SelectIvWithIv instead.
-  if (bv.GetNumBitsSet() / kIndexOfSetBitToSelectorRatio < selector.size()) {
+  if (bv.CountSetBits() / kIndexOfSetBitToSelectorRatio < selector.size()) {
     return RowMap(
         row_map_algorithms::SelectBvWithIvByConvertToIv(bv, selector));
   }
