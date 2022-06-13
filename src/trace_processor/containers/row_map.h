@@ -263,7 +263,7 @@ class RowMap {
       case Mode::kRange:
         return end_index_ - start_index_;
       case Mode::kBitVector:
-        return bit_vector_.GetNumBitsSet();
+        return bit_vector_.CountSetBits();
       case Mode::kIndexVector:
         return static_cast<uint32_t>(index_vector_.size());
     }
@@ -314,7 +314,7 @@ class RowMap {
       }
       case Mode::kBitVector: {
         return index < bit_vector_.size() && bit_vector_.IsSet(index)
-                   ? base::make_optional(bit_vector_.GetNumBitsSet(index))
+                   ? base::make_optional(bit_vector_.CountSetBits(index))
                    : base::nullopt;
       }
       case Mode::kIndexVector: {

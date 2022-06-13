@@ -72,11 +72,11 @@ class BitVector {
   }
 
   // Returns the number of set bits in the bitvector.
-  uint32_t GetNumBitsSet() const { return GetNumBitsSet(size()); }
+  uint32_t CountSetBits() const { return CountSetBits(size()); }
 
   // Returns the number of set bits between the start of the bitvector
   // (inclusive) and the index |end| (exclusive).
-  uint32_t GetNumBitsSet(uint32_t end) const {
+  uint32_t CountSetBits(uint32_t end) const {
     if (end == 0)
       return 0;
 
@@ -89,13 +89,13 @@ class BitVector {
 
     // Add the number of set bits until the start of the block to the number
     // of set bits until the end address inside the block.
-    return counts_[idx] + blocks_[idx].GetNumBitsSet(addr.block_offset);
+    return counts_[idx] + blocks_[idx].CountSetBits(addr.block_offset);
   }
 
   // Returns the index of the |n|th set bit. Should only be called with |n| <
-  // GetNumBitsSet().
+  // CountSetBits().
   uint32_t IndexOfNthSet(uint32_t n) const {
-    PERFETTO_DCHECK(n < GetNumBitsSet());
+    PERFETTO_DCHECK(n < CountSetBits());
 
     // First search for the block which, up until the start of it, has more than
     // n bits set. Note that this should never return |counts.begin()| as
@@ -164,7 +164,7 @@ class BitVector {
     uint32_t new_blocks_size = addr.block_idx + 1;
 
     if (PERFETTO_UNLIKELY(new_blocks_size > old_blocks_size)) {
-      uint32_t t = GetNumBitsSet();
+      uint32_t t = CountSetBits();
       blocks_.emplace_back();
       counts_.emplace_back(t);
     }
@@ -180,7 +180,7 @@ class BitVector {
     uint32_t new_blocks_size = addr.block_idx + 1;
 
     if (PERFETTO_UNLIKELY(new_blocks_size > old_blocks_size)) {
-      uint32_t t = GetNumBitsSet();
+      uint32_t t = CountSetBits();
       blocks_.emplace_back();
       counts_.emplace_back(t);
     }
@@ -234,7 +234,7 @@ class BitVector {
                                 {Block::kWords - 1, BitWord::kBits - 1}};
         uint32_t count_in_block_after_end =
             AddressToIndex(end_of_block) - AddressToIndex(start) + 1;
-        uint32_t set_count = GetNumBitsSet() + count_in_block_after_end;
+        uint32_t set_count = CountSetBits() + count_in_block_after_end;
 
         for (uint32_t i = start.block_idx + 1; i <= last_addr.block_idx; ++i) {
           // Set the count to the cummulative count so far.
@@ -248,7 +248,7 @@ class BitVector {
         // counts vector with the current size of the bitvector for all
         // the newly added blocks.
         if (new_blocks_size > old_blocks_size) {
-          uint32_t count = GetNumBitsSet();
+          uint32_t count = CountSetBits();
           for (uint32_t i = old_blocks_size; i < new_blocks_size; ++i) {
             counts_[i] = count;
           }
@@ -289,7 +289,7 @@ class BitVector {
 
     // At this point we can work one block at a time.
     for (uint32_t i = start_fast_block; i < end_fast_block; ++i) {
-      bv.counts_.emplace_back(bv.GetNumBitsSet());
+      bv.counts_.emplace_back(bv.CountSetBits());
       bv.blocks_.emplace_back(Block::FromFiller(bv.size_, f));
       bv.size_ += Block::kBits;
     }
@@ -398,7 +398,7 @@ class BitVector {
     void ClearAll() { word_ = 0; }
 
     // Returns the index of the nth set bit.
-    // Undefined if |n| >= |GetNumBitsSet()|.
+    // Undefined if |n| >= |CountSetBits()|.
     uint16_t IndexOfNthSet(uint32_t n) const {
       PERFETTO_DCHECK(n < kBits);
 
@@ -431,12 +431,12 @@ class BitVector {
     }
 
     // Returns the number of set bits.
-    uint32_t GetNumBitsSet() const {
+    uint32_t CountSetBits() const {
       return static_cast<uint32_t>(PERFETTO_POPCOUNT(word_));
     }
 
     // Returns the number of set bits up to and including the bit at |idx|.
-    uint32_t GetNumBitsSet(uint32_t idx) const {
+    uint32_t CountSetBits(uint32_t idx) const {
       PERFETTO_DCHECK(idx < kBits);
       return static_cast<uint32_t>(PERFETTO_POPCOUNT(WordUntil(idx)));
     }
@@ -557,7 +557,7 @@ class BitVector {
       uint32_t count = 0;
       for (uint16_t i = 0; i < kWords; ++i) {
         // Keep a running count of all the set bits in the atom.
-        uint32_t value = count + words_[i].GetNumBitsSet();
+        uint32_t value = count + words_[i].CountSetBits();
         if (value <= n) {
           count = value;
           continue;
@@ -580,19 +580,19 @@ class BitVector {
 
     // Gets the number of set bits within a block up to and including the bit
     // at the given address.
-    uint32_t GetNumBitsSet(const BlockOffset& addr) const {
+    uint32_t CountSetBits(const BlockOffset& addr) const {
       PERFETTO_DCHECK(addr.word_idx < kWords);
 
       // Count all the set bits in the atom until we reach the last atom
       // index.
       uint32_t count = 0;
       for (uint32_t i = 0; i < addr.word_idx; ++i) {
-        count += words_[i].GetNumBitsSet();
+        count += words_[i].CountSetBits();
       }
 
       // For the last atom, only count the bits upto and including the bit
       // index.
-      return count + words_[addr.word_idx].GetNumBitsSet(addr.bit_idx);
+      return count + words_[addr.word_idx].CountSetBits(addr.bit_idx);
     }
 
     // Retains all bits up to and including the bit at |addr| and clears
