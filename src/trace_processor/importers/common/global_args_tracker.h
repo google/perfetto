@@ -39,15 +39,24 @@ class GlobalArgsTracker {
   // the same key will be overridden.
   enum class UpdatePolicy { kSkipIfExists, kAddOrUpdate };
 
-  struct Arg {
+  struct CompactArg {
     StringId flat_key = kNullStringId;
     StringId key = kNullStringId;
     Variadic value = Variadic::Integer(0);
-
-    Column* column;
-    uint32_t row;
     UpdatePolicy update_policy = UpdatePolicy::kAddOrUpdate;
   };
+  static_assert(std::is_trivially_destructible<CompactArg>::value,
+                "Args must be trivially destructible");
+
+  struct Arg : public CompactArg {
+    Column* column;
+    uint32_t row;
+
+    // Object slices this Arg to become a CompactArg.
+    CompactArg ToCompactArg() const { return CompactArg(*this); }
+  };
+  static_assert(std::is_trivially_destructible<Arg>::value,
+                "Args must be trivially destructible");
 
   struct ArgHasher {
     uint64_t operator()(const Arg& arg) const noexcept {
