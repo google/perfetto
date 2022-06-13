@@ -21,6 +21,7 @@
 #include <type_traits>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/public/compiler.h"
 
 // __has_attribute is supported only by clang and recent versions of GCC.
 // Add a layer to wrap the __has_attribute macro.
@@ -28,14 +29,6 @@
 #define PERFETTO_HAS_ATTRIBUTE(x) __has_attribute(x)
 #else
 #define PERFETTO_HAS_ATTRIBUTE(x) 0
-#endif
-
-#if defined(__GNUC__) || defined(__clang__)
-#define PERFETTO_LIKELY(_x) __builtin_expect(!!(_x), 1)
-#define PERFETTO_UNLIKELY(_x) __builtin_expect(!!(_x), 0)
-#else
-#define PERFETTO_LIKELY(_x) (_x)
-#define PERFETTO_UNLIKELY(_x) (_x)
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
