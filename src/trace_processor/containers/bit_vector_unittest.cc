@@ -130,7 +130,7 @@ TEST(BitVectorUnittest, AppendToExisting) {
   ASSERT_TRUE(bv.IsSet(2049));
 }
 
-TEST(BitVectorUnittest, GetNumBitsSet) {
+TEST(BitVectorUnittest, CountSetBits) {
   BitVector bv(2049, false);
   bv.Set(0);
   bv.Set(1);
@@ -139,19 +139,19 @@ TEST(BitVectorUnittest, GetNumBitsSet) {
   bv.Set(2047);
   bv.Set(2048);
 
-  ASSERT_EQ(bv.GetNumBitsSet(), 6u);
+  ASSERT_EQ(bv.CountSetBits(), 6u);
 
-  ASSERT_EQ(bv.GetNumBitsSet(0), 0u);
-  ASSERT_EQ(bv.GetNumBitsSet(1), 1u);
-  ASSERT_EQ(bv.GetNumBitsSet(2), 2u);
-  ASSERT_EQ(bv.GetNumBitsSet(3), 2u);
-  ASSERT_EQ(bv.GetNumBitsSet(511), 2u);
-  ASSERT_EQ(bv.GetNumBitsSet(512), 3u);
-  ASSERT_EQ(bv.GetNumBitsSet(1023), 4u);
-  ASSERT_EQ(bv.GetNumBitsSet(1024), 4u);
-  ASSERT_EQ(bv.GetNumBitsSet(2047), 4u);
-  ASSERT_EQ(bv.GetNumBitsSet(2048), 5u);
-  ASSERT_EQ(bv.GetNumBitsSet(2049), 6u);
+  ASSERT_EQ(bv.CountSetBits(0), 0u);
+  ASSERT_EQ(bv.CountSetBits(1), 1u);
+  ASSERT_EQ(bv.CountSetBits(2), 2u);
+  ASSERT_EQ(bv.CountSetBits(3), 2u);
+  ASSERT_EQ(bv.CountSetBits(511), 2u);
+  ASSERT_EQ(bv.CountSetBits(512), 3u);
+  ASSERT_EQ(bv.CountSetBits(1023), 4u);
+  ASSERT_EQ(bv.CountSetBits(1024), 4u);
+  ASSERT_EQ(bv.CountSetBits(2047), 4u);
+  ASSERT_EQ(bv.CountSetBits(2048), 5u);
+  ASSERT_EQ(bv.CountSetBits(2049), 6u);
 }
 
 TEST(BitVectorUnittest, IndexOfNthSet) {
@@ -193,22 +193,22 @@ TEST(BitVectorUnittest, Resize) {
   ASSERT_EQ(bv.size(), 513u);
   ASSERT_EQ(bv.IsSet(1), true);
   ASSERT_EQ(bv.IsSet(512), true);
-  ASSERT_EQ(bv.GetNumBitsSet(), 2u);
+  ASSERT_EQ(bv.CountSetBits(), 2u);
 
   // When we resize up, we need to be sure that the set bit from
   // before we resized down is not still present as a garbage bit.
   bv.Resize(514, false);
   ASSERT_EQ(bv.size(), 514u);
   ASSERT_EQ(bv.IsSet(513), false);
-  ASSERT_EQ(bv.GetNumBitsSet(), 2u);
+  ASSERT_EQ(bv.CountSetBits(), 2u);
 }
 
 TEST(BitVectorUnittest, ResizeHasCorrectCount) {
   BitVector bv(1, false);
-  ASSERT_EQ(bv.GetNumBitsSet(), 0u);
+  ASSERT_EQ(bv.CountSetBits(), 0u);
 
   bv.Resize(1024, true);
-  ASSERT_EQ(bv.GetNumBitsSet(), 1023u);
+  ASSERT_EQ(bv.CountSetBits(), 1023u);
 }
 
 TEST(BitVectorUnittest, AppendAfterResizeDown) {
@@ -218,7 +218,7 @@ TEST(BitVectorUnittest, AppendAfterResizeDown) {
   bv.Resize(2048);
   bv.AppendFalse();
   ASSERT_EQ(bv.IsSet(2048), false);
-  ASSERT_EQ(bv.GetNumBitsSet(), 0u);
+  ASSERT_EQ(bv.CountSetBits(), 0u);
 }
 
 TEST(BitVectorUnittest, UpdateSetBits) {
@@ -294,7 +294,7 @@ TEST(BitVectorUnittest, IterateAllBitsSet) {
     bool is_set = i % 15 == 0 || i % 7 == 0 || i % 13 == 0;
 
     ASSERT_EQ(bv.IsSet(i), is_set);
-    ASSERT_EQ(bv.GetNumBitsSet(i), count);
+    ASSERT_EQ(bv.CountSetBits(i), count);
 
     if (is_set) {
       ASSERT_EQ(bv.IndexOfNthSet(count++), i);
@@ -326,7 +326,7 @@ TEST(BitVectorUnittest, IterateAllBitsClear) {
     bool is_set = i % 15 != 0 && (i % 7 == 0 || i % 13 == 0);
 
     ASSERT_EQ(bv.IsSet(i), is_set);
-    ASSERT_EQ(bv.GetNumBitsSet(i), count);
+    ASSERT_EQ(bv.CountSetBits(i), count);
 
     if (is_set) {
       ASSERT_EQ(bv.IndexOfNthSet(count++), i);
@@ -377,7 +377,7 @@ TEST(BitVectorUnittest, IterateSetBitsClear) {
     bool is_set = i % 15 != 0 && (i % 7 == 0 || i % 13 == 0);
 
     ASSERT_EQ(bv.IsSet(i), is_set);
-    ASSERT_EQ(bv.GetNumBitsSet(i), count);
+    ASSERT_EQ(bv.CountSetBits(i), count);
 
     if (is_set) {
       ASSERT_EQ(bv.IndexOfNthSet(count++), i);
@@ -408,7 +408,7 @@ TEST(BitVectorUnittest, Range) {
     ASSERT_EQ(i % 3 == 0, bv.IsSet(i));
   }
   ASSERT_EQ(bv.size(), 1025u);
-  ASSERT_EQ(bv.GetNumBitsSet(), 341u);
+  ASSERT_EQ(bv.CountSetBits(), 341u);
 }
 
 TEST(BitVectorUnittest, QueryStressTest) {
@@ -435,7 +435,7 @@ TEST(BitVectorUnittest, QueryStressTest) {
     uint32_t count = static_cast<uint32_t>(std::count(
         bool_vec.begin(), bool_vec.begin() + static_cast<int32_t>(i), true));
     ASSERT_EQ(bv.IsSet(i), bool_vec[i]);
-    ASSERT_EQ(bv.GetNumBitsSet(i), count);
+    ASSERT_EQ(bv.CountSetBits(i), count);
 
     ASSERT_TRUE(all_it);
     ASSERT_EQ(all_it.IsSet(), bool_vec[i]);
