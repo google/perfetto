@@ -595,6 +595,15 @@ class BitVector {
       return count + words_[addr.word_idx].CountSetBits(addr.bit_idx);
     }
 
+    // Gets the number of set bits within a block up.
+    uint32_t CountSetBits() const {
+      uint32_t count = 0;
+      for (uint32_t i = 0; i < kWords; ++i) {
+        count += words_[i].CountSetBits();
+      }
+      return count;
+    }
+
     // Retains all bits up to and including the bit at |addr| and clears
     // all bits after this point.
     void ClearAfter(const BlockOffset& offset) {
@@ -703,6 +712,13 @@ class BitVector {
     } else {
       AppendFalse();
     }
+  }
+
+  // Returns the number of words which would be required to store a bit at
+  // |idx|.
+  static uint32_t WordCeil(uint32_t idx) {
+    // See |BlockCeil| for an explanation of this trick.
+    return (idx + BitWord::kBits - 1) / BitWord::kBits;
   }
 
   static Address IndexToAddress(uint32_t idx) {

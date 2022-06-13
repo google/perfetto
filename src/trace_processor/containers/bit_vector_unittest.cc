@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/containers/bit_vector.h"
 
+#include <bitset>
 #include <random>
 
 #include "src/trace_processor/containers/bit_vector_iterators.h"
@@ -251,6 +252,45 @@ TEST(BitVectorUnittest, UpdateSetBitsSmallerPicker) {
   ASSERT_TRUE(bv.IsSet(1));
   ASSERT_FALSE(bv.IsSet(2));
   ASSERT_FALSE(bv.IsSet(4));
+}
+
+TEST(BitVectorUnittest, UpdateSetBitsStress) {
+  static constexpr uint32_t kCount = 21903;
+  std::minstd_rand0 rand;
+
+  BitVector bv;
+  std::bitset<kCount> bv_std_lib;
+  for (uint32_t i = 0; i < kCount; ++i) {
+    bool res = rand() % 2u;
+    if (res) {
+      bv.AppendTrue();
+    } else {
+      bv.AppendFalse();
+    }
+    bv_std_lib[i] = res;
+  }
+
+  BitVector picker;
+  for (uint32_t i = 0; i < bv_std_lib.count(); ++i) {
+    bool res = rand() % 2u;
+    if (res) {
+      picker.AppendTrue();
+    } else {
+      picker.AppendFalse();
+    }
+  }
+  bv.UpdateSetBits(picker);
+
+  ASSERT_EQ(bv.size(), kCount);
+
+  uint32_t set_bit_i = 0;
+  for (uint32_t i = 0; i < kCount; ++i) {
+    if (bv_std_lib.test(i)) {
+      ASSERT_EQ(bv.IsSet(i), picker.IsSet(set_bit_i++));
+    } else {
+      ASSERT_FALSE(bv.IsSet(i));
+    }
+  }
 }
 
 TEST(BitVectorUnittest, IterateAllBitsConst) {
