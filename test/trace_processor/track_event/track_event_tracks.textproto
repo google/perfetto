@@ -82,6 +82,17 @@ packet {
   }
 }
 
+# Threads also can have child async tracks.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 200
+  track_descriptor {
+    uuid: 14
+    parent_uuid: 2
+    name: "async3"
+  }
+}
+
 # Should appear on default track "t1".
 packet {
   trusted_packet_sequence_id: 1
