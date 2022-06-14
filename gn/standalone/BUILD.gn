@@ -247,6 +247,8 @@ config("default") {
       # When updating these flags, the CheckCpuOptimizations() in utils.cc must
       # be updated accordingly.
       cflags += [
+        "-mbmi",
+        "-mbmi2",
         "-mavx2",
         "-mpopcnt",
         "-msse4.2",
