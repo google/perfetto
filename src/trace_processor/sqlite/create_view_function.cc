@@ -26,6 +26,7 @@
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
@@ -251,6 +252,10 @@ CreatedViewFunction::Cursor::~Cursor() = default;
 int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
                                         sqlite3_value** argv,
                                         FilterHistory) {
+  PERFETTO_TP_TRACE("CREATE_VIEW_FUNCTION", [this](metatrace::Record* r) {
+    r->AddArg("Function", table_->prototype_.function_name.c_str());
+  });
+
   auto col_to_arg_idx = [this](int col) {
     return static_cast<size_t>(col) - table_->return_values_.size();
   };
