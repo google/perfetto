@@ -103,6 +103,7 @@ export interface AdbConnection {
 export interface ByteStream {
   onStreamData: OnStreamDataCallback;
   onStreamClose: OnStreamCloseCallback;
+  isOpen(): boolean;
   write(data: string|Uint8Array): void;
   close(): void;
 }
