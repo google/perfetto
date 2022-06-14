@@ -30,7 +30,7 @@ repository](/examples/sdk/README.md).
 To start using the Client API, first check out the latest SDK release:
 
 ```bash
-git clone https://android.googlesource.com/platform/external/perfetto -b v23.0
+git clone https://android.googlesource.com/platform/external/perfetto -b v26.0
 ```
 
 The SDK consists of two files, `sdk/perfetto.h` and `sdk/perfetto.cc`. These are
