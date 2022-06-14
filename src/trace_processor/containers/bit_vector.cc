@@ -18,6 +18,10 @@
 
 #include "src/trace_processor/containers/bit_vector_iterators.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
+#include <immintrin.h>
+#endif
+
 namespace perfetto {
 namespace trace_processor {
 namespace {
@@ -41,6 +45,16 @@ uint64_t PdepSlow(uint64_t word, uint64_t mask) {
     mask &= mask - 1;
   }
   return result;
+}
+
+// See |PdepSlow| for information on PDEP.
+uint64_t Pdep(uint64_t word, uint64_t mask) {
+#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
+  base::ignore_result(PdepSlow);
+  return _pdep_u64(word, mask);
+#else
+  return PdepSlow(word, mask);
+#endif
 }
 
 }  // namespace
@@ -150,8 +164,7 @@ void BitVector::UpdateSetBits(const BitVector& update) {
 
     // PDEP precisely captures the notion of "updating set bits" for a single
     // word.
-    // TODO(lalitm): update this to use the x64 intrinsic where available.
-    *ptr = PdepSlow(update_for_current, current);
+    *ptr = Pdep(update_for_current, current);
   }
 
   // We shouldn't have any non-zero unused bits and we should have consumed the
