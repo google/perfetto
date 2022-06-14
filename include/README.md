@@ -3,13 +3,13 @@
 **This API surface is not stable yet, don't depend on it**
 
 This folder contains the public perfetto API headers. This allows an app to
-inject trace events into perfetto with ~10 lines of code (see
-api_usage_example.cc).
+inject trace events into perfetto with ~10 lines of code (see examples in
+examples/sdk/).
 
 The ext/ subdirectory expose the API-unstable classes and types that are
 exposed to emvbedders that have exceptional requirements in terms of interposing
 their own custom IPC layer. To the day the only case is chromium. Nothing else
-should depend on ext/. Contact perfetto-dev@ if you think you need to 
+should depend on ext/. Contact perfetto-dev@ if you think you need to
 depend on an ext/ header.
 
 Headers in this folder must be hermetic. No ext/ perfetto header must be
@@ -21,7 +21,7 @@ What is a client supposed to do to use tracing? See example below in this page.
 Source code layout: what goes where?
 ------------------------------------
 
-**include/perfetto (this folder):**
+**include/perfetto:**
 Embedders are allowed to access and depend on any folder of this but ext/.
 This contains classes to: (i) use tracing; (ii) extend the tracing internals
 (i.e. implement the Platform).
@@ -59,6 +59,20 @@ Rules:
   library can only be statically linked) but we guarantee source-level
   compatibility and ABI of the UNIX socket and shared memory buffers.
 
+**include/perfetto/public:**
+This contains headers that can be used when dynamic linking with the perfetto
+shared library.
+
+These headers are not supposed to be exposed as part of the shared library ABI.
+
+All symbols, macros and types here start with the `perfetto_` or `PERFETTO_`
+prefix. These prefixes are reserved by perfetto and should not be used elsewhere
+when linking with the perfetto shared library.
+
+**include/perfetto/public/abi:**
+Subset of headers that are part of the shared library ABI (**not stable yet**).
+These headers are supposed to be hermetic (i.e. they should not include anything
+outside the abi directory).
 
 Usage example
 -------------

@@ -16,9 +16,9 @@
 
 -- The HWC execution time will be calculated based on the runtime of
 -- HwcPresentOrValidateDisplay, HwcValidateDisplay, and/or HwcPresentDisplay
--- which are happened in the same onMessageRefresh.
+-- which are happened in the same onMessageRefresh/composite.
 -- There are 3 possible combinations how those functions will be called in
--- a single onMessageRefresh, i.e.:
+-- a single onMessageRefresh/composite, i.e.:
 -- 1. HwcPresentOrValidateDisplay and then HwcPresentDisplay
 -- 2. HwcPresentOrValidateDisplay
 -- 3. HwcValidateDisplay and then HwcPresentDisplay
@@ -38,7 +38,7 @@ SELECT
   LEAD(dur, 2, 0) OVER (PARTITION BY track_id ORDER BY ts) AS second_next_dur
 FROM slice
 WHERE name = 'HwcPresentOrValidateDisplay' OR name = 'HwcValidateDisplay'
-  OR name = 'HwcPresentDisplay' OR name = 'onMessageRefresh'
+  OR name = 'HwcPresentDisplay' OR name = 'onMessageRefresh' OR name GLOB 'composite *'
 ORDER BY ts;
 
 DROP VIEW IF EXISTS {{output}};
@@ -64,4 +64,4 @@ SELECT
     ELSE 'unknown'
   END AS validation_type
 FROM raw_hwc_function_spans
-WHERE name = 'onMessageRefresh' AND dur > 0;
+WHERE (name = 'onMessageRefresh' OR name GLOB 'composite *') AND dur > 0;

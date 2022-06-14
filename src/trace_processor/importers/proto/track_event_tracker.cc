@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 
@@ -201,6 +202,14 @@ base::Optional<TrackId> TrackEventTracker::GetDescriptorTrackImpl(
   PERFETTO_CHECK(reserved_it != reserved_descriptor_tracks_.end());
 
   const auto& reservation = reserved_it->second;
+
+  // We resolve parent_id here to ensure that it's going to be smaller
+  // than the id of the child.
+  base::Optional<TrackId> parent_id;
+  if (reservation.parent_uuid != 0) {
+    parent_id = GetDescriptorTrackImpl(reservation.parent_uuid);
+  }
+
   TrackId track_id = CreateTrackFromResolved(*resolved_track);
   descriptor_tracks_[uuid] = track_id;
 
@@ -212,14 +221,18 @@ base::Optional<TrackId> TrackEventTracker::GetDescriptorTrackImpl(
   if (!reservation.category.is_null())
     args.AddArg(category_key_, Variadic::String(reservation.category));
 
+  auto* tracks = context_->storage->mutable_track_table();
+  auto row_ref = *tracks->FindById(track_id);
+  if (parent_id) {
+    row_ref.set_parent_id(*parent_id);
+  }
+
   if (reservation.name.is_null())
     return track_id;
 
   // Initialize the track name here, so that, if a name was given in the
   // reservation, it is set immediately after resolution takes place.
-  auto* tracks = context_->storage->mutable_track_table();
-  tracks->mutable_name()->Set(*tracks->id().IndexOf(track_id),
-                              reservation.name);
+  row_ref.set_name(reservation.name);
   return track_id;
 }
 
@@ -532,6 +545,22 @@ void TrackEventTracker::OnIncrementalStateCleared(uint32_t packet_sequence_id) {
     // Reset their value to 0, see CounterDescriptor's |is_incremental|.
     reservation.latest_value = 0;
   }
+}
+
+void TrackEventTracker::AddTranslatableArgs(
+    SliceId id,
+    ArgsTracker::CompactArgSet arg_set) {
+  translatable_args_.emplace_back(TranslatableArgs{id, std::move(arg_set)});
+}
+
+void TrackEventTracker::NotifyEndOfFile() {
+  for (const auto& translatable_arg : translatable_args_) {
+    auto bound_inserter =
+        context_->args_tracker->AddArgsTo(translatable_arg.slice_id);
+    bound_inserter.TranslateAndAddArgs(*context_->args_translation_table,
+                                       translatable_arg.compact_arg_set);
+  }
+  translatable_args_.clear();
 }
 
 TrackEventTracker::ResolvedDescriptorTrack

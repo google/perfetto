@@ -840,16 +840,28 @@ base::Status PrepareAndStepUntilLastValidStmt(
     // Before stepping into |cur_stmt|, we need to finish iterating through
     // the previous statement so we don't have two clashing statements (e.g.
     // SELECT * FROM v and DROP VIEW v) partially stepped into.
-    if (prev_stmt)
+    if (prev_stmt) {
+      PERFETTO_TP_TRACE(
+          "STMT_STEP_UNTIL_DONE", [&prev_stmt](metatrace::Record* record) {
+            record->AddArg("SQL", sqlite3_expanded_sql(*prev_stmt));
+          });
       RETURN_IF_ERROR(sqlite_utils::StepStmtUntilDone(prev_stmt.get()));
+    }
 
     PERFETTO_DLOG("Executing statement: %s", sqlite3_sql(*cur_stmt));
 
-    // Now step once into |cur_stmt| so that when we prepare the next statment
-    // we will have executed any dependent bytecode in this one.
-    int err = sqlite3_step(*cur_stmt);
-    if (err != SQLITE_ROW && err != SQLITE_DONE)
-      return base::ErrStatus("%s (errcode: %d)", sqlite3_errmsg(db), err);
+    {
+      PERFETTO_TP_TRACE(
+          "STMT_FIRST_STEP", [&cur_stmt](metatrace::Record* record) {
+            record->AddArg("SQL", sqlite3_expanded_sql(*cur_stmt));
+          });
+
+      // Now step once into |cur_stmt| so that when we prepare the next statment
+      // we will have executed any dependent bytecode in this one.
+      int err = sqlite3_step(*cur_stmt);
+      if (err != SQLITE_ROW && err != SQLITE_DONE)
+        return base::ErrStatus("%s (errcode: %d)", sqlite3_errmsg(db), err);
+    }
 
     // Increment the neecessary counts for the statement.
     IncrementCountForStmt(cur_stmt.get(), metadata);
