@@ -21,6 +21,7 @@
 #include "src/trace_processor/sqlite/create_function_internal.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
@@ -68,6 +69,17 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
                              sqlite3_value_text(arg), i, status.c_message());
     }
   }
+
+  PERFETTO_TP_TRACE("CREATE_FUNCTION", [ctx, argv](metatrace::Record* r) {
+    r->AddArg("Function", ctx->prototype.function_name.c_str());
+    for (uint32_t i = 0; i < ctx->prototype.arguments.size(); ++i) {
+      std::string key = "Arg " + std::to_string(i);
+      const char* value =
+          reinterpret_cast<const char*>(sqlite3_value_text(argv[i]));
+      r->AddArg(base::StringView(key),
+                value ? base::StringView(value) : base::StringView("NULL"));
+    }
+  });
 
   // Bind all the arguments to the appropriate places in the function.
   for (size_t i = 0; i < argc; ++i) {
