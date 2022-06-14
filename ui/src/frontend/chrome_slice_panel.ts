@@ -14,6 +14,7 @@
 
 import * as m from 'mithril';
 
+import {sqliteString} from '../base/string_utils';
 import {Actions} from '../common/actions';
 import {Arg, ArgsTree, isArgTreeArray, isArgTreeMap} from '../common/arg_types';
 import {timeToCode} from '../common/time';
@@ -270,19 +271,34 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
   }
 
   private getArgumentContextMenuItems(argument: TableRow): PopupMenuItem[] {
-    const items = [];
+    if (argument.full_key === undefined) return [];
+    if (typeof argument.value !== 'string') return [];
+    const argValue: string = argument.value;
 
-    if (argument.full_key !== undefined) {
-      const fullKey = argument.full_key;
-      items.push({
+    const fullKey = argument.full_key;
+    return [
+      {
         text: 'Copy full key',
         callback: () => {
           navigator.clipboard.writeText(fullKey);
         },
-      });
-    }
-
-    return items;
+      },
+      {
+        text: 'Find slices with the same arg value',
+        callback: () => {
+          globals.dispatch(Actions.executeQuery({
+            queryId: `slices_with_arg_value_${fullKey}=${argValue}`,
+            query: `
+              select slice.* 
+              from slice
+              join args using (arg_set_id)
+              where key=${sqliteString(fullKey)} and display_value=${
+                sqliteString(argValue)}
+          `,
+          }));
+        },
+      },
+    ];
   }
 
   renderTable(builder: TableBuilder): m.Vnode {
