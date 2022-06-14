@@ -238,6 +238,7 @@ export class AdbConnectionOverWebusb implements AdbConnection {
       const res = await this.wrapUsb(
           this.device.transferIn(this.usbReadEndpoint, ADB_MSG_SIZE));
       if (!res) {
+        this.isUsbReceiveLoopRunning = false;
         return;
       }
       assertTrue(res.status === 'ok');
@@ -247,6 +248,7 @@ export class AdbConnectionOverWebusb implements AdbConnection {
         const resp = await this.wrapUsb(
             this.device.transferIn(this.usbReadEndpoint, msg.dataLen));
         if (!resp) {
+          this.isUsbReceiveLoopRunning = false;
           return;
         }
         msg.data = new Uint8Array(
@@ -406,6 +408,7 @@ export class AdbConnectionOverWebusb implements AdbConnection {
 // of this class based on a stream id match.
 export class AdbOverWebusbStream implements ByteStream {
   private adbConnection: AdbConnectionOverWebusb;
+  private _isOpen: boolean;
   localStreamId: number;
   remoteStreamId = -1;
 
@@ -418,14 +421,21 @@ export class AdbOverWebusbStream implements ByteStream {
     this.adbConnection = adb;
     this.localStreamId = localStreamId;
     this.remoteStreamId = remoteStreamId;
+    // When the stream is created, the connection has been already established.
+    this._isOpen = true;
   }
 
   close(): void {
     this.adbConnection.streamClose(this);
+    this._isOpen = false;
   }
 
   write(msg: string|Uint8Array): void {
     this.adbConnection.streamWrite(msg, this);
+  }
+
+  isOpen(): boolean {
+    return this._isOpen;
   }
 }
 
