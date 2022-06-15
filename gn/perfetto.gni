@@ -236,8 +236,10 @@ declare_args() {
   # Enables more aggressive compiler flags that assume recent Intel CPUs.
   # Runtime checks during initialization will print an error message and exit
   # if the CPU doesn't support those flags.
+  # Don't enable by default for MacOS. Old Intel Macs as used in CIs
+  # etc don't have the fancy CPU instructions (i.e. AVX2) this implies.
   enable_perfetto_x64_cpu_opt =
-      current_cpu == "x64" && (is_linux || is_mac) && !is_wasm &&
+      current_cpu == "x64" && is_linux && !is_wasm &&
       perfetto_build_standalone && !is_perfetto_build_generator
 }
 
