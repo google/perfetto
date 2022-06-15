@@ -164,6 +164,7 @@ export function publishSliceDetails(click: SliceDetails) {
   const id = click.id;
   if (id !== undefined && id === globals.state.pendingScrollId) {
     findCurrentSelection();
+    globals.dispatch(Actions.setCurrentTab({tab: 'slice'}));
     globals.dispatch(Actions.clearPendingScrollId({id: undefined}));
   }
   globals.publishRedraw();
