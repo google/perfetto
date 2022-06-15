@@ -38,7 +38,7 @@ import "protos/perfetto/config/test_config.proto";
 import "protos/perfetto/config/track_event/track_event_config.proto";
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 116
+// Next id: 117
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
