@@ -66,14 +66,15 @@ enum class SockFamily { kUnix = 200, kInet, kInet6 };
 // Controls the getsockopt(SO_PEERCRED) behavior, which allows to obtain the
 // peer credentials.
 enum class SockPeerCredMode {
-  // Obtain the peer credentials immediatley after connection and cache them.
+  // Obtain the peer credentials immediately after connection and cache them.
   kReadOnConnect = 0,
 
   // Don't read peer credentials at all. Calls to peer_uid()/peer_pid() will
   // hit a DCHECK and return kInvalidUid/Pid in release builds.
   kIgnore = 1,
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
   kDefault = kIgnore,
 #else
   kDefault = kReadOnConnect,
@@ -231,6 +232,8 @@ class PERFETTO_EXPORT_COMPONENT UnixSocket {
     EventListener& operator=(EventListener&&) noexcept = default;
 
     // After Listen().
+    // |self| may be null if the connection was not accepted via a listen
+    // socket.
     virtual void OnNewIncomingConnection(
         UnixSocket* self,
         std::unique_ptr<UnixSocket> new_connection);

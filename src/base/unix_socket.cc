@@ -108,7 +108,7 @@ inline int GetSockFamily(SockFamily family) {
 }
 
 inline int GetSockType(SockType type) {
-#ifdef SOCK_CLOEXEC
+#if defined(SOCK_CLOEXEC)
   constexpr int kSockCloExec = SOCK_CLOEXEC;
 #else
   constexpr int kSockCloExec = 0;
@@ -239,9 +239,9 @@ std::pair<UnixSocketRaw, UnixSocketRaw> UnixSocketRaw::CreatePairPosix(
     SockFamily family,
     SockType type) {
   int fds[2];
-  if (socketpair(GetSockFamily(family), GetSockType(type), 0, fds) != 0)
+  if (socketpair(GetSockFamily(family), GetSockType(type), 0, fds) != 0) {
     return std::make_pair(UnixSocketRaw(), UnixSocketRaw());
-
+  }
   return std::make_pair(UnixSocketRaw(ScopedFile(fds[0]), family, type),
                         UnixSocketRaw(ScopedFile(fds[1]), family, type));
 }
@@ -292,8 +292,7 @@ UnixSocketRaw::UnixSocketRaw(ScopedSocketHandle fd,
 #else
   // There is no reason why a socket should outlive the process in case of
   // exec() by default, this is just working around a broken unix design.
-  int fcntl_res = fcntl(*fd_, F_SETFD, FD_CLOEXEC);
-  PERFETTO_CHECK(fcntl_res == 0);
+  RetainOnExec();
 #endif
 }
 
