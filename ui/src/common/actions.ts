@@ -618,12 +618,15 @@ export const StateActions = {
     }
   },
 
-  selectSlice(state: StateDraft, args: {id: number, trackId: string}): void {
+  selectSlice(
+      state: StateDraft,
+      args: {id: number, trackId: string, scroll?: boolean}): void {
     state.currentSelection = {
       kind: 'SLICE',
       id: args.id,
       trackId: args.trackId,
     };
+    state.pendingScrollId = args.scroll ? args.id : undefined;
   },
 
   selectCounter(
