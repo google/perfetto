@@ -2,7 +2,8 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    *
+    * Removed enable_perfetto_x64_cpu_opt by default for x64 MacOS
+      since it caused issues for CIs.
   UI:
     *
   SDK:
