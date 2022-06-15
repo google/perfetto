@@ -41,6 +41,8 @@ class ServiceIPCHostImpl : public ServiceIPCHost {
              const char* consumer_socket_name) override;
   bool Start(base::ScopedSocketHandle producer_socket_fd,
              base::ScopedSocketHandle consumer_socket_fd) override;
+  bool Start(std::unique_ptr<ipc::Host> producer_host,
+             std::unique_ptr<ipc::Host> consumer_host) override;
 
   TracingService* service() const override;
 
