@@ -688,17 +688,25 @@ class TrackEventParser::EventImporter {
         id, std::move(opt_slice_id_and_args_tracker->args_tracker));
 
     auto* thread_slices = storage_->mutable_thread_slice_table();
-    auto thread_slice_ref = *thread_slices->FindById(id);
+    auto opt_thread_slice_ref = thread_slices->FindById(id);
+    if (!opt_thread_slice_ref) {
+      // This means that the end event did not match a corresponding track event
+      // begin packet so we likely closed the wrong slice. There's not much we
+      // can do about this beyond flag it as a stat.
+      context_->storage->IncrementStats(stats::track_event_thread_invalid_end);
+      return base::OkStatus();
+    }
 
-    base::Optional<int64_t> tts = thread_slice_ref.thread_ts();
+    tables::ThreadSliceTable::RowReference slice_ref = *opt_thread_slice_ref;
+    base::Optional<int64_t> tts = slice_ref.thread_ts();
     if (tts) {
       PERFETTO_DCHECK(event_data_->thread_timestamp);
-      thread_slice_ref.set_thread_dur(*event_data_->thread_timestamp - *tts);
+      slice_ref.set_thread_dur(*event_data_->thread_timestamp - *tts);
     }
-    base::Optional<int64_t> tic = thread_slice_ref.thread_instruction_count();
+    base::Optional<int64_t> tic = slice_ref.thread_instruction_count();
     if (tic) {
       PERFETTO_DCHECK(event_data_->thread_instruction_count);
-      thread_slice_ref.set_thread_instruction_delta(
+      slice_ref.set_thread_instruction_delta(
           *event_data_->thread_instruction_count - *tic);
     }
     return util::OkStatus();
