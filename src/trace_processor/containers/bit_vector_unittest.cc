@@ -254,6 +254,17 @@ TEST(BitVectorUnittest, UpdateSetBitsSmallerPicker) {
   ASSERT_FALSE(bv.IsSet(4));
 }
 
+TEST(BitVectorUnittest, UpdateSetBitsWordBoundary) {
+  BitVector bv(65, true);
+
+  BitVector picker(65u, true);
+  picker.Clear(64);
+
+  bv.UpdateSetBits(picker);
+
+  ASSERT_FALSE(bv.IsSet(64));
+}
+
 TEST(BitVectorUnittest, UpdateSetBitsStress) {
   static constexpr uint32_t kCount = 21903;
   std::minstd_rand0 rand;
