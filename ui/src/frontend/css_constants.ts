@@ -19,12 +19,25 @@ export let TRACK_SHELL_WIDTH = 100;
 export let SIDEBAR_WIDTH = 100;
 export let TRACK_BORDER_COLOR = '#ffc0cb';
 export let TOPBAR_HEIGHT = 48;
+export let SELECTION_STROKE_COLOR = '#00344596';
+export let SELECTION_FILL_COLOR = '#8398e64d';
+export let OVERVIEW_TIMELINE_NON_VISIBLE_COLOR = '#c8c8c8cc';
+export let DEFAULT_DETAILS_CONTENT_HEIGHT = 280;
 
 export function initCssConstants() {
   TRACK_SHELL_WIDTH = getCssNum('--track-shell-width') || TRACK_SHELL_WIDTH;
   SIDEBAR_WIDTH = getCssNum('--sidebar-width') || SIDEBAR_WIDTH;
   TRACK_BORDER_COLOR = getCssStr('--track-border-color') || TRACK_BORDER_COLOR;
   TOPBAR_HEIGHT = getCssNum('--topbar-height') || TOPBAR_HEIGHT;
+  SELECTION_STROKE_COLOR =
+      getCssStr('--selection-stroke-color') || SELECTION_STROKE_COLOR;
+  SELECTION_FILL_COLOR =
+      getCssStr('--selection-fill-color') || SELECTION_FILL_COLOR;
+  OVERVIEW_TIMELINE_NON_VISIBLE_COLOR =
+      getCssStr('--overview-timeline-non-visible-color') ||
+      OVERVIEW_TIMELINE_NON_VISIBLE_COLOR;
+  DEFAULT_DETAILS_CONTENT_HEIGHT =
+      getCssNum('--details-content-height') || DEFAULT_DETAILS_CONTENT_HEIGHT;
 }
 
 function getCssStr(prop: string): string|undefined {
@@ -36,7 +49,7 @@ function getCssStr(prop: string): string|undefined {
 function getCssNum(prop: string): number|undefined {
   const str = getCssStr(prop);
   if (str === undefined) return undefined;
-  const match = str.match(/^\W*(\d+)px$/);
+  const match = str.match(/^\W*(\d+)px(|\!important')$/);
   if (!match) throw Error(`Could not parse CSS property "${str}" as a number`);
   return Number(match[1]);
 }

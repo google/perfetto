@@ -23,6 +23,7 @@ import {AggregationPanel} from './aggregation_panel';
 import {ChromeSliceDetailsPanel} from './chrome_slice_panel';
 import {CounterDetailsPanel} from './counter_panel';
 import {CpuProfileDetailsPanel} from './cpu_profile_panel';
+import {DEFAULT_DETAILS_CONTENT_HEIGHT} from './css_constants';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {FlamegraphDetailsPanel} from './flamegraph_panel';
 import {
@@ -41,7 +42,12 @@ import {ThreadStatePanel} from './thread_state_panel';
 const UP_ICON = 'keyboard_arrow_up';
 const DOWN_ICON = 'keyboard_arrow_down';
 const DRAG_HANDLE_HEIGHT_PX = 28;
-const DEFAULT_DETAILS_HEIGHT_PX = 280 + DRAG_HANDLE_HEIGHT_PX;
+
+function getDetailsHeight() {
+  // This needs to be a function instead of a const to ensure the CSS constants
+  // have been initialized by the time we perform this calculation;
+  return DEFAULT_DETAILS_CONTENT_HEIGHT + DRAG_HANDLE_HEIGHT_PX;
+}
 
 function getFullScreenHeight() {
   const panelContainer =
@@ -49,7 +55,7 @@ function getFullScreenHeight() {
   if (panelContainer !== null) {
     return panelContainer.clientHeight;
   } else {
-    return DEFAULT_DETAILS_HEIGHT_PX;
+    return getDetailsHeight();
   }
 }
 
@@ -78,7 +84,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   private isClosed = this.height <= DRAG_HANDLE_HEIGHT_PX;
   private isFullscreen = false;
   // We can't get real fullscreen height until the pan_and_zoom_handler exists.
-  private fullscreenHeight = DEFAULT_DETAILS_HEIGHT_PX;
+  private fullscreenHeight = getDetailsHeight();
 
   oncreate({dom, attrs}: m.CVnodeDOM<DragHandleAttrs>) {
     this.resize = attrs.resize;
@@ -152,7 +158,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
                 if (this.height === DRAG_HANDLE_HEIGHT_PX) {
                   this.isClosed = false;
                   if (this.previousHeight === 0) {
-                    this.previousHeight = DEFAULT_DETAILS_HEIGHT_PX;
+                    this.previousHeight = getDetailsHeight();
                   }
                   this.resize(this.previousHeight);
                 } else {
@@ -191,7 +197,7 @@ function userVisibleQueryName(id: string): string|null {
 }
 
 export class DetailsPanel implements m.ClassComponent {
-  private detailsHeight = DEFAULT_DETAILS_HEIGHT_PX;
+  private detailsHeight = getDetailsHeight();
 
   view() {
     interface DetailsPanel {
