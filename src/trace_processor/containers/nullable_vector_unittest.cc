@@ -86,16 +86,9 @@ TEST(NullableVector, Dense) {
   ASSERT_EQ(sv.Get(3), 3);
   ASSERT_EQ(sv.Get(4), base::nullopt);
 
-  ASSERT_EQ(sv.GetNonNull(0), 0);
-  ASSERT_EQ(sv.GetNonNull(1), 2);
-  ASSERT_EQ(sv.GetNonNull(2), 3);
-
   sv.Set(1, 1);
   ASSERT_EQ(sv.Get(1), 1);
   ASSERT_EQ(sv.Get(2), 2);
-
-  ASSERT_EQ(sv.GetNonNull(1), 1);
-  ASSERT_EQ(sv.GetNonNull(2), 2);
 }
 
 }  // namespace
