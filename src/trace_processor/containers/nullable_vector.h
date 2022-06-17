@@ -78,25 +78,6 @@ class NullableVector {
     }
   }
 
-  // Returns the non-null value at |non_null_idx| where |non_null_idx| gives the
-  // index of the entry in-terms of non-null entries only.
-  //
-  // For example:
-  // this = [0, null, 2, null, 4]
-  //
-  // GetNonNull(0) = 0
-  // GetNonNull(1) = 2
-  // GetNonNull(2) = 4
-  // ...
-  T GetNonNull(uint32_t non_null_idx) const {
-    if (mode_ == Mode::kDense) {
-      return data_[valid_.Get(non_null_idx)];
-    } else {
-      PERFETTO_DCHECK(non_null_idx < data_.size());
-      return data_[non_null_idx];
-    }
-  }
-
   // Adds the given value to the NullableVector.
   void Append(T val) {
     data_.emplace_back(val);
