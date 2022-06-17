@@ -265,8 +265,8 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::ComputeLayoutTable(
   }
 
   // Step 3: Add the two new columns layout_depth and filter_track_ids:
-  NullableVector<uint32_t> layout_depth_column;
-  NullableVector<StringPool::Id> filter_column;
+  ColumnStorage<uint32_t> layout_depth_column;
+  ColumnStorage<StringPool::Id> filter_column;
 
   for (tables::SliceTable::RowNumber i : rows) {
     auto ref = i.ToRowReference(*slice_table_);
