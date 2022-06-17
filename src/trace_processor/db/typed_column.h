@@ -62,17 +62,16 @@ class TypedColumn : public Column {
   // The type which should be passed to SqlValue functions.
   using sql_value_type = typename TH::sql_value_type;
 
-  // The type of the container which holds data for this column.
-  using storage_type = typename TH::storage_type;
+  // The type of which is actually stored inside ColumnStorage. Can be different
+  // from T because we treat table ids to just be uint32_t inside the storage
+  // (handling ids would add an extra type to consider when filtering for no
+  // benefit.
+  using stored_type = typename TH::stored_type;
 
  private:
   using Serializer = tc_internal::Serializer<non_optional_type>;
 
  public:
-  // The type which should be stored in the NullableVector.
-  // Used by the macro code when actually constructing the NullableVectors.
-  using serialized_type = typename Serializer::serialized_type;
-
   T operator[](uint32_t row) const { return GetAtIdx(row_map().Get(row)); }
 
   // Special function only for string types to allow retrieving the string
@@ -121,12 +120,7 @@ class TypedColumn : public Column {
 
   // Converts the static type T into the dynamic SqlValue type of this column.
   static SqlValue::Type SqlValueType() {
-    return Column::ToSqlValueType<serialized_type>();
-  }
-
-  template <bool is_dense>
-  static storage_type CreateStorage() {
-    return TH::template CreateStorage<is_dense>();
+    return Column::ToSqlValueType<stored_type>();
   }
 
   // Cast a Column to TypedColumn or crash if that is unsafe.
@@ -153,7 +147,7 @@ class TypedColumn : public Column {
   template <bool is_string = TH::is_string>
   typename std::enable_if<is_string, NullTermStringView>::type GetStringAtIdx(
       uint32_t idx) const {
-    return string_pool().Get(storage().GetNonNull(idx));
+    return string_pool().Get(storage().Get(idx));
   }
 
  private:
@@ -167,7 +161,7 @@ class TypedColumn : public Column {
     static_assert(sizeof(TypedColumn<T>) == sizeof(Column),
                   "TypedColumn cannot introduce extra state.");
 
-    if (column->template IsColumnType<serialized_type>() &&
+    if (column->template IsColumnType<stored_type>() &&
         (column->IsNullable() == TH::is_optional) && !column->IsId()) {
       return static_cast<Output*>(column);
     } else {
@@ -176,11 +170,11 @@ class TypedColumn : public Column {
     }
   }
 
-  const storage_type& storage() const {
-    return Column::storage<serialized_type>();
+  const ColumnStorage<stored_type>& storage() const {
+    return Column::storage<stored_type>();
   }
-  storage_type* mutable_storage() {
-    return Column::mutable_storage<serialized_type>();
+  ColumnStorage<stored_type>* mutable_storage() {
+    return Column::mutable_storage<stored_type>();
   }
 };
 
@@ -192,7 +186,7 @@ class IdColumn : public Column {
   using type = Id;
 
   // The underlying type used when comparing ids.
-  using serialized_type = uint32_t;
+  using stored_type = uint32_t;
 
   Id operator[](uint32_t row) const { return Id(row_map().Get(row)); }
 
