@@ -20,6 +20,7 @@
 #include "src/trace_processor/containers/nullable_vector.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/base_id.h"
+#include "src/trace_processor/db/column_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -95,7 +96,7 @@ struct TypeHandler {
   using serialized_type =
       typename Serializer<non_optional_type>::serialized_type;
   using sql_value_type = serialized_type;
-  using storage_type = NullableVector<serialized_type>;
+  using storage_type = ColumnStorage<serialized_type>;
 
   static constexpr bool is_optional = false;
   static constexpr bool is_string = false;
@@ -124,7 +125,7 @@ struct TypeHandler<base::Optional<T>> {
   using serialized_type =
       typename Serializer<non_optional_type>::serialized_type;
   using sql_value_type = serialized_type;
-  using storage_type = NullableVector<serialized_type>;
+  using storage_type = ColumnStorage<serialized_type>;
 
   static constexpr bool is_optional = true;
   static constexpr bool is_string = false;
@@ -156,7 +157,7 @@ struct TypeHandler<StringPool::Id> {
   using non_optional_type = StringPool::Id;
   using serialized_type = StringPool::Id;
   using sql_value_type = NullTermStringView;
-  using storage_type = NullableVector<serialized_type>;
+  using storage_type = ColumnStorage<serialized_type>;
 
   static constexpr bool is_optional = false;
   static constexpr bool is_string = true;
@@ -181,7 +182,7 @@ struct TypeHandler<base::Optional<StringPool::Id>> {
   using non_optional_type = StringPool::Id;
   using serialized_type = StringPool::Id;
   using sql_value_type = NullTermStringView;
-  using storage_type = NullableVector<serialized_type>;
+  using storage_type = ColumnStorage<serialized_type>;
 
   // is_optional is false again because we always unwrap
   // base::Optional<StringPool::Id> into StringPool::Id.

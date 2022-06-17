@@ -258,14 +258,14 @@ base::Status ExperimentalAnnotatedStackGenerator::ComputeTable(
 
   // Build the dynamic table.
   PERFETTO_DCHECK(cs_rows.size() == annotations_reversed.size());
-  NullableVector<StringPool::Id> annotation_vals;
+  ColumnStorage<StringPool::Id> annotation_vals;
   for (auto it = annotations_reversed.rbegin();
        it != annotations_reversed.rend(); ++it) {
     annotation_vals.Append(*it);
   }
 
   // Hidden column - always the input, i.e. the callsite leaf.
-  NullableVector<uint32_t> start_id_vals;
+  ColumnStorage<uint32_t> start_id_vals;
   for (uint32_t i = 0; i < cs_rows.size(); i++)
     start_id_vals.Append(start_id.value);
 
