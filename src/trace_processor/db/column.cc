@@ -33,7 +33,7 @@ Column::Column(const Column& column,
              table,
              col_idx,
              row_map_idx,
-             column.nullable_vector_) {}
+             column.storage_) {}
 
 Column::Column(const char* name,
                ColumnType type,
@@ -41,9 +41,9 @@ Column::Column(const char* name,
                Table* table,
                uint32_t col_idx_in_table,
                uint32_t row_map_idx,
-               NullableVectorBase* nv)
+               ColumnStorageBase* st)
     : type_(type),
-      nullable_vector_(nv),
+      storage_(st),
       name_(name),
       flags_(flags),
       table_(table),
@@ -51,25 +51,29 @@ Column::Column(const char* name,
       row_map_idx_(row_map_idx),
       string_pool_(table->string_pool_) {
   // Check that the dense-ness of the column and the nullable vector match.
-  switch (type_) {
-    case ColumnType::kInt32:
-      PERFETTO_DCHECK(nullable_vector<int32_t>().IsDense() == IsDense());
-      break;
-    case ColumnType::kUint32:
-      PERFETTO_DCHECK(nullable_vector<uint32_t>().IsDense() == IsDense());
-      break;
-    case ColumnType::kInt64:
-      PERFETTO_DCHECK(nullable_vector<int64_t>().IsDense() == IsDense());
-      break;
-    case ColumnType::kDouble:
-      PERFETTO_DCHECK(nullable_vector<double>().IsDense() == IsDense());
-      break;
-    case ColumnType::kString:
-      PERFETTO_DCHECK(nullable_vector<StringPool::Id>().IsDense() == IsDense());
-      break;
-    case ColumnType::kId:
-    case ColumnType::kDummy:
-      break;
+  if (IsNullable() && !IsDummy()) {
+    bool is_storage_dense;
+    switch (type_) {
+      case ColumnType::kInt32:
+        is_storage_dense = storage<int32_t>().IsDense();
+        break;
+      case ColumnType::kUint32:
+        is_storage_dense = storage<uint32_t>().IsDense();
+        break;
+      case ColumnType::kInt64:
+        is_storage_dense = storage<int64_t>().IsDense();
+        break;
+      case ColumnType::kDouble:
+        is_storage_dense = storage<double>().IsDense();
+        break;
+      case ColumnType::kString:
+        PERFETTO_FATAL("String column should not be nullable");
+      case ColumnType::kId:
+        PERFETTO_FATAL("Id column should not be nullable");
+      case ColumnType::kDummy:
+        PERFETTO_FATAL("Dummy column excluded above");
+    }
+    PERFETTO_DCHECK(is_storage_dense == IsDense());
   }
   PERFETTO_DCHECK(IsFlagsAndTypeValid(flags_, type_));
 }
@@ -154,7 +158,7 @@ void Column::FilterIntoNumericSlow(FilterOp op,
     PERFETTO_DCHECK(value.is_null());
     if (is_nullable) {
       row_map().FilterInto(rm, [this](uint32_t row) {
-        return !nullable_vector<T>().Get(row).has_value();
+        return !storage<T>().Get(row).has_value();
       });
     } else {
       rm->Clear();
@@ -164,7 +168,7 @@ void Column::FilterIntoNumericSlow(FilterOp op,
     PERFETTO_DCHECK(value.is_null());
     if (is_nullable) {
       row_map().FilterInto(rm, [this](uint32_t row) {
-        return nullable_vector<T>().Get(row).has_value();
+        return storage<T>().Get(row).has_value();
       });
     }
     return;
@@ -222,55 +226,55 @@ void Column::FilterIntoNumericWithComparatorSlow(FilterOp op,
     case FilterOp::kLt:
       row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = nullable_vector<T>().Get(idx);
+          auto opt_value = storage<T>().Get(idx);
           return opt_value && cmp(*opt_value) < 0;
         }
-        return cmp(nullable_vector<T>().GetNonNull(idx)) < 0;
+        return cmp(storage<T>().GetNonNull(idx)) < 0;
       });
       break;
     case FilterOp::kEq:
       row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = nullable_vector<T>().Get(idx);
+          auto opt_value = storage<T>().Get(idx);
           return opt_value && cmp(*opt_value) == 0;
         }
-        return cmp(nullable_vector<T>().GetNonNull(idx)) == 0;
+        return cmp(storage<T>().GetNonNull(idx)) == 0;
       });
       break;
     case FilterOp::kGt:
       row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = nullable_vector<T>().Get(idx);
+          auto opt_value = storage<T>().Get(idx);
           return opt_value && cmp(*opt_value) > 0;
         }
-        return cmp(nullable_vector<T>().GetNonNull(idx)) > 0;
+        return cmp(storage<T>().GetNonNull(idx)) > 0;
       });
       break;
     case FilterOp::kNe:
       row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = nullable_vector<T>().Get(idx);
+          auto opt_value = storage<T>().Get(idx);
           return opt_value && cmp(*opt_value) != 0;
         }
-        return cmp(nullable_vector<T>().GetNonNull(idx)) != 0;
+        return cmp(storage<T>().GetNonNull(idx)) != 0;
       });
       break;
     case FilterOp::kLe:
       row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = nullable_vector<T>().Get(idx);
+          auto opt_value = storage<T>().Get(idx);
           return opt_value && cmp(*opt_value) <= 0;
         }
-        return cmp(nullable_vector<T>().GetNonNull(idx)) <= 0;
+        return cmp(storage<T>().GetNonNull(idx)) <= 0;
       });
       break;
     case FilterOp::kGe:
       row_map().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = nullable_vector<T>().Get(idx);
+          auto opt_value = storage<T>().Get(idx);
           return opt_value && cmp(*opt_value) >= 0;
         }
-        return cmp(nullable_vector<T>().GetNonNull(idx)) >= 0;
+        return cmp(storage<T>().GetNonNull(idx)) >= 0;
       });
       break;
     case FilterOp::kIsNull:
@@ -465,20 +469,19 @@ void Column::StableSortNumeric(std::vector<uint32_t>* out) const {
   PERFETTO_DCHECK(IsNullable() == is_nullable);
   PERFETTO_DCHECK(ColumnTypeHelper<T>::ToColumnType() == type_);
 
-  const auto& nv = nullable_vector<T>();
-  row_map().StableSort(out, [&nv](uint32_t a_idx, uint32_t b_idx) {
+  row_map().StableSort(out, [this](uint32_t a_idx, uint32_t b_idx) {
     if (is_nullable) {
-      auto a_val = nv.Get(a_idx);
-      auto b_val = nv.Get(b_idx);
+      auto a_val = storage<T>().Get(a_idx);
+      auto b_val = storage<T>().Get(b_idx);
 
       int res = compare::NullableNumeric(a_val, b_val);
       return desc ? res > 0 : res < 0;
     }
-    auto a_val = nv.GetNonNull(a_idx);
-    auto b_val = nv.GetNonNull(b_idx);
+    auto a_val = storage<T>().GetNonNull(a_idx);
+    auto b_val = storage<T>().GetNonNull(b_idx);
 
-    return desc ? compare::Numeric(a_val, b_val) > 0
-                : compare::Numeric(a_val, b_val) < 0;
+    int res = compare::Numeric(a_val, b_val);
+    return desc ? res > 0 : res < 0;
   });
 }
 

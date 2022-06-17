@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/containers/bit_vector.h"
 
+#include <limits>
+
 #include "src/trace_processor/containers/bit_vector_iterators.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)

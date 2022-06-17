@@ -28,20 +28,6 @@
 namespace perfetto {
 namespace trace_processor {
 
-// Base class for NullableVector which allows type erasure to be implemented
-// (e.g. allows for std::unique_ptr<NullableVectorBase>).
-class NullableVectorBase {
- public:
-  NullableVectorBase() = default;
-  virtual ~NullableVectorBase();
-
-  NullableVectorBase(const NullableVectorBase&) = delete;
-  NullableVectorBase& operator=(const NullableVectorBase&) = delete;
-
-  NullableVectorBase(NullableVectorBase&&) = default;
-  NullableVectorBase& operator=(NullableVectorBase&&) noexcept = default;
-};
-
 // A data structure which compactly stores a list of possibly nullable data.
 //
 // Internally, this class is implemented using a combination of a std::deque
@@ -50,7 +36,7 @@ class NullableVectorBase {
 // BitVector at a slight cost (searching the BitVector to find the index into
 // the std::deque) when looking up the data.
 template <typename T>
-class NullableVector : public NullableVectorBase {
+class NullableVector {
  private:
   enum class Mode {
     // Sparse mode is the default mode and ensures that nulls are stored using
@@ -68,9 +54,8 @@ class NullableVector : public NullableVectorBase {
  public:
   // Creates an empty NullableVector.
   NullableVector() : NullableVector<T>(Mode::kSparse) {}
-  ~NullableVector() override = default;
 
-  explicit NullableVector(const NullableVector&) = delete;
+  NullableVector(const NullableVector&) = delete;
   NullableVector& operator=(const NullableVector&) = delete;
 
   NullableVector(NullableVector&&) = default;

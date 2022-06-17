@@ -65,8 +65,8 @@ base::Status ExperimentalSchedUpidGenerator::ComputeTable(
   return base::OkStatus();
 }
 
-NullableVector<uint32_t> ExperimentalSchedUpidGenerator::ComputeUpidColumn() {
-  NullableVector<uint32_t> upid;
+ColumnStorage<uint32_t> ExperimentalSchedUpidGenerator::ComputeUpidColumn() {
+  ColumnStorage<uint32_t> upid;
   for (uint32_t i = 0; i < sched_slice_table_->row_count(); ++i) {
     upid.Append(thread_table_->upid()[sched_slice_table_->utid()[i]]);
   }

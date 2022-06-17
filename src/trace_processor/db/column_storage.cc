@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/containers/nullable_vector.h"
+#include "src/trace_processor/db/column_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-NullableVectorBase::~NullableVectorBase() = default;
+ColumnStorageBase::~ColumnStorageBase() = default;
 
 }  // namespace trace_processor
 }  // namespace perfetto

@@ -32,7 +32,6 @@ perfetto_component("containers") {
   sources = [
     "bit_vector.cc",
     "bit_vector_iterators.cc",
-    "nullable_vector.cc",
     "row_map.cc",
     "string_pool.cc",
   ]

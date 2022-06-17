@@ -93,7 +93,7 @@ class MacroTable : public Table {
       row_maps_.emplace_back();
       columns_.emplace_back(Column::IdColumn(this, 0, 0));
       columns_.emplace_back(
-          Column("type", &type_, Column::kNoFlag, this, 1, 0));
+          Column("type", &type_, Column::kNonNull, this, 1, 0));
       return;
     }
 
