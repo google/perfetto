@@ -33,8 +33,65 @@ SELECT
 FROM all_qurg2
 WHERE name NOT GLOB 'slc/qurg2_??:lvl=0x0*';
 
+-- Find all event counters from simpleperf in the form of
+-- (<event_name> + '_tid' + <tid> + '_cpu' + <cpu_id>)
+DROP VIEW IF EXISTS simpleperf_event_raw;
+CREATE VIEW simpleperf_event_raw AS
+SELECT
+  SUBSTR(name, 0, tid_pos) AS name,
+  CAST(SUBSTR(name, tid_pos+4, cpu_pos-tid_pos-4) AS INT)  AS tid,
+  CAST(SUBSTR(name, cpu_pos+4) AS INT) AS cpu,
+  total
+FROM (
+  SELECT
+    name,
+    INSTR(name, '_tid') AS tid_pos,
+    INSTR(name, '_cpu') AS cpu_pos,
+    SUM(value) AS total
+  FROM counters
+  WHERE name GLOB '*_tid*_cpu*'
+  GROUP BY name
+);
+
+DROP VIEW IF EXISTS simpleperf_event_per_process;
+CREATE VIEW simpleperf_event_per_process AS
+SELECT
+  e.name,
+  t.upid,
+  RepeatedField(
+    AndroidSimpleperfMetric_PerfEventMetric_Thread(
+      'tid', e.tid,
+      'name', t.name,
+      'cpu', e.cpu,
+      'total', e.total
+    )
+  ) AS threads,
+  SUM(e.total) AS total
+FROM simpleperf_event_raw e JOIN thread t USING (tid)
+GROUP BY e.name, t.upid;
+
+
+DROP VIEW IF EXISTS simpleperf_event_metric;
+CREATE VIEW simpleperf_event_metric AS
+SELECT
+  AndroidSimpleperfMetric_PerfEventMetric(
+    'name', e.name,
+    'processes', RepeatedField(
+      AndroidSimpleperfMetric_PerfEventMetric_Process(
+        'pid', p.pid,
+        'name', p.name,
+        'threads', e.threads,
+        'total', e.total
+      )
+    ),
+    'total', SUM(total)
+  ) AS proto
+FROM simpleperf_event_per_process e JOIN process p USING (upid)
+GROUP BY e.name;
+
 DROP VIEW IF EXISTS android_simpleperf_output;
 CREATE VIEW android_simpleperf_output AS
 SELECT AndroidSimpleperfMetric(
-  'urgent_ratio', (SELECT sum(value) FROM non_zero_qurg2) / (SELECT sum(value) FROM all_qurg2)
+  'urgent_ratio', (SELECT sum(value) FROM non_zero_qurg2) / (SELECT sum(value) FROM all_qurg2),
+  'events', (SELECT RepeatedField(proto) FROM simpleperf_event_metric)
 );
