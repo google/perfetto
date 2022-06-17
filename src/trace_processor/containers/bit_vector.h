@@ -120,8 +120,8 @@ class BitVector {
     return AddressToIndex(Address{block_idx, block_offset});
   }
 
-  // Sets the bit at index |idx| to true.
-  void Set(uint32_t idx) {
+  // Sets the bit at index |idx| to true and returns the previous value.
+  bool Set(uint32_t idx) {
     // Set the bit to the correct value inside the block but store the old
     // bit to help fix the counts.
     auto addr = IndexToAddress(idx);
@@ -136,6 +136,7 @@ class BitVector {
         counts_[i]++;
       }
     }
+    return old_value;
   }
 
   // Sets the bit at index |idx| to false.
