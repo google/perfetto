@@ -69,11 +69,11 @@ base::Status ExperimentalCounterDurGenerator::ComputeTable(
 }
 
 // static
-NullableVector<int64_t> ExperimentalCounterDurGenerator::ComputeDurColumn(
+ColumnStorage<int64_t> ExperimentalCounterDurGenerator::ComputeDurColumn(
     const Table& table) {
   // Keep track of the last seen row for each track id.
   std::unordered_map<TrackId, uint32_t> last_row_for_track_id;
-  NullableVector<int64_t> dur;
+  ColumnStorage<int64_t> dur;
 
   const auto* ts_col =
       TypedColumn<int64_t>::FromColumn(table.GetColumnByName("ts"));
@@ -104,11 +104,11 @@ NullableVector<int64_t> ExperimentalCounterDurGenerator::ComputeDurColumn(
 }
 
 // static
-NullableVector<double> ExperimentalCounterDurGenerator::ComputeDeltaColumn(
+ColumnStorage<double> ExperimentalCounterDurGenerator::ComputeDeltaColumn(
     const Table& table) {
   // Keep track of the last seen row for each track id.
   std::unordered_map<TrackId, uint32_t> last_row_for_track_id;
-  NullableVector<double> delta;
+  ColumnStorage<double> delta;
 
   const auto* value_col =
       TypedColumn<double>::FromColumn(table.GetColumnByName("value"));
