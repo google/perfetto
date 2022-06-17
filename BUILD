@@ -958,7 +958,6 @@ perfetto_cc_library(
     srcs = [
         "src/trace_processor/containers/bit_vector.cc",
         "src/trace_processor/containers/bit_vector_iterators.cc",
-        "src/trace_processor/containers/nullable_vector.cc",
         "src/trace_processor/containers/row_map.cc",
         "src/trace_processor/containers/string_pool.cc",
     ],
@@ -988,6 +987,8 @@ perfetto_filegroup(
         "src/trace_processor/db/base_id.h",
         "src/trace_processor/db/column.cc",
         "src/trace_processor/db/column.h",
+        "src/trace_processor/db/column_storage.cc",
+        "src/trace_processor/db/column_storage.h",
         "src/trace_processor/db/compare.h",
         "src/trace_processor/db/table.cc",
         "src/trace_processor/db/table.h",

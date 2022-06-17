@@ -38,8 +38,8 @@ class ExperimentalCounterDurGenerator : public DynamicTableGenerator {
                             std::unique_ptr<Table>& table_return) override;
 
   // public + static for testing
-  static NullableVector<int64_t> ComputeDurColumn(const Table& table);
-  static NullableVector<double> ComputeDeltaColumn(const Table& table);
+  static ColumnStorage<int64_t> ComputeDurColumn(const Table& table);
+  static ColumnStorage<double> ComputeDeltaColumn(const Table& table);
 
  private:
   const tables::CounterTable* counter_table_ = nullptr;
