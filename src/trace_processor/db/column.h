@@ -97,6 +97,8 @@ template <>
 struct ColumnTypeHelper<StringPool::Id> {
   static constexpr ColumnType ToColumnType() { return ColumnType::kString; }
 };
+template <typename T>
+struct ColumnTypeHelper<base::Optional<T>> : public ColumnTypeHelper<T> {};
 
 class Table;
 
@@ -225,7 +227,7 @@ class Column {
          uint32_t col_idx_in_table,
          uint32_t row_map_idx)
       : Column(name,
-               ColumnTypeHelper<T>::ToColumnType(),
+               ColumnTypeHelper<stored_type<T>>::ToColumnType(),
                flags,
                table,
                col_idx_in_table,
@@ -437,22 +439,24 @@ class Column {
 
  protected:
   template <typename T>
-  using storage_t = typename tc_internal::TypeHandler<T>::storage_type;
+  using stored_type = typename tc_internal::TypeHandler<T>::stored_type;
 
   // Returns the backing sparse vector cast to contain data of type T.
   // Should only be called when |type_| == ToColumnType<T>().
   template <typename T>
-  storage_t<T>* mutable_storage() {
+  ColumnStorage<stored_type<T>>* mutable_storage() {
     PERFETTO_DCHECK(ColumnTypeHelper<T>::ToColumnType() == type_);
-    return static_cast<storage_t<T>*>(storage_);
+    PERFETTO_DCHECK(tc_internal::TypeHandler<T>::is_optional == IsNullable());
+    return static_cast<ColumnStorage<stored_type<T>>*>(storage_);
   }
 
   // Returns the backing sparse vector cast to contain data of type T.
   // Should only be called when |type_| == ToColumnType<T>().
   template <typename T>
-  const storage_t<T>& storage() const {
+  const ColumnStorage<stored_type<T>>& storage() const {
     PERFETTO_DCHECK(ColumnTypeHelper<T>::ToColumnType() == type_);
-    return *static_cast<storage_t<T>*>(storage_);
+    PERFETTO_DCHECK(tc_internal::TypeHandler<T>::is_optional == IsNullable());
+    return *static_cast<ColumnStorage<stored_type<T>>*>(storage_);
   }
 
   // Returns true if this column is a dense column.
@@ -519,10 +523,10 @@ class Column {
   template <typename T>
   SqlValue GetAtIdxTyped(uint32_t idx) const {
     if (IsNullable()) {
-      auto opt_value = storage<T>().Get(idx);
+      auto opt_value = storage<base::Optional<T>>().Get(idx);
       return opt_value ? ToSqlValue(*opt_value) : SqlValue();
     }
-    return ToSqlValue(storage<T>().GetNonNull(idx));
+    return ToSqlValue(storage<T>().Get(idx));
   }
 
   // Optimized filter method for sorted columns.
@@ -588,7 +592,7 @@ class Column {
       return;
     }
 
-    uint32_t set_id = nv.GetNonNull(col_rm.Get(filter_set_id));
+    uint32_t set_id = nv.Get(col_rm.Get(filter_set_id));
 
     // If the set at that index does not equal the set id we're looking for, the
     // set id doesn't exist either.
@@ -600,7 +604,7 @@ class Column {
 
     // Otherwise, find the end of the set and return the intersection for this.
     for (uint32_t i = set_id + 1; i < col_rm.size(); ++i) {
-      if (nv.GetNonNull(col_rm.Get(i)) != filter_set_id) {
+      if (nv.Get(col_rm.Get(i)) != filter_set_id) {
         rm->Intersect(set_id, i);
         return;
       }
@@ -689,7 +693,7 @@ class Column {
   // Should only be called when |type_| == ColumnType::kString.
   NullTermStringView GetStringPoolStringAtIdx(uint32_t idx) const {
     PERFETTO_DCHECK(type_ == ColumnType::kString);
-    return string_pool_->Get(storage<StringPool::Id>().GetNonNull(idx));
+    return string_pool_->Get(storage<StringPool::Id>().Get(idx));
   }
 
   // type_ is used to cast nullable_vector_ to the correct type.

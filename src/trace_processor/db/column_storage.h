@@ -36,8 +36,7 @@ class ColumnStorageBase {
   ColumnStorageBase& operator=(ColumnStorageBase&&) noexcept = default;
 };
 
-// Class used for implementing storage for columns.
-// TODO(lalitm): split this class up into a nullable and non-null components.
+// Class used for implementing storage for non-null columns.
 template <typename T>
 class ColumnStorage : public ColumnStorageBase {
  public:
@@ -49,25 +48,55 @@ class ColumnStorage : public ColumnStorageBase {
   ColumnStorage(ColumnStorage&&) = default;
   ColumnStorage& operator=(ColumnStorage&&) noexcept = default;
 
-  base::Optional<T> Get(uint32_t idx) const { return nv_.Get(idx); }
-  T GetNonNull(uint32_t non_null_idx) const {
-    return nv_.GetNonNull(non_null_idx);
+  T Get(uint32_t idx) const { return deque_[idx]; }
+  void Append(T val) { deque_.emplace_back(val); }
+  void Set(uint32_t idx, T val) { deque_[idx] = val; }
+  uint32_t size() const { return static_cast<uint32_t>(deque_.size()); }
+
+  template <bool IsDense>
+  static ColumnStorage<T> Create() {
+    static_assert(!IsDense, "Invalid for non-null storage to be dense.");
+    return ColumnStorage<T>();
   }
+
+ private:
+  std::deque<T> deque_;
+};
+
+// Class used for implementing storage for nullable columns.
+template <typename T>
+class ColumnStorage<base::Optional<T>> : public ColumnStorageBase {
+ public:
+  ColumnStorage() = default;
+
+  explicit ColumnStorage(const ColumnStorage&) = delete;
+  ColumnStorage& operator=(const ColumnStorage&) = delete;
+
+  ColumnStorage(ColumnStorage&&) = default;
+  ColumnStorage& operator=(ColumnStorage&&) noexcept = default;
+
+  base::Optional<T> Get(uint32_t idx) const { return nv_.Get(idx); }
   void Append(T val) { nv_.Append(val); }
   void Append(base::Optional<T> val) { nv_.Append(val); }
   void Set(uint32_t idx, T val) { nv_.Set(idx, val); }
   uint32_t size() const { return nv_.size(); }
   bool IsDense() const { return nv_.IsDense(); }
 
-  static ColumnStorage<T> Sparse() {
-    return ColumnStorage<T>(NullableVector<T>::Sparse());
-  }
-  static ColumnStorage<T> Dense() {
-    return ColumnStorage<T>(NullableVector<T>::Dense());
+  template <bool IsDense>
+  static ColumnStorage<base::Optional<T>> Create() {
+    return IsDense ? ColumnStorage<base::Optional<T>>::Dense()
+                   : ColumnStorage<base::Optional<T>>::Sparse();
   }
 
  private:
   explicit ColumnStorage(NullableVector<T> nv) : nv_(std::move(nv)) {}
+
+  static ColumnStorage<base::Optional<T>> Sparse() {
+    return ColumnStorage<base::Optional<T>>(NullableVector<T>::Sparse());
+  }
+  static ColumnStorage<base::Optional<T>> Dense() {
+    return ColumnStorage<base::Optional<T>>(NullableVector<T>::Dense());
+  }
 
   NullableVector<T> nv_;
 };
