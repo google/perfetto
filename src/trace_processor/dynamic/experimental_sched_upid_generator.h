@@ -41,7 +41,7 @@ class ExperimentalSchedUpidGenerator : public DynamicTableGenerator {
                             std::unique_ptr<Table>& table_return) override;
 
  private:
-  ColumnStorage<uint32_t> ComputeUpidColumn();
+  ColumnStorage<base::Optional<UniquePid>> ComputeUpidColumn();
 
   const tables::SchedSliceTable* sched_slice_table_;
   const tables::ThreadTable* thread_table_;
