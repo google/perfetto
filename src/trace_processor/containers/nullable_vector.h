@@ -69,19 +69,19 @@ class NullableVector {
 
   // Returns the optional value at |idx| or base::nullopt if the value is null.
   base::Optional<T> Get(uint32_t idx) const {
+    bool contains = valid_.IsSet(idx);
     if (mode_ == Mode::kDense) {
-      bool contains = valid_.Contains(idx);
       return contains ? base::make_optional(data_[idx]) : base::nullopt;
     } else {
-      auto opt_row = valid_.RowOf(idx);
-      return opt_row ? base::make_optional(data_[*opt_row]) : base::nullopt;
+      return contains ? base::make_optional(data_[valid_.CountSetBits(idx)])
+                      : base::nullopt;
     }
   }
 
   // Adds the given value to the NullableVector.
   void Append(T val) {
     data_.emplace_back(val);
-    valid_.Insert(size_++);
+    valid_.AppendTrue();
   }
 
   // Adds the given optional value to the NullableVector.
@@ -96,28 +96,23 @@ class NullableVector {
   // Sets the value at |idx| to the given |val|.
   void Set(uint32_t idx, T val) {
     if (mode_ == Mode::kDense) {
-      if (!valid_.Contains(idx)) {
-        valid_.Insert(idx);
-      }
+      valid_.Set(idx);
       data_[idx] = val;
     } else {
-      auto opt_row = valid_.RowOf(idx);
-
       // Generally, we will be setting a null row to non-null so optimize for
       // that path.
-      if (PERFETTO_UNLIKELY(opt_row)) {
-        data_[*opt_row] = val;
+      uint32_t row = valid_.CountSetBits(idx);
+      bool was_set = valid_.Set(idx);
+      if (PERFETTO_UNLIKELY(was_set)) {
+        data_[row] = val;
       } else {
-        valid_.Insert(idx);
-
-        uint32_t inserted_row = *valid_.RowOf(idx);
-        data_.insert(data_.begin() + static_cast<ptrdiff_t>(inserted_row), val);
+        data_.insert(data_.begin() + static_cast<ptrdiff_t>(row), val);
       }
     }
   }
 
   // Returns the size of the NullableVector; this includes any null values.
-  uint32_t size() const { return size_; }
+  uint32_t size() const { return valid_.size(); }
 
   // Returns whether data in this NullableVector is stored densely.
   bool IsDense() const { return mode_ == Mode::kDense; }
@@ -129,14 +124,13 @@ class NullableVector {
     if (mode_ == Mode::kDense) {
       data_.emplace_back();
     }
-    size_++;
+    valid_.AppendFalse();
   }
 
   Mode mode_ = Mode::kSparse;
 
   std::deque<T> data_;
-  RowMap valid_;
-  uint32_t size_ = 0;
+  BitVector valid_;
 };
 
 }  // namespace trace_processor
