@@ -175,7 +175,7 @@ class MacroTable : public Table {
   //
   // Only relevant for parentless tables. Will be empty and unreferenced by
   // tables with parents.
-  TypedColumn<StringPool::Id>::storage_type type_;
+  ColumnStorage<StringPool::Id> type_;
 
  private:
   const Table* parent_ = nullptr;
@@ -359,7 +359,7 @@ class AbstractConstRowReference {
 
 // Defines the member variable in the Table.
 #define PERFETTO_TP_TABLE_MEMBER(type, name, ...) \
-  TypedColumn<type>::storage_type name##_;
+  ColumnStorage<TypedColumn<type>::stored_type> name##_;
 
 #define PERFETTO_TP_COLUMN_FLAG_HAS_FLAG_COL(type, name, flags)               \
   static constexpr uint32_t name##_flags() {                                  \
@@ -402,9 +402,9 @@ class AbstractConstRowReference {
       PERFETTO_TP_PARENT_COLUMN_FLAG_NO_FLAG_COL)(__VA_ARGS__))
 
 // Creates the sparse vector with the given flags.
-#define PERFETTO_TP_TABLE_CONSTRUCTOR_SV(type, name, ...)      \
-  name##_ = TypedColumn<type>::CreateStorage<(name##_flags() & \
-                                              Column::Flag::kDense) != 0>();
+#define PERFETTO_TP_TABLE_CONSTRUCTOR_SV(type, name, ...)          \
+  name##_ = ColumnStorage<TypedColumn<type>::stored_type>::Create< \
+      (name##_flags() & Column::Flag::kDense) != 0>();
 
 // Invokes the chosen column constructor by passing the given args.
 #define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN(type, name, ...)   \
@@ -437,15 +437,14 @@ class AbstractConstRowReference {
   }
 
 // Defines the accessors for a column.
-#define PERFETTO_TP_TABLE_STATIC_ASSERT_FLAG(type, name, ...)          \
-  static_assert(                                                       \
-      Column::IsFlagsAndTypeValid<TypedColumn<type>::serialized_type>( \
-          name##_flags()),                                             \
-      "Column type and flag combination is not valid");
+#define PERFETTO_TP_TABLE_STATIC_ASSERT_FLAG(type, name, ...)                \
+  static_assert(Column::IsFlagsAndTypeValid<TypedColumn<type>::stored_type>( \
+                    name##_flags()),                                         \
+                "Column type and flag combination is not valid");
 
 // Defines the parameter for the |ExtendParent| function.
 #define PERFETTO_TP_TABLE_EXTEND_PARAM(type, name, ...) \
-  TypedColumn<type>::storage_type name,
+  ColumnStorage<TypedColumn<type>::stored_type> name,
 
 // Defines the parameter passing for the |ExtendParent| function.
 #define PERFETTO_TP_TABLE_EXTEND_PARAM_PASSING(type, name, ...) std::move(name),
