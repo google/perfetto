@@ -45,6 +45,7 @@ stack_profile_tracker_empty_callstack.textproto stack_profile_tracker_empty_call
 
 # Metrics
 heap_profile_no_symbols.textproto unsymbolized_frames unsymbolized_frames.out
+simpleperf_event.py android_simpleperf simpleperf_event.out
 
 heap_graph.textproto java_heap_stats java_heap_stats.out
 heap_graph_closest_proc.textproto java_heap_stats heap_stats_closest_proc.out
