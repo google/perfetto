@@ -100,7 +100,7 @@ std::unique_ptr<Table> ExtendWithStartId(
     ConstraintType constraint_value,
     const ParentTable& table,
     std::vector<typename ParentTable::RowNumber> parent_rows) {
-  NullableVector<ConstraintType> start_ids;
+  ColumnStorage<ConstraintType> start_ids;
   for (uint32_t i = 0; i < parent_rows.size(); ++i)
     start_ids.Append(constraint_value);
   return ChildTable::SelectAndExtendParent(table, std::move(parent_rows),

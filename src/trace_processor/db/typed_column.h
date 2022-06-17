@@ -89,13 +89,11 @@ class TypedColumn : public Column {
   }
 
   // Inserts the value at the end of the column.
-  void Append(T v) {
-    mutable_nullable_vector()->Append(Serializer::Serialize(v));
-  }
+  void Append(T v) { mutable_storage()->Append(Serializer::Serialize(v)); }
 
   // Returns the row containing the given value in the Column.
   base::Optional<uint32_t> IndexOf(sql_value_type v) const {
-    return Column::IndexOf(ToValue(v));
+    return Column::IndexOf(ToSqlValue(v));
   }
 
   std::vector<T> ToVectorForTesting() const {
@@ -106,12 +104,12 @@ class TypedColumn : public Column {
   }
 
   // Helper functions to create constraints for the given value.
-  Constraint eq(sql_value_type v) const { return eq_value(ToValue(v)); }
-  Constraint gt(sql_value_type v) const { return gt_value(ToValue(v)); }
-  Constraint lt(sql_value_type v) const { return lt_value(ToValue(v)); }
-  Constraint ne(sql_value_type v) const { return ne_value(ToValue(v)); }
-  Constraint ge(sql_value_type v) const { return ge_value(ToValue(v)); }
-  Constraint le(sql_value_type v) const { return le_value(ToValue(v)); }
+  Constraint eq(sql_value_type v) const { return eq_value(ToSqlValue(v)); }
+  Constraint gt(sql_value_type v) const { return gt_value(ToSqlValue(v)); }
+  Constraint lt(sql_value_type v) const { return lt_value(ToSqlValue(v)); }
+  Constraint ne(sql_value_type v) const { return ne_value(ToSqlValue(v)); }
+  Constraint ge(sql_value_type v) const { return ge_value(ToSqlValue(v)); }
+  Constraint le(sql_value_type v) const { return le_value(ToSqlValue(v)); }
 
   // Implements equality between two items of type |T|.
   static constexpr bool Equals(T a, T b) { return TH::Equals(a, b); }
@@ -144,18 +142,18 @@ class TypedColumn : public Column {
   // Public for use by macro tables.
   void SetAtIdx(uint32_t idx, non_optional_type v) {
     auto serialized = Serializer::Serialize(v);
-    mutable_nullable_vector()->Set(idx, serialized);
+    mutable_storage()->Set(idx, serialized);
   }
 
   // Public for use by macro tables.
   T GetAtIdx(uint32_t idx) const {
-    return Serializer::Deserialize(TH::Get(nullable_vector(), idx));
+    return Serializer::Deserialize(TH::Get(storage(), idx));
   }
 
   template <bool is_string = TH::is_string>
   typename std::enable_if<is_string, NullTermStringView>::type GetStringAtIdx(
       uint32_t idx) const {
-    return string_pool().Get(nullable_vector().GetNonNull(idx));
+    return string_pool().Get(storage().GetNonNull(idx));
   }
 
  private:
@@ -178,18 +176,11 @@ class TypedColumn : public Column {
     }
   }
 
-  static SqlValue ToValue(double value) { return SqlValue::Double(value); }
-  static SqlValue ToValue(uint32_t value) { return SqlValue::Long(value); }
-  static SqlValue ToValue(int64_t value) { return SqlValue::Long(value); }
-  static SqlValue ToValue(NullTermStringView value) {
-    return SqlValue::String(value.c_str());
+  const storage_type& storage() const {
+    return Column::storage<serialized_type>();
   }
-
-  const NullableVector<serialized_type>& nullable_vector() const {
-    return Column::nullable_vector<serialized_type>();
-  }
-  NullableVector<serialized_type>* mutable_nullable_vector() {
-    return Column::mutable_nullable_vector<serialized_type>();
+  storage_type* mutable_storage() {
+    return Column::mutable_storage<serialized_type>();
   }
 };
 
