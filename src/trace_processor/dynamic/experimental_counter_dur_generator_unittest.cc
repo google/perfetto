@@ -43,12 +43,12 @@ TEST(ExperimentalCounterDurGenerator, SmokeDur) {
   auto dur = ExperimentalCounterDurGenerator::ComputeDurColumn(table);
   ASSERT_EQ(dur.size(), table.row_count());
 
-  ASSERT_EQ(dur.GetNonNull(0), 5);
-  ASSERT_EQ(dur.GetNonNull(1), 3);
-  ASSERT_EQ(dur.GetNonNull(2), -1);
-  ASSERT_EQ(dur.GetNonNull(3), -1);
-  ASSERT_EQ(dur.GetNonNull(4), 5);
-  ASSERT_EQ(dur.GetNonNull(5), -1);
+  ASSERT_EQ(dur.Get(0), 5);
+  ASSERT_EQ(dur.Get(1), 3);
+  ASSERT_EQ(dur.Get(2), -1);
+  ASSERT_EQ(dur.Get(3), -1);
+  ASSERT_EQ(dur.Get(4), 5);
+  ASSERT_EQ(dur.Get(5), -1);
 }
 
 }  // namespace

@@ -231,18 +231,18 @@ class ViewColumnBlueprint {
       PERFETTO_TP_VIEW_COLUMN_IT_GETTER, col_name)
 
 // Defines a static assert for ensuring a given join clause is valid.
-#define PERFETTO_TP_VIEW_JOIN_STATIC_ASSERT(_, join_table, join_col,           \
-                                            prev_table, prev_col, flags)       \
-  static_assert(                                                               \
-      std::is_same<                                                            \
-          TableType::join_table::ColumnType::join_col::type,                   \
-          TableType::prev_table::ColumnType::prev_col::type>::value ||         \
-          (((flags)&View::JoinFlag::kTypeCheckSerialized) != 0 &&              \
-           std::is_same<                                                       \
-               TableType::join_table::ColumnType::join_col::serialized_type,   \
-               TableType::prev_table::ColumnType::prev_col::serialized_type>:: \
-               value),                                                         \
-      "Both sides of join do not have the same type; check that you are "      \
+#define PERFETTO_TP_VIEW_JOIN_STATIC_ASSERT(_, join_table, join_col,       \
+                                            prev_table, prev_col, flags)   \
+  static_assert(                                                           \
+      std::is_same<                                                        \
+          TableType::join_table::ColumnType::join_col::type,               \
+          TableType::prev_table::ColumnType::prev_col::type>::value ||     \
+          (((flags)&View::JoinFlag::kTypeCheckSerialized) != 0 &&          \
+           std::is_same<                                                   \
+               TableType::join_table::ColumnType::join_col::stored_type,   \
+               TableType::prev_table::ColumnType::prev_col::stored_type>:: \
+               value),                                                     \
+      "Both sides of join do not have the same type; check that you are "  \
       "joining the correct tables and columns.");
 
 #define PERFETTO_TP_VIEW_INTERNAL(view_name, class_name, DEF)                  \
