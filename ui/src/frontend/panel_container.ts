@@ -16,7 +16,11 @@ import * as m from 'mithril';
 
 import {assertExists, assertFalse, assertTrue} from '../base/logging';
 
-import {TOPBAR_HEIGHT, TRACK_SHELL_WIDTH} from './css_constants';
+import {
+  SELECTION_STROKE_COLOR,
+  TOPBAR_HEIGHT,
+  TRACK_SHELL_WIDTH,
+} from './css_constants';
 import {
   FlowEventsRenderer,
   FlowEventsRendererArgs,
@@ -452,7 +456,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     selectedTracksMinY -= this.panelContainerTop;
     selectedTracksMaxY -= this.panelContainerTop;
     this.ctx.save();
-    this.ctx.strokeStyle = 'rgba(52,69,150)';
+    this.ctx.strokeStyle = SELECTION_STROKE_COLOR;
     this.ctx.lineWidth = 1;
     const canvasYStart =
         Math.floor(this.scrollTop - this.getCanvasOverdrawHeightPerSide());

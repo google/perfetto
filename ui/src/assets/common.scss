@@ -18,7 +18,10 @@
     --track-shell-width: 250px;
     --track-border-color: #00000025;
     --anim-easing: cubic-bezier(0.4, 0.0, 0.2, 1)
-
+    --selection-stroke-color: #00344596;
+    --selection-fill-color: #8398e64d;
+    --overview-timeline-non-visible-color: #c8c8c8cc;
+    --details-content-height: 280px;
 }
 
 @mixin transition($time:0.1s) {
