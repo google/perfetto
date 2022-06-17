@@ -559,10 +559,25 @@ maxRuntime$
 tname (	Rtname
 ts (Rts
 dur (Rdur
-Å
-0protos/perfetto/metrics/android/simpleperf.protoperfetto.protos"<
+Ì
+0protos/perfetto/metrics/android/simpleperf.protoperfetto.protos"ß
 AndroidSimpleperfMetric!
-urgent_ratio (RurgentRatio
+urgent_ratio (RurgentRatioP
+events (28.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetricReventsñ
+PerfEventMetric
+name (	Rname^
+	processes (2@.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ProcessR	processes
+total (RtotalV
+Thread
+tid (Rtid
+name (	Rname
+cpu (Rcpu
+total (Rtotal†
+Process
+pid (Rpid
+name (	RnameY
+threads (2?.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ThreadRthreads
+total (Rtotal
 ı#
 4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Û"
 AndroidStartupMetricG

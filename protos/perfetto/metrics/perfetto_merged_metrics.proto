@@ -1179,6 +1179,41 @@ message AndroidRtRuntimeMetric {
 // simpleperf tool
 message AndroidSimpleperfMetric {
   optional double urgent_ratio = 1;
+
+  message PerfEventMetric {
+    // Simpleperf event name
+    optional string name = 1;
+
+    message Thread {
+      // Thread ID
+      optional int32 tid = 1;
+      // Thread name
+      optional string name = 2;
+      // CPU ID
+      optional int32 cpu = 3;
+      // Total counter value
+      optional double total = 4;
+    }
+
+    message Process {
+      // Process ID
+      optional int32 pid = 1;
+      // Process name
+      optional string name = 2;
+      // Metrics for each thread in this process.
+      repeated Thread threads = 3;
+      // Total counter value over all threads in this process
+      optional double total = 4;
+    }
+
+    // Metrics for each process
+    repeated Process processes = 2;
+
+    // Total counter value over all processes and threads
+    optional double total = 3;
+  }
+
+  repeated PerfEventMetric events = 2;
 }
 
 // End of protos/perfetto/metrics/android/simpleperf.proto
