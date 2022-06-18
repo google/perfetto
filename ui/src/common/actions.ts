@@ -98,6 +98,7 @@ export interface PostedTrace {
   url?: string;
   uuid?: string;
   localOnly?: boolean;
+  keepApiOpen?: boolean;
 }
 
 function clearTraceState(state: StateDraft) {

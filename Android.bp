@@ -8241,7 +8241,6 @@ filegroup {
     srcs: [
         "src/trace_processor/containers/bit_vector.cc",
         "src/trace_processor/containers/bit_vector_iterators.cc",
-        "src/trace_processor/containers/nullable_vector.cc",
         "src/trace_processor/containers/row_map.cc",
         "src/trace_processor/containers/string_pool.cc",
     ],
@@ -8264,6 +8263,7 @@ filegroup {
     name: "perfetto_src_trace_processor_db_db",
     srcs: [
         "src/trace_processor/db/column.cc",
+        "src/trace_processor/db/column_storage.cc",
         "src/trace_processor/db/table.cc",
         "src/trace_processor/db/view.cc",
     ],

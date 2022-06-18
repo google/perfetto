@@ -19,6 +19,8 @@ source_set("db") {
     "base_id.h",
     "column.cc",
     "column.h",
+    "column_storage.cc",
+    "column_storage.h",
     "compare.h",
     "table.cc",
     "table.h",
