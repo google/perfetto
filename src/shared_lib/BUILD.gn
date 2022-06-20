@@ -26,6 +26,7 @@ shared_library("libperfetto_c") {
     "producer.cc",
     "stream_writer.cc",
     "stream_writer.h",
+    "tracing_session.cc",
   ]
   defines = [ "PERFETTO_SHLIB_SDK_IMPLEMENTATION" ]
 }
