@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<MessageDescriptor, 421> descriptors{{
+std::array<FtraceMessageDescriptor, 421> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -4574,13 +4574,13 @@ std::array<MessageDescriptor, 421> descriptors{{
 
 }  // namespace
 
-MessageDescriptor* GetMessageDescriptorForId(size_t id) {
+FtraceMessageDescriptor* GetMessageDescriptorForId(size_t id) {
   PERFETTO_CHECK(id < descriptors.size());
   return &descriptors[id];
 }
 
-MessageDescriptor* GetMessageDescriptorForName(base::StringView name) {
-  for (MessageDescriptor& descriptor : descriptors) {
+FtraceMessageDescriptor* GetMessageDescriptorForName(base::StringView name) {
+  for (FtraceMessageDescriptor& descriptor : descriptors) {
     if (descriptor.name != nullptr && descriptor.name == name)
       return &descriptor;
   }
