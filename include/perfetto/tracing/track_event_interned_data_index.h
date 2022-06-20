@@ -194,7 +194,7 @@ class TrackEventInternedDataIndex
     return iid;
   }
 
- private:
+ protected:
   static InternedDataType* GetOrCreateIndexForField(
       internal::TrackEventIncrementalState* incremental_state) {
     // Fast path: look for matching field number.
@@ -244,6 +244,7 @@ class TrackEventInternedDataIndex
     PERFETTO_CHECK(false);
   }
 
+ private:
   // The actual interning dictionary for this type of interned data. The actual
   // container type is defined by |Traits|, hence the extra layer of template
   // indirection here.
