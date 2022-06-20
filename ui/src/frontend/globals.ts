@@ -84,6 +84,11 @@ export interface FlowPoint {
   processName: string;
 
   depth: number;
+
+  // TODO(altimin): Ideally we should have a generic mechanism for allowing to
+  // customise the name here, but for now we are hardcording a few
+  // Chrome-specific bits in the query here.
+  sliceChromeCustomName?: string;
 }
 
 export interface Flow {
