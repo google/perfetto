@@ -102,6 +102,12 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
                      storage_.InternString(base::StringView(key.key)),
                      Variadic::String(storage_.InternString(value)));
   }
+  void AddString(const Key& key, const std::string& value) final {
+    inserter_.AddArg(
+        storage_.InternString(base::StringView(key.flat_key)),
+        storage_.InternString(base::StringView(key.key)),
+        Variadic::String(storage_.InternString(base::StringView(value))));
+  }
   void AddDouble(const Key& key, double value) final {
     inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
                      storage_.InternString(base::StringView(key.key)),
@@ -155,6 +161,18 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
 
 TrackEventArgsParser::~TrackEventArgsParser() = default;
 
+// Paths on Windows use backslash rather than slash as a separator.
+// Normalise the paths by replacing backslashes with slashes to make it
+// easier to write cross-platform scripts.
+std::string NormalizePathSeparators(const protozero::ConstChars& path) {
+  std::string result(path.data, path.size);
+  for (char& c : result) {
+    if (c == '\\')
+      c = '/';
+  }
+  return result;
+}
+
 base::Optional<base::Status> MaybeParseSourceLocation(
     std::string prefix,
     const protozero::Field& field,
@@ -168,11 +186,13 @@ base::Optional<base::Status> MaybeParseSourceLocation(
   }
 
   delegate.AddString(util::ProtoToArgsParser::Key(prefix + ".file_name"),
-                     decoder->file_name());
+                     NormalizePathSeparators(decoder->file_name()));
   delegate.AddString(util::ProtoToArgsParser::Key(prefix + ".function_name"),
                      decoder->function_name());
-  delegate.AddInteger(util::ProtoToArgsParser::Key(prefix + ".line_number"),
-                      decoder->line_number());
+  if (decoder->has_line_number()) {
+    delegate.AddInteger(util::ProtoToArgsParser::Key(prefix + ".line_number"),
+                        decoder->line_number());
+  }
 
   return base::OkStatus();
 }
@@ -1180,7 +1200,8 @@ class TrackEventParser::EventImporter {
     StringId function_name_id = kNullStringId;
     uint32_t line_number = 0;
 
-    file_name_id = storage_->InternString(decoder->file_name());
+    std::string file_name = NormalizePathSeparators(decoder->file_name());
+    file_name_id = storage_->InternString(base::StringView(file_name));
     function_name_id = storage_->InternString(decoder->function_name());
     line_number = decoder->line_number();
 
@@ -1207,7 +1228,8 @@ class TrackEventParser::EventImporter {
     StringId function_name_id = kNullStringId;
     uint32_t line_number = 0;
 
-    file_name_id = storage_->InternString(decoder->file_name());
+    std::string file_name = NormalizePathSeparators(decoder->file_name());
+    file_name_id = storage_->InternString(base::StringView(file_name));
     function_name_id = storage_->InternString(decoder->function_name());
     line_number = decoder->line_number();
 
