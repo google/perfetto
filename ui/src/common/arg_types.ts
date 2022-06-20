@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type Arg = string|{kind: 'SLICE', trackId: string, sliceId: number};
+export type Arg = string|
+    {kind: 'SLICE', trackId: string, sliceId: number, description?: string};
 export type Args = Map<string, Arg>;
 
 export type ArgsTree = ArgsTreeMap|ArgsTreeArray|string;
