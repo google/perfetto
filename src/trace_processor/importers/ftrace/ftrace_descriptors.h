@@ -37,19 +37,19 @@ static constexpr size_t kMaxFtraceEventFields = 32;
 // By generating these descriptors we avoid having to build the full proto
 // library. These structs deliberately don't have a ctor (nor are initialized)
 // because they are used to define linker-initialized dicts in the .cc file.
-struct FieldDescriptor {
+struct FtraceFieldDescriptor {
   const char* name;
   ProtoSchemaType type;
 };
 
-struct MessageDescriptor {
+struct FtraceMessageDescriptor {
   const char* name;
   size_t max_field_id;
-  FieldDescriptor fields[kMaxFtraceEventFields];
+  FtraceFieldDescriptor fields[kMaxFtraceEventFields];
 };
 
-MessageDescriptor* GetMessageDescriptorForId(size_t id);
-MessageDescriptor* GetMessageDescriptorForName(base::StringView name);
+FtraceMessageDescriptor* GetMessageDescriptorForId(size_t id);
+FtraceMessageDescriptor* GetMessageDescriptorForName(base::StringView name);
 size_t GetDescriptorsSize();
 
 }  // namespace trace_processor
