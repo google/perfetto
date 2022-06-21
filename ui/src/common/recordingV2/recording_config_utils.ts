@@ -70,6 +70,9 @@ export class RecordingConfigUtils {
 
 export function genTraceConfig(
     uiCfg: RecordConfig, targetInfo: TargetInfo): TraceConfig {
+  const androidApiLevel = (targetInfo.targetType === 'ANDROID') ?
+      targetInfo.dynamicTargetInfo?.androidApiLevel :
+      undefined;
   const protoCfg = new TraceConfig();
   protoCfg.durationMs = uiCfg.durationMs;
 
@@ -123,8 +126,7 @@ export function genTraceConfig(
     procThreadAssociationPolling = true;
     procThreadAssociationFtrace = true;
     uiCfg.ftrace = true;
-    if (targetInfo.targetType === 'ANDROID' &&
-        targetInfo.androidApiLevel >= 31) {
+    if (androidApiLevel && androidApiLevel >= 31) {
       uiCfg.symbolizeKsyms = true;
     }
     ftraceEvents.add('sched/sched_switch');
@@ -546,8 +548,7 @@ export function genTraceConfig(
     }
 
     let ftraceEventsArray: string[] = [];
-    if (targetInfo.targetType === 'ANDROID' &&
-        targetInfo.androidApiLevel === 28) {
+    if (androidApiLevel && androidApiLevel === 28) {
       for (const ftraceEvent of ftraceEvents) {
         // On P, we don't support groups so strip all group names from ftrace
         // events.
@@ -571,8 +572,7 @@ export function genTraceConfig(
     ds.config.ftraceConfig.atraceCategories = Array.from(atraceCats);
     ds.config.ftraceConfig.atraceApps = Array.from(atraceApps);
 
-    if (targetInfo.targetType === 'ANDROID' &&
-        targetInfo.androidApiLevel >= 31) {
+    if (androidApiLevel && androidApiLevel >= 31) {
       const compact = new FtraceConfig.CompactSchedConfig();
       compact.enabled = true;
       ds.config.ftraceConfig.compactSched = compact;
