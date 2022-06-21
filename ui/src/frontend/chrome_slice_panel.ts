@@ -19,7 +19,7 @@ import {Actions} from '../common/actions';
 import {Arg, ArgsTree, isArgTreeArray, isArgTreeMap} from '../common/arg_types';
 import {timeToCode} from '../common/time';
 
-import {globals, SliceDetails} from './globals';
+import {FlowPoint, globals, SliceDetails} from './globals';
 import {PanelSize} from './panel';
 import {PopupMenuButton, PopupMenuItem} from './popup_menu';
 import {verticalScrollToTrack} from './scroll_helper';
@@ -229,14 +229,51 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
           defaultBuilder.add(key, value);
         }
       }
+
+      const rightPanel = new Map<string, TableBuilder>();
+
+      const immediatelyPrecedingByFlowSlices = [];
+      const immediatelyFollowingByFlowSlices = [];
+      for (const flow of globals.connectedFlows) {
+        if (flow.begin.sliceId === sliceInfo.id) {
+          immediatelyFollowingByFlowSlices.push(
+              {flow: flow.end, dur: flow.dur});
+        }
+        if (flow.end.sliceId === sliceInfo.id) {
+          immediatelyPrecedingByFlowSlices.push(
+              {flow: flow.begin, dur: flow.dur});
+        }
+      }
+
+      // This is Chrome-specific bits:
+      const isRunTask = sliceInfo.name === 'ThreadControllerImpl::RunTask' ||
+          sliceInfo.name === 'ThreadPool_RunTask';
+      const isPostTask = sliceInfo.name === 'ThreadPool_PostTask' ||
+          sliceInfo.name === 'SequenceManager PostTask';
+
+      // RunTask and PostTask are always same-process, so we can skip
+      // emitting process name for them.
+      this.fillFlowPanel(
+          'Preceding flows',
+          immediatelyPrecedingByFlowSlices,
+          !isRunTask,
+          rightPanel);
+      this.fillFlowPanel(
+          'Following flows',
+          immediatelyFollowingByFlowSlices,
+          !isPostTask,
+          rightPanel);
+
       const argsBuilder = new TableBuilder();
       this.fillArgs(sliceInfo, argsBuilder);
+      rightPanel.set('Arguments', argsBuilder);
+
       return m(
           '.details-panel',
           m('.details-panel-heading', m('h2', `Slice Details`)),
           m('.details-table-multicolumn', [
             m('table', this.renderTable(defaultBuilder)),
-            m('table', [m('h3', 'Arguments'), this.renderTable(argsBuilder)]),
+            m('table', this.renderTables(rightPanel)),
           ]));
     } else {
       return m(
@@ -247,6 +284,30 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
                 `Slice Details`,
                 )));
     }
+  }
+
+  private fillFlowPanel(
+      name: string, flows: {flow: FlowPoint, dur: number}[],
+      includeProcessName: boolean, result: Map<string, TableBuilder>) {
+    if (flows.length === 0) return;
+
+    const builder = new TableBuilder();
+    for (const {flow, dur} of flows) {
+      builder.add('Slice', {
+        kind: 'SLICE',
+        sliceId: flow.sliceId,
+        trackId: globals.state.uiTrackIdByTraceTrackId[flow.trackId],
+        description: flow.sliceChromeCustomName === undefined ?
+            flow.sliceName :
+            flow.sliceChromeCustomName,
+      });
+      builder.add('Delay', timeToCode(dur));
+      builder.add(
+          'Thread',
+          includeProcessName ? `${flow.threadName} (${flow.processName})` :
+                               flow.threadName);
+    }
+    result.set(name, builder);
   }
 
   renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}
@@ -299,6 +360,15 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
         },
       },
     ];
+  }
+
+  renderTables(builders: Map<string, TableBuilder>): m.Vnode {
+    const rows: m.Vnode[] = [];
+    for (const [name, builder] of builders) {
+      rows.push(m('h3', name));
+      rows.push(this.renderTable(builder));
+    }
+    return m('div', rows);
   }
 
   renderTable(builder: TableBuilder): m.Vnode {
@@ -362,7 +432,8 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
                     },
                     title: 'Go to destination slice',
                   },
-                  'call_made')));
+                  'call_made'),
+                value.description));
         }
       }
 

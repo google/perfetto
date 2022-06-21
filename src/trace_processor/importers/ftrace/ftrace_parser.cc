@@ -811,7 +811,7 @@ void FtraceParser::ParseTypedFtraceToRaw(
     return;
   }
 
-  MessageDescriptor* m = GetMessageDescriptorForId(ftrace_id);
+  FtraceMessageDescriptor* m = GetMessageDescriptorForId(ftrace_id);
   const auto& message_strings = ftrace_message_strings_[ftrace_id];
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
   RawId id =
