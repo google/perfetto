@@ -20,7 +20,7 @@ import {
 } from '../adb_over_webusb_utils';
 import {AdbKeyManager} from '../auth/adb_key_manager';
 import {
-  OnTargetChangedCallback,
+  OnTargetChangeCallback,
   RecordingTargetV2,
   TargetFactory,
 } from '../recording_interfaces_v2';
@@ -43,7 +43,7 @@ function createDeviceErrorMessage(device: USBDevice, issue: string): string {
 
 export class AndroidWebusbTargetFactory implements TargetFactory {
   readonly kind = ANDROID_WEBUSB_TARGET_FACTORY;
-  onDevicesChanged?: OnTargetChangedCallback;
+  onTargetChange?: OnTargetChangeCallback;
   private recordingProblems: string[] = [];
   private targets: Map<string, AndroidWebusbTarget> =
       new Map<string, AndroidWebusbTarget>();
@@ -94,8 +94,8 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
         this.targets.set(
             assertExists(ev.device.serialNumber),
             new AndroidWebusbTarget(ev.device, this.keyManager));
-        if (this.onDevicesChanged) {
-          this.onDevicesChanged();
+        if (this.onTargetChange) {
+          this.onTargetChange();
         }
       }
     });
@@ -107,8 +107,8 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
       await assertExists(this.targets.get(serialNumber))
           .disconnect(`Device with serial ${serialNumber} was disconnected.`);
       this.targets.delete(serialNumber);
-      if (this.onDevicesChanged) {
-        this.onDevicesChanged();
+      if (this.onTargetChange) {
+        this.onTargetChange();
       }
     });
   }
