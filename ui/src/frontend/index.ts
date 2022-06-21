@@ -126,6 +126,12 @@ function setExtensionAvailability(available: boolean) {
   }));
 }
 
+function initGlobalsFromQueryString() {
+  const queryString = window.location.search;
+  globals.embeddedMode = queryString.includes('mode=embedded');
+  globals.hideSidebar = queryString.includes('hideSidebar=true');
+}
+
 function setupContentSecurityPolicy() {
   // Note: self and sha-xxx must be quoted, urls data: and blob: must not.
   const policy = {
@@ -302,6 +308,8 @@ function onCssLoaded() {
   globals.rafScheduler.domRedraw = () => {
     m.render(main, globals.router.resolve());
   };
+
+  initGlobalsFromQueryString();
 
   initLiveReloadIfLocalhost();
 
