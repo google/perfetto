@@ -216,6 +216,8 @@ class Globals {
   private _hasFtrace?: boolean = undefined;
   private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
   private _router?: Router = undefined;
+  private _embeddedMode?: boolean = undefined;
+  private _hideSidebar?: boolean = undefined;
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
@@ -463,6 +465,22 @@ class Globals {
       this._jobStatus = new Map();
     }
     return this._jobStatus;
+  }
+
+  get embeddedMode(): boolean {
+    return !!this._embeddedMode;
+  }
+
+  set embeddedMode(value: boolean) {
+    this._embeddedMode = value;
+  }
+
+  get hideSidebar(): boolean {
+    return !!this._hideSidebar;
+  }
+
+  set hideSidebar(value: boolean) {
+    this._hideSidebar = value;
   }
 
   setBufferUsage(bufferUsage: number) {
