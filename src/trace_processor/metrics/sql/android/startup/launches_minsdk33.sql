@@ -22,9 +22,9 @@ SELECT
   SUBSTR(name, 19) id
 FROM slice
 WHERE
-  name GLOB 'launchingActivity#*'
-  AND dur != 0
-  AND INSTR(name, ':') = 0;
+  name GLOB 'launchingActivity#*' AND
+  dur != 0 AND
+  INSTR(name, ':') = 0;
 
 DROP VIEW IF EXISTS launch_complete_events;
 CREATE VIEW launch_complete_events AS
@@ -35,7 +35,9 @@ SELECT
 FROM (
   SELECT ts, SUBSTR(name, 19) completed
   FROM slice
-  WHERE dur = 0 AND name GLOB 'launchingActivity#*:completed:*'
+  WHERE
+    dur = 0 AND
+    name GLOB 'launchingActivity#*:completed:*'
 )
 GROUP BY 1, 2;
 
@@ -46,4 +48,5 @@ SELECT
   ts + dur ts_end,
   dur,
   package_name
-FROM launch_async_events JOIN launch_complete_events USING (id);
+FROM launch_async_events
+JOIN launch_complete_events USING (id);

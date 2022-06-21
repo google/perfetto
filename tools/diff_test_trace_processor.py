@@ -264,7 +264,7 @@ def run_all_tests(trace_processor, trace_descriptor_path,
           sys.stderr.write(f"Rebasing {expected_path}\n")
           with open(expected_path, 'w') as f:
             f.write(result.actual)
-          rebase += 1
+          rebased += 1
         else:
           sys.stderr.write(
               f"Rebase failed for {expected_path} as query failed\n")
@@ -418,6 +418,7 @@ def main():
       f"[==========] {len(tests)} tests ran. ({test_time_ms} ms total)\n")
   sys.stderr.write(f"[  PASSED  ] {len(tests) - test_failures} tests.\n")
   if args.rebase:
+    sys.stderr.write('\n')
     sys.stderr.write(f"{rebased} tests rebased.\n")
 
   if test_failures == 0:
