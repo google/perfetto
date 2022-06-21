@@ -21,7 +21,7 @@ SELECT p.name AS process, COUNT(jank_type) AS 'jank_count'
 FROM actual_frame_timeline_slice
 LEFT JOIN process AS p
   USING (upid)
-WHERE jank_type LIKE '%App Deadline Missed%'
+WHERE jank_type GLOB '*App Deadline Missed*'
 GROUP BY process;
 
 DROP VIEW IF EXISTS android_frame_timeline_metric_output;
