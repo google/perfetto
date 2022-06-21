@@ -20,8 +20,6 @@ android_startup {
         dur_ns: 2
         dur_ms: 2e-06
       }
-      mcycles_by_core_type {
-      }
       time_bind_application {
         dur_ns: 1
         dur_ms: 1e-06
@@ -58,8 +56,6 @@ android_startup {
       time_activity_manager {
         dur_ns: 2
         dur_ms: 2e-06
-      }
-      mcycles_by_core_type {
       }
       time_bind_application {
         dur_ns: 1

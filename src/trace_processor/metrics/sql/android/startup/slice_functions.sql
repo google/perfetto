@@ -45,7 +45,8 @@ WHERE slice.ts BETWEEN launch_threads.ts AND launch_threads.ts + launch_threads.
 -- Given a launch id and GLOB for a slice name, returns columns for matching slices.
 SELECT CREATE_VIEW_FUNCTION(
   'SLICES_FOR_LAUNCH_AND_SLICE_NAME(launch_id INT, slice_name STRING)',
-  'slice_name STRING, slice_ts INT, slice_dur INT, thread_name STRING, arg_set_id INT', '
+  'slice_name STRING, slice_ts INT, slice_dur INT, thread_name STRING, arg_set_id INT',
+  '
     SELECT slice_name, slice_ts, slice_dur, thread_name, arg_set_id
     FROM thread_slices_for_all_launches
     WHERE launch_id = $launch_id AND slice_name GLOB $slice_name
@@ -56,10 +57,23 @@ SELECT CREATE_VIEW_FUNCTION(
 -- summing the slice durations across the whole startup.
 SELECT CREATE_FUNCTION(
   'DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launch_id LONG, slice_name STRING)',
-  'PROTO', '
+  'PROTO',
+  '
     SELECT NULL_IF_EMPTY(STARTUP_SLICE_PROTO(SUM(slice_dur)))
     FROM thread_slices_for_all_launches
     WHERE launch_id = $launch_id AND slice_name GLOB $slice_name
+  '
+);
+
+-- Same as |DUR_SUM_SLICE_PROTO_FOR_LAUNCH| except only counting slices happening
+-- on the main thread.
+SELECT CREATE_FUNCTION(
+  'DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(launch_id LONG, slice_name STRING)',
+  'PROTO',
+  '
+    SELECT NULL_IF_EMPTY(STARTUP_SLICE_PROTO(SUM(slice_dur)))
+    FROM thread_slices_for_all_launches
+    WHERE launch_id = $launch_id AND slice_name GLOB $slice_name AND is_main_thread
   '
 );
 
@@ -67,7 +81,8 @@ SELECT CREATE_FUNCTION(
 -- taking the duration between the start of the launch and start of the slice.
 SELECT CREATE_FUNCTION(
   'LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(launch_id INT, slice_name STRING)',
-  'PROTO', '
+  'PROTO',
+  '
     SELECT STARTUP_SLICE_PROTO(slice_ts - launch_ts)
     FROM thread_slices_for_all_launches
     WHERE slice_name GLOB $slice_name AND launch_id = $launch_id AND is_main_thread

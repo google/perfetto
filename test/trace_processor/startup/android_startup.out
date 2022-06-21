@@ -32,8 +32,6 @@ android_startup {
         dur_ns: 8
         dur_ms: 8e-06
       }
-      mcycles_by_core_type {
-      }
       time_activity_start {
         dur_ns: 2
         dur_ms: 2e-06
