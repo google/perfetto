@@ -164,12 +164,12 @@ SELECT
           MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'S'), 0
         )
       ),
-      'mcycles_by_core_type', AndroidStartupMetric_McyclesByCoreType(
+      'mcycles_by_core_type', NULL_IF_EMPTY(AndroidStartupMetric_McyclesByCoreType(
         'little', MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(launches.id, 'little'),
         'big', MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(launches.id, 'big'),
         'bigger', MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(launches.id, 'bigger'),
         'unknown', MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(launches.id, 'unknown')
-      ),
+      )),
       'to_post_fork',
         LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(launches.id, 'PostFork'),
       'to_activity_thread_main',
@@ -214,6 +214,16 @@ SELECT
             slice_name GLOB "*concurrent copying GC"
           )
       ),
+      'time_lock_contention_thread_main',
+        DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
+          launches.id,
+          'Lock contention on*'
+        ),
+      'time_monitor_contention_thread_main',
+        DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
+          launches.id,
+          'Lock contention on a monitor*'
+        ),
       'time_before_start_process', (
         SELECT STARTUP_SLICE_PROTO(ts - launches.ts)
         FROM ZYGOTE_FORK_FOR_LAUNCH(launches.id)
