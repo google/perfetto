@@ -30,8 +30,6 @@ android_startup {
         dur_ns: 40
         dur_ms: 4e-05
       }
-      mcycles_by_core_type {
-      }
       jit_compiled_methods: 2
       time_jit_thread_pool_on_cpu {
         dur_ns: 20
