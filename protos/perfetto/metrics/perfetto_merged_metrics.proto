@@ -1245,7 +1245,7 @@ message AndroidStartupMetric {
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // Next id: 31.
+  // Next id: 33.
   message ToFirstFrame {
     // The duration between the intent received and first frame.
     optional int64 dur_ns = 1;
@@ -1304,7 +1304,18 @@ message AndroidStartupMetric {
     // Time spent on garbage collection.
     optional Slice time_gc_total = 29;
     optional Slice time_gc_on_cpu = 30;
-    // Deprecated was other_process_to_activity_cpu_ratio
+
+    // Time spent in lock contention on the main thread of the process being
+    // started up. This includes *all* types of lock contention not just monitor
+    // contention.
+    optional Slice time_lock_contention_thread_main = 31;
+
+    // Time spent in monitor lock contention on the main thread of the
+    // process being started up. This will be a subset of the time counted by
+    // |time_lock_contention_thread_main|.
+    optional Slice time_monitor_contention_thread_main = 32;
+
+    // Removed: was other_process_to_activity_cpu_ratio.
     reserved 12;
 
     // Removed: was uint32 versions of to_post_fork, to_activity_thread_main and
