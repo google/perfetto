@@ -41,6 +41,7 @@ import {
   EXPECTED_FRAMES_SLICE_TRACK_KIND,
 } from '../tracks/expected_frames/common';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
+import {NULL_TRACK_KIND} from '../tracks/null_track';
 import {
   PERF_SAMPLES_PROFILE_TRACK_KIND,
 } from '../tracks/perf_samples_profile/common';
@@ -151,7 +152,7 @@ class TrackDecider {
   addNullTracks(): void {
     this.tracksToAdd.push({
       engineId: this.engineId,
-      kind: 'NullTrack',
+      kind: NULL_TRACK_KIND,
       trackKindPriority: TrackKindPriority.ORDINARY,
       name: `Null track foo`,
       trackGroup: SCROLLING_TRACK_GROUP,
@@ -160,7 +161,7 @@ class TrackDecider {
 
     this.tracksToAdd.push({
       engineId: this.engineId,
-      kind: 'NullTrack',
+      kind: NULL_TRACK_KIND,
       trackKindPriority: TrackKindPriority.ORDINARY,
       name: `Null track bar`,
       trackGroup: SCROLLING_TRACK_GROUP,
@@ -468,7 +469,7 @@ class TrackDecider {
       this.tracksToAdd.push({
         id: summaryTrackId,
         engineId: this.engineId,
-        kind: 'NullTrack',
+        kind: NULL_TRACK_KIND,
         trackKindPriority: TrackKindPriority.ORDINARY,
         name: groupName,
         trackGroup: undefined,

@@ -15,9 +15,10 @@
 import {NewTrackArgs, Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 
+export const NULL_TRACK_KIND = 'NullTrack';
 
 export class NullTrack extends Track {
-  static readonly kind = 'NullTrack';
+  static readonly kind = NULL_TRACK_KIND;
   constructor(args: NewTrackArgs) {
     super(args);
     this.frontendOnly = true;
