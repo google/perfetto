@@ -16,6 +16,8 @@ import unittest
 
 from perfetto.trace_uri_resolver.util import parse_trace_uri
 from perfetto.trace_uri_resolver.resolver import _args_dict_from_uri
+from perfetto.trace_uri_resolver.resolver import Constraint
+from perfetto.trace_uri_resolver.resolver import ConstraintClass
 from perfetto.trace_uri_resolver.resolver import TraceUriResolver
 from perfetto.trace_uri_resolver.registry import ResolverRegistry
 
@@ -125,17 +127,47 @@ class TestResolver(unittest.TestCase):
     self.assertEqual(parse_trace_uri('foo/b:ar'), ('foo/b', 'ar'))
 
   def test_args_dict_from_uri(self):
-    self.assertEqual(_args_dict_from_uri('foo:'), {})
-    self.assertEqual(_args_dict_from_uri('foo:bar=baz'), {
+    self.assertEqual(_args_dict_from_uri('foo:', {}), {})
+    self.assertEqual(_args_dict_from_uri('foo:bar=baz', {}), {
         'bar': 'baz',
     })
     self.assertEqual(
-        _args_dict_from_uri('foo:key=v1,v2'), {'key': ['v1', 'v2']})
+        _args_dict_from_uri('foo:key=v1,v2', {}), {'key': ['v1', 'v2']})
     self.assertEqual(
-        _args_dict_from_uri('foo:bar=baz;key=v1,v2'), {
+        _args_dict_from_uri('foo:bar=baz;key=v1,v2', {}), {
             'bar': 'baz',
             'key': ['v1', 'v2']
         })
+    with self.assertRaises(ValueError):
+      _args_dict_from_uri('foo:=v1', {})
+    with self.assertRaises(ValueError):
+      _args_dict_from_uri('foo:key', {})
+    with self.assertRaises(ValueError):
+      _args_dict_from_uri('foo:key<', {})
+    with self.assertRaises(ValueError):
+      _args_dict_from_uri('foo:key<v1', {})
+    with self.assertRaises(ValueError):
+      _args_dict_from_uri('foo:key<v1', {'key': str})
+
+    type_hints = {'key': Constraint[str]}
+    self.assertEqual(
+        _args_dict_from_uri('foo:key=v1', type_hints),
+        {'key': ConstraintClass('v1', ConstraintClass.Op.EQ)})
+    self.assertEqual(
+        _args_dict_from_uri('foo:key!=v1', type_hints),
+        {'key': ConstraintClass('v1', ConstraintClass.Op.NE)})
+    self.assertEqual(
+        _args_dict_from_uri('foo:key<=v1', type_hints),
+        {'key': ConstraintClass('v1', ConstraintClass.Op.LE)})
+    self.assertEqual(
+        _args_dict_from_uri('foo:key>=v1', type_hints),
+        {'key': ConstraintClass('v1', ConstraintClass.Op.GE)})
+    self.assertEqual(
+        _args_dict_from_uri('foo:key>v1', type_hints),
+        {'key': ConstraintClass('v1', ConstraintClass.Op.GT)})
+    self.assertEqual(
+        _args_dict_from_uri('foo:key<v1', type_hints),
+        {'key': ConstraintClass('v1', ConstraintClass.Op.LT)})
 
   def _check_resolver_result(self,
                              foo_res,
