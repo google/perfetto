@@ -17,10 +17,13 @@ import {_TextDecoder, _TextEncoder} from 'custom_utils';
 import {defer, Deferred} from '../../base/deferred';
 import {assertExists, assertFalse, assertTrue} from '../../base/logging';
 import {CmdType} from '../../controller/adb_interfaces';
+import {ArrayBufferBuilder} from '../array_buffer_builder';
 
 import {findInterfaceAndEndpoint} from './adb_over_webusb_utils';
 import {AdbKeyManager, maybeStoreKey} from './auth/adb_key_manager';
-import {wrapRecordingError} from './recording_error_handling';
+import {
+  wrapRecordingError,
+} from './recording_error_handling';
 import {
   AdbConnection,
   ByteStream,
@@ -36,6 +39,8 @@ const textDecoder = new _TextDecoder();
 export const VERSION_WITH_CHECKSUM = 0x01000000;
 export const VERSION_NO_CHECKSUM = 0x01000001;
 export const DEFAULT_MAX_PAYLOAD_BYTES = 256 * 1024;
+
+export const ALLOW_USB_DEBUGGING = 'Please allow USB debugging on device.';
 
 export enum AdbState {
   DISCONNECTED = 0,
@@ -101,12 +106,39 @@ export class AdbConnectionOverWebusb implements AdbConnection {
   // again.
   constructor(private device: USBDevice, private keyManager: AdbKeyManager) {}
 
-  async connectSocket(path: string): Promise<AdbOverWebusbStream> {
-    await this.ensureConnectionEstablished();
+  // Starts a shell command, then gathers all its output and returns it as
+  // a string.
+  async shellAndGetOutput(cmd: string): Promise<string> {
+    const adbStream = await this.shell(cmd);
+    const commandOutput = new ArrayBufferBuilder();
+    const onStreamingEnded = defer<string>();
+
+    adbStream.onStreamData = (data: Uint8Array) => {
+      commandOutput.append(data);
+    };
+    adbStream.onStreamClose = () => {
+      onStreamingEnded.resolve(
+          textDecoder.decode(commandOutput.toArrayBuffer()));
+    };
+    return onStreamingEnded;
+  }
+
+  shell(cmd: string): Promise<AdbOverWebusbStream> {
+    return this.openStream('shell:' + cmd);
+  }
+
+  connectSocket(path: string): Promise<AdbOverWebusbStream> {
+    return this.openStream('localfilesystem:' + path);
+  }
+
+  private async openStream(destination: string): Promise<AdbOverWebusbStream> {
     const streamId = ++this.lastStreamId;
     const connectingStream = defer<AdbOverWebusbStream>();
     this.connectingStreams.set(streamId, connectingStream);
-    this.sendMessage('OPEN', streamId, 0, 'localfilesystem:' + path);
+    // We create the stream before trying to establish the connection, so
+    // that if we fail to connect, we will reject the connecting stream.
+    await this.ensureConnectionEstablished();
+    await this.sendMessage('OPEN', streamId, 0, destination);
     return connectingStream;
   }
 
@@ -139,7 +171,7 @@ export class AdbConnectionOverWebusb implements AdbConnection {
     await connPromise;
   }
 
-  streamClose(stream: AdbOverWebusbStream): void {
+  async streamClose(stream: AdbOverWebusbStream): Promise<void> {
     const otherStreamsQueue = this.writeQueue.filter(
         (queueElement) => queueElement.localStreamId !== stream.localStreamId);
     const droppedPacketCount =
@@ -152,8 +184,15 @@ export class AdbConnectionOverWebusb implements AdbConnection {
 
     this.streams.delete(stream);
     if (this.streams.size === 0) {
-      this.disconnect();
+      // We disconnect BEFORE calling `onStreamClose`. Otherwise there can be a
+      // race condition:
+      // Stream A: streamA.onStreamClose
+      // Stream B: device.open
+      // Stream A: device.releaseInterface
+      // Stream B: device.transferOut -> CRASH
+      await this.disconnect();
     }
+    stream.onStreamClose();
   }
 
   streamWrite(msg: string|Uint8Array, stream: AdbOverWebusbStream): void {
@@ -192,6 +231,20 @@ export class AdbConnectionOverWebusb implements AdbConnection {
   // This is a synchronous method which clears all resources.
   // It can be used as a callback for error handling.
   reachDisconnectState(disconnectMessage?: string): void {
+    // We need to delete the streams BEFORE checking the Adb state because:
+    //
+    // We create streams before changing the Adb state from DISCONNECTED.
+    // In case we can not claim the device, we will create a stream, but fail
+    // to connect to the WebUSB device so the state will remain DISCONNECTED.
+    const streamsToDelete = this.connectingStreams.entries();
+    // Clear the streams before rejecting so we are not caught in a loop of
+    // handling promise rejections.
+    this.connectingStreams.clear();
+    for (const [id, stream] of streamsToDelete) {
+      stream.reject(
+          `Failed to open stream with id ${id} because adb was disconnected.`);
+    }
+
     if (this.state === AdbState.DISCONNECTED) {
       return;
     }
@@ -199,11 +252,6 @@ export class AdbConnectionOverWebusb implements AdbConnection {
     this.state = AdbState.DISCONNECTED;
     this.writeInProgress = false;
 
-    for (const [id, stream] of this.connectingStreams.entries()) {
-      stream.reject(
-          `Failed to open stream with id ${id} because adb was disconnected.`);
-    }
-    this.connectingStreams.clear();
     this.writeQueue = [];
 
     this.streams.forEach((stream) => stream.close());
@@ -296,7 +344,7 @@ export class AdbConnectionOverWebusb implements AdbConnection {
           this.state = AdbState.AUTH_WITH_PUBLIC;
           await this.sendMessage(
               'AUTH', AuthCmd.RSAPUBLICKEY, 0, key.getPublicKey() + '\0');
-          this.onStatus('Please allow USB debugging on device.');
+          this.onStatus(ALLOW_USB_DEBUGGING);
           await maybeStoreKey(key);
         }
       } else if (msg.cmd === 'CNXN') {
@@ -345,7 +393,8 @@ export class AdbConnectionOverWebusb implements AdbConnection {
         }
       } else if (msg.cmd === 'WRTE') {
         const stream = assertExists(this.getStreamForLocalStreamId(msg.arg1));
-        this.sendMessage('OKAY', stream.localStreamId, stream.remoteStreamId);
+        await this.sendMessage(
+            'OKAY', stream.localStreamId, stream.remoteStreamId);
         stream.onStreamData(msg.data);
       } else {
         this.isUsbReceiveLoopRunning = false;
@@ -522,4 +571,3 @@ class AdbMsg {
     return data;
   }
 }
-
