@@ -257,7 +257,8 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
   });
 
   auto col_to_arg_idx = [this](int col) {
-    return static_cast<size_t>(col) - table_->return_values_.size();
+    return static_cast<uint32_t>(col) -
+           static_cast<uint32_t>(table_->return_values_.size());
   };
 
   size_t seen_hidden_constraints = 0;
@@ -317,7 +318,18 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
   // Bind all the arguments to the appropriate places in the function.
   for (size_t i = 0; i < qc.constraints().size(); ++i) {
     const auto& cs = qc.constraints()[i];
-    const auto& arg = table_->prototype_.arguments[col_to_arg_idx(cs.column)];
+
+    // Don't deal with any constraints on the output parameters for simplicty.
+    // TODO(lalitm): reconsider this decision to allow more efficient queries:
+    // we would need to wrap the query in a SELECT * FROM (...) WHERE constraint
+    // like we do for SPAN JOIN.
+    if (!table_->schema().columns()[static_cast<size_t>(cs.column)].hidden())
+      continue;
+
+    uint32_t index = col_to_arg_idx(cs.column);
+    PERFETTO_DCHECK(index < table_->prototype_.arguments.size());
+
+    const auto& arg = table_->prototype_.arguments[index];
     auto status = MaybeBindArgument(stmt_, table_->prototype_.function_name,
                                     arg, argv[i]);
     if (!status.ok()) {
