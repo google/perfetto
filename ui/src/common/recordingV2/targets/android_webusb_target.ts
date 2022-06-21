@@ -34,7 +34,12 @@ export class AndroidWebusbTarget implements RecordingTargetV2 {
     const name = assertExists(this.device.productName) + ' ' +
         assertExists(this.device.serialNumber) + ' WebUsb';
     // TODO(octaviant): fetch the OS from the adb connection
-    return {targetType: 'ANDROID', androidApiLevel: 31, name};
+    return {
+      targetType: 'ANDROID',
+      // The method 'fetchInfo' will populate this after ADB authorization.
+      dynamicTargetInfo: undefined,
+      name,
+    };
   }
 
   // This is called when a usb USBConnectionEvent of type 'disconnect' event is

@@ -27,7 +27,7 @@ import {
   wrapRecordingError,
 } from '../common/recordingV2/recording_error_handling';
 import {
-  OnTargetChangedCallback,
+  OnTargetChangeCallback,
   RecordingTargetV2,
   TargetInfo,
   TracingSession,
@@ -251,10 +251,10 @@ function RecordingNotes() {
         notes.push(msgLinux);
         break;
       case 'ANDROID': {
-        if (targetInfo.androidApiLevel == 28) {
+        const androidApiLevel = targetInfo.dynamicTargetInfo?.androidApiLevel;
+        if (androidApiLevel && androidApiLevel == 28) {
           notes.push(m('.note', msgFeatNotSupported, msgSideload));
-        } else if (
-            targetInfo.androidApiLevel && targetInfo.androidApiLevel <= 27) {
+        } else if (androidApiLevel && androidApiLevel <= 27) {
           notes.push(m('.note', msgPerfettoNotSupported, msgSideload));
         }
         break;
@@ -292,7 +292,8 @@ function getRecordCommand(targetInfo: TargetInfo): string {
   const pbtx = data ? data.configProtoText : '';
   let cmd = '';
   if (targetInfo.targetType === 'ANDROID' &&
-      targetInfo.androidApiLevel === 28) {
+      targetInfo.dynamicTargetInfo?.androidApiLevel &&
+      targetInfo.dynamicTargetInfo.androidApiLevel === 28) {
     cmd += `echo '${pbBase64}' | \n`;
     cmd += 'base64 --decode | \n';
     cmd += 'adb shell "perfetto -c - -o /data/misc/perfetto-traces/trace"\n';
@@ -527,7 +528,7 @@ function recordMenu(routePage: string) {
       m('ul', probes));
 }
 
-const onDevicesChanged: OnTargetChangedCallback = () => {
+const onDevicesChanged: OnTargetChangeCallback = () => {
   recordingTargetV2 = targetFactoryRegistry.listTargets()[0];
   // redraw, to add/remove connected/disconnected target
   globals.rafScheduler.scheduleFullRedraw();
@@ -542,8 +543,8 @@ export const RecordPageV2 = createPage({
 
         const androidWebusbTarget =
             targetFactoryRegistry.get(ANDROID_WEBUSB_TARGET_FACTORY);
-        if (!androidWebusbTarget.onDevicesChanged) {
-          androidWebusbTarget.onDevicesChanged = onDevicesChanged;
+        if (!androidWebusbTarget.onTargetChange) {
+          androidWebusbTarget.onTargetChange = onDevicesChanged;
         }
 
         const components: m.Children[] = [RecordHeader()];
