@@ -1264,7 +1264,7 @@ function onStartRecordingPressed() {
   }
 }
 
-export function RecordingStatusLabel() {
+function RecordingStatusLabel() {
   const recordingStatus = globals.state.recordingStatus;
   if (!recordingStatus) return [];
   return m('label', recordingStatus);
@@ -1494,6 +1494,8 @@ export const RecordPage = createPage({
     return m(
         '.record-page',
         globals.state.recordingInProgress ? m('.hider') : [],
-        m('.record-container', RecordHeader(), recordMenu(routePage), pages));
+        m('.record-container',
+          RecordHeader(),
+          m('.record-container-content', recordMenu(routePage), pages)));
   },
 });

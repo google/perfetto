@@ -38,7 +38,11 @@ import {
 import {
   targetFactoryRegistry,
 } from '../common/recordingV2/target_factory_registry';
+import {
+  RECORDING_IN_PROGRESS,
+} from '../common/recordingV2/traced_tracing_session';
 import {hasActiveProbes} from '../common/state';
+import {currentDateHourAndMinute} from '../common/time';
 
 import {globals} from './globals';
 import {createPage, PageAttrs} from './pages';
@@ -49,12 +53,10 @@ import {
   AndroidSettings,
   Configurations,
   CpuSettings,
-  ErrorLabel,
   GpuSettings,
   MemorySettings,
   PERSIST_CONFIG_FLAG,
   PowerSettings,
-  RecordingStatusLabel,
   RecSettings,
 } from './record_page';
 import {CodeSnippet} from './record_widgets';
@@ -65,19 +67,25 @@ let tracingSession: Promise<TracingSession>|undefined = undefined;
 
 
 function RecordHeader() {
+  const platformSelection = RecordingPlatformSelection();
+  const statusLabel = RecordingStatusLabel();
+  const buttons = RecordingButtons();
+  const notes = RecordingNotes();
+  if (!platformSelection && !statusLabel && !buttons && !notes) {
+    // The header should not be displayed when it has no content.
+    return undefined;
+  }
   return m(
       '.record-header',
       m('.top-part',
-        m('.target-and-status',
-          RecordingPlatformSelection(),
-          RecordingStatusLabel(),
-          ErrorLabel()),
-        recordingButtons()),
-      RecordingNotes());
+        m('.target-and-status', platformSelection, statusLabel),
+        buttons),
+      notes);
 }
 
+
 function RecordingPlatformSelection() {
-  if (tracingSession) return [];
+  if (tracingSession) return undefined;
 
   const components = [];
   components.push(
@@ -124,6 +132,15 @@ function RecordingPlatformSelection() {
   return m('.target', components);
 }
 
+// This will display status messages which are informative, but do not require
+// user action, such as: "Recording in progress for X seconds" in the recording
+// page header.
+function RecordingStatusLabel() {
+  const recordingStatus = globals.state.recordingStatus;
+  if (!recordingStatus) return undefined;
+  return m('label', recordingStatus);
+}
+
 async function addAndroidDevice(): Promise<void> {
   const target = await wrapRecordingError(
       targetFactoryRegistry.get(ANDROID_WEBUSB_TARGET_FACTORY)
@@ -158,12 +175,11 @@ function Instructions(cssClass: string) {
           null,
       RecordingSnippet(),
       BufferUsageProgressBar(),
-      m('.buttons', StopCancelButtons()),
-      recordingLog());
+      m('.buttons', StopCancelButtons()));
 }
 
 function BufferUsageProgressBar() {
-  if (!tracingSession) return [];
+  if (!tracingSession) return undefined;
 
   tracingSession.then((session) => session.getTraceBufferUsage())
       .then((percentage) => {
@@ -172,7 +188,7 @@ function BufferUsageProgressBar() {
 
   const bufferUsage = globals.bufferUsage ? globals.bufferUsage : 0.0;
   // Buffer usage is not available yet on Android.
-  if (bufferUsage === 0) return [];
+  if (bufferUsage === 0) return undefined;
 
   return m(
       'label',
@@ -267,19 +283,18 @@ function RecordingNotes() {
     notes.unshift(msgLongTraces);
   }
 
-  return notes.length > 0 ? m('div', notes) : [];
+  return notes.length > 0 ? m('div', notes) : undefined;
 }
 
 function RecordingSnippet() {
   const targetInfo = assertExists(recordingTargetV2).getInfo();
   // We don't need commands to start tracing on chrome
   if (targetInfo.targetType === 'CHROME') {
-    return globals.state.extensionInstalled ?
-        m('div',
-          m('label',
-            `To trace Chrome from the Perfetto UI you just have to press
-         'Start Recording'.`)) :
-        [];
+    if (!globals.state.extensionInstalled) return undefined;
+    return m(
+        'div',
+        m('label', `To trace Chrome from the Perfetto UI you just have to press
+         'Start Recording'.`));
   }
   return m(CodeSnippet, {text: getRecordCommand(targetInfo)});
 }
@@ -309,9 +324,9 @@ function getRecordCommand(targetInfo: TargetInfo): string {
   return cmd;
 }
 
-function recordingButtons() {
+function RecordingButtons() {
   if (!recordingTargetV2) {
-    return [];
+    return undefined;
   }
 
   const start =
@@ -335,7 +350,7 @@ function recordingButtons() {
 }
 
 function StopCancelButtons() {
-  if (!tracingSession) return [];
+  if (!tracingSession) return undefined;
 
   const stop =
       m(`button.selected`,
@@ -394,12 +409,19 @@ async function onStartRecordingPressed(): Promise<void> {
       globals.dispatch(Actions.openTraceFromBuffer({
         title: 'Recorded trace',
         buffer: trace.buffer,
-        fileName: `recorded_trace${TRACE_SUFFIX}`,
+        fileName: `trace_${currentDateHourAndMinute()}${TRACE_SUFFIX}`,
       }));
     };
 
     const onStatus = (message: string) => {
-      globals.dispatch(Actions.setRecordingStatus({status: message}));
+      // For the 'Recording in progress for 7000ms we don't show a modal.'
+      if (message.startsWith(RECORDING_IN_PROGRESS)) {
+        globals.dispatch(Actions.setRecordingStatus({status: message}));
+      } else {
+        // For messages such as 'Please allow USB debugging on your device,
+        // which require a user action, we show a modal.
+        showRecordingModal(message);
+      }
     };
 
     const onDisconnect = (errorMessage?: string) => {
@@ -428,12 +450,6 @@ async function onStartRecordingPressed(): Promise<void> {
     });
     wrapRecordingError(tracingSession, onError);
   }
-}
-
-function recordingLog() {
-  const logs = globals.recordingLog;
-  if (logs === undefined) return [];
-  return m('.code-snippet.no-top-bar', m('code', logs));
 }
 
 function clearRecordingState() {

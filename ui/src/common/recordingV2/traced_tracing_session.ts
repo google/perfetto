@@ -50,6 +50,7 @@ const TRACE_PACKET_PROTO_ID = 1;
 const TRACE_PACKET_PROTO_TAG =
     (TRACE_PACKET_PROTO_ID << 3) | PROTO_LEN_DELIMITED_WIRE_TYPE;
 
+export const RECORDING_IN_PROGRESS = 'Recording in progress';
 export const PARSING_UNKNWON_REQUEST_ID = 'Unknown request id';
 export const PARSING_UNABLE_TO_DECODE_METHOD = 'Unable to decode method';
 export const PARSING_UNRECOGNIZED_PORT = 'Unrecognized consumer port response';
@@ -99,7 +100,7 @@ export class TracedTracingSession implements TracingSession {
 
   start(config: TraceConfig): void {
     const duration = config.durationMs;
-    this.tracingSessionListener.onStatus(`Recording in progress${
+    this.tracingSessionListener.onStatus(`${RECORDING_IN_PROGRESS}${
         duration ? ' for ' + duration.toString() + ' ms' : ''}...`);
 
     const enableTracingRequest = new EnableTracingRequest();
