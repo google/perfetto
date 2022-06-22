@@ -1,0 +1,105 @@
+packet {
+  ftrace_events {
+    cpu: 6
+    event {
+      timestamp: 10000
+      pid: 200
+      sched_cpu_util_cfs {
+        cpu: 6
+        active: 1
+        capacity: 1004
+        capacity_orig: 1024
+        cpu_importance: 1024
+        cpu_util: 1
+        exit_lat: 455
+        group_capacity: 1004
+        grp_overutilized: 0
+        idle_cpu: 1
+        nr_running: 0
+        spare_cap: 1003
+        task_fits: 1
+        wake_group_util: 1
+        wake_util: 1
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 7
+    event {
+      timestamp: 11000
+      pid: 300
+      sched_cpu_util_cfs {
+        cpu: 7
+        active: 1
+        capacity: 1007
+        capacity_orig: 1024
+        cpu_importance: 1024
+        cpu_util: 1
+        exit_lat: 455
+        group_capacity: 1007
+        grp_overutilized: 0
+        idle_cpu: 1
+        nr_running: 0
+        spare_cap: 1006
+        task_fits: 1
+        wake_group_util: 1
+        wake_util: 1
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 4
+    event {
+      timestamp: 12000
+      pid: 400
+      sched_cpu_util_cfs {
+        cpu: 4
+        active: 1
+        capacity: 760
+        capacity_orig: 763
+        cpu_importance: 1024
+        cpu_util: 43
+        exit_lat: 340
+        group_capacity: 760
+        grp_overutilized: 0
+        idle_cpu: 1
+        nr_running: 0
+        spare_cap: 717
+        task_fits: 1
+        wake_group_util: 43
+        wake_util: 43
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 5
+    event {
+      timestamp: 13000
+      pid: 500
+      sched_cpu_util_cfs {
+        cpu: 5
+        active: 1
+        capacity: 757
+        capacity_orig: 763
+        cpu_importance: 1024
+        cpu_util: 125
+        exit_lat: 0
+        group_capacity: 757
+        grp_overutilized: 0
+        idle_cpu: 1
+        nr_running: 1
+        spare_cap: 637
+        task_fits: 1
+        wake_group_util: 120
+        wake_util: 120
+      }
+    }
+  }
+}
+
