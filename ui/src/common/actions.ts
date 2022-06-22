@@ -30,6 +30,7 @@ import {
   EXPECTED_FRAMES_SLICE_TRACK_KIND,
 } from '../tracks/expected_frames/common';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
+import {NULL_TRACK_KIND} from '../tracks/null_track';
 import {
   PERF_SAMPLES_PROFILE_TRACK_KIND,
 } from '../tracks/perf_samples_profile/common';
@@ -67,6 +68,7 @@ import {toNs} from './time';
 type StateDraft = Draft<State>;
 
 const highPriorityTrackOrder = [
+  NULL_TRACK_KIND,
   PROCESS_SCHEDULING_TRACK_KIND,
   PROCESS_SUMMARY_TRACK,
   EXPECTED_FRAMES_SLICE_TRACK_KIND,

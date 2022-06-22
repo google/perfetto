@@ -13,10 +13,13 @@
 // limitations under the License.
 
 import {
+  showAllowUSBDebugging,
   showConnectionLostError,
   showNoDeviceSelected,
-  showWebUSBError,
+  showWebUSBErrorV2,
 } from '../../frontend/error_dialog';
+
+import {ALLOW_USB_DEBUGGING} from './adb_connection_over_webusb';
 import {OnMessageCallback} from './recording_interfaces_v2';
 import {
   PARSING_UNABLE_TO_DECODE_METHOD,
@@ -64,7 +67,7 @@ export function showRecordingModal(message: string): void {
         'The specified endpoint is not part of a claimed and selected ' +
             'alternate interface.',
       ].includes(message)) {
-    showWebUSBError();
+    showWebUSBErrorV2();
   } else if (
       [
         'A transfer error has occurred.',
@@ -73,6 +76,8 @@ export function showRecordingModal(message: string): void {
       ].includes(message) ||
       isDeviceDisconnectedError(message)) {
     showConnectionLostError();
+  } else if (message === ALLOW_USB_DEBUGGING) {
+    showAllowUSBDebugging();
   } else if (message === 'No device selected.') {
     showNoDeviceSelected();
   } else if (isParsingError(message)) {

@@ -41,6 +41,7 @@ import {
   EXPECTED_FRAMES_SLICE_TRACK_KIND,
 } from '../tracks/expected_frames/common';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
+import {NULL_TRACK_KIND} from '../tracks/null_track';
 import {
   PERF_SAMPLES_PROFILE_TRACK_KIND,
 } from '../tracks/perf_samples_profile/common';
@@ -69,6 +70,8 @@ const MEM_DMA = 'mem.dma_buffer';
 const MEM_ION = 'mem.ion';
 const F2FS_IOSTAT_TAG = 'f2fs_iostat.';
 const F2FS_IOSTAT_GROUP_NAME = 'f2fs_iostat';
+const F2FS_IOSTAT_LAT_TAG = 'f2fs_iostat_latency.';
+const F2FS_IOSTAT_LAT_GROUP_NAME = 'f2fs_iostat_latency';
 
 export async function decideTracks(
     engineId: string, engine: Engine): Promise<DeferredAction[]> {
@@ -151,7 +154,7 @@ class TrackDecider {
   addNullTracks(): void {
     this.tracksToAdd.push({
       engineId: this.engineId,
-      kind: 'NullTrack',
+      kind: NULL_TRACK_KIND,
       trackKindPriority: TrackKindPriority.ORDINARY,
       name: `Null track foo`,
       trackGroup: SCROLLING_TRACK_GROUP,
@@ -160,7 +163,7 @@ class TrackDecider {
 
     this.tracksToAdd.push({
       engineId: this.engineId,
-      kind: 'NullTrack',
+      kind: NULL_TRACK_KIND,
       trackKindPriority: TrackKindPriority.ORDINARY,
       name: `Null track bar`,
       trackGroup: SCROLLING_TRACK_GROUP,
@@ -437,12 +440,12 @@ class TrackDecider {
     this.addTrackGroupActions.push(addGroup);
   }
 
-  async groupGlobalF2fsIostatTracks(): Promise<void> {
+  async groupGlobalF2fsIostatTracks(tag: string, group: string): Promise<void> {
     const f2fsIostatTracks: AddTrackArgs[] = [];
     const devMap = new Map<string, string>();
 
     for (const track of this.tracksToAdd) {
-      if (track.name.startsWith(F2FS_IOSTAT_TAG)) {
+      if (track.name.startsWith(tag)) {
         f2fsIostatTracks.push(track);
       }
     }
@@ -462,13 +465,13 @@ class TrackDecider {
     }
 
     for (const [key, value] of devMap) {
-      const groupName = F2FS_IOSTAT_GROUP_NAME + key;
+      const groupName = group + key;
       const summaryTrackId = uuidv4();
 
       this.tracksToAdd.push({
         id: summaryTrackId,
         engineId: this.engineId,
-        kind: 'NullTrack',
+        kind: NULL_TRACK_KIND,
         trackKindPriority: TrackKindPriority.ORDINARY,
         name: groupName,
         trackGroup: undefined,
@@ -1365,7 +1368,10 @@ class TrackDecider {
     await this.addCpuPerfCounterTracks();
     await this.addAnnotationTracks();
     await this.groupGlobalIonTracks();
-    await this.groupGlobalF2fsIostatTracks();
+    await this.groupGlobalF2fsIostatTracks(
+        F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
+    await this.groupGlobalF2fsIostatTracks(
+        F2FS_IOSTAT_LAT_TAG, F2FS_IOSTAT_LAT_GROUP_NAME);
 
     // Pre-group all kernel "threads" (actually processes) if this is a linux
     // system trace. Below, addProcessTrackGroups will skip them due to an
