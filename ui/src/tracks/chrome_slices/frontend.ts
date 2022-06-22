@@ -12,14 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {hsluvToHex} from 'hsluv';
-
 import {Actions} from '../../common/actions';
 import {cropText, drawIncompleteSlice} from '../../common/canvas_utils';
-import {hslForSlice, hslForThreadIdleSlice} from '../../common/colorizer';
+import {colorForThreadIdleSlice, hslForSlice} from '../../common/colorizer';
 import {TRACE_MARGIN_TIME_S} from '../../common/constants';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
+import {cachedHsluvToHex} from '../../frontend/hsluv_cache';
 import {NewTrackArgs, SliceRect, Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
 
@@ -109,7 +108,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
 
       let color: string;
       if (colorOverride === undefined) {
-        color = hsluvToHex([hue, saturation, lightness]);
+        color = cachedHsluvToHex(hue, saturation, lightness);
       } else {
         color = colorOverride;
       }
@@ -132,7 +131,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
             ctx.save();
             ctx.translate(0, INNER_CHEVRON_OFFSET);
             ctx.scale(INNER_CHEVRON_SCALE, INNER_CHEVRON_SCALE);
-            ctx.fillStyle = hsluvToHex([hue, 100, 10]);
+            ctx.fillStyle = cachedHsluvToHex(hue, 100, 10);
 
             this.drawChevron(ctx);
             ctx.restore();
@@ -161,8 +160,8 @@ export class ChromeSliceTrack extends Track<Config, Data> {
         const firstPartWidth = rect.width * cpuTimeRatio;
         const secondPartWidth = rect.width * (1 - cpuTimeRatio);
         ctx.fillRect(rect.left, rect.top, firstPartWidth, SLICE_HEIGHT);
-        ctx.fillStyle = hsluvToHex(
-            hslForThreadIdleSlice(hue, saturation, lightness, hasFocus));
+        ctx.fillStyle =
+            colorForThreadIdleSlice(hue, saturation, lightness, hasFocus);
         ctx.fillRect(
             rect.left + firstPartWidth,
             rect.top,
@@ -175,7 +174,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       // Selected case
       if (isSelected) {
         drawRectOnSelected = () => {
-          ctx.strokeStyle = hsluvToHex([hue, 100, 10]);
+          ctx.strokeStyle = cachedHsluvToHex(hue, 100, 10);
           ctx.beginPath();
           ctx.lineWidth = 3;
           ctx.strokeRect(
