@@ -521,5 +521,6 @@ message FtraceEvent {
     DmaFenceWaitEndFtraceEvent dma_fence_wait_end = 418;
     F2fsIostatFtraceEvent f2fs_iostat = 419;
     F2fsIostatLatencyFtraceEvent f2fs_iostat_latency = 420;
+    SchedCpuUtilCfsFtraceEvent sched_cpu_util_cfs = 421;
   }
 }
