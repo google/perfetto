@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_TRACING_STRING_HELPERS_H_
 
 #include "perfetto/base/export.h"
+#include "perfetto/base/logging.h"
 
 #include <cstddef>
 #include <string>
@@ -46,7 +47,10 @@ class PERFETTO_EXPORT_COMPONENT DynamicString {
  public:
   explicit DynamicString(const std::string& str)
       : value(str.data()), length(str.length()) {}
-  explicit DynamicString(const char* str) : value(str), length(strlen(str)) {}
+  explicit DynamicString(const char* str) : value(str) {
+    PERFETTO_DCHECK(str);
+    length = strlen(str);
+  }
   DynamicString(const char* str, size_t len) : value(str), length(len) {}
 
   const char* value;
