@@ -227,6 +227,7 @@ perfetto_cc_library(
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
+        ":src_traced_probes_android_game_intervention_list_android_game_intervention_list",
         ":src_traced_probes_android_log_android_log",
         ":src_traced_probes_common_common",
         ":src_traced_probes_data_source",
@@ -1719,6 +1720,15 @@ perfetto_filegroup(
     srcs = [
         "src/traceconv/utils.cc",
         "src/traceconv/utils.h",
+    ],
+)
+
+# GN target: //src/traced/probes/android_game_intervention_list:android_game_intervention_list
+perfetto_filegroup(
+    name = "src_traced_probes_android_game_intervention_list_android_game_intervention_list",
+    srcs = [
+        "src/traced/probes/android_game_intervention_list/android_game_intervention_list_data_source.cc",
+        "src/traced/probes/android_game_intervention_list/android_game_intervention_list_data_source.h",
     ],
 )
 

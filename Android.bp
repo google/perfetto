@@ -534,6 +534,7 @@ cc_library_shared {
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
         ":perfetto_src_protozero_protozero",
+        ":perfetto_src_traced_probes_android_game_intervention_list_android_game_intervention_list",
         ":perfetto_src_traced_probes_android_log_android_log",
         ":perfetto_src_traced_probes_common_common",
         ":perfetto_src_traced_probes_data_source",
@@ -1097,6 +1098,7 @@ cc_library_static {
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
         ":perfetto_src_protozero_protozero",
+        ":perfetto_src_traced_probes_android_game_intervention_list_android_game_intervention_list",
         ":perfetto_src_traced_probes_android_log_android_log",
         ":perfetto_src_traced_probes_common_common",
         ":perfetto_src_traced_probes_data_source",
@@ -1358,6 +1360,7 @@ cc_library_static {
         ":perfetto_src_protozero_filtering_bytecode_parser",
         ":perfetto_src_protozero_filtering_message_filter",
         ":perfetto_src_protozero_protozero",
+        ":perfetto_src_traced_probes_android_game_intervention_list_android_game_intervention_list",
         ":perfetto_src_traced_probes_android_log_android_log",
         ":perfetto_src_traced_probes_common_common",
         ":perfetto_src_traced_probes_data_source",
@@ -1839,6 +1842,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_util",
         ":perfetto_src_trace_processor_views_views",
+        ":perfetto_src_traced_probes_android_game_intervention_list_android_game_intervention_list",
         ":perfetto_src_traced_probes_android_log_android_log",
         ":perfetto_src_traced_probes_common_common",
         ":perfetto_src_traced_probes_data_source",
@@ -8996,6 +9000,22 @@ filegroup {
     ],
 }
 
+// GN: //src/traced/probes/android_game_intervention_list:android_game_intervention_list
+filegroup {
+    name: "perfetto_src_traced_probes_android_game_intervention_list_android_game_intervention_list",
+    srcs: [
+        "src/traced/probes/android_game_intervention_list/android_game_intervention_list_data_source.cc",
+    ],
+}
+
+// GN: //src/traced/probes/android_game_intervention_list:unittests
+filegroup {
+    name: "perfetto_src_traced_probes_android_game_intervention_list_unittests",
+    srcs: [
+        "src/traced/probes/android_game_intervention_list/android_game_intervention_list_unittest.cc",
+    ],
+}
+
 // GN: //src/traced/probes/android_log:android_log
 filegroup {
     name: "perfetto_src_traced_probes_android_log_android_log",
@@ -10148,6 +10168,8 @@ cc_test {
         ":perfetto_src_trace_processor_util_util",
         ":perfetto_src_trace_processor_views_unittests",
         ":perfetto_src_trace_processor_views_views",
+        ":perfetto_src_traced_probes_android_game_intervention_list_android_game_intervention_list",
+        ":perfetto_src_traced_probes_android_game_intervention_list_unittests",
         ":perfetto_src_traced_probes_android_log_android_log",
         ":perfetto_src_traced_probes_android_log_unittests",
         ":perfetto_src_traced_probes_common_common",
