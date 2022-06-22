@@ -572,9 +572,16 @@ PERFETTO_THREAD_LOCAL internal::DataSourceThreadLocalState*
 
 // This macro must be used once for each data source next to the data source's
 // declaration.
-#define PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(...)              \
-  template <>                                                         \
-  PERFETTO_COMPONENT_EXPORT perfetto::internal::DataSourceStaticState \
+#define PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(...)  \
+  PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS_WITH_ATTRS( \
+      PERFETTO_COMPONENT_EXPORT, __VA_ARGS__)
+
+// Similar to `PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS` but it also takes
+// custom attributes, which are useful when DataSource is defined in a component
+// where a component specific export macro is used.
+#define PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS_WITH_ATTRS(attrs, ...) \
+  template <>                                                              \
+  attrs perfetto::internal::DataSourceStaticState                          \
       perfetto::DataSource<__VA_ARGS__>::static_state_
 
 // This macro must be used once for each data source in one source file to
@@ -584,9 +591,16 @@ PERFETTO_THREAD_LOCAL internal::DataSourceThreadLocalState*
 // permissive- flag to enable standards-compliant mode. See
 // https://developercommunity.visualstudio.com/content/problem/319447/
 // explicit-specialization-of-static-data-member-inco.html.
-#define PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(...)               \
-  template <>                                                         \
-  PERFETTO_COMPONENT_EXPORT perfetto::internal::DataSourceStaticState \
+#define PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(...)  \
+  PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS_WITH_ATTRS( \
+      PERFETTO_COMPONENT_EXPORT, __VA_ARGS__)
+
+// Similar to `PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS` but it also takes
+// custom attributes, which are useful when DataSource is defined in a component
+// where a component specific export macro is used.
+#define PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS_WITH_ATTRS(attrs, ...) \
+  template <>                                                             \
+  attrs perfetto::internal::DataSourceStaticState                         \
       perfetto::DataSource<__VA_ARGS__>::static_state_ {}
 
 #endif  // INCLUDE_PERFETTO_TRACING_DATA_SOURCE_H_
