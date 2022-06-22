@@ -22,6 +22,7 @@ import {ArrayBufferBuilder} from '../array_buffer_builder';
 import {findInterfaceAndEndpoint} from './adb_over_webusb_utils';
 import {AdbKeyManager, maybeStoreKey} from './auth/adb_key_manager';
 import {
+  RecordingError,
   wrapRecordingError,
 } from './recording_error_handling';
 import {
@@ -272,7 +273,7 @@ export class AdbConnectionOverWebusb implements AdbConnection {
 
     if (ep) return ep.endpointNumber;
 
-    throw Error(`Cannot find ${direction} endpoint`);
+    throw new RecordingError(`Cannot find ${direction} endpoint`);
   }
 
   private async usbReceiveLoop(): Promise<void> {
@@ -358,7 +359,7 @@ export class AdbConnectionOverWebusb implements AdbConnection {
 
         if (![VERSION_WITH_CHECKSUM, VERSION_NO_CHECKSUM].includes(
                 deviceVersion)) {
-          throw new Error(`Version ${msg.arg0} not supported.`);
+          throw new RecordingError(`Version ${msg.arg0} not supported.`);
         }
         this.useChecksum = deviceVersion === VERSION_WITH_CHECKSUM;
         this.state = AdbState.CONNECTED;
@@ -398,7 +399,8 @@ export class AdbConnectionOverWebusb implements AdbConnection {
         stream.onStreamData(msg.data);
       } else {
         this.isUsbReceiveLoopRunning = false;
-        throw new Error(`Unexpected message ${msg} in state ${this.state}`);
+        throw new RecordingError(
+            `Unexpected message ${msg} in state ${this.state}`);
       }
     }
     this.isUsbReceiveLoopRunning = false;

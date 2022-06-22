@@ -34,6 +34,7 @@ import {
   TraceConfig,
 } from '../protos';
 
+import {RecordingError} from './recording_error_handling';
 import {
   ByteStream,
   TracingSession,
@@ -204,7 +205,8 @@ export class TracedTracingSession implements TracingSession {
     }
     const method = this.availableMethods.find((m) => m.name === methodName);
     if (!method || !method.id) {
-      throw new Error(`Method ${methodName} not supported by the target`);
+      throw new RecordingError(
+          `Method ${methodName} not supported by the target`);
     }
     const requestId = this.requestId++;
     const frame = new IPCFrame({
