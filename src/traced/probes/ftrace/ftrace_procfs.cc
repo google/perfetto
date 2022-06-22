@@ -47,9 +47,8 @@ namespace {
 
 namespace {
 constexpr char kRssStatThrottledTrigger[] =
-    "hist:keys=mm_id,member:vals=hitcount:bucket=size/524288"
-    ":sort=hitcount:size=2048:onchange($bucket)"
-    ".rss_stat_throttled(mm_id,curr,member,size)";
+    "hist:keys=mm_id,member:bucket=size/0x80000"
+    ":onchange($bucket).rss_stat_throttled(mm_id,curr,member,size)";
 }
 
 void KernelLogWrite(const char* s) {
@@ -228,16 +227,26 @@ bool FtraceProcfs::MaybeTearDownEventTriggers(const std::string& group,
 }
 
 bool FtraceProcfs::SupportsRssStatThrottled() {
+  std::string group = "synthetic";
+  std::string name = "rss_stat_throttled";
+
   // Check if the trigger already exists. Don't try recreating
   // or removing the trigger if it is already in use.
   auto triggers = ReadEventTriggers("kmem", "rss_stat");
   for (const auto& trigger : triggers) {
-    if (trigger == kRssStatThrottledTrigger)
+    // The kernel shows all the default values of a trigger
+    // when read from and trace event 'trigger' file.
+    //
+    // Trying to match the complete trigger string is prone
+    // to fail if, in the future, the kernel changes default
+    // fields or values for event triggers.
+    //
+    // Do a partial match on the generated event name
+    // (rss_stat_throttled) to detect if the trigger
+    // is already created.
+    if (trigger.find(name) != std::string::npos)
       return true;
   }
-
-  std::string group = "synthetic";
-  std::string name = "rss_stat_throttled";
 
   // Attempt to create rss_stat_throttled hist trigger */
   bool ret = MaybeSetUpEventTriggers(group, name);
