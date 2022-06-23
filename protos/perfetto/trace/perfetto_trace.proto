@@ -1265,6 +1265,40 @@ message PerfEventConfig {
 
 // End of protos/perfetto/config/profiling/perf_event_config.proto
 
+// Begin of protos/perfetto/config/statsd/atom_ids.proto
+
+enum AtomId {
+  // TODO(hjd): This will be autogenrerated by the same script that
+  // imports atoms.proto as a descriptor in a follow up CL.
+  BLE_SCAN_STATE_CHANGED = 2;
+}
+
+// End of protos/perfetto/config/statsd/atom_ids.proto
+
+// Begin of protos/perfetto/config/statsd/statsd_tracing_config.proto
+
+// This file is named 'statsd_tracing_config.proto' rather than
+// 'statsd_config.proto' (which would be more consistent with the other
+// config protos) so it doesn't show up and confuse folks looking for
+// the existing statsd_config.proto for configuring statsd itself.
+// Same for the config proto itself.
+message StatsdTracingConfig {
+  repeated AtomId push_atom_id = 1;
+  repeated int32 raw_push_atom_id = 2;
+
+  repeated StatsdPullAtomConfig pull_config = 3;
+}
+
+message StatsdPullAtomConfig {
+  repeated AtomId pull_atom_id = 1;
+  repeated int32 raw_pull_atom_id = 2;
+
+  optional int32 pull_frequency_ms = 3;
+  repeated string packages = 4;
+}
+
+// End of protos/perfetto/config/statsd/statsd_tracing_config.proto
+
 // Begin of protos/perfetto/common/sys_stats_counters.proto
 
 // When editing entries here remember also to update "sys_stats_counters.h" with
@@ -1629,7 +1663,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 117
+// Next id: 118
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -1719,6 +1753,8 @@ message DataSourceConfig {
   // Data source name: android.polled_state
   optional AndroidPolledStateConfig android_polled_state_config = 114
       [lazy = true];
+  // Data source name: android.statsd
+  optional StatsdTracingConfig statsd_tracing_config = 117 [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would
@@ -9534,6 +9570,20 @@ message ProcessTree {
 
 // End of protos/perfetto/trace/ps/process_tree.proto
 
+// Begin of protos/perfetto/trace/statsd/statsd_atom.proto
+
+// OpaqueAtom should be filled with an Atom proto from:
+// https://cs.android.com/android/platform/superproject/+/master:frameworks/proto_logging/stats/atoms.proto?q=f:stats%2Fatoms.proto$%20message%5C%20Atom
+// We don't reference Atom directly here since we don't  want to import
+// Atom.proto and all its transitive dependencies into Perfetto.
+message OpaqueAtom {}
+
+message StatsdAtom {
+  repeated OpaqueAtom nested = 1;
+}
+
+// End of protos/perfetto/trace/statsd/statsd_atom.proto
+
 // Begin of protos/perfetto/trace/sys_stats/sys_stats.proto
 
 // Various Linux system stat counters from /proc.
@@ -10249,7 +10299,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 84.
+// Next id: 85.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -10315,6 +10365,7 @@ message TracePacket {
     AndroidCameraSessionStats android_camera_session_stats = 81;
     TranslationTable translation_table = 82;
     AndroidGameInterventionList android_game_intervention_list = 83;
+    StatsdAtom statsd_atom = 84;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
