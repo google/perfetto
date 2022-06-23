@@ -35,6 +35,9 @@ SELECT RUN_METRIC('android/startup/mcycles_per_launch.sql');
 -- Define helper functions for GC slices.
 SELECT RUN_METRIC('android/startup/gc_slices.sql');
 
+-- Define helper functions for system state.
+SELECT RUN_METRIC('android/startup/system_state.sql');
+
 -- Define process metadata functions.
 SELECT RUN_METRIC('android/process_metadata.sql');
 
@@ -279,7 +282,13 @@ SELECT
         )
         ORDER BY slice_name
       )
-    )
+    ),
+    'system_state', NULL_IF_EMPTY(AndroidStartupMetric_SystemState(
+      'dex2oat_running',
+        IS_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*dex2oat64'),
+      'installd_running',
+        IS_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*installd') 
+    ))
   ) as startup
 FROM launches;
 

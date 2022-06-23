@@ -15,32 +15,32 @@ android_startup {
       other_processes_spawned_count: 0
       time_activity_manager {
         dur_ns: 8000000000
-        dur_ms: 8000
+        dur_ms: 8000.0
       }
       time_bind_application {
         dur_ns: 9000000000
-        dur_ms: 9000
+        dur_ms: 9000.0
       }
       time_before_start_process {
         dur_ns: 18000000000
-        dur_ms: 18000
+        dur_ms: 18000.0
       }
       time_during_start_process {
         dur_ns: 35000000000
-        dur_ms: 35000
+        dur_ms: 35000.0
       }
-      dur_ms: 108000
+      dur_ms: 108000.0
       to_bind_application {
         dur_ns: 83000000000
-        dur_ms: 83000
+        dur_ms: 83000.0
       }
       time_inflate {
         dur_ns: 3000000000
-        dur_ms: 3000
+        dur_ms: 3000.0
       }
       time_get_resources {
         dur_ns: 1000000000
-        dur_ms: 1000
+        dur_ms: 1000.0
       }
       mcycles_by_core_type {
         unknown: 103
@@ -70,6 +70,10 @@ android_startup {
     event_timestamps {
       intent_received: 102000000000
       first_frame: 210000000000
+    }
+    system_state {
+      dex2oat_running: false
+      installd_running: false
     }
   }
 }

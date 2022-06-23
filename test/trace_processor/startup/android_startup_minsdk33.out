@@ -19,5 +19,9 @@ android_startup {
       intent_received: 110
       first_frame: 210
     }
+    system_state {
+      dex2oat_running: false
+      installd_running: false
+    }
   }
 }
