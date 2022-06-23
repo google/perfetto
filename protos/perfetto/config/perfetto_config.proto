@@ -1265,6 +1265,40 @@ message PerfEventConfig {
 
 // End of protos/perfetto/config/profiling/perf_event_config.proto
 
+// Begin of protos/perfetto/config/statsd/atom_ids.proto
+
+enum AtomId {
+  // TODO(hjd): This will be autogenrerated by the same script that
+  // imports atoms.proto as a descriptor in a follow up CL.
+  BLE_SCAN_STATE_CHANGED = 2;
+}
+
+// End of protos/perfetto/config/statsd/atom_ids.proto
+
+// Begin of protos/perfetto/config/statsd/statsd_tracing_config.proto
+
+// This file is named 'statsd_tracing_config.proto' rather than
+// 'statsd_config.proto' (which would be more consistent with the other
+// config protos) so it doesn't show up and confuse folks looking for
+// the existing statsd_config.proto for configuring statsd itself.
+// Same for the config proto itself.
+message StatsdTracingConfig {
+  repeated AtomId push_atom_id = 1;
+  repeated int32 raw_push_atom_id = 2;
+
+  repeated StatsdPullAtomConfig pull_config = 3;
+}
+
+message StatsdPullAtomConfig {
+  repeated AtomId pull_atom_id = 1;
+  repeated int32 raw_pull_atom_id = 2;
+
+  optional int32 pull_frequency_ms = 3;
+  repeated string packages = 4;
+}
+
+// End of protos/perfetto/config/statsd/statsd_tracing_config.proto
+
 // Begin of protos/perfetto/common/sys_stats_counters.proto
 
 // When editing entries here remember also to update "sys_stats_counters.h" with
@@ -1629,7 +1663,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 117
+// Next id: 118
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -1719,6 +1753,8 @@ message DataSourceConfig {
   // Data source name: android.polled_state
   optional AndroidPolledStateConfig android_polled_state_config = 114
       [lazy = true];
+  // Data source name: android.statsd
+  optional StatsdTracingConfig statsd_tracing_config = 117 [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would
