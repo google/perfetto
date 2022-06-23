@@ -38,4 +38,6 @@ export class TargetFactoryRegistry extends Registry<TargetFactory> {
   }
 }
 
-export const targetFactoryRegistry = new TargetFactoryRegistry();
+export const targetFactoryRegistry = new TargetFactoryRegistry((f) => {
+  return f.kind;
+});

@@ -13,15 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Generates TypeScript files that import all subdirectories.
-This is useful for plugins/extensions. If you have two modules:
+"""Generates TypeScript files that import all subdirectories and
+registers them with plugin registry. If you have three modules:
 - core/
-- plugins/myplugin/
+- plugins/foo_plugin/
+- plugins/bar_plugin/
 In general you would like the dependency to only go one way:
-- plugins/myplugin/ -> core/
-But you still need some index file to import all plugins for the sake of
-bundling. This avoids having to manually edit core/ for every
-plugin you add.
+- plugins/foo_plugin/ -> core/
+We want to avoid manually editing core/ for every plugin.
+
+This generates code like:
+
+import {pluginRegistry} from '../common/plugins';
+
+import {plugin as fooPlugin} from '../plugins/foo_plugin';
+import {plugin as barPlugin} from '../plugins/bar_plugin';
+
+pluginRegistry.register(fooPlugin);
+pluginRegistry.register(barPlugin);
 """
 
 from __future__ import print_function
@@ -33,17 +42,34 @@ import sys
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 UI_SRC_DIR = os.path.join(ROOT_DIR, 'ui', 'src')
+PLUGINS_PATH = os.path.join(UI_SRC_DIR, 'common', 'plugins')
+
+def to_camel_case(s):
+  first, *rest = s.split('_')
+  return first + ''.join(x.title() for x in rest)
 
 def gen_imports(input_dir, output_path):
   paths = [os.path.join(input_dir, p) for p in os.listdir(input_dir)]
   paths = [p for p in paths if os.path.isdir(p)]
   paths.sort()
 
-  lines = []
+  output_dir = os.path.dirname(output_path)
+  rel_plugins_path = os.path.relpath(PLUGINS_PATH, output_dir)
+
+  imports = []
+  registrations =  []
   for path in paths:
-    rel_path = os.path.relpath(path, os.path.dirname(output_path))
-    lines.append(f"import '{rel_path}';")
-  expected = '\n'.join(lines)
+    rel_path = os.path.relpath(path, output_dir)
+    snake_name = os.path.basename(path)
+    camel_name = to_camel_case(snake_name)
+    imports.append(f"import {{plugin as {camel_name}}} from '{rel_path}';")
+    registrations.append(f"pluginRegistry.register({camel_name});")
+
+  header = f"import {{pluginRegistry}} from '{rel_plugins_path}';"
+  import_text = '\n'.join(imports)
+  registration_text = '\n'.join(registrations)
+
+  expected = f"{header}\n\n{import_text}\n\n{registration_text}"
 
   with open(output_path, 'w') as f:
     f.write(expected)
