@@ -111,6 +111,13 @@ class NullableVector {
     }
   }
 
+  // Requests the removal of unused capacity.
+  // Matches the semantics of std::vector::shrink_to_fit.
+  void ShrinkToFit() {
+    data_.shrink_to_fit();
+    valid_.ShrinkToFit();
+  }
+
   // Returns the size of the NullableVector; this includes any null values.
   uint32_t size() const { return valid_.size(); }
 

@@ -1002,6 +1002,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterView(storage->thread_slice_view());
 
   // New style db-backed tables.
+  // Note: if adding a table here which might potentially contain many rows
+  // (O(rows in sched/slice/counter)), then consider calling ShrinkToFit on
+  // that table in TraceStorage::ShrinkToFitTables.
   RegisterDbTable(storage->arg_table());
   RegisterDbTable(storage->thread_table());
   RegisterDbTable(storage->process_table());
@@ -1104,6 +1107,8 @@ void TraceProcessorImpl::NotifyEndOfFile() {
     PERFETTO_CHECK(value.type == SqlValue::Type::kString);
     initial_tables_.push_back(value.string_value);
   }
+
+  context_.storage->ShrinkToFitTables();
 }
 
 size_t TraceProcessorImpl::RestoreInitialTables() {

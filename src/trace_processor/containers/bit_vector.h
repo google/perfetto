@@ -302,6 +302,13 @@ class BitVector {
     return bv;
   }
 
+  // Requests the removal of unused capacity.
+  // Matches the semantics of std::vector::shrink_to_fit.
+  void ShrinkToFit() {
+    blocks_.shrink_to_fit();
+    counts_.shrink_to_fit();
+  }
+
   // Updates the ith set bit of this bitvector with the value of
   // |other.IsSet(i)|.
   //
