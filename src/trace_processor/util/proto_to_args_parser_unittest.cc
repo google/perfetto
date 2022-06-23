@@ -123,6 +123,8 @@ class ProtoToArgsParserTest : public ::testing::Test,
     return interned_source_locations_.at(iid).get();
   }
 
+  PacketSequenceStateGeneration* seq_state() final { return nullptr; }
+
   std::vector<std::string> args_;
   std::map<uint64_t, std::unique_ptr<InternedMessageView>>
       interned_source_locations_;
