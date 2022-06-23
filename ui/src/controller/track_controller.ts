@@ -289,4 +289,5 @@ export interface TrackControllerFactory extends
   kind: string;
 }
 
-export const trackControllerRegistry = new Registry<TrackControllerFactory>();
+export const trackControllerRegistry =
+    Registry.kindRegistry<TrackControllerFactory>();
