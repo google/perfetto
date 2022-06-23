@@ -3,9 +3,6 @@ android_startup {
     startup_id: 1
     package_name: "com.google.android.calendar"
     process_name: "com.google.android.calendar"
-    process: {
-      name: "com.google.android.calendar"
-    }
     zygote_new_process: false
     to_first_frame {
       dur_ns: 5
@@ -29,20 +26,24 @@ android_startup {
         dur_ns: 3
         dur_ms: 3e-06
       }
+    }
+    activity_hosting_process_count: 1
+    process {
+      name: "com.google.android.calendar"
     }
     event_timestamps {
       intent_received: 100
       first_frame: 105
     }
-    activity_hosting_process_count: 1
+    system_state {
+      dex2oat_running: false
+      installd_running: false
+    }
   }
   startup {
     startup_id: 2
     package_name: "com.google.android.calendar"
     process_name: "com.google.android.calendar"
-    process: {
-      name: "com.google.android.calendar"
-    }
     zygote_new_process: false
     to_first_frame {
       dur_ns: 5
@@ -67,10 +68,17 @@ android_startup {
         dur_ms: 3e-06
       }
     }
+    activity_hosting_process_count: 1
+    process {
+      name: "com.google.android.calendar"
+    }
     event_timestamps {
       intent_received: 200
       first_frame: 205
     }
-    activity_hosting_process_count: 1
+    system_state {
+      dex2oat_running: false
+      installd_running: false
+    }
   }
 }
