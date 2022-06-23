@@ -283,12 +283,16 @@ SELECT
         ORDER BY slice_name
       )
     ),
-    'system_state', NULL_IF_EMPTY(AndroidStartupMetric_SystemState(
+    'system_state', AndroidStartupMetric_SystemState(
       'dex2oat_running',
         IS_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*dex2oat64'),
       'installd_running',
-        IS_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*installd') 
-    ))
+        IS_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*installd'),
+      'broadcast_dispatched_count',
+        COUNT_SLICES_CONCURRENT_TO_LAUNCH(launches.id, 'Broadcast dispatched*'),
+      'broadcast_received_count',
+        COUNT_SLICES_CONCURRENT_TO_LAUNCH(launches.id, 'broadcastReceiveReg*')
+    )
   ) as startup
 FROM launches;
 
