@@ -36,3 +36,8 @@ export class NullTrack extends Track {
 }
 
 trackRegistry.register(NullTrack);
+
+export const plugin = {
+  pluginId: 'perfetto.NullTrack',
+  activate: () => {},
+};
