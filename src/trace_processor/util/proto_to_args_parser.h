@@ -27,6 +27,7 @@ namespace trace_processor {
 
 // TODO(altimin): Move InternedMessageView into trace_processor/util.
 class InternedMessageView;
+class PacketSequenceStateGeneration;
 
 namespace util {
 
@@ -91,6 +92,8 @@ class ProtoToArgsParser {
 
     virtual size_t GetArrayEntryIndex(const std::string& array_key) = 0;
     virtual size_t IncrementArrayEntryIndex(const std::string& array_key) = 0;
+
+    virtual PacketSequenceStateGeneration* seq_state() = 0;
 
     template <typename FieldMetadata>
     typename FieldMetadata::cpp_field_type::Decoder* GetInternedMessage(
