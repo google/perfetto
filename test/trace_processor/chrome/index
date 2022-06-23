@@ -69,3 +69,6 @@ chrome_slice_names.textproto chrome_slice_names chrome_slice_names.out
 
 # Chrome tasks.
 ../../data/chrome_page_load_all_categories_not_extended.pftrace.gz chrome_tasks.sql chrome_tasks.out
+
+# Unsymbolized args.
+unsymbolized_args.textproto chrome_unsymbolized_args unsymbolized_args.out
