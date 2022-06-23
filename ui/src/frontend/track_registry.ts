@@ -18,4 +18,4 @@ import {TrackCreator} from './track';
 /**
  * Global registry that maps types to TrackCreator.
  */
-export const trackRegistry = new Registry<TrackCreator>();
+export const trackRegistry = Registry.kindRegistry<TrackCreator>();

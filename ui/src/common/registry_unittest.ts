@@ -1,4 +1,3 @@
-
 // Copyright (C) 2018 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +20,7 @@ interface Registrant {
 }
 
 test('registry returns correct registrant', () => {
-  const registry = new Registry<Registrant>();
+  const registry = Registry.kindRegistry<Registrant>();
 
   const a: Registrant = {kind: 'a', n: 1};
   const b: Registrant = {kind: 'b', n: 2};
@@ -33,7 +32,7 @@ test('registry returns correct registrant', () => {
 });
 
 test('registry throws error on kind collision', () => {
-  const registry = new Registry<Registrant>();
+  const registry = Registry.kindRegistry<Registrant>();
 
   const a1: Registrant = {kind: 'a', n: 1};
   const a2: Registrant = {kind: 'a', n: 2};
@@ -43,6 +42,19 @@ test('registry throws error on kind collision', () => {
 });
 
 test('registry throws error on non-existent track', () => {
-  const registry = new Registry<Registrant>();
+  const registry = Registry.kindRegistry<Registrant>();
   expect(() => registry.get('foo')).toThrow();
+});
+
+test('registry allows iteration', () => {
+  const registry = Registry.kindRegistry<Registrant>();
+  const a: Registrant = {kind: 'a', n: 1};
+  const b: Registrant = {kind: 'b', n: 2};
+  registry.register(a);
+  registry.register(b);
+
+  const values = [...registry.values()];
+  expect(values.length).toBe(2);
+  expect(values.includes(a)).toBe(true);
+  expect(values.includes(b)).toBe(true);
 });
