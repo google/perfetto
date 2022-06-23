@@ -22,6 +22,8 @@ android_startup {
     system_state {
       dex2oat_running: false
       installd_running: false
+      broadcast_dispatched_count: 0
+      broadcast_received_count: 0
     }
   }
   startup {
@@ -47,6 +49,8 @@ android_startup {
     system_state {
       dex2oat_running: true
       installd_running: false
+      broadcast_dispatched_count: 0
+      broadcast_received_count: 0
     }
   }
   startup {
@@ -72,6 +76,8 @@ android_startup {
     system_state {
       dex2oat_running: false
       installd_running: true
+      broadcast_dispatched_count: 0
+      broadcast_received_count: 0
     }
   }
   startup {
@@ -97,6 +103,8 @@ android_startup {
     system_state {
       dex2oat_running: true
       installd_running: true
+      broadcast_dispatched_count: 0
+      broadcast_received_count: 0
     }
   }
 }

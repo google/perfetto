@@ -40,3 +40,22 @@ SELECT CREATE_FUNCTION(
     )
   '
 );
+
+-- Given a launch id and slice name glob, returns the number of slices with that
+-- name which start concurrent to that launch.
+SELECT CREATE_FUNCTION(
+  'COUNT_SLICES_CONCURRENT_TO_LAUNCH(launch_id INT, slice_glob STRING)',
+  'INT',
+  '
+    SELECT COUNT(1)
+    FROM slice
+    JOIN (
+      SELECT ts, ts_end
+      FROM launches
+      WHERE id = $launch_id
+    ) launch
+    WHERE
+      slice.name GLOB $slice_glob AND
+      slice.ts BETWEEN launch.ts AND launch.ts_end
+  '
+);
