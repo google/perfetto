@@ -637,6 +637,16 @@ button.query-ctrl {
       user-select: text;
     }
 
+    .track-subtitle {
+      font-size: 0.6rem;
+      font-weight: normal;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      // Maximum width according to grid-template-columns value for .shell
+      width: calc(var(--track-shell-width) - 48px);
+    }
+
     .chip {
       background-color: #bed6ff;
       border-radius: 3px;
