@@ -14,15 +14,21 @@
 
 export interface HasKind { kind: string; }
 
-export class Registry<T extends HasKind> {
+export class Registry<T> {
+  private key: (t: T) => string;
   protected registry: Map<string, T>;
 
-  constructor() {
+  static kindRegistry<T extends HasKind>(): Registry<T> {
+    return new Registry<T>((t) => t.kind);
+  }
+
+  constructor(key: (t: T) => string) {
     this.registry = new Map<string, T>();
+    this.key = key;
   }
 
   register(registrant: T) {
-    const kind = registrant.kind;
+    const kind = this.key(registrant);
     if (this.registry.has(kind)) {
       throw new Error(`Registrant ${kind} already exists in the registry`);
     }
@@ -39,6 +45,11 @@ export class Registry<T extends HasKind> {
       throw new Error(`${kind} has not been registered.`);
     }
     return registrant;
+  }
+
+  // Support iteration: for (const foo of fooRegistry.values()) { ... }
+  * values() {
+    yield* this.registry.values();
   }
 
   unregisterAllForTesting(): void {
