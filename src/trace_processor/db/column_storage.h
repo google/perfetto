@@ -48,10 +48,10 @@ class ColumnStorage : public ColumnStorageBase {
   ColumnStorage(ColumnStorage&&) = default;
   ColumnStorage& operator=(ColumnStorage&&) noexcept = default;
 
-  T Get(uint32_t idx) const { return deque_[idx]; }
-  void Append(T val) { deque_.emplace_back(val); }
-  void Set(uint32_t idx, T val) { deque_[idx] = val; }
-  uint32_t size() const { return static_cast<uint32_t>(deque_.size()); }
+  T Get(uint32_t idx) const { return vector_[idx]; }
+  void Append(T val) { vector_.emplace_back(val); }
+  void Set(uint32_t idx, T val) { vector_[idx] = val; }
+  uint32_t size() const { return static_cast<uint32_t>(vector_.size()); }
 
   template <bool IsDense>
   static ColumnStorage<T> Create() {
@@ -60,7 +60,7 @@ class ColumnStorage : public ColumnStorageBase {
   }
 
  private:
-  std::deque<T> deque_;
+  std::vector<T> vector_;
 };
 
 // Class used for implementing storage for nullable columns.
@@ -84,19 +84,13 @@ class ColumnStorage<base::Optional<T>> : public ColumnStorageBase {
 
   template <bool IsDense>
   static ColumnStorage<base::Optional<T>> Create() {
-    return IsDense ? ColumnStorage<base::Optional<T>>::Dense()
-                   : ColumnStorage<base::Optional<T>>::Sparse();
+    return IsDense
+               ? ColumnStorage<base::Optional<T>>(NullableVector<T>::Dense())
+               : ColumnStorage<base::Optional<T>>(NullableVector<T>::Sparse());
   }
 
  private:
   explicit ColumnStorage(NullableVector<T> nv) : nv_(std::move(nv)) {}
-
-  static ColumnStorage<base::Optional<T>> Sparse() {
-    return ColumnStorage<base::Optional<T>>(NullableVector<T>::Sparse());
-  }
-  static ColumnStorage<base::Optional<T>> Dense() {
-    return ColumnStorage<base::Optional<T>>(NullableVector<T>::Dense());
-  }
 
   NullableVector<T> nv_;
 };
