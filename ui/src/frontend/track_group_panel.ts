@@ -109,7 +109,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
     let child = null;
     if (this.summaryTrackState.labels &&
         this.summaryTrackState.labels.length > 0) {
-      child = m('span', this.summaryTrackState.labels.join(', '));
+      child = this.summaryTrackState.labels.join(', ');
     }
 
     return m(
@@ -129,11 +129,15 @@ export class TrackGroupPanel extends Panel<Attrs> {
           m('.fold-button',
             m('i.material-icons',
               this.trackGroupState.collapsed ? EXPAND_DOWN : EXPAND_UP)),
-          m('h1.track-title',
-            {title: name},
-            name,
-            ('namespace' in this.summaryTrackState.config) &&
-                m('span.chip', 'metric')),
+          m('div',
+            m('h1.track-title',
+              {title: name},
+              name,
+              ('namespace' in this.summaryTrackState.config) &&
+                  m('span.chip', 'metric')),
+            (this.trackGroupState.collapsed && child !== null) ?
+                m('h2.track-subtitle', child) :
+                null),
           selection && selection.kind === 'AREA' ?
               m('i.material-icons.track-button',
                 {
@@ -146,10 +150,13 @@ export class TrackGroupPanel extends Panel<Attrs> {
                 checkBox) :
               ''),
 
-        this.summaryTrack ? m(TrackContent,
-                              {track: this.summaryTrack},
-                              this.trackGroupState.collapsed ? '' : child) :
-                            null);
+        this.summaryTrack ?
+            m(TrackContent,
+              {track: this.summaryTrack},
+              (!this.trackGroupState.collapsed && child !== null) ?
+                  m('span', child) :
+                  null) :
+            null);
   }
 
   oncreate(vnode: m.CVnodeDOM<Attrs>) {
