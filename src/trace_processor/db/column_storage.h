@@ -52,6 +52,7 @@ class ColumnStorage : public ColumnStorageBase {
   void Append(T val) { vector_.emplace_back(val); }
   void Set(uint32_t idx, T val) { vector_[idx] = val; }
   uint32_t size() const { return static_cast<uint32_t>(vector_.size()); }
+  void ShrinkToFit() { vector_.shrink_to_fit(); }
 
   template <bool IsDense>
   static ColumnStorage<T> Create() {
@@ -81,6 +82,7 @@ class ColumnStorage<base::Optional<T>> : public ColumnStorageBase {
   void Set(uint32_t idx, T val) { nv_.Set(idx, val); }
   uint32_t size() const { return nv_.size(); }
   bool IsDense() const { return nv_.IsDense(); }
+  void ShrinkToFit() { nv_.ShrinkToFit(); }
 
   template <bool IsDense>
   static ColumnStorage<base::Optional<T>> Create() {

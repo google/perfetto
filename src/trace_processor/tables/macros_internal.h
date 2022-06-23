@@ -491,6 +491,9 @@ class AbstractConstRowReference {
 #define PERFETTO_TP_COLUMN_TYPE_USING(type, name, ...) \
   using name = TypedColumn<type>;
 
+// Calls ShrinkToFit on each column.
+#define PERFETTO_TP_COLUMN_SHRINK_TO_FIT(type, name, ...) name##_.ShrinkToFit();
+
 // For more general documentation, see PERFETTO_TP_TABLE in macros.h.
 #define PERFETTO_TP_TABLE_INTERNAL(table_name, class_name, parent_class_name, \
                                    DEF)                                       \
@@ -809,6 +812,11 @@ class AbstractConstRowReference {
           "type", SqlValue::Type::kString, false, false, false, false});      \
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_COLUMN_SCHEMA);                \
       return schema;                                                          \
+    }                                                                         \
+                                                                              \
+    void ShrinkToFit() {                                                      \
+      type_.ShrinkToFit();                                                    \
+      PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_COLUMN_SHRINK_TO_FIT);       \
     }                                                                         \
                                                                               \
     /* Iterates the table. */                                                 \
