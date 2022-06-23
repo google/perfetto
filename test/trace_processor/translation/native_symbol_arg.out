@@ -1,0 +1,5 @@
+"flat_key","key","int_value","string_value"
+"is_root_in_scope","is_root_in_scope",1,"[NULL]"
+"source","source","[NULL]","descriptor"
+"source_id","source_id",12345,"[NULL]"
+"chrome_mojo_event_info.mojo_method_name","chrome_mojo_event_info.mojo_method_name","[NULL]","symbolized_func"

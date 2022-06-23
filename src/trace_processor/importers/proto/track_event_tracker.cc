@@ -557,8 +557,8 @@ void TrackEventTracker::NotifyEndOfFile() {
   for (const auto& translatable_arg : translatable_args_) {
     auto bound_inserter =
         context_->args_tracker->AddArgsTo(translatable_arg.slice_id);
-    bound_inserter.TranslateAndAddArgs(*context_->args_translation_table,
-                                       translatable_arg.compact_arg_set);
+    context_->args_translation_table->TranslateArgs(
+        translatable_arg.compact_arg_set, bound_inserter);
   }
   translatable_args_.clear();
 }
