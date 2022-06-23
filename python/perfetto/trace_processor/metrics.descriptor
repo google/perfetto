@@ -578,8 +578,8 @@ maxRuntime$
 name (	RnameY
 threads (2?.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ThreadRthreads
 total (Rtotal
-Â%
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"„$
+û'
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ú&
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartup‡
 TaskStateBreakdown$
@@ -650,7 +650,10 @@ odexStatus-
 EventTimestamps'
 intent_received (RintentReceived
 first_frame (R
-firstFrame≥
+firstFramea
+SystemState'
+dex2oat_running (Rdex2oatRunning)
+installd_running (RinstalldRunningâ
 Startup
 
 startup_id (R	startupId!
@@ -667,7 +670,8 @@ activitiesq
 process (2'.perfetto.protos.AndroidProcessMetadataRprocessB
 hsc (20.perfetto.protos.AndroidStartupMetric.HscMetricsRhscY
 report_fully_drawn	 (2+.perfetto.protos.AndroidStartupMetric.SliceRreportFullyDrawni
-optimization_status (28.perfetto.protos.AndroidStartupMetric.OptimizationStatusRoptimizationStatusJ
+optimization_status (28.perfetto.protos.AndroidStartupMetric.OptimizationStatusRoptimizationStatusT
+system_state (21.perfetto.protos.AndroidStartupMetric.SystemStateRsystemStateJ
 
 ù
 4protos/perfetto/metrics/android/surfaceflinger.protoperfetto.protos"”
