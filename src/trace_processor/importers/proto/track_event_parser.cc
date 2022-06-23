@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/util/debug_annotation_parser.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
@@ -71,12 +72,10 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
  public:
   TrackEventArgsParser(BoundInserter& inserter,
                        TraceStorage& storage,
-                       PacketSequenceStateGeneration& sequence_state,
-                       ArgsTranslationTable& args_translation_table)
+                       PacketSequenceStateGeneration& sequence_state)
       : inserter_(inserter),
         storage_(storage),
-        sequence_state_(sequence_state),
-        args_translation_table_(args_translation_table) {}
+        sequence_state_(sequence_state) {}
 
   ~TrackEventArgsParser() override;
 
@@ -88,14 +87,9 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
                      Variadic::Integer(value));
   }
   void AddUnsignedInteger(const Key& key, uint64_t value) final {
-    StringId flat_key_id =
-        storage_.InternString(base::StringView(key.flat_key));
-    StringId key_id = storage_.InternString(base::StringView(key.key));
-    Variadic variadic_val = Variadic::UnsignedInteger(value);
-    if (args_translation_table_.TranslateArg(key_id, variadic_val, inserter_)) {
-      return;
-    }
-    inserter_.AddArg(flat_key_id, key_id, variadic_val);
+    inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
+                     storage_.InternString(base::StringView(key.key)),
+                     Variadic::UnsignedInteger(value));
   }
   void AddString(const Key& key, const protozero::ConstChars& value) final {
     inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
@@ -152,11 +146,12 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
     return sequence_state_.GetInternedMessageView(field_id, iid);
   }
 
+  PacketSequenceStateGeneration* seq_state() final { return &sequence_state_; }
+
  private:
   BoundInserter& inserter_;
   TraceStorage& storage_;
   PacketSequenceStateGeneration& sequence_state_;
-  ArgsTranslationTable& args_translation_table_;
 };
 
 TrackEventArgsParser::~TrackEventArgsParser() = default;
@@ -171,6 +166,36 @@ std::string NormalizePathSeparators(const protozero::ConstChars& path) {
       c = '/';
   }
   return result;
+}
+
+base::Optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
+    std::string prefix,
+    const protozero::Field& field,
+    util::ProtoToArgsParser::Delegate& delegate) {
+  auto* decoder = delegate.GetInternedMessage(
+      protos::pbzero::InternedData::kUnsymbolizedSourceLocations,
+      field.as_uint64());
+  if (!decoder) {
+    // Lookup failed fall back on default behaviour which will just put
+    // the iid into the args table.
+    return base::nullopt;
+  }
+  // Interned mapping_id loses it's meaning when the sequence ends. So we need
+  // to get an id from stack_profile_mapping table.
+  ProfilePacketInternLookup intern_lookup(delegate.seq_state());
+  auto mapping_id =
+      delegate.seq_state()
+          ->state()
+          ->sequence_stack_profile_tracker()
+          .FindOrInsertMapping(decoder->mapping_id(), &intern_lookup);
+  if (!mapping_id) {
+    return base::nullopt;
+  }
+  delegate.AddUnsignedInteger(
+      util::ProtoToArgsParser::Key(prefix + ".mapping_id"), mapping_id->value);
+  delegate.AddUnsignedInteger(util::ProtoToArgsParser::Key(prefix + ".rel_pc"),
+                              decoder->rel_pc());
+  return base::OkStatus();
 }
 
 base::Optional<base::Status> MaybeParseSourceLocation(
@@ -694,7 +719,6 @@ class TrackEventParser::EventImporter {
       return util::ErrStatus(
           "TrackEvent with phase E without thread association");
     }
-
     auto opt_slice_id_and_args_tracker =
         context_->slice_tracker->EndMaybePreservingArgs(
             ts_, track_id_, category_id_, name_id_,
@@ -1165,8 +1189,7 @@ class TrackEventParser::EventImporter {
           ParseHistogramName(event_.chrome_histogram_sample(), inserter));
     }
 
-    TrackEventArgsParser args_writer(*inserter, *storage_, *sequence_state_,
-                                     *context_->args_translation_table);
+    TrackEventArgsParser args_writer(*inserter, *storage_, *sequence_state_);
     int unknown_extensions = 0;
     log_errors(parser_->args_parser_.ParseMessage(
         blob_, ".perfetto.protos.TrackEvent", &parser_->reflect_fields_,
@@ -1436,6 +1459,14 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       counter_unit_ids_{{kNullStringId, context_->storage->InternString("ns"),
                          context_->storage->InternString("count"),
                          context_->storage->InternString("bytes")}} {
+  args_parser_.AddParsingOverrideForField(
+      "chrome_mojo_event_info.mojo_interface_method_iid",
+      [](const protozero::Field& field,
+         util::ProtoToArgsParser::Delegate& delegate) {
+        return MaybeParseUnsymbolizedSourceLocation(
+            "chrome_mojo_event_info.mojo_interface_method.native_symbol", field,
+            delegate);
+      });
   // Switch |source_location_iid| into its interned data variant.
   args_parser_.AddParsingOverrideForField(
       "begin_impl_frame_args.current_args.source_location_iid",

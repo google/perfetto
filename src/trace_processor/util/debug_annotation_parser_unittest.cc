@@ -124,6 +124,8 @@ class DebugAnnotationParserTest : public ::testing::Test,
     return nullptr;
   }
 
+  PacketSequenceStateGeneration* seq_state() final { return nullptr; }
+
   std::vector<std::string> args_;
   std::map<std::string, size_t> array_indices_;
 };
