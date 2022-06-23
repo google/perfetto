@@ -7,15 +7,32 @@ packet {
     }
   }
 }
+# Track for slice begin/end events.
+packet {
+  timestamp: 0
+  trusted_packet_sequence_id: 1
+  track_descriptor {
+    uuid: 12345
+    thread {
+      pid: 123
+      tid: 345
+    }
+    parent_uuid: 0
+    chrome_thread {
+      thread_type: THREAD_POOL_FG_WORKER
+    }
+  }
+}
 # Known histogram hash, should be translated to a name
 packet {
   trusted_packet_sequence_id: 1
-  timestamp: 0
-  incremental_state_cleared: true
+  timestamp: 1
+
   track_event {
     categories: "cat1"
-    type: 3
-    name_iid: 1
+    track_uuid: 12345
+    type: 1
+    name: "slice1"
     chrome_histogram_sample {
       name_hash: 10
       sample: 100
@@ -25,12 +42,12 @@ packet {
 # Another known hash, should be translated to a name
 packet {
   trusted_packet_sequence_id: 1
-  timestamp: 0
-  incremental_state_cleared: true
+  timestamp: 2
   track_event {
     categories: "cat2"
-    type: 3
-    name_iid: 2
+    track_uuid: 12345
+    type: 1
+    name: "slice2"
     chrome_histogram_sample {
       name_hash: 20
     }
@@ -39,15 +56,49 @@ packet {
 # Unknown hash, should not be translated to any name
 packet {
   trusted_packet_sequence_id: 1
-  timestamp: 0
-  incremental_state_cleared: true
+  timestamp: 3
   track_event {
     categories: "cat3"
-    type: 3
-    name_iid: 3
+    track_uuid: 12345
+    type: 1
+    name: "slice3"
     chrome_histogram_sample {
       name_hash: 30
     }
+  }
+}
+
+# Slice end events
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 6000
+  track_event {
+    track_uuid: 12345
+    categories: "cat3"
+    name: "slice3"
+    type: 2
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 6001
+  track_event {
+    track_uuid: 12345
+    categories: "cat2"
+    name: "slice2"
+    type: 2
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 6002
+  track_event {
+    track_uuid: 12345
+    categories: "cat1"
+    name: "slice1"
+    type: 2
   }
 }
 

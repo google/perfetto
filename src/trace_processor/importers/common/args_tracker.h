@@ -65,11 +65,6 @@ class ArgsTracker {
       return *this;
     }
 
-    // Translates any args in |set| using |table| and then adds them
-    // to this BoundInserter.
-    BoundInserter& TranslateAndAddArgs(const ArgsTranslationTable& table,
-                                       const CompactArgSet& set);
-
     // IncrementArrayEntryIndex() and GetNextArrayEntryIndex() provide a way to
     // track the next array index for an array under a specific key.
     size_t GetNextArrayEntryIndex(StringId key) {
