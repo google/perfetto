@@ -578,8 +578,8 @@ maxRuntime$
 name (	RnameY
 threads (2?.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ThreadRthreads
 total (Rtotal
-—(
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"•'
+ß(
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Ý'
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupà
 TaskStateBreakdown$
@@ -650,12 +650,13 @@ odexStatus-
 EventTimestamps'
 intent_received (RintentReceived
 first_frame (R
-firstFrameÙ
+firstFrame¡
 SystemState'
 dex2oat_running (Rdex2oatRunning)
 installd_running (RinstalldRunning<
 broadcast_dispatched_count (RbroadcastDispatchedCount8
-broadcast_received_count (RbroadcastReceivedCount‰
+broadcast_received_count (RbroadcastReceivedCountF
+ most_active_non_launch_processes (	RmostActiveNonLaunchProcesses‰
 Startup
 
 startup_id (R	startupId!
