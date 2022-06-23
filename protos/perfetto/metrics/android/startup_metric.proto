@@ -182,6 +182,16 @@ message AndroidStartupMetric {
 
     // Whether the installd process was running concurrent to the startup.
     optional bool installd_running = 2;
+
+    // The number of broadcasts dispatched by the system during the app
+    // launch.
+    optional int64 broadcast_dispatched_count = 3;
+
+    // The number of broadcasts received by an app or the system during the
+    // app launch. Note that multiple packages can be subscribed to the same
+    // broadcast so a single dsipatch can cause multiple packages to receive
+    // and process a broadcast.
+    optional int64 broadcast_received_count = 4;
   }
 
   // Next id: 16
@@ -226,7 +236,7 @@ message AndroidStartupMetric {
     // using high-speed cameras (HSC).
     optional HscMetrics hsc = 8;
 
-    // The time taken in the startup from intent recieved to the start time
+    // The time taken in the startup from intent received to the start time
     // of the reportFullyDrawn slice. This should be longer than the time to
     // first frame as the application decides this after it starts rendering.
     optional Slice report_fully_drawn = 9;
