@@ -129,7 +129,7 @@ class NullableVector {
 
   Mode mode_ = Mode::kSparse;
 
-  std::deque<T> data_;
+  std::vector<T> data_;
   BitVector valid_;
 };
 
