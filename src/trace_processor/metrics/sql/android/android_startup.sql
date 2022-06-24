@@ -291,7 +291,9 @@ SELECT
       'broadcast_dispatched_count',
         COUNT_SLICES_CONCURRENT_TO_LAUNCH(launches.id, 'Broadcast dispatched*'),
       'broadcast_received_count',
-        COUNT_SLICES_CONCURRENT_TO_LAUNCH(launches.id, 'broadcastReceiveReg*')
+        COUNT_SLICES_CONCURRENT_TO_LAUNCH(launches.id, 'broadcastReceiveReg*'),
+      'most_active_non_launch_processes',
+        N_MOST_ACTIVE_PROCESS_NAMES_FOR_LAUNCH(launches.id)
     )
   ) as startup
 FROM launches;

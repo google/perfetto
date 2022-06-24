@@ -51,6 +51,8 @@ android_startup {
       installd_running: false
       broadcast_dispatched_count: 0
       broadcast_received_count: 0
+      most_active_non_launch_processes: "init"
+      most_active_non_launch_processes: "com.google.android.calendar"
     }
   }
 }
