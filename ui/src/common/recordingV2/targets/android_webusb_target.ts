@@ -16,28 +16,34 @@ import {assertExists} from '../../../base/logging';
 import {AdbConnectionOverWebusb} from '../adb_connection_over_webusb';
 import {AdbKeyManager} from '../auth/adb_key_manager';
 import {
+  DynamicTargetInfo,
   RecordingTargetV2,
   TargetInfo,
   TracingSession,
   TracingSessionListener,
 } from '../recording_interfaces_v2';
+import {
+  AndroidWebusbTargetFactory,
+} from '../target_factories/android_webusb_target_factory';
 import {TracedTracingSession} from '../traced_tracing_session';
 
 export class AndroidWebusbTarget implements RecordingTargetV2 {
   private adbConnection: AdbConnectionOverWebusb;
+  private dynamicTargetInfo?: DynamicTargetInfo;
 
-  constructor(private device: USBDevice, keyManager: AdbKeyManager) {
+  constructor(
+      private factory: AndroidWebusbTargetFactory, private device: USBDevice,
+      keyManager: AdbKeyManager) {
     this.adbConnection = new AdbConnectionOverWebusb(device, keyManager);
   }
 
   getInfo(): TargetInfo {
     const name = assertExists(this.device.productName) + ' ' +
         assertExists(this.device.serialNumber) + ' WebUsb';
-    // TODO(octaviant): fetch the OS from the adb connection
     return {
       targetType: 'ANDROID',
       // The method 'fetchInfo' will populate this after ADB authorization.
-      dynamicTargetInfo: undefined,
+      dynamicTargetInfo: this.dynamicTargetInfo,
       name,
     };
   }
@@ -55,6 +61,15 @@ export class AndroidWebusbTarget implements RecordingTargetV2 {
     this.adbConnection.onDisconnect = tracingSessionListener.onDisconnect;
     const adbStream =
         await this.adbConnection.connectSocket('/dev/socket/traced_consumer');
+
+    if (!this.dynamicTargetInfo) {
+      const version = await this.adbConnection.shellAndGetOutput(
+          'getprop ro.build.version.sdk');
+      this.dynamicTargetInfo = {androidApiLevel: Number(version)};
+      if (this.factory.onTargetChange) {
+        this.factory.onTargetChange();
+      }
+    }
 
     const tracingSession =
         new TracedTracingSession(adbStream, tracingSessionListener);
