@@ -213,7 +213,7 @@ class TrackEventTracker {
   base::Optional<ResolvedDescriptorTrack> ResolveDescriptorTrack(
       uint64_t uuid,
       std::vector<uint64_t>* descendent_uuids);
-  ResolvedDescriptorTrack ResolveDescriptorTrackImpl(
+  base::Optional<ResolvedDescriptorTrack> ResolveDescriptorTrackImpl(
       uint64_t uuid,
       const DescriptorTrackReservation&,
       std::vector<uint64_t>* descendent_uuids);
