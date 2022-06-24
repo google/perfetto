@@ -77,6 +77,12 @@ export function timeToCode(sec: number): string {
   return result.slice(0, -1);
 }
 
+export function currentDateHourAndMinute(): string {
+  const date = new Date();
+  return `${date.toISOString().substr(0, 10)}-${date.getHours()}-${
+      date.getMinutes()}`;
+}
+
 export class TimeSpan {
   readonly start: number;
   readonly end: number;
