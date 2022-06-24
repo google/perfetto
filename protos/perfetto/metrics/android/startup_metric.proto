@@ -192,6 +192,12 @@ message AndroidStartupMetric {
     // broadcast so a single dsipatch can cause multiple packages to receive
     // and process a broadcast.
     optional int64 broadcast_received_count = 4;
+
+    // The most active (i.e. consuming the most mcycles) processes during the
+    // app launch excluding the process(es) being launched.
+    // Note: the exact number of returned is an implementation detail and
+    // will likely change over time.
+    repeated string most_active_non_launch_processes = 5;
   }
 
   // Next id: 16

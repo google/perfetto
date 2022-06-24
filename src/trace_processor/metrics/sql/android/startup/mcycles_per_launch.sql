@@ -51,9 +51,63 @@ GROUP BY 1, 2;
 -- on CPUs of that core type during the launch.
 SELECT CREATE_FUNCTION(
   'MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(launch_id INT, core_type STRING)',
-  'INT', "
+  'INT',
+  '
     SELECT mcycles
     FROM mcycles_per_core_type_per_launch m
     WHERE m.launch_id = $launch_id AND m.core_type = $core_type
-  "
+  '
+);
+
+-- Given a launch id, returns the |n| processes which consume the most mcycles
+-- during the launch excluding hte process(es) being launched. 
+SELECT CREATE_VIEW_FUNCTION(
+  'N_MOST_ACTIVE_PROCESSES_FOR_LAUNCH_UNMATERIALIZED(launch_id INT, n INT)',
+  'upid INT, mcycles INT',
+  '
+    SELECT
+      upid,
+      CAST(SUM(dur * freq_khz / 1000) / 1e9 AS INT) AS mcycles
+    FROM cpu_freq_sched_per_thread_per_launch c
+    JOIN thread USING (utid)
+    JOIN process USING (upid)
+    WHERE
+      launch_id = $launch_id AND
+      utid != 0 AND
+      upid NOT IN (
+        SELECT upid
+        FROM launch_processes l
+        WHERE c.launch_id = $launch_id
+      )
+    GROUP BY 1
+    ORDER BY 2 DESC
+    LIMIT $n
+  '
+);
+
+-- Contains the process using the most mcycles during the launch
+-- *excluding the process being started*.
+-- Materialized to avoid span-joining once per launch.
+DROP TABLE IF EXISTS top_mcyles_process_excluding_started_per_launch;
+CREATE TABLE top_mcyles_process_excluding_started_per_launch AS
+SELECT launches.id AS launch_id, upid, mcycles
+FROM
+  launches,
+  N_MOST_ACTIVE_PROCESSES_FOR_LAUNCH_UNMATERIALIZED(launches.id, 5);
+
+-- Given a launch id, returns the name of the processes consuming the most
+-- mcycles during the launch excluding the process being started.
+SELECT CREATE_FUNCTION(
+  'N_MOST_ACTIVE_PROCESS_NAMES_FOR_LAUNCH(launch_id INT)',
+  'STRING',
+  '
+    SELECT RepeatedField(process_name)
+    FROM (
+      SELECT process.name AS process_name
+      FROM top_mcyles_process_excluding_started_per_launch
+      JOIN process USING (upid)
+      WHERE launch_id = $launch_id
+      ORDER BY mcycles DESC
+    );
+  '
 );
