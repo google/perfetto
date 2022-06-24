@@ -132,3 +132,6 @@ function isParsingError(message: string) {
   }
   return false;
 }
+
+// Exception thrown by the Recording logic.
+export class RecordingError extends Error {}

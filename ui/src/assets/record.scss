@@ -31,15 +31,30 @@
   min-height: 500px;
   margin: auto;
   border-radius: 5px;
-  box-shadow: 0 1px 2px 0#aaa, 0 1px 3px 1px #eee;
+  box-shadow: 0 1px 2px 0 #aaa, 0 1px 3px 1px #eee;
   background-color: #fff;
   display: grid;
-  grid-template-columns: 2fr 5fr;
   grid-template-rows: auto 1fr;
-  grid-template-areas: "header header"
-                       "sidebar section";
+  grid-template-areas: "header"
+                       "content";
   overflow: hidden;
   z-index: 6;
+
+  // The body of the record container.
+  .record-container-content {
+    display: grid;
+    grid-template-columns: 2fr 5fr;
+    grid-template-areas: "sidebar section";
+  }
+
+  .full-centered {
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    padding: 180px 0;
+    font-family: 'Raleway', sans-serif;
+    font-size: 25px;
+  }
 }
 
 .hider {
