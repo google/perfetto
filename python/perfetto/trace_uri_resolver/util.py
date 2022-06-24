@@ -76,7 +76,8 @@ def _cs_list(cs: List[Any], fn: Callable[[Any], str], empty_default: str,
 
   Applies function `fn` over each element in list `cs` and joins the list of
   transformed strings with join string `condition_sep`. `empty_default` string
-  is returned incase cs is a list of length 0.
+  is returned incase cs is a list of length 0. 'TRUE' is returned when cs is
+  None
 
   e.g.
   Input:
@@ -85,7 +86,7 @@ def _cs_list(cs: List[Any], fn: Callable[[Any], str], empty_default: str,
     empty_default: FALSE
     condition_sep: 'OR'
   OUTPUT:
-    "platform = 'Android' OR platform = 'Linux'"
+    "(platform = 'Android' OR platform = 'Linux')"
   """
   if cs is None:
     return 'TRUE'
@@ -96,10 +97,35 @@ def _cs_list(cs: List[Any], fn: Callable[[Any], str], empty_default: str,
 
 def and_list(cs: List[Any], fn: Callable[[Any], str],
              empty_default: str) -> str:
-  """Converts list of constraints into list of AND clauses."""
+  """Converts list of constraints into list of AND clauses.
+
+  Function `fn` is applied over each element of list `cs` and joins the list of
+  transformed strings with ' AND ' string. `empty_default` string
+  is returned incase cs is a list of length 0. 'TRUE' is returned when cs is
+  None.
+
+  e.g.
+  Input:
+    cs: ['Android', 'Linux']
+    fn: "platform != '{}'".format
+    empty_default: FALSE
+  OUTPUT:
+    "(platform != 'Android' AND platform != 'Linux')"
+  """
   return _cs_list(cs, fn, empty_default, ' AND ')
 
 
 def or_list(cs: List[Any], fn: Callable[[Any], str], empty_default: str) -> str:
-  """Converts list of constraints into list of OR clauses."""
+  """Converts list of constraints into list of OR clauses.
+
+  Similar to and_list method, just the join string is ' OR ' instead of ' AND '.
+
+  e.g.
+  Input:
+    cs: ['Android', 'Linux']
+    fn: "platform = '{}'".format
+    empty_default: FALSE
+  OUTPUT:
+    "(platform = 'Android' OR platform = 'Linux')"
+  """
   return _cs_list(cs, fn, empty_default, ' OR ')
