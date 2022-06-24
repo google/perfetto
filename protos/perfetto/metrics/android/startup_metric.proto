@@ -174,7 +174,27 @@ message AndroidStartupMetric {
     optional int64 first_frame = 2;
   }
 
-  // Next id: 15
+  // Contains information about the state of a system during the app startup.
+  // Useful to put the startup in context.
+  message SystemState {
+    // Whether the dex2oat64 process was running concurrent to the startup.
+    optional bool dex2oat_running = 1;
+
+    // Whether the installd process was running concurrent to the startup.
+    optional bool installd_running = 2;
+
+    // The number of broadcasts dispatched by the system during the app
+    // launch.
+    optional int64 broadcast_dispatched_count = 3;
+
+    // The number of broadcasts received by an app or the system during the
+    // app launch. Note that multiple packages can be subscribed to the same
+    // broadcast so a single dsipatch can cause multiple packages to receive
+    // and process a broadcast.
+    optional int64 broadcast_received_count = 4;
+  }
+
+  // Next id: 16
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -216,13 +236,18 @@ message AndroidStartupMetric {
     // using high-speed cameras (HSC).
     optional HscMetrics hsc = 8;
 
-    // The time taken in the startup from intent recieved to the start time
+    // The time taken in the startup from intent received to the start time
     // of the reportFullyDrawn slice. This should be longer than the time to
     // first frame as the application decides this after it starts rendering.
     optional Slice report_fully_drawn = 9;
 
-    // Conntains information about the status of odex files.
+    // Contains information about the status of odex files.
     repeated OptimizationStatus optimization_status = 12;
+
+    // Contains information about the state of the rest of the system during the
+    // startup. This is useful for getting context about why a startup might
+    // be slow beyond just what the app is doing.
+    optional SystemState system_state = 15;
 
     reserved 10;
   }

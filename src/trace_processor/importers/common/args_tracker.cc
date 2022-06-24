@@ -121,16 +121,5 @@ ArgsTracker::BoundInserter::BoundInserter(ArgsTracker* args_tracker,
 
 ArgsTracker::BoundInserter::~BoundInserter() = default;
 
-ArgsTracker::BoundInserter& ArgsTracker::BoundInserter::TranslateAndAddArgs(
-    const ArgsTranslationTable& table,
-    const CompactArgSet& set) {
-  for (const auto& arg : set) {
-    if (table.TranslateArg(arg.key, arg.value, *this))
-      continue;
-    AddArg(arg.key, arg.value, arg.update_policy);
-  }
-  return *this;
-}
-
 }  // namespace trace_processor
 }  // namespace perfetto

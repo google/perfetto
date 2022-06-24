@@ -3,22 +3,7 @@ android_startup {
     startup_id: 2
     package_name: "com.google.android.calendar"
     process_name: "com.google.android.calendar"
-    process: {
-      name: "com.google.android.calendar"
-      uid: 10001
-      package {
-        package_name: "com.google.android.calendar"
-        apk_version_code: 123
-        debuggable: false
-      }
-      packages_for_uid {
-        package_name: "com.google.android.calendar"
-        apk_version_code: 123
-        debuggable: false
-      }
-    }
     zygote_new_process: false
-    activity_hosting_process_count: 1
     to_first_frame {
       dur_ns: 108
       main_thread_by_task_state {
@@ -38,6 +23,21 @@ android_startup {
       }
       dur_ms: 0.000108
     }
+    activity_hosting_process_count: 1
+    process {
+      name: "com.google.android.calendar"
+      uid: 10001
+      package {
+        package_name: "com.google.android.calendar"
+        apk_version_code: 123
+        debuggable: false
+      }
+      packages_for_uid {
+        package_name: "com.google.android.calendar"
+        apk_version_code: 123
+        debuggable: false
+      }
+    }
     report_fully_drawn {
       dur_ns: 198
       dur_ms: 0.000198
@@ -45,6 +45,12 @@ android_startup {
     event_timestamps {
       intent_received: 102
       first_frame: 210
+    }
+    system_state {
+      dex2oat_running: false
+      installd_running: false
+      broadcast_dispatched_count: 0
+      broadcast_received_count: 0
     }
   }
 }

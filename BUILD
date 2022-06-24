@@ -1199,6 +1199,7 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/android/startup/launches_minsdk33.sql",
         "src/trace_processor/metrics/sql/android/startup/mcycles_per_launch.sql",
         "src/trace_processor/metrics/sql/android/startup/slice_functions.sql",
+        "src/trace_processor/metrics/sql/android/startup/system_state.sql",
         "src/trace_processor/metrics/sql/android/startup/thread_state_breakdown.sql",
         "src/trace_processor/metrics/sql/android/unsymbolized_frames.sql",
         "src/trace_processor/metrics/sql/chrome/actual_power_by_category.sql",
@@ -1210,6 +1211,7 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/chrome/chrome_slice_names.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_tasks.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_thread_slice.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_unsymbolized_args.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_user_event_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/cpu_time_by_category.sql",
         "src/trace_processor/metrics/sql/chrome/cpu_time_by_rail_mode.sql",
@@ -2938,6 +2940,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/chrome/slice_names.proto",
         "protos/perfetto/metrics/chrome/test_chrome_metric.proto",
         "protos/perfetto/metrics/chrome/touch_jank.proto",
+        "protos/perfetto/metrics/chrome/unsymbolized_args.proto",
         "protos/perfetto/metrics/chrome/user_event_hashes.proto",
     ],
     visibility = [
