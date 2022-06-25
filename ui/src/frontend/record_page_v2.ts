@@ -18,19 +18,21 @@ import * as m from 'mithril';
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {TRACE_SUFFIX} from '../common/constants';
+import {TraceConfig} from '../common/protos';
 import {
   genTraceConfig,
   RecordingConfigUtils,
 } from '../common/recordingV2/recording_config_utils';
 import {
+  RecordingError,
   showRecordingModal,
-  wrapRecordingError,
 } from '../common/recordingV2/recording_error_handling';
 import {
   OnTargetChangeCallback,
   RecordingTargetV2,
   TargetInfo,
   TracingSession,
+  TracingSessionListener,
 } from '../common/recordingV2/recording_interfaces_v2';
 import {
   ANDROID_WEBUSB_TARGET_FACTORY,
@@ -38,7 +40,11 @@ import {
 import {
   targetFactoryRegistry,
 } from '../common/recordingV2/target_factory_registry';
+import {
+  RECORDING_IN_PROGRESS,
+} from '../common/recordingV2/traced_tracing_session';
 import {hasActiveProbes} from '../common/state';
+import {currentDateHourAndMinute} from '../common/time';
 
 import {globals} from './globals';
 import {createPage, PageAttrs} from './pages';
@@ -49,35 +55,125 @@ import {
   AndroidSettings,
   Configurations,
   CpuSettings,
-  ErrorLabel,
   GpuSettings,
   MemorySettings,
   PERSIST_CONFIG_FLAG,
   PowerSettings,
-  RecordingStatusLabel,
   RecSettings,
 } from './record_page';
 import {CodeSnippet} from './record_widgets';
 
+// Wraps a tracing session promise while the promise is being resolved (e.g.
+// while we are awaiting for ADB auth).
+class TracingSessionWrapper {
+  private tracingSession?: TracingSession = undefined;
+  private isCancelled = false;
+
+  constructor(private traceConfig: TraceConfig, target: RecordingTargetV2) {
+    target.createTracingSession(tracingSessionListener)
+        .then((s: TracingSession) => this.onSessionPromiseResolved(s), (e) => {
+          if (e instanceof RecordingError) {
+            tracingSessionListener.onError(e.message);
+          } else {
+            throw e;
+          }
+        });
+  }
+
+  cancel() {
+    if (!this.tracingSession) {
+      this.isCancelled = true;
+      return;
+    }
+    this.tracingSession.cancel();
+  }
+
+  stop() {
+    if (!this.tracingSession) {
+      this.isCancelled = true;
+      return;
+    }
+    this.tracingSession.stop();
+  }
+
+  getTraceBufferUsage(): Promise<number>|undefined {
+    if (!this.tracingSession) {
+      return undefined;
+    }
+    return this.tracingSession.getTraceBufferUsage();
+  }
+
+  private onSessionPromiseResolved(session: TracingSession) {
+    // We cancel the received trace if it is marked as cancelled. For instance:
+    // - The user clicked 'Start', then 'Stop' without authorizing, then 'Start'
+    // and then authorized.
+    if (this.isCancelled) {
+      session.cancel();
+      return;
+    }
+
+    this.tracingSession = session;
+    this.tracingSession.start(this.traceConfig);
+    globals.rafScheduler.scheduleFullRedraw();
+  }
+}
+
 const recordConfigUtils = new RecordingConfigUtils();
 let recordingTargetV2: RecordingTargetV2|undefined = undefined;
-let tracingSession: Promise<TracingSession>|undefined = undefined;
+let tracingSessionWrapper: TracingSessionWrapper|undefined = undefined;
 
+const tracingSessionListener: TracingSessionListener = {
+  onTraceData: (trace: Uint8Array) => {
+    globals.dispatch(Actions.openTraceFromBuffer({
+      title: 'Recorded trace',
+      buffer: trace.buffer,
+      fileName: `trace_${currentDateHourAndMinute()}${TRACE_SUFFIX}`,
+    }));
+    clearRecordingState();
+  },
+  onStatus: (message: string) => {
+    // For the 'Recording in progress for 7000ms we don't show a modal.'
+    if (message.startsWith(RECORDING_IN_PROGRESS)) {
+      globals.dispatch(Actions.setRecordingStatus({status: message}));
+    } else {
+      // For messages such as 'Please allow USB debugging on your device, which
+      // require a user action, we show a modal.
+      showRecordingModal(message);
+    }
+  },
+  onDisconnect: (errorMessage?: string) => {
+    if (errorMessage) {
+      showRecordingModal(errorMessage);
+    }
+    clearRecordingState();
+  },
+  onError: (message: string) => {
+    showRecordingModal(message);
+    clearRecordingState();
+  },
+};
 
 function RecordHeader() {
+  const platformSelection = RecordingPlatformSelection();
+  const statusLabel = RecordingStatusLabel();
+  const buttons = RecordingButtons();
+  const notes = RecordingNotes();
+  if (!platformSelection && !statusLabel && !buttons && !notes) {
+    // The header should not be displayed when it has no content.
+    return undefined;
+  }
   return m(
       '.record-header',
       m('.top-part',
-        m('.target-and-status',
-          RecordingPlatformSelection(),
-          RecordingStatusLabel(),
-          ErrorLabel()),
-        recordingButtons()),
-      RecordingNotes());
+        m('.target-and-status', platformSelection, statusLabel),
+        buttons),
+      notes);
 }
 
+
 function RecordingPlatformSelection() {
-  if (tracingSession) return [];
+  // Don't show the platform selector while we are recording a trace.
+  if (tracingSessionWrapper) return undefined;
 
   const components = [];
   components.push(
@@ -124,29 +220,41 @@ function RecordingPlatformSelection() {
   return m('.target', components);
 }
 
+// This will display status messages which are informative, but do not require
+// user action, such as: "Recording in progress for X seconds" in the recording
+// page header.
+function RecordingStatusLabel() {
+  const recordingStatus = globals.state.recordingStatus;
+  if (!recordingStatus) return undefined;
+  return m('label', recordingStatus);
+}
+
 async function addAndroidDevice(): Promise<void> {
-  const target = await wrapRecordingError(
-      targetFactoryRegistry.get(ANDROID_WEBUSB_TARGET_FACTORY)
-          .connectNewTarget(),
-      (message) => showRecordingModal(message));
-  if (target) {
-    recordingTargetV2 = target;
-    globals.rafScheduler.scheduleFullRedraw();
+  try {
+    const target =
+        await targetFactoryRegistry.get(ANDROID_WEBUSB_TARGET_FACTORY)
+            .connectNewTarget();
+    await assignRecordingTarget(target);
+  } catch (e) {
+    if (e instanceof RecordingError) {
+      showRecordingModal(e.message);
+    } else {
+      throw e;
+    }
   }
 }
 
 function onTargetChange(targetName: string): void {
   const allTargets = targetFactoryRegistry.listTargets();
-  recordingTargetV2 =
-      allTargets.find((t) => t.getInfo().name === targetName) || allTargets[0];
-  globals.rafScheduler.scheduleFullRedraw();
+  assignRecordingTarget(
+      allTargets.find((t) => t.getInfo().name === targetName) || allTargets[0]);
 }
 
 function Instructions(cssClass: string) {
   return m(
       `.record-section.instructions${cssClass}`,
       m('header', 'Recording command'),
-      (PERSIST_CONFIG_FLAG.get() && !tracingSession) ?
+      (PERSIST_CONFIG_FLAG.get() && !tracingSessionWrapper) ?
           m('button.permalinkconfig',
             {
               onclick: () => {
@@ -158,21 +266,22 @@ function Instructions(cssClass: string) {
           null,
       RecordingSnippet(),
       BufferUsageProgressBar(),
-      m('.buttons', StopCancelButtons()),
-      recordingLog());
+      m('.buttons', StopCancelButtons()));
 }
 
 function BufferUsageProgressBar() {
-  if (!tracingSession) return [];
+  const bufferUsagePromise = tracingSessionWrapper?.getTraceBufferUsage();
+  if (!bufferUsagePromise) {
+    return undefined;
+  }
 
-  tracingSession.then((session) => session.getTraceBufferUsage())
-      .then((percentage) => {
-        publishBufferUsage({percentage});
-      });
+  bufferUsagePromise.then((percentage) => {
+    publishBufferUsage({percentage});
+  });
 
   const bufferUsage = globals.bufferUsage ? globals.bufferUsage : 0.0;
   // Buffer usage is not available yet on Android.
-  if (bufferUsage === 0) return [];
+  if (bufferUsage === 0) return undefined;
 
   return m(
       'label',
@@ -267,19 +376,18 @@ function RecordingNotes() {
     notes.unshift(msgLongTraces);
   }
 
-  return notes.length > 0 ? m('div', notes) : [];
+  return notes.length > 0 ? m('div', notes) : undefined;
 }
 
 function RecordingSnippet() {
   const targetInfo = assertExists(recordingTargetV2).getInfo();
   // We don't need commands to start tracing on chrome
   if (targetInfo.targetType === 'CHROME') {
-    return globals.state.extensionInstalled ?
-        m('div',
-          m('label',
-            `To trace Chrome from the Perfetto UI you just have to press
-         'Start Recording'.`)) :
-        [];
+    if (!globals.state.extensionInstalled) return undefined;
+    return m(
+        'div',
+        m('label', `To trace Chrome from the Perfetto UI you just have to press
+         'Start Recording'.`));
   }
   return m(CodeSnippet, {text: getRecordCommand(targetInfo)});
 }
@@ -309,23 +417,39 @@ function getRecordCommand(targetInfo: TargetInfo): string {
   return cmd;
 }
 
-function recordingButtons() {
+function RecordingButtons() {
+  // We don't show the 'Start Recording' button if:
+  // A. There is no connected target.
+  // B. We have already started tracing.
+  // C. There is a connected Android target but we don't have user authorisation
+  // to record a trace.
   if (!recordingTargetV2) {
-    return [];
+    return undefined;
+  }
+
+  // We don't allow the user to press 'Start Recording' multiple times
+  // because this will create multiple connecting tracing sessions, which
+  // will block one another.
+  if (tracingSessionWrapper) {
+    return undefined;
+  }
+
+  const targetInfo = recordingTargetV2.getInfo();
+  if (targetInfo.targetType === 'ANDROID' && !targetInfo.dynamicTargetInfo) {
+    return undefined;
   }
 
   const start =
       m(`button`,
         {
-          class: tracingSession ? '' : 'selected',
+          class: tracingSessionWrapper ? '' : 'selected',
           onclick: onStartRecordingPressed,
         },
         'Start Recording');
 
   const buttons: m.Children = [];
-
-  const targetType = recordingTargetV2.getInfo().targetType;
-  if (targetType === 'ANDROID' && !tracingSession &&
+  const targetType = targetInfo.targetType;
+  if (targetType === 'ANDROID' &&
       globals.state.recordConfig.mode !== 'LONG_TRACE') {
     buttons.push(start);
   } else if (targetType === 'CHROME' && globals.state.extensionInstalled) {
@@ -335,23 +459,14 @@ function recordingButtons() {
 }
 
 function StopCancelButtons() {
-  if (!tracingSession) return [];
+  // Show the Stop/Cancel buttons only while we are recording a trace.
+  if (!tracingSessionWrapper) return undefined;
 
   const stop =
       m(`button.selected`,
         {
-          onclick: async () => {
-            assertExists(tracingSession).then(async (session) => {
-              // If this tracing session is not the one currently in focus,
-              // then we interpret 'Stop' as 'Cancel'. Otherwise, this
-              // trace will be processed and rendered even though the user
-              // wants to see another trace.
-              const ongoingTracingSession = await tracingSession;
-              if (ongoingTracingSession && ongoingTracingSession !== session) {
-                session.cancel();
-              }
-              session.stop();
-            });
+          onclick: () => {
+            assertExists(tracingSessionWrapper).stop();
             clearRecordingState();
           },
         },
@@ -360,8 +475,8 @@ function StopCancelButtons() {
   const cancel =
       m(`button`,
         {
-          onclick: async () => {
-            assertExists(tracingSession).then((session) => session.cancel());
+          onclick: () => {
+            assertExists(tracingSessionWrapper).cancel();
             clearRecordingState();
           },
         },
@@ -370,76 +485,27 @@ function StopCancelButtons() {
   return [stop, cancel];
 }
 
-async function onStartRecordingPressed(): Promise<void> {
+function onStartRecordingPressed(): void {
   location.href = '#!/record/instructions';
-  globals.rafScheduler.scheduleFullRedraw();
   autosaveConfigStore.save(globals.state.recordConfig);
 
-  if (!recordingTargetV2) {
-    return;
-  }
-
-  const targetInfo = recordingTargetV2.getInfo();
+  const target = assertExists(recordingTargetV2);
+  const targetInfo = target.getInfo();
   if (targetInfo.targetType === 'ANDROID' ||
       targetInfo.targetType === 'CHROME') {
     globals.logging.logEvent(
         'Record Trace',
         `Record trace (${targetInfo.targetType}${targetInfo.targetType})`);
-
-    const traceConfig =
-        genTraceConfig(globals.state.recordConfig, recordingTargetV2.getInfo());
-
-    const onTraceData = (trace: Uint8Array) => {
-      clearRecordingState();
-      globals.dispatch(Actions.openTraceFromBuffer({
-        title: 'Recorded trace',
-        buffer: trace.buffer,
-        fileName: `recorded_trace${TRACE_SUFFIX}`,
-      }));
-    };
-
-    const onStatus = (message: string) => {
-      globals.dispatch(Actions.setRecordingStatus({status: message}));
-    };
-
-    const onDisconnect = (errorMessage?: string) => {
-      clearRecordingState();
-      if (errorMessage) {
-        showRecordingModal(errorMessage);
-      }
-    };
-
-    const onError = (message: string) => {
-      clearRecordingState();
-      showRecordingModal(message);
-    };
-
-    const tracingSessionListener =
-        {onTraceData, onStatus, onDisconnect, onError};
-    tracingSession =
-        recordingTargetV2.createTracingSession(tracingSessionListener);
-    tracingSession.then((tracingSession) => {
-      if (tracingSession === undefined) {
-        // if the tracing session was stopped/cancelled, then we don't
-        // start the tracing session
-        return;
-      }
-      tracingSession.start(traceConfig);
-    });
-    wrapRecordingError(tracingSession, onError);
+    const traceConfig = genTraceConfig(globals.state.recordConfig, targetInfo);
+    tracingSessionWrapper = new TracingSessionWrapper(traceConfig, target);
   }
-}
-
-function recordingLog() {
-  const logs = globals.recordingLog;
-  if (logs === undefined) return [];
-  return m('.code-snippet.no-top-bar', m('code', logs));
+  globals.rafScheduler.scheduleFullRedraw();
 }
 
 function clearRecordingState() {
   publishBufferUsage({percentage: 0});
   globals.dispatch(Actions.setRecordingStatus({status: undefined}));
-  tracingSession = undefined;
+  tracingSessionWrapper = undefined;
 }
 
 function recordMenu(routePage: string) {
@@ -497,7 +563,7 @@ function recordMenu(routePage: string) {
   return m(
       '.record-menu',
       {
-        class: tracingSession ? 'disabled' : '',
+        class: tracingSessionWrapper ? 'disabled' : '',
         onclick: () => globals.rafScheduler.scheduleFullRedraw(),
       },
       m('header', 'Trace config'),
@@ -529,56 +595,102 @@ function recordMenu(routePage: string) {
 }
 
 const onDevicesChanged: OnTargetChangeCallback = () => {
-  recordingTargetV2 = targetFactoryRegistry.listTargets()[0];
-  // redraw, to add/remove connected/disconnected target
-  globals.rafScheduler.scheduleFullRedraw();
+  const allTargets = targetFactoryRegistry.listTargets();
+  if (recordingTargetV2 && allTargets.includes(recordingTargetV2)) {
+    globals.rafScheduler.scheduleFullRedraw();
+    return;
+  }
+  assignRecordingTarget(allTargets[0]);
 };
+
+async function assignRecordingTarget(selectedTarget?: RecordingTargetV2) {
+  // If the selected target is the same as the previous one, we don't need to
+  // do anything.
+  if (selectedTarget === recordingTargetV2) {
+    return;
+  }
+
+  // We assign the new target and redraw the page.
+  recordingTargetV2 = selectedTarget;
+  globals.rafScheduler.scheduleFullRedraw();
+
+  if (!recordingTargetV2) {
+    return;
+  }
+
+  try {
+    // We create a tracing session when first connecting to the device,
+    // in order to get the device information. Then, we cancel the tracing
+    // session so we don't hog the adb connection from `adb server`.
+    const session =
+        await recordingTargetV2.createTracingSession(tracingSessionListener);
+    session.cancel();
+  } catch (e) {
+    if (e instanceof RecordingError) {
+      tracingSessionListener.onError(e.message);
+    } else {
+      throw e;
+    }
+  }
+}
+
+function getRecordContainer(subpage?: string): m.Vnode<any, any> {
+  const components: m.Children[] = [RecordHeader()];
+  if (!recordingTargetV2) {
+    components.push(m('.full-centered', 'Please connect a valid target.'));
+    return m('.record-container', components);
+  }
+
+  const targetInfo = recordingTargetV2.getInfo();
+  if (targetInfo.targetType === 'ANDROID' && !targetInfo.dynamicTargetInfo) {
+    components.push(
+        m('.full-centered', 'Please allow USB debugging on the device.'));
+    return m('.record-container', components);
+  }
+
+  const SECTIONS: {[property: string]: (cssClass: string) => m.Child} = {
+    buffers: RecSettings,
+    instructions: Instructions,
+    config: Configurations,
+    cpu: CpuSettings,
+    gpu: GpuSettings,
+    power: PowerSettings,
+    memory: MemorySettings,
+    android: AndroidSettings,
+    advanced: AdvancedSettings,
+  };
+
+  const pages: m.Children = [];
+  // we need to remove the `/` character from the route
+  let routePage = subpage ? subpage.substr(1) : '';
+  if (!Object.keys(SECTIONS).includes(routePage)) {
+    routePage = 'buffers';
+  }
+  pages.push(recordMenu(routePage));
+  for (const key of Object.keys(SECTIONS)) {
+    const cssClass = routePage === key ? '.active' : '';
+    pages.push(SECTIONS[key](cssClass));
+  }
+  components.push(m('.record-container-content', pages));
+  return m('.record-container', components);
+}
 
 export const RecordPageV2 = createPage({
   view({attrs}: m.Vnode<PageAttrs>): void |
       m.Children {
-        if (!recordingTargetV2) {
-          recordingTargetV2 = targetFactoryRegistry.listTargets()[0];
-        }
-
-        const androidWebusbTarget =
+        const androidWebusbTargetFactory =
             targetFactoryRegistry.get(ANDROID_WEBUSB_TARGET_FACTORY);
-        if (!androidWebusbTarget.onTargetChange) {
-          androidWebusbTarget.onTargetChange = onDevicesChanged;
+        if (!androidWebusbTargetFactory.onTargetChange) {
+          androidWebusbTargetFactory.onTargetChange = onDevicesChanged;
         }
 
-        const components: m.Children[] = [RecordHeader()];
-        if (recordingTargetV2) {
-          const SECTIONS:
-              {[property: string]: (cssClass: string) => m.Child} = {
-                buffers: RecSettings,
-                instructions: Instructions,
-                config: Configurations,
-                cpu: CpuSettings,
-                gpu: GpuSettings,
-                power: PowerSettings,
-                memory: MemorySettings,
-                android: AndroidSettings,
-                advanced: AdvancedSettings,
-              };
-
-          const pages: m.Children = [];
-          // we need to remove the `/` character from the route
-          let routePage = attrs.subpage ? attrs.subpage.substr(1) : '';
-          if (!Object.keys(SECTIONS).includes(routePage)) {
-            routePage = 'buffers';
-          }
-          for (const key of Object.keys(SECTIONS)) {
-            const cssClass = routePage === key ? '.active' : '';
-            pages.push(SECTIONS[key](cssClass));
-          }
-          components.push(recordMenu(routePage));
-          components.push(...pages);
+        if (!recordingTargetV2) {
+          assignRecordingTarget(targetFactoryRegistry.listTargets()[0]);
         }
 
         return m(
             '.record-page',
-            tracingSession ? m('.hider') : [],
-            m('.record-container', components));
+            tracingSessionWrapper ? m('.hider') : [],
+            getRecordContainer(attrs.subpage));
       },
 });

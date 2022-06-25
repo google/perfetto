@@ -15,6 +15,10 @@
 import unittest
 
 from perfetto.trace_uri_resolver.util import parse_trace_uri
+from perfetto.trace_uri_resolver.util import to_list
+from perfetto.trace_uri_resolver.util import _cs_list
+from perfetto.trace_uri_resolver.util import and_list
+from perfetto.trace_uri_resolver.util import or_list
 from perfetto.trace_uri_resolver.resolver import _args_dict_from_uri
 from perfetto.trace_uri_resolver.resolver import Constraint
 from perfetto.trace_uri_resolver.resolver import ConstraintClass
@@ -125,6 +129,31 @@ class TestResolver(unittest.TestCase):
     self.assertEqual(parse_trace_uri('/foo/b:ar'), (None, '/foo/b:ar'))
     self.assertEqual(parse_trace_uri('./foo/b:ar'), (None, './foo/b:ar'))
     self.assertEqual(parse_trace_uri('foo/b:ar'), ('foo/b', 'ar'))
+
+  def test_to_list(self):
+    self.assertEqual(to_list(None), None)
+    self.assertEqual(to_list(1), [1])
+    self.assertEqual(to_list('1'), ['1'])
+    self.assertEqual(to_list([]), [])
+    self.assertEqual(to_list([1]), [1])
+
+  def test_cs_list(self):
+    fn = 'col = {}'.format
+    sep = ' || '
+    self.assertEqual(_cs_list(None, fn, 'FALSE', sep), 'TRUE')
+    self.assertEqual(_cs_list(None, fn, 'TRUE', sep), 'TRUE')
+    self.assertEqual(_cs_list([], fn, 'FALSE', sep), 'FALSE')
+    self.assertEqual(_cs_list([], fn, 'TRUE', sep), 'TRUE')
+    self.assertEqual(_cs_list([1], fn, 'FALSE', sep), '(col = 1)')
+    self.assertEqual(_cs_list([1, 2], fn, 'FALSE', sep), '(col = 1 || col = 2)')
+
+  def test_and_list(self):
+    fn = 'col != {}'.format
+    self.assertEqual(and_list([1, 2], fn, 'FALSE'), '(col != 1 AND col != 2)')
+
+  def test_or_list(self):
+    fn = 'col = {}'.format
+    self.assertEqual(or_list([1, 2], fn, 'FALSE'), '(col = 1 OR col = 2)')
 
   def test_args_dict_from_uri(self):
     self.assertEqual(_args_dict_from_uri('foo:', {}), {})

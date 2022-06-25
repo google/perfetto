@@ -20,6 +20,7 @@ import {
   base64Encode,
   hexEncode,
 } from '../../../base/string_utils';
+import {RecordingError} from '../recording_error_handling';
 
 const WORD_SIZE = 4;
 const MODULUS_SIZE_BITS = 2048;
@@ -109,7 +110,7 @@ export class AdbKey {
         ADB_WEB_CRYPTO_OPERATIONS);
     const jwkPrivate = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
     if (!isValidJsonWebKey(jwkPrivate)) {
-      throw new Error('Could not generate a valid private key.');
+      throw new RecordingError('Could not generate a valid private key.');
     }
     return new AdbKey(jwkPrivate);
   }

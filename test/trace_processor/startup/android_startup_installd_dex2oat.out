@@ -51,6 +51,7 @@ android_startup {
       installd_running: false
       broadcast_dispatched_count: 0
       broadcast_received_count: 0
+      most_active_non_launch_processes: "dex2oat64"
     }
   }
   startup {
@@ -78,6 +79,7 @@ android_startup {
       installd_running: true
       broadcast_dispatched_count: 0
       broadcast_received_count: 0
+      most_active_non_launch_processes: "installd"
     }
   }
   startup {
@@ -105,6 +107,8 @@ android_startup {
       installd_running: true
       broadcast_dispatched_count: 0
       broadcast_received_count: 0
+      most_active_non_launch_processes: "dex2oat64"
+      most_active_non_launch_processes: "installd"
     }
   }
 }
