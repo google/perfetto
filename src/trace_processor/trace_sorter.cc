@@ -113,7 +113,7 @@ void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_offset) {
         continue;
       PERFETTO_DCHECK(queue.min_ts_ >= global_min_ts_);
       PERFETTO_DCHECK(queue.max_ts_ <= global_max_ts_);
-      if (queue.min_ts_ < min_queue_ts[0]) {
+      if (!has_queues_with_expired_events || queue.min_ts_ < min_queue_ts[0]) {
         min_queue_ts[1] = min_queue_ts[0];
         min_queue_ts[0] = queue.min_ts_;
         min_queue_idx = i;
