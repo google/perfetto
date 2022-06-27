@@ -951,6 +951,8 @@ class TrackDecider {
           thread_track.utid as utid,
           thread_track.id as trackId,
           thread_track.name as trackName,
+          EXTRACT_ARG(thread_track.source_arg_set_id,
+                      'is_root_in_scope') as isDefaultTrackForScope,
           tid,
           thread.name as threadName,
           max(slice.depth) as maxDepth,
@@ -969,6 +971,7 @@ class TrackDecider {
       utid: NUM,
       trackId: NUM,
       trackName: STR_NULL,
+      isDefaultTrackForScope: NUM_NULL,
       tid: NUM_NULL,
       threadName: STR_NULL,
       maxDepth: NUM,
@@ -980,6 +983,8 @@ class TrackDecider {
       const utid = it.utid;
       const trackId = it.trackId;
       const trackName = it.trackName;
+      // Note that !!null === false.
+      const isDefaultTrackForScope = !!it.isDefaultTrackForScope;
       const tid = it.tid;
       const threadName = it.threadName;
       const upid = it.upid;
@@ -1000,7 +1005,13 @@ class TrackDecider {
         name,
         trackGroup: uuid,
         trackKindPriority,
-        config: {trackId, maxDepth, tid, isThreadSlice: onlyThreadSlice === 1},
+        config: {
+          trackId,
+          maxDepth,
+          tid,
+          isThreadSlice: onlyThreadSlice === 1,
+          isDefaultTrackForScope,
+        },
       });
 
       if (TRACKS_V2_FLAG.get()) {
