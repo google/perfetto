@@ -59,5 +59,5 @@ export async function toSha256(str: string): Promise<string> {
   // tslint:disable-next-line no-any
   const buffer = new (TextEncoder as any)('utf-8').encode(str);
   const digest = await crypto.subtle.digest('SHA-256', buffer);
-  return Array.from(new Uint8Array(digest)).map(x => x.toString(16)).join('');
+  return Array.from(new Uint8Array(digest)).map((x) => x.toString(16)).join('');
 }

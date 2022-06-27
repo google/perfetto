@@ -21,6 +21,7 @@
 #include "src/trace_processor/sqlite/create_function_internal.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
@@ -69,6 +70,17 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
     }
   }
 
+  PERFETTO_TP_TRACE("CREATE_FUNCTION", [ctx, argv](metatrace::Record* r) {
+    r->AddArg("Function", ctx->prototype.function_name.c_str());
+    for (uint32_t i = 0; i < ctx->prototype.arguments.size(); ++i) {
+      std::string key = "Arg " + std::to_string(i);
+      const char* value =
+          reinterpret_cast<const char*>(sqlite3_value_text(argv[i]));
+      r->AddArg(base::StringView(key),
+                value ? base::StringView(value) : base::StringView("NULL"));
+    }
+  });
+
   // Bind all the arguments to the appropriate places in the function.
   for (size_t i = 0; i < argc; ++i) {
     RETURN_IF_ERROR(MaybeBindArgument(ctx->stmt, ctx->prototype.function_name,
@@ -78,9 +90,10 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
   int ret = sqlite3_step(ctx->stmt);
   RETURN_IF_ERROR(
       SqliteRetToStatus(ctx->db, ctx->prototype.function_name, ret));
-  if (ret == SQLITE_DONE)
+  if (ret == SQLITE_DONE) {
     // No return value means we just return don't set |out|.
     return base::OkStatus();
+  }
 
   PERFETTO_DCHECK(ret == SQLITE_ROW);
   size_t col_count = static_cast<size_t>(sqlite3_column_count(ctx->stmt));
@@ -92,6 +105,15 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
   }
 
   out = sqlite_utils::SqliteValueToSqlValue(sqlite3_column_value(ctx->stmt, 0));
+
+  // If we return a bytes type but have a null pointer, SQLite will convert this
+  // to an SQL null. However, for proto build functions, we actively want to
+  // distinguish between nulls and 0 byte strings. Therefore, change the value
+  // to an empty string.
+  if (out.type == SqlValue::kBytes && out.bytes_value == nullptr) {
+    PERFETTO_DCHECK(out.bytes_count == 0);
+    out.bytes_value = "";
+  }
   return base::OkStatus();
 }
 
@@ -101,8 +123,9 @@ base::Status CreatedFunction::Cleanup(CreatedFunction::Context* ctx) {
       SqliteRetToStatus(ctx->db, ctx->prototype.function_name, ret));
   if (ret == SQLITE_ROW) {
     return base::ErrStatus(
-        "%s: multiple values were returned when executing function body",
-        ctx->prototype.function_name.c_str());
+        "%s: multiple values were returned when executing function body. "
+        "Executed SQL was %s",
+        ctx->prototype.function_name.c_str(), sqlite3_expanded_sql(ctx->stmt));
   }
   PERFETTO_DCHECK(ret == SQLITE_DONE);
 

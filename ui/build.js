@@ -14,6 +14,7 @@
 
 'use strict';
 
+
 // This script takes care of:
 // - The build process for the whole UI and the chrome extension.
 // - The HTTP dev-server with live-reload capabilities.
@@ -65,7 +66,7 @@
 //                            +------------------------------------------------+
 
 const argparse = require('argparse');
-const child_process = require('child_process');
+const childProcess = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
@@ -85,6 +86,7 @@ const cfg = {
   httpServerListenHost: '127.0.0.1',
   httpServerListenPort: 10000,
   wasmModules: ['trace_processor', 'traceconv'],
+  testFilter: '',
 
   // The fields below will be changed by main() after cmdline parsing.
   // Directory structure:
@@ -117,11 +119,12 @@ const RULES = [
   {r: /.*\/dist\/.*/, f: notifyLiveServer},
 ];
 
-let tasks = [];
-let tasksTot = 0, tasksRan = 0;
-let httpWatches = [];
-let tStart = Date.now();
-let subprocesses = [];
+const tasks = [];
+let tasksTot = 0;
+let tasksRan = 0;
+const httpWatches = [];
+const tStart = Date.now();
+const subprocesses = [];
 
 async function main() {
   const parser = new argparse.ArgumentParser();
@@ -139,6 +142,9 @@ async function main() {
   parser.addArgument(['--interactive', '-i'], {action: 'storeTrue'});
   parser.addArgument(['--rebaseline', '-r'], {action: 'storeTrue'});
   parser.addArgument(['--no-depscheck'], {action: 'storeTrue'});
+  parser.addArgument(
+      ['--test-filter', '-f'],
+      {help: 'filter Jest tests by regex, e.g. \'chrome_render\''});
 
   const args = parser.parseArgs();
   const clean = !args.no_build;
@@ -151,15 +157,16 @@ async function main() {
   cfg.outDistDir = ensureDir(pjoin(cfg.outDistRootDir, cfg.version));
   cfg.outTscDir = ensureDir(pjoin(cfg.outUiDir, 'tsc'));
   cfg.outGenDir = ensureDir(pjoin(cfg.outUiDir, 'tsc/gen'));
+  cfg.testFilter = args.test_filter || '';
   cfg.watch = !!args.watch;
   cfg.verbose = !!args.verbose;
   cfg.debug = !!args.debug;
   cfg.startHttpServer = args.serve;
   if (args.serve_host) {
-    cfg.httpServerListenHost = args.serve_host
+    cfg.httpServerListenHost = args.serve_host;
   }
   if (args.serve_port) {
-    cfg.httpServerListenPort = args.serve_port
+    cfg.httpServerListenPort = args.serve_port;
   }
   if (args.interactive) {
     process.env.PERFETTO_UI_TESTS_INTERACTIVE = '1';
@@ -182,14 +189,14 @@ async function main() {
     const checkDepsPath = pjoin(cfg.outDir, '.check_deps');
     let args = [installBuildDeps, `--check-only=${checkDepsPath}`, '--ui'];
 
-    if (process.platform === "darwin") {
-      const result = child_process.spawnSync("arch", ["-arm64", "true"]);
+    if (process.platform === 'darwin') {
+      const result = childProcess.spawnSync('arch', ['-arm64', 'true']);
       const isArm64Capable = result.status === 0;
       if (isArm64Capable) {
         const archArgs = [
-          "arch",
-          "-arch",
-          "arm64",
+          'arch',
+          '-arch',
+          'arm64',
         ];
         args = archArgs.concat(args);
       }
@@ -235,7 +242,7 @@ async function main() {
   while (!isDistComplete()) {
     const secs = Math.ceil((Date.now() - tStart) / 1000);
     process.stdout.write(`Waiting for first build to complete... ${secs} s\r`);
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise((r) => setTimeout(r, 500));
   }
   if (cfg.watch) console.log('\nFirst build completed!');
 
@@ -263,8 +270,11 @@ function runTests(cfgFile) {
     '--detectOpenHandles',
     '--forceExit',
     '--projects',
-    pjoin(ROOT_DIR, 'ui/config', cfgFile)
+    pjoin(ROOT_DIR, 'ui/config', cfgFile),
   ];
+  if (cfg.testFilter.length > 0) {
+    args.push('-t', cfg.testFilter);
+  }
   if (cfg.watch) {
     args.push('--watchAll');
     addTask(execNode, ['jest', args, {async: true}]);
@@ -274,7 +284,7 @@ function runTests(cfgFile) {
 }
 
 function copyIndexHtml(src) {
-  const index_html = () => {
+  const indexHtml = () => {
     let html = fs.readFileSync(src).toString();
     // First copy the index.html as-is into the dist/v1.2.3/ directory. This is
     // only used for archival purporses, so one can open
@@ -289,7 +299,7 @@ function copyIndexHtml(src) {
     html = html.replace(bodyRegex, `data-perfetto_version='${versionMap}'`);
     fs.writeFileSync(pjoin(cfg.outDistRootDir, 'index.html'), html);
   };
-  addTask(index_html);
+  addTask(indexHtml);
 }
 
 function copyAssets(src, dst) {
@@ -326,7 +336,7 @@ function compileProtos() {
     '-p',
     ROOT_DIR,
     '-o',
-    dstJs
+    dstJs,
   ].concat(inputs);
   addTask(execNode, ['pbjs', pbjsArgs]);
   const pbtsArgs = ['-p', ROOT_DIR, '-o', dstTs, dstJs];
@@ -359,7 +369,7 @@ function updateSymlinks() {
   mklink(cfg.outUiDir, pjoin(ROOT_DIR, 'ui/out'));
 
   // /ui/src/gen -> /out/ui/ui/tsc/gen)
-  mklink(cfg.outGenDir , pjoin(ROOT_DIR, 'ui/src/gen'));
+  mklink(cfg.outGenDir, pjoin(ROOT_DIR, 'ui/src/gen'));
 
   // /out/ui/test/data -> /test/data (For UI tests).
   mklink(
@@ -373,7 +383,7 @@ function updateSymlinks() {
       pjoin(cfg.outUiDir, 'dist_version'));
 
   mklink(
-      pjoin(ROOT_DIR, 'ui/node_modules'), pjoin(cfg.outTscDir, 'node_modules'))
+      pjoin(ROOT_DIR, 'ui/node_modules'), pjoin(cfg.outTscDir, 'node_modules'));
 }
 
 // Invokes ninja for building the {trace_processor, traceconv} Wasm modules.
@@ -385,7 +395,7 @@ function buildWasm(skipWasmBuild) {
     addTask(exec, [pjoin(ROOT_DIR, 'tools/gn'), gnArgs]);
 
     const ninjaArgs = ['-C', cfg.outDir];
-    ninjaArgs.push(...cfg.wasmModules.map(x => `${x}_wasm`));
+    ninjaArgs.push(...cfg.wasmModules.map((x) => `${x}_wasm`));
     addTask(exec, [pjoin(ROOT_DIR, 'tools/ninja'), ninjaArgs]);
   }
 
@@ -432,13 +442,13 @@ function bundleJs(cfgName) {
 }
 
 function genServiceWorkerManifestJson() {
-  function make_manifest() {
+  function makeManifest() {
     const manifest = {resources: {}};
     // When building the subresource manifest skip source maps, the manifest
     // itself and the copy of the index.html which is copied under /v1.2.3/.
     // The root /index.html will be fetched by service_worker.js separately.
     const skipRegex = /(\.map|manifest\.json|index.html)$/;
-    walk(cfg.outDistDir, absPath => {
+    walk(cfg.outDistDir, (absPath) => {
       const contents = fs.readFileSync(absPath);
       const relPath = path.relative(cfg.outDistDir, absPath);
       const b64 = crypto.createHash('sha256').update(contents).digest('base64');
@@ -447,7 +457,7 @@ function genServiceWorkerManifestJson() {
     const manifestJson = JSON.stringify(manifest, null, 2);
     fs.writeFileSync(pjoin(cfg.outDistDir, 'manifest.json'), manifestJson);
   }
-  addTask(make_manifest, []);
+  addTask(makeManifest, []);
 }
 
 function startServer() {
@@ -466,7 +476,7 @@ function startServer() {
           const head = {
             'Content-Type': 'text/event-stream',
             'Connection': 'keep-alive',
-            'Cache-Control': 'no-cache'
+            'Cache-Control': 'no-cache',
           };
           res.writeHead(200, head);
           const arrayIdx = httpWatches.length;
@@ -531,7 +541,7 @@ function isDistComplete() {
     'perfetto.css',
   ];
   const relPaths = new Set();
-  walk(cfg.outDistDir, absPath => {
+  walk(cfg.outDistDir, (absPath) => {
     relPaths.add(path.relative(cfg.outDistDir, absPath));
   });
   for (const fName of requiredArtifacts) {
@@ -553,11 +563,11 @@ function notifyLiveServer(changedFile) {
 function copyExtensionAssets() {
   addTask(cp, [
     pjoin(ROOT_DIR, 'ui/src/assets/logo-128.png'),
-    pjoin(cfg.outExtDir, 'logo-128.png')
+    pjoin(cfg.outExtDir, 'logo-128.png'),
   ]);
   addTask(cp, [
     pjoin(ROOT_DIR, 'ui/src/chrome_extension/manifest.json'),
-    pjoin(cfg.outExtDir, 'manifest.json')
+    pjoin(cfg.outExtDir, 'manifest.json'),
   ]);
 }
 
@@ -587,7 +597,7 @@ function runTasks() {
     const ts = `[${DIM}${ms}${RST}]`;
     const descr = task.description.substr(0, 80);
     console.log(`${ts} ${BRT}${++tasksRan}/${tasksTot}${RST}\t${descr}`);
-    task.func.apply(/*this=*/ undefined, task.args);
+    task.func.apply(/* this=*/ undefined, task.args);
   }
 }
 
@@ -608,7 +618,7 @@ function scanFile(absPath) {
 // RULES. If --watch is used, it also installs a fswatch() and re-triggers the
 // matching RULES on each file change.
 function scanDir(dir, regex) {
-  const filterFn = regex ? absPath => regex.test(absPath) : () => true;
+  const filterFn = regex ? (absPath) => regex.test(absPath) : () => true;
   const absDir = path.isAbsolute(dir) ? dir : pjoin(ROOT_DIR, dir);
   // Add a fs watch if in watch mode.
   if (cfg.watch) {
@@ -622,7 +632,7 @@ function scanDir(dir, regex) {
       }
     });
   }
-  walk(absDir, f => {
+  walk(absDir, (f) => {
     if (filterFn(f)) scanFile(f);
   });
 }
@@ -640,7 +650,7 @@ function exec(cmd, args, opts) {
     }
   };
   if (opts.async) {
-    const proc = child_process.spawn(cmd, args, spwOpts);
+    const proc = childProcess.spawn(cmd, args, spwOpts);
     const procIndex = subprocesses.length;
     subprocesses.push(proc);
     return new Promise((resolve, _reject) => {
@@ -651,7 +661,7 @@ function exec(cmd, args, opts) {
       });
     });
   } else {
-    const spawnRes = child_process.spawnSync(cmd, args, spwOpts);
+    const spawnRes = childProcess.spawnSync(cmd, args, spwOpts);
     checkExitCode(spawnRes.status, spawnRes.signal);
     return spawnRes;
   }
@@ -678,7 +688,7 @@ class Task {
 
   get description() {
     const ret = this.func.name.startsWith('exec') ? [] : [this.func.name];
-    const flattenedArgs = [].concat.apply([], this.args);
+    const flattenedArgs = [].concat(...this.args);
     for (const arg of flattenedArgs) {
       const argStr = `${arg}`;
       if (argStr.startsWith('/')) {

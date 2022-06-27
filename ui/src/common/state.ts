@@ -14,7 +14,10 @@
 
 import {PivotTree} from '../controller/pivot_table_redux_controller';
 import {RecordConfig} from '../controller/record_config_types';
-import {TableColumn} from '../frontend/pivot_table_redux_query_generator';
+import {
+  Aggregation,
+  TableColumn,
+} from '../frontend/pivot_table_redux_query_generator';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
@@ -87,12 +90,12 @@ export type EngineMode = 'WASM'|'HTTP_RPC';
 export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE'|'FORCE_BUILTIN_WASM';
 
 export enum TrackKindPriority {
-  'MAIN_THREAD' = 0,
-  'RENDER_THREAD' = 1,
-  'GPU_COMPLETION' = 2,
-  'CHROME_IO_THREAD' = 3,
-  'CHROME_COMPOSITOR' = 4,
-  'ORDINARY' = 5
+  MAIN_THREAD = 0,
+  RENDER_THREAD = 1,
+  GPU_COMPLETION = 2,
+  CHROME_IO_THREAD = 3,
+  CHROME_COMPOSITOR = 4,
+  ORDINARY = 5
 }
 
 export type FlamegraphStateViewingOption =
@@ -324,7 +327,7 @@ export interface MetricsState {
 export interface PivotTableReduxQueryMetadata {
   tableName: string;
   pivotColumns: TableColumn[];
-  aggregationColumns: TableColumn[];
+  aggregationColumns: Aggregation[];
 }
 
 // Everything that's necessary to run the query for pivot table
@@ -365,7 +368,7 @@ export interface PivotTableReduxState {
   selectedPivotsMap: Map<string, TableColumn>;
 
   // Selected aggregation columns. Stored same way as pivots.
-  selectedAggregations: Map<string, TableColumn>;
+  selectedAggregations: Map<string, Aggregation>;
 
   // Present if the result should be sorted, and in which direction.
   sortCriteria?: {column: TableColumn, order: SortDirection};
@@ -548,7 +551,7 @@ export function getDefaultRecordingTargets(): RecordingTarget[] {
     {os: 'O', name: 'Android O-'},
     {os: 'C', name: 'Chrome'},
     {os: 'CrOS', name: 'Chrome OS (system trace)'},
-    {os: 'L', name: 'Linux desktop'}
+    {os: 'L', name: 'Linux desktop'},
   ];
 }
 

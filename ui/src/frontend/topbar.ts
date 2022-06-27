@@ -27,7 +27,7 @@ type Mode = typeof SEARCH|typeof COMMAND;
 
 const PLACEHOLDER = {
   [SEARCH]: 'Search',
-  [COMMAND]: 'e.g. select * from sched left join thread using(utid) limit 10'
+  [COMMAND]: 'e.g. select * from sched left join thread using(utid) limit 10',
 };
 
 export const DISMISSED_PANNING_HINT_KEY = 'dismissedPanningHint';
@@ -138,7 +138,7 @@ class Omnibox implements m.ClassComponent {
                     disabled: globals.state.searchIndex <= 0,
                     onclick: () => {
                       executeSearch(true /* reverse direction */);
-                    }
+                    },
                   },
                   m('i.material-icons.left', 'keyboard_arrow_left')),
                 m('button',
@@ -147,7 +147,7 @@ class Omnibox implements m.ClassComponent {
                         globals.currentSearchResults.totalResults - 1,
                     onclick: () => {
                       executeSearch();
-                    }
+                    },
                   },
                   m('i.material-icons.right', 'keyboard_arrow_right')),
                 ) :
@@ -199,7 +199,7 @@ class NewVersionNotification implements m.ClassComponent {
             onclick: () => {
               globals.frontendLocalState.newVersionAvailable = false;
               globals.rafScheduler.scheduleFullRedraw();
-            }
+            },
           },
           'Dismiss'),
     );
@@ -224,7 +224,7 @@ class HelpPanningNotification implements m.ClassComponent {
               globals.frontendLocalState.showPanningHint = false;
               localStorage.setItem(DISMISSED_PANNING_HINT_KEY, 'true');
               globals.rafScheduler.scheduleFullRedraw();
-            }
+            },
           },
           'Dismiss'),
     );

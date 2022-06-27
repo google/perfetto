@@ -94,4 +94,17 @@ message ChromeFrameReporter {
 
   // The id of layer_tree_host that the frame has been produced for.
   optional uint64 layer_tree_host_id = 11;
+
+  // If total latency of PipelineReporter exceeds a certain limit.
+  optional bool has_high_latency = 12;
+
+  enum FrameType {
+    FORKED = 0;
+    BACKFILL = 1;
+  }
+
+  // Indicate if the frame is "FORKED" (i.e. a PipelineReporter event starts at
+  // the same frame sequence as another PipelineReporter) or "BACKFILL"
+  // (i.e. dropped frames when there are no partial compositor updates).
+  optional FrameType frame_type = 13;
 }

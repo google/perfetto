@@ -17,7 +17,7 @@ import {NUM} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
-  trackControllerRegistry
+  trackControllerRegistry,
 } from '../../controller/track_controller';
 
 import {Config, CPU_SLICE_TRACK_KIND, Data} from './common';
@@ -127,7 +127,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       starts: new Float64Array(numRows),
       ends: new Float64Array(numRows),
       utids: new Uint32Array(numRows),
-      isIncomplete: new Uint8Array(numRows)
+      isIncomplete: new Uint8Array(numRows),
     };
 
     const it = queryRes.iter(

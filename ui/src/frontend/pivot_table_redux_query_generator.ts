@@ -18,11 +18,11 @@ import {sqliteString} from '../base/string_utils';
 import {
   Area,
   PivotTableReduxQuery,
-  PivotTableReduxState
+  PivotTableReduxState,
 } from '../common/state';
 import {toNs} from '../common/time';
 import {
-  getSelectedTrackIds
+  getSelectedTrackIds,
 } from '../controller/aggregation/slice_aggregation_controller';
 
 import {globals} from './globals';
@@ -34,7 +34,7 @@ export interface Table {
 
 export const sliceTable = {
   name: 'slice',
-  columns: ['type', 'ts', 'dur', 'category', 'name']
+  columns: ['type', 'ts', 'dur', 'category', 'name'],
 };
 
 // Columns of `slice` table available for aggregation.
@@ -45,7 +45,7 @@ export const threadSliceAggregationColumns = [
   'thread_ts',
   'thread_dur',
   'thread_instruction_count',
-  'thread_instruction_delta'
+  'thread_instruction_delta',
 ];
 
 // List of available tables to query, used to populate selectors of pivot
@@ -61,8 +61,8 @@ export const tables: Table[] = [
       'parent_upid',
       'uid',
       'android_appid',
-      'cmdline'
-    ]
+      'cmdline',
+    ],
   },
   {name: 'thread', columns: ['type', 'name', 'tid', 'upid', 'is_main_thread']},
   {name: 'thread_track', columns: ['type', 'name', 'utid']},
@@ -72,10 +72,6 @@ export const tables: Table[] = [
 // 1. A real one, represented as object with table and column name.
 // 2. Pseudo-column 'count' that's rendered as '1' in SQL to use in queries like
 // `select sum(1), name from slice group by name`.
-
-export interface CountColumn {
-  kind: 'count';
-}
 
 export interface RegularColumn {
   kind: 'regular';
@@ -88,13 +84,24 @@ export interface ArgumentColumn {
   argument: string;
 }
 
-export type TableColumn = CountColumn|RegularColumn|ArgumentColumn;
+export type TableColumn = RegularColumn|ArgumentColumn;
+
+export type AggregationFunction = 'COUNT'|'SUM'|'MIN'|'MAX';
+
+function outerAggregation(fn: AggregationFunction): AggregationFunction {
+  if (fn === 'COUNT') {
+    return 'SUM';
+  }
+  return fn;
+}
+
+export interface Aggregation {
+  aggregationFunction: AggregationFunction;
+  column: TableColumn;
+}
 
 export function tableColumnEquals(first: TableColumn, second: TableColumn) {
   switch (first.kind) {
-    case 'count': {
-      return second.kind === 'count';
-    }
     case 'regular': {
       return second.kind === 'regular' && first.table === second.table &&
           first.column === second.column;
@@ -127,21 +134,26 @@ export function areaFilter(area: Area): string {
   `;
 }
 
-function aggregationExpression(aggregation: TableColumn): string {
-  switch (aggregation.kind) {
-    case 'count': {
-      return 'COUNT()';
-    }
+export function expression(column: TableColumn): string {
+  switch (column.kind) {
     case 'regular': {
-      return `SUM(${aggregation.column})`;
+      return column.column;
     }
     case 'argument': {
-      return `SUM(${extractArgumentExpression(aggregation.argument)})`;
+      return extractArgumentExpression(column.argument);
     }
     default: {
-      throw new Error(`malformed table column ${aggregation}`);
+      throw new Error(`malformed table column ${column}`);
     }
   }
+}
+
+function aggregationExpression(aggregation: Aggregation): string {
+  if (aggregation.aggregationFunction === 'COUNT') {
+    return 'COUNT()';
+  }
+  return `${aggregation.aggregationFunction}(${
+      expression(aggregation.column)})`;
 }
 
 export function extractArgumentExpression(argument: string) {
@@ -150,7 +162,7 @@ export function extractArgumentExpression(argument: string) {
 
 function generateInnerQuery(
     pivots: TableColumn[],
-    aggregations: TableColumn[],
+    aggregations: Aggregation[],
     table: string,
     includeTrack: boolean,
     area: Area,
@@ -168,9 +180,6 @@ function generateInnerQuery(
   let argumentCount = 0;
   for (const column of pivots) {
     switch (column.kind) {
-      case 'count': {
-        throw new Error(`count should not be a pivot!`);
-      }
       case 'regular': {
         selectColumns.push(column.column);
         groupByColumns.push(column.column);
@@ -205,13 +214,13 @@ function generateInnerQuery(
 }
 
 function computeSliceTableAggregations(
-    selectedAggregations: Map<string, TableColumn>):
-    {tableName: string, flatAggregations: TableColumn[]} {
+    selectedAggregations: Map<string, Aggregation>):
+    {tableName: string, flatAggregations: Aggregation[]} {
   let hasThreadSliceColumn = false;
-  const allColumns: TableColumn[] = [];
+  const allColumns: Aggregation[] = [];
   for (const tableColumn of selectedAggregations.values()) {
-    if (tableColumn.kind === 'regular' &&
-        tableColumn.table === 'thread_slice') {
+    if (tableColumn.column.kind === 'regular' &&
+        tableColumn.column.table === 'thread_slice') {
       hasThreadSliceColumn = true;
     }
     allColumns.push(tableColumn);
@@ -222,7 +231,7 @@ function computeSliceTableAggregations(
     // be the base table for the pivot table query. Otherwise, `slice` is used.
     // This later is going to be controllable by a UI element.
     tableName: hasThreadSliceColumn ? 'thread_slice' : 'slice',
-    flatAggregations: allColumns
+    flatAggregations: allColumns,
   };
 }
 
@@ -250,7 +259,7 @@ export function generateQueryFromState(
 
 export function generateQuery(
     selectedPivots: Map<string, TableColumn>,
-    selectedAggregations: Map<string, TableColumn>,
+    selectedAggregations: Map<string, Aggregation>,
     area: Area,
     constrainToArea: boolean): PivotTableReduxQuery {
   const sliceTableAggregations =
@@ -264,9 +273,6 @@ export function generateQuery(
 
   for (const tableColumn of selectedPivots.values()) {
     switch (tableColumn.kind) {
-      case 'count': {
-        throw new Error('count can not be used as a pivot');
-      }
       case 'regular': {
         if (tableColumn.table === 'slice' ||
             tableColumn.table === 'thread_slice') {
@@ -300,16 +306,18 @@ export function generateQuery(
       constrainToArea);
 
   const prefixedSlicePivots =
-      innerQuery.groupByColumns.map(p => `preaggregated.${p}`);
+      innerQuery.groupByColumns.map((p) => `preaggregated.${p}`);
   const renderedNonSlicePivots =
-      nonSlicePivots.map(pivot => `${pivot.table}.${pivot.column}`);
+      nonSlicePivots.map((pivot) => `${pivot.table}.${pivot.column}`);
   const totalPivotsArray = renderedNonSlicePivots.concat(prefixedSlicePivots);
   const sortCriteria =
       globals.state.nonSerializableState.pivotTableRedux.sortCriteria;
   const sortClauses: string[] = [];
   for (let i = 0; i < sliceTableAggregations.flatAggregations.length; i++) {
     const agg = `preaggregated.${aggregationAlias(i, 0)}`;
-    outerAggregations.push(`SUM(${agg}) as ${aggregationAlias(i, 0)}`);
+    const fn = outerAggregation(
+        sliceTableAggregations.flatAggregations[i].aggregationFunction);
+    outerAggregations.push(`${fn}(${agg}) as ${aggregationAlias(i, 0)}`);
 
     for (let level = 1; level < totalPivotsArray.length; level++) {
       // Peculiar form "SUM(SUM(agg)) over (partition by columns)" here means
@@ -322,17 +330,18 @@ export function generateQuery(
       // functions in the wrapper, but the generation code is going to be more
       // complex; so complexity of the query is traded for complexity of the
       // query generator.
-      outerAggregations.push(`SUM(SUM(${agg})) over (partition by ${
+      outerAggregations.push(`${fn}(${fn}(${agg})) over (partition by ${
           totalPivotsArray.slice(0, totalPivotsArray.length - level)
               .join(', ')}) as ${aggregationAlias(i, level)}`);
     }
 
-    outerAggregations.push(`SUM(SUM(${agg})) over () as ${
+    outerAggregations.push(`${fn}(${fn}(${agg})) over () as ${
         aggregationAlias(i, totalPivotsArray.length)}`);
 
     if (sortCriteria !== undefined &&
         tableColumnEquals(
-            sliceTableAggregations.flatAggregations[i], sortCriteria.column)) {
+            sliceTableAggregations.flatAggregations[i].column,
+            sortCriteria.column)) {
       for (let level = totalPivotsArray.length - 1; level >= 0; level--) {
         sortClauses.push(`${aggregationAlias(i, level)} ${sortCriteria.order}`);
       }
@@ -363,7 +372,7 @@ export function generateQuery(
     metadata: {
       tableName: sliceTableAggregations.tableName,
       pivotColumns: (nonSlicePivots as TableColumn[]).concat(slicePivots),
-      aggregationColumns: sliceTableAggregations.flatAggregations
-    }
+      aggregationColumns: sliceTableAggregations.flatAggregations,
+    },
   };
 }

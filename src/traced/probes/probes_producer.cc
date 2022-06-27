@@ -35,6 +35,7 @@
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/android_stats/statsd_logging_helper.h"
+#include "src/traced/probes/android_game_intervention_list/android_game_intervention_list_data_source.h"
 #include "src/traced/probes/android_log/android_log_data_source.h"
 #include "src/traced/probes/common/cpu_freq_info.h"
 #include "src/traced/probes/filesystem/inode_file_data_source.h"
@@ -221,6 +222,17 @@ ProbesProducer::CreateDSInstance<PackagesListDataSource>(
 
 template <>
 std::unique_ptr<ProbesDataSource>
+ProbesProducer::CreateDSInstance<AndroidGameInterventionListDataSource>(
+    TracingSessionID session_id,
+    const DataSourceConfig& config) {
+  auto buffer_id = static_cast<BufferID>(config.target_buffer());
+  return std::unique_ptr<ProbesDataSource>(
+      new AndroidGameInterventionListDataSource(
+          config, session_id, endpoint_->CreateTraceWriter(buffer_id)));
+}
+
+template <>
+std::unique_ptr<ProbesDataSource>
 ProbesProducer::CreateDSInstance<SysStatsDataSource>(
     TracingSessionID session_id,
     const DataSourceConfig& config) {
@@ -281,11 +293,17 @@ constexpr DataSourceTraits Ds() {
 }
 
 const DataSourceTraits kAllDataSources[] = {
-    Ds<AndroidLogDataSource>(),   Ds<AndroidPowerDataSource>(),
-    Ds<FtraceDataSource>(),       Ds<InitialDisplayStateDataSource>(),
-    Ds<InodeFileDataSource>(),    Ds<LinuxPowerSysfsDataSource>(),
-    Ds<MetatraceDataSource>(),    Ds<PackagesListDataSource>(),
-    Ds<ProcessStatsDataSource>(), Ds<SysStatsDataSource>(),
+    Ds<AndroidLogDataSource>(),
+    Ds<AndroidPowerDataSource>(),
+    Ds<FtraceDataSource>(),
+    Ds<AndroidGameInterventionListDataSource>(),
+    Ds<InitialDisplayStateDataSource>(),
+    Ds<InodeFileDataSource>(),
+    Ds<LinuxPowerSysfsDataSource>(),
+    Ds<MetatraceDataSource>(),
+    Ds<PackagesListDataSource>(),
+    Ds<ProcessStatsDataSource>(),
+    Ds<SysStatsDataSource>(),
     Ds<SystemInfoDataSource>(),
 };
 

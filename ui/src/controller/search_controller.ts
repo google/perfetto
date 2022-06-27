@@ -128,13 +128,13 @@ export class SearchController extends Controller<'main'> {
     }
 
     this.updateInProgress = true;
-    const computeSummary =
-        this.update(newSearch, startNs, endNs, newResolution).then(summary => {
-          publishSearch(summary);
-        });
+    const computeSummary = this.update(newSearch, startNs, endNs, newResolution)
+                               .then((summary) => {
+                                 publishSearch(summary);
+                               });
 
     const computeResults =
-        this.specificSearch(newSearch).then(searchResults => {
+        this.specificSearch(newSearch).then((searchResults) => {
           publishSearchResult(searchResults);
         });
 
@@ -198,7 +198,7 @@ export class SearchController extends Controller<'main'> {
     const summary = {
       tsStarts: new Float64Array(numRows),
       tsEnds: new Float64Array(numRows),
-      count: new Uint8Array(numRows)
+      count: new Uint8Array(numRows),
     };
 
     const it = res.iter({tsStart: NUM, tsEnd: NUM, count: NUM});
@@ -215,21 +215,9 @@ export class SearchController extends Controller<'main'> {
     // TODO(hjd): we should avoid recomputing this every time. This will be
     // easier once the track table has entries for all the tracks.
     const cpuToTrackId = new Map();
-    const engineTrackIdToTrackId = new Map();
     for (const track of Object.values(this.app.state.tracks)) {
       if (track.kind === 'CpuSliceTrack') {
         cpuToTrackId.set((track.config as {cpu: number}).cpu, track.id);
-        continue;
-      }
-      const config = track.config || {};
-      if (config.trackId !== undefined) {
-        engineTrackIdToTrackId.set(config.trackId, track.id);
-        continue;
-      }
-      if (config.trackIds !== undefined) {
-        for (const trackId of config.trackIds) {
-          engineTrackIdToTrackId.set(trackId, track.id);
-        }
         continue;
       }
     }
@@ -293,7 +281,7 @@ export class SearchController extends Controller<'main'> {
       if (it.source === 'cpu') {
         trackId = cpuToTrackId.get(it.sourceId);
       } else if (it.source === 'track') {
-        trackId = engineTrackIdToTrackId.get(it.sourceId);
+        trackId = this.app.state.uiTrackIdByTraceTrackId[it.sourceId];
       }
 
       // The .get() calls above could return undefined, this isn't just an else.

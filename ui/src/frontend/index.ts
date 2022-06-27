@@ -21,11 +21,12 @@ import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {createEmptyState} from '../common/empty_state';
 import {RECORDING_V2_FLAG} from '../common/feature_flags';
 import {initializeImmerJs} from '../common/immer_init';
+import {pluginRegistry} from '../common/plugins';
 import {State} from '../common/state';
 import {initWasm} from '../common/wasm_engine_proxy';
 import {ControllerWorkerInitMessage} from '../common/worker_messages';
 import {
-  isGetCategoriesResponse
+  isGetCategoriesResponse,
 } from '../controller/chrome_proxy_record_controller';
 import {initController} from '../controller/index';
 
@@ -105,7 +106,7 @@ class FrontendApi {
     // immutable changes to the returned state.
     this.state = produce(
         this.state,
-        draft => {
+        (draft) => {
           // tslint:disable-next-line no-any
           (StateActions as any)[action.type](draft, action.args);
         },
@@ -118,13 +119,18 @@ class FrontendApi {
         });
     return patches;
   }
-
 }
 
 function setExtensionAvailability(available: boolean) {
   globals.dispatch(Actions.setExtensionAvailable({
     available,
   }));
+}
+
+function initGlobalsFromQueryString() {
+  const queryString = window.location.search;
+  globals.embeddedMode = queryString.includes('mode=embedded');
+  globals.hideSidebar = queryString.includes('hideSidebar=true');
 }
 
 function setupContentSecurityPolicy() {
@@ -202,8 +208,8 @@ function main() {
 
   // Add Error handlers for JS error and for uncaught exceptions in promises.
   setErrorHandler((err: string) => maybeShowErrorDialog(err));
-  window.addEventListener('error', e => reportError(e));
-  window.addEventListener('unhandledrejection', e => reportError(e));
+  window.addEventListener('error', (e) => reportError(e));
+  window.addEventListener('unhandledrejection', (e) => reportError(e));
 
   const controllerChannel = new MessageChannel();
   const extensionLocalChannel = new MessageChannel();
@@ -255,7 +261,7 @@ function main() {
   setExtensionAvailability(extensionPort !== undefined);
 
   if (extensionPort) {
-    extensionPort.onDisconnect.addListener(_ => {
+    extensionPort.onDisconnect.addListener((_) => {
       setExtensionAvailability(false);
       // tslint:disable-next-line: no-unused-expression
       void chrome.runtime.lastError;  // Needed to not receive an error log.
@@ -291,6 +297,11 @@ function main() {
   if (globals.testing) {
     document.body.classList.add('testing');
   }
+
+  // Initialize all plugins:
+  for (const plugin of pluginRegistry.values()) {
+    plugin.activate();
+  }
 }
 
 
@@ -303,6 +314,8 @@ function onCssLoaded() {
   globals.rafScheduler.domRedraw = () => {
     m.render(main, globals.router.resolve());
   };
+
+  initGlobalsFromQueryString();
 
   initLiveReloadIfLocalhost();
 

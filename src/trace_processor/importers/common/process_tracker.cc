@@ -521,6 +521,14 @@ ArgsTracker::BoundInserter ProcessTracker::AddArgsTo(UniquePid upid) {
 
 void ProcessTracker::NotifyEndOfFile() {
   args_tracker_.Flush();
+  tids_.Clear();
+  pids_.Clear();
+  pending_assocs_.clear();
+  pending_parent_assocs_.clear();
+  thread_name_priorities_.clear();
+  trusted_pids_.clear();
+  namespaced_threads_.clear();
+  namespaced_processes_.clear();
 }
 
 void ProcessTracker::UpdateNamespacedProcess(uint32_t pid,

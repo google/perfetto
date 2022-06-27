@@ -31,13 +31,14 @@ import {
   ITraceStats,
   ReadBuffersRequest,
   ReadBuffersResponse,
-  TraceConfig
+  TraceConfig,
 } from '../protos';
 
+import {RecordingError} from './recording_error_handling';
 import {
   ByteStream,
   TracingSession,
-  TracingSessionListener
+  TracingSessionListener,
 } from './recording_interfaces_v2';
 
 // See wire_protocol.proto for more details.
@@ -49,6 +50,12 @@ const PROTO_LEN_DELIMITED_WIRE_TYPE = 2;
 const TRACE_PACKET_PROTO_ID = 1;
 const TRACE_PACKET_PROTO_TAG =
     (TRACE_PACKET_PROTO_ID << 3) | PROTO_LEN_DELIMITED_WIRE_TYPE;
+
+export const RECORDING_IN_PROGRESS = 'Recording in progress';
+export const PARSING_UNKNWON_REQUEST_ID = 'Unknown request id';
+export const PARSING_UNABLE_TO_DECODE_METHOD = 'Unable to decode method';
+export const PARSING_UNRECOGNIZED_PORT = 'Unrecognized consumer port response';
+export const PARSING_UNRECOGNIZED_MESSAGE = 'Unrecognized frame message';
 
 function parseMessageSize(buffer: Uint8Array) {
   const dv = new DataView(buffer.buffer, buffer.byteOffset, buffer.length);
@@ -94,7 +101,7 @@ export class TracedTracingSession implements TracingSession {
 
   start(config: TraceConfig): void {
     const duration = config.durationMs;
-    this.tracingSessionListener.onStatus(`Recording in progress${
+    this.tracingSessionListener.onStatus(`${RECORDING_IN_PROGRESS}${
         duration ? ' for ' + duration.toString() + ' ms' : ''}...`);
 
     const enableTracingRequest = new EnableTracingRequest();
@@ -115,6 +122,9 @@ export class TracedTracingSession implements TracingSession {
   }
 
   async getTraceBufferUsage(): Promise<number> {
+    if (!this.byteStream.isOpen()) {
+      return 0;
+    }
     const traceStats = await this.getTraceStats();
     if (!traceStats.bufferStats) {
       // // If a buffer stats is pending and we finish tracing, it will be
@@ -142,7 +152,7 @@ export class TracedTracingSession implements TracingSession {
     const requestId = this.requestId++;
     const frame = new IPCFrame({
       requestId,
-      msgBindService: new IPCFrame.BindService({serviceName: 'ConsumerPort'})
+      msgBindService: new IPCFrame.BindService({serviceName: 'ConsumerPort'}),
     });
     this.writeFrame(frame);
 
@@ -150,7 +160,7 @@ export class TracedTracingSession implements TracingSession {
     // session.
     assertFalse(!!this.resolveBindingPromise);
     this.resolveBindingPromise = defer<void>();
-    await this.resolveBindingPromise;
+    return this.resolveBindingPromise;
   }
 
   private getTraceStats(): Promise<ITraceStats> {
@@ -173,6 +183,7 @@ export class TracedTracingSession implements TracingSession {
     const requestProto =
         FreeBuffersRequest.encode(new FreeBuffersRequest()).finish();
     this.rpcInvoke('FreeBuffers', requestProto);
+    this.byteStream.close();
   }
 
   private clearState() {
@@ -189,15 +200,19 @@ export class TracedTracingSession implements TracingSession {
 
   private async rpcInvoke(methodName: string, argsProto: Uint8Array):
       Promise<void> {
+    if (!this.byteStream.isOpen()) {
+      return;
+    }
     const method = this.availableMethods.find((m) => m.name === methodName);
     if (!method || !method.id) {
-      throw new Error(`Method ${methodName} not supported by the target`);
+      throw new RecordingError(
+          `Method ${methodName} not supported by the target`);
     }
     const requestId = this.requestId++;
     const frame = new IPCFrame({
       requestId,
       msgInvokeMethod: new IPCFrame.InvokeMethod(
-          {serviceId: this.serviceId, methodId: method.id, argsProto})
+          {serviceId: this.serviceId, methodId: method.id, argsProto}),
     });
     this.requestMethods.set(requestId, methodName);
     this.writeFrame(frame);
@@ -286,12 +301,12 @@ export class TracedTracingSession implements TracingSession {
 
       const method = this.requestMethods.get(frame.requestId);
       if (!method) {
-        this.raiseError(`Unknown request id: ${frame.requestId}`);
+        this.raiseError(`${PARSING_UNKNWON_REQUEST_ID}: ${frame.requestId}`);
         return;
       }
       const decoder = decoders.get(method);
       if (decoder === undefined) {
-        this.raiseError(`Unable to decode method: ${method}`);
+        this.raiseError(`${PARSING_UNABLE_TO_DECODE_METHOD}: ${method}`);
         return;
       }
       const data = {...decoder(msgInvokeMethodReply.replyProto)};
@@ -333,14 +348,17 @@ export class TracedTracingSession implements TracingSession {
           maybePendingStatsMessage.resolve(data.traceStats || {});
         }
       } else if (method === 'FreeBuffers') {
-        this.byteStream.close();
+        // No action required. If we successfully read a whole trace,
+        // we close the connection. Alternatively, if the tracing finishes
+        // with an exception or if the user cancels it, we also close the
+        // connection.
       } else if (method === 'DisableTracing') {
-        // No action required.
+        // No action required. Same reasoning as for FreeBuffers.
       } else {
-        this.raiseError(`Unrecognized consumer port response: ${method}`);
+        this.raiseError(`${PARSING_UNRECOGNIZED_PORT}: ${method}`);
       }
     } else {
-      this.raiseError(`Unrecognized frame message: ${frame.msg}`);
+      this.raiseError(`${PARSING_UNRECOGNIZED_MESSAGE}: ${frame.msg}`);
     }
   }
 

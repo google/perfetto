@@ -958,8 +958,8 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
       alloc_row.upid = current_upid;
       alloc_row.profile_type = profile_type;
       alloc_row.depth = 0;
-      alloc_row.name =
-          context_->storage->InternString("ERROR: INCOMPLETE GRAPH");
+      alloc_row.name = context_->storage->InternString(
+          "ERROR: INCOMPLETE GRAPH (try increasing buffer size)");
       alloc_row.map_name = java_mapping;
       alloc_row.count = 1;
       alloc_row.cumulative_count = 1;

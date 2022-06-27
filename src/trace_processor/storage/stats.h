@@ -130,6 +130,12 @@ namespace stats {
   F(traced_tracing_sessions,            kSingle,  kInfo,     kTrace,    ""),   \
   F(track_event_parser_errors,          kSingle,  kInfo,     kAnalysis, ""),   \
   F(track_event_tokenizer_errors,       kSingle,  kInfo,     kAnalysis, ""),   \
+  F(track_event_thread_invalid_end,     kSingle,  kError,    kTrace,           \
+      "The end event for a thread track does not match a track event "         \
+      "begin event. This can happen on mixed atrace/track_event traces "       \
+      "and is usually caused by data loss or bugs when the events are "        \
+      "emitted. The outcome of this is that slices can appear to be closed "   \
+      "before they were closed in reality"),                                   \
   F(tokenizer_skipped_packets,          kSingle,  kInfo,     kAnalysis, ""),   \
   F(vmstat_unknown_keys,                kSingle,  kError,    kAnalysis, ""),   \
   F(vulkan_allocations_invalid_string_id,                                      \

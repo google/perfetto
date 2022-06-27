@@ -16,7 +16,7 @@ import {NUM, NUM_NULL} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
-  trackControllerRegistry
+  trackControllerRegistry,
 } from '../../controller/track_controller';
 
 import {

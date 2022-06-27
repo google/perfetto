@@ -18,7 +18,7 @@ import {AggregateData} from '../common/aggregation_data';
 import {Args, ArgsTree} from '../common/arg_types';
 import {
   ConversionJobName,
-  ConversionJobStatus
+  ConversionJobStatus,
 } from '../common/conversion_jobs';
 import {createEmptyState} from '../common/empty_state';
 import {Engine} from '../common/engine';
@@ -84,6 +84,11 @@ export interface FlowPoint {
   processName: string;
 
   depth: number;
+
+  // TODO(altimin): Ideally we should have a generic mechanism for allowing to
+  // customise the name here, but for now we are hardcording a few
+  // Chrome-specific bits in the query here.
+  sliceChromeCustomName?: string;
 }
 
 export interface Flow {
@@ -211,6 +216,8 @@ class Globals {
   private _hasFtrace?: boolean = undefined;
   private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
   private _router?: Router = undefined;
+  private _embeddedMode?: boolean = undefined;
+  private _hideSidebar?: boolean = undefined;
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
@@ -458,6 +465,22 @@ class Globals {
       this._jobStatus = new Map();
     }
     return this._jobStatus;
+  }
+
+  get embeddedMode(): boolean {
+    return !!this._embeddedMode;
+  }
+
+  set embeddedMode(value: boolean) {
+    this._embeddedMode = value;
+  }
+
+  get hideSidebar(): boolean {
+    return !!this._hideSidebar;
+  }
+
+  set hideSidebar(value: boolean) {
+    this._hideSidebar = value;
   }
 
   setBufferUsage(bufferUsage: number) {

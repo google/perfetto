@@ -17,8 +17,11 @@
     --monospace-font: 'Roboto Mono', monospace;
     --track-shell-width: 250px;
     --track-border-color: #00000025;
-    --anim-easing: cubic-bezier(0.4, 0.0, 0.2, 1)
-
+    --anim-easing: cubic-bezier(0.4, 0.0, 0.2, 1);
+    --selection-stroke-color: #00344596;
+    --selection-fill-color: #8398e64d;
+    --overview-timeline-non-visible-color: #c8c8c8cc;
+    --details-content-height: 280px;
 }
 
 @mixin transition($time:0.1s) {
@@ -227,47 +230,11 @@ button.close {
       .disabled {
         cursor: default;
       }
-      .dropdown {
-        display: inline-block;
-        position: relative;
-      }
       .indent {
         display: inline-block;
         // 24px is the width of expand_more/expand_less icon to pad out cells
         // without the button
         width: 24px;
-      }
-      .popup-menu {
-        position: absolute;
-        background-color: white;
-        right: 0;
-        box-shadow: 0 0 4px 0 #999;
-
-        &.closed {
-          display: none;
-        }
-
-        &.open {
-          display: block;
-        }
-
-        button {
-          border-radius: 0;
-          margin: 0;
-          height: auto;
-          background: transparent;
-          color: #111;
-          font-size: 12px;
-          padding: 0.4em 1em;
-          white-space: nowrap;
-          width: 100%;
-          text-align: right;
-          line-height: 1;
-
-          &:hover {
-            background: #c7d0db;
-          }
-        }
       }
     }
     thead td {
@@ -309,6 +276,44 @@ button.close {
     color: hsl(-10, 50%, 50%);
     font-family: 'Roboto Condensed', sans-serif;
     font-weight: 300;
+}
+
+.dropdown {
+  display: inline-block;
+  position: relative;
+}
+
+.popup-menu {
+  position: absolute;
+  background-color: white;
+  right: 0;
+  box-shadow: 0 0 4px 0 #999;
+
+  &.closed {
+    display: none;
+  }
+
+  &.opened {
+    display: block;
+  }
+
+  button.open-menu {
+    border-radius: 0;
+    margin: 0;
+    height: auto;
+    background: transparent;
+    color: #111;
+    font-size: 12px;
+    padding: 0.4em 1em;
+    white-space: nowrap;
+    width: 100%;
+    text-align: right;
+    line-height: 1;
+
+    &:hover {
+      background: #c7d0db;
+    }
+  }
 }
 
 .track {
@@ -630,6 +635,16 @@ button.query-ctrl {
 
     .track-title {
       user-select: text;
+    }
+
+    .track-subtitle {
+      font-size: 0.6rem;
+      font-weight: normal;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      // Maximum width according to grid-template-columns value for .shell
+      width: calc(var(--track-shell-width) - 48px);
     }
 
     .chip {

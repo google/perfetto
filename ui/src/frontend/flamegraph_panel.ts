@@ -29,7 +29,7 @@ import {timeToCode} from '../common/time';
 import {PerfettoMouseEvent} from './events';
 import {Flamegraph, NodeRendering} from './flamegraph';
 import {globals} from './globals';
-import {showPartialModal} from './modal';
+import {Modal, ModalDefinition} from './modal';
 import {Panel, PanelSize} from './panel';
 import {debounce} from './rate_limiters';
 import {Router} from './router';
@@ -119,7 +119,7 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
               if (this.flamegraph !== undefined) {
                 this.onMouseOut();
               }
-            }
+            },
           },
           this.maybeShowModal(flamegraphDetails.graphIncomplete),
           m('.details-panel-heading.flamegraph-profile',
@@ -152,11 +152,11 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
                         {
                           onclick: () => {
                             this.downloadPprof();
-                          }
+                          },
                         },
                         m('i.material-icons', 'file_download'),
                         'Download profile') :
-                      null
+                      null,
                 ]),
             ]),
           m(`div[style=height:${height}px]`),
@@ -169,36 +169,30 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
   }
 
 
-  private maybeShowModal(graphIncomplete?: boolean): m.Vnode|undefined {
+  private maybeShowModal(graphIncomplete?: boolean) {
     if (!graphIncomplete || globals.state.flamegraphModalDismissed) {
       return undefined;
     }
-    return showPartialModal({
+    return m(Modal, {
       title: 'The flamegraph is incomplete',
-      content:
-          m('div',
-            m('div',
-              'The current trace does not have a fully formed flamegraph.')),
+      vAlign: 'TOP',
+      content: m('div',
+          'The current trace does not have a fully formed flamegraph'),
       buttons: [
         {
           text: 'Show the errors',
           primary: true,
-          id: 'incomplete_graph_show',
-          action: () => {
-            Router.navigate('#!/info');
-          }
+          action: () => Router.navigate('#!/info'),
         },
         {
           text: 'Skip',
-          primary: false,
-          id: 'incomplete_graph_skip',
           action: () => {
             globals.dispatch(Actions.dismissFlamegraphModal({}));
             globals.rafScheduler.scheduleFullRedraw();
-          }
-        }
+          },
+        },
       ],
-    });
+    } as ModalDefinition);
   }
 
   private getTitle(): string {
@@ -251,13 +245,13 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
     const engine = globals.getCurrentEngine();
     if (!engine) return;
     getCurrentTrace()
-        .then(file => {
+        .then((file) => {
           assertTrue(
               this.pids.length === 1,
               'Native profiles can only contain one pid.');
           convertTraceToPprofAndDownload(file, this.pids[0], this.ts);
         })
-        .catch(error => {
+        .catch((error) => {
           throw new Error(`Failed to get current trace ${error}`);
         });
   }
@@ -304,7 +298,7 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
         return [
           this.buildButtonComponent(
               SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY, 'space'),
-          this.buildButtonComponent(OBJECTS_ALLOCATED_NOT_FREED_KEY, 'objects')
+          this.buildButtonComponent(OBJECTS_ALLOCATED_NOT_FREED_KEY, 'objects'),
         ];
       case ProfileType.NATIVE_HEAP_PROFILE:
         return [
@@ -313,7 +307,7 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
           this.buildButtonComponent(OBJECTS_ALLOCATED_NOT_FREED_KEY, 'objects'),
           this.buildButtonComponent(
               ALLOC_SPACE_MEMORY_ALLOCATED_KEY, 'alloc space'),
-          this.buildButtonComponent(OBJECTS_ALLOCATED_KEY, 'alloc objects')
+          this.buildButtonComponent(OBJECTS_ALLOCATED_KEY, 'alloc objects'),
         ];
       default:
         throw new Error(`Unexpected profile type ${profileType}`);
@@ -333,7 +327,7 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
           onclick: () => {
             globals.dispatch(
                 Actions.changeViewFlamegraphState({viewingOption}));
-          }
+          },
         },
         text);
   }

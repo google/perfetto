@@ -438,12 +438,30 @@ TrackEventInternal::NewTracePacket(TraceWriterBase* trace_writer,
 }
 
 // static
+void TrackEventInternal::WriteEventName(StaticString event_name,
+                                        perfetto::EventContext& event_ctx,
+                                        const TrackEventTlsState&) {
+  if (PERFETTO_LIKELY(event_name.value != nullptr)) {
+    size_t name_iid = InternedEventName::Get(&event_ctx, event_name.value);
+    event_ctx.event()->set_name_iid(name_iid);
+  }
+}
+
+// static
+void TrackEventInternal::WriteEventName(perfetto::DynamicString event_name,
+                                        perfetto::EventContext& event_ctx,
+                                        const TrackEventTlsState& tls_state) {
+  if (PERFETTO_LIKELY(!tls_state.filter_dynamic_event_names)) {
+    event_ctx.event()->set_name(event_name.value, event_name.length);
+  }
+}
+
+// static
 EventContext TrackEventInternal::WriteEvent(
     TraceWriterBase* trace_writer,
     TrackEventIncrementalState* incr_state,
     const TrackEventTlsState& tls_state,
     const Category* category,
-    const char* name,
     perfetto::protos::pbzero::TrackEvent::Type type,
     const TraceTimestamp& timestamp,
     bool on_current_thread_track) {
@@ -466,7 +484,7 @@ EventContext TrackEventInternal::WriteEvent(
         static_cast<int64_t>(tls_state.timestamp_unit_multiplier));
   }
 
-  // We assume that |category| and |name| point to strings with static lifetime.
+  // We assume that |category| points to the string with static lifetime.
   // This means we can use their addresses as interning keys.
   // TODO(skyostil): Intern categories at compile time.
   if (category && type != protos::pbzero::TrackEvent::TYPE_SLICE_END &&
@@ -478,10 +496,6 @@ EventContext TrackEventInternal::WriteEvent(
           track_event->add_category_iids(category_iid);
           return true;
         });
-  }
-  if (name && type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
-    size_t name_iid = InternedEventName::Get(&ctx, name);
-    track_event->set_name_iid(name_iid);
   }
   return ctx;
 }

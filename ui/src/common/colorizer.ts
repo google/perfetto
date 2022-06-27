@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {hsl} from 'color-convert';
+import {cachedHsluvToHex} from '../frontend/hsluv_cache';
 
 export interface Color {
   c: string;
@@ -47,7 +48,7 @@ export const GRAY_COLOR: Color = {
   c: 'grey',
   h: 0,
   s: 0,
-  l: 62
+  l: 62,
 };
 
 function hash(s: string, max: number): number {
@@ -67,19 +68,19 @@ const DESAT_RED: Color = {
   c: 'desat red',
   h: 3,
   s: 30,
-  l: 49
+  l: 49,
 };
 const DARK_GREEN: Color = {
   c: 'dark green',
   h: 120,
   s: 44,
-  l: 34
+  l: 34,
 };
 const LIME_GREEN: Color = {
   c: 'lime green',
   h: 75,
   s: 55,
-  l: 47
+  l: 47,
 };
 const TRANSPARENT_WHITE: Color = {
   c: 'white',
@@ -92,13 +93,13 @@ const ORANGE: Color = {
   c: 'orange',
   h: 36,
   s: 100,
-  l: 50
+  l: 50,
 };
 const INDIGO: Color = {
   c: 'indigo',
   h: 231,
   s: 48,
-  l: 48
+  l: 48,
 };
 
 export function colorForState(state: string): Readonly<Color> {
@@ -161,16 +162,16 @@ export function hslForSlice(
 }
 
 // Lightens the color for thread slices to represent wall time.
-export function hslForThreadIdleSlice(
+export function colorForThreadIdleSlice(
     hue: number,
     saturation: number,
     lightness: number,
-    isSelected: boolean|null): [number, number, number] {
+    isSelected: boolean|null): string {
   // Increase lightness by 80% when selected and 40% otherwise,
   // without exceeding 88.
   let newLightness = isSelected ? lightness * 1.8 : lightness * 1.4;
   newLightness = Math.min(newLightness, 88);
-  return [hue, saturation, newLightness];
+  return cachedHsluvToHex(hue, saturation, newLightness);
 }
 
 export function colorToStr(color: Color) {

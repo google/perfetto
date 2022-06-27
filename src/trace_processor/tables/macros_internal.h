@@ -93,7 +93,7 @@ class MacroTable : public Table {
       row_maps_.emplace_back();
       columns_.emplace_back(Column::IdColumn(this, 0, 0));
       columns_.emplace_back(
-          Column("type", &type_, Column::kNoFlag, this, 1, 0));
+          Column("type", &type_, Column::kNonNull, this, 1, 0));
       return;
     }
 
@@ -175,7 +175,7 @@ class MacroTable : public Table {
   //
   // Only relevant for parentless tables. Will be empty and unreferenced by
   // tables with parents.
-  NullableVector<StringPool::Id> type_;
+  ColumnStorage<StringPool::Id> type_;
 
  private:
   const Table* parent_ = nullptr;
@@ -359,7 +359,7 @@ class AbstractConstRowReference {
 
 // Defines the member variable in the Table.
 #define PERFETTO_TP_TABLE_MEMBER(type, name, ...) \
-  NullableVector<TypedColumn<type>::serialized_type> name##_;
+  ColumnStorage<TypedColumn<type>::stored_type> name##_;
 
 #define PERFETTO_TP_COLUMN_FLAG_HAS_FLAG_COL(type, name, flags)               \
   static constexpr uint32_t name##_flags() {                                  \
@@ -402,11 +402,9 @@ class AbstractConstRowReference {
       PERFETTO_TP_PARENT_COLUMN_FLAG_NO_FLAG_COL)(__VA_ARGS__))
 
 // Creates the sparse vector with the given flags.
-#define PERFETTO_TP_TABLE_CONSTRUCTOR_SV(type, name, ...)               \
-  name##_ =                                                             \
-      (name##_flags() & Column::Flag::kDense)                           \
-          ? NullableVector<TypedColumn<type>::serialized_type>::Dense() \
-          : NullableVector<TypedColumn<type>::serialized_type>::Sparse();
+#define PERFETTO_TP_TABLE_CONSTRUCTOR_SV(type, name, ...)          \
+  name##_ = ColumnStorage<TypedColumn<type>::stored_type>::Create< \
+      (name##_flags() & Column::Flag::kDense) != 0>();
 
 // Invokes the chosen column constructor by passing the given args.
 #define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN(type, name, ...)   \
@@ -439,15 +437,14 @@ class AbstractConstRowReference {
   }
 
 // Defines the accessors for a column.
-#define PERFETTO_TP_TABLE_STATIC_ASSERT_FLAG(type, name, ...)          \
-  static_assert(                                                       \
-      Column::IsFlagsAndTypeValid<TypedColumn<type>::serialized_type>( \
-          name##_flags()),                                             \
-      "Column type and flag combination is not valid");
+#define PERFETTO_TP_TABLE_STATIC_ASSERT_FLAG(type, name, ...)                \
+  static_assert(Column::IsFlagsAndTypeValid<TypedColumn<type>::stored_type>( \
+                    name##_flags()),                                         \
+                "Column type and flag combination is not valid");
 
 // Defines the parameter for the |ExtendParent| function.
 #define PERFETTO_TP_TABLE_EXTEND_PARAM(type, name, ...) \
-  NullableVector<TypedColumn<type>::serialized_type> name,
+  ColumnStorage<TypedColumn<type>::stored_type> name,
 
 // Defines the parameter passing for the |ExtendParent| function.
 #define PERFETTO_TP_TABLE_EXTEND_PARAM_PASSING(type, name, ...) std::move(name),
@@ -493,6 +490,9 @@ class AbstractConstRowReference {
 // Defines an alias for column type for each column.
 #define PERFETTO_TP_COLUMN_TYPE_USING(type, name, ...) \
   using name = TypedColumn<type>;
+
+// Calls ShrinkToFit on each column.
+#define PERFETTO_TP_COLUMN_SHRINK_TO_FIT(type, name, ...) name##_.ShrinkToFit();
 
 // For more general documentation, see PERFETTO_TP_TABLE in macros.h.
 #define PERFETTO_TP_TABLE_INTERNAL(table_name, class_name, parent_class_name, \
@@ -812,6 +812,11 @@ class AbstractConstRowReference {
           "type", SqlValue::Type::kString, false, false, false, false});      \
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_COLUMN_SCHEMA);                \
       return schema;                                                          \
+    }                                                                         \
+                                                                              \
+    void ShrinkToFit() {                                                      \
+      type_.ShrinkToFit();                                                    \
+      PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_COLUMN_SHRINK_TO_FIT);       \
     }                                                                         \
                                                                               \
     /* Iterates the table. */                                                 \

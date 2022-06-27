@@ -18,7 +18,7 @@ import {
   ArgsTreeArray,
   ArgsTreeMap,
   isArgTreeArray,
-  isArgTreeMap
+  isArgTreeMap,
 } from '../common/arg_types';
 
 // Converts a flats sequence of key-value pairs into a JSON-like nested

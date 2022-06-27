@@ -19,7 +19,7 @@ import {
   LogBoundsKey,
   LogEntriesKey,
   LogExists,
-  LogExistsKey
+  LogExistsKey,
 } from '../common/logs';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
@@ -33,7 +33,7 @@ import {
   QuantizedLoad,
   SliceDetails,
   ThreadDesc,
-  ThreadStateDetails
+  ThreadStateDetails,
 } from './globals';
 import {findCurrentSelection} from './keyboard_event_handler';
 
@@ -153,7 +153,7 @@ export function publishQueryResult(args: {id: string, data?: {}}) {
 
 export function publishThreads(data: ThreadDesc[]) {
   globals.threads.clear();
-  data.forEach(thread => {
+  data.forEach((thread) => {
     globals.threads.set(thread.utid, thread);
   });
   globals.publishRedraw();
@@ -164,6 +164,7 @@ export function publishSliceDetails(click: SliceDetails) {
   const id = click.id;
   if (id !== undefined && id === globals.state.pendingScrollId) {
     findCurrentSelection();
+    globals.dispatch(Actions.setCurrentTab({tab: 'slice'}));
     globals.dispatch(Actions.clearPendingScrollId({id: undefined}));
   }
   globals.publishRedraw();

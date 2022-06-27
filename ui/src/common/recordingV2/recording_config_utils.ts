@@ -13,7 +13,6 @@
 // limitations under the License.
 
 
-import {assertExists} from '../../base/logging';
 import {base64Encode} from '../../base/string_utils';
 import {RecordConfig} from '../../controller/record_config_types';
 import {
@@ -32,7 +31,7 @@ import {
   ProcessStatsConfig,
   SysStatsConfig,
   TraceConfig,
-  VmstatCounters
+  VmstatCounters,
 } from '../protos';
 
 import {RecordingTargetV2, TargetInfo} from './recording_interfaces_v2';
@@ -53,7 +52,7 @@ export class RecordingConfigUtils {
     if (recordConfig === this.lastConfig) {
       return {
         configProtoText: this.configProtoText,
-        configProtoBase64: this.configProtoBase64
+        configProtoBase64: this.configProtoBase64,
       };
     }
     this.lastConfig = recordConfig;
@@ -64,13 +63,16 @@ export class RecordingConfigUtils {
     this.configProtoBase64 = base64Encode(configProto);
     return {
       configProtoText: this.configProtoText,
-      configProtoBase64: this.configProtoBase64
+      configProtoBase64: this.configProtoBase64,
     };
   }
 }
 
 export function genTraceConfig(
     uiCfg: RecordConfig, targetInfo: TargetInfo): TraceConfig {
+  const androidApiLevel = (targetInfo.targetType === 'ANDROID') ?
+      targetInfo.dynamicTargetInfo?.androidApiLevel :
+      undefined;
   const protoCfg = new TraceConfig();
   protoCfg.durationMs = uiCfg.durationMs;
 
@@ -112,9 +114,9 @@ export function genTraceConfig(
   const atraceCats = new Set<string>(uiCfg.atrace ? uiCfg.atraceCats : []);
   const atraceApps = new Set<string>();
   const chromeCategories = new Set<string>();
-  uiCfg.chromeCategoriesSelected.forEach(it => chromeCategories.add(it));
+  uiCfg.chromeCategoriesSelected.forEach((it) => chromeCategories.add(it));
   uiCfg.chromeHighOverheadCategoriesSelected.forEach(
-      it => chromeCategories.add(it));
+      (it) => chromeCategories.add(it));
 
   let procThreadAssociationPolling = false;
   let procThreadAssociationFtrace = false;
@@ -124,8 +126,7 @@ export function genTraceConfig(
     procThreadAssociationPolling = true;
     procThreadAssociationFtrace = true;
     uiCfg.ftrace = true;
-    if (targetInfo.targetType === 'ANDROID' &&
-        assertExists(targetInfo.osVersion) >= 'S') {
+    if (androidApiLevel && androidApiLevel >= 31) {
       uiCfg.symbolizeKsyms = true;
     }
     ftraceEvents.add('sched/sched_switch');
@@ -225,7 +226,7 @@ export function genTraceConfig(
   if (uiCfg.meminfo) {
     if (sysStatsCfg === undefined) sysStatsCfg = new SysStatsConfig();
     sysStatsCfg.meminfoPeriodMs = uiCfg.meminfoPeriodMs;
-    sysStatsCfg.meminfoCounters = uiCfg.meminfoCounters.map(name => {
+    sysStatsCfg.meminfoCounters = uiCfg.meminfoCounters.map((name) => {
       // tslint:disable-next-line no-any
       return MeminfoCounters[name as any as number] as any as number;
     });
@@ -234,7 +235,7 @@ export function genTraceConfig(
   if (uiCfg.vmstat) {
     if (sysStatsCfg === undefined) sysStatsCfg = new SysStatsConfig();
     sysStatsCfg.vmstatPeriodMs = uiCfg.vmstatPeriodMs;
-    sysStatsCfg.vmstatCounters = uiCfg.vmstatCounters.map(name => {
+    sysStatsCfg.vmstatCounters = uiCfg.vmstatCounters.map((name) => {
       // tslint:disable-next-line no-any
       return VmstatCounters[name as any as number] as any as number;
     });
@@ -331,7 +332,7 @@ export function genTraceConfig(
     ds.config = new DataSourceConfig();
     ds.config.name = 'android.log';
     ds.config.androidLogConfig = new AndroidLogConfig();
-    ds.config.androidLogConfig.logIds = uiCfg.androidLogBuffers.map(name => {
+    ds.config.androidLogConfig.logIds = uiCfg.androidLogBuffers.map((name) => {
       // tslint:disable-next-line no-any
       return AndroidLogId[name as any as number] as any as number;
     });
@@ -431,6 +432,8 @@ export function genTraceConfig(
     traceDs.config = new DataSourceConfig();
     traceDs.config.name = 'org.chromium.trace_event';
     traceDs.config.chromeConfig = new ChromeConfig();
+    traceDs.config.chromeConfig.clientPriority =
+        ChromeConfig.ClientPriority.USER_INITIATED;
     traceDs.config.chromeConfig.traceConfig = traceConfigJson;
     protoCfg.dataSources.push(traceDs);
 
@@ -439,6 +442,8 @@ export function genTraceConfig(
     metadataDs.config = new DataSourceConfig();
     metadataDs.config.name = 'org.chromium.trace_metadata';
     metadataDs.config.chromeConfig = new ChromeConfig();
+    metadataDs.config.chromeConfig.clientPriority =
+        ChromeConfig.ClientPriority.USER_INITIATED;
     metadataDs.config.chromeConfig.traceConfig = traceConfigJson;
     protoCfg.dataSources.push(metadataDs);
 
@@ -447,6 +452,8 @@ export function genTraceConfig(
       memoryDs.config = new DataSourceConfig();
       memoryDs.config.name = 'org.chromium.memory_instrumentation';
       memoryDs.config.chromeConfig = new ChromeConfig();
+      memoryDs.config.chromeConfig.clientPriority =
+          ChromeConfig.ClientPriority.USER_INITIATED;
       memoryDs.config.chromeConfig.traceConfig = traceConfigJson;
       protoCfg.dataSources.push(memoryDs);
 
@@ -454,6 +461,8 @@ export function genTraceConfig(
       HeapProfDs.config = new DataSourceConfig();
       HeapProfDs.config.name = 'org.chromium.native_heap_profiler';
       HeapProfDs.config.chromeConfig = new ChromeConfig();
+      HeapProfDs.config.chromeConfig.clientPriority =
+          ChromeConfig.ClientPriority.USER_INITIATED;
       HeapProfDs.config.chromeConfig.traceConfig = traceConfigJson;
       protoCfg.dataSources.push(HeapProfDs);
     }
@@ -464,6 +473,8 @@ export function genTraceConfig(
       dataSource.config = new DataSourceConfig();
       dataSource.config.name = 'org.chromium.sampler_profiler';
       dataSource.config.chromeConfig = new ChromeConfig();
+      dataSource.config.chromeConfig.clientPriority =
+          ChromeConfig.ClientPriority.USER_INITIATED;
       dataSource.config.chromeConfig.traceConfig = traceConfigJson;
       protoCfg.dataSources.push(dataSource);
     }
@@ -537,8 +548,7 @@ export function genTraceConfig(
     }
 
     let ftraceEventsArray: string[] = [];
-    if (targetInfo.targetType === 'ANDROID' &&
-        assertExists(targetInfo.osVersion) === 'P') {
+    if (androidApiLevel && androidApiLevel === 28) {
       for (const ftraceEvent of ftraceEvents) {
         // On P, we don't support groups so strip all group names from ftrace
         // events.
@@ -562,8 +572,7 @@ export function genTraceConfig(
     ds.config.ftraceConfig.atraceCategories = Array.from(atraceCats);
     ds.config.ftraceConfig.atraceApps = Array.from(atraceApps);
 
-    if (targetInfo.targetType === 'ANDROID' &&
-        assertExists(targetInfo.osVersion) >= 'S') {
+    if (androidApiLevel && androidApiLevel >= 31) {
       const compact = new FtraceConfig.CompactSchedConfig();
       compact.enabled = true;
       ds.config.ftraceConfig.compactSched = compact;
@@ -581,7 +590,7 @@ function toPbtxt(configBuffer: Uint8Array): string {
   const msg = TraceConfig.decode(configBuffer);
   const json = msg.toJSON();
   function snakeCase(s: string): string {
-    return s.replace(/[A-Z]/g, c => '_' + c.toLowerCase());
+    return s.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
   }
   // With the ahead of time compiled protos we can't seem to tell which
   // fields are enums.
@@ -602,7 +611,7 @@ function toPbtxt(configBuffer: Uint8Array): string {
       'maxFileSizeBytes',
       'samplingIntervalBytes',
       'shmemSizeBytes',
-      'pid'
+      'pid',
     ].includes(key);
   }
   function* message(msg: {}, indent: number): IterableIterator<string> {

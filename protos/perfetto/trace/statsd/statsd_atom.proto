@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/containers/nullable_vector.h"
+syntax = "proto2";
+package perfetto.protos;
 
-namespace perfetto {
-namespace trace_processor {
+// OpaqueAtom should be filled with an Atom proto from:
+// https://cs.android.com/android/platform/superproject/+/master:frameworks/proto_logging/stats/atoms.proto?q=f:stats%2Fatoms.proto$%20message%5C%20Atom
+// We don't reference Atom directly here since we don't  want to import
+// Atom.proto and all its transitive dependencies into Perfetto.
+message OpaqueAtom {}
 
-NullableVectorBase::~NullableVectorBase() = default;
-
-}  // namespace trace_processor
-}  // namespace perfetto
+message StatsdAtom {
+  repeated OpaqueAtom nested = 1;
+}

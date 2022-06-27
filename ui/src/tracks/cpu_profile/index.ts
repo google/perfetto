@@ -14,3 +14,8 @@
 
 import './controller';
 import './frontend';
+
+export const plugin = {
+  pluginId: 'perfetto.CpuProfile',
+  activate: () => {},
+};

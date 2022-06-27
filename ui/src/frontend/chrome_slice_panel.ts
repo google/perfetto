@@ -14,21 +14,31 @@
 
 import * as m from 'mithril';
 
+import {sqliteString} from '../base/string_utils';
 import {Actions} from '../common/actions';
 import {Arg, ArgsTree, isArgTreeArray, isArgTreeMap} from '../common/arg_types';
 import {timeToCode} from '../common/time';
 
-import {globals, SliceDetails} from './globals';
+import {FlowPoint, globals, SliceDetails} from './globals';
 import {PanelSize} from './panel';
+import {PopupMenuButton, PopupMenuItem} from './popup_menu';
 import {verticalScrollToTrack} from './scroll_helper';
 import {SlicePanel} from './slice_panel';
 
 // Table row contents is one of two things:
 // 1. Key-value pair
-interface KVPair {
-  kind: 'KVPair';
+interface TableRow {
+  kind: 'TableRow';
   key: string;
   value: Arg;
+
+  // Whether it's an argument (from the `args` table) or whether it's a property
+  // of the slice (i.e. `dur`, coming from `slice` table). Args have additional
+  // actions associated with them.
+  isArg: boolean;
+
+  // A full key for the arguments displayed in a tree.
+  full_key?: string;
 }
 
 // 2. Common prefix for values in an array
@@ -37,7 +47,7 @@ interface TableHeader {
   header: string;
 }
 
-type RowContents = KVPair|TableHeader;
+type RowContents = TableRow|TableHeader;
 
 function isTableHeader(contents: RowContents): contents is TableHeader {
   return contents.kind === 'TableHeader';
@@ -81,7 +91,7 @@ class TableBuilder {
     this.rows.push({
       indentLevel: 0,
       extraCell: 'none',
-      contents: {kind: 'KVPair', key, value},
+      contents: {kind: 'TableRow', key, value, isArg: false},
     });
   }
 
@@ -113,7 +123,7 @@ class TableBuilder {
         indentLevel: row[0],
         extraCell: row[1],
         contents: {kind: 'TableHeader', header: prefix},
-        tooltip: completePrefix
+        tooltip: completePrefix,
       });
 
       for (let i = 0; i < record.length; i++) {
@@ -145,7 +155,7 @@ class TableBuilder {
             indentLevel: row[0],
             extraCell: row[1],
             contents: {kind: 'TableHeader', header: prefix},
-            tooltip: completePrefix
+            tooltip: completePrefix,
           });
           this.stack.push('whitespace');
         }
@@ -162,8 +172,14 @@ class TableBuilder {
       this.rows.push({
         indentLevel: row[0],
         extraCell: row[1],
-        contents: {kind: 'KVPair', key: prefix, value: record},
-        tooltip: completePrefix
+        contents: {
+          kind: 'TableRow',
+          key: prefix,
+          value: record,
+          full_key: completePrefix,
+          isArg: true,
+        },
+        tooltip: completePrefix,
       });
     }
   }
@@ -174,18 +190,18 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
     const sliceInfo = globals.sliceDetails;
     if (sliceInfo.ts !== undefined && sliceInfo.dur !== undefined &&
         sliceInfo.name !== undefined) {
-      const builder = new TableBuilder();
-      builder.add('Name', sliceInfo.name);
-      builder.add(
+      const defaultBuilder = new TableBuilder();
+      defaultBuilder.add('Name', sliceInfo.name);
+      defaultBuilder.add(
           'Category',
           !sliceInfo.category || sliceInfo.category === '[NULL]' ?
               'N/A' :
               sliceInfo.category);
-      builder.add('Start time', timeToCode(sliceInfo.ts));
+      defaultBuilder.add('Start time', timeToCode(sliceInfo.ts));
       if (sliceInfo.absTime !== undefined) {
-        builder.add('Absolute Time', sliceInfo.absTime);
+        defaultBuilder.add('Absolute Time', sliceInfo.absTime);
       }
-      builder.add(
+      defaultBuilder.add(
           'Duration', this.computeDuration(sliceInfo.ts, sliceInfo.dur));
       if (sliceInfo.threadTs !== undefined &&
           sliceInfo.threadDur !== undefined) {
@@ -194,7 +210,7 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
         const threadDurFractionSuffix = sliceInfo.threadDur === -1 ?
             '' :
             ` (${(sliceInfo.threadDur / sliceInfo.dur * 100).toFixed(2)}%)`;
-        builder.add(
+        defaultBuilder.add(
             'Thread duration',
             this.computeDuration(sliceInfo.threadTs, sliceInfo.threadDur) +
                 threadDurFractionSuffix);
@@ -202,22 +218,63 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
 
       for (const [key, value] of this.getProcessThreadDetails(sliceInfo)) {
         if (value !== undefined) {
-          builder.add(key, value);
+          defaultBuilder.add(key, value);
         }
       }
 
-      builder.add(
+      defaultBuilder.add(
           'Slice ID', sliceInfo.id ? sliceInfo.id.toString() : 'Unknown');
       if (sliceInfo.description) {
         for (const [key, value] of sliceInfo.description) {
-          builder.add(key, value);
+          defaultBuilder.add(key, value);
         }
       }
-      this.fillArgs(sliceInfo, builder);
+
+      const rightPanel = new Map<string, TableBuilder>();
+
+      const immediatelyPrecedingByFlowSlices = [];
+      const immediatelyFollowingByFlowSlices = [];
+      for (const flow of globals.connectedFlows) {
+        if (flow.begin.sliceId === sliceInfo.id) {
+          immediatelyFollowingByFlowSlices.push(
+              {flow: flow.end, dur: flow.dur});
+        }
+        if (flow.end.sliceId === sliceInfo.id) {
+          immediatelyPrecedingByFlowSlices.push(
+              {flow: flow.begin, dur: flow.dur});
+        }
+      }
+
+      // This is Chrome-specific bits:
+      const isRunTask = sliceInfo.name === 'ThreadControllerImpl::RunTask' ||
+          sliceInfo.name === 'ThreadPool_RunTask';
+      const isPostTask = sliceInfo.name === 'ThreadPool_PostTask' ||
+          sliceInfo.name === 'SequenceManager PostTask';
+
+      // RunTask and PostTask are always same-process, so we can skip
+      // emitting process name for them.
+      this.fillFlowPanel(
+          'Preceding flows',
+          immediatelyPrecedingByFlowSlices,
+          !isRunTask,
+          rightPanel);
+      this.fillFlowPanel(
+          'Following flows',
+          immediatelyFollowingByFlowSlices,
+          !isPostTask,
+          rightPanel);
+
+      const argsBuilder = new TableBuilder();
+      this.fillArgs(sliceInfo, argsBuilder);
+      rightPanel.set('Arguments', argsBuilder);
+
       return m(
           '.details-panel',
           m('.details-panel-heading', m('h2', `Slice Details`)),
-          m('.details-table', this.renderTable(builder)));
+          m('.details-table-multicolumn', [
+            m('table', this.renderTable(defaultBuilder)),
+            m('table', this.renderTables(rightPanel)),
+          ]));
     } else {
       return m(
           '.details-panel',
@@ -227,6 +284,30 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
                 `Slice Details`,
                 )));
     }
+  }
+
+  private fillFlowPanel(
+      name: string, flows: {flow: FlowPoint, dur: number}[],
+      includeProcessName: boolean, result: Map<string, TableBuilder>) {
+    if (flows.length === 0) return;
+
+    const builder = new TableBuilder();
+    for (const {flow, dur} of flows) {
+      builder.add('Slice', {
+        kind: 'SLICE',
+        sliceId: flow.sliceId,
+        trackId: globals.state.uiTrackIdByTraceTrackId[flow.trackId],
+        description: flow.sliceChromeCustomName === undefined ?
+            flow.sliceName :
+            flow.sliceChromeCustomName,
+      });
+      builder.add('Delay', timeToCode(dur));
+      builder.add(
+          'Thread',
+          includeProcessName ? `${flow.threadName} (${flow.processName})` :
+                               flow.threadName);
+    }
+    result.set(name, builder);
   }
 
   renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}
@@ -248,6 +329,46 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
         builder.add(key, value);
       }
     }
+  }
+
+  private getArgumentContextMenuItems(argument: TableRow): PopupMenuItem[] {
+    if (argument.full_key === undefined) return [];
+    if (typeof argument.value !== 'string') return [];
+    const argValue: string = argument.value;
+
+    const fullKey = argument.full_key;
+    return [
+      {
+        text: 'Copy full key',
+        callback: () => {
+          navigator.clipboard.writeText(fullKey);
+        },
+      },
+      {
+        text: 'Find slices with the same arg value',
+        callback: () => {
+          globals.dispatch(Actions.executeQuery({
+            queryId: `slices_with_arg_value_${fullKey}=${argValue}`,
+            query: `
+              select slice.* 
+              from slice
+              join args using (arg_set_id)
+              where key=${sqliteString(fullKey)} and display_value=${
+                sqliteString(argValue)}
+          `,
+          }));
+        },
+      },
+    ];
+  }
+
+  renderTables(builders: Map<string, TableBuilder>): m.Vnode {
+    const rows: m.Vnode[] = [];
+    for (const [name, builder] of builders) {
+      rows.push(m('h3', name));
+      rows.push(this.renderTable(builder));
+    }
+    return m('div', rows);
   }
 
   renderTable(builder: TableBuilder): m.Vnode {
@@ -276,10 +397,18 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
             {colspan: keyColumnCount + 1 - row.indentLevel, title: row.tooltip},
             row.contents.header));
       } else {
+        const contents: any[] = [row.contents.key];
+        if (row.contents.isArg) {
+          contents.push(m(PopupMenuButton, {
+            icon: 'arrow_drop_down',
+            items: this.getArgumentContextMenuItems(row.contents),
+          }));
+        }
+
         renderedRow.push(
             m('th',
               {colspan: keyColumnCount - row.indentLevel, title: row.tooltip},
-              row.contents.key));
+              contents));
         const value = row.contents.value;
         if (typeof value === 'string') {
           renderedRow.push(m('td.value', value));
@@ -301,9 +430,10 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
                       // scrolling to ts.
                       verticalScrollToTrack(trackId, true);
                     },
-                    title: 'Go to destination slice'
+                    title: 'Go to destination slice',
                   },
-                  'call_made')));
+                  'call_made'),
+                value.description));
         }
       }
 

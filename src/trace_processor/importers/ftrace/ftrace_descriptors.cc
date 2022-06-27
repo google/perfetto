@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<MessageDescriptor, 421> descriptors{{
+std::array<FtraceMessageDescriptor, 422> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -4570,17 +4570,39 @@ std::array<MessageDescriptor, 421> descriptors{{
             {"n_wr_s_peak", ProtoSchemaType::kUint32},
         },
     },
+    {
+        "sched_cpu_util_cfs",
+        15,
+        {
+            {},
+            {"active", ProtoSchemaType::kInt32},
+            {"capacity", ProtoSchemaType::kUint64},
+            {"capacity_orig", ProtoSchemaType::kUint64},
+            {"cpu", ProtoSchemaType::kUint32},
+            {"cpu_importance", ProtoSchemaType::kUint64},
+            {"cpu_util", ProtoSchemaType::kUint64},
+            {"exit_lat", ProtoSchemaType::kUint32},
+            {"group_capacity", ProtoSchemaType::kUint64},
+            {"grp_overutilized", ProtoSchemaType::kUint32},
+            {"idle_cpu", ProtoSchemaType::kUint32},
+            {"nr_running", ProtoSchemaType::kUint32},
+            {"spare_cap", ProtoSchemaType::kInt64},
+            {"task_fits", ProtoSchemaType::kUint32},
+            {"wake_group_util", ProtoSchemaType::kUint64},
+            {"wake_util", ProtoSchemaType::kUint64},
+        },
+    },
 }};
 
 }  // namespace
 
-MessageDescriptor* GetMessageDescriptorForId(size_t id) {
+FtraceMessageDescriptor* GetMessageDescriptorForId(size_t id) {
   PERFETTO_CHECK(id < descriptors.size());
   return &descriptors[id];
 }
 
-MessageDescriptor* GetMessageDescriptorForName(base::StringView name) {
-  for (MessageDescriptor& descriptor : descriptors) {
+FtraceMessageDescriptor* GetMessageDescriptorForName(base::StringView name) {
+  for (FtraceMessageDescriptor& descriptor : descriptors) {
     if (descriptor.name != nullptr && descriptor.name == name)
       return &descriptor;
   }

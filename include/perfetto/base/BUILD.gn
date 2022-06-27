@@ -29,4 +29,5 @@ source_set("base") {
     "thread_utils.h",
     "time.h",
   ]
+  public_deps = [ "../public:base" ]
 }

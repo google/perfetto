@@ -71,10 +71,10 @@ class AnalyticsImpl implements Analytics {
     gtagGlobals.dataLayer = gtagGlobals.dataLayer || [];
 
     // tslint:disable-next-line no-any
-    function gtagFunction(..._: any[]) {
+    function gtagFunction(...args: any[]) {
       // This needs to be a function and not a lambda. |arguments| behaves
       // slightly differently in a lambda and breaks GA.
-      gtagGlobals.dataLayer.push(arguments);
+      gtagGlobals.dataLayer.push(args);
     }
     gtagGlobals.gtag = gtagFunction;
     gtagGlobals.gtag('js', new Date());

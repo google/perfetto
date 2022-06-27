@@ -26,7 +26,7 @@ const states: {[key: string]: string} = {
   'W': 'Waking',
   'P': 'Parked',
   'N': 'No Load',
-  '+': '(Preempted)'
+  '+': '(Preempted)',
 };
 
 export function translateState(

@@ -62,14 +62,16 @@ class TypedColumn : public Column {
   // The type which should be passed to SqlValue functions.
   using sql_value_type = typename TH::sql_value_type;
 
+  // The type of which is actually stored inside ColumnStorage. Can be different
+  // from T because we treat table ids to just be uint32_t inside the storage
+  // (handling ids would add an extra type to consider when filtering for no
+  // benefit.
+  using stored_type = typename TH::stored_type;
+
  private:
   using Serializer = tc_internal::Serializer<non_optional_type>;
 
  public:
-  // The type which should be stored in the NullableVector.
-  // Used by the macro code when actually constructing the NullableVectors.
-  using serialized_type = typename Serializer::serialized_type;
-
   T operator[](uint32_t row) const { return GetAtIdx(row_map().Get(row)); }
 
   // Special function only for string types to allow retrieving the string
@@ -86,13 +88,11 @@ class TypedColumn : public Column {
   }
 
   // Inserts the value at the end of the column.
-  void Append(T v) {
-    mutable_nullable_vector()->Append(Serializer::Serialize(v));
-  }
+  void Append(T v) { mutable_storage()->Append(Serializer::Serialize(v)); }
 
   // Returns the row containing the given value in the Column.
   base::Optional<uint32_t> IndexOf(sql_value_type v) const {
-    return Column::IndexOf(ToValue(v));
+    return Column::IndexOf(ToSqlValue(v));
   }
 
   std::vector<T> ToVectorForTesting() const {
@@ -103,12 +103,12 @@ class TypedColumn : public Column {
   }
 
   // Helper functions to create constraints for the given value.
-  Constraint eq(sql_value_type v) const { return eq_value(ToValue(v)); }
-  Constraint gt(sql_value_type v) const { return gt_value(ToValue(v)); }
-  Constraint lt(sql_value_type v) const { return lt_value(ToValue(v)); }
-  Constraint ne(sql_value_type v) const { return ne_value(ToValue(v)); }
-  Constraint ge(sql_value_type v) const { return ge_value(ToValue(v)); }
-  Constraint le(sql_value_type v) const { return le_value(ToValue(v)); }
+  Constraint eq(sql_value_type v) const { return eq_value(ToSqlValue(v)); }
+  Constraint gt(sql_value_type v) const { return gt_value(ToSqlValue(v)); }
+  Constraint lt(sql_value_type v) const { return lt_value(ToSqlValue(v)); }
+  Constraint ne(sql_value_type v) const { return ne_value(ToSqlValue(v)); }
+  Constraint ge(sql_value_type v) const { return ge_value(ToSqlValue(v)); }
+  Constraint le(sql_value_type v) const { return le_value(ToSqlValue(v)); }
 
   // Implements equality between two items of type |T|.
   static constexpr bool Equals(T a, T b) { return TH::Equals(a, b); }
@@ -120,7 +120,7 @@ class TypedColumn : public Column {
 
   // Converts the static type T into the dynamic SqlValue type of this column.
   static SqlValue::Type SqlValueType() {
-    return Column::ToSqlValueType<serialized_type>();
+    return Column::ToSqlValueType<stored_type>();
   }
 
   // Cast a Column to TypedColumn or crash if that is unsafe.
@@ -136,18 +136,18 @@ class TypedColumn : public Column {
   // Public for use by macro tables.
   void SetAtIdx(uint32_t idx, non_optional_type v) {
     auto serialized = Serializer::Serialize(v);
-    mutable_nullable_vector()->Set(idx, serialized);
+    mutable_storage()->Set(idx, serialized);
   }
 
   // Public for use by macro tables.
   T GetAtIdx(uint32_t idx) const {
-    return Serializer::Deserialize(TH::Get(nullable_vector(), idx));
+    return Serializer::Deserialize(TH::Get(storage(), idx));
   }
 
   template <bool is_string = TH::is_string>
   typename std::enable_if<is_string, NullTermStringView>::type GetStringAtIdx(
       uint32_t idx) const {
-    return string_pool().Get(nullable_vector().GetNonNull(idx));
+    return string_pool().Get(storage().Get(idx));
   }
 
  private:
@@ -161,7 +161,7 @@ class TypedColumn : public Column {
     static_assert(sizeof(TypedColumn<T>) == sizeof(Column),
                   "TypedColumn cannot introduce extra state.");
 
-    if (column->template IsColumnType<serialized_type>() &&
+    if (column->template IsColumnType<stored_type>() &&
         (column->IsNullable() == TH::is_optional) && !column->IsId()) {
       return static_cast<Output*>(column);
     } else {
@@ -170,18 +170,11 @@ class TypedColumn : public Column {
     }
   }
 
-  static SqlValue ToValue(double value) { return SqlValue::Double(value); }
-  static SqlValue ToValue(uint32_t value) { return SqlValue::Long(value); }
-  static SqlValue ToValue(int64_t value) { return SqlValue::Long(value); }
-  static SqlValue ToValue(NullTermStringView value) {
-    return SqlValue::String(value.c_str());
+  const ColumnStorage<stored_type>& storage() const {
+    return Column::storage<stored_type>();
   }
-
-  const NullableVector<serialized_type>& nullable_vector() const {
-    return Column::nullable_vector<serialized_type>();
-  }
-  NullableVector<serialized_type>* mutable_nullable_vector() {
-    return Column::mutable_nullable_vector<serialized_type>();
+  ColumnStorage<stored_type>* mutable_storage() {
+    return Column::mutable_storage<stored_type>();
   }
 };
 
@@ -193,7 +186,7 @@ class IdColumn : public Column {
   using type = Id;
 
   // The underlying type used when comparing ids.
-  using serialized_type = uint32_t;
+  using stored_type = uint32_t;
 
   Id operator[](uint32_t row) const { return Id(row_map().Get(row)); }
 

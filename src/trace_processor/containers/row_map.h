@@ -263,7 +263,7 @@ class RowMap {
       case Mode::kRange:
         return end_index_ - start_index_;
       case Mode::kBitVector:
-        return bit_vector_.GetNumBitsSet();
+        return bit_vector_.CountSetBits();
       case Mode::kIndexVector:
         return static_cast<uint32_t>(index_vector_.size());
     }
@@ -314,7 +314,7 @@ class RowMap {
       }
       case Mode::kBitVector: {
         return index < bit_vector_.size() && bit_vector_.IsSet(index)
-                   ? base::make_optional(bit_vector_.GetNumBitsSet(index))
+                   ? base::make_optional(bit_vector_.CountSetBits(index))
                    : base::nullopt;
       }
       case Mode::kIndexVector: {
@@ -403,29 +403,45 @@ class RowMap {
     return SelectRowsSlow(selector);
   }
 
-  // Intersects |other| with |this| writing the result into |this|.
-  // By "intersect", we mean to keep only the indices present in both RowMaps.
-  // The order of the preserved indices will be the same as |this|.
+  // Intersects the range [start_index, end_index) with |this| writing the
+  // result into |this|. By "intersect", we mean to keep only the indices
+  // present in both this RowMap and in the Range [start_index, end_index). The
+  // order of the preserved indices will be the same as |this|.
   //
   // Conceptually, we are performing the following algorithm:
   // for (idx : this)
-  //   if (!other.Contains(idx))
-  //     Remove(idx)
-  void Intersect(const RowMap& other) {
-    if (mode_ == Mode::kRange && other.mode_ == Mode::kRange) {
+  //   if (start_index <= idx && idx < end_index)
+  //     continue;
+  //   Remove(idx)
+  void Intersect(uint32_t start_index, uint32_t end_index) {
+    if (mode_ == Mode::kRange) {
       // If both RowMaps have ranges, we can just take the smallest intersection
       // of them as the new RowMap.
       // We have this as an explicit fast path as this is very common for
       // constraints on id and sorted columns to satisfy this condition.
-      start_index_ = std::max(start_index_, other.start_index_);
-      end_index_ =
-          std::max(start_index_, std::min(end_index_, other.end_index_));
+      start_index_ = std::max(start_index_, start_index);
+      end_index_ = std::max(start_index_, std::min(end_index_, end_index));
       return;
     }
 
     // TODO(lalitm): improve efficiency of this if we end up needing it.
-    Filter([&other](uint32_t row) { return other.Contains(row); });
+    Filter([start_index, end_index](OutputIndex index) {
+      return index >= start_index && index < end_index;
+    });
   }
+
+  // Intersects this RowMap with |index|. If this RowMap contained |index|, then
+  // it will *only* contain |index|. Otherwise, it will be empty.
+  void IntersectExact(OutputIndex index) {
+    if (Contains(index)) {
+      *this = RowMap(index, index + 1);
+    } else {
+      Clear();
+    }
+  }
+
+  // Clears this RowMap by resetting it to a newly constructed state.
+  void Clear() { *this = RowMap(); }
 
   // Filters the current RowMap into the RowMap given by |out| based on the
   // return value of |p(idx)|.
@@ -530,7 +546,7 @@ class RowMap {
   };
 
   // Filters the indices in |out| by keeping those which meet |p|.
-  template <typename Predicate>
+  template <typename Predicate = bool(OutputIndex)>
   void Filter(Predicate p) {
     switch (mode_) {
       case Mode::kRange:

@@ -18,6 +18,7 @@ import("../../../../gn/proto_library.gni")
 perfetto_proto_library("@TYPE@") {
   deps = [ "../../common:@TYPE@" ]
   sources = [
+    "android_game_intervention_list_config.proto",
     "android_log_config.proto",
     "android_polled_state_config.proto",
     "packages_list_config.proto",

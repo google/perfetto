@@ -16,285 +16,99 @@
 
 -- Create the base tables and views containing the launch spans.
 SELECT RUN_METRIC('android/startup/launches.sql');
+
+-- Define the helper functions which will be used throught the remainder
+-- of the metric.
+SELECT RUN_METRIC('android/startup/slice_functions.sql');
+
+-- Run all the HSC metrics.
 SELECT RUN_METRIC('android/startup/hsc.sql');
+
+-- Define some helper functions related to breaking down thread state
+-- for launches.
+SELECT RUN_METRIC('android/startup/thread_state_breakdown.sql');
+
+-- Define helper functions to break down slices/threads by thread
+-- state.
+SELECT RUN_METRIC('android/startup/mcycles_per_launch.sql');
+
+-- Define helper functions for GC slices.
+SELECT RUN_METRIC('android/startup/gc_slices.sql');
+
+-- Define helper functions for system state.
+SELECT RUN_METRIC('android/startup/system_state.sql');
+
+-- Define process metadata functions.
 SELECT RUN_METRIC('android/process_metadata.sql');
 
--- Create the base CPU span join table.
-SELECT RUN_METRIC('android/android_cpu_agg.sql');
-
--- Create a span join safe launches view; since both views
--- being span joined have an "id" column, we need to rename
--- the id column for launches to disambiguate the two.
-DROP VIEW IF EXISTS launches_span_join_safe;
-CREATE VIEW launches_span_join_safe AS
-SELECT ts, dur, id AS launch_id
-FROM launches;
-
--- Span join the CPU table with the launches table to get the
--- breakdown per-cpu.
-DROP TABLE IF EXISTS cpu_freq_sched_per_thread_per_launch;
-CREATE VIRTUAL TABLE cpu_freq_sched_per_thread_per_launch
-USING SPAN_JOIN(
-  launches_span_join_safe,
-  cpu_freq_sched_per_thread PARTITIONED cpu
-);
-
-SELECT RUN_METRIC('android/cpu_info.sql');
-
-DROP VIEW IF EXISTS mcycles_per_core_type_per_launch;
-CREATE VIEW mcycles_per_core_type_per_launch AS
-SELECT
-  launch_id,
-  IFNULL(core_type_per_cpu.core_type, 'unknown') AS core_type,
-  CAST(SUM(dur * freq_khz / 1000) / 1e9 AS INT) AS mcycles
-FROM cpu_freq_sched_per_thread_per_launch
-LEFT JOIN core_type_per_cpu USING (cpu)
-WHERE utid != 0
-GROUP BY 1, 2;
-
--- Slices for forked processes. Never present in hot starts.
+-- Returns the slices for forked processes. Never present in hot starts.
 -- Prefer this over process start_ts, since the process might have
 -- been preforked.
-DROP VIEW IF EXISTS zygote_fork_slice;
-CREATE VIEW zygote_fork_slice AS
-SELECT slice.ts, slice.dur, STR_SPLIT(slice.name, ": ", 1) AS process_name
-FROM slice WHERE name GLOB 'Start proc: *';
-
-DROP TABLE IF EXISTS zygote_forks_by_id;
-CREATE TABLE zygote_forks_by_id AS
-SELECT
-  launches.id,
-  zygote_fork_slice.ts,
-  zygote_fork_slice.dur
-FROM zygote_fork_slice
-JOIN launches
-ON (launches.ts < zygote_fork_slice.ts
-    AND zygote_fork_slice.ts + zygote_fork_slice.dur < launches.ts_end
-    AND zygote_fork_slice.process_name = launches.package
+SELECT CREATE_VIEW_FUNCTION(
+  'ZYGOTE_FORK_FOR_LAUNCH(launch_id INT)',
+  'ts INT, dur INT',
+  '
+    SELECT slice.ts, slice.dur
+    FROM launches
+    JOIN slice ON (
+      launches.ts < slice.ts AND
+      slice.ts + slice.dur < launches.ts_end AND
+      STR_SPLIT(slice.name, ": ", 1) = launches.package
+    )
+    WHERE launches.id = $launch_id AND slice.name GLOB "Start proc: *"
+  '
 );
 
-DROP VIEW IF EXISTS launch_main_threads;
-CREATE VIEW launch_main_threads AS
-SELECT
-  launches.ts AS ts,
-  launches.dur AS dur,
-  launches.id AS launch_id,
-  thread.utid AS utid
-FROM launches
-JOIN launch_processes ON launches.id = launch_processes.launch_id
-JOIN process USING(upid)
-JOIN thread ON (process.upid = thread.upid AND process.pid = thread.tid)
-ORDER BY ts;
-
-DROP VIEW IF EXISTS thread_state_extended;
-CREATE VIEW thread_state_extended AS
-SELECT
-  ts,
-  IIF(dur = -1, (SELECT end_ts FROM trace_bounds), dur) AS dur,
-  utid,
-  state
-FROM thread_state;
-
-DROP TABLE IF EXISTS main_thread_state;
-CREATE VIRTUAL TABLE main_thread_state
-USING SPAN_JOIN(
-  launch_main_threads PARTITIONED utid,
-  thread_state_extended PARTITIONED utid);
-
-DROP VIEW IF EXISTS launch_by_thread_state;
-CREATE VIEW launch_by_thread_state AS
-SELECT launch_id, state, SUM(dur) AS dur
-FROM main_thread_state
-GROUP BY 1, 2;
-
--- Tracks all main thread process threads.
-DROP VIEW IF EXISTS launch_threads;
-CREATE VIEW launch_threads AS
-SELECT
-  launches.id AS launch_id,
-  launches.ts AS ts,
-  launches.dur AS dur,
-  thread.utid AS utid,
-  thread.name AS thread_name
-FROM launches
-JOIN launch_processes ON (launches.id = launch_processes.launch_id)
-JOIN thread ON (launch_processes.upid = thread.upid);
-
--- Tracks all slices for the main process threads
-DROP VIEW IF EXISTS main_process_slice_unaggregated;
-CREATE VIEW main_process_slice_unaggregated AS
-SELECT
-  launch_threads.launch_id AS launch_id,
-  launch_threads.utid AS utid,
-  launch_threads.thread_name AS thread_name,
-  slice.id AS slice_id,
-  slice.arg_set_id AS arg_set_id,
-  slice.name AS slice_name,
-  slice.ts AS slice_ts,
-  slice.dur AS slice_dur
-FROM launch_threads
-JOIN thread_track USING (utid)
-JOIN slice ON (
-  slice.track_id = thread_track.id
-  AND slice.ts BETWEEN launch_threads.ts AND launch_threads.ts + launch_threads.dur)
-WHERE slice.name IN (
-  'PostFork',
-  'ActivityThreadMain',
-  'bindApplication',
-  'activityStart',
-  'activityRestart',
-  'activityResume',
-  'inflate',
-  'ResourcesManager#getResources',
-  'binder transaction')
-  OR slice.name GLOB 'performResume:*'
-  OR slice.name GLOB 'performCreate:*'
-  OR slice.name GLOB 'location=* status=* filter=* reason=*'
-  OR slice.name GLOB 'OpenDexFilesFromOat*'
-  OR slice.name GLOB 'VerifyClass*'
-  OR slice.name GLOB 'Choreographer#doFrame*'
-  OR slice.name GLOB 'JIT compiling*'
-  OR slice.name GLOB '*mark sweep GC'
-  OR slice.name GLOB '*concurrent copying GC'
-  OR slice.name GLOB '*semispace GC';
-
-DROP TABLE IF EXISTS main_process_slice;
-CREATE TABLE main_process_slice AS
-SELECT
-  launch_id,
-  CASE
-    WHEN slice_name GLOB 'OpenDexFilesFromOat*' THEN 'OpenDexFilesFromOat'
-    WHEN slice_name GLOB 'VerifyClass*' THEN 'VerifyClass'
-    WHEN slice_name GLOB 'JIT compiling*' THEN 'JIT compiling'
-    WHEN slice_name GLOB '*mark sweep GC' THEN 'GC'
-    WHEN slice_name GLOB '*concurrent copying GC' THEN 'GC'
-    WHEN slice_name GLOB '*semispace GC' THEN 'GC'
-    ELSE slice_name
-  END AS name,
-  AndroidStartupMetric_Slice(
-    'dur_ns', SUM(slice_dur),
-    'dur_ms', SUM(slice_dur) / 1e6
-  ) AS slice_proto
-FROM main_process_slice_unaggregated
-GROUP BY 1, 2;
-
-DROP TABLE IF EXISTS report_fully_drawn_per_launch;
-CREATE TABLE report_fully_drawn_per_launch AS
-WITH report_fully_drawn_launch_slices AS (
-  SELECT
-    launches.id AS launch_id,
-    launches.ts AS launch_ts,
-    min(slice.ts) as report_fully_drawn_ts
-  FROM launches
-  JOIN launch_processes ON (launches.id = launch_processes.launch_id)
-  JOIN thread ON (launch_processes.upid = thread.upid)
-  JOIN thread_track USING (utid)
-  JOIN slice ON (
-    slice.track_id = thread_track.id
-    AND slice.ts >= launches.ts)
-  WHERE slice.name GLOB 'reportFullyDrawn*'
-  GROUP BY launches.id
-)
-SELECT
-  launch_id,
-  report_fully_drawn_ts - launch_ts as report_fully_drawn_dur
-FROM report_fully_drawn_launch_slices;
-
-DROP VIEW IF EXISTS to_event_protos;
-CREATE VIEW to_event_protos AS
-SELECT
-  slice.name as slice_name,
-  launch_id,
-  AndroidStartupMetric_Slice(
-    'dur_ns', slice.ts - l.ts,
-    'dur_ms', (slice.ts - l.ts) / 1e6
-  ) as slice_proto
-FROM launch_main_threads l
-JOIN thread_track USING (utid)
-JOIN slice ON (
-  slice.track_id = thread_track.id
-  AND slice.ts BETWEEN l.ts AND l.ts + l.dur);
-
-DROP VIEW IF EXISTS gc_slices;
-CREATE VIEW gc_slices AS
-  SELECT
-    slice_ts AS ts,
-    slice_dur AS dur,
-    utid,
-    launch_id
-  FROM main_process_slice_unaggregated
-  WHERE (
-    slice_name GLOB '*mark sweep GC'
-    OR slice_name GLOB '*concurrent copying GC'
-    OR slice_name GLOB '*semispace GC');
-
-DROP TABLE IF EXISTS gc_slices_by_state;
-CREATE VIRTUAL TABLE gc_slices_by_state
-USING SPAN_JOIN(gc_slices PARTITIONED utid, thread_state_extended PARTITIONED utid);
-
-DROP TABLE IF EXISTS gc_slices_by_state_materialized;
-CREATE TABLE gc_slices_by_state_materialized AS
-SELECT launch_id, SUM(dur) as sum_dur
-FROM gc_slices_by_state
-WHERE state = 'Running'
-GROUP BY launch_id;
-
-DROP TABLE IF EXISTS launch_threads_cpu;
-CREATE VIRTUAL TABLE launch_threads_cpu
-USING SPAN_JOIN(launch_threads PARTITIONED utid, thread_state_extended PARTITIONED utid);
-
-DROP TABLE IF EXISTS launch_threads_cpu_materialized;
-CREATE TABLE launch_threads_cpu_materialized AS
-SELECT launch_id, SUM(dur) as sum_dur
-FROM launch_threads_cpu
-WHERE thread_name = 'Jit thread pool' AND state = 'Running'
-GROUP BY launch_id;
-
-DROP TABLE IF EXISTS activity_names_materialized;
-CREATE TABLE activity_names_materialized AS
-SELECT launch_id, slice_name, slice_ts
-FROM main_process_slice_unaggregated
-WHERE (slice_name GLOB 'performResume:*' OR slice_name GLOB 'performCreate:*');
-
-DROP TABLE IF EXISTS jit_compiled_methods_materialized;
-CREATE TABLE jit_compiled_methods_materialized AS
-SELECT
-  launch_id,
-  COUNT(1) as count
-FROM main_process_slice_unaggregated
-WHERE
-  slice_name GLOB 'JIT compiling*'
-  AND thread_name = 'Jit thread pool'
-GROUP BY launch_id;
-
-DROP TABLE IF EXISTS long_binder_transactions;
-CREATE TABLE long_binder_transactions AS
-SELECT
-  s.slice_id,
-  s.launch_id,
-  s.slice_dur,
-  s.thread_name,
-  EXTRACT_ARG(s.arg_set_id, 'destination name') AS destination_thread,
-  process.name AS destination_process,
-  EXTRACT_ARG(s.arg_set_id, 'flags') AS flags,
-  EXTRACT_ARG(s.arg_set_id, 'code') AS code,
-  EXTRACT_ARG(s.arg_set_id, 'data_size') AS data_size
-FROM
-  main_process_slice_unaggregated s
-JOIN process ON (EXTRACT_ARG(s.arg_set_id, 'destination process') = process.pid)
-WHERE
-  s.slice_name = 'binder transaction' AND
-  s.slice_dur >= 5e7;
-
+-- Returns the fully drawn slice proto given a launch id.
 SELECT CREATE_FUNCTION(
-  'MAIN_PROCESS_SLICE_PROTO(launch_id LONG, name STRING)',
-  'PROTO', '
-    SELECT slice_proto
-    FROM main_process_slice s
-    WHERE s.launch_id = $launch_id AND name GLOB $name
-    LIMIT 1
-  ');
+  'REPORT_FULLY_DRAWN_FOR_LAUNCH(launch_id INT)',
+  'PROTO',
+  '
+    SELECT
+      STARTUP_SLICE_PROTO(report_fully_drawn_ts - launch_ts)
+    FROM (
+      SELECT
+        launches.ts AS launch_ts,
+        min(slice.ts) AS report_fully_drawn_ts
+      FROM launches
+      JOIN launch_processes ON (launches.id = launch_processes.launch_id)
+      JOIN thread USING (upid)
+      JOIN thread_track USING (utid)
+      JOIN slice ON (slice.track_id = thread_track.id)
+      WHERE
+        slice.name GLOB "reportFullyDrawn*" AND
+        slice.ts >= launches.ts AND
+        launches.id = $launch_id
+    )
+  '
+);
 
+-- Returns a repeated field of all long binder transaction protos for
+-- a given launch id.
+SELECT CREATE_FUNCTION(
+  'BINDER_TRANSACTION_PROTO_FOR_LAUNCH(launch_id INT)',
+  'PROTO',
+  '
+    SELECT RepeatedField(
+      AndroidStartupMetric_BinderTransaction(
+        "duration", STARTUP_SLICE_PROTO(s.slice_dur),
+        "thread", s.thread_name,
+        "destination_thread", EXTRACT_ARG(s.arg_set_id, "destination name"),
+        "destination_process", process.name,
+        "flags", EXTRACT_ARG(s.arg_set_id, "flags"),
+        "code", EXTRACT_ARG(s.arg_set_id, "code"),
+        "data_size", EXTRACT_ARG(s.arg_set_id, "data_size")
+      )
+    )
+    FROM SLICES_FOR_LAUNCH_AND_SLICE_NAME($launch_id, "binder transaction") s
+    JOIN process ON (
+      EXTRACT_ARG(s.arg_set_id, "destination process") = process.pid
+    )
+    WHERE s.slice_dur > 5e7
+  '
+);
+
+-- Define the view 
 DROP VIEW IF EXISTS startup_view;
 CREATE VIEW startup_view AS
 SELECT
@@ -321,26 +135,13 @@ SELECT
         'method', (SELECT STR_SPLIT(s.slice_name, ':', 0)),
         'ts_method_start', s.slice_ts
       ))
-      FROM activity_names_materialized s
-      WHERE s.launch_id = launches.id
+      FROM thread_slices_for_all_launches s
+      WHERE
+        s.launch_id = launches.id AND
+        (s.slice_name GLOB 'performResume:*' OR s.slice_name GLOB 'performCreate:*')
     ),
-    'long_binder_transactions', (
-      SELECT RepeatedField(AndroidStartupMetric_BinderTransaction(
-        'duration', AndroidStartupMetric_Slice(
-          'dur_ns', lbt.slice_dur,
-          'dur_ms', lbt.slice_dur / 1e6
-        ),
-        'thread', lbt.thread_name,
-        'destination_thread', lbt.destination_thread,
-        'destination_process', lbt.destination_process,
-        'flags', lbt.flags,
-        'code', lbt.code,
-        'data_size', lbt.data_size
-      ))
-      FROM long_binder_transactions lbt
-      WHERE lbt.launch_id = launches.id
-    ),
-    'zygote_new_process', EXISTS(SELECT TRUE FROM zygote_forks_by_id WHERE id = launches.id),
+    'long_binder_transactions', BINDER_TRANSACTION_PROTO_FOR_LAUNCH(launches.id),
+    'zygote_new_process', EXISTS(SELECT TRUE FROM ZYGOTE_FORK_FOR_LAUNCH(launches.id)),
     'activity_hosting_process_count', (
       SELECT COUNT(1) FROM launch_processes p
       WHERE p.launch_id = launches.id
@@ -354,157 +155,145 @@ SELECT
       'dur_ms', launches.dur / 1e6,
       'main_thread_by_task_state', AndroidStartupMetric_TaskStateBreakdown(
         'running_dur_ns', IFNULL(
-            (
-            SELECT dur FROM launch_by_thread_state l
-            WHERE l.launch_id = launches.id AND state = 'Running'
-            ), 0),
+          MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'Running'), 0
+        ),
         'runnable_dur_ns', IFNULL(
-            (
-            SELECT dur FROM launch_by_thread_state l
-            WHERE l.launch_id = launches.id AND state = 'R'
-            ), 0),
+          MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'R'), 0
+        ),
         'uninterruptible_sleep_dur_ns', IFNULL(
-            (
-            SELECT dur FROM launch_by_thread_state l
-            WHERE l.launch_id = launches.id AND (state = 'D' or state = 'DK')
-            ), 0),
+          MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'D*'), 0
+        ),
         'interruptible_sleep_dur_ns', IFNULL(
-            (
-            SELECT dur FROM launch_by_thread_state l
-            WHERE l.launch_id = launches.id AND state = 'S'
-            ), 0)
-      ),
-      'mcycles_by_core_type', AndroidStartupMetric_McyclesByCoreType(
-        'little', (
-          SELECT mcycles
-          FROM mcycles_per_core_type_per_launch m
-          WHERE m.launch_id = launches.id AND m.core_type = 'little'
-        ),
-        'big', (
-          SELECT mcycles
-          FROM mcycles_per_core_type_per_launch m
-          WHERE m.launch_id = launches.id AND m.core_type = 'big'
-        ),
-        'bigger', (
-          SELECT mcycles
-          FROM mcycles_per_core_type_per_launch m
-          WHERE m.launch_id = launches.id AND m.core_type = 'bigger'
-        ),
-        'unknown', (
-          SELECT mcycles
-          FROM mcycles_per_core_type_per_launch m
-          WHERE m.launch_id = launches.id AND m.core_type = 'unknown'
+          MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'S'), 0
         )
       ),
-      'to_post_fork', (
-        SELECT slice_proto
-        FROM to_event_protos p
-        WHERE p.launch_id = launches.id AND slice_name = 'PostFork'
-      ),
-      'to_activity_thread_main', (
-        SELECT slice_proto
-        FROM to_event_protos p
-        WHERE p.launch_id = launches.id AND slice_name = 'ActivityThreadMain'
-      ),
-      'to_bind_application', (
-        SELECT slice_proto
-        FROM to_event_protos p
-        WHERE p.launch_id = launches.id AND slice_name = 'bindApplication'
-      ),
-      'other_processes_spawned_count', (
-        SELECT COUNT(1) FROM process
-        WHERE (process.name IS NULL OR process.name != launches.package)
-        AND process.start_ts BETWEEN launches.ts AND launches.ts + launches.dur
-      ),
+      'mcycles_by_core_type', NULL_IF_EMPTY(AndroidStartupMetric_McyclesByCoreType(
+        'little', MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(launches.id, 'little'),
+        'big', MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(launches.id, 'big'),
+        'bigger', MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(launches.id, 'bigger'),
+        'unknown', MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(launches.id, 'unknown')
+      )),
+      'to_post_fork',
+        LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(launches.id, 'PostFork'),
+      'to_activity_thread_main',
+        LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(launches.id, 'ActivityThreadMain'),
+      'to_bind_application',
+        LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(launches.id, 'bindApplication'),
       'time_activity_manager', (
-        SELECT AndroidStartupMetric_Slice(
-          'dur_ns', l.ts - launches.ts,
-          'dur_ms', (l.ts - launches.ts) / 1e6
-        )
+        SELECT STARTUP_SLICE_PROTO(l.ts - launches.ts)
         FROM launching_events l
         WHERE l.ts BETWEEN launches.ts AND launches.ts + launches.dur
       ),
-      'time_post_fork', MAIN_PROCESS_SLICE_PROTO(launches.id, 'PostFork'),
-      'time_activity_thread_main', MAIN_PROCESS_SLICE_PROTO(launches.id, 'ActivityThreadMain'),
-      'time_bind_application', MAIN_PROCESS_SLICE_PROTO(launches.id, 'bindApplication'),
-      'time_activity_start', MAIN_PROCESS_SLICE_PROTO(launches.id, 'activityStart'),
-      'time_activity_resume', MAIN_PROCESS_SLICE_PROTO(launches.id, 'activityResume'),
-      'time_activity_restart', MAIN_PROCESS_SLICE_PROTO(launches.id, 'activityRestart'),
-      'time_choreographer', MAIN_PROCESS_SLICE_PROTO(launches.id, 'Choreographer#doFrame*'),
-      'time_inflate', MAIN_PROCESS_SLICE_PROTO(launches.id, 'inflate'),
-      'time_get_resources', MAIN_PROCESS_SLICE_PROTO(launches.id, 'ResourcesManager#getResources'),
-      'time_dex_open', MAIN_PROCESS_SLICE_PROTO(launches.id, 'OpenDexFilesFromOat'),
-      'time_verify_class', MAIN_PROCESS_SLICE_PROTO(launches.id, 'VerifyClass'),
-      'time_gc_total', MAIN_PROCESS_SLICE_PROTO(launches.id, 'GC'),
+      'time_post_fork',
+        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'PostFork'),
+      'time_activity_thread_main',
+        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'ActivityThreadMain'),
+      'time_bind_application',
+        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'bindApplication'),
+      'time_activity_start',
+        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'activityStart'),
+      'time_activity_resume',
+        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'activityResume'),
+      'time_activity_restart',
+        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'activityRestart'),
+      'time_choreographer',
+        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'Choreographer#doFrame*'),
+      'time_inflate',
+        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'inflate'),
+      'time_get_resources',
+        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'ResourcesManager#getResources'),
+      'time_dex_open',
+        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'OpenDexFilesFromOat*'),
+      'time_verify_class',
+        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'VerifyClass*'),
+      'time_gc_total', (
+        SELECT NULL_IF_EMPTY(STARTUP_SLICE_PROTO(SUM(slice_dur)))
+        FROM thread_slices_for_all_launches slice
+        WHERE
+          launch_id = launches.id AND
+          (
+            slice_name GLOB "*semispace GC" OR
+            slice_name GLOB "*mark sweep GC" OR
+            slice_name GLOB "*concurrent copying GC"
+          )
+      ),
+      'time_lock_contention_thread_main',
+        DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
+          launches.id,
+          'Lock contention on*'
+        ),
+      'time_monitor_contention_thread_main',
+        DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
+          launches.id,
+          'Lock contention on a monitor*'
+        ),
       'time_before_start_process', (
-        SELECT AndroidStartupMetric_Slice(
-          'dur_ns', ts - launches.ts,
-          'dur_ms', (ts - launches.ts) / 1e6
+        SELECT STARTUP_SLICE_PROTO(ts - launches.ts)
+        FROM ZYGOTE_FORK_FOR_LAUNCH(launches.id)
+      ),
+      'time_jit_thread_pool_on_cpu', NULL_IF_EMPTY(STARTUP_SLICE_PROTO(
+        THREAD_TIME_FOR_LAUNCH_STATE_AND_THREAD(
+          launches.id,
+          'Running',
+          'Jit thread pool'
         )
-        FROM zygote_forks_by_id z
-        WHERE z.id = launches.id
+      )),
+      'time_gc_on_cpu', (
+        SELECT STARTUP_SLICE_PROTO(sum_dur)
+        FROM running_gc_slices_materialized
+        WHERE launches.id = launch_id
       ),
       'time_during_start_process', (
-        SELECT AndroidStartupMetric_Slice(
-          'dur_ns', dur,
-          'dur_ms', dur / 1e6
-        )
-        FROM zygote_forks_by_id z
-        WHERE z.id = launches.id
+        SELECT STARTUP_SLICE_PROTO(dur)
+        FROM ZYGOTE_FORK_FOR_LAUNCH(launches.id)
       ),
       'jit_compiled_methods', (
-        SELECT count
-        FROM jit_compiled_methods_materialized s
-        WHERE s.launch_id = launches.id
+        SELECT IIF(COUNT(1) = 0, NULL, COUNT(1))
+        FROM SLICES_FOR_LAUNCH_AND_SLICE_NAME(launches.id, 'JIT compiling*')
+        WHERE thread_name = 'Jit thread pool'
       ),
-      'time_jit_thread_pool_on_cpu', (
-        SELECT
-          NULL_IF_EMPTY(AndroidStartupMetric_Slice(
-            'dur_ns', sum_dur,
-            'dur_ms', sum_dur / 1e6
-          ))
-        FROM launch_threads_cpu_materialized
-        WHERE launch_id = launches.id
-      ),
-      'time_gc_on_cpu', (
-        SELECT
-          NULL_IF_EMPTY(AndroidStartupMetric_Slice(
-            'dur_ns', sum_dur,
-            'dur_ms', sum_dur / 1e6
-          ))
-        FROM gc_slices_by_state_materialized
-        WHERE launch_id = launches.id
+      'other_processes_spawned_count', (
+        SELECT COUNT(1) FROM process
+        WHERE
+          (process.name IS NULL OR process.name != launches.package) AND
+          process.start_ts BETWEEN launches.ts AND launches.ts + launches.dur
       )
     ),
-    'hsc', (
-      SELECT NULL_IF_EMPTY(AndroidStartupMetric_HscMetrics(
-        'full_startup', (
-          SELECT AndroidStartupMetric_Slice(
-            'dur_ns', h.ts_total,
-            'dur_ms', h.ts_total / 1e6
-          )
-          FROM hsc_based_startup_times h
-          WHERE h.id = launches.id
-        )
-      ))
-    ),
-    'report_fully_drawn', (
-      SELECT NULL_IF_EMPTY(AndroidStartupMetric_Slice(
-        'dur_ns', report_fully_drawn_dur,
-        'dur_ms', report_fully_drawn_dur / 1e6
-      ))
-      FROM report_fully_drawn_per_launch r
-      WHERE r.launch_id = launches.id
-    ),
-    'optimization_status',(
+    'hsc', NULL_IF_EMPTY(AndroidStartupMetric_HscMetrics(
+      'full_startup', (
+        SELECT STARTUP_SLICE_PROTO(h.ts_total)
+        FROM hsc_based_startup_times h
+        WHERE h.id = launches.id
+      )
+    )),
+    'report_fully_drawn', NULL_IF_EMPTY(REPORT_FULLY_DRAWN_FOR_LAUNCH(launches.id)),
+    'optimization_status', (
       SELECT RepeatedField(AndroidStartupMetric_OptimizationStatus(
-        'location', SUBSTR(STR_SPLIT(name, ' status=', 0), LENGTH('location=') + 1),
-        'odex_status', STR_SPLIT(STR_SPLIT(name, ' status=', 1), ' filter=', 0),
-        'compilation_filter', STR_SPLIT(STR_SPLIT(name, ' filter=', 1), ' reason=', 0),
-        'compilation_reason', STR_SPLIT(name, ' reason=', 1)
+        'location', SUBSTR(STR_SPLIT(slice_name, ' status=', 0), LENGTH('location=') + 1),
+        'odex_status', STR_SPLIT(STR_SPLIT(slice_name, ' status=', 1), ' filter=', 0),
+        'compilation_filter', STR_SPLIT(STR_SPLIT(slice_name, ' filter=', 1), ' reason=', 0),
+        'compilation_reason', STR_SPLIT(slice_name, ' reason=', 1)
       ))
-      FROM main_process_slice s
-      WHERE name GLOB 'location=* status=* filter=* reason=*'
+      FROM (
+        SELECT *
+        FROM SLICES_FOR_LAUNCH_AND_SLICE_NAME(
+          launches.id,
+          'location=* status=* filter=* reason=*'
+        )
+        ORDER BY slice_name
+      )
+    ),
+    'system_state', AndroidStartupMetric_SystemState(
+      'dex2oat_running',
+        IS_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*dex2oat64'),
+      'installd_running',
+        IS_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*installd'),
+      'broadcast_dispatched_count',
+        COUNT_SLICES_CONCURRENT_TO_LAUNCH(launches.id, 'Broadcast dispatched*'),
+      'broadcast_received_count',
+        COUNT_SLICES_CONCURRENT_TO_LAUNCH(launches.id, 'broadcastReceiveReg*'),
+      'most_active_non_launch_processes',
+        N_MOST_ACTIVE_PROCESS_NAMES_FOR_LAUNCH(launches.id)
     )
   ) as startup
 FROM launches;

@@ -90,4 +90,9 @@ message TrackEventConfig {
   // Learn more : "CLOCK_THREAD_CPUTIME_ID" flag at
   // https://linux.die.net/man/3/clock_gettime
   optional bool enable_thread_time_sampling = 8;
+
+  // Default: false (i.e. dynamic event names are NOT filtered out by default)
+  // When true, event_names wrapped in perfetto::DynamicString will be filtered
+  // out.
+  optional bool filter_dynamic_event_names = 9;
 }

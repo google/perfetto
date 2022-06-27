@@ -15,11 +15,14 @@
  */
 
 #include <algorithm>
+#include <memory>
 #include <utility>
 
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
+#include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/trace_sorter_queue.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -36,6 +39,19 @@ TraceSorter::TraceSorter(TraceProcessorContext* context,
     PERFETTO_ELOG("TEST MODE: bypassing protobuf parsing stage");
 }
 
+TraceSorter::~TraceSorter() {
+  // If trace processor encountered a fatal error, it's possible for some events
+  // to have been pushed without evicting them by pushing to the next stage. Do
+  // that now.
+  for (auto& queue : queues_) {
+    for (const auto& event : queue.events_) {
+      // Calling this function without using the TimestampedTracePiece the same
+      // as just calling the destructor for the element.
+      EvictVariadicAsTtp(event);
+    }
+  }
+}
+
 void TraceSorter::Queue::Sort() {
   PERFETTO_DCHECK(needs_sorting());
   PERFETTO_DCHECK(sort_start_idx_ < events_.size());
@@ -50,12 +66,12 @@ void TraceSorter::Queue::Sort() {
   auto sort_end = events_.begin() + static_cast<ssize_t>(sort_start_idx_);
   PERFETTO_DCHECK(std::is_sorted(events_.begin(), sort_end));
   auto sort_begin = std::lower_bound(events_.begin(), sort_end, sort_min_ts_,
-                                     &TimestampedTracePiece::Compare);
+                                     &TimestampedDescriptor::Compare);
   std::sort(sort_begin, events_.end());
   sort_start_idx_ = 0;
   sort_min_ts_ = 0;
 
-  // At this point |events_| must be fully sorted.
+  // At this point |events_| must be fully sorted
   PERFETTO_DCHECK(std::is_sorted(events_.begin(), events_.end()));
 }
 
@@ -79,7 +95,7 @@ void TraceSorter::Queue::Sort() {
 // to avoid re-scanning all the queues all the times) but doesn't seem worth it.
 // With Android traces (that have 8 CPUs) this function accounts for ~1-3% cpu
 // time in a profiler.
-void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_packet_idx) {
+void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_offset) {
   constexpr int64_t kTsMax = std::numeric_limits<int64_t>::max();
   for (;;) {
     size_t min_queue_idx = 0;  // The index of the queue with the min(ts).
@@ -116,7 +132,7 @@ void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_packet_idx) {
     auto& events = queue.events_;
     if (queue.needs_sorting())
       queue.Sort();
-    PERFETTO_DCHECK(queue.min_ts_ == events.front().timestamp);
+    PERFETTO_DCHECK(queue.min_ts_ == events.front().ts);
     PERFETTO_DCHECK(queue.min_ts_ == global_min_ts_);
 
     // Now that we identified the min-queue, extract all events from it until
@@ -124,13 +140,13 @@ void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_packet_idx) {
     // limit, whichever comes first.
     size_t num_extracted = 0;
     for (auto& event : events) {
-      if (event.packet_idx >= limit_packet_idx ||
-          event.timestamp > min_queue_ts[1]) {
+      if (event.descriptor.offset() >= limit_offset ||
+          event.ts > min_queue_ts[1]) {
         break;
       }
 
       ++num_extracted;
-      MaybePushEvent(min_queue_idx, std::move(event));
+      MaybePushEvent(min_queue_idx, event);
     }  // for (event: events)
 
     if (!num_extracted) {
@@ -142,6 +158,10 @@ void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_packet_idx) {
     // Now remove the entries from the event buffer and update the queue-local
     // and global time bounds.
     events.erase_front(num_extracted);
+
+    // After evicting elements we can empty memory in the front of the
+    // queue.
+    variadic_queue_.FreeMemory();
 
     // Update the global_{min,max}_ts to reflect the bounds after extraction.
     if (events.empty()) {
@@ -156,7 +176,7 @@ void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_packet_idx) {
       for (auto& q : queues_)
         global_max_ts_ = std::max(global_max_ts_, q.max_ts_);
     } else {
-      queue.min_ts_ = queue.events_.front().timestamp;
+      queue.min_ts_ = queue.events_.front().ts;
       global_min_ts_ = std::min(queue.min_ts_, min_queue_ts[1]);
     }
   }  // for(;;)
@@ -174,8 +194,9 @@ void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_packet_idx) {
 #endif
 }
 
-void TraceSorter::MaybePushEvent(size_t queue_idx, TimestampedTracePiece ttp) {
-  int64_t timestamp = ttp.timestamp;
+void TraceSorter::MaybePushEvent(size_t queue_idx,
+                                 const TimestampedDescriptor& ts_desc) {
+  int64_t timestamp = ts_desc.ts;
   if (timestamp < latest_pushed_event_ts_)
     context_->storage->IncrementStats(stats::sorter_push_event_out_of_order);
 
@@ -184,13 +205,14 @@ void TraceSorter::MaybePushEvent(size_t queue_idx, TimestampedTracePiece ttp) {
   if (PERFETTO_UNLIKELY(bypass_next_stage_for_testing_))
     return;
 
+  TimestampedTracePiece ttp = EvictVariadicAsTtp(ts_desc);
   if (queue_idx == 0) {
     // queues_[0] is for non-ftrace packets.
-    parser_->ParseTracePacket(timestamp, std::move(ttp));
+    parser_->ParseTracePacket(ts_desc.ts, std::move(ttp));
   } else {
     // Ftrace queues start at offset 1. So queues_[1] = cpu[0] and so on.
     uint32_t cpu = static_cast<uint32_t>(queue_idx - 1);
-    parser_->ParseFtracePacket(cpu, timestamp, std::move(ttp));
+    parser_->ParseFtracePacket(cpu, ts_desc.ts, std::move(ttp));
   }
 }
 

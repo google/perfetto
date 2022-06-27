@@ -47,7 +47,7 @@ function readText(blob: Blob): Promise<string> {
         return resolve(reader.result);
       }
     };
-    reader.onerror = err => {
+    reader.onerror = (err) => {
       reject(err);
     };
     reader.readAsText(blob);
@@ -97,7 +97,7 @@ export async function openFileWithLegacyTraceViewer(file: File) {
       return openBufferWithLegacyTraceViewer(file.name, str, str.length);
     }
   };
-  reader.onerror = err => {
+  reader.onerror = (err) => {
     console.error(err);
   };
   if (file.name.endsWith('.gz') || file.name.endsWith('.zip') ||
@@ -149,7 +149,6 @@ export function openBufferWithLegacyTraceViewer(
     buttons: [{
       text: 'Open legacy UI',
       primary: true,
-      id: 'open_legacy',
       action: () => openBufferWithLegacyTraceViewer(name, data, size),
     }],
   });

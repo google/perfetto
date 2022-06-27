@@ -18,7 +18,7 @@ import * as m from 'mithril';
 import {Actions} from '../common/actions';
 import {TrackState} from '../common/state';
 
-import {TRACK_SHELL_WIDTH} from './css_constants';
+import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {PerfettoMouseEvent} from './events';
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
@@ -226,7 +226,7 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
               e.stopPropagation();
             }
             globals.rafScheduler.scheduleRedraw();
-          }
+          },
         },
         node.children);
   }
@@ -248,7 +248,7 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
         },
         [
           m(TrackShell, {track: attrs.track, trackState: attrs.trackState}),
-          m(TrackContent, {track: attrs.track})
+          m(TrackContent, {track: attrs.track}),
         ]);
   }
 
@@ -343,7 +343,7 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     const selectedArea = globals.state.areas[selection.areaId];
     if (selectedArea.tracks.includes(trackState.id)) {
       const timeScale = localState.timeScale;
-      ctx.fillStyle = 'rgba(131, 152, 230, 0.3)';
+      ctx.fillStyle = SELECTION_FILL_COLOR;
       ctx.fillRect(
           timeScale.timeToPx(selectedArea.startSec) + TRACK_SHELL_WIDTH,
           0,

@@ -22,10 +22,11 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/containers/nullable_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/db/compare.h"
+#include "src/trace_processor/db/typed_column_internal.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -96,6 +97,8 @@ template <>
 struct ColumnTypeHelper<StringPool::Id> {
   static constexpr ColumnType ToColumnType() { return ColumnType::kString; }
 };
+template <typename T>
+struct ColumnTypeHelper<base::Optional<T>> : public ColumnTypeHelper<T> {};
 
 class Table;
 
@@ -218,13 +221,13 @@ class Column {
 
   template <typename T>
   Column(const char* name,
-         NullableVector<T>* storage,
+         ColumnStorage<T>* storage,
          /* Flag */ uint32_t flags,
          Table* table,
          uint32_t col_idx_in_table,
          uint32_t row_map_idx)
       : Column(name,
-               ColumnTypeHelper<T>::ToColumnType(),
+               ColumnTypeHelper<stored_type<T>>::ToColumnType(),
                flags,
                table,
                col_idx_in_table,
@@ -296,9 +299,9 @@ class Column {
       // single row with the id (if it exists).
       auto opt_idx = IndexOf(value);
       if (opt_idx) {
-        rm->Intersect(RowMap::SingleRow(*opt_idx));
+        rm->IntersectExact(*opt_idx);
       } else {
-        rm->Intersect(RowMap());
+        rm->Clear();
       }
       return;
     }
@@ -435,26 +438,25 @@ class Column {
   }
 
  protected:
+  template <typename T>
+  using stored_type = typename tc_internal::TypeHandler<T>::stored_type;
+
   // Returns the backing sparse vector cast to contain data of type T.
   // Should only be called when |type_| == ToColumnType<T>().
   template <typename T>
-  NullableVector<T>* mutable_nullable_vector() {
+  ColumnStorage<stored_type<T>>* mutable_storage() {
     PERFETTO_DCHECK(ColumnTypeHelper<T>::ToColumnType() == type_);
-    return static_cast<NullableVector<T>*>(nullable_vector_);
+    PERFETTO_DCHECK(tc_internal::TypeHandler<T>::is_optional == IsNullable());
+    return static_cast<ColumnStorage<stored_type<T>>*>(storage_);
   }
 
   // Returns the backing sparse vector cast to contain data of type T.
   // Should only be called when |type_| == ToColumnType<T>().
   template <typename T>
-  const NullableVector<T>& nullable_vector() const {
+  const ColumnStorage<stored_type<T>>& storage() const {
     PERFETTO_DCHECK(ColumnTypeHelper<T>::ToColumnType() == type_);
-    return *static_cast<const NullableVector<T>*>(nullable_vector_);
-  }
-
-  // Returns the type of this Column in terms of SqlValue::Type.
-  template <typename T>
-  static SqlValue::Type ToSqlValueType() {
-    return ToSqlValueType(ColumnTypeHelper<T>::ToColumnType());
+    PERFETTO_DCHECK(tc_internal::TypeHandler<T>::is_optional == IsNullable());
+    return *static_cast<ColumnStorage<stored_type<T>>*>(storage_);
   }
 
   // Returns true if this column is a dense column.
@@ -464,6 +466,20 @@ class Column {
   bool IsHidden() const { return (flags_ & Flag::kHidden) != 0; }
 
   const StringPool& string_pool() const { return *string_pool_; }
+
+  // Returns the type of this Column in terms of SqlValue::Type.
+  template <typename T>
+  static SqlValue::Type ToSqlValueType() {
+    return ToSqlValueType(ColumnTypeHelper<T>::ToColumnType());
+  }
+
+  static SqlValue ToSqlValue(double value) { return SqlValue::Double(value); }
+  static SqlValue ToSqlValue(int32_t value) { return SqlValue::Long(value); }
+  static SqlValue ToSqlValue(uint32_t value) { return SqlValue::Long(value); }
+  static SqlValue ToSqlValue(int64_t value) { return SqlValue::Long(value); }
+  static SqlValue ToSqlValue(NullTermStringView value) {
+    return SqlValue::String(value.c_str());
+  }
 
  private:
   friend class Table;
@@ -476,7 +492,7 @@ class Column {
          Table* table,
          uint32_t col_idx_in_table,
          uint32_t row_map_idx,
-         NullableVectorBase* nullable_vector);
+         ColumnStorageBase* nullable_vector);
 
   Column(const Column&) = delete;
   Column& operator=(const Column&) = delete;
@@ -484,22 +500,14 @@ class Column {
   // Gets the value of the Column at the given |idx|.
   SqlValue GetAtIdx(uint32_t idx) const {
     switch (type_) {
-      case ColumnType::kInt32: {
-        auto opt_value = nullable_vector<int32_t>().Get(idx);
-        return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
-      }
-      case ColumnType::kUint32: {
-        auto opt_value = nullable_vector<uint32_t>().Get(idx);
-        return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
-      }
-      case ColumnType::kInt64: {
-        auto opt_value = nullable_vector<int64_t>().Get(idx);
-        return opt_value ? SqlValue::Long(*opt_value) : SqlValue();
-      }
-      case ColumnType::kDouble: {
-        auto opt_value = nullable_vector<double>().Get(idx);
-        return opt_value ? SqlValue::Double(*opt_value) : SqlValue();
-      }
+      case ColumnType::kInt32:
+        return GetAtIdxTyped<int32_t>(idx);
+      case ColumnType::kUint32:
+        return GetAtIdxTyped<uint32_t>(idx);
+      case ColumnType::kInt64:
+        return GetAtIdxTyped<int64_t>(idx);
+      case ColumnType::kDouble:
+        return GetAtIdxTyped<double>(idx);
       case ColumnType::kString: {
         auto str = GetStringPoolStringAtIdx(idx).c_str();
         return str == nullptr ? SqlValue() : SqlValue::String(str);
@@ -510,6 +518,15 @@ class Column {
         PERFETTO_FATAL("GetAtIdx not allowed on dummy column");
     }
     PERFETTO_FATAL("For GCC");
+  }
+
+  template <typename T>
+  SqlValue GetAtIdxTyped(uint32_t idx) const {
+    if (IsNullable()) {
+      auto opt_value = storage<base::Optional<T>>().Get(idx);
+      return opt_value ? ToSqlValue(*opt_value) : SqlValue();
+    }
+    return ToSqlValue(storage<T>().Get(idx));
   }
 
   // Optimized filter method for sorted columns.
@@ -526,31 +543,31 @@ class Column {
             b, std::lower_bound(b, e, value, &compare::SqlValueComparator));
         uint32_t end = std::distance(
             b, std::upper_bound(b, e, value, &compare::SqlValueComparator));
-        rm->Intersect(RowMap(beg, end));
+        rm->Intersect(beg, end);
         return true;
       }
       case FilterOp::kLe: {
         uint32_t end = std::distance(
             b, std::upper_bound(b, e, value, &compare::SqlValueComparator));
-        rm->Intersect(RowMap(0, end));
+        rm->Intersect(0, end);
         return true;
       }
       case FilterOp::kLt: {
         uint32_t end = std::distance(
             b, std::lower_bound(b, e, value, &compare::SqlValueComparator));
-        rm->Intersect(RowMap(0, end));
+        rm->Intersect(0, end);
         return true;
       }
       case FilterOp::kGe: {
         uint32_t beg = std::distance(
             b, std::lower_bound(b, e, value, &compare::SqlValueComparator));
-        rm->Intersect(RowMap(beg, row_map().size()));
+        rm->Intersect(beg, row_map().size());
         return true;
       }
       case FilterOp::kGt: {
         uint32_t beg = std::distance(
             b, std::upper_bound(b, e, value, &compare::SqlValueComparator));
-        rm->Intersect(RowMap(beg, row_map().size()));
+        rm->Intersect(beg, row_map().size());
         return true;
       }
       case FilterOp::kNe:
@@ -565,7 +582,7 @@ class Column {
     PERFETTO_DCHECK(!IsNullable());
 
     uint32_t filter_set_id = static_cast<uint32_t>(value);
-    const auto& nv = nullable_vector<uint32_t>();
+    const auto& nv = storage<uint32_t>();
     const RowMap& col_rm = row_map();
 
     // If the set id is beyond the end of the column, there's no chance that
@@ -575,7 +592,7 @@ class Column {
       return;
     }
 
-    uint32_t set_id = nv.GetNonNull(col_rm.Get(filter_set_id));
+    uint32_t set_id = nv.Get(col_rm.Get(filter_set_id));
 
     // If the set at that index does not equal the set id we're looking for, the
     // set id doesn't exist either.
@@ -587,12 +604,12 @@ class Column {
 
     // Otherwise, find the end of the set and return the intersection for this.
     for (uint32_t i = set_id + 1; i < col_rm.size(); ++i) {
-      if (nv.GetNonNull(col_rm.Get(i)) != filter_set_id) {
-        rm->Intersect(RowMap(set_id, i));
+      if (nv.Get(col_rm.Get(i)) != filter_set_id) {
+        rm->Intersect(set_id, i);
         return;
       }
     }
-    rm->Intersect(RowMap(set_id, col_rm.size()));
+    rm->Intersect(set_id, col_rm.size());
   }
 
   // Slow path filter method which will perform a full table scan.
@@ -676,12 +693,12 @@ class Column {
   // Should only be called when |type_| == ColumnType::kString.
   NullTermStringView GetStringPoolStringAtIdx(uint32_t idx) const {
     PERFETTO_DCHECK(type_ == ColumnType::kString);
-    return string_pool_->Get(nullable_vector<StringPool::Id>().GetNonNull(idx));
+    return string_pool_->Get(storage<StringPool::Id>().Get(idx));
   }
 
   // type_ is used to cast nullable_vector_ to the correct type.
   ColumnType type_ = ColumnType::kInt64;
-  NullableVectorBase* nullable_vector_ = nullptr;
+  ColumnStorageBase* storage_ = nullptr;
 
   const char* name_ = nullptr;
   uint32_t flags_ = Flag::kNoFlag;

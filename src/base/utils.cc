@@ -21,6 +21,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
@@ -104,11 +105,14 @@ CheckCpuOptimizations() {
   //  Volume 2A: Instruction Set Reference, A-M CPUID).
   PERFETTO_GETCPUID(eax, ebx, ecx, edx, 7, 0);
   const bool have_avx2 = have_avx && ((ebx >> 5) & 0x1);
+  const bool have_bmi = (ebx >> 3) & 0x1;
+  const bool have_bmi2 = (ebx >> 8) & 0x1;
 
-  if (!have_sse4_2 || !have_popcnt || !have_avx2) {
+  if (!have_sse4_2 || !have_popcnt || !have_avx2 || !have_bmi || !have_bmi2) {
     fprintf(
         stderr,
-        "This executable requires a X86_64 cpu that supports SSE4.2 and AVX2.\n"
+        "This executable requires a x86_64 cpu that supports SSE4.2, BMI2 and "
+        "AVX2.\n"
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
         "On MacOS, this might be caused by running x86_64 binaries on arm64.\n"
         "See https://github.com/google/perfetto/issues/294 for more.\n"
@@ -283,9 +287,11 @@ std::string HexDump(const void* data_void, size_t len, size_t bytes_per_line) {
   std::unique_ptr<char[]> line(new char[bytes_per_line * 4 + 128]);
   for (size_t i = 0; i < len; i += bytes_per_line) {
     char* wptr = line.get();
-    wptr += sprintf(wptr, "%08zX: ", i);
-    for (size_t j = i; j < i + bytes_per_line && j < len; j++)
-      wptr += sprintf(wptr, "%02X ", static_cast<unsigned>(data[j]) & 0xFF);
+    wptr += base::SprintfTrunc(wptr, 19, "%08zX: ", i);
+    for (size_t j = i; j < i + bytes_per_line && j < len; j++) {
+      wptr += base::SprintfTrunc(wptr, 4, "%02X ",
+                                 static_cast<unsigned>(data[j]) & 0xFF);
+    }
     for (size_t j = static_cast<size_t>(wptr - line.get()); j < kPadding; ++j)
       *(wptr++) = ' ';
     for (size_t j = i; j < i + bytes_per_line && j < len; j++) {

@@ -51,7 +51,7 @@ class SelectWidget implements m.ClassComponent<SelectWidgetAttrs> {
                 globals.rafScheduler.scheduleFullRedraw();
               },
             },
-            attrs.options.map(o => {
+            attrs.options.map((o) => {
               const selected = o.id === attrs.selected;
               return m('option', {value: o.id, selected}, o.name);
             }),
@@ -91,7 +91,7 @@ class FlagWidget implements m.ClassComponent<FlagWidgetAttrs> {
             flag.reset();
             break;
         }
-      }
+      },
     });
   }
 }
@@ -117,7 +117,7 @@ export const FlagsPage = createPage({
                     href: RELEASE_PROCESS_URL,
                   },
                   'Release Process'),
-                ' for more information.'
+                ' for more information.',
               ],
               options: [
                 {id: 'stable', name: 'Stable (default)'},
@@ -125,7 +125,7 @@ export const FlagsPage = createPage({
                 {id: 'autopush', name: 'Autopush'},
               ],
               selected: getNextChannel(),
-              onSelect: id => setChannel(id),
+              onSelect: (id) => setChannel(id),
             }),
             m('button',
               {
@@ -136,7 +136,7 @@ export const FlagsPage = createPage({
               },
               'Reset all below'),
 
-            featureFlags.allFlags().map(flag => m(FlagWidget, {flag})),
+            featureFlags.allFlags().map((flag) => m(FlagWidget, {flag})),
             ));
-  }
+  },
 });

@@ -105,7 +105,7 @@ class AbstractViewTest : public ::testing::Test {
   }
 };
 
-#define PERFETTO_TP_EVENT_VIEW_DEF(NAME, FROM, JOIN, COL)                  \
+#define PERFETTO_TP_EVENT_VIEW_DEF(NAME, FROM, JOIN, COL, _)               \
   NAME(TestEventView, "event_view")                                        \
   FROM(TestEventTable, event)                                              \
   JOIN(TestTrackTable, track, id, event, track_id, View::kIdAlwaysPresent) \
@@ -238,7 +238,7 @@ TEST_F(EventViewTest, FilterTrackUseEvent) {
   ASSERT_FALSE(++it);
 }
 
-#define PERFETTO_TP_THREAD_EVENT_VIEW_DEF(NAME, FROM, JOIN, COL)         \
+#define PERFETTO_TP_THREAD_EVENT_VIEW_DEF(NAME, FROM, JOIN, COL, _)      \
   NAME(TestThreadEventView, "thread_event_view")                         \
   FROM(TestEventTable, event)                                            \
   JOIN(TestThreadTrackTable, track, id, event, track_id, View::kNoFlag)  \
@@ -426,7 +426,7 @@ TEST_F(ThreadEventViewTest, FilterEventAndThread) {
   ASSERT_FALSE(++it);
 }
 
-#define PERFETTO_TP_THREAD_SLICE_VIEW_DEF(NAME, FROM, JOIN, COL)        \
+#define PERFETTO_TP_THREAD_SLICE_VIEW_DEF(NAME, FROM, JOIN, COL, _)     \
   NAME(TestThreadSliceView, "thread_slice_view")                        \
   COL(id, slice, id)                                                    \
   COL(ts, slice, ts)                                                    \

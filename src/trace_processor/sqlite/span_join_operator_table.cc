@@ -69,13 +69,15 @@ std::string OpToString(int op) {
     case SQLITE_INDEX_CONSTRAINT_LT:
       return "<";
     case SQLITE_INDEX_CONSTRAINT_LIKE:
-      return "like";
+      return " like ";
+    case SQLITE_INDEX_CONSTRAINT_GLOB:
+      return " glob ";
     case SQLITE_INDEX_CONSTRAINT_ISNULL:
       // The "null" will be added below in EscapedSqliteValueAsString.
       return " is ";
     case SQLITE_INDEX_CONSTRAINT_ISNOTNULL:
       // The "null" will be added below in EscapedSqliteValueAsString.
-      return " is not";
+      return " is not ";
     default:
       PERFETTO_FATAL("Operator to string conversion not impemented for %d", op);
   }

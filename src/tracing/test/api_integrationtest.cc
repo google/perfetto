@@ -3226,6 +3226,85 @@ TEST_P(PerfettoApiTest, TrackEventComputedName) {
                                   "B:test.Even", "B:test.Odd", "B:test.Even"));
 }
 
+TEST_P(PerfettoApiTest, TrackEventEventNameDynamicString) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+  TRACE_EVENT_BEGIN("foo", perfetto::DynamicString{std::string("Event1")});
+  TRACE_EVENT_BEGIN("foo", perfetto::DynamicString{std::string("Event2")});
+
+  TRACE_EVENT0("foo", TRACE_STR_COPY(std::string("Event3")));
+  const char* event4 = "Event4";
+  TRACE_EVENT0("foo", event4);
+
+  // Ensure that event-name is not emitted in case of `_END` events.
+  PERFETTO_INTERNAL_TRACK_EVENT(
+      "foo", perfetto::DynamicString{std::string("Event5")},
+      ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_END);
+  PERFETTO_INTERNAL_TRACK_EVENT(
+      "foo", "Event6", ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_END);
+
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
+  ASSERT_EQ(6u, slices.size());
+  EXPECT_EQ("B:foo.Event1", slices[0]);
+  EXPECT_EQ("B:foo.Event2", slices[1]);
+  EXPECT_EQ("B:foo.Event3", slices[2]);
+  EXPECT_EQ("B:foo.Event4", slices[3]);
+  EXPECT_EQ("E", slices[4]);
+  EXPECT_EQ("E", slices[5]);
+}
+
+TEST_P(PerfettoApiTest, TrackEventDynamicStringInDebugArgs) {
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT1("foo", "Event1", "arg1",
+               TRACE_STR_COPY(std::string("arg1_value1")));
+  const char* value2 = "arg1_value2";
+  TRACE_EVENT1("foo", "Event2", "arg1", value2);
+  const char* value4 = "arg1_value4";
+  TRACE_EVENT1("foo", "Event3", "arg1",
+               perfetto::DynamicString(std::string("arg1_value3")));
+  TRACE_EVENT1("foo", "Event4", "arg1", perfetto::StaticString(value4));
+
+  TRACE_EVENT_BEGIN("foo", "Event5", "arg1",
+                    TRACE_STR_COPY(std::string("arg1_value5")));
+  TRACE_EVENT_BEGIN("foo", "Event6", "arg1",
+                    perfetto::DynamicString(std::string("arg1_value6")));
+  const char* value7 = "arg1_value7";
+  TRACE_EVENT_BEGIN("foo", "Event7", "arg1", perfetto::StaticString(value7));
+
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
+  ASSERT_EQ(7u, slices.size());
+  EXPECT_EQ("B:foo.Event1(arg1=(string)arg1_value1)", slices[0]);
+  EXPECT_EQ("B:foo.Event2(arg1=(string)arg1_value2)", slices[1]);
+  EXPECT_EQ("B:foo.Event3(arg1=(string)arg1_value3)", slices[2]);
+  EXPECT_EQ("B:foo.Event4(arg1=(string)arg1_value4)", slices[3]);
+  EXPECT_EQ("B:foo.Event5(arg1=(string)arg1_value5)", slices[4]);
+  EXPECT_EQ("B:foo.Event6(arg1=(string)arg1_value6)", slices[5]);
+  EXPECT_EQ("B:foo.Event7(arg1=(string)arg1_value7)", slices[6]);
+}
+
+TEST_P(PerfettoApiTest, FilterDynamicEventName) {
+  for (auto filter_dynamic_names : {false, true}) {
+    // Create a new trace session.
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.set_filter_dynamic_event_names(filter_dynamic_names);
+    auto* tracing_session = NewTraceWithCategories({"test"}, te_cfg);
+    tracing_session->get()->StartBlocking();
+
+    TRACE_EVENT_BEGIN("test", "Event1");
+    TRACE_EVENT_BEGIN("test", perfetto::DynamicString("Event2"));
+    const char* event3 = "Event3";
+    TRACE_EVENT_BEGIN("test", perfetto::StaticString(event3));
+    auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
+    ASSERT_EQ(3u, slices.size());
+    EXPECT_EQ("B:test.Event1", slices[0]);
+    EXPECT_EQ(filter_dynamic_names ? "B:test" : "B:test.Event2", slices[1]);
+    EXPECT_EQ("B:test.Event3", slices[2]);
+  }
+}
+
 TEST_P(PerfettoApiTest, TrackEventArgumentsNotEvaluatedWhenDisabled) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"foo"});

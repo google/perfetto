@@ -202,6 +202,14 @@ base::Optional<TrackId> TrackEventTracker::GetDescriptorTrackImpl(
   PERFETTO_CHECK(reserved_it != reserved_descriptor_tracks_.end());
 
   const auto& reservation = reserved_it->second;
+
+  // We resolve parent_id here to ensure that it's going to be smaller
+  // than the id of the child.
+  base::Optional<TrackId> parent_id;
+  if (reservation.parent_uuid != 0) {
+    parent_id = GetDescriptorTrackImpl(reservation.parent_uuid);
+  }
+
   TrackId track_id = CreateTrackFromResolved(*resolved_track);
   descriptor_tracks_[uuid] = track_id;
 
@@ -213,14 +221,18 @@ base::Optional<TrackId> TrackEventTracker::GetDescriptorTrackImpl(
   if (!reservation.category.is_null())
     args.AddArg(category_key_, Variadic::String(reservation.category));
 
+  auto* tracks = context_->storage->mutable_track_table();
+  auto row_ref = *tracks->FindById(track_id);
+  if (parent_id) {
+    row_ref.set_parent_id(*parent_id);
+  }
+
   if (reservation.name.is_null())
     return track_id;
 
   // Initialize the track name here, so that, if a name was given in the
   // reservation, it is set immediately after resolution takes place.
-  auto* tracks = context_->storage->mutable_track_table();
-  tracks->mutable_name()->Set(*tracks->id().IndexOf(track_id),
-                              reservation.name);
+  row_ref.set_name(reservation.name);
   return track_id;
 }
 
@@ -312,13 +324,16 @@ TrackEventTracker::ResolveDescriptorTrack(
       reservation.pid = *opt_resolved_pid;
   }
 
-  auto resolved_track =
+  base::Optional<ResolvedDescriptorTrack> resolved_track =
       ResolveDescriptorTrackImpl(uuid, reservation, descendent_uuids);
-  resolved_descriptor_tracks_[uuid] = resolved_track;
+  if (!resolved_track) {
+    return base::nullopt;
+  }
+  resolved_descriptor_tracks_[uuid] = *resolved_track;
   return resolved_track;
 }
 
-TrackEventTracker::ResolvedDescriptorTrack
+base::Optional<TrackEventTracker::ResolvedDescriptorTrack>
 TrackEventTracker::ResolveDescriptorTrackImpl(
     uint64_t uuid,
     const DescriptorTrackReservation& reservation,
@@ -343,19 +358,23 @@ TrackEventTracker::ResolveDescriptorTrackImpl(
           "Too many ancestors in parent_track_uuid hierarchy at track %" PRIu64
           " with parent %" PRIu64,
           uuid, reservation.parent_uuid);
-    } else if (std::find(descendent_uuids->begin(), descendent_uuids->end(),
-                         reservation.parent_uuid) != descendent_uuids->end()) {
+      return base::nullopt;
+    }
+
+    if (std::find(descendent_uuids->begin(), descendent_uuids->end(),
+                  reservation.parent_uuid) != descendent_uuids->end()) {
       PERFETTO_ELOG(
           "Loop detected in parent_track_uuid hierarchy at track %" PRIu64
           " with parent %" PRIu64,
           uuid, reservation.parent_uuid);
-    } else {
-      parent_resolved_track =
-          ResolveDescriptorTrack(reservation.parent_uuid, descendent_uuids);
-      if (!parent_resolved_track) {
-        PERFETTO_ELOG("Unknown parent track %" PRIu64 " for track %" PRIu64,
-                      reservation.parent_uuid, uuid);
-      }
+      return base::nullopt;
+    }
+
+    parent_resolved_track =
+        ResolveDescriptorTrack(reservation.parent_uuid, descendent_uuids);
+    if (!parent_resolved_track) {
+      PERFETTO_ELOG("Unknown parent track %" PRIu64 " for track %" PRIu64,
+                    reservation.parent_uuid, uuid);
     }
 
     descendent_uuids->pop_back();
@@ -456,10 +475,11 @@ TrackEventTracker::ResolveDescriptorTrackImpl(
           "Loop detected in parent_track_uuid hierarchy at track %" PRIu64
           " with parent %" PRIu64,
           uuid, kDefaultDescriptorTrackUuid);
-    } else {
-      // This track will be implicitly a child of the default global track.
-      is_root_in_scope = false;
+      return base::nullopt;
     }
+
+    // This track will be implicitly a child of the default global track.
+    is_root_in_scope = false;
   }
   return ResolvedDescriptorTrack::Global(reservation.is_counter,
                                          is_root_in_scope);
@@ -545,8 +565,8 @@ void TrackEventTracker::NotifyEndOfFile() {
   for (const auto& translatable_arg : translatable_args_) {
     auto bound_inserter =
         context_->args_tracker->AddArgsTo(translatable_arg.slice_id);
-    bound_inserter.TranslateAndAddArgs(*context_->args_translation_table,
-                                       translatable_arg.compact_arg_set);
+    context_->args_translation_table->TranslateArgs(
+        translatable_arg.compact_arg_set, bound_inserter);
   }
   translatable_args_.clear();
 }

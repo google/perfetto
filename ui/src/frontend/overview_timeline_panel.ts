@@ -18,7 +18,11 @@ import {assertExists} from '../base/logging';
 import {hueForCpu} from '../common/colorizer';
 import {TimeSpan, timeToString} from '../common/time';
 
-import {SIDEBAR_WIDTH, TRACK_SHELL_WIDTH} from './css_constants';
+import {
+  OVERVIEW_TIMELINE_NON_VISIBLE_COLOR,
+  SIDEBAR_WIDTH,
+  TRACK_SHELL_WIDTH,
+} from './css_constants';
 import {BorderDragStrategy} from './drag/border_drag_strategy';
 import {DragStrategy} from './drag/drag_strategy';
 import {InnerDragStrategy} from './drag/inner_drag_strategy';
@@ -121,7 +125,7 @@ export class OverviewTimelinePanel extends Panel {
     const [vizStartPx, vizEndPx] =
         OverviewTimelinePanel.extractBounds(this.timeScale);
 
-    ctx.fillStyle = 'rgba(200, 200, 200, 0.8)';
+    ctx.fillStyle = OVERVIEW_TIMELINE_NON_VISIBLE_COLOR;
     ctx.fillRect(
         TRACK_SHELL_WIDTH - 1,
         headerHeight,
@@ -201,7 +205,7 @@ export class OverviewTimelinePanel extends Panel {
     const vizTime = globals.frontendLocalState.getVisibleStateBounds();
     return [
       Math.floor(timeScale.timeToPx(vizTime[0])),
-      Math.ceil(timeScale.timeToPx(vizTime[1]))
+      Math.ceil(timeScale.timeToPx(vizTime[1])),
     ];
   }
 

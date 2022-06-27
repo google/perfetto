@@ -63,7 +63,7 @@ class MetricPicker implements m.ClassComponent {
           },
         },
         availableMetrics.map(
-            metric => m('option', {value: metric, key: metric}, metric))),
+            (metric) => m('option', {value: metric, key: metric}, metric))),
       m('button.metric-run-button',
         {onclick: () => globals.dispatch(Actions.requestSelectedMetric({}))},
         'Run'),
@@ -78,5 +78,5 @@ export const MetricsPage = createPage({
         m(MetricPicker),
         m(MetricResult),
     );
-  }
+  },
 });

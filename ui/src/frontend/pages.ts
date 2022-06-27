@@ -19,6 +19,7 @@ import {Actions} from '../common/actions';
 import {onClickCopy} from './clipboard';
 import {CookieConsent} from './cookie_consent';
 import {globals} from './globals';
+import {fullscreenModalContainer} from './modal';
 import {Sidebar} from './sidebar';
 import {Topbar} from './topbar';
 
@@ -44,9 +45,7 @@ class Alerts implements m.ClassComponent {
   }
 }
 
-/**
- * Wrap component with common UI elements (nav bar etc).
- */
+// Wrap component with common UI elements (nav bar etc).
 export function createPage(component: m.Component<PageAttrs>):
     m.Component<PageAttrs> {
   const pageComponent = {
@@ -57,6 +56,7 @@ export function createPage(component: m.Component<PageAttrs>):
         m(Alerts),
         m(component, attrs),
         m(CookieConsent),
+        fullscreenModalContainer.render(),
       ];
       if (globals.state.perfDebug) {
         children.push(m('.perf-stats'));

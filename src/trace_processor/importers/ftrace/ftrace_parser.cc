@@ -757,6 +757,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         iostat_tracker_.ParseF2fsIostatLatency(ts, data);
         break;
       }
+      case FtraceEvent::kSchedCpuUtilCfsFieldNumber: {
+        ParseSchedCpuUtilCfs(ts, data);
+        break;
+      }
       default:
         break;
     }
@@ -811,7 +815,7 @@ void FtraceParser::ParseTypedFtraceToRaw(
     return;
   }
 
-  MessageDescriptor* m = GetMessageDescriptorForId(ftrace_id);
+  FtraceMessageDescriptor* m = GetMessageDescriptorForId(ftrace_id);
   const auto& message_strings = ftrace_message_strings_[ftrace_id];
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
   RawId id =
@@ -2053,6 +2057,38 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
         async_track, static_cast<int64_t>(evt.val()));
     context_->slice_tracker->End(timestamp, end_id);
   }
+}
+
+void FtraceParser::ParseSchedCpuUtilCfs(int64_t timestamp,
+                                        protozero::ConstBytes blob) {
+  protos::pbzero::SchedCpuUtilCfsFtraceEvent::Decoder evt(blob.data, blob.size);
+  base::StackString<255> util_track_name("Cpu %" PRIu32 " Util", evt.cpu());
+  StringId util_track_name_id =
+      context_->storage->InternString(util_track_name.string_view());
+
+  TrackId util_track =
+      context_->track_tracker->InternGlobalCounterTrack(util_track_name_id);
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(evt.cpu_util()), util_track);
+
+  base::StackString<255> cap_track_name("Cpu %" PRIu32 " Cap", evt.cpu());
+  StringId cap_track_name_id =
+      context_->storage->InternString(cap_track_name.string_view());
+
+  TrackId cap_track =
+      context_->track_tracker->InternGlobalCounterTrack(cap_track_name_id);
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(evt.capacity()), cap_track);
+
+  base::StackString<255> nrr_track_name("Cpu %" PRIu32 " Nr Running",
+                                        evt.cpu());
+  StringId nrr_track_name_id =
+      context_->storage->InternString(nrr_track_name.string_view());
+
+  TrackId nrr_track =
+      context_->track_tracker->InternGlobalCounterTrack(nrr_track_name_id);
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(evt.nr_running()), nrr_track);
 }
 
 }  // namespace trace_processor

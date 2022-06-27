@@ -74,7 +74,7 @@ export class SliceDetailsPanel extends SlicePanel {
           m('td', translateState(sliceInfo.endState))),
         m('tr',
           m('th', `Slice ID`),
-          m('td', sliceInfo.id ? sliceInfo.id.toString() : 'Unknown'))
+          m('td', sliceInfo.id ? sliceInfo.id.toString() : 'Unknown')),
       ];
 
       for (const [key, value] of this.getProcessThreadDetails(sliceInfo)) {

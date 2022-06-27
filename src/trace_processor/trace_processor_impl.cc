@@ -35,6 +35,7 @@
 #include "src/trace_processor/dynamic/experimental_flat_slice_generator.h"
 #include "src/trace_processor/dynamic/experimental_sched_upid_generator.h"
 #include "src/trace_processor/dynamic/experimental_slice_layout_generator.h"
+#include "src/trace_processor/dynamic/view_generator.h"
 #include "src/trace_processor/export_json.h"
 #include "src/trace_processor/importers/additional_modules.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -839,16 +840,28 @@ base::Status PrepareAndStepUntilLastValidStmt(
     // Before stepping into |cur_stmt|, we need to finish iterating through
     // the previous statement so we don't have two clashing statements (e.g.
     // SELECT * FROM v and DROP VIEW v) partially stepped into.
-    if (prev_stmt)
+    if (prev_stmt) {
+      PERFETTO_TP_TRACE(
+          "STMT_STEP_UNTIL_DONE", [&prev_stmt](metatrace::Record* record) {
+            record->AddArg("SQL", sqlite3_expanded_sql(*prev_stmt));
+          });
       RETURN_IF_ERROR(sqlite_utils::StepStmtUntilDone(prev_stmt.get()));
+    }
 
     PERFETTO_DLOG("Executing statement: %s", sqlite3_sql(*cur_stmt));
 
-    // Now step once into |cur_stmt| so that when we prepare the next statment
-    // we will have executed any dependent bytecode in this one.
-    int err = sqlite3_step(*cur_stmt);
-    if (err != SQLITE_ROW && err != SQLITE_DONE)
-      return base::ErrStatus("%s (errcode: %d)", sqlite3_errmsg(db), err);
+    {
+      PERFETTO_TP_TRACE(
+          "STMT_FIRST_STEP", [&cur_stmt](metatrace::Record* record) {
+            record->AddArg("SQL", sqlite3_expanded_sql(*cur_stmt));
+          });
+
+      // Now step once into |cur_stmt| so that when we prepare the next statment
+      // we will have executed any dependent bytecode in this one.
+      int err = sqlite3_step(*cur_stmt);
+      if (err != SQLITE_ROW && err != SQLITE_DONE)
+        return base::ErrStatus("%s (errcode: %d)", sqlite3_errmsg(db), err);
+    }
 
     // Increment the neecessary counts for the statement.
     IncrementCountForStmt(cur_stmt.get(), metadata);
@@ -870,6 +883,12 @@ base::Status PrepareAndStepUntilLastValidStmt(
 }
 
 }  // namespace
+
+template <typename View>
+void TraceProcessorImpl::RegisterView(const View& view) {
+  RegisterDynamicTable(
+      std::unique_ptr<ViewGenerator>(new ViewGenerator(&view, View::Name())));
+}
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg) {
@@ -979,7 +998,13 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDynamicTable(std::unique_ptr<ExperimentalFlatSliceGenerator>(
       new ExperimentalFlatSliceGenerator(&context_)));
 
+  // Views.
+  RegisterView(storage->thread_slice_view());
+
   // New style db-backed tables.
+  // Note: if adding a table here which might potentially contain many rows
+  // (O(rows in sched/slice/counter)), then consider calling ShrinkToFit on
+  // that table in TraceStorage::ShrinkToFitTables.
   RegisterDbTable(storage->arg_table());
   RegisterDbTable(storage->thread_table());
   RegisterDbTable(storage->process_table());
@@ -1020,6 +1045,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->stack_profile_mapping_table());
   RegisterDbTable(storage->stack_profile_frame_table());
   RegisterDbTable(storage->package_list_table());
+  RegisterDbTable(storage->android_game_intervention_list_table());
   RegisterDbTable(storage->profiler_smaps_table());
 
   RegisterDbTable(storage->android_log_table());
@@ -1081,6 +1107,8 @@ void TraceProcessorImpl::NotifyEndOfFile() {
     PERFETTO_CHECK(value.type == SqlValue::Type::kString);
     initial_tables_.push_back(value.string_value);
   }
+
+  context_.storage->ShrinkToFitTables();
 }
 
 size_t TraceProcessorImpl::RestoreInitialTables() {

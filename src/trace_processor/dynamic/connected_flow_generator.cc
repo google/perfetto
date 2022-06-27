@@ -251,7 +251,7 @@ base::Status ConnectedFlowGenerator::ComputeTable(
       std::move(bfs).TakeResultingFlows();
 
   // Aditional column for start_id
-  NullableVector<uint32_t> start_ids;
+  ColumnStorage<uint32_t> start_ids;
   for (size_t i = 0; i < result_rows.size(); i++) {
     start_ids.Append(start_id.value);
   }

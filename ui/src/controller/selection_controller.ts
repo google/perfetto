@@ -28,7 +28,7 @@ import {SliceDetails, ThreadStateDetails} from '../frontend/globals';
 import {
   publishCounterDetails,
   publishSliceDetails,
-  publishThreadStateDetails
+  publishThreadStateDetails,
 } from '../frontend/publish';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
 
@@ -83,7 +83,7 @@ export class SelectionController extends Controller<'main'> {
 
     if (selection.kind === 'COUNTER') {
       this.counterDetails(selection.leftTs, selection.rightTs, selection.id)
-          .then(results => {
+          .then((results) => {
             if (results !== undefined && selection &&
                 selection.kind === selectedKind &&
                 selection.id === selectedId) {
@@ -159,6 +159,23 @@ export class SelectionController extends Controller<'main'> {
     let threadTs = undefined;
     let trackId = undefined;
 
+    // We select all columns from the leafTable to ensure that we include
+    // additional fields from the child tables (like `thread_dur` from
+    // `thread_slice` or `frame_number` from `frame_slice`).
+    // However, this also includes some basic columns (especially from `slice`)
+    // that are not interesting (i.e. `arg_set_id`, which has already been used
+    // to resolve and show the arguments) and should not be shown to the user.
+    const ignoredColumns = [
+      'type',
+      'depth',
+      'parent_id',
+      'stack_id',
+      'parent_stack_id',
+      'arg_set_id',
+      'thread_instruction_count',
+      'thread_instruction_delta',
+    ];
+
     for (const k of details.columns()) {
       const v = rowIter.get(k);
       switch (k) {
@@ -190,7 +207,7 @@ export class SelectionController extends Controller<'main'> {
           trackId = Number(v);
           break;
         default:
-          args.set(k, `${v}`);
+          if (!ignoredColumns.includes(k)) args.set(k, `${v}`);
       }
     }
 
@@ -206,7 +223,7 @@ export class SelectionController extends Controller<'main'> {
       category,
       args,
       argsTree,
-      description
+      description,
     };
 
     if (trackId !== undefined) {
@@ -232,7 +249,7 @@ export class SelectionController extends Controller<'main'> {
             FROM ${columnInfo.leafTrackTable}
             WHERE id = ${trackId};
         `)).firstRow({
-             utid: NUM
+             utid: NUM,
            }).utid;
         Object.assign(selected, await this.computeThreadDetails(utid));
       } else if (hasUpid) {
@@ -241,7 +258,7 @@ export class SelectionController extends Controller<'main'> {
             FROM ${columnInfo.leafTrackTable}
             WHERE id = ${trackId};
         `)).firstRow({
-             upid: NUM
+             upid: NUM,
            }).upid;
         Object.assign(selected, await this.computeProcessDetails(upid));
       }
@@ -405,12 +422,12 @@ export class SelectionController extends Controller<'main'> {
         cpu,
         id,
         utid,
-        threadStateId
+        threadStateId,
       };
       Object.assign(selected, await this.computeThreadDetails(utid));
 
       this.schedulingDetails(ts, utid)
-          .then(wakeResult => {
+          .then((wakeResult) => {
             Object.assign(selected, wakeResult);
           })
           .finally(() => {
@@ -508,7 +525,7 @@ export class SelectionController extends Controller<'main'> {
       `)).firstRow({tid: NUM, name: STR_NULL, upid: NUM_NULL});
     const threadDetails = {
       tid: threadInfo.tid,
-      threadName: threadInfo.name || undefined
+      threadName: threadInfo.name || undefined,
     };
     if (threadInfo.upid) {
       return Object.assign(

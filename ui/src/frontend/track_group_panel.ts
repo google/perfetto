@@ -20,7 +20,7 @@ import {Actions} from '../common/actions';
 import {
   getContainingTrackId,
   TrackGroupState,
-  TrackState
+  TrackState,
 } from '../common/state';
 
 import {globals} from './globals';
@@ -30,7 +30,7 @@ import {
   CHECKBOX,
   EXPAND_DOWN,
   EXPAND_UP,
-  INDETERMINATE_CHECKBOX
+  INDETERMINATE_CHECKBOX,
 } from './icons';
 import {Panel, PanelSize} from './panel';
 import {Track} from './track';
@@ -97,11 +97,11 @@ export class TrackGroupPanel extends Panel<Attrs> {
     if (selection !== null && selection.kind === 'AREA') {
       const selectedArea = globals.state.areas[selection.areaId];
       if (selectedArea.tracks.includes(attrs.trackGroupId) &&
-          trackGroup.tracks.every(id => selectedArea.tracks.includes(id))) {
+          trackGroup.tracks.every((id) => selectedArea.tracks.includes(id))) {
         checkBox = CHECKBOX;
       } else if (
           selectedArea.tracks.includes(attrs.trackGroupId) ||
-          trackGroup.tracks.some(id => selectedArea.tracks.includes(id))) {
+          trackGroup.tracks.some((id) => selectedArea.tracks.includes(id))) {
         checkBox = INDETERMINATE_CHECKBOX;
       }
     }
@@ -109,7 +109,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
     let child = null;
     if (this.summaryTrackState.labels &&
         this.summaryTrackState.labels.length > 0) {
-      child = m('span', this.summaryTrackState.labels.join(', '));
+      child = this.summaryTrackState.labels.join(', ');
     }
 
     return m(
@@ -129,11 +129,15 @@ export class TrackGroupPanel extends Panel<Attrs> {
           m('.fold-button',
             m('i.material-icons',
               this.trackGroupState.collapsed ? EXPAND_DOWN : EXPAND_UP)),
-          m('h1.track-title',
-            {title: name},
-            name,
-            ('namespace' in this.summaryTrackState.config) &&
-                m('span.chip', 'metric')),
+          m('div',
+            m('h1.track-title',
+              {title: name},
+              name,
+              ('namespace' in this.summaryTrackState.config) &&
+                  m('span.chip', 'metric')),
+            (this.trackGroupState.collapsed && child !== null) ?
+                m('h2.track-subtitle', child) :
+                null),
           selection && selection.kind === 'AREA' ?
               m('i.material-icons.track-button',
                 {
@@ -141,15 +145,18 @@ export class TrackGroupPanel extends Panel<Attrs> {
                     globals.dispatch(Actions.toggleTrackSelection(
                         {id: attrs.trackGroupId, isTrackGroup: true}));
                     e.stopPropagation();
-                  }
+                  },
                 },
                 checkBox) :
               ''),
 
-        this.summaryTrack ? m(TrackContent,
-                              {track: this.summaryTrack},
-                              this.trackGroupState.collapsed ? '' : child) :
-                            null);
+        this.summaryTrack ?
+            m(TrackContent,
+              {track: this.summaryTrack},
+              (!this.trackGroupState.collapsed && child !== null) ?
+                  m('span', child) :
+                  null) :
+            null);
   }
 
   oncreate(vnode: m.CVnodeDOM<Attrs>) {

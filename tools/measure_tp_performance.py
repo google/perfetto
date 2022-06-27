@@ -35,7 +35,7 @@ def run_tp_until_ingestion(args, env):
   tp = subprocess.Popen(
       tp_args,
       stdin=subprocess.PIPE,
-      stdout=subprocess.DEVNULL,
+      stdout=None if args.verbose else subprocess.DEVNULL,
       stderr=subprocess.PIPE,
       universal_newlines=True,
       env=env)
@@ -43,6 +43,8 @@ def run_tp_until_ingestion(args, env):
   lines = []
   while True:
     line = tp.stderr.readline()
+    if args.verbose:
+      sys.stderr.write(line)
     lines.append(line)
 
     match = REGEX.match(line)
@@ -81,8 +83,8 @@ def heap_profile_run(args, dump_at_max: bool):
   profile = subprocess.Popen(
       perfetto_args,
       stdin=subprocess.PIPE,
-      stdout=subprocess.DEVNULL,
-      stderr=subprocess.DEVNULL)
+      stdout=None if args.verbose else subprocess.DEVNULL,
+      stderr=None if args.verbose else subprocess.DEVNULL)
   profile.stdin.write(config)
   profile.stdin.close()
 
@@ -146,12 +148,31 @@ def main():
       action='store_true',
       help='Whether to ingest ftrace into raw table',
       default=False)
+  parser.add_argument(
+      '--kill-existing',
+      action='store_true',
+      help='Kill traced, perfetto_cmd and trace processor shell if running')
+  parser.add_argument(
+      '--verbose',
+      action='store_true',
+      help='Logs all stderr and stdout from subprocesses')
   parser.add_argument('trace_file', type=str, help='Path to trace')
   args = parser.parse_args()
 
+  if args.kill_existing:
+    subprocess.run(['killall', 'traced'],
+                   stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL)
+    subprocess.run(['killall', 'perfetto'],
+                   stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL)
+    subprocess.run(['killall', 'trace_processor_shell'],
+                   stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL)
+
   traced = subprocess.Popen([os.path.join(args.out, 'traced')],
-                            stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL)
+                            stdout=None if args.verbose else subprocess.DEVNULL,
+                            stderr=None if args.verbose else subprocess.DEVNULL)
   print('Heap profile dump at max')
   heap_profile_run(args, dump_at_max=True)
   print('Heap profile dump at resting')

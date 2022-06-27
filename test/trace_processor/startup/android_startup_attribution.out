@@ -30,8 +30,6 @@ android_startup {
         dur_ns: 40
         dur_ms: 4e-05
       }
-      mcycles_by_core_type {
-      }
       jit_compiled_methods: 2
       time_jit_thread_pool_on_cpu {
         dur_ns: 20
@@ -57,7 +55,7 @@ android_startup {
     long_binder_transactions {
       duration {
         dur_ns: 100000000
-        dur_ms: 100
+        dur_ms: 100.0
       }
       thread: "Binder"
       destination_process: "system_server"
@@ -67,13 +65,19 @@ android_startup {
     long_binder_transactions {
       duration {
         dur_ns: 200000000
-        dur_ms: 200
+        dur_ms: 200.0
       }
       thread: "fonts"
       destination_thread: "Binder"
       destination_process: "com.some.app"
       flags: "0x00 No Flags Set"
       code: "0x00 Java Layer Dependent"
+    }
+    system_state {
+      dex2oat_running: false
+      installd_running: false
+      broadcast_dispatched_count: 0
+      broadcast_received_count: 0
     }
   }
 }

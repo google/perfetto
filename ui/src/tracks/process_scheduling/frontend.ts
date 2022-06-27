@@ -69,7 +69,7 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
     assertTrue(data.starts.length === data.utids.length);
 
     const rawStartIdx =
-        data.ends.findIndex(end => end >= visibleWindowTime.start);
+        data.ends.findIndex((end) => end >= visibleWindowTime.start);
     const startIdx = rawStartIdx === -1 ? data.starts.length : rawStartIdx;
 
     const [, rawEndIdx] = searchSegment(data.starts, visibleWindowTime.end);

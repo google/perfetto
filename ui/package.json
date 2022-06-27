@@ -7,7 +7,6 @@
   "author": "Perfetto Team",
   "license": "Apache-2.0",
   "dependencies": {
-    "@tsundoku/micromodal_types": "^0.0.1",
     "@types/chrome": "0.0.186",
     "@types/color-convert": "^1.9.0",
     "@types/filesystem": "^0.0.32",
@@ -24,7 +23,6 @@
     "hsluv": "^0.1.0",
     "immer": "^9.0.2",
     "jsbn-rsa": "^1.0.4",
-    "micromodal": "^0.4.6",
     "mithril": "^2.2.0",
     "noice-json-rpc": "^1.2.0",
     "pako": "^1.0.11",
@@ -53,7 +51,6 @@
     "rollup-plugin-re": "^1.0.7",
     "rollup-plugin-sourcemaps": "^0.6.3",
     "tslib": "^2.2.0",
-    "tslint": "^5.20.1",
     "typescript": "^4.6.4"
   },
   "scripts": {
