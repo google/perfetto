@@ -35,6 +35,11 @@ import {
   TracingSessionListener,
 } from '../common/recordingV2/recording_interfaces_v2';
 import {
+  ANDROID_WEBSOCKET_TARGET_FACTORY,
+  AndroidWebsocketTargetFactory,
+} from
+    '../common/recordingV2/target_factories/android_websocket_target_factory';
+import {
   ANDROID_WEBUSB_TARGET_FACTORY,
 } from '../common/recordingV2/target_factories/android_webusb_target_factory';
 import {
@@ -118,6 +123,7 @@ class TracingSessionWrapper {
   }
 }
 
+const adbWebsocketUrl = 'ws://127.0.0.1:8037/adb';
 const recordConfigUtils = new RecordingConfigUtils();
 let recordingTargetV2: RecordingTargetV2|undefined = undefined;
 let tracingSessionWrapper: TracingSessionWrapper|undefined = undefined;
@@ -199,7 +205,7 @@ function RecordingPlatformSelection() {
           {
             selectedIndex,
             onchange: (e: Event) => {
-              onTargetChange((e.target as HTMLSelectElement).value);
+              onTargetSelection((e.target as HTMLSelectElement).value);
             },
             onupdate: (select) => {
               // Work around mithril bug
@@ -244,7 +250,7 @@ async function addAndroidDevice(): Promise<void> {
   }
 }
 
-function onTargetChange(targetName: string): void {
+function onTargetSelection(targetName: string): void {
   const allTargets = targetFactoryRegistry.listTargets();
   assignRecordingTarget(
       allTargets.find((t) => t.getInfo().name === targetName) || allTargets[0]);
@@ -594,7 +600,7 @@ function recordMenu(routePage: string) {
       m('ul', probes));
 }
 
-const onDevicesChanged: OnTargetChangeCallback = () => {
+const onTargetChange: OnTargetChangeCallback = () => {
   const allTargets = targetFactoryRegistry.listTargets();
   if (recordingTargetV2 && allTargets.includes(recordingTargetV2)) {
     globals.rafScheduler.scheduleFullRedraw();
@@ -676,14 +682,24 @@ function getRecordContainer(subpage?: string): m.Vnode<any, any> {
 }
 
 export const RecordPageV2 = createPage({
+
+  oninit(): void {
+    for (const targetFactory of targetFactoryRegistry.listTargetFactories()) {
+      if (targetFactory && !targetFactory.onTargetChange) {
+        targetFactory.onTargetChange = onTargetChange;
+      }
+    }
+
+    if (targetFactoryRegistry.has(ANDROID_WEBSOCKET_TARGET_FACTORY)) {
+      const websocketTargetFactory =
+          targetFactoryRegistry.get(ANDROID_WEBSOCKET_TARGET_FACTORY) as
+          AndroidWebsocketTargetFactory;
+      websocketTargetFactory.tryEstablishWebsocket(adbWebsocketUrl);
+    }
+  },
+
   view({attrs}: m.Vnode<PageAttrs>): void |
       m.Children {
-        const androidWebusbTargetFactory =
-            targetFactoryRegistry.get(ANDROID_WEBUSB_TARGET_FACTORY);
-        if (!androidWebusbTargetFactory.onTargetChange) {
-          androidWebusbTargetFactory.onTargetChange = onDevicesChanged;
-        }
-
         if (!recordingTargetV2) {
           assignRecordingTarget(targetFactoryRegistry.listTargets()[0]);
         }
