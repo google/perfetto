@@ -12,5 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import './android_webusb_target_factory';
-import './android_websocket_target_factory';
+// The messages read by the adb server have their length prepended in hex.
+// This method adds the length at the beginning of the message.
+// Example: 'host:track-devices' -> '0012host:track-devices'
+// go/codesearch/aosp-android11/system/core/adb/SERVICES.TXT
+export function buildAbdWebsocketCommand(cmd: string) {
+  const hdr = cmd.length.toString(16).padStart(4, '0');
+  return hdr + cmd;
+}
