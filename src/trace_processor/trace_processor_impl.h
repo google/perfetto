@@ -123,11 +123,6 @@ class TraceProcessorImpl : public TraceProcessor,
   // need to finalize any prepared statements *before* we destroy the database.
   CreateFunction::State create_function_state_;
 
-  // State necessary for CREATE_VIEW_FUNCTION invocations. We store this here as
-  // we need to finalize any prepared statements *before* we destroy the
-  // database.
-  CreateViewFunction::State create_view_function_state_;
-
   std::unique_ptr<QueryCache> query_cache_;
 
   DescriptorPool pool_;
