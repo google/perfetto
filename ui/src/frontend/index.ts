@@ -156,6 +156,7 @@ function setupContentSecurityPolicy() {
       `'self'`,
       'http://127.0.0.1:9001',  // For trace_processor_shell --httpd.
       'ws://127.0.0.1:9001',    // Ditto, for the websocket RPC.
+      'ws://127.0.0.1:8037',    // For the adb websocket server.
       'https://www.google-analytics.com',
       'https://*.googleapis.com',  // For Google Cloud Storage fetches.
       'blob:',

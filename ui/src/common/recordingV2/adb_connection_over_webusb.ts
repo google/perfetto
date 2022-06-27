@@ -22,6 +22,7 @@ import {ArrayBufferBuilder} from '../array_buffer_builder';
 import {findInterfaceAndEndpoint} from './adb_over_webusb_utils';
 import {AdbKeyManager, maybeStoreKey} from './auth/adb_key_manager';
 import {
+  ALLOW_USB_DEBUGGING,
   RecordingError,
   wrapRecordingError,
 } from './recording_error_handling';
@@ -40,8 +41,6 @@ const textDecoder = new _TextDecoder();
 export const VERSION_WITH_CHECKSUM = 0x01000000;
 export const VERSION_NO_CHECKSUM = 0x01000001;
 export const DEFAULT_MAX_PAYLOAD_BYTES = 256 * 1024;
-
-export const ALLOW_USB_DEBUGGING = 'Please allow USB debugging on device.';
 
 export enum AdbState {
   DISCONNECTED = 0,
@@ -211,8 +210,8 @@ export class AdbConnectionOverWebusb implements AdbConnection {
   // browser holding onto the USB interface after having finished a trace
   // recording, which would make it impossible to use "adb shell" from the same
   // machine until the browser is closed.
-  // 2. When we get a USB disconnect event.
-  // This happens for instance when the device is unplugged.
+  // 2. When we get a USB disconnect event. This happens for instance when the
+  // device is unplugged.
   async disconnect(disconnectMessage?: string): Promise<void> {
     if (this.state === AdbState.DISCONNECTED) {
       return;
@@ -471,6 +470,7 @@ export class AdbOverWebusbStream implements ByteStream {
 
   close(): void {
     this.adbConnection.streamClose(this);
+    this.onStreamClose();
     this._isOpen = false;
   }
 

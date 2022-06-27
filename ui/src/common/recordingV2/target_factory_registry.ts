@@ -27,6 +27,10 @@ export class TargetFactoryRegistry extends Registry<TargetFactory> {
     return targets;
   }
 
+  listTargetFactories(): TargetFactory[] {
+    return Array.from(this.registry.values());
+  }
+
   listRecordingProblems(): string[] {
     const recordingProblems: string[] = [];
     for (const factory of this.registry.values()) {
