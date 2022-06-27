@@ -333,6 +333,23 @@ export function showNoDeviceSelected(): void {
   });
 }
 
+export function showWebsocketConnectionIssue(message: string): void {
+  showModal({
+    title: 'Unable to connect to the device via websocket',
+    content: m('div', m('span', message), m('br')),
+    buttons: [],
+  });
+}
+
+export function showIssueParsingTheTracedResponse(message: string): void {
+  showModal({
+    title: 'A problem was encountered while connecting to' +
+        ' the Perfetto tracing service',
+    content: m('div', m('span', message), m('br')),
+    buttons: [],
+  });
+}
+
 function showRpcSequencingError() {
   showModal({
     title: 'A TraceProcessor RPC error occurred',
