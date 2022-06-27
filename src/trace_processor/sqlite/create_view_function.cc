@@ -49,21 +49,22 @@ class CreatedViewFunction : public SqliteTable {
     int Column(sqlite3_context* context, int N) override;
 
    private:
+    ScopedStmt scoped_stmt_;
     sqlite3_stmt* stmt_ = nullptr;
     CreatedViewFunction* table_ = nullptr;
     bool is_eof_ = false;
   };
 
-  CreatedViewFunction(sqlite3*, CreateViewFunction::State* state);
+  CreatedViewFunction(sqlite3*, void*);
   ~CreatedViewFunction() override;
 
   base::Status Init(int argc, const char* const* argv, Schema*) override;
   std::unique_ptr<SqliteTable::Cursor> CreateCursor() override;
   int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) override;
 
-  static void Register(sqlite3* db, CreateViewFunction::State* state) {
+  static void Register(sqlite3* db) {
     SqliteTable::Register<CreatedViewFunction>(
-        db, state, "internal_view_function_impl", false, true);
+        db, nullptr, "internal_view_function_impl", false, true);
   }
 
  private:
@@ -76,13 +77,9 @@ class CreatedViewFunction : public SqliteTable {
 
   std::string prototype_str_;
   std::string sql_defn_str_;
-
-  CreateViewFunction::State* state_;
 };
 
-CreatedViewFunction::CreatedViewFunction(sqlite3* db,
-                                         CreateViewFunction::State* state)
-    : db_(db), state_(state) {}
+CreatedViewFunction::CreatedViewFunction(sqlite3* db, void*) : db_(db) {}
 CreatedViewFunction::~CreatedViewFunction() = default;
 
 base::Status CreatedViewFunction::Init(int argc,
@@ -308,11 +305,10 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
   // creating it very time.
   // TODO(lalitm): measure and implement whether it would be a good idea to
   // forward constraints here when we build the nested query.
-  ScopedStmt stmt;
   int ret = sqlite3_prepare_v2(table_->db_, table_->sql_defn_str_.data(),
                                static_cast<int>(table_->sql_defn_str_.size()),
                                &stmt_, nullptr);
-  stmt.reset(stmt_);
+  scoped_stmt_.reset(stmt_);
   PERFETTO_CHECK(ret == SQLITE_OK);
 
   // Bind all the arguments to the appropriate places in the function.
@@ -341,11 +337,6 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
   ret = Next();
   if (ret != SQLITE_OK)
     return ret;
-
-  // Keep track of the scoped statements in the stmts vector so we can clean
-  // all these up before destroying trace processor.
-  table_->state_->erase(table_->prototype_.function_name);
-  table_->state_->emplace(table_->prototype_.function_name, std::move(stmt));
 
   return SQLITE_OK;
 }
@@ -448,9 +439,8 @@ base::Status CreateViewFunction::Run(CreateViewFunction::Context* ctx,
   return base::OkStatus();
 }
 
-void CreateViewFunction::RegisterTable(sqlite3* db,
-                                       CreateViewFunction::State* state) {
-  CreatedViewFunction::Register(db, state);
+void CreateViewFunction::RegisterTable(sqlite3* db) {
+  CreatedViewFunction::Register(db);
 }
 
 }  // namespace trace_processor
