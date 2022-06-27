@@ -44,6 +44,11 @@ export class ChromeSliceTrack extends Track<Config, Data> {
     super(args);
   }
 
+  // Font used to render the slice name on the current track.
+  protected getFont() {
+    return '12px Roboto Condensed';
+  }
+
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
 
@@ -63,7 +68,6 @@ export class ChromeSliceTrack extends Track<Config, Data> {
         timeScale.timeToPx(data.end),
     );
 
-    ctx.font = '12px Roboto Condensed';
     ctx.textAlign = 'center';
 
     // measuretext is expensive so we only use it once.
@@ -187,6 +191,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       const displayText = cropText(title, charWidth, rect.width);
       const rectXCenter = rect.left + rect.width / 2;
       ctx.textBaseline = 'middle';
+      ctx.font = this.getFont();
       ctx.fillText(displayText, rectXCenter, rect.top + SLICE_HEIGHT / 2);
     }
     drawRectOnSelected();
