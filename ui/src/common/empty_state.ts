@@ -99,6 +99,7 @@ export function createEmptyState(): State {
     metrics: {},
     permalink: {},
     notes: {},
+    visualisedArgs: [],
 
     recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get() ?
         autosaveConfigStore.get() :

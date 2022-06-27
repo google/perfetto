@@ -359,6 +359,12 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
           }));
         },
       },
+      {
+        text: 'Visualise argument values',
+        callback: () => {
+          globals.dispatch(Actions.addVisualisedArg({argName: fullKey}));
+        },
+      },
     ];
   }
 

@@ -24,8 +24,8 @@ import {Config, Data, SLICE_TRACK_KIND} from './common';
 // the lowest bucketNs gets is 2, but add some room in case of fp error
 const MIN_QUANT_NS = 3;
 
-class ChromeSliceTrackController extends TrackController<Config, Data> {
-  static readonly kind = SLICE_TRACK_KIND;
+export class ChromeSliceTrackController extends TrackController<Config, Data> {
+  static kind = SLICE_TRACK_KIND;
   private maxDurNs = 0;
 
   async onBoundsChange(start: number, end: number, resolution: number):
