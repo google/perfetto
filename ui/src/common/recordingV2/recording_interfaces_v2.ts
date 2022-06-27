@@ -60,8 +60,6 @@ export interface OtherTargetInfo {
   targetType: 'CHROME'|'CHROME_OS'|'LINUX';
 }
 
-// Holds information about a target. It's used by the logic which generates a
-// config.
 export type TargetInfo = AndroidTargetInfo|OtherTargetInfo;
 
 // RecordingTargetV2 is subclassed by Android devices and the Chrome browser/OS.
@@ -72,7 +70,9 @@ export interface RecordingTargetV2 {
   // well known key/value pairs: OS, targetType('ANDROID', 'CHROME', etc.)
   getInfo(): TargetInfo;
 
-  disconnect(disconnectMessage?: string): Promise<void>;
+  // Disconnects the target. Depending on target type, this can be
+  // asynchronous (Example: WebUSB) or synchronous (Example: Websocket).
+  disconnect(disconnectMessage?: string): Promise<void>|void;
 
   createTracingSession(tracingSessionListener: TracingSessionListener):
       Promise<TracingSession>;
