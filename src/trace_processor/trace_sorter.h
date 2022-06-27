@@ -174,7 +174,7 @@ class TraceSorter {
   void ExtractEventsForced() {
     uint32_t cur_mem_block_offset = variadic_queue_.NextOffset();
     SortAndExtractEventsUntilPacket(cur_mem_block_offset);
-    queues_.resize(0);
+    queues_.clear();
 
     offset_for_extraction_ = cur_mem_block_offset;
     flushes_since_extraction_ = 0;
@@ -256,8 +256,6 @@ class TraceSorter {
 
   static_assert(sizeof(TimestampedDescriptor) == 16,
                 "TimestampeDescriptor cannot grow beyond 16 bytes");
-
-  static constexpr uint32_t kNoBatch = std::numeric_limits<uint32_t>::max();
 
   struct Queue {
     inline void Append(TimestampedDescriptor ts_desc) {
