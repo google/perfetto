@@ -188,6 +188,12 @@ namespace stats {
   F(metatrace_overruns,                 kSingle,  kError,    kTrace,    ""),   \
   F(packages_list_has_parse_errors,     kSingle,  kError,    kTrace,    ""),   \
   F(packages_list_has_read_errors,      kSingle,  kError,    kTrace,    ""),   \
+  F(game_intervention_has_parse_errors, kSingle,  kError,    kTrace,           \
+       "One or more parsing errors occurred. This could result from "          \
+       "unknown game more or intervention added to the file to be parsed."),   \
+  F(game_intervention_has_read_errors,  kSingle,  kError,    kTrace,           \
+       "The file to be parsed can't be opened. This can happend when "         \
+       "the file name is not found or no permission to access the file"),      \
   F(compact_sched_has_parse_errors,     kSingle,  kError,    kTrace,    ""),   \
   F(misplaced_end_event,                kSingle,  kDataLoss, kAnalysis, ""),   \
   F(sched_waking_out_of_order,          kSingle,  kError,    kAnalysis, ""),   \
