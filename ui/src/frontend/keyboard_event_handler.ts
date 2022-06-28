@@ -27,8 +27,8 @@ const INSTANT_FOCUS_DURATION_S = 1 / 1e9;  // 1 ns.
 type Direction = 'Forward'|'Backward';
 
 // Handles all key events than are not handled by the
-// pan and zoom handler.
-export function handleKey(e: KeyboardEvent, down: boolean) {
+// pan and zoom handler. Returns true if the event was handled.
+export function handleKey(e: KeyboardEvent, down: boolean): boolean {
   const key = e.key.toLowerCase();
   const selection = globals.state.currentSelection;
   const noModifiers = !(e.ctrlKey || e.metaKey || e.altKey || e.shiftKey);
@@ -42,37 +42,81 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
     } else if (selection) {
       lockSliceSpan(e.shiftKey);
     }
+    return true;
   }
   if (down && 'f' === key && noModifiers) {
     findCurrentSelection();
+    return true;
+  }
+  if (down && 'a' === key && ctrlOrMeta) {
+    let tracksToSelect: string[] = [];
+
+    const selection = globals.state.currentSelection;
+    if (selection !== null && selection.kind === 'AREA') {
+      const area = globals.state.areas[selection.areaId];
+      const coversEntireTimeRange =
+          globals.state.traceTime.startSec === area.startSec &&
+          globals.state.traceTime.endSec === area.endSec;
+      if (!coversEntireTimeRange) {
+        // If the current selection is an area which does not cover the entire
+        // time range, preserve the list of selected tracks and expand the time
+        // range.
+        tracksToSelect = area.tracks;
+      } else {
+        // If the entire time range is already covered, update the selection to
+        // cover all tracks.
+        tracksToSelect = Object.keys(globals.state.tracks);
+      }
+    } else {
+      // If the current selection is not an area, select all.
+      tracksToSelect = Object.keys(globals.state.tracks);
+    }
+    globals.dispatch(Actions.selectArea({
+      area: {
+        startSec: globals.state.traceTime.startSec,
+        endSec: globals.state.traceTime.endSec,
+        tracks: tracksToSelect,
+      },
+    }));
+    e.preventDefault();
+    return true;
   }
   if (down && 'b' === key && ctrlOrMeta) {
     globals.dispatch(Actions.toggleSidebar({}));
+    return true;
   }
   if (down && '?' === key && maybeShift) {
     toggleHelp();
+    return true;
   }
   if (down && 'enter' === key && maybeShift) {
     e.preventDefault();
     executeSearch(e.shiftKey);
+    return true;
   }
   if (down && 'escape' === key) {
     globals.frontendLocalState.deselectArea();
     globals.makeSelection(Actions.deselect({}));
     globals.dispatch(Actions.removeNote({id: '0'}));
+    return true;
   }
   if (down && ']' === key && ctrlOrMeta) {
     focusOtherFlow('Forward');
+    return true;
   }
   if (down && ']' === key && noModifiers) {
     moveByFocusedFlow('Forward');
+    return true;
   }
   if (down && '[' === key && ctrlOrMeta) {
     focusOtherFlow('Backward');
+    return true;
   }
   if (down && '[' === key && noModifiers) {
     moveByFocusedFlow('Backward');
+    return true;
   }
+  return false;
 }
 
 // Search |boundFlows| for |flowId| and return the id following it.
