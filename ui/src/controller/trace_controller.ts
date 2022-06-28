@@ -92,6 +92,7 @@ import {
 } from './trace_stream';
 import {TrackControllerArgs, trackControllerRegistry} from './track_controller';
 import {decideTracks} from './track_decider';
+import {VisualisedArgController} from './visualised_args_controller';
 
 type States = 'init' | 'loading_trace' | 'ready';
 
@@ -193,6 +194,11 @@ export class TraceController extends Controller<States> {
           }
           const queryArgs: QueryControllerArgs = {queryId, engine};
           childControllers.push(Child(queryId, QueryController, queryArgs));
+        }
+
+        for (const argName of globals.state.visualisedArgs) {
+          childControllers.push(
+              Child(argName, VisualisedArgController, {argName, engine}));
         }
 
         const selectionArgs: SelectionControllerArgs = {engine};

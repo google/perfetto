@@ -953,7 +953,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // Operator tables.
   SpanJoinOperatorTable::RegisterTable(*db_, storage);
   WindowOperatorTable::RegisterTable(*db_, storage);
-  CreateViewFunction::RegisterTable(*db_, &create_view_function_state_);
+  CreateViewFunction::RegisterTable(*db_);
 
   // New style tables but with some custom logic.
   SqliteRawTable::RegisterTable(*db_, query_cache_.get(), &context_);
