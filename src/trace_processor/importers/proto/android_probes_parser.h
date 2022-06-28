@@ -41,6 +41,7 @@ class AndroidProbesParser {
   void ParseStatsdMetadata(ConstBytes);
   void ParseAndroidPackagesList(ConstBytes);
   void ParseInitialDisplayState(int64_t ts, ConstBytes);
+  void ParseAndroidGameIntervention(ConstBytes);
 
  private:
   TraceProcessorContext* const context_;
