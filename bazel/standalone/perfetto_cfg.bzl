@@ -96,6 +96,11 @@ PERFETTO_CONFIG = struct(
     # making the targets public in the google internal tree.
     proto_library_visibility = "//visibility:private",
 
+    # Allow Bazel embedders to change the visibility of the Go protos.
+    # Go protos have all sorts of strange behaviour in Google3 so need special
+    # handling as the rules for other languages do not work for Go.
+    go_proto_library_visibility = "//visibility:private",
+
     # This struct allows the embedder to customize copts and other args passed
     # to rules like cc_binary. Prefixed rules (e.g. perfetto_cc_binary) will
     # look into this struct before falling back on native.cc_binary().
@@ -117,5 +122,7 @@ PERFETTO_CONFIG = struct(
         py_binary = None,
         py_library = None,
         py_proto_library = None,
+
+        go_proto_library = None,
     ),
 )
