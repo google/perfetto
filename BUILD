@@ -27,6 +27,7 @@ load(
     "perfetto_cc_proto_library",
     "perfetto_cc_protocpp_library",
     "perfetto_cc_protozero_library",
+    "perfetto_go_proto_library",
     "perfetto_java_proto_library",
     "perfetto_java_lite_proto_library",
     "perfetto_proto_library",
@@ -4347,20 +4348,20 @@ perfetto_py_binary(
     python_version = "PY3",
 )
 
-perfetto_java_proto_library(
-    name = "protos_perfetto_metrics_java",
+perfetto_go_proto_library(
+    name = "protos_perfetto_trace_non_minimal_protos_go_proto",
+    visibility = PERFETTO_CONFIG.go_proto_library_visibility,
     deps = [
-        ":protos_perfetto_metrics_protos",
+        ":protos_perfetto_trace_non_minimal_protos",
     ],
-    visibility = PERFETTO_CONFIG.public_visibility,
 )
 
-perfetto_java_proto_library(
-    name = "protos_perfetto_metrics_android_java",
+perfetto_go_proto_library(
+    name = "protos_perfetto_trace_track_event_protos_go_proto",
+    visibility = PERFETTO_CONFIG.go_proto_library_visibility,
     deps = [
-        ":protos_perfetto_metrics_android_protos",
+        ":protos_perfetto_trace_track_event_protos",
     ],
-    visibility = PERFETTO_CONFIG.public_visibility,
 )
 
 # This is overridden in google internal builds via
