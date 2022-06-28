@@ -1278,11 +1278,20 @@ class TrackDecider {
         true as hasHeapProfiles
       from heap_graph_object
     ) using (upid)
+    left join (
+      select
+        distinct(process.upid) as upid,
+        count(*) as perfSampleCount
+      from process
+        join thread on process.upid = thread.upid
+        join perf_sample on thread.utid = perf_sample.utid
+    ) using (upid)
     left join thread using(utid)
     left join process using(upid)
     order by
       chromeProcessRank desc,
       hasHeapProfiles desc,
+      perfSampleCount desc,
       total_dur desc,
       processName,
       the_tracks.upid,
