@@ -580,12 +580,18 @@ class GeneratorJob {
       const char* additional_method =
           "void $action$_$name$(const char* data, size_t size) {\n"
           "  AppendBytes($field_metadata$::kFieldId, data, size);\n"
+          "}\n"
+          "void $action$_$name$(::protozero::ConstChars chars) {\n"
+          "  AppendBytes($field_metadata$::kFieldId, chars.data, chars.size);\n"
           "}\n";
       stub_h_->Print(setter, additional_method);
     } else if (field->type() == FieldDescriptor::TYPE_BYTES) {
       const char* additional_method =
           "void $action$_$name$(const uint8_t* data, size_t size) {\n"
           "  AppendBytes($field_metadata$::kFieldId, data, size);\n"
+          "}\n"
+          "void $action$_$name$(::protozero::ConstBytes bytes) {\n"
+          "  AppendBytes($field_metadata$::kFieldId, bytes.data, bytes.size);\n"
           "}\n";
       stub_h_->Print(setter, additional_method);
     } else if (field->type() == FieldDescriptor::TYPE_GROUP ||
