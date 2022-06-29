@@ -68,13 +68,13 @@ PERFETTO_TP_TABLE(PERFETTO_TP_ANDROID_LOG_TABLE_DEF);
   C(int64_t, uid)                                                          \
   C(int32_t, current_mode)                                                 \
   C(int32_t, perf_mode_supported)                                          \
-  C(base::Optional<StringPool::Id>, perf_mode_downscale)                   \
+  C(base::Optional<double>, perf_mode_downscale)                           \
   C(base::Optional<int32_t>, perf_mode_use_angle)                          \
-  C(base::Optional<int32_t>, perf_mode_fps)                                \
+  C(base::Optional<double>, perf_mode_fps)                                 \
   C(int32_t, battery_mode_supported)                                       \
-  C(base::Optional<StringPool::Id>, battery_mode_downscale)                \
+  C(base::Optional<double>, battery_mode_downscale)                        \
   C(base::Optional<int32_t>, battery_mode_use_angle)                       \
-  C(base::Optional<int32_t>, battery_mode_fps)
+  C(base::Optional<double>, battery_mode_fps)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_ANDROID_GAME_INTERVENTION_LIST_DEF);
 

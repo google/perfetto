@@ -222,8 +222,9 @@ class DataSource : public DataSourceBase {
       auto* internal_state = static_state_.TryGet(instance_index_);
       if (!internal_state)
         return LockedHandle<DataSourceType>();
+      std::unique_lock<std::recursive_mutex> lock(internal_state->lock);
       return LockedHandle<DataSourceType>(
-          &internal_state->lock,
+          std::move(lock),
           static_cast<DataSourceType*>(internal_state->data_source.get()));
     }
 

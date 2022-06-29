@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -30,6 +31,7 @@
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
+#include "protos/perfetto/trace/android/android_game_intervention_list.pbzero.h"
 #include "protos/perfetto/trace/android/android_log.pbzero.h"
 #include "protos/perfetto/trace/android/initial_display_state.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
@@ -229,6 +231,60 @@ void AndroidProbesParser::ParseAndroidPackagesList(ConstBytes blob) {
          pkg.profileable_from_shell(),
          static_cast<int64_t>(pkg.version_code())});
     tracker->InsertedPackage(std::move(pkg_name));
+  }
+}
+
+void AndroidProbesParser::ParseAndroidGameIntervention(ConstBytes blob) {
+  protos::pbzero::AndroidGameInterventionList::Decoder intervention_list(
+      blob.data, blob.size);
+  constexpr static int kGameModePerformance = 2;
+  constexpr static int kGameModeBattery = 3;
+
+  context_->storage->SetStats(stats::game_intervention_has_read_errors,
+                              intervention_list.read_error());
+  context_->storage->SetStats(stats::game_intervention_has_parse_errors,
+                              intervention_list.parse_error());
+
+  for (auto pkg_it = intervention_list.game_packages(); pkg_it; ++pkg_it) {
+    protos::pbzero::AndroidGameInterventionList_GamePackageInfo::Decoder
+        game_pkg(*pkg_it);
+    int64_t uid = static_cast<int64_t>(game_pkg.uid());
+    int32_t cur_mode = static_cast<int32_t>(game_pkg.current_mode());
+
+    bool is_performance_mode = false;
+    base::Optional<double> perf_downscale;
+    base::Optional<int32_t> perf_angle;
+    base::Optional<double> perf_fps;
+
+    bool is_battery_mode = false;
+    base::Optional<double> battery_downscale;
+    base::Optional<int32_t> battery_angle;
+    base::Optional<double> battery_fps;
+
+    for (auto mode_it = game_pkg.game_mode_info(); mode_it; ++mode_it) {
+      protos::pbzero::AndroidGameInterventionList_GameModeInfo::Decoder
+          game_mode(*mode_it);
+
+      // 2 for performance mode, 3 for battery mode
+      uint32_t mode_num = game_mode.mode();
+      if (mode_num == kGameModePerformance) {
+        is_performance_mode = true;
+        perf_downscale = static_cast<double>(game_mode.resolution_downscale());
+        perf_angle = game_mode.use_angle();
+        perf_fps = static_cast<double>(game_mode.fps());
+      } else if (mode_num == kGameModeBattery) {
+        is_battery_mode = true;
+        battery_downscale =
+            static_cast<double>(game_mode.resolution_downscale());
+        battery_angle = game_mode.use_angle();
+        battery_fps = static_cast<double>(game_mode.fps());
+      }
+    }
+
+    context_->storage->mutable_android_game_intervenion_list_table()->Insert(
+        {context_->storage->InternString(game_pkg.name()), uid, cur_mode,
+         is_performance_mode, perf_downscale, perf_angle, perf_fps,
+         is_battery_mode, battery_downscale, battery_angle, battery_fps});
   }
 }
 

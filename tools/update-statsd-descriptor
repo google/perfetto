@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+# Copyright (C) 2022 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import os
+import sys
+import subprocess
+import pathlib
+import tempfile
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TOOLS_DIR = os.path.join(ROOT_DIR, "tools")
+OUT_DIR = os.path.join(ROOT_DIR, "out", "tools")
+NINJA = os.path.join(TOOLS_DIR, "ninja")
+GN = os.path.join(TOOLS_DIR, "gn")
+PROTOC_PATH = os.path.join(OUT_DIR, "protoc")
+DESCRIPTOR_PATH = os.path.join(ROOT_DIR,
+    "src", "trace_processor", "importers", "proto", "atoms.descriptor")
+PROTOBUF_BUILTINS_DIR = os.path.join(
+    ROOT_DIR, "buildtools", "protobuf", "src")
+PROTO_LOGGING_URL = "https://android.googlesource.com/platform/frameworks/proto_logging.git"
+
+
+def call(*cmd):
+  try:
+    return subprocess.check_call(cmd)
+  except subprocess.CalledProcessError:
+    print("Error running the command:")
+    print(" ".join(cmd))
+    exit(1)
+
+
+def main():
+  call(GN, "gen", OUT_DIR, "--args=is_debug=false")
+  call(NINJA, "-C", OUT_DIR, "protoc")
+
+  with tempfile.TemporaryDirectory() as tmpdir:
+    statsd_checkout_path = os.path.join(
+        tmpdir, "frameworks", "proto_logging")
+    pathlib.Path(statsd_checkout_path).mkdir(
+        parents=True, exist_ok=True)
+    call("git", "clone", PROTO_LOGGING_URL, statsd_checkout_path)
+    atoms_path = os.path.join(
+        statsd_checkout_path, "stats", "atoms.proto")
+    call(
+        PROTOC_PATH,
+        f"--proto_path={PROTOBUF_BUILTINS_DIR}",
+        f"--proto_path={tmpdir}",
+        f"--descriptor_set_out={DESCRIPTOR_PATH}",
+        atoms_path)
+
+
+if __name__ == "__main__":
+  sys.exit(main())
