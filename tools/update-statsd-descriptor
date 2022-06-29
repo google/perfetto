@@ -58,6 +58,7 @@ def main():
         f"--proto_path={PROTOBUF_BUILTINS_DIR}",
         f"--proto_path={tmpdir}",
         f"--descriptor_set_out={DESCRIPTOR_PATH}",
+        "--include_imports",
         atoms_path)
 
 
