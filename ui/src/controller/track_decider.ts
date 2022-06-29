@@ -1307,10 +1307,10 @@ class TrackDecider {
       perfSampleCount desc,
       total_dur desc,
       sliceCount desc,
-      processName,
-      the_tracks.upid,
-      threadName,
-      the_tracks.utid;
+      processName asc nulls last,
+      the_tracks.upid asc nulls last,
+      threadName asc nulls last,
+      the_tracks.utid asc nulls last;
   `);
 
     const it = result.iter({
