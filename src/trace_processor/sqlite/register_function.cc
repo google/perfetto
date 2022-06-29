@@ -21,9 +21,11 @@
 namespace perfetto {
 namespace trace_processor {
 
-base::Status SqlFunction::Cleanup(Context*) {
+base::Status SqlFunction::VerifyPostConditions(Context*) {
   return base::OkStatus();
 }
+
+void SqlFunction::Cleanup(Context*) {}
 
 }  // namespace trace_processor
 }  // namespace perfetto
