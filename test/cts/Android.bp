@@ -49,8 +49,14 @@ cc_test {
         suffix: "64",
     },
   },
+  per_testcase_directory: true,
   data: [
-    ":CtsPerfettoReporterApp"
+        ":CtsPerfettoNonProfileableApp",
+        ":CtsPerfettoProfileableApp",
+        ":CtsPerfettoProducerApp",
+        ":CtsPerfettoReleaseApp",
+        ":CtsPerfettoDebuggableApp",
+        ":CtsPerfettoReporterApp"
   ],
   stl: "libc++_static",
   defaults: [
