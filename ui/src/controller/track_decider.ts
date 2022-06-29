@@ -1286,6 +1286,18 @@ class TrackDecider {
         join thread on process.upid = thread.upid
         join perf_sample on thread.utid = perf_sample.utid
     ) using (upid)
+    left join (
+      select
+        process.upid as upid,
+        count(*) as sliceCount
+      from process
+        join thread on process.upid = thread.upid
+        join thread_track on thread_track.utid = thread.utid
+        join process_track on process_track.upid = process.upid
+        join slices on slices.track_id = thread_track.id
+          or slices.track_id = process_track.id
+      group by process.upid
+    ) using (upid)
     left join thread using(utid)
     left join process using(upid)
     order by
@@ -1293,6 +1305,7 @@ class TrackDecider {
       hasHeapProfiles desc,
       perfSampleCount desc,
       total_dur desc,
+      sliceCount desc,
       processName,
       the_tracks.upid,
       threadName,
