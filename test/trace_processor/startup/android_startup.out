@@ -21,6 +21,10 @@ android_startup {
         dur_ns: 2
         dur_ms: 2e-06
       }
+      time_activity_resume {
+        dur_ns: 1
+        dur_ms: 1e-06
+      }
       dur_ms: 0.000108
     }
     activity_hosting_process_count: 1

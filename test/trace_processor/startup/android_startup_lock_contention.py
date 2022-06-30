@@ -34,6 +34,10 @@ trace.add_atrace_async_end(ts=210, tid=2, pid=2, buf='launchingActivity#1')
 # Required so we know this process is the one being started up.
 trace.add_atrace_begin(ts=112, tid=3, pid=3, buf='bindApplication')
 trace.add_atrace_end(ts=115, tid=3, pid=3)
+trace.add_atrace_begin(ts=115, tid=3, pid=3, buf='activityStart')
+trace.add_atrace_end(ts=116, tid=3, pid=3)
+trace.add_atrace_begin(ts=116, tid=3, pid=3, buf='activityResume')
+trace.add_atrace_end(ts=117, tid=3, pid=3)
 
 # Add some non-monitor lock contention.
 trace.add_atrace_begin(
