@@ -5,7 +5,7 @@ android_startup {
     process_name: "com.google.android.calendar"
     zygote_new_process: false
     to_first_frame {
-      dur_ns: 5
+      dur_ns: 7
       main_thread_by_task_state {
         running_dur_ns: 0
         runnable_dur_ns: 0
@@ -21,7 +21,15 @@ android_startup {
         dur_ns: 1
         dur_ms: 1e-06
       }
-      dur_ms: 5e-06
+      time_activity_start {
+        dur_ns: 1
+        dur_ms: 1e-06
+      }
+      time_activity_resume {
+        dur_ns: 1
+        dur_ms: 1e-06
+      }
+      dur_ms: 7e-06
       to_bind_application {
         dur_ns: 3
         dur_ms: 3e-06
@@ -33,7 +41,7 @@ android_startup {
     }
     event_timestamps {
       intent_received: 100
-      first_frame: 105
+      first_frame: 107
     }
     system_state {
       dex2oat_running: false
@@ -48,7 +56,7 @@ android_startup {
     process_name: "com.google.android.calendar"
     zygote_new_process: false
     to_first_frame {
-      dur_ns: 5
+      dur_ns: 7
       main_thread_by_task_state {
         running_dur_ns: 0
         runnable_dur_ns: 0
@@ -64,7 +72,15 @@ android_startup {
         dur_ns: 1
         dur_ms: 1e-06
       }
-      dur_ms: 5e-06
+      time_activity_start {
+        dur_ns: 1
+        dur_ms: 1e-06
+      }
+      time_activity_resume {
+        dur_ns: 1
+        dur_ms: 1e-06
+      }
+      dur_ms: 7e-06
       to_bind_application {
         dur_ns: 3
         dur_ms: 3e-06
@@ -76,7 +92,7 @@ android_startup {
     }
     event_timestamps {
       intent_received: 200
-      first_frame: 205
+      first_frame: 207
     }
     system_state {
       dex2oat_running: false

@@ -71,6 +71,12 @@ trace.add_atrace_begin(
 trace.add_atrace_end(ts=to_s(194), tid=3, pid=3)
 trace.add_atrace_end(ts=to_s(195), tid=3, pid=3)
 
+trace.add_atrace_begin(ts=to_s(195), tid=3, pid=3, buf='activityStart')
+trace.add_atrace_end(ts=to_s(196), tid=3, pid=3)
+
+trace.add_atrace_begin(ts=to_s(196), tid=3, pid=3, buf='activityResume')
+trace.add_atrace_end(ts=to_s(197), tid=3, pid=3)
+
 trace.add_atrace_begin(
     ts=to_s(200),
     tid=3,
