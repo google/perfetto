@@ -2140,7 +2140,7 @@ TEST_P(PerfettoApiTest, InlineTrackEventTypedArgs_SimpleRepeated) {
       continue;
     }
 
-    EXPECT_THAT(track_event.flow_ids(), testing::ElementsAre(1, 2, 3));
+    EXPECT_THAT(track_event.flow_ids(), testing::ElementsAre(1u, 2u, 3u));
     found_args = true;
   }
   EXPECT_TRUE(found_args);
@@ -2496,7 +2496,7 @@ TEST_P(PerfettoApiTest, TrackEventArgs_Flow_Global) {
   CheckTypedArguments(
       raw_trace, "E1", perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
       [](const perfetto::protos::gen::TrackEvent& track_event) {
-        EXPECT_THAT(track_event.flow_ids(), testing::ElementsAre(42));
+        EXPECT_THAT(track_event.flow_ids(), testing::ElementsAre(42u));
       });
 }
 
