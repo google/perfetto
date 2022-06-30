@@ -53,7 +53,6 @@ perfetto_component("base") {
     "time.cc",
     "utils.cc",
     "uuid.cc",
-    "version.cc",
     "virtual_destructors.cc",
     "waitable_event.cc",
     "watchdog_posix.cc",
@@ -77,6 +76,19 @@ perfetto_component("base") {
   if (enable_perfetto_stderr_crash_dump) {
     deps += [ ":debug_crash_stack_trace" ]
   }
+}
+
+perfetto_component("version") {
+  deps = [
+    ":base",
+    "../../gn:default_deps",
+  ]
+  public_deps = [
+    "../../include/perfetto/ext/base:version",
+  ]
+  sources = [
+    "version.cc",
+  ]
 
   if (enable_perfetto_version_gen) {
     deps += [ ":version_gen_h" ]
