@@ -141,7 +141,7 @@ extern "C" {
 // called.
 
 void NTAPI PerfettoOnThreadExit(PVOID, DWORD, PVOID);
-void NTAPI PerfettoOnThreadExit(PVOID module, DWORD reason, PVOID reserved) {
+void NTAPI PerfettoOnThreadExit(PVOID, DWORD reason, PVOID) {
   if (reason == DLL_THREAD_DETACH || reason == DLL_PROCESS_DETACH) {
     if (perfetto::PlatformWindows::instance)
       perfetto::PlatformWindows::instance->OnThreadExit();
