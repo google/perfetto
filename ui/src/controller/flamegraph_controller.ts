@@ -136,11 +136,11 @@ export class FlamegraphController extends Controller<'main'> {
     }
     this.requestingData = true;
 
-    this.assembleFlamegraphDetails(selection, hasAreaChanged);
+    this.assembleFlamegraphDetails(selection, area !== undefined);
   }
 
   private async assembleFlamegraphDetails(
-      selection: FlamegraphState, hasAreaChanged: boolean) {
+      selection: FlamegraphState, isInAreaSelection: boolean) {
     const selectedFlamegraphState = {...selection};
     const flamegraphMetadata = await this.getFlamegraphMetadata(
         selection.type,
@@ -189,7 +189,7 @@ export class FlamegraphController extends Controller<'main'> {
         this.prepareAndMergeCallsites(
             expandedFlamegraphData,
             this.lastSelectedFlamegraphState.viewingOption,
-            hasAreaChanged,
+            isInAreaSelection,
             rootSize,
             this.lastSelectedFlamegraphState.expandedCallsite);
       }
@@ -221,13 +221,13 @@ export class FlamegraphController extends Controller<'main'> {
   private prepareAndMergeCallsites(
       flamegraphData: CallsiteInfo[],
       viewingOption: string|undefined = DEFAULT_VIEWING_OPTION,
-      hasAreaChanged: boolean, rootSize?: number,
+      isInAreaSelection: boolean, rootSize?: number,
       expandedCallsite?: CallsiteInfo) {
     this.flamegraphDetails.flamegraph = mergeCallsites(
         flamegraphData, this.getMinSizeDisplayed(flamegraphData, rootSize));
     this.flamegraphDetails.expandedCallsite = expandedCallsite;
     this.flamegraphDetails.viewingOption = viewingOption;
-    this.flamegraphDetails.isInAreaSelection = hasAreaChanged;
+    this.flamegraphDetails.isInAreaSelection = isInAreaSelection;
     this.checkCompletionAndPublishFlamegraph(this.flamegraphDetails);
   }
 
