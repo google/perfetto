@@ -272,8 +272,8 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
           '.details-panel',
           m('.details-panel-heading', m('h2', `Slice Details`)),
           m('.details-table-multicolumn', [
-            m('table', this.renderTable(defaultBuilder)),
-            m('table', this.renderTables(rightPanel)),
+            this.renderTable(defaultBuilder, '.half-width-panel'),
+            this.renderTables(rightPanel, '.half-width-panel'),
           ]));
     } else {
       return m(
@@ -368,16 +368,18 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
     ];
   }
 
-  renderTables(builders: Map<string, TableBuilder>): m.Vnode {
+  renderTables(
+      builders: Map<string, TableBuilder>,
+      additionalClasses: string = ''): m.Vnode {
     const rows: m.Vnode[] = [];
     for (const [name, builder] of builders) {
       rows.push(m('h3', name));
       rows.push(this.renderTable(builder));
     }
-    return m('div', rows);
+    return m(`div${additionalClasses}`, rows);
   }
 
-  renderTable(builder: TableBuilder): m.Vnode {
+  renderTable(builder: TableBuilder, additionalClasses: string = ''): m.Vnode {
     const rows: m.Vnode[] = [];
     const keyColumnCount = builder.maxIndent + 1;
     for (const row of builder.rows) {
@@ -446,6 +448,6 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
       rows.push(m('tr', renderedRow));
     }
 
-    return m('table.half-width.auto-layout', rows);
+    return m(`table.auto-layout${additionalClasses}`, rows);
   }
 }
