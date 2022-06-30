@@ -78,6 +78,9 @@ class PERFETTO_EXPORT_COMPONENT TrackEventSessionObserver {
   // Called when a track event tracing session is stopped. It is still possible
   // to emit track events from this callback.
   virtual void OnStop(const DataSourceBase::StopArgs&);
+  // Called when tracing muxer requests to clear incremental state.
+  virtual void WillClearIncrementalState(
+      const DataSourceBase::ClearIncrementalStateArgs&);
 };
 
 namespace internal {
@@ -179,6 +182,9 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
   static void OnStart(const DataSourceBase::StartArgs&);
   static void DisableTracing(const TrackEventCategoryRegistry& registry,
                              const DataSourceBase::StopArgs&);
+  static void WillClearIncrementalState(
+      const DataSourceBase::ClearIncrementalStateArgs&);
+
   static bool IsCategoryEnabled(const TrackEventCategoryRegistry& registry,
                                 const protos::gen::TrackEventConfig& config,
                                 const Category& category);

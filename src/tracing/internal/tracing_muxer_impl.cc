@@ -1116,6 +1116,16 @@ void TracingMuxerImpl::ClearDataSourceIncrementalState(
     PERFETTO_ELOG("Could not find data source to clear incremental state for");
     return;
   }
+
+  DataSourceBase::ClearIncrementalStateArgs clear_incremental_state_args;
+  clear_incremental_state_args.internal_instance_index = ds.instance_idx;
+
+  {
+    std::lock_guard<std::recursive_mutex> guard(ds.internal_state->lock);
+    ds.internal_state->data_source->WillClearIncrementalState(
+        clear_incremental_state_args);
+  }
+
   // Make DataSource::TraceContext::GetIncrementalState() eventually notice that
   // the incremental state should be cleared.
   ds.static_state->incremental_state_generation.fetch_add(

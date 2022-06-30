@@ -206,6 +206,11 @@ class TrackEventDataSource
     TrackEventInternal::DisableTracing(*Registry, args);
   }
 
+  void WillClearIncrementalState(
+      const DataSourceBase::ClearIncrementalStateArgs& args) override {
+    TrackEventInternal::WillClearIncrementalState(args);
+  }
+
   static void Flush() {
     Base::template Trace([](typename Base::TraceContext ctx) { ctx.Flush(); });
   }
