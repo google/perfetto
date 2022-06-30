@@ -30,14 +30,11 @@ import {
 import {fromNs, timeToCode} from '../common/time';
 import {
   PivotTableReduxController,
-  PivotTree,
 } from '../controller/pivot_table_redux_controller';
 
 import {globals} from './globals';
 import {Panel} from './panel';
 import {
-  Aggregation,
-  AggregationFunction,
   aggregationIndex,
   areaFilter,
   expression,
@@ -45,38 +42,24 @@ import {
   QueryGeneratorError,
   sliceAggregationColumns,
   Table,
-  TableColumn,
   tableColumnEquals,
   tables,
   threadSliceAggregationColumns,
 } from './pivot_table_redux_query_generator';
+import {
+  Aggregation,
+  AggregationFunction,
+  aggregationKey,
+  columnKey,
+  PivotTree,
+  TableColumn,
+} from './pivot_table_redux_types';
 import {PopupMenuButton, PopupMenuItem} from './popup_menu';
+
 
 interface PathItem {
   tree: PivotTree;
   nextKey: ColumnType;
-}
-
-// Used to convert TableColumn to a string in order to store it in a Map, as
-// ES6 does not support compound Set/Map keys. This function should only be used
-// for interning keys, and does not have any requirements beyond different
-// TableColumn objects mapping to different strings.
-export function columnKey(tableColumn: TableColumn): string {
-  switch (tableColumn.kind) {
-    case 'argument': {
-      return `argument:${tableColumn.argument}`;
-    }
-    case 'regular': {
-      return `${tableColumn.table}.${tableColumn.column}`;
-    }
-    default: {
-      throw new Error(`malformed table column ${tableColumn}`);
-    }
-  }
-}
-
-export function aggregationKey(aggregation: Aggregation): string {
-  return `${aggregation.aggregationFunction}:${columnKey(aggregation.column)}`;
 }
 
 // Arguments to an action to toggle a table column in a particular part of
