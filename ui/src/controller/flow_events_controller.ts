@@ -49,34 +49,33 @@ export class FlowEventsController extends Controller<'main'> {
   private lastSelectedArea?: Area;
   private lastSelectedKind: 'CHROME_SLICE'|'AREA'|'NONE' = 'NONE';
 
-  // WITH statement part of the query, which populates |chrome_custom_name|
-  // table for specific slices for mojo messages and scheduler tasks.
-  private chromeCustomNameQueryPrefix = `
-    with chrome_custom_name AS (
-      select
-        id,
-        (case name
-          when "Receive mojo message" then
-            printf('Receive mojo message (interface=%s, hash=%s)',
-              EXTRACT_ARG(arg_set_id,
-                          'chrome_mojo_event_info.mojo_interface_tag'),
-              EXTRACT_ARG(arg_set_id, 'chrome_mojo_event_info.ipc_hash'))
-          else
-            printf('RunTask(posted_from=%s:%s)',
-              EXTRACT_ARG(arg_set_id, 'task.posted_from.file_name'),
-              EXTRACT_ARG(arg_set_id, 'task.posted_from.function_name'))
-        end) as chrome_custom_name
-      from slice
-      where name="ThreadControllerImpl::RunTask"
-         or name="ThreadPool_RunTask"
-         or name="Receive mojo message"
-      order by id
-    )
-  `;
-
-
   constructor(private args: FlowEventsControllerArgs) {
     super('main');
+
+    // Create |CHROME_CUSTOME_SLICE_NAME| helper, which combines slice name
+    // and args for some slices (scheduler tasks and mojo messages) for more
+    // helpful messages.
+    // In the future, it should be replaced with this a more scalable and
+    // customisable solution.
+    // Note that a function here is significantly faster than a join.
+    this.args.engine.query(`
+      SELECT CREATE_FUNCTION(
+        'CHROME_CUSTOM_SLICE_NAME(slice_id LONG)',
+        'STRING',
+        'select case
+           when name="Receive mojo message" then
+            printf("Receive mojo message (interface=%s, hash=%s)",
+              EXTRACT_ARG(arg_set_id,
+                          "chrome_mojo_event_info.mojo_interface_tag"),
+              EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.ipc_hash"))
+           when name="ThreadControllerImpl::RunTask" or
+                name="ThreadPool_RunTask" then
+            printf("RunTask(posted_from=%s:%s)",
+             EXTRACT_ARG(arg_set_id, "task.posted_from.file_name"),
+             EXTRACT_ARG(arg_set_id, "task.posted_from.function_name"))
+         end
+         from slice where id=$slice_id'
+    );`);
   }
 
   queryFlowEvents(query: string, callback: (flows: Flow[]) => void) {
@@ -201,12 +200,11 @@ export class FlowEventsController extends Controller<'main'> {
         `directly_connected_flow(${sliceId})`;
 
     const query = `
-    ${this.chromeCustomNameQueryPrefix}
     select
       f.slice_out as beginSliceId,
       t1.track_id as beginTrackId,
       t1.name as beginSliceName,
-      cn1.chrome_custom_name as beginSliceChromeCustomName,
+      CHROME_CUSTOM_SLICE_NAME(t1.slice_id) as beginSliceChromeCustomName,
       t1.category as beginSliceCategory,
       t1.ts as beginSliceStartTs,
       (t1.ts+t1.dur) as beginSliceEndTs,
@@ -216,7 +214,7 @@ export class FlowEventsController extends Controller<'main'> {
       f.slice_in as endSliceId,
       t2.track_id as endTrackId,
       t2.name as endSliceName,
-      cn2.chrome_custom_name as endSliceChromeCustomName,
+      CHROME_CUSTOM_SLICE_NAME(t2.slice_id) as endSliceChromeCustomName,
       t2.category as endSliceCategory,
       t2.ts as endSliceStartTs,
       (t2.ts+t2.dur) as endSliceEndTs,
@@ -235,8 +233,6 @@ export class FlowEventsController extends Controller<'main'> {
     left join thread thread_in on thread_in.utid = track_in.utid
     left join process process_out on process_out.upid = thread_out.upid
     left join process process_in on process_in.upid = thread_in.upid
-    left join chrome_custom_name cn1 on cn1.id = t1.slice_id
-    left join chrome_custom_name cn2 on cn2.id = t2.slice_id
     `;
     this.queryFlowEvents(
         query, (flows: Flow[]) => publishConnectedFlows(flows));
@@ -277,12 +273,11 @@ export class FlowEventsController extends Controller<'main'> {
     const endNs = toNs(area.endSec);
 
     const query = `
-    ${this.chromeCustomNameQueryPrefix}
     select
       f.slice_out as beginSliceId,
       t1.track_id as beginTrackId,
       t1.name as beginSliceName,
-      cn1.chrome_custom_name as beginSliceChromeCustomName,
+      CHROME_CUSTOM_SLICE_NAME(t1.slice_id) as beginSliceChromeCustomName,
       t1.category as beginSliceCategory,
       t1.ts as beginSliceStartTs,
       (t1.ts+t1.dur) as beginSliceEndTs,
@@ -292,7 +287,7 @@ export class FlowEventsController extends Controller<'main'> {
       f.slice_in as endSliceId,
       t2.track_id as endTrackId,
       t2.name as endSliceName,
-      cn2.chrome_custom_name as endSliceChromeCustomName,
+      CHROME_CUSTOM_SLICE_NAME(t2.slice_id) as endSliceChromeCustomName,
       t2.category as endSliceCategory,
       t2.ts as endSliceStartTs,
       (t2.ts+t2.dur) as endSliceEndTs,
@@ -305,8 +300,6 @@ export class FlowEventsController extends Controller<'main'> {
     from flow f
     join slice t1 on f.slice_out = t1.slice_id
     join slice t2 on f.slice_in = t2.slice_id
-    left join chrome_custom_name cn1 on cn1.id=t1.slice_id
-    left join chrome_custom_name cn2 on cn2.id=t2.slice_id
     where
       (t1.track_id in ${tracks}
         and (t1.ts+t1.dur <= ${endNs} and t1.ts+t1.dur >= ${startNs}))
