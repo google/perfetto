@@ -21,6 +21,14 @@ android_startup {
         dur_ns: 9000000000
         dur_ms: 9000.0
       }
+      time_activity_start {
+        dur_ns: 1000000000
+        dur_ms: 1000.0
+      }
+      time_activity_resume {
+        dur_ns: 1000000000
+        dur_ms: 1000.0
+      }
       time_before_start_process {
         dur_ns: 18000000000
         dur_ms: 18000.0
