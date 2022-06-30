@@ -20,8 +20,18 @@ The supported output formats are:
 
 ## Setup
 
+To use the latest binaries:
+
 ```bash
 curl -LO https://get.perfetto.dev/traceconv
+chmod +x traceconv
+./traceconv [text|json|systrace|profile] [input proto file] [output file]
+```
+
+For versioned downloads, replace `<tag>` with the required git tag:
+
+```bash
+curl -LO https://raw.githubusercontent.com/google/perfetto/<tag>/tools/traceconv
 chmod +x traceconv
 ./traceconv [text|json|systrace|profile] [input proto file] [output file]
 ```
