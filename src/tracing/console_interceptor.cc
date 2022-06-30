@@ -191,8 +191,9 @@ void ConsoleInterceptor::Delegate::OnTrackUpdated(
                                  "%-*.*s", title_width + 2, title_width,
                                  title.data());
   }
-  track.user_data.assign(message_prefix.begin(),
-                         message_prefix.begin() + written);
+  track.user_data.assign(
+      message_prefix.begin(),
+      message_prefix.begin() + static_cast<ssize_t>(written));
 }
 
 void ConsoleInterceptor::Delegate::OnTrackEvent(
