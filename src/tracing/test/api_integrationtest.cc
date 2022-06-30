@@ -535,8 +535,8 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
 
   TestTracingSessionHandle* NewTraceWithCategories(
       std::vector<std::string> categories,
-      perfetto::protos::gen::TrackEventConfig te_cfg = {}) {
-    perfetto::TraceConfig cfg;
+      perfetto::protos::gen::TrackEventConfig te_cfg = {},
+      perfetto::TraceConfig cfg = {}) {
     cfg.set_duration_ms(500);
     cfg.add_buffers()->set_size_kb(1024);
     auto* ds_cfg = cfg.add_data_sources()->mutable_config();
@@ -4866,6 +4866,52 @@ TEST_P(PerfettoApiTest, TrackEventObserver) {
     auto slices = ReadSlicesFromTrace(tracing_session->get());
     EXPECT_THAT(slices,
                 ElementsAre("I:foo.OnStart", "I:foo.OnStart", "I:foo.OnStop"));
+  }
+  EXPECT_FALSE(perfetto::TrackEvent::IsEnabled());
+}
+
+TEST_P(PerfettoApiTest, TrackEventObserver_ClearIncrementalState) {
+  class Observer : public perfetto::TrackEventSessionObserver {
+   public:
+    ~Observer() override = default;
+
+    void OnStart(const perfetto::DataSourceBase::StartArgs&) {
+      EXPECT_TRUE(perfetto::TrackEvent::IsEnabled());
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      TRACE_EVENT_INSTANT("foo", "OnStart");
+    }
+
+    void WillClearIncrementalState(
+        const perfetto::DataSourceBase::ClearIncrementalStateArgs&) {
+      if (clear_incremental_state_called)
+        return;
+      clear_incremental_state_called = true;
+      EXPECT_TRUE(perfetto::TrackEvent::IsEnabled());
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      TRACE_EVENT_INSTANT("foo", "WillClearIncrementalState");
+      perfetto::TrackEvent::Flush();
+    }
+
+    bool clear_incremental_state_called{};
+  };
+
+  EXPECT_FALSE(perfetto::TrackEvent::IsEnabled());
+  {
+    Observer observer;
+    perfetto::TrackEvent::AddSessionObserver(&observer);
+
+    perfetto::TraceConfig cfg;
+    cfg.mutable_incremental_state_config()->set_clear_period_ms(100);
+    auto* tracing_session = NewTraceWithCategories({"foo"}, {}, cfg);
+
+    tracing_session->get()->StartBlocking();
+    tracing_session->on_stop.Wait();
+
+    EXPECT_TRUE(observer.clear_incremental_state_called);
+    perfetto::TrackEvent::RemoveSessionObserver(&observer);
+    auto slices = ReadSlicesFromTrace(tracing_session->get());
+    EXPECT_THAT(slices, ElementsAre("I:foo.OnStart",
+                                    "I:foo.WillClearIncrementalState"));
   }
   EXPECT_FALSE(perfetto::TrackEvent::IsEnabled());
 }

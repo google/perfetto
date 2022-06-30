@@ -121,6 +121,13 @@ class PERFETTO_EXPORT_COMPONENT DataSourceBase {
     uint32_t internal_instance_index = 0;
   };
   virtual void OnStop(const StopArgs&);
+
+  class ClearIncrementalStateArgs {
+   public:
+    // The index of this data source instance (0..kMaxDataSourceInstances - 1).
+    uint32_t internal_instance_index = 0;
+  };
+  virtual void WillClearIncrementalState(const ClearIncrementalStateArgs&);
 };
 
 struct DefaultDataSourceTraits {
