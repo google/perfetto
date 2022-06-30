@@ -146,6 +146,7 @@ perfetto_cc_binary(
     deps = [
         ":protozero",
         ":src_base_base",
+        ":src_base_version",
     ] + PERFETTO_CONFIG.deps.protobuf_full,
 )
 
@@ -165,6 +166,7 @@ perfetto_cc_binary(
     ],
     deps = [
         ":src_base_base",
+        ":src_base_version",
     ] + PERFETTO_CONFIG.deps.protobuf_full,
 )
 
@@ -322,6 +324,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_translation_zero",
         ":protozero",
         ":src_base_base",
+        ":src_base_version",
     ],
     linkstatic = True,
 )
@@ -396,12 +399,19 @@ perfetto_filegroup(
         "include/perfetto/ext/base/unix_task_runner.h",
         "include/perfetto/ext/base/utils.h",
         "include/perfetto/ext/base/uuid.h",
-        "include/perfetto/ext/base/version.h",
         "include/perfetto/ext/base/waitable_event.h",
         "include/perfetto/ext/base/watchdog.h",
         "include/perfetto/ext/base/watchdog_noop.h",
         "include/perfetto/ext/base/watchdog_posix.h",
         "include/perfetto/ext/base/weak_ptr.h",
+    ],
+)
+
+# GN target: //include/perfetto/ext/base:version
+perfetto_filegroup(
+    name = "include_perfetto_ext_base_version",
+    srcs = [
+        "include/perfetto/ext/base/version.h",
     ],
 )
 
@@ -734,7 +744,6 @@ perfetto_cc_library(
         "src/base/unix_task_runner.cc",
         "src/base/utils.cc",
         "src/base/uuid.cc",
-        "src/base/version.cc",
         "src/base/virtual_destructors.cc",
         "src/base/waitable_event.cc",
         "src/base/watchdog_posix.cc",
@@ -745,8 +754,6 @@ perfetto_cc_library(
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_base",
     ],
-    deps = [
-    ] + PERFETTO_CONFIG.deps.version_header,
     linkstatic = True,
 )
 
@@ -762,6 +769,21 @@ perfetto_cc_library(
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_base",
     ],
+    linkstatic = True,
+)
+
+# GN target: //src/base:version
+perfetto_cc_library(
+    name = "src_base_version",
+    srcs = [
+        "src/base/version.cc",
+    ],
+    hdrs = [
+        ":include_perfetto_ext_base_version",
+    ],
+    deps = [
+        ":src_base_base",
+    ] + PERFETTO_CONFIG.deps.version_header,
     linkstatic = True,
 )
 
@@ -3821,6 +3843,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_translation_zero",
         ":protozero",
         ":src_base_base",
+        ":src_base_version",
     ],
     linkstatic = True,
 )
@@ -3906,6 +3929,7 @@ perfetto_cc_binary(
         ":protos_perfetto_trace_translation_zero",
         ":protozero",
         ":src_base_base",
+        ":src_base_version",
         ":src_perfetto_cmd_gen_cc_config_descriptor",
         ":src_perfetto_cmd_protos_cpp",
     ] + PERFETTO_CONFIG.deps.zlib,
@@ -4098,6 +4122,7 @@ perfetto_cc_binary(
                ":protozero",
                ":src_base_base",
                ":src_base_http_http",
+               ":src_base_version",
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_gen_cc_config_descriptor",
@@ -4267,6 +4292,7 @@ perfetto_cc_binary(
                ":protos_third_party_pprof_zero",
                ":protozero",
                ":src_base_base",
+               ":src_base_version",
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_gen_cc_config_descriptor",
