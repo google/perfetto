@@ -40,6 +40,8 @@ TrackEventSessionObserver::~TrackEventSessionObserver() = default;
 void TrackEventSessionObserver::OnSetup(const DataSourceBase::SetupArgs&) {}
 void TrackEventSessionObserver::OnStart(const DataSourceBase::StartArgs&) {}
 void TrackEventSessionObserver::OnStop(const DataSourceBase::StopArgs&) {}
+void TrackEventSessionObserver::WillClearIncrementalState(
+    const DataSourceBase::ClearIncrementalStateArgs&) {}
 
 namespace internal {
 
@@ -202,6 +204,16 @@ void TrackEventInternal::DisableTracing(
   });
   for (size_t i = 0; i < registry.category_count(); i++)
     registry.DisableCategoryForInstance(i, args.internal_instance_index);
+}
+
+// static
+void TrackEventInternal::WillClearIncrementalState(
+    const DataSourceBase::ClearIncrementalStateArgs& args) {
+  ForEachObserver([&](TrackEventSessionObserver*& o) {
+    if (o)
+      o->WillClearIncrementalState(args);
+    return true;
+  });
 }
 
 // static
