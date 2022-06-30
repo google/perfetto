@@ -17,6 +17,14 @@ android_startup {
         dur_ns: 3
         dur_ms: 3e-06
       }
+      time_activity_start {
+        dur_ns: 1
+        dur_ms: 1e-06
+      }
+      time_activity_resume {
+        dur_ns: 1
+        dur_ms: 1e-06
+      }
       dur_ms: 0.0001
       to_bind_application {
         dur_ns: 2
