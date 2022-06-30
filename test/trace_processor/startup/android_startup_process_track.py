@@ -36,14 +36,18 @@ def add_startup(trace, ts, pid):
       flags=0)
   trace.add_atrace_begin(ts=ts + 3, tid=pid, pid=pid, buf='bindApplication')
   trace.add_atrace_end(ts=ts + 4, tid=pid, pid=pid)
+  trace.add_atrace_begin(ts=ts + 4, tid=pid, pid=pid, buf='activityStart')
+  trace.add_atrace_end(ts=ts + 5, tid=pid, pid=pid)
+  trace.add_atrace_begin(ts=ts + 5, tid=pid, pid=pid, buf='activityResume')
+  trace.add_atrace_end(ts=ts + 6, tid=pid, pid=pid)
   trace.add_atrace_async_end(
-      ts=ts + 5, tid=2, pid=2, buf='launching: com.google.android.calendar')
+      ts=ts + 7, tid=2, pid=2, buf='launching: com.google.android.calendar')
   trace.add_atrace_begin(
-      ts=ts + 6,
+      ts=ts + 7,
       tid=2,
       pid=2,
       buf='MetricsLogger:launchObserverNotifyActivityLaunchFinished')
-  trace.add_atrace_end(ts=ts + 6, tid=2, pid=2)
+  trace.add_atrace_end(ts=ts + 8, tid=2, pid=2)
 
 
 # Build a trace where calendar starts, exits and restarts.
