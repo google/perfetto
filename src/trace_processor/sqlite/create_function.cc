@@ -43,7 +43,8 @@ struct CreatedFunction : public SqlFunction {
                           sqlite3_value** argv,
                           SqlValue& out,
                           Destructors&);
-  static base::Status Cleanup(Context*);
+  static base::Status VerifyPostConditions(Context*);
+  static void Cleanup(Context*);
 };
 
 base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
@@ -117,7 +118,7 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
   return base::OkStatus();
 }
 
-base::Status CreatedFunction::Cleanup(CreatedFunction::Context* ctx) {
+base::Status CreatedFunction::VerifyPostConditions(Context* ctx) {
   int ret = sqlite3_step(ctx->stmt);
   RETURN_IF_ERROR(
       SqliteRetToStatus(ctx->db, ctx->prototype.function_name, ret));
@@ -128,14 +129,12 @@ base::Status CreatedFunction::Cleanup(CreatedFunction::Context* ctx) {
         ctx->prototype.function_name.c_str(), sqlite3_expanded_sql(ctx->stmt));
   }
   PERFETTO_DCHECK(ret == SQLITE_DONE);
-
-  // Make sure to reset the statement to remove any bindings.
-  ret = sqlite3_reset(ctx->stmt);
-  if (ret != SQLITE_OK) {
-    return base::ErrStatus("%s: error while resetting metric",
-                           ctx->prototype.function_name.c_str());
-  }
   return base::OkStatus();
+}
+
+void CreatedFunction::Cleanup(CreatedFunction::Context* ctx) {
+  sqlite3_reset(ctx->stmt);
+  sqlite3_clear_bindings(ctx->stmt);
 }
 
 }  // namespace
