@@ -20,6 +20,7 @@ cc_binary {
     srcs: [
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_tracing_core_core",
         ":perfetto_include_perfetto_ext_tracing_ipc_ipc",
@@ -78,6 +79,7 @@ cc_binary {
         ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_src_base_base",
         ":perfetto_src_base_unix_socket",
+        ":perfetto_src_base_version",
         ":perfetto_src_ipc_client",
         ":perfetto_src_ipc_common",
         ":perfetto_src_profiling_common_callstack_trie",
@@ -208,9 +210,6 @@ cc_library_shared {
     static_libs: [
         "libasync_safe",
     ],
-    generated_headers: [
-        "perfetto_src_base_version_gen_h",
-    ],
     defaults: [
         "perfetto_defaults",
     ],
@@ -253,9 +252,6 @@ cc_library_shared {
     export_include_dirs: [
         "src/profiling/memory/include",
     ],
-    generated_headers: [
-        "perfetto_src_base_version_gen_h",
-    ],
     defaults: [
         "perfetto_defaults",
     ],
@@ -282,6 +278,7 @@ cc_library_shared {
     srcs: [
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_tracing_core_core",
         ":perfetto_include_perfetto_ext_tracing_ipc_ipc",
@@ -340,6 +337,7 @@ cc_library_shared {
         ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_src_base_base",
         ":perfetto_src_base_unix_socket",
+        ":perfetto_src_base_version",
         ":perfetto_src_ipc_client",
         ":perfetto_src_ipc_common",
         ":perfetto_src_profiling_common_callstack_trie",
@@ -459,9 +457,6 @@ cc_binary_host {
     static_libs: [
         "libprotoc",
     ],
-    generated_headers: [
-        "perfetto_src_base_version_gen_h",
-    ],
     defaults: [
         "perfetto_defaults",
     ],
@@ -477,6 +472,7 @@ cc_library_shared {
     srcs: [
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
         ":perfetto_include_perfetto_ext_traced_traced",
@@ -541,6 +537,7 @@ cc_library_shared {
         ":perfetto_src_android_stats_perfetto_atoms",
         ":perfetto_src_base_base",
         ":perfetto_src_base_unix_socket",
+        ":perfetto_src_base_version",
         ":perfetto_src_ipc_client",
         ":perfetto_src_ipc_common",
         ":perfetto_src_ipc_host",
@@ -689,6 +686,7 @@ cc_library_static {
     srcs: [
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_tracing_core_core",
         ":perfetto_include_perfetto_ext_tracing_ipc_ipc",
@@ -751,6 +749,7 @@ cc_library_static {
         ":perfetto_src_android_stats_perfetto_atoms",
         ":perfetto_src_base_base",
         ":perfetto_src_base_unix_socket",
+        ":perfetto_src_base_version",
         ":perfetto_src_ipc_client",
         ":perfetto_src_ipc_common",
         ":perfetto_src_ipc_host",
@@ -897,6 +896,7 @@ cc_binary {
     srcs: [
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_traced_traced",
         ":perfetto_include_perfetto_ext_tracing_core_core",
@@ -960,6 +960,7 @@ cc_binary {
         ":perfetto_src_android_stats_perfetto_atoms",
         ":perfetto_src_base_base",
         ":perfetto_src_base_unix_socket",
+        ":perfetto_src_base_version",
         ":perfetto_src_ipc_client",
         ":perfetto_src_ipc_common",
         ":perfetto_src_perfetto_cmd_perfetto_cmd",
@@ -1044,6 +1045,7 @@ cc_library_static {
     srcs: [
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
         ":perfetto_include_perfetto_ext_traced_traced",
@@ -1125,6 +1127,7 @@ cc_library_static {
         ":perfetto_src_base_base",
         ":perfetto_src_base_test_support",
         ":perfetto_src_base_unix_socket",
+        ":perfetto_src_base_version",
         ":perfetto_src_ipc_client",
         ":perfetto_src_ipc_common",
         ":perfetto_src_ipc_host",
@@ -1319,6 +1322,7 @@ cc_library_static {
     srcs: [
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
         ":perfetto_include_perfetto_ext_traced_traced",
@@ -1400,6 +1404,7 @@ cc_library_static {
         ":perfetto_src_base_base",
         ":perfetto_src_base_test_support",
         ":perfetto_src_base_unix_socket",
+        ":perfetto_src_base_version",
         ":perfetto_src_ipc_client",
         ":perfetto_src_ipc_common",
         ":perfetto_src_ipc_host",
@@ -1634,6 +1639,11 @@ filegroup {
     name: "perfetto_include_perfetto_ext_base_http_http",
 }
 
+// GN: //include/perfetto/ext/base:version
+filegroup {
+    name: "perfetto_include_perfetto_ext_base_version",
+}
+
 // GN: //include/perfetto/ext/ipc:ipc
 filegroup {
     name: "perfetto_include_perfetto_ext_ipc_ipc",
@@ -1735,6 +1745,7 @@ cc_test {
     srcs: [
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_trace_processor_export_json",
         ":perfetto_include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
@@ -1854,6 +1865,7 @@ cc_test {
         ":perfetto_src_base_base",
         ":perfetto_src_base_test_support",
         ":perfetto_src_base_unix_socket",
+        ":perfetto_src_base_version",
         ":perfetto_src_ipc_client",
         ":perfetto_src_ipc_common",
         ":perfetto_src_ipc_host",
@@ -7602,7 +7614,6 @@ filegroup {
         "src/base/unix_task_runner.cc",
         "src/base/utils.cc",
         "src/base/uuid.cc",
-        "src/base/version.cc",
         "src/base/virtual_destructors.cc",
         "src/base/waitable_event.cc",
         "src/base/watchdog_posix.cc",
@@ -7679,6 +7690,14 @@ filegroup {
     name: "perfetto_src_base_unix_socket",
     srcs: [
         "src/base/unix_socket.cc",
+    ],
+}
+
+// GN: //src/base:version
+filegroup {
+    name: "perfetto_src_base_version",
+    srcs: [
+        "src/base/version.cc",
     ],
 }
 
@@ -8309,9 +8328,6 @@ cc_binary_host {
     ],
     static_libs: [
         "libprotoc",
-    ],
-    generated_headers: [
-        "perfetto_src_base_version_gen_h",
     ],
     defaults: [
         "perfetto_defaults",
@@ -10271,6 +10287,7 @@ cc_test {
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_ext_base_http_http",
+        ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_trace_processor_export_json",
         ":perfetto_include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
@@ -10393,6 +10410,7 @@ cc_test {
         ":perfetto_src_base_test_support",
         ":perfetto_src_base_unittests",
         ":perfetto_src_base_unix_socket",
+        ":perfetto_src_base_version",
         ":perfetto_src_ipc_client",
         ":perfetto_src_ipc_common",
         ":perfetto_src_ipc_host",
@@ -10708,9 +10726,6 @@ cc_binary_host {
     static_libs: [
         "libprotoc",
     ],
-    generated_headers: [
-        "perfetto_src_base_version_gen_h",
-    ],
     defaults: [
         "perfetto_defaults",
     ],
@@ -10727,6 +10742,7 @@ cc_binary {
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_ext_base_http_http",
+        ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_trace_processor_export_json",
         ":perfetto_include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
         ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
@@ -10771,6 +10787,7 @@ cc_binary {
         ":perfetto_src_base_base",
         ":perfetto_src_base_http_http",
         ":perfetto_src_base_unix_socket",
+        ":perfetto_src_base_version",
         ":perfetto_src_profiling_deobfuscator",
         ":perfetto_src_profiling_symbolizer_symbolize_database",
         ":perfetto_src_profiling_symbolizer_symbolizer",
@@ -10897,6 +10914,7 @@ cc_binary_host {
     srcs: [
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_trace_processor_export_json",
         ":perfetto_include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
         ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
@@ -10941,6 +10959,7 @@ cc_binary_host {
         ":perfetto_protos_perfetto_trace_translation_zero_gen",
         ":perfetto_protos_third_party_pprof_zero_gen",
         ":perfetto_src_base_base",
+        ":perfetto_src_base_version",
         ":perfetto_src_profiling_deobfuscator",
         ":perfetto_src_profiling_symbolizer_symbolize_database",
         ":perfetto_src_profiling_symbolizer_symbolizer",
@@ -11059,6 +11078,7 @@ cc_binary {
     srcs: [
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_tracing_core_core",
         ":perfetto_include_perfetto_ext_tracing_ipc_ipc",
@@ -11121,6 +11141,7 @@ cc_binary {
         ":perfetto_src_android_stats_perfetto_atoms",
         ":perfetto_src_base_base",
         ":perfetto_src_base_unix_socket",
+        ":perfetto_src_base_version",
         ":perfetto_src_ipc_client",
         ":perfetto_src_ipc_common",
         ":perfetto_src_kallsyms_kallsyms",
@@ -11247,6 +11268,7 @@ cc_binary {
     srcs: [
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
+        ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_traced_traced",
         ":perfetto_include_perfetto_ext_tracing_core_core",
@@ -11310,6 +11332,7 @@ cc_binary {
         ":perfetto_src_android_stats_perfetto_atoms",
         ":perfetto_src_base_base",
         ":perfetto_src_base_unix_socket",
+        ":perfetto_src_base_version",
         ":perfetto_src_ipc_client",
         ":perfetto_src_ipc_common",
         ":perfetto_src_perfetto_cmd_protos_cpp_gen",

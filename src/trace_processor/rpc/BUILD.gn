@@ -35,6 +35,7 @@ source_set("rpc") {
     "../../../include/perfetto/trace_processor",
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
+    "../../base:version",
     "../../protozero",
     "../../protozero:proto_ring_buffer",
   ]
