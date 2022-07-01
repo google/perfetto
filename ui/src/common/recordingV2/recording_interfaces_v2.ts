@@ -39,24 +39,41 @@ export interface TargetFactory {
   connectNewTarget(): Promise<RecordingTargetV2>;
 }
 
-export interface DynamicTargetInfo {
+export interface DataSource {
+  name: string;
+
+  // Contains information that is opaque to the recording code. The caller can
+  // use the DataSource name to type cast the DataSource descriptor.
+  // For targets calling QueryServiceState, 'descriptor' will hold the
+  // datasource descriptor:
+  // https://source.corp.google.com/android/external/perfetto/protos/perfetto/
+  // common/data_source_descriptor.proto;l=28-60
+  // For Chrome, 'descriptor' will contain the answer received from
+  // 'GetCategories':
+  // https://source.corp.google.com/android/external/perfetto/ui/src/
+  // chrome_extension/chrome_tracing_controller.ts;l=220
+  descriptor: unknown;
+}
+
+// Common fields for all types of targetInfo: Chrome, Android, Linux etc.
+interface TargetInfoBase {
+  name: string;
+
+  // The dataSources exposed by a target. They are fetched from the target
+  // (ex: using QSS for Android or GetCategories for Chrome).
+  dataSources: DataSource[];
+}
+
+export interface AndroidTargetInfo extends TargetInfoBase {
+  targetType: 'ANDROID';
+
   // This is the Android API level. For instance, it can be 32, 31, 30 etc.
   // It is the "API level" column here:
   // https://source.android.com/setup/start/build-numbers
-  androidApiLevel: number;
+  androidApiLevel?: number;
 }
 
-export interface AndroidTargetInfo {
-  name: string;
-  targetType: 'ANDROID';
-  // dynamicTargetInfo is only available after we have been able to connect to
-  // a target. On Android connected via WebUSB, that happens only after the user
-  // has authorized ADB, which can take several seconds.
-  dynamicTargetInfo?: DynamicTargetInfo;
-}
-
-export interface OtherTargetInfo {
-  name: string;
+export interface OtherTargetInfo extends TargetInfoBase {
   targetType: 'CHROME'|'CHROME_OS'|'LINUX';
 }
 
