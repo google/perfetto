@@ -402,9 +402,9 @@ class AbstractConstRowReference {
       PERFETTO_TP_PARENT_COLUMN_FLAG_NO_FLAG_COL)(__VA_ARGS__))
 
 // Creates the sparse vector with the given flags.
-#define PERFETTO_TP_TABLE_CONSTRUCTOR_SV(type, name, ...)          \
-  name##_ = ColumnStorage<TypedColumn<type>::stored_type>::Create< \
-      (name##_flags() & Column::Flag::kDense) != 0>();
+#define PERFETTO_TP_TABLE_CONSTRUCTOR_SV(type, name, ...)        \
+  name##_(ColumnStorage<TypedColumn<type>::stored_type>::Create< \
+          (name##_flags() & Column::Flag::kDense) != 0>()),
 
 // Invokes the chosen column constructor by passing the given args.
 #define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN(type, name, ...)   \
@@ -755,17 +755,12 @@ class AbstractConstRowReference {
     };                                                                        \
                                                                               \
     class_name(StringPool* pool, parent_class_name* parent)                   \
-        : macros_internal::MacroTable(pool, parent), parent_(parent) {        \
+        : macros_internal::MacroTable(pool, parent),                          \
+          PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_SV)    \
+              parent_(parent) {                                               \
       PERFETTO_CHECK(kIsRootTable == (parent == nullptr));                    \
                                                                               \
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_STATIC_ASSERT_FLAG)      \
-                                                                              \
-      /*                                                                      \
-       * Expands to                                                           \
-       * col1_ = NullableVector<col1_type>(mode)                              \
-       * ...                                                                  \
-       */                                                                     \
-      PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_SV);       \
                                                                               \
       /*                                                                      \
        * Expands to                                                           \
@@ -934,14 +929,14 @@ class AbstractConstRowReference {
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN);   \
     }                                                                         \
                                                                               \
-    parent_class_name* parent_ = nullptr;                                     \
-                                                                              \
     /*                                                                        \
      * Expands to                                                             \
      * NullableVector<col1_type> col1_;                                       \
      * ...                                                                    \
      */                                                                       \
     PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_MEMBER)                  \
+                                                                              \
+    parent_class_name* parent_ = nullptr;                                     \
   }
 
 }  // namespace trace_processor
