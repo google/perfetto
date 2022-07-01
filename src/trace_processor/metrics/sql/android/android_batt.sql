@@ -85,11 +85,9 @@ GROUP BY group_id;
 
 DROP TABLE IF EXISTS suspend_slice_;
 CREATE TABLE suspend_slice_ AS
--- TODO(simonmacm): remove trustworthy hard coding.
 SELECT
     ts,
-    dur,
-    true as trustworthy
+    dur
 FROM
     slice
     JOIN
@@ -98,6 +96,7 @@ FROM
 WHERE
     track.name = 'Suspend/Resume Latency'
     AND slice.name = 'syscore_resume(0)'
+    AND dur != -1
 ;
 
 SELECT RUN_METRIC('android/global_counter_span_view.sql',
@@ -168,6 +167,5 @@ SELECT AndroidBatteryMetric(
       )
     )
     FROM suspend_slice_
-    WHERE trustworthy
   )
 );
