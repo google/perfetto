@@ -55,10 +55,21 @@ def add_startup(trace, ts, pid):
 # (i.e. process exit is taken into account).
 trace = synth_common.create_trace()
 trace.add_packet()
-trace.add_process(1, 0, 'init')
-trace.add_process(2, 1, 'system_server')
+trace.add_process(1, 0, 'init', uid=10001)
+trace.add_process(2, 1, 'system_server', uid=1000)
+
+trace.add_package_list(
+    ts=99, name='com.google.android.calendar', uid=10001, version_code=123)
+
 add_startup(trace, ts=100, pid=3)
+trace.add_packet(ts=140)
+trace.add_process(3, 1, 'com.google.android.calendar:debug', uid=10001)
+
+trace.add_packet()
 trace.add_process_free(ts=150, tid=3, comm='', prio=0)
+
 add_startup(trace, ts=200, pid=4)
+trace.add_packet(ts=250)
+trace.add_process(4, 1, 'com.google.android.calendar', uid=10001)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
