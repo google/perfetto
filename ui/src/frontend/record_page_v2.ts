@@ -56,17 +56,20 @@ import {createPage, PageAttrs} from './pages';
 import {publishBufferUsage} from './publish';
 import {autosaveConfigStore, recordConfigStore} from './record_config';
 import {
-  AdvancedSettings,
-  AndroidSettings,
   Configurations,
-  CpuSettings,
-  GpuSettings,
-  MemorySettings,
+  maybeGetActiveCss,
   PERSIST_CONFIG_FLAG,
-  PowerSettings,
-  RecSettings,
+  RECORDING_SECTIONS,
 } from './record_page';
 import {CodeSnippet} from './record_widgets';
+import {AdvancedSettings} from './recording/advanced_settings';
+import {AndroidSettings} from './recording/android_settings';
+import {CpuSettings} from './recording/cpu_settings';
+import {GpuSettings} from './recording/gpu_settings';
+import {MemorySettings} from './recording/memory_settings';
+import {PowerSettings} from './recording/power_settings';
+import {RecordingSectionAttrs} from './recording/recording_sections';
+import {RecordingSettings} from './recording/recording_settings';
 
 // Wraps a tracing session promise while the promise is being resolved (e.g.
 // while we are awaiting for ADB auth).
@@ -659,29 +662,37 @@ function getRecordContainer(subpage?: string): m.Vnode<any, any> {
     return m('.record-container', components);
   }
 
-  const SECTIONS: {[property: string]: (cssClass: string) => m.Child} = {
-    buffers: RecSettings,
-    instructions: Instructions,
-    config: Configurations,
-    cpu: CpuSettings,
-    gpu: GpuSettings,
-    power: PowerSettings,
-    memory: MemorySettings,
-    android: AndroidSettings,
-    advanced: AdvancedSettings,
-  };
-
   const pages: m.Children = [];
   // we need to remove the `/` character from the route
   let routePage = subpage ? subpage.substr(1) : '';
-  if (!Object.keys(SECTIONS).includes(routePage)) {
+  if (!RECORDING_SECTIONS.includes(routePage)) {
     routePage = 'buffers';
   }
   pages.push(recordMenu(routePage));
-  for (const key of Object.keys(SECTIONS)) {
-    const cssClass = routePage === key ? '.active' : '';
-    pages.push(SECTIONS[key](cssClass));
+
+  pages.push(m(RecordingSettings, {
+    dataSources: [],
+    cssClass: maybeGetActiveCss(routePage, 'buffers'),
+  } as RecordingSectionAttrs));
+  pages.push(Instructions(maybeGetActiveCss(routePage, 'instructions')));
+  pages.push(Configurations(maybeGetActiveCss(routePage, 'config')));
+
+  const settingsSections = new Map([
+    ['cpu', CpuSettings],
+    ['gpu', GpuSettings],
+    ['power', PowerSettings],
+    ['memory', MemorySettings],
+    ['android', AndroidSettings],
+    ['advanced', AdvancedSettings],
+    // TODO(octaviant): Add Chrome settings.
+  ]);
+  for (const [section, component] of settingsSections.entries()) {
+    pages.push(m(component, {
+      dataSources: [],
+      cssClass: maybeGetActiveCss(routePage, section),
+    } as RecordingSectionAttrs));
   }
+
   components.push(m('.record-container-content', pages));
   return m('.record-container', components);
 }
