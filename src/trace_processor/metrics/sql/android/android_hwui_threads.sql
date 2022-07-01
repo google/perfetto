@@ -21,7 +21,8 @@ CREATE VIEW {{table_name_prefix}}_main_thread AS
     process.name as process_name,
     thread.utid
   FROM thread
-  JOIN {{process_allowlist_table}} process USING (upid)
+  JOIN {{process_allowlist_table}} process_allowlist USING (upid)
+  JOIN process USING (upid)
   WHERE thread.is_main_thread;
 
 DROP VIEW IF EXISTS {{table_name_prefix}}_render_thread;
@@ -30,7 +31,8 @@ CREATE VIEW {{table_name_prefix}}_render_thread AS
     process.name as process_name,
     thread.utid
   FROM thread
-  JOIN {{process_allowlist_table}} process USING (upid)
+  JOIN {{process_allowlist_table}} process_allowlist USING (upid)
+  JOIN process USING (upid)
   WHERE thread.name = 'RenderThread';
 
 DROP VIEW IF EXISTS {{table_name_prefix}}_gpu_completion_thread;
@@ -39,7 +41,8 @@ CREATE VIEW {{table_name_prefix}}_gpu_completion_thread AS
     process.name as process_name,
     thread.utid
   FROM thread
-  JOIN {{process_allowlist_table}} process USING (upid)
+  JOIN {{process_allowlist_table}} process_allowlist USING (upid)
+  JOIN process USING (upid)
   WHERE thread.name = 'GPU completion';
 
 DROP VIEW IF EXISTS {{table_name_prefix}}_hwc_release_thread;
@@ -48,7 +51,8 @@ CREATE VIEW {{table_name_prefix}}_hwc_release_thread AS
     process.name as process_name,
     thread.utid
   FROM thread
-  JOIN {{process_allowlist_table}} process USING (upid)
+  JOIN {{process_allowlist_table}} process_allowlist USING (upid)
+  JOIN process USING (upid)
   WHERE thread.name = 'HWC release';
 
 DROP TABLE IF EXISTS {{table_name_prefix}}_main_thread_slices;
