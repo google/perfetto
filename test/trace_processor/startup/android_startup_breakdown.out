@@ -57,6 +57,17 @@ android_startup {
     activity_hosting_process_count: 1
     process {
       name: "com.google.android.calendar"
+      uid: 10001
+      package {
+        package_name: "com.google.android.calendar"
+        apk_version_code: 123
+        debuggable: false
+      }
+      packages_for_uid {
+        package_name: "com.google.android.calendar"
+        apk_version_code: 123
+        debuggable: false
+      }
     }
     activities {
       name: "com.google.android.calendar.MainActivity"
