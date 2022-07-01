@@ -2,12 +2,25 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    * Removed enable_perfetto_x64_cpu_opt by default for x64 MacOS
-      since it caused issues for CIs.
+    *
   UI:
     *
   SDK:
     *
+
+
+v27.0 - 2022-07-01:
+  Tracing service and probes:
+    * Fix rare crash due to watchdog timeout being too short.
+  Trace Processor:
+    * Removed enable_perfetto_x64_cpu_opt by default for x64 MacOS
+      since it caused issues for CIs.
+    * Improved performance of filtering and sorting on most queries.
+  UI:
+    * Changed sorting of process groups to take slice count and presence of
+      perf profiles into account.
+  SDK:
+    * 
 
 
 v26.1 - 2022-06-13:
