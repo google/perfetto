@@ -366,8 +366,8 @@ function RecordingNotes() {
         notes.push(msgLinux);
         break;
       case 'ANDROID': {
-        const androidApiLevel = targetInfo.dynamicTargetInfo?.androidApiLevel;
-        if (androidApiLevel && androidApiLevel == 28) {
+        const androidApiLevel = targetInfo.androidApiLevel;
+        if (androidApiLevel === 28) {
           notes.push(m('.note', msgFeatNotSupported, msgSideload));
         } else if (androidApiLevel && androidApiLevel <= 27) {
           notes.push(m('.note', msgPerfettoNotSupported, msgSideload));
@@ -406,8 +406,7 @@ function getRecordCommand(targetInfo: TargetInfo): string {
   const pbtx = data ? data.configProtoText : '';
   let cmd = '';
   if (targetInfo.targetType === 'ANDROID' &&
-      targetInfo.dynamicTargetInfo?.androidApiLevel &&
-      targetInfo.dynamicTargetInfo.androidApiLevel === 28) {
+      targetInfo.androidApiLevel === 28) {
     cmd += `echo '${pbBase64}' | \n`;
     cmd += 'base64 --decode | \n';
     cmd += 'adb shell "perfetto -c - -o /data/misc/perfetto-traces/trace"\n';
@@ -441,7 +440,11 @@ function RecordingButtons() {
   }
 
   const targetInfo = recordingTargetV2.getInfo();
-  if (targetInfo.targetType === 'ANDROID' && !targetInfo.dynamicTargetInfo) {
+  // The absence of androidApiLevel shows that we have not connected to the
+  // device, therefore we can not start recording.
+  // TODO(octaviant): encapsulation should be stricter here, look into making
+  // this a method
+  if (targetInfo.targetType === 'ANDROID' && !targetInfo.androidApiLevel) {
     return undefined;
   }
 
@@ -648,7 +651,9 @@ function getRecordContainer(subpage?: string): m.Vnode<any, any> {
   }
 
   const targetInfo = recordingTargetV2.getInfo();
-  if (targetInfo.targetType === 'ANDROID' && !targetInfo.dynamicTargetInfo) {
+  // The absence of androidApiLevel shows that we have not connected to the
+  // device because we do not have user authorization.
+  if (targetInfo.targetType === 'ANDROID' && !targetInfo.androidApiLevel) {
     components.push(
         m('.full-centered', 'Please allow USB debugging on the device.'));
     return m('.record-container', components);

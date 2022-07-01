@@ -71,7 +71,7 @@ export class RecordingConfigUtils {
 export function genTraceConfig(
     uiCfg: RecordConfig, targetInfo: TargetInfo): TraceConfig {
   const androidApiLevel = (targetInfo.targetType === 'ANDROID') ?
-      targetInfo.dynamicTargetInfo?.androidApiLevel :
+      targetInfo.androidApiLevel :
       undefined;
   const protoCfg = new TraceConfig();
   protoCfg.durationMs = uiCfg.durationMs;

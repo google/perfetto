@@ -34,7 +34,8 @@ export class AndroidWebsocketTarget implements RecordingTargetV2 {
       targetType: 'ANDROID',
       // TODO(octaviant): fetch the OS from the adb connection
       // once aosp/2127460 is in
-      dynamicTargetInfo: undefined,
+      androidApiLevel: undefined,
+      dataSources: [],
       name: this.serialNumber + ' WebSocket',
     };
   }
