@@ -15,29 +15,83 @@
 
 SELECT RUN_METRIC('android/process_metadata.sql');
 
+-- Stores information about the last CUJ (important UI transition) in the trace.
+-- There might be more than 1 CUJ in the trace and in that case we pick the one
+-- that finished last.
+-- This limiting to 1 CUJ is done to simplify the rest of the script.
 DROP TABLE IF EXISTS android_sysui_cuj_last_cuj;
 CREATE TABLE android_sysui_cuj_last_cuj AS
+-- Finds slices like J<SHADE_EXPAND_COLLAPSE> which mark which frames were
+-- rendered during a specific CUJ.
+  WITH cujs AS (
   SELECT
-    process.name AS name,
+    ROW_NUMBER() OVER (ORDER BY ts) AS cuj_id,
     process.upid AS upid,
+    process.name AS process_name,
     process_metadata.metadata AS process_metadata,
+    slice.name AS cuj_slice_name,
+    -- Extracts "CUJ_NAME" from "J<CUJ_NAME>"
     SUBSTR(slice.name, 3, LENGTH(slice.name) - 3) AS cuj_name,
     ts AS ts_start,
-    ts + dur AS ts_end,
-    dur AS dur
+    dur,
+    ts + dur AS ts_end
   FROM slice
-  JOIN process_track ON slice.track_id = process_track.id
+  JOIN process_track
+    ON slice.track_id = process_track.id
   JOIN process USING (upid)
   JOIN process_metadata USING (upid)
   WHERE
     slice.name GLOB 'J<*>'
-    -- Filter out CUJs that are <4ms long - assuming CUJ was cancelled.
-    AND slice.dur > 4e6
     AND (
       process.name GLOB 'com.google.android*'
       OR process.name GLOB 'com.android.*')
-  ORDER BY ts desc
-  LIMIT 1;
+),
+-- Slices logged from FrameTracker#markEvent that describe when
+-- the instrumentation was started and the reason the CUJ ended.
+cuj_state_markers AS (
+SELECT
+  cujs.cuj_id,
+  cuj_state_marker.ts,
+  cuj_state_marker.dur,
+  cuj_state_marker.name,
+  CASE
+    WHEN cuj_state_marker.name GLOB '*#FT#begin*' THEN 'begin'
+    WHEN cuj_state_marker.name GLOB '*#FT#deferMonitoring*' THEN 'deferMonitoring'
+    WHEN cuj_state_marker.name GLOB '*#FT#end*' THEN 'end'
+    WHEN cuj_state_marker.name GLOB '*#FT#cancel*' THEN 'cancel'
+    ELSE 'other'
+  END AS marker_type
+FROM cujs
+LEFT JOIN slice cuj_state_marker
+  ON cuj_state_marker.ts >= cujs.ts_start
+  AND cuj_state_marker.ts < cujs.ts_end
+  -- e.g. J<CUJ_NAME>#FT#end#0
+  AND cuj_state_marker.name GLOB (cujs.cuj_slice_name || "#FT#*")
+)
+SELECT
+  cujs.*,
+  CASE
+    WHEN EXISTS (
+      SELECT 1
+      FROM cuj_state_markers csm
+      WHERE csm.cuj_id = cujs.cuj_id
+      AND csm.marker_type = 'cancel')
+    THEN 'canceled'
+    WHEN EXISTS (
+      SELECT 1
+      FROM cuj_state_markers csm
+      WHERE csm.cuj_id = cujs.cuj_id
+      AND csm.marker_type = 'end')
+    THEN 'completed'
+  ELSE NULL
+  END AS state
+FROM cujs
+WHERE
+  state <> 'canceled'
+  -- Older builds don't have the state markers so we allow NULL but filter out
+  -- CUJs that are <4ms long - assuming CUJ was canceled in that case.
+  OR (state IS NULL AND cujs.dur > 4e6)
+ORDER BY ts_end DESC LIMIT 1;
 
 SELECT RUN_METRIC(
   'android/android_hwui_threads.sql',
@@ -124,7 +178,7 @@ SELECT
 DROP VIEW IF EXISTS android_sysui_cuj_thread;
 CREATE VIEW android_sysui_cuj_thread AS
 SELECT
-  process.name as process_name,
+  process_name,
   thread.utid,
   thread.name
 FROM thread
