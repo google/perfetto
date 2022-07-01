@@ -99,11 +99,12 @@ function convertToRecordingV2Input(
   if (targetType == 'ANDROID') {
     targetInfo = {
       targetType,
-      dynamicTargetInfo: {androidApiLevel},
+      androidApiLevel,
+      dataSources: [],
       name: '',
     };
   } else {
-    targetInfo = {targetType, name: ''};
+    targetInfo = {targetType, dataSources: [], name: ''};
   }
 
   return genTraceConfig(uiCfg, targetInfo);
