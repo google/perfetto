@@ -104,7 +104,6 @@ const METRICS = [
   'android_surfaceflinger',
   'android_batt',
   'android_sysui_cuj',
-  'android_jank',
   'android_camera',
   'android_other_traces',
   'chrome_dropped_frames',

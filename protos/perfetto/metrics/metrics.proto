@@ -33,7 +33,6 @@ import "protos/perfetto/metrics/android/hwcomposer.proto";
 import "protos/perfetto/metrics/android/hwui_metric.proto";
 import "protos/perfetto/metrics/android/ion_metric.proto";
 import "protos/perfetto/metrics/android/irq_runtime_metric.proto";
-import "protos/perfetto/metrics/android/jank_metric.proto";
 import "protos/perfetto/metrics/android/java_heap_histogram.proto";
 import "protos/perfetto/metrics/android/java_heap_stats.proto";
 import "protos/perfetto/metrics/android/lmk_metric.proto";
@@ -177,8 +176,8 @@ message TraceMetrics {
   // Metric associated with hwcomposer.
   optional AndroidHwcomposerMetrics android_hwcomposer = 28;
 
-  // Detects common bad patterns that might lead to jank.
-  optional AndroidJankMetrics android_jank = 29;
+  // Deprecated was AndroidJankMetrics;
+  reserved 29;
 
   // G2D metrics.
   optional G2dMetrics g2d = 30;
