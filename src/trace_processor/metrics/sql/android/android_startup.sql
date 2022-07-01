@@ -38,9 +38,6 @@ SELECT RUN_METRIC('android/startup/gc_slices.sql');
 -- Define helper functions for system state.
 SELECT RUN_METRIC('android/startup/system_state.sql');
 
--- Define process metadata functions.
-SELECT RUN_METRIC('android/process_metadata.sql');
-
 -- Returns the slices for forked processes. Never present in hot starts.
 -- Prefer this over process start_ts, since the process might have
 -- been preforked.
@@ -253,10 +250,14 @@ SELECT
         WHERE thread_name = 'Jit thread pool'
       ),
       'other_processes_spawned_count', (
-        SELECT COUNT(1) FROM process
+        SELECT COUNT(1)
+        FROM process
         WHERE
-          (process.name IS NULL OR process.name != launches.package) AND
-          process.start_ts BETWEEN launches.ts AND launches.ts + launches.dur
+          process.start_ts BETWEEN launches.ts AND launches.ts + launches.dur AND
+          process.upid NOT IN (
+            SELECT upid FROM launch_processes
+            WHERE launch_processes.launch_id = launches.id
+          )
       )
     ),
     'hsc', NULL_IF_EMPTY(AndroidStartupMetric_HscMetrics(
