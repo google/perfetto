@@ -47,6 +47,17 @@ android_startup {
     activity_hosting_process_count: 1
     process {
       name: "com.some.app"
+      uid: 10001
+      package {
+        package_name: "com.some.app"
+        apk_version_code: 123
+        debuggable: false
+      }
+      packages_for_uid {
+        package_name: "com.some.app"
+        apk_version_code: 123
+        debuggable: false
+      }
     }
     event_timestamps {
       intent_received: 100
