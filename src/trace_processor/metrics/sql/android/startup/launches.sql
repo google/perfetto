@@ -88,21 +88,26 @@ FROM (
   -- the `WHERE launch_type IS NOT NULL` constraint inside, we end up with a
   -- query which is an order of magnitude slower than being outside :(
   SELECT
-    l.id AS launch_id,
-    p.upid,
+    launch_id,
+    upid,
     CASE
-      WHEN STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'bindApplication') > 0
-        THEN 'cold'
-      WHEN STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityStart') > 0
-        THEN 'warm'
-      WHEN STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityResume') > 0
-        THEN 'hot'
+      WHEN bind_app > 0 AND a_start > 0 AND a_resume > 0 THEN 'cold'
+      WHEN a_start > 0 AND a_resume > 0 THEN 'warm'
+      WHEN a_resume > 0 THEN 'hot'
       ELSE NULL
     END AS launch_type
-  FROM launches l
-  LEFT JOIN package_list ON (l.package = package_list.package_name)
-  JOIN process p ON (l.package = p.name OR p.uid = package_list.uid)
-  JOIN thread t ON (p.upid = t.upid AND t.is_main_thread)
+  FROM (
+    SELECT
+      l.id AS launch_id,
+      p.upid,
+      STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'bindApplication') bind_app,
+      STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityStart') a_start,
+      STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityResume') a_resume
+    FROM launches l
+    LEFT JOIN package_list ON (l.package = package_list.package_name)
+    JOIN process p ON (l.package = p.name OR p.uid = package_list.uid)
+    JOIN thread t ON (p.upid = t.upid AND t.is_main_thread)
+  )
 )
 WHERE launch_type IS NOT NULL;
 

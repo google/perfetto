@@ -53,7 +53,6 @@ source_set("base") {
     "unix_task_runner.h",
     "utils.h",
     "uuid.h",
-    "version.h",
     "waitable_event.h",
     "watchdog.h",
     "watchdog_noop.h",
@@ -65,4 +64,10 @@ source_set("base") {
   }
   public_configs = [ "../../../../gn:asan_instrumentation" ]
   public_deps = [ "../../base" ]
+}
+
+source_set("version") {
+  sources = [
+    "version.h",
+  ]
 }
