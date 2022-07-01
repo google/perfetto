@@ -33,7 +33,6 @@ sql_files = [
   "android/android_hwui_threads.sql",
   "android/android_ion.sql",
   "android/android_irq_runtime.sql",
-  "android/android_jank.sql",
   "android/android_lmk_reason.sql",
   "android/android_lmk.sql",
   "android/android_mem_unagg.sql",
