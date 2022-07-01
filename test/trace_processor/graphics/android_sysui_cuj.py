@@ -125,9 +125,15 @@ trace.add_thread(
 trace.add_thread(
     tid=JITID, tgid=PID, cmdline="Jit thread pool", name="Jit thread pool")
 trace.add_ftrace_packet(cpu=0)
+trace.add_atrace_async_begin(ts=5, tid=PID, pid=PID, buf="J<SHOULD_BE_IGNORED>")
 trace.add_atrace_async_begin(ts=10, tid=PID, pid=PID, buf="J<SHADE_ROW_EXPAND>")
 trace.add_atrace_async_end(
+    ts=100_000_000, tid=PID, pid=PID, buf="J<SHOULD_BE_IGNORED>")
+trace.add_atrace_async_begin(
+    ts=100_100_000, tid=PID, pid=PID, buf="J<CANCELED>")
+trace.add_atrace_async_end(
     ts=901_000_010, tid=PID, pid=PID, buf="J<SHADE_ROW_EXPAND>")
+trace.add_atrace_async_end(ts=999_000_000, tid=PID, pid=PID, buf="J<CANCELED>")
 
 add_frame(
     trace,
@@ -349,6 +355,9 @@ add_frame(
     ts_end_draw_frame=1_300_000_000,
     ts_gpu=1_400_000_000,
     ts_end_gpu=1_500_000_000)
+
+add_main_thread_atrace(
+    trace, ts=990_000_000, ts_end=995_000_000, buf="J<CANCELED>#FT#cancel#0")
 
 add_expected_frame_events(ts=0, dur=16_000_000, token_start=10)
 add_actual_frame_events(ts=0, dur=16_000_000, token_start=10)
