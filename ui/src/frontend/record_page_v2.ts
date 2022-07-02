@@ -56,17 +56,20 @@ import {createPage, PageAttrs} from './pages';
 import {publishBufferUsage} from './publish';
 import {autosaveConfigStore, recordConfigStore} from './record_config';
 import {
-  AdvancedSettings,
-  AndroidSettings,
   Configurations,
-  CpuSettings,
-  GpuSettings,
-  MemorySettings,
+  maybeGetActiveCss,
   PERSIST_CONFIG_FLAG,
-  PowerSettings,
-  RecSettings,
+  RECORDING_SECTIONS,
 } from './record_page';
 import {CodeSnippet} from './record_widgets';
+import {AdvancedSettings} from './recording/advanced_settings';
+import {AndroidSettings} from './recording/android_settings';
+import {CpuSettings} from './recording/cpu_settings';
+import {GpuSettings} from './recording/gpu_settings';
+import {MemorySettings} from './recording/memory_settings';
+import {PowerSettings} from './recording/power_settings';
+import {RecordingSectionAttrs} from './recording/recording_sections';
+import {RecordingSettings} from './recording/recording_settings';
 
 // Wraps a tracing session promise while the promise is being resolved (e.g.
 // while we are awaiting for ADB auth).
@@ -366,8 +369,8 @@ function RecordingNotes() {
         notes.push(msgLinux);
         break;
       case 'ANDROID': {
-        const androidApiLevel = targetInfo.dynamicTargetInfo?.androidApiLevel;
-        if (androidApiLevel && androidApiLevel == 28) {
+        const androidApiLevel = targetInfo.androidApiLevel;
+        if (androidApiLevel === 28) {
           notes.push(m('.note', msgFeatNotSupported, msgSideload));
         } else if (androidApiLevel && androidApiLevel <= 27) {
           notes.push(m('.note', msgPerfettoNotSupported, msgSideload));
@@ -406,8 +409,7 @@ function getRecordCommand(targetInfo: TargetInfo): string {
   const pbtx = data ? data.configProtoText : '';
   let cmd = '';
   if (targetInfo.targetType === 'ANDROID' &&
-      targetInfo.dynamicTargetInfo?.androidApiLevel &&
-      targetInfo.dynamicTargetInfo.androidApiLevel === 28) {
+      targetInfo.androidApiLevel === 28) {
     cmd += `echo '${pbBase64}' | \n`;
     cmd += 'base64 --decode | \n';
     cmd += 'adb shell "perfetto -c - -o /data/misc/perfetto-traces/trace"\n';
@@ -441,7 +443,11 @@ function RecordingButtons() {
   }
 
   const targetInfo = recordingTargetV2.getInfo();
-  if (targetInfo.targetType === 'ANDROID' && !targetInfo.dynamicTargetInfo) {
+  // The absence of androidApiLevel shows that we have not connected to the
+  // device, therefore we can not start recording.
+  // TODO(octaviant): encapsulation should be stricter here, look into making
+  // this a method
+  if (targetInfo.targetType === 'ANDROID' && !targetInfo.androidApiLevel) {
     return undefined;
   }
 
@@ -648,35 +654,45 @@ function getRecordContainer(subpage?: string): m.Vnode<any, any> {
   }
 
   const targetInfo = recordingTargetV2.getInfo();
-  if (targetInfo.targetType === 'ANDROID' && !targetInfo.dynamicTargetInfo) {
+  // The absence of androidApiLevel shows that we have not connected to the
+  // device because we do not have user authorization.
+  if (targetInfo.targetType === 'ANDROID' && !targetInfo.androidApiLevel) {
     components.push(
         m('.full-centered', 'Please allow USB debugging on the device.'));
     return m('.record-container', components);
   }
 
-  const SECTIONS: {[property: string]: (cssClass: string) => m.Child} = {
-    buffers: RecSettings,
-    instructions: Instructions,
-    config: Configurations,
-    cpu: CpuSettings,
-    gpu: GpuSettings,
-    power: PowerSettings,
-    memory: MemorySettings,
-    android: AndroidSettings,
-    advanced: AdvancedSettings,
-  };
-
   const pages: m.Children = [];
   // we need to remove the `/` character from the route
   let routePage = subpage ? subpage.substr(1) : '';
-  if (!Object.keys(SECTIONS).includes(routePage)) {
+  if (!RECORDING_SECTIONS.includes(routePage)) {
     routePage = 'buffers';
   }
   pages.push(recordMenu(routePage));
-  for (const key of Object.keys(SECTIONS)) {
-    const cssClass = routePage === key ? '.active' : '';
-    pages.push(SECTIONS[key](cssClass));
+
+  pages.push(m(RecordingSettings, {
+    dataSources: [],
+    cssClass: maybeGetActiveCss(routePage, 'buffers'),
+  } as RecordingSectionAttrs));
+  pages.push(Instructions(maybeGetActiveCss(routePage, 'instructions')));
+  pages.push(Configurations(maybeGetActiveCss(routePage, 'config')));
+
+  const settingsSections = new Map([
+    ['cpu', CpuSettings],
+    ['gpu', GpuSettings],
+    ['power', PowerSettings],
+    ['memory', MemorySettings],
+    ['android', AndroidSettings],
+    ['advanced', AdvancedSettings],
+    // TODO(octaviant): Add Chrome settings.
+  ]);
+  for (const [section, component] of settingsSections.entries()) {
+    pages.push(m(component, {
+      dataSources: [],
+      cssClass: maybeGetActiveCss(routePage, section),
+    } as RecordingSectionAttrs));
   }
+
   components.push(m('.record-container-content', pages));
   return m('.record-container', components);
 }
