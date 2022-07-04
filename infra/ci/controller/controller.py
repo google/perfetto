@@ -318,6 +318,9 @@ def comment_and_vote_cl(handler):
     if '-ui-' in job_id:
       ui_links.append('https://storage.googleapis.com/%s/%s/ui/index.html' %
                       (GCS_ARTIFACTS, job_id))
+      ui_links.append(
+          'https://storage.googleapis.com/%s/%s/ui-test-artifacts/index.html' %
+          (GCS_ARTIFACTS, job_id))
     if job_obj['status'] == 'COMPLETED':
       passed_jobs.append(job_id)
     elif not job_config.get('SKIP_VOTING', False):
