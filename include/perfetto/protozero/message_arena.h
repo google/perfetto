@@ -19,7 +19,7 @@
 
 #include <stdint.h>
 
-#include <list>
+#include <forward_list>
 #include <type_traits>
 
 #include "perfetto/base/export.h"
@@ -54,8 +54,8 @@ class PERFETTO_EXPORT_COMPONENT MessageArena {
   // Deletes the last message allocated. The |msg| argument is used only for
   // DCHECKs, it MUST be the pointer obtained by the last NewMessage() call.
   void DeleteLastMessage(Message* msg) {
-    PERFETTO_DCHECK(!blocks_.empty() && blocks_.back().entries > 0);
-    PERFETTO_DCHECK(&blocks_.back().storage[blocks_.back().entries - 1] ==
+    PERFETTO_DCHECK(!blocks_.empty() && blocks_.front().entries > 0);
+    PERFETTO_DCHECK(&blocks_.front().storage[blocks_.front().entries - 1] ==
                     static_cast<void*>(msg));
     DeleteLastMessageInternal();
   }
@@ -67,7 +67,7 @@ class PERFETTO_EXPORT_COMPONENT MessageArena {
   void Reset() {
     PERFETTO_DCHECK(!blocks_.empty());
     blocks_.resize(1);
-    auto& block = blocks_.back();
+    auto& block = blocks_.front();
     block.entries = 0;
     PERFETTO_ASAN_POISON(block.storage, sizeof(block.storage));
   }
@@ -87,7 +87,7 @@ class PERFETTO_EXPORT_COMPONENT MessageArena {
 
   // blocks are used to hand out pointers and must not be moved. Hence why
   // std::list rather than std::vector.
-  std::list<Block> blocks_;
+  std::forward_list<Block> blocks_;
 };
 
 }  // namespace protozero

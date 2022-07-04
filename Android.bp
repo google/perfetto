@@ -8532,6 +8532,7 @@ filegroup {
     name: "perfetto_src_protozero_unittests",
     srcs: [
         "src/protozero/copyable_ptr_unittest.cc",
+        "src/protozero/message_arena_unittest.cc",
         "src/protozero/message_handle_unittest.cc",
         "src/protozero/message_unittest.cc",
         "src/protozero/proto_decoder_unittest.cc",
