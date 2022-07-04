@@ -17,7 +17,7 @@
 import {Actions} from '../common/actions';
 import {Engine} from '../common/engine';
 import {featureFlags} from '../common/feature_flags';
-import {ColumnType} from '../common/query_result';
+import {ColumnType, STR} from '../common/query_result';
 import {
   AreaSelection,
   PivotTableReduxQuery,
@@ -145,6 +145,7 @@ export class PivotTableReduxController extends Controller<{}> {
   engine: Engine;
   lastQueryAreaId = '';
   lastQueryAreaTracks = new Set<string>();
+  requestedArgumentNames = false;
 
   constructor(args: {engine: Engine}) {
     super({});
@@ -223,9 +224,30 @@ export class PivotTableReduxController extends Controller<{}> {
     globals.dispatch(Actions.setCurrentTab({tab: 'pivot_table_redux'}));
   }
 
+  async requestArgumentNames() {
+    this.requestedArgumentNames = true;
+    const result = await this.engine.query(`
+      select distinct flat_key from args
+    `);
+    const it = result.iter({flat_key: STR});
+
+    const argumentNames = [];
+    while (it.valid()) {
+      argumentNames.push(it.flat_key);
+      it.next();
+    }
+
+    globals.dispatch(Actions.setPivotTableArgumentNames({argumentNames}));
+  }
+
+
   run() {
     if (!PIVOT_TABLE_REDUX_FLAG.get()) {
       return;
+    }
+
+    if (!this.requestedArgumentNames) {
+      this.requestArgumentNames();
     }
 
     const pivotTableState = globals.state.nonSerializableState.pivotTableRedux;
