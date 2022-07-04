@@ -1262,9 +1262,14 @@ class TrackDecider {
       union
       select distinct(upid) as upid, 0 as utid from heap_graph_object
     ) the_tracks
-    left join (select upid, sum(dur) as total_dur
-      from sched join thread using(utid)
-      where dur != -1 and utid != 0
+    left join (
+      select upid, sum(thread_total_dur) as total_dur
+      from (
+        select utid, sum(dur) as thread_total_dur
+        from sched where dur != -1 and utid != 0
+        group by utid
+      )
+      join thread using (utid)
       group by upid
     ) using(upid)
     left join (
