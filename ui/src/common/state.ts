@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PivotTree} from '../controller/pivot_table_redux_controller';
 import {RecordConfig} from '../controller/record_config_types';
 import {
   Aggregation,
+  PivotTree,
   TableColumn,
-} from '../frontend/pivot_table_redux_query_generator';
+} from '../frontend/pivot_table_redux_types';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.

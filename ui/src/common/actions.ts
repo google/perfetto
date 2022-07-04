@@ -17,11 +17,12 @@ import {Draft} from 'immer';
 import {assertExists, assertTrue} from '../base/logging';
 import {RecordConfig} from '../controller/record_config_types';
 import {globals} from '../frontend/globals';
-import {aggregationKey, columnKey} from '../frontend/pivot_table_redux';
 import {
   Aggregation,
+  aggregationKey,
+  columnKey,
   TableColumn,
-} from '../frontend/pivot_table_redux_query_generator';
+} from '../frontend/pivot_table_redux_types';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames/common';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/common';
 import {COUNTER_TRACK_KIND} from '../tracks/counter/common';
