@@ -13,13 +13,16 @@
 // limitations under the License.
 
 import {createEmptyRecordConfig} from '../controller/record_config_types';
-import {aggregationKey, columnKey} from '../frontend/pivot_table_redux';
-import {Aggregation} from '../frontend/pivot_table_redux_query_generator';
 import {
   autosaveConfigStore,
   recordTargetStore,
 } from '../frontend/record_config';
 
+import {
+  Aggregation,
+  aggregationKey,
+  columnKey,
+} from './../frontend/pivot_table_redux_types';
 import {featureFlags} from './feature_flags';
 import {
   defaultTraceTime,
