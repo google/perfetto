@@ -84,7 +84,7 @@ export function getTestTracePath(fname: string): string {
 }
 
 export async function compareScreenshots(
-    actualFilename: string, expectedFilename: string) {
+    reportPath: string, actualFilename: string, expectedFilename: string) {
   if (!fs.existsSync(expectedFilename)) {
     throw new Error(
         `Could not find ${expectedFilename}. Run wih REBASELINE=1.`);
@@ -102,6 +102,9 @@ export async function compareScreenshots(
   if (diff > DIFF_MAX_PIXELS) {
     const diffFilename = actualFilename.replace('.png', '-diff.png');
     fs.writeFileSync(diffFilename, PNG.sync.write(diffPng));
+    fs.appendFileSync(
+        reportPath,
+        `${path.basename(actualFilename)};${path.basename(diffFilename)}\n`);
     fail(`Diff test failed on ${diffFilename}, delta: ${diff} pixels`);
   }
   return diff;
