@@ -287,6 +287,7 @@ def CheckTestData(input_api, output_api):
             '//test/data is out of sync. Run ' + tool + ' status for more. \n'
             'If you rebaselined UI tests or added a new test trace, run:'
             '`tools/test_data upload`. Otherwise run `tools/install-build-deps`'
-            ' or `tools/test_data download --override` to sync local test_data')
+            ' or `tools/test_data download --overwrite` to sync local test_data'
+        )
     ]
   return []
