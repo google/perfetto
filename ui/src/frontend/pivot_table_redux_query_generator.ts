@@ -26,6 +26,11 @@ import {
 } from '../controller/aggregation/slice_aggregation_controller';
 
 import {globals} from './globals';
+import {
+  Aggregation,
+  AggregationFunction,
+  TableColumn,
+} from './pivot_table_redux_types';
 
 export interface Table {
   name: string;
@@ -84,20 +89,11 @@ export interface ArgumentColumn {
   argument: string;
 }
 
-export type TableColumn = RegularColumn|ArgumentColumn;
-
-export type AggregationFunction = 'COUNT'|'SUM'|'MIN'|'MAX';
-
 function outerAggregation(fn: AggregationFunction): AggregationFunction {
   if (fn === 'COUNT') {
     return 'SUM';
   }
   return fn;
-}
-
-export interface Aggregation {
-  aggregationFunction: AggregationFunction;
-  column: TableColumn;
 }
 
 export function tableColumnEquals(first: TableColumn, second: TableColumn) {

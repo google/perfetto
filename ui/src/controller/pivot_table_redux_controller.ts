@@ -29,6 +29,9 @@ import {
   aggregationIndex,
   generateQueryFromState,
 } from '../frontend/pivot_table_redux_query_generator';
+import {
+  PivotTree,
+} from '../frontend/pivot_table_redux_types';
 
 import {Controller} from './controller';
 import {globals} from './globals';
@@ -39,21 +42,6 @@ export const PIVOT_TABLE_REDUX_FLAG = featureFlags.register({
   description: 'Second version of pivot table',
   defaultValue: false,
 });
-
-// Node in the hierarchical pivot tree. Only leaf nodes contain data from the
-// query result.
-export interface PivotTree {
-  // Whether the node should be collapsed in the UI, false by default and can
-  // be toggled with the button.
-  isCollapsed: boolean;
-
-  // Non-empty only in internal nodes.
-  children: Map<ColumnType, PivotTree>;
-  aggregates: ColumnType[];
-
-  // Non-empty only in leaf nodes.
-  rows: ColumnType[][];
-}
 
 // Auxiliary class to build the tree from query response.
 class TreeBuilder {
