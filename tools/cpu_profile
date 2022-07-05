@@ -28,6 +28,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import textwrap
 import time
 import uuid
 
@@ -176,7 +177,8 @@ def get_perfetto_config(args):
       sys.exit("Unable to read config file: {}".format(error))
 
   CONFIG_INDENT = '      '
-  CONFIG = '''buffers {{
+  CONFIG = textwrap.dedent('''\
+  buffers {{
     size_kb: 2048
   }}
 
@@ -201,7 +203,7 @@ def get_perfetto_config(args):
       perf_event_config {{
         all_cpus: true
         sampling_frequency: {frequency}
-{target_config}
+  {target_config}
       }}
     }}
   }}
@@ -210,9 +212,8 @@ def get_perfetto_config(args):
   write_into_file: true
   flush_timeout_ms: 30000
   flush_period_ms: 604800000
-  '''
+  ''')
 
-  target_config = ""
   matching_processes = []
   if args.name is not None:
     names_to_match = [name.strip() for name in args.name.split(',')]
@@ -221,8 +222,7 @@ def get_perfetto_config(args):
   if not matching_processes:
     sys.exit("No running processes matched for profiling.")
 
-  for process in matching_processes:
-    target_config += CONFIG_INDENT + 'target_cmdline: "{}"\n'.format(process)
+  target_config = "\n".join([f'{CONFIG_INDENT}target_cmdline: "{p}"' for p in matching_processes])
 
   if not args.print_config:
     print("Configured profiling for these processes:\n")
