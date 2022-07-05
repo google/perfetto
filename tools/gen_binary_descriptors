@@ -26,8 +26,7 @@ from compat import iteritems
 
 SOURCE_TARGET = [
     ('protos/perfetto/trace_processor/trace_processor.proto',
-     'python/perfetto/trace_processor/trace_processor.descriptor'
-    ),
+     'python/perfetto/trace_processor/trace_processor.descriptor'),
     ('protos/perfetto/metrics/metrics.proto',
      'python/perfetto/trace_processor/metrics.descriptor'),
 ]
