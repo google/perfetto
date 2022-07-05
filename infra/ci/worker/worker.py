@@ -34,8 +34,8 @@ from common_utils import ConcurrentModificationError, SCOPES
 CUR_DIR = os.path.dirname(__file__)
 SCOPES.append('https://www.googleapis.com/auth/firebase.database')
 SCOPES.append('https://www.googleapis.com/auth/userinfo.email')
-WORKER_NAME = '%s-%s' % (os.getenv('WORKER_HOST', 'local').split('-')[-1],
-                         socket.gethostname())
+WORKER_NAME = '%s-%s' % (os.getenv(
+    'WORKER_HOST', 'local').split('-')[-1], socket.gethostname())
 sigterm = threading.Event()
 
 

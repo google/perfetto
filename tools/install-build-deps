@@ -337,7 +337,6 @@ UI_DEPS = [
         'https://storage.googleapis.com/chromium-nodejs/16.13.0/ab9544e24e752d3d17f335fb7b2055062e582d11',
         '3b5ca150a55f3aadfa18f3a10a4495aaf9653614ba3e460647170fef5287ec4f',
         'linux', 'x64'),
-
     Dependency(
         'buildtools/mac/emsdk.tgz',
         'https://storage.googleapis.com/perfetto/emscripten-2.0.12-mac.tgz',
