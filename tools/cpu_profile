@@ -116,6 +116,10 @@ def parse_and_validate_args():
       metavar="CONFIG",
       default=None)
   parser.add_argument(
+      "--print-config",
+      action="store_true",
+      help="Print config instead of running. For debugging.")
+  parser.add_argument(
       "-o",
       "--output",
       help="Output directory for recorded trace.",
@@ -220,10 +224,11 @@ def get_perfetto_config(args):
   for process in matching_processes:
     target_config += CONFIG_INDENT + 'target_cmdline: "{}"\n'.format(process)
 
-  print("Configured profiling for these processes:\n")
-  for matching_process in matching_processes:
-    print(matching_process)
-  print()
+  if not args.print_config:
+    print("Configured profiling for these processes:\n")
+    for matching_process in matching_processes:
+      print(matching_process)
+    print()
 
   config = CONFIG.format(
       frequency=args.frequency,
@@ -430,7 +435,11 @@ def copy_profiles_to_destination(profile_target, profile_path):
 def main(argv):
   args = parse_and_validate_args()
   profile_target = get_and_prepare_profile_target(args)
-  record_trace(get_perfetto_config(args), profile_target)
+  trace_config = get_perfetto_config(args)
+  if args.print_config:
+    print(trace_config)
+    return 0
+  record_trace(trace_config, profile_target)
   traceconv = get_traceconv()
   trace_file = symbolize_trace(traceconv, profile_target)
   copy_profiles_to_destination(profile_target,
