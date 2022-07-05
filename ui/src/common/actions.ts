@@ -1080,6 +1080,12 @@ export const StateActions = {
     state.visualisedArgs =
         state.visualisedArgs.filter((val) => val !== args.argName);
   },
+
+  setPivotTableArgumentNames(
+      state: StateDraft, args: {argumentNames: string[]}) {
+    state.nonSerializableState.pivotTableRedux.argumentNames =
+        args.argumentNames;
+  },
 };
 
 // When we are on the frontend side, we don't really want to execute the
