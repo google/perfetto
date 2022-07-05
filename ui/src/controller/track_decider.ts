@@ -1285,12 +1285,11 @@ class TrackDecider {
     ) using (upid)
     left join (
       select
-        process.upid as upid,
-        count(*) as perfSampleCount
-      from process
-        join thread on process.upid = thread.upid
-        join perf_sample on thread.utid = perf_sample.utid
-      group by process.upid
+        thread.upid as upid,
+        sum(cnt) as perfSampleCount
+      from (select utid, count(*) as cnt from perf_sample group by utid) s
+        join thread on thread.utid = s.utid
+      group by thread.upid
     ) using (upid)
     left join (
       select
