@@ -23,29 +23,38 @@ import synth_common
 trace = synth_common.create_trace()
 
 trace.add_packet(ts=1)
-trace.add_process(pid=10, ppid=1, cmdline='/system/bin/surfaceflinger', uid=None)
+trace.add_process(
+    pid=10, ppid=1, cmdline='/system/bin/surfaceflinger', uid=None)
 trace.add_thread(tid=10, tgid=10, cmdline='', name='Main thread')
 trace.add_thread(tid=33, tgid=10, cmdline='', name='GPU completion')
 trace.add_ftrace_packet(1)
 
-trace.add_atrace_begin(ts=1_000_000, tid=33, pid=10, buf='waiting for GPU completion 4')
+trace.add_atrace_begin(
+    ts=1_000_000, tid=33, pid=10, buf='waiting for GPU completion 4')
 trace.add_atrace_end(ts=2_000_000, tid=33, pid=10)
 
-trace.add_atrace_begin(ts=3_000_000, tid=10, pid=10, buf='Trace GPU completion fence 5')
-trace.add_atrace_begin(ts=3_000_000, tid=33, pid=10, buf='waiting for GPU completion 5')
+trace.add_atrace_begin(
+    ts=3_000_000, tid=10, pid=10, buf='Trace GPU completion fence 5')
+trace.add_atrace_begin(
+    ts=3_000_000, tid=33, pid=10, buf='waiting for GPU completion 5')
 trace.add_atrace_end(ts=3_000_500, tid=10, pid=10)
 trace.add_atrace_end(ts=6_000_000, tid=33, pid=10)
 
-trace.add_atrace_begin(ts=7_000_000, tid=10, pid=10, buf='Trace GPU completion fence 6')
-trace.add_atrace_begin(ts=7_000_000, tid=33, pid=10, buf='waiting for GPU completion 6')
+trace.add_atrace_begin(
+    ts=7_000_000, tid=10, pid=10, buf='Trace GPU completion fence 6')
+trace.add_atrace_begin(
+    ts=7_000_000, tid=33, pid=10, buf='waiting for GPU completion 6')
 trace.add_atrace_end(ts=7_000_500, tid=10, pid=10)
-trace.add_atrace_begin(ts=10_000_000, tid=10, pid=10, buf='Trace GPU completion fence 7')
+trace.add_atrace_begin(
+    ts=10_000_000, tid=10, pid=10, buf='Trace GPU completion fence 7')
 trace.add_atrace_end(ts=10_000_500, tid=10, pid=10)
 trace.add_atrace_end(ts=12_000_000, tid=33, pid=10)
-trace.add_atrace_begin(ts=12_000_000, tid=33, pid=10, buf='waiting for GPU completion 7')
+trace.add_atrace_begin(
+    ts=12_000_000, tid=33, pid=10, buf='waiting for GPU completion 7')
 trace.add_atrace_end(ts=14_000_000, tid=33, pid=10)
 
-trace.add_atrace_begin(ts=15_000_000, tid=10, pid=10, buf='Trace GPU completion fence 8')
+trace.add_atrace_begin(
+    ts=15_000_000, tid=10, pid=10, buf='Trace GPU completion fence 8')
 trace.add_atrace_end(ts=15_000_500, tid=10, pid=10)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
