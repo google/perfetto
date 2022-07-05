@@ -873,3 +873,16 @@ button.query-ctrl {
   white-space: pre
 }
 
+.name-completion {
+  input {
+    width: 90%;
+  }
+  min-height: 20vh;
+  min-width: 30vw;
+
+  .arguments-popup-sizer {
+    color: transparent;
+    user-select: none;
+    height: 0;
+  }
+}
