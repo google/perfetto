@@ -23,8 +23,8 @@ from __future__ import print_function
 # Gerrit config
 GERRIT_HOST = 'android-review.googlesource.com'
 GERRIT_PROJECT = 'platform/external/perfetto'
-GERRIT_REVIEW_URL = (
-    'https://android-review.googlesource.com/c/' + GERRIT_PROJECT)
+GERRIT_REVIEW_URL = ('https://android-review.googlesource.com/c/' +
+                     GERRIT_PROJECT)
 REPO_URL = 'https://android.googlesource.com/' + GERRIT_PROJECT
 GERRIT_POLL_SEC = 15
 GERRIT_VOTING_ENABLED = True

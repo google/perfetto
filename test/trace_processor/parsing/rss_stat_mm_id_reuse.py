@@ -18,7 +18,6 @@
 
 from os import sys, path
 
-
 import synth_common
 
 trace = synth_common.create_trace()
