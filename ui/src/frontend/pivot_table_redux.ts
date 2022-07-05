@@ -33,7 +33,10 @@ import {
 } from '../controller/pivot_table_redux_controller';
 
 import {globals} from './globals';
+import {fullscreenModalContainer, ModalDefinition} from './modal';
 import {Panel} from './panel';
+import {AnyAttrsVnode} from './panel_container';
+import {ArgumentPopup} from './pivot_table_redux_argument_popup';
 import {
   aggregationIndex,
   areaFilter,
@@ -409,6 +412,35 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         }));
   }
 
+  showModal = false;
+  typedArgument = '';
+
+  renderModal(): ModalDefinition {
+    return {
+      title: 'Enter argument name',
+      content: m(ArgumentPopup, {
+                 knownArguments: globals.state.nonSerializableState
+                                     .pivotTableRedux.argumentNames,
+                 onArgumentChange: (arg) => {
+                   this.typedArgument = arg;
+                 },
+               }) as AnyAttrsVnode,
+      buttons: [
+        {
+          text: 'Add',
+          action: () => {
+            globals.dispatch(Actions.setPivotTablePivotSelected({
+              column: {kind: 'argument', argument: this.typedArgument},
+              selected: true,
+            }));
+            globals.dispatch(
+                Actions.setPivotTableQueryRequested({queryRequested: true}));
+          },
+        },
+      ],
+    };
+  }
+
   renderResultsTable(attrs: PivotTableReduxAttrs) {
     const state = globals.state.nonSerializableState.pivotTableRedux;
     if (state.queryResult === null) {
@@ -435,15 +467,9 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
       const items = [{
         text: 'Add argument pivot',
         callback: () => {
-          // TODO(ddrone): Replace this with modal using argument name
-          // completion after the modal mithrilization CL is landed.
-          const argument = prompt('Enter argument name');
-          if (argument !== null) {
-            globals.dispatch(Actions.setPivotTablePivotSelected(
-                {column: {kind: 'argument', argument}, selected: true}));
-            globals.dispatch(
-                Actions.setPivotTableQueryRequested({queryRequested: true}));
-          }
+          this.showModal = true;
+          this.typedArgument = '';
+          fullscreenModalContainer.createNew(this.renderModal());
         },
       }];
       if (state.queryResult.metadata.pivotColumns.length > 1) {
@@ -523,6 +549,10 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
   }
 
   view({attrs}: m.Vnode<PivotTableReduxAttrs>): m.Children {
+    if (this.showModal) {
+      fullscreenModalContainer.updateVdom(this.renderModal());
+    }
+
     return globals.state.nonSerializableState.pivotTableRedux.editMode ?
         this.renderEditView(attrs) :
         this.renderResultsView(attrs);
