@@ -149,7 +149,6 @@ add_main_thread_atrace(
 add_render_thread_atrace(
     trace, ts=4_500_000, ts_end=4_800_000, buf="flush layers")
 
-
 add_frame(
     trace,
     vsync=20,
