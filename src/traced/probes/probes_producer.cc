@@ -292,11 +292,11 @@ constexpr DataSourceTraits Ds() {
   return DataSourceTraits{&T::descriptor, &ProbesProducer::CreateDSInstance<T>};
 }
 
-const DataSourceTraits kAllDataSources[] = {
+constexpr const DataSourceTraits kAllDataSources[] = {
+    Ds<AndroidGameInterventionListDataSource>(),
     Ds<AndroidLogDataSource>(),
     Ds<AndroidPowerDataSource>(),
     Ds<FtraceDataSource>(),
-    Ds<AndroidGameInterventionListDataSource>(),
     Ds<InitialDisplayStateDataSource>(),
     Ds<InodeFileDataSource>(),
     Ds<LinuxPowerSysfsDataSource>(),
@@ -321,6 +321,12 @@ void ProbesProducer::OnConnect() {
   for (size_t i = 0; i < proto_descs.size(); i++) {
     DataSourceDescriptor& proto_desc = proto_descs[i];
     const ProbesDataSource::Descriptor* desc = kAllDataSources[i].descriptor;
+    for (size_t j = i + 1; j < proto_descs.size(); j++) {
+      if (kAllDataSources[i].descriptor == kAllDataSources[j].descriptor) {
+        PERFETTO_FATAL("Duplicate descriptor name %s",
+                       kAllDataSources[i].descriptor->name);
+      }
+    }
 
     proto_desc.set_name(desc->name);
     proto_desc.set_will_notify_on_start(true);
