@@ -191,7 +191,15 @@ function startServer() {
         let uri = req.url.split('?', 1)[0];
         uri += uri.endsWith('/') ? 'index.html' : '';
 
+        // Disallow serving anything outside out directory.
         const absPath = path.normalize(path.join(cfg.outDir, uri));
+        const relative = path.relative(cfg.outDir, absPath);
+        if (relative.startsWith('..')) {
+          res.writeHead(404);
+          res.end();
+          return;
+        }
+
         fs.readFile(absPath, function(err, data) {
           if (err) {
             res.writeHead(404);
@@ -213,7 +221,7 @@ function startServer() {
           res.end(data);
         });
       })
-      .listen(port);
+      .listen(port, 'localhost');
 }
 
 
