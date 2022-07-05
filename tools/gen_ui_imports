@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Generates TypeScript files that import all subdirectories and
 registers them with plugin registry. If you have three modules:
 - core/
@@ -44,9 +43,11 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 UI_SRC_DIR = os.path.join(ROOT_DIR, 'ui', 'src')
 PLUGINS_PATH = os.path.join(UI_SRC_DIR, 'common', 'plugins')
 
+
 def to_camel_case(s):
   first, *rest = s.split('_')
   return first + ''.join(x.title() for x in rest)
+
 
 def gen_imports(input_dir, output_path):
   paths = [os.path.join(input_dir, p) for p in os.listdir(input_dir)]
@@ -57,7 +58,7 @@ def gen_imports(input_dir, output_path):
   rel_plugins_path = os.path.relpath(PLUGINS_PATH, output_dir)
 
   imports = []
-  registrations =  []
+  registrations = []
   for path in paths:
     rel_path = os.path.relpath(path, output_dir)
     snake_name = os.path.basename(path)
@@ -75,9 +76,10 @@ def gen_imports(input_dir, output_path):
     f.write(expected)
   return True
 
+
 def main():
-  parser = argparse.ArgumentParser(description=__doc__,
-      formatter_class=argparse.RawDescriptionHelpFormatter)
+  parser = argparse.ArgumentParser(
+      description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('INPUT')
   parser.add_argument('--out', required=True)
   args = parser.parse_args()
@@ -98,6 +100,7 @@ def main():
 
   success = gen_imports(input_dir, output_path)
   return 0 if success else 1
+
 
 if __name__ == '__main__':
   exit(main())
