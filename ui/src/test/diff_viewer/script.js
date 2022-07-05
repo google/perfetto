@@ -37,17 +37,12 @@ function m(selector, ...children) {
   return result;
 }
 
-async function loadDiffs() {
-  // report.txt is a text file with a pair of file names on each line, separated
-  // by semicolon. E.g. "screenshot.png;screenshot-diff.png"
-  const report = await fetch('report.txt');
-  const response = await report.text();
-  console.log(response);
-
+function processLines(lines) {
   const container = document.querySelector('.container');
   container.innerHTML = '';
 
-  const lines = response.split('\n');
+  // report.txt is a text file with a pair of file names on each line, separated
+  // by semicolon. E.g. "screenshot.png;screenshot-diff.png"
   for (const line of lines) {
     const parts = line.split(';');
     if (parts.length !== 2) {
@@ -71,6 +66,18 @@ async function loadDiffs() {
 
   if (lines.length === 0) {
     container.appendChild(m('div', 'All good!'));
+  }
+}
+
+async function loadDiffs() {
+  try {
+    const report = await fetch('report.txt');
+    const response = await report.text();
+    processLines(response.split('\n'));
+  } catch (e) {
+    // report.txt is not available when all tests have succeeded, treat fetching
+    // error as absence of failures
+    processLines([]);
   }
 }
 
