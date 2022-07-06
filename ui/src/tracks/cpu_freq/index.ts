@@ -15,17 +15,16 @@
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {hueForCpu} from '../../common/colorizer';
+import {PluginContext} from '../../common/plugin_api';
 import {NUM, NUM_NULL, QueryResult} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
-  trackControllerRegistry,
 } from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {trackRegistry} from '../../frontend/track_registry';
 
 
 export const CPU_FREQ_TRACK_KIND = 'CpuFreqTrack';
@@ -475,9 +474,9 @@ class CpuFreqTrack extends Track<Config, Data> {
   }
 }
 
-function activate() {
-  trackControllerRegistry.register(CpuFreqTrackController);
-  trackRegistry.register(CpuFreqTrack);
+function activate(ctx: PluginContext) {
+  ctx.registerTrackController(CpuFreqTrackController);
+  ctx.registerTrack(CpuFreqTrack);
 }
 
 export const plugin = {
