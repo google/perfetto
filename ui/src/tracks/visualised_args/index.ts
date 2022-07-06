@@ -20,17 +20,19 @@ import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
 import {TrackButton, TrackButtonAttrs} from '../../frontend/track_panel';
 import {trackRegistry} from '../../frontend/track_registry';
-import {Config as ChromeSliceConfig} from '../chrome_slices/common';
-import {ChromeSliceTrackController} from '../chrome_slices/controller';
-import {ChromeSliceTrack} from '../chrome_slices/frontend';
+import {
+  ChromeSliceTrack,
+  ChromeSliceTrackController,
+  Config as ChromeSliceConfig,
+} from '../chrome_slices';
+
+export {Data} from '../chrome_slices';
 
 export const VISUALISED_ARGS_SLICE_TRACK_KIND = 'VisualisedArgsTrack';
 
 export interface Config extends ChromeSliceConfig {
   argName: string;
 }
-
-export {Data} from '../chrome_slices/common';
 
 // The controller for arg visualisation is exactly the same as the controller
 // for Chrome slices. All customisation is done on the frontend.

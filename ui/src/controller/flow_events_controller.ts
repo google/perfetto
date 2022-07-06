@@ -22,11 +22,11 @@ import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   Config as ActualConfig,
-} from '../tracks/actual_frames/common';
+} from '../tracks/actual_frames';
 import {
   Config as SliceConfig,
   SLICE_TRACK_KIND,
-} from '../tracks/chrome_slices/common';
+} from '../tracks/chrome_slices';
 
 import {Controller} from './controller';
 import {globals} from './globals';

@@ -23,22 +23,17 @@ import {
   columnKey,
   TableColumn,
 } from '../frontend/pivot_table_redux_types';
-import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames/common';
-import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/common';
-import {COUNTER_TRACK_KIND} from '../tracks/counter/common';
-import {DEBUG_SLICE_TRACK_KIND} from '../tracks/debug_slices/common';
-import {
-  EXPECTED_FRAMES_SLICE_TRACK_KIND,
-} from '../tracks/expected_frames/common';
-import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
-import {NULL_TRACK_KIND} from '../tracks/null_track';
-import {
-  PERF_SAMPLES_PROFILE_TRACK_KIND,
-} from '../tracks/perf_samples_profile/common';
-import {
-  PROCESS_SCHEDULING_TRACK_KIND,
-} from '../tracks/process_scheduling/common';
-import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
+
+const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
+const ASYNC_SLICE_TRACK_KIND = 'AsyncSliceTrack';
+const COUNTER_TRACK_KIND = 'CounterTrack';
+const DEBUG_SLICE_TRACK_KIND = 'DebugSliceTrack';
+const EXPECTED_FRAMES_SLICE_TRACK_KIND = 'ExpectedFramesSliceTrack';
+const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
+const NULL_TRACK_KIND = 'NullTrack';
+const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
+const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
+const PROCESS_SUMMARY_TRACK = 'ProcessSummaryTrack';
 
 import {randomColor} from './colorizer';
 import {createEmptyState} from './empty_state';
