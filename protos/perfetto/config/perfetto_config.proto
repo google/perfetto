@@ -393,7 +393,8 @@ message AndroidLogConfig {
 
 // Begin of protos/perfetto/config/android/android_polled_state_config.proto
 
-// Data source that polls for display state.
+// Data source that polls for display state. This should only be used for
+// backward-compatibility; AndroidSystemPropertyConfig should be preferred.
 message AndroidPolledStateConfig {
   // Frequency of polling. If absent the state will be recorded once, at the
   // start of the trace.
@@ -402,6 +403,21 @@ message AndroidPolledStateConfig {
 }
 
 // End of protos/perfetto/config/android/android_polled_state_config.proto
+
+// Begin of protos/perfetto/config/android/android_system_property_config.proto
+
+// Data source that polls for system properties.
+message AndroidSystemPropertyConfig {
+  // Frequency of polling. If absent the state will be recorded once, at the
+  // start of the trace.
+  // This is required to be > 100ms to avoid excessive CPU usage.
+  optional uint32 poll_ms = 1;
+
+  // Properties to poll. All property names must start with "debug.tracing.".
+  repeated string property_name = 2;
+}
+
+// End of protos/perfetto/config/android/android_system_property_config.proto
 
 // Begin of protos/perfetto/config/android/packages_list_config.proto
 
@@ -2201,7 +2217,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 118
+// Next id: 119
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -2290,6 +2306,9 @@ message DataSourceConfig {
   optional TrackEventConfig track_event_config = 113 [lazy = true];
   // Data source name: android.polled_state
   optional AndroidPolledStateConfig android_polled_state_config = 114
+      [lazy = true];
+  // Data source name: android.system_property
+  optional AndroidSystemPropertyConfig android_system_property_config = 118
       [lazy = true];
   // Data source name: android.statsd
   optional StatsdTracingConfig statsd_tracing_config = 117 [lazy = true];
