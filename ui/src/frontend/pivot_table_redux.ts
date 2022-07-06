@@ -186,14 +186,6 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
   renderResultsView(attrs: PivotTableReduxAttrs) {
     return m(
         '.pivot-table-redux',
-        m('button.mode-button',
-          {
-            onclick: () => {
-              globals.dispatch(Actions.setPivotTableEditMode({editMode: true}));
-              globals.rafScheduler.scheduleFullRedraw();
-            },
-          },
-          'Edit'),
         this.renderResultsTable(attrs));
   }
 
@@ -500,7 +492,19 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
           // columns, as well as popup menus to modify the columns. Last cell
           // is empty because of an extra column with "drill down" button for
           // each pivot table row.
-          m('tr', pivotTableHeaders, aggregationTableHeaders, m('td'))),
+          m('tr',
+            pivotTableHeaders,
+            aggregationTableHeaders,
+            m('td.menu', m(PopupMenuButton, {
+                icon: 'menu',
+                items: [{
+                  text: 'Edit mode',
+                  callback: () => {
+                    globals.dispatch(
+                        Actions.setPivotTableEditMode({editMode: true}));
+                  },
+                }],
+              })))),
         m('tbody', this.renderTotalsRow(state.queryResult), renderedRows));
   }
 
