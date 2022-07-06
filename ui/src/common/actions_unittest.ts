@@ -15,12 +15,12 @@
 import {produce} from 'immer';
 
 import {assertExists} from '../base/logging';
-import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
-import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
+import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
+import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile';
 import {
   PROCESS_SCHEDULING_TRACK_KIND,
-} from '../tracks/process_scheduling/common';
-import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state/common';
+} from '../tracks/process_scheduling';
+import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 
 import {StateActions} from './actions';
 import {createEmptyState} from './empty_state';

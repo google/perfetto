@@ -30,7 +30,7 @@ import {
   publishSliceDetails,
   publishThreadStateDetails,
 } from '../frontend/publish';
-import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
+import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 
 import {parseArgs} from './args_parser';
 import {Controller} from './controller';
