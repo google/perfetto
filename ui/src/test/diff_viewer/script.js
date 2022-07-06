@@ -40,10 +40,16 @@ function m(selector, ...children) {
 function processLines(lines) {
   const container = document.querySelector('.container');
   container.innerHTML = '';
+  let hasErrors = false;
 
   // report.txt is a text file with a pair of file names on each line, separated
   // by semicolon. E.g. "screenshot.png;screenshot-diff.png"
   for (const line of lines) {
+    // Skip empty lines (happens when the file is completely empty).
+    if (line.length === 0) {
+      continue;
+    }
+
     const parts = line.split(';');
     if (parts.length !== 2) {
       console.warn(
@@ -52,6 +58,7 @@ function processLines(lines) {
       continue;
     }
 
+    hasErrors = true;
     const [output, diff] = parts;
     const outputImage = m('img');
     outputImage.src = output;
@@ -64,7 +71,7 @@ function processLines(lines) {
           m('div.cell', diff, m('div.image-wrapper', diffImage))));
   }
 
-  if (lines.length === 0) {
+  if (!hasErrors) {
     container.appendChild(m('div', 'All good!'));
   }
 }
