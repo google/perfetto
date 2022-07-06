@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,14 +15,13 @@
  */
 
 syntax = "proto2";
-
 package perfetto.protos;
 
-// Data source that polls for display state. This should only be used for
-// backward-compatibility; AndroidSystemPropertyConfig should be preferred.
-message AndroidPolledStateConfig {
-  // Frequency of polling. If absent the state will be recorded once, at the
-  // start of the trace.
-  // This is required to be > 100ms to avoid excessive CPU usage.
-  optional uint32 poll_ms = 1;
+message AndroidSystemProperty {
+  message PropertyValue {
+    optional string name = 1;
+    optional string value = 2;
+  }
+
+  repeated PropertyValue values = 1;
 }
