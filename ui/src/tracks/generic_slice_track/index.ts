@@ -45,9 +45,11 @@ export class GenericSliceTrack extends NamedSliceTrack<GenericSliceTrackTypes> {
   }
 }
 
-trackRegistry.register(GenericSliceTrack);
+function activate() {
+  trackRegistry.register(GenericSliceTrack);
+}
 
 export const plugin = {
   pluginId: 'perfetto.GenericSliceTrack',
-  activate: () => {},
+  activate,
 };

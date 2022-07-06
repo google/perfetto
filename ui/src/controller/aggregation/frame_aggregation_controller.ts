@@ -19,7 +19,7 @@ import {toNs} from '../../common/time';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   Config,
-} from '../../tracks/actual_frames/common';
+} from '../../tracks/actual_frames';
 import {globals} from '../globals';
 
 import {AggregationController} from './aggregation_controller';
