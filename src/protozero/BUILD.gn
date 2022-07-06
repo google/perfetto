@@ -119,12 +119,18 @@ if (enable_perfetto_benchmarks) {
   source_set("benchmarks") {
     testonly = true
     deps = [
+      ":proto_ring_buffer",
       ":protozero",
       ":testing_messages_lite",
       ":testing_messages_zero",
       "../../gn:benchmark",
       "../../gn:default_deps",
+      "../base",
+      "../base:test_support",
     ]
-    sources = [ "test/protozero_benchmark.cc" ]
+    sources = [
+      "test/proto_ring_buffer_benchmark.cc",
+      "test/protozero_benchmark.cc",
+    ]
   }
 }
