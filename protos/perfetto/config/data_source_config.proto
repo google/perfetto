@@ -20,6 +20,7 @@ package perfetto.protos;
 
 import "protos/perfetto/config/android/android_log_config.proto";
 import "protos/perfetto/config/android/android_polled_state_config.proto";
+import "protos/perfetto/config/android/android_system_property_config.proto";
 import "protos/perfetto/config/android/packages_list_config.proto";
 import "protos/perfetto/config/chrome/chrome_config.proto";
 import "protos/perfetto/config/ftrace/ftrace_config.proto";
@@ -37,7 +38,7 @@ import "protos/perfetto/config/test_config.proto";
 import "protos/perfetto/config/track_event/track_event_config.proto";
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 116
+// Next id: 119
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -123,6 +124,9 @@ message DataSourceConfig {
   optional TrackEventConfig track_event_config = 113 [lazy = true];
   // Data source name: android.polled_state
   optional AndroidPolledStateConfig android_polled_state_config = 114
+      [lazy = true];
+  // Data source name: android.system_property
+  optional AndroidSystemPropertyConfig android_system_property_config = 118
       [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to

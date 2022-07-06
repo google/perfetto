@@ -223,6 +223,7 @@ perfetto_cc_library(
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
         ":src_traced_probes_android_log_android_log",
+        ":src_traced_probes_android_system_property_android_system_property",
         ":src_traced_probes_common_common",
         ":src_traced_probes_data_source",
         ":src_traced_probes_filesystem_filesystem",
@@ -1594,6 +1595,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/traced/probes/android_system_property:android_system_property
+perfetto_filegroup(
+    name = "src_traced_probes_android_system_property_android_system_property",
+    srcs = [
+        "src/traced/probes/android_system_property/android_system_property_data_source.cc",
+        "src/traced/probes/android_system_property/android_system_property_data_source.h",
+    ],
+)
+
 # GN target: //src/traced/probes/common:common
 perfetto_filegroup(
     name = "src_traced_probes_common_common",
@@ -2332,6 +2342,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/config/android/android_log_config.proto",
         "protos/perfetto/config/android/android_polled_state_config.proto",
+        "protos/perfetto/config/android/android_system_property_config.proto",
         "protos/perfetto/config/android/packages_list_config.proto",
     ],
     visibility = [
@@ -2907,6 +2918,7 @@ perfetto_proto_library(
     name = "protos_perfetto_trace_android_protos",
     srcs = [
         "protos/perfetto/trace/android/android_log.proto",
+        "protos/perfetto/trace/android/android_system_property.proto",
         "protos/perfetto/trace/android/camera_event.proto",
         "protos/perfetto/trace/android/frame_timeline_event.proto",
         "protos/perfetto/trace/android/gpu_mem_event.proto",

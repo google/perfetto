@@ -36,6 +36,7 @@
 #include "perfetto/tracing/core/trace_config.h"
 #include "src/android_stats/statsd_logging_helper.h"
 #include "src/traced/probes/android_log/android_log_data_source.h"
+#include "src/traced/probes/android_system_property/android_system_property_data_source.h"
 #include "src/traced/probes/common/cpu_freq_info.h"
 #include "src/traced/probes/filesystem/inode_file_data_source.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
@@ -262,6 +263,17 @@ ProbesProducer::CreateDSInstance<InitialDisplayStateDataSource>(
       endpoint_->CreateTraceWriter(buffer_id)));
 }
 
+template <>
+std::unique_ptr<ProbesDataSource>
+ProbesProducer::CreateDSInstance<AndroidSystemPropertyDataSource>(
+    TracingSessionID session_id,
+    const DataSourceConfig& config) {
+  auto buffer_id = static_cast<BufferID>(config.target_buffer());
+  return std::unique_ptr<ProbesDataSource>(new AndroidSystemPropertyDataSource(
+      task_runner_, config, session_id,
+      endpoint_->CreateTraceWriter(buffer_id)));
+}
+
 // Another anonymous namespace. This cannot be moved into the anonymous
 // namespace on top (it would fail to compile), because the CreateDSInstance
 // methods need to be fully declared before.
@@ -286,6 +298,7 @@ const DataSourceTraits kAllDataSources[] = {
     Ds<InodeFileDataSource>(),    Ds<LinuxPowerSysfsDataSource>(),
     Ds<MetatraceDataSource>(),    Ds<PackagesListDataSource>(),
     Ds<ProcessStatsDataSource>(), Ds<SysStatsDataSource>(),
+    Ds<AndroidSystemPropertyDataSource>(),
     Ds<SystemInfoDataSource>(),
 };
 
