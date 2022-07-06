@@ -763,113 +763,16 @@ button.query-ctrl {
   }
 }
 
-.pivot-table-editor-container {
-  font: inherit;
-  width: 670px;
-  height: 420px;
-  h2 {
-    font-weight: bold;
-    text-align: left;
+.name-completion {
+  input {
+    width: 90%;
   }
-  label {
-    cursor: pointer;
-  }
-  select {
-    font-weight: 100;
-    margin: 3px;
-    color: #333;
-    font-size: 15px;
-    align-items: center;
-    cursor: pointer;
-  }
-  span:nth-of-type(2) {
-    margin-left: 1rem;
-  }
-  section.table-group {
-    display: table-row;
-    table {
-      margin: 15px;
-      td {
-        width: 300px;
-        font-size: 17px;
-        cursor: pointer;
-        &.drop-location {
-          background-color: hsla(0, 0%, 85%, 1);
-        }
-      }
-      th {
-        text-align: center;
-        width: 300px;
-        border-bottom: 1px solid rgba(60, 76, 92, 0.4);
-      }
-      &:first-child {
-        float: left;
-      }
-      &:last-child {
-        float: right;
-      }
-    }
-  }
-  .scroll {
-    height: 150px;
-    overflow: auto;
-  }
-  section.button-group {
-    text-align: center;
-    button {
-      background-color: #262f3c;
-      color: #fff;
-      border-radius: 10px;
-      padding: 2px 5px;
-      font-weight: bold;
-      font-size: 13px;
-      min-width: 7em;
-      margin-right: 1rem;
-    }
-  }
-  section {
-    margin: 1rem;
+  min-height: 20vh;
+  min-width: 30vw;
+
+  .arguments-popup-sizer {
+    color: transparent;
+    user-select: none;
+    height: 0;
   }
 }
-
-.pivot-table-tab {
-  button {
-    background: #262f3c;
-    color: white;
-    border-radius: 10px;
-    font-size: 12px;
-    height: 20px;
-    line-height: 18px;
-    min-width: 7em;
-    margin: 0.2rem;
-    &:disabled {
-      opacity: 0.75;
-      cursor: default;
-    }
-  }
-  span {
-    flex-grow: 1;
-  }
-}
-
-.pivot-table-spinner {
-  display: inline-block;
-  vertical-align: middle;
-  box-sizing: border-box;
-  width: 18px;
-  height: 18px;
-  margin-left: 10px;
-  border-radius: 50%;
-  border: 2px solid #408ee0;
-  border-color: #408ee0 transparent;
-  animation: spinner 1.25s linear infinite;
-  @keyframes spinner {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-}
-
-.allow-white-space {
-  white-space: pre
-}
-

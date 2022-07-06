@@ -80,11 +80,12 @@ SELECT CREATE_FUNCTION(
 
 -- Given a launch id and GLOB for a slice name, returns the startup slice proto by
 -- taking the duration between the start of the launch and start of the slice.
+-- If multiple slices match, picks the latest one which started during the launch.
 SELECT CREATE_FUNCTION(
   'LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(launch_id INT, slice_name STRING)',
   'PROTO',
   '
-    SELECT STARTUP_SLICE_PROTO(slice_ts - launch_ts)
+    SELECT NULL_IF_EMPTY(STARTUP_SLICE_PROTO(MAX(slice_ts) - launch_ts))
     FROM thread_slices_for_all_launches s
     JOIN thread t USING (utid)
     WHERE
