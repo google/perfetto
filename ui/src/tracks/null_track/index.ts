@@ -35,9 +35,11 @@ export class NullTrack extends Track {
   renderCanvas(_: CanvasRenderingContext2D): void {}
 }
 
-trackRegistry.register(NullTrack);
+function activate() {
+  trackRegistry.register(NullTrack);
+}
 
 export const plugin = {
   pluginId: 'perfetto.NullTrack',
-  activate: () => {},
+  activate,
 };
