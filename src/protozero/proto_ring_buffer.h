@@ -93,7 +93,8 @@ namespace protozero {
 // 2. If still there isn't enough space, we expand the buffer.
 // Given that each message is expected to be at most kMaxMsgSize (64 MB), the
 // expansion is bound at 2 * kMaxMsgSize.
-class ProtoRingBuffer {
+
+class RingBufferMessageReader {
  public:
   static constexpr size_t kMaxMsgSize = 64 * 1024 * 1024;
   struct Message {
@@ -105,18 +106,18 @@ class ProtoRingBuffer {
     inline bool valid() const { return !!start; }
   };
 
-  ProtoRingBuffer();
-  ~ProtoRingBuffer();
-  ProtoRingBuffer(const ProtoRingBuffer&) = delete;
-  ProtoRingBuffer& operator=(const ProtoRingBuffer&) = delete;
+  RingBufferMessageReader();
+  virtual ~RingBufferMessageReader();
+  RingBufferMessageReader(const RingBufferMessageReader&) = delete;
+  RingBufferMessageReader& operator=(const RingBufferMessageReader&) = delete;
 
   // Appends data into the ring buffer, recompacting or resizing it if needed.
   // Will invaildate the pointers previously handed out.
   void Append(const void* data, size_t len);
 
-  // If a protobuf message can be read, it returns the boundaries of the message
+  // If a message can be read, it returns the boundaries of the message
   // (without including the preamble) and advances the read cursor.
-  // If no message is avaiable, returns a null range.
+  // If no message is available, returns a null range.
   // The returned pointer is only valid until the next call to Append(), as
   // that can recompact or resize the underlying buffer.
   Message ReadMessage();
@@ -125,12 +126,26 @@ class ProtoRingBuffer {
   size_t capacity() const { return buf_.size(); }
   size_t avail() const { return buf_.size() - (wr_ - rd_); }
 
+ protected:
+  // Subclasses must implement the header parsing.
+  virtual Message TryReadMessage(const uint8_t* start, const uint8_t* end) = 0;
+
  private:
   perfetto::base::PagedMemory buf_;
   Message fastpath_{};
   bool failed_ = false;  // Set in case of an unrecoverable framing faiulre.
   size_t rd_ = 0;        // Offset of the read cursor in |buf_|.
   size_t wr_ = 0;        // Offset of the write cursor in |buf_|.
+};
+
+class ProtoRingBuffer final : public RingBufferMessageReader {
+ public:
+  ProtoRingBuffer();
+  ~ProtoRingBuffer() override final;
+
+ protected:
+  Message TryReadMessage(const uint8_t* start,
+                         const uint8_t* end) override final;
 };
 
 }  // namespace protozero
