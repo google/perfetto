@@ -62,7 +62,7 @@ export function createEmptyNonSerializableState(): NonSerializableState {
     pivotTableRedux: {
       selectionArea: null,
       queryResult: null,
-      editMode: true,
+      editMode: false,
       selectedPivotsMap: keyedMap(
           columnKey,
           {kind: 'regular', table: 'slice', column: 'category'},
