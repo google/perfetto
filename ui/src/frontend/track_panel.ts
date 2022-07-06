@@ -101,6 +101,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             i: isPinned(attrs.trackState.id) ? STAR : STAR_BORDER,
             tooltip: isPinned(attrs.trackState.id) ? 'Unpin' : 'Pin to top',
             showButton: isPinned(attrs.trackState.id),
+            fullHeight: true,
           }),
           globals.state.currentSelection !== null &&
                   globals.state.currentSelection.kind === 'AREA' ?
@@ -265,13 +266,18 @@ export interface TrackButtonAttrs {
   i: string;
   tooltip: string;
   showButton: boolean;
+  fullHeight?: boolean;
 }
 export class TrackButton implements m.ClassComponent<TrackButtonAttrs> {
   view({attrs}: m.CVnode<TrackButtonAttrs>) {
     return m(
         'i.material-icons.track-button',
         {
-          class: `${attrs.showButton ? 'show' : ''}`,
+          class: [
+            (attrs.showButton ? 'show' : ''),
+            (attrs.fullHeight ? 'full-height' : ''),
+          ].filter(Boolean)
+                     .join(' '),
           onclick: attrs.action,
           title: attrs.tooltip,
         },
