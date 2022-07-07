@@ -555,22 +555,6 @@ void TrackEventTracker::OnIncrementalStateCleared(uint32_t packet_sequence_id) {
   }
 }
 
-void TrackEventTracker::AddTranslatableArgs(
-    SliceId id,
-    ArgsTracker::CompactArgSet arg_set) {
-  translatable_args_.emplace_back(TranslatableArgs{id, std::move(arg_set)});
-}
-
-void TrackEventTracker::NotifyEndOfFile() {
-  for (const auto& translatable_arg : translatable_args_) {
-    auto bound_inserter =
-        context_->args_tracker->AddArgsTo(translatable_arg.slice_id);
-    context_->args_translation_table->TranslateArgs(
-        translatable_arg.compact_arg_set, bound_inserter);
-  }
-  translatable_args_.clear();
-}
-
 TrackEventTracker::ResolvedDescriptorTrack
 TrackEventTracker::ResolvedDescriptorTrack::Process(UniquePid upid,
                                                     bool is_counter,
