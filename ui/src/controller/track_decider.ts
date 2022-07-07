@@ -29,27 +29,27 @@ import {
   STR_NULL,
 } from '../common/query_result';
 import {SCROLLING_TRACK_GROUP, TrackKindPriority} from '../common/state';
-import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames/common';
-import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log/common';
-import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/common';
-import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/common';
-import {COUNTER_TRACK_KIND} from '../tracks/counter/common';
-import {CPU_FREQ_TRACK_KIND} from '../tracks/cpu_freq/common';
-import {CPU_PROFILE_TRACK_KIND} from '../tracks/cpu_profile/common';
-import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices/common';
+import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames';
+import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log';
+import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices';
+import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
+import {COUNTER_TRACK_KIND} from '../tracks/counter';
+import {CPU_FREQ_TRACK_KIND} from '../tracks/cpu_freq';
+import {CPU_PROFILE_TRACK_KIND} from '../tracks/cpu_profile';
+import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices';
 import {
   EXPECTED_FRAMES_SLICE_TRACK_KIND,
-} from '../tracks/expected_frames/common';
-import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile/common';
+} from '../tracks/expected_frames';
+import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile';
 import {NULL_TRACK_KIND} from '../tracks/null_track';
 import {
   PERF_SAMPLES_PROFILE_TRACK_KIND,
-} from '../tracks/perf_samples_profile/common';
+} from '../tracks/perf_samples_profile';
 import {
   PROCESS_SCHEDULING_TRACK_KIND,
-} from '../tracks/process_scheduling/common';
-import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary/common';
-import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state/common';
+} from '../tracks/process_scheduling';
+import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary';
+import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 
 const NULL_TRACKS_FLAG = featureFlags.register({
   id: 'nullTracks',
@@ -1285,12 +1285,11 @@ class TrackDecider {
     ) using (upid)
     left join (
       select
-        process.upid as upid,
-        count(*) as perfSampleCount
-      from process
-        join thread on process.upid = thread.upid
-        join perf_sample on thread.utid = perf_sample.utid
-      group by process.upid
+        thread.upid as upid,
+        sum(cnt) as perfSampleCount
+      from (select utid, count(*) as cnt from perf_sample group by utid) s
+        join thread on thread.utid = s.utid
+      group by thread.upid
     ) using (upid)
     left join (
       select
@@ -1313,10 +1312,10 @@ class TrackDecider {
       perfSampleCount desc,
       total_dur desc,
       sliceCount desc,
-      processName,
-      the_tracks.upid,
-      threadName,
-      the_tracks.utid;
+      processName asc nulls last,
+      the_tracks.upid asc nulls last,
+      threadName asc nulls last,
+      the_tracks.utid asc nulls last;
   `);
 
     const it = result.iter({

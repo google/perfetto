@@ -36,7 +36,7 @@ import {publishFlamegraphDetails} from '../frontend/publish';
 import {
   Config as PerfSampleConfig,
   PERF_SAMPLES_PROFILE_TRACK_KIND,
-} from '../tracks/perf_samples_profile/common';
+} from '../tracks/perf_samples_profile';
 
 import {AreaSelectionHandler} from './area_selection_handler';
 import {Controller} from './controller';
