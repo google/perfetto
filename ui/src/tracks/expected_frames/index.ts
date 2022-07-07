@@ -12,18 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NUM, NUM_NULL, STR} from '../../common/query_result';
-import {fromNs, toNs} from '../../common/time';
 import {TrackData} from '../../common/track_data';
-import {
-  TrackController,
-  trackControllerRegistry,
-} from '../../controller/track_controller';
-import {NewTrackArgs, Track} from '../../frontend/track';
-import {trackRegistry} from '../../frontend/track_registry';
-import {ChromeSliceTrack} from '../chrome_slices';
 
 export const EXPECTED_FRAMES_SLICE_TRACK_KIND = 'ExpectedFramesSliceTrack';
+
+import {NewTrackArgs, Track} from '../../frontend/track';
+import {ChromeSliceTrack} from '../chrome_slices';
+
+import {NUM, NUM_NULL, STR} from '../../common/query_result';
+import {fromNs, toNs} from '../../common/time';
+import {
+  TrackController,
+} from '../../controller/track_controller';
+import {PluginContext} from '../../common/plugin_api';
 
 export interface Config {
   maxDepth: number;
@@ -155,9 +156,9 @@ export class ExpectedFramesSliceTrack extends ChromeSliceTrack {
   }
 }
 
-function activate() {
-  trackControllerRegistry.register(ExpectedFramesSliceTrackController);
-  trackRegistry.register(ExpectedFramesSliceTrack);
+function activate(ctx: PluginContext) {
+  ctx.registerTrackController(ExpectedFramesSliceTrackController);
+  ctx.registerTrack(ExpectedFramesSliceTrack);
 }
 
 export const plugin = {
