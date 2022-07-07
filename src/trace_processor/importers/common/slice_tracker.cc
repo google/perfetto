@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 
+#include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
@@ -97,18 +98,6 @@ base::Optional<SliceId> SliceTracker::End(int64_t timestamp,
                                           StringId category,
                                           StringId raw_name,
                                           SetArgsCallback args_callback) {
-  auto id_and_args_tracker = EndMaybePreservingArgs(
-      timestamp, track_id, category, raw_name, args_callback);
-  return id_and_args_tracker ? base::make_optional(id_and_args_tracker->id)
-                             : base::nullopt;
-}
-
-base::Optional<SliceTracker::IdAndArgsTracker>
-SliceTracker::EndMaybePreservingArgs(int64_t timestamp,
-                                     TrackId track_id,
-                                     StringId category,
-                                     StringId raw_name,
-                                     SetArgsCallback args_callback) {
   const StringId name =
       context_->slice_translation_table->TranslateName(raw_name);
   auto finder = [this, category, name](const SlicesStack& stack) {
@@ -215,7 +204,7 @@ base::Optional<SliceId> SliceTracker::StartSlice(
   return id;
 }
 
-base::Optional<SliceTracker::IdAndArgsTracker> SliceTracker::CompleteSlice(
+base::Optional<SliceId> SliceTracker::CompleteSlice(
     int64_t timestamp,
     TrackId track_id,
     SetArgsCallback args_callback,
@@ -270,11 +259,9 @@ base::Optional<SliceTracker::IdAndArgsTracker> SliceTracker::CompleteSlice(
 
   // If this slice is the top slice on the stack, pop it off.
   if (*stack_idx == stack.size() - 1) {
-    ArgsTracker moved = std::move(tracker);
-    stack.pop_back();
-    return IdAndArgsTracker{ref.id(), std::move(moved)};
+    StackPop(track_id);
   }
-  return IdAndArgsTracker{ref.id(), base::nullopt};
+  return ref.id();
 }
 
 // Returns the first incomplete slice in the stack with matching name and
@@ -305,6 +292,20 @@ base::Optional<uint32_t> SliceTracker::MatchingIncompleteSliceIndex(
   return base::nullopt;
 }
 
+void SliceTracker::MaybeAddTranslatableArgs(SliceInfo& slice_info) {
+  if (!slice_info.args_tracker.NeedsTranslation(
+          *context_->args_translation_table)) {
+    return;
+  }
+  const auto& table = context_->storage->slice_table();
+  tables::SliceTable::ConstRowReference ref =
+      slice_info.row.ToRowReference(table);
+  translatable_args_.emplace_back(TranslatableArgs{
+      ref.id(),
+      std::move(slice_info.args_tracker)
+          .ToCompactArgSet(table.arg_set_id(), slice_info.row.row_number())});
+}
+
 void SliceTracker::FlushPendingSlices() {
   // Clear the remaining stack entries. This ensures that any pending args are
   // written to the storage. We don't close any slices with kPendingDuration so
@@ -313,6 +314,24 @@ void SliceTracker::FlushPendingSlices() {
   // TODO(eseckler): Reconsider whether we want to close pending slices by
   // setting their duration to |trace_end - event_start|. Might still want some
   // additional way of flagging these events as "incomplete" to the UI.
+
+  // Make sure that args for all incomplete slice are translated.
+  for (auto it = stacks_.GetIterator(); it; ++it) {
+    auto& track_info = it.value();
+    for (auto& slice_info : track_info.slice_stack) {
+      MaybeAddTranslatableArgs(slice_info);
+    }
+  }
+
+  // Translate and flush all pending args.
+  for (const auto& translatable_arg : translatable_args_) {
+    auto bound_inserter =
+        context_->args_tracker->AddArgsTo(translatable_arg.slice_id);
+    context_->args_translation_table->TranslateArgs(
+        translatable_arg.compact_arg_set, bound_inserter);
+  }
+  translatable_args_.clear();
+
   stacks_.Clear();
 }
 
@@ -414,7 +433,9 @@ int64_t SliceTracker::GetStackHash(const SlicesStack& stack) {
 }
 
 void SliceTracker::StackPop(TrackId track_id) {
-  stacks_[track_id].slice_stack.pop_back();
+  auto& stack = stacks_[track_id].slice_stack;
+  MaybeAddTranslatableArgs(stack.back());
+  stack.pop_back();
 }
 
 void SliceTracker::StackPush(TrackId track_id,
