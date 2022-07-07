@@ -12,15 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {PluginContext} from '../../common/plugin_api';
 import {NUM, NUM_NULL, STR} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
 import {TrackData} from '../../common/track_data';
-import {
-  TrackController,
-  trackControllerRegistry,
-} from '../../controller/track_controller';
+import {TrackController} from '../../controller/track_controller';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {trackRegistry} from '../../frontend/track_registry';
 import {ChromeSliceTrack} from '../chrome_slices';
 
 export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
@@ -173,9 +170,9 @@ export class ActualFramesSliceTrack extends ChromeSliceTrack {
   }
 }
 
-function activate() {
-  trackControllerRegistry.register(ActualFramesSliceTrackController);
-  trackRegistry.register(ActualFramesSliceTrack);
+export function activate(ctx: PluginContext) {
+  ctx.registerTrackController(ActualFramesSliceTrackController);
+  ctx.registerTrack(ActualFramesSliceTrack);
 }
 
 export const plugin = {

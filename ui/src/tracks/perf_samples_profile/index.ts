@@ -14,18 +14,17 @@
 
 import {searchSegment} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
+import {PluginContext} from '../../common/plugin_api';
 import {NUM} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
-  trackControllerRegistry,
 } from '../../controller/track_controller';
 import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
 import {globals} from '../../frontend/globals';
 import {TimeScale} from '../../frontend/time_scale';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {trackRegistry} from '../../frontend/track_registry';
 
 export const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 
@@ -198,9 +197,9 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
   }
 }
 
-export function activate() {
-  trackControllerRegistry.register(PerfSamplesProfileTrackController);
-  trackRegistry.register(PerfSamplesProfileTrack);
+export function activate(ctx: PluginContext) {
+  ctx.registerTrackController(PerfSamplesProfileTrackController);
+  ctx.registerTrack(PerfSamplesProfileTrack);
 }
 
 export const plugin = {
