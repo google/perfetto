@@ -142,6 +142,15 @@ void MetadataModule::ParseChromeMetadataPacket(ConstBytes blob) {
   // ParseChromeEvents().
   protos::pbzero::ChromeMetadataPacket::Decoder packet(blob.data, blob.size);
 
+  if (packet.has_background_tracing_metadata()) {
+    auto background_tracing_metadata = packet.background_tracing_metadata();
+    std::string base64 = base::Base64Encode(background_tracing_metadata.data,
+                                            background_tracing_metadata.size);
+    metadata->SetDynamicMetadata(
+        storage->InternString("cr-background_tracing_metadata"),
+        Variadic::String(storage->InternString(base::StringView(base64))));
+  }
+
   if (packet.has_chrome_version_code()) {
     metadata->SetDynamicMetadata(
         storage->InternString("cr-playstore_version_code"),
