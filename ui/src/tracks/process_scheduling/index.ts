@@ -16,17 +16,16 @@ import {searchEq, searchRange, searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
 import {colorForThread} from '../../common/colorizer';
+import {PluginContext} from '../../common/plugin_api';
 import {NUM, QueryResult} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
-  trackControllerRegistry,
 } from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {trackRegistry} from '../../frontend/track_registry';
 
 export const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
 
@@ -319,9 +318,9 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
   }
 }
 
-export function activate() {
-  trackControllerRegistry.register(ProcessSchedulingTrackController);
-  trackRegistry.register(ProcessSchedulingTrack);
+export function activate(ctx: PluginContext) {
+  ctx.registerTrackController(ProcessSchedulingTrackController);
+  ctx.registerTrack(ProcessSchedulingTrack);
 }
 
 export const plugin = {
