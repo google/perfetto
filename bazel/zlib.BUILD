@@ -46,7 +46,10 @@ cc_library(
         "zlib.h",
         "zutil.c",
         "zutil.h",
-    ],
+    ] + select({
+      "@perfetto//bazel:cpu_arm64": ["contrib/optimizations/slide_hash_neon.h"],
+      "//conditions:default": [],
+    }),
     hdrs = [
         "zlib.h",
     ],
