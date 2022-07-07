@@ -12,8 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PluginInfo} from './plugin_api';
+import {
+  TrackControllerFactory,
+  trackControllerRegistry,
+} from '../controller/track_controller';
+import {TrackCreator} from '../frontend/track';
+import {trackRegistry} from '../frontend/track_registry';
+
+import {PluginContext, PluginInfo} from './plugin_api';
 import {Registry} from './registry';
+
+// Every plugin gets its own PluginContext. This is how we keep track
+// what each plugin is doing and how we can blame issues on particular
+// plugins.
+export class PluginContextImpl implements PluginContext {
+  pluginName: string;
+
+  constructor(pluginName: string) {
+    this.pluginName = pluginName;
+  }
+
+  registerTrackController(track: TrackControllerFactory): void {
+    trackControllerRegistry.register(track);
+  }
+
+  registerTrack(track: TrackCreator): void {
+    trackRegistry.register(track);
+  }
+}
 
 export const pluginRegistry = new Registry<PluginInfo>((info) => {
   return info.pluginId;

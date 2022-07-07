@@ -13,18 +13,17 @@
 // limitations under the License.
 
 import {colorForTid} from '../../common/colorizer';
+import {PluginContext} from '../../common/plugin_api';
 import {NUM} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {LIMIT} from '../../common/track_data';
 import {
   TrackController,
-  trackControllerRegistry,
 } from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {trackRegistry} from '../../frontend/track_registry';
 
 export const PROCESS_SUMMARY_TRACK = 'ProcessSummaryTrack';
 
@@ -217,9 +216,9 @@ class ProcessSummaryTrack extends Track<Config, Data> {
   }
 }
 
-export function activate() {
-  trackRegistry.register(ProcessSummaryTrack);
-  trackControllerRegistry.register(ProcessSummaryTrackController);
+export function activate(ctx: PluginContext) {
+  ctx.registerTrack(ProcessSummaryTrack);
+  ctx.registerTrackController(ProcessSummaryTrackController);
 }
 
 export const plugin = {
