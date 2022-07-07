@@ -100,6 +100,100 @@ constexpr auto kKernelFunctionFields = std::array<FtraceEventAndFieldId, 3>{
          protos::pbzero::FtraceEvent::kWorkqueueQueueWorkFieldNumber,
          protos::pbzero::WorkqueueQueueWorkFtraceEvent::kFunctionFieldNumber}}};
 
+std::string GetUfsCmdString(uint32_t ufsopcode, uint32_t gid) {
+  std::string buffer;
+  switch (ufsopcode) {
+    case 4:
+      buffer = "FORMAT UNIT";
+      break;
+    case 18:
+      buffer = "INQUIRY";
+      break;
+    case 85:
+      buffer = "MODE SELECT (10)";
+      break;
+    case 90:
+      buffer = "MODE SENSE (10)";
+      break;
+    case 52:
+      buffer = "PRE-FETCH (10)";
+      break;
+    case 144:
+      buffer = "PRE-FETCH (16)";
+      break;
+    case 8:
+      buffer = "READ (6)";
+      break;
+    case 40:
+      buffer = "READ (10)";
+      break;
+    case 136:
+      buffer = "READ (16)";
+      break;
+    case 60:
+      buffer = "READ BUFFER";
+      break;
+    case 37:
+      buffer = "READ CAPACITY (10)";
+      break;
+    case 158:
+      buffer = "READ CAPACITY (16)";
+      break;
+    case 160:
+      buffer = "REPORT LUNS";
+      break;
+    case 3:
+      buffer = "REQUEST SENSE";
+      break;
+    case 162:
+      buffer = "SECURITY PROTOCOL IN";
+      break;
+    case 181:
+      buffer = "SECURITY PROTOCOL OUT";
+      break;
+    case 29:
+      buffer = "SEND DIAGNOSTIC";
+      break;
+    case 27:
+      buffer = "START STOP UNIT";
+      break;
+    case 53:
+      buffer = "SYNCHRONIZE CACHE (10)";
+      break;
+    case 145:
+      buffer = "SYNCHRONIZE CACHE (16)";
+      break;
+    case 0:
+      buffer = "TEST UNIT READY";
+      break;
+    case 66:
+      buffer = "UNMAP";
+      break;
+    case 47:
+      buffer = "VERIFY";
+      break;
+    case 10:
+      buffer = "WRITE (6)";
+      break;
+    case 42:
+      buffer = "WRITE (10)";
+      break;
+    case 138:
+      buffer = "WRITE (16)";
+      break;
+    case 59:
+      buffer = "WRITE BUFFER";
+      break;
+    default:
+      buffer = "UNDEFINED";
+      break;
+  }
+  if (gid > 0) {
+    base::StackString<32> gid_str(" (GID=0x%x)", gid);
+    buffer = buffer + gid_str.c_str();
+  }
+  return buffer;
+}
 }  // namespace
 
 FtraceParser::FtraceParser(TraceProcessorContext* context)
@@ -168,7 +262,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       ufs_clkgating_id_(context->storage->InternString(
           "UFS clkgating (OFF/REQ_OFF/REQ_ON/ON)")),
       ufs_command_count_id_(
-          context->storage->InternString("UFS Command Count")) {
+          context->storage->InternString("io.ufs.command.count")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -1979,14 +2073,34 @@ void FtraceParser::ParseUfshcdClkGating(int64_t timestamp,
 void FtraceParser::ParseUfshcdCommand(int64_t timestamp,
                                       protozero::ConstBytes blob) {
   protos::pbzero::UfshcdCommandFtraceEvent::Decoder evt(blob.data, blob.size);
+
+  // Parse occupied ufs command queue
   uint32_t num = evt.doorbell() > 0
                      ? static_cast<uint32_t>(PERFETTO_POPCOUNT(evt.doorbell()))
                      : (evt.str_t() == 1 ? 0 : 1);
-
   TrackId track =
       context_->track_tracker->InternGlobalCounterTrack(ufs_command_count_id_);
   context_->event_tracker->PushCounter(timestamp, static_cast<double>(num),
                                        track);
+
+  // Parse ufs command tag
+  base::StackString<32> cmd_track_name("io.ufs.command.tag[%03d]", evt.tag());
+  auto async_track =
+    context_->async_track_set_tracker->InternGlobalTrackSet(
+    context_->storage->InternString(cmd_track_name.string_view()));
+  if (evt.str_t() == 0) {
+    std::string ufs_op_str = GetUfsCmdString(evt.opcode(), evt.group_id());
+    StringId ufs_slice_name = context_->storage->InternString(
+      base::StringView(ufs_op_str));
+    TrackId start_id =
+      context_->async_track_set_tracker->Begin(async_track, 0);
+    context_->slice_tracker->Begin(timestamp, start_id, kNullStringId,
+                                   ufs_slice_name);
+  } else {
+    TrackId end_id =
+      context_->async_track_set_tracker->End(async_track, 0);
+    context_->slice_tracker->End(timestamp, end_id);
+  }
 }
 
 void FtraceParser::ParseWakeSourceActivate(int64_t timestamp,
