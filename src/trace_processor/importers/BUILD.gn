@@ -14,6 +14,11 @@
 
 import("../../../gn/perfetto_cc_proto_descriptor.gni")
 
+perfetto_cc_proto_descriptor("gen_cc_statsd_atoms_descriptor") {
+  descriptor_name = "atoms.descriptor"
+  descriptor_path = "./proto/atoms.descriptor"
+}
+
 perfetto_cc_proto_descriptor("gen_cc_config_descriptor") {
   descriptor_name = "config.descriptor"
   descriptor_target = "../../../protos/perfetto/config:descriptor"

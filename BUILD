@@ -1152,6 +1152,16 @@ perfetto_cc_proto_descriptor(
 )
 
 perfetto_cc_proto_descriptor(
+    name = "src_trace_processor_importers_gen_cc_statsd_atoms_descriptor",
+    deps = [
+        "src/trace_processor/importers/proto/atoms.descriptor",
+    ],
+    outs = [
+        "src/trace_processor/importers/atoms.descriptor.h",
+    ],
+)
+
+perfetto_cc_proto_descriptor(
     name = "src_trace_processor_importers_gen_cc_track_event_descriptor",
     deps = [
         ":protos_perfetto_trace_track_event_descriptor",
@@ -1676,6 +1686,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/proto_trace_reader.h",
         "src/trace_processor/importers/proto/proto_trace_tokenizer.cc",
         "src/trace_processor/importers/proto/proto_trace_tokenizer.h",
+        "src/trace_processor/importers/proto/statsd_module.cc",
+        "src/trace_processor/importers/proto/statsd_module.h",
         "src/trace_processor/importers/proto/track_event_module.cc",
         "src/trace_processor/importers/proto/track_event_module.h",
         "src/trace_processor/importers/proto/track_event_parser.cc",
@@ -4070,6 +4082,7 @@ perfetto_cc_library(
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_gen_cc_config_descriptor",
+               ":src_trace_processor_importers_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
@@ -4177,6 +4190,7 @@ perfetto_cc_binary(
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_gen_cc_config_descriptor",
+               ":src_trace_processor_importers_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
@@ -4347,6 +4361,7 @@ perfetto_cc_binary(
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_gen_cc_config_descriptor",
+               ":src_trace_processor_importers_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",

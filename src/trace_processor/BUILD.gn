@@ -139,6 +139,10 @@ source_set("storage_minimal") {
     "importers/proto/proto_trace_reader.h",
     "importers/proto/proto_trace_tokenizer.cc",
     "importers/proto/proto_trace_tokenizer.h",
+
+    # XXX: is this the correct place
+    "importers/proto/statsd_module.cc",
+    "importers/proto/statsd_module.h",
     "importers/proto/track_event_module.cc",
     "importers/proto/track_event_module.h",
     "importers/proto/track_event_parser.cc",
@@ -168,6 +172,7 @@ source_set("storage_minimal") {
     "../protozero",
     "containers",
     "importers:gen_cc_chrome_track_event_descriptor",
+    "importers:gen_cc_statsd_atoms_descriptor",
     "importers:gen_cc_track_event_descriptor",
     "importers/common",
     "importers/memory_tracker:graph_processor",
@@ -195,6 +200,7 @@ source_set("storage_minimal") {
     "../../protos/perfetto/trace/power:zero",
     "../../protos/perfetto/trace/profiling:zero",
     "../../protos/perfetto/trace/ps:zero",
+    "../../protos/perfetto/trace/statsd:zero",
     "../../protos/perfetto/trace/sys_stats:zero",
     "../../protos/perfetto/trace/system_info:zero",
     "../../protos/perfetto/trace/track_event:zero",
