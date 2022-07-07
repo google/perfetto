@@ -257,7 +257,11 @@ class TraceProcessor:
     self.http = self._create_tp_http(addr)
 
     if trace or file_path:
-      self._parse_trace(trace if trace else file_path)
+      try:
+        self._parse_trace(trace if trace else file_path)
+      except TraceProcessorException as ex:
+        self.close()
+        raise ex
 
   def query(self, sql: str):
     """Executes passed in SQL query using class defined HTTP API, and returns
