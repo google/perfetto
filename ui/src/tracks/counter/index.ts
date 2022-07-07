@@ -16,18 +16,17 @@ import * as m from 'mithril';
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
+import {PluginContext} from '../../common/plugin_api';
 import {NUM, NUM_NULL} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
-  trackControllerRegistry,
 } from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
 import {TrackButton, TrackButtonAttrs} from '../../frontend/track_panel';
-import {trackRegistry} from '../../frontend/track_registry';
 
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 
@@ -509,9 +508,9 @@ class CounterTrack extends Track<Config, Data> {
   }
 }
 
-export function activate() {
-  trackControllerRegistry.register(CounterTrackController);
-  trackRegistry.register(CounterTrack);
+export function activate(ctx: PluginContext) {
+  ctx.registerTrackController(CounterTrackController);
+  ctx.registerTrack(CounterTrack);
 }
 
 export const plugin = {

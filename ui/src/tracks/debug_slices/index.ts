@@ -15,19 +15,15 @@
 import * as m from 'mithril';
 
 import {Actions} from '../../common/actions';
+import {PluginContext} from '../../common/plugin_api';
 import {NUM, NUM_NULL, STR} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
-
 import {
   TrackController,
-  trackControllerRegistry,
 } from '../../controller/track_controller';
-
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
 import {TrackButton, TrackButtonAttrs} from '../../frontend/track_panel';
-import {trackRegistry} from '../../frontend/track_registry';
-
 import {ChromeSliceTrack} from '../chrome_slices';
 
 export const DEBUG_SLICE_TRACK_KIND = 'DebugSliceTrack';
@@ -141,9 +137,9 @@ export class DebugSliceTrack extends ChromeSliceTrack {
   }
 }
 
-function activate() {
-  trackRegistry.register(DebugSliceTrack);
-  trackControllerRegistry.register(DebugSliceTrackController);
+function activate(ctx: PluginContext) {
+  ctx.registerTrack(DebugSliceTrack);
+  ctx.registerTrackController(DebugSliceTrackController);
 }
 
 export const plugin = {

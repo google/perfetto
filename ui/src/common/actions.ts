@@ -23,18 +23,6 @@ import {
   columnKey,
   TableColumn,
 } from '../frontend/pivot_table_redux_types';
-
-const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
-const ASYNC_SLICE_TRACK_KIND = 'AsyncSliceTrack';
-const COUNTER_TRACK_KIND = 'CounterTrack';
-const DEBUG_SLICE_TRACK_KIND = 'DebugSliceTrack';
-const EXPECTED_FRAMES_SLICE_TRACK_KIND = 'ExpectedFramesSliceTrack';
-const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
-const NULL_TRACK_KIND = 'NullTrack';
-const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
-const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
-const PROCESS_SUMMARY_TRACK = 'ProcessSummaryTrack';
-
 import {randomColor} from './colorizer';
 import {createEmptyState} from './empty_state';
 import {DEFAULT_VIEWING_OPTION, PERF_SAMPLES_KEY} from './flamegraph_util';
@@ -60,6 +48,17 @@ import {
   VisibleState,
 } from './state';
 import {toNs} from './time';
+
+const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
+const ASYNC_SLICE_TRACK_KIND = 'AsyncSliceTrack';
+const COUNTER_TRACK_KIND = 'CounterTrack';
+const DEBUG_SLICE_TRACK_KIND = 'DebugSliceTrack';
+const EXPECTED_FRAMES_SLICE_TRACK_KIND = 'ExpectedFramesSliceTrack';
+const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
+const NULL_TRACK_KIND = 'NullTrack';
+const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
+const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
+const PROCESS_SUMMARY_TRACK = 'ProcessSummaryTrack';
 
 type StateDraft = Draft<State>;
 

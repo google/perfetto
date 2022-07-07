@@ -21,17 +21,16 @@ import {
   drawIncompleteSlice,
 } from '../../common/canvas_utils';
 import {colorForThread} from '../../common/colorizer';
+import {PluginContext} from '../../common/plugin_api';
 import {NUM} from '../../common/query_result';
 import {fromNs, timeToString, toNs} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
-  trackControllerRegistry,
 } from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {trackRegistry} from '../../frontend/track_registry';
 
 export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
 
@@ -453,9 +452,9 @@ class CpuSliceTrack extends Track<Config, Data> {
   }
 }
 
-function activate() {
-  trackControllerRegistry.register(CpuSliceTrackController);
-  trackRegistry.register(CpuSliceTrack);
+function activate(ctx: PluginContext) {
+  ctx.registerTrackController(CpuSliceTrackController);
+  ctx.registerTrack(CpuSliceTrack);
 }
 
 export const plugin = {
