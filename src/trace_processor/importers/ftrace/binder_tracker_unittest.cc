@@ -18,6 +18,7 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -38,6 +39,8 @@ class BinderTrackerTest : public ::testing::Test {
     context.storage.reset(new TraceStorage());
     context.global_args_tracker.reset(new GlobalArgsTracker(&context));
     context.args_tracker.reset(new ArgsTracker(&context));
+    context.args_translation_table.reset(
+        new ArgsTranslationTable(context.storage.get()));
     context.slice_tracker.reset(new SliceTracker(&context));
     context.slice_translation_table.reset(
         new SliceTranslationTable(context.storage.get()));
