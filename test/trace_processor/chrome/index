@@ -14,6 +14,7 @@
 ../../data/chrome_scroll_without_vsync.pftrace scroll_jank_cause_queuing_delay_restricted_test.sql scroll_jank_cause_queuing_delay_restricted.out
 ../../data/chrome_scroll_without_vsync.pftrace scroll_jank_cause_queuing_delay_general_validation_test.sql scroll_jank_cause_queuing_delay_general_validation.out
 ../../data/chrome_scroll_without_vsync.pftrace chrome_thread_slice_test.sql chrome_thread_slice.out
+../../data/scrolling_with_blocked_nonblocked_frames.pftrace chrome_input_to_browser_intervals_test.sql chrome_input_to_browser_intervals.out
 ../track_event/track_event_counters.textproto chrome_thread_slice_repeated_test.sql chrome_thread_slice_repeated.out
 ../../data/chrome_rendering_desktop.pftrace frame_times frame_times_metric.out
 ../../data/chrome_rendering_desktop.pftrace chrome_dropped_frames chrome_dropped_frames_metric.out
