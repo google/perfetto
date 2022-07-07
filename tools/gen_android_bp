@@ -793,6 +793,10 @@ def create_cc_proto_descriptor_module(blueprint, target):
   module.genrule_headers.add(module.name)
   module.srcs.update(
       ':' + label_to_module_name(dep) for dep in target.proto_deps)
+  module.srcs.update(
+      gn_utils.label_to_path(src)
+      for src in target.inputs
+      if "tmp.gn_utils" not in src)
   module.out.update(target.outputs)
   blueprint.add_module(module)
   return module
