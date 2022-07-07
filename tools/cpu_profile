@@ -28,6 +28,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import textwrap
 import time
 import uuid
 
@@ -116,6 +117,10 @@ def parse_and_validate_args():
       metavar="CONFIG",
       default=None)
   parser.add_argument(
+      "--print-config",
+      action="store_true",
+      help="Print config instead of running. For debugging.")
+  parser.add_argument(
       "-o",
       "--output",
       help="Output directory for recorded trace.",
@@ -172,7 +177,8 @@ def get_perfetto_config(args):
       sys.exit("Unable to read config file: {}".format(error))
 
   CONFIG_INDENT = '      '
-  CONFIG = '''buffers {{
+  CONFIG = textwrap.dedent('''\
+  buffers {{
     size_kb: 2048
   }}
 
@@ -197,7 +203,7 @@ def get_perfetto_config(args):
       perf_event_config {{
         all_cpus: true
         sampling_frequency: {frequency}
-{target_config}
+  {target_config}
       }}
     }}
   }}
@@ -206,9 +212,8 @@ def get_perfetto_config(args):
   write_into_file: true
   flush_timeout_ms: 30000
   flush_period_ms: 604800000
-  '''
+  ''')
 
-  target_config = ""
   matching_processes = []
   if args.name is not None:
     names_to_match = [name.strip() for name in args.name.split(',')]
@@ -217,13 +222,13 @@ def get_perfetto_config(args):
   if not matching_processes:
     sys.exit("No running processes matched for profiling.")
 
-  for process in matching_processes:
-    target_config += CONFIG_INDENT + 'target_cmdline: "{}"\n'.format(process)
+  target_config = "\n".join([f'{CONFIG_INDENT}target_cmdline: "{p}"' for p in matching_processes])
 
-  print("Configured profiling for these processes:\n")
-  for matching_process in matching_processes:
-    print(matching_process)
-  print()
+  if not args.print_config:
+    print("Configured profiling for these processes:\n")
+    for matching_process in matching_processes:
+      print(matching_process)
+    print()
 
   config = CONFIG.format(
       frequency=args.frequency,
@@ -430,7 +435,11 @@ def copy_profiles_to_destination(profile_target, profile_path):
 def main(argv):
   args = parse_and_validate_args()
   profile_target = get_and_prepare_profile_target(args)
-  record_trace(get_perfetto_config(args), profile_target)
+  trace_config = get_perfetto_config(args)
+  if args.print_config:
+    print(trace_config)
+    return 0
+  record_trace(trace_config, profile_target)
   traceconv = get_traceconv()
   trace_file = symbolize_trace(traceconv, profile_target)
   copy_profiles_to_destination(profile_target,
