@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {PluginContext} from '../../common/plugin_api';
 import {NUM, NUM_NULL, STR} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
-  trackControllerRegistry,
 } from '../../controller/track_controller';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {trackRegistry} from '../../frontend/track_registry';
 import {ChromeSliceTrack} from '../chrome_slices';
 
 export const ASYNC_SLICE_TRACK_KIND = 'AsyncSliceTrack';
@@ -149,9 +148,9 @@ export class AsyncSliceTrack extends ChromeSliceTrack {
   }
 }
 
-function activate() {
-  trackControllerRegistry.register(AsyncSliceTrackController);
-  trackRegistry.register(AsyncSliceTrack);
+function activate(ctx: PluginContext) {
+  ctx.registerTrackController(AsyncSliceTrackController);
+  ctx.registerTrack(AsyncSliceTrack);
 }
 
 export const plugin = {

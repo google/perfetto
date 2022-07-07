@@ -12,18 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {PluginContext} from '../../common/plugin_api';
 import {NUM} from '../../common/query_result';
 import {fromNs, toNsCeil, toNsFloor} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {LIMIT} from '../../common/track_data';
 import {
   TrackController,
-  trackControllerRegistry,
 } from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {trackRegistry} from '../../frontend/track_registry';
 
 export const ANDROID_LOGS_TRACK_KIND = 'AndroidLogTrack';
 
@@ -151,9 +150,9 @@ class AndroidLogTrack extends Track<Config, Data> {
   }
 }
 
-function activate() {
-  trackRegistry.register(AndroidLogTrack);
-  trackControllerRegistry.register(AndroidLogTrackController);
+function activate(ctx: PluginContext) {
+  ctx.registerTrack(AndroidLogTrack);
+  ctx.registerTrackController(AndroidLogTrackController);
 }
 
 export const plugin = {

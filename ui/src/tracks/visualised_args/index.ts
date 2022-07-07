@@ -15,11 +15,10 @@
 import * as m from 'mithril';
 
 import {Actions} from '../../common/actions';
-import {trackControllerRegistry} from '../../controller/track_controller';
+import {PluginContext} from '../../common/plugin_api';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
 import {TrackButton, TrackButtonAttrs} from '../../frontend/track_panel';
-import {trackRegistry} from '../../frontend/track_registry';
 import {
   ChromeSliceTrack,
   ChromeSliceTrackController,
@@ -66,9 +65,9 @@ export class VisualisedArgsTrack extends ChromeSliceTrack {
   }
 }
 
-function activate() {
-  trackRegistry.register(VisualisedArgsTrack);
-  trackControllerRegistry.register(VisualisedArgsTrackController);
+function activate(ctx: PluginContext) {
+  ctx.registerTrackController(VisualisedArgsTrackController);
+  ctx.registerTrack(VisualisedArgsTrack);
 }
 
 export const plugin = {
