@@ -192,15 +192,7 @@ class MockBoundInserter : public ArgsTracker::BoundInserter {
 class MockSliceTracker : public SliceTracker {
  public:
   explicit MockSliceTracker(TraceProcessorContext* context)
-      : SliceTracker(context) {
-    ON_CALL(*this, EndMaybePreservingArgs(_, _, _, _, _))
-        .WillByDefault([this](int64_t timestamp, TrackId track_id, StringId cat,
-                              StringId name, SetArgsCallback args_callback) {
-          auto id = End(timestamp, track_id, cat, name, args_callback);
-          return id ? base::make_optional(IdAndArgsTracker{*id, base::nullopt})
-                    : base::nullopt;
-        });
-  }
+      : SliceTracker(context) {}
 
   MOCK_METHOD5(Begin,
                base::Optional<SliceId>(int64_t timestamp,
@@ -214,12 +206,6 @@ class MockSliceTracker : public SliceTracker {
                                        StringId cat,
                                        StringId name,
                                        SetArgsCallback args_callback));
-  MOCK_METHOD5(EndMaybePreservingArgs,
-               base::Optional<IdAndArgsTracker>(int64_t timestamp,
-                                                TrackId track_id,
-                                                StringId cat,
-                                                StringId name,
-                                                SetArgsCallback args_callback));
   MOCK_METHOD6(Scoped,
                base::Optional<SliceId>(int64_t timestamp,
                                        TrackId track_id,
