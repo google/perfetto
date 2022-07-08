@@ -107,7 +107,7 @@ enum class PerfettoStatsdAtom {
 };
 
 // This must match the values of the PerfettoTrigger::TriggerType enum in:
-// frameworks/base/cmds/statsd/src/atoms.proto
+// frameworks/proto_logging/stats/atoms.proto
 enum PerfettoTriggerAtom {
   kUndefined = 0,
 

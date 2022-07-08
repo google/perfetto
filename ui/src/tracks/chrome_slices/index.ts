@@ -16,18 +16,17 @@ import {Actions} from '../../common/actions';
 import {cropText, drawIncompleteSlice} from '../../common/canvas_utils';
 import {colorForThreadIdleSlice, hslForSlice} from '../../common/colorizer';
 import {TRACE_MARGIN_TIME_S} from '../../common/constants';
+import {PluginContext} from '../../common/plugin_api';
 import {NUM, NUM_NULL, STR} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
-  trackControllerRegistry,
 } from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {cachedHsluvToHex} from '../../frontend/hsluv_cache';
 import {NewTrackArgs, SliceRect, Track} from '../../frontend/track';
-import {trackRegistry} from '../../frontend/track_registry';
 
 export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
 const SLICE_HEIGHT = 18;
@@ -459,9 +458,9 @@ export class ChromeSliceTrack extends Track<Config, Data> {
   }
 }
 
-function activate() {
-  trackControllerRegistry.register(ChromeSliceTrackController);
-  trackRegistry.register(ChromeSliceTrack);
+function activate(ctx: PluginContext) {
+  ctx.registerTrackController(ChromeSliceTrackController);
+  ctx.registerTrack(ChromeSliceTrack);
 }
 
 export const plugin = {
