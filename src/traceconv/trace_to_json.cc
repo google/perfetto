@@ -91,7 +91,7 @@ int TraceToJson(std::istream* input,
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
 
-  if (!ReadTrace(tp.get(), input))
+  if (!ReadTraceUnfinalized(tp.get(), input))
     return 1;
   tp->NotifyEndOfFile();
 
