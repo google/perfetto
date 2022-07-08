@@ -28,7 +28,7 @@ Table& Table::operator=(Table&& other) noexcept {
   row_count_ = other.row_count_;
   string_pool_ = other.string_pool_;
 
-  row_maps_ = std::move(other.row_maps_);
+  overlays_ = std::move(other.overlays_);
   columns_ = std::move(other.columns_);
   for (Column& col : columns_) {
     col.table_ = this;
@@ -38,8 +38,8 @@ Table& Table::operator=(Table&& other) noexcept {
 
 Table Table::Copy() const {
   Table table = CopyExceptRowMaps();
-  for (const RowMap& rm : row_maps_) {
-    table.row_maps_.emplace_back(rm.Copy());
+  for (const ColumnStorageOverlay& overlay : overlays_) {
+    table.overlays_.emplace_back(overlay.Copy());
   }
   return table;
 }
@@ -49,7 +49,7 @@ Table Table::CopyExceptRowMaps() const {
   table.row_count_ = row_count_;
   for (const Column& col : columns_) {
     table.columns_.emplace_back(col, &table, col.index_in_table(),
-                                col.row_map_idx_);
+                                col.overlay_index());
   }
   return table;
 }
@@ -115,9 +115,9 @@ Table Table::Sort(const std::vector<Order>& od) const {
   // RowMap.
   Table table = CopyExceptRowMaps();
   RowMap rm(std::move(idx));
-  for (const RowMap& map : row_maps_) {
-    table.row_maps_.emplace_back(map.SelectRows(rm));
-    PERFETTO_DCHECK(table.row_maps_.back().size() == table.row_count());
+  for (const ColumnStorageOverlay& overlay : overlays_) {
+    table.overlays_.emplace_back(overlay.SelectRows(rm));
+    PERFETTO_DCHECK(table.overlays_.back().size() == table.row_count());
   }
 
   // Remove the sorted and row set flags from all the columns.
