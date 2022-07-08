@@ -1086,20 +1086,35 @@ void TraceProcessorImpl::SetCurrentTraceName(const std::string& name) {
   current_trace_name_ = name;
 }
 
-void TraceProcessorImpl::NotifyEndOfFile() {
-  if (current_trace_name_.empty())
-    current_trace_name_ = "Unnamed trace";
-
-  TraceProcessorStorageImpl::NotifyEndOfFile();
+void TraceProcessorImpl::Flush() {
+  TraceProcessorStorageImpl::Flush();
 
   context_.metadata_tracker->SetMetadata(
       metadata::trace_size_bytes,
       Variadic::Integer(static_cast<int64_t>(bytes_parsed_)));
   BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
+}
 
-  // Create a snapshot of all tables and views created so far. This is so later
-  // we can drop all extra tables created by the UI and reset to the original
-  // state (see RestoreInitialTables).
+void TraceProcessorImpl::NotifyEndOfFile() {
+  if (notify_eof_called_) {
+    PERFETTO_ELOG(
+        "NotifyEndOfFile should only be called once. Try calling Flush instead "
+        "if trying to commit the contents of the trace to tables.");
+    PERFETTO_DCHECK(!notify_eof_called_);
+  }
+  notify_eof_called_ = true;
+
+  if (current_trace_name_.empty())
+    current_trace_name_ = "Unnamed trace";
+
+  // Last opportunity to flush all pending data.
+  Flush();
+
+  TraceProcessorStorageImpl::NotifyEndOfFile();
+
+  // Create a snapshot list of all tables and views created so far. This is so
+  // later we can drop all extra tables created by the UI and reset to the
+  // original state (see RestoreInitialTables).
   initial_tables_.clear();
   auto it = ExecuteQuery(kAllTablesQuery);
   while (it.Next()) {
