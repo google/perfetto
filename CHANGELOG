@@ -1,6 +1,6 @@
 Unreleased:
   Tracing service and probes:
-    * Add android.statsd datasource.
+    *
   Trace Processor:
     *
   UI:
