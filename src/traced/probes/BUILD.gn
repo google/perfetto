@@ -67,7 +67,6 @@ source_set("probes_src") {
     "packages_list",
     "power",
     "ps",
-    "statsd_client",
     "sys_stats",
     "system_info",
   ]
@@ -108,7 +107,6 @@ perfetto_unittest_source_set("unittests") {
     "packages_list:unittests",
     "power:unittests",
     "ps:unittests",
-    "statsd_client:unittests",
     "sys_stats:unittests",
     "system_info:unittests",
   ]
