@@ -223,7 +223,7 @@ class ViewColumnBlueprint {
 #define PERFETTO_TP_VIEW_COLUMN_IT_GETTER(col_name, ...)    \
   ColumnDataType::col_name col_name() const {               \
     const auto& col = table_->col_name();                   \
-    return col.GetAtIdx(its_[col.row_map_index()].index()); \
+    return col.GetAtIdx(its_[col.overlay_index()].index()); \
   }
 // Defines a getter for a FROM column in the RowReference.
 #define PERFETTO_TP_VIEW_FROM_COLUMN_IT_GETTER(_, col_name, ...) \
@@ -332,8 +332,9 @@ class ViewColumnBlueprint {
        * Must not be public to avoid buggy code because of inheritance         \
        * without virtual destructor.                                           \
        */                                                                      \
-      explicit Iterator(const QueryResult* table, std::vector<RowMap> rm)      \
-          : AbstractConstIterator(table, std::move(rm)) {}                     \
+      explicit Iterator(const QueryResult* table,                              \
+                        std::vector<ColumnStorageOverlay> overlays)            \
+          : AbstractConstIterator(table, std::move(overlays)) {}               \
                                                                                \
      private:                                                                  \
       friend class QueryResult;                                                \
@@ -357,7 +358,7 @@ class ViewColumnBlueprint {
           PERFETTO_TP_VIEW_COLUMN_QUERY_RESULT_GETTER)                         \
                                                                                \
       class_name::Iterator IterateRows() {                                     \
-        return class_name::Iterator(this, CopyRowMaps());                      \
+        return class_name::Iterator(this, CopyOverlays());                     \
       }                                                                        \
                                                                                \
      private:                                                                  \
