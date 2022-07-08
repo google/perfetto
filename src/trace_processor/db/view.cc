@@ -302,7 +302,7 @@ void View::QueryHelper::FilterAndJoinRecursive(TableNode* node) {
     // out the row number in the right table for every row in the left table.
     std::vector<uint32_t> right_rm_iv;
     right_rm_iv.reserve(left_rm.size());
-    left_col.row_map().FilterInto(&left_rm, [&](uint32_t idx) {
+    left_col.overlay().FilterInto(&left_rm, [&](uint32_t idx) {
       // Check if the right table has the value from the left table.
       base::Optional<uint32_t> opt_idx =
           right_col.IndexOf(left_col.GetAtIdx(idx));
@@ -411,7 +411,7 @@ Table View::QueryHelper::BuildTable(
 
   Table output(root->table->string_pool_);
   output.row_count_ = root_state.output.row_count();
-  output.row_maps_.emplace_back(RowMap(0, output.row_count_));
+  output.overlays_.emplace_back(ColumnStorageOverlay(output.row_count_));
 
   std::map<std::pair<const TableNode*, uint32_t>, uint32_t> cached_rm;
   for (auto it = cols_used.IterateAllBits(); it; it.Next()) {
@@ -428,11 +428,11 @@ Table View::QueryHelper::BuildTable(
     const Column& table_col = node_table.GetColumn(source_col.second);
 
     auto it_and_inserted = cached_rm.emplace(
-        std::make_pair(source_col.first, table_col.row_map_idx_),
-        static_cast<uint32_t>(output.row_maps_.size()));
+        std::make_pair(source_col.first, table_col.overlay_index()),
+        static_cast<uint32_t>(output.overlays_.size()));
     if (it_and_inserted.second) {
-      output.row_maps_.emplace_back(
-          std::move(node_table.row_maps_[table_col.row_map_idx_]));
+      output.overlays_.emplace_back(
+          std::move(node_table.overlays_[table_col.overlay_index()]));
     }
 
     uint32_t rm_idx = it_and_inserted.first->second;

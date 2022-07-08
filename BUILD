@@ -1019,6 +1019,7 @@ perfetto_filegroup(
         "src/trace_processor/db/column.h",
         "src/trace_processor/db/column_storage.cc",
         "src/trace_processor/db/column_storage.h",
+        "src/trace_processor/db/column_storage_overlay.h",
         "src/trace_processor/db/compare.h",
         "src/trace_processor/db/table.cc",
         "src/trace_processor/db/table.h",
