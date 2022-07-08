@@ -31,7 +31,7 @@ void DbTableMaybeUpdateMinMax(const TypedColumn<int64_t>& ts_col,
                               int64_t* min_value,
                               int64_t* max_value,
                               const TypedColumn<int64_t>* dur_col = nullptr) {
-  if (ts_col.row_map().empty())
+  if (ts_col.overlay().empty())
     return;
 
   int64_t col_min = ts_col.Min()->AsLong();
@@ -39,10 +39,9 @@ void DbTableMaybeUpdateMinMax(const TypedColumn<int64_t>& ts_col,
 
   if (dur_col) {
     PERFETTO_CHECK(ts_col.IsSorted());
-    PERFETTO_CHECK(dur_col->row_map().size() == ts_col.row_map().size());
-    for (uint32_t i = 0; i < dur_col->row_map().size(); i++) {
-      col_max =
-          std::max(ts_col.Get(i).AsLong() + dur_col->Get(i).AsLong(), col_max);
+    PERFETTO_CHECK(dur_col->overlay().size() == ts_col.overlay().size());
+    for (uint32_t i = 0; i < dur_col->overlay().size(); i++) {
+      col_max = std::max(ts_col[i] + (*dur_col)[i], col_max);
     }
   }
 
