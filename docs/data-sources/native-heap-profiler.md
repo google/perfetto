@@ -245,13 +245,7 @@ You only need to do this once.
 
 To use symbolization, your system must have llvm-symbolizer installed and
 accessible from `$PATH` as `llvm-symbolizer`. On Debian, you can install it
-using `sudo apt install llvm-9`.
-This will create `/usr/bin/llvm-symbolizer-9`. Symlink that to somewhere in
-your `$PATH` as `llvm-symbolizer`.
-
-For instance, `ln -s /usr/bin/llvm-symbolizer-9 ~/bin/llvm-symbolizer`, and
-add `~/bin` to your path (or run the commands below with `PATH=~/bin:$PATH`
-prefixed).
+using `sudo apt install llvm`.
 
 ### Symbolize your profile
 
