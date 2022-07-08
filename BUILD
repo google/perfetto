@@ -1546,6 +1546,8 @@ perfetto_filegroup(
         "src/trace_processor/iterator_impl.cc",
         "src/trace_processor/iterator_impl.h",
         "src/trace_processor/read_trace.cc",
+        "src/trace_processor/read_trace_internal.cc",
+        "src/trace_processor/read_trace_internal.h",
         "src/trace_processor/trace_processor.cc",
         "src/trace_processor/trace_processor_impl.cc",
         "src/trace_processor/trace_processor_impl.h",

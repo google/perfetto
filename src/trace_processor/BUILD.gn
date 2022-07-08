@@ -334,6 +334,8 @@ if (enable_perfetto_trace_processor_sqlite) {
       "iterator_impl.cc",
       "iterator_impl.h",
       "read_trace.cc",
+      "read_trace_internal.cc",
+      "read_trace_internal.h",
       "trace_processor.cc",
       "trace_processor_impl.cc",
       "trace_processor_impl.h",
