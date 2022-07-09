@@ -192,15 +192,7 @@ class MockBoundInserter : public ArgsTracker::BoundInserter {
 class MockSliceTracker : public SliceTracker {
  public:
   explicit MockSliceTracker(TraceProcessorContext* context)
-      : SliceTracker(context) {
-    ON_CALL(*this, EndMaybePreservingArgs(_, _, _, _, _))
-        .WillByDefault([this](int64_t timestamp, TrackId track_id, StringId cat,
-                              StringId name, SetArgsCallback args_callback) {
-          auto id = End(timestamp, track_id, cat, name, args_callback);
-          return id ? base::make_optional(IdAndArgsTracker{*id, base::nullopt})
-                    : base::nullopt;
-        });
-  }
+      : SliceTracker(context) {}
 
   MOCK_METHOD5(Begin,
                base::Optional<SliceId>(int64_t timestamp,
@@ -214,12 +206,6 @@ class MockSliceTracker : public SliceTracker {
                                        StringId cat,
                                        StringId name,
                                        SetArgsCallback args_callback));
-  MOCK_METHOD5(EndMaybePreservingArgs,
-               base::Optional<IdAndArgsTracker>(int64_t timestamp,
-                                                TrackId track_id,
-                                                StringId cat,
-                                                StringId name,
-                                                SetArgsCallback args_callback));
   MOCK_METHOD6(Scoped,
                base::Optional<SliceId>(int64_t timestamp,
                                        TrackId track_id,
@@ -881,7 +867,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
 
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(storage_->thread_slice_table().id().row_map().size(), 2u);
+  EXPECT_EQ(storage_->thread_slice_table().row_count(), 2u);
   auto id_0 = storage_->thread_slice_table().id().IndexOf(SliceId(0u));
   EXPECT_TRUE(id_0);
   EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_0], 2003000);
@@ -970,7 +956,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
 
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(storage_->thread_slice_table().id().row_map().size(), 2u);
+  EXPECT_EQ(storage_->thread_slice_table().row_count(), 2u);
   auto id_0 = storage_->thread_slice_table().id().IndexOf(SliceId(0u));
   EXPECT_TRUE(id_0);
   EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_0], 2005000);
@@ -1169,7 +1155,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
 
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(storage_->thread_slice_table().id().row_map().size(), 3u);
+  EXPECT_EQ(storage_->thread_slice_table().row_count(), 3u);
   auto id_0 = storage_->thread_slice_table().id().IndexOf(SliceId(0u));
   EXPECT_TRUE(id_0);
   EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_0], 2003000);
@@ -1532,7 +1518,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   EXPECT_EQ(storage_->virtual_track_slices().thread_instruction_deltas()[0],
             20);
 
-  EXPECT_EQ(storage_->thread_slice_table().id().row_map().size(), 2u);
+  EXPECT_EQ(storage_->thread_slice_table().row_count(), 2u);
   auto id_0 = storage_->thread_slice_table().id().IndexOf(SliceId(0u));
   EXPECT_TRUE(id_0);
   EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_0], 2007000);
@@ -1645,7 +1631,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
   EXPECT_EQ(storage_->thread_track_table().utid()[0], 1u);
 
   // Counter values should also be imported into thread slices.
-  EXPECT_EQ(storage_->thread_slice_table().id().row_map().size(), 1u);
+  EXPECT_EQ(storage_->thread_slice_table().row_count(), 1u);
   auto id_0 = storage_->thread_slice_table().id().IndexOf(SliceId(0u));
   EXPECT_TRUE(id_0);
   EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_0], 1000000);

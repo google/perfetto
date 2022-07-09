@@ -117,21 +117,27 @@ util::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
   return status;
 }
 
+void TraceProcessorStorageImpl::Flush() {
+  if (unrecoverable_parse_error_)
+    return;
+
+  if (context_.sorter)
+    context_.sorter->ExtractEventsForced();
+}
+
 void TraceProcessorStorageImpl::NotifyEndOfFile() {
   if (unrecoverable_parse_error_ || !context_.chunk_reader)
     return;
-
+  Flush();
   context_.chunk_reader->NotifyEndOfFile();
-  if (context_.sorter)
-    context_.sorter->ExtractEventsForced();
-  context_.event_tracker->FlushPendingEvents();
-  context_.slice_tracker->FlushPendingSlices();
-  context_.heap_profile_tracker->NotifyEndOfFile();
   for (std::unique_ptr<ProtoImporterModule>& module : context_.modules) {
     module->NotifyEndOfFile();
   }
-  context_.process_tracker->NotifyEndOfFile();
+  context_.event_tracker->FlushPendingEvents();
+  context_.slice_tracker->FlushPendingSlices();
+  context_.heap_profile_tracker->NotifyEndOfFile();
   context_.args_tracker->Flush();
+  context_.process_tracker->NotifyEndOfFile();
 }
 
 }  // namespace trace_processor

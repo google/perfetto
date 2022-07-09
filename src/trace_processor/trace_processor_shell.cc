@@ -46,6 +46,7 @@
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
+#include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/util/proto_to_json.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -910,11 +911,12 @@ void ExtendPoolWithBinaryDescriptor(google::protobuf::DescriptorPool& pool,
 }
 
 base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
-  base::Status read_status =
-      ReadTrace(g_tp, trace_file_path.c_str(), [&size_mb](size_t parsed_size) {
+  base::Status read_status = ReadTraceUnfinalized(
+      g_tp, trace_file_path.c_str(), [&size_mb](size_t parsed_size) {
         *size_mb = static_cast<double>(parsed_size) / 1E6;
         fprintf(stderr, "\rLoading trace: %.2f MB\r", *size_mb);
       });
+  g_tp->Flush();
   if (!read_status.ok()) {
     return base::ErrStatus("Could not read trace file (path: %s): %s",
                            trace_file_path.c_str(), read_status.c_message());
@@ -936,7 +938,7 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
             return;
           }
         });
-    g_tp->NotifyEndOfFile();
+    g_tp->Flush();
   }
 
   auto maybe_map = profiling::GetPerfettoProguardMapPath();
@@ -953,6 +955,7 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
           }
         });
   }
+  g_tp->NotifyEndOfFile();
   return base::OkStatus();
 }
 

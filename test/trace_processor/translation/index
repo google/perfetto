@@ -4,3 +4,4 @@ chrome_performance_mark.textproto chrome_args_test.sql chrome_performance_mark.o
 slice_name.textproto slice_name_test.sql slice_name.out
 slice_name_negative_timestamp.textproto slice_name_test.sql slice_name.out
 native_symbol_arg.textproto chrome_args_test.sql native_symbol_arg.out
+native_symbol_arg_incomplete.textproto chrome_args_test.sql native_symbol_arg.out
