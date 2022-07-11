@@ -372,8 +372,9 @@ button.close {
         }
         .track-buttons {
           grid-area: buttons;
-          // This is necessary to center the buttons - but shouldn't be?
-          height: 18px;
+          display: flex;
+          height: 100%;
+          align-items: center;
         }
         .track-button {
           @include transition();
@@ -386,6 +387,15 @@ button.close {
 
         .track-button.show {
           opacity: 1;
+        }
+        .track-button.full-height {
+          display: flex;
+          height: 100%;
+          align-items: center;
+
+          &:hover {
+            background-color: #ebeef9;
+          }
         }
 
         &:hover .track-button{
