@@ -61,6 +61,7 @@ class TreeBuilder {
       tree = TreeBuilder.insertChild(
           tree, value, this.createNode(i + 1, firstRow));
     }
+    tree.rows.push(firstRow);
     this.lastRow = firstRow;
   }
 
