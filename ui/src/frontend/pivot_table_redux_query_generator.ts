@@ -124,7 +124,7 @@ function aggregationAlias(
 
 export function areaFilter(area: Area): string {
   return `
-    ts > ${toNs(area.startSec)}
+    ts + dur > ${toNs(area.startSec)}
     and ts < ${toNs(area.endSec)}
     and track_id in (${getSelectedTrackIds(area).join(', ')})
   `;
