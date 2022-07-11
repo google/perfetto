@@ -298,8 +298,8 @@ def run_test(trace_processor, trace_descriptor_path, extension_descriptor_paths,
     to_print += f"{green_str}[       OK ]{end_color_str} "
     to_print += f"{os.path.basename(test.query_path_or_metric)} "
     to_print += f"{os.path.basename(trace_path)} "
-    to_print += f"(ingest: {perf_result.ingest_time_ns / 1000000} ms "
-    to_print += f"query: {perf_result.real_time_ns / 1000000} ms)\n"
+    to_print += f"(ingest: {perf_result.ingest_time_ns / 1000000:.2f} ms "
+    to_print += f"query: {perf_result.real_time_ns / 1000000:.2f} ms)\n"
   return to_print
 
 
@@ -447,7 +447,7 @@ def main():
       [chrome_extensions, test_extensions], metrics_message_factory, tests,
       args.keep_input, args.rebase, args.no_colors)
   test_run_end = datetime.datetime.now()
-  test_time_ms = int((test_run_end - test_run_start).total_seconds()) * 1000
+  test_time_ms = int((test_run_end - test_run_start).total_seconds() * 1000)
 
   sys.stderr.write(
       f"[==========] {len(tests)} tests ran. ({test_time_ms} ms total)\n")
