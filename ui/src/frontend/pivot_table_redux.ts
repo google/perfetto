@@ -363,6 +363,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
     const column = aggregation.column;
     const popupItems: PopupMenuItem[] = [];
     const state = globals.state.nonSerializableState.pivotTableRedux;
+    let icon = 'more_horiz';
     if (state.sortCriteria === undefined ||
         !tableColumnEquals(column, state.sortCriteria.column)) {
       popupItems.push(
@@ -372,6 +373,8 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
       // opposite direction.
       popupItems.push(this.sortingItem(
           column, state.sortCriteria.order === 'DESC' ? 'ASC' : 'DESC'));
+      icon = state.sortCriteria.order === 'DESC' ? 'arrow_drop_down' :
+                                                   'arrow_drop_up';
     }
     const otherAggs: AggregationFunction[] = ['SUM', 'MAX', 'MIN'];
     if (aggregation.aggregationFunction !== 'COUNT') {
@@ -399,7 +402,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
 
     return m(
         'td', this.readableAggregationName(aggregation), m(PopupMenuButton, {
-          icon: 'arrow_drop_down',
+          icon,
           items: popupItems,
         }));
   }
@@ -478,7 +481,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
       pivotTableHeaders.push(
           m('td',
             readableColumnName(pivot),
-            m(PopupMenuButton, {icon: 'arrow_drop_down', items})));
+            m(PopupMenuButton, {icon: 'more_horiz', items})));
     }
 
     const aggregationTableHeaders =
