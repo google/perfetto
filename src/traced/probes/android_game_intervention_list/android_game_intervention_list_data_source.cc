@@ -161,7 +161,8 @@ bool AndroidGameInterventionListDataSource::
         break;
       }
       case 3:
-      case 5: {
+      case 5:
+      case 7: {
         base::Optional<uint32_t> game_mode =
             base::CStringToUInt32(string_splitter.cur_token());
         if (game_mode == base::nullopt) {
@@ -174,7 +175,8 @@ bool AndroidGameInterventionListDataSource::
         break;
       }
       case 4:
-      case 6: {
+      case 6:
+      case 8: {
         for (base::StringSplitter intervention_splitter(
                  string_splitter.cur_token(), ',');
              intervention_splitter.Next();) {
