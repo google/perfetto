@@ -37,10 +37,26 @@ function m(selector, ...children) {
   return result;
 }
 
+function getCiRun() {
+  const url = new URL(window.location.href);
+  const parts = url.pathname.split('/');
+
+  // Example report URL:
+  // https://storage.googleapis.com/perfetto-ci-artifacts/20220711123401--cls-2149676-1--ui-clang-x86_64-release/ui-test-artifacts/index.html
+  // Parts would contain ['', 'perfetto-ci-artifacts',
+  // '20220711123401--cls-2149676-1--ui-clang-x86_64-release', ...] in this
+  // case, which means that we need to check length of the array and get third
+  // element out of it.
+  if (parts.length >= 3) {
+    return parts[2];
+  }
+  return null;
+}
+
 function processLines(lines) {
   const container = document.querySelector('.container');
   container.innerHTML = '';
-  let hasErrors = false;
+  const children = [];
 
   // report.txt is a text file with a pair of file names on each line, separated
   // by semicolon. E.g. "screenshot.png;screenshot-diff.png"
@@ -65,14 +81,37 @@ function processLines(lines) {
     const diffImage = m('img');
     diffImage.src = diff;
 
-    container.appendChild(
+    children.push(
         m('div.row',
           m('div.cell', output, m('div.image-wrapper', outputImage)),
           m('div.cell', diff, m('div.image-wrapper', diffImage))));
   }
 
-  if (!hasErrors) {
+  if (children.length === 0) {
     container.appendChild(m('div', 'All good!'));
+    return;
+  }
+
+  const run = getCiRun();
+
+  if (run !== null) {
+    const cmd = `tools/download_changed_screenshots.py ${run}`;
+    const button = m('button', 'Copy');
+    button.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(cmd);
+      button.innerText = 'Copied!';
+    });
+
+    container.appendChild(m(
+        'div.message',
+        'Use following command from Perfetto checkout directory to apply the ' +
+            'changes: ',
+        m('span.cmd', cmd),
+        button));
+  }
+
+  for (const child of children) {
+    container.appendChild(child);
   }
 }
 
