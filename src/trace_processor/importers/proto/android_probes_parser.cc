@@ -237,6 +237,7 @@ void AndroidProbesParser::ParseAndroidPackagesList(ConstBytes blob) {
 void AndroidProbesParser::ParseAndroidGameIntervention(ConstBytes blob) {
   protos::pbzero::AndroidGameInterventionList::Decoder intervention_list(
       blob.data, blob.size);
+  constexpr static int kGameModeStandard = 1;
   constexpr static int kGameModePerformance = 2;
   constexpr static int kGameModeBattery = 3;
 
@@ -250,6 +251,11 @@ void AndroidProbesParser::ParseAndroidGameIntervention(ConstBytes blob) {
         game_pkg(*pkg_it);
     int64_t uid = static_cast<int64_t>(game_pkg.uid());
     int32_t cur_mode = static_cast<int32_t>(game_pkg.current_mode());
+
+    bool is_standard_mode = false;
+    base::Optional<double> standard_downscale;
+    base::Optional<int32_t> standard_angle;
+    base::Optional<double> standard_fps;
 
     bool is_performance_mode = false;
     base::Optional<double> perf_downscale;
@@ -265,9 +271,14 @@ void AndroidProbesParser::ParseAndroidGameIntervention(ConstBytes blob) {
       protos::pbzero::AndroidGameInterventionList_GameModeInfo::Decoder
           game_mode(*mode_it);
 
-      // 2 for performance mode, 3 for battery mode
       uint32_t mode_num = game_mode.mode();
-      if (mode_num == kGameModePerformance) {
+      if (mode_num == kGameModeStandard) {
+        is_standard_mode = true;
+        standard_downscale =
+            static_cast<double>(game_mode.resolution_downscale());
+        standard_angle = game_mode.use_angle();
+        standard_fps = static_cast<double>(game_mode.fps());
+      } else if (mode_num == kGameModePerformance) {
         is_performance_mode = true;
         perf_downscale = static_cast<double>(game_mode.resolution_downscale());
         perf_angle = game_mode.use_angle();
@@ -283,6 +294,7 @@ void AndroidProbesParser::ParseAndroidGameIntervention(ConstBytes blob) {
 
     context_->storage->mutable_android_game_intervenion_list_table()->Insert(
         {context_->storage->InternString(game_pkg.name()), uid, cur_mode,
+         is_standard_mode, standard_downscale, standard_angle, standard_fps,
          is_performance_mode, perf_downscale, perf_angle, perf_fps,
          is_battery_mode, battery_downscale, battery_angle, battery_fps});
   }
