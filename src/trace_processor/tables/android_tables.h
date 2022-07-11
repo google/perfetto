@@ -51,6 +51,12 @@ PERFETTO_TP_TABLE(PERFETTO_TP_ANDROID_LOG_TABLE_DEF);
 // @param package_name name of the pakcage, e.g. com.google.android.gm.
 // @param uid UID processes of this package runs as.
 // @param current_mode current game mode the game is running at.
+// @param standard_mode_supported bool whether standard mode is supported.
+// @param standard_mode_downscale resolution downscaling factor of standard
+// mode.
+// @param standard_mode_use_angle bool whether ANGLE is used in standard mode.
+// @param standard_mode_fps frame rate that the game is throttled at in standard
+// mode.
 // @param perf_mode_supported bool whether performance mode is supported.
 // @param perf_mode_downscale resolution downscaling factor of performance mode.
 // @param perf_mode_use_angle bool whether ANGLE is used in performance mode.
@@ -67,6 +73,10 @@ PERFETTO_TP_TABLE(PERFETTO_TP_ANDROID_LOG_TABLE_DEF);
   C(StringPool::Id, package_name)                                          \
   C(int64_t, uid)                                                          \
   C(int32_t, current_mode)                                                 \
+  C(int32_t, standard_mode_supported)                                      \
+  C(base::Optional<double>, standard_mode_downscale)                       \
+  C(base::Optional<int32_t>, standard_mode_use_angle)                      \
+  C(base::Optional<double>, standard_mode_fps)                             \
   C(int32_t, perf_mode_supported)                                          \
   C(base::Optional<double>, perf_mode_downscale)                           \
   C(base::Optional<int32_t>, perf_mode_use_angle)                          \
