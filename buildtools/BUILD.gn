@@ -75,12 +75,6 @@ config("libunwindstack_config") {
     perfetto_isystem_cflag,
     rebase_path("android-core/demangle/include", root_build_dir),
   ]
-  if (is_android) {
-    cflags += [
-      perfetto_isystem_cflag,
-      rebase_path("bionic/libc/include", root_build_dir),
-    ]
-  }
   defines = [ "NO_LIBDEXFILE_SUPPORT" ]
 }
 
