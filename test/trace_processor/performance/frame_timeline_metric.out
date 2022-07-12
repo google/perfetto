@@ -1,12 +1,52 @@
 android_frame_timeline_metric {
-  app_deadline_missed_total_count: 3
-  process {
-    process_name: "process1"
-    app_deadline_missed_count: 2
-  }
-  process {
-    process_name: "process2"
-    app_deadline_missed_count: 1
-  }
-}
+  total_frames: 5
+  missed_app_frames: 3
 
+  process {
+    process {
+      name: "process1"
+    }
+    total_frames: 2
+    missed_frames: 2
+    missed_app_frames: 2
+    missed_sf_frames: 0
+    frame_dur_max: 34
+    frame_dur_avg: 33
+    frame_dur_p50: 33
+    frame_dur_p90: 33
+    frame_dur_p95: 33
+    frame_dur_p99: 33
+  }
+
+  process {
+    process {
+      name: "process2"
+    }
+    total_frames: 2
+    missed_frames: 1
+    missed_app_frames: 1
+    missed_sf_frames: 0
+    frame_dur_max: 16
+    frame_dur_avg: 16
+    frame_dur_p50: 16
+    frame_dur_p90: 16
+    frame_dur_p95: 16
+    frame_dur_p99: 16
+  }
+  
+  process {
+    process {
+      name: "process3"
+    }
+    total_frames: 1
+    missed_frames: 1
+    missed_app_frames: 0
+    missed_sf_frames: 1
+    frame_dur_max: 4
+    frame_dur_avg: 4
+    frame_dur_p50: 4
+    frame_dur_p90: 4
+    frame_dur_p95: 4
+    frame_dur_p99: 4
+    }
+}
