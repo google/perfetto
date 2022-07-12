@@ -98,6 +98,7 @@ class TracingMuxerImpl : public TracingMuxer {
 
   static void InitializeInstance(const TracingInitArgs&);
   static void ResetForTesting();
+  static void Shutdown();
 
   // TracingMuxer implementation.
   bool RegisterDataSource(const DataSourceDescriptor&,
