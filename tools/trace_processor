@@ -27,7 +27,7 @@ exec python3 - "$@" <<'#'EOF
 TOOL_NAME = 'trace_processor_shell'
 
 # BEGIN_SECTION_GENERATED_BY(roll-prebuilts)
-# Revision: v27.0
+# Revision: v27.1
 PERFETTO_PREBUILT_MANIFEST = [{
     'tool':
         'trace_processor_shell',
@@ -38,9 +38,9 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_size':
         7483288,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.0/mac-amd64/trace_processor_shell',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/mac-amd64/trace_processor_shell',
     'sha256':
-        '5c50e883faea326555f4cc08bd2b01f0eb94aed8c0a96b3c5513effdfb18446d',
+        '629e9cda1694c2d48d83492b8d5247e9aef0f2e3c9adc1e7cae9711e822b522f',
     'platform':
         'darwin',
     'machine': ['x86_64']
@@ -54,9 +54,9 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_size':
         6228936,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.0/mac-arm64/trace_processor_shell',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/mac-arm64/trace_processor_shell',
     'sha256':
-        'bfbb669a0eebe4c9ab87bd58e4a6353d809f8bcb605cccd1fd8d6e44ceb9b78c',
+        '4b96021512b1e3a6b802c3ca8a88e1f3092642904f031bd3285915ece015092d',
     'platform':
         'darwin',
     'machine': ['arm64']
@@ -70,9 +70,9 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_size':
         8044560,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.0/linux-amd64/trace_processor_shell',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/linux-amd64/trace_processor_shell',
     'sha256':
-        '54ec8a15bf6b0b2cf93103ede4982b370f8902315e3204b6421364ce8c8ced58',
+        '90dc594c64699ec128b275596e4fd57a7f43718100fc394f3e25466e2a0910ed',
     'platform':
         'linux',
     'machine': ['x86_64']
@@ -86,9 +86,9 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_size':
         5754252,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.0/linux-arm/trace_processor_shell',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/linux-arm/trace_processor_shell',
     'sha256':
-        '49809f97924f1c6bd93e42e84fd8c95f6760d147cba8a90efcfb6faefc1669a0',
+        '0369e52b0bdbf9d68ea4581c2a61d3b0461657501c7425a948415ad192918bb7',
     'platform':
         'linux',
     'machine': ['armv6l', 'armv7l', 'armv8l']
@@ -102,9 +102,9 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_size':
         7160568,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.0/linux-arm64/trace_processor_shell',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/linux-arm64/trace_processor_shell',
     'sha256':
-        '50eec568ccec27d6f4d370a275eb454a768e3977c8342e1b12d679087334a4c2',
+        '5a3863df7db2c4b7312eff2799542971291840daaf031caed2264494c5a25fbf',
     'platform':
         'linux',
     'machine': ['aarch64']
@@ -118,9 +118,9 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_size':
         4804920,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.0/android-arm/trace_processor_shell',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/android-arm/trace_processor_shell',
     'sha256':
-        '61f167ae82ea5fd1ebc6133e8bf934be4c001997812c4840a17f1dae9b01ab56'
+        '13b0b006c3ab2e3b4d382ec49d6688ee9f17dba3a6da0e6d98c02661a4fda30f'
 }, {
     'tool':
         'trace_processor_shell',
@@ -131,9 +131,9 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_size':
         6424736,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.0/android-arm64/trace_processor_shell',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/android-arm64/trace_processor_shell',
     'sha256':
-        '7517606d3e59e6f5168c0707c09886052a613b3b7ae10ff007a509a2879fd12c'
+        '7f4e722e7b5c053520a441fc1dd576c07dddf0e19cdb7c4c1231e3636fb7ad8d'
 }, {
     'tool':
         'trace_processor_shell',
@@ -144,9 +144,9 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_size':
         7295244,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.0/android-x86/trace_processor_shell',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/android-x86/trace_processor_shell',
     'sha256':
-        '46bccc77e8ac076f3136f24165c882c2e6810e3659b2c612f8c5fbf7a5a3b34f'
+        '0da051d356ee7ba0ce5e0b16fc145c77f52ab184ab1c038329fc11ba10eb0519'
 }, {
     'tool':
         'trace_processor_shell',
@@ -157,9 +157,9 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_size':
         7682240,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.0/android-x64/trace_processor_shell',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/android-x64/trace_processor_shell',
     'sha256':
-        'c3af39b4d0e035ece9cd29ab557ab2a0a330575e3b931ec2f77184e45fd03339'
+        'f49eed1830417cec1bff3fdf944d4a936115505733bb2633d40f47c096c83374'
 }, {
     'tool':
         'trace_processor_shell',
@@ -170,9 +170,9 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_size':
         7857152,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.0/windows-amd64/trace_processor_shell.exe',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/windows-amd64/trace_processor_shell.exe',
     'sha256':
-        '9fc40dc927901e4fb0d235a3b721a3cf9a615953ded0fafc22a8943d81b30fff',
+        'eda1e38cb7490a99ba31285a977a3a564c53f25eae2b301152b2578de62fcc5d',
     'platform':
         'win32',
     'machine': ['amd64']
