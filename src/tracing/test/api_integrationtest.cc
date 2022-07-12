@@ -492,6 +492,20 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
     perfetto::Tracing::ResetForTesting();
   }
 
+  static void TearDownTestSuite() {
+    // Test shutting down Perfetto only when all other tests have been run and
+    // no more tracing code will be executed.
+    PERFETTO_CHECK(!perfetto::Tracing::IsInitialized());
+    TracingInitArgs args;
+    args.backends = perfetto::kInProcessBackend;
+    perfetto::Tracing::Initialize(args);
+    perfetto::Tracing::Shutdown();
+    PERFETTO_CHECK(!perfetto::Tracing::IsInitialized());
+    // Shutting down again is a no-op.
+    perfetto::Tracing::Shutdown();
+    PERFETTO_CHECK(!perfetto::Tracing::IsInitialized());
+  }
+
   template <typename DataSourceType>
   TestDataSourceHandle* RegisterDataSource(std::string name) {
     perfetto::DataSourceDescriptor dsd;
