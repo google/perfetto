@@ -68,6 +68,15 @@ bool Tracing::IsInitialized() {
 }
 
 // static
+void Tracing::Shutdown() {
+  std::unique_lock<std::mutex> lock(InitializedMutex());
+  if (!g_was_initialized)
+    return;
+  internal::TracingMuxerImpl::Shutdown();
+  g_was_initialized = false;
+}
+
+// static
 void Tracing::ResetForTesting() {
   std::unique_lock<std::mutex> lock(InitializedMutex());
   if (!g_was_initialized)

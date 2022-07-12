@@ -177,6 +177,19 @@ class PERFETTO_EXPORT_COMPONENT Tracing {
   static std::unique_ptr<TracingSession> NewTrace(
       BackendType = kUnspecifiedBackend);
 
+  // Shut down Perfetto, releasing any allocated OS resources (threads, files,
+  // sockets, etc.). Note that Perfetto cannot be reinitialized again in the
+  // same process[1]. Instead, this function is meant for shutting down all
+  // Perfetto-related code so that it can be safely unloaded, e.g., with
+  // dlclose().
+  //
+  // It is only safe to call this function when all threads recording trace
+  // events have been terminated or otherwise guaranteed to not make any further
+  // calls into Perfetto.
+  //
+  // [1] Unless static data is also cleared through other means.
+  static void Shutdown();
+
   // Uninitialize Perfetto. Only exposed for testing scenarios where it can be
   // guaranteed that no tracing sessions or other operations are happening when
   // this call is made.
