@@ -42175,6 +42175,7 @@ class TracingMuxerImpl : public TracingMuxer {
 
   static void InitializeInstance(const TracingInitArgs&);
   static void ResetForTesting();
+  static void Shutdown();
 
   // TracingMuxer implementation.
   bool RegisterDataSource(const DataSourceDescriptor&,
@@ -44370,6 +44371,40 @@ void TracingMuxerImpl::ResetForTesting() {
   }
 }
 
+// static
+void TracingMuxerImpl::Shutdown() {
+  auto* muxer = reinterpret_cast<TracingMuxerImpl*>(instance_);
+
+  // Shutting down on the muxer thread would lead to a deadlock.
+  PERFETTO_CHECK(!muxer->task_runner_->RunsTasksOnCurrentThread());
+  muxer->DestroyStoppedTraceWritersForCurrentThread();
+
+  std::unique_ptr<base::TaskRunner> owned_task_runner(
+      muxer->task_runner_.get());
+  base::WaitableEvent shutdown_done;
+  owned_task_runner->PostTask([muxer, &shutdown_done] {
+    // Check that no consumer session is currently active on any backend.
+    // Producers will be automatically disconnected as a part of deleting the
+    // muxer below.
+    for (auto& backend : muxer->backends_) {
+      for (auto& consumer : backend.consumers) {
+        PERFETTO_CHECK(!consumer->service_);
+      }
+    }
+    // Make sure no trace writers are lingering around on the muxer thread. Note
+    // that we can't do this for any arbitrary thread in the process; it is the
+    // caller's responsibility to clean them up before shutting down Perfetto.
+    muxer->DestroyStoppedTraceWritersForCurrentThread();
+    // The task runner must be deleted outside the muxer thread. This is done by
+    // `owned_task_runner` above.
+    muxer->task_runner_.release();
+    delete muxer;
+    instance_ = TracingMuxerFake::Get();
+    shutdown_done.Notify();
+  });
+  shutdown_done.Wait();
+}
+
 TracingMuxer::~TracingMuxer() = default;
 
 static_assert(std::is_same<internal::BufferId, BufferID>::value,
@@ -45770,6 +45805,15 @@ bool Tracing::IsInitialized() {
 }
 
 // static
+void Tracing::Shutdown() {
+  std::unique_lock<std::mutex> lock(InitializedMutex());
+  if (!g_was_initialized)
+    return;
+  internal::TracingMuxerImpl::Shutdown();
+  g_was_initialized = false;
+}
+
+// static
 void Tracing::ResetForTesting() {
   std::unique_lock<std::mutex> lock(InitializedMutex());
   if (!g_was_initialized)
@@ -46896,8 +46940,8 @@ const char* GetVersionString();
 #ifndef GEN_PERFETTO_VERSION_GEN_H_
 #define GEN_PERFETTO_VERSION_GEN_H_
 
-#define PERFETTO_VERSION_STRING() "v27.0-96c8a8bd8"
-#define PERFETTO_VERSION_SCM_REVISION() "96c8a8bd8cd09fb93691b2dad38d6a90365b4f08"
+#define PERFETTO_VERSION_STRING() "v27.1-b02c84497"
+#define PERFETTO_VERSION_SCM_REVISION() "b02c84497b5387066a8f48eae60c6a8f1e042d5b"
 
 #endif  // GEN_PERFETTO_VERSION_GEN_H_
 /*
