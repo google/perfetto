@@ -22,6 +22,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
 #include "src/trace_processor/importers/ftrace/thread_state_tracker.h"
+#include "src/trace_processor/importers/i2c/i2c_tracker.h"
 #include "src/trace_processor/importers/proto/async_track_set_tracker.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
@@ -44,6 +45,7 @@
 #include "protos/perfetto/trace/ftrace/g2d.pbzero.h"
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 #include "protos/perfetto/trace/ftrace/gpu_mem.pbzero.h"
+#include "protos/perfetto/trace/ftrace/i2c.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ion.pbzero.h"
 #include "protos/perfetto/trace/ftrace/irq.pbzero.h"
 #include "protos/perfetto/trace/ftrace/kmem.pbzero.h"
@@ -761,6 +763,18 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseSchedCpuUtilCfs(ts, data);
         break;
       }
+      case FtraceEvent::kI2cReadFieldNumber: {
+        ParseI2cReadEvent(ts, pid, data);
+        break;
+      }
+      case FtraceEvent::kI2cWriteFieldNumber: {
+        ParseI2cWriteEvent(ts, pid, data);
+        break;
+      }
+      case FtraceEvent::kI2cResultFieldNumber: {
+        ParseI2cResultEvent(ts, pid, data);
+        break;
+      }
       default:
         break;
     }
@@ -1268,6 +1282,42 @@ void FtraceParser::ParseSysEvent(int64_t timestamp,
       static_cast<int>(protos::pbzero::SysEnterFtraceEvent::kIdFieldNumber) ==
           static_cast<int>(protos::pbzero::SysExitFtraceEvent::kIdFieldNumber),
       "field mismatch");
+}
+
+void FtraceParser::ParseI2cReadEvent(int64_t timestamp,
+                                     uint32_t pid,
+                                     protozero::ConstBytes blob) {
+  protos::pbzero::I2cReadFtraceEvent::Decoder evt(blob.data, blob.size);
+  uint32_t adapter_nr = static_cast<uint32_t>(evt.adapter_nr());
+  uint32_t msg_nr = static_cast<uint32_t>(evt.msg_nr());
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+
+  I2cTracker* i2c_tracker = I2cTracker::GetOrCreate(context_);
+  i2c_tracker->Enter(timestamp, utid, adapter_nr, msg_nr);
+}
+
+void FtraceParser::ParseI2cWriteEvent(int64_t timestamp,
+                                      uint32_t pid,
+                                      protozero::ConstBytes blob) {
+  protos::pbzero::I2cWriteFtraceEvent::Decoder evt(blob.data, blob.size);
+  uint32_t adapter_nr = static_cast<uint32_t>(evt.adapter_nr());
+  uint32_t msg_nr = static_cast<uint32_t>(evt.msg_nr());
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+
+  I2cTracker* i2c_tracker = I2cTracker::GetOrCreate(context_);
+  i2c_tracker->Enter(timestamp, utid, adapter_nr, msg_nr);
+}
+
+void FtraceParser::ParseI2cResultEvent(int64_t timestamp,
+                                       uint32_t pid,
+                                       protozero::ConstBytes blob) {
+  protos::pbzero::I2cResultFtraceEvent::Decoder evt(blob.data, blob.size);
+  uint32_t adapter_nr = static_cast<uint32_t>(evt.adapter_nr());
+  uint32_t nr_msgs = static_cast<uint32_t>(evt.nr_msgs());
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+
+  I2cTracker* i2c_tracker = I2cTracker::GetOrCreate(context_);
+  i2c_tracker->Exit(timestamp, utid, adapter_nr, nr_msgs);
 }
 
 void FtraceParser::ParseTaskNewTask(int64_t timestamp,
