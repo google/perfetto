@@ -163,7 +163,8 @@ declare_args() {
   # under gcc (_Atomic and other issues).
   enable_perfetto_traced_perf =
       perfetto_build_with_android ||
-      (perfetto_build_standalone && is_clang && is_linux)
+      (perfetto_build_standalone && is_clang &&
+       (is_linux || (is_android && android_api_level >= 29)))
 
   # The Trace Processor: offline analytical engine to process traces and compute
   # metrics using a SQL engine.
