@@ -53,6 +53,16 @@ function getCiRun() {
   return null;
 }
 
+function imageLinkElement(path) {
+  const img = m('img');
+  img.src = path;
+  const link = m('a');
+  link.appendChild(img);
+  link.href = path;
+  link.target = '_blank';
+  return link;
+}
+
 function processLines(lines) {
   const container = document.querySelector('.container');
   container.innerHTML = '';
@@ -74,17 +84,11 @@ function processLines(lines) {
       continue;
     }
 
-    hasErrors = true;
     const [output, diff] = parts;
-    const outputImage = m('img');
-    outputImage.src = output;
-    const diffImage = m('img');
-    diffImage.src = diff;
-
-    children.push(
-        m('div.row',
-          m('div.cell', output, m('div.image-wrapper', outputImage)),
-          m('div.cell', diff, m('div.image-wrapper', diffImage))));
+    children.push(m(
+        'div.row',
+        m('div.cell', output, m('div.image-wrapper', imageLinkElement(output))),
+        m('div.cell', diff, m('div.image-wrapper', imageLinkElement(diff)))));
   }
 
   if (children.length === 0) {
