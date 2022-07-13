@@ -1801,6 +1801,40 @@ void TracingMuxerImpl::ResetForTesting() {
   }
 }
 
+// static
+void TracingMuxerImpl::Shutdown() {
+  auto* muxer = reinterpret_cast<TracingMuxerImpl*>(instance_);
+
+  // Shutting down on the muxer thread would lead to a deadlock.
+  PERFETTO_CHECK(!muxer->task_runner_->RunsTasksOnCurrentThread());
+  muxer->DestroyStoppedTraceWritersForCurrentThread();
+
+  std::unique_ptr<base::TaskRunner> owned_task_runner(
+      muxer->task_runner_.get());
+  base::WaitableEvent shutdown_done;
+  owned_task_runner->PostTask([muxer, &shutdown_done] {
+    // Check that no consumer session is currently active on any backend.
+    // Producers will be automatically disconnected as a part of deleting the
+    // muxer below.
+    for (auto& backend : muxer->backends_) {
+      for (auto& consumer : backend.consumers) {
+        PERFETTO_CHECK(!consumer->service_);
+      }
+    }
+    // Make sure no trace writers are lingering around on the muxer thread. Note
+    // that we can't do this for any arbitrary thread in the process; it is the
+    // caller's responsibility to clean them up before shutting down Perfetto.
+    muxer->DestroyStoppedTraceWritersForCurrentThread();
+    // The task runner must be deleted outside the muxer thread. This is done by
+    // `owned_task_runner` above.
+    muxer->task_runner_.release();
+    delete muxer;
+    instance_ = TracingMuxerFake::Get();
+    shutdown_done.Notify();
+  });
+  shutdown_done.Wait();
+}
+
 TracingMuxer::~TracingMuxer() = default;
 
 static_assert(std::is_same<internal::BufferId, BufferID>::value,
