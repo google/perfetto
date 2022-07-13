@@ -357,6 +357,10 @@ button.close {
           background-color: #ebeef9;
         }
 
+        &.alternating-thread-track {
+          background: hsl(214, 22%, 95%);
+        }
+
         .chip {
           background-color: #bed6ff;
           border-radius: 3px;
