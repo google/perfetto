@@ -98,6 +98,7 @@ export function createEmptyState(): State {
     traceTime: {...defaultTraceTime},
     tracks: {},
     uiTrackIdByTraceTrackId: {},
+    utidToThreadSortKey: {},
     aggregatePreferences: {},
     trackGroups: {},
     visibleTracks: [],
