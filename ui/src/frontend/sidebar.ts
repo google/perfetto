@@ -98,9 +98,10 @@ limit 100;`;
 
 const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)
-select query,
+select
     round((max(ended - started, 0))/1e6) as runtime_ms,
-    round((started - first.ts)/1e6) as t_start_ms
+    round((started - first.ts)/1e6) as t_start_ms,
+    query
 from sqlstats, first
 order by started desc`;
 
