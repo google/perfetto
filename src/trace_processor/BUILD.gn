@@ -243,6 +243,8 @@ source_set("storage_full") {
     "importers/fuchsia/fuchsia_trace_utils.cc",
     "importers/gzip/gzip_trace_parser.cc",
     "importers/gzip/gzip_trace_parser.h",
+    "importers/i2c/i2c_tracker.cc",
+    "importers/i2c/i2c_tracker.h",
     "importers/json/json_trace_parser.cc",
     "importers/json/json_trace_parser.h",
     "importers/json/json_trace_tokenizer.cc",
