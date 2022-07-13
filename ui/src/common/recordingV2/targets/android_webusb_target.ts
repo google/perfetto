@@ -55,6 +55,15 @@ export class AndroidWebusbTarget implements RecordingTargetV2 {
     await this.adbConnection.disconnect(disconnectMessage);
   }
 
+  // Starts a tracing session in order to fetch information such as apiLevel
+  // and dataSources from the device. Then, it cancels the session.
+  async fetchTargetInfo(tracingSessionListener: TracingSessionListener):
+      Promise<void> {
+    const tracingSession =
+        await this.createTracingSession(tracingSessionListener);
+    tracingSession.cancel();
+  }
+
   async createTracingSession(tracingSessionListener: TracingSessionListener):
       Promise<TracingSession> {
     this.adbConnection.onStatus = tracingSessionListener.onStatus;
@@ -75,5 +84,9 @@ export class AndroidWebusbTarget implements RecordingTargetV2 {
         new TracedTracingSession(adbStream, tracingSessionListener);
     await tracingSession.initConnection();
     return tracingSession;
+  }
+
+  canConnectWithoutContention(): Promise<boolean> {
+    return this.adbConnection.canConnectWithoutContention();
   }
 }
