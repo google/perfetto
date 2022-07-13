@@ -1596,6 +1596,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.cc",
         "src/trace_processor/importers/gzip/gzip_trace_parser.cc",
         "src/trace_processor/importers/gzip/gzip_trace_parser.h",
+        "src/trace_processor/importers/i2c/i2c_tracker.cc",
+        "src/trace_processor/importers/i2c/i2c_tracker.h",
         "src/trace_processor/importers/json/json_trace_parser.cc",
         "src/trace_processor/importers/json/json_trace_parser.h",
         "src/trace_processor/importers/json/json_trace_tokenizer.cc",
