@@ -37,45 +37,24 @@ import {
   NewEngineMode,
   OmniboxState,
   PivotTableReduxResult,
+  PrimaryTrackSortKey,
   RecordingTarget,
   SCROLLING_TRACK_GROUP,
   SortDirection,
   State,
   Status,
+  ThreadTrackSortKey,
   TraceTime,
-  TrackKindPriority,
+  TrackSortKey,
   TrackState,
+  UtidToTrackSortKey,
   VisibleState,
 } from './state';
 import {toNs} from './time';
 
-const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
-const ASYNC_SLICE_TRACK_KIND = 'AsyncSliceTrack';
-const COUNTER_TRACK_KIND = 'CounterTrack';
 const DEBUG_SLICE_TRACK_KIND = 'DebugSliceTrack';
-const EXPECTED_FRAMES_SLICE_TRACK_KIND = 'ExpectedFramesSliceTrack';
-const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
-const NULL_TRACK_KIND = 'NullTrack';
-const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
-const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
-const PROCESS_SUMMARY_TRACK = 'ProcessSummaryTrack';
 
 type StateDraft = Draft<State>;
-
-const highPriorityTrackOrder = [
-  NULL_TRACK_KIND,
-  PROCESS_SCHEDULING_TRACK_KIND,
-  PROCESS_SUMMARY_TRACK,
-  EXPECTED_FRAMES_SLICE_TRACK_KIND,
-  ACTUAL_FRAMES_SLICE_TRACK_KIND,
-];
-
-const lowPriorityTrackOrder = [
-  PERF_SAMPLES_PROFILE_TRACK_KIND,
-  HEAP_PROFILE_TRACK_KIND,
-  COUNTER_TRACK_KIND,
-  ASYNC_SLICE_TRACK_KIND,
-];
 
 export interface AddTrackArgs {
   id?: string;
@@ -83,7 +62,7 @@ export interface AddTrackArgs {
   kind: string;
   name: string;
   labels?: string[];
-  trackKindPriority: TrackKindPriority;
+  trackSortKey: TrackSortKey;
   trackGroup?: string;
   config: {};
 }
@@ -117,33 +96,6 @@ function clearTraceState(state: StateDraft) {
   state.availableAdbDevices = availableAdbDevices;
   state.chromeCategories = chromeCategories;
   state.newEngineMode = newEngineMode;
-}
-
-function rank(ts: TrackState): number[] {
-  const hpRank = rankIndex(ts.kind, highPriorityTrackOrder);
-  const lpRank = rankIndex(ts.kind, lowPriorityTrackOrder);
-  // TODO(hjd): Create sortBy object on TrackState to avoid this cast.
-  const tid = (ts.config as {tid?: number}).tid || 0;
-  const isDefaultTrackForScope = (ts.config as {
-                                   isDefaultTrackForScope?: boolean
-                                 }).isDefaultTrackForScope ||
-      false;
-  // Within the same |tid|, the default track should be the last one, as the
-  // rest typically contain the properties associated with the thread and so
-  // should be displayed above.
-  return [
-    hpRank,
-    ts.trackKindPriority.valueOf(),
-    lpRank,
-    tid,
-    +isDefaultTrackForScope,
-  ];
-}
-
-function rankIndex<T>(element: T, array: T[]): number {
-  const index = array.indexOf(element);
-  if (index === -1) return array.length;
-  return index;
 }
 
 function generateNextId(draft: StateDraft): string {
@@ -265,9 +217,14 @@ export const StateActions = {
     });
   },
 
+  setUtidToTrackSortKey(
+      state: StateDraft, args: {threadOrderingMetadata: UtidToTrackSortKey}) {
+    state.utidToThreadSortKey = args.threadOrderingMetadata;
+  },
+
   addTrack(state: StateDraft, args: {
     id?: string; engineId: string; kind: string; name: string;
-    trackGroup?: string; config: {}; trackKindPriority: TrackKindPriority;
+    trackGroup?: string; config: {}; trackSortKey: TrackSortKey;
   }): void {
     const id = args.id !== undefined ? args.id : generateNextId(state);
     state.tracks[id] = {
@@ -275,7 +232,7 @@ export const StateActions = {
       engineId: args.engineId,
       kind: args.kind,
       name: args.name,
-      trackKindPriority: args.trackKindPriority,
+      trackSortKey: args.trackSortKey,
       trackGroup: args.trackGroup,
       config: args.config,
     };
@@ -314,7 +271,7 @@ export const StateActions = {
           engineId: args.engineId,
           kind: DEBUG_SLICE_TRACK_KIND,
           name: args.name,
-          trackKindPriority: TrackKindPriority.ORDINARY,
+          trackSortKey: PrimaryTrackSortKey.DEBUG_SLICE_TRACK,
           trackGroup: SCROLLING_TRACK_GROUP,
           config: {
             maxDepth: 1,
@@ -351,14 +308,37 @@ export const StateActions = {
     }
   },
 
-  sortThreadTracks(state: StateDraft, _: {}): void {
+  sortThreadTracks(state: StateDraft, _: {}) {
+    const getFullKey = (a: string) => {
+      const track = state.tracks[a];
+      const threadTrackSortKey = track.trackSortKey as ThreadTrackSortKey;
+      if (threadTrackSortKey.utid === undefined) {
+        const sortKey = track.trackSortKey as PrimaryTrackSortKey;
+        return [
+          sortKey,
+          0,
+          0,
+          0,
+        ];
+      }
+      const threadSortKey = state.utidToThreadSortKey[threadTrackSortKey.utid];
+      return [
+        threadSortKey ? threadSortKey.sortKey :
+                        PrimaryTrackSortKey.ORDINARY_THREAD,
+        threadSortKey && threadSortKey.tid !== undefined ? threadSortKey.tid :
+                                                           Number.MAX_VALUE,
+        threadTrackSortKey.utid,
+        threadTrackSortKey.priority,
+      ];
+    };
+
     // Use a numeric collator so threads are sorted as T1, T2, ..., T10, T11,
     // rather than T1, T10, T11, ..., T2, T20, T21 .
     const coll = new Intl.Collator([], {sensitivity: 'base', numeric: true});
     for (const group of Object.values(state.trackGroups)) {
       group.tracks.sort((a: string, b: string) => {
-        const aRank = rank(state.tracks[a]);
-        const bRank = rank(state.tracks[b]);
+        const aRank = getFullKey(a);
+        const bRank = getFullKey(b);
         for (let i = 0; i < aRank.length; i++) {
           if (aRank[i] !== bRank[i]) return aRank[i] - bRank[i];
         }
