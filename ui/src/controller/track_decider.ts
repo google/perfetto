@@ -72,6 +72,8 @@ const F2FS_IOSTAT_TAG = 'f2fs_iostat.';
 const F2FS_IOSTAT_GROUP_NAME = 'f2fs_iostat';
 const F2FS_IOSTAT_LAT_TAG = 'f2fs_iostat_latency.';
 const F2FS_IOSTAT_LAT_GROUP_NAME = 'f2fs_iostat_latency';
+const UFS_CMD_TAG = 'io.ufs.command.tag';
+const UFS_CMD_TAG_GROUP_NAME = 'io.ufs.command.tags';
 
 export async function decideTracks(
     engineId: string, engine: Engine): Promise<DeferredAction[]> {
@@ -487,6 +489,36 @@ class TrackDecider {
       });
       this.addTrackGroupActions.push(addGroup);
     }
+  }
+
+  async groupGlobalUfsCmdTagTracks(tag: string, group: string): Promise<void> {
+    const ufsCmdTagTracks: AddTrackArgs[] = [];
+
+    for (const track of this.tracksToAdd) {
+      if (track.name.startsWith(tag)) {
+        ufsCmdTagTracks.push(track);
+      }
+    }
+
+    if (ufsCmdTagTracks.length === 0) {
+      return;
+    }
+
+    const id = uuidv4();
+    const summaryTrackId = uuidv4();
+    ufsCmdTagTracks[0].id = summaryTrackId;
+    for (const track of ufsCmdTagTracks) {
+      track.trackGroup = id;
+    }
+
+    const addGroup = Actions.addTrackGroup({
+      engineId: this.engineId,
+      summaryTrackId,
+      name: group,
+      id,
+      collapsed: true,
+    });
+    this.addTrackGroupActions.push(addGroup);
   }
 
   async addLogsTrack(): Promise<void> {
@@ -1411,6 +1443,8 @@ class TrackDecider {
         F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
     await this.groupGlobalF2fsIostatTracks(
         F2FS_IOSTAT_LAT_TAG, F2FS_IOSTAT_LAT_GROUP_NAME);
+    await this.groupGlobalUfsCmdTagTracks(
+        UFS_CMD_TAG, UFS_CMD_TAG_GROUP_NAME);
 
     // Pre-group all kernel "threads" (actually processes) if this is a linux
     // system trace. Below, addProcessTrackGroups will skip them due to an
