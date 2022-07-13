@@ -89,7 +89,7 @@ async function connectToRecordingTarget(
   if (await target.canConnectWithoutContention()) {
     await createSession();
   } else {
-    couldNotClaimInterface(createSession);
+    couldNotClaimInterface(createSession, clearRecordingState);
   }
 }
 
