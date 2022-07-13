@@ -91,6 +91,20 @@ export interface RecordingTargetV2 {
   // asynchronous (Example: WebUSB) or synchronous (Example: Websocket).
   disconnect(disconnectMessage?: string): Promise<void>|void;
 
+  // Returns true if we are able to connect to the target without interfering
+  // with other processes. For example, for adb devices connected over WebUSB,
+  // this will be false when we can not claim the interface (Which most likely
+  // means that 'adb server' is running locally.). After querrying this method,
+  // the caller can decide if they want to connect to the target and as a side
+  // effect take the connection away from other processes.
+  canConnectWithoutContention(): Promise<boolean>;
+
+  // Some target information can only be obtained after connecting to the
+  // target. This will establish a connection and retrieve data such as
+  // dataSources and apiLevel for Android.
+  fetchTargetInfo(tracingSessionListener: TracingSessionListener):
+      Promise<void>;
+
   createTracingSession(tracingSessionListener: TracingSessionListener):
       Promise<TracingSession>;
 }
@@ -121,6 +135,12 @@ export interface TracingSession {
 export interface AdbConnection {
   // Will establish a connection(a ByteStream) with the device.
   connectSocket(path: string): Promise<ByteStream>;
+
+  // Returns true if we are able to connect without interfering
+  // with other processes. For example, for adb devices connected over WebUSB,
+  // this will be false when we can not claim the interface (Which most likely
+  // means that 'adb server' is running locally.).
+  canConnectWithoutContention(): Promise<boolean>;
 }
 
 // A stream for a connection between a target and a tracing session.
