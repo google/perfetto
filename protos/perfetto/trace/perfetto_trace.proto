@@ -8437,6 +8437,10 @@ message ChromeFrameReporter {
   // the same frame sequence as another PipelineReporter) or "BACKFILL"
   // (i.e. dropped frames when there are no partial compositor updates).
   optional FrameType frame_type = 13;
+
+  // The breakdown stage of PipelineReporter that is most likely accountable for
+  // high latency.
+  repeated string high_latency_contribution_stage = 14;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_frame_reporter.proto
