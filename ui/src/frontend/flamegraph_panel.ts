@@ -202,7 +202,7 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
       case ProfileType.JAVA_HEAP_GRAPH:
         return 'Java Heap:';
       case ProfileType.PERF_SAMPLE:
-        return 'Perf sample:';
+        return 'Profile:';
       default:
         throw new Error('unknown type');
     }
