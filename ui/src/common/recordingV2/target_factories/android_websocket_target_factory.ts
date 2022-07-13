@@ -195,10 +195,8 @@ export class WebsocketConnection {
 
 export class AndroidWebsocketTargetFactory implements TargetFactory {
   readonly kind = ANDROID_WEBSOCKET_TARGET_FACTORY;
-  onTargetChange?: OnTargetChangeCallback;
-  websocketConnection?: WebsocketConnection;
-
-  constructor() {}
+  private onTargetChange?: OnTargetChangeCallback;
+  private websocketConnection?: WebsocketConnection;
 
   getName() {
     return 'Android Websocket';
@@ -240,6 +238,10 @@ export class AndroidWebsocketTargetFactory implements TargetFactory {
     if (this.websocketConnection === connection) {
       this.websocketConnection = undefined;
     }
+  }
+
+  setOnTargetChange(onTargetChange: OnTargetChangeCallback) {
+    this.onTargetChange = onTargetChange;
   }
 }
 
