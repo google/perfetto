@@ -180,6 +180,7 @@ if (enable_perfetto_ipc) {
       "../../gn:default_deps",
       "../../include/perfetto/tracing/core",
       "../base",
+      "ipc:common",
       "ipc/consumer",
       "ipc/producer",
       "ipc/service",
