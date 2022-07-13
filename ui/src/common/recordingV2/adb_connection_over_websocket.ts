@@ -87,6 +87,13 @@ export class AdbConnectionOverWebsocket implements AdbConnection {
       this.streams.delete(stream);
     }
   }
+
+  // There will be no contention for the websocket connection, because it will
+  // communicate with the 'adb server' running on the computer which opened
+  // Perfetto.
+  canConnectWithoutContention(): Promise<boolean> {
+    return Promise.resolve(true);
+  }
 }
 
 // An AdbOverWebsocketStream is instantiated after the creation of a socket to
