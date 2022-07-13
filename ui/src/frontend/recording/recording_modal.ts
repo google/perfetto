@@ -16,20 +16,48 @@ import * as m from 'mithril';
 
 import {showModal} from '../modal';
 
-// TODO(octaviant): improve this stub modal in next CLs
-export function couldNotClaimInterface(onReset: () => Promise<void>) {
+export function couldNotClaimInterface(
+    onReset: () => Promise<void>, onCancel: () => void) {
+  let hasPressedAButton = false;
   showModal({
     title: 'Could not claim the USB interface',
     content: m(
         'div',
+        m('text',
+          'This can happen if you have the Android Debug Bridge ' +
+              '(adb) running on your workstation or any other tool which is ' +
+              'taking exclusive access of the USB interface.'),
+        m('br'),
+        m('br'),
+        m('text.small-font',
+          'Resetting will cause the ADB server to disconnect and ' +
+              'will try to reassign the interface to the current browser.'),
         ),
     buttons: [
       {
         text: 'Force reset the USB interface',
         primary: true,
-        id: 'claim_USB_interface',
-        action: onReset,
+        id: 'force_USB_interface',
+        action: () => {
+          hasPressedAButton = true;
+          onReset();
+        },
+      },
+      {
+        text: 'Cancel',
+        primary: false,
+        id: 'cancel_USB_interface',
+        action: () => {
+          hasPressedAButton = true;
+          onCancel();
+        },
       },
     ],
+  }).then(() => {
+    // If the user has clicked away from the modal, we interpret that as a
+    // 'Cancel'.
+    if (!hasPressedAButton) {
+      onCancel();
+    }
   });
 }
