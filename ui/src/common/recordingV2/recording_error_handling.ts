@@ -73,14 +73,14 @@ export function showRecordingModal(message: string): void {
         'Unable to claim interface.',
         'The specified endpoint is not part of a claimed and selected ' +
             'alternate interface.',
-      ].includes(message)) {
+      ].some((partOfMessage) => message.includes(partOfMessage))) {
     showWebUSBErrorV2();
   } else if (
       [
         'A transfer error has occurred.',
         'The device was disconnected.',
         'The transfer was cancelled.',
-      ].includes(message) ||
+      ].some((partOfMessage) => message.includes(partOfMessage)) ||
       isDeviceDisconnectedError(message)) {
     showConnectionLostError();
   } else if (message === ALLOW_USB_DEBUGGING) {
