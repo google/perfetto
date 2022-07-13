@@ -53,6 +53,7 @@ class PerfSamplesProfileTrackController extends TrackController<Config, Data> {
      select ts, upid from perf_sample
      join thread using (utid)
      where upid = ${this.config.upid}
+     and callsite_id is not null
      order by ts`);
     const numRows = queryRes.numRows();
     const data: Data = {

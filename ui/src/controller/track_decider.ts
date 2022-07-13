@@ -1099,18 +1099,19 @@ class TrackDecider {
 
   async addProcessPerfSamplesTracks(): Promise<void> {
     const result = await this.engine.query(`
-      select distinct(process.upid) from process
-      join thread on process.upid = thread.upid
-      join perf_sample on thread.utid = perf_sample.utid
+      select distinct upid, pid
+      from perf_sample join thread using (utid) join process using (upid)
+      where callsite_id is not null
   `);
-    for (const it = result.iter({upid: NUM}); it.valid(); it.next()) {
+    for (const it = result.iter({upid: NUM, pid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
+      const pid = it.pid;
       const uuid = this.getUuid(0, upid);
       this.tracksToAdd.push({
         engineId: this.engineId,
         kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
         trackKindPriority: TrackKindPriority.ORDINARY,
-        name: `Perf Samples`,
+        name: `Callstacks ${pid}`,
         trackGroup: uuid,
         config: {upid},
       });
@@ -1250,9 +1251,10 @@ class TrackDecider {
       union
       select upid, utid from sched join thread using(utid) group by utid
       union
-      select distinct(process.upid), 0 as utid from process
-        join thread on process.upid = thread.upid
-        join perf_sample on thread.utid = perf_sample.utid
+      select upid, 0 as utid from (
+        select distinct upid
+        from perf_sample join thread using (utid) join process using (upid)
+        where callsite_id is not null)
       union
       select upid, utid from (
         select distinct(utid) from cpu_profile_stack_sample
@@ -1287,8 +1289,11 @@ class TrackDecider {
       select
         thread.upid as upid,
         sum(cnt) as perfSampleCount
-      from (select utid, count(*) as cnt from perf_sample group by utid) s
-        join thread on thread.utid = s.utid
+      from (
+          select utid, count(*) as cnt
+          from perf_sample where callsite_id is not null
+          group by utid
+      ) join thread using (utid)
       group by thread.upid
     ) using (upid)
     left join (
