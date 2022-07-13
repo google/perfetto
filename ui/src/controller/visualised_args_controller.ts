@@ -17,6 +17,7 @@ import {v4 as uuidv4} from 'uuid';
 import {Actions, AddTrackArgs} from '../common/actions';
 import {Engine} from '../common/engine';
 import {NUM} from '../common/query_result';
+import {InThreadTrackSortKey} from '../common/state';
 import {
   VISUALISED_ARGS_SLICE_TRACK_KIND,
 } from '../tracks/visualised_args/index';
@@ -90,6 +91,7 @@ export class VisualisedArgController extends Controller<'init'|'running'> {
       const track =
           globals.state
               .tracks[globals.state.uiTrackIdByTraceTrackId[it.trackId]];
+      const utid = (track.trackSortKey as {utid?: number}).utid;
       const id = uuidv4();
       this.addedTrackIds.push(id);
       tracksToAdd.push({
@@ -98,7 +100,9 @@ export class VisualisedArgController extends Controller<'init'|'running'> {
         engineId: this.engine.id,
         kind: VISUALISED_ARGS_SLICE_TRACK_KIND,
         name: this.argName,
-        trackKindPriority: track.trackKindPriority,
+        trackSortKey: utid === undefined ?
+            track.trackSortKey :
+            {utid, priority: InThreadTrackSortKey.VISUALISED_ARGS_TRACK},
         config: {
           maxDepth: it.maxDepth,
           namespace: `__arg_visualisation_helper_${this.escapedArgName}`,
