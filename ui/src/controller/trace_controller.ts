@@ -430,6 +430,7 @@ export class TraceController extends Controller<States> {
     const query = `select ts, upid
         from perf_sample
         join thread using (utid)
+        where callsite_id is not null
         order by ts desc limit 1`;
     const profile = await assertExists(this.engine).query(query);
     if (profile.numRows() !== 1) return;
