@@ -5124,6 +5124,25 @@ TEST_P(PerfettoApiTest, EmptyEvent) {
   EXPECT_EQ(it, trace.packet().end());
 }
 
+TEST_P(PerfettoApiTest, ConsecutiveEmptyEventsSkipped) {
+  auto* tracing_session = NewTraceWithCategories({"cat"});
+  tracing_session->get()->StartBlocking();
+
+  // Emit many empty events that wouldn't fit into one chunk.
+  constexpr int kNumEvents = 10000;
+  for (int i = 0; i < kNumEvents; ++i) {
+    PERFETTO_INTERNAL_ADD_EMPTY_EVENT();
+  }
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+  auto it = std::find_if(trace.packet().begin(), trace.packet().end(),
+                         [](const perfetto::protos::gen::TracePacket& packet) {
+                           return packet.has_trace_stats();
+                         });
+  EXPECT_NE(it, trace.packet().end());
+  // Extra empty events should be skipped so only one chunk should be allocated.
+  EXPECT_EQ(it->trace_stats().buffer_stats()[0].chunks_read(), 1u);
+}
+
 struct BackendTypeAsString {
   std::string operator()(
       const ::testing::TestParamInfo<perfetto::BackendType>& info) const {
