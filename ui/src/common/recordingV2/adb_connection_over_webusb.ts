@@ -131,6 +131,18 @@ export class AdbConnectionOverWebusb implements AdbConnection {
     return this.openStream('localfilesystem:' + path);
   }
 
+  async canConnectWithoutContention(): Promise<boolean> {
+    await this.device.open();
+    const usbInterfaceNumber = await this.setupUsbInterface();
+    try {
+      await this.device.claimInterface(usbInterfaceNumber);
+      await this.device.releaseInterface(usbInterfaceNumber);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   private async openStream(destination: string): Promise<AdbOverWebusbStream> {
     const streamId = ++this.lastStreamId;
     const connectingStream = defer<AdbOverWebusbStream>();
@@ -148,18 +160,10 @@ export class AdbConnectionOverWebusb implements AdbConnection {
     }
 
     if (this.state === AdbState.DISCONNECTED) {
-      await this.wrapUsb(this.device.open());
-      // Setup USB endpoint.
-      const interfaceAndEndpoint = findInterfaceAndEndpoint(this.device);
-      const {configurationValue, usbInterfaceNumber, endpoints} =
-          assertExists(interfaceAndEndpoint);
-      this.usbInterfaceNumber = usbInterfaceNumber;
-      this.usbReadEndpoint = this.findEndpointNumber(endpoints, 'in');
-      this.usbWriteEpEndpoint = this.findEndpointNumber(endpoints, 'out');
-      assertTrue(this.usbReadEndpoint >= 0 && this.usbWriteEpEndpoint >= 0);
-
-      await this.wrapUsb(this.device.selectConfiguration(configurationValue));
-      await this.wrapUsb(this.device.claimInterface(usbInterfaceNumber));
+      await this.device.open();
+      await this.device.reset();
+      const usbInterfaceNumber = await this.setupUsbInterface();
+      await this.device.claimInterface(usbInterfaceNumber);
     }
 
     await this.startAdbAuth();
@@ -169,6 +173,22 @@ export class AdbConnectionOverWebusb implements AdbConnection {
     const connPromise = defer<void>();
     this.pendingConnPromises.push(connPromise);
     await connPromise;
+  }
+
+  private async setupUsbInterface(): Promise<number> {
+    const interfaceAndEndpoint = findInterfaceAndEndpoint(this.device);
+    // `findInterfaceAndEndpoint` will always return a non-null value because
+    // we check for this in 'android_webusb_target_factory'. If no interface and
+    // endpoints are found, we do not create a target, so we can not connect to
+    // it, so we will never reach this logic.
+    const {configurationValue, usbInterfaceNumber, endpoints} =
+        assertExists(interfaceAndEndpoint);
+    this.usbInterfaceNumber = usbInterfaceNumber;
+    this.usbReadEndpoint = this.findEndpointNumber(endpoints, 'in');
+    this.usbWriteEpEndpoint = this.findEndpointNumber(endpoints, 'out');
+    assertTrue(this.usbReadEndpoint >= 0 && this.usbWriteEpEndpoint >= 0);
+    await this.device.selectConfiguration(configurationValue);
+    return usbInterfaceNumber;
   }
 
   async streamClose(stream: AdbOverWebusbStream): Promise<void> {

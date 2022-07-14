@@ -88,6 +88,15 @@ class FtraceParser {
                      uint32_t pid,
                      bool is_enter,
                      protozero::ConstBytes);
+  void ParseI2cReadEvent(int64_t timestamp,
+                         uint32_t pid,
+                         protozero::ConstBytes);
+  void ParseI2cWriteEvent(int64_t timestamp,
+                          uint32_t pid,
+                          protozero::ConstBytes);
+  void ParseI2cResultEvent(int64_t timestamp,
+                           uint32_t pid,
+                           protozero::ConstBytes);
   void ParseTaskNewTask(int64_t timestamp,
                         uint32_t source_tid,
                         protozero::ConstBytes);

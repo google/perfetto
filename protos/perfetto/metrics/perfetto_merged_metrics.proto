@@ -13,22 +13,67 @@ package perfetto.protos;
 
 option go_package = "github.com/google/perfetto/perfetto_proto";
 
-// Begin of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
+// Begin of protos/perfetto/metrics/android/process_metadata.proto
 
-// Measure app deadline missed.
-message AndroidFrameTimelineMetric {
-  message ProcessBreakdown {
-    // Process name
-    optional string process_name = 1;
-    // Count of app deadline missed in the process
-    optional int64 app_deadline_missed_count = 2;
+message AndroidProcessMetadata {
+  // Process name. Usually, cmdline or <package_name>(:<custom_name>)?.
+  optional string name = 1;
+
+  // User id under which this process runs.
+  optional int64 uid = 2;
+
+  // Package metadata from Android package list.
+  message Package {
+    optional string package_name = 1;
+    optional int64 apk_version_code = 2;
+    optional bool debuggable = 3;
   }
 
-  // Total count for app deadline missed
-  optional int64 app_deadline_missed_total_count = 1;
+  // Package that this process belongs to.
+  //
+  // If this process shares its uid (see `packages_for_uid` field), the package
+  // is determined based on the process name and package name. If there is no
+  // match this field is empty.
+  optional Package package = 7;
 
-  // Process name and app deadline missed metrics
+  // All packages using this uid.
+  //
+  // Shared uid documentation:
+  // https://developer.android.com/guide/topics/manifest/manifest-element#uid
+  repeated Package packages_for_uid = 8;
+
+  reserved 3, 4, 5, 6;
+}
+
+// End of protos/perfetto/metrics/android/process_metadata.proto
+
+// Begin of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
+
+message AndroidFrameTimelineMetric {
+  message ProcessBreakdown {
+    optional AndroidProcessMetadata process = 3;
+
+    optional int64 total_frames = 4;
+    optional int64 missed_frames = 5;
+    optional int64 missed_app_frames = 6;
+    optional int64 missed_sf_frames = 7;
+
+    optional int64 frame_dur_max = 8;
+    optional int64 frame_dur_avg = 9;
+    optional int64 frame_dur_p50 = 10;
+    optional int64 frame_dur_p90 = 11;
+    optional int64 frame_dur_p95 = 12;
+    optional int64 frame_dur_p99 = 13;
+
+    reserved 1, 2;
+  }
+
+  optional int64 total_frames = 4;
+  optional int64 missed_app_frames = 5;
+
   repeated ProcessBreakdown process = 2;
+
+  reserved 1;
 }
 
 
@@ -627,40 +672,6 @@ message AndroidIrqRuntimeMetric {
 
 
 // End of protos/perfetto/metrics/android/irq_runtime_metric.proto
-
-// Begin of protos/perfetto/metrics/android/process_metadata.proto
-
-message AndroidProcessMetadata {
-  // Process name. Usually, cmdline or <package_name>(:<custom_name>)?.
-  optional string name = 1;
-
-  // User id under which this process runs.
-  optional int64 uid = 2;
-
-  // Package metadata from Android package list.
-  message Package {
-    optional string package_name = 1;
-    optional int64 apk_version_code = 2;
-    optional bool debuggable = 3;
-  }
-
-  // Package that this process belongs to.
-  //
-  // If this process shares its uid (see `packages_for_uid` field), the package
-  // is determined based on the process name and package name. If there is no
-  // match this field is empty.
-  optional Package package = 7;
-
-  // All packages using this uid.
-  //
-  // Shared uid documentation:
-  // https://developer.android.com/guide/topics/manifest/manifest-element#uid
-  repeated Package packages_for_uid = 8;
-
-  reserved 3, 4, 5, 6;
-}
-
-// End of protos/perfetto/metrics/android/process_metadata.proto
 
 // Begin of protos/perfetto/metrics/android/java_heap_histogram.proto
 

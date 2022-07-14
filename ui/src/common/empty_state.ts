@@ -64,11 +64,13 @@ export function createEmptyNonSerializableState(): NonSerializableState {
       queryResult: null,
       editMode: false,
       selectedPivotsMap: keyedMap(
-          columnKey,
-          {kind: 'regular', table: 'slice', column: 'category'},
-          {kind: 'regular', table: 'slice', column: 'name'}),
+          columnKey, {kind: 'regular', table: 'slice', column: 'name'}),
       selectedAggregations: keyedMap(
           aggregationKey,
+          {
+            aggregationFunction: 'SUM',
+            column: {kind: 'regular', table: 'slice', column: 'dur'},
+          },
           {
             aggregationFunction: 'SUM',
             column:
@@ -78,6 +80,10 @@ export function createEmptyNonSerializableState(): NonSerializableState {
       constrainToArea: true,
       queryRequested: false,
       argumentNames: [],
+      sortCriteria: {
+        column: {kind: 'regular', table: 'slice', column: 'dur'},
+        order: 'DESC',
+      },
     },
   };
 }
@@ -92,6 +98,7 @@ export function createEmptyState(): State {
     traceTime: {...defaultTraceTime},
     tracks: {},
     uiTrackIdByTraceTrackId: {},
+    utidToThreadSortKey: {},
     aggregatePreferences: {},
     trackGroups: {},
     visibleTracks: [],

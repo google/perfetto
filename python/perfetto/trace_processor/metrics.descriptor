@@ -1,12 +1,36 @@
 
-…
-Cprotos/perfetto/metrics/android/android_frame_timeline_metric.protoperfetto.protos"¬
-AndroidFrameTimelineMetricD
-app_deadline_missed_total_count (RappDeadlineMissedTotalCountV
-process (2<.perfetto.protos.AndroidFrameTimelineMetric.ProcessBreakdownRprocessp
-ProcessBreakdown!
-process_name (	RprocessName9
-app_deadline_missed_count (RappDeadlineMissedCount
+À
+6protos/perfetto/metrics/android/process_metadata.protoperfetto.protos"ô
+AndroidProcessMetadata
+name (	Rname
+uid (RuidI
+package (2/.perfetto.protos.AndroidProcessMetadata.PackageRpackageY
+packages_for_uid (2/.perfetto.protos.AndroidProcessMetadata.PackageRpackagesForUidv
+Package!
+package_name (	RpackageName(
+apk_version_code (RapkVersionCode
+
+debuggable (R
+debuggableJJJJ
+´
+Cprotos/perfetto/metrics/android/android_frame_timeline_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"£
+AndroidFrameTimelineMetric!
+total_frames (RtotalFrames*
+missed_app_frames (RmissedAppFramesV
+process (2<.perfetto.protos.AndroidFrameTimelineMetric.ProcessBreakdownRprocess×
+ProcessBreakdownA
+process (2'.perfetto.protos.AndroidProcessMetadataRprocess!
+total_frames (RtotalFrames#
+missed_frames (RmissedFrames*
+missed_app_frames (RmissedAppFrames(
+missed_sf_frames (RmissedSfFrames"
+frame_dur_max (RframeDurMax"
+frame_dur_avg	 (RframeDurAvg"
+frame_dur_p50
+ (RframeDurP50"
+frame_dur_p90 (RframeDurP90"
+frame_dur_p95 (RframeDurP95"
+frame_dur_p99 (RframeDurP99JJJ
 ¤
 1protos/perfetto/metrics/android/batt_metric.protoperfetto.protos"Ý
 AndroidBatteryMetric`
@@ -286,19 +310,6 @@ maxRuntime
 totalCountc
 threshold_metric (28.perfetto.protos.AndroidIrqRuntimeMetric.ThresholdMetricRthresholdMetric_
 longest_irq_slices (21.perfetto.protos.AndroidIrqRuntimeMetric.IrqSliceRlongestIrqSlices
-À
-6protos/perfetto/metrics/android/process_metadata.protoperfetto.protos"ô
-AndroidProcessMetadata
-name (	Rname
-uid (RuidI
-package (2/.perfetto.protos.AndroidProcessMetadata.PackageRpackageY
-packages_for_uid (2/.perfetto.protos.AndroidProcessMetadata.PackageRpackagesForUidv
-Package!
-package_name (	RpackageName(
-apk_version_code (RapkVersionCode
-
-debuggable (R
-debuggableJJJJ
 À
 9protos/perfetto/metrics/android/java_heap_histogram.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"¹
 JavaHeapHistogramW

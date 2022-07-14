@@ -68,8 +68,30 @@ import {CpuSettings} from './recording/cpu_settings';
 import {GpuSettings} from './recording/gpu_settings';
 import {MemorySettings} from './recording/memory_settings';
 import {PowerSettings} from './recording/power_settings';
+import {couldNotClaimInterface} from './recording/recording_modal';
 import {RecordingSectionAttrs} from './recording/recording_sections';
 import {RecordingSettings} from './recording/recording_settings';
+
+// Wraps all calls to a recording target and handles the errors that can be
+// thrown during these calls.
+async function connectToRecordingTarget(
+    target: RecordingTargetV2,
+    tracingSessionListener: TracingSessionListener,
+    executeConnection: () => Promise<void>) {
+  const createSession = async () => {
+    try {
+      await executeConnection();
+    } catch (e) {
+      tracingSessionListener.onError(e.message);
+    }
+  };
+
+  if (await target.canConnectWithoutContention()) {
+    await createSession();
+  } else {
+    couldNotClaimInterface(createSession, clearRecordingState);
+  }
+}
 
 // Wraps a tracing session promise while the promise is being resolved (e.g.
 // while we are awaiting for ADB auth).
@@ -78,14 +100,10 @@ class TracingSessionWrapper {
   private isCancelled = false;
 
   constructor(private traceConfig: TraceConfig, target: RecordingTargetV2) {
-    target.createTracingSession(tracingSessionListener)
-        .then((s: TracingSession) => this.onSessionPromiseResolved(s), (e) => {
-          if (e instanceof RecordingError) {
-            tracingSessionListener.onError(e.message);
-          } else {
-            throw e;
-          }
-        });
+    connectToRecordingTarget(target, tracingSessionListener, async () => {
+      const session = await target.createTracingSession(tracingSessionListener);
+      this.onSessionPromiseResolved(session);
+    });
   }
 
   cancel() {
@@ -630,20 +648,13 @@ async function assignRecordingTarget(selectedTarget?: RecordingTargetV2) {
     return;
   }
 
-  try {
-    // We create a tracing session when first connecting to the device,
-    // in order to get the device information. Then, we cancel the tracing
-    // session so we don't hog the adb connection from `adb server`.
-    const session =
-        await recordingTargetV2.createTracingSession(tracingSessionListener);
-    session.cancel();
-  } catch (e) {
-    if (e instanceof RecordingError) {
-      tracingSessionListener.onError(e.message);
-    } else {
-      throw e;
-    }
-  }
+  await connectToRecordingTarget(
+      recordingTargetV2, tracingSessionListener, async () => {
+        if (!recordingTargetV2) {
+          return;
+        }
+        await recordingTargetV2.fetchTargetInfo(tracingSessionListener);
+      });
 }
 
 function getRecordContainer(subpage?: string): m.Vnode<any, any> {
