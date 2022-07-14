@@ -1,0 +1,63 @@
+/*
+ * Copyright (C) 2022 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+import "protos/perfetto/metrics/android/process_metadata.proto";
+
+message AndroidJankCujMetric {
+  repeated Cuj cuj = 1;
+
+  message Cuj {
+    // ID of the CUJ that is unique within the trace.
+    optional int32 id = 1;
+
+    // Name of the CUJ, extracted from the CUJ trace marker.
+    // For example SHADE_EXPAND_COLLAPSE from J<SHADE_EXPAND_COLLAPSE>.
+    optional string name = 2;
+
+    // Details about the process (uid, version, etc)
+    optional AndroidProcessMetadata process = 3;
+
+    // ts of the CUJ trace marker slice.
+    optional int64 ts = 4;
+
+    // dur of the CUJ trace marker slice.
+    optional int64 dur = 5;
+
+    // Details about each of the frames within the CUJ.
+    repeated Frame frame = 6;
+  }
+
+  message Frame {
+    // Index of the frame within the single user journey.
+    optional int64 frame_number = 1;
+
+    // VSYNC ID of the frame.
+    optional int64 vsync = 2;
+
+    optional int64 ts = 3;
+    optional int64 dur = 4;
+
+    // Whether the app process missed the frame deadline.
+    optional bool app_missed = 5;
+
+    // Whether SF missed the frame deadline.
+    optional bool sf_missed = 6;
+  }
+}

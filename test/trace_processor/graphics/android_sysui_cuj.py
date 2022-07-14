@@ -344,10 +344,33 @@ add_frame(
     ts_gpu=None,
     ts_end_gpu=None)
 
+# Actual timeline slice starts 0.5ms after doFrame
+add_frame(
+    trace,
+    vsync=150,
+    ts_do_frame=700_000_000,
+    ts_end_do_frame=702_000_000,
+    ts_draw_frame=701_200_000,
+    ts_end_draw_frame=715_000_000,
+    ts_gpu=None,
+    ts_end_gpu=None)
+
+# Frame without a matching actual timeline slice
+# Skipped in `android_jank_cuj.sql` since we assume the process did not draw anything.
+add_frame(
+    trace,
+    vsync=160,
+    ts_do_frame=800_000_000,
+    ts_end_do_frame=802_000_000,
+    ts_draw_frame=801_000_000,
+    ts_end_draw_frame=802_000_000,
+    ts_gpu=None,
+    ts_end_gpu=None)
+
 # One more frame after the CUJ is finished
 add_frame(
     trace,
-    vsync=140,
+    vsync=1000,
     ts_do_frame=1_100_000_000,
     ts_end_do_frame=1_200_000_000,
     ts_draw_frame=1_150_000_000,
@@ -403,6 +426,12 @@ add_actual_frame_events(
 add_expected_frame_events(ts=600_000_000, dur=20_000_000, token_start=140)
 add_actual_frame_events(
     ts=608_600_000, dur=17_000_000, token_start=140, jank=64)
+
+add_expected_frame_events(ts=700_000_000, dur=20_000_000, token_start=150)
+add_actual_frame_events(ts=700_500_000, dur=14_500_000, token_start=150)
+
+# No matching actual timeline
+add_expected_frame_events(ts=800_000_000, dur=20_000_000, token_start=160)
 
 add_expected_frame_events(ts=1_100_000_000, dur=20_000_000, token_start=1000)
 add_actual_frame_events(
