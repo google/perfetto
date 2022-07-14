@@ -65,16 +65,16 @@ class AndroidGameInterventionListDataSourceTest : public ::testing::Test {
 
 TEST_F(AndroidGameInterventionListDataSourceTest, NonEmptyNameFilter) {
   static constexpr char kValidInterventionLines[] =
-      "com.test.one   1234 0 "
-      "1 angle=1,scaling=1.0,fps=0 "
-      "2 angle=0,scaling=1.0,fps=60\n"
-      "com.test.two   1235 1 "
-      "1 angle=0,scaling=1.0,fps=0 "
-      "3 angle=1,scaling=0.6,fps=45\n"
-      "com.test.three   1236 2 "
-      "1 angle=1,scaling=1.0,fps=0 "
-      "3 angle=1,scaling=0.85,fps=30 "
-      "2 angle=0,scaling=0.75,fps=120\n";
+      "com.test.one\t1234\t0\t"
+      "1\tangle=1,scaling=1.0,fps=0\t"
+      "2\tangle=0,scaling=1.0,fps=60\n"
+      "com.test.two\t1235\t1\t"
+      "1\tangle=0,scaling=1.0,fps=0\t"
+      "3\tangle=1,scaling=0.6,fps=45\n"
+      "com.test.three\t1236\t2\t"
+      "1\tangle=1,scaling=1.0,fps=0\t"
+      "3\tangle=1,scaling=0.85,fps=30\t"
+      "2\tangle=0,scaling=0.75,fps=120\n";
 
   CreateInstance(DataSourceConfig());
 
