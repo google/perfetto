@@ -310,17 +310,21 @@ maxRuntime
 totalCountc
 threshold_metric (28.perfetto.protos.AndroidIrqRuntimeMetric.ThresholdMetricRthresholdMetric_
 longest_irq_slices (21.perfetto.protos.AndroidIrqRuntimeMetric.IrqSliceRlongestIrqSlices
-Ë
-5protos/perfetto/metrics/android/jank_cuj_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"È
+”
+
+5protos/perfetto/metrics/android/jank_cuj_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"‘	
 AndroidJankCujMetric;
-cuj (2).perfetto.protos.AndroidJankCujMetric.CujRcujÑ
+cuj (2).perfetto.protos.AndroidJankCujMetric.CujRcuj×
 Cuj
 id (Rid
 name (	RnameA
 process (2'.perfetto.protos.AndroidProcessMetadataRprocess
 ts (Rts
 dur (RdurA
-frame (2+.perfetto.protos.AndroidJankCujMetric.FrameRframež
+frame (2+.perfetto.protos.AndroidJankCujMetric.FrameRframeV
+counter_metrics (2-.perfetto.protos.AndroidJankCujMetric.MetricsRcounterMetricsX
+timeline_metrics (2-.perfetto.protos.AndroidJankCujMetric.MetricsRtimelineMetricsR
+trace_metrics	 (2-.perfetto.protos.AndroidJankCujMetric.MetricsRtraceMetricsž
 Frame!
 frame_number (RframeNumber
 vsync (Rvsync
@@ -328,7 +332,20 @@ totalCountc
 dur (Rdur
 
 app_missed (R	appMissed
-	sf_missed (RsfMissed
+	sf_missed (RsfMissedÀ
+Metrics!
+total_frames (RtotalFrames#
+missed_frames (RmissedFrames*
+missed_app_frames (RmissedAppFrames(
+missed_sf_frames (RmissedSfFrames?
+missed_frames_max_successive (RmissedFramesMaxSuccessive"
+frame_dur_max (RframeDurMax"
+frame_dur_avg (RframeDurAvg"
+frame_dur_p50 (RframeDurP50"
+frame_dur_p90	 (RframeDurP90"
+frame_dur_p95
+ (RframeDurP95"
+frame_dur_p99 (RframeDurP99
 À
 9protos/perfetto/metrics/android/java_heap_histogram.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"¹
 JavaHeapHistogramW

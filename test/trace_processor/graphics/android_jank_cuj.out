@@ -56,6 +56,37 @@ android_jank_cuj {
       app_missed: true
       sf_missed: false
     }
+    counter_metrics {
+      total_frames: 6
+      missed_frames: 5
+      missed_app_frames: 5
+      missed_sf_frames: 1
+      frame_dur_max: 40000000
+    }
+    timeline_metrics {
+      total_frames: 6
+      missed_frames: 5
+      missed_app_frames: 5
+      missed_sf_frames: 1
+      frame_dur_max: 40000000
+      frame_dur_avg: 25333333
+      frame_dur_p50: 24000000
+      frame_dur_p90: 34000000
+      frame_dur_p95: 37000000
+      frame_dur_p99: 39400000
+    }
+    trace_metrics {
+      total_frames: 6
+      missed_frames: 5
+      missed_app_frames: 5
+      missed_sf_frames: 1
+      frame_dur_max: 40000000
+      frame_dur_avg: 25333333
+      frame_dur_p50: 24000000
+      frame_dur_p90: 34000000
+      frame_dur_p95: 37000000
+      frame_dur_p99: 39400000
+    }
   }
   cuj {
     id: 2
@@ -161,6 +192,38 @@ android_jank_cuj {
       dur: 15000000
       app_missed: false
       sf_missed: false
+    }
+    counter_metrics {
+      total_frames: 12
+      missed_frames: 8
+      missed_app_frames: 7
+      missed_sf_frames: 2
+      missed_frames_max_successive: 5
+      frame_dur_max: 62000000
+    }
+    timeline_metrics {
+      total_frames: 12
+      missed_frames: 8
+      missed_app_frames: 7
+      missed_sf_frames: 2
+      frame_dur_max: 61000000
+      frame_dur_avg: 27791666
+      frame_dur_p50: 22500000
+      frame_dur_p90: 58900000
+      frame_dur_p95: 61000000
+      frame_dur_p99: 61000000
+    }
+    trace_metrics {
+      total_frames: 12
+      missed_frames: 8
+      missed_app_frames: 7
+      missed_sf_frames: 2
+      frame_dur_max: 61000000
+      frame_dur_avg: 32716666
+      frame_dur_p50: 25300000
+      frame_dur_p90: 60500000
+      frame_dur_p95: 61000000
+      frame_dur_p99: 61000000
     }
   }
 }

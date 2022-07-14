@@ -135,6 +135,74 @@ trace.add_atrace_async_end(
     ts=901_000_010, tid=PID, pid=PID, buf="J<SHADE_ROW_EXPAND>")
 trace.add_atrace_async_end(ts=999_000_000, tid=PID, pid=PID, buf="J<CANCELED>")
 
+trace.add_atrace_counter(
+    ts=150_000_000,
+    tid=PID,
+    pid=PID,
+    buf="J<SHOULD_BE_IGNORED>#totalFrames",
+    cnt=6)
+trace.add_atrace_counter(
+    ts=150_100_000,
+    tid=PID,
+    pid=PID,
+    buf="J<SHOULD_BE_IGNORED>#missedFrames",
+    cnt=5)
+trace.add_atrace_counter(
+    ts=150_200_000,
+    tid=PID,
+    pid=PID,
+    buf="J<SHOULD_BE_IGNORED>#missedAppFrames",
+    cnt=5)
+trace.add_atrace_counter(
+    ts=150_300_000,
+    tid=PID,
+    pid=PID,
+    buf="J<SHOULD_BE_IGNORED>#missedSfFrames",
+    cnt=1)
+trace.add_atrace_counter(
+    ts=150_400_000,
+    tid=PID,
+    pid=PID,
+    buf="J<SHOULD_BE_IGNORED>#maxFrameTimeMillis",
+    cnt=40)
+
+trace.add_atrace_counter(
+    ts=950_000_000,
+    tid=PID,
+    pid=PID,
+    buf="J<SHADE_ROW_EXPAND>#totalFrames",
+    cnt=12)
+trace.add_atrace_counter(
+    ts=950_100_000,
+    tid=PID,
+    pid=PID,
+    buf="J<SHADE_ROW_EXPAND>#missedFrames",
+    cnt=8)
+trace.add_atrace_counter(
+    ts=950_200_000,
+    tid=PID,
+    pid=PID,
+    buf="J<SHADE_ROW_EXPAND>#missedAppFrames",
+    cnt=7)
+trace.add_atrace_counter(
+    ts=950_300_000,
+    tid=PID,
+    pid=PID,
+    buf="J<SHADE_ROW_EXPAND>#missedSfFrames",
+    cnt=2)
+trace.add_atrace_counter(
+    ts=950_300_000,
+    tid=PID,
+    pid=PID,
+    buf="J<SHADE_ROW_EXPAND>#maxSuccessiveMissedFrames",
+    cnt=5)
+trace.add_atrace_counter(
+    ts=950_400_000,
+    tid=PID,
+    pid=PID,
+    buf="J<SHADE_ROW_EXPAND>#maxFrameTimeMillis",
+    cnt=62)
+
 add_frame(
     trace,
     vsync=10,

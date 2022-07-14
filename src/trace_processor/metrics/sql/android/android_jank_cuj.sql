@@ -79,6 +79,44 @@ SELECT
           'process', process_metadata,
           'ts', boundary.ts,
           'dur', boundary.dur,
+          'counter_metrics', (
+            SELECT AndroidJankCujMetric_Metrics(
+              'total_frames', total_frames,
+              'missed_frames', missed_frames,
+              'missed_app_frames', missed_app_frames,
+              'missed_sf_frames', missed_sf_frames,
+              'missed_frames_max_successive', missed_frames_max_successive,
+              'frame_dur_max', frame_dur_max)
+            FROM android_jank_cuj_counter_metrics cm
+            WHERE cm.cuj_id = cuj.cuj_id),
+          'trace_metrics', (
+            SELECT AndroidJankCujMetric_Metrics(
+              'total_frames', COUNT(*),
+              'missed_frames', SUM(app_missed OR sf_missed),
+              'missed_app_frames', SUM(app_missed),
+              'missed_sf_frames', SUM(sf_missed),
+              'frame_dur_max', MAX(f.dur),
+              'frame_dur_avg', CAST(AVG(f.dur) AS INTEGER),
+              'frame_dur_p50', CAST(PERCENTILE(f.dur, 50) AS INTEGER),
+              'frame_dur_p90', CAST(PERCENTILE(f.dur, 90) AS INTEGER),
+              'frame_dur_p95', CAST(PERCENTILE(f.dur, 95) AS INTEGER),
+              'frame_dur_p99', CAST(PERCENTILE(f.dur, 99) AS INTEGER))
+            FROM android_jank_cuj_frame f
+            WHERE f.cuj_id = cuj.cuj_id),
+          'timeline_metrics', (
+            SELECT AndroidJankCujMetric_Metrics(
+              'total_frames', COUNT(*),
+              'missed_frames', SUM(app_missed OR sf_missed),
+              'missed_app_frames', SUM(app_missed),
+              'missed_sf_frames', SUM(sf_missed),
+              'frame_dur_max', MAX(f.dur),
+              'frame_dur_avg', CAST(AVG(f.dur) AS INTEGER),
+              'frame_dur_p50', CAST(PERCENTILE(f.dur, 50) AS INTEGER),
+              'frame_dur_p90', CAST(PERCENTILE(f.dur, 90) AS INTEGER),
+              'frame_dur_p95', CAST(PERCENTILE(f.dur, 95) AS INTEGER),
+              'frame_dur_p99', CAST(PERCENTILE(f.dur, 99) AS INTEGER))
+            FROM android_jank_cuj_frame_timeline f
+            WHERE f.cuj_id = cuj.cuj_id),
           'frame', (
             SELECT RepeatedField(
               AndroidJankCujMetric_Frame(

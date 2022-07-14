@@ -42,6 +42,16 @@ message AndroidJankCujMetric {
 
     // Details about each of the frames within the CUJ.
     repeated Frame frame = 6;
+
+    // Metrics extracted from the counters output by FrameTracker
+    // Does not contain the frame_dur percentile information.
+    optional Metrics counter_metrics = 7;
+
+    // Metrics extracted from the frame timeline.
+    optional Metrics timeline_metrics = 8;
+
+    // Metrics extracted from the trace slices.
+    optional Metrics trace_metrics = 9;
   }
 
   message Frame {
@@ -59,5 +69,47 @@ message AndroidJankCujMetric {
 
     // Whether SF missed the frame deadline.
     optional bool sf_missed = 6;
+  }
+
+  message Metrics {
+    // Overall number of frames within the CUJ.
+    optional int64 total_frames = 1;
+
+    // Number of missed frames.
+    optional int64 missed_frames = 2;
+
+    // Number of frames missed due to the app missing the deadline.
+    optional int64 missed_app_frames = 3;
+
+    // Number of frames missed due to SF.
+    optional int64 missed_sf_frames = 4;
+
+    // Number of successive frames missed.
+    // Not available in timeline_metrics and trace_metrics.
+    optional int64 missed_frames_max_successive = 5;
+
+    // Max frame duration.
+    // Not available in counter_metrics.
+    optional int64 frame_dur_max = 6;
+
+    // Average frame duration.
+    // Not available in counter_metrics.
+    optional int64 frame_dur_avg = 7;
+
+    // Median frame duration.
+    // Not available in counter_metrics.
+    optional int64 frame_dur_p50 = 8;
+
+    // P90 frame duration.
+    // Not available in counter_metrics.
+    optional int64 frame_dur_p90 = 9;
+
+    // P95 frame duration.
+    // Not available in counter_metrics.
+    optional int64 frame_dur_p95 = 10;
+
+    // P99 frame duration.
+    // Not available in counter_metrics.
+    optional int64 frame_dur_p99 = 11;
   }
 }
