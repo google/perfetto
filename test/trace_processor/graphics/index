@@ -31,6 +31,9 @@ gpu_frequency_metric.textproto android_gpu gpu_frequency_metric.out
 android_sysui_cuj.py android_sysui_cuj android_sysui_cuj.out
 android_sysui_cuj.py android_sysui_cuj_event_test.sql android_sysui_cuj_event.out
 
+# Android Jank CUJ metric
+android_sysui_cuj.py android_jank_cuj android_jank_cuj.out
+
 # Frame Timeline event trace tests
 frame_timeline_events.py expected_frame_timeline_events_test.sql expected_frame_timeline_events.out
 frame_timeline_events.py actual_frame_timeline_events_test.sql actual_frame_timeline_events.out

@@ -33,6 +33,7 @@ import "protos/perfetto/metrics/android/hwcomposer.proto";
 import "protos/perfetto/metrics/android/hwui_metric.proto";
 import "protos/perfetto/metrics/android/ion_metric.proto";
 import "protos/perfetto/metrics/android/irq_runtime_metric.proto";
+import "protos/perfetto/metrics/android/jank_cuj_metric.proto";
 import "protos/perfetto/metrics/android/java_heap_histogram.proto";
 import "protos/perfetto/metrics/android/java_heap_stats.proto";
 import "protos/perfetto/metrics/android/lmk_metric.proto";
@@ -100,7 +101,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 48
+// Next id: 49
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -172,6 +173,9 @@ message TraceMetrics {
 
   // Frame timing and jank root causes for system UI interactions.
   optional AndroidSysUiCujMetrics android_sysui_cuj = 27;
+
+  // Interaction and frame timings for CUJs (important UI transitions).
+  optional AndroidJankCujMetric android_jank_cuj = 48;
 
   // Metric associated with hwcomposer.
   optional AndroidHwcomposerMetrics android_hwcomposer = 28;
