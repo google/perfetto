@@ -96,13 +96,16 @@ function convertToRecordingV2Input(
   }
 
   let targetInfo: TargetInfo;
-  if (targetType == 'ANDROID') {
+  if (targetType === 'ANDROID') {
     targetInfo = {
       targetType,
       androidApiLevel,
       dataSources: [],
       name: '',
     };
+  } else if (targetType === 'CHROME' || targetType === 'CHROME_OS') {
+    targetInfo =
+        {targetType, isExtensionInstalled: false, dataSources: [], name: ''};
   } else {
     targetInfo = {targetType, dataSources: [], name: ''};
   }
