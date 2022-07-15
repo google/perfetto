@@ -23,8 +23,9 @@ export interface TargetFactory {
   // case we ever minify our code.
   readonly kind: string;
 
-  // Executed when a target is added/removed or when its information is updated.
-  onTargetChange?: OnTargetChangeCallback;
+  // Setter for OnTargetChange, which is executed when a target is
+  // added/removed or when its information is updated.
+  setOnTargetChange(onTargetChange: OnTargetChangeCallback): void;
 
   getName(): string;
 
@@ -73,11 +74,18 @@ export interface AndroidTargetInfo extends TargetInfoBase {
   androidApiLevel?: number;
 }
 
-export interface OtherTargetInfo extends TargetInfoBase {
-  targetType: 'CHROME'|'CHROME_OS'|'LINUX';
+export interface ChromeTargetInfo extends TargetInfoBase {
+  isExtensionInstalled: boolean;
+  targetType: 'CHROME'|'CHROME_OS';
 }
 
-export type TargetInfo = AndroidTargetInfo|OtherTargetInfo;
+export interface LinuxTargetInfo extends TargetInfoBase {
+  targetType: 'LINUX';
+}
+
+// Holds information about a target. It's used by the UI and the logic which
+// generates a config.
+export type TargetInfo = AndroidTargetInfo|ChromeTargetInfo|LinuxTargetInfo;
 
 // RecordingTargetV2 is subclassed by Android devices and the Chrome browser/OS.
 // It creates tracing sessions which are used by the UI. For Android, it manages
