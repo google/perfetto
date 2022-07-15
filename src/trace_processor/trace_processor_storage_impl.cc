@@ -59,12 +59,13 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.flow_tracker.reset(new FlowTracker(&context_));
   context_.event_tracker.reset(new EventTracker(&context_));
   context_.process_tracker.reset(new ProcessTracker(&context_));
-  context_.clock_tracker.reset(new ClockTracker(&context_));
+  context_.clock_tracker.reset(new ClockTracker(context_.storage.get()));
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
   context_.perf_sample_tracker.reset(new PerfSampleTracker(&context_));
   context_.global_stack_profile_tracker.reset(new GlobalStackProfileTracker());
-  context_.metadata_tracker.reset(new MetadataTracker(&context_));
-  context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
+  context_.metadata_tracker.reset(new MetadataTracker(context_.storage.get()));
+  context_.global_args_tracker.reset(
+      new GlobalArgsTracker(context_.storage.get()));
   {
     context_.descriptor_pool_.reset(new DescriptorPool());
     auto status = context_.descriptor_pool_->AddFromFileDescriptorSet(
