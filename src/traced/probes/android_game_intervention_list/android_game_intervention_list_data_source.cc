@@ -120,7 +120,7 @@ bool AndroidGameInterventionListDataSource::
       package = nullptr;
   perfetto::protos::pbzero::AndroidGameInterventionList_GameModeInfo*
       game_mode_info = nullptr;
-  for (base::StringSplitter string_splitter(line, ' '); string_splitter.Next();
+  for (base::StringSplitter string_splitter(line, '\t'); string_splitter.Next();
        ++idx) {
     // check if package name is in the name filter
     // if not we skip parsing this line.

@@ -164,6 +164,7 @@ struct DataSourceInstanceThreadLocalState {
     data_source_instance_id = 0;
     incremental_state_generation = 0;
     is_intercepted = false;
+    last_packet_was_empty = false;
   }
 
   std::unique_ptr<TraceWriterBase> trace_writer;
@@ -177,6 +178,7 @@ struct DataSourceInstanceThreadLocalState {
   BufferId buffer_id;
   uint64_t data_source_instance_id;
   bool is_intercepted;
+  bool last_packet_was_empty;
 };
 
 // Per-DataSource-type thread-local state.
