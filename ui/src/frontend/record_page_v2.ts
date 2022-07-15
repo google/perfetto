@@ -712,8 +712,8 @@ export const RecordPageV2 = createPage({
 
   oninit(): void {
     for (const targetFactory of targetFactoryRegistry.listTargetFactories()) {
-      if (targetFactory && !targetFactory.onTargetChange) {
-        targetFactory.onTargetChange = onTargetChange;
+      if (targetFactory) {
+        targetFactory.setOnTargetChange(onTargetChange);
       }
     }
 

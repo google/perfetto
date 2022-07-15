@@ -82,6 +82,10 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
     return androidTarget;
   }
 
+  setOnTargetChange(onTargetChange: OnTargetChangeCallback) {
+    this.onTargetChange = onTargetChange;
+  }
+
   private async init() {
     for (const device of await this.usb.getDevices()) {
       if (this.checkDeviceValidity(device).isValid) {
