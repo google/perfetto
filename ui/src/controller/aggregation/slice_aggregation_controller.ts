@@ -86,7 +86,7 @@ export class SliceAggregationController extends AggregationController {
       {
         title: 'Name',
         kind: 'STRING',
-        columnConstructor: Uint16Array,
+        columnConstructor: Uint32Array,
         columnId: 'name',
       },
       {
@@ -105,7 +105,7 @@ export class SliceAggregationController extends AggregationController {
       {
         title: 'Occurrences',
         kind: 'NUMBER',
-        columnConstructor: Uint16Array,
+        columnConstructor: Uint32Array,
         columnId: 'occurrences',
         sum: true,
       },
