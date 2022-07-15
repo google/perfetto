@@ -1,0 +1,229 @@
+android_jank_cuj {
+  cuj {
+    id: 1
+    name: "SHOULD_BE_IGNORED"
+    process {
+      name: "com.android.systemui"
+      uid: 10001
+    }
+    ts: 0
+    dur: 123000000
+    frame {
+      frame_number: 1
+      vsync: 10
+      ts: 0
+      dur: 16000000
+      app_missed: false
+      sf_missed: false
+    }
+    frame {
+      frame_number: 2
+      vsync: 20
+      ts: 8000000
+      dur: 28000000
+      app_missed: true
+      sf_missed: true
+    }
+    frame {
+      frame_number: 3
+      vsync: 30
+      ts: 30000000
+      dur: 25000000
+      app_missed: true
+      sf_missed: false
+    }
+    frame {
+      frame_number: 4
+      vsync: 40
+      ts: 40000000
+      dur: 40000000
+      app_missed: true
+      sf_missed: false
+    }
+    frame {
+      frame_number: 5
+      vsync: 60
+      ts: 70000000
+      dur: 20000000
+      app_missed: true
+      sf_missed: false
+    }
+    frame {
+      frame_number: 6
+      vsync: 90
+      ts: 100000000
+      dur: 23000000
+      app_missed: true
+      sf_missed: false
+    }
+    counter_metrics {
+      total_frames: 6
+      missed_frames: 5
+      missed_app_frames: 5
+      missed_sf_frames: 1
+      frame_dur_max: 40000000
+    }
+    timeline_metrics {
+      total_frames: 6
+      missed_frames: 5
+      missed_app_frames: 5
+      missed_sf_frames: 1
+      frame_dur_max: 40000000
+      frame_dur_avg: 25333333
+      frame_dur_p50: 24000000
+      frame_dur_p90: 34000000
+      frame_dur_p95: 37000000
+      frame_dur_p99: 39400000
+    }
+    trace_metrics {
+      total_frames: 6
+      missed_frames: 5
+      missed_app_frames: 5
+      missed_sf_frames: 1
+      frame_dur_max: 40000000
+      frame_dur_avg: 25333333
+      frame_dur_p50: 24000000
+      frame_dur_p90: 34000000
+      frame_dur_p95: 37000000
+      frame_dur_p99: 39400000
+    }
+  }
+  cuj {
+    id: 2
+    name: "SHADE_ROW_EXPAND"
+    process {
+      name: "com.android.systemui"
+      uid: 10001
+    }
+    ts: 0
+    dur: 901000010
+    frame {
+      frame_number: 1
+      vsync: 10
+      ts: 0
+      dur: 16000000
+      app_missed: false
+      sf_missed: false
+    }
+    frame {
+      frame_number: 2
+      vsync: 20
+      ts: 8000000
+      dur: 28000000
+      app_missed: true
+      sf_missed: true
+    }
+    frame {
+      frame_number: 3
+      vsync: 30
+      ts: 30000000
+      dur: 25000000
+      app_missed: true
+      sf_missed: false
+    }
+    frame {
+      frame_number: 4
+      vsync: 40
+      ts: 40000000
+      dur: 40000000
+      app_missed: true
+      sf_missed: false
+    }
+    frame {
+      frame_number: 5
+      vsync: 60
+      ts: 70000000
+      dur: 20000000
+      app_missed: true
+      sf_missed: false
+    }
+    frame {
+      frame_number: 6
+      vsync: 90
+      ts: 100000000
+      dur: 23000000
+      app_missed: true
+      sf_missed: false
+    }
+    frame {
+      frame_number: 7
+      vsync: 100
+      ts: 200000000
+      dur: 22000000
+      app_missed: false
+      sf_missed: true
+    }
+    frame {
+      frame_number: 8
+      vsync: 110
+      ts: 300000000
+      dur: 61000000
+      app_missed: false
+      sf_missed: false
+    }
+    frame {
+      frame_number: 9
+      vsync: 120
+      ts: 400000000
+      dur: 61000000
+      app_missed: false
+      sf_missed: false
+    }
+    frame {
+      frame_number: 10
+      vsync: 130
+      ts: 500000000
+      dur: 56000000
+      app_missed: true
+      sf_missed: false
+    }
+    frame {
+      frame_number: 11
+      vsync: 140
+      ts: 600000000
+      dur: 25600000
+      app_missed: true
+      sf_missed: false
+    }
+    frame {
+      frame_number: 12
+      vsync: 150
+      ts: 700000000
+      dur: 15000000
+      app_missed: false
+      sf_missed: false
+    }
+    counter_metrics {
+      total_frames: 12
+      missed_frames: 8
+      missed_app_frames: 7
+      missed_sf_frames: 2
+      missed_frames_max_successive: 5
+      frame_dur_max: 62000000
+    }
+    timeline_metrics {
+      total_frames: 12
+      missed_frames: 8
+      missed_app_frames: 7
+      missed_sf_frames: 2
+      frame_dur_max: 61000000
+      frame_dur_avg: 27791666
+      frame_dur_p50: 22500000
+      frame_dur_p90: 58900000
+      frame_dur_p95: 61000000
+      frame_dur_p99: 61000000
+    }
+    trace_metrics {
+      total_frames: 12
+      missed_frames: 8
+      missed_app_frames: 7
+      missed_sf_frames: 2
+      frame_dur_max: 61000000
+      frame_dur_avg: 32716666
+      frame_dur_p50: 25300000
+      frame_dur_p90: 60500000
+      frame_dur_p95: 61000000
+      frame_dur_p99: 61000000
+    }
+  }
+}
