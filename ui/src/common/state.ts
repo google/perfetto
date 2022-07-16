@@ -148,6 +148,14 @@ export type UtidToTrackSortKey = {
   }
 }
 
+export enum ProfileType {
+  HEAP_PROFILE = 'heap_profile',
+  NATIVE_HEAP_PROFILE = 'heap_profile:libc.malloc',
+  JAVA_HEAP_PROFILE = 'heap_profile:com.android.art',
+  JAVA_HEAP_GRAPH = 'graph',
+  PERF_SAMPLE = 'perf',
+}
+
 export type FlamegraphStateViewingOption =
     'SPACE'|'ALLOC_SPACE'|'OBJECTS'|'ALLOC_OBJECTS'|'PERF_SAMPLES';
 
@@ -295,7 +303,7 @@ export interface HeapProfileSelection {
   id: number;
   upid: number;
   ts: number;
-  type: string;
+  type: ProfileType;
 }
 
 export interface PerfSamplesSelection {
@@ -303,7 +311,7 @@ export interface PerfSamplesSelection {
   id: number;
   upid: number;
   ts: number;
-  type: string;
+  type: ProfileType;
 }
 
 export interface FlamegraphState {
@@ -311,7 +319,7 @@ export interface FlamegraphState {
   upids: number[];
   startNs: number;
   endNs: number;
-  type: string;
+  type: ProfileType;
   viewingOption: FlamegraphStateViewingOption;
   focusRegex: string;
   expandedCallsite?: CallsiteInfo;
