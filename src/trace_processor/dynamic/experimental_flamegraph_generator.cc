@@ -37,7 +37,7 @@ ExperimentalFlamegraphGenerator::ProfileType extractProfileType(
     return ExperimentalFlamegraphGenerator::ProfileType::kGraph;
   }
   if (profile_name == "native") {
-    return ExperimentalFlamegraphGenerator::ProfileType::kNative;
+    return ExperimentalFlamegraphGenerator::ProfileType::kHeapProfile;
   }
   if (profile_name == "perf") {
     return ExperimentalFlamegraphGenerator::ProfileType::kPerf;
@@ -335,9 +335,9 @@ base::Status ExperimentalFlamegraphGenerator::ComputeTable(
   if (values.profile_type == ProfileType::kGraph) {
     auto* tracker = HeapGraphTracker::GetOrCreate(context_);
     table = tracker->BuildFlamegraph(values.ts, *values.upid);
-  } else if (values.profile_type == ProfileType::kNative) {
-    table = BuildNativeHeapProfileFlamegraph(context_->storage.get(),
-                                             *values.upid, values.ts);
+  } else if (values.profile_type == ProfileType::kHeapProfile) {
+    table = BuildHeapProfileFlamegraph(context_->storage.get(), *values.upid,
+                                       values.ts);
   } else if (values.profile_type == ProfileType::kPerf) {
     table = BuildNativeCallStackSamplingFlamegraph(
         context_->storage.get(), values.upid, values.upid_group,

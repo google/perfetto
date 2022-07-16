@@ -26,7 +26,7 @@ import {
   SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
 } from '../common/flamegraph_util';
 import {NUM, STR} from '../common/query_result';
-import {CallsiteInfo, FlamegraphState} from '../common/state';
+import {CallsiteInfo, FlamegraphState, ProfileType} from '../common/state';
 import {toNs} from '../common/time';
 import {
   FlamegraphDetails,
@@ -41,6 +41,35 @@ import {
 import {AreaSelectionHandler} from './area_selection_handler';
 import {Controller} from './controller';
 import {globals} from './globals';
+
+export function profileType(s: string): ProfileType {
+  if (isProfileType(s)) {
+    return s;
+  }
+  if (s.startsWith('heap_profile')) {
+    return ProfileType.HEAP_PROFILE;
+  }
+  throw new Error('Unknown type ${s}');
+}
+
+function isProfileType(s: string): s is ProfileType {
+  return Object.values(ProfileType).includes(s as ProfileType);
+}
+
+function getFlamegraphType(type: ProfileType) {
+  switch (type) {
+    case ProfileType.HEAP_PROFILE:
+    case ProfileType.NATIVE_HEAP_PROFILE:
+    case ProfileType.JAVA_HEAP_PROFILE:
+      return 'native';
+    case ProfileType.JAVA_HEAP_GRAPH:
+      return 'graph';
+    case ProfileType.PERF_SAMPLE:
+      return 'perf';
+    default:
+      throw new Error(`Unexpected profile type ${profileType}`);
+  }
+}
 
 export interface FlamegraphControllerArgs {
   engine: Engine;
@@ -122,7 +151,7 @@ export class FlamegraphController extends Controller<'main'> {
         upids,
         startNs: toNs(area.startSec),
         endNs: toNs(area.endSec),
-        type: 'perf',
+        type: ProfileType.PERF_SAMPLE,
         viewingOption: PERF_SAMPLES_KEY,
       }));
     }
@@ -243,7 +272,7 @@ export class FlamegraphController extends Controller<'main'> {
 
   async getFlamegraphData(
       baseKey: string, viewingOption: string, startNs: number, endNs: number,
-      upids: number[], type: string,
+      upids: number[], type: ProfileType,
       focusRegex: string): Promise<CallsiteInfo[]> {
     let currentData: CallsiteInfo[];
     const key = `${baseKey}-${viewingOption}`;
@@ -388,7 +417,7 @@ export class FlamegraphController extends Controller<'main'> {
   }
 
   private async prepareViewsAndTables(
-      startNs: number, endNs: number, upids: number[], type: string,
+      startNs: number, endNs: number, upids: number[], type: ProfileType,
       focusRegex: string): Promise<string> {
     // Creating unique names for views so we can reuse and not delete them
     // for each marker.
@@ -396,11 +425,12 @@ export class FlamegraphController extends Controller<'main'> {
     if (focusRegex !== '') {
       focusRegexConditional = `and focus_str = '${focusRegex}'`;
     }
+    const flamegraphType = getFlamegraphType(type);
 
     /*
      * TODO(octaviant) this branching should be eliminated for simplicity.
      */
-    if (type === 'perf') {
+    if (type === ProfileType.PERF_SAMPLE) {
       let upidConditional = `upid = ${upids[0]}`;
       if (upids.length > 1) {
         upidConditional =
@@ -411,8 +441,8 @@ export class FlamegraphController extends Controller<'main'> {
           cumulative_alloc_size, cumulative_count, cumulative_alloc_count,
           size, alloc_size, count, alloc_count, source_file, line_number
           from experimental_flamegraph
-          where profile_type = '${type}' and ${startNs} <= ts and ts <= ${
-              endNs} and ${upidConditional}
+          where profile_type = '${flamegraphType}' and ${startNs} <= ts and
+              ts <= ${endNs} and ${upidConditional}
           ${focusRegexConditional}`);
     }
     return this.cache.getTableName(
@@ -420,7 +450,7 @@ export class FlamegraphController extends Controller<'main'> {
           cumulative_alloc_size, cumulative_count, cumulative_alloc_count,
           size, alloc_size, count, alloc_count, source_file, line_number
           from experimental_flamegraph
-          where profile_type = '${type}'
+          where profile_type = '${flamegraphType}'
             and ts = ${endNs}
             and upid = ${upids[0]}
             ${focusRegexConditional}`);
@@ -439,7 +469,7 @@ export class FlamegraphController extends Controller<'main'> {
   }
 
   async getFlamegraphMetadata(
-      type: string, startNs: number, endNs: number, upids: number[]) {
+      type: ProfileType, startNs: number, endNs: number, upids: number[]) {
     // Don't do anything if selection of the marker stayed the same.
     if ((this.lastSelectedFlamegraphState !== undefined &&
          ((this.lastSelectedFlamegraphState.startNs === startNs &&

@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ProfileType} from 'src/common/state';
+
 import {searchSegment} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {PluginContext} from '../../common/plugin_api';
 import {NUM, STR} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
 import {TrackData} from '../../common/track_data';
+import {profileType} from '../../controller/flamegraph_controller';
 import {
   TrackController,
 } from '../../controller/track_controller';
@@ -30,7 +33,7 @@ export const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
 
 export interface Data extends TrackData {
   tsStarts: Float64Array;
-  types: string[];
+  types: ProfileType[];
 }
 
 export interface Config {
@@ -48,17 +51,22 @@ class HeapProfileTrackController extends TrackController<Config, Data> {
         resolution,
         length: 0,
         tsStarts: new Float64Array(),
-        types: new Array<string>(),
+        types: new Array<ProfileType>(),
       };
     }
     const queryRes = await this.query(`
-    select * from
-    (select distinct(ts) as ts, 'native' as type from heap_profile_allocation
-     where upid = ${this.config.upid}
-        union
-        select distinct(graph_sample_ts) as ts, 'graph' as type from
-        heap_graph_object
-        where upid = ${this.config.upid}) order by ts`);
+    select * from (
+      select distinct
+        ts,
+        'heap_profile:' ||
+          (select group_concat(distinct heap_name) from heap_profile_allocation
+            where upid = ${this.config.upid}) AS type
+      from heap_profile_allocation
+      where upid = ${this.config.upid}
+      union
+      select distinct graph_sample_ts as ts, 'graph' as type
+      from heap_graph_object
+      where upid = ${this.config.upid}) order by ts`);
     const numRows = queryRes.numRows();
     const data: Data = {
       start,
@@ -66,13 +74,13 @@ class HeapProfileTrackController extends TrackController<Config, Data> {
       resolution,
       length: numRows,
       tsStarts: new Float64Array(numRows),
-      types: new Array<string>(numRows),
+      types: new Array<ProfileType>(numRows),
     };
 
     const it = queryRes.iter({ts: NUM, type: STR});
     for (let row = 0; it.valid(); it.next(), row++) {
       data.tsStarts[row] = it.ts;
-      data.types[row] = it.type;
+      data.types[row] = profileType(it.type);
     }
     return data;
   }

@@ -321,9 +321,9 @@ BuildFlamegraphTableCallstackSizeAndCount(
 }
 
 std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
-BuildNativeHeapProfileFlamegraph(TraceStorage* storage,
-                                 UniquePid upid,
-                                 int64_t timestamp) {
+BuildHeapProfileFlamegraph(TraceStorage* storage,
+                           UniquePid upid,
+                           int64_t timestamp) {
   const tables::HeapProfileAllocationTable& allocation_tbl =
       storage->heap_profile_allocation_table();
   // PASS OVER ALLOCATIONS:
