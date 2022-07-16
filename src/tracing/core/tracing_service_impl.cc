@@ -313,9 +313,6 @@ void AppendOwnedSlicesToPacket(std::unique_ptr<uint8_t[]> data,
 }  // namespace
 
 // These constants instead are defined in the header because are used by tests.
-constexpr size_t TracingServiceImpl::kDefaultShmSize;
-constexpr size_t TracingServiceImpl::kDefaultShmPageSize;
-
 constexpr size_t TracingServiceImpl::kMaxShmSize;
 constexpr uint32_t TracingServiceImpl::kDataSourceStopTimeoutMs;
 constexpr uint8_t TracingServiceImpl::kSyncMarker[];
@@ -3815,6 +3812,12 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
 TracingServiceImpl::ProducerEndpointImpl::~ProducerEndpointImpl() {
   service_->DisconnectProducer(id_);
   producer_->OnDisconnect();
+}
+
+void TracingServiceImpl::ProducerEndpointImpl::Disconnect() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  // Disconnection is only supported via destroying the ProducerEndpoint.
+  PERFETTO_FATAL("Not supported");
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::RegisterDataSource(
