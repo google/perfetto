@@ -56,6 +56,10 @@ namespace base {
 class TaskRunner;
 }
 
+namespace test {
+class TracingMuxerImplInternalsForTest;
+}
+
 namespace internal {
 
 struct DataSourceStaticState;
@@ -96,6 +100,12 @@ class TracingMuxerImpl : public TracingMuxer {
   // backends. TracingSessionID is global only within the scope of one service.
   using TracingSessionGlobalID = uint64_t;
 
+  struct RegisteredDataSource {
+    DataSourceDescriptor descriptor;
+    DataSourceFactory factory{};
+    DataSourceStaticState* static_state = nullptr;
+  };
+
   static void InitializeInstance(const TracingInitArgs&);
   static void ResetForTesting();
   static void Shutdown();
@@ -118,6 +128,9 @@ class TracingMuxerImpl : public TracingMuxer {
                            InterceptorBase::TracePacketCallback) override;
 
   std::unique_ptr<TracingSession> CreateTracingSession(BackendType);
+  std::unique_ptr<StartupTracingSession> CreateStartupTracingSession(
+      const TraceConfig& config,
+      const Tracing::SetupStartupTracingOpts&);
 
   // Producer-side bookkeeping methods.
   void UpdateDataSourcesOnAllBackends();
@@ -127,7 +140,6 @@ class TracingMuxerImpl : public TracingMuxer {
                        const DataSourceConfig&);
   void StartDataSource(TracingBackendId, DataSourceInstanceID);
   void StopDataSource_AsyncBegin(TracingBackendId, DataSourceInstanceID);
-  void StopDataSource_AsyncEnd(TracingBackendId, DataSourceInstanceID);
   void ClearDataSourceIncrementalState(TracingBackendId, DataSourceInstanceID);
   void SyncProducersForTesting();
 
@@ -164,6 +176,8 @@ class TracingMuxerImpl : public TracingMuxer {
   void SetMaxProducerReconnectionsForTesting(uint32_t count);
 
  private:
+  friend class test::TracingMuxerImplInternalsForTest;
+
   // For each TracingBackend we create and register one ProducerImpl instance.
   // This talks to the producer-side of the service, gets start/stop requests
   // from it and routes them to the registered data sources.
@@ -203,7 +217,10 @@ class TracingMuxerImpl : public TracingMuxer {
     TracingBackendId const backend_id_;
     bool connected_ = false;
     bool did_setup_tracing_ = false;
-    uint32_t connection_id_ = 0;
+    std::atomic<uint32_t> connection_id_{0};
+    uint16_t last_startup_target_buffer_reservation_ = 0;
+    bool is_producer_provided_smb_ = false;
+    bool producer_provided_smb_failed_ = false;
 
     const uint32_t shmem_batch_commits_duration_ms_ = 0;
 
@@ -356,10 +373,20 @@ class TracingMuxerImpl : public TracingMuxer {
     BackendType const backend_type_;
   };
 
-  struct RegisteredDataSource {
-    DataSourceDescriptor descriptor;
-    DataSourceFactory factory{};
-    DataSourceStaticState* static_state = nullptr;
+  // This object is returned to API clients when they call
+  // Tracing::SetupStartupTracing().
+  class StartupTracingSessionImpl : public StartupTracingSession {
+   public:
+    StartupTracingSessionImpl(TracingMuxerImpl*,
+                              TracingSessionGlobalID,
+                              BackendType);
+    ~StartupTracingSessionImpl() override;
+    void Abort() override;
+
+   private:
+    TracingMuxerImpl* const muxer_;
+    TracingSessionGlobalID const session_id_;
+    BackendType backend_type_;
   };
 
   struct RegisteredInterceptor {
@@ -367,6 +394,17 @@ class TracingMuxerImpl : public TracingMuxer {
     InterceptorFactory factory{};
     InterceptorBase::TLSFactory tls_factory{};
     InterceptorBase::TracePacketCallback packet_callback{};
+  };
+
+  struct RegisteredStartupSession {
+    TracingSessionID session_id = 0;
+    int num_unbound_data_sources = 0;
+
+    bool is_aborting = false;
+    int num_aborting_data_sources = 0;
+
+    std::function<void()> on_aborted;
+    std::function<void()> on_adopted;
   };
 
   struct RegisteredBackend {
@@ -381,6 +419,8 @@ class TracingMuxerImpl : public TracingMuxer {
     // The calling code can request more than one concurrently active tracing
     // session for the same backend. We need to create one consumer per session.
     std::vector<std::unique_ptr<ConsumerImpl>> consumers;
+
+    std::vector<RegisteredStartupSession> startup_sessions;
   };
 
   void UpdateDataSourceOnAllBackends(RegisteredDataSource& rds,
@@ -391,6 +431,7 @@ class TracingMuxerImpl : public TracingMuxer {
   void InitializeConsumer(TracingSessionGlobalID session_id);
   void OnConsumerDisconnected(ConsumerImpl* consumer);
   void OnProducerDisconnected(ProducerImpl* producer);
+  // Test only method.
   void SweepDeadBackends();
 
   struct FindDataSourceRes {
@@ -404,6 +445,23 @@ class TracingMuxerImpl : public TracingMuxer {
     uint32_t instance_idx = 0;
   };
   FindDataSourceRes FindDataSource(TracingBackendId, DataSourceInstanceID);
+
+  FindDataSourceRes SetupDataSourceImpl(
+      const RegisteredDataSource&,
+      TracingBackendId,
+      uint32_t backend_connection_id,
+      DataSourceInstanceID,
+      const DataSourceConfig&,
+      uint64_t config_hash,
+      uint64_t startup_config_hash,
+      TracingSessionGlobalID startup_session_id);
+  void StartDataSourceImpl(const FindDataSourceRes&);
+  void StopDataSource_AsyncBeginImpl(const FindDataSourceRes&);
+  void StopDataSource_AsyncEnd(TracingBackendId,
+                               uint32_t backend_connection_id,
+                               DataSourceInstanceID,
+                               const FindDataSourceRes&);
+  void AbortStartupTracingSession(TracingSessionGlobalID, BackendType);
 
   // WARNING: If you add new state here, be sure to update ResetForTesting.
   std::unique_ptr<base::TaskRunner> task_runner_;
@@ -420,6 +478,7 @@ class TracingMuxerImpl : public TracingMuxer {
   // Should only be modified for testing purposes.
   std::atomic<uint32_t> max_producer_reconnections_{100u};
 
+  // Test only member.
   // After ResetForTesting() is called, holds tracing backends which needs to be
   // kept alive until all inbound references have gone away. See
   // SweepDeadBackends().

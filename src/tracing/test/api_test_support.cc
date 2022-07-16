@@ -34,6 +34,8 @@
 namespace perfetto {
 namespace test {
 
+using internal::TracingMuxerImpl;
+
 #if PERFETTO_BUILDFLAG(PERFETTO_IPC)
 namespace {
 
@@ -130,6 +132,23 @@ TestTempFile CreateTempFile() {
   res.path = temp_file;
   PERFETTO_CHECK(res.fd > 0);
   return res;
+}
+
+// static
+bool TracingMuxerImplInternalsForTest::DoesSystemBackendHaveSMB() {
+  using RegisteredBackend = TracingMuxerImpl::RegisteredBackend;
+  // Ideally we should be doing dynamic_cast and a DCHECK(muxer != nullptr);
+  auto* muxer =
+      reinterpret_cast<TracingMuxerImpl*>(TracingMuxerImpl::instance_);
+  const auto& backends = muxer->backends_;
+  const auto& backend = std::find_if(backends.begin(), backends.end(),
+                                     [](const RegisteredBackend& r_backend) {
+                                       return r_backend.type == kSystemBackend;
+                                     });
+  if (backend == backends.end())
+    return false;
+  const auto& service = backend->producer->service_;
+  return service && service->shared_memory();
 }
 
 }  // namespace test
