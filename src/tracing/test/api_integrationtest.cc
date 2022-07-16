@@ -5143,6 +5143,261 @@ TEST_P(PerfettoApiTest, ConsecutiveEmptyEventsSkipped) {
   EXPECT_EQ(it->trace_stats().buffer_stats()[0].chunks_read(), 1u);
 }
 
+class PerfettoStartupTracingApiTest : public PerfettoApiTest {
+ public:
+  using SetupStartupTracingOpts = perfetto::Tracing::SetupStartupTracingOpts;
+  void SetupStartupTracing(SetupStartupTracingOpts opts = {}) {
+    // Setup startup tracing in the current process.
+    perfetto::TraceConfig cfg;
+    cfg.set_duration_ms(500);
+    cfg.add_buffers()->set_size_kb(1024);
+    auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+    ds_cfg->set_name("track_event");
+
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_disabled_categories("*");
+    te_cfg.add_enabled_categories("test");
+    ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
+
+    opts.backend = GetParam();
+    session_ = perfetto::Tracing::SetupStartupTracing(cfg, opts);
+    // TODO(mohitms): Once we add support for SetupStartupTracingBlocking
+    // we won't need perfetto::test::SyncProducers(). Currently we need
+    // to Round-trip to ensure that the muxer has enabled startup tracing.
+    perfetto::test::SyncProducers();
+    // Emit an event before the session is really started by the consumer.
+    EXPECT_EQ(TRACE_EVENT_CATEGORY_ENABLED("test"), true);
+  }
+
+  void AbortStartupTracing() {
+    session_->Abort();
+    session_.reset();
+  }
+
+  void TearDown() override {
+    if (session_) {
+      AbortStartupTracing();
+    }
+    this->PerfettoApiTest::TearDown();
+  }
+
+  static void TearDownTestSuite() {
+    // Keep it empty to avoid running TearDownTestSuite() of parent class.
+    // because `PerfettoApiTest::TearDownTestSuite` is not really a cleanup
+    // step but it is just another test case which should run after all other
+    // tests. hence we don't need to run it again here.
+  }
+
+ private:
+  std::unique_ptr<perfetto::StartupTracingSession> session_;
+};
+
+TEST_P(PerfettoStartupTracingApiTest, WithExistingSmb) {
+  {
+    // Start and tear down a first session, just to set up the SMB.
+    auto* tracing_session = NewTraceWithCategories({"foo"});
+    tracing_session->get()->StartBlocking();
+    tracing_session->get()->StopBlocking();
+  }
+
+  SetupStartupTracing();
+  TRACE_EVENT_BEGIN("test", "Event");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  // Emit another event after starting.
+  TRACE_EVENT_END("test");
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+  // Both events should be retained.
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(slices, ElementsAre("B:test.Event", "E"));
+}
+
+TEST_P(PerfettoStartupTracingApiTest, WithProducerProvidedSmb) {
+  ASSERT_FALSE(perfetto::test::TracingMuxerImplInternalsForTest::
+                   DoesSystemBackendHaveSMB());
+  // The backend has no SMB set up yet. Instead, the SDK will
+  // reconnect to the backend with a producer-provided SMB.
+  SetupStartupTracing();
+  TRACE_EVENT_BEGIN("test", "Event");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  // Emit another event after starting.
+  TRACE_EVENT_END("test");
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+  // Both events should be retained.
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(slices, ElementsAre("B:test.Event", "E"));
+}
+
+TEST_P(PerfettoStartupTracingApiTest, DontTraceBeforeStartupSetup) {
+  // This event should not be recorded.
+  TRACE_EVENT_BEGIN("test", "EventBeforeStartupTrace");
+  SetupStartupTracing();
+  TRACE_EVENT_BEGIN("test", "Event");
+
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_END("test");
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+
+  EXPECT_THAT(slices, ElementsAre("B:test.Event", "E"));
+}
+
+// Startup tracing requires BufferExhaustedPolicy::kDrop, i.e. once the SMB is
+// filled with startup events, any further events should be dropped.
+TEST_P(PerfettoStartupTracingApiTest, DropPolicy) {
+  SetupStartupTracing();
+  constexpr int kNumEvents = 100000;
+  for (int i = 0; i < kNumEvents; i++) {
+    TRACE_EVENT_BEGIN("test", "StartupEvent");
+  }
+
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  std::unordered_map<std::string, int> freq_map;
+  for (auto& slice : slices) {
+    freq_map[slice]++;
+  }
+  EXPECT_GT(freq_map["B:test.StartupEvent"], 0);
+  EXPECT_LT(freq_map["B:test.StartupEvent"], kNumEvents);
+}
+
+TEST_P(PerfettoStartupTracingApiTest, Abort) {
+  SetupStartupTracing();
+  TRACE_EVENT_BEGIN("test", "StartupEvent");
+  AbortStartupTracing();
+
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("test", "MainEvent");
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+
+  EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
+}
+
+// TODO(mohitms): Currently we cannot restart StartupTracing after aborting it
+// once, unless we start the normal session first. We get the
+// `PERFETTO_CHECK(!fully_bound_)` failure while restarting.
+// We plan to investigate it in the next CL.
+TEST_P(PerfettoStartupTracingApiTest, DISABLED_AbortAndRestart) {
+  SetupStartupTracing();
+  TRACE_EVENT_BEGIN("test", "StartupEvent1");
+  AbortStartupTracing();
+  SetupStartupTracing();
+  TRACE_EVENT_BEGIN("test", "StartupEvent2");
+
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("test", "MainEvent");
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+
+  EXPECT_THAT(slices, ElementsAre("B:test.StartupEvent2", "B:test.MainEvent"));
+}
+
+TEST_P(PerfettoStartupTracingApiTest, Timeout) {
+  SetupStartupTracingOpts args;
+  args.timeout_ms = 2000;
+  SetupStartupTracing(args);
+  for (int i = 0; i < 25; i++) {
+    TRACE_EVENT_BEGIN("test", "StartupEvent");
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+  TRACE_EVENT_BEGIN("test", "MainEvent");
+
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
+}
+
+TEST_P(PerfettoStartupTracingApiTest, Callbacks) {
+  for (bool abort : {true, false}) {
+    SetupStartupTracingOpts args;
+    std::vector<std::string> callback_events;
+    using CallbackArgs = perfetto::Tracing::OnStartupTracingSetupCallbackArgs;
+    args.on_setup = [&](CallbackArgs callback_arg) {
+      callback_events.push_back(
+          "OnSetup(num_data_sources_started=" +
+          std::to_string(callback_arg.num_data_sources_started) + ")");
+    };
+    args.on_adopted = [&]() { callback_events.push_back("OnAdopted()"); };
+    args.on_aborted = [&]() { callback_events.push_back("OnAborted()"); };
+    SetupStartupTracing(args);
+    TRACE_EVENT_BEGIN("test", "StartupEvent");
+    if (abort) {
+      AbortStartupTracing();
+    }
+    auto* tracing_session = NewTraceWithCategories({"test"});
+    tracing_session->get()->StartBlocking();
+
+    TRACE_EVENT_BEGIN("test", "MainEvent");
+    perfetto::TrackEvent::Flush();
+
+    tracing_session->get()->StopBlocking();
+
+    auto slices = ReadSlicesFromTrace(tracing_session->get());
+
+    ASSERT_EQ(2u, callback_events.size());
+    EXPECT_EQ("OnSetup(num_data_sources_started=1)", callback_events.at(0));
+    if (abort) {
+      EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
+      EXPECT_EQ("OnAborted()", callback_events.at(1));
+    } else {
+      EXPECT_THAT(slices,
+                  ElementsAre("B:test.StartupEvent", "B:test.MainEvent"));
+      EXPECT_EQ("OnAdopted()", callback_events.at(1));
+    }
+  }
+}
+
+// Test that it's ok if main tracing is never started.
+// TODO(mohitms): Currently it leaks memory if main tracing is never started.
+// The reason being is: `StopDataSource_AsyncEnd` fails with a critical
+// error - "Async stop of data source failed". As a result it returns early,
+// much before cleaning up the memory allocated for a data source and hence we
+// see the memory leak. It's not super hard to handle it and fix it correctly,
+// but we will be doing that in follow up CL.
+TEST_P(PerfettoStartupTracingApiTest, DISABLED_MainTracingNeverStarted) {
+  SetupStartupTracing();
+  TRACE_EVENT_BEGIN("test", "StartupEvent");
+}
+
 struct BackendTypeAsString {
   std::string operator()(
       const ::testing::TestParamInfo<perfetto::BackendType>& info) const {
@@ -5164,6 +5419,12 @@ INSTANTIATE_TEST_SUITE_P(PerfettoApiTest,
                          PerfettoApiTest,
                          ::testing::Values(perfetto::kInProcessBackend,
                                            perfetto::kSystemBackend),
+                         BackendTypeAsString());
+
+// In-process backend doesn't support startup tracing.
+INSTANTIATE_TEST_SUITE_P(PerfettoStartupTracingApiTest,
+                         PerfettoStartupTracingApiTest,
+                         ::testing::Values(perfetto::kSystemBackend),
                          BackendTypeAsString());
 
 }  // namespace
