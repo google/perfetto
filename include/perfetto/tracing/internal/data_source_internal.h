@@ -85,10 +85,24 @@ struct DataSourceState {
   // Only the tuple (backend_id, data_source_instance_id) is globally unique.
   uint64_t data_source_instance_id = 0;
 
+  // Set to a non-0 target buffer reservation ID iff startup tracing is
+  // currently enabled for this data source.
+  std::atomic<uint16_t> startup_target_buffer_reservation{0};
+
+  // If the data source was originally started for startup tracing, this is set
+  // to the startup session's ID.
+  uint64_t startup_session_id = 0;
+
   // A hash of the trace config used by this instance. This is used to
   // de-duplicate instances for data sources with identical names (e.g., track
   // event).
   uint64_t config_hash = 0;
+
+  // Similar to config_hash, but excludes target buffers and service-set fields
+  // for matching of startup-tracing data source instances to sessions later
+  // started by the service.
+  // Learn more: ComputeStartupConfigHash
+  uint64_t startup_config_hash = 0;
 
   // If this data source is being intercepted (see Interceptor), this field
   // contains the non-zero id of a registered interceptor which should receive

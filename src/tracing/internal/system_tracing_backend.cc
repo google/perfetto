@@ -22,6 +22,7 @@
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
+#include "src/tracing/ipc/posix_shared_memory.h"
 
 namespace perfetto {
 namespace internal {
@@ -38,11 +39,25 @@ std::unique_ptr<ProducerEndpoint> SystemTracingBackend::ConnectProducer(
     const ConnectProducerArgs& args) {
   PERFETTO_DCHECK(args.task_runner->RunsTasksOnCurrentThread());
 
+  std::unique_ptr<SharedMemory> shm;
+  std::unique_ptr<SharedMemoryArbiter> arbiter;
+  uint32_t shmem_size_hint = args.shmem_size_hint_bytes;
+  uint32_t shmem_page_size_hint = args.shmem_page_size_hint_bytes;
+  if (args.use_producer_provided_smb) {
+    if (shmem_size_hint == 0)
+      shmem_size_hint = TracingService::kDefaultShmSize;
+    if (shmem_page_size_hint == 0)
+      shmem_page_size_hint = TracingService::kDefaultShmPageSize;
+    shm = PosixSharedMemory::Create(shmem_size_hint);
+    arbiter = SharedMemoryArbiter::CreateUnboundInstance(shm.get(),
+                                                         shmem_page_size_hint);
+  }
+
   auto endpoint = ProducerIPCClient::Connect(
       GetProducerSocket(), args.producer, args.producer_name, args.task_runner,
-      TracingService::ProducerSMBScrapingMode::kEnabled,
-      args.shmem_size_hint_bytes, args.shmem_page_size_hint_bytes, nullptr,
-      nullptr, ProducerIPCClient::ConnectionFlags::kRetryIfUnreachable);
+      TracingService::ProducerSMBScrapingMode::kEnabled, shmem_size_hint,
+      shmem_page_size_hint, std::move(shm), std::move(arbiter),
+      ProducerIPCClient::ConnectionFlags::kRetryIfUnreachable);
   PERFETTO_CHECK(endpoint);
   return endpoint;
 }
