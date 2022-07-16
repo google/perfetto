@@ -27,6 +27,7 @@ import {createEmptyState} from './empty_state';
 import {
   InThreadTrackSortKey,
   PrimaryTrackSortKey,
+  ProfileType,
   SCROLLING_TRACK_GROUP,
   State,
   TraceUrlSource,
@@ -447,26 +448,24 @@ test('sortTracksByTidThenName', () => {
 
 test('perf samples open flamegraph', () => {
   const state = createEmptyState();
-  const perfType = 'perf';
 
   const afterSelectingPerf = produce(state, (draft) => {
     StateActions.selectPerfSamples(
-        draft, {id: 0, upid: 0, ts: 0, type: perfType});
+        draft, {id: 0, upid: 0, ts: 0, type: ProfileType.PERF_SAMPLE});
   });
 
   expect(assertExists(afterSelectingPerf.currentFlamegraphState).type)
-      .toBe(perfType);
+      .toBe(ProfileType.PERF_SAMPLE);
 });
 
 test('heap profile opens flamegraph', () => {
   const state = createEmptyState();
-  const heapType = 'graph';
 
   const afterSelectingPerf = produce(state, (draft) => {
     StateActions.selectHeapProfile(
-        draft, {id: 0, upid: 0, ts: 0, type: heapType});
+        draft, {id: 0, upid: 0, ts: 0, type: ProfileType.JAVA_HEAP_GRAPH});
   });
 
   expect(assertExists(afterSelectingPerf.currentFlamegraphState).type)
-      .toBe(heapType);
+      .toBe(ProfileType.JAVA_HEAP_GRAPH);
 });

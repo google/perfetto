@@ -28,7 +28,7 @@ class TraceProcessorContext;
 
 class ExperimentalFlamegraphGenerator : public DynamicTableGenerator {
  public:
-  enum class ProfileType { kGraph, kNative, kPerf };
+  enum class ProfileType { kGraph, kHeapProfile, kPerf };
 
   struct InputValues {
     ProfileType profile_type;
