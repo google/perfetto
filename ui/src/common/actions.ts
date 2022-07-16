@@ -23,6 +23,7 @@ import {
   columnKey,
   TableColumn,
 } from '../frontend/pivot_table_redux_types';
+
 import {randomColor} from './colorizer';
 import {createEmptyState} from './empty_state';
 import {DEFAULT_VIEWING_OPTION, PERF_SAMPLES_KEY} from './flamegraph_util';
@@ -38,6 +39,7 @@ import {
   OmniboxState,
   PivotTableReduxResult,
   PrimaryTrackSortKey,
+  ProfileType,
   RecordingTarget,
   SCROLLING_TRACK_GROUP,
   SortDirection,
@@ -666,7 +668,7 @@ export const StateActions = {
 
   selectHeapProfile(
       state: StateDraft,
-      args: {id: number, upid: number, ts: number, type: string}): void {
+      args: {id: number, upid: number, ts: number, type: ProfileType}): void {
     state.currentSelection = {
       kind: 'HEAP_PROFILE',
       id: args.id,
@@ -685,7 +687,7 @@ export const StateActions = {
 
   selectPerfSamples(
       state: StateDraft,
-      args: {id: number, upid: number, ts: number, type: string}): void {
+      args: {id: number, upid: number, ts: number, type: ProfileType}): void {
     state.currentSelection = {
       kind: 'PERF_SAMPLES',
       id: args.id,
@@ -706,7 +708,7 @@ export const StateActions = {
     upids: number[],
     startNs: number,
     endNs: number,
-    type: string,
+    type: ProfileType,
     viewingOption: FlamegraphStateViewingOption
   }): void {
     state.currentFlamegraphState = {

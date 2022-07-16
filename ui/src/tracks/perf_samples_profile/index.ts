@@ -16,6 +16,7 @@ import {searchSegment} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {PluginContext} from '../../common/plugin_api';
 import {NUM} from '../../common/query_result';
+import {ProfileType} from '../../common/state';
 import {fromNs, toNs} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
@@ -165,8 +166,12 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
 
     if (index !== -1) {
       const ts = data.tsStartsNs[index];
-      globals.makeSelection(Actions.selectPerfSamples(
-          {id: index, upid: this.config.upid, ts, type: 'perf'}));
+      globals.makeSelection(Actions.selectPerfSamples({
+        id: index,
+        upid: this.config.upid,
+        ts,
+        type: ProfileType.PERF_SAMPLE,
+      }));
       return true;
     }
     return false;

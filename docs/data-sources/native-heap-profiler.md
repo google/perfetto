@@ -80,13 +80,13 @@ Windows.
 
 The resulting profile proto contains four views on the data
 
-* **space**: how many bytes were allocated but not freed at this callstack the
-  moment the dump was created.
-* **alloc\_space**: how many bytes were allocated (including ones freed at the
+* **Unreleased size**: how many bytes were allocated but not freed at this
+  callstack the moment the dump was created.
+* **Total size**: how many bytes were allocated (including ones freed at the
   moment of the dump) at this callstack
-* **objects**: how many allocations without matching frees were done at this
-  callstack.
-* **alloc\_objects**: how many allocations (including ones with matching frees)
+* **Unreleased count**: how many allocations without matching frees were done at
+  this callstack.
+* **Total count**: how many allocations (including ones with matching frees)
   were done at this callstack.
 
 _(Googlers: You can also open the gzipped protos using http://pprof/)_
