@@ -58,6 +58,11 @@ class PERFETTO_EXPORT_COMPONENT ProducerEndpoint {
  public:
   virtual ~ProducerEndpoint();
 
+  // Disconnects the endpoint from the service, while keeping the shared memory
+  // valid. After calling this, the endpoint will no longer call any methods
+  // on the Producer.
+  virtual void Disconnect() = 0;
+
   // Called by the Producer to (un)register data sources. Data sources are
   // identified by their name (i.e. DataSourceDescriptor.name)
   virtual void RegisterDataSource(const DataSourceDescriptor&) = 0;
@@ -257,6 +262,10 @@ class PERFETTO_EXPORT_COMPONENT TracingService {
  public:
   using ProducerEndpoint = perfetto::ProducerEndpoint;
   using ConsumerEndpoint = perfetto::ConsumerEndpoint;
+
+  // Default sizes used by the service implementation and client library.
+  static constexpr size_t kDefaultShmPageSize = 4096ul;
+  static constexpr size_t kDefaultShmSize = 256 * 1024ul;
 
   enum class ProducerSMBScrapingMode {
     // Use service's default setting for SMB scraping. Currently, the default

@@ -68,6 +68,11 @@ class PERFETTO_EXPORT_COMPONENT TracingBackend {
     // the client when calling Tracing::Initialize().
     uint32_t shmem_size_hint_bytes = 0;
     uint32_t shmem_page_size_hint_bytes = 0;
+
+    // If true, the backend should allocate a shared memory buffer and provide
+    // it to the service when connecting.
+    // It's used in startup tracing.
+    bool use_producer_provided_smb = false;
   };
 
   virtual std::unique_ptr<ProducerEndpoint> ConnectProducer(

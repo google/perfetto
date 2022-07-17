@@ -93,6 +93,16 @@ std::unique_ptr<TracingSession> Tracing::NewTrace(BackendType backend) {
       ->CreateTracingSession(backend);
 }
 
+//  static
+std::unique_ptr<StartupTracingSession> Tracing::SetupStartupTracing(
+    const TraceConfig& config,
+    const Tracing::SetupStartupTracingOpts& opts) {
+  return static_cast<internal::TracingMuxerImpl*>(internal::TracingMuxer::Get())
+      ->CreateStartupTracingSession(config, opts);
+}
+
+TracingSession::~TracingSession() = default;
+
 // Can be called from any thread.
 bool TracingSession::FlushBlocking(uint32_t timeout_ms) {
   std::atomic<bool> flush_result;
@@ -175,5 +185,7 @@ TracingSession::QueryServiceStateBlocking() {
   }
   return result;
 }
+
+StartupTracingSession::~StartupTracingSession() = default;
 
 }  // namespace perfetto

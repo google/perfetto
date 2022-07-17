@@ -62,6 +62,7 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   // TracingService::ProducerEndpoint implementation.
   // These methods are invoked by the actual Producer(s) code by clients of the
   // tracing library, which know nothing about the IPC transport.
+  void Disconnect() override;
   void RegisterDataSource(const DataSourceDescriptor&) override;
   void UpdateDataSource(const DataSourceDescriptor&) override;
   void UnregisterDataSource(const std::string& name) override;
@@ -109,7 +110,7 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
 
   // The proxy interface for the producer port of the service. It is bound
   // to |ipc_channel_| and (de)serializes method invocations over the wire.
-  protos::gen::ProducerPortProxy producer_port_;
+  std::unique_ptr<protos::gen::ProducerPortProxy> producer_port_;
 
   std::unique_ptr<SharedMemory> shared_memory_;
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;

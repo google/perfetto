@@ -25,6 +25,7 @@ namespace perfetto {
 
 class MockProducerEndpoint : public TracingService::ProducerEndpoint {
  public:
+  MOCK_METHOD0(Disconnect, void());
   MOCK_METHOD1(RegisterDataSource, void(const DataSourceDescriptor&));
   MOCK_METHOD1(UpdateDataSource, void(const DataSourceDescriptor&));
   MOCK_METHOD1(UnregisterDataSource, void(const std::string&));
