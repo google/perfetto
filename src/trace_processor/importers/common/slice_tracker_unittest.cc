@@ -130,7 +130,8 @@ TEST(SliceTrackerTest, NegativeTimestamps) {
 TEST(SliceTrackerTest, OneSliceWithArgs) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
-  context.global_args_tracker.reset(new GlobalArgsTracker(&context));
+  context.global_args_tracker.reset(
+      new GlobalArgsTracker(context.storage.get()));
   context.slice_translation_table.reset(
       new SliceTranslationTable(context.storage.get()));
   SliceTracker tracker(&context);
@@ -175,7 +176,8 @@ TEST(SliceTrackerTest, OneSliceWithArgs) {
 TEST(SliceTrackerTest, OneSliceWithArgsWithTranslatedName) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
-  context.global_args_tracker.reset(new GlobalArgsTracker(&context));
+  context.global_args_tracker.reset(
+      new GlobalArgsTracker(context.storage.get()));
   context.slice_translation_table.reset(
       new SliceTranslationTable(context.storage.get()));
   SliceTracker tracker(&context);

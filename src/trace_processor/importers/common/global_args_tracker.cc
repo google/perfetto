@@ -19,8 +19,8 @@
 namespace perfetto {
 namespace trace_processor {
 
-GlobalArgsTracker::GlobalArgsTracker(TraceProcessorContext* context)
-    : context_(context) {}
+GlobalArgsTracker::GlobalArgsTracker(TraceStorage* storage)
+    : storage_(storage) {}
 
 }  // namespace trace_processor
 }  // namespace perfetto
