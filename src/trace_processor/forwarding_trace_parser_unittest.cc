@@ -48,6 +48,36 @@ TEST(TraceProcessorImplTest, GuessTraceType_JsonMissingTraceEvents) {
   EXPECT_EQ(kJsonTraceType, GuessTraceType(prefix, sizeof(prefix)));
 }
 
+TEST(TraceProcessorImplTest, GuessTraceType_DoctypeHtmlUppercase) {
+  const uint8_t prefix[] = "<!DOCTYPE HTML>";
+  EXPECT_EQ(kSystraceTraceType, GuessTraceType(prefix, sizeof(prefix)));
+}
+
+TEST(TraceProcessorImplTest, GuessTraceType_DoctypeHtml) {
+  const uint8_t prefix[] = "<!doctype html>";
+  EXPECT_EQ(kSystraceTraceType, GuessTraceType(prefix, sizeof(prefix)));
+}
+
+TEST(TraceProcessorImplTest, GuessTraceType_DoctypeHtmlMixed) {
+  const uint8_t prefix[] = "<!DoCTyPe HtMl>";
+  EXPECT_EQ(kSystraceTraceType, GuessTraceType(prefix, sizeof(prefix)));
+}
+
+TEST(TraceProcessorImplTest, GuessTraceType_Html) {
+  const uint8_t prefix[] = "<html>";
+  EXPECT_EQ(kSystraceTraceType, GuessTraceType(prefix, sizeof(prefix)));
+}
+
+TEST(TraceProcessorImplTest, GuessTraceType_HtmlUpper) {
+  const uint8_t prefix[] = "<HTML>";
+  EXPECT_EQ(kSystraceTraceType, GuessTraceType(prefix, sizeof(prefix)));
+}
+
+TEST(TraceProcessorImplTest, GuessTraceType_HtmlMixed) {
+  const uint8_t prefix[] = "<htmL>";
+  EXPECT_EQ(kSystraceTraceType, GuessTraceType(prefix, sizeof(prefix)));
+}
+
 TEST(TraceProcessorImplTest, GuessTraceType_Proto) {
   const uint8_t prefix[] = {0x0a, 0x00};  // An empty TracePacket.
   EXPECT_EQ(kProtoTraceType, GuessTraceType(prefix, sizeof(prefix)));

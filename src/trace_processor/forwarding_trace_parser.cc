@@ -176,8 +176,10 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
     return kSystraceTraceType;
 
   // Systrace with leading HTML.
-  if (base::StartsWith(start, "<!DOCTYPE html>") ||
-      base::StartsWith(start, "<html>"))
+  // Both: <!DOCTYPE html> and <!DOCTYPE HTML> have been observed.
+  std::string lower_start = base::ToLower(start);
+  if (base::StartsWith(lower_start, "<!doctype html>") ||
+      base::StartsWith(lower_start, "<html>"))
     return kSystraceTraceType;
 
   // Traces obtained from atrace -z (compress).
