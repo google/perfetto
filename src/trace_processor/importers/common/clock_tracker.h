@@ -29,6 +29,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -135,7 +136,7 @@ class ClockTracker {
     return (global_clock_id >> 32) > 0;
   }
 
-  explicit ClockTracker(TraceProcessorContext*);
+  explicit ClockTracker(TraceStorage*);
   virtual ~ClockTracker();
 
   // Clock description and its value in a snapshot.
@@ -312,7 +313,7 @@ class ClockTracker {
     return &it->second;
   }
 
-  TraceProcessorContext* const context_;
+  TraceStorage* const storage_;
   ClockId trace_time_clock_id_ = 0;
   std::map<ClockId, ClockDomain> clocks_;
   std::set<ClockGraphEdge> graph_;
