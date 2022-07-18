@@ -192,7 +192,7 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   if (base::Contains(start, "TRACE:\n"))
     return kSystraceTraceType;
 
-  // Ninja's buils log (.ninja_log).
+  // Ninja's build log (.ninja_log).
   if (base::StartsWith(start, "# ninja log"))
     return kNinjaLogTraceType;
 
