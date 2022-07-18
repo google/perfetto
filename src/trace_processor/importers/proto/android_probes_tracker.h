@@ -31,12 +31,13 @@ class TraceProcessorContext;
 
 class AndroidProbesTracker : public Destructible {
  public:
-  explicit AndroidProbesTracker(TraceProcessorContext*);
+  explicit AndroidProbesTracker(TraceStorage*);
   ~AndroidProbesTracker() override;
 
   static AndroidProbesTracker* GetOrCreate(TraceProcessorContext* context) {
     if (!context->android_probes_tracker) {
-      context->android_probes_tracker.reset(new AndroidProbesTracker(context));
+      context->android_probes_tracker.reset(
+          new AndroidProbesTracker(context->storage.get()));
     }
     return static_cast<AndroidProbesTracker*>(
         context->android_probes_tracker.get());

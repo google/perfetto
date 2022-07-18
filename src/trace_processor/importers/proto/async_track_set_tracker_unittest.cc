@@ -29,7 +29,8 @@ class AsyncTrackSetTrackerUnittest : public testing::Test {
  public:
   AsyncTrackSetTrackerUnittest() {
     context_.storage.reset(new TraceStorage());
-    context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
+    context_.global_args_tracker.reset(
+        new GlobalArgsTracker(context_.storage.get()));
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.track_tracker.reset(new TrackTracker(&context_));
     context_.async_track_set_tracker.reset(new AsyncTrackSetTracker(&context_));
