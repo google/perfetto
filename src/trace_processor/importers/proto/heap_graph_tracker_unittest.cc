@@ -65,7 +65,7 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
   context.process_tracker.reset(new ProcessTracker(&context));
   context.process_tracker->GetOrCreateProcess(kPid);
 
-  HeapGraphTracker tracker(&context);
+  HeapGraphTracker tracker(context.storage.get());
 
   StringPool::Id normal_kind = context.storage->InternString("KIND_NORMAL");
 
@@ -208,7 +208,7 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   context.process_tracker.reset(new ProcessTracker(&context));
   context.process_tracker->GetOrCreateProcess(kPid);
 
-  HeapGraphTracker tracker(&context);
+  HeapGraphTracker tracker(context.storage.get());
 
   constexpr uint64_t kField = 1;
   constexpr uint64_t kLocation = 0;

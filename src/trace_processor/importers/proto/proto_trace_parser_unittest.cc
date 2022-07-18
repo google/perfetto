@@ -226,12 +226,14 @@ class ProtoTraceParserTest : public ::testing::Test {
     storage_ = new TraceStorage();
     context_.storage.reset(storage_);
     context_.track_tracker.reset(new TrackTracker(&context_));
-    context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
+    context_.global_args_tracker.reset(
+        new GlobalArgsTracker(context_.storage.get()));
     context_.global_stack_profile_tracker.reset(
         new GlobalStackProfileTracker());
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
-    context_.metadata_tracker.reset(new MetadataTracker(&context_));
+    context_.metadata_tracker.reset(
+        new MetadataTracker(context_.storage.get()));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
     sched_ = new MockSchedEventTracker(&context_);
@@ -241,7 +243,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     slice_ = new NiceMock<MockSliceTracker>(&context_);
     context_.slice_tracker.reset(slice_);
     context_.slice_translation_table.reset(new SliceTranslationTable(storage_));
-    clock_ = new ClockTracker(&context_);
+    clock_ = new ClockTracker(context_.storage.get());
     context_.clock_tracker.reset(clock_);
     context_.flow_tracker.reset(new FlowTracker(&context_));
     context_.sorter.reset(new TraceSorter(&context_, CreateParser(),
