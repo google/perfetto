@@ -41,6 +41,7 @@ class AndroidProbesParser {
   void ParseStatsdMetadata(ConstBytes);
   void ParseAndroidPackagesList(ConstBytes);
   void ParseInitialDisplayState(int64_t ts, ConstBytes);
+  void ParseAndroidSystemProperty(int64_t ts, ConstBytes);
   void ParseAndroidGameIntervention(ConstBytes);
 
  private:
@@ -51,6 +52,7 @@ class AndroidProbesParser {
   const StringId batt_current_id_;
   const StringId batt_current_avg_id_;
   const StringId screen_state_id_;
+  const StringId device_state_id_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto
