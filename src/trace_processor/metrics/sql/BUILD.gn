@@ -95,6 +95,7 @@ sql_files = [
   "chrome/chrome_performance_mark_hashes.sql",
   "chrome/chrome_processes.sql",
   "chrome/chrome_slice_names.sql",
+  "chrome/chrome_stack_samples_for_task.sql",
   "chrome/chrome_unsymbolized_args.sql",
   "chrome/chrome_tasks.sql",
   "chrome/chrome_thread_slice.sql",
