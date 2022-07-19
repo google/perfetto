@@ -20,6 +20,10 @@ import {Actions} from '../common/actions';
 import {TRACE_SUFFIX} from '../common/constants';
 import {TraceConfig} from '../common/protos';
 import {
+  BUFFER_USAGE_INCORRECT_FORMAT,
+  BUFFER_USAGE_NOT_ACCESSIBLE,
+} from '../common/recordingV2/chrome_utils';
+import {
   genTraceConfig,
   RecordingConfigUtils,
 } from '../common/recordingV2/recording_config_utils';
@@ -122,9 +126,9 @@ class TracingSessionWrapper {
     this.tracingSession.stop();
   }
 
-  getTraceBufferUsage(): Promise<number>|undefined {
+  getTraceBufferUsage(): Promise<number> {
     if (!this.tracingSession) {
-      return undefined;
+      throw new RecordingError(BUFFER_USAGE_NOT_ACCESSIBLE);
     }
     return this.tracingSession.getTraceBufferUsage();
   }
@@ -296,15 +300,29 @@ function Instructions(cssClass: string) {
       m('.buttons', StopCancelButtons()));
 }
 
-function BufferUsageProgressBar() {
-  const bufferUsagePromise = tracingSessionWrapper?.getTraceBufferUsage();
-  if (!bufferUsagePromise) {
-    return undefined;
-  }
+async function fetchBufferUsage() {
+  if (!tracingSessionWrapper) return;
 
-  bufferUsagePromise.then((percentage) => {
+  try {
+    const percentage = await tracingSessionWrapper.getTraceBufferUsage();
     publishBufferUsage({percentage});
-  });
+  } catch (e) {
+    if (e instanceof RecordingError) {
+      if (e.message === BUFFER_USAGE_INCORRECT_FORMAT) {
+        // If we have received an incorrectly formatted message, we will
+        // redraw, so we can query the buffer usage again.
+        globals.rafScheduler.scheduleFullRedraw();
+      }
+      // We ignore other possible tracing buffer message errors because they
+      // are not necessary for the trace to be successfully collected.
+    } else {
+      throw e;
+    }
+  }
+}
+
+function BufferUsageProgressBar() {
+  fetchBufferUsage();
 
   const bufferUsage = globals.bufferUsage ? globals.bufferUsage : 0.0;
   // Buffer usage is not available yet on Android.
