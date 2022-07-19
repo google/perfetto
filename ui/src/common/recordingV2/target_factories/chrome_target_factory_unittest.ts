@@ -12,6 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import './android_webusb_target_factory';
-import './android_websocket_target_factory';
-import './chrome_target_factory';
+import {isCrOS} from './chrome_target_factory';
+
+test('parse Chrome on Chrome OS user agent', () => {
+  const userAgent = 'Mozilla/5.0 (X11; CrOS x86_64 14816.99.0) ' +
+      'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 ' +
+      'Safari/537.36';
+  expect(isCrOS(userAgent)).toBe(true);
+});
+
+test('parse Chrome on Mac user agent', () => {
+  const userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ' +
+      'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36';
+  expect(isCrOS(userAgent)).toBe(false);
+});
