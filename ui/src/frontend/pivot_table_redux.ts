@@ -342,6 +342,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
     // direction of sorting.
     const arrow = order === 'DESC' ? '\u25BC' : '\u25B2';
     return {
+      itemType: 'regular',
       text: `Sort ${arrow}`,
       callback() {
         globals.dispatch(Actions.setPivotTableSortColumn({column, order}));
@@ -384,6 +385,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         }
 
         popupItems.push({
+          itemType: 'regular',
           text: otherAgg,
           callback() {
             globals.dispatch(Actions.setPivotTableAggregationSelected(
@@ -459,7 +461,8 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
 
     const pivotTableHeaders = [];
     for (const pivot of state.queryResult.metadata.pivotColumns) {
-      const items = [{
+      const items: PopupMenuItem[] = [{
+        itemType: 'regular',
         text: 'Add argument pivot',
         callback: () => {
           this.showModal = true;
@@ -469,6 +472,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
       }];
       if (state.queryResult.metadata.pivotColumns.length > 1) {
         items.push({
+          itemType: 'regular',
           text: 'Remove',
           callback() {
             globals.dispatch(Actions.setPivotTablePivotSelected(
@@ -478,6 +482,38 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
           },
         });
       }
+
+      for (const table of tables) {
+        const group: PopupMenuItem[] = [];
+        for (const columnName of table.columns) {
+          const column: TableColumn = {
+            kind: 'regular',
+            table: table.name,
+            column: columnName,
+          };
+          if (this.selectedPivotsMap.has(columnKey(column))) {
+            continue;
+          }
+
+          group.push({
+            itemType: 'regular',
+            text: columnName,
+            callback() {
+              globals.dispatch(
+                  Actions.setPivotTablePivotSelected({column, selected: true}));
+              globals.dispatch(
+                  Actions.setPivotTableQueryRequested({queryRequested: true}));
+            },
+          });
+        }
+        items.push({
+          itemType: 'group',
+          itemId: `pivot-${table.name}`,
+          text: `Add ${table.name} pivot`,
+          children: group,
+        });
+      }
+
       pivotTableHeaders.push(
           m('td',
             readableColumnName(pivot),
@@ -501,6 +537,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
             m('td.menu', m(PopupMenuButton, {
                 icon: 'menu',
                 items: [{
+                  itemType: 'regular',
                   text: 'Edit mode',
                   callback: () => {
                     globals.dispatch(
@@ -568,12 +605,6 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
   renderEditView(attrs: PivotTableReduxAttrs) {
     return m(
         '.pivot-table-redux.edit',
-        m('div',
-          m('h2', 'Pivots'),
-          m('ul',
-            tables.map(
-                (t) => this.renderTablePivotColumns(t),
-                ))),
         m('div',
           m('h2', 'Aggregations'),
           m('ul',
