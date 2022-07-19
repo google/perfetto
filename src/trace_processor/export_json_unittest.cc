@@ -70,12 +70,14 @@ class StringOutputWriter : public OutputWriter {
 class ExportJsonTest : public ::testing::Test {
  public:
   ExportJsonTest() {
-    context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
+    context_.storage.reset(new TraceStorage());
+    context_.global_args_tracker.reset(
+        new GlobalArgsTracker(context_.storage.get()));
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.event_tracker.reset(new EventTracker(&context_));
-    context_.storage.reset(new TraceStorage());
     context_.track_tracker.reset(new TrackTracker(&context_));
-    context_.metadata_tracker.reset(new MetadataTracker(&context_));
+    context_.metadata_tracker.reset(
+        new MetadataTracker(context_.storage.get()));
     context_.process_tracker.reset(new ProcessTracker(&context_));
   }
 
