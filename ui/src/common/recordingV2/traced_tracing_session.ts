@@ -25,15 +25,19 @@ import {
   FreeBuffersResponse,
   GetTraceStatsRequest,
   GetTraceStatsResponse,
+  IBufferStats,
   IMethodInfo,
   IPCFrame,
   ISlice,
-  ITraceStats,
   ReadBuffersRequest,
   ReadBuffersResponse,
   TraceConfig,
 } from '../protos';
 
+import {
+  BUFFER_USAGE_INCORRECT_FORMAT,
+  BUFFER_USAGE_NOT_ACCESSIBLE,
+} from './chrome_utils';
 import {RecordingError} from './recording_error_handling';
 import {
   ByteStream,
@@ -87,7 +91,7 @@ export class TracedTracingSession implements TracingSession {
   // to keep track of the type of request, and parse the response correctly.
   private requestId = 1;
 
-  private pendingStatsMessages = new Array<Deferred<ITraceStats>>();
+  private pendingStatsMessages = new Array<Deferred<IBufferStats[]>>();
 
   // The bytestream is obtained when creating a connection with a target.
   // For instance, the AdbStream is obtained from a connection with an Adb
@@ -125,15 +129,9 @@ export class TracedTracingSession implements TracingSession {
     if (!this.byteStream.isOpen()) {
       return 0;
     }
-    const traceStats = await this.getTraceStats();
-    if (!traceStats.bufferStats) {
-      // // If a buffer stats is pending and we finish tracing, it will be
-      // resolved as {} when closing the connection. In that case just ignore it
-      // rather than erroring.
-      return 0;
-    }
-    let percentageUsed = 0;
-    for (const buffer of assertExists(traceStats.bufferStats)) {
+    const bufferStats = await this.getBufferStats();
+    let percentageUsed = -1;
+    for (const buffer of bufferStats) {
       if (!Number.isFinite(buffer.bytesWritten) ||
           !Number.isFinite(buffer.bufferSize)) {
         continue;
@@ -143,6 +141,10 @@ export class TracedTracingSession implements TracingSession {
       if (total >= 0) {
         percentageUsed = Math.max(percentageUsed, used / total);
       }
+    }
+
+    if (percentageUsed === -1) {
+      return Promise.reject(new RecordingError(BUFFER_USAGE_INCORRECT_FORMAT));
     }
     return percentageUsed;
   }
@@ -163,7 +165,7 @@ export class TracedTracingSession implements TracingSession {
     return this.resolveBindingPromise;
   }
 
-  private getTraceStats(): Promise<ITraceStats> {
+  private getBufferStats(): Promise<IBufferStats[]> {
     const getTraceStatsRequestProto =
         GetTraceStatsRequest.encode(new GetTraceStatsRequest()).finish();
     try {
@@ -173,7 +175,7 @@ export class TracedTracingSession implements TracingSession {
       this.raiseError(e);
     }
 
-    const statsMessage = defer<ITraceStats>();
+    const statsMessage = defer<IBufferStats[]>();
     this.pendingStatsMessages.push(statsMessage);
     return statsMessage;
   }
@@ -188,12 +190,7 @@ export class TracedTracingSession implements TracingSession {
 
   private clearState() {
     for (const statsMessage of this.pendingStatsMessages) {
-      // Resolving with an empty object instead of rejecting because a rejection
-      // would trigger an 'unhandledRejection' event, causing the application
-      // to show an error modal in the UI, which is not necessary for stats
-      // messages because that would mean the error modal is shown on every
-      // successful recording.
-      statsMessage.resolve({});
+      statsMessage.reject(new RecordingError(BUFFER_USAGE_NOT_ACCESSIBLE));
     }
     this.pendingStatsMessages = [];
   }
@@ -345,7 +342,7 @@ export class TracedTracingSession implements TracingSession {
       } else if (method === 'GetTraceStats') {
         const maybePendingStatsMessage = this.pendingStatsMessages.shift();
         if (maybePendingStatsMessage) {
-          maybePendingStatsMessage.resolve(data.traceStats || {});
+          maybePendingStatsMessage.resolve(data?.traceStats?.bufferStats || []);
         }
       } else if (method === 'FreeBuffers') {
         // No action required. If we successfully read a whole trace,
