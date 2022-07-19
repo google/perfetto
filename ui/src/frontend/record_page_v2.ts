@@ -22,6 +22,8 @@ import {TraceConfig} from '../common/protos';
 import {
   BUFFER_USAGE_INCORRECT_FORMAT,
   BUFFER_USAGE_NOT_ACCESSIBLE,
+  EXTENSION_NAME,
+  EXTENSION_URL,
 } from '../common/recordingV2/chrome_utils';
 import {
   genTraceConfig,
@@ -32,6 +34,7 @@ import {
   showRecordingModal,
 } from '../common/recordingV2/recording_error_handling';
 import {
+  ChromeTargetInfo,
   OnTargetChangeCallback,
   RecordingTargetV2,
   TargetInfo,
@@ -68,6 +71,7 @@ import {
 import {CodeSnippet} from './record_widgets';
 import {AdvancedSettings} from './recording/advanced_settings';
 import {AndroidSettings} from './recording/android_settings';
+import {ChromeSettings} from './recording/chrome_settings';
 import {CpuSettings} from './recording/cpu_settings';
 import {GpuSettings} from './recording/gpu_settings';
 import {MemorySettings} from './recording/memory_settings';
@@ -183,6 +187,11 @@ const tracingSessionListener: TracingSessionListener = {
     clearRecordingState();
   },
 };
+
+function isChromeTargetInfo(targetInfo: TargetInfo):
+    targetInfo is ChromeTargetInfo {
+  return ['CHROME', 'CHROME_OS'].includes(targetInfo.targetType);
+}
 
 function RecordHeader() {
   const platformSelection = RecordingPlatformSelection();
@@ -340,8 +349,6 @@ function RecordingNotes() {
   const linuxUrl = 'https://perfetto.dev/docs/quickstart/linux-tracing';
   const cmdlineUrl =
       'https://perfetto.dev/docs/quickstart/android-tracing#perfetto-cmdline';
-  const extensionURL = `https://chrome.google.com/webstore/detail/
-      perfetto-ui/lfmkphfpdbjijhpomgecfikhfohaoine`;
 
   const notes: m.Children = [];
 
@@ -359,12 +366,6 @@ function RecordingNotes() {
           {href: sideloadUrl, target: '_blank'},
           `sideload the latest version of
          Perfetto.`));
-
-  const msgChrome =
-      m('.note',
-        `To trace Chrome from the Perfetto UI, you need to install our `,
-        m('a', {href: extensionURL, target: '_blank'}, 'Chrome extension'),
-        ' and then reload this page.');
 
   const msgLinux =
       m('.note',
@@ -390,17 +391,21 @@ function RecordingNotes() {
   }
 
   targetFactoryRegistry.listRecordingProblems().map((recordingProblem) => {
-    notes.push(m('.note', recordingProblem));
+    if (recordingProblem.includes(EXTENSION_URL)) {
+      // Special case for rendering the link to the Chrome extension.
+      const parts = recordingProblem.split(EXTENSION_URL);
+      notes.push(
+          m('.note',
+            parts[0],
+            m('a', {href: EXTENSION_URL, target: '_blank'}, EXTENSION_NAME),
+            parts[1]));
+    }
   });
 
   if (recordingTargetV2) {
     const targetInfo = recordingTargetV2.getInfo();
 
     switch (targetInfo.targetType) {
-      case 'CHROME':
-      case 'CHROME_OS':
-        if (!globals.state.extensionInstalled) notes.push(msgChrome);
-        break;
       case 'LINUX':
         notes.push(msgLinux);
         break;
@@ -427,8 +432,12 @@ function RecordingNotes() {
 function RecordingSnippet() {
   const targetInfo = assertExists(recordingTargetV2).getInfo();
   // We don't need commands to start tracing on chrome
-  if (targetInfo.targetType === 'CHROME') {
-    if (!globals.state.extensionInstalled) return undefined;
+  if (isChromeTargetInfo(targetInfo)) {
+    if (tracingSessionWrapper) {
+      // If the UI has started tracing, don't display a message guiding the user
+      // to start recording.
+      return undefined;
+    }
     return m(
         'div',
         m('label', `To trace Chrome from the Perfetto UI you just have to press
@@ -500,7 +509,8 @@ function RecordingButtons() {
   if (targetType === 'ANDROID' &&
       globals.state.recordConfig.mode !== 'LONG_TRACE') {
     buttons.push(start);
-  } else if (targetType === 'CHROME' && globals.state.extensionInstalled) {
+  } else if (
+      isChromeTargetInfo(targetInfo) && targetInfo.isExtensionInstalled) {
     buttons.push(start);
   }
   return m('.button', buttons);
@@ -539,14 +549,10 @@ function onStartRecordingPressed(): void {
 
   const target = assertExists(recordingTargetV2);
   const targetInfo = target.getInfo();
-  if (targetInfo.targetType === 'ANDROID' ||
-      targetInfo.targetType === 'CHROME') {
-    globals.logging.logEvent(
-        'Record Trace',
-        `Record trace (${targetInfo.targetType}${targetInfo.targetType})`);
-    const traceConfig = genTraceConfig(globals.state.recordConfig, targetInfo);
-    tracingSessionWrapper = new TracingSessionWrapper(traceConfig, target);
-  }
+  globals.logging.logEvent(
+      'Record Trace', `Record trace (${targetInfo.targetType})`);
+  const traceConfig = genTraceConfig(globals.state.recordConfig, targetInfo);
+  tracingSessionWrapper = new TracingSessionWrapper(traceConfig, target);
   globals.rafScheduler.scheduleFullRedraw();
 }
 
@@ -557,6 +563,12 @@ function clearRecordingState() {
 }
 
 function recordMenu(routePage: string) {
+  const chromeProbe =
+      m('a[href="#!/record/chrome"]',
+        m(`li${routePage === 'chrome' ? '.active' : ''}`,
+          m('i.material-icons', 'laptop_chromebook'),
+          m('.title', 'Chrome'),
+          m('.sub', 'Chrome traces')));
   const cpuProbe =
       m('a[href="#!/record/cpu"]',
         m(`li${routePage === 'cpu' ? '.active' : ''}`,
@@ -597,7 +609,9 @@ function recordMenu(routePage: string) {
   const targetType = assertExists(recordingTargetV2).getInfo().targetType;
   const probes = [];
   if (targetType === 'CHROME_OS' || targetType === 'LINUX') {
-    probes.push(cpuProbe, powerProbe, memoryProbe, advancedProbe);
+    probes.push(cpuProbe, powerProbe, memoryProbe, chromeProbe, advancedProbe);
+  } else if (targetType === 'CHROME') {
+    probes.push(chromeProbe);
   } else {
     probes.push(
         cpuProbe,
@@ -605,6 +619,7 @@ function recordMenu(routePage: string) {
         powerProbe,
         memoryProbe,
         androidProbe,
+        chromeProbe,
         advancedProbe);
   }
 
@@ -712,12 +727,12 @@ function getRecordContainer(subpage?: string): m.Vnode<any, any> {
     ['power', PowerSettings],
     ['memory', MemorySettings],
     ['android', AndroidSettings],
+    ['chrome', ChromeSettings],
     ['advanced', AdvancedSettings],
-    // TODO(octaviant): Add Chrome settings.
   ]);
   for (const [section, component] of settingsSections.entries()) {
     pages.push(m(component, {
-      dataSources: [],
+      dataSources: targetInfo.dataSources,
       cssClass: maybeGetActiveCss(routePage, section),
     } as RecordingSectionAttrs));
   }
