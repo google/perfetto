@@ -14,18 +14,31 @@
 
 import * as m from 'mithril';
 
+import {DataSource} from '../../common/recordingV2/recording_interfaces_v2';
 import {getBuiltinChromeCategoryList, isChromeTarget} from '../../common/state';
 import {globals} from '../globals';
 import {CategoriesCheckboxList, CompactProbe} from '../record_widgets';
 
 import {RecordingSectionAttrs} from './recording_sections';
 
-class ChromeCategoriesSelection implements m.ClassComponent {
-  view() {
+function extractChromeCategories(dataSources: DataSource[]): string[]|
+    undefined {
+  for (const dataSource of dataSources) {
+    if (dataSource.name === 'chromeCategories') {
+      return dataSource.descriptor as string[];
+    }
+  }
+  return undefined;
+}
+
+class ChromeCategoriesSelection implements
+    m.ClassComponent<RecordingSectionAttrs> {
+  view({attrs}: m.CVnode<RecordingSectionAttrs>) {
     // If we are attempting to record via the Chrome extension, we receive the
     // list of actually supported categories via DevTools. Otherwise, we fall
     // back to an integrated list of categories from a recent version of Chrome.
-    let categories = globals.state.chromeCategories;
+    let categories = globals.state.chromeCategories ||
+        extractChromeCategories(attrs.dataSources);
     if (!categories || !isChromeTarget(globals.state.recordingTarget)) {
       categories = getBuiltinChromeCategoryList();
     }
@@ -102,6 +115,6 @@ export class ChromeSettings implements m.ClassComponent<RecordingSectionAttrs> {
           setEnabled: (cfg, val) => cfg.chromeLogs = val,
           isEnabled: (cfg) => cfg.chromeLogs,
         }),
-        m(ChromeCategoriesSelection));
+        m(ChromeCategoriesSelection, attrs));
   }
 }
