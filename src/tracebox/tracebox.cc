@@ -182,7 +182,7 @@ int TraceboxMain(int argc, char** argv) {
                            &traced_probes_notify_msg);
   if (traced_probes_notify_msg != "1")
     PERFETTO_FATAL(
-        "The traced_proces service failed unexpectedly. Check the logs");
+        "The traced_probes service failed unexpectedly. Check the logs");
 #endif
 
   perfetto_cmd.ConnectToServiceRunAndMaybeNotify();
