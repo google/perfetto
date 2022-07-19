@@ -339,12 +339,14 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
     const fullKey = argument.full_key;
     return [
       {
+        itemType: 'regular',
         text: 'Copy full key',
         callback: () => {
           navigator.clipboard.writeText(fullKey);
         },
       },
       {
+        itemType: 'regular',
         text: 'Find slices with the same arg value',
         callback: () => {
           globals.dispatch(Actions.executeQuery({
@@ -360,6 +362,7 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
         },
       },
       {
+        itemType: 'regular',
         text: 'Visualise argument values',
         callback: () => {
           globals.dispatch(Actions.addVisualisedArg({argName: fullKey}));
