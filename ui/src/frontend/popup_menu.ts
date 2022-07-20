@@ -122,7 +122,7 @@ export class PopupMenuButton implements m.ClassComponent<PopupMenuButtonAttrs> {
         const isExpanded = this.expandedGroups.has(item.itemId);
         return m(
             'div',
-            m('button.open-menu',
+            m('button.open-menu.disallow-selection',
               {
                 onclick: () => {
                   if (this.expandedGroups.has(item.itemId)) {
