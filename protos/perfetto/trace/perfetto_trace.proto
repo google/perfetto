@@ -8759,7 +8759,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 47.
+// Next reserved id: 13 (up to 15). Next id: 49.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -8871,13 +8871,22 @@ message TrackEvent {
   //
   // Flows can also be explicitly terminated (see |terminating_flow_ids|), so
   // that the same ID can later be reused for another flow.
-  repeated uint64 flow_ids = 36;
+  // DEPRECATED. Only kept for backwards compatibility. Use |flow_ids|.
+  repeated uint64 flow_ids_old = 36 [deprecated = true];
+  // TODO(b/204341740): replace "flow_ids_old" with "flow_ids" to reduce memory
+  // consumption.
+  repeated fixed64 flow_ids = 47;
 
   // List of flow ids which should terminate on this event, otherwise same as
   // |flow_ids|.
   // Any one flow ID should be either listed as part of |flow_ids| OR
   // |terminating_flow_ids|, not both.
-  repeated uint64 terminating_flow_ids = 42;
+  // DEPRECATED. Only kept for backwards compatibility.  Use
+  // |terminating_flow_ids|.
+  repeated uint64 terminating_flow_ids_old = 42 [deprecated = true];
+  // TODO(b/204341740): replace "terminating_flow_ids_old" with
+  // "terminating_flow_ids" to reduce memory consumption.
+  repeated fixed64 terminating_flow_ids = 48;
 
   // ---------------------------------------------------------------------------
   // TrackEvent arguments:
