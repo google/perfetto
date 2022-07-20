@@ -180,6 +180,7 @@ source_set("storage_minimal") {
     "util:gzip",
     "util:interned_message_view",
     "util:proto_to_args_parser",
+    "util:stack_traces_util",
     "views",
   ]
   public_deps = [
