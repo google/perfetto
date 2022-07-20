@@ -45,6 +45,17 @@ source_set("gzip") {
   }
 }
 
+source_set("stack_traces_util") {
+  sources = [
+    "stack_traces_util.cc",
+    "stack_traces_util.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base:base",
+  ]
+}
+
 source_set("protozero_to_text") {
   sources = [
     "protozero_to_text.cc",
