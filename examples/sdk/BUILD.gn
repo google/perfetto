@@ -38,3 +38,14 @@ executable("example_custom_data_source") {
     "../../src/base",
   ]
 }
+
+executable("example_startup_trace") {
+  sources = [ "example_startup_trace.cc" ]
+  defines = [ "PERFETTO_SDK_EXAMPLE_USE_INTERNAL_HEADERS" ]
+  testonly = true
+  deps = [
+    "../..:libperfetto_client_experimental",
+    "../../gn:default_deps",
+    "../../src/base",
+  ]
+}
