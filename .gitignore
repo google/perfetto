@@ -30,3 +30,4 @@
 perf.data*
 TAGS
 /*.pftrace
+examples/sdk/build/
