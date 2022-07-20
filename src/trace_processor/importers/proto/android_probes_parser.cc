@@ -24,6 +24,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/proto/async_track_set_tracker.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -33,6 +34,7 @@
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/android/android_game_intervention_list.pbzero.h"
 #include "protos/perfetto/trace/android/android_log.pbzero.h"
+#include "protos/perfetto/trace/android/android_system_property.pbzero.h"
 #include "protos/perfetto/trace/android/initial_display_state.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/power/battery_counters.pbzero.h"
@@ -54,7 +56,8 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
       batt_current_id_(context->storage->InternString("batt.current_ua")),
       batt_current_avg_id_(
           context->storage->InternString("batt.current.avg_ua")),
-      screen_state_id_(context->storage->InternString("ScreenState")) {}
+      screen_state_id_(context->storage->InternString("ScreenState")),
+      device_state_id_(context->storage->InternString("DeviceStateChanged")) {}
 
 void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   protos::pbzero::BatteryCounters::Decoder evt(blob.data, blob.size);
@@ -307,6 +310,34 @@ void AndroidProbesParser::ParseInitialDisplayState(int64_t ts,
   TrackId track =
       context_->track_tracker->InternGlobalCounterTrack(screen_state_id_);
   context_->event_tracker->PushCounter(ts, state.display_state(), track);
+}
+
+void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
+                                                     ConstBytes blob) {
+  protos::pbzero::AndroidSystemProperty::Decoder properties(blob.data,
+                                                            blob.size);
+  for (auto it = properties.values(); it; ++it) {
+    protos::pbzero::AndroidSystemProperty::PropertyValue::Decoder kv(*it);
+    if (base::StringView(kv.name()) == "debug.tracing.screen_state") {
+      base::Optional<int32_t> state =
+          base::StringToInt32(kv.value().ToStdString());
+      if (state) {
+        TrackId track =
+            context_->track_tracker->InternGlobalCounterTrack(screen_state_id_);
+        context_->event_tracker->PushCounter(ts, *state, track);
+      }
+    } else if (base::StringView(kv.name()) == "debug.tracing.device_state") {
+      auto state = kv.value();
+
+      StringId state_id = context_->storage->InternString(state);
+      auto track_set_id =
+          context_->async_track_set_tracker->InternGlobalTrackSet(
+              device_state_id_);
+      TrackId track_id =
+          context_->async_track_set_tracker->Scoped(track_set_id, ts, 0);
+      context_->slice_tracker->Scoped(ts, track_id, kNullStringId, state_id, 0);
+    }
+  }
 }
 
 }  // namespace trace_processor
