@@ -225,9 +225,16 @@ void SystraceParser::ParseSystracePoint(
       StringId track_name_id = context_->storage->InternString(point.str_value);
       UniquePid upid =
           context_->process_tracker->GetOrCreateProcess(point.tgid);
-      auto track_set_id =
-          context_->async_track_set_tracker->InternProcessTrackSet(
-              upid, track_name_id);
+
+      // Promote DeviceStateChanged to its own top level track.
+      AsyncTrackSetTracker::TrackSetId track_set_id;
+      if (point.str_value == "DeviceStateChanged") {
+        track_set_id = context_->async_track_set_tracker->InternGlobalTrackSet(
+            track_name_id);
+      } else {
+        track_set_id = context_->async_track_set_tracker->InternProcessTrackSet(
+            upid, track_name_id);
+      }
 
       if (point.phase == 'N') {
         TrackId track_id =
