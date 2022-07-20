@@ -28,6 +28,7 @@ source_set("storage_minimal") {
     "../../storage",
     "../../tables",
     "../../types",
+    "../../util:stack_traces_util",
     "../common",
   ]
 }
