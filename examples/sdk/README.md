@@ -26,6 +26,11 @@ cmake -B build
 cmake --build build
 ```
 
+Note: If amalgamated source files are not present, generate them using
+`cd perfetto ; tools/gen_amalgamated --output sdk/perfetto`.
+[Learn more](https://perfetto.dev/docs/contributing/sdk-releasing#building-and-tagging-the-release)
+at the release section.
+
 ## Track event example
 
 The [basic example](example.cc) shows how to instrument an app with track
