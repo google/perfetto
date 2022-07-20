@@ -262,7 +262,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       cros_ec_arg_ec_id_(context->storage->InternString("ec_delta")),
       cros_ec_arg_sample_ts_id_(context->storage->InternString("sample_ts")),
       ufs_clkgating_id_(context->storage->InternString(
-          "UFS clkgating (OFF/REQ_OFF/REQ_ON/ON)")),
+          "io.ufs.clkgating (OFF:0/REQ_OFF/REQ_ON/ON:3)")),
       ufs_command_count_id_(
           context->storage->InternString("io.ufs.command.count")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
