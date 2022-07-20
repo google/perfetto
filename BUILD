@@ -1494,6 +1494,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:stack_traces_util
+perfetto_filegroup(
+    name = "src_trace_processor_util_stack_traces_util",
+    srcs = [
+        "src/trace_processor/util/stack_traces_util.cc",
+        "src/trace_processor/util/stack_traces_util.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:util
 perfetto_filegroup(
     name = "src_trace_processor_util_util",
@@ -4042,6 +4051,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
+        ":src_trace_processor_util_stack_traces_util",
         ":src_trace_processor_util_util",
         ":src_trace_processor_views_views",
     ],
@@ -4157,6 +4167,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
+        ":src_trace_processor_util_stack_traces_util",
         ":src_trace_processor_util_util",
         ":src_trace_processor_views_views",
         "src/trace_processor/trace_processor_shell.cc",
@@ -4228,6 +4239,7 @@ perfetto_cc_library(
         ":src_profiling_deobfuscator",
         ":src_profiling_symbolizer_symbolize_database",
         ":src_profiling_symbolizer_symbolizer",
+        ":src_trace_processor_util_stack_traces_util",
         ":src_traceconv_pprofbuilder",
         ":src_traceconv_utils",
     ],
@@ -4327,6 +4339,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
+        ":src_trace_processor_util_stack_traces_util",
         ":src_trace_processor_util_util",
         ":src_trace_processor_views_views",
         ":src_traceconv_lib",
