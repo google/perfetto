@@ -1086,6 +1086,10 @@ void PerfProducer::OnConnect() {
     desc.set_name(MetatraceWriter::kDataSourceName);
     endpoint_->RegisterDataSource(desc);
   }
+  // Used by tracebox to synchronize with traced_probes being registered.
+  if (all_data_sources_registered_cb_) {
+    endpoint_->Sync(all_data_sources_registered_cb_);
+  }
 }
 
 void PerfProducer::OnDisconnect() {
