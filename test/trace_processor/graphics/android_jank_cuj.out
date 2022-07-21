@@ -15,6 +15,7 @@ android_jank_cuj {
       dur: 16000000
       app_missed: false
       sf_missed: false
+      dur_expected: 16000000
     }
     frame {
       frame_number: 2
@@ -23,6 +24,7 @@ android_jank_cuj {
       dur: 28000000
       app_missed: true
       sf_missed: true
+      dur_expected: 20000000
     }
     frame {
       frame_number: 3
@@ -31,6 +33,7 @@ android_jank_cuj {
       dur: 25000000
       app_missed: true
       sf_missed: false
+      dur_expected: 20000000
     }
     frame {
       frame_number: 4
@@ -39,6 +42,7 @@ android_jank_cuj {
       dur: 40000000
       app_missed: true
       sf_missed: false
+      dur_expected: 20000000
     }
     frame {
       frame_number: 5
@@ -47,6 +51,7 @@ android_jank_cuj {
       dur: 20000000
       app_missed: true
       sf_missed: false
+      dur_expected: 20000000
     }
     frame {
       frame_number: 6
@@ -55,6 +60,7 @@ android_jank_cuj {
       dur: 23000000
       app_missed: true
       sf_missed: false
+      dur_expected: 20000000
     }
     counter_metrics {
       total_frames: 6
@@ -104,6 +110,7 @@ android_jank_cuj {
       dur: 16000000
       app_missed: false
       sf_missed: false
+      dur_expected: 16000000
     }
     frame {
       frame_number: 2
@@ -112,6 +119,7 @@ android_jank_cuj {
       dur: 28000000
       app_missed: true
       sf_missed: true
+      dur_expected: 20000000
     }
     frame {
       frame_number: 3
@@ -120,6 +128,7 @@ android_jank_cuj {
       dur: 25000000
       app_missed: true
       sf_missed: false
+      dur_expected: 20000000
     }
     frame {
       frame_number: 4
@@ -128,6 +137,7 @@ android_jank_cuj {
       dur: 40000000
       app_missed: true
       sf_missed: false
+      dur_expected: 20000000
     }
     frame {
       frame_number: 5
@@ -136,6 +146,7 @@ android_jank_cuj {
       dur: 20000000
       app_missed: true
       sf_missed: false
+      dur_expected: 20000000
     }
     frame {
       frame_number: 6
@@ -144,6 +155,7 @@ android_jank_cuj {
       dur: 23000000
       app_missed: true
       sf_missed: false
+      dur_expected: 20000000
     }
     frame {
       frame_number: 7
@@ -152,6 +164,7 @@ android_jank_cuj {
       dur: 22000000
       app_missed: false
       sf_missed: true
+      dur_expected: 20000000
     }
     frame {
       frame_number: 8
@@ -160,6 +173,7 @@ android_jank_cuj {
       dur: 61000000
       app_missed: false
       sf_missed: false
+      dur_expected: 20000000
     }
     frame {
       frame_number: 9
@@ -168,6 +182,7 @@ android_jank_cuj {
       dur: 61000000
       app_missed: false
       sf_missed: false
+      dur_expected: 20000000
     }
     frame {
       frame_number: 10
@@ -176,6 +191,7 @@ android_jank_cuj {
       dur: 56000000
       app_missed: true
       sf_missed: false
+      dur_expected: 20000000
     }
     frame {
       frame_number: 11
@@ -184,6 +200,7 @@ android_jank_cuj {
       dur: 25600000
       app_missed: true
       sf_missed: false
+      dur_expected: 20000000
     }
     frame {
       frame_number: 12
@@ -192,6 +209,7 @@ android_jank_cuj {
       dur: 15000000
       app_missed: false
       sf_missed: false
+      dur_expected: 20000000
     }
     counter_metrics {
       total_frames: 12

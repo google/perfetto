@@ -678,6 +678,7 @@ message AndroidIrqRuntimeMetric {
 message AndroidJankCujMetric {
   repeated Cuj cuj = 1;
 
+  // Next id: 10
   message Cuj {
     // ID of the CUJ that is unique within the trace.
     optional int32 id = 1;
@@ -709,6 +710,7 @@ message AndroidJankCujMetric {
     optional Metrics trace_metrics = 9;
   }
 
+  // Next id: 8
   message Frame {
     // Index of the frame within the single user journey.
     optional int64 frame_number = 1;
@@ -718,6 +720,7 @@ message AndroidJankCujMetric {
 
     optional int64 ts = 3;
     optional int64 dur = 4;
+    optional int64 dur_expected = 7;
 
     // Whether the app process missed the frame deadline.
     optional bool app_missed = 5;
@@ -726,6 +729,7 @@ message AndroidJankCujMetric {
     optional bool sf_missed = 6;
   }
 
+  // Next id: 12
   message Metrics {
     // Overall number of frames within the CUJ.
     optional int64 total_frames = 1;
