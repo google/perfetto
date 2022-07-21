@@ -1,6 +1,7 @@
 Unreleased:
   Tracing service and probes:
     * Add android.statsd datasource.
+    * Removed log spam about sys.trace.traced_started in standalone builds.
   Trace Processor:
     * Deprecate calling NotifyEndOfFile more than once: Flush should instead be
       used for all but the final call.
