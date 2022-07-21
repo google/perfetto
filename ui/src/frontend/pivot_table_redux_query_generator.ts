@@ -243,7 +243,7 @@ export function aggregationIndex(
 export function generateQueryFromState(
     state: PivotTableReduxState,
     ): PivotTableReduxQuery {
-  if (state.selectionArea === null) {
+  if (state.selectionArea === undefined) {
     throw new QueryGeneratorError('Should not be called without area');
   }
   return generateQuery(

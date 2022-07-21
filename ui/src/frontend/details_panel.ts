@@ -320,7 +320,7 @@ export class DetailsPanel implements m.ClassComponent {
 
 
     if (globals.state.nonSerializableState.pivotTableRedux.selectionArea !==
-        null) {
+        undefined) {
       detailsPanels.push({
         key: 'pivot_table_redux',
         name: 'Pivot Table',
