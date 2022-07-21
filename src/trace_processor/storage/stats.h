@@ -185,6 +185,10 @@ namespace stats {
        "Time (us) the heapprofd client was blocked on the spinlock."),         \
   F(heapprofd_last_profile_timestamp,   kIndexed, kInfo,     kTrace,           \
        "The timestamp (in trace time) for the last dump for a process"),       \
+  F(symbolization_tmp_build_id_not_found,   kSingle,  kError,    kAnalysis,    \
+       "Number of file mappings in /data/local/tmp without a build id. "       \
+       "Symbolization doesn't work for executables in /data/local/tmp "        \
+       "because of SELinux. Please use /data/local/tests"),                    \
   F(metatrace_overruns,                 kSingle,  kError,    kTrace,    ""),   \
   F(packages_list_has_parse_errors,     kSingle,  kError,    kTrace,    ""),   \
   F(packages_list_has_read_errors,      kSingle,  kError,    kTrace,    ""),   \
