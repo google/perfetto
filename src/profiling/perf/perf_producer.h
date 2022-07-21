@@ -96,6 +96,11 @@ class PerfProducer : public Producer,
                                      ParsedSample sample) override;
   void PostFinishDataSourceStop(DataSourceInstanceID ds_id) override;
 
+  // Calls `cb` when all data sources have been registered.
+  void SetAllDataSourcesRegisteredCb(std::function<void()> cb) {
+    all_data_sources_registered_cb_ = cb;
+  }
+
  private:
   // State of the producer's connection to tracing service (traced).
   enum State {
@@ -260,6 +265,8 @@ class PerfProducer : public Producer,
   // Used for tracepoint name -> id lookups. Initialized lazily, and in general
   // best effort - can be null if tracefs isn't accessible.
   std::unique_ptr<FtraceProcfs> tracefs_;
+
+  std::function<void()> all_data_sources_registered_cb_;
 
   base::WeakPtrFactory<PerfProducer> weak_factory_;  // keep last
 };
