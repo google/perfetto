@@ -5197,17 +5197,13 @@ class PerfettoStartupTracingApiTest : public PerfettoApiTest {
     ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
 
     opts.backend = GetParam();
-    session_ = perfetto::Tracing::SetupStartupTracing(cfg, opts);
-    // TODO(mohitms): Once we add support for SetupStartupTracingBlocking
-    // we won't need perfetto::test::SyncProducers(). Currently we need
-    // to Round-trip to ensure that the muxer has enabled startup tracing.
-    perfetto::test::SyncProducers();
-    // Emit an event before the session is really started by the consumer.
+    session_ =
+        perfetto::Tracing::SetupStartupTracingBlocking(cfg, std::move(opts));
     EXPECT_EQ(TRACE_EVENT_CATEGORY_ENABLED("test"), true);
   }
 
   void AbortStartupTracing() {
-    session_->Abort();
+    session_->AbortBlocking();
     session_.reset();
   }
 
@@ -5225,9 +5221,47 @@ class PerfettoStartupTracingApiTest : public PerfettoApiTest {
     // tests. hence we don't need to run it again here.
   }
 
- private:
+ protected:
   std::unique_ptr<perfetto::StartupTracingSession> session_;
 };
+
+// Test `SetupStartupTracing` API (non block version).
+TEST_P(PerfettoStartupTracingApiTest, NonBlockingAPI) {
+  // Setup startup tracing in the current process.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+
+  perfetto::protos::gen::TrackEventConfig te_cfg;
+  te_cfg.add_disabled_categories("*");
+  te_cfg.add_enabled_categories("test");
+  ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
+
+  SetupStartupTracingOpts opts;
+  opts.backend = GetParam();
+  session_ = perfetto::Tracing::SetupStartupTracing(cfg, std::move(opts));
+  // We need perfetto::test::SyncProducers() to Round-trip to ensure that the
+  // muxer has enabled startup tracing.
+  perfetto::test::SyncProducers();
+  EXPECT_EQ(TRACE_EVENT_CATEGORY_ENABLED("test"), true);
+
+  TRACE_EVENT_BEGIN("test", "Event");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  // Emit another event after starting.
+  TRACE_EVENT_END("test");
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+  // Both events should be retained.
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(slices, ElementsAre("B:test.Event", "E"));
+}
 
 TEST_P(PerfettoStartupTracingApiTest, WithExistingSmb) {
   {

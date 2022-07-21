@@ -775,6 +775,20 @@ void TracingMuxerImpl::StartupTracingSessionImpl::Abort() {
   });
 }
 
+// Must not be called from the SDK's internal thread.
+void TracingMuxerImpl::StartupTracingSessionImpl::AbortBlocking() {
+  auto* muxer = muxer_;
+  auto session_id = session_id_;
+  auto backend_type = backend_type_;
+  PERFETTO_CHECK(!muxer->task_runner_->RunsTasksOnCurrentThread());
+  base::WaitableEvent event;
+  muxer->task_runner_->PostTask([muxer, session_id, backend_type, &event] {
+    muxer->AbortStartupTracingSession(session_id, backend_type);
+    event.Notify();
+  });
+  event.Wait();
+}
+
 // ----- End of TracingMuxerImpl::StartupTracingSessionImpl
 
 // static
@@ -2000,7 +2014,7 @@ std::unique_ptr<TracingSession> TracingMuxerImpl::CreateTracingSession(
 std::unique_ptr<StartupTracingSession>
 TracingMuxerImpl::CreateStartupTracingSession(
     const TraceConfig& config,
-    const Tracing::SetupStartupTracingOpts& opts) {
+    Tracing::SetupStartupTracingOpts opts) {
   BackendType backend_type = opts.backend;
   // |backend_type| can only specify one backend, not an OR-ed mask.
   PERFETTO_CHECK((backend_type & (backend_type - 1)) == 0);
@@ -2110,6 +2124,27 @@ TracingMuxerImpl::CreateStartupTracingSession(
 
   return std::unique_ptr<StartupTracingSession>(
       new StartupTracingSessionImpl(this, session_id, backend_type));
+}
+
+// Must not be called from the SDK's internal thread.
+std::unique_ptr<StartupTracingSession>
+TracingMuxerImpl::CreateStartupTracingSessionBlocking(
+    const TraceConfig& config,
+    Tracing::SetupStartupTracingOpts opts) {
+  auto previous_on_setup = std::move(opts.on_setup);
+  PERFETTO_CHECK(!task_runner_->RunsTasksOnCurrentThread());
+  base::WaitableEvent event;
+  // It is safe to capture by reference because once on_setup is called only
+  // once before this method returns.
+  opts.on_setup = [&](Tracing::OnStartupTracingSetupCallbackArgs args) {
+    if (previous_on_setup) {
+      previous_on_setup(std::move(args));
+    }
+    event.Notify();
+  };
+  auto session = CreateStartupTracingSession(config, std::move(opts));
+  event.Wait();
+  return session;
 }
 
 void TracingMuxerImpl::AbortStartupTracingSession(
