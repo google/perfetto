@@ -1,0 +1,171 @@
+packet {
+  clock_snapshot {
+    primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+    clocks {
+      clock_id: 6
+      timestamp: 62009635880088
+    }
+    clocks {
+      clock_id: 4
+      timestamp: 16144710445815
+    }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+}
+packet {
+  interned_data {
+    build_ids {
+      iid: 0
+      str: ""
+    }
+    mapping_paths {
+      iid: 0
+      str: ""
+    }
+    function_names {
+      iid: 0
+      str: ""
+    }
+  }
+  sequence_flags: 1
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 3
+  trusted_pid: 14809
+}
+packet {
+  profile_packet {
+    index: 0
+    process_dumps {
+      heap_name: "libc.malloc"
+      sampling_interval_bytes: 1
+      orig_sampling_interval_bytes: 1
+      samples {
+        callstack_id: 5
+        self_allocated: 4096
+        self_freed: 0
+        alloc_count: 1
+        free_count: 0
+      }
+      samples {
+        callstack_id: 3
+        self_allocated: 4096
+        self_freed: 4096
+        alloc_count: 1
+        free_count: 1
+      }
+    }
+  }
+  interned_data {
+    mapping_paths {
+      iid: 3
+      str: "apex"
+    }
+    mapping_paths {
+      iid: 4
+      str: "com.android.runtime"
+    }
+    mapping_paths {
+      iid: 5
+      str: "lib64"
+    }
+    mapping_paths {
+      iid: 6
+      str: "bionic"
+    }
+    mapping_paths {
+      iid: 7
+      str: "libc.so"
+    }
+    build_ids {
+      iid: 2
+      str: "\335\234\322\001?\331\324E\033\037\217R\260\320\336\355"
+    }
+    mappings {
+      iid: 2
+      exact_offset: 249856
+      start_offset: 0
+      start: 488590266368
+      end: 488590811136
+      load_bias: 0
+      build_id: 2
+      path_string_ids: 3
+      path_string_ids: 4
+      path_string_ids: 5
+      path_string_ids: 6
+      path_string_ids: 7
+    }
+    function_names {
+      iid: 8
+      str: "malloc"
+    }
+    frames {
+      iid: 2
+      function_name_id: 8
+      mapping_id: 2
+      rel_pc: 254632
+    }
+    mapping_paths {
+      iid: 9
+      str: "data"
+    }
+    mapping_paths {
+      iid: 10
+      str: "local"
+    }
+    mapping_paths {
+      iid: 11
+      str: "tmp"
+    }
+    mapping_paths {
+      iid: 12
+      str: "mallocer"
+    }
+    build_ids {
+      iid: 1
+      str: "" # Build id for /data/local/tmp/mallocer is empty!
+    }
+    mappings {
+      iid: 3
+      exact_offset: 4096
+      start_offset: 0
+      start: 418850668544
+      end: 418850672640
+      load_bias: 0
+      build_id: 1
+      path_string_ids: 9
+      path_string_ids: 10
+      path_string_ids: 11
+      path_string_ids: 12
+    }
+    function_names {
+      iid: 1
+      str: ""
+    }
+    frames {
+      iid: 4
+      function_name_id: 1
+      mapping_id: 3
+      rel_pc: 4476
+    }
+    callstacks {
+      iid: 5
+      frame_ids: 4
+      frame_ids: 2
+    }
+    frames {
+      iid: 3
+      function_name_id: 1
+      mapping_id: 3
+      rel_pc: 4440
+    }
+    callstacks {
+      iid: 3
+      frame_ids: 3
+      frame_ids: 2
+    }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 3
+  trusted_pid: 14809
+}
