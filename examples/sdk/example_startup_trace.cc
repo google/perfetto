@@ -40,45 +40,11 @@
 
 namespace {
 
-class EventObserver {
- public:
-  // Wait until OnEvent is ever called.
-  // Returns immediately if OnEvent was already called.
-  void Wait() {
-    std::unique_lock<std::mutex> lock(mutex);
-    cv.wait(lock, [&]() { return event_occurred_; });
-  }
-  void OnEvent() {
-    {
-      std::unique_lock<std::mutex> lock(mutex);
-      event_occurred_ = true;
-    }
-    cv.notify_all();
-  }
-  EventObserver() = default;
-
- private:
-  EventObserver(const EventObserver&) = delete;
-  EventObserver& operator=(const EventObserver&) = delete;
-
-  std::mutex mutex;
-  std::condition_variable cv;
-  bool event_occurred_ = false;
-};
-
 // The definition of our custom data source. Instances of this class will be
 // automatically created and destroyed by Perfetto.
-class CustomDataSource : public perfetto::DataSource<CustomDataSource> {
- public:
-  CustomDataSource(EventObserver* event_observer)
-      : event_observer_(event_observer) {}
-  void OnStart(const StartArgs&) override { event_observer_->OnEvent(); }
+class CustomDataSource : public perfetto::DataSource<CustomDataSource> {};
 
- private:
-  EventObserver* event_observer_;
-};
-
-void InitializePerfetto(EventObserver* event_observer) {
+void InitializePerfetto() {
   perfetto::TracingInitArgs args;
   // The backends determine where trace events are recorded. For this example we
   // are going to use the system-wide tracing service, because the in-process
@@ -90,7 +56,7 @@ void InitializePerfetto(EventObserver* event_observer) {
   // properties can be advertised too.
   perfetto::DataSourceDescriptor dsd;
   dsd.set_name("com.example.startup_trace");
-  CustomDataSource::Register(dsd, event_observer);
+  CustomDataSource::Register(dsd);
 }
 
 // The trace config defines which types of data sources are enabled for
@@ -106,7 +72,7 @@ perfetto::TraceConfig GetTraceConfig() {
 void StartStartupTracing() {
   perfetto::Tracing::SetupStartupTracingOpts args;
   args.backend = perfetto::kSystemBackend;
-  perfetto::Tracing::SetupStartupTracing(GetTraceConfig(), args);
+  perfetto::Tracing::SetupStartupTracingBlocking(GetTraceConfig(), args);
 }
 
 std::unique_ptr<perfetto::TracingSession> StartTracing() {
@@ -145,13 +111,9 @@ PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(CustomDataSource);
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(CustomDataSource);
 
 int main(int, const char**) {
-  EventObserver event_observer;
-  InitializePerfetto(&event_observer);
+  InitializePerfetto();
 
   StartStartupTracing();
-  // TODO(mohitms): Once we support `SetupStartupTracingBlocking`,
-  // it won't be required.
-  event_observer.Wait();
 
   // Write an event using our custom data source before starting tracing
   // session.

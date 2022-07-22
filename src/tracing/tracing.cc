@@ -96,9 +96,17 @@ std::unique_ptr<TracingSession> Tracing::NewTrace(BackendType backend) {
 //  static
 std::unique_ptr<StartupTracingSession> Tracing::SetupStartupTracing(
     const TraceConfig& config,
-    const Tracing::SetupStartupTracingOpts& opts) {
+    Tracing::SetupStartupTracingOpts opts) {
   return static_cast<internal::TracingMuxerImpl*>(internal::TracingMuxer::Get())
-      ->CreateStartupTracingSession(config, opts);
+      ->CreateStartupTracingSession(config, std::move(opts));
+}
+
+//  static
+std::unique_ptr<StartupTracingSession> Tracing::SetupStartupTracingBlocking(
+    const TraceConfig& config,
+    Tracing::SetupStartupTracingOpts opts) {
+  return static_cast<internal::TracingMuxerImpl*>(internal::TracingMuxer::Get())
+      ->CreateStartupTracingSessionBlocking(config, std::move(opts));
 }
 
 TracingSession::~TracingSession() = default;
