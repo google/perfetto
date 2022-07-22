@@ -27,6 +27,7 @@
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/root_message.h"
+#include "perfetto/protozero/static_buffer.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -57,7 +58,7 @@ TraceWriterImpl::TraceWriterImpl(SharedMemoryArbiterImpl* shmem_arbiter,
   PERFETTO_CHECK(id_ != 0);
 
   cur_packet_.reset(new protozero::RootMessage<protos::pbzero::TracePacket>());
-  cur_packet_->Finalize();  // To avoid the DCHECK in NewTracePacket().
+  cur_packet_->Finalize();  // To avoid the CHECK in NewTracePacket().
 }
 
 TraceWriterImpl::~TraceWriterImpl() {
@@ -302,10 +303,9 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
     // Descend in the stack of non-finalized nested submessages (if any) and
     // detour their |size_field| into the |patch_list_|. At this point we have
     // to release the chunk and they cannot write anymore into that.
-    bool chunk_needs_patching = false;
     for (auto* nested_msg = cur_packet_->nested_message(); nested_msg;
          nested_msg = nested_msg->nested_message()) {
-      uint8_t* const cur_hdr = nested_msg->size_field();
+      uint8_t* cur_hdr = nested_msg->size_field();
 
       // If this is false the protozero Message has already been instructed to
       // write, upon Finalize(), its size into the patch list.
@@ -314,13 +314,8 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
           cur_hdr + kMessageLengthFieldSize <= cur_chunk_.end();
 
       if (size_field_points_within_chunk) {
-        auto offset =
-            static_cast<uint16_t>(cur_hdr - cur_chunk_.payload_begin());
-        const ChunkID cur_chunk_id =
-            cur_chunk_.header()->chunk_id.load(std::memory_order_relaxed);
-        Patch* patch = patch_list_.emplace_back(cur_chunk_id, offset);
-        nested_msg->set_size_field(&patch->size_field[0]);
-        chunk_needs_patching = true;
+        cur_hdr = TraceWriterImpl::AnnotatePatch(cur_hdr);
+        nested_msg->set_size_field(cur_hdr);
       } else {
 #if PERFETTO_DCHECK_IS_ON()
         // Ensure that the size field of the message points to an element of the
@@ -331,11 +326,8 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
         PERFETTO_DCHECK(patch_it != patch_list_.end());
 #endif
       }
-    }  // for(nested_msg
-
-    if (chunk_needs_patching)
-      cur_chunk_.SetFlag(ChunkHeader::kChunkNeedsPatching);
-  }  // if(fragmenting_packet)
+    }  // for(nested_msg)
+  }    // if(fragmenting_packet)
 
   if (cur_chunk_.is_valid()) {
     // ReturnCompletedChunk will consume the first patched entries from
@@ -362,6 +354,55 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
   }
 
   return protozero::ContiguousMemoryRange{payload_begin, cur_chunk_.end()};
+}
+
+void TraceWriterImpl::FinishTracePacket() {
+  // If we hit this, this trace writer was created in a different process. This
+  // likely means that the process forked while tracing was active, and the
+  // forked child process tried to emit a trace event. This is not supported, as
+  // it would lead to two processes writing to the same tracing SMB.
+  PERFETTO_DCHECK(process_id_ == base::GetProcessId());
+
+  // If the caller uses TakeStreamWriter(), cur_packet_->size() is not up to
+  // date, only the stream writer knows the exact size.
+  // cur_packet_->size_field() is still used to store the start of the fragment.
+  if (cur_packet_->size_field()) {
+    uint8_t* const wptr = protobuf_stream_writer_.write_ptr();
+    PERFETTO_DCHECK(wptr >= cur_fragment_start_);
+    uint32_t partial_size = static_cast<uint32_t>(wptr - cur_fragment_start_);
+
+    WriteRedundantVarInt(partial_size, last_packet_size_field_);
+  }
+
+  cur_packet_->Reset(&protobuf_stream_writer_);
+  cur_packet_->Finalize();  // To avoid the CHECK in NewTracePacket().
+
+  // Send any completed patches to the service to facilitate trace data
+  // recovery by the service. This should only happen when we're completing
+  // the first packet in a chunk which was a continuation from the previous
+  // chunk, i.e. at most once per chunk.
+  if (!patch_list_.empty() && patch_list_.front().is_patched()) {
+    shmem_arbiter_->SendPatches(id_, target_buffer_, &patch_list_);
+  }
+}
+
+uint8_t* TraceWriterImpl::AnnotatePatch(uint8_t* to_patch) {
+  if (!cur_chunk_.is_valid()) {
+    return nullptr;
+  }
+  auto offset = static_cast<uint16_t>(to_patch - cur_chunk_.payload_begin());
+  const ChunkID cur_chunk_id =
+      cur_chunk_.header()->chunk_id.load(std::memory_order_relaxed);
+  static_assert(kPatchSize == sizeof(Patch::PatchContent),
+                "Patch size mismatch");
+  Patch* patch = patch_list_.emplace_back(cur_chunk_id, offset);
+  // Check that the flag is not already set before setting it. This is not
+  // necessary, but it makes the code faster.
+  if (!(cur_chunk_.GetPacketCountAndFlags().second &
+        ChunkHeader::kChunkNeedsPatching)) {
+    cur_chunk_.SetFlag(ChunkHeader::kChunkNeedsPatching);
+  }
+  return &patch->size_field[0];
 }
 
 WriterID TraceWriterImpl::writer_id() const {
