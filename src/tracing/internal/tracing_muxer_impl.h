@@ -130,7 +130,10 @@ class TracingMuxerImpl : public TracingMuxer {
   std::unique_ptr<TracingSession> CreateTracingSession(BackendType);
   std::unique_ptr<StartupTracingSession> CreateStartupTracingSession(
       const TraceConfig& config,
-      const Tracing::SetupStartupTracingOpts&);
+      Tracing::SetupStartupTracingOpts);
+  std::unique_ptr<StartupTracingSession> CreateStartupTracingSessionBlocking(
+      const TraceConfig& config,
+      Tracing::SetupStartupTracingOpts);
 
   // Producer-side bookkeeping methods.
   void UpdateDataSourcesOnAllBackends();
@@ -382,6 +385,7 @@ class TracingMuxerImpl : public TracingMuxer {
                               BackendType);
     ~StartupTracingSessionImpl() override;
     void Abort() override;
+    void AbortBlocking() override;
 
    private:
     TracingMuxerImpl* const muxer_;

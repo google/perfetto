@@ -244,11 +244,18 @@ class PERFETTO_EXPORT_COMPONENT Tracing {
     // backend.
     std::function<void()> on_adopted;
   };
-  // TODO(mohitms): Add a blocking version of this method, so callers can
-  // ensure that tracing is active before proceeding with app startup.
+
   static std::unique_ptr<StartupTracingSession> SetupStartupTracing(
       const TraceConfig& config,
-      const SetupStartupTracingOpts&);
+      SetupStartupTracingOpts);
+
+  // Blocking version of above method, so callers can ensure that tracing is
+  // active before proceeding with app startup. Calls into
+  // DataSource::Trace() or trace macros right after this method are written
+  // into the startup session.
+  static std::unique_ptr<StartupTracingSession> SetupStartupTracingBlocking(
+      const TraceConfig& config,
+      SetupStartupTracingOpts);
 
  private:
   static void InitializeInternal(const TracingInitArgs&);
@@ -431,6 +438,11 @@ class PERFETTO_EXPORT_COMPONENT StartupTracingSession {
   // this startup tracing session. Does not affect data source instances that
   // were already bound to a service-controlled session.
   virtual void Abort() = 0;
+
+  // Same as above, but blocks the current thread until aborted.
+  // Note some of the internal (non observable from public APIs) cleanup might
+  // be done even after this method returns.
+  virtual void AbortBlocking() = 0;
 };
 
 }  // namespace perfetto
