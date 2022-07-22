@@ -38,6 +38,7 @@ class InterceptorTraceWriter : public TraceWriterBase {
   // TraceWriterBase implementation.
   protozero::MessageHandle<protos::pbzero::TracePacket> NewTracePacket()
       override;
+  void FinishTracePacket() override;
   void Flush(std::function<void()> callback = {}) override;
   uint64_t written() const override;
 
