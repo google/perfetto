@@ -37,6 +37,7 @@ class TraceWriterForTesting : public TraceWriter {
   // TraceWriter implementation. See documentation in trace_writer.h.
   // TracePacketHandle is defined in trace_writer.h
   TracePacketHandle NewTracePacket() override;
+  void FinishTracePacket() override;
   void Flush(std::function<void()> callback = {}) override;
 
   std::vector<protos::gen::TracePacket> GetAllTracePackets();
@@ -54,8 +55,18 @@ class TraceWriterForTesting : public TraceWriter {
 
   // The packet returned via NewTracePacket(). Its owned by this class,
   // TracePacketHandle has just a pointer to it.
+  //
+  // The caller of NewTracePacket can use TakeStreamWriter() and use the stream
+  // writer directly: in that case:
+  // * cur_packet_->size() is not up to date. Only the stream writer has the
+  //   correct information.
+  // * cur_packet_->nested_message() is always nullptr.
+  // * cur_packet_->size_field() is still used to track the start of the current
+  //   packet.
   std::unique_ptr<protozero::RootMessage<protos::pbzero::TracePacket>>
       cur_packet_;
+
+  size_t cur_packet_written_start_ = 0;
 };
 
 }  // namespace perfetto
