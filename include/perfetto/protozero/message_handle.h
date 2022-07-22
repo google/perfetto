@@ -21,6 +21,7 @@
 
 #include "perfetto/base/export.h"
 #include "perfetto/protozero/message.h"
+#include "perfetto/protozero/scattered_stream_writer.h"
 
 namespace protozero {
 
@@ -49,6 +50,20 @@ class PERFETTO_EXPORT_COMPONENT MessageHandleBase {
     PERFETTO_DCHECK(!message_ || generation_ == message_->generation_);
 #endif
     return !!message_;
+  }
+
+  // Returns a (non-owned, it should not be deleted) pointer to the
+  // ScatteredStreamWriter used to write the message data. The Message becomes
+  // unusable after this point.
+  //
+  // The caller can now write directly, without using protozero::Message.
+  ScatteredStreamWriter* TakeStreamWriter() {
+    ScatteredStreamWriter* stream_writer = message_->stream_writer_;
+#if PERFETTO_DCHECK_IS_ON()
+    message_->set_handle(nullptr);
+#endif
+    message_ = nullptr;
+    return stream_writer;
   }
 
  protected:

@@ -47,6 +47,10 @@ NullTraceWriter::TracePacketHandle NullTraceWriter::NewTracePacket() {
   return TraceWriter::TracePacketHandle(cur_packet_.get());
 }
 
+void NullTraceWriter::FinishTracePacket() {
+  cur_packet_->Finalize();
+}
+
 WriterID NullTraceWriter::writer_id() const {
   return 0;
 }

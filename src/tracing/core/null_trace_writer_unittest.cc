@@ -18,6 +18,8 @@
 
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "perfetto/protozero/scattered_stream_writer.h"
+#include "src/base/test/utils.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/test_event.pbzero.h"
@@ -31,11 +33,35 @@ TEST(NullTraceWriterTest, WriterIdIsZero) {
   EXPECT_EQ(writer.writer_id(), 0);
 }
 
-TEST(NullTraceWriterTest, Writing) {
+TEST(NullTraceWriterTest, NewTracePacket) {
   NullTraceWriter writer;
   for (size_t i = 0; i < 10000; i++) {
     auto packet = writer.NewTracePacket();
     packet->set_for_testing()->set_str("Hello, world!");
+  }
+}
+
+#if defined(GTEST_HAS_DEATH_TEST)
+TEST(NullTraceWriterDeathTest, NewTracePacketTakeStreamWriterNoFinish) {
+  NullTraceWriter writer;
+  auto trace_packet_handle = writer.NewTracePacket();
+  protozero::ScatteredStreamWriter* ss = trace_packet_handle.TakeStreamWriter();
+  const uint8_t payload[] = {'I', 'g', 'n', 'o', 'r', 'e', 'd'};
+  ss->WriteBytes(payload, sizeof payload);
+
+  EXPECT_DCHECK_DEATH(writer.NewTracePacket(););
+}
+#endif  // defined(GTEST_HAS_DEATH_TEST)
+
+TEST(NullTraceWriterTest, NewTracePacketTakeStreamWriterWithFinish) {
+  NullTraceWriter writer;
+  for (size_t i = 0; i < 10000; i++) {
+    auto trace_packet_handle = writer.NewTracePacket();
+    protozero::ScatteredStreamWriter* ss =
+        trace_packet_handle.TakeStreamWriter();
+    const uint8_t payload[] = {'I', 'g', 'n', 'o', 'r', 'e', 'd'};
+    ss->WriteBytes(payload, sizeof payload);
+    writer.FinishTracePacket();
   }
 }
 
