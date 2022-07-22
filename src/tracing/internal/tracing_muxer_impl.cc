@@ -2046,7 +2046,7 @@ TracingMuxerImpl::CreateStartupTracingSession(
           return;
         }
 
-        PERFETTO_DLOG("Reconnecting backend %ld for startup tracing",
+        PERFETTO_DLOG("Reconnecting backend %zu for startup tracing",
                       backend_id);
         backend.producer_conn_args.use_producer_provided_smb = true;
         backend.producer->service_->Disconnect();  // Causes a reconnect.
