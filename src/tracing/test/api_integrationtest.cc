@@ -764,20 +764,6 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
         slice += ")";
       }
 
-      if (track_event.flow_ids_old_size()) {
-        slice += "(flow_ids_old=";
-        std::stringstream value;
-        bool first_annotation = true;
-        for (uint64_t id : track_event.flow_ids_old()) {
-          if (!first_annotation) {
-            value << ",";
-          }
-          first_annotation = false;
-          value << id;
-        }
-        slice += value.str() + ")";
-      }
-
       if (track_event.flow_ids_size()) {
         slice += "(flow_ids=";
         std::stringstream value;
@@ -788,20 +774,6 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
           }
           first_annotation = false;
           value << id;
-        }
-        slice += value.str() + ")";
-      }
-
-      if (track_event.terminating_flow_ids_old_size()) {
-        slice += "(terminating_flow_ids_old=";
-        std::stringstream value;
-        bool first_annotation = true;
-        for (uint64_t id : track_event.terminating_flow_ids_old()) {
-          if (!first_annotation) {
-            value << ",";
-          }
-          value << id;
-          first_annotation = false;
         }
         slice += value.str() + ")";
       }
@@ -2165,11 +2137,8 @@ TEST_P(PerfettoApiTest, InlineTrackEventTypedArgs_SimpleRepeated) {
   auto* tracing_session = NewTraceWithCategories({"foo"});
   tracing_session->get()->StartBlocking();
 
-  std::vector<uint64_t> flow_ids_old{1, 2, 3};
-  std::vector<uint64_t> flow_ids{4, 5, 6};
+  std::vector<uint64_t> flow_ids{1, 2, 3};
   TRACE_EVENT_BEGIN("foo", "EventWithTypedArg",
-                    perfetto::protos::pbzero::TrackEvent::kFlowIdsOld,
-                    flow_ids_old,
                     perfetto::protos::pbzero::TrackEvent::kFlowIds, flow_ids);
   TRACE_EVENT_END("foo");
 
@@ -2185,8 +2154,7 @@ TEST_P(PerfettoApiTest, InlineTrackEventTypedArgs_SimpleRepeated) {
       continue;
     }
 
-    EXPECT_THAT(track_event.flow_ids_old(), testing::ElementsAre(1u, 2u, 3u));
-    EXPECT_THAT(track_event.flow_ids(), testing::ElementsAre(4u, 5u, 6u));
+    EXPECT_THAT(track_event.flow_ids(), testing::ElementsAre(1u, 2u, 3u));
     found_args = true;
   }
   EXPECT_TRUE(found_args);
@@ -2542,7 +2510,6 @@ TEST_P(PerfettoApiTest, TrackEventArgs_Flow_Global) {
   CheckTypedArguments(
       raw_trace, "E1", perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
       [](const perfetto::protos::gen::TrackEvent& track_event) {
-        EXPECT_TRUE(track_event.flow_ids_old().empty());
         EXPECT_THAT(track_event.flow_ids(), testing::ElementsAre(42u));
       });
 }
@@ -2584,15 +2551,13 @@ TEST_P(PerfettoApiTest, TrackEventArgs_Flow_ProcessScoped) {
   CheckTypedArguments(raw_trace, "E1",
                       perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
                       [](const perfetto::protos::gen::TrackEvent& track_event) {
-                        EXPECT_EQ(track_event.flow_ids_old_size(), 0);
                         EXPECT_EQ(track_event.flow_ids_size(), 1);
                       });
-  CheckTypedArguments(
-      raw_trace, "E2", perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
-      [](const perfetto::protos::gen::TrackEvent& track_event) {
-        EXPECT_EQ(track_event.terminating_flow_ids_old_size(), 0);
-        EXPECT_EQ(track_event.terminating_flow_ids_size(), 1);
-      });
+  CheckTypedArguments(raw_trace, "E2",
+                      perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
+                      [](const perfetto::protos::gen::TrackEvent& track_event) {
+                        EXPECT_EQ(track_event.terminating_flow_ids_size(), 1);
+                      });
 }
 
 TEST_P(PerfettoApiTest, TrackEventArgs_Flow_FromPointer) {
@@ -2612,15 +2577,13 @@ TEST_P(PerfettoApiTest, TrackEventArgs_Flow_FromPointer) {
   CheckTypedArguments(raw_trace, "E1",
                       perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
                       [](const perfetto::protos::gen::TrackEvent& track_event) {
-                        EXPECT_EQ(track_event.flow_ids_old_size(), 0);
                         EXPECT_EQ(track_event.flow_ids_size(), 1);
                       });
-  CheckTypedArguments(
-      raw_trace, "E2", perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
-      [](const perfetto::protos::gen::TrackEvent& track_event) {
-        EXPECT_EQ(track_event.terminating_flow_ids_old_size(), 0);
-        EXPECT_EQ(track_event.terminating_flow_ids_size(), 1);
-      });
+  CheckTypedArguments(raw_trace, "E2",
+                      perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
+                      [](const perfetto::protos::gen::TrackEvent& track_event) {
+                        EXPECT_EQ(track_event.terminating_flow_ids_size(), 1);
+                      });
 }
 
 struct InternedLogMessageBody
@@ -5197,17 +5160,13 @@ class PerfettoStartupTracingApiTest : public PerfettoApiTest {
     ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
 
     opts.backend = GetParam();
-    session_ = perfetto::Tracing::SetupStartupTracing(cfg, opts);
-    // TODO(mohitms): Once we add support for SetupStartupTracingBlocking
-    // we won't need perfetto::test::SyncProducers(). Currently we need
-    // to Round-trip to ensure that the muxer has enabled startup tracing.
-    perfetto::test::SyncProducers();
-    // Emit an event before the session is really started by the consumer.
+    session_ =
+        perfetto::Tracing::SetupStartupTracingBlocking(cfg, std::move(opts));
     EXPECT_EQ(TRACE_EVENT_CATEGORY_ENABLED("test"), true);
   }
 
   void AbortStartupTracing() {
-    session_->Abort();
+    session_->AbortBlocking();
     session_.reset();
   }
 
@@ -5225,9 +5184,47 @@ class PerfettoStartupTracingApiTest : public PerfettoApiTest {
     // tests. hence we don't need to run it again here.
   }
 
- private:
+ protected:
   std::unique_ptr<perfetto::StartupTracingSession> session_;
 };
+
+// Test `SetupStartupTracing` API (non block version).
+TEST_P(PerfettoStartupTracingApiTest, NonBlockingAPI) {
+  // Setup startup tracing in the current process.
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+
+  perfetto::protos::gen::TrackEventConfig te_cfg;
+  te_cfg.add_disabled_categories("*");
+  te_cfg.add_enabled_categories("test");
+  ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
+
+  SetupStartupTracingOpts opts;
+  opts.backend = GetParam();
+  session_ = perfetto::Tracing::SetupStartupTracing(cfg, std::move(opts));
+  // We need perfetto::test::SyncProducers() to Round-trip to ensure that the
+  // muxer has enabled startup tracing.
+  perfetto::test::SyncProducers();
+  EXPECT_EQ(TRACE_EVENT_CATEGORY_ENABLED("test"), true);
+
+  TRACE_EVENT_BEGIN("test", "Event");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  // Emit another event after starting.
+  TRACE_EVENT_END("test");
+  perfetto::TrackEvent::Flush();
+
+  tracing_session->get()->StopBlocking();
+  // Both events should be retained.
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(slices, ElementsAre("B:test.Event", "E"));
+}
 
 TEST_P(PerfettoStartupTracingApiTest, WithExistingSmb) {
   {

@@ -29,6 +29,7 @@
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/importers/proto/profiler_util.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
@@ -589,6 +590,19 @@ void ProfileModule::ParseSmapsPacket(int64_t ts, ConstBytes blob) {
          static_cast<int64_t>(e.shared_clean_resident_kb()),
          static_cast<int64_t>(e.locked_kb()),
          static_cast<int64_t>(e.proportional_resident_kb())});
+  }
+}
+
+void ProfileModule::NotifyEndOfFile() {
+  for (auto it = context_->storage->stack_profile_mapping_table().IterateRows();
+       it; ++it) {
+    NullTermStringView path = context_->storage->GetString(it.name());
+    NullTermStringView build_id = context_->storage->GetString(it.build_id());
+
+    if (path.StartsWith("/data/local/tmp/") && build_id.empty()) {
+      context_->storage->IncrementStats(
+          stats::symbolization_tmp_build_id_not_found);
+    }
   }
 }
 

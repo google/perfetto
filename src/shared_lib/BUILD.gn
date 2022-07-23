@@ -12,14 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("base") {
-  sources = [
-    "export.h",
-  ]
-}
+import("../../gn/perfetto_component.gni")
 
-source_set("protozero") {
+perfetto_component("protozero") {
+  deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/base",
+    "../../include/perfetto/protozero",
+    "../../include/perfetto/public:protozero",
+    ]
   sources = [
-    "stream_writer_abi.h",
+    "stream_writer.cc",
+    "stream_writer.h",
   ]
 }
