@@ -176,13 +176,31 @@ def run_query_test(trace_processor_path, gen_trace_path, query_path,
                     stdout.decode('utf8'), stderr.decode('utf8'), tp.returncode)
 
 
-def run_test(trace_processor, trace_descriptor_path, extension_descriptor_paths,
-             metrics_message_factory, test, keep_input, rebase, perf_data,
-             test_failure, rebased, no_colors):
+def run_test(trace_descriptor_path, extension_descriptor_paths, args, test):
+  """ 
+  Returns:
+    test_name -> str,
+    passed -> bools, 
+    result_str -> str,
+    perf_data -> str
+  """
+  out_path = os.path.dirname(args.trace_processor)
+  if args.metrics_descriptor:
+    metrics_descriptor_paths = [args.metrics_descriptor]
+  else:
+    metrics_protos_path = os.path.join(out_path, 'gen', 'protos', 'perfetto',
+                                       'metrics')
+    metrics_descriptor_paths = [
+        os.path.join(metrics_protos_path, 'metrics.descriptor'),
+        os.path.join(metrics_protos_path, 'chrome',
+                     'all_chrome_metrics.descriptor')
+    ]
+  metrics_message_factory = create_message_factory(
+      metrics_descriptor_paths, 'perfetto.protos.TraceMetrics')
   result_str = ""
-  red_str = red(no_colors)
-  green_str = green(no_colors)
-  end_color_str = end_color(no_colors)
+  red_str = red(args.no_colors)
+  green_str = green(args.no_colors)
+  end_color_str = end_color(args.no_colors)
   trace_path = test.trace_path
   expected_path = test.expected_path
   test_name = f"{os.path.basename(test.query_path_or_metric)}\
@@ -190,12 +208,10 @@ def run_test(trace_processor, trace_descriptor_path, extension_descriptor_paths,
 
   if not os.path.exists(trace_path):
     result_str += f"Trace file not found {trace_path}\n"
-    test_failure.append(test_name)
-    return result_str
+    return test_name, False, result_str, ""
   elif not os.path.exists(expected_path):
     result_str = f"Expected file not found {expected_path}"
-    test_failure.append(test_name)
-    return result_str
+    return test_name, False, result_str, ""
 
   is_generated_trace = trace_path.endswith('.py') or trace_path.endswith(
       '.textproto')
@@ -217,7 +233,7 @@ def run_test(trace_processor, trace_descriptor_path, extension_descriptor_paths,
   # side-effect of the underlying CreateFile(FILE_ATTRIBUTE_TEMPORARY))
   # and TP fails to open the passed path.
   tmp_perf_file = tempfile.NamedTemporaryFile(delete=False)
-  result_str += f"{yellow(no_colors)}[ RUN      ]{end_color_str} "
+  result_str += f"{yellow(args.no_colors)}[ RUN      ]{end_color_str} "
   result_str += f"{test_name}\n"
 
   tmp_perf_path = tmp_perf_file.name
@@ -226,13 +242,12 @@ def run_test(trace_processor, trace_descriptor_path, extension_descriptor_paths,
 
     if not os.path.exists(test.query_path_or_metric):
       result_str += f"Query file not found {query_path}"
-      test_failure.append(test_name)
-      return result_str
+      return test_name, False, result_str, ""
 
-    result = run_query_test(trace_processor, gen_trace_path, query_path,
+    result = run_query_test(args.trace_processor, gen_trace_path, query_path,
                             expected_path, tmp_perf_path)
   elif test.type == 'metrics':
-    result = run_metrics_test(trace_processor, gen_trace_path,
+    result = run_metrics_test(args.trace_processor, gen_trace_path,
                               test.query_path_or_metric, expected_path,
                               tmp_perf_path, metrics_message_factory)
   else:
@@ -243,7 +258,7 @@ def run_test(trace_processor, trace_descriptor_path, extension_descriptor_paths,
   os.remove(tmp_perf_file.name)
 
   if gen_trace_file:
-    if keep_input:
+    if args.keep_input:
       result_str += f"Saving generated input trace: {gen_trace_path}\n"
     else:
       gen_trace_file.close()
@@ -279,7 +294,7 @@ def run_test(trace_processor, trace_descriptor_path, extension_descriptor_paths,
     result_str += f"{red_str}[     FAIL ]{end_color_str} {test_name} "
     result_str += f"{os.path.basename(trace_path)}\n"
 
-    if rebase:
+    if args.rebase:
       if result.exit_code == 0:
         result_str += f"Rebasing {expected_path}\n"
         with open(expected_path, 'w') as f:
@@ -288,7 +303,7 @@ def run_test(trace_processor, trace_descriptor_path, extension_descriptor_paths,
       else:
         result_str += f"Rebase failed for {expected_path} as query failed\n"
 
-    test_failure.append(test_name)
+    return test_name, False, result_str, ""
   else:
     assert len(perf_lines) == 1
     perf_numbers = perf_lines[0].split(',')
@@ -296,31 +311,35 @@ def run_test(trace_processor, trace_descriptor_path, extension_descriptor_paths,
     assert len(perf_numbers) == 2
     perf_result = PerfResult(test.type, trace_path, test.query_path_or_metric,
                              perf_numbers[0], perf_numbers[1])
-    perf_data.append(perf_result)
 
     result_str += f"{green_str}[       OK ]{end_color_str} "
     result_str += f"{os.path.basename(test.query_path_or_metric)} "
     result_str += f"{os.path.basename(trace_path)} "
     result_str += f"(ingest: {perf_result.ingest_time_ns / 1000000:.2f} ms "
     result_str += f"query: {perf_result.real_time_ns / 1000000:.2f} ms)\n"
-  return result_str
+  return test_name, True, result_str, perf_result
 
 
-def run_all_tests(trace_processor, trace_descriptor_path,
-                  extension_descriptor_paths, metrics_message_factory, tests,
-                  keep_input, rebase, no_colors):
+def run_all_tests(trace_descriptor_path, extension_descriptor_paths, args,
+                  tests):
   perf_data = []
   test_failure = []
   rebased = 0
-  with concurrent.futures.ThreadPoolExecutor() as e:
+  with concurrent.futures.ProcessPoolExecutor() as e:
     fut = [
-        e.submit(run_test, trace_processor, trace_descriptor_path,
-                 extension_descriptor_paths, metrics_message_factory, test,
-                 keep_input, rebase, perf_data, test_failure, rebased,
-                 no_colors) for test in tests
+        e.submit(run_test, trace_descriptor_path, extension_descriptor_paths,
+                 args, test) for test in tests
     ]
     for res in concurrent.futures.as_completed(fut):
-      sys.stderr.write(res.result())
+      test_name, test_passed, res_str, perf_result = res.result()
+      sys.stderr.write(res_str)
+      if test_passed:
+        perf_data.append(perf_result)
+        if args.rebase:
+          rebased += 1
+      else:
+        test_failure.append(test_name)
+
   return test_failure, perf_data, rebased
 
 
@@ -425,30 +444,14 @@ def main():
       trace_descriptor_path = find_trace_descriptor(
           os.path.join(out_path, 'gcc_like_host'))
 
-  if args.metrics_descriptor:
-    metrics_descriptor_paths = [args.metrics_descriptor]
-  else:
-    metrics_protos_path = os.path.join(out_path, 'gen', 'protos', 'perfetto',
-                                       'metrics')
-    metrics_descriptor_paths = [
-        os.path.join(metrics_protos_path, 'metrics.descriptor'),
-        os.path.join(metrics_protos_path, 'chrome',
-                     'all_chrome_metrics.descriptor')
-    ]
-
   chrome_extensions = os.path.join(out_path, 'gen', 'protos', 'third_party',
                                    'chromium', 'chrome_track_event.descriptor')
   test_extensions = os.path.join(out_path, 'gen', 'protos', 'perfetto', 'trace',
                                  'test_extensions.descriptor')
 
-  metrics_message_factory = create_metrics_message_factory(
-      metrics_descriptor_paths)
-
   test_run_start = datetime.datetime.now()
   test_failures, perf_data, rebased = run_all_tests(
-      args.trace_processor, trace_descriptor_path,
-      [chrome_extensions, test_extensions], metrics_message_factory, tests,
-      args.keep_input, args.rebase, args.no_colors)
+      trace_descriptor_path, [chrome_extensions, test_extensions], args, tests)
   test_run_end = datetime.datetime.now()
   test_time_ms = int((test_run_end - test_run_start).total_seconds() * 1000)
 
