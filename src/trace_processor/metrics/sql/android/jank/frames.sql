@@ -35,14 +35,22 @@ SELECT
     OR jank_type GLOB '*Display HAL*') AS sf_missed,
   -- We use MIN to check if ALL layers finished on time
   MIN(on_time_finish) AS on_time_finish,
-  MAX(ts + dur) AS ts_end_actual,
-  MAX(dur) AS dur
+  MAX(timeline.ts + timeline.dur) AS ts_end_actual,
+  MAX(timeline.dur) AS dur,
+  -- At the moment of writing we expect to see at most one expected_frame_timeline_slice
+  -- for a given vsync but using MAX here in case this changes in the future.
+  -- In case expected timeline is missing, as a fallback we use the typical frame deadline
+  -- for 60Hz.
+  COALESCE(MAX(expected.dur), 16600000) AS dur_expected
 FROM android_jank_cuj_vsync_boundary boundary
 JOIN actual_timeline_with_vsync timeline
   ON boundary.upid = timeline.upid
   AND vsync >= vsync_min
   AND vsync <= vsync_max
+LEFT JOIN expected_frame_timeline_slice expected
+  ON expected.name = timeline.name
 GROUP BY cuj_id, vsync;
+
 
 -- Matches slices and boundaries to compute estimated frame boundaries across
 -- all threads. Joins with the actual timeline to figure out which frames missed
@@ -71,6 +79,8 @@ SELECT
   sf_missed,
   on_time_finish,
   ts_end_actual - ts AS dur,
-  ts_end_actual - ts_do_frame_start AS dur_unadjusted
+  ts_end_actual - ts_do_frame_start AS dur_unadjusted,
+  dur_expected,
+  ts_end_actual AS ts_end
 FROM frame_base
 JOIN android_jank_cuj_frame_timeline USING (cuj_id, vsync);
