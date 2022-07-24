@@ -310,9 +310,9 @@ maxRuntime
 totalCountc
 threshold_metric (28.perfetto.protos.AndroidIrqRuntimeMetric.ThresholdMetricRthresholdMetric_
 longest_irq_slices (21.perfetto.protos.AndroidIrqRuntimeMetric.IrqSliceRlongestIrqSlices
-”
+·
 
-5protos/perfetto/metrics/android/jank_cuj_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"‘	
+5protos/perfetto/metrics/android/jank_cuj_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"´	
 AndroidJankCujMetric;
 cuj (2).perfetto.protos.AndroidJankCujMetric.CujRcuj×
 Cuj
@@ -324,12 +324,13 @@ totalCountc
 frame (2+.perfetto.protos.AndroidJankCujMetric.FrameRframeV
 counter_metrics (2-.perfetto.protos.AndroidJankCujMetric.MetricsRcounterMetricsX
 timeline_metrics (2-.perfetto.protos.AndroidJankCujMetric.MetricsRtimelineMetricsR
-trace_metrics	 (2-.perfetto.protos.AndroidJankCujMetric.MetricsRtraceMetricsž
+trace_metrics	 (2-.perfetto.protos.AndroidJankCujMetric.MetricsRtraceMetricsÁ
 Frame!
 frame_number (RframeNumber
 vsync (Rvsync
 ts (Rts
-dur (Rdur
+dur (Rdur!
+dur_expected (RdurExpected
 
 app_missed (R	appMissed
 	sf_missed (RsfMissedÀ
