@@ -52,7 +52,12 @@ SELECT RUN_METRIC('android/jank/frames.sql');
 -- Creates tables with slices from various relevant threads that are within
 -- the CUJ boundaries. Used as data sources for further processing and
 -- jank cause analysis of traces.
-SELECT RUN_METRIC('android/jank/query_helpers.sql');
+SELECT RUN_METRIC('android/jank/slices.sql');
+
+-- Creates tables and functions to be used for manual investigations and
+-- jank cause analysis of traces.
+SELECT RUN_METRIC('android/jank/internal/query_base.sql');
+SELECT RUN_METRIC('android/jank/query_functions.sql');
 
 -- Creates a table that matches CUJ counters with the correct CUJs.
 -- After the CUJ ends FrameTracker emits counters with the number of total
@@ -124,6 +129,7 @@ SELECT
                 'vsync', f.vsync,
                 'ts', f.ts,
                 'dur', f.dur,
+                'dur_expected', f.dur_expected,
                 'app_missed', f.app_missed,
                 'sf_missed', f.sf_missed))
           FROM android_jank_cuj_frame f

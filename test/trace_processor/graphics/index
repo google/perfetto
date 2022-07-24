@@ -33,6 +33,7 @@ android_sysui_cuj.py android_sysui_cuj_event_test.sql android_sysui_cuj_event.ou
 
 # Android Jank CUJ metric
 android_sysui_cuj.py android_jank_cuj android_jank_cuj.out
+android_sysui_cuj.py android_jank_cuj_query_test.sql android_jank_cuj_query.out
 
 # Frame Timeline event trace tests
 frame_timeline_events.py expected_frame_timeline_events_test.sql expected_frame_timeline_events.out

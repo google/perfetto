@@ -47,7 +47,8 @@ JOIN slice
   -- Take slices which overlap even they started before the boundaries
   -- This is to be able to query slices that delayed start of a frame
   AND slice.ts + slice.dur >= boundary.ts
-  AND slice.ts <= boundary.ts_end;
+  AND slice.ts <= boundary.ts_end
+WHERE slice.dur > 0;
 
 DROP TABLE IF EXISTS android_jank_cuj_render_thread_slice;
 CREATE TABLE android_jank_cuj_render_thread_slice AS
@@ -63,4 +64,5 @@ JOIN slice
   -- Take slices which overlap even they started before the boundaries
   -- This is to be able to query slices that delayed start of a frame
   AND slice.ts + slice.dur >= boundary.ts
-  AND slice.ts <= boundary.ts_end;
+  AND slice.ts <= boundary.ts_end
+WHERE slice.dur > 0;
