@@ -42,7 +42,6 @@ import {
   areaFilter,
   expression,
   generateQuery,
-  QueryGeneratorError,
   sliceAggregationColumns,
   tableColumnEquals,
   tables,
@@ -121,13 +120,6 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         globals.state.areas[attrs.selectionArea.areaId],
         this.constrainToArea);
   }
-
-  renderResultsView(attrs: PivotTableReduxAttrs) {
-    return m(
-        '.pivot-table-redux',
-        this.renderResultsTable(attrs));
-  }
-
   renderDrillDownCell(
       area: Area, result: PivotTableReduxResult, filters: DrillFilter[]) {
     return m(
@@ -548,58 +540,18 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
                 icon: 'menu',
                 items: [{
                   itemType: 'regular',
-                  text: 'Edit mode',
+                  text: state.constrainToArea ?
+                      'Query data for the whole timeline' :
+                      'Constrain to selected area',
                   callback: () => {
-                    globals.dispatch(
-                        Actions.setPivotTableEditMode({editMode: true}));
+                    globals.dispatch(Actions.setPivotTableReduxConstrainToArea(
+                        {constrain: !state.constrainToArea}));
+                    globals.dispatch(Actions.setPivotTableQueryRequested(
+                        {queryRequested: true}));
                   },
                 }],
               })))),
         m('tbody', this.renderTotalsRow(state.queryResult), renderedRows));
-  }
-
-
-  renderQuery(attrs: PivotTableReduxAttrs): m.Vnode {
-    // Prepare a button to switch to results mode.
-    let innerElement = m(
-        'button.mode-button',
-        {
-          onclick: () => {
-            globals.dispatch(Actions.setPivotTableEditMode({editMode: false}));
-            globals.rafScheduler.scheduleFullRedraw();
-          },
-        },
-        'Execute');
-    try {
-      this.generateQuery(attrs);
-    } catch (e) {
-      if (e instanceof QueryGeneratorError) {
-        // If query generation fails, show an error message instead of a button.
-        innerElement = m('div.query-error', e.message);
-      } else {
-        throw e;
-      }
-    }
-
-    return m(
-        'div',
-        m('div',
-          m('input', {
-            type: 'checkbox',
-            id: 'constrain-to-selection',
-            checked: this.constrainToArea,
-            onclick: (e: InputEvent) => {
-              const checkbox = e.target as HTMLInputElement;
-              globals.dispatch(Actions.setPivotTableReduxConstrainToArea(
-                  {constrain: checkbox.checked}));
-            },
-          }),
-          m('label',
-            {
-              'for': 'constrain-to-selection',
-            },
-            'Constrain to current time range')),
-        innerElement);
   }
 
   view({attrs}: m.Vnode<PivotTableReduxAttrs>): m.Children {
@@ -607,14 +559,6 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
       fullscreenModalContainer.updateVdom(this.renderModal());
     }
 
-    return globals.state.nonSerializableState.pivotTableRedux.editMode ?
-        this.renderEditView(attrs) :
-        this.renderResultsView(attrs);
-  }
-
-  renderEditView(attrs: PivotTableReduxAttrs) {
-    return m(
-        '.pivot-table-redux.edit',
-        this.renderQuery(attrs));
+    return m('.pivot-table-redux', this.renderResultsTable(attrs));
   }
 }
