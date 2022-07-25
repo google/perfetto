@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_SYSCALLS_SYSCALLS_ARMEABI_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_SYSCALLS_SYSCALLS_ARMEABI_H_
+#ifndef SRC_KERNEL_UTILS_SYSCALLS_AARCH32_H_
+#define SRC_KERNEL_UTILS_SYSCALLS_AARCH32_H_
 
 namespace perfetto {
-namespace trace_processor {
 
 // See tools/extract_linux_syscall_tables .
-constexpr const char* kSyscalls_ArmEabi[] = {
+constexpr const char* kSyscalls_Aarch32[] = {
     "sys_restart_syscall",         // 0
     "sys_exit",                    // 1
     "sys_fork",                    // 2
@@ -35,7 +34,7 @@ constexpr const char* kSyscalls_ArmEabi[] = {
     "sys_unlink",                  // 10
     "sys_execve",                  // 11
     "sys_chdir",                   // 12
-    "sys_time",                    // 13
+    "",                            // 13
     "sys_mknod",                   // 14
     "sys_chmod",                   // 15
     "sys_lchown",                  // 16
@@ -44,15 +43,15 @@ constexpr const char* kSyscalls_ArmEabi[] = {
     "sys_lseek",                   // 19
     "sys_getpid",                  // 20
     "sys_mount",                   // 21
-    "sys_umount",                  // 22
+    "",                            // 22
     "sys_setuid",                  // 23
     "sys_getuid",                  // 24
-    "sys_stime",                   // 25
+    "",                            // 25
     "sys_ptrace",                  // 26
-    "sys_alarm",                   // 27
+    "",                            // 27
     "",                            // 28
     "sys_pause",                   // 29
-    "sys_utime",                   // 30
+    "",                            // 30
     "",                            // 31
     "",                            // 32
     "sys_access",                  // 33
@@ -98,21 +97,21 @@ constexpr const char* kSyscalls_ArmEabi[] = {
     "sys_sigpending",              // 73
     "sys_sethostname",             // 74
     "sys_setrlimit",               // 75
-    "sys_getrlimit",               // 76
+    "",                            // 76
     "sys_getrusage",               // 77
     "sys_gettimeofday",            // 78
     "sys_settimeofday",            // 79
     "sys_getgroups",               // 80
     "sys_setgroups",               // 81
-    "sys_select",                  // 82
+    "",                            // 82
     "sys_symlink",                 // 83
     "",                            // 84
     "sys_readlink",                // 85
     "sys_uselib",                  // 86
     "sys_swapon",                  // 87
     "sys_reboot",                  // 88
-    "sys_readdir",                 // 89
-    "sys_mmap",                    // 90
+    "",                            // 89
+    "",                            // 90
     "sys_munmap",                  // 91
     "sys_truncate",                // 92
     "sys_ftruncate",               // 93
@@ -124,7 +123,7 @@ constexpr const char* kSyscalls_ArmEabi[] = {
     "sys_statfs",                  // 99
     "sys_fstatfs",                 // 100
     "",                            // 101
-    "sys_socketcall",              // 102
+    "",                            // 102
     "sys_syslog",                  // 103
     "sys_setitimer",               // 104
     "sys_getitimer",               // 105
@@ -135,11 +134,11 @@ constexpr const char* kSyscalls_ArmEabi[] = {
     "",                            // 110
     "sys_vhangup",                 // 111
     "",                            // 112
-    "sys_syscall",                 // 113
+    "",                            // 113
     "sys_wait4",                   // 114
     "sys_swapoff",                 // 115
     "sys_sysinfo",                 // 116
-    "sys_ipc",                     // 117
+    "",                            // 117
     "sys_fsync",                   // 118
     "sys_sigreturn",               // 119
     "sys_clone",                   // 120
@@ -213,7 +212,7 @@ constexpr const char* kSyscalls_ArmEabi[] = {
     "",                            // 188
     "",                            // 189
     "sys_vfork",                   // 190
-    "sys_ugetrlimit",              // 191
+    "",                            // 191
     "sys_mmap2",                   // 192
     "sys_truncate64",              // 193
     "sys_ftruncate64",             // 194
@@ -363,7 +362,7 @@ constexpr const char* kSyscalls_ArmEabi[] = {
     "sys_set_robust_list",         // 338
     "sys_get_robust_list",         // 339
     "sys_splice",                  // 340
-    "sys_arm_sync_file_range",     // 341
+    "sys_sync_file_range2",        // 341
     "sys_tee",                     // 342
     "sys_vmsplice",                // 343
     "sys_move_pages",              // 344
@@ -421,10 +420,8 @@ constexpr const char* kSyscalls_ArmEabi[] = {
     "sys_pkey_free",               // 396
     "sys_statx",                   // 397
     "sys_rseq",                    // 398
-    "sys_io_pgetevents",           // 399
 };
 
-}  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_SYSCALLS_SYSCALLS_ARMEABI_H_
+#endif  // SRC_KERNEL_UTILS_SYSCALLS_AARCH32_H_

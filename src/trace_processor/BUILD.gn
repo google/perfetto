@@ -206,6 +206,7 @@ source_set("storage_minimal") {
     "../../protos/perfetto/trace/system_info:zero",
     "../../protos/perfetto/trace/track_event:zero",
     "../../protos/perfetto/trace/translation:zero",
+    "../../src/kernel_utils:syscall_table",
   ]
 
   # json_utils optionally depends on jsoncpp.
@@ -273,11 +274,6 @@ source_set("storage_full") {
     "importers/proto/vulkan_memory_tracker.cc",
     "importers/proto/vulkan_memory_tracker.h",
     "importers/syscalls/syscall_tracker.cc",
-    "importers/syscalls/syscalls_aarch32.h",
-    "importers/syscalls/syscalls_aarch64.h",
-    "importers/syscalls/syscalls_armeabi.h",
-    "importers/syscalls/syscalls_x86.h",
-    "importers/syscalls/syscalls_x86_64.h",
     "importers/systrace/systrace_line_parser.cc",
     "importers/systrace/systrace_line_parser.h",
     "importers/systrace/systrace_line_tokenizer.cc",
