@@ -1400,6 +1400,7 @@ class TrackDecider {
           select string_value as label
           from args
           where arg_set_id = ${it.argSetId}
+          and flat_key = 'chrome.process_label'
         `);
         const argIt = result.iter({label: STR_NULL});
         for (; argIt.valid(); argIt.next()) {
