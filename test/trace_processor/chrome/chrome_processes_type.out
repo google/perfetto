@@ -1,0 +1,5 @@
+"pid","name","chrome_process_type"
+17547,"Browser","Browser"
+17578,"Browser","Browser"
+18250,"Renderer","Renderer"
+18277,"GPU Process","Gpu"
