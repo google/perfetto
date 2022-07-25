@@ -504,30 +504,34 @@ class GeneratorJob {
     stub_h_->Print("\n");
   }
 
+  std::string GetFullEnumValueName(const EnumDescriptor* enumeration,
+                                   const EnumValueDescriptor* value) {
+    if (!enumeration->containing_type()) {
+      return value->name();
+    }
+    return GetCppClassName(enumeration) + "_" + value->name();
+  }
+
   void GenerateEnumDescriptor(const EnumDescriptor* enumeration) {
     stub_h_->Print("enum $class$ : int32_t {\n", "class",
                    GetCppClassName(enumeration));
     stub_h_->Indent();
-
-    std::string value_name_prefix;
-    if (enumeration->containing_type() != nullptr)
-      value_name_prefix = GetCppClassName(enumeration) + "_";
 
     std::string min_name, max_name;
     int min_val = std::numeric_limits<int>::max();
     int max_val = -1;
     for (int i = 0; i < enumeration->value_count(); ++i) {
       const EnumValueDescriptor* value = enumeration->value(i);
-      stub_h_->Print("$name$ = $number$,\n", "name",
-                     value_name_prefix + value->name(), "number",
+      const std::string value_name = GetFullEnumValueName(enumeration, value);
+      stub_h_->Print("$name$ = $number$,\n", "name", value_name, "number",
                      std::to_string(value->number()));
       if (value->number() < min_val) {
         min_val = value->number();
-        min_name = value_name_prefix + value->name();
+        min_name = value_name;
       }
       if (value->number() > max_val) {
         max_val = value->number();
-        max_name = value_name_prefix + value->name();
+        max_name = value_name;
       }
     }
     stub_h_->Outdent();
@@ -537,6 +541,36 @@ class GeneratorJob {
     stub_h_->Print("const $class$ $class$_MAX = $max$;\n", "class",
                    GetCppClassName(enumeration), "max", max_name);
     stub_h_->Print("\n");
+
+    GenerateEnumToStringConversion(enumeration);
+  }
+
+  void GenerateEnumToStringConversion(const EnumDescriptor* enumeration) {
+    std::string fullClassName =
+        full_namespace_prefix_ + GetCppClassName(enumeration);
+    const char* function_header_stub = R"(
+PERFETTO_PROTOZERO_CONSTEXPR14_OR_INLINE
+const char* $class_name$_Name($full_class$ value) {
+)";
+    stub_h_->Print(function_header_stub, "full_class", fullClassName,
+                   "class_name", GetCppClassName(enumeration));
+    stub_h_->Indent();
+    stub_h_->Print("switch (value) {");
+    for (int index = 0; index < enumeration->value_count(); ++index) {
+      const EnumValueDescriptor* value = enumeration->value(index);
+      const char* switch_stub = R"(
+case $full_class$::$full_value_name$:
+  return "$value_name$";
+)";
+      stub_h_->Print(switch_stub, "full_class", fullClassName, "value_name",
+                     value->name(), "full_value_name",
+                     GetFullEnumValueName(enumeration, value));
+    }
+    stub_h_->Print("}\n");
+    stub_h_->Print(R"(return "PBZERO_UNKNOWN_ENUM_VALUE";)");
+    stub_h_->Print("\n");
+    stub_h_->Outdent();
+    stub_h_->Print("}\n\n");
   }
 
   // Packed repeated fields are encoded as a length-delimited field on the wire,
@@ -800,8 +834,13 @@ class GeneratorJob {
     // Using statements for nested enums.
     for (int i = 0; i < message->enum_type_count(); ++i) {
       const EnumDescriptor* nested_enum = message->enum_type(i);
-      stub_h_->Print("using $local_name$ = $global_name$;\n", "local_name",
-                     nested_enum->name(), "global_name",
+      const char* stub = R"(
+using $local_name$ = $global_name$;
+static inline const char* $local_name$_Name($local_name$ value) {
+  return $global_name$_Name(value);
+}
+)";
+      stub_h_->Print(stub, "local_name", nested_enum->name(), "global_name",
                      GetCppClassName(nested_enum, true));
     }
 
