@@ -980,7 +980,7 @@ export const StateActions = {
   togglePivotTableRedux(state: StateDraft, args: {areaId: string|null}) {
     state.nonSerializableState.pivotTableRedux.selectionArea =
         args.areaId === null ?
-        null :
+        undefined :
         {areaId: args.areaId, tracks: globals.state.areas[args.areaId].tracks};
     if (args.areaId !==
         state.nonSerializableState.pivotTableRedux.selectionArea?.areaId) {
@@ -1000,14 +1000,6 @@ export const StateActions = {
 
   dismissFlamegraphModal(state: StateDraft, _: {}) {
     state.flamegraphModalDismissed = true;
-  },
-
-  setPivotTableEditMode(state: StateDraft, args: {editMode: boolean}) {
-    state.nonSerializableState.pivotTableRedux.editMode = args.editMode;
-    if (!args.editMode) {
-      // Switching from edit mode to view mode, need to request query
-      state.nonSerializableState.pivotTableRedux.queryRequested = true;
-    }
   },
 
   setPivotTableQueryRequested(

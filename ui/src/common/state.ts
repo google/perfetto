@@ -413,13 +413,10 @@ export type SortDirection = 'DESC'|'ASC';
 
 export interface PivotTableReduxState {
   // Currently selected area, if null, pivot table is not going to be visible.
-  selectionArea: PivotTableReduxAreaState|null;
+  selectionArea?: PivotTableReduxAreaState;
 
   // Query response
   queryResult: PivotTableReduxResult|null;
-
-  // Whether the panel is in edit mode
-  editMode: boolean;
 
   // Selected pivots. Map instead of Set because ES6 Set can't have
   // non-primitive keys; here keys are concatenated values.
