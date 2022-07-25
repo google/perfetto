@@ -57,6 +57,9 @@ modified_rail_modes_extra_long.py modified_rail_modes_test.sql modified_rail_mod
 ../../data/chrome_android_systrace.pftrace chrome_processes_test.sql chrome_processes_android_systrace.out
 ../../data/chrome_scroll_without_vsync.pftrace chrome_threads_test.sql chrome_threads.out
 ../../data/chrome_android_systrace.pftrace chrome_threads_test.sql chrome_threads_android_systrace.out
+../../data/chrome_scroll_without_vsync.pftrace chrome_processes_type_test.sql chrome_processes_type.out
+../../data/chrome_android_systrace.pftrace chrome_processes_type_test.sql chrome_processes_type_android_systrace.out
+track_with_chrome_process.textproto chrome_processes_type_test.sql track_with_chrome_process.out
 
 # Chrome histogram hashes
 chrome_histogram_hashes.textproto chrome_histogram_hashes chrome_histogram_hashes.out
