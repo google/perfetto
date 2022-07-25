@@ -1,0 +1,17 @@
+packet {
+  trusted_packet_sequence_id: 1
+  incremental_state_cleared: true
+  timestamp: 0
+  track_descriptor {
+    uuid: 10
+    process {
+      pid: 5
+      process_name: "p5"
+    }
+    # Empty Chrome process. This is similar to a process descriptor emitted by
+    # Chrome for a process with an unknown Chrome process_type. This process
+    # should still receive a "chrome_process_type" arg in the args table, but
+    # with a NULL value.
+    chrome_process {}
+  }
+}
