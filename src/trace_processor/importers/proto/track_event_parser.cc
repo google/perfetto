@@ -1432,6 +1432,8 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
           context->storage->InternString("chrome.crash_trace_id")),
       chrome_process_label_flat_key_id_(
           context->storage->InternString("chrome.process_label")),
+      chrome_process_type_id_(
+          context_->storage->InternString("chrome.process_type")),
       chrome_string_lookup_(context->storage.get()),
       counter_unit_ids_{{kNullStringId, context_->storage->InternString("ns"),
                          context_->storage->InternString("count"),
@@ -1568,6 +1570,8 @@ void TrackEventParser::ParseChromeProcessDescriptor(
 
   ArgsTracker::BoundInserter process_args =
       context_->process_tracker->AddArgsTo(upid);
+  // For identifying Chrome processes in system traces.
+  process_args.AddArg(chrome_process_type_id_, Variadic::String(name_id));
   if (decoder.has_host_app_package_name()) {
     process_args.AddArg(chrome_host_app_package_name_id_,
                         Variadic::String(context_->storage->InternString(
