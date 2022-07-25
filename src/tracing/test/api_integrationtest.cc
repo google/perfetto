@@ -5317,7 +5317,8 @@ TEST_P(PerfettoStartupTracingApiTest, DropPolicy) {
   EXPECT_LT(freq_map["B:test.StartupEvent"], kNumEvents);
 }
 
-TEST_P(PerfettoStartupTracingApiTest, Abort) {
+// TODO(mohitms): It seems flaky. Debug and enable again.
+TEST_P(PerfettoStartupTracingApiTest, DISABLED_Abort) {
   SetupStartupTracing();
   TRACE_EVENT_BEGIN("test", "StartupEvent");
   AbortStartupTracing();
