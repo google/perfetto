@@ -1124,6 +1124,13 @@ void TraceProcessorImpl::NotifyEndOfFile() {
   }
 
   context_.storage->ShrinkToFitTables();
+
+  // Rebuild the bounds table once everything has been completed: we do this
+  // so that if any data was added to tables in
+  // TraceProcessorStorageImpl::NotifyEndOfFile, this will be counted in
+  // trace bounds: this is important for parsers like ninja which wait until
+  // the end to flush all their data.
+  BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
 }
 
 size_t TraceProcessorImpl::RestoreInitialTables() {
