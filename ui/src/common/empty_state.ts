@@ -60,9 +60,7 @@ export const COUNT_AGGREGATION: Aggregation = {
 export function createEmptyNonSerializableState(): NonSerializableState {
   return {
     pivotTableRedux: {
-      selectionArea: null,
       queryResult: null,
-      editMode: false,
       selectedPivotsMap: keyedMap(
           columnKey, {kind: 'regular', table: 'slice', column: 'name'}),
       selectedAggregations: keyedMap(

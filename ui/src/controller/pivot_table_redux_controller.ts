@@ -157,7 +157,7 @@ export class PivotTableReduxController extends Controller<{}> {
   }
 
   shouldRerun(state: PivotTableReduxState, selection: AreaSelection) {
-    if (state.selectionArea === null || state.editMode) {
+    if (state.selectionArea === undefined) {
       return false;
     }
 
@@ -260,7 +260,7 @@ export class PivotTableReduxController extends Controller<{}> {
     }
 
     if (selection !== null && selection.kind === 'AREA' &&
-        (pivotTableState.selectionArea === null ||
+        (pivotTableState.selectionArea === undefined ||
          pivotTableState.selectionArea.areaId !== selection.areaId)) {
       globals.dispatch(
           Actions.togglePivotTableRedux({areaId: selection.areaId}));
