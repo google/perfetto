@@ -45,7 +45,22 @@ VALUES
   'android_jank_cuj_render_thread_slice',
   'android_jank_cuj_render_thread_frame_boundary',
   'android_jank_cuj_render_thread_cuj_boundary',
-  'android_jank_cuj_frame');
+  'android_jank_cuj_frame'),
+('SF threads',
+  'android_jank_cuj_sf_slice',
+  'android_jank_cuj_sf_frame',
+  'android_jank_cuj_sf_boundary',
+  'android_jank_cuj_sf_frame'),
+('SF MainThread',
+  'android_jank_cuj_sf_main_thread_slice',
+  'android_jank_cuj_sf_main_thread_frame_boundary',
+  'android_jank_cuj_sf_main_thread_cuj_boundary',
+  'android_jank_cuj_sf_frame'),
+('SF RenderEngine',
+  'android_jank_cuj_sf_render_engine_slice',
+  'android_jank_cuj_sf_render_engine_frame_boundary',
+  'android_jank_cuj_sf_boundary',
+  'android_jank_cuj_sf_frame');
 
 -- Functions below retrieve specific columns for a given table set.
 
