@@ -12,7 +12,12 @@ Unreleased:
   UI:
     *
   SDK:
-    *
+    * Fixed a bug (b/239725760) that would cause abstract sockets using the
+      "@name" syntax in PERFETTO_CONSUMER_SOCK_NAME/PERFETTO_PRODUCER_SOCK_NAME
+      to have a trailing \0 in the socket name. This breaks interoperability
+      with adb forwarding. This is a tracing protocol breaking change. Nobody
+      seems to be relying on @abstract syntax across different versions of
+      client vs service.
 
 
 v27.1 - 2022-07-11:
