@@ -5222,6 +5222,16 @@ class PerfettoStartupTracingApiTest : public PerfettoApiTest {
     if (session_) {
       AbortStartupTracing();
     }
+    // We need to sync producer because when we start StartupTracing, the
+    // producer is disconnected to reconnect again. Note that
+    // `SetupStartupTracingBlocking` returns right after data sources are
+    // started. `SetupStartupTracingBlocking` doesn't wait for reconnection
+    // to succeed before returning. Hence we need to wait for reconnection here
+    // because `TracingMuxerImpl::ResetForTesting` will destroy the
+    // producer if it find it is not connected to service. Which is problematic
+    // because when reconnection happens (via service transport), it will be
+    // referencing a deleted producer, which will lead to crash.
+    perfetto::test::SyncProducers();
     this->PerfettoApiTest::TearDown();
   }
 
@@ -5543,13 +5553,7 @@ TEST_P(PerfettoStartupTracingApiTest, Callbacks) {
 }
 
 // Test that it's ok if main tracing is never started.
-// TODO(mohitms): Currently it leaks memory if main tracing is never started.
-// The reason being is: `StopDataSource_AsyncEnd` fails with a critical
-// error - "Async stop of data source failed". As a result it returns early,
-// much before cleaning up the memory allocated for a data source and hence we
-// see the memory leak. It's not super hard to handle it and fix it correctly,
-// but we will be doing that in follow up CL.
-TEST_P(PerfettoStartupTracingApiTest, DISABLED_MainTracingNeverStarted) {
+TEST_P(PerfettoStartupTracingApiTest, MainTracingNeverStarted) {
   SetupStartupTracing();
   TRACE_EVENT_BEGIN("test", "StartupEvent");
 }
