@@ -381,8 +381,11 @@ void FtraceController::StopIfNeeded() {
   // non-graceful stop.
 
   per_cpu_.clear();
-  symbolizer_->Destroy();
   cpu_zero_stats_fd_.reset();
+  if (!retain_ksyms_on_stop_) {
+    symbolizer_->Destroy();
+  }
+  retain_ksyms_on_stop_ = false;
 
   if (parsing_mem_.IsValid()) {
     parsing_mem_.AdviseDontNeed(parsing_mem_.Get(), parsing_mem_.size());
@@ -418,20 +421,20 @@ bool FtraceController::StartDataSource(FtraceDataSource* data_source) {
   started_data_sources_.insert(data_source);
   StartIfNeeded();
 
-  // If the config is requesting to symbolize kernel addresses, create the
-  // symbolizer and parse /proc/kallsyms (it will take 200-300 ms). This is not
-  // strictly required here but is to avoid hitting the parsing cost while
-  // processing the first ftrace event batch in CpuReader.
+  // Parse kernel symbols if required by the config. This can be an expensive
+  // operation (cpu-bound for 500ms+), so delay the StartDataSource
+  // acknowledgement until after we're done. This lets a consumer wait for the
+  // expensive work to be done by waiting on the "all data sources started"
+  // fence. This helps isolate the effects of the cpu-bound work on
+  // frequency scaling of cpus when recording benchmarks (b/236143653).
+  // Note that we're already recording data into the kernel ftrace
+  // buffers while doing the symbol parsing.
   if (data_source->config().symbolize_ksyms()) {
-    if (data_source->config().initialize_ksyms_synchronously_for_testing()) {
-      symbolizer_->GetOrCreateKernelSymbolMap();
-    } else {
-      auto weak_this = weak_factory_.GetWeakPtr();
-      task_runner_->PostTask([weak_this] {
-        if (weak_this)
-          weak_this->symbolizer_->GetOrCreateKernelSymbolMap();
-      });
-    }
+    symbolizer_->GetOrCreateKernelSymbolMap();
+    // If at least one config sets the KSYMS_RETAIN flag, keep the ksysm map
+    // around in StopIfNeeded().
+    const auto KRET = FtraceConfig::KSYMS_RETAIN;
+    retain_ksyms_on_stop_ |= data_source->config().ksyms_mem_policy() == KRET;
   }
 
   return true;
