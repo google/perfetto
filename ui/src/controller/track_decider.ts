@@ -1272,7 +1272,7 @@ class TrackDecider {
       id: summaryTrackId,
       engineId: this.engineId,
       kind: PROCESS_SUMMARY_TRACK,
-      trackSortKey: PrimaryTrackSortKey.MAIN_THREAD,
+      trackSortKey: PrimaryTrackSortKey.PROCESS_SUMMARY_TRACK,
       name: `Kernel thread summary`,
       config: {pidForColor: 2, upid: it.upid, utid: it.utid},
     });
