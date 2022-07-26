@@ -126,11 +126,17 @@ source_set("zip_reader") {
   sources = [
     "streaming_line_reader.cc",
     "streaming_line_reader.h",
+    "zip_reader.cc",
+    "zip_reader.h",
   ]
   deps = [
+    ":gzip",
     "../../../gn:default_deps",
     "../../base",
   ]
+  if (enable_perfetto_zlib) {
+    deps += [ "../../../gn:zlib" ]
+  }
 }
 
 source_set("unittests") {
@@ -139,6 +145,7 @@ source_set("unittests") {
     "proto_to_args_parser_unittest.cc",
     "protozero_to_text_unittests.cc",
     "streaming_line_reader_unittest.cc",
+    "zip_reader_unittest.cc",
   ]
   testonly = true
   deps = [

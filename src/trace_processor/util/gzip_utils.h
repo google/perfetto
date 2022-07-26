@@ -66,8 +66,18 @@ class GzipDecompressor {
     // Valid in all cases except |ResultCode::kError|.
     size_t bytes_written;
   };
+  enum class InputMode {
+    // The input stream contains a gzip header. This is for the common case of
+    // decompressing .gz files.
+    kGzip = 0,
 
-  GzipDecompressor();
+    // A raw deflate stream. This is for the case of uncompressing files from
+    // a .zip archive, where the compression type is specified in the zip file
+    // entry, rather than in the stream header.
+    kRawDeflate = 1,
+  };
+
+  explicit GzipDecompressor(InputMode = InputMode::kGzip);
   ~GzipDecompressor();
   GzipDecompressor(const GzipDecompressor&) = delete;
   GzipDecompressor& operator=(const GzipDecompressor&) = delete;
