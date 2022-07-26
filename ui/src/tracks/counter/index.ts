@@ -32,7 +32,8 @@ import {NewTrackArgs, Track} from '../../frontend/track';
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 
 // TODO(hjd): Convert to enum.
-type CounterScaleOptions = 'ZERO_BASED'|'MIN_MAX'|'DELTA_FROM_PREVIOUS'|'RATE';
+export type CounterScaleOptions =
+    'ZERO_BASED'|'MIN_MAX'|'DELTA_FROM_PREVIOUS'|'RATE';
 
 export interface Data extends TrackData {
   maximumValue: number;
