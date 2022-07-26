@@ -22,6 +22,8 @@
 -- duration of each frame. It can be a useful heuristic to figure out what contributed to
 -- frames missing their expected deadlines.
 --
+-- For more details see the documentation in query_frame_slice.sql.
+--
 -- Example usage:
 --
 -- CREATE VIEW example_table AS
