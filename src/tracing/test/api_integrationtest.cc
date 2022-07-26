@@ -5294,7 +5294,8 @@ TEST_P(PerfettoStartupTracingApiTest, DontTraceBeforeStartupSetup) {
 
 // Startup tracing requires BufferExhaustedPolicy::kDrop, i.e. once the SMB is
 // filled with startup events, any further events should be dropped.
-TEST_P(PerfettoStartupTracingApiTest, DropPolicy) {
+// TODO(mohitms): It seems flaky. Debug and enable again - go/aosp_ci_failure23
+TEST_P(PerfettoStartupTracingApiTest, DISABLED_DropPolicy) {
   SetupStartupTracing();
   constexpr int kNumEvents = 100000;
   for (int i = 0; i < kNumEvents; i++) {
