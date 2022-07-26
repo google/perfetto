@@ -292,7 +292,7 @@ UnixSocketRaw::UnixSocketRaw(ScopedSocketHandle fd,
 #else
   // There is no reason why a socket should outlive the process in case of
   // exec() by default, this is just working around a broken unix design.
-  RetainOnExec();
+  SetRetainOnExec(false);
 #endif
 }
 
@@ -323,11 +323,16 @@ void UnixSocketRaw::SetBlocking(bool is_blocking) {
 #endif
 }
 
-void UnixSocketRaw::RetainOnExec() {
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+void UnixSocketRaw::SetRetainOnExec(bool retain) {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
   PERFETTO_DCHECK(fd_);
   int flags = fcntl(*fd_, F_GETFD, 0);
-  flags &= ~static_cast<int>(FD_CLOEXEC);
+  if (retain) {
+    flags &= ~static_cast<int>(FD_CLOEXEC);
+  } else {
+    flags |= FD_CLOEXEC;
+  }
   int fcntl_res = fcntl(*fd_, F_SETFD, flags);
   PERFETTO_CHECK(fcntl_res == 0);
 #endif
