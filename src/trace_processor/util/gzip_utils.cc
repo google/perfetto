@@ -40,11 +40,14 @@ bool IsGzipSupported() {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)  // Real Implementation
 
-GzipDecompressor::GzipDecompressor() : z_stream_(new z_stream()) {
+GzipDecompressor::GzipDecompressor(InputMode mode) : z_stream_(new z_stream()) {
   z_stream_->zalloc = nullptr;
   z_stream_->zfree = nullptr;
   z_stream_->opaque = nullptr;
-  inflateInit2(z_stream_.get(), 32 + MAX_WBITS);
+  // zlib uses a window size of -15..-8 to indicate it's a raw inflate stream
+  // (i.e. there's no zlib or gzip header).
+  int wbits = (mode == InputMode::kRawDeflate) ? -15 : 32 + MAX_WBITS;
+  inflateInit2(z_stream_.get(), wbits);
 }
 
 GzipDecompressor::~GzipDecompressor() {
@@ -90,7 +93,7 @@ GzipDecompressor::Result GzipDecompressor::ExtractOutput(uint8_t* out,
 
 #else  // Dummy Implementation
 
-GzipDecompressor::GzipDecompressor() = default;
+GzipDecompressor::GzipDecompressor(InputMode) {}
 GzipDecompressor::~GzipDecompressor() = default;
 void GzipDecompressor::Reset() {}
 void GzipDecompressor::Feed(const uint8_t*, size_t) {}
