@@ -166,33 +166,21 @@ struct DataSourceStaticState {
 
 // Per-DataSource-instance thread-local state.
 struct DataSourceInstanceThreadLocalState {
-
-  void Reset() {
-    trace_writer.reset();
-    incremental_state.reset();
-    data_source_custom_tls.reset();
-    muxer_id_for_testing = 0;
-    backend_id = 0;
-    backend_connection_id = 0;
-    buffer_id = 0;
-    data_source_instance_id = 0;
-    incremental_state_generation = 0;
-    is_intercepted = false;
-    last_packet_was_empty = false;
-  }
+  void Reset() { *this = DataSourceInstanceThreadLocalState{}; }
 
   std::unique_ptr<TraceWriterBase> trace_writer;
   using ObjectWithDeleter = std::unique_ptr<void, void (*)(void*)>;
   ObjectWithDeleter incremental_state = {nullptr, [](void*) {}};
   ObjectWithDeleter data_source_custom_tls = {nullptr, [](void*) {}};
-  uint32_t incremental_state_generation;
-  uint32_t muxer_id_for_testing;
-  TracingBackendId backend_id;
-  uint32_t backend_connection_id;
-  BufferId buffer_id;
-  uint64_t data_source_instance_id;
-  bool is_intercepted;
-  bool last_packet_was_empty;
+  uint32_t incremental_state_generation = 0;
+  uint32_t muxer_id_for_testing = 0;
+  TracingBackendId backend_id = 0;
+  uint32_t backend_connection_id = 0;
+  BufferId buffer_id = 0;
+  uint64_t data_source_instance_id = 0;
+  bool is_intercepted = false;
+  bool last_packet_was_empty = false;
+  uint16_t startup_target_buffer_reservation = 0;
 };
 
 // Per-DataSource-type thread-local state.
