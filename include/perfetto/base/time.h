@@ -182,6 +182,14 @@ inline struct timespec ToPosixTimespec(TimeMillis time) {
 
 std::string GetTimeFmt(const std::string& fmt);
 
+inline int64_t TimeGm(struct tm* tms) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return static_cast<int64_t>(_mkgmtime(tms));
+#else
+  return static_cast<int64_t>(timegm(tms));
+#endif
+}
+
 }  // namespace base
 }  // namespace perfetto
 
