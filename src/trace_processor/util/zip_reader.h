@@ -89,9 +89,9 @@ class ZipFile {
   const std::string& name() const { return hdr_.fname; }
 
   // Seconds since the Epoch. This is effectively time_t on 64 bit platforms.
-  uint64_t GetDatetime() const;
+  int64_t GetDatetime() const;
 
-  // Returns the modified time in the format %Y-%m-%d %H:%M.
+  // Returns the modified time in the format %Y-%m-%d %H:%M:%S.
   std::string GetDatetimeStr() const;
 
   size_t uncompressed_size() const { return hdr_.uncompressed_size; }
