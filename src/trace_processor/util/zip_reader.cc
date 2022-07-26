@@ -20,6 +20,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/streaming_line_reader.h"
@@ -291,7 +292,7 @@ base::Status ZipFile::DoDecompressionChecks() const {
 }
 
 // Returns a 64-bit version of time_t, that is, the num seconds since the Epoch.
-uint64_t ZipFile::GetDatetime() const {
+int64_t ZipFile::GetDatetime() const {
   // Date: 7 bits year, 4 bits month, 5 bits day.
   // Time: 5 bits hour, 6 bits minute, 5 bits second.
   struct tm mdt {};
@@ -306,14 +307,17 @@ uint64_t ZipFile::GetDatetime() const {
 
   mdt.tm_hour = hdr_.mtime >> (16 - 5);
   mdt.tm_min = (hdr_.mtime >> (16 - 5 - 6)) & 0x3f;
-  mdt.tm_sec = hdr_.mtime & 0x1f;
-  return static_cast<uint64_t>(timegm(&mdt));
+
+  // Seconds in the DOS format have only 5 bits, so they lose the last bit of
+  // resolution, hence the * 2.
+  mdt.tm_sec = (hdr_.mtime & 0x1f) * 2;
+  return base::TimeGm(&mdt);
 }
 
 std::string ZipFile::GetDatetimeStr() const {
   char buf[32]{};
   time_t secs = static_cast<time_t>(GetDatetime());
-  strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", gmtime(&secs));
+  strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", gmtime(&secs));
   buf[sizeof(buf) - 1] = '\0';
   return buf;
 }

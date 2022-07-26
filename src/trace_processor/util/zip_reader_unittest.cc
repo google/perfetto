@@ -80,10 +80,10 @@ void ValidateTestZip(ZipReader& zr) {
 
   std::vector<uint8_t> dec;
   ASSERT_EQ(zr.files()[0].name(), "stored_file");
-  ASSERT_EQ(zr.files()[0].GetDatetimeStr(), "2022-07-25 16:43");
+  ASSERT_EQ(zr.files()[0].GetDatetimeStr(), "2022-07-25 16:43:20");
 
   ASSERT_EQ(zr.files()[1].name(), "dir/deflated_file");
-  ASSERT_EQ(zr.files()[1].GetDatetimeStr(), "2022-07-25 18:34");
+  ASSERT_EQ(zr.files()[1].GetDatetimeStr(), "2022-07-25 18:34:14");
 
   auto res = zr.files()[0].Decompress(&dec);
   ASSERT_TRUE(res.ok()) << res.message();
