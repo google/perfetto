@@ -307,7 +307,7 @@ uint64_t ZipFile::GetDatetime() const {
   mdt.tm_hour = hdr_.mtime >> (16 - 5);
   mdt.tm_min = (hdr_.mtime >> (16 - 5 - 6)) & 0x3f;
   mdt.tm_sec = hdr_.mtime & 0x1f;
-  return static_cast<uint64_t>(mktime(&mdt));
+  return static_cast<uint64_t>(timegm(&mdt));
 }
 
 std::string ZipFile::GetDatetimeStr() const {
