@@ -5,6 +5,16 @@ android_sysui_cuj {
   process {
     name: "com.android.systemui"
     uid: 10001
+    package {
+      package_name: "com.android.systemui"
+      apk_version_code: 1
+      debuggable: false
+    }
+    packages_for_uid {
+      package_name: "com.android.systemui"
+      apk_version_code: 1
+      debuggable: false
+    }
  }
  frames {
    number: 1
