@@ -35,8 +35,32 @@ WHERE name GLOB 'JIT compiling*';
 
 SELECT ANDROID_JANK_CORRELATE_FRAME_SLICE_IMPL('App threads', 'android_jank_cuj_query_test_jit', 'jank_query_jit') AS suppress_query_output;
 
--- UNION ALL results from both queries.
+--- Third query to look at 'sf binder' slices on SF main thread
+
+DROP VIEW IF EXISTS android_jank_cuj_query_test_sf_binder;
+CREATE VIEW android_jank_cuj_query_test_sf_binder AS
+SELECT * FROM android_jank_cuj_sf_slice
+WHERE name = 'sf binder';
+
+SELECT ANDROID_JANK_CORRELATE_FRAME_SLICE_IMPL('SF MainThread', 'android_jank_cuj_query_test_sf_binder', 'jank_query_sf_binder') AS suppress_query_output;
+
+
+--- Fourth query to look at 'shader compile' slices on SF RenderEngine
+
+DROP VIEW IF EXISTS android_jank_cuj_query_test_re;
+CREATE VIEW android_jank_cuj_query_test_re AS
+SELECT * FROM android_jank_cuj_sf_slice
+WHERE name = 'shader compile';
+
+SELECT ANDROID_JANK_CORRELATE_FRAME_SLICE_IMPL('SF RenderEngine', 'android_jank_cuj_query_test_re', 'jank_query_re') AS suppress_query_output;
+
+
+-- UNION ALL results from all queries.
 SELECT 'JIT compiling' AS slice, * FROM jank_query_jit_slice_in_frame_agg
 UNION ALL
 SELECT 'binder transaction' AS slice, * FROM jank_query_slice_in_frame_agg
+UNION ALL
+SELECT 'sf binder' AS slice, * FROM jank_query_sf_binder_slice_in_frame_agg
+UNION ALL
+SELECT 'shader compile' AS slice, * FROM jank_query_re_slice_in_frame_agg
 ORDER BY slice, cuj_id, vsync;
