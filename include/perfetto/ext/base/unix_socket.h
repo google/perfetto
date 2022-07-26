@@ -116,7 +116,7 @@ class UnixSocketRaw {
   void Shutdown();
   void SetBlocking(bool);
   void DcheckIsBlocking(bool expected) const;  // No-op on release and Win.
-  void RetainOnExec();
+  void SetRetainOnExec(bool retain);
   SockType type() const { return type_; }
   SockFamily family() const { return family_; }
   SocketHandle fd() const { return *fd_; }
