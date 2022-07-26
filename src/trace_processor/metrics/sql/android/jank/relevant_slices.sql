@@ -52,6 +52,7 @@ DROP TABLE IF EXISTS android_jank_cuj_do_frame_slice;
 CREATE TABLE android_jank_cuj_do_frame_slice AS
 SELECT
   cuj.cuj_id,
+  main_thread.upid,
   main_thread.utid,
   slice.*,
   slice.ts + slice.dur AS ts_end,
@@ -74,6 +75,7 @@ DROP TABLE IF EXISTS android_jank_cuj_draw_frame_slice;
 CREATE TABLE android_jank_cuj_draw_frame_slice AS
 SELECT
   cuj_id,
+  render_thread.upid,
   render_thread.utid,
   slice.*,
   slice.ts + slice.dur AS ts_end,
@@ -134,3 +136,137 @@ JOIN android_jank_cuj_gpu_completion_fence fence
 WHERE
   slice.name GLOB 'waiting for HWC release *'
   AND slice.dur > 0;
+
+-- Match the frame timeline on the app side with the frame timeline on the SF side.
+-- This way we get the vsyncs IDs of SF frames within the CUJ.
+DROP TABLE IF EXISTS android_jank_cuj_app_to_sf_match;
+CREATE TABLE android_jank_cuj_app_to_sf_match AS
+SELECT
+  cuj_id,
+  do_frame.upid AS app_upid,
+  do_frame.vsync AS app_vsync,
+  sf_process.upid AS sf_upid,
+  CAST(sf_timeline.name AS INTEGER) AS sf_vsync
+FROM android_jank_cuj_do_frame_slice do_frame
+JOIN actual_frame_timeline_slice app_timeline
+  ON do_frame.upid = app_timeline.upid
+  AND do_frame.vsync = CAST(app_timeline.name AS INTEGER)
+JOIN directly_connected_flow(app_timeline.id) flow
+  ON flow.slice_in = app_timeline.id
+JOIN actual_frame_timeline_slice sf_timeline
+  ON flow.slice_out = sf_timeline.id
+JOIN android_jank_cuj_sf_process sf_process
+  ON sf_timeline.upid = sf_process.upid
+-- In cases where there are multiple layers drawn we would have separate frame timeline
+-- slice for each of the layers. GROUP BY to deduplicate these rows.
+GROUP BY cuj_id, app_upid, app_vsync, sf_upid, sf_vsync;
+
+SELECT CREATE_VIEW_FUNCTION(
+  'ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE(slice_name_glob STRING)',
+  'cuj_id INT, utid INT, vsync INT, id INT, name STRING, ts LONG, dur LONG, ts_end LONG',
+  '
+  SELECT
+    cuj_id,
+    utid,
+    match.sf_vsync AS vsync,
+    slice.id,
+    slice.name,
+    slice.ts,
+    slice.dur,
+    slice.ts + slice.dur AS ts_end
+  FROM slice
+  JOIN android_jank_cuj_sf_main_thread main_thread USING (track_id)
+  JOIN android_jank_cuj_app_to_sf_match match
+    ON VSYNC_FROM_NAME(slice.name) = match.sf_vsync
+  WHERE slice.name GLOB $slice_name_glob AND slice.dur > 0
+  ORDER BY cuj_id, vsync;
+  '
+);
+
+DROP TABLE IF EXISTS android_jank_cuj_sf_commit_slice;
+CREATE TABLE android_jank_cuj_sf_commit_slice AS
+SELECT * FROM ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('commit *');
+
+DROP TABLE IF EXISTS android_jank_cuj_sf_composite_slice;
+CREATE TABLE android_jank_cuj_sf_composite_slice AS
+SELECT * FROM ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('composite *');
+
+-- Older builds do not have the commit/composite but onMessageInvalidate instead
+DROP TABLE IF EXISTS android_jank_cuj_sf_on_message_invalidate_slice;
+CREATE TABLE android_jank_cuj_sf_on_message_invalidate_slice AS
+SELECT * FROM ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('onMessageInvalidate *');
+
+DROP VIEW IF EXISTS android_jank_cuj_sf_root_slice;
+CREATE VIEW android_jank_cuj_sf_root_slice AS
+SELECT * FROM android_jank_cuj_sf_commit_slice
+UNION ALL
+SELECT * FROM android_jank_cuj_sf_composite_slice
+UNION ALL
+SELECT * FROM android_jank_cuj_sf_on_message_invalidate_slice;
+
+-- Find descendants of SF main thread slices which contain the GPU completion fence ID that
+-- is used for signaling that the GPU finished drawing.
+DROP TABLE IF EXISTS android_jank_cuj_sf_gpu_completion_fence;
+CREATE TABLE android_jank_cuj_sf_gpu_completion_fence AS
+SELECT
+  cuj_id,
+  vsync,
+  sf_root_slice.id AS sf_root_slice_id,
+  GPU_COMPLETION_FENCE_ID_FROM_NAME(fence.name) AS fence_idx
+FROM android_jank_cuj_sf_root_slice sf_root_slice
+JOIN descendant_slice(sf_root_slice.id) fence
+  ON fence.name GLOB '*GPU completion fence*';
+
+-- Find GPU completion slices which indicate when the GPU finished drawing.
+DROP TABLE IF EXISTS android_jank_cuj_sf_gpu_completion_slice;
+CREATE TABLE android_jank_cuj_sf_gpu_completion_slice AS
+SELECT
+  fence.cuj_id,
+  vsync,
+  slice.*,
+  slice.ts + slice.dur AS ts_end,
+  fence.fence_idx
+FROM android_jank_cuj_sf_gpu_completion_fence fence
+JOIN android_jank_cuj_sf_gpu_completion_thread gpu_completion_thread
+JOIN slice
+  ON slice.track_id = gpu_completion_thread.track_id
+  AND fence.fence_idx = GPU_COMPLETION_FENCE_ID_FROM_NAME(slice.name)
+WHERE
+  slice.name GLOB 'waiting for GPU completion *'
+  AND slice.dur > 0;
+
+
+-- Find REThreaded::drawLayers on RenderEngine thread.
+-- These will be only relevant if SF is doing client composition so we check if
+-- the drawLayers slice is completely within the bounds of composeSurfaces on SF
+-- main thread.
+DROP TABLE IF EXISTS android_jank_cuj_sf_draw_layers_slice;
+CREATE TABLE android_jank_cuj_sf_draw_layers_slice AS
+WITH compose_surfaces AS (
+SELECT
+  cuj_id,
+  vsync,
+  sf_root_slice.id AS sf_root_slice_id,
+  compose_surfaces.ts,
+  compose_surfaces.ts + compose_surfaces.dur AS ts_end
+FROM android_jank_cuj_sf_root_slice sf_root_slice
+JOIN descendant_slice(sf_root_slice.id) compose_surfaces
+  ON compose_surfaces.name = 'composeSurfaces'
+)
+SELECT
+  cuj_id,
+  re_thread.utid,
+  vsync,
+  draw_layers.*,
+  draw_layers.ts + draw_layers.dur AS ts_end,
+  -- Store composeSurfaces ts as this will simplify calculating frame boundaries
+  compose_surfaces.ts AS ts_compose_surfaces
+FROM compose_surfaces
+JOIN android_jank_cuj_sf_render_engine_thread re_thread
+JOIN slice draw_layers
+  ON draw_layers.track_id = re_thread.track_id
+  AND draw_layers.ts >= compose_surfaces.ts
+  AND draw_layers.ts + draw_layers.dur <= compose_surfaces.ts_end
+WHERE
+  draw_layers.name = 'REThreaded::drawLayers'
+  AND draw_layers.dur > 0;
