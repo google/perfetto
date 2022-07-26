@@ -10936,6 +10936,16 @@ java_library_host {
 }
 
 java_library_host {
+    name: "perfetto_trace-full",
+    proto: {
+        type: "full",
+    },
+    srcs: [
+        "protos/perfetto/trace/perfetto_trace.proto",
+    ],
+}
+
+java_library_host {
     name: "perfetto_metrics-full",
     proto: {
         type: "full",
