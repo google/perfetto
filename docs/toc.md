@@ -35,6 +35,7 @@
 
 * [Trace analysis](#)
   * [Trace Processor (SQL)](analysis/trace-processor.md)
+  * [Batch Trace Processor](analysis/batch-trace-processor.md)
   * [Trace-based metrics](analysis/metrics.md)
   * [Common queries](analysis/common-queries.md)
   * [SQL tables](analysis/sql-tables.autogen)
