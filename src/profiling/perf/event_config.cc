@@ -89,7 +89,9 @@ base::Optional<uint32_t> ParseTracepointAndResolveId(
 // regardless of whether we're parsing an old-style config. The overall outcome
 // shouldn't change for almost all existing uses.
 template <typename T>
-TargetFilter ParseTargetFilter(const T& cfg) {
+TargetFilter ParseTargetFilter(
+    const T& cfg,
+    base::Optional<ProcessSharding> process_sharding) {
   TargetFilter filter;
   for (const auto& str : cfg.target_cmdline()) {
     filter.cmdlines.push_back(str);
@@ -104,6 +106,7 @@ TargetFilter ParseTargetFilter(const T& cfg) {
     filter.exclude_pids.insert(pid);
   }
   filter.additional_cmdline_count = cfg.additional_cmdline_count();
+  filter.process_sharding = process_sharding;
   return filter;
 }
 
@@ -292,19 +295,9 @@ PerfCounter PerfCounter::RawEvent(std::string name,
 
 // static
 base::Optional<EventConfig> EventConfig::Create(
-    const DataSourceConfig& ds_config,
-    tracepoint_id_fn_t tracepoint_id_lookup) {
-  protos::gen::PerfEventConfig pb_config;
-  if (!pb_config.ParseFromString(ds_config.perf_event_config_raw()))
-    return base::nullopt;
-
-  return EventConfig::Create(pb_config, ds_config, tracepoint_id_lookup);
-}
-
-// static
-base::Optional<EventConfig> EventConfig::Create(
     const protos::gen::PerfEventConfig& pb_config,
     const DataSourceConfig& raw_ds_config,
+    base::Optional<ProcessSharding> process_sharding,
     tracepoint_id_fn_t tracepoint_id_lookup) {
   // Timebase: sampling interval.
   uint64_t sampling_frequency = 0;
@@ -380,11 +373,14 @@ base::Optional<EventConfig> EventConfig::Create(
         return base::nullopt;
     }
 
-    // Process scoping.
+    // Process scoping. Sharding parameter is supplied from outside as it is
+    // shared by all data sources within a tracing session.
     target_filter =
         pb_config.callstack_sampling().has_scope()
-            ? ParseTargetFilter(pb_config.callstack_sampling().scope())
-            : ParseTargetFilter(pb_config);  // backwards compatibility
+            ? ParseTargetFilter(pb_config.callstack_sampling().scope(),
+                                process_sharding)
+            : ParseTargetFilter(pb_config,
+                                process_sharding);  // backwards compatibility
 
     // Kernel callstacks.
     kernel_frames = pb_config.callstack_sampling().kernel_frames() ||
