@@ -939,6 +939,30 @@ TEST_F(UnixSocketTest, BlockingSendTimeout) {
   read_slowly_task.Reset();
   tx_thread.join();
 }
+
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+TEST_F(UnixSocketTest, SetsCloexec) {
+  // CLOEXEC set when constructing sockets through helper:
+  {
+    auto raw = UnixSocketRaw::CreateMayFail(base::SockFamily::kUnix,
+                                            SockType::kStream);
+    int flags = fcntl(raw.fd(), F_GETFD, 0);
+    EXPECT_TRUE(flags & FD_CLOEXEC);
+  }
+  // CLOEXEC set when creating a UnixSocketRaw out of an existing fd:
+  {
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    int flags = fcntl(fd, F_GETFD, 0);
+    EXPECT_FALSE(flags & FD_CLOEXEC);
+
+    auto raw = UnixSocketRaw(ScopedSocketHandle(fd), base::SockFamily::kUnix,
+                             SockType::kStream);
+    flags = fcntl(raw.fd(), F_GETFD, 0);
+    EXPECT_TRUE(flags & FD_CLOEXEC);
+  }
+}
+#endif  // !OS_FUCHSIA
+
 #endif  // !OS_WIN
 
 }  // namespace
