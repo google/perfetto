@@ -63,6 +63,8 @@ import QueryArgs = protos.perfetto.protos.QueryArgs;
 import StatusResult = protos.perfetto.protos.StatusResult;
 import ComputeMetricArgs = protos.perfetto.protos.ComputeMetricArgs;
 import ComputeMetricResult = protos.perfetto.protos.ComputeMetricResult;
+import DisableAndReadMetatraceResult =
+    protos.perfetto.protos.DisableAndReadMetatraceResult;
 
 export {
   AndroidLogConfig,
@@ -75,6 +77,7 @@ export {
   ComputeMetricArgs,
   ComputeMetricResult,
   DataSourceConfig,
+  DisableAndReadMetatraceResult,
   DisableTracingRequest,
   DisableTracingResponse,
   EnableTracingRequest,
