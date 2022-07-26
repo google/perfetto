@@ -13,6 +13,47 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- Matches slices with frames within CUJs and aggregates slices durations within each frame.
+-- This allows comparing the cumulative durations of a set of slices vs what was the expected
+-- duration of each frame. It can be a useful heuristic to figure out what contributed to
+-- frames missing their expected deadlines.
+--
+-- EXAMPLE:
+--
+--
+-- CUJ Frames:
+--
+--      |==== FRAME 1 ====|
+--                  |====== FRAME 2 ======|
+--                                             |== FRAME 3 ==|
+--                                                          |== FRAME 4 ==|
+--
+-- Main thread frame boundaries:
+--
+--      |= FRAME 1 =|==== FRAME 2 ====|        |= FRAME 3 =||= FRAME 4 =|
+--
+-- `relevant_slice_table_name` slices:
+--
+--  |== binder ==|      |== binder ==|   |=b=|   |=b=||=b=|
+--
+--
+-- OUTPUT:
+--
+-- Data in `*_slice_in_frame` - slices from `relevant_slice_table_name` matched
+-- to frames and trimmed to their boundaries:
+--
+-- * FRAME 1:
+--      | binder |
+-- * FRAME 2:
+--                      |== binder ==|
+-- * FRAME 3:
+--                                               |=b=||=b=|
+-- * FRAME 4 - not present in the output
+--
+--
+-- Data in `*_slice_in_frame_agg` is just an aggregation of durations in  *_slice_in_frame.
+
+
 -- For simplicity we allow `relevant_slice_table_name` to be based on any
 -- of the slice tables. This table filters it down to only include slices within
 -- the (broadly bounded) CUJ and on the specific process / thread.
