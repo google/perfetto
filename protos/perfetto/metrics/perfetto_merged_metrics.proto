@@ -678,7 +678,7 @@ message AndroidIrqRuntimeMetric {
 message AndroidJankCujMetric {
   repeated Cuj cuj = 1;
 
-  // Next id: 10
+  // Next id: 11
   message Cuj {
     // ID of the CUJ that is unique within the trace.
     optional int32 id = 1;
@@ -698,6 +698,9 @@ message AndroidJankCujMetric {
 
     // Details about each of the frames within the CUJ.
     repeated Frame frame = 6;
+
+    // Details about each of the SF frames within the CUJ.
+    repeated Frame sf_frame = 10;
 
     // Metrics extracted from the counters output by FrameTracker
     // Does not contain the frame_dur percentile information.
@@ -723,6 +726,7 @@ message AndroidJankCujMetric {
     optional int64 dur_expected = 7;
 
     // Whether the app process missed the frame deadline.
+    // Only set for the App frames. Always left unset for SF frames.
     optional bool app_missed = 5;
 
     // Whether SF missed the frame deadline.
