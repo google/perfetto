@@ -38,17 +38,20 @@ bool IsPowerOfTwo(size_t v) {
   return (v != 0 && ((v & (v - 1)) == 0));
 }
 
-static DataSourceConfig AsDataSourceConfig(
-    const protos::gen::PerfEventConfig& perf_cfg) {
+base::Optional<EventConfig> CreateEventConfig(
+    const protos::gen::PerfEventConfig& perf_cfg,
+    EventConfig::tracepoint_id_fn_t tracepoint_id_lookup =
+        [](const std::string&, const std::string&) { return 0; }) {
   protos::gen::DataSourceConfig ds_cfg;
   ds_cfg.set_perf_event_config_raw(perf_cfg.SerializeAsString());
-  return ds_cfg;
+  return EventConfig::Create(perf_cfg, ds_cfg,
+                             /*process_sharding=*/base::nullopt,
+                             tracepoint_id_lookup);
 }
 
 TEST(EventConfigTest, AttrStructConstructed) {
   protos::gen::PerfEventConfig cfg;
-  base::Optional<EventConfig> event_config =
-      EventConfig::Create(AsDataSourceConfig(cfg));
+  base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
   ASSERT_TRUE(event_config.has_value());
   ASSERT_TRUE(event_config->perf_attr() != nullptr);
@@ -57,8 +60,7 @@ TEST(EventConfigTest, AttrStructConstructed) {
 TEST(EventConfigTest, RingBufferPagesValidated) {
   {  // if unset, a default is used
     protos::gen::PerfEventConfig cfg;
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     ASSERT_GT(event_config->ring_buffer_pages(), 0u);
@@ -68,8 +70,7 @@ TEST(EventConfigTest, RingBufferPagesValidated) {
     uint32_t num_pages = 128;
     protos::gen::PerfEventConfig cfg;
     cfg.set_ring_buffer_pages(num_pages);
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     ASSERT_EQ(event_config->ring_buffer_pages(), num_pages);
@@ -77,8 +78,7 @@ TEST(EventConfigTest, RingBufferPagesValidated) {
   {  // entire config rejected if not a power of two of pages
     protos::gen::PerfEventConfig cfg;
     cfg.set_ring_buffer_pages(7);
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_FALSE(event_config.has_value());
   }
@@ -87,8 +87,7 @@ TEST(EventConfigTest, RingBufferPagesValidated) {
 TEST(EventConfigTest, ReadTickPeriodDefaultedIfUnset) {
   {  // if unset, a default is used
     protos::gen::PerfEventConfig cfg;
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     ASSERT_GT(event_config->read_tick_period_ms(), 0u);
@@ -97,8 +96,7 @@ TEST(EventConfigTest, ReadTickPeriodDefaultedIfUnset) {
     uint32_t period_ms = 250;
     protos::gen::PerfEventConfig cfg;
     cfg.set_ring_buffer_read_period_ms(period_ms);
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     ASSERT_EQ(event_config->read_tick_period_ms(), period_ms);
@@ -108,8 +106,7 @@ TEST(EventConfigTest, ReadTickPeriodDefaultedIfUnset) {
 TEST(EventConfigTest, RemotePeriodTimeoutDefaultedIfUnset) {
   {  // if unset, a default is used
     protos::gen::PerfEventConfig cfg;
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     ASSERT_GT(event_config->remote_descriptor_timeout_ms(), 0u);
@@ -118,8 +115,7 @@ TEST(EventConfigTest, RemotePeriodTimeoutDefaultedIfUnset) {
     uint32_t timeout_ms = 300;
     protos::gen::PerfEventConfig cfg;
     cfg.set_remote_descriptor_timeout_ms(timeout_ms);
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     ASSERT_EQ(event_config->remote_descriptor_timeout_ms(), timeout_ms);
@@ -130,8 +126,7 @@ TEST(EventConfigTest, SelectSamplingInterval) {
   {  // period:
     protos::gen::PerfEventConfig cfg;
     cfg.mutable_timebase()->set_period(100);
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     EXPECT_FALSE(event_config->perf_attr()->freq);
@@ -140,8 +135,7 @@ TEST(EventConfigTest, SelectSamplingInterval) {
   {  // frequency:
     protos::gen::PerfEventConfig cfg;
     cfg.mutable_timebase()->set_frequency(4000);
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     EXPECT_TRUE(event_config->perf_attr()->freq);
@@ -150,8 +144,7 @@ TEST(EventConfigTest, SelectSamplingInterval) {
   {  // legacy frequency field:
     protos::gen::PerfEventConfig cfg;
     cfg.set_sampling_frequency(5000);
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     EXPECT_TRUE(event_config->perf_attr()->freq);
@@ -159,8 +152,7 @@ TEST(EventConfigTest, SelectSamplingInterval) {
   }
   {  // default is 10 Hz (implementation-defined)
     protos::gen::PerfEventConfig cfg;
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     EXPECT_TRUE(event_config->perf_attr()->freq);
@@ -180,7 +172,7 @@ TEST(EventConfigTest, SelectTimebaseEvent) {
     mutable_tracepoint->set_name("sched:sched_switch");
 
     base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg), id_lookup);
+        CreateEventConfig(cfg, id_lookup);
 
     ASSERT_TRUE(event_config.has_value());
     EXPECT_EQ(event_config->perf_attr()->type, PERF_TYPE_TRACEPOINT);
@@ -189,8 +181,7 @@ TEST(EventConfigTest, SelectTimebaseEvent) {
   {  // default is the CPU timer:
     protos::gen::PerfEventConfig cfg;
     cfg.mutable_timebase()->set_frequency(1000);
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     EXPECT_EQ(event_config->perf_attr()->type, PERF_TYPE_SOFTWARE);
@@ -208,8 +199,7 @@ TEST(EventConfigTest, ParseTargetfilter) {
     mutable_scope->set_additional_cmdline_count(3);
     mutable_scope->add_exclude_cmdline("heapprofd");
 
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     const auto& filter = event_config->filter();
@@ -230,8 +220,7 @@ TEST(EventConfigTest, ParseTargetfilter) {
     cfg.set_additional_cmdline_count(3);
     cfg.add_exclude_cmdline("heapprofd");
 
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     const auto& filter = event_config->filter();
@@ -252,8 +241,7 @@ TEST(EventConfigTest, CounterOnlyModeDetection) {
     mutable_timebase->set_period(500);
     mutable_timebase->set_counter(protos::gen::PerfEvents::HW_CPU_CYCLES);
 
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     EXPECT_EQ(event_config->perf_attr()->type, PERF_TYPE_HARDWARE);
@@ -268,8 +256,7 @@ TEST(EventConfigTest, CounterOnlyModeDetection) {
     mutable_timebase->set_period(500);
     mutable_timebase->set_counter(protos::gen::PerfEvents::SW_PAGE_FAULTS);
 
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     EXPECT_EQ(event_config->perf_attr()->type, PERF_TYPE_SOFTWARE);
@@ -285,8 +272,7 @@ TEST(EventConfigTest, CallstackSamplingModeDetection) {
     protos::gen::PerfEventConfig cfg;
     cfg.mutable_callstack_sampling();  // set field
 
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     EXPECT_TRUE(event_config->sample_callstacks());
@@ -306,8 +292,7 @@ TEST(EventConfigTest, CallstackSamplingModeDetection) {
     cfg.mutable_callstack_sampling()->set_user_frames(
         protos::gen::PerfEventConfig::UNWIND_SKIP);
 
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     EXPECT_TRUE(event_config->sample_callstacks());
@@ -330,8 +315,7 @@ TEST(EventConfigTest, EnableKernelFrames) {
   {
     protos::gen::PerfEventConfig cfg;
     cfg.mutable_callstack_sampling()->set_kernel_frames(true);
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     EXPECT_TRUE(event_config->kernel_frames());
@@ -340,16 +324,14 @@ TEST(EventConfigTest, EnableKernelFrames) {
     protos::gen::PerfEventConfig cfg;
     cfg.set_all_cpus(true);  // used to detect compat mode
     cfg.set_kernel_frames(true);
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     EXPECT_TRUE(event_config->kernel_frames());
   }
   {  // default is false
     protos::gen::PerfEventConfig cfg;
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     EXPECT_FALSE(event_config->kernel_frames());
@@ -359,8 +341,7 @@ TEST(EventConfigTest, EnableKernelFrames) {
 TEST(EventConfigTest, TimestampClockId) {
   {  // if unset, a default is used
     protos::gen::PerfEventConfig cfg;
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     EXPECT_TRUE(event_config->perf_attr()->use_clockid);
@@ -370,8 +351,7 @@ TEST(EventConfigTest, TimestampClockId) {
     protos::gen::PerfEventConfig cfg;
     cfg.mutable_timebase()->set_timestamp_clock(
         protos::gen::PerfEvents::PERF_CLOCK_BOOTTIME);
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     EXPECT_TRUE(event_config->perf_attr()->use_clockid);
@@ -381,8 +361,7 @@ TEST(EventConfigTest, TimestampClockId) {
     protos::gen::PerfEventConfig cfg;
     cfg.mutable_timebase()->set_timestamp_clock(
         protos::gen::PerfEvents::PERF_CLOCK_MONOTONIC);
-    base::Optional<EventConfig> event_config =
-        EventConfig::Create(AsDataSourceConfig(cfg));
+    base::Optional<EventConfig> event_config = CreateEventConfig(cfg);
 
     ASSERT_TRUE(event_config.has_value());
     EXPECT_TRUE(event_config->perf_attr()->use_clockid);
