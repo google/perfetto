@@ -141,6 +141,12 @@ export interface TracingSession {
 // Connection with an Adb device. Implementations will have logic specific to
 // the connection protocol used(Ex: WebSocket, WebUsb).
 export interface AdbConnection {
+  // Will push a binary to a given path.
+  push(binary: ArrayBuffer, path: string): Promise<void>;
+
+  // Will issue a shell command to the device.
+  shell(cmd: string): Promise<ByteStream>;
+
   // Will establish a connection(a ByteStream) with the device.
   connectSocket(path: string): Promise<ByteStream>;
 

@@ -17,7 +17,7 @@ import {_TextDecoder} from 'custom_utils';
 import {defer} from '../../base/deferred';
 
 import {buildAbdWebsocketCommand} from './adb_over_websocket_utils';
-import {ALLOW_USB_DEBUGGING} from './recording_error_handling';
+import {ALLOW_USB_DEBUGGING} from './adb_targets_utils';
 import {
   AdbConnection,
   ByteStream,
@@ -38,6 +38,16 @@ export class AdbConnectionOverWebsocket implements AdbConnection {
 
   constructor(
       private deviceSerialNumber: string, private websocketUrl: string) {}
+
+  push(_binary: ArrayBuffer, _path: string): Promise<void> {
+    // TODO(octaviant) implement
+    throw new Error('Not implemented yet');
+  }
+
+  shell(_cmd: string): Promise<AdbOverWebsocketStream> {
+    // TODO(octaviant) implement
+    throw new Error('Not implemented yet');
+  }
 
   async connectSocket(path: string): Promise<ByteStream> {
     const webSocket = new WebSocket(this.websocketUrl);

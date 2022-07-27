@@ -19,10 +19,11 @@ import {assertExists, assertFalse, assertTrue} from '../../base/logging';
 import {CmdType} from '../../controller/adb_interfaces';
 import {ArrayBufferBuilder} from '../array_buffer_builder';
 
+import {AdbFileHandler} from './adb_file_handler';
 import {findInterfaceAndEndpoint} from './adb_over_webusb_utils';
+import {ALLOW_USB_DEBUGGING} from './adb_targets_utils';
 import {AdbKeyManager, maybeStoreKey} from './auth/adb_key_manager';
 import {
-  ALLOW_USB_DEBUGGING,
   RecordingError,
   wrapRecordingError,
 } from './recording_error_handling';
@@ -90,6 +91,7 @@ export class AdbConnectionOverWebusb implements AdbConnection {
   private isUsbReceiveLoopRunning = false;
 
   private pendingConnPromises: Array<Deferred<void>> = [];
+
   // onStatus and onDisconnect are set to callbacks passed from the caller.
   // This happens for instance in the AndroidWebusbTarget, which instantiates
   // them with callbacks passed from the UI.
@@ -121,6 +123,12 @@ export class AdbConnectionOverWebusb implements AdbConnection {
           textDecoder.decode(commandOutput.toArrayBuffer()));
     };
     return onStreamingEnded;
+  }
+
+  async push(binary: Uint8Array, path: string): Promise<void> {
+    const byteStream = await this.openStream('sync:');
+    await (new AdbFileHandler(byteStream)).pushBinary(binary, path);
+    byteStream.close();
   }
 
   shell(cmd: string): Promise<AdbOverWebusbStream> {
@@ -490,7 +498,6 @@ export class AdbOverWebusbStream implements ByteStream {
 
   close(): void {
     this.adbConnection.streamClose(this);
-    this.onStreamClose();
     this._isOpen = false;
   }
 
