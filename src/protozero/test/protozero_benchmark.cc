@@ -120,7 +120,7 @@ PERFETTO_ALWAYS_INLINE void Clobber(benchmark::State& state) {
   for (size_t i = 1; i < kBufPerIteration / sizeof(uint64_t); i++)
     buf[i] ^= buf[i - 1];
   if (buf[(kBufPerIteration / sizeof(uint64_t)) - 1] == 42)
-    PERFETTO_CHECK(false);
+    PERFETTO_LOG(".");
   benchmark::DoNotOptimize(buf);
 
   constexpr size_t kWrap = kTotalWorkingSetSize / kBufPerIteration;
