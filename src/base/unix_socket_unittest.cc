@@ -32,6 +32,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/periodic_task.h"
 #include "perfetto/ext/base/pipe.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/base/test/test_task_runner.h"
@@ -964,6 +965,51 @@ TEST_F(UnixSocketTest, SetsCloexec) {
 #endif  // !OS_FUCHSIA
 
 #endif  // !OS_WIN
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_MAC)
+
+// Regression test for b/239725760.
+TEST_F(UnixSocketTest, Sockaddr_FilesystemLinked) {
+  TempDir tmp_dir = TempDir::Create();
+  std::string sock_path = tmp_dir.path() + "/test.sock";
+  auto srv = UnixSocket::Listen(sock_path, &event_listener_, &task_runner_,
+                                SockFamily::kUnix, SockType::kStream);
+  ASSERT_TRUE(srv->is_listening());
+  ASSERT_TRUE(FileExists(sock_path));
+
+  // Create a raw socket and manually connect to that (to avoid getting affected
+  // by accidental future bugs in the logic that populates struct sockaddr_un).
+  auto cli = UnixSocketRaw::CreateMayFail(SockFamily::kUnix, SockType::kStream);
+  struct sockaddr_un addr {};
+  addr.sun_family = AF_UNIX;
+  StringCopy(addr.sun_path, sock_path.c_str(), sizeof(addr.sun_path));
+  ASSERT_EQ(0, connect(cli.fd(), reinterpret_cast<struct sockaddr*>(&addr),
+                       sizeof(addr)));
+  cli.Shutdown();
+  remove(sock_path.c_str());
+}
+
+// Regression test for b/239725760.
+TEST_F(UnixSocketTest, Sockaddr_AbstractUnix) {
+  StackString<128> sock_name("@perfetto_test_%d_%d", getpid(), rand() % 100000);
+  auto srv =
+      UnixSocket::Listen(sock_name.ToStdString(), &event_listener_,
+                         &task_runner_, SockFamily::kUnix, SockType::kStream);
+  ASSERT_TRUE(srv->is_listening());
+
+  auto cli = UnixSocketRaw::CreateMayFail(SockFamily::kUnix, SockType::kStream);
+  struct sockaddr_un addr {};
+  addr.sun_family = AF_UNIX;
+  StringCopy(addr.sun_path, sock_name.c_str(), sizeof(addr.sun_path));
+  addr.sun_path[0] = '\0';
+  auto addr_len = static_cast<socklen_t>(
+      __builtin_offsetof(sockaddr_un, sun_path) + sock_name.len());
+  ASSERT_EQ(0, connect(cli.fd(), reinterpret_cast<struct sockaddr*>(&addr),
+                       addr_len));
+}
+#endif  // OS_LINUX || OS_ANDROID || OS_MAC
 
 }  // namespace
 }  // namespace base
