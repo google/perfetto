@@ -87,6 +87,7 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
 
   // Public API safe to call from other threads.
   void PostDisconnectSocket(pid_t pid);
+  void PostPurgeProcess(pid_t pid);
   void PostHandoffSocket(HandoffData);
   void ReturnAllocRecord(std::unique_ptr<AllocRecord> record) {
     alloc_record_arena_.ReturnAllocRecord(std::move(record));
@@ -109,7 +110,8 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
     UnwindingMetadata metadata;
     SharedRingBuffer shmem;
     ClientConfiguration client_config;
-    bool stream_allocations;
+    bool stream_allocations = false;
+    size_t drain_bytes = 0;
     std::vector<FreeRecord> free_records;
   };
 
@@ -124,15 +126,24 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
  private:
   void HandleHandoffSocket(HandoffData data);
   void HandleDisconnectSocket(pid_t pid);
+  void RemoveClientData(
+      std::map<pid_t, ClientData>::iterator client_data_iterator);
+  void FinishDisconnect(
+      std::map<pid_t, ClientData>::iterator client_data_iterator);
   std::unique_ptr<AllocRecord> BorrowAllocRecord();
 
-  enum class ReadAndUnwindBatchResult {
-    kHasMore,
-    kReadSome,
-    kReadNone,
+  struct ReadAndUnwindBatchResult {
+    enum class Status {
+      kHasMore,
+      kReadSome,
+      kReadNone,
+    };
+    size_t bytes_read = 0;
+    Status status;
   };
   ReadAndUnwindBatchResult ReadAndUnwindBatch(ClientData* client_data);
   void BatchUnwindJob(pid_t);
+  void DrainJob(pid_t);
 
   AllocRecordArena alloc_record_arena_;
   std::map<pid_t, ClientData> client_data_;
