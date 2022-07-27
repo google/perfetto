@@ -41,6 +41,13 @@ class PerfEventConfig;
 
 namespace profiling {
 
+// Callstack sampling parameter for unwinding only a fraction of seen processes
+// (without enumerating them in the config).
+struct ProcessSharding {
+  uint32_t shard_count = 0;
+  uint32_t chosen_shard = 0;
+};
+
 // Parsed allow/deny-list for filtering samples.
 // An empty allow-list means that all targets are allowed unless explicitly
 // denied.
@@ -49,6 +56,7 @@ struct TargetFilter {
   std::vector<std::string> exclude_cmdlines;
   base::FlatSet<pid_t> pids;
   base::FlatSet<pid_t> exclude_pids;
+  base::Optional<ProcessSharding> process_sharding;
   uint32_t additional_cmdline_count = 0;
 };
 
@@ -111,13 +119,9 @@ class EventConfig {
       std::function<uint32_t(const std::string&, const std::string&)>;
 
   static base::Optional<EventConfig> Create(
-      const DataSourceConfig& ds_config,
-      tracepoint_id_fn_t tracepoint_id_lookup =
-          [](const std::string&, const std::string&) { return 0; });
-
-  static base::Optional<EventConfig> Create(
       const protos::gen::PerfEventConfig& pb_config,
       const DataSourceConfig& raw_ds_config,
+      base::Optional<ProcessSharding> process_sharding,
       tracepoint_id_fn_t tracepoint_id_lookup);
 
   uint32_t ring_buffer_pages() const { return ring_buffer_pages_; }
@@ -168,8 +172,6 @@ class EventConfig {
   // ioctl after creating the event.
   const PerfCounter timebase_event_;
 
-  // TODO(rsavitski): consider adding an Optional<CallstackSampling> once the
-  // complexity warrants it.
   // If true, include userspace frames in sampled callstacks.
   const bool user_frames_;
 

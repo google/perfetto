@@ -184,6 +184,60 @@ TEST_F(PerfSampleTrackerTest, TimebaseTrackName_ConfigSuppliedName) {
   ASSERT_EQ(track_name, "test-name");
 }
 
+TEST_F(PerfSampleTrackerTest, ProcessShardingStatsEntries) {
+  uint32_t cpu0 = 0;
+  uint32_t cpu1 = 1;
+
+  protos::gen::TracePacketDefaults defaults;
+  auto* perf_defaults = defaults.mutable_perf_sample_defaults();
+  perf_defaults->mutable_timebase()->set_frequency(100);
+  perf_defaults->mutable_timebase()->set_counter(
+      protos::gen::PerfEvents::SW_PAGE_FAULTS);
+  // shard 7/8
+  perf_defaults->set_process_shard_count(8u);
+  perf_defaults->set_chosen_process_shard(7u);
+  auto defaults_pb = defaults.SerializeAsString();
+  protos::pbzero::TracePacketDefaults::Decoder defaults_decoder(defaults_pb);
+
+  // Two per-cpu lookups for first sequence
+  auto stream = context.perf_sample_tracker->GetSamplingStreamInfo(
+      /*seq_id=*/42, cpu0, &defaults_decoder);
+  context.perf_sample_tracker->GetSamplingStreamInfo(
+      /*seq_id=*/42, cpu1, &defaults_decoder);
+
+  // Second sequence
+  auto stream2 = context.perf_sample_tracker->GetSamplingStreamInfo(
+      /*seq_id=*/100, cpu0, &defaults_decoder);
+  context.perf_sample_tracker->GetSamplingStreamInfo(
+      /*seq_id=*/100, cpu1, &defaults_decoder);
+
+  EXPECT_NE(stream.perf_session_id, stream2.perf_session_id);
+
+  base::Optional<int64_t> shard_count = context.storage->GetIndexedStats(
+      stats::perf_process_shard_count,
+      static_cast<int>(stream.perf_session_id));
+  base::Optional<int64_t> chosen_shard = context.storage->GetIndexedStats(
+      stats::perf_chosen_process_shard,
+      static_cast<int>(stream.perf_session_id));
+
+  ASSERT_TRUE(shard_count.has_value());
+  EXPECT_EQ(shard_count.value(), 8);
+  ASSERT_TRUE(chosen_shard.has_value());
+  EXPECT_EQ(chosen_shard.value(), 7);
+
+  base::Optional<int64_t> shard_count2 = context.storage->GetIndexedStats(
+      stats::perf_process_shard_count,
+      static_cast<int>(stream.perf_session_id));
+  base::Optional<int64_t> chosen_shard2 = context.storage->GetIndexedStats(
+      stats::perf_chosen_process_shard,
+      static_cast<int>(stream.perf_session_id));
+
+  ASSERT_TRUE(shard_count2.has_value());
+  EXPECT_EQ(shard_count2.value(), 8);
+  ASSERT_TRUE(chosen_shard2.has_value());
+  EXPECT_EQ(chosen_shard2.value(), 7);
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
