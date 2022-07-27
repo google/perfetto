@@ -365,6 +365,24 @@ export function showIssueParsingTheTracedResponse(message: string): void {
   });
 }
 
+export function showFailedToPushBinary(message: string): void {
+  showModal({
+    title: 'Failed to push a binary to the device',
+    content:
+        m('div',
+          m('span',
+            'This can happen if your Android device has an OS version lower ' +
+                'than Q. Perfetto tried to push the latest version of its ' +
+                'embedded binary but failed.'),
+          m('br'),
+          m('br'),
+          m('span', 'Error message:'),
+          m('br'),
+          m('span', message)),
+    buttons: [],
+  });
+}
+
 function showRpcSequencingError() {
   showModal({
     title: 'A TraceProcessor RPC error occurred',
