@@ -3,6 +3,7 @@
 * [Quickstart](#)
   * [Record traces on Android](quickstart/android-tracing.md)
   * [Record traces on Linux](quickstart/linux-tracing.md)
+  * [Record Chrome traces](quickstart/chrome-tracing.md)
   * [SQL analysis and metrics](quickstart/trace-analysis.md)
   * [Trace conversion](quickstart/traceconv.md)
   * [Heap profiling](quickstart/heap-profiling.md)
