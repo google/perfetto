@@ -85,7 +85,7 @@ can run the following commands from a Perfetto checkout:
 ```python
 > ./tools/trace_processor --interactive \
   --run_metrics android_startup \
-  --metric-extension src/trace_processor/metric@/
+  --metric-extension src/trace_processor/metrics@/
   --dev \
   <trace>
 android_startup {
