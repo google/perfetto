@@ -204,8 +204,11 @@ namespace stats {
   F(compact_sched_switch_skipped,       kSingle,  kInfo,     kAnalysis, ""),   \
   F(compact_sched_waking_skipped,       kSingle,  kInfo,     kAnalysis, ""),   \
   F(empty_chrome_metadata,              kSingle,  kError,    kTrace,    ""),   \
-  F(perf_cpu_lost_records,              kIndexed, kDataLoss, kTrace,    ""),   \
   F(ninja_parse_errors,                 kSingle,  kError,    kTrace,    ""),   \
+  F(perf_cpu_lost_records,              kIndexed, kDataLoss, kTrace,    ""),   \
+  F(perf_process_shard_count,           kIndexed, kInfo,     kTrace,    ""),   \
+  F(perf_chosen_process_shard,          kIndexed, kInfo,     kTrace,    ""),   \
+  F(perf_guardrail_stop_ts,             kIndexed, kDataLoss, kTrace,    ""),   \
   F(perf_samples_skipped,               kSingle,  kInfo,     kTrace,    ""),   \
   F(perf_samples_skipped_dataloss,      kSingle,  kDataLoss, kTrace,    ""),   \
   F(memory_snapshot_parser_failure,     kSingle,  kError,    kAnalysis, ""),   \
@@ -217,7 +220,6 @@ namespace stats {
       "the tracing service. This happens if the ftrace buffers were not "      \
       "cleared properly. These packets are silently dropped by trace "         \
       "processor."),                                                           \
-  F(perf_guardrail_stop_ts,             kIndexed, kDataLoss, kTrace,    ""),   \
   F(sorter_push_event_out_of_order,     kSingle, kError,     kTrace,           \
       "Trace events are out of order event after sorting. This can happen "    \
       "due to many factors including clock sync drift, producers emitting "    \
