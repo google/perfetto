@@ -6,6 +6,9 @@ Unreleased:
       synchronous (when starting the trace, rather than on the first batch).
     * Added ksyms_mem_policy = KSYMS_RETAIN_FOREVER config to avoid destroying
       and re-parsing kallsysm repeatedly in benchmark runs.
+    * Improve heap profiling shutdown: now the shared memory buffer where
+      alloc/free records are stored is properly flushed when stopping the data
+      source.
   Trace Processor:
     * Deprecate calling NotifyEndOfFile more than once: Flush should instead be
       used for all but the final call.

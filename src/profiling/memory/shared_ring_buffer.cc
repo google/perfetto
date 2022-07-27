@@ -287,12 +287,13 @@ SharedRingBuffer::Buffer SharedRingBuffer::BeginRead() {
   return Buffer(rd_ptr, size, write_avail(pos));
 }
 
-void SharedRingBuffer::EndRead(Buffer buf) {
+size_t SharedRingBuffer::EndRead(Buffer buf) {
   if (!buf)
-    return;
+    return 0;
   size_t size_with_header = base::AlignUp<kAlignment>(buf.size + kHeaderSize);
   meta_->read_pos.fetch_add(size_with_header, std::memory_order_relaxed);
   meta_->stats.num_reads_succeeded++;
+  return size_with_header;
 }
 
 bool SharedRingBuffer::IsCorrupt(const PointerPositions& pos) {
