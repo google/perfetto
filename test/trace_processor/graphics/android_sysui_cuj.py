@@ -18,10 +18,18 @@ from os import sys, path
 
 import synth_common
 
+# com.android.systemui
 PID = 1000
+# RenderThread
 RTID = 1555
+# Jit thread pool
 JITID = 1777
 LAYER = "TX - NotificationShade#0"
+
+# /system/bin/surfaceflinger
+SF_PID = 1050
+# RenderEngine thread
+SF_RETID = 1055
 
 
 def add_main_thread_atrace(trace, ts, ts_end, buf):
@@ -52,6 +60,24 @@ def add_jit_thread_atrace(trace, ts, ts_end, buf):
   trace.add_atrace_end(ts=ts_end, tid=JITID, pid=PID)
 
 
+def add_sf_main_thread_atrace(trace, ts, ts_end, buf):
+  add_sf_main_thread_atrace_begin(trace, ts, buf)
+  add_sf_main_thread_atrace_end(trace, ts_end)
+
+
+def add_sf_main_thread_atrace_begin(trace, ts, buf):
+  trace.add_atrace_begin(ts=ts, tid=SF_PID, pid=SF_PID, buf=buf)
+
+
+def add_sf_main_thread_atrace_end(trace, ts_end):
+  trace.add_atrace_end(ts=ts_end, tid=SF_PID, pid=SF_PID)
+
+
+def add_sf_render_engine_atrace(trace, ts, ts_end, buf):
+  trace.add_atrace_begin(ts=ts, tid=SF_RETID, pid=SF_PID, buf=buf)
+  trace.add_atrace_end(ts=ts_end, tid=SF_RETID, pid=SF_PID)
+
+
 def add_frame(trace,
               vsync,
               ts_do_frame,
@@ -78,37 +104,85 @@ def add_frame(trace,
                           "waiting for GPU completion %d" % gpu_idx)
 
 
-def add_expected_frame_events(ts, dur, token_start):
+def add_sf_frame(trace,
+                 vsync,
+                 ts_commit,
+                 ts_end_commit,
+                 ts_composite,
+                 ts_end_composite,
+                 ts_compose_surfaces=None,
+                 ts_end_compose_surfaces=None):
+
+  add_sf_main_thread_atrace(trace, ts_commit, ts_end_commit,
+                            "commit %d" % vsync)
+  add_sf_main_thread_atrace_begin(trace, ts_composite, "composite %d" % vsync)
+  if ts_compose_surfaces is not None:
+    add_sf_main_thread_atrace(trace, ts_compose_surfaces,
+                              ts_end_compose_surfaces, "composeSurfaces")
+  add_sf_main_thread_atrace_end(trace, ts_end_composite)
+
+
+def add_expected_display_frame_events(ts, dur, token):
   trace.add_expected_display_frame_start_event(
-      ts=ts, cookie=token_start, token=token_start, pid=PID)
-  trace.add_frame_end_event(ts=ts + dur, cookie=token_start)
+      ts=ts, cookie=token, token=100 + token, pid=SF_PID)
+  trace.add_frame_end_event(ts=ts + dur, cookie=token)
 
 
-def add_actual_frame_events(ts,
-                            dur,
-                            token_start,
-                            cookie=None,
-                            jank=None,
-                            on_time_finish_override=None):
+def add_expected_surface_frame_events(ts, dur, token):
+  trace.add_expected_surface_frame_start_event(
+      ts=ts,
+      cookie=100000 + token,
+      token=token,
+      display_frame_token=100 + token,
+      pid=PID,
+      layer_name='')
+  trace.add_frame_end_event(ts=ts + dur, cookie=100000 + token)
+
+
+def add_actual_display_frame_events(ts, dur, token, cookie=None, jank=None):
+  jank_type = jank if jank is not None else 1
+  present_type = 2 if jank is not None else 1
+  on_time_finish = 0 if jank is not None else 1
+  trace.add_actual_display_frame_start_event(
+      ts=ts,
+      cookie=token + 1,
+      token=100 + token,
+      pid=SF_PID,
+      present_type=present_type,
+      on_time_finish=on_time_finish,
+      gpu_composition=0,
+      jank_type=jank_type,
+      prediction_type=3)
+  trace.add_frame_end_event(ts=ts + dur, cookie=token + 1)
+
+
+def add_actual_surface_frame_events(ts,
+                                    dur,
+                                    token,
+                                    cookie=None,
+                                    jank=None,
+                                    on_time_finish_override=None):
   if cookie is None:
-    cookie = token_start + 1
+    cookie = token + 1
   jank_type = jank if jank is not None else 1
   present_type = 2 if jank is not None else 1
   if on_time_finish_override is None:
     on_time_finish = 1 if jank is None else 0
   else:
     on_time_finish = on_time_finish_override
-  trace.add_actual_display_frame_start_event(
+  trace.add_actual_surface_frame_start_event(
       ts=ts,
-      cookie=cookie,
-      token=token_start,
+      cookie=100002 + cookie,
+      token=token,
+      display_frame_token=100 + token,
       pid=PID,
       present_type=present_type,
       on_time_finish=on_time_finish,
       gpu_composition=0,
       jank_type=jank_type,
-      prediction_type=3)
-  trace.add_frame_end_event(ts=ts + dur, cookie=cookie)
+      prediction_type=3,
+      layer_name=LAYER)
+  trace.add_frame_end_event(ts=ts + dur, cookie=100002 + cookie)
 
 
 trace = synth_common.create_trace()
@@ -116,14 +190,18 @@ trace = synth_common.create_trace()
 trace.add_packet()
 trace.add_package_list(
     ts=0, name="com.android.systemui", uid=10001, version_code=1)
-
+trace.add_package_list(ts=0, name="android", uid=1000, version_code=1)
 trace.add_process(pid=PID, ppid=1, cmdline="com.android.systemui", uid=10001)
+trace.add_process(
+    pid=SF_PID, ppid=1, cmdline="/system/bin/surfaceflinger", uid=1000)
 trace.add_thread(
     tid=RTID, tgid=PID, cmdline="RenderThread", name="RenderThread")
 trace.add_thread(
     tid=1666, tgid=PID, cmdline="GPU completion", name="GPU completion")
 trace.add_thread(
     tid=JITID, tgid=PID, cmdline="Jit thread pool", name="Jit thread pool")
+trace.add_thread(
+    tid=SF_RETID, tgid=SF_PID, cmdline="RenderEngine", name="RenderEngine")
 trace.add_ftrace_packet(cpu=0)
 trace.add_atrace_async_begin(ts=5, tid=PID, pid=PID, buf="J<SHOULD_BE_IGNORED>")
 trace.add_atrace_async_begin(ts=10, tid=PID, pid=PID, buf="J<SHADE_ROW_EXPAND>")
@@ -217,6 +295,18 @@ add_main_thread_atrace(
 add_render_thread_atrace(
     trace, ts=4_500_000, ts_end=4_800_000, buf="flush layers")
 
+add_sf_frame(
+    trace,
+    vsync=110,
+    ts_commit=1_006_000_500,
+    ts_end_commit=1_006_500_000,
+    ts_composite=1_007_000_000,
+    ts_end_composite=1_008_000_000)
+
+# main thread binder call that delays the start of work on this frame
+add_sf_main_thread_atrace(
+    trace, ts=900_000_000, ts_end=1_006_000_000, buf="sf binder")
+
 add_frame(
     trace,
     vsync=20,
@@ -230,6 +320,14 @@ add_main_thread_atrace(
     trace, ts=9_000_000, ts_end=19_000_000, buf="binder transaction")
 add_render_thread_atrace(
     trace, ts=24_000_000, ts_end=25_000_000, buf="flush layers")
+
+add_sf_frame(
+    trace,
+    vsync=120,
+    ts_commit=1_016_000_000,
+    ts_end_commit=1_018_000_000,
+    ts_composite=1_020_500_000,
+    ts_end_composite=1_025_000_000)
 
 add_frame(
     trace,
@@ -260,6 +358,14 @@ add_main_thread_atrace(
     trace, ts=31_800_000, ts_end=31_850_000, buf="binder transaction")
 add_render_thread_atrace(
     trace, ts=38_000_000, ts_end=50_000_000, buf="flush layers")
+
+add_sf_frame(
+    trace,
+    vsync=130,
+    ts_commit=1_032_000_000,
+    ts_end_commit=1_033_000_000,
+    ts_composite=1_034_000_000,
+    ts_end_composite=1_045_000_000)
 
 add_frame(
     trace,
@@ -300,6 +406,14 @@ trace.add_sched(ts=53_000_000, prev_pid=PID, next_pid=0, prev_state='R')
 trace.add_sched(ts=54_000_000, prev_pid=0, next_pid=RTID)
 trace.add_sched(ts=59_000_000, prev_pid=RTID, next_pid=0, prev_state='R')
 
+add_sf_frame(
+    trace,
+    vsync=140,
+    ts_commit=1_048_000_000,
+    ts_end_commit=1_049_000_000,
+    ts_composite=1_055_000_000,
+    ts_end_composite=1_060_000_000)
+
 add_frame(
     trace,
     vsync=60,
@@ -320,6 +434,14 @@ trace.add_sched(ts=78_500_000, prev_pid=RTID, next_pid=0, prev_state='R')
 trace.add_sched(ts=78_500_000, prev_pid=0, next_pid=0)
 trace.add_sched(ts=88_000_000, prev_pid=0, next_pid=RTID)
 trace.add_sched(ts=88_500_000, prev_pid=RTID, next_pid=0, prev_state='R')
+
+add_sf_frame(
+    trace,
+    vsync=160,
+    ts_commit=1_070_000_000,
+    ts_end_commit=1_071_000_000,
+    ts_composite=1_072_000_000,
+    ts_end_composite=1_080_000_000)
 
 add_frame(
     trace,
@@ -345,6 +467,21 @@ add_gpu_thread_atrace(
     ts_end=122_000_000,
     buf="waiting for GPU completion 1902")
 
+add_sf_frame(
+    trace,
+    vsync=190,
+    ts_commit=1_100_000_000,
+    ts_end_commit=1_101_000_000,
+    ts_composite=1_102_000_000,
+    ts_end_composite=1_110_000_000,
+    ts_compose_surfaces=1_104_000_000,
+    ts_end_compose_surfaces=1_108_000_000)
+
+add_sf_render_engine_atrace(
+    trace, ts=1_104_500_000, ts_end=1_107_500_000, buf="REThreaded::drawLayers")
+add_sf_render_engine_atrace(
+    trace, ts=1_105_000_000, ts_end=1_107_000_000, buf="shader compile")
+
 add_frame(
     trace,
     vsync=100,
@@ -357,6 +494,25 @@ add_frame(
 
 add_render_thread_atrace(
     trace, ts=208_000_000, ts_end=214_000_000, buf="DrawFrames 100")
+
+add_sf_frame(
+    trace,
+    vsync=200,
+    ts_commit=1_200_000_000,
+    ts_end_commit=1_202_000_000,
+    ts_composite=1_203_000_000,
+    ts_end_composite=1_232_000_000,
+    ts_compose_surfaces=1_205_000_000,
+    ts_end_compose_surfaces=1_230_000_000)
+
+# shader compile from outside the frame that delays REThreaded::drawLayers
+add_sf_render_engine_atrace(
+    trace, ts=1_150_000_000, ts_end=1_207_000_000, buf="shader compile")
+
+add_sf_render_engine_atrace(
+    trace, ts=1_208_000_000, ts_end=1_229_000_000, buf="REThreaded::drawLayers")
+add_sf_render_engine_atrace(
+    trace, ts=1_209_000_000, ts_end=1_228_000_000, buf="shader compile")
 
 add_frame(
     trace,
@@ -424,7 +580,8 @@ add_frame(
     ts_end_gpu=None)
 
 # Frame without a matching actual timeline slice
-# Skipped in `android_jank_cuj.sql` since we assume the process did not draw anything.
+# Skipped in `android_jank_cuj.sql` since we assume the process
+# did not draw anything.
 add_frame(
     trace,
     vsync=160,
@@ -449,60 +606,86 @@ add_frame(
 add_main_thread_atrace(
     trace, ts=990_000_000, ts_end=995_000_000, buf="J<CANCELED>#FT#cancel#0")
 
-add_expected_frame_events(ts=0, dur=16_000_000, token_start=10)
-add_actual_frame_events(ts=0, dur=16_000_000, token_start=10)
+add_expected_display_frame_events(ts=1_000_000_000, dur=16_000_000, token=10)
+add_actual_display_frame_events(ts=1_000_000_000, dur=16_000_000, token=10)
 
-add_expected_frame_events(ts=8_000_000, dur=20_000_000, token_start=20)
-add_actual_frame_events(ts=8_000_000, dur=28_000_000, token_start=20, jank=66)
+add_expected_surface_frame_events(ts=0, dur=16_000_000, token=10)
+add_actual_surface_frame_events(ts=0, dur=16_000_000, token=10)
 
-add_expected_frame_events(ts=30_000_000, dur=20_000_000, token_start=30)
-add_actual_frame_events(ts=30_000_000, dur=25_000_000, token_start=30, jank=64)
+add_expected_display_frame_events(ts=1_016_000_000, dur=20_000_000, token=20)
+add_actual_display_frame_events(ts=1_016_000_000, dur=10_000_000, token=20)
 
-add_expected_frame_events(ts=40_000_000, dur=20_000_000, token_start=40)
-add_actual_frame_events(ts=40_000_000, dur=40_000_000, token_start=40, jank=64)
+add_expected_surface_frame_events(ts=8_000_000, dur=20_000_000, token=20)
+add_actual_surface_frame_events(ts=8_000_000, dur=28_000_000, token=20, jank=66)
 
-add_expected_frame_events(ts=70_000_000, dur=20_000_000, token_start=60)
-add_actual_frame_events(ts=70_000_000, dur=10_000_000, token_start=60, jank=64)
-add_actual_frame_events(
-    ts=70_000_000, dur=20_000_000, token_start=60, cookie=62, jank=64)
+add_expected_display_frame_events(ts=1_032_000_000, dur=16_000_000, token=30)
+add_actual_display_frame_events(ts=1_032_000_000, dur=16_000_000, token=30)
 
-add_expected_frame_events(ts=100_000_000, dur=20_000_000, token_start=90)
-add_actual_frame_events(ts=100_000_000, dur=23_000_000, token_start=90, jank=64)
+add_expected_surface_frame_events(ts=30_000_000, dur=20_000_000, token=30)
+add_actual_surface_frame_events(
+    ts=30_000_000, dur=25_000_000, token=30, jank=64)
 
-add_expected_frame_events(ts=200_000_000, dur=20_000_000, token_start=100)
-add_actual_frame_events(
-    ts=200_000_000, dur=22_000_000, token_start=100, jank=34)
+add_expected_display_frame_events(ts=1_048_000_000, dur=16_000_000, token=40)
+add_actual_display_frame_events(ts=1_048_000_000, dur=16_000_000, token=40)
 
-add_expected_frame_events(ts=300_000_000, dur=20_000_000, token_start=110)
-add_actual_frame_events(ts=300_000_000, dur=61_000_000, token_start=110)
+add_expected_surface_frame_events(ts=40_000_000, dur=20_000_000, token=40)
+add_actual_surface_frame_events(
+    ts=40_000_000, dur=40_000_000, token=40, jank=64)
 
-add_expected_frame_events(ts=400_000_000, dur=20_000_000, token_start=120)
-add_actual_frame_events(
+add_expected_display_frame_events(ts=1_070_000_000, dur=16_000_000, token=60)
+add_actual_display_frame_events(ts=1_070_000_000, dur=16_000_000, token=60)
+
+add_expected_surface_frame_events(ts=70_000_000, dur=20_000_000, token=60)
+add_actual_surface_frame_events(
+    ts=70_000_000, dur=10_000_000, token=60, jank=64)
+add_actual_surface_frame_events(
+    ts=70_000_000, dur=20_000_000, token=60, cookie=62, jank=64)
+
+add_expected_display_frame_events(ts=1_100_000_000, dur=16_000_000, token=90)
+add_actual_display_frame_events(ts=1_100_000_000, dur=16_000_000, token=90)
+
+add_expected_surface_frame_events(ts=100_000_000, dur=20_000_000, token=90)
+add_actual_surface_frame_events(
+    ts=100_000_000, dur=23_000_000, token=90, jank=64)
+
+add_expected_display_frame_events(ts=1_200_000_000, dur=16_000_000, token=100)
+add_actual_display_frame_events(
+    ts=1_200_000_000, dur=32_000_000, token=100, jank=16)
+
+add_expected_surface_frame_events(ts=200_000_000, dur=20_000_000, token=100)
+add_actual_surface_frame_events(
+    ts=200_000_000, dur=22_000_000, token=100, jank=34)
+
+add_expected_surface_frame_events(ts=300_000_000, dur=20_000_000, token=110)
+add_actual_surface_frame_events(ts=300_000_000, dur=61_000_000, token=110)
+
+add_expected_surface_frame_events(ts=400_000_000, dur=20_000_000, token=120)
+add_actual_surface_frame_events(
     ts=400_000_000,
     dur=61_000_000,
-    token_start=120,
+    token=120,
     jank=128,
     on_time_finish_override=1)
 
 # Multiple layers but only one of them janked (the one we care about)
-add_expected_frame_events(ts=500_000_000, dur=20_000_000, token_start=130)
-add_actual_frame_events(ts=500_000_000, dur=2_000_000, token_start=130)
-add_actual_frame_events(
-    ts=550_000_000, dur=6_000_000, token_start=130, cookie=132, jank=64)
+add_expected_surface_frame_events(ts=500_000_000, dur=20_000_000, token=130)
+add_actual_surface_frame_events(ts=500_000_000, dur=2_000_000, token=130)
+add_actual_surface_frame_events(
+    ts=550_000_000, dur=6_000_000, token=130, cookie=132, jank=64)
 
 # Single layer but actual frame event is slighly after doFrame start
-add_expected_frame_events(ts=600_000_000, dur=20_000_000, token_start=140)
-add_actual_frame_events(
-    ts=608_600_000, dur=17_000_000, token_start=140, jank=64)
+add_expected_surface_frame_events(ts=600_000_000, dur=20_000_000, token=140)
+add_actual_surface_frame_events(
+    ts=608_600_000, dur=17_000_000, token=140, jank=64)
 
-add_expected_frame_events(ts=700_000_000, dur=20_000_000, token_start=150)
-add_actual_frame_events(ts=700_500_000, dur=14_500_000, token_start=150)
+add_expected_surface_frame_events(ts=700_000_000, dur=20_000_000, token=150)
+add_actual_surface_frame_events(ts=700_500_000, dur=14_500_000, token=150)
 
 # No matching actual timeline
-add_expected_frame_events(ts=800_000_000, dur=20_000_000, token_start=160)
+add_expected_surface_frame_events(ts=800_000_000, dur=20_000_000, token=160)
 
-add_expected_frame_events(ts=1_100_000_000, dur=20_000_000, token_start=1000)
-add_actual_frame_events(
-    ts=1_100_000_000, dur=500_000_000, token_start=1000, jank=64)
+add_expected_surface_frame_events(ts=1_100_000_000, dur=20_000_000, token=1000)
+add_actual_surface_frame_events(
+    ts=1_100_000_000, dur=500_000_000, token=1000, jank=64)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())

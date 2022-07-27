@@ -40,7 +40,7 @@ import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames';
 import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
-import {COUNTER_TRACK_KIND} from '../tracks/counter';
+import {COUNTER_TRACK_KIND, CounterScaleOptions} from '../tracks/counter';
 import {CPU_FREQ_TRACK_KIND} from '../tracks/cpu_freq';
 import {CPU_PROFILE_TRACK_KIND} from '../tracks/cpu_profile';
 import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices';
@@ -81,6 +81,27 @@ const F2FS_IOSTAT_LAT_TAG = 'f2fs_iostat_latency.';
 const F2FS_IOSTAT_LAT_GROUP_NAME = 'f2fs_iostat_latency';
 const UFS_CMD_TAG = 'io.ufs.command.tag';
 const UFS_CMD_TAG_GROUP_NAME = 'io.ufs.command.tags';
+
+// Sets the default 'scale' for counter tracks. If the regex matches
+// then the paired mode is used. Entries are in priority order so the
+// first match wins.
+const COUNTER_REGEX: [RegExp, CounterScaleOptions][] = [
+  // Power counters make more sense in rate mode since you're typically
+  // interested in the slope of the graph rather than the absolute
+  // value.
+  [new RegExp('^power\..*$'), 'RATE'],
+  // Same for network counters.
+  [new RegExp('^.* (Received|Transmitted) KB$'), 'RATE'],
+];
+
+function getCounterScale(name: string): CounterScaleOptions|undefined {
+  for (const [re, scale] of COUNTER_REGEX) {
+    if (name.match(re)) {
+      return scale;
+    }
+  }
+  return undefined;
+}
 
 export async function decideTracks(
     engineId: string, engine: Engine): Promise<DeferredAction[]> {
@@ -365,6 +386,7 @@ class TrackDecider {
         config: {
           name,
           trackId,
+          scale: getCounterScale(name),
         },
       });
     }
@@ -400,6 +422,7 @@ class TrackDecider {
         config: {
           name,
           trackId,
+          scale: getCounterScale(name),
         },
       });
     }
@@ -801,7 +824,14 @@ class TrackDecider {
           priority: InThreadTrackSortKey.ORDINARY,
         },
         trackGroup: uuid,
-        config: {name, trackId, startTs, endTs, tid},
+        config: {
+          name,
+          trackId,
+          startTs,
+          endTs,
+          tid,
+          scale: getCounterScale(name),
+        },
       });
     }
   }
@@ -1122,6 +1152,7 @@ class TrackDecider {
           trackId,
           startTs,
           endTs,
+          scale: getCounterScale(name),
         },
       });
     }
@@ -1241,7 +1272,7 @@ class TrackDecider {
       id: summaryTrackId,
       engineId: this.engineId,
       kind: PROCESS_SUMMARY_TRACK,
-      trackSortKey: PrimaryTrackSortKey.MAIN_THREAD,
+      trackSortKey: PrimaryTrackSortKey.PROCESS_SUMMARY_TRACK,
       name: `Kernel thread summary`,
       config: {pidForColor: 2, upid: it.upid, utid: it.utid},
     });

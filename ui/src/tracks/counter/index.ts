@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import * as m from 'mithril';
+
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
@@ -25,24 +26,29 @@ import {
 } from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
+import {PopupMenuButton, PopupMenuItem} from '../../frontend/popup_menu';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {TrackButton, TrackButtonAttrs} from '../../frontend/track_panel';
 
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 
-export type CounterScaleOptions = 'ZERO_BASED'|'MIN_MAX'|'DELTA_FROM_PREVIOUS';
+// TODO(hjd): Convert to enum.
+export type CounterScaleOptions =
+    'ZERO_BASED'|'MIN_MAX'|'DELTA_FROM_PREVIOUS'|'RATE';
 
 export interface Data extends TrackData {
   maximumValue: number;
   minimumValue: number;
   maximumDelta: number;
   minimumDelta: number;
+  maximumRate: number;
+  minimumRate: number;
   timestamps: Float64Array;
   lastIds: Float64Array;
   minValues: Float64Array;
   maxValues: Float64Array;
   lastValues: Float64Array;
   totalDeltas: Float64Array;
+  rate: Float64Array;
 }
 
 export interface Config {
@@ -153,6 +159,8 @@ class CounterTrackController extends TrackController<Config, Data> {
       minimumValue: this.minimumValue(),
       maximumDelta: this.maximumDeltaSeen,
       minimumDelta: this.minimumDeltaSeen,
+      maximumRate: 0,
+      minimumRate: 0,
       resolution,
       timestamps: new Float64Array(numRows),
       lastIds: new Float64Array(numRows),
@@ -160,6 +168,7 @@ class CounterTrackController extends TrackController<Config, Data> {
       maxValues: new Float64Array(numRows),
       lastValues: new Float64Array(numRows),
       totalDeltas: new Float64Array(numRows),
+      rate: new Float64Array(numRows),
     };
 
     const it = queryRes.iter({
@@ -170,13 +179,27 @@ class CounterTrackController extends TrackController<Config, Data> {
       'lastValue': NUM,
       'totalDelta': NUM,
     });
+    let lastValue = 0;
+    let lastTs = 0;
     for (let row = 0; it.valid(); it.next(), row++) {
-      data.timestamps[row] = fromNs(it.tsq);
+      const ts = fromNs(it.tsq);
+      const value = it.lastValue;
+      const rate = (value - lastValue) / (ts - lastTs);
+      lastTs = ts;
+      lastValue = value;
+
+      data.timestamps[row] = ts;
       data.lastIds[row] = it.lastId;
       data.minValues[row] = it.minValue;
       data.maxValues[row] = it.maxValue;
-      data.lastValues[row] = it.lastValue;
+      data.lastValues[row] = value;
       data.totalDeltas[row] = it.totalDelta;
+      data.rate[row] = rate;
+      if (row > 0) {
+        data.rate[row - 1] = rate;
+        data.maximumRate = Math.max(data.maximumRate, rate);
+        data.minimumRate = Math.min(data.minimumRate, rate);
+      }
     }
     return data;
   }
@@ -203,49 +226,6 @@ class CounterTrackController extends TrackController<Config, Data> {
 const MARGIN_TOP = 3.5;
 const RECT_HEIGHT = 24.5;
 
-interface CounterScaleAttribute {
-  follower: CounterScaleOptions;
-  tooltip: string;
-  icon: string;
-}
-
-function scaleTooltip(scale?: CounterScaleOptions): string {
-  const description: CounterScaleAttribute = getCounterScaleAttribute(scale);
-  const source: string = description.tooltip;
-  const destination: string =
-      getCounterScaleAttribute(description.follower).tooltip;
-  return `Toggle scale from ${source} to ${destination}`;
-}
-
-function scaleIcon(scale?: CounterScaleOptions): string {
-  return getCounterScaleAttribute(scale).icon;
-}
-
-function nextScale(scale?: CounterScaleOptions): CounterScaleOptions {
-  return getCounterScaleAttribute(scale).follower;
-}
-
-function getCounterScaleAttribute(scale?: CounterScaleOptions):
-    CounterScaleAttribute {
-  switch (scale) {
-    case 'MIN_MAX':
-      return {
-        follower: 'DELTA_FROM_PREVIOUS',
-        tooltip: 'min/max',
-        icon: 'show_chart',
-      };
-    case 'DELTA_FROM_PREVIOUS':
-      return {follower: 'ZERO_BASED', tooltip: 'delta', icon: 'bar_chart'};
-    case 'ZERO_BASED':
-    default:
-      return {
-        follower: 'MIN_MAX',
-        tooltip: 'zero based',
-        icon: 'waterfall_chart',
-      };
-  }
-}
-
 class CounterTrack extends Track<Config, Data> {
   static readonly kind = COUNTER_TRACK_KIND;
   static create(args: NewTrackArgs): CounterTrack {
@@ -265,20 +245,38 @@ class CounterTrack extends Track<Config, Data> {
     return MARGIN_TOP + RECT_HEIGHT;
   }
 
-  getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>> {
-    const buttons: Array<m.Vnode<TrackButtonAttrs>> = [];
-    buttons.push(m(TrackButton, {
-      action: () => {
-        this.config.scale = nextScale(this.config.scale);
-        Actions.updateTrackConfig(
-            {id: this.trackState.id, config: this.config});
-        globals.rafScheduler.scheduleFullRedraw();
-      },
-      i: scaleIcon(this.config.scale),
-      tooltip: scaleTooltip(this.config.scale),
-      showButton: !!this.config.scale && this.config.scale !== 'ZERO_BASED',
-    }));
-    return buttons;
+  getContextMenu(): m.Vnode<any> {
+    const currentScale = this.config.scale;
+    const scales: {name: CounterScaleOptions, humanName: string}[] = [
+      {name: 'ZERO_BASED', humanName: 'Zero based'},
+      {name: 'MIN_MAX', humanName: 'Min/Max'},
+      {name: 'DELTA_FROM_PREVIOUS', humanName: 'Delta'},
+      {name: 'RATE', humanName: 'Rate'},
+    ];
+    const items: PopupMenuItem[] = [];
+    for (const scale of scales) {
+      let text;
+      if (currentScale === scale.name) {
+        text = `*${scale.humanName}*`;
+      } else {
+        text = scale.humanName;
+      }
+      items.push({
+        itemType: 'regular',
+        text,
+        callback: () => {
+          this.config.scale = scale.name;
+          Actions.updateTrackConfig({
+            id: this.trackState.id,
+            config: this.config,
+          });
+        },
+      });
+    }
+    return m(PopupMenuButton, {
+      icon: 'show_chart',
+      items,
+    });
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
@@ -295,6 +293,7 @@ class CounterTrack extends Track<Config, Data> {
     assertTrue(data.timestamps.length === data.maxValues.length);
     assertTrue(data.timestamps.length === data.lastValues.length);
     assertTrue(data.timestamps.length === data.totalDeltas.length);
+    assertTrue(data.timestamps.length === data.rate.length);
 
     const scale: CounterScaleOptions = this.config.scale || 'ZERO_BASED';
 
@@ -309,6 +308,13 @@ class CounterTrack extends Track<Config, Data> {
       maxValues = data.totalDeltas;
       maximumValue = data.maximumDelta;
       minimumValue = data.minimumDelta;
+    }
+    if (scale === 'RATE') {
+      lastValues = data.rate;
+      minValues = data.rate;
+      maxValues = data.rate;
+      maximumValue = data.maximumRate;
+      minimumValue = data.minimumRate;
     }
 
     const endPx = Math.floor(timeScale.timeToPx(visibleWindowTime.end));
@@ -336,6 +342,8 @@ class CounterTrack extends Track<Config, Data> {
       yLabel = `${yMax / Math.pow(10, unitGroup * 3)} ${kUnits[unitGroup]}`;
       if (scale === 'DELTA_FROM_PREVIOUS') {
         yLabel += '\u0394';
+      } else if (scale === 'RATE') {
+        yLabel += '\u0394/t';
       }
     }
 
@@ -401,7 +409,15 @@ class CounterTrack extends Track<Config, Data> {
 
     if (this.hoveredValue !== undefined && this.hoveredTs !== undefined) {
       // TODO(hjd): Add units.
-      let text = scale === 'DELTA_FROM_PREVIOUS' ? 'delta: ' : 'value: ';
+      let text: string;
+      if (scale === 'DELTA_FROM_PREVIOUS') {
+        text = 'delta: ';
+      } else if (scale === 'RATE') {
+        text = 'delta/t: ';
+      } else {
+        text = 'value: ';
+      }
+
       text += `${this.hoveredValue.toLocaleString()}`;
 
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
