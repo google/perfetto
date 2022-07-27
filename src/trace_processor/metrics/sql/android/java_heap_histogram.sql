@@ -26,13 +26,13 @@ WITH RECURSIVE cls_visitor(cls_id, category) AS (
     'android.app.Service',
     'android.content.ContentProvider',
     'android.content.BroadcastReceiver',
+    'android.content.ContentProviderClient',
     'android.content.Context',
     'android.content.Intent',
-    'android.content.res.ApkAssets',
-    'android.os.Handler',
+    'android.os.Binder',
+    'android.os.BinderProxy',
     'android.os.Parcel',
-    'android.graphics.Bitmap',
-    'android.graphics.BaseCanvas',
+    'com.android.server.am.ConnectionRecord',
     'com.android.server.am.PendingIntentRecord')
   UNION ALL
   SELECT child.id, parent.category
