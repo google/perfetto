@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/ext/base/sys_types.h"  // For ssize_t on Windows.
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
