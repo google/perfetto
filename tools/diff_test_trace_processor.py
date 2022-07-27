@@ -38,7 +38,7 @@ ENV = {
 }
 if sys.platform.startswith('linux'):
   ENV['PATH'] = os.path.join(ROOT_DIR, 'buildtools', 'linux64', 'clang', 'bin')
-elif sys.platform.startswith('dawin'):
+elif sys.platform.startswith('darwin'):
   # Sadly, on macOS we need to check out the Android deps to get
   # llvm symbolizer.
   ENV['PATH'] = os.path.join(ROOT_DIR, 'buildtools', 'ndk', 'toolchains',
@@ -168,7 +168,6 @@ def run_query_test(trace_processor_path, gen_trace_path, query_path,
       perf_path,
       gen_trace_path,
   ]
-
   tp = subprocess.Popen(
       cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=ENV)
   (stdout, stderr) = tp.communicate()
@@ -177,10 +176,10 @@ def run_query_test(trace_processor_path, gen_trace_path, query_path,
 
 
 def run_test(trace_descriptor_path, extension_descriptor_paths, args, test):
-  """ 
+  """
   Returns:
     test_name -> str,
-    passed -> bools, 
+    passed -> bools,
     result_str -> str,
     perf_data -> str
   """
