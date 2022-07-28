@@ -81,6 +81,7 @@ const F2FS_IOSTAT_LAT_TAG = 'f2fs_iostat_latency.';
 const F2FS_IOSTAT_LAT_GROUP_NAME = 'f2fs_iostat_latency';
 const UFS_CMD_TAG = 'io.ufs.command.tag';
 const UFS_CMD_TAG_GROUP_NAME = 'io.ufs.command.tags';
+const BUDDY_INFO_TAG = 'mem.buddyinfo';
 
 export async function decideTracks(
     engineId: string, engine: Engine): Promise<DeferredAction[]> {
@@ -526,6 +527,59 @@ class TrackDecider {
       collapsed: true,
     });
     this.addTrackGroupActions.push(addGroup);
+  }
+
+  async groupGlobalBuddyInfoTracks(): Promise<void> {
+    const buddyInfoTracks: AddTrackArgs[] = [];
+    const devMap = new Map<string, string>();
+
+    for (const track of this.tracksToAdd) {
+      if (track.name.startsWith(BUDDY_INFO_TAG)) {
+        buddyInfoTracks.push(track);
+      }
+    }
+
+    if (buddyInfoTracks.length === 0) {
+      return;
+    }
+
+    for (const track of buddyInfoTracks) {
+      const tokens = track.name.split('[');
+      const node = tokens[1].slice(0, -1);
+      const zone = tokens[2].slice(0, -1);
+      const size = tokens[3].slice(0, -1);
+
+      const groupName = 'Buddyinfo:  Node: ' + node + ' Zone: ' + zone;
+      if (!devMap.has(groupName)) {
+        devMap.set(groupName, uuidv4());
+      }
+      track.name = 'Size: ' + size;
+      track.trackGroup = devMap.get(groupName);
+    }
+
+    for (const [key, value] of devMap) {
+      const groupName = key;
+      const summaryTrackId = uuidv4();
+
+      this.tracksToAdd.push({
+        id: summaryTrackId,
+        engineId: this.engineId,
+        kind: NULL_TRACK_KIND,
+        trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
+        name: groupName,
+        trackGroup: undefined,
+        config: {},
+      });
+
+      const addGroup = Actions.addTrackGroup({
+        engineId: this.engineId,
+        summaryTrackId,
+        name: groupName,
+        id: value,
+        collapsed: true,
+      });
+      this.addTrackGroupActions.push(addGroup);
+    }
   }
 
   async addLogsTrack(): Promise<void> {
@@ -1497,6 +1551,7 @@ class TrackDecider {
         F2FS_IOSTAT_LAT_TAG, F2FS_IOSTAT_LAT_GROUP_NAME);
     await this.groupGlobalUfsCmdTagTracks(
         UFS_CMD_TAG, UFS_CMD_TAG_GROUP_NAME);
+    await this.groupGlobalBuddyInfoTracks();
 
     // Pre-group all kernel "threads" (actually processes) if this is a linux
     // system trace. Below, addProcessTrackGroups will skip them due to an
