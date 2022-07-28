@@ -59,6 +59,7 @@ using BufferID = uint16_t;
 // for the target buffer of a startup trace writer. Reservation IDs will be
 // translated to actual BufferIDs after they are bound by
 // SharedMemoryArbiter::BindStartupTargetBuffer().
+// TODO(mohitms): Delete this type and use `struct {uint16 ; uint16;}` instead.
 using MaybeUnboundBufferID = uint32_t;
 
 // Keep this in sync with SharedMemoryABI::PageHeader::target_buffer.
