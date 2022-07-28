@@ -1477,6 +1477,9 @@ void TracingMuxerImpl::DestroyStoppedTraceWritersForCurrentThread() {
           ds_state->muxer_id_for_testing == ds_tls.muxer_id_for_testing &&
           ds_state->backend_id == ds_tls.backend_id &&
           ds_state->backend_connection_id == ds_tls.backend_connection_id &&
+          ds_state->startup_target_buffer_reservation.load(
+              std::memory_order_relaxed) ==
+              ds_tls.startup_target_buffer_reservation &&
           ds_state->buffer_id == ds_tls.buffer_id &&
           ds_state->data_source_instance_id == ds_tls.data_source_instance_id) {
         continue;
