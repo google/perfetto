@@ -18,6 +18,7 @@
 
 #include <time.h>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 
@@ -85,17 +86,21 @@ void ValidateTestZip(ZipReader& zr) {
   ASSERT_EQ(zr.files()[1].name(), "dir/deflated_file");
   ASSERT_EQ(zr.files()[1].GetDatetimeStr(), "2022-07-25 18:34:14");
 
+  // This file is STORE-d and doesn't require any decompression.
   auto res = zr.files()[0].Decompress(&dec);
   ASSERT_TRUE(res.ok()) << res.message();
   ASSERT_EQ(dec.size(), 4u);
   ASSERT_EQ(vec2str(dec), "foo\n");
 
+  // This file is DEFLATE-d and requires zlib.
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
   res = zr.files()[1].Decompress(&dec);
   ASSERT_TRUE(res.ok()) << res.message();
   ASSERT_EQ(dec.size(), 89u);
   ASSERT_EQ(vec2str(dec),
             "The quick brown fox jumps over the lazy dog\n"
             "The quick brown fox jumps over the lazy frog\n");
+#endif
 }
 
 TEST(ZipReaderTest, ValidZip_OneShotParse) {
@@ -112,31 +117,6 @@ TEST(ZipReaderTest, ValidZip_OneByteChunks) {
     ASSERT_TRUE(res.ok()) << res.message();
   }
   ValidateTestZip(zr);
-}
-
-TEST(ZipReaderTest, ValidZip_DecompressLines) {
-  ZipReader zr;
-  base::Status res = zr.Parse(kTestZip, sizeof(kTestZip));
-  ASSERT_TRUE(res.ok()) << res.message();
-  ValidateTestZip(zr);
-  int num_callbacks = 0;
-  zr.files()[1].DecompressLines(
-      [&](const std::vector<base::StringView>& lines) {
-        ASSERT_EQ(num_callbacks++, 0);
-        ASSERT_TRUE(lines.size() == 2);
-        ASSERT_EQ(lines[0].ToStdString(),
-                  "The quick brown fox jumps over the lazy dog");
-        ASSERT_EQ(lines[1].ToStdString(),
-                  "The quick brown fox jumps over the lazy frog");
-      });
-
-  ASSERT_EQ(num_callbacks, 1);
-}
-
-TEST(ZipReaderTest, TruncatedZip) {
-  ZipReader zr;
-  base::Status res = zr.Parse(kTestZip, 40);
-  ASSERT_EQ(zr.files().size(), 0u);
 }
 
 TEST(ZipReaderTest, MalformedZip_InvalidSignature) {
@@ -159,6 +139,34 @@ TEST(ZipReaderTest, MalformedZip_VersionTooHigh) {
   ASSERT_EQ(zr.files().size(), 0u);
 }
 
+TEST(ZipReaderTest, TruncatedZip) {
+  ZipReader zr;
+  base::Status res = zr.Parse(kTestZip, 40);
+  ASSERT_EQ(zr.files().size(), 0u);
+}
+
+// All the tests below require zlib.
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+
+TEST(ZipReaderTest, ValidZip_DecompressLines) {
+  ZipReader zr;
+  base::Status res = zr.Parse(kTestZip, sizeof(kTestZip));
+  ASSERT_TRUE(res.ok()) << res.message();
+  ValidateTestZip(zr);
+  int num_callbacks = 0;
+  zr.files()[1].DecompressLines(
+      [&](const std::vector<base::StringView>& lines) {
+        ASSERT_EQ(num_callbacks++, 0);
+        ASSERT_TRUE(lines.size() == 2);
+        ASSERT_EQ(lines[0].ToStdString(),
+                  "The quick brown fox jumps over the lazy dog");
+        ASSERT_EQ(lines[1].ToStdString(),
+                  "The quick brown fox jumps over the lazy frog");
+      });
+
+  ASSERT_EQ(num_callbacks, 1);
+}
+
 TEST(ZipReaderTest, MalformedZip_DecomprError) {
   ZipReader zr;
   uint8_t content[sizeof(kTestZip)];
@@ -175,6 +183,8 @@ TEST(ZipReaderTest, MalformedZip_DecomprError) {
   ASSERT_TRUE(zr.files()[0].Decompress(&ignored).ok());
   ASSERT_FALSE(zr.files()[1].Decompress(&ignored).ok());
 }
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
 }  // namespace
 }  // namespace util

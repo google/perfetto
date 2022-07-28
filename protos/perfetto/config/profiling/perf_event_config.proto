@@ -127,9 +127,8 @@ message PerfEventConfig {
 
   message CallstackSampling {
     // Defines a set of processes for which samples are retained/skipped. If
-    // unset, all userspace samples are kept, but beware that it will be very
-    // heavy on the stack unwinder, which might start dropping samples due to
-    // overload.
+    // unset, all samples are kept, but beware that it will be very heavy on the
+    // stack unwinder, which might start dropping samples due to overload.
     optional Scope scope = 1;
 
     // If true, callstacks will include the kernel-space frames. Such frames can
@@ -184,10 +183,27 @@ message PerfEventConfig {
     // this is handled.
     repeated string exclude_cmdline = 4;
 
+    // Niche features for systemwide callstacks:
+
     // Number of additional command lines to sample. Only those which are
     // neither explicitly included nor excluded will be considered. Processes
     // are accepted on a first come, first served basis.
     optional uint32 additional_cmdline_count = 5;
+
+    // If set to N, all encountered processes will be put into one of the N
+    // possible bins, and only one randomly-chosen bin will be selected for
+    // unwinding. The binning is simply "pid % N", under the assumption that
+    // low-order bits of pids are roughly uniformly distributed. Other explicit
+    // inclusions/exclusions in this |Scope| message are still respected.
+    //
+    // The profiler will report the chosen shard in PerfSampleDefaults, and the
+    // values will be queryable in trace processor under the "stats" table as
+    // "perf_process_shard_count" and "perf_chosen_process_shard".
+    //
+    // NB: all data sources in a config that set |process_shard_count| must set
+    // it to the same value. The profiler will choose one bin for all those data
+    // sources.
+    optional uint32 process_shard_count = 6;
   }
 
   // Userspace unwinding mode. A possible future addition is kernel-unwound

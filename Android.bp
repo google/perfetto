@@ -8278,6 +8278,7 @@ filegroup {
     name: "perfetto_src_profiling_perf_producer_unittests",
     srcs: [
         "src/profiling/perf/event_config_unittest.cc",
+        "src/profiling/perf/perf_producer_unittest.cc",
         "src/profiling/perf/unwind_queue_unittest.cc",
     ],
 }
@@ -11604,6 +11605,16 @@ java_library_host {
     },
     srcs: [
         "protos/perfetto/config/perfetto_config.proto",
+    ],
+}
+
+java_library_host {
+    name: "perfetto_trace-full",
+    proto: {
+        type: "full",
+    },
+    srcs: [
+        "protos/perfetto/trace/perfetto_trace.proto",
     ],
 }
 

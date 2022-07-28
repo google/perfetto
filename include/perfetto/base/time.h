@@ -185,6 +185,11 @@ std::string GetTimeFmt(const std::string& fmt);
 inline int64_t TimeGm(struct tm* tms) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   return static_cast<int64_t>(_mkgmtime(tms));
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+  // NaCL has no timegm.
+  if (tms)  // Kinda if (true), but avoids "mark as noreturn" errors.
+    PERFETTO_FATAL("timegm not supported");
+  return -1;
 #else
   return static_cast<int64_t>(timegm(tms));
 #endif

@@ -129,7 +129,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
     case SockFamily::kUnix: {
       struct sockaddr_un saddr {};
       const size_t name_len = socket_name.size();
-      if (name_len >= sizeof(saddr.sun_path)) {
+      if (name_len + 1 /* for trailing \0 */ >= sizeof(saddr.sun_path)) {
         errno = ENAMETOOLONG;
         return SockaddrAny();
       }
@@ -148,6 +148,12 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       saddr.sun_family = AF_UNIX;
       auto size = static_cast<socklen_t>(
           __builtin_offsetof(sockaddr_un, sun_path) + name_len + 1);
+
+      // Abstract sockets do NOT require a trailing null terminator (which is
+      // instad mandatory for filesystem sockets). Any byte up to `size`,
+      // including '\0' will become part of the socket name.
+      if (saddr.sun_path[0] == '\0')
+        --size;
       PERFETTO_CHECK(static_cast<size_t>(size) <= sizeof(saddr));
       return SockaddrAny(&saddr, size);
     }

@@ -15,9 +15,46 @@
  */
 
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "perfetto/ext/base/string_utils.h"
 
 namespace perfetto {
 namespace trace_processor {
+
+namespace {
+
+// The raw symbol name is namespace::Interface::Method_Sym::IPCStableHash.
+// We want to return Interface::Method.
+std::string ExtractMojoMethod(const std::string& method_symbol) {
+  // The symbol ends with "()" for some platforms, but not for all of them.
+  std::string without_sym_suffix = base::StripSuffix(method_symbol, "()");
+  // This suffix is platform-independent, it's coming from Chromium code.
+  // https://source.chromium.org/chromium/chromium/src/+/main:mojo/public/tools/bindings/generators/cpp_templates/interface_declaration.tmpl;l=66;drc=9d9e6f5ce548ecf228aed711f55b11c7ea8bdb55
+  constexpr char kSymSuffix[] = "_Sym::IPCStableHash";
+  without_sym_suffix = base::StripSuffix(without_sym_suffix, kSymSuffix);
+  auto parts = base::SplitString(without_sym_suffix, "::");
+  // Now we have namespace, Interface, and Method parts. We need only the last
+  // two. If we have too few parts, return all of them to simplify debugging.
+  if (parts.size() > 2) {
+    parts.erase(parts.begin(), parts.end() - 2);
+  }
+  return base::Join(parts, "::");
+}
+
+// The raw symbol name is namespace::Interface::Method_Sym::IPCStableHash.
+// We want to return namespace.Interface (for historical compatibility).
+std::string ExtractMojoInterfaceTag(const std::string& method_symbol) {
+  auto parts = base::SplitString(method_symbol, "::");
+  // If we have too few parts, return the original string as is to simplify
+  // debugging.
+  if (parts.size() <= 2) {
+    return method_symbol;
+  }
+  // Remove Method_Sym and IPCStableHash parts.
+  parts.erase(parts.end() - 2, parts.end());
+  return base::Join(parts, ".");
+}
+
+}  // namespace
 
 constexpr char ArgsTranslationTable::kChromeHistogramHashKey[];
 constexpr char ArgsTranslationTable::kChromeHistogramNameKey[];
@@ -34,6 +71,7 @@ constexpr char ArgsTranslationTable::kChromePerformanceMarkMarkKey[];
 constexpr char ArgsTranslationTable::kMojoMethodMappingIdKey[];
 constexpr char ArgsTranslationTable::kMojoMethodRelPcKey[];
 constexpr char ArgsTranslationTable::kMojoMethodNameKey[];
+constexpr char ArgsTranslationTable::kMojoIntefaceTagKey[];
 
 ArgsTranslationTable::ArgsTranslationTable(TraceStorage* storage)
     : storage_(storage),
@@ -56,7 +94,9 @@ ArgsTranslationTable::ArgsTranslationTable(TraceStorage* storage)
       interned_mojo_method_mapping_id_(
           storage->InternString(kMojoMethodMappingIdKey)),
       interned_mojo_method_rel_pc_(storage->InternString(kMojoMethodRelPcKey)),
-      interned_mojo_method_name_(storage->InternString(kMojoMethodNameKey)) {}
+      interned_mojo_method_name_(storage->InternString(kMojoMethodNameKey)),
+      interned_mojo_interface_tag_(storage->InternString(kMojoIntefaceTagKey)) {
+}
 
 bool ArgsTranslationTable::NeedsTranslation(StringId key_id,
                                             Variadic::Type type) const {
@@ -223,8 +263,15 @@ void ArgsTranslationTable::EmitMojoMethodLocation(
   const auto loc = TranslateNativeSymbol(row_id, *rel_pc);
   if (loc) {
     inserter.AddArg(interned_mojo_method_name_,
-                    Variadic::String(storage_->InternString(
-                        base::StringView(loc->function_name))));
+                    Variadic::String(storage_->InternString(base::StringView(
+                        ExtractMojoMethod((loc->function_name))))));
+    inserter.AddArg(interned_mojo_interface_tag_,
+                    Variadic::String(storage_->InternString(base::StringView(
+                        ExtractMojoInterfaceTag(loc->function_name)))),
+                    // If the trace already has interface tag as a raw string
+                    // (older Chromium versions, local traces, and so on), use
+                    // the raw string.
+                    GlobalArgsTracker::UpdatePolicy::kSkipIfExists);
   } else {
     // Could not find the corresponding source location. Let's emit raw arg
     // values so that the data doesn't silently go missing.
