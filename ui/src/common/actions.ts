@@ -687,18 +687,22 @@ export const StateActions = {
 
   selectPerfSamples(
       state: StateDraft,
-      args: {id: number, upid: number, ts: number, type: ProfileType}): void {
+      args: {
+        id: number, upid: number, leftTs: number, rightTs: number,
+        type: ProfileType
+      }): void {
     state.currentSelection = {
       kind: 'PERF_SAMPLES',
       id: args.id,
       upid: args.upid,
-      ts: args.ts,
+      leftTs: args.leftTs,
+      rightTs: args.rightTs,
       type: args.type,
     };
     this.openFlamegraph(state, {
       type: args.type,
-      startNs: toNs(state.traceTime.startSec),
-      endNs: args.ts,
+      startNs: args.leftTs,
+      endNs: args.rightTs,
       upids: [args.upid],
       viewingOption: PERF_SAMPLES_KEY,
     });

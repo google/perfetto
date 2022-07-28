@@ -83,7 +83,8 @@ export const MAX_TIME = 180;
 // 18: areaSelection change see b/235869542
 // 19: Added visualisedArgs state.
 // 20: Refactored thread sorting order.
-export const STATE_VERSION = 20;
+// 21: Updated perf sample selection to include a ts range instead of single ts
+export const STATE_VERSION = 21;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -310,7 +311,8 @@ export interface PerfSamplesSelection {
   kind: 'PERF_SAMPLES';
   id: number;
   upid: number;
-  ts: number;
+  leftTs: number;
+  rightTs: number;
   type: ProfileType;
 }
 
