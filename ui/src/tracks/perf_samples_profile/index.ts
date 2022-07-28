@@ -110,7 +110,8 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
       const selection = globals.state.currentSelection;
       const isHovered = this.hoveredTs === centerX;
       const isSelected = selection !== null &&
-          selection.kind === 'PERF_SAMPLES' && selection.ts === centerX;
+          selection.kind === 'PERF_SAMPLES' &&
+          selection.leftTs <= centerX && selection.rightTs >= centerX;
       const strokeWidth = isSelected ? 3 : 0;
       this.drawMarker(
           ctx,
@@ -169,7 +170,8 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
       globals.makeSelection(Actions.selectPerfSamples({
         id: index,
         upid: this.config.upid,
-        ts,
+        leftTs: ts,
+        rightTs: ts,
         type: ProfileType.PERF_SAMPLE,
       }));
       return true;
