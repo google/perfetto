@@ -424,6 +424,9 @@ class DataSource : public DataSourceBase {
         tls_inst.backend_id = instance_state->backend_id;
         tls_inst.backend_connection_id = instance_state->backend_connection_id;
         tls_inst.buffer_id = instance_state->buffer_id;
+        tls_inst.startup_target_buffer_reservation =
+            instance_state->startup_target_buffer_reservation.load(
+                std::memory_order_relaxed);
         tls_inst.data_source_instance_id =
             instance_state->data_source_instance_id;
         tls_inst.is_intercepted = instance_state->interceptor_id != 0;
