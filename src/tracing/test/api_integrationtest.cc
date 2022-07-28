@@ -5434,6 +5434,21 @@ TEST_P(PerfettoStartupTracingApiTest, DISABLED_MainTracingNeverStarted) {
   TRACE_EVENT_BEGIN("test", "StartupEvent");
 }
 
+// Validates that Startup Trace works fine if we dont emit any event
+// during startup tracing session.
+TEST_P(PerfettoStartupTracingApiTest, NoEventInStartupTracing) {
+  SetupStartupTracing();
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+  // Emit an event now that the session was fully started. This should go
+  // strait to the SMB.
+  TRACE_EVENT_BEGIN("test", "MainEvent");
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
+}
+
 struct BackendTypeAsString {
   std::string operator()(
       const ::testing::TestParamInfo<perfetto::BackendType>& info) const {
