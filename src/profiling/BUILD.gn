@@ -29,6 +29,24 @@ source_set("deobfuscator") {
   ]
 }
 
+source_set("profile_builder") {
+  sources = [
+    "profile_builder.cc",
+    "profile_builder.h",
+  ]
+  deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/base",
+    "../../include/perfetto/ext/base:base",
+    "../../include/perfetto/protozero",
+    "../../include/perfetto/trace_processor",
+    "../../protos/perfetto/trace:zero",
+    "../../protos/perfetto/trace/profiling:zero",
+    "../../protos/third_party/pprof:zero",
+    "../../src/trace_processor/containers:containers",
+  ]
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
