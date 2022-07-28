@@ -5424,11 +5424,7 @@ TEST_P(PerfettoStartupTracingApiTest, DISABLED_Abort) {
   EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
 }
 
-// TODO(mohitms): Currently we cannot restart StartupTracing after aborting it
-// once, unless we start the normal session first. We get the
-// `PERFETTO_CHECK(!fully_bound_)` failure while restarting.
-// We plan to investigate it in the next CL.
-TEST_P(PerfettoStartupTracingApiTest, DISABLED_AbortAndRestart) {
+TEST_P(PerfettoStartupTracingApiTest, AbortAndRestart) {
   SetupStartupTracing();
   TRACE_EVENT_BEGIN("test", "StartupEvent1");
   AbortStartupTracing();
