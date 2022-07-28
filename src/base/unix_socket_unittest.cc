@@ -976,7 +976,7 @@ TEST_F(UnixSocketTest, Sockaddr_FilesystemLinked) {
   std::string sock_path = tmp_dir.path() + "/test.sock";
   auto srv = UnixSocket::Listen(sock_path, &event_listener_, &task_runner_,
                                 SockFamily::kUnix, SockType::kStream);
-  ASSERT_TRUE(srv->is_listening());
+  ASSERT_TRUE(srv && srv->is_listening());
   ASSERT_TRUE(FileExists(sock_path));
 
   // Create a raw socket and manually connect to that (to avoid getting affected
@@ -990,14 +990,18 @@ TEST_F(UnixSocketTest, Sockaddr_FilesystemLinked) {
   cli.Shutdown();
   remove(sock_path.c_str());
 }
+#endif  // OS_LINUX || OS_ANDROID || OS_MAC
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 // Regression test for b/239725760.
+// Abstract sockets are not supported on Mac OS.
 TEST_F(UnixSocketTest, Sockaddr_AbstractUnix) {
   StackString<128> sock_name("@perfetto_test_%d_%d", getpid(), rand() % 100000);
   auto srv =
       UnixSocket::Listen(sock_name.ToStdString(), &event_listener_,
                          &task_runner_, SockFamily::kUnix, SockType::kStream);
-  ASSERT_TRUE(srv->is_listening());
+  ASSERT_TRUE(srv && srv->is_listening());
 
   auto cli = UnixSocketRaw::CreateMayFail(SockFamily::kUnix, SockType::kStream);
   struct sockaddr_un addr {};
@@ -1009,7 +1013,7 @@ TEST_F(UnixSocketTest, Sockaddr_AbstractUnix) {
   ASSERT_EQ(0, connect(cli.fd(), reinterpret_cast<struct sockaddr*>(&addr),
                        addr_len));
 }
-#endif  // OS_LINUX || OS_ANDROID || OS_MAC
+#endif  // OS_LINUX || OS_ANDROID
 
 }  // namespace
 }  // namespace base
