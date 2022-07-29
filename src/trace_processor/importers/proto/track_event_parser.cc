@@ -821,8 +821,9 @@ class TrackEventParser::EventImporter {
   }
 
   void MaybeParseTrackEventFlows(SliceId slice_id) {
-    if (event_.has_flow_ids()) {
-      auto it = event_.flow_ids();
+    if (event_.has_flow_ids_old() || event_.has_flow_ids()) {
+      auto it =
+          event_.has_flow_ids() ? event_.flow_ids() : event_.flow_ids_old();
       for (; it; ++it) {
         FlowId flow_id = *it;
         if (!context_->flow_tracker->IsActive(flow_id)) {
@@ -832,8 +833,11 @@ class TrackEventParser::EventImporter {
         context_->flow_tracker->Step(slice_id, flow_id);
       }
     }
-    if (event_.has_terminating_flow_ids()) {
-      auto it = event_.terminating_flow_ids();
+    if (event_.has_terminating_flow_ids_old() ||
+        event_.has_terminating_flow_ids()) {
+      auto it = event_.has_terminating_flow_ids()
+                    ? event_.terminating_flow_ids()
+                    : event_.terminating_flow_ids_old();
       for (; it; ++it) {
         FlowId flow_id = *it;
         if (!context_->flow_tracker->IsActive(flow_id)) {
