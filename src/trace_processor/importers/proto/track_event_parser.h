@@ -58,7 +58,7 @@ class TrackEventParser {
   UniqueTid ParseThreadDescriptor(protozero::ConstBytes);
 
   void ParseTrackEvent(int64_t ts,
-                       TrackEventData* event_data,
+                       const TrackEventData* event_data,
                        protozero::ConstBytes);
 
  private:

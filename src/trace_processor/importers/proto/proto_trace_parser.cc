@@ -83,7 +83,7 @@ void ProtoTraceParser::ParseTracePacket(int64_t ts, TimestampedTracePiece ttp) {
     data = &ttp.packet_data;
   } else {
     PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTrackEvent);
-    data = ttp.track_event_data.get();
+    data = &ttp.track_event_data;
   }
 
   const TraceBlobView& blob = data->packet;
