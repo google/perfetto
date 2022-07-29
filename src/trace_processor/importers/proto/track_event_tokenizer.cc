@@ -214,8 +214,7 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
       state->current_generation()->GetTrackEventDefaults();
 
   int64_t timestamp;
-  std::unique_ptr<TrackEventData> data(
-      new TrackEventData(std::move(*packet_blob), state->current_generation()));
+  TrackEventData data(std::move(*packet_blob), state->current_generation());
 
   // TODO(eseckler): Remove handling of timestamps relative to ThreadDescriptors
   // once all producers have switched to clock-domain timestamps (e.g.
@@ -262,11 +261,11 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
       context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
       return;
     }
-    data->thread_timestamp = state->IncrementAndGetTrackEventThreadTimeNs(
+    data.thread_timestamp = state->IncrementAndGetTrackEventThreadTimeNs(
         event.thread_time_delta_us() * 1000);
   } else if (event.has_thread_time_absolute_us()) {
     // One-off absolute timestamps don't affect delta computation.
-    data->thread_timestamp = event.thread_time_absolute_us() * 1000;
+    data.thread_timestamp = event.thread_time_absolute_us() * 1000;
   }
 
   if (event.has_thread_instruction_count_delta()) {
@@ -276,12 +275,12 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
       context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
       return;
     }
-    data->thread_instruction_count =
+    data.thread_instruction_count =
         state->IncrementAndGetTrackEventThreadInstructionCount(
             event.thread_instruction_count_delta());
   } else if (event.has_thread_instruction_count_absolute()) {
     // One-off absolute timestamps don't affect delta computation.
-    data->thread_instruction_count = event.thread_instruction_count_absolute();
+    data.thread_instruction_count = event.thread_instruction_count_absolute();
   }
 
   if (event.type() == protos::pbzero::TrackEvent::TYPE_COUNTER) {
@@ -326,13 +325,13 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
       return;
     }
 
-    data->counter_value = *value;
+    data.counter_value = *value;
   }
 
   size_t index = 0;
   const protozero::RepeatedFieldIterator<uint64_t> kEmptyIterator;
   auto result = AddExtraCounterValues(
-      *data, index, packet.trusted_packet_sequence_id(),
+      data, index, packet.trusted_packet_sequence_id(),
       event.extra_counter_values(), event.extra_counter_track_uuids(),
       defaults ? defaults->extra_counter_track_uuids() : kEmptyIterator);
   if (!result.ok()) {
@@ -341,7 +340,7 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
     return;
   }
   result = AddExtraCounterValues(
-      *data, index, packet.trusted_packet_sequence_id(),
+      data, index, packet.trusted_packet_sequence_id(),
       event.extra_double_counter_values(),
       event.extra_double_counter_track_uuids(),
       defaults ? defaults->extra_double_counter_track_uuids() : kEmptyIterator);
