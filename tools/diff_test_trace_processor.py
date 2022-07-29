@@ -24,6 +24,7 @@ import difflib
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
@@ -392,7 +393,18 @@ def read_all_tests(query_metric_pattern, trace_pattern):
   return tests
 
 
+def ctrl_c_handler(_num, _frame):
+  # Send a sigkill to the whole process group. Our process group looks like:
+  # - Main python interpreter running the main()
+  #   - N python interpreters coming from ProcessPoolExecutor workers.
+  #     - 1 trace_processor_shell subprocess coming from the subprocess.Popen().
+  # We don't need any graceful termination as the diff tests are stateless and
+  # don't write any file. Just kill them all immediately.
+  os.killpg(os.getpid(), signal.SIGKILL)
+
+
 def main():
+  signal.signal(signal.SIGINT, ctrl_c_handler)
   parser = argparse.ArgumentParser()
   parser.add_argument('--test-type', type=str, default='all')
   parser.add_argument('--trace-descriptor', type=str)
