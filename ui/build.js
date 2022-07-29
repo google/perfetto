@@ -86,6 +86,7 @@ const cfg = {
   httpServerListenHost: '127.0.0.1',
   httpServerListenPort: 10000,
   wasmModules: ['trace_processor', 'traceconv'],
+  crossOriginIsolation: false,
   testFilter: '',
 
   // The fields below will be changed by main() after cmdline parsing.
@@ -147,6 +148,7 @@ async function main() {
   parser.addArgument(['--interactive', '-i'], {action: 'storeTrue'});
   parser.addArgument(['--rebaseline', '-r'], {action: 'storeTrue'});
   parser.addArgument(['--no-depscheck'], {action: 'storeTrue'});
+  parser.addArgument('--cross-origin-isolation', {action: 'storeTrue'});
   parser.addArgument(
       ['--test-filter', '-f'],
       {help: 'filter Jest tests by regex, e.g. \'chrome_render\''});
@@ -179,6 +181,9 @@ async function main() {
   }
   if (args.rebaseline) {
     process.env.PERFETTO_UI_TESTS_REBASELINE = '1';
+  }
+  if (args.cross_origin_isolation) {
+    cfg.crossOriginIsolation = true;
   }
 
   process.on('SIGINT', () => {
@@ -535,6 +540,10 @@ function startServer() {
             'Last-Modified': fs.statSync(absPath).mtime.toUTCString(),
             'Cache-Control': 'no-cache',
           };
+          if (cfg.crossOriginIsolation) {
+            head['Cross-Origin-Opener-Policy'] = 'same-origin';
+            head['Cross-Origin-Embedder-Policy'] = 'require-corp';
+          }
           res.writeHead(200, head);
           res.write(data);
           res.end();
