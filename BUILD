@@ -1067,6 +1067,17 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/importers/android_bugreport:android_bugreport
+perfetto_filegroup(
+    name = "src_trace_processor_importers_android_bugreport_android_bugreport",
+    srcs = [
+        "src/trace_processor/importers/android_bugreport/android_bugreport_parser.cc",
+        "src/trace_processor/importers/android_bugreport/android_bugreport_parser.h",
+        "src/trace_processor/importers/android_bugreport/android_log_parser.cc",
+        "src/trace_processor/importers/android_bugreport/android_log_parser.h",
+    ],
+)
+
 # GN target: //src/trace_processor/importers/common:common
 perfetto_filegroup(
     name = "src_trace_processor_importers_common_common",
@@ -1514,6 +1525,17 @@ perfetto_filegroup(
     name = "src_trace_processor_util_util",
     srcs = [
         "src/trace_processor/util/status_macros.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:zip_reader
+perfetto_filegroup(
+    name = "src_trace_processor_util_zip_reader",
+    srcs = [
+        "src/trace_processor/util/streaming_line_reader.cc",
+        "src/trace_processor/util/streaming_line_reader.h",
+        "src/trace_processor/util/zip_reader.cc",
+        "src/trace_processor/util/zip_reader.h",
     ],
 )
 
@@ -4038,6 +4060,7 @@ perfetto_cc_library(
         ":src_trace_processor_dynamic_dynamic",
         ":src_trace_processor_export_json",
         ":src_trace_processor_ftrace_descriptors",
+        ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_importers_proto_storage_full",
@@ -4059,6 +4082,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_stack_traces_util",
         ":src_trace_processor_util_util",
+        ":src_trace_processor_util_zip_reader",
         ":src_trace_processor_views_views",
     ],
     hdrs = [
@@ -4152,6 +4176,7 @@ perfetto_cc_binary(
         ":src_trace_processor_dynamic_dynamic",
         ":src_trace_processor_export_json",
         ":src_trace_processor_ftrace_descriptors",
+        ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_importers_proto_storage_full",
@@ -4175,6 +4200,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_stack_traces_util",
         ":src_trace_processor_util_util",
+        ":src_trace_processor_util_zip_reader",
         ":src_trace_processor_views_views",
         "src/trace_processor/trace_processor_shell.cc",
         "src/trace_processor/util/proto_to_json.cc",
@@ -4326,6 +4352,7 @@ perfetto_cc_binary(
         ":src_trace_processor_dynamic_dynamic",
         ":src_trace_processor_export_json",
         ":src_trace_processor_ftrace_descriptors",
+        ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_importers_proto_storage_full",
@@ -4347,6 +4374,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_stack_traces_util",
         ":src_trace_processor_util_util",
+        ":src_trace_processor_util_zip_reader",
         ":src_trace_processor_views_views",
         ":src_traceconv_lib",
         ":src_traceconv_main",
