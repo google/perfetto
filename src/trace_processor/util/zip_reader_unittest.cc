@@ -145,6 +145,17 @@ TEST(ZipReaderTest, TruncatedZip) {
   ASSERT_EQ(zr.files().size(), 0u);
 }
 
+TEST(ZipReaderTest, Find) {
+  ZipReader zr;
+  base::Status res = zr.Parse(kTestZip, sizeof(kTestZip));
+  ASSERT_TRUE(res.ok()) << res.message();
+  ASSERT_EQ(zr.Find("stored_file")->name(), "stored_file");
+  ASSERT_EQ(zr.Find("dir/deflated_file")->name(), "dir/deflated_file");
+  ASSERT_EQ(nullptr, zr.Find("stored_f"));
+  ASSERT_EQ(nullptr, zr.Find("_file*"));
+  ASSERT_EQ(nullptr, zr.Find("dirz/deflated_file"));
+}
+
 // All the tests below require zlib.
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 
