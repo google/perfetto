@@ -153,6 +153,9 @@ class ZipReader {
   // to reduce the memory working set and retain only the files they care about.
   std::vector<ZipFile> TakeFiles() { return std::move(files_); }
 
+  // Find a file by its path inside the zip archive.
+  ZipFile* Find(const std::string& path);
+
  private:
   // Keeps track of the incremental parsing state of the current zip stream.
   // When a compressed file is completely parsed, a ZipFile instance is
