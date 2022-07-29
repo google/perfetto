@@ -451,7 +451,8 @@ test('perf samples open flamegraph', () => {
 
   const afterSelectingPerf = produce(state, (draft) => {
     StateActions.selectPerfSamples(
-        draft, {id: 0, upid: 0, ts: 0, type: ProfileType.PERF_SAMPLE});
+        draft,
+        {id: 0, upid: 0, leftTs: 0, rightTs: 0, type: ProfileType.PERF_SAMPLE});
   });
 
   expect(assertExists(afterSelectingPerf.currentFlamegraphState).type)
