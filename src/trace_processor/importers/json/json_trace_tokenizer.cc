@@ -501,9 +501,9 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
         if (base::StartsWith(raw_line, "#") || raw_line.empty())
           continue;
 
-        std::unique_ptr<SystraceLine> line(new SystraceLine());
+        SystraceLine line;
         util::Status status =
-            systrace_line_tokenizer_.Tokenize(raw_line, line.get());
+            systrace_line_tokenizer_.Tokenize(raw_line, &line);
         if (!status.ok())
           return status;
         trace_sorter->PushSystraceLine(std::move(line));

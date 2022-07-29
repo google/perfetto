@@ -76,7 +76,7 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
   PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kJsonValue ||
                   ttp.type == TimestampedTracePiece::Type::kSystraceLine);
   if (ttp.type == TimestampedTracePiece::Type::kSystraceLine) {
-    systrace_line_parser_.ParseLine(*ttp.systrace_line);
+    systrace_line_parser_.ParseLine(ttp.systrace_line);
     return;
   }
 
