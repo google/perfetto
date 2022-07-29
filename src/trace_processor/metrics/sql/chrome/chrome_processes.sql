@@ -16,59 +16,20 @@
 
 -- Table to map any of the various chrome process names to a type (e.g. Browser,
 -- Renderer, GPU Process, etc).
-DROP TABLE IF EXISTS chrome_process_name_type_mapping;
-CREATE TABLE chrome_process_name_type_mapping (
-  original_name_pattern TEXT UNIQUE,
-  type TEXT
-);
-
-WITH prefix (value) AS (
-  SELECT *
-  FROM (
-      VALUES ("org.chromium.chrome"),
-        ("com.google.android.apps.chrome"),
-        ("com.android.chrome"),
-        ("com.chrome.beta"),
-        ("com.chrome.canary"),
-        ("com.chrome.dev")
-    )
-),
-suffix (value, TYPE) AS (
-  SELECT *
-  FROM (
-      VALUES ("", "Browser"),
-        (
-          ":sandboxed_process*:org.chromium.content.app.SandboxedProcessService*",
-          "Sandboxed"
-        ),
-        (":privileged_process*", "Privileged"),
-        ("_zygote", "Zygote")
-    )
-)
--- Insert the Chrome process names for a normal chrome trace
-INSERT INTO chrome_process_name_type_mapping
-VALUES ('Browser', 'Browser'),
-  ('Renderer', 'Renderer'),
-  ('GPU Process', 'Gpu'),
-  ('Gpu', 'Gpu'),
-  ('Zygote', 'Zygote'),
-  ('Utility', 'Utility'),
-  ('SandboxHelper', 'SandboxHelper'),
-  ('PpapiPlugin', 'PpapiPlugin'),
-  ('PpapiBroker', 'PpapiBroker')
-UNION ALL
--- Construct all the possible Chrome process names for an Android system chrome
--- trace.
-SELECT prefix.value || suffix.value AS name,
-  suffix.type AS type
-FROM prefix,
-  suffix;
-
 DROP VIEW IF EXISTS all_chrome_processes;
 CREATE VIEW all_chrome_processes AS
-SELECT upid, m.type AS process_type
-FROM process JOIN chrome_process_name_type_mapping m
-ON name GLOB original_name_pattern;
+SELECT upid, IFNULL(pt.string_value, '') AS process_type
+FROM process
+-- A process is a Chrome process if it has a chrome.process_type arg.
+-- The value of the arg may be NULL.
+-- All Chromium producers emit chrome_process field in their process track
+-- descriptor when Chromium track event data source is enabled.
+-- So this returns all processes in Chrome traces, and a subset of processes
+-- in system traces.
+JOIN
+  (SELECT arg_set_id, string_value FROM args WHERE key = 'chrome.process_type')
+    pt
+  ON process.arg_set_id = pt.arg_set_id;
 
 -- A view of all Chrome threads.
 DROP VIEW IF EXISTS all_chrome_threads;
