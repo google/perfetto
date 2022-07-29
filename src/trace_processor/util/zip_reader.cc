@@ -186,6 +186,14 @@ base::Status ZipReader::Parse(const void* data, size_t len) {
   return base::OkStatus();
 }
 
+ZipFile* ZipReader::Find(const std::string& path) {
+  for (ZipFile& zf : files_) {
+    if (zf.name() == path)
+      return &zf;
+  }
+  return nullptr;
+}
+
 ZipFile::ZipFile() = default;
 ZipFile::~ZipFile() = default;
 ZipFile::ZipFile(ZipFile&& other) noexcept = default;

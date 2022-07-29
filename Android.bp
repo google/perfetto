@@ -1917,6 +1917,7 @@ cc_test {
         ":perfetto_src_trace_processor_dynamic_dynamic",
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_ftrace_descriptors",
+        ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_proto_storage_full",
@@ -1938,6 +1939,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_stack_traces_util",
         ":perfetto_src_trace_processor_util_util",
+        ":perfetto_src_trace_processor_util_zip_reader",
         ":perfetto_src_trace_processor_views_views",
         ":perfetto_src_traced_probes_android_game_intervention_list_android_game_intervention_list",
         ":perfetto_src_traced_probes_android_log_android_log",
@@ -8768,6 +8770,23 @@ genrule {
     ],
 }
 
+// GN: //src/trace_processor/importers/android_bugreport:android_bugreport
+filegroup {
+    name: "perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
+    srcs: [
+        "src/trace_processor/importers/android_bugreport/android_bugreport_parser.cc",
+        "src/trace_processor/importers/android_bugreport/android_log_parser.cc",
+    ],
+}
+
+// GN: //src/trace_processor/importers/android_bugreport:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_importers_android_bugreport_unittests",
+    srcs: [
+        "src/trace_processor/importers/android_bugreport/android_log_parser_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/importers/common:common
 filegroup {
     name: "perfetto_src_trace_processor_importers_common_common",
@@ -10649,6 +10668,8 @@ cc_test {
         ":perfetto_src_trace_processor_dynamic_unittests",
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_ftrace_descriptors",
+        ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
+        ":perfetto_src_trace_processor_importers_android_bugreport_unittests",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_unittests",
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
@@ -10986,6 +11007,7 @@ cc_binary {
         ":perfetto_src_trace_processor_dynamic_dynamic",
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_ftrace_descriptors",
+        ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_proto_storage_full",
@@ -11009,6 +11031,7 @@ cc_binary {
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_stack_traces_util",
         ":perfetto_src_trace_processor_util_util",
+        ":perfetto_src_trace_processor_util_zip_reader",
         ":perfetto_src_trace_processor_views_views",
         "src/trace_processor/trace_processor_shell.cc",
         "src/trace_processor/util/proto_to_json.cc",
@@ -11160,6 +11183,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_dynamic_dynamic",
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_ftrace_descriptors",
+        ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_proto_storage_full",
@@ -11181,6 +11205,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_stack_traces_util",
         ":perfetto_src_trace_processor_util_util",
+        ":perfetto_src_trace_processor_util_zip_reader",
         ":perfetto_src_trace_processor_views_views",
         ":perfetto_src_traceconv_lib",
         ":perfetto_src_traceconv_main",
