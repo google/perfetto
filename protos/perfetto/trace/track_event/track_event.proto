@@ -213,16 +213,22 @@ message TrackEvent {
   //
   // Flows can also be explicitly terminated (see |terminating_flow_ids|), so
   // that the same ID can later be reused for another flow.
-  repeated uint64 flow_ids = 36;
+  // DEPRECATED. Only kept for backwards compatibility. Use |flow_ids|.
+  repeated uint64 flow_ids_old = 36 [deprecated = true];
+  // TODO(b/204341740): replace "flow_ids_old" with "flow_ids" to reduce memory
+  // consumption.
+  repeated fixed64 flow_ids = 47;
 
   // List of flow ids which should terminate on this event, otherwise same as
   // |flow_ids|.
   // Any one flow ID should be either listed as part of |flow_ids| OR
   // |terminating_flow_ids|, not both.
-  repeated uint64 terminating_flow_ids = 42;
-
-  // Reserved for the new flow_ids that will be with fixed64 type.
-  reserved 47, 48;
+  // DEPRECATED. Only kept for backwards compatibility.  Use
+  // |terminating_flow_ids|.
+  repeated uint64 terminating_flow_ids_old = 42 [deprecated = true];
+  // TODO(b/204341740): replace "terminating_flow_ids_old" with
+  // "terminating_flow_ids" to reduce memory consumption.
+  repeated fixed64 terminating_flow_ids = 48;
 
   // ---------------------------------------------------------------------------
   // TrackEvent arguments:
