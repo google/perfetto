@@ -764,6 +764,20 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
         slice += ")";
       }
 
+      if (track_event.flow_ids_old_size()) {
+        slice += "(flow_ids_old=";
+        std::stringstream value;
+        bool first_annotation = true;
+        for (uint64_t id : track_event.flow_ids_old()) {
+          if (!first_annotation) {
+            value << ",";
+          }
+          first_annotation = false;
+          value << id;
+        }
+        slice += value.str() + ")";
+      }
+
       if (track_event.flow_ids_size()) {
         slice += "(flow_ids=";
         std::stringstream value;
@@ -774,6 +788,20 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
           }
           first_annotation = false;
           value << id;
+        }
+        slice += value.str() + ")";
+      }
+
+      if (track_event.terminating_flow_ids_old_size()) {
+        slice += "(terminating_flow_ids_old=";
+        std::stringstream value;
+        bool first_annotation = true;
+        for (uint64_t id : track_event.terminating_flow_ids_old()) {
+          if (!first_annotation) {
+            value << ",";
+          }
+          value << id;
+          first_annotation = false;
         }
         slice += value.str() + ")";
       }
@@ -2137,8 +2165,11 @@ TEST_P(PerfettoApiTest, InlineTrackEventTypedArgs_SimpleRepeated) {
   auto* tracing_session = NewTraceWithCategories({"foo"});
   tracing_session->get()->StartBlocking();
 
-  std::vector<uint64_t> flow_ids{1, 2, 3};
+  std::vector<uint64_t> flow_ids_old{1, 2, 3};
+  std::vector<uint64_t> flow_ids{4, 5, 6};
   TRACE_EVENT_BEGIN("foo", "EventWithTypedArg",
+                    perfetto::protos::pbzero::TrackEvent::kFlowIdsOld,
+                    flow_ids_old,
                     perfetto::protos::pbzero::TrackEvent::kFlowIds, flow_ids);
   TRACE_EVENT_END("foo");
 
@@ -2154,7 +2185,8 @@ TEST_P(PerfettoApiTest, InlineTrackEventTypedArgs_SimpleRepeated) {
       continue;
     }
 
-    EXPECT_THAT(track_event.flow_ids(), testing::ElementsAre(1u, 2u, 3u));
+    EXPECT_THAT(track_event.flow_ids_old(), testing::ElementsAre(1u, 2u, 3u));
+    EXPECT_THAT(track_event.flow_ids(), testing::ElementsAre(4u, 5u, 6u));
     found_args = true;
   }
   EXPECT_TRUE(found_args);
@@ -2510,6 +2542,7 @@ TEST_P(PerfettoApiTest, TrackEventArgs_Flow_Global) {
   CheckTypedArguments(
       raw_trace, "E1", perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
       [](const perfetto::protos::gen::TrackEvent& track_event) {
+        EXPECT_TRUE(track_event.flow_ids_old().empty());
         EXPECT_THAT(track_event.flow_ids(), testing::ElementsAre(42u));
       });
 }
@@ -2551,13 +2584,15 @@ TEST_P(PerfettoApiTest, TrackEventArgs_Flow_ProcessScoped) {
   CheckTypedArguments(raw_trace, "E1",
                       perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
                       [](const perfetto::protos::gen::TrackEvent& track_event) {
+                        EXPECT_EQ(track_event.flow_ids_old_size(), 0);
                         EXPECT_EQ(track_event.flow_ids_size(), 1);
                       });
-  CheckTypedArguments(raw_trace, "E2",
-                      perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
-                      [](const perfetto::protos::gen::TrackEvent& track_event) {
-                        EXPECT_EQ(track_event.terminating_flow_ids_size(), 1);
-                      });
+  CheckTypedArguments(
+      raw_trace, "E2", perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
+      [](const perfetto::protos::gen::TrackEvent& track_event) {
+        EXPECT_EQ(track_event.terminating_flow_ids_old_size(), 0);
+        EXPECT_EQ(track_event.terminating_flow_ids_size(), 1);
+      });
 }
 
 TEST_P(PerfettoApiTest, TrackEventArgs_Flow_FromPointer) {
@@ -2577,13 +2612,15 @@ TEST_P(PerfettoApiTest, TrackEventArgs_Flow_FromPointer) {
   CheckTypedArguments(raw_trace, "E1",
                       perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
                       [](const perfetto::protos::gen::TrackEvent& track_event) {
+                        EXPECT_EQ(track_event.flow_ids_old_size(), 0);
                         EXPECT_EQ(track_event.flow_ids_size(), 1);
                       });
-  CheckTypedArguments(raw_trace, "E2",
-                      perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
-                      [](const perfetto::protos::gen::TrackEvent& track_event) {
-                        EXPECT_EQ(track_event.terminating_flow_ids_size(), 1);
-                      });
+  CheckTypedArguments(
+      raw_trace, "E2", perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
+      [](const perfetto::protos::gen::TrackEvent& track_event) {
+        EXPECT_EQ(track_event.terminating_flow_ids_old_size(), 0);
+        EXPECT_EQ(track_event.terminating_flow_ids_size(), 1);
+      });
 }
 
 struct InternedLogMessageBody
