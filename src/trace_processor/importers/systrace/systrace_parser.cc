@@ -219,8 +219,8 @@ void SystraceParser::ParseSystracePoint(
     }
 
     case 'N':
-    case 'T':
-    case 'U': {
+    case 'G':
+    case 'H': {
       StringId name_id = context_->storage->InternString(point.name);
       StringId track_name_id = context_->storage->InternString(point.str_value);
       UniquePid upid =
@@ -241,11 +241,11 @@ void SystraceParser::ParseSystracePoint(
             context_->async_track_set_tracker->Scoped(track_set_id, ts, 0);
         context_->slice_tracker->Scoped(ts, track_id, kNullStringId, name_id,
                                         0);
-      } else if (point.phase == 'T') {
+      } else if (point.phase == 'G') {
         TrackId track_id = context_->async_track_set_tracker->Begin(
             track_set_id, point.int_value);
         context_->slice_tracker->Begin(ts, track_id, kNullStringId, name_id);
-      } else if (point.phase == 'U') {
+      } else if (point.phase == 'H') {
         TrackId track_id = context_->async_track_set_tracker->End(
             track_set_id, point.int_value);
         context_->slice_tracker->End(ts, track_id);
