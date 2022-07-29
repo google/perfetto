@@ -15,6 +15,8 @@
  */
 
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+
+#include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
