@@ -237,6 +237,8 @@ class WaitableTestEvent {
   bool notified_ = false;
 };
 
+class CustomDataSource : public perfetto::DataSource<CustomDataSource> {};
+
 class MockDataSource;
 
 // We can't easily use gmock here because instances of data sources are lazily
@@ -472,6 +474,11 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
     args.tracing_policy = g_test_tracing_policy;
     perfetto::Tracing::Initialize(args);
     RegisterDataSource<MockDataSource>("my_data_source");
+    {
+      perfetto::DataSourceDescriptor dsd;
+      dsd.set_name("CustomDataSource");
+      CustomDataSource::Register(dsd);
+    }
     perfetto::TrackEvent::Register();
 
     // Make sure our data source always has a valid handle.
@@ -631,12 +638,16 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
       const std::vector<char>& raw_trace) {
     EXPECT_GE(raw_trace.size(), 0u);
 
-    // Read back the trace, maintaining interning tables as we go.
-    std::vector<std::string> slices;
     perfetto::protos::gen::Trace parsed_trace;
     EXPECT_TRUE(
         parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+    return ReadSlicesFromTrace(parsed_trace);
+  }
 
+  std::vector<std::string> ReadSlicesFromTrace(
+      const perfetto::protos::gen::Trace& parsed_trace) {
+    // Read back the trace, maintaining interning tables as we go.
+    std::vector<std::string> slices;
     ParsedIncrementalState incremental_state;
 
     uint32_t sequence_id = 0;
@@ -5146,9 +5157,9 @@ TEST_P(PerfettoApiTest, ConsecutiveEmptyEventsSkipped) {
 class PerfettoStartupTracingApiTest : public PerfettoApiTest {
  public:
   using SetupStartupTracingOpts = perfetto::Tracing::SetupStartupTracingOpts;
-  void SetupStartupTracing(SetupStartupTracingOpts opts = {}) {
+  void SetupStartupTracing(perfetto::TraceConfig cfg = {},
+                           SetupStartupTracingOpts opts = {}) {
     // Setup startup tracing in the current process.
-    perfetto::TraceConfig cfg;
     cfg.set_duration_ms(500);
     cfg.add_buffers()->set_size_kb(1024);
     auto* ds_cfg = cfg.add_data_sources()->mutable_config();
@@ -5292,6 +5303,82 @@ TEST_P(PerfettoStartupTracingApiTest, DontTraceBeforeStartupSetup) {
   EXPECT_THAT(slices, ElementsAre("B:test.Event", "E"));
 }
 
+// Test the StartupTracing when there are multiple data sources registered
+// (2 data sources in this test) but only a few of them contribute in startup
+// tracing.
+TEST_P(PerfettoStartupTracingApiTest, MultipleDataSourceFewContributing) {
+  perfetto::TraceConfig cfg;
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("CustomDataSource");
+  SetupStartupTracing(cfg);
+  TRACE_EVENT_BEGIN("test", "TrackEvent.Startup");
+  auto* tracing_session = NewTraceWithCategories({"test"}, {}, cfg);
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("test", "TrackEvent.Main");
+  perfetto::TrackEvent::Flush();
+  CustomDataSource::Trace([](CustomDataSource::TraceContext ctx) {
+    {
+      auto packet = ctx.NewTracePacket();
+      packet->set_for_testing()->set_str("CustomDataSource.Main");
+    }
+    ctx.Flush();
+  });
+
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+  auto slices = ReadSlicesFromTrace(trace);
+  EXPECT_THAT(slices, ElementsAre("B:test.TrackEvent.Startup",
+                                  "B:test.TrackEvent.Main"));
+  std::vector<std::string> test_strings;
+  for (auto& trace_packet : trace.packet()) {
+    if (trace_packet.has_for_testing()) {
+      test_strings.push_back(trace_packet.for_testing().str());
+    }
+  }
+  EXPECT_THAT(test_strings, ElementsAre("CustomDataSource.Main"));
+}
+
+// Test the StartupTracing when there are multiple data sources registered
+// (2 data sources in this test) and all of them are contributing in startup
+// tracing.
+TEST_P(PerfettoStartupTracingApiTest, MultipleDataSourceAllContributing) {
+  perfetto::TraceConfig cfg;
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("CustomDataSource");
+  SetupStartupTracing(cfg);
+  TRACE_EVENT_BEGIN("test", "TrackEvent.Startup");
+  CustomDataSource::Trace([](CustomDataSource::TraceContext ctx) {
+    auto packet = ctx.NewTracePacket();
+    packet->set_for_testing()->set_str("CustomDataSource.Startup");
+  });
+  auto* tracing_session = NewTraceWithCategories({"test"}, {}, cfg);
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("test", "TrackEvent.Main");
+  perfetto::TrackEvent::Flush();
+  CustomDataSource::Trace([](CustomDataSource::TraceContext ctx) {
+    {
+      auto packet = ctx.NewTracePacket();
+      packet->set_for_testing()->set_str("CustomDataSource.Main");
+    }
+    ctx.Flush();
+  });
+
+  PERFETTO_LOG("P");
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+  auto slices = ReadSlicesFromTrace(trace);
+  EXPECT_THAT(slices, ElementsAre("B:test.TrackEvent.Startup",
+                                  "B:test.TrackEvent.Main"));
+  std::vector<std::string> test_strings;
+  for (auto& trace_packet : trace.packet()) {
+    if (trace_packet.has_for_testing()) {
+      test_strings.push_back(trace_packet.for_testing().str());
+    }
+  }
+  EXPECT_THAT(test_strings,
+              ElementsAre("CustomDataSource.Startup", "CustomDataSource.Main"));
+}
+
 // Startup tracing requires BufferExhaustedPolicy::kDrop, i.e. once the SMB is
 // filled with startup events, any further events should be dropped.
 // TODO(mohitms): It seems flaky. Debug and enable again - go/aosp_ci_failure23
@@ -5337,11 +5424,7 @@ TEST_P(PerfettoStartupTracingApiTest, DISABLED_Abort) {
   EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
 }
 
-// TODO(mohitms): Currently we cannot restart StartupTracing after aborting it
-// once, unless we start the normal session first. We get the
-// `PERFETTO_CHECK(!fully_bound_)` failure while restarting.
-// We plan to investigate it in the next CL.
-TEST_P(PerfettoStartupTracingApiTest, DISABLED_AbortAndRestart) {
+TEST_P(PerfettoStartupTracingApiTest, AbortAndRestart) {
   SetupStartupTracing();
   TRACE_EVENT_BEGIN("test", "StartupEvent1");
   AbortStartupTracing();
@@ -5364,7 +5447,7 @@ TEST_P(PerfettoStartupTracingApiTest, DISABLED_AbortAndRestart) {
 TEST_P(PerfettoStartupTracingApiTest, Timeout) {
   SetupStartupTracingOpts args;
   args.timeout_ms = 2000;
-  SetupStartupTracing(args);
+  SetupStartupTracing({}, args);
   for (int i = 0; i < 25; i++) {
     TRACE_EVENT_BEGIN("test", "StartupEvent");
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -5394,7 +5477,7 @@ TEST_P(PerfettoStartupTracingApiTest, Callbacks) {
     };
     args.on_adopted = [&]() { callback_events.push_back("OnAdopted()"); };
     args.on_aborted = [&]() { callback_events.push_back("OnAborted()"); };
-    SetupStartupTracing(args);
+    SetupStartupTracing({}, args);
     TRACE_EVENT_BEGIN("test", "StartupEvent");
     if (abort) {
       AbortStartupTracing();
@@ -5434,6 +5517,21 @@ TEST_P(PerfettoStartupTracingApiTest, DISABLED_MainTracingNeverStarted) {
   TRACE_EVENT_BEGIN("test", "StartupEvent");
 }
 
+// Validates that Startup Trace works fine if we dont emit any event
+// during startup tracing session.
+TEST_P(PerfettoStartupTracingApiTest, NoEventInStartupTracing) {
+  SetupStartupTracing();
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+  // Emit an event now that the session was fully started. This should go
+  // strait to the SMB.
+  TRACE_EVENT_BEGIN("test", "MainEvent");
+  perfetto::TrackEvent::Flush();
+  tracing_session->get()->StopBlocking();
+  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
+}
+
 struct BackendTypeAsString {
   std::string operator()(
       const ::testing::TestParamInfo<perfetto::BackendType>& info) const {
@@ -5465,11 +5563,13 @@ INSTANTIATE_TEST_SUITE_P(PerfettoStartupTracingApiTest,
 
 }  // namespace
 
+PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(CustomDataSource);
 PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource);
 PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource2);
 PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(TestIncrementalDataSource,
                                             TestIncrementalDataSourceTraits);
 
+PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(CustomDataSource);
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource);
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(MockDataSource2);
 PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(TestIncrementalDataSource,

@@ -428,18 +428,19 @@ export class TraceController extends Controller<States> {
   }
 
   private async selectPerfSample() {
-    const query = `select ts, upid
+    const query = `select upid
         from perf_sample
         join thread using (utid)
         where callsite_id is not null
         order by ts desc limit 1`;
     const profile = await assertExists(this.engine).query(query);
     if (profile.numRows() !== 1) return;
-    const row = profile.firstRow({ts: NUM, upid: NUM});
-    const ts = row.ts;
+    const row = profile.firstRow({upid: NUM});
     const upid = row.upid;
+    const leftTs = toNs(globals.state.traceTime.startSec);
+    const rightTs = toNs(globals.state.traceTime.endSec);
     globals.dispatch(Actions.selectPerfSamples(
-        {id: 0, upid, ts, type: ProfileType.PERF_SAMPLE}));
+        {id: 0, upid, leftTs, rightTs, type: ProfileType.PERF_SAMPLE}));
   }
 
   private async selectFirstHeapProfile() {

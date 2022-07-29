@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/sys_types.h"  // For ssize_t on Windows.
 #include "test/gtest_and_gmock.h"
 
@@ -66,19 +67,19 @@ TEST(StreamingLineReaderTest, BeginEndWrite) {
   StreamingLineReader slr(sink.AppendLinesCallback());
 
   char* w = slr.BeginWrite(9);
-  slr.EndWrite(static_cast<size_t>(sprintf(w, "a12\nb345")));
+  slr.EndWrite(static_cast<size_t>(base::SprintfTrunc(w, 9, "a12\nb345")));
   ASSERT_THAT(sink.GetLines(), ElementsAreArray({"a12"}));
 
   w = slr.BeginWrite(9);
-  slr.EndWrite(static_cast<size_t>(sprintf(w, "6\nc\nd78\n")));
+  slr.EndWrite(static_cast<size_t>(base::SprintfTrunc(w, 9, "6\nc\nd78\n")));
   ASSERT_THAT(sink.GetLines(), ElementsAreArray({"b3456", "c", "d78"}));
 
   w = slr.BeginWrite(4);  // Deliberately over-sizing the `reserve_size`.
-  slr.EndWrite(static_cast<size_t>(sprintf(w, "\n")));
+  slr.EndWrite(static_cast<size_t>(base::SprintfTrunc(w, 4, "\n")));
   ASSERT_THAT(sink.GetLines(), ElementsAreArray({""}));
 
   w = slr.BeginWrite(128);  // Deliberately over-sizing the `reserve_size`.
-  slr.EndWrite(static_cast<size_t>(sprintf(w, "e12\nf3456\n")));
+  slr.EndWrite(static_cast<size_t>(base::SprintfTrunc(w, 128, "e12\nf3456\n")));
   ASSERT_THAT(sink.GetLines(), ElementsAreArray({"e12", "f3456"}));
 }
 
