@@ -20,9 +20,10 @@ import {globals} from '../frontend/globals';
 import {
   Aggregation,
   aggregationKey,
-  columnKey,
   TableColumn,
+  toggleEnabled,
 } from '../frontend/pivot_table_redux_types';
+import {DropDirection} from '../frontend/reorderable_cells';
 
 import {randomColor} from './colorizer';
 import {createEmptyState} from './empty_state';
@@ -685,12 +686,13 @@ export const StateActions = {
     });
   },
 
-  selectPerfSamples(
-      state: StateDraft,
-      args: {
-        id: number, upid: number, leftTs: number, rightTs: number,
-        type: ProfileType
-      }): void {
+  selectPerfSamples(state: StateDraft, args: {
+    id: number,
+    upid: number,
+    leftTs: number,
+    rightTs: number,
+    type: ProfileType
+  }): void {
     state.currentSelection = {
       kind: 'PERF_SAMPLES',
       id: args.id,
@@ -1014,12 +1016,17 @@ export const StateActions = {
 
   setPivotTablePivotSelected(
       state: StateDraft, args: {column: TableColumn, selected: boolean}) {
-    if (args.selected) {
-      state.nonSerializableState.pivotTableRedux.selectedPivotsMap.set(
-          columnKey(args.column), args.column);
+    if (args.column.kind === 'argument' || args.column.table === 'slice' ||
+        args.column.table === 'thread_slice') {
+      toggleEnabled(
+          state.nonSerializableState.pivotTableRedux.selectedSlicePivots,
+          args.column,
+          args.selected);
     } else {
-      state.nonSerializableState.pivotTableRedux.selectedPivotsMap.delete(
-          columnKey(args.column));
+      toggleEnabled(
+          state.nonSerializableState.pivotTableRedux.selectedPivots,
+          args.column,
+          args.selected);
     }
   },
 
@@ -1058,7 +1065,43 @@ export const StateActions = {
     state.nonSerializableState.pivotTableRedux.argumentNames =
         args.argumentNames;
   },
+
+  changePivotTablePivotOrder(
+      state: StateDraft,
+      args: {from: number, to: number, direction: DropDirection}) {
+    moveElement(
+        state.nonSerializableState.pivotTableRedux.selectedPivots,
+        args.from,
+        args.to,
+        args.direction);
+  },
+
+  changePivotTableSlicePivotOrder(
+      state: StateDraft,
+      args: {from: number, to: number, direction: DropDirection}) {
+    moveElement(
+        state.nonSerializableState.pivotTableRedux.selectedSlicePivots,
+        args.from,
+        args.to,
+        args.direction);
+  },
 };
+
+// Move element at `from` index to `direction` of `to` element.
+// Implements logic for reordering table columns via drag'n'drop.
+function moveElement<T>(
+    array: Draft<T[]>, from: number, to: number, direction: DropDirection) {
+  // New location of the "to" element: would be shifted by minus one if "from"
+  // element comes before it.
+  const newTo = to - ((from < to) ? 1 : 0);
+
+  // The resulting index where the "from" element has to be spliced in to.
+  const insertionPoint = newTo + ((direction === 'right') ? 1 : 0);
+
+  const fromElement = array[from];
+  array.splice(from, 1);
+  array.splice(insertionPoint, 0, fromElement);
+}
 
 // When we are on the frontend side, we don't really want to execute the
 // actions above, we just want to serialize them and marshal their
