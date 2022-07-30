@@ -74,7 +74,7 @@ void TrackEventModule::ParsePacket(const TracePacket::Decoder& decoder,
       break;
     case TracePacket::kTrackEventFieldNumber:
       PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTrackEvent);
-      parser_.ParseTrackEvent(ttp.timestamp, ttp.track_event_data.get(),
+      parser_.ParseTrackEvent(ttp.timestamp, &ttp.track_event_data,
                               decoder.track_event());
       break;
     case TracePacket::kProcessDescriptorFieldNumber:
