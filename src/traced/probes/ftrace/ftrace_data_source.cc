@@ -157,7 +157,7 @@ void FtraceDataSource::WriteStats() {
   {
     auto before_packet = writer_->NewTracePacket();
     auto out = before_packet->set_ftrace_stats();
-    out->set_phase(protos::pbzero::FtraceStats_Phase_START_OF_TRACE);
+    out->set_phase(protos::pbzero::FtraceStats::Phase::START_OF_TRACE);
     stats_before_.Write(out);
   }
   {
@@ -165,7 +165,7 @@ void FtraceDataSource::WriteStats() {
     DumpFtraceStats(&stats_after);
     auto after_packet = writer_->NewTracePacket();
     auto out = after_packet->set_ftrace_stats();
-    out->set_phase(protos::pbzero::FtraceStats_Phase_END_OF_TRACE);
+    out->set_phase(protos::pbzero::FtraceStats::Phase::END_OF_TRACE);
     stats_after.Write(out);
   }
 }
