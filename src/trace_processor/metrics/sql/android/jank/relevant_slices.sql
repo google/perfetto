@@ -139,6 +139,8 @@ WHERE
 
 -- Match the frame timeline on the app side with the frame timeline on the SF side.
 -- This way we get the vsyncs IDs of SF frames within the CUJ.
+-- Note that there might be multiple SF vsync IDs that match a single App vsync ID, e.g.
+-- if one App layer produced a frame later and it was picked up by the next SF frame.
 DROP TABLE IF EXISTS android_jank_cuj_app_to_sf_match;
 CREATE TABLE android_jank_cuj_app_to_sf_match AS
 SELECT
@@ -165,10 +167,13 @@ SELECT CREATE_VIEW_FUNCTION(
   'ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE(slice_name_glob STRING)',
   'cuj_id INT, utid INT, vsync INT, id INT, name STRING, ts LONG, dur LONG, ts_end LONG',
   '
+  WITH sf_vsync AS (
+    SELECT DISTINCT cuj_id, sf_vsync AS vsync
+    FROM android_jank_cuj_app_to_sf_match)
   SELECT
     cuj_id,
     utid,
-    match.sf_vsync AS vsync,
+    sf_vsync.vsync,
     slice.id,
     slice.name,
     slice.ts,
@@ -176,8 +181,8 @@ SELECT CREATE_VIEW_FUNCTION(
     slice.ts + slice.dur AS ts_end
   FROM slice
   JOIN android_jank_cuj_sf_main_thread main_thread USING (track_id)
-  JOIN android_jank_cuj_app_to_sf_match match
-    ON VSYNC_FROM_NAME(slice.name) = match.sf_vsync
+  JOIN sf_vsync
+    ON VSYNC_FROM_NAME(slice.name) = sf_vsync.vsync
   WHERE slice.name GLOB $slice_name_glob AND slice.dur > 0
   ORDER BY cuj_id, vsync;
   '
