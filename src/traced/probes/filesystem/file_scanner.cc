@@ -126,14 +126,14 @@ void FileScanner::Step() {
   std::string filepath = JoinPaths(current_directory_, filename);
 
   protos::pbzero::InodeFileMap_Entry_Type type =
-      protos::pbzero::InodeFileMap_Entry_Type_UNKNOWN;
+      protos::pbzero::InodeFileMap::Entry::Type::UNKNOWN;
   // Readdir and stat not guaranteed to have directory info for all systems
   if (entry->d_type == DT_DIR) {
     // Continue iterating through files if current entry is a directory
     queue_.emplace_back(filepath);
-    type = protos::pbzero::InodeFileMap_Entry_Type_DIRECTORY;
+    type = protos::pbzero::InodeFileMap::Entry::Type::DIRECTORY;
   } else if (entry->d_type == DT_REG) {
-    type = protos::pbzero::InodeFileMap_Entry_Type_FILE;
+    type = protos::pbzero::InodeFileMap::Entry::Type::FILE;
   }
 
   if (!delegate_->OnInodeFound(current_block_device_id_, entry->d_ino, filepath,
