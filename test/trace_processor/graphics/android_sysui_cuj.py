@@ -161,7 +161,8 @@ def add_actual_surface_frame_events(ts,
                                     token,
                                     cookie=None,
                                     jank=None,
-                                    on_time_finish_override=None):
+                                    on_time_finish_override=None,
+                                    display_frame_token_override=None):
   if cookie is None:
     cookie = token + 1
   jank_type = jank if jank is not None else 1
@@ -170,11 +171,12 @@ def add_actual_surface_frame_events(ts,
     on_time_finish = 1 if jank is None else 0
   else:
     on_time_finish = on_time_finish_override
+  display_frame_token = display_frame_token_override or (token + 100)
   trace.add_actual_surface_frame_start_event(
       ts=ts,
       cookie=100002 + cookie,
       token=token,
-      display_frame_token=100 + token,
+      display_frame_token=display_frame_token,
       pid=PID,
       present_type=present_type,
       on_time_finish=on_time_finish,
@@ -639,7 +641,13 @@ add_expected_surface_frame_events(ts=70_000_000, dur=20_000_000, token=60)
 add_actual_surface_frame_events(
     ts=70_000_000, dur=10_000_000, token=60, jank=64)
 add_actual_surface_frame_events(
-    ts=70_000_000, dur=20_000_000, token=60, cookie=62, jank=64)
+    ts=70_000_000,
+    dur=20_000_000,
+    token=60,
+    cookie=62,
+    jank=64,
+    # second layer produced frame later so was picked up by the next SF frame
+    display_frame_token_override=190)
 
 add_expected_display_frame_events(ts=1_100_000_000, dur=16_000_000, token=90)
 add_actual_display_frame_events(ts=1_100_000_000, dur=16_000_000, token=90)
