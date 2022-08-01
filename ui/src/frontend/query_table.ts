@@ -25,7 +25,7 @@ import {globals} from './globals';
 import {Panel} from './panel';
 import {Router} from './router';
 import {
-  horizontalScrollAndZoomToRange,
+  focusHorizontalRange,
   verticalScrollToTrack,
 } from './scroll_helper';
 
@@ -59,7 +59,7 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     const uiTrackId = globals.state.uiTrackIdByTraceTrackId[trackId];
     if (uiTrackId === undefined) return;
     verticalScrollToTrack(uiTrackId, true);
-    horizontalScrollAndZoomToRange(sliceStart, sliceEnd);
+    focusHorizontalRange(sliceStart, sliceEnd);
     let sliceId: number|undefined;
     if (row.type?.toString().includes('slice')) {
       sliceId = row.id as number | undefined;
