@@ -341,8 +341,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
 void FtraceParser::ParseFtraceStats(ConstBytes blob) {
   protos::pbzero::FtraceStats::Decoder evt(blob.data, blob.size);
   bool is_start =
-      evt.phase() == protos::pbzero::FtraceStats_Phase_START_OF_TRACE;
-  bool is_end = evt.phase() == protos::pbzero::FtraceStats_Phase_END_OF_TRACE;
+      evt.phase() == protos::pbzero::FtraceStats::Phase::START_OF_TRACE;
+  bool is_end = evt.phase() == protos::pbzero::FtraceStats::Phase::END_OF_TRACE;
   if (!is_start && !is_end) {
     PERFETTO_ELOG("Ignoring unknown ftrace stats phase %d", evt.phase());
     return;

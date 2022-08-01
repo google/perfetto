@@ -21,7 +21,13 @@ Unreleased:
       with adb forwarding. This is a tracing protocol breaking change. Nobody
       seems to be relying on @abstract syntax across different versions of
       client vs service.
-
+    * Changed the mangling scheme for protozero enums nested in another message:
+      instead of OuterClass_Enum_VALUE, the enum values will be just named
+      VALUE with the enum itself wrapped in a perfetto_pbzero_enum_OuterClass
+      namespace to prevent naming collisions. This will allow the users
+      to alias the enum directly and use throughout their code.
+      The exact name mangling scheme is a carry-over from libprotobuf and
+      an internal implementation detail, so nobody should be relying on that.
 
 v27.1 - 2022-07-11:
   SDK:
