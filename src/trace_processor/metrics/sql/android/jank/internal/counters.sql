@@ -59,7 +59,7 @@ CREATE TABLE android_jank_cuj_counter_metrics AS
 WITH cujs_ordered AS (
   SELECT
     *,
-    LEAD(ts) OVER (PARTITION BY cuj_name ORDER BY ts ASC) AS ts_next_cuj
+    LEAD(ts_end) OVER (PARTITION BY cuj_name ORDER BY ts_end ASC) AS ts_end_next_cuj
   FROM android_jank_cuj
 )
 SELECT
@@ -67,11 +67,11 @@ SELECT
   cuj_name,
   upid,
   state,
-  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'totalFrames', ts_end, ts_next_cuj) AS total_frames,
-  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'missedFrames', ts_end, ts_next_cuj) AS missed_frames,
-  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'missedAppFrames', ts_end, ts_next_cuj) AS missed_app_frames,
-  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'missedSfFrames', ts_end, ts_next_cuj) AS missed_sf_frames,
-  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'maxSuccessiveMissedFrames', ts_end, ts_next_cuj) AS missed_frames_max_successive,
+  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'totalFrames', ts_end, ts_end_next_cuj) AS total_frames,
+  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'missedFrames', ts_end, ts_end_next_cuj) AS missed_frames,
+  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'missedAppFrames', ts_end, ts_end_next_cuj) AS missed_app_frames,
+  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'missedSfFrames', ts_end, ts_end_next_cuj) AS missed_sf_frames,
+  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'maxSuccessiveMissedFrames', ts_end, ts_end_next_cuj) AS missed_frames_max_successive,
   -- convert ms to nanos to align with the unit for `dur` in the other tables
-  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'maxFrameTimeMillis', ts_end, ts_next_cuj) * 1000000 AS frame_dur_max
+  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'maxFrameTimeMillis', ts_end, ts_end_next_cuj) * 1000000 AS frame_dur_max
 FROM cujs_ordered cuj;
