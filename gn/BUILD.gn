@@ -209,6 +209,8 @@ protobuf_full_deps_allowlist = [
   "../src/protozero/protoc_plugin:*",
   "../src/protozero/filtering:filter_util",
   "../src/trace_processor:trace_processor_shell",
+  "../src/trace_processor/util:proto_profiler",
+  "../src/trace_processor/util:unittests",
   "../src/protozero/filtering:filter_util",
   "../tools/*",
   "../src/tools/*",
