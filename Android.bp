@@ -53,6 +53,8 @@ cc_binary {
         ":perfetto_protos_perfetto_config_statsd_zero_gen",
         ":perfetto_protos_perfetto_config_sys_stats_cpp_gen",
         ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
+        ":perfetto_protos_perfetto_config_system_info_cpp_gen",
+        ":perfetto_protos_perfetto_config_system_info_zero_gen",
         ":perfetto_protos_perfetto_config_track_event_cpp_gen",
         ":perfetto_protos_perfetto_config_track_event_zero_gen",
         ":perfetto_protos_perfetto_config_zero_gen",
@@ -137,6 +139,8 @@ cc_binary {
         "perfetto_protos_perfetto_config_statsd_zero_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_cpp_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_cpp_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_config_zero_gen_headers",
@@ -311,6 +315,8 @@ cc_library_shared {
         ":perfetto_protos_perfetto_config_statsd_zero_gen",
         ":perfetto_protos_perfetto_config_sys_stats_cpp_gen",
         ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
+        ":perfetto_protos_perfetto_config_system_info_cpp_gen",
+        ":perfetto_protos_perfetto_config_system_info_zero_gen",
         ":perfetto_protos_perfetto_config_track_event_cpp_gen",
         ":perfetto_protos_perfetto_config_track_event_zero_gen",
         ":perfetto_protos_perfetto_config_zero_gen",
@@ -404,6 +410,8 @@ cc_library_shared {
         "perfetto_protos_perfetto_config_statsd_zero_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_cpp_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_cpp_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_config_zero_gen_headers",
@@ -507,6 +515,8 @@ cc_library_shared {
         ":perfetto_protos_perfetto_config_statsd_zero_gen",
         ":perfetto_protos_perfetto_config_sys_stats_cpp_gen",
         ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
+        ":perfetto_protos_perfetto_config_system_info_cpp_gen",
+        ":perfetto_protos_perfetto_config_system_info_zero_gen",
         ":perfetto_protos_perfetto_config_track_event_cpp_gen",
         ":perfetto_protos_perfetto_config_track_event_zero_gen",
         ":perfetto_protos_perfetto_config_zero_gen",
@@ -607,6 +617,8 @@ cc_library_shared {
         "perfetto_protos_perfetto_config_statsd_zero_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_cpp_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_cpp_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_config_zero_gen_headers",
@@ -726,6 +738,8 @@ cc_library_static {
         ":perfetto_protos_perfetto_config_statsd_zero_gen",
         ":perfetto_protos_perfetto_config_sys_stats_cpp_gen",
         ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
+        ":perfetto_protos_perfetto_config_system_info_cpp_gen",
+        ":perfetto_protos_perfetto_config_system_info_zero_gen",
         ":perfetto_protos_perfetto_config_track_event_cpp_gen",
         ":perfetto_protos_perfetto_config_track_event_zero_gen",
         ":perfetto_protos_perfetto_config_zero_gen",
@@ -810,6 +824,8 @@ cc_library_static {
         "perfetto_protos_perfetto_config_statsd_zero_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_cpp_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_cpp_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_config_zero_gen_headers",
@@ -860,6 +876,8 @@ cc_library_static {
         "perfetto_protos_perfetto_config_statsd_zero_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_cpp_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_cpp_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_config_zero_gen_headers",
@@ -937,6 +955,8 @@ cc_binary {
         ":perfetto_protos_perfetto_config_statsd_zero_gen",
         ":perfetto_protos_perfetto_config_sys_stats_cpp_gen",
         ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
+        ":perfetto_protos_perfetto_config_system_info_cpp_gen",
+        ":perfetto_protos_perfetto_config_system_info_zero_gen",
         ":perfetto_protos_perfetto_config_track_event_cpp_gen",
         ":perfetto_protos_perfetto_config_track_event_zero_gen",
         ":perfetto_protos_perfetto_config_zero_gen",
@@ -1010,6 +1030,8 @@ cc_binary {
         "perfetto_protos_perfetto_config_statsd_zero_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_cpp_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_cpp_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_config_zero_gen_headers",
@@ -1087,6 +1109,8 @@ cc_library_static {
         ":perfetto_protos_perfetto_config_statsd_zero_gen",
         ":perfetto_protos_perfetto_config_sys_stats_cpp_gen",
         ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
+        ":perfetto_protos_perfetto_config_system_info_cpp_gen",
+        ":perfetto_protos_perfetto_config_system_info_zero_gen",
         ":perfetto_protos_perfetto_config_track_event_cpp_gen",
         ":perfetto_protos_perfetto_config_track_event_zero_gen",
         ":perfetto_protos_perfetto_config_zero_gen",
@@ -1214,6 +1238,8 @@ cc_library_static {
         "perfetto_protos_perfetto_config_statsd_zero_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_cpp_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_cpp_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_config_zero_gen_headers",
@@ -1281,6 +1307,8 @@ cc_library_static {
         "perfetto_protos_perfetto_config_statsd_zero_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_cpp_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_cpp_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_config_zero_gen_headers",
@@ -1370,6 +1398,8 @@ cc_library_static {
         ":perfetto_protos_perfetto_config_statsd_zero_gen",
         ":perfetto_protos_perfetto_config_sys_stats_cpp_gen",
         ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
+        ":perfetto_protos_perfetto_config_system_info_cpp_gen",
+        ":perfetto_protos_perfetto_config_system_info_zero_gen",
         ":perfetto_protos_perfetto_config_track_event_cpp_gen",
         ":perfetto_protos_perfetto_config_track_event_zero_gen",
         ":perfetto_protos_perfetto_config_zero_gen",
@@ -1482,6 +1512,8 @@ cc_library_static {
         "perfetto_protos_perfetto_config_statsd_zero_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_cpp_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_cpp_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_config_zero_gen_headers",
@@ -1549,6 +1581,8 @@ cc_library_static {
         "perfetto_protos_perfetto_config_statsd_zero_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_cpp_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_cpp_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_config_zero_gen_headers",
@@ -1817,6 +1851,9 @@ cc_test {
         ":perfetto_protos_perfetto_config_sys_stats_cpp_gen",
         ":perfetto_protos_perfetto_config_sys_stats_lite_gen",
         ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
+        ":perfetto_protos_perfetto_config_system_info_cpp_gen",
+        ":perfetto_protos_perfetto_config_system_info_lite_gen",
+        ":perfetto_protos_perfetto_config_system_info_zero_gen",
         ":perfetto_protos_perfetto_config_track_event_cpp_gen",
         ":perfetto_protos_perfetto_config_track_event_lite_gen",
         ":perfetto_protos_perfetto_config_track_event_zero_gen",
@@ -2041,6 +2078,9 @@ cc_test {
         "perfetto_protos_perfetto_config_sys_stats_cpp_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_lite_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_cpp_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_lite_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_config_track_event_lite_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
@@ -2667,6 +2707,7 @@ genrule {
         "protos/perfetto/config/statsd/statsd_tracing_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
         "protos/perfetto/config/sys_stats/sys_stats_config.proto",
+        "protos/perfetto/config/system_info/system_info.proto",
         "protos/perfetto/config/test_config.proto",
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
@@ -3736,6 +3777,112 @@ genrule {
     ],
 }
 
+// GN: //protos/perfetto/config/system_info:cpp
+genrule {
+    name: "perfetto_protos_perfetto_config_system_info_cpp_gen",
+    srcs: [
+        "protos/perfetto/config/system_info/system_info.proto",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
+    out: [
+        "external/perfetto/protos/perfetto/config/system_info/system_info.gen.cc",
+    ],
+}
+
+// GN: //protos/perfetto/config/system_info:cpp
+genrule {
+    name: "perfetto_protos_perfetto_config_system_info_cpp_gen_headers",
+    srcs: [
+        "protos/perfetto/config/system_info/system_info.proto",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
+    out: [
+        "external/perfetto/protos/perfetto/config/system_info/system_info.gen.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
+// GN: //protos/perfetto/config/system_info:lite
+genrule {
+    name: "perfetto_protos_perfetto_config_system_info_lite_gen",
+    srcs: [
+        "protos/perfetto/config/system_info/system_info.proto",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
+    out: [
+        "external/perfetto/protos/perfetto/config/system_info/system_info.pb.cc",
+    ],
+}
+
+// GN: //protos/perfetto/config/system_info:lite
+genrule {
+    name: "perfetto_protos_perfetto_config_system_info_lite_gen_headers",
+    srcs: [
+        "protos/perfetto/config/system_info/system_info.proto",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
+    out: [
+        "external/perfetto/protos/perfetto/config/system_info/system_info.pb.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
+// GN: //protos/perfetto/config/system_info:zero
+genrule {
+    name: "perfetto_protos_perfetto_config_system_info_zero_gen",
+    srcs: [
+        "protos/perfetto/config/system_info/system_info.proto",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+    out: [
+        "external/perfetto/protos/perfetto/config/system_info/system_info.pbzero.cc",
+    ],
+}
+
+// GN: //protos/perfetto/config/system_info:zero
+genrule {
+    name: "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
+    srcs: [
+        "protos/perfetto/config/system_info/system_info.proto",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
+    out: [
+        "external/perfetto/protos/perfetto/config/system_info/system_info.pbzero.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
 // GN: //protos/perfetto/config/track_event:cpp
 genrule {
     name: "perfetto_protos_perfetto_config_track_event_cpp_gen",
@@ -4514,6 +4661,7 @@ genrule {
         "protos/perfetto/config/statsd/statsd_tracing_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
         "protos/perfetto/config/sys_stats/sys_stats_config.proto",
+        "protos/perfetto/config/system_info/system_info.proto",
         "protos/perfetto/config/test_config.proto",
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
@@ -10235,6 +10383,7 @@ java_library {
         "protos/perfetto/config/statsd/statsd_tracing_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
         "protos/perfetto/config/sys_stats/sys_stats_config.proto",
+        "protos/perfetto/config/system_info/system_info.proto",
         "protos/perfetto/config/test_config.proto",
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
@@ -10387,6 +10536,7 @@ cc_library_static {
         ":perfetto_protos_perfetto_config_profiling_lite_gen",
         ":perfetto_protos_perfetto_config_statsd_lite_gen",
         ":perfetto_protos_perfetto_config_sys_stats_lite_gen",
+        ":perfetto_protos_perfetto_config_system_info_lite_gen",
         ":perfetto_protos_perfetto_config_track_event_lite_gen",
         ":perfetto_protos_perfetto_trace_android_lite_gen",
         ":perfetto_protos_perfetto_trace_chrome_lite_gen",
@@ -10423,6 +10573,7 @@ cc_library_static {
         "perfetto_protos_perfetto_config_profiling_lite_gen_headers",
         "perfetto_protos_perfetto_config_statsd_lite_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_lite_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_lite_gen_headers",
         "perfetto_protos_perfetto_config_track_event_lite_gen_headers",
         "perfetto_protos_perfetto_trace_android_lite_gen_headers",
         "perfetto_protos_perfetto_trace_chrome_lite_gen_headers",
@@ -10455,6 +10606,7 @@ cc_library_static {
         "perfetto_protos_perfetto_config_profiling_lite_gen_headers",
         "perfetto_protos_perfetto_config_statsd_lite_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_lite_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_lite_gen_headers",
         "perfetto_protos_perfetto_config_track_event_lite_gen_headers",
         "perfetto_protos_perfetto_trace_android_lite_gen_headers",
         "perfetto_protos_perfetto_trace_chrome_lite_gen_headers",
@@ -10549,6 +10701,9 @@ cc_test {
         ":perfetto_protos_perfetto_config_sys_stats_cpp_gen",
         ":perfetto_protos_perfetto_config_sys_stats_lite_gen",
         ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
+        ":perfetto_protos_perfetto_config_system_info_cpp_gen",
+        ":perfetto_protos_perfetto_config_system_info_lite_gen",
+        ":perfetto_protos_perfetto_config_system_info_zero_gen",
         ":perfetto_protos_perfetto_config_track_event_cpp_gen",
         ":perfetto_protos_perfetto_config_track_event_lite_gen",
         ":perfetto_protos_perfetto_config_track_event_zero_gen",
@@ -10832,6 +10987,9 @@ cc_test {
         "perfetto_protos_perfetto_config_sys_stats_cpp_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_lite_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_cpp_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_lite_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_config_track_event_lite_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
@@ -10986,6 +11144,7 @@ cc_binary {
         ":perfetto_protos_perfetto_config_profiling_zero_gen",
         ":perfetto_protos_perfetto_config_statsd_zero_gen",
         ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
+        ":perfetto_protos_perfetto_config_system_info_zero_gen",
         ":perfetto_protos_perfetto_config_track_event_zero_gen",
         ":perfetto_protos_perfetto_config_zero_gen",
         ":perfetto_protos_perfetto_trace_android_zero_gen",
@@ -11069,6 +11228,7 @@ cc_binary {
         "perfetto_protos_perfetto_config_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_config_statsd_zero_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_config_zero_gen_headers",
         "perfetto_protos_perfetto_trace_android_zero_gen_headers",
@@ -11166,6 +11326,7 @@ cc_binary_host {
         ":perfetto_protos_perfetto_config_profiling_zero_gen",
         ":perfetto_protos_perfetto_config_statsd_zero_gen",
         ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
+        ":perfetto_protos_perfetto_config_system_info_zero_gen",
         ":perfetto_protos_perfetto_config_track_event_zero_gen",
         ":perfetto_protos_perfetto_config_zero_gen",
         ":perfetto_protos_perfetto_trace_android_zero_gen",
@@ -11248,6 +11409,7 @@ cc_binary_host {
         "perfetto_protos_perfetto_config_profiling_zero_gen_headers",
         "perfetto_protos_perfetto_config_statsd_zero_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_config_zero_gen_headers",
         "perfetto_protos_perfetto_trace_android_zero_gen_headers",
@@ -11346,6 +11508,8 @@ cc_binary {
         ":perfetto_protos_perfetto_config_statsd_zero_gen",
         ":perfetto_protos_perfetto_config_sys_stats_cpp_gen",
         ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
+        ":perfetto_protos_perfetto_config_system_info_cpp_gen",
+        ":perfetto_protos_perfetto_config_system_info_zero_gen",
         ":perfetto_protos_perfetto_config_track_event_cpp_gen",
         ":perfetto_protos_perfetto_config_track_event_zero_gen",
         ":perfetto_protos_perfetto_config_zero_gen",
@@ -11441,6 +11605,8 @@ cc_binary {
         "perfetto_protos_perfetto_config_statsd_zero_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_cpp_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_cpp_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_config_zero_gen_headers",
@@ -11537,6 +11703,8 @@ cc_binary {
         ":perfetto_protos_perfetto_config_statsd_zero_gen",
         ":perfetto_protos_perfetto_config_sys_stats_cpp_gen",
         ":perfetto_protos_perfetto_config_sys_stats_zero_gen",
+        ":perfetto_protos_perfetto_config_system_info_cpp_gen",
+        ":perfetto_protos_perfetto_config_system_info_zero_gen",
         ":perfetto_protos_perfetto_config_track_event_cpp_gen",
         ":perfetto_protos_perfetto_config_track_event_zero_gen",
         ":perfetto_protos_perfetto_config_zero_gen",
@@ -11608,6 +11776,8 @@ cc_binary {
         "perfetto_protos_perfetto_config_statsd_zero_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_cpp_gen_headers",
         "perfetto_protos_perfetto_config_sys_stats_zero_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_cpp_gen_headers",
+        "perfetto_protos_perfetto_config_system_info_zero_gen_headers",
         "perfetto_protos_perfetto_config_track_event_cpp_gen_headers",
         "perfetto_protos_perfetto_config_track_event_zero_gen_headers",
         "perfetto_protos_perfetto_config_zero_gen_headers",
