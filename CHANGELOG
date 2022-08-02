@@ -27,7 +27,8 @@ v28.0 - 2022-08-02:
       used for all but the final call.
     * Added ingestion and visualization of I2C transactions.
   UI:
-    *
+    * Changed callstack sampling selection: selecting one sample now only shows
+      one stacktrace, selecting multiple samples shows the aggregation.
   SDK:
     * Fixed a bug (b/239725760) that would cause abstract sockets using the
       "@name" syntax in PERFETTO_CONSUMER_SOCK_NAME/PERFETTO_PRODUCER_SOCK_NAME
@@ -42,8 +43,6 @@ v28.0 - 2022-08-02:
       to alias the enum directly and use throughout their code.
       The exact name mangling scheme is a carry-over from libprotobuf and
       an internal implementation detail, so nobody should be relying on that.
-    * Changed callstack sampling selection: selecting one sample now only shows
-      one stacktrace, selecting multiple samples shows the aggregation.
     * Added protozero::EnumToString() to convert enum keys to string literals.
 
 
