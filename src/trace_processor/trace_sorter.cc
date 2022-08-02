@@ -202,10 +202,11 @@ void TraceSorter::MaybePushEvent(size_t queue_idx,
 
   latest_pushed_event_ts_ = std::max(latest_pushed_event_ts_, timestamp);
 
+  TimestampedTracePiece ttp = EvictVariadicAsTtp(ts_desc);
+
   if (PERFETTO_UNLIKELY(bypass_next_stage_for_testing_))
     return;
 
-  TimestampedTracePiece ttp = EvictVariadicAsTtp(ts_desc);
   if (queue_idx == 0) {
     // queues_[0] is for non-ftrace packets.
     parser_->ParseTracePacket(ts_desc.ts, std::move(ttp));
