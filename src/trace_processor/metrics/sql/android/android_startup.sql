@@ -105,12 +105,18 @@ SELECT CREATE_FUNCTION(
   '
 );
 
--- Define the view 
+-- Define the view
 DROP VIEW IF EXISTS startup_view;
 CREATE VIEW startup_view AS
 SELECT
   AndroidStartupMetric_Startup(
     'startup_id', launches.id,
+    'startup_type', (
+      SELECT lp.launch_type
+      FROM launch_processes lp
+      WHERE lp.launch_id = launches.id
+      LIMIT 1
+    ),
     'package_name', launches.package,
     'process_name', (
       SELECT p.name
