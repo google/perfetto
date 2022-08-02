@@ -236,7 +236,7 @@ void TracingMuxerImpl::ProducerImpl::DisposeConnection() {
   // |service_| here because other threads may be concurrently creating new
   // trace writers. Any reconnection attempt will atomically swap the new
   // service in place of the old one.
-  if (did_setup_tracing_) {
+  if (did_setup_tracing_ || did_setup_startup_tracing_) {
     dead_services_.push_back(service_);
   } else {
     service_.reset();
@@ -248,6 +248,11 @@ void TracingMuxerImpl::ProducerImpl::OnTracingSetup() {
   did_setup_tracing_ = true;
   service_->MaybeSharedMemoryArbiter()->SetBatchCommitsDuration(
       shmem_batch_commits_duration_ms_);
+}
+
+void TracingMuxerImpl::ProducerImpl::OnStartupTracingSetup() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  did_setup_startup_tracing_ = true;
 }
 
 void TracingMuxerImpl::ProducerImpl::SetupDataSource(
@@ -2104,6 +2109,7 @@ TracingMuxerImpl::CreateStartupTracingSession(
       int num_ds = session.num_unbound_data_sources;
       auto on_setup = opts.on_setup;
       if (on_setup) {
+        backend.producer->OnStartupTracingSetup();
         task_runner_->PostTask([on_setup, num_ds] {
           on_setup(Tracing::OnStartupTracingSetupCallbackArgs{num_ds});
         });
