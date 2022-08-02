@@ -54,6 +54,7 @@ class TraceWriterImpl : public TraceWriter,
 
   // TraceWriter implementation. See documentation in trace_writer.h.
   TracePacketHandle NewTracePacket() override;
+  void FinishTracePacket() override;
   // Commits the data pending for the current chunk into the shared memory
   // buffer and sends a CommitDataRequest() to the service.
   // TODO(primiano): right now the |callback| will be called on the IPC thread.
@@ -74,6 +75,7 @@ class TraceWriterImpl : public TraceWriter,
 
   // ScatteredStreamWriter::Delegate implementation.
   protozero::ContiguousMemoryRange GetNewBuffer() override;
+  uint8_t* AnnotatePatch(uint8_t*) override;
 
   // The per-producer arbiter that coordinates access to the shared memory
   // buffer from several threads.
@@ -106,6 +108,14 @@ class TraceWriterImpl : public TraceWriter,
 
   // The packet returned via NewTracePacket(). Its owned by this class,
   // TracePacketHandle has just a pointer to it.
+  //
+  // The caller of NewTracePacket can use TakeStreamWriter() and use the stream
+  // writer directly: in that case:
+  // * cur_packet_->size() is not up to date. Only the stream writer has the
+  //   correct information.
+  // * cur_packet_->nested_message() is always nullptr.
+  // * cur_packet_->size_field() is still used to track the start of the current
+  //   fragment.
   std::unique_ptr<protozero::RootMessage<protos::pbzero::TracePacket>>
       cur_packet_;
 

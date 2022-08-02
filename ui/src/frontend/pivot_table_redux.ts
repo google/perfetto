@@ -17,7 +17,7 @@
 import * as m from 'mithril';
 
 import {sqliteString} from '../base/string_utils';
-import {Actions, DeferredAction} from '../common/actions';
+import {Actions} from '../common/actions';
 import {COUNT_AGGREGATION} from '../common/empty_state';
 import {ColumnType} from '../common/query_result';
 import {
@@ -30,96 +30,36 @@ import {
 import {fromNs, timeToCode} from '../common/time';
 import {
   PivotTableReduxController,
-  PivotTree,
 } from '../controller/pivot_table_redux_controller';
 
 import {globals} from './globals';
+import {fullscreenModalContainer, ModalDefinition} from './modal';
 import {Panel} from './panel';
+import {AnyAttrsVnode} from './panel_container';
+import {ArgumentPopup} from './pivot_table_redux_argument_popup';
 import {
-  Aggregation,
-  AggregationFunction,
   aggregationIndex,
   areaFilter,
   expression,
   generateQuery,
-  QueryGeneratorError,
   sliceAggregationColumns,
-  Table,
-  TableColumn,
   tableColumnEquals,
   tables,
   threadSliceAggregationColumns,
 } from './pivot_table_redux_query_generator';
+import {
+  Aggregation,
+  AggregationFunction,
+  columnKey,
+  PivotTree,
+  TableColumn,
+} from './pivot_table_redux_types';
 import {PopupMenuButton, PopupMenuItem} from './popup_menu';
+
 
 interface PathItem {
   tree: PivotTree;
   nextKey: ColumnType;
-}
-
-// Used to convert TableColumn to a string in order to store it in a Map, as
-// ES6 does not support compound Set/Map keys. This function should only be used
-// for interning keys, and does not have any requirements beyond different
-// TableColumn objects mapping to different strings.
-export function columnKey(tableColumn: TableColumn): string {
-  switch (tableColumn.kind) {
-    case 'argument': {
-      return `argument:${tableColumn.argument}`;
-    }
-    case 'regular': {
-      return `${tableColumn.table}.${tableColumn.column}`;
-    }
-    default: {
-      throw new Error(`malformed table column ${tableColumn}`);
-    }
-  }
-}
-
-export function aggregationKey(aggregation: Aggregation): string {
-  return `${aggregation.aggregationFunction}:${columnKey(aggregation.column)}`;
-}
-
-// Arguments to an action to toggle a table column in a particular part of
-// application's state.
-interface ColumnSetArgs<T> {
-  column: T;
-  selected: boolean;
-}
-
-interface ColumnSetCheckboxAttrs<T> {
-  set: (args: ColumnSetArgs<T>) => DeferredAction<ColumnSetArgs<T>>;
-  get: Map<string, T>;
-  setKey: T;
-}
-
-abstract class GenericCheckbox<T> implements
-    m.ClassComponent<ColumnSetCheckboxAttrs<T>> {
-  abstract keyFn(value: T): string;
-
-  view({attrs}: m.Vnode<ColumnSetCheckboxAttrs<T>>) {
-    return m('input[type=checkbox]', {
-      onclick: (e: InputEvent) => {
-        const target = e.target as HTMLInputElement;
-
-        globals.dispatch(
-            attrs.set({column: attrs.setKey, selected: target.checked}));
-        globals.rafScheduler.scheduleFullRedraw();
-      },
-      checked: attrs.get.has(this.keyFn(attrs.setKey)),
-    });
-  }
-}
-
-class ColumnSetCheckbox extends GenericCheckbox<TableColumn> {
-  keyFn(value: TableColumn): string {
-    return columnKey(value);
-  }
-}
-
-class AggregationCheckbox extends GenericCheckbox<Aggregation> {
-  keyFn(value: Aggregation): string {
-    return aggregationKey(value);
-  }
 }
 
 interface PivotTableReduxAttrs {
@@ -180,37 +120,6 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         globals.state.areas[attrs.selectionArea.areaId],
         this.constrainToArea);
   }
-
-  renderTablePivotColumns(t: Table) {
-    return m(
-        'li',
-        t.name,
-        m('ul',
-          t.columns.map(
-              (col) =>
-                  m('li',
-                    m(ColumnSetCheckbox, {
-                      get: this.selectedPivotsMap,
-                      set: Actions.setPivotTablePivotSelected,
-                      setKey: {kind: 'regular', table: t.name, column: col},
-                    }),
-                    col))));
-  }
-
-  renderResultsView(attrs: PivotTableReduxAttrs) {
-    return m(
-        '.pivot-table-redux',
-        m('button.mode-button',
-          {
-            onclick: () => {
-              globals.dispatch(Actions.setPivotTableEditMode({editMode: true}));
-              globals.rafScheduler.scheduleFullRedraw();
-            },
-          },
-          'Edit'),
-        this.renderResultsTable(attrs));
-  }
-
   renderDrillDownCell(
       area: Area, result: PivotTableReduxResult, filters: DrillFilter[]) {
     return m(
@@ -360,11 +269,9 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
   }
 
   sortingItem(column: TableColumn, order: SortDirection): PopupMenuItem {
-    // Arrow contains unicode character for up or down arrow, according to the
-    // direction of sorting.
-    const arrow = order === 'DESC' ? '\u25BC' : '\u25B2';
     return {
-      text: `Sort ${arrow}`,
+      itemType: 'regular',
+      text: order === 'DESC' ? 'Highest first' : 'Lowest first',
       callback() {
         globals.dispatch(Actions.setPivotTableSortColumn({column, order}));
         globals.dispatch(
@@ -381,10 +288,56 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         readableColumnName(aggregation.column)})`;
   }
 
+  aggregationPopupItem(aggregation: Aggregation, nameOverride?: string):
+      PopupMenuItem {
+    return {
+      itemType: 'regular',
+      text: nameOverride ?? readableColumnName(aggregation.column),
+      callback: () => {
+        globals.dispatch(Actions.setPivotTableAggregationSelected({
+          column: {
+            aggregationFunction: aggregation.aggregationFunction,
+            column: aggregation.column,
+          },
+          selected: true,
+        }));
+        globals.dispatch(
+            Actions.setPivotTableQueryRequested({queryRequested: true}));
+      },
+    };
+  }
+
+  aggregationPopupTableGroup(
+      table: string, columns: string[], used: Set<string>): PopupMenuItem
+      |undefined {
+    const items = [];
+    for (const column of columns) {
+      const tableColumn: TableColumn = {kind: 'regular', table, column};
+      if (used.has(columnKey(tableColumn))) {
+        continue;
+      }
+
+      items.push(this.aggregationPopupItem(
+          {aggregationFunction: 'SUM', column: tableColumn}));
+    }
+
+    if (items.length === 0) {
+      return undefined;
+    }
+
+    return {
+      itemType: 'group',
+      itemId: `aggregations-${table}`,
+      text: `Add ${table} aggregation`,
+      children: items,
+    };
+  }
+
   renderAggregationHeaderCell(aggregation: Aggregation): m.Child {
     const column = aggregation.column;
     const popupItems: PopupMenuItem[] = [];
     const state = globals.state.nonSerializableState.pivotTableRedux;
+    let icon = 'more_horiz';
     if (state.sortCriteria === undefined ||
         !tableColumnEquals(column, state.sortCriteria.column)) {
       popupItems.push(
@@ -394,6 +347,8 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
       // opposite direction.
       popupItems.push(this.sortingItem(
           column, state.sortCriteria.order === 'DESC' ? 'ASC' : 'DESC'));
+      icon = state.sortCriteria.order === 'DESC' ? 'arrow_drop_down' :
+                                                   'arrow_drop_up';
     }
     const otherAggs: AggregationFunction[] = ['SUM', 'MAX', 'MIN'];
     if (aggregation.aggregationFunction !== 'COUNT') {
@@ -403,6 +358,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         }
 
         popupItems.push({
+          itemType: 'regular',
           text: otherAgg,
           callback() {
             globals.dispatch(Actions.setPivotTableAggregationSelected(
@@ -419,11 +375,69 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
       }
     }
 
+    const usedAggregations: Set<string> = new Set();
+    let hasCount = false;
+
+    for (const agg of state.selectedAggregations.values()) {
+      if (agg.aggregationFunction === 'COUNT') {
+        hasCount = true;
+        continue;
+      }
+
+      usedAggregations.add(columnKey(agg.column));
+    }
+
+    if (!hasCount) {
+      popupItems.push(this.aggregationPopupItem(
+          COUNT_AGGREGATION, 'Add count aggregation'));
+    }
+
+    const sliceAggregationsItem = this.aggregationPopupTableGroup(
+        'slice', sliceAggregationColumns, usedAggregations);
+    if (sliceAggregationsItem !== undefined) {
+      popupItems.push(sliceAggregationsItem);
+    }
+
+    const threadSliceAggregationsItem = this.aggregationPopupTableGroup(
+        'thread_slice', threadSliceAggregationColumns, usedAggregations);
+    if (threadSliceAggregationsItem !== undefined) {
+      popupItems.push(threadSliceAggregationsItem);
+    }
+
     return m(
         'td', this.readableAggregationName(aggregation), m(PopupMenuButton, {
-          icon: 'arrow_drop_down',
+          icon,
           items: popupItems,
         }));
+  }
+
+  showModal = false;
+  typedArgument = '';
+
+  renderModal(): ModalDefinition {
+    return {
+      title: 'Enter argument name',
+      content: m(ArgumentPopup, {
+                 knownArguments: globals.state.nonSerializableState
+                                     .pivotTableRedux.argumentNames,
+                 onArgumentChange: (arg) => {
+                   this.typedArgument = arg;
+                 },
+               }) as AnyAttrsVnode,
+      buttons: [
+        {
+          text: 'Add',
+          action: () => {
+            globals.dispatch(Actions.setPivotTablePivotSelected({
+              column: {kind: 'argument', argument: this.typedArgument},
+              selected: true,
+            }));
+            globals.dispatch(
+                Actions.setPivotTableQueryRequested({queryRequested: true}));
+          },
+        },
+      ],
+    };
   }
 
   renderResultsTable(attrs: PivotTableReduxAttrs) {
@@ -449,22 +463,18 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
 
     const pivotTableHeaders = [];
     for (const pivot of state.queryResult.metadata.pivotColumns) {
-      const items = [{
+      const items: PopupMenuItem[] = [{
+        itemType: 'regular',
         text: 'Add argument pivot',
         callback: () => {
-          // TODO(ddrone): Replace this with modal using argument name
-          // completion after the modal mithrilization CL is landed.
-          const argument = prompt('Enter argument name');
-          if (argument !== null) {
-            globals.dispatch(Actions.setPivotTablePivotSelected(
-                {column: {kind: 'argument', argument}, selected: true}));
-            globals.dispatch(
-                Actions.setPivotTableQueryRequested({queryRequested: true}));
-          }
+          this.showModal = true;
+          this.typedArgument = '';
+          fullscreenModalContainer.createNew(this.renderModal());
         },
       }];
       if (state.queryResult.metadata.pivotColumns.length > 1) {
         items.push({
+          itemType: 'regular',
           text: 'Remove',
           callback() {
             globals.dispatch(Actions.setPivotTablePivotSelected(
@@ -474,10 +484,42 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
           },
         });
       }
+
+      for (const table of tables) {
+        const group: PopupMenuItem[] = [];
+        for (const columnName of table.columns) {
+          const column: TableColumn = {
+            kind: 'regular',
+            table: table.name,
+            column: columnName,
+          };
+          if (this.selectedPivotsMap.has(columnKey(column))) {
+            continue;
+          }
+
+          group.push({
+            itemType: 'regular',
+            text: columnName,
+            callback() {
+              globals.dispatch(
+                  Actions.setPivotTablePivotSelected({column, selected: true}));
+              globals.dispatch(
+                  Actions.setPivotTableQueryRequested({queryRequested: true}));
+            },
+          });
+        }
+        items.push({
+          itemType: 'group',
+          itemId: `pivot-${table.name}`,
+          text: `Add ${table.name} pivot`,
+          children: group,
+        });
+      }
+
       pivotTableHeaders.push(
           m('td',
             readableColumnName(pivot),
-            m(PopupMenuButton, {icon: 'arrow_drop_down', items})));
+            m(PopupMenuButton, {icon: 'more_horiz', items})));
     }
 
     const aggregationTableHeaders =
@@ -491,104 +533,32 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
           // columns, as well as popup menus to modify the columns. Last cell
           // is empty because of an extra column with "drill down" button for
           // each pivot table row.
-          m('tr', pivotTableHeaders, aggregationTableHeaders, m('td'))),
+          m('tr',
+            pivotTableHeaders,
+            aggregationTableHeaders,
+            m('td.menu', m(PopupMenuButton, {
+                icon: 'menu',
+                items: [{
+                  itemType: 'regular',
+                  text: state.constrainToArea ?
+                      'Query data for the whole timeline' :
+                      'Constrain to selected area',
+                  callback: () => {
+                    globals.dispatch(Actions.setPivotTableReduxConstrainToArea(
+                        {constrain: !state.constrainToArea}));
+                    globals.dispatch(Actions.setPivotTableQueryRequested(
+                        {queryRequested: true}));
+                  },
+                }],
+              })))),
         m('tbody', this.renderTotalsRow(state.queryResult), renderedRows));
   }
 
-
-  renderQuery(attrs: PivotTableReduxAttrs): m.Vnode {
-    // Prepare a button to switch to results mode.
-    let innerElement = m(
-        'button.mode-button',
-        {
-          onclick: () => {
-            globals.dispatch(Actions.setPivotTableEditMode({editMode: false}));
-            globals.rafScheduler.scheduleFullRedraw();
-          },
-        },
-        'Execute');
-    try {
-      this.generateQuery(attrs);
-    } catch (e) {
-      if (e instanceof QueryGeneratorError) {
-        // If query generation fails, show an error message instead of a button.
-        innerElement = m('div.query-error', e.message);
-      } else {
-        throw e;
-      }
+  view({attrs}: m.Vnode<PivotTableReduxAttrs>): m.Children {
+    if (this.showModal) {
+      fullscreenModalContainer.updateVdom(this.renderModal());
     }
 
-    return m(
-        'div',
-        m('div',
-          m('input', {
-            type: 'checkbox',
-            id: 'constrain-to-selection',
-            checked: this.constrainToArea,
-            onclick: (e: InputEvent) => {
-              const checkbox = e.target as HTMLInputElement;
-              globals.dispatch(Actions.setPivotTableReduxConstrainToArea(
-                  {constrain: checkbox.checked}));
-            },
-          }),
-          m('label',
-            {
-              'for': 'constrain-to-selection',
-            },
-            'Constrain to current time range')),
-        innerElement);
-  }
-
-  view({attrs}: m.Vnode<PivotTableReduxAttrs>): m.Children {
-    return globals.state.nonSerializableState.pivotTableRedux.editMode ?
-        this.renderEditView(attrs) :
-        this.renderResultsView(attrs);
-  }
-
-  renderEditView(attrs: PivotTableReduxAttrs) {
-    return m(
-        '.pivot-table-redux.edit',
-        m('div',
-          m('h2', 'Pivots'),
-          m('ul',
-            tables.map(
-                (t) => this.renderTablePivotColumns(t),
-                ))),
-        m('div',
-          m('h2', 'Aggregations'),
-          m('ul',
-            m('li',
-              m(AggregationCheckbox, {
-                get: this.selectedAggregations,
-                set: Actions.setPivotTableAggregationSelected,
-                setKey: COUNT_AGGREGATION,
-              }),
-              'count'),
-            ...sliceAggregationColumns.map(
-                (t) =>
-                    m('li',
-                      m(AggregationCheckbox, {
-                        get: this.selectedAggregations,
-                        set: Actions.setPivotTableAggregationSelected,
-                        setKey: {
-                          aggregationFunction: 'SUM',
-                          column: {kind: 'regular', table: 'slice', column: t},
-                        },
-                      }),
-                      t)),
-            ...threadSliceAggregationColumns.map(
-                (t) => m(
-                    'li',
-                    m(AggregationCheckbox, {
-                      get: this.selectedAggregations,
-                      set: Actions.setPivotTableAggregationSelected,
-                      setKey: {
-                        aggregationFunction: 'SUM',
-                        column:
-                            {kind: 'regular', table: 'thread_slice', column: t},
-                      },
-                    }),
-                    `thread_slice.${t}`)))),
-        this.renderQuery(attrs));
+    return m('.pivot-table-redux', this.renderResultsTable(attrs));
   }
 }

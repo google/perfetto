@@ -27,6 +27,7 @@
 #include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
+#include "src/trace_processor/db/column_storage_overlay.h"
 #include "src/trace_processor/db/typed_column.h"
 
 namespace perfetto {
@@ -39,8 +40,8 @@ class Table {
   class Iterator {
    public:
     explicit Iterator(const Table* table) : table_(table) {
-      its_.reserve(table->row_maps().size());
-      for (const auto& rm : table->row_maps()) {
+      its_.reserve(table->overlays().size());
+      for (const auto& rm : table->overlays()) {
         its_.emplace_back(rm.IterateRows());
       }
     }
@@ -64,12 +65,12 @@ class Table {
     // Returns the value at the current row for column |col_idx|.
     SqlValue Get(uint32_t col_idx) const {
       const auto& col = table_->columns_[col_idx];
-      return col.GetAtIdx(its_[col.row_map_index()].index());
+      return col.GetAtIdx(its_[col.overlay_index()].index());
     }
 
    private:
     const Table* table_ = nullptr;
-    std::vector<RowMap::Iterator> its_;
+    std::vector<ColumnStorageOverlay::Iterator> its_;
   };
 
   // Helper class storing the schema of the table. This allows decisions to be
@@ -128,10 +129,10 @@ class Table {
   Table Apply(RowMap rm) const {
     Table table = CopyExceptRowMaps();
     table.row_count_ = rm.size();
-    table.row_maps_.reserve(row_maps_.size());
-    for (const RowMap& map : row_maps_) {
-      table.row_maps_.emplace_back(map.SelectRows(rm));
-      PERFETTO_DCHECK(table.row_maps_.back().size() == table.row_count());
+    table.overlays_.reserve(overlays_.size());
+    for (const ColumnStorageOverlay& map : overlays_) {
+      table.overlays_.emplace_back(map.SelectRows(rm));
+      PERFETTO_DCHECK(table.overlays_.back().size() == table.row_count());
     }
     // Pretty much any application of a RowMap will break the requirements on
     // kSetId so remove it.
@@ -200,21 +201,23 @@ class Table {
 
   uint32_t row_count() const { return row_count_; }
   StringPool* string_pool() const { return string_pool_; }
-  const std::vector<RowMap>& row_maps() const { return row_maps_; }
+  const std::vector<ColumnStorageOverlay>& overlays() const {
+    return overlays_;
+  }
   const std::vector<Column>& columns() const { return columns_; }
 
  protected:
   explicit Table(StringPool* pool);
 
-  std::vector<RowMap> CopyRowMaps() const {
-    std::vector<RowMap> rm(row_maps_.size());
-    for (uint32_t i = 0; i < row_maps_.size(); ++i) {
-      rm[i] = row_maps_[i].Copy();
+  std::vector<ColumnStorageOverlay> CopyOverlays() const {
+    std::vector<ColumnStorageOverlay> rm(overlays_.size());
+    for (uint32_t i = 0; i < overlays_.size(); ++i) {
+      rm[i] = overlays_[i].Copy();
     }
     return rm;
   }
 
-  std::vector<RowMap> row_maps_;
+  std::vector<ColumnStorageOverlay> overlays_;
   std::vector<Column> columns_;
   uint32_t row_count_ = 0;
 

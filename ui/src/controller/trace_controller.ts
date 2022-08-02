@@ -23,7 +23,7 @@ import {Engine} from '../common/engine';
 import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../common/feature_flags';
 import {HttpRpcEngine} from '../common/http_rpc_engine';
 import {NUM, NUM_NULL, QueryError, STR, STR_NULL} from '../common/query_result';
-import {defaultTraceTime, EngineMode} from '../common/state';
+import {defaultTraceTime, EngineMode, ProfileType} from '../common/state';
 import {TimeSpan, toNs, toNsCeil, toNsFloor} from '../common/time';
 import {resetEngineWorker, WasmEngineProxy} from '../common/wasm_engine_proxy';
 import {
@@ -65,6 +65,7 @@ import {
 import {
   FlamegraphController,
   FlamegraphControllerArgs,
+  profileType,
 } from './flamegraph_controller';
 import {
   FlowEventsController,
@@ -92,6 +93,7 @@ import {
 } from './trace_stream';
 import {TrackControllerArgs, trackControllerRegistry} from './track_controller';
 import {decideTracks} from './track_decider';
+import {VisualisedArgController} from './visualised_args_controller';
 
 type States = 'init' | 'loading_trace' | 'ready';
 
@@ -103,7 +105,6 @@ const METRICS = [
   'android_surfaceflinger',
   'android_batt',
   'android_sysui_cuj',
-  'android_jank',
   'android_camera',
   'android_other_traces',
   'chrome_dropped_frames',
@@ -193,6 +194,11 @@ export class TraceController extends Controller<States> {
           }
           const queryArgs: QueryControllerArgs = {queryId, engine};
           childControllers.push(Child(queryId, QueryController, queryArgs));
+        }
+
+        for (const argName of globals.state.visualisedArgs) {
+          childControllers.push(
+              Child(argName, VisualisedArgController, {argName, engine}));
         }
 
         const selectionArgs: SelectionControllerArgs = {engine};
@@ -422,31 +428,38 @@ export class TraceController extends Controller<States> {
   }
 
   private async selectPerfSample() {
-    const query = `select ts, upid
+    const query = `select upid
         from perf_sample
         join thread using (utid)
+        where callsite_id is not null
         order by ts desc limit 1`;
     const profile = await assertExists(this.engine).query(query);
     if (profile.numRows() !== 1) return;
-    const row = profile.firstRow({ts: NUM, upid: NUM});
-    const ts = row.ts;
+    const row = profile.firstRow({upid: NUM});
     const upid = row.upid;
-    globals.dispatch(
-        Actions.selectPerfSamples({id: 0, upid, ts, type: 'perf'}));
+    const leftTs = toNs(globals.state.traceTime.startSec);
+    const rightTs = toNs(globals.state.traceTime.endSec);
+    globals.dispatch(Actions.selectPerfSamples(
+        {id: 0, upid, leftTs, rightTs, type: ProfileType.PERF_SAMPLE}));
   }
 
   private async selectFirstHeapProfile() {
-    const query = `select * from
-    (select distinct(ts) as ts, 'native' as type,
-        upid from heap_profile_allocation
-        union
-        select distinct(graph_sample_ts) as ts, 'graph' as type, upid from
-        heap_graph_object) order by ts limit 1`;
+    const query = `select * from (
+      select
+        min(ts) AS ts,
+        'heap_profile:' || group_concat(distinct heap_name) AS type,
+        upid
+      from heap_profile_allocation
+      group by upid
+      union
+      select distinct graph_sample_ts as ts, 'graph' as type, upid
+      from heap_graph_object)
+      order by ts limit 1`;
     const profile = await assertExists(this.engine).query(query);
     if (profile.numRows() !== 1) return;
     const row = profile.firstRow({ts: NUM, type: STR, upid: NUM});
     const ts = row.ts;
-    const type = row.type;
+    const type = profileType(row.type);
     const upid = row.upid;
     globals.dispatch(Actions.selectHeapProfile({id: 0, upid, ts, type}));
   }

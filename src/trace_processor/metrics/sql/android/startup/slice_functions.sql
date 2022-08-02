@@ -29,6 +29,7 @@ DROP VIEW IF EXISTS thread_slices_for_all_launches;
 CREATE VIEW thread_slices_for_all_launches AS
 SELECT
   launch_threads.ts AS launch_ts,
+  launch_threads.ts + launch_threads.dur AS launch_ts_end,
   launch_threads.launch_id AS launch_id,
   launch_threads.utid AS utid,
   launch_threads.thread_name AS thread_name,
@@ -79,12 +80,18 @@ SELECT CREATE_FUNCTION(
 
 -- Given a launch id and GLOB for a slice name, returns the startup slice proto by
 -- taking the duration between the start of the launch and start of the slice.
+-- If multiple slices match, picks the latest one which started during the launch.
 SELECT CREATE_FUNCTION(
   'LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(launch_id INT, slice_name STRING)',
   'PROTO',
   '
-    SELECT STARTUP_SLICE_PROTO(slice_ts - launch_ts)
-    FROM thread_slices_for_all_launches
-    WHERE slice_name GLOB $slice_name AND launch_id = $launch_id AND is_main_thread
+    SELECT NULL_IF_EMPTY(STARTUP_SLICE_PROTO(MAX(slice_ts) - launch_ts))
+    FROM thread_slices_for_all_launches s
+    JOIN thread t USING (utid)
+    WHERE
+      s.slice_name GLOB $slice_name AND
+      s.launch_id = $launch_id AND
+      s.is_main_thread AND
+      (t.end_ts IS NULL OR t.end_ts >= s.launch_ts_end)
   '
 );

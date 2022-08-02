@@ -18,11 +18,13 @@ from __future__ import division
 from __future__ import print_function
 
 import argparse
+import concurrent.futures
 import datetime
 import difflib
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
@@ -37,13 +39,30 @@ ENV = {
 }
 if sys.platform.startswith('linux'):
   ENV['PATH'] = os.path.join(ROOT_DIR, 'buildtools', 'linux64', 'clang', 'bin')
-elif sys.platform.startswith('dawin'):
+elif sys.platform.startswith('darwin'):
   # Sadly, on macOS we need to check out the Android deps to get
   # llvm symbolizer.
   ENV['PATH'] = os.path.join(ROOT_DIR, 'buildtools', 'ndk', 'toolchains',
                              'llvm', 'prebuilt', 'darwin-x86_64', 'bin')
 elif sys.platform.startswith('win32'):
   ENV['PATH'] = os.path.join(ROOT_DIR, 'buildtools', 'win', 'clang', 'bin')
+
+USE_COLOR_CODES = sys.stderr.isatty()
+
+def red(no_colors):
+  return "\u001b[31m" if USE_COLOR_CODES and not no_colors else ""
+
+
+def green(no_colors):
+  return "\u001b[32m" if USE_COLOR_CODES and not no_colors else ""
+
+
+def yellow(no_colors):
+  return "\u001b[33m" if USE_COLOR_CODES and not no_colors else ""
+
+
+def end_color(no_colors):
+  return "\u001b[0m" if USE_COLOR_CODES and not no_colors else ""
 
 
 class Test(object):
@@ -90,8 +109,10 @@ def write_diff(expected, actual):
   actual_lines = actual.splitlines(True)
   diff = difflib.unified_diff(
       expected_lines, actual_lines, fromfile='expected', tofile='actual')
+  res = ""
   for line in diff:
-    sys.stderr.write(line)
+    res += line
+  return res
 
 
 def run_metrics_test(trace_processor_path, gen_trace_path, metric,
@@ -148,7 +169,6 @@ def run_query_test(trace_processor_path, gen_trace_path, query_path,
       perf_path,
       gen_trace_path,
   ]
-
   tp = subprocess.Popen(
       cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=ENV)
   (stdout, stderr) = tp.communicate()
@@ -156,134 +176,169 @@ def run_query_test(trace_processor_path, gen_trace_path, query_path,
                     stdout.decode('utf8'), stderr.decode('utf8'), tp.returncode)
 
 
-def run_all_tests(trace_processor, trace_descriptor_path,
-                  extension_descriptor_paths, metrics_message_factory, tests,
-                  keep_input, rebase):
-  perf_data = []
-  test_failure = 0
-  rebased = 0
-  for test in tests:
-    trace_path = test.trace_path
-    expected_path = test.expected_path
-    if not os.path.exists(trace_path):
-      sys.stderr.write(f"Trace file not found {trace_path}\n")
-      test_failure += 1
-      continue
-    elif not os.path.exists(expected_path):
-      sys.stderr.write(f"Expected file not found {expected_path}")
-      test_failure += 1
-      continue
+def run_test(trace_descriptor_path, extension_descriptor_paths, args, test):
+  """
+  Returns:
+    test_name -> str,
+    passed -> bools,
+    result_str -> str,
+    perf_data -> str
+  """
+  out_path = os.path.dirname(args.trace_processor)
+  if args.metrics_descriptor:
+    metrics_descriptor_paths = [args.metrics_descriptor]
+  else:
+    metrics_protos_path = os.path.join(out_path, 'gen', 'protos', 'perfetto',
+                                       'metrics')
+    metrics_descriptor_paths = [
+        os.path.join(metrics_protos_path, 'metrics.descriptor'),
+        os.path.join(metrics_protos_path, 'chrome',
+                     'all_chrome_metrics.descriptor')
+    ]
+  metrics_message_factory = create_message_factory(
+      metrics_descriptor_paths, 'perfetto.protos.TraceMetrics')
+  result_str = ""
+  red_str = red(args.no_colors)
+  green_str = green(args.no_colors)
+  end_color_str = end_color(args.no_colors)
+  trace_path = test.trace_path
+  expected_path = test.expected_path
+  test_name = f"{os.path.basename(test.query_path_or_metric)}\
+  {os.path.basename(trace_path)}"
 
-    is_generated_trace = trace_path.endswith('.py') or trace_path.endswith(
-        '.textproto')
-    if trace_path.endswith('.py'):
-      gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
-      serialize_python_trace(trace_descriptor_path, trace_path, gen_trace_file)
-      gen_trace_path = os.path.realpath(gen_trace_file.name)
-    elif trace_path.endswith('.textproto'):
-      gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
-      serialize_textproto_trace(trace_descriptor_path,
-                                extension_descriptor_paths, trace_path,
-                                gen_trace_file)
-      gen_trace_path = os.path.realpath(gen_trace_file.name)
+  if not os.path.exists(trace_path):
+    result_str += f"Trace file not found {trace_path}\n"
+    return test_name, False, result_str, ""
+  elif not os.path.exists(expected_path):
+    result_str = f"Expected file not found {expected_path}"
+    return test_name, False, result_str, ""
+
+  is_generated_trace = trace_path.endswith('.py') or trace_path.endswith(
+      '.textproto')
+  if trace_path.endswith('.py'):
+    gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
+    serialize_python_trace(trace_descriptor_path, trace_path, gen_trace_file)
+    gen_trace_path = os.path.realpath(gen_trace_file.name)
+  elif trace_path.endswith('.textproto'):
+    gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
+    serialize_textproto_trace(trace_descriptor_path, extension_descriptor_paths,
+                              trace_path, gen_trace_file)
+    gen_trace_path = os.path.realpath(gen_trace_file.name)
+  else:
+    gen_trace_file = None
+    gen_trace_path = trace_path
+
+  # We can't use delete=True here. When using that on Windows, the
+  # resulting file is opened in exclusive mode (in turn that's a subtle
+  # side-effect of the underlying CreateFile(FILE_ATTRIBUTE_TEMPORARY))
+  # and TP fails to open the passed path.
+  tmp_perf_file = tempfile.NamedTemporaryFile(delete=False)
+  result_str += f"{yellow(args.no_colors)}[ RUN      ]{end_color_str} "
+  result_str += f"{test_name}\n"
+
+  tmp_perf_path = tmp_perf_file.name
+  if test.type == 'queries':
+    query_path = test.query_path_or_metric
+
+    if not os.path.exists(test.query_path_or_metric):
+      result_str += f"Query file not found {query_path}"
+      return test_name, False, result_str, ""
+
+    result = run_query_test(args.trace_processor, gen_trace_path, query_path,
+                            expected_path, tmp_perf_path)
+  elif test.type == 'metrics':
+    result = run_metrics_test(args.trace_processor, gen_trace_path,
+                              test.query_path_or_metric, expected_path,
+                              tmp_perf_path, metrics_message_factory)
+  else:
+    assert False
+
+  perf_lines = [line.decode('utf8') for line in tmp_perf_file.readlines()]
+  tmp_perf_file.close()
+  os.remove(tmp_perf_file.name)
+
+  if gen_trace_file:
+    if args.keep_input:
+      result_str += f"Saving generated input trace: {gen_trace_path}\n"
     else:
-      gen_trace_file = None
-      gen_trace_path = trace_path
+      gen_trace_file.close()
+      os.remove(gen_trace_path)
 
-    # We can't use delete=True here. When using that on Windwows, the
-    # resulting file is opened in exclusive mode (in turn that's a subtle
-    # side-effect of the underlying CreateFile(FILE_ATTRIBUTE_TEMPORARY))
-    # and TP fails to open the passed path.
-    tmp_perf_file = tempfile.NamedTemporaryFile(delete=False)
-    sys.stderr.write(
-        f"[ RUN      ] {os.path.basename(test.query_path_or_metric)} "
-        f"{os.path.basename(trace_path)}\n")
+  def write_cmdlines():
+    res = ""
+    if is_generated_trace:
+      res += 'Command to generate trace:\n'
+      res += 'tools/serialize_test_trace.py '
+      res += '--descriptor {} {} > {}\n'.format(
+          os.path.relpath(trace_descriptor_path, ROOT_DIR),
+          os.path.relpath(trace_path, ROOT_DIR),
+          os.path.relpath(gen_trace_path, ROOT_DIR))
+    res += f"Command line:\n{' '.join(result.cmd)}\n"
+    return res
 
-    tmp_perf_path = tmp_perf_file.name
-    if test.type == 'queries':
-      query_path = test.query_path_or_metric
+  expected_content = result.expected.replace('\r\n', '\n')
+  actual_content = result.actual.replace('\r\n', '\n')
+  contents_equal = (expected_content == actual_content)
+  if result.exit_code != 0 or not contents_equal:
+    result_str += result.stderr
 
-      if not os.path.exists(test.query_path_or_metric):
-        print(f"Query file not found {query_path}")
-        test_failure += 1
-        continue
-
-      result = run_query_test(trace_processor, gen_trace_path, query_path,
-                              expected_path, tmp_perf_path)
-    elif test.type == 'metrics':
-      result = run_metrics_test(trace_processor, gen_trace_path,
-                                test.query_path_or_metric, expected_path,
-                                tmp_perf_path, metrics_message_factory)
+    if result.exit_code == 0:
+      result_str += f"Expected did not match actual for trace "
+      result_str += f"{trace_path} and {result.test_type} {result.input_name}\n"
+      result_str += f"Expected file: {expected_path}\n"
+      result_str += write_cmdlines()
+      result_str += write_diff(result.expected, result.actual)
     else:
-      assert False
+      result_str += write_cmdlines()
 
-    perf_lines = [line.decode('utf8') for line in tmp_perf_file.readlines()]
-    tmp_perf_file.close()
-    os.remove(tmp_perf_file.name)
+    result_str += f"{red_str}[     FAIL ]{end_color_str} {test_name} "
+    result_str += f"{os.path.basename(trace_path)}\n"
 
-    if gen_trace_file:
-      if keep_input:
-        sys.stderr.write(
-            "Saving generated input trace: {}\n".format(gen_trace_path))
-      else:
-        gen_trace_file.close()
-        os.remove(gen_trace_path)
-
-    def write_cmdlines():
-      if is_generated_trace:
-        sys.stderr.write(
-            'Command to generate trace:\n'
-            'tools/serialize_test_trace.py --descriptor {} {} > {}\n'.format(
-                os.path.relpath(trace_descriptor_path, ROOT_DIR),
-                os.path.relpath(trace_path, ROOT_DIR),
-                os.path.relpath(gen_trace_path, ROOT_DIR)))
-      sys.stderr.write(f"Command line:\n{' '.join(result.cmd)}\n")
-
-    expected_content = result.expected.replace('\r\n', '\n')
-    actual_content = result.actual.replace('\r\n', '\n')
-    contents_equal = (expected_content == actual_content)
-    if result.exit_code != 0 or not contents_equal:
-      sys.stderr.write(result.stderr)
-
+    if args.rebase:
       if result.exit_code == 0:
-        sys.stderr.write(
-            f"Expected did not match actual for trace "
-            f"{trace_path} and {result.test_type} {result.input_name}\n")
-        sys.stderr.write(f"Expected file: {expected_path}\n")
-        write_cmdlines()
-        write_diff(result.expected, result.actual)
+        result_str += f"Rebasing {expected_path}\n"
+        with open(expected_path, 'w') as f:
+          f.write(result.actual)
+        rebased += 1
       else:
-        write_cmdlines()
+        result_str += f"Rebase failed for {expected_path} as query failed\n"
 
-      sys.stderr.write(
-          f"[     FAIL ] {os.path.basename(test.query_path_or_metric)} "
-          f"{os.path.basename(trace_path)}\n")
+    return test_name, False, result_str, ""
+  else:
+    assert len(perf_lines) == 1
+    perf_numbers = perf_lines[0].split(',')
 
-      if rebase:
-        if result.exit_code == 0:
-          sys.stderr.write(f"Rebasing {expected_path}\n")
-          with open(expected_path, 'w') as f:
-            f.write(result.actual)
+    assert len(perf_numbers) == 2
+    perf_result = PerfResult(test.type, trace_path, test.query_path_or_metric,
+                             perf_numbers[0], perf_numbers[1])
+
+    result_str += f"{green_str}[       OK ]{end_color_str} "
+    result_str += f"{os.path.basename(test.query_path_or_metric)} "
+    result_str += f"{os.path.basename(trace_path)} "
+    result_str += f"(ingest: {perf_result.ingest_time_ns / 1000000:.2f} ms "
+    result_str += f"query: {perf_result.real_time_ns / 1000000:.2f} ms)\n"
+  return test_name, True, result_str, perf_result
+
+
+def run_all_tests(trace_descriptor_path, extension_descriptor_paths, args,
+                  tests):
+  perf_data = []
+  test_failure = []
+  rebased = 0
+  with concurrent.futures.ProcessPoolExecutor() as e:
+    fut = [
+        e.submit(run_test, trace_descriptor_path, extension_descriptor_paths,
+                 args, test) for test in tests
+    ]
+    for res in concurrent.futures.as_completed(fut):
+      test_name, test_passed, res_str, perf_result = res.result()
+      sys.stderr.write(res_str)
+      if test_passed:
+        perf_data.append(perf_result)
+        if args.rebase:
           rebased += 1
-        else:
-          sys.stderr.write(
-              f"Rebase failed for {expected_path} as query failed\n")
-
-      test_failure += 1
-    else:
-      assert len(perf_lines) == 1
-      perf_numbers = perf_lines[0].split(',')
-
-      assert len(perf_numbers) == 2
-      perf_result = PerfResult(test.type, trace_path, test.query_path_or_metric,
-                               perf_numbers[0], perf_numbers[1])
-      perf_data.append(perf_result)
-
-      sys.stderr.write(
-          f"[       OK ] {os.path.basename(test.query_path_or_metric)} "
-          f"{os.path.basename(trace_path)} "
-          f"(ingest: {perf_result.ingest_time_ns / 1000000} ms "
-          f"query: {perf_result.real_time_ns / 1000000} ms)\n")
+      else:
+        test_failure.append(test_name)
 
   return test_failure, perf_data, rebased
 
@@ -338,7 +393,18 @@ def read_all_tests(query_metric_pattern, trace_pattern):
   return tests
 
 
+def ctrl_c_handler(_num, _frame):
+  # Send a sigkill to the whole process group. Our process group looks like:
+  # - Main python interpreter running the main()
+  #   - N python interpreters coming from ProcessPoolExecutor workers.
+  #     - 1 trace_processor_shell subprocess coming from the subprocess.Popen().
+  # We don't need any graceful termination as the diff tests are stateless and
+  # don't write any file. Just kill them all immediately.
+  os.killpg(os.getpid(), signal.SIGKILL)
+
+
 def main():
+  signal.signal(signal.SIGINT, ctrl_c_handler)
   parser = argparse.ArgumentParser()
   parser.add_argument('--test-type', type=str, default='all')
   parser.add_argument('--trace-descriptor', type=str)
@@ -362,6 +428,8 @@ def main():
       '--rebase',
       action='store_true',
       help='Update the expected output file with the actual result')
+  parser.add_argument(
+      '--no-colors', action='store_true', help='Print without coloring')
   parser.add_argument(
       'trace_processor', type=str, help='location of trace processor binary')
   args = parser.parse_args()
@@ -387,41 +455,33 @@ def main():
       trace_descriptor_path = find_trace_descriptor(
           os.path.join(out_path, 'gcc_like_host'))
 
-  if args.metrics_descriptor:
-    metrics_descriptor_paths = [args.metrics_descriptor]
-  else:
-    metrics_protos_path = os.path.join(out_path, 'gen', 'protos', 'perfetto',
-                                       'metrics')
-    metrics_descriptor_paths = [
-        os.path.join(metrics_protos_path, 'metrics.descriptor'),
-        os.path.join(metrics_protos_path, 'chrome',
-                     'all_chrome_metrics.descriptor')
-    ]
-
   chrome_extensions = os.path.join(out_path, 'gen', 'protos', 'third_party',
                                    'chromium', 'chrome_track_event.descriptor')
   test_extensions = os.path.join(out_path, 'gen', 'protos', 'perfetto', 'trace',
                                  'test_extensions.descriptor')
 
-  metrics_message_factory = create_metrics_message_factory(
-      metrics_descriptor_paths)
-
   test_run_start = datetime.datetime.now()
   test_failures, perf_data, rebased = run_all_tests(
-      args.trace_processor, trace_descriptor_path,
-      [chrome_extensions, test_extensions], metrics_message_factory, tests,
-      args.keep_input, args.rebase)
+      trace_descriptor_path, [chrome_extensions, test_extensions], args, tests)
   test_run_end = datetime.datetime.now()
-  test_time_ms = int((test_run_end - test_run_start).total_seconds()) * 1000
+  test_time_ms = int((test_run_end - test_run_start).total_seconds() * 1000)
 
   sys.stderr.write(
       f"[==========] {len(tests)} tests ran. ({test_time_ms} ms total)\n")
-  sys.stderr.write(f"[  PASSED  ] {len(tests) - test_failures} tests.\n")
+  if test_failures:
+    sys.stderr.write(
+        f"{red(args.no_colors)}[  PASSED  ]{end_color(args.no_colors)} "
+        f"{len(tests) - len(test_failures)} tests.\n")
+  else:
+    sys.stderr.write(
+        f"{green(args.no_colors)}[  PASSED  ]{end_color(args.no_colors)} "
+        f"{len(tests)} tests.\n")
+
   if args.rebase:
     sys.stderr.write('\n')
     sys.stderr.write(f"{rebased} tests rebased.\n")
 
-  if test_failures == 0:
+  if len(test_failures) == 0:
     if args.perf_file:
       test_dir = os.path.join(ROOT_DIR, 'test')
       trace_processor_dir = os.path.join(test_dir, 'trace_processor')
@@ -464,7 +524,8 @@ def main():
         perf_file.write(json.dumps(output_data, indent=2))
     return 0
   else:
-    sys.stderr.write(f"[  FAILED  ] {test_failures} tests.\n")
+    for failure in test_failures:
+      sys.stderr.write(f"[  FAILED  ] {failure}\n")
     return 1
 
 

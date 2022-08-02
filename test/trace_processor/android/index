@@ -1,0 +1,7 @@
+# Ensure Android game intervntion list are parsed correctly
+game_intervention_list_test.textproto game_intervention_list_test.sql game_intervention_list_test.out
+
+android_system_property.textproto android_system_property_counter_test.sql android_system_property_counter.out
+android_system_property.textproto android_system_property_slice_test.sql android_system_property_slice.out
+
+../../data/bugreport-crosshatch-SPB5.zip android_bugreport_logs_test.sql android_bugreport_logs_test.out

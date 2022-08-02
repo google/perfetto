@@ -58,7 +58,7 @@ class TrackEventParser {
   UniqueTid ParseThreadDescriptor(protozero::ConstBytes);
 
   void ParseTrackEvent(int64_t ts,
-                       TrackEventData* event_data,
+                       const TrackEventData* event_data,
                        protozero::ConstBytes);
 
  private:
@@ -110,6 +110,7 @@ class TrackEventParser {
   const StringId chrome_host_app_package_name_id_;
   const StringId chrome_crash_trace_id_name_id_;
   const StringId chrome_process_label_flat_key_id_;
+  const StringId chrome_process_type_id_;
 
   ChromeStringLookup chrome_string_lookup_;
   std::array<StringId, 4> counter_unit_ids_;

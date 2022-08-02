@@ -97,12 +97,14 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> system_info_tracker;     // SystemInfoTracker
   std::unique_ptr<Destructible> systrace_parser;         // SystraceParser
   std::unique_ptr<Destructible> thread_state_tracker;    // ThreadStateTracker
+  std::unique_ptr<Destructible> i2c_tracker;             // I2CTracker
 
   // These fields are trace readers which will be called by |forwarding_parser|
   // once the format of the trace is discovered. They are placed here as they
   // are only available in the storage_full target.
   std::unique_ptr<ChunkedTraceReader> json_trace_tokenizer;
   std::unique_ptr<ChunkedTraceReader> fuchsia_trace_tokenizer;
+  std::unique_ptr<ChunkedTraceReader> android_bugreport_parser;
   std::unique_ptr<ChunkedTraceReader> systrace_trace_parser;
   std::unique_ptr<ChunkedTraceReader> gzip_trace_parser;
 

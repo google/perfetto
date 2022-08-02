@@ -1,0 +1,161 @@
+packet {
+  incremental_state_cleared: true
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  interned_data {
+    mapping_paths {
+      iid: 1
+      str: "liblib.so"
+    }
+    build_ids {
+      iid: 2
+      str: "build-id"
+    }
+    mappings {
+        iid: 1
+        path_string_ids: 1
+        build_id: 2
+    }
+    unsymbolized_source_locations {
+        iid: 1
+        mapping_id: 1
+        rel_pc: 123
+    }
+    unsymbolized_source_locations {
+        iid: 2
+        mapping_id: 1
+        rel_pc: 234
+    }
+    unsymbolized_source_locations {
+        iid: 3
+        mapping_id: 1
+        rel_pc: 345
+    }
+    unsymbolized_source_locations {
+        iid: 4
+        mapping_id: 1
+        rel_pc: 456
+    }
+  }
+}
+# Track for slice events.
+packet {
+  timestamp: 0
+  trusted_packet_sequence_id: 1
+  track_descriptor {
+    uuid: 12345
+    thread {
+      pid: 123
+      tid: 345
+    }
+    parent_uuid: 0
+    chrome_thread {
+      thread_type: THREAD_POOL_FG_WORKER
+    }
+  }
+}
+
+# Slice begins with mojo args
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 10
+  track_event {
+    track_uuid: 12345
+    categories: "cat1"
+    type: 1
+    name: "slice1"
+    chrome_mojo_event_info {
+        mojo_interface_method_iid: 1
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 11
+  track_event {
+    track_uuid: 12345
+    categories: "cat1"
+    type: 1
+    name: "slice2"
+    chrome_mojo_event_info {
+        mojo_interface_method_iid: 2
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 12
+  track_event {
+    track_uuid: 12345
+    categories: "cat1"
+    type: 1
+    name: "slice3"
+    chrome_mojo_event_info {
+        mojo_interface_method_iid: 3
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 13
+  track_event {
+    track_uuid: 12345
+    categories: "cat1"
+    type: 1
+    name: "slice4"
+    chrome_mojo_event_info {
+        mojo_interface_method_iid: 4
+    }
+  }
+}
+
+
+# Slice end events are intentionally missing
+
+# Module symbols translation packet
+packet {
+  module_symbols {
+    path: "/liblib.so"
+    build_id: "build-id"
+    address_symbols {
+      address: 123
+      lines {
+        # Unix-style symbol (no "()" in the end).
+        function_name: "storage::mojom::Directory::OpenFile_Sym::IPCStableHash"
+        source_file_name: "file.cc"
+        line_number: 33
+      }
+    }
+    address_symbols {
+      address: 234
+      lines {
+        # Windows-style symbol (with "()" in the end).
+        function_name: "storage::mojom::File::Close_Sym::IPCStableHash()"
+        source_file_name: "file.cc"
+        line_number: 33
+      }
+    }
+    # The following to symbols don't follow the naming pattern. Let's make sure
+    # the Trace Processor doesn't crash, and returns something reasonable.
+    address_symbols {
+      address: 345
+      lines {
+        function_name: "Class::Method"
+        source_file_name: "file.cc"
+        line_number: 33
+      }
+    }
+    address_symbols {
+      address: 456
+      lines {
+        # Windows-style symbol (with "()" in the end).
+        function_name: "Func"
+        source_file_name: "file.cc"
+        line_number: 33
+      }
+    }
+  }
+}

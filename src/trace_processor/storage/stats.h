@@ -26,7 +26,9 @@ namespace stats {
 // Compile time list of parsing and processing stats.
 // clang-format off
 #define PERFETTO_TP_STATS(F)                                                   \
+  F(android_br_parse_errors,            kSingle,  kError,    kTrace,    ""),   \
   F(android_log_num_failed,             kSingle,  kError,    kTrace,    ""),   \
+  F(android_log_format_invalid,         kSingle,  kError,    kTrace,    ""),   \
   F(android_log_num_skipped,            kSingle,  kInfo,     kTrace,    ""),   \
   F(android_log_num_total,              kSingle,  kInfo,     kTrace,    ""),   \
   F(counter_events_out_of_order,        kSingle,  kError,    kAnalysis, ""),   \
@@ -185,17 +187,30 @@ namespace stats {
        "Time (us) the heapprofd client was blocked on the spinlock."),         \
   F(heapprofd_last_profile_timestamp,   kIndexed, kInfo,     kTrace,           \
        "The timestamp (in trace time) for the last dump for a process"),       \
+  F(symbolization_tmp_build_id_not_found,   kSingle,  kError,    kAnalysis,    \
+       "Number of file mappings in /data/local/tmp without a build id. "       \
+       "Symbolization doesn't work for executables in /data/local/tmp "        \
+       "because of SELinux. Please use /data/local/tests"),                    \
   F(metatrace_overruns,                 kSingle,  kError,    kTrace,    ""),   \
   F(packages_list_has_parse_errors,     kSingle,  kError,    kTrace,    ""),   \
   F(packages_list_has_read_errors,      kSingle,  kError,    kTrace,    ""),   \
+  F(game_intervention_has_parse_errors, kSingle,  kError,    kTrace,           \
+       "One or more parsing errors occurred. This could result from "          \
+       "unknown game more or intervention added to the file to be parsed."),   \
+  F(game_intervention_has_read_errors,  kSingle,  kError,    kTrace,           \
+       "The file to be parsed can't be opened. This can happend when "         \
+       "the file name is not found or no permission to access the file"),      \
   F(compact_sched_has_parse_errors,     kSingle,  kError,    kTrace,    ""),   \
   F(misplaced_end_event,                kSingle,  kDataLoss, kAnalysis, ""),   \
   F(sched_waking_out_of_order,          kSingle,  kError,    kAnalysis, ""),   \
   F(compact_sched_switch_skipped,       kSingle,  kInfo,     kAnalysis, ""),   \
   F(compact_sched_waking_skipped,       kSingle,  kInfo,     kAnalysis, ""),   \
   F(empty_chrome_metadata,              kSingle,  kError,    kTrace,    ""),   \
-  F(perf_cpu_lost_records,              kIndexed, kDataLoss, kTrace,    ""),   \
   F(ninja_parse_errors,                 kSingle,  kError,    kTrace,    ""),   \
+  F(perf_cpu_lost_records,              kIndexed, kDataLoss, kTrace,    ""),   \
+  F(perf_process_shard_count,           kIndexed, kInfo,     kTrace,    ""),   \
+  F(perf_chosen_process_shard,          kIndexed, kInfo,     kTrace,    ""),   \
+  F(perf_guardrail_stop_ts,             kIndexed, kDataLoss, kTrace,    ""),   \
   F(perf_samples_skipped,               kSingle,  kInfo,     kTrace,    ""),   \
   F(perf_samples_skipped_dataloss,      kSingle,  kDataLoss, kTrace,    ""),   \
   F(memory_snapshot_parser_failure,     kSingle,  kError,    kAnalysis, ""),   \
@@ -207,7 +222,6 @@ namespace stats {
       "the tracing service. This happens if the ftrace buffers were not "      \
       "cleared properly. These packets are silently dropped by trace "         \
       "processor."),                                                           \
-  F(perf_guardrail_stop_ts,             kIndexed, kDataLoss, kTrace,    ""),   \
   F(sorter_push_event_out_of_order,     kSingle, kError,     kTrace,           \
       "Trace events are out of order event after sorting. This can happen "    \
       "due to many factors including clock sync drift, producers emitting "    \

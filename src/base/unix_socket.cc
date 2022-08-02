@@ -129,7 +129,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
     case SockFamily::kUnix: {
       struct sockaddr_un saddr {};
       const size_t name_len = socket_name.size();
-      if (name_len >= sizeof(saddr.sun_path)) {
+      if (name_len + 1 /* for trailing \0 */ >= sizeof(saddr.sun_path)) {
         errno = ENAMETOOLONG;
         return SockaddrAny();
       }
@@ -148,6 +148,12 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       saddr.sun_family = AF_UNIX;
       auto size = static_cast<socklen_t>(
           __builtin_offsetof(sockaddr_un, sun_path) + name_len + 1);
+
+      // Abstract sockets do NOT require a trailing null terminator (which is
+      // instad mandatory for filesystem sockets). Any byte up to `size`,
+      // including '\0' will become part of the socket name.
+      if (saddr.sun_path[0] == '\0')
+        --size;
       PERFETTO_CHECK(static_cast<size_t>(size) <= sizeof(saddr));
       return SockaddrAny(&saddr, size);
     }
@@ -292,7 +298,7 @@ UnixSocketRaw::UnixSocketRaw(ScopedSocketHandle fd,
 #else
   // There is no reason why a socket should outlive the process in case of
   // exec() by default, this is just working around a broken unix design.
-  RetainOnExec();
+  SetRetainOnExec(false);
 #endif
 }
 
@@ -323,11 +329,16 @@ void UnixSocketRaw::SetBlocking(bool is_blocking) {
 #endif
 }
 
-void UnixSocketRaw::RetainOnExec() {
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+void UnixSocketRaw::SetRetainOnExec(bool retain) {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
   PERFETTO_DCHECK(fd_);
   int flags = fcntl(*fd_, F_GETFD, 0);
-  flags &= ~static_cast<int>(FD_CLOEXEC);
+  if (retain) {
+    flags &= ~static_cast<int>(FD_CLOEXEC);
+  } else {
+    flags |= FD_CLOEXEC;
+  }
   int fcntl_res = fcntl(*fd_, F_SETFD, flags);
   PERFETTO_CHECK(fcntl_res == 0);
 #endif

@@ -672,6 +672,7 @@ message RendererMainThreadTaskExecution {
     TASK_TYPE_INTERNAL_INPUT_BLOCKING = 77;
     TASK_TYPE_WEB_GPU = 78;
     TASK_TYPE_INTERNAL_POST_MESSAGE_FORWARDING = 79;
+    TASK_TYPE_INTERNAL_NAVIGATION_CANCELLATION = 80;
   }
 
   enum FrameType {
@@ -779,9 +780,15 @@ enum DeviceThermalState {
   DEVICE_THERMAL_STATE_CRITICAL = 4;
 }
 
+// Used to log which Android IPC was called and how long it took.
+message AndroidIPC {
+  optional string name = 1;
+  optional int64 dur_ms = 2;
+}
+
 message ChromeTrackEvent {
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1037
+  // Next ID: 1039
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -863,5 +870,7 @@ message ChromeTrackEvent {
     optional DeviceThermalState device_thermal_state = 1036;
 
     optional NavigationHandle navigation = 1037;
+
+    optional AndroidIPC android_ipc = 1038;
   }
 }

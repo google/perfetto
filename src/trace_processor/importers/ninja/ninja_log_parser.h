@@ -55,10 +55,9 @@ class NinjaLogParser : public ChunkedTraceReader {
 
  private:
   struct Job {
-    Job(uint32_t b, int64_t s, int64_t e, uint64_t h, const std::string& n)
-        : build_id(b), start_ms(s), end_ms(e), hash(h), names(n) {}
+    Job(int64_t s, int64_t e, uint64_t h, const std::string& n)
+        : start_ms(s), end_ms(e), hash(h), names(n) {}
 
-    uint32_t build_id;  // The synthesized PID of the build "process".
     int64_t start_ms;
     int64_t end_ms;
     uint64_t hash;  // Hash of the compiler invocation cmdline.
@@ -70,8 +69,6 @@ class NinjaLogParser : public ChunkedTraceReader {
 
   TraceProcessorContext* const ctx_;
   bool header_parsed_ = false;
-  int64_t last_end_seen_ = 0;
-  uint32_t cur_build_id_ = 0;
   std::vector<Job> jobs_;
   std::vector<char> log_;
 };

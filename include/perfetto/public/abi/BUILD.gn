@@ -17,3 +17,9 @@ source_set("base") {
     "export.h",
   ]
 }
+
+source_set("protozero") {
+  sources = [
+    "stream_writer_abi.h",
+  ]
+}

@@ -288,6 +288,8 @@ button.close {
   background-color: white;
   right: 0;
   box-shadow: 0 0 4px 0 #999;
+  /* TODO(hjd): Reduce and make z-index use sensible. */
+  z-index: 1000;
 
   &.closed {
     display: none;
@@ -313,6 +315,10 @@ button.close {
     &:hover {
       background: #c7d0db;
     }
+  }
+
+  .nested-menu {
+    padding-right: 1em;
   }
 }
 
@@ -357,6 +363,10 @@ button.close {
           background-color: #ebeef9;
         }
 
+        &.alternating-thread-track {
+          background: hsl(214, 22%, 95%);
+        }
+
         .chip {
           background-color: #bed6ff;
           border-radius: 3px;
@@ -372,8 +382,9 @@ button.close {
         }
         .track-buttons {
           grid-area: buttons;
-          // This is necessary to center the buttons - but shouldn't be?
-          height: 18px;
+          display: flex;
+          height: 100%;
+          align-items: center;
         }
         .track-button {
           @include transition();
@@ -386,6 +397,15 @@ button.close {
 
         .track-button.show {
           opacity: 1;
+        }
+        .track-button.full-height {
+          display: flex;
+          height: 100%;
+          align-items: center;
+
+          &:hover {
+            background-color: #ebeef9;
+          }
         }
 
         &:hover .track-button{
@@ -644,7 +664,7 @@ button.query-ctrl {
       white-space: nowrap;
       text-overflow: ellipsis;
       // Maximum width according to grid-template-columns value for .shell
-      width: calc(var(--track-shell-width) - 48px);
+      width: calc(var(--track-shell-width) - 56px);
     }
 
     .chip {
@@ -655,8 +675,11 @@ button.query-ctrl {
       margin-left: 1ch;
     }
 
-    h1 {
+    .title-wrapper {
       grid-area: title;
+      overflow: hidden;
+    }
+    h1 {
       @include track_shell_title();
     }
     .fold-button {
@@ -758,115 +781,22 @@ button.query-ctrl {
   .empty-result {
     padding: 10px;
   }
-}
 
-.pivot-table-editor-container {
-  font: inherit;
-  width: 670px;
-  height: 420px;
-  h2 {
-    font-weight: bold;
+  td.menu {
     text-align: left;
   }
-  label {
-    cursor: pointer;
-  }
-  select {
-    font-weight: 100;
-    margin: 3px;
-    color: #333;
-    font-size: 15px;
-    align-items: center;
-    cursor: pointer;
-  }
-  span:nth-of-type(2) {
-    margin-left: 1rem;
-  }
-  section.table-group {
-    display: table-row;
-    table {
-      margin: 15px;
-      td {
-        width: 300px;
-        font-size: 17px;
-        cursor: pointer;
-        &.drop-location {
-          background-color: hsla(0, 0%, 85%, 1);
-        }
-      }
-      th {
-        text-align: center;
-        width: 300px;
-        border-bottom: 1px solid rgba(60, 76, 92, 0.4);
-      }
-      &:first-child {
-        float: left;
-      }
-      &:last-child {
-        float: right;
-      }
-    }
-  }
-  .scroll {
-    height: 150px;
-    overflow: auto;
-  }
-  section.button-group {
-    text-align: center;
-    button {
-      background-color: #262f3c;
-      color: #fff;
-      border-radius: 10px;
-      padding: 2px 5px;
-      font-weight: bold;
-      font-size: 13px;
-      min-width: 7em;
-      margin-right: 1rem;
-    }
-  }
-  section {
-    margin: 1rem;
-  }
 }
 
-.pivot-table-tab {
-  button {
-    background: #262f3c;
-    color: white;
-    border-radius: 10px;
-    font-size: 12px;
-    height: 20px;
-    line-height: 18px;
-    min-width: 7em;
-    margin: 0.2rem;
-    &:disabled {
-      opacity: 0.75;
-      cursor: default;
-    }
+.name-completion {
+  input {
+    width: 90%;
   }
-  span {
-    flex-grow: 1;
+  min-height: 20vh;
+  min-width: 30vw;
+
+  .arguments-popup-sizer {
+    color: transparent;
+    user-select: none;
+    height: 0;
   }
 }
-
-.pivot-table-spinner {
-  display: inline-block;
-  vertical-align: middle;
-  box-sizing: border-box;
-  width: 18px;
-  height: 18px;
-  margin-left: 10px;
-  border-radius: 50%;
-  border: 2px solid #408ee0;
-  border-color: #408ee0 transparent;
-  animation: spinner 1.25s linear infinite;
-  @keyframes spinner {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-}
-
-.allow-white-space {
-  white-space: pre
-}
-

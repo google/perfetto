@@ -41,9 +41,10 @@ class ThreadStateTrackerUnittest : public testing::Test {
  public:
   ThreadStateTrackerUnittest() {
     context_.storage.reset(new TraceStorage());
-    context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
+    context_.global_args_tracker.reset(
+        new GlobalArgsTracker(context_.storage.get()));
     context_.args_tracker.reset(new ArgsTracker(&context_));
-    tracker_.reset(new ThreadStateTracker(&context_));
+    tracker_.reset(new ThreadStateTracker(context_.storage.get()));
   }
 
   StringId StringIdOf(const char* s) {

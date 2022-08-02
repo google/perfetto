@@ -70,31 +70,26 @@ base::Status ExperimentalCounterDurGenerator::ComputeTable(
 
 // static
 ColumnStorage<int64_t> ExperimentalCounterDurGenerator::ComputeDurColumn(
-    const Table& table) {
+    const CounterTable& table) {
   // Keep track of the last seen row for each track id.
-  std::unordered_map<TrackId, uint32_t> last_row_for_track_id;
+  std::unordered_map<TrackId, CounterTable::RowNumber> last_row_for_track_id;
   ColumnStorage<int64_t> dur;
 
-  const auto* ts_col =
-      TypedColumn<int64_t>::FromColumn(table.GetColumnByName("ts"));
-  const auto* track_id_col =
-      TypedColumn<tables::CounterTrackTable::Id>::FromColumn(
-          table.GetColumnByName("track_id"));
-
-  for (uint32_t i = 0; i < table.row_count(); ++i) {
+  for (auto table_it = table.IterateRows(); table_it; ++table_it) {
     // Check if we already have a previous row for the current track id.
-    TrackId track_id = (*track_id_col)[i];
+    TrackId track_id = table_it.track_id();
     auto it = last_row_for_track_id.find(track_id);
     if (it == last_row_for_track_id.end()) {
       // This means we don't have any row - start tracking this row for the
       // future.
-      last_row_for_track_id.emplace(track_id, i);
+      last_row_for_track_id.emplace(track_id, table_it.row_number());
     } else {
       // This means we have an previous row for the current track id. Update
       // the duration of the previous row to be up to the current ts.
-      uint32_t old_row = it->second;
-      it->second = i;
-      dur.Set(old_row, (*ts_col)[i] - (*ts_col)[old_row]);
+      CounterTable::RowNumber old_row = it->second;
+      it->second = table_it.row_number();
+      dur.Set(old_row.row_number(),
+              table_it.ts() - old_row.ToRowReference(table).ts());
     }
     // Append -1 to mark this event as not having been finished. On a later
     // row, we may set this to have the correct value.
@@ -105,31 +100,26 @@ ColumnStorage<int64_t> ExperimentalCounterDurGenerator::ComputeDurColumn(
 
 // static
 ColumnStorage<double> ExperimentalCounterDurGenerator::ComputeDeltaColumn(
-    const Table& table) {
+    const CounterTable& table) {
   // Keep track of the last seen row for each track id.
-  std::unordered_map<TrackId, uint32_t> last_row_for_track_id;
+  std::unordered_map<TrackId, CounterTable::RowNumber> last_row_for_track_id;
   ColumnStorage<double> delta;
 
-  const auto* value_col =
-      TypedColumn<double>::FromColumn(table.GetColumnByName("value"));
-  const auto* track_id_col =
-      TypedColumn<tables::CounterTrackTable::Id>::FromColumn(
-          table.GetColumnByName("track_id"));
-
-  for (uint32_t i = 0; i < table.row_count(); ++i) {
+  for (auto table_it = table.IterateRows(); table_it; ++table_it) {
     // Check if we already have a previous row for the current track id.
-    TrackId track_id = (*track_id_col)[i];
+    TrackId track_id = table_it.track_id();
     auto it = last_row_for_track_id.find(track_id);
     if (it == last_row_for_track_id.end()) {
       // This means we don't have any row - start tracking this row for the
       // future.
-      last_row_for_track_id.emplace(track_id, i);
+      last_row_for_track_id.emplace(track_id, table_it.row_number());
     } else {
       // This means we have an previous row for the current track id. Update
       // the duration of the previous row to be up to the current ts.
-      uint32_t old_row = it->second;
-      it->second = i;
-      delta.Set(old_row, (*value_col)[i] - (*value_col)[old_row]);
+      CounterTable::RowNumber old_row = it->second;
+      it->second = table_it.row_number();
+      delta.Set(old_row.row_number(),
+                table_it.value() - old_row.ToRowReference(table).value());
     }
     delta.Append(0);
   }

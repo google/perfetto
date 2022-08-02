@@ -321,9 +321,9 @@ BuildFlamegraphTableCallstackSizeAndCount(
 }
 
 std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
-BuildNativeHeapProfileFlamegraph(TraceStorage* storage,
-                                 UniquePid upid,
-                                 int64_t timestamp) {
+BuildHeapProfileFlamegraph(TraceStorage* storage,
+                           UniquePid upid,
+                           int64_t timestamp) {
   const tables::HeapProfileAllocationTable& allocation_tbl =
       storage->heap_profile_allocation_table();
   // PASS OVER ALLOCATIONS:
@@ -375,10 +375,12 @@ BuildNativeCallStackSamplingFlamegraph(
     utids.insert(storage->thread_table().id()[it.index()]);
   }
 
-  // 3.Get all row indices in perf_sample that correspond to the requested utids
+  // 3.Get all row indices in perf_sample that have callstacks (some samples
+  // can have only counter values) and correspond to the requested utids.
   std::vector<uint32_t> cs_rows;
   for (uint32_t i = 0; i < storage->perf_sample_table().row_count(); ++i) {
-    if (utids.find(static_cast<tables::ThreadTable::Id>(
+    if (storage->perf_sample_table().callsite_id()[i].has_value() &&
+        utids.find(static_cast<tables::ThreadTable::Id>(
             storage->perf_sample_table().utid()[i])) != utids.end()) {
       cs_rows.push_back(i);
     }

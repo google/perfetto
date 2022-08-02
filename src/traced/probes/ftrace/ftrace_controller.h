@@ -138,6 +138,7 @@ class FtraceController {
   std::unique_ptr<FtraceClockSnapshot> ftrace_clock_snapshot_;
   int generation_ = 0;
   bool atrace_running_ = false;
+  bool retain_ksyms_on_stop_ = false;
   std::vector<PerCpuState> per_cpu_;  // empty if tracing isn't active
   std::set<FtraceDataSource*> data_sources_;
   std::set<FtraceDataSource*> started_data_sources_;

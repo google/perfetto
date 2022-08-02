@@ -27,13 +27,14 @@ namespace trace_processor {
 // waking events and blocking reasons.
 class ThreadStateTracker : public Destructible {
  public:
-  explicit ThreadStateTracker(TraceProcessorContext*);
+  explicit ThreadStateTracker(TraceStorage*);
   ThreadStateTracker(const ThreadStateTracker&) = delete;
   ThreadStateTracker& operator=(const ThreadStateTracker&) = delete;
   ~ThreadStateTracker() override;
   static ThreadStateTracker* GetOrCreate(TraceProcessorContext* context) {
     if (!context->thread_state_tracker) {
-      context->thread_state_tracker.reset(new ThreadStateTracker(context));
+      context->thread_state_tracker.reset(
+          new ThreadStateTracker(context->storage.get()));
     }
     return static_cast<ThreadStateTracker*>(
         context->thread_state_tracker.get());
@@ -74,11 +75,10 @@ class ThreadStateTracker : public Destructible {
 
   tables::ThreadStateTable::RowReference RowNumToRef(
       tables::ThreadStateTable::RowNumber row_number) {
-    return row_number.ToRowReference(
-        context_->storage->mutable_thread_state_table());
+    return row_number.ToRowReference(storage_->mutable_thread_state_table());
   }
 
-  TraceProcessorContext* const context_;
+  TraceStorage* const storage_;
 
   // Strings
   StringId running_string_id_;

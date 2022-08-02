@@ -7,6 +7,10 @@ packet {
       ufshcd_command {
         dev_name: "cat"
         doorbell: 0x200
+        opcode: 40
+        tag: 1
+        group_id: 0
+        str_t: 0
       }
     }
   }
@@ -20,6 +24,10 @@ packet {
       ufshcd_command {
         dev_name: "cat"
         doorbell: 0x240
+        opcode: 40
+        tag: 2
+        group_id: 0
+        str_t: 0
       }
     }
   }
@@ -33,6 +41,10 @@ packet {
       ufshcd_command {
         dev_name: "dd"
         doorbell: 0x111
+        opcode: 40
+        tag: 3
+        group_id: 0
+        str_t: 0
       }
     }
   }
@@ -46,6 +58,10 @@ packet {
       ufshcd_command {
         dev_name: "dd"
         doorbell: 0x400
+        opcode: 40
+        tag: 4
+        group_id: 0
+        str_t: 0
       }
     }
   }

@@ -63,7 +63,7 @@ CONTINUOUS_DUMP = """
 """
 
 UUID = str(uuid.uuid4())[-6:]
-PROFILE_PATH = '/data/misc/perfetto-traces/java-profile-' +  UUID
+PROFILE_PATH = '/data/misc/perfetto-traces/java-profile-' + UUID
 
 PERFETTO_CMD = ('CFG=\'{cfg}\'; echo ${{CFG}} | '
                 'perfetto --txt -c - -o ' + PROFILE_PATH + ' -d')
@@ -72,16 +72,19 @@ SDK = {
     'S': 31,
 }
 
+
 def release_or_newer(release):
-  sdk = int(subprocess.check_output(
-    ['adb', 'shell', 'getprop', 'ro.system.build.version.sdk']
-  ).decode('utf-8').strip())
+  sdk = int(
+      subprocess.check_output(
+          ['adb', 'shell', 'getprop',
+           'ro.system.build.version.sdk']).decode('utf-8').strip())
   if sdk >= SDK[release]:
     return True
   codename = subprocess.check_output(
-    ['adb', 'shell', 'getprop', 'ro.build.version.codename']
-  ).decode('utf-8').strip()
+      ['adb', 'shell', 'getprop',
+       'ro.build.version.codename']).decode('utf-8').strip()
   return codename == release
+
 
 def main(argv):
   parser = argparse.ArgumentParser()
@@ -192,8 +195,8 @@ def main(argv):
     print(cfg)
     return 0
 
-  user = subprocess.check_output(
-    ['adb', 'shell', 'whoami']).strip().decode('utf8')
+  user = subprocess.check_output(['adb', 'shell',
+                                  'whoami']).strip().decode('utf8')
   perfetto_pid = subprocess.check_output(
       ['adb', 'exec-out',
        PERFETTO_CMD.format(cfg=cfg, user=user)]).strip().decode('utf8')
@@ -212,11 +215,9 @@ def main(argv):
         ['adb', 'shell', '[ -d /proc/{} ]'.format(perfetto_pid)]) == 0
     time.sleep(1)
 
-  subprocess.check_call(
-    ['adb', 'pull', PROFILE_PATH, output_file], stdout=NULL)
+  subprocess.check_call(['adb', 'pull', PROFILE_PATH, output_file], stdout=NULL)
 
-  subprocess.check_call(
-        ['adb', 'shell', 'rm', PROFILE_PATH], stdout=NULL)
+  subprocess.check_call(['adb', 'shell', 'rm', PROFILE_PATH], stdout=NULL)
 
   print("Wrote profile to {}".format(output_file))
   print("This can be viewed using https://ui.perfetto.dev.")

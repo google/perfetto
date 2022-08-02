@@ -126,8 +126,8 @@ class VariadicQueue {
       new (ptr) T(std::move(value));
       num_elements_++;
       ptr += sizeof(T);
-      offset_ =
-          RoundUpToPowerOf8(static_cast<uint32_t>(ptr - storage_begin_ptr));
+      offset_ = static_cast<uint32_t>(
+          base::AlignUp<8>(static_cast<uint32_t>(ptr - storage_begin_ptr)));
       return cur_offset;
     }
 
@@ -153,10 +153,6 @@ class VariadicQueue {
     bool empty() const { return num_elements_ == num_elements_evicted_; }
 
    private:
-    static inline uint32_t RoundUpToPowerOf8(uint32_t offset) {
-      return (offset + 7) & (~0u << 3);
-    }
-
     uint32_t size_;
     uint32_t offset_ = 0;
 

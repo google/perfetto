@@ -450,6 +450,11 @@ class GeneratorJob {
     CollectDependencies();
   }
 
+  std::string GetNamespaceNameForInnerEnum(const EnumDescriptor* enumeration) {
+    return "perfetto_pbzero_enum_" +
+           GetCppClassName(enumeration->containing_type());
+  }
+
   // Print top header, namespaces and forward declarations.
   void GeneratePrologue() {
     std::string greeting =
@@ -498,45 +503,94 @@ class GeneratorJob {
       stub_h_->Print("class $class$;\n", "class", GetCppClassName(message));
     }
     for (const EnumDescriptor* enumeration : referenced_enums_) {
-      stub_h_->Print("enum $class$ : int32_t;\n", "class",
-                     GetCppClassName(enumeration));
+      if (enumeration->containing_type()) {
+        stub_h_->Print("namespace $namespace_name$ {\n", "namespace_name",
+                       GetNamespaceNameForInnerEnum(enumeration));
+      }
+      stub_h_->Print("enum $class$ : int32_t;\n", "class", enumeration->name());
+
+      if (enumeration->containing_type()) {
+        stub_h_->Print("}  // namespace $namespace_name$ \n", "namespace_name",
+                       GetNamespaceNameForInnerEnum(enumeration));
+      }
     }
     stub_h_->Print("\n");
   }
 
   void GenerateEnumDescriptor(const EnumDescriptor* enumeration) {
-    stub_h_->Print("enum $class$ : int32_t {\n", "class",
-                   GetCppClassName(enumeration));
-    stub_h_->Indent();
+    bool is_inner_enum = !!enumeration->containing_type();
+    if (is_inner_enum) {
+      stub_h_->Print("namespace $namespace_name$ {\n", "namespace_name",
+                     GetNamespaceNameForInnerEnum(enumeration));
+    }
 
-    std::string value_name_prefix;
-    if (enumeration->containing_type() != nullptr)
-      value_name_prefix = GetCppClassName(enumeration) + "_";
+    stub_h_->Print("enum $class$ : int32_t {\n", "class", enumeration->name());
+    stub_h_->Indent();
 
     std::string min_name, max_name;
     int min_val = std::numeric_limits<int>::max();
     int max_val = -1;
     for (int i = 0; i < enumeration->value_count(); ++i) {
       const EnumValueDescriptor* value = enumeration->value(i);
-      stub_h_->Print("$name$ = $number$,\n", "name",
-                     value_name_prefix + value->name(), "number",
+      const std::string value_name = value->name();
+      stub_h_->Print("$name$ = $number$,\n", "name", value_name, "number",
                      std::to_string(value->number()));
       if (value->number() < min_val) {
         min_val = value->number();
-        min_name = value_name_prefix + value->name();
+        min_name = value_name;
       }
       if (value->number() > max_val) {
         max_val = value->number();
-        max_name = value_name_prefix + value->name();
+        max_name = value_name;
       }
     }
     stub_h_->Outdent();
-    stub_h_->Print("};\n\n");
-    stub_h_->Print("const $class$ $class$_MIN = $min$;\n", "class",
+    stub_h_->Print("};\n");
+    if (is_inner_enum) {
+      const std::string namespace_name =
+          GetNamespaceNameForInnerEnum(enumeration);
+      stub_h_->Print("} // namespace $namespace_name$\n", "namespace_name",
+                     namespace_name);
+      stub_h_->Print(
+          "using $full_enum_name$ = $namespace_name$::$enum_name$;\n\n",
+          "full_enum_name", GetCppClassName(enumeration), "enum_name",
+          enumeration->name(), "namespace_name", namespace_name);
+    }
+    stub_h_->Print("\n");
+    stub_h_->Print("constexpr $class$ $class$_MIN = $class$::$min$;\n", "class",
                    GetCppClassName(enumeration), "min", min_name);
-    stub_h_->Print("const $class$ $class$_MAX = $max$;\n", "class",
+    stub_h_->Print("constexpr $class$ $class$_MAX = $class$::$max$;\n", "class",
                    GetCppClassName(enumeration), "max", max_name);
     stub_h_->Print("\n");
+
+    GenerateEnumToStringConversion(enumeration);
+  }
+
+  void GenerateEnumToStringConversion(const EnumDescriptor* enumeration) {
+    std::string fullClassName =
+        full_namespace_prefix_ + GetCppClassName(enumeration);
+    const char* function_header_stub = R"(
+PERFETTO_PROTOZERO_CONSTEXPR14_OR_INLINE
+const char* $class_name$_Name($full_class$ value) {
+)";
+    stub_h_->Print(function_header_stub, "full_class", fullClassName,
+                   "class_name", GetCppClassName(enumeration));
+    stub_h_->Indent();
+    stub_h_->Print("switch (value) {");
+    for (int index = 0; index < enumeration->value_count(); ++index) {
+      const EnumValueDescriptor* value = enumeration->value(index);
+      const char* switch_stub = R"(
+case $full_class$::$value_name$:
+  return "$value_name$";
+)";
+      stub_h_->Print(switch_stub, "full_class", fullClassName, "value_name",
+                     value->name());
+    }
+    stub_h_->Print("}\n");
+    stub_h_->Print(R"(return "PBZERO_UNKNOWN_ENUM_VALUE";)");
+    stub_h_->Print("\n");
+    stub_h_->Outdent();
+    stub_h_->Print("}\n\n");
   }
 
   // Packed repeated fields are encoded as a length-delimited field on the wire,
@@ -580,12 +634,18 @@ class GeneratorJob {
       const char* additional_method =
           "void $action$_$name$(const char* data, size_t size) {\n"
           "  AppendBytes($field_metadata$::kFieldId, data, size);\n"
+          "}\n"
+          "void $action$_$name$(::protozero::ConstChars chars) {\n"
+          "  AppendBytes($field_metadata$::kFieldId, chars.data, chars.size);\n"
           "}\n";
       stub_h_->Print(setter, additional_method);
     } else if (field->type() == FieldDescriptor::TYPE_BYTES) {
       const char* additional_method =
           "void $action$_$name$(const uint8_t* data, size_t size) {\n"
           "  AppendBytes($field_metadata$::kFieldId, data, size);\n"
+          "}\n"
+          "void $action$_$name$(::protozero::ConstBytes bytes) {\n"
+          "  AppendBytes($field_metadata$::kFieldId, bytes.data, bytes.size);\n"
           "}\n";
       stub_h_->Print(setter, additional_method);
     } else if (field->type() == FieldDescriptor::TYPE_GROUP ||
@@ -794,21 +854,24 @@ class GeneratorJob {
     // Using statements for nested enums.
     for (int i = 0; i < message->enum_type_count(); ++i) {
       const EnumDescriptor* nested_enum = message->enum_type(i);
-      stub_h_->Print("using $local_name$ = $global_name$;\n", "local_name",
-                     nested_enum->name(), "global_name",
+      const char* stub = R"(
+using $local_name$ = $global_name$;
+static inline const char* $local_name$_Name($local_name$ value) {
+  return $global_name$_Name(value);
+}
+)";
+      stub_h_->Print(stub, "local_name", nested_enum->name(), "global_name",
                      GetCppClassName(nested_enum, true));
     }
 
     // Values of nested enums.
     for (int i = 0; i < message->enum_type_count(); ++i) {
       const EnumDescriptor* nested_enum = message->enum_type(i);
-      std::string value_name_prefix = GetCppClassName(nested_enum) + "_";
 
       for (int j = 0; j < nested_enum->value_count(); ++j) {
         const EnumValueDescriptor* value = nested_enum->value(j);
-        stub_h_->Print("static const $class$ $name$ = $full_name$;\n", "class",
-                       nested_enum->name(), "name", value->name(), "full_name",
-                       value_name_prefix + value->name());
+        stub_h_->Print("static const $class$ $name$ = $class$::$name$;\n",
+                       "class", nested_enum->name(), "name", value->name());
       }
     }
 

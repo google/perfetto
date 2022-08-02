@@ -45,6 +45,17 @@ source_set("gzip") {
   }
 }
 
+source_set("stack_traces_util") {
+  sources = [
+    "stack_traces_util.cc",
+    "stack_traces_util.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base:base",
+  ]
+}
+
 source_set("protozero_to_text") {
   sources = [
     "protozero_to_text.cc",
@@ -111,11 +122,30 @@ source_set("proto_to_args_parser") {
   ]
 }
 
+source_set("zip_reader") {
+  sources = [
+    "streaming_line_reader.cc",
+    "streaming_line_reader.h",
+    "zip_reader.cc",
+    "zip_reader.h",
+  ]
+  deps = [
+    ":gzip",
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+  if (enable_perfetto_zlib) {
+    deps += [ "../../../gn:zlib" ]
+  }
+}
+
 source_set("unittests") {
   sources = [
     "debug_annotation_parser_unittest.cc",
     "proto_to_args_parser_unittest.cc",
     "protozero_to_text_unittests.cc",
+    "streaming_line_reader_unittest.cc",
+    "zip_reader_unittest.cc",
   ]
   testonly = true
   deps = [
@@ -123,6 +153,7 @@ source_set("unittests") {
     ":gzip",
     ":proto_to_args_parser",
     ":protozero_to_text",
+    ":zip_reader",
     "..:gen_cc_test_messages_descriptor",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",

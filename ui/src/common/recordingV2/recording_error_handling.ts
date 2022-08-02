@@ -15,11 +15,23 @@
 import {
   showAllowUSBDebugging,
   showConnectionLostError,
+  showExtensionNotInstalled,
+  showFailedToPushBinary,
+  showIssueParsingTheTracedResponse,
   showNoDeviceSelected,
+  showWebsocketConnectionIssue,
   showWebUSBErrorV2,
 } from '../../frontend/error_dialog';
 
-import {ALLOW_USB_DEBUGGING} from './adb_connection_over_webusb';
+import {
+  WEBSOCKET_UNABLE_TO_CONNECT,
+} from './adb_connection_over_websocket';
+import {
+  BINARY_PUSH_FAILURE,
+  BINARY_PUSH_UNKNOWN_RESPONSE,
+} from './adb_file_handler';
+import {ALLOW_USB_DEBUGGING} from './adb_targets_utils';
+import {EXTENSION_NOT_INSTALLED} from './chrome_utils';
 import {OnMessageCallback} from './recording_interfaces_v2';
 import {
   PARSING_UNABLE_TO_DECODE_METHOD,
@@ -27,6 +39,7 @@ import {
   PARSING_UNRECOGNIZED_MESSAGE,
   PARSING_UNRECOGNIZED_PORT,
 } from './traced_tracing_session';
+
 
 // The pattern for handling recording error can have the following nesting in
 // case of errors:
@@ -66,21 +79,35 @@ export function showRecordingModal(message: string): void {
         'Unable to claim interface.',
         'The specified endpoint is not part of a claimed and selected ' +
             'alternate interface.',
-      ].includes(message)) {
+      ].some((partOfMessage) => message.includes(partOfMessage))) {
     showWebUSBErrorV2();
   } else if (
       [
         'A transfer error has occurred.',
         'The device was disconnected.',
         'The transfer was cancelled.',
-      ].includes(message) ||
+      ].some((partOfMessage) => message.includes(partOfMessage)) ||
       isDeviceDisconnectedError(message)) {
     showConnectionLostError();
   } else if (message === ALLOW_USB_DEBUGGING) {
     showAllowUSBDebugging();
+  } else if (isMessageComposedOf(
+                 message,
+                 [BINARY_PUSH_FAILURE, BINARY_PUSH_UNKNOWN_RESPONSE])) {
+    showFailedToPushBinary(message.substring(message.indexOf(':') + 1));
   } else if (message === 'No device selected.') {
     showNoDeviceSelected();
-  } else if (isParsingError(message)) {
+  } else if (WEBSOCKET_UNABLE_TO_CONNECT === message) {
+    showWebsocketConnectionIssue(message);
+  } else if (message === EXTENSION_NOT_INSTALLED) {
+    showExtensionNotInstalled();
+  } else if (isMessageComposedOf(message, [
+               PARSING_UNKNWON_REQUEST_ID,
+               PARSING_UNABLE_TO_DECODE_METHOD,
+               PARSING_UNRECOGNIZED_PORT,
+               PARSING_UNRECOGNIZED_MESSAGE,
+             ])) {
+    showIssueParsingTheTracedResponse(message);
   } else {
     throw new Error(`${message}`);
   }
@@ -120,13 +147,9 @@ function isDeviceDisconnectedError(message: string) {
       message.includes('was disconnected.');
 }
 
-function isParsingError(message: string) {
-  for (const parsingIssue
-           of [PARSING_UNKNWON_REQUEST_ID,
-               PARSING_UNABLE_TO_DECODE_METHOD,
-               PARSING_UNRECOGNIZED_PORT,
-               PARSING_UNRECOGNIZED_MESSAGE]) {
-    if (message.includes(parsingIssue)) {
+function isMessageComposedOf(message: string, issues: string[]) {
+  for (const issue of issues) {
+    if (message.includes(issue)) {
       return true;
     }
   }

@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PivotTree} from '../controller/pivot_table_redux_controller';
 import {RecordConfig} from '../controller/record_config_types';
 import {
   Aggregation,
+  PivotTree,
   TableColumn,
-} from '../frontend/pivot_table_redux_query_generator';
+} from '../frontend/pivot_table_redux_types';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
@@ -81,7 +81,10 @@ export const MAX_TIME = 180;
 // - remove nextNoteId, nextAreaId and use nextId as a unique counter for all
 //   indexing except the indexing of the engines
 // 18: areaSelection change see b/235869542
-export const STATE_VERSION = 18;
+// 19: Added visualisedArgs state.
+// 20: Refactored thread sorting order.
+// 21: Updated perf sample selection to include a ts range instead of single ts
+export const STATE_VERSION = 21;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -89,13 +92,69 @@ export type EngineMode = 'WASM'|'HTTP_RPC';
 
 export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE'|'FORCE_BUILTIN_WASM';
 
-export enum TrackKindPriority {
-  MAIN_THREAD = 0,
-  RENDER_THREAD = 1,
-  GPU_COMPLETION = 2,
-  CHROME_IO_THREAD = 3,
-  CHROME_COMPOSITOR = 4,
-  ORDINARY = 5
+// Tracks within track groups (usually corresponding to processes) are sorted.
+// As we want to group all tracks related to a given thread together, we use
+// two keys:
+// - Primary key corresponds to a priority of a track block (all tracks related
+//   to a given thread or a single track if it's not thread-associated).
+// - Secondary key corresponds to a priority of a given thread-associated track
+//   within its thread track block.
+// Each track will have a sort key, which either a primary sort key
+// (for non-thread tracks) or a tid and secondary sort key (mapping of tid to
+// primary sort key is done independently).
+export enum PrimaryTrackSortKey {
+  DEBUG_SLICE_TRACK,
+  NULL_TRACK,
+  PROCESS_SCHEDULING_TRACK,
+  PROCESS_SUMMARY_TRACK,
+  EXPECTED_FRAMES_SLICE_TRACK,
+  ACTUAL_FRAMES_SLICE_TRACK,
+  PERF_SAMPLES_PROFILE_TRACK,
+  HEAP_PROFILE_TRACK,
+  MAIN_THREAD,
+  RENDER_THREAD,
+  GPU_COMPLETION_THREAD,
+  CHROME_IO_THREAD,
+  CHROME_COMPOSITOR_THREAD,
+  ORDINARY_THREAD,
+  COUNTER_TRACK,
+  ASYNC_SLICE_TRACK,
+  ORDINARY_TRACK,
+}
+
+// Key that is used to sort tracks within a block of tracks associated with a
+// given thread.
+export enum InThreadTrackSortKey {
+  THREAD_COUNTER_TRACK,
+  THREAD_SCHEDULING_STATE_TRACK,
+  CPU_STACK_SAMPLES_TRACK,
+  VISUALISED_ARGS_TRACK,
+  ORDINARY,
+  DEFAULT_TRACK,
+}
+
+// Sort key used for sorting tracks associated with a thread.
+export type ThreadTrackSortKey = {
+  utid: number,
+  priority: InThreadTrackSortKey,
+}
+
+// Sort key for all tracks: both thread-associated and non-thread associated.
+export type TrackSortKey = PrimaryTrackSortKey|ThreadTrackSortKey;
+
+// Mapping which defines order for threads within a given process.
+export type UtidToTrackSortKey = {
+  [utid: number]: {
+    tid?: number, sortKey: PrimaryTrackSortKey,
+  }
+}
+
+export enum ProfileType {
+  HEAP_PROFILE = 'heap_profile',
+  NATIVE_HEAP_PROFILE = 'heap_profile:libc.malloc',
+  JAVA_HEAP_PROFILE = 'heap_profile:com.android.art',
+  JAVA_HEAP_GRAPH = 'graph',
+  PERF_SAMPLE = 'perf',
 }
 
 export type FlamegraphStateViewingOption =
@@ -155,7 +214,7 @@ export interface TrackState {
   kind: string;
   name: string;
   labels?: string[];
-  trackKindPriority: TrackKindPriority;
+  trackSortKey: TrackSortKey;
   trackGroup?: string;
   config: {
     trackId?: number;
@@ -245,15 +304,16 @@ export interface HeapProfileSelection {
   id: number;
   upid: number;
   ts: number;
-  type: string;
+  type: ProfileType;
 }
 
 export interface PerfSamplesSelection {
   kind: 'PERF_SAMPLES';
   id: number;
   upid: number;
-  ts: number;
-  type: string;
+  leftTs: number;
+  rightTs: number;
+  type: ProfileType;
 }
 
 export interface FlamegraphState {
@@ -261,7 +321,7 @@ export interface FlamegraphState {
   upids: number[];
   startNs: number;
   endNs: number;
-  type: string;
+  type: ProfileType;
   viewingOption: FlamegraphStateViewingOption;
   focusRegex: string;
   expandedCallsite?: CallsiteInfo;
@@ -355,13 +415,10 @@ export type SortDirection = 'DESC'|'ASC';
 
 export interface PivotTableReduxState {
   // Currently selected area, if null, pivot table is not going to be visible.
-  selectionArea: PivotTableReduxAreaState|null;
+  selectionArea?: PivotTableReduxAreaState;
 
   // Query response
   queryResult: PivotTableReduxResult|null;
-
-  // Whether the panel is in edit mode
-  editMode: boolean;
 
   // Selected pivots. Map instead of Set because ES6 Set can't have
   // non-primitive keys; here keys are concatenated values.
@@ -426,6 +483,7 @@ export interface State {
   trackGroups: ObjectById<TrackGroupState>;
   tracks: ObjectById<TrackState>;
   uiTrackIdByTraceTrackId: {[key: number]: string;};
+  utidToThreadSortKey: UtidToTrackSortKey;
   areas: ObjectById<AreaById>;
   aggregatePreferences: ObjectById<AggregationState>;
   visibleTracks: string[];
@@ -442,6 +500,7 @@ export interface State {
   currentFlamegraphState: FlamegraphState|null;
   logsPagination: LogsPagination;
   traceConversionInProgress: boolean;
+  visualisedArgs: string[];
 
   /**
    * This state is updated on the frontend at 60Hz and eventually syncronised to

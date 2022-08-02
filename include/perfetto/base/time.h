@@ -182,6 +182,37 @@ inline struct timespec ToPosixTimespec(TimeMillis time) {
 
 std::string GetTimeFmt(const std::string& fmt);
 
+inline int64_t TimeGm(struct tm* tms) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  return static_cast<int64_t>(_mkgmtime(tms));
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
+  // NaCL has no timegm.
+  if (tms)  // Kinda if (true), but avoids "mark as noreturn" errors.
+    PERFETTO_FATAL("timegm not supported");
+  return -1;
+#else
+  return static_cast<int64_t>(timegm(tms));
+#endif
+}
+
+// Creates a time_t-compatible timestamp (seconds since epoch) from a tuple of
+// y-m-d-h-m-s. It's a saner version of timegm(). Some remarks:
+// The year is just the actual year (it's Y-1900 in timegm()).
+// The month ranges 1-12 (it's 0-11 in timegm()).
+inline int64_t MkTime(int year, int month, int day, int h, int m, int s) {
+  PERFETTO_DCHECK(year >= 1900);
+  PERFETTO_DCHECK(month > 0 && month <= 12);
+  PERFETTO_DCHECK(day > 0 && day <= 31);
+  struct tm tms {};
+  tms.tm_year = year - 1900;
+  tms.tm_mon = month - 1;
+  tms.tm_mday = day;
+  tms.tm_hour = h;
+  tms.tm_min = m;
+  tms.tm_sec = s;
+  return TimeGm(&tms);
+}
+
 }  // namespace base
 }  // namespace perfetto
 

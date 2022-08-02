@@ -26,6 +26,11 @@ import {
 } from '../controller/aggregation/slice_aggregation_controller';
 
 import {globals} from './globals';
+import {
+  Aggregation,
+  AggregationFunction,
+  TableColumn,
+} from './pivot_table_redux_types';
 
 export interface Table {
   name: string;
@@ -84,20 +89,11 @@ export interface ArgumentColumn {
   argument: string;
 }
 
-export type TableColumn = RegularColumn|ArgumentColumn;
-
-export type AggregationFunction = 'COUNT'|'SUM'|'MIN'|'MAX';
-
 function outerAggregation(fn: AggregationFunction): AggregationFunction {
   if (fn === 'COUNT') {
     return 'SUM';
   }
   return fn;
-}
-
-export interface Aggregation {
-  aggregationFunction: AggregationFunction;
-  column: TableColumn;
 }
 
 export function tableColumnEquals(first: TableColumn, second: TableColumn) {
@@ -128,7 +124,7 @@ function aggregationAlias(
 
 export function areaFilter(area: Area): string {
   return `
-    ts > ${toNs(area.startSec)}
+    ts + dur > ${toNs(area.startSec)}
     and ts < ${toNs(area.endSec)}
     and track_id in (${getSelectedTrackIds(area).join(', ')})
   `;
@@ -247,7 +243,7 @@ export function aggregationIndex(
 export function generateQueryFromState(
     state: PivotTableReduxState,
     ): PivotTableReduxQuery {
-  if (state.selectionArea === null) {
+  if (state.selectionArea === undefined) {
     throw new QueryGeneratorError('Should not be called without area');
   }
   return generateQuery(

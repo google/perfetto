@@ -46,7 +46,7 @@ import VmstatCounters = protos.perfetto.protos.VmstatCounters;
 import IPCFrame = protos.perfetto.protos.IPCFrame;
 import IMethodInfo =
     protos.perfetto.protos.IPCFrame.BindServiceReply.IMethodInfo;
-import ITraceStats = protos.perfetto.protos.ITraceStats;
+import IBufferStats = protos.perfetto.protos.TraceStats.IBufferStats;
 import ISlice = protos.perfetto.protos.ReadBuffersResponse.ISlice;
 import EnableTracingRequest = protos.perfetto.protos.EnableTracingRequest;
 import DisableTracingRequest = protos.perfetto.protos.DisableTracingRequest;
@@ -63,6 +63,8 @@ import QueryArgs = protos.perfetto.protos.QueryArgs;
 import StatusResult = protos.perfetto.protos.StatusResult;
 import ComputeMetricArgs = protos.perfetto.protos.ComputeMetricArgs;
 import ComputeMetricResult = protos.perfetto.protos.ComputeMetricResult;
+import DisableAndReadMetatraceResult =
+    protos.perfetto.protos.DisableAndReadMetatraceResult;
 
 export {
   AndroidLogConfig,
@@ -75,6 +77,7 @@ export {
   ComputeMetricArgs,
   ComputeMetricResult,
   DataSourceConfig,
+  DisableAndReadMetatraceResult,
   DisableTracingRequest,
   DisableTracingResponse,
   EnableTracingRequest,
@@ -87,13 +90,13 @@ export {
   HeapprofdConfig,
   IAndroidPowerConfig,
   IBufferConfig,
+  IBufferStats,
   IMethodInfo,
   IPCFrame,
   IProcessStatsConfig,
   ISlice,
   ISysStatsConfig,
   ITraceConfig,
-  ITraceStats,
   JavaContinuousDumpConfig,
   JavaHprofConfig,
   MeminfoCounters,

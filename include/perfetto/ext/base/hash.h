@@ -59,6 +59,13 @@ class Hash {
     }
   }
 
+  // Allow hashing anything that has a |data| field, a |size| field,
+  // and has the kHashable trait (e.g., base::StringView).
+  template <typename T, typename = std::enable_if<T::kHashable>>
+  void Update(const T& t) {
+    Update(t.data(), t.size());
+  }
+
   uint64_t digest() const { return result_; }
 
   // Usage:

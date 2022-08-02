@@ -26,7 +26,10 @@ trace = synth_common.create_trace()
 trace.add_packet()
 trace.add_process(1, 0, 'init')
 trace.add_process(2, 1, 'system_server')
-trace.add_process(3, 1, 'com.google.android.calendar')
+trace.add_process(3, 1, 'com.google.android.calendar', uid=10001)
+
+trace.add_package_list(
+    ts=100, name='com.google.android.calendar', uid=10001, version_code=123)
 
 trace.add_ftrace_packet(cpu=0)
 
@@ -70,6 +73,12 @@ trace.add_atrace_begin(
     buf='performResume:com.google.android.calendar.MainActivity')
 trace.add_atrace_end(ts=to_s(194), tid=3, pid=3)
 trace.add_atrace_end(ts=to_s(195), tid=3, pid=3)
+
+trace.add_atrace_begin(ts=to_s(195), tid=3, pid=3, buf='activityStart')
+trace.add_atrace_end(ts=to_s(196), tid=3, pid=3)
+
+trace.add_atrace_begin(ts=to_s(196), tid=3, pid=3, buf='activityResume')
+trace.add_atrace_end(ts=to_s(197), tid=3, pid=3)
 
 trace.add_atrace_begin(
     ts=to_s(200),

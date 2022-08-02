@@ -1,13 +1,51 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Add android.statsd datasource.
+    * Removed log spam about sys.trace.traced_started in standalone builds.
+    * Changed kallsyms parsing in traced_probes (ftrace) to be always
+      synchronous (when starting the trace, rather than on the first batch).
+    * Added ksyms_mem_policy = KSYMS_RETAIN_FOREVER config to avoid destroying
+      and re-parsing kallsysm repeatedly in benchmark runs.
+    * Improve heap profiling shutdown: now the shared memory buffer where
+      alloc/free records are stored is properly flushed when stopping the data
+      source.
   Trace Processor:
-    * Removed enable_perfetto_x64_cpu_opt by default for x64 MacOS
-      since it caused issues for CIs.
+    * Deprecate calling NotifyEndOfFile more than once: Flush should instead be
+      used for all but the final call.
   UI:
     *
   SDK:
-    *
+    * Fixed a bug (b/239725760) that would cause abstract sockets using the
+      "@name" syntax in PERFETTO_CONSUMER_SOCK_NAME/PERFETTO_PRODUCER_SOCK_NAME
+      to have a trailing \0 in the socket name. This breaks interoperability
+      with adb forwarding. This is a tracing protocol breaking change. Nobody
+      seems to be relying on @abstract syntax across different versions of
+      client vs service.
+    * Changed the mangling scheme for protozero enums nested in another message:
+      instead of OuterClass_Enum_VALUE, the enum values will be just named
+      VALUE with the enum itself wrapped in a perfetto_pbzero_enum_OuterClass
+      namespace to prevent naming collisions. This will allow the users
+      to alias the enum directly and use throughout their code.
+      The exact name mangling scheme is a carry-over from libprotobuf and
+      an internal implementation detail, so nobody should be relying on that.
+
+v27.1 - 2022-07-11:
+  SDK:
+    * Added an API for shutting down Perfetto.
+
+
+v27.0 - 2022-07-01:
+  Tracing service and probes:
+    * Fix rare crash due to watchdog timeout being too short.
+  Trace Processor:
+    * Removed enable_perfetto_x64_cpu_opt by default for x64 MacOS
+      since it caused issues for CIs.
+    * Improved performance of filtering and sorting on most queries.
+  UI:
+    * Changed sorting of process groups to take slice count and presence of
+      perf profiles into account.
+  SDK:
+    * 
 
 
 v26.1 - 2022-06-13:

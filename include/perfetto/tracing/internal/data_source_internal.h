@@ -85,10 +85,24 @@ struct DataSourceState {
   // Only the tuple (backend_id, data_source_instance_id) is globally unique.
   uint64_t data_source_instance_id = 0;
 
+  // Set to a non-0 target buffer reservation ID iff startup tracing is
+  // currently enabled for this data source.
+  std::atomic<uint16_t> startup_target_buffer_reservation{0};
+
+  // If the data source was originally started for startup tracing, this is set
+  // to the startup session's ID.
+  uint64_t startup_session_id = 0;
+
   // A hash of the trace config used by this instance. This is used to
   // de-duplicate instances for data sources with identical names (e.g., track
   // event).
   uint64_t config_hash = 0;
+
+  // Similar to config_hash, but excludes target buffers and service-set fields
+  // for matching of startup-tracing data source instances to sessions later
+  // started by the service.
+  // Learn more: ComputeStartupConfigHash
+  uint64_t startup_config_hash = 0;
 
   // If this data source is being intercepted (see Interceptor), this field
   // contains the non-zero id of a registered interceptor which should receive
@@ -152,31 +166,21 @@ struct DataSourceStaticState {
 
 // Per-DataSource-instance thread-local state.
 struct DataSourceInstanceThreadLocalState {
-
-  void Reset() {
-    trace_writer.reset();
-    incremental_state.reset();
-    data_source_custom_tls.reset();
-    muxer_id_for_testing = 0;
-    backend_id = 0;
-    backend_connection_id = 0;
-    buffer_id = 0;
-    data_source_instance_id = 0;
-    incremental_state_generation = 0;
-    is_intercepted = false;
-  }
+  void Reset() { *this = DataSourceInstanceThreadLocalState{}; }
 
   std::unique_ptr<TraceWriterBase> trace_writer;
   using ObjectWithDeleter = std::unique_ptr<void, void (*)(void*)>;
   ObjectWithDeleter incremental_state = {nullptr, [](void*) {}};
   ObjectWithDeleter data_source_custom_tls = {nullptr, [](void*) {}};
-  uint32_t incremental_state_generation;
-  uint32_t muxer_id_for_testing;
-  TracingBackendId backend_id;
-  uint32_t backend_connection_id;
-  BufferId buffer_id;
-  uint64_t data_source_instance_id;
-  bool is_intercepted;
+  uint32_t incremental_state_generation = 0;
+  uint32_t muxer_id_for_testing = 0;
+  TracingBackendId backend_id = 0;
+  uint32_t backend_connection_id = 0;
+  BufferId buffer_id = 0;
+  uint64_t data_source_instance_id = 0;
+  bool is_intercepted = false;
+  bool last_packet_was_empty = false;
+  uint16_t startup_target_buffer_reservation = 0;
 };
 
 // Per-DataSource-type thread-local state.

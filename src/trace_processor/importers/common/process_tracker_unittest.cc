@@ -34,7 +34,8 @@ class ProcessTrackerTest : public ::testing::Test {
  public:
   ProcessTrackerTest() {
     context.storage.reset(new TraceStorage());
-    context.global_args_tracker.reset(new GlobalArgsTracker(&context));
+    context.global_args_tracker.reset(
+        new GlobalArgsTracker(context.storage.get()));
     context.args_tracker.reset(new ArgsTracker(&context));
     context.process_tracker.reset(new ProcessTracker(&context));
     context.event_tracker.reset(new EventTracker(&context));

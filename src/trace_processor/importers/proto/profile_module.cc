@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/proto/profile_module.h"
+#include <string>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -28,11 +29,13 @@
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/importers/proto/profiler_util.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/stack_traces_util.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/perf_events.pbzero.h"
@@ -446,7 +449,7 @@ void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
   StringId build_id;
   // TODO(b/148109467): Remove workaround once all active Chrome versions
   // write raw bytes instead of a string as build_id.
-  if (module_symbols.build_id().size == 33) {
+  if (util::IsHexModuleId(module_symbols.build_id())) {
     build_id = context_->storage->InternString(module_symbols.build_id());
   } else {
     build_id = context_->storage->InternString(base::StringView(base::ToHex(
@@ -587,6 +590,19 @@ void ProfileModule::ParseSmapsPacket(int64_t ts, ConstBytes blob) {
          static_cast<int64_t>(e.shared_clean_resident_kb()),
          static_cast<int64_t>(e.locked_kb()),
          static_cast<int64_t>(e.proportional_resident_kb())});
+  }
+}
+
+void ProfileModule::NotifyEndOfFile() {
+  for (auto it = context_->storage->stack_profile_mapping_table().IterateRows();
+       it; ++it) {
+    NullTermStringView path = context_->storage->GetString(it.name());
+    NullTermStringView build_id = context_->storage->GetString(it.build_id());
+
+    if (path.StartsWith("/data/local/tmp/") && build_id.empty()) {
+      context_->storage->IncrementStats(
+          stats::symbolization_tmp_build_id_not_found);
+    }
   }
 }
 

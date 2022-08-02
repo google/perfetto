@@ -17,7 +17,7 @@
 import {Actions} from '../common/actions';
 import {Engine} from '../common/engine';
 import {featureFlags} from '../common/feature_flags';
-import {ColumnType} from '../common/query_result';
+import {ColumnType, STR} from '../common/query_result';
 import {
   AreaSelection,
   PivotTableReduxQuery,
@@ -29,6 +29,9 @@ import {
   aggregationIndex,
   generateQueryFromState,
 } from '../frontend/pivot_table_redux_query_generator';
+import {
+  PivotTree,
+} from '../frontend/pivot_table_redux_types';
 
 import {Controller} from './controller';
 import {globals} from './globals';
@@ -39,21 +42,6 @@ export const PIVOT_TABLE_REDUX_FLAG = featureFlags.register({
   description: 'Second version of pivot table',
   defaultValue: false,
 });
-
-// Node in the hierarchical pivot tree. Only leaf nodes contain data from the
-// query result.
-export interface PivotTree {
-  // Whether the node should be collapsed in the UI, false by default and can
-  // be toggled with the button.
-  isCollapsed: boolean;
-
-  // Non-empty only in internal nodes.
-  children: Map<ColumnType, PivotTree>;
-  aggregates: ColumnType[];
-
-  // Non-empty only in leaf nodes.
-  rows: ColumnType[][];
-}
 
 // Auxiliary class to build the tree from query response.
 class TreeBuilder {
@@ -73,6 +61,7 @@ class TreeBuilder {
       tree = TreeBuilder.insertChild(
           tree, value, this.createNode(i + 1, firstRow));
     }
+    tree.rows.push(firstRow);
     this.lastRow = firstRow;
   }
 
@@ -145,6 +134,7 @@ export class PivotTableReduxController extends Controller<{}> {
   engine: Engine;
   lastQueryAreaId = '';
   lastQueryAreaTracks = new Set<string>();
+  requestedArgumentNames = false;
 
   constructor(args: {engine: Engine}) {
     super({});
@@ -167,7 +157,7 @@ export class PivotTableReduxController extends Controller<{}> {
   }
 
   shouldRerun(state: PivotTableReduxState, selection: AreaSelection) {
-    if (state.selectionArea === null || state.editMode) {
+    if (state.selectionArea === undefined) {
       return false;
     }
 
@@ -223,9 +213,30 @@ export class PivotTableReduxController extends Controller<{}> {
     globals.dispatch(Actions.setCurrentTab({tab: 'pivot_table_redux'}));
   }
 
+  async requestArgumentNames() {
+    this.requestedArgumentNames = true;
+    const result = await this.engine.query(`
+      select distinct flat_key from args
+    `);
+    const it = result.iter({flat_key: STR});
+
+    const argumentNames = [];
+    while (it.valid()) {
+      argumentNames.push(it.flat_key);
+      it.next();
+    }
+
+    globals.dispatch(Actions.setPivotTableArgumentNames({argumentNames}));
+  }
+
+
   run() {
     if (!PIVOT_TABLE_REDUX_FLAG.get()) {
       return;
+    }
+
+    if (!this.requestedArgumentNames) {
+      this.requestArgumentNames();
     }
 
     const pivotTableState = globals.state.nonSerializableState.pivotTableRedux;
@@ -249,7 +260,7 @@ export class PivotTableReduxController extends Controller<{}> {
     }
 
     if (selection !== null && selection.kind === 'AREA' &&
-        (pivotTableState.selectionArea === null ||
+        (pivotTableState.selectionArea === undefined ||
          pivotTableState.selectionArea.areaId !== selection.areaId)) {
       globals.dispatch(
           Actions.togglePivotTableRedux({areaId: selection.areaId}));

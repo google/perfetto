@@ -21,7 +21,7 @@ import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {createEmptyState} from '../common/empty_state';
 import {RECORDING_V2_FLAG} from '../common/feature_flags';
 import {initializeImmerJs} from '../common/immer_init';
-import {pluginRegistry} from '../common/plugins';
+import {PluginContextImpl, pluginRegistry} from '../common/plugins';
 import {State} from '../common/state';
 import {initWasm} from '../common/wasm_engine_proxy';
 import {ControllerWorkerInitMessage} from '../common/worker_messages';
@@ -156,6 +156,7 @@ function setupContentSecurityPolicy() {
       `'self'`,
       'http://127.0.0.1:9001',  // For trace_processor_shell --httpd.
       'ws://127.0.0.1:9001',    // Ditto, for the websocket RPC.
+      'ws://127.0.0.1:8037',    // For the adb websocket server.
       'https://www.google-analytics.com',
       'https://*.googleapis.com',  // For Google Cloud Storage fetches.
       'blob:',
@@ -300,7 +301,8 @@ function main() {
 
   // Initialize all plugins:
   for (const plugin of pluginRegistry.values()) {
-    plugin.activate();
+    const context = new PluginContextImpl(plugin.pluginId);
+    plugin.activate(context);
   }
 }
 

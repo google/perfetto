@@ -192,15 +192,7 @@ class MockBoundInserter : public ArgsTracker::BoundInserter {
 class MockSliceTracker : public SliceTracker {
  public:
   explicit MockSliceTracker(TraceProcessorContext* context)
-      : SliceTracker(context) {
-    ON_CALL(*this, EndMaybePreservingArgs(_, _, _, _, _))
-        .WillByDefault([this](int64_t timestamp, TrackId track_id, StringId cat,
-                              StringId name, SetArgsCallback args_callback) {
-          auto id = End(timestamp, track_id, cat, name, args_callback);
-          return id ? base::make_optional(IdAndArgsTracker{*id, base::nullopt})
-                    : base::nullopt;
-        });
-  }
+      : SliceTracker(context) {}
 
   MOCK_METHOD5(Begin,
                base::Optional<SliceId>(int64_t timestamp,
@@ -214,12 +206,6 @@ class MockSliceTracker : public SliceTracker {
                                        StringId cat,
                                        StringId name,
                                        SetArgsCallback args_callback));
-  MOCK_METHOD5(EndMaybePreservingArgs,
-               base::Optional<IdAndArgsTracker>(int64_t timestamp,
-                                                TrackId track_id,
-                                                StringId cat,
-                                                StringId name,
-                                                SetArgsCallback args_callback));
   MOCK_METHOD6(Scoped,
                base::Optional<SliceId>(int64_t timestamp,
                                        TrackId track_id,
@@ -240,12 +226,14 @@ class ProtoTraceParserTest : public ::testing::Test {
     storage_ = new TraceStorage();
     context_.storage.reset(storage_);
     context_.track_tracker.reset(new TrackTracker(&context_));
-    context_.global_args_tracker.reset(new GlobalArgsTracker(&context_));
+    context_.global_args_tracker.reset(
+        new GlobalArgsTracker(context_.storage.get()));
     context_.global_stack_profile_tracker.reset(
         new GlobalStackProfileTracker());
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
-    context_.metadata_tracker.reset(new MetadataTracker(&context_));
+    context_.metadata_tracker.reset(
+        new MetadataTracker(context_.storage.get()));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
     sched_ = new MockSchedEventTracker(&context_);
@@ -255,7 +243,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     slice_ = new NiceMock<MockSliceTracker>(&context_);
     context_.slice_tracker.reset(slice_);
     context_.slice_translation_table.reset(new SliceTranslationTable(storage_));
-    clock_ = new ClockTracker(&context_);
+    clock_ = new ClockTracker(context_.storage.get());
     context_.clock_tracker.reset(clock_);
     context_.flow_tracker.reset(new FlowTracker(&context_));
     context_.sorter.reset(new TraceSorter(&context_, CreateParser(),
@@ -849,7 +837,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
@@ -881,7 +869,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
 
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(storage_->thread_slice_table().id().row_map().size(), 2u);
+  EXPECT_EQ(storage_->thread_slice_table().row_count(), 2u);
   auto id_0 = storage_->thread_slice_table().id().IndexOf(SliceId(0u));
   EXPECT_TRUE(id_0);
   EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_0], 2003000);
@@ -939,7 +927,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
@@ -970,7 +958,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
 
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(storage_->thread_slice_table().id().row_map().size(), 2u);
+  EXPECT_EQ(storage_->thread_slice_table().row_count(), 2u);
   auto id_0 = storage_->thread_slice_table().id().IndexOf(SliceId(0u));
   EXPECT_TRUE(id_0);
   EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_0], 2005000);
@@ -1113,7 +1101,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
 
   tables::ThreadTable::Row row(16);
   row.upid = 2u;
@@ -1169,7 +1157,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
 
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(storage_->thread_slice_table().id().row_map().size(), 3u);
+  EXPECT_EQ(storage_->thread_slice_table().row_count(), 3u);
   auto id_0 = storage_->thread_slice_table().id().IndexOf(SliceId(0u));
   EXPECT_TRUE(id_0);
   EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_0], 2003000);
@@ -1292,7 +1280,7 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
@@ -1475,8 +1463,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   EXPECT_CALL(*process_,
               UpdateThreadNameByUtid(1u, kNullStringId,
                                      ThreadNamePriority::kTrackDescriptor));
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
-  EXPECT_CALL(*process_, UpdateThread(17, 15)).WillRepeatedly(Return(2));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
+  EXPECT_CALL(*process_, UpdateThread(17, 15)).WillRepeatedly(Return(2u));
 
   tables::ThreadTable::Row t1(16);
   t1.upid = 1u;
@@ -1532,7 +1520,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   EXPECT_EQ(storage_->virtual_track_slices().thread_instruction_deltas()[0],
             20);
 
-  EXPECT_EQ(storage_->thread_slice_table().id().row_map().size(), 2u);
+  EXPECT_EQ(storage_->thread_slice_table().row_count(), 2u);
   auto id_0 = storage_->thread_slice_table().id().IndexOf(SliceId(0u));
   EXPECT_TRUE(id_0);
   EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_0], 2007000);
@@ -1613,7 +1601,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
     event->add_extra_counter_values(10);  // absolute: 1010000.
   }
 
-  EXPECT_CALL(*process_, UpdateThread(1, 5)).WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(1, 5)).WillRepeatedly(Return(1u));
 
   tables::ThreadTable::Row t1(16);
   t1.upid = 1u;
@@ -1645,7 +1633,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
   EXPECT_EQ(storage_->thread_track_table().utid()[0], 1u);
 
   // Counter values should also be imported into thread slices.
-  EXPECT_EQ(storage_->thread_slice_table().id().row_map().size(), 1u);
+  EXPECT_EQ(storage_->thread_slice_table().row_count(), 1u);
   auto id_0 = storage_->thread_slice_table().id().IndexOf(SliceId(0u));
   EXPECT_TRUE(id_0);
   EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_0], 1000000);
@@ -1825,7 +1813,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
@@ -1918,8 +1906,8 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
-  EXPECT_CALL(*process_, UpdateThread(17, 15)).WillRepeatedly(Return(2));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
+  EXPECT_CALL(*process_, UpdateThread(17, 15)).WillRepeatedly(Return(2u));
 
   tables::ThreadTable::Row t1(16);
   t1.upid = 1u;
@@ -2067,7 +2055,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
@@ -2184,7 +2172,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
@@ -2255,7 +2243,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
@@ -2328,7 +2316,7 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
   // Only the begin thread time can be imported into the counter table.
   EXPECT_CALL(*event_,
               PushCounter(1010000, testing::DoubleEq(2005000), TrackId{1}));
@@ -2408,7 +2396,7 @@ TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
 
   Tokenize();
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
 
   tables::ThreadTable::Row row(16);
   row.upid = 1u;
@@ -2823,7 +2811,7 @@ TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
     samples->set_process_priority(30);
   }
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
 
   Tokenize();
   context_.sorter->ExtractEventsForced();
@@ -2910,7 +2898,7 @@ TEST_F(ProtoTraceParserTest, CPUProfileSamplesTimestampsAreClockMonotonic) {
     samples->add_timestamp_delta_us(15);
   }
 
-  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
 
   Tokenize();
   context_.sorter->ExtractEventsForced();

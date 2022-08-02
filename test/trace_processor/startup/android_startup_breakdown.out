@@ -21,6 +21,14 @@ android_startup {
         dur_ns: 9000000000
         dur_ms: 9000.0
       }
+      time_activity_start {
+        dur_ns: 1000000000
+        dur_ms: 1000.0
+      }
+      time_activity_resume {
+        dur_ns: 1000000000
+        dur_ms: 1000.0
+      }
       time_before_start_process {
         dur_ns: 18000000000
         dur_ms: 18000.0
@@ -49,6 +57,17 @@ android_startup {
     activity_hosting_process_count: 1
     process {
       name: "com.google.android.calendar"
+      uid: 10001
+      package {
+        package_name: "com.google.android.calendar"
+        apk_version_code: 123
+        debuggable: false
+      }
+      packages_for_uid {
+        package_name: "com.google.android.calendar"
+        apk_version_code: 123
+        debuggable: false
+      }
     }
     activities {
       name: "com.google.android.calendar.MainActivity"

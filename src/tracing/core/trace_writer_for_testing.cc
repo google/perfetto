@@ -81,11 +81,27 @@ TraceWriterForTesting::NewTracePacket() {
           protos::pbzero::Trace::kPacketFieldNumber),
       data);
   stream_.WriteBytes(data, static_cast<uint32_t>(data_end - data));
+  cur_packet_->set_size_field(
+      stream_.ReserveBytes(protozero::proto_utils::kMessageLengthFieldSize));
+  cur_packet_written_start_ = static_cast<size_t>(stream_.written());
 
   auto packet = TraceWriter::TracePacketHandle(cur_packet_.get());
-  packet->set_size_field(
-      stream_.ReserveBytes(protozero::proto_utils::kMessageLengthFieldSize));
   return packet;
+}
+
+void TraceWriterForTesting::FinishTracePacket() {
+  // If the caller uses TakeStreamWriter(), cur_packet_->size() is not up to
+  // date, only the stream writer knows the exact size.
+  // cur_packet_->size_field() is still used to store the start of the packet.
+  uint8_t* patch = cur_packet_->size_field();
+  if (patch) {
+    size_t size =
+        static_cast<size_t>(stream_.written()) - cur_packet_written_start_;
+    protozero::proto_utils::WriteRedundantVarInt(static_cast<uint32_t>(size),
+                                                 patch);
+  }
+  cur_packet_->Reset(&stream_);
+  cur_packet_->Finalize();  // To avoid the DCHECK in NewTracePacket().
 }
 
 WriterID TraceWriterForTesting::writer_id() const {

@@ -23,8 +23,13 @@ import {
   PERF_SAMPLES_KEY,
   SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
 } from '../common/flamegraph_util';
-import {CallsiteInfo, FlamegraphStateViewingOption} from '../common/state';
+import {
+  CallsiteInfo,
+  FlamegraphStateViewingOption,
+  ProfileType,
+} from '../common/state';
 import {timeToCode} from '../common/time';
+import {profileType} from '../controller/flamegraph_controller';
 
 import {PerfettoMouseEvent} from './events';
 import {Flamegraph, NodeRendering} from './flamegraph';
@@ -39,23 +44,6 @@ import {convertTraceToPprofAndDownload} from './trace_converter';
 interface FlamegraphDetailsPanelAttrs {}
 
 const HEADER_HEIGHT = 30;
-
-enum ProfileType {
-  NATIVE_HEAP_PROFILE = 'native',
-  JAVA_HEAP_GRAPH = 'graph',
-  PERF_SAMPLE = 'perf'
-}
-
-function isProfileType(s: string): s is ProfileType {
-  return Object.values(ProfileType).includes(s as ProfileType);
-}
-
-function toProfileType(s: string): ProfileType {
-  if (!isProfileType(s)) {
-    throw new Error('Unknown type ${s}');
-  }
-  return s;
-}
 
 function toSelectedCallsite(c: CallsiteInfo|undefined): string {
   if (c !== undefined && c.name !== undefined) {
@@ -90,7 +78,7 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
         flamegraphDetails.durNs !== undefined &&
         flamegraphDetails.pids !== undefined &&
         flamegraphDetails.upids !== undefined) {
-      this.profileType = toProfileType(flamegraphDetails.type);
+      this.profileType = profileType(flamegraphDetails.type);
       this.ts = flamegraphDetails.durNs;
       this.pids = flamegraphDetails.pids;
       if (flamegraphDetails.flamegraph) {
@@ -197,12 +185,16 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
 
   private getTitle(): string {
     switch (this.profileType!) {
+      case ProfileType.HEAP_PROFILE:
+        return 'Heap profile:';
       case ProfileType.NATIVE_HEAP_PROFILE:
-        return 'Heap Profile:';
+        return 'Native heap profile:';
+      case ProfileType.JAVA_HEAP_PROFILE:
+        return 'Java heap profile:';
       case ProfileType.JAVA_HEAP_GRAPH:
-        return 'Java Heap:';
+        return 'Java heap graph:';
       case ProfileType.PERF_SAMPLE:
-        return 'Perf sample:';
+        return 'Profile:';
       default:
         throw new Error('unknown type');
     }
@@ -220,7 +212,9 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
         } else {
           return RENDER_SELF_AND_TOTAL;
         }
+      case ProfileType.HEAP_PROFILE:
       case ProfileType.NATIVE_HEAP_PROFILE:
+      case ProfileType.JAVA_HEAP_PROFILE:
       case ProfileType.PERF_SAMPLE:
         return RENDER_SELF_AND_TOTAL;
       default:
@@ -293,21 +287,39 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
   private static selectViewingOptions(profileType: ProfileType) {
     switch (profileType) {
       case ProfileType.PERF_SAMPLE:
-        return [this.buildButtonComponent(PERF_SAMPLES_KEY, 'samples')];
+        return [this.buildButtonComponent(PERF_SAMPLES_KEY, 'Samples')];
       case ProfileType.JAVA_HEAP_GRAPH:
         return [
           this.buildButtonComponent(
-              SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY, 'space'),
-          this.buildButtonComponent(OBJECTS_ALLOCATED_NOT_FREED_KEY, 'objects'),
+              SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY, 'Size'),
+          this.buildButtonComponent(OBJECTS_ALLOCATED_NOT_FREED_KEY, 'Objects'),
+        ];
+      case ProfileType.HEAP_PROFILE:
+        return [
+          this.buildButtonComponent(
+              SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY, 'Unreleased size'),
+          this.buildButtonComponent(OBJECTS_ALLOCATED_NOT_FREED_KEY, 'Count'),
+          this.buildButtonComponent(
+              ALLOC_SPACE_MEMORY_ALLOCATED_KEY, 'Total size'),
+          this.buildButtonComponent(OBJECTS_ALLOCATED_KEY, 'Total count'),
         ];
       case ProfileType.NATIVE_HEAP_PROFILE:
         return [
           this.buildButtonComponent(
-              SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY, 'space'),
-          this.buildButtonComponent(OBJECTS_ALLOCATED_NOT_FREED_KEY, 'objects'),
+              SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY, 'Unreleased malloc size'),
           this.buildButtonComponent(
-              ALLOC_SPACE_MEMORY_ALLOCATED_KEY, 'alloc space'),
-          this.buildButtonComponent(OBJECTS_ALLOCATED_KEY, 'alloc objects'),
+              OBJECTS_ALLOCATED_NOT_FREED_KEY, 'Unreleased malloc count'),
+          this.buildButtonComponent(
+              ALLOC_SPACE_MEMORY_ALLOCATED_KEY, 'Total malloc size'),
+          this.buildButtonComponent(
+              OBJECTS_ALLOCATED_KEY, 'Total malloc count'),
+        ];
+      case ProfileType.JAVA_HEAP_PROFILE:
+        return [
+          this.buildButtonComponent(
+              ALLOC_SPACE_MEMORY_ALLOCATED_KEY, 'Total allocation size'),
+          this.buildButtonComponent(
+              OBJECTS_ALLOCATED_KEY, 'Total allocation count'),
         ];
       default:
         throw new Error(`Unexpected profile type ${profileType}`);

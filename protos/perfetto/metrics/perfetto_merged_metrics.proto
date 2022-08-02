@@ -13,22 +13,67 @@ package perfetto.protos;
 
 option go_package = "github.com/google/perfetto/perfetto_proto";
 
-// Begin of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
+// Begin of protos/perfetto/metrics/android/process_metadata.proto
 
-// Measure app deadline missed.
-message AndroidFrameTimelineMetric {
-  message ProcessBreakdown {
-    // Process name
-    optional string process_name = 1;
-    // Count of app deadline missed in the process
-    optional int64 app_deadline_missed_count = 2;
+message AndroidProcessMetadata {
+  // Process name. Usually, cmdline or <package_name>(:<custom_name>)?.
+  optional string name = 1;
+
+  // User id under which this process runs.
+  optional int64 uid = 2;
+
+  // Package metadata from Android package list.
+  message Package {
+    optional string package_name = 1;
+    optional int64 apk_version_code = 2;
+    optional bool debuggable = 3;
   }
 
-  // Total count for app deadline missed
-  optional int64 app_deadline_missed_total_count = 1;
+  // Package that this process belongs to.
+  //
+  // If this process shares its uid (see `packages_for_uid` field), the package
+  // is determined based on the process name and package name. If there is no
+  // match this field is empty.
+  optional Package package = 7;
 
-  // Process name and app deadline missed metrics
+  // All packages using this uid.
+  //
+  // Shared uid documentation:
+  // https://developer.android.com/guide/topics/manifest/manifest-element#uid
+  repeated Package packages_for_uid = 8;
+
+  reserved 3, 4, 5, 6;
+}
+
+// End of protos/perfetto/metrics/android/process_metadata.proto
+
+// Begin of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
+
+message AndroidFrameTimelineMetric {
+  message ProcessBreakdown {
+    optional AndroidProcessMetadata process = 3;
+
+    optional int64 total_frames = 4;
+    optional int64 missed_frames = 5;
+    optional int64 missed_app_frames = 6;
+    optional int64 missed_sf_frames = 7;
+
+    optional int64 frame_dur_max = 8;
+    optional int64 frame_dur_avg = 9;
+    optional int64 frame_dur_p50 = 10;
+    optional int64 frame_dur_p90 = 11;
+    optional int64 frame_dur_p95 = 12;
+    optional int64 frame_dur_p99 = 13;
+
+    reserved 1, 2;
+  }
+
+  optional int64 total_frames = 4;
+  optional int64 missed_app_frames = 5;
+
   repeated ProcessBreakdown process = 2;
+
+  reserved 1;
 }
 
 
@@ -628,54 +673,111 @@ message AndroidIrqRuntimeMetric {
 
 // End of protos/perfetto/metrics/android/irq_runtime_metric.proto
 
-// Begin of protos/perfetto/metrics/android/jank_metric.proto
+// Begin of protos/perfetto/metrics/android/jank_cuj_metric.proto
 
-message AndroidJankMetrics {
-  repeated Warning warnings = 1;
+message AndroidJankCujMetric {
+  repeated Cuj cuj = 1;
 
-  message Warning {
-    optional int64 ts = 1;
-    optional int64 dur = 2;
+  // Next id: 11
+  message Cuj {
+    // ID of the CUJ that is unique within the trace.
+    optional int32 id = 1;
 
-    optional string process_name = 3;
-    optional string warning_text = 4;
+    // Name of the CUJ, extracted from the CUJ trace marker.
+    // For example SHADE_EXPAND_COLLAPSE from J<SHADE_EXPAND_COLLAPSE>.
+    optional string name = 2;
+
+    // Details about the process (uid, version, etc)
+    optional AndroidProcessMetadata process = 3;
+
+    // ts of the CUJ trace marker slice.
+    optional int64 ts = 4;
+
+    // dur of the CUJ trace marker slice.
+    optional int64 dur = 5;
+
+    // Details about each of the frames within the CUJ.
+    repeated Frame frame = 6;
+
+    // Details about each of the SF frames within the CUJ.
+    repeated Frame sf_frame = 10;
+
+    // Metrics extracted from the counters output by FrameTracker
+    // Does not contain the frame_dur percentile information.
+    optional Metrics counter_metrics = 7;
+
+    // Metrics extracted from the frame timeline.
+    optional Metrics timeline_metrics = 8;
+
+    // Metrics extracted from the trace slices.
+    optional Metrics trace_metrics = 9;
+  }
+
+  // Next id: 8
+  message Frame {
+    // Index of the frame within the single user journey.
+    optional int64 frame_number = 1;
+
+    // VSYNC ID of the frame.
+    optional int64 vsync = 2;
+
+    optional int64 ts = 3;
+    optional int64 dur = 4;
+    optional int64 dur_expected = 7;
+
+    // Whether the app process missed the frame deadline.
+    // Only set for the App frames. Always left unset for SF frames.
+    optional bool app_missed = 5;
+
+    // Whether SF missed the frame deadline.
+    optional bool sf_missed = 6;
+  }
+
+  // Next id: 12
+  message Metrics {
+    // Overall number of frames within the CUJ.
+    optional int64 total_frames = 1;
+
+    // Number of missed frames.
+    optional int64 missed_frames = 2;
+
+    // Number of frames missed due to the app missing the deadline.
+    optional int64 missed_app_frames = 3;
+
+    // Number of frames missed due to SF.
+    optional int64 missed_sf_frames = 4;
+
+    // Number of successive frames missed.
+    // Not available in timeline_metrics and trace_metrics.
+    optional int64 missed_frames_max_successive = 5;
+
+    // Max frame duration.
+    // Not available in counter_metrics.
+    optional int64 frame_dur_max = 6;
+
+    // Average frame duration.
+    // Not available in counter_metrics.
+    optional int64 frame_dur_avg = 7;
+
+    // Median frame duration.
+    // Not available in counter_metrics.
+    optional int64 frame_dur_p50 = 8;
+
+    // P90 frame duration.
+    // Not available in counter_metrics.
+    optional int64 frame_dur_p90 = 9;
+
+    // P95 frame duration.
+    // Not available in counter_metrics.
+    optional int64 frame_dur_p95 = 10;
+
+    // P99 frame duration.
+    // Not available in counter_metrics.
+    optional int64 frame_dur_p99 = 11;
   }
 }
-// End of protos/perfetto/metrics/android/jank_metric.proto
 
-// Begin of protos/perfetto/metrics/android/process_metadata.proto
-
-message AndroidProcessMetadata {
-  // Process name. Usually, cmdline or <package_name>(:<custom_name>)?.
-  optional string name = 1;
-
-  // User id under which this process runs.
-  optional int64 uid = 2;
-
-  // Package metadata from Android package list.
-  message Package {
-    optional string package_name = 1;
-    optional int64 apk_version_code = 2;
-    optional bool debuggable = 3;
-  }
-
-  // Package that this process belongs to.
-  //
-  // If this process shares its uid (see `packages_for_uid` field), the package
-  // is determined based on the process name and package name. If there is no
-  // match this field is empty.
-  optional Package package = 7;
-
-  // All packages using this uid.
-  //
-  // Shared uid documentation:
-  // https://developer.android.com/guide/topics/manifest/manifest-element#uid
-  repeated Package packages_for_uid = 8;
-
-  reserved 3, 4, 5, 6;
-}
-
-// End of protos/perfetto/metrics/android/process_metadata.proto
+// End of protos/perfetto/metrics/android/jank_cuj_metric.proto
 
 // Begin of protos/perfetto/metrics/android/java_heap_histogram.proto
 
@@ -1642,7 +1744,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 48
+// Next id: 49
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -1715,11 +1817,14 @@ message TraceMetrics {
   // Frame timing and jank root causes for system UI interactions.
   optional AndroidSysUiCujMetrics android_sysui_cuj = 27;
 
+  // Interaction and frame timings for CUJs (important UI transitions).
+  optional AndroidJankCujMetric android_jank_cuj = 48;
+
   // Metric associated with hwcomposer.
   optional AndroidHwcomposerMetrics android_hwcomposer = 28;
 
-  // Detects common bad patterns that might lead to jank.
-  optional AndroidJankMetrics android_jank = 29;
+  // Deprecated was AndroidJankMetrics;
+  reserved 29;
 
   // G2D metrics.
   optional G2dMetrics g2d = 30;

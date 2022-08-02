@@ -337,8 +337,10 @@
   color: rgb(60, 86, 136);
 }
 
-table.half-width {
+.half-width-panel {
   max-width: 50%;
+  flex-grow: 1;
+  height: fit-content;
 }
 
 .notes-editor-panel {

@@ -27,7 +27,7 @@ exec python3 - "$@" <<'#'EOF
 TOOL_NAME = 'traceconv'
 
 # BEGIN_SECTION_GENERATED_BY(roll-prebuilts)
-# Revision: v26.1
+# Revision: v27.1
 PERFETTO_PREBUILT_MANIFEST = [{
     'tool':
         'traceconv',
@@ -36,11 +36,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'traceconv',
     'file_size':
-        6739408,
+        6689896,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/mac-amd64/traceconv',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/mac-amd64/traceconv',
     'sha256':
-        'b3dfcbdf03157b88636e99bc7e920f2f6aa44326ac1b13106b4a9c1b453943ba',
+        '0789ac099d3f8dd7ef4838a6e0befbc7776ff791666d623f3513a5b1de4f31c5',
     'platform':
         'darwin',
     'machine': ['x86_64']
@@ -52,11 +52,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'traceconv',
     'file_size':
-        5794008,
+        5496552,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/mac-arm64/traceconv',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/mac-arm64/traceconv',
     'sha256':
-        'd51c52e6cd4242e9ebff8c690669e8868014bc4f6370461da160181193694d0e',
+        '6878c913a655a30f6acf0f1394c4fc063a105fbbf851d7fe7934730dc74c8ddb',
     'platform':
         'darwin',
     'machine': ['arm64']
@@ -68,11 +68,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'traceconv',
     'file_size':
-        7203312,
+        7159072,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/linux-amd64/traceconv',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/linux-amd64/traceconv',
     'sha256':
-        '8eed9f5daff38b7ac54ab603f4dd453b453ecab4d35c0abac1f18432586631df',
+        '72d0b99c2396c1d6fa684a5242a6d307b63163810c7664ebe343ee6da3e2cfab',
     'platform':
         'linux',
     'machine': ['x86_64']
@@ -84,11 +84,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'traceconv',
     'file_size':
-        4731972,
+        5305732,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/linux-arm/traceconv',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/linux-arm/traceconv',
     'sha256':
-        '8c4883ebd49ac1fe6ae0564124d5ab16a7cf796d25e7ebe2b3d2ac9fbe35c41a',
+        '891af2f6b9524a1c2433f47c73ad08636c2a9d2619996811fc94ad78c2999d7b',
     'platform':
         'linux',
     'machine': ['armv6l', 'armv7l', 'armv8l']
@@ -100,11 +100,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'traceconv',
     'file_size':
-        6398008,
+        6342040,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/linux-arm64/traceconv',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/linux-arm64/traceconv',
     'sha256':
-        'ba07eb90a37b41b004fc2532dff557a5927b61083adc8f2a59a7eb081a7eda90',
+        '3adfb7bdd2ce2b0e3d9de7f4a274edec1b698d3e20ae50adcf5196b910507923',
     'platform':
         'linux',
     'machine': ['aarch64']
@@ -116,11 +116,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'traceconv',
     'file_size':
-        4385940,
+        4337052,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/android-arm/traceconv',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/android-arm/traceconv',
     'sha256':
-        '5d13b945475d4bd2943ed611bf919da6a89c64a8ab992a646d81052ddd494f97'
+        'e84db6cf5a45d9f4adca404255fb5c6f4038d9984e1701b962279fffdc4084f3'
 }, {
     'tool':
         'traceconv',
@@ -129,11 +129,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'traceconv',
     'file_size':
-        5787888,
+        5706496,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/android-arm64/traceconv',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/android-arm64/traceconv',
     'sha256':
-        'f5649267f6d254c6fe8f71ec8a52fcd5a2a0ecee9d5fedc4ff0d37119646fa66'
+        '28cb523c7b84430c2fa21a3c62dfe1d489e15b7355ef58b51a5680819cf32d37'
 }, {
     'tool':
         'traceconv',
@@ -142,11 +142,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'traceconv',
     'file_size':
-        6409324,
+        6548852,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/android-x86/traceconv',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/android-x86/traceconv',
     'sha256':
-        'dfd9a3369b2f2366fa8b2d46ed2203ec7b4ef70e0e83486e22c0b5389c2e7091'
+        '2369f2a3194f15dada309fb517407a87ed542aad1133921803c136c40ca5dea9'
 }, {
     'tool':
         'traceconv',
@@ -155,11 +155,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'traceconv',
     'file_size':
-        6816008,
+        6820632,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/android-x64/traceconv',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/android-x64/traceconv',
     'sha256':
-        'ceac9fb9345a96cb09bcebc48cee701de270dccfaf025b54bac99c2d8b0ea071'
+        'e95534c667c292a247f62dd413050f19e4b08f7a2725e0ab9abd8270d2f8df28'
 }, {
     'tool':
         'traceconv',
@@ -168,11 +168,11 @@ PERFETTO_PREBUILT_MANIFEST = [{
     'file_name':
         'traceconv.exe',
     'file_size':
-        6073344,
+        6850048,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/windows-amd64/traceconv.exe',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v27.1/windows-amd64/traceconv.exe',
     'sha256':
-        'd717a84ed68ea866c1df2f5a547beeabd9ed0b0be869f7551eea348a8af6ce04',
+        '19cdec3824d369be3bb053b40b3cfe9f62c2e57e71a5e2ee17ca15b6e7463683',
     'platform':
         'win32',
     'machine': ['amd64']
@@ -229,9 +229,11 @@ def get_perfetto_prebuilt(tool_name, soft_fail=False, arch=None):
   manifest_entry = None
   for entry in PERFETTO_PREBUILT_MANIFEST:
     # If the caller overrides the arch, just match that (for Android prebuilts).
-    if arch and entry.get('arch') == arch:
-      manifest_entry = entry
-      break
+    if arch:
+      if entry.get('arch') == arch:
+        manifest_entry = entry
+        break
+      continue
     # Otherwise guess the local machine arch.
     if entry.get('tool') == tool_name and entry.get(
         'platform') == plat and machine in entry.get('machine', []):

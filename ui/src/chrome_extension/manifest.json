@@ -21,6 +21,7 @@
   "externally_connectable": {
     "matches": [
       "*://localhost/*",
+      "*://127.0.0.1/*",
       "https://*.perfetto.dev/*"
     ]
   }

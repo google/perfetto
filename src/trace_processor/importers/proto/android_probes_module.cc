@@ -86,7 +86,10 @@ AndroidProbesModule::AndroidProbesModule(TraceProcessorContext* context)
   RegisterForField(TracePacket::kPowerRailsFieldNumber, context);
   RegisterForField(TracePacket::kAndroidLogFieldNumber, context);
   RegisterForField(TracePacket::kPackagesListFieldNumber, context);
+  RegisterForField(TracePacket::kAndroidGameInterventionListFieldNumber,
+                   context);
   RegisterForField(TracePacket::kInitialDisplayStateFieldNumber, context);
+  RegisterForField(TracePacket::kAndroidSystemPropertyFieldNumber, context);
 }
 
 ModuleResult AndroidProbesModule::TokenizePacket(
@@ -188,9 +191,17 @@ void AndroidProbesModule::ParsePacket(const TracePacket::Decoder& decoder,
     case TracePacket::kPackagesListFieldNumber:
       parser_.ParseAndroidPackagesList(decoder.packages_list());
       return;
+    case TracePacket::kAndroidGameInterventionListFieldNumber:
+      parser_.ParseAndroidGameIntervention(
+          decoder.android_game_intervention_list());
+      return;
     case TracePacket::kInitialDisplayStateFieldNumber:
       parser_.ParseInitialDisplayState(ttp.timestamp,
                                        decoder.initial_display_state());
+      return;
+    case TracePacket::kAndroidSystemPropertyFieldNumber:
+      parser_.ParseAndroidSystemProperty(ttp.timestamp,
+                                         decoder.android_system_property());
       return;
   }
 }

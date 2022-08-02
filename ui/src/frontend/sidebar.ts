@@ -19,6 +19,7 @@ import {Actions} from '../common/actions';
 import {getCurrentChannel} from '../common/channels';
 import {TRACE_SUFFIX} from '../common/constants';
 import {ConversionJobStatus} from '../common/conversion_jobs';
+import {Engine} from '../common/engine';
 import {EngineMode, TraceArrayBufferSource} from '../common/state';
 import * as version from '../gen/perfetto_version';
 
@@ -98,9 +99,10 @@ limit 100;`;
 
 const SQL_STATS = `
 with first as (select started as ts from sqlstats limit 1)
-select query,
+select
     round((max(ended - started, 0))/1e6) as runtime_ms,
-    round((started - first.ts)/1e6) as t_start_ms
+    round((started - first.ts)/1e6) as t_start_ms,
+    query
 from sqlstats, first
 order by started desc`;
 
@@ -155,6 +157,8 @@ interface SectionItem {
   isVisible?: () => boolean;
   internalUserOnly?: boolean;
   checkDownloadDisabled?: boolean;
+  checkMetatracingEnabled?: boolean;
+  checkMetatracingDisabled?: boolean;
 }
 
 interface Section {
@@ -285,6 +289,18 @@ const SECTIONS: Section[] = [
     summary: 'Compute summary statistics',
     items: [
       {t: 'Show Debug Track', a: showDebugTrack(), i: 'view_day'},
+      {
+        t: 'Record metatrace',
+        a: recordMetatrace,
+        i: 'fiber_smart_record',
+        checkMetatracingDisabled: true,
+      },
+      {
+        t: 'Finalise metatrace',
+        a: finaliseMetatrace,
+        i: 'file_download',
+        checkMetatracingEnabled: true,
+      },
       {
         t: 'All Processes',
         a: createCannedQuery(ALL_PROCESSES_QUERY),
@@ -571,6 +587,17 @@ function shareTrace(e: Event) {
   }
 }
 
+function downloadUrl(url: string, fileName: string) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.target = '_blank';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function downloadTrace(e: Event) {
   e.preventDefault();
   if (!isDownloadable() || !isTraceLoaded()) return;
@@ -597,15 +624,79 @@ function downloadTrace(e: Event) {
   } else {
     throw new Error(`Download from ${JSON.stringify(src)} is not supported`);
   }
+  downloadUrl(url, fileName);
+}
 
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  a.target = '_blank';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+function getCurrentEngine(): Engine|undefined {
+  const engineId = globals.getCurrentEngine()?.id;
+  if (engineId === undefined) return undefined;
+  return globals.engines.get(engineId);
+}
+
+function highPrecisionTimersAvailable(): boolean {
+  // High precision timers are available either when the page is cross-origin
+  // isolated or when the trace processor is a standalone binary.
+  return window.crossOriginIsolated ||
+      globals.getCurrentEngine()?.mode === 'HTTP_RPC';
+}
+
+function recordMetatrace(e: Event) {
+  e.preventDefault();
+  globals.logging.logEvent('Trace Actions', 'Record metatrace');
+
+  const engine = getCurrentEngine();
+  if (!engine) return;
+
+  if (!highPrecisionTimersAvailable()) {
+    const PROMPT =
+        `High-precision timers are not available to WASM trace processor yet.
+
+Modern browsers restrict high-precision timers to cross-origin-isolated pages.
+As Perfetto UI needs to open traces via postMessage, it can't be cross-origin
+isolated until browsers ship support for
+'Cross-origin-opener-policy: restrict-properties'.
+
+Do you still want to record a metatrace?
+Note that events under timer precision (1ms) will dropped.
+Alternatively, connect to a trace_processor_shell --httpd instance.
+`;
+    showModal({
+      title: `Trace processor doesn't have high-precision timers`,
+      content: m('.modal-pre', PROMPT),
+      buttons: [
+        {
+          text: 'YES, record metatrace',
+          primary: true,
+          action: () => {
+            engine.enableMetatrace();
+          },
+        },
+        {
+          text: 'NO, cancel',
+        },
+      ],
+    });
+  } else {
+    engine.enableMetatrace();
+  }
+}
+
+async function finaliseMetatrace(e: Event) {
+  e.preventDefault();
+  globals.logging.logEvent('Trace Actions', 'Finalise metatrace');
+
+  const engine = getCurrentEngine();
+  if (!engine) return;
+
+  const result = await engine.stopAndGetMetatrace();
+  if (result.error.length !== 0) {
+    throw new Error(`Failed to read metatrace: ${result.error}`);
+  }
+
+  const blob = new Blob([result.metatrace], {type: 'application/octet-stream'});
+  const url = URL.createObjectURL(blob);
+
+  downloadUrl(url, 'metatrace');
 }
 
 
@@ -793,6 +884,22 @@ export class Sidebar implements m.ClassComponent {
         }
         if (item.internalUserOnly && !globals.isInternalUser) {
           continue;
+        }
+        if (item.checkMetatracingEnabled || item.checkMetatracingDisabled) {
+          const engine = getCurrentEngine();
+          if (!engine) continue;
+          if (item.checkMetatracingEnabled === true &&
+              !engine.isMetatracingEnabled()) {
+            continue;
+          }
+          if (item.checkMetatracingDisabled === true &&
+              engine.isMetatracingEnabled()) {
+            continue;
+          }
+          if (item.checkMetatracingDisabled &&
+              !highPrecisionTimersAvailable()) {
+            attrs.disabled = true;
+          }
         }
         if (item.checkDownloadDisabled && !isDownloadable()) {
           attrs = {

@@ -86,6 +86,7 @@ const cfg = {
   httpServerListenHost: '127.0.0.1',
   httpServerListenPort: 10000,
   wasmModules: ['trace_processor', 'traceconv'],
+  crossOriginIsolation: false,
   testFilter: '',
 
   // The fields below will be changed by main() after cmdline parsing.
@@ -100,6 +101,7 @@ const cfg = {
   outDir: pjoin(ROOT_DIR, 'out/ui'),
   version: '',  // v1.2.3, derived from the CHANGELOG + git.
   outUiDir: '',
+  outUiTestArtifactsDir: '',
   outDistRootDir: '',
   outTscDir: '',
   outGenDir: '',
@@ -115,6 +117,10 @@ const RULES = [
   {r: /ui\/src\/assets\/.+[.]scss/, f: compileScss},
   {r: /ui\/src\/assets\/.+[.]scss/, f: compileScss},
   {r: /ui\/src\/chrome_extension\/.*/, f: copyExtensionAssets},
+  {
+    r: /ui\/src\/test\/diff_viewer\/(.+[.](?:html|js))/,
+    f: copyUiTestArtifactsAssets,
+  },
   {r: /.*\/dist\/.+\/(?!manifest\.json).*/, f: genServiceWorkerManifestJson},
   {r: /.*\/dist\/.*/, f: notifyLiveServer},
 ];
@@ -142,6 +148,7 @@ async function main() {
   parser.addArgument(['--interactive', '-i'], {action: 'storeTrue'});
   parser.addArgument(['--rebaseline', '-r'], {action: 'storeTrue'});
   parser.addArgument(['--no-depscheck'], {action: 'storeTrue'});
+  parser.addArgument('--cross-origin-isolation', {action: 'storeTrue'});
   parser.addArgument(
       ['--test-filter', '-f'],
       {help: 'filter Jest tests by regex, e.g. \'chrome_render\''});
@@ -150,6 +157,7 @@ async function main() {
   const clean = !args.no_build;
   cfg.outDir = path.resolve(ensureDir(args.out || cfg.outDir));
   cfg.outUiDir = ensureDir(pjoin(cfg.outDir, 'ui'), clean);
+  cfg.outUiTestArtifactsDir = ensureDir(pjoin(cfg.outDir, 'ui-test-artifacts'));
   cfg.outExtDir = ensureDir(pjoin(cfg.outUiDir, 'chrome_extension'));
   cfg.outDistRootDir = ensureDir(pjoin(cfg.outUiDir, 'dist'));
   const proc = exec('python3', [VERSION_SCRIPT, '--stdout'], {stdout: 'pipe'});
@@ -173,6 +181,9 @@ async function main() {
   }
   if (args.rebaseline) {
     process.env.PERFETTO_UI_TESTS_REBASELINE = '1';
+  }
+  if (args.cross_origin_isolation) {
+    cfg.crossOriginIsolation = true;
   }
 
   process.on('SIGINT', () => {
@@ -219,6 +230,7 @@ async function main() {
     buildWasm(args.no_wasm);
     scanDir('ui/src/assets');
     scanDir('ui/src/chrome_extension');
+    scanDir('ui/src/test/diff_viewer');
     scanDir('buildtools/typefaces');
     scanDir('buildtools/catapult_trace_viewer');
     generateImports('ui/src/tracks', 'all_tracks.ts');
@@ -304,6 +316,10 @@ function copyIndexHtml(src) {
 
 function copyAssets(src, dst) {
   addTask(cp, [src, pjoin(cfg.outDistDir, 'assets', dst)]);
+}
+
+function copyUiTestArtifactsAssets(src, dst) {
+  addTask(cp, [src, pjoin(cfg.outUiTestArtifactsDir, dst)]);
 }
 
 function compileScss() {
@@ -524,6 +540,10 @@ function startServer() {
             'Last-Modified': fs.statSync(absPath).mtime.toUTCString(),
             'Cache-Control': 'no-cache',
           };
+          if (cfg.crossOriginIsolation) {
+            head['Cross-Origin-Opener-Policy'] = 'same-origin';
+            head['Cross-Origin-Embedder-Policy'] = 'require-corp';
+          }
           res.writeHead(200, head);
           res.write(data);
           res.end();

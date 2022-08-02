@@ -15,12 +15,22 @@
 import * as m from 'mithril';
 import {globals} from './globals';
 
-export interface PopupMenuItem {
+export interface RegularPopupMenuItem {
+  itemType: 'regular';
   // Display text
   text: string;
   // Action on menu item click
   callback: () => void;
 }
+
+export interface GroupPopupMenuItem {
+  itemType: 'group';
+  text: string;
+  itemId: string;
+  children: PopupMenuItem[];
+}
+
+export type PopupMenuItem = RegularPopupMenuItem|GroupPopupMenuItem;
 
 interface PopupMenuButtonAttrs {
   // Icon for button opening a menu
@@ -83,6 +93,7 @@ const popupHolder = new PopupHolder();
 // Component that displays a button that shows a popup menu on click.
 export class PopupMenuButton implements m.ClassComponent<PopupMenuButtonAttrs> {
   popupShown = false;
+  expandedGroups: Set<string> = new Set();
 
   setVisible(visible: boolean) {
     this.popupShown = visible;
@@ -92,6 +103,42 @@ export class PopupMenuButton implements m.ClassComponent<PopupMenuButtonAttrs> {
       popupHolder.clear();
     }
     globals.rafScheduler.scheduleFullRedraw();
+  }
+
+  renderItem(item: PopupMenuItem): m.Child {
+    switch (item.itemType) {
+      case 'regular':
+        return m(
+            'button.open-menu',
+            {
+              onclick: () => {
+                item.callback();
+                // Hide the menu item after the action has been invoked
+                this.setVisible(false);
+              },
+            },
+            item.text);
+      case 'group':
+        const isExpanded = this.expandedGroups.has(item.itemId);
+        return m(
+            'div',
+            m('button.open-menu.disallow-selection',
+              {
+                onclick: () => {
+                  if (this.expandedGroups.has(item.itemId)) {
+                    this.expandedGroups.delete(item.itemId);
+                  } else {
+                    this.expandedGroups.add(item.itemId);
+                  }
+                  globals.rafScheduler.scheduleFullRedraw();
+                },
+              },
+              // Show text with up/down arrow, depending on expanded state.
+              item.text + (isExpanded ? ' \u25B2' : ' \u25BC')),
+            isExpanded ? m('div.nested-menu',
+                           item.children.map((item) => this.renderItem(item))) :
+                         null);
+    }
   }
 
   view(vnode: m.Vnode<PopupMenuButtonAttrs, this>) {
@@ -105,16 +152,6 @@ export class PopupMenuButton implements m.ClassComponent<PopupMenuButtonAttrs> {
           },
           vnode.attrs.icon),
         m(this.popupShown ? '.popup-menu.opened' : '.popup-menu.closed',
-          vnode.attrs.items.map(
-              (item) =>
-                  m('button.open-menu',
-                    {
-                      onclick: () => {
-                        item.callback();
-                        // Hide the menu item after the action has been invoked
-                        this.setVisible(false);
-                      },
-                    },
-                    item.text))));
+          vnode.attrs.items.map((item) => this.renderItem(item))));
   }
 }

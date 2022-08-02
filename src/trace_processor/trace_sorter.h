@@ -115,20 +115,19 @@ class TraceSorter {
   }
 
   inline void PushFuchsiaRecord(int64_t timestamp,
-                                std::unique_ptr<FuchsiaRecord> fuchsia_record) {
+                                FuchsiaRecord fuchsia_record) {
     uint32_t offset = variadic_queue_.Append(std::move(fuchsia_record));
     AppendNonFtraceEvent(timestamp, offset, Type::kFuchsiaRecord);
   }
 
-  inline void PushSystraceLine(std::unique_ptr<SystraceLine> systrace_line) {
-    auto ts = systrace_line->ts;
+  inline void PushSystraceLine(SystraceLine systrace_line) {
+    auto ts = systrace_line.ts;
     auto offset = variadic_queue_.Append(std::move(systrace_line));
     AppendNonFtraceEvent(ts, offset, Type::kSystraceLine);
   }
 
-  inline void PushTrackEventPacket(
-      int64_t timestamp,
-      std::unique_ptr<TrackEventData> track_event) {
+  inline void PushTrackEventPacket(int64_t timestamp,
+                                   TrackEventData track_event) {
     uint32_t offset = variadic_queue_.Append(std::move(track_event));
     AppendNonFtraceEvent(timestamp, offset, Type::kTrackEvent);
   }
@@ -174,7 +173,7 @@ class TraceSorter {
   void ExtractEventsForced() {
     uint32_t cur_mem_block_offset = variadic_queue_.NextOffset();
     SortAndExtractEventsUntilPacket(cur_mem_block_offset);
-    queues_.resize(0);
+    queues_.clear();
 
     offset_for_extraction_ = cur_mem_block_offset;
     flushes_since_extraction_ = 0;
@@ -257,8 +256,6 @@ class TraceSorter {
   static_assert(sizeof(TimestampedDescriptor) == 16,
                 "TimestampeDescriptor cannot grow beyond 16 bytes");
 
-  static constexpr uint32_t kNoBatch = std::numeric_limits<uint32_t>::max();
-
   struct Queue {
     inline void Append(TimestampedDescriptor ts_desc) {
       auto ts = ts_desc.ts;
@@ -327,14 +324,13 @@ class TraceSorter {
       case Type::kTracePacket:
         return EvictTypedVariadicAsTtp<TracePacketData>(ts_desc);
       case Type::kTrackEvent:
-        return EvictTypedVariadicAsTtp<std::unique_ptr<TrackEventData>>(
-            ts_desc);
+        return EvictTypedVariadicAsTtp<TrackEventData>(ts_desc);
       case Type::kFuchsiaRecord:
-        return EvictTypedVariadicAsTtp<std::unique_ptr<FuchsiaRecord>>(ts_desc);
+        return EvictTypedVariadicAsTtp<FuchsiaRecord>(ts_desc);
       case Type::kJsonValue:
         return EvictTypedVariadicAsTtp<std::string>(ts_desc);
       case Type::kSystraceLine:
-        return EvictTypedVariadicAsTtp<std::unique_ptr<SystraceLine>>(ts_desc);
+        return EvictTypedVariadicAsTtp<SystraceLine>(ts_desc);
       case Type::kInvalid:
         PERFETTO_FATAL("Invalid TimestampedTracePiece type");
     }
