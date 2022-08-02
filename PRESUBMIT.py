@@ -76,6 +76,7 @@ def CheckChange(input, output):
   results += RunAndReportIfLong(CheckBannedCpp, input, output)
   results += RunAndReportIfLong(CheckSqlMetrics, input, output)
   results += RunAndReportIfLong(CheckTestData, input, output)
+  results += RunAndReportIfLong(CheckAmalgamatedPythonTools, input, output)
   return results
 
 
@@ -289,5 +290,23 @@ def CheckTestData(input_api, output_api):
             '`tools/test_data upload`. Otherwise run `tools/install-build-deps`'
             ' or `tools/test_data download --overwrite` to sync local test_data'
         )
+    ]
+  return []
+
+
+def CheckAmalgamatedPythonTools(input_api, output_api):
+  tool = 'tools/gen_amalgamated_python_tools'
+
+  # If no GN files were modified, bail out.
+  def build_file_filter(x):
+    return input_api.FilterSourceFile(x, files_to_check=('python/.*$', tool))
+
+  if not input_api.AffectedSourceFiles(build_file_filter):
+    return []
+  if subprocess.call([tool, '--check-only']):
+    return [
+        output_api.PresubmitError(
+            'amalgamated python tools/ are out of date. ' + 'Run ' + tool +
+            ' to update them.')
     ]
   return []
