@@ -141,5 +141,14 @@ void TraceProcessorStorageImpl::NotifyEndOfFile() {
   context_.process_tracker->NotifyEndOfFile();
 }
 
+void TraceProcessorStorageImpl::DestroyContext() {
+  TraceProcessorContext context;
+  context.storage = std::move(context_.storage);
+  context.heap_graph_tracker = std::move(context_.heap_graph_tracker);
+  context.clock_tracker = std::move(context_.clock_tracker);
+
+  context_ = std::move(context);
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto

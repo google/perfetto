@@ -1111,7 +1111,7 @@ void TraceProcessorImpl::NotifyEndOfFile() {
     PERFETTO_ELOG(
         "NotifyEndOfFile should only be called once. Try calling Flush instead "
         "if trying to commit the contents of the trace to tables.");
-    PERFETTO_DCHECK(!notify_eof_called_);
+    return;
   }
   notify_eof_called_ = true;
 
@@ -1142,6 +1142,8 @@ void TraceProcessorImpl::NotifyEndOfFile() {
   // trace bounds: this is important for parsers like ninja which wait until
   // the end to flush all their data.
   BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
+
+  TraceProcessorStorageImpl::DestroyContext();
 }
 
 size_t TraceProcessorImpl::RestoreInitialTables() {
