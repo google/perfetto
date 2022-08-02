@@ -95,7 +95,7 @@ enum class DropFtraceDataBefore {
 };
 
 // Struct for configuring a TraceProcessor instance (see trace_processor.h).
-struct PERFETTO_EXPORT Config {
+struct PERFETTO_EXPORT_COMPONENT Config {
   // Indicates the sortinng mode that trace processor should use on the passed
   // trace packets. See the enum documentation for more details.
   SortingMode sorting_mode = SortingMode::kDefaultHeuristics;
@@ -121,7 +121,7 @@ struct PERFETTO_EXPORT Config {
 };
 
 // Represents a dynamically typed value returned by SQL.
-struct PERFETTO_EXPORT SqlValue {
+struct PERFETTO_EXPORT_COMPONENT SqlValue {
   // Represents the type of the value.
   enum Type {
     kNull = 0,

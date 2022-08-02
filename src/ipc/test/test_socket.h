@@ -66,6 +66,16 @@ base::SockFamily TestSocket::family() {
 }
 void TestSocket::Destroy() {}
 
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+
+const char* TestSocket::name() {
+  return "zx_socket";
+}
+base::SockFamily TestSocket::family() {
+  return base::SockFamily::kUnix;
+}
+void TestSocket::Destroy() {}
+
 #else
 
 const char* TestSocket::name() {

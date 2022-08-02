@@ -194,7 +194,9 @@ class TrackEventInternedDataIndex
     return iid;
   }
 
- private:
+ protected:
+  // Some use cases require a custom Get implemention, so they need access to
+  // GetOrCreateIndexForField + the returned index.
   static InternedDataType* GetOrCreateIndexForField(
       internal::TrackEventIncrementalState* incremental_state) {
     // Fast path: look for matching field number.

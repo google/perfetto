@@ -32,7 +32,7 @@ void WindowOperatorTable::RegisterTable(sqlite3* db,
   SqliteTable::Register<WindowOperatorTable>(db, storage, "window", true);
 }
 
-util::Status WindowOperatorTable::Init(int,
+base::Status WindowOperatorTable::Init(int,
                                        const char* const*,
                                        Schema* schema) {
   const bool kHidden = true;
@@ -54,7 +54,7 @@ util::Status WindowOperatorTable::Init(int,
                               SqlValue::Type::kLong),
       },
       {Column::kRowId});
-  return util::OkStatus();
+  return base::OkStatus();
 }
 
 std::unique_ptr<SqliteTable::Cursor> WindowOperatorTable::CreateCursor() {

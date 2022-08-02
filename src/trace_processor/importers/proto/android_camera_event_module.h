@@ -36,11 +36,12 @@ class AndroidCameraEventModule : public ProtoImporterModule {
 
   ~AndroidCameraEventModule() override;
 
-  ModuleResult TokenizePacket(const protos::pbzero::TracePacket::Decoder& decoder,
-                              TraceBlobView* packet,
-                              int64_t packet_timestamp,
-                              PacketSequenceState* state,
-                              uint32_t field_id) override;
+  ModuleResult TokenizePacket(
+      const protos::pbzero::TracePacket::Decoder& decoder,
+      TraceBlobView* packet,
+      int64_t packet_timestamp,
+      PacketSequenceState* state,
+      uint32_t field_id) override;
 
   void ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
                    const TimestampedTracePiece& ttp,

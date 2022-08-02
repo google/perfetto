@@ -32,7 +32,7 @@ def RunAndReportIfLong(func, *args, **kargs):
 
 def CheckChange(input, output):
   results = []
-  results += RunAndReportIfLong(CheckTslint, input, output)
+  results += RunAndReportIfLong(CheckEslint, input, output)
   return results
 
 
@@ -44,32 +44,32 @@ def CheckChangeOnCommit(input_api, output_api):
   return CheckChange(input_api, output_api)
 
 
-def CheckTslint(input_api, output_api):
+def CheckEslint(input_api, output_api):
   path = input_api.os_path
   ui_path = input_api.PresubmitLocalPath()
   node = path.join(ui_path, 'node')
-  tslint = path.join(ui_path, 'node_modules', '.bin', 'tslint')
+  lint_path = path.join(ui_path, 'node_modules', '.bin', 'eslint')
 
-  if not path.exists(tslint):
+  if not path.exists(lint_path):
     repo_root = input_api.change.RepositoryRoot()
     install_path = path.join(repo_root, 'tools', 'install-build-deps')
     return [
-        output_api.PresubmitError("Tslint not found. Please first run\n" +
-                                  "$ {0} --ui".format(install_path))
+        output_api.PresubmitError(
+            f"eslint not found. Please first run\n $ {install_path} --ui")
     ]
 
-  # Some tslint rules require type information and thus need the whole
-  # project. We therefore call tslint on the whole project instead of only the
-  # changed files. It is possible to break tslint on files that was not
-  # changed by changing the type of an object.
-  if subprocess.call(
-      [node, tslint, '--project', ui_path, '--format', 'codeFrame']):
-    return [
-        output_api.PresubmitError("""\
-There were tslint errors. You may be able to fix some of them using
-$ {} {} --project {} --fix
+  def file_filter(x):
+    return input_api.FilterSourceFile(
+        x, files_to_check=[r'.*\.ts$', r'.*\.js$'])
 
-If this is unexpected: did you remember to do a UI build before running the
-presubmit?""".format(relpath(node), relpath(tslint), ui_path))
-    ]
+  files = input_api.AffectedSourceFiles(file_filter)
+
+  if not files:
+    return []
+  paths = [f.AbsoluteLocalPath() for f in files]
+
+  cmd = [node, lint_path] + paths
+  if subprocess.call(cmd):
+    s = ' '.join(cmd)
+    return [output_api.PresubmitError(f"eslint errors. Run: $ {s}")]
   return []

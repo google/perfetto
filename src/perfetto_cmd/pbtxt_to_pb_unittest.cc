@@ -30,9 +30,9 @@
 namespace perfetto {
 namespace {
 
-using ::testing::StrictMock;
 using ::testing::Contains;
 using ::testing::ElementsAre;
+using ::testing::StrictMock;
 
 class MockErrorReporter : public ErrorReporter {
  public:
@@ -547,6 +547,20 @@ TEST(PbtxtToPb, BadEnumValue) {
                                  "Unexpected value 'FOO' for enum field "
                                  "compression_type in proto TraceConfig"));
   ToErrors(R"(compression_type: FOO)", &reporter);
+}
+
+TEST(PbtxtToPb, UnexpectedBracket) {
+  MockErrorReporter reporter;
+  EXPECT_CALL(reporter, AddError(1, 0, 0, "Unexpected character '{'"));
+  ToErrors(R"({)", &reporter);
+}
+
+TEST(PbtxtToPb, UnknownNested) {
+  MockErrorReporter reporter;
+  EXPECT_CALL(reporter, AddError(1, 0, 3,
+                                 "No field named \"foo\" in "
+                                 "proto TraceConfig"));
+  ToErrors(R"(foo {}; bar: 42)", &reporter);
 }
 
 // TODO(hjd): Add these tests.

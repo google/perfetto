@@ -17,14 +17,17 @@ import {produce} from 'immer';
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {ConversionJobStatus} from '../common/conversion_jobs';
-import {createEmptyState} from '../common/empty_state';
+import {
+  createEmptyNonSerializableState,
+  createEmptyState,
+} from '../common/empty_state';
 import {State} from '../common/state';
 import {STATE_VERSION} from '../common/state';
 import {
   BUCKET_NAME,
   saveState,
   saveTrace,
-  toSha256
+  toSha256,
 } from '../common/upload_utils';
 import {globals as frontendGlobals} from '../frontend/globals';
 import {publishConversionJobStatusUpdate} from '../frontend/publish';
@@ -61,7 +64,7 @@ export class PermalinkController extends Controller<'main'> {
       });
 
       PermalinkController.createPermalink(isRecordingConfig)
-          .then(hash => {
+          .then((hash) => {
             globals.dispatch(Actions.setPermalink({requestId, hash}));
           })
           .finally(() => {
@@ -75,7 +78,7 @@ export class PermalinkController extends Controller<'main'> {
 
     // Otherwise, this is a request to load the permalink.
     PermalinkController.loadState(globals.state.permalink.hash)
-        .then(stateOrConfig => {
+        .then((stateOrConfig) => {
           if (PermalinkController.isRecordConfig(stateOrConfig)) {
             // This permalink state only contains a RecordConfig. Show the
             // recording page with the config, but keep other state as-is.
@@ -110,6 +113,11 @@ export class PermalinkController extends Controller<'main'> {
       console.warn(message);
       PermalinkController.updateStatus(message);
       return newState;
+    } else {
+      // Loaded state is presumed to be compatible with the State type
+      // definition in the app. However, a non-serializable part has to be
+      // recreated.
+      state.nonSerializableState = createEmptyNonSerializableState();
     }
     return state;
   }
@@ -144,7 +152,7 @@ export class PermalinkController extends Controller<'main'> {
         PermalinkController.updateStatus(`Uploading ${traceName}`);
         const url = await saveTrace(dataToUpload);
         // Convert state to use URLs and remove permalink.
-        uploadState = produce(globals.state, draft => {
+        uploadState = produce(globals.state, (draft) => {
           draft.engines[engine.id].source = {type: 'URL', url};
           draft.permalink = {};
         });

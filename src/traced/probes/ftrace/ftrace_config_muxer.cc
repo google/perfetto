@@ -95,12 +95,6 @@ void IntersectInPlace(const std::vector<std::string>& unsorted_a,
   *out = std::move(v);
 }
 
-bool SupportsRssStatThrottled(const FtraceProcfs& ftrace_procfs) {
-  const auto trigger_info = ftrace_procfs.ReadEventTrigger("kmem", "rss_stat");
-
-  return trigger_info.find("rss_stat_throttled") != std::string::npos;
-}
-
 // This is just to reduce binary size and stack frame size of the insertions.
 // It effectively undoes STL's set::insert inlining.
 void PERFETTO_NO_INLINE InsertEvent(const char* group,
@@ -416,7 +410,7 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
 
       if (category == "memory") {
         // Use rss_stat_throttled if supported
-        if (SupportsRssStatThrottled(*ftrace_)) {
+        if (ftrace_->SupportsRssStatThrottled()) {
           InsertEvent("synthetic", "rss_stat_throttled", &events);
         } else {
           InsertEvent("kmem", "rss_stat", &events);
@@ -440,7 +434,7 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
   }
 
   // If throttle_rss_stat: true, use the rss_stat_throttled event if supported
-  if (request.throttle_rss_stat() && SupportsRssStatThrottled(*ftrace_)) {
+  if (request.throttle_rss_stat() && ftrace_->SupportsRssStatThrottled()) {
     auto it = std::find_if(
         events.begin(), events.end(), [](const GroupAndName& event) {
           return event.group() == "kmem" && event.name() == "rss_stat";

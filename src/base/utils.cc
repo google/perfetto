@@ -21,6 +21,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
@@ -82,7 +83,8 @@ uint32_t GetXCR0EAX() {
 
 // If we are building with -msse4 check that the CPU actually supports it.
 // This file must be kept in sync with gn/standalone/BUILD.gn.
-void PERFETTO_EXPORT __attribute__((constructor)) CheckCpuOptimizations() {
+void PERFETTO_EXPORT_COMPONENT __attribute__((constructor))
+CheckCpuOptimizations() {
   uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0;
   PERFETTO_GETCPUID(eax, ebx, ecx, edx, 1, 0);
 
@@ -98,12 +100,24 @@ void PERFETTO_EXPORT __attribute__((constructor)) CheckCpuOptimizations() {
       (ecx & (1u << 28)) &&  // AVX supported in hardware
       ((GetXCR0EAX() & xcr0_avx_mask) == xcr0_avx_mask);
 
-  if (!have_sse4_2 || !have_popcnt || !have_avx) {
+  // Get level 7 features (eax = 7 and ecx= 0), to check for AVX2 support.
+  // (See Intel 64 and IA-32 Architectures Software Developer's Manual
+  //  Volume 2A: Instruction Set Reference, A-M CPUID).
+  PERFETTO_GETCPUID(eax, ebx, ecx, edx, 7, 0);
+  const bool have_avx2 = have_avx && ((ebx >> 5) & 0x1);
+  const bool have_bmi = (ebx >> 3) & 0x1;
+  const bool have_bmi2 = (ebx >> 8) & 0x1;
+
+  if (!have_sse4_2 || !have_popcnt || !have_avx2 || !have_bmi || !have_bmi2) {
     fprintf(
         stderr,
-        "This executable requires a cpu that supports SSE4.2 and AVX2.\n"
-        "Rebuild with enable_perfetto_x64_cpu_opt=false (ebx=%x, ecx=%x).\n",
-        ebx, ecx);
+        "This executable requires a x86_64 cpu that supports SSE4.2, BMI2 and "
+        "AVX2.\n"
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+        "On MacOS, this might be caused by running x86_64 binaries on arm64.\n"
+        "See https://github.com/google/perfetto/issues/294 for more.\n"
+#endif
+        "Rebuild with enable_perfetto_x64_cpu_opt=false.\n");
     _exit(126);
   }
 }
@@ -273,9 +287,11 @@ std::string HexDump(const void* data_void, size_t len, size_t bytes_per_line) {
   std::unique_ptr<char[]> line(new char[bytes_per_line * 4 + 128]);
   for (size_t i = 0; i < len; i += bytes_per_line) {
     char* wptr = line.get();
-    wptr += sprintf(wptr, "%08zX: ", i);
-    for (size_t j = i; j < i + bytes_per_line && j < len; j++)
-      wptr += sprintf(wptr, "%02X ", static_cast<unsigned>(data[j]) & 0xFF);
+    wptr += base::SprintfTrunc(wptr, 19, "%08zX: ", i);
+    for (size_t j = i; j < i + bytes_per_line && j < len; j++) {
+      wptr += base::SprintfTrunc(wptr, 4, "%02X ",
+                                 static_cast<unsigned>(data[j]) & 0xFF);
+    }
     for (size_t j = static_cast<size_t>(wptr - line.get()); j < kPadding; ++j)
       *(wptr++) = ' ';
     for (size_t j = i; j < i + bytes_per_line && j < len; j++) {

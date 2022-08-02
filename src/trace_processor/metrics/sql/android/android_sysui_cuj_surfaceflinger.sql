@@ -110,31 +110,47 @@ SELECT * FROM
 JOIN android_sysui_cuj_sf_vsync_boundaries cuj_boundaries
 WHERE vsync >= cuj_boundaries.vsync_min AND vsync <= cuj_boundaries.vsync_max;
 
+-- Find matching GPU completion slice idx for top-level mainthread slices
+DROP TABLE IF EXISTS android_sysui_cuj_sf_mts_to_gcs;
+CREATE TABLE android_sysui_cuj_sf_mts_to_gcs AS
+  SELECT
+    slice.ts,
+    CASE
+      WHEN fence.name GLOB 'GPU completion fence *'
+        THEN CAST(STR_SPLIT(fence.name, ' ', 3) AS INTEGER)
+      WHEN fence.name GLOB 'Trace GPU completion fence *'
+        THEN CAST(STR_SPLIT(fence.name, ' ', 4) AS INTEGER)
+      ELSE NULL
+    END AS gcs_idx
+  FROM slice
+  JOIN android_sysui_cuj_sf_main_thread_track main_track ON slice.track_id = main_track.id
+  JOIN descendant_slice(slice.id) fence ON fence.name GLOB '*GPU completion fence*'
+  WHERE (slice.name GLOB 'composite*' OR slice.name GLOB 'onMessageInvalidate*');
+
 -- Find just the onMessageInvalidate slices, within the CUJ (by vsync)
 DROP VIEW IF EXISTS android_sysui_cuj_surfaceflinger_on_message_invalidate_slices_in_cuj;
 CREATE VIEW android_sysui_cuj_surfaceflinger_on_message_invalidate_slices_in_cuj AS
-  WITH on_msg AS (SELECT
+  WITH on_msg AS (
+  SELECT
     -- Extract the vsync number from name like 'onMessageInvalidate 235991 vsyncIn 15.992ms'
     CAST(STR_SPLIT(slice.name, ' ', 1) AS INTEGER) AS vsync,
-    CAST(CAST(STR_SPLIT(slice.name, ' ', 3) AS NUMBER) * 1e6 + slice.ts AS INTEGER) AS expected_vsync_ts,
     slice.ts,
     slice.ts + slice.dur AS ts_end,
-    slice.dur
+    slice.dur,
+    CAST(CAST(STR_SPLIT(slice.name, ' ', 3) AS NUMBER) * 1e6 + slice.ts AS INTEGER) AS expected_vsync_ts,
+    gcs.gcs_idx
   FROM slice
   JOIN android_sysui_cuj_sf_main_thread_track main_track ON slice.track_id = main_track.id
+  LEFT JOIN android_sysui_cuj_sf_mts_to_gcs gcs ON slice.ts = gcs.ts
   WHERE slice.name GLOB 'onMessageInvalidate *'
   )
 SELECT
-    on_msg.vsync,
-    on_msg.ts,
-    on_msg.ts_end,
-    on_msg.dur,
-    on_msg.expected_vsync_ts,
+    on_msg.*,
     lag(on_msg.ts_end) OVER (ORDER BY on_msg.ts_end ASC) AS ts_prev_frame_end,
     lead(on_msg.ts) OVER (ORDER BY on_msg.ts ASC) AS ts_next_frame_start
 FROM on_msg
 JOIN android_sysui_cuj_sf_vsync_boundaries cuj_boundaries
-WHERE on_msg.vsync >= cuj_boundaries.vsync_min AND on_msg.vsync <= cuj_boundaries.vsync_max;
+ON on_msg.vsync >= cuj_boundaries.vsync_min AND on_msg.vsync <= cuj_boundaries.vsync_max;
 
 -- Find just the composite slices
 DROP TABLE IF EXISTS android_sysui_cuj_surfaceflinger_composite_slices;
@@ -143,48 +159,83 @@ CREATE TABLE android_sysui_cuj_surfaceflinger_composite_slices AS
     slice.name,
     slice.ts,
     slice.dur,
-    slice.ts + slice.dur AS ts_end
+    slice.ts + slice.dur AS ts_end,
+    gcs.gcs_idx
   FROM slice
   JOIN android_sysui_cuj_sf_main_thread_track main_track ON slice.track_id = main_track.id
+  LEFT JOIN android_sysui_cuj_sf_mts_to_gcs gcs ON slice.ts = gcs.ts
   WHERE slice.dur > 0 AND slice.name GLOB 'composite*';
 
 DROP VIEW IF EXISTS android_sysui_cuj_surfaceflinger_commit_composite_frames_in_cuj;
 CREATE VIEW android_sysui_cuj_surfaceflinger_commit_composite_frames_in_cuj AS
-  WITH commit_to_composite AS (
+  WITH composite_to_commit AS (
     SELECT
       commits.vsync,
-      commits.ts AS commit_ts,
-      commits.name AS name,
+      max(commits.ts) AS commit_ts,
+      composite.ts AS composite_ts,
+      composite.ts_end AS composite_ts_end,
+      composite.gcs_idx
+      FROM android_sysui_cuj_surfaceflinger_composite_slices composite
+      JOIN android_sysui_cuj_surfaceflinger_commit_slices_in_cuj commits ON composite.ts > commits.ts_end
+      GROUP BY composite.ts
+  ),
+  frames AS (
+    SELECT
+      commits.vsync,
+      commits.ts AS ts,
+      max(commits.ts_end, COALESCE(min(composite_ts_end), 0)) AS ts_end,
+      max(commits.ts_end, COALESCE(min(composite_ts_end), 0)) - commits.ts AS dur,
       commits.expected_vsync_ts,
-      min(composite.ts) AS composite_ts
-      FROM android_sysui_cuj_surfaceflinger_commit_slices_in_cuj commits
-      JOIN android_sysui_cuj_surfaceflinger_composite_slices composite ON composite.ts > commits.ts_end
-      GROUP BY commits.vsync
+      min(composite.gcs_idx) as gcs_idx
+    FROM android_sysui_cuj_surfaceflinger_commit_slices_in_cuj commits
+    LEFT JOIN composite_to_commit composite
+    USING(vsync)
+    GROUP BY (commits.vsync)
   )
   SELECT
-    vsync,
-    match.commit_ts AS ts,
-    composite.ts_end AS ts_end,
-    composite.ts_end - match.commit_ts AS dur,
-    match.expected_vsync_ts,
-    lag(composite.ts_end) OVER (ORDER BY composite.ts_end ASC) AS ts_prev_frame_end,
-    lead(match.commit_ts) OVER (ORDER BY match.commit_ts ASC) AS ts_next_frame_start
-  FROM commit_to_composite match
-  JOIN android_sysui_cuj_surfaceflinger_composite_slices composite ON match.composite_ts = composite.ts;
+    *,
+    lag(ts_end) OVER (ORDER BY ts_end ASC) AS ts_prev_frame_end,
+    lead(ts) OVER (ORDER BY ts ASC) AS ts_next_frame_start
+  FROM frames;
 
 -- All SF frames in the CUJ
 DROP TABLE IF EXISTS android_sysui_cuj_surfaceflinger_main_thread_frames;
 CREATE TABLE android_sysui_cuj_surfaceflinger_main_thread_frames AS
-SELECT * FROM android_sysui_cuj_surfaceflinger_on_message_invalidate_slices_in_cuj
+SELECT
+  vsync,
+  ts,
+  ts_end,
+  dur,
+  expected_vsync_ts,
+  gcs_idx,
+  ts_prev_frame_end,
+  ts_next_frame_start
+FROM android_sysui_cuj_surfaceflinger_on_message_invalidate_slices_in_cuj
 UNION ALL
-SELECT * FROM android_sysui_cuj_surfaceflinger_commit_composite_frames_in_cuj;
+SELECT
+  vsync,
+  ts,
+  ts_end,
+  dur,
+  expected_vsync_ts,
+  gcs_idx,
+  ts_prev_frame_end,
+  ts_next_frame_start
+FROM android_sysui_cuj_surfaceflinger_commit_composite_frames_in_cuj;
 
 -- Our timestamp boundaries are the earliest ts and latest ts_end of the main thread frames (e.g.
 -- onMessageInvalidate or commit/composite pair) which flow from app frames within the CUJ
+-- Since main-thread 'frames' should be ordered and non-overlapping, it is sufficient to take first
+-- and last, and this filters out cases where we have abnormal inner frames that have invalid
+-- durations.
 DROP TABLE IF EXISTS android_sysui_cuj_sf_ts_boundaries;
 CREATE TABLE android_sysui_cuj_sf_ts_boundaries AS
 SELECT ts, ts_end - ts AS dur, ts_end
-FROM (SELECT MIN(ts) AS ts, MAX(ts_end) AS ts_end FROM android_sysui_cuj_surfaceflinger_main_thread_frames);
+FROM (
+  SELECT MIN(ts) AS ts, MAX(ts_end) AS ts_end
+  FROM android_sysui_cuj_surfaceflinger_main_thread_frames
+  JOIN android_sysui_cuj_sf_vsync_boundaries ON vsync == vsync_min OR vsync == vsync_max
+  );
 
 DROP TABLE IF EXISTS android_sysui_cuj_surfaceflinger_main_thread_slices_in_cuj;
 CREATE TABLE android_sysui_cuj_surfaceflinger_main_thread_slices_in_cuj AS
@@ -218,21 +269,6 @@ CREATE TABLE android_sysui_cuj_surfaceflinger_renderengine_slices_in_cuj AS
   ON slice.ts >= cuj_boundaries.ts AND slice.ts <= cuj_boundaries.ts_end
   WHERE slice.dur > 0;
 
-DROP VIEW IF EXISTS android_sysui_cuj_gcs_to_mt_match;
-CREATE VIEW android_sysui_cuj_gcs_to_mt_match AS
--- Match Mainthread slice with the first GPU Completion that begins during it
-SELECT
-gcs.ts AS gcs_ts,
-gcs.ts_end AS gcs_ts_end,
-gcs.dur AS gcs_dur,
-gcs.idx AS idx,
-mtf.ts AS mts_ts,
-mtf.vsync AS vsync
-FROM android_sysui_cuj_surfaceflinger_gpu_completion_slices_in_cuj gcs
--- join with all previous render frames but take latest start time
-JOIN android_sysui_cuj_surfaceflinger_main_thread_frames mtf ON gcs.ts > mtf.ts AND gcs.ts < mtf.ts + mtf.dur
-GROUP BY gcs.ts, gcs.ts_end, gcs.dur, gcs.idx;
-
 -- Those SurfaceFlinger Frames where we missed the deadline
 -- To avoid overlap - which could result in counting janky slices more than once - we limit the
 -- definition of each frame to:
@@ -245,16 +281,20 @@ CREATE TABLE android_sysui_cuj_sf_missed_frames AS
 SELECT
   CAST(frame.name AS integer) AS frame_number,
   CAST(frame.name AS integer) AS vsync,
-  max(mtf.ts_prev_frame_end, frame.ts) AS ts,
-  min(mtf.ts_next_frame_start, frame.ts_end) AS ts_end,
-  min(mtf.ts_next_frame_start, frame.ts_end) - max(mtf.ts_prev_frame_end, frame.ts) AS dur,
-  -- Needed for compatibility with downstream scripts
-  CAST(min(mtf.ts_next_frame_start, frame.ts_end) - max(mtf.ts_prev_frame_end, frame.ts) AS INTEGER) AS dur_frame,
-  gcs.gcs_ts,
-  gcs.gcs_ts_end,
-  gcs.gcs_dur,
+  MAX(COALESCE(mtf.ts_prev_frame_end, 0), frame.ts) AS ts,
+  MIN(COALESCE(mtf.ts_next_frame_start, frame.ts_end), frame.ts_end) AS ts_end,
+  MIN(COALESCE(mtf.ts_next_frame_start, frame.ts_end), frame.ts_end)
+    - MAX(COALESCE(mtf.ts_prev_frame_end, 0), frame.ts) AS dur,
+  -- Same as `dur` but INTEGER - needed for compatibility with downstream scripts
+  CAST((
+    MIN(COALESCE(mtf.ts_next_frame_start, frame.ts_end), frame.ts_end)
+      - MAX(COALESCE(mtf.ts_prev_frame_end, 0), frame.ts))
+    AS INTEGER) AS dur_frame,
+  gcs.ts AS gcs_ts,
+  gcs.ts_end AS gcs_ts_end,
+  gcs.dur AS gcs_dur,
   CAST(1 AS INTEGER) AS app_missed
 FROM android_sysui_cuj_sf_actual_frame_timeline_slice frame
 JOIN android_sysui_cuj_surfaceflinger_main_thread_frames mtf ON frame.name = mtf.vsync
-JOIN android_sysui_cuj_gcs_to_mt_match gcs ON gcs.vsync = frame.name
+LEFT JOIN android_sysui_cuj_surfaceflinger_gpu_completion_slices gcs ON gcs.idx = gcs_idx
 WHERE frame.jank_type != 'None';

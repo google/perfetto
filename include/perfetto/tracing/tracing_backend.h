@@ -43,7 +43,7 @@ class ConsumerEndpoint;
 class Producer;
 class ProducerEndpoint;
 
-class PERFETTO_EXPORT TracingBackend {
+class PERFETTO_EXPORT_COMPONENT TracingBackend {
  public:
   virtual ~TracingBackend();
 

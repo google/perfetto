@@ -27,7 +27,8 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def main():
   errors = 0
-  protos_root = os.path.join(ROOT_DIR, 'protos')
+  # Don't want to check protos/third_party:
+  protos_root = os.path.join(ROOT_DIR, 'protos', 'perfetto')
   for root, _, files in os.walk(protos_root):
     for fname in files:
       fpath = os.path.join(root, fname)

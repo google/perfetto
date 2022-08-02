@@ -53,7 +53,8 @@ std::atomic<LogMessageCallback> g_log_callback{};
 #if PERFETTO_BUILDFLAG(PERFETTO_STDERR_CRASH_DUMP)
 // __attribute__((constructor)) causes a static initializer that automagically
 // early runs this function before the main().
-void PERFETTO_EXPORT __attribute__((constructor)) InitDebugCrashReporter() {
+void PERFETTO_EXPORT_COMPONENT __attribute__((constructor))
+InitDebugCrashReporter() {
   // This function is defined in debug_crash_stack_trace.cc.
   // The dynamic initializer is in logging.cc because logging.cc is included
   // in virtually any target that depends on base. Having it in
@@ -163,7 +164,7 @@ void LogMessage(LogLev level,
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   // Logcat has already timestamping, don't re-emit it.
-  __android_log_print(ANDROID_LOG_DEBUG + level, "perfetto", "%s %s",
+  __android_log_print(int{ANDROID_LOG_DEBUG} + level, "perfetto", "%s %s",
                       file_and_line.c_str(), log_msg);
 #endif
 

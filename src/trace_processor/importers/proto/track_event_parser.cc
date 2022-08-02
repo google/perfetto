@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/util/debug_annotation_parser.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
@@ -71,12 +72,10 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
  public:
   TrackEventArgsParser(BoundInserter& inserter,
                        TraceStorage& storage,
-                       PacketSequenceStateGeneration& sequence_state,
-                       ArgsTranslationTable& args_translation_table)
+                       PacketSequenceStateGeneration& sequence_state)
       : inserter_(inserter),
         storage_(storage),
-        sequence_state_(sequence_state),
-        args_translation_table_(args_translation_table) {}
+        sequence_state_(sequence_state) {}
 
   ~TrackEventArgsParser() override;
 
@@ -88,10 +87,6 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
                      Variadic::Integer(value));
   }
   void AddUnsignedInteger(const Key& key, uint64_t value) final {
-    if (args_translation_table_.TranslateUnsignedIntegerArg(key, value,
-                                                            inserter_)) {
-      return;
-    }
     inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
                      storage_.InternString(base::StringView(key.key)),
                      Variadic::UnsignedInteger(value));
@@ -100,6 +95,12 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
     inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
                      storage_.InternString(base::StringView(key.key)),
                      Variadic::String(storage_.InternString(value)));
+  }
+  void AddString(const Key& key, const std::string& value) final {
+    inserter_.AddArg(
+        storage_.InternString(base::StringView(key.flat_key)),
+        storage_.InternString(base::StringView(key.key)),
+        Variadic::String(storage_.InternString(base::StringView(value))));
   }
   void AddDouble(const Key& key, double value) final {
     inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
@@ -145,14 +146,57 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
     return sequence_state_.GetInternedMessageView(field_id, iid);
   }
 
+  PacketSequenceStateGeneration* seq_state() final { return &sequence_state_; }
+
  private:
   BoundInserter& inserter_;
   TraceStorage& storage_;
   PacketSequenceStateGeneration& sequence_state_;
-  ArgsTranslationTable& args_translation_table_;
 };
 
 TrackEventArgsParser::~TrackEventArgsParser() = default;
+
+// Paths on Windows use backslash rather than slash as a separator.
+// Normalise the paths by replacing backslashes with slashes to make it
+// easier to write cross-platform scripts.
+std::string NormalizePathSeparators(const protozero::ConstChars& path) {
+  std::string result(path.data, path.size);
+  for (char& c : result) {
+    if (c == '\\')
+      c = '/';
+  }
+  return result;
+}
+
+base::Optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
+    std::string prefix,
+    const protozero::Field& field,
+    util::ProtoToArgsParser::Delegate& delegate) {
+  auto* decoder = delegate.GetInternedMessage(
+      protos::pbzero::InternedData::kUnsymbolizedSourceLocations,
+      field.as_uint64());
+  if (!decoder) {
+    // Lookup failed fall back on default behaviour which will just put
+    // the iid into the args table.
+    return base::nullopt;
+  }
+  // Interned mapping_id loses it's meaning when the sequence ends. So we need
+  // to get an id from stack_profile_mapping table.
+  ProfilePacketInternLookup intern_lookup(delegate.seq_state());
+  auto mapping_id =
+      delegate.seq_state()
+          ->state()
+          ->sequence_stack_profile_tracker()
+          .FindOrInsertMapping(decoder->mapping_id(), &intern_lookup);
+  if (!mapping_id) {
+    return base::nullopt;
+  }
+  delegate.AddUnsignedInteger(
+      util::ProtoToArgsParser::Key(prefix + ".mapping_id"), mapping_id->value);
+  delegate.AddUnsignedInteger(util::ProtoToArgsParser::Key(prefix + ".rel_pc"),
+                              decoder->rel_pc());
+  return base::OkStatus();
+}
 
 base::Optional<base::Status> MaybeParseSourceLocation(
     std::string prefix,
@@ -167,11 +211,13 @@ base::Optional<base::Status> MaybeParseSourceLocation(
   }
 
   delegate.AddString(util::ProtoToArgsParser::Key(prefix + ".file_name"),
-                     decoder->file_name());
+                     NormalizePathSeparators(decoder->file_name()));
   delegate.AddString(util::ProtoToArgsParser::Key(prefix + ".function_name"),
                      decoder->function_name());
-  delegate.AddInteger(util::ProtoToArgsParser::Key(prefix + ".line_number"),
-                      decoder->line_number());
+  if (decoder->has_line_number()) {
+    delegate.AddInteger(util::ProtoToArgsParser::Key(prefix + ".line_number"),
+                        decoder->line_number());
+  }
 
   return base::OkStatus();
 }
@@ -188,6 +234,7 @@ class TrackEventParser::EventImporter {
         track_event_tracker_(parser->track_event_tracker_),
         storage_(context_->storage.get()),
         parser_(parser),
+        args_translation_table_(context_->args_translation_table.get()),
         ts_(ts),
         event_data_(event_data),
         sequence_state_(event_data->sequence_state.get()),
@@ -664,7 +711,6 @@ class TrackEventParser::EventImporter {
     if (opt_slice_id.has_value()) {
       MaybeParseFlowEvents(opt_slice_id.value());
     }
-
     return util::OkStatus();
   }
 
@@ -673,29 +719,40 @@ class TrackEventParser::EventImporter {
       return util::ErrStatus(
           "TrackEvent with phase E without thread association");
     }
+    auto opt_slice_id_and_args_tracker =
+        context_->slice_tracker->EndMaybePreservingArgs(
+            ts_, track_id_, category_id_, name_id_,
+            [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
+    if (!opt_slice_id_and_args_tracker)
+      return base::OkStatus();
 
-    auto opt_slice_id = context_->slice_tracker->End(
-        ts_, track_id_, category_id_, name_id_,
-        [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
-    if (opt_slice_id.has_value()) {
-      auto* thread_slices = storage_->mutable_thread_slice_table();
-      auto maybe_row = thread_slices->id().IndexOf(*opt_slice_id);
-      PERFETTO_DCHECK(maybe_row.has_value());
-      auto tts = thread_slices->thread_ts()[*maybe_row];
-      if (tts) {
-        PERFETTO_DCHECK(event_data_->thread_timestamp);
-        thread_slices->mutable_thread_dur()->Set(
-            *maybe_row, *event_data_->thread_timestamp - *tts);
-      }
-      auto tic = thread_slices->thread_instruction_count()[*maybe_row];
-      if (tic) {
-        PERFETTO_DCHECK(event_data_->thread_instruction_count);
-        thread_slices->mutable_thread_instruction_delta()->Set(
-            *maybe_row, *event_data_->thread_instruction_count - *tic);
-      }
-      MaybeParseFlowEvents(opt_slice_id.value());
+    SliceId id = opt_slice_id_and_args_tracker->id;
+    MaybeParseFlowEvents(id);
+    MaybeTranslateArgsForSlice(
+        id, std::move(opt_slice_id_and_args_tracker->args_tracker));
+
+    auto* thread_slices = storage_->mutable_thread_slice_table();
+    auto opt_thread_slice_ref = thread_slices->FindById(id);
+    if (!opt_thread_slice_ref) {
+      // This means that the end event did not match a corresponding track event
+      // begin packet so we likely closed the wrong slice. There's not much we
+      // can do about this beyond flag it as a stat.
+      context_->storage->IncrementStats(stats::track_event_thread_invalid_end);
+      return base::OkStatus();
     }
 
+    tables::ThreadSliceTable::RowReference slice_ref = *opt_thread_slice_ref;
+    base::Optional<int64_t> tts = slice_ref.thread_ts();
+    if (tts) {
+      PERFETTO_DCHECK(event_data_->thread_timestamp);
+      slice_ref.set_thread_dur(*event_data_->thread_timestamp - *tts);
+    }
+    base::Optional<int64_t> tic = slice_ref.thread_instruction_count();
+    if (tic) {
+      PERFETTO_DCHECK(event_data_->thread_instruction_count);
+      slice_ref.set_thread_instruction_delta(
+          *event_data_->thread_instruction_count - *tic);
+    }
     return util::OkStatus();
   }
 
@@ -725,7 +782,6 @@ class TrackEventParser::EventImporter {
     if (opt_slice_id.has_value()) {
       MaybeParseFlowEvents(opt_slice_id.value());
     }
-
     return util::OkStatus();
   }
 
@@ -900,12 +956,18 @@ class TrackEventParser::EventImporter {
   }
 
   util::Status ParseAsyncEndEvent() {
-    auto opt_slice_id = context_->slice_tracker->End(
-        ts_, track_id_, category_id_, name_id_,
-        [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
-    if (!opt_slice_id.has_value())
-      return util::OkStatus();
-    MaybeParseFlowEvents(opt_slice_id.value());
+    auto opt_slice_id_and_args_tracker =
+        context_->slice_tracker->EndMaybePreservingArgs(
+            ts_, track_id_, category_id_, name_id_,
+            [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
+    if (!opt_slice_id_and_args_tracker)
+      return base::OkStatus();
+
+    SliceId id = opt_slice_id_and_args_tracker->id;
+    MaybeParseFlowEvents(id);
+    MaybeTranslateArgsForSlice(
+        id, std::move(opt_slice_id_and_args_tracker->args_tracker));
+
     if (legacy_event_.use_async_tts()) {
       auto* vtrack_slices = storage_->mutable_virtual_track_slices();
       int64_t tts =
@@ -913,8 +975,7 @@ class TrackEventParser::EventImporter {
       int64_t tic = event_data_->thread_instruction_count
                         ? *event_data_->thread_instruction_count
                         : 0;
-      vtrack_slices->UpdateThreadDeltasForSliceId(opt_slice_id.value(), tts,
-                                                  tic);
+      vtrack_slices->UpdateThreadDeltasForSliceId(id, tts, tic);
     }
     return util::OkStatus();
   }
@@ -1031,9 +1092,7 @@ class TrackEventParser::EventImporter {
                    ->Insert({ts_, parser_->raw_legacy_event_id_, 0, *utid_})
                    .id;
 
-    ArgsTracker args(context_);
-    auto inserter = args.AddArgsTo(id);
-
+    auto inserter = context_->args_tracker->AddArgsTo(id);
     inserter
         .AddArg(parser_->legacy_event_category_key_id_,
                 Variadic::String(category_id_))
@@ -1130,8 +1189,7 @@ class TrackEventParser::EventImporter {
           ParseHistogramName(event_.chrome_histogram_sample(), inserter));
     }
 
-    TrackEventArgsParser args_writer(*inserter, *storage_, *sequence_state_,
-                                     *context_->args_translation_table);
+    TrackEventArgsParser args_writer(*inserter, *storage_, *sequence_state_);
     int unknown_extensions = 0;
     log_errors(parser_->args_parser_.ParseMessage(
         blob_, ".perfetto.protos.TrackEvent", &parser_->reflect_fields_,
@@ -1173,7 +1231,8 @@ class TrackEventParser::EventImporter {
     StringId function_name_id = kNullStringId;
     uint32_t line_number = 0;
 
-    file_name_id = storage_->InternString(decoder->file_name());
+    std::string file_name = NormalizePathSeparators(decoder->file_name());
+    file_name_id = storage_->InternString(base::StringView(file_name));
     function_name_id = storage_->InternString(decoder->function_name());
     line_number = decoder->line_number();
 
@@ -1200,7 +1259,8 @@ class TrackEventParser::EventImporter {
     StringId function_name_id = kNullStringId;
     uint32_t line_number = 0;
 
-    file_name_id = storage_->InternString(decoder->file_name());
+    std::string file_name = NormalizePathSeparators(decoder->file_name());
+    file_name_id = storage_->InternString(base::StringView(file_name));
     function_name_id = storage_->InternString(decoder->function_name());
     line_number = decoder->line_number();
 
@@ -1279,10 +1339,24 @@ class TrackEventParser::EventImporter {
     return row;
   }
 
+  void MaybeTranslateArgsForSlice(SliceId id,
+                                  base::Optional<ArgsTracker> args_tracker) {
+    if (!args_tracker ||
+        !args_tracker->NeedsTranslation(*args_translation_table_)) {
+      return;
+    }
+
+    const auto& table = context_->storage->slice_table();
+    uint32_t row = table.FindById(id)->ToRowNumber().row_number();
+    track_event_tracker_->AddTranslatableArgs(
+        id, std::move(*args_tracker).ToCompactArgSet(table.arg_set_id(), row));
+  }
+
   TraceProcessorContext* context_;
   TrackEventTracker* track_event_tracker_;
   TraceStorage* storage_;
   TrackEventParser* parser_;
+  ArgsTranslationTable* args_translation_table_;
   int64_t ts_;
   TrackEventData* event_data_;
   PacketSequenceStateGeneration* sequence_state_;
@@ -1385,6 +1459,14 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       counter_unit_ids_{{kNullStringId, context_->storage->InternString("ns"),
                          context_->storage->InternString("count"),
                          context_->storage->InternString("bytes")}} {
+  args_parser_.AddParsingOverrideForField(
+      "chrome_mojo_event_info.mojo_interface_method_iid",
+      [](const protozero::Field& field,
+         util::ProtoToArgsParser::Delegate& delegate) {
+        return MaybeParseUnsymbolizedSourceLocation(
+            "chrome_mojo_event_info.mojo_interface_method.native_symbol", field,
+            delegate);
+      });
   // Switch |source_location_iid| into its interned data variant.
   args_parser_.AddParsingOverrideForField(
       "begin_impl_frame_args.current_args.source_location_iid",

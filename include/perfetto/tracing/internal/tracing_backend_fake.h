@@ -25,7 +25,7 @@ namespace internal {
 
 // A built-in implementation of TracingBackend that fails any attempt to create
 // a tracing session.
-class PERFETTO_EXPORT TracingBackendFake : public TracingBackend {
+class PERFETTO_EXPORT_COMPONENT TracingBackendFake : public TracingBackend {
  public:
   static TracingBackend* GetInstance();
 

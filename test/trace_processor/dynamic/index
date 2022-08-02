@@ -1,19 +1,23 @@
 # Tests for custom dynamic tables.
 
 # Ancestor slice table.
-relationship_tables.textproto ancestor_slice.sql ancestor_slice.out
+relationship_tables.textproto ancestor_slice_test.sql ancestor_slice.out
 
 # Descendant slice table.
-relationship_tables.textproto descendant_slice.sql descendant_slice.out
+relationship_tables.textproto descendant_slice_test.sql descendant_slice.out
 
 # Ancestor slice by stack table.
-slice_stacks.textproto ancestor_slice_by_stack.sql ancestor_slice_by_stack.out
+slice_stacks.textproto ancestor_slice_by_stack_test.sql ancestor_slice_by_stack.out
 
 # Descendant slice by stack table.
-slice_stacks.textproto descendant_slice_by_stack.sql descendant_slice_by_stack.out
+slice_stacks.textproto descendant_slice_by_stack_test.sql descendant_slice_by_stack.out
 
 # Connected/Following/Perceeding flow table.
-connected_flow_data.json connected_flow.sql connected_flow.out
+connected_flow_data.json connected_flow_test.sql connected_flow.out
 
 # Annotated callstacks.
-../../data/perf_sample_sc.pb annotated_callstack.sql perf_sample_sc_annotated_callstack.out
+../../data/perf_sample_sc.pb annotated_callstack_test.sql perf_sample_sc_annotated_callstack.out
+
+# ABS_TIME_STR function
+various_clocks.textproto abs_time_str_test.sql various_clocks_abs_time_str.out
+../common/empty.textproto abs_time_str_test.sql empty_abs_time_str.out

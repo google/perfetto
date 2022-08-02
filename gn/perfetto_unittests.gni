@@ -25,20 +25,13 @@ perfetto_unittests_targets = [
   "src/profiling/symbolizer:unittests",
 ]
 
-if (enable_perfetto_ipc) {
-  perfetto_unittests_targets += [ "src/tracing/test:tracing_integration_test" ]
-}
-
-if (enable_perfetto_tools && current_toolchain == host_toolchain) {
-  perfetto_unittests_targets += [ "tools/ftrace_proto_gen:unittests" ]
-}
-
-# TODO(primiano): sanitizers_unittests shouldn't really be under tools. It's
-# not a tool and it's intended to run on both host and targets to check that
-# sanitizers are actually working.
 if ((is_linux || is_android) && !perfetto_build_with_embedder) {
   # This test depends on pthread and can't run on non-Linux-based OS.
-  perfetto_unittests_targets += [ "tools/sanitizers_unittests" ]
+  perfetto_unittests_targets += [ "test/sanitizers:unittests" ]
+}
+
+if (enable_perfetto_tools) {
+  perfetto_unittests_targets += [ "src/tools:unittests" ]
 }
 
 if (enable_perfetto_ipc) {
@@ -56,8 +49,6 @@ if (enable_perfetto_platform_services) {
   if (enable_perfetto_traced_probes) {
     perfetto_unittests_targets += [
       "src/traced/probes:unittests",
-      "src/traced/probes/filesystem:unittests",
-      "src/traced/probes/ftrace:unittests",
       "src/kallsyms:unittests",
     ]
   }
@@ -83,7 +74,7 @@ if (enable_perfetto_trace_processor) {
 
   # TODO(mohitms): reenable this once we no longer link lite and full protobuf
   # simultaneously.
-  # perfetto_unittests_targets += [ "tools/trace_to_text:unittests" ]
+  # perfetto_unittests_targets += [ "src/traceconv:unittests" ]
 
   if (enable_perfetto_trace_processor_sqlite) {
     perfetto_unittests_targets += [ "src/trace_processor/metrics:unittests" ]

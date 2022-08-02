@@ -20,8 +20,10 @@ perfetto_proto_library("@TYPE@") {
     "source_set",
   ]
   sources = [
+    "android_frame_timeline_metric.proto",
     "android_trusty_workqueues.proto",
     "batt_metric.proto",
+    "binder_metric.proto",
     "camera_metric.proto",
     "camera_unagg_metric.proto",
     "cpu_metric.proto",

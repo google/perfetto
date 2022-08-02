@@ -18,7 +18,7 @@ usage: heap_profile [-h] [-i INTERVAL] [-d DURATION] [--no-start] [-p PIDS]
                     [--block-client-timeout BLOCK_CLIENT_TIMEOUT]
                     [--no-block-client] [--idle-allocations] [--dump-at-max]
                     [--disable-fork-teardown] [--simpleperf]
-                    [--trace-to-text-binary TRACE_TO_TEXT_BINARY]
+                    [--traceconv-binary TRACECONV_BINARY]
                     [--print-config] [-o DIRECTORY]
 ```
 
@@ -95,5 +95,5 @@ usage: heap_profile [-h] [-i INTERVAL] [-d DURATION] [--no-start] [-p PIDS]
 `--simpleperf`
 :    Get simpleperf profile of heapprofd. This is only for heapprofd development.
 
-`--trace-to-text-binary`
+`--traceconv-binary`
 :    Path to local trace to text. For debugging.

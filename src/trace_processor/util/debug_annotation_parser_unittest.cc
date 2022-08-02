@@ -73,6 +73,12 @@ class DebugAnnotationParserTest : public ::testing::Test,
     args_.push_back(ss.str());
   }
 
+  void AddString(const Key& key, const std::string& value) override {
+    std::stringstream ss;
+    ss << key.flat_key << " " << key.key << " " << value;
+    args_.push_back(ss.str());
+  }
+
   void AddDouble(const Key& key, double value) override {
     std::stringstream ss;
     ss << key.flat_key << " " << key.key << " " << value;
@@ -117,6 +123,8 @@ class DebugAnnotationParserTest : public ::testing::Test,
   InternedMessageView* GetInternedMessageView(uint32_t, uint64_t) override {
     return nullptr;
   }
+
+  PacketSequenceStateGeneration* seq_state() final { return nullptr; }
 
   std::vector<std::string> args_;
   std::map<std::string, size_t> array_indices_;

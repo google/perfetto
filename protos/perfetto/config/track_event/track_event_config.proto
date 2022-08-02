@@ -69,12 +69,11 @@ message TrackEventConfig {
   optional bool disable_incremental_timestamps = 5;
 
   // Allows to specify a custom unit different than the default (ns).
+  // Also affects thread timestamps if enable_thread_time_sampling = true.
   // A multiplier of 1000 means that a timestamp = 3 should be interpreted as
   // 3000 ns = 3 us.
   // Default: 1 (if unset, it should be read as 1).
-  // For now, this multiplier only affects incremental timestamps.
-  // Note: This isn't supported in the SDK yet. It will be supported soon.
-  optional uint64 timestamp_unit_multipler = 6;
+  optional uint64 timestamp_unit_multiplier = 6;
 
   // Default: false (i.e. debug_annotations is NOT filtered out by default)
   // When true, any debug annotations provided as arguments to the
@@ -91,4 +90,9 @@ message TrackEventConfig {
   // Learn more : "CLOCK_THREAD_CPUTIME_ID" flag at
   // https://linux.die.net/man/3/clock_gettime
   optional bool enable_thread_time_sampling = 8;
+
+  // Default: false (i.e. dynamic event names are NOT filtered out by default)
+  // When true, event_names wrapped in perfetto::DynamicString will be filtered
+  // out.
+  optional bool filter_dynamic_event_names = 9;
 }

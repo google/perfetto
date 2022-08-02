@@ -26,6 +26,7 @@
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
@@ -118,6 +119,79 @@ base::Status CreatedViewFunction::Init(int argc,
         prototype_str_.c_str(), return_prototype_str.c_str());
   }
 
+  // Verify that the provided SQL prepares to a statement correctly.
+  ScopedStmt stmt;
+  sqlite3_stmt* raw_stmt = nullptr;
+  int ret = sqlite3_prepare_v2(db_, sql_defn_str_.data(),
+                               static_cast<int>(sql_defn_str_.size()),
+                               &raw_stmt, nullptr);
+  stmt.reset(raw_stmt);
+  if (ret != SQLITE_OK) {
+    return base::ErrStatus(
+        "%s: Failed to prepare SQL statement for function. "
+        "Check the SQL defintion this function for syntax errors. "
+        "(SQLite error: %s).",
+        prototype_.function_name.c_str(), sqlite3_errmsg(db_));
+  }
+
+  // Verify that every argument name in the function appears in the
+  // argument list.
+  //
+  // We intentionally loop from 1 to |used_param_count| because SQL
+  // parameters are 1-indexed *not* 0-indexed.
+  int used_param_count = sqlite3_bind_parameter_count(stmt.get());
+  for (int i = 1; i <= used_param_count; ++i) {
+    const char* name = sqlite3_bind_parameter_name(stmt.get(), i);
+
+    if (!name) {
+      return base::ErrStatus(
+          "%s: \"Nameless\" SQL parameters cannot be used in the SQL "
+          "statements of view functions.",
+          prototype_.function_name.c_str());
+    }
+
+    if (!base::StringView(name).StartsWith("$")) {
+      return base::ErrStatus(
+          "%s: invalid parameter name %s used in the SQL definition of "
+          "the view function: all parameters must be prefixed with '$' not ':' "
+          "or '@'.",
+          prototype_.function_name.c_str(), name);
+    }
+
+    auto it =
+        std::find_if(prototype_.arguments.begin(), prototype_.arguments.end(),
+                     [name](const Prototype::Argument& arg) {
+                       return arg.dollar_name == name;
+                     });
+    if (it == prototype_.arguments.end()) {
+      return base::ErrStatus(
+          "%s: parameter %s does not appear in the list of arguments in the "
+          "prototype of the view function.",
+          prototype_.function_name.c_str(), name);
+    }
+  }
+
+  // Verify that the prepared statement column count matches the return
+  // count.
+  uint32_t col_count = static_cast<uint32_t>(sqlite3_column_count(stmt.get()));
+  if (col_count != return_values_.size()) {
+    return base::ErrStatus(
+        "%s: number of return values %u does not match SQL statement column "
+        "count %zu.",
+        prototype_.function_name.c_str(), col_count, return_values_.size());
+  }
+
+  // Verify that the return names matches the prepared statment column names.
+  for (uint32_t i = 0; i < col_count; ++i) {
+    const char* name = sqlite3_column_name(stmt.get(), static_cast<int>(i));
+    if (name != return_values_[i].name) {
+      return base::ErrStatus(
+          "%s: column %s at index %u does not match return value name %s.",
+          prototype_.function_name.c_str(), name, i,
+          return_values_[i].name.c_str());
+    }
+  }
+
   // Now we've parsed prototype and return values, create the schema.
   *schema = CreateSchema();
 
@@ -128,11 +202,14 @@ SqliteTable::Schema CreatedViewFunction::CreateSchema() {
   std::vector<Column> columns;
   for (size_t i = 0; i < return_values_.size(); ++i) {
     const auto& ret = return_values_[i];
-    columns.push_back(Column(columns.size(), ret.name, ret.type, false));
+    columns.push_back(Column(columns.size(), ret.name, ret.type));
   }
   for (size_t i = 0; i < prototype_.arguments.size(); ++i) {
     const auto& arg = prototype_.arguments[i];
-    columns.push_back(Column(columns.size(), arg.name, arg.type, true));
+
+    // Add the "in_" prefix to every argument param to avoid clashes between the
+    // output and input parameters.
+    columns.push_back(Column(columns.size(), "in_" + arg.name, arg.type, true));
   }
 
   std::vector<size_t> primary_keys(return_values_.size());
@@ -147,6 +224,17 @@ std::unique_ptr<SqliteTable::Cursor> CreatedViewFunction::CreateCursor() {
 
 int CreatedViewFunction::BestIndex(const QueryConstraints& qc,
                                    BestIndexInfo* info) {
+  // Only accept constraint sets where every input parameter has a value.
+  size_t seen_hidden_constraints = 0;
+  for (size_t i = 0; i < qc.constraints().size(); ++i) {
+    const auto& cs = qc.constraints()[i];
+    if (!schema().columns()[static_cast<size_t>(cs.column)].hidden())
+      continue;
+    seen_hidden_constraints++;
+  }
+  if (seen_hidden_constraints < prototype_.arguments.size())
+    return SQLITE_CONSTRAINT;
+
   for (size_t i = 0; i < info->sqlite_omit_constraint.size(); ++i) {
     size_t col = static_cast<size_t>(qc.constraints()[i].column);
     if (schema().columns()[col].hidden()) {
@@ -164,8 +252,13 @@ CreatedViewFunction::Cursor::~Cursor() = default;
 int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
                                         sqlite3_value** argv,
                                         FilterHistory) {
+  PERFETTO_TP_TRACE("CREATE_VIEW_FUNCTION", [this](metatrace::Record* r) {
+    r->AddArg("Function", table_->prototype_.function_name.c_str());
+  });
+
   auto col_to_arg_idx = [this](int col) {
-    return static_cast<size_t>(col) - table_->return_values_.size();
+    return static_cast<uint32_t>(col) -
+           static_cast<uint32_t>(table_->return_values_.size());
   };
 
   size_t seen_hidden_constraints = 0;
@@ -202,9 +295,11 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
 
   // Verify that we saw one valid constriant for every input argument.
   if (seen_hidden_constraints < table_->prototype_.arguments.size()) {
-    table_->SetErrorMessage(
-        sqlite3_mprintf("%s: missing value for input argument",
-                        table_->prototype_.function_name.c_str()));
+    table_->SetErrorMessage(sqlite3_mprintf(
+        "%s: missing value for input argument. Saw %u arguments but expected "
+        "%u",
+        table_->prototype_.function_name.c_str(), seen_hidden_constraints,
+        table_->prototype_.arguments.size()));
     return SQLITE_ERROR;
   }
 
@@ -218,19 +313,23 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
                                static_cast<int>(table_->sql_defn_str_.size()),
                                &stmt_, nullptr);
   stmt.reset(stmt_);
-  if (ret != SQLITE_OK) {
-    table_->SetErrorMessage(sqlite3_mprintf(
-        "%s: Failed to prepare SQL statement for function. "
-        "Check the SQL defintion this function for syntax errors. "
-        "(SQLite error: %s).",
-        table_->prototype_.function_name.c_str(), sqlite3_errmsg(table_->db_)));
-    return SQLITE_ERROR;
-  }
+  PERFETTO_CHECK(ret == SQLITE_OK);
 
   // Bind all the arguments to the appropriate places in the function.
   for (size_t i = 0; i < qc.constraints().size(); ++i) {
     const auto& cs = qc.constraints()[i];
-    const auto& arg = table_->prototype_.arguments[col_to_arg_idx(cs.column)];
+
+    // Don't deal with any constraints on the output parameters for simplicty.
+    // TODO(lalitm): reconsider this decision to allow more efficient queries:
+    // we would need to wrap the query in a SELECT * FROM (...) WHERE constraint
+    // like we do for SPAN JOIN.
+    if (!table_->schema().columns()[static_cast<size_t>(cs.column)].hidden())
+      continue;
+
+    uint32_t index = col_to_arg_idx(cs.column);
+    PERFETTO_DCHECK(index < table_->prototype_.arguments.size());
+
+    const auto& arg = table_->prototype_.arguments[index];
     auto status = MaybeBindArgument(stmt_, table_->prototype_.function_name,
                                     arg, argv[i]);
     if (!status.ok()) {
@@ -327,11 +426,16 @@ base::Status CreateViewFunction::Run(CreateViewFunction::Context* ctx,
   base::StringView function_name;
   RETURN_IF_ERROR(ParseFunctionName(prototype_str, function_name));
 
-  base::StackString<1024> sql(
-      "CREATE VIRTUAL TABLE IF NOT EXISTS %s USING "
-      "INTERNAL_VIEW_FUNCTION_IMPL('%s', '%s', '%s');",
-      function_name.ToStdString().c_str(), prototype_str, return_prototype_str,
-      sql_defn_str);
+  static constexpr char kSqlTemplate[] = R"""(
+    DROP TABLE IF EXISTS %s;
+
+    CREATE VIRTUAL TABLE %s
+    USING INTERNAL_VIEW_FUNCTION_IMPL('%s', '%s', '%s');
+  )""";
+  std::string function_name_str = function_name.ToStdString();
+  base::StackString<1024> sql(kSqlTemplate, function_name_str.c_str(),
+                              function_name_str.c_str(), prototype_str,
+                              return_prototype_str, sql_defn_str);
 
   ScopedSqliteString errmsg;
   char* errmsg_raw = nullptr;

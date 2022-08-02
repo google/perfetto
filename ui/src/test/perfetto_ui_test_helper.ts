@@ -14,10 +14,12 @@
 
 import * as fs from 'fs';
 import * as net from 'net';
-import * as libpng from 'node-libpng';
 import * as path from 'path';
 import * as pixelmatch from 'pixelmatch';
+import {PNG} from 'pngjs';
 import * as puppeteer from 'puppeteer';
+
+console.log(PNG);
 
 // These constants have been hand selected by comparing the diffs of screenshots
 // between Linux on Mac. Unfortunately font-rendering is platform-specific.
@@ -41,7 +43,7 @@ export async function waitForPerfettoIdle(
   let consecutiveIdleTicks = 0;
   let reasons: string[] = [];
   for (let ticks = 0; ticks < timeoutTicks; ticks++) {
-    await new Promise(r => setTimeout(r, tickMs));
+    await new Promise((r) => setTimeout(r, tickMs));
     const isShowingMsg = !!(await page.$('.omnibox.message-mode'));
     const isShowingAnim = !!(await page.$('.progress.progress-anim'));
     const hasPendingRedraws =
@@ -87,19 +89,19 @@ export async function compareScreenshots(
     throw new Error(
         `Could not find ${expectedFilename}. Run wih REBASELINE=1.`);
   }
-  const actualImg = await libpng.readPngFile(actualFilename);
-  const expectedImg = await libpng.readPngFile(expectedFilename);
+  const actualImg = PNG.sync.read(fs.readFileSync(actualFilename));
+  const expectedImg = PNG.sync.read(fs.readFileSync(expectedFilename));
   const {width, height} = actualImg;
   expect(width).toEqual(expectedImg.width);
   expect(height).toEqual(expectedImg.height);
-  const diffBuff = Buffer.alloc(actualImg.data.byteLength);
+  const diffPng = new PNG({width, height});
   const diff = await pixelmatch(
-      actualImg.data, expectedImg.data, diffBuff, width, height, {
-        threshold: DIFF_PER_PIXEL_THRESHOLD
+      actualImg.data, expectedImg.data, diffPng.data, width, height, {
+        threshold: DIFF_PER_PIXEL_THRESHOLD,
       });
   if (diff > DIFF_MAX_PIXELS) {
     const diffFilename = actualFilename.replace('.png', '-diff.png');
-    libpng.writePngFile(diffFilename, diffBuff, {width, height});
+    fs.writeFileSync(diffFilename, PNG.sync.write(diffPng));
     fail(`Diff test failed on ${diffFilename}, delta: ${diff} pixels`);
   }
   return diff;

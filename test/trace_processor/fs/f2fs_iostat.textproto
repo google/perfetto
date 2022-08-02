@@ -1,0 +1,170 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 1626347346
+      pid: 9087
+      f2fs_iostat {
+        dev: 0xfe2e
+        app_wio: 69983603
+        app_dio: 33320960
+        app_bio: 36662643
+        app_mio: 0
+        fs_dio: 50819072
+        fs_nio: 13946880
+        fs_mio: 73728
+        fs_discard: 0
+        fs_gc_dio: 0
+        fs_gc_nio: 0
+        fs_cp_dio: 0
+        fs_cp_nio: 15507456
+        fs_cp_mio: 8704000
+        app_rio: 30077609
+        app_drio: 23666688
+        app_brio: 6410921
+        app_mrio: 0
+        fs_drio: 778240
+        fs_gdrio: 0
+        fs_cdrio: 0
+        fs_nrio: 0
+        fs_mrio: 32768
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 4
+    event {
+      timestamp: 1629349027
+      pid: 9662
+      f2fs_iostat {
+        dev: 0xfe20
+        app_wio: 94546096
+        app_dio: 47407104
+        app_bio: 47138992
+        app_mio: 0
+        fs_dio: 65527808
+        fs_nio: 19955712
+        fs_mio: 57344
+        fs_discard: 0
+        fs_gc_dio: 0
+        fs_gc_nio: 0
+        fs_cp_dio: 0
+        fs_cp_nio: 19857408
+        fs_cp_mio: 9273344
+        app_rio: 43174539
+        app_drio: 35352576
+        app_brio: 7821963
+        app_mrio: 0
+        fs_drio: 536576
+        fs_gdrio: 0
+        fs_cdrio: 0
+        fs_nrio: 0
+        fs_mrio: 0
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 3
+    event {
+      timestamp: 1632350255
+      pid: 2718
+      f2fs_iostat {
+        dev: 0xfe2e
+        app_wio: 73308367
+        app_dio: 35852288
+        app_bio: 37456079
+        app_mio: 0
+        fs_dio: 55549952
+        fs_nio: 13418496
+        fs_mio: 28672
+        fs_discard: 0
+        fs_gc_dio: 0
+        fs_gc_nio: 0
+        fs_cp_dio: 0
+        fs_cp_nio: 20230144
+        fs_cp_mio: 10723328
+        app_rio: 31412409
+        app_drio: 26243072
+        app_brio: 5169337
+        app_mrio: 0
+        fs_drio: 610304
+        fs_gdrio: 0
+        fs_cdrio: 0
+        fs_nrio: 0
+        fs_mrio: 0
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 1635348134
+      pid: 9634
+      f2fs_iostat {
+        dev: 0xfe2e
+        app_wio: 71300509
+        app_dio: 35823616
+        app_bio: 35476893
+        app_mio: 349238
+        fs_dio: 50601984
+        fs_nio: 14618624
+        fs_mio: 57344
+        fs_discard: 39439
+        fs_gc_dio: 0
+        fs_gc_nio: 0
+        fs_cp_dio: 0
+        fs_cp_nio: 17354752
+        fs_cp_mio: 11444224
+        app_rio: 30747582
+        app_drio: 23937024
+        app_brio: 6810558
+        app_mrio: 214882
+        fs_drio: 598016
+        fs_gdrio: 32423
+        fs_cdrio: 0
+        fs_nrio: 1242
+        fs_mrio: 32768
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 1638349595
+      pid: 9657
+      f2fs_iostat {
+        dev: 0xfe20
+        app_wio: 73440204
+        app_dio: 35790848
+        app_bio: 37649356
+        app_mio: 0
+        fs_dio: 54513664
+        fs_nio: 16076800
+        fs_mio: 32768
+        fs_discard: 0
+        fs_gc_dio: 39235
+        fs_gc_nio: 29872
+        fs_cp_dio: 123478
+        fs_cp_nio: 17694720
+        fs_cp_mio: 11980800
+        app_rio: 26772914
+        app_drio: 22220800
+        app_brio: 4552114
+        app_mrio: 0
+        fs_drio: 417792
+        fs_gdrio: 0
+        fs_cdrio: 12412
+        fs_nrio: 0
+        fs_mrio: 0
+      }
+    }
+  }
+}

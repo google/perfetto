@@ -13,13 +13,17 @@ android_startup {
       }
       other_processes_spawned_count: 0
       dur_ms: 0.0001
-      mcycles_by_core_type {
-      }
     }
     activity_hosting_process_count: 0
     event_timestamps {
       intent_received: 110
       first_frame: 210
+    }
+    system_state {
+      dex2oat_running: false
+      installd_running: false
+      broadcast_dispatched_count: 0
+      broadcast_received_count: 0
     }
   }
 }

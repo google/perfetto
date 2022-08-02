@@ -18,30 +18,23 @@
 #define INCLUDE_PERFETTO_BASE_EXPORT_H_
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/public/abi/export.h"
 
+// PERFETTO_EXPORT_COMPONENT: Exports a symbol among C++ components when
+// building with is_component = true (mostly used by chromium build).
 #if PERFETTO_BUILDFLAG(PERFETTO_COMPONENT_BUILD)
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-
 #if defined(PERFETTO_IMPLEMENTATION)
-#define PERFETTO_EXPORT __declspec(dllexport)
+#define PERFETTO_EXPORT_COMPONENT PERFETTO_INTERNAL_DLL_EXPORT
 #else
-#define PERFETTO_EXPORT __declspec(dllimport)
+#define PERFETTO_EXPORT_COMPONENT PERFETTO_INTERNAL_DLL_IMPORT
 #endif
-
-#else  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-
-#if defined(PERFETTO_IMPLEMENTATION)
-#define PERFETTO_EXPORT __attribute__((visibility("default")))
-#else
-#define PERFETTO_EXPORT
-#endif
-
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 #else  // !PERFETTO_BUILDFLAG(PERFETTO_COMPONENT_BUILD)
 
-#define PERFETTO_EXPORT
+#if !defined(PERFETTO_EXPORT_COMPONENT)
+#define PERFETTO_EXPORT_COMPONENT
+#endif  // !defined(PERFETTO_EXPORT_COMPONENT)
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_COMPONENT_BUILD)
 

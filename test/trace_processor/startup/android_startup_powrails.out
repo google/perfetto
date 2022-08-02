@@ -6,10 +6,10 @@ android_powrails{
         energy_uws: 12
       }
       energy_data {
-        timestamp_ms: 6
+        timestamp_ms: 7
         energy_uws: 50
       }
-      avg_used_power_mw: 38
+      avg_used_power_mw: 19
     }
    power_rails{
       name: "power.PR_2_uws"
@@ -18,10 +18,10 @@ android_powrails{
         energy_uws: 10
       }
       energy_data {
-        timestamp_ms: 6
+        timestamp_ms: 7
         energy_uws: 70
       }
-      avg_used_power_mw: 60
+      avg_used_power_mw: 30
     }
     power_rails{
       name: "power.PR_3_uws"
@@ -30,9 +30,10 @@ android_powrails{
         energy_uws: 8
       }
       energy_data {
-        timestamp_ms: 6
-        energy_uws: 15
+        timestamp_ms: 7
+        energy_uws: 16
       }
-      avg_used_power_mw: 7
+      avg_used_power_mw: 4
     }
+    avg_total_used_power_mw: 53
 }

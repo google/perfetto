@@ -1,25 +1,25 @@
 # Contains tests for graphics related events and tables.
 
 # GPU trace tests.
-gpu_counters.py gpu_counters.sql gpu_counters.out
-gpu_counter_specs.textproto gpu_counter_specs.sql gpu_counter_specs.out
-gpu_render_stages.py gpu_render_stages.sql gpu_render_stages.out
-gpu_render_stages_interned_spec.textproto gpu_render_stages.sql gpu_render_stages_interned_spec.out
-vulkan_api_events.py vulkan_api_events.sql vulkan_api_events.out
-gpu_log.py gpu_log.sql gpu_log.out
+gpu_counters.py gpu_counters_test.sql gpu_counters.out
+gpu_counter_specs.textproto gpu_counter_specs_test.sql gpu_counter_specs.out
+gpu_render_stages.py gpu_render_stages_test.sql gpu_render_stages.out
+gpu_render_stages_interned_spec.textproto gpu_render_stages_test.sql gpu_render_stages_interned_spec.out
+vulkan_api_events.py vulkan_api_events_test.sql vulkan_api_events.out
+gpu_log.py gpu_log_test.sql gpu_log.out
 
 # Graphics frame event trace tests.
-graphics_frame_events.py graphics_frame_events.sql graphics_frame_events.out
+graphics_frame_events.py graphics_frame_events_test.sql graphics_frame_events.out
 
 # GPU Memory ftrace packets
-gpu_mem_total.py gpu_mem_total.sql gpu_mem_total.out
-gpu_mem_total_after_free.py gpu_mem_total.sql gpu_mem_total_after_free_gpu_mem_total.out
+gpu_mem_total.py gpu_mem_total_test.sql gpu_mem_total.out
+gpu_mem_total_after_free.py gpu_mem_total_test.sql gpu_mem_total_after_free_gpu_mem_total.out
 
 # Clock sync
-clock_sync.py clock_sync.sql clock_sync.out
+clock_sync.py clock_sync_test.sql clock_sync.out
 
 # Android SurfaceFlinger metrics
-frame_missed.py frame_missed_event.sql frame_missed_event_frame_missed.out
+frame_missed.py frame_missed_event_test.sql frame_missed_event_frame_missed.out
 frame_missed.py android_surfaceflinger frame_missed_metrics.out
 surfaceflinger_gpu_invocation.py android_surfaceflinger surfaceflinger_gpu_invocation.out
 
@@ -29,23 +29,26 @@ gpu_frequency_metric.textproto android_gpu gpu_frequency_metric.out
 
 # Android SysUI CUJs metrics
 android_sysui_cuj.py android_sysui_cuj android_sysui_cuj.out
-android_sysui_cuj.py android_sysui_cuj_event.sql android_sysui_cuj_event.out
+android_sysui_cuj.py android_sysui_cuj_event_test.sql android_sysui_cuj_event.out
 
 # Frame Timeline event trace tests
-frame_timeline_events.py expected_frame_timeline_events.sql expected_frame_timeline_events.out
-frame_timeline_events.py actual_frame_timeline_events.sql actual_frame_timeline_events.out
+frame_timeline_events.py expected_frame_timeline_events_test.sql expected_frame_timeline_events.out
+frame_timeline_events.py actual_frame_timeline_events_test.sql actual_frame_timeline_events.out
 
 # Composition layer
-composition_layer.py composition_layer_count.sql composition_layer_count.out
+composition_layer.py composition_layer_count_test.sql composition_layer_count.out
 
 # Android Jank metrics
 android_jank.py android_jank android_jank.out
 
 # G2D metrics
+# TODO(rsavitski): find a real trace and double-check that the textproto is
+# realistic. One kernel's source I checked had tgid=0 for all counter events.
+# Initial support was added/discussed in b/171296908.
 g2d_metrics.textproto g2d g2d_metrics.out
 
 # Composer execution
-composer_execution.py composer_execution.sql composer_execution.out
+composer_execution.py composer_execution_test.sql composer_execution.out
 
 # Display metrics
 panel_fps.py display_metrics panel_fps.out
@@ -54,8 +57,8 @@ panel_fps.py display_metrics panel_fps.out
 dpu_vote_clock_bw.textproto android_hwcomposer dpu_vote_clock_bw.out
 
 # DRM-related ftrace events
-drm_vblank.textproto drm_gpu_track.sql drm_vblank_gpu_track.out
-drm_sched.textproto drm_gpu_track.sql drm_sched_gpu_track.out
-drm_sched.textproto drm_thread_track.sql drm_sched_thread_track.out
-drm_dma_fence.textproto drm_gpu_track.sql drm_dma_fence_gpu_track.out
-drm_dma_fence.textproto drm_thread_track.sql drm_dma_fence_thread_track.out
+drm_vblank.textproto drm_gpu_track_test.sql drm_vblank_gpu_track.out
+drm_sched.textproto drm_gpu_track_test.sql drm_sched_gpu_track.out
+drm_sched.textproto drm_thread_track_test.sql drm_sched_thread_track.out
+drm_dma_fence.textproto drm_gpu_track_test.sql drm_dma_fence_gpu_track.out
+drm_dma_fence.textproto drm_thread_track_test.sql drm_dma_fence_thread_track.out

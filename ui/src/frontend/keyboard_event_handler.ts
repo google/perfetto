@@ -13,24 +13,15 @@
 // limitations under the License.
 
 import {Actions} from '../common/actions';
-import {featureFlags} from '../common/feature_flags';
-import {DEFAULT_PIVOT_TABLE_ID} from '../common/pivot_table_common';
 import {Area} from '../common/state';
 
 import {Flow, globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {
   horizontalScrollAndZoomToRange,
-  verticalScrollToTrack
+  verticalScrollToTrack,
 } from './scroll_helper';
 import {executeSearch} from './search_handler';
-
-export const PIVOT_TABLE_FLAG = featureFlags.register({
-  id: 'pivotTables',
-  name: 'Pivot tables',
-  description: 'Show experimental pivot table details tab.',
-  defaultValue: false,
-});
 
 const INSTANT_FOCUS_DURATION_S = 1 / 1e9;  // 1 ns.
 type Direction = 'Forward'|'Backward';
@@ -82,19 +73,6 @@ export function handleKey(e: KeyboardEvent, down: boolean) {
   if (down && '[' === key && noModifiers) {
     moveByFocusedFlow('Backward');
   }
-  if (down && 'p' === key && noModifiers && PIVOT_TABLE_FLAG.get()) {
-    e.preventDefault();
-    globals.frontendLocalState.togglePivotTable();
-    const pivotTableId = DEFAULT_PIVOT_TABLE_ID;
-    if (globals.state.pivotTable[pivotTableId] === undefined) {
-      globals.dispatch(Actions.addNewPivotTable({
-        name: 'Pivot Table',
-        pivotTableId,
-        selectedPivots: [],
-        selectedAggregations: []
-      }));
-    }
-  }
 }
 
 // Search |boundFlows| for |flowId| and return the id following it.
@@ -131,7 +109,7 @@ function focusOtherFlow(direction: Direction) {
   }
 
   const boundFlows = globals.connectedFlows.filter(
-      flow => flow.begin.sliceId === sliceId && direction === 'Forward' ||
+      (flow) => flow.begin.sliceId === sliceId && direction === 'Forward' ||
           flow.end.sliceId === sliceId && direction === 'Backward');
 
   if (direction === 'Backward') {
@@ -172,7 +150,7 @@ function moveByFocusedFlow(direction: Direction): void {
           id: flowPoint.sliceId,
           trackId: uiTrackId,
           table: 'slice',
-          scroll: true
+          scroll: true,
         }));
       }
     }

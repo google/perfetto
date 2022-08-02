@@ -4,20 +4,20 @@
 # Note: new tests here should only be added by the Perfetto team.
 
 # JSON trace parsing
-../../data/sfgate.json ../common/smoke.sql sfgate_smoke.out
-../../data/sfgate.json ../common/smoke_slices.sql sfgate_smoke_slices.out
+../../data/sfgate.json ../common/smoke_test.sql sfgate_smoke.out
+../../data/sfgate.json ../common/smoke_slices_test.sql sfgate_smoke_slices.out
 
 # Sched events
-../../data/android_sched_and_ps.pb ../common/smoke.sql android_sched_and_ps_smoke.out
+../../data/android_sched_and_ps.pb ../common/smoke_test.sql android_sched_and_ps_smoke.out
 
 # Compresesed traces
-../../data/compressed.pb ../common/smoke.sql compressed_smoke.out
+../../data/compressed.pb ../common/smoke_test.sql compressed_smoke.out
 
 # Sched events from sythetic trace
-../common/synth_1.py ../common/smoke.sql synth_1_smoke.out
+../common/synth_1.py ../common/smoke_test.sql synth_1_smoke.out
 
 # Compute CPU time metric testing several core tables.
-../../data/example_android_trace_30s.pb thread_cpu_time.sql thread_cpu_time_example_android_trace_30s.out
+../../data/example_android_trace_30s.pb thread_cpu_time_test.sql thread_cpu_time_example_android_trace_30s.out
 
 # Compute power proxy metric
-../../data/cpu_counters.pb proxy_power.sql proxy_power.out
+../../data/cpu_counters.pb proxy_power_test.sql proxy_power.out

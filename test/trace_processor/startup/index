@@ -7,6 +7,15 @@ android_startup_breakdown.py android_startup android_startup_breakdown.out
 android_startup_process_track.py android_startup android_startup_process_track.out
 android_startup_attribution.py android_startup android_startup_attribution.out
 
+# Test lock contention is correctly attributed.
+android_startup_lock_contention.py android_startup android_startup_lock_contention.out
+
+# Test that dex2oat/installd running in parallel are flagged.
+android_startup_installd_dex2oat.py android_startup android_startup_installd_dex2oat.out
+
+# Test that broadcasts are correctly counted.
+android_startup_broadcast.py android_startup android_startup_broadcast.out
+
 # Other metrics associated with startup.
 android_startup_battery.py android_batt android_batt_counters.out
 android_startup_cpu.py android_cpu android_startup_cpu.out

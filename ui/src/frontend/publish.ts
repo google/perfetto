@@ -19,7 +19,7 @@ import {
   LogBoundsKey,
   LogEntriesKey,
   LogExists,
-  LogExistsKey
+  LogExistsKey,
 } from '../common/logs';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
@@ -33,10 +33,9 @@ import {
   QuantizedLoad,
   SliceDetails,
   ThreadDesc,
-  ThreadStateDetails
+  ThreadStateDetails,
 } from './globals';
 import {findCurrentSelection} from './keyboard_event_handler';
-import {PivotTableHelper} from './pivot_table_helper';
 
 export function publishOverviewData(
     data: {[key: string]: QuantizedLoad|QuantizedLoad[]}) {
@@ -148,19 +147,13 @@ export function publishAggregateData(
 
 export function publishQueryResult(args: {id: string, data?: {}}) {
   globals.queryResults.set(args.id, args.data);
-  globals.dispatch(Actions.setCurrentTab({tab: 'query_result'}));
-  globals.publishRedraw();
-}
-
-export function publishPivotTableHelper(
-    args: {id: string, data: PivotTableHelper}) {
-  globals.pivotTableHelper.set(args.id, args.data);
+  globals.dispatch(Actions.setCurrentTab({tab: `query_result_${args.id}`}));
   globals.publishRedraw();
 }
 
 export function publishThreads(data: ThreadDesc[]) {
   globals.threads.clear();
-  data.forEach(thread => {
+  data.forEach((thread) => {
     globals.threads.set(thread.utid, thread);
   });
   globals.publishRedraw();
@@ -171,6 +164,7 @@ export function publishSliceDetails(click: SliceDetails) {
   const id = click.id;
   if (id !== undefined && id === globals.state.pendingScrollId) {
     findCurrentSelection();
+    globals.dispatch(Actions.setCurrentTab({tab: 'slice'}));
     globals.dispatch(Actions.clearPendingScrollId({id: undefined}));
   }
   globals.publishRedraw();

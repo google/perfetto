@@ -55,6 +55,7 @@ config("test_warning_suppressions") {
     cflags = [
       "-Wno-unknown-warning-option",
       "-Wno-deprecated-copy",
+      "-Wno-uninitialized",
     ]
   }
 }
@@ -854,6 +855,11 @@ config("sqlite_config") {
     "-DSQLITE_OMIT_AUTOINIT",
     "-DSQLITE_ENABLE_JSON1",
   ]
+  if (is_clang && is_win) {
+    # SQLite uses __int64 which clang complains about unless
+    # we specify this flag.
+    cflags += [ "-Wno-language-extension-token" ]
+  }
 }
 
 source_set("sqlite") {
@@ -1070,9 +1076,6 @@ config("bionic_kernel_uapi_headers") {
 config("jsoncpp_config") {
   visibility = _buildtools_visibility
   cflags = [ "-DJSON_USE_EXCEPTION=0" ]
-  if (!is_win) {
-    cflags += [ "-Wno-deprecated-declarations" ]
-  }
   cflags += [
     # Using -isystem instead of include_dirs (-I), so we don't need to suppress
     # warnings coming from third-party headers. Doing so would mask warnings in
@@ -1080,6 +1083,13 @@ config("jsoncpp_config") {
     perfetto_isystem_cflag,
     rebase_path("jsoncpp/include", root_build_dir),
   ]
+  if (!is_win) {
+    cflags += [ "-Wno-deprecated-declarations" ]
+  }
+  if (is_clang && is_win) {
+    # JSON uses __int64 which clang complains about unless we specify this flag.
+    cflags += [ "-Wno-language-extension-token" ]
+  }
 }
 
 source_set("jsoncpp") {

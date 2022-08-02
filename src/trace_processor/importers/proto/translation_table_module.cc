@@ -33,11 +33,14 @@ TranslationTableModule::TranslationTableModule(TraceProcessorContext* context)
 
 TranslationTableModule::~TranslationTableModule() = default;
 
-void TranslationTableModule::ParsePacket(const TracePacket::Decoder& decoder,
-                                         const TimestampedTracePiece& /*ttp*/,
-                                         uint32_t field_id) {
+ModuleResult TranslationTableModule::TokenizePacket(
+    const protos::pbzero::TracePacket_Decoder& decoder,
+    TraceBlobView* /*packet*/,
+    int64_t /*packet_timestamp*/,
+    PacketSequenceState* /*state*/,
+    uint32_t field_id) {
   if (field_id != TracePacket::kTranslationTableFieldNumber) {
-    return;
+    return ModuleResult::Ignored();
   }
   const auto translation_table =
       protos::pbzero::TranslationTable::Decoder(decoder.translation_table());
@@ -51,6 +54,7 @@ void TranslationTableModule::ParsePacket(const TracePacket::Decoder& decoder,
   } else if (translation_table.has_slice_name()) {
     ParseSliceNameRules(translation_table.slice_name());
   }
+  return ModuleResult::Handled();
 }
 
 void TranslationTableModule::ParseChromeHistogramRules(

@@ -34,7 +34,7 @@ std::mutex& InitializedMutex() {
   static base::NoDestructor<std::mutex> initialized_mutex;
   return initialized_mutex.ref();
 }
-}
+}  // namespace
 
 // static
 void Tracing::InitializeInternal(const TracingInitArgs& args) {

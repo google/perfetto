@@ -71,7 +71,7 @@ AllBitsIterator::AllBitsIterator(const BitVector* bv)
 
 SetBitsIterator::SetBitsIterator(const BitVector* bv)
     : BaseIterator(const_cast<BitVector*>(bv)) {
-  set_bit_count_ = bv->GetNumBitsSet();
+  set_bit_count_ = bv->CountSetBits();
 
   if (set_bit_count_ > 0) {
     // Read a batch of set bit indices starting at index 0.

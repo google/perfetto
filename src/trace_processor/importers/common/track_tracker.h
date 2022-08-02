@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACK_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACK_TRACKER_H_
 
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -26,6 +27,8 @@ namespace trace_processor {
 // Tracks and stores tracks based on track types, ids and scopes.
 class TrackTracker {
  public:
+  using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter&)>;
+
   explicit TrackTracker(TraceProcessorContext*);
 
   // Interns a thread track into the storage.
@@ -65,6 +68,7 @@ class TrackTracker {
 
   // Interns a global counter track into the storage.
   TrackId InternGlobalCounterTrack(StringId name,
+                                   SetArgsCallback = {},
                                    StringId unit = kNullStringId,
                                    StringId description = kNullStringId);
 

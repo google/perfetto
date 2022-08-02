@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import os
-from typing import BinaryIO, Dict, Optional, Tuple
+from typing import Any, BinaryIO, Callable, Dict, List, Optional, Tuple
 
 # Limit parsing file to 1MB to maintain parity with the UI
 MAX_BYTES_LOADED = 1 * 1024 * 1024
@@ -55,3 +55,77 @@ def parse_trace_uri(uri: str) -> Tuple[Optional[str], str]:
     return None, uri
 
   return (uri[:idx], uri[idx + 1:])
+
+
+def to_list(cs: Any) -> Optional[List[Any]]:
+  """Converts input into list if it is not already a list.
+
+  For resolvers that can accept list types it may happen the user inputs just
+  a single value, to make the code generic enough we would want to convert those
+  input into list of single element. It does not do anything for None or List
+  types.
+  """
+  if cs is None or isinstance(cs, list):
+    return cs
+  return [cs]
+
+
+def _cs_list(cs: List[Any], fn: Callable[[Any], str], empty_default: str,
+             condition_sep: str) -> str:
+  """Converts list of constraints into list of clauses.
+
+  Applies function `fn` over each element in list `cs` and joins the list of
+  transformed strings with join string `condition_sep`. `empty_default` string
+  is returned incase cs is a list of length 0. 'TRUE' is returned when cs is
+  None
+
+  e.g.
+  Input:
+    cs: ['Android', 'Linux']
+    fn: "platform = '{}'".format
+    empty_default: FALSE
+    condition_sep: 'OR'
+  OUTPUT:
+    "(platform = 'Android' OR platform = 'Linux')"
+  """
+  if cs is None:
+    return 'TRUE'
+  if not cs:
+    return empty_default
+  return f'({condition_sep.join([fn(c) for c in cs])})'
+
+
+def and_list(cs: List[Any], fn: Callable[[Any], str],
+             empty_default: str) -> str:
+  """Converts list of constraints into list of AND clauses.
+
+  Function `fn` is applied over each element of list `cs` and joins the list of
+  transformed strings with ' AND ' string. `empty_default` string
+  is returned incase cs is a list of length 0. 'TRUE' is returned when cs is
+  None.
+
+  e.g.
+  Input:
+    cs: ['Android', 'Linux']
+    fn: "platform != '{}'".format
+    empty_default: FALSE
+  OUTPUT:
+    "(platform != 'Android' AND platform != 'Linux')"
+  """
+  return _cs_list(cs, fn, empty_default, ' AND ')
+
+
+def or_list(cs: List[Any], fn: Callable[[Any], str], empty_default: str) -> str:
+  """Converts list of constraints into list of OR clauses.
+
+  Similar to and_list method, just the join string is ' OR ' instead of ' AND '.
+
+  e.g.
+  Input:
+    cs: ['Android', 'Linux']
+    fn: "platform = '{}'".format
+    empty_default: FALSE
+  OUTPUT:
+    "(platform = 'Android' OR platform = 'Linux')"
+  """
+  return _cs_list(cs, fn, empty_default, ' OR ')

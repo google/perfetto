@@ -47,20 +47,6 @@ PERFETTO_TP_TABLE(PERFETTO_TP_SLICE_TABLE_DEF);
 
 // @tablegroup Events
 // @param ts timestamp of the start of the slice (in nanoseconds)
-// @param arg_set_id {@joinable args.arg_set_id}
-#define PERFETTO_TP_INSTANT_TABLE_DEF(NAME, PARENT, C) \
-  NAME(InstantTable, "instant")                        \
-  PERFETTO_TP_ROOT_TABLE(PARENT, C)                    \
-  C(int64_t, ts, Column::Flag::kSorted)                \
-  C(StringPool::Id, name)                              \
-  C(int64_t, ref)                                      \
-  C(StringPool::Id, ref_type)                          \
-  C(uint32_t, arg_set_id)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_INSTANT_TABLE_DEF);
-
-// @tablegroup Events
-// @param ts timestamp of the start of the slice (in nanoseconds)
 // @param dur duration of the slice (in nanoseconds)
 // @param utid {@joinable thread.utid}
 #define PERFETTO_TP_SCHED_SLICE_TABLE_DEF(NAME, PARENT, C) \
@@ -86,7 +72,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_SCHED_SLICE_TABLE_DEF);
   C(uint32_t, utid)                                         \
   C(StringPool::Id, state)                                  \
   C(base::Optional<uint32_t>, io_wait)                      \
-  C(base::Optional<StringPool::Id>, blocked_function)
+  C(base::Optional<StringPool::Id>, blocked_function)       \
+  C(base::Optional<uint32_t>, waker_utid)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_STATE_TABLE_DEF);
 

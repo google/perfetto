@@ -329,6 +329,18 @@ enum BuiltinClock {
 
 // End of protos/perfetto/common/builtin_clock.proto
 
+// Begin of protos/perfetto/config/android/android_game_intervention_list_config.proto
+
+// Data source that lists game modes and game interventions of games
+// on an Android device.
+message AndroidGameInterventionListConfig {
+  // If not empty, emit info about only the following list of package names
+  // (exact match, no regex). Otherwise, emit info about all packages.
+  repeated string package_name_filter = 1;
+}
+
+// End of protos/perfetto/config/android/android_game_intervention_list_config.proto
+
 // Begin of protos/perfetto/common/android_log_constants.proto
 
 // Values from NDK's android/log.h.
@@ -659,12 +671,11 @@ message ProcessStatsConfig {
   // multiple.
   optional uint32 proc_stats_cache_ttl_ms = 6;
 
-  // Whether to record /proc/tid/time_in_state.
-  optional bool record_thread_time_in_state = 7;
+  // DEPRECATED record_thread_time_in_state
+  reserved 7;
 
-  // Size of the cache for thread time_in_state cpu freq values.
-  // If not specificed, the default is used.
-  optional uint32 thread_time_in_state_cache_size = 8;
+  // DEPRECATED thread_time_in_state_cache_size
+  reserved 8;
 }
 
 // End of protos/perfetto/config/process_stats/process_stats_config.proto
@@ -1190,6 +1201,12 @@ message PerfEventConfig {
     // on debug builds.
     // This does *not* disclose KASLR, as only the function names are emitted.
     optional bool kernel_frames = 2;
+
+    // Whether to record and unwind userspace callstacks. If unset, defaults to
+    // including userspace (UNWIND_DWARF) both for backwards compatibility and
+    // as the most common default (this defaulting is only applicable if the
+    // outer CallstackSampling message is explicitly set).
+    optional UnwindMode user_frames = 3;
   }
 
   message Scope {
@@ -1234,9 +1251,53 @@ message PerfEventConfig {
     // are accepted on a first come, first served basis.
     optional uint32 additional_cmdline_count = 5;
   }
+
+  // Userspace unwinding mode. A possible future addition is kernel-unwound
+  // callchains for frame pointer based systems.
+  enum UnwindMode {
+    UNWIND_UNKNOWN = 0;
+    // Do not unwind userspace:
+    UNWIND_SKIP = 1;
+    // Use libunwindstack (default):
+    UNWIND_DWARF = 2;
+  }
 }
 
 // End of protos/perfetto/config/profiling/perf_event_config.proto
+
+// Begin of protos/perfetto/config/statsd/atom_ids.proto
+
+enum AtomId {
+  // TODO(hjd): This will be autogenrerated by the same script that
+  // imports atoms.proto as a descriptor in a follow up CL.
+  BLE_SCAN_STATE_CHANGED = 2;
+}
+
+// End of protos/perfetto/config/statsd/atom_ids.proto
+
+// Begin of protos/perfetto/config/statsd/statsd_tracing_config.proto
+
+// This file is named 'statsd_tracing_config.proto' rather than
+// 'statsd_config.proto' (which would be more consistent with the other
+// config protos) so it doesn't show up and confuse folks looking for
+// the existing statsd_config.proto for configuring statsd itself.
+// Same for the config proto itself.
+message StatsdTracingConfig {
+  repeated AtomId push_atom_id = 1;
+  repeated int32 raw_push_atom_id = 2;
+
+  repeated StatsdPullAtomConfig pull_config = 3;
+}
+
+message StatsdPullAtomConfig {
+  repeated AtomId pull_atom_id = 1;
+  repeated int32 raw_pull_atom_id = 2;
+
+  optional int32 pull_frequency_ms = 3;
+  repeated string packages = 4;
+}
+
+// End of protos/perfetto/config/statsd/statsd_tracing_config.proto
 
 // Begin of protos/perfetto/common/sys_stats_counters.proto
 
@@ -1569,12 +1630,11 @@ message TrackEventConfig {
   optional bool disable_incremental_timestamps = 5;
 
   // Allows to specify a custom unit different than the default (ns).
+  // Also affects thread timestamps if enable_thread_time_sampling = true.
   // A multiplier of 1000 means that a timestamp = 3 should be interpreted as
   // 3000 ns = 3 us.
   // Default: 1 (if unset, it should be read as 1).
-  // For now, this multiplier only affects incremental timestamps.
-  // Note: This isn't supported in the SDK yet. It will be supported soon.
-  optional uint64 timestamp_unit_multipler = 6;
+  optional uint64 timestamp_unit_multiplier = 6;
 
   // Default: false (i.e. debug_annotations is NOT filtered out by default)
   // When true, any debug annotations provided as arguments to the
@@ -1591,6 +1651,11 @@ message TrackEventConfig {
   // Learn more : "CLOCK_THREAD_CPUTIME_ID" flag at
   // https://linux.die.net/man/3/clock_gettime
   optional bool enable_thread_time_sampling = 8;
+
+  // Default: false (i.e. dynamic event names are NOT filtered out by default)
+  // When true, event_names wrapped in perfetto::DynamicString will be filtered
+  // out.
+  optional bool filter_dynamic_event_names = 9;
 }
 
 // End of protos/perfetto/config/track_event/track_event_config.proto
@@ -1598,7 +1663,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 116
+// Next id: 118
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -1674,6 +1739,9 @@ message DataSourceConfig {
   optional AndroidLogConfig android_log_config = 107 [lazy = true];
   // TODO(fmayer): Add data source name for this.
   optional GpuCounterConfig gpu_counter_config = 108 [lazy = true];
+  // Data source name: android.game_intervention_list
+  optional AndroidGameInterventionListConfig
+      android_game_intervention_list_config = 116 [lazy = true];
   // Data source name: android.packages_list
   optional PackagesListConfig packages_list_config = 109 [lazy = true];
   // Data source name: linux.perf
@@ -1685,6 +1753,8 @@ message DataSourceConfig {
   // Data source name: android.polled_state
   optional AndroidPolledStateConfig android_polled_state_config = 114
       [lazy = true];
+  // Data source name: android.statsd
+  optional StatsdTracingConfig statsd_tracing_config = 117 [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would

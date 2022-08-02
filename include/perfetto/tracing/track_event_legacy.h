@@ -182,7 +182,7 @@ ThreadTrack ConvertThreadId(const T&);
 
 // Built-in implementation for events referring to the current thread.
 template <>
-ThreadTrack PERFETTO_EXPORT
+ThreadTrack PERFETTO_EXPORT_COMPONENT
 ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
 
 }  // namespace legacy
@@ -190,7 +190,7 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
 namespace internal {
 
 // LegacyTraceId encapsulates an ID that can either be an integer or pointer.
-class PERFETTO_EXPORT LegacyTraceId {
+class PERFETTO_EXPORT_COMPONENT LegacyTraceId {
  public:
   // Can be combined with WithScope.
   class LocalId {
@@ -303,7 +303,7 @@ class PERFETTO_EXPORT LegacyTraceId {
 namespace perfetto {
 namespace internal {
 
-class PERFETTO_EXPORT TrackEventLegacy {
+class PERFETTO_EXPORT_COMPONENT TrackEventLegacy {
  public:
   static constexpr protos::pbzero::TrackEvent::Type PhaseToType(char phase) {
     // clang-format off
@@ -434,6 +434,23 @@ class PERFETTO_EXPORT TrackEventLegacy {
   }
 };
 
+inline ::perfetto::DynamicString GetEventNameTypeForLegacyEvents(
+    ::perfetto::DynamicString name) {
+  return name;
+}
+
+inline ::perfetto::StaticString GetEventNameTypeForLegacyEvents(
+    ::perfetto::StaticString name) {
+  return name;
+}
+
+// In legacy macro, `const char*` is considered static by default, unless it's
+// wrapped in `TRACE_STR_COPY`.
+inline ::perfetto::StaticString GetEventNameTypeForLegacyEvents(
+    const char* name) {
+  return ::perfetto::StaticString{name};
+}
+
 }  // namespace internal
 }  // namespace perfetto
 
@@ -442,8 +459,7 @@ class PERFETTO_EXPORT TrackEventLegacy {
 #define PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(phase, category, name, track, \
                                                 ...)                          \
   PERFETTO_INTERNAL_TRACK_EVENT(                                              \
-      category,                                                               \
-      ::perfetto::internal::GetStaticString(::perfetto::StaticString{name}),  \
+      category, ::perfetto::internal::GetEventNameTypeForLegacyEvents(name),  \
       ::perfetto::internal::TrackEventLegacy::PhaseToType(phase), track,      \
       ##__VA_ARGS__);
 
@@ -503,12 +519,12 @@ class PERFETTO_EXPORT TrackEventLegacy {
 
 // PERFETTO_INTERNAL_SCOPED_TRACK_EVENT does not require GetStaticString, as it
 // uses TRACE_EVENT_BEGIN/END internally, which already have this call.
-#define INTERNAL_TRACE_EVENT_ADD_SCOPED(category, name, ...)               \
-  PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(                                    \
-      category, ::perfetto::StaticString{name},                            \
-      [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS { \
-        using ::perfetto::internal::TrackEventLegacy;                      \
-        TrackEventLegacy::AddDebugAnnotations(&ctx, ##__VA_ARGS__);        \
+#define INTERNAL_TRACE_EVENT_ADD_SCOPED(category, name, ...)                 \
+  PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(                                      \
+      category, ::perfetto::internal::GetEventNameTypeForLegacyEvents(name), \
+      [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {   \
+        using ::perfetto::internal::TrackEventLegacy;                        \
+        TrackEventLegacy::AddDebugAnnotations(&ctx, ##__VA_ARGS__);          \
       })
 
 // PERFETTO_INTERNAL_SCOPED_TRACK_EVENT does not require GetStaticString, as it
@@ -516,7 +532,7 @@ class PERFETTO_EXPORT TrackEventLegacy {
 #define INTERNAL_TRACE_EVENT_ADD_SCOPED_WITH_FLOW(category, name, bind_id,   \
                                                   flags, ...)                \
   PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(                                      \
-      category, ::perfetto::StaticString{name},                              \
+      category, ::perfetto::internal::GetEventNameTypeForLegacyEvents(name), \
       [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {   \
         using ::perfetto::internal::TrackEventLegacy;                        \
         ::perfetto::internal::LegacyTraceId PERFETTO_UID(trace_id){bind_id}; \
@@ -1230,7 +1246,7 @@ class PERFETTO_EXPORT TrackEventLegacy {
 // involvement from the embedder. APIs such as TRACE_EVENT_API_ADD_TRACE_EVENT
 // are still up to the embedder to define.
 
-#define TRACE_STR_COPY(str) (str)
+#define TRACE_STR_COPY(str) (::perfetto::DynamicString{str})
 
 #define TRACE_ID_WITH_SCOPE(scope, ...) \
   ::perfetto::internal::LegacyTraceId::WithScope(scope, ##__VA_ARGS__)

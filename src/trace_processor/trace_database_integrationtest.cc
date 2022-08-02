@@ -133,7 +133,7 @@ TEST_F(TraceProcessorIntegrationTest, AndroidSchedAndPs) {
       "where dur != 0 and utid != 0");
   ASSERT_TRUE(it.Next());
   ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
-  ASSERT_EQ(it.Get(0).long_value, 139787);
+  ASSERT_EQ(it.Get(0).long_value, 139793);
   ASSERT_EQ(it.Get(1).type, SqlValue::kLong);
   ASSERT_EQ(it.Get(1).long_value, 19684308497);
   ASSERT_FALSE(it.Next());
@@ -232,7 +232,7 @@ TEST_F(TraceProcessorIntegrationTest, Sfgate) {
       "on s.track_id = t.id where utid != 0");
   ASSERT_TRUE(it.Next());
   ASSERT_EQ(it.Get(0).type, SqlValue::kLong);
-  ASSERT_EQ(it.Get(0).long_value, 39828);
+  ASSERT_EQ(it.Get(0).long_value, 43357);
   ASSERT_EQ(it.Get(1).type, SqlValue::kLong);
   ASSERT_EQ(it.Get(1).long_value, 40532506000);
   ASSERT_FALSE(it.Next());

@@ -4,9 +4,7 @@
 ../../data/memory_counters.pb android_mem android_mem_counters.out
 ../../data/memory_counters.pb trace_metadata trace_metadata.out
 android_mem_by_priority.py android_mem android_mem_by_priority.out
-android_lmk.py android_lmk android_mem_lmk.out
 android_systrace_lmk.py android_lmk android_mem_lmk.out
-android_lmk_reason.py android_lmk_reason android_lmk_reason.out
 ../common/oom_kill.textproto android_lmk android_lmk_oom.out
 android_mem_delta.py android_mem android_mem_delta.out
 
@@ -16,7 +14,7 @@ android_ion_stat.textproto android_ion android_ion_stat.out
 
 # DMA-BUF heap Metric
 android_dma_heap_stat.textproto android_dma_heap android_dma_heap_stat.out
-android_dma_heap_stat.textproto dma_buffer_tracks.sql android_dma_buffer_tracks.out
+android_dma_heap_stat.textproto dma_buffer_tracks_test.sql android_dma_buffer_tracks.out
 
 # fastrpc metric
 android_fastrpc_dma_stat.textproto android_fastrpc android_fastrpc_dma_stat.out

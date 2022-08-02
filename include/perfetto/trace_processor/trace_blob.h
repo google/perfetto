@@ -53,7 +53,7 @@ namespace trace_processor {
 // sub-offsets of) the same TraceBlob.
 // The neat thing about TraceBlob is that it deals transparently with owned
 // memory (in the case of Allocate and TakeOwnership) and memory-mapped memory.
-class PERFETTO_EXPORT TraceBlob : public RefCounted {
+class PERFETTO_EXPORT_COMPONENT TraceBlob : public RefCounted {
  public:
   static TraceBlob Allocate(size_t size);
   static TraceBlob CopyFrom(const void*, size_t size);

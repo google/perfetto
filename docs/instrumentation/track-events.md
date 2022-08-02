@@ -70,7 +70,7 @@ PERFETTO_TRACK_EVENT_STATIC_STORAGE();
 Finally, initialize track events after the client library is brought up:
 
 ```C++
-int main(int argv, char** argc) {
+int main(int argc, char** argv) {
   ...
   perfetto::Tracing::Initialize(args);
   perfetto::TrackEvent::Register();  // Add this.
@@ -206,7 +206,7 @@ tracing. *Debug* and *slow* categories are categories with special tags:
   - `"slow"` categories record enough data that they can affect the interactive
     performance of your app.
 
-Category tags can be can be defined like this:
+Category tags can be defined like this:
 
 ```C++
 perfetto::Category("rendering.debug")
@@ -301,6 +301,51 @@ PERFETTO_DEFINE_TEST_CATEGORY_PREFIXES(
    "dontship"   // Applies to dontship.*.
 );
 ```
+
+## Dynamic event names
+
+Ideally all event name should be compile time string constants. For example:
+
+```C++
+TRACE_EVENT_BEGIN("rendering", "DrawGame");
+```
+
+Here `"DrawGame"` is a compile time string. If we pass a dynamic string here,
+we will get compile time static_assert failure. For example :
+
+```C++
+const char* name = "DrawGame";
+TRACE_EVENT_BEGIN("rendering", name);  // Error. Event name is not static.
+```
+
+There are two ways to use dynamic event name:
+
+1) If the event name is actually dynamic (e.g., std::string), write it using
+   `perfetto::DynamicName`:
+
+```C++
+  TRACE_EVENT("category", perfetto::DynamicName{dynamic_name});
+```
+
+Note: Below is the old way of using dynamic event names. It's not recommended
+      anymore.
+
+```C++
+TRACE_EVENT("category", nullptr, [&](perfetto::EventContext ctx) {
+  ctx.event()->set_name(dynamic_name);
+});
+```
+
+2) If the name is static, but the pointer is computed at runtime, wrap it
+   with perfetto::StaticString:
+
+```C++
+TRACE_EVENT("category", perfetto::StaticString{name});
+TRACE_EVENT("category", perfetto::StaticString{i % 2 == 0 ? "A" : "B"});
+```
+
+DANGER: Using perfetto::StaticString with strings whose contents change
+        dynamically can cause silent trace data corruption.
 
 ## Performance
 

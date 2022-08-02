@@ -24,71 +24,155 @@ BASH_FALLBACK = """ "
 exec python3 - "$@" <<'#'EOF
 #"""
 
-TOOL_NAME = 'trace_to_text'
+TOOL_NAME = 'traceconv'
 
 # BEGIN_SECTION_GENERATED_BY(roll-prebuilts)
-# Revision: v25.0
+# Revision: v26.1
 PERFETTO_PREBUILT_MANIFEST = [{
     'tool':
-        'trace_to_text',
+        'traceconv',
     'arch':
         'mac-amd64',
     'file_name':
-        'trace_to_text',
+        'traceconv',
     'file_size':
-        6525752,
+        6739408,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v25.0/mac-amd64/trace_to_text',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/mac-amd64/traceconv',
     'sha256':
-        '64ccf6bac87825145691c6533412e514891f82300d68ff7ce69e8d2ca69aaf62',
+        'b3dfcbdf03157b88636e99bc7e920f2f6aa44326ac1b13106b4a9c1b453943ba',
     'platform':
         'darwin',
     'machine': ['x86_64']
 }, {
     'tool':
-        'trace_to_text',
+        'traceconv',
     'arch':
         'mac-arm64',
     'file_name':
-        'trace_to_text',
+        'traceconv',
     'file_size':
-        5661424,
+        5794008,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v25.0/mac-arm64/trace_to_text',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/mac-arm64/traceconv',
     'sha256':
-        'fbb6d256c96cdc296f2faec2965d16a1527c4900e66a33aca979ff1c336a9f2f',
+        'd51c52e6cd4242e9ebff8c690669e8868014bc4f6370461da160181193694d0e',
     'platform':
         'darwin',
     'machine': ['arm64']
 }, {
     'tool':
-        'trace_to_text',
+        'traceconv',
     'arch':
         'linux-amd64',
     'file_name':
-        'trace_to_text',
+        'traceconv',
     'file_size':
-        6939560,
+        7203312,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v25.0/linux-amd64/trace_to_text',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/linux-amd64/traceconv',
     'sha256':
-        '109f4ff3bbd47633b0c08a338f1230e69d529ddf1584656ed45d8a59acaaabeb',
+        '8eed9f5daff38b7ac54ab603f4dd453b453ecab4d35c0abac1f18432586631df',
     'platform':
         'linux',
     'machine': ['x86_64']
 }, {
     'tool':
-        'trace_to_text',
+        'traceconv',
+    'arch':
+        'linux-arm',
+    'file_name':
+        'traceconv',
+    'file_size':
+        4731972,
+    'url':
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/linux-arm/traceconv',
+    'sha256':
+        '8c4883ebd49ac1fe6ae0564124d5ab16a7cf796d25e7ebe2b3d2ac9fbe35c41a',
+    'platform':
+        'linux',
+    'machine': ['armv6l', 'armv7l', 'armv8l']
+}, {
+    'tool':
+        'traceconv',
+    'arch':
+        'linux-arm64',
+    'file_name':
+        'traceconv',
+    'file_size':
+        6398008,
+    'url':
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/linux-arm64/traceconv',
+    'sha256':
+        'ba07eb90a37b41b004fc2532dff557a5927b61083adc8f2a59a7eb081a7eda90',
+    'platform':
+        'linux',
+    'machine': ['aarch64']
+}, {
+    'tool':
+        'traceconv',
+    'arch':
+        'android-arm',
+    'file_name':
+        'traceconv',
+    'file_size':
+        4385940,
+    'url':
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/android-arm/traceconv',
+    'sha256':
+        '5d13b945475d4bd2943ed611bf919da6a89c64a8ab992a646d81052ddd494f97'
+}, {
+    'tool':
+        'traceconv',
+    'arch':
+        'android-arm64',
+    'file_name':
+        'traceconv',
+    'file_size':
+        5787888,
+    'url':
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/android-arm64/traceconv',
+    'sha256':
+        'f5649267f6d254c6fe8f71ec8a52fcd5a2a0ecee9d5fedc4ff0d37119646fa66'
+}, {
+    'tool':
+        'traceconv',
+    'arch':
+        'android-x86',
+    'file_name':
+        'traceconv',
+    'file_size':
+        6409324,
+    'url':
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/android-x86/traceconv',
+    'sha256':
+        'dfd9a3369b2f2366fa8b2d46ed2203ec7b4ef70e0e83486e22c0b5389c2e7091'
+}, {
+    'tool':
+        'traceconv',
+    'arch':
+        'android-x64',
+    'file_name':
+        'traceconv',
+    'file_size':
+        6816008,
+    'url':
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/android-x64/traceconv',
+    'sha256':
+        'ceac9fb9345a96cb09bcebc48cee701de270dccfaf025b54bac99c2d8b0ea071'
+}, {
+    'tool':
+        'traceconv',
     'arch':
         'windows-amd64',
     'file_name':
-        'trace_to_text.exe',
+        'traceconv.exe',
     'file_size':
-        5925888,
+        6073344,
     'url':
-        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v25.0/windows-amd64/trace_to_text.exe',
+        'https://commondatastorage.googleapis.com/perfetto-luci-artifacts/v26.1/windows-amd64/traceconv.exe',
     'sha256':
-        '29e50ec4d8e28c7c322ba13273afcce80c63fe7d9f182b83af0e2077b4d2b952',
+        'd717a84ed68ea866c1df2f5a547beeabd9ed0b0be869f7551eea348a8af6ce04',
     'platform':
         'win32',
     'machine': ['amd64']
@@ -169,8 +253,10 @@ def get_perfetto_prebuilt(tool_name, soft_fail=False, arch=None):
 # END_SECTION_GENERATED_BY(roll-prebuilts)
 
 if __name__ == '__main__':
-  import sys, os
+  import sys, subprocess, os
   bin_path = get_perfetto_prebuilt(TOOL_NAME)
+  if sys.platform.lower() == 'win32':
+    exit(subprocess.check_call([bin_path, *sys.argv[1:]]))
   os.execv(bin_path, [bin_path] + sys.argv[1:])
 
 #EOF

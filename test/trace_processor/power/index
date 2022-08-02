@@ -1,11 +1,12 @@
 # Power rails
-../../data/power_rails.pb power_rails.sql power_rails_power_rails.out
-power_rails_custom_clock.textproto power_rails_event.sql power_rails_event_power_rails_custom_clock.out
-power_rails.textproto power_rails_timestamp_sort.sql power_rails_timestamp_sort.out
-power_rails_well_known.textproto power_rails.sql power_rails_well_known_power_rails.out
+../../data/power_rails.pb power_rails_test.sql power_rails_power_rails.out
+power_rails_custom_clock.textproto power_rails_event_test.sql power_rails_event_power_rails_custom_clock.out
+power_rails.textproto power_rails_timestamp_sort_test.sql power_rails_timestamp_sort.out
+power_rails_well_known.textproto power_rails_test.sql power_rails_well_known_power_rails.out
 
 # Dynamic Voltage and Frequency Scaling
 
 dvfs_metric.textproto android_dvfs dvfs_metric.out
-wakesource.textproto wakesource.sql wakesource_wakesource.out
-suspend_resume.textproto suspend_resume.sql suspend_resume.out
+wakesource.textproto wakesource_test.sql wakesource_wakesource.out
+suspend_resume.textproto suspend_resume_test.sql suspend_resume.out
+suspend_period.textproto android_batt suspend_period.out

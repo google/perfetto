@@ -61,7 +61,7 @@ ProtoTranslationTable::FtracePageHeaderSpec MakeFtracePageHeaderSpec(
 // matches the userspace bitness.
 ProtoTranslationTable::FtracePageHeaderSpec GuessFtracePageHeaderSpec() {
   ProtoTranslationTable::FtracePageHeaderSpec spec{};
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && __i386__
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && defined(__i386__)
   // local_t is arch-specific and models the largest size of an integer that is
   // still atomic across bus transactions, exceptions and IRQ. On android x86
   // this is always size 8

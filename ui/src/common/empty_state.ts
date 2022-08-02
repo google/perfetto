@@ -13,13 +13,20 @@
 // limitations under the License.
 
 import {createEmptyRecordConfig} from '../controller/record_config_types';
+import {aggregationKey, columnKey} from '../frontend/pivot_table_redux';
+import {Aggregation} from '../frontend/pivot_table_redux_query_generator';
 import {
   autosaveConfigStore,
-  recordTargetStore
+  recordTargetStore,
 } from '../frontend/record_config';
 
 import {featureFlags} from './feature_flags';
-import {defaultTraceTime, State, STATE_VERSION} from './state';
+import {
+  defaultTraceTime,
+  NonSerializableState,
+  State,
+  STATE_VERSION,
+} from './state';
 
 const AUTOLOAD_STARTED_CONFIG_FLAG = featureFlags.register({
   id: 'autoloadStartedConfig',
@@ -28,6 +35,49 @@ const AUTOLOAD_STARTED_CONFIG_FLAG = featureFlags.register({
       'This flag controls whether this config is automatically loaded.',
   defaultValue: true,
 });
+
+function keyedMap<T>(
+    keyFn: (key: T) => string, ...values: T[]): Map<string, T> {
+  const result = new Map<string, T>();
+
+  for (const value of values) {
+    result.set(keyFn(value), value);
+  }
+
+  return result;
+}
+
+export const COUNT_AGGREGATION: Aggregation = {
+  aggregationFunction: 'COUNT',
+  // Exact column is ignored for count aggregation because it does not matter
+  // what to count, use empty strings.
+  column: {kind: 'regular', table: '', column: ''},
+};
+
+export function createEmptyNonSerializableState(): NonSerializableState {
+  return {
+    pivotTableRedux: {
+      selectionArea: null,
+      queryResult: null,
+      editMode: true,
+      selectedPivotsMap: keyedMap(
+          columnKey,
+          {kind: 'regular', table: 'slice', column: 'category'},
+          {kind: 'regular', table: 'slice', column: 'name'}),
+      selectedAggregations: keyedMap(
+          aggregationKey,
+          {
+            aggregationFunction: 'SUM',
+            column:
+                {kind: 'regular', table: 'thread_slice', column: 'thread_dur'},
+          },
+          COUNT_AGGREGATION),
+      constrainToArea: true,
+      queryRequested: false,
+      argumentNames: [],
+    },
+  };
+}
 
 export function createEmptyState(): State {
   return {
@@ -49,8 +99,6 @@ export function createEmptyState(): State {
     metrics: {},
     permalink: {},
     notes: {},
-    pivotTableConfig: {},
-    pivotTable: {},
 
     recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get() ?
         autosaveConfigStore.get() :
@@ -102,7 +150,6 @@ export function createEmptyState(): State {
 
     fetchChromeCategories: false,
     chromeCategories: undefined,
-    pivotTableRedux:
-        {selectionArea: null, query: null, queryId: 0, queryResult: null},
+    nonSerializableState: createEmptyNonSerializableState(),
   };
 }

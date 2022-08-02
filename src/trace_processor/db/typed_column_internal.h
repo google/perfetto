@@ -17,14 +17,16 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_TYPED_COLUMN_INTERNAL_H_
 #define SRC_TRACE_PROCESSOR_DB_TYPED_COLUMN_INTERNAL_H_
 
-#include "src/trace_processor/db/column.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/base_id.h"
+#include "src/trace_processor/db/column_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace tc_internal {
 
 // Serializer converts between the "public" type used by the rest of trace
-// processor and the type we store in the NullableVector.
+// processor and the type we store in the ColumnStorage.
 template <typename T, typename Enabled = void>
 struct Serializer {
   using serialized_type = T;
@@ -70,7 +72,7 @@ struct Serializer<StringPool::Id> {
   static serialized_type Serialize(base::Optional<StringPool::Id> value) {
     // Since StringPool::Id == 0 is always treated as null, rewrite
     // base::nullopt -> 0 to remove an extra check at filter time for
-    // base::nullopt. Instead, that code can assume that the NullableVector
+    // base::nullopt. Instead, that code can assume that the ColumnStorage
     // layer always returns a valid id and can handle the nullability at the
     // stringpool level.
     // TODO(lalitm): remove this special casing if we migrate all tables over
@@ -87,20 +89,18 @@ struct Serializer<StringPool::Id> {
 // TypeHandler (and it's specializations) allow for specialied handling of
 // functions of a TypedColumn based on what is being stored inside.
 // Default implementation of TypeHandler.
-template <typename T, typename Enable = void>
+template <typename T>
 struct TypeHandler {
   using non_optional_type = T;
-  using get_type = T;
   using sql_value_type =
       typename Serializer<non_optional_type>::serialized_type;
+  using stored_type = typename Serializer<non_optional_type>::serialized_type;
 
   static constexpr bool is_optional = false;
   static constexpr bool is_string = false;
 
-  template <typename SerializedType>
-  static SerializedType Get(const NullableVector<SerializedType>& nv,
-                            uint32_t idx) {
-    return nv.GetNonNull(idx);
+  static stored_type Get(const ColumnStorage<stored_type>& nv, uint32_t idx) {
+    return nv.Get(idx);
   }
 
   static bool Equals(T a, T b) {
@@ -115,17 +115,15 @@ struct TypeHandler {
 template <typename T>
 struct TypeHandler<base::Optional<T>> {
   using non_optional_type = T;
-  using get_type = base::Optional<T>;
   using sql_value_type =
       typename Serializer<non_optional_type>::serialized_type;
+  using stored_type =
+      base::Optional<typename Serializer<non_optional_type>::serialized_type>;
 
   static constexpr bool is_optional = true;
   static constexpr bool is_string = false;
 
-  template <typename SerializedType>
-  static base::Optional<SerializedType> Get(
-      const NullableVector<SerializedType>& nv,
-      uint32_t idx) {
+  static stored_type Get(const ColumnStorage<stored_type>& nv, uint32_t idx) {
     return nv.Get(idx);
   }
 
@@ -143,18 +141,16 @@ struct TypeHandler<base::Optional<T>> {
 // Specialization for Optional<StringId> types.
 template <>
 struct TypeHandler<StringPool::Id> {
-  // get_type removes the base::Optional since we convert base::nullopt ->
-  // StringPool::Id::Null (see Serializer<StringPool> above).
   using non_optional_type = StringPool::Id;
-  using get_type = StringPool::Id;
   using sql_value_type = NullTermStringView;
+  using stored_type = StringPool::Id;
 
   static constexpr bool is_optional = false;
   static constexpr bool is_string = true;
 
-  static StringPool::Id Get(const NullableVector<StringPool::Id>& nv,
+  static StringPool::Id Get(const ColumnStorage<stored_type>& nv,
                             uint32_t idx) {
-    return nv.GetNonNull(idx);
+    return nv.Get(idx);
   }
 
   static bool Equals(StringPool::Id a, StringPool::Id b) { return a == b; }
@@ -166,8 +162,8 @@ struct TypeHandler<base::Optional<StringPool::Id>> {
   // get_type removes the base::Optional since we convert base::nullopt ->
   // StringPool::Id::Null (see Serializer<StringPool> above).
   using non_optional_type = StringPool::Id;
-  using get_type = base::Optional<StringPool::Id>;
   using sql_value_type = NullTermStringView;
+  using stored_type = StringPool::Id;
 
   // is_optional is false again because we always unwrap
   // base::Optional<StringPool::Id> into StringPool::Id.
@@ -175,9 +171,9 @@ struct TypeHandler<base::Optional<StringPool::Id>> {
   static constexpr bool is_string = true;
 
   static base::Optional<StringPool::Id> Get(
-      const NullableVector<StringPool::Id>& nv,
+      const ColumnStorage<stored_type>& nv,
       uint32_t idx) {
-    StringPool::Id id = nv.GetNonNull(idx);
+    StringPool::Id id = nv.Get(idx);
     return id.is_null() ? base::nullopt : base::make_optional(id);
   }
 

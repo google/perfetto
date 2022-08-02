@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {hsluvToHex} from 'hsluv';
-
 import {searchSegment} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {hslForSlice} from '../../common/colorizer';
 import {fromNs, toNs} from '../../common/time';
 import {globals} from '../../frontend/globals';
+import {cachedHsluvToHex} from '../../frontend/hsluv_cache';
 import {TimeScale} from '../../frontend/time_scale';
 import {NewTrackArgs, Track} from '../../frontend/track';
 import {trackRegistry} from '../../frontend/track_registry';
@@ -30,7 +29,9 @@ const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 30.5;
 
 function colorForSample(callsiteId: number, isHovered: boolean): string {
-  return hsluvToHex(hslForSlice(String(callsiteId), isHovered));
+  const [hue, saturation, lightness] =
+      hslForSlice(String(callsiteId), isHovered);
+  return cachedHsluvToHex(hue, saturation, lightness);
 }
 
 class CpuProfileTrack extends Track<Config, Data> {
@@ -75,24 +76,34 @@ class CpuProfileTrack extends Track<Config, Data> {
           data.callsiteId[i]);
     }
 
-    let startX = data.tsStarts.length ? data.tsStarts[0] : -1;
-    let endX = data.tsStarts.length ? data.tsStarts[0] : -1;
-    let lastCallsiteId = data.callsiteId.length ? data.callsiteId[0] : -1;
-    for (let i = 0; i < data.tsStarts.length; i++) {
-      const centerX = data.tsStarts[i];
-      const callsiteId = data.callsiteId[i];
-      if (lastCallsiteId !== callsiteId) {
-        if (startX !== endX) {
-          const leftPx = timeScale.timeToPx(fromNs(startX)) - this.markerWidth;
-          const rightPx = timeScale.timeToPx(fromNs(endX)) + this.markerWidth;
-          const width = rightPx - leftPx;
-          ctx.fillStyle = colorForSample(lastCallsiteId, false);
-          ctx.fillRect(leftPx, MARGIN_TOP, width, BAR_HEIGHT);
-        }
-        startX = centerX;
+    // Group together identical identical CPU profile samples by connecting them
+    // with an horizontal bar.
+    let clusterStartIndex = 0;
+    while (clusterStartIndex < data.tsStarts.length) {
+      const callsiteId = data.callsiteId[clusterStartIndex];
+
+      // Find the end of the cluster by searching for the next different CPU
+      // sample. The resulting range [clusterStartIndex, clusterEndIndex] is
+      // inclusive and within array bounds.
+      let clusterEndIndex = clusterStartIndex;
+      while (clusterEndIndex + 1 < data.tsStarts.length &&
+             data.callsiteId[clusterEndIndex] === callsiteId) {
+        clusterEndIndex++;
       }
-      endX = centerX;
-      lastCallsiteId = callsiteId;
+
+      // If there are multiple CPU samples in the cluster, draw a line.
+      if (clusterStartIndex !== clusterEndIndex) {
+        const startX = data.tsStarts[clusterStartIndex];
+        const endX = data.tsStarts[clusterEndIndex];
+        const leftPx = timeScale.timeToPx(fromNs(startX)) - this.markerWidth;
+        const rightPx = timeScale.timeToPx(fromNs(endX)) + this.markerWidth;
+        const width = rightPx - leftPx;
+        ctx.fillStyle = colorForSample(callsiteId, false);
+        ctx.fillRect(leftPx, MARGIN_TOP, width, BAR_HEIGHT);
+      }
+
+      // Move to the next cluster.
+      clusterStartIndex = clusterEndIndex + 1;
     }
   }
 

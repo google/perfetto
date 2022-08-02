@@ -78,6 +78,33 @@ TEST(ArgsTranslationTable, TranslatesPerformanceMarkMarkHashes) {
             base::nullopt);
 }
 
+TEST(ArgsTranslationTable, NeedsTranslation) {
+  TraceStorage storage;
+  ArgsTranslationTable table(&storage);
+
+  EXPECT_TRUE(table.NeedsTranslation(
+      storage.InternString("chrome_histogram_sample.name_hash"),
+      Variadic::Type::kUint));
+  EXPECT_TRUE(table.NeedsTranslation(
+      storage.InternString("chrome_user_event.action_hash"),
+      Variadic::Type::kUint));
+  EXPECT_TRUE(table.NeedsTranslation(
+      storage.InternString("chrome_hashed_performance_mark.site_hash"),
+      Variadic::Type::kUint));
+  EXPECT_TRUE(table.NeedsTranslation(
+      storage.InternString("chrome_hashed_performance_mark.mark_hash"),
+      Variadic::Type::kUint));
+
+  // The key needs translation, but the arg type is wrong (not uint).
+  EXPECT_FALSE(table.NeedsTranslation(
+      storage.InternString("chrome_histogram_sample.name_hash"),
+      Variadic::Type::kInt));
+  // The key does not require translation.
+  EXPECT_FALSE(table.NeedsTranslation(
+      storage.InternString("chrome_histogram_sample.name"),
+      Variadic::Type::kUint));
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto

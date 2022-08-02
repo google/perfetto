@@ -305,16 +305,16 @@ TEST(RowMapUnittest, SelectIndexVectorWithIndexVector) {
   ASSERT_EQ(res.Get(5u), 7u);
 }
 
-TEST(RowMapUnittest, IntersectNone) {
+TEST(RowMapUnittest, Clear) {
   RowMap rm(BitVector{true, false, true, true, false, true});
-  rm.Intersect(RowMap());
+  rm.Clear();
 
   ASSERT_EQ(rm.size(), 0u);
 }
 
 TEST(RowMapUnittest, IntersectSinglePresent) {
   RowMap rm(BitVector{true, false, true, true, false, true});
-  rm.Intersect(RowMap::SingleRow(2u));
+  rm.IntersectExact(2u);
 
   ASSERT_EQ(rm.size(), 1u);
   ASSERT_EQ(rm.Get(0u), 2u);
@@ -322,14 +322,22 @@ TEST(RowMapUnittest, IntersectSinglePresent) {
 
 TEST(RowMapUnittest, IntersectSingleAbsent) {
   RowMap rm(BitVector{true, false, true, true, false, true});
-  rm.Intersect(RowMap::SingleRow(1u));
+  rm.IntersectExact(1u);
 
   ASSERT_EQ(rm.size(), 0u);
 }
 
-TEST(RowMapUnittest, IntersectMany) {
+TEST(RowMapUnittest, IntersectManyRange) {
+  RowMap rm(3, 7);
+  rm.Intersect(2, 4);
+
+  ASSERT_EQ(rm.size(), 1u);
+  ASSERT_EQ(rm.Get(0u), 3u);
+}
+
+TEST(RowMapUnittest, IntersectManyIv) {
   RowMap rm(std::vector<uint32_t>{3u, 2u, 0u, 1u, 1u, 3u});
-  rm.Intersect(RowMap(BitVector{false, false, true, true}));
+  rm.Intersect(2, 4);
 
   ASSERT_EQ(rm.size(), 3u);
   ASSERT_EQ(rm.Get(0u), 3u);

@@ -16,10 +16,14 @@ import * as m from 'mithril';
 
 import {assertExists, assertFalse, assertTrue} from '../base/logging';
 
-import {TOPBAR_HEIGHT, TRACK_SHELL_WIDTH} from './css_constants';
+import {
+  SELECTION_STROKE_COLOR,
+  TOPBAR_HEIGHT,
+  TRACK_SHELL_WIDTH,
+} from './css_constants';
 import {
   FlowEventsRenderer,
-  FlowEventsRendererArgs
+  FlowEventsRendererArgs,
 } from './flow_events_renderer';
 import {globals} from './globals';
 import {isPanelVNode, Panel, PanelSize} from './panel';
@@ -28,14 +32,12 @@ import {
   perfDebug,
   perfDisplay,
   RunningStatistics,
-  runningStatStr
+  runningStatStr,
 } from './perf';
 import {TrackGroupAttrs} from './viewer_page';
 
-/**
- * If the panel container scrolls, the backing canvas height is
- * SCROLLING_CANVAS_OVERDRAW_FACTOR * parent container height.
- */
+// If the panel container scrolls, the backing canvas height is
+// SCROLLING_CANVAS_OVERDRAW_FACTOR * parent container height.
 const SCROLLING_CANVAS_OVERDRAW_FACTOR = 1.2;
 
 // We need any here so we can accept vnodes with arbitrary attrs.
@@ -63,6 +65,8 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
   private parentHeight = 0;
   private scrollTop = 0;
   private panelInfos: PanelInfo[] = [];
+  private panelContainerTop = 0;
+  private panelContainerHeight = 0;
   private panelByKey = new Map<string, AnyAttrsVnode>();
   private totalPanelHeight = 0;
   private canvasHeight = 0;
@@ -262,7 +266,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
           '.scroll-limiter',
           m('canvas.main-canvas'),
           ),
-      m('.panels', children)
+      m('.panels', children),
     ];
   }
 
@@ -312,10 +316,8 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     canvas.style.transform = `translateY(${canvasYStart}px)`;
   }
 
-  /**
-   * Reads dimensions of parent node. Returns true if read dimensions are
-   * different from what was cached in the state.
-   */
+  // Reads dimensions of parent node. Returns true if read dimensions are
+  // different from what was cached in the state.
   private readParentSizeFromDom(dom: Element): boolean {
     const oldWidth = this.parentWidth;
     const oldHeight = this.parentHeight;
@@ -329,16 +331,17 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     return this.parentHeight !== oldHeight || this.parentWidth !== oldWidth;
   }
 
-  /**
-   * Reads dimensions of panels. Returns true if total panel height is different
-   * from what was cached in state.
-   */
+  // Reads dimensions of panels. Returns true if total panel height is different
+  // from what was cached in state.
   private readPanelHeightsFromDom(dom: Element): boolean {
     const prevHeight = this.totalPanelHeight;
     this.panelInfos = [];
     this.totalPanelHeight = 0;
+    const domRect = dom.getBoundingClientRect();
+    this.panelContainerTop = domRect.y;
+    this.panelContainerHeight = domRect.height;
 
-    dom.parentElement!.querySelectorAll('.panel').forEach(panel => {
+    dom.parentElement!.querySelectorAll('.panel').forEach((panel) => {
       const key = assertExists(panel.getAttribute('data-key'));
       const vnode = assertExists(this.panelByKey.get(key));
 
@@ -351,7 +354,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
         width: rect.width,
         x: rect.x,
         y: rect.y,
-        vnode
+        vnode,
       });
       this.totalPanelHeight += rect.height;
     });
@@ -428,11 +431,8 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     if (this.panelInfos.length === 0 || area.tracks.length === 0) return;
 
     // Find the minY and maxY of the selected tracks in this panel container.
-    const panelContainerTop = this.panelInfos[0].y;
-    const panelContainerBottom = this.panelInfos[this.panelInfos.length - 1].y +
-        this.panelInfos[this.panelInfos.length - 1].height;
-    let selectedTracksMinY = panelContainerBottom;
-    let selectedTracksMaxY = panelContainerTop;
+    let selectedTracksMinY = this.panelContainerHeight + this.panelContainerTop;
+    let selectedTracksMaxY = this.panelContainerTop;
     let trackFromCurrentContainerSelected = false;
     for (let i = 0; i < this.panelInfos.length; i++) {
       if (area.tracks.includes(this.panelInfos[i].id)) {
@@ -453,10 +453,10 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     const startX = globals.frontendLocalState.timeScale.timeToPx(area.startSec);
     const endX = globals.frontendLocalState.timeScale.timeToPx(area.endSec);
     // To align with where to draw on the canvas subtract the first panel Y.
-    selectedTracksMinY -= panelContainerTop;
-    selectedTracksMaxY -= panelContainerTop;
+    selectedTracksMinY -= this.panelContainerTop;
+    selectedTracksMaxY -= this.panelContainerTop;
     this.ctx.save();
-    this.ctx.strokeStyle = 'rgba(52,69,150)';
+    this.ctx.strokeStyle = SELECTION_STROKE_COLOR;
     this.ctx.lineWidth = 1;
     const canvasYStart =
         Math.floor(this.scrollTop - this.getCanvasOverdrawHeightPerSide());
@@ -504,7 +504,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
         m('div',
           `${this.perfStats.totalPanels} panels, ` +
               `${this.perfStats.panelsOnCanvas} on canvas.`),
-        m('div', runningStatStr(this.perfStats.renderStats)), )];
+        m('div', runningStatStr(this.perfStats.renderStats)))];
   }
 
   private getCanvasOverdrawHeightPerSide() {

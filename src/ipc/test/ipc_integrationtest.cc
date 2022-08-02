@@ -26,14 +26,14 @@
 namespace ipc_test {
 namespace {
 
-using ::testing::_;
-using ::testing::Invoke;
 using ::perfetto::ipc::AsyncResult;
 using ::perfetto::ipc::Client;
 using ::perfetto::ipc::Deferred;
 using ::perfetto::ipc::Host;
 using ::perfetto::ipc::Service;
 using ::perfetto::ipc::ServiceProxy;
+using ::testing::_;
+using ::testing::Invoke;
 
 using namespace ::ipc_test::gen;
 
@@ -72,8 +72,12 @@ class IPCIntegrationTest : public ::testing::Test {
 };
 
 TEST_F(IPCIntegrationTest, SayHelloWaveGoodbye) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+  std::unique_ptr<Host> host = Host::CreateInstance_Fuchsia(&task_runner_);
+#else
   std::unique_ptr<Host> host =
       Host::CreateInstance(kTestSocket.name(), &task_runner_);
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
   ASSERT_TRUE(host);
 
   MockGreeterService* svc = new MockGreeterService();
@@ -81,8 +85,21 @@ TEST_F(IPCIntegrationTest, SayHelloWaveGoodbye) {
 
   auto on_connect = task_runner_.CreateCheckpoint("on_connect");
   EXPECT_CALL(svc_proxy_events_, OnConnect()).WillOnce(Invoke(on_connect));
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+  auto socket_pair = perfetto::base::UnixSocketRaw::CreatePairPosix(
+      perfetto::base::SockFamily::kUnix, perfetto::base::SockType::kStream);
+
+  std::unique_ptr<Client> cli = Client::CreateInstance(
+      Client::ConnArgs(
+          perfetto::base::ScopedSocketHandle(socket_pair.first.ReleaseFd())),
+      &task_runner_);
+  host->AdoptConnectedSocket_Fuchsia(
+      perfetto::base::ScopedSocketHandle(socket_pair.second.ReleaseFd()));
+#else
   std::unique_ptr<Client> cli = Client::CreateInstance(
       {kTestSocket.name(), /*retry=*/false}, &task_runner_);
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
   std::unique_ptr<GreeterProxy> svc_proxy(new GreeterProxy(&svc_proxy_events_));
   cli->BindService(svc_proxy->GetWeakPtr());
   task_runner_.RunUntilCheckpoint("on_connect");

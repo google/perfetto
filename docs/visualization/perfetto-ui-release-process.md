@@ -42,6 +42,8 @@ To change the channel the UI is using between `stable` and `canary` you can use 
 To change to the `autopush` channel, open the `Flags` screen in the `Support`
 section of the sidebar, and choose `Autopush` in `Release channel`.
 
+![perfetto-ui-channel-autopush-toggle.png](/docs/images/perfetto-ui-channel-autopush-toggle.png)
+
 ## Which version am I using?
 
 You can see the version of the UI you are currently using in the bottom left hand corner of the UI.

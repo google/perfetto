@@ -13,6 +13,27 @@ package perfetto.protos;
 
 option go_package = "github.com/google/perfetto/perfetto_proto";
 
+// Begin of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
+
+// Measure app deadline missed.
+message AndroidFrameTimelineMetric {
+  message ProcessBreakdown {
+    // Process name
+    optional string process_name = 1;
+    // Count of app deadline missed in the process
+    optional int64 app_deadline_missed_count = 2;
+  }
+
+  // Total count for app deadline missed
+  optional int64 app_deadline_missed_total_count = 1;
+
+  // Process name and app deadline missed metrics
+  repeated ProcessBreakdown process = 2;
+}
+
+
+// End of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
+
 // Begin of protos/perfetto/metrics/android/android_trusty_workqueues.proto
 
 // Metric used to generate a simplified view of the Trusty kworker events.
@@ -64,6 +85,22 @@ message AndroidBatteryMetric {
 }
 
 // End of protos/perfetto/metrics/android/batt_metric.proto
+
+// Begin of protos/perfetto/metrics/android/binder_metric.proto
+
+// This metric provides per-process Binder statistics for traces with binder_driver enabled
+// Specifically, transactions are categorized and counted
+message AndroidBinderMetric {
+  message PerProcessBreakdown {
+    optional string process_name = 1;
+    optional uint32 pid = 2;
+    optional string slice_name = 3;
+    optional uint32 count = 4;
+  }
+
+  repeated PerProcessBreakdown process_breakdown = 1;
+}
+// End of protos/perfetto/metrics/android/binder_metric.proto
 
 // Begin of protos/perfetto/metrics/android/camera_metric.proto
 
@@ -1085,6 +1122,10 @@ message AndroidPowerRails {
 
   // Energy data per Power Rail.
   repeated PowerRails power_rails = 1;
+
+  // The average used power between the first and last sampled rail across all
+  // the rails in milliwatts (mw).
+  optional double avg_total_used_power_mw = 2;
 }
 // End of protos/perfetto/metrics/android/powrails_metric.proto
 
@@ -1138,6 +1179,41 @@ message AndroidRtRuntimeMetric {
 // simpleperf tool
 message AndroidSimpleperfMetric {
   optional double urgent_ratio = 1;
+
+  message PerfEventMetric {
+    // Simpleperf event name
+    optional string name = 1;
+
+    message Thread {
+      // Thread ID
+      optional int32 tid = 1;
+      // Thread name
+      optional string name = 2;
+      // CPU ID
+      optional int32 cpu = 3;
+      // Total counter value
+      optional double total = 4;
+    }
+
+    message Process {
+      // Process ID
+      optional int32 pid = 1;
+      // Process name
+      optional string name = 2;
+      // Metrics for each thread in this process.
+      repeated Thread threads = 3;
+      // Total counter value over all threads in this process
+      optional double total = 4;
+    }
+
+    // Metrics for each process
+    repeated Process processes = 2;
+
+    // Total counter value over all processes and threads
+    optional double total = 3;
+  }
+
+  repeated PerfEventMetric events = 2;
 }
 
 // End of protos/perfetto/metrics/android/simpleperf.proto
@@ -1169,7 +1245,7 @@ message AndroidStartupMetric {
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // Next id: 31.
+  // Next id: 33.
   message ToFirstFrame {
     // The duration between the intent received and first frame.
     optional int64 dur_ns = 1;
@@ -1228,7 +1304,18 @@ message AndroidStartupMetric {
     // Time spent on garbage collection.
     optional Slice time_gc_total = 29;
     optional Slice time_gc_on_cpu = 30;
-    // Deprecated was other_process_to_activity_cpu_ratio
+
+    // Time spent in lock contention on the main thread of the process being
+    // started up. This includes *all* types of lock contention not just monitor
+    // contention.
+    optional Slice time_lock_contention_thread_main = 31;
+
+    // Time spent in monitor lock contention on the main thread of the
+    // process being started up. This will be a subset of the time counted by
+    // |time_lock_contention_thread_main|.
+    optional Slice time_monitor_contention_thread_main = 32;
+
+    // Removed: was other_process_to_activity_cpu_ratio.
     reserved 12;
 
     // Removed: was uint32 versions of to_post_fork, to_activity_thread_main and
@@ -1287,7 +1374,33 @@ message AndroidStartupMetric {
     optional int64 first_frame = 2;
   }
 
-  // Next id: 15
+  // Contains information about the state of a system during the app startup.
+  // Useful to put the startup in context.
+  message SystemState {
+    // Whether the dex2oat64 process was running concurrent to the startup.
+    optional bool dex2oat_running = 1;
+
+    // Whether the installd process was running concurrent to the startup.
+    optional bool installd_running = 2;
+
+    // The number of broadcasts dispatched by the system during the app
+    // launch.
+    optional int64 broadcast_dispatched_count = 3;
+
+    // The number of broadcasts received by an app or the system during the
+    // app launch. Note that multiple packages can be subscribed to the same
+    // broadcast so a single dsipatch can cause multiple packages to receive
+    // and process a broadcast.
+    optional int64 broadcast_received_count = 4;
+
+    // The most active (i.e. consuming the most mcycles) processes during the
+    // app launch excluding the process(es) being launched.
+    // Note: the exact number of returned is an implementation detail and
+    // will likely change over time.
+    repeated string most_active_non_launch_processes = 5;
+  }
+
+  // Next id: 16
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -1329,13 +1442,18 @@ message AndroidStartupMetric {
     // using high-speed cameras (HSC).
     optional HscMetrics hsc = 8;
 
-    // The time taken in the startup from intent recieved to the start time
+    // The time taken in the startup from intent received to the start time
     // of the reportFullyDrawn slice. This should be longer than the time to
     // first frame as the application decides this after it starts rendering.
     optional Slice report_fully_drawn = 9;
 
-    // Conntains information about the status of odex files.
+    // Contains information about the status of odex files.
     repeated OptimizationStatus optimization_status = 12;
+
+    // Contains information about the state of the rest of the system during the
+    // startup. This is useful for getting context about why a startup might
+    // be slow beyond just what the app is doing.
+    optional SystemState system_state = 15;
 
     reserved 10;
   }
@@ -1524,7 +1642,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 46
+// Next id: 48
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -1646,6 +1764,12 @@ message TraceMetrics {
 
   // Summary of other concurrent trace recording.
   optional AndroidOtherTracesMetric android_other_traces = 45;
+
+  // Per-process Binder transaction metrics.
+  optional AndroidBinderMetric android_binder = 46;
+
+  // Metrics for app deadline missed.
+  optional AndroidFrameTimelineMetric android_frame_timeline_metric = 47;
 
   // Demo extensions.
   extensions 450 to 499;

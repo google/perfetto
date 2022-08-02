@@ -27,7 +27,7 @@ function Rnd(max: number) {
 
 function MakeProtoMessage(fieldId: number, len: number) {
   const writer = protobuf.Writer.create();
-  const tag = (fieldId << 3) | 2 /*length-delimited*/;
+  const tag = (fieldId << 3) | 2;
   assertTrue(tag < 0x80 && (tag & 7) === 2);
   writer.uint32(tag);
   const data = new Uint8Array(len);
@@ -88,7 +88,7 @@ test('ProtoRingBufferTest.CoalescingStream', () => {
 
   const fragLens = [120, 20, 471, 1];
   let fragSum = 0;
-  fragLens.map(fragLen => {
+  fragLens.map((fragLen) => {
     buf.append(mergedBuf.subarray(fragSum, fragSum + fragLen));
     fragSum += fragLen;
     for (;;) {
@@ -123,18 +123,18 @@ test('ProtoRingBufferTest.RandomSizes', () => {
     mergedLen += msg.length;
   }
 
-  for (let fragSum = 0; fragSum < mergedLen;) {
-      let fragLen = 1 + Rnd(1024 * 32);
-      fragLen = Math.min(fragLen, mergedLen - fragSum);
-      buf.append(mergedBuf.subarray(fragSum, fragSum + fragLen));
-      fragSum += fragLen;
-      for (;;) {
-        const msg = buf.readMessage();
-        if (msg === undefined) break;
-        const expLen = expectedLengths.shift();
-        expect(expLen).toBeDefined();
-        expect(msg.length).toEqual(expLen);
-      }
+  for (let fragSum = 0; fragSum < mergedLen; /**/) {
+    let fragLen = 1 + Rnd(1024 * 32);
+    fragLen = Math.min(fragLen, mergedLen - fragSum);
+    buf.append(mergedBuf.subarray(fragSum, fragSum + fragLen));
+    fragSum += fragLen;
+    for (;;) {
+      const msg = buf.readMessage();
+      if (msg === undefined) break;
+      const expLen = expectedLengths.shift();
+      expect(expLen).toBeDefined();
+      expect(msg.length).toEqual(expLen);
     }
+  }
   expect(expectedLengths.length).toEqual(0);
 });

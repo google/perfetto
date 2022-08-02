@@ -103,8 +103,23 @@ class TraceMetadata implements m.ClassComponent {
       this.queryDispatched = true;
       globals.dispatch(Actions.executeQuery({
         queryId: this.QUERY_ID,
-        query: `select name, ifnull(str_value, cast(int_value as text)) as value
-                from metadata order by name`,
+        query: `with 
+          metadata_with_priorities as (select
+            name, ifnull(str_value, cast(int_value as text)) as value,
+            name in (
+               "trace_size_bytes", 
+               "cr-os-arch",
+               "cr-os-name",
+               "cr-os-version",
+               "cr-physical-memory",
+               "cr-product-version",
+               "cr-hardware-class"
+            ) as priority 
+            from metadata
+          )
+          select name, value
+          from metadata_with_priorities 
+          order by priority desc, name`,
       }));
     }
 
@@ -219,5 +234,5 @@ export const TraceInfoPage = createPage({
 
         }),
     );
-  }
+  },
 });

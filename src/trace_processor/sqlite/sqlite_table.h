@@ -25,10 +25,10 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/sqlite/query_constraints.h"
 
 namespace perfetto {
@@ -218,7 +218,7 @@ class SqliteTable : public sqlite3_vtab {
       table->name_ = xdesc->name;
 
       Schema schema;
-      util::Status status = table->Init(argc, argv, &schema);
+      base::Status status = table->Init(argc, argv, &schema);
       if (!status.ok()) {
         *pzErr = sqlite3_mprintf("%s", status.c_message());
         return SQLITE_ERROR;
@@ -258,13 +258,6 @@ class SqliteTable : public sqlite3_vtab {
     };
     module->xFilter = [](sqlite3_vtab_cursor* vc, int i, const char* s, int a,
                          sqlite3_value** v) {
-      // If the idxNum is equal to kSqliteConstraintBestIndexNum, that means
-      // in BestIndexInternal, we tried to discourage the query planner from
-      // chosing this plan. As the subclass has informed us that it cannot
-      // handle this plan, just return the error now.
-      if (i == kInvalidConstraintsInBestIndexNum)
-        return SQLITE_CONSTRAINT;
-
       auto* c = static_cast<Cursor*>(vc);
       bool is_cached = c->table_->ReadConstraints(i, s, a);
 
@@ -320,7 +313,7 @@ class SqliteTable : public sqlite3_vtab {
   }
 
   // Methods to be implemented by derived table classes.
-  virtual util::Status Init(int argc, const char* const* argv, Schema*) = 0;
+  virtual base::Status Init(int argc, const char* const* argv, Schema*) = 0;
   virtual std::unique_ptr<Cursor> CreateCursor() = 0;
   virtual int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) = 0;
 
@@ -341,9 +334,6 @@ class SqliteTable : public sqlite3_vtab {
   const std::string& name() const { return name_; }
 
  private:
-  static constexpr int kInvalidConstraintsInBestIndexNum =
-      std::numeric_limits<int>::max();
-
   template <typename TableType, typename Context>
   static Factory<Context> GetFactory() {
     return [](sqlite3* db, Context ctx) {

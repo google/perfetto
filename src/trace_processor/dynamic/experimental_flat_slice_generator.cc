@@ -19,6 +19,7 @@
 #include <memory>
 #include <set>
 
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -35,9 +36,9 @@ base::Status ExperimentalFlatSliceGenerator::ValidateConstraints(
   bool has_end_bound = false;
   for (const auto& c : qc.constraints()) {
     has_start_bound |= c.column == static_cast<int>(CI::start_bound) &&
-                       c.op == SQLITE_INDEX_CONSTRAINT_EQ;
+                       sqlite_utils::IsOpEq(c.op);
     has_end_bound |= c.column == static_cast<int>(CI::end_bound) &&
-                     c.op == SQLITE_INDEX_CONSTRAINT_EQ;
+                     sqlite_utils::IsOpEq(c.op);
   }
   return has_start_bound && has_end_bound
              ? base::OkStatus()

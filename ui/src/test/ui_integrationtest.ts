@@ -22,10 +22,10 @@ import {
   compareScreenshots,
   failIfTraceProcessorHttpdIsActive,
   getTestTracePath,
-  waitForPerfettoIdle
+  waitForPerfettoIdle,
 } from './perfetto_ui_test_helper';
 
-declare var global: {__BROWSER__: puppeteer.Browser;};
+declare let global: {__BROWSER__: puppeteer.Browser;};
 const browser = assertExists(global.__BROWSER__);
 const expectedScreenshotPath = path.join('test', 'data', 'ui-screenshots');
 
@@ -104,7 +104,7 @@ describe('android_trace_30s', () => {
   //    await page.keyboard.type('\n');
   //  }
   //  await waitForPerfettoIdle(page);
-  //});
+  // });
 });
 
 describe('chrome_rendering_desktop', () => {
@@ -273,6 +273,42 @@ describe('routing', () => {
     await page.goto('about:blank');
     await page.goto(
         'http://localhost:10000/?testing=1#!/viewer?local_cache_key=invalid');
+    await waitForPerfettoIdle(page);
+  });
+});
+
+// Regression test for b/235335853.
+describe('modal_dialog', () => {
+  let page: puppeteer.Page;
+
+  beforeAll(async () => {
+    page = await getPage();
+    await page.goto('http://localhost:10000/?testing=1');
+    await waitForPerfettoIdle(page);
+  });
+
+  test('show_dialog_1', async () => {
+    await page.click('#keyboard_shortcuts');
+    await waitForPerfettoIdle(page);
+  });
+
+  test('dismiss_1', async () => {
+    await page.keyboard.press('Escape');
+    await waitForPerfettoIdle(page);
+  });
+
+  test('switch_page_no_dialog', async () => {
+    await page.click('#record_new_trace');
+    await waitForPerfettoIdle(page);
+  });
+
+  test('show_dialog_2', async () => {
+    await page.click('#keyboard_shortcuts');
+    await waitForPerfettoIdle(page);
+  });
+
+  test('dismiss_2', async () => {
+    await page.keyboard.press('Escape');
     await waitForPerfettoIdle(page);
   });
 });

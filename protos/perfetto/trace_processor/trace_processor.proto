@@ -40,8 +40,8 @@ enum TraceProcessorApiVersion {
   // mismatches between UI and trace_processor_shell --httpd. Increment this
   // every time a new feature that the UI depends on is being introduced (e.g.
   // new tables, new SQL operators, metrics that are required by the UI).
-  // See also TraceProcessorVersion (below).
-  TRACE_PROCESSOR_CURRENT_API_VERSION = 3;
+  // See also StatusResult.api_version (below).
+  TRACE_PROCESSOR_CURRENT_API_VERSION = 5;
 }
 
 // At lowest level, the wire-format of the RPC procol is a linear sequence of
@@ -73,7 +73,9 @@ message TraceProcessorRpc {
     TPM_APPEND_TRACE_DATA = 1;
     TPM_FINALIZE_TRACE_DATA = 2;
     TPM_QUERY_STREAMING = 3;
-    TPM_QUERY_RAW_DEPRECATED = 4;
+    // Previously: TPM_QUERY_RAW_DEPRECATED
+    reserved 4;
+    reserved "TPM_QUERY_RAW_DEPRECATED";
     TPM_COMPUTE_METRIC = 5;
     TPM_GET_METRIC_DESCRIPTORS = 6;
     TPM_RESTORE_INITIAL_TABLES = 7;
@@ -105,8 +107,6 @@ message TraceProcessorRpc {
     bytes append_trace_data = 101;
     // For TPM_QUERY_STREAMING.
     QueryArgs query_args = 103;
-    // For TPM_QUERY_RAW_DEPRECATED.
-    RawQueryArgs raw_query_args = 104;
     // For TPM_COMPUTE_METRIC.
     ComputeMetricArgs compute_metric_args = 105;
 
@@ -115,8 +115,6 @@ message TraceProcessorRpc {
     AppendTraceDataResult append_result = 201;
     // For TPM_QUERY_STREAMING.
     QueryResult query_result = 203;
-    // For TPM_QUERY_RAW_DEPRECATED.
-    RawQueryResult raw_query_result = 204;
     // For TPM_COMPUTE_METRIC.
     ComputeMetricResult metric_result = 205;
     // For TPM_GET_METRIC_DESCRIPTORS.
@@ -126,6 +124,11 @@ message TraceProcessorRpc {
     // For TPM_GET_STATUS.
     StatusResult status = 210;
   }
+
+  // Previously: RawQueryArgs for TPM_QUERY_RAW_DEPRECATED
+  reserved 104;
+  // Previously: RawQueryResult for TPM_QUERY_RAW_DEPRECATED
+  reserved 204;
 }
 
 message AppendTraceDataResult {
@@ -138,46 +141,6 @@ message QueryArgs {
 
   // Was time_queued_ns
   reserved 2;
-}
-
-// Input for the /raw_query endpoint.
-message RawQueryArgs {
-  optional string sql_query = 1;
-
-  // Was time_queued_ns
-  reserved 2;
-}
-
-// Output for the /raw_query endpoint.
-// DEPRECATED, use /query. See QueryResult below.
-message RawQueryResult {
-  message ColumnDesc {
-    optional string name = 1;
-    enum Type {
-      UNKNOWN = 0;
-      LONG = 1;
-      DOUBLE = 2;
-      STRING = 3;
-    }
-    optional Type type = 2;
-  }
-  message ColumnValues {
-    // Only one of this field will be filled for each column (according to the
-    // corresponding descriptor) and that one will have precisely |num_records|
-    // elements.
-    repeated int64 long_values = 1;
-    repeated double double_values = 2;
-    repeated string string_values = 3;
-
-    // This will be set to true or false depending on whether the data at the
-    // given index is NULL.
-    repeated bool is_nulls = 4;
-  }
-  repeated ColumnDesc column_descriptors = 1;
-  optional uint64 num_records = 2;
-  repeated ColumnValues columns = 3;
-  optional string error = 4;
-  optional uint64 execution_time_ns = 5;
 }
 
 // Output for the /query endpoint.

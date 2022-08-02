@@ -39,7 +39,7 @@ using RequestID = uint64_t;
 // See go/perfetto-win .
 constexpr bool kUseTCPSocket = true;
 #else
-// On Android, Linux, Mac use a AF_UNIX socket.
+// Android, Linux, Mac, Fuchsia use local sockets.
 constexpr bool kUseTCPSocket = false;
 #endif
 

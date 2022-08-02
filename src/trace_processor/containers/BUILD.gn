@@ -26,12 +26,12 @@ perfetto_component("containers") {
     "null_term_string_view.h",
     "nullable_vector.h",
     "row_map.h",
+    "row_map_algorithms.h",
     "string_pool.h",
   ]
   sources = [
     "bit_vector.cc",
     "bit_vector_iterators.cc",
-    "nullable_vector.cc",
     "row_map.cc",
     "string_pool.cc",
   ]
@@ -69,6 +69,7 @@ if (enable_perfetto_benchmarks) {
     sources = [
       "bit_vector_benchmark.cc",
       "nullable_vector_benchmark.cc",
+      "row_map_algorithms_benchmark.cc",
       "row_map_benchmark.cc",
     ]
   }

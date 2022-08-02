@@ -29,6 +29,10 @@ namespace base {
 class TaskRunner;
 }  // namespace base.
 
+namespace ipc {
+class Host;
+}  // namespace ipc
+
 class TracingService;
 
 // Creates an instance of the service (business logic + UNIX socket transport).
@@ -36,7 +40,7 @@ class TracingService;
 //   The code in the tracing client that will host the service e.g., traced.
 // Implemented in:
 //   src/tracing/ipc/service/service_ipc_host_impl.cc
-class PERFETTO_EXPORT ServiceIPCHost {
+class PERFETTO_EXPORT_COMPONENT ServiceIPCHost {
  public:
   static std::unique_ptr<ServiceIPCHost> CreateInstance(base::TaskRunner*);
   virtual ~ServiceIPCHost();
@@ -51,6 +55,10 @@ class PERFETTO_EXPORT ServiceIPCHost {
   // and binds the socket beore exec()-ing us.
   virtual bool Start(base::ScopedSocketHandle producer_socket_fd,
                      base::ScopedSocketHandle consumer_socket_fd) = 0;
+
+  // Allows callers to supply preconstructed Hosts.
+  virtual bool Start(std::unique_ptr<ipc::Host> producer_host,
+                     std::unique_ptr<ipc::Host> consumer_host) = 0;
 
   virtual TracingService* service() const = 0;
 

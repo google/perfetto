@@ -19,35 +19,35 @@ import {PageAttrs} from './pages';
 export const ROUTE_PREFIX = '#!';
 const DEFAULT_ROUTE = '/';
 
-/*
- * A broken down representation of a route.
- * For instance: #!/record/gpu?local_cache_key=a0b1
- * becomes: {page: '/record', subpage: '/gpu', args: {local_cache_key: 'a0b1'}}
- */
+// A broken down representation of a route.
+// For instance: #!/record/gpu?local_cache_key=a0b1
+// becomes: {page: '/record', subpage: '/gpu', args: {local_cache_key: 'a0b1'}}
 export interface Route {
   page: string;
   subpage: string;
   args: RouteArgs;
 }
 
-/*
- * The set of args that can be set on the route via #!/page?a=1&b2.
- * Route args are orthogonal to pages (i.e. should NOT make sense only in a
- * only within a specific page, use /page/subpages for that).
- * Args are !== the querystring (location.search) which is sent to the
- * server. The route args are NOT sent to the HTTP server.
- * Given this URL:
- * http://host/?foo=1&bar=2#!/page/subpage?local_cache_key=a0b1&baz=3.
- *
- * location.search = 'foo=1&bar=2'.
- *   This is seen by the HTTP server. We really don't use querystrings as the
- *   perfetto UI is client only.
- *
- * location.hash = '#!/page/subpage?local_cache_key=a0b1'.
- *   This is client-only. All the routing logic in the Perfetto UI uses only
- *   this.
- */
-export interface RouteArgs {
+// The set of args that can be set on the route via #!/page?a=1&b2.
+// Route args are orthogonal to pages (i.e. should NOT make sense only in a
+// only within a specific page, use /page/subpages for that).
+// Args are !== the querystring (location.search) which is sent to the
+// server. The route args are NOT sent to the HTTP server.
+// Given this URL:
+// http://host/?foo=1&bar=2#!/page/subpage?local_cache_key=a0b1&baz=3.
+//
+// location.search = 'foo=1&bar=2'.
+//   This is seen by the HTTP server. We really don't use querystrings as the
+//   perfetto UI is client only.
+//
+// location.hash = '#!/page/subpage?local_cache_key=a0b1'.
+//   This is client-only. All the routing logic in the Perfetto UI uses only
+//   this.
+
+// This must be a type literial to avoid having to duplicate the
+// index type logic of Params.
+// tslint:disable-next-line interface-over-type-literal
+export type RouteArgs = {
   // The local_cache_key is special and is persisted across navigations.
   local_cache_key?: string;
 
@@ -56,34 +56,32 @@ export interface RouteArgs {
   s?: string;    // For permalinks.
   p?: string;    // DEPRECATED: for #!/record?p=cpu subpages (b/191255021).
   url?: string;  // For fetching traces from Cloud Storage.
-}
+};
 
 export interface RoutesMap {
   [key: string]: m.Component<PageAttrs>;
 }
 
-/*
- * This router does two things:
- * 1) Maps fragment paths (#!/page/subpage) to Mithril components.
- * The route map is passed to the ctor and is later used when calling the
- * resolve() method.
- *
- * 2) Handles the (optional) args, e.g. #!/page?arg=1&arg2=2.
- * Route args are carry information that is orthogonal to the page (e.g. the
- * trace id).
- * local_cache_key has some special treatment: once a URL has a local_cache_key,
- * it gets automatically appended to further navigations that don't have one.
- * For instance if the current url is #!/viewer?local_cache_key=1234 and a later
- * action (either user-initiated or code-initited) navigates to #!/info, the
- * rotuer will automatically replace the history entry with
- * #!/info?local_cache_key=1234.
- * This is to keep propagating the trace id across page changes, for handling
- * tab discards (b/175041881).
- *
- * This class does NOT deal with the "load a trace when the url contains ?url=
- * or ?local_cache_key=". That logic lives in trace_url_handler.ts, which is
- * triggered by Router.onRouteChanged().
- */
+// This router does two things:
+// 1) Maps fragment paths (#!/page/subpage) to Mithril components.
+// The route map is passed to the ctor and is later used when calling the
+// resolve() method.
+//
+// 2) Handles the (optional) args, e.g. #!/page?arg=1&arg2=2.
+// Route args are carry information that is orthogonal to the page (e.g. the
+// trace id).
+// local_cache_key has some special treatment: once a URL has a local_cache_key,
+// it gets automatically appended to further navigations that don't have one.
+// For instance if the current url is #!/viewer?local_cache_key=1234 and a later
+// action (either user-initiated or code-initited) navigates to #!/info, the
+// rotuer will automatically replace the history entry with
+// #!/info?local_cache_key=1234.
+// This is to keep propagating the trace id across page changes, for handling
+// tab discards (b/175041881).
+//
+// This class does NOT deal with the "load a trace when the url contains ?url=
+// or ?local_cache_key=". That logic lives in trace_url_handler.ts, which is
+// triggered by Router.onRouteChanged().
 export class Router {
   private readonly recentChanges: number[] = [];
   private routes: RoutesMap;
@@ -132,11 +130,9 @@ export class Router {
     this.onRouteChanged(newRoute);
   }
 
-  /**
-   * Returns the component for the current route in the URL.
-   * If no route matches the URL, returns a component corresponding to
-   * |this.defaultRoute|.
-   */
+  // Returns the component for the current route in the URL.
+  // If no route matches the URL, returns a component corresponding to
+  // |this.defaultRoute|.
   resolve(): m.Vnode<PageAttrs> {
     const route = Router.parseFragment(location.hash);
     let component = this.routes[route.page];
@@ -151,13 +147,11 @@ export class Router {
     window.location.hash = newHash;
   }
 
-  /*
-   * Breaks down a fragment into a Route object.
-   * Sample input:
-   * '#!/record/gpu?local_cache_key=abcd-1234'
-   * Sample output:
-   * {page: '/record', subpage: '/gpu', args: {local_cache_key: 'abcd-1234'}}
-   */
+  // Breaks down a fragment into a Route object.
+  // Sample input:
+  // '#!/record/gpu?local_cache_key=abcd-1234'
+  // Sample output:
+  // {page: '/record', subpage: '/gpu', args: {local_cache_key: 'abcd-1234'}}
   static parseFragment(hash: string): Route {
     const prefixLength = ROUTE_PREFIX.length;
     let route = '';
@@ -191,18 +185,14 @@ export class Router {
     return {page, subpage, args};
   }
 
-  /*
-   * Like parseFragment() but takes a full URL.
-   */
+  // Like parseFragment() but takes a full URL.
   static parseUrl(url: string): Route {
     const hashPos = url.indexOf('#');
     const fragment = hashPos < 0 ? '' : url.substr(hashPos);
     return Router.parseFragment(fragment);
   }
 
-  /*
-   * Throws if EVENT_LIMIT onhashchange events occur within WINDOW_MS.
-   */
+  // Throws if EVENT_LIMIT onhashchange events occur within WINDOW_MS.
   private crashIfLivelock() {
     const WINDOW_MS = 1000;
     const EVENT_LIMIT = 20;

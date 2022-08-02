@@ -319,6 +319,7 @@ perfetto_unittest_source_set("unittests") {
     "../../base",
     "../../base:test_support",
     "../../tracing/core",
+    "../../tracing/test:test_support",
     "../common:proc_utils",
     "../common:unwind_support",
   ]

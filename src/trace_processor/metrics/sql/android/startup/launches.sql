@@ -26,8 +26,9 @@ SELECT
 FROM slice s
 JOIN process_track t ON s.track_id = t.id
 JOIN process USING(upid)
-WHERE s.name GLOB 'launching: *'
-AND (process.name IS NULL OR process.name = 'system_server');
+WHERE
+  s.name GLOB 'launching: *' AND
+  (process.name IS NULL OR process.name = 'system_server');
 
 SELECT CREATE_FUNCTION(
   'SLICE_COUNT(slice_glob STRING)',
@@ -81,20 +82,40 @@ SELECT CREATE_FUNCTION(
 );
 
 INSERT INTO launch_processes(launch_id, upid, launch_type)
-SELECT
-  l.id AS launch_id,
-  p.upid,
-  CASE
-    WHEN STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'bindApplication') > 0
-      THEN 'cold'
-    WHEN STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityStart') > 0
-      THEN 'warm'
-    WHEN STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityResume') > 0
-      THEN 'hot'
-    ELSE NULL
-  END AS launch_type
-FROM launches l
-LEFT JOIN package_list ON (l.package = package_list.package_name)
-JOIN process p ON (l.package = p.name OR p.uid = package_list.uid)
-JOIN thread t ON (p.upid = t.upid AND t.is_main_thread)
+SELECT *
+FROM (
+  -- This is intentionally a nested subquery. For some reason, if we put
+  -- the `WHERE launch_type IS NOT NULL` constraint inside, we end up with a
+  -- query which is an order of magnitude slower than being outside :(
+  SELECT
+    l.id AS launch_id,
+    p.upid,
+    CASE
+      WHEN STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'bindApplication') > 0
+        THEN 'cold'
+      WHEN STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityStart') > 0
+        THEN 'warm'
+      WHEN STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityResume') > 0
+        THEN 'hot'
+      ELSE NULL
+    END AS launch_type
+  FROM launches l
+  LEFT JOIN package_list ON (l.package = package_list.package_name)
+  JOIN process p ON (l.package = p.name OR p.uid = package_list.uid)
+  JOIN thread t ON (p.upid = t.upid AND t.is_main_thread)
+)
 WHERE launch_type IS NOT NULL;
+
+-- Tracks all main process threads.
+DROP VIEW IF EXISTS launch_threads;
+CREATE VIEW launch_threads AS
+SELECT
+  launches.id AS launch_id,
+  launches.ts AS ts,
+  launches.dur AS dur,
+  thread.utid AS utid,
+  thread.name AS thread_name,
+  thread.is_main_thread AS is_main_thread
+FROM launches
+JOIN launch_processes ON (launches.id = launch_processes.launch_id)
+JOIN thread USING (upid);

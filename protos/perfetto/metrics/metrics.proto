@@ -18,6 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+import "protos/perfetto/metrics/android/android_frame_timeline_metric.proto";
 import "protos/perfetto/metrics/android/batt_metric.proto";
 import "protos/perfetto/metrics/android/cpu_metric.proto";
 import "protos/perfetto/metrics/android/camera_metric.proto";
@@ -54,6 +55,7 @@ import "protos/perfetto/metrics/android/task_names.proto";
 import "protos/perfetto/metrics/android/trace_quality.proto";
 import "protos/perfetto/metrics/android/android_trusty_workqueues.proto";
 import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
+import "protos/perfetto/metrics/android/binder_metric.proto";
 
 // Trace processor metadata
 message TraceMetadata {
@@ -99,7 +101,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 46
+// Next id: 48
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -221,6 +223,12 @@ message TraceMetrics {
 
   // Summary of other concurrent trace recording.
   optional AndroidOtherTracesMetric android_other_traces = 45;
+
+  // Per-process Binder transaction metrics.
+  optional AndroidBinderMetric android_binder = 46;
+
+  // Metrics for app deadline missed.
+  optional AndroidFrameTimelineMetric android_frame_timeline_metric = 47;
 
   // Demo extensions.
   extensions 450 to 499;

@@ -21,6 +21,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
+#include "src/trace_processor/importers/ftrace/thread_state_tracker.h"
 #include "src/trace_processor/importers/proto/async_track_set_tracker.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
@@ -76,11 +77,6 @@ namespace {
 using protozero::ConstBytes;
 using protozero::ProtoDecoder;
 
-// kthreadd is the parent process for all kernel threads and always has
-// pid == 2 on Linux and Android.
-const uint32_t kKthreaddPid = 2;
-const char kKthreaddName[] = "kthreadd";
-
 struct FtraceEventAndFieldId {
   uint32_t event_id;
   uint32_t field_id;
@@ -110,6 +106,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
     : context_(context),
       rss_stat_tracker_(context),
       drm_tracker_(context),
+      iostat_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
@@ -162,16 +159,16 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
           "Total GPU memory used by the entire system")),
       gpu_mem_total_proc_desc_id_(context->storage->InternString(
           "Total GPU memory used by this process")),
-      sched_blocked_reason_id_(
-          context->storage->InternString("sched_blocked_reason")),
       io_wait_id_(context->storage->InternString("io_wait")),
       function_id_(context->storage->InternString("function")),
       waker_utid_id_(context->storage->InternString("waker_utid")),
       cros_ec_arg_num_id_(context->storage->InternString("ec_num")),
       cros_ec_arg_ec_id_(context->storage->InternString("ec_delta")),
       cros_ec_arg_sample_ts_id_(context->storage->InternString("sample_ts")),
-      ufs_clkgating_id_(context->storage->InternString("UFS clkgating (OFF/REQ_OFF/REQ_ON/ON)")),
-      ufs_command_count_id_(context->storage->InternString("UFS Command Count")) {
+      ufs_clkgating_id_(context->storage->InternString(
+          "UFS clkgating (OFF/REQ_OFF/REQ_ON/ON)")),
+      ufs_command_count_id_(
+          context->storage->InternString("UFS Command Count")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -482,10 +479,6 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseSchedSwitch(cpu, ts, data);
         break;
       }
-      case FtraceEvent::kSchedWakeupFieldNumber: {
-        ParseSchedWakeup(ts, pid, data);
-        break;
-      }
       case FtraceEvent::kSchedWakingFieldNumber: {
         ParseSchedWaking(ts, pid, data);
         break;
@@ -541,10 +534,6 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kSignalDeliverFieldNumber: {
         ParseSignalDeliver(ts, pid, data);
-        break;
-      }
-      case FtraceEvent::kLowmemoryKillFieldNumber: {
-        ParseLowmemoryKill(ts, data);
         break;
       }
       case FtraceEvent::kOomScoreAdjUpdateFieldNumber: {
@@ -668,7 +657,7 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kSchedBlockedReasonFieldNumber: {
-        ParseSchedBlockedReason(ts, data, seq_state);
+        ParseSchedBlockedReason(data, seq_state);
         break;
       }
       case FtraceEvent::kFastrpcDmaStatFieldNumber: {
@@ -760,6 +749,18 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         drm_tracker_.ParseDrm(ts, fld.id(), pid, data);
         break;
       }
+      case FtraceEvent::kF2fsIostatFieldNumber: {
+        iostat_tracker_.ParseF2fsIostat(ts, data);
+        break;
+      }
+      case FtraceEvent::kF2fsIostatLatencyFieldNumber: {
+        iostat_tracker_.ParseF2fsIostatLatency(ts, data);
+        break;
+      }
+      case FtraceEvent::kSchedCpuUtilCfsFieldNumber: {
+        ParseSchedCpuUtilCfs(ts, data);
+        break;
+      }
       default:
         break;
     }
@@ -814,7 +815,7 @@ void FtraceParser::ParseTypedFtraceToRaw(
     return;
   }
 
-  MessageDescriptor* m = GetMessageDescriptorForId(ftrace_id);
+  FtraceMessageDescriptor* m = GetMessageDescriptorForId(ftrace_id);
   const auto& message_strings = ftrace_message_strings_[ftrace_id];
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
   RawId id =
@@ -919,22 +920,6 @@ void FtraceParser::ParseSchedSwitch(uint32_t cpu,
       next_pid, ss.next_comm(), ss.next_prio());
 }
 
-void FtraceParser::ParseSchedWakeup(int64_t timestamp,
-                                    uint32_t pid,
-                                    ConstBytes blob) {
-  protos::pbzero::SchedWakeupFtraceEvent::Decoder sw(blob.data, blob.size);
-  uint32_t wakee_pid = static_cast<uint32_t>(sw.pid());
-  StringId name_id = context_->storage->InternString(sw.comm());
-  auto wakee_utid = context_->process_tracker->UpdateThreadName(
-      wakee_pid, name_id, ThreadNamePriority::kFtrace);
-  InstantId id = context_->event_tracker->PushInstant(
-      timestamp, sched_wakeup_name_id_, wakee_utid, RefType::kRefUtid);
-
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  context_->args_tracker->AddArgsTo(id).AddArg(waker_utid_id_,
-                                               Variadic::UnsignedInteger(utid));
-}
-
 void FtraceParser::ParseSchedWaking(int64_t timestamp,
                                     uint32_t pid,
                                     ConstBytes blob) {
@@ -943,12 +928,9 @@ void FtraceParser::ParseSchedWaking(int64_t timestamp,
   StringId name_id = context_->storage->InternString(sw.comm());
   auto wakee_utid = context_->process_tracker->UpdateThreadName(
       wakee_pid, name_id, ThreadNamePriority::kFtrace);
-  InstantId id = context_->event_tracker->PushInstant(
-      timestamp, sched_waking_name_id_, wakee_utid, RefType::kRefUtid);
-
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  context_->args_tracker->AddArgsTo(id).AddArg(waker_utid_id_,
-                                               Variadic::UnsignedInteger(utid));
+  ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(timestamp,
+                                                             wakee_utid, utid);
 }
 
 void FtraceParser::ParseSchedProcessFree(int64_t timestamp, ConstBytes blob) {
@@ -1010,7 +992,7 @@ void FtraceParser::ParseSdeTracingMarkWrite(int64_t timestamp,
   }
 
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
-  SystraceParser::GetOrCreate(context_)->ParseTracingMarkWrite(
+  SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
       timestamp, pid, static_cast<char>(evt.trace_type()), evt.trace_begin(),
       evt.trace_name(), tgid, evt.value());
 }
@@ -1026,14 +1008,7 @@ void FtraceParser::ParseDpuTracingMarkWrite(int64_t timestamp,
   }
 
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
-  // For kernel counter events, they will become thread counter tracks.
-  // But, we want to use the pid field specified in the event as the thread ID
-  // of the thread_counter_track instead of using the thread ID that emitted
-  // the events. So here, we need to override pid = tgid.
-  if (static_cast<char>(evt.type()) == 'C') {
-    pid = tgid;
-  }
-  SystraceParser::GetOrCreate(context_)->ParseTracingMarkWrite(
+  SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
       timestamp, pid, static_cast<char>(evt.type()), false /*trace_begin*/,
       evt.name(), tgid, evt.value());
 }
@@ -1049,14 +1024,7 @@ void FtraceParser::ParseG2dTracingMarkWrite(int64_t timestamp,
   }
 
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
-  // For kernel counter events, they will become thread counter tracks.
-  // But, we want to use the pid field specified in the event as the thread ID
-  // of the thread_counter_track instead of using the thread ID that emitted
-  // the events. So here, we need to override pid = tgid.
-  if (static_cast<char>(evt.type()) == 'C') {
-    pid = tgid;
-  }
-  SystraceParser::GetOrCreate(context_)->ParseTracingMarkWrite(
+  SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
       timestamp, pid, static_cast<char>(evt.type()), false /*trace_begin*/,
       evt.name(), tgid, evt.value());
 }
@@ -1072,7 +1040,7 @@ void FtraceParser::ParseMaliTracingMarkWrite(int64_t timestamp,
   }
 
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
-  SystraceParser::GetOrCreate(context_)->ParseTracingMarkWrite(
+  SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
       timestamp, pid, static_cast<char>(evt.type()), false /*trace_begin*/,
       evt.name(), tgid, evt.value());
 }
@@ -1213,11 +1181,13 @@ void FtraceParser::ParseSignalGenerate(int64_t timestamp, ConstBytes blob) {
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(
       static_cast<uint32_t>(sig.pid()));
-  InstantId id = context_->event_tracker->PushInstant(
-      timestamp, signal_generate_id_, utid, RefType::kRefUtid);
-
-  context_->args_tracker->AddArgsTo(id).AddArg(signal_name_id_,
-                                               Variadic::Integer(sig.sig()));
+  int signal = sig.sig();
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+  context_->slice_tracker->Scoped(
+      timestamp, track, kNullStringId, signal_generate_id_, 0,
+      [this, signal](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(signal_name_id_, Variadic::Integer(signal));
+      });
 }
 
 void FtraceParser::ParseSignalDeliver(int64_t timestamp,
@@ -1225,36 +1195,13 @@ void FtraceParser::ParseSignalDeliver(int64_t timestamp,
                                       ConstBytes blob) {
   protos::pbzero::SignalDeliverFtraceEvent::Decoder sig(blob.data, blob.size);
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  InstantId id = context_->event_tracker->PushInstant(
-      timestamp, signal_deliver_id_, utid, RefType::kRefUtid);
-
-  context_->args_tracker->AddArgsTo(id).AddArg(signal_name_id_,
-                                               Variadic::Integer(sig.sig()));
-}
-
-void FtraceParser::ParseLowmemoryKill(int64_t timestamp, ConstBytes blob) {
-  // TODO(hjd): Store the pagecache_size, pagecache_limit and free fields
-  // in an args table
-  protos::pbzero::LowmemoryKillFtraceEvent::Decoder lmk(blob.data, blob.size);
-
-  // Store the pid of the event that is lmk-ed.
-  auto pid = static_cast<uint32_t>(lmk.pid());
-  auto opt_utid = context_->process_tracker->GetThreadOrNull(pid);
-
-  // Don't add LMK events for threads we've never seen before. This works
-  // around the case where we get an LMK event after a thread has already been
-  // killed.
-  if (!opt_utid)
-    return;
-
-  InstantId id = context_->event_tracker->PushInstant(
-      timestamp, lmk_id_, opt_utid.value(), RefType::kRefUtid, true);
-
-  // Store the comm as an arg.
-  auto comm_id = context_->storage->InternString(
-      lmk.has_comm() ? lmk.comm() : base::StringView());
-  context_->args_tracker->AddArgsTo(id).AddArg(comm_name_id_,
-                                               Variadic::String(comm_id));
+  int signal = sig.sig();
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+  context_->slice_tracker->Scoped(
+      timestamp, track, kNullStringId, signal_deliver_id_, 0,
+      [this, signal](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(signal_name_id_, Variadic::Integer(signal));
+      });
 }
 
 void FtraceParser::ParseOOMScoreAdjUpdate(int64_t timestamp, ConstBytes blob) {
@@ -1273,8 +1220,9 @@ void FtraceParser::ParseOOMKill(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::MarkVictimFtraceEvent::Decoder evt(blob.data, blob.size);
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(
       static_cast<uint32_t>(evt.pid()));
-  context_->event_tracker->PushInstant(timestamp, oom_kill_id_, utid,
-                                       RefType::kRefUtid, true);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+  context_->slice_tracker->Scoped(timestamp, track, kNullStringId, oom_kill_id_,
+                                  0);
 }
 
 void FtraceParser::ParseMmEventRecord(int64_t timestamp,
@@ -1335,19 +1283,12 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   // family) and thread creation (clone(CLONE_THREAD, ...)).
   static const uint32_t kCloneThread = 0x00010000;  // From kernel's sched.h.
 
-  // If the process is a fork, start a new process except if the source tid is
-  // kthreadd in which case just make it a new thread associated with
-  // kthreadd.
-  if ((clone_flags & kCloneThread) == 0 && source_tid != kKthreaddPid) {
+  // If the process is a fork, start a new process.
+  if ((clone_flags & kCloneThread) == 0) {
     // This is a plain-old fork() or equivalent.
     proc_tracker->StartNewProcess(timestamp, source_tid, new_tid, new_comm,
                                   ThreadNamePriority::kFtrace);
     return;
-  }
-
-  if (source_tid == kKthreaddPid) {
-    context_->process_tracker->SetProcessMetadata(
-        kKthreaddPid, base::nullopt, kKthreaddName, base::StringView());
   }
 
   // This is a pthread_create or similar. Bind the two threads together, so
@@ -1645,7 +1586,7 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
   if (pid == 0) {
     // Pid 0 is used to indicate the global total
     track = context_->track_tracker->InternGlobalCounterTrack(
-        gpu_mem_total_name_id_, gpu_mem_total_unit_id_,
+        gpu_mem_total_name_id_, {}, gpu_mem_total_unit_id_,
         gpu_mem_total_global_desc_id_);
   } else {
     // It's possible for GpuMemTotal ftrace events to be emitted by kworker
@@ -1678,87 +1619,85 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
 
 void FtraceParser::ParseThermalTemperature(int64_t timestamp,
                                            protozero::ConstBytes blob) {
-  protos::pbzero::ThermalTemperatureFtraceEvent::Decoder evt(blob.data,
-                                                             blob.size);
-  base::StringView thermal_zone = evt.thermal_zone();
+  protos::pbzero::ThermalTemperatureFtraceEvent::Decoder event(blob.data,
+                                                               blob.size);
+  base::StringView thermal_zone = event.thermal_zone();
   base::StackString<255> counter_name(
       "%.*s Temperature", int(thermal_zone.size()), thermal_zone.data());
   StringId name = context_->storage->InternString(counter_name.string_view());
   TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
-  context_->event_tracker->PushCounter(timestamp, evt.temp(), track);
+  context_->event_tracker->PushCounter(timestamp, event.temp(), track);
 }
 
 void FtraceParser::ParseCdevUpdate(int64_t timestamp,
                                    protozero::ConstBytes blob) {
-  protos::pbzero::CdevUpdateFtraceEvent::Decoder evt(blob.data, blob.size);
-  base::StringView type = evt.type();
+  protos::pbzero::CdevUpdateFtraceEvent::Decoder event(blob.data, blob.size);
+  base::StringView type = event.type();
   base::StackString<255> counter_name("%.*s Cooling Device", int(type.size()),
                                       type.data());
   StringId name = context_->storage->InternString(counter_name.string_view());
   TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
   context_->event_tracker->PushCounter(
-      timestamp, static_cast<double>(evt.target()), track);
+      timestamp, static_cast<double>(event.target()), track);
 }
 
 void FtraceParser::ParseSchedBlockedReason(
-    int64_t timestamp,
     protozero::ConstBytes blob,
     PacketSequenceStateGeneration* seq_state) {
-  protos::pbzero::SchedBlockedReasonFtraceEvent::Decoder evt(blob);
-  uint32_t pid = static_cast<uint32_t>(evt.pid());
+  protos::pbzero::SchedBlockedReasonFtraceEvent::Decoder event(blob);
+  uint32_t pid = static_cast<uint32_t>(event.pid());
   auto utid = context_->process_tracker->GetOrCreateThread(pid);
-  InstantId id = context_->event_tracker->PushInstant(
-      timestamp, sched_blocked_reason_id_, utid, RefType::kRefUtid, false);
-
-  auto inserter = context_->args_tracker->AddArgsTo(id);
-  inserter.AddArg(io_wait_id_, Variadic::Boolean(evt.io_wait()));
-
-  uint32_t caller_iid = static_cast<uint32_t>(evt.caller());
+  uint32_t caller_iid = static_cast<uint32_t>(event.caller());
   auto* interned_string = seq_state->LookupInternedMessage<
       protos::pbzero::InternedData::kKernelSymbolsFieldNumber,
       protos::pbzero::InternedString>(caller_iid);
 
+  base::Optional<StringId> blocked_function_str_id = base::nullopt;
   if (interned_string) {
     protozero::ConstBytes str = interned_string->str();
-    StringId str_id = context_->storage->InternString(
+    blocked_function_str_id = context_->storage->InternString(
         base::StringView(reinterpret_cast<const char*>(str.data), str.size));
-    inserter.AddArg(function_id_, Variadic::String(str_id));
   }
+
+  ThreadStateTracker::GetOrCreate(context_)->PushBlockedReason(
+      utid, event.io_wait(), blocked_function_str_id);
 }
 
 void FtraceParser::ParseFastRpcDmaStat(int64_t timestamp,
                                        uint32_t pid,
                                        protozero::ConstBytes blob) {
-  protos::pbzero::FastrpcDmaStatFtraceEvent::Decoder evt(blob.data, blob.size);
+  protos::pbzero::FastrpcDmaStatFtraceEvent::Decoder event(blob.data,
+                                                           blob.size);
 
   StringId name;
-  if (0 <= evt.cid() && evt.cid() < static_cast<int32_t>(kFastRpcCounterSize)) {
-    name = fast_rpc_delta_names_[static_cast<size_t>(evt.cid())];
+  if (0 <= event.cid() &&
+      event.cid() < static_cast<int32_t>(kFastRpcCounterSize)) {
+    name = fast_rpc_delta_names_[static_cast<size_t>(event.cid())];
   } else {
-    base::StackString<64> str("mem.fastrpc[%" PRId32 "]", evt.cid());
+    base::StackString<64> str("mem.fastrpc[%" PRId32 "]", event.cid());
     name = context_->storage->InternString(str.string_view());
   }
 
   StringId total_name;
-  if (0 <= evt.cid() && evt.cid() < static_cast<int32_t>(kFastRpcCounterSize)) {
-    total_name = fast_rpc_total_names_[static_cast<size_t>(evt.cid())];
+  if (0 <= event.cid() &&
+      event.cid() < static_cast<int32_t>(kFastRpcCounterSize)) {
+    total_name = fast_rpc_total_names_[static_cast<size_t>(event.cid())];
   } else {
-    base::StackString<64> str("mem.fastrpc[%" PRId32 "]", evt.cid());
+    base::StackString<64> str("mem.fastrpc[%" PRId32 "]", event.cid());
     total_name = context_->storage->InternString(str.string_view());
   }
 
   // Push the global counter.
   TrackId track = context_->track_tracker->InternGlobalCounterTrack(total_name);
   context_->event_tracker->PushCounter(
-      timestamp, static_cast<double>(evt.total_allocated()), track);
+      timestamp, static_cast<double>(event.total_allocated()), track);
 
   // Push the change counter.
-  // TODO(b/121331269): these should really be instant events.
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId delta_track =
       context_->track_tracker->InternThreadCounterTrack(name, utid);
   context_->event_tracker->PushCounter(
-      timestamp, static_cast<double>(evt.len()), delta_track);
+      timestamp, static_cast<double>(event.len()), delta_track);
 }
 
 void FtraceParser::ParseCpuhpPause(int64_t,
@@ -1771,14 +1710,15 @@ void FtraceParser::ParseCpuhpPause(int64_t,
 void FtraceParser::ParseNetifReceiveSkb(uint32_t cpu,
                                         int64_t timestamp,
                                         protozero::ConstBytes blob) {
-  protos::pbzero::NetifReceiveSkbFtraceEvent::Decoder evt(blob.data, blob.size);
-  base::StringView net_device = evt.name();
+  protos::pbzero::NetifReceiveSkbFtraceEvent::Decoder event(blob.data,
+                                                            blob.size);
+  base::StringView net_device = event.name();
   base::StackString<255> counter_name("%.*s Received KB",
                                       static_cast<int>(net_device.size()),
                                       net_device.data());
   StringId name = context_->storage->InternString(counter_name.string_view());
 
-  nic_received_bytes_[name] += evt.len();
+  nic_received_bytes_[name] += event.len();
 
   uint64_t nic_received_kilobytes = nic_received_bytes_[name] / 1024;
   TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
@@ -1792,7 +1732,7 @@ void FtraceParser::ParseNetifReceiveSkb(uint32_t cpu,
   StringId len_key = context_->storage->InternString("len");
   context_->args_tracker->AddArgsTo(*id)
       .AddArg(cpu_key, Variadic::UnsignedInteger(cpu))
-      .AddArg(len_key, Variadic::UnsignedInteger(evt.len()));
+      .AddArg(len_key, Variadic::UnsignedInteger(event.len()));
 }
 
 void FtraceParser::ParseNetDevXmit(uint32_t cpu,
@@ -1980,8 +1920,8 @@ void FtraceParser::ParseKfreeSkb(int64_t timestamp,
   base::StackString<255> prot("%s", evt.protocol() == kEthPIp ? "IP" : "IPV6");
   StringId prot_id = context_->storage->InternString(prot.string_view());
   // Store protocol as args for metrics computation.
-  context_->args_tracker->AddArgsTo(*id).AddArg(
-      protocol_arg_id_, Variadic::String(prot_id));
+  context_->args_tracker->AddArgsTo(*id).AddArg(protocol_arg_id_,
+                                                Variadic::String(prot_id));
 }
 
 void FtraceParser::ParseCrosEcSensorhubData(int64_t timestamp,
@@ -2012,39 +1952,39 @@ void FtraceParser::ParseCrosEcSensorhubData(int64_t timestamp,
 }
 
 void FtraceParser::ParseUfshcdClkGating(int64_t timestamp,
-                                      protozero::ConstBytes blob) {
+                                        protozero::ConstBytes blob) {
   protos::pbzero::UfshcdClkGatingFtraceEvent::Decoder evt(blob.data, blob.size);
   int32_t clk_state = 0;
 
   switch (evt.state()) {
-      case 1:
-          // Change ON state to 3
-          clk_state = 3;
-          break;
-      case 2:
-          // Change REQ_OFF state to 1
-          clk_state = 1;
-          break;
-      case 3:
-          // Change REQ_ON state to 2
-          clk_state = 2;
-          break;
+    case 1:
+      // Change ON state to 3
+      clk_state = 3;
+      break;
+    case 2:
+      // Change REQ_OFF state to 1
+      clk_state = 1;
+      break;
+    case 3:
+      // Change REQ_ON state to 2
+      clk_state = 2;
+      break;
   }
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
-      ufs_clkgating_id_);
-  context_->event_tracker->PushCounter(timestamp, static_cast<double>(clk_state),
-                                       track);
+  TrackId track =
+      context_->track_tracker->InternGlobalCounterTrack(ufs_clkgating_id_);
+  context_->event_tracker->PushCounter(timestamp,
+                                       static_cast<double>(clk_state), track);
 }
 
 void FtraceParser::ParseUfshcdCommand(int64_t timestamp,
                                       protozero::ConstBytes blob) {
   protos::pbzero::UfshcdCommandFtraceEvent::Decoder evt(blob.data, blob.size);
-  uint32_t num = evt.doorbell() > 0 ?
-      static_cast<uint32_t>(PERFETTO_POPCOUNT(evt.doorbell())) :
-      (evt.str_t() == 1 ? 0 : 1);
+  uint32_t num = evt.doorbell() > 0
+                     ? static_cast<uint32_t>(PERFETTO_POPCOUNT(evt.doorbell()))
+                     : (evt.str_t() == 1 ? 0 : 1);
 
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
-      ufs_command_count_id_);
+  TrackId track =
+      context_->track_tracker->InternGlobalCounterTrack(ufs_command_count_id_);
   context_->event_tracker->PushCounter(timestamp, static_cast<double>(num),
                                        track);
 }
@@ -2117,6 +2057,38 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
         async_track, static_cast<int64_t>(evt.val()));
     context_->slice_tracker->End(timestamp, end_id);
   }
+}
+
+void FtraceParser::ParseSchedCpuUtilCfs(int64_t timestamp,
+                                        protozero::ConstBytes blob) {
+  protos::pbzero::SchedCpuUtilCfsFtraceEvent::Decoder evt(blob.data, blob.size);
+  base::StackString<255> util_track_name("Cpu %" PRIu32 " Util", evt.cpu());
+  StringId util_track_name_id =
+      context_->storage->InternString(util_track_name.string_view());
+
+  TrackId util_track =
+      context_->track_tracker->InternGlobalCounterTrack(util_track_name_id);
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(evt.cpu_util()), util_track);
+
+  base::StackString<255> cap_track_name("Cpu %" PRIu32 " Cap", evt.cpu());
+  StringId cap_track_name_id =
+      context_->storage->InternString(cap_track_name.string_view());
+
+  TrackId cap_track =
+      context_->track_tracker->InternGlobalCounterTrack(cap_track_name_id);
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(evt.capacity()), cap_track);
+
+  base::StackString<255> nrr_track_name("Cpu %" PRIu32 " Nr Running",
+                                        evt.cpu());
+  StringId nrr_track_name_id =
+      context_->storage->InternString(nrr_track_name.string_view());
+
+  TrackId nrr_track =
+      context_->track_tracker->InternGlobalCounterTrack(nrr_track_name_id);
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(evt.nr_running()), nrr_track);
 }
 
 }  // namespace trace_processor

@@ -17,7 +17,7 @@ import {NUM} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
 import {
   TrackController,
-  trackControllerRegistry
+  trackControllerRegistry,
 } from '../../controller/track_controller';
 
 import {Config, CPU_SLICE_TRACK_KIND, Data} from './common';
@@ -27,6 +27,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
 
   private cachedBucketNs = Number.MAX_SAFE_INTEGER;
   private maxDurNs = 0;
+  private lastRowId = -1;
 
   async onSetup() {
     await this.query(`
@@ -35,7 +36,8 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
         ts,
         dur,
         utid,
-        id
+        id,
+        dur = -1 as isIncomplete
       from sched
       where cpu = ${this.config.cpu} and utid != 0
     `);
@@ -44,6 +46,12 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       select ifnull(max(dur), 0) as maxDur, count(1) as rowCount
       from ${this.tableName('sched')}
     `);
+
+    const queryLastSlice = await this.query(`
+    select max(id) as lastSliceId from ${this.tableName('sched')}
+    `);
+    this.lastRowId = queryLastSlice.firstRow({lastSliceId: NUM}).lastSliceId;
+
     const row = queryRes.firstRow({maxDur: NUM, rowCount: NUM});
     this.maxDurNs = row.maxDur;
     const rowCount = row.rowCount;
@@ -51,6 +59,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
     if (bucketNs === undefined) {
       return;
     }
+
     await this.query(`
       create table ${this.tableName('sched_cached')} as
       select
@@ -58,9 +67,10 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
         ts,
         max(dur) as dur,
         utid,
-        id
+        id,
+        isIncomplete
       from ${this.tableName('sched')}
-      group by cached_tsq
+      group by cached_tsq, isIncomplete
       order by cached_tsq
     `);
     this.cachedBucketNs = bucketNs;
@@ -74,8 +84,8 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
     // function to make sense.
     assertTrue(Math.log2(resolutionNs) % 1 === 0);
 
-    const startNs = toNs(start);
-    const endNs = toNs(end);
+    const boundStartNs = toNs(start);
+    const boundEndNs = toNs(end);
 
     // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
     // be an even number, so we can snap in the middle.
@@ -96,12 +106,13 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
         ts,
         max(dur) as dur,
         utid,
-        id
+        id,
+        isIncomplete
       from ${queryTable}
       where
-        ${constraintColumn} >= ${startNs - this.maxDurNs} and
-        ${constraintColumn} <= ${endNs}
-      group by tsq
+        ${constraintColumn} >= ${boundStartNs - this.maxDurNs} and
+        ${constraintColumn} <= ${boundEndNs}
+      group by tsq, isIncomplete
       order by tsq
     `);
 
@@ -111,28 +122,50 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       end,
       resolution,
       length: numRows,
+      lastRowId: this.lastRowId,
       ids: new Float64Array(numRows),
       starts: new Float64Array(numRows),
       ends: new Float64Array(numRows),
       utids: new Uint32Array(numRows),
+      isIncomplete: new Uint8Array(numRows),
     };
 
-    const it = queryRes.iter({tsq: NUM, ts: NUM, dur: NUM, utid: NUM, id: NUM});
+    const it = queryRes.iter(
+        {tsq: NUM, ts: NUM, dur: NUM, utid: NUM, id: NUM, isIncomplete: NUM});
     for (let row = 0; it.valid(); it.next(), row++) {
       const startNsQ = it.tsq;
       const startNs = it.ts;
       const durNs = it.dur;
       const endNs = startNs + durNs;
 
-      let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
-      endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
+      // If the slice is incomplete, the end calculated later.
+      if (!it.isIncomplete) {
+        let endNsQ =
+            Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
+        endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
+        slices.ends[row] = fromNs(endNsQ);
+      }
 
       slices.starts[row] = fromNs(startNsQ);
-      slices.ends[row] = fromNs(endNsQ);
       slices.utids[row] = it.utid;
       slices.ids[row] = it.id;
+      slices.isIncomplete[row] = it.isIncomplete;
     }
 
+    // If the slice is incomplete and it is the last slice in the track, the end
+    // of the slice would be the end of the visible window. Otherwise we end the
+    // slice with the beginning the next one.
+    for (let row = 0; row < slices.length; row++) {
+      if (!slices.isIncomplete[row]) {
+        continue;
+      }
+      const endNs =
+          row === slices.length - 1 ? boundEndNs : toNs(slices.starts[row + 1]);
+
+      let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
+      endNsQ = Math.max(endNsQ, toNs(slices.starts[row]) + bucketNs);
+      slices.ends[row] = fromNs(endNsQ);
+    }
     return slices;
   }
 

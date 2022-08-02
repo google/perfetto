@@ -15,9 +15,7 @@
 const LOADING_TEXT = 'Loading...';
 let LOADING_TEXT_WIDTH = 0;
 
-/**
- * Checker board the range [leftPx, rightPx].
- */
+// Checker board the range [leftPx, rightPx].
 export function checkerboard(
     ctx: CanvasRenderingContext2D,
     heightPx: number,
@@ -42,9 +40,7 @@ export function checkerboard(
   ctx.textBaseline = oldBaseline;
 }
 
-/**
- * Checker board everything between [startPx, endPx] except [leftPx, rightPx].
- */
+// Checker board everything between [startPx, endPx] except [leftPx, rightPx].
 export function checkerboardExcept(
     ctx: CanvasRenderingContext2D,
     heightPx: number,

@@ -27,7 +27,10 @@ trace.add_process(2, 0, "init2")
 trace.add_process(3, 0, "unblocker")
 
 trace.add_ftrace_packet(0)
-trace.add_sched_blocked_reason(ts=100, pid=1, io_wait=0, unblock_pid=3)
-trace.add_sched_blocked_reason(ts=110, pid=2, io_wait=1, unblock_pid=3)
+trace.add_sched(ts=10, prev_pid=0, prev_comm='swapper', prev_state='R', next_pid=1, next_comm='foo')
+trace.add_sched(ts=100, prev_pid=1, prev_state='U', next_pid=2, next_comm='bar')
+trace.add_sched_blocked_reason(ts=101, pid=1, io_wait=0, unblock_pid=3)
+trace.add_sched(ts=110, prev_pid=2, prev_state='U', next_pid=0)
+trace.add_sched_blocked_reason(ts=111, pid=2, io_wait=1, unblock_pid=3)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())

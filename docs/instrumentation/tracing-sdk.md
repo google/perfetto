@@ -30,7 +30,7 @@ repository](/examples/sdk/README.md).
 To start using the Client API, first check out the latest SDK release:
 
 ```bash
-git clone https://android.googlesource.com/platform/external/perfetto -b v23.0
+git clone https://android.googlesource.com/platform/external/perfetto -b v26.0
 ```
 
 The SDK consists of two files, `sdk/perfetto.h` and `sdk/perfetto.cc`. These are
@@ -59,7 +59,7 @@ Next, initialize Perfetto in your program:
 ```C++
 #include <perfetto.h>
 
-int main(int argv, char** argc) {
+int main(int argc, char** argv) {
   perfetto::TracingInitArgs args;
 
   // The backends determine where trace events are recorded. You may select one
@@ -105,7 +105,7 @@ PERFETTO_DEFINE_CATEGORIES(
 
 ...
 
-int main(int argv, char** argc) {
+int main(int argc, char** argv) {
   ...
   perfetto::Tracing::Initialize(args);
   perfetto::TrackEvent::Register();
@@ -199,7 +199,7 @@ PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(CustomDataSource);
 Custom data sources need to be registered with Perfetto:
 
 ```C++
-int main(int argv, char** argc) {
+int main(int argc, char** argv) {
   ...
   perfetto::Tracing::Initialize(args);
   // Add the following:

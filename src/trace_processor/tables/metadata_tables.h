@@ -140,10 +140,17 @@ PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_TABLE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_PROCESS_TABLE_DEF);
 
+// Contains information of processes seen during the trace
+//
+// @name cpu
+// @param id                     id of this CPU
+// @param cluster_id             the cluster id is shared by CPUs in
+//                               the same cluster
+// @param processor              a string describing this core
 #define PERFETTO_TP_CPU_TABLE_DEF(NAME, PARENT, C) \
   NAME(CpuTable, "cpu")                            \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                \
-  C(uint32_t, time_in_state_cpu_id)                \
+  C(uint32_t, cluster_id)                          \
   C(StringPool::Id, processor)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_CPU_TABLE_DEF);

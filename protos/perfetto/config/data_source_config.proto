@@ -18,6 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+import "protos/perfetto/config/android/android_game_intervention_list_config.proto";
 import "protos/perfetto/config/android/android_log_config.proto";
 import "protos/perfetto/config/android/android_polled_state_config.proto";
 import "protos/perfetto/config/android/packages_list_config.proto";
@@ -28,6 +29,7 @@ import "protos/perfetto/config/gpu/vulkan_memory_config.proto";
 import "protos/perfetto/config/inode_file/inode_file_config.proto";
 import "protos/perfetto/config/interceptor_config.proto";
 import "protos/perfetto/config/power/android_power_config.proto";
+import "protos/perfetto/config/statsd/statsd_tracing_config.proto";
 import "protos/perfetto/config/process_stats/process_stats_config.proto";
 import "protos/perfetto/config/profiling/heapprofd_config.proto";
 import "protos/perfetto/config/profiling/java_hprof_config.proto";
@@ -37,7 +39,7 @@ import "protos/perfetto/config/test_config.proto";
 import "protos/perfetto/config/track_event/track_event_config.proto";
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 116
+// Next id: 118
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -113,6 +115,9 @@ message DataSourceConfig {
   optional AndroidLogConfig android_log_config = 107 [lazy = true];
   // TODO(fmayer): Add data source name for this.
   optional GpuCounterConfig gpu_counter_config = 108 [lazy = true];
+  // Data source name: android.game_intervention_list
+  optional AndroidGameInterventionListConfig
+      android_game_intervention_list_config = 116 [lazy = true];
   // Data source name: android.packages_list
   optional PackagesListConfig packages_list_config = 109 [lazy = true];
   // Data source name: linux.perf
@@ -124,6 +129,8 @@ message DataSourceConfig {
   // Data source name: android.polled_state
   optional AndroidPolledStateConfig android_polled_state_config = 114
       [lazy = true];
+  // Data source name: android.statsd
+  optional StatsdTracingConfig statsd_tracing_config = 117 [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would

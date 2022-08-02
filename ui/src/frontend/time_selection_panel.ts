@@ -179,7 +179,7 @@ export class TimeSelectionPanel extends Panel {
           x: TRACK_SHELL_WIDTH + xLeft,
           y: 0,
           width: xRight - xLeft,
-          height: size.height
+          height: size.height,
         },
         this.bounds(size),
         label);
@@ -190,7 +190,7 @@ export class TimeSelectionPanel extends Panel {
       x: TRACK_SHELL_WIDTH,
       y: 0,
       width: size.width - TRACK_SHELL_WIDTH,
-      height: size.height
+      height: size.height,
     };
   }
 }

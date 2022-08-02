@@ -35,7 +35,7 @@ namespace perfetto {
 // If the packets are saved / streamed and not just consumed locally, consumers
 // should ensure to preserve the unknown fields in the proto. A consumer, in
 // fact, might have an older version .proto which is newer on the producer.
-class PERFETTO_EXPORT TracePacket {
+class PERFETTO_EXPORT_COMPONENT TracePacket {
  public:
   using const_iterator = Slices::const_iterator;
 

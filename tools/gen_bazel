@@ -59,8 +59,8 @@ public_targets = [
     '//src/traced/service:traced',
     '//src/trace_processor:trace_processor_shell',
     '//src/trace_processor:trace_processor',
-    '//tools/trace_to_text:trace_to_text',
-    '//tools/trace_to_text:libpprofbuilder',
+    '//src/traceconv:traceconv',
+    '//src/traceconv:libpprofbuilder',
 ]
 
 # These targets are required by internal build rules but don't need to be
@@ -72,8 +72,8 @@ default_targets = [
     '//src/protozero/protoc_plugin:protozero_plugin',
     '//src/protozero/protoc_plugin:cppgen_plugin',
     '//test:client_api_example',
-    '//tools/proto_filter:proto_filter',
-    '//tools/proto_merger:proto_merger',
+    '//src/tools/proto_filter:proto_filter',
+    '//src/tools/proto_merger:proto_merger',
 ] + public_targets
 
 # Proto target groups which will be made public.
@@ -514,7 +514,6 @@ load(
     "perfetto_py_binary",
     "perfetto_py_library",
     "perfetto_py_proto_library",
-    "perfetto_gensignature_internal_only",
 )
 
 package(default_visibility = ["//visibility:private"])

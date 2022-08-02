@@ -228,13 +228,18 @@ void DbSqliteTable::ModifyConstraints(const Table::Schema& schema,
 
     // Id columns are always very cheap to filter on so try and get them
     // first.
-    if (a_col.is_id && !b_col.is_id)
-      return true;
+    if (a_col.is_id || b_col.is_id)
+      return a_col.is_id && !b_col.is_id;
+
+    // Set id columns are always very cheap to filter on so try and get them
+    // second.
+    if (a_col.is_set_id || b_col.is_set_id)
+      return a_col.is_set_id && !b_col.is_set_id;
 
     // Sorted columns are also quite cheap to filter so order them after
-    // any id columns.
-    if (a_col.is_sorted && !b_col.is_sorted)
-      return true;
+    // any id/set id columns.
+    if (a_col.is_sorted || b_col.is_sorted)
+      return a_col.is_sorted && !b_col.is_sorted;
 
     // TODO(lalitm): introduce more orderings here based on empirical data.
     return false;
@@ -632,8 +637,6 @@ int DbSqliteTable::Cursor::Column(sqlite3_context* ctx, int raw_col) {
                                sqlite_utils::kSqliteStatic);
   return SQLITE_OK;
 }
-
-DbSqliteTable::DynamicTableGenerator::~DynamicTableGenerator() = default;
 
 }  // namespace trace_processor
 }  // namespace perfetto

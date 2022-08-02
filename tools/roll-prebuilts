@@ -38,46 +38,47 @@ GCS_URL = 'https://commondatastorage.googleapis.com/perfetto-luci-artifacts'
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOOLS_DIR = os.path.join(ROOT_DIR, 'tools')
 
+UNIX_ARCHS = [
+    'mac-amd64', 'mac-arm64', 'linux-amd64', 'linux-arm', 'linux-arm64',
+    'android-arm', 'android-arm64', 'android-x86', 'android-x64',
+]
+ALL_ARCHS = UNIX_ARCHS + ['windows-amd64']
+
 SCRIPTS_TO_UPDATE = [
+    # Scripts using trace_processor_shell.
     {
-        'script':
-            'trace_processor',
-        'tool':
-            'trace_processor_shell',
-        'archs': [
-            'mac-amd64', 'mac-arm64', 'windows-amd64', 'linux-amd64',
-            'linux-arm', 'linux-arm64'
-        ]
+        'script': 'trace_processor',
+        'tool': 'trace_processor_shell',
+        'archs': ALL_ARCHS
     },
+
+    # Scripts using traceconv.
     {
         'script': 'traceconv',
-        'tool': 'trace_to_text',
-        'archs': ['mac-amd64', 'mac-arm64', 'linux-amd64', 'windows-amd64']
-    },
-    {
-        'script':
-            'tracebox',
-        'tool':
-            'tracebox',
-        'archs': [
-            'mac-amd64', 'mac-arm64', 'linux-amd64', 'linux-amd64', 'linux-arm',
-            'linux-arm64'
-        ]
+        'tool': 'traceconv',
+        'archs': ALL_ARCHS
     },
     {
         'script': 'heap_profile',
-        'tool': 'trace_to_text',
-        'archs': ['mac-amd64', 'mac-arm64', 'windows-amd64', 'linux-amd64']
+        'tool': 'traceconv',
+        'archs': ALL_ARCHS
     },
     {
         'script': 'cpu_profile',
-        'tool': 'trace_to_text',
-        'archs': ['mac-amd64', 'windows-amd64', 'linux-amd64']
+        'tool': 'traceconv',
+        'archs': ALL_ARCHS
+    },
+
+    # Scripts using tracebox.
+    {
+        'script': 'tracebox',
+        'tool': 'tracebox',
+        'archs': UNIX_ARCHS
     },
     {
         'script': 'record_android_trace',
         'tool': 'tracebox',
-        'archs': ['android-arm', 'android-arm64', 'android-x86', 'android-x64']
+        'archs': UNIX_ARCHS
     },
 ]
 

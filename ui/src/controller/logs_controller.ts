@@ -18,7 +18,7 @@ import {
   LogBoundsKey,
   LogEntries,
   LogEntriesKey,
-  LogExistsKey
+  LogExistsKey,
 } from '../common/logs';
 import {NUM, STR} from '../common/query_result';
 import {fromNs, TimeSpan, toNsCeil, toNsFloor} from '../common/time';
@@ -55,9 +55,8 @@ async function updateLogBounds(
       vizEndNs}`);
   const endNs = maxResult.firstRow({minTs: NUM}).minTs;
 
-  const trace = await engine.getTraceTimeBounds();
-  const startTs = startNs ? fromNs(startNs) : trace.start;
-  const endTs = endNs ? fromNs(endNs) : trace.end;
+  const startTs = startNs ? fromNs(startNs) : 0;
+  const endTs = endNs ? fromNs(endNs) : Number.MAX_SAFE_INTEGER;
   const firstRowTs = firstRowNs ? fromNs(firstRowNs) : endTs;
   const lastRowTs = lastRowNs ? fromNs(lastRowNs) : startTs;
   return {
@@ -168,7 +167,7 @@ export class LogsController extends Controller<'main'> {
     this.engine = args.engine;
     this.span = new TimeSpan(0, 10);
     this.pagination = new Pagination(0, 0);
-    this.hasAnyLogs().then(exists => {
+    this.hasAnyLogs().then((exists) => {
       this.hasLogs = exists;
       publishTrackData({
         id: LogExistsKey,
@@ -212,7 +211,7 @@ export class LogsController extends Controller<'main'> {
     // We should avoid enqueuing a request when one is in progress.
     if (needSpanUpdate) {
       this.span = newSpan;
-      updateLogBounds(this.engine, newSpan).then(data => {
+      updateLogBounds(this.engine, newSpan).then((data) => {
         if (!newSpan.equals(this.span)) return;
         publishTrackData({
           id: LogBoundsKey,
@@ -226,7 +225,7 @@ export class LogsController extends Controller<'main'> {
     if (needSpanUpdate || needPaginationUpdate) {
       this.pagination = requestedPagination.grow(100);
 
-      updateLogEntries(this.engine, newSpan, this.pagination).then(data => {
+      updateLogEntries(this.engine, newSpan, this.pagination).then((data) => {
         if (!this.pagination.contains(requestedPagination)) return;
         publishTrackData({
           id: LogEntriesKey,

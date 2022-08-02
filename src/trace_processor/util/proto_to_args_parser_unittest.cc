@@ -73,6 +73,12 @@ class ProtoToArgsParserTest : public ::testing::Test,
     args_.push_back(ss.str());
   }
 
+  void AddString(const Key& key, const std::string& value) override {
+    std::stringstream ss;
+    ss << key.flat_key << " " << key.key << " " << value;
+    args_.push_back(ss.str());
+  }
+
   void AddDouble(const Key& key, double value) override {
     std::stringstream ss;
     ss << key.flat_key << " " << key.key << " " << value;
@@ -116,6 +122,8 @@ class ProtoToArgsParserTest : public ::testing::Test,
       return nullptr;
     return interned_source_locations_.at(iid).get();
   }
+
+  PacketSequenceStateGeneration* seq_state() final { return nullptr; }
 
   std::vector<std::string> args_;
   std::map<uint64_t, std::unique_ptr<InternedMessageView>>

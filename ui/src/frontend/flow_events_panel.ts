@@ -55,7 +55,7 @@ export class FlowEventsPanel extends Panel {
 
     // Can happen only for flow events version 1
     const haveCategories =
-        globals.connectedFlows.filter(flow => flow.category).length > 0;
+        globals.connectedFlows.filter((flow) => flow.category).length > 0;
 
     const columns = [
       m('th', 'Direction'),
@@ -65,7 +65,7 @@ export class FlowEventsPanel extends Panel {
       m('th', 'Thread Out'),
       m('th', 'Thread In'),
       m('th', 'Process Out'),
-      m('th', 'Process In')
+      m('th', 'Process In'),
     ];
 
     if (haveCategories) {
@@ -76,7 +76,7 @@ export class FlowEventsPanel extends Panel {
     const rows = [m('tr', columns)];
 
     // Fill the table with all the directly connected flow events
-    globals.connectedFlows.forEach(flow => {
+    globals.connectedFlows.forEach((flow) => {
       if (selection.id !== flow.begin.sliceId &&
           selection.id !== flow.end.sliceId) {
         return;
@@ -101,7 +101,7 @@ export class FlowEventsPanel extends Panel {
         m('td.flow-link', args, flow.begin.threadName),
         m('td.flow-link', args, flow.end.threadName),
         m('td.flow-link', args, flow.begin.processName),
-        m('td.flow-link', args, flow.end.processName)
+        m('td.flow-link', args, flow.end.processName),
       ];
 
       if (haveCategories) {
@@ -114,7 +114,7 @@ export class FlowEventsPanel extends Panel {
 
     return m('.details-panel', [
       m('.details-panel-heading', m('h2', `Flow events`)),
-      m('.flow-events-table', m('table', rows))
+      m('.flow-events-table', m('table', rows)),
     ]);
   }
 
@@ -136,16 +136,16 @@ export class FlowEventsAreaSelectedPanel extends Panel {
         m('a.warning',
           m('i.material-icons', 'warning'),
           m('.tooltip',
-            'Showing a large number of flows may impact performance.')))
+            'Showing a large number of flows may impact performance.'))),
     ];
 
     const rows = [m('tr', columns)];
 
     const categoryToFlowsNum = new Map<string, number>();
 
-    globals.selectedFlows.forEach(flow => {
+    globals.selectedFlows.forEach((flow) => {
       const categories = getFlowCategories(flow);
-      categories.forEach(cat => {
+      categories.forEach((cat) => {
         if (!categoryToFlowsNum.has(cat)) {
           categoryToFlowsNum.set(cat, 0);
         }
@@ -172,7 +172,7 @@ export class FlowEventsAreaSelectedPanel extends Panel {
               globals.rafScheduler.scheduleFullRedraw();
             },
           },
-          allWasChecked ? CHECKBOX : BLANK_CHECKBOX))
+          allWasChecked ? CHECKBOX : BLANK_CHECKBOX)),
     ]));
 
     categoryToFlowsNum.forEach((num, cat) => {
@@ -192,7 +192,7 @@ export class FlowEventsAreaSelectedPanel extends Panel {
                 globals.rafScheduler.scheduleFullRedraw();
               },
             },
-            wasChecked ? CHECKBOX : BLANK_CHECKBOX))
+            wasChecked ? CHECKBOX : BLANK_CHECKBOX)),
       ];
       rows.push(m('tr', data));
     });
