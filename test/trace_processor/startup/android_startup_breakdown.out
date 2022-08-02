@@ -98,5 +98,6 @@ android_startup {
       most_active_non_launch_processes: "init"
       most_active_non_launch_processes: "system_server"
     }
+    startup_type: "cold"
   }
 }
