@@ -99,6 +99,7 @@ frame_boundary_base AS (
     do_frame.ts AS ts_do_frame_start,
     do_frame.ts_end,
     do_frame.ts_prev_do_frame_end,
+    timeline.ts_expected,
     CASE
       WHEN timeline.ts_expected IS NULL
       THEN do_frame.ts
