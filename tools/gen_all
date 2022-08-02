@@ -58,6 +58,7 @@ def main():
       call('gen_bazel', *check_only)
       call('gen_android_bp', *check_only)
     call('gen_merged_protos', *check_only)
+    call('gen_amalgamated_python_tools', *check_only)
     call('ninja', '-C', out, 'protoc')
     call('gen_binary_descriptors', '--protoc', protoc_path(out), *check_only)
 
