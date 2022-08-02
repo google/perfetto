@@ -127,14 +127,17 @@ def main():
 
   print()
   print(
-      'Provide either the name of a built-in metric OR path to the file (with '
-      'extension .sql) relative to the chosen folder {}'.format(
+      'Provide either the name of a built-in metric OR path to the file '
+      '(which must end in "_test.sql") relative to the chosen folder {}'.format(
           chosen_folder_path_rel_root))
   stdout_write(
       'If the file does not already exist, an empty file will be created: ')
 
   sql_file_or_metric = sys.stdin.readline().rstrip()
   if sql_file_or_metric.endswith('.sql'):
+    if not  sql_file_or_metric.endswith('_test.sql'):
+      print('Error: SQL file {} must end in _test.sql'.format(sql_file_or_metric))
+      return 1
     sql_path = os.path.abspath(
         os.path.join(chosen_folder_path, sql_file_or_metric))
     create_if_not_exists(sql_path)
