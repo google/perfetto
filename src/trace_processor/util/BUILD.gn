@@ -139,9 +139,25 @@ source_set("zip_reader") {
   }
 }
 
+source_set("proto_profiler") {
+  sources = [
+    "proto_profiler.cc",
+    "proto_profiler.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../gn:protobuf_full",
+    "../../../protos/perfetto/common:zero",
+    "../../../protos/third_party/pprof:zero",
+    "../../base",
+    "../../protozero",
+  ]
+}
+
 source_set("unittests") {
   sources = [
     "debug_annotation_parser_unittest.cc",
+    "proto_profiler_unittest.cc",
     "proto_to_args_parser_unittest.cc",
     "protozero_to_text_unittests.cc",
     "streaming_line_reader_unittest.cc",
@@ -151,12 +167,14 @@ source_set("unittests") {
   deps = [
     ":descriptors",
     ":gzip",
+    ":proto_profiler",
     ":proto_to_args_parser",
     ":protozero_to_text",
     ":zip_reader",
     "..:gen_cc_test_messages_descriptor",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../gn:protobuf_full",
     "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/trace:non_minimal_zero",
     "../../../protos/perfetto/trace/track_event:zero",
