@@ -200,10 +200,13 @@ message AndroidStartupMetric {
     repeated string most_active_non_launch_processes = 5;
   }
 
-  // Next id: 16
+  // Next id: 17
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
+
+    // Startup type (cold / warm / hot)
+    optional string startup_type = 16;
 
     // Name of the package launched
     optional string package_name = 2;
