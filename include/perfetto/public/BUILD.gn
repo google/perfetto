@@ -13,15 +13,11 @@
 # limitations under the License.
 
 source_set("base") {
-  sources = [
-    "compiler.h",
-  ]
+  sources = [ "compiler.h" ]
   public_deps = [ "./abi:base" ]
 }
 
 source_set("protozero") {
-  sources = [
-    "stream_writer.h",
-  ]
+  sources = [ "stream_writer.h" ]
   public_deps = [ "./abi:protozero" ]
 }

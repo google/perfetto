@@ -13,13 +13,9 @@
 # limitations under the License.
 
 source_set("base") {
-  sources = [
-    "export.h",
-  ]
+  sources = [ "export.h" ]
 }
 
 source_set("protozero") {
-  sources = [
-    "stream_writer_abi.h",
-  ]
+  sources = [ "stream_writer_abi.h" ]
 }
