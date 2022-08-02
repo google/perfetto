@@ -1,5 +1,16 @@
 Unreleased:
   Tracing service and probes:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v28.0 - 2022-08-02:
+  Tracing service and probes:
     * Add android.statsd datasource.
     * Removed log spam about sys.trace.traced_started in standalone builds.
     * Changed kallsyms parsing in traced_probes (ftrace) to be always
@@ -9,9 +20,12 @@ Unreleased:
     * Improve heap profiling shutdown: now the shared memory buffer where
       alloc/free records are stored is properly flushed when stopping the data
       source.
+    * Fixed race condition in the daemonization path of perfetto --background.
+      It would cause daemonization failures if the TTY is destroyed immediately.
   Trace Processor:
     * Deprecate calling NotifyEndOfFile more than once: Flush should instead be
       used for all but the final call.
+    * Added ingestion and visualization of I2C transactions.
   UI:
     *
   SDK:
@@ -28,6 +42,10 @@ Unreleased:
       to alias the enum directly and use throughout their code.
       The exact name mangling scheme is a carry-over from libprotobuf and
       an internal implementation detail, so nobody should be relying on that.
+    * Changed callstack sampling selection: selecting one sample now only shows
+      one stacktrace, selecting multiple samples shows the aggregation.
+    * Added protozero::EnumToString() to convert enum keys to string literals.
+
 
 v27.1 - 2022-07-11:
   SDK:
