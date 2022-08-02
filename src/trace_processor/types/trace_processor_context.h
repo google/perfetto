@@ -57,6 +57,9 @@ class TraceProcessorContext {
   TraceProcessorContext();
   ~TraceProcessorContext();
 
+  TraceProcessorContext(TraceProcessorContext&&) = default;
+  TraceProcessorContext& operator=(TraceProcessorContext&&) = default;
+
   Config config;
 
   std::unique_ptr<TraceStorage> storage;
