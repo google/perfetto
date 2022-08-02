@@ -83,12 +83,8 @@ perfetto_component("version") {
     ":base",
     "../../gn:default_deps",
   ]
-  public_deps = [
-    "../../include/perfetto/ext/base:version",
-  ]
-  sources = [
-    "version.cc",
-  ]
+  public_deps = [ "../../include/perfetto/ext/base:version" ]
+  sources = [ "version.cc" ]
 
   if (enable_perfetto_version_gen) {
     deps += [ ":version_gen_h" ]
