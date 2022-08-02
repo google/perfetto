@@ -26,8 +26,8 @@ executable("tracebox") {
     "../traced/service",
     "../websocket_bridge:lib",
   ]
-  if(enable_perfetto_traced_perf) {
-    deps += ["../profiling/perf:traced_perf_main"]
+  if (enable_perfetto_traced_perf) {
+    deps += [ "../profiling/perf:traced_perf_main" ]
   }
   sources = [ "tracebox.cc" ]
 }
