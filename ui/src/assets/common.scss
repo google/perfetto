@@ -800,3 +800,17 @@ button.query-ctrl {
     height: 0;
   }
 }
+
+.reorderable-cell {
+  &.dragged {
+    color: gray;
+  }
+
+  &.highlight-left {
+    border-left-color: red;
+  }
+
+  &.highlight-right {
+    border-right-color: red;
+  }
+}

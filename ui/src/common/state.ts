@@ -16,6 +16,7 @@ import {RecordConfig} from '../controller/record_config_types';
 import {
   Aggregation,
   PivotTree,
+  RegularColumn,
   TableColumn,
 } from '../frontend/pivot_table_redux_types';
 
@@ -420,9 +421,15 @@ export interface PivotTableReduxState {
   // Query response
   queryResult: PivotTableReduxResult|null;
 
-  // Selected pivots. Map instead of Set because ES6 Set can't have
-  // non-primitive keys; here keys are concatenated values.
-  selectedPivotsMap: Map<string, TableColumn>;
+  // Selected pivots for tables other than slice/thread_slice.
+  // Because of the query generation, pivoting happens first on non-slice
+  // pivots; therefore, those can't be put after slice pivots. In order to
+  // maintain the separation more clearly, slice and non-slice pivots are
+  // located in separate arrays.
+  selectedPivots: RegularColumn[];
+
+  // Selected pivots for slice/thread_slice table.
+  selectedSlicePivots: TableColumn[];
 
   // Selected aggregation columns. Stored same way as pivots.
   selectedAggregations: Map<string, Aggregation>;
