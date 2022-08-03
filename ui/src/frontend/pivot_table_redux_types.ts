@@ -49,6 +49,32 @@ export interface ArgumentColumn {
 
 export type TableColumn = RegularColumn|ArgumentColumn;
 
+export function tableColumnEquals(t1: TableColumn, t2: TableColumn): boolean {
+  switch (t1.kind) {
+    case 'argument': {
+      return t2.kind === 'argument' && t1.argument === t2.argument;
+    }
+    case 'regular': {
+      return t2.kind === 'regular' && t1.table === t2.table &&
+          t1.column === t2.column;
+    }
+  }
+}
+
+export function toggleEnabled(
+    arr: TableColumn[], column: TableColumn, enabled: boolean): void {
+  if (enabled &&
+      arr.find((value) => tableColumnEquals(column, value)) === undefined) {
+    arr.push(column);
+  }
+  if (!enabled) {
+    const index = arr.findIndex((value) => tableColumnEquals(column, value));
+    if (index !== -1) {
+      arr.splice(index, 1);
+    }
+  }
+}
+
 export interface Aggregation {
   aggregationFunction: AggregationFunction;
   column: TableColumn;
