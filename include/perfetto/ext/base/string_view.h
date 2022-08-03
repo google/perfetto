@@ -33,6 +33,8 @@ namespace base {
 // Strings are internally NOT null terminated.
 class StringView {
  public:
+  // Allow hashing with base::Hash.
+  static constexpr bool kHashable = true;
   static constexpr size_t npos = static_cast<size_t>(-1);
 
   StringView() : data_(nullptr), size_(0) {}

@@ -1,5 +1,16 @@
 Unreleased:
   Tracing service and probes:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v28.0 - 2022-08-02:
+  Tracing service and probes:
     * Add android.statsd datasource.
     * Removed log spam about sys.trace.traced_started in standalone builds.
     * Changed kallsyms parsing in traced_probes (ftrace) to be always
@@ -9,11 +20,15 @@ Unreleased:
     * Improve heap profiling shutdown: now the shared memory buffer where
       alloc/free records are stored is properly flushed when stopping the data
       source.
+    * Fixed race condition in the daemonization path of perfetto --background.
+      It would cause daemonization failures if the TTY is destroyed immediately.
   Trace Processor:
     * Deprecate calling NotifyEndOfFile more than once: Flush should instead be
       used for all but the final call.
+    * Added ingestion and visualization of I2C transactions.
   UI:
-    *
+    * Changed callstack sampling selection: selecting one sample now only shows
+      one stacktrace, selecting multiple samples shows the aggregation.
   SDK:
     * Fixed a bug (b/239725760) that would cause abstract sockets using the
       "@name" syntax in PERFETTO_CONSUMER_SOCK_NAME/PERFETTO_PRODUCER_SOCK_NAME
@@ -21,6 +36,14 @@ Unreleased:
       with adb forwarding. This is a tracing protocol breaking change. Nobody
       seems to be relying on @abstract syntax across different versions of
       client vs service.
+    * Changed the mangling scheme for protozero enums nested in another message:
+      instead of OuterClass_Enum_VALUE, the enum values will be just named
+      VALUE with the enum itself wrapped in a perfetto_pbzero_enum_OuterClass
+      namespace to prevent naming collisions. This will allow the users
+      to alias the enum directly and use throughout their code.
+      The exact name mangling scheme is a carry-over from libprotobuf and
+      an internal implementation detail, so nobody should be relying on that.
+    * Added protozero::EnumToString() to convert enum keys to string literals.
 
 
 v27.1 - 2022-07-11:
