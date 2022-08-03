@@ -3560,10 +3560,11 @@ std::array<FtraceMessageDescriptor, 467> descriptors{{
     },
     {
         "sys_enter",
-        1,
+        2,
         {
             {},
             {"id", ProtoSchemaType::kInt64},
+            {"args", ProtoSchemaType::kUint64},
         },
     },
     {

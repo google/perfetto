@@ -301,7 +301,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       cma_nr_migrate_fail_id_(
           context_->storage->InternString("cma_nr_migrate_fail")),
       cma_nr_test_fail_id_(context_->storage->InternString("cma_nr_test_fail")),
-      syscall_ret_id_(context->storage->InternString("ret")) {
+      syscall_ret_id_(context->storage->InternString("ret")),
+      syscall_args_id_(context->storage->InternString("args")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -1567,12 +1568,31 @@ void FtraceParser::ParseSysEnterEvent(int64_t timestamp,
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
   SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(context_);
-  syscall_tracker->Enter(timestamp, utid, syscall_num);
+  auto args_callback = [this, &evt](ArgsTracker::BoundInserter* inserter) {
+    // process all syscall arguments
+    uint32_t count = 0;
+    for (auto it = evt.args(); it; ++it) {
+      if (syscall_arg_name_ids_.size() == count) {
+        base::StackString<32> string_arg("args[%" PRId32 "]", count);
+        auto string_id =
+            context_->storage->InternString(string_arg.string_view());
+        syscall_arg_name_ids_.emplace_back(string_id);
+      }
+      inserter->AddArg(syscall_args_id_, syscall_arg_name_ids_[count],
+                       Variadic::UnsignedInteger(*it));
+      ++count;
+    }
+  };
+  syscall_tracker->Enter(timestamp, utid, syscall_num, args_callback);
 }
 
 void FtraceParser::ParseSysExitEvent(int64_t timestamp,
                                      uint32_t pid,
                                      ConstBytes blob) {
+  // Note: Although this seems duplicated to ParseSysEnterEvent, it is
+  //       not. We decode SysExitFtraceEvent here to handle the return
+  //       value of a syscall whereas SysEnterFtraceEvent is decoded
+  //       above to handle the syscall arguments.
   protos::pbzero::SysExitFtraceEvent::Decoder evt(blob.data, blob.size);
   uint32_t syscall_num = static_cast<uint32_t>(evt.id());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
