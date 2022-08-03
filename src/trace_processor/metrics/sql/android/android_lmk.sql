@@ -20,7 +20,7 @@ SELECT RUN_METRIC('android/process_oom_score.sql');
 DROP TABLE IF EXISTS lmk_events;
 CREATE TABLE lmk_events AS
 WITH raw_events AS (
-  SELECT upid, MIN(ts) AS ts
+  SELECT upid, MAX(ts) AS ts
   FROM instant
   JOIN process_track ON instant.track_id = process_track.id
   WHERE instant.name = 'mem.lmk'
@@ -96,8 +96,8 @@ SELECT AndroidLmkMetric(
     WHERE score IS NOT NULL
   ),
   'oom_victim_count', (
-    SELECT COUNT(1) 
-    FROM instant 
+    SELECT COUNT(1)
+    FROM instant
     WHERE name = 'mem.oom_kill'
   )
 );
