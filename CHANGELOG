@@ -6,7 +6,11 @@ Unreleased:
   UI:
     *
   SDK:
-    *
+    * Added support for startup tracing. Tracing can be started in an app
+      before it connects to the tracing service.
+      The data sources which are started for startup tracing, will
+      be automatically adopted to normal tracing session once we start
+      normal tracing session.
 
 
 v28.0 - 2022-08-02:
