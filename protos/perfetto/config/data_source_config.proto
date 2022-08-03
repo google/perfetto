@@ -38,9 +38,10 @@ import "protos/perfetto/config/profiling/perf_event_config.proto";
 import "protos/perfetto/config/sys_stats/sys_stats_config.proto";
 import "protos/perfetto/config/test_config.proto";
 import "protos/perfetto/config/track_event/track_event_config.proto";
+import "protos/perfetto/config/system_info/system_info.proto";
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 119
+// Next id: 120
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -135,6 +136,8 @@ message DataSourceConfig {
       [lazy = true];
   // Data source name: android.statsd
   optional StatsdTracingConfig statsd_tracing_config = 117 [lazy = true];
+  // Data source name: linux.system_info
+  optional SystemInfoConfig system_info_config = 119;
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would
