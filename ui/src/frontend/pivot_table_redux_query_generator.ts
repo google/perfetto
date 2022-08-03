@@ -30,6 +30,7 @@ import {
   Aggregation,
   AggregationFunction,
   TableColumn,
+  tableColumnEquals,
 } from './pivot_table_redux_types';
 
 export interface Table {
@@ -94,21 +95,6 @@ function outerAggregation(fn: AggregationFunction): AggregationFunction {
     return 'SUM';
   }
   return fn;
-}
-
-export function tableColumnEquals(first: TableColumn, second: TableColumn) {
-  switch (first.kind) {
-    case 'regular': {
-      return second.kind === 'regular' && first.table === second.table &&
-          first.column === second.column;
-    }
-    case 'argument': {
-      return second.kind === 'argument' && first.argument === second.argument;
-    }
-    default: {
-      throw new Error(`malformed table column ${first}`);
-    }
-  }
 }
 
 // Exception thrown by query generator in case incoming parameters are not
@@ -247,45 +233,24 @@ export function generateQueryFromState(
     throw new QueryGeneratorError('Should not be called without area');
   }
   return generateQuery(
-      state.selectedPivotsMap,
+      state.selectedPivots,
+      state.selectedSlicePivots,
       state.selectedAggregations,
       globals.state.areas[state.selectionArea.areaId],
       state.constrainToArea);
 }
 
 export function generateQuery(
-    selectedPivots: Map<string, TableColumn>,
+    nonSlicePivots: RegularColumn[],
+    slicePivots: TableColumn[],
     selectedAggregations: Map<string, Aggregation>,
     area: Area,
     constrainToArea: boolean): PivotTableReduxQuery {
   const sliceTableAggregations =
       computeSliceTableAggregations(selectedAggregations);
-  const slicePivots: TableColumn[] = [];
-  const nonSlicePivots: RegularColumn[] = [];
 
   if (sliceTableAggregations.flatAggregations.length === 0) {
     throw new QueryGeneratorError('No aggregations selected');
-  }
-
-  for (const tableColumn of selectedPivots.values()) {
-    switch (tableColumn.kind) {
-      case 'regular': {
-        if (tableColumn.table === 'slice' ||
-            tableColumn.table === 'thread_slice') {
-          slicePivots.push(tableColumn);
-        } else {
-          nonSlicePivots.push(tableColumn);
-        }
-        break;
-      }
-      case 'argument': {
-        slicePivots.push(tableColumn);
-        break;
-      }
-      default: {
-        throw new Error(`malformed table column ${tableColumn}`);
-      }
-    }
   }
 
   if (slicePivots.length === 0 && nonSlicePivots.length === 0) {
