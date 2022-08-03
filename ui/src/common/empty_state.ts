@@ -14,15 +14,14 @@
 
 import {createEmptyRecordConfig} from '../controller/record_config_types';
 import {
+  Aggregation,
+  aggregationKey,
+} from '../frontend/pivot_table_redux_types';
+import {
   autosaveConfigStore,
   recordTargetStore,
 } from '../frontend/record_config';
 
-import {
-  Aggregation,
-  aggregationKey,
-  columnKey,
-} from './../frontend/pivot_table_redux_types';
 import {featureFlags} from './feature_flags';
 import {
   defaultTraceTime,
@@ -39,7 +38,7 @@ const AUTOLOAD_STARTED_CONFIG_FLAG = featureFlags.register({
   defaultValue: true,
 });
 
-function keyedMap<T>(
+export function keyedMap<T>(
     keyFn: (key: T) => string, ...values: T[]): Map<string, T> {
   const result = new Map<string, T>();
 
@@ -61,8 +60,8 @@ export function createEmptyNonSerializableState(): NonSerializableState {
   return {
     pivotTableRedux: {
       queryResult: null,
-      selectedPivotsMap: keyedMap(
-          columnKey, {kind: 'regular', table: 'slice', column: 'name'}),
+      selectedSlicePivots: [{kind: 'regular', table: 'slice', column: 'name'}],
+      selectedPivots: [],
       selectedAggregations: keyedMap(
           aggregationKey,
           {
