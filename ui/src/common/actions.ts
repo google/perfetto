@@ -521,11 +521,9 @@ export const StateActions = {
   // TODO(hjd): Remove setState - it causes problems due to reuse of ids.
   setState(state: StateDraft, args: {newState: State}): void {
     for (const key of Object.keys(state)) {
-      // tslint:disable-next-line no-any
       delete (state as any)[key];
     }
     for (const key of Object.keys(args.newState)) {
-      // tslint:disable-next-line no-any
       (state as any)[key] = (args.newState as any)[key];
     }
 
@@ -1135,9 +1133,7 @@ type DeferredActions<C> = {
 // It's a Proxy such that any attribute access returns a function:
 // (args) => {return {type: ATTRIBUTE_NAME, args};}
 export const Actions =
-    // tslint:disable-next-line no-any
     new Proxy<DeferredActions<typeof StateActions>>({} as any, {
-      // tslint:disable-next-line no-any
       get(_: any, prop: string, _2: any) {
         return (args: {}): DeferredAction<{}> => {
           return {
