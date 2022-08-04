@@ -18,11 +18,40 @@
  * containing it is discarded by Chrome(e.g. because the tab was not used for a
  * long time) or when the user accidentally hits reload.
  */
-import {assertExists} from '../base/logging';
 import {TraceArrayBufferSource, TraceSource} from './state';
 
 const TRACE_CACHE_NAME = 'cached_traces';
 const TRACE_CACHE_SIZE = 10;
+
+let LAZY_CACHE: Cache|undefined = undefined;
+
+async function getCache(): Promise<Cache> {
+  if (LAZY_CACHE !== undefined) {
+    return LAZY_CACHE;
+  }
+  LAZY_CACHE = await caches.open(TRACE_CACHE_NAME);
+  return LAZY_CACHE;
+}
+
+async function cacheDelete(key: Request): Promise<boolean> {
+  const cache = await getCache();
+  return cache.delete(key);
+}
+
+async function cachePut(key: string, value: Response): Promise<void> {
+  const cache = await getCache();
+  return cache.put(key, value);
+}
+
+async function cacheMatch(key: Request|string): Promise<Response|undefined> {
+  const cache = await getCache();
+  return cache.match(key);
+}
+
+async function cacheKeys(): Promise<readonly Request[]> {
+  const cache = await getCache();
+  return cache.keys();
+}
 
 export async function cacheTrace(
     traceSource: TraceSource, traceUuid: string): Promise<boolean> {
@@ -49,7 +78,6 @@ export async function cacheTrace(
     default:
       return false;
   }
-  assertExists(trace);
 
   const headers = new Headers([
     ['x-trace-title', title],
@@ -65,18 +93,16 @@ export async function cacheTrace(
           .toUTCString(),
     ],
   ]);
-  const traceCache = await caches.open(TRACE_CACHE_NAME);
-  await deleteStaleEntries(traceCache);
-  await traceCache.put(
+  await deleteStaleEntries();
+  await cachePut(
       `/_${TRACE_CACHE_NAME}/${traceUuid}`, new Response(trace, {headers}));
   return true;
 }
 
 export async function tryGetTrace(traceUuid: string):
     Promise<TraceArrayBufferSource|undefined> {
-  await deleteStaleEntries(await caches.open(TRACE_CACHE_NAME));
-  const response = await caches.match(
-      `/_${TRACE_CACHE_NAME}/${traceUuid}`, {cacheName: TRACE_CACHE_NAME});
+  await deleteStaleEntries();
+  const response = await cacheMatch(`/_${TRACE_CACHE_NAME}/${traceUuid}`);
 
   if (!response) return undefined;
   return {
@@ -90,34 +116,44 @@ export async function tryGetTrace(traceUuid: string):
   };
 }
 
-async function deleteStaleEntries(traceCache: Cache) {
-  /*
-   * Loop through stored caches and invalidate all but the most recent 10.
-   */
-  const keys = await traceCache.keys();
+async function deleteStaleEntries() {
+  // Loop through stored traces and invalidate all but the most recent
+  // TRACE_CACHE_SIZE.
+  const keys = await cacheKeys();
   const storedTraces: Array<{key: Request, date: Date}> = [];
+  const now = new Date();
+  const deletions = [];
   for (const key of keys) {
-    const existingTrace = assertExists(await traceCache.match(key));
-    const expiryDate =
-        new Date(assertExists(existingTrace.headers.get('expires')));
-    if (expiryDate < new Date()) {
-      await traceCache.delete(key);
+    const existingTrace = await cacheMatch(key);
+    if (existingTrace === undefined) {
+      continue;
+    }
+    const expires = existingTrace.headers.get('expires');
+    if (expires === undefined || expires === null) {
+      // Missing `expires`, so give up and delete which is better than
+      // keeping it around forever.
+      deletions.push(cacheDelete(key));
+      continue;
+    }
+    const expiryDate = new Date(expires);
+    if (expiryDate < now) {
+      deletions.push(cacheDelete(key));
     } else {
       storedTraces.push({key, date: expiryDate});
     }
   }
 
-  if (storedTraces.length <= TRACE_CACHE_SIZE) return;
-
-  /*
-   * Sort the traces descending by time, such that most recent ones are placed
-   * at the beginning. Then, take traces from TRACE_CACHE_SIZE onwards and
-   * delete them from cache.
-   */
+  // Sort the traces descending by time, such that most recent ones are placed
+  // at the beginning. Then, take traces from TRACE_CACHE_SIZE onwards and
+  // delete them from cache.
   const oldTraces =
       storedTraces.sort((a, b) => b.date.getTime() - a.date.getTime())
           .slice(TRACE_CACHE_SIZE);
   for (const oldTrace of oldTraces) {
-    await traceCache.delete(oldTrace.key);
+    deletions.push(cacheDelete(oldTrace.key));
   }
+
+  // TODO(hjd): Wrong Promise.all here, should use the one that
+  // ignores failures but need to upgrade TypeScript for that.
+  await Promise.all(deletions);
 }
