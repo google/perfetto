@@ -22,6 +22,7 @@ import {
   showWebsocketConnectionIssue,
   showWebUSBErrorV2,
 } from '../../frontend/error_dialog';
+import {getErrorMessage} from '../errors';
 
 import {
   WEBSOCKET_UNABLE_TO_CONNECT,
@@ -111,35 +112,6 @@ export function showRecordingModal(message: string): void {
   } else {
     throw new Error(`${message}`);
   }
-}
-
-interface ErrorLikeObject {
-  message?: unknown;
-  error?: {message?: unknown};
-  stack?: unknown;
-  code?: unknown;
-}
-
-// Attempt to coerce an error object into a string message.
-// Sometimes an error message is wrapped in an Error object, sometimes not.
-function getErrorMessage(e: unknown|undefined|null) {
-  if (e && typeof e === 'object') {
-    const errorObject = e as ErrorLikeObject;
-    if (errorObject.message) {  // regular Error Object
-      return String(errorObject.message);
-    } else if (errorObject.error?.message) {  // API result
-      return String(errorObject.error.message);
-    }
-  }
-  const asString = String(e);
-  if (asString === '[object Object]') {
-    try {
-      return JSON.stringify(e);
-    } catch (stringifyError) {
-      // ignore failures and just fall through
-    }
-  }
-  return asString;
 }
 
 function isDeviceDisconnectedError(message: string) {
