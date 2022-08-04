@@ -114,6 +114,9 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
   base::StringView name = value.isMember("name")
                               ? base::StringView(value["name"].asCString())
                               : base::StringView();
+  base::StringView id = value.isMember("id")
+                            ? base::StringView(value["id"].asCString())
+                            : base::StringView();
 
   StringId cat_id = storage->InternString(cat);
   StringId name_id = storage->InternString(name);
@@ -171,6 +174,37 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       }
       break;
     }
+    case 'b':
+    case 'e':
+    case 'n': {
+      if (!opt_pid || id.empty()) {
+        context_->storage->IncrementStats(stats::json_parser_failure);
+        break;
+      }
+      UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
+      // TODO(hjd): base::Hash::Combine should work on StringViews
+      int64_t cookie =
+          static_cast<int64_t>(base::Hash::Combine(id.ToStdString().c_str()));
+      StringId scope = kNullStringId;
+      TrackId track_id = context_->track_tracker->InternLegacyChromeAsyncTrack(
+          name_id, upid, cookie, true /* source_id_is_process_scoped */, scope);
+
+      if (phase == 'b') {
+        slice_tracker->BeginTyped(storage->mutable_thread_slice_table(),
+                                  make_thread_slice_row(track_id),
+                                  args_inserter);
+        MaybeAddFlow(track_id, value);
+      } else if (phase == 'e') {
+        slice_tracker->End(timestamp, track_id, cat_id, name_id, args_inserter);
+        // We don't handle tts here as we do in the 'E'
+        // case above as it's not well defined for aysnc slices.
+      } else {
+        context_->slice_tracker->Scoped(timestamp, track_id, cat_id, name_id,
+                                        0);
+        MaybeAddFlow(track_id, value);
+      }
+      break;
+    }
     case 'X': {  // TRACE_EVENT (scoped event).
       base::Optional<int64_t> opt_dur = json::CoerceToTs(value["dur"]);
       if (!opt_dur.has_value())
@@ -191,8 +225,8 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       }
 
       std::string counter_name_prefix = name.ToStdString();
-      if (value.isMember("id")) {
-        counter_name_prefix += " id: " + value["id"].asString();
+      if (!id.empty()) {
+        counter_name_prefix += " id: " + id.ToStdString();
       }
 
       for (auto it = args.begin(); it != args.end(); ++it) {
