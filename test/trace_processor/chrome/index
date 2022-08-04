@@ -81,3 +81,5 @@ chrome_slice_names.textproto chrome_slice_names chrome_slice_names.out
 
 # Unsymbolized args.
 unsymbolized_args.textproto chrome_unsymbolized_args unsymbolized_args.out
+../../data/async-trace-1.json count_slices_test.sql async-trace-1_count_slices.out
+../../data/async-trace-2.json count_slices_test.sql async-trace-2_count_slices.out
