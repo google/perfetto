@@ -923,15 +923,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/profiling:profile_builder
-perfetto_filegroup(
-    name = "src_profiling_profile_builder",
-    srcs = [
-        "src/profiling/profile_builder.cc",
-        "src/profiling/profile_builder.h",
-    ],
-)
-
 # GN target: //src/protozero/filtering:bytecode_common
 perfetto_filegroup(
     name = "src_protozero_filtering_bytecode_common",
@@ -1380,8 +1371,6 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/create_view_function.h",
         "src/trace_processor/sqlite/db_sqlite_table.cc",
         "src/trace_processor/sqlite/db_sqlite_table.h",
-        "src/trace_processor/sqlite/pprof_function.cc",
-        "src/trace_processor/sqlite/pprof_function.h",
         "src/trace_processor/sqlite/query_cache.h",
         "src/trace_processor/sqlite/register_function.cc",
         "src/trace_processor/sqlite/register_function.h",
@@ -4041,7 +4030,6 @@ perfetto_cc_binary(
 perfetto_cc_library(
     name = "trace_processor",
     srcs = [
-        ":src_profiling_profile_builder",
         ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_db_db",
         ":src_trace_processor_dynamic_dynamic",
@@ -4076,7 +4064,6 @@ perfetto_cc_library(
         ":include_perfetto_ext_trace_processor_export_json",
         ":include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
         ":include_perfetto_ext_traced_sys_stats_counters",
-        ":include_perfetto_protozero_protozero",
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_base",
         ":include_perfetto_trace_processor_basic_types",
@@ -4119,7 +4106,6 @@ perfetto_cc_library(
                ":protos_perfetto_trace_system_info_zero",
                ":protos_perfetto_trace_track_event_zero",
                ":protos_perfetto_trace_translation_zero",
-               ":protos_third_party_pprof_zero",
                ":protozero",
                ":src_base_base",
                ":src_trace_processor_containers_containers",
@@ -4155,7 +4141,6 @@ perfetto_cc_binary(
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
         ":src_profiling_deobfuscator",
-        ":src_profiling_profile_builder",
         ":src_profiling_symbolizer_symbolize_database",
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_proto_ring_buffer",
@@ -4228,7 +4213,6 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_system_info_zero",
                ":protos_perfetto_trace_track_event_zero",
                ":protos_perfetto_trace_translation_zero",
-               ":protos_third_party_pprof_zero",
                ":protozero",
                ":src_base_base",
                ":src_base_http_http",
@@ -4256,7 +4240,6 @@ perfetto_cc_library(
     name = "libpprofbuilder",
     srcs = [
         ":src_profiling_deobfuscator",
-        ":src_profiling_profile_builder",
         ":src_profiling_symbolizer_symbolize_database",
         ":src_profiling_symbolizer_symbolizer",
         ":src_trace_processor_util_stack_traces_util",
@@ -4332,7 +4315,6 @@ perfetto_cc_binary(
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
         ":src_profiling_deobfuscator",
-        ":src_profiling_profile_builder",
         ":src_profiling_symbolizer_symbolize_database",
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_proto_ring_buffer",
