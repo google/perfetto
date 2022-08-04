@@ -510,8 +510,12 @@ class GeneratorJob {
       stub_h_->Print("enum $class$ : int32_t;\n", "class", enumeration->name());
 
       if (enumeration->containing_type()) {
-        stub_h_->Print("}  // namespace $namespace_name$ \n", "namespace_name",
+        stub_h_->Print("}  // namespace $namespace_name$\n", "namespace_name",
                        GetNamespaceNameForInnerEnum(enumeration));
+        stub_h_->Print("using $alias$ = $namespace_name$::$short_name$;\n",
+                       "alias", GetCppClassName(enumeration), "namespace_name",
+                       GetNamespaceNameForInnerEnum(enumeration), "short_name",
+                       enumeration->name());
       }
     }
     stub_h_->Print("\n");
