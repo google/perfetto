@@ -46,7 +46,6 @@ export interface Route {
 
 // This must be a type literial to avoid having to duplicate the
 // index type logic of Params.
-// tslint:disable-next-line interface-over-type-literal
 export type RouteArgs = {
   // The local_cache_key is special and is persisted across navigations.
   local_cache_key?: string;
