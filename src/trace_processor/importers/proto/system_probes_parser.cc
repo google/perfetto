@@ -285,6 +285,25 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(sys_stats.num_softirq_total()), track);
   }
+
+  for (auto it = sys_stats.buddy_info(); it; ++it) {
+    protos::pbzero::SysStats::BuddyInfo::Decoder bi(*it);
+    int order = 0;
+    for (auto order_it = bi.order_pages(); order_it; ++order_it) {
+      std::string node = bi.node().ToStdString();
+      std::string zone = bi.zone().ToStdString();
+      uint32_t size_kb =
+          static_cast<uint32_t>(((1 << order) * page_size_) / 1024);
+      base::StackString<255> counter_name("mem.buddyinfo[%s][%s][%u kB]",
+                                          node.c_str(), zone.c_str(), size_kb);
+      StringId name =
+          context_->storage->InternString(counter_name.string_view());
+      TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
+      context_->event_tracker->PushCounter(ts, static_cast<double>(*order_it),
+                                           track);
+      order++;
+    }
+  }
 }
 
 void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
@@ -499,6 +518,10 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
   int64_t hz = packet.hz();
   if (hz > 0)
     ms_per_tick_ = 1000u / static_cast<uint64_t>(hz);
+
+  page_size_ = packet.page_size();
+  if (!page_size_)
+    page_size_ = 4096;
 }
 
 void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {

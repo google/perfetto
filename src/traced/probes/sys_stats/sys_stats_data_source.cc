@@ -91,6 +91,7 @@ SysStatsDataSource::SysStatsDataSource(
   meminfo_fd_ = open_fn("/proc/meminfo");
   vmstat_fd_ = open_fn("/proc/vmstat");
   stat_fd_ = open_fn("/proc/stat");
+  buddy_fd_ = open_fn("/proc/buddyinfo");
 
   read_buf_ = base::PagedMemory::Allocate(kReadBufSize);
 
@@ -143,8 +144,8 @@ SysStatsDataSource::SysStatsDataSource(
     stat_enabled_fields_ |= 1ul << static_cast<uint32_t>(*counter);
   }
 
-  std::array<uint32_t, 5> periods_ms{};
-  std::array<uint32_t, 5> ticks{};
+  std::array<uint32_t, 6> periods_ms{};
+  std::array<uint32_t, 6> ticks{};
   static_assert(periods_ms.size() == ticks.size(), "must have same size");
 
   periods_ms[0] = ClampTo10Ms(cfg.meminfo_period_ms(), "meminfo_period_ms");
@@ -152,6 +153,7 @@ SysStatsDataSource::SysStatsDataSource(
   periods_ms[2] = ClampTo10Ms(cfg.stat_period_ms(), "stat_period_ms");
   periods_ms[3] = ClampTo10Ms(cfg.devfreq_period_ms(), "devfreq_period_ms");
   periods_ms[4] = ClampTo10Ms(cfg.cpufreq_period_ms(), "cpufreq_period_ms");
+  periods_ms[5] = ClampTo10Ms(cfg.buddyinfo_period_ms(), "buddyinfo_period_ms");
 
   tick_period_ms_ = 0;
   for (uint32_t ms : periods_ms) {
@@ -175,6 +177,7 @@ SysStatsDataSource::SysStatsDataSource(
   stat_ticks_ = ticks[2];
   devfreq_ticks_ = ticks[3];
   cpufreq_ticks_ = ticks[4];
+  buddyinfo_ticks_ = ticks[5];
 }
 
 void SysStatsDataSource::Start() {
@@ -221,10 +224,39 @@ void SysStatsDataSource::ReadSysStats() {
   if (cpufreq_ticks_ && tick_ % cpufreq_ticks_ == 0)
     ReadCpufreq(sys_stats);
 
+  if (buddyinfo_ticks_ && tick_ % buddyinfo_ticks_ == 0)
+    ReadBuddyInfo(sys_stats);
+
   sys_stats->set_collection_end_timestamp(
       static_cast<uint64_t>(base::GetBootTimeNs().count()));
 
   tick_++;
+}
+
+void SysStatsDataSource::ReadBuddyInfo(protos::pbzero::SysStats* sys_stats) {
+  size_t rsize = ReadFile(&buddy_fd_, "/proc/buddyinfo");
+  if (!rsize) {
+    return;
+  }
+
+  char* buf = static_cast<char*>(read_buf_.Get());
+  for (base::StringSplitter lines(buf, rsize, '\n'); lines.Next();) {
+    uint32_t index = 0;
+    auto* buddy_info = sys_stats->add_buddy_info();
+    for (base::StringSplitter words(&lines, ' '); words.Next();) {
+      if (index == 1) {
+        std::string token = words.cur_token();
+        token = token.substr(0, token.find(","));
+        buddy_info->set_node(token);
+      } else if (index == 3) {
+        buddy_info->set_zone(words.cur_token());
+      } else if (index > 3) {
+        buddy_info->add_order_pages(
+            static_cast<uint32_t>(strtoul(words.cur_token(), nullptr, 0)));
+      }
+      index++;
+    }
+  }
 }
 
 void SysStatsDataSource::ReadDevfreq(protos::pbzero::SysStats* sys_stats) {

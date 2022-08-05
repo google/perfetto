@@ -2114,6 +2114,10 @@ message SysStatsConfig {
   // Polls /sys/devices/system/cpu/cpu*/cpufreq/cpuinfo_cur_freq every X ms.
   // This is required to be > 10ms to avoid excessive CPU usage.
   optional uint32 cpufreq_period_ms = 8;
+
+  // Polls /proc/buddyinfo every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  optional uint32 buddyinfo_period_ms = 9;
 }
 
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto
