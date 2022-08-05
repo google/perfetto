@@ -1502,7 +1502,7 @@ message AndroidStartupMetric {
     repeated string most_active_non_launch_processes = 5;
   }
 
-  // Next id: 17
+  // Next id: 18
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -1559,6 +1559,10 @@ message AndroidStartupMetric {
     // startup. This is useful for getting context about why a startup might
     // be slow beyond just what the app is doing.
     optional SystemState system_state = 15;
+
+    // A list of identified potential causes for slow startup.
+    // Optional.
+    repeated string slow_start_reason = 17;
 
     reserved 10;
   }

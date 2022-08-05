@@ -301,6 +301,16 @@ SELECT
         COUNT_SLICES_CONCURRENT_TO_LAUNCH(launches.id, 'broadcastReceiveReg*'),
       'most_active_non_launch_processes',
         N_MOST_ACTIVE_PROCESS_NAMES_FOR_LAUNCH(launches.id)
+    ),
+    'slow_start_reason', (SELECT RepeatedField(slow_cause)
+      FROM (
+        SELECT 'dex2oat running during launch' AS slow_cause
+        WHERE IS_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*dex2oat64')
+
+        UNION ALL
+        SELECT 'installd running during launch' AS slow_cause
+        WHERE IS_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*installd')
+      )
     )
   ) as startup
 FROM launches;
