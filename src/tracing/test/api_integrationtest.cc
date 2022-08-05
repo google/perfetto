@@ -4266,6 +4266,33 @@ TEST_P(PerfettoApiTest, UpdateDataSource) {
   EXPECT_TRUE(found_ds);
 }
 
+TEST_P(PerfettoApiTest, LegacyTraceEventsCopyDynamicString) {
+  char ptr1[] = "ABC";
+  char ptr2[] = "XYZ";
+  auto* tracing_session = NewTraceWithCategories({"cat"});
+  tracing_session->get()->StartBlocking();
+  {
+    TRACE_EVENT_MARK_WITH_TIMESTAMP0("cat", ptr1, MyTimestamp{0});
+    ptr1[0] = 'D';
+    // Old value of event name ("ABC") is recorded here in trace.
+    // The reason being, in legacy macros, event name was expected to be static
+    // by default unless `_COPY` version of these macro is used.
+    // Perfetto is caching pointer values and if a event-name-pointer matches an
+    // existing pointer, it ASSUMES the string-value of new pointer is same as
+    // string-value of the cached pointer when it was cached.
+    // and hence it assign the same intern-id to second event.
+    TRACE_EVENT_MARK_WITH_TIMESTAMP0("cat", ptr1, MyTimestamp{0});
+  }
+  {
+    TRACE_EVENT_COPY_MARK_WITH_TIMESTAMP("cat", ptr2, MyTimestamp{0});
+    ptr2[0] = 'W';
+    TRACE_EVENT_COPY_MARK_WITH_TIMESTAMP("cat", ptr2, MyTimestamp{0});
+  }
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
+  EXPECT_THAT(slices, ElementsAre("Legacy_R:cat.ABC", "Legacy_R:cat.ABC",
+                                  "Legacy_R:cat.XYZ", "Legacy_R:cat.WYZ"));
+}
+
 TEST_P(PerfettoApiTest, LegacyTraceEvents) {
   auto is_new_session = [] {
     bool result;
