@@ -73,6 +73,7 @@ class SystemProbesParser {
   std::array<StringId, kProcStatsProcessSize> proc_stats_process_names_{};
 
   uint64_t ms_per_tick_ = 0;
+  uint32_t page_size_ = 0;
 };
 
 }  // namespace trace_processor
