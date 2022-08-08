@@ -14,9 +14,10 @@ The supported output formats are:
 - `text` - protobuf text format: a text based representation of protos
 - `json` - Chrome JSON format: the format used by chrome://tracing
 - `systrace`: the ftrace text format used by Android systrace
-- `profile` (heap profiler only): pprof-like format. This is only valid for
-  traces with [native heap profiler](/docs/data-sources/native-heap-profiler.md)
-  dumps.
+- `profile` : pprof-like format. Either for traces with with
+  [native heap profiler](/docs/data-sources/native-heap-profiler.md) dumps or
+  [callstack sampling](docs/quickstart/callstack-sampling) (note however
+  callstacks requires the `--perf` flag).
 
 ## Setup
 
@@ -43,6 +44,23 @@ chmod +x traceconv
 ## Converting to Chrome Tracing JSON format
 
 `./traceconv json [input proto file] [output json file]`
+
+## Converting to pprof profile.
+
+This extract all samples from the trace, and outputs a proto that is compatible
+with pprof.
+
+If you are extracting heaps profiles like heapprofd you can use the following:
+
+`~/traceconv profile [input proto file] [output file]`
+
+However if you are using callstack sampling like traced_perf then use the
+following instead:
+
+`~/traceconv profile [input proto file] [output file] --perf`
+
+Note for `--perf` the output is one pprof file per process sampled in the trace.
+You can use pprof to merge them together if desired.
 
 ## Opening in the legacy systrace UI
 
