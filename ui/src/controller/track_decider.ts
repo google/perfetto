@@ -39,6 +39,9 @@ import {
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames';
 import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices';
+import {
+  decideTracks as scrollJankDecideTracks,
+} from '../tracks/chrome_scroll_jank';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 import {COUNTER_TRACK_KIND, CounterScaleOptions} from '../tracks/counter';
 import {CPU_FREQ_TRACK_KIND} from '../tracks/cpu_freq';
@@ -1612,6 +1615,17 @@ class TrackDecider {
     await this.addThreadSliceTracks();
     await this.addThreadCpuSampleTracks();
     await this.addLogsTrack();
+
+    // TODO(hjd): Move into plugin API.
+    {
+      const result = scrollJankDecideTracks(this.engine, (utid, upid) => {
+        return this.getUuid(utid, upid);
+      });
+      if (result !== null) {
+        const {tracksToAdd} = await result;
+        this.tracksToAdd.push(...tracksToAdd);
+      }
+    }
 
     this.addTrackGroupActions.push(
         Actions.addTracks({tracks: this.tracksToAdd}));
