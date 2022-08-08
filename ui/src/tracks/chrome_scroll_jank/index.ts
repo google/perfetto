@@ -14,7 +14,7 @@
 
 import {v4 as uuidv4} from 'uuid';
 
-import {AddTrackArgs} from '../../common/actions';
+import {Actions, AddTrackArgs} from '../../common/actions';
 import {Engine} from '../../common/engine';
 import {featureFlags} from '../../common/feature_flags';
 import {
@@ -22,6 +22,7 @@ import {
 } from '../../common/plugin_api';
 import {NUM} from '../../common/query_result';
 import {InThreadTrackSortKey} from '../../common/state';
+import {globals} from '../../frontend/globals';
 import {
   NamedSliceTrack,
   NamedSliceTrackTypes,
@@ -52,11 +53,6 @@ class ChromeScrollJankTrack extends
 
   async initSqlTable(tableName: string) {
     await this.engine.query(`
-select RUN_METRIC(
-   'chrome/chrome_tasks_delaying_input_processing.sql',
-   'duration_causing_jank_ms',
-   /* duration_causing_jank_ms = */ '8');
-
 create view ${tableName} as
 select s2.ts, s2.dur, s2.id, 0 as depth, s1.full_name as name
 from chrome_tasks_delaying_input_processing s1
@@ -108,6 +104,32 @@ export async function decideTracks(
     config: {},
     trackGroup: getTrackGroupUuid(it.utid, it.upid),
   });
+
+  // Initialise the chrome_tasks_delaying_input_processing table. It will be
+  // used in the sql table above.
+  await engine.query(`
+select RUN_METRIC(
+   'chrome/chrome_tasks_delaying_input_processing.sql',
+   'duration_causing_jank_ms',
+   /* duration_causing_jank_ms = */ '8');`);
+
+
+  globals.dispatch(Actions.executeQuery({
+    queryId: 'chrome_scroll_jank_long_tasks',
+    query: `
+     select
+       s1.full_name,
+       s1.duration_ms,
+       s1.slice_id,
+       s1.thread_dur_ms,
+       s2.id,
+       s2.ts,
+       s2.dur,
+       s2.track_id
+     from chrome_tasks_delaying_input_processing s1
+     join slice s2 on s1.slice_id=s2.id
+     `,
+  }));
 
   return result;
 }
