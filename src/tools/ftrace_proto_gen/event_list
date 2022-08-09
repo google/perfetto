@@ -416,3 +416,9 @@ dma_fence/dma_fence_wait_end
 f2fs/f2fs_iostat
 f2fs/f2fs_iostat_latency
 sched/sched_cpu_util_cfs
+v4l2/v4l2_qbuf
+v4l2/v4l2_dqbuf
+v4l2/vb2_v4l2_buf_queue
+v4l2/vb2_v4l2_buf_done
+v4l2/vb2_v4l2_qbuf
+v4l2/vb2_v4l2_dqbuf
