@@ -193,6 +193,9 @@ function userVisibleQueryName(id: string): string|null {
   if (id.startsWith('slices_with_arg_value_')) {
     return `Arg: ${id.substr('slices_with_arg_value_'.length)}`;
   }
+  if (id === 'chrome_scroll_jank_long_tasks') {
+    return 'Scroll Jank: long tasks';
+  }
   return null;
 }
 
