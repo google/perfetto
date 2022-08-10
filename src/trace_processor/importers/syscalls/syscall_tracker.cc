@@ -20,26 +20,11 @@
 #include <type_traits>
 #include <utility>
 
+#include "src/kernel_utils/syscall_table.h"
 #include "src/trace_processor/storage/stats.h"
-
-#include "src/trace_processor/importers/syscalls/syscalls_aarch32.h"
-#include "src/trace_processor/importers/syscalls/syscalls_aarch64.h"
-#include "src/trace_processor/importers/syscalls/syscalls_armeabi.h"
-#include "src/trace_processor/importers/syscalls/syscalls_x86.h"
-#include "src/trace_processor/importers/syscalls/syscalls_x86_64.h"
 
 namespace perfetto {
 namespace trace_processor {
-namespace {
-
-template <typename T>
-constexpr size_t GetSyscalls(const T&) {
-  static_assert(std::extent<T>::value <= kMaxSyscalls,
-                "kMaxSyscalls too small");
-  return std::extent<T>::value;
-}
-
-}  // namespace
 
 // TODO(primiano): The current design is broken in case of 32-bit processes
 // running on 64-bit kernel. At least on ARM, the syscal numbers don't match
@@ -55,41 +40,12 @@ SyscallTracker::SyscallTracker(TraceProcessorContext* context)
 SyscallTracker::~SyscallTracker() = default;
 
 void SyscallTracker::SetArchitecture(Architecture arch) {
-  const char* kSyscalls_Unknown[] = {nullptr};
-  size_t num_syscalls = 0;
-  const char* const* syscall_table = nullptr;
-
-  switch (arch) {
-    case kArmEabi:
-      num_syscalls = GetSyscalls(kSyscalls_ArmEabi);
-      syscall_table = &kSyscalls_ArmEabi[0];
-      break;
-    case kAarch32:
-      num_syscalls = GetSyscalls(kSyscalls_Aarch32);
-      syscall_table = &kSyscalls_Aarch32[0];
-      break;
-    case kAarch64:
-      num_syscalls = GetSyscalls(kSyscalls_Aarch64);
-      syscall_table = &kSyscalls_Aarch64[0];
-      break;
-    case kX86_64:
-      num_syscalls = GetSyscalls(kSyscalls_x86_64);
-      syscall_table = &kSyscalls_x86_64[0];
-      break;
-    case kX86:
-      num_syscalls = GetSyscalls(kSyscalls_x86);
-      syscall_table = &kSyscalls_x86[0];
-      break;
-    case kUnknown:
-      num_syscalls = 0;
-      syscall_table = &kSyscalls_Unknown[0];
-      break;
-  }
+  SyscallTable syscalls(arch);
 
   for (size_t i = 0; i < kMaxSyscalls; i++) {
     StringId id = kNullStringId;
-    if (i < num_syscalls && syscall_table[i] && *syscall_table[i]) {
-      const char* name = syscall_table[i];
+    const char* name = syscalls.GetById(i);
+    if (name && *name) {
       id = context_->storage->InternString(name);
       if (!strcmp(name, "sys_write"))
         sys_write_string_id_ = id;
