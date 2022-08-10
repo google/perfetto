@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_SYSCALLS_SYSCALLS_X86_64_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_SYSCALLS_SYSCALLS_X86_64_H_
+#ifndef SRC_KERNEL_UTILS_SYSCALLS_X86_64_H_
+#define SRC_KERNEL_UTILS_SYSCALLS_X86_64_H_
 
 namespace perfetto {
-namespace trace_processor {
 
 // See tools/extract_linux_syscall_tables .
 constexpr const char* kSyscalls_x86_64[] = {
@@ -572,7 +571,6 @@ constexpr const char* kSyscalls_x86_64[] = {
     "sys_pwritev2",                // 547
 };
 
-}  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_SYSCALLS_SYSCALLS_X86_64_H_
+#endif  // SRC_KERNEL_UTILS_SYSCALLS_X86_64_H_
