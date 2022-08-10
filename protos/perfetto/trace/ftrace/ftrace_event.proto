@@ -69,6 +69,7 @@ import "protos/perfetto/trace/ftrace/task.proto";
 import "protos/perfetto/trace/ftrace/tcp.proto";
 import "protos/perfetto/trace/ftrace/thermal.proto";
 import "protos/perfetto/trace/ftrace/ufs.proto";
+import "protos/perfetto/trace/ftrace/v4l2.proto";
 import "protos/perfetto/trace/ftrace/vmscan.proto";
 import "protos/perfetto/trace/ftrace/workqueue.proto";
 import "protos/perfetto/trace/ftrace/generic.proto";
@@ -522,5 +523,11 @@ message FtraceEvent {
     F2fsIostatFtraceEvent f2fs_iostat = 419;
     F2fsIostatLatencyFtraceEvent f2fs_iostat_latency = 420;
     SchedCpuUtilCfsFtraceEvent sched_cpu_util_cfs = 421;
+    V4l2QbufFtraceEvent v4l2_qbuf = 422;
+    V4l2DqbufFtraceEvent v4l2_dqbuf = 423;
+    Vb2V4l2BufQueueFtraceEvent vb2_v4l2_buf_queue = 424;
+    Vb2V4l2BufDoneFtraceEvent vb2_v4l2_buf_done = 425;
+    Vb2V4l2QbufFtraceEvent vb2_v4l2_qbuf = 426;
+    Vb2V4l2DqbufFtraceEvent vb2_v4l2_dqbuf = 427;
   }
 }
