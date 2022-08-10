@@ -107,6 +107,7 @@ sql_files = [
   "chrome/chrome_performance_mark_hashes.sql",
   "chrome/chrome_processes.sql",
   "chrome/chrome_scroll_jank_caused_by_scheduling.sql",
+  "chrome/chrome_scroll_inputs_per_frame.sql",
   "chrome/chrome_slice_names.sql",
   "chrome/chrome_stack_samples_for_task.sql",
   "chrome/chrome_unsymbolized_args.sql",
