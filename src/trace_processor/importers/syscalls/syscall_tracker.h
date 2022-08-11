@@ -21,6 +21,7 @@
 #include <tuple>
 
 #include "perfetto/ext/base/string_view.h"
+#include "src/kernel_utils/syscall_table.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -29,17 +30,6 @@
 
 namespace perfetto {
 namespace trace_processor {
-
-static constexpr size_t kMaxSyscalls = 550;
-
-enum Architecture {
-  kUnknown = 0,
-  kArmEabi,  // 32-bit kernel running a 32-bit process (most old devices).
-  kAarch32,  // 64-bit kernel running a 32-bit process (should be rare).
-  kAarch64,  // 64-bit kernel running a 64-bit process (most new devices).
-  kX86_64,
-  kX86,
-};
 
 class SyscallTracker : public Destructible {
  public:
