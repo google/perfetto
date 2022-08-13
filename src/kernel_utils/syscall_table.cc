@@ -15,7 +15,12 @@
  */
 #include "src/kernel_utils/syscall_table.h"
 
+#include "perfetto/base/build_config.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sys/utsname.h>
+#endif
 
 #include "src/kernel_utils/syscalls_aarch32.h"
 #include "src/kernel_utils/syscalls_aarch64.h"
@@ -80,11 +85,15 @@ Architecture SyscallTable::ArchFromString(base::StringView machine) {
 }
 
 SyscallTable SyscallTable::FromCurrentArch() {
-  struct utsname uname_info;
   Architecture arch = kUnknown;
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  struct utsname uname_info;
   if (uname(&uname_info) == 0) {
     arch = ArchFromString(uname_info.machine);
   }
+#endif
 
   return SyscallTable(arch);
 }

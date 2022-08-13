@@ -38,12 +38,13 @@ enum Architecture {
 
 class SyscallTable {
  public:
-  SyscallTable(Architecture arch);
+  explicit SyscallTable(Architecture arch);
 
   // Return the architecture enum for the given uname machine string.
   static Architecture ArchFromString(base::StringView machine);
 
-  // Returns the syscall table based on the current machine's architecture.
+  // Returns the syscall table based on the current machine's architecture. Only
+  // works on Linux based systems.
   static SyscallTable FromCurrentArch();
 
   // Returns the syscall id for the syscall with the given name. If the syscall
