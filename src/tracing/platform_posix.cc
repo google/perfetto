@@ -18,6 +18,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 
 #include "perfetto/ext/base/file_utils.h"
@@ -130,4 +131,4 @@ Platform* Platform::GetDefaultPlatform() {
 }
 
 }  // namespace perfetto
-#endif  // OS_LINUX || OS_ANDROID || OS_APPLE
+#endif  // OS_LINUX || OS_ANDROID || OS_APPLE || OS_FUCHSIA
