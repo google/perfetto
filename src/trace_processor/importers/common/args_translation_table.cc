@@ -23,21 +23,14 @@ namespace trace_processor {
 namespace {
 
 // The raw symbol name is namespace::Interface::Method_Sym::IPCStableHash.
-// We want to return Interface::Method.
+// We want to return namespace::Interface::Method.
 std::string ExtractMojoMethod(const std::string& method_symbol) {
   // The symbol ends with "()" for some platforms, but not for all of them.
   std::string without_sym_suffix = base::StripSuffix(method_symbol, "()");
   // This suffix is platform-independent, it's coming from Chromium code.
   // https://source.chromium.org/chromium/chromium/src/+/main:mojo/public/tools/bindings/generators/cpp_templates/interface_declaration.tmpl;l=66;drc=9d9e6f5ce548ecf228aed711f55b11c7ea8bdb55
   constexpr char kSymSuffix[] = "_Sym::IPCStableHash";
-  without_sym_suffix = base::StripSuffix(without_sym_suffix, kSymSuffix);
-  auto parts = base::SplitString(without_sym_suffix, "::");
-  // Now we have namespace, Interface, and Method parts. We need only the last
-  // two. If we have too few parts, return all of them to simplify debugging.
-  if (parts.size() > 2) {
-    parts.erase(parts.begin(), parts.end() - 2);
-  }
-  return base::Join(parts, "::");
+  return base::StripSuffix(without_sym_suffix, kSymSuffix);
 }
 
 // The raw symbol name is namespace::Interface::Method_Sym::IPCStableHash.
