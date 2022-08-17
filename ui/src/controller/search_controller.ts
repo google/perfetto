@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {sqliteString} from '../base/string_utils';
 import {TRACE_MARGIN_TIME_S} from '../common/constants';
 import {Engine} from '../common/engine';
 import {NUM, STR} from '../common/query_result';
@@ -28,10 +29,6 @@ export function escapeQuery(s: string): string {
   s = s.replace(/_/g, '^_');
   s = s.replace(/%/g, '^%');
   return `'%${s}%' escape '^'`;
-}
-
-export function escapeSingleQuotes(s: string): string {
-  return s.replace(/\'/g, '\'\'');
 }
 
 export interface SearchControllerArgs {
@@ -249,8 +246,8 @@ export class SearchController extends Controller<'main'> {
       from slice
       where slice.name like ${searchLiteral}
         or (
-          0 != CAST('${escapeSingleQuotes(search)}' AS INT) and
-          sliceId = CAST('${escapeSingleQuotes(search)}' AS INT)
+          0 != CAST(${(sqliteString(search))} AS INT) and
+          sliceId = CAST(${(sqliteString(search))} AS INT)
         )
     union
     select
