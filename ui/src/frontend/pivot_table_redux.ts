@@ -334,7 +334,8 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
     };
   }
 
-  renderAggregationHeaderCell(aggregation: Aggregation): m.Child {
+  renderAggregationHeaderCell(aggregation: Aggregation, removeItem: boolean):
+      m.Child {
     const column = aggregation.column;
     const popupItems: PopupMenuItem[] = [];
     const state = globals.state.nonSerializableState.pivotTableRedux;
@@ -374,6 +375,19 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
           },
         });
       }
+    }
+
+    if (removeItem) {
+      popupItems.push({
+        itemType: 'regular',
+        text: 'Remove',
+        callback() {
+          globals.dispatch(Actions.setPivotTableAggregationSelected(
+              {column: aggregation, selected: false}));
+          globals.dispatch(
+              Actions.setPivotTableQueryRequested({queryRequested: true}));
+        },
+      });
     }
 
     const usedAggregations: Set<string> = new Set();
@@ -536,9 +550,11 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         (pivot) =>
             this.renderPivotColumnHeader(queryResult, pivot, selectedPivots));
 
+    const removeItem = state.queryResult.metadata.aggregationColumns.length > 1;
     const aggregationTableHeaders =
         state.queryResult.metadata.aggregationColumns.map(
-            (aggregation) => this.renderAggregationHeaderCell(aggregation));
+            (aggregation) =>
+                this.renderAggregationHeaderCell(aggregation, removeItem));
 
     return m(
         'table.query-table.pivot-table',
