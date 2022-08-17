@@ -79,6 +79,8 @@ function selectCurrentSearchResult() {
   if (source === 'cpu') {
     globals.dispatch(
         Actions.selectSlice({id: currentId, trackId, scroll: true}));
+  } else if (source === 'log') {
+    globals.dispatch(Actions.selectLog({id: currentId, trackId, scroll: true}));
   } else {
     // Search results only include slices from the slice table for now.
     // When we include annotations we need to pass the correct table.
