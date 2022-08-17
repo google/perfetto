@@ -40,7 +40,7 @@ import {ArgumentPopup} from './pivot_table_redux_argument_popup';
 import {
   aggregationIndex,
   areaFilter,
-  expression,
+  extractArgumentExpression,
   generateQuery,
   sliceAggregationColumns,
   tables,
@@ -72,10 +72,23 @@ interface DrillFilter {
   value: ColumnType;
 }
 
+function drillFilterColumnName(column: TableColumn, mainTable: string): string {
+  switch (column.kind) {
+    case 'argument':
+      return extractArgumentExpression(column.argument);
+    case 'regular':
+      if (column.table === 'slice' || column.table === 'thread_slice') {
+        return `${mainTable}.${column.column}`;
+      }
+      return `${column.table}.${column.column}`;
+    default:
+      throw new Error(`malformed table column ${column}`);
+  }
+}
+
 // Convert DrillFilter to SQL condition to be used in WHERE clause.
-function renderDrillFilter(filter: DrillFilter): string {
-  // TODO(b/231429468): This would not work for non-slice column.
-  const column = expression(filter.column);
+function renderDrillFilter(filter: DrillFilter, mainTable: string): string {
+  const column = drillFilterColumnName(filter.column, mainTable);
   if (filter.value === null) {
     return `${column} IS NULL`;
   } else if (typeof filter.value === 'number') {
@@ -86,15 +99,12 @@ function renderDrillFilter(filter: DrillFilter): string {
 
 function readableColumnName(column: TableColumn) {
   switch (column.kind) {
-    case 'argument': {
+    case 'argument':
       return `Argument ${column.argument}`;
-    }
-    case 'regular': {
+    case 'regular':
       return `${column.table}.${column.column}`;
-    }
-    default: {
+    default:
       throw new Error(`malformed table column ${column}`);
-    }
   }
 }
 
@@ -129,12 +139,17 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
           {
             title: 'All corresponding slices',
             onclick: () => {
-              const queryFilters = filters.map(renderDrillFilter);
+              const mainTable = result.metadata.tableName;
+              const queryFilters =
+                  filters.map((f) => renderDrillFilter(f, mainTable));
               if (this.constrainToArea) {
                 queryFilters.push(areaFilter(area));
               }
               const query = `
-                select * from ${result.metadata.tableName}
+                select ${mainTable}.* from ${mainTable}
+                join thread_track on ${mainTable}.track_id = thread_track.id
+                join thread using (utid)
+                join process using (upid)
                 where ${queryFilters.join(' and \n')}
               `;
               // TODO(ddrone): the UI of running query as if it was a canned or
