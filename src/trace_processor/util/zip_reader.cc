@@ -114,7 +114,7 @@ base::Status ZipReader::Parse(const void* data, size_t len) {
         cur_.hdr.compression = ReadAndAdvance<uint16_t>(&hdr_it);
         cur_.hdr.mtime = ReadAndAdvance<uint16_t>(&hdr_it);
         cur_.hdr.mdate = ReadAndAdvance<uint16_t>(&hdr_it);
-        cur_.hdr.crc32 = ReadAndAdvance<uint32_t>(&hdr_it);
+        cur_.hdr.checksum = ReadAndAdvance<uint32_t>(&hdr_it);
         cur_.hdr.compressed_size = ReadAndAdvance<uint32_t>(&hdr_it);
         cur_.hdr.uncompressed_size = ReadAndAdvance<uint32_t>(&hdr_it);
         cur_.hdr.fname_len = ReadAndAdvance<uint16_t>(&hdr_it);
@@ -232,9 +232,9 @@ base::Status ZipFile::Decompress(std::vector<uint8_t>* out_data) const {
   const auto* crc_data = reinterpret_cast<const ::Bytef*>(out_data->data());
   auto crc_len = static_cast<::uInt>(out_data->size());
   auto actual_crc32 = static_cast<uint32_t>(::crc32(0u, crc_data, crc_len));
-  if (actual_crc32 != hdr_.crc32) {
+  if (actual_crc32 != hdr_.checksum) {
     return base::ErrStatus("Zip CRC32 failure on %s (actual: %x, expected: %x)",
-                           hdr_.fname.c_str(), actual_crc32, hdr_.crc32);
+                           hdr_.fname.c_str(), actual_crc32, hdr_.checksum);
   }
 #endif
 
