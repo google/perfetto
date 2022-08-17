@@ -118,15 +118,12 @@ export function areaFilter(area: Area): string {
 
 export function expression(column: TableColumn): string {
   switch (column.kind) {
-    case 'regular': {
+    case 'regular':
       return column.column;
-    }
-    case 'argument': {
+    case 'argument':
       return extractArgumentExpression(column.argument);
-    }
-    default: {
+    default:
       throw new Error(`malformed table column ${column}`);
-    }
   }
 }
 
