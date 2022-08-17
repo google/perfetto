@@ -243,6 +243,8 @@ function findTimeRangeOfSelection(): {startTs: number, endTs: number} {
       startTs = selectedNote.timestamp;
       endTs = selectedNote.timestamp + INSTANT_FOCUS_DURATION_S;
     }
+  } else if (selection.kind === 'LOG') {
+    // TODO(hjd): Make focus selection work for logs.
   }
 
   return {startTs, endTs};
