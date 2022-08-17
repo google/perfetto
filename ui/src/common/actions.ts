@@ -781,6 +781,17 @@ export const StateActions = {
         };
       },
 
+  selectLog(
+      state: StateDraft, args: {id: number, trackId: string, scroll?: boolean}):
+      void {
+        state.currentSelection = {
+          kind: 'LOG',
+          id: args.id,
+          trackId: args.trackId,
+        };
+        state.pendingScrollId = args.scroll ? args.id : undefined;
+      },
+
   deselect(state: StateDraft, _: {}): void {
     state.currentSelection = null;
   },

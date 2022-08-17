@@ -25,9 +25,10 @@ import {App} from './globals';
 export function escapeQuery(s: string): string {
   // See https://www.sqlite.org/lang_expr.html#:~:text=A%20string%20constant
   s = s.replace(/\'/g, '\'\'');
-  s = s.replace(/_/g, '^_');
-  s = s.replace(/%/g, '^%');
-  return `'%${s}%' escape '^'`;
+  s = s.replace(/\[/g, '[[]');
+  s = s.replace(/\?/g, '[?]');
+  s = s.replace(/\*/g, '[*]');
+  return `'*${s}*'`;
 }
 
 export function escapeSingleQuotes(s: string): string {
@@ -164,8 +165,8 @@ export class SearchController extends Controller<'main'> {
       where rowid = 0;`);
 
     const utidRes = await this.query(`select utid from thread join process
-      using(upid) where thread.name like ${searchLiteral}
-      or process.name like ${searchLiteral}`);
+      using(upid) where thread.name glob ${searchLiteral}
+      or process.name glob ${searchLiteral}`);
 
     const utids = [];
     for (const it = utidRes.iter({utid: NUM}); it.valid(); it.next()) {
@@ -189,7 +190,7 @@ export class SearchController extends Controller<'main'> {
               select
               quantum_ts
               from search_summary_slice_span
-              where name like ${searchLiteral}
+              where name glob ${searchLiteral}
           )
           group by quantum_ts
           order by quantum_ts;`);
@@ -224,8 +225,8 @@ export class SearchController extends Controller<'main'> {
 
     const utidRes = await this.query(`select utid from thread join process
     using(upid) where
-      thread.name like ${searchLiteral} or
-      process.name like ${searchLiteral}`);
+      thread.name glob ${searchLiteral} or
+      process.name glob ${searchLiteral}`);
     const utids = [];
     for (const it = utidRes.iter({utid: NUM}); it.valid(); it.next()) {
       utids.push(it.utid);
@@ -247,7 +248,7 @@ export class SearchController extends Controller<'main'> {
       track_id as sourceId,
       0 as utid
       from slice
-      where slice.name like ${searchLiteral}
+      where slice.name glob ${searchLiteral}
         or (
           0 != CAST('${escapeSingleQuotes(search)}' AS INT) and
           sliceId = CAST('${escapeSingleQuotes(search)}' AS INT)
@@ -261,8 +262,18 @@ export class SearchController extends Controller<'main'> {
       0 as utid
       from slice
       join args using(arg_set_id)
-      where string_value like ${searchLiteral}
-    order by ts`);
+      where string_value glob ${searchLiteral}
+    union
+    select
+      id as sliceId,
+      ts,
+      'log' as source,
+      0 as sourceId,
+      utid
+    from android_logs where msg glob ${searchLiteral}
+    order by ts
+
+    `);
 
     const rows = queryRes.numRows();
     const searchResults: CurrentSearchResults = {
@@ -282,6 +293,12 @@ export class SearchController extends Controller<'main'> {
         trackId = cpuToTrackId.get(it.sourceId);
       } else if (it.source === 'track') {
         trackId = this.app.state.uiTrackIdByTraceTrackId[it.sourceId];
+      } else if (it.source === 'log') {
+        const logTracks = Object.values(this.app.state.tracks)
+                              .filter((t) => t.kind === 'AndroidLogTrack');
+        if (logTracks.length > 0) {
+          trackId = logTracks[0].id;
+        }
       }
 
       // The .get() calls above could return undefined, this isn't just an else.
