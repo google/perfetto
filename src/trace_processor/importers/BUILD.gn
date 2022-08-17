@@ -33,3 +33,8 @@ perfetto_cc_proto_descriptor("gen_cc_track_event_descriptor") {
   descriptor_name = "track_event.descriptor"
   descriptor_target = "../../../protos/perfetto/trace/track_event:descriptor"
 }
+
+perfetto_cc_proto_descriptor("gen_cc_trace_descriptor") {
+  descriptor_name = "trace.descriptor"
+  descriptor_target = "../../../protos/perfetto/trace:descriptor"
+}

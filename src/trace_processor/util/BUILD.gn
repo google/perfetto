@@ -145,8 +145,8 @@ source_set("proto_profiler") {
     "proto_profiler.h",
   ]
   deps = [
+    ":descriptors",
     "../../../gn:default_deps",
-    "../../../gn:protobuf_lite",
     "../../../protos/perfetto/common:zero",
     "../../../protos/third_party/pprof:zero",
     "../../base",
@@ -157,6 +157,7 @@ source_set("proto_profiler") {
 source_set("unittests") {
   sources = [
     "debug_annotation_parser_unittest.cc",
+    "proto_profiler_unittest.cc",
     "proto_to_args_parser_unittest.cc",
     "protozero_to_text_unittests.cc",
     "streaming_line_reader_unittest.cc",
@@ -166,6 +167,7 @@ source_set("unittests") {
   deps = [
     ":descriptors",
     ":gzip",
+    ":proto_profiler",
     ":proto_to_args_parser",
     ":protozero_to_text",
     ":zip_reader",
@@ -182,18 +184,5 @@ source_set("unittests") {
   if (enable_perfetto_zlib) {
     sources += [ "gzip_utils_unittest.cc" ]
     deps += [ "../../../gn:zlib" ]
-  }
-
-  # There's a dependency on protobuf_lite in perfetto_unittests in Chromium,
-  # and it breaks Windows builds when combined with the protobuf_full
-  # depenedency coming from this test. See b/241234937 for more details.
-  # This should be fixable, but it doesn't seem to be trivial. So let's disable
-  # it in Chromium for now.
-  if (!build_with_chromium) {
-    sources += [ "proto_profiler_unittest.cc" ]
-    deps += [
-      ":proto_profiler",
-      "../../../gn:protobuf_full",
-    ]
   }
 }
