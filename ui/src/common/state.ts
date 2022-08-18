@@ -85,7 +85,8 @@ export const MAX_TIME = 180;
 // 19: Added visualisedArgs state.
 // 20: Refactored thread sorting order.
 // 21: Updated perf sample selection to include a ts range instead of single ts
-export const STATE_VERSION = 21;
+// 22: Add log selection kind.
+export const STATE_VERSION = 22;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -346,10 +347,16 @@ export interface ThreadStateSelection {
   id: number;
 }
 
+export interface LogSelection {
+  kind: 'LOG';
+  id: number;
+  trackId: string;
+}
+
 type Selection =
     (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
      CpuProfileSampleSelection|ChromeSliceSelection|ThreadStateSelection|
-     AreaSelection|PerfSamplesSelection)&{trackId?: string};
+     AreaSelection|PerfSamplesSelection|LogSelection)&{trackId?: string};
 export type SelectionKind = Selection['kind'];  // 'THREAD_STATE' | 'SLICE' ...
 
 export interface LogsPagination {
