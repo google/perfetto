@@ -45,7 +45,6 @@
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
-#include "protos/perfetto/trace/chrome/chrome_metadata.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace.pbzero.h"
@@ -2467,51 +2466,6 @@ TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
                      Variadic::String(storage_->InternString(kStringValue))));
   EXPECT_TRUE(HasArg(1u, storage_->InternString(kIntName),
                      Variadic::Integer(kIntValue)));
-}
-
-// TODO(crbug.com/1194914): Remove this test once the Chrome-side fix has
-// propagated into all release channels.
-TEST_F(ProtoTraceParserTest, ParseChromeCombinedMetadataPacket) {
-  static const char kStringName[] = "string_name";
-  static const char kStringValue[] = "string_value";
-
-  {
-    auto* packet = trace_->add_packet();
-    packet->set_timestamp(1000);
-    packet->set_timestamp_clock_id(3);
-    packet->set_trusted_packet_sequence_id(1);
-    auto* chrome_metadata = packet->set_chrome_metadata();
-    chrome_metadata->set_chrome_version_code(123);
-    auto* bundle = packet->set_chrome_events();
-    auto* metadata = bundle->add_metadata();
-    metadata->set_name(kStringName);
-    metadata->set_string_value(kStringValue);
-  }
-
-  Tokenize();
-  context_.sorter->ExtractEventsForced();
-
-  // Typed metadata should be in metadata table.
-  bool found = false;
-  for (uint32_t row = 0; row < storage_->metadata_table().row_count(); row++) {
-    if (storage_->metadata_table().name()[row] ==
-        storage_->InternString("cr-playstore_version_code")) {
-      found = true;
-      EXPECT_EQ(storage_->metadata_table().int_value()[0], 123);
-    }
-  }
-  EXPECT_TRUE(found);
-
-  // Untyped metadata should be in raw table.
-  const auto& raw_table = storage_->raw_table();
-  EXPECT_EQ(raw_table.row_count(), 1u);
-  EXPECT_EQ(raw_table.name()[0],
-            storage_->InternString("chrome_event.metadata"));
-  EXPECT_EQ(raw_table.arg_set_id()[0], 1u);
-
-  EXPECT_EQ(storage_->arg_table().row_count(), 1u);
-  EXPECT_TRUE(HasArg(1u, storage_->InternString(kStringName),
-                     Variadic::String(storage_->InternString(kStringValue))));
 }
 
 TEST_F(ProtoTraceParserTest, ParseChromeLegacyFtraceIntoRawTable) {
