@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <google/protobuf/compiler/importer.h>
-
 #include "test/gtest_and_gmock.h"
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -31,12 +29,6 @@ namespace trace_processor {
 namespace util {
 namespace {
 
-using ::google::protobuf::Descriptor;
-using ::google::protobuf::DescriptorPool;
-using ::google::protobuf::FileDescriptor;
-using ::google::protobuf::FileDescriptorSet;
-using ::google::protobuf::compiler::DiskSourceTree;
-using ::google::protobuf::compiler::Importer;
 using ::testing::UnorderedElementsAreArray;
 
 TEST(ProtoProfiler, TestMessage) {
@@ -46,19 +38,12 @@ TEST(ProtoProfiler, TestMessage) {
   message->set_super_nested()->set_value_c(3);
   const std::vector<uint8_t> bytes = message.SerializeAsArray();
 
-  DescriptorPool pool(DescriptorPool::generated_pool());
-  FileDescriptorSet desc_set;
-  ASSERT_TRUE(desc_set.ParseFromArray(kTestMessagesDescriptor.data(),
-                                      kTestMessagesDescriptor.size()));
-  for (const auto& file_desc : desc_set.file()) {
-    pool.BuildFile(file_desc);
-  }
-  const Descriptor* descriptor =
-      pool.FindMessageTypeByName("protozero.test.protos.NestedA");
-  ASSERT_TRUE(descriptor);
-
-  SizeProfileComputer computer;
-  const auto got_map = computer.Compute(bytes.data(), bytes.size(), descriptor);
+  DescriptorPool pool;
+  pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                kTestMessagesDescriptor.size());
+  SizeProfileComputer computer(&pool);
+  const auto got_map = computer.Compute(bytes.data(), bytes.size(),
+                                        ".protozero.test.protos.NestedA");
 
   // base::FlatHashMap doesn't support STL-container style iteration, so test
   // matchers don't work for it, and we need a vector (std::map would work,
