@@ -2040,6 +2040,7 @@ cc_test {
         "libgtest",
         "libperfetto_client_experimental",
         "perfetto_src_trace_processor_demangle",
+        "sqlite_ext_percentile",
     ],
     whole_static_libs: [
         "perfetto_gtest_logcat_printer",
@@ -10973,6 +10974,7 @@ cc_test {
         "libgmock",
         "libgtest",
         "perfetto_src_trace_processor_demangle",
+        "sqlite_ext_percentile",
     ],
     whole_static_libs: [
         "perfetto_gtest_logcat_printer",
@@ -11305,12 +11307,16 @@ cc_binary {
                 "libutils",
                 "libz",
             ],
+            static_libs: [
+                "sqlite_ext_percentile",
+            ],
         },
         host: {
             static_libs: [
                 "libprotobuf-cpp-full",
                 "libsqlite",
                 "libz",
+                "sqlite_ext_percentile",
             ],
             stl: "libc++_static",
             dist: {
@@ -11420,6 +11426,7 @@ cc_binary_host {
         "libsqlite",
         "libz",
         "perfetto_src_trace_processor_demangle",
+        "sqlite_ext_percentile",
     ],
     generated_headers: [
         "perfetto_protos_perfetto_common_zero_gen_headers",
