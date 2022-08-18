@@ -58,11 +58,7 @@ ModuleResult MetadataModule::TokenizePacket(
     }
     case TracePacket::kChromeMetadataFieldNumber: {
       ParseChromeMetadataPacket(decoder.chrome_metadata());
-      // Metadata packets may also contain untyped metadata due to a bug in
-      // Chrome <M92.
-      // TODO(crbug.com/1194914): Replace this with Handled() once the
-      // Chrome-side fix has propagated into all release channels.
-      return ModuleResult::Ignored();
+      return ModuleResult::Handled();
     }
     case TracePacket::kChromeBenchmarkMetadataFieldNumber: {
       ParseChromeBenchmarkMetadata(decoder.chrome_benchmark_metadata());
