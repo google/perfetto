@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/util/proto_profiler.h"
 
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -25,17 +26,36 @@ namespace trace_processor {
 namespace util {
 
 namespace {
-using ::google::protobuf::FieldDescriptor;
+using ::perfetto::protos::pbzero::FieldDescriptorProto;
 using ::protozero::proto_utils::ProtoWireType;
+
+// Takes a type full name, and returns only the final part.
+// For example, .perfetto.protos.TracePacket -> TracePacket
+std::string GetFieldTypeName(const std::string& full_type_name) {
+  auto pos = full_type_name.rfind('.');
+  if (pos == std::string::npos) {
+    return full_type_name;
+  }
+  return full_type_name.substr(pos + 1);
+}
+
+std::string GetLeafTypeName(uint32_t type_id) {
+  std::string raw_name = FieldDescriptorProto::Type_Name(
+      static_cast<FieldDescriptorProto::Type>(type_id));
+  return base::StripPrefix(base::ToLower(raw_name), "type_");
+}
+
 }  // namespace
+
+SizeProfileComputer::SizeProfileComputer(DescriptorPool* pool) : pool_(pool) {}
 
 base::FlatHashMap<SizeProfileComputer::FieldPath,
                   SizeProfileComputer::SizeSamples,
                   SizeProfileComputer::FieldPathHasher>
 SizeProfileComputer::Compute(const uint8_t* ptr,
                              size_t size,
-                             const google::protobuf::Descriptor* descriptor) {
-  ComputeInner(ptr, size, descriptor);
+                             const std::string& message_type) {
+  ComputeInner(ptr, size, message_type);
   return std::move(path_to_samples_);
 }
 
@@ -55,15 +75,21 @@ size_t SizeProfileComputer::GetFieldSize(const protozero::Field& f) {
   PERFETTO_FATAL("unexpected field type");  // for gcc
 }
 
-void SizeProfileComputer::ComputeInner(
-    const uint8_t* ptr,
-    size_t size,
-    const google::protobuf::Descriptor* descriptor) {
+void SizeProfileComputer::ComputeInner(const uint8_t* ptr,
+                                       size_t size,
+                                       const std::string& message_type) {
   size_t overhead = size;
   size_t unknown = 0;
   protozero::ProtoDecoder decoder(ptr, size);
 
-  stack_.push_back(descriptor->name());
+  auto idx = pool_->FindDescriptorIdx(message_type);
+  if (!idx) {
+    PERFETTO_ELOG("Cannot find descriptor for type %s", message_type.c_str());
+    return;
+  }
+  const ProtoDescriptor& descriptor = pool_->descriptors()[*idx];
+
+  stack_.push_back(GetFieldTypeName(message_type));
 
   // Compute the size of each sub-field of this message, subtracting it
   // from overhead and possible adding it to unknown.
@@ -76,12 +102,12 @@ void SizeProfileComputer::ComputeInner(
       break;
     }
 
-    int id = field.id();
     ProtoWireType type = field.type();
     size_t field_size = GetFieldSize(field);
 
     overhead -= field_size;
-    const FieldDescriptor* field_descriptor = descriptor->FindFieldByNumber(id);
+    const FieldDescriptor* field_descriptor =
+        descriptor.FindFieldByTag(field.id());
     if (!field_descriptor) {
       unknown += field_size;
       continue;
@@ -89,12 +115,12 @@ void SizeProfileComputer::ComputeInner(
 
     stack_.push_back("#" + field_descriptor->name());
     bool is_message_type =
-        field_descriptor->type() == FieldDescriptor::TYPE_MESSAGE;
+        field_descriptor->type() == FieldDescriptorProto::TYPE_MESSAGE;
     if (type == ProtoWireType::kLengthDelimited && is_message_type) {
       ComputeInner(field.data(), field.size(),
-                   field_descriptor->message_type());
+                   field_descriptor->resolved_type_name());
     } else {
-      stack_.push_back(field_descriptor->type_name());
+      stack_.push_back(GetLeafTypeName(field_descriptor->type()));
       Sample(field_size);
       stack_.pop_back();
     }

@@ -32,5 +32,5 @@ source_set("common") {
     "../../trace_processor/util:proto_profiler",
   ]
   sources = [ "main.cc" ]
-  deps = [ "../../../gn:protobuf_full" ]
+  deps = [ "../../trace_processor/importers:gen_cc_trace_descriptor" ]
 }
