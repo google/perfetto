@@ -13,9 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Contains classes for BatchTraceProcessor API."""
-
+import abc
 import concurrent.futures as cf
 import dataclasses as dc
+import time
 from enum import Enum
 import multiprocessing
 from typing import Any, Callable, Dict, Tuple, List, Optional
@@ -98,9 +99,28 @@ class BatchTraceProcessor:
         print(df)
   """
 
+  class Observer(abc.ABC):
+    """Observer that can be used to provide side-channel information about
+    processed traces.
+    """
+
+    @abc.abstractmethod
+    def trace_processed(self, metadata: Metadata,
+                        execution_time_seconds: float):
+      """Invoked every time query has been executed on a trace.
+
+      Args:
+        metadata: Metadata provided by trace resolver, can be used to identify
+          the trace.
+
+        execution_time_seconds: Query execution time, in seconds.
+      """
+      raise NotImplementedError
+
   def __init__(self,
                traces: TraceListReference,
-               config: BatchTraceProcessorConfig = BatchTraceProcessorConfig()):
+               config: BatchTraceProcessorConfig = BatchTraceProcessorConfig(),
+               observer: Optional[Observer] = None):
     """Creates a batch trace processor instance.
 
     BatchTraceProcessor is the blessed way of running ad-hoc queries in
@@ -130,6 +150,8 @@ class BatchTraceProcessor:
         |config.resolver_registry|.
       config: configuration options which customize functionality of batch
         trace processor and underlying trace processors.
+      observer: an optional observer for side-channel information, e.g.
+        running time of queries.
     """
 
     self.tps_and_metadata = None
@@ -139,6 +161,8 @@ class BatchTraceProcessor:
     self.platform_delegate = PLATFORM_DELEGATE()
     self.tp_platform_delegate = TP_PLATFORM_DELEGATE()
     self.config = config
+
+    self.observer = observer
 
     # Make sure the descendent trace processors are using the same resolver
     # registry (even though they won't actually use it as we will resolve
@@ -302,7 +326,11 @@ class BatchTraceProcessor:
 
     def wrapped(pair: Tuple[TraceProcessor, Metadata]):
       (tp, metadata) = pair
+      start = time.time()
       df = self._execute_handling_failure(fn, tp, metadata)
+      end = time.time()
+      if self.observer:
+        self.observer.trace_processed(metadata, end - start)
       for key, value in metadata.items():
         df[key] = value
       return df
