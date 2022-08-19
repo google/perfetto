@@ -210,15 +210,7 @@ SELECT
       'time_verify_class',
         DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'VerifyClass*'),
       'time_gc_total', (
-        SELECT NULL_IF_EMPTY(STARTUP_SLICE_PROTO(SUM(slice_dur)))
-        FROM thread_slices_for_all_launches slice
-        WHERE
-          launch_id = launches.id AND
-          (
-            slice_name GLOB "*semispace GC" OR
-            slice_name GLOB "*mark sweep GC" OR
-            slice_name GLOB "*concurrent copying GC"
-          )
+        SELECT NULL_IF_EMPTY(STARTUP_SLICE_PROTO(TOTAL_GC_TIME_BY_LAUNCH(launches.id)))
       ),
       'time_lock_contention_thread_main',
         DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
@@ -310,6 +302,67 @@ SELECT
         UNION ALL
         SELECT 'installd running during launch' AS slow_cause
         WHERE IS_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*installd')
+
+        UNION ALL
+        SELECT 'Main Thread - Time spent in Runnable state'
+        AS slow_cause
+        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'R') > 2e9
+
+        UNION ALL
+        SELECT 'Time spent in bindApplication'
+        AS slow_cause
+        WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(launches.id, 'bindApplication') > 2e9
+
+        UNION ALL
+        SELECT 'Time spent in view inflation'
+        AS slow_cause
+        WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(launches.id, 'inflate') > 2e9
+
+        UNION ALL
+        SELECT 'Time spent in ResourcesManager#getResources'
+        AS slow_cause
+        WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(
+          launches.id, 'ResourcesManager#getResources') > 2e9
+
+        UNION ALL
+        SELECT 'Time spent verifying classes'
+        AS slow_cause
+        WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(launches.id, 'VerifyClass*') > 2e9
+
+        UNION ALL
+        SELECT 'JIT Activity'
+        AS slow_cause
+        WHERE THREAD_TIME_FOR_LAUNCH_STATE_AND_THREAD(
+          launches.id,
+          'Running',
+          'Jit thread pool'
+        ) > 2e9
+
+        UNION ALL
+        SELECT 'Main Thread - Lock contention'
+        AS slow_cause
+        WHERE DUR_SUM_MAIN_THREAD_FOR_LAUNCH_AND_SLICE(
+          launches.id,
+          'Lock contention on*'
+        ) > 2e9
+
+        UNION ALL
+        SELECT 'Main Thread - Monitor contention'
+        AS slow_cause
+        WHERE DUR_SUM_MAIN_THREAD_FOR_LAUNCH_AND_SLICE(
+          launches.id,
+          'Lock contention on a monitor*'
+        ) > 2e9
+
+        UNION ALL
+        SELECT 'GC - Total time'
+        WHERE TOTAL_GC_TIME_BY_LAUNCH(launches.id) > 2e9
+
+        UNION ALL
+        SELECT 'GC - Time on CPU'
+        FROM running_gc_slices_materialized
+        WHERE launches.id = launch_id
+        AND sum_dur > 2e9
       )
     )
   ) as startup
