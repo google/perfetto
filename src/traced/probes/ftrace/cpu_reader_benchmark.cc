@@ -317,6 +317,7 @@ static void BM_ParsePageFullOfSchedSwitch(benchmark::State& state) {
   auto page = PageFromXxd(test_case->data);
 
   FtraceDataSourceConfig ds_config{EventFilter{},
+                                   EventFilter{},
                                    DisabledCompactSchedConfigForTesting(),
                                    {},
                                    {},
