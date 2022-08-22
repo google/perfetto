@@ -466,7 +466,7 @@ message ChromeConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 18.
+// Next id: 19.
 message FtraceConfig {
   repeated string ftrace_events = 1;
   repeated string atrace_categories = 2;
@@ -540,6 +540,12 @@ message FtraceConfig {
   // expand to events that aren't of interest to the tracing user.
   // Introduced in: Android T.
   optional bool disable_generic_events = 16;
+
+  // The list of syscalls that should be recorded by sys_{enter,exit} ftrace
+  // events. When empty, all syscalls are recorded. If neither sys_{enter,exit}
+  // are enabled, this setting has no effect. Example: ["sys_read", "sys_open"].
+  // Introduced in: Android U.
+  repeated string syscall_events = 18;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
