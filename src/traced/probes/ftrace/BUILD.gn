@@ -120,6 +120,7 @@ source_set("ftrace") {
     "../../../android_internal:lazy_library_loader",
     "../../../base",
     "../../../kallsyms",
+    "../../../kernel_utils:syscall_table",
     "../../../protozero",
     "format_parser",
   ]
