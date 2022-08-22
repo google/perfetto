@@ -9619,6 +9619,9 @@ message BatteryCounters {
 
   // Instantaneous battery current in microamperes(µA).
   optional int64 current_avg_ua = 4;
+
+  // Battery name, emitted only on multiple batteries.
+  optional string name = 5;
 }
 
 // End of protos/perfetto/trace/power/battery_counters.proto
