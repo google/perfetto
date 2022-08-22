@@ -51,5 +51,9 @@ void ProtoImporterModule::RegisterForField(uint32_t field_id,
   context->modules_by_field[field_id].push_back(this);
 }
 
+void ProtoImporterModule::RegisterForAllFields(TraceProcessorContext* context) {
+  context->modules_for_all_fields.push_back(this);
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto

@@ -43,6 +43,7 @@
 #include "src/trace_processor/tables/metadata_tables.h"
 #include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/tables/slice_tables.h"
+#include "src/trace_processor/tables/trace_proto_tables.h"
 #include "src/trace_processor/tables/track_tables.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/views/slice_views.h"
@@ -660,6 +661,15 @@ class TraceStorage {
     return &actual_frame_timeline_slice_table_;
   }
 
+  const tables::ExperimentalProtoContentTable&
+  experimental_proto_content_table() const {
+    return experimental_proto_content_table_;
+  }
+  tables::ExperimentalProtoContentTable*
+  mutable_experimental_proto_content_table() {
+    return &experimental_proto_content_table_;
+  }
+
   const views::ThreadSliceView& thread_slice_view() const {
     return thread_slice_view_;
   }
@@ -883,6 +893,9 @@ class TraceStorage {
       &string_pool_, &slice_table_};
   tables::ActualFrameTimelineSliceTable actual_frame_timeline_slice_table_{
       &string_pool_, &slice_table_};
+
+  tables::ExperimentalProtoContentTable experimental_proto_content_table_{
+      &string_pool_, nullptr};
 
   views::ThreadSliceView thread_slice_view_{&slice_table_, &thread_track_table_,
                                             &thread_table_};

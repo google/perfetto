@@ -1192,6 +1192,16 @@ perfetto_cc_proto_descriptor(
 )
 
 perfetto_cc_proto_descriptor(
+    name = "src_trace_processor_importers_gen_cc_trace_descriptor",
+    deps = [
+        ":protos_perfetto_trace_descriptor",
+    ],
+    outs = [
+        "src/trace_processor/importers/trace.descriptor.h",
+    ],
+)
+
+perfetto_cc_proto_descriptor(
     name = "src_trace_processor_importers_gen_cc_track_event_descriptor",
     deps = [
         ":protos_perfetto_trace_track_event_descriptor",
@@ -1461,6 +1471,7 @@ perfetto_filegroup(
         "src/trace_processor/tables/profiler_tables.h",
         "src/trace_processor/tables/slice_tables.h",
         "src/trace_processor/tables/table_destructors.cc",
+        "src/trace_processor/tables/trace_proto_tables.h",
         "src/trace_processor/tables/track_tables.h",
     ],
 )
@@ -1507,6 +1518,15 @@ perfetto_filegroup(
     name = "src_trace_processor_util_interned_message_view",
     srcs = [
         "src/trace_processor/util/interned_message_view.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:proto_profiler
+perfetto_filegroup(
+    name = "src_trace_processor_util_proto_profiler",
+    srcs = [
+        "src/trace_processor/util/proto_profiler.cc",
+        "src/trace_processor/util/proto_profiler.h",
     ],
 )
 
@@ -1673,6 +1693,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/android_probes_parser.h",
         "src/trace_processor/importers/proto/android_probes_tracker.cc",
         "src/trace_processor/importers/proto/android_probes_tracker.h",
+        "src/trace_processor/importers/proto/content_analyzer.cc",
+        "src/trace_processor/importers/proto/content_analyzer.h",
         "src/trace_processor/importers/proto/frame_timeline_event_parser.cc",
         "src/trace_processor/importers/proto/frame_timeline_event_parser.h",
         "src/trace_processor/importers/proto/gpu_event_parser.cc",
@@ -4142,6 +4164,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_proto_profiler",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_stack_traces_util",
@@ -4198,12 +4221,14 @@ perfetto_cc_library(
                ":protos_perfetto_trace_system_info_zero",
                ":protos_perfetto_trace_track_event_zero",
                ":protos_perfetto_trace_translation_zero",
+               ":protos_third_party_pprof_zero",
                ":protozero",
                ":src_base_base",
                ":src_trace_processor_containers_containers",
                ":src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_gen_cc_config_descriptor",
                ":src_trace_processor_importers_gen_cc_statsd_atoms_descriptor",
+               ":src_trace_processor_importers_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
@@ -4262,6 +4287,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_proto_profiler",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_stack_traces_util",
@@ -4309,6 +4335,7 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_system_info_zero",
                ":protos_perfetto_trace_track_event_zero",
                ":protos_perfetto_trace_translation_zero",
+               ":protos_third_party_pprof_zero",
                ":protozero",
                ":src_base_base",
                ":src_base_http_http",
@@ -4317,6 +4344,7 @@ perfetto_cc_binary(
                ":src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_gen_cc_config_descriptor",
                ":src_trace_processor_importers_gen_cc_statsd_atoms_descriptor",
+               ":src_trace_processor_importers_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
@@ -4439,6 +4467,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_proto_profiler",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_stack_traces_util",
@@ -4495,6 +4524,7 @@ perfetto_cc_binary(
                ":src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
                ":src_trace_processor_importers_gen_cc_config_descriptor",
                ":src_trace_processor_importers_gen_cc_statsd_atoms_descriptor",
+               ":src_trace_processor_importers_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
