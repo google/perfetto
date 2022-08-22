@@ -21,6 +21,7 @@
 #include "src/trace_processor/tables/metadata_tables.h"
 #include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/tables/slice_tables.h"
+#include "src/trace_processor/tables/trace_proto_tables.h"
 #include "src/trace_processor/tables/track_tables.h"
 
 namespace perfetto {
@@ -92,6 +93,9 @@ IrqCounterTrackTable::~IrqCounterTrackTable() = default;
 SoftirqCounterTrackTable::~SoftirqCounterTrackTable() = default;
 GpuCounterTrackTable::~GpuCounterTrackTable() = default;
 PerfCounterTrackTable::~PerfCounterTrackTable() = default;
+
+// trace_proto_tables.h
+ExperimentalProtoContentTable::~ExperimentalProtoContentTable() = default;
 
 // memory_tables.h
 MemorySnapshotTable::~MemorySnapshotTable() = default;
