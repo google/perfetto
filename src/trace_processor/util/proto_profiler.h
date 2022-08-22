@@ -46,13 +46,18 @@ class SizeProfileComputer {
     }
   };
 
+  using PathToSamplesMap =
+      base::FlatHashMap<FieldPath, SizeSamples, FieldPathHasher>;
+
   explicit SizeProfileComputer(DescriptorPool* pool);
 
   // Returns a list of samples (i.e. all encountered field sizes) for each
   // field path in trace proto.
   // TODO(kraskevich): consider switching to internal DescriptorPool.
-  base::FlatHashMap<FieldPath, SizeSamples, FieldPathHasher>
-  Compute(const uint8_t* ptr, size_t size, const std::string& message_type);
+
+  PathToSamplesMap Compute(const uint8_t* ptr,
+                           size_t size,
+                           const std::string& message_type);
 
  private:
   void ComputeInner(const uint8_t* ptr,
@@ -72,7 +77,7 @@ class SizeProfileComputer {
   std::vector<std::string> stack_;
 
   // Information about each field path seen.
-  base::FlatHashMap<FieldPath, SizeSamples, FieldPathHasher> path_to_samples_;
+  PathToSamplesMap path_to_samples_;
 };
 
 }  // namespace util
