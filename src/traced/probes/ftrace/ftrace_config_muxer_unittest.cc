@@ -45,6 +45,13 @@ namespace {
 constexpr int kFakeSchedSwitchEventId = 1;
 constexpr int kCgroupMkdirEventId = 12;
 constexpr int kFakePrintEventId = 20;
+constexpr int kSysEnterId = 329;
+
+constexpr size_t kFakeSyscallCount = 2;
+constexpr const char* kFakeSyscalls[] = {
+    "sys_open",
+    "sys_read",
+};
 
 class MockFtraceProcfs : public FtraceProcfs {
  public:
@@ -123,6 +130,10 @@ class FtraceConfigMuxerTest : public ::testing::Test {
             InvalidCompactSchedEventFormatForTesting()));
   }
 
+  SyscallTable GetSyscallTable() {
+    return SyscallTable(kFakeSyscalls, kFakeSyscallCount);
+  }
+
   std::unique_ptr<ProtoTranslationTable> CreateFakeTable(
       CompactSchedEventFormat compact_format =
           InvalidCompactSchedEventFormatForTesting()) {
@@ -184,6 +195,14 @@ class FtraceConfigMuxerTest : public ::testing::Test {
       events.push_back(event);
     }
 
+    {
+      Event event = {};
+      event.name = "sys_enter";
+      event.group = "raw_syscalls";
+      event.ftrace_event_id = kSysEnterId;
+      events.push_back(event);
+    }
+
     return std::unique_ptr<ProtoTranslationTable>(new ProtoTranslationTable(
         &table_procfs_, events, std::move(common_fields),
         ProtoTranslationTable::DefaultPageHeaderSpecForTesting(),
@@ -208,13 +227,92 @@ TEST_F(FtraceConfigMuxerTest, ComputeCpuBufferSizeInPages) {
   EXPECT_EQ(ComputeCpuBufferSizeInPages(42), 10u);
 }
 
+TEST_F(FtraceConfigMuxerTest, GenericSyscallFiltering) {
+  auto fake_table = CreateFakeTable();
+  NiceMock<MockFtraceProcfs> ftrace;
+
+  FtraceConfig config = CreateFtraceConfig({"raw_syscalls/sys_enter"});
+  *config.add_syscall_events() = "sys_open";
+  *config.add_syscall_events() = "sys_read";
+
+  FtraceConfigMuxer model(&ftrace, fake_table.get(), GetSyscallTable(), {});
+
+  EXPECT_CALL(ftrace, WriteToFile(_, _)).WillRepeatedly(Return(true));
+  EXPECT_CALL(ftrace, WriteToFile("/root/events/raw_syscalls/sys_enter/filter",
+                                  "id == 0 || id == 1"));
+  EXPECT_CALL(ftrace, WriteToFile("/root/events/raw_syscalls/sys_exit/filter",
+                                  "id == 0 || id == 1"));
+
+  FtraceConfigId id = model.SetupConfig(config);
+  ASSERT_TRUE(model.ActivateConfig(id));
+
+  const std::set<size_t>& filter = model.GetSyscallFilterForTesting();
+  ASSERT_THAT(filter, UnorderedElementsAre(0, 1));
+}
+
+TEST_F(FtraceConfigMuxerTest, UnknownSyscallFilter) {
+  auto fake_table = CreateFakeTable();
+  NiceMock<MockFtraceProcfs> ftrace;
+  FtraceConfigMuxer model(&ftrace, fake_table.get(), GetSyscallTable(), {});
+
+  FtraceConfig config = CreateFtraceConfig({"raw_syscalls/sys_enter"});
+  config.add_syscall_events("sys_open");
+  config.add_syscall_events("sys_not_a_call");
+
+  // Unknown syscall is ignored.
+  ASSERT_TRUE(model.SetupConfig(config));
+  ASSERT_THAT(model.GetSyscallFilterForTesting(), UnorderedElementsAre(0));
+}
+
+TEST_F(FtraceConfigMuxerTest, SyscallFilterMuxing) {
+  auto fake_table = CreateFakeTable();
+  NiceMock<MockFtraceProcfs> ftrace;
+  FtraceConfigMuxer model(&ftrace, fake_table.get(), GetSyscallTable(), {});
+
+  FtraceConfig empty_config = CreateFtraceConfig({});
+
+  FtraceConfig syscall_config = empty_config;
+  syscall_config.add_ftrace_events("raw_syscalls/sys_enter");
+
+  FtraceConfig syscall_open_config = syscall_config;
+  syscall_open_config.add_syscall_events("sys_open");
+
+  FtraceConfig syscall_read_config = syscall_config;
+  syscall_read_config.add_syscall_events("sys_read");
+
+  // Expect no filter for non-syscall config.
+  model.SetupConfig(empty_config);
+  ASSERT_THAT(model.GetSyscallFilterForTesting(), UnorderedElementsAre());
+
+  // Expect no filter for syscall config with no specified events.
+  FtraceConfigId syscall_id = model.SetupConfig(syscall_config);
+  ASSERT_THAT(model.GetSyscallFilterForTesting(), UnorderedElementsAre());
+
+  // Still expect no filter to satisfy this and the above.
+  FtraceConfigId syscall_open_id = model.SetupConfig(syscall_open_config);
+  ASSERT_THAT(model.GetSyscallFilterForTesting(), UnorderedElementsAre());
+
+  // After removing the generic syscall trace, only the one with filter is left.
+  ASSERT_TRUE(model.RemoveConfig(syscall_id));
+  ASSERT_THAT(model.GetSyscallFilterForTesting(), UnorderedElementsAre(0));
+
+  // With sys_read and sys_open traced separately, filter includes both.
+  FtraceConfigId syscall_read_id = model.SetupConfig(syscall_read_config);
+  ASSERT_THAT(model.GetSyscallFilterForTesting(), UnorderedElementsAre(0, 1));
+
+  // After removing configs with filters, filter is reset to empty.
+  ASSERT_TRUE(model.RemoveConfig(syscall_open_id));
+  ASSERT_TRUE(model.RemoveConfig(syscall_read_id));
+  ASSERT_THAT(model.GetSyscallFilterForTesting(), UnorderedElementsAre());
+}
+
 TEST_F(FtraceConfigMuxerTest, AddGenericEvent) {
   auto mock_table = GetMockTable();
   MockFtraceProcfs ftrace;
 
   FtraceConfig config = CreateFtraceConfig({"power/cpu_frequency"});
 
-  FtraceConfigMuxer model(&ftrace, mock_table.get(), {});
+  FtraceConfigMuxer model(&ftrace, mock_table.get(), GetSyscallTable(), {});
 
   ON_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
       .WillByDefault(Return("[local] global boot"));
@@ -261,7 +359,7 @@ TEST_F(FtraceConfigMuxerTest, AddSameNameEvents) {
 
   FtraceConfig config = CreateFtraceConfig({"group_one/foo", "group_two/foo"});
 
-  FtraceConfigMuxer model(&ftrace, mock_table.get(), {});
+  FtraceConfigMuxer model(&ftrace, mock_table.get(), GetSyscallTable(), {});
 
   static constexpr int kEventId1 = 1;
   Event event1;
@@ -315,7 +413,7 @@ TEST_F(FtraceConfigMuxerTest, AddAllEvents) {
   EXPECT_CALL(ftrace,
               WriteToFile("/root/events/sched/sched_new_event/enable", "1"));
 
-  FtraceConfigMuxer model(&ftrace, mock_table.get(), {});
+  FtraceConfigMuxer model(&ftrace, mock_table.get(), GetSyscallTable(), {});
   std::set<std::string> n = {"sched_switch", "sched_new_event"};
   ON_CALL(ftrace, GetEventNamesForGroup("events/sched"))
       .WillByDefault(Return(n));
@@ -363,7 +461,7 @@ TEST_F(FtraceConfigMuxerTest, TwoWildcardGroups) {
 
   FtraceConfig config = CreateFtraceConfig({"group_one/*", "group_two/*"});
 
-  FtraceConfigMuxer model(&ftrace, mock_table.get(), {});
+  FtraceConfigMuxer model(&ftrace, mock_table.get(), GetSyscallTable(), {});
 
   std::set<std::string> event_names = {"foo"};
   ON_CALL(ftrace, GetEventNamesForGroup("events/group_one"))
@@ -412,7 +510,7 @@ TEST_F(FtraceConfigMuxerTest, TurnFtraceOnOff) {
 
   FtraceConfig config = CreateFtraceConfig({"sched_switch", "foo"});
 
-  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
 
   ON_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
       .WillByDefault(Return("[local] global boot"));
@@ -460,7 +558,7 @@ TEST_F(FtraceConfigMuxerTest, FtraceIsAlreadyOn) {
 
   FtraceConfig config = CreateFtraceConfig({"sched/sched_switch"});
 
-  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
 
   // If someone is using ftrace already don't stomp on what they are doing.
   EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
@@ -476,7 +574,7 @@ TEST_F(FtraceConfigMuxerTest, Atrace) {
   FtraceConfig config = CreateFtraceConfig({"sched/sched_switch"});
   *config.add_atrace_categories() = "sched";
 
-  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
 
   EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
       .WillOnce(Return('0'));
@@ -518,7 +616,7 @@ TEST_F(FtraceConfigMuxerTest, AtraceTwoApps) {
   *config.add_atrace_apps() = "com.google.android.gms.persistent";
   *config.add_atrace_apps() = "com.google.android.gms";
 
-  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
 
   EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
       .WillOnce(Return('0'));
@@ -563,7 +661,7 @@ TEST_F(FtraceConfigMuxerTest, AtraceMultipleConfigs) {
   *config_c.add_atrace_apps() = "app_c";
   *config_c.add_atrace_categories() = "cat_c";
 
-  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
 
   EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
                                                   "--only_userspace", "cat_a",
@@ -634,7 +732,7 @@ TEST_F(FtraceConfigMuxerTest, AtraceFailedConfig) {
   *config_c.add_atrace_categories() = "cat_1";
   *config_c.add_atrace_categories() = "cat_3";
 
-  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
 
   EXPECT_CALL(
       atrace,
@@ -695,7 +793,7 @@ TEST_F(FtraceConfigMuxerTest, AtraceDuplicateConfigs) {
   *config_b.add_atrace_apps() = "app_1";
   *config_b.add_atrace_categories() = "cat_1";
 
-  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
 
   EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
                                                   "--only_userspace", "cat_1",
@@ -732,7 +830,7 @@ TEST_F(FtraceConfigMuxerTest, AtraceAndFtraceConfigs) {
   FtraceConfig config_d = CreateFtraceConfig({"sched/sched_cpu_hotplug"});
   *config_d.add_atrace_categories() = "d";
 
-  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
 
   FtraceConfigId id_a = model.SetupConfig(config_a);
   ASSERT_TRUE(id_a);
@@ -784,7 +882,7 @@ TEST_F(FtraceConfigMuxerTest, AtraceErrorsPropagated) {
   EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
       .WillRepeatedly(Return('0'));
 
-  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
 
   EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
                                                   "--only_userspace", "cat_1",
@@ -807,7 +905,7 @@ TEST_F(FtraceConfigMuxerTest, SetupClockForTesting) {
   MockFtraceProcfs ftrace;
   FtraceConfig config;
 
-  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
   namespace pb0 = protos::pbzero;
 
   EXPECT_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
@@ -840,7 +938,7 @@ TEST_F(FtraceConfigMuxerTest, SetupClockForTesting) {
 
 TEST_F(FtraceConfigMuxerTest, GetFtraceEvents) {
   MockFtraceProcfs ftrace;
-  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
 
   FtraceConfig config = CreateFtraceConfig({"sched/sched_switch"});
   std::set<GroupAndName> events =
@@ -852,7 +950,7 @@ TEST_F(FtraceConfigMuxerTest, GetFtraceEvents) {
 
 TEST_F(FtraceConfigMuxerTest, GetFtraceEventsAtrace) {
   MockFtraceProcfs ftrace;
-  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
 
   FtraceConfig config = CreateFtraceConfig({});
   *config.add_atrace_categories() = "sched";
@@ -866,7 +964,7 @@ TEST_F(FtraceConfigMuxerTest, GetFtraceEventsAtrace) {
 
 TEST_F(FtraceConfigMuxerTest, GetFtraceEventsAtraceCategories) {
   MockFtraceProcfs ftrace;
-  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
 
   FtraceConfig config = CreateFtraceConfig({});
   *config.add_atrace_categories() = "sched";
@@ -890,7 +988,7 @@ TEST_F(FtraceConfigMuxerTest, FallbackOnSetEvent) {
   MockFtraceProcfs ftrace;
   FtraceConfig config =
       CreateFtraceConfig({"sched/sched_switch", "cgroup/cgroup_mkdir"});
-  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
 
   ON_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
       .WillByDefault(Return("[local] global boot"));
@@ -951,7 +1049,7 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
 
   NiceMock<MockFtraceProcfs> ftrace;
   table_ = CreateFakeTable(valid_compact_format);
-  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
 
   // First data source - request compact encoding.
   FtraceConfig config_enabled = CreateFtraceConfig({"sched/sched_switch"});
@@ -982,7 +1080,7 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
 
 TEST_F(FtraceConfigMuxerTest, CompactSchedConfigWithInvalidFormat) {
   NiceMock<MockFtraceProcfs> ftrace;
-  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
 
   // Request compact encoding.
   FtraceConfig config = CreateFtraceConfig({"sched/sched_switch"});
@@ -1003,7 +1101,7 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfigWithInvalidFormat) {
 
 TEST_F(FtraceConfigMuxerTest, SkipGenericEventsOption) {
   NiceMock<MockFtraceProcfs> ftrace;
-  FtraceConfigMuxer model(&ftrace, table_.get(), {});
+  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
 
   static constexpr int kFtraceGenericEventId = 42;
   ON_CALL(table_procfs_, ReadEventFormat("sched", "generic"))

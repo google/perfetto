@@ -107,6 +107,28 @@ std::unique_ptr<FtraceProcfs> FtraceProcfs::Create(const std::string& root) {
 FtraceProcfs::FtraceProcfs(const std::string& root) : root_(root) {}
 FtraceProcfs::~FtraceProcfs() = default;
 
+bool FtraceProcfs::SetSyscallFilter(const std::set<size_t>& filter) {
+  std::vector<std::string> parts;
+  for (size_t id : filter) {
+    base::StackString<16> m("id == %zu", id);
+    parts.push_back(m.ToStdString());
+  }
+
+  std::string filter_str = "0";
+  if (!parts.empty()) {
+    filter_str = base::Join(parts, " || ");
+  }
+
+  for (const std::string& event : {"sys_enter", "sys_exit"}) {
+    std::string path = root_ + "events/raw_syscalls/" + event + "/filter";
+    if (!WriteToFile(path, filter_str)) {
+      PERFETTO_ELOG("Failed to write file: %s", path.c_str());
+      return false;
+    }
+  }
+  return true;
+}
+
 bool FtraceProcfs::EnableEvent(const std::string& group,
                                const std::string& name) {
   std::string path = root_ + "events/" + group + "/" + name + "/enable";
