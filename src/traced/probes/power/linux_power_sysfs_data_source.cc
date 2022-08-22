@@ -47,8 +47,9 @@ base::Optional<int64_t> ReadFileAsInt64(std::string path) {
 }  // namespace
 
 LinuxPowerSysfsDataSource::BatteryInfo::BatteryInfo(
-    const char* power_supply_dir_path) {
-  base::ScopedDir power_supply_dir(opendir(power_supply_dir_path));
+    const char* power_supply_dir_path)
+    : power_supply_dir_path_(power_supply_dir_path) {
+  base::ScopedDir power_supply_dir(opendir(power_supply_dir_path_.c_str()));
   if (!power_supply_dir)
     return;
 
@@ -66,39 +67,49 @@ LinuxPowerSysfsDataSource::BatteryInfo::BatteryInfo(
     if (!base::ReadFile(dir_name + "/present", &buf) ||
         base::StripSuffix(buf, "\n") != "1")
       continue;
-    sysfs_battery_dirs_.push_back(dir_name);
+    sysfs_battery_subdirs_.push_back(ent->d_name);
   }
 }
 LinuxPowerSysfsDataSource::BatteryInfo::~BatteryInfo() = default;
 
 size_t LinuxPowerSysfsDataSource::BatteryInfo::num_batteries() const {
-  return sysfs_battery_dirs_.size();
+  return sysfs_battery_subdirs_.size();
 }
 
 base::Optional<int64_t>
 LinuxPowerSysfsDataSource::BatteryInfo::GetChargeCounterUah(
     size_t battery_idx) {
-  PERFETTO_CHECK(battery_idx < sysfs_battery_dirs_.size());
-  return ReadFileAsInt64(sysfs_battery_dirs_[battery_idx] + "/charge_now");
+  PERFETTO_CHECK(battery_idx < sysfs_battery_subdirs_.size());
+  return ReadFileAsInt64(power_supply_dir_path_ + "/" +
+                         sysfs_battery_subdirs_[battery_idx] + "/charge_now");
 }
 
 base::Optional<int64_t>
 LinuxPowerSysfsDataSource::BatteryInfo::GetCapacityPercent(size_t battery_idx) {
-  PERFETTO_CHECK(battery_idx < sysfs_battery_dirs_.size());
-  return ReadFileAsInt64(sysfs_battery_dirs_[battery_idx] + "/capacity");
+  PERFETTO_CHECK(battery_idx < sysfs_battery_subdirs_.size());
+  return ReadFileAsInt64(power_supply_dir_path_ + "/" +
+                         sysfs_battery_subdirs_[battery_idx] + "/capacity");
 }
 
 base::Optional<int64_t> LinuxPowerSysfsDataSource::BatteryInfo::GetCurrentNowUa(
     size_t battery_idx) {
-  PERFETTO_CHECK(battery_idx < sysfs_battery_dirs_.size());
-  return ReadFileAsInt64(sysfs_battery_dirs_[battery_idx] + "/current_now");
+  PERFETTO_CHECK(battery_idx < sysfs_battery_subdirs_.size());
+  return ReadFileAsInt64(power_supply_dir_path_ + "/" +
+                         sysfs_battery_subdirs_[battery_idx] + "/current_now");
 }
 
 base::Optional<int64_t>
 LinuxPowerSysfsDataSource::BatteryInfo::GetAverageCurrentUa(
     size_t battery_idx) {
-  PERFETTO_CHECK(battery_idx < sysfs_battery_dirs_.size());
-  return ReadFileAsInt64(sysfs_battery_dirs_[battery_idx] + "/current_avg");
+  PERFETTO_CHECK(battery_idx < sysfs_battery_subdirs_.size());
+  return ReadFileAsInt64(power_supply_dir_path_ + "/" +
+                         sysfs_battery_subdirs_[battery_idx] + "/current_avg");
+}
+
+std::string LinuxPowerSysfsDataSource::BatteryInfo::GetBatteryName(
+    size_t battery_idx) {
+  PERFETTO_CHECK(battery_idx < sysfs_battery_subdirs_.size());
+  return sysfs_battery_subdirs_[battery_idx];
 }
 
 // static
@@ -143,13 +154,13 @@ void LinuxPowerSysfsDataSource::Tick() {
 }
 
 void LinuxPowerSysfsDataSource::WriteBatteryCounters() {
-  auto packet = writer_->NewTracePacket();
-  packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
-
   // Query battery counters from sysfs. Report the battery counters for each
   // battery.
   for (size_t battery_idx = 0; battery_idx < battery_info_->num_batteries();
        battery_idx++) {
+    auto packet = writer_->NewTracePacket();
+    packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
+
     auto* counters_proto = packet->set_battery();
     auto value = battery_info_->GetChargeCounterUah(battery_idx);
     if (value)
@@ -163,6 +174,9 @@ void LinuxPowerSysfsDataSource::WriteBatteryCounters() {
     value = battery_info_->GetAverageCurrentUa(battery_idx);
     if (value)
       counters_proto->set_current_ua(*value);
+    // On systems with multiple batteries, disambiguate with battery names.
+    if (battery_info_->num_batteries() > 1)
+      counters_proto->set_name(battery_info_->GetBatteryName(battery_idx));
   }
 }
 
