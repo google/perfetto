@@ -257,6 +257,8 @@ source_set("storage_full") {
     "importers/proto/android_probes_parser.h",
     "importers/proto/android_probes_tracker.cc",
     "importers/proto/android_probes_tracker.h",
+    "importers/proto/content_analyzer.cc",
+    "importers/proto/content_analyzer.h",
     "importers/proto/frame_timeline_event_parser.cc",
     "importers/proto/frame_timeline_event_parser.h",
     "importers/proto/gpu_event_parser.cc",
@@ -294,6 +296,7 @@ source_set("storage_full") {
     "../../protos/perfetto/trace/gpu:zero",
     "../../protos/perfetto/trace/interned_data:zero",
     "../protozero",
+    "importers:gen_cc_trace_descriptor",
     "importers/android_bugreport",
     "importers/common",
     "importers/proto:storage_full",
@@ -303,6 +306,7 @@ source_set("storage_full") {
     "types",
     "util",
     "util:gzip",
+    "util:proto_profiler",
     "views",
   ]
   if (enable_perfetto_trace_processor_json) {
