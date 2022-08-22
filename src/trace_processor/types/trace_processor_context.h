@@ -125,6 +125,9 @@ class TraceProcessorContext {
   // TracePacket.
   std::vector<std::vector<ProtoImporterModule*>> modules_by_field;
   std::vector<std::unique_ptr<ProtoImporterModule>> modules;
+  // Pointers to modules from the modules vector that need to be called for
+  // all fields.
+  std::vector<ProtoImporterModule*> modules_for_all_fields;
   FtraceModule* ftrace_module = nullptr;
 
   // Marks whether the uuid was read from the trace.

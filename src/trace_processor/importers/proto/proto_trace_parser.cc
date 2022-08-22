@@ -107,6 +107,10 @@ void ProtoTraceParser::ParseTracePacketImpl(
   auto& modules = context_->modules_by_field;
   for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
     if (!modules[field_id].empty() && packet.Get(field_id).valid()) {
+      for (ProtoImporterModule* global_module :
+           context_->modules_for_all_fields) {
+        global_module->ParsePacket(packet, ttp, field_id);
+      }
       for (ProtoImporterModule* module : modules[field_id])
         module->ParsePacket(packet, ttp, field_id);
       return;
