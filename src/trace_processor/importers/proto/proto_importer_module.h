@@ -131,6 +131,10 @@ class ProtoImporterModule {
 
  protected:
   void RegisterForField(uint32_t field_id, TraceProcessorContext*);
+  // Primarily intended for special modules that need to get all TracePacket's,
+  // for example for trace proto content analysis. Most modules need to register
+  // for specific fields using the method above.
+  void RegisterForAllFields(TraceProcessorContext*);
 };
 
 }  // namespace trace_processor
