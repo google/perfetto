@@ -61,27 +61,42 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
 
 void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   protos::pbzero::BatteryCounters::Decoder evt(blob.data, blob.size);
+  StringId batt_charge_id = batt_charge_id_;
+  StringId batt_capacity_id = batt_capacity_id_;
+  StringId batt_current_id = batt_current_id_;
+  StringId batt_current_avg_id = batt_current_avg_id_;
+  if (evt.has_name()) {
+    std::string batt_name = evt.name().ToStdString();
+    batt_charge_id = context_->storage->InternString(base::StringView(
+        std::string("batt.").append(batt_name).append(".charge_uah")));
+    batt_capacity_id = context_->storage->InternString(base::StringView(
+        std::string("batt.").append(batt_name).append(".capacity_pct")));
+    batt_current_id = context_->storage->InternString(base::StringView(
+        std::string("batt.").append(batt_name).append(".current_ua")));
+    batt_current_avg_id = context_->storage->InternString(base::StringView(
+        std::string("batt.").append(batt_name).append(".current.avg_ua")));
+  }
   if (evt.has_charge_counter_uah()) {
     TrackId track =
-        context_->track_tracker->InternGlobalCounterTrack(batt_charge_id_);
+        context_->track_tracker->InternGlobalCounterTrack(batt_charge_id);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.charge_counter_uah()), track);
   }
   if (evt.has_capacity_percent()) {
     TrackId track =
-        context_->track_tracker->InternGlobalCounterTrack(batt_capacity_id_);
+        context_->track_tracker->InternGlobalCounterTrack(batt_capacity_id);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.capacity_percent()), track);
   }
   if (evt.has_current_ua()) {
     TrackId track =
-        context_->track_tracker->InternGlobalCounterTrack(batt_current_id_);
+        context_->track_tracker->InternGlobalCounterTrack(batt_current_id);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.current_ua()), track);
   }
   if (evt.has_current_avg_ua()) {
     TrackId track =
-        context_->track_tracker->InternGlobalCounterTrack(batt_current_avg_id_);
+        context_->track_tracker->InternGlobalCounterTrack(batt_current_avg_id);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.current_avg_ua()), track);
   }
