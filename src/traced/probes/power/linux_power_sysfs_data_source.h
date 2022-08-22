@@ -50,12 +50,16 @@ class LinuxPowerSysfsDataSource : public ProbesDataSource {
     // The smoothed current reading of the battery in µA.
     base::Optional<int64_t> GetAverageCurrentUa(size_t battery_idx);
 
+    // Name of the battery.
+    std::string GetBatteryName(size_t battery_idx);
+
     size_t num_batteries() const;
 
    private:
-    // The subdirectories that contain info of a battery power supply, not
-    // USBPD, AC or other types of power supplies.
-    std::vector<std::string> sysfs_battery_dirs_;
+    std::string power_supply_dir_path_;
+    // The subdirectories that contain info of a battery power supply, e.g.
+    // BAT0.
+    std::vector<std::string> sysfs_battery_subdirs_;
   };
   static const ProbesDataSource::Descriptor descriptor;
 
