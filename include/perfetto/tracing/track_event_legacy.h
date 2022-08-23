@@ -303,6 +303,16 @@ class PERFETTO_EXPORT_COMPONENT LegacyTraceId {
 namespace perfetto {
 namespace internal {
 
+template <typename T>
+bool IsEqual(T x, T y) {
+  return x == y;
+}
+
+template <typename T, typename U>
+bool IsEqual(T x, U y) {
+  return false;
+}
+
 class PERFETTO_EXPORT_COMPONENT TrackEventLegacy {
  public:
   static constexpr protos::pbzero::TrackEvent::Type PhaseToType(char phase) {
@@ -324,6 +334,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventLegacy {
                                char phase,
                                uint32_t flags,
                                Args&&... args) PERFETTO_NO_INLINE {
+    PERFETTO_DCHECK(!(flags & TRACE_EVENT_FLAG_HAS_PROCESS_ID));
     AddDebugAnnotations(&ctx, std::forward<Args>(args)...);
     if (NeedLegacyFlags(phase, flags)) {
       auto legacy_event = ctx.event()->set_legacy_event();
@@ -351,6 +362,9 @@ class PERFETTO_EXPORT_COMPONENT TrackEventLegacy {
     //    trace packet itself and make sure TrackEvent won't write one
     //    internally. This is already done at the call site.
     //
+    PERFETTO_DCHECK(PhaseToType(phase) ==
+                        protos::pbzero::TrackEvent::TYPE_UNSPECIFIED ||
+                    !(flags & TRACE_EVENT_FLAG_HAS_PROCESS_ID));
     flags |= id.id_flags();
     AddDebugAnnotations(&ctx, std::forward<Args>(args)...);
     if (NeedLegacyFlags(phase, flags)) {
@@ -365,6 +379,15 @@ class PERFETTO_EXPORT_COMPONENT TrackEventLegacy {
             static_cast<int32_t>(legacy::ConvertThreadId(thread_id).tid);
         legacy_event->set_pid_override(pid_override);
         legacy_event->set_tid_override(-1);
+      } else {
+        // Only synchronous phases are supported for other threads. These phases
+        // are supported in TrackEvent types and receive a track_uuid
+        // association via TrackEventDataSource::TraceForCategoryImpl().
+        PERFETTO_DCHECK(PhaseToType(phase) !=
+                            protos::pbzero::TrackEvent::TYPE_UNSPECIFIED ||
+                        IsEqual(thread_id, TRACE_EVENT_API_CURRENT_THREAD_ID) ||
+                        legacy::ConvertThreadId(thread_id).tid ==
+                            ThreadTrack::Current().tid);
       }
     }
   }
