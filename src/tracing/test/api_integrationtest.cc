@@ -1931,7 +1931,9 @@ TEST_P(PerfettoApiTest, TrackEventCustomTimestampClock) {
   EXPECT_TRUE(found_event);
 }
 
-TEST_P(PerfettoApiTest, LegacyEventWithThreadOverride) {
+// Only synchronous phases are supported for other threads. Hence disabled this
+// test.
+TEST_P(PerfettoApiTest, DISABLED_LegacyEventWithThreadOverride) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"cat"});
   tracing_session->get()->StartBlocking();
@@ -1959,7 +1961,7 @@ TEST_P(PerfettoApiTest, LegacyEventWithThreadOverride) {
       continue;
     auto track_event = packet.track_event();
     if (track_event.legacy_event().phase() == TRACE_EVENT_PHASE_ASYNC_BEGIN) {
-      EXPECT_EQ(track.uuid, track_event.track_uuid());
+      EXPECT_EQ(0u, track_event.track_uuid());
       found_event = true;
     }
   }
@@ -1968,7 +1970,9 @@ TEST_P(PerfettoApiTest, LegacyEventWithThreadOverride) {
   perfetto::TrackEvent::EraseTrackDescriptor(track);
 }
 
-TEST_P(PerfettoApiTest, LegacyEventWithProcessOverride) {
+// Only synchronous phases are supported for other threads. Hence disabled this
+// test.
+TEST_P(PerfettoApiTest, DISABLED_LegacyEventWithProcessOverride) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"cat"});
   tracing_session->get()->StartBlocking();
@@ -4289,8 +4293,10 @@ TEST_P(PerfettoApiTest, LegacyTraceEventsCopyDynamicString) {
     TRACE_EVENT_COPY_MARK_WITH_TIMESTAMP("cat", ptr2, MyTimestamp{0});
   }
   auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
-  EXPECT_THAT(slices, ElementsAre("Legacy_R:cat.ABC", "Legacy_R:cat.ABC",
-                                  "Legacy_R:cat.XYZ", "Legacy_R:cat.WYZ"));
+  EXPECT_THAT(
+      slices,
+      ElementsAre("[track=0]Legacy_R:cat.ABC", "[track=0]Legacy_R:cat.ABC",
+                  "[track=0]Legacy_R:cat.XYZ", "[track=0]Legacy_R:cat.WYZ"));
 }
 
 TEST_P(PerfettoApiTest, LegacyTraceEvents) {
@@ -4325,11 +4331,6 @@ TEST_P(PerfettoApiTest, LegacyTraceEvents) {
                                       TRACE_EVENT_SCOPE_GLOBAL,
                                       MyTimestamp{123456789ul});
 
-  // Event with id, thread id and timestamp (and dynamic name).
-  TRACE_EVENT_COPY_BEGIN_WITH_ID_TID_AND_TIMESTAMP0(
-      "cat", std::string("LegacyWithIdTidAndTimestamp").c_str(), 1,
-      MyThreadId(123), MyTimestamp{3});
-
   // Event with id.
   TRACE_COUNTER1("cat", "LegacyCounter", 1234);
   TRACE_COUNTER_ID1("cat", "LegacyCounterWithId", 1234, 9000);
@@ -4361,18 +4362,16 @@ TEST_P(PerfettoApiTest, LegacyTraceEvents) {
           "B(bind_id=3671771902)(flow_direction=1):disabled-by-default-cat."
           "LegacyFlowEvent",
           "[track=0]I:cat.LegacyInstantEvent",
-          std::string("[track=") +
-              std::to_string(perfetto::ThreadTrack::ForThread(123).uuid) +
-              "]Legacy_S(unscoped_id=1):cat.LegacyWithIdTidAndTimestamp",
-          "Legacy_C:cat.LegacyCounter(value=(int)1234)",
-          "Legacy_C(unscoped_id=1234):cat.LegacyCounterWithId(value=(int)9000)",
-          "Legacy_M:cat.LegacyMetadata",
-          "Legacy_b(unscoped_id=5678):cat.LegacyAsync",
-          "Legacy_e(unscoped_id=5678):cat.LegacyAsync",
-          "Legacy_b(unscoped_id=9000):cat.LegacyAsync2",
-          "Legacy_e(unscoped_id=9000):cat.LegacyAsync2",
-          "Legacy_b(unscoped_id=9001):cat.LegacyAsync3",
-          "Legacy_e(unscoped_id=9001):cat.LegacyAsync3"));
+          "[track=0]Legacy_C:cat.LegacyCounter(value=(int)1234)",
+          "[track=0]Legacy_C(unscoped_id=1234):cat.LegacyCounterWithId(value=("
+          "int)9000)",
+          "[track=0]Legacy_M:cat.LegacyMetadata",
+          "[track=0]Legacy_b(unscoped_id=5678):cat.LegacyAsync",
+          "[track=0]Legacy_e(unscoped_id=5678):cat.LegacyAsync",
+          "[track=0]Legacy_b(unscoped_id=9000):cat.LegacyAsync2",
+          "[track=0]Legacy_e(unscoped_id=9000):cat.LegacyAsync2",
+          "[track=0]Legacy_b(unscoped_id=9001):cat.LegacyAsync3",
+          "[track=0]Legacy_e(unscoped_id=9001):cat.LegacyAsync3"));
 }
 
 TEST_P(PerfettoApiTest, LegacyTraceEventsWithCustomAnnotation) {
@@ -4427,11 +4426,12 @@ TEST_P(PerfettoApiTest, LegacyTraceEventsWithId) {
       TRACE_ID_WITH_SCOPE("scope string", TRACE_ID_GLOBAL(0x4000)));
 
   auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
-  EXPECT_THAT(slices, ElementsAre("Legacy_S(unscoped_id=4096):cat.UnscopedId",
-                                  "Legacy_S(local_id=8192):cat.LocalId",
-                                  "Legacy_S(global_id=12288):cat.GlobalId",
-                                  "Legacy_S(global_id=16384)(id_scope=\"scope "
-                                  "string\"):cat.WithScope"));
+  EXPECT_THAT(slices,
+              ElementsAre("[track=0]Legacy_S(unscoped_id=4096):cat.UnscopedId",
+                          "[track=0]Legacy_S(local_id=8192):cat.LocalId",
+                          "[track=0]Legacy_S(global_id=12288):cat.GlobalId",
+                          "[track=0]Legacy_S(global_id=16384)(id_scope=\"scope "
+                          "string\"):cat.WithScope"));
 }
 
 TEST_P(PerfettoApiTest, NestableAsyncTraceEvent) {
@@ -5218,6 +5218,23 @@ TEST_P(PerfettoApiTest, ConsecutiveEmptyEventsSkipped) {
   EXPECT_EQ(it->trace_stats().buffer_stats()[0].chunks_read(), 1u);
 }
 
+// Make sure that we set correct track_uuid for legacy events
+// of type TrackEvent::TYPE_UNSPECIFIED.
+// For such events we set fields of `track_event.legacy_event` and
+// we set `track_event.track_uuid` to zero to dissociate it with
+// default track.
+TEST_P(PerfettoApiTest, CorrectTrackUUIDForLegacyEvents) {
+  auto* tracing_session = NewTraceWithCategories({"cat"});
+  tracing_session->get()->StartBlocking();
+  TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("cat", "foo",
+                                    TRACE_ID_WITH_SCOPE("foo", 1));
+
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
+  EXPECT_THAT(slices,
+              ElementsAre("[track=0]Legacy_b(unscoped_id=11250026935264495724)("
+                          "id_scope=\"foo\"):cat.foo"));
+}
+
 class PerfettoStartupTracingApiTest : public PerfettoApiTest {
  public:
   using SetupStartupTracingOpts = perfetto::Tracing::SetupStartupTracingOpts;
@@ -5438,7 +5455,6 @@ TEST_P(PerfettoStartupTracingApiTest, MultipleDataSourceAllContributing) {
     ctx.Flush();
   });
 
-  PERFETTO_LOG("P");
   auto trace = StopSessionAndReturnParsedTrace(tracing_session);
   auto slices = ReadSlicesFromTrace(trace);
   EXPECT_THAT(slices, ElementsAre("B:test.TrackEvent.Startup",
