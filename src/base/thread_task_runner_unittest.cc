@@ -18,6 +18,7 @@
 
 #include <thread>
 
+#include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "test/gtest_and_gmock.h"
 
@@ -61,7 +62,10 @@ TEST_F(ThreadTaskRunnerTest, RunsTasksOnOneDedicatedThread) {
 }
 
 TEST_F(ThreadTaskRunnerTest, MovableOwnership) {
-  ThreadTaskRunner task_runner = ThreadTaskRunner::CreateAndStart();
+  // Will destroy manually.
+  NoDestructor<ThreadTaskRunner> ttr{ThreadTaskRunner::CreateAndStart()};
+  ThreadTaskRunner& task_runner = ttr.ref();
+
   UnixTaskRunner* runner_ptr = task_runner.get();
   EXPECT_NE(runner_ptr, nullptr);
 

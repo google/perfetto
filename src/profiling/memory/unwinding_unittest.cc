@@ -60,6 +60,10 @@ TEST(UnwindingTest, StackOverlayMemoryNonOverlay) {
 }
 
 TEST(UnwindingTest, FDMapsParse) {
+#if defined(ADDRESS_SANITIZER)
+  PERFETTO_LOG("Skipping /proc/self/maps as ASAN distorts what is where");
+  GTEST_SKIP();
+#else
   base::ScopedFile proc_maps(base::OpenFile("/proc/self/maps", O_RDONLY));
   ASSERT_TRUE(proc_maps);
   FDMaps maps(std::move(proc_maps));
@@ -68,6 +72,7 @@ TEST(UnwindingTest, FDMapsParse) {
       maps.Find(reinterpret_cast<uint64_t>(&proc_maps)).get();
   ASSERT_NE(map_info, nullptr);
   ASSERT_EQ(map_info->name(), "[stack]");
+#endif
 }
 
 void __attribute__((noinline)) AssertFunctionOffset() {
