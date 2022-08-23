@@ -542,8 +542,21 @@ class TrackEventDataSource
                     return true;
                   });
             }
-            if (!on_current_thread_track)
+            if (type == protos::pbzero::TrackEvent::TYPE_UNSPECIFIED) {
+              // Explicitly clear the track, so that the event is not associated
+              // with the default track, but instead uses the legacy mechanism
+              // based on the phase and pid/tid override.
+              event_ctx.event()->set_track_uuid(0);
+            } else if (!on_current_thread_track) {
+              // We emit these events using TrackDescriptors, and we cannot emit
+              // events on behalf of other processes using the TrackDescriptor
+              // format. Chrome is the only user of events with explicit process
+              // ids and currently only Chrome emits PHASE_MEMORY_DUMP events
+              // with an explicit process id, so we should be fine here.
+              // TODO(mohitms): Get rid of events with explicit process ids
+              // entirely.
               event_ctx.event()->set_track_uuid(track.uuid);
+            }
             WriteTrackEventArgs(std::move(event_ctx),
                                 std::forward<Arguments>(args)...);
           }  // event_ctx
