@@ -49,12 +49,10 @@ std::string GetLeafTypeName(uint32_t type_id) {
 
 SizeProfileComputer::SizeProfileComputer(DescriptorPool* pool) : pool_(pool) {}
 
-base::FlatHashMap<SizeProfileComputer::FieldPath,
-                  SizeProfileComputer::SizeSamples,
-                  SizeProfileComputer::FieldPathHasher>
-SizeProfileComputer::Compute(const uint8_t* ptr,
-                             size_t size,
-                             const std::string& message_type) {
+SizeProfileComputer::PathToSamplesMap SizeProfileComputer::Compute(
+    const uint8_t* ptr,
+    size_t size,
+    const std::string& message_type) {
   ComputeInner(ptr, size, message_type);
   return std::move(path_to_samples_);
 }

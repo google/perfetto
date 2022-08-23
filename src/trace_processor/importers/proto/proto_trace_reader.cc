@@ -198,6 +198,13 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   auto& modules = context_->modules_by_field;
   for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
     if (!modules[field_id].empty() && decoder.Get(field_id).valid()) {
+      for (ProtoImporterModule* global_module :
+           context_->modules_for_all_fields) {
+        ModuleResult res = global_module->TokenizePacket(
+            decoder, &packet, timestamp, state, field_id);
+        if (!res.ignored())
+          return res.ToStatus();
+      }
       for (ProtoImporterModule* module : modules[field_id]) {
         ModuleResult res = module->TokenizePacket(decoder, &packet, timestamp,
                                                   state, field_id);

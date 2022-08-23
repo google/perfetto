@@ -40,6 +40,10 @@ class SyscallTable {
  public:
   explicit SyscallTable(Architecture arch);
 
+  // Use for testing.
+  SyscallTable(const char* const* table, size_t count)
+      : syscall_count_(count), syscall_table_(table) {}
+
   // Return the architecture enum for the given uname machine string.
   static Architecture ArchFromString(base::StringView machine);
 

@@ -269,7 +269,8 @@ declare_args() {
 
   # Enables the optional SQLite percentile module.
   enable_perfetto_trace_processor_percentile =
-      enable_perfetto_trace_processor && perfetto_build_standalone
+      enable_perfetto_trace_processor &&
+      (perfetto_build_standalone || perfetto_build_with_android)
 
   # Enables the REPL interactive prompt in the trace processor.
   enable_perfetto_trace_processor_linenoise =

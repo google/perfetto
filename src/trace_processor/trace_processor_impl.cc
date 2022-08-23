@@ -1070,6 +1070,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->process_memory_snapshot_table());
   RegisterDbTable(storage->memory_snapshot_node_table());
   RegisterDbTable(storage->memory_snapshot_edge_table());
+
+  RegisterDbTable(storage->experimental_proto_content_table());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() = default;
