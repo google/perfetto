@@ -45,7 +45,12 @@ function ignoreNonActionableErrors<T>(e: unknown, result: T): T {
   }
 }
 
-async function getCache(): Promise<Cache> {
+async function getCache(): Promise<Cache|undefined> {
+  if (self.caches === undefined) {
+    // The browser doesn't support cache storage or the page is opened from
+    // a non-secure origin.
+    return undefined;
+  }
   if (LAZY_CACHE !== undefined) {
     return LAZY_CACHE;
   }
@@ -56,6 +61,7 @@ async function getCache(): Promise<Cache> {
 async function cacheDelete(key: Request): Promise<boolean> {
   try {
     const cache = await getCache();
+    if (cache === undefined) return false;  // Cache storage not supported.
     return cache.delete(key);
   } catch (e) {
     return ignoreNonActionableErrors(e, false);
@@ -65,6 +71,7 @@ async function cacheDelete(key: Request): Promise<boolean> {
 async function cachePut(key: string, value: Response): Promise<void> {
   try {
     const cache = await getCache();
+    if (cache === undefined) return;  // Cache storage not supported.
     cache.put(key, value);
   } catch (e) {
     ignoreNonActionableErrors(e, undefined);
@@ -74,6 +81,7 @@ async function cachePut(key: string, value: Response): Promise<void> {
 async function cacheMatch(key: Request|string): Promise<Response|undefined> {
   try {
     const cache = await getCache();
+    if (cache === undefined) return undefined;  // Cache storage not supported.
     return cache.match(key);
   } catch (e) {
     return ignoreNonActionableErrors(e, undefined);
@@ -83,6 +91,7 @@ async function cacheMatch(key: Request|string): Promise<Response|undefined> {
 async function cacheKeys(): Promise<readonly Request[]> {
   try {
     const cache = await getCache();
+    if (cache === undefined) return [];  // Cache storage not supported.
     return cache.keys();
   } catch (e) {
     return ignoreNonActionableErrors(e, []);
