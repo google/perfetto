@@ -108,7 +108,7 @@ PrefixFinder::Node* PrefixFinder::GetPrefix(std::string path) {
 #endif
   perfetto::base::StringSplitter s(std::move(path), '/');
   Node* cur = &root_;
-  for (size_t i = 0; s.Next(); ++i) {
+  for (; s.Next();) {
     char* token = s.cur_token();
     Node* next = cur->MaybeChild(token);
     if (next == nullptr)

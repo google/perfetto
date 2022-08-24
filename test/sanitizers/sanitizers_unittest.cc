@@ -71,7 +71,8 @@ TEST(SanitizerTests, LSAN_LeakMalloc) {
       "LeakSanitizer:.*detected memory leaks");
 }
 
-TEST(SanitizerTests, LSAN_LeakCppNew) {
+// TODO(b/243507694): figure out why this fails on clang16 and re-enable.
+TEST(SanitizerTests, DISABLED_LSAN_LeakCppNew) {
   EXPECT_DEATH(
       {
         std::unique_ptr<int> alloc(new int(1));
