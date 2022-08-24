@@ -493,6 +493,7 @@ inline ::perfetto::StaticString GetEventNameTypeForLegacyEvents(
                                        thread_id, ...)                     \
   [&]() {                                                                  \
     using ::perfetto::internal::TrackEventInternal;                        \
+    PERFETTO_DCHECK(!(flags & TRACE_EVENT_FLAG_COPY));                     \
     /* First check the scope for instant events. */                        \
     if ((phase) == TRACE_EVENT_PHASE_INSTANT) {                            \
       /* Note: Avoids the need to set LegacyEvent::instant_event_scope. */ \
