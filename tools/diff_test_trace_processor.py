@@ -299,7 +299,6 @@ def run_test(trace_descriptor_path, extension_descriptor_paths, args, test):
         result_str += f"Rebasing {expected_path}\n"
         with open(expected_path, 'w') as f:
           f.write(result.actual)
-        rebased += 1
       else:
         result_str += f"Rebase failed for {expected_path} as query failed\n"
 
@@ -335,9 +334,9 @@ def run_all_tests(trace_descriptor_path, extension_descriptor_paths, args,
       sys.stderr.write(res_str)
       if test_passed:
         perf_data.append(perf_result)
+      else:
         if args.rebase:
           rebased += 1
-      else:
         test_failure.append(test_name)
 
   return test_failure, perf_data, rebased
