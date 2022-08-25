@@ -1762,10 +1762,6 @@ TEST_P(HeapprofdEndToEnd, NativeProfilingActiveAtProcessExit) {
   EXPECT_GT(total_allocated, 0u);
 }
 
-// Disable these tests when running with sanitizers. They (double) fork and that
-// seems to cause flaky crashes with sanitizers.
-#if !defined(ADDRESS_SANITIZER) && !defined(THREAD_SANITIZER) && \
-    !defined(MEMORY_SANITIZER) && !defined(LEAK_SANITIZER)
 // On in-tree Android, we use the system heapprofd in fork or central mode.
 // For Linux and out-of-tree Android, we statically include a copy of
 // heapprofd and use that. This one does not support intercepting malloc.
@@ -1786,10 +1782,6 @@ INSTANTIATE_TEST_SUITE_P(
     Values(std::make_tuple(TestMode::kCentral, AllocatorMode::kMalloc),
            std::make_tuple(TestMode::kCentral, AllocatorMode::kCustom)),
     TestSuffix);
-#endif
-#else  // defined(ADDRESS_SANITIZER) || defined(THREAD_SANITIZER) ||
-       // defined(MEMORY_SANITIZER) || defined(LEAK_SANITIZER)
-GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(HeapprofdEndToEnd);
 #endif
 
 }  // namespace
