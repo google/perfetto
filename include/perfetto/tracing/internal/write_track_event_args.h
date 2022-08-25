@@ -149,6 +149,16 @@ PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(EventContext event_ctx,
   WriteTrackEventArgs(std::move(event_ctx), std::forward<Args>(args)...);
 }
 
+// Write one debug annotation and recursively write the rest of the arguments.
+template <typename ArgValue, typename... Args>
+PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(EventContext event_ctx,
+                                                DynamicString arg_name,
+                                                ArgValue&& arg_value,
+                                                Args&&... args) {
+  event_ctx.AddDebugAnnotation(arg_name, std::forward<ArgValue>(arg_value));
+  WriteTrackEventArgs(std::move(event_ctx), std::forward<Args>(args)...);
+}
+
 }  // namespace internal
 }  // namespace perfetto
 
