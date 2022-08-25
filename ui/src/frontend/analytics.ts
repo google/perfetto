@@ -69,10 +69,10 @@ class AnalyticsImpl implements Analytics {
     // [1] https://developers.google.com/analytics/devguides/collection/gtagjs .
     gtagGlobals.dataLayer = gtagGlobals.dataLayer || [];
 
-    function gtagFunction(...args: any[]) {
+    function gtagFunction(..._: any[]) {
       // This needs to be a function and not a lambda. |arguments| behaves
       // slightly differently in a lambda and breaks GA.
-      gtagGlobals.dataLayer.push(args);
+      gtagGlobals.dataLayer.push(arguments);
     }
     gtagGlobals.gtag = gtagFunction;
     gtagGlobals.gtag('js', new Date());

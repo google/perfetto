@@ -55,6 +55,13 @@ module.exports = {
     'no-array-constructor': 'off',
     '@typescript-eslint/no-array-constructor': ['error'],
 
+    // Rest parameters are not equivalent to 'arguments'.
+    // Rest parameters are arrays: https://developer.mozilla.org/en-US/docs/Web/
+    // JavaScript/Reference/Functions/rest_parameters
+    // 'arguments' are objects: https://developer.mozilla.org/en-US/docs/Web/
+    // JavaScript/Reference/Functions/arguments
+    'prefer-rest-params': 'off',
+
     // We have a lot normal functions which are capitalised.
     // TODO(hjd): Switch these to be lowercase and remove capIsNew.
     // There are also some properties like: foo.factory these should
