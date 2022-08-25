@@ -85,6 +85,7 @@ const F2FS_IOSTAT_LAT_GROUP_NAME = 'f2fs_iostat_latency';
 const UFS_CMD_TAG = 'io.ufs.command.tag';
 const UFS_CMD_TAG_GROUP_NAME = 'io.ufs.command.tags';
 const BUDDY_INFO_TAG = 'mem.buddyinfo';
+const KERNEL_WAKELOCK_PREFIX = 'Wakelock';
 
 // Sets the default 'scale' for counter tracks. If the regex matches
 // then the paired mode is used. Entries are in priority order so the
@@ -602,6 +603,42 @@ class TrackDecider {
         summaryTrackId,
         name: groupName,
         id: value,
+        collapsed: true,
+      });
+      this.addTrackGroupActions.push(addGroup);
+    }
+  }
+
+  async groupKernelWakelockTracks(): Promise<void> {
+    let groupUuid = undefined;
+
+    for (const track of this.tracksToAdd) {
+      // NB: Userspace wakelocks start with "WakeLock" not "Wakelock".
+      if (track.name.startsWith(KERNEL_WAKELOCK_PREFIX)) {
+        if (groupUuid === undefined) {
+          groupUuid = uuidv4();
+        }
+        track.trackGroup = groupUuid;
+      }
+    }
+
+    if (groupUuid !== undefined) {
+      const summaryTrackId = uuidv4();
+      this.tracksToAdd.push({
+        id: summaryTrackId,
+        engineId: this.engineId,
+        kind: NULL_TRACK_KIND,
+        trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
+        name: 'Kernel wakelocks',
+        trackGroup: undefined,
+        config: {},
+      });
+
+      const addGroup = Actions.addTrackGroup({
+        engineId: this.engineId,
+        summaryTrackId,
+        name: 'Kernel wakelocks',
+        id: groupUuid,
         collapsed: true,
       });
       this.addTrackGroupActions.push(addGroup);
@@ -1587,6 +1624,7 @@ class TrackDecider {
     await this.groupGlobalUfsCmdTagTracks(
         UFS_CMD_TAG, UFS_CMD_TAG_GROUP_NAME);
     await this.groupGlobalBuddyInfoTracks();
+    await this.groupKernelWakelockTracks();
 
     // Pre-group all kernel "threads" (actually processes) if this is a linux
     // system trace. Below, addProcessTrackGroups will skip them due to an
