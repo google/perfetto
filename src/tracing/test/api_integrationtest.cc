@@ -749,8 +749,12 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
           if (!first_annotation) {
             slice += ",";
           }
-          slice +=
-              incremental_state.GetDebugAnnotationName(it.name_iid()) + "=";
+          if (it.has_name_iid()) {
+            slice += incremental_state.GetDebugAnnotationName(it.name_iid());
+          } else {
+            slice += it.name();
+          }
+          slice += "=";
           std::stringstream value;
           if (it.has_bool_value()) {
             value << "(bool)" << it.bool_value();
@@ -3339,9 +3343,11 @@ TEST_P(PerfettoApiTest, TrackEventDynamicStringInDebugArgs) {
                     perfetto::DynamicString(std::string("arg1_value6")));
   const char* value7 = "arg1_value7";
   TRACE_EVENT_BEGIN("foo", "Event7", "arg1", perfetto::StaticString(value7));
+  const char* arg_name = "new_arg1";
+  TRACE_EVENT_BEGIN("foo", "Event8", perfetto::DynamicString{arg_name}, 5);
 
   auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
-  ASSERT_EQ(7u, slices.size());
+  ASSERT_EQ(8u, slices.size());
   EXPECT_EQ("B:foo.Event1(arg1=(string)arg1_value1)", slices[0]);
   EXPECT_EQ("B:foo.Event2(arg1=(string)arg1_value2)", slices[1]);
   EXPECT_EQ("B:foo.Event3(arg1=(string)arg1_value3)", slices[2]);
@@ -3349,6 +3355,7 @@ TEST_P(PerfettoApiTest, TrackEventDynamicStringInDebugArgs) {
   EXPECT_EQ("B:foo.Event5(arg1=(string)arg1_value5)", slices[4]);
   EXPECT_EQ("B:foo.Event6(arg1=(string)arg1_value6)", slices[5]);
   EXPECT_EQ("B:foo.Event7(arg1=(string)arg1_value7)", slices[6]);
+  EXPECT_EQ("B:foo.Event8(new_arg1=(int)5)", slices[7]);
 }
 
 TEST_P(PerfettoApiTest, FilterDynamicEventName) {
@@ -4271,14 +4278,16 @@ TEST_P(PerfettoApiTest, UpdateDataSource) {
 }
 
 TEST_P(PerfettoApiTest, LegacyTraceEventsCopyDynamicString) {
-  char ptr1[] = "ABC";
-  char ptr2[] = "XYZ";
+  char ptr1[] = "A1";
+  char ptr2[] = "B1";
+  char arg_name1[] = "C1";
+  char arg_name2[] = "D1";
   auto* tracing_session = NewTraceWithCategories({"cat"});
   tracing_session->get()->StartBlocking();
   {
     TRACE_EVENT_MARK_WITH_TIMESTAMP0("cat", ptr1, MyTimestamp{0});
-    ptr1[0] = 'D';
-    // Old value of event name ("ABC") is recorded here in trace.
+    ptr1[1] = '3';
+    // Old value of event name ("A1") is recorded here in trace.
     // The reason being, in legacy macros, event name was expected to be static
     // by default unless `_COPY` version of these macro is used.
     // Perfetto is caching pointer values and if a event-name-pointer matches an
@@ -4289,14 +4298,34 @@ TEST_P(PerfettoApiTest, LegacyTraceEventsCopyDynamicString) {
   }
   {
     TRACE_EVENT_COPY_MARK_WITH_TIMESTAMP("cat", ptr2, MyTimestamp{0});
-    ptr2[0] = 'W';
+    ptr2[1] = '4';
     TRACE_EVENT_COPY_MARK_WITH_TIMESTAMP("cat", ptr2, MyTimestamp{0});
+  }
+  {
+    TRACE_EVENT_INSTANT1("cat", "event_name", TRACE_EVENT_FLAG_NONE, arg_name1,
+                         /*arg_value=*/5);
+    arg_name1[1] = '5';
+    // Since we don't use the _COPY version here, this event will record the old
+    // value of arg_name1 (see earlier comment for full explanation).
+    TRACE_EVENT_INSTANT1("cat", "event_name", TRACE_EVENT_FLAG_NONE, arg_name1,
+                         /*arg_value=*/5);
+  }
+  {
+    TRACE_EVENT_COPY_INSTANT1("cat", "event_name", TRACE_EVENT_FLAG_NONE,
+                              arg_name2, /*arg_value=*/5);
+    arg_name2[1] = '6';
+    TRACE_EVENT_COPY_INSTANT1("cat", "event_name", TRACE_EVENT_FLAG_NONE,
+                              arg_name2, /*arg_value=*/5);
   }
   auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
   EXPECT_THAT(
       slices,
-      ElementsAre("[track=0]Legacy_R:cat.ABC", "[track=0]Legacy_R:cat.ABC",
-                  "[track=0]Legacy_R:cat.XYZ", "[track=0]Legacy_R:cat.WYZ"));
+      ElementsAre("[track=0]Legacy_R:cat.A1", "[track=0]Legacy_R:cat.A1",
+                  "[track=0]Legacy_R:cat.B1", "[track=0]Legacy_R:cat.B4",
+                  "[track=0]I:cat.event_name(C1=(int)5)",
+                  "[track=0]I:cat.event_name(C1=(int)5)",
+                  "[track=0]I:cat.event_name(D1=(int)5)",
+                  "[track=0]I:cat.event_name(D6=(int)5)"));
 }
 
 TEST_P(PerfettoApiTest, LegacyTraceEvents) {
