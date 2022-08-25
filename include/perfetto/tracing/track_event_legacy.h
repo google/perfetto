@@ -97,8 +97,6 @@ static constexpr char TRACE_EVENT_PHASE_DELETE_OBJECT = 'D';
 static constexpr char TRACE_EVENT_PHASE_MEMORY_DUMP = 'v';
 static constexpr char TRACE_EVENT_PHASE_MARK = 'R';
 static constexpr char TRACE_EVENT_PHASE_CLOCK_SYNC = 'c';
-static constexpr char TRACE_EVENT_PHASE_ENTER_CONTEXT = '(';
-static constexpr char TRACE_EVENT_PHASE_LEAVE_CONTEXT = ')';
 
 // Flags for changing the behavior of TRACE_EVENT_API_ADD_TRACE_EVENT.
 static constexpr uint32_t TRACE_EVENT_FLAG_NONE =
@@ -1243,16 +1241,6 @@ inline ::perfetto::StaticString GetEventNameTypeForLegacyEvents(
 #define TRACE_EVENT_OBJECT_DELETED_WITH_ID(category_group, name, id) \
   INTERNAL_TRACE_EVENT_ADD_WITH_ID(TRACE_EVENT_PHASE_DELETE_OBJECT,  \
                                    category_group, name, id,         \
-                                   TRACE_EVENT_FLAG_NONE)
-
-// Context events.
-#define TRACE_EVENT_ENTER_CONTEXT(category_group, name, context)    \
-  INTERNAL_TRACE_EVENT_ADD_WITH_ID(TRACE_EVENT_PHASE_ENTER_CONTEXT, \
-                                   category_group, name, context,   \
-                                   TRACE_EVENT_FLAG_NONE)
-#define TRACE_EVENT_LEAVE_CONTEXT(category_group, name, context)    \
-  INTERNAL_TRACE_EVENT_ADD_WITH_ID(TRACE_EVENT_PHASE_LEAVE_CONTEXT, \
-                                   category_group, name, context,   \
                                    TRACE_EVENT_FLAG_NONE)
 
 // TODO(skyostil): Implement binary-efficient trace events.
