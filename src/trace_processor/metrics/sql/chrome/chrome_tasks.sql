@@ -129,8 +129,10 @@ ORDER BY id;
 
 -- |chrome_mojo_slices| is a view over |chrome_mojo_slices_internal| table, adding
 -- columns from |thread_slice| table.
-DROP VIEW IF EXISTS chrome_mojo_slices;
-CREATE VIEW chrome_mojo_slices AS
+-- TODO(243269096): switch this back to a view once we understand why rolling SQLite to
+-- 3.39.2 causes slowdowns.
+DROP TABLE IF EXISTS chrome_mojo_slices;
+CREATE TABLE chrome_mojo_slices AS
 SELECT
   s1.interface_name,
   s1.ipc_hash,
