@@ -63,6 +63,7 @@ sql_files = [
   "android/g2d_duration.sql",
   "android/g2d.sql",
   "android/global_counter_span_view.sql",
+  "android/global_counter_span_view_merged.sql",
   "android/gpu_counter_span_view.sql",
   "android/jank/cujs.sql",
   "android/jank/cujs_boundaries.sql",
