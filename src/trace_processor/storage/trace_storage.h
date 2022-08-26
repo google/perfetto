@@ -462,6 +462,14 @@ class TraceStorage {
     return &android_log_table_;
   }
 
+  const tables::AndroidDumpstateTable& android_dumpstate_table() const {
+    return android_dumpstate_table_;
+  }
+
+  tables::AndroidDumpstateTable* mutable_android_dumpstate_table() {
+    return &android_dumpstate_table_;
+  }
+
   const StatsMap& stats() const { return stats_; }
 
   const tables::MetadataTable& metadata_table() const {
@@ -848,6 +856,9 @@ class TraceStorage {
   tables::CpuFreqTable cpu_freq_table_{&string_pool_, nullptr};
 
   tables::AndroidLogTable android_log_table_{&string_pool_, nullptr};
+
+  tables::AndroidDumpstateTable android_dumpstate_table_{&string_pool_,
+                                                         nullptr};
 
   tables::StackProfileMappingTable stack_profile_mapping_table_{&string_pool_,
                                                                 nullptr};
