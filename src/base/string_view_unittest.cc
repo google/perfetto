@@ -169,6 +169,20 @@ TEST(StringViewTest, BasicCases) {
   EXPECT_TRUE(StringView("foorbar").StartsWith("foo"));
   EXPECT_FALSE(StringView("foorbar").StartsWith("bar"));
   EXPECT_FALSE(StringView("foo").StartsWith("fooo"));
+
+  // Test EndsWith.
+  EXPECT_TRUE(StringView().EndsWith(StringView()));
+  EXPECT_TRUE(StringView().EndsWith(StringView("")));
+  EXPECT_TRUE(StringView("").EndsWith(StringView("")));
+  EXPECT_TRUE(StringView("").EndsWith(StringView()));
+  EXPECT_TRUE(StringView("foo").EndsWith(StringView()));
+  EXPECT_TRUE(StringView("foo").EndsWith(StringView("")));
+  EXPECT_FALSE(StringView().EndsWith("foo"));
+  EXPECT_FALSE(StringView("").EndsWith("foo"));
+  EXPECT_TRUE(StringView("foo").EndsWith("foo"));
+  EXPECT_FALSE(StringView("foorbar").EndsWith("foo"));
+  EXPECT_TRUE(StringView("foorbar").EndsWith("bar"));
+  EXPECT_FALSE(StringView("foo").EndsWith("fooo"));
 }
 
 TEST(StringViewTest, HashCollisions) {

@@ -72,11 +72,15 @@ base::Optional<int> ReadNumAndAdvance(base::StringView* it,
     // but flag the current token as invalid.
     invalid_chars_found = true;
   }
-  if (sep_found && !invalid_chars_found) {
-    *it = it->substr(next_it);
-    return num;
-  }
-  return base::nullopt;
+  if (!sep_found)
+    return base::nullopt;
+  // If we find non-digit characters, we want to still skip the token but return
+  // nullopt. The parser below relies on token skipping to deal with cases where
+  // the uid (which we don't care about) is literal ("root" rather than 0).
+  *it = it->substr(next_it);
+  if (invalid_chars_found)
+    return base::nullopt;
+  return num;
 }
 
 enum class LogcatFormat {
@@ -116,7 +120,8 @@ LogcatFormat DetectFormat(base::StringView line) {
 // Parses a bunch of logcat lines and appends broken down events into
 // `log_events`.
 void AndroidLogParser::ParseLogLines(std::vector<base::StringView> lines,
-                                     std::vector<AndroidLogEvent>* log_events) {
+                                     std::vector<AndroidLogEvent>* log_events,
+                                     size_t dedupe_idx) {
   int parse_failures = 0;
   LogcatFormat fmt = LogcatFormat::kUnknown;
   for (auto line : lines) {
@@ -201,11 +206,43 @@ void AndroidLogParser::ParseLogLines(std::vector<base::StringView> lines,
     int64_t secs = base::MkTime(year_, *month, *day, *hour, *minute, *sec);
     int64_t ts = secs * 1000000000ll + *ns;
 
-    log_events->emplace_back(AndroidLogEvent{
-        ts, static_cast<uint32_t>(*pid), static_cast<uint32_t>(*tid),
-        static_cast<uint32_t>(prio), storage_->InternString(cat),
-        storage_->InternString(msg)});
-  }
+    AndroidLogEvent evt{ts,
+                        static_cast<uint32_t>(*pid),
+                        static_cast<uint32_t>(*tid),
+                        static_cast<uint32_t>(prio),
+                        storage_->InternString(cat),
+                        storage_->InternString(msg)};
+
+    if (dedupe_idx > 0) {
+      // Search for dupes before inserting.
+      // Events in the [0, dedupe_idx] range are sorted by timestamp with ns
+      // resolution. Here we search for dupes within the same millisecond of
+      // the event we are trying to insert. The /1000000*1000000 is to deal with
+      // the fact that events coming from the persistent log have us resolution,
+      // while events from dumpstate (which are often dupes of persistent ones)
+      // have only ms resolution. Here we consider an event a dupe if it has
+      // the same ms-truncated solution, same pid, tid and message.
+      AndroidLogEvent etrunc = evt;
+      etrunc.ts = etrunc.ts / 1000000 * 1000000;
+      auto begin = log_events->begin();
+      auto end = log_events->begin() + static_cast<ssize_t>(dedupe_idx);
+      bool dupe_found = false;
+      for (auto eit = std::lower_bound(begin, end, etrunc); eit < end; ++eit) {
+        if (eit->ts / 1000000 * 1000000 != etrunc.ts)
+          break;
+        if (eit->msg == evt.msg && eit->tag == evt.tag && eit->tid == evt.tid &&
+            eit->pid == evt.pid) {
+          dupe_found = true;
+          break;
+        }
+      }
+      if (dupe_found) {
+        continue;  // Skip the current line.
+      }
+    }  // if (dedupe_idx)
+
+    log_events->emplace_back(std::move(evt));
+  }  //  for (line : lines)
   storage_->IncrementStats(stats::android_log_num_failed, parse_failures);
 }
 
