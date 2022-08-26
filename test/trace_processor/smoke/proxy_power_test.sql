@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT RUN_METRIC('android/android_proxy_power.sql') AS suppress_query_output;
+SELECT RUN_METRIC('android/android_proxy_power.sql');
 
 -- The test trace doesn't contain metadata necessary to determine the device
 -- name, so we create a table with the name directly.

@@ -13,6 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT RUN_METRIC('experimental/chrome_dropped_frames.sql') AS suppress_query_output;
+SELECT RUN_METRIC('experimental/chrome_dropped_frames.sql');
 
 SELECT * FROM dropped_frames_with_process_info;

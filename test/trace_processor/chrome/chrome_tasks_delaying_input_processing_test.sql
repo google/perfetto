@@ -15,7 +15,7 @@
 
 SELECT RUN_METRIC('chrome/chrome_tasks_delaying_input_processing.sql',
 'duration_causing_jank_ms',
- /* duration_causing_jank_ms = */ '8') AS suppress_query_output;
+ /* duration_causing_jank_ms = */ '8');
 
 SELECT
   full_name,
