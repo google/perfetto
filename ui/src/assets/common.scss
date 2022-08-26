@@ -532,7 +532,15 @@ header.overview {
       margin-left: 10px;
       color: hsl(213, 22%, 40%);
   }
+  span {
+    white-space: nowrap;
+  }
   span.code {
+    text-overflow: ellipsis;
+    max-width: 50vw;
+    overflow: hidden;
+  }
+  span.spacer {
     flex-grow: 1;
   }
 }

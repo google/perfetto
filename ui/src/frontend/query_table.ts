@@ -138,8 +138,9 @@ export class QueryTable extends Panel<QueryTableAttrs> {
     const headers = [
       m(
           'header.overview',
-          `Query result - ${Math.round(resp.durationMs)} ms`,
+          m('span', `Query result - ${Math.round(resp.durationMs)} ms`),
           m('span.code', resp.query),
+          m('span.spacer'),
           resp.error ? null :
                        m('button.query-ctrl',
                          {
