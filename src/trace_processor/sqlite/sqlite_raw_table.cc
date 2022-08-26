@@ -37,6 +37,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/g2d.pbzero.h"
 #include "protos/perfetto/trace/ftrace/irq.pbzero.h"
+#include "protos/perfetto/trace/ftrace/mdss.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "protos/perfetto/trace/ftrace/workqueue.pbzero.h"
@@ -429,6 +430,18 @@ void ArgsSerializer::SerializeArgs() {
       writer_->AppendString(kActionNames[value.uint_value]);
     });
     writer_->AppendString("]");
+    return;
+  } else if (event_name_ == "tracing_mark_write") {
+    using TMW = protos::pbzero::TracingMarkWriteFtraceEvent;
+    WriteValueForField(TMW::kTraceBeginFieldNumber,
+                       [this](const Variadic& value) {
+                         PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+                         writer_->AppendChar(value.uint_value ? 'B' : 'E');
+                       });
+    writer_->AppendString("|");
+    WriteValueForField(TMW::kPidFieldNumber, DVW());
+    writer_->AppendString("|");
+    WriteValueForField(TMW::kTraceNameFieldNumber, DVW());
     return;
   } else if (event_name_ == "dpu_tracing_mark_write") {
     using TMW = protos::pbzero::DpuTracingMarkWriteFtraceEvent;
