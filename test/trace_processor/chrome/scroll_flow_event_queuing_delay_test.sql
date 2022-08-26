@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 SELECT RUN_METRIC('chrome/scroll_flow_event_queuing_delay.sql')
-  AS suppress_query_output;
+ ;
 
 -- trace 2956 is janky and 2954 and 2960 surround it (both are not janky). We
 -- just manually computed these values to ensure the queuing time is correct.
