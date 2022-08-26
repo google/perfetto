@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 SELECT RUN_METRIC('chrome/touch_flow_event_queuing_delay.sql')
-  AS suppress_query_output;
+ ;
 
 -- trace 6911 is janky and 6915 and 6940 succeed it (both are not janky).
 SELECT

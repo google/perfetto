@@ -13,6 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT RUN_METRIC('android/android_sysui_cuj.sql') AS suppress_query_output;
+SELECT RUN_METRIC('android/android_sysui_cuj.sql');
 
 SELECT * FROM android_sysui_cuj_event;
