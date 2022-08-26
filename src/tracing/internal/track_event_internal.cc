@@ -515,5 +515,14 @@ protos::pbzero::DebugAnnotation* TrackEventInternal::AddDebugAnnotation(
   return annotation;
 }
 
+// static
+protos::pbzero::DebugAnnotation* TrackEventInternal::AddDebugAnnotation(
+    perfetto::EventContext* event_ctx,
+    perfetto::DynamicString name) {
+  auto annotation = event_ctx->event()->add_debug_annotations();
+  annotation->set_name(name.value);
+  return annotation;
+}
+
 }  // namespace internal
 }  // namespace perfetto

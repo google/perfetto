@@ -219,14 +219,15 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
 
   // TODO(altimin): Remove this method once Chrome uses
   // EventContext::AddDebugAnnotation directly.
-  template <typename T>
+  template <typename NameType, typename ValueType>
   static void AddDebugAnnotation(perfetto::EventContext* event_ctx,
-                                 const char* name,
-                                 T&& value) {
-    auto annotation = AddDebugAnnotation(event_ctx, name);
+                                 NameType&& name,
+                                 ValueType&& value) {
+    auto annotation =
+        AddDebugAnnotation(event_ctx, std::forward<NameType>(name));
     WriteIntoTracedValue(
         internal::CreateTracedValueFromProto(annotation, event_ctx),
-        std::forward<T>(value));
+        std::forward<ValueType>(value));
   }
 
   // If the given track hasn't been seen by the trace writer yet, write a
@@ -291,9 +292,14 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
       TraceTimestamp,
       uint32_t seq_flags =
           protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
+
   static protos::pbzero::DebugAnnotation* AddDebugAnnotation(
       perfetto::EventContext*,
       const char* name);
+
+  static protos::pbzero::DebugAnnotation* AddDebugAnnotation(
+      perfetto::EventContext*,
+      perfetto::DynamicString name);
 
   static std::atomic<int> session_count_;
 };

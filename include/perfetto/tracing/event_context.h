@@ -110,11 +110,11 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
   // values directly to TRACE_EVENT (i.e. TRACE_EVENT(..., "arg", value, ...);)
   // but in rare cases (e.g. when an argument should be written conditionally)
   // EventContext::AddDebugAnnotation provides an explicit equivalent.
-  template <typename T>
-  void AddDebugAnnotation(const char* name, T&& value) {
+  template <typename EventNameType, typename T>
+  void AddDebugAnnotation(EventNameType&& name, T&& value) {
     if (tls_state_ && tls_state_->filter_debug_annotations)
       return;
-    auto annotation = AddDebugAnnotation(name);
+    auto annotation = AddDebugAnnotation(std::forward<EventNameType>(name));
     WriteIntoTracedValue(internal::CreateTracedValueFromProto(annotation, this),
                          std::forward<T>(value));
   }
@@ -133,6 +133,8 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
   EventContext(const EventContext&) = delete;
 
   protos::pbzero::DebugAnnotation* AddDebugAnnotation(const char* name);
+  protos::pbzero::DebugAnnotation* AddDebugAnnotation(
+      ::perfetto::DynamicString name);
 
   TracePacketHandle trace_packet_;
   protos::pbzero::TrackEvent* event_;

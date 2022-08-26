@@ -17,7 +17,6 @@
 -- {{duration_causing_jank_ms}} : The duration of a single task that would cause
 -- jank, by delaying input from being handled on the main thread.
 
-SELECT RUN_METRIC('chrome/chrome_tasks.sql');
 SELECT RUN_METRIC('chrome/chrome_input_to_browser_intervals.sql');
 
 -- Get the tasks that was running for more than 8ms within windows

@@ -33,8 +33,10 @@ CREATE VIEW blocking_tasks_no_threadcontroller_active AS
 -- Sort track ids to optimize joining with slices
 -- as engine doesn't do the sort to join in O(LogN)
 -- per row by default
-DROP VIEW IF EXISTS chrome_annotated_threads_and_processes;
-CREATE VIEW chrome_annotated_threads_and_processes AS
+-- TODO(243269096): switch this back to a view once we understand why rolling SQLite to
+-- 3.39.2 causes slowdowns.
+DROP TABLE IF EXISTS chrome_annotated_threads_and_processes;
+CREATE TABLE chrome_annotated_threads_and_processes AS
   SELECT
     thread_track.id AS track_id,
     chrome_thread.canonical_name AS thread_name,
@@ -51,8 +53,10 @@ CREATE VIEW chrome_annotated_threads_and_processes AS
 -- See b/166441398 & crbug/1094361 for why we remove threadpool (originally
 -- the -to-End step). In essence -to-End is often reported on the ThreadPool
 -- after the fact with explicit timestamps so it being blocked isn't noteworthy.
-DROP VIEW IF EXISTS blocking_chrome_tasks_without_threadpool;
-CREATE VIEW blocking_chrome_tasks_without_threadpool AS
+-- TODO(243269096): switch this back to a view once we understand why rolling SQLite to
+-- 3.39.2 causes slowdowns.
+DROP TABLE IF EXISTS blocking_chrome_tasks_without_threadpool;
+CREATE TABLE blocking_chrome_tasks_without_threadpool AS
   SELECT
      slice.*,
      annotations.thread_name AS thread_name,
