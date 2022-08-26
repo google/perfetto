@@ -27,6 +27,7 @@ namespace util {
 class ZipReader;
 }
 
+struct AndroidLogEvent;
 class TraceProcessorContext;
 
 // Trace importer for Android bugreport.zip archives.
@@ -40,13 +41,20 @@ class AndroidBugreportParser : public ChunkedTraceReader {
   void NotifyEndOfFile() override;
 
  private:
-  bool DetectYear();
+  bool DetectYearAndBrFilename();
   void ParsePersistentLogcat();
+  void ParseDumpstateTxt();
+  void SortAndStoreLogcat();
+  void SortLogEvents();
 
   TraceProcessorContext* const context_;
   int br_year_ = 0;  // The year when the bugreport has been taken.
+  std::string dumpstate_fname_;  // The name of bugreport-xxx-2022-08-04....txt
+  std::string build_fpr_;
   bool first_chunk_seen_ = false;
   std::unique_ptr<util::ZipReader> zip_reader_;
+  std::vector<AndroidLogEvent> log_events_;
+  size_t log_events_last_sorted_idx_ = 0;
 };
 
 }  // namespace trace_processor
