@@ -14,8 +14,8 @@
 -- limitations under the License.
 --
 
-SELECT RUN_METRIC('chrome/chrome_processes.sql') AS suppress_query_output;
-SELECT RUN_METRIC('chrome/chrome_event_metadata.sql') AS suppress_query_output;
+SELECT RUN_METRIC('chrome/chrome_processes.sql');
+SELECT RUN_METRIC('chrome/chrome_event_metadata.sql');
 
 -- Priority order for RAIL modes where response has the highest priority and
 -- idle has the lowest.
