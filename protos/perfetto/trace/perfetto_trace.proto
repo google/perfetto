@@ -11059,7 +11059,7 @@ message UiState {
 
 // Begin of protos/perfetto/trace/trace_packet.proto
 
-// TracePacket is the root object of a Perfeto trace.
+// TracePacket is the root object of a Perfetto trace.
 // A Perfetto trace is a linear sequence of TracePacket(s).
 //
 // The tracing service guarantees that all TracePacket(s) written by a given
