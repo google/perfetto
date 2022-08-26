@@ -28,4 +28,4 @@ FROM (
     WHERE t.type = 'counter_track'
       AND name = '{{counter_name}}'
 )
-WHERE value != lag_value;
+WHERE value != lag_value OR lag_value IS NULL;
