@@ -60,8 +60,16 @@ class AndroidLogParser {
       : storage_(storage), year_(year) {}
   ~AndroidLogParser() = default;
 
+  // Decodes logcat events for the input `lines` and appends them into
+  // `log_events`. If `dedupe_idx` is != 0, it checks for duplicate entries
+  // before inserting and skips the insertion if a dupe is found. Dupes are
+  // searched in the first `dedupe_idx` entries of `log_events`. In practice
+  // `dedupe_idx` is the log_events.size() for the last std::sort() call.
+  // The de-duping logic truncates timestamps to millisecond resolution, to
+  // handle the mismatching resolution of dumpstate (ms) vs persistent log (us).
   void ParseLogLines(std::vector<base::StringView> lines,
-                     std::vector<AndroidLogEvent>* log_events);
+                     std::vector<AndroidLogEvent>* log_events,
+                     size_t dedupe_idx = 0);
 
  private:
   TraceStorage* const storage_;

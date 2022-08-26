@@ -33,6 +33,8 @@ MacroTable::~MacroTable() = default;
 
 namespace tables {
 // android_tables.h
+AndroidDumpstateTable::~AndroidDumpstateTable() = default;
+AndroidGameInterventionListTable::~AndroidGameInterventionListTable() = default;
 AndroidLogTable::~AndroidLogTable() = default;
 
 // counter_tables.h
@@ -63,7 +65,6 @@ HeapGraphClassTable::~HeapGraphClassTable() = default;
 HeapGraphReferenceTable::~HeapGraphReferenceTable() = default;
 VulkanMemoryAllocationsTable::~VulkanMemoryAllocationsTable() = default;
 PackageListTable::~PackageListTable() = default;
-AndroidGameInterventionListTable::~AndroidGameInterventionListTable() = default;
 ProfilerSmapsTable::~ProfilerSmapsTable() = default;
 GpuCounterGroupTable::~GpuCounterGroupTable() = default;
 
