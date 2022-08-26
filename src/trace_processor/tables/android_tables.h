@@ -88,6 +88,22 @@ PERFETTO_TP_TABLE(PERFETTO_TP_ANDROID_LOG_TABLE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_ANDROID_GAME_INTERVENTION_LIST_DEF);
 
+// Dumpsys entries from Android dumpstate.
+//
+// @param section name of the dumpstate section.
+// @param service name of the dumpsys service. Only present when
+// dumpstate=="dumpsys", NULL otherwise.
+// @param line line-by-line contents of the section/service, one row per line.
+// @tablegroup Events
+#define PERFETTO_TP_ANDROID_DUMPSTATE_TABLE_DEF(NAME, PARENT, C) \
+  NAME(AndroidDumpstateTable, "android_dumpstate")               \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                              \
+  C(base::Optional<StringPool::Id>, section)                     \
+  C(base::Optional<StringPool::Id>, service)                     \
+  C(StringPool::Id, line)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_ANDROID_DUMPSTATE_TABLE_DEF);
+
 }  // namespace tables
 }  // namespace trace_processor
 }  // namespace perfetto
