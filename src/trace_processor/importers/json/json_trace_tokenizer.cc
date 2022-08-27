@@ -432,7 +432,7 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
       }
 
       std::string key;
-      auto res = ReadOneJsonKey(start, end, &key, &next);
+      ReadKeyRes res = ReadOneJsonKey(start, end, &key, &next);
       if (res == ReadKeyRes::kFatalError)
         return util::ErrStatus("Failure parsing JSON: encountered fatal error");
 
@@ -447,9 +447,12 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
       } else if (key == "systemTraceEvents") {
         position_ = TracePosition::kSystemTraceEventsString;
         return ParseInternal(next + 1, end, out);
+      } else if (key == "androidProcessDump") {
+        position_ = TracePosition::kAndroidProcessDumpString;
+        return ParseInternal(next + 1, end, out);
       } else if (key == "metadata") {
         position_ = TracePosition::kWaitingForMetadataDictionary;
-        return ParseInternal(next + 1, end, out);
+        return ParseInternal(next, end, out);
       } else if (key == "displayTimeUnit") {
         std::string time_unit;
         auto result = ReadOneJsonString(next + 1, end, &time_unit, &next);
@@ -517,7 +520,7 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
       }
 
       base::StringView unparsed;
-      const auto res = ReadOneJsonDict(next, end, &unparsed, &next);
+      ReadDictRes res = ReadOneJsonDict(next, end, &unparsed, &next);
       if (res == ReadDictRes::kEndOfArray)
         return util::ErrStatus("Failure parsing JSON: encountered fatal error");
       if (res == ReadDictRes::kEndOfTrace ||
@@ -527,7 +530,27 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
 
       // TODO(lalitm): read and ingest the relevant data inside |value|.
       position_ = TracePosition::kDictionaryKey;
-      break;
+      return ParseInternal(next, end, out);
+    }
+    case TracePosition::kAndroidProcessDumpString: {
+      if (format_ != TraceFormat::kOuterDictionary) {
+        return util::ErrStatus(
+            "Failure parsing JSON: illegal format when parsing metadata");
+      }
+
+      std::string unparsed;
+      ReadStringRes res = ReadOneJsonString(next, end, &unparsed, &next);
+      if (res == ReadStringRes::kNeedsMoreData) {
+        break;
+      }
+      if (res == ReadStringRes::kFatalError) {
+        return base::ErrStatus(
+            "Failure parsing JSON: illegal string when parsing "
+            "androidProcessDump");
+      }
+      // TODO(lalitm): read and ingest the relevant data inside |unparsed|.
+      position_ = TracePosition::kDictionaryKey;
+      return ParseInternal(next, end, out);
     }
     case TracePosition::kTraceEventsArray: {
       while (next < end) {

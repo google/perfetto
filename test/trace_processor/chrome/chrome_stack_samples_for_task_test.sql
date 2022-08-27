@@ -16,7 +16,7 @@
 SELECT RUN_METRIC('chrome/chrome_stack_samples_for_task.sql',
     'target_duration_ms', '0.000001',
     'thread_name', '"CrBrowserMain"',
-    'task_name', '"sendTouchEvent"') AS suppress_query_output;
+    'task_name', '"sendTouchEvent"');
 
 SELECT
     sample.description,

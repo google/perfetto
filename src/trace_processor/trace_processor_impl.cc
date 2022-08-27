@@ -779,15 +779,26 @@ void IncrementCountForStmt(sqlite3_stmt* stmt,
   if (sqlite_utils::IsStmtDone(stmt))
     return;
 
-  // If the statement only has a single column and that column is named
-  // "suppress_query_output", treat it as a statement without output for
-  // accounting purposes. This is done so that embedders (e.g. shell) can
-  // strictly check that only the last query produces output while also
-  // providing an escape hatch for SELECT RUN_METRIC() invocations (which
-  // sadly produce output).
-  if (sqlite3_column_count(stmt) == 1 &&
-      strcmp(sqlite3_column_name(stmt, 0), "suppress_query_output") == 0) {
-    return;
+  if (sqlite3_column_count(stmt) == 1) {
+    sqlite3_value* value = sqlite3_column_value(stmt, 0);
+
+    // If the "VOID" pointer associated to the return value is not null,
+    // that means this is a function which is forced to return a value
+    // (because all functions in SQLite have to) but doesn't actually
+    // wait to (i.e. it wants to be treated like CREATE TABLE or similar).
+    // Because of this, ignore the return value of this function.
+    // See |WrapSqlFunction| for where this is set.
+    if (sqlite3_value_pointer(value, "VOID") != nullptr) {
+      return;
+    }
+
+    // If the statement only has a single column and that column is named
+    // "suppress_query_output", treat it as a statement without output for
+    // accounting purposes. This allows an escape hatch for cases where the
+    // user explicitly wants to ignore functions as having output.
+    if (strcmp(sqlite3_column_name(stmt, 0), "suppress_query_output") == 0) {
+      return;
+    }
   }
 
   // Otherwise, the statement has output and so increment the count.
@@ -1049,10 +1060,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->stack_profile_mapping_table());
   RegisterDbTable(storage->stack_profile_frame_table());
   RegisterDbTable(storage->package_list_table());
-  RegisterDbTable(storage->android_game_intervention_list_table());
   RegisterDbTable(storage->profiler_smaps_table());
 
   RegisterDbTable(storage->android_log_table());
+  RegisterDbTable(storage->android_dumpstate_table());
+  RegisterDbTable(storage->android_game_intervention_list_table());
 
   RegisterDbTable(storage->vulkan_memory_allocations_table());
 

@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT RUN_METRIC('android/android_jank_cuj.sql') AS suppress_query_output;
+SELECT RUN_METRIC('android/android_jank_cuj.sql');
 
 
 -- First query to look at `binder transaction` on the Main Thread
