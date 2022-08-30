@@ -82,10 +82,12 @@ if (perfetto_build_with_android) {
 }
 
 if (enable_perfetto_tools) {
-  all_targets += [
-    "src/tools",
-    "src/websocket_bridge",
-  ]
+  all_targets += [ "src/tools" ]
+
+  # Windows does not have an IPC implementation.
+  if (!is_win) {
+    all_targets += [ "src/websocket_bridge" ]
+  }
 }
 
 if (enable_perfetto_unittests) {
