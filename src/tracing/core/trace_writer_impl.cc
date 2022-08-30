@@ -158,6 +158,11 @@ TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
     }
   }
 
+  if (PERFETTO_UNLIKELY(first_packet_on_sequence_)) {
+    cur_packet_->set_first_packet_on_sequence(true);
+    first_packet_on_sequence_ = false;
+  }
+
   return handle;
 }
 
