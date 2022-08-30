@@ -54,7 +54,7 @@ class TraceUriResolver:
   up traces using URI strings.
 
   For example:
-    class CustomTraceResolver(TraceResolver):
+    class CustomTraceResolver(TraceUriResolver):
       PREFIX = 'custom'
 
       def __init__(self, build_branch: List[str] = None, id: str = None):
@@ -66,7 +66,7 @@ class TraceUriResolver:
         traces = self.db.lookup(
           id=self.id, build_branch=self.build_branch)['path']
         return [
-          TraceResolver.Result(
+          TraceUriResolver.Result(
             trace=t['path'],
             args={'iteration': t['iteration'], 'device': t['device']}
           )
