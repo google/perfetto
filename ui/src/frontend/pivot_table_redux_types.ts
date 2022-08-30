@@ -92,9 +92,6 @@ export function columnKey(tableColumn: TableColumn): string {
     case 'regular': {
       return `${tableColumn.table}.${tableColumn.column}`;
     }
-    default: {
-      throw new Error(`malformed table column ${tableColumn}`);
-    }
   }
 }
 
