@@ -81,8 +81,6 @@ function drillFilterColumnName(column: TableColumn, mainTable: string): string {
         return `${mainTable}.${column.column}`;
       }
       return `${column.table}.${column.column}`;
-    default:
-      throw new Error(`malformed table column ${column}`);
   }
 }
 
@@ -103,8 +101,6 @@ function readableColumnName(column: TableColumn) {
       return `Argument ${column.argument}`;
     case 'regular':
       return `${column.table}.${column.column}`;
-    default:
-      throw new Error(`malformed table column ${column}`);
   }
 }
 
