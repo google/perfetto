@@ -115,13 +115,13 @@ export class AdbConnectionOverWebusb implements AdbConnection {
     const commandOutput = new ArrayBufferBuilder();
     const onStreamingEnded = defer<string>();
 
-    adbStream.onStreamData = (data: Uint8Array) => {
+    adbStream.addOnStreamData((data: Uint8Array) => {
       commandOutput.append(data);
-    };
-    adbStream.onStreamClose = () => {
+    });
+    adbStream.addOnStreamClose(() => {
       onStreamingEnded.resolve(
           textDecoder.decode(commandOutput.toArrayBuffer()));
-    };
+    });
     return onStreamingEnded;
   }
 
@@ -212,15 +212,15 @@ export class AdbConnectionOverWebusb implements AdbConnection {
 
     this.streams.delete(stream);
     if (this.streams.size === 0) {
-      // We disconnect BEFORE calling `onStreamClose`. Otherwise there can be a
-      // race condition:
+      // We disconnect BEFORE calling `signalStreamClosed`. Otherwise, there can
+      // be a race condition:
       // Stream A: streamA.onStreamClose
       // Stream B: device.open
       // Stream A: device.releaseInterface
       // Stream B: device.transferOut -> CRASH
       await this.disconnect();
     }
-    stream.onStreamClose();
+    stream.signalStreamClosed();
   }
 
   streamWrite(msg: string|Uint8Array, stream: AdbOverWebusbStream): void {
@@ -423,7 +423,7 @@ export class AdbConnectionOverWebusb implements AdbConnection {
         const stream = assertExists(this.getStreamForLocalStreamId(msg.arg1));
         await this.sendMessage(
             'OKAY', stream.localStreamId, stream.remoteStreamId);
-        stream.onStreamData(msg.data);
+        stream.signalStreamData(msg.data);
       } else {
         this.isUsbReceiveLoopRunning = false;
         throw new RecordingError(
@@ -480,11 +480,10 @@ export class AdbConnectionOverWebusb implements AdbConnection {
 export class AdbOverWebusbStream implements ByteStream {
   private adbConnection: AdbConnectionOverWebusb;
   private _isOpen: boolean;
+  private onStreamDataCallbacks: OnStreamDataCallback[] = [];
+  private onStreamCloseCallbacks: OnStreamCloseCallback[] = [];
   localStreamId: number;
   remoteStreamId = -1;
-
-  onStreamData: OnStreamDataCallback = (_) => {};
-  onStreamClose: OnStreamCloseCallback = () => {};
 
   constructor(
       adb: AdbConnectionOverWebusb, localStreamId: number,
@@ -494,6 +493,32 @@ export class AdbOverWebusbStream implements ByteStream {
     this.remoteStreamId = remoteStreamId;
     // When the stream is created, the connection has been already established.
     this._isOpen = true;
+  }
+
+  addOnStreamData(onStreamData: OnStreamDataCallback): void {
+    this.onStreamDataCallbacks.push(onStreamData);
+  }
+
+  addOnStreamClose(onStreamClose: OnStreamCloseCallback): void {
+    this.onStreamCloseCallbacks.push(onStreamClose);
+  }
+
+  // Used by the connection object to signal newly received data, not exposed
+  // in the interface.
+  signalStreamData(data: Uint8Array): void {
+    for (const onStreamData of this.onStreamDataCallbacks) {
+      onStreamData(data);
+    }
+  }
+
+  // Used by the connection object to signal the stream is closed, not exposed
+  // in the interface.
+  signalStreamClosed(): void {
+    for (const onStreamClose of this.onStreamCloseCallbacks) {
+      onStreamClose();
+    }
+    this.onStreamDataCallbacks = [];
+    this.onStreamCloseCallbacks = [];
   }
 
   close(): void {
