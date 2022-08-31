@@ -5034,6 +5034,65 @@ TEST_P(PerfettoApiTest, TrackEventObserver_ClearIncrementalState) {
   EXPECT_FALSE(perfetto::TrackEvent::IsEnabled());
 }
 
+TEST_P(PerfettoApiTest, TrackEventObserver_TwoDataSources) {
+  class Observer : public perfetto::TrackEventSessionObserver {
+   public:
+    ~Observer() override = default;
+
+    void OnStart(const perfetto::DataSourceBase::StartArgs&) {
+      EXPECT_FALSE(start_called);
+      start_called = true;
+    }
+
+    bool start_called{};
+  };
+
+  EXPECT_FALSE(perfetto::TrackEvent::IsEnabled());
+  EXPECT_FALSE(tracing_module::IsEnabled());
+
+  {
+    Observer observer1, observer2;
+    perfetto::TrackEvent::AddSessionObserver(&observer1);
+    tracing_module::AddSessionObserver(&observer2);
+
+    perfetto::TraceConfig cfg;
+    auto* tracing_session = NewTraceWithCategories({"foo"}, {}, cfg);
+
+    tracing_session->get()->StartBlocking();
+    tracing_session->on_stop.Wait();
+
+    // The tracing_module hasn't registered its data source yet, so observer2
+    // should not be notified.
+    EXPECT_TRUE(observer1.start_called);
+    EXPECT_FALSE(observer2.start_called);
+    perfetto::TrackEvent::RemoveSessionObserver(&observer1);
+    tracing_module::RemoveSessionObserver(&observer2);
+  }
+
+  tracing_module::InitializeCategories();
+
+  {
+    Observer observer1, observer2;
+    perfetto::TrackEvent::AddSessionObserver(&observer1);
+    tracing_module::AddSessionObserver(&observer2);
+
+    perfetto::TraceConfig cfg;
+    auto* tracing_session = NewTraceWithCategories({"foo"}, {}, cfg);
+
+    tracing_session->get()->StartBlocking();
+    tracing_session->on_stop.Wait();
+
+    // Each observer should be notified exactly once.
+    EXPECT_TRUE(observer1.start_called);
+    EXPECT_TRUE(observer2.start_called);
+    perfetto::TrackEvent::RemoveSessionObserver(&observer1);
+    tracing_module::RemoveSessionObserver(&observer2);
+  }
+
+  EXPECT_FALSE(perfetto::TrackEvent::IsEnabled());
+  EXPECT_FALSE(tracing_module::IsEnabled());
+}
+
 #if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_CLANG)
 struct __attribute__((capability("mutex"))) MockMutex {
   void Lock() __attribute__((acquire_capability())) {}
