@@ -213,6 +213,11 @@ TEST_P(TraceWriterImplTest, NewTracePacket) {
     protos::gen::TracePacket packet;
     EXPECT_TRUE(packet.ParseFromString(packets[i]));
     EXPECT_EQ(packet.for_testing().str(), "foobar " + std::to_string(i));
+    if (i == 0) {
+      EXPECT_TRUE(packet.first_packet_on_sequence());
+    } else {
+      EXPECT_FALSE(packet.first_packet_on_sequence());
+    }
   }
 }
 
@@ -251,6 +256,11 @@ TEST_P(TraceWriterImplTest, NewTracePacketLargePackets) {
   }
 }
 
+// A prefix corresponding to first_packet_on_sequence = true in a serialized
+// TracePacket proto.
+constexpr char kFirstPacketOnSequenceFlagPrefix[] = {static_cast<char>(0xB8),
+                                                     0x5, 0x1, 0x0};
+
 TEST_P(TraceWriterImplTest, NewTracePacketTakeWriter) {
   const BufferID kBufId = 42;
   std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(kBufId);
@@ -271,7 +281,11 @@ TEST_P(TraceWriterImplTest, NewTracePacketTakeWriter) {
   std::vector<std::string> packets = GetPacketsFromShmemAndPatches();
   ASSERT_THAT(packets, SizeIs(kNumPackets));
   for (size_t i = 0; i < kNumPackets; i++) {
-    EXPECT_EQ(packets[i], std::string("RAW_PROTO_BYTES_" + std::to_string(i)));
+    std::string expected = "RAW_PROTO_BYTES_" + std::to_string(i);
+    if (i == 0) {
+      expected = kFirstPacketOnSequenceFlagPrefix + expected;
+    }
+    EXPECT_EQ(packets[i], expected);
   }
 }
 
@@ -366,13 +380,13 @@ TEST_P(TraceWriterImplTest, AnnotatePatch) {
   writer.reset();
 
   std::vector<std::string> packets = GetPacketsFromShmemAndPatches();
-  EXPECT_THAT(packets,
-              ElementsAre(std::string("RAW_PROTO_BYTES") +
-                          std::string("\x11\x11\x11\x11") + std::string("X") +
-                          std::string("\x22\x22\x22\x22") +
-                          std::string(chunk_size, 'x') +
-                          std::string("\x33\x33\x33\x33") +
-                          std::string(chunk_size, 'x')));
+  EXPECT_THAT(
+      packets,
+      ElementsAre(
+          kFirstPacketOnSequenceFlagPrefix + std::string("RAW_PROTO_BYTES") +
+          std::string("\x11\x11\x11\x11") + std::string("X") +
+          std::string("\x22\x22\x22\x22") + std::string(chunk_size, 'x') +
+          std::string("\x33\x33\x33\x33") + std::string(chunk_size, 'x')));
 }
 
 TEST_P(TraceWriterImplTest, MixManualTakeAndMessage) {
@@ -453,7 +467,8 @@ TEST_P(TraceWriterImplTest, MixManualTakeAndMessage) {
   std::vector<std::string> packets = GetPacketsFromShmemAndPatches();
   EXPECT_THAT(
       packets,
-      ElementsAre(std::string("PACKET_1_") + std::string("\xFF\xFF\xFF\xFF") +
+      ElementsAre(kFirstPacketOnSequenceFlagPrefix + std::string("PACKET_1_") +
+                      std::string("\xFF\xFF\xFF\xFF") +
                       std::string(chunk_size, 'x'),
                   std::string("PACKET_2_") + std::string("\x0A") +
                       encoded_size + std::string(chunk_size, 'x'),
@@ -609,7 +624,8 @@ TEST_P(TraceWriterImplTest, FragmentingPacketWhileBufferExhausted) {
   auto packet = writer->NewTracePacket();
   EXPECT_FALSE(reinterpret_cast<TraceWriterImpl*>(writer.get())
                    ->drop_packets_for_testing());
-  EXPECT_EQ(packet->Finalize(), 0u);
+  // 3 bytes for the first_packet_on_sequence flag.
+  EXPECT_EQ(packet->Finalize(), 3u);
 
   // Grab all the remaining chunks in the SMB in new writers.
   std::array<std::unique_ptr<TraceWriter>, kNumPages * 4 - 1> other_writers;
@@ -706,7 +722,8 @@ TEST_P(TraceWriterImplTest, FlushBeforeBufferExhausted) {
   auto packet = writer->NewTracePacket();
   EXPECT_FALSE(reinterpret_cast<TraceWriterImpl*>(writer.get())
                    ->drop_packets_for_testing());
-  EXPECT_EQ(packet->Finalize(), 0u);
+  // 3 bytes for the first_packet_on_sequence flag.
+  EXPECT_EQ(packet->Finalize(), 3u);
 
   // Flush the first chunk away.
   writer->Flush();
@@ -800,7 +817,8 @@ TEST_P(TraceWriterImplTest, FlushAfterFragmentingPacketWhileBufferExhausted) {
   auto packet = writer->NewTracePacket();
   EXPECT_FALSE(reinterpret_cast<TraceWriterImpl*>(writer.get())
                    ->drop_packets_for_testing());
-  EXPECT_EQ(packet->Finalize(), 0u);
+  // 3 bytes for the first_packet_on_sequence flag.
+  EXPECT_EQ(packet->Finalize(), 3u);
 
   // Grab all but one of the remaining chunks in the SMB in new writers.
   std::array<std::unique_ptr<TraceWriter>, kNumPages * 4 - 2> other_writers;

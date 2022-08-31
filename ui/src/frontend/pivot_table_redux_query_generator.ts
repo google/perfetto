@@ -122,8 +122,6 @@ export function expression(column: TableColumn): string {
       return column.column;
     case 'argument':
       return extractArgumentExpression(column.argument);
-    default:
-      throw new Error(`malformed table column ${column}`);
   }
 }
 
@@ -170,9 +168,6 @@ function generateInnerQuery(
             `${extractArgumentExpression(column.argument)} as ${alias}`);
         groupByColumns.push(alias);
         break;
-      }
-      default: {
-        throw new Error(`malformed table column ${column}`);
       }
     }
   }

@@ -236,13 +236,13 @@ class BatchTraceProcessor:
       value in the dataframe).
 
       For example:
-        class CustomResolver(TraceResolver):
+        class CustomResolver(TraceUriResolver):
           def resolve(self):
-            return [TraceResolver.Result(trace='/tmp/path',
-                                        metadata={
-                                          'path': '/tmp/path'
-                                          'foo': 'bar'
-                                        })]
+            return [TraceUriResolver.Result(trace='/tmp/path',
+                                            metadata={
+                                              'path': '/tmp/path'
+                                              'foo': 'bar'
+                                            })]
 
         with BatchTraceProcessor(CustomResolver()) as btp:
           df = btp.query_and_flatten('select count(1) as cnt from slice')
