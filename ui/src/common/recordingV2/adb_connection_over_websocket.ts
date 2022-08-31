@@ -51,9 +51,9 @@ export class AdbConnectionOverWebsocket implements AdbConnection {
 
   async connectSocket(path: string): Promise<ByteStream> {
     const webSocket = new WebSocket(this.websocketUrl);
-    const byteStream =
-        new AdbOverWebsocketStream(webSocket, this.closeStream.bind(this));
     const byteStreamConnected = defer<AdbOverWebsocketStream>();
+    const byteStream = new AdbOverWebsocketStream(webSocket);
+    byteStream.addOnStreamClose(() => this.closeStream(byteStream));
 
     webSocket.onopen = () => webSocket.send(
         buildAbdWebsocketCommand(`host:transport:${this.deviceSerialNumber}`));
@@ -78,7 +78,7 @@ export class AdbConnectionOverWebsocket implements AdbConnection {
       // After that, we receive messages with traced binary payloads.
       const arrayBufferResponse = await evt.data.arrayBuffer();
       if (textDecoder.decode(arrayBufferResponse) !== 'OKAY') {
-        byteStream.onStreamData(new Uint8Array(arrayBufferResponse));
+        byteStream.signalStreamData(new Uint8Array(arrayBufferResponse));
       }
     };
 
@@ -112,19 +112,42 @@ export class AdbConnectionOverWebsocket implements AdbConnection {
 // of this class based on a stream id match.
 export class AdbOverWebsocketStream implements ByteStream {
   private _isOpen = false;
-  onStreamData: OnStreamDataCallback = (_) => {};
-  onStreamClose: OnStreamCloseCallback = () => {};
+  private onStreamDataCallbacks: OnStreamDataCallback[] = [];
+  private onStreamCloseCallbacks: OnStreamCloseCallback[] = [];
 
-  constructor(
-      private websocket: WebSocket,
-      private removeFromConnection: (stream: AdbOverWebsocketStream) => void) {}
+  constructor(private websocket: WebSocket) {}
+
+  addOnStreamData(onStreamData: OnStreamDataCallback) {
+    this.onStreamDataCallbacks.push(onStreamData);
+  }
+
+  addOnStreamClose(onStreamClose: OnStreamCloseCallback) {
+    this.onStreamCloseCallbacks.push(onStreamClose);
+  }
+
+  // Used by the connection object to signal newly received data, not exposed
+  // in the interface.
+  signalStreamData(data: Uint8Array): void {
+    for (const onStreamData of this.onStreamDataCallbacks) {
+      onStreamData(data);
+    }
+  }
+
+  // Used by the connection object to signal the stream is closed, not exposed
+  // in the interface.
+  signalStreamClosed(): void {
+    for (const onStreamClose of this.onStreamCloseCallbacks) {
+      onStreamClose();
+    }
+    this.onStreamDataCallbacks = [];
+    this.onStreamCloseCallbacks = [];
+  }
 
   // We close the websocket and notify the AdbConnection to remove this stream.
   close(): void {
     this.websocket.close();
     this._isOpen = false;
-    this.removeFromConnection(this);
-    this.onStreamClose();
+    this.signalStreamClosed();
   }
 
   write(msg: string|Uint8Array): void {
