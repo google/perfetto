@@ -108,6 +108,20 @@ export class AdbConnectionOverWebusb implements AdbConnection {
   // again.
   constructor(private device: USBDevice, private keyManager: AdbKeyManager) {}
 
+  // Starts a shell command, and returns a promise resolved when the command
+  // completes.
+  async shellAndWaitCompletion(cmd: string): Promise<void> {
+    const adbStream = await this.shell(cmd);
+    const onStreamingEnded = defer<void>();
+
+    // We wait for the stream to be closed by the device, which happens
+    // after the shell command is successfully received.
+    adbStream.addOnStreamClose(() => {
+      onStreamingEnded.resolve();
+    });
+    return onStreamingEnded;
+  }
+
   // Starts a shell command, then gathers all its output and returns it as
   // a string.
   async shellAndGetOutput(cmd: string): Promise<string> {
@@ -128,7 +142,12 @@ export class AdbConnectionOverWebusb implements AdbConnection {
   async push(binary: Uint8Array, path: string): Promise<void> {
     const byteStream = await this.openStream('sync:');
     await (new AdbFileHandler(byteStream)).pushBinary(binary, path);
-    byteStream.close();
+    // We need to wait until the bytestream is closed. Otherwise, we can have a
+    // race condition:
+    // If this is the last stream, it will try to disconnect the device. In the
+    // meantime, the caller might create another stream which will try to open
+    // the device.
+    await byteStream.closeAndWaitForTeardown();
   }
 
   shell(cmd: string): Promise<AdbOverWebusbStream> {
@@ -136,7 +155,7 @@ export class AdbConnectionOverWebusb implements AdbConnection {
   }
 
   connectSocket(path: string): Promise<AdbOverWebusbStream> {
-    return this.openStream('localfilesystem:' + path);
+    return this.openStream(path);
   }
 
   async canConnectWithoutContention(): Promise<boolean> {
@@ -522,8 +541,12 @@ export class AdbOverWebusbStream implements ByteStream {
   }
 
   close(): void {
-    this.adbConnection.streamClose(this);
+    this.closeAndWaitForTeardown();
+  }
+
+  async closeAndWaitForTeardown(): Promise<void> {
     this._isOpen = false;
+    await this.adbConnection.streamClose(this);
   }
 
   write(msg: string|Uint8Array): void {
