@@ -64,7 +64,7 @@ export class AdbConnectionOverWebsocket implements AdbConnection {
         const prefix = txt.substr(0, 4);
         if (prefix === 'OKAY') {
           byteStream.setStreamOpen();
-          webSocket.send(buildAbdWebsocketCommand(`localfilesystem:${path}`));
+          webSocket.send(buildAbdWebsocketCommand(path));
           byteStreamConnected.resolve(byteStream);
         } else if (prefix === 'FAIL' && txt.includes('device unauthorized')) {
           byteStreamConnected.reject(ALLOW_USB_DEBUGGING);
