@@ -20,6 +20,7 @@
 // Note: No non-client API header includes are allowed here.
 
 namespace perfetto {
+class TrackEventSessionObserver;
 namespace internal {
 struct TrackEventIncrementalState;
 }  // namespace internal
@@ -28,6 +29,9 @@ struct TrackEventIncrementalState;
 namespace tracing_module {
 
 void InitializeCategories();
+void AddSessionObserver(perfetto::TrackEventSessionObserver* observer);
+void RemoveSessionObserver(perfetto::TrackEventSessionObserver* observer);
+bool IsEnabled();
 void EmitTrackEvents();
 void EmitTrackEvents2();
 perfetto::internal::TrackEventIncrementalState* GetIncrementalState();
