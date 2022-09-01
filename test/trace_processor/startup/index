@@ -4,11 +4,14 @@
 android_startup.py android_startup android_startup.out
 android_startup_minsdk33.py android_startup android_startup_minsdk33.out
 android_startup_breakdown.py android_startup android_startup_breakdown.out
+android_startup_breakdown_slow.py android_startup android_startup_breakdown_slow.out
 android_startup_process_track.py android_startup android_startup_process_track.out
 android_startup_attribution.py android_startup android_startup_attribution.out
+android_startup_attribution_slow.py android_startup android_startup_attribution_slow.out
 
 # Test lock contention is correctly attributed.
 android_startup_lock_contention.py android_startup android_startup_lock_contention.out
+android_startup_lock_contention_slow.py android_startup android_startup_lock_contention_slow.out
 
 # Test that dex2oat/installd running in parallel are flagged.
 android_startup_installd_dex2oat.py android_startup android_startup_installd_dex2oat.out
