@@ -6,11 +6,28 @@ Unreleased:
   UI:
     *
   SDK:
+    *
+
+v29.0 - 2022-09-01:
+  Tracing service and probes:
+    * Add support for only tracing selected syscalls. By selecting only syscalls
+      of interest, usage of the trace buffer and performance impact on device
+      is reduced.
+  Trace Processor:
+    * Make calling NotifyEndOfFile more than once an error: this was deprecated
+      in v28. Flush should be used instead for all by the final call.
+    * Add parsing and ingestion for V4L2 events.
+  UI:
+    * Add support for searching Android log events.
+    * Group kernel wakelock tracks into a single track group.
+  SDK:
     * Added support for startup tracing. Tracing can be started in an app
       before it connects to the tracing service.
       The data sources which are started for startup tracing, will
       be automatically adopted to normal tracing session once we start
       normal tracing session.
+    * Added the |first_packet_on_sequence| boolean which is set the first packet
+      emitted on each TraceWriter.
 
 
 v28.0 - 2022-08-02:
