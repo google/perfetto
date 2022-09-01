@@ -57,3 +57,46 @@ SELECT
 FROM slice_thread_state_breakdown
 GROUP BY slice_id;
 ```
+
+## Computing scheduling time by woken threads
+A given thread might cause other threads to wake up i.e. because work was
+scheduled on them. For a given thread, the amount of time threads it
+woke up ran for can be a good proxy to understand how much work is being
+spawned.
+
+To compute this, the following query can be used:
+```
+SELECT
+  SUM((
+    SELECT dur FROM sched
+    WHERE
+      sched.ts > wakee_runnable.ts AND
+      wakee_runnable.utid = wakee_runnable.utid
+    ORDER BY ts
+    LIMIT 1
+  )) AS scheduled_dur
+FROM thread AS waker
+JOIN thread_state AS wakee_runnable ON waker.utid = wakee_runnable.waker_utid
+WHERE waker.name = <your waker thread name here>
+```
+
+To do this for all the threads in the trace simultaenously:
+```
+SELECT
+  waker_process.name AS process_name,
+  waker.name AS thread_name,
+  SUM((
+    SELECT dur FROM sched
+    WHERE
+      sched.ts > wakee_runnable.ts AND
+      wakee_runnable.utid = wakee_runnable.utid
+    ORDER BY ts
+    LIMIT 1
+  )) AS scheduled_dur
+FROM thread AS waker
+JOIN process AS waker_process USING (upid)
+JOIN thread_state AS wakee_runnable ON waker.utid = wakee_runnable.waker_utid
+WHERE waker.utid != 0
+GROUP BY 1, 2
+ORDER BY 3 desc
+```
