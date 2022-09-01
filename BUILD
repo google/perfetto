@@ -742,7 +742,6 @@ perfetto_cc_library(
         "src/base/status.cc",
         "src/base/string_splitter.cc",
         "src/base/string_utils.cc",
-        "src/base/string_view.cc",
         "src/base/subprocess.cc",
         "src/base/subprocess_posix.cc",
         "src/base/subprocess_windows.cc",
