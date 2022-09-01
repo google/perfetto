@@ -57,18 +57,54 @@ constexpr auto kClockIdIncremental =
 
 constexpr auto kClockIdAbsolute = TrackEventIncrementalState::kClockIdAbsolute;
 
-void ForEachObserver(
-    std::function<bool(TrackEventSessionObserver*&)> callback) {
-  // Session observers, shared by all track event data source instances.
-  static constexpr int kMaxObservers = 8;
-  static std::recursive_mutex* mutex = new std::recursive_mutex{};  // Leaked.
-  static std::array<TrackEventSessionObserver*, kMaxObservers> observers{};
-  std::unique_lock<std::recursive_mutex> lock(*mutex);
-  for (auto& o : observers) {
-    if (!callback(o))
-      break;
+class TrackEventSessionObserverRegistry {
+ public:
+  static TrackEventSessionObserverRegistry* GetInstance() {
+    static TrackEventSessionObserverRegistry* instance =
+        new TrackEventSessionObserverRegistry();  // leaked
+    return instance;
   }
-}
+
+  void AddObserverForRegistry(const TrackEventCategoryRegistry& registry,
+                              TrackEventSessionObserver* observer) {
+    std::unique_lock<std::recursive_mutex> lock(mutex_);
+    observers_.emplace_back(&registry, observer);
+  }
+
+  void RemoveObserverForRegistry(const TrackEventCategoryRegistry& registry,
+                                 TrackEventSessionObserver* observer) {
+    std::unique_lock<std::recursive_mutex> lock(mutex_);
+    observers_.erase(std::remove(observers_.begin(), observers_.end(),
+                                 RegisteredObserver(&registry, observer)),
+                     observers_.end());
+  }
+
+  void ForEachObserverForRegistry(
+      const TrackEventCategoryRegistry& registry,
+      std::function<void(TrackEventSessionObserver*)> callback) {
+    std::unique_lock<std::recursive_mutex> lock(mutex_);
+    for (auto& registered_observer : observers_) {
+      if (&registry == registered_observer.registry) {
+        callback(registered_observer.observer);
+      }
+    }
+  }
+
+ private:
+  struct RegisteredObserver {
+    RegisteredObserver(const TrackEventCategoryRegistry* r,
+                       TrackEventSessionObserver* o)
+        : registry(r), observer(o) {}
+    bool operator==(const RegisteredObserver& other) {
+      return registry == other.registry && observer == other.observer;
+    }
+    const TrackEventCategoryRegistry* registry;
+    TrackEventSessionObserver* observer;
+  };
+
+  std::recursive_mutex mutex_;
+  std::vector<RegisteredObserver> observers_;
+};
 
 enum class MatchType { kExact, kPattern };
 
@@ -137,29 +173,19 @@ bool TrackEventInternal::Initialize(
 
 // static
 bool TrackEventInternal::AddSessionObserver(
+    const TrackEventCategoryRegistry& registry,
     TrackEventSessionObserver* observer) {
-  bool result = false;
-  ForEachObserver([&](TrackEventSessionObserver*& o) {
-    if (!o) {
-      o = observer;
-      result = true;
-      return false;
-    }
-    return true;
-  });
-  return result;
+  TrackEventSessionObserverRegistry::GetInstance()->AddObserverForRegistry(
+      registry, observer);
+  return true;
 }
 
 // static
 void TrackEventInternal::RemoveSessionObserver(
+    const TrackEventCategoryRegistry& registry,
     TrackEventSessionObserver* observer) {
-  ForEachObserver([&](TrackEventSessionObserver*& o) {
-    if (o == observer) {
-      o = nullptr;
-      return false;
-    }
-    return true;
-  });
+  TrackEventSessionObserverRegistry::GetInstance()->RemoveObserverForRegistry(
+      registry, observer);
 }
 
 // static
@@ -171,44 +197,36 @@ void TrackEventInternal::EnableTracing(
     if (IsCategoryEnabled(registry, config, *registry.GetCategory(i)))
       registry.EnableCategoryForInstance(i, args.internal_instance_index);
   }
-  ForEachObserver([&](TrackEventSessionObserver*& o) {
-    if (o)
-      o->OnSetup(args);
-    return true;
-  });
+  TrackEventSessionObserverRegistry::GetInstance()->ForEachObserverForRegistry(
+      registry, [&](TrackEventSessionObserver* o) { o->OnSetup(args); });
 }
 
 // static
-void TrackEventInternal::OnStart(const DataSourceBase::StartArgs& args) {
+void TrackEventInternal::OnStart(const TrackEventCategoryRegistry& registry,
+                                 const DataSourceBase::StartArgs& args) {
   session_count_.fetch_add(1);
-  ForEachObserver([&](TrackEventSessionObserver*& o) {
-    if (o)
-      o->OnStart(args);
-    return true;
-  });
+  TrackEventSessionObserverRegistry::GetInstance()->ForEachObserverForRegistry(
+      registry, [&](TrackEventSessionObserver* o) { o->OnStart(args); });
 }
 
 // static
 void TrackEventInternal::DisableTracing(
     const TrackEventCategoryRegistry& registry,
     const DataSourceBase::StopArgs& args) {
-  ForEachObserver([&](TrackEventSessionObserver*& o) {
-    if (o)
-      o->OnStop(args);
-    return true;
-  });
+  TrackEventSessionObserverRegistry::GetInstance()->ForEachObserverForRegistry(
+      registry, [&](TrackEventSessionObserver* o) { o->OnStop(args); });
   for (size_t i = 0; i < registry.category_count(); i++)
     registry.DisableCategoryForInstance(i, args.internal_instance_index);
 }
 
 // static
 void TrackEventInternal::WillClearIncrementalState(
+    const TrackEventCategoryRegistry& registry,
     const DataSourceBase::ClearIncrementalStateArgs& args) {
-  ForEachObserver([&](TrackEventSessionObserver*& o) {
-    if (o)
-      o->WillClearIncrementalState(args);
-    return true;
-  });
+  TrackEventSessionObserverRegistry::GetInstance()->ForEachObserverForRegistry(
+      registry, [&](TrackEventSessionObserver* o) {
+        o->WillClearIncrementalState(args);
+      });
 }
 
 // static

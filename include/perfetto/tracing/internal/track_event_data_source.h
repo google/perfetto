@@ -183,11 +183,11 @@ class TrackEventDataSource
   // Returns |true| if the observer was successfully added (i.e., the maximum
   // number of observers wasn't exceeded).
   static bool AddSessionObserver(TrackEventSessionObserver* observer) {
-    return TrackEventInternal::AddSessionObserver(observer);
+    return TrackEventInternal::AddSessionObserver(*Registry, observer);
   }
 
   static void RemoveSessionObserver(TrackEventSessionObserver* observer) {
-    TrackEventInternal::RemoveSessionObserver(observer);
+    TrackEventInternal::RemoveSessionObserver(*Registry, observer);
   }
 
   // DataSource implementation.
@@ -199,7 +199,7 @@ class TrackEventDataSource
   }
 
   void OnStart(const DataSourceBase::StartArgs& args) override {
-    TrackEventInternal::OnStart(args);
+    TrackEventInternal::OnStart(*Registry, args);
   }
 
   void OnStop(const DataSourceBase::StopArgs& args) override {
@@ -208,7 +208,7 @@ class TrackEventDataSource
 
   void WillClearIncrementalState(
       const DataSourceBase::ClearIncrementalStateArgs& args) override {
-    TrackEventInternal::WillClearIncrementalState(args);
+    TrackEventInternal::WillClearIncrementalState(*Registry, args);
   }
 
   static void Flush() {
