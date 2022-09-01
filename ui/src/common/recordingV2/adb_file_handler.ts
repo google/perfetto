@@ -65,6 +65,7 @@ export class AdbFileHandler {
     sendMessage.append(path);
     sendMessage.append(',');
     sendMessage.append(FILE_PERMISSIONS.toString());
+    this.byteStream.write(new Uint8Array(sendMessage.toArrayBuffer()));
 
     while (!(await this.sendNextDataChunk(binary)))
       ;

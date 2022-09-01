@@ -17,6 +17,8 @@ import {assertExists} from '../../../base/logging';
 import {VERSION} from '../../../gen/perfetto_version';
 import {AdbConnectionOverWebusb} from '../adb_connection_over_webusb';
 import {
+  CUSTOM_TRACED_CONSUMER_SOCKET_PATH,
+  DEFAULT_TRACED_CONSUMER_SOCKET_PATH,
   TRACEBOX_DEVICE_PATH,
   TRACEBOX_FETCH_TIMEOUT,
 } from '../adb_targets_utils';
@@ -35,6 +37,7 @@ import {TracedTracingSession} from '../traced_tracing_session';
 export class AndroidWebusbTarget implements RecordingTargetV2 {
   private adbConnection: AdbConnectionOverWebusb;
   private androidApiLevel?: number;
+  private consumerSocketPath = DEFAULT_TRACED_CONSUMER_SOCKET_PATH;
 
   constructor(
       private factory: AndroidWebusbTargetFactory, private device: USBDevice,
@@ -74,8 +77,6 @@ export class AndroidWebusbTarget implements RecordingTargetV2 {
       Promise<TracingSession> {
     this.adbConnection.onStatus = tracingSessionListener.onStatus;
     this.adbConnection.onDisconnect = tracingSessionListener.onDisconnect;
-    const adbStream =
-        await this.adbConnection.connectSocket('/dev/socket/traced_consumer');
 
     if (!this.androidApiLevel) {
       const version = await this.adbConnection.shellAndGetOutput(
@@ -88,8 +89,17 @@ export class AndroidWebusbTarget implements RecordingTargetV2 {
       // For older OS versions we push the tracebox binary.
       if (this.androidApiLevel < 29) {
         await this.pushTracebox();
+        this.consumerSocketPath = CUSTOM_TRACED_CONSUMER_SOCKET_PATH;
+
+        await this.adbConnection.shellAndWaitCompletion(
+            this.composeTraceboxCommand('traced'));
+        await this.adbConnection.shellAndWaitCompletion(
+            this.composeTraceboxCommand('traced_probes'));
       }
     }
+
+    const adbStream =
+        await this.adbConnection.connectSocket(this.consumerSocketPath);
 
     const tracingSession =
         new TracedTracingSession(adbStream, tracingSessionListener);
@@ -113,7 +123,7 @@ export class AndroidWebusbTarget implements RecordingTargetV2 {
 
     // We explicitly set the tracebox permissions because adb does not reliably
     // set permissions when uploading the binary.
-    await this.adbConnection.shellAndGetOutput(
+    await this.adbConnection.shellAndWaitCompletion(
         `chmod 755 ${TRACEBOX_DEVICE_PATH}`);
   }
 
@@ -137,5 +147,14 @@ export class AndroidWebusbTarget implements RecordingTargetV2 {
 
   canConnectWithoutContention(): Promise<boolean> {
     return this.adbConnection.canConnectWithoutContention();
+  }
+
+  composeTraceboxCommand(applet: string) {
+    // 1. Set the consumer socket.
+    return 'PERFETTO_CONSUMER_SOCK_NAME=@traced_consumer ' +
+        // 2. Set the producer socket.
+        'PERFETTO_PRODUCER_SOCK_NAME=@traced_producer ' +
+        // 3. Start the applet in the background.
+        `/data/local/tmp/tracebox ${applet} --background`;
   }
 }
