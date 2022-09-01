@@ -62,13 +62,6 @@ SELECT CASE
   ELSE RUN_METRIC('android/startup/launches_maxsdk28.sql')
 END;
 
--- Maps a launch to the corresponding set of processes that handled the
--- activity start. The vast majority of cases should be a single process.
--- However it is possible that the process dies during the activity launch
--- and is respawned.
-DROP TABLE IF EXISTS launch_processes;
-CREATE TABLE launch_processes(launch_id INT, upid BIG INT, launch_type STRING);
-
 SELECT CREATE_FUNCTION(
   'STARTUP_SLICE_COUNT(start_ts LONG, end_ts LONG, utid INT, name STRING)',
   'INT',
@@ -83,6 +76,13 @@ SELECT CREATE_FUNCTION(
       s.name = $name
   '
 );
+
+-- Maps a launch to the corresponding set of processes that handled the
+-- activity start. The vast majority of cases should be a single process.
+-- However it is possible that the process dies during the activity launch
+-- and is respawned.
+DROP TABLE IF EXISTS launch_processes;
+CREATE TABLE launch_processes(launch_id INT, upid BIG INT, launch_type STRING);
 
 INSERT INTO launch_processes(launch_id, upid, launch_type)
 SELECT *
@@ -107,7 +107,16 @@ FROM (
       STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityStart') a_start,
       STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityResume') a_resume
     FROM launches l
-    JOIN process_metadata_table p ON (l.package = p.package_name)
+    JOIN process_metadata_table p ON (
+      l.package = p.package_name OR
+      -- If the package list data source was not enabled in the trace, nothing
+      -- will match the above constraint so also match any process whose name
+      -- is a prefix of the package name.
+      (
+        (SELECT COUNT(1) = 0 FROM package_list) AND
+        p.process_name GLOB l.package || '*'
+      )
+    )
     JOIN thread t ON (p.upid = t.upid AND t.is_main_thread)
   )
 )
