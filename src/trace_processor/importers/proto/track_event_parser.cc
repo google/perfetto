@@ -229,7 +229,8 @@ class TrackEventParser::EventImporter {
   EventImporter(TrackEventParser* parser,
                 int64_t ts,
                 const TrackEventData* event_data,
-                ConstBytes blob)
+                ConstBytes blob,
+                uint32_t packet_sequence_id)
       : context_(parser->context_),
         track_event_tracker_(parser->track_event_tracker_),
         storage_(context_->storage.get()),
@@ -243,7 +244,8 @@ class TrackEventParser::EventImporter {
         legacy_event_(event_.legacy_event()),
         defaults_(event_data->sequence_state->GetTrackEventDefaults()),
         thread_timestamp_(event_data->thread_timestamp),
-        thread_instruction_count_(event_data->thread_instruction_count) {}
+        thread_instruction_count_(event_data->thread_instruction_count),
+        packet_sequence_id_(packet_sequence_id) {}
 
   util::Status Import() {
     // TODO(eseckler): This legacy event field will eventually be replaced by
@@ -409,13 +411,14 @@ class TrackEventParser::EventImporter {
     //   b) a default track.
     if (track_uuid_) {
       base::Optional<TrackId> opt_track_id =
-          track_event_tracker_->GetDescriptorTrack(track_uuid_, name_id_);
+          track_event_tracker_->GetDescriptorTrack(track_uuid_, name_id_,
+                                                   packet_sequence_id_);
       if (!opt_track_id) {
         track_event_tracker_->ReserveDescriptorChildTrack(track_uuid_,
                                                           /*parent_uuid=*/0,
                                                           name_id_);
-        opt_track_id =
-            track_event_tracker_->GetDescriptorTrack(track_uuid_, name_id_);
+        opt_track_id = track_event_tracker_->GetDescriptorTrack(
+            track_uuid_, name_id_, packet_sequence_id_);
       }
       track_id_ = *opt_track_id;
 
@@ -678,8 +681,8 @@ class TrackEventParser::EventImporter {
     PERFETTO_DCHECK(track_uuid_it);
     PERFETTO_DCHECK(index < TrackEventData::kMaxNumExtraCounters);
 
-    base::Optional<TrackId> track_id =
-        track_event_tracker_->GetDescriptorTrack(*track_uuid_it);
+    base::Optional<TrackId> track_id = track_event_tracker_->GetDescriptorTrack(
+        *track_uuid_it, kNullStringId, packet_sequence_id_);
     base::Optional<uint32_t> counter_row =
         storage_->counter_track_table().id().IndexOf(*track_id);
 
@@ -1351,6 +1354,8 @@ class TrackEventParser::EventImporter {
   // store it in the slice/track model. To pass the utid through to the json
   // export, we store it in an arg.
   base::Optional<UniqueTid> legacy_passthrough_utid_;
+
+  uint32_t packet_sequence_id_;
 };
 
 TrackEventParser::TrackEventParser(TraceProcessorContext* context,
@@ -1492,12 +1497,14 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
 }
 
 void TrackEventParser::ParseTrackDescriptor(
-    protozero::ConstBytes track_descriptor) {
+    protozero::ConstBytes track_descriptor,
+    uint32_t packet_sequence_id) {
   protos::pbzero::TrackDescriptor::Decoder decoder(track_descriptor);
 
   // Ensure that the track and its parents are resolved. This may start a new
   // process and/or thread (i.e. new upid/utid).
-  TrackId track_id = *track_event_tracker_->GetDescriptorTrack(decoder.uuid());
+  TrackId track_id = *track_event_tracker_->GetDescriptorTrack(
+      decoder.uuid(), kNullStringId, packet_sequence_id);
 
   if (decoder.has_thread()) {
     UniqueTid utid = ParseThreadDescriptor(decoder.thread());
@@ -1651,9 +1658,11 @@ void TrackEventParser::ParseCounterDescriptor(
 
 void TrackEventParser::ParseTrackEvent(int64_t ts,
                                        const TrackEventData* event_data,
-                                       ConstBytes blob) {
+                                       ConstBytes blob,
+                                       uint32_t packet_sequence_id) {
   util::Status status =
-      EventImporter(this, ts, event_data, std::move(blob)).Import();
+      EventImporter(this, ts, event_data, std::move(blob), packet_sequence_id)
+          .Import();
   if (!status.ok()) {
     context_->storage->IncrementStats(stats::track_event_parser_errors);
     PERFETTO_DLOG("ParseTrackEvent error: %s", status.c_message());
