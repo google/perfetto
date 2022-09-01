@@ -1,0 +1,78 @@
+android_startup {
+  startup {
+    startup_id: 1
+    package_name: "com.some.app"
+    process_name: "com.some.app"
+    zygote_new_process: false
+    to_first_frame {
+      dur_ns: 999999900000000000
+      main_thread_by_task_state {
+        running_dur_ns: 0
+        runnable_dur_ns: 0
+        uninterruptible_sleep_dur_ns: 0
+        interruptible_sleep_dur_ns: 0
+      }
+      other_processes_spawned_count: 0
+      time_activity_manager {
+        dur_ns: 2000000000
+        dur_ms: 2000
+      }
+      time_activity_resume {
+        dur_ns: 5000000000
+        dur_ms: 5000
+      }
+      dur_ms: 999999900000.0
+      time_dex_open {
+        dur_ns: 20000000000
+        dur_ms: 20000
+      }
+      time_verify_class {
+        dur_ns: 40000000000
+        dur_ms: 40000
+      }
+      jit_compiled_methods: 2
+      time_jit_thread_pool_on_cpu {
+        dur_ns: 20000000000
+        dur_ms: 20000
+      }
+      time_gc_total {
+        dur_ns: 130000000000
+        dur_ms: 130000
+      }
+      time_gc_on_cpu {
+        dur_ns: 50000000000
+        dur_ms: 50000
+      }
+    }
+    activity_hosting_process_count: 1
+    process {
+      name: "com.some.app"
+      uid: 10001
+      package {
+        package_name: "com.some.app"
+        apk_version_code: 123
+        debuggable: false
+      }
+      packages_for_uid {
+        package_name: "com.some.app"
+        apk_version_code: 123
+        debuggable: false
+      }
+    }
+    event_timestamps {
+      intent_received: 100000000000
+      first_frame: 1000000000000000000
+    }
+    system_state {
+      dex2oat_running: false
+      installd_running: false
+      broadcast_dispatched_count: 0
+      broadcast_received_count: 0
+    }
+    startup_type: "hot"
+    slow_start_reason: "Time spent verifying classes"
+    slow_start_reason: "JIT Activity"
+    slow_start_reason: "GC - Total time"
+    slow_start_reason: "GC - Time on CPU"
+  }
+}
