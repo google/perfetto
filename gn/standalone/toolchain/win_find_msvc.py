@@ -34,7 +34,6 @@ import sys
 def ver_to_tuple(ver_str):
   """Turns '10.1.2' into [10,1,2] so it can be compared using > """
   parts = [int(x) for x in ver_str.split('.')]
-  assert (len(parts) == 4)
   return parts
 
 
