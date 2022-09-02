@@ -193,13 +193,13 @@ BUILD_DEPS_HOST = [
     # If updating the version, also update bazel/deps.bzl.
     Dependency(
         'buildtools/sqlite.zip',
-        'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3350400.zip',
-        'f3bf0df69f5de0675196f4644e05d07dbc698d674dc563a12eff17d5b215cdf5',
+        'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3390200.zip',
+        '87775784f8b22d0d0f1d7811870d39feaa7896319c7c20b849a4181c5a50609b',
         'all', 'all'),
     Dependency(
         'buildtools/sqlite_src',
         'https://chromium.googlesource.com/external/github.com/sqlite/sqlite.git',
-        'ee3686eb50c0e3dbb087c9a0976f7e37e1b014ae',  # refs/tags/version-3.32.3.
+        '202b2a7b54ea2dd13a8a5adfd75523abe4dcf17f',  # refs/tags/version-3.39.2.
         'all',
         'all'),
 
