@@ -31,4 +31,5 @@ JOIN (
     WHERE ts = 696373965001470
 ) test_slice
     ON sample.ts >= test_slice.ts
-    AND sample.ts <= test_slice.ts + test_slice.dur;
+    AND sample.ts <= test_slice.ts + test_slice.dur
+ORDER BY sample.ts, sample.depth;
