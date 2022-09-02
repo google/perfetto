@@ -71,13 +71,20 @@ base::Status GetDescendants(
                            static_cast<uint32_t>(starting_id.value));
   }
 
-  // All nested descendents must be on the same track, with a ts between
-  // |start_id.ts| and |start_id.ts| + |start_id.dur|, and who's depth is larger
-  // then |start_row|'s. So we just use Filter to select all relevant slices.
-  auto cs = {slices.ts().ge(start_ref->ts()),
-             slices.ts().le(start_ref->ts() + start_ref->dur()),
-             slices.track_id().eq(start_ref->track_id().value),
-             slices.depth().gt(start_ref->depth())};
+  // All nested descendents must be on the same track, with a ts greater than
+  // |start_ref.ts| and whose depth is larger than |start_ref|'s.
+  std::vector<Constraint> cs({slices.ts().ge(start_ref->ts()),
+                              slices.track_id().eq(start_ref->track_id().value),
+                              slices.depth().gt(start_ref->depth())});
+
+  // As an optimization, for any finished slices, we only need to consider
+  // slices which started before the end of this slice (because slices on a
+  // track are always perfectly stacked).
+  // For unfinshed slices (i.e. -1 dur), we need to consider until the end of
+  // the trace so we cannot add any similar constraint.
+  if (start_ref->dur() >= 0) {
+    cs.emplace_back(slices.ts().le(start_ref->ts() + start_ref->dur()));
+  }
 
   // It's important we insert directly into |row_numbers_accumulator| and not
   // overwrite it because we expect the existing elements in
