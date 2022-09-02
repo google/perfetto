@@ -23,6 +23,8 @@ namespace perfetto {
 PlatformThreadLocalObject::~PlatformThreadLocalObject() = default;
 Platform::~Platform() = default;
 
+void Platform::Shutdown() {}
+
 // static
 std::unique_ptr<PlatformThreadLocalObject>
 PlatformThreadLocalObject::CreateInstance() {
