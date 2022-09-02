@@ -499,20 +499,6 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
     perfetto::Tracing::ResetForTesting();
   }
 
-  static void TearDownTestSuite() {
-    // Test shutting down Perfetto only when all other tests have been run and
-    // no more tracing code will be executed.
-    PERFETTO_CHECK(!perfetto::Tracing::IsInitialized());
-    TracingInitArgs args;
-    args.backends = perfetto::kInProcessBackend;
-    perfetto::Tracing::Initialize(args);
-    perfetto::Tracing::Shutdown();
-    PERFETTO_CHECK(!perfetto::Tracing::IsInitialized());
-    // Shutting down again is a no-op.
-    perfetto::Tracing::Shutdown();
-    PERFETTO_CHECK(!perfetto::Tracing::IsInitialized());
-  }
-
   template <typename DataSourceType>
   TestDataSourceHandle* RegisterDataSource(std::string name) {
     perfetto::DataSourceDescriptor dsd;
@@ -5365,13 +5351,6 @@ class PerfettoStartupTracingApiTest : public PerfettoApiTest {
     // referencing a deleted producer, which will lead to crash.
     perfetto::test::SyncProducers();
     this->PerfettoApiTest::TearDown();
-  }
-
-  static void TearDownTestSuite() {
-    // Keep it empty to avoid running TearDownTestSuite() of parent class.
-    // because `PerfettoApiTest::TearDownTestSuite` is not really a cleanup
-    // step but it is just another test case which should run after all other
-    // tests. hence we don't need to run it again here.
   }
 
  protected:
