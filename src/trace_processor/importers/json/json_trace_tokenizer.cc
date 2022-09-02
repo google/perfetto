@@ -103,6 +103,41 @@ ReadStringRes ReadOneJsonString(const char* start,
   return ReadStringRes::kNeedsMoreData;
 }
 
+base::Status IgnoreStringForKey(const char* start,
+                                const char* end,
+                                const char** next,
+                                const std::string& key) {
+  std::string ignored;
+  ReadStringRes value_res = ReadOneJsonString(start + 1, end, &ignored, next);
+  if (value_res == ReadStringRes::kNeedsMoreData) {
+    return base::ErrStatus("Failure parsing JSON: %s too large",
+                           ignored.c_str());
+  }
+  if (value_res == ReadStringRes::kFatalError) {
+    return base::ErrStatus(
+        "Failure parsing JSON: unable to read string for key %s", key.c_str());
+  }
+  return base::OkStatus();
+}
+
+base::Status IgnoreDictForKey(const char* start,
+                              const char* end,
+                              const char** next,
+                              const std::string& key) {
+  base::StringView ignored;
+  ReadDictRes value_res = ReadOneJsonDict(start, end, &ignored, next);
+  if (value_res == ReadDictRes::kNeedsMoreData) {
+    return util::ErrStatus("Failure parsing JSON: %s too large",
+                           ignored.ToStdString().c_str());
+  }
+  if (value_res == ReadDictRes::kEndOfTrace ||
+      value_res == ReadDictRes::kEndOfArray) {
+    return util::ErrStatus(
+        "Failure parsing JSON: unable to read dict for key %s", key.c_str());
+  }
+  return base::OkStatus();
+}
+
 }  // namespace
 
 ReadDictRes ReadOneJsonDict(const char* start,
@@ -472,13 +507,28 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
         if (other == ReadDictRes::kNeedsMoreData)
           return util::ErrStatus("Failure parsing JSON: otherData too large");
         return ParseInternal(next, end, out);
-      } else {
-        // If we don't recognize the key, just ignore the rest of the trace and
-        // go to EOF.
-        // TODO(lalitm): do something better here.
-        position_ = TracePosition::kEof;
-        break;
       }
+
+      // ReadOneJsonKey should ensure that the first character of the value is
+      // available.
+      PERFETTO_CHECK(next < end);
+
+      // If we don't recognize the key, check if it could be a string or dict.
+      // If either of them, parse it and throw it away to move onto the next
+      // key.
+      if (*next == '"') {
+        RETURN_IF_ERROR(IgnoreStringForKey(next, end, &next, key));
+        return ParseInternal(next, end, &next);
+      }
+      if (*next == '{') {
+        RETURN_IF_ERROR(IgnoreDictForKey(next, end, &next, key));
+        return ParseInternal(next, end, &next);
+      }
+
+      // Otherwise, just jump to the end of the trace.
+      // TODO(lalitm): do something better here.
+      position_ = TracePosition::kEof;
+      break;
     }
     case TracePosition::kSystemTraceEventsString: {
       if (format_ != TraceFormat::kOuterDictionary) {
