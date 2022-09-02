@@ -2346,8 +2346,10 @@ void TracingMuxerImpl::Shutdown() {
     // The task runner must be deleted outside the muxer thread. This is done by
     // `owned_task_runner` above.
     muxer->task_runner_.release();
+    auto* platform = muxer->platform_;
     delete muxer;
     instance_ = TracingMuxerFake::Get();
+    platform->Shutdown();
     shutdown_done.Notify();
   });
   shutdown_done.Wait();
