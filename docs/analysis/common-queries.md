@@ -89,7 +89,7 @@ SELECT
     SELECT dur FROM sched
     WHERE
       sched.ts > wakee_runnable.ts AND
-      wakee_runnable.utid = wakee_runnable.utid
+      sched.utid = wakee_runnable.utid
     ORDER BY ts
     LIMIT 1
   )) AS scheduled_dur
