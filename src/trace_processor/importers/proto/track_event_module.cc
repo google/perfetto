@@ -70,12 +70,14 @@ void TrackEventModule::ParsePacket(const TracePacket::Decoder& decoder,
   switch (field_id) {
     case TracePacket::kTrackDescriptorFieldNumber:
       PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
-      parser_.ParseTrackDescriptor(decoder.track_descriptor());
+      parser_.ParseTrackDescriptor(decoder.track_descriptor(),
+                                   decoder.trusted_packet_sequence_id());
       break;
     case TracePacket::kTrackEventFieldNumber:
       PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTrackEvent);
       parser_.ParseTrackEvent(ttp.timestamp, &ttp.track_event_data,
-                              decoder.track_event());
+                              decoder.track_event(),
+                              decoder.trusted_packet_sequence_id());
       break;
     case TracePacket::kProcessDescriptorFieldNumber:
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
@@ -92,6 +94,10 @@ void TrackEventModule::ParsePacket(const TracePacket::Decoder& decoder,
 
 void TrackEventModule::OnIncrementalStateCleared(uint32_t packet_sequence_id) {
   track_event_tracker_->OnIncrementalStateCleared(packet_sequence_id);
+}
+
+void TrackEventModule::OnFirstPacketOnSequence(uint32_t packet_sequence_id) {
+  track_event_tracker_->OnFirstPacketOnSequence(packet_sequence_id);
 }
 
 }  // namespace trace_processor
