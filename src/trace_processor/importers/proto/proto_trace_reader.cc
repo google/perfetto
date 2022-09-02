@@ -85,6 +85,10 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   const uint32_t seq_id = decoder.trusted_packet_sequence_id();
   auto* state = GetIncrementalStateForPacketSequence(seq_id);
 
+  if (decoder.first_packet_on_sequence()) {
+    HandleFirstPacketOnSequence(seq_id);
+  }
+
   uint32_t sequence_flags = decoder.sequence_flags();
 
   if (decoder.incremental_state_cleared() ||
@@ -250,6 +254,13 @@ void ProtoTraceReader::HandleIncrementalStateCleared(
   for (auto& module : context_->modules) {
     module->OnIncrementalStateCleared(
         packet_decoder.trusted_packet_sequence_id());
+  }
+}
+
+void ProtoTraceReader::HandleFirstPacketOnSequence(
+    uint32_t packet_sequence_id) {
+  for (auto& module : context_->modules) {
+    module->OnFirstPacketOnSequence(packet_sequence_id);
   }
 }
 
