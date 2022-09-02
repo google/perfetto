@@ -173,16 +173,20 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
       const TrackEventCategoryRegistry&,
       bool (*register_data_source)(const DataSourceDescriptor&));
 
-  static bool AddSessionObserver(TrackEventSessionObserver*);
-  static void RemoveSessionObserver(TrackEventSessionObserver*);
+  static bool AddSessionObserver(const TrackEventCategoryRegistry&,
+                                 TrackEventSessionObserver*);
+  static void RemoveSessionObserver(const TrackEventCategoryRegistry&,
+                                    TrackEventSessionObserver*);
 
   static void EnableTracing(const TrackEventCategoryRegistry& registry,
                             const protos::gen::TrackEventConfig& config,
                             const DataSourceBase::SetupArgs&);
-  static void OnStart(const DataSourceBase::StartArgs&);
+  static void OnStart(const TrackEventCategoryRegistry&,
+                      const DataSourceBase::StartArgs&);
   static void DisableTracing(const TrackEventCategoryRegistry& registry,
                              const DataSourceBase::StopArgs&);
   static void WillClearIncrementalState(
+      const TrackEventCategoryRegistry&,
       const DataSourceBase::ClearIncrementalStateArgs&);
 
   static bool IsCategoryEnabled(const TrackEventCategoryRegistry& registry,
