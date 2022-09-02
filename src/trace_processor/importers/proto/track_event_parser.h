@@ -53,13 +53,14 @@ class TrackEventParser {
  public:
   TrackEventParser(TraceProcessorContext*, TrackEventTracker*);
 
-  void ParseTrackDescriptor(protozero::ConstBytes);
+  void ParseTrackDescriptor(protozero::ConstBytes, uint32_t packet_sequence_id);
   UniquePid ParseProcessDescriptor(protozero::ConstBytes);
   UniqueTid ParseThreadDescriptor(protozero::ConstBytes);
 
   void ParseTrackEvent(int64_t ts,
                        const TrackEventData* event_data,
-                       protozero::ConstBytes);
+                       protozero::ConstBytes,
+                       uint32_t packet_sequence_id);
 
  private:
   class EventImporter;
