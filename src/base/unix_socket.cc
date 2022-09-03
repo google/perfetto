@@ -341,6 +341,8 @@ void UnixSocketRaw::SetRetainOnExec(bool retain) {
   }
   int fcntl_res = fcntl(*fd_, F_SETFD, flags);
   PERFETTO_CHECK(fcntl_res == 0);
+#else
+  ignore_result(retain);
 #endif
 }
 
