@@ -43,6 +43,7 @@ class PlatformPosix : public Platform {
   std::unique_ptr<base::TaskRunner> CreateTaskRunner(
       const CreateTaskRunnerArgs&) override;
   std::string GetCurrentProcessName() override;
+  void Shutdown() override;
 
  private:
   pthread_key_t tls_key_{};
@@ -70,8 +71,21 @@ PlatformPosix::PlatformPosix() {
 }
 
 PlatformPosix::~PlatformPosix() {
+  // pthread_key_delete doesn't call destructors, so do it manually for the
+  // calling thread.
+  void* tls_ptr = pthread_getspecific(tls_key_);
+  delete static_cast<ThreadLocalObject*>(tls_ptr);
+
   pthread_key_delete(tls_key_);
   g_instance = nullptr;
+}
+
+void PlatformPosix::Shutdown() {
+  PERFETTO_CHECK(g_instance == this);
+  delete this;
+  PERFETTO_CHECK(!g_instance);
+  // We're not clearing out the instance in GetDefaultPlatform() since it's not
+  // possible to re-initialize Perfetto after calling this function anyway.
 }
 
 ThreadLocalObject* PlatformPosix::GetOrCreateThreadLocalObject() {

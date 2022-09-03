@@ -37,7 +37,7 @@ PACKAGES_LIST_CFG = '''data_sources {
 
 CFG_IDENT = '      '
 CFG = '''buffers {{
-  size_kb: 100024
+  size_kb: {size_kb}
   fill_policy: RING_BUFFER
 }}
 
@@ -85,6 +85,15 @@ def release_or_newer(release):
        'ro.build.version.codename']).decode('utf-8').strip()
   return codename == release
 
+def convert_size_to_kb(size):
+  if size.endswith("kb"):
+    return int(size[:-2])
+  elif size.endswith("mb"):
+    return int(size[:-2]) * 1024
+  elif size.endswith("gb"):
+    return int(size[:-2]) * 1024 * 1024
+  else:
+    return int(size)
 
 def main(argv):
   parser = argparse.ArgumentParser()
@@ -106,6 +115,12 @@ def main(argv):
       help="Comma-separated list of process "
       "names to profile.",
       metavar="NAMES")
+  parser.add_argument(
+      "-b",
+      "--buffer-size",
+      help="Buffer size in memory that store the whole java heap graph. N(kb|mb|gb)",
+      type=str,
+      default="100024kb")
   parser.add_argument(
       "-c",
       "--continuous-dump",
@@ -171,6 +186,8 @@ def main(argv):
     os.close(fd)
     output_file = name
 
+  size_kb = convert_size_to_kb(args.buffer_size)
+
   continuous_dump_cfg = ""
   if args.continuous_dump:
     continuous_dump_cfg = CONTINUOUS_DUMP.format(
@@ -184,6 +201,7 @@ def main(argv):
     data_source_stop_timeout_ms = 0
 
   cfg = CFG.format(
+      size_kb=size_kb,
       target_cfg=target_cfg,
       continuous_dump_config=continuous_dump_cfg,
       duration_ms=duration_ms,

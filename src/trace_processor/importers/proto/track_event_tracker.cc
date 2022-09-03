@@ -32,6 +32,8 @@ TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
       source_id_key_(context->storage->InternString("source_id")),
       is_root_in_scope_key_(context->storage->InternString("is_root_in_scope")),
       category_key_(context->storage->InternString("category")),
+      has_first_packet_on_sequence_key_id_(
+          context->storage->InternString("has_first_packet_on_sequence")),
       descriptor_source_(context->storage->InternString("descriptor")),
       default_descriptor_track_name_(
           context->storage->InternString("Default Track")),
@@ -161,8 +163,10 @@ void TrackEventTracker::ReserveDescriptorChildTrack(uint64_t uuid,
 
 base::Optional<TrackId> TrackEventTracker::GetDescriptorTrack(
     uint64_t uuid,
-    StringId event_name) {
-  base::Optional<TrackId> track_id = GetDescriptorTrackImpl(uuid);
+    StringId event_name,
+    base::Optional<uint32_t> packet_sequence_id) {
+  base::Optional<TrackId> track_id =
+      GetDescriptorTrackImpl(uuid, packet_sequence_id);
   if (!track_id || event_name.is_null())
     return track_id;
 
@@ -186,7 +190,8 @@ base::Optional<TrackId> TrackEventTracker::GetDescriptorTrack(
 }
 
 base::Optional<TrackId> TrackEventTracker::GetDescriptorTrackImpl(
-    uint64_t uuid) {
+    uint64_t uuid,
+    base::Optional<uint32_t> packet_sequence_id) {
   auto it = descriptor_tracks_.find(uuid);
   if (it != descriptor_tracks_.end())
     return it->second;
@@ -220,6 +225,11 @@ base::Optional<TrackId> TrackEventTracker::GetDescriptorTrackImpl(
               Variadic::Boolean(resolved_track->is_root_in_scope()));
   if (!reservation.category.is_null())
     args.AddArg(category_key_, Variadic::String(reservation.category));
+  if (packet_sequence_id &&
+      sequences_with_first_packet_.find(*packet_sequence_id) !=
+          sequences_with_first_packet_.end()) {
+    args.AddArg(has_first_packet_on_sequence_key_id_, Variadic::Boolean(true));
+  }
 
   auto* tracks = context_->storage->mutable_track_table();
   auto row_ref = *tracks->FindById(track_id);
@@ -553,6 +563,10 @@ void TrackEventTracker::OnIncrementalStateCleared(uint32_t packet_sequence_id) {
     // Reset their value to 0, see CounterDescriptor's |is_incremental|.
     reservation.latest_value = 0;
   }
+}
+
+void TrackEventTracker::OnFirstPacketOnSequence(uint32_t packet_sequence_id) {
+  sequences_with_first_packet_.insert(packet_sequence_id);
 }
 
 TrackEventTracker::ResolvedDescriptorTrack
