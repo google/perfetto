@@ -51,6 +51,7 @@
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/sqlite/create_function.h"
 #include "src/trace_processor/sqlite/create_view_function.h"
+#include "src/trace_processor/sqlite/pprof_functions.h"
 #include "src/trace_processor/sqlite/register_function.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/span_join_operator_table.h"
@@ -943,6 +944,12 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // functions are supported.
   RegisterLastNonNullFunction(db);
   RegisterValueAtMaxTsFunction(db);
+  {
+    base::Status status = PprofFunctions::Register(db, &context_);
+    if (!status.ok()) {
+      PERFETTO_ELOG("%s", status.c_message());
+    }
+  }
 
   SetupMetrics(this, *db_, &sql_metrics_, cfg.skip_builtin_metric_paths);
 
