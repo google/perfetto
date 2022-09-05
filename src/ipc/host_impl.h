@@ -23,7 +23,6 @@
 #include <vector>
 
 #include "perfetto/base/task_runner.h"
-#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/ipc/deferred.h"
@@ -42,9 +41,7 @@ class HostImpl : public Host, public base::UnixSocket::EventListener {
 
   // Host implementation.
   bool ExposeService(std::unique_ptr<Service>) override;
-  void AdoptConnectedSocket_Fuchsia(
-      base::ScopedSocketHandle,
-      std::function<bool(int)> send_fd_cb) override;
+  void AdoptConnectedSocket_Fuchsia(base::ScopedSocketHandle) override;
 
   // base::UnixSocket::EventListener implementation.
   void OnNewIncomingConnection(base::UnixSocket*,
@@ -62,7 +59,6 @@ class HostImpl : public Host, public base::UnixSocket::EventListener {
     std::unique_ptr<base::UnixSocket> sock;
     BufferedFrameDeserializer frame_deserializer;
     base::ScopedFile received_fd;
-    std::function<bool(int)> send_fd_cb_fuchsia;
   };
   struct ExposedService {
     ExposedService(ServiceID, const std::string&, std::unique_ptr<Service>);
