@@ -127,6 +127,7 @@ sql_files = [
   "chrome/rail_modes.sql",
   "chrome/scroll_flow_event_queuing_delay.sql",
   "chrome/scroll_flow_event.sql",
+  "chrome/event_lantency_to_breakdowns.sql",
   "chrome/scroll_jank_cause_blocking_task.sql",
   "chrome/scroll_jank_cause_blocking_touch_move.sql",
   "chrome/scroll_jank_cause_get_bitmap.sql",

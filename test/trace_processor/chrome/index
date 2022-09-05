@@ -5,6 +5,7 @@
 # Scroll jank metrics
 ../../data/chrome_scroll_without_vsync.pftrace scroll_jank_general_validation_test.sql scroll_jank_general_validation.out
 ../../data/chrome_scroll_without_vsync.pftrace scroll_jank_test.sql scroll_jank.out
+../../data/event_latency_with_args.perfetto-trace event_lantency_to_breakdowns_test.sql event_lantency_to_breakdowns.out
 ../../data/chrome_scroll_without_vsync.pftrace scroll_flow_event_test.sql scroll_flow_event.out
 ../../data/chrome_scroll_without_vsync.pftrace scroll_flow_event_general_validation_test.sql scroll_flow_event_general_validation.out
 ../../data/chrome_scroll_without_vsync.pftrace scroll_jank_cause_test.sql scroll_jank_cause.out
