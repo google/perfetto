@@ -6413,6 +6413,24 @@ message MarkVictimFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/oom.proto
 
+// Begin of protos/perfetto/trace/ftrace/panel.proto
+
+message DsiCmdFifoStatusFtraceEvent {
+  optional uint32 header = 1;
+  optional uint32 payload = 2;
+}
+message DsiRxFtraceEvent {
+  optional uint32 cmd = 1;
+  optional uint32 rx_buf = 2;
+}
+message DsiTxFtraceEvent {
+  optional uint32 last = 1;
+  optional uint32 tx_buf = 2;
+  optional uint32 type = 3;
+}
+
+// End of protos/perfetto/trace/ftrace/panel.proto
+
 // Begin of protos/perfetto/trace/ftrace/power.proto
 
 message CpuFrequencyFtraceEvent {
@@ -7441,6 +7459,9 @@ message FtraceEvent {
     Vb2V4l2BufDoneFtraceEvent vb2_v4l2_buf_done = 425;
     Vb2V4l2QbufFtraceEvent vb2_v4l2_qbuf = 426;
     Vb2V4l2DqbufFtraceEvent vb2_v4l2_dqbuf = 427;
+    DsiCmdFifoStatusFtraceEvent dsi_cmd_fifo_status = 428;
+    DsiRxFtraceEvent dsi_rx = 429;
+    DsiTxFtraceEvent dsi_tx = 430;
   }
 }
 
