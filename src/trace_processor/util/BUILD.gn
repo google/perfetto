@@ -154,6 +154,24 @@ source_set("proto_profiler") {
   ]
 }
 
+source_set("profile_builder") {
+  sources = [
+    "profile_builder.cc",
+    "profile_builder.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/trace_processor:demangle",
+    "../../../include/perfetto/protozero:protozero",
+    "../../../protos/third_party/pprof:zero",
+    "../../base",
+    "../containers:containers",
+    "../storage",
+    "../tables",
+    "../types",
+  ]
+}
+
 source_set("unittests") {
   sources = [
     "debug_annotation_parser_unittest.cc",
