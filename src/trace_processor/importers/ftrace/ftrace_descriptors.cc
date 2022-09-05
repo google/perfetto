@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 428> descriptors{{
+std::array<FtraceMessageDescriptor, 431> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -4728,6 +4728,34 @@ std::array<FtraceMessageDescriptor, 428> descriptors{{
             {"timecode_userbits2", ProtoSchemaType::kUint32},
             {"timecode_userbits3", ProtoSchemaType::kUint32},
             {"timestamp", ProtoSchemaType::kInt64},
+        },
+    },
+    {
+        "dsi_cmd_fifo_status",
+        2,
+        {
+            {},
+            {"header", ProtoSchemaType::kUint32},
+            {"payload", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "dsi_rx",
+        2,
+        {
+            {},
+            {"cmd", ProtoSchemaType::kUint32},
+            {"rx_buf", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "dsi_tx",
+        3,
+        {
+            {},
+            {"last", ProtoSchemaType::kUint32},
+            {"tx_buf", ProtoSchemaType::kUint32},
+            {"type", ProtoSchemaType::kUint32},
         },
     },
 }};

@@ -52,6 +52,7 @@ import "protos/perfetto/trace/ftrace/mdss.proto";
 import "protos/perfetto/trace/ftrace/mm_event.proto";
 import "protos/perfetto/trace/ftrace/net.proto";
 import "protos/perfetto/trace/ftrace/oom.proto";
+import "protos/perfetto/trace/ftrace/panel.proto";
 import "protos/perfetto/trace/ftrace/power.proto";
 import "protos/perfetto/trace/ftrace/printk.proto";
 import "protos/perfetto/trace/ftrace/raw_syscalls.proto";
@@ -529,5 +530,8 @@ message FtraceEvent {
     Vb2V4l2BufDoneFtraceEvent vb2_v4l2_buf_done = 425;
     Vb2V4l2QbufFtraceEvent vb2_v4l2_qbuf = 426;
     Vb2V4l2DqbufFtraceEvent vb2_v4l2_dqbuf = 427;
+    DsiCmdFifoStatusFtraceEvent dsi_cmd_fifo_status = 428;
+    DsiRxFtraceEvent dsi_rx = 429;
+    DsiTxFtraceEvent dsi_tx = 430;
   }
 }

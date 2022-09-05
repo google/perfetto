@@ -422,3 +422,6 @@ v4l2/vb2_v4l2_buf_queue
 v4l2/vb2_v4l2_buf_done
 v4l2/vb2_v4l2_qbuf
 v4l2/vb2_v4l2_dqbuf
+panel/dsi_cmd_fifo_status
+panel/dsi_rx
+panel/dsi_tx
