@@ -33,7 +33,6 @@
 #include <perfetto.h>
 #endif
 
-#include <unistd.h>
 #include <fstream>
 #include <iostream>
 #include <thread>
@@ -97,7 +96,8 @@ void StopTracing(std::unique_ptr<perfetto::TracingSession> tracing_session) {
   std::ofstream output;
   const char* filename = "example_startup_trace.pftrace";
   output.open(filename, std::ios::out | std::ios::binary);
-  output.write(&trace_data[0], static_cast<std::streamsize>(trace_data.size()));
+  output.write(trace_data.data(),
+               static_cast<std::streamsize>(trace_data.size()));
   output.close();
   PERFETTO_LOG(
       "Trace written in %s file. To read this trace in "
