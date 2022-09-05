@@ -125,18 +125,10 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
 
     // This indicates we are inside the systemTraceEvents string.
     // This position is only valid when the |format_| == |kOuterDictionary|.
-    kSystemTraceEventsString,
-
-    // This indicates we are inside the androidProcessDump string.
-    // This position is only valid when the |format_| == |kOuterDictionary|.
-    kAndroidProcessDumpString,
-
-    // This indicates we are waiting for the entire metadata dictionary to be
-    // available.
-    kWaitingForMetadataDictionary,
+    kInsideSystemTraceEventsString,
 
     // This indicates where are inside the traceEvents array.
-    kTraceEventsArray,
+    kInsideTraceEventsArray,
 
     // This indicates we cannot parse any more data in the trace.
     kEof,
