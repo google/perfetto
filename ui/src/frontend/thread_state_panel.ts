@@ -35,7 +35,7 @@ export class ThreadStatePanel extends Panel {
       return m(
           '.details-panel',
           m('.details-panel-heading', m('h2', 'Thread State')),
-          m('.details-table', [m('table.half-width', [
+          m('.details-table', [m('table', [
               m('tr',
                 m('th', `Start time`),
                 m('td', `${timeToCode(threadState.ts)}`)),
