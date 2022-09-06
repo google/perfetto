@@ -8,15 +8,17 @@ Unreleased:
   SDK:
     *
 
-v29.0 - 2022-09-01:
+v29.0 - 2022-09-06:
   Tracing service and probes:
     * Add support for only tracing selected syscalls. By selecting only syscalls
       of interest, usage of the trace buffer and performance impact on device
       is reduced.
+    * Add support for parsing DSI ftrace events.
   Trace Processor:
     * Make calling NotifyEndOfFile more than once an error: this was deprecated
       in v28. Flush should be used instead for all by the final call.
     * Add parsing and ingestion for V4L2 events.
+    * Upgraded SQLite to 3.39.2.
   UI:
     * Add support for searching Android log events.
     * Group kernel wakelock tracks into a single track group.
