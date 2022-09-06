@@ -44,11 +44,11 @@ PROPERTIES = {
         ),
         default={
             'sdk_version':
- '13F100',
+ '13C5066c',
             'tool_package':
  'infra/tools/mac_toolchain/${platform}',
             'tool_version':
- 'git_revision:252677a648de0a12b7afec469a54830be659fb47',
+ 'git_revision:e9b1fe29fe21a1cd36428c43ea2aba244bd31280',
         },
     )
 }
