@@ -22,7 +22,12 @@
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include "src/tracing/ipc/shared_memory_windows.h"
+#else
 #include "src/tracing/ipc/posix_shared_memory.h"
+#endif
 
 namespace perfetto {
 namespace internal {
@@ -48,7 +53,11 @@ std::unique_ptr<ProducerEndpoint> SystemTracingBackend::ConnectProducer(
       shmem_size_hint = TracingService::kDefaultShmSize;
     if (shmem_page_size_hint == 0)
       shmem_page_size_hint = TracingService::kDefaultShmPageSize;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    shm = SharedMemoryWindows::Create(shmem_size_hint);
+#else
     shm = PosixSharedMemory::Create(shmem_size_hint);
+#endif
     arbiter = SharedMemoryArbiter::CreateUnboundInstance(shm.get(),
                                                          shmem_page_size_hint);
   }
