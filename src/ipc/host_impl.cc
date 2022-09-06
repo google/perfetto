@@ -129,7 +129,8 @@ bool HostImpl::ExposeService(std::unique_ptr<Service> service) {
 }
 
 void HostImpl::AdoptConnectedSocket_Fuchsia(
-    base::ScopedSocketHandle connected_socket) {
+    base::ScopedSocketHandle connected_socket,
+    std::function<bool(int)> send_fd_cb) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DCHECK(connected_socket);
   // Should not be used in conjunction with listen sockets.
@@ -139,7 +140,11 @@ void HostImpl::AdoptConnectedSocket_Fuchsia(
       std::move(connected_socket), this, task_runner_, kHostSockFamily,
       base::SockType::kStream);
 
+  auto* unix_socket_ptr = unix_socket.get();
   OnNewIncomingConnection(nullptr, std::move(unix_socket));
+  ClientConnection* client_connection = clients_by_socket_[unix_socket_ptr];
+  client_connection->send_fd_cb_fuchsia = std::move(send_fd_cb);
+  PERFETTO_DCHECK(client_connection->send_fd_cb_fuchsia);
 }
 
 void HostImpl::OnNewIncomingConnection(
@@ -301,6 +306,18 @@ void HostImpl::SendFrame(ClientConnection* client, const Frame& frame, int fd) {
   auto scoped_key = g_crash_key_uid.SetScoped(static_cast<int64_t>(peer_uid));
 
   std::string buf = BufferedFrameDeserializer::Serialize(frame);
+
+  // On Fuchsia, |send_fd_cb_fuchsia_| is used to send the FD to the client
+  // and therefore must be set.
+  PERFETTO_DCHECK(!PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA) ||
+                  client->send_fd_cb_fuchsia);
+  if (client->send_fd_cb_fuchsia && fd != base::ScopedFile::kInvalid) {
+    if (!client->send_fd_cb_fuchsia(fd)) {
+      client->sock->Shutdown(true);
+      return;
+    }
+    fd = base::ScopedFile::kInvalid;
+  }
 
   // When a new Client connects in OnNewClientConnection we set a timeout on
   // Send (see call to SetTxTimeout).
