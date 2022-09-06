@@ -167,6 +167,13 @@ config("default") {
     ]
   }
 
+  if (is_clang && is_win) {
+    # clang-cl from version 16 does not like out-of-line definition of static
+    # constexpr, even in C++14 mode. Disable the deprecated warnings to work
+    # around the problem.
+    cflags += [ "-Wno-deprecated" ]
+  }
+
   if (is_win) {
     cflags += [
       "/bigobj",  # Some of our files are bigger than the regular limits.

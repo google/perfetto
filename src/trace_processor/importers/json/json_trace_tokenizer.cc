@@ -80,8 +80,15 @@ ReadStringRes ReadOneJsonString(const char* start,
                                 const char* end,
                                 std::string* key,
                                 const char** next) {
+  if (start == end) {
+    return ReadStringRes::kNeedsMoreData;
+  }
+  if (*start != '"') {
+    return ReadStringRes::kFatalError;
+  }
+
   bool is_escaping = false;
-  for (const char* s = start; s < end; s++) {
+  for (const char* s = start + 1; s < end; s++) {
     // Control characters are not allowed in JSON strings.
     if (iscntrl(*s))
       return ReadStringRes::kFatalError;
@@ -101,41 +108,6 @@ ReadStringRes ReadOneJsonString(const char* start,
     is_escaping = *s == '\\' && !is_escaping;
   }
   return ReadStringRes::kNeedsMoreData;
-}
-
-base::Status IgnoreStringForKey(const char* start,
-                                const char* end,
-                                const char** next,
-                                const std::string& key) {
-  std::string ignored;
-  ReadStringRes value_res = ReadOneJsonString(start + 1, end, &ignored, next);
-  if (value_res == ReadStringRes::kNeedsMoreData) {
-    return base::ErrStatus("Failure parsing JSON: %s too large",
-                           ignored.c_str());
-  }
-  if (value_res == ReadStringRes::kFatalError) {
-    return base::ErrStatus(
-        "Failure parsing JSON: unable to read string for key %s", key.c_str());
-  }
-  return base::OkStatus();
-}
-
-base::Status IgnoreDictForKey(const char* start,
-                              const char* end,
-                              const char** next,
-                              const std::string& key) {
-  base::StringView ignored;
-  ReadDictRes value_res = ReadOneJsonDict(start, end, &ignored, next);
-  if (value_res == ReadDictRes::kNeedsMoreData) {
-    return util::ErrStatus("Failure parsing JSON: %s too large",
-                           ignored.ToStdString().c_str());
-  }
-  if (value_res == ReadDictRes::kEndOfTrace ||
-      value_res == ReadDictRes::kEndOfArray) {
-    return util::ErrStatus(
-        "Failure parsing JSON: unable to read dict for key %s", key.c_str());
-  }
-  return base::OkStatus();
 }
 
 }  // namespace
@@ -227,12 +199,7 @@ ReadKeyRes ReadOneJsonKey(const char* start,
         if (*s == ',')
           continue;
 
-        // If we see anything else but a quote character here, this cannot be a
-        // valid key.
-        if (*s != '"')
-          return ReadKeyRes::kFatalError;
-
-        auto res = ReadOneJsonString(s + 1, end, key, &s);
+        auto res = ReadOneJsonString(s, end, key, &s);
         if (res == ReadStringRes::kFatalError)
           return ReadKeyRes::kFatalError;
         if (res == ReadStringRes::kNeedsMoreData)
@@ -337,7 +304,7 @@ util::Status ExtractValueForJsonKey(base::StringView dict,
       }
       value_str = dict_str.ToStdString();
     } else if (*s == '"') {
-      auto str_res = ReadOneJsonString(s + 1, end, &value_str, &s);
+      auto str_res = ReadOneJsonString(s, end, &value_str, &s);
       if (str_res == ReadStringRes::kNeedsMoreData ||
           str_res == ReadStringRes::kFatalError) {
         return util::ErrStatus("Failure parsing JSON: unable to parse string");
@@ -440,12 +407,9 @@ util::Status JsonTraceTokenizer::Parse(TraceBlobView blob) {
     // Set our current position based on the format of the trace.
     position_ = format_ == TraceFormat::kOuterDictionary
                     ? TracePosition::kDictionaryKey
-                    : TracePosition::kTraceEventsArray;
+                    : TracePosition::kInsideTraceEventsArray;
   }
-
-  auto status = ParseInternal(next, end, &next);
-  if (!status.ok())
-    return status;
+  RETURN_IF_ERROR(ParseInternal(next, end, &next));
 
   offset_ += static_cast<uint64_t>(next - buf);
   buffer_.erase(buffer_.begin(), buffer_.begin() + (next - buf));
@@ -476,53 +440,72 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
         break;
       }
 
+      // ReadOneJsonKey should ensure that the first character of the value is
+      // available.
+      PERFETTO_CHECK(next < end);
+
       if (key == "traceEvents") {
-        position_ = TracePosition::kTraceEventsArray;
-        return ParseInternal(next + 1, end, out);
-      } else if (key == "systemTraceEvents") {
-        position_ = TracePosition::kSystemTraceEventsString;
-        return ParseInternal(next + 1, end, out);
-      } else if (key == "androidProcessDump") {
-        position_ = TracePosition::kAndroidProcessDumpString;
-        return ParseInternal(next + 1, end, out);
-      } else if (key == "metadata") {
-        position_ = TracePosition::kWaitingForMetadataDictionary;
+        // Skip the [ character opening the array.
+        if (*next != '[') {
+          return base::ErrStatus(
+              "Failure parsing JSON: traceEvents is not an array.");
+        }
+        next++;
+
+        position_ = TracePosition::kInsideTraceEventsArray;
         return ParseInternal(next, end, out);
-      } else if (key == "displayTimeUnit") {
+      }
+
+      if (key == "systemTraceEvents") {
+        // Skip the " character opening the string.
+        if (*next != '"') {
+          return base::ErrStatus(
+              "Failure parsing JSON: systemTraceEvents is not an string.");
+        }
+        next++;
+
+        position_ = TracePosition::kInsideSystemTraceEventsString;
+        return ParseInternal(next, end, out);
+      }
+
+      if (key == "displayTimeUnit") {
         std::string time_unit;
-        auto result = ReadOneJsonString(next + 1, end, &time_unit, &next);
+        auto result = ReadOneJsonString(next, end, &time_unit, &next);
         if (result == ReadStringRes::kFatalError)
           return util::ErrStatus("Could not parse displayTimeUnit");
         context_->storage->IncrementStats(stats::json_display_time_unit);
         return ParseInternal(next, end, out);
-      } else if (key == "otherData") {
-        base::StringView unparsed;
-        const auto other = ReadOneJsonDict(next, end, &unparsed, &next);
-        if (other == ReadDictRes::kEndOfArray)
-          return util::ErrStatus(
-              "Failure parsing JSON: Missing ] in otherData");
-        if (other == ReadDictRes::kEndOfTrace)
-          return util::ErrStatus(
-              "Failure parsing JSON: Failed parsing otherData");
-        if (other == ReadDictRes::kNeedsMoreData)
-          return util::ErrStatus("Failure parsing JSON: otherData too large");
-        return ParseInternal(next, end, out);
       }
-
-      // ReadOneJsonKey should ensure that the first character of the value is
-      // available.
-      PERFETTO_CHECK(next < end);
 
       // If we don't recognize the key, check if it could be a string or dict.
       // If either of them, parse it and throw it away to move onto the next
       // key.
       if (*next == '"') {
-        RETURN_IF_ERROR(IgnoreStringForKey(next, end, &next, key));
-        return ParseInternal(next, end, &next);
+        std::string ignored;
+        ReadStringRes value_res = ReadOneJsonString(next, end, &ignored, &next);
+        if (value_res == ReadStringRes::kFatalError) {
+          return base::ErrStatus(
+              "Failure parsing JSON: unable to read string for key %s",
+              key.c_str());
+        }
+        if (value_res == ReadStringRes::kNeedsMoreData) {
+          break;
+        }
+        return ParseInternal(next, end, out);
       }
       if (*next == '{') {
-        RETURN_IF_ERROR(IgnoreDictForKey(next, end, &next, key));
-        return ParseInternal(next, end, &next);
+        base::StringView ignored;
+        ReadDictRes value_res = ReadOneJsonDict(next, end, &ignored, &next);
+        if (value_res == ReadDictRes::kEndOfTrace ||
+            value_res == ReadDictRes::kEndOfArray) {
+          return util::ErrStatus(
+              "Failure parsing JSON: unable to read dict for key %s",
+              key.c_str());
+        }
+        if (value_res == ReadDictRes::kNeedsMoreData) {
+          break;
+        }
+        return ParseInternal(next, end, out);
       }
 
       // Otherwise, just jump to the end of the trace.
@@ -530,7 +513,7 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
       position_ = TracePosition::kEof;
       break;
     }
-    case TracePosition::kSystemTraceEventsString: {
+    case TracePosition::kInsideSystemTraceEventsString: {
       if (format_ != TraceFormat::kOuterDictionary) {
         return util::ErrStatus(
             "Failure parsing JSON: illegal format when parsing system events");
@@ -555,54 +538,12 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
           continue;
 
         SystraceLine line;
-        util::Status status =
-            systrace_line_tokenizer_.Tokenize(raw_line, &line);
-        if (!status.ok())
-          return status;
+        RETURN_IF_ERROR(systrace_line_tokenizer_.Tokenize(raw_line, &line));
         trace_sorter->PushSystraceLine(std::move(line));
       }
       break;
     }
-    case TracePosition::kWaitingForMetadataDictionary: {
-      if (format_ != TraceFormat::kOuterDictionary) {
-        return util::ErrStatus(
-            "Failure parsing JSON: illegal format when parsing metadata");
-      }
-
-      base::StringView unparsed;
-      ReadDictRes res = ReadOneJsonDict(next, end, &unparsed, &next);
-      if (res == ReadDictRes::kEndOfArray)
-        return util::ErrStatus("Failure parsing JSON: encountered fatal error");
-      if (res == ReadDictRes::kEndOfTrace ||
-          res == ReadDictRes::kNeedsMoreData) {
-        break;
-      }
-
-      // TODO(lalitm): read and ingest the relevant data inside |value|.
-      position_ = TracePosition::kDictionaryKey;
-      return ParseInternal(next, end, out);
-    }
-    case TracePosition::kAndroidProcessDumpString: {
-      if (format_ != TraceFormat::kOuterDictionary) {
-        return util::ErrStatus(
-            "Failure parsing JSON: illegal format when parsing metadata");
-      }
-
-      std::string unparsed;
-      ReadStringRes res = ReadOneJsonString(next, end, &unparsed, &next);
-      if (res == ReadStringRes::kNeedsMoreData) {
-        break;
-      }
-      if (res == ReadStringRes::kFatalError) {
-        return base::ErrStatus(
-            "Failure parsing JSON: illegal string when parsing "
-            "androidProcessDump");
-      }
-      // TODO(lalitm): read and ingest the relevant data inside |unparsed|.
-      position_ = TracePosition::kDictionaryKey;
-      return ParseInternal(next, end, out);
-    }
-    case TracePosition::kTraceEventsArray: {
+    case TracePosition::kInsideTraceEventsArray: {
       while (next < end) {
         base::StringView unparsed;
         const auto res = ReadOneJsonDict(next, end, &unparsed, &next);
