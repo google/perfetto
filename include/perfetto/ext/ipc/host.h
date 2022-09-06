@@ -65,9 +65,13 @@ class Host {
   // registered).
   virtual bool ExposeService(std::unique_ptr<Service>) = 0;
 
-  // Accepts a pre-connected socket handle.
+  // Accepts a pre-connected socket handle and a callback used to send a
+  // shared memory FD to the remote client.
+  // The callback returns false if the FD could not be sent.
   // Should only be used in conjunction with CreateInstance_Fuchsia().
-  virtual void AdoptConnectedSocket_Fuchsia(base::ScopedSocketHandle) = 0;
+  virtual void AdoptConnectedSocket_Fuchsia(
+      base::ScopedSocketHandle,
+      std::function<bool(int)> send_fd_cb) = 0;
 };
 
 }  // namespace ipc
