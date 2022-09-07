@@ -30,7 +30,7 @@ android_startup {
         dur_ns: 40000000000
         dur_ms: 40000
       }
-      jit_compiled_methods: 2
+      jit_compiled_methods: 41
       time_jit_thread_pool_on_cpu {
         dur_ns: 20000000000
         dur_ms: 20000
@@ -74,5 +74,6 @@ android_startup {
     slow_start_reason: "JIT Activity"
     slow_start_reason: "GC - Total time"
     slow_start_reason: "GC - Time on CPU"
+    slow_start_reason: "JIT compiled methods"
   }
 }
