@@ -110,17 +110,19 @@ trace.add_atrace_begin(
     ts=to_s(260), pid=APP_PID, tid=SECOND_APP_TID, buf='VerifyClass vp')
 trace.add_atrace_end(ts=to_s(280), pid=APP_PID, tid=SECOND_APP_TID)
 
-# JIT compilation slices
-trace.add_atrace_begin(
-    ts=to_s(150), pid=APP_PID, tid=JIT_TID, buf='JIT compiling someting')
-trace.add_atrace_end(ts=to_s(160), pid=APP_PID, tid=JIT_TID)
+for t in range(100, 160, 2):
+  # JIT compilation slices
+  trace.add_atrace_begin(
+    ts=to_s(t), pid=APP_PID, tid=JIT_TID, buf='JIT compiling someting')
+  trace.add_atrace_end(ts=to_s(t+1), pid=APP_PID, tid=JIT_TID)
 
 trace.add_sched(ts=to_s(155), prev_pid=0, next_pid=JIT_TID)
 trace.add_sched(ts=to_s(165), prev_pid=JIT_TID, next_pid=0)
 
-trace.add_atrace_begin(
-    ts=to_s(170), pid=APP_PID, tid=JIT_TID, buf='JIT compiling something else')
-trace.add_atrace_end(ts=to_s(190), pid=APP_PID, tid=JIT_TID)
+for t in range(168, 190, 2):
+  trace.add_atrace_begin(
+    ts=to_s(t), pid=APP_PID, tid=JIT_TID, buf='JIT compiling something else')
+  trace.add_atrace_end(ts=to_s(t+1), pid=APP_PID, tid=JIT_TID)
 
 trace.add_sched(ts=to_s(170), prev_pid=0, next_pid=JIT_TID)
 trace.add_sched(ts=to_s(175), prev_pid=JIT_TID, next_pid=0, prev_state='R')
