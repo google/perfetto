@@ -45,6 +45,8 @@ class AndroidProbesModule : public ProtoImporterModule {
   void ParseTraceConfig(
       const protos::pbzero::TraceConfig::Decoder& decoder) override;
 
+  ModuleResult ParseEnergyDescriptor(protozero::ConstBytes blob);
+
  private:
   AndroidProbesParser parser_;
   TraceProcessorContext* context_ = nullptr;
