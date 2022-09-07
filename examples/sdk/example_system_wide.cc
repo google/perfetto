@@ -15,6 +15,45 @@
  */
 
 // This example demonstrates system-wide tracing with Perfetto.
+//
+// 1). To use it, first build the `tracebox` and this file. The tracebox will
+// internally build tracing service (traced, which is long running
+// process / daemon ) and perfetto consumer client, and many other perfetto
+// tracing related tools.
+// `ninja -C out/default/ tracebox example_system_wide`
+//
+// 2). Run traced (long running process), and open another terminal tab.
+// `./out/default/tracebox traced`
+//
+// 3). Run this file. This is main application to trace.
+// `./out/default/example_system_wide`
+//
+// 4). Use perfetto client to start a session and record trace in a file.
+// `./out/default/tracebox perfetto -c /tmp/trace_config.txt --txt
+//      -o /tmp/trace_output`
+//
+// but before running that command, put following trace config (protobuf config)
+// in a file named `/tmp/trace_config.txt`
+// This can also be copied from: https://pastebin.com/embed_iframe/ufmtBBuq
+// ---------------------
+// buffers: {
+//     size_kb: 63488
+// }
+// data_sources: {
+//     config {
+//         name: "track_event"
+//     }
+// }
+// duration_ms: 10000
+// ---------------------
+// After running the command above, trace will be saved in `/tmp/trace_output`
+// file. It is a binary content. We can read it by running:
+// `./tools/traceconv text /tmp/trace_output`
+// Or we can use "Open Trace File" option in the perfetto UI
+// (https://ui.perfetto.dev)
+//
+// Learn More:
+// https://perfetto.dev/docs/quickstart/linux-tracing#capturing-a-trace
 
 #include "trace_categories.h"
 
@@ -23,10 +62,12 @@
 #include <fstream>
 #include <thread>
 
+namespace {
+
 class Observer : public perfetto::TrackEventSessionObserver {
  public:
   Observer() { perfetto::TrackEvent::AddSessionObserver(this); }
-  ~Observer() { perfetto::TrackEvent::RemoveSessionObserver(this); }
+  ~Observer() override { perfetto::TrackEvent::RemoveSessionObserver(this); }
 
   void OnStart(const perfetto::DataSourceBase::StartArgs&) override {
     std::unique_lock<std::mutex> lock(mutex);
@@ -66,6 +107,8 @@ void DrawGame() {
   DrawPlayer(1);
   DrawPlayer(2);
 }
+
+}  // namespace
 
 int main(int, const char**) {
   InitializePerfetto();
