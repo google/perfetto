@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/thread_checker.h"
+#include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/ipc/client.h"
 #include "perfetto/ext/ipc/service_proxy.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -92,6 +93,10 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   ipc::Client* GetClientForTesting() { return ipc_channel_.get(); }
 
  private:
+  // Drops the provider connection if a protocol error was detected while
+  // processing an IPC command.
+  void ScheduleDisconnect();
+
   // Invoked soon after having established the connection with the service.
   void OnConnectionInitialized(bool connection_succeeded,
                                bool using_shmem_provided_by_producer,
@@ -124,6 +129,8 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   bool is_shmem_provided_by_producer_ = false;
   bool direct_smb_patching_supported_ = false;
   std::vector<std::function<void()>> pending_sync_reqs_;
+  std::function<int(void)> receive_shmem_fd_cb_fuchsia_;
+  base::WeakPtrFactory<ProducerIPCClientImpl> weak_factory_{this};
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };
 
