@@ -306,7 +306,8 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForSymbolSetId(
   using RowRef =
       perfetto::trace_processor::tables::SymbolTable::ConstRowReference;
   std::vector<RowRef> symbol_set;
-  for (auto it = symbols.FilterToIterator({symbols.id().eq(*symbol_set_id)});
+  for (auto it = symbols.FilterToIterator(
+           {symbols.symbol_set_id().eq(*symbol_set_id)});
        it; ++it) {
     symbol_set.push_back(it.row_reference());
   }
@@ -390,7 +391,7 @@ void GProfileBuilder::WriteFunctions() {
       func->set_name(entry.first.name);
     }
     if (entry.first.system_name != 0) {
-      func->set_name(entry.first.system_name);
+      func->set_system_name(entry.first.system_name);
     }
     if (entry.first.filename != 0) {
       func->set_filename(entry.first.filename);
@@ -405,15 +406,15 @@ uint64_t GProfileBuilder::WriteMappingIfNeeded(
     return it->second;
   }
 
-  uint64_t id = mapping_keys_
-                    .insert({MappingKey(mapping_ref, string_table_),
-                             mapping_keys_.size() + 1})
-                    .first->second;
+  auto ins = mapping_keys_.insert(
+      {MappingKey(mapping_ref, string_table_), mapping_keys_.size() + 1});
 
-  mappings_.push_back(
-      Mapping(mapping_ref, context_.storage->string_pool(), string_table_));
+  if (ins.second) {
+    mappings_.push_back(
+        Mapping(mapping_ref, context_.storage->string_pool(), string_table_));
+  }
 
-  return id;
+  return ins.first->second;
 }
 
 void GProfileBuilder::WriteMapping(uint64_t mapping_id) {
