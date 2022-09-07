@@ -11,3 +11,6 @@ android_b2b_async_begin.textproto ../common/list_slices_test.sql android_b2b_asy
 # Android userspace async slices
 android_async_slice.textproto ../common/process_track_slices_test.sql process_track_slices_android_async_slice.out
 async_track_atrace.py ../common/process_track_slices_test.sql async_track_atrace_process_track_slices.out
+
+# Resolving slice nesting issues when tracing both atrace and sys_write syscall.
+sys_write_and_atrace.py sys_write_and_atrace_test.sql sys_write_and_atrace.out
