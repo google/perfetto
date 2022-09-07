@@ -71,7 +71,6 @@ GpuCounterGroupTable::~GpuCounterGroupTable() = default;
 // slice_tables.h
 SliceTable::~SliceTable() = default;
 FlowTable::~FlowTable() = default;
-ThreadSliceTable::~ThreadSliceTable() = default;
 SchedSliceTable::~SchedSliceTable() = default;
 GpuSliceTable::~GpuSliceTable() = default;
 GraphicsFrameSliceTable::~GraphicsFrameSliceTable() = default;

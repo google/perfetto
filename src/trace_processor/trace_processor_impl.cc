@@ -303,6 +303,13 @@ void CreateBuiltinViews(sqlite3* db) {
                "FROM internal_args;",
                nullptr, nullptr, &error);
   MaybeRegisterError(error);
+
+  sqlite3_exec(db,
+               "CREATE VIEW thread_slice AS "
+               "SELECT * FROM slice "
+               "WHERE thread_dur is NOT NULL",
+               nullptr, nullptr, &error);
+  MaybeRegisterError(error);
 }
 
 struct ExportJson : public SqlFunction {
@@ -1033,7 +1040,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   RegisterDbTable(storage->slice_table());
   RegisterDbTable(storage->flow_table());
-  RegisterDbTable(storage->thread_slice_table());
+  RegisterDbTable(storage->slice_table());
   RegisterDbTable(storage->sched_slice_table());
   RegisterDbTable(storage->thread_state_table());
   RegisterDbTable(storage->gpu_slice_table());
