@@ -62,6 +62,7 @@ class Client {
     base::ScopedSocketHandle socket_fd;
     const char* socket_name = nullptr;
     bool retry = false;  // Only for connecting with |socket_name|.
+    std::function<int(void)> receive_shmem_fd_cb_fuchsia;
   };
 
   static std::unique_ptr<Client> CreateInstance(ConnArgs, base::TaskRunner*);
