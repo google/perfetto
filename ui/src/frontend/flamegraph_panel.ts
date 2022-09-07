@@ -79,7 +79,7 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
         flamegraphDetails.pids !== undefined &&
         flamegraphDetails.upids !== undefined) {
       this.profileType = profileType(flamegraphDetails.type);
-      this.ts = flamegraphDetails.durNs;
+      this.ts = flamegraphDetails.startNs + flamegraphDetails.durNs;
       this.pids = flamegraphDetails.pids;
       if (flamegraphDetails.flamegraph) {
         this.flamegraph.updateDataIfChanged(
