@@ -309,6 +309,11 @@ SELECT
         WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'R') > 2e9
 
         UNION ALL
+        SELECT 'Main Thread - Time spent in interruptible sleep state'
+        AS slow_cause
+        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'S') > 2e9
+
+        UNION ALL
         SELECT 'Time spent in bindApplication'
         AS slow_cause
         WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(launches.id, 'bindApplication') > 2e9
@@ -363,6 +368,29 @@ SELECT
         FROM running_gc_slices_materialized
         WHERE launches.id = launch_id
         AND sum_dur > 2e9
+
+        UNION ALL
+        SELECT 'JIT compiled methods'
+        WHERE (
+          SELECT COUNT(1)
+          FROM SLICES_FOR_LAUNCH_AND_SLICE_NAME(launches.id, 'JIT compiling*')
+          WHERE thread_name = 'Jit thread pool'
+        ) > 40
+
+        UNION ALL
+        SELECT 'broadcast dispatched count'
+        Where COUNT_SLICES_CONCURRENT_TO_LAUNCH(
+          launches.id,
+          'Broadcast dispatched*'
+        ) > 10
+
+        UNION ALL
+        SELECT 'broadcast received count'
+        WHERE COUNT_SLICES_CONCURRENT_TO_LAUNCH(
+          launches.id,
+          'broadcastReceiveReg*'
+        ) > 10
+
       )
     )
   ) as startup

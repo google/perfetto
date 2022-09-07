@@ -2,6 +2,7 @@
 
 # Startup metric tests.
 android_startup.py android_startup android_startup.out
+android_startup_slow.py android_startup android_startup_slow.out
 android_startup_minsdk33.py android_startup android_startup_minsdk33.out
 android_startup_breakdown.py android_startup android_startup_breakdown.out
 android_startup_breakdown_slow.py android_startup android_startup_breakdown_slow.out
@@ -18,6 +19,7 @@ android_startup_installd_dex2oat.py android_startup android_startup_installd_dex
 
 # Test that broadcasts are correctly counted.
 android_startup_broadcast.py android_startup android_startup_broadcast.out
+android_startup_broadcast_multiple.py android_startup android_startup_broadcast_multiple.out
 
 # Other metrics associated with startup.
 android_startup_battery.py android_batt android_batt_counters.out
