@@ -79,16 +79,6 @@ TEST_F(SyscallTrackerTest, ReportUnknownSyscalls) {
   EXPECT_EQ(context.storage->GetString(end_name), "sys_57");
 }
 
-TEST_F(SyscallTrackerTest, IgnoreWriteSyscalls) {
-  SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
-  syscall_tracker->SetArchitecture(kAarch64);
-  EXPECT_CALL(*slice_tracker, Begin(_, _, _, _, _)).Times(0);
-  EXPECT_CALL(*slice_tracker, End(_, _, _, _, _)).Times(0);
-
-  syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 64 /*sys_write*/);
-  syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 64 /*sys_write*/);
-}
-
 TEST_F(SyscallTrackerTest, Aarch64) {
   constexpr TrackId track{0u};
   StringId begin_name = kNullStringId;
