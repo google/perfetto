@@ -1077,6 +1077,28 @@ void FtraceParser::ParseCpuIdle(int64_t timestamp, ConstBytes blob) {
 void FtraceParser::ParsePrint(int64_t timestamp,
                               uint32_t pid,
                               ConstBytes blob) {
+  // Atrace slices are emitted as begin/end events written into the tracefs
+  // trace_marker. If we're tracing syscalls, the reconstructed atrace slice
+  // would start and end in the middle of different sys_write slices (on the
+  // same track). Since trace_processor enforces strict slice nesting, we need
+  // to resolve this conflict. The chosen approach is to distort the data, and
+  // pretend that the write syscall ended at the atrace slice's boundary.
+  //
+  // In other words, this true structure:
+  // [write...].....[write...]
+  // ....[atrace_slice..].....
+  //
+  // Is turned into:
+  // [wr][atrace_slice..]
+  // ...............[wri]
+  //
+  base::Optional<UniqueTid> opt_utid =
+      context_->process_tracker->GetThreadOrNull(pid);
+  if (opt_utid) {
+    SyscallTracker::GetOrCreate(context_)->MaybeTruncateOngoingWriteSlice(
+        timestamp, *opt_utid);
+  }
+
   protos::pbzero::PrintFtraceEvent::Decoder evt(blob.data, blob.size);
   SystraceParser::GetOrCreate(context_)->ParsePrintEvent(timestamp, pid,
                                                          evt.buf());
