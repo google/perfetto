@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Typescript interfaces for PasswordCredential don't exist as of
-// lib.dom es2018 (see tsconfig.json), so we had to define them here.
+// lib.dom es2020 (see tsconfig.json), so we had to define them here.
 declare global {
   export interface PasswordCredentialData {
     readonly id: string;

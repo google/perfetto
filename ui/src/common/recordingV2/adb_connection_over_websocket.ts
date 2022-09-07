@@ -14,10 +14,12 @@
 
 import {_TextDecoder} from 'custom_utils';
 
-import {defer} from '../../base/deferred';
+import {defer, Deferred} from '../../base/deferred';
+import {ArrayBufferBuilder} from '../array_buffer_builder';
 
 import {buildAbdWebsocketCommand} from './adb_over_websocket_utils';
 import {ALLOW_USB_DEBUGGING} from './adb_targets_utils';
+import {RecordingError} from './recording_error_handling';
 import {
   AdbConnection,
   ByteStream,
@@ -44,45 +46,38 @@ export class AdbConnectionOverWebsocket implements AdbConnection {
     throw new Error('Not implemented yet');
   }
 
-  shell(_cmd: string): Promise<AdbOverWebsocketStream> {
-    // TODO(octaviant) implement
-    throw new Error('Not implemented yet');
+  // Starts a shell command, then gathers all its output and returns it as
+  // a string.
+  async shellAndGetOutput(cmd: string): Promise<string> {
+    const adbStream = await this.shell(cmd);
+    const commandOutput = new ArrayBufferBuilder();
+    const onStreamingEnded = defer<string>();
+
+    adbStream.addOnStreamData((data: Uint8Array) => {
+      commandOutput.append(data);
+    });
+    adbStream.addOnStreamClose(() => {
+      onStreamingEnded.resolve(
+          textDecoder.decode(commandOutput.toArrayBuffer()));
+    });
+    return onStreamingEnded;
   }
 
-  async connectSocket(path: string): Promise<ByteStream> {
-    const webSocket = new WebSocket(this.websocketUrl);
-    const byteStreamConnected = defer<AdbOverWebsocketStream>();
-    const byteStream = new AdbOverWebsocketStream(webSocket);
-    byteStream.addOnStreamClose(() => this.closeStream(byteStream));
+  shell(cmd: string): Promise<AdbOverWebsocketStream> {
+    return this.openStream('shell:' + cmd);
+  }
 
-    webSocket.onopen = () => webSocket.send(
-        buildAbdWebsocketCommand(`host:transport:${this.deviceSerialNumber}`));
+  connectSocket(path: string): Promise<AdbOverWebsocketStream> {
+    return this.openStream(path);
+  }
 
-    webSocket.onmessage = async (evt) => {
-      if (!byteStream.isOpen()) {
-        const txt = await evt.data.text();
-        const prefix = txt.substr(0, 4);
-        if (prefix === 'OKAY') {
-          byteStream.setStreamOpen();
-          webSocket.send(buildAbdWebsocketCommand(path));
-          byteStreamConnected.resolve(byteStream);
-        } else if (prefix === 'FAIL' && txt.includes('device unauthorized')) {
-          byteStreamConnected.reject(ALLOW_USB_DEBUGGING);
-        } else {
-          byteStreamConnected.reject(WEBSOCKET_UNABLE_TO_CONNECT);
-        }
-        return;
-      }
-
-      // Upon a successful connection we first receive an 'OKAY' message.
-      // After that, we receive messages with traced binary payloads.
-      const arrayBufferResponse = await evt.data.arrayBuffer();
-      if (textDecoder.decode(arrayBufferResponse) !== 'OKAY') {
-        byteStream.signalStreamData(new Uint8Array(arrayBufferResponse));
-      }
-    };
-
-    return byteStreamConnected;
+  private async openStream(destination: string):
+      Promise<AdbOverWebsocketStream> {
+    return AdbOverWebsocketStream.create(
+        this.websocketUrl,
+        destination,
+        this.deviceSerialNumber,
+        this.closeStream.bind(this));
   }
 
   disconnect(): void {
@@ -106,16 +101,36 @@ export class AdbConnectionOverWebsocket implements AdbConnection {
   }
 }
 
-// An AdbOverWebsocketStream is instantiated after the creation of a socket to
-// the device. Thanks to this, we can send commands and receive their output.
-// Messages are received in the main adb class, and are forwarded to an instance
-// of this class based on a stream id match.
+// An AdbOverWebsocketStream instantiates a websocket connection to the device.
+// It exposes an API to write commands to this websocket and read its output.
 export class AdbOverWebsocketStream implements ByteStream {
-  private _isOpen = false;
+  private websocket: WebSocket;
+  // commandSentSignal gets resolved if we successfully connect to the device
+  // and send the command this socket wraps. commandSentSignal gets rejected if
+  // we fail to connect to the device.
+  private commandSentSignal = defer<AdbOverWebsocketStream>();
+  // We store a promise for each messge while the message is processed.
+  // This way, if the websocket server closes the connection, we first process
+  // all previously received messages and only afterwards disconnect.
+  // An application is when the stream wraps a shell command. The websocket
+  // server will reply and then immediately disconnect.
+  private messageProcessedSignals: Set<Deferred<void>> = new Set();
+
+  private _isConnected = false;
   private onStreamDataCallbacks: OnStreamDataCallback[] = [];
   private onStreamCloseCallbacks: OnStreamCloseCallback[] = [];
 
-  constructor(private websocket: WebSocket) {}
+  private constructor(
+      websocketUrl: string, destination: string, deviceSerialNumber: string,
+      private removeFromConnection: (stream: AdbOverWebsocketStream) => void) {
+    this.websocket = new WebSocket(websocketUrl);
+
+    this.websocket.onopen = this.onOpen.bind(this, deviceSerialNumber);
+    this.websocket.onmessage = this.onMessage.bind(this, destination);
+    // The websocket may be closed by the websocket server. This happens
+    // for instance when we get the full result of a shell command.
+    this.websocket.onclose = this.onClose.bind(this);
+  }
 
   addOnStreamData(onStreamData: OnStreamDataCallback) {
     this.onStreamDataCallbacks.push(onStreamData);
@@ -145,8 +160,16 @@ export class AdbOverWebsocketStream implements ByteStream {
 
   // We close the websocket and notify the AdbConnection to remove this stream.
   close(): void {
-    this.websocket.close();
-    this._isOpen = false;
+    // If the websocket connection is still open (ie. the close did not
+    // originate from the server), we close the websocket connection.
+    if (this.websocket.readyState === this.websocket.OPEN) {
+      this.websocket.close();
+      // We remove the 'onclose' callback so the 'close' method doesn't get
+      // executed twice.
+      this.websocket.onclose = null;
+    }
+    this._isConnected = false;
+    this.removeFromConnection(this);
     this.signalStreamClosed();
   }
 
@@ -154,11 +177,65 @@ export class AdbOverWebsocketStream implements ByteStream {
     this.websocket.send(msg);
   }
 
-  isOpen(): boolean {
-    return this._isOpen;
+  isConnected(): boolean {
+    return this._isConnected;
   }
 
-  setStreamOpen(): void {
-    this._isOpen = true;
+  private async onOpen(deviceSerialNumber: string): Promise<void> {
+    this.websocket.send(
+        buildAbdWebsocketCommand(`host:transport:${deviceSerialNumber}`));
+  }
+
+  private async onMessage(destination: string, evt: MessageEvent):
+      Promise<void> {
+    const messageProcessed = defer<void>();
+    this.messageProcessedSignals.add(messageProcessed);
+    try {
+      if (!this._isConnected) {
+        const txt = await evt.data.text();
+        const prefix = txt.substr(0, 4);
+        if (prefix === 'OKAY') {
+          this._isConnected = true;
+          this.websocket.send(buildAbdWebsocketCommand(destination));
+          this.commandSentSignal.resolve(this);
+        } else if (prefix === 'FAIL' && txt.includes('device unauthorized')) {
+          this.commandSentSignal.reject(
+              new RecordingError(ALLOW_USB_DEBUGGING));
+          this.close();
+        } else {
+          this.commandSentSignal.reject(
+              new RecordingError(WEBSOCKET_UNABLE_TO_CONNECT));
+          this.close();
+        }
+      } else {
+        // Upon a successful connection we first receive an 'OKAY' message.
+        // After that, we receive messages with traced binary payloads.
+        const arrayBufferResponse = await evt.data.arrayBuffer();
+        if (textDecoder.decode(arrayBufferResponse) !== 'OKAY') {
+          this.signalStreamData(new Uint8Array(arrayBufferResponse));
+        }
+      }
+      messageProcessed.resolve();
+    } finally {
+      this.messageProcessedSignals.delete(messageProcessed);
+    }
+  }
+
+  private async onClose(): Promise<void> {
+    // Wait for all messages to be processed before closing the connection.
+    await Promise.allSettled(this.messageProcessedSignals);
+    this.close();
+  }
+
+  static create(
+      websocketUrl: string, destination: string, deviceSerialNumber: string,
+      removeFromConnection: (stream: AdbOverWebsocketStream) => void):
+      Promise<AdbOverWebsocketStream> {
+    return (new AdbOverWebsocketStream(
+                websocketUrl,
+                destination,
+                deviceSerialNumber,
+                removeFromConnection))
+        .commandSentSignal;
   }
 }

@@ -52,7 +52,7 @@ export class AndroidWebusbTarget implements RecordingTargetV2 {
         assertExists(this.device.serialNumber) + ' WebUsb';
     return {
       targetType: 'ANDROID',
-      // The method 'fetchInfo' will populate this after ADB authorization.
+      // 'androidApiLevel' will be populated after ADB authorization.
       androidApiLevel: this.androidApiLevel,
       dataSources: this.dataSources || [],
       name,

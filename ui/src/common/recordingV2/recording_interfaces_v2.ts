@@ -164,7 +164,7 @@ export interface ByteStream {
   addOnStreamData(onStreamData: OnStreamDataCallback): void;
   addOnStreamClose(onStreamClose: OnStreamCloseCallback): void;
 
-  isOpen(): boolean;
+  isConnected(): boolean;
   write(data: string|Uint8Array): void;
   close(): void;
 }

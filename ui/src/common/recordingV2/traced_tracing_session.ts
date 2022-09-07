@@ -151,7 +151,9 @@ export class TracedTracingSession implements TracingSession {
   }
 
   async getTraceBufferUsage(): Promise<number> {
-    if (!this.byteStream.isOpen()) {
+    if (!this.byteStream.isConnected()) {
+      // TODO(octaviant): make this more in line with the other trace buffer
+      //  error cases.
       return 0;
     }
     const bufferStats = await this.getBufferStats();
@@ -174,7 +176,7 @@ export class TracedTracingSession implements TracingSession {
     return percentageUsed;
   }
 
-  async initConnection(): Promise<void> {
+  initConnection(): Promise<void> {
     // bind IPC methods
     const requestId = this.requestId++;
     const frame = new IPCFrame({
@@ -223,7 +225,7 @@ export class TracedTracingSession implements TracingSession {
   }
 
   private rpcInvoke(methodName: string, argsProto: Uint8Array): void {
-    if (!this.byteStream.isOpen()) {
+    if (!this.byteStream.isConnected()) {
       return;
     }
     const method = this.availableMethods.find((m) => m.name === methodName);
