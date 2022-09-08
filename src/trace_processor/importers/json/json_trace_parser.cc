@@ -133,8 +133,8 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
   // Only used for 'B', 'E', and 'X' events so wrap in lambda so it gets
   // ignored in other cases. This lambda is only safe to call within the
   // scope of this function due to the capture by reference.
-  auto make_thread_slice_row = [&](TrackId track_id) {
-    tables::ThreadSliceTable::Row row;
+  auto make_slice_row = [&](TrackId track_id) {
+    tables::SliceTable::Row row;
     row.ts = timestamp;
     row.track_id = track_id;
     row.category = cat_id;
@@ -151,8 +151,8 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
   switch (phase) {
     case 'B': {  // TRACE_EVENT_BEGIN.
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      slice_tracker->BeginTyped(storage->mutable_thread_slice_table(),
-                                make_thread_slice_row(track_id), args_inserter);
+      slice_tracker->BeginTyped(storage->mutable_slice_table(),
+                                make_slice_row(track_id), args_inserter);
       MaybeAddFlow(track_id, value);
       break;
     }
@@ -163,13 +163,12 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       // Now try to update thread_dur if we have a tts field.
       auto opt_tts = json::CoerceToTs(value["tts"]);
       if (opt_slice_id.has_value() && opt_tts) {
-        auto* thread_slice = storage->mutable_thread_slice_table();
-        auto maybe_row = thread_slice->id().IndexOf(*opt_slice_id);
+        auto* slice = storage->mutable_slice_table();
+        auto maybe_row = slice->id().IndexOf(*opt_slice_id);
         PERFETTO_DCHECK(maybe_row.has_value());
-        auto start_tts = thread_slice->thread_ts()[*maybe_row];
+        auto start_tts = slice->thread_ts()[*maybe_row];
         if (start_tts) {
-          thread_slice->mutable_thread_dur()->Set(*maybe_row,
-                                                  *opt_tts - *start_tts);
+          slice->mutable_thread_dur()->Set(*maybe_row, *opt_tts - *start_tts);
         }
       }
       break;
@@ -190,9 +189,8 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
           name_id, upid, cookie, true /* source_id_is_process_scoped */, scope);
 
       if (phase == 'b') {
-        slice_tracker->BeginTyped(storage->mutable_thread_slice_table(),
-                                  make_thread_slice_row(track_id),
-                                  args_inserter);
+        slice_tracker->BeginTyped(storage->mutable_slice_table(),
+                                  make_slice_row(track_id), args_inserter);
         MaybeAddFlow(track_id, value);
       } else if (phase == 'e') {
         slice_tracker->End(timestamp, track_id, cat_id, name_id, args_inserter);
@@ -210,10 +208,10 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       if (!opt_dur.has_value())
         return;
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      auto row = make_thread_slice_row(track_id);
+      auto row = make_slice_row(track_id);
       row.dur = opt_dur.value();
-      slice_tracker->ScopedTyped(storage->mutable_thread_slice_table(),
-                                 std::move(row), args_inserter);
+      slice_tracker->ScopedTyped(storage->mutable_slice_table(), std::move(row),
+                                 args_inserter);
       MaybeAddFlow(track_id, value);
       break;
     }
@@ -279,13 +277,13 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
           break;
         }
         track_id = context_->track_tracker->InternThreadTrack(utid);
-        auto row = make_thread_slice_row(track_id);
+        auto row = make_slice_row(track_id);
         row.dur = 0;
         if (row.thread_ts) {
           // Only set thread_dur to zero if we have a thread_ts.
           row.thread_dur = 0;
         }
-        slice_tracker->ScopedTyped(storage->mutable_thread_slice_table(),
+        slice_tracker->ScopedTyped(storage->mutable_slice_table(),
                                    std::move(row), args_inserter);
         break;
       } else {
