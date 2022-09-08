@@ -453,13 +453,6 @@ class TraceStorage {
   const tables::FlowTable& flow_table() const { return flow_table_; }
   tables::FlowTable* mutable_flow_table() { return &flow_table_; }
 
-  const tables::ThreadSliceTable& thread_slice_table() const {
-    return thread_slice_table_;
-  }
-  tables::ThreadSliceTable* mutable_thread_slice_table() {
-    return &thread_slice_table_;
-  }
-
   const VirtualTrackSlices& virtual_track_slices() const {
     return virtual_track_slices_;
   }
@@ -856,9 +849,6 @@ class TraceStorage {
 
   // Slices from CPU scheduling data.
   tables::SchedSliceTable sched_slice_table_{&string_pool_, nullptr};
-
-  // Additional attributes for threads slices (sub-type of NestableSlices).
-  tables::ThreadSliceTable thread_slice_table_{&string_pool_, &slice_table_};
 
   // Additional attributes for virtual track slices (sub-type of
   // NestableSlices).
