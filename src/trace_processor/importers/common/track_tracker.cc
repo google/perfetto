@@ -305,6 +305,56 @@ TrackId TrackTracker::InternGpuCounterTrack(StringId name, uint32_t gpu_id) {
   return track;
 }
 
+TrackId TrackTracker::InternEnergyCounterTrack(StringId name,
+                                               int32_t consumer_id,
+                                               StringId consumer_type,
+                                               int32_t ordinal) {
+  auto it = energy_counter_tracks_.find(std::make_pair(name, consumer_id));
+  if (it != energy_counter_tracks_.end()) {
+    return it->second;
+  }
+  tables::EnergyCounterTrackTable::Row row(name);
+  row.consumer_id = consumer_id;
+  row.consumer_type = consumer_type;
+  row.ordinal = ordinal;
+  TrackId track =
+      context_->storage->mutable_energy_counter_track_table()->Insert(row).id;
+  energy_counter_tracks_[std::make_pair(name, consumer_id)] = track;
+  return track;
+}
+
+TrackId TrackTracker::InternUidCounterTrack(StringId name, int32_t uid) {
+  auto it = uid_counter_tracks_.find(std::make_pair(name, uid));
+  if (it != uid_counter_tracks_.end()) {
+    return it->second;
+  }
+
+  tables::UidCounterTrackTable::Row row(name);
+  row.uid = uid;
+  TrackId track =
+      context_->storage->mutable_uid_counter_track_table()->Insert(row).id;
+  uid_counter_tracks_[std::make_pair(name, uid)] = track;
+  return track;
+}
+
+TrackId TrackTracker::InternEnergyPerUidCounterTrack(StringId name,
+                                                     int32_t consumer_id) {
+  auto it =
+      energy_per_uid_counter_tracks_.find(std::make_pair(name, consumer_id));
+  if (it != energy_per_uid_counter_tracks_.end()) {
+    return it->second;
+  }
+
+  tables::EnergyPerUidCounterTrackTable::Row row(name);
+  row.consumer_id = consumer_id;
+  TrackId track =
+      context_->storage->mutable_energy_per_uid_counter_track_table()
+          ->Insert(row)
+          .id;
+  energy_per_uid_counter_tracks_[std::make_pair(name, consumer_id)] = track;
+  return track;
+}
+
 TrackId TrackTracker::CreateGpuCounterTrack(StringId name,
                                             uint32_t gpu_id,
                                             StringId description,
