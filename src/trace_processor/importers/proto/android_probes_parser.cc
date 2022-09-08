@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
@@ -29,6 +28,7 @@
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
+#include "protos/perfetto/common/android_energy_consumer_descriptor.pbzero.h"
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
@@ -37,6 +37,7 @@
 #include "protos/perfetto/trace/android/android_system_property.pbzero.h"
 #include "protos/perfetto/trace/android/initial_display_state.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
+#include "protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.h"
 #include "protos/perfetto/trace/power/battery_counters.pbzero.h"
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
 #include "protos/perfetto/trace/ps/process_stats.pbzero.h"
@@ -130,6 +131,56 @@ void AndroidProbesParser::ParsePowerRails(int64_t ts, ConstBytes blob) {
 
   // DCHECK that we only got one message.
   PERFETTO_DCHECK(!++it);
+}
+
+void AndroidProbesParser::ParseEnergyBreakdown(int64_t ts, ConstBytes blob) {
+  protos::pbzero::AndroidEnergyEstimationBreakdown::Decoder event(blob.data,
+                                                                  blob.size);
+
+  if (!event.has_energy_consumer_id() || !event.has_energy_uws()) {
+    context_->storage->IncrementStats(stats::energy_breakdown_missing_values);
+    return;
+  }
+
+  auto consumer_id = event.energy_consumer_id();
+  auto* tracker = AndroidProbesTracker::GetOrCreate(context_);
+  auto energy_consumer_specs =
+      tracker->GetEnergyBreakdownDescriptor(consumer_id);
+
+  if (!energy_consumer_specs) {
+    context_->storage->IncrementStats(stats::energy_breakdown_missing_values);
+    return;
+  }
+
+  auto total_energy = static_cast<double>(event.energy_uws());
+  auto consumer_name = energy_consumer_specs->name;
+  auto consumer_type = energy_consumer_specs->type;
+  auto ordinal = energy_consumer_specs->ordinal;
+
+  TrackId energy_track = context_->track_tracker->InternEnergyCounterTrack(
+      consumer_name, consumer_id, consumer_type, ordinal);
+  context_->event_tracker->PushCounter(ts, total_energy, energy_track);
+
+  // Consumers providing per-uid energy breakdown
+  for (auto it = event.per_uid_breakdown(); it; ++it) {
+    protos::pbzero::AndroidEnergyEstimationBreakdown_EnergyUidBreakdown::Decoder
+        breakdown(*it);
+
+    if (!breakdown.has_uid() || !breakdown.has_energy_uws()) {
+      context_->storage->IncrementStats(
+          stats::energy_uid_breakdown_missing_values);
+      continue;
+    }
+
+    TrackId uid_track = context_->track_tracker->InternUidCounterTrack(
+        consumer_name, breakdown.uid());
+
+    context_->track_tracker->InternEnergyPerUidCounterTrack(consumer_name,
+                                                            consumer_id);
+
+    context_->event_tracker->PushCounter(
+        ts, static_cast<double>(breakdown.energy_uws()), uid_track);
+  }
 }
 
 void AndroidProbesParser::ParseAndroidLogPacket(ConstBytes blob) {
