@@ -361,6 +361,29 @@ class TraceStorage {
     return &gpu_counter_track_table_;
   }
 
+  const tables::EnergyCounterTrackTable& energy_counter_track_table() const {
+    return energy_counter_track_table_;
+  }
+  tables::EnergyCounterTrackTable* mutable_energy_counter_track_table() {
+    return &energy_counter_track_table_;
+  }
+
+  const tables::UidCounterTrackTable& uid_counter_track_table() const {
+    return uid_counter_track_table_;
+  }
+  tables::UidCounterTrackTable* mutable_uid_counter_track_table() {
+    return &uid_counter_track_table_;
+  }
+
+  const tables::EnergyPerUidCounterTrackTable&
+  energy_per_uid_counter_track_table() const {
+    return energy_per_uid_counter_track_table_;
+  }
+  tables::EnergyPerUidCounterTrackTable*
+  mutable_energy_per_uid_counter_track_table() {
+    return &energy_per_uid_counter_track_table_;
+  }
+
   const tables::IrqCounterTrackTable& irq_counter_track_table() const {
     return irq_counter_track_table_;
   }
@@ -808,6 +831,12 @@ class TraceStorage {
       &string_pool_, &counter_track_table_};
   tables::GpuCounterTrackTable gpu_counter_track_table_{&string_pool_,
                                                         &counter_track_table_};
+  tables::EnergyCounterTrackTable energy_counter_track_table_{
+      &string_pool_, &counter_track_table_};
+  tables::UidCounterTrackTable uid_counter_track_table_{&string_pool_,
+                                                        &counter_track_table_};
+  tables::EnergyPerUidCounterTrackTable energy_per_uid_counter_track_table_{
+      &string_pool_, &uid_counter_track_table_};
   tables::GpuCounterGroupTable gpu_counter_group_table_{&string_pool_, nullptr};
   tables::PerfCounterTrackTable perf_counter_track_table_{
       &string_pool_, &counter_track_table_};
