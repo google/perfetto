@@ -44,7 +44,6 @@ import {
   generateQuery,
   sliceAggregationColumns,
   tables,
-  threadSliceAggregationColumns,
 } from './pivot_table_redux_query_generator';
 import {
   Aggregation,
@@ -72,21 +71,18 @@ interface DrillFilter {
   value: ColumnType;
 }
 
-function drillFilterColumnName(column: TableColumn, mainTable: string): string {
+function drillFilterColumnName(column: TableColumn): string {
   switch (column.kind) {
     case 'argument':
       return extractArgumentExpression(column.argument);
     case 'regular':
-      if (column.table === 'slice' || column.table === 'thread_slice') {
-        return `${mainTable}.${column.column}`;
-      }
       return `${column.table}.${column.column}`;
   }
 }
 
 // Convert DrillFilter to SQL condition to be used in WHERE clause.
-function renderDrillFilter(filter: DrillFilter, mainTable: string): string {
-  const column = drillFilterColumnName(filter.column, mainTable);
+function renderDrillFilter(filter: DrillFilter): string {
+  const column = drillFilterColumnName(filter.column);
   if (filter.value === null) {
     return `${column} IS NULL`;
   } else if (typeof filter.value === 'number') {
@@ -127,23 +123,21 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         globals.state.areas[attrs.selectionArea.areaId],
         this.constrainToArea);
   }
-  renderDrillDownCell(
-      area: Area, result: PivotTableReduxResult, filters: DrillFilter[]) {
+
+  renderDrillDownCell(area: Area, filters: DrillFilter[]) {
     return m(
         'td',
         m('button',
           {
             title: 'All corresponding slices',
             onclick: () => {
-              const mainTable = result.metadata.tableName;
-              const queryFilters =
-                  filters.map((f) => renderDrillFilter(f, mainTable));
+              const queryFilters = filters.map(renderDrillFilter);
               if (this.constrainToArea) {
                 queryFilters.push(areaFilter(area));
               }
               const query = `
-                select ${mainTable}.* from ${mainTable}
-                join thread_track on ${mainTable}.track_id = thread_track.id
+                select slice.* from slice
+                join thread_track on slice.track_id = thread_track.id
                 join thread using (utid)
                 join process using (upid)
                 where ${queryFilters.join(' and \n')}
@@ -198,7 +192,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
       });
     }
 
-    renderedCells.push(this.renderDrillDownCell(area, result, drillFilters));
+    renderedCells.push(this.renderDrillDownCell(area, drillFilters));
     return m('tr', renderedCells);
   }
 
@@ -259,7 +253,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         renderedCells.push(m('td', renderedValue));
       }
 
-      renderedCells.push(this.renderDrillDownCell(area, result, drillFilters));
+      renderedCells.push(this.renderDrillDownCell(area, drillFilters));
       sink.push(m('tr', renderedCells));
     }
   }
@@ -422,12 +416,6 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         'slice', sliceAggregationColumns, usedAggregations);
     if (sliceAggregationsItem !== undefined) {
       popupItems.push(sliceAggregationsItem);
-    }
-
-    const threadSliceAggregationsItem = this.aggregationPopupTableGroup(
-        'thread_slice', threadSliceAggregationColumns, usedAggregations);
-    if (threadSliceAggregationsItem !== undefined) {
-      popupItems.push(threadSliceAggregationsItem);
     }
 
     return m(
