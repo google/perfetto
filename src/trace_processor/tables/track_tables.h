@@ -135,6 +135,44 @@ PERFETTO_TP_TABLE(PERFETTO_TP_GPU_COUNTER_TRACK_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_PERF_COUNTER_TRACK_DEF);
 
+// Energy consumers' values for energy descriptors in
+// energy_estimation_breakdown packet
+//
+// @param consumer_id id of a distinct energy consumer
+// @param consumer_type type of energy consumer
+// @param ordinal ordinal of energy consumer
+// @tablegroup Tracks
+#define PERFETTO_TP_ENERGY_COUNTER_TRACK_DEF(NAME, PARENT, C) \
+  NAME(EnergyCounterTrackTable, "energy_counter_track")       \
+  PARENT(PERFETTO_TP_COUNTER_TRACK_DEF, C)                    \
+  C(int32_t, consumer_id)                                     \
+  C(StringPool::Id, consumer_type)                            \
+  C(int32_t, ordinal)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_ENERGY_COUNTER_TRACK_DEF);
+
+// Energy per process values for per_uid in energy_estimation_breakdown packet
+//
+// @param uid id of distinct energy process
+// @tablegroup Tracks
+#define PERFETTO_TP_UID_COUNTER_TRACK_DEF(NAME, PARENT, C) \
+  NAME(UidCounterTrackTable, "uid_counter_track")          \
+  PARENT(PERFETTO_TP_COUNTER_TRACK_DEF, C)                 \
+  C(int32_t, uid)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_UID_COUNTER_TRACK_DEF);
+
+// Energy consumer values for per uid in uid_counter_track
+//
+// @param consumer_id of consumer of process
+// @tablegroup Tracks
+#define PERFETTO_TP_ENERGY_PER_UID_COUNTER_TRACK_DEF(NAME, PARENT, C) \
+  NAME(EnergyPerUidCounterTrackTable, "energy_per_uid_counter_track") \
+  PARENT(PERFETTO_TP_UID_COUNTER_TRACK_DEF, C)                        \
+  C(int32_t, consumer_id)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_ENERGY_PER_UID_COUNTER_TRACK_DEF);
+
 }  // namespace tables
 }  // namespace trace_processor
 }  // namespace perfetto
