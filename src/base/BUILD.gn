@@ -219,8 +219,10 @@ perfetto_unittest_source_set("unittests") {
     if (is_linux || is_android) {
       sources += [ "watchdog_unittest.cc" ]
     }
-    sources += [ "unix_socket_unittest.cc" ]
-    deps += [ ":unix_socket" ]
+    if (!is_win) {
+      sources += [ "unix_socket_unittest.cc" ]
+      deps += [ ":unix_socket" ]
+    }
   }
 }
 

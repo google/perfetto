@@ -95,7 +95,8 @@ TEST_F(IPCIntegrationTest, SayHelloWaveGoodbye) {
           perfetto::base::ScopedSocketHandle(socket_pair.first.ReleaseFd())),
       &task_runner_);
   host->AdoptConnectedSocket_Fuchsia(
-      perfetto::base::ScopedSocketHandle(socket_pair.second.ReleaseFd()));
+      perfetto::base::ScopedSocketHandle(socket_pair.second.ReleaseFd()),
+      [](int) { return false; });
 #else
   std::unique_ptr<Client> cli = Client::CreateInstance(
       {kTestSocket.name(), /*retry=*/false}, &task_runner_);
