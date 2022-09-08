@@ -44,10 +44,10 @@ export const sliceTable = {
 };
 
 // Columns of `slice` table available for aggregation.
-export const sliceAggregationColumns = ['ts', 'dur', 'depth'];
-
-// Columns of `thread_slice` table available for aggregation.
-export const threadSliceAggregationColumns = [
+export const sliceAggregationColumns = [
+  'ts',
+  'dur',
+  'depth',
   'thread_ts',
   'thread_dur',
   'thread_instruction_count',
@@ -140,7 +140,6 @@ export function extractArgumentExpression(argument: string) {
 function generateInnerQuery(
     pivots: TableColumn[],
     aggregations: Aggregation[],
-    table: string,
     includeTrack: boolean,
     area: Area,
     constrainToArea: boolean): {query: string, groupByColumns: string[]} {
@@ -178,35 +177,13 @@ function generateInnerQuery(
   const query = `
     select
       ${selectColumns.concat(aggregationColumns).join(',\n')}
-    from ${table}
+    from slice
     ${(constrainToArea ? `where ${areaFilter(area)}` : '')}
     group by ${
       groupByColumns.concat(includeTrack ? ['track_id'] : []).join(', ')}
   `;
 
   return {query, groupByColumns};
-}
-
-function computeSliceTableAggregations(
-    selectedAggregations: Map<string, Aggregation>):
-    {tableName: string, flatAggregations: Aggregation[]} {
-  let hasThreadSliceColumn = false;
-  const allColumns: Aggregation[] = [];
-  for (const tableColumn of selectedAggregations.values()) {
-    if (tableColumn.column.kind === 'regular' &&
-        tableColumn.column.table === 'thread_slice') {
-      hasThreadSliceColumn = true;
-    }
-    allColumns.push(tableColumn);
-  }
-
-  return {
-    // If any aggregation column from `thread_slice` is present, it's going to
-    // be the base table for the pivot table query. Otherwise, `slice` is used.
-    // This later is going to be controllable by a UI element.
-    tableName: hasThreadSliceColumn ? 'thread_slice' : 'slice',
-    flatAggregations: allColumns,
-  };
 }
 
 // Every aggregation in the request is contained in the result in (number of
@@ -238,10 +215,9 @@ export function generateQuery(
     selectedAggregations: Map<string, Aggregation>,
     area: Area,
     constrainToArea: boolean): PivotTableReduxQuery {
-  const sliceTableAggregations =
-      computeSliceTableAggregations(selectedAggregations);
+  const sliceTableAggregations = [...selectedAggregations.values()];
 
-  if (sliceTableAggregations.flatAggregations.length === 0) {
+  if (sliceTableAggregations.length === 0) {
     throw new QueryGeneratorError('No aggregations selected');
   }
 
@@ -252,8 +228,7 @@ export function generateQuery(
   const outerAggregations = [];
   const innerQuery = generateInnerQuery(
       slicePivots,
-      sliceTableAggregations.flatAggregations,
-      sliceTableAggregations.tableName,
+      sliceTableAggregations,
       nonSlicePivots.length > 0,
       area,
       constrainToArea);
@@ -266,10 +241,9 @@ export function generateQuery(
   const sortCriteria =
       globals.state.nonSerializableState.pivotTableRedux.sortCriteria;
   const sortClauses: string[] = [];
-  for (let i = 0; i < sliceTableAggregations.flatAggregations.length; i++) {
+  for (let i = 0; i < sliceTableAggregations.length; i++) {
     const agg = `preaggregated.${aggregationAlias(i, 0)}`;
-    const fn = outerAggregation(
-        sliceTableAggregations.flatAggregations[i].aggregationFunction);
+    const fn = outerAggregation(sliceTableAggregations[i].aggregationFunction);
     outerAggregations.push(`${fn}(${agg}) as ${aggregationAlias(i, 0)}`);
 
     for (let level = 1; level < totalPivotsArray.length; level++) {
@@ -293,8 +267,7 @@ export function generateQuery(
 
     if (sortCriteria !== undefined &&
         tableColumnEquals(
-            sliceTableAggregations.flatAggregations[i].column,
-            sortCriteria.column)) {
+            sliceTableAggregations[i].column, sortCriteria.column)) {
       for (let level = totalPivotsArray.length - 1; level >= 0; level--) {
         sortClauses.push(`${aggregationAlias(i, level)} ${sortCriteria.order}`);
       }
@@ -323,9 +296,8 @@ export function generateQuery(
   return {
     text,
     metadata: {
-      tableName: sliceTableAggregations.tableName,
       pivotColumns: (nonSlicePivots as TableColumn[]).concat(slicePivots),
-      aggregationColumns: sliceTableAggregations.flatAggregations,
+      aggregationColumns: sliceTableAggregations,
     },
   };
 }
