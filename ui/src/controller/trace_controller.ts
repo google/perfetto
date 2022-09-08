@@ -654,6 +654,7 @@ export class TraceController extends Controller<States> {
         track_id INT,
         ts BIG INT,
         dur BIG INT,
+        thread_dur BIG INT,
         depth INT,
         cat STRING,
         name STRING,
@@ -724,11 +725,14 @@ export class TraceController extends Controller<States> {
             WHERE track_type = 'slice'
           `);
           await engine.query(`
-            INSERT INTO annotation_slice(track_id, ts, dur, depth, cat, name)
+            INSERT INTO annotation_slice(
+              track_id, ts, dur, thread_dur, depth, cat, name
+            )
             SELECT
               t.id AS track_id,
               ts,
               dur,
+              NULL as thread_dur,
               0 AS depth,
               a.track_name as cat,
               slice_name AS name

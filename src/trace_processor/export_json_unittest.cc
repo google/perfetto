@@ -134,7 +134,7 @@ TEST_F(ExportJsonTest, StorageWithOneSlice) {
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
   // The thread_slice table is a sub table of slice.
-  context_.storage->mutable_thread_slice_table()->Insert(
+  context_.storage->mutable_slice_table()->Insert(
       {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0, SliceId(0u), 0,
        kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
        kThreadInstructionDelta});
@@ -179,7 +179,7 @@ TEST_F(ExportJsonTest, StorageWithOneUnfinishedSlice) {
   context_.args_tracker->Flush();  // Flush track args.
   StringId cat_id = context_.storage->InternString(base::StringView(kCategory));
   StringId name_id = context_.storage->InternString(base::StringView(kName));
-  context_.storage->mutable_thread_slice_table()->Insert(
+  context_.storage->mutable_slice_table()->Insert(
       {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0, SliceId(0u), 0,
        kThreadTimestamp, kThreadDuration, kThreadInstructionCount,
        kThreadInstructionDelta});
