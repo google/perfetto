@@ -72,6 +72,7 @@
 
 * [Design documents](#)
     * [API and ABI surface](design-docs/api-and-abi.md)
+    * [Batch Trace Processor](design-docs/batch-trace-processor.md)
     * [Heapprofd design](design-docs/heapprofd-design.md)
     * [Heapprofd wire protocol](design-docs/heapprofd-wire-protocol.md)
     * [Heapprofd sampling](design-docs/heapprofd-sampling.md)

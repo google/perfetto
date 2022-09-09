@@ -16,7 +16,7 @@ The supported output formats are:
 - `systrace`: the ftrace text format used by Android systrace
 - `profile` : pprof-like format. Either for traces with with
   [native heap profiler](/docs/data-sources/native-heap-profiler.md) dumps or
-  [callstack sampling](docs/quickstart/callstack-sampling) (note however
+  [callstack sampling](/docs/quickstart/callstack-sampling.md) (note however
   callstacks requires the `--perf` flag).
 
 ## Setup
