@@ -19,11 +19,11 @@
 #include <cstdint>
 #include <iterator>
 
-#include "include/perfetto/base/logging.h"
-#include "include/perfetto/ext/trace_processor/demangle.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/trace_processor/demangle.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
