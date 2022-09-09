@@ -105,7 +105,9 @@ class TrackTracker {
 
   // Interns a per process energy consumer counter track associated with a
   // Energy Uid into the storage.
-  TrackId InternEnergyPerUidCounterTrack(StringId name, int32_t consumer_id);
+  TrackId InternEnergyPerUidCounterTrack(StringId name,
+                                         int32_t consumer_id,
+                                         int32_t uid);
 
   // Creates a counter track associated with a GPU into the storage.
   TrackId CreateGpuCounterTrack(StringId name,
