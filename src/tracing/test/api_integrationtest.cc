@@ -2552,6 +2552,40 @@ TEST_P(PerfettoApiTest, TrackEventArgs_Flow_Global) {
       });
 }
 
+TEST_P(PerfettoApiTest, TrackEventArgs_Lambda_Multisession) {
+  // Create two simultaneous tracing sessions.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  auto* tracing_session2 = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+  tracing_session2->get()->StartBlocking();
+
+  // Emit an event in both sessions using an argument function.
+  auto make_arg = []() -> std::function<void(perfetto::EventContext&)> {
+    return [](perfetto::EventContext& ctx) {
+      ctx.event()->set_type(perfetto::protos::pbzero::TrackEvent::TYPE_INSTANT);
+      ctx.event()->add_flow_ids(42);
+    };
+  };
+  TRACE_EVENT_INSTANT("foo", "E1", make_arg());
+
+  std::vector<char> raw_trace = StopSessionAndReturnBytes(tracing_session);
+  std::vector<char> raw_trace2 = StopSessionAndReturnBytes(tracing_session2);
+
+  // Check that the event was output twice.
+  CheckTypedArguments(
+      raw_trace, "E1", perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
+      [](const perfetto::protos::gen::TrackEvent& track_event) {
+        EXPECT_TRUE(track_event.flow_ids_old().empty());
+        EXPECT_THAT(track_event.flow_ids(), testing::ElementsAre(42u));
+      });
+  CheckTypedArguments(
+      raw_trace2, "E1", perfetto::protos::gen::TrackEvent::TYPE_INSTANT,
+      [](const perfetto::protos::gen::TrackEvent& track_event) {
+        EXPECT_TRUE(track_event.flow_ids_old().empty());
+        EXPECT_THAT(track_event.flow_ids(), testing::ElementsAre(42u));
+      });
+}
+
 TEST_P(PerfettoApiTest, TrackEventArgs_MultipleFlows) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"foo"});
