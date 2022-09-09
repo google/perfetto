@@ -35,6 +35,7 @@ class AndroidProbesParser {
 
   void ParseBatteryCounters(int64_t ts, ConstBytes);
   void ParsePowerRails(int64_t ts, ConstBytes);
+  void ParseEnergyBreakdown(int64_t ts, ConstBytes);
   void ParseAndroidLogPacket(ConstBytes);
   void ParseAndroidLogEvent(ConstBytes);
   void ParseAndroidLogStats(ConstBytes);

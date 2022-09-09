@@ -78,7 +78,7 @@ FROM (
     thread.upid || ':' || EXTRACT_ARG(arg_set_id, 'debug.epoch') AS epoch,
     slice.thread_dur AS cpuDurNs,
     slice.*
-  FROM thread_slice as slice
+  FROM slice
   INNER JOIN thread_track ON slice.track_id = thread_track.id
   INNER JOIN thread ON thread_track.utid = thread.id
   WHERE

@@ -1025,8 +1025,7 @@ export const StateActions = {
 
   setPivotTablePivotSelected(
       state: StateDraft, args: {column: TableColumn, selected: boolean}) {
-    if (args.column.kind === 'argument' || args.column.table === 'slice' ||
-        args.column.table === 'thread_slice') {
+    if (args.column.kind === 'argument' || args.column.table === 'slice') {
       toggleEnabled(
           state.nonSerializableState.pivotTableRedux.selectedSlicePivots,
           args.column,

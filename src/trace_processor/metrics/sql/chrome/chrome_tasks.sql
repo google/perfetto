@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
--- Create |chrome_scheduler_tasks| table, which contains a subset of thread_slice
+-- Create |chrome_scheduler_tasks| table, which contains a subset of slice
 -- table with the slices which correspond to tasks executed by Chrome scheduler.
 --
 -- |chrome_scheduler_tasks_internal| is the cached table containing scheduler-specific bits.
@@ -28,14 +28,14 @@ SELECT
     WHEN "ThreadPool_RunTask" THEN "ThreadPool"
   END) as scheduler_type,
   s.id
-FROM thread_slice s
+FROM slice s
 WHERE
   category="toplevel" AND
   (name="ThreadControllerImpl::RunTask" or name="ThreadPool_RunTask")
 ORDER BY id;
 
 -- |chrome_scheduler_tasks| is a view over |chrome_scheduler_tasks_internal| table, adding
--- columns from |thread_slice| table.
+-- columns from |slice| table.
 DROP VIEW IF EXISTS chrome_scheduler_tasks;
 CREATE VIEW chrome_scheduler_tasks AS
 SELECT
@@ -45,10 +45,10 @@ SELECT
   s1.scheduler_type,
   s2.*
 FROM chrome_scheduler_tasks_internal s1
-JOIN thread_slice s2 USING (id)
+JOIN slice s2 USING (id)
 ORDER BY id;
 
--- Create |chrome_mojo_receive_slices| table, containing a subset of thread_slice
+-- Create |chrome_mojo_receive_slices| table, containing a subset of slice
 -- table with the slices corresponding to received mojo messages.
 --
 -- Note: this might include messages received within a sync mojo call.
@@ -89,7 +89,7 @@ WITH
        LIMIT 1) as ipc_hash,
       "message" as message_type,
       s.id
-    FROM thread_slice s
+    FROM slice s
     WHERE
       category="mojom"
       AND name GLOB '*.mojom.*'
@@ -110,7 +110,7 @@ WITH
        LIMIT 1) as ipc_hash,
       "message" as message_type,
       s.id
-    FROM thread_slice s
+    FROM slice s
     WHERE
       category="toplevel" and name="Connector::DispatchMessage"
     ORDER BY id
@@ -128,7 +128,7 @@ FROM all_mojo_slices_non_sorted
 ORDER BY id;
 
 -- |chrome_mojo_slices| is a view over |chrome_mojo_slices_internal| table, adding
--- columns from |thread_slice| table.
+-- columns from |slice| table.
 DROP VIEW IF EXISTS chrome_mojo_slices;
 CREATE VIEW chrome_mojo_slices AS
 SELECT
@@ -137,7 +137,7 @@ SELECT
   s1.message_type,
   s2.*
 FROM chrome_mojo_slices_internal s1
-JOIN thread_slice s2 USING (id)
+JOIN slice s2 USING (id)
 ORDER BY id;
 
 -- This table contains a list of slices corresponding to the _representative_ Chrome Java views.
@@ -162,7 +162,7 @@ WITH
         ".Layout", ""),
       ".Measure", "") as name
     FROM
-      thread_slice s1
+      slice s1
     where category="Java" and dur > 0
   ),
   -- We filter out generic slices from various UI frameworks which don't tell us much about
@@ -217,7 +217,7 @@ WHERE (select count()
 ORDER BY s1.id;
 
 -- |chrome_java_views| is a view over |chrome_java_views_internal| table, adding the necessary columns
--- from |thread_slice|.
+-- from |slice|.
 DROP VIEW IF EXISTS chrome_java_views;
 CREATE VIEW chrome_java_views AS
 SELECT
@@ -226,7 +226,7 @@ SELECT
   s1.is_hardware_screenshot,
   s2.*
 FROM chrome_java_views_internal s1
-JOIN thread_slice s2 using (id);
+JOIN slice s2 using (id);
 
 -- Most of java views will be triggered either by Chrome's BeginMainFrame
 -- or by Android's Choreographer.
@@ -241,7 +241,7 @@ WITH
         WHEN 'ThreadControllerImpl::RunTask' THEN 'SingleThreadProxy::BeginMainFrame'
         ELSE 'Choreographer'
        END) as kind
-    FROM thread_slice
+    FROM slice
     WHERE
       (name GLOB 'Looper.dispatch: android.view.Choreographer$FrameHandler*') OR
       (name='ThreadControllerImpl::RunTask' AND
@@ -267,7 +267,7 @@ LEFT JOIN root_slice_and_java_view_not_grouped s2 USING (id)
 GROUP BY s1.id
 ORDER BY s1.id;
 
--- Create |chrome_tasks| table, which contains a subset of thread_slice
+-- Create |chrome_tasks| table, which contains a subset of slice
 -- table of the slices which should be considered top-level Chrome tasks with the
 -- additional scheduler_type |full_name| column, derived from subevents.
 DROP TABLE IF EXISTS chrome_tasks_internal;
@@ -277,7 +277,7 @@ WITH
   -- "toplevel" slice as ancestor. The possible cases include sync mojo messages
   -- and tasks in nested runloops.
   non_embedded_toplevel_slices AS (
-     SELECT * FROM thread_slice s
+     SELECT * FROM slice s
      WHERE
        category IN ("toplevel", "toplevel,viz")
        AND (SELECT count() FROM ancestor_slice(s.id) s2 
@@ -289,7 +289,7 @@ WITH
   -- to "toplevel" category as well, but for now this will have to do.
   non_embedded_java_slices AS (
     SELECT name as full_name, "java" as task_type, id
-    FROM thread_slice s
+    FROM slice s
     WHERE
       category="Java"
       AND (SELECT count()
@@ -384,7 +384,7 @@ SELECT
   thread.upid,
   ts.*
 FROM chrome_tasks_internal cti
-JOIN thread_slice ts USING (id)
+JOIN slice ts USING (id)
 JOIN thread_track tt ON ts.track_id=tt.id
 JOIN thread USING (utid)
 JOIN process USING (upid)
@@ -396,7 +396,7 @@ DROP VIEW IF EXISTS chrome_slices_without_parent_task;
 CREATE VIEW chrome_slices_without_parent_task AS
 SELECT
   s1.*
-FROM thread_slice s1
+FROM slice s1
 LEFT JOIN chrome_tasks s2 USING (id)
 WHERE
   (SELECT count()

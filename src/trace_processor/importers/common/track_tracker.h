@@ -93,6 +93,20 @@ class TrackTracker {
   // Interns a counter track associated with a GPU into the storage.
   TrackId InternGpuCounterTrack(StringId name, uint32_t gpu_id);
 
+  // Interns energy counter track associated with a
+  // Energy breakdown into the storage.
+  TrackId InternEnergyCounterTrack(StringId name,
+                                   int32_t consumer_id,
+                                   StringId consumer_type,
+                                   int32_t ordinal);
+  // Interns a per process energy counter track associated with a
+  // Energy into the storage.
+  TrackId InternUidCounterTrack(StringId name, int32_t uid);
+
+  // Interns a per process energy consumer counter track associated with a
+  // Energy Uid into the storage.
+  TrackId InternEnergyPerUidCounterTrack(StringId name, int32_t consumer_id);
+
   // Creates a counter track associated with a GPU into the storage.
   TrackId CreateGpuCounterTrack(StringId name,
                                 uint32_t gpu_id,
@@ -157,6 +171,10 @@ class TrackTracker {
   std::map<std::pair<StringId, int32_t>, TrackId> irq_counter_tracks_;
   std::map<std::pair<StringId, int32_t>, TrackId> softirq_counter_tracks_;
   std::map<std::pair<StringId, uint32_t>, TrackId> gpu_counter_tracks_;
+  std::map<std::pair<StringId, int32_t>, TrackId> energy_counter_tracks_;
+  std::map<std::pair<StringId, int32_t>, TrackId> uid_counter_tracks_;
+  std::map<std::pair<StringId, int32_t>, TrackId>
+      energy_per_uid_counter_tracks_;
 
   base::Optional<TrackId> chrome_global_instant_track_id_;
   base::Optional<TrackId> trigger_track_id_;

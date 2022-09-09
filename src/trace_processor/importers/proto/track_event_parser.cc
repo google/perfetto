@@ -707,7 +707,7 @@ class TrackEventParser::EventImporter {
           "TrackEvent with phase B without thread association");
     }
 
-    auto* thread_slices = storage_->mutable_thread_slice_table();
+    auto* thread_slices = storage_->mutable_slice_table();
     auto opt_slice_id = context_->slice_tracker->BeginTyped(
         thread_slices, MakeThreadSliceRow(),
         [this](BoundInserter* inserter) { ParseTrackEventArgs(inserter); });
@@ -730,7 +730,7 @@ class TrackEventParser::EventImporter {
       return base::OkStatus();
 
     MaybeParseFlowEvents(*opt_slice_id);
-    auto* thread_slices = storage_->mutable_thread_slice_table();
+    auto* thread_slices = storage_->mutable_slice_table();
     auto opt_thread_slice_ref = thread_slices->FindById(*opt_slice_id);
     if (!opt_thread_slice_ref) {
       // This means that the end event did not match a corresponding track event
@@ -740,7 +740,7 @@ class TrackEventParser::EventImporter {
       return base::OkStatus();
     }
 
-    tables::ThreadSliceTable::RowReference slice_ref = *opt_thread_slice_ref;
+    tables::SliceTable::RowReference slice_ref = *opt_thread_slice_ref;
     base::Optional<int64_t> tts = slice_ref.thread_ts();
     if (tts) {
       PERFETTO_DCHECK(thread_timestamp_);
@@ -765,8 +765,8 @@ class TrackEventParser::EventImporter {
     if (duration_ns < 0)
       return util::ErrStatus("TrackEvent with phase X with negative duration");
 
-    auto* thread_slices = storage_->mutable_thread_slice_table();
-    tables::ThreadSliceTable::Row row = MakeThreadSliceRow();
+    auto* thread_slices = storage_->mutable_slice_table();
+    tables::SliceTable::Row row = MakeThreadSliceRow();
     row.dur = duration_ns;
     if (legacy_event_.has_thread_duration_us()) {
       row.thread_dur = legacy_event_.thread_duration_us() * 1000;
@@ -898,8 +898,8 @@ class TrackEventParser::EventImporter {
       }
     };
     if (utid_) {
-      auto* thread_slices = storage_->mutable_thread_slice_table();
-      tables::ThreadSliceTable::Row row = MakeThreadSliceRow();
+      auto* thread_slices = storage_->mutable_slice_table();
+      tables::SliceTable::Row row = MakeThreadSliceRow();
       row.dur = duration_ns;
       if (thread_timestamp_) {
         row.thread_dur = duration_ns;
@@ -1314,8 +1314,8 @@ class TrackEventParser::EventImporter {
     return util::OkStatus();
   }
 
-  tables::ThreadSliceTable::Row MakeThreadSliceRow() {
-    tables::ThreadSliceTable::Row row;
+  tables::SliceTable::Row MakeThreadSliceRow() {
+    tables::SliceTable::Row row;
     row.ts = ts_;
     row.track_id = track_id_;
     row.category = category_id_;

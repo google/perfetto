@@ -70,8 +70,7 @@ export function createEmptyNonSerializableState(): NonSerializableState {
           },
           {
             aggregationFunction: 'SUM',
-            column:
-                {kind: 'regular', table: 'thread_slice', column: 'thread_dur'},
+            column: {kind: 'regular', table: 'slice', column: 'thread_dur'},
           },
           COUNT_AGGREGATION),
       constrainToArea: true,
