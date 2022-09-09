@@ -29,6 +29,7 @@ import NativeContinuousDumpConfig =
 import JavaContinuousDumpConfig =
     protos.perfetto.protos.JavaHprofConfig.ContinuousDumpConfig;
 import DataSourceConfig = protos.perfetto.protos.DataSourceConfig;
+import DataSourceDescriptor = protos.perfetto.protos.DataSourceDescriptor;
 import FtraceConfig = protos.perfetto.protos.FtraceConfig;
 import HeapprofdConfig = protos.perfetto.protos.HeapprofdConfig;
 import JavaHprofConfig = protos.perfetto.protos.JavaHprofConfig;
@@ -53,11 +54,15 @@ import DisableTracingRequest = protos.perfetto.protos.DisableTracingRequest;
 import GetTraceStatsRequest = protos.perfetto.protos.GetTraceStatsRequest;
 import FreeBuffersRequest = protos.perfetto.protos.FreeBuffersRequest;
 import ReadBuffersRequest = protos.perfetto.protos.ReadBuffersRequest;
+import QueryServiceStateRequest =
+    protos.perfetto.protos.QueryServiceStateRequest;
 import EnableTracingResponse = protos.perfetto.protos.EnableTracingResponse;
 import DisableTracingResponse = protos.perfetto.protos.DisableTracingResponse;
 import GetTraceStatsResponse = protos.perfetto.protos.GetTraceStatsResponse;
 import FreeBuffersResponse = protos.perfetto.protos.FreeBuffersResponse;
 import ReadBuffersResponse = protos.perfetto.protos.ReadBuffersResponse;
+import QueryServiceStateResponse =
+    protos.perfetto.protos.QueryServiceStateResponse;
 // Trace Processor protos.
 import QueryArgs = protos.perfetto.protos.QueryArgs;
 import StatusResult = protos.perfetto.protos.StatusResult;
@@ -78,6 +83,7 @@ export {
   ComputeMetricResult,
   DataSourceConfig,
   DisableAndReadMetatraceResult,
+  DataSourceDescriptor,
   DisableTracingRequest,
   DisableTracingResponse,
   EnableTracingRequest,
@@ -104,6 +110,8 @@ export {
   ProcessStatsConfig,
   ReadBuffersRequest,
   ReadBuffersResponse,
+  QueryServiceStateRequest,
+  QueryServiceStateResponse,
   QueryArgs,
   StatCounters,
   StatusResult,
