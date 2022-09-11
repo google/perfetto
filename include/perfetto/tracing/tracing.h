@@ -116,6 +116,13 @@ struct TracingInitArgs {
   // callback instead of being logged directly.
   LogMessageCallback log_message_callback = nullptr;
 
+  // When this flag is set to false, it overrides
+  // `DataSource::kSupportsMultipleInstances` for all the data sources.
+  // As a result when a tracing session is already running and if we attempt to
+  // start another session, it will fail to start the data source which were
+  // already active.
+  bool supports_multiple_data_source_instances = true;
+
  protected:
   friend class Tracing;
   friend class internal::TracingMuxerImpl;

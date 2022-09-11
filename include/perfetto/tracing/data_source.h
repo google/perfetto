@@ -177,6 +177,12 @@ class DataSource : public DataSourceBase {
   constexpr static BufferExhaustedPolicy kBufferExhaustedPolicy =
       BufferExhaustedPolicy::kDrop;
 
+  // When this flag is false, we cannot have multiple instances of this data
+  // source. When a data source is already active and if we attempt
+  // to start another instance of that data source (via another tracing
+  // session), it will fail to start the second instance of data source.
+  static constexpr bool kSupportsMultipleInstances = true;
+
   // Argument passed to the lambda function passed to Trace() (below).
   class TraceContext {
    public:
@@ -467,8 +473,9 @@ class DataSource : public DataSourceBase {
           new DataSourceType(constructor_args...));
     };
     auto* tracing_impl = internal::TracingMuxer::Get();
-    return tracing_impl->RegisterDataSource(descriptor, factory,
-                                            &static_state_);
+    return tracing_impl->RegisterDataSource(
+        descriptor, factory, DataSourceType::kSupportsMultipleInstances,
+        &static_state_);
   }
 
   // Updates the data source descriptor.
