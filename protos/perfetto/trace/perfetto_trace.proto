@@ -4067,6 +4067,51 @@ message InodeFileMap {
 
 // End of protos/perfetto/trace/filesystem/inode_file_map.proto
 
+// Begin of protos/perfetto/trace/ftrace/android_fs.proto
+
+message AndroidFsDatareadEndFtraceEvent {
+  optional int32 bytes = 1;
+  optional uint64 ino = 2;
+  optional int64 offset = 3;
+}
+message AndroidFsDatareadStartFtraceEvent {
+  optional int32 bytes = 1;
+  optional string cmdline = 2;
+  optional int64 i_size = 3;
+  optional uint64 ino = 4;
+  optional int64 offset = 5;
+  optional string pathbuf = 6;
+  optional int32 pid = 7;
+}
+message AndroidFsDatawriteEndFtraceEvent {
+  optional int32 bytes = 1;
+  optional uint64 ino = 2;
+  optional int64 offset = 3;
+}
+message AndroidFsDatawriteStartFtraceEvent {
+  optional int32 bytes = 1;
+  optional string cmdline = 2;
+  optional int64 i_size = 3;
+  optional uint64 ino = 4;
+  optional int64 offset = 5;
+  optional string pathbuf = 6;
+  optional int32 pid = 7;
+}
+message AndroidFsFsyncEndFtraceEvent {
+  optional int32 bytes = 1;
+  optional uint64 ino = 2;
+  optional int64 offset = 3;
+}
+message AndroidFsFsyncStartFtraceEvent {
+  optional string cmdline = 1;
+  optional int64 i_size = 2;
+  optional uint64 ino = 3;
+  optional string pathbuf = 4;
+  optional int32 pid = 5;
+}
+
+// End of protos/perfetto/trace/ftrace/android_fs.proto
+
 // Begin of protos/perfetto/trace/ftrace/binder.proto
 
 message BinderTransactionFtraceEvent {
@@ -7462,6 +7507,12 @@ message FtraceEvent {
     DsiCmdFifoStatusFtraceEvent dsi_cmd_fifo_status = 428;
     DsiRxFtraceEvent dsi_rx = 429;
     DsiTxFtraceEvent dsi_tx = 430;
+    AndroidFsDatareadEndFtraceEvent android_fs_dataread_end = 431;
+    AndroidFsDatareadStartFtraceEvent android_fs_dataread_start = 432;
+    AndroidFsDatawriteEndFtraceEvent android_fs_datawrite_end = 433;
+    AndroidFsDatawriteStartFtraceEvent android_fs_datawrite_start = 434;
+    AndroidFsFsyncEndFtraceEvent android_fs_fsync_end = 435;
+    AndroidFsFsyncStartFtraceEvent android_fs_fsync_start = 436;
   }
 }
 

@@ -4688,6 +4688,7 @@ genrule {
         "protos/perfetto/trace/clock_snapshot.proto",
         "protos/perfetto/trace/extension_descriptor.proto",
         "protos/perfetto/trace/filesystem/inode_file_map.proto",
+        "protos/perfetto/trace/ftrace/android_fs.proto",
         "protos/perfetto/trace/ftrace/binder.proto",
         "protos/perfetto/trace/ftrace/block.proto",
         "protos/perfetto/trace/ftrace/cgroup.proto",
@@ -4921,6 +4922,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_ftrace_cpp_gen",
     srcs: [
+        "protos/perfetto/trace/ftrace/android_fs.proto",
         "protos/perfetto/trace/ftrace/binder.proto",
         "protos/perfetto/trace/ftrace/block.proto",
         "protos/perfetto/trace/ftrace/cgroup.proto",
@@ -4986,6 +4988,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/ftrace/android_fs.gen.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/binder.gen.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/block.gen.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/cgroup.gen.cc",
@@ -5051,6 +5054,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_ftrace_cpp_gen_headers",
     srcs: [
+        "protos/perfetto/trace/ftrace/android_fs.proto",
         "protos/perfetto/trace/ftrace/binder.proto",
         "protos/perfetto/trace/ftrace/block.proto",
         "protos/perfetto/trace/ftrace/cgroup.proto",
@@ -5116,6 +5120,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/ftrace/android_fs.gen.h",
         "external/perfetto/protos/perfetto/trace/ftrace/binder.gen.h",
         "external/perfetto/protos/perfetto/trace/ftrace/block.gen.h",
         "external/perfetto/protos/perfetto/trace/ftrace/cgroup.gen.h",
@@ -5185,6 +5190,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_ftrace_lite_gen",
     srcs: [
+        "protos/perfetto/trace/ftrace/android_fs.proto",
         "protos/perfetto/trace/ftrace/binder.proto",
         "protos/perfetto/trace/ftrace/block.proto",
         "protos/perfetto/trace/ftrace/cgroup.proto",
@@ -5249,6 +5255,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/ftrace/android_fs.pb.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/binder.pb.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/block.pb.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/cgroup.pb.cc",
@@ -5314,6 +5321,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_ftrace_lite_gen_headers",
     srcs: [
+        "protos/perfetto/trace/ftrace/android_fs.proto",
         "protos/perfetto/trace/ftrace/binder.proto",
         "protos/perfetto/trace/ftrace/block.proto",
         "protos/perfetto/trace/ftrace/cgroup.proto",
@@ -5378,6 +5386,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/ftrace/android_fs.pb.h",
         "external/perfetto/protos/perfetto/trace/ftrace/binder.pb.h",
         "external/perfetto/protos/perfetto/trace/ftrace/block.pb.h",
         "external/perfetto/protos/perfetto/trace/ftrace/cgroup.pb.h",
@@ -5447,6 +5456,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_ftrace_zero_gen",
     srcs: [
+        "protos/perfetto/trace/ftrace/android_fs.proto",
         "protos/perfetto/trace/ftrace/binder.proto",
         "protos/perfetto/trace/ftrace/block.proto",
         "protos/perfetto/trace/ftrace/cgroup.proto",
@@ -5512,6 +5522,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/ftrace/android_fs.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/binder.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/block.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/cgroup.pbzero.cc",
@@ -5577,6 +5588,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
     srcs: [
+        "protos/perfetto/trace/ftrace/android_fs.proto",
         "protos/perfetto/trace/ftrace/binder.proto",
         "protos/perfetto/trace/ftrace/block.proto",
         "protos/perfetto/trace/ftrace/cgroup.proto",
@@ -5642,6 +5654,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/ftrace/android_fs.pbzero.h",
         "external/perfetto/protos/perfetto/trace/ftrace/binder.pbzero.h",
         "external/perfetto/protos/perfetto/trace/ftrace/block.pbzero.h",
         "external/perfetto/protos/perfetto/trace/ftrace/cgroup.pbzero.h",
@@ -10474,6 +10487,7 @@ java_library {
         "protos/perfetto/trace/clock_snapshot.proto",
         "protos/perfetto/trace/extension_descriptor.proto",
         "protos/perfetto/trace/filesystem/inode_file_map.proto",
+        "protos/perfetto/trace/ftrace/android_fs.proto",
         "protos/perfetto/trace/ftrace/binder.proto",
         "protos/perfetto/trace/ftrace/block.proto",
         "protos/perfetto/trace/ftrace/cgroup.proto",
