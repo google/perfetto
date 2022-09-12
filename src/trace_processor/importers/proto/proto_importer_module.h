@@ -19,6 +19,7 @@
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/trace_processor/status.h"
+#include "src/trace_processor/importers/common/trace_parser.h"
 
 namespace perfetto {
 
@@ -32,7 +33,6 @@ class TracePacket_Decoder;
 namespace trace_processor {
 
 class PacketSequenceState;
-struct TimestampedTracePiece;
 class TraceBlobView;
 class TraceProcessorContext;
 
@@ -123,11 +123,13 @@ class ProtoImporterModule {
   // loss, including ring buffer overwrittes, on this sequence.
   virtual void OnFirstPacketOnSequence(uint32_t /* packet_sequence_id */) {}
 
-  // Called by ProtoTraceParser after the sorting stage for each non-ftrace
-  // TracePacket that contains fields for which the module was registered.
-  virtual void ParsePacket(const protos::pbzero::TracePacket_Decoder&,
-                           const TimestampedTracePiece&,
-                           uint32_t field_id);
+  // ParsePacket functions are called by ProtoTraceParser after the sorting
+  // stage for each non-ftrace TracePacket that contains fields for which the
+  // module was registered.
+  virtual void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder&,
+                                    int64_t ts,
+                                    const TracePacketData&,
+                                    uint32_t /*field_id*/);
 
   // Called by ProtoTraceParser for trace config packets after the sorting
   // stage, on all existing modules.

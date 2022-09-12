@@ -20,7 +20,7 @@
 #include "perfetto/base/build_config.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
+#include "src/trace_processor/parser_types.h"
 
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -32,9 +32,10 @@ class HeapGraphModule : public ProtoImporterModule {
  public:
   explicit HeapGraphModule(TraceProcessorContext* context);
 
-  void ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
-                   const TimestampedTracePiece& ttp,
-                   uint32_t field_id) override;
+  void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder& decoder,
+                            int64_t ts,
+                            const TracePacketData&,
+                            uint32_t field_id) override;
 
   void NotifyEndOfFile() override;
 

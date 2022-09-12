@@ -19,12 +19,13 @@
 
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/ftrace/drm_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/importers/ftrace/iostat_tracker.h"
 #include "src/trace_processor/importers/ftrace/rss_stat_tracker.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
+#include "src/trace_processor/parser_types.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -36,7 +37,15 @@ class FtraceParser {
 
   void ParseFtraceStats(protozero::ConstBytes);
 
-  util::Status ParseFtraceEvent(uint32_t cpu, const TimestampedTracePiece& ttp);
+  util::Status ParseFtraceEvent(uint32_t cpu,
+                                int64_t ts,
+                                const FtraceEventData& data);
+  util::Status ParseInlineSchedSwitch(uint32_t cpu,
+                                      int64_t ts,
+                                      const InlineSchedSwitch& data);
+  util::Status ParseInlineSchedWaking(uint32_t cpu,
+                                      int64_t ts,
+                                      const InlineSchedWaking& data);
 
  private:
   void ParseGenericFtrace(int64_t timestamp,
@@ -185,6 +194,8 @@ class FtraceParser {
   void ParseWakeSourceDeactivate(int64_t timestamp, protozero::ConstBytes);
   void ParseSuspendResume(int64_t timestamp, protozero::ConstBytes);
   void ParseSchedCpuUtilCfs(int64_t timestap, protozero::ConstBytes);
+
+  void MaybeOnFirstFtraceEvent();
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;

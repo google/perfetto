@@ -18,9 +18,7 @@
 #include <memory>
 #include <utility>
 
-#include "perfetto/ext/base/utils.h"
-#include "src/trace_processor/importers/proto/proto_trace_parser.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/trace_sorter_queue.h"
 
@@ -45,9 +43,9 @@ TraceSorter::~TraceSorter() {
   // that now.
   for (auto& queue : queues_) {
     for (const auto& event : queue.events_) {
-      // Calling this function without using the TimestampedTracePiece the same
+      // Calling this function without using the packet the same
       // as just calling the destructor for the element.
-      EvictVariadicAsTtp(event);
+      EvictVariadic(event);
     }
   }
 }
@@ -146,7 +144,7 @@ void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_offset) {
       }
 
       ++num_extracted;
-      MaybePushEvent(min_queue_idx, event);
+      MaybePushAndEvictEvent(min_queue_idx, event);
     }  // for (event: events)
 
     if (!num_extracted) {
@@ -194,26 +192,112 @@ void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_offset) {
 #endif
 }
 
-void TraceSorter::MaybePushEvent(size_t queue_idx,
-                                 const TimestampedDescriptor& ts_desc) {
+void TraceSorter::EvictVariadic(const TimestampedDescriptor& ts_desc) {
+  switch (ts_desc.descriptor.type()) {
+    case EventType::kTracePacket:
+      EvictTypedVariadic<TracePacketData>(ts_desc);
+      return;
+    case EventType::kTrackEvent:
+      EvictTypedVariadic<TrackEventData>(ts_desc);
+      return;
+    case EventType::kFuchsiaRecord:
+      EvictTypedVariadic<FuchsiaRecord>(ts_desc);
+      return;
+    case EventType::kJsonValue:
+      EvictTypedVariadic<std::string>(ts_desc);
+      return;
+    case EventType::kSystraceLine:
+      EvictTypedVariadic<SystraceLine>(ts_desc);
+      return;
+    case EventType::kInlineSchedSwitch:
+      EvictTypedVariadic<InlineSchedSwitch>(ts_desc);
+      return;
+    case EventType::kInlineSchedWaking:
+      EvictTypedVariadic<InlineSchedWaking>(ts_desc);
+      return;
+    case EventType::kFtraceEvent:
+      EvictTypedVariadic<FtraceEventData>(ts_desc);
+      return;
+    case EventType::kInvalid:
+      PERFETTO_FATAL("Invalid event type");
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+void TraceSorter::ParseTracePacket(const TimestampedDescriptor& ts_desc) {
+  switch (ts_desc.descriptor.type()) {
+    case EventType::kTracePacket:
+      parser_->ParseTracePacket(ts_desc.ts,
+                                EvictTypedVariadic<TracePacketData>(ts_desc));
+      return;
+    case EventType::kTrackEvent:
+      parser_->ParseTrackEvent(ts_desc.ts,
+                               EvictTypedVariadic<TrackEventData>(ts_desc));
+      return;
+    case EventType::kFuchsiaRecord:
+      parser_->ParseFuchsiaRecord(ts_desc.ts,
+                                  EvictTypedVariadic<FuchsiaRecord>(ts_desc));
+      return;
+    case EventType::kJsonValue:
+      parser_->ParseJsonPacket(ts_desc.ts,
+                               EvictTypedVariadic<std::string>(ts_desc));
+      return;
+    case EventType::kSystraceLine:
+      parser_->ParseSystraceLine(ts_desc.ts,
+                                 EvictTypedVariadic<SystraceLine>(ts_desc));
+      return;
+    case EventType::kInlineSchedSwitch:
+    case EventType::kInlineSchedWaking:
+    case EventType::kFtraceEvent:
+    case EventType::kInvalid:
+      PERFETTO_FATAL("Invalid event type");
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+void TraceSorter::ParseFtracePacket(uint32_t cpu,
+                                    const TimestampedDescriptor& ts_desc) {
+  switch (ts_desc.descriptor.type()) {
+    case EventType::kInlineSchedSwitch:
+      parser_->ParseInlineSchedSwitch(
+          cpu, ts_desc.ts, EvictTypedVariadic<InlineSchedSwitch>(ts_desc));
+      return;
+    case EventType::kInlineSchedWaking:
+      parser_->ParseInlineSchedWaking(
+          cpu, ts_desc.ts, EvictTypedVariadic<InlineSchedWaking>(ts_desc));
+      return;
+    case EventType::kFtraceEvent:
+      parser_->ParseFtraceEvent(cpu, ts_desc.ts,
+                                EvictTypedVariadic<FtraceEventData>(ts_desc));
+      return;
+    case EventType::kTrackEvent:
+    case EventType::kSystraceLine:
+    case EventType::kTracePacket:
+    case EventType::kJsonValue:
+    case EventType::kFuchsiaRecord:
+    case EventType::kInvalid:
+      PERFETTO_FATAL("Invalid event type");
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+void TraceSorter::MaybePushAndEvictEvent(size_t queue_idx,
+                                         const TimestampedDescriptor& ts_desc) {
   int64_t timestamp = ts_desc.ts;
   if (timestamp < latest_pushed_event_ts_)
     context_->storage->IncrementStats(stats::sorter_push_event_out_of_order);
 
   latest_pushed_event_ts_ = std::max(latest_pushed_event_ts_, timestamp);
 
-  TimestampedTracePiece ttp = EvictVariadicAsTtp(ts_desc);
-
   if (PERFETTO_UNLIKELY(bypass_next_stage_for_testing_))
     return;
 
   if (queue_idx == 0) {
-    // queues_[0] is for non-ftrace packets.
-    parser_->ParseTracePacket(ts_desc.ts, std::move(ttp));
+    ParseTracePacket(ts_desc);
   } else {
     // Ftrace queues start at offset 1. So queues_[1] = cpu[0] and so on.
     uint32_t cpu = static_cast<uint32_t>(queue_idx - 1);
-    parser_->ParseFtracePacket(cpu, ts_desc.ts, std::move(ttp));
+    ParseFtracePacket(cpu, ts_desc);
   }
 }
 
