@@ -17,7 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_TRACE_SORTER_QUEUE_H_
 #define SRC_TRACE_PROCESSOR_TRACE_SORTER_QUEUE_H_
 
-#include "src/trace_processor/timestamped_trace_piece.h"
+#include <deque>
+#include "perfetto/ext/base/utils.h"
+#include "perfetto/trace_processor/basic_types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -28,7 +30,7 @@ namespace trace_sorter_internal {
 // not overuse memory for small traces.
 static constexpr uint32_t kDefaultSize = 1 * 1024 * 1024;  // 1MB
 
-// Used for storing the data for all different TimestampedTracePiece data types.
+// Used for storing the data for all different packet data types.
 class VariadicQueue {
  public:
   VariadicQueue() : VariadicQueue(kDefaultSize) {}
@@ -47,7 +49,7 @@ class VariadicQueue {
   VariadicQueue(VariadicQueue&&) = default;
   VariadicQueue& operator=(VariadicQueue&&) noexcept = default;
 
-  // Moves TimestampedTracePiece data type to the end of the queue storage.
+  // Moves packet data type to the end of the queue storage.
   template <typename T>
   uint32_t Append(T value) {
     PERFETTO_DCHECK(!mem_blocks_.empty());

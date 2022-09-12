@@ -22,6 +22,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/optional.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/proto/async_track_set_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -61,9 +62,10 @@ class StatsdModule : public ProtoImporterModule {
 
   ~StatsdModule() override;
 
-  void ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
-                   const TimestampedTracePiece& ttp,
-                   uint32_t field_id) override;
+  void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder& decoder,
+                            int64_t ts,
+                            const TracePacketData&,
+                            uint32_t field_id) override;
 
  private:
   void ParseAtom(int64_t ts, protozero::ConstBytes bytes);

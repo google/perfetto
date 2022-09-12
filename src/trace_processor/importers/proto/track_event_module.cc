@@ -16,10 +16,10 @@
 #include "src/trace_processor/importers/proto/track_event_module.h"
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/config/data_source_config.pbzero.h"
@@ -64,31 +64,32 @@ ModuleResult TrackEventModule::TokenizePacket(
   return ModuleResult::Ignored();
 }
 
-void TrackEventModule::ParsePacket(const TracePacket::Decoder& decoder,
-                                   const TimestampedTracePiece& ttp,
-                                   uint32_t field_id) {
+void TrackEventModule::ParseTrackEventData(const TracePacket::Decoder& decoder,
+                                           int64_t ts,
+                                           const TrackEventData& data) {
+  parser_.ParseTrackEvent(ts, &data, decoder.track_event(),
+                          decoder.trusted_packet_sequence_id());
+}
+
+void TrackEventModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
+                                            int64_t,
+                                            const TracePacketData&,
+                                            uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kTrackDescriptorFieldNumber:
-      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
       parser_.ParseTrackDescriptor(decoder.track_descriptor(),
                                    decoder.trusted_packet_sequence_id());
       break;
-    case TracePacket::kTrackEventFieldNumber:
-      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTrackEvent);
-      parser_.ParseTrackEvent(ttp.timestamp, &ttp.track_event_data,
-                              decoder.track_event(),
-                              decoder.trusted_packet_sequence_id());
-      break;
     case TracePacket::kProcessDescriptorFieldNumber:
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
-      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
       parser_.ParseProcessDescriptor(decoder.process_descriptor());
       break;
     case TracePacket::kThreadDescriptorFieldNumber:
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
-      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
       parser_.ParseThreadDescriptor(decoder.thread_descriptor());
       break;
+    case TracePacket::kTrackEventFieldNumber:
+      PERFETTO_DFATAL("Wrong TracePacket number");
   }
 }
 

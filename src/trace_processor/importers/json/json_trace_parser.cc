@@ -24,7 +24,6 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -62,25 +61,16 @@ JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
 
 JsonTraceParser::~JsonTraceParser() = default;
 
-void JsonTraceParser::ParseFtracePacket(uint32_t,
-                                        int64_t,
-                                        TimestampedTracePiece) {
-  PERFETTO_FATAL("Json Trace Parser cannot handle ftrace packets.");
+void JsonTraceParser::ParseSystraceLine(int64_t, SystraceLine line) {
+  systrace_line_parser_.ParseLine(line);
 }
 
-void JsonTraceParser::ParseTracePacket(int64_t timestamp,
-                                       TimestampedTracePiece ttp) {
+void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
+                                      std::string string_value) {
   PERFETTO_DCHECK(json::IsJsonSupported());
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-  PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kJsonValue ||
-                  ttp.type == TimestampedTracePiece::Type::kSystraceLine);
-  if (ttp.type == TimestampedTracePiece::Type::kSystraceLine) {
-    systrace_line_parser_.ParseLine(ttp.systrace_line);
-    return;
-  }
-
-  auto opt_value = json::ParseJsonString(base::StringView(ttp.json_value));
+  auto opt_value = json::ParseJsonString(base::StringView(string_value));
   if (!opt_value) {
     context_->storage->IncrementStats(stats::json_parser_failure);
     return;
@@ -353,8 +343,8 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
   }
 #else
   perfetto::base::ignore_result(timestamp);
-  perfetto::base::ignore_result(ttp);
   perfetto::base::ignore_result(context_);
+  perfetto::base::ignore_result(string_value);
   PERFETTO_ELOG("Cannot parse JSON trace due to missing JSON support");
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 }

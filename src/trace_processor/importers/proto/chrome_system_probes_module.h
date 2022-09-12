@@ -32,9 +32,10 @@ class ChromeSystemProbesModule : public ProtoImporterModule {
  public:
   explicit ChromeSystemProbesModule(TraceProcessorContext* context);
 
-  void ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
-                   const TimestampedTracePiece& ttp,
-                   uint32_t field_id) override;
+  void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder& decoder,
+                            int64_t ts,
+                            const TracePacketData&,
+                            uint32_t field_id) override;
 
  private:
   ChromeSystemProbesParser parser_;
