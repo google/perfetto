@@ -17,16 +17,25 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_MODULE_H_
 
+#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 class FtraceModule : public ProtoImporterModule {
  public:
-  virtual void ParseFtracePacket(uint32_t cpu,
-                                 const TimestampedTracePiece& ttp);
+  virtual void ParseFtraceEventData(uint32_t cpu,
+                                    int64_t ts,
+                                    const FtraceEventData& data);
+
+  virtual void ParseInlineSchedSwitch(uint32_t cpu,
+                                      int64_t ts,
+                                      const InlineSchedSwitch& data);
+
+  virtual void ParseInlineSchedWaking(uint32_t cpu,
+                                      int64_t ts,
+                                      const InlineSchedWaking& data);
 };
 
 }  // namespace trace_processor

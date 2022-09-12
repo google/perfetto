@@ -94,6 +94,7 @@ source_set("storage_minimal") {
   sources = [
     "forwarding_trace_parser.cc",
     "forwarding_trace_parser.h",
+    "importers/common/trace_parser.cc",
     "importers/default_modules.cc",
     "importers/default_modules.h",
     "importers/ftrace/ftrace_module.cc",
@@ -155,7 +156,7 @@ source_set("storage_minimal") {
     "importers/proto/translation_table_module.h",
     "importers/syscalls/syscall_tracker.h",
     "importers/systrace/systrace_line.h",
-    "timestamped_trace_piece.h",
+    "parser_types.h",
     "trace_blob.cc",
     "trace_processor_context.cc",
     "trace_processor_storage.cc",

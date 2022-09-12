@@ -23,6 +23,7 @@
 #include "perfetto/ext/base/optional.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/parser_types.h"
 #include "src/trace_processor/tables/slice_tables.h"
 #include "src/trace_processor/tables/track_tables.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -43,9 +44,10 @@ class AndroidCameraEventModule : public ProtoImporterModule {
       PacketSequenceState* state,
       uint32_t field_id) override;
 
-  void ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
-                   const TimestampedTracePiece& ttp,
-                   uint32_t field_id) override;
+  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
+                            int64_t ts,
+                            const TracePacketData&,
+                            uint32_t field_id) override;
 
  private:
   void InsertCameraFrameSlice(protozero::ConstBytes bytes);

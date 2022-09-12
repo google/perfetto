@@ -20,7 +20,6 @@
 #include "perfetto/base/build_config.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -38,10 +37,10 @@ class AndroidProbesModule : public ProtoImporterModule {
                               PacketSequenceState*,
                               uint32_t field_id) override;
 
-  void ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
-                   const TimestampedTracePiece& ttp,
-                   uint32_t field_id) override;
-
+  void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder& decoder,
+                            int64_t ts,
+                            const TracePacketData&,
+                            uint32_t field_id) override;
   void ParseTraceConfig(
       const protos::pbzero::TraceConfig::Decoder& decoder) override;
 
