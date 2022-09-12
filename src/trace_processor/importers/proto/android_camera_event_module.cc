@@ -21,8 +21,8 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/async_track_set_tracker.h"
+#include "src/trace_processor/parser_types.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_sorter.h"
 
 namespace perfetto {
@@ -56,9 +56,11 @@ ModuleResult AndroidCameraEventModule::TokenizePacket(
   return ModuleResult::Handled();
 }
 
-void AndroidCameraEventModule::ParsePacket(const TracePacket::Decoder& decoder,
-                                           const TimestampedTracePiece& /*ttp*/,
-                                           uint32_t field_id) {
+void AndroidCameraEventModule::ParseTracePacketData(
+    const TracePacket::Decoder& decoder,
+    int64_t /*ts*/,
+    const TracePacketData&,
+    uint32_t field_id) {
   if (field_id != TracePacket::kAndroidCameraFrameEventFieldNumber) {
     return;
   }
