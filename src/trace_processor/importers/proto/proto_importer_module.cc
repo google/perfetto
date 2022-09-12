@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
-#include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -35,9 +34,10 @@ ModuleResult ProtoImporterModule::TokenizePacket(
   return ModuleResult::Ignored();
 }
 
-void ProtoImporterModule::ParsePacket(
+void ProtoImporterModule::ParseTracePacketData(
     const protos::pbzero::TracePacket_Decoder&,
-    const TimestampedTracePiece&,
+    int64_t /*ts*/,
+    const TracePacketData&,
     uint32_t /*field_id*/) {}
 
 void ProtoImporterModule::ParseTraceConfig(

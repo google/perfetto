@@ -17,12 +17,13 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GRAPHICS_EVENT_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GRAPHICS_EVENT_MODULE_H_
 
+#include <cstdint>
 #include "perfetto/base/build_config.h"
 #include "src/trace_processor/importers/proto/frame_timeline_event_parser.h"
 #include "src/trace_processor/importers/proto/gpu_event_parser.h"
 #include "src/trace_processor/importers/proto/graphics_frame_event_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
+#include "src/trace_processor/parser_types.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -35,9 +36,10 @@ class GraphicsEventModule : public ProtoImporterModule {
 
   ~GraphicsEventModule() override;
 
-  void ParsePacket(const protos::pbzero::TracePacket::Decoder&,
-                   const TimestampedTracePiece&,
-                   uint32_t field_id) override;
+  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder&,
+                            int64_t ts,
+                            const TracePacketData&,
+                            uint32_t field_id) override;
 
  private:
   GpuEventParser parser_;
