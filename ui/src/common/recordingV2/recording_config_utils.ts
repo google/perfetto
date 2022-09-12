@@ -227,7 +227,6 @@ export function genTraceConfig(
     if (sysStatsCfg === undefined) sysStatsCfg = new SysStatsConfig();
     sysStatsCfg.meminfoPeriodMs = uiCfg.meminfoPeriodMs;
     sysStatsCfg.meminfoCounters = uiCfg.meminfoCounters.map((name) => {
-      // tslint:disable-next-line no-any
       return MeminfoCounters[name as any as number] as any as number;
     });
   }
@@ -236,7 +235,6 @@ export function genTraceConfig(
     if (sysStatsCfg === undefined) sysStatsCfg = new SysStatsConfig();
     sysStatsCfg.vmstatPeriodMs = uiCfg.vmstatPeriodMs;
     sysStatsCfg.vmstatCounters = uiCfg.vmstatCounters.map((name) => {
-      // tslint:disable-next-line no-any
       return VmstatCounters[name as any as number] as any as number;
     });
   }
@@ -333,7 +331,6 @@ export function genTraceConfig(
     ds.config.name = 'android.log';
     ds.config.androidLogConfig = new AndroidLogConfig();
     ds.config.androidLogConfig.logIds = uiCfg.androidLogBuffers.map((name) => {
-      // tslint:disable-next-line no-any
       return AndroidLogId[name as any as number] as any as number;
     });
 
@@ -618,8 +615,6 @@ function toPbtxt(configBuffer: Uint8Array): string {
     for (const [key, value] of Object.entries(msg)) {
       const isRepeated = Array.isArray(value);
       const isNested = typeof value === 'object' && !isRepeated;
-      // disabling because a of mismatch between tslint and the formatting tool
-      // tslint:disable-next-line whitespace
       for (const entry of (isRepeated ? value as Array<{}>: [value])) {
         yield ' '.repeat(indent) + `${snakeCase(key)}${isNested ? '' : ':'} `;
         if (typeof entry === 'string') {

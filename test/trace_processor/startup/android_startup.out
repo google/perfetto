@@ -58,5 +58,6 @@ android_startup {
       most_active_non_launch_processes: "init"
       most_active_non_launch_processes: "com.google.android.calendar"
     }
+    startup_type: "warm"
   }
 }

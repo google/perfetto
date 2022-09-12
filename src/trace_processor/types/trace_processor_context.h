@@ -42,6 +42,7 @@ class HeapProfileTracker;
 class PerfSampleTracker;
 class MetadataTracker;
 class ProtoImporterModule;
+class TrackEventModule;
 class ProcessTracker;
 class SliceTracker;
 class SliceTranslationTable;
@@ -56,6 +57,9 @@ class TraceProcessorContext {
  public:
   TraceProcessorContext();
   ~TraceProcessorContext();
+
+  TraceProcessorContext(TraceProcessorContext&&) = default;
+  TraceProcessorContext& operator=(TraceProcessorContext&&) = default;
 
   Config config;
 
@@ -122,7 +126,11 @@ class TraceProcessorContext {
   // TracePacket.
   std::vector<std::vector<ProtoImporterModule*>> modules_by_field;
   std::vector<std::unique_ptr<ProtoImporterModule>> modules;
+  // Pointers to modules from the modules vector that need to be called for
+  // all fields.
+  std::vector<ProtoImporterModule*> modules_for_all_fields;
   FtraceModule* ftrace_module = nullptr;
+  TrackEventModule* track_module = nullptr;
 
   // Marks whether the uuid was read from the trace.
   // If the uuid was NOT read, the uuid will be made from the hash of the first

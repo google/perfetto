@@ -51,7 +51,7 @@
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/sqlite/create_function.h"
 #include "src/trace_processor/sqlite/create_view_function.h"
-#include "src/trace_processor/sqlite/pprof_function.h"
+#include "src/trace_processor/sqlite/pprof_functions.h"
 #include "src/trace_processor/sqlite/register_function.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/span_join_operator_table.h"
@@ -301,6 +301,13 @@ void CreateBuiltinViews(sqlite3* db) {
                "  WHEN 'json' THEN string_value "
                "ELSE NULL END AS display_value "
                "FROM internal_args;",
+               nullptr, nullptr, &error);
+  MaybeRegisterError(error);
+
+  sqlite3_exec(db,
+               "CREATE VIEW thread_slice AS "
+               "SELECT * FROM slice "
+               "WHERE thread_dur is NOT NULL",
                nullptr, nullptr, &error);
   MaybeRegisterError(error);
 }
@@ -780,15 +787,26 @@ void IncrementCountForStmt(sqlite3_stmt* stmt,
   if (sqlite_utils::IsStmtDone(stmt))
     return;
 
-  // If the statement only has a single column and that column is named
-  // "suppress_query_output", treat it as a statement without output for
-  // accounting purposes. This is done so that embedders (e.g. shell) can
-  // strictly check that only the last query produces output while also
-  // providing an escape hatch for SELECT RUN_METRIC() invocations (which
-  // sadly produce output).
-  if (sqlite3_column_count(stmt) == 1 &&
-      strcmp(sqlite3_column_name(stmt, 0), "suppress_query_output") == 0) {
-    return;
+  if (sqlite3_column_count(stmt) == 1) {
+    sqlite3_value* value = sqlite3_column_value(stmt, 0);
+
+    // If the "VOID" pointer associated to the return value is not null,
+    // that means this is a function which is forced to return a value
+    // (because all functions in SQLite have to) but doesn't actually
+    // wait to (i.e. it wants to be treated like CREATE TABLE or similar).
+    // Because of this, ignore the return value of this function.
+    // See |WrapSqlFunction| for where this is set.
+    if (sqlite3_value_pointer(value, "VOID") != nullptr) {
+      return;
+    }
+
+    // If the statement only has a single column and that column is named
+    // "suppress_query_output", treat it as a statement without output for
+    // accounting purposes. This allows an escape hatch for cases where the
+    // user explicitly wants to ignore functions as having output.
+    if (strcmp(sqlite3_column_name(stmt, 0), "suppress_query_output") == 0) {
+      return;
+    }
   }
 
   // Otherwise, the statement has output and so increment the count.
@@ -945,7 +963,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterLastNonNullFunction(db);
   RegisterValueAtMaxTsFunction(db);
   {
-    base::Status status = PprofFunction::Register(db, this);
+    base::Status status = PprofFunctions::Register(db, &context_);
     if (!status.ok()) {
       PERFETTO_ELOG("%s", status.c_message());
     }
@@ -1022,7 +1040,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   RegisterDbTable(storage->slice_table());
   RegisterDbTable(storage->flow_table());
-  RegisterDbTable(storage->thread_slice_table());
+  RegisterDbTable(storage->slice_table());
   RegisterDbTable(storage->sched_slice_table());
   RegisterDbTable(storage->thread_state_table());
   RegisterDbTable(storage->gpu_slice_table());
@@ -1043,6 +1061,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->gpu_counter_track_table());
   RegisterDbTable(storage->gpu_counter_group_table());
   RegisterDbTable(storage->perf_counter_track_table());
+  RegisterDbTable(storage->energy_counter_track_table());
+  RegisterDbTable(storage->uid_counter_track_table());
+  RegisterDbTable(storage->energy_per_uid_counter_track_table());
 
   RegisterDbTable(storage->heap_graph_object_table());
   RegisterDbTable(storage->heap_graph_reference_table());
@@ -1056,10 +1077,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->stack_profile_mapping_table());
   RegisterDbTable(storage->stack_profile_frame_table());
   RegisterDbTable(storage->package_list_table());
-  RegisterDbTable(storage->android_game_intervention_list_table());
   RegisterDbTable(storage->profiler_smaps_table());
 
   RegisterDbTable(storage->android_log_table());
+  RegisterDbTable(storage->android_dumpstate_table());
+  RegisterDbTable(storage->android_game_intervention_list_table());
 
   RegisterDbTable(storage->vulkan_memory_allocations_table());
 
@@ -1077,6 +1099,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->process_memory_snapshot_table());
   RegisterDbTable(storage->memory_snapshot_node_table());
   RegisterDbTable(storage->memory_snapshot_edge_table());
+
+  RegisterDbTable(storage->experimental_proto_content_table());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() = default;
@@ -1111,7 +1135,7 @@ void TraceProcessorImpl::NotifyEndOfFile() {
     PERFETTO_ELOG(
         "NotifyEndOfFile should only be called once. Try calling Flush instead "
         "if trying to commit the contents of the trace to tables.");
-    PERFETTO_DCHECK(!notify_eof_called_);
+    return;
   }
   notify_eof_called_ = true;
 
@@ -1142,6 +1166,8 @@ void TraceProcessorImpl::NotifyEndOfFile() {
   // trace bounds: this is important for parsers like ninja which wait until
   // the end to flush all their data.
   BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
+
+  TraceProcessorStorageImpl::DestroyContext();
 }
 
 size_t TraceProcessorImpl::RestoreInitialTables() {

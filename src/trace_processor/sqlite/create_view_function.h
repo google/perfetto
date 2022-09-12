@@ -33,6 +33,8 @@ struct CreateViewFunction : public SqlFunction {
     sqlite3* db;
   };
 
+  static constexpr bool kVoidReturn = true;
+
   static base::Status Run(Context* ctx,
                           size_t argc,
                           sqlite3_value** argv,

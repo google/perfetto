@@ -64,5 +64,6 @@ android_startup {
       broadcast_dispatched_count: 0
       broadcast_received_count: 0
     }
+    startup_type: "cold"
   }
 }

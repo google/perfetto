@@ -29,10 +29,10 @@ CREATE VIEW chrome_track AS
 DROP VIEW IF EXISTS chrome_thread_slice;
 CREATE VIEW chrome_thread_slice AS
   SELECT
-    thread_slice.*
+    slice.*
   FROM
-    thread_slice JOIN
+    slice JOIN
     chrome_track ON
-        chrome_track.id = thread_slice.track_id
+        chrome_track.id = slice.track_id
   WHERE
     track_id in (SELECT id FROM chrome_track);

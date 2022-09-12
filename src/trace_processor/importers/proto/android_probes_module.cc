@@ -22,10 +22,11 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 #include "src/trace_processor/importers/proto/android_probes_tracker.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_sorter.h"
 
+#include "protos/perfetto/common/android_energy_consumer_descriptor.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
+#include "protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.h"
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -84,6 +85,8 @@ AndroidProbesModule::AndroidProbesModule(TraceProcessorContext* context)
           context->storage->InternString("subsystem_name")) {
   RegisterForField(TracePacket::kBatteryFieldNumber, context);
   RegisterForField(TracePacket::kPowerRailsFieldNumber, context);
+  RegisterForField(TracePacket::kAndroidEnergyEstimationBreakdownFieldNumber,
+                   context);
   RegisterForField(TracePacket::kAndroidLogFieldNumber, context);
   RegisterForField(TracePacket::kPackagesListFieldNumber, context);
   RegisterForField(TracePacket::kAndroidGameInterventionListFieldNumber,
@@ -98,8 +101,18 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     int64_t packet_timestamp,
     PacketSequenceState* state,
     uint32_t field_id) {
-  if (field_id != TracePacket::kPowerRailsFieldNumber)
+  protos::pbzero::TracePacket::Decoder decoder(packet->data(),
+                                               packet->length());
+
+  // The energy descriptor packet does not have a timestamp so needs to be
+  // handled at the tokenization phase.
+  if (field_id == TracePacket::kAndroidEnergyEstimationBreakdownFieldNumber) {
+    return ParseEnergyDescriptor(decoder.android_energy_estimation_breakdown());
+  }
+
+  if (field_id != TracePacket::kPowerRailsFieldNumber) {
     return ModuleResult::Ignored();
+  }
 
   // Power rails are similar to ftrace in that they have many events, each with
   // their own timestamp, packed inside a single TracePacket. This means that,
@@ -109,9 +122,6 @@ ModuleResult AndroidProbesModule::TokenizePacket(
   // a lot of machinery to shepherd these events through the sorting queues
   // in a special way. Therefore, we just forge new packets and sort them as if
   // they came from the underlying trace.
-
-  protos::pbzero::TracePacket::Decoder decoder(packet->data(),
-                                               packet->length());
   auto power_rails = decoder.power_rails();
   protos::pbzero::PowerRails::Decoder evt(power_rails.data, power_rails.size);
 
@@ -175,15 +185,21 @@ ModuleResult AndroidProbesModule::TokenizePacket(
   return ModuleResult::Handled();
 }
 
-void AndroidProbesModule::ParsePacket(const TracePacket::Decoder& decoder,
-                                      const TimestampedTracePiece& ttp,
-                                      uint32_t field_id) {
+void AndroidProbesModule::ParseTracePacketData(
+    const TracePacket::Decoder& decoder,
+    int64_t ts,
+    const TracePacketData&,
+    uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kBatteryFieldNumber:
-      parser_.ParseBatteryCounters(ttp.timestamp, decoder.battery());
+      parser_.ParseBatteryCounters(ts, decoder.battery());
       return;
     case TracePacket::kPowerRailsFieldNumber:
-      parser_.ParsePowerRails(ttp.timestamp, decoder.power_rails());
+      parser_.ParsePowerRails(ts, decoder.power_rails());
+      return;
+    case TracePacket::kAndroidEnergyEstimationBreakdownFieldNumber:
+      parser_.ParseEnergyBreakdown(
+          ts, decoder.android_energy_estimation_breakdown());
       return;
     case TracePacket::kAndroidLogFieldNumber:
       parser_.ParseAndroidLogPacket(decoder.android_log());
@@ -196,12 +212,10 @@ void AndroidProbesModule::ParsePacket(const TracePacket::Decoder& decoder,
           decoder.android_game_intervention_list());
       return;
     case TracePacket::kInitialDisplayStateFieldNumber:
-      parser_.ParseInitialDisplayState(ttp.timestamp,
-                                       decoder.initial_display_state());
+      parser_.ParseInitialDisplayState(ts, decoder.initial_display_state());
       return;
     case TracePacket::kAndroidSystemPropertyFieldNumber:
-      parser_.ParseAndroidSystemProperty(ttp.timestamp,
-                                         decoder.android_system_property());
+      parser_.ParseAndroidSystemProperty(ts, decoder.android_system_property());
       return;
   }
 }
@@ -211,6 +225,31 @@ void AndroidProbesModule::ParseTraceConfig(
   if (decoder.has_statsd_metadata()) {
     parser_.ParseStatsdMetadata(decoder.statsd_metadata());
   }
+}
+
+ModuleResult AndroidProbesModule::ParseEnergyDescriptor(
+    protozero::ConstBytes blob) {
+  protos::pbzero::AndroidEnergyEstimationBreakdown::Decoder event(blob);
+  if (!event.has_energy_consumer_descriptor())
+    return ModuleResult::Ignored();
+
+  protos::pbzero::AndroidEnergyConsumerDescriptor::Decoder descriptor(
+      event.energy_consumer_descriptor());
+
+  for (auto it = descriptor.energy_consumers(); it; ++it) {
+    protos::pbzero::AndroidEnergyConsumer::Decoder consumer(*it);
+
+    if (!consumer.has_energy_consumer_id()) {
+      context_->storage->IncrementStats(stats::energy_descriptor_invalid);
+      continue;
+    }
+
+    AndroidProbesTracker::GetOrCreate(context_)->SetEnergyBreakdownDescriptor(
+        consumer.energy_consumer_id(),
+        context_->storage->InternString(consumer.name()),
+        context_->storage->InternString(consumer.type()), consumer.ordinal());
+  }
+  return ModuleResult::Handled();
 }
 
 }  // namespace trace_processor

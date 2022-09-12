@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT RUN_METRIC('chrome/chrome_input_to_browser_intervals.sql') AS suppress_query_output;
+SELECT RUN_METRIC('chrome/chrome_input_to_browser_intervals.sql');
 
 SELECT
   *

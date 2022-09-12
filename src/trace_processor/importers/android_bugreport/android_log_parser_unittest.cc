@@ -26,11 +26,13 @@
 namespace perfetto {
 namespace trace_processor {
 
+const int64_t kStoNs = 1000000000LL;
+
 inline std::ostream& operator<<(std::ostream& stream,
                                 const AndroidLogEvent& e) {
   char tms[32];
-  time_t secs = static_cast<time_t>(e.ts / 1000000000);
-  int ns = static_cast<int>(e.ts - secs * 1000000000);
+  time_t secs = static_cast<time_t>(e.ts / kStoNs);
+  int ns = static_cast<int>(e.ts - secs * kStoNs);
   strftime(tms, sizeof(tms), "%Y-%m-%d %H:%M:%S", gmtime(&secs));
   base::StackString<64> tss("%s.%d", tms, ns);
 
@@ -67,23 +69,23 @@ TEST(AndroidLogParserTest, PersistentLogFormat) {
       events,
       ElementsAreArray({
           AndroidLogEvent{
-              base::MkTime(2020, 1, 2, 3, 4, 5) * 1000000000 + 678901000, 1000,
+              base::MkTime(2020, 1, 2, 3, 4, 5) * kStoNs + 678901000, 1000,
               2000, P::PRIO_DEBUG, S("Tag"), S("message")},
           AndroidLogEvent{
-              base::MkTime(2020, 1, 2, 3, 4, 5) * 1000000000 + 678901000, 1000,
+              base::MkTime(2020, 1, 2, 3, 4, 5) * kStoNs + 678901000, 1000,
               2000, P::PRIO_VERBOSE, S("Tag"), S("message")},
           AndroidLogEvent{
-              base::MkTime(2020, 12, 31, 23, 59, 0) * 1000000000 + 123456000, 1,
-              2, P::PRIO_INFO, S("[tag:with:colon]"), S("moar long message")},
+              base::MkTime(2020, 12, 31, 23, 59, 0) * kStoNs + 123456000, 1, 2,
+              P::PRIO_INFO, S("[tag:with:colon]"), S("moar long message")},
           AndroidLogEvent{
-              base::MkTime(2020, 12, 31, 23, 59, 0) * 1000000000 + 123000000, 1,
-              2, P::PRIO_WARN, S("[tag:with:colon]"), S("moar long message")},
+              base::MkTime(2020, 12, 31, 23, 59, 0) * kStoNs + 123000000, 1, 2,
+              P::PRIO_WARN, S("[tag:with:colon]"), S("moar long message")},
           AndroidLogEvent{
-              base::MkTime(2020, 12, 31, 23, 59, 0) * 1000000000 + 100000000, 1,
-              2, P::PRIO_ERROR, S("[tag:with:colon]"), S("moar long message")},
+              base::MkTime(2020, 12, 31, 23, 59, 0) * kStoNs + 100000000, 1, 2,
+              P::PRIO_ERROR, S("[tag:with:colon]"), S("moar long message")},
           AndroidLogEvent{
-              base::MkTime(2020, 12, 31, 23, 59, 0) * 1000000000 + 10000000, 1,
-              2, P::PRIO_FATAL, S("[tag:with:colon]"), S("moar long message")},
+              base::MkTime(2020, 12, 31, 23, 59, 0) * kStoNs + 10000000, 1, 2,
+              P::PRIO_FATAL, S("[tag:with:colon]"), S("moar long message")},
       }));
 }
 
@@ -98,6 +100,8 @@ TEST(AndroidLogParserTest, BugreportFormat) {
       {
           "07-28 14:25:20.355  0     1     2 I init   : Loaded kernel module",
           "07-28 14:25:54.876  1000   643   644 D PackageManager: No files",
+          "08-24 23:39:12.272  root     0     1 I        : c0  11835 binder: 1",
+          "08-24 23:39:12.421 radio  2532  2533 D TelephonyProvider: Using old",
       },
       &events);
 
@@ -106,12 +110,81 @@ TEST(AndroidLogParserTest, BugreportFormat) {
       events,
       ElementsAreArray({
           AndroidLogEvent{
-              base::MkTime(2020, 7, 28, 14, 25, 20) * 1000000000 + 355000000, 1,
-              2, P::PRIO_INFO, S("init"), S("Loaded kernel module")},
+              base::MkTime(2020, 7, 28, 14, 25, 20) * kStoNs + 355000000, 1, 2,
+              P::PRIO_INFO, S("init"), S("Loaded kernel module")},
           AndroidLogEvent{
-              base::MkTime(2020, 7, 28, 14, 25, 54) * 1000000000 + 876000000,
-              643, 644, P::PRIO_DEBUG, S("PackageManager"), S("No files")},
+              base::MkTime(2020, 7, 28, 14, 25, 54) * kStoNs + 876000000, 643,
+              644, P::PRIO_DEBUG, S("PackageManager"), S("No files")},
+          AndroidLogEvent{
+              base::MkTime(2020, 8, 24, 23, 39, 12) * kStoNs + 272000000, 0, 1,
+              P::PRIO_INFO, S(""), S("c0  11835 binder: 1")},
+          AndroidLogEvent{
+              base::MkTime(2020, 8, 24, 23, 39, 12) * kStoNs + 421000000, 2532,
+              2533, P::PRIO_DEBUG, S("TelephonyProvider"), S("Using old")},
       }));
+}
+
+// Tests the deduping logic. This is used when parsing events first from the
+// persistent logcat (which has us resolution) and then from dumpstate (which
+// has ms resolution and sometimes contains dupes of the persistent entries).
+TEST(AndroidLogParserTest, Dedupe) {
+  TraceStorage storage;
+  AndroidLogParser alp(2020, &storage);
+  auto S = [&](const char* str) { return storage.InternString(str); };
+  using P = ::perfetto::protos::pbzero::AndroidLogPriority;
+  std::vector<AndroidLogEvent> events;
+
+  // Parse some initial events without any deduping.
+  alp.ParseLogLines(
+      {
+          "01-01 00:00:01.100000  0 1 1 I tag : M1",
+          "01-01 00:00:01.100111  0 1 1 I tag : M2",
+          "01-01 00:00:01.100111  0 1 1 I tag : M3",
+          "01-01 00:00:01.100222  0 1 1 I tag : M4",
+          "01-01 00:00:01.101000  0 1 1 I tag : M5",
+      },
+      &events);
+
+  ASSERT_EQ(events.size(), 5u);
+
+  // Add a batch of events with truncated timestamps, some of which are dupes.
+  alp.ParseLogLines(
+      {
+          "01-01 00:00:01.100  0 1 1 I tag : M1",  // Dupe
+          "01-01 00:00:01.100  0 1 1 I tag : M1.5",
+          "01-01 00:00:01.100  0 1 1 I tag : M3",  // Dupe
+          "01-01 00:00:01.100  0 1 1 I tag : M4",  // Dupe
+          "01-01 00:00:01.101  0 1 1 I tag : M5",  // Dupe
+          "01-01 00:00:01.101  0 1 1 I tag : M6",
+      },
+      &events, /*dedupe_idx=*/5);
+  EXPECT_EQ(storage.stats()[stats::android_log_num_failed].value, 0);
+
+  std::stable_sort(events.begin(), events.end());
+  ASSERT_THAT(events,
+              ElementsAreArray({
+                  AndroidLogEvent{
+                      base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100000000, 1,
+                      1, P::PRIO_INFO, S("tag"), S("M1")},
+                  AndroidLogEvent{
+                      base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100000000, 1,
+                      1, P::PRIO_INFO, S("tag"), S("M1.5")},
+                  AndroidLogEvent{
+                      base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100111000, 1,
+                      1, P::PRIO_INFO, S("tag"), S("M2")},
+                  AndroidLogEvent{
+                      base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100111000, 1,
+                      1, P::PRIO_INFO, S("tag"), S("M3")},
+                  AndroidLogEvent{
+                      base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100222000, 1,
+                      1, P::PRIO_INFO, S("tag"), S("M4")},
+                  AndroidLogEvent{
+                      base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 101000000, 1,
+                      1, P::PRIO_INFO, S("tag"), S("M5")},
+                  AndroidLogEvent{
+                      base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 101000000, 1,
+                      1, P::PRIO_INFO, S("tag"), S("M6")},
+              }));
 }
 
 }  // namespace

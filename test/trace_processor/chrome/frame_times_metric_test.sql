@@ -13,6 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT RUN_METRIC('experimental/frame_times.sql') AS suppress_query_output;
+SELECT RUN_METRIC('experimental/frame_times.sql');
 
 SELECT * FROM AvgSurfaceFps;

@@ -63,6 +63,7 @@ WITH frame_base AS (
     ROW_NUMBER() OVER (PARTITION BY cuj_id ORDER BY do_frame.vsync ASC) AS frame_number,
     vsync,
     boundary.ts,
+    boundary.ts_expected,
     boundary.ts_do_frame_start,
     COUNT(fence_idx) AS gpu_fence_count,
     COUNT(fence_idx) > 0 AS drew_anything

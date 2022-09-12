@@ -1,0 +1,73 @@
+packet {
+  android_energy_estimation_breakdown {
+    energy_consumer_descriptor {
+      energy_consumers {
+        energy_consumer_id: 0
+        ordinal: 0
+        type: "CPU_CLUSTER"
+        name: "CPUCL0"
+      }
+      energy_consumers {
+        energy_consumer_id: 1
+        ordinal: 1
+        type: "CPU_CLUSTER"
+        name: "CPUCL1"
+      }
+      energy_consumers {
+        energy_consumer_id: 2
+        ordinal: 2
+        type: "CPU_CLUSTER"
+        name: "CPUCL2"
+      }
+      energy_consumers {
+        energy_consumer_id: 3
+        ordinal: 0
+        type: "OTHER"
+        name: "GPU"
+      }
+      energy_consumers {
+        energy_consumer_id: 4
+        ordinal: 0
+        type: "MOBILE_RADIO"
+        name: "MODEM"
+      }
+      energy_consumers {
+        energy_consumer_id: 5
+        ordinal: 0
+        type: "GNSS"
+        name: "GPS"
+      }
+      energy_consumers {
+        energy_consumer_id: 6
+        ordinal: 0
+        type: "DISPLAY"
+        name: "display"
+      }
+    }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 9
+  trusted_pid: 1003
+}
+packet {
+  timestamp: 1026753926322
+  android_energy_estimation_breakdown {
+    energy_consumer_id: 3
+    energy_uws: 19617115
+    per_uid_breakdown {
+      uid: 10234
+      energy_uws: 3004536
+    }
+    per_uid_breakdown {
+      uid: 10190
+      energy_uws: 0
+    }
+    per_uid_breakdown {
+      uid: 10235
+      energy_uws: 4002274
+    }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 9
+  trusted_pid: 1003
+}

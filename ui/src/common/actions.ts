@@ -20,9 +20,10 @@ import {globals} from '../frontend/globals';
 import {
   Aggregation,
   aggregationKey,
-  columnKey,
   TableColumn,
+  toggleEnabled,
 } from '../frontend/pivot_table_redux_types';
+import {DropDirection} from '../frontend/reorderable_cells';
 
 import {randomColor} from './colorizer';
 import {createEmptyState} from './empty_state';
@@ -520,11 +521,9 @@ export const StateActions = {
   // TODO(hjd): Remove setState - it causes problems due to reuse of ids.
   setState(state: StateDraft, args: {newState: State}): void {
     for (const key of Object.keys(state)) {
-      // tslint:disable-next-line no-any
       delete (state as any)[key];
     }
     for (const key of Object.keys(args.newState)) {
-      // tslint:disable-next-line no-any
       (state as any)[key] = (args.newState as any)[key];
     }
 
@@ -685,12 +684,13 @@ export const StateActions = {
     });
   },
 
-  selectPerfSamples(
-      state: StateDraft,
-      args: {
-        id: number, upid: number, leftTs: number, rightTs: number,
-        type: ProfileType
-      }): void {
+  selectPerfSamples(state: StateDraft, args: {
+    id: number,
+    upid: number,
+    leftTs: number,
+    rightTs: number,
+    type: ProfileType
+  }): void {
     state.currentSelection = {
       kind: 'PERF_SAMPLES',
       id: args.id,
@@ -779,6 +779,17 @@ export const StateActions = {
           id: args.id,
           trackId: args.trackId,
         };
+      },
+
+  selectLog(
+      state: StateDraft, args: {id: number, trackId: string, scroll?: boolean}):
+      void {
+        state.currentSelection = {
+          kind: 'LOG',
+          id: args.id,
+          trackId: args.trackId,
+        };
+        state.pendingScrollId = args.scroll ? args.id : undefined;
       },
 
   deselect(state: StateDraft, _: {}): void {
@@ -1014,12 +1025,16 @@ export const StateActions = {
 
   setPivotTablePivotSelected(
       state: StateDraft, args: {column: TableColumn, selected: boolean}) {
-    if (args.selected) {
-      state.nonSerializableState.pivotTableRedux.selectedPivotsMap.set(
-          columnKey(args.column), args.column);
+    if (args.column.kind === 'argument' || args.column.table === 'slice') {
+      toggleEnabled(
+          state.nonSerializableState.pivotTableRedux.selectedSlicePivots,
+          args.column,
+          args.selected);
     } else {
-      state.nonSerializableState.pivotTableRedux.selectedPivotsMap.delete(
-          columnKey(args.column));
+      toggleEnabled(
+          state.nonSerializableState.pivotTableRedux.selectedPivots,
+          args.column,
+          args.selected);
     }
   },
 
@@ -1058,7 +1073,43 @@ export const StateActions = {
     state.nonSerializableState.pivotTableRedux.argumentNames =
         args.argumentNames;
   },
+
+  changePivotTablePivotOrder(
+      state: StateDraft,
+      args: {from: number, to: number, direction: DropDirection}) {
+    moveElement(
+        state.nonSerializableState.pivotTableRedux.selectedPivots,
+        args.from,
+        args.to,
+        args.direction);
+  },
+
+  changePivotTableSlicePivotOrder(
+      state: StateDraft,
+      args: {from: number, to: number, direction: DropDirection}) {
+    moveElement(
+        state.nonSerializableState.pivotTableRedux.selectedSlicePivots,
+        args.from,
+        args.to,
+        args.direction);
+  },
 };
+
+// Move element at `from` index to `direction` of `to` element.
+// Implements logic for reordering table columns via drag'n'drop.
+function moveElement<T>(
+    array: Draft<T[]>, from: number, to: number, direction: DropDirection) {
+  // New location of the "to" element: would be shifted by minus one if "from"
+  // element comes before it.
+  const newTo = to - ((from < to) ? 1 : 0);
+
+  // The resulting index where the "from" element has to be spliced in to.
+  const insertionPoint = newTo + ((direction === 'right') ? 1 : 0);
+
+  const fromElement = array[from];
+  array.splice(from, 1);
+  array.splice(insertionPoint, 0, fromElement);
+}
 
 // When we are on the frontend side, we don't really want to execute the
 // actions above, we just want to serialize them and marshal their
@@ -1092,9 +1143,7 @@ type DeferredActions<C> = {
 // It's a Proxy such that any attribute access returns a function:
 // (args) => {return {type: ATTRIBUTE_NAME, args};}
 export const Actions =
-    // tslint:disable-next-line no-any
     new Proxy<DeferredActions<typeof StateActions>>({} as any, {
-      // tslint:disable-next-line no-any
       get(_: any, prop: string, _2: any) {
         return (args: {}): DeferredAction<{}> => {
           return {

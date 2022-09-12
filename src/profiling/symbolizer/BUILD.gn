@@ -37,23 +37,25 @@ source_set("symbolizer") {
   ]
 }
 
-source_set("symbolize_database") {
-  public_deps = [
-    ":symbolizer",
-    "../../../include/perfetto/ext/base",
-  ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../../include/perfetto/protozero",
-    "../../../include/perfetto/trace_processor:trace_processor",
-    "../../../protos/perfetto/trace:zero",
-    "../../../protos/perfetto/trace/profiling:zero",
-    "../../trace_processor/util:stack_traces_util",
-  ]
-  sources = [
-    "symbolize_database.cc",
-    "symbolize_database.h",
-  ]
+if (enable_perfetto_trace_processor) {
+  source_set("symbolize_database") {
+    public_deps = [
+      ":symbolizer",
+      "../../../include/perfetto/ext/base",
+    ]
+    deps = [
+      "../../../gn:default_deps",
+      "../../../include/perfetto/protozero",
+      "../../../include/perfetto/trace_processor:trace_processor",
+      "../../../protos/perfetto/trace:zero",
+      "../../../protos/perfetto/trace/profiling:zero",
+      "../../trace_processor/util:stack_traces_util",
+    ]
+    sources = [
+      "symbolize_database.cc",
+      "symbolize_database.h",
+    ]
+  }
 }
 
 perfetto_unittest_source_set("unittests") {

@@ -59,7 +59,6 @@ source_set("pprofbuilder") {
     "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/profiling:zero",
     "../../protos/third_party/pprof:zero",
-    "../../src/profiling:profile_builder",
     "../../src/profiling/symbolizer",
     "../../src/profiling/symbolizer:symbolize_database",
     "../../src/trace_processor/containers:containers",
@@ -115,9 +114,9 @@ source_set("lib") {
 source_set("main") {
   deps = [
     ":lib",
+    "../base:version",
     "../../gn:default_deps",
     "../../include/perfetto/ext/base:base",
-    "../base:version",
   ]
   sources = [ "main.cc" ]
 }

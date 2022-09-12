@@ -974,6 +974,12 @@ config("zlib_config") {
     perfetto_isystem_cflag,
     rebase_path("zlib", root_build_dir),
   ]
+  if (is_clang) {
+    cflags += [
+      "-Wno-unknown-warning-option",
+      "-Wno-deprecated-non-prototype",
+    ]
+  }
 }
 
 # Here be dragons. Used only by standalone profiler builds, which are

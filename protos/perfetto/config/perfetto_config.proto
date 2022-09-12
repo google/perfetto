@@ -466,7 +466,7 @@ message ChromeConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 18.
+// Next id: 19.
 message FtraceConfig {
   repeated string ftrace_events = 1;
   repeated string atrace_categories = 2;
@@ -540,6 +540,12 @@ message FtraceConfig {
   // expand to events that aren't of interest to the tracing user.
   // Introduced in: Android T.
   optional bool disable_generic_events = 16;
+
+  // The list of syscalls that should be recorded by sys_{enter,exit} ftrace
+  // events. When empty, all syscalls are recorded. If neither sys_{enter,exit}
+  // are enabled, this setting has no effect. Example: ["sys_read", "sys_open"].
+  // Introduced in: Android U.
+  repeated string syscall_events = 18;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
@@ -2114,9 +2120,25 @@ message SysStatsConfig {
   // Polls /sys/devices/system/cpu/cpu*/cpufreq/cpuinfo_cur_freq every X ms.
   // This is required to be > 10ms to avoid excessive CPU usage.
   optional uint32 cpufreq_period_ms = 8;
+
+  // Polls /proc/buddyinfo every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  optional uint32 buddyinfo_period_ms = 9;
 }
 
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto
+
+// Begin of protos/perfetto/config/system_info/system_info.proto
+
+// This data-source does a one-off recording of system information when
+// the trace starts.
+// Currently this includes:
+// - Values of
+// /sys/devices/system/cpu/cpu*/cpufreq/scaling_available_frequencies This
+// datasource has no configuration options at present.
+message SystemInfoConfig {}
+
+// End of protos/perfetto/config/system_info/system_info.proto
 
 // Begin of protos/perfetto/config/test_config.proto
 
@@ -2252,7 +2274,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 119
+// Next id: 120
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -2347,6 +2369,8 @@ message DataSourceConfig {
       [lazy = true];
   // Data source name: android.statsd
   optional StatsdTracingConfig statsd_tracing_config = 117 [lazy = true];
+  // Data source name: linux.system_info
+  optional SystemInfoConfig system_info_config = 119;
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would

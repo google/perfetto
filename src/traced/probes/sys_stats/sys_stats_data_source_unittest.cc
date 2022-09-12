@@ -188,6 +188,12 @@ procs_running 1
 procs_blocked 0
 softirq 84611084 10220177 28299167 155083 3035679 6390543 66234 4396819 15604187 0 16443195)";
 
+const char kMockBuddy[] = R"(
+Node 0, zone  DMA      2743  1659  2063  685   27   4  0  0  0  0  0
+Node 0, zone  Normal   143   744   89    1080  105  1  0  2  0  2  2
+Node 0, zone  HighMem  345   90    156   3     5    2  0  0  0  0  0
+Node 1, zone  Normal   233   123   453   10    5    1  0  2  0  0  3)";
+
 const char kDevfreq1[] = "1000000";
 const char kDevfreq2[] = "20000000";
 
@@ -218,6 +224,8 @@ base::ScopedFile MockOpenReadOnly(const char* path) {
     EXPECT_GT(pwrite(tmp_.fd(), kMockVmstat, strlen(kMockVmstat), 0), 0);
   } else if (!strcmp(path, "/proc/stat")) {
     EXPECT_GT(pwrite(tmp_.fd(), kMockStat, strlen(kMockStat), 0), 0);
+  } else if (!strcmp(path, "/proc/buddyinfo")) {
+    EXPECT_GT(pwrite(tmp_.fd(), kMockBuddy, strlen(kMockBuddy), 0), 0);
   } else {
     PERFETTO_FATAL("Unexpected file opened %s", path);
   }
@@ -278,6 +286,7 @@ TEST_F(SysStatsDataSourceTest, Meminfo) {
   ASSERT_TRUE(packet.has_sys_stats());
   const auto& sys_stats = packet.sys_stats();
   EXPECT_EQ(sys_stats.vmstat_size(), 0);
+  EXPECT_EQ(sys_stats.buddy_info_size(), 0);
   EXPECT_EQ(sys_stats.cpu_stat_size(), 0);
   EXPECT_EQ(sys_stats.devfreq_size(), 0);
 
@@ -307,6 +316,7 @@ TEST_F(SysStatsDataSourceTest, MeminfoAll) {
   ASSERT_TRUE(packet.has_sys_stats());
   const auto& sys_stats = packet.sys_stats();
   EXPECT_EQ(sys_stats.vmstat_size(), 0);
+  EXPECT_EQ(sys_stats.buddy_info_size(), 0);
   EXPECT_EQ(sys_stats.cpu_stat_size(), 0);
   EXPECT_EQ(sys_stats.devfreq_size(), 0);
   EXPECT_GE(sys_stats.meminfo_size(), 10);
@@ -360,7 +370,51 @@ TEST_F(SysStatsDataSourceTest, VmstatAll) {
   EXPECT_EQ(sys_stats.meminfo_size(), 0);
   EXPECT_EQ(sys_stats.cpu_stat_size(), 0);
   EXPECT_EQ(sys_stats.devfreq_size(), 0);
+  EXPECT_EQ(sys_stats.buddy_info_size(), 0);
   EXPECT_GE(sys_stats.vmstat_size(), 10);
+}
+
+TEST_F(SysStatsDataSourceTest, BuddyinfoAll) {
+  DataSourceConfig config;
+  protos::gen::SysStatsConfig sys_cfg;
+  sys_cfg.set_buddyinfo_period_ms(10);
+  config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
+  auto data_source = GetSysStatsDataSource(config);
+
+  WaitTick(data_source.get());
+
+  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_sys_stats());
+  const auto& sys_stats = packet.sys_stats();
+  EXPECT_EQ(sys_stats.meminfo_size(), 0);
+  EXPECT_EQ(sys_stats.cpu_stat_size(), 0);
+  EXPECT_EQ(sys_stats.devfreq_size(), 0);
+  EXPECT_GE(sys_stats.vmstat_size(), 0);
+  EXPECT_EQ(sys_stats.buddy_info_size(), 4);
+
+  EXPECT_EQ(sys_stats.buddy_info()[0].node(), "0");
+  EXPECT_EQ(sys_stats.buddy_info()[0].zone(), "DMA");
+  EXPECT_EQ(sys_stats.buddy_info()[0].order_pages()[0], 2743u);
+  EXPECT_EQ(sys_stats.buddy_info()[0].order_pages()[5], 4u);
+  EXPECT_EQ(sys_stats.buddy_info()[0].order_pages()[10], 0u);
+
+  EXPECT_EQ(sys_stats.buddy_info()[1].node(), "0");
+  EXPECT_EQ(sys_stats.buddy_info()[1].zone(), "Normal");
+  EXPECT_EQ(sys_stats.buddy_info()[1].order_pages()[0], 143u);
+  EXPECT_EQ(sys_stats.buddy_info()[1].order_pages()[5], 1u);
+  EXPECT_EQ(sys_stats.buddy_info()[1].order_pages()[10], 2u);
+
+  EXPECT_EQ(sys_stats.buddy_info()[2].node(), "0");
+  EXPECT_EQ(sys_stats.buddy_info()[2].zone(), "HighMem");
+  EXPECT_EQ(sys_stats.buddy_info()[2].order_pages()[0], 345u);
+  EXPECT_EQ(sys_stats.buddy_info()[2].order_pages()[5], 2u);
+  EXPECT_EQ(sys_stats.buddy_info()[2].order_pages()[10], 0u);
+
+  EXPECT_EQ(sys_stats.buddy_info()[3].node(), "1");
+  EXPECT_EQ(sys_stats.buddy_info()[3].zone(), "Normal");
+  EXPECT_EQ(sys_stats.buddy_info()[3].order_pages()[0], 233u);
+  EXPECT_EQ(sys_stats.buddy_info()[3].order_pages()[5], 1u);
+  EXPECT_EQ(sys_stats.buddy_info()[3].order_pages()[10], 3u);
 }
 
 TEST_F(SysStatsDataSourceTest, DevfreqAll) {
@@ -437,6 +491,7 @@ TEST_F(SysStatsDataSourceTest, StatAll) {
   const auto& sys_stats = packet.sys_stats();
   EXPECT_EQ(sys_stats.meminfo_size(), 0);
   EXPECT_EQ(sys_stats.vmstat_size(), 0);
+  EXPECT_EQ(sys_stats.buddy_info_size(), 0);
 
   ASSERT_EQ(sys_stats.cpu_stat_size(), 8);
   EXPECT_EQ(sys_stats.cpu_stat()[0].user_ns(), 762178 * 10000000ull);
@@ -479,6 +534,7 @@ TEST_F(SysStatsDataSourceTest, StatForksOnly) {
   const auto& sys_stats = packet.sys_stats();
   EXPECT_EQ(sys_stats.meminfo_size(), 0);
   EXPECT_EQ(sys_stats.vmstat_size(), 0);
+  EXPECT_EQ(sys_stats.buddy_info_size(), 0);
   ASSERT_EQ(sys_stats.cpu_stat_size(), 0);
   EXPECT_EQ(sys_stats.num_forks(), 243320u);
   EXPECT_EQ(sys_stats.num_irq_total(), 0u);

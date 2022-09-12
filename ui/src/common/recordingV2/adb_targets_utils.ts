@@ -24,3 +24,15 @@ export const TRACEBOX_FETCH_TIMEOUT = 30000;
 // device in order to connect.
 export const ALLOW_USB_DEBUGGING =
     'Please allow USB debugging on device and try again.';
+
+// If the Android device has the tracing service on it (from API version 29),
+// then we can connect to this consumer socket.
+export const DEFAULT_TRACED_CONSUMER_SOCKET_PATH =
+    'localfilesystem:/dev/socket/traced_consumer';
+
+// If the Android device does not have the tracing service on it (before API
+// version 29), we will have to push the tracebox on the device. Then, we
+// can connect to this consumer socket (using it does not require system admin
+// privileges).
+export const CUSTOM_TRACED_CONSUMER_SOCKET_PATH =
+    'localabstract:traced_consumer';

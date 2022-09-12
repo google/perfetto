@@ -26,4 +26,9 @@ message TransgalacticMessage {
   optional Galaxy destination_galaxy = 3;
   optional string destination_planet = 4;
   optional bytes proto_message = 5;
+
+  enum MessageType {
+    REGULAR = 0;
+    EXPRESS = 1;
+  }
 }

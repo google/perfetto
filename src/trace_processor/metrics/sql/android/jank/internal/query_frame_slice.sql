@@ -63,6 +63,7 @@ DROP TABLE IF EXISTS {{table_name_prefix}}_query_slice;
 CREATE TABLE {{table_name_prefix}}_query_slice AS
 SELECT
   slice.cuj_id,
+  slice.utid,
   slice.id,
   slice.name,
   slice.ts,
@@ -78,6 +79,7 @@ CREATE VIEW {{table_name_prefix}}_slice_in_frame AS
 SELECT
   frame.*,
   query_slice.id AS slice_id,
+  query_slice.utid AS slice_utid,
   query_slice.name AS slice_name,
   MAX(query_slice.ts, frame_boundary.ts) AS slice_ts,
   MIN(query_slice.ts_end, frame_boundary.ts_end) AS slice_ts_end,

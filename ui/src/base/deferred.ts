@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// tslint:disable:no-any
-
 // Promise wrapper with exposed resolve and reject callbacks.
 export interface Deferred<T> extends Promise<T> {
   readonly resolve: (value?: T|PromiseLike<T>) => void;

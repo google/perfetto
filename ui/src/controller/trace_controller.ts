@@ -75,7 +75,10 @@ import {globals} from './globals';
 import {LoadingManager} from './loading_manager';
 import {LogsController} from './logs_controller';
 import {MetricsController} from './metrics_controller';
-import {PivotTableReduxController} from './pivot_table_redux_controller';
+import {
+  PIVOT_TABLE_REDUX_FLAG,
+  PivotTableReduxController,
+} from './pivot_table_redux_controller';
 import {QueryController, QueryControllerArgs} from './query_controller';
 import {SearchController} from './search_controller';
 import {
@@ -228,10 +231,15 @@ export class TraceController extends Controller<States> {
             'cpu_process_aggregation',
             CpuByProcessAggregationController,
             {engine, kind: 'cpu_by_process_aggregation'}));
-        childControllers.push(Child(
-            'slice_aggregation',
-            SliceAggregationController,
-            {engine, kind: 'slice_aggregation'}));
+        if (!PIVOT_TABLE_REDUX_FLAG.get()) {
+          // Pivot table is supposed to handle the use cases the slice
+          // aggregation panel is used right now. When a flag to use pivot
+          // tables is enabled, do not add slice aggregation controller.
+          childControllers.push(Child(
+              'slice_aggregation',
+              SliceAggregationController,
+              {engine, kind: 'slice_aggregation'}));
+        }
         childControllers.push(Child(
             'counter_aggregation',
             CounterAggregationController,
@@ -646,6 +654,7 @@ export class TraceController extends Controller<States> {
         track_id INT,
         ts BIG INT,
         dur BIG INT,
+        thread_dur BIG INT,
         depth INT,
         cat STRING,
         name STRING,
@@ -716,11 +725,14 @@ export class TraceController extends Controller<States> {
             WHERE track_type = 'slice'
           `);
           await engine.query(`
-            INSERT INTO annotation_slice(track_id, ts, dur, depth, cat, name)
+            INSERT INTO annotation_slice(
+              track_id, ts, dur, thread_dur, depth, cat, name
+            )
             SELECT
               t.id AS track_id,
               ts,
               dur,
+              NULL as thread_dur,
               0 AS depth,
               a.track_name as cat,
               slice_name AS name

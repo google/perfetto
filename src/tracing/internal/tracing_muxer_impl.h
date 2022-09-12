@@ -205,6 +205,7 @@ class TracingMuxerImpl : public TracingMuxer {
     void OnConnect() override;
     void OnDisconnect() override;
     void OnTracingSetup() override;
+    void OnStartupTracingSetup() override;
     void SetupDataSource(DataSourceInstanceID,
                          const DataSourceConfig&) override;
     void StartDataSource(DataSourceInstanceID,
@@ -220,6 +221,7 @@ class TracingMuxerImpl : public TracingMuxer {
     TracingBackendId const backend_id_;
     bool connected_ = false;
     bool did_setup_tracing_ = false;
+    bool did_setup_startup_tracing_ = false;
     std::atomic<uint32_t> connection_id_{0};
     uint16_t last_startup_target_buffer_reservation_ = 0;
     bool is_producer_provided_smb_ = false;

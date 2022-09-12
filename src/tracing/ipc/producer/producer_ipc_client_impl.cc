@@ -106,7 +106,9 @@ ProducerIPCClientImpl::ProducerIPCClientImpl(
       name_(producer_name),
       shared_memory_page_size_hint_bytes_(shared_memory_page_size_hint_bytes),
       shared_memory_size_hint_bytes_(shared_memory_size_hint_bytes),
-      smb_scraping_mode_(smb_scraping_mode) {
+      smb_scraping_mode_(smb_scraping_mode),
+      receive_shmem_fd_cb_fuchsia_(
+          std::move(conn_args.receive_shmem_fd_cb_fuchsia)) {
   // Check for producer-provided SMB (used by Chrome for startup tracing).
   if (shared_memory_) {
     // We also expect a valid (unbound) arbiter. Bind it to this endpoint now.
@@ -216,6 +218,24 @@ void ProducerIPCClientImpl::OnDisconnect() {
   producer_->OnDisconnect();  // Note: may delete |this|.
 }
 
+void ProducerIPCClientImpl::ScheduleDisconnect() {
+  // |ipc_channel| doesn't allow disconnection in the middle of handling
+  // an IPC call, so the connection drop must take place over two phases.
+
+  // First, synchronously drop the |producer_port_| so that no more IPC
+  // messages are handled.
+  producer_port_.reset();
+
+  // Then schedule an async task for performing the remainder of the
+  // disconnection operations outside the context of the IPC method handler.
+  auto weak_this = weak_factory_.GetWeakPtr();
+  task_runner_->PostTask([weak_this]() {
+    if (weak_this) {
+      weak_this->Disconnect();
+    }
+  });
+}
+
 void ProducerIPCClientImpl::OnConnectionInitialized(
     bool connection_succeeded,
     bool using_shmem_provided_by_producer,
@@ -278,6 +298,23 @@ void ProducerIPCClientImpl::OnServiceRequest(
     const std::string& shm_key = cmd.setup_tracing().shm_key_windows();
     if (!shm_key.empty())
       ipc_shared_memory = SharedMemoryWindows::Attach(shm_key);
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+    // On Fuchsia, the embedder is responsible for routing the shared memory
+    // FD, which is provided to this code via a blocking callback.
+    PERFETTO_CHECK(receive_shmem_fd_cb_fuchsia_);
+
+    base::ScopedFile shmem_fd(receive_shmem_fd_cb_fuchsia_());
+    if (!shmem_fd) {
+      // Failure to get a shared memory buffer is a protocol violation and
+      // therefore we should drop the Protocol connection.
+      PERFETTO_ELOG("Could not get shared memory FD from embedder.");
+      ScheduleDisconnect();
+      return;
+    }
+
+    ipc_shared_memory =
+        PosixSharedMemory::AttachToFd(std::move(shmem_fd),
+                                      /*require_seals_if_supported=*/false);
 #else
     base::ScopedFile shmem_fd = ipc_channel_->TakeReceivedFD();
     if (shmem_fd) {

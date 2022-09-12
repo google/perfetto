@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {AdbConnectionOverWebsocket} from '../adb_connection_over_websocket';
+import {DEFAULT_TRACED_CONSUMER_SOCKET_PATH} from '../adb_targets_utils';
 import {
   RecordingTargetV2,
   TargetInfo,
@@ -59,8 +60,8 @@ export class AndroidWebsocketTarget implements RecordingTargetV2 {
   async createTracingSession(tracingSessionListener: TracingSessionListener):
       Promise<TracingSession> {
     this.adbConnection.onDisconnect = tracingSessionListener.onDisconnect;
-    const adbStream =
-        await this.adbConnection.connectSocket('/dev/socket/traced_consumer');
+    const adbStream = await this.adbConnection.connectSocket(
+        DEFAULT_TRACED_CONSUMER_SOCKET_PATH);
 
     const tracingSession =
         new TracedTracingSession(adbStream, tracingSessionListener);

@@ -85,6 +85,10 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   const uint32_t seq_id = decoder.trusted_packet_sequence_id();
   auto* state = GetIncrementalStateForPacketSequence(seq_id);
 
+  if (decoder.first_packet_on_sequence()) {
+    HandleFirstPacketOnSequence(seq_id);
+  }
+
   uint32_t sequence_flags = decoder.sequence_flags();
 
   if (decoder.incremental_state_cleared() ||
@@ -198,6 +202,13 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   auto& modules = context_->modules_by_field;
   for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
     if (!modules[field_id].empty() && decoder.Get(field_id).valid()) {
+      for (ProtoImporterModule* global_module :
+           context_->modules_for_all_fields) {
+        ModuleResult res = global_module->TokenizePacket(
+            decoder, &packet, timestamp, state, field_id);
+        if (!res.ignored())
+          return res.ToStatus();
+      }
       for (ProtoImporterModule* module : modules[field_id]) {
         ModuleResult res = module->TokenizePacket(decoder, &packet, timestamp,
                                                   state, field_id);
@@ -243,6 +254,13 @@ void ProtoTraceReader::HandleIncrementalStateCleared(
   for (auto& module : context_->modules) {
     module->OnIncrementalStateCleared(
         packet_decoder.trusted_packet_sequence_id());
+  }
+}
+
+void ProtoTraceReader::HandleFirstPacketOnSequence(
+    uint32_t packet_sequence_id) {
+  for (auto& module : context_->modules) {
+    module->OnFirstPacketOnSequence(packet_sequence_id);
   }
 }
 

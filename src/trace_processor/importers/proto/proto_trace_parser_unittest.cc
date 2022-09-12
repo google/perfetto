@@ -45,7 +45,6 @@
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
-#include "protos/perfetto/trace/chrome/chrome_metadata.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace.pbzero.h"
@@ -869,15 +868,15 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
 
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(storage_->thread_slice_table().row_count(), 2u);
-  auto id_0 = storage_->thread_slice_table().id().IndexOf(SliceId(0u));
+  EXPECT_EQ(storage_->slice_table().row_count(), 2u);
+  auto id_0 = storage_->slice_table().id().IndexOf(SliceId(0u));
   EXPECT_TRUE(id_0);
-  EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_0], 2003000);
-  EXPECT_EQ(storage_->thread_slice_table().thread_dur()[*id_0], 12000);
-  auto id_1 = storage_->thread_slice_table().id().IndexOf(SliceId(1u));
+  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_0], 2003000);
+  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_0], 12000);
+  auto id_1 = storage_->slice_table().id().IndexOf(SliceId(1u));
   EXPECT_TRUE(id_1);
-  EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_1], 2005000);
-  EXPECT_EQ(storage_->thread_slice_table().thread_dur()[*id_1], 5000);
+  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_1], 2005000);
+  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_1], 5000);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
@@ -958,15 +957,15 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
 
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(storage_->thread_slice_table().row_count(), 2u);
-  auto id_0 = storage_->thread_slice_table().id().IndexOf(SliceId(0u));
+  EXPECT_EQ(storage_->slice_table().row_count(), 2u);
+  auto id_0 = storage_->slice_table().id().IndexOf(SliceId(0u));
   EXPECT_TRUE(id_0);
-  EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_0], 2005000);
-  EXPECT_EQ(storage_->thread_slice_table().thread_dur()[*id_0], 5000);
-  auto id_1 = storage_->thread_slice_table().id().IndexOf(SliceId(1u));
+  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_0], 2005000);
+  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_0], 5000);
+  auto id_1 = storage_->slice_table().id().IndexOf(SliceId(1u));
   EXPECT_TRUE(id_1);
-  EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_1], 2007000);
-  EXPECT_EQ(storage_->thread_slice_table().thread_dur()[*id_1], 0);
+  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_1], 2007000);
+  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_1], 0);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
@@ -1157,31 +1156,25 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
 
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(storage_->thread_slice_table().row_count(), 3u);
-  auto id_0 = storage_->thread_slice_table().id().IndexOf(SliceId(0u));
+  EXPECT_EQ(storage_->slice_table().row_count(), 3u);
+  auto id_0 = storage_->slice_table().id().IndexOf(SliceId(0u));
   EXPECT_TRUE(id_0);
-  EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_0], 2003000);
-  EXPECT_EQ(storage_->thread_slice_table().thread_dur()[*id_0], 12000);
-  EXPECT_EQ(storage_->thread_slice_table().thread_instruction_count()[*id_0],
-            3010);
-  EXPECT_EQ(storage_->thread_slice_table().thread_instruction_delta()[*id_0],
-            50);
-  auto id_1 = storage_->thread_slice_table().id().IndexOf(SliceId(1u));
+  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_0], 2003000);
+  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_0], 12000);
+  EXPECT_EQ(storage_->slice_table().thread_instruction_count()[*id_0], 3010);
+  EXPECT_EQ(storage_->slice_table().thread_instruction_delta()[*id_0], 50);
+  auto id_1 = storage_->slice_table().id().IndexOf(SliceId(1u));
   EXPECT_TRUE(id_1);
-  EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_1], 2005000);
-  EXPECT_EQ(storage_->thread_slice_table().thread_dur()[*id_1], 5000);
-  EXPECT_EQ(storage_->thread_slice_table().thread_instruction_count()[*id_1],
-            3020);
-  EXPECT_EQ(storage_->thread_slice_table().thread_instruction_delta()[*id_1],
-            20);
-  auto id_2 = storage_->thread_slice_table().id().IndexOf(SliceId(2u));
+  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_1], 2005000);
+  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_1], 5000);
+  EXPECT_EQ(storage_->slice_table().thread_instruction_count()[*id_1], 3020);
+  EXPECT_EQ(storage_->slice_table().thread_instruction_delta()[*id_1], 20);
+  auto id_2 = storage_->slice_table().id().IndexOf(SliceId(2u));
   EXPECT_TRUE(id_2);
-  EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_2], 2030000);
-  EXPECT_EQ(storage_->thread_slice_table().thread_dur()[*id_2], 0);
-  EXPECT_EQ(storage_->thread_slice_table().thread_instruction_count()[*id_2],
-            3100);
-  EXPECT_EQ(storage_->thread_slice_table().thread_instruction_delta()[*id_2],
-            0);
+  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_2], 2030000);
+  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_2], 0);
+  EXPECT_EQ(storage_->slice_table().thread_instruction_count()[*id_2], 3100);
+  EXPECT_EQ(storage_->slice_table().thread_instruction_delta()[*id_2], 0);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
@@ -1520,24 +1513,20 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   EXPECT_EQ(storage_->virtual_track_slices().thread_instruction_deltas()[0],
             20);
 
-  EXPECT_EQ(storage_->thread_slice_table().row_count(), 2u);
-  auto id_0 = storage_->thread_slice_table().id().IndexOf(SliceId(0u));
+  EXPECT_EQ(storage_->slice_table().row_count(), 2u);
+  auto id_0 = storage_->slice_table().id().IndexOf(SliceId(0u));
   EXPECT_TRUE(id_0);
-  EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_0], 2007000);
-  EXPECT_EQ(storage_->thread_slice_table().thread_dur()[*id_0], 0);
+  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_0], 2007000);
+  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_0], 0);
   // There was no thread instructions in the packets above.
-  EXPECT_FALSE(
-      storage_->thread_slice_table().thread_instruction_count()[*id_0]);
-  EXPECT_FALSE(
-      storage_->thread_slice_table().thread_instruction_delta()[*id_0]);
-  auto id_1 = storage_->thread_slice_table().id().IndexOf(SliceId(1u));
+  EXPECT_FALSE(storage_->slice_table().thread_instruction_count()[*id_0]);
+  EXPECT_FALSE(storage_->slice_table().thread_instruction_delta()[*id_0]);
+  auto id_1 = storage_->slice_table().id().IndexOf(SliceId(1u));
   EXPECT_TRUE(id_1);
-  EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_1], 2008000);
-  EXPECT_EQ(storage_->thread_slice_table().thread_dur()[*id_1], 0);
-  EXPECT_FALSE(
-      storage_->thread_slice_table().thread_instruction_count()[*id_1]);
-  EXPECT_FALSE(
-      storage_->thread_slice_table().thread_instruction_delta()[*id_1]);
+  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_1], 2008000);
+  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_1], 0);
+  EXPECT_FALSE(storage_->slice_table().thread_instruction_count()[*id_1]);
+  EXPECT_FALSE(storage_->slice_table().thread_instruction_delta()[*id_1]);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
@@ -1633,11 +1622,11 @@ TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
   EXPECT_EQ(storage_->thread_track_table().utid()[0], 1u);
 
   // Counter values should also be imported into thread slices.
-  EXPECT_EQ(storage_->thread_slice_table().row_count(), 1u);
-  auto id_0 = storage_->thread_slice_table().id().IndexOf(SliceId(0u));
+  EXPECT_EQ(storage_->slice_table().row_count(), 1u);
+  auto id_0 = storage_->slice_table().id().IndexOf(SliceId(0u));
   EXPECT_TRUE(id_0);
-  EXPECT_EQ(storage_->thread_slice_table().thread_ts()[*id_0], 1000000);
-  EXPECT_EQ(storage_->thread_slice_table().thread_dur()[*id_0], 10000);
+  EXPECT_EQ(storage_->slice_table().thread_ts()[*id_0], 1000000);
+  EXPECT_EQ(storage_->slice_table().thread_dur()[*id_0], 10000);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
@@ -2467,51 +2456,6 @@ TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
                      Variadic::String(storage_->InternString(kStringValue))));
   EXPECT_TRUE(HasArg(1u, storage_->InternString(kIntName),
                      Variadic::Integer(kIntValue)));
-}
-
-// TODO(crbug.com/1194914): Remove this test once the Chrome-side fix has
-// propagated into all release channels.
-TEST_F(ProtoTraceParserTest, ParseChromeCombinedMetadataPacket) {
-  static const char kStringName[] = "string_name";
-  static const char kStringValue[] = "string_value";
-
-  {
-    auto* packet = trace_->add_packet();
-    packet->set_timestamp(1000);
-    packet->set_timestamp_clock_id(3);
-    packet->set_trusted_packet_sequence_id(1);
-    auto* chrome_metadata = packet->set_chrome_metadata();
-    chrome_metadata->set_chrome_version_code(123);
-    auto* bundle = packet->set_chrome_events();
-    auto* metadata = bundle->add_metadata();
-    metadata->set_name(kStringName);
-    metadata->set_string_value(kStringValue);
-  }
-
-  Tokenize();
-  context_.sorter->ExtractEventsForced();
-
-  // Typed metadata should be in metadata table.
-  bool found = false;
-  for (uint32_t row = 0; row < storage_->metadata_table().row_count(); row++) {
-    if (storage_->metadata_table().name()[row] ==
-        storage_->InternString("cr-playstore_version_code")) {
-      found = true;
-      EXPECT_EQ(storage_->metadata_table().int_value()[0], 123);
-    }
-  }
-  EXPECT_TRUE(found);
-
-  // Untyped metadata should be in raw table.
-  const auto& raw_table = storage_->raw_table();
-  EXPECT_EQ(raw_table.row_count(), 1u);
-  EXPECT_EQ(raw_table.name()[0],
-            storage_->InternString("chrome_event.metadata"));
-  EXPECT_EQ(raw_table.arg_set_id()[0], 1u);
-
-  EXPECT_EQ(storage_->arg_table().row_count(), 1u);
-  EXPECT_TRUE(HasArg(1u, storage_->InternString(kStringName),
-                     Variadic::String(storage_->InternString(kStringValue))));
 }
 
 TEST_F(ProtoTraceParserTest, ParseChromeLegacyFtraceIntoRawTable) {

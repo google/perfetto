@@ -777,27 +777,28 @@ class JsonExporter {
 
   util::Status ExportSlices() {
     const auto& slices = storage_->slice_table();
-    for (uint32_t i = 0; i < slices.row_count(); ++i) {
+    for (auto it = slices.IterateRows(); it; ++it) {
       // Skip slices with empty category - these are ftrace/system slices that
       // were also imported into the raw table and will be exported from there
       // by trace_to_text.
       // TODO(b/153609716): Add a src column or do_not_export flag instead.
-      auto cat = slices.category().GetString(i);
+      if (!it.category())
+        continue;
+      auto cat = storage_->GetString(*it.category());
       if (cat.c_str() == nullptr || cat == "binder")
         continue;
 
       Json::Value event;
-      event["ts"] = Json::Int64(slices.ts()[i] / 1000);
-      event["cat"] = GetNonNullString(storage_, slices.category()[i]);
-      event["name"] = GetNonNullString(storage_, slices.name()[i]);
+      event["ts"] = Json::Int64(it.ts() / 1000);
+      event["cat"] = GetNonNullString(storage_, it.category());
+      event["name"] = GetNonNullString(storage_, it.name());
       event["pid"] = 0;
       event["tid"] = 0;
 
       base::Optional<UniqueTid> legacy_utid;
       std::string legacy_phase;
 
-      event["args"] =
-          args_builder_.GetArgs(slices.arg_set_id()[i]);  // Makes a copy.
+      event["args"] = args_builder_.GetArgs(it.arg_set_id());  // Makes a copy.
       if (event["args"].isMember(kLegacyEventArgsKey)) {
         const auto& legacy_args = event["args"][kLegacyEventArgsKey];
 
@@ -815,7 +816,7 @@ class JsonExporter {
       // or chrome tracks (i.e. TrackEvent slices). Slices on other tracks may
       // also be present as raw events and handled by trace_to_text. Only add
       // more track types here if they are not already covered by trace_to_text.
-      TrackId track_id = slices.track_id()[i];
+      TrackId track_id = it.track_id();
 
       const auto& track_table = storage_->track_table();
 
@@ -833,26 +834,21 @@ class JsonExporter {
 
       const auto& thread_track = storage_->thread_track_table();
       const auto& process_track = storage_->process_track_table();
-      const auto& thread_slices = storage_->thread_slice_table();
       const auto& virtual_track_slices = storage_->virtual_track_slices();
 
-      int64_t duration_ns = slices.dur()[i];
+      int64_t duration_ns = it.dur();
       base::Optional<int64_t> thread_ts_ns;
       base::Optional<int64_t> thread_duration_ns;
       base::Optional<int64_t> thread_instruction_count;
       base::Optional<int64_t> thread_instruction_delta;
 
-      SliceId id = slices.id()[i];
-      base::Optional<uint32_t> thread_slice_row =
-          thread_slices.id().IndexOf(id);
-      if (thread_slice_row) {
-        thread_ts_ns = thread_slices.thread_ts()[*thread_slice_row];
-        thread_duration_ns = thread_slices.thread_dur()[*thread_slice_row];
-        thread_instruction_count =
-            thread_slices.thread_instruction_count()[*thread_slice_row];
-        thread_instruction_delta =
-            thread_slices.thread_instruction_delta()[*thread_slice_row];
+      if (it.thread_dur()) {
+        thread_ts_ns = it.thread_ts();
+        thread_duration_ns = it.thread_dur();
+        thread_instruction_count = it.thread_instruction_count();
+        thread_instruction_delta = it.thread_instruction_delta();
       } else {
+        SliceId id = it.id();
         base::Optional<uint32_t> vtrack_slice_row =
             virtual_track_slices.FindRowForSliceId(id);
         if (vtrack_slice_row) {
@@ -1008,7 +1004,7 @@ class JsonExporter {
           // write the end event in this case.
           if (duration_ns > 0) {
             event["ph"] = legacy_phase.empty() ? "e" : "F";
-            event["ts"] = Json::Int64((slices.ts()[i] + duration_ns) / 1000);
+            event["ts"] = Json::Int64((it.ts() + duration_ns) / 1000);
             if (thread_ts_ns && thread_duration_ns && *thread_ts_ns > 0) {
               event["tts"] =
                   Json::Int64((*thread_ts_ns + *thread_duration_ns) / 1000);

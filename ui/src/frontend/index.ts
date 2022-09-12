@@ -107,7 +107,6 @@ class FrontendApi {
     this.state = produce(
         this.state,
         (draft) => {
-          // tslint:disable-next-line no-any
           (StateActions as any)[action.type](draft, action.args);
         },
         (morePatches, _) => {
@@ -264,7 +263,6 @@ function main() {
   if (extensionPort) {
     extensionPort.onDisconnect.addListener((_) => {
       setExtensionAvailability(false);
-      // tslint:disable-next-line: no-unused-expression
       void chrome.runtime.lastError;  // Needed to not receive an error log.
     });
     // This forwards the messages from the extension to the controller.

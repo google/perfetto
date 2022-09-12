@@ -18,7 +18,7 @@ import {Area} from '../common/state';
 import {Flow, globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {
-  horizontalScrollAndZoomToRange,
+  focusHorizontalRange,
   verticalScrollToTrack,
 } from './scroll_helper';
 import {executeSearch} from './search_handler';
@@ -243,6 +243,8 @@ function findTimeRangeOfSelection(): {startTs: number, endTs: number} {
       startTs = selectedNote.timestamp;
       endTs = selectedNote.timestamp + INSTANT_FOCUS_DURATION_S;
     }
+  } else if (selection.kind === 'LOG') {
+    // TODO(hjd): Make focus selection work for logs.
   }
 
   return {startTs, endTs};
@@ -267,7 +269,7 @@ export function findCurrentSelection() {
 
   const range = findTimeRangeOfSelection();
   if (range.startTs !== -1 && range.endTs !== -1) {
-    horizontalScrollAndZoomToRange(range.startTs, range.endTs);
+    focusHorizontalRange(range.startTs, range.endTs);
   }
 
   if (selection.trackId) {

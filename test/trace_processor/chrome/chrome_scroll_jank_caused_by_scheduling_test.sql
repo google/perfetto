@@ -15,7 +15,7 @@
 
 SELECT RUN_METRIC('chrome/chrome_scroll_jank_caused_by_scheduling.sql',
 'dur_causes_jank_ms',
-/* dur_causes_jank_ms = */ '5') AS suppress_query_output;
+/* dur_causes_jank_ms = */ '5');
 
 SELECT
   full_name,

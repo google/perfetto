@@ -63,6 +63,10 @@ class PERFETTO_EXPORT_COMPONENT Producer {
   // created. Can be used for any setup required before tracing begins.
   virtual void OnTracingSetup() = 0;
 
+  // Called by muxer once StartupTracing is started. It will be called before
+  // SetupStartupTracingBlocking is returned.
+  virtual void OnStartupTracingSetup() {}
+
   // The lifecycle methods below are always called in the following sequence:
   // SetupDataSource  -> StartDataSource -> StopDataSource.
   // Or, in the edge case where a trace is aborted immediately:

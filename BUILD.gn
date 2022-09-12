@@ -82,19 +82,20 @@ if (perfetto_build_with_android) {
 }
 
 if (enable_perfetto_tools) {
-  all_targets += [
-    "src/tools",
-    "src/websocket_bridge",
-  ]
+  all_targets += [ "src/tools" ]
+
+  # Windows does not have an IPC implementation.
+  if (!is_win) {
+    all_targets += [ "src/websocket_bridge" ]
+  }
 }
 
 if (enable_perfetto_unittests) {
   import("gn/perfetto_unittests.gni")
   test("perfetto_unittests") {
     if (is_fuchsia) {
-      additional_manifest_fragments = [
-        "//build/config/fuchsia/test/network.shard.test-cml",
-      ]
+      additional_manifest_fragments =
+          [ "//build/config/fuchsia/test/network.shard.test-cml" ]
     }
     deps = perfetto_unittests_targets
   }

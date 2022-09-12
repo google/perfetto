@@ -16,7 +16,7 @@
 SELECT RUN_METRIC('chrome/chrome_stack_samples_for_task.sql',
     'target_duration_ms', '0.000001',
     'thread_name', '"CrBrowserMain"',
-    'task_name', '"sendTouchEvent"') AS suppress_query_output;
+    'task_name', '"sendTouchEvent"');
 
 SELECT
     sample.description,
@@ -31,4 +31,5 @@ JOIN (
     WHERE ts = 696373965001470
 ) test_slice
     ON sample.ts >= test_slice.ts
-    AND sample.ts <= test_slice.ts + test_slice.dur;
+    AND sample.ts <= test_slice.ts + test_slice.dur
+ORDER BY sample.ts, sample.depth;

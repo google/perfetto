@@ -19,8 +19,21 @@
 namespace perfetto {
 namespace base {
 
+// Without ignoring this warning we get the message:
+//   error: out-of-line definition of constexpr static data member is redundant
+//   in C++17 and is deprecated
+// when using clang-cl in Windows.
+#if defined(__GNUC__)  // GCC & clang
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated"
+#endif  // __GNUC__
+
 // static
 constexpr size_t StringView::npos;
+
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 
 }  // namespace base
 }  // namespace perfetto

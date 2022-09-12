@@ -35,18 +35,18 @@ def perfetto_deps():
     _add_repo_if_not_existing(
         http_archive,
         name = "perfetto_dep_sqlite",
-        url = "https://storage.googleapis.com/perfetto/sqlite-amalgamation-3350400.zip",
-        sha256 = "f3bf0df69f5de0675196f4644e05d07dbc698d674dc563a12eff17d5b215cdf5",
-        strip_prefix = "sqlite-amalgamation-3350400",
+        url = "https://storage.googleapis.com/perfetto/sqlite-amalgamation-3390200.zip",
+        sha256 = "87775784f8b22d0d0f1d7811870d39feaa7896319c7c20b849a4181c5a50609b",
+        strip_prefix = "sqlite-amalgamation-3390200",
         build_file = "//bazel:sqlite.BUILD",
     )
 
     _add_repo_if_not_existing(
         http_archive,
         name = "perfetto_dep_sqlite_src",
-        url = "https://storage.googleapis.com/perfetto/sqlite-src-3250300.zip",
-        sha256 = "c7922bc840a799481050ee9a76e679462da131adba1814687f05aa5c93766421",
-        strip_prefix = "sqlite-src-3250300",
+        url = "https://storage.googleapis.com/perfetto/sqlite-src-3390200.zip",
+        sha256 = "e933d77000f45f3fbc8605f0050586a3013505a8de9b44032bd00ed72f1586f0",
+        strip_prefix = "sqlite-src-3390200",
         build_file = "//bazel:sqlite.BUILD",
     )
 

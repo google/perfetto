@@ -158,6 +158,10 @@ class TraceWriterImpl : public TraceWriter,
   // PID of the process that created the trace writer. Used for a DCHECK that
   // aims to detect unsupported process forks while tracing.
   const base::PlatformProcessId process_id_;
+
+  // True for the first packet on sequence. See the comment for
+  // TracePacket.first_packet_on_sequence for more details.
+  bool first_packet_on_sequence_ = true;
 };
 
 }  // namespace perfetto

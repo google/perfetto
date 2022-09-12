@@ -33,6 +33,9 @@ namespace stats {
   F(android_log_num_total,              kSingle,  kInfo,     kTrace,    ""),   \
   F(counter_events_out_of_order,        kSingle,  kError,    kAnalysis, ""),   \
   F(deobfuscate_location_parse_error,   kSingle,  kError,    kTrace,    ""),   \
+  F(energy_breakdown_missing_values,    kSingle,  kError,    kAnalysis, ""),   \
+  F(energy_descriptor_invalid,          kSingle,  kError,    kAnalysis, ""),   \
+  F(energy_uid_breakdown_missing_values,kSingle,  kError,    kAnalysis, ""),   \
   F(frame_timeline_event_parser_errors, kSingle,  kInfo,     kAnalysis, ""),   \
   F(ftrace_bundle_tokenizer_errors,     kSingle,  kError,    kAnalysis, ""),   \
   F(ftrace_cpu_bytes_read_begin,        kIndexed, kInfo,     kTrace,    ""),   \
@@ -202,6 +205,10 @@ namespace stats {
        "the file name is not found or no permission to access the file"),      \
   F(compact_sched_has_parse_errors,     kSingle,  kError,    kTrace,    ""),   \
   F(misplaced_end_event,                kSingle,  kDataLoss, kAnalysis, ""),   \
+  F(truncated_sys_write_duration,       kSingle,  kDataLoss,  kAnalysis,       \
+      "Count of sys_write slices that have a truncated duration to resolve "   \
+      "nesting incompatibilities with atrace slices. Real durations "          \
+      "can be recovered via the |raw| table."),                                \
   F(sched_waking_out_of_order,          kSingle,  kError,    kAnalysis, ""),   \
   F(compact_sched_switch_skipped,       kSingle,  kInfo,     kAnalysis, ""),   \
   F(compact_sched_waking_skipped,       kSingle,  kInfo,     kAnalysis, ""),   \

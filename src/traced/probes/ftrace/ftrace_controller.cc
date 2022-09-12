@@ -154,8 +154,11 @@ std::unique_ptr<FtraceController> FtraceController::Create(
   auto vendor_evts =
       vendor_tracepoints::DiscoverVendorTracepoints(&hal, ftrace_procfs.get());
 
-  std::unique_ptr<FtraceConfigMuxer> model = std::unique_ptr<FtraceConfigMuxer>(
-      new FtraceConfigMuxer(ftrace_procfs.get(), table.get(), vendor_evts));
+  auto syscalls = SyscallTable::FromCurrentArch();
+
+  std::unique_ptr<FtraceConfigMuxer> model =
+      std::unique_ptr<FtraceConfigMuxer>(new FtraceConfigMuxer(
+          ftrace_procfs.get(), table.get(), std::move(syscalls), vendor_evts));
   return std::unique_ptr<FtraceController>(
       new FtraceController(std::move(ftrace_procfs), std::move(table),
                            std::move(model), runner, observer));

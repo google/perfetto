@@ -69,6 +69,14 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
   }
 
   uint32_t cpu = decoder.cpu();
+  static constexpr uint32_t kMaxCpuCount = 1024;
+  if (PERFETTO_UNLIKELY(cpu >= kMaxCpuCount)) {
+    return base::ErrStatus(
+        "CPU %u is greater than maximum allowed of %u. This is likely because "
+        "of trace corruption",
+        cpu, kMaxCpuCount);
+  }
+
   ClockTracker::ClockId clock_id;
   switch (decoder.ftrace_clock()) {
     case FtraceClock::FTRACE_CLOCK_UNSPECIFIED:

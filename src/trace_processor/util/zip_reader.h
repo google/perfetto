@@ -112,7 +112,7 @@ class ZipFile {
     uint16_t version = 0;
     uint16_t flags = 0;
     uint16_t compression = 0;
-    uint32_t crc32 = 0;
+    uint32_t checksum = 0;
     uint16_t mtime = 0;
     uint16_t mdate = 0;
     uint32_t compressed_size = 0;

@@ -38,6 +38,12 @@ namespace {
 constexpr int kDefaultPerCpuBufferSizeKb = 2 * 1024;  // 2mb
 constexpr int kMaxPerCpuBufferSizeKb = 64 * 1024;     // 64mb
 
+// A fake "syscall id" that indicates all syscalls should be recorded. This
+// allows us to distinguish between the case where `syscall_events` is empty
+// because raw_syscalls aren't enabled, or the case where it is and we want to
+// record all events.
+constexpr size_t kAllSyscallsId = kMaxSyscalls + 1;
+
 // trace_clocks in preference order.
 // If this list is changed, the FtraceClocks enum in ftrace_event_bundle.proto
 // and FtraceConfigMuxer::SetupClock() should be also changed accordingly.
@@ -449,6 +455,73 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
   return events;
 }
 
+bool FtraceConfigMuxer::FilterHasGroup(const EventFilter& filter,
+                                       const std::string& group) {
+  const std::vector<const Event*>* events = table_->GetEventsByGroup(group);
+  if (!events) {
+    return false;
+  }
+
+  for (const Event* event : *events) {
+    if (filter.IsEventEnabled(event->ftrace_event_id)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+EventFilter FtraceConfigMuxer::BuildSyscallFilter(
+    const EventFilter& ftrace_filter,
+    const FtraceConfig& request) {
+  EventFilter output;
+
+  if (!FilterHasGroup(ftrace_filter, "raw_syscalls")) {
+    return output;
+  }
+
+  if (request.syscall_events().empty()) {
+    output.AddEnabledEvent(kAllSyscallsId);
+    return output;
+  }
+
+  for (const std::string& syscall : request.syscall_events()) {
+    base::Optional<size_t> id = syscalls_.GetByName(syscall);
+    if (!id.has_value()) {
+      PERFETTO_ELOG("Can't enable %s, syscall not known", syscall.c_str());
+      continue;
+    }
+    output.AddEnabledEvent(*id);
+  }
+
+  return output;
+}
+
+bool FtraceConfigMuxer::SetSyscallEventFilter(
+    const EventFilter& extra_syscalls) {
+  EventFilter syscall_filter;
+
+  syscall_filter.EnableEventsFrom(extra_syscalls);
+  for (const auto& id_config : ds_configs_) {
+    const perfetto::FtraceDataSourceConfig& config = id_config.second;
+    syscall_filter.EnableEventsFrom(config.syscall_filter);
+  }
+
+  std::set<size_t> filter_set = syscall_filter.GetEnabledEvents();
+  if (syscall_filter.IsEventEnabled(kAllSyscallsId)) {
+    filter_set.clear();
+  }
+
+  if (current_state_.syscall_filter != filter_set) {
+    if (!ftrace_->SetSyscallFilter(filter_set)) {
+      return false;
+    }
+
+    current_state_.syscall_filter = filter_set;
+  }
+
+  return true;
+}
+
 // Post-conditions:
 // 1. result >= 1 (should have at least one page per CPU)
 // 2. result * 4 < kMaxTotalBufferSizeKb
@@ -473,9 +546,11 @@ size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb) {
 FtraceConfigMuxer::FtraceConfigMuxer(
     FtraceProcfs* ftrace,
     ProtoTranslationTable* table,
+    SyscallTable syscalls,
     std::map<std::string, std::vector<GroupAndName>> vendor_events)
     : ftrace_(ftrace),
       table_(table),
+      syscalls_(std::move(syscalls)),
       current_state_(),
       ds_configs_(),
       vendor_events_(vendor_events) {}
@@ -568,6 +643,12 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
     }
   }
 
+  EventFilter syscall_filter = BuildSyscallFilter(filter, request);
+  if (!SetSyscallEventFilter(syscall_filter)) {
+    PERFETTO_ELOG("Failed to set raw_syscall ftrace filter in SetupConfig");
+    return 0;
+  }
+
   auto compact_sched =
       CreateCompactSchedConfig(request, table_->compact_sched_format());
 
@@ -576,7 +657,8 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
   FtraceConfigId id = ++last_id_;
   ds_configs_.emplace(
       std::piecewise_construct, std::forward_as_tuple(id),
-      std::forward_as_tuple(std::move(filter), compact_sched, std::move(apps),
+      std::forward_as_tuple(std::move(filter), std::move(syscall_filter),
+                            compact_sched, std::move(apps),
                             std::move(categories), request.symbolize_ksyms()));
   return id;
 }
@@ -630,6 +712,10 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
   bool atrace_changed =
       (current_state_.atrace_apps.size() != expected_apps.size()) ||
       (current_state_.atrace_categories.size() != expected_categories.size());
+
+  if (!SetSyscallEventFilter({})) {
+    PERFETTO_ELOG("Failed to set raw_syscall ftrace filter in RemoveConfig");
+  }
 
   // Disable any events that are currently enabled, but are not in any configs
   // anymore.

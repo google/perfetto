@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT RUN_METRIC('chrome/chrome_tasks.sql') AS suppress_query_output;
+SELECT RUN_METRIC('chrome/chrome_tasks.sql');
 
 SELECT full_name, task_type, count() as count
 FROM chrome_tasks

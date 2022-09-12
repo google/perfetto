@@ -466,7 +466,7 @@ message ChromeConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 18.
+// Next id: 19.
 message FtraceConfig {
   repeated string ftrace_events = 1;
   repeated string atrace_categories = 2;
@@ -540,6 +540,12 @@ message FtraceConfig {
   // expand to events that aren't of interest to the tracing user.
   // Introduced in: Android T.
   optional bool disable_generic_events = 16;
+
+  // The list of syscalls that should be recorded by sys_{enter,exit} ftrace
+  // events. When empty, all syscalls are recorded. If neither sys_{enter,exit}
+  // are enabled, this setting has no effect. Example: ["sys_read", "sys_open"].
+  // Introduced in: Android U.
+  repeated string syscall_events = 18;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
@@ -2114,9 +2120,25 @@ message SysStatsConfig {
   // Polls /sys/devices/system/cpu/cpu*/cpufreq/cpuinfo_cur_freq every X ms.
   // This is required to be > 10ms to avoid excessive CPU usage.
   optional uint32 cpufreq_period_ms = 8;
+
+  // Polls /proc/buddyinfo every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  optional uint32 buddyinfo_period_ms = 9;
 }
 
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto
+
+// Begin of protos/perfetto/config/system_info/system_info.proto
+
+// This data-source does a one-off recording of system information when
+// the trace starts.
+// Currently this includes:
+// - Values of
+// /sys/devices/system/cpu/cpu*/cpufreq/scaling_available_frequencies This
+// datasource has no configuration options at present.
+message SystemInfoConfig {}
+
+// End of protos/perfetto/config/system_info/system_info.proto
 
 // Begin of protos/perfetto/config/test_config.proto
 
@@ -2252,7 +2274,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 119
+// Next id: 120
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -2347,6 +2369,8 @@ message DataSourceConfig {
       [lazy = true];
   // Data source name: android.statsd
   optional StatsdTracingConfig statsd_tracing_config = 117 [lazy = true];
+  // Data source name: linux.system_info
+  optional SystemInfoConfig system_info_config = 119;
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would
@@ -6389,6 +6413,24 @@ message MarkVictimFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/oom.proto
 
+// Begin of protos/perfetto/trace/ftrace/panel.proto
+
+message DsiCmdFifoStatusFtraceEvent {
+  optional uint32 header = 1;
+  optional uint32 payload = 2;
+}
+message DsiRxFtraceEvent {
+  optional uint32 cmd = 1;
+  optional uint32 rx_buf = 2;
+}
+message DsiTxFtraceEvent {
+  optional uint32 last = 1;
+  optional uint32 tx_buf = 2;
+  optional uint32 type = 3;
+}
+
+// End of protos/perfetto/trace/ftrace/panel.proto
+
 // Begin of protos/perfetto/trace/ftrace/power.proto
 
 message CpuFrequencyFtraceEvent {
@@ -6804,6 +6846,119 @@ message UfshcdClkGatingFtraceEvent {
 }
 
 // End of protos/perfetto/trace/ftrace/ufs.proto
+
+// Begin of protos/perfetto/trace/ftrace/v4l2.proto
+
+message V4l2QbufFtraceEvent {
+  optional uint32 bytesused = 1;
+  optional uint32 field = 2;
+  optional uint32 flags = 3;
+  optional uint32 index = 4;
+  optional int32 minor = 5;
+  optional uint32 sequence = 6;
+  optional uint32 timecode_flags = 7;
+  optional uint32 timecode_frames = 8;
+  optional uint32 timecode_hours = 9;
+  optional uint32 timecode_minutes = 10;
+  optional uint32 timecode_seconds = 11;
+  optional uint32 timecode_type = 12;
+  optional uint32 timecode_userbits0 = 13;
+  optional uint32 timecode_userbits1 = 14;
+  optional uint32 timecode_userbits2 = 15;
+  optional uint32 timecode_userbits3 = 16;
+  optional int64 timestamp = 17;
+  optional uint32 type = 18;
+}
+message V4l2DqbufFtraceEvent {
+  optional uint32 bytesused = 1;
+  optional uint32 field = 2;
+  optional uint32 flags = 3;
+  optional uint32 index = 4;
+  optional int32 minor = 5;
+  optional uint32 sequence = 6;
+  optional uint32 timecode_flags = 7;
+  optional uint32 timecode_frames = 8;
+  optional uint32 timecode_hours = 9;
+  optional uint32 timecode_minutes = 10;
+  optional uint32 timecode_seconds = 11;
+  optional uint32 timecode_type = 12;
+  optional uint32 timecode_userbits0 = 13;
+  optional uint32 timecode_userbits1 = 14;
+  optional uint32 timecode_userbits2 = 15;
+  optional uint32 timecode_userbits3 = 16;
+  optional int64 timestamp = 17;
+  optional uint32 type = 18;
+}
+message Vb2V4l2BufQueueFtraceEvent {
+  optional uint32 field = 1;
+  optional uint32 flags = 2;
+  optional int32 minor = 3;
+  optional uint32 sequence = 4;
+  optional uint32 timecode_flags = 5;
+  optional uint32 timecode_frames = 6;
+  optional uint32 timecode_hours = 7;
+  optional uint32 timecode_minutes = 8;
+  optional uint32 timecode_seconds = 9;
+  optional uint32 timecode_type = 10;
+  optional uint32 timecode_userbits0 = 11;
+  optional uint32 timecode_userbits1 = 12;
+  optional uint32 timecode_userbits2 = 13;
+  optional uint32 timecode_userbits3 = 14;
+  optional int64 timestamp = 15;
+}
+message Vb2V4l2BufDoneFtraceEvent {
+  optional uint32 field = 1;
+  optional uint32 flags = 2;
+  optional int32 minor = 3;
+  optional uint32 sequence = 4;
+  optional uint32 timecode_flags = 5;
+  optional uint32 timecode_frames = 6;
+  optional uint32 timecode_hours = 7;
+  optional uint32 timecode_minutes = 8;
+  optional uint32 timecode_seconds = 9;
+  optional uint32 timecode_type = 10;
+  optional uint32 timecode_userbits0 = 11;
+  optional uint32 timecode_userbits1 = 12;
+  optional uint32 timecode_userbits2 = 13;
+  optional uint32 timecode_userbits3 = 14;
+  optional int64 timestamp = 15;
+}
+message Vb2V4l2QbufFtraceEvent {
+  optional uint32 field = 1;
+  optional uint32 flags = 2;
+  optional int32 minor = 3;
+  optional uint32 sequence = 4;
+  optional uint32 timecode_flags = 5;
+  optional uint32 timecode_frames = 6;
+  optional uint32 timecode_hours = 7;
+  optional uint32 timecode_minutes = 8;
+  optional uint32 timecode_seconds = 9;
+  optional uint32 timecode_type = 10;
+  optional uint32 timecode_userbits0 = 11;
+  optional uint32 timecode_userbits1 = 12;
+  optional uint32 timecode_userbits2 = 13;
+  optional uint32 timecode_userbits3 = 14;
+  optional int64 timestamp = 15;
+}
+message Vb2V4l2DqbufFtraceEvent {
+  optional uint32 field = 1;
+  optional uint32 flags = 2;
+  optional int32 minor = 3;
+  optional uint32 sequence = 4;
+  optional uint32 timecode_flags = 5;
+  optional uint32 timecode_frames = 6;
+  optional uint32 timecode_hours = 7;
+  optional uint32 timecode_minutes = 8;
+  optional uint32 timecode_seconds = 9;
+  optional uint32 timecode_type = 10;
+  optional uint32 timecode_userbits0 = 11;
+  optional uint32 timecode_userbits1 = 12;
+  optional uint32 timecode_userbits2 = 13;
+  optional uint32 timecode_userbits3 = 14;
+  optional int64 timestamp = 15;
+}
+
+// End of protos/perfetto/trace/ftrace/v4l2.proto
 
 // Begin of protos/perfetto/trace/ftrace/vmscan.proto
 
@@ -7298,6 +7453,15 @@ message FtraceEvent {
     F2fsIostatFtraceEvent f2fs_iostat = 419;
     F2fsIostatLatencyFtraceEvent f2fs_iostat_latency = 420;
     SchedCpuUtilCfsFtraceEvent sched_cpu_util_cfs = 421;
+    V4l2QbufFtraceEvent v4l2_qbuf = 422;
+    V4l2DqbufFtraceEvent v4l2_dqbuf = 423;
+    Vb2V4l2BufQueueFtraceEvent vb2_v4l2_buf_queue = 424;
+    Vb2V4l2BufDoneFtraceEvent vb2_v4l2_buf_done = 425;
+    Vb2V4l2QbufFtraceEvent vb2_v4l2_qbuf = 426;
+    Vb2V4l2DqbufFtraceEvent vb2_v4l2_dqbuf = 427;
+    DsiCmdFifoStatusFtraceEvent dsi_cmd_fifo_status = 428;
+    DsiRxFtraceEvent dsi_rx = 429;
+    DsiTxFtraceEvent dsi_tx = 430;
   }
 }
 
@@ -9482,6 +9646,9 @@ message BatteryCounters {
 
   // Instantaneous battery current in microamperes(µA).
   optional int64 current_avg_ua = 4;
+
+  // Battery name, emitted only on multiple batteries.
+  optional string name = 5;
 }
 
 // End of protos/perfetto/trace/power/battery_counters.proto
@@ -10298,6 +10465,14 @@ message SysStats {
   // /sys/devices/system/cpu/cpu*/cpufreq/cpuinfo_cur_freq in kHz.
   // One entry per cpu. Report 0 for offline cpu
   repeated uint32 cpufreq_khz = 11;
+
+  message BuddyInfo {
+    optional string node = 1;
+    optional string zone = 2;
+    repeated uint32 order_pages = 3;
+  }
+  // One entry per each node's zones.
+  repeated BuddyInfo buddy_info = 12;
 }
 
 // End of protos/perfetto/trace/sys_stats/sys_stats.proto
@@ -10327,6 +10502,9 @@ message SystemInfo {
   // The Android SDK vesion (e.g. 21 for L, 31 for S etc).
   // Introduced in Android T.
   optional uint64 android_sdk_version = 5;
+
+  // Kernel page size - sysconf(_SC_PAGESIZE).
+  optional uint32 page_size = 6;
 }
 
 // End of protos/perfetto/trace/system_info.proto
@@ -10902,7 +11080,7 @@ message UiState {
 
 // Begin of protos/perfetto/trace/trace_packet.proto
 
-// TracePacket is the root object of a Perfeto trace.
+// TracePacket is the root object of a Perfetto trace.
 // A Perfetto trace is a linear sequence of TracePacket(s).
 //
 // The tracing service guarantees that all TracePacket(s) written by a given
@@ -10922,7 +11100,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 86.
+// Next id: 88.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -11114,6 +11292,21 @@ message TracePacket {
   // data) on the sequence should be considered invalid up until the next packet
   // with SEQ_INCREMENTAL_STATE_CLEARED set.
   optional bool previous_packet_dropped = 42;
+
+  // Flag set by a producer (starting from SDK v29) if, for the current packet
+  // sequence (see |trusted_packet_sequence_id|), this is the first packet.
+  //
+  // This flag can be used for distinguishing the two situations when
+  // processing the trace:
+  // 1. There are no prior events for the sequence because of data loss, e.g.
+  //    due to ring buffer wrapping.
+  // 2. There are no prior events for the sequence because it didn't start
+  //    before this packet (= there's definitely no preceeding data loss).
+  //
+  // Given that older SDK versions do not support this flag, this flag not
+  // being present for a particular sequence does not necessarily imply data
+  // loss.
+  optional bool first_packet_on_sequence = 87;
 }
 
 // End of protos/perfetto/trace/trace_packet.proto

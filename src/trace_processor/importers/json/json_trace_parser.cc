@@ -24,7 +24,6 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -62,25 +61,16 @@ JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
 
 JsonTraceParser::~JsonTraceParser() = default;
 
-void JsonTraceParser::ParseFtracePacket(uint32_t,
-                                        int64_t,
-                                        TimestampedTracePiece) {
-  PERFETTO_FATAL("Json Trace Parser cannot handle ftrace packets.");
+void JsonTraceParser::ParseSystraceLine(int64_t, SystraceLine line) {
+  systrace_line_parser_.ParseLine(line);
 }
 
-void JsonTraceParser::ParseTracePacket(int64_t timestamp,
-                                       TimestampedTracePiece ttp) {
+void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
+                                      std::string string_value) {
   PERFETTO_DCHECK(json::IsJsonSupported());
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-  PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kJsonValue ||
-                  ttp.type == TimestampedTracePiece::Type::kSystraceLine);
-  if (ttp.type == TimestampedTracePiece::Type::kSystraceLine) {
-    systrace_line_parser_.ParseLine(ttp.systrace_line);
-    return;
-  }
-
-  auto opt_value = json::ParseJsonString(base::StringView(ttp.json_value));
+  auto opt_value = json::ParseJsonString(base::StringView(string_value));
   if (!opt_value) {
     context_->storage->IncrementStats(stats::json_parser_failure);
     return;
@@ -114,6 +104,9 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
   base::StringView name = value.isMember("name")
                               ? base::StringView(value["name"].asCString())
                               : base::StringView();
+  base::StringView id = value.isMember("id")
+                            ? base::StringView(value["id"].asCString())
+                            : base::StringView();
 
   StringId cat_id = storage->InternString(cat);
   StringId name_id = storage->InternString(name);
@@ -130,8 +123,8 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
   // Only used for 'B', 'E', and 'X' events so wrap in lambda so it gets
   // ignored in other cases. This lambda is only safe to call within the
   // scope of this function due to the capture by reference.
-  auto make_thread_slice_row = [&](TrackId track_id) {
-    tables::ThreadSliceTable::Row row;
+  auto make_slice_row = [&](TrackId track_id) {
+    tables::SliceTable::Row row;
     row.ts = timestamp;
     row.track_id = track_id;
     row.category = cat_id;
@@ -148,8 +141,8 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
   switch (phase) {
     case 'B': {  // TRACE_EVENT_BEGIN.
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      slice_tracker->BeginTyped(storage->mutable_thread_slice_table(),
-                                make_thread_slice_row(track_id), args_inserter);
+      slice_tracker->BeginTyped(storage->mutable_slice_table(),
+                                make_slice_row(track_id), args_inserter);
       MaybeAddFlow(track_id, value);
       break;
     }
@@ -160,14 +153,43 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       // Now try to update thread_dur if we have a tts field.
       auto opt_tts = json::CoerceToTs(value["tts"]);
       if (opt_slice_id.has_value() && opt_tts) {
-        auto* thread_slice = storage->mutable_thread_slice_table();
-        auto maybe_row = thread_slice->id().IndexOf(*opt_slice_id);
+        auto* slice = storage->mutable_slice_table();
+        auto maybe_row = slice->id().IndexOf(*opt_slice_id);
         PERFETTO_DCHECK(maybe_row.has_value());
-        auto start_tts = thread_slice->thread_ts()[*maybe_row];
+        auto start_tts = slice->thread_ts()[*maybe_row];
         if (start_tts) {
-          thread_slice->mutable_thread_dur()->Set(*maybe_row,
-                                                  *opt_tts - *start_tts);
+          slice->mutable_thread_dur()->Set(*maybe_row, *opt_tts - *start_tts);
         }
+      }
+      break;
+    }
+    case 'b':
+    case 'e':
+    case 'n': {
+      if (!opt_pid || id.empty()) {
+        context_->storage->IncrementStats(stats::json_parser_failure);
+        break;
+      }
+      UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
+      // TODO(hjd): base::Hash::Combine should work on StringViews
+      int64_t cookie =
+          static_cast<int64_t>(base::Hash::Combine(id.ToStdString().c_str()));
+      StringId scope = kNullStringId;
+      TrackId track_id = context_->track_tracker->InternLegacyChromeAsyncTrack(
+          name_id, upid, cookie, true /* source_id_is_process_scoped */, scope);
+
+      if (phase == 'b') {
+        slice_tracker->BeginTyped(storage->mutable_slice_table(),
+                                  make_slice_row(track_id), args_inserter);
+        MaybeAddFlow(track_id, value);
+      } else if (phase == 'e') {
+        slice_tracker->End(timestamp, track_id, cat_id, name_id, args_inserter);
+        // We don't handle tts here as we do in the 'E'
+        // case above as it's not well defined for aysnc slices.
+      } else {
+        context_->slice_tracker->Scoped(timestamp, track_id, cat_id, name_id,
+                                        0);
+        MaybeAddFlow(track_id, value);
       }
       break;
     }
@@ -176,10 +198,10 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       if (!opt_dur.has_value())
         return;
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      auto row = make_thread_slice_row(track_id);
+      auto row = make_slice_row(track_id);
       row.dur = opt_dur.value();
-      slice_tracker->ScopedTyped(storage->mutable_thread_slice_table(),
-                                 std::move(row), args_inserter);
+      slice_tracker->ScopedTyped(storage->mutable_slice_table(), std::move(row),
+                                 args_inserter);
       MaybeAddFlow(track_id, value);
       break;
     }
@@ -191,8 +213,8 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
       }
 
       std::string counter_name_prefix = name.ToStdString();
-      if (value.isMember("id")) {
-        counter_name_prefix += " id: " + value["id"].asString();
+      if (!id.empty()) {
+        counter_name_prefix += " id: " + id.ToStdString();
       }
 
       for (auto it = args.begin(); it != args.end(); ++it) {
@@ -245,13 +267,13 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
           break;
         }
         track_id = context_->track_tracker->InternThreadTrack(utid);
-        auto row = make_thread_slice_row(track_id);
+        auto row = make_slice_row(track_id);
         row.dur = 0;
         if (row.thread_ts) {
           // Only set thread_dur to zero if we have a thread_ts.
           row.thread_dur = 0;
         }
-        slice_tracker->ScopedTyped(storage->mutable_thread_slice_table(),
+        slice_tracker->ScopedTyped(storage->mutable_slice_table(),
                                    std::move(row), args_inserter);
         break;
       } else {
@@ -321,8 +343,8 @@ void JsonTraceParser::ParseTracePacket(int64_t timestamp,
   }
 #else
   perfetto::base::ignore_result(timestamp);
-  perfetto::base::ignore_result(ttp);
   perfetto::base::ignore_result(context_);
+  perfetto::base::ignore_result(string_value);
   PERFETTO_ELOG("Cannot parse JSON trace due to missing JSON support");
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 }

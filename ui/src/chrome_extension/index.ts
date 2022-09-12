@@ -55,7 +55,9 @@ function enableOnlyOnPerfettoHost() {
   chrome.declarativeContent.onPageChanged.removeRules(undefined, () => {
     chrome.declarativeContent.onPageChanged.addRules([
       enableOnHostWithSuffix('localhost'),
+      enableOnHostWithSuffix('127.0.0.1'),
       enableOnHostWithSuffix('.perfetto.dev'),
+      enableOnHostWithSuffix('.storage.googleapis.com'),
     ]);
   });
 }

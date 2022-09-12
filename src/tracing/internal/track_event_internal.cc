@@ -17,7 +17,6 @@
 #include "perfetto/tracing/internal/track_event_internal.h"
 
 #include "perfetto/base/proc_utils.h"
-#include "perfetto/base/thread_utils.h"
 #include "perfetto/base/time.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/internal/track_event_interned_fields.h"
@@ -49,7 +48,6 @@ BaseTrackEventInternedDataIndex::~BaseTrackEventInternedDataIndex() = default;
 
 namespace {
 
-std::atomic<perfetto::base::PlatformThreadId> g_main_thread;
 static constexpr const char kLegacySlowPrefix[] = "disabled-by-default-";
 static constexpr const char kSlowTag[] = "slow";
 static constexpr const char kDebugTag[] = "debug";
@@ -59,18 +57,54 @@ constexpr auto kClockIdIncremental =
 
 constexpr auto kClockIdAbsolute = TrackEventIncrementalState::kClockIdAbsolute;
 
-void ForEachObserver(
-    std::function<bool(TrackEventSessionObserver*&)> callback) {
-  // Session observers, shared by all track event data source instances.
-  static constexpr int kMaxObservers = 8;
-  static std::recursive_mutex* mutex = new std::recursive_mutex{};  // Leaked.
-  static std::array<TrackEventSessionObserver*, kMaxObservers> observers{};
-  std::unique_lock<std::recursive_mutex> lock(*mutex);
-  for (auto& o : observers) {
-    if (!callback(o))
-      break;
+class TrackEventSessionObserverRegistry {
+ public:
+  static TrackEventSessionObserverRegistry* GetInstance() {
+    static TrackEventSessionObserverRegistry* instance =
+        new TrackEventSessionObserverRegistry();  // leaked
+    return instance;
   }
-}
+
+  void AddObserverForRegistry(const TrackEventCategoryRegistry& registry,
+                              TrackEventSessionObserver* observer) {
+    std::unique_lock<std::recursive_mutex> lock(mutex_);
+    observers_.emplace_back(&registry, observer);
+  }
+
+  void RemoveObserverForRegistry(const TrackEventCategoryRegistry& registry,
+                                 TrackEventSessionObserver* observer) {
+    std::unique_lock<std::recursive_mutex> lock(mutex_);
+    observers_.erase(std::remove(observers_.begin(), observers_.end(),
+                                 RegisteredObserver(&registry, observer)),
+                     observers_.end());
+  }
+
+  void ForEachObserverForRegistry(
+      const TrackEventCategoryRegistry& registry,
+      std::function<void(TrackEventSessionObserver*)> callback) {
+    std::unique_lock<std::recursive_mutex> lock(mutex_);
+    for (auto& registered_observer : observers_) {
+      if (&registry == registered_observer.registry) {
+        callback(registered_observer.observer);
+      }
+    }
+  }
+
+ private:
+  struct RegisteredObserver {
+    RegisteredObserver(const TrackEventCategoryRegistry* r,
+                       TrackEventSessionObserver* o)
+        : registry(r), observer(o) {}
+    bool operator==(const RegisteredObserver& other) {
+      return registry == other.registry && observer == other.observer;
+    }
+    const TrackEventCategoryRegistry* registry;
+    TrackEventSessionObserver* observer;
+  };
+
+  std::recursive_mutex mutex_;
+  std::vector<RegisteredObserver> observers_;
+};
 
 enum class MatchType { kExact, kPattern };
 
@@ -111,9 +145,6 @@ std::atomic<int> TrackEventInternal::session_count_{};
 bool TrackEventInternal::Initialize(
     const TrackEventCategoryRegistry& registry,
     bool (*register_data_source)(const DataSourceDescriptor&)) {
-  if (!g_main_thread)
-    g_main_thread = perfetto::base::GetThreadId();
-
   DataSourceDescriptor dsd;
   dsd.set_name("track_event");
 
@@ -142,29 +173,19 @@ bool TrackEventInternal::Initialize(
 
 // static
 bool TrackEventInternal::AddSessionObserver(
+    const TrackEventCategoryRegistry& registry,
     TrackEventSessionObserver* observer) {
-  bool result = false;
-  ForEachObserver([&](TrackEventSessionObserver*& o) {
-    if (!o) {
-      o = observer;
-      result = true;
-      return false;
-    }
-    return true;
-  });
-  return result;
+  TrackEventSessionObserverRegistry::GetInstance()->AddObserverForRegistry(
+      registry, observer);
+  return true;
 }
 
 // static
 void TrackEventInternal::RemoveSessionObserver(
+    const TrackEventCategoryRegistry& registry,
     TrackEventSessionObserver* observer) {
-  ForEachObserver([&](TrackEventSessionObserver*& o) {
-    if (o == observer) {
-      o = nullptr;
-      return false;
-    }
-    return true;
-  });
+  TrackEventSessionObserverRegistry::GetInstance()->RemoveObserverForRegistry(
+      registry, observer);
 }
 
 // static
@@ -176,44 +197,36 @@ void TrackEventInternal::EnableTracing(
     if (IsCategoryEnabled(registry, config, *registry.GetCategory(i)))
       registry.EnableCategoryForInstance(i, args.internal_instance_index);
   }
-  ForEachObserver([&](TrackEventSessionObserver*& o) {
-    if (o)
-      o->OnSetup(args);
-    return true;
-  });
+  TrackEventSessionObserverRegistry::GetInstance()->ForEachObserverForRegistry(
+      registry, [&](TrackEventSessionObserver* o) { o->OnSetup(args); });
 }
 
 // static
-void TrackEventInternal::OnStart(const DataSourceBase::StartArgs& args) {
+void TrackEventInternal::OnStart(const TrackEventCategoryRegistry& registry,
+                                 const DataSourceBase::StartArgs& args) {
   session_count_.fetch_add(1);
-  ForEachObserver([&](TrackEventSessionObserver*& o) {
-    if (o)
-      o->OnStart(args);
-    return true;
-  });
+  TrackEventSessionObserverRegistry::GetInstance()->ForEachObserverForRegistry(
+      registry, [&](TrackEventSessionObserver* o) { o->OnStart(args); });
 }
 
 // static
 void TrackEventInternal::DisableTracing(
     const TrackEventCategoryRegistry& registry,
     const DataSourceBase::StopArgs& args) {
-  ForEachObserver([&](TrackEventSessionObserver*& o) {
-    if (o)
-      o->OnStop(args);
-    return true;
-  });
+  TrackEventSessionObserverRegistry::GetInstance()->ForEachObserverForRegistry(
+      registry, [&](TrackEventSessionObserver* o) { o->OnStop(args); });
   for (size_t i = 0; i < registry.category_count(); i++)
     registry.DisableCategoryForInstance(i, args.internal_instance_index);
 }
 
 // static
 void TrackEventInternal::WillClearIncrementalState(
+    const TrackEventCategoryRegistry& registry,
     const DataSourceBase::ClearIncrementalStateArgs& args) {
-  ForEachObserver([&](TrackEventSessionObserver*& o) {
-    if (o)
-      o->WillClearIncrementalState(args);
-    return true;
-  });
+  TrackEventSessionObserverRegistry::GetInstance()->ForEachObserverForRegistry(
+      registry, [&](TrackEventSessionObserver* o) {
+        o->WillClearIncrementalState(args);
+      });
 }
 
 // static
@@ -477,7 +490,6 @@ EventContext TrackEventInternal::WriteEvent(
     perfetto::protos::pbzero::TrackEvent::Type type,
     const TraceTimestamp& timestamp,
     bool on_current_thread_track) {
-  PERFETTO_DCHECK(g_main_thread);
   PERFETTO_DCHECK(!incr_state->was_cleared);
   auto packet = NewTracePacket(trace_writer, incr_state, tls_state, timestamp);
   EventContext ctx(std::move(packet), incr_state, &tls_state);
@@ -518,6 +530,15 @@ protos::pbzero::DebugAnnotation* TrackEventInternal::AddDebugAnnotation(
     const char* name) {
   auto annotation = event_ctx->event()->add_debug_annotations();
   annotation->set_name_iid(InternedDebugAnnotationName::Get(event_ctx, name));
+  return annotation;
+}
+
+// static
+protos::pbzero::DebugAnnotation* TrackEventInternal::AddDebugAnnotation(
+    perfetto::EventContext* event_ctx,
+    perfetto::DynamicString name) {
+  auto annotation = event_ctx->event()->add_debug_annotations();
+  annotation->set_name(name.value);
   return annotation;
 }
 

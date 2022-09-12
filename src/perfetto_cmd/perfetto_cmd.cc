@@ -1002,7 +1002,8 @@ void PerfettoCmd::OnConnect() {
   }
 
   PERFETTO_DCHECK(trace_config_);
-  trace_config_->set_enable_extra_guardrails(save_to_incidentd_);
+  trace_config_->set_enable_extra_guardrails(save_to_incidentd_ &&
+                                             !ignore_guardrails_);
 
   // Set the statsd logging flag if we're uploading
 

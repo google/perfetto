@@ -37,6 +37,8 @@ class TraceProcessorStorageImpl : public TraceProcessorStorage {
   void Flush() override;
   void NotifyEndOfFile() override;
 
+  void DestroyContext();
+
   TraceProcessorContext* context() { return &context_; }
 
  protected:

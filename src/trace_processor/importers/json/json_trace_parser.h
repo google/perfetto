@@ -23,8 +23,8 @@
 #include <tuple>
 
 #include "src/trace_processor/importers/common/trace_parser.h"
+#include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/importers/systrace/systrace_line_parser.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 
 namespace Json {
 class Value;
@@ -43,8 +43,8 @@ class JsonTraceParser : public TraceParser {
   ~JsonTraceParser() override;
 
   // TraceParser implementation.
-  void ParseTracePacket(int64_t timestamp, TimestampedTracePiece) override;
-  void ParseFtracePacket(uint32_t, int64_t, TimestampedTracePiece) override;
+  void ParseJsonPacket(int64_t timestamp, std::string string_value) override;
+  void ParseSystraceLine(int64_t timestamp, SystraceLine line) override;
 
  private:
   TraceProcessorContext* const context_;

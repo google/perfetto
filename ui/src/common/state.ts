@@ -16,6 +16,7 @@ import {RecordConfig} from '../controller/record_config_types';
 import {
   Aggregation,
   PivotTree,
+  RegularColumn,
   TableColumn,
 } from '../frontend/pivot_table_redux_types';
 
@@ -84,7 +85,8 @@ export const MAX_TIME = 180;
 // 19: Added visualisedArgs state.
 // 20: Refactored thread sorting order.
 // 21: Updated perf sample selection to include a ts range instead of single ts
-export const STATE_VERSION = 21;
+// 22: Add log selection kind.
+export const STATE_VERSION = 22;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -345,10 +347,16 @@ export interface ThreadStateSelection {
   id: number;
 }
 
+export interface LogSelection {
+  kind: 'LOG';
+  id: number;
+  trackId: string;
+}
+
 type Selection =
     (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
      CpuProfileSampleSelection|ChromeSliceSelection|ThreadStateSelection|
-     AreaSelection|PerfSamplesSelection)&{trackId?: string};
+     AreaSelection|PerfSamplesSelection|LogSelection)&{trackId?: string};
 export type SelectionKind = Selection['kind'];  // 'THREAD_STATE' | 'SLICE' ...
 
 export interface LogsPagination {
@@ -385,7 +393,6 @@ export interface MetricsState {
 // correctly. Generated together with the text of query and passed without the
 // change to the query response.
 export interface PivotTableReduxQueryMetadata {
-  tableName: string;
   pivotColumns: TableColumn[];
   aggregationColumns: Aggregation[];
 }
@@ -420,9 +427,15 @@ export interface PivotTableReduxState {
   // Query response
   queryResult: PivotTableReduxResult|null;
 
-  // Selected pivots. Map instead of Set because ES6 Set can't have
-  // non-primitive keys; here keys are concatenated values.
-  selectedPivotsMap: Map<string, TableColumn>;
+  // Selected pivots for tables other than slice.
+  // Because of the query generation, pivoting happens first on non-slice
+  // pivots; therefore, those can't be put after slice pivots. In order to
+  // maintain the separation more clearly, slice and non-slice pivots are
+  // located in separate arrays.
+  selectedPivots: RegularColumn[];
+
+  // Selected pivots for slice table.
+  selectedSlicePivots: TableColumn[];
 
   // Selected aggregation columns. Stored same way as pivots.
   selectedAggregations: Map<string, Aggregation>;

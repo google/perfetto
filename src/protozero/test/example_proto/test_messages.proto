@@ -27,6 +27,7 @@ import "src/protozero/test/example_proto/library.proto";
 message TransgalacticParcel {
   optional TransgalacticMessage message = 1;
   optional string tracking_code = 2;
+  optional TransgalacticMessage.MessageType message_type = 3;
 }
 
 enum SmallEnum {

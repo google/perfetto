@@ -120,7 +120,7 @@ class StringView {
 #endif
   }
 
-  bool StartsWith(const StringView& other) {
+  bool StartsWith(const StringView& other) const {
     if (other.size() == 0)
       return true;
     if (size() == 0)
@@ -129,6 +129,21 @@ class StringView {
       return false;
     for (uint32_t i = 0; i < other.size(); ++i) {
       if (at(i) != other.at(i))
+        return false;
+    }
+    return true;
+  }
+
+  bool EndsWith(const StringView& other) const {
+    if (other.size() == 0)
+      return true;
+    if (size() == 0)
+      return false;
+    if (other.size() > size())
+      return false;
+    const size_t off = size() - other.size();
+    for (size_t i = 0; i < other.size(); ++i) {
+      if (at(off + i) != other.at(i))
         return false;
     }
     return true;

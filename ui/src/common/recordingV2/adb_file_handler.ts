@@ -50,9 +50,9 @@ export class AdbFileHandler {
     this.isPushOngoing = true;
     const transferFinished = defer<void>();
 
-    this.byteStream.onStreamData = (data) =>
-        this.onStreamData(data, transferFinished);
-    this.byteStream.onStreamClose = () => this.isPushOngoing = false;
+    this.byteStream.addOnStreamData(
+        (data) => this.onStreamData(data, transferFinished));
+    this.byteStream.addOnStreamClose(() => this.isPushOngoing = false);
 
     const sendMessage = new ArrayBufferBuilder();
     // 'SEND' is the API method used to send a file to device.
@@ -65,6 +65,7 @@ export class AdbFileHandler {
     sendMessage.append(path);
     sendMessage.append(',');
     sendMessage.append(FILE_PERMISSIONS.toString());
+    this.byteStream.write(new Uint8Array(sendMessage.toArrayBuffer()));
 
     while (!(await this.sendNextDataChunk(binary)))
       ;

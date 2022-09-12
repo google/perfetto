@@ -19,6 +19,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/proto/profiler_util.h"
+#include "src/trace_processor/parser_types.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -132,13 +133,14 @@ HeapGraphModule::HeapGraphModule(TraceProcessorContext* context)
   RegisterForField(TracePacket::kDeobfuscationMappingFieldNumber, context);
 }
 
-void HeapGraphModule::ParsePacket(
+void HeapGraphModule::ParseTracePacketData(
     const protos::pbzero::TracePacket::Decoder& decoder,
-    const TimestampedTracePiece& ttp,
+    int64_t ts,
+    const TracePacketData&,
     uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kHeapGraphFieldNumber:
-      ParseHeapGraph(decoder.trusted_packet_sequence_id(), ttp.timestamp,
+      ParseHeapGraph(decoder.trusted_packet_sequence_id(), ts,
                      decoder.heap_graph());
       return;
     case TracePacket::kDeobfuscationMappingFieldNumber:

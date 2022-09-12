@@ -32,6 +32,18 @@ void InitializeCategories() {
   TrackEvent::Register();
 }
 
+void AddSessionObserver(perfetto::TrackEventSessionObserver* observer) {
+  TrackEvent::AddSessionObserver(observer);
+}
+
+void RemoveSessionObserver(perfetto::TrackEventSessionObserver* observer) {
+  TrackEvent::RemoveSessionObserver(observer);
+}
+
+bool IsEnabled() {
+  return TrackEvent::IsEnabled();
+}
+
 void EmitTrackEvents() {
   TRACE_EVENT_BEGIN("cat1", "DisabledEventFromModule");
   TRACE_EVENT_END("cat1");

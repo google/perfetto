@@ -81,8 +81,9 @@ static constexpr bool IsValidTraceLambdaTakingReference() {
 template <typename ArgumentFunction,
           typename ArgFunctionCheck = typename std::enable_if<
               IsValidTraceLambda<ArgumentFunction>()>::type>
-PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(EventContext event_ctx,
-                                                ArgumentFunction arg_function) {
+PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(
+    EventContext event_ctx,
+    const ArgumentFunction& arg_function) {
   arg_function(std::move(event_ctx));
 }
 
@@ -106,9 +107,10 @@ template <typename ArgumentFunction,
           typename... Args,
           typename ArgFunctionCheck = typename std::enable_if<
               IsValidTraceLambdaTakingReference<ArgumentFunction>()>::type>
-PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(EventContext event_ctx,
-                                                ArgumentFunction arg_function,
-                                                Args&&... args) {
+PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(
+    EventContext event_ctx,
+    const ArgumentFunction& arg_function,
+    Args&&... args) {
   // |arg_function| will capture EventContext by reference, so std::move isn't
   // needed.
   arg_function(event_ctx);
@@ -143,6 +145,16 @@ PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(
 template <typename ArgValue, typename... Args>
 PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(EventContext event_ctx,
                                                 const char* arg_name,
+                                                ArgValue&& arg_value,
+                                                Args&&... args) {
+  event_ctx.AddDebugAnnotation(arg_name, std::forward<ArgValue>(arg_value));
+  WriteTrackEventArgs(std::move(event_ctx), std::forward<Args>(args)...);
+}
+
+// Write one debug annotation and recursively write the rest of the arguments.
+template <typename ArgValue, typename... Args>
+PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(EventContext event_ctx,
+                                                DynamicString arg_name,
                                                 ArgValue&& arg_value,
                                                 Args&&... args) {
   event_ctx.AddDebugAnnotation(arg_name, std::forward<ArgValue>(arg_value));

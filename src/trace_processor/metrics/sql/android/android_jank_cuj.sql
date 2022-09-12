@@ -88,8 +88,8 @@ SELECT
           'id', cuj_id,
           'name', cuj_name,
           'process', process_metadata,
-          'ts', boundary.ts,
-          'dur', boundary.dur,
+          'ts', COALESCE(boundary.ts, cuj.ts),
+          'dur', COALESCE(boundary.dur, cuj.dur),
           'counter_metrics', (
             SELECT AndroidJankCujMetric_Metrics(
               'total_frames', total_frames,
@@ -155,5 +155,5 @@ SELECT
             ORDER BY frame_number ASC)
           ))
       FROM android_jank_cuj cuj
-      JOIN android_jank_cuj_boundary boundary USING (cuj_id)
+      LEFT JOIN android_jank_cuj_boundary boundary USING (cuj_id)
       ORDER BY cuj.cuj_id ASC));

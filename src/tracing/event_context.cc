@@ -61,4 +61,11 @@ protos::pbzero::DebugAnnotation* EventContext::AddDebugAnnotation(
   return annotation;
 }
 
+protos::pbzero::DebugAnnotation* EventContext::AddDebugAnnotation(
+    ::perfetto::DynamicString name) {
+  auto annotation = event()->add_debug_annotations();
+  annotation->set_name(name.value);
+  return annotation;
+}
+
 }  // namespace perfetto

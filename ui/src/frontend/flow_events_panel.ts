@@ -199,7 +199,7 @@ export class FlowEventsAreaSelectedPanel extends Panel {
 
     return m('.details-panel', [
       m('.details-panel-heading', m('h2', `Selected flow events`)),
-      m('.flow-events-table', m('table.half-width', rows)),
+      m('.flow-events-table', m('table', rows)),
     ]);
   }
 

@@ -159,8 +159,11 @@ export interface AdbConnection {
 
 // A stream for a connection between a target and a tracing session.
 export interface ByteStream {
-  onStreamData: OnStreamDataCallback;
-  onStreamClose: OnStreamCloseCallback;
+  // The caller can add callbacks, to be executed when the stream receives new
+  // data or when it finished closing itself.
+  addOnStreamData(onStreamData: OnStreamDataCallback): void;
+  addOnStreamClose(onStreamClose: OnStreamCloseCallback): void;
+
   isOpen(): boolean;
   write(data: string|Uint8Array): void;
   close(): void;

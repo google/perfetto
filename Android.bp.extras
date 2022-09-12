@@ -102,6 +102,7 @@ python_library {
     name: "perfetto-trace-processor-python",
     srcs: [
         ":perfetto-trace-processor-python-srcs",
+        ":perfetto-trace-uri-resolver-python-srcs",
     ],
     data: [
         ":perfetto-trace-processor-python-data",
@@ -118,6 +119,12 @@ python_library {
         "libprotobuf-python",
     ],
     host_supported: true,
+}
+
+filegroup {
+    name: "perfetto-trace-uri-resolver-python-srcs",
+    srcs: ["python/perfetto/trace_uri_resolver/*.py"],
+    path: "python",
 }
 
 filegroup {

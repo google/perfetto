@@ -211,7 +211,7 @@ declare_args() {
   # dllexport/import adds extra complexity for little benefit. Te only reason
   # for monolithic_binaries=false is saving binary size, which matters mainly on
   # Android. See also comments on PERFETTO_EXPORT_ENTRYPOINT in compiler.h.
-  monolithic_binaries = is_win
+  monolithic_binaries = !perfetto_build_with_android && (is_win || is_mac)
 
   # Whether DLOG should be enabled on debug builds (""), all builds ("on"), or
   # none ("off"). We disable it by default for embedders to avoid spamming their
@@ -269,7 +269,8 @@ declare_args() {
 
   # Enables the optional SQLite percentile module.
   enable_perfetto_trace_processor_percentile =
-      enable_perfetto_trace_processor && perfetto_build_standalone
+      enable_perfetto_trace_processor &&
+      (perfetto_build_standalone || perfetto_build_with_android)
 
   # Enables the REPL interactive prompt in the trace processor.
   enable_perfetto_trace_processor_linenoise =

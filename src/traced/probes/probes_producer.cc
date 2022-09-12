@@ -457,12 +457,10 @@ void ProbesProducer::StopDataSource(DataSourceInstanceID id) {
   }
   ProbesDataSource* data_source = it->second.get();
 
-  // MetatraceDataSource special case: re-flush and ack the stop (to record the
-  // flushes of other data sources).
+  // MetatraceDataSource special case: re-flush to record the final flushes of
+  // other data sources.
   if (data_source->descriptor == &MetatraceDataSource::descriptor)
     data_source->Flush(FlushRequestID{0}, [] {});
-
-  endpoint_->NotifyDataSourceStopped(id);
 
   TracingSessionID session_id = data_source->tracing_session_id;
 
@@ -481,6 +479,14 @@ void ProbesProducer::StopDataSource(DataSourceInstanceID id) {
   }
   data_sources_.erase(it);
   watchdogs_.erase(id);
+
+  // We could (and used to) acknowledge the stop before tearing the local state
+  // down, allowing the tracing service and the consumer to carry on quicker.
+  // However in the case of tracebox, the traced_probes subprocess gets killed
+  // as soon as the trace is considered finished (i.e. all data source stops
+  // were acked), and therefore the kill would race against the tracefs
+  // cleanup.
+  endpoint_->NotifyDataSourceStopped(id);
 }
 
 void ProbesProducer::OnTracingSetup() {

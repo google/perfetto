@@ -54,6 +54,7 @@ source_set("probes_src") {
     "../../../protos/perfetto/config/ftrace:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/ps:zero",
+    "../../../src/kernel_utils:syscall_table",
     "../../android_stats",
     "../../base",
     "../../tracing/core",

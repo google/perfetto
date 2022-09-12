@@ -67,7 +67,5 @@ source_set("base") {
 }
 
 source_set("version") {
-  sources = [
-    "version.h",
-  ]
+  sources = [ "version.h" ]
 }

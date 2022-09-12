@@ -64,5 +64,45 @@ TEST(LinuxPowerSysfsDataSourceTest, HidDeviceCounters) {
   EXPECT_EQ(battery_info_->GetChargeCounterUah(0), base::nullopt);
 }
 
+TEST(LinuxPowerSysfsDataSourceTest, MultipleBatteries) {
+  base::TmpDirTree tmpdir;
+  std::unique_ptr<LinuxPowerSysfsDataSource::BatteryInfo> battery_info_;
+
+  // Some HID devices (e.g. stylus) can also report battery info.
+  tmpdir.AddDir("hid-0001-battery");
+  tmpdir.AddFile("hid-0001-battery/type", "Battery\n");
+  tmpdir.AddFile("hid-0001-battery/present", "1\n");
+  tmpdir.AddFile("hid-0001-battery/capacity", "88\n");  // 88 percent.
+  // The HID device only reports the battery capacity in percent.
+
+  // Add the main battery.
+  tmpdir.AddDir("BAT0");
+  tmpdir.AddFile("BAT0/type", "Battery\n");
+  tmpdir.AddFile("BAT0/present", "1\n");
+  tmpdir.AddFile("BAT0/capacity", "95\n");         // 95 percent.
+  tmpdir.AddFile("BAT0/charge_now", "3074000\n");  // 3074000 µAh.
+  tmpdir.AddFile("BAT0/current_now", "245000\n");  // 245000 µA.
+  tmpdir.AddFile("BAT0/current_avg", "240000\n");  // 240000 µA.
+
+  battery_info_.reset(
+      new LinuxPowerSysfsDataSource::BatteryInfo(tmpdir.path().c_str()));
+
+  EXPECT_EQ(battery_info_->num_batteries(), 2u);
+  size_t main_battery_idx = battery_info_->GetBatteryName(0) == "BAT0" ? 0 : 1;
+  size_t second_battery_idx = main_battery_idx == 0 ? 1 : 0;
+
+  EXPECT_EQ(*battery_info_->GetCapacityPercent(second_battery_idx), 88);
+  EXPECT_EQ(battery_info_->GetCurrentNowUa(second_battery_idx), base::nullopt);
+  EXPECT_EQ(battery_info_->GetAverageCurrentUa(second_battery_idx),
+            base::nullopt);
+  EXPECT_EQ(battery_info_->GetChargeCounterUah(second_battery_idx),
+            base::nullopt);
+
+  EXPECT_EQ(*battery_info_->GetCapacityPercent(main_battery_idx), 95);
+  EXPECT_EQ(*battery_info_->GetCurrentNowUa(main_battery_idx), 245000);
+  EXPECT_EQ(*battery_info_->GetAverageCurrentUa(main_battery_idx), 240000);
+  EXPECT_EQ(*battery_info_->GetChargeCounterUah(main_battery_idx), 3074000);
+}
+
 }  // namespace
 }  // namespace perfetto

@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 SELECT RUN_METRIC('android/composer_execution.sql',
-  'output', 'hwc_execution_spans') AS suppress_query_output;
+  'output', 'hwc_execution_spans');
 
 SELECT
   validation_type,
