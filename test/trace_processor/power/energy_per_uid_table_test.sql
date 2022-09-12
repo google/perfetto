@@ -1,3 +1,2 @@
-SELECT consumer_id
+SELECT consumer_id, uid
 FROM energy_per_uid_counter_track
-JOIN uid_counter_track ON energy_per_uid_counter_track.id = uid_counter_track.id

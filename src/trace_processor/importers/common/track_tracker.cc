@@ -338,20 +338,21 @@ TrackId TrackTracker::InternUidCounterTrack(StringId name, int32_t uid) {
 }
 
 TrackId TrackTracker::InternEnergyPerUidCounterTrack(StringId name,
-                                                     int32_t consumer_id) {
-  auto it =
-      energy_per_uid_counter_tracks_.find(std::make_pair(name, consumer_id));
+                                                     int32_t consumer_id,
+                                                     int32_t uid) {
+  auto it = energy_per_uid_counter_tracks_.find(std::make_pair(name, uid));
   if (it != energy_per_uid_counter_tracks_.end()) {
     return it->second;
   }
 
   tables::EnergyPerUidCounterTrackTable::Row row(name);
   row.consumer_id = consumer_id;
+  row.uid = uid;
   TrackId track =
       context_->storage->mutable_energy_per_uid_counter_track_table()
           ->Insert(row)
           .id;
-  energy_per_uid_counter_tracks_[std::make_pair(name, consumer_id)] = track;
+  energy_per_uid_counter_tracks_[std::make_pair(name, uid)] = track;
   return track;
 }
 
