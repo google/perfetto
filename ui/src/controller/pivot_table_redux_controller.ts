@@ -15,6 +15,7 @@
  */
 
 import {Actions} from '../common/actions';
+import {DEFAULT_CHANNEL, getCurrentChannel} from '../common/channels';
 import {Engine} from '../common/engine';
 import {featureFlags} from '../common/feature_flags';
 import {ColumnType, STR} from '../common/query_result';
@@ -40,7 +41,8 @@ export const PIVOT_TABLE_REDUX_FLAG = featureFlags.register({
   id: 'pivotTableRedux',
   name: 'Pivot tables V2',
   description: 'Second version of pivot table',
-  defaultValue: false,
+  // Enabled in canary and autopush by default.
+  defaultValue: getCurrentChannel() !== DEFAULT_CHANNEL,
 });
 
 // Auxiliary class to build the tree from query response.
