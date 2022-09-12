@@ -20,9 +20,9 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/proto/async_track_set_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/util/descriptors.h"
 
@@ -170,13 +170,13 @@ StatsdModule::StatsdModule(TraceProcessorContext* context)
 
 StatsdModule::~StatsdModule() = default;
 
-void StatsdModule::ParsePacket(const TracePacket::Decoder& decoder,
-                               const TimestampedTracePiece& ttp,
-                               uint32_t field_id) {
+void StatsdModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
+                                        int64_t ts,
+                                        const TracePacketData&,
+                                        uint32_t field_id) {
   if (field_id != TracePacket::kStatsdAtomFieldNumber) {
     return;
   }
-  int64_t ts = ttp.timestamp;
   const auto& atoms_wrapper =
       protos::pbzero::StatsdAtom::Decoder(decoder.statsd_atom());
   for (auto it = atoms_wrapper.nested(); it; ++it) {

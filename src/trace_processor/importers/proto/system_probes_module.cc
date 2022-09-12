@@ -17,7 +17,6 @@
 #include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "perfetto/base/build_config.h"
 #include "src/trace_processor/importers/proto/system_probes_parser.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -52,18 +51,20 @@ ModuleResult SystemProbesModule::TokenizePacket(
   return ModuleResult::Ignored();
 }
 
-void SystemProbesModule::ParsePacket(const TracePacket::Decoder& decoder,
-                                     const TimestampedTracePiece& ttp,
-                                     uint32_t field_id) {
+void SystemProbesModule::ParseTracePacketData(
+    const TracePacket::Decoder& decoder,
+    int64_t ts,
+    const TracePacketData&,
+    uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kProcessTreeFieldNumber:
       parser_.ParseProcessTree(decoder.process_tree());
       return;
     case TracePacket::kProcessStatsFieldNumber:
-      parser_.ParseProcessStats(ttp.timestamp, decoder.process_stats());
+      parser_.ParseProcessStats(ts, decoder.process_stats());
       return;
     case TracePacket::kSysStatsFieldNumber:
-      parser_.ParseSysStats(ttp.timestamp, decoder.sys_stats());
+      parser_.ParseSysStats(ts, decoder.sys_stats());
       return;
   }
 }

@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/proto/memory_tracker_snapshot_module.h"
+#include "src/trace_processor/parser_types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -29,14 +30,14 @@ MemoryTrackerSnapshotModule::MemoryTrackerSnapshotModule(
 
 MemoryTrackerSnapshotModule::~MemoryTrackerSnapshotModule() = default;
 
-void MemoryTrackerSnapshotModule::ParsePacket(
+void MemoryTrackerSnapshotModule::ParseTracePacketData(
     const TracePacket::Decoder& decoder,
-    const TimestampedTracePiece& ttp,
+    int64_t ts,
+    const TracePacketData&,
     uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kMemoryTrackerSnapshotFieldNumber:
-      parser_.ParseMemoryTrackerSnapshot(ttp.timestamp,
-                                         decoder.memory_tracker_snapshot());
+      parser_.ParseMemoryTrackerSnapshot(ts, decoder.memory_tracker_snapshot());
       return;
   }
 }

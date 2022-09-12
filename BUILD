@@ -1742,6 +1742,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/forwarding_trace_parser.cc",
         "src/trace_processor/forwarding_trace_parser.h",
+        "src/trace_processor/importers/common/trace_parser.cc",
         "src/trace_processor/importers/default_modules.cc",
         "src/trace_processor/importers/default_modules.h",
         "src/trace_processor/importers/ftrace/ftrace_module.cc",
@@ -1801,7 +1802,7 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/translation_table_module.h",
         "src/trace_processor/importers/syscalls/syscall_tracker.h",
         "src/trace_processor/importers/systrace/systrace_line.h",
-        "src/trace_processor/timestamped_trace_piece.h",
+        "src/trace_processor/parser_types.h",
         "src/trace_processor/trace_blob.cc",
         "src/trace_processor/trace_processor_context.cc",
         "src/trace_processor/trace_processor_storage.cc",

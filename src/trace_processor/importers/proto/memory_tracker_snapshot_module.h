@@ -19,7 +19,6 @@
 
 #include "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -32,9 +31,10 @@ class MemoryTrackerSnapshotModule : public ProtoImporterModule {
 
   ~MemoryTrackerSnapshotModule() override;
 
-  void ParsePacket(const protos::pbzero::TracePacket::Decoder&,
-                   const TimestampedTracePiece&,
-                   uint32_t field_id) override;
+  void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder& decoder,
+                            int64_t ts,
+                            const TracePacketData&,
+                            uint32_t field_id) override;
 
   void NotifyEndOfFile() override;
 

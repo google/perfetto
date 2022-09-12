@@ -18,20 +18,33 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACE_PARSER_H_
 
 #include <stdint.h>
+#include <string>
 
 namespace perfetto {
 namespace trace_processor {
 
-struct TimestampedTracePiece;
+class PacketSequenceStateGeneration;
+struct InlineSchedSwitch;
+class FuchsiaRecord;
+struct SystraceLine;
+struct InlineSchedWaking;
+struct TracePacketData;
+struct FtraceEventData;
+struct TrackEventData;
 
 class TraceParser {
  public:
   virtual ~TraceParser();
 
-  virtual void ParseTracePacket(int64_t timestamp, TimestampedTracePiece) = 0;
-  virtual void ParseFtracePacket(uint32_t cpu,
-                                 int64_t timestamp,
-                                 TimestampedTracePiece) = 0;
+  virtual void ParseTracePacket(int64_t, TracePacketData);
+  virtual void ParseJsonPacket(int64_t, std::string);
+  virtual void ParseFuchsiaRecord(int64_t, FuchsiaRecord);
+  virtual void ParseTrackEvent(int64_t, TrackEventData);
+  virtual void ParseSystraceLine(int64_t, SystraceLine);
+
+  virtual void ParseFtraceEvent(uint32_t, int64_t, FtraceEventData);
+  virtual void ParseInlineSchedSwitch(uint32_t, int64_t, InlineSchedSwitch);
+  virtual void ParseInlineSchedWaking(uint32_t, int64_t, InlineSchedWaking);
 };
 
 }  // namespace trace_processor
