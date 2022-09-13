@@ -348,6 +348,15 @@ export function genTraceConfig(
     }
   }
 
+  if (uiCfg.androidGameInterventionList) {
+    const ds = new TraceConfig.DataSource();
+    ds.config = new DataSourceConfig();
+    ds.config.name = 'android.game_interventions';
+    if (targetInfo.targetType !== 'CHROME') {
+      protoCfg.dataSources.push(ds);
+    }
+  }
+
   if (uiCfg.chromeLogs) {
     chromeCategories.add('log');
   }
