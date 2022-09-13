@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {EqualsBuilder} from '../common/comparator_builder';
 import {ColumnType} from '../common/query_result';
 
 // Node in the hierarchical pivot tree. Only leaf nodes contain data from the
@@ -61,14 +62,16 @@ export function tableColumnEquals(t1: TableColumn, t2: TableColumn): boolean {
   }
 }
 
-export function toggleEnabled(
-    arr: TableColumn[], column: TableColumn, enabled: boolean): void {
-  if (enabled &&
-      arr.find((value) => tableColumnEquals(column, value)) === undefined) {
+export function toggleEnabled<T>(
+    compare: (fst: T, snd: T) => boolean,
+    arr: T[],
+    column: T,
+    enabled: boolean): void {
+  if (enabled && arr.find((value) => compare(column, value)) === undefined) {
     arr.push(column);
   }
   if (!enabled) {
-    const index = arr.findIndex((value) => tableColumnEquals(column, value));
+    const index = arr.findIndex((value) => compare(column, value));
     if (index !== -1) {
       arr.splice(index, 1);
     }
@@ -78,6 +81,13 @@ export function toggleEnabled(
 export interface Aggregation {
   aggregationFunction: AggregationFunction;
   column: TableColumn;
+}
+
+export function aggregationEquals(agg1: Aggregation, agg2: Aggregation) {
+  return new EqualsBuilder(agg1, agg2)
+      .comparePrimitive((agg) => agg.aggregationFunction)
+      .compare(tableColumnEquals, (agg) => agg.column)
+      .equals();
 }
 
 // Used to convert TableColumn to a string in order to store it in a Map, as
