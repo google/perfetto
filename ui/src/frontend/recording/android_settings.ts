@@ -164,6 +164,14 @@ export class AndroidSettings implements
                       Requires Android 12 (S) or above.`,
           setEnabled: (cfg, val) => cfg.androidFrameTimeline = val,
           isEnabled: (cfg) => cfg.androidFrameTimeline,
+        } as ProbeAttrs),
+        m(Probe, {
+          title: 'Game intervention list',
+          img: '',
+          descr: `List game modes and interventions.
+                    Requires Android 13 (T) or above.`,
+          setEnabled: (cfg, val) => cfg.androidGameInterventionList = val,
+          isEnabled: (cfg) => cfg.androidGameInterventionList,
         } as ProbeAttrs));
   }
 }
