@@ -19,8 +19,10 @@ import {RecordConfig} from '../controller/record_config_types';
 import {globals} from '../frontend/globals';
 import {
   Aggregation,
-  aggregationKey,
+  aggregationEquals,
+  AggregationFunction,
   TableColumn,
+  tableColumnEquals,
   toggleEnabled,
 } from '../frontend/pivot_table_redux_types';
 import {DropDirection} from '../frontend/reorderable_cells';
@@ -1027,11 +1029,13 @@ export const StateActions = {
       state: StateDraft, args: {column: TableColumn, selected: boolean}) {
     if (args.column.kind === 'argument' || args.column.table === 'slice') {
       toggleEnabled(
+          tableColumnEquals,
           state.nonSerializableState.pivotTableRedux.selectedSlicePivots,
           args.column,
           args.selected);
     } else {
       toggleEnabled(
+          tableColumnEquals,
           state.nonSerializableState.pivotTableRedux.selectedPivots,
           args.column,
           args.selected);
@@ -1040,13 +1044,17 @@ export const StateActions = {
 
   setPivotTableAggregationSelected(
       state: StateDraft, args: {column: Aggregation, selected: boolean}) {
-    if (args.selected) {
-      state.nonSerializableState.pivotTableRedux.selectedAggregations.set(
-          aggregationKey(args.column), args.column);
-    } else {
-      state.nonSerializableState.pivotTableRedux.selectedAggregations.delete(
-          aggregationKey(args.column));
-    }
+    toggleEnabled(
+        aggregationEquals,
+        state.nonSerializableState.pivotTableRedux.selectedAggregations,
+        args.column,
+        args.selected);
+  },
+
+  setPivotTableAggregationFunction(
+      state: StateDraft, args: {index: number, function: AggregationFunction}) {
+    state.nonSerializableState.pivotTableRedux.selectedAggregations[args.index]
+        .aggregationFunction = args.function;
   },
 
   setPivotTableSortColumn(
@@ -1089,6 +1097,16 @@ export const StateActions = {
       args: {from: number, to: number, direction: DropDirection}) {
     moveElement(
         state.nonSerializableState.pivotTableRedux.selectedSlicePivots,
+        args.from,
+        args.to,
+        args.direction);
+  },
+
+  changePivotTableAggregationOrder(
+      state: StateDraft,
+      args: {from: number, to: number, direction: DropDirection}) {
+    moveElement(
+        state.nonSerializableState.pivotTableRedux.selectedAggregations,
         args.from,
         args.to,
         args.direction);
