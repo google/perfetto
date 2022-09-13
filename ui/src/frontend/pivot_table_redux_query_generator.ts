@@ -212,7 +212,7 @@ export function generateQueryFromState(
 export function generateQuery(
     nonSlicePivots: RegularColumn[],
     slicePivots: TableColumn[],
-    selectedAggregations: Map<string, Aggregation>,
+    selectedAggregations: Aggregation[],
     area: Area,
     constrainToArea: boolean): PivotTableReduxQuery {
   const sliceTableAggregations = [...selectedAggregations.values()];
