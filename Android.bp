@@ -9327,6 +9327,7 @@ genrule {
         "src/trace_processor/metrics/sql/chrome/touch_flow_event.sql",
         "src/trace_processor/metrics/sql/chrome/touch_flow_event_queuing_delay.sql",
         "src/trace_processor/metrics/sql/chrome/touch_jank.sql",
+        "src/trace_processor/metrics/sql/common/parent_slice.sql",
         "src/trace_processor/metrics/sql/experimental/blink_gc_metric.sql",
         "src/trace_processor/metrics/sql/experimental/chrome_dropped_frames.sql",
         "src/trace_processor/metrics/sql/experimental/chrome_long_latency.sql",

@@ -15,7 +15,7 @@
 import("../../../../gn/perfetto.gni")
 
 # Keep this list sorted.
-sql_files = [
+android_sql_files = [
   "android/android_batt.sql",
   "android/android_binder.sql",
   "android/android_camera_unagg.sql",
@@ -116,6 +116,9 @@ sql_files = [
   "android/startup/system_state.sql",
   "android/startup/thread_state_breakdown.sql",
   "android/unsymbolized_frames.sql",
+]
+
+chrome_sql_files = [
   "chrome/actual_power_by_category.sql",
   "chrome/actual_power_by_rail_mode.sql",
   "chrome/chrome_event_metadata.sql",
@@ -155,16 +158,26 @@ sql_files = [
   "chrome/touch_flow_event_queuing_delay.sql",
   "chrome/touch_flow_event.sql",
   "chrome/touch_jank.sql",
+]
+
+experiemntal_sql_files = [
   "experimental/blink_gc_metric.sql",
   "experimental/chrome_dropped_frames.sql",
   "experimental/chrome_long_latency.sql",
   "experimental/frame_times.sql",
   "experimental/media_metric.sql",
   "experimental/reported_by_page.sql",
+]
+
+other_sql_files = [
   "trace_metadata.sql",
   "trace_stats.sql",
+  "common/parent_slice.sql",
   "webview/webview_power_usage.sql",
 ]
+
+sql_files = android_sql_files + chrome_sql_files + experiemntal_sql_files +
+            other_sql_files
 
 config("gen_config") {
   include_dirs = [ "${root_gen_dir}/${perfetto_root_path}" ]
