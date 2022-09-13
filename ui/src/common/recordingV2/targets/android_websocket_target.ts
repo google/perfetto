@@ -15,6 +15,7 @@
 import {AdbConnectionOverWebsocket} from '../adb_connection_over_websocket';
 import {DEFAULT_TRACED_CONSUMER_SOCKET_PATH} from '../adb_targets_utils';
 import {
+  OnTargetChangeCallback,
   RecordingTargetV2,
   TargetInfo,
   TracingSession,
@@ -24,8 +25,12 @@ import {TracedTracingSession} from '../traced_tracing_session';
 
 export class AndroidWebsocketTarget implements RecordingTargetV2 {
   private adbConnection: AdbConnectionOverWebsocket;
+  private androidApiLevel?: number;
+  private consumerSocketPath = DEFAULT_TRACED_CONSUMER_SOCKET_PATH;
 
-  constructor(private serialNumber: string, websocketUrl: string) {
+  constructor(
+      private serialNumber: string, websocketUrl: string,
+      private onTargetChange: OnTargetChangeCallback) {
     this.adbConnection =
         new AdbConnectionOverWebsocket(serialNumber, websocketUrl);
   }
@@ -33,9 +38,8 @@ export class AndroidWebsocketTarget implements RecordingTargetV2 {
   getInfo(): TargetInfo {
     return {
       targetType: 'ANDROID',
-      // TODO(octaviant): fetch the OS from the adb connection
-      // once aosp/2127460 is in
-      androidApiLevel: undefined,
+      // 'androidApiLevel' will be populated after ADB authorization.
+      androidApiLevel: this.androidApiLevel,
       dataSources: [],
       name: this.serialNumber + ' WebSocket',
     };
@@ -60,9 +64,19 @@ export class AndroidWebsocketTarget implements RecordingTargetV2 {
   async createTracingSession(tracingSessionListener: TracingSessionListener):
       Promise<TracingSession> {
     this.adbConnection.onDisconnect = tracingSessionListener.onDisconnect;
-    const adbStream = await this.adbConnection.connectSocket(
-        DEFAULT_TRACED_CONSUMER_SOCKET_PATH);
 
+    if (!this.androidApiLevel) {
+      const version = await this.adbConnection.shellAndGetOutput(
+          'getprop ro.build.version.sdk');
+      this.androidApiLevel = Number(version);
+      this.onTargetChange();
+    }
+
+    // TODO(octaviant): bring the websocket targets at feature parity with the
+    // webusb ones after the chain from aosp/2122732 lands.
+
+    const adbStream =
+        await this.adbConnection.connectSocket(this.consumerSocketPath);
     const tracingSession =
         new TracedTracingSession(adbStream, tracingSessionListener);
     await tracingSession.initConnection();
