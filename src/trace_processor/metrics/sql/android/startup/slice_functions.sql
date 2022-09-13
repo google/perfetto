@@ -140,3 +140,29 @@ SELECT CREATE_FUNCTION(
           )
   '
 );
+
+-- Given a launch id, returns the total number of baseline or cloud profiles
+SELECT CREATE_FUNCTION(
+  'COUNT_BASELINE_OR_CLOUD_PROFILE_FOR_LAUNCH(launch_id LONG)',
+  'INT',
+  '
+    SELECT COUNT(slice_name)
+    FROM (
+      SELECT *
+      FROM SLICES_FOR_LAUNCH_AND_SLICE_NAME(
+        $launch_id,
+        "location=* status=* filter=* reason=*"
+      )
+      ORDER BY slice_name
+    )
+    WHERE
+      -- no odex file since there is no code in split apk
+      NOT (
+        STR_SPLIT(STR_SPLIT(slice_name, " status=", 1), " filter=", 0) = "io-error-no-oat"
+        AND
+          STR_SPLIT(STR_SPLIT(slice_name, " filter=", 1), " reason=", 0) = "run-from-apk"
+      )
+      -- prebuilt profile for the platform code
+      AND NOT (STR_SPLIT(slice_name, " reason=", 1) = "prebuilt")
+  '
+);
