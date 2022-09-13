@@ -70,10 +70,10 @@ android_startup {
       broadcast_received_count: 0
     }
     startup_type: "hot"
+    slow_start_reason: "Time spent in OpenDexFilesFromOat*"
     slow_start_reason: "Time spent verifying classes"
     slow_start_reason: "JIT Activity"
-    slow_start_reason: "GC - Total time"
-    slow_start_reason: "GC - Time on CPU"
+    slow_start_reason: "GC Activity"
     slow_start_reason: "JIT compiled methods"
   }
 }
