@@ -59,6 +59,7 @@ android_startup {
       most_active_non_launch_processes: "com.google.android.calendar"
     }
     startup_type: "warm"
+    slow_start_reason: "Main Thread - Time spent in Running state"
     slow_start_reason: "Main Thread - Time spent in Runnable state"
     slow_start_reason: "Main Thread - Time spent in interruptible sleep state"
   }
