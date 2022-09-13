@@ -62,5 +62,6 @@ android_startup {
     slow_start_reason: "Main Thread - Time spent in Running state"
     slow_start_reason: "Main Thread - Time spent in Runnable state"
     slow_start_reason: "Main Thread - Time spent in interruptible sleep state"
+    slow_start_reason: "No baseline or cloud profiles"
   }
 }

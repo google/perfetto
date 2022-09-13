@@ -395,6 +395,10 @@ SELECT
           'broadcastReceiveReg*'
         ) > 10
 
+        UNION ALL
+        SELECT 'No baseline or cloud profiles'
+        Where COUNT_BASELINE_OR_CLOUD_PROFILE_FOR_LAUNCH(launches.id) < 1
+
       )
     )
   ) as startup
