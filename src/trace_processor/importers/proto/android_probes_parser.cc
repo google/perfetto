@@ -172,14 +172,11 @@ void AndroidProbesParser::ParseEnergyBreakdown(int64_t ts, ConstBytes blob) {
       continue;
     }
 
-    TrackId uid_track = context_->track_tracker->InternUidCounterTrack(
-        consumer_name, breakdown.uid());
-
-    context_->track_tracker->InternEnergyPerUidCounterTrack(consumer_name,
-                                                            consumer_id);
-
+    TrackId energy_uid_track =
+        context_->track_tracker->InternEnergyPerUidCounterTrack(
+            consumer_name, consumer_id, breakdown.uid());
     context_->event_tracker->PushCounter(
-        ts, static_cast<double>(breakdown.energy_uws()), uid_track);
+        ts, static_cast<double>(breakdown.energy_uws()), energy_uid_track);
   }
 }
 

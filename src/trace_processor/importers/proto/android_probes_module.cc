@@ -22,7 +22,6 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 #include "src/trace_processor/importers/proto/android_probes_tracker.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_sorter.h"
 
 #include "protos/perfetto/common/android_energy_consumer_descriptor.pbzero.h"
@@ -186,19 +185,21 @@ ModuleResult AndroidProbesModule::TokenizePacket(
   return ModuleResult::Handled();
 }
 
-void AndroidProbesModule::ParsePacket(const TracePacket::Decoder& decoder,
-                                      const TimestampedTracePiece& ttp,
-                                      uint32_t field_id) {
+void AndroidProbesModule::ParseTracePacketData(
+    const TracePacket::Decoder& decoder,
+    int64_t ts,
+    const TracePacketData&,
+    uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kBatteryFieldNumber:
-      parser_.ParseBatteryCounters(ttp.timestamp, decoder.battery());
+      parser_.ParseBatteryCounters(ts, decoder.battery());
       return;
     case TracePacket::kPowerRailsFieldNumber:
-      parser_.ParsePowerRails(ttp.timestamp, decoder.power_rails());
+      parser_.ParsePowerRails(ts, decoder.power_rails());
       return;
     case TracePacket::kAndroidEnergyEstimationBreakdownFieldNumber:
       parser_.ParseEnergyBreakdown(
-          ttp.timestamp, decoder.android_energy_estimation_breakdown());
+          ts, decoder.android_energy_estimation_breakdown());
       return;
     case TracePacket::kAndroidLogFieldNumber:
       parser_.ParseAndroidLogPacket(decoder.android_log());
@@ -211,12 +212,10 @@ void AndroidProbesModule::ParsePacket(const TracePacket::Decoder& decoder,
           decoder.android_game_intervention_list());
       return;
     case TracePacket::kInitialDisplayStateFieldNumber:
-      parser_.ParseInitialDisplayState(ttp.timestamp,
-                                       decoder.initial_display_state());
+      parser_.ParseInitialDisplayState(ts, decoder.initial_display_state());
       return;
     case TracePacket::kAndroidSystemPropertyFieldNumber:
-      parser_.ParseAndroidSystemProperty(ttp.timestamp,
-                                         decoder.android_system_property());
+      parser_.ParseAndroidSystemProperty(ts, decoder.android_system_property());
       return;
   }
 }

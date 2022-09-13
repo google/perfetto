@@ -19,7 +19,6 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/ftrace/ftrace_parser.h"
 #include "src/trace_processor/importers/ftrace/ftrace_tokenizer.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -49,20 +48,13 @@ ModuleResult FtraceModuleImpl::TokenizePacket(
   return ModuleResult::Ignored();
 }
 
-void FtraceModuleImpl::ParsePacket(
-    const protos::pbzero::TracePacket::Decoder& decoder,
-    const TimestampedTracePiece&,
+void FtraceModuleImpl::ParseTracePacketData(
+    const protos::pbzero::TracePacket_Decoder& decoder,
+    int64_t /*ts*/,
+    const TracePacketData&,
     uint32_t field_id) {
   if (field_id == TracePacket::kFtraceStatsFieldNumber) {
     parser_.ParseFtraceStats(decoder.ftrace_stats());
-  }
-}
-
-void FtraceModuleImpl::ParseFtracePacket(uint32_t cpu,
-                                         const TimestampedTracePiece& ttp) {
-  util::Status res = parser_.ParseFtraceEvent(cpu, ttp);
-  if (!res.ok()) {
-    PERFETTO_ELOG("%s", res.message().c_str());
   }
 }
 

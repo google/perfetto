@@ -32,7 +32,6 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/stack_traces_util.h"
@@ -76,41 +75,34 @@ ModuleResult ProfileModule::TokenizePacket(const TracePacket::Decoder& decoder,
   return ModuleResult::Ignored();
 }
 
-void ProfileModule::ParsePacket(const TracePacket::Decoder& decoder,
-                                const TimestampedTracePiece& ttp,
-                                uint32_t field_id) {
+void ProfileModule::ParseTracePacketData(
+    const protos::pbzero::TracePacket::Decoder& decoder,
+    int64_t ts,
+    const TracePacketData& data,
+    uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kStreamingProfilePacketFieldNumber:
-      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
-      ParseStreamingProfilePacket(ttp.timestamp,
-                                  ttp.packet_data.sequence_state.get(),
+      ParseStreamingProfilePacket(ts, data.sequence_state.get(),
                                   decoder.streaming_profile_packet());
       return;
     case TracePacket::kPerfSampleFieldNumber:
-      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
-      ParsePerfSample(ttp.timestamp, ttp.packet_data.sequence_state.get(),
-                      decoder);
+      ParsePerfSample(ts, data.sequence_state.get(), decoder);
       return;
     case TracePacket::kProfilePacketFieldNumber:
-      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
-      ParseProfilePacket(ttp.timestamp, ttp.packet_data.sequence_state.get(),
+      ParseProfilePacket(ts, data.sequence_state.get(),
                          decoder.trusted_packet_sequence_id(),
                          decoder.profile_packet());
       return;
     case TracePacket::kModuleSymbolsFieldNumber:
-      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
       ParseModuleSymbols(decoder.module_symbols());
       return;
     case TracePacket::kDeobfuscationMappingFieldNumber:
-      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
-      ParseDeobfuscationMapping(ttp.timestamp,
-                                ttp.packet_data.sequence_state.get(),
+      ParseDeobfuscationMapping(ts, data.sequence_state.get(),
                                 decoder.trusted_packet_sequence_id(),
                                 decoder.deobfuscation_mapping());
       return;
     case TracePacket::kSmapsPacketFieldNumber:
-      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
-      ParseSmapsPacket(ttp.timestamp, decoder.smaps_packet());
+      ParseSmapsPacket(ts, decoder.smaps_packet());
       return;
   }
 }

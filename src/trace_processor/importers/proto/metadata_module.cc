@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/metadata_module.h"
 
 #include "perfetto/ext/base/base64.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
@@ -24,6 +25,7 @@
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_metadata.pbzero.h"
 #include "protos/perfetto/trace/trigger.pbzero.h"
+#include "src/trace_processor/parser_types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -68,16 +70,15 @@ ModuleResult MetadataModule::TokenizePacket(
   return ModuleResult::Ignored();
 }
 
-void MetadataModule::ParsePacket(
+void MetadataModule::ParseTracePacketData(
     const protos::pbzero::TracePacket::Decoder& decoder,
-    const TimestampedTracePiece& ttp,
+    int64_t ts,
+    const TracePacketData&,
     uint32_t field_id) {
-  switch (field_id) {
-    case TracePacket::kTriggerFieldNumber:
-      // We handle triggers at parse time rather at tokenization because
-      // we add slices to tables which need to happen post-sorting.
-      ParseTrigger(ttp.timestamp, decoder.trigger());
-      break;
+  if (field_id == TracePacket::kTriggerFieldNumber) {
+    // We handle triggers at parse time rather at tokenization because
+    // we add slices to tables which need to happen post-sorting.
+    ParseTrigger(ts, decoder.trigger());
   }
 }
 
