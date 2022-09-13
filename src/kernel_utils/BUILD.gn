@@ -18,8 +18,8 @@ source_set("syscall_table") {
     "../base",
   ]
   sources = [
-    "syscall_table.h",
     "syscall_table.cc",
+    "syscall_table.h",
     "syscalls_aarch32.h",
     "syscalls_aarch64.h",
     "syscalls_armeabi.h",
