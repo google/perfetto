@@ -25,6 +25,7 @@
   * [Power](#)
     * [Battery counters and rails](data-sources/battery-counters.md)
   * [Android system](#)
+    * [Android game intervention list](data-sources/android-game-intervention-list.md)
     * [Atrace instrumentation](data-sources/atrace.md)
     * [Android log (logcat)](data-sources/android-log.md)
     * [Android Janks](data-sources/frametimeline.md)

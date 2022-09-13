@@ -2350,7 +2350,7 @@ message DataSourceConfig {
   optional AndroidLogConfig android_log_config = 107 [lazy = true];
   // TODO(fmayer): Add data source name for this.
   optional GpuCounterConfig gpu_counter_config = 108 [lazy = true];
-  // Data source name: android.game_intervention_list
+  // Data source name: android.game_interventions
   optional AndroidGameInterventionListConfig
       android_game_intervention_list_config = 116 [lazy = true];
   // Data source name: android.packages_list
