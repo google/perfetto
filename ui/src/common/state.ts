@@ -438,7 +438,7 @@ export interface PivotTableReduxState {
   selectedSlicePivots: TableColumn[];
 
   // Selected aggregation columns. Stored same way as pivots.
-  selectedAggregations: Map<string, Aggregation>;
+  selectedAggregations: Aggregation[];
 
   // Present if the result should be sorted, and in which direction.
   sortCriteria?: {column: TableColumn, order: SortDirection};

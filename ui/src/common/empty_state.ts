@@ -15,7 +15,6 @@
 import {createEmptyRecordConfig} from '../controller/record_config_types';
 import {
   Aggregation,
-  aggregationKey,
 } from '../frontend/pivot_table_redux_types';
 import {
   autosaveConfigStore,
@@ -62,17 +61,17 @@ export function createEmptyNonSerializableState(): NonSerializableState {
       queryResult: null,
       selectedSlicePivots: [{kind: 'regular', table: 'slice', column: 'name'}],
       selectedPivots: [],
-      selectedAggregations: keyedMap(
-          aggregationKey,
-          {
-            aggregationFunction: 'SUM',
-            column: {kind: 'regular', table: 'slice', column: 'dur'},
-          },
-          {
-            aggregationFunction: 'SUM',
-            column: {kind: 'regular', table: 'slice', column: 'thread_dur'},
-          },
-          COUNT_AGGREGATION),
+      selectedAggregations: [
+        {
+          aggregationFunction: 'SUM',
+          column: {kind: 'regular', table: 'slice', column: 'dur'},
+        },
+        {
+          aggregationFunction: 'SUM',
+          column: {kind: 'regular', table: 'slice', column: 'thread_dur'},
+        },
+        COUNT_AGGREGATION,
+      ],
       constrainToArea: true,
       queryRequested: false,
       argumentNames: [],
