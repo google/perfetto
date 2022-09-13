@@ -498,7 +498,7 @@ export class AdbConnectionOverWebusb implements AdbConnection {
 // of this class based on a stream id match.
 export class AdbOverWebusbStream implements ByteStream {
   private adbConnection: AdbConnectionOverWebusb;
-  private _isOpen: boolean;
+  private _isConnected: boolean;
   private onStreamDataCallbacks: OnStreamDataCallback[] = [];
   private onStreamCloseCallbacks: OnStreamCloseCallback[] = [];
   localStreamId: number;
@@ -511,7 +511,7 @@ export class AdbOverWebusbStream implements ByteStream {
     this.localStreamId = localStreamId;
     this.remoteStreamId = remoteStreamId;
     // When the stream is created, the connection has been already established.
-    this._isOpen = true;
+    this._isConnected = true;
   }
 
   addOnStreamData(onStreamData: OnStreamDataCallback): void {
@@ -540,12 +540,13 @@ export class AdbOverWebusbStream implements ByteStream {
     this.onStreamCloseCallbacks = [];
   }
 
+
   close(): void {
     this.closeAndWaitForTeardown();
   }
 
   async closeAndWaitForTeardown(): Promise<void> {
-    this._isOpen = false;
+    this._isConnected = false;
     await this.adbConnection.streamClose(this);
   }
 
@@ -553,8 +554,8 @@ export class AdbOverWebusbStream implements ByteStream {
     this.adbConnection.streamWrite(msg, this);
   }
 
-  isOpen(): boolean {
-    return this._isOpen;
+  isConnected(): boolean {
+    return this._isConnected;
   }
 }
 
