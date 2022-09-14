@@ -151,9 +151,20 @@ std::unique_ptr<FtraceController> FtraceController::Create(
   if (!table)
     return nullptr;
 
-  AtraceHalWrapper hal;
-  auto vendor_evts = vendor_tracepoints::DiscoverVendorTracepointsWithHal(
-      &hal, ftrace_procfs.get());
+  std::map<std::string, std::vector<GroupAndName>> vendor_evts;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (base::FileExists(vendor_tracepoints::kCategoriesFile)) {
+    base::Status status = vendor_tracepoints::DiscoverVendorTracepointsWithFile(
+        vendor_tracepoints::kCategoriesFile, &vendor_evts);
+    if (!status.ok()) {
+      PERFETTO_ELOG("Cannot load vendor categories: %s", status.c_message());
+    }
+  } else {
+    AtraceHalWrapper hal;
+    vendor_evts = vendor_tracepoints::DiscoverVendorTracepointsWithHal(
+        &hal, ftrace_procfs.get());
+  }
+#endif
 
   auto syscalls = SyscallTable::FromCurrentArch();
 

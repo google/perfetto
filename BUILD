@@ -281,6 +281,7 @@ perfetto_cc_library(
     ],
     deps = [
         ":perfetto_ipc",
+        ":protos_perfetto_android_vendor_cpp",
         ":protos_perfetto_common_cpp",
         ":protos_perfetto_common_zero",
         ":protos_perfetto_config_android_cpp",
@@ -2550,6 +2551,25 @@ perfetto_py_proto_library(
     visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":chrome_metrics_proto",
+    ],
+)
+
+# GN target: //protos/perfetto/android_vendor:cpp
+perfetto_cc_protocpp_library(
+    name = "protos_perfetto_android_vendor_cpp",
+    deps = [
+        ":protos_perfetto_android_vendor_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/android_vendor:source_set
+perfetto_proto_library(
+    name = "protos_perfetto_android_vendor_protos",
+    srcs = [
+        "protos/perfetto/android_vendor/atrace_categories.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
     ],
 )
 
