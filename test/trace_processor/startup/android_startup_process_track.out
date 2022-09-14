@@ -60,7 +60,6 @@ android_startup {
       broadcast_dispatched_count: 0
       broadcast_received_count: 0
     }
-    slow_start_reason: "No baseline or cloud profiles"
     startup_type: "cold"
   }
   startup {
@@ -124,7 +123,6 @@ android_startup {
       broadcast_dispatched_count: 0
       broadcast_received_count: 0
     }
-    slow_start_reason: "No baseline or cloud profiles"
     startup_type: "cold"
   }
 }
