@@ -92,7 +92,7 @@ trace.add_atrace_begin(
     tid=3,
     pid=3,
     buf='location=/system/framework/oat/arm/com.android.location.provider' \
-        '.odex status=up-to-date filter=speed reason=unknown')
+        '.odex status=up-to-date filter=speed reason=prebuilt')
 trace.add_atrace_end(ts=to_s(205), tid=3, pid=3)
 
 trace.add_atrace_async_end(
