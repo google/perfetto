@@ -68,6 +68,5 @@ android_startup {
     slow_start_reason: "Main Thread - Lock contention"
     slow_start_reason: "Main Thread - Monitor contention"
     startup_type: "cold"
-    slow_start_reason: "No baseline or cloud profiles"
   }
 }

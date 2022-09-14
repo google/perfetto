@@ -27,6 +27,5 @@ android_startup {
     }
     slow_start_reason: "Broadcast dispatched count"
     slow_start_reason: "Broadcast received count"
-    slow_start_reason: "No baseline or cloud profiles"
   }
 }
