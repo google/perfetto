@@ -13,11 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT RUN_METRIC('chrome/event_lantency_to_breakdowns.sql');
+SELECT RUN_METRIC('chrome/event_latency_to_breakdowns.sql');
 
 SELECT
-    event_latency_id,
-    event_latency_track_id,
     event_latency_ts,
     event_latency_dur,
     event_type,
