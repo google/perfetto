@@ -91,5 +91,7 @@ android_startup {
       broadcast_received_count: 0
     }
     startup_type: "hot"
+    slow_start_reason: "GC Activity"
+    slow_start_reason: "No baseline or cloud profiles"
   }
 }

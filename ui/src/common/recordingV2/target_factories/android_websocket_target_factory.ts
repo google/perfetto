@@ -106,7 +106,7 @@ export class WebsocketConnection {
   constructor(
       private websocket: WebSocket,
       private maybeClearConnection: (connection: WebsocketConnection) => void,
-      private onTargetChange?: OnTargetChangeCallback) {
+      private onTargetChange: OnTargetChangeCallback) {
     this.initWebsocket();
   }
 
@@ -181,13 +181,15 @@ export class WebsocketConnection {
         this.targets.set(
             listedDevice.serialNumber,
             new AndroidWebsocketTarget(
-                listedDevice.serialNumber, this.websocket.url));
+                listedDevice.serialNumber,
+                this.websocket.url,
+                this.onTargetChange));
         targetsUpdated = true;
       }
     }
 
     // Notify the calling code that the list of targets has been updated.
-    if (targetsUpdated && this.onTargetChange) {
+    if (targetsUpdated) {
       this.onTargetChange();
     }
   }
@@ -195,7 +197,7 @@ export class WebsocketConnection {
 
 export class AndroidWebsocketTargetFactory implements TargetFactory {
   readonly kind = ANDROID_WEBSOCKET_TARGET_FACTORY;
-  private onTargetChange?: OnTargetChangeCallback;
+  private onTargetChange: OnTargetChangeCallback = () => {};
   private websocketConnection?: WebsocketConnection;
 
   getName() {
