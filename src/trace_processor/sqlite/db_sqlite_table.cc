@@ -50,15 +50,10 @@ base::Optional<FilterOp> SqliteOpToFilterOp(int sqlite_op) {
     case SQLITE_INDEX_CONSTRAINT_LIKE:
     case SQLITE_INDEX_CONSTRAINT_GLOB:
       return base::nullopt;
-#if SQLITE_VERSION_NUMBER >= 3038000
-    // LIMIT and OFFSET constraints were introduced in 3.38 but we
-    // still build for older versions in most places. We still need
-    // to handle this here as Chrome is very good at staying up to date
-    // with SQLite versions and crashes if we don't have this.
+    // TODO(lalitm): start supporting these constraints.
     case SQLITE_INDEX_CONSTRAINT_LIMIT:
     case SQLITE_INDEX_CONSTRAINT_OFFSET:
       return base::nullopt;
-#endif
     default:
       PERFETTO_FATAL("Currently unsupported constraint");
   }
