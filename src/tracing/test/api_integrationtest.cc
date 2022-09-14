@@ -449,6 +449,218 @@ class ParsedIncrementalState {
   std::set<uint64_t> seen_tracks_;
 };
 
+std::vector<std::string> ReadSlicesFromTrace(
+    const perfetto::protos::gen::Trace& parsed_trace,
+    bool expect_incremental_state_cleared = true) {
+  // Read back the trace, maintaining interning tables as we go.
+  std::vector<std::string> slices;
+  if (parsed_trace.packet().size() == 0)
+    return slices;
+  ParsedIncrementalState incremental_state;
+
+  uint32_t sequence_id = 0;
+  for (const auto& packet : parsed_trace.packet()) {
+    incremental_state.ClearIfNeeded(packet);
+
+    if (packet.has_track_descriptor()) {
+      // Make sure we haven't seen any events on this track before the
+      // descriptor was written.
+      EXPECT_FALSE(
+          incremental_state.HasSeenTrack(packet.track_descriptor().uuid()));
+    }
+
+    if (!packet.has_track_event())
+      continue;
+
+    // Make sure we only see track events on one sequence.
+    if (packet.trusted_packet_sequence_id()) {
+      if (!sequence_id)
+        sequence_id = packet.trusted_packet_sequence_id();
+      EXPECT_EQ(sequence_id, packet.trusted_packet_sequence_id());
+    }
+
+    incremental_state.Parse(packet);
+
+    const auto& track_event = packet.track_event();
+    std::string slice;
+
+    if (track_event.has_track_uuid()) {
+      incremental_state.InsertTrack(track_event.track_uuid());
+      std::stringstream track;
+      track << "[track=" << track_event.track_uuid() << "]";
+      slice += track.str();
+    }
+
+    switch (track_event.type()) {
+      case perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN:
+        slice += "B";
+        break;
+      case perfetto::protos::gen::TrackEvent::TYPE_SLICE_END:
+        slice += "E";
+        break;
+      case perfetto::protos::gen::TrackEvent::TYPE_INSTANT:
+        slice += "I";
+        break;
+      case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED: {
+        EXPECT_TRUE(track_event.has_legacy_event());
+        EXPECT_FALSE(track_event.type());
+        auto legacy_event = track_event.legacy_event();
+        slice +=
+            "Legacy_" + std::string(1, static_cast<char>(legacy_event.phase()));
+        break;
+      }
+      case perfetto::protos::gen::TrackEvent::TYPE_COUNTER:
+        slice += "C";
+        break;
+      default:
+        ADD_FAILURE();
+    }
+    if (track_event.has_legacy_event()) {
+      auto legacy_event = track_event.legacy_event();
+      std::stringstream id;
+      if (legacy_event.has_unscoped_id()) {
+        id << "(unscoped_id=" << legacy_event.unscoped_id() << ")";
+      } else if (legacy_event.has_local_id()) {
+        id << "(local_id=" << legacy_event.local_id() << ")";
+      } else if (legacy_event.has_global_id()) {
+        id << "(global_id=" << legacy_event.global_id() << ")";
+      } else if (legacy_event.has_bind_id()) {
+        id << "(bind_id=" << legacy_event.bind_id() << ")";
+      }
+      if (legacy_event.has_id_scope())
+        id << "(id_scope=\"" << legacy_event.id_scope() << "\")";
+      if (legacy_event.use_async_tts())
+        id << "(use_async_tts)";
+      if (legacy_event.bind_to_enclosing())
+        id << "(bind_to_enclosing)";
+      if (legacy_event.has_flow_direction())
+        id << "(flow_direction=" << legacy_event.flow_direction() << ")";
+      if (legacy_event.has_pid_override())
+        id << "(pid_override=" << legacy_event.pid_override() << ")";
+      if (legacy_event.has_tid_override())
+        id << "(tid_override=" << legacy_event.tid_override() << ")";
+      slice += id.str();
+    }
+    size_t category_count = 0;
+    for (const auto& it : track_event.category_iids())
+      slice +=
+          (category_count++ ? "," : ":") + incremental_state.GetCategory(it);
+    for (const auto& it : track_event.categories())
+      slice += (category_count++ ? ",$" : ":$") + it;
+    if (track_event.has_name() || track_event.has_name_iid())
+      slice += "." + incremental_state.GetEventName(track_event);
+
+    if (track_event.debug_annotations_size()) {
+      slice += "(";
+      bool first_annotation = true;
+      for (const auto& it : track_event.debug_annotations()) {
+        if (!first_annotation) {
+          slice += ",";
+        }
+        if (it.has_name_iid()) {
+          slice += incremental_state.GetDebugAnnotationName(it.name_iid());
+        } else {
+          slice += it.name();
+        }
+        slice += "=";
+        std::stringstream value;
+        if (it.has_bool_value()) {
+          value << "(bool)" << it.bool_value();
+        } else if (it.has_uint_value()) {
+          value << "(uint)" << it.uint_value();
+        } else if (it.has_int_value()) {
+          value << "(int)" << it.int_value();
+        } else if (it.has_double_value()) {
+          value << "(double)" << it.double_value();
+        } else if (it.has_string_value()) {
+          value << "(string)" << it.string_value();
+        } else if (it.has_pointer_value()) {
+          value << "(pointer)" << std::hex << it.pointer_value();
+        } else if (it.has_legacy_json_value()) {
+          value << "(json)" << it.legacy_json_value();
+        } else if (it.has_nested_value()) {
+          value << "(nested)" << it.nested_value().string_value();
+        }
+        slice += value.str();
+        first_annotation = false;
+      }
+      slice += ")";
+    }
+
+    if (track_event.flow_ids_old_size()) {
+      slice += "(flow_ids_old=";
+      std::stringstream value;
+      bool first_annotation = true;
+      for (uint64_t id : track_event.flow_ids_old()) {
+        if (!first_annotation) {
+          value << ",";
+        }
+        first_annotation = false;
+        value << id;
+      }
+      slice += value.str() + ")";
+    }
+
+    if (track_event.flow_ids_size()) {
+      slice += "(flow_ids=";
+      std::stringstream value;
+      bool first_annotation = true;
+      for (uint64_t id : track_event.flow_ids()) {
+        if (!first_annotation) {
+          value << ",";
+        }
+        first_annotation = false;
+        value << id;
+      }
+      slice += value.str() + ")";
+    }
+
+    if (track_event.terminating_flow_ids_old_size()) {
+      slice += "(terminating_flow_ids_old=";
+      std::stringstream value;
+      bool first_annotation = true;
+      for (uint64_t id : track_event.terminating_flow_ids_old()) {
+        if (!first_annotation) {
+          value << ",";
+        }
+        value << id;
+        first_annotation = false;
+      }
+      slice += value.str() + ")";
+    }
+
+    if (track_event.terminating_flow_ids_size()) {
+      slice += "(terminating_flow_ids=";
+      std::stringstream value;
+      bool first_annotation = true;
+      for (uint64_t id : track_event.terminating_flow_ids()) {
+        if (!first_annotation) {
+          value << ",";
+        }
+        value << id;
+        first_annotation = false;
+      }
+      slice += value.str() + ")";
+    }
+
+    slices.push_back(slice);
+  }
+  if (expect_incremental_state_cleared) {
+    EXPECT_TRUE(incremental_state.WasCleared());
+  }
+  return slices;
+}
+
+std::vector<std::string> ReadSlicesFromTrace(
+    const std::vector<char>& raw_trace,
+    bool expect_incremental_state_cleared = true) {
+  EXPECT_GE(raw_trace.size(), 0u);
+
+  perfetto::protos::gen::Trace parsed_trace;
+  EXPECT_TRUE(parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+  return ReadSlicesFromTrace(parsed_trace, expect_incremental_state_cleared);
+}
+
 // -------------------------
 // Declaration of test class
 // -------------------------
@@ -610,7 +822,7 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
     return log_messages;
   }
 
-  std::vector<std::string> ReadSlicesFromTrace(
+  std::vector<std::string> ReadSlicesFromTraceSession(
       perfetto::TracingSession* tracing_session) {
     return ReadSlicesFromTrace(tracing_session->ReadTraceBlocking());
   }
@@ -618,213 +830,6 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
   std::vector<std::string> StopSessionAndReadSlicesFromTrace(
       TestTracingSessionHandle* tracing_session) {
     return ReadSlicesFromTrace(StopSessionAndReturnBytes(tracing_session));
-  }
-
-  std::vector<std::string> ReadSlicesFromTrace(
-      const std::vector<char>& raw_trace) {
-    EXPECT_GE(raw_trace.size(), 0u);
-
-    perfetto::protos::gen::Trace parsed_trace;
-    EXPECT_TRUE(
-        parsed_trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
-    return ReadSlicesFromTrace(parsed_trace);
-  }
-
-  std::vector<std::string> ReadSlicesFromTrace(
-      const perfetto::protos::gen::Trace& parsed_trace) {
-    // Read back the trace, maintaining interning tables as we go.
-    std::vector<std::string> slices;
-    ParsedIncrementalState incremental_state;
-
-    uint32_t sequence_id = 0;
-    for (const auto& packet : parsed_trace.packet()) {
-      incremental_state.ClearIfNeeded(packet);
-
-      if (packet.has_track_descriptor()) {
-        // Make sure we haven't seen any events on this track before the
-        // descriptor was written.
-        EXPECT_FALSE(
-            incremental_state.HasSeenTrack(packet.track_descriptor().uuid()));
-      }
-
-      if (!packet.has_track_event())
-        continue;
-
-      // Make sure we only see track events on one sequence.
-      if (packet.trusted_packet_sequence_id()) {
-        if (!sequence_id)
-          sequence_id = packet.trusted_packet_sequence_id();
-        EXPECT_EQ(sequence_id, packet.trusted_packet_sequence_id());
-      }
-
-      incremental_state.Parse(packet);
-
-      const auto& track_event = packet.track_event();
-      std::string slice;
-
-      if (track_event.has_track_uuid()) {
-        incremental_state.InsertTrack(track_event.track_uuid());
-        std::stringstream track;
-        track << "[track=" << track_event.track_uuid() << "]";
-        slice += track.str();
-      }
-
-      switch (track_event.type()) {
-        case perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN:
-          slice += "B";
-          break;
-        case perfetto::protos::gen::TrackEvent::TYPE_SLICE_END:
-          slice += "E";
-          break;
-        case perfetto::protos::gen::TrackEvent::TYPE_INSTANT:
-          slice += "I";
-          break;
-        case perfetto::protos::gen::TrackEvent::TYPE_UNSPECIFIED: {
-          EXPECT_TRUE(track_event.has_legacy_event());
-          EXPECT_FALSE(track_event.type());
-          auto legacy_event = track_event.legacy_event();
-          slice += "Legacy_" +
-                   std::string(1, static_cast<char>(legacy_event.phase()));
-          break;
-        }
-        case perfetto::protos::gen::TrackEvent::TYPE_COUNTER:
-          slice += "C";
-          break;
-        default:
-          ADD_FAILURE();
-      }
-      if (track_event.has_legacy_event()) {
-        auto legacy_event = track_event.legacy_event();
-        std::stringstream id;
-        if (legacy_event.has_unscoped_id()) {
-          id << "(unscoped_id=" << legacy_event.unscoped_id() << ")";
-        } else if (legacy_event.has_local_id()) {
-          id << "(local_id=" << legacy_event.local_id() << ")";
-        } else if (legacy_event.has_global_id()) {
-          id << "(global_id=" << legacy_event.global_id() << ")";
-        } else if (legacy_event.has_bind_id()) {
-          id << "(bind_id=" << legacy_event.bind_id() << ")";
-        }
-        if (legacy_event.has_id_scope())
-          id << "(id_scope=\"" << legacy_event.id_scope() << "\")";
-        if (legacy_event.use_async_tts())
-          id << "(use_async_tts)";
-        if (legacy_event.bind_to_enclosing())
-          id << "(bind_to_enclosing)";
-        if (legacy_event.has_flow_direction())
-          id << "(flow_direction=" << legacy_event.flow_direction() << ")";
-        if (legacy_event.has_pid_override())
-          id << "(pid_override=" << legacy_event.pid_override() << ")";
-        if (legacy_event.has_tid_override())
-          id << "(tid_override=" << legacy_event.tid_override() << ")";
-        slice += id.str();
-      }
-      size_t category_count = 0;
-      for (const auto& it : track_event.category_iids())
-        slice +=
-            (category_count++ ? "," : ":") + incremental_state.GetCategory(it);
-      for (const auto& it : track_event.categories())
-        slice += (category_count++ ? ",$" : ":$") + it;
-      if (track_event.has_name() || track_event.has_name_iid())
-        slice += "." + incremental_state.GetEventName(track_event);
-
-      if (track_event.debug_annotations_size()) {
-        slice += "(";
-        bool first_annotation = true;
-        for (const auto& it : track_event.debug_annotations()) {
-          if (!first_annotation) {
-            slice += ",";
-          }
-          if (it.has_name_iid()) {
-            slice += incremental_state.GetDebugAnnotationName(it.name_iid());
-          } else {
-            slice += it.name();
-          }
-          slice += "=";
-          std::stringstream value;
-          if (it.has_bool_value()) {
-            value << "(bool)" << it.bool_value();
-          } else if (it.has_uint_value()) {
-            value << "(uint)" << it.uint_value();
-          } else if (it.has_int_value()) {
-            value << "(int)" << it.int_value();
-          } else if (it.has_double_value()) {
-            value << "(double)" << it.double_value();
-          } else if (it.has_string_value()) {
-            value << "(string)" << it.string_value();
-          } else if (it.has_pointer_value()) {
-            value << "(pointer)" << std::hex << it.pointer_value();
-          } else if (it.has_legacy_json_value()) {
-            value << "(json)" << it.legacy_json_value();
-          } else if (it.has_nested_value()) {
-            value << "(nested)" << it.nested_value().string_value();
-          }
-          slice += value.str();
-          first_annotation = false;
-        }
-        slice += ")";
-      }
-
-      if (track_event.flow_ids_old_size()) {
-        slice += "(flow_ids_old=";
-        std::stringstream value;
-        bool first_annotation = true;
-        for (uint64_t id : track_event.flow_ids_old()) {
-          if (!first_annotation) {
-            value << ",";
-          }
-          first_annotation = false;
-          value << id;
-        }
-        slice += value.str() + ")";
-      }
-
-      if (track_event.flow_ids_size()) {
-        slice += "(flow_ids=";
-        std::stringstream value;
-        bool first_annotation = true;
-        for (uint64_t id : track_event.flow_ids()) {
-          if (!first_annotation) {
-            value << ",";
-          }
-          first_annotation = false;
-          value << id;
-        }
-        slice += value.str() + ")";
-      }
-
-      if (track_event.terminating_flow_ids_old_size()) {
-        slice += "(terminating_flow_ids_old=";
-        std::stringstream value;
-        bool first_annotation = true;
-        for (uint64_t id : track_event.terminating_flow_ids_old()) {
-          if (!first_annotation) {
-            value << ",";
-          }
-          value << id;
-          first_annotation = false;
-        }
-        slice += value.str() + ")";
-      }
-
-      if (track_event.terminating_flow_ids_size()) {
-        slice += "(terminating_flow_ids=";
-        std::stringstream value;
-        bool first_annotation = true;
-        for (uint64_t id : track_event.terminating_flow_ids()) {
-          if (!first_annotation) {
-            value << ",";
-          }
-          value << id;
-          first_annotation = false;
-        }
-        slice += value.str() + ")";
-      }
-
-      slices.push_back(slice);
-    }
-    EXPECT_TRUE(incremental_state.WasCleared());
-    return slices;
   }
 
   uint32_t GetMainThreadPacketSequenceId(
@@ -4457,8 +4462,7 @@ TEST_P(PerfettoApiTest, LegacyTraceEventsWithConcurrentSessions) {
   EXPECT_THAT(slices,
               ElementsAre("B:cat.LegacyEvent(arg=(json){\"key\": 123})"));
 
-  tracing_session2->get()->StopBlocking();
-  slices = ReadSlicesFromTrace(tracing_session2->get());
+  slices = StopSessionAndReadSlicesFromTrace(tracing_session2);
   EXPECT_THAT(slices,
               ElementsAre("B:cat.LegacyEvent(arg=(json){\"key\": 123})"));
 }
@@ -4943,7 +4947,7 @@ TEST_P(PerfettoApiTest, TrackEventObserver) {
     tracing_session->get()->StopBlocking();
     EXPECT_TRUE(observer.stop_called);
     perfetto::TrackEvent::RemoveSessionObserver(&observer);
-    auto slices = ReadSlicesFromTrace(tracing_session->get());
+    auto slices = ReadSlicesFromTraceSession(tracing_session->get());
     EXPECT_THAT(slices, ElementsAre("I:foo.OnStart", "I:foo.OnStop"));
   }
 
@@ -4985,7 +4989,7 @@ TEST_P(PerfettoApiTest, TrackEventObserver) {
     tracing_session->get()->StopBlocking();
     perfetto::TrackEvent::RemoveSessionObserver(&observer1);
     perfetto::TrackEvent::RemoveSessionObserver(&observer2);
-    auto slices = ReadSlicesFromTrace(tracing_session->get());
+    auto slices = ReadSlicesFromTraceSession(tracing_session->get());
     EXPECT_THAT(slices, ElementsAre("I:foo.OnStart", "I:foo.OnStart",
                                     "I:foo.OnStop", "I:foo.OnStop"));
   }
@@ -5001,7 +5005,7 @@ TEST_P(PerfettoApiTest, TrackEventObserver) {
     perfetto::TrackEvent::RemoveSessionObserver(&observer1);
     tracing_session->get()->StopBlocking();
     perfetto::TrackEvent::RemoveSessionObserver(&observer2);
-    auto slices = ReadSlicesFromTrace(tracing_session->get());
+    auto slices = ReadSlicesFromTraceSession(tracing_session->get());
     EXPECT_THAT(slices,
                 ElementsAre("I:foo.OnStart", "I:foo.OnStart", "I:foo.OnStop"));
   }
@@ -5047,7 +5051,7 @@ TEST_P(PerfettoApiTest, TrackEventObserver_ClearIncrementalState) {
 
     EXPECT_TRUE(observer.clear_incremental_state_called);
     perfetto::TrackEvent::RemoveSessionObserver(&observer);
-    auto slices = ReadSlicesFromTrace(tracing_session->get());
+    auto slices = ReadSlicesFromTraceSession(tracing_session->get());
     EXPECT_THAT(slices, ElementsAre("I:foo.OnStart",
                                     "I:foo.WillClearIncrementalState"));
   }
@@ -5421,11 +5425,8 @@ TEST_P(PerfettoStartupTracingApiTest, NonBlockingAPI) {
 
   // Emit another event after starting.
   TRACE_EVENT_END("test");
-  perfetto::TrackEvent::Flush();
-
-  tracing_session->get()->StopBlocking();
   // Both events should be retained.
-  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
   EXPECT_THAT(slices, ElementsAre("B:test.Event", "E"));
 }
 
@@ -5446,11 +5447,9 @@ TEST_P(PerfettoStartupTracingApiTest, WithExistingSmb) {
 
   // Emit another event after starting.
   TRACE_EVENT_END("test");
-  perfetto::TrackEvent::Flush();
 
-  tracing_session->get()->StopBlocking();
   // Both events should be retained.
-  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
   EXPECT_THAT(slices, ElementsAre("B:test.Event", "E"));
 }
 
@@ -5468,11 +5467,9 @@ TEST_P(PerfettoStartupTracingApiTest, WithProducerProvidedSmb) {
 
   // Emit another event after starting.
   TRACE_EVENT_END("test");
-  perfetto::TrackEvent::Flush();
 
-  tracing_session->get()->StopBlocking();
   // Both events should be retained.
-  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
   EXPECT_THAT(slices, ElementsAre("B:test.Event", "E"));
 }
 
@@ -5486,11 +5483,8 @@ TEST_P(PerfettoStartupTracingApiTest, DontTraceBeforeStartupSetup) {
   tracing_session->get()->StartBlocking();
 
   TRACE_EVENT_END("test");
-  perfetto::TrackEvent::Flush();
 
-  tracing_session->get()->StopBlocking();
-
-  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
 
   EXPECT_THAT(slices, ElementsAre("B:test.Event", "E"));
 }
@@ -5583,11 +5577,7 @@ TEST_P(PerfettoStartupTracingApiTest, DISABLED_DropPolicy) {
   auto* tracing_session = NewTraceWithCategories({"test"});
   tracing_session->get()->StartBlocking();
 
-  perfetto::TrackEvent::Flush();
-
-  tracing_session->get()->StopBlocking();
-
-  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
   std::unordered_map<std::string, int> freq_map;
   for (auto& slice : slices) {
     freq_map[slice]++;
@@ -5606,11 +5596,8 @@ TEST_P(PerfettoStartupTracingApiTest, DISABLED_Abort) {
   tracing_session->get()->StartBlocking();
 
   TRACE_EVENT_BEGIN("test", "MainEvent");
-  perfetto::TrackEvent::Flush();
 
-  tracing_session->get()->StopBlocking();
-
-  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
 
   EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
 }
@@ -5630,7 +5617,7 @@ TEST_P(PerfettoStartupTracingApiTest, AbortAndRestart) {
 
   tracing_session->get()->StopBlocking();
 
-  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  auto slices = ReadSlicesFromTraceSession(tracing_session->get());
 
   EXPECT_THAT(slices, ElementsAre("B:test.StartupEvent2", "B:test.MainEvent"));
 }
@@ -5652,7 +5639,7 @@ TEST_P(PerfettoStartupTracingApiTest, Timeout) {
 
   tracing_session->get()->StopBlocking();
 
-  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  auto slices = ReadSlicesFromTraceSession(tracing_session->get());
   EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
 }
 
@@ -5681,7 +5668,7 @@ TEST_P(PerfettoStartupTracingApiTest, Callbacks) {
 
     tracing_session->get()->StopBlocking();
 
-    auto slices = ReadSlicesFromTrace(tracing_session->get());
+    auto slices = ReadSlicesFromTraceSession(tracing_session->get());
 
     ASSERT_EQ(2u, callback_events.size());
     EXPECT_EQ("OnSetup(num_data_sources_started=1)", callback_events.at(0));
@@ -5713,7 +5700,7 @@ TEST_P(PerfettoStartupTracingApiTest, NoEventInStartupTracing) {
   TRACE_EVENT_BEGIN("test", "MainEvent");
   perfetto::TrackEvent::Flush();
   tracing_session->get()->StopBlocking();
-  auto slices = ReadSlicesFromTrace(tracing_session->get());
+  auto slices = ReadSlicesFromTraceSession(tracing_session->get());
   EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
 }
 
