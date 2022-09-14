@@ -77,7 +77,7 @@ android_startup {
     optimization_status {
       odex_status: "up-to-date"
       compilation_filter: "speed"
-      compilation_reason: "unknown"
+      compilation_reason: "prebuilt"
       location: "/system/framework/oat/arm/com.android.location.provider.odex"
     }
     optimization_status {

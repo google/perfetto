@@ -25,7 +25,6 @@ android_startup {
       broadcast_dispatched_count: 0
       broadcast_received_count: 0
     }
-    slow_start_reason: "No baseline or cloud profiles"
   }
   startup {
     startup_id: 2
@@ -55,7 +54,6 @@ android_startup {
       most_active_non_launch_processes: "dex2oat64"
     }
     slow_start_reason: "dex2oat running during launch"
-    slow_start_reason: "No baseline or cloud profiles"
   }
   startup {
     startup_id: 3
@@ -85,7 +83,6 @@ android_startup {
       most_active_non_launch_processes: "installd"
     }
     slow_start_reason: "installd running during launch"
-    slow_start_reason: "No baseline or cloud profiles"
   }
   startup {
     startup_id: 4
@@ -117,6 +114,5 @@ android_startup {
     }
     slow_start_reason: "dex2oat running during launch"
     slow_start_reason: "installd running during launch"
-    slow_start_reason: "No baseline or cloud profiles"
   }
 }
