@@ -44,7 +44,7 @@ function createDeviceErrorMessage(device: USBDevice, issue: string): string {
 
 export class AndroidWebusbTargetFactory implements TargetFactory {
   readonly kind = ANDROID_WEBUSB_TARGET_FACTORY;
-  onTargetChange?: OnTargetChangeCallback;
+  onTargetChange: OnTargetChangeCallback = () => {};
   private recordingProblems: string[] = [];
   private targets: Map<string, AndroidWebusbTarget> =
       new Map<string, AndroidWebusbTarget>();
@@ -77,7 +77,7 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
     }
 
     const androidTarget =
-        new AndroidWebusbTarget(this, device, this.keyManager);
+        new AndroidWebusbTarget(device, this.keyManager, this.onTargetChange);
     this.targets.set(assertExists(device.serialNumber), androidTarget);
     return androidTarget;
   }
@@ -91,7 +91,8 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
       if (this.checkDeviceValidity(device).isValid) {
         this.targets.set(
             assertExists(device.serialNumber),
-            new AndroidWebusbTarget(this, device, this.keyManager));
+            new AndroidWebusbTarget(
+                device, this.keyManager, this.onTargetChange));
       }
     }
 
@@ -99,10 +100,9 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
       if (this.checkDeviceValidity(ev.device).isValid) {
         this.targets.set(
             assertExists(ev.device.serialNumber),
-            new AndroidWebusbTarget(this, ev.device, this.keyManager));
-        if (this.onTargetChange) {
-          this.onTargetChange();
-        }
+            new AndroidWebusbTarget(
+                ev.device, this.keyManager, this.onTargetChange));
+        this.onTargetChange();
       }
     });
 
@@ -113,9 +113,7 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
       await assertExists(this.targets.get(serialNumber))
           .disconnect(`Device with serial ${serialNumber} was disconnected.`);
       this.targets.delete(serialNumber);
-      if (this.onTargetChange) {
-        this.onTargetChange();
-      }
+      this.onTargetChange();
     });
   }
 
