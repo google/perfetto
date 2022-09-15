@@ -151,8 +151,8 @@ std::unique_ptr<FtraceController> FtraceController::Create(
     return nullptr;
 
   AtraceHalWrapper hal;
-  auto vendor_evts =
-      vendor_tracepoints::DiscoverVendorTracepoints(&hal, ftrace_procfs.get());
+  auto vendor_evts = vendor_tracepoints::DiscoverVendorTracepointsWithHal(
+      &hal, ftrace_procfs.get());
 
   auto syscalls = SyscallTable::FromCurrentArch();
 
