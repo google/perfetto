@@ -28,15 +28,10 @@
 namespace perfetto {
 namespace vendor_tracepoints {
 
-// Exposed for testing.
-std::vector<GroupAndName> DiscoverTracepoints(AtraceHalWrapper* hal,
-                                              FtraceProcfs* ftrace,
-                                              const std::string& category);
-
-// Returns a map from vendor category to events we should enable
-std::map<std::string, std::vector<GroupAndName>> DiscoverVendorTracepoints(
-    AtraceHalWrapper* hal,
-    FtraceProcfs* ftrace);
+// Returns a map from vendor category to events we should enable. Queries the
+// atrace HAL.
+std::map<std::string, std::vector<GroupAndName>>
+DiscoverVendorTracepointsWithHal(AtraceHalWrapper* hal, FtraceProcfs* ftrace);
 
 }  // namespace vendor_tracepoints
 }  // namespace perfetto
