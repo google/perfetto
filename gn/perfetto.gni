@@ -245,6 +245,14 @@ declare_args() {
 }
 
 declare_args() {
+  # When false, it disables system backend consumer support in the Perfetto SDK.
+  # Saves ~300KB binary size.
+  if (!defined(enable_perfetto_system_consumer)) {
+    enable_perfetto_system_consumer = enable_perfetto_ipc
+  }
+}
+
+declare_args() {
   perfetto_enable_git_rev_version_header =
       enable_perfetto_version_gen && perfetto_build_standalone &&
       !is_perfetto_build_generator
