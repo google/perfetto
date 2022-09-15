@@ -4214,6 +4214,37 @@ TEST_P(PerfettoApiTest, GetTraceStats) {
   tracing_session->get()->StopBlocking();
 }
 
+TEST_P(PerfettoApiTest, CustomDataSource) {
+  perfetto::TraceConfig cfg;
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("CustomDataSource");
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+  CustomDataSource::Trace([](CustomDataSource::TraceContext ctx) {
+    auto packet = ctx.NewTracePacket();
+    packet->set_timestamp(4200000);
+    packet->set_for_testing()->set_str("Test String");
+  });
+  CustomDataSource::Trace(
+      [](CustomDataSource::TraceContext ctx) { ctx.Flush(); });
+
+  tracing_session->get()->StopBlocking();
+  auto bytes = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace parsed_trace;
+  EXPECT_TRUE(parsed_trace.ParseFromArray(bytes.data(), bytes.size()));
+  bool found_for_testing = false;
+  for (auto& packet : parsed_trace.packet()) {
+    if (packet.has_for_testing()) {
+      EXPECT_FALSE(found_for_testing);
+      found_for_testing = true;
+      EXPECT_EQ(4200000u, packet.timestamp());
+      EXPECT_EQ("Test String", packet.for_testing().str());
+    }
+  }
+  EXPECT_TRUE(found_for_testing);
+}
+
 TEST_P(PerfettoApiTest, QueryServiceState) {
   class QueryTestDataSource : public perfetto::DataSource<QueryTestDataSource> {
   };
