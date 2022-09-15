@@ -17,9 +17,8 @@ import {_TextDecoder, _TextEncoder} from 'custom_utils';
 import {defer, Deferred} from '../../base/deferred';
 import {assertExists, assertFalse, assertTrue} from '../../base/logging';
 import {CmdType} from '../../controller/adb_interfaces';
-import {ArrayBufferBuilder} from '../array_buffer_builder';
 
-import {AdbFileHandler} from './adb_file_handler';
+import {AdbConnectionImpl} from './adb_connection_impl';
 import {findInterfaceAndEndpoint} from './adb_over_webusb_utils';
 import {ALLOW_USB_DEBUGGING} from './adb_targets_utils';
 import {AdbKeyManager, maybeStoreKey} from './auth/adb_key_manager';
@@ -28,10 +27,7 @@ import {
   wrapRecordingError,
 } from './recording_error_handling';
 import {
-  AdbConnection,
   ByteStream,
-  OnDisconnectCallback,
-  OnMessageCallback,
   OnStreamCloseCallback,
   OnStreamDataCallback,
 } from './recording_interfaces_v2';
@@ -72,7 +68,7 @@ interface WriteQueueElement {
   localStreamId: number;
 }
 
-export class AdbConnectionOverWebusb implements AdbConnection {
+export class AdbConnectionOverWebusb extends AdbConnectionImpl {
   private state: AdbState = AdbState.DISCONNECTED;
   private connectingStreams = new Map<number, Deferred<AdbOverWebusbStream>>();
   private streams = new Set<AdbOverWebusbStream>();
@@ -92,12 +88,6 @@ export class AdbConnectionOverWebusb implements AdbConnection {
 
   private pendingConnPromises: Array<Deferred<void>> = [];
 
-  // onStatus and onDisconnect are set to callbacks passed from the caller.
-  // This happens for instance in the AndroidWebusbTarget, which instantiates
-  // them with callbacks passed from the UI.
-  onStatus: OnMessageCallback = () => {};
-  onDisconnect: OnDisconnectCallback = (_) => {};
-
   // We use a key pair for authenticating with the device, which we do in
   // two ways:
   // - Firstly, signing with the private key.
@@ -106,49 +96,10 @@ export class AdbConnectionOverWebusb implements AdbConnection {
   // Once we've sent the public key, for future recordings we only need to
   // sign with the private key, so the user doesn't need to give permissions
   // again.
-  constructor(private device: USBDevice, private keyManager: AdbKeyManager) {}
-
-  // Starts a shell command, and returns a promise resolved when the command
-  // completes.
-  async shellAndWaitCompletion(cmd: string): Promise<void> {
-    const adbStream = await this.shell(cmd);
-    const onStreamingEnded = defer<void>();
-
-    // We wait for the stream to be closed by the device, which happens
-    // after the shell command is successfully received.
-    adbStream.addOnStreamClose(() => {
-      onStreamingEnded.resolve();
-    });
-    return onStreamingEnded;
+  constructor(private device: USBDevice, private keyManager: AdbKeyManager) {
+    super();
   }
 
-  // Starts a shell command, then gathers all its output and returns it as
-  // a string.
-  async shellAndGetOutput(cmd: string): Promise<string> {
-    const adbStream = await this.shell(cmd);
-    const commandOutput = new ArrayBufferBuilder();
-    const onStreamingEnded = defer<string>();
-
-    adbStream.addOnStreamData((data: Uint8Array) => {
-      commandOutput.append(data);
-    });
-    adbStream.addOnStreamClose(() => {
-      onStreamingEnded.resolve(
-          textDecoder.decode(commandOutput.toArrayBuffer()));
-    });
-    return onStreamingEnded;
-  }
-
-  async push(binary: Uint8Array, path: string): Promise<void> {
-    const byteStream = await this.openStream('sync:');
-    await (new AdbFileHandler(byteStream)).pushBinary(binary, path);
-    // We need to wait until the bytestream is closed. Otherwise, we can have a
-    // race condition:
-    // If this is the last stream, it will try to disconnect the device. In the
-    // meantime, the caller might create another stream which will try to open
-    // the device.
-    await byteStream.closeAndWaitForTeardown();
-  }
 
   shell(cmd: string): Promise<AdbOverWebusbStream> {
     return this.openStream('shell:' + cmd);
@@ -170,7 +121,8 @@ export class AdbConnectionOverWebusb implements AdbConnection {
     }
   }
 
-  private async openStream(destination: string): Promise<AdbOverWebusbStream> {
+  protected async openStream(destination: string):
+      Promise<AdbOverWebusbStream> {
     const streamId = ++this.lastStreamId;
     const connectingStream = defer<AdbOverWebusbStream>();
     this.connectingStreams.set(streamId, connectingStream);
