@@ -84,8 +84,8 @@ For example, suppose we want to iterate on the `android_startup` metric. We
 can run the following commands from a Perfetto checkout:
 ```python
 > ./tools/trace_processor --interactive \
-  --run_metrics android_startup \
-  --metric-extension src/trace_processor/metrics@/
+  --run-metrics android_startup \
+  --metric-extension src/trace_processor/metrics@/ \
   --dev \
   <trace>
 android_startup {
@@ -109,7 +109,7 @@ NOTE: see below about why `--dev` was required for this command.
 
 This also works for custom metrics specified on the command line:
 ```python
-> ./tools/trace_processor -i --run_metrics /tmp/my_custom_metric.sql <trace>
+> ./tools/trace_processor -i --run-metrics /tmp/my_custom_metric.sql <trace>
 my_custom_metric {
   <contents of my_custom_metric>
 }
@@ -139,7 +139,7 @@ special string `/` for the virtual path.
 For example, from inside a Perfetto checkout:
 ```python
 > ./tools/trace_processor \
-  --run_metrics android_cpu \
+  --run-metrics android_cpu \
   --metric-extension src/trace_processor/metrics@/
   --dev
   <trace>
