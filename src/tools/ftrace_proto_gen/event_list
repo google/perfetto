@@ -425,3 +425,9 @@ v4l2/vb2_v4l2_dqbuf
 panel/dsi_cmd_fifo_status
 panel/dsi_rx
 panel/dsi_tx
+android_fs/android_fs_dataread_end
+android_fs/android_fs_dataread_start
+android_fs/android_fs_datawrite_end
+android_fs/android_fs_datawrite_start
+android_fs/android_fs_fsync_end
+android_fs/android_fs_fsync_start
