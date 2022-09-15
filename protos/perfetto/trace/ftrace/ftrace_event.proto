@@ -20,6 +20,7 @@
 
 syntax = "proto2";
 
+import "protos/perfetto/trace/ftrace/android_fs.proto";
 import "protos/perfetto/trace/ftrace/binder.proto";
 import "protos/perfetto/trace/ftrace/block.proto";
 import "protos/perfetto/trace/ftrace/cgroup.proto";
@@ -533,5 +534,11 @@ message FtraceEvent {
     DsiCmdFifoStatusFtraceEvent dsi_cmd_fifo_status = 428;
     DsiRxFtraceEvent dsi_rx = 429;
     DsiTxFtraceEvent dsi_tx = 430;
+    AndroidFsDatareadEndFtraceEvent android_fs_dataread_end = 431;
+    AndroidFsDatareadStartFtraceEvent android_fs_dataread_start = 432;
+    AndroidFsDatawriteEndFtraceEvent android_fs_datawrite_end = 433;
+    AndroidFsDatawriteStartFtraceEvent android_fs_datawrite_start = 434;
+    AndroidFsFsyncEndFtraceEvent android_fs_fsync_end = 435;
+    AndroidFsFsyncStartFtraceEvent android_fs_fsync_start = 436;
   }
 }
