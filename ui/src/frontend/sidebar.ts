@@ -137,6 +137,8 @@ function showDebugTrack(): (_: Event) => void {
   return (e: Event) => {
     e.preventDefault();
     globals.dispatch(Actions.addDebugTrack({
+      // The debug track will only be shown once we have a currentEngineId which
+      // is not undefined.
       engineId: assertExists(globals.state.currentEngineId),
       name: 'Debug Slices',
     }));
@@ -288,7 +290,12 @@ const SECTIONS: Section[] = [
     title: 'Sample queries',
     summary: 'Compute summary statistics',
     items: [
-      {t: 'Show Debug Track', a: showDebugTrack(), i: 'view_day'},
+      {
+        t: 'Show Debug Track',
+        a: showDebugTrack(),
+        i: 'view_day',
+        isVisible: () => globals.state.currentEngineId !== undefined,
+      },
       {
         t: 'Record metatrace',
         a: recordMetatrace,
