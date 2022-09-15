@@ -236,6 +236,8 @@ protos::pbzero::Profiling::StackUnwindError ToProtoEnum(
       return Profiling::UNWIND_ERROR_MAPS_PARSE;
     case unwindstack::ERROR_INVALID_PARAMETER:
       return Profiling::UNWIND_ERROR_INVALID_PARAMETER;
+    case unwindstack::ERROR_PTRACE_CALL:
+      return Profiling::UNWIND_ERROR_PTRACE_CALL;
   }
   return Profiling::UNWIND_ERROR_UNKNOWN;
 }

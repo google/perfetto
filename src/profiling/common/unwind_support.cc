@@ -168,6 +168,8 @@ std::string StringifyLibUnwindstackError(unwindstack::ErrorCode e) {
       return "MAPS_PARSE";
     case unwindstack::ERROR_INVALID_PARAMETER:
       return "INVALID_PARAMETER";
+    case unwindstack::ERROR_PTRACE_CALL:
+      return "PTRACE_CALL";
   }
 }
 
