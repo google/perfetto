@@ -21,13 +21,13 @@
 #include "test/gtest_and_gmock.h"
 
 #include "src/traced/probes/ftrace/atrace_hal_wrapper.h"
-#include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 
 using testing::_;
 using testing::AnyNumber;
 using testing::ElementsAre;
 using testing::NiceMock;
+using testing::Pair;
 using testing::Return;
 using testing::Sequence;
 
@@ -65,11 +65,14 @@ class MockFtraceProcfs : public FtraceProcfs {
                      const std::set<std::string>(const std::string& path));
 };
 
-TEST(DiscoverVendorTracepointsTest, DiscoverTracepointsTest) {
+TEST(DiscoverVendorTracepointsTest, DiscoverVendorTracepointsWithHal) {
   MockHal hal;
   MockFtraceProcfs ftrace;
   Sequence s;
 
+  EXPECT_CALL(hal, ListCategories())
+      .InSequence(s)
+      .WillOnce(Return(std::vector<std::string>({"gfx"})));
   EXPECT_CALL(ftrace, WriteToFile("/root/events/enable", "0"))
       .InSequence(s)
       .WillOnce(Return(true));
@@ -84,8 +87,9 @@ TEST(DiscoverVendorTracepointsTest, DiscoverTracepointsTest) {
       .InSequence(s)
       .WillOnce(Return(true));
 
-  EXPECT_THAT(DiscoverTracepoints(&hal, &ftrace, "gfx"),
-              ElementsAre(GroupAndName("foo", "bar"), GroupAndName("a", "b")));
+  EXPECT_THAT(DiscoverVendorTracepointsWithHal(&hal, &ftrace),
+              ElementsAre(Pair("gfx", ElementsAre(GroupAndName("foo", "bar"),
+                                                  GroupAndName("a", "b")))));
 }
 
 }  // namespace
