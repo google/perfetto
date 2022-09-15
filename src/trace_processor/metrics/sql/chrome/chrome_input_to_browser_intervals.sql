@@ -50,7 +50,7 @@ SELECT CREATE_FUNCTION(
   'SELECT
     interface_name
     FROM ancestor_slice(($id)) ancestors
-    JOIN chrome_mojo_slices_internal USING(id)'
+    JOIN chrome_mojo_slices_tbl USING(id)'
 );
 
 SELECT CREATE_FUNCTION(
