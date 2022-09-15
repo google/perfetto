@@ -14,46 +14,26 @@
 -- limitations under the License.
 --
 
--- Create |chrome_scheduler_tasks| table, which contains a subset of slice
--- table with the slices which correspond to tasks executed by Chrome scheduler.
---
--- |chrome_scheduler_tasks_internal| is the cached table containing scheduler-specific bits.
-DROP TABLE IF EXISTS chrome_scheduler_tasks_internal;
-CREATE TABLE chrome_scheduler_tasks_internal AS
-SELECT
-  EXTRACT_ARG(s.arg_set_id, "task.posted_from.file_name") as posted_from_file_name,
-  EXTRACT_ARG(s.arg_set_id, "task.posted_from.function_name") as posted_from_function_name,
-  (CASE name
-    WHEN "ThreadControllerImpl::RunTask" THEN "SequenceManager"
-    WHEN "ThreadPool_RunTask" THEN "ThreadPool"
-  END) as scheduler_type,
-  s.id
-FROM slice s
-WHERE
-  category="toplevel" AND
-  (name="ThreadControllerImpl::RunTask" or name="ThreadPool_RunTask")
-ORDER BY id;
+SELECT RUN_METRIC("common/parent_slice.sql");
 
--- |chrome_scheduler_tasks| is a view over |chrome_scheduler_tasks_internal| table, adding
--- columns from |slice| table.
-DROP VIEW IF EXISTS chrome_scheduler_tasks;
-CREATE VIEW chrome_scheduler_tasks AS
-SELECT
-  s1.posted_from_file_name || ":" || s1.posted_from_function_name as posted_from,
-  s1.posted_from_file_name,
-  s1.posted_from_function_name,
-  s1.scheduler_type,
-  s2.*
-FROM chrome_scheduler_tasks_internal s1
-JOIN slice s2 USING (id)
-ORDER BY id;
+SELECT CREATE_FUNCTION(
+  'EXTRACT_MOJO_IPC_HASH(slice_id INT)',
+  'INT',
+  '
+    SELECT EXTRACT_ARG(s2.arg_set_id, "chrome_mojo_event_info.ipc_hash")
+    FROM descendant_slice($slice_id) s2
+    WHERE s2.name="ScopedSetIpcHash"
+    ORDER BY s2.id
+    LIMIT 1
+  '
+);
 
--- Create |chrome_mojo_receive_slices| table, containing a subset of slice
--- table with the slices corresponding to received mojo messages.
+-- Create |chrome_mojo_slices_tbl| table, containing a subset of slice
+-- table with the slices corresponding to mojo messages.
 --
 -- Note: this might include messages received within a sync mojo call.
-DROP TABLE IF EXISTS chrome_mojo_slices_internal;
-CREATE TABLE chrome_mojo_slices_internal AS
+DROP TABLE IF EXISTS chrome_mojo_slices_tbl;
+CREATE TABLE chrome_mojo_slices_tbl AS
 WITH
   -- Select all new-style (post crrev.com/c/3270337) mojo slices and
   -- generate |full_name| for them.
@@ -66,34 +46,27 @@ WITH
     SELECT
       EXTRACT_ARG(s.arg_set_id, "chrome_mojo_event_info.mojo_interface_tag") as interface_name,
       EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.ipc_hash") as ipc_hash,
-      (CASE name
+      CASE name
         WHEN "Receive mojo message" THEN "message"
         WHEN "Receive mojo reply" THEN "reply"
-      END) as message_type,
+      END as message_type,
       s.id
     FROM slice s
     WHERE
       category="toplevel"
       AND name GLOB 'Receive *'
-    ORDER BY id
   ),
   -- Select old-style slices for channel-associated mojo events.
   old_associated_mojo_slices AS (
     SELECT
       s.name as interface_name,
-      (select
-        EXTRACT_ARG(s2.arg_set_id, "chrome_mojo_event_info.ipc_hash")
-       FROM descendant_slice(s.id) s2
-       WHERE s2.name="ScopedSetIpcHash"
-       ORDER BY s2.id
-       LIMIT 1) as ipc_hash,
+      EXTRACT_MOJO_IPC_HASH(s.id) as ipc_hash,
       "message" as message_type,
       s.id
     FROM slice s
     WHERE
       category="mojom"
       AND name GLOB '*.mojom.*'
-    ORDER BY id
   ),
   -- Select old-style slices for non-(channel-associated) mojo events.
   old_non_associated_mojo_slices AS (
@@ -102,43 +75,24 @@ WITH
         EXTRACT_ARG(s.arg_set_id, "chrome_mojo_event_info.watcher_notify_interface_tag"),
         EXTRACT_ARG(s.arg_set_id, "chrome_mojo_event_info.mojo_interface_tag")
       ) as interface_name,
-      (select
-        EXTRACT_ARG(s2.arg_set_id, "chrome_mojo_event_info.ipc_hash")
-       FROM descendant_slice(s.id) s2
-       WHERE s2.name="ScopedSetIpcHash"
-       ORDER BY s2.id
-       LIMIT 1) as ipc_hash,
+      EXTRACT_MOJO_IPC_HASH(s.id) as ipc_hash,
       "message" as message_type,
       s.id
     FROM slice s
     WHERE
       category="toplevel" and name="Connector::DispatchMessage"
-    ORDER BY id
-  ),
-  -- Merge all mojo slices.
-  all_mojo_slices_non_sorted AS (
-    SELECT * from new_mojo_slices
-    UNION
-    SELECT * from old_associated_mojo_slices
-    UNION
-    SELECT * from old_non_associated_mojo_slices
   )
-SELECT *
-FROM all_mojo_slices_non_sorted
-ORDER BY id;
+-- Merge all mojo slices.
+SELECT * from new_mojo_slices
+UNION ALL
+SELECT * from old_associated_mojo_slices
+UNION ALL
+SELECT * from old_non_associated_mojo_slices;
 
--- |chrome_mojo_slices| is a view over |chrome_mojo_slices_internal| table, adding
--- columns from |slice| table.
-DROP VIEW IF EXISTS chrome_mojo_slices;
-CREATE VIEW chrome_mojo_slices AS
-SELECT
-  s1.interface_name,
-  s1.ipc_hash,
-  s1.message_type,
-  s2.*
-FROM chrome_mojo_slices_internal s1
-JOIN slice s2 USING (id)
-ORDER BY id;
+-- As we lookup by ID on |chrome_mojo_slices_tbl| table, add an index on
+-- id to make lookups fast.
+DROP INDEX IF EXISTS chrome_mojo_slices_idx;
+CREATE INDEX chrome_mojo_slices_idx ON chrome_mojo_slices_tbl(id);
 
 -- This table contains a list of slices corresponding to the _representative_ Chrome Java views.
 -- These are the outermost Java view slices after filtering out generic framework views
@@ -202,19 +156,18 @@ SELECT
   s1.*,
   -- While the parent slices are too generic to be used by themselves,
   -- they can provide some useful metadata.
-  (SELECT count()
-    FROM ancestor_slice(s1.id) s2
-    WHERE s2.name="ViewResourceAdapter:captureWithSoftwareDraw"
-  )>0 as is_software_screenshot,
-  (SELECT count()
-    FROM ancestor_slice(s1.id) s2
-    WHERE s2.name="ViewResourceAdapter:captureWithHardwareDraw"
-  )>0 as is_hardware_screenshot
+  HAS_PARENT_SLICE_WITH_NAME(
+    s1.id,
+    "ViewResourceAdapter:captureWithSoftwareDraw"
+  ) as is_software_screenshot,
+  HAS_PARENT_SLICE_WITH_NAME(
+    s1.id,
+    "ViewResourceAdapter:captureWithHardwareDraw"
+  ) as is_hardware_screenshot
 FROM interesting_java_slices s1
 WHERE (select count()
   from ancestor_slice(s1.id) s2
-  join interesting_java_slices s3 on s2.id=s3.id)=0
-ORDER BY s1.id;
+  join interesting_java_slices s3 on s2.id=s3.id)=0;
 
 -- |chrome_java_views| is a view over |chrome_java_views_internal| table, adding the necessary columns
 -- from |slice|.
@@ -247,7 +200,6 @@ WITH
       (name='ThreadControllerImpl::RunTask' AND
         EXTRACT_ARG(arg_set_id, 'task.posted_from.file_name')='cc/trees/single_thread_proxy.cc' AND
         EXTRACT_ARG(arg_set_id, 'task.posted_from.function_name')='ScheduledActionSendBeginMainFrame')
-    ORDER BY id
   ),
   -- Intermediate step to allow us to sort java view names.
   root_slice_and_java_view_not_grouped AS (
@@ -256,7 +208,6 @@ WITH
     FROM root_slices s1
     JOIN descendant_slice(s1.id) s2
     JOIN chrome_java_views_internal s3 ON s2.id=s3.id
-    ORDER BY s1.id, java_view_name
   )
 SELECT
   s1.id,
@@ -264,8 +215,7 @@ SELECT
   GROUP_CONCAT(DISTINCT s2.java_view_name) as java_views
 FROM root_slices s1
 LEFT JOIN root_slice_and_java_view_not_grouped s2 USING (id)
-GROUP BY s1.id
-ORDER BY s1.id;
+GROUP BY s1.id;
 
 -- Create |chrome_tasks| table, which contains a subset of slice
 -- table of the slices which should be considered top-level Chrome tasks with the
@@ -282,7 +232,6 @@ WITH
        category IN ("toplevel", "toplevel,viz")
        AND (SELECT count() FROM ancestor_slice(s.id) s2 
             WHERE s2.category IN ("toplevel", "toplevel.viz"))=0
-     ORDER BY id
   ),
   -- Select slices from "Java" category which do not have another "Java" or
   -- "toplevel" slice as parent. In the longer term they should probably belong
@@ -295,28 +244,46 @@ WITH
       AND (SELECT count()
            FROM ancestor_slice(s.id) s2
            WHERE s2.category="toplevel" or s2.category="Java")=0
-    ORDER BY id
+  ),
+  raw_scheduler_tasks AS (
+    SELECT
+      EXTRACT_ARG(s.arg_set_id, "task.posted_from.file_name") as posted_from_file_name,
+      EXTRACT_ARG(s.arg_set_id, "task.posted_from.function_name") as posted_from_function_name,
+      (CASE name
+        WHEN "ThreadControllerImpl::RunTask" THEN "SequenceManager"
+        WHEN "ThreadPool_RunTask" THEN "ThreadPool"
+      END) as scheduler_type,
+      s.id
+    FROM slice s
+    WHERE
+      category="toplevel" AND
+      (name="ThreadControllerImpl::RunTask" or name="ThreadPool_RunTask")
+  ),
+  scheduler_tasks AS (
+    SELECT
+      s1.posted_from_file_name || ":" || s1.posted_from_function_name as posted_from,
+      s1.posted_from_file_name,
+      s1.posted_from_function_name,
+      s1.scheduler_type,
+      s1.id
+    FROM raw_scheduler_tasks s1
   ),
   -- Generate full names for scheduler tasks.
-  scheduler_tasks AS (
+  scheduler_tasks_with_full_names AS (
     SELECT
       printf("RunTask(posted_from=%s)", s.posted_from) as full_name,
       "scheduler" as task_type,
       s.id
-    FROM chrome_scheduler_tasks s
-    ORDER BY id
+    FROM scheduler_tasks s
   ),
   -- Generate full names for mojo slices.
-  -- TODO(243897379): remove MATERIALIZED once we understand why rolling SQLite
-  -- to 3.39.2 causes slowdowns.
-  mojo_slices AS MATERIALIZED (
+  mojo_slices AS (
     SELECT
       printf('%s %s (hash=%d)',
         interface_name, message_type, ipc_hash) as full_name,
       "mojo" as task_type,
       id
-    FROM chrome_mojo_slices
-    ORDER BY id
+    FROM chrome_mojo_slices_tbl
   ),
   -- Generate full names for tasks with java views.
   java_views_tasks AS (
@@ -328,7 +295,6 @@ WITH
        END) as task_type,
       id
     FROM chrome_slices_with_java_views_internal
-    ORDER BY id
   ),
   -- Select scheduler tasks which are used to run mojo messages and use the mojo names
   -- as full names for these slices.
@@ -343,13 +309,12 @@ WITH
       "mojo" as task_type,
       s1.id
     FROM
-      chrome_scheduler_tasks s1
+      scheduler_tasks s1
     WHERE
       s1.posted_from IN (
         "mojo/public/cpp/system/simple_watcher.cc:Notify",
         "mojo/public/cpp/bindings/lib/connector.cc:PostDispatchNextMessageFromPipe",
         "ipc/ipc_mojo_bootstrap.cc:Accept")
-    ORDER BY id
   ),
   -- Add scheduler and mojo full names to non-embedded slices from
   -- the "toplevel" category, with mojo ones taking precedence.
@@ -360,18 +325,13 @@ WITH
        s1.id as id
     FROM non_embedded_toplevel_slices s1
     LEFT JOIN scheduler_tasks_with_mojo s2 ON s2.id=s1.id
-    LEFT JOIN scheduler_tasks s3 ON s3.id=s1.id
+    LEFT JOIN scheduler_tasks_with_full_names s3 ON s3.id=s1.id
     LEFT JOIN java_views_tasks s4 ON s4.id=s1.id
-    ORDER BY id
-  ),
-  -- Merge slices from toplevel and Java categories.
-  non_sorted_tasks AS (
-    SELECT * from non_embedded_toplevel_slices_with_full_name
-    UNION ALL
-    SELECT * from non_embedded_java_slices
   )
-SELECT * FROM non_sorted_tasks
-ORDER BY id;
+-- Merge slices from toplevel and Java categories.
+SELECT * from non_embedded_toplevel_slices_with_full_name
+UNION ALL
+SELECT * from non_embedded_java_slices;
 
 DROP VIEW IF EXISTS chrome_tasks;
 CREATE VIEW chrome_tasks AS
@@ -387,8 +347,7 @@ FROM chrome_tasks_internal cti
 JOIN slice ts USING (id)
 JOIN thread_track tt ON ts.track_id=tt.id
 JOIN thread USING (utid)
-JOIN process USING (upid)
-ORDER BY id;
+JOIN process USING (upid);
 
 -- A helper view into Chrome thread slices which don't have a parent task. 
 -- TODO(altimin): Use chrome_thread here once it's reliable.
@@ -402,5 +361,4 @@ WHERE
   (SELECT count()
    FROM ancestor_slice(s1.id) s3
    JOIN chrome_tasks s4 ON s3.id=s4.id)=0
-  and s2.id IS NULL
-ORDER BY id;
+  and s2.id IS NULL;
