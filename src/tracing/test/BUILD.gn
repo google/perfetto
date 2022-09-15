@@ -59,7 +59,7 @@ perfetto_unittest_source_set("test_support") {
   }
 }
 
-if (enable_perfetto_ipc) {
+if (enable_perfetto_ipc && enable_perfetto_system_consumer) {
   perfetto_unittest_source_set("tracing_integration_test") {
     testonly = true
     deps = [

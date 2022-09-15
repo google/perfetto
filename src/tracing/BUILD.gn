@@ -181,10 +181,12 @@ if (enable_perfetto_ipc) {
       "../../include/perfetto/tracing/core",
       "../base",
       "ipc:common",
-      "ipc/consumer",
       "ipc/producer",
       "ipc/service",
     ]
+    if (enable_perfetto_system_consumer) {
+      deps += [ "ipc/consumer" ]
+    }
     sources = [ "internal/system_tracing_backend.cc" ]
   }
 } else {
