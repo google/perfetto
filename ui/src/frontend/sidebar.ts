@@ -20,6 +20,7 @@ import {getCurrentChannel} from '../common/channels';
 import {TRACE_SUFFIX} from '../common/constants';
 import {ConversionJobStatus} from '../common/conversion_jobs';
 import {Engine} from '../common/engine';
+import {featureFlags} from '../common/feature_flags';
 import {EngineMode, TraceArrayBufferSource} from '../common/state';
 import * as version from '../gen/perfetto_version';
 
@@ -119,8 +120,15 @@ function getBugReportUrl(): string {
   }
 }
 
+const HIRING_BANNER_FLAG = featureFlags.register({
+  id: 'showHiringBanner',
+  name: 'Show hiring banner',
+  description: 'Show the "We\'re hiring" banner link in the side bar.',
+  defaultValue: false,
+});
+
 function shouldShowHiringBanner(): boolean {
-  return globals.isInternalUser;
+  return globals.isInternalUser && HIRING_BANNER_FLAG.get();
 }
 
 function createCannedQuery(query: string): (_: Event) => void {
