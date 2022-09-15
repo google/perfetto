@@ -33,7 +33,7 @@ com.riot.league.wildrift | 1 | 1 | 0 | 1
 
 ### TraceConfig
 
-Android game intervention list is configured through [AndroidGameInterventionListConfig](/docs/reference/trace-config-proto#AndroidGameInterventionListConfig) section of trace config.
+Android game intervention list is configured through [AndroidGameInterventionListConfig](/docs/reference/trace-config-proto.autogen#AndroidGameInterventionListConfig) section of trace config.
 
 Sample config:
 
