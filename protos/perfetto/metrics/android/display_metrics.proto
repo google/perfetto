@@ -51,4 +51,12 @@ message AndroidDisplayMetrics {
 
   // The statistics for each refresh rate value
   repeated RefreshRateStat refresh_rate_stats = 5;
+
+  // Stats to measure the runtime of updating the power state in
+  // DisplayPowerController
+  message UpdatePowerState {
+    optional uint32 avg_runtime_ms = 1;
+  }
+
+  optional UpdatePowerState update_power_state = 6;
 }
