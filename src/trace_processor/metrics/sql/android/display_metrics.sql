@@ -61,6 +61,13 @@ FROM (
 )
 WHERE dur > 0;
 
+DROP VIEW IF EXISTS update_power_state_stats;
+CREATE VIEW update_power_state_stats AS
+SELECT
+  CAST(AVG(dur) / 1e6 as INT64) as avg_runtime_ms
+FROM slice
+WHERE slice.name='DisplayPowerController#updatePowerState' AND slice.dur >= 0;
+
 DROP VIEW IF EXISTS display_metrics_output;
 CREATE VIEW display_metrics_output AS
 SELECT AndroidDisplayMetrics(
@@ -84,5 +91,11 @@ SELECT AndroidDisplayMetrics(
       GROUP BY value
       ORDER BY value
     )
+  ),
+  'update_power_state', (
+    SELECT AndroidDisplayMetrics_UpdatePowerState(
+      'avg_runtime_ms', avg_runtime_ms
+    )
+    FROM update_power_state_stats
   )
 );
