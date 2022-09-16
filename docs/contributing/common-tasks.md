@@ -20,6 +20,8 @@ Here is an [example change](https://android-review.googlesource.com/c/platform/e
 2. Import the proto in [protos/perfetto/metrics/metrics.proto](/protos/perfetto/metrics/metrics.proto) and add a field for the new message.
 3. Run `tools/gen_all out/YOUR_BUILD_DIRECTORY`. This will update the generated headers containing the descriptors for the proto.
   * *Note: this step has to be performed any time any metric-related proto is modified.*
+  * If you don't see anything inside the `out/` directory you might have to
+  rerun `tools/build_all_configs.py`.
 4. Add a new SQL file for the metric to [src/trace_processor/metrics](/src/trace_processor/metrics). The appropriate `BUILD.gn` file should be updated as well.
   * To learn how to write new metrics, see the [trace-based metrics documentation](/docs/analysis/metrics.md).
 5. Build all targets in your out directory with `tools/ninja -C out/YOUR_BUILD_DIRECTORY`.
