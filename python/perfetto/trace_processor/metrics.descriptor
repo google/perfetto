@@ -103,21 +103,24 @@ avgFreqKhze
 Value
 ts (Rts
 value (Rvalue
-∑
-5protos/perfetto/metrics/android/display_metrics.protoperfetto.protos"Ï
+ÿ
+5protos/perfetto/metrics/android/display_metrics.protoperfetto.protos"ç
 AndroidDisplayMetrics4
 total_duplicate_frames (RtotalDuplicateFrames6
 duplicate_frames_logged (RduplicateFramesLogged7
 total_dpu_underrun_count (RtotalDpuUnderrunCount2
 refresh_rate_switches (RrefreshRateSwitchesd
-refresh_rate_stats (26.perfetto.protos.AndroidDisplayMetrics.RefreshRateStatRrefreshRateStatsë
+refresh_rate_stats (26.perfetto.protos.AndroidDisplayMetrics.RefreshRateStatRrefreshRateStatse
+update_power_state (27.perfetto.protos.AndroidDisplayMetrics.UpdatePowerStateRupdatePowerStateë
 RefreshRateStat(
 refresh_rate_fps (RrefreshRateFps
 count (Rcount 
 total_dur_ms (R
 totalDurMs
 
-avg_dur_ms (RavgDurMs
+avg_dur_ms (RavgDurMs8
+UpdatePowerState$
+avg_runtime_ms (RavgRuntimeMs
 à
 5protos/perfetto/metrics/android/dma_heap_metric.protoperfetto.protos"Ω
 AndroidDmaHeapMetric$
