@@ -13,26 +13,19 @@
 // limitations under the License.
 
 import {AdbConnectionOverWebsocket} from '../adb_connection_over_websocket';
-import {DEFAULT_TRACED_CONSUMER_SOCKET_PATH} from '../adb_targets_utils';
 import {
   OnTargetChangeCallback,
-  RecordingTargetV2,
   TargetInfo,
-  TracingSession,
-  TracingSessionListener,
 } from '../recording_interfaces_v2';
-import {TracedTracingSession} from '../traced_tracing_session';
+import {AndroidTarget} from './android_target';
 
-export class AndroidWebsocketTarget implements RecordingTargetV2 {
-  private adbConnection: AdbConnectionOverWebsocket;
-  private androidApiLevel?: number;
-  private consumerSocketPath = DEFAULT_TRACED_CONSUMER_SOCKET_PATH;
-
+export class AndroidWebsocketTarget extends AndroidTarget {
   constructor(
       private serialNumber: string, websocketUrl: string,
-      private onTargetChange: OnTargetChangeCallback) {
-    this.adbConnection =
-        new AdbConnectionOverWebsocket(serialNumber, websocketUrl);
+      onTargetChange: OnTargetChangeCallback) {
+    super(
+        new AdbConnectionOverWebsocket(serialNumber, websocketUrl),
+        onTargetChange);
   }
 
   getInfo(): TargetInfo {
@@ -43,47 +36,5 @@ export class AndroidWebsocketTarget implements RecordingTargetV2 {
       dataSources: [],
       name: this.serialNumber + ' WebSocket',
     };
-  }
-
-  // This is called when the websocket url changes and we need to disconnect
-  // the targets connected to the old URL.
-  disconnect(): void {
-    this.adbConnection.disconnect();
-  }
-
-
-  // Starts a tracing session in order to fetch information such as apiLevel
-  // and dataSources from the device. Then, it cancels the session.
-  async fetchTargetInfo(tracingSessionListener: TracingSessionListener):
-      Promise<void> {
-    const tracingSession =
-        await this.createTracingSession(tracingSessionListener);
-    tracingSession.cancel();
-  }
-
-  async createTracingSession(tracingSessionListener: TracingSessionListener):
-      Promise<TracingSession> {
-    this.adbConnection.onDisconnect = tracingSessionListener.onDisconnect;
-
-    if (!this.androidApiLevel) {
-      const version = await this.adbConnection.shellAndGetOutput(
-          'getprop ro.build.version.sdk');
-      this.androidApiLevel = Number(version);
-      this.onTargetChange();
-    }
-
-    // TODO(octaviant): bring the websocket targets at feature parity with the
-    // webusb ones after the chain from aosp/2122732 lands.
-
-    const adbStream =
-        await this.adbConnection.connectSocket(this.consumerSocketPath);
-    const tracingSession =
-        new TracedTracingSession(adbStream, tracingSessionListener);
-    await tracingSession.initConnection();
-    return tracingSession;
-  }
-
-  canConnectWithoutContention(): Promise<boolean> {
-    return this.adbConnection.canConnectWithoutContention();
   }
 }

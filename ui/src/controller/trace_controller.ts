@@ -128,6 +128,13 @@ const FLAGGED_METRICS: Array<[Flag, string]> = METRICS.map((m) => {
   return [flag, m];
 });
 
+const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
+  id: 'enableChromeReliableRangeZoom',
+  name: 'Enable Chrome reliable range zoom',
+  description: 'Automatically zoom into the reliable range for Chrome traces',
+  defaultValue: false,
+});
+
 // TraceController handles handshakes with the frontend for everything that
 // concerns a single trace. It owns the WASM trace processor engine, handles
 // tracks data and SQL queries. There is one TraceController instance for each
@@ -794,6 +801,14 @@ export class TraceController extends Controller<States> {
   }
 }
 
+async function computeTraceReliableRangeStart(engine: Engine): Promise<number> {
+  const result =
+      await engine.query(`SELECT RUN_METRIC('chrome/chrome_reliable_range.sql');
+       SELECT start FROM chrome_reliable_range`);
+  const bounds = result.firstRow({start: NUM});
+  return bounds.start / 1e9;
+}
+
 async function computeVisibleTime(
     traceStartSec: number, traceEndSec: number, engine: Engine):
     Promise<[number, number]> {
@@ -817,5 +832,11 @@ async function computeVisibleTime(
         Math.max(visibleStartSec, mdTime.start - TRACE_MARGIN_TIME_S);
     visibleEndSec = Math.min(visibleEndSec, mdTime.end + TRACE_MARGIN_TIME_S);
   }
+
+  if (ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG.get()) {
+    const reliableRangeStart = await computeTraceReliableRangeStart(engine);
+    visibleStartSec = Math.max(visibleStartSec, reliableRangeStart);
+  }
+
   return [visibleStartSec, visibleEndSec];
 }

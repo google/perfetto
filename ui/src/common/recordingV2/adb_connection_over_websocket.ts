@@ -15,13 +15,12 @@
 import {_TextDecoder} from 'custom_utils';
 
 import {defer, Deferred} from '../../base/deferred';
-import {ArrayBufferBuilder} from '../array_buffer_builder';
 
+import {AdbConnectionImpl} from './adb_connection_impl';
 import {buildAbdWebsocketCommand} from './adb_over_websocket_utils';
 import {ALLOW_USB_DEBUGGING} from './adb_targets_utils';
 import {RecordingError} from './recording_error_handling';
 import {
-  AdbConnection,
   ByteStream,
   OnDisconnectCallback,
   OnStreamCloseCallback,
@@ -33,34 +32,14 @@ const textDecoder = new _TextDecoder();
 export const WEBSOCKET_UNABLE_TO_CONNECT =
     'Unable to connect to device via websocket.';
 
-export class AdbConnectionOverWebsocket implements AdbConnection {
+export class AdbConnectionOverWebsocket extends AdbConnectionImpl {
   private streams = new Set<AdbOverWebsocketStream>();
 
   onDisconnect: OnDisconnectCallback = (_) => {};
 
   constructor(
-      private deviceSerialNumber: string, private websocketUrl: string) {}
-
-  push(_binary: ArrayBuffer, _path: string): Promise<void> {
-    // TODO(octaviant) implement
-    throw new Error('Not implemented yet');
-  }
-
-  // Starts a shell command, then gathers all its output and returns it as
-  // a string.
-  async shellAndGetOutput(cmd: string): Promise<string> {
-    const adbStream = await this.shell(cmd);
-    const commandOutput = new ArrayBufferBuilder();
-    const onStreamingEnded = defer<string>();
-
-    adbStream.addOnStreamData((data: Uint8Array) => {
-      commandOutput.append(data);
-    });
-    adbStream.addOnStreamClose(() => {
-      onStreamingEnded.resolve(
-          textDecoder.decode(commandOutput.toArrayBuffer()));
-    });
-    return onStreamingEnded;
+      private deviceSerialNumber: string, private websocketUrl: string) {
+    super();
   }
 
   shell(cmd: string): Promise<AdbOverWebsocketStream> {
@@ -71,7 +50,7 @@ export class AdbConnectionOverWebsocket implements AdbConnection {
     return this.openStream(path);
   }
 
-  private async openStream(destination: string):
+  protected async openStream(destination: string):
       Promise<AdbOverWebsocketStream> {
     return AdbOverWebsocketStream.create(
         this.websocketUrl,
@@ -80,11 +59,14 @@ export class AdbConnectionOverWebsocket implements AdbConnection {
         this.closeStream.bind(this));
   }
 
-  disconnect(): void {
+  // The disconnection for AdbConnectionOverWebsocket is synchronous, but this
+  // method is async to have a common interface with other types of connections
+  // which are async.
+  async disconnect(disconnectMessage?: string): Promise<void> {
     for (const stream of this.streams) {
       stream.close();
     }
-    this.onDisconnect();
+    this.onDisconnect(disconnectMessage);
   }
 
   closeStream(stream: AdbOverWebsocketStream): void {
@@ -171,6 +153,11 @@ export class AdbOverWebsocketStream implements ByteStream {
     this._isConnected = false;
     this.removeFromConnection(this);
     this.signalStreamClosed();
+  }
+
+  // For websocket, the teardown happens synchronously.
+  async closeAndWaitForTeardown(): Promise<void> {
+    this.close();
   }
 
   write(msg: string|Uint8Array): void {
