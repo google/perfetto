@@ -62,6 +62,7 @@ class PERFETTO_EXPORT_COMPONENT TracingMuxer {
   using DataSourceFactory = std::function<std::unique_ptr<DataSourceBase>()>;
   virtual bool RegisterDataSource(const DataSourceDescriptor&,
                                   DataSourceFactory,
+                                  bool supports_multiple_instances,
                                   DataSourceStaticState*) = 0;
 
   // Updates the DataSourceDescriptor for the DataSource.
