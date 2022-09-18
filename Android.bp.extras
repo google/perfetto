@@ -107,14 +107,6 @@ python_library {
     data: [
         ":perfetto-trace-processor-python-data",
     ],
-    version: {
-        py2: {
-            enabled: false,
-        },
-        py3: {
-            enabled: true,
-        },
-    },
     libs: [
         "libprotobuf-python",
     ],
