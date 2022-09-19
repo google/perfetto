@@ -112,7 +112,7 @@ export function colorForState(state: string): Readonly<Color> {
       return DESAT_RED;
     }
     return ORANGE;
-  } else if (state.includes('Sleeping')) {
+  } else if (state.includes('Sleeping') || state.includes('Idle')) {
     return TRANSPARENT_WHITE;
   }
   return INDIGO;

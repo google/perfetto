@@ -256,9 +256,11 @@ uint32_t SchedEventTracker::AddRawEventAndStartSlice(uint32_t cpu,
 }
 
 StringId SchedEventTracker::TaskStateToStringId(int64_t task_state_int) {
-  auto kernel_version =
+  using ftrace_utils::TaskState;
+
+  base::Optional<VersionNumber> kernel_version =
       SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
-  auto task_state = ftrace_utils::TaskState(
+  TaskState task_state = TaskState::FromRawPrevState(
       static_cast<uint16_t>(task_state_int), kernel_version);
   return task_state.is_valid()
              ? context_->storage->InternString(task_state.ToString().data())
