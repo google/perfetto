@@ -133,8 +133,9 @@ function aggregationExpression(aggregation: Aggregation): string {
       expression(aggregation.column)})`;
 }
 
-export function extractArgumentExpression(argument: string) {
-  return `extract_arg(arg_set_id, ${sqliteString(argument)})`;
+export function extractArgumentExpression(argument: string, table?: string) {
+  const prefix = table === undefined ? '' : `${table}.`;
+  return `extract_arg(${prefix}arg_set_id, ${sqliteString(argument)})`;
 }
 
 function generateInnerQuery(
