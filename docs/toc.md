@@ -42,6 +42,7 @@
   * [Common queries](analysis/common-queries.md)
   * [SQL tables](analysis/sql-tables.autogen)
   * [Stats table](analysis/sql-stats.autogen)
+  * [Pivot tables](analysis/pivot-tables.md)
 
 * [Trace visualization](#)
   * [Perfetto UI](visualization/perfetto-ui.md)
@@ -79,7 +80,6 @@
     * [Heapprofd sampling](design-docs/heapprofd-sampling.md)
     * [Life of a tracing session](design-docs/life-of-a-tracing-session.md)
     * [Perfetto CI](design-docs/continuous-integration.md)
-    * [Pivot tables](design-docs/pivot-tables.md)
     * [ProtoZero](design-docs/protozero.md)
     * [Security model](design-docs/security-model.md)
     * [Statsd Checkpoint Atoms](design-docs/checkpoint-atoms.md)
