@@ -74,7 +74,7 @@ interface DrillFilter {
 function drillFilterColumnName(column: TableColumn): string {
   switch (column.kind) {
     case 'argument':
-      return extractArgumentExpression(column.argument);
+      return extractArgumentExpression(column.argument, 'slice');
     case 'regular':
       return `${column.table}.${column.column}`;
   }
