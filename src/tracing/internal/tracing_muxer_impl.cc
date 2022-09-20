@@ -1084,15 +1084,14 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
   PERFETTO_DCHECK_THREAD(thread_checker_);
   DataSourceStaticState& static_state = *rds.static_state;
 
-  if (!rds.supports_multiple_instances) {
-    for (uint32_t i = 0; i < kMaxDataSourceInstances; i++) {
-      if (static_state.TryGet(i)) {
-        PERFETTO_ELOG(
-            "Failed to setup data source because some another instance of this "
-            "data source is already active");
-        return FindDataSourceRes();
-      }
-    }
+  // If any bit is set in `static_state.valid_instances` then at least one
+  // other instance of data source is running.
+  if (!rds.supports_multiple_instances &&
+      static_state.valid_instances.load(std::memory_order_acquire) != 0) {
+    PERFETTO_ELOG(
+        "Failed to setup data source because some another instance of this "
+        "data source is already active");
+    return FindDataSourceRes();
   }
 
   for (uint32_t i = 0; i < kMaxDataSourceInstances; i++) {
