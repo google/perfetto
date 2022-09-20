@@ -291,7 +291,6 @@ class MockTracingMuxer : public perfetto::internal::TracingMuxer {
   bool RegisterDataSource(
       const perfetto::DataSourceDescriptor& dsd,
       DataSourceFactory,
-      bool,
       perfetto::internal::DataSourceStaticState* static_state) override {
     data_sources.emplace_back(DataSource{dsd, static_state});
     return true;
@@ -5734,100 +5733,6 @@ TEST_P(PerfettoStartupTracingApiTest, NoEventInStartupTracing) {
   tracing_session->get()->StopBlocking();
   auto slices = ReadSlicesFromTraceSession(tracing_session->get());
   EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
-}
-
-class ConcurrentSessionTest : public ::testing::Test {
- public:
-  void SetUp() override {
-    if (!perfetto::test::StartSystemService()) {
-      GTEST_SKIP();
-    }
-    ASSERT_FALSE(perfetto::Tracing::IsInitialized());
-  }
-
-  void InitPerfetto(bool supports_multiple_data_source_instances = true) {
-    TracingInitArgs args;
-    args.backends = perfetto::kInProcessBackend | perfetto::kSystemBackend;
-    args.supports_multiple_data_source_instances =
-        supports_multiple_data_source_instances;
-    g_test_tracing_policy->should_allow_consumer_connection = true;
-    args.tracing_policy = g_test_tracing_policy;
-    perfetto::Tracing::Initialize(args);
-    perfetto::TrackEvent::Register();
-    perfetto::test::SyncProducers();
-    perfetto::test::DisableReconnectLimit();
-  }
-
-  void TearDown() override { perfetto::Tracing::ResetForTesting(); }
-
-  static std::unique_ptr<perfetto::TracingSession> StartTracing(
-      perfetto::BackendType backend_type) {
-    perfetto::TraceConfig cfg;
-    cfg.add_buffers()->set_size_kb(1024);
-    auto* ds_cfg = cfg.add_data_sources()->mutable_config();
-    ds_cfg->set_name("track_event");
-    auto tracing_session = perfetto::Tracing::NewTrace(backend_type);
-    tracing_session->Setup(cfg);
-    tracing_session->StartBlocking();
-    return tracing_session;
-  }
-  std::vector<std::string> StopTracing(
-      std::unique_ptr<perfetto::TracingSession> tracing_session,
-      bool expect_incremental_state_cleared = true) {
-    perfetto::TrackEvent::Flush();
-    tracing_session->StopBlocking();
-    std::vector<char> trace_data(tracing_session->ReadTraceBlocking());
-    return ReadSlicesFromTrace(trace_data, expect_incremental_state_cleared);
-  }
-};
-
-// Verify that concurrent sessions works well by default.
-// (i.e. when `disallow_concurrent_sessions` param is not set)
-TEST_F(ConcurrentSessionTest, ConcurrentBackends) {
-  InitPerfetto();
-  auto tracing_session1 = StartTracing(perfetto::kSystemBackend);
-  TRACE_EVENT_BEGIN("test", "DrawGame1");
-
-  auto tracing_session2 = StartTracing(perfetto::kInProcessBackend);
-  // Should be recorded by both sessions.
-  TRACE_EVENT_BEGIN("test", "DrawGame2");
-
-  auto slices1 = StopTracing(std::move(tracing_session1));
-  EXPECT_THAT(slices1, ElementsAre("B:test.DrawGame1", "B:test.DrawGame2"));
-
-  auto slices2 = StopTracing(std::move(tracing_session2));
-  EXPECT_THAT(slices2, ElementsAre("B:test.DrawGame2"));
-
-  auto tracing_session3 = StartTracing(perfetto::kInProcessBackend);
-  TRACE_EVENT_BEGIN("test", "DrawGame3");
-
-  auto slices3 = StopTracing(std::move(tracing_session3));
-  EXPECT_THAT(slices3, ElementsAre("B:test.DrawGame3"));
-}
-
-// When `supports_multiple_data_source_instances = false`, second session
-// should not be started.
-TEST_F(ConcurrentSessionTest, DisallowMultipleSessionBasic) {
-  InitPerfetto(/* supports_multiple_data_source_instances = */ false);
-  auto tracing_session1 = StartTracing(perfetto::kInProcessBackend);
-  TRACE_EVENT_BEGIN("test", "DrawGame1");
-
-  auto tracing_session2 = StartTracing(perfetto::kInProcessBackend);
-  TRACE_EVENT_BEGIN("test", "DrawGame2");
-
-  auto slices1 = StopTracing(std::move(tracing_session1));
-  EXPECT_THAT(slices1, ElementsAre("B:test.DrawGame1", "B:test.DrawGame2"));
-
-  auto slices2 = StopTracing(std::move(tracing_session2),
-                             false /* expect_incremental_state_cleared */);
-  // Because `tracing_session2` was not really started.
-  EXPECT_THAT(slices2, ElementsAre());
-
-  auto tracing_session3 = StartTracing(perfetto::kInProcessBackend);
-  TRACE_EVENT_BEGIN("test", "DrawGame3");
-
-  auto slices3 = StopTracing(std::move(tracing_session3));
-  EXPECT_THAT(slices3, ElementsAre("B:test.DrawGame3"));
 }
 
 struct BackendTypeAsString {
