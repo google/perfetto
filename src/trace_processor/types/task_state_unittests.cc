@@ -23,66 +23,137 @@ namespace trace_processor {
 namespace ftrace_utils {
 namespace {
 
-using ::testing::ElementsAre;
+TEST(TaskStateUnittest, PrevStateDefaultsToKernelVersion4p4) {
+  auto from_raw = [](uint16_t raw) {
+    return TaskState::FromRawPrevState(raw, base::nullopt);
+  };
 
-TEST(TaskStateUnittest, Invalid) {
-  TaskState state;
-  ASSERT_FALSE(state.is_valid());
+  // No kernel version -> default to 4.4
+  EXPECT_STREQ(from_raw(0x0).ToString().data(), "R");
+  EXPECT_STREQ(from_raw(0x1).ToString().data(), "S");
+  EXPECT_STREQ(from_raw(0x2).ToString().data(), "D");
+  EXPECT_STREQ(from_raw(0x4).ToString().data(), "T");
+  EXPECT_STREQ(from_raw(0x8).ToString().data(), "t");
+  EXPECT_STREQ(from_raw(0x10).ToString().data(), "X");
+  EXPECT_STREQ(from_raw(0x20).ToString().data(), "Z");
+
+  EXPECT_STREQ(from_raw(0x40).ToString().data(), "x");
+  EXPECT_STREQ(from_raw(0x80).ToString().data(), "K");
+  EXPECT_STREQ(from_raw(0x100).ToString().data(), "W");
+  EXPECT_STREQ(from_raw(0x200).ToString().data(), "P");
+  EXPECT_STREQ(from_raw(0x400).ToString().data(), "N");
+
+  EXPECT_STREQ(from_raw(0x800).ToString().data(), "R+");
+
+  // composite states:
+  EXPECT_STREQ(from_raw(0x82).ToString().data(), "DK");
+  EXPECT_STREQ(from_raw(0x102).ToString().data(), "DW");
 }
 
-TEST(TaskStateUnittest, Smoke) {
-  auto state = TaskState(static_cast<uint16_t>(0u));
-  ASSERT_TRUE(state.is_valid());
+TEST(TaskStateUnittest, KernelVersion4p8) {
+  auto from_raw = [](uint16_t raw) {
+    return TaskState::FromRawPrevState(raw, VersionNumber{4, 8});
+  };
 
-  ASSERT_STREQ(state.ToString().data(), "R");
-  ASSERT_STREQ(TaskState(1).ToString().data(), "S");
-  ASSERT_STREQ(TaskState(2).ToString().data(), "D");
-  ASSERT_STREQ(TaskState(4).ToString().data(), "T");
-  ASSERT_STREQ(TaskState(8).ToString().data(), "t");
-  ASSERT_STREQ(TaskState(16).ToString().data(), "X");
-  ASSERT_STREQ(TaskState(32).ToString().data(), "Z");
-  ASSERT_STREQ(TaskState(64).ToString().data(), "I");
-  ASSERT_STREQ(TaskState(128).ToString().data(), "K");
-  ASSERT_STREQ(TaskState(256).ToString().data(), "W");
-  ASSERT_STREQ(TaskState(512).ToString().data(), "P");
-  ASSERT_STREQ(TaskState(1024).ToString().data(), "N");
+  // Same as defaults (4.4) except for preempt flag.
+  EXPECT_STREQ(from_raw(0x0).ToString().data(), "R");
+  EXPECT_STREQ(from_raw(0x1).ToString().data(), "S");
+  EXPECT_STREQ(from_raw(0x2).ToString().data(), "D");
+  EXPECT_STREQ(from_raw(0x4).ToString().data(), "T");
+  EXPECT_STREQ(from_raw(0x8).ToString().data(), "t");
+  EXPECT_STREQ(from_raw(0x10).ToString().data(), "X");
+  EXPECT_STREQ(from_raw(0x20).ToString().data(), "Z");
+
+  EXPECT_STREQ(from_raw(0x40).ToString().data(), "x");
+  EXPECT_STREQ(from_raw(0x80).ToString().data(), "K");
+  EXPECT_STREQ(from_raw(0x100).ToString().data(), "W");
+  EXPECT_STREQ(from_raw(0x200).ToString().data(), "P");
+  EXPECT_STREQ(from_raw(0x400).ToString().data(), "N");
+
+  EXPECT_STREQ(from_raw(0x1000).ToString().data(), "R+");
 }
 
-TEST(TaskStateUnittest, MultipleState) {
-  ASSERT_STREQ(TaskState(130).ToString().data(), "DK");
-  ASSERT_STREQ(TaskState(258).ToString().data(), "DW");
+TEST(TaskStateUnittest, KernelVersion4p14) {
+  auto from_raw = [](uint16_t raw) {
+    return TaskState::FromRawPrevState(raw, VersionNumber{4, 14});
+  };
 
-  ASSERT_EQ(TaskState("D|K").raw_state(), 130);
-  ASSERT_EQ(TaskState("D|W").raw_state(), 258);
+  EXPECT_STREQ(from_raw(0x0).ToString().data(), "R");
+  EXPECT_STREQ(from_raw(0x1).ToString().data(), "S");
+  EXPECT_STREQ(from_raw(0x2).ToString().data(), "D");
+  EXPECT_STREQ(from_raw(0x4).ToString().data(), "T");
+  EXPECT_STREQ(from_raw(0x8).ToString().data(), "t");
+  EXPECT_STREQ(from_raw(0x10).ToString().data(), "X");
+  EXPECT_STREQ(from_raw(0x20).ToString().data(), "Z");
+
+  EXPECT_STREQ(from_raw(0x40).ToString().data(), "P");
+  EXPECT_STREQ(from_raw(0x80).ToString().data(), "I");
+
+  EXPECT_STREQ(from_raw(0x100).ToString().data(), "R+");
 }
 
-TEST(TaskStateUnittest, KernelVersion) {
-  auto state = TaskState(static_cast<uint16_t>(0u), VersionNumber{4, 14});
-  ASSERT_TRUE(state.is_valid());
-
-  ASSERT_STREQ(state.ToString().data(), "R");
-  ASSERT_STREQ(TaskState(1, VersionNumber{4, 14}).ToString().data(), "S");
-  ASSERT_STREQ(TaskState(2, VersionNumber{4, 14}).ToString().data(), "D");
-  ASSERT_STREQ(TaskState(4, VersionNumber{4, 14}).ToString().data(), "T");
-  ASSERT_STREQ(TaskState(8, VersionNumber{4, 14}).ToString().data(), "t");
-  ASSERT_STREQ(TaskState(16, VersionNumber{4, 14}).ToString().data(), "X");
-  ASSERT_STREQ(TaskState(32, VersionNumber{4, 14}).ToString().data(), "Z");
-  ASSERT_STREQ(TaskState(64, VersionNumber{4, 14}).ToString().data(), "P");
-  ASSERT_STREQ(TaskState(128, VersionNumber{4, 14}).ToString().data(), "I");
-
-  // Any without a specific state but less than max are runnable in this kernel.
-  ASSERT_STREQ(TaskState(256, VersionNumber{4, 14}).ToString().data(), "R");
-  ASSERT_STREQ(TaskState(512, VersionNumber{4, 14}).ToString().data(), "R");
-  ASSERT_STREQ(TaskState(1024, VersionNumber{4, 14}).ToString().data(), "R");
-  ASSERT_STREQ(TaskState(2048, VersionNumber{4, 14}).ToString().data(), "R");
+TEST(TaskStateUnittest, PreemptedFlag) {
+  // Historical TASK_STATE_MAX as of 4.4:
+  {
+    TaskState state = TaskState::FromRawPrevState(0x0800, base::nullopt);
+    EXPECT_STREQ(state.ToString().data(), "R+");
+  }
+  // TASK_STATE_MAX moved due to TASK_NEW:
+  {
+    TaskState state = TaskState::FromRawPrevState(0x1000, VersionNumber{4, 8});
+    EXPECT_STREQ(state.ToString().data(), "R+");
+  }
+  // sched_switch changed to use TASK_REPORT_MAX with one report-specific flag
+  // (TASK_REPORT_IDLE):
+  {
+    TaskState state = TaskState::FromRawPrevState(0x0100, VersionNumber{4, 14});
+    EXPECT_STREQ(state.ToString().data(), "R+");
+  }
+  {
+    TaskState state = TaskState::FromRawPrevState(0x0100, VersionNumber{6, 0});
+    EXPECT_STREQ(state.ToString().data(), "R+");
+  }
 }
 
-TEST(TaskStateUnittest, MaxValueKernelVersion) {
-  // Max value means pre-empted but is different for each kernel version.
-  ASSERT_STREQ(TaskState(2048).ToString().data(), "R+");
-  ASSERT_STREQ(TaskState(2048, VersionNumber{4, 8}).ToString().data(), "R+");
-  ASSERT_STREQ(TaskState(4096, VersionNumber{4, 14}).ToString().data(), "R+");
-  ASSERT_STREQ(TaskState(4096, VersionNumber{4, 19}).ToString().data(), "R+");
+TEST(TaskStateUnittest, FromParsedFlags) {
+  {
+    TaskState state =
+        TaskState::FromParsedFlags(TaskState::kInterruptibleSleep);
+    EXPECT_STREQ(state.ToString().data(), "S");
+  }
+  {
+    TaskState state = TaskState::FromParsedFlags(TaskState::kParked);
+    EXPECT_STREQ(state.ToString().data(), "P");
+  }
+  {
+    TaskState state = TaskState::FromParsedFlags(TaskState::kRunnable |
+                                                 TaskState::kPreempted);
+    EXPECT_STREQ(state.ToString().data(), "R+");
+  }
+}
+
+// Covers both:
+// * parsing from systrace format ("prev_state=D|K")
+// * traceconv serializing the "raw" table into systrace format
+// See TODOs attached to b/247222275 for known bugs.
+TEST(TaskStateUnittest, Systrace) {
+  auto roundtrip = [](const char* in) {
+    uint16_t raw =
+        TaskState::FromSystrace(in).ToRawStateOnlyForSystraceConversions();
+    return TaskState::FromRawPrevState(raw, base::nullopt).ToString('|');
+  };
+
+  EXPECT_STREQ(roundtrip("R").data(), "R");
+  EXPECT_STREQ(roundtrip("R+").data(), "R+");
+  EXPECT_STREQ(roundtrip("S").data(), "S");
+  EXPECT_STREQ(roundtrip("P").data(), "P");
+  EXPECT_STREQ(roundtrip("x").data(), "x");
+  EXPECT_STREQ(roundtrip("D|K").data(), "D|K");
+
+  // Idle state is parsed into kIdle when ingesting systrace, but not
+  // re-expanded when converting a trace to systrace format.
+  EXPECT_EQ(TaskState::FromSystrace("I").ParsedForTesting(), TaskState::kIdle);
+  EXPECT_STREQ(roundtrip("I").data(), "D|N");
 }
 
 }  // namespace
