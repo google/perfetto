@@ -281,6 +281,14 @@ void SystraceParser::ParseSystracePoint(
         context_->event_tracker->PushCounter(
             ts, static_cast<double>(point.int_value), track);
         return;
+      } else if (point.name.StartsWith("battery_stats.")) {
+        // Promote battery_stats conters to global tracks.
+        StringId name_id = context_->storage->InternString(point.name);
+        TrackId track =
+            context_->track_tracker->InternGlobalCounterTrack(name_id);
+        context_->event_tracker->PushCounter(
+            ts, static_cast<double>(point.int_value), track);
+        return;
       }
 
       // This is per upid on purpose. Some long-standing counters are pushed
