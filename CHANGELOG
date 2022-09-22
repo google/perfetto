@@ -2,7 +2,10 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    *
+    * Scheduling: fixed parsing of "R+" (preempted) and "I" (idle kernel
+      thread) end states in |sched.end_state| for traces collected on Linux
+      kernels v4.14 and above. Previously, preemption was not recognised, and
+      idle was reported as "x" (task dead). See commit c60a630cfe0.
   UI:
     *
   SDK:
