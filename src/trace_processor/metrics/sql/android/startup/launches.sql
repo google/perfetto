@@ -48,7 +48,8 @@ CREATE TABLE launches(
   ts BIG INT,
   ts_end BIG INT,
   dur BIG INT,
-  package STRING
+  package STRING,
+  launch_type STRING
 );
 
 -- Note: on Q, we didn't have Android fingerprints but we *did*
@@ -94,6 +95,8 @@ FROM (
     launch_id,
     upid,
     CASE
+      -- type parsed from platform event takes precedence if available
+      WHEN launch_type IS NOT NULL THEN launch_type
       WHEN bind_app > 0 AND a_start > 0 AND a_resume > 0 THEN 'cold'
       WHEN a_start > 0 AND a_resume > 0 THEN 'warm'
       WHEN a_resume > 0 THEN 'hot'
@@ -102,6 +105,7 @@ FROM (
   FROM (
     SELECT
       l.id AS launch_id,
+      l.launch_type,
       p.upid,
       STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'bindApplication') bind_app,
       STARTUP_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityStart') a_start,
