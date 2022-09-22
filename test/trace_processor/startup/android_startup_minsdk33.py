@@ -35,4 +35,12 @@ trace.add_atrace_instant(
     pid=2,
     buf='launchingActivity#1:completed:com.google.android.calendar')
 
+trace.add_atrace_async_begin(ts=220, tid=2, pid=2, buf='launchingActivity#2')
+trace.add_atrace_async_end(ts=230, tid=2, pid=2, buf='launchingActivity#2')
+trace.add_atrace_instant(
+    ts=231,
+    tid=2,
+    pid=2,
+    buf='launchingActivity#2:completed-hot:com.google.android.calendar')
+
 sys.stdout.buffer.write(trace.trace.SerializeToString())
