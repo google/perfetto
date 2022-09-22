@@ -27,13 +27,37 @@
 //  IMPORTANT: This header must not pull any non-public perfetto header.
 
 #include <stdint.h>
+
 #include "perfetto/tracing.h"
 
 namespace perfetto {
 namespace test {
 
 int32_t GetCurrentProcessId();
-bool StartSystemService();
+
+// RAII wrapper to start and stop an in process system service. Only one at a
+// time can be started.
+class SystemService {
+ public:
+  static SystemService Start();
+  SystemService() = default;
+  SystemService(SystemService&& other) noexcept { *this = std::move(other); }
+  SystemService& operator=(SystemService&&) noexcept;
+
+  ~SystemService() { Clean(); }
+
+  // Returns true if this SystemService has been started successfully and can be
+  // used.
+  bool valid() const { return valid_; }
+
+  void Clean();
+
+ private:
+  SystemService(const SystemService&) = delete;
+  SystemService& operator=(const SystemService&) = delete;
+  bool valid_ = false;
+};
+
 void SyncProducers();
 
 void SetBatchCommitsDuration(uint32_t batch_commits_duration_ms,
