@@ -56,7 +56,7 @@ export function createPage(component: m.Component<PageAttrs>):
         m(Alerts),
         m(component, attrs),
         m(CookieConsent),
-        fullscreenModalContainer.render(),
+        m(fullscreenModalContainer.mithrilComponent),
       ];
       if (globals.state.perfDebug) {
         children.push(m('.perf-stats'));
