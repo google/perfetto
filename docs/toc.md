@@ -71,6 +71,7 @@
     * [Embedding Perfetto](contributing/embedding.md)
     * [Releasing the SDK](contributing/sdk-releasing.md)
     * [Chrome branches](contributing/chrome-branches.md)
+    * [UI development](contributing/ui-development.md)
 
 * [Design documents](#)
     * [API and ABI surface](design-docs/api-and-abi.md)
