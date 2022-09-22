@@ -18,8 +18,6 @@
 
 #include <string.h>
 
-#include "perfetto/base/logging.h"
-
 namespace perfetto {
 namespace trace_processor {
 namespace ftrace_utils {
@@ -168,7 +166,8 @@ TaskState::TaskStateStr TaskState::ToString(char separator) const {
   }
 
   TaskStateStr output{};
-  memcpy(output.data(), buffer, std::min(pos, output.size() - 1));
+  size_t sz = (pos < output.size() - 1) ? pos : output.size() - 1;
+  memcpy(output.data(), buffer, sz);
   return output;
 }
 
