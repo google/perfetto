@@ -15,13 +15,14 @@
 --
 
 -- Cold/warm starts emitted launching slices on API level 28-.
-INSERT INTO launches(id, ts, ts_end, dur, package)
+INSERT INTO launches(id, ts, ts_end, dur, package, launch_type)
 SELECT
   ROW_NUMBER() OVER(ORDER BY ts) AS id,
   launching_events.ts AS ts,
   launching_events.ts_end AS ts_end,
   launching_events.ts_end - launching_events.ts AS dur,
-  package_name AS package
+  package_name AS package,
+  NULL AS launch_type
 FROM launching_events
 ORDER BY ts;
 
