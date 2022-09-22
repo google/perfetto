@@ -172,6 +172,14 @@ void SetEnv(const std::string& key, const std::string& value) {
 #endif
 }
 
+void UnsetEnv(const std::string& key) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  PERFETTO_CHECK(::_putenv_s(key.c_str(), "") == 0);
+#else
+  PERFETTO_CHECK(::unsetenv(key.c_str()) == 0);
+#endif
+}
+
 void Daemonize(std::function<int()> parent_cb) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \

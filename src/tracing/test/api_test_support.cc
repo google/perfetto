@@ -16,6 +16,7 @@
 
 #include "src/tracing/test/api_test_support.h"
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/proc_utils.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/temp_file.h"
@@ -45,37 +46,68 @@ class InProcessSystemService {
     test_helper_.StartServiceIfRequired();
   }
 
+  void CleanEnv() { test_helper_.CleanEnv(); }
+
  private:
   perfetto::base::TestTaskRunner task_runner_;
   perfetto::TestHelper test_helper_;
 };
 
+InProcessSystemService* g_system_service = nullptr;
+
 }  // namespace
 
-bool StartSystemService() {
-  static InProcessSystemService* system_service;
-
+// static
+SystemService SystemService::Start() {
   // If there already was a system service running, make sure the new one is
   // running before tearing down the old one. This avoids a 1 second
   // reconnection delay between each test since the connection to the new
   // service succeeds immediately.
-  std::unique_ptr<InProcessSystemService> old_service(system_service);
-  system_service = new InProcessSystemService();
+  std::unique_ptr<InProcessSystemService> old_service(g_system_service);
+  if (old_service) {
+    old_service->CleanEnv();
+  }
+  g_system_service = new InProcessSystemService();
 
   // Tear down the service at process exit to make sure temporary files get
   // deleted.
   static bool cleanup_registered;
   if (!cleanup_registered) {
-    atexit([] { delete system_service; });
+    atexit([] { delete g_system_service; });
     cleanup_registered = true;
   }
-  return true;
+  SystemService ret;
+  ret.valid_ = true;
+  return ret;
+}
+
+void SystemService::Clean() {
+  if (valid_) {
+    if (g_system_service) {
+      // Does not really stop. We want to reuse the service in future tests. It
+      // is important to clean the environment variables, though.
+      g_system_service->CleanEnv();
+    }
+  }
+  valid_ = false;
 }
 #else   // !PERFETTO_BUILDFLAG(PERFETTO_IPC)
-bool StartSystemService() {
-  return false;
+// static
+SystemService SystemService::Start() {
+  return SystemService();
+}
+void SystemService::Clean() {
+  valid_ = false;
 }
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_IPC)
+
+SystemService& SystemService::operator=(SystemService&& other) noexcept {
+  PERFETTO_CHECK(!valid_ || !other.valid_);
+  Clean();
+  valid_ = other.valid_;
+  other.valid_ = false;
+  return *this;
+}
 
 int32_t GetCurrentProcessId() {
   return static_cast<int32_t>(base::GetProcessId());

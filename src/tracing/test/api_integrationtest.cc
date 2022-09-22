@@ -452,11 +452,13 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
     g_test_tracing_policy->should_allow_consumer_connection = true;
 
     // Start a fresh system service for this test, tearing down any previous
-    // service that was running. If the system backend isn't supported, skip all
-    // system backend tests.
-    if (GetParam() == perfetto::kSystemBackend &&
-        !perfetto::test::StartSystemService()) {
-      GTEST_SKIP();
+    // service that was running.
+    if (GetParam() == perfetto::kSystemBackend) {
+      system_service_ = perfetto::test::SystemService::Start();
+      // If the system backend isn't supported, skip all system backend tests.
+      if (!system_service_.valid()) {
+        GTEST_SKIP();
+      }
     }
 
     EXPECT_FALSE(perfetto::Tracing::IsInitialized());
@@ -785,6 +787,7 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
     return 0;
   }
 
+  perfetto::test::SystemService system_service_;
   std::map<std::string, TestDataSourceHandle> data_sources_;
   std::list<TestTracingSessionHandle> sessions_;  // Needs stable pointers.
 };
@@ -4955,7 +4958,9 @@ TEST_P(PerfettoApiTest, EmptyEvent) {
 TEST(PerfettoApiInitTest, DisableSystemConsumer) {
   g_test_tracing_policy->should_allow_consumer_connection = true;
 
-  if (!perfetto::test::StartSystemService()) {
+  auto system_service = perfetto::test::SystemService::Start();
+  // If the system backend isn't supported, skip
+  if (!system_service.valid()) {
     GTEST_SKIP();
   }
 
