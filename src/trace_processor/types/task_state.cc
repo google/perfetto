@@ -16,118 +16,116 @@
 
 #include "src/trace_processor/types/task_state.h"
 
-#include <stdint.h>
-#include <algorithm>
-
-#include "perfetto/base/logging.h"
-#include "perfetto/ext/base/string_writer.h"
+#include <string.h>
 
 namespace perfetto {
 namespace trace_processor {
 namespace ftrace_utils {
 
+// static
+TaskState TaskState::FromRawPrevState(
+    uint16_t raw_state,
+    base::Optional<VersionNumber> kernel_version) {
+  return TaskState(raw_state, kernel_version);
+}
+
+// static
+TaskState TaskState::FromSystrace(const char* state_str) {
+  return TaskState(state_str);
+}
+
+// static
+TaskState TaskState::FromParsedFlags(uint16_t parsed_state) {
+  TaskState ret;
+  ret.parsed_ = parsed_state;
+  return ret;
+}
+
+// See header for extra details.
+//
+// Note to maintainers: going forward, the most likely "breaking" changes are:
+// * a new flag is added to TASK_REPORT (see include/linux/sched.h kernel src)
+// * a new report-specific flag is added above TASK_REPORT
+// In both cases, this will change the value of TASK_REPORT_MAX that is used to
+// report preemption is sched_switch. We'll need to modify this class to keep
+// up, or make traced_probes record the sched_switch format string in traces.
+//
+// Note to maintainers: if changing the default kernel assumption or the 4.4
+// codepath, you'll need to update ToRawStateOnlyForSystraceConversions().
 TaskState::TaskState(uint16_t raw_state,
                      base::Optional<VersionNumber> opt_version) {
+  // Values up to and including 0x20 (EXIT_ZOMBIE) never changed, so map them
+  // directly onto ParsedFlag (we use the same flag bits for convenience).
+  parsed_ = raw_state & (0x40 - 1);
+
+  // Parsing upper bits depends on kernel version. Default to 4.4 because old
+  // perfetto traces don't record kernel version.
   auto version = VersionNumber{4, 4};
   if (opt_version) {
     version = opt_version.value();
   }
-  max_state_ = version < VersionNumber{4, 9} ? 2048 : 4096;
 
-  if (raw_state > max_state_) {
-    state_ = 0;
-  } else {
-    state_ |= kValid;
-  }
+  // Kernels 4.14+: flags up to and including 0x40 (TASK_PARKED) are reported
+  // with their scheduler values. Whereas flags 0x80 (normally TASK_DEAD) and
+  // above are masked off and repurposed for reporting-specific values.
+  if (version >= VersionNumber{4, 14}) {
+    if (raw_state & 0x40)  // TASK_PARKED
+      parsed_ |= kParked;
 
-  if (version < VersionNumber{4, 14}) {
-    state_ |= raw_state;
+    // REPORT_TASK_IDLE (0x80), which reports the TASK_IDLE composite state
+    // (TASK_UNINTERRUPTIBLE | TASK_NOLOAD):
+    if (raw_state & 0x80) {
+      parsed_ |= kIdle;
+    }
+
+    // REPORT_TASK_MAX that sched_switch uses to report preemption. At the time
+    // of writing 0x100 because REPORT_TASK_IDLE is the only report-specific
+    // flag:
+    if (raw_state & 0x100)
+      parsed_ |= kPreempted;
+
+    // Attempt to notice REPORT_TASK_MAX changing. If this dcheck fires, please
+    // file a bug report against perfetto.
+    if (raw_state & 0x200) {
+      parsed_ = kInvalid;
+      PERFETTO_DCHECK(false);
+    }
     return;
   }
-  // All values below kTaskDead are consistent between kernels.
-  state_ |= raw_state & (kTaskDead - 1);
 
-  // Only values up to 0x80 (plus max_state) are relevant in kernels >= 4.14.
-  // See
-  // https://android.googlesource.com/kernel/msm.git/+/refs/heads/android-msm-coral-4.14-android10-qpr1/include/trace/events/sched.h#219
-  if (raw_state & 0x40) {
-    state_ |= kParked;
-  }
-  if (raw_state & 0x80) {
-    state_ |= kTaskDead;
-  }
-  if (raw_state & max_state_) {
-    state_ |= max_state_;
-  }
-}
+  // Before 4.14, sched_switch reported the full set of scheduler flags
+  // (without masking down to TASK_REPORT). Note: several flags starting at
+  // 0x40 have a different value to the above because 4.14 reordered them.
+  // See https://github.com/torvalds/linux/commit/8ef9925b02.
+  if (raw_state & 0x40)  // TASK_DEAD
+    parsed_ |= kTaskDead;
+  if (raw_state & 0x80)  // TASK_WAKEKILL
+    parsed_ |= kWakeKill;
+  if (raw_state & 0x100)  // TASK_WAKING
+    parsed_ |= kWaking;
+  if (raw_state & 0x200)  // TASK_PARKED
+    parsed_ |= kParked;
+  if (raw_state & 0x400)  // TASK_NOLOAD
+    parsed_ |= kNoLoad;
 
-TaskState::TaskState(const char* state_str) {
-  bool invalid_char = false;
-  bool is_runnable = false;
-  for (size_t i = 0; state_str[i] != '\0'; i++) {
-    char c = state_str[i];
-    if (is_kernel_preempt()) {
-      // No other character should be encountered after '+'.
-      invalid_char = true;
-      break;
-    } else if (c == '+') {
-      state_ |= max_state_;
-      continue;
-    }
+  // Note: we do not bother with converting kUninterruptibleSleep+kNoLoad into
+  // kIdle in this codepath for simplicity. Users that really care about
+  // kthread idle state on older kernels will need to know that "DN" is a
+  // synonym.
 
-    if (is_runnable) {
-      // We should not encounter any character apart from '+' if runnable.
-      invalid_char = true;
-      break;
-    }
-
-    if (c == 'R') {
-      if (state_ != 0) {
-        // We should not encounter R if we already have set other atoms.
-        invalid_char = true;
-        break;
-      } else {
-        is_runnable = true;
-        continue;
-      }
-    }
-
-    if (c == 'S')
-      state_ |= Atom::kInterruptibleSleep;
-    else if (c == 'D')
-      state_ |= Atom::kUninterruptibleSleep;
-    else if (c == 'T')
-      state_ |= Atom::kStopped;
-    else if (c == 't')
-      state_ |= Atom::kTraced;
-    else if (c == 'X')
-      state_ |= Atom::kExitDead;
-    else if (c == 'Z')
-      state_ |= Atom::kExitZombie;
-    else if (c == 'x' || c == 'I')
-      // On Linux kernels 4.14+, the character for task dead changed
-      // from 'x' to 'I'.
-      state_ |= Atom::kTaskDead;
-    else if (c == 'K')
-      state_ |= Atom::kWakeKill;
-    else if (c == 'W')
-      state_ |= Atom::kWaking;
-    else if (c == 'P')
-      state_ |= Atom::kParked;
-    else if (c == 'N')
-      state_ |= Atom::kNoLoad;
-    else if (c == '|')
-      continue;
-    else {
-      invalid_char = true;
-      break;
-    }
-  }
-  bool no_state = !is_runnable && state_ == 0;
-  if (invalid_char || no_state || state_ > max_state_) {
-    state_ = 0;
+  // Kernel version range [4.8, 4.14) has TASK_NEW, hence preemption
+  // (TASK_STATE_MAX) is 0x1000. We don't decode TASK_NEW itself since it will
+  // never show up in sched_switch.
+  if (version >= VersionNumber{4, 8}) {
+    if (raw_state & 0x1000)
+      parsed_ |= kPreempted;
   } else {
-    state_ |= kValid;
+    // Kernel (..., 4.8), preemption (TASK_STATE_MAX) is 0x800. Assume all
+    // kernels in this range have the 4.4 state of the bitmask. This is most
+    // likely incorrect on <4.2 as that's when TASK_NOLOAD was introduced
+    // (which means preemption is reported at a different bit).
+    if (raw_state & 0x800)
+      parsed_ |= kPreempted;
   }
 }
 
@@ -136,75 +134,118 @@ TaskState::TaskStateStr TaskState::ToString(char separator) const {
     return TaskStateStr{"?"};
   }
 
+  // Character aliases follow sched_switch's format string.
   char buffer[32];
   size_t pos = 0;
-
-  // This mapping is given by the file
-  // https://android.googlesource.com/kernel/msm.git/+/android-msm-wahoo-4.4-pie-qpr1/include/trace/events/sched.h#155
-  // Some of these flags are ignored in later kernels but we output them anyway.
   if (is_runnable()) {
     buffer[pos++] = 'R';
+    if (parsed_ & kPreempted) {
+      buffer[pos++] = '+';
+      PERFETTO_DCHECK(parsed_ == kPreempted);
+    }
   } else {
-    if (state_ & Atom::kInterruptibleSleep)
-      buffer[pos++] = 'S';
-    if (state_ & Atom::kUninterruptibleSleep) {
+    auto append = [&](ParsedFlag flag, char c) {
+      if (!(parsed_ & flag))
+        return;
       if (separator && pos != 0)
         buffer[pos++] = separator;
-      buffer[pos++] = 'D';  // D for (D)isk sleep
-    }
-    if (state_ & Atom::kStopped) {
-      if (separator && pos != 0)
-        buffer[pos++] = separator;
-      buffer[pos++] = 'T';
-    }
-    if (state_ & Atom::kTraced) {
-      if (separator && pos != 0)
-        buffer[pos++] = separator;
-      buffer[pos++] = 't';
-    }
-    if (state_ & Atom::kExitDead) {
-      if (separator && pos != 0)
-        buffer[pos++] = separator;
-      buffer[pos++] = 'X';
-    }
-    if (state_ & Atom::kExitZombie) {
-      if (separator && pos != 0)
-        buffer[pos++] = separator;
-      buffer[pos++] = 'Z';
-    }
-    if (state_ & Atom::kTaskDead) {
-      if (separator && pos != 0)
-        buffer[pos++] = separator;
-      buffer[pos++] = 'I';
-    }
-    if (state_ & Atom::kWakeKill) {
-      if (separator && pos != 0)
-        buffer[pos++] = separator;
-      buffer[pos++] = 'K';
-    }
-    if (state_ & Atom::kWaking) {
-      if (separator && pos != 0)
-        buffer[pos++] = separator;
-      buffer[pos++] = 'W';
-    }
-    if (state_ & Atom::kParked) {
-      if (separator && pos != 0)
-        buffer[pos++] = separator;
-      buffer[pos++] = 'P';
-    }
-    if (state_ & Atom::kNoLoad) {
-      if (separator && pos != 0)
-        buffer[pos++] = separator;
-      buffer[pos++] = 'N';
-    }
+      buffer[pos++] = c;
+    };
+    append(kInterruptibleSleep, 'S');
+    append(kUninterruptibleSleep, 'D');  // (D)isk sleep
+    append(kStopped, 'T');
+    append(kTraced, 't');
+    append(kExitDead, 'X');
+    append(kExitZombie, 'Z');
+    append(kParked, 'P');
+    append(kTaskDead, 'x');
+    append(kWakeKill, 'K');
+    append(kWaking, 'W');
+    append(kNoLoad, 'N');
+    append(kIdle, 'I');
   }
 
-  if (is_kernel_preempt())
-    buffer[pos++] = '+';
-
   TaskStateStr output{};
-  memcpy(output.data(), buffer, std::min(pos, output.size() - 1));
+  size_t sz = (pos < output.size() - 1) ? pos : output.size() - 1;
+  memcpy(output.data(), buffer, sz);
   return output;
+}
+
+// Used when parsing systrace, i.e. textual ftrace output.
+TaskState::TaskState(const char* state_str) {
+  parsed_ = 0;
+  if (!state_str || state_str[0] == '\0') {
+    parsed_ = kInvalid;
+    return;
+  }
+
+  // R or R+, otherwise invalid
+  if (state_str[0] == 'R') {
+    parsed_ = kRunnable;
+    if (!strncmp(state_str, "R+", 3))
+      parsed_ |= kPreempted;
+    return;
+  }
+
+  for (size_t i = 0; state_str[i] != '\0'; i++) {
+    char c = state_str[i];
+    if (c == 'R' || c == '+') {
+      parsed_ = kInvalid;
+      return;
+    }
+    if (c == '|')
+      continue;
+
+    auto parse = [&](ParsedFlag flag, char symbol) {
+      if (c == symbol)
+        parsed_ |= flag;
+      return c == symbol;
+    };
+    bool recognized = false;
+    recognized |= parse(kInterruptibleSleep, 'S');
+    recognized |= parse(kUninterruptibleSleep, 'D');  // (D)isk sleep
+    recognized |= parse(kStopped, 'T');
+    recognized |= parse(kTraced, 't');
+    recognized |= parse(kExitDead, 'X');
+    recognized |= parse(kExitZombie, 'Z');
+    recognized |= parse(kParked, 'P');
+    recognized |= parse(kTaskDead, 'x');
+    recognized |= parse(kWakeKill, 'K');
+    recognized |= parse(kWaking, 'W');
+    recognized |= parse(kNoLoad, 'N');
+    recognized |= parse(kIdle, 'I');
+    if (!recognized) {
+      parsed_ = kInvalid;
+      return;
+    }
+  }
+}
+
+// Hard-assume 4.4 flag layout per the header rationale.
+uint16_t TaskState::ToRawStateOnlyForSystraceConversions() const {
+  if (parsed_ == kInvalid)
+    return 0xffff;
+
+  if (parsed_ == kPreempted)
+    return 0x0800;
+
+  uint16_t ret = parsed_ & (0x40 - 1);
+  if (parsed_ & kTaskDead)
+    ret |= 0x40;
+  if (parsed_ & kWakeKill)
+    ret |= 0x80;
+  if (parsed_ & kWaking)
+    ret |= 0x100;
+  if (parsed_ & kParked)
+    ret |= 0x200;
+  if (parsed_ & kNoLoad)
+    ret |= 0x400;
+
+  // Expand kIdle into the underlying kUninterruptibleSleep + kNoLoad.
+  if (parsed_ & kIdle)
+    ret |= (0x2 | 0x400);
+
+  return ret;
 }
 
 }  // namespace ftrace_utils

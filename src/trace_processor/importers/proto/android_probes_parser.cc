@@ -381,7 +381,8 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
                                                             blob.size);
   for (auto it = properties.values(); it; ++it) {
     protos::pbzero::AndroidSystemProperty::PropertyValue::Decoder kv(*it);
-    if (base::StringView(kv.name()) == "debug.tracing.screen_state") {
+    base::StringView name(kv.name());
+    if (name == "debug.tracing.screen_state") {
       base::Optional<int32_t> state =
           base::StringToInt32(kv.value().ToStdString());
       if (state) {
@@ -389,7 +390,7 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
             context_->track_tracker->InternGlobalCounterTrack(screen_state_id_);
         context_->event_tracker->PushCounter(ts, *state, track);
       }
-    } else if (base::StringView(kv.name()) == "debug.tracing.device_state") {
+    } else if (name == "debug.tracing.device_state") {
       auto state = kv.value();
 
       StringId state_id = context_->storage->InternString(state);
@@ -399,6 +400,16 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
       TrackId track_id =
           context_->async_track_set_tracker->Scoped(track_set_id, ts, 0);
       context_->slice_tracker->Scoped(ts, track_id, kNullStringId, state_id, 0);
+    } else if (name.StartsWith("debug.tracing.battery_stats.")) {
+      base::StringView battery_stat = name.substr(strlen("debug.tracing."));
+      StringId name_id = context_->storage->InternString(battery_stat);
+      base::Optional<int32_t> state =
+          base::StringToInt32(kv.value().ToStdString());
+      if (state) {
+        TrackId track =
+            context_->track_tracker->InternGlobalCounterTrack(name_id);
+        context_->event_tracker->PushCounter(ts, *state, track);
+      }
     }
   }
 }
