@@ -71,6 +71,11 @@ android_startup {
     }
     activities {
       name: "com.google.android.calendar.MainActivity"
+      method: "performResume"
+      ts_method_start: 102000000000
+    }
+    activities {
+      name: "com.google.android.calendar.MainActivity"
       method: "performCreate"
       ts_method_start: 188000000000
     }
