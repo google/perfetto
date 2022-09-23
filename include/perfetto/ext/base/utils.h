@@ -98,6 +98,9 @@ inline bool IsAgain(int err) {
 // setenv(2)-equivalent. Deals with Windows vs Posix discrepancies.
 void SetEnv(const std::string& key, const std::string& value);
 
+// unsetenv(2)-equivalent. Deals with Windows vs Posix discrepancies.
+void UnsetEnv(const std::string& key);
+
 // Calls mallopt(M_PURGE, 0) on Android. Does nothing on other platforms.
 // This forces the allocator to release freed memory. This is used to work
 // around various Scudo inefficiencies. See b/170217718.
