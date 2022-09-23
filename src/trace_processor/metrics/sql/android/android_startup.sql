@@ -319,6 +319,10 @@ SELECT
         WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'S') > 2e9
 
         UNION ALL
+        SELECT 'Main Thread - Time spent in Blocking I/O'
+        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.id, 'D*', true) > 2e9
+
+        UNION ALL
         SELECT 'Time spent in OpenDexFilesFromOat*'
         AS slow_cause
         WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(launches.id, 'OpenDexFilesFromOat*') > 1e6
