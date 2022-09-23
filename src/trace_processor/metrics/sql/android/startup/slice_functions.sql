@@ -24,7 +24,9 @@ SELECT CREATE_FUNCTION('STARTUP_SLICE_PROTO(dur INT)', 'PROTO', '
 
 -- View containing all the slices for all launches. Generally, this view
 -- should not be used. Instead, one of the helper functions below which wrap
--- this view should be used.
+-- this view should be used. Slices partially overlapping with launch duration
+-- are included because slices such as bindApplication could start before launch_threads.ts,
+-- slice_ts and slice_dur are recalculated to refect only the overlapping part in this case.
 DROP VIEW IF EXISTS thread_slices_for_all_launches;
 CREATE VIEW thread_slices_for_all_launches AS
 SELECT
@@ -36,12 +38,21 @@ SELECT
   launch_threads.is_main_thread AS is_main_thread,
   slice.arg_set_id AS arg_set_id,
   slice.name AS slice_name,
-  slice.ts AS slice_ts,
-  slice.dur AS slice_dur
+  (CASE
+    WHEN slice.ts < launch_threads.ts
+      THEN launch_threads.ts
+      ELSE slice.ts
+  END) AS slice_ts,
+  (CASE
+    WHEN slice.ts < launch_threads.ts
+      THEN slice.ts + slice.dur - launch_threads.ts
+      ELSE slice.dur
+  END) AS slice_dur
 FROM launch_threads
 JOIN thread_track USING (utid)
 JOIN slice ON (slice.track_id = thread_track.id)
-WHERE slice.ts BETWEEN launch_threads.ts AND launch_threads.ts + launch_threads.dur;
+WHERE (slice.ts BETWEEN launch_threads.ts AND launch_threads.ts + launch_threads.dur)
+  OR (slice.ts + slice.dur BETWEEN launch_threads.ts AND launch_threads.ts + launch_threads.dur);
 
 -- Given a launch id and GLOB for a slice name, returns columns for matching slices.
 SELECT CREATE_VIEW_FUNCTION(
