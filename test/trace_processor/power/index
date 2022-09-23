@@ -11,9 +11,12 @@ wakesource.textproto wakesource_test.sql wakesource_wakesource.out
 suspend_resume.textproto suspend_resume_test.sql suspend_resume.out
 suspend_period.textproto android_batt suspend_period.out
 
-#Energy Estimation Breakdown
+# Energy Estimation Breakdown
 energy_breakdown.textproto energy_breakdown_table_test.sql energy_breakdown_table_test.out
 energy_breakdown.textproto energy_breakdown_event_test.sql energy_breakdown_event_test.out
 energy_breakdown_uid.textproto energy_breakdown_uid_table_test.sql energy_breakdown_uid_table_test.out
 energy_breakdown_uid.textproto energy_breakdown_uid_event_test.sql energy_breakdown_uid_event_test.out
 energy_breakdown_uid.textproto energy_per_uid_table_test.sql energy_per_uid_table_test.out
+
+# Power states
+../../data/cpu_counters.pb p_state_test.sql cpu_counters_p_state_test.out
