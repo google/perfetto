@@ -112,7 +112,7 @@ void TestHelper::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
 
 void TestHelper::StartServiceIfRequired() {
   if (mode_ == Mode::kStartDaemons)
-    service_thread_.Start();
+    env_cleaner_ = service_thread_.Start();
 }
 
 FakeProducer* TestHelper::ConnectFakeProducer() {
