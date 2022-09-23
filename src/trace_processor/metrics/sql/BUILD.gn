@@ -79,6 +79,7 @@ android_sql_files = [
   "android/java_heap_histogram.sql",
   "android/java_heap_stats.sql",
   "android/mem_stats_priority_breakdown.sql",
+  "android/p_state.sql",
   "android/power_drain_in_watts.sql",
   "android/power_profile_data/marlin.sql",
   "android/power_profile_data/walleye.sql",
