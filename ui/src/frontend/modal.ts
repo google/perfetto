@@ -37,7 +37,7 @@
 //   view() {
 //     return m('main',
 //        m('h2', ...)
-//        modalContainerInstance.render();
+//        m(modalContainerInstance.mithrilComponent);
 //   }
 //
 // - In the view() method of the nested component that wants to show the modal
@@ -212,6 +212,7 @@ class ModalImpl implements m.ClassComponent<ModalImplAttrs> {
   }
 }
 
+
 // This is deliberately NOT a Mithril component. We want to manage the lifetime
 // independently (outside of Mithril), so we can render from outside the current
 // vdom sub-tree. ModalContainer instances should be singletons / globals.
@@ -220,6 +221,36 @@ export class ModalContainer {
   private generation = 1; // Start with a generation > `closeGeneration`.
   private closeGeneration = 0;
 
+  // This is the mithril component that is exposed to the embedder (e.g. see
+  // pages.ts). The caller is supposed to hyperscript this while building the
+  // vdom tree that should host the modal dialog.
+  readonly mithrilComponent = {
+    container: this,
+    view:
+        function() {
+          const thiz = this.container;
+          const attrs = thiz.attrs;
+          if (attrs === undefined) {
+            return null;
+          }
+          return [m(Modal, {
+            ...attrs,
+            onClose: () => {
+              // Remember the fact that the dialog was dismissed, in case the
+              // whole ModalContainer gets instantiated from a different page
+              // (which would cause the Modal to be destroyed and recreated).
+              thiz.closeGeneration = thiz.generation;
+              if (thiz.attrs?.onClose !== undefined) {
+                thiz.attrs.onClose();
+                globals.rafScheduler.scheduleFullRedraw();
+              }
+            },
+            close: thiz.closeGeneration === thiz.generation ? true :
+                                                              attrs.close,
+            key: thiz.generation,
+          })];
+        },
+  };
 
   // This should be called to show a new modal dialog. The modal dialog will
   // be shown the next time something calls render() in a Mithril draw pass.
@@ -241,42 +272,10 @@ export class ModalContainer {
     this.closeGeneration = this.generation;
     globals.rafScheduler.scheduleFullRedraw();
   }
-
-  // This method should be called in the view() method of the Mithril component
-  // that will host the DOM elements. For instance, in the case of the
-  // full-screen dialog, that is `fullscreenModal` used by pages.ts.
-  // e.g.: view() {
-  //  return m('main',
-  //      ...,
-  //      modalContainerInstance.render(),
-  //    );
-  // }
-  render() {
-    if (this.attrs === undefined) return null;
-
-    // Here we return an array so that Mithril's diff engine destroys and
-    // recreates the component when the generation changes, rather than updating
-    // the same component. `key` works only when returning arrays.
-    return [m(Modal, {
-      ...this.attrs,
-      onClose: () => {
-        // Remember the fact that the dialog was dismissed, in case the whole
-        // ModalContainer gets instantiated from a different page (which would
-        // cause the Modal to be destroyed and recreated).
-        this.closeGeneration = this.generation;
-        if (this.attrs?.onClose !== undefined) {
-          this.attrs.onClose();
-          globals.rafScheduler.scheduleFullRedraw();
-        }
-      },
-      close: this.closeGeneration === this.generation ? true : this.attrs.close,
-      key: this.generation,
-    })];
-  }
 }
 
 // This is the default instance used for full-screen modal dialogs.
-// page.ts calls `fullscreenModalContainer.render()` in its view() pass.
+// page.ts calls `m(fullscreenModalContainer.mithrilComponent)` in its view().
 export const fullscreenModalContainer = new ModalContainer();
 
 

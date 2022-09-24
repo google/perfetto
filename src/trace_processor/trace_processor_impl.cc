@@ -22,6 +22,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/trace_processor/demangle.h"
@@ -377,6 +378,39 @@ base::Status Hash::Run(void*,
     }
   }
   out = SqlValue::Long(static_cast<int64_t>(hash.digest()));
+  return base::OkStatus();
+}
+
+struct Base64Encode : public SqlFunction {
+  static base::Status Run(void*,
+                          size_t argc,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors&);
+};
+
+base::Status Base64Encode::Run(void*,
+                               size_t argc,
+                               sqlite3_value** argv,
+                               SqlValue& out,
+                               Destructors& destructors) {
+  if (argc != 1)
+    return base::ErrStatus("Unsupported number of arg passed to Base64Encode");
+
+  sqlite3_value* value = argv[0];
+  if (sqlite3_value_type(value) != SQLITE_BLOB)
+    return base::ErrStatus("Base64Encode only supports bytes argument");
+
+  size_t byte_count = static_cast<size_t>(sqlite3_value_bytes(value));
+  std::string res = base::Base64Encode(sqlite3_value_blob(value), byte_count);
+
+  std::unique_ptr<char, base::FreeDeleter> s(
+      static_cast<char*>(malloc(res.size() + 1)));
+  memcpy(s.get(), res.c_str(), res.size() + 1);
+
+  out = SqlValue::String(s.release());
+  destructors.string_destructor = free;
+
   return base::OkStatus();
 }
 
@@ -941,6 +975,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // New style function registration.
   RegisterFunction<Glob>(db, "glob", 2);
   RegisterFunction<Hash>(db, "HASH", -1);
+  RegisterFunction<Base64Encode>(db, "BASE64_ENCODE", 1);
   RegisterFunction<Demangle>(db, "DEMANGLE", 1);
   RegisterFunction<SourceGeq>(db, "SOURCE_GEQ", -1);
   RegisterFunction<ExportJson>(db, "EXPORT_JSON", 1, context_.storage.get(),
