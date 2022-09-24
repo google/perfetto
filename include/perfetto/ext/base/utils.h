@@ -62,9 +62,9 @@ constexpr size_t kPageSize = 4096;
 // similar mm-related syscalls.
 uint32_t GetSysPageSize();
 
-template <typename T>
-constexpr size_t ArraySize(const T& array) {
-  return sizeof(array) / sizeof(array[0]);
+template <typename T, size_t TSize>
+constexpr size_t ArraySize(const T (&)[TSize]) {
+  return TSize;
 }
 
 // Function object which invokes 'free' on its parameter, which must be
