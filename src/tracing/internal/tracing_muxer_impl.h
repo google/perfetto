@@ -103,6 +103,7 @@ class TracingMuxerImpl : public TracingMuxer {
   struct RegisteredDataSource {
     DataSourceDescriptor descriptor;
     DataSourceFactory factory{};
+    bool supports_multiple_instances = false;
     DataSourceStaticState* static_state = nullptr;
   };
 
@@ -113,6 +114,7 @@ class TracingMuxerImpl : public TracingMuxer {
   // TracingMuxer implementation.
   bool RegisterDataSource(const DataSourceDescriptor&,
                           DataSourceFactory,
+                          bool supports_multiple_instances,
                           DataSourceStaticState*) override;
   void UpdateDataSourceDescriptor(const DataSourceDescriptor&,
                                   const DataSourceStaticState*) override;
@@ -475,6 +477,9 @@ class TracingMuxerImpl : public TracingMuxer {
   std::vector<RegisteredBackend> backends_;
   std::vector<RegisteredInterceptor> interceptors_;
   TracingPolicy* policy_ = nullptr;
+
+  // Learn more at TracingInitArgs::supports_multiple_data_source_instances
+  bool supports_multiple_data_source_instances_ = true;
 
   std::atomic<TracingSessionGlobalID> next_tracing_session_id_{};
   std::atomic<uint32_t> next_data_source_index_{};
