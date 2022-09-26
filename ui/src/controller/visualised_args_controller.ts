@@ -63,6 +63,7 @@ export class VisualisedArgController extends Controller<'init'|'running'> {
             slice.track_id,
             slice.ts,
             slice.dur,
+            slice.thread_dur,
             NULL as cat,
             args.display_value as name
           from slice
