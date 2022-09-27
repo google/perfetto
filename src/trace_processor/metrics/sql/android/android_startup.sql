@@ -168,7 +168,14 @@ SELECT
         ),
         'interruptible_sleep_dur_ns', IFNULL(
           MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'S'), 0
+        ),
+        'uninterruptible_io_sleep_dur_ns', IFNULL(
+          MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.id, 'D*', true), 0
+        ),
+        'uninterruptible_non_io_sleep_dur_ns', IFNULL(
+          MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.id, 'D*', false), 0
         )
+
       ),
       'mcycles_by_core_type', NULL_IF_EMPTY(AndroidStartupMetric_McyclesByCoreType(
         'little', MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(launches.id, 'little'),
