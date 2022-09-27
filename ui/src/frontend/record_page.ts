@@ -434,7 +434,8 @@ function RecordingSnippet() {
 
   // We don't need commands to start tracing on chrome
   if (isChromeTarget(target)) {
-    return globals.state.extensionInstalled ?
+    return globals.state.extensionInstalled &&
+            !globals.state.recordingInProgress ?
         m('div',
           m('label',
             `To trace Chrome from the Perfetto UI you just have to press
