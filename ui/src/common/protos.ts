@@ -23,6 +23,7 @@ import BatteryCounters =
     protos.perfetto.protos.AndroidPowerConfig.BatteryCounters;
 import BufferConfig = protos.perfetto.protos.TraceConfig.BufferConfig;
 import ChromeConfig = protos.perfetto.protos.ChromeConfig;
+import TrackEventConfig = protos.perfetto.protos.TrackEventConfig;
 import ConsumerPort = protos.perfetto.protos.ConsumerPort;
 import NativeContinuousDumpConfig =
     protos.perfetto.protos.HeapprofdConfig.ContinuousDumpConfig;
@@ -117,5 +118,6 @@ export {
   StatusResult,
   SysStatsConfig,
   TraceConfig,
+  TrackEventConfig,
   VmstatCounters,
 };
