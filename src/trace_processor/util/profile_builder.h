@@ -25,9 +25,11 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables.h"
+#include "src/trace_processor/util/annotated_callsites.h"
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <unordered_map>
 #include <vector>
 
@@ -40,9 +42,20 @@ class TraceProcessorContext;
 class GProfileBuilder {
  public:
   // |sample_types| A description of the values stored with each sample.
+  // |annotated| Whether to annotate callstack frames.
+  //
+  // Important: Annotations might interfere with certain aggregations, as we
+  // will could have a frame that is annotated with different annotations. That
+  // will lead to multiple functions being generated (sane name, line etc, but
+  // different annotation). Since there is no field in a Profile proto to track
+  // these annotations we extend the function name (my_func [annotation]), so
+  // from pprof perspective we now have different functions. So in flame graphs
+  // for example you will have one separate slice for each of these same
+  // functions with different annotations.
   GProfileBuilder(
-      TraceProcessorContext* context,
-      const std::vector<std::pair<std::string, std::string>>& sample_types);
+      const TraceProcessorContext* context,
+      const std::vector<std::pair<std::string, std::string>>& sample_types,
+      bool annotated);
   ~GProfileBuilder();
   void AddSample(uint32_t callsite_id, const protozero::PackedVarInt& values);
 
@@ -79,6 +92,11 @@ class GProfileBuilder {
     // of writing a message to the proto.
     int64_t InternString(StringPool::Id id);
 
+    int64_t GetAnnotatedString(StringPool::Id str,
+                               CallsiteAnnotation annotation);
+    int64_t GetAnnotatedString(base::StringView str,
+                               CallsiteAnnotation annotation);
+
    private:
     // Unconditionally writes the given string to the table and returns its
     // index.
@@ -93,6 +111,22 @@ class GProfileBuilder {
     std::unordered_map<uint64_t, int64_t> seen_strings_;
     // Index where the next string will be written to
     int64_t next_index_{0};
+  };
+
+  struct AnnotatedFrameId {
+    struct Hash {
+      size_t operator()(const AnnotatedFrameId& id) const {
+        return static_cast<size_t>(perfetto::base::Hash::Combine(
+            id.frame_id.value, static_cast<int>(id.annotation)));
+      }
+    };
+
+    FrameId frame_id;
+    CallsiteAnnotation annotation;
+
+    bool operator==(const AnnotatedFrameId& other) const {
+      return frame_id == other.frame_id && annotation == other.annotation;
+    }
   };
 
   struct Line {
@@ -195,9 +229,8 @@ class GProfileBuilder {
   struct Function {
     struct Hash {
       size_t operator()(const Function& func) const {
-        perfetto::base::Hash hasher;
-        hasher.UpdateAll(func.name, func.system_name, func.filename);
-        return static_cast<size_t>(hasher.digest());
+        return static_cast<size_t>(perfetto::base::Hash::Combine(
+            func.name, func.system_name, func.filename));
       }
     };
 
@@ -211,24 +244,33 @@ class GProfileBuilder {
     }
   };
 
+  CallsiteAnnotation GetAnnotation(
+      const tables::StackProfileCallsiteTable::ConstRowReference& callsite);
+
   const protozero::PackedVarInt& GetLocationIdsForCallsite(
       const CallsiteId& callsite_id);
 
   std::vector<Line> GetLinesForSymbolSetId(
       base::Optional<uint32_t> symbol_set_id,
+      CallsiteAnnotation annotation,
       uint64_t mapping_id);
 
   std::vector<Line> GetLines(
       const tables::StackProfileFrameTable::ConstRowReference& frame,
+      CallsiteAnnotation annotation,
       uint64_t mapping_id);
 
-  uint64_t WriteLocationIfNeeded(const FrameId& frame_id);
+  uint64_t WriteLocationIfNeeded(
+      const tables::StackProfileCallsiteTable::ConstRowReference& callsite);
 
   uint64_t WriteFunctionIfNeeded(
       const tables::SymbolTable::ConstRowReference& symbol,
+      CallsiteAnnotation annotation,
+
       uint64_t mapping_id);
   uint64_t WriteFunctionIfNeeded(
       const tables::StackProfileFrameTable::ConstRowReference& frame,
+      CallsiteAnnotation annotation,
       uint64_t mapping_id);
 
   uint64_t WriteMappingIfNeeded(
@@ -255,12 +297,13 @@ class GProfileBuilder {
   protozero::HeapBuffered<third_party::perftools::profiles::pbzero::Profile>
       result_;
 
-  TraceProcessorContext& context_;
+  const TraceProcessorContext& context_;
   StringTable string_table_;
 
   const size_t num_sample_types_;
 
   bool finalized_{false};
+  base::Optional<AnnotatedCallsites> annotations_;
 
   // Caches a CallsiteId (callstack) to the list of locations emitted to the
   // profile.
@@ -268,9 +311,11 @@ class GProfileBuilder {
 
   // Helpers to map TraceProcessor rows to already written Profile entities
   // (their ids).
-  std::unordered_map<FrameId, uint64_t> seen_locations_;
+  std::unordered_map<AnnotatedFrameId, uint64_t, AnnotatedFrameId::Hash>
+      seen_locations_;
+  std::unordered_map<AnnotatedFrameId, uint64_t, AnnotatedFrameId::Hash>
+      seen_functions_;
   std::unordered_map<MappingId, uint64_t> seen_mappings_;
-  std::unordered_map<FrameId, uint64_t> seen_functions_;
 
   // Helpers to deduplicate entries. Map entity to its id. These also serve as a
   // staging area until written out to the profile proto during `Finalize`. Ids

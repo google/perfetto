@@ -32,140 +32,156 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-constexpr const char* kPerfProfileFunctionName = "EXPERIMENTAL_PERF_PROFILE";
-
 void SetSqliteError(sqlite3_context* ctx, const base::Status& status) {
   if (!status.ok()) {
     sqlite3_result_error(ctx, status.c_message(), -1);
   }
 }
 
-class Profile {
+class PerfProfile {
  public:
-  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
-  static void Final(sqlite3_context* ctx);
+  explicit PerfProfile(const TraceProcessorContext* context, bool annotated)
+      : builder_(context, {{"samples", "count"}}, annotated) {
+    single_count_value_.Append(1);
+  }
+
+  base::Status Step(uint32_t callsite_id) {
+    builder_.AddSample(callsite_id, single_count_value_);
+    return util::OkStatus();
+  }
+
+  base::Status Final(sqlite3_context* ctx) {
+    // TODO(carlscab): A lot of copies are happening here.
+    std::string profile_proto = builder_.Build();
+
+    std::unique_ptr<uint8_t[], base::FreeDeleter> data(
+        static_cast<uint8_t*>(malloc(profile_proto.size())));
+    memcpy(data.get(), profile_proto.data(), profile_proto.size());
+    sqlite3_result_blob(ctx, data.release(),
+                        static_cast<int>(profile_proto.size()), free);
+    return util::OkStatus();
+  }
 
  private:
-  static std::unique_ptr<Profile> Release(sqlite3_context* ctx) {
-    Profile** profile =
-        reinterpret_cast<Profile**>(sqlite3_aggregate_context(ctx, 0));
+  GProfileBuilder builder_;
+  protozero::PackedVarInt single_count_value_;
+};
+
+template <typename Function>
+class ProfileFunction {
+ public:
+  static base::Status Register(sqlite3* db, TraceProcessorContext* context) {
+    int flags = SQLITE_UTF8 | SQLITE_DETERMINISTIC;
+    int ret = sqlite3_create_function_v2(db, Function::kName, 1, flags, context,
+                                         nullptr, Step, Final, nullptr);
+    if (ret != SQLITE_OK) {
+      return base::ErrStatus("Unable to register function with name %s",
+                             Function::kName);
+    }
+    return base::OkStatus();
+  }
+
+ private:
+  static std::unique_ptr<PerfProfile> ReleaseProfile(sqlite3_context* ctx) {
+    PerfProfile** profile =
+        reinterpret_cast<PerfProfile**>(sqlite3_aggregate_context(ctx, 0));
 
     if (!profile) {
       return nullptr;
     }
 
-    return std::unique_ptr<Profile>(*profile);
+    return std::unique_ptr<PerfProfile>(*profile);
   }
 
-  static Profile* GetOrCreate(sqlite3_context* ctx) {
-    Profile** profile = reinterpret_cast<Profile**>(
-        sqlite3_aggregate_context(ctx, sizeof(Profile*)));
+  static PerfProfile* GetOrCreateProfile(sqlite3_context* ctx) {
+    PerfProfile** profile = reinterpret_cast<PerfProfile**>(
+        sqlite3_aggregate_context(ctx, sizeof(PerfProfile*)));
     if (!profile) {
       return nullptr;
     }
 
     if (!*profile) {
-      *profile = new Profile(
-          reinterpret_cast<TraceProcessorContext*>(sqlite3_user_data(ctx)));
+      *profile = new PerfProfile(reinterpret_cast<const TraceProcessorContext*>(
+                                     sqlite3_user_data(ctx)),
+                                 Function::kAnnotate);
     }
 
     return *profile;
   }
 
-  explicit Profile(TraceProcessorContext* context);
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+    if (argc != 1) {
+      return SetSqliteError(ctx, base::ErrStatus("%s: invalid number of args; "
+                                                 "expected 1, received %d",
+                                                 Function::kName, argc));
+    }
 
-  base::Status StepImpl(uint32_t callsite_id);
-  base::Status FinalImpl(sqlite3_context*);
+    base::Status status = TypeCheckSqliteValue(argv[0], SqlValue::kLong);
+    if (!status.ok()) {
+      return SetSqliteError(
+          ctx, base::ErrStatus("%s: argument callsite_id %s", Function::kName,
+                               status.c_message()));
+    }
+    int64_t value = sqlite3_value_int64(argv[0]);
 
-  GProfileBuilder builder_;
-  protozero::PackedVarInt single_count_value_;
+    if (value < 0 || value > std::numeric_limits<uint32_t>::max()) {
+      return SetSqliteError(ctx,
+                            base::ErrStatus("%s: invalid callsite_id %" PRId64,
+                                            Function::kName, value));
+    }
+
+    uint32_t callsite_id = static_cast<uint32_t>(value);
+
+    PerfProfile* profile = GetOrCreateProfile(ctx);
+
+    if (!profile) {
+      return SetSqliteError(
+          ctx, base::ErrStatus("%s: Failed to allocate aggregate context",
+                               Function::kName));
+    }
+
+    status = profile->Step(callsite_id);
+
+    if (!status.ok()) {
+      return SetSqliteError(ctx, status);
+    }
+  }
+
+  static void Final(sqlite3_context* ctx) {
+    std::unique_ptr<PerfProfile> profile = ReleaseProfile(ctx);
+    if (!profile) {
+      return;
+    }
+
+    base::Status status = profile->Final(ctx);
+    if (!status.ok()) {
+      return SetSqliteError(ctx, status);
+    }
+  }
 };
 
-Profile::Profile(TraceProcessorContext* context)
-    : builder_(context, {{"samples", "count"}}) {
-  single_count_value_.Append(1);
-}
+class PerfProfileFunction : public ProfileFunction<PerfProfileFunction> {
+ public:
+  static constexpr const char* kName = "EXPERIMENTAL_PERF_PROFILE";
+  static constexpr bool kAnnotate = false;
+};
 
-void Profile::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-  if (argc != 1) {
-    return SetSqliteError(ctx, base::ErrStatus("%s: invalid number of args; "
-                                               "expected 1, received %d",
-                                               kPerfProfileFunctionName, argc));
-  }
-
-  base::Status status = TypeCheckSqliteValue(argv[0], SqlValue::kLong);
-  if (!status.ok()) {
-    return SetSqliteError(
-        ctx, base::ErrStatus("%s: argument callsite_id %s",
-                             kPerfProfileFunctionName, status.c_message()));
-  }
-  int64_t value = sqlite3_value_int64(argv[0]);
-
-  if (value < 0 || value > std::numeric_limits<uint32_t>::max()) {
-    return SetSqliteError(ctx,
-                          base::ErrStatus("%s: invalid callsite_id %" PRId64,
-                                          kPerfProfileFunctionName, value));
-  }
-
-  uint32_t callsite_id = static_cast<uint32_t>(value);
-
-  Profile* profile = Profile::GetOrCreate(ctx);
-
-  if (!profile) {
-    return SetSqliteError(
-        ctx, base::ErrStatus("%s: Failed to allocate aggregate context",
-                             kPerfProfileFunctionName));
-  }
-
-  status = profile->StepImpl(callsite_id);
-
-  if (!status.ok()) {
-    return SetSqliteError(ctx, status);
-  }
-}
-
-void Profile::Final(sqlite3_context* ctx) {
-  std::unique_ptr<Profile> profile = Profile::Release(ctx);
-  if (!profile) {
-    return;
-  }
-
-  base::Status status = profile->FinalImpl(ctx);
-  if (!status.ok()) {
-    return SetSqliteError(ctx, status);
-  }
-}
-
-base::Status Profile::StepImpl(uint32_t callsite_id) {
-  builder_.AddSample(callsite_id, single_count_value_);
-  return util::OkStatus();
-}
-
-base::Status Profile::FinalImpl(sqlite3_context* ctx) {
-  // TODO(carlscab): A lot of copies are happening here.
-  std::string profile_proto = builder_.Build();
-
-  std::unique_ptr<uint8_t[], base::FreeDeleter> data(
-      static_cast<uint8_t*>(malloc(profile_proto.size())));
-  memcpy(data.get(), profile_proto.data(), profile_proto.size());
-  sqlite3_result_blob(ctx, data.release(),
-                      static_cast<int>(profile_proto.size()), free);
-  return util::OkStatus();
-}
+class AnnotatedPerfProfileFunction
+    : public ProfileFunction<AnnotatedPerfProfileFunction> {
+ public:
+  static constexpr const char* kName = "EXPERIMENTAL_ANNOTATED_PERF_PROFILE";
+  static constexpr bool kAnnotate = true;
+};
 
 }  // namespace
 
 base::Status PprofFunctions::Register(sqlite3* db,
                                       TraceProcessorContext* context) {
-  int flags = SQLITE_UTF8 | SQLITE_DETERMINISTIC;
-  int ret = sqlite3_create_function_v2(db, kPerfProfileFunctionName, 1, flags,
-                                       context, nullptr, Profile::Step,
-                                       Profile::Final, nullptr);
-  if (ret != SQLITE_OK) {
-    return base::ErrStatus("Unable to register function with name %s",
-                           kPerfProfileFunctionName);
+  auto status = PerfProfileFunction::Register(db, context);
+  if (!status.ok()) {
+    return status;
   }
-  return base::OkStatus();
+  return AnnotatedPerfProfileFunction::Register(db, context);
 }
 
 }  // namespace trace_processor
