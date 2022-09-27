@@ -120,6 +120,8 @@ base::Status ExperimentalAnnotatedStackGenerator::ValidateConstraints(
                    : base::ErrStatus("Failed to find required constraints");
 }
 
+// TODO(carlscab): Replace annotation logic with
+// src/trace_processor/util/annotated_callsites.h
 base::Status ExperimentalAnnotatedStackGenerator::ComputeTable(
     const std::vector<Constraint>& cs,
     const std::vector<Order>&,

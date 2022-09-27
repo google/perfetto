@@ -1548,6 +1548,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_util_profile_builder",
     srcs = [
+        "src/trace_processor/util/annotated_callsites.cc",
+        "src/trace_processor/util/annotated_callsites.h",
         "src/trace_processor/util/profile_builder.cc",
         "src/trace_processor/util/profile_builder.h",
     ],
