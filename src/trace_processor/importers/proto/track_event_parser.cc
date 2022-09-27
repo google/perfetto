@@ -1267,28 +1267,47 @@ class TrackEventParser::EventImporter {
 
     protos::pbzero::LogMessage::Decoder message(blob);
 
-    StringId log_message_id = kNullStringId;
-
-    auto* decoder = sequence_state_->LookupInternedMessage<
+    auto* body_decoder = sequence_state_->LookupInternedMessage<
         protos::pbzero::InternedData::kLogMessageBodyFieldNumber,
         protos::pbzero::LogMessageBody>(message.body_iid());
-    if (!decoder)
+    if (!body_decoder)
       return util::ErrStatus("LogMessage with invalid body_iid");
 
-    log_message_id = storage_->InternString(decoder->body());
+    const StringId log_message_id =
+        storage_->InternString(body_decoder->body());
+    inserter->AddArg(parser_->log_message_body_key_id_,
+                     Variadic::String(log_message_id));
 
-    // TODO(nicomazz): LogMessage also contains the source of the message (file
-    // and line number). Android logs doesn't support this so far.
+    StringId source_location_id = kNullStringId;
+    if (message.has_source_location_iid()) {
+      auto* source_location_decoder = sequence_state_->LookupInternedMessage<
+          protos::pbzero::InternedData::kSourceLocationsFieldNumber,
+          protos::pbzero::SourceLocation>(message.source_location_iid());
+      if (!source_location_decoder)
+        return util::ErrStatus("LogMessage with invalid source_location_iid");
+      const std::string source_location =
+          source_location_decoder->file_name().ToStdString() + ":" +
+          std::to_string(source_location_decoder->line_number());
+      source_location_id =
+          storage_->InternString(base::StringView(source_location));
+
+      inserter->AddArg(parser_->log_message_source_location_file_name_key_id_,
+                       Variadic::String(storage_->InternString(
+                           source_location_decoder->file_name())));
+      inserter->AddArg(
+          parser_->log_message_source_location_function_name_key_id_,
+          Variadic::String(storage_->InternString(
+              source_location_decoder->function_name())));
+      inserter->AddArg(
+          parser_->log_message_source_location_line_number_key_id_,
+          Variadic::Integer(source_location_decoder->line_number()));
+    }
+
     storage_->mutable_android_log_table()->Insert(
         {ts_, *utid_,
          /*priority*/ 0,
-         /*tag_id*/ kNullStringId,  // TODO(nicomazz): Abuse tag_id to display
-                                    // "file_name:line_number".
-         log_message_id});
+         /*tag_id*/ source_location_id, log_message_id});
 
-    inserter->AddArg(parser_->log_message_body_key_id_,
-                     Variadic::String(log_message_id));
-    // TODO(nicomazz): Add the source location as an argument.
     return util::OkStatus();
   }
 
@@ -1375,6 +1394,14 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
           context->storage->InternString("task.posted_from.line_number")),
       log_message_body_key_id_(
           context->storage->InternString("track_event.log_message")),
+      log_message_source_location_function_name_key_id_(
+          context->storage->InternString(
+              "track_event.log_message.function_name")),
+      log_message_source_location_file_name_key_id_(
+          context->storage->InternString("track_event.log_message.file_name")),
+      log_message_source_location_line_number_key_id_(
+          context->storage->InternString(
+              "track_event.log_message.line_number")),
       source_location_function_name_key_id_(
           context->storage->InternString("source.function_name")),
       source_location_file_name_key_id_(
