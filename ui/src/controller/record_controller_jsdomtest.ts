@@ -155,7 +155,12 @@ test('ChromeConfig', () => {
   const chromeConfig = assertExists(traceConfigSource.chromeConfig);
   const traceConfig = assertExists(chromeConfig.traceConfig);
 
-  const metadataConfigSource = assertExists(sources[1].config);
+  const trackEventConfigSource = assertExists(sources[1].config);
+  expect(trackEventConfigSource.name).toBe('track_event');
+  const chromeConfigT = assertExists(trackEventConfigSource.chromeConfig);
+  const traceConfigT = assertExists(chromeConfigT.traceConfig);
+
+  const metadataConfigSource = assertExists(sources[2].config);
   expect(metadataConfigSource.name).toBe('org.chromium.trace_metadata');
   const chromeConfigM = assertExists(metadataConfigSource.chromeConfig);
   const traceConfigM = assertExists(chromeConfigM.traceConfig);
@@ -163,9 +168,11 @@ test('ChromeConfig', () => {
   const expectedTraceConfig = '{"record_mode":"record-until-full",' +
       '"included_categories":' +
       '["toplevel","disabled-by-default-ipc.flow","mojom","v8"],' +
+      '"excluded_categories":["*"],' +
       '"memory_dump_config":{}}';
-  expect(traceConfigM).toEqual(expectedTraceConfig);
   expect(traceConfig).toEqual(expectedTraceConfig);
+  expect(traceConfigT).toEqual(expectedTraceConfig);
+  expect(traceConfigM).toEqual(expectedTraceConfig);
 });
 
 test('ChromeMemoryConfig', () => {
@@ -181,28 +188,35 @@ test('ChromeMemoryConfig', () => {
   const chromeConfig = assertExists(traceConfigSource.chromeConfig);
   const traceConfig = assertExists(chromeConfig.traceConfig);
 
-  const metadataConfigSource = assertExists(sources[1].config);
+  const trackEventConfigSource = assertExists(sources[1].config);
+  expect(trackEventConfigSource.name).toBe('track_event');
+  const chromeConfigT = assertExists(trackEventConfigSource.chromeConfig);
+  const traceConfigT = assertExists(chromeConfigT.traceConfig);
+
+  const metadataConfigSource = assertExists(sources[2].config);
   expect(metadataConfigSource.name).toBe('org.chromium.trace_metadata');
   const chromeConfigM = assertExists(metadataConfigSource.chromeConfig);
   const traceConfigM = assertExists(chromeConfigM.traceConfig);
 
-  const miConfigSource = assertExists(sources[2].config);
+  const miConfigSource = assertExists(sources[3].config);
   expect(miConfigSource.name).toBe('org.chromium.memory_instrumentation');
   const chromeConfigI = assertExists(miConfigSource.chromeConfig);
   const traceConfigI = assertExists(chromeConfigI.traceConfig);
 
-  const hpConfigSource = assertExists(sources[3].config);
+  const hpConfigSource = assertExists(sources[4].config);
   expect(hpConfigSource.name).toBe('org.chromium.native_heap_profiler');
   const chromeConfigH = assertExists(hpConfigSource.chromeConfig);
   const traceConfigH = assertExists(chromeConfigH.traceConfig);
 
-  const expectedTraceConfig = '{\"record_mode\":\"record-until-full\",' +
-      '\"included_categories\":[\"disabled-by-default-memory-infra\"],' +
-      '\"memory_dump_config\":{\"allowed_dump_modes\":[\"background\",' +
-      '\"light\",\"detailed\"],\"triggers\":[{\"min_time_between_dumps_ms\":' +
-      '10000,\"mode\":\"detailed\",\"type\":\"periodic_interval\"}]}}';
-  expect(traceConfigM).toEqual(expectedTraceConfig);
+  const expectedTraceConfig = '{"record_mode":"record-until-full",' +
+      '"included_categories":["disabled-by-default-memory-infra"],' +
+      '"excluded_categories":["*"],' +
+      '"memory_dump_config":{"allowed_dump_modes":["background",' +
+      '"light","detailed"],"triggers":[{"min_time_between_dumps_ms":' +
+      '10000,"mode":"detailed","type":"periodic_interval"}]}}';
   expect(traceConfig).toEqual(expectedTraceConfig);
+  expect(traceConfigT).toEqual(expectedTraceConfig);
+  expect(traceConfigM).toEqual(expectedTraceConfig);
   expect(traceConfigI).toEqual(expectedTraceConfig);
   expect(traceConfigH).toEqual(expectedTraceConfig);
 });
@@ -220,22 +234,28 @@ test('ChromeCpuProfilerConfig', () => {
   const traceEventChromeConfig = assertExists(traceConfigSource.chromeConfig);
   const traceEventConfig = assertExists(traceEventChromeConfig.traceConfig);
 
-  const metadataConfigSource = assertExists(sources[1].config);
+  const trackEventConfigSource = assertExists(sources[1].config);
+  expect(trackEventConfigSource.name).toBe('track_event');
+  const chromeConfigT = assertExists(trackEventConfigSource.chromeConfig);
+  const traceConfigT = assertExists(chromeConfigT.traceConfig);
+
+  const metadataConfigSource = assertExists(sources[2].config);
   expect(metadataConfigSource.name).toBe('org.chromium.trace_metadata');
   const traceMetadataChromeConfig =
       assertExists(metadataConfigSource.chromeConfig);
   const traceMetadataConfig =
       assertExists(traceMetadataChromeConfig.traceConfig);
 
-  const profilerConfigSource = assertExists(sources[2].config);
+  const profilerConfigSource = assertExists(sources[3].config);
   expect(profilerConfigSource.name).toBe('org.chromium.sampler_profiler');
   const profilerChromeConfig = assertExists(profilerConfigSource.chromeConfig);
   const profilerConfig = assertExists(profilerChromeConfig.traceConfig);
 
-  const expectedTraceConfig = '{\"record_mode\":\"record-until-full\",' +
-      '\"included_categories\":[\"disabled-by-default-cpu_profiler\"],' +
-      '\"memory_dump_config\":{}}';
+  const expectedTraceConfig = '{"record_mode":"record-until-full",' +
+      '"included_categories":["disabled-by-default-cpu_profiler"],' +
+      '"excluded_categories":["*"],"memory_dump_config":{}}';
   expect(traceEventConfig).toEqual(expectedTraceConfig);
+  expect(traceConfigT).toEqual(expectedTraceConfig);
   expect(traceMetadataConfig).toEqual(expectedTraceConfig);
   expect(profilerConfig).toEqual(expectedTraceConfig);
 });
@@ -253,21 +273,27 @@ test('ChromeCpuProfilerDebugConfig', () => {
   const traceEventChromeConfig = assertExists(traceConfigSource.chromeConfig);
   const traceEventConfig = assertExists(traceEventChromeConfig.traceConfig);
 
-  const metadataConfigSource = assertExists(sources[1].config);
+  const trackEventConfigSource = assertExists(sources[1].config);
+  expect(trackEventConfigSource.name).toBe('track_event');
+  const chromeConfigT = assertExists(trackEventConfigSource.chromeConfig);
+  const traceConfigT = assertExists(chromeConfigT.traceConfig);
+
+  const metadataConfigSource = assertExists(sources[2].config);
   expect(metadataConfigSource.name).toBe('org.chromium.trace_metadata');
   const traceMetadataChromeConfig =
       assertExists(metadataConfigSource.chromeConfig);
   const traceMetadataConfig =
       assertExists(traceMetadataChromeConfig.traceConfig);
 
-  const profilerConfigSource = assertExists(sources[2].config);
+  const profilerConfigSource = assertExists(sources[3].config);
   expect(profilerConfigSource.name).toBe('org.chromium.sampler_profiler');
   const profilerChromeConfig = assertExists(profilerConfigSource.chromeConfig);
   const profilerConfig = assertExists(profilerChromeConfig.traceConfig);
 
-  const expectedTraceConfig = '{\"record_mode\":\"record-until-full\",' +
-      '\"included_categories\":[\"disabled-by-default-cpu_profiler.debug\"],' +
-      '\"memory_dump_config\":{}}';
+  const expectedTraceConfig = '{"record_mode":"record-until-full",' +
+      '"included_categories":["disabled-by-default-cpu_profiler.debug"],' +
+      '"excluded_categories":["*"],"memory_dump_config":{}}';
+  expect(traceConfigT).toEqual(expectedTraceConfig);
   expect(traceEventConfig).toEqual(expectedTraceConfig);
   expect(traceMetadataConfig).toEqual(expectedTraceConfig);
   expect(profilerConfig).toEqual(expectedTraceConfig);
@@ -287,7 +313,12 @@ test('ChromeConfigRingBuffer', () => {
   const chromeConfig = assertExists(traceConfigSource.chromeConfig);
   const traceConfig = assertExists(chromeConfig.traceConfig);
 
-  const metadataConfigSource = assertExists(sources[1].config);
+  const trackEventConfigSource = assertExists(sources[1].config);
+  expect(trackEventConfigSource.name).toBe('track_event');
+  const chromeConfigT = assertExists(trackEventConfigSource.chromeConfig);
+  const traceConfigT = assertExists(chromeConfigT.traceConfig);
+
+  const metadataConfigSource = assertExists(sources[2].config);
   expect(metadataConfigSource.name).toBe('org.chromium.trace_metadata');
   const chromeConfigM = assertExists(metadataConfigSource.chromeConfig);
   const traceConfigM = assertExists(chromeConfigM.traceConfig);
@@ -295,9 +326,10 @@ test('ChromeConfigRingBuffer', () => {
   const expectedTraceConfig = '{"record_mode":"record-continuously",' +
       '"included_categories":' +
       '["toplevel","disabled-by-default-ipc.flow","mojom","v8"],' +
-      '"memory_dump_config":{}}';
-  expect(traceConfigM).toEqual(expectedTraceConfig);
+      '"excluded_categories":["*"],"memory_dump_config":{}}';
   expect(traceConfig).toEqual(expectedTraceConfig);
+  expect(traceConfigT).toEqual(expectedTraceConfig);
+  expect(traceConfigM).toEqual(expectedTraceConfig);
 });
 
 test('ChromeConfigLongTrace', () => {
@@ -314,7 +346,12 @@ test('ChromeConfigLongTrace', () => {
   const chromeConfig = assertExists(traceConfigSource.chromeConfig);
   const traceConfig = assertExists(chromeConfig.traceConfig);
 
-  const metadataConfigSource = assertExists(sources[1].config);
+  const trackEventConfigSource = assertExists(sources[1].config);
+  expect(trackEventConfigSource.name).toBe('track_event');
+  const chromeConfigT = assertExists(trackEventConfigSource.chromeConfig);
+  const traceConfigT = assertExists(chromeConfigT.traceConfig);
+
+  const metadataConfigSource = assertExists(sources[2].config);
   expect(metadataConfigSource.name).toBe('org.chromium.trace_metadata');
   const chromeConfigM = assertExists(metadataConfigSource.chromeConfig);
   const traceConfigM = assertExists(chromeConfigM.traceConfig);
@@ -322,9 +359,10 @@ test('ChromeConfigLongTrace', () => {
   const expectedTraceConfig = '{"record_mode":"record-continuously",' +
       '"included_categories":' +
       '["toplevel","disabled-by-default-ipc.flow","mojom","v8"],' +
-      '"memory_dump_config":{}}';
-  expect(traceConfigM).toEqual(expectedTraceConfig);
+      '"excluded_categories":["*"],"memory_dump_config":{}}';
   expect(traceConfig).toEqual(expectedTraceConfig);
+  expect(traceConfigT).toEqual(expectedTraceConfig);
+  expect(traceConfigM).toEqual(expectedTraceConfig);
 });
 
 test('ChromeConfigToPbtxt', () => {
