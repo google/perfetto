@@ -95,6 +95,8 @@ class ProtoToArgsParser {
 
     virtual PacketSequenceStateGeneration* seq_state() = 0;
 
+    virtual int64_t packet_timestamp() { return 0; }
+
     template <typename FieldMetadata>
     typename FieldMetadata::cpp_field_type::Decoder* GetInternedMessage(
         protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>,

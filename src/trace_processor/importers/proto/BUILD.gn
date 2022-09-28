@@ -14,6 +14,8 @@
 
 source_set("storage_minimal") {
   sources = [
+    "active_chrome_processes_tracker.cc",
+    "active_chrome_processes_tracker.h",
     "heap_profile_tracker.cc",
     "heap_profile_tracker.h",
     "profiler_util.cc",
@@ -53,6 +55,7 @@ source_set("storage_full") {
 source_set("unittests") {
   testonly = true
   sources = [
+    "active_chrome_processes_tracker_unittest.cc",
     "heap_graph_tracker_unittest.cc",
     "heap_profile_tracker_unittest.cc",
   ]
