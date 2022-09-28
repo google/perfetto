@@ -138,7 +138,7 @@ class CpuProfileTrack extends Track<Config, Data> {
       // inclusive and within array bounds.
       let clusterEndIndex = clusterStartIndex;
       while (clusterEndIndex + 1 < data.tsStarts.length &&
-             data.callsiteId[clusterEndIndex] === callsiteId) {
+             data.callsiteId[clusterEndIndex + 1] === callsiteId) {
         clusterEndIndex++;
       }
 
