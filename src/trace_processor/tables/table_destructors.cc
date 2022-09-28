@@ -43,6 +43,8 @@ CounterTable::~CounterTable() = default;
 // metadata_tables.h
 RawTable::~RawTable() = default;
 ArgTable::~ArgTable() = default;
+ExperimentalMissingChromeProcessesTable::
+    ~ExperimentalMissingChromeProcessesTable() = default;
 MetadataTable::~MetadataTable() = default;
 CpuTable::~CpuTable() = default;
 CpuFreqTable::~CpuFreqTable() = default;

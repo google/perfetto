@@ -92,3 +92,8 @@ unsymbolized_args.textproto chrome_unsymbolized_args unsymbolized_args.out
 # Log messages.
 chrome_log_message.textproto chrome_log_message_test.sql chrome_log_message.out
 chrome_log_message.textproto chrome_log_message_args_test.sql chrome_log_message_args.out
+
+# Missing processes.
+../../data/chrome_scroll_without_vsync.pftrace chrome_missing_processes_test.sql chrome_missing_processes_default_trace.out
+chrome_missing_processes.textproto chrome_missing_processes_test.sql chrome_missing_processes.out
+chrome_missing_processes.textproto chrome_missing_processes_args_test.sql chrome_missing_processes_args.out
