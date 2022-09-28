@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+export const NO_DEVICE_SELECTED = 'No device selected.';
+
 export interface UsbInterfaceAndEndpoint {
   readonly configurationValue: number;
   readonly usbInterfaceNumber: number;

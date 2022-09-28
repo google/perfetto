@@ -31,6 +31,7 @@ import {
   BINARY_PUSH_FAILURE,
   BINARY_PUSH_UNKNOWN_RESPONSE,
 } from './adb_file_handler';
+import {NO_DEVICE_SELECTED} from './adb_over_webusb_utils';
 import {ALLOW_USB_DEBUGGING} from './adb_targets_utils';
 import {EXTENSION_NOT_INSTALLED} from './chrome_utils';
 import {OnMessageCallback} from './recording_interfaces_v2';
@@ -96,7 +97,7 @@ export function showRecordingModal(message: string): void {
                  message,
                  [BINARY_PUSH_FAILURE, BINARY_PUSH_UNKNOWN_RESPONSE])) {
     showFailedToPushBinary(message.substring(message.indexOf(':') + 1));
-  } else if (message === 'No device selected.') {
+  } else if (message === NO_DEVICE_SELECTED) {
     showNoDeviceSelected();
   } else if (WEBSOCKET_UNABLE_TO_CONNECT === message) {
     showWebsocketConnectionIssue(message);

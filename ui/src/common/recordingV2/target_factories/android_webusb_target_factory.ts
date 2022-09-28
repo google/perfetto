@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {assertExists} from '../../../base/logging';
+import {getErrorMessage} from '../../errors';
 import {RECORDING_V2_FLAG} from '../../feature_flags';
 import {
   ADB_DEVICE_FILTER,
@@ -69,8 +70,13 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
   }
 
   async connectNewTarget(): Promise<RecordingTargetV2> {
-    const device: USBDevice =
-        await this.usb.requestDevice({filters: [ADB_DEVICE_FILTER]});
+    let device: USBDevice;
+    try {
+      device = await this.usb.requestDevice({filters: [ADB_DEVICE_FILTER]});
+    } catch (e) {
+      throw new RecordingError(getErrorMessage(e));
+    }
+
     const deviceValid = this.checkDeviceValidity(device);
     if (!deviceValid.isValid) {
       throw new RecordingError(deviceValid.issues.join('\n'));
