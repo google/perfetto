@@ -34,7 +34,7 @@ import {
   VmstatCounters,
 } from '../protos';
 
-import {RecordingTargetV2, TargetInfo} from './recording_interfaces_v2';
+import {TargetInfo} from './recording_interfaces_v2';
 
 export interface ConfigProtoEncoded {
   configProtoText?: string;
@@ -46,9 +46,8 @@ export class RecordingConfigUtils {
   private configProtoText?: string;
   private configProtoBase64?: string;
 
-  fetchLatestRecordCommand(
-      recordConfig: RecordConfig,
-      target: RecordingTargetV2): ConfigProtoEncoded {
+  fetchLatestRecordCommand(recordConfig: RecordConfig, targetInfo: TargetInfo):
+      ConfigProtoEncoded {
     if (recordConfig === this.lastConfig) {
       return {
         configProtoText: this.configProtoText,
@@ -57,7 +56,7 @@ export class RecordingConfigUtils {
     }
     this.lastConfig = recordConfig;
     const configProto =
-        TraceConfig.encode(genTraceConfig(this.lastConfig, target.getInfo()))
+        TraceConfig.encode(genTraceConfig(this.lastConfig, targetInfo))
             .finish();
     this.configProtoText = toPbtxt(configProto);
     this.configProtoBase64 = base64Encode(configProto);
