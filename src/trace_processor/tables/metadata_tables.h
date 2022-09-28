@@ -140,6 +140,17 @@ PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_TABLE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_PROCESS_TABLE_DEF);
 
+// Experimental table, subject to arbitrary breaking changes.
+#define PERFETTO_TP_EXPERIMENTAL_MISSING_CHROME_PROCESSES_TABLE_DEF(NAME,      \
+                                                                    PARENT, C) \
+  NAME(ExperimentalMissingChromeProcessesTable,                                \
+       "experimental_missing_chrome_processes")                                \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                                            \
+  C(uint32_t, upid)                                                            \
+  C(base::Optional<int64_t>, reliable_from)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_EXPERIMENTAL_MISSING_CHROME_PROCESSES_TABLE_DEF);
+
 // Contains information of processes seen during the trace
 //
 // @name cpu

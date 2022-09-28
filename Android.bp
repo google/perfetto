@@ -9125,6 +9125,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_importers_proto_storage_minimal",
     srcs: [
+        "src/trace_processor/importers/proto/active_chrome_processes_tracker.cc",
         "src/trace_processor/importers/proto/heap_profile_tracker.cc",
         "src/trace_processor/importers/proto/profiler_util.cc",
         "src/trace_processor/importers/proto/stack_profile_tracker.cc",
@@ -9135,6 +9136,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_importers_proto_unittests",
     srcs: [
+        "src/trace_processor/importers/proto/active_chrome_processes_tracker_unittest.cc",
         "src/trace_processor/importers/proto/heap_graph_tracker_unittest.cc",
         "src/trace_processor/importers/proto/heap_profile_tracker_unittest.cc",
     ],

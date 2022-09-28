@@ -72,17 +72,17 @@ void TrackEventModule::ParseTrackEventData(const TracePacket::Decoder& decoder,
 }
 
 void TrackEventModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
-                                            int64_t,
+                                            int64_t ts,
                                             const TracePacketData&,
                                             uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kTrackDescriptorFieldNumber:
-      parser_.ParseTrackDescriptor(decoder.track_descriptor(),
+      parser_.ParseTrackDescriptor(ts, decoder.track_descriptor(),
                                    decoder.trusted_packet_sequence_id());
       break;
     case TracePacket::kProcessDescriptorFieldNumber:
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
-      parser_.ParseProcessDescriptor(decoder.process_descriptor());
+      parser_.ParseProcessDescriptor(ts, decoder.process_descriptor());
       break;
     case TracePacket::kThreadDescriptorFieldNumber:
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
@@ -99,6 +99,10 @@ void TrackEventModule::OnIncrementalStateCleared(uint32_t packet_sequence_id) {
 
 void TrackEventModule::OnFirstPacketOnSequence(uint32_t packet_sequence_id) {
   track_event_tracker_->OnFirstPacketOnSequence(packet_sequence_id);
+}
+
+void TrackEventModule::NotifyEndOfFile() {
+  parser_.NotifyEndOfFile();
 }
 
 }  // namespace trace_processor
