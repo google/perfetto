@@ -19,8 +19,6 @@ import {assertExists, assertFalse, assertTrue} from '../../base/logging';
 import {CmdType} from '../../controller/adb_interfaces';
 
 import {AdbConnectionImpl} from './adb_connection_impl';
-import {findInterfaceAndEndpoint} from './adb_over_webusb_utils';
-import {ALLOW_USB_DEBUGGING} from './adb_targets_utils';
 import {AdbKeyManager, maybeStoreKey} from './auth/adb_key_manager';
 import {
   RecordingError,
@@ -31,6 +29,7 @@ import {
   OnStreamCloseCallback,
   OnStreamDataCallback,
 } from './recording_interfaces_v2';
+import {ALLOW_USB_DEBUGGING, findInterfaceAndEndpoint} from './recording_utils';
 
 const textEncoder = new _TextEncoder();
 const textDecoder = new _TextDecoder();

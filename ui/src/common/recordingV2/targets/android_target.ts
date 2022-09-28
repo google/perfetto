@@ -16,12 +16,6 @@ import {fetchWithTimeout} from '../../../base/http_utils';
 import {VERSION} from '../../../gen/perfetto_version';
 import {AdbConnectionImpl} from '../adb_connection_impl';
 import {
-  CUSTOM_TRACED_CONSUMER_SOCKET_PATH,
-  DEFAULT_TRACED_CONSUMER_SOCKET_PATH,
-  TRACEBOX_DEVICE_PATH,
-  TRACEBOX_FETCH_TIMEOUT,
-} from '../adb_targets_utils';
-import {
   DataSource,
   OnTargetChangeCallback,
   RecordingTargetV2,
@@ -29,6 +23,12 @@ import {
   TracingSession,
   TracingSessionListener,
 } from '../recording_interfaces_v2';
+import {
+  CUSTOM_TRACED_CONSUMER_SOCKET_PATH,
+  DEFAULT_TRACED_CONSUMER_SOCKET_PATH,
+  TRACEBOX_DEVICE_PATH,
+  TRACEBOX_FETCH_TIMEOUT,
+} from '../recording_utils';
 import {TracedTracingSession} from '../traced_tracing_session';
 
 export abstract class AndroidTarget implements RecordingTargetV2 {

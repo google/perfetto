@@ -34,18 +34,17 @@ import {
   ISlice,
   TraceConfig,
 } from '../protos';
-
-import {
-  BUFFER_USAGE_INCORRECT_FORMAT,
-  BUFFER_USAGE_NOT_ACCESSIBLE,
-  EXTENSION_ID,
-  MALFORMED_EXTENSION_MESSAGE,
-} from './chrome_utils';
 import {RecordingError} from './recording_error_handling';
 import {
   TracingSession,
   TracingSessionListener,
 } from './recording_interfaces_v2';
+import {
+  BUFFER_USAGE_INCORRECT_FORMAT,
+  BUFFER_USAGE_NOT_ACCESSIBLE,
+  EXTENSION_ID,
+  MALFORMED_EXTENSION_MESSAGE,
+} from './recording_utils';
 
 // This class implements the protocol described in
 // https://perfetto.dev/docs/design-docs/api-and-abi#tracing-protocol-abi

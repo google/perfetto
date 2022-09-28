@@ -15,10 +15,6 @@
 import {assertExists} from '../../../base/logging';
 import {getErrorMessage} from '../../errors';
 import {RECORDING_V2_FLAG} from '../../feature_flags';
-import {
-  ADB_DEVICE_FILTER,
-  findInterfaceAndEndpoint,
-} from '../adb_over_webusb_utils';
 import {AdbKeyManager} from '../auth/adb_key_manager';
 import {RecordingError} from '../recording_error_handling';
 import {
@@ -26,6 +22,7 @@ import {
   RecordingTargetV2,
   TargetFactory,
 } from '../recording_interfaces_v2';
+import {ADB_DEVICE_FILTER, findInterfaceAndEndpoint} from '../recording_utils';
 import {targetFactoryRegistry} from '../target_factory_registry';
 import {AndroidWebusbTarget} from '../targets/android_webusb_target';
 

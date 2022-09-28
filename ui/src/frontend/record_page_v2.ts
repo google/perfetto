@@ -18,10 +18,6 @@ import * as m from 'mithril';
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {
-  EXTENSION_NAME,
-  EXTENSION_URL,
-} from '../common/recordingV2/chrome_utils';
-import {
   RecordingConfigUtils,
 } from '../common/recordingV2/recording_config_utils';
 import {
@@ -32,6 +28,10 @@ import {
   RecordingPageController,
   RecordingState,
 } from '../common/recordingV2/recording_page_controller';
+import {
+  EXTENSION_NAME,
+  EXTENSION_URL,
+} from '../common/recordingV2/recording_utils';
 import {
   targetFactoryRegistry,
 } from '../common/recordingV2/target_factory_registry';

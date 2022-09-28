@@ -21,9 +21,6 @@ import {TRACE_SUFFIX} from '../constants';
 import {TraceConfig} from '../protos';
 import {currentDateHourAndMinute} from '../time';
 
-import {
-  BUFFER_USAGE_NOT_ACCESSIBLE,
-} from './chrome_utils';
 import {genTraceConfig} from './recording_config_utils';
 import {RecordingError, showRecordingModal} from './recording_error_handling';
 import {
@@ -33,6 +30,10 @@ import {
   TracingSessionListener,
 } from './recording_interfaces_v2';
 import {
+  BUFFER_USAGE_NOT_ACCESSIBLE,
+  RECORDING_IN_PROGRESS,
+} from './recording_utils';
+import {
   ANDROID_WEBSOCKET_TARGET_FACTORY,
   AndroidWebsocketTargetFactory,
 } from './target_factories/android_websocket_target_factory';
@@ -40,7 +41,6 @@ import {
   ANDROID_WEBUSB_TARGET_FACTORY,
 } from './target_factories/android_webusb_target_factory';
 import {targetFactoryRegistry} from './target_factory_registry';
-import {RECORDING_IN_PROGRESS} from './traced_tracing_session';
 
 const ADB_WEBSOCKET_URL = 'ws://127.0.0.1:8037/adb';
 
