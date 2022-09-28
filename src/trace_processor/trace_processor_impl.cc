@@ -1136,6 +1136,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->memory_snapshot_edge_table());
 
   RegisterDbTable(storage->experimental_proto_content_table());
+
+  RegisterDbTable(storage->experimental_missing_chrome_processes_table());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() = default;
