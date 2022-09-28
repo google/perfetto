@@ -52,6 +52,8 @@ class TrackEventModule : public ProtoImporterModule {
                             const TracePacketData& data,
                             uint32_t field_id) override;
 
+  void NotifyEndOfFile() override;
+
  private:
   std::unique_ptr<TrackEventTracker> track_event_tracker_;
   TrackEventTokenizer tokenizer_;
