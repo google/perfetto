@@ -45,6 +45,7 @@ export class ChromeTarget implements RecordingTargetV2 {
       isExtensionInstalled: this.isExtensionInstalled,
       dataSources:
           [{name: 'chromeCategories', descriptor: this.chromeCategories}],
+      isVirtual: false,
     };
   }
 

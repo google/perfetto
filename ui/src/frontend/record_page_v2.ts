@@ -320,6 +320,12 @@ function RecordingButtons() {
     return undefined;
   }
 
+  // We only reach this logic after verifying that we have a valid target.
+  const targetInfo: TargetInfo = assertExists(controller.getTargetInfo());
+  if (targetInfo.isVirtual) {
+    return undefined;
+  }
+
   const start =
       m(`button`,
         {
@@ -331,8 +337,6 @@ function RecordingButtons() {
         START_RECORDING_MESSAGE);
 
   const buttons: m.Children = [];
-  // We only reach this logic after verifying that we have a valid target
-  const targetInfo: TargetInfo = assertExists(controller.getTargetInfo());
   if (targetInfo.targetType === 'ANDROID' &&
       globals.state.recordConfig.mode !== 'LONG_TRACE') {
     buttons.push(start);
