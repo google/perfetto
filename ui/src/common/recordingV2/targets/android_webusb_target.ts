@@ -37,6 +37,7 @@ export class AndroidWebusbTarget extends AndroidTarget {
       androidApiLevel: this.androidApiLevel,
       dataSources: this.dataSources || [],
       name,
+      isVirtual: false,
     };
   }
 }

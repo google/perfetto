@@ -36,10 +36,6 @@ import {
   TraceConfig,
 } from '../protos';
 
-import {
-  BUFFER_USAGE_INCORRECT_FORMAT,
-  BUFFER_USAGE_NOT_ACCESSIBLE,
-} from './chrome_utils';
 import {RecordingError} from './recording_error_handling';
 import {
   ByteStream,
@@ -47,6 +43,15 @@ import {
   TracingSession,
   TracingSessionListener,
 } from './recording_interfaces_v2';
+import {
+  BUFFER_USAGE_INCORRECT_FORMAT,
+  BUFFER_USAGE_NOT_ACCESSIBLE,
+  PARSING_UNABLE_TO_DECODE_METHOD,
+  PARSING_UNKNWON_REQUEST_ID,
+  PARSING_UNRECOGNIZED_MESSAGE,
+  PARSING_UNRECOGNIZED_PORT,
+  RECORDING_IN_PROGRESS,
+} from './recording_utils';
 
 // See wire_protocol.proto for more details.
 const WIRE_PROTOCOL_HEADER_SIZE = 4;
@@ -57,12 +62,6 @@ const PROTO_LEN_DELIMITED_WIRE_TYPE = 2;
 const TRACE_PACKET_PROTO_ID = 1;
 const TRACE_PACKET_PROTO_TAG =
     (TRACE_PACKET_PROTO_ID << 3) | PROTO_LEN_DELIMITED_WIRE_TYPE;
-
-export const RECORDING_IN_PROGRESS = 'Recording in progress';
-export const PARSING_UNKNWON_REQUEST_ID = 'Unknown request id';
-export const PARSING_UNABLE_TO_DECODE_METHOD = 'Unable to decode method';
-export const PARSING_UNRECOGNIZED_PORT = 'Unrecognized consumer port response';
-export const PARSING_UNRECOGNIZED_MESSAGE = 'Unrecognized frame message';
 
 function parseMessageSize(buffer: Uint8Array) {
   const dv = new DataView(buffer.buffer, buffer.byteOffset, buffer.length);

@@ -63,6 +63,9 @@ interface TargetInfoBase {
   // The dataSources exposed by a target. They are fetched from the target
   // (ex: using QSS for Android or GetCategories for Chrome).
   dataSources: DataSource[];
+
+  // Whether the TargetInfo corresponds to a real target.
+  isVirtual: boolean;
 }
 
 export interface AndroidTargetInfo extends TargetInfoBase {
