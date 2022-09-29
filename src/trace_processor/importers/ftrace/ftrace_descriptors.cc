@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 431> descriptors{{
+std::array<FtraceMessageDescriptor, 437> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -4756,6 +4756,76 @@ std::array<FtraceMessageDescriptor, 431> descriptors{{
             {"last", ProtoSchemaType::kUint32},
             {"tx_buf", ProtoSchemaType::kUint32},
             {"type", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "android_fs_dataread_end",
+        3,
+        {
+            {},
+            {"bytes", ProtoSchemaType::kInt32},
+            {"ino", ProtoSchemaType::kUint64},
+            {"offset", ProtoSchemaType::kInt64},
+        },
+    },
+    {
+        "android_fs_dataread_start",
+        7,
+        {
+            {},
+            {"bytes", ProtoSchemaType::kInt32},
+            {"cmdline", ProtoSchemaType::kString},
+            {"i_size", ProtoSchemaType::kInt64},
+            {"ino", ProtoSchemaType::kUint64},
+            {"offset", ProtoSchemaType::kInt64},
+            {"pathbuf", ProtoSchemaType::kString},
+            {"pid", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "android_fs_datawrite_end",
+        3,
+        {
+            {},
+            {"bytes", ProtoSchemaType::kInt32},
+            {"ino", ProtoSchemaType::kUint64},
+            {"offset", ProtoSchemaType::kInt64},
+        },
+    },
+    {
+        "android_fs_datawrite_start",
+        7,
+        {
+            {},
+            {"bytes", ProtoSchemaType::kInt32},
+            {"cmdline", ProtoSchemaType::kString},
+            {"i_size", ProtoSchemaType::kInt64},
+            {"ino", ProtoSchemaType::kUint64},
+            {"offset", ProtoSchemaType::kInt64},
+            {"pathbuf", ProtoSchemaType::kString},
+            {"pid", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "android_fs_fsync_end",
+        3,
+        {
+            {},
+            {"bytes", ProtoSchemaType::kInt32},
+            {"ino", ProtoSchemaType::kUint64},
+            {"offset", ProtoSchemaType::kInt64},
+        },
+    },
+    {
+        "android_fs_fsync_start",
+        5,
+        {
+            {},
+            {"cmdline", ProtoSchemaType::kString},
+            {"i_size", ProtoSchemaType::kInt64},
+            {"ino", ProtoSchemaType::kUint64},
+            {"pathbuf", ProtoSchemaType::kString},
+            {"pid", ProtoSchemaType::kInt32},
         },
     },
 }};
