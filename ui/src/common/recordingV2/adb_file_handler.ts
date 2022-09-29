@@ -20,6 +20,10 @@ import {ArrayBufferBuilder} from '../array_buffer_builder';
 
 import {RecordingError} from './recording_error_handling';
 import {ByteStream} from './recording_interfaces_v2';
+import {
+  BINARY_PUSH_FAILURE,
+  BINARY_PUSH_UNKNOWN_RESPONSE,
+} from './recording_utils';
 
 // https://cs.android.com/android/platform/superproject/+/master:packages/
 // modules/adb/file_sync_protocol.h;l=144
@@ -32,9 +36,6 @@ const MAX_SYNC_SEND_CHUNK_SIZE = 64 * 1024;
 const FILE_PERMISSIONS = 2 ** 15 + 0o644;
 
 const textDecoder = new _TextDecoder();
-
-export const BINARY_PUSH_FAILURE = 'BinaryPushFailure';
-export const BINARY_PUSH_UNKNOWN_RESPONSE = 'BinaryPushUnknownResponse';
 
 // For details about the protocol, see:
 // https://cs.android.com/android/platform/superproject/+/master:packages/modules/adb/SYNC.TXT
