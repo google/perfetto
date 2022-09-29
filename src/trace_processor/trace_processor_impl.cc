@@ -897,7 +897,8 @@ base::Status PrepareAndStepUntilLastValidStmt(
     if (prev_stmt) {
       PERFETTO_TP_TRACE(
           "STMT_STEP_UNTIL_DONE", [&prev_stmt](metatrace::Record* record) {
-            record->AddArg("SQL", sqlite3_expanded_sql(*prev_stmt));
+            auto expanded_sql = sqlite_utils::ExpandedSqlForStmt(*prev_stmt);
+            record->AddArg("SQL", expanded_sql.get());
           });
       RETURN_IF_ERROR(sqlite_utils::StepStmtUntilDone(prev_stmt.get()));
     }
@@ -907,7 +908,8 @@ base::Status PrepareAndStepUntilLastValidStmt(
     {
       PERFETTO_TP_TRACE(
           "STMT_FIRST_STEP", [&cur_stmt](metatrace::Record* record) {
-            record->AddArg("SQL", sqlite3_expanded_sql(*cur_stmt));
+            auto expanded_sql = sqlite_utils::ExpandedSqlForStmt(*cur_stmt);
+            record->AddArg("SQL", expanded_sql.get());
           });
 
       // Now step once into |cur_stmt| so that when we prepare the next statment
