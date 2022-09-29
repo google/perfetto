@@ -102,12 +102,18 @@ function convertToRecordingV2Input(
       androidApiLevel,
       dataSources: [],
       name: '',
+      isVirtual: !isAdbTarget(target),
     };
   } else if (targetType === 'CHROME' || targetType === 'CHROME_OS') {
-    targetInfo =
-        {targetType, isExtensionInstalled: false, dataSources: [], name: ''};
+    targetInfo = {
+      targetType,
+      isExtensionInstalled: false,
+      dataSources: [],
+      name: '',
+      isVirtual: false,
+    };
   } else {
-    targetInfo = {targetType, dataSources: [], name: ''};
+    targetInfo = {targetType, dataSources: [], name: '', isVirtual: false};
   }
 
   return genTraceConfig(uiCfg, targetInfo);
