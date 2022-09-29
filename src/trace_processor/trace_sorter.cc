@@ -289,8 +289,12 @@ void TraceSorter::MaybePushAndEvictEvent(size_t queue_idx,
 
   latest_pushed_event_ts_ = std::max(latest_pushed_event_ts_, timestamp);
 
-  if (PERFETTO_UNLIKELY(bypass_next_stage_for_testing_))
+  if (PERFETTO_UNLIKELY(bypass_next_stage_for_testing_)) {
+    // In standard run the object would be evicted by Parsing{F}tracePacket.
+    // Without it we need to evict it manually.
+    EvictVariadic(ts_desc);
     return;
+  }
 
   if (queue_idx == 0) {
     ParseTracePacket(ts_desc);
