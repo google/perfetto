@@ -144,6 +144,10 @@ inline base::Status PrepareStmt(sqlite3* db,
   return base::OkStatus();
 }
 
+inline ScopedSqliteString ExpandedSqlForStmt(sqlite3_stmt* stmt) {
+  return ScopedSqliteString(sqlite3_expanded_sql(stmt));
+}
+
 inline bool IsStmtDone(sqlite3_stmt* stmt) {
   return !sqlite3_stmt_busy(stmt);
 }
