@@ -59,13 +59,20 @@ def repo_root():
       os.path.realpath(os.path.dirname(__file__)), os.path.pardir)
 
 
-def _tool_path(name):
+def _tool_path(name, system_buildtools=False):
+  # Pass-through to use name if the caller requests to use the system
+  # toolchain.
+  if system_buildtools:
+    return [name]
   wrapper = os.path.abspath(
       os.path.join(repo_root(), 'tools', 'run_buildtools_binary.py'))
   return ['python3', wrapper, name]
 
 
-def prepare_out_directory(gn_args, name, root=repo_root()):
+def prepare_out_directory(gn_args,
+                          name,
+                          root=repo_root(),
+                          system_buildtools=False):
   """Creates the JSON build description by running GN.
 
     Returns (path, desc) where |path| is the location of the output directory
@@ -78,14 +85,16 @@ def prepare_out_directory(gn_args, name, root=repo_root()):
     if e.errno != errno.EEXIST:
       raise
   _check_command_output(
-      _tool_path('gn') + ['gen', out, '--args=%s' % gn_args], cwd=repo_root())
+      _tool_path('gn', system_buildtools) +
+      ['gen', out, '--args=%s' % gn_args],
+      cwd=repo_root())
   return out
 
 
-def load_build_description(out):
+def load_build_description(out, system_buildtools=False):
   """Creates the JSON build description by running GN."""
   desc = _check_command_output(
-      _tool_path('gn') +
+      _tool_path('gn', system_buildtools) +
       ['desc', out, '--format=json', '--all-toolchains', '//*'],
       cwd=repo_root())
   return json.loads(desc)
@@ -103,7 +112,7 @@ def create_build_description(gn_args, root=repo_root()):
     shutil.rmtree(out)
 
 
-def build_targets(out, targets, quiet=False):
+def build_targets(out, targets, quiet=False, system_buildtools=False):
   """Runs ninja to build a list of GN targets in the given out directory.
 
     Compiling these targets is required so that we can include any generated
@@ -112,14 +121,14 @@ def build_targets(out, targets, quiet=False):
   targets = [t.replace('//', '') for t in targets]
   with open(os.devnull, 'w') as devnull:
     stdout = devnull if quiet else None
-    cmd = _tool_path('ninja') + targets
+    cmd = _tool_path('ninja', system_buildtools) + targets
     subprocess.check_call(cmd, cwd=os.path.abspath(out), stdout=stdout)
 
 
-def compute_source_dependencies(out):
+def compute_source_dependencies(out, system_buildtools=False):
   """For each source file, computes a set of headers it depends on."""
   ninja_deps = _check_command_output(
-      _tool_path('ninja') + ['-t', 'deps'], cwd=out)
+      _tool_path('ninja', system_buildtools) + ['-t', 'deps'], cwd=out)
   deps = {}
   current_source = None
   for line in ninja_deps.split('\n'):
