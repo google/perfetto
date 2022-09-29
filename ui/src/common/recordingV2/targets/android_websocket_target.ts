@@ -35,6 +35,7 @@ export class AndroidWebsocketTarget extends AndroidTarget {
       androidApiLevel: this.androidApiLevel,
       dataSources: [],
       name: this.serialNumber + ' WebSocket',
+      isVirtual: false,
     };
   }
 }

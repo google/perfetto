@@ -17,8 +17,6 @@ import {_TextDecoder} from 'custom_utils';
 import {defer, Deferred} from '../../base/deferred';
 
 import {AdbConnectionImpl} from './adb_connection_impl';
-import {buildAbdWebsocketCommand} from './adb_over_websocket_utils';
-import {ALLOW_USB_DEBUGGING} from './adb_targets_utils';
 import {RecordingError} from './recording_error_handling';
 import {
   ByteStream,
@@ -26,11 +24,13 @@ import {
   OnStreamCloseCallback,
   OnStreamDataCallback,
 } from './recording_interfaces_v2';
+import {
+  ALLOW_USB_DEBUGGING,
+  buildAbdWebsocketCommand,
+  WEBSOCKET_UNABLE_TO_CONNECT,
+} from './recording_utils';
 
 const textDecoder = new _TextDecoder();
-
-export const WEBSOCKET_UNABLE_TO_CONNECT =
-    'Unable to connect to device via websocket.';
 
 export class AdbConnectionOverWebsocket extends AdbConnectionImpl {
   private streams = new Set<AdbOverWebsocketStream>();
