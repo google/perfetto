@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {ChromeTracedTracingSession} from '../chrome_traced_tracing_session';
-import {EXTENSION_ID} from '../chrome_utils';
 import {
   ChromeTargetInfo,
   OnTargetChangeCallback,
@@ -21,6 +20,7 @@ import {
   TracingSession,
   TracingSessionListener,
 } from '../recording_interfaces_v2';
+import {EXTENSION_ID} from '../recording_utils';
 
 export class ChromeTarget implements RecordingTargetV2 {
   onTargetChange?: OnTargetChangeCallback;
@@ -45,6 +45,7 @@ export class ChromeTarget implements RecordingTargetV2 {
       isExtensionInstalled: this.isExtensionInstalled,
       dataSources:
           [{name: 'chromeCategories', descriptor: this.chromeCategories}],
+      isVirtual: false,
     };
   }
 

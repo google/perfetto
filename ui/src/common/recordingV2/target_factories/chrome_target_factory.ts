@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {EXTENSION_NOT_INSTALLED} from '../chrome_utils';
 import {RecordingError} from '../recording_error_handling';
 import {
   OnTargetChangeCallback,
   RecordingTargetV2,
   TargetFactory,
 } from '../recording_interfaces_v2';
+import {EXTENSION_NOT_INSTALLED} from '../recording_utils';
 import {targetFactoryRegistry} from '../target_factory_registry';
 import {ChromeTarget} from '../targets/chrome_target';
 
