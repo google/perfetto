@@ -17,7 +17,12 @@ import * as m from 'mithril';
 import {DataSource} from '../../common/recordingV2/recording_interfaces_v2';
 import {getBuiltinChromeCategoryList, isChromeTarget} from '../../common/state';
 import {globals} from '../globals';
-import {CategoriesCheckboxList, CompactProbe} from '../record_widgets';
+import {
+  CategoriesCheckboxList,
+  CompactProbe,
+  Toggle,
+  ToggleAttrs,
+} from '../record_widgets';
 
 import {RecordingSectionAttrs} from './recording_sections';
 
@@ -115,6 +120,13 @@ export class ChromeSettings implements m.ClassComponent<RecordingSectionAttrs> {
           setEnabled: (cfg, val) => cfg.chromeLogs = val,
           isEnabled: (cfg) => cfg.chromeLogs,
         }),
+        m(Toggle, {
+          title: 'Remove untyped and sensitive data like URLs from the trace',
+          descr: 'Not recommended unless you intend to share the trace' +
+              ' with third-parties.',
+          setEnabled: (cfg, val) => cfg.chromePrivacyFiltering = val,
+          isEnabled: (cfg) => cfg.chromePrivacyFiltering,
+        } as ToggleAttrs),
         m(ChromeCategoriesSelection, attrs));
   }
 }
