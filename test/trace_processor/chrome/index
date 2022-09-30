@@ -74,6 +74,7 @@ chrome_performance_mark_hashes.textproto chrome_performance_mark_hashes chrome_p
 
 # Chrome reliable range
 chrome_reliable_range.textproto chrome_reliable_range_test.sql chrome_reliable_range.out
+chrome_reliable_range_missing_processes.textproto chrome_reliable_range_test.sql chrome_reliable_range_missing_processes.out
 
 # Chrome slices
 chrome_slice_names.textproto chrome_slice_names chrome_slice_names.out
