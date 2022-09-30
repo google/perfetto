@@ -123,10 +123,11 @@ base::Status CreatedFunction::VerifyPostConditions(Context* ctx) {
   RETURN_IF_ERROR(
       SqliteRetToStatus(ctx->db, ctx->prototype.function_name, ret));
   if (ret == SQLITE_ROW) {
+    auto expanded_sql = sqlite_utils::ExpandedSqlForStmt(ctx->stmt);
     return base::ErrStatus(
         "%s: multiple values were returned when executing function body. "
         "Executed SQL was %s",
-        ctx->prototype.function_name.c_str(), sqlite3_expanded_sql(ctx->stmt));
+        ctx->prototype.function_name.c_str(), expanded_sql.get());
   }
   PERFETTO_DCHECK(ret == SQLITE_DONE);
   return base::OkStatus();

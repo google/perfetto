@@ -24,22 +24,19 @@ import {
 } from '../../frontend/error_dialog';
 import {getErrorMessage} from '../errors';
 
-import {
-  WEBSOCKET_UNABLE_TO_CONNECT,
-} from './adb_connection_over_websocket';
-import {
-  BINARY_PUSH_FAILURE,
-  BINARY_PUSH_UNKNOWN_RESPONSE,
-} from './adb_file_handler';
-import {ALLOW_USB_DEBUGGING} from './adb_targets_utils';
-import {EXTENSION_NOT_INSTALLED} from './chrome_utils';
 import {OnMessageCallback} from './recording_interfaces_v2';
 import {
+  ALLOW_USB_DEBUGGING,
+  BINARY_PUSH_FAILURE,
+  BINARY_PUSH_UNKNOWN_RESPONSE,
+  EXTENSION_NOT_INSTALLED,
+  NO_DEVICE_SELECTED,
   PARSING_UNABLE_TO_DECODE_METHOD,
   PARSING_UNKNWON_REQUEST_ID,
   PARSING_UNRECOGNIZED_MESSAGE,
   PARSING_UNRECOGNIZED_PORT,
-} from './traced_tracing_session';
+  WEBSOCKET_UNABLE_TO_CONNECT,
+} from './recording_utils';
 
 
 // The pattern for handling recording error can have the following nesting in
@@ -96,7 +93,7 @@ export function showRecordingModal(message: string): void {
                  message,
                  [BINARY_PUSH_FAILURE, BINARY_PUSH_UNKNOWN_RESPONSE])) {
     showFailedToPushBinary(message.substring(message.indexOf(':') + 1));
-  } else if (message === 'No device selected.') {
+  } else if (message === NO_DEVICE_SELECTED) {
     showNoDeviceSelected();
   } else if (WEBSOCKET_UNABLE_TO_CONNECT === message) {
     showWebsocketConnectionIssue(message);

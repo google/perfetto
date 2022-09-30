@@ -259,7 +259,7 @@ export class SearchController extends Controller<'main'> {
       0 as utid
       from slice
       join args using(arg_set_id)
-      where string_value glob ${searchLiteral}
+      where string_value glob ${searchLiteral} or key glob ${searchLiteral}
     union
     select
       id as sliceId,
