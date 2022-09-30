@@ -15,10 +15,10 @@ performance/index
 power/index
 process_tracking/index
 profiling/index
+scheduler/index
 smoke/index
 span_join/index
 startup/index
 tables/index
 track_event/index
 translation/index
-scheduler/index

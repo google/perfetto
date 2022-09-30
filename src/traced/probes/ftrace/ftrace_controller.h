@@ -76,7 +76,6 @@ class FtraceController {
   virtual ~FtraceController();
 
   void DisableAllEvents();
-  void WriteTraceMarker(const std::string& s);
   void ClearTrace();
 
   bool AddDataSource(FtraceDataSource*) PERFETTO_WARN_UNUSED_RESULT;
