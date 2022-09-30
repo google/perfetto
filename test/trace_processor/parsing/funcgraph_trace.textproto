@@ -1,0 +1,57 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 679375600673065
+      pid: 385482
+      funcgraph_entry {
+        depth: 0
+        func: 1
+      }
+    }
+    event {
+      timestamp: 679375600673769
+      pid: 385482
+      funcgraph_entry {
+        depth: 1
+        func: 2
+      }
+    }
+    event {
+      timestamp: 679375600675495
+      pid: 385482
+      funcgraph_exit {
+        calltime: 679391369445509
+        depth: 1
+        func: 2
+        overrun: 0
+        rettime: 679391369447205
+      }
+    }
+    event {
+      timestamp: 679375600676862
+      pid: 385482
+      funcgraph_exit {
+        calltime: 679391369444548
+        depth: 0
+        func: 1
+        overrun: 0
+        rettime: 679391369448763
+      }
+    }
+  }
+  sequence_flags: 1
+  interned_data {
+    kernel_symbols {
+      iid: 1
+      str: "__handle_mm_fault"
+    }
+    kernel_symbols {
+      iid: 2
+      str: "alloc_pages_vma"
+    }
+  }
+  trusted_uid: 304336
+  trusted_packet_sequence_id: 2
+  trusted_pid: 385482
+}
