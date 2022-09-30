@@ -56,7 +56,7 @@ export class ChromeTargetFactory implements TargetFactory {
     }
     this.targets.push(new ChromeTarget('Chrome', 'CHROME'));
     if (isCrOS(navigator.userAgent)) {
-      this.targets.push(new ChromeTarget('Chrome', 'CHROME_OS'));
+      this.targets.push(new ChromeTarget('ChromeOS', 'CHROME_OS'));
     }
   }
 

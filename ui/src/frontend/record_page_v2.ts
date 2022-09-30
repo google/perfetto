@@ -37,7 +37,6 @@ import {
 import {
   targetFactoryRegistry,
 } from '../common/recordingV2/target_factory_registry';
-import {hasActiveProbes} from '../common/state';
 
 import {globals} from './globals';
 import {fullscreenModalContainer} from './modal';
@@ -272,7 +271,11 @@ function RecordingNotes() {
         'It looks like you didn\'t add any probes. ' +
             'Please add at least one to get a non-empty trace.');
 
-  if (!hasActiveProbes(globals.state.recordConfig)) {
+  const targetInfo = controller.getTargetInfo();
+  if (targetInfo &&
+      !recordConfigUtils
+           .fetchLatestRecordCommand(globals.state.recordConfig, targetInfo)
+           .hasDataSources) {
     notes.push(msgZeroProbes);
   }
 
@@ -333,11 +336,11 @@ function RecordingSnippet(targetInfo: TargetInfo) {
 }
 
 function getRecordCommand(targetInfo: TargetInfo): string {
-  const data = recordConfigUtils.fetchLatestRecordCommand(
+  const recordCommand = recordConfigUtils.fetchLatestRecordCommand(
       globals.state.recordConfig, targetInfo);
 
-  const pbBase64 = data ? data.configProtoBase64 : '';
-  const pbtx = data ? data.configProtoText : '';
+  const pbBase64 = recordCommand ? recordCommand.configProtoBase64 : '';
+  const pbtx = recordCommand ? recordCommand.configProtoText : '';
   let cmd = '';
   if (targetInfo.targetType === 'ANDROID' &&
       targetInfo.androidApiLevel === 28) {
@@ -361,6 +364,17 @@ function RecordingButton() {
       !controller.canCreateTracingSession()) {
     return undefined;
   }
+
+  // We know we have a target because we checked the state.
+  const targetInfo = assertExists(controller.getTargetInfo());
+  const hasDataSources =
+      recordConfigUtils
+          .fetchLatestRecordCommand(globals.state.recordConfig, targetInfo)
+          .hasDataSources;
+  if (!hasDataSources) {
+    return undefined;
+  }
+
   return m(
       '.button',
       m('button',
