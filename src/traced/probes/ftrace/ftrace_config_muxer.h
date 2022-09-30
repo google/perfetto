@@ -115,19 +115,23 @@ class FtraceConfigMuxer {
 
   const FtraceDataSourceConfig* GetDataSourceConfig(FtraceConfigId id);
 
+  // Resets the current tracer to "nop" (the default). This cannot be handled
+  // by |RemoveConfig| because it requires all ftrace readers to be released
+  // beforehand, which is the reponsibility of ftrace_controller.
+  bool ResetCurrentTracer();
+
   // Returns the current per-cpu buffer size, as configured by this muxer
   // (without consulting debugfs). Constant for a given tracing session.
   // Note that if there are multiple concurrent tracing sessions, the first
   // session's buffer size is used for all of them.
   size_t GetPerCpuBufferSizePages();
 
-  // public for testing
-  void SetupClockForTesting(const FtraceConfig& request) {
-    SetupClock(request);
-  }
-
   protos::pbzero::FtraceClock ftrace_clock() const {
     return current_state_.ftrace_clock;
+  }
+
+  void SetupClockForTesting(const FtraceConfig& request) {
+    SetupClock(request);
   }
 
   std::set<GroupAndName> GetFtraceEventsForTesting(
@@ -151,14 +155,14 @@ class FtraceConfigMuxer {
 
   struct FtraceState {
     EventFilter ftrace_events;
-    std::set<size_t> syscall_filter;
-
-    // Used only in Android for ATRACE_EVENT/os.Trace() userspace
+    std::set<size_t> syscall_filter;  // syscall ids or kAllSyscallsId
+    bool funcgraph_on = false;        // current_tracer == "function_graph"
+    size_t cpu_buffer_size_pages = 0;
+    protos::pbzero::FtraceClock ftrace_clock{};
+    // Used only in Android for ATRACE_EVENT/os.Trace() userspace:
+    bool atrace_on = false;
     std::vector<std::string> atrace_apps;
     std::vector<std::string> atrace_categories;
-    size_t cpu_buffer_size_pages = 0;
-    bool atrace_on = false;
-    protos::pbzero::FtraceClock ftrace_clock{};
   };
 
   FtraceConfigMuxer(const FtraceConfigMuxer&) = delete;
