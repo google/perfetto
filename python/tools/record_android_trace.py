@@ -33,7 +33,7 @@ from perfetto.common.repo_utils import *
 
 # This is not required. It's only used as a fallback if no adb is found on the
 # PATH. It's fine if it doesn't exist so this script can be copied elsewhere.
-HERMETIC_ADB_PATH = repo_dir('/buildtools/android_sdk/platform-tools/adb')
+HERMETIC_ADB_PATH = repo_dir('buildtools/android_sdk/platform-tools/adb')
 
 # Translates the Android ro.product.cpu.abi into the GN's target_cpu.
 ABI_TO_ARCH = {
