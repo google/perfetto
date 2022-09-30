@@ -27,6 +27,10 @@ export class AndroidVirtualTarget implements RecordingTargetV2 {
     return Promise.resolve(true);
   }
 
+  canCreateTracingSession(): boolean {
+    return false;
+  }
+
   createTracingSession(_: TracingSessionListener): Promise<TracingSession> {
     throw new RecordingError(
         'Can not create tracing session for a virtual target');
@@ -46,7 +50,6 @@ export class AndroidVirtualTarget implements RecordingTargetV2 {
       androidApiLevel: this.androidApiLevel,
       targetType: 'ANDROID',
       dataSources: [],
-      isVirtual: true,
     };
   }
 }
