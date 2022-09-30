@@ -431,3 +431,5 @@ android_fs/android_fs_datawrite_end
 android_fs/android_fs_datawrite_start
 android_fs/android_fs_fsync_end
 android_fs/android_fs_fsync_start
+ftrace/funcgraph_entry
+ftrace/funcgraph_exit

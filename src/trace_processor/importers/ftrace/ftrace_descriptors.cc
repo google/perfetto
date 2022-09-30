@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 437> descriptors{{
+std::array<FtraceMessageDescriptor, 439> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -4826,6 +4826,27 @@ std::array<FtraceMessageDescriptor, 437> descriptors{{
             {"ino", ProtoSchemaType::kUint64},
             {"pathbuf", ProtoSchemaType::kString},
             {"pid", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "funcgraph_entry",
+        2,
+        {
+            {},
+            {"depth", ProtoSchemaType::kInt32},
+            {"func", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "funcgraph_exit",
+        5,
+        {
+            {},
+            {"calltime", ProtoSchemaType::kUint64},
+            {"depth", ProtoSchemaType::kInt32},
+            {"func", ProtoSchemaType::kUint64},
+            {"overrun", ProtoSchemaType::kUint64},
+            {"rettime", ProtoSchemaType::kUint64},
         },
     },
 }};
