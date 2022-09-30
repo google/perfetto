@@ -95,11 +95,22 @@ WHERE
   )
 GROUP BY utid;
 
+DROP VIEW IF EXISTS chrome_processes_data_loss_free_period;
+
+CREATE VIEW chrome_processes_data_loss_free_period
+AS
+SELECT
+  -- If reliable_from is NULL, the process has data loss until the end of the trace.
+  MAX(IFNULL(reliable_from, (SELECT MAX(ts + dur) FROM slice))) AS start
+FROM
+  experimental_missing_chrome_processes;
+
 DROP VIEW IF EXISTS chrome_reliable_range;
 
 CREATE VIEW chrome_reliable_range
 AS
 SELECT
-  COALESCE(MAX(start), 0) AS start
+  MAX(COALESCE(MAX(start), 0),
+      COALESCE((SELECT start FROM chrome_processes_data_loss_free_period), 0)) AS start
 FROM chrome_reliable_range_per_thread
 WHERE has_first_packet_on_sequence = 0;
