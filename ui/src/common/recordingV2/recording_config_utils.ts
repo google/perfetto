@@ -436,6 +436,7 @@ export function genTraceConfig(
     }
     const chromeConfig = new ChromeConfig();
     chromeConfig.clientPriority = ChromeConfig.ClientPriority.USER_INITIATED;
+    chromeConfig.privacyFilteringEnabled = uiCfg.chromePrivacyFiltering;
     chromeConfig.traceConfig = JSON.stringify(configStruct);
 
     const traceDs = new TraceConfig.DataSource();
@@ -455,6 +456,10 @@ export function genTraceConfig(
         [...chromeCategories.values(), '__metadata'];
     trackEventDs.config.trackEventConfig.enableThreadTimeSampling = true;
     trackEventDs.config.trackEventConfig.timestampUnitMultiplier = 1000;
+    trackEventDs.config.trackEventConfig.filterDynamicEventNames =
+        uiCfg.chromePrivacyFiltering;
+    trackEventDs.config.trackEventConfig.filterDebugAnnotations =
+        uiCfg.chromePrivacyFiltering;
     protoCfg.dataSources.push(trackEventDs);
 
     const metadataDs = new TraceConfig.DataSource();
