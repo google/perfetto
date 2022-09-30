@@ -26,18 +26,6 @@ namespace trace_processor {
 
 constexpr size_t kGuessTraceMaxLookahead = 64;
 
-enum TraceType {
-  kUnknownTraceType,
-  kProtoTraceType,
-  kJsonTraceType,
-  kFuchsiaTraceType,
-  kSystraceTraceType,
-  kGzipTraceType,
-  kCtraceTraceType,
-  kNinjaLogTraceType,
-  kAndroidBugreportTraceType,
-};
-
 TraceType GuessTraceType(const uint8_t* data, size_t size);
 
 class ForwardingTraceParser : public ChunkedTraceReader {
