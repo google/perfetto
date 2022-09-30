@@ -187,13 +187,11 @@ int64_t GProfileBuilder::Mapping::ComputeMainBinaryScore() const {
   return score;
 }
 
-GProfileBuilder::GProfileBuilder(
-    const TraceProcessorContext* context,
-    const std::vector<std::pair<std::string, std::string>>& sample_types,
-    bool annotated)
+GProfileBuilder::GProfileBuilder(const TraceProcessorContext* context,
+                                 const std::vector<ValueType>& sample_types,
+                                 bool annotated)
     : context_(*context),
-      string_table_(&result_, &context->storage->string_pool()),
-      num_sample_types_(sample_types.size()) {
+      string_table_(&result_, &context->storage->string_pool()) {
   if (annotated) {
     annotations_.emplace(context);
   }
@@ -203,33 +201,34 @@ GProfileBuilder::GProfileBuilder(
 GProfileBuilder::~GProfileBuilder() = default;
 
 void GProfileBuilder::WriteSampleTypes(
-    const std::vector<std::pair<std::string, std::string>>& sample_types) {
-  std::vector<std::pair<int64_t, int64_t>> sample_type_ids;
-
-  for (const auto& s : sample_types) {
-    sample_type_ids.push_back(
-        {string_table_.InternString(base::StringView(s.first)),
-         string_table_.InternString(base::StringView(s.second))});
-  }
-
-  for (const auto& s : sample_type_ids) {
+    const std::vector<ValueType>& sample_types) {
+  for (const auto& value_type : sample_types) {
+    // Write strings first
+    int64_t type =
+        string_table_.InternString(base::StringView(value_type.type));
+    int64_t unit =
+        string_table_.InternString(base::StringView(value_type.type));
+    // Add message later, remember protozero does not allow you to interleave
+    // these write calls.
     auto* sample_type = result_->add_sample_type();
-    sample_type->set_type(s.first);
-    sample_type->set_unit(s.second);
+    sample_type->set_type(type);
+    sample_type->set_unit(unit);
   }
 }
 
-void GProfileBuilder::AddSample(uint32_t callsite_id,
+bool GProfileBuilder::AddSample(uint32_t callsite_id,
                                 const protozero::PackedVarInt& values) {
-  PERFETTO_CHECK(values.size() == num_sample_types_);
-  if (finalized_) {
-    return;
-  }
+  PERFETTO_CHECK(!finalized_);
+
   const protozero::PackedVarInt& location_ids =
       GetLocationIdsForCallsite(CallsiteId(callsite_id));
+  if (location_ids.size() == 0) {
+    return false;
+  }
   auto* sample = result_->add_sample();
   sample->set_value(values);
   sample->set_location_id(location_ids);
+  return true;
 }
 
 void GProfileBuilder::Finalize() {
