@@ -71,6 +71,7 @@ util::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
       auto scoped_trace = context_->storage->TraceExecutionTimeIntoStats(
           stats::guess_trace_type_duration_ns);
       trace_type = GuessTraceType(blob.data(), blob.size());
+      context_->trace_type = trace_type;
     }
     switch (trace_type) {
       case kJsonTraceType: {

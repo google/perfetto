@@ -938,6 +938,30 @@ base::Status PrepareAndStepUntilLastValidStmt(
   return base::OkStatus();
 }
 
+const char* TraceTypeToString(TraceType trace_type) {
+  switch (trace_type) {
+    case kUnknownTraceType:
+      return "unknown";
+    case kProtoTraceType:
+      return "proto";
+    case kJsonTraceType:
+      return "json";
+    case kFuchsiaTraceType:
+      return "fuchsia";
+    case kSystraceTraceType:
+      return "systrace";
+    case kGzipTraceType:
+      return "gzip";
+    case kCtraceTraceType:
+      return "ctrace";
+    case kNinjaLogTraceType:
+      return "ninja_log";
+    case kAndroidBugreportTraceType:
+      return "android_bugreport";
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 }  // namespace
 
 template <typename View>
@@ -1166,6 +1190,10 @@ void TraceProcessorImpl::Flush() {
   context_.metadata_tracker->SetMetadata(
       metadata::trace_size_bytes,
       Variadic::Integer(static_cast<int64_t>(bytes_parsed_)));
+  const StringId trace_type_id =
+      context_.storage->InternString(TraceTypeToString(context_.trace_type));
+  context_.metadata_tracker->SetMetadata(metadata::trace_type,
+                                         Variadic::String(trace_type_id));
   BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
 }
 
