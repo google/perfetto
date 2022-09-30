@@ -153,10 +153,15 @@ test('ChromeConfig', () => {
   const traceConfigSource = assertExists(sources[0].config);
   expect(traceConfigSource.name).toBe('org.chromium.trace_event');
   const chromeConfig = assertExists(traceConfigSource.chromeConfig);
+  expect(chromeConfig.privacyFilteringEnabled).toBe(false);
   const traceConfig = assertExists(chromeConfig.traceConfig);
 
   const trackEventConfigSource = assertExists(sources[1].config);
   expect(trackEventConfigSource.name).toBe('track_event');
+  const trackEventConfig =
+      assertExists(trackEventConfigSource.trackEventConfig);
+  expect(trackEventConfig.filterDynamicEventNames).toBe(false);
+  expect(trackEventConfig.filterDebugAnnotations).toBe(false);
   const chromeConfigT = assertExists(trackEventConfigSource.chromeConfig);
   const traceConfigT = assertExists(chromeConfigT.traceConfig);
 
@@ -173,6 +178,29 @@ test('ChromeConfig', () => {
   expect(traceConfig).toEqual(expectedTraceConfig);
   expect(traceConfigT).toEqual(expectedTraceConfig);
   expect(traceConfigM).toEqual(expectedTraceConfig);
+});
+
+test('ChromeConfig with privacy filtering', () => {
+  const config = createEmptyRecordConfig();
+  config.ipcFlows = true;
+  config.jsExecution = true;
+  config.mode = 'STOP_WHEN_FULL';
+  config.chromePrivacyFiltering = true;
+  const result =
+      TraceConfig.decode(genConfigProto(config, {os: 'C', name: 'Chrome'}));
+  const sources = assertExists(result.dataSources);
+
+  const traceConfigSource = assertExists(sources[0].config);
+  expect(traceConfigSource.name).toBe('org.chromium.trace_event');
+  const chromeConfig = assertExists(traceConfigSource.chromeConfig);
+  expect(chromeConfig.privacyFilteringEnabled).toBe(true);
+
+  const trackEventConfigSource = assertExists(sources[1].config);
+  expect(trackEventConfigSource.name).toBe('track_event');
+  const trackEventConfig =
+      assertExists(trackEventConfigSource.trackEventConfig);
+  expect(trackEventConfig.filterDynamicEventNames).toBe(true);
+  expect(trackEventConfig.filterDebugAnnotations).toBe(true);
 });
 
 test('ChromeMemoryConfig', () => {
