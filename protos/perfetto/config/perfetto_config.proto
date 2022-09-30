@@ -466,7 +466,7 @@ message ChromeConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 19.
+// Next id: 21.
 message FtraceConfig {
   repeated string ftrace_events = 1;
   repeated string atrace_categories = 2;
@@ -518,7 +518,7 @@ message FtraceConfig {
 
   // When this boolean is true AND the ftrace_events contains "kmem/rss_stat",
   // this option causes traced_probes to enable the "kmem/rss_stat_throttled"
-  // event instad if present, and fall back to "kmem/rss_stat" if not present.
+  // event instead if present, and fall back to "kmem/rss_stat" if not present.
   // The historical context for this is the following:
   // - Up to Android S (12), the rss_stat was internally throttled in its
   //   kernel implementation.
@@ -528,8 +528,6 @@ message FtraceConfig {
   // - Not all Android T/13 devices will receive a new kernel though, hence we
   //   need to deal with both cases.
   // For more context: go/rss-stat-throttled.
-  // TODO(kaleshsingh): implement the logic behind this. Right now this flag
-  // does nothing.
   optional bool throttle_rss_stat = 15;
 
   // If true, avoid enabling events that aren't statically known by
@@ -546,6 +544,32 @@ message FtraceConfig {
   // are enabled, this setting has no effect. Example: ["sys_read", "sys_open"].
   // Introduced in: Android U.
   repeated string syscall_events = 18;
+
+  // If true, enable the "function_graph" kernel tracer that emits events
+  // whenever a kernel function is entered and exited
+  // (funcgraph_entry/funcgraph_exit).
+  // Notes on use:
+  // * Requires |symbolize_ksyms| for function name resolution.
+  // * Use |function_filters| to constrain the traced set of functions,
+  //   otherwise the event bandwidth will be too high for practical use.
+  // * The data source might be rejected if there is already a concurrent
+  //   ftrace data source that does not use function graph itself, as we do not
+  //   support switching kernel tracers mid-trace.
+  // Android:
+  // * Available only on debuggable builds.
+  // * Introduced in Android U.
+  optional bool enable_function_graph = 19;
+
+  // Constrains the set of functions traced when |enable_function_graph| is
+  // true. Supports globs, e.g. "sched*". You can specify multiple filters,
+  // in which case all matching functions will be traced. See kernel
+  // documentation on ftrace "set_ftrace_filter" file for more details.
+  // Android:
+  // * Available only on debuggable builds.
+  // * Introduced in Android U.
+  // TODO(rsavitski): look into supporting set_graph_filter as well (will trace
+  // the named function and all of its callees).
+  repeated string function_filters = 20;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto

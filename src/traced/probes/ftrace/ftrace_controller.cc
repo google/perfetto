@@ -124,9 +124,10 @@ bool HardResetFtraceState() {
     bool res = true;
     res &= WriteToFile((prefix + "tracing_on").c_str(), "0");
     res &= WriteToFile((prefix + "buffer_size_kb").c_str(), "4");
-    // We deliberately don't check for this as on some older versions of Android
-    // events/enable was not writable by the shell user.
+    // Not checking success because these files might not be accessible on
+    // older or release builds of Android:
     WriteToFile((prefix + "events/enable").c_str(), "0");
+    WriteToFile((prefix + "current_tracer").c_str(), "nop");
     res &= ClearFile((prefix + "trace").c_str());
     if (res)
       return true;
@@ -210,10 +211,11 @@ void FtraceController::StartIfNeeded() {
     MaybeSnapshotFtraceClock();
   }
 
+  size_t num_cpus = ftrace_procfs_->NumberOfCpus();
   per_cpu_.clear();
-  per_cpu_.reserve(ftrace_procfs_->NumberOfCpus());
+  per_cpu_.reserve(num_cpus);
   size_t period_page_quota = ftrace_config_muxer_->GetPerCpuBufferSizePages();
-  for (size_t cpu = 0; cpu < ftrace_procfs_->NumberOfCpus(); cpu++) {
+  for (size_t cpu = 0; cpu < num_cpus; cpu++) {
     auto reader = std::unique_ptr<CpuReader>(new CpuReader(
         cpu, table_.get(), symbolizer_.get(), ftrace_clock_snapshot_.get(),
         ftrace_procfs_->OpenPipeForCpu(cpu)));
@@ -350,10 +352,6 @@ void FtraceController::DisableAllEvents() {
   ftrace_procfs_->DisableAllEvents();
 }
 
-void FtraceController::WriteTraceMarker(const std::string& s) {
-  ftrace_procfs_->WriteTraceMarker(s);
-}
-
 void FtraceController::Flush(FlushRequestID flush_id) {
   metatrace::ScopedEvent evt(metatrace::TAG_FTRACE,
                              metatrace::FTRACE_CPU_FLUSH);
@@ -385,6 +383,11 @@ void FtraceController::StopIfNeeded() {
 
   per_cpu_.clear();
   cpu_zero_stats_fd_.reset();
+
+  // Muxer cannot change the current_tracer until we close the trace pipe fds
+  // (i.e. per_cpu_). Hence an explicit request here.
+  ftrace_config_muxer_->ResetCurrentTracer();
+
   if (!retain_ksyms_on_stop_) {
     symbolizer_->Destroy();
   }

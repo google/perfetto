@@ -540,5 +540,7 @@ message FtraceEvent {
     AndroidFsDatawriteStartFtraceEvent android_fs_datawrite_start = 434;
     AndroidFsFsyncEndFtraceEvent android_fs_fsync_end = 435;
     AndroidFsFsyncStartFtraceEvent android_fs_fsync_start = 436;
+    FuncgraphEntryFtraceEvent funcgraph_entry = 437;
+    FuncgraphExitFtraceEvent funcgraph_exit = 438;
   }
 }
