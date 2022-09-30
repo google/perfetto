@@ -545,6 +545,10 @@ header.overview {
   }
 }
 
+.text-select {
+  user-select: text;
+}
+
 button.query-ctrl {
   background: #262f3c;
   color: white;
