@@ -90,6 +90,7 @@ export const recordConfigValidator = record({
 
   chromeCategoriesSelected: arrayOf(str()),
   chromeHighOverheadCategoriesSelected: arrayOf(str()),
+  chromePrivacyFiltering: bool(),
 
   chromeLogs: bool(),
   taskScheduling: bool(),
