@@ -26,6 +26,18 @@
 namespace perfetto {
 namespace trace_processor {
 
+enum TraceType {
+  kUnknownTraceType,
+  kProtoTraceType,
+  kJsonTraceType,
+  kFuchsiaTraceType,
+  kSystraceTraceType,
+  kGzipTraceType,
+  kCtraceTraceType,
+  kNinjaLogTraceType,
+  kAndroidBugreportTraceType,
+};
+
 class ArgsTracker;
 class ArgsTranslationTable;
 class AsyncTrackSetTracker;
@@ -136,6 +148,8 @@ class TraceProcessorContext {
   // If the uuid was NOT read, the uuid will be made from the hash of the first
   // 4KB of the trace.
   bool uuid_found_in_trace = false;
+
+  TraceType trace_type = kUnknownTraceType;
 };
 
 }  // namespace trace_processor
