@@ -446,6 +446,20 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
       }
     }
 
+    // Special case function_graph events as they use a u64 field for kernel
+    // function pointers. Fudge the type so that |MergeFields| correctly tags
+    // the fields for kernel address symbolization (kFtraceSymAddr64).
+    if (!strcmp(event.group, "ftrace") &&
+        (!strcmp(event.name, "funcgraph_entry") ||
+         !strcmp(event.name, "funcgraph_exit"))) {
+      for (auto& field : ftrace_event.fields) {
+        if (GetNameFromTypeAndName(field.type_and_name) == "func") {
+          field.type_and_name = "void * func";
+          break;
+        }
+      }
+    }
+
     event.ftrace_event_id = ftrace_event.id;
 
     if (!common_fields_processed) {
