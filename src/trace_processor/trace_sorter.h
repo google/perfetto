@@ -211,7 +211,7 @@ class TraceSorter {
   int64_t max_timestamp() const { return global_max_ts_; }
 
  private:
-  // Stores offset and type of metadat.
+  // Stores offset and type of metadata.
   struct Descriptor {
    public:
     static constexpr uint8_t kTypeBits = 4;

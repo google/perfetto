@@ -195,7 +195,19 @@ class FtraceParser {
   void ParseSuspendResume(int64_t timestamp, protozero::ConstBytes);
   void ParseSchedCpuUtilCfs(int64_t timestap, protozero::ConstBytes);
 
+  void ParseFuncgraphEntry(int64_t timestamp,
+                           uint32_t pid,
+                           protozero::ConstBytes blob,
+                           PacketSequenceStateGeneration* seq_state);
+  void ParseFuncgraphExit(int64_t timestamp,
+                          uint32_t pid,
+                          protozero::ConstBytes blob,
+                          PacketSequenceStateGeneration* seq_state);
+
   void MaybeOnFirstFtraceEvent();
+  StringId InternedKernelSymbolOrFallback(
+      uint64_t key,
+      PacketSequenceStateGeneration* seq_state);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
