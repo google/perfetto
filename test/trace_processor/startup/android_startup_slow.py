@@ -54,9 +54,12 @@ trace.add_atrace_end(ts=to_s(117), tid=3, pid=3)
 trace.add_atrace_begin(ts=to_s(117), tid=3, pid=3, buf='activityResume')
 trace.add_atrace_end(ts=to_s(118), tid=3, pid=3)
 
-# P1: 10ns running
+# P1: 5s interruptable sleep
 trace.add_sched(ts=to_s(120), prev_pid=3, next_pid=0, prev_state='S')
-# P1: 10ns sleep
+trace.add_sched(ts=to_s(125), prev_pid=0, next_pid=3)
+# P1: 5s blocking I/O state
+trace.add_sched(ts=to_s(125), prev_pid=3, next_pid=0, prev_state='D')
+trace.add_sched_blocked_reason(ts=to_s(127), pid=3, io_wait=1, unblock_pid=4)
 trace.add_sched(ts=to_s(130), prev_pid=0, next_pid=3)
 
 trace.add_sched(ts=to_s(130), prev_pid=3, next_pid=4)
