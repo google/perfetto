@@ -102,7 +102,7 @@ class Trace(object):
         ss.prev_state = 0
       elif prev_state == 'S':
         ss.prev_state = 1
-      elif prev_state == 'U':
+      elif prev_state == 'U' or prev_state == 'D':
         ss.prev_state = 2
       else:
         raise Exception('Invalid prev state {}'.format(prev_state))
