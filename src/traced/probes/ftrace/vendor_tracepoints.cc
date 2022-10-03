@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/ftrace/discover_vendor_tracepoints.h"
+#include "src/traced/probes/ftrace/vendor_tracepoints.h"
 
 #include <map>
 #include <string>

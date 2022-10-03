@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACED_PROBES_FTRACE_DISCOVER_VENDOR_TRACEPOINTS_H_
-#define SRC_TRACED_PROBES_FTRACE_DISCOVER_VENDOR_TRACEPOINTS_H_
+#ifndef SRC_TRACED_PROBES_FTRACE_VENDOR_TRACEPOINTS_H_
+#define SRC_TRACED_PROBES_FTRACE_VENDOR_TRACEPOINTS_H_
 
 #include <map>
 #include <string>
@@ -36,4 +36,4 @@ DiscoverVendorTracepointsWithHal(AtraceHalWrapper* hal, FtraceProcfs* ftrace);
 }  // namespace vendor_tracepoints
 }  // namespace perfetto
 
-#endif  // SRC_TRACED_PROBES_FTRACE_DISCOVER_VENDOR_TRACEPOINTS_H_
+#endif  // SRC_TRACED_PROBES_FTRACE_VENDOR_TRACEPOINTS_H_
