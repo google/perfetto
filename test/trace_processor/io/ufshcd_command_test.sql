@@ -7,5 +7,5 @@ FROM
   counter_track AS ct
   ON c.track_id = ct.id
 WHERE
-  ct.name = "UFS Command Count"
+  ct.name = "io.ufs.command.count"
 ORDER BY ts

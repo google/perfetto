@@ -76,8 +76,6 @@ class TracingServiceImpl : public TracingService {
   struct DataSourceInstance;
 
  public:
-  static constexpr size_t kDefaultShmPageSize = 4096ul;
-  static constexpr size_t kDefaultShmSize = 256 * 1024ul;
   static constexpr size_t kMaxShmSize = 32 * 1024 * 1024ul;
   static constexpr uint32_t kDataSourceStopTimeoutMs = 5000;
   static constexpr uint8_t kSyncMarker[] = {0x82, 0x47, 0x7a, 0x76, 0xb2, 0x8d,
@@ -108,6 +106,7 @@ class TracingServiceImpl : public TracingService {
     ~ProducerEndpointImpl() override;
 
     // TracingService::ProducerEndpoint implementation.
+    void Disconnect() override;
     void RegisterDataSource(const DataSourceDescriptor&) override;
     void UpdateDataSource(const DataSourceDescriptor&) override;
     void UnregisterDataSource(const std::string& name) override;

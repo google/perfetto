@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT RUN_METRIC('android/android_hwcomposer.sql') AS suppress_query_output;
+SELECT RUN_METRIC('android/android_hwcomposer.sql');
 
 SELECT AVG(value)
 FROM total_layers;

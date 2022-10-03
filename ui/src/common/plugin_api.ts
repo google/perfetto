@@ -12,7 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TrackControllerFactory} from '../controller/track_controller';
+import {TrackCreator} from '../frontend/track';
+
+// The public API plugins use to extend the UI. This is passed to each
+// plugin via the exposed 'activate' function.
+export interface PluginContext {
+  registerTrackController(track: TrackControllerFactory): void;
+  registerTrack(track: TrackCreator): void;
+}
+
 export interface PluginInfo {
   pluginId: string;
-  activate: () => void;
+  activate: (ctx: PluginContext) => void;
 }

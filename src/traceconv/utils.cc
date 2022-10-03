@@ -48,7 +48,8 @@ constexpr size_t kCompressionBufferSize = 500 * 1024;
 
 }  // namespace
 
-bool ReadTrace(trace_processor::TraceProcessor* tp, std::istream* input) {
+bool ReadTraceUnfinalized(trace_processor::TraceProcessor* tp,
+                          std::istream* input) {
   // 1MB chunk size seems the best tradeoff on a MacBook Pro 2013 - i7 2.8 GHz.
   constexpr size_t kChunkSize = 1024 * 1024;
 

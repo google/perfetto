@@ -263,9 +263,9 @@ print fmt: "some format")"));
 INSTANTIATE_TEST_SUITE_P(BySize, TranslationTableCreationTest, Values(4, 8));
 
 TEST(TranslationTableTest, CompactSchedFormatParsingWalleyeData) {
-  std::string path =
+  std::string path = base::GetTestDataPath(
       "src/traced/probes/ftrace/test/data/"
-      "android_walleye_OPM5.171019.017.A1_4.4.88/";
+      "android_walleye_OPM5.171019.017.A1_4.4.88/");
   FtraceProcfs ftrace_procfs(path);
   auto table = ProtoTranslationTable::Create(
       &ftrace_procfs, GetStaticEventInfo(), GetStaticCommonFieldsInfo());

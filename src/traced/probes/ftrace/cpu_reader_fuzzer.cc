@@ -55,6 +55,7 @@ void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size) {
 
   FtraceMetadata metadata{};
   FtraceDataSourceConfig ds_config{EventFilter{},
+                                   EventFilter{},
                                    DisabledCompactSchedConfigForTesting(),
                                    {},
                                    {},

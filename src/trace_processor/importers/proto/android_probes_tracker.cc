@@ -19,7 +19,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-AndroidProbesTracker::AndroidProbesTracker(TraceProcessorContext*) {}
+AndroidProbesTracker::AndroidProbesTracker(TraceStorage*) {}
 
 AndroidProbesTracker::~AndroidProbesTracker() = default;
 

@@ -38,11 +38,13 @@ export interface GetCategoriesResponse extends Typed {
 export type ChromeExtensionMessage = ChromeExtensionError|ChromeExtensionStatus|
     ConsumerPortResponse|GetCategoriesResponse;
 
-function isError(obj: Typed): obj is ChromeExtensionError {
+export function isChromeExtensionError(obj: Typed):
+    obj is ChromeExtensionError {
   return obj.type === 'ChromeExtensionError';
 }
 
-function isStatus(obj: Typed): obj is ChromeExtensionStatus {
+export function isChromeExtensionStatus(obj: Typed):
+    obj is ChromeExtensionStatus {
   return obj.type === 'ChromeExtensionStatus';
 }
 
@@ -80,11 +82,11 @@ export class ChromeExtensionConsumerPort extends RpcConsumerPort {
   }
 
   onExtensionMessage(message: {data: ChromeExtensionMessage}) {
-    if (isError(message.data)) {
+    if (isChromeExtensionError(message.data)) {
       this.sendErrorMessage(message.data.error);
       return;
     }
-    if (isStatus(message.data)) {
+    if (isChromeExtensionStatus(message.data)) {
       this.sendStatus(message.data.status);
       return;
     }

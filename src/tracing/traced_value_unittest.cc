@@ -19,6 +19,7 @@
 #include <array>
 #include <deque>
 #include <forward_list>
+#include <list>
 #include <map>
 #include <queue>
 #include <set>

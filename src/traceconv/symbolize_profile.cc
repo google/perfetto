@@ -51,14 +51,16 @@ int SymbolizeProfile(std::istream* input, std::ostream* output) {
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
 
-  if (!ReadTrace(tp.get(), input))
+  if (!ReadTraceUnfinalized(tp.get(), input))
     PERFETTO_FATAL("Failed to read trace.");
 
-  tp->NotifyEndOfFile();
+  tp->Flush();
 
   SymbolizeDatabase(
       tp.get(), symbolizer.get(),
       [output](const std::string& trace_proto) { *output << trace_proto; });
+
+  tp->NotifyEndOfFile();
   return 0;
 }
 

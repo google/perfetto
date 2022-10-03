@@ -15,6 +15,7 @@
  */
 
 #include "src/profiling/perf/traced_perf.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "src/profiling/perf/perf_producer.h"
@@ -52,6 +53,14 @@ int TracedPerfMain(int, char**) {
 #endif
 
   profiling::PerfProducer producer(&proc_fd_getter, &task_runner);
+  const char* env_notif = getenv("TRACED_PERF_NOTIFY_FD");
+  if (env_notif) {
+    int notif_fd = atoi(env_notif);
+    producer.SetAllDataSourcesRegisteredCb([notif_fd] {
+      PERFETTO_CHECK(base::WriteAll(notif_fd, "1", 1) == 1);
+      PERFETTO_CHECK(base::CloseFile(notif_fd) == 0);
+    });
+  }
   producer.ConnectWithRetries(GetProducerSocket());
   task_runner.Run();
   return 0;

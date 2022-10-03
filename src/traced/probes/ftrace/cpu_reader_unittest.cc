@@ -65,6 +65,7 @@ namespace {
 
 FtraceDataSourceConfig EmptyConfig() {
   return FtraceDataSourceConfig{EventFilter{},
+                                EventFilter{},
                                 DisabledCompactSchedConfigForTesting(),
                                 {},
                                 {},
@@ -862,6 +863,7 @@ TEST(CpuReaderTest, ParseSixSchedSwitchCompactFormat) {
   auto page = PageFromXxd(test_case->data);
 
   FtraceDataSourceConfig ds_config{EventFilter{},
+                                   EventFilter{},
                                    EnabledCompactSchedConfigForTesting(),
                                    {},
                                    {},

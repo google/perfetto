@@ -48,6 +48,8 @@ trace.add_sched(ts=110, prev_pid=0, next_pid=3)
 # slice.
 trace.add_atrace_begin(ts=115, tid=3, pid=3, buf='activityStart')
 trace.add_atrace_end(ts=117, tid=3, pid=3)
+trace.add_atrace_begin(ts=117, tid=3, pid=3, buf='activityResume')
+trace.add_atrace_end(ts=118, tid=3, pid=3)
 
 # P1: 10ns running
 trace.add_sched(ts=120, prev_pid=3, next_pid=0, prev_state='S')

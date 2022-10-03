@@ -21,7 +21,6 @@
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_blob.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
@@ -46,20 +45,20 @@ class MockTraceParser : public ProtoTraceParser {
                     const uint8_t* data,
                     size_t length));
 
-  void ParseFtracePacket(uint32_t cpu,
-                         int64_t timestamp,
-                         TimestampedTracePiece ttp) override {
-    bool isNonCompact = ttp.type == TimestampedTracePiece::Type::kFtraceEvent;
-    MOCK_ParseFtracePacket(
-        cpu, timestamp, isNonCompact ? ttp.ftrace_event.event.data() : nullptr,
-        isNonCompact ? ttp.ftrace_event.event.length() : 0);
+  void ParseFtraceEvent(uint32_t cpu,
+                        int64_t timestamp,
+                        FtraceEventData data) override {
+    MOCK_ParseFtracePacket(cpu, timestamp, data.event.data(),
+                           data.event.length());
   }
 
   MOCK_METHOD3(MOCK_ParseTracePacket,
                void(int64_t ts, const uint8_t* data, size_t length));
 
-  void ParseTracePacket(int64_t ts, TimestampedTracePiece ttp) override {
-    TraceBlobView& tbv = ttp.packet_data.packet;
+  void ParseTrackEvent(int64_t, TrackEventData) override {}
+
+  void ParseTracePacket(int64_t ts, TracePacketData data) override {
+    TraceBlobView& tbv = data.packet;
     MOCK_ParseTracePacket(ts, tbv.data(), tbv.length());
   }
 };

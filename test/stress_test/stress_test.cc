@@ -74,7 +74,7 @@ using StressTestConfig = protos::gen::StressTestConfig;
 
 struct SigHandlerCtx {
   std::atomic<bool> aborted{};
-  std::vector<int> pids_to_kill;
+  std::vector<base::PlatformProcessId> pids_to_kill;
 };
 SigHandlerCtx* g_sig;
 
@@ -428,7 +428,7 @@ void CtrlCHandler() {
        it++) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     base::ScopedPlatformHandle proc_handle(
-        ::OpenProcess(PROCESS_TERMINATE, false, *it));
+        ::OpenProcess(PROCESS_TERMINATE, false, static_cast<DWORD>(*it)));
     ::TerminateProcess(*proc_handle, STATUS_CONTROL_C_EXIT);
 #else
     kill(*it, SIGKILL);

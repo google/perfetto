@@ -53,7 +53,8 @@ constexpr char kProgressChar = '\n';
 constexpr char kProgressChar = '\r';
 #endif
 
-bool ReadTrace(trace_processor::TraceProcessor* tp, std::istream* input);
+bool ReadTraceUnfinalized(trace_processor::TraceProcessor* tp,
+                          std::istream* input);
 void IngestTraceOrDie(trace_processor::TraceProcessor* tp,
                       const std::string& trace_proto);
 

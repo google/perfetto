@@ -41,8 +41,8 @@ except:
   print('Run `pip3 install sourcemap` and try again')
   sys.exit(1)
 
-
 GERRIT_BASE_URL = 'https://android.googlesource.com/platform/external/perfetto/'
+
 
 def fetch_url_cached(url):
   normalized = re.sub('[^a-zA-Z0-9-._]', '_', url)

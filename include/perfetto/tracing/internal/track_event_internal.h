@@ -78,6 +78,9 @@ class PERFETTO_EXPORT_COMPONENT TrackEventSessionObserver {
   // Called when a track event tracing session is stopped. It is still possible
   // to emit track events from this callback.
   virtual void OnStop(const DataSourceBase::StopArgs&);
+  // Called when tracing muxer requests to clear incremental state.
+  virtual void WillClearIncrementalState(
+      const DataSourceBase::ClearIncrementalStateArgs&);
 };
 
 namespace internal {
@@ -170,15 +173,22 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
       const TrackEventCategoryRegistry&,
       bool (*register_data_source)(const DataSourceDescriptor&));
 
-  static bool AddSessionObserver(TrackEventSessionObserver*);
-  static void RemoveSessionObserver(TrackEventSessionObserver*);
+  static bool AddSessionObserver(const TrackEventCategoryRegistry&,
+                                 TrackEventSessionObserver*);
+  static void RemoveSessionObserver(const TrackEventCategoryRegistry&,
+                                    TrackEventSessionObserver*);
 
   static void EnableTracing(const TrackEventCategoryRegistry& registry,
                             const protos::gen::TrackEventConfig& config,
                             const DataSourceBase::SetupArgs&);
-  static void OnStart(const DataSourceBase::StartArgs&);
+  static void OnStart(const TrackEventCategoryRegistry&,
+                      const DataSourceBase::StartArgs&);
   static void DisableTracing(const TrackEventCategoryRegistry& registry,
                              const DataSourceBase::StopArgs&);
+  static void WillClearIncrementalState(
+      const TrackEventCategoryRegistry&,
+      const DataSourceBase::ClearIncrementalStateArgs&);
+
   static bool IsCategoryEnabled(const TrackEventCategoryRegistry& registry,
                                 const protos::gen::TrackEventConfig& config,
                                 const Category& category);
@@ -213,14 +223,15 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
 
   // TODO(altimin): Remove this method once Chrome uses
   // EventContext::AddDebugAnnotation directly.
-  template <typename T>
+  template <typename NameType, typename ValueType>
   static void AddDebugAnnotation(perfetto::EventContext* event_ctx,
-                                 const char* name,
-                                 T&& value) {
-    auto annotation = AddDebugAnnotation(event_ctx, name);
+                                 NameType&& name,
+                                 ValueType&& value) {
+    auto annotation =
+        AddDebugAnnotation(event_ctx, std::forward<NameType>(name));
     WriteIntoTracedValue(
         internal::CreateTracedValueFromProto(annotation, event_ctx),
-        std::forward<T>(value));
+        std::forward<ValueType>(value));
   }
 
   // If the given track hasn't been seen by the trace writer yet, write a
@@ -285,9 +296,14 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
       TraceTimestamp,
       uint32_t seq_flags =
           protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
+
   static protos::pbzero::DebugAnnotation* AddDebugAnnotation(
       perfetto::EventContext*,
       const char* name);
+
+  static protos::pbzero::DebugAnnotation* AddDebugAnnotation(
+      perfetto::EventContext*,
+      perfetto::DynamicString name);
 
   static std::atomic<int> session_count_;
 };

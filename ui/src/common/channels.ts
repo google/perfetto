@@ -14,7 +14,7 @@
 
 import {globals} from '../frontend/globals';
 
-const DEFAULT_CHANNEL = 'stable';
+export const DEFAULT_CHANNEL = 'stable';
 const CHANNEL_KEY = 'perfettoUiChannel';
 
 let currentChannel: string|undefined = undefined;

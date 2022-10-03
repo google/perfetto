@@ -99,13 +99,16 @@ ProducerIPCClientImpl::ProducerIPCClientImpl(
       task_runner_(task_runner),
       ipc_channel_(
           ipc::Client::CreateInstance(std::move(conn_args), task_runner)),
-      producer_port_(this /* event_listener */),
+      producer_port_(
+          new protos::gen::ProducerPortProxy(this /* event_listener */)),
       shared_memory_(std::move(shm)),
       shared_memory_arbiter_(std::move(shm_arbiter)),
       name_(producer_name),
       shared_memory_page_size_hint_bytes_(shared_memory_page_size_hint_bytes),
       shared_memory_size_hint_bytes_(shared_memory_size_hint_bytes),
-      smb_scraping_mode_(smb_scraping_mode) {
+      smb_scraping_mode_(smb_scraping_mode),
+      receive_shmem_fd_cb_fuchsia_(
+          std::move(conn_args.receive_shmem_fd_cb_fuchsia)) {
   // Check for producer-provided SMB (used by Chrome for startup tracing).
   if (shared_memory_) {
     // We also expect a valid (unbound) arbiter. Bind it to this endpoint now.
@@ -118,12 +121,25 @@ ProducerIPCClientImpl::ProducerIPCClientImpl(
     shared_buffer_page_size_kb_ = shared_memory_page_size_hint_bytes_ / 1024;
   }
 
-  ipc_channel_->BindService(producer_port_.GetWeakPtr());
+  ipc_channel_->BindService(producer_port_->GetWeakPtr());
   PERFETTO_DCHECK_THREAD(thread_checker_);
 }
 
 ProducerIPCClientImpl::~ProducerIPCClientImpl() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+}
+
+void ProducerIPCClientImpl::Disconnect() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  if (!producer_port_)
+    return;
+  // Reset the producer port so that no further IPCs are received and IPC
+  // callbacks are no longer executed. Also reset the IPC channel so that the
+  // service is notified of the disconnection.
+  producer_port_.reset();
+  ipc_channel_.reset();
+  // Perform disconnect synchronously.
+  OnDisconnect();
 }
 
 // Called by the IPC layer if the BindService() succeeds.
@@ -175,7 +191,7 @@ void ProducerIPCClientImpl::OnConnect() {
   }
 
   req.set_sdk_version(base::GetVersionString());
-  producer_port_.InitializeConnection(req, std::move(on_init), shm_fd);
+  producer_port_->InitializeConnection(req, std::move(on_init), shm_fd);
 
   // Create the back channel to receive commands from the Service.
   ipc::Deferred<protos::gen::GetAsyncCommandResponse> on_cmd;
@@ -185,8 +201,8 @@ void ProducerIPCClientImpl::OnConnect() {
           return;  // The IPC channel was closed and |resp| was auto-rejected.
         OnServiceRequest(*resp);
       });
-  producer_port_.GetAsyncCommand(protos::gen::GetAsyncCommandRequest(),
-                                 std::move(on_cmd));
+  producer_port_->GetAsyncCommand(protos::gen::GetAsyncCommandRequest(),
+                                  std::move(on_cmd));
 
   // If there are pending Sync() requests, send them now.
   for (const auto& pending_sync : pending_sync_reqs_)
@@ -200,6 +216,24 @@ void ProducerIPCClientImpl::OnDisconnect() {
   connected_ = false;
   data_sources_setup_.clear();
   producer_->OnDisconnect();  // Note: may delete |this|.
+}
+
+void ProducerIPCClientImpl::ScheduleDisconnect() {
+  // |ipc_channel| doesn't allow disconnection in the middle of handling
+  // an IPC call, so the connection drop must take place over two phases.
+
+  // First, synchronously drop the |producer_port_| so that no more IPC
+  // messages are handled.
+  producer_port_.reset();
+
+  // Then schedule an async task for performing the remainder of the
+  // disconnection operations outside the context of the IPC method handler.
+  auto weak_this = weak_factory_.GetWeakPtr();
+  task_runner_->PostTask([weak_this]() {
+    if (weak_this) {
+      weak_this->Disconnect();
+    }
+  });
 }
 
 void ProducerIPCClientImpl::OnConnectionInitialized(
@@ -219,7 +253,7 @@ void ProducerIPCClientImpl::OnConnectionInitialized(
   // TODO(eseckler): Handle adoption failure more gracefully.
   if (shared_memory_ && !is_shmem_provided_by_producer_) {
     PERFETTO_DLOG("Service failed adopt producer-provided SMB, disconnecting.");
-    ipc_channel_.reset();
+    Disconnect();
     return;
   }
 }
@@ -264,6 +298,23 @@ void ProducerIPCClientImpl::OnServiceRequest(
     const std::string& shm_key = cmd.setup_tracing().shm_key_windows();
     if (!shm_key.empty())
       ipc_shared_memory = SharedMemoryWindows::Attach(shm_key);
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
+    // On Fuchsia, the embedder is responsible for routing the shared memory
+    // FD, which is provided to this code via a blocking callback.
+    PERFETTO_CHECK(receive_shmem_fd_cb_fuchsia_);
+
+    base::ScopedFile shmem_fd(receive_shmem_fd_cb_fuchsia_());
+    if (!shmem_fd) {
+      // Failure to get a shared memory buffer is a protocol violation and
+      // therefore we should drop the Protocol connection.
+      PERFETTO_ELOG("Could not get shared memory FD from embedder.");
+      ScheduleDisconnect();
+      return;
+    }
+
+    ipc_shared_memory =
+        PosixSharedMemory::AttachToFd(std::move(shmem_fd),
+                                      /*require_seals_if_supported=*/false);
 #else
     base::ScopedFile shmem_fd = ipc_channel_->TakeReceivedFD();
     if (shmem_fd) {
@@ -338,7 +389,7 @@ void ProducerIPCClientImpl::RegisterDataSource(
         if (!response)
           PERFETTO_DLOG("RegisterDataSource() failed: connection reset");
       });
-  producer_port_.RegisterDataSource(req, std::move(async_response));
+  producer_port_->RegisterDataSource(req, std::move(async_response));
 }
 
 void ProducerIPCClientImpl::UpdateDataSource(
@@ -356,7 +407,7 @@ void ProducerIPCClientImpl::UpdateDataSource(
         if (!response)
           PERFETTO_DLOG("UpdateDataSource() failed: connection reset");
       });
-  producer_port_.UpdateDataSource(req, std::move(async_response));
+  producer_port_->UpdateDataSource(req, std::move(async_response));
 }
 
 void ProducerIPCClientImpl::UnregisterDataSource(const std::string& name) {
@@ -368,7 +419,7 @@ void ProducerIPCClientImpl::UnregisterDataSource(const std::string& name) {
   }
   protos::gen::UnregisterDataSourceRequest req;
   req.set_data_source_name(name);
-  producer_port_.UnregisterDataSource(
+  producer_port_->UnregisterDataSource(
       req, ipc::Deferred<protos::gen::UnregisterDataSourceResponse>());
 }
 
@@ -383,7 +434,7 @@ void ProducerIPCClientImpl::RegisterTraceWriter(uint32_t writer_id,
   protos::gen::RegisterTraceWriterRequest req;
   req.set_trace_writer_id(writer_id);
   req.set_target_buffer(target_buffer);
-  producer_port_.RegisterTraceWriter(
+  producer_port_->RegisterTraceWriter(
       req, ipc::Deferred<protos::gen::RegisterTraceWriterResponse>());
 }
 
@@ -396,7 +447,7 @@ void ProducerIPCClientImpl::UnregisterTraceWriter(uint32_t writer_id) {
   }
   protos::gen::UnregisterTraceWriterRequest req;
   req.set_trace_writer_id(writer_id);
-  producer_port_.UnregisterTraceWriter(
+  producer_port_->UnregisterTraceWriter(
       req, ipc::Deferred<protos::gen::UnregisterTraceWriterResponse>());
 }
 
@@ -420,7 +471,7 @@ void ProducerIPCClientImpl::CommitData(const CommitDataRequest& req,
           callback();
         });
   }
-  producer_port_.CommitData(req, std::move(async_response));
+  producer_port_->CommitData(req, std::move(async_response));
 }
 
 void ProducerIPCClientImpl::NotifyDataSourceStarted(DataSourceInstanceID id) {
@@ -432,7 +483,7 @@ void ProducerIPCClientImpl::NotifyDataSourceStarted(DataSourceInstanceID id) {
   }
   protos::gen::NotifyDataSourceStartedRequest req;
   req.set_data_source_id(id);
-  producer_port_.NotifyDataSourceStarted(
+  producer_port_->NotifyDataSourceStarted(
       req, ipc::Deferred<protos::gen::NotifyDataSourceStartedResponse>());
 }
 
@@ -445,7 +496,7 @@ void ProducerIPCClientImpl::NotifyDataSourceStopped(DataSourceInstanceID id) {
   }
   protos::gen::NotifyDataSourceStoppedRequest req;
   req.set_data_source_id(id);
-  producer_port_.NotifyDataSourceStopped(
+  producer_port_->NotifyDataSourceStopped(
       req, ipc::Deferred<protos::gen::NotifyDataSourceStoppedResponse>());
 }
 
@@ -461,7 +512,7 @@ void ProducerIPCClientImpl::ActivateTriggers(
   for (const auto& name : triggers) {
     *proto_req.add_trigger_names() = name;
   }
-  producer_port_.ActivateTriggers(
+  producer_port_->ActivateTriggers(
       proto_req, ipc::Deferred<protos::gen::ActivateTriggersResponse>());
 }
 
@@ -479,7 +530,7 @@ void ProducerIPCClientImpl::Sync(std::function<void()> callback) {
     // still a (weaker) linearization fence.
     callback();
   });
-  producer_port_.Sync(protos::gen::SyncRequest(), std::move(resp));
+  producer_port_->Sync(protos::gen::SyncRequest(), std::move(resp));
 }
 
 std::unique_ptr<TraceWriter> ProducerIPCClientImpl::CreateTraceWriter(

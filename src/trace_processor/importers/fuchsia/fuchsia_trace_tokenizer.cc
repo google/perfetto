@@ -280,9 +280,8 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
       // Build the FuchsiaRecord for the event, i.e. extract the thread
       // information if not inline, and any non-inline strings (name, category
       // for now, arg names and string values in the future).
-      auto record =
-          std::unique_ptr<FuchsiaRecord>(new FuchsiaRecord(std::move(tbv)));
-      record->set_ticks_per_second(current_provider_->ticks_per_second);
+      FuchsiaRecord record(std::move(tbv));
+      record.set_ticks_per_second(current_provider_->ticks_per_second);
 
       uint64_t ticks;
       if (!cursor.ReadUint64(&ticks)) {
@@ -300,23 +299,23 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
         // Skip over inline thread
         cursor.ReadInlineThread(nullptr);
       } else {
-        record->InsertThread(thread_ref,
-                             current_provider_->thread_table[thread_ref]);
+        record.InsertThread(thread_ref,
+                            current_provider_->thread_table[thread_ref]);
       }
 
       if (fuchsia_trace_utils::IsInlineString(cat_ref)) {
         // Skip over inline string
         cursor.ReadInlineString(cat_ref, nullptr);
       } else {
-        record->InsertString(cat_ref, current_provider_->string_table[cat_ref]);
+        record.InsertString(cat_ref, current_provider_->string_table[cat_ref]);
       }
 
       if (fuchsia_trace_utils::IsInlineString(name_ref)) {
         // Skip over inline string
         cursor.ReadInlineString(name_ref, nullptr);
       } else {
-        record->InsertString(name_ref,
-                             current_provider_->string_table[name_ref]);
+        record.InsertString(name_ref,
+                            current_provider_->string_table[name_ref]);
       }
 
       uint32_t n_args =
@@ -339,8 +338,8 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           // Skip over inline string
           cursor.ReadInlineString(arg_name_ref, nullptr);
         } else {
-          record->InsertString(arg_name_ref,
-                               current_provider_->string_table[arg_name_ref]);
+          record.InsertString(arg_name_ref,
+                              current_provider_->string_table[arg_name_ref]);
         }
 
         if (arg_type == kArgString) {
@@ -350,8 +349,8 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
             // Skip over inline string
             cursor.ReadInlineString(arg_value_ref, nullptr);
           } else {
-            record->InsertString(
-                arg_value_ref, current_provider_->string_table[arg_value_ref]);
+            record.InsertString(arg_value_ref,
+                                current_provider_->string_table[arg_value_ref]);
           }
         }
 

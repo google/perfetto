@@ -21,7 +21,7 @@ import {toNs} from '../../common/time';
 import {
   Config,
   THREAD_STATE_TRACK_KIND,
-} from '../../tracks/thread_state/common';
+} from '../../tracks/thread_state';
 import {globals} from '../globals';
 
 import {AggregationController} from './aggregation_controller';

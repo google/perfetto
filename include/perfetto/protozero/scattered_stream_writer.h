@@ -45,8 +45,23 @@ class PERFETTO_EXPORT_COMPONENT ScatteredStreamWriter {
  public:
   class PERFETTO_EXPORT_COMPONENT Delegate {
    public:
+    static constexpr size_t kPatchSize = 4;
     virtual ~Delegate();
+
+    // Returns a new chunk for writing.
     virtual ContiguousMemoryRange GetNewBuffer() = 0;
+
+    // Signals the delegate that the location pointed by `to_patch` (which must
+    // be in the last chunk returned by GetNewBuffer()), kPatchSize long, needs
+    // to be updated later (after potentially multiple GetNewBuffer calls).
+    //
+    // The caller must write to the returned location later. If the returned
+    // pointer is nullptr, the caller should not write anything.
+    //
+    // The implementation considers the patch ready to apply when the caller
+    // writes the the first byte a value that's different than 0 (the
+    // implementation periodically checks for this).
+    virtual uint8_t* AnnotatePatch(uint8_t* patch_addr);
   };
 
   explicit ScatteredStreamWriter(Delegate* delegate);
@@ -98,24 +113,38 @@ class PERFETTO_EXPORT_COMPONENT ScatteredStreamWriter {
   // Subsequent WriteByte(s) will write into |range|.
   void Reset(ContiguousMemoryRange range);
 
+  // Commits the current chunk and gets a new chunk from the delegate.
+  void Extend();
+
   // Number of contiguous free bytes in |cur_range_| that can be written without
   // requesting a new buffer.
   size_t bytes_available() const {
     return static_cast<size_t>(cur_range_.end - write_ptr_);
   }
 
+  ContiguousMemoryRange cur_range() const { return cur_range_; }
+
   uint8_t* write_ptr() const { return write_ptr_; }
+
+  void set_write_ptr(uint8_t* write_ptr) {
+    assert(cur_range_.begin <= write_ptr && write_ptr <= cur_range_.end);
+    write_ptr_ = write_ptr;
+  }
 
   uint64_t written() const {
     return written_previously_ +
            static_cast<uint64_t>(write_ptr_ - cur_range_.begin);
   }
 
+  uint64_t written_previously() const { return written_previously_; }
+
+  uint8_t* AnnotatePatch(uint8_t* patch_addr) {
+    return delegate_->AnnotatePatch(patch_addr);
+  }
+
  private:
   ScatteredStreamWriter(const ScatteredStreamWriter&) = delete;
   ScatteredStreamWriter& operator=(const ScatteredStreamWriter&) = delete;
-
-  void Extend();
 
   Delegate* const delegate_;
   ContiguousMemoryRange cur_range_;

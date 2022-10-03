@@ -3,6 +3,7 @@
 import sys
 import os
 
+
 def main():
   # Typically the target file argument is the last arg. gsutil invokes:
   # `file -b --mime /path/to/file`. Rathter than depending on it, just pick
@@ -17,15 +18,16 @@ def main():
 
   ext = os.path.splitext(fname)[1].lower()
   ext_map = {
-    '.html': 'text/html',
-    '.css': 'text/css',
-    '.js': 'text/javascript',
-    '.jpg': 'image/jpeg',
-    '.png': 'image/png',
-    '.svg': 'image/svg+xml',
+      '.html': 'text/html',
+      '.css': 'text/css',
+      '.js': 'text/javascript',
+      '.jpg': 'image/jpeg',
+      '.png': 'image/png',
+      '.svg': 'image/svg+xml',
   }
   print(ext_map.get(ext, 'text/html'))
   return 0
+
 
 if __name__ == '__main__':
   sys.exit(main())

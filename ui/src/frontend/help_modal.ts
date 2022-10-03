@@ -28,6 +28,8 @@ function keycap(key: string) {
 }
 
 function showHelp() {
+  const ctrlOrCmd =
+      window.navigator.platform.indexOf('Mac') !== -1 ? 'Cmd' : 'Ctrl';
   showModal({
     title: 'Perfetto Help',
     content: m(
@@ -90,7 +92,7 @@ function showHelp() {
                     'the one that is in focus (bold) is selected')),
             m('tr',
               m('td',
-                keycap('Ctrl'),
+                keycap(ctrlOrCmd),
                 ' + ',
                 keycap('['),
                 '/',
@@ -108,7 +110,10 @@ function showHelp() {
                 ' (with event or area selected)'),
               m('td', 'Mark the area (persistently)')),
             m('tr',
-              m('td', keycap('Ctrl'), ' + ', keycap('b')),
+              m('td', keycap(ctrlOrCmd), ' + ', keycap('a')),
+              m('td', 'Select all')),
+            m('tr',
+              m('td', keycap(ctrlOrCmd), ' + ', keycap('b')),
               m('td', 'Toggle display of sidebar')),
             m('tr', m('td', keycap('?')), m('td', 'Show help')),
             )),

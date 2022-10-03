@@ -443,71 +443,6 @@ class RowMap {
   // Clears this RowMap by resetting it to a newly constructed state.
   void Clear() { *this = RowMap(); }
 
-  // Filters the current RowMap into the RowMap given by |out| based on the
-  // return value of |p(idx)|.
-  //
-  // Precondition: |out| should be sorted by the indices inside it (this is
-  // required to keep this method efficient). This is automatically true if the
-  // mode is out is Range or BitVector but needs to be enforced if the mode is
-  // IndexVector.
-  //
-  // Specifically, the setup for each of the variables is as follows:
-  //  this: contains the RowMap indices which will be looked up and passed to
-  //        p to filter.
-  //  out : contains indicies into |this| and will be filtered down to only
-  //        contain indicies where p returns true.
-  //  p   : takes an index given by |this| and returns whether the index should
-  //        be retained in |out|.
-  //
-  // Concretely, the algorithm being invoked looks like (but more efficient
-  // based on the mode of |this| and |out|):
-  // for (idx : out)
-  //   this_idx = (*this)[idx]
-  //   if (!p(this_idx))
-  //     out->Remove(idx)
-  template <typename Predicate>
-  void FilterInto(RowMap* out, Predicate p) const {
-    PERFETTO_DCHECK(size() >= out->size());
-
-    if (out->empty()) {
-      // If the output RowMap is empty, we don't need to do anything.
-      return;
-    }
-
-    if (out->size() == 1) {
-      // If the output RowMap has a single entry, just lookup that entry and see
-      // if we should keep it.
-      if (!p(Get(out->Get(0))))
-        *out = RowMap();
-      return;
-    }
-
-    // TODO(lalitm): investigate whether we should have another fast path for
-    // cases where |out| has only a few entries so we can scan |out| instead of
-    // scanning |this|.
-
-    // Ideally, we'd always just scan |out| and keep the indices in |this| which
-    // meet |p|. However, if |this| is a BitVector, we end up needing expensive
-    // |IndexOfNthSet| calls (as we need to convert the row to an index before
-    // passing it to |p|).
-    switch (mode_) {
-      case Mode::kRange: {
-        auto ip = [this, p](uint32_t row) { return p(GetRange(row)); };
-        out->Filter(ip);
-        break;
-      }
-      case Mode::kBitVector: {
-        FilterIntoScanSelfBv(out, p);
-        break;
-      }
-      case Mode::kIndexVector: {
-        auto ip = [this, p](uint32_t row) { return p(GetIndexVector(row)); };
-        out->Filter(ip);
-        break;
-      }
-    }
-  }
-
   template <typename Comparator = bool(uint32_t, uint32_t)>
   void StableSort(std::vector<uint32_t>* out, Comparator c) const {
     switch (mode_) {
@@ -532,19 +467,6 @@ class RowMap {
     }
   }
 
-  // Returns the iterator over the rows in this RowMap.
-  Iterator IterateRows() const { return Iterator(this); }
-
-  // Returns if the RowMap is internally represented using a range.
-  bool IsRange() const { return mode_ == Mode::kRange; }
-
- private:
-  enum class Mode {
-    kRange,
-    kBitVector,
-    kIndexVector,
-  };
-
   // Filters the indices in |out| by keeping those which meet |p|.
   template <typename Predicate = bool(OutputIndex)>
   void Filter(Predicate p) {
@@ -568,58 +490,21 @@ class RowMap {
     }
   }
 
-  // Filters the current RowMap into |out| by performing a full scan on |this|
-  // where |this| is a BitVector.
-  // See |FilterInto| for a full breakdown of the semantics of this function.
-  template <typename Predicate>
-  void FilterIntoScanSelfBv(RowMap* out, Predicate p) const {
-    auto it = bit_vector_.IterateSetBits();
-    switch (out->mode_) {
-      case Mode::kRange: {
-        // TODO(lalitm): investigate whether we can reuse the data inside
-        // out->bit_vector_ at some point.
-        BitVector bv(out->end_index_, false);
-        for (auto out_it = bv.IterateAllBits(); it; it.Next(), out_it.Next()) {
-          uint32_t ordinal = it.ordinal();
-          if (ordinal < out->start_index_)
-            continue;
-          if (ordinal >= out->end_index_)
-            break;
+  // Returns the iterator over the rows in this RowMap.
+  Iterator IterateRows() const { return Iterator(this); }
 
-          if (p(it.index())) {
-            out_it.Set();
-          }
-        }
-        *out = RowMap(std::move(bv));
-        break;
-      }
-      case Mode::kBitVector: {
-        auto out_it = out->bit_vector_.IterateAllBits();
-        for (; out_it; it.Next(), out_it.Next()) {
-          PERFETTO_DCHECK(it);
-          if (out_it.IsSet() && !p(it.index()))
-            out_it.Clear();
-        }
-        break;
-      }
-      case Mode::kIndexVector: {
-        PERFETTO_DCHECK(std::is_sorted(out->index_vector_.begin(),
-                                       out->index_vector_.end()));
-        auto fn = [&p, &it](uint32_t i) {
-          while (it.ordinal() < i) {
-            it.Next();
-            PERFETTO_DCHECK(it);
-          }
-          PERFETTO_DCHECK(it.ordinal() == i);
-          return !p(it.index());
-        };
-        auto iv_it = std::remove_if(out->index_vector_.begin(),
-                                    out->index_vector_.end(), fn);
-        out->index_vector_.erase(iv_it, out->index_vector_.end());
-        break;
-      }
-    }
-  }
+  // Returns if the RowMap is internally represented using a range.
+  bool IsRange() const { return mode_ == Mode::kRange; }
+
+ private:
+  enum class Mode {
+    kRange,
+    kBitVector,
+    kIndexVector,
+  };
+  // TODO(lalitm): remove this when the coupling between RowMap and
+  // ColumnStorage Selector is broken (after filtering is moved out of here).
+  friend class ColumnStorageOverlay;
 
   template <typename Predicate>
   void FilterRange(Predicate p) {

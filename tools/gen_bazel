@@ -141,6 +141,8 @@ def gen_cc_metrics_descriptor(target):
   label = BazelLabel(
       get_bazel_label_name(target.name), 'perfetto_cc_proto_descriptor')
   label.deps += [':' + get_bazel_label_name(x) for x in target.proto_deps]
+  label.deps += [gn_utils.label_to_path(src) for src in target.inputs if "tmp.gn_utils" not in src]
+
   label.outs += target.outputs
   return [label]
 
@@ -507,6 +509,7 @@ load(
     "perfetto_cc_proto_library",
     "perfetto_cc_protocpp_library",
     "perfetto_cc_protozero_library",
+    "perfetto_go_proto_library",
     "perfetto_java_proto_library",
     "perfetto_java_lite_proto_library",
     "perfetto_proto_library",

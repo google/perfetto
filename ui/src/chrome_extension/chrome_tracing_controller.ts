@@ -113,13 +113,11 @@ export class ChromeTracingController extends RpcConsumerPort {
         .join('');
   }
 
-  // tslint:disable-next-line: no-any
   convertDictKeys(obj: any): any {
     if (Array.isArray(obj)) {
       return obj.map((v) => this.convertDictKeys(v));
     }
     if (typeof obj === 'object' && obj !== null) {
-      // tslint:disable-next-line: no-any
       const converted: any = {};
       for (const key of Object.keys(obj)) {
         converted[this.toCamelCase(key, '_')] = this.convertDictKeys(obj[key]);
@@ -129,7 +127,6 @@ export class ChromeTracingController extends RpcConsumerPort {
     return obj;
   }
 
-  // tslint:disable-next-line: no-any
   convertToDevToolsConfig(config: any): Protocol.Tracing.TraceConfig {
     // DevTools uses a different naming style for config properties: Dictionary
     // keys are named "camelCase" style, rather than "underscore_case" style as

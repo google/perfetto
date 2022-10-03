@@ -243,6 +243,10 @@ export class PanAndZoomHandler {
 
   private onKeyDown(e: KeyboardEvent) {
     this.updateShift(e.shiftKey);
+
+    // Handle key events that are not pan or zoom.
+    if (handleKey(e, true)) return;
+
     if (keyToPan(e) !== Pan.None) {
       if (this.panning !== keyToPan(e)) {
         this.panAnimation.stop();
@@ -262,22 +266,20 @@ export class PanAndZoomHandler {
       this.zooming = keyToZoom(e);
       this.zoomAnimation.start(DEFAULT_ANIMATION_DURATION);
     }
-
-    // Handle key events that are not pan or zoom.
-    handleKey(e, true);
   }
 
   private onKeyUp(e: KeyboardEvent) {
     this.updateShift(e.shiftKey);
+
+    // Handle key events that are not pan or zoom.
+    if (handleKey(e, false)) return;
+
     if (keyToPan(e) === this.panning) {
       this.panning = Pan.None;
     }
     if (keyToZoom(e) === this.zooming) {
       this.zooming = Zoom.None;
     }
-
-    // Handle key events that are not pan or zoom.
-    handleKey(e, false);
   }
 
   // TODO(hjd): Move this shift handling into the viewer page.

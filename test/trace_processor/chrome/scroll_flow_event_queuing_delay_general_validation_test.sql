@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 SELECT RUN_METRIC('chrome/scroll_flow_event_queuing_delay.sql')
-    AS suppress_query_output;
+   ;
 
 SELECT
   -- Each trace_id (in our example trace not true in general) has 8 steps. There

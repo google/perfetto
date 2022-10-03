@@ -51,10 +51,16 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessorStorage {
   // For compatibility with older API clients.
   util::Status Parse(std::unique_ptr<uint8_t[]> buf, size_t size);
 
-  // When parsing a bounded file (as opposite to streaming from a device) this
-  // function should be called when the last chunk of the file has been passed
-  // into Parse(). This allows to flush the events queued in the ordering stage,
-  // without having to wait for their time window to expire.
+  // Forces all data in the trace to be pushed to tables without buffering data
+  // in sorting queues. This is useful if queries need to be performed to
+  // compute post-processing data (e.g. deobfuscation, symbolization etc) which
+  // will be appended to the trace in a future call to Parse.
+  virtual void Flush() = 0;
+
+  // Calls Flush and finishes all of the actions required for parsing the trace.
+  // Should only be called once: in v28, calling this function multiple times
+  // will simply log an error but in subsequent versions, this will become
+  // undefined behaviour.
   virtual void NotifyEndOfFile() = 0;
 };
 

@@ -110,28 +110,31 @@ TEST(SystraceParserTest, SystraceEvent) {
 
 TEST(SystraceParserTest, AsyncTrackEvents) {
   SystraceTracePoint result{};
-  ASSERT_EQ(ParseSystraceTracePoint("T", &result), Result::kFailure);
-  ASSERT_EQ(ParseSystraceTracePoint("U", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("G", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("H", &result), Result::kFailure);
 
-  ASSERT_EQ(ParseSystraceTracePoint("T||test|test|", &result),
+  ASSERT_EQ(ParseSystraceTracePoint("G||test|test|", &result),
             Result::kFailure);
-  ASSERT_EQ(ParseSystraceTracePoint("T|123|test||", &result), Result::kFailure);
-  ASSERT_EQ(ParseSystraceTracePoint("T|123||test|", &result), Result::kFailure);
-  ASSERT_EQ(ParseSystraceTracePoint("T|123|track|event|", &result),
+  ASSERT_EQ(ParseSystraceTracePoint("G|123|test||", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("G|123||test|", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("G|123|track|event|", &result),
             Result::kFailure);
-  ASSERT_EQ(ParseSystraceTracePoint("T|123|track|event|456", &result),
+  ASSERT_EQ(ParseSystraceTracePoint("G|123|track|event|456", &result),
             Result::kSuccess);
-  EXPECT_EQ(result, SystraceTracePoint::T(123, "track", "event", 456));
+  EXPECT_EQ(result, SystraceTracePoint::G(123, "track", "event", 456));
 
-  ASSERT_EQ(ParseSystraceTracePoint("U||test|test|", &result),
+  ASSERT_EQ(ParseSystraceTracePoint("H||test|test|", &result),
             Result::kFailure);
-  ASSERT_EQ(ParseSystraceTracePoint("U|123|test||", &result), Result::kFailure);
-  ASSERT_EQ(ParseSystraceTracePoint("U|123||test|", &result), Result::kFailure);
-  ASSERT_EQ(ParseSystraceTracePoint("U|123|track|event|", &result),
+  ASSERT_EQ(ParseSystraceTracePoint("H|123|test||", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("H|123||test|", &result), Result::kFailure);
+  ASSERT_EQ(ParseSystraceTracePoint("H|123|track|event|", &result),
             Result::kFailure);
-  ASSERT_EQ(ParseSystraceTracePoint("U|123|track|event|456", &result),
+  ASSERT_EQ(ParseSystraceTracePoint("H|123|track|456", &result),
             Result::kSuccess);
-  EXPECT_EQ(result, SystraceTracePoint::U(123, "track", "event", 456));
+  EXPECT_EQ(result, SystraceTracePoint::H(123, "track", 456));
+  ASSERT_EQ(ParseSystraceTracePoint("H|123|track|event|456", &result),
+            Result::kSuccess);
+  EXPECT_EQ(result, SystraceTracePoint::H(123, "track", 456));
 }
 
 }  // namespace

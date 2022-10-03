@@ -29,6 +29,8 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
+#include "src/trace_processor/util/stack_traces_util.h"
+
 namespace perfetto {
 namespace profiling {
 
@@ -89,10 +91,14 @@ std::map<UnsymbolizedMapping, std::vector<uint64_t>> GetUnsymbolizedFrames(
     int64_t load_bias = it.Get(3).AsLong();
     PERFETTO_CHECK(load_bias >= 0);
     std::string build_id;
-    if (convert_build_id_to_bytes) {
-      build_id = FromHex(it.Get(1).AsString());
+    // TODO(b/148109467): Remove workaround once all active Chrome versions
+    // write raw bytes instead of a string as build_id.
+    std::string raw_build_id = it.Get(1).AsString();
+    if (convert_build_id_to_bytes &&
+        !trace_processor::util::IsHexModuleId(base::StringView(raw_build_id))) {
+      build_id = FromHex(raw_build_id);
     } else {
-      build_id = it.Get(1).AsString();
+      build_id = raw_build_id;
     }
     UnsymbolizedMapping unsymbolized_mapping{it.Get(0).AsString(), build_id,
                                              static_cast<uint64_t>(load_bias)};

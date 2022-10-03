@@ -65,8 +65,8 @@ shared library.
 
 These headers are not supposed to be exposed as part of the shared library ABI.
 
-All symbols, macros and types here start with the `perfetto_` or `PERFETTO_`
-prefix. These prefixes are reserved by perfetto and should not be used elsewhere
+All symbols, macros and types here start with the `perfetto_`, `PERFETTO_` or
+`Perfetto` prefix. These prefixes are reserved and should not be used elsewhere
 when linking with the perfetto shared library.
 
 **include/perfetto/public/abi:**

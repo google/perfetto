@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 try:
   from shlex import quote
 except ImportError:
@@ -33,6 +32,7 @@ try:
   basestring = basestring
 except NameError:
   basestring = str
+
 
 def itervalues(o):
   try:

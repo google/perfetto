@@ -35,7 +35,7 @@ class ANSI:
 class HttpHandler(http.server.SimpleHTTPRequestHandler):
 
   def end_headers(self):
-    self.send_header('Access-Control-Allow-Origin', 'https://ui.perfetto.dev')
+    self.send_header('Access-Control-Allow-Origin', self.server.allow_origin)
     self.send_header('Cache-Control', 'no-cache')
     super().end_headers()
 
@@ -55,7 +55,7 @@ def prt(msg, colors=ANSI.END):
   print(colors + msg + ANSI.END)
 
 
-def open_trace(path, open_browser):
+def open_trace(path, open_browser, origin):
   # We reuse the HTTP+RPC port because it's the only one allowed by the CSP.
   PORT = 9001
   path = os.path.abspath(path)
@@ -63,32 +63,30 @@ def open_trace(path, open_browser):
   fname = os.path.basename(path)
   socketserver.TCPServer.allow_reuse_address = True
   with socketserver.TCPServer(('127.0.0.1', PORT), HttpHandler) as httpd:
+    address = f'{origin}/#!/?url=http://127.0.0.1:{PORT}/{fname}'
     if open_browser:
-      webbrowser.open_new_tab(
-          'https://ui.perfetto.dev/#!/?url=http://127.0.0.1:%d/%s' %
-          (PORT, fname))
+      webbrowser.open_new_tab(address)
     else:
-      print('Open URL in browser: '
-            'https://ui.perfetto.dev/#!/?url=http://127.0.0.1:%d/%s' %
-            (PORT, fname))
+      print(f'Open URL in browser: {address}')
 
     httpd.expected_fname = fname
     httpd.fname_get_completed = None
+    httpd.allow_origin = origin
     while httpd.fname_get_completed is None:
       httpd.handle_request()
 
 
 def main():
-  examples = '\n'.join([
-      ANSI.BOLD + 'Usage:' + ANSI.END, '  -i path/trace_file_name [-n]'
-  ])
+  examples = '\n'.join(
+      [ANSI.BOLD + 'Usage:' + ANSI.END, '  -i path/trace_file_name [-n]'])
   parser = argparse.ArgumentParser(
       epilog=examples, formatter_class=argparse.RawTextHelpFormatter)
 
   help = 'Input trace filename'
   parser.add_argument('-i', '--trace', help=help)
-  parser.add_argument('-n', '--no-open-browser', action='store_true',
-                      default=False)
+  parser.add_argument(
+      '-n', '--no-open-browser', action='store_true', default=False)
+  parser.add_argument('--origin', default='https://ui.perfetto.dev')
 
   args = parser.parse_args()
   trace_file = args.trace
@@ -102,7 +100,7 @@ def main():
     sys.exit(1)
 
   prt('Opening the trace (%s) in the browser' % trace_file)
-  open_trace(trace_file, open_browser)
+  open_trace(trace_file, open_browser, args.origin)
 
 
 if __name__ == '__main__':

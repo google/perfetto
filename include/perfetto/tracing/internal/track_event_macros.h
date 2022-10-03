@@ -191,7 +191,7 @@
   do {                                                                       \
     ::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::Trace(                     \
         [](::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::TraceContext ctx) { \
-          ctx.NewTracePacket();                                              \
+          ctx.AddEmptyTracePacket();                                         \
         });                                                                  \
   } while (false)
 

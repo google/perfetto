@@ -51,13 +51,32 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
   // TODO(eseckler): Remove once Chromium has switched to client lib entirely.
   explicit EventContext(
       protos::pbzero::TrackEvent* event,
-      internal::TrackEventIncrementalState* incremental_state = nullptr)
-      : event_(event), incremental_state_(incremental_state) {}
+      internal::TrackEventIncrementalState* incremental_state = nullptr,
+      bool filter_debug_annotations = false)
+      : event_(event),
+        incremental_state_(incremental_state),
+        filter_debug_annotations_(filter_debug_annotations) {}
 
   ~EventContext();
 
   internal::TrackEventIncrementalState* GetIncrementalState() const {
     return incremental_state_;
+  }
+
+  // Disclaimer: Experimental method, subject to change.
+  // Exposed publicly to emit some TrackEvent fields in Chromium only in local
+  // tracing. Long-term, we really shouldn't be (ab)using the
+  // filter_debug_annotation setting for this.
+  //
+  // TODO(kraskevich): Come up with a more precise name once we have more than
+  // one usecase.
+  bool ShouldFilterDebugAnnotations() const {
+    if (tls_state_) {
+      return tls_state_->filter_debug_annotations;
+    }
+    // In Chromium tls_state_ is nullptr, so we need to get this information
+    // from a separate field.
+    return filter_debug_annotations_;
   }
 
   // Get a TrackEvent message to write typed arguments to.
@@ -91,11 +110,11 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
   // values directly to TRACE_EVENT (i.e. TRACE_EVENT(..., "arg", value, ...);)
   // but in rare cases (e.g. when an argument should be written conditionally)
   // EventContext::AddDebugAnnotation provides an explicit equivalent.
-  template <typename T>
-  void AddDebugAnnotation(const char* name, T&& value) {
+  template <typename EventNameType, typename T>
+  void AddDebugAnnotation(EventNameType&& name, T&& value) {
     if (tls_state_ && tls_state_->filter_debug_annotations)
       return;
-    auto annotation = AddDebugAnnotation(name);
+    auto annotation = AddDebugAnnotation(std::forward<EventNameType>(name));
     WriteIntoTracedValue(internal::CreateTracedValueFromProto(annotation, this),
                          std::forward<T>(value));
   }
@@ -114,6 +133,8 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
   EventContext(const EventContext&) = delete;
 
   protos::pbzero::DebugAnnotation* AddDebugAnnotation(const char* name);
+  protos::pbzero::DebugAnnotation* AddDebugAnnotation(
+      ::perfetto::DynamicString name);
 
   TracePacketHandle trace_packet_;
   protos::pbzero::TrackEvent* event_;
@@ -122,6 +143,10 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
   // are certain that it cannot be nullptr. Once we switch to client library in
   // chrome, we can make that happen.
   const internal::TrackEventTlsState* tls_state_ = nullptr;
+  // TODO(kraskevich): Come up with a more precise name once we have more than
+  // one usecase.
+  // TODO(kraskevich): Remove once Chromium has fully switched to client lib.
+  const bool filter_debug_annotations_ = false;
 };
 
 }  // namespace perfetto

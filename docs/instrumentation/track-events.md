@@ -321,10 +321,10 @@ TRACE_EVENT_BEGIN("rendering", name);  // Error. Event name is not static.
 There are two ways to use dynamic event name:
 
 1) If the event name is actually dynamic (e.g., std::string), write it using
-   `perfetto::DynamicName`:
+   `perfetto::DynamicString`:
 
 ```C++
-  TRACE_EVENT("category", perfetto::DynamicName{dynamic_name});
+  TRACE_EVENT("category", perfetto::DynamicString{dynamic_name});
 ```
 
 Note: Below is the old way of using dynamic event names. It's not recommended

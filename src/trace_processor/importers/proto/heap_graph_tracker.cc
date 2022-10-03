@@ -273,18 +273,16 @@ std::string DenormalizeTypeName(NormalizedType normalized,
   return result;
 }
 
-HeapGraphTracker::HeapGraphTracker(TraceProcessorContext* context)
-    : context_(context),
-      cleaner_thunk_str_id_(
-          context_->storage->InternString("sun.misc.Cleaner.thunk")),
+HeapGraphTracker::HeapGraphTracker(TraceStorage* storage)
+    : storage_(storage),
+      cleaner_thunk_str_id_(storage_->InternString("sun.misc.Cleaner.thunk")),
       referent_str_id_(
-          context_->storage->InternString("java.lang.ref.Reference.referent")),
-      cleaner_thunk_this0_str_id_(context_->storage->InternString(
+          storage_->InternString("java.lang.ref.Reference.referent")),
+      cleaner_thunk_this0_str_id_(storage_->InternString(
           "libcore.util.NativeAllocationRegistry$CleanerThunk.this$0")),
-      native_size_str_id_(context_->storage->InternString(
-          "libcore.util.NativeAllocationRegistry.size")),
-      cleaner_next_str_id_(
-          context_->storage->InternString("sun.misc.Cleaner.next")) {}
+      native_size_str_id_(
+          storage_->InternString("libcore.util.NativeAllocationRegistry.size")),
+      cleaner_next_str_id_(storage_->InternString("sun.misc.Cleaner.next")) {}
 
 HeapGraphTracker::SequenceState& HeapGraphTracker::GetOrCreateSequence(
     uint32_t seq_id) {
@@ -296,11 +294,11 @@ bool HeapGraphTracker::SetPidAndTimestamp(SequenceState* sequence_state,
                                           int64_t ts) {
   if (sequence_state->current_upid != 0 &&
       sequence_state->current_upid != upid) {
-    context_->storage->IncrementStats(stats::heap_graph_non_finalized_graph);
+    storage_->IncrementStats(stats::heap_graph_non_finalized_graph);
     return false;
   }
   if (sequence_state->current_ts != 0 && sequence_state->current_ts != ts) {
-    context_->storage->IncrementStats(stats::heap_graph_non_finalized_graph);
+    storage_->IncrementStats(stats::heap_graph_non_finalized_graph);
     return false;
   }
   sequence_state->current_upid = upid;
@@ -311,7 +309,7 @@ bool HeapGraphTracker::SetPidAndTimestamp(SequenceState* sequence_state,
 ObjectTable::RowReference HeapGraphTracker::GetOrInsertObject(
     SequenceState* sequence_state,
     uint64_t object_id) {
-  auto object_table = context_->storage->mutable_heap_graph_object_table();
+  auto object_table = storage_->mutable_heap_graph_object_table();
   auto* ptr = sequence_state->object_id_to_db_row.Find(object_id);
   if (!ptr) {
     auto id_and_row = object_table->Insert({sequence_state->current_upid,
@@ -333,7 +331,7 @@ ObjectTable::RowReference HeapGraphTracker::GetOrInsertObject(
 ClassTable::RowReference HeapGraphTracker::GetOrInsertType(
     SequenceState* sequence_state,
     uint64_t type_id) {
-  auto class_table = context_->storage->mutable_heap_graph_class_table();
+  auto class_table = storage_->mutable_heap_graph_class_table();
   auto* ptr = sequence_state->type_id_to_db_row.Find(type_id);
   if (!ptr) {
     auto id_and_row =
@@ -372,7 +370,7 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
   }
 
   uint32_t reference_set_id =
-      context_->storage->heap_graph_reference_table().row_count();
+      storage_->heap_graph_reference_table().row_count();
   bool any_references = false;
 
   ObjectTable::Id owner_id = owner_row_ref.id();
@@ -384,7 +382,7 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
       owned_row_ref = GetOrInsertObject(&sequence_state, owned_object_id);
 
     auto ref_id_and_row =
-        context_->storage->mutable_heap_graph_reference_table()->Insert(
+        storage_->mutable_heap_graph_reference_table()->Insert(
             {reference_set_id,
              owner_id,
              owned_row_ref ? base::make_optional(owned_row_ref->id())
@@ -462,15 +460,15 @@ void HeapGraphTracker::AddInternedFieldName(uint32_t seq_id,
     type = str.substr(0, space);
     str = str.substr(space + 1);
   }
-  StringId field_name = context_->storage->InternString(str);
-  StringId type_name = context_->storage->InternString(type);
+  StringId field_name = storage_->InternString(str);
+  StringId type_name = storage_->InternString(type);
 
   sequence_state.interned_fields.Insert(intern_id,
                                         InternedField{field_name, type_name});
 
   auto it = sequence_state.references_for_field_name_id.find(intern_id);
   if (it != sequence_state.references_for_field_name_id.end()) {
-    auto hgr = context_->storage->mutable_heap_graph_reference_table();
+    auto hgr = storage_->mutable_heap_graph_reference_table();
     for (ReferenceTable::RowNumber reference_row_num : it->second) {
       auto row_ref = reference_row_num.ToRowReference(hgr);
       row_ref.set_field_name(field_name);
@@ -501,7 +499,7 @@ void HeapGraphTracker::SetPacketIndex(uint32_t seq_id, uint64_t index) {
       PERFETTO_ELOG("Invalid first packet index %" PRIu64 " (!= 0)", index);
     }
 
-    context_->storage->IncrementIndexedStats(
+    storage_->IncrementIndexedStats(
         stats::heap_graph_missing_packet,
         static_cast<int>(sequence_state.current_upid));
   }
@@ -518,7 +516,7 @@ HeapGraphTracker::InternedType* HeapGraphTracker::GetSuperClass(
     if (it != sequence_state->interned_types.end())
       return &it->second;
   }
-  context_->storage->IncrementIndexedStats(
+  storage_->IncrementIndexedStats(
       stats::heap_graph_malformed_packet,
       static_cast<int>(sequence_state->current_upid));
   return nullptr;
@@ -541,7 +539,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
       auto it = sequence_state.interned_location_names.find(
           *interned_type.location_id);
       if (it == sequence_state.interned_location_names.end()) {
-        context_->storage->IncrementIndexedStats(
+        storage_->IncrementIndexedStats(
             stats::heap_graph_invalid_string_id,
             static_cast<int>(sequence_state.current_upid));
       } else {
@@ -555,7 +553,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     auto sz_obj_it =
         sequence_state.deferred_size_objects_for_type_.find(type_id);
     if (sz_obj_it != sequence_state.deferred_size_objects_for_type_.end()) {
-      auto* hgo = context_->storage->mutable_heap_graph_object_table();
+      auto* hgo = storage_->mutable_heap_graph_object_table();
       for (ObjectTable::RowNumber obj_row_num : sz_obj_it->second) {
         auto obj_row_ref = obj_row_num.ToRowReference(hgo);
         obj_row_ref.set_self_size(
@@ -570,14 +568,14 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
         sequence_state.deferred_reference_objects_for_type_.end()) {
       for (ObjectTable::RowNumber obj_row_number : ref_obj_it->second) {
         auto obj_row_ref = obj_row_number.ToRowReference(
-            context_->storage->mutable_heap_graph_object_table());
+            storage_->mutable_heap_graph_object_table());
         const InternedType* current_type = &interned_type;
         if (interned_type.no_fields) {
           continue;
         }
         size_t field_offset_in_cls = 0;
         ForReferenceSet(
-            context_->storage.get(), obj_row_ref,
+            storage_, obj_row_ref,
             [this, &current_type, &sequence_state,
              &field_offset_in_cls](ReferenceTable::RowReference ref) {
               while (current_type && field_offset_in_cls >=
@@ -596,7 +594,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
               auto* ptr = sequence_state.interned_fields.Find(field_id);
               if (!ptr) {
                 PERFETTO_DLOG("Invalid field id.");
-                context_->storage->IncrementIndexedStats(
+                storage_->IncrementIndexedStats(
                     stats::heap_graph_malformed_packet,
                     static_cast<int>(sequence_state.current_upid));
                 return true;
@@ -622,40 +620,36 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     type_row_ref.set_kind(interned_type.kind);
 
     base::StringView normalized_type =
-        NormalizeTypeName(context_->storage->GetString(interned_type.name));
+        NormalizeTypeName(storage_->GetString(interned_type.name));
 
     base::Optional<StringId> class_package;
     if (location_name) {
       base::Optional<std::string> package_name =
-          PackageFromLocation(context_->storage.get(),
-                              context_->storage->GetString(*location_name));
+          PackageFromLocation(storage_, storage_->GetString(*location_name));
       if (package_name) {
-        class_package =
-            context_->storage->InternString(base::StringView(*package_name));
+        class_package = storage_->InternString(base::StringView(*package_name));
       }
     }
     if (!class_package) {
-      auto app_id = context_->storage->process_table()
+      auto app_id = storage_->process_table()
                         .android_appid()[sequence_state.current_upid];
       if (app_id) {
-        auto pkg_row =
-            context_->storage->package_list_table().uid().IndexOf(*app_id);
+        auto pkg_row = storage_->package_list_table().uid().IndexOf(*app_id);
         if (pkg_row) {
           class_package =
-              context_->storage->package_list_table().package_name()[*pkg_row];
+              storage_->package_list_table().package_name()[*pkg_row];
         }
       }
     }
 
-    class_to_rows_[std::make_pair(
-                       class_package,
-                       context_->storage->InternString(normalized_type))]
+    class_to_rows_[std::make_pair(class_package,
+                                  storage_->InternString(normalized_type))]
         .emplace_back(type_row_ref.ToRowNumber());
   }
 
   if (!sequence_state.deferred_size_objects_for_type_.empty() ||
       !sequence_state.deferred_reference_objects_for_type_.empty()) {
-    context_->storage->IncrementIndexedStats(
+    storage_->IncrementIndexedStats(
         stats::heap_graph_malformed_packet,
         static_cast<int>(sequence_state.current_upid));
   }
@@ -668,13 +662,13 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
       if (!ptr)
         continue;
 
-      ObjectTable::RowReference row_ref = ptr->ToRowReference(
-          context_->storage->mutable_heap_graph_object_table());
+      ObjectTable::RowReference row_ref =
+          ptr->ToRowReference(storage_->mutable_heap_graph_object_table());
       auto it_and_success = roots_[std::make_pair(sequence_state.current_upid,
                                                   sequence_state.current_ts)]
                                 .emplace(*ptr);
       if (it_and_success.second)
-        MarkRoot(context_->storage.get(), row_ref, root.root_type);
+        MarkRoot(storage_, row_ref, root.root_type);
     }
   }
 
@@ -687,9 +681,8 @@ base::Optional<ObjectTable::Id> HeapGraphTracker::GetReferenceByFieldName(
     ObjectTable::Id obj,
     StringId field) {
   base::Optional<ObjectTable::Id> referred;
-  auto obj_row_ref =
-      *context_->storage->heap_graph_object_table().FindById(obj);
-  ForReferenceSet(context_->storage.get(), obj_row_ref,
+  auto obj_row_ref = *storage_->heap_graph_object_table().FindById(obj);
+  ForReferenceSet(storage_, obj_row_ref,
                   [&](ReferenceTable::RowReference ref) -> bool {
                     if (ref.field_name() == field) {
                       referred = ref.owned_id();
@@ -720,8 +713,8 @@ void HeapGraphTracker::PopulateNativeSize(const SequenceState& seq) {
   //
   // `.size` should be attributed as the native size of Object
 
-  const auto& class_tbl = context_->storage->heap_graph_class_table();
-  auto& objects_tbl = *context_->storage->mutable_heap_graph_object_table();
+  const auto& class_tbl = storage_->heap_graph_class_table();
+  auto& objects_tbl = *storage_->mutable_heap_graph_object_table();
 
   struct Cleaner {
     ObjectTable::Id referent;
@@ -783,10 +776,9 @@ void HeapGraphTracker::PopulateNativeSize(const SequenceState& seq) {
 void HeapGraphTracker::PopulateSuperClasses(const SequenceState& seq) {
   // Maps from normalized class name and location, to superclass.
   std::map<ClassDescriptor, ClassDescriptor> superclass_map =
-      BuildSuperclassMap(seq.current_upid, seq.current_ts,
-                         context_->storage.get());
+      BuildSuperclassMap(seq.current_upid, seq.current_ts, storage_);
 
-  auto* classes_tbl = context_->storage->mutable_heap_graph_class_table();
+  auto* classes_tbl = storage_->mutable_heap_graph_class_table();
   std::map<ClassDescriptor, ClassTable::Id> class_to_id;
   for (uint32_t idx = 0; idx < classes_tbl->row_count(); ++idx) {
     class_to_id[{classes_tbl->name()[idx], classes_tbl->location()[idx]}] =
@@ -798,13 +790,13 @@ void HeapGraphTracker::PopulateSuperClasses(const SequenceState& seq) {
   // mapping was generated on the current sequence) - if we cannot identify
   // a superclass we will just skip.
   for (uint32_t idx = 0; idx < classes_tbl->row_count(); ++idx) {
-    auto name = context_->storage->GetString(classes_tbl->name()[idx]);
+    auto name = storage_->GetString(classes_tbl->name()[idx]);
     auto location = classes_tbl->location()[idx];
     auto normalized = GetNormalizedType(name);
     if (normalized.is_static_class || normalized.number_of_arrays > 0)
       continue;
 
-    StringId class_name_id = context_->storage->InternString(normalized.name);
+    StringId class_name_id = storage_->InternString(normalized.name);
     auto map_it = superclass_map.find({class_name_id, location});
     if (map_it == superclass_map.end()) {
       continue;
@@ -941,12 +933,12 @@ void FindPathFromRoot(TraceStorage* storage,
 std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
 HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
                                   const UniquePid current_upid) {
-  auto profile_type = context_->storage->InternString("graph");
-  auto java_mapping = context_->storage->InternString("JAVA");
+  auto profile_type = storage_->InternString("graph");
+  auto java_mapping = storage_->InternString("JAVA");
 
   std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl(
       new tables::ExperimentalFlamegraphNodesTable(
-          context_->storage->mutable_string_pool(), nullptr));
+          storage_->mutable_string_pool(), nullptr));
 
   auto it = roots_.find(std::make_pair(current_upid, current_ts));
   if (it == roots_.end()) {
@@ -958,7 +950,7 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
       alloc_row.upid = current_upid;
       alloc_row.profile_type = profile_type;
       alloc_row.depth = 0;
-      alloc_row.name = context_->storage->InternString(
+      alloc_row.name = storage_->InternString(
           "ERROR: INCOMPLETE GRAPH (try increasing buffer size)");
       alloc_row.map_name = java_mapping;
       alloc_row.count = 1;
@@ -974,17 +966,15 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
   }
 
   const std::set<ObjectTable::RowNumber>& roots = it->second;
-  auto* object_table = context_->storage->mutable_heap_graph_object_table();
+  auto* object_table = storage_->mutable_heap_graph_object_table();
 
   // First pass to calculate shortest paths
   for (ObjectTable::RowNumber root : roots) {
-    UpdateShortestPaths(context_->storage.get(),
-                        root.ToRowReference(object_table));
+    UpdateShortestPaths(storage_, root.ToRowReference(object_table));
   }
   PathFromRoot init_path;
   for (ObjectTable::RowNumber root : roots) {
-    FindPathFromRoot(context_->storage.get(), root.ToRowReference(object_table),
-                     &init_path);
+    FindPathFromRoot(storage_, root.ToRowReference(object_table), &init_path);
   }
 
   std::vector<int64_t> node_to_cumulative_size(init_path.nodes.size());
@@ -1030,7 +1020,7 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
 
 void HeapGraphTracker::FinalizeAllProfiles() {
   if (!sequence_state_.empty()) {
-    context_->storage->IncrementStats(stats::heap_graph_non_finalized_graph);
+    storage_->IncrementStats(stats::heap_graph_non_finalized_graph);
     // There might still be valuable data even though the trace is truncated.
     while (!sequence_state_.empty()) {
       FinalizeProfile(sequence_state_.begin()->first);

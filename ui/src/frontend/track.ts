@@ -111,6 +111,10 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
     return [];
   }
 
+  getContextMenu(): m.Vnode<any>|null {
+    return null;
+  }
+
   onMouseMove(_position: {x: number, y: number}) {}
 
   // Returns whether the mouse click has selected something.

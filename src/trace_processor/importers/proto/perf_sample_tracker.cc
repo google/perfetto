@@ -87,10 +87,9 @@ const char* StringifyCounter(int32_t counter) {
 }
 
 StringId InternTimebaseCounterName(
-    protos::pbzero::TracePacketDefaults::Decoder* defaults,
+    const protos::pbzero::PerfSampleDefaults::Decoder& perf_defaults,
     TraceProcessorContext* context) {
   using namespace protos::pbzero;
-  PerfSampleDefaults::Decoder perf_defaults(defaults->perf_sample_defaults());
   PerfEvents::Timebase::Decoder timebase(perf_defaults.timebase());
 
   auto config_given_name = timebase.name();
@@ -123,6 +122,8 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
     uint32_t seq_id,
     uint32_t cpu,
     protos::pbzero::TracePacketDefaults::Decoder* nullable_defaults) {
+  using protos::pbzero::PerfSampleDefaults;
+
   auto seq_it = seq_state_.find(seq_id);
   if (seq_it == seq_state_.end()) {
     seq_it = seq_state_.emplace(seq_id, next_perf_session_id_++).first;
@@ -134,21 +135,39 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
   if (cpu_it != seq_state->per_cpu.end())
     return {seq_state->perf_session_id, cpu_it->second.timebase_track_id};
 
-  // No defaults means legacy producer implementation, assume default timebase
-  // of per-cpu timer. Always the case for Android R builds, and it isn't worth
-  // guaranteeing support for intermediate S builds in this aspect.
+  base::Optional<PerfSampleDefaults::Decoder> perf_defaults;
+  if (nullable_defaults && nullable_defaults->has_perf_sample_defaults()) {
+    perf_defaults.emplace(nullable_defaults->perf_sample_defaults());
+  }
+
   StringId name_id = kNullStringId;
-  if (!nullable_defaults || !nullable_defaults->has_perf_sample_defaults()) {
+  if (perf_defaults.has_value()) {
+    name_id = InternTimebaseCounterName(perf_defaults.value(), context_);
+  } else {
+    // No defaults means legacy producer implementation, assume default timebase
+    // of per-cpu timer. This means either an Android R or early S build.
     name_id = context_->storage->InternString(
         StringifyCounter(protos::pbzero::PerfEvents::SW_CPU_CLOCK));
-  } else {
-    name_id = InternTimebaseCounterName(nullable_defaults, context_);
   }
 
   TrackId timebase_track_id = context_->track_tracker->CreatePerfCounterTrack(
       name_id, session_id, cpu, /*is_timebase=*/true);
 
   seq_state->per_cpu.emplace(cpu, timebase_track_id);
+
+  // If the config requested process sharding, record in the stats table which
+  // shard was chosen for the trace. It should be the same choice for all data
+  // sources within one trace, but for consistency with other stats we put an
+  // entry per data source (i.e. |perf_session_id|, not to be confused with the
+  // tracing session).
+  if (perf_defaults.has_value() && perf_defaults->process_shard_count() > 0) {
+    context_->storage->SetIndexedStats(
+        stats::perf_process_shard_count, static_cast<int>(session_id),
+        static_cast<int64_t>(perf_defaults->process_shard_count()));
+    context_->storage->SetIndexedStats(
+        stats::perf_chosen_process_shard, static_cast<int>(session_id),
+        static_cast<int64_t>(perf_defaults->chosen_process_shard()));
+  }
 
   return {session_id, timebase_track_id};
 }

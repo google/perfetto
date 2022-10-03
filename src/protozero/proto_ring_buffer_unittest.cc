@@ -228,5 +228,41 @@ TEST_F(ProtoRingBufferTest, HandleProtoErrorsGracefully) {
   }
 }
 
+// A customised ring buffer message reader where every message has a
+// fixed length of |message_length|.
+class FixedLengthRingBuffer final : public RingBufferMessageReader {
+ public:
+  FixedLengthRingBuffer(size_t message_length)
+      : RingBufferMessageReader(), message_length_(message_length) {}
+
+ protected:
+  virtual Message TryReadMessage(const uint8_t* start,
+                                 const uint8_t* end) override {
+    Message msg{};
+    if (message_length_ <= static_cast<size_t>(end - start)) {
+      msg.start = start;
+      msg.len = static_cast<uint32_t>(message_length_);
+      msg.field_id = 0;
+    }
+    return msg;
+  }
+
+ private:
+  size_t message_length_;
+};
+
+TEST(RingBufferTest, FixedLengthRingBuffer) {
+  FixedLengthRingBuffer buf(3);
+  EXPECT_FALSE(buf.ReadMessage().valid());
+  buf.Append("a", 1);
+  EXPECT_FALSE(buf.ReadMessage().valid());
+  buf.Append("bc", 2);
+  FixedLengthRingBuffer::Message msg = buf.ReadMessage();
+  EXPECT_TRUE(msg.valid());
+  EXPECT_EQ(std::string(reinterpret_cast<const char*>(msg.start),
+                        static_cast<size_t>(msg.len)),
+            "abc");
+}
+
 }  // namespace
 }  // namespace protozero

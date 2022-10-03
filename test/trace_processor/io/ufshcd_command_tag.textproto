@@ -1,0 +1,60 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 10000
+      pid: 200
+      ufshcd_command {
+        str_t: 0
+        tag: 1
+        opcode: 40
+        group_id: 0
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 10800
+      pid: 300
+      ufshcd_command {
+        str_t: 1
+        tag: 1
+        opcode: 40
+        group_id: 0
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 2
+    event {
+      timestamp: 10900
+      pid: 400
+      ufshcd_command {
+        str_t: 0
+        tag: 2
+        opcode: 42
+        group_id: 22
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 10950
+      pid: 500
+      ufshcd_command {
+        str_t: 1
+        tag: 2
+        opcode: 42
+        group_id: 22
+      }
+    }
+  }
+}

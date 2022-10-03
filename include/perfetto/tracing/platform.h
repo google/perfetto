@@ -104,6 +104,10 @@ class PERFETTO_EXPORT_COMPONENT Platform {
   // in-process mode.
   virtual std::string GetCurrentProcessName() = 0;
 
+  // Tear down any persistent platform state (e.g., TLS variables). The platform
+  // interface must not be used after calling this function.
+  virtual void Shutdown();
+
  private:
   static base::PlatformProcessId process_id_;
 };

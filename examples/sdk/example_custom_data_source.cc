@@ -16,10 +16,24 @@
 
 // This example demonstrates a custom tracing data source.
 
+// This source file can be built in two ways:
+// 1. As part of the regular GN build, against standard includes.
+// 2. To test that the amalgmated SDK works, against the perfetto.h source.
+#if defined(PERFETTO_SDK_EXAMPLE_USE_INTERNAL_HEADERS)
+#include "perfetto/tracing.h"
+#include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/trace_config.h"
+#include "perfetto/tracing/data_source.h"
+#include "perfetto/tracing/tracing.h"
+#include "protos/perfetto/trace/test_event.pbzero.h"
+#else
 #include <perfetto.h>
+#endif
 
 #include <fstream>
 #include <thread>
+
+namespace {
 
 // The definition of our custom data source. Instances of this class will be
 // automatically created and destroyed by Perfetto.
@@ -34,9 +48,6 @@ class CustomDataSource : public perfetto::DataSource<CustomDataSource> {
   void OnStart(const StartArgs&) override {}
   void OnStop(const StopArgs&) override {}
 };
-
-PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(CustomDataSource);
-PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(CustomDataSource);
 
 void InitializePerfetto() {
   perfetto::TracingInitArgs args;
@@ -81,11 +92,20 @@ void StopTracing(std::unique_ptr<perfetto::TracingSession> tracing_session) {
   // Note: To save memory with longer traces, you can tell Perfetto to write
   // directly into a file by passing a file descriptor into Setup() above.
   std::ofstream output;
-  output.open("example_custom_data_source.pftrace",
-              std::ios::out | std::ios::binary);
-  output.write(&trace_data[0], trace_data.size());
+  const char* filename = "example_custom_data_source.pftrace";
+  output.open(filename, std::ios::out | std::ios::binary);
+  output.write(&trace_data[0], static_cast<std::streamsize>(trace_data.size()));
   output.close();
+  PERFETTO_LOG(
+      "Trace written in %s file. To read this trace in "
+      "text form, run `./tools/traceconv text %s`",
+      filename, filename);
 }
+
+}  // namespace
+
+PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(CustomDataSource);
+PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(CustomDataSource);
 
 int main(int, const char**) {
   InitializePerfetto();

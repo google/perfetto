@@ -225,9 +225,12 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
     PERFETTO_CHECK(base::CloseFile(notif_fd) == 0);
   }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   // Notify init (perfetto.rc) that traced has been started. Used only by
   // the perfetto_trace_on_boot init service.
+  // This property can be set only in in-tree builds. shell.te doesn't have
+  // SELinux permissions to set sys.trace.* properties.
   if (__system_property_set("sys.trace.traced_started", "1") != 0) {
     PERFETTO_PLOG("Failed to set property sys.trace.traced_started");
   }

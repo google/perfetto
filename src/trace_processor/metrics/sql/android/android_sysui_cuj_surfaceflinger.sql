@@ -59,7 +59,7 @@ CREATE VIEW android_sysui_cuj_surfaceflinger_app_flow_vsyncs AS
 SELECT
   app_slice.name AS app_vsync,
   app_slice.id AS app_slice_id,
-  cuj_process.name AS app_process,
+  cuj_process.process_name AS app_process,
   sf_slice.name AS sf_vsync,
   sf_slice.id AS sf_slice_id
 FROM android_sysui_cuj_sf_actual_frame_timeline_slice sf_slice

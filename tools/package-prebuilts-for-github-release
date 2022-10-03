@@ -12,7 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Pulls LUCI-generated binaries and generates .zip files for GitHub releases.
 
 Usage: ./tools/package_prebuilts_for_github_release v20.0
@@ -50,6 +49,7 @@ def main():
     zips.append(arch + '.zip')
   print('')
   print('%d zip files saved in %s (%s)' % (len(zips), tmpdir, ','.join(zips)))
+
 
 if __name__ == '__main__':
   sys.exit(main())

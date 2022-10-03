@@ -19,7 +19,6 @@
     package="android.perfetto.cts.reporter">
     <uses-permission android:name="android.permission.DUMP"/>
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"/>
-1
     <application>
         <service
             android:name=".PerfettoReportService"

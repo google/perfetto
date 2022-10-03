@@ -51,6 +51,11 @@ struct TestTempFile {
 // The caller must close(2) the returned TempFile.fd.
 TestTempFile CreateTempFile();
 
+class TracingMuxerImplInternalsForTest {
+ public:
+  static bool DoesSystemBackendHaveSMB();
+};
+
 }  // namespace test
 }  // namespace perfetto
 

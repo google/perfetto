@@ -161,7 +161,10 @@ For bugs affecting Android or the tracing internals:
 
 For bugs affecting Chrome Tracing:
 
-* Use http://crbug.com `Component:Speed>Tracing label:Perfetto`.
+* **Googlers**: use the internal bug tracker [go/chrometto-bugs](http://goto.google.com/chrometto-bugs)
+
+* **Non-Googlers**: use [crbug.com](https://bugs.chromium.org/p/chromium/issues/list?q=component%3ASpeed%3ETracing%20label%3APerfetto)
+to [file new bugs](https://bugs.chromium.org/p/chromium/issues/entry?components=Speed%3ETracing&labels=Perfetto).
 
 [ftrace]: https://www.kernel.org/doc/Documentation/trace/ftrace.txt
 [chrome-tracing]: https://www.chromium.org/developers/how-tos/trace-event-profiling-tool

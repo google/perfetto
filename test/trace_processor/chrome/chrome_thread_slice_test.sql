@@ -15,7 +15,7 @@
 --
 
 SELECT RUN_METRIC('chrome/chrome_thread_slice.sql')
-    AS suppress_query_output;
+   ;
 
 SELECT
   EXTRACT_ARG(arg_set_id, 'chrome_latency_info.trace_id') AS trace_id,

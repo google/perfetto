@@ -110,12 +110,11 @@ def main():
     print('')
     print('About to build %r locally with %r' % (args.image, args.runner))
     decision(confirm=args.confirm)
-    check_call(('make', '-C', os.path.join(REPO_ROOT, 'infra',
-                                           'ci'),
+    check_call(('make', '-C', os.path.join(REPO_ROOT, 'infra', 'ci'),
                 'BUILDER=%s' % args.runner, 'build-sandbox'))
 
   bundle_path = '/tmp/perfetto-ci.bundle'
-  check_call(['git', '-C', REPO_ROOT, 'bundle', 'create', bundle_path, 'HEAD' ])
+  check_call(['git', '-C', REPO_ROOT, 'bundle', 'create', bundle_path, 'HEAD'])
   os.chmod(bundle_path, 0o664)
   env = {
       'PERFETTO_TEST_GIT_REF': bundle_path,

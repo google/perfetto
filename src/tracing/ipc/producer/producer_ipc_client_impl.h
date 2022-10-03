@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/thread_checker.h"
+#include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/ipc/client.h"
 #include "perfetto/ext/ipc/service_proxy.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -62,6 +63,7 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   // TracingService::ProducerEndpoint implementation.
   // These methods are invoked by the actual Producer(s) code by clients of the
   // tracing library, which know nothing about the IPC transport.
+  void Disconnect() override;
   void RegisterDataSource(const DataSourceDescriptor&) override;
   void UpdateDataSource(const DataSourceDescriptor&) override;
   void UnregisterDataSource(const std::string& name) override;
@@ -91,6 +93,10 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   ipc::Client* GetClientForTesting() { return ipc_channel_.get(); }
 
  private:
+  // Drops the provider connection if a protocol error was detected while
+  // processing an IPC command.
+  void ScheduleDisconnect();
+
   // Invoked soon after having established the connection with the service.
   void OnConnectionInitialized(bool connection_succeeded,
                                bool using_shmem_provided_by_producer,
@@ -109,7 +115,7 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
 
   // The proxy interface for the producer port of the service. It is bound
   // to |ipc_channel_| and (de)serializes method invocations over the wire.
-  protos::gen::ProducerPortProxy producer_port_;
+  std::unique_ptr<protos::gen::ProducerPortProxy> producer_port_;
 
   std::unique_ptr<SharedMemory> shared_memory_;
   std::unique_ptr<SharedMemoryArbiter> shared_memory_arbiter_;
@@ -123,6 +129,8 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   bool is_shmem_provided_by_producer_ = false;
   bool direct_smb_patching_supported_ = false;
   std::vector<std::function<void()>> pending_sync_reqs_;
+  std::function<int(void)> receive_shmem_fd_cb_fuchsia_;
+  base::WeakPtrFactory<ProducerIPCClientImpl> weak_factory_{this};
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };
 

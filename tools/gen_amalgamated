@@ -344,8 +344,8 @@ class AmalgamatedProject(object):
         if not rel_path in allowed_files:
           return
         with open(full_path) as f:
-          self.source.append(
-              '// %s begin header: %s' % (tool_name, normalize_path(full_path)))
+          self.source.append('// %s begin header: %s' %
+                             (tool_name, normalize_path(full_path)))
           self.source.extend(
               self._process_source_includes(include_dirs, allowed_files, f))
         return
@@ -364,13 +364,13 @@ class AmalgamatedProject(object):
     if not os.path.exists(full_path):
       raise Error('Source file %s not found' % source_name)
     with open(full_path) as f:
-      self.source.append(
-          '// %s begin source: %s' % (tool_name, normalize_path(full_path)))
+      self.source.append('// %s begin source: %s' %
+                         (tool_name, normalize_path(full_path)))
       try:
         self.source.extend(
             self._patch_source(
-                source_name, self._process_source_includes(
-                    include_dirs, deps, f)))
+                source_name,
+                self._process_source_includes(include_dirs, deps, f)))
       except Error as e:
         raise Error('Failed adding source %s: %s' % (source_name, e.message))
 
@@ -382,8 +382,8 @@ class AmalgamatedProject(object):
       full_path = os.path.join(gn_utils.repo_root(), include_dir, header_name)
       if os.path.exists(full_path):
         with open(full_path) as f:
-          self.header.append(
-              '// %s begin header: %s' % (tool_name, normalize_path(full_path)))
+          self.header.append('// %s begin header: %s' %
+                             (tool_name, normalize_path(full_path)))
           self.header.extend(self._process_header_includes(include_dirs, f))
         return
     if self._compute_deps_only:
@@ -402,8 +402,8 @@ class AmalgamatedProject(object):
         return
       raise Error('Header file %s not found' % header_name)
     with open(full_path) as f:
-      self.header.append(
-          '// %s begin header: %s' % (tool_name, normalize_path(full_path)))
+      self.header.append('// %s begin header: %s' %
+                         (tool_name, normalize_path(full_path)))
       try:
         self.header.extend(self._process_header_includes(include_dirs, f))
       except Error as e:
@@ -522,8 +522,8 @@ Build settings:
 Example build command:
 
 %s
-""" % (header_file, source_file, ' '.join(self.cflags), ' '.join(self.ldflags),
-       ' '.join(self.libs), ' '.join(build_cmd))
+""" % (header_file, source_file, ' '.join(self.cflags), ' '.join(
+        self.ldflags), ' '.join(self.libs), ' '.join(build_cmd))
 
   def get_build_command(self, output_prefix):
     """Returns an example command line for building the output source."""
@@ -531,9 +531,8 @@ Example build command:
     library = self._get_nice_path(output_prefix, 'lib%s.so')
 
     if sys.platform.startswith('linux'):
-      llvm_script = os.path.join(gn_utils.repo_root(), 'gn',
-                                 'standalone', 'toolchain',
-                                 'linux_find_llvm.py')
+      llvm_script = os.path.join(gn_utils.repo_root(), 'gn', 'standalone',
+                                 'toolchain', 'linux_find_llvm.py')
       cxx = subprocess.check_output([llvm_script]).splitlines()[2].decode()
     else:
       cxx = 'clang++'
@@ -585,7 +584,7 @@ def main():
   # to avoid emitting a stale version information in the remote case of somebody
   # running gen_amalgamated incrementally after having moved to another commit.
   changelog_path = os.path.join(project_root, 'CHANGELOG')
-  assert(os.path.exists(changelog_path))
+  assert (os.path.exists(changelog_path))
   subprocess.check_call(['touch', '-c', changelog_path])
 
   output = args.output

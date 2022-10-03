@@ -42,6 +42,9 @@ class FtraceProcfs {
   explicit FtraceProcfs(const std::string& root);
   virtual ~FtraceProcfs();
 
+  // Set the filter for syscall events. If empty, clear the filter.
+  bool SetSyscallFilter(const std::set<size_t>& filter);
+
   // Enable the event under with the given |group| and |name|.
   bool EnableEvent(const std::string& group, const std::string& name);
 

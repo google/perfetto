@@ -301,5 +301,14 @@ TEST(ProtoZeroConformanceTest, PackedRepeatedResize) {
   }
 }
 
+TEST(ProtoZeroConformanceTest, EnumToString) {
+  EXPECT_STREQ(protozero::test::protos::pbzero::SmallEnum_Name(
+                   protozero::test::protos::pbzero::SmallEnum::TO_BE),
+               "TO_BE");
+  EXPECT_STREQ(protozero::test::protos::pbzero::EveryField::NestedEnum_Name(
+                   protozero::test::protos::pbzero::EveryField::PING),
+               "PING");
+}
+
 }  // namespace
 }  // namespace protozero

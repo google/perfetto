@@ -7,8 +7,8 @@ when instructed to do so.
 Data sources record data only when one (or more) tracing sessions are active.
 A tracing session is started by invoking the `perfetto` cmdline client and
 passing a config (see QuickStart guide for
-[Android](/docs/quickstart/android-tracing.md) or
-[Linux](/docs/quickstart/linux-tracing.md)).
+[Android](/docs/quickstart/android-tracing.md),
+[Linux](/docs/quickstart/linux-tracing.md), or [Chrome on desktop](/docs/quickstart/chrome-tracing.md)).
 
 A simple trace config looks like this:
 

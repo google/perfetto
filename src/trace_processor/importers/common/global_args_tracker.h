@@ -21,7 +21,6 @@
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto {
@@ -93,7 +92,7 @@ class GlobalArgsTracker {
     }
   };
 
-  explicit GlobalArgsTracker(TraceProcessorContext* context);
+  explicit GlobalArgsTracker(TraceStorage* storage);
 
   // Assumes that the interval [begin, end) of |args| is sorted by keys.
   ArgSetId AddArgSet(const Arg* args, uint32_t begin, uint32_t end) {
@@ -123,7 +122,7 @@ class GlobalArgsTracker {
       hash.Update(ArgHasher()(args[i]));
     }
 
-    auto* arg_table = context_->storage->mutable_arg_table();
+    auto* arg_table = storage_->mutable_arg_table();
 
     ArgSetHash digest = hash.digest();
     auto it_and_inserted =
@@ -168,7 +167,7 @@ class GlobalArgsTracker {
         case Variadic::Type::kNull:
           break;
       }
-      row.value_type = context_->storage->GetIdForVariadicType(arg.value.type);
+      row.value_type = storage_->GetIdForVariadicType(arg.value.type);
       arg_table->Insert(row);
     }
     return id;
@@ -187,7 +186,7 @@ class GlobalArgsTracker {
   base::FlatHashMap<ArgSetHash, uint32_t, base::AlreadyHashed<ArgSetHash>>
       arg_row_for_hash_;
 
-  TraceProcessorContext* context_;
+  TraceStorage* storage_;
 };
 
 }  // namespace trace_processor

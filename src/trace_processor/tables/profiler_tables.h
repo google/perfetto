@@ -171,10 +171,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_STACK_SAMPLE_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_CPU_PROFILE_STACK_SAMPLE_DEF);
 
-// Samples from the traced_perf perf sampler.
+// Samples from the traced_perf profiler.
 //
-// The table currently provides no means of discriminating between multiple data
-// sources producing samples within a single trace.
 // @param ts timestamp of the sample.
 // @param utid sampled thread. {@joinable thread.utid}.
 // @param cpu the core the sampled thread was running on.

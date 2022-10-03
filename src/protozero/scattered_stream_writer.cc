@@ -24,6 +24,14 @@ namespace protozero {
 
 ScatteredStreamWriter::Delegate::~Delegate() {}
 
+uint8_t* ScatteredStreamWriter::Delegate::AnnotatePatch(uint8_t* patch_addr) {
+  // In most cases, a patch is transparent. The caller can write directly into
+  // `to_patch`, because its memory is not going away. TraceWriterImpl, however,
+  // requires a more complicated logic, because the chunks might be copied
+  // earlier.
+  return patch_addr;
+}
+
 ScatteredStreamWriter::ScatteredStreamWriter(Delegate* delegate)
     : delegate_(delegate),
       cur_range_({nullptr, nullptr}),

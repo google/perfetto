@@ -1,0 +1,1168 @@
+"section","service","linecount"
+"[NULL]","[NULL]",62
+"ANR FILES (ls -lt /data/anr/)","[NULL]",1
+"APP ACTIVITIES (/system/bin/dumpsys -T 60000 activity -v all)","[NULL]",407
+"APP PROVIDERS NON-PLATFORM (/system/bin/dumpsys -T 60000 activity provider all-non-platform)","[NULL]",3566
+"APP PROVIDERS PLATFORM (/system/bin/dumpsys -T 60000 activity provider all-platform)","[NULL]",174
+"APP SERVICES NON-PLATFORM (/system/bin/dumpsys -T 60000 activity service all-non-platform)","[NULL]",5299
+"APP SERVICES PLATFORM (/system/bin/dumpsys -T 60000 activity service all-platform-non-critical)","[NULL]",3061
+"BINDER FAILED TRANSACTION LOG (/sys/kernel/debug/binder/failed_transaction_log)","[NULL]",3
+"BINDER STATE (/sys/kernel/debug/binder/state)","[NULL]",8600
+"BINDER STATS (/sys/kernel/debug/binder/stats)","[NULL]",4837
+"BINDER TRANSACTION LOG (/sys/kernel/debug/binder/transaction_log)","[NULL]",33
+"BINDER TRANSACTIONS (/sys/kernel/debug/binder/transactions)","[NULL]",157
+"BLOCK STAT","[NULL]",237
+"BLOCKED PROCESS WAIT-CHANNELS","[NULL]",2782
+"BUDDYINFO (/proc/buddyinfo)","[NULL]",3
+"CHECKIN BATTERYSTATS (/system/bin/dumpsys -T 30000 batterystats -c)","[NULL]",24268
+"CHECKIN MEMINFO (/system/bin/dumpsys -T 30000 meminfo --checkin)","[NULL]",50
+"CHECKIN NETSTATS (/system/bin/dumpsys -T 30000 netstats --checkin)","[NULL]",2
+"CHECKIN PACKAGE (/system/bin/dumpsys -T 30000 package --checkin)","[NULL]",1782
+"CHECKIN PROCSTATS (/system/bin/dumpsys -T 30000 procstats -c)","[NULL]",5635
+"CHECKIN USAGESTATS (/system/bin/dumpsys -T 30000 usagestats -c)","[NULL]",2929
+"CPU INFO (top -b -n 1 -H -s 6 -o pid,tid,user,pr,ni,%cpu,s,virt,res,pcy,cmd,name)","[NULL]",2879
+"DETAILED SOCKET STATE (ss -eionptu)","[NULL]",1
+"DEVICE-MAPPER (gsid dump-device-mapper)","[NULL]",20
+"DROPBOX SYSTEM APP CRASHES (/system/bin/dumpsys -T 30000 dropbox -p system_app_crash)","[NULL]",7
+"DROPBOX SYSTEM SERVER CRASHES (/system/bin/dumpsys -T 30000 dropbox -p system_server_crash)","[NULL]",7
+"DUMP BLOCK STAT","[NULL]",1
+"DUMPSYS (/system/bin/dumpsys)","DockObserver",5
+"DUMPSYS (/system/bin/dumpsys)","accessibility",27
+"DUMPSYS (/system/bin/dumpsys)","account",18
+"DUMPSYS (/system/bin/dumpsys)","activity",28662
+"DUMPSYS (/system/bin/dumpsys)","activity_task",1
+"DUMPSYS (/system/bin/dumpsys)","adb",12
+"DUMPSYS (/system/bin/dumpsys)","alarm",654
+"DUMPSYS (/system/bin/dumpsys)","android.frameworks.stats.IStats/default",1
+"DUMPSYS (/system/bin/dumpsys)","android.hardware.identity.IIdentityCredentialStore/default",1
+"DUMPSYS (/system/bin/dumpsys)","android.hardware.power.IPower/default",60
+"DUMPSYS (/system/bin/dumpsys)","android.hardware.rebootescrow.IRebootEscrow/default",1
+"DUMPSYS (/system/bin/dumpsys)","android.os.UpdateEngineService",1
+"DUMPSYS (/system/bin/dumpsys)","android.os.UpdateEngineStableService",1
+"DUMPSYS (/system/bin/dumpsys)","android.security.apc",1
+"DUMPSYS (/system/bin/dumpsys)","android.security.authorization",1
+"DUMPSYS (/system/bin/dumpsys)","android.security.compat",1
+"DUMPSYS (/system/bin/dumpsys)","android.security.identity",1
+"DUMPSYS (/system/bin/dumpsys)","android.security.legacykeystore",1
+"DUMPSYS (/system/bin/dumpsys)","android.security.maintenance",1
+"DUMPSYS (/system/bin/dumpsys)","android.security.metrics",1
+"DUMPSYS (/system/bin/dumpsys)","android.system.keystore2.IKeystoreService/default",1
+"DUMPSYS (/system/bin/dumpsys)","app_binding",19
+"DUMPSYS (/system/bin/dumpsys)","app_hibernation",556
+"DUMPSYS (/system/bin/dumpsys)","app_integrity",1
+"DUMPSYS (/system/bin/dumpsys)","app_prediction",1
+"DUMPSYS (/system/bin/dumpsys)","app_search",1
+"DUMPSYS (/system/bin/dumpsys)","appops",2140
+"DUMPSYS (/system/bin/dumpsys)","appwidget",38
+"DUMPSYS (/system/bin/dumpsys)","audio",394
+"DUMPSYS (/system/bin/dumpsys)","auth",1
+"DUMPSYS (/system/bin/dumpsys)","autofill",90
+"DUMPSYS (/system/bin/dumpsys)","backup",297
+"DUMPSYS (/system/bin/dumpsys)","battery",16
+"DUMPSYS (/system/bin/dumpsys)","batteryproperties",1
+"DUMPSYS (/system/bin/dumpsys)","batterystats",25363
+"DUMPSYS (/system/bin/dumpsys)","binder_calls_stats",17
+"DUMPSYS (/system/bin/dumpsys)","biometric",10
+"DUMPSYS (/system/bin/dumpsys)","blob_store",27
+"DUMPSYS (/system/bin/dumpsys)","bluetooth_manager",310
+"DUMPSYS (/system/bin/dumpsys)","bugreport",1
+"DUMPSYS (/system/bin/dumpsys)","cacheinfo",9911
+"DUMPSYS (/system/bin/dumpsys)","carrier_config",545
+"DUMPSYS (/system/bin/dumpsys)","clipboard",1
+"DUMPSYS (/system/bin/dumpsys)","cneservice",3
+"DUMPSYS (/system/bin/dumpsys)","color_display",38
+"DUMPSYS (/system/bin/dumpsys)","companiondevice",2
+"DUMPSYS (/system/bin/dumpsys)","connectivity",133
+"DUMPSYS (/system/bin/dumpsys)","connmetrics",14
+"DUMPSYS (/system/bin/dumpsys)","consumer_ir",1
+"DUMPSYS (/system/bin/dumpsys)","content",859
+"DUMPSYS (/system/bin/dumpsys)","content_capture",68
+"DUMPSYS (/system/bin/dumpsys)","content_suggestions",1
+"DUMPSYS (/system/bin/dumpsys)","contexthub",42
+"DUMPSYS (/system/bin/dumpsys)","country_detector",1
+"DUMPSYS (/system/bin/dumpsys)","crossprofileapps",1
+"DUMPSYS (/system/bin/dumpsys)","dataloader_manager",1
+"DUMPSYS (/system/bin/dumpsys)","dbinfo",2337
+"DUMPSYS (/system/bin/dumpsys)","device_config",1
+"DUMPSYS (/system/bin/dumpsys)","device_identifiers",1
+"DUMPSYS (/system/bin/dumpsys)","device_policy",192
+"DUMPSYS (/system/bin/dumpsys)","device_state",11
+"DUMPSYS (/system/bin/dumpsys)","deviceidle",172
+"DUMPSYS (/system/bin/dumpsys)","devicestoragemonitor",9
+"DUMPSYS (/system/bin/dumpsys)","diskstats",20
+"DUMPSYS (/system/bin/dumpsys)","display",350
+"DUMPSYS (/system/bin/dumpsys)","dnsresolver",16
+"DUMPSYS (/system/bin/dumpsys)","domain_verification",1
+"DUMPSYS (/system/bin/dumpsys)","dreams",26
+"DUMPSYS (/system/bin/dumpsys)","drm.drmManager",1
+"DUMPSYS (/system/bin/dumpsys)","dropbox",135
+"DUMPSYS (/system/bin/dumpsys)","dynamic_system",1
+"DUMPSYS (/system/bin/dumpsys)","econtroller",65
+"DUMPSYS (/system/bin/dumpsys)","emergency_affordance",8
+"DUMPSYS (/system/bin/dumpsys)","ethernet",19
+"DUMPSYS (/system/bin/dumpsys)","euicc_card_controller",3
+"DUMPSYS (/system/bin/dumpsys)","external_vibrator_service",1
+"DUMPSYS (/system/bin/dumpsys)","file_integrity",1
+"DUMPSYS (/system/bin/dumpsys)","fingerprint",10
+"DUMPSYS (/system/bin/dumpsys)","font",626
+"DUMPSYS (/system/bin/dumpsys)","game",1
+"DUMPSYS (/system/bin/dumpsys)","gfxinfo",1837
+"DUMPSYS (/system/bin/dumpsys)","gpu",75
+"DUMPSYS (/system/bin/dumpsys)","graphicsstats",392
+"DUMPSYS (/system/bin/dumpsys)","hardware_properties",29
+"DUMPSYS (/system/bin/dumpsys)","imms",1
+"DUMPSYS (/system/bin/dumpsys)","incident",1
+"DUMPSYS (/system/bin/dumpsys)","incidentcompanion",1
+"DUMPSYS (/system/bin/dumpsys)","input_method",1972
+"DUMPSYS (/system/bin/dumpsys)","inputflinger",2
+"DUMPSYS (/system/bin/dumpsys)","installd",13
+"DUMPSYS (/system/bin/dumpsys)","ions",1
+"DUMPSYS (/system/bin/dumpsys)","iphonesubinfo",1
+"DUMPSYS (/system/bin/dumpsys)","ipsec",6
+"DUMPSYS (/system/bin/dumpsys)","isms",112
+"DUMPSYS (/system/bin/dumpsys)","isub",64
+"DUMPSYS (/system/bin/dumpsys)","jobscheduler",9757
+"DUMPSYS (/system/bin/dumpsys)","launcherapps",1
+"DUMPSYS (/system/bin/dumpsys)","legacy_permission",1
+"DUMPSYS (/system/bin/dumpsys)","lights",12
+"DUMPSYS (/system/bin/dumpsys)","location",255
+"DUMPSYS (/system/bin/dumpsys)","location_time_zone_manager",35
+"DUMPSYS (/system/bin/dumpsys)","lock_settings",36
+"DUMPSYS (/system/bin/dumpsys)","looper_stats",4
+"DUMPSYS (/system/bin/dumpsys)","manager",1
+"DUMPSYS (/system/bin/dumpsys)","media.aaudio",18
+"DUMPSYS (/system/bin/dumpsys)","media.audio_flinger",694
+"DUMPSYS (/system/bin/dumpsys)","media.audio_policy",1892
+"DUMPSYS (/system/bin/dumpsys)","media.camera",2957
+"DUMPSYS (/system/bin/dumpsys)","media.camera.proxy",1
+"DUMPSYS (/system/bin/dumpsys)","media.extractor",36
+"DUMPSYS (/system/bin/dumpsys)","media.metrics",1275
+"DUMPSYS (/system/bin/dumpsys)","media.player",1154
+"DUMPSYS (/system/bin/dumpsys)","media.resource_manager",47
+"DUMPSYS (/system/bin/dumpsys)","media.resource_observer",3
+"DUMPSYS (/system/bin/dumpsys)","media_communication",1
+"DUMPSYS (/system/bin/dumpsys)","media_metrics",1
+"DUMPSYS (/system/bin/dumpsys)","media_projection",4
+"DUMPSYS (/system/bin/dumpsys)","media_resource_monitor",1
+"DUMPSYS (/system/bin/dumpsys)","media_router",46
+"DUMPSYS (/system/bin/dumpsys)","media_session",37
+"DUMPSYS (/system/bin/dumpsys)","memtrack.proxy",1
+"DUMPSYS (/system/bin/dumpsys)","midi",4
+"DUMPSYS (/system/bin/dumpsys)","mount",24
+"DUMPSYS (/system/bin/dumpsys)","music_recognition",1
+"DUMPSYS (/system/bin/dumpsys)","netd",194
+"DUMPSYS (/system/bin/dumpsys)","netd_listener",1
+"DUMPSYS (/system/bin/dumpsys)","netpolicy",893
+"DUMPSYS (/system/bin/dumpsys)","netstats",21
+"DUMPSYS (/system/bin/dumpsys)","network_management",17
+"DUMPSYS (/system/bin/dumpsys)","network_score",3
+"DUMPSYS (/system/bin/dumpsys)","network_stack",33
+"DUMPSYS (/system/bin/dumpsys)","network_time_update_service",8
+"DUMPSYS (/system/bin/dumpsys)","network_watchlist",6
+"DUMPSYS (/system/bin/dumpsys)","nfc",63
+"DUMPSYS (/system/bin/dumpsys)","notification",593
+"DUMPSYS (/system/bin/dumpsys)","oem_lock",1
+"DUMPSYS (/system/bin/dumpsys)","otadexopt",1
+"DUMPSYS (/system/bin/dumpsys)","overlay",2189
+"DUMPSYS (/system/bin/dumpsys)","pac_proxy",1
+"DUMPSYS (/system/bin/dumpsys)","package",36282
+"DUMPSYS (/system/bin/dumpsys)","package_native",1
+"DUMPSYS (/system/bin/dumpsys)","people",1
+"DUMPSYS (/system/bin/dumpsys)","performance_hint",4
+"DUMPSYS (/system/bin/dumpsys)","permission",1
+"DUMPSYS (/system/bin/dumpsys)","permission_checker",1
+"DUMPSYS (/system/bin/dumpsys)","permissionmgr",10
+"DUMPSYS (/system/bin/dumpsys)","persistent_data_block",1
+"DUMPSYS (/system/bin/dumpsys)","phone",65
+"DUMPSYS (/system/bin/dumpsys)","pinner",25
+"DUMPSYS (/system/bin/dumpsys)","platform_compat",127
+"DUMPSYS (/system/bin/dumpsys)","platform_compat_native",1
+"DUMPSYS (/system/bin/dumpsys)","power",1419
+"DUMPSYS (/system/bin/dumpsys)","powerstats",1
+"DUMPSYS (/system/bin/dumpsys)","print",33
+"DUMPSYS (/system/bin/dumpsys)","processinfo",1
+"DUMPSYS (/system/bin/dumpsys)","procstats",26346
+"DUMPSYS (/system/bin/dumpsys)","qchook",1
+"DUMPSYS (/system/bin/dumpsys)","qti.ims.ext",1
+"DUMPSYS (/system/bin/dumpsys)","rcs",1
+"DUMPSYS (/system/bin/dumpsys)","reboot_readiness",1
+"DUMPSYS (/system/bin/dumpsys)","recovery",1
+"DUMPSYS (/system/bin/dumpsys)","restrictions",1
+"DUMPSYS (/system/bin/dumpsys)","role",107
+"DUMPSYS (/system/bin/dumpsys)","rollback",7
+"DUMPSYS (/system/bin/dumpsys)","runtime",14
+"DUMPSYS (/system/bin/dumpsys)","scheduling_policy",1
+"DUMPSYS (/system/bin/dumpsys)","search",16
+"DUMPSYS (/system/bin/dumpsys)","search_ui",1
+"DUMPSYS (/system/bin/dumpsys)","sec_key_att_app_id_provider",1
+"DUMPSYS (/system/bin/dumpsys)","secure_element",7
+"DUMPSYS (/system/bin/dumpsys)","sensor_privacy",9
+"DUMPSYS (/system/bin/dumpsys)","serial",1
+"DUMPSYS (/system/bin/dumpsys)","servicediscovery",4
+"DUMPSYS (/system/bin/dumpsys)","settings",318
+"DUMPSYS (/system/bin/dumpsys)","shortcut",921
+"DUMPSYS (/system/bin/dumpsys)","simphonebook",1
+"DUMPSYS (/system/bin/dumpsys)","sip",1
+"DUMPSYS (/system/bin/dumpsys)","slice",1
+"DUMPSYS (/system/bin/dumpsys)","smartspace",1
+"DUMPSYS (/system/bin/dumpsys)","soundtrigger",1
+"DUMPSYS (/system/bin/dumpsys)","soundtrigger_middleware",17
+"DUMPSYS (/system/bin/dumpsys)","speech_recognition",1
+"DUMPSYS (/system/bin/dumpsys)","stats",2
+"DUMPSYS (/system/bin/dumpsys)","statscompanion",2
+"DUMPSYS (/system/bin/dumpsys)","statsmanager",1
+"DUMPSYS (/system/bin/dumpsys)","statusbar",8
+"DUMPSYS (/system/bin/dumpsys)","storaged",229
+"DUMPSYS (/system/bin/dumpsys)","storaged_pri",1
+"DUMPSYS (/system/bin/dumpsys)","storagestats",1
+"DUMPSYS (/system/bin/dumpsys)","suspend_control",1
+"DUMPSYS (/system/bin/dumpsys)","suspend_control_internal",59
+"DUMPSYS (/system/bin/dumpsys)","system_config",1
+"DUMPSYS (/system/bin/dumpsys)","system_server_dumper",158
+"DUMPSYS (/system/bin/dumpsys)","system_update",1
+"DUMPSYS (/system/bin/dumpsys)","telecom",49
+"DUMPSYS (/system/bin/dumpsys)","telephony.registry",131
+"DUMPSYS (/system/bin/dumpsys)","telephony_ims",1
+"DUMPSYS (/system/bin/dumpsys)","testharness",1
+"DUMPSYS (/system/bin/dumpsys)","tethering",92
+"DUMPSYS (/system/bin/dumpsys)","textclassification",25
+"DUMPSYS (/system/bin/dumpsys)","textservices",183
+"DUMPSYS (/system/bin/dumpsys)","texttospeech",1
+"DUMPSYS (/system/bin/dumpsys)","thermalservice",62
+"DUMPSYS (/system/bin/dumpsys)","time_detector",18
+"DUMPSYS (/system/bin/dumpsys)","time_zone_detector",19
+"DUMPSYS (/system/bin/dumpsys)","tracing.proxy",1
+"DUMPSYS (/system/bin/dumpsys)","translation",11
+"DUMPSYS (/system/bin/dumpsys)","trust",6
+"DUMPSYS (/system/bin/dumpsys)","uimode",9
+"DUMPSYS (/system/bin/dumpsys)","updatelock",2
+"DUMPSYS (/system/bin/dumpsys)","uri_grants",1
+"DUMPSYS (/system/bin/dumpsys)","usagestats",2933
+"DUMPSYS (/system/bin/dumpsys)","usb",171
+"DUMPSYS (/system/bin/dumpsys)","user",342
+"DUMPSYS (/system/bin/dumpsys)","vcn_management",67
+"DUMPSYS (/system/bin/dumpsys)","vibrator_manager",37
+"DUMPSYS (/system/bin/dumpsys)","voiceinteraction",57
+"DUMPSYS (/system/bin/dumpsys)","vpn_management",3
+"DUMPSYS (/system/bin/dumpsys)","vrmanager",32
+"DUMPSYS (/system/bin/dumpsys)","wallpaper",29
+"DUMPSYS (/system/bin/dumpsys)","webviewupdate",18
+"DUMPSYS (/system/bin/dumpsys)","wifi",1167
+"DUMPSYS (/system/bin/dumpsys)","wifiaware",96
+"DUMPSYS (/system/bin/dumpsys)","wifinl80211",23
+"DUMPSYS (/system/bin/dumpsys)","wifip2p",28
+"DUMPSYS (/system/bin/dumpsys)","wifirtt",17
+"DUMPSYS (/system/bin/dumpsys)","wifiscanner",219
+"DUMPSYS CRITICAL (/system/bin/dumpsys)","SurfaceFlinger",1324
+"DUMPSYS CRITICAL (/system/bin/dumpsys)","activity",3319
+"DUMPSYS CRITICAL (/system/bin/dumpsys)","cpuinfo",101
+"DUMPSYS CRITICAL (/system/bin/dumpsys)","input",418
+"DUMPSYS CRITICAL (/system/bin/dumpsys)","input_method",260
+"DUMPSYS CRITICAL (/system/bin/dumpsys)","notification",260
+"DUMPSYS CRITICAL (/system/bin/dumpsys)","power",1382
+"DUMPSYS CRITICAL (/system/bin/dumpsys)","sensorservice",270
+"DUMPSYS CRITICAL (/system/bin/dumpsys)","window",885
+"DUMPSYS HIGH (/system/bin/dumpsys)","meminfo",3864
+"DUMPSYS HIGH (/system/bin/dumpsys)","network_stack",33
+"DUMPSYS HIGH (/system/bin/dumpsys)","tethering",92
+"Dmabuf dump (dmabuf_dump)","[NULL]",290
+"Dmabuf per-buffer/per-exporter/per-device stats (dmabuf_dump -b)","[NULL]",1
+"EBPF MAP STATS (/system/bin/dumpsys -T 30000 netd trafficcontroller)","[NULL]",266
+"EVENT LOG (logcat -b events -v threadtime -v printable -v uid -d *:v)","[NULL]",2410
+"EXTERNAL FRAGMENTATION INFO","[NULL]",3
+"FILESYSTEMS & FREE SPACE (df)","[NULL]",35
+"HARDWARE HALS (/system/xbin/su root lshal --all --types=all)","[NULL]",359
+"IOTOP (iotop -n 1 -m 100)","[NULL]",103
+"IP RULES (ip rule show)","[NULL]",12
+"IP RULES v6 (ip -6 rule show)","[NULL]",12
+"IP6TABLES (ip6tables -L -nvx)","[NULL]",108
+"IP6TABLES MANGLE (ip6tables -t mangle -L -nvx)","[NULL]",97
+"IP6TABLES RAW (ip6tables -t raw -L -nvx)","[NULL]",29
+"IPTABLES (iptables -L -nvx)","[NULL]",129
+"IPTABLES MANGLE (iptables -t mangle -L -nvx)","[NULL]",97
+"IPTABLES NAT (iptables -t nat -L -nvx)","[NULL]",19
+"IPTABLES RAW (iptables -t raw -L -nvx)","[NULL]",29
+"IPv4 ADDRESSES (ip -4 addr show)","[NULL]",3
+"IPv6 ADDRESSES (ip -6 addr show)","[NULL]",9
+"KERNEL CPUFREQ (/sys/devices/system/cpu/cpu0/cpufreq/stats/time_in_state)","[NULL]",19
+"KERNEL LOG (logcat -b kernel -v threadtime -v printable -v uid -d *:v)","[NULL]",4894
+"KERNEL WAKE SOURCES (/d/wakeup_sources)","[NULL]",392
+"LAST LOGCAT (logcat -L -b all -v threadtime -v printable -v uid -d *:v)","[NULL]",1
+"LIBRANK (/system/xbin/su root librank)","[NULL]",42470
+"LIST OF OPEN FILES (/system/xbin/su root lsof)","[NULL]",42793
+"LOG STATISTICS (logcat -b all -S)","[NULL]",225
+"LPDUMP (lpdump --all)","[NULL]",71
+"LSMOD (lsmod)","[NULL]",14
+"MEMORY INFO (/proc/meminfo)","[NULL]",40
+"MODULES INFO (/system/xbin/su root sh -c cat /proc/modules | cut -d' ' -f1 |     while read MOD ; do echo modinfo:$MOD ; modinfo $MOD ; done)","[NULL]",152
+"MULTICAST ADDRESSES (ip maddr)","[NULL]",105
+"NETSTAT (netstat -nW)","[NULL]",628
+"NETWORK DEV INFO (/proc/net/dev)","[NULL]",34
+"NETWORK INTERFACES (ip link)","[NULL]",62
+"PAGETYPEINFO (/proc/pagetypeinfo)","[NULL]",21
+"PRINTENV (printenv)","[NULL]",16
+"PROCESS TIMES (pid cmd user system iowait+percentage)","[NULL]",256
+"PROCESSES AND THREADS (ps -A -T -Z -O pri,nice,rtprio,sched,pcy,time)","[NULL]",2783
+"PROCRANK (/system/xbin/su root procrank)","[NULL]",173
+"PSI cpu (/proc/pressure/cpu)","[NULL]",2
+"PSI io (/proc/pressure/io)","[NULL]",3
+"PSI memory (/proc/pressure/memory)","[NULL]",3
+"RADIO LOG (logcat -b radio -v threadtime -v printable -v uid -d *:v)","[NULL]",2012
+"ROUTE TABLE IPv4 (ip -4 route show table 1003)","[NULL]",1
+"ROUTE TABLE IPv4 (ip -4 route show table 255)","[NULL]",4
+"ROUTE TABLE IPv6 (ip -6 route show table 1003)","[NULL]",2
+"ROUTE TABLE IPv6 (ip -6 route show table 1010)","[NULL]",2
+"ROUTE TABLE IPv6 (ip -6 route show table 255)","[NULL]",5
+"RT_TABLES (/data/misc/net/rt_tables: 2021-08-24 23:32:34)","[NULL]",8
+"SERVICE HIGH connectivity (/system/bin/dumpsys -T 10000 connectivity --dump-priority HIGH)","[NULL]",98
+"SHOW MAP 1 (/system/bin/init) (/system/xbin/su root showmap -q 1)","[NULL]",344
+"SHOW MAP 10 ([rcuop/0]) (/system/xbin/su root showmap -q 10)","[NULL]",8
+"SHOW MAP 100 ([irq/125-tsens-u]) (/system/xbin/su root showmap -q 100)","[NULL]",8
+"SHOW MAP 101 ([irq/126-tsens-c]) (/system/xbin/su root showmap -q 101)","[NULL]",8
+"SHOW MAP 1013 (/system/bin/hw/android.hidl.allocator@1.0-service) (/system/xbin/su root showmap -q 1013)","[NULL]",54
+"SHOW MAP 1014 (/vendor/bin/hw/android.hardware.neuralnetworks@1.0-service-paintbox) (/system/xbin/su root showmap -q 1014)","[NULL]",112
+"SHOW MAP 1015 (/vendor/bin/hw/android.hardware.audio.service) (/system/xbin/su root showmap -q 1015)","[NULL]",169
+"SHOW MAP 1016 (/vendor/bin/hw/android.hardware.bluetooth@1.0-service-qti) (/system/xbin/su root showmap -q 1016)","[NULL]",75
+"SHOW MAP 1017 (/vendor/bin/hw/android.hardware.camera.provider@2.4-service_64) (/system/xbin/su root showmap -q 1017)","[NULL]",276
+"SHOW MAP 1019 (/vendor/bin/hw/android.hardware.cas@1.2-service) (/system/xbin/su root showmap -q 1019)","[NULL]",65
+"SHOW MAP 102 ([irq/127-tsens-u]) (/system/xbin/su root showmap -q 102)","[NULL]",8
+"SHOW MAP 1020 (/vendor/bin/hw/android.hardware.confirmationui@1.0-service-google) (/system/xbin/su root showmap -q 1020)","[NULL]",86
+"SHOW MAP 1023 (/vendor/bin/hw/android.hardware.contexthub@1.2-service.generic) (/system/xbin/su root showmap -q 1023)","[NULL]",59
+"SHOW MAP 1025 (/vendor/bin/hw/android.hardware.drm@1.0-service) (/system/xbin/su root showmap -q 1025)","[NULL]",67
+"SHOW MAP 1026 (/vendor/bin/hw/android.hardware.drm@1.3-service.widevine) (/system/xbin/su root showmap -q 1026)","[NULL]",68
+"SHOW MAP 1028 (/vendor/bin/hw/android.hardware.drm@1.4-service.clearkey) (/system/xbin/su root showmap -q 1028)","[NULL]",68
+"SHOW MAP 103 ([irq/128-tsens-c]) (/system/xbin/su root showmap -q 103)","[NULL]",8
+"SHOW MAP 1030 (/vendor/bin/hw/android.hardware.gnss@1.1-service-qti) (/system/xbin/su root showmap -q 1030)","[NULL]",114
+"SHOW MAP 1031 ([kworker/u16:10]) (/system/xbin/su root showmap -q 1031)","[NULL]",8
+"SHOW MAP 1032 (/vendor/bin/hw/android.hardware.health@2.0-service.crosshatch) (/system/xbin/su root showmap -q 1032)","[NULL]",74
+"SHOW MAP 1036 (/vendor/bin/hw/android.hardware.identity@1.0-service.citadel) (/system/xbin/su root showmap -q 1036)","[NULL]",89
+"SHOW MAP 1037 (/vendor/bin/hw/android.hardware.neuralnetworks@1.3-service-qti) (/system/xbin/su root showmap -q 1037)","[NULL]",116
+"SHOW MAP 1038 (/vendor/bin/hw/android.hardware.nfc@1.2-service) (/system/xbin/su root showmap -q 1038)","[NULL]",75
+"SHOW MAP 1039 (/vendor/bin/hw/android.hardware.power.stats@1.0-service.pixel) (/system/xbin/su root showmap -q 1039)","[NULL]",64
+"SHOW MAP 104 ([edac-poller]) (/system/xbin/su root showmap -q 104)","[NULL]",8
+"SHOW MAP 1040 (/vendor/bin/hw/android.hardware.sensors@2.0-service) (/system/xbin/su root showmap -q 1040)","[NULL]",103
+"SHOW MAP 1044 (/vendor/bin/hw/android.hardware.usb@1.3-service.crosshatch) (/system/xbin/su root showmap -q 1044)","[NULL]",68
+"SHOW MAP 1045 (/vendor/bin/hw/android.hardware.weaver@1.0-service.citadel) (/system/xbin/su root showmap -q 1045)","[NULL]",83
+"SHOW MAP 10459 ([kworker/2:0]) (/system/xbin/su root showmap -q 10459)","[NULL]",8
+"SHOW MAP 10460 ([kworker/2:4]) (/system/xbin/su root showmap -q 10460)","[NULL]",8
+"SHOW MAP 1047 (/vendor/bin/pixelstats-vendor) (/system/xbin/su root showmap -q 1047)","[NULL]",67
+"SHOW MAP 10474 ([kworker/5:2]) (/system/xbin/su root showmap -q 10474)","[NULL]",8
+"SHOW MAP 10480 ([kworker/4:0]) (/system/xbin/su root showmap -q 10480)","[NULL]",8
+"SHOW MAP 105 ([system]) (/system/xbin/su root showmap -q 105)","[NULL]",8
+"SHOW MAP 1050 (/vendor/bin/hw/small_hals.crosshatch-service) (/system/xbin/su root showmap -q 1050)","[NULL]",66
+"SHOW MAP 1055 (/vendor/bin/hw/vendor.google.google_battery@1.1-service-vendor) (/system/xbin/su root showmap -q 1055)","[NULL]",57
+"SHOW MAP 1059 (/vendor/bin/hw/vendor.google.radioext@1.0-service) (/system/xbin/su root showmap -q 1059)","[NULL]",92
+"SHOW MAP 106 ([ipa_power_mgmt]) (/system/xbin/su root showmap -q 106)","[NULL]",8
+"SHOW MAP 1060 (/vendor/bin/hw/vendor.google.wifi_ext@1.0-service-vendor) (/system/xbin/su root showmap -q 1060)","[NULL]",80
+"SHOW MAP 1062 (/vendor/bin/hw/vendor.google.wireless_charger@1.3-service-vendor) (/system/xbin/su root showmap -q 1062)","[NULL]",63
+"SHOW MAP 1063 ([cdsp_IPCRTR]) (/system/xbin/su root showmap -q 1063)","[NULL]",8
+"SHOW MAP 1065 (/vendor/bin/hw/vendor.qti.hardware.tui_comm@1.0-service-qti) (/system/xbin/su root showmap -q 1065)","[NULL]",60
+"SHOW MAP 1069 (/vendor/bin/hw/vendor.qti.media.c2@1.0-service) (/system/xbin/su root showmap -q 1069)","[NULL]",152
+"SHOW MAP 107 ([transport_power]) (/system/xbin/su root showmap -q 107)","[NULL]",8
+"SHOW MAP 1070 (/vendor/bin/pm-service) (/system/xbin/su root showmap -q 1070)","[NULL]",73
+"SHOW MAP 1073 ([kworker/u16:11]) (/system/xbin/su root showmap -q 1073)","[NULL]",8
+"SHOW MAP 1075 ([kworker/u16:12]) (/system/xbin/su root showmap -q 1075)","[NULL]",8
+"SHOW MAP 1079 (/vendor/bin/rmt_storage) (/system/xbin/su root showmap -q 1079)","[NULL]",67
+"SHOW MAP 108 ([ipa_rm_wq]) (/system/xbin/su root showmap -q 108)","[NULL]",8
+"SHOW MAP 1085 (/vendor/bin/tftp_server) (/system/xbin/su root showmap -q 1085)","[NULL]",45
+"SHOW MAP 1086 (/vendor/bin/modem_svc) (/system/xbin/su root showmap -q 1086)","[NULL]",76
+"SHOW MAP 1088 (/vendor/bin/pd-mapper) (/system/xbin/su root showmap -q 1088)","[NULL]",64
+"SHOW MAP 109 ([devfreq_wq]) (/system/xbin/su root showmap -q 109)","[NULL]",8
+"SHOW MAP 1090 (/vendor/bin/msm_irqbalance) (/system/xbin/su root showmap -q 1090)","[NULL]",53
+"SHOW MAP 1093 (/system/bin/audioserver) (/system/xbin/su root showmap -q 1093)","[NULL]",225
+"SHOW MAP 1095 (/system/bin/credstore) (/system/xbin/su root showmap -q 1095)","[NULL]",69
+"SHOW MAP 1097 (/system/bin/gpuservice) (/system/xbin/su root showmap -q 1097)","[NULL]",92
+"SHOW MAP 1099 (/vendor/bin/sensors.qti) (/system/xbin/su root showmap -q 1099)","[NULL]",76
+"SHOW MAP 11 ([rcuos/0]) (/system/xbin/su root showmap -q 11)","[NULL]",8
+"SHOW MAP 110 ([governor_msm_ad]) (/system/xbin/su root showmap -q 110)","[NULL]",8
+"SHOW MAP 111 ([cfg80211]) (/system/xbin/su root showmap -q 111)","[NULL]",8
+"SHOW MAP 1110 ([qmi_hndl0000000]) (/system/xbin/su root showmap -q 1110)","[NULL]",8
+"SHOW MAP 1112 ([qmi_hndl0000000]) (/system/xbin/su root showmap -q 1112)","[NULL]",8
+"SHOW MAP 1115 ([qmi_hndl0000000]) (/system/xbin/su root showmap -q 1115)","[NULL]",8
+"SHOW MAP 1117 ([modem]) (/system/xbin/su root showmap -q 1117)","[NULL]",8
+"SHOW MAP 1118 ([adsp]) (/system/xbin/su root showmap -q 1118)","[NULL]",8
+"SHOW MAP 1119 ([kworker/u16:13]) (/system/xbin/su root showmap -q 1119)","[NULL]",8
+"SHOW MAP 112 ([irq/541-ibb-sc-]) (/system/xbin/su root showmap -q 112)","[NULL]",8
+"SHOW MAP 11249 (/vendor/bin/diag_mdlog) (/system/xbin/su root showmap -q 11249)","[NULL]",55
+"SHOW MAP 1126 (/vendor/bin/ramdump) (/system/xbin/su root showmap -q 1126)","[NULL]",70
+"SHOW MAP 113 ([irq/542-lab-sc-]) (/system/xbin/su root showmap -q 113)","[NULL]",8
+"SHOW MAP 1134 ([kworker/u17:1]) (/system/xbin/su root showmap -q 1134)","[NULL]",8
+"SHOW MAP 114 ([kworker/1:2]) (/system/xbin/su root showmap -q 114)","[NULL]",8
+"SHOW MAP 115 ([irq/75-qpnp_wle]) (/system/xbin/su root showmap -q 115)","[NULL]",8
+"SHOW MAP 1150 ([lpass_IPCRTR]) (/system/xbin/su root showmap -q 1150)","[NULL]",8
+"SHOW MAP 1153 ([qmi_hndl0000000]) (/system/xbin/su root showmap -q 1153)","[NULL]",8
+"SHOW MAP 1155 ([qmi_hndl0000000]) (/system/xbin/su root showmap -q 1155)","[NULL]",8
+"SHOW MAP 1156 ([qmi_hndl0000000]) (/system/xbin/su root showmap -q 1156)","[NULL]",8
+"SHOW MAP 1157 ([kworker/u17:2]) (/system/xbin/su root showmap -q 1157)","[NULL]",8
+"SHOW MAP 1159 (/vendor/bin/subsystem_ramdump) (/system/xbin/su root showmap -q 1159)","[NULL]",67
+"SHOW MAP 116 ([irq/76-qpnp_wle]) (/system/xbin/su root showmap -q 116)","[NULL]",8
+"SHOW MAP 1160 (/vendor/bin/mm-pp-dpps) (/system/xbin/su root showmap -q 1160)","[NULL]",68
+"SHOW MAP 1168 ([msm_slim_qmi_cl]) (/system/xbin/su root showmap -q 1168)","[NULL]",8
+"SHOW MAP 1169 ([msm_slim_qmi_cl]) (/system/xbin/su root showmap -q 1169)","[NULL]",8
+"SHOW MAP 117 ([watchdogd]) (/system/xbin/su root showmap -q 117)","[NULL]",8
+"SHOW MAP 1170 ([qmi_hndl0000000]) (/system/xbin/su root showmap -q 1170)","[NULL]",8
+"SHOW MAP 1171 ([qmi_hndl0000000]) (/system/xbin/su root showmap -q 1171)","[NULL]",8
+"SHOW MAP 1177 (/system/bin/drmserver) (/system/xbin/su root showmap -q 1177)","[NULL]",84
+"SHOW MAP 1178 (logcat) (/system/xbin/su root showmap -q 1178)","[NULL]",48
+"SHOW MAP 118 ([kworker/2:1]) (/system/xbin/su root showmap -q 118)","[NULL]",8
+"SHOW MAP 1180 (/system/bin/traced_probes) (/system/xbin/su root showmap -q 1180)","[NULL]",43
+"SHOW MAP 1182 ([irq/211-arm-smm]) (/system/xbin/su root showmap -q 1182)","[NULL]",8
+"SHOW MAP 119 ([kworker/4:1]) (/system/xbin/su root showmap -q 119)","[NULL]",8
+"SHOW MAP 1194 ([irq/212-arm-smm]) (/system/xbin/su root showmap -q 1194)","[NULL]",8
+"SHOW MAP 1195 ([irq/213-arm-smm]) (/system/xbin/su root showmap -q 1195)","[NULL]",8
+"SHOW MAP 1196 (/system/bin/traced) (/system/xbin/su root showmap -q 1196)","[NULL]",42
+"SHOW MAP 12 ([rcuob/0]) (/system/xbin/su root showmap -q 12)","[NULL]",8
+"SHOW MAP 1231 (/vendor/bin/adsprpcd) (/system/xbin/su root showmap -q 1231)","[NULL]",50
+"SHOW MAP 1234 (/vendor/bin/cdsprpcd) (/system/xbin/su root showmap -q 1234)","[NULL]",49
+"SHOW MAP 1236 (/vendor/bin/imsqmidaemon) (/system/xbin/su root showmap -q 1236)","[NULL]",62
+"SHOW MAP 1240 (/vendor/bin/cnd) (/system/xbin/su root showmap -q 1240)","[NULL]",103
+"SHOW MAP 1243 (/vendor/bin/netmgrd) (/system/xbin/su root showmap -q 1243)","[NULL]",180
+"SHOW MAP 1244 (/vendor/bin/port-bridge) (/system/xbin/su root showmap -q 1244)","[NULL]",55
+"SHOW MAP 1245 (/vendor/bin/ipacm) (/system/xbin/su root showmap -q 1245)","[NULL]",70
+"SHOW MAP 1247 (/system/bin/cameraserver) (/system/xbin/su root showmap -q 1247)","[NULL]",220
+"SHOW MAP 1248 ([irq/311-wcd9xxx]) (/system/xbin/su root showmap -q 1248)","[NULL]",8
+"SHOW MAP 1258 (/system/bin/incidentd) (/system/xbin/su root showmap -q 1258)","[NULL]",59
+"SHOW MAP 1261 (/system/bin/installd) (/system/xbin/su root showmap -q 1261)","[NULL]",64
+"SHOW MAP 1264 (media.extractor) (/system/xbin/su root showmap -q 1264)","[NULL]",210
+"SHOW MAP 1268 (media.metrics) (/system/xbin/su root showmap -q 1268)","[NULL]",87
+"SHOW MAP 1272 (/system/bin/mediaserver) (/system/xbin/su root showmap -q 1272)","[NULL]",219
+"SHOW MAP 1275 (/system/bin/storaged) (/system/xbin/su root showmap -q 1275)","[NULL]",65
+"SHOW MAP 1277 (/system/bin/wificond) (/system/xbin/su root showmap -q 1277)","[NULL]",67
+"SHOW MAP 1279 (media.codec) (/system/xbin/su root showmap -q 1279)","[NULL]",133
+"SHOW MAP 1283 (/vendor/bin/easelmanagerd) (/system/xbin/su root showmap -q 1283)","[NULL]",68
+"SHOW MAP 1295 (/vendor/bin/hw/qcrild) (/system/xbin/su root showmap -q 1295)","[NULL]",201
+"SHOW MAP 13 ([migration/0]) (/system/xbin/su root showmap -q 13)","[NULL]",8
+"SHOW MAP 1304 ([kworker/u16:14]) (/system/xbin/su root showmap -q 1304)","[NULL]",8
+"SHOW MAP 1306 (media.swcodec) (/system/xbin/su root showmap -q 1306)","[NULL]",184
+"SHOW MAP 1307 ([qmi_wq]) (/system/xbin/su root showmap -q 1307)","[NULL]",8
+"SHOW MAP 1311 (/vendor/bin/cnss-daemon) (/system/xbin/su root showmap -q 1311)","[NULL]",76
+"SHOW MAP 1313 (/vendor/bin/loc_launcher) (/system/xbin/su root showmap -q 1313)","[NULL]",57
+"SHOW MAP 1315 (/system/bin/gatekeeperd) (/system/xbin/su root showmap -q 1315)","[NULL]",66
+"SHOW MAP 1319 (/system/bin/update_engine) (/system/xbin/su root showmap -q 1319)","[NULL]",88
+"SHOW MAP 1321 (/vendor/bin/hw/android.hardware.biometrics.fingerprint@2.1-service.fpc) (/system/xbin/su root showmap -q 1321)","[NULL]",64
+"SHOW MAP 1323 (/vendor/bin/chre) (/system/xbin/su root showmap -q 1323)","[NULL]",65
+"SHOW MAP 1339 (/vendor/bin/imsdatadaemon) (/system/xbin/su root showmap -q 1339)","[NULL]",98
+"SHOW MAP 1345 (lowi-server) (/system/xbin/su root showmap -q 1345)","[NULL]",75
+"SHOW MAP 1346 (xtra-daemon) (/system/xbin/su root showmap -q 1346)","[NULL]",80
+"SHOW MAP 1347 (/system/bin/llkd) (/system/xbin/su root showmap -q 1347)","[NULL]",45
+"SHOW MAP 1356 ([kworker/u16:15]) (/system/xbin/su root showmap -q 1356)","[NULL]",8
+"SHOW MAP 1367 ([qmi_hndl0000000]) (/system/xbin/su root showmap -q 1367)","[NULL]",8
+"SHOW MAP 1387 ([kworker/u16:16]) (/system/xbin/su root showmap -q 1387)","[NULL]",8
+"SHOW MAP 14 ([lru-add-drain]) (/system/xbin/su root showmap -q 14)","[NULL]",8
+"SHOW MAP 144 ([kswapd0]) (/system/xbin/su root showmap -q 144)","[NULL]",8
+"SHOW MAP 145 ([vmstat]) (/system/xbin/su root showmap -q 145)","[NULL]",8
+"SHOW MAP 146 ([ecryptfs-kthrea]) (/system/xbin/su root showmap -q 146)","[NULL]",8
+"SHOW MAP 1468 ([kworker/u16:17]) (/system/xbin/su root showmap -q 1468)","[NULL]",8
+"SHOW MAP 1469 ([kworker/u16:18]) (/system/xbin/su root showmap -q 1469)","[NULL]",8
+"SHOW MAP 1471 ([kworker/u16:19]) (/system/xbin/su root showmap -q 1471)","[NULL]",8
+"SHOW MAP 15 ([cpuhp/0]) (/system/xbin/su root showmap -q 15)","[NULL]",8
+"SHOW MAP 16 ([cpuhp/1]) (/system/xbin/su root showmap -q 16)","[NULL]",8
+"SHOW MAP 1603 ([wdsp_glink_wq]) (/system/xbin/su root showmap -q 1603)","[NULL]",8
+"SHOW MAP 17 ([migration/1]) (/system/xbin/su root showmap -q 17)","[NULL]",8
+"SHOW MAP 1702 (/vendor/bin/hw/android.hardware.thermal@2.0-service.pixel) (/system/xbin/su root showmap -q 1702)","[NULL]",71
+"SHOW MAP 1723 ([mpss_IPCRTR]) (/system/xbin/su root showmap -q 1723)","[NULL]",8
+"SHOW MAP 1724 ([qmi_hndl0000001]) (/system/xbin/su root showmap -q 1724)","[NULL]",8
+"SHOW MAP 1726 ([qmi_hndl0000001]) (/system/xbin/su root showmap -q 1726)","[NULL]",8
+"SHOW MAP 1759 ([qmi_hndl0000001]) (/system/xbin/su root showmap -q 1759)","[NULL]",8
+"SHOW MAP 1764 ([qmi_hndl0000001]) (/system/xbin/su root showmap -q 1764)","[NULL]",8
+"SHOW MAP 1768 ([kworker/u16:20]) (/system/xbin/su root showmap -q 1768)","[NULL]",8
+"SHOW MAP 1773 ([kworker/u16:22]) (/system/xbin/su root showmap -q 1773)","[NULL]",8
+"SHOW MAP 18 ([ksoftirqd/1]) (/system/xbin/su root showmap -q 18)","[NULL]",8
+"SHOW MAP 1831 ([qmi_hndl0000001]) (/system/xbin/su root showmap -q 1831)","[NULL]",8
+"SHOW MAP 1835 (system_server) (/system/xbin/su root showmap -q 1835)","[NULL]",1155
+"SHOW MAP 1841 ([kworker/u16:23]) (/system/xbin/su root showmap -q 1841)","[NULL]",8
+"SHOW MAP 1893 ([ipawq34]) (/system/xbin/su root showmap -q 1893)","[NULL]",8
+"SHOW MAP 1894 ([iparepwq34]) (/system/xbin/su root showmap -q 1894)","[NULL]",8
+"SHOW MAP 1895 ([ipawq35]) (/system/xbin/su root showmap -q 1895)","[NULL]",8
+"SHOW MAP 1896 ([iparepwq35]) (/system/xbin/su root showmap -q 1896)","[NULL]",8
+"SHOW MAP 19 ([kworker/1:0]) (/system/xbin/su root showmap -q 19)","[NULL]",8
+"SHOW MAP 2 ([kthreadd]) (/system/xbin/su root showmap -q 2)","[NULL]",8
+"SHOW MAP 20 ([kworker/1:0H]) (/system/xbin/su root showmap -q 20)","[NULL]",8
+"SHOW MAP 200 ([irq/174-arm-smm]) (/system/xbin/su root showmap -q 200)","[NULL]",8
+"SHOW MAP 201 ([irq/175-arm-smm]) (/system/xbin/su root showmap -q 201)","[NULL]",8
+"SHOW MAP 202 ([irq/91-eud_irq]) (/system/xbin/su root showmap -q 202)","[NULL]",8
+"SHOW MAP 203 ([glink_ssr_wq]) (/system/xbin/su root showmap -q 203)","[NULL]",8
+"SHOW MAP 204 ([glink_lbsrv]) (/system/xbin/su root showmap -q 204)","[NULL]",8
+"SHOW MAP 205 ([spi_wdsp]) (/system/xbin/su root showmap -q 205)","[NULL]",8
+"SHOW MAP 206 ([wdsp_spi_glink_]) (/system/xbin/su root showmap -q 206)","[NULL]",8
+"SHOW MAP 207 ([glink_xprt_wq]) (/system/xbin/su root showmap -q 207)","[NULL]",8
+"SHOW MAP 208 ([IPCRTR_mpss_sme]) (/system/xbin/su root showmap -q 208)","[NULL]",8
+"SHOW MAP 209 ([IPCRTR_lpass_sm]) (/system/xbin/su root showmap -q 209)","[NULL]",8
+"SHOW MAP 21 ([rcuop/1]) (/system/xbin/su root showmap -q 21)","[NULL]",8
+"SHOW MAP 210 ([IPCRTR_dsps_sme]) (/system/xbin/su root showmap -q 210)","[NULL]",8
+"SHOW MAP 211 ([IPCRTR_cdsp_sme]) (/system/xbin/su root showmap -q 211)","[NULL]",8
+"SHOW MAP 212 ([glink_pkt_wq]) (/system/xbin/su root showmap -q 212)","[NULL]",8
+"SHOW MAP 2122 (/vendor/bin/ims_rtp_daemon) (/system/xbin/su root showmap -q 2122)","[NULL]",102
+"SHOW MAP 2123 (/vendor/bin/imsrcsd) (/system/xbin/su root showmap -q 2123)","[NULL]",97
+"SHOW MAP 213 ([irq/176-arm-smm]) (/system/xbin/su root showmap -q 213)","[NULL]",8
+"SHOW MAP 214 ([qmi_svc_event_w]) (/system/xbin/su root showmap -q 214)","[NULL]",8
+"SHOW MAP 215 ([msm_ipc_router]) (/system/xbin/su root showmap -q 215)","[NULL]",8
+"SHOW MAP 2150 ([cds_mc_thread]) (/system/xbin/su root showmap -q 2150)","[NULL]",8
+"SHOW MAP 2151 ([cds_ol_rx_threa]) (/system/xbin/su root showmap -q 2151)","[NULL]",8
+"SHOW MAP 2152 ([wmi_rx_event_wo]) (/system/xbin/su root showmap -q 2152)","[NULL]",8
+"SHOW MAP 2154 ([ipawq13]) (/system/xbin/su root showmap -q 2154)","[NULL]",8
+"SHOW MAP 2155 ([iparepwq13]) (/system/xbin/su root showmap -q 2155)","[NULL]",8
+"SHOW MAP 2156 ([ipawq15]) (/system/xbin/su root showmap -q 2156)","[NULL]",8
+"SHOW MAP 2157 ([iparepwq15]) (/system/xbin/su root showmap -q 2157)","[NULL]",8
+"SHOW MAP 216 ([servloc_wq]) (/system/xbin/su root showmap -q 216)","[NULL]",8
+"SHOW MAP 217 ([irq/177-arm-smm]) (/system/xbin/su root showmap -q 217)","[NULL]",8
+"SHOW MAP 218 ([irq/178-arm-smm]) (/system/xbin/su root showmap -q 218)","[NULL]",8
+"SHOW MAP 219 ([hwrng]) (/system/xbin/su root showmap -q 219)","[NULL]",8
+"SHOW MAP 22 ([rcuos/1]) (/system/xbin/su root showmap -q 22)","[NULL]",8
+"SHOW MAP 221 ([diag_real_time_]) (/system/xbin/su root showmap -q 221)","[NULL]",8
+"SHOW MAP 222 ([diag_wq]) (/system/xbin/su root showmap -q 222)","[NULL]",8
+"SHOW MAP 223 ([DIAG_USB_diag]) (/system/xbin/su root showmap -q 223)","[NULL]",8
+"SHOW MAP 224 ([diag_cntl_wq]) (/system/xbin/su root showmap -q 224)","[NULL]",8
+"SHOW MAP 225 ([diag_dci_wq]) (/system/xbin/su root showmap -q 225)","[NULL]",8
+"SHOW MAP 2254 (/vendor/bin/hw/wpa_supplicant) (/system/xbin/su root showmap -q 2254)","[NULL]",76
+"SHOW MAP 226 ([MODEM_CNTL]) (/system/xbin/su root showmap -q 226)","[NULL]",8
+"SHOW MAP 2261 (com.android.bluetooth) (/system/xbin/su root showmap -q 2261)","[NULL]",624
+"SHOW MAP 227 ([MODEM_DATA]) (/system/xbin/su root showmap -q 227)","[NULL]",8
+"SHOW MAP 228 ([MODEM_CMD]) (/system/xbin/su root showmap -q 228)","[NULL]",8
+"SHOW MAP 2281 (com.android.systemui) (/system/xbin/su root showmap -q 2281)","[NULL]",705
+"SHOW MAP 229 ([MODEM_DCI]) (/system/xbin/su root showmap -q 229)","[NULL]",8
+"SHOW MAP 23 ([rcuob/1]) (/system/xbin/su root showmap -q 23)","[NULL]",8
+"SHOW MAP 230 ([MODEM_DCI_CMD]) (/system/xbin/su root showmap -q 230)","[NULL]",8
+"SHOW MAP 231 ([LPASS_CNTL]) (/system/xbin/su root showmap -q 231)","[NULL]",8
+"SHOW MAP 232 ([LPASS_DATA]) (/system/xbin/su root showmap -q 232)","[NULL]",8
+"SHOW MAP 233 ([LPASS_CMD]) (/system/xbin/su root showmap -q 233)","[NULL]",8
+"SHOW MAP 234 ([LPASS_DCI]) (/system/xbin/su root showmap -q 234)","[NULL]",8
+"SHOW MAP 235 ([LPASS_DCI_CMD]) (/system/xbin/su root showmap -q 235)","[NULL]",8
+"SHOW MAP 236 ([WCNSS_CNTL]) (/system/xbin/su root showmap -q 236)","[NULL]",8
+"SHOW MAP 237 ([WCNSS_DATA]) (/system/xbin/su root showmap -q 237)","[NULL]",8
+"SHOW MAP 238 ([WCNSS_CMD]) (/system/xbin/su root showmap -q 238)","[NULL]",8
+"SHOW MAP 2385 (com.breel.wallpapers18) (/system/xbin/su root showmap -q 2385)","[NULL]",567
+"SHOW MAP 239 ([WCNSS_DCI]) (/system/xbin/su root showmap -q 239)","[NULL]",8
+"SHOW MAP 24 ([cpuhp/2]) (/system/xbin/su root showmap -q 24)","[NULL]",8
+"SHOW MAP 240 ([WCNSS_DCI_CMD]) (/system/xbin/su root showmap -q 240)","[NULL]",8
+"SHOW MAP 2407 (com.android.networkstack.process) (/system/xbin/su root showmap -q 2407)","[NULL]",570
+"SHOW MAP 241 ([SENSORS_CNTL]) (/system/xbin/su root showmap -q 241)","[NULL]",8
+"SHOW MAP 242 ([SENSORS_DATA]) (/system/xbin/su root showmap -q 242)","[NULL]",8
+"SHOW MAP 243 ([SENSORS_CMD]) (/system/xbin/su root showmap -q 243)","[NULL]",8
+"SHOW MAP 2436 (.dataservices) (/system/xbin/su root showmap -q 2436)","[NULL]",568
+"SHOW MAP 244 ([SENSORS_DCI]) (/system/xbin/su root showmap -q 244)","[NULL]",8
+"SHOW MAP 2449 (webview_zygote) (/system/xbin/su root showmap -q 2449)","[NULL]",530
+"SHOW MAP 245 ([SENSORS_DCI_CMD]) (/system/xbin/su root showmap -q 245)","[NULL]",8
+"SHOW MAP 246 ([DIAG_CTRL]) (/system/xbin/su root showmap -q 246)","[NULL]",8
+"SHOW MAP 247 ([DIAG_DATA]) (/system/xbin/su root showmap -q 247)","[NULL]",8
+"SHOW MAP 248 ([DIAG_CMD]) (/system/xbin/su root showmap -q 248)","[NULL]",8
+"SHOW MAP 249 ([DIAG_DCI_DATA]) (/system/xbin/su root showmap -q 249)","[NULL]",8
+"SHOW MAP 25 ([migration/2]) (/system/xbin/su root showmap -q 25)","[NULL]",8
+"SHOW MAP 250 ([DIAG_DCI_CMD]) (/system/xbin/su root showmap -q 250)","[NULL]",8
+"SHOW MAP 2502 (com.qualcomm.qti.telephonyservice) (/system/xbin/su root showmap -q 2502)","[NULL]",560
+"SHOW MAP 2503 (com.google.android.grilservice) (/system/xbin/su root showmap -q 2503)","[NULL]",547
+"SHOW MAP 2505 (com.android.se) (/system/xbin/su root showmap -q 2505)","[NULL]",555
+"SHOW MAP 251 ([CDSP_CNTL]) (/system/xbin/su root showmap -q 251)","[NULL]",8
+"SHOW MAP 252 ([CDSP_DATA]) (/system/xbin/su root showmap -q 252)","[NULL]",8
+"SHOW MAP 253 ([CDSP_CMD]) (/system/xbin/su root showmap -q 253)","[NULL]",8
+"SHOW MAP 2532 (com.android.phone) (/system/xbin/su root showmap -q 2532)","[NULL]",636
+"SHOW MAP 254 ([CDSP_DCI]) (/system/xbin/su root showmap -q 254)","[NULL]",8
+"SHOW MAP 255 ([CDSP_DCI_CMD]) (/system/xbin/su root showmap -q 255)","[NULL]",8
+"SHOW MAP 256 ([DIAG_CNTL_SOCKE]) (/system/xbin/su root showmap -q 256)","[NULL]",8
+"SHOW MAP 257 ([DIAG_GLINK_DIAG]) (/system/xbin/su root showmap -q 257)","[NULL]",8
+"SHOW MAP 2578 (com.google.android.ext.services) (/system/xbin/su root showmap -q 2578)","[NULL]",550
+"SHOW MAP 258 ([DIAG_GLINK_DIAG]) (/system/xbin/su root showmap -q 258)","[NULL]",8
+"SHOW MAP 259 ([DIAG_GLINK_DIAG]) (/system/xbin/su root showmap -q 259)","[NULL]",8
+"SHOW MAP 26 ([ksoftirqd/2]) (/system/xbin/su root showmap -q 26)","[NULL]",8
+"SHOW MAP 260 ([DIAG_GLINK_DIAG]) (/system/xbin/su root showmap -q 260)","[NULL]",8
+"SHOW MAP 261 ([DIAG_GLINK_DIAG]) (/system/xbin/su root showmap -q 261)","[NULL]",8
+"SHOW MAP 262 ([dsi_dimming_wor]) (/system/xbin/su root showmap -q 262)","[NULL]",8
+"SHOW MAP 263 ([kworker/u16:1]) (/system/xbin/su root showmap -q 263)","[NULL]",8
+"SHOW MAP 264 ([kgsl-workqueue]) (/system/xbin/su root showmap -q 264)","[NULL]",8
+"SHOW MAP 265 ([kgsl-mementry]) (/system/xbin/su root showmap -q 265)","[NULL]",8
+"SHOW MAP 2655 (com.google.android.apps.nexuslauncher) (/system/xbin/su root showmap -q 2655)","[NULL]",588
+"SHOW MAP 266 ([kgsl_worker_thr]) (/system/xbin/su root showmap -q 266)","[NULL]",8
+"SHOW MAP 267 ([kworker/u16:2]) (/system/xbin/su root showmap -q 267)","[NULL]",8
+"SHOW MAP 268 ([bioset]) (/system/xbin/su root showmap -q 268)","[NULL]",8
+"SHOW MAP 269 ([bioset]) (/system/xbin/su root showmap -q 269)","[NULL]",8
+"SHOW MAP 270 ([bioset]) (/system/xbin/su root showmap -q 270)","[NULL]",8
+"SHOW MAP 271 ([bioset]) (/system/xbin/su root showmap -q 271)","[NULL]",8
+"SHOW MAP 272 ([bioset]) (/system/xbin/su root showmap -q 272)","[NULL]",8
+"SHOW MAP 273 ([bioset]) (/system/xbin/su root showmap -q 273)","[NULL]",8
+"SHOW MAP 274 ([bioset]) (/system/xbin/su root showmap -q 274)","[NULL]",8
+"SHOW MAP 275 ([bioset]) (/system/xbin/su root showmap -q 275)","[NULL]",8
+"SHOW MAP 276 ([bioset]) (/system/xbin/su root showmap -q 276)","[NULL]",8
+"SHOW MAP 277 ([bioset]) (/system/xbin/su root showmap -q 277)","[NULL]",8
+"SHOW MAP 278 ([bioset]) (/system/xbin/su root showmap -q 278)","[NULL]",8
+"SHOW MAP 2783 (com.google.android.ims) (/system/xbin/su root showmap -q 2783)","[NULL]",569
+"SHOW MAP 279 ([bioset]) (/system/xbin/su root showmap -q 279)","[NULL]",8
+"SHOW MAP 28 ([kworker/2:0H]) (/system/xbin/su root showmap -q 28)","[NULL]",8
+"SHOW MAP 280 ([irq/162-arm-smm]) (/system/xbin/su root showmap -q 280)","[NULL]",8
+"SHOW MAP 281 ([bioset]) (/system/xbin/su root showmap -q 281)","[NULL]",8
+"SHOW MAP 282 ([bioset]) (/system/xbin/su root showmap -q 282)","[NULL]",8
+"SHOW MAP 283 ([bioset]) (/system/xbin/su root showmap -q 283)","[NULL]",8
+"SHOW MAP 284 ([kworker/4:2]) (/system/xbin/su root showmap -q 284)","[NULL]",8
+"SHOW MAP 285 ([bioset]) (/system/xbin/su root showmap -q 285)","[NULL]",8
+"SHOW MAP 286 ([irq/163-arm-smm]) (/system/xbin/su root showmap -q 286)","[NULL]",8
+"SHOW MAP 287 ([bioset]) (/system/xbin/su root showmap -q 287)","[NULL]",8
+"SHOW MAP 2877 (com.google.android.euicc) (/system/xbin/su root showmap -q 2877)","[NULL]",562
+"SHOW MAP 288 ([irq/171-arm-smm]) (/system/xbin/su root showmap -q 288)","[NULL]",8
+"SHOW MAP 289 ([bioset]) (/system/xbin/su root showmap -q 289)","[NULL]",8
+"SHOW MAP 29 ([rcuop/2]) (/system/xbin/su root showmap -q 29)","[NULL]",8
+"SHOW MAP 290 ([bioset]) (/system/xbin/su root showmap -q 290)","[NULL]",8
+"SHOW MAP 292 ([bioset]) (/system/xbin/su root showmap -q 292)","[NULL]",8
+"SHOW MAP 293 ([bioset]) (/system/xbin/su root showmap -q 293)","[NULL]",8
+"SHOW MAP 2939 (com.google.android.gms.persistent) (/system/xbin/su root showmap -q 2939)","[NULL]",615
+"SHOW MAP 294 ([bioset]) (/system/xbin/su root showmap -q 294)","[NULL]",8
+"SHOW MAP 295 ([bioset]) (/system/xbin/su root showmap -q 295)","[NULL]",8
+"SHOW MAP 296 ([bioset]) (/system/xbin/su root showmap -q 296)","[NULL]",8
+"SHOW MAP 297 ([bioset]) (/system/xbin/su root showmap -q 297)","[NULL]",8
+"SHOW MAP 298 ([bioset]) (/system/xbin/su root showmap -q 298)","[NULL]",8
+"SHOW MAP 2981 ([loop29]) (/system/xbin/su root showmap -q 2981)","[NULL]",8
+"SHOW MAP 299 ([bioset]) (/system/xbin/su root showmap -q 299)","[NULL]",8
+"SHOW MAP 2995 (/vendor/bin/pm-proxy) (/system/xbin/su root showmap -q 2995)","[NULL]",56
+"SHOW MAP 2999 ([irq/80-1436400.]) (/system/xbin/su root showmap -q 2999)","[NULL]",8
+"SHOW MAP 3 ([kworker/0:0]) (/system/xbin/su root showmap -q 3)","[NULL]",8
+"SHOW MAP 30 ([rcuos/2]) (/system/xbin/su root showmap -q 30)","[NULL]",8
+"SHOW MAP 300 ([bioset]) (/system/xbin/su root showmap -q 300)","[NULL]",8
+"SHOW MAP 3001 ([irq/81-114a000.]) (/system/xbin/su root showmap -q 3001)","[NULL]",8
+"SHOW MAP 3007 (/vendor/bin/thermal-engine) (/system/xbin/su root showmap -q 3007)","[NULL]",106
+"SHOW MAP 301 ([bioset]) (/system/xbin/su root showmap -q 301)","[NULL]",8
+"SHOW MAP 302 ([bioset]) (/system/xbin/su root showmap -q 302)","[NULL]",8
+"SHOW MAP 303 ([bioset]) (/system/xbin/su root showmap -q 303)","[NULL]",8
+"SHOW MAP 304 ([kworker/5:1]) (/system/xbin/su root showmap -q 304)","[NULL]",8
+"SHOW MAP 305 ([bioset]) (/system/xbin/su root showmap -q 305)","[NULL]",8
+"SHOW MAP 306 ([bioset]) (/system/xbin/su root showmap -q 306)","[NULL]",8
+"SHOW MAP 3060 (com.google.android.as) (/system/xbin/su root showmap -q 3060)","[NULL]",618
+"SHOW MAP 307 ([irq/179-arm-smm]) (/system/xbin/su root showmap -q 307)","[NULL]",8
+"SHOW MAP 3076 (com.google.android.googlequicksearchbox:interactor) (/system/xbin/su root showmap -q 3076)","[NULL]",577
+"SHOW MAP 308 ([qseecom-unreg-l]) (/system/xbin/su root showmap -q 308)","[NULL]",8
+"SHOW MAP 309 ([irq/164-arm-smm]) (/system/xbin/su root showmap -q 309)","[NULL]",8
+"SHOW MAP 3098 (com.google.android.providers.media.module) (/system/xbin/su root showmap -q 3098)","[NULL]",571
+"SHOW MAP 31 ([rcuob/2]) (/system/xbin/su root showmap -q 31)","[NULL]",8
+"SHOW MAP 310 ([memory_wq]) (/system/xbin/su root showmap -q 310)","[NULL]",8
+"SHOW MAP 311 ([kworker/u16:3]) (/system/xbin/su root showmap -q 311)","[NULL]",8
+"SHOW MAP 312 ([irq/180-arm-smm]) (/system/xbin/su root showmap -q 312)","[NULL]",8
+"SHOW MAP 3122 (com.android.nfc) (/system/xbin/su root showmap -q 3122)","[NULL]",579
+"SHOW MAP 313 ([irq/181-arm-smm]) (/system/xbin/su root showmap -q 313)","[NULL]",8
+"SHOW MAP 314 ([irq/182-arm-smm]) (/system/xbin/su root showmap -q 314)","[NULL]",8
+"SHOW MAP 3144 (com.android.ims.rcsservice) (/system/xbin/su root showmap -q 3144)","[NULL]",557
+"SHOW MAP 315 ([crtc_commit:111]) (/system/xbin/su root showmap -q 315)","[NULL]",8
+"SHOW MAP 316 ([crtc_event:111]) (/system/xbin/su root showmap -q 316)","[NULL]",8
+"SHOW MAP 3168 (com.google.SSRestartDetector) (/system/xbin/su root showmap -q 3168)","[NULL]",544
+"SHOW MAP 317 ([crtc_commit:164]) (/system/xbin/su root showmap -q 317)","[NULL]",8
+"SHOW MAP 318 ([crtc_event:164]) (/system/xbin/su root showmap -q 318)","[NULL]",8
+"SHOW MAP 319 ([pp_event]) (/system/xbin/su root showmap -q 319)","[NULL]",8
+"SHOW MAP 32 ([cpuhp/3]) (/system/xbin/su root showmap -q 32)","[NULL]",8
+"SHOW MAP 320 ([qcrypto_seq_res]) (/system/xbin/su root showmap -q 320)","[NULL]",8
+"SHOW MAP 321 ([irq/183-arm-smm]) (/system/xbin/su root showmap -q 321)","[NULL]",8
+"SHOW MAP 3210 (com.qualcomm.qti.services.secureui:sui_service) (/system/xbin/su root showmap -q 3210)","[NULL]",555
+"SHOW MAP 3234 (com.android.pixellogger) (/system/xbin/su root showmap -q 3234)","[NULL]",568
+"SHOW MAP 33 ([migration/3]) (/system/xbin/su root showmap -q 33)","[NULL]",8
+"SHOW MAP 3315 (com.google.process.gservices) (/system/xbin/su root showmap -q 3315)","[NULL]",569
+"SHOW MAP 3326 (com.google.vr.vrcore) (/system/xbin/su root showmap -q 3326)","[NULL]",554
+"SHOW MAP 3397 (com.google.android.gms) (/system/xbin/su root showmap -q 3397)","[NULL]",640
+"SHOW MAP 34 ([ksoftirqd/3]) (/system/xbin/su root showmap -q 34)","[NULL]",8
+"SHOW MAP 342 ([scsi_eh_0]) (/system/xbin/su root showmap -q 342)","[NULL]",8
+"SHOW MAP 343 ([scsi_tmf_0]) (/system/xbin/su root showmap -q 343)","[NULL]",8
+"SHOW MAP 344 ([ufs_pm_qos_0]) (/system/xbin/su root showmap -q 344)","[NULL]",8
+"SHOW MAP 345 ([ufs_clk_gating_]) (/system/xbin/su root showmap -q 345)","[NULL]",8
+"SHOW MAP 346 ([ufs_mgc_hibern8]) (/system/xbin/su root showmap -q 346)","[NULL]",8
+"SHOW MAP 347 ([ice-set-key]) (/system/xbin/su root showmap -q 347)","[NULL]",8
+"SHOW MAP 348 ([spi10]) (/system/xbin/su root showmap -q 348)","[NULL]",8
+"SHOW MAP 3488 (com.google.android.googlequicksearchbox:search) (/system/xbin/su root showmap -q 3488)","[NULL]",633
+"SHOW MAP 349 ([spi32766]) (/system/xbin/su root showmap -q 349)","[NULL]",8
+"SHOW MAP 35 ([kworker/3:0]) (/system/xbin/su root showmap -q 35)","[NULL]",8
+"SHOW MAP 350 ([spi0]) (/system/xbin/su root showmap -q 350)","[NULL]",8
+"SHOW MAP 351 ([spi32765]) (/system/xbin/su root showmap -q 351)","[NULL]",8
+"SHOW MAP 352 ([bond0]) (/system/xbin/su root showmap -q 352)","[NULL]",8
+"SHOW MAP 353 ([kworker/6:1]) (/system/xbin/su root showmap -q 353)","[NULL]",8
+"SHOW MAP 354 ([kgsl-events]) (/system/xbin/su root showmap -q 354)","[NULL]",8
+"SHOW MAP 355 ([kgsl_devfreq_wq]) (/system/xbin/su root showmap -q 355)","[NULL]",8
+"SHOW MAP 357 ([sharedmem_qmi_w]) (/system/xbin/su root showmap -q 357)","[NULL]",8
+"SHOW MAP 358 ([qmi_hndl0000000]) (/system/xbin/su root showmap -q 358)","[NULL]",8
+"SHOW MAP 36 ([kworker/3:0H]) (/system/xbin/su root showmap -q 36)","[NULL]",8
+"SHOW MAP 362 ([uether]) (/system/xbin/su root showmap -q 362)","[NULL]",8
+"SHOW MAP 363 ([k_ipa_usb]) (/system/xbin/su root showmap -q 363)","[NULL]",8
+"SHOW MAP 366 ([irq/378-soc:fp_]) (/system/xbin/su root showmap -q 366)","[NULL]",8
+"SHOW MAP 367 ([kdbgd]) (/system/xbin/su root showmap -q 367)","[NULL]",8
+"SHOW MAP 368 ([msm_vidc_worker]) (/system/xbin/su root showmap -q 368)","[NULL]",8
+"SHOW MAP 369 ([pm_workerq_venu]) (/system/xbin/su root showmap -q 369)","[NULL]",8
+"SHOW MAP 37 ([rcuop/3]) (/system/xbin/su root showmap -q 37)","[NULL]",8
+"SHOW MAP 370 ([irq/184-arm-smm]) (/system/xbin/su root showmap -q 370)","[NULL]",8
+"SHOW MAP 371 ([irq/185-arm-smm]) (/system/xbin/su root showmap -q 371)","[NULL]",8
+"SHOW MAP 372 ([irq/186-arm-smm]) (/system/xbin/su root showmap -q 372)","[NULL]",8
+"SHOW MAP 373 ([irq/187-arm-smm]) (/system/xbin/su root showmap -q 373)","[NULL]",8
+"SHOW MAP 374 ([rot_commitq_0_0]) (/system/xbin/su root showmap -q 374)","[NULL]",8
+"SHOW MAP 375 ([rot_commitq_0_1]) (/system/xbin/su root showmap -q 375)","[NULL]",8
+"SHOW MAP 376 ([rot_doneq_0_0]) (/system/xbin/su root showmap -q 376)","[NULL]",8
+"SHOW MAP 377 ([rot_doneq_0_1]) (/system/xbin/su root showmap -q 377)","[NULL]",8
+"SHOW MAP 378 ([rot_fenceq_0_0]) (/system/xbin/su root showmap -q 378)","[NULL]",8
+"SHOW MAP 379 ([rot_fenceq_0_1]) (/system/xbin/su root showmap -q 379)","[NULL]",8
+"SHOW MAP 38 ([rcuos/3]) (/system/xbin/su root showmap -q 38)","[NULL]",8
+"SHOW MAP 380 ([rot_fenceq_0_2]) (/system/xbin/su root showmap -q 380)","[NULL]",8
+"SHOW MAP 381 ([rot_fenceq_0_3]) (/system/xbin/su root showmap -q 381)","[NULL]",8
+"SHOW MAP 382 ([rot_fenceq_0_4]) (/system/xbin/su root showmap -q 382)","[NULL]",8
+"SHOW MAP 383 ([rot_fenceq_0_5]) (/system/xbin/su root showmap -q 383)","[NULL]",8
+"SHOW MAP 384 ([rot_fenceq_0_6]) (/system/xbin/su root showmap -q 384)","[NULL]",8
+"SHOW MAP 385 ([rot_fenceq_0_7]) (/system/xbin/su root showmap -q 385)","[NULL]",8
+"SHOW MAP 386 ([rot_fenceq_0_8]) (/system/xbin/su root showmap -q 386)","[NULL]",8
+"SHOW MAP 387 ([rot_fenceq_0_9]) (/system/xbin/su root showmap -q 387)","[NULL]",8
+"SHOW MAP 388 ([rot_fenceq_0_10]) (/system/xbin/su root showmap -q 388)","[NULL]",8
+"SHOW MAP 389 ([rot_fenceq_0_11]) (/system/xbin/su root showmap -q 389)","[NULL]",8
+"SHOW MAP 39 ([rcuob/3]) (/system/xbin/su root showmap -q 39)","[NULL]",8
+"SHOW MAP 390 ([rot_fenceq_0_12]) (/system/xbin/su root showmap -q 390)","[NULL]",8
+"SHOW MAP 391 ([rot_fenceq_0_13]) (/system/xbin/su root showmap -q 391)","[NULL]",8
+"SHOW MAP 392 ([rot_fenceq_0_14]) (/system/xbin/su root showmap -q 392)","[NULL]",8
+"SHOW MAP 393 ([rot_fenceq_0_15]) (/system/xbin/su root showmap -q 393)","[NULL]",8
+"SHOW MAP 394 ([cam-cpas]) (/system/xbin/su root showmap -q 394)","[NULL]",8
+"SHOW MAP 395 ([qcom,cam_virtua]) (/system/xbin/su root showmap -q 395)","[NULL]",8
+"SHOW MAP 396 ([irq/188-arm-smm]) (/system/xbin/su root showmap -q 396)","[NULL]",8
+"SHOW MAP 397 ([qcom,cam170-cpa]) (/system/xbin/su root showmap -q 397)","[NULL]",8
+"SHOW MAP 398 ([irq/189-arm-smm]) (/system/xbin/su root showmap -q 398)","[NULL]",8
+"SHOW MAP 399 ([cam_cci_wq]) (/system/xbin/su root showmap -q 399)","[NULL]",8
+"SHOW MAP 4 ([kworker/0:0H]) (/system/xbin/su root showmap -q 4)","[NULL]",8
+"SHOW MAP 40 ([cpuhp/4]) (/system/xbin/su root showmap -q 40)","[NULL]",8
+"SHOW MAP 400 ([cam_cci_wq]) (/system/xbin/su root showmap -q 400)","[NULL]",8
+"SHOW MAP 401 ([irq/190-arm-smm]) (/system/xbin/su root showmap -q 401)","[NULL]",8
+"SHOW MAP 402 ([irq/191-arm-smm]) (/system/xbin/su root showmap -q 402)","[NULL]",8
+"SHOW MAP 403 ([irq/192-arm-smm]) (/system/xbin/su root showmap -q 403)","[NULL]",8
+"SHOW MAP 404 ([irq/193-arm-smm]) (/system/xbin/su root showmap -q 404)","[NULL]",8
+"SHOW MAP 405 ([bioset]) (/system/xbin/su root showmap -q 405)","[NULL]",8
+"SHOW MAP 406 ([bioset]) (/system/xbin/su root showmap -q 406)","[NULL]",8
+"SHOW MAP 407 ([bioset]) (/system/xbin/su root showmap -q 407)","[NULL]",8
+"SHOW MAP 408 ([bioset]) (/system/xbin/su root showmap -q 408)","[NULL]",8
+"SHOW MAP 409 ([irq/709-chg-err]) (/system/xbin/su root showmap -q 409)","[NULL]",8
+"SHOW MAP 41 ([migration/4]) (/system/xbin/su root showmap -q 41)","[NULL]",8
+"SHOW MAP 410 ([kworker/0:2]) (/system/xbin/su root showmap -q 410)","[NULL]",8
+"SHOW MAP 411 ([irq/710-chg-sta]) (/system/xbin/su root showmap -q 411)","[NULL]",8
+"SHOW MAP 412 ([irq/714-otg-fai]) (/system/xbin/su root showmap -q 412)","[NULL]",8
+"SHOW MAP 413 ([bioset]) (/system/xbin/su root showmap -q 413)","[NULL]",8
+"SHOW MAP 414 ([irq/715-otg-ove]) (/system/xbin/su root showmap -q 414)","[NULL]",8
+"SHOW MAP 415 ([irq/716-otg-oc-]) (/system/xbin/su root showmap -q 415)","[NULL]",8
+"SHOW MAP 416 ([irq/717-testmod]) (/system/xbin/su root showmap -q 416)","[NULL]",8
+"SHOW MAP 417 ([irq/718-bat-tem]) (/system/xbin/su root showmap -q 417)","[NULL]",8
+"SHOW MAP 418 ([irq/719-bat-ocp]) (/system/xbin/su root showmap -q 418)","[NULL]",8
+"SHOW MAP 419 ([irq/720-bat-ov]) (/system/xbin/su root showmap -q 419)","[NULL]",8
+"SHOW MAP 42 ([ksoftirqd/4]) (/system/xbin/su root showmap -q 42)","[NULL]",8
+"SHOW MAP 420 ([bioset]) (/system/xbin/su root showmap -q 420)","[NULL]",8
+"SHOW MAP 421 ([irq/721-bat-low]) (/system/xbin/su root showmap -q 421)","[NULL]",8
+"SHOW MAP 422 ([irq/722-bat-the]) (/system/xbin/su root showmap -q 422)","[NULL]",8
+"SHOW MAP 423 ([irq/723-bat-ter]) (/system/xbin/su root showmap -q 423)","[NULL]",8
+"SHOW MAP 424 ([irq/724-usbin-c]) (/system/xbin/su root showmap -q 424)","[NULL]",8
+"SHOW MAP 425 ([irq/725-usbin-l]) (/system/xbin/su root showmap -q 425)","[NULL]",8
+"SHOW MAP 426 ([bioset]) (/system/xbin/su root showmap -q 426)","[NULL]",8
+"SHOW MAP 427 ([irq/726-usbin-u]) (/system/xbin/su root showmap -q 427)","[NULL]",8
+"SHOW MAP 428 ([irq/727-usbin-o]) (/system/xbin/su root showmap -q 428)","[NULL]",8
+"SHOW MAP 429 ([irq/728-usbin-p]) (/system/xbin/su root showmap -q 429)","[NULL]",8
+"SHOW MAP 4291 (com.google.android.apps.scone) (/system/xbin/su root showmap -q 4291)","[NULL]",568
+"SHOW MAP 430 ([irq/729-usbin-s]) (/system/xbin/su root showmap -q 430)","[NULL]",8
+"SHOW MAP 431 ([irq/730-usbin-i]) (/system/xbin/su root showmap -q 431)","[NULL]",8
+"SHOW MAP 4315 (com.google.android.inputmethod.latin) (/system/xbin/su root showmap -q 4315)","[NULL]",591
+"SHOW MAP 432 ([irq/731-type-c-]) (/system/xbin/su root showmap -q 432)","[NULL]",8
+"SHOW MAP 433 ([bioset]) (/system/xbin/su root showmap -q 433)","[NULL]",8
+"SHOW MAP 434 ([irq/732-dcin-co]) (/system/xbin/su root showmap -q 434)","[NULL]",8
+"SHOW MAP 435 ([irq/733-dcin-lt]) (/system/xbin/su root showmap -q 435)","[NULL]",8
+"SHOW MAP 436 ([irq/734-dcin-uv]) (/system/xbin/su root showmap -q 436)","[NULL]",8
+"SHOW MAP 437 ([irq/735-dcin-ov]) (/system/xbin/su root showmap -q 437)","[NULL]",8
+"SHOW MAP 438 ([irq/736-dcin-pl]) (/system/xbin/su root showmap -q 438)","[NULL]",8
+"SHOW MAP 439 ([bioset]) (/system/xbin/su root showmap -q 439)","[NULL]",8
+"SHOW MAP 44 ([kworker/4:0H]) (/system/xbin/su root showmap -q 44)","[NULL]",8
+"SHOW MAP 440 ([irq/737-div2-en]) (/system/xbin/su root showmap -q 440)","[NULL]",8
+"SHOW MAP 441 ([irq/738-dcin-ic]) (/system/xbin/su root showmap -q 441)","[NULL]",8
+"SHOW MAP 442 ([irq/740-wdog-ba]) (/system/xbin/su root showmap -q 442)","[NULL]",8
+"SHOW MAP 443 ([irq/741-aicl-fa]) (/system/xbin/su root showmap -q 443)","[NULL]",8
+"SHOW MAP 4430 (com.qualcomm.qcrilmsgtunnel) (/system/xbin/su root showmap -q 4430)","[NULL]",554
+"SHOW MAP 444 ([irq/742-aicl-do]) (/system/xbin/su root showmap -q 444)","[NULL]",8
+"SHOW MAP 445 ([irq/743-high-du]) (/system/xbin/su root showmap -q 445)","[NULL]",8
+"SHOW MAP 446 ([kworker/u16:4]) (/system/xbin/su root showmap -q 446)","[NULL]",8
+"SHOW MAP 447 ([kworker/2:2]) (/system/xbin/su root showmap -q 447)","[NULL]",8
+"SHOW MAP 448 ([kworker/u16:5]) (/system/xbin/su root showmap -q 448)","[NULL]",8
+"SHOW MAP 449 ([irq/744-input-c]) (/system/xbin/su root showmap -q 449)","[NULL]",8
+"SHOW MAP 45 ([rcuop/4]) (/system/xbin/su root showmap -q 45)","[NULL]",8
+"SHOW MAP 450 ([irq/745-tempera]) (/system/xbin/su root showmap -q 450)","[NULL]",8
+"SHOW MAP 452 ([irq/746-switche]) (/system/xbin/su root showmap -q 452)","[NULL]",8
+"SHOW MAP 454 ([kworker/u16:6]) (/system/xbin/su root showmap -q 454)","[NULL]",8
+"SHOW MAP 455 ([irq/29-i2c_pmic]) (/system/xbin/su root showmap -q 455)","[NULL]",8
+"SHOW MAP 456 ([irq/381-p9221-i]) (/system/xbin/su root showmap -q 456)","[NULL]",8
+"SHOW MAP 457 ([kworker/u16:7]) (/system/xbin/su root showmap -q 457)","[NULL]",8
+"SHOW MAP 458 ([kworker/u16:8]) (/system/xbin/su root showmap -q 458)","[NULL]",8
+"SHOW MAP 459 ([kworker/2:3]) (/system/xbin/su root showmap -q 459)","[NULL]",8
+"SHOW MAP 46 ([rcuos/4]) (/system/xbin/su root showmap -q 46)","[NULL]",8
+"SHOW MAP 460 ([irq/70-bcl-high]) (/system/xbin/su root showmap -q 460)","[NULL]",8
+"SHOW MAP 461 ([irq/72-bcl-low-]) (/system/xbin/su root showmap -q 461)","[NULL]",8
+"SHOW MAP 462 ([irq/543-limits_]) (/system/xbin/su root showmap -q 462)","[NULL]",8
+"SHOW MAP 463 ([irq/319-max1720]) (/system/xbin/su root showmap -q 463)","[NULL]",8
+"SHOW MAP 464 ([irq/544-limits_]) (/system/xbin/su root showmap -q 464)","[NULL]",8
+"SHOW MAP 465 ([qmi_tmd_wq]) (/system/xbin/su root showmap -q 465)","[NULL]",8
+"SHOW MAP 466 ([dm_bufio_cache]) (/system/xbin/su root showmap -q 466)","[NULL]",8
+"SHOW MAP 467 ([irq/99-KRYO3XX ]) (/system/xbin/su root showmap -q 467)","[NULL]",8
+"SHOW MAP 468 ([irq/287-s2mpb04]) (/system/xbin/su root showmap -q 468)","[NULL]",8
+"SHOW MAP 469 ([irq/371-s2mpb04]) (/system/xbin/su root showmap -q 469)","[NULL]",8
+"SHOW MAP 47 ([rcuob/4]) (/system/xbin/su root showmap -q 47)","[NULL]",8
+"SHOW MAP 470 ([irq/52-vendor:e]) (/system/xbin/su root showmap -q 470)","[NULL]",8
+"SHOW MAP 471 ([irq/194-arm-smm]) (/system/xbin/su root showmap -q 471)","[NULL]",8
+"SHOW MAP 472 ([uaudio_svc]) (/system/xbin/su root showmap -q 472)","[NULL]",8
+"SHOW MAP 473 ([qmi_hndl0000000]) (/system/xbin/su root showmap -q 473)","[NULL]",8
+"SHOW MAP 474 ([apr_driver]) (/system/xbin/su root showmap -q 474)","[NULL]",8
+"SHOW MAP 475 ([ipv6_addrconf]) (/system/xbin/su root showmap -q 475)","[NULL]",8
+"SHOW MAP 476 ([irq/880-adsp]) (/system/xbin/su root showmap -q 476)","[NULL]",8
+"SHOW MAP 477 ([sysmon_wq]) (/system/xbin/su root showmap -q 477)","[NULL]",8
+"SHOW MAP 478 ([irq/912-slpi]) (/system/xbin/su root showmap -q 478)","[NULL]",8
+"SHOW MAP 479 ([irq/944-cdsp]) (/system/xbin/su root showmap -q 479)","[NULL]",8
+"SHOW MAP 48 ([cpuhp/5]) (/system/xbin/su root showmap -q 48)","[NULL]",8
+"SHOW MAP 480 ([irq/848-modem]) (/system/xbin/su root showmap -q 480)","[NULL]",8
+"SHOW MAP 487 ([irq/38-sig-tx]) (/system/xbin/su root showmap -q 487)","[NULL]",8
+"SHOW MAP 488 ([irq/64-sig-rx]) (/system/xbin/su root showmap -q 488)","[NULL]",8
+"SHOW MAP 489 ([usbpd0]) (/system/xbin/su root showmap -q 489)","[NULL]",8
+"SHOW MAP 49 ([migration/5]) (/system/xbin/su root showmap -q 49)","[NULL]",8
+"SHOW MAP 490 ([usbpd0]) (/system/xbin/su root showmap -q 490)","[NULL]",8
+"SHOW MAP 491 ([irq/1040-soc-up]) (/system/xbin/su root showmap -q 491)","[NULL]",8
+"SHOW MAP 492 ([irq/1041-soc-re]) (/system/xbin/su root showmap -q 492)","[NULL]",8
+"SHOW MAP 493 ([irq/1042-bsoc-d]) (/system/xbin/su root showmap -q 493)","[NULL]",8
+"SHOW MAP 494 ([irq/1043-msoc-d]) (/system/xbin/su root showmap -q 494)","[NULL]",8
+"SHOW MAP 495 ([irq/1044-msoc-l]) (/system/xbin/su root showmap -q 495)","[NULL]",8
+"SHOW MAP 496 ([irq/1045-msoc-e]) (/system/xbin/su root showmap -q 496)","[NULL]",8
+"SHOW MAP 497 ([irq/1046-msoc-h]) (/system/xbin/su root showmap -q 497)","[NULL]",8
+"SHOW MAP 498 ([irq/1047-msoc-f]) (/system/xbin/su root showmap -q 498)","[NULL]",8
+"SHOW MAP 499 ([irq/1048-vbatt-]) (/system/xbin/su root showmap -q 499)","[NULL]",8
+"SHOW MAP 5 ([kworker/u16:0]) (/system/xbin/su root showmap -q 5)","[NULL]",8
+"SHOW MAP 50 ([ksoftirqd/5]) (/system/xbin/su root showmap -q 50)","[NULL]",8
+"SHOW MAP 500 ([irq/1049-vbatt-]) (/system/xbin/su root showmap -q 500)","[NULL]",8
+"SHOW MAP 501 ([irq/1050-esr-de]) (/system/xbin/su root showmap -q 501)","[NULL]",8
+"SHOW MAP 502 ([irq/1051-batt-m]) (/system/xbin/su root showmap -q 502)","[NULL]",8
+"SHOW MAP 503 ([irq/1052-batt-t]) (/system/xbin/su root showmap -q 503)","[NULL]",8
+"SHOW MAP 504 ([irq/1053-ima-rd]) (/system/xbin/su root showmap -q 504)","[NULL]",8
+"SHOW MAP 505 ([irq/1054-mem-xc]) (/system/xbin/su root showmap -q 505)","[NULL]",8
+"SHOW MAP 506 ([irq/1055-dma-gr]) (/system/xbin/su root showmap -q 506)","[NULL]",8
+"SHOW MAP 507 ([irq/36-qcom,tem]) (/system/xbin/su root showmap -q 507)","[NULL]",8
+"SHOW MAP 508 ([irq/536-pwr_eve]) (/system/xbin/su root showmap -q 508)","[NULL]",8
+"SHOW MAP 509 ([irq/535-dp_hs_p]) (/system/xbin/su root showmap -q 509)","[NULL]",8
+"SHOW MAP 51 ([kworker/5:0]) (/system/xbin/su root showmap -q 51)","[NULL]",8
+"SHOW MAP 510 ([irq/538-dm_hs_p]) (/system/xbin/su root showmap -q 510)","[NULL]",8
+"SHOW MAP 511 ([irq/537-ss_phy_]) (/system/xbin/su root showmap -q 511)","[NULL]",8
+"SHOW MAP 512 ([irq/195-arm-smm]) (/system/xbin/su root showmap -q 512)","[NULL]",8
+"SHOW MAP 513 ([usb_bam_wq]) (/system/xbin/su root showmap -q 513)","[NULL]",8
+"SHOW MAP 514 ([core_ctl/0]) (/system/xbin/su root showmap -q 514)","[NULL]",8
+"SHOW MAP 515 ([core_ctl/4]) (/system/xbin/su root showmap -q 515)","[NULL]",8
+"SHOW MAP 52 ([kworker/5:0H]) (/system/xbin/su root showmap -q 52)","[NULL]",8
+"SHOW MAP 528 ([rq_stats]) (/system/xbin/su root showmap -q 528)","[NULL]",8
+"SHOW MAP 529 ([irq/196-arm-smm]) (/system/xbin/su root showmap -q 529)","[NULL]",8
+"SHOW MAP 53 ([rcuop/5]) (/system/xbin/su root showmap -q 53)","[NULL]",8
+"SHOW MAP 530 ([irq/197-arm-smm]) (/system/xbin/su root showmap -q 530)","[NULL]",8
+"SHOW MAP 531 ([irq/198-arm-smm]) (/system/xbin/su root showmap -q 531)","[NULL]",8
+"SHOW MAP 532 ([irq/199-arm-smm]) (/system/xbin/su root showmap -q 532)","[NULL]",8
+"SHOW MAP 533 ([irq/200-arm-smm]) (/system/xbin/su root showmap -q 533)","[NULL]",8
+"SHOW MAP 534 ([irq/201-arm-smm]) (/system/xbin/su root showmap -q 534)","[NULL]",8
+"SHOW MAP 535 ([irq/202-arm-smm]) (/system/xbin/su root showmap -q 535)","[NULL]",8
+"SHOW MAP 5350 (com.android.settings) (/system/xbin/su root showmap -q 5350)","[NULL]",596
+"SHOW MAP 536 ([irq/203-arm-smm]) (/system/xbin/su root showmap -q 536)","[NULL]",8
+"SHOW MAP 537 ([irq/204-arm-smm]) (/system/xbin/su root showmap -q 537)","[NULL]",8
+"SHOW MAP 538 ([irq/205-arm-smm]) (/system/xbin/su root showmap -q 538)","[NULL]",8
+"SHOW MAP 539 ([irq/206-arm-smm]) (/system/xbin/su root showmap -q 539)","[NULL]",8
+"SHOW MAP 54 ([rcuos/5]) (/system/xbin/su root showmap -q 54)","[NULL]",8
+"SHOW MAP 540 ([set_state_work]) (/system/xbin/su root showmap -q 540)","[NULL]",8
+"SHOW MAP 541 ([sb-1]) (/system/xbin/su root showmap -q 541)","[NULL]",8
+"SHOW MAP 542 ([ngd_rx_thread1]) (/system/xbin/su root showmap -q 542)","[NULL]",8
+"SHOW MAP 543 ([irq/309-mnh-rea]) (/system/xbin/su root showmap -q 543)","[NULL]",8
+"SHOW MAP 5431 ([kworker/3:3]) (/system/xbin/su root showmap -q 5431)","[NULL]",8
+"SHOW MAP 5435 (com.google.android.apps.turbo) (/system/xbin/su root showmap -q 5435)","[NULL]",571
+"SHOW MAP 544 ([ngd_notify_sl1]) (/system/xbin/su root showmap -q 544)","[NULL]",8
+"SHOW MAP 545 ([sb-3]) (/system/xbin/su root showmap -q 545)","[NULL]",8
+"SHOW MAP 546 ([ngd_rx_thread3]) (/system/xbin/su root showmap -q 546)","[NULL]",8
+"SHOW MAP 547 ([ngd_notify_sl3]) (/system/xbin/su root showmap -q 547)","[NULL]",8
+"SHOW MAP 548 ([irq/79-qpnp_fla]) (/system/xbin/su root showmap -q 548)","[NULL]",8
+"SHOW MAP 549 ([irq/78-qpnp_fla]) (/system/xbin/su root showmap -q 549)","[NULL]",8
+"SHOW MAP 55 ([rcuob/5]) (/system/xbin/su root showmap -q 55)","[NULL]",8
+"SHOW MAP 550 ([irq/77-qpnp_fla]) (/system/xbin/su root showmap -q 550)","[NULL]",8
+"SHOW MAP 551 ([irq/1057-mnh_pc]) (/system/xbin/su root showmap -q 551)","[NULL]",8
+"SHOW MAP 552 ([irq/1058-mnh_pc]) (/system/xbin/su root showmap -q 552)","[NULL]",8
+"SHOW MAP 553 ([irq/1059-mnh_pc]) (/system/xbin/su root showmap -q 553)","[NULL]",8
+"SHOW MAP 554 ([irq/1060-mnh_pc]) (/system/xbin/su root showmap -q 554)","[NULL]",8
+"SHOW MAP 555 ([irq/1061-mnh_pc]) (/system/xbin/su root showmap -q 555)","[NULL]",8
+"SHOW MAP 556 ([irq/1064-mnh_pc]) (/system/xbin/su root showmap -q 556)","[NULL]",8
+"SHOW MAP 557 ([irq/1065-mnh_pc]) (/system/xbin/su root showmap -q 557)","[NULL]",8
+"SHOW MAP 558 ([irq/207-arm-smm]) (/system/xbin/su root showmap -q 558)","[NULL]",8
+"SHOW MAP 559 ([kworker/4:1H]) (/system/xbin/su root showmap -q 559)","[NULL]",8
+"SHOW MAP 56 ([cpuhp/6]) (/system/xbin/su root showmap -q 56)","[NULL]",8
+"SHOW MAP 563 ([jbd2/sda20-8]) (/system/xbin/su root showmap -q 563)","[NULL]",8
+"SHOW MAP 564 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 564)","[NULL]",8
+"SHOW MAP 566 ([kdmflush]) (/system/xbin/su root showmap -q 566)","[NULL]",8
+"SHOW MAP 567 ([bioset]) (/system/xbin/su root showmap -q 567)","[NULL]",8
+"SHOW MAP 569 ([kdmflush]) (/system/xbin/su root showmap -q 569)","[NULL]",8
+"SHOW MAP 57 ([migration/6]) (/system/xbin/su root showmap -q 57)","[NULL]",8
+"SHOW MAP 570 ([bioset]) (/system/xbin/su root showmap -q 570)","[NULL]",8
+"SHOW MAP 5714 (com.google.android.permissioncontroller) (/system/xbin/su root showmap -q 5714)","[NULL]",563
+"SHOW MAP 572 ([kdmflush]) (/system/xbin/su root showmap -q 572)","[NULL]",8
+"SHOW MAP 573 ([bioset]) (/system/xbin/su root showmap -q 573)","[NULL]",8
+"SHOW MAP 5734 (com.google.android.setupwizard) (/system/xbin/su root showmap -q 5734)","[NULL]",576
+"SHOW MAP 575 ([kdmflush]) (/system/xbin/su root showmap -q 575)","[NULL]",8
+"SHOW MAP 576 ([bioset]) (/system/xbin/su root showmap -q 576)","[NULL]",8
+"SHOW MAP 578 ([kdmflush]) (/system/xbin/su root showmap -q 578)","[NULL]",8
+"SHOW MAP 579 ([bioset]) (/system/xbin/su root showmap -q 579)","[NULL]",8
+"SHOW MAP 58 ([ksoftirqd/6]) (/system/xbin/su root showmap -q 58)","[NULL]",8
+"SHOW MAP 580 ([kverityd]) (/system/xbin/su root showmap -q 580)","[NULL]",8
+"SHOW MAP 581 ([bioset]) (/system/xbin/su root showmap -q 581)","[NULL]",8
+"SHOW MAP 582 ([bioset]) (/system/xbin/su root showmap -q 582)","[NULL]",8
+"SHOW MAP 583 ([bioset]) (/system/xbin/su root showmap -q 583)","[NULL]",8
+"SHOW MAP 584 ([kworker/0:1H]) (/system/xbin/su root showmap -q 584)","[NULL]",8
+"SHOW MAP 585 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 585)","[NULL]",8
+"SHOW MAP 586 ([kworker/u16:9]) (/system/xbin/su root showmap -q 586)","[NULL]",8
+"SHOW MAP 588 ([kdmflush]) (/system/xbin/su root showmap -q 588)","[NULL]",8
+"SHOW MAP 589 ([bioset]) (/system/xbin/su root showmap -q 589)","[NULL]",8
+"SHOW MAP 59 ([kworker/6:0]) (/system/xbin/su root showmap -q 59)","[NULL]",8
+"SHOW MAP 590 ([kverityd]) (/system/xbin/su root showmap -q 590)","[NULL]",8
+"SHOW MAP 591 ([bioset]) (/system/xbin/su root showmap -q 591)","[NULL]",8
+"SHOW MAP 592 ([bioset]) (/system/xbin/su root showmap -q 592)","[NULL]",8
+"SHOW MAP 5928 (com.google.android.gms.unstable) (/system/xbin/su root showmap -q 5928)","[NULL]",575
+"SHOW MAP 593 ([bioset]) (/system/xbin/su root showmap -q 593)","[NULL]",8
+"SHOW MAP 594 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 594)","[NULL]",8
+"SHOW MAP 596 ([kdmflush]) (/system/xbin/su root showmap -q 596)","[NULL]",8
+"SHOW MAP 597 ([bioset]) (/system/xbin/su root showmap -q 597)","[NULL]",8
+"SHOW MAP 598 ([kverityd]) (/system/xbin/su root showmap -q 598)","[NULL]",8
+"SHOW MAP 599 ([bioset]) (/system/xbin/su root showmap -q 599)","[NULL]",8
+"SHOW MAP 6 ([ksoftirqd/0]) (/system/xbin/su root showmap -q 6)","[NULL]",8
+"SHOW MAP 60 ([kworker/6:0H]) (/system/xbin/su root showmap -q 60)","[NULL]",8
+"SHOW MAP 600 ([bioset]) (/system/xbin/su root showmap -q 600)","[NULL]",8
+"SHOW MAP 601 ([bioset]) (/system/xbin/su root showmap -q 601)","[NULL]",8
+"SHOW MAP 602 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 602)","[NULL]",8
+"SHOW MAP 604 ([kdmflush]) (/system/xbin/su root showmap -q 604)","[NULL]",8
+"SHOW MAP 605 ([bioset]) (/system/xbin/su root showmap -q 605)","[NULL]",8
+"SHOW MAP 606 ([kverityd]) (/system/xbin/su root showmap -q 606)","[NULL]",8
+"SHOW MAP 607 ([bioset]) (/system/xbin/su root showmap -q 607)","[NULL]",8
+"SHOW MAP 608 ([bioset]) (/system/xbin/su root showmap -q 608)","[NULL]",8
+"SHOW MAP 609 ([bioset]) (/system/xbin/su root showmap -q 609)","[NULL]",8
+"SHOW MAP 61 ([rcuop/6]) (/system/xbin/su root showmap -q 61)","[NULL]",8
+"SHOW MAP 610 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 610)","[NULL]",8
+"SHOW MAP 611 ([kworker/5:1H]) (/system/xbin/su root showmap -q 611)","[NULL]",8
+"SHOW MAP 612 ([kworker/3:2]) (/system/xbin/su root showmap -q 612)","[NULL]",8
+"SHOW MAP 613 ([kworker/1:1H]) (/system/xbin/su root showmap -q 613)","[NULL]",8
+"SHOW MAP 614 ([kworker/2:1H]) (/system/xbin/su root showmap -q 614)","[NULL]",8
+"SHOW MAP 615 ([kworker/3:1H]) (/system/xbin/su root showmap -q 615)","[NULL]",8
+"SHOW MAP 616 ([kworker/7:1H]) (/system/xbin/su root showmap -q 616)","[NULL]",8
+"SHOW MAP 617 ([kworker/7:1]) (/system/xbin/su root showmap -q 617)","[NULL]",8
+"SHOW MAP 618 ([kworker/6:1H]) (/system/xbin/su root showmap -q 618)","[NULL]",8
+"SHOW MAP 62 ([rcuos/6]) (/system/xbin/su root showmap -q 62)","[NULL]",8
+"SHOW MAP 620 (/system/bin/init) (/system/xbin/su root showmap -q 620)","[NULL]",79
+"SHOW MAP 622 (/system/bin/ueventd) (/system/xbin/su root showmap -q 622)","[NULL]",75
+"SHOW MAP 624 ([kworker/0:3]) (/system/xbin/su root showmap -q 624)","[NULL]",8
+"SHOW MAP 63 ([rcuob/6]) (/system/xbin/su root showmap -q 63)","[NULL]",8
+"SHOW MAP 635 ([bioset]) (/system/xbin/su root showmap -q 635)","[NULL]",8
+"SHOW MAP 636 ([bioset]) (/system/xbin/su root showmap -q 636)","[NULL]",8
+"SHOW MAP 637 ([bioset]) (/system/xbin/su root showmap -q 637)","[NULL]",8
+"SHOW MAP 638 ([bioset]) (/system/xbin/su root showmap -q 638)","[NULL]",8
+"SHOW MAP 639 ([bioset]) (/system/xbin/su root showmap -q 639)","[NULL]",8
+"SHOW MAP 64 ([cpuhp/7]) (/system/xbin/su root showmap -q 64)","[NULL]",8
+"SHOW MAP 640 ([bioset]) (/system/xbin/su root showmap -q 640)","[NULL]",8
+"SHOW MAP 641 ([bioset]) (/system/xbin/su root showmap -q 641)","[NULL]",8
+"SHOW MAP 642 ([bioset]) (/system/xbin/su root showmap -q 642)","[NULL]",8
+"SHOW MAP 643 ([bioset]) (/system/xbin/su root showmap -q 643)","[NULL]",8
+"SHOW MAP 644 ([bioset]) (/system/xbin/su root showmap -q 644)","[NULL]",8
+"SHOW MAP 645 ([bioset]) (/system/xbin/su root showmap -q 645)","[NULL]",8
+"SHOW MAP 646 ([bioset]) (/system/xbin/su root showmap -q 646)","[NULL]",8
+"SHOW MAP 647 ([bioset]) (/system/xbin/su root showmap -q 647)","[NULL]",8
+"SHOW MAP 648 ([bioset]) (/system/xbin/su root showmap -q 648)","[NULL]",8
+"SHOW MAP 649 ([bioset]) (/system/xbin/su root showmap -q 649)","[NULL]",8
+"SHOW MAP 65 ([migration/7]) (/system/xbin/su root showmap -q 65)","[NULL]",8
+"SHOW MAP 650 ([bioset]) (/system/xbin/su root showmap -q 650)","[NULL]",8
+"SHOW MAP 651 ([bioset]) (/system/xbin/su root showmap -q 651)","[NULL]",8
+"SHOW MAP 652 ([bioset]) (/system/xbin/su root showmap -q 652)","[NULL]",8
+"SHOW MAP 653 ([bioset]) (/system/xbin/su root showmap -q 653)","[NULL]",8
+"SHOW MAP 654 ([bioset]) (/system/xbin/su root showmap -q 654)","[NULL]",8
+"SHOW MAP 655 ([bioset]) (/system/xbin/su root showmap -q 655)","[NULL]",8
+"SHOW MAP 656 ([bioset]) (/system/xbin/su root showmap -q 656)","[NULL]",8
+"SHOW MAP 657 ([bioset]) (/system/xbin/su root showmap -q 657)","[NULL]",8
+"SHOW MAP 658 ([bioset]) (/system/xbin/su root showmap -q 658)","[NULL]",8
+"SHOW MAP 659 ([bioset]) (/system/xbin/su root showmap -q 659)","[NULL]",8
+"SHOW MAP 66 ([ksoftirqd/7]) (/system/xbin/su root showmap -q 66)","[NULL]",8
+"SHOW MAP 660 ([bioset]) (/system/xbin/su root showmap -q 660)","[NULL]",8
+"SHOW MAP 661 ([bioset]) (/system/xbin/su root showmap -q 661)","[NULL]",8
+"SHOW MAP 662 ([bioset]) (/system/xbin/su root showmap -q 662)","[NULL]",8
+"SHOW MAP 663 ([bioset]) (/system/xbin/su root showmap -q 663)","[NULL]",8
+"SHOW MAP 668 ([loop0]) (/system/xbin/su root showmap -q 668)","[NULL]",8
+"SHOW MAP 669 ([loop1]) (/system/xbin/su root showmap -q 669)","[NULL]",8
+"SHOW MAP 670 ([loop2]) (/system/xbin/su root showmap -q 670)","[NULL]",8
+"SHOW MAP 671 ([loop3]) (/system/xbin/su root showmap -q 671)","[NULL]",8
+"SHOW MAP 672 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 672)","[NULL]",8
+"SHOW MAP 673 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 673)","[NULL]",8
+"SHOW MAP 674 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 674)","[NULL]",8
+"SHOW MAP 675 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 675)","[NULL]",8
+"SHOW MAP 68 ([kworker/7:0H]) (/system/xbin/su root showmap -q 68)","[NULL]",8
+"SHOW MAP 683 ([jbd2/sdf2-8]) (/system/xbin/su root showmap -q 683)","[NULL]",8
+"SHOW MAP 684 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 684)","[NULL]",8
+"SHOW MAP 69 ([rcuop/7]) (/system/xbin/su root showmap -q 69)","[NULL]",8
+"SHOW MAP 690 (/system/bin/logd) (/system/xbin/su root showmap -q 690)","[NULL]",63
+"SHOW MAP 691 (/system/bin/lmkd) (/system/xbin/su root showmap -q 691)","[NULL]",49
+"SHOW MAP 692 (/system/bin/servicemanager) (/system/xbin/su root showmap -q 692)","[NULL]",59
+"SHOW MAP 693 (/system/bin/hwservicemanager) (/system/xbin/su root showmap -q 693)","[NULL]",63
+"SHOW MAP 694 (/vendor/bin/vndservicemanager) (/system/xbin/su root showmap -q 694)","[NULL]",56
+"SHOW MAP 695 ([psimon]) (/system/xbin/su root showmap -q 695)","[NULL]",8
+"SHOW MAP 696 (/vendor/bin/qseecomd) (/system/xbin/su root showmap -q 696)","[NULL]",83
+"SHOW MAP 697 (/vendor/bin/hw/android.hardware.keymaster@4.0-service-qti) (/system/xbin/su root showmap -q 697)","[NULL]",69
+"SHOW MAP 7 ([rcu_preempt]) (/system/xbin/su root showmap -q 7)","[NULL]",8
+"SHOW MAP 70 ([rcuos/7]) (/system/xbin/su root showmap -q 70)","[NULL]",8
+"SHOW MAP 701 ([kauditd]) (/system/xbin/su root showmap -q 701)","[NULL]",8
+"SHOW MAP 702 (/vendor/bin/hw/citadeld) (/system/xbin/su root showmap -q 702)","[NULL]",73
+"SHOW MAP 703 (/vendor/bin/hw/android.hardware.keymaster@4.1-service.citadel) (/system/xbin/su root showmap -q 703)","[NULL]",82
+"SHOW MAP 705 ([sugov:0]) (/system/xbin/su root showmap -q 705)","[NULL]",8
+"SHOW MAP 706 ([sugov:4]) (/system/xbin/su root showmap -q 706)","[NULL]",8
+"SHOW MAP 71 ([rcuob/7]) (/system/xbin/su root showmap -q 71)","[NULL]",8
+"SHOW MAP 718 (/system/bin/vold) (/system/xbin/su root showmap -q 718)","[NULL]",100
+"SHOW MAP 72 ([netns]) (/system/xbin/su root showmap -q 72)","[NULL]",8
+"SHOW MAP 73 ([ksuspend_mon]) (/system/xbin/su root showmap -q 73)","[NULL]",8
+"SHOW MAP 732 (/system/bin/hw/android.system.suspend@1.0-service) (/system/xbin/su root showmap -q 732)","[NULL]",62
+"SHOW MAP 733 (/system/bin/keystore2) (/system/xbin/su root showmap -q 733)","[NULL]",106
+"SHOW MAP 734 (/vendor/bin/hw/android.hardware.boot@1.0-service) (/system/xbin/su root showmap -q 734)","[NULL]",63
+"SHOW MAP 735 (/vendor/bin/hw/android.hardware.gatekeeper@1.0-service-qti) (/system/xbin/su root showmap -q 735)","[NULL]",66
+"SHOW MAP 736 (/vendor/bin/sscrpcd) (/system/xbin/su root showmap -q 736)","[NULL]",52
+"SHOW MAP 74 ([kworker/0:1]) (/system/xbin/su root showmap -q 74)","[NULL]",8
+"SHOW MAP 741 (/system/bin/surfaceflinger) (/system/xbin/su root showmap -q 741)","[NULL]",178
+"SHOW MAP 743 (/vendor/bin/hw/android.hardware.graphics.composer@2.3-service) (/system/xbin/su root showmap -q 743)","[NULL]",168
+"SHOW MAP 744 (/vendor/bin/hw/android.hardware.configstore@1.1-service) (/system/xbin/su root showmap -q 744)","[NULL]",62
+"SHOW MAP 746 (/vendor/bin/hw/vendor.qti.hardware.display.allocator@1.0-service) (/system/xbin/su root showmap -q 746)","[NULL]",73
+"SHOW MAP 747 (/vendor/bin/hw/hardware.google.light@1.0-service) (/system/xbin/su root showmap -q 747)","[NULL]",61
+"SHOW MAP 7475 (com.qualcomm.telephony) (/system/xbin/su root showmap -q 7475)","[NULL]",551
+"SHOW MAP 75 ([ipa_usb_wq]) (/system/xbin/su root showmap -q 75)","[NULL]",8
+"SHOW MAP 76 ([kworker/1:1]) (/system/xbin/su root showmap -q 76)","[NULL]",8
+"SHOW MAP 766 ([kdmflush]) (/system/xbin/su root showmap -q 766)","[NULL]",8
+"SHOW MAP 767 ([bioset]) (/system/xbin/su root showmap -q 767)","[NULL]",8
+"SHOW MAP 77 ([msm_watchdog]) (/system/xbin/su root showmap -q 77)","[NULL]",8
+"SHOW MAP 78 ([smem_native_sps]) (/system/xbin/su root showmap -q 78)","[NULL]",8
+"SHOW MAP 780 ([f2fs_flush-253:]) (/system/xbin/su root showmap -q 780)","[NULL]",8
+"SHOW MAP 781 ([f2fs_discard-25]) (/system/xbin/su root showmap -q 781)","[NULL]",8
+"SHOW MAP 79 ([spss_mailbox_gl]) (/system/xbin/su root showmap -q 79)","[NULL]",8
+"SHOW MAP 790 ([irq/165-arm-smm]) (/system/xbin/su root showmap -q 790)","[NULL]",8
+"SHOW MAP 8 ([rcu_sched]) (/system/xbin/su root showmap -q 8)","[NULL]",8
+"SHOW MAP 80 ([qmp_aop]) (/system/xbin/su root showmap -q 80)","[NULL]",8
+"SHOW MAP 801 ([f2fs_gc-253:8]) (/system/xbin/su root showmap -q 801)","[NULL]",8
+"SHOW MAP 8035 (com.google.android.connectivitymonitor) (/system/xbin/su root showmap -q 8035)","[NULL]",554
+"SHOW MAP 804 (/vendor/bin/time_daemon) (/system/xbin/su root showmap -q 804)","[NULL]",72
+"SHOW MAP 806 (/vendor/bin/hw/android.hardware.power-service.pixel-libperfmgr) (/system/xbin/su root showmap -q 806)","[NULL]",65
+"SHOW MAP 81 ([smem_native_mps]) (/system/xbin/su root showmap -q 81)","[NULL]",8
+"SHOW MAP 8139 (com.google.android.apps.tips) (/system/xbin/su root showmap -q 8139)","[NULL]",559
+"SHOW MAP 8164 (com.google.android.configupdater) (/system/xbin/su root showmap -q 8164)","[NULL]",551
+"SHOW MAP 82 ([mpss_smem_glink]) (/system/xbin/su root showmap -q 82)","[NULL]",8
+"SHOW MAP 8228 (/apex/com.android.adbd/bin/adbd) (/system/xbin/su root showmap -q 8228)","[NULL]",71
+"SHOW MAP 8236 (android.process.media) (/system/xbin/su root showmap -q 8236)","[NULL]",558
+"SHOW MAP 8251 (com.google.android.projection.gearhead:shared) (/system/xbin/su root showmap -q 8251)","[NULL]",568
+"SHOW MAP 8279 (com.google.android.projection.gearhead:car) (/system/xbin/su root showmap -q 8279)","[NULL]",559
+"SHOW MAP 83 ([smem_native_lpa]) (/system/xbin/su root showmap -q 83)","[NULL]",8
+"SHOW MAP 831 ([cds_recovery_wo]) (/system/xbin/su root showmap -q 831)","[NULL]",8
+"SHOW MAP 832 ([wlan_logging_th]) (/system/xbin/su root showmap -q 832)","[NULL]",8
+"SHOW MAP 835 (/system/bin/tombstoned) (/system/xbin/su root showmap -q 835)","[NULL]",42
+"SHOW MAP 8353 (com.android.ramdump) (/system/xbin/su root showmap -q 8353)","[NULL]",543
+"SHOW MAP 8376 (com.google.android.settings.intelligence) (/system/xbin/su root showmap -q 8376)","[NULL]",560
+"SHOW MAP 84 ([lpass_smem_glin]) (/system/xbin/su root showmap -q 84)","[NULL]",8
+"SHOW MAP 8405 ([kworker/0:4]) (/system/xbin/su root showmap -q 8405)","[NULL]",8
+"SHOW MAP 8407 ([kworker/0:5]) (/system/xbin/su root showmap -q 8407)","[NULL]",8
+"SHOW MAP 8408 ([kworker/0:6]) (/system/xbin/su root showmap -q 8408)","[NULL]",8
+"SHOW MAP 8409 ([kworker/0:7]) (/system/xbin/su root showmap -q 8409)","[NULL]",8
+"SHOW MAP 8416 (com.google.android.apps.turbo:aab) (/system/xbin/su root showmap -q 8416)","[NULL]",571
+"SHOW MAP 8462 (bugreportz) (/system/xbin/su root showmap -q 8462)","[NULL]",42
+"SHOW MAP 8464 (/system/bin/dumpstate) (/system/xbin/su root showmap -q 8464)","[NULL]",83
+"SHOW MAP 8468 (com.android.traceur) (/system/xbin/su root showmap -q 8468)","[NULL]",551
+"SHOW MAP 849 ([kworker/7:2]) (/system/xbin/su root showmap -q 849)","[NULL]",8
+"SHOW MAP 85 ([smem_native_dsp]) (/system/xbin/su root showmap -q 85)","[NULL]",8
+"SHOW MAP 859 ([irq/372-cs35l36]) (/system/xbin/su root showmap -q 859)","[NULL]",8
+"SHOW MAP 86 ([dsps_smem_glink]) (/system/xbin/su root showmap -q 86)","[NULL]",8
+"SHOW MAP 862 ([irq/297-cs35l36]) (/system/xbin/su root showmap -q 862)","[NULL]",8
+"SHOW MAP 867 ([loop4]) (/system/xbin/su root showmap -q 867)","[NULL]",8
+"SHOW MAP 869 ([dsps_IPCRTR]) (/system/xbin/su root showmap -q 869)","[NULL]",8
+"SHOW MAP 87 ([smem_native_cds]) (/system/xbin/su root showmap -q 87)","[NULL]",8
+"SHOW MAP 870 ([loop5]) (/system/xbin/su root showmap -q 870)","[NULL]",8
+"SHOW MAP 871 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 871)","[NULL]",8
+"SHOW MAP 872 ([loop6]) (/system/xbin/su root showmap -q 872)","[NULL]",8
+"SHOW MAP 873 ([qmi_hndl0000000]) (/system/xbin/su root showmap -q 873)","[NULL]",8
+"SHOW MAP 874 ([loop7]) (/system/xbin/su root showmap -q 874)","[NULL]",8
+"SHOW MAP 875 ([qmi_hndl0000000]) (/system/xbin/su root showmap -q 875)","[NULL]",8
+"SHOW MAP 876 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 876)","[NULL]",8
+"SHOW MAP 877 ([loop8]) (/system/xbin/su root showmap -q 877)","[NULL]",8
+"SHOW MAP 878 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 878)","[NULL]",8
+"SHOW MAP 879 ([loop9]) (/system/xbin/su root showmap -q 879)","[NULL]",8
+"SHOW MAP 88 ([cdsp_smem_glink]) (/system/xbin/su root showmap -q 88)","[NULL]",8
+"SHOW MAP 880 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 880)","[NULL]",8
+"SHOW MAP 881 ([loop10]) (/system/xbin/su root showmap -q 881)","[NULL]",8
+"SHOW MAP 882 ([loop11]) (/system/xbin/su root showmap -q 882)","[NULL]",8
+"SHOW MAP 883 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 883)","[NULL]",8
+"SHOW MAP 884 ([loop12]) (/system/xbin/su root showmap -q 884)","[NULL]",8
+"SHOW MAP 885 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 885)","[NULL]",8
+"SHOW MAP 886 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 886)","[NULL]",8
+"SHOW MAP 887 ([loop13]) (/system/xbin/su root showmap -q 887)","[NULL]",8
+"SHOW MAP 888 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 888)","[NULL]",8
+"SHOW MAP 889 ([loop14]) (/system/xbin/su root showmap -q 889)","[NULL]",8
+"SHOW MAP 89 ([khungtaskd]) (/system/xbin/su root showmap -q 89)","[NULL]",8
+"SHOW MAP 890 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 890)","[NULL]",8
+"SHOW MAP 891 ([loop15]) (/system/xbin/su root showmap -q 891)","[NULL]",8
+"SHOW MAP 892 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 892)","[NULL]",8
+"SHOW MAP 893 ([loop16]) (/system/xbin/su root showmap -q 893)","[NULL]",8
+"SHOW MAP 894 ([loop17]) (/system/xbin/su root showmap -q 894)","[NULL]",8
+"SHOW MAP 895 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 895)","[NULL]",8
+"SHOW MAP 896 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 896)","[NULL]",8
+"SHOW MAP 897 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 897)","[NULL]",8
+"SHOW MAP 898 ([loop18]) (/system/xbin/su root showmap -q 898)","[NULL]",8
+"SHOW MAP 9 ([rcu_bh]) (/system/xbin/su root showmap -q 9)","[NULL]",8
+"SHOW MAP 90 ([oom_reaper]) (/system/xbin/su root showmap -q 90)","[NULL]",8
+"SHOW MAP 902 ([loop19]) (/system/xbin/su root showmap -q 902)","[NULL]",8
+"SHOW MAP 903 ([loop20]) (/system/xbin/su root showmap -q 903)","[NULL]",8
+"SHOW MAP 904 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 904)","[NULL]",8
+"SHOW MAP 905 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 905)","[NULL]",8
+"SHOW MAP 906 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 906)","[NULL]",8
+"SHOW MAP 907 ([loop21]) (/system/xbin/su root showmap -q 907)","[NULL]",8
+"SHOW MAP 908 ([loop22]) (/system/xbin/su root showmap -q 908)","[NULL]",8
+"SHOW MAP 909 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 909)","[NULL]",8
+"SHOW MAP 91 ([writeback]) (/system/xbin/su root showmap -q 91)","[NULL]",8
+"SHOW MAP 910 ([loop23]) (/system/xbin/su root showmap -q 910)","[NULL]",8
+"SHOW MAP 911 ([loop24]) (/system/xbin/su root showmap -q 911)","[NULL]",8
+"SHOW MAP 912 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 912)","[NULL]",8
+"SHOW MAP 913 ([loop25]) (/system/xbin/su root showmap -q 913)","[NULL]",8
+"SHOW MAP 914 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 914)","[NULL]",8
+"SHOW MAP 915 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 915)","[NULL]",8
+"SHOW MAP 916 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 916)","[NULL]",8
+"SHOW MAP 917 ([loop26]) (/system/xbin/su root showmap -q 917)","[NULL]",8
+"SHOW MAP 918 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 918)","[NULL]",8
+"SHOW MAP 919 ([loop27]) (/system/xbin/su root showmap -q 919)","[NULL]",8
+"SHOW MAP 92 ([kcompactd0]) (/system/xbin/su root showmap -q 92)","[NULL]",8
+"SHOW MAP 921 ([loop28]) (/system/xbin/su root showmap -q 921)","[NULL]",8
+"SHOW MAP 922 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 922)","[NULL]",8
+"SHOW MAP 923 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 923)","[NULL]",8
+"SHOW MAP 924 ([ext4-rsv-conver]) (/system/xbin/su root showmap -q 924)","[NULL]",8
+"SHOW MAP 93 ([crypto]) (/system/xbin/su root showmap -q 93)","[NULL]",8
+"SHOW MAP 931 ([tbn_event_proce]) (/system/xbin/su root showmap -q 931)","[NULL]",8
+"SHOW MAP 932 ([qmi_hndl0000000]) (/system/xbin/su root showmap -q 932)","[NULL]",8
+"SHOW MAP 936 ([irq/382-sec_ts]) (/system/xbin/su root showmap -q 936)","[NULL]",8
+"SHOW MAP 94 ([bioset]) (/system/xbin/su root showmap -q 94)","[NULL]",8
+"SHOW MAP 945 (/system/bin/netd) (/system/xbin/su root showmap -q 945)","[NULL]",94
+"SHOW MAP 946 (/vendor/bin/hw/android.hardware.rebootescrow-service.citadel) (/system/xbin/su root showmap -q 946)","[NULL]",84
+"SHOW MAP 948 ([irq/208-arm-smm]) (/system/xbin/su root showmap -q 948)","[NULL]",8
+"SHOW MAP 949 ([irq/209-arm-smm]) (/system/xbin/su root showmap -q 949)","[NULL]",8
+"SHOW MAP 95 ([kblockd]) (/system/xbin/su root showmap -q 95)","[NULL]",8
+"SHOW MAP 950 ([irq/210-arm-smm]) (/system/xbin/su root showmap -q 950)","[NULL]",8
+"SHOW MAP 957 ([ipa_interrupt_w]) (/system/xbin/su root showmap -q 957)","[NULL]",8
+"SHOW MAP 958 ([ipawq36]) (/system/xbin/su root showmap -q 958)","[NULL]",8
+"SHOW MAP 959 ([iparepwq36]) (/system/xbin/su root showmap -q 959)","[NULL]",8
+"SHOW MAP 96 ([irq/160-arm-smm]) (/system/xbin/su root showmap -q 96)","[NULL]",8
+"SHOW MAP 960 ([ipawq33]) (/system/xbin/su root showmap -q 960)","[NULL]",8
+"SHOW MAP 961 ([iparepwq33]) (/system/xbin/su root showmap -q 961)","[NULL]",8
+"SHOW MAP 962 ([ipawq32]) (/system/xbin/su root showmap -q 962)","[NULL]",8
+"SHOW MAP 963 ([iparepwq32]) (/system/xbin/su root showmap -q 963)","[NULL]",8
+"SHOW MAP 964 ([ipa_ut_dbgfs]) (/system/xbin/su root showmap -q 964)","[NULL]",8
+"SHOW MAP 966 ([ipa_A7_svc]) (/system/xbin/su root showmap -q 966)","[NULL]",8
+"SHOW MAP 967 ([qmi_hndl0000000]) (/system/xbin/su root showmap -q 967)","[NULL]",8
+"SHOW MAP 968 ([clnt_req]) (/system/xbin/su root showmap -q 968)","[NULL]",8
+"SHOW MAP 969 ([clnt_resp]) (/system/xbin/su root showmap -q 969)","[NULL]",8
+"SHOW MAP 9696 ([cmd]) (/system/xbin/su root showmap -q 9696)","[NULL]",8
+"SHOW MAP 97 ([irq/161-arm-smm]) (/system/xbin/su root showmap -q 97)","[NULL]",8
+"SHOW MAP 970 ([clnt_req]) (/system/xbin/su root showmap -q 970)","[NULL]",8
+"SHOW MAP 976 (/system/bin/iptables-restore) (/system/xbin/su root showmap -q 976)","[NULL]",38
+"SHOW MAP 977 (/system/bin/ip6tables-restore) (/system/xbin/su root showmap -q 977)","[NULL]",38
+"SHOW MAP 979 (/apex/com.android.os.statsd/bin/statsd) (/system/xbin/su root showmap -q 979)","[NULL]",63
+"SHOW MAP 98 ([irq/170-arm-smm]) (/system/xbin/su root showmap -q 98)","[NULL]",8
+"SHOW MAP 980 (zygote64) (/system/xbin/su root showmap -q 980)","[NULL]",524
+"SHOW MAP 981 (zygote) (/system/xbin/su root showmap -q 981)","[NULL]",522
+"SHOW MAP 9811 (com.android.printspooler) (/system/xbin/su root showmap -q 9811)","[NULL]",550
+"SHOW MAP 99 ([kworker/u17:0]) (/system/xbin/su root showmap -q 99)","[NULL]",8
+"SHOW MAP 990 ([at_usb0]) (/system/xbin/su root showmap -q 990)","[NULL]",8
+"SHOW MAP 991 ([at_usb1]) (/system/xbin/su root showmap -q 991)","[NULL]",8
+"SHOW MAP 992 ([qdss]) (/system/xbin/su root showmap -q 992)","[NULL]",8
+"SLAB INFO (/proc/slabinfo)","[NULL]",106
+"STATSDSTATS (/system/bin/dumpsys -T 30000 stats --metadata)","[NULL]",591
+"STORAGED IO INFO (storaged -u -p)","[NULL]",124
+"SYSTEM LOG (logcat -v threadtime -v printable -v uid -d *:v -T 2021-08-24 23:35:43.000)","[NULL]",3553
+"SYSTEM LOG (logcat -v threadtime -v printable -v uid -d *:v)","[NULL]",37062
+"SYSTEM PROPERTIES (getprop)","[NULL]",1149
+"UPTIME (uptime)","[NULL]",1
+"VIRTUAL MEMORY STATS (/proc/vmstat)","[NULL]",100
+"VM TRACES JUST NOW (/data/user_de/0/com.android.shell/files/bugreports/dumptrace_ymdts4: 2021-08-24 23:35:55)","[NULL]",36690
+"VMALLOC INFO (/proc/vmallocinfo)","[NULL]",4276
+"XFRM STATS (/proc/net/xfrm_stat)","[NULL]",29
+"ZONEINFO (/proc/zoneinfo)","[NULL]",171

@@ -11,7 +11,7 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
--- SELECT RUN_METRIC('chrome/chrome_processes.sql') AS suppress_query_output;
+-- SELECT RUN_METRIC('chrome/chrome_processes.sql');
 -- SELECT * FROM cpu_time_by_rail_mode;
-SELECT RUN_METRIC('chrome/estimated_power_by_rail_mode.sql') AS suppress_query_output;
+SELECT RUN_METRIC('chrome/estimated_power_by_rail_mode.sql');
 SELECT * FROM power_by_rail_mode;

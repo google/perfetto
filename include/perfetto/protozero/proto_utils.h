@@ -24,6 +24,15 @@
 
 #include "perfetto/base/logging.h"
 
+// Helper macro for the constexpr functions containing
+// the switch statement: if C++14 is supported, this macro
+// resolves to `constexpr` and just `inline` otherwise.
+#if __cpp_constexpr >= 201304
+#define PERFETTO_PROTOZERO_CONSTEXPR14_OR_INLINE constexpr
+#else
+#define PERFETTO_PROTOZERO_CONSTEXPR14_OR_INLINE inline
+#endif
+
 namespace protozero {
 namespace proto_utils {
 

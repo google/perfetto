@@ -1,14 +1,14 @@
-"name","parent_name"
-"Default Track","[NULL]"
-"async","process=p1"
-"async2","process=p1"
-"async3","thread=t2"
-"event_and_track_async3","process=p1"
-"process=p1","[NULL]"
-"process=p2","[NULL]"
-"process=p2","[NULL]"
-"thread=t1","process=p1"
-"thread=t2","process=p1"
-"thread=t3","process=p1"
-"thread=t4","process=p2"
-"tid=1","[NULL]"
+"name","parent_name","has_first_packet_on_sequence"
+"Default Track","[NULL]","[NULL]"
+"async","process=p1",1
+"async2","process=p1",1
+"async3","thread=t2",1
+"event_and_track_async3","process=p1",1
+"process=p1","[NULL]","[NULL]"
+"process=p2","[NULL]","[NULL]"
+"process=p2","[NULL]","[NULL]"
+"thread=t1","process=p1",1
+"thread=t2","process=p1",1
+"thread=t3","process=p1",1
+"thread=t4","process=p2","[NULL]"
+"tid=1","[NULL]","[NULL]"

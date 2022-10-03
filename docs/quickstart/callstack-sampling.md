@@ -125,11 +125,10 @@ flag. Please enable it before proceeding further:
 ![Enable flame graph flag](/docs/images/enable-profile-flame-graph.png)
 
 Upload the `raw-trace` or `symbolized-trace` file from the output directory to
-the [Perfetto UI](https://ui.perfetto.dev) and click on one of the diamond
-markers in the UI track named "Perf Samples" for the processes that you selected
-for profiling. Each diamond marker represents a profile with stack samples
-recorded from the beginning of the trace up until that diamond marker on the
-timeline.
+the [Perfetto UI](https://ui.perfetto.dev) and click and drag over one or more
+of the diamond markers in the UI track named "Perf Samples" for the processes
+that you selected for profiling. Each diamond marker represents a snapshot of
+the call-stack at that point on the timeline.
 
 ![Profile Diamond](/docs/images/cpu-profile-diamond.png)
 ![Native Flamegraph](/docs/images/cpu-profile-flame.png)

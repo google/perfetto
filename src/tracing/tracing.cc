@@ -68,6 +68,15 @@ bool Tracing::IsInitialized() {
 }
 
 // static
+void Tracing::Shutdown() {
+  std::unique_lock<std::mutex> lock(InitializedMutex());
+  if (!g_was_initialized)
+    return;
+  internal::TracingMuxerImpl::Shutdown();
+  g_was_initialized = false;
+}
+
+// static
 void Tracing::ResetForTesting() {
   std::unique_lock<std::mutex> lock(InitializedMutex());
   if (!g_was_initialized)
@@ -83,6 +92,24 @@ std::unique_ptr<TracingSession> Tracing::NewTrace(BackendType backend) {
   return static_cast<internal::TracingMuxerImpl*>(internal::TracingMuxer::Get())
       ->CreateTracingSession(backend);
 }
+
+//  static
+std::unique_ptr<StartupTracingSession> Tracing::SetupStartupTracing(
+    const TraceConfig& config,
+    Tracing::SetupStartupTracingOpts opts) {
+  return static_cast<internal::TracingMuxerImpl*>(internal::TracingMuxer::Get())
+      ->CreateStartupTracingSession(config, std::move(opts));
+}
+
+//  static
+std::unique_ptr<StartupTracingSession> Tracing::SetupStartupTracingBlocking(
+    const TraceConfig& config,
+    Tracing::SetupStartupTracingOpts opts) {
+  return static_cast<internal::TracingMuxerImpl*>(internal::TracingMuxer::Get())
+      ->CreateStartupTracingSessionBlocking(config, std::move(opts));
+}
+
+TracingSession::~TracingSession() = default;
 
 // Can be called from any thread.
 bool TracingSession::FlushBlocking(uint32_t timeout_ms) {
@@ -166,5 +193,7 @@ TracingSession::QueryServiceStateBlocking() {
   }
   return result;
 }
+
+StartupTracingSession::~StartupTracingSession() = default;
 
 }  // namespace perfetto

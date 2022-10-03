@@ -42,10 +42,8 @@ constexpr auto MONOTONIC_RAW = protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW;
 
 class ClockTrackerTest : public ::testing::Test {
  public:
-  ClockTrackerTest() { context_.storage.reset(new TraceStorage()); }
-
-  TraceProcessorContext context_;
-  ClockTracker ct_{&context_};
+  TraceStorage storage_;
+  ClockTracker ct_{&storage_};
 };
 
 TEST_F(ClockTrackerTest, ClockDomainConversions) {

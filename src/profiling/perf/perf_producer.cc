@@ -161,6 +161,16 @@ void WritePerfEventDefaultsPacket(const EventConfig& event_config,
 
   // Not setting timebase.timestamp_clock since the field that matters during
   // parsing is the root timestamp_clock_id set above.
+
+  // Record the random shard we've chosen so that the post-processing can infer
+  // which processes would've been unwound if sampled. In particular this lets
+  // us distinguish between "running but not chosen" and "running and chosen,
+  // but not sampled" cases.
+  const auto& process_sharding = event_config.filter().process_sharding;
+  if (process_sharding.has_value()) {
+    perf_defaults->set_process_shard_count(process_sharding->shard_count);
+    perf_defaults->set_chosen_process_shard(process_sharding->chosen_shard);
+  }
 }
 
 uint32_t TimeToNextReadTickMs(DataSourceInstanceID ds_id, uint32_t period_ms) {
@@ -174,73 +184,6 @@ uint32_t TimeToNextReadTickMs(DataSourceInstanceID ds_id, uint32_t period_ms) {
 
   uint64_t now_ms = static_cast<uint64_t>(base::GetWallTimeMs().count());
   return period_ms - ((now_ms - ds_period_offset) % period_ms);
-}
-
-bool ShouldRejectDueToFilter(pid_t pid,
-                             const TargetFilter& filter,
-                             bool skip_cmdline,
-                             base::FlatSet<std::string>* additional_cmdlines) {
-  PERFETTO_CHECK(additional_cmdlines);
-
-  std::string cmdline;
-  bool have_cmdline = false;
-  if (!skip_cmdline)
-    have_cmdline = glob_aware::ReadProcCmdlineForPID(pid, &cmdline);
-
-  const char* binname = "";
-  if (have_cmdline) {
-    binname = glob_aware::FindBinaryName(cmdline.c_str(), cmdline.size());
-  }
-
-  auto has_matching_pattern = [](const std::vector<std::string>& patterns,
-                                 const char* cmd, const char* name) {
-    for (const std::string& pattern : patterns) {
-      if (glob_aware::MatchGlobPattern(pattern.c_str(), cmd, name)) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  if (have_cmdline &&
-      has_matching_pattern(filter.exclude_cmdlines, cmdline.c_str(), binname)) {
-    PERFETTO_DLOG("Explicitly rejecting samples for pid [%d] due to cmdline",
-                  static_cast<int>(pid));
-    return true;
-  }
-  if (filter.exclude_pids.count(pid)) {
-    PERFETTO_DLOG("Explicitly rejecting samples for pid [%d] due to pid",
-                  static_cast<int>(pid));
-    return true;
-  }
-
-  if (have_cmdline &&
-      has_matching_pattern(filter.cmdlines, cmdline.c_str(), binname)) {
-    return false;
-  }
-  if (filter.pids.count(pid)) {
-    return false;
-  }
-
-  // Empty allow filter means keep everything that isn't explicitly excluded.
-  if (filter.cmdlines.empty() && filter.pids.empty() &&
-      !filter.additional_cmdline_count) {
-    return false;
-  }
-
-  // Config option that allows to profile just the N first seen cmdlines.
-  if (have_cmdline) {
-    if (additional_cmdlines->count(cmdline)) {
-      return false;
-    }
-    if (additional_cmdlines->size() < filter.additional_cmdline_count) {
-      additional_cmdlines->insert(cmdline);
-      return false;
-    }
-  }
-
-  PERFETTO_DLOG("Rejecting samples for pid [%d]", static_cast<int>(pid));
-  return true;
 }
 
 protos::pbzero::Profiling::CpuMode ToCpuModeEnum(uint16_t perf_cpu_mode) {
@@ -299,6 +242,94 @@ protos::pbzero::Profiling::StackUnwindError ToProtoEnum(
 
 }  // namespace
 
+// static
+bool PerfProducer::ShouldRejectDueToFilter(
+    pid_t pid,
+    const TargetFilter& filter,
+    bool skip_cmdline,
+    base::FlatSet<std::string>* additional_cmdlines,
+    std::function<bool(std::string*)> read_proc_pid_cmdline) {
+  PERFETTO_CHECK(additional_cmdlines);
+
+  std::string cmdline;
+  bool have_cmdline = false;
+  if (!skip_cmdline)
+    have_cmdline = read_proc_pid_cmdline(&cmdline);
+
+  const char* binname = "";
+  if (have_cmdline) {
+    binname = glob_aware::FindBinaryName(cmdline.c_str(), cmdline.size());
+  }
+
+  auto has_matching_pattern = [](const std::vector<std::string>& patterns,
+                                 const char* cmd, const char* name) {
+    for (const std::string& pattern : patterns) {
+      if (glob_aware::MatchGlobPattern(pattern.c_str(), cmd, name)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  if (have_cmdline &&
+      has_matching_pattern(filter.exclude_cmdlines, cmdline.c_str(), binname)) {
+    PERFETTO_DLOG("Explicitly rejecting samples for pid [%d] due to cmdline",
+                  static_cast<int>(pid));
+    return true;
+  }
+  if (filter.exclude_pids.count(pid)) {
+    PERFETTO_DLOG("Explicitly rejecting samples for pid [%d] due to pid",
+                  static_cast<int>(pid));
+    return true;
+  }
+
+  if (have_cmdline &&
+      has_matching_pattern(filter.cmdlines, cmdline.c_str(), binname)) {
+    return false;
+  }
+  if (filter.pids.count(pid)) {
+    return false;
+  }
+
+  // Empty allow filter means keep everything that isn't explicitly excluded.
+  if (filter.cmdlines.empty() && filter.pids.empty() &&
+      !filter.additional_cmdline_count &&
+      !filter.process_sharding.has_value()) {
+    return false;
+  }
+
+  // Niche option: process sharding to amortise systemwide unwinding costs.
+  // Selects a subset of all processes by using the low order bits of their pid.
+  if (filter.process_sharding.has_value()) {
+    uint32_t upid = static_cast<uint32_t>(pid);
+    if (upid % filter.process_sharding->shard_count ==
+        filter.process_sharding->chosen_shard) {
+      PERFETTO_DLOG("Process sharding: keeping pid [%d]",
+                    static_cast<int>(pid));
+      return false;
+    } else {
+      PERFETTO_DLOG("Process sharding: rejecting pid [%d]",
+                    static_cast<int>(pid));
+      return true;
+    }
+  }
+
+  // Niche option: additionally remember the first seen N process cmdlines, and
+  // keep all processes with those names.
+  if (have_cmdline) {
+    if (additional_cmdlines->count(cmdline)) {
+      return false;
+    }
+    if (additional_cmdlines->size() < filter.additional_cmdline_count) {
+      additional_cmdlines->insert(cmdline);
+      return false;
+    }
+  }
+
+  PERFETTO_DLOG("Rejecting samples for pid [%d]", static_cast<int>(pid));
+  return true;
+}
+
 PerfProducer::PerfProducer(ProcDescriptorGetter* proc_fd_getter,
                            base::TaskRunner* task_runner)
     : task_runner_(task_runner),
@@ -313,7 +344,9 @@ void PerfProducer::SetupDataSource(DataSourceInstanceID,
 
 void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
                                    const DataSourceConfig& config) {
-  PERFETTO_LOG("StartDataSource(%zu, %s)", static_cast<size_t>(ds_id),
+  uint64_t tracing_session_id = config.tracing_session_id();
+  PERFETTO_LOG("StartDataSource(ds %zu, session %" PRIu64 ", name %s)",
+               static_cast<size_t>(ds_id), tracing_session_id,
                config.name().c_str());
 
   if (config.name() == MetatraceWriter::kDataSourceName) {
@@ -340,8 +373,20 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
     PERFETTO_ELOG("PerfEventConfig could not be parsed.");
     return;
   }
-  base::Optional<EventConfig> event_config =
-      EventConfig::Create(event_config_pb, config, tracepoint_id_lookup);
+
+  // Unlikely: handle a callstack sampling option that shares a random decision
+  // between all data sources within a tracing session. Instead of introducing
+  // session-scoped data, we replicate the decision in each per-DS EventConfig.
+  base::Optional<ProcessSharding> process_sharding;
+  uint32_t shard_count =
+      event_config_pb.callstack_sampling().scope().process_shard_count();
+  if (shard_count > 0) {
+    process_sharding =
+        GetOrChooseCallstackProcessShard(tracing_session_id, shard_count);
+  }
+
+  base::Optional<EventConfig> event_config = EventConfig::Create(
+      event_config_pb, config, process_sharding, tracepoint_id_lookup);
   if (!event_config.has_value()) {
     PERFETTO_ELOG("PerfEventConfig rejected.");
     return;
@@ -369,8 +414,8 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
   bool inserted;
   std::tie(ds_it, inserted) = data_sources_.emplace(
       std::piecewise_construct, std::forward_as_tuple(ds_id),
-      std::forward_as_tuple(event_config.value(), std::move(writer),
-                            std::move(per_cpu_readers)));
+      std::forward_as_tuple(event_config.value(), tracing_session_id,
+                            std::move(writer), std::move(per_cpu_readers)));
   PERFETTO_CHECK(inserted);
   DataSourceState& ds = ds_it->second;
 
@@ -647,8 +692,11 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
       // Check whether samples for this new process should be dropped due to
       // the target filtering. Kernel threads don't have a cmdline, but we
       // still check against pid inclusion/exclusion.
-      if (ShouldRejectDueToFilter(pid, event_config.filter(), is_kthread,
-                                  &ds->additional_cmdlines)) {
+      if (ShouldRejectDueToFilter(
+              pid, event_config.filter(), is_kthread, &ds->additional_cmdlines,
+              [pid](std::string* cmdline) {
+                return glob_aware::ReadProcCmdlineForPID(pid, cmdline);
+              })) {
         process_state = ProcessTrackingStatus::kRejected;
         continue;
       }
@@ -1027,6 +1075,45 @@ void PerfProducer::PurgeDataSource(DataSourceInstanceID ds_id) {
   }
 }
 
+// Either:
+// * choose a random number up to |shard_count|.
+// * reuse a choice made previously by a data source within this tracing
+//   session. The config option requires that all data sources within one config
+//   have the same shard count.
+base::Optional<ProcessSharding> PerfProducer::GetOrChooseCallstackProcessShard(
+    uint64_t tracing_session_id,
+    uint32_t shard_count) {
+  for (auto& it : data_sources_) {
+    const DataSourceState& ds = it.second;
+    const auto& sharding = ds.event_config.filter().process_sharding;
+    if ((ds.tracing_session_id != tracing_session_id) || !sharding.has_value())
+      continue;
+
+    // Found existing data source, reuse its decision while doing best-effort
+    // error reporting (logging) if the shard count is not the same.
+    if (sharding->shard_count != shard_count) {
+      PERFETTO_ELOG(
+          "Mismatch of process_shard_count between data sources in tracing "
+          "session %" PRIu64 ". Overriding shard count to match.",
+          tracing_session_id);
+    }
+    return sharding;
+  }
+
+  // First data source in this session, choose random shard.
+  std::random_device r;
+  std::minstd_rand minstd(r());
+  std::uniform_int_distribution<uint32_t> dist(0, shard_count - 1);
+  uint32_t chosen_shard = dist(minstd);
+
+  ProcessSharding ret;
+  ret.shard_count = shard_count;
+  ret.chosen_shard = chosen_shard;
+
+  PERFETTO_DCHECK(ret.shard_count && ret.chosen_shard < ret.shard_count);
+  return ret;
+}
+
 void PerfProducer::StartMetatraceSource(DataSourceInstanceID ds_id,
                                         BufferID target_buffer) {
   auto writer = endpoint_->CreateTraceWriter(target_buffer);
@@ -1085,6 +1172,10 @@ void PerfProducer::OnConnect() {
     DataSourceDescriptor desc;
     desc.set_name(MetatraceWriter::kDataSourceName);
     endpoint_->RegisterDataSource(desc);
+  }
+  // Used by tracebox to synchronize with traced_probes being registered.
+  if (all_data_sources_registered_cb_) {
+    endpoint_->Sync(all_data_sources_registered_cb_);
   }
 }
 

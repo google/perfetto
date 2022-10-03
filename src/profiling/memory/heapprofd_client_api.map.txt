@@ -1,13 +1,13 @@
 HEAPPROFD_API_S { # introduced=S
   global:
-    AHeapProfileEnableCallbackInfo_getSamplingInterval; # apex
-    AHeapProfile_reportSample; # apex
-    AHeapProfile_reportFree; # apex
-    AHeapProfile_reportAllocation; # apex
-    AHeapProfile_registerHeap; # apex
-    AHeapInfo_setEnabledCallback; # apex
-    AHeapInfo_setDisabledCallback; # apex
-    AHeapInfo_create; # apex
+    AHeapProfileEnableCallbackInfo_getSamplingInterval; # systemapi
+    AHeapProfile_reportSample; # systemapi
+    AHeapProfile_reportFree; # systemapi
+    AHeapProfile_reportAllocation; # systemapi
+    AHeapProfile_registerHeap; # systemapi
+    AHeapInfo_setEnabledCallback; # systemapi
+    AHeapInfo_setDisabledCallback; # systemapi
+    AHeapInfo_create; # systemapi
 };
 
 PRIVATE {

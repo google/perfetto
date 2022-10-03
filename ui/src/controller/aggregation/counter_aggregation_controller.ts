@@ -16,7 +16,7 @@ import {ColumnDef} from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
 import {Area, Sorting} from '../../common/state';
 import {toNs} from '../../common/time';
-import {Config, COUNTER_TRACK_KIND} from '../../tracks/counter/common';
+import {Config, COUNTER_TRACK_KIND} from '../../tracks/counter';
 import {globals} from '../globals';
 
 import {AggregationController} from './aggregation_controller';

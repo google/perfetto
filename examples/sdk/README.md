@@ -15,7 +15,7 @@ Dependencies:
 First, check out the latest Perfetto release:
 
 ```bash
-git clone https://android.googlesource.com/platform/external/perfetto -b v26.0
+git clone https://android.googlesource.com/platform/external/perfetto -b v29.0
 ```
 
 Then, build using CMake:
@@ -25,6 +25,11 @@ cd perfetto/examples/sdk
 cmake -B build
 cmake --build build
 ```
+
+Note: If amalgamated source files are not present, generate them using
+`cd perfetto ; tools/gen_amalgamated --output sdk/perfetto`.
+[Learn more](https://perfetto.dev/docs/contributing/sdk-releasing#building-and-tagging-the-release)
+at the release section.
 
 ## Track event example
 

@@ -120,7 +120,7 @@ bool AndroidGameInterventionListDataSource::
       package = nullptr;
   perfetto::protos::pbzero::AndroidGameInterventionList_GameModeInfo*
       game_mode_info = nullptr;
-  for (base::StringSplitter string_splitter(line, ' '); string_splitter.Next();
+  for (base::StringSplitter string_splitter(line, '\t'); string_splitter.Next();
        ++idx) {
     // check if package name is in the name filter
     // if not we skip parsing this line.
@@ -161,7 +161,8 @@ bool AndroidGameInterventionListDataSource::
         break;
       }
       case 3:
-      case 5: {
+      case 5:
+      case 7: {
         base::Optional<uint32_t> game_mode =
             base::CStringToUInt32(string_splitter.cur_token());
         if (game_mode == base::nullopt) {
@@ -174,7 +175,8 @@ bool AndroidGameInterventionListDataSource::
         break;
       }
       case 4:
-      case 6: {
+      case 6:
+      case 8: {
         for (base::StringSplitter intervention_splitter(
                  string_splitter.cur_token(), ',');
              intervention_splitter.Next();) {

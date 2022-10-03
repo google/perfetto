@@ -147,6 +147,7 @@ source_set("producer_unittests") {
   ]
   sources = [
     "event_config_unittest.cc",
+    "perf_producer_unittest.cc",
     "unwind_queue_unittest.cc",
   ]
 }

@@ -15,14 +15,12 @@
  */
 #include "src/trace_processor/importers/ftrace/thread_state_tracker.h"
 
-#include "src/trace_processor/types/trace_processor_context.h"
-
 namespace perfetto {
 namespace trace_processor {
-ThreadStateTracker::ThreadStateTracker(TraceProcessorContext* context)
-    : context_(context),
-      running_string_id_(context->storage->InternString("Running")),
-      runnable_string_id_(context->storage->InternString("R")) {}
+ThreadStateTracker::ThreadStateTracker(TraceStorage* storage)
+    : storage_(storage),
+      running_string_id_(storage->InternString("Running")),
+      runnable_string_id_(storage->InternString("R")) {}
 ThreadStateTracker::~ThreadStateTracker() = default;
 
 void ThreadStateTracker::PushSchedSwitchEvent(int64_t event_ts,
@@ -113,8 +111,7 @@ void ThreadStateTracker::AddOpenState(int64_t ts,
   row.dur = -1;
   row.utid = utid;
   row.state = state;
-  auto row_num =
-      context_->storage->mutable_thread_state_table()->Insert(row).row_number;
+  auto row_num = storage_->mutable_thread_state_table()->Insert(row).row_number;
 
   if (utid >= prev_row_numbers_for_thread_.size()) {
     prev_row_numbers_for_thread_.resize(utid + 1);

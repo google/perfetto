@@ -17,6 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_TRACKER_H_
 
+#include <unordered_set>
+
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -105,7 +107,8 @@ class TrackEventTracker {
   // TrackTracker.
   base::Optional<TrackId> GetDescriptorTrack(
       uint64_t uuid,
-      StringId event_name = kNullStringId);
+      StringId event_name = kNullStringId,
+      base::Optional<uint32_t> packet_sequence_id = base::nullopt);
 
   // Converts the given counter value to an absolute value in the unit of the
   // counter, applying incremental delta encoding or unit multipliers as
@@ -127,13 +130,7 @@ class TrackEventTracker {
   // the sequence identified by |packet_sequence_id|.
   void OnIncrementalStateCleared(uint32_t packet_sequence_id);
 
-  // Adds an set of args which could potentiallyh be translated using
-  // information later on in the trace.
-  void AddTranslatableArgs(SliceId, ArgsTracker::CompactArgSet);
-
-  // Called when the trace ends; allows flushing temporary data like
-  // translatable args into the tables.
-  void NotifyEndOfFile();
+  void OnFirstPacketOnSequence(uint32_t packet_sequence_id);
 
  private:
   struct DescriptorTrackReservation {
@@ -203,12 +200,9 @@ class TrackEventTracker {
     UniquePid upid_;
   };
 
-  struct TranslatableArgs {
-    SliceId slice_id;
-    ArgsTracker::CompactArgSet compact_arg_set;
-  };
-
-  base::Optional<TrackId> GetDescriptorTrackImpl(uint64_t uuid);
+  base::Optional<TrackId> GetDescriptorTrackImpl(
+      uint64_t uuid,
+      base::Optional<uint32_t> packet_sequence_id = base::nullopt);
   TrackId CreateTrackFromResolved(const ResolvedDescriptorTrack&);
   base::Optional<ResolvedDescriptorTrack> ResolveDescriptorTrack(
       uint64_t uuid,
@@ -234,13 +228,13 @@ class TrackEventTracker {
   std::map<UniquePid, uint64_t /*uuid*/> descriptor_uuids_by_upid_;
   std::map<UniqueTid, uint64_t /*uuid*/> descriptor_uuids_by_utid_;
 
-  // Args which need to be translated before inserting into the args table.
-  std::vector<TranslatableArgs> translatable_args_;
+  std::unordered_set<uint32_t> sequences_with_first_packet_;
 
   const StringId source_key_ = kNullStringId;
   const StringId source_id_key_ = kNullStringId;
   const StringId is_root_in_scope_key_ = kNullStringId;
   const StringId category_key_ = kNullStringId;
+  const StringId has_first_packet_on_sequence_key_id_ = kNullStringId;
 
   const StringId descriptor_source_ = kNullStringId;
 

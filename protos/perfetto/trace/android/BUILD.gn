@@ -20,6 +20,7 @@ perfetto_proto_library("@TYPE@") {
   sources = [
     "android_game_intervention_list.proto",
     "android_log.proto",
+    "android_system_property.proto",
     "camera_event.proto",
     "frame_timeline_event.proto",
     "gpu_mem_event.proto",

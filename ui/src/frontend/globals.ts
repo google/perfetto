@@ -24,7 +24,7 @@ import {createEmptyState} from '../common/empty_state';
 import {Engine} from '../common/engine';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
-import {CallsiteInfo, EngineConfig, State} from '../common/state';
+import {CallsiteInfo, EngineConfig, ProfileType, State} from '../common/state';
 import {fromNs, toNs} from '../common/time';
 
 import {Analytics, initAnalytics} from './analytics';
@@ -121,7 +121,7 @@ export interface ThreadStateDetails {
 }
 
 export interface FlamegraphDetails {
-  type?: string;
+  type?: ProfileType;
   id?: number;
   startNs?: number;
   durNs?: number;

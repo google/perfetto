@@ -75,10 +75,10 @@ TEST(SanitizerTests, LSAN_LeakCppNew) {
   EXPECT_DEATH(
       {
         std::unique_ptr<int> alloc(new int(1));
-        *reinterpret_cast<volatile char*>(alloc.get()) = 1;
+        *reinterpret_cast<volatile int*>(alloc.get()) = 1;
         alloc.release();
         alloc.reset(new int(2));
-        *reinterpret_cast<volatile char*>(alloc.get()) = 2;
+        *reinterpret_cast<volatile int*>(alloc.get()) = 2;
         exit(0);  // LSan runs on the atexit handler.
       },
       "LeakSanitizer:.*detected memory leaks");

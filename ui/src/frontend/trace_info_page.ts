@@ -149,6 +149,96 @@ class TraceMetadata implements m.ClassComponent {
   }
 }
 
+class AndroidGameInterventionList implements m.ClassComponent {
+  private queryDispatched = false;
+  private readonly QUERY_ID = 'info_android_game_intervention_list';
+
+  view() {
+    if (!this.queryDispatched) {
+      this.queryDispatched = true;
+      globals.dispatch(Actions.executeQuery({
+        queryId: this.QUERY_ID,
+        query: `select
+                package_name,
+                uid,
+                current_mode,
+                standard_mode_supported,
+                standard_mode_downscale,
+                standard_mode_use_angle,
+                standard_mode_fps,
+                perf_mode_supported,
+                perf_mode_downscale,
+                perf_mode_use_angle,
+                perf_mode_fps,
+                battery_mode_supported,
+                battery_mode_downscale,
+                battery_mode_use_angle,
+                battery_mode_fps
+                from android_game_intervention_list`,
+      }));
+    }
+
+    const resp = globals.queryResults.get(this.QUERY_ID) as QueryResponse;
+    if (resp === undefined || resp.totalRowCount === 0) {
+      return m('');
+    }
+
+    const tableRows = [];
+    let standardInterventions = '';
+    let perfInterventions = '';
+    let batteryInterventions = '';
+    for (const row of resp.rows) {
+      if (row.standard_mode_supported) {
+        standardInterventions =
+            `angle=${row.standard_mode_use_angle},downscale=${
+                row.standard_mode_downscale},fps=${row.standard_mode_fps}`;
+      } else {
+        standardInterventions = 'Not supported';
+      }
+
+      if (row.perf_mode_supported) {
+        perfInterventions = `angle=${row.perf_mode_use_angle},downscale=${
+            row.perf_mode_downscale},fps=${row.perf_mode_fps}`;
+      } else {
+        perfInterventions = 'Not supported';
+      }
+
+      if (row.battery_mode_supported) {
+        batteryInterventions = `angle=${row.battery_mode_use_angle},downscale=${
+            row.battery_mode_downscale},fps=${row.battery_mode_fps}`;
+      } else {
+        batteryInterventions = 'Not supported';
+      }
+      tableRows.push(m(
+          'tr',
+          m('td.name', `${row.package_name}`),
+          m('td', `${row.current_mode}`),
+          m('td', standardInterventions),
+          m('td', perfInterventions),
+          m('td', batteryInterventions),
+          ));
+    }
+
+    return m(
+        'section',
+        m('h2', 'Game Intervention List'),
+        m(
+            'table',
+            m('thead',
+              m(
+                  'tr',
+                  m('td', 'Name'),
+                  m('td', 'Current mode'),
+                  m('td', 'Standard mode interventions'),
+                  m('td', 'Performance mode interventions'),
+                  m('td', 'Battery mode interventions'),
+                  )),
+            m('tbody', tableRows),
+            ),
+    );
+  }
+}
+
 class PackageList implements m.ClassComponent {
   private queryDispatched = false;
   private readonly QUERY_ID = 'info_package_list';
@@ -224,6 +314,7 @@ export const TraceInfoPage = createPage({
         }),
         m(TraceMetadata),
         m(PackageList),
+        m(AndroidGameInterventionList),
         m(StatsSection, {
           queryId: 'info_all',
           title: 'Debugging stats',

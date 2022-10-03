@@ -90,35 +90,35 @@ class MacroTable : public Table {
   MacroTable(StringPool* pool, const Table* parent)
       : Table(pool), allow_inserts_(true), parent_(parent) {
     if (!parent) {
-      row_maps_.emplace_back();
+      overlays_.emplace_back();
       columns_.emplace_back(Column::IdColumn(this, 0, 0));
       columns_.emplace_back(
           Column("type", &type_, Column::kNonNull, this, 1, 0));
       return;
     }
 
-    row_maps_.resize(parent->row_maps().size() + 1);
+    overlays_.resize(parent->overlays().size() + 1);
     for (const Column& col : parent->columns()) {
       columns_.emplace_back(col, this, col.index_in_table(),
-                            col.row_map_index());
+                            col.overlay_index());
     }
   }
 
   // Constructor for tables created by SelectAndExtendParent.
   MacroTable(StringPool* pool,
              const Table& parent,
-             const RowMap& parent_selector)
+             const RowMap& parent_overlay)
       : Table(pool), allow_inserts_(false) {
-    row_count_ = parent_selector.size();
-    for (const auto& rm : parent.row_maps()) {
-      row_maps_.emplace_back(rm.SelectRows(parent_selector));
-      PERFETTO_DCHECK(row_maps_.back().size() == row_count_);
+    row_count_ = parent_overlay.size();
+    for (const auto& rm : parent.overlays()) {
+      overlays_.emplace_back(rm.SelectRows(parent_overlay));
+      PERFETTO_DCHECK(overlays_.back().size() == row_count_);
     }
-    row_maps_.emplace_back(RowMap(0, row_count_));
+    overlays_.emplace_back(ColumnStorageOverlay(row_count_));
 
     for (const Column& col : parent.columns()) {
       columns_.emplace_back(col, this, col.index_in_table(),
-                            col.row_map_index());
+                            col.overlay_index());
     }
   }
   ~MacroTable() override;
@@ -131,31 +131,31 @@ class MacroTable : public Table {
   MacroTable(MacroTable&&) = delete;
   MacroTable& operator=(MacroTable&&) noexcept = delete;
 
-  void UpdateRowMapsAfterParentInsert() {
+  void UpdateOverlaysAfterParentInsert() {
     // Add the last inserted row in each of the parent row maps to the
     // corresponding row map in the child.
-    for (uint32_t i = 0; i < parent_->row_maps().size(); ++i) {
-      const RowMap& parent_rm = parent_->row_maps()[i];
-      row_maps_[i].Insert(parent_rm.Get(parent_rm.size() - 1));
+    for (uint32_t i = 0; i < parent_->overlays().size(); ++i) {
+      const ColumnStorageOverlay& parent_rm = parent_->overlays()[i];
+      overlays_[i].Insert(parent_rm.Get(parent_rm.size() - 1));
     }
   }
 
-  void UpdateSelfRowMapAfterInsert() {
+  void UpdateSelfOverlayAfterInsert() {
     // Also add the index of the new row to the identity row map and increment
     // the size.
-    row_maps_.back().Insert(row_count_++);
+    overlays_.back().Insert(row_count_++);
   }
 
-  std::vector<RowMap> FilterAndSelectRowMaps(
+  std::vector<ColumnStorageOverlay> FilterAndApplyToOverlays(
       const std::vector<Constraint>& cs,
       RowMap::OptimizeFor optimize_for) const {
     RowMap rm = FilterToRowMap(cs, optimize_for);
-    std::vector<RowMap> rms;
-    rms.reserve(row_maps_.size());
-    for (uint32_t i = 0; i < row_maps_.size(); ++i) {
-      rms.emplace_back(row_maps_[i].SelectRows(rm));
+    std::vector<ColumnStorageOverlay> overlays;
+    overlays.reserve(overlays_.size());
+    for (uint32_t i = 0; i < overlays_.size(); ++i) {
+      overlays.emplace_back(overlays_[i].SelectRows(rm));
     }
-    return rms;
+    return overlays;
   }
 
   // Stores whether inserts are allowed into this macro table; by default
@@ -192,7 +192,7 @@ class AbstractConstIterator {
   explicit operator bool() const { return its_[0]; }
 
   Iterator& operator++() {
-    for (RowMap::Iterator& it : its_) {
+    for (ColumnStorageOverlay::Iterator& it : its_) {
       it.Next();
     }
     return *this_it();
@@ -210,19 +210,19 @@ class AbstractConstIterator {
 
  protected:
   explicit AbstractConstIterator(const MacroTable* table,
-                                 std::vector<RowMap> row_maps)
-      : row_maps_(std::move(row_maps)), table_(table) {
+                                 std::vector<ColumnStorageOverlay> overlays)
+      : overlays_(std::move(overlays)), table_(table) {
     static_assert(std::is_base_of<Table, MacroTable>::value,
                   "Template param should be a subclass of Table.");
 
-    for (const auto& rm : row_maps_) {
+    for (const auto& rm : overlays_) {
       its_.emplace_back(rm.IterateRows());
     }
   }
 
   // Must not be modified as |its_| contains pointers into this vector.
-  std::vector<RowMap> row_maps_;
-  std::vector<RowMap::Iterator> its_;
+  std::vector<ColumnStorageOverlay> overlays_;
+  std::vector<ColumnStorageOverlay::Iterator> its_;
 
   const MacroTable* table_;
 
@@ -402,15 +402,15 @@ class AbstractConstRowReference {
       PERFETTO_TP_PARENT_COLUMN_FLAG_NO_FLAG_COL)(__VA_ARGS__))
 
 // Creates the sparse vector with the given flags.
-#define PERFETTO_TP_TABLE_CONSTRUCTOR_SV(type, name, ...)          \
-  name##_ = ColumnStorage<TypedColumn<type>::stored_type>::Create< \
-      (name##_flags() & Column::Flag::kDense) != 0>();
+#define PERFETTO_TP_TABLE_CONSTRUCTOR_SV(type, name, ...)        \
+  name##_(ColumnStorage<TypedColumn<type>::stored_type>::Create< \
+          (name##_flags() & Column::Flag::kDense) != 0>()),
 
 // Invokes the chosen column constructor by passing the given args.
 #define PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN(type, name, ...)   \
   columns_.emplace_back(#name, &name##_, name##_flags(), this,  \
                         static_cast<uint32_t>(columns_.size()), \
-                        static_cast<uint32_t>(row_maps_.size()) - 1);
+                        static_cast<uint32_t>(overlays_.size()) - 1);
 
 // Inserts the value into the corresponding column.
 #define PERFETTO_TP_COLUMN_APPEND(type, name, ...) \
@@ -451,8 +451,8 @@ class AbstractConstRowReference {
 
 // Sets the table nullable vector to the parameter passed in the
 // |SelectAndExtendParent| function.
-#define PERFETTO_TP_TABLE_EXTEND_SET_NV(type, name, ...)  \
-  PERFETTO_DCHECK(name.size() == parent_selector.size()); \
+#define PERFETTO_TP_TABLE_EXTEND_SET_NV(type, name, ...) \
+  PERFETTO_DCHECK(name.size() == parent_overlay.size()); \
   name##_ = std::move(name);
 
 // Definition used as the parent of root tables.
@@ -473,14 +473,14 @@ class AbstractConstRowReference {
 #define PERFETTO_TP_TABLE_CONST_IT_GETTER(type, name, ...)  \
   type name() const {                                       \
     const auto& col = table_->name();                       \
-    return col.GetAtIdx(its_[col.row_map_index()].index()); \
+    return col.GetAtIdx(its_[col.overlay_index()].index()); \
   }
 
 // Defines the setter for the column value in the Iterator.
 #define PERFETTO_TP_TABLE_IT_SETTER(type, name, ...)        \
   void set_##name(TypedColumn<type>::non_optional_type v) { \
     auto* col = mutable_table_->mutable_##name();           \
-    col->SetAtIdx(its_[col->row_map_index()].index(), v);   \
+    col->SetAtIdx(its_[col->overlay_index()].index(), v);   \
   }
 
 // Defines the column index constexpr declaration.
@@ -682,7 +682,7 @@ class AbstractConstRowReference {
      * Strongly typed const iterator for this macro table.                    \
      *                                                                        \
      * Allows efficient retrieval of values from this table without having to \
-     * deal with row numbers, RowMaps or indices.                             \
+     * deal with row numbers, ColumnStorageOverlays or indices.               \
      */                                                                       \
     class ConstIterator : public AbstractConstIterator {                      \
      public:                                                                  \
@@ -701,15 +701,17 @@ class AbstractConstRowReference {
        * Must not be public to avoid buggy code because of inheritance        \
        * without virtual destructor.                                          \
        */                                                                     \
-      explicit ConstIterator(const class_name* table, std::vector<RowMap> rm) \
-          : AbstractConstIterator(table, std::move(rm)) {}                    \
+      explicit ConstIterator(const class_name* table,                         \
+                             std::vector<ColumnStorageOverlay> overlays)      \
+          : AbstractConstIterator(table, std::move(overlays)) {}              \
                                                                               \
       uint32_t CurrentRowNumber() const {                                     \
         /*                                                                    \
-         * Because the last RowMap belongs to this table it will be dense     \
-         * (i.e. every row in the table will be part of this RowMap + will    \
-         * be represented with a range). This means that the index() of the   \
-         * last RowMap iterator is precisely the row number in table!         \
+         * Because the last ColumnStorageOverlay belongs to this table it     \
+         * will be dense (i.e. every row in the table will be part of this    \
+         * ColumnStorageOverlay + will be represented with a range). This     \
+         * means that the index() of the last ColumnStorageOverlay iterator   \
+         * is precisely the row number in table!                              \
          */                                                                   \
         return its_.back().index();                                           \
       }                                                                       \
@@ -748,30 +750,27 @@ class AbstractConstRowReference {
        * Must not be public to avoid buggy code because of inheritance        \
        * without virtual destructor.                                          \
        */                                                                     \
-      explicit Iterator(class_name* table, std::vector<RowMap> rms)           \
-          : ConstIterator(table, std::move(rms)), mutable_table_(table) {}    \
+      explicit Iterator(class_name* table,                                    \
+                        std::vector<ColumnStorageOverlay> overlays)           \
+          : ConstIterator(table, std::move(overlays)),                        \
+            mutable_table_(table) {}                                          \
                                                                               \
       class_name* mutable_table_ = nullptr;                                   \
     };                                                                        \
                                                                               \
     class_name(StringPool* pool, parent_class_name* parent)                   \
-        : macros_internal::MacroTable(pool, parent), parent_(parent) {        \
+        : macros_internal::MacroTable(pool, parent),                          \
+          PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_SV)    \
+              parent_(parent) {                                               \
       PERFETTO_CHECK(kIsRootTable == (parent == nullptr));                    \
                                                                               \
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_STATIC_ASSERT_FLAG)      \
                                                                               \
       /*                                                                      \
        * Expands to                                                           \
-       * col1_ = NullableVector<col1_type>(mode)                              \
-       * ...                                                                  \
-       */                                                                     \
-      PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_SV);       \
-                                                                              \
-      /*                                                                      \
-       * Expands to                                                           \
        * columns_.emplace_back("col1", col1_, Column::kNoFlag, this,          \
        *                       static_cast<uint32_t>(columns_.size()),        \
-       *                       static_cast<uint32_t>(row_maps_.size()) - 1);  \
+       *                       static_cast<uint32_t>(overlays_.size()) - 1);  \
        * ...                                                                  \
        */                                                                     \
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN);   \
@@ -789,7 +788,7 @@ class AbstractConstRowReference {
       } else {                                                                \
         PERFETTO_DCHECK(parent_);                                             \
         id = Id{parent_->Insert(row).id};                                     \
-        UpdateRowMapsAfterParentInsert();                                     \
+        UpdateOverlaysAfterParentInsert();                                    \
       }                                                                       \
                                                                               \
       /*                                                                      \
@@ -799,7 +798,7 @@ class AbstractConstRowReference {
        */                                                                     \
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_COLUMN_APPEND);              \
                                                                               \
-      UpdateSelfRowMapAfterInsert();                                          \
+      UpdateSelfOverlayAfterInsert();                                         \
       return {id, row_number, RowReference(this, row_number),                 \
               RowNumber(row_number)};                                         \
     }                                                                         \
@@ -821,24 +820,24 @@ class AbstractConstRowReference {
                                                                               \
     /* Iterates the table. */                                                 \
     ConstIterator IterateRows() const {                                       \
-      return ConstIterator(this, CopyRowMaps());                              \
+      return ConstIterator(this, CopyOverlays());                             \
     }                                                                         \
                                                                               \
     /* Iterates the table. */                                                 \
-    Iterator IterateRows() { return Iterator(this, CopyRowMaps()); }          \
+    Iterator IterateRows() { return Iterator(this, CopyOverlays()); }         \
                                                                               \
     /* Filters the Table using the specified filter constraints. */           \
     ConstIterator FilterToIterator(                                           \
         const std::vector<Constraint>& cs,                                    \
         RowMap::OptimizeFor opt = RowMap::OptimizeFor::kMemory) const {       \
-      return ConstIterator(this, FilterAndSelectRowMaps(cs, opt));            \
+      return ConstIterator(this, FilterAndApplyToOverlays(cs, opt));          \
     }                                                                         \
                                                                               \
     /* Filters the Table using the specified filter constraints. */           \
     Iterator FilterToIterator(                                                \
         const std::vector<Constraint>& cs,                                    \
         RowMap::OptimizeFor opt = RowMap::OptimizeFor::kMemory) {             \
-      return Iterator(this, FilterAndSelectRowMaps(cs, opt));                 \
+      return Iterator(this, FilterAndApplyToOverlays(cs, opt));               \
     }                                                                         \
                                                                               \
     /* Returns a ConstRowReference to the row pointed to by |find_id|. */     \
@@ -887,12 +886,12 @@ class AbstractConstRowReference {
      */                                                                       \
     static std::unique_ptr<Table> SelectAndExtendParent(                      \
         const parent_class_name& parent,                                      \
-        std::vector<parent_class_name::RowNumber> parent_row_selector,        \
+        std::vector<parent_class_name::RowNumber> parent_row_overlay,         \
         PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_EXTEND_PARAM)        \
             std::nullptr_t = nullptr) {                                       \
-      std::vector<uint32_t> prs_untyped(parent_row_selector.size());          \
-      for (uint32_t i = 0; i < parent_row_selector.size(); ++i) {             \
-        prs_untyped[i] = parent_row_selector[i].row_number();                 \
+      std::vector<uint32_t> prs_untyped(parent_row_overlay.size());           \
+      for (uint32_t i = 0; i < parent_row_overlay.size(); ++i) {              \
+        prs_untyped[i] = parent_row_overlay[i].row_number();                  \
       }                                                                       \
       return std::unique_ptr<Table>(new class_name(                           \
           parent.string_pool(), parent, RowMap(std::move(prs_untyped)),       \
@@ -917,10 +916,10 @@ class AbstractConstRowReference {
    private:                                                                   \
     class_name(StringPool* pool,                                              \
                const parent_class_name& parent,                               \
-               RowMap parent_selector,                                        \
+               RowMap parent_overlay,                                         \
                PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_EXTEND_PARAM) \
                    std::nullptr_t = nullptr)                                  \
-        : macros_internal::MacroTable(pool, parent, parent_selector) {        \
+        : macros_internal::MacroTable(pool, parent, parent_overlay) {         \
       PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_TABLE_STATIC_ASSERT_FLAG)      \
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_EXTEND_SET_NV)         \
                                                                               \
@@ -928,13 +927,11 @@ class AbstractConstRowReference {
        * Expands to                                                           \
        * columns_.emplace_back("col1", col1_, Column::kNoFlag, this,          \
        *                       static_cast<uint32_t>(columns_.size()),        \
-       *                       static_cast<uint32_t>(row_maps_.size()) - 1);  \
+       *                       static_cast<uint32_t>(overlays_.size()) - 1);  \
        * ...                                                                  \
        */                                                                     \
       PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_CONSTRUCTOR_COLUMN);   \
     }                                                                         \
-                                                                              \
-    parent_class_name* parent_ = nullptr;                                     \
                                                                               \
     /*                                                                        \
      * Expands to                                                             \
@@ -942,6 +939,8 @@ class AbstractConstRowReference {
      * ...                                                                    \
      */                                                                       \
     PERFETTO_TP_TABLE_COLUMNS(DEF, PERFETTO_TP_TABLE_MEMBER)                  \
+                                                                              \
+    parent_class_name* parent_ = nullptr;                                     \
   }
 
 }  // namespace trace_processor

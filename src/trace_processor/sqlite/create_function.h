@@ -54,6 +54,8 @@ struct CreateFunction : public SqlFunction {
     State* state;
   };
 
+  static constexpr bool kVoidReturn = true;
+
   static base::Status Run(Context* ctx,
                           size_t argc,
                           sqlite3_value** argv,

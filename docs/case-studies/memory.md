@@ -353,14 +353,14 @@ shows.
 
 The tabs that are available are
 
-* **space**: how many bytes were allocated but not freed at this callstack the
-  moment the dump was created.
-* **alloc\_space**: how many bytes were allocated (including ones freed at the
+* **Unreleased size**: how many bytes were allocated but not freed at this
+  callstack the moment the dump was created.
+* **Total size**: how many bytes were allocated (including ones freed at the
   moment of the dump) at this callstack
-* **objects**: how many allocations without matching frees were sampled at this
-  callstack.
-* **alloc\_objects**: how many allocations (including ones with matching frees)
-  were sampled at this callstack.
+* **Unreleased count**: how many allocations without matching frees were done at
+  this callstack.
+* **Total count**: how many allocations (including ones with matching frees)
+  were done at this callstack.
 
 The default view will show you all allocations that were done while the
 profile was running but that weren't freed (the **space** tab).

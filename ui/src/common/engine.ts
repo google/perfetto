@@ -20,6 +20,7 @@ import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
   ComputeMetricArgs,
   ComputeMetricResult,
+  DisableAndReadMetatraceResult,
   QueryArgs,
 } from './protos';
 import {NUM, NUM_NULL, STR} from './query_result';
@@ -76,6 +77,8 @@ export abstract class Engine {
   private pendingQueries = new Array<WritableQueryResult>();
   private pendingRestoreTables = new Array<Deferred<void>>();
   private pendingComputeMetrics = new Array<Deferred<ComputeMetricResult>>();
+  private pendingReadMetatrace?: Deferred<DisableAndReadMetatraceResult>;
+  private _isMetatracingEnabled = false;
 
   constructor(tracker?: LoadingTracker) {
     this.loadingTracker = tracker ? tracker : new NullLoadingTracker();
@@ -194,6 +197,12 @@ export abstract class Engine {
           pendingComputeMetric.resolve(metricRes);
         }
         break;
+      case TPM.TPM_DISABLE_AND_READ_METATRACE:
+        const metatraceRes =
+            assertExists(rpc.metatrace) as DisableAndReadMetatraceResult;
+        assertExists(this.pendingReadMetatrace).resolve(metatraceRes);
+        this.pendingReadMetatrace = undefined;
+        break;
       default:
         console.log(
             'Unexpected TraceProcessor response received: ', rpc.response);
@@ -282,6 +291,33 @@ export abstract class Engine {
       query: sqlQuery,
     });
     this.pendingQueries.push(result);
+    this.rpcSendRequest(rpc);
+    return result;
+  }
+
+  isMetatracingEnabled(): boolean {
+    return this._isMetatracingEnabled;
+  }
+
+  enableMetatrace() {
+    const rpc = TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_ENABLE_METATRACE;
+    this._isMetatracingEnabled = true;
+    this.rpcSendRequest(rpc);
+  }
+
+  stopAndGetMetatrace(): Promise<DisableAndReadMetatraceResult> {
+    // If we are already finalising a metatrace, ignore the request.
+    if (this.pendingReadMetatrace) {
+      return Promise.reject(new Error('Already finalising a metatrace'));
+    }
+
+    const result = defer<DisableAndReadMetatraceResult>();
+
+    const rpc = TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_DISABLE_AND_READ_METATRACE;
+    this._isMetatracingEnabled = false;
+    this.pendingReadMetatrace = result;
     this.rpcSendRequest(rpc);
     return result;
   }

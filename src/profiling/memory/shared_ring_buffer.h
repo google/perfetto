@@ -115,12 +115,21 @@ class SharedRingBuffer {
       return 0;
     return write_avail(*pos);
   }
+  size_t read_avail() {
+    auto pos = GetPointerPositions();
+    if (!pos)
+      return 0;
+    return read_avail(*pos);
+  }
 
   Buffer BeginWrite(const ScopedSpinlock& spinlock, size_t size);
   void EndWrite(Buffer buf);
 
   Buffer BeginRead();
-  void EndRead(Buffer);
+  // Returns the number bytes read from the shared memory buffer. This is
+  // different than the number of bytes returned in the Buffer, because it
+  // includes the header size.
+  size_t EndRead(Buffer);
 
   Stats GetStats(ScopedSpinlock& spinlock) {
     PERFETTO_DCHECK(spinlock.locked());

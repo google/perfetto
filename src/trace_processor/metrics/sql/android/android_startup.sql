@@ -38,9 +38,6 @@ SELECT RUN_METRIC('android/startup/gc_slices.sql');
 -- Define helper functions for system state.
 SELECT RUN_METRIC('android/startup/system_state.sql');
 
--- Define process metadata functions.
-SELECT RUN_METRIC('android/process_metadata.sql');
-
 -- Returns the slices for forked processes. Never present in hot starts.
 -- Prefer this over process start_ts, since the process might have
 -- been preforked.
@@ -108,12 +105,18 @@ SELECT CREATE_FUNCTION(
   '
 );
 
--- Define the view 
+-- Define the view
 DROP VIEW IF EXISTS startup_view;
 CREATE VIEW startup_view AS
 SELECT
   AndroidStartupMetric_Startup(
     'startup_id', launches.id,
+    'startup_type', (
+      SELECT lp.launch_type
+      FROM launch_processes lp
+      WHERE lp.launch_id = launches.id
+      LIMIT 1
+    ),
     'package_name', launches.package,
     'process_name', (
       SELECT p.name
@@ -207,15 +210,7 @@ SELECT
       'time_verify_class',
         DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'VerifyClass*'),
       'time_gc_total', (
-        SELECT NULL_IF_EMPTY(STARTUP_SLICE_PROTO(SUM(slice_dur)))
-        FROM thread_slices_for_all_launches slice
-        WHERE
-          launch_id = launches.id AND
-          (
-            slice_name GLOB "*semispace GC" OR
-            slice_name GLOB "*mark sweep GC" OR
-            slice_name GLOB "*concurrent copying GC"
-          )
+        SELECT NULL_IF_EMPTY(STARTUP_SLICE_PROTO(TOTAL_GC_TIME_BY_LAUNCH(launches.id)))
       ),
       'time_lock_contention_thread_main',
         DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
@@ -253,10 +248,14 @@ SELECT
         WHERE thread_name = 'Jit thread pool'
       ),
       'other_processes_spawned_count', (
-        SELECT COUNT(1) FROM process
+        SELECT COUNT(1)
+        FROM process
         WHERE
-          (process.name IS NULL OR process.name != launches.package) AND
-          process.start_ts BETWEEN launches.ts AND launches.ts + launches.dur
+          process.start_ts BETWEEN launches.ts AND launches.ts + launches.dur AND
+          process.upid NOT IN (
+            SELECT upid FROM launch_processes
+            WHERE launch_processes.launch_id = launches.id
+          )
       )
     ),
     'hsc', NULL_IF_EMPTY(AndroidStartupMetric_HscMetrics(
@@ -294,6 +293,105 @@ SELECT
         COUNT_SLICES_CONCURRENT_TO_LAUNCH(launches.id, 'broadcastReceiveReg*'),
       'most_active_non_launch_processes',
         N_MOST_ACTIVE_PROCESS_NAMES_FOR_LAUNCH(launches.id)
+    ),
+    'slow_start_reason', (SELECT RepeatedField(slow_cause)
+      FROM (
+        SELECT 'dex2oat running during launch' AS slow_cause
+        WHERE IS_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*dex2oat64')
+
+        UNION ALL
+        SELECT 'installd running during launch' AS slow_cause
+        WHERE IS_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*installd')
+
+        UNION ALL
+        SELECT 'Main Thread - Time spent in Runnable state'
+        AS slow_cause
+        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'R') > 2e9
+
+        UNION ALL
+        SELECT 'Main Thread - Time spent in interruptible sleep state'
+        AS slow_cause
+        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'S') > 2e9
+
+        UNION ALL
+        SELECT 'Time spent in bindApplication'
+        AS slow_cause
+        WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(launches.id, 'bindApplication') > 2e9
+
+        UNION ALL
+        SELECT 'Time spent in view inflation'
+        AS slow_cause
+        WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(launches.id, 'inflate') > 2e9
+
+        UNION ALL
+        SELECT 'Time spent in ResourcesManager#getResources'
+        AS slow_cause
+        WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(
+          launches.id, 'ResourcesManager#getResources') > 2e9
+
+        UNION ALL
+        SELECT 'Time spent verifying classes'
+        AS slow_cause
+        WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(launches.id, 'VerifyClass*') > 2e9
+
+        UNION ALL
+        SELECT 'JIT Activity'
+        AS slow_cause
+        WHERE THREAD_TIME_FOR_LAUNCH_STATE_AND_THREAD(
+          launches.id,
+          'Running',
+          'Jit thread pool'
+        ) > 2e9
+
+        UNION ALL
+        SELECT 'Main Thread - Lock contention'
+        AS slow_cause
+        WHERE DUR_SUM_MAIN_THREAD_FOR_LAUNCH_AND_SLICE(
+          launches.id,
+          'Lock contention on*'
+        ) > 2e9
+
+        UNION ALL
+        SELECT 'Main Thread - Monitor contention'
+        AS slow_cause
+        WHERE DUR_SUM_MAIN_THREAD_FOR_LAUNCH_AND_SLICE(
+          launches.id,
+          'Lock contention on a monitor*'
+        ) > 2e9
+
+        UNION ALL
+        SELECT 'GC - Total time'
+        WHERE TOTAL_GC_TIME_BY_LAUNCH(launches.id) > 2e9
+
+        UNION ALL
+        SELECT 'GC - Time on CPU'
+        FROM running_gc_slices_materialized
+        WHERE launches.id = launch_id
+        AND sum_dur > 2e9
+
+        UNION ALL
+        SELECT 'JIT compiled methods'
+        WHERE (
+          SELECT COUNT(1)
+          FROM SLICES_FOR_LAUNCH_AND_SLICE_NAME(launches.id, 'JIT compiling*')
+          WHERE thread_name = 'Jit thread pool'
+        ) > 40
+
+        UNION ALL
+        SELECT 'broadcast dispatched count'
+        Where COUNT_SLICES_CONCURRENT_TO_LAUNCH(
+          launches.id,
+          'Broadcast dispatched*'
+        ) > 10
+
+        UNION ALL
+        SELECT 'broadcast received count'
+        WHERE COUNT_SLICES_CONCURRENT_TO_LAUNCH(
+          launches.id,
+          'broadcastReceiveReg*'
+        ) > 10
+
+      )
     )
   ) as startup
 FROM launches;

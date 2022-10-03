@@ -57,6 +57,7 @@ source_set("perfetto_cmd") {
     "../../protos/perfetto/config/ftrace:cpp",
     "../android_stats",
     "../base",
+    "../base:version",
     "../protozero",
     "../tracing/ipc/consumer",
   ]

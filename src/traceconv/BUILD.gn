@@ -114,6 +114,7 @@ source_set("lib") {
 source_set("main") {
   deps = [
     ":lib",
+    "../base:version",
     "../../gn:default_deps",
     "../../include/perfetto/ext/base:base",
   ]

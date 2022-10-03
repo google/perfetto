@@ -178,6 +178,7 @@ struct RunMetric : public SqlFunction {
     TraceProcessor* tp;
     std::vector<SqlMetricFile>* metrics;
   };
+  static constexpr bool kVoidReturn = true;
   static base::Status Run(Context* ctx,
                           size_t argc,
                           sqlite3_value** argv,

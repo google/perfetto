@@ -38,6 +38,7 @@ source_set("service") {
   deps = [
     "../../../gn:default_deps",
     "../../base",
+    "../../base:version",
     "../../tracing/core",
     "../../tracing/core:service",
     "../../tracing/ipc/service",

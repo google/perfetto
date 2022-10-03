@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/proto/profile_module.h"
+#include <string>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -28,11 +29,12 @@
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/importers/proto/profiler_util.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables.h"
-#include "src/trace_processor/timestamped_trace_piece.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/stack_traces_util.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/perf_events.pbzero.h"
@@ -73,41 +75,34 @@ ModuleResult ProfileModule::TokenizePacket(const TracePacket::Decoder& decoder,
   return ModuleResult::Ignored();
 }
 
-void ProfileModule::ParsePacket(const TracePacket::Decoder& decoder,
-                                const TimestampedTracePiece& ttp,
-                                uint32_t field_id) {
+void ProfileModule::ParseTracePacketData(
+    const protos::pbzero::TracePacket::Decoder& decoder,
+    int64_t ts,
+    const TracePacketData& data,
+    uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kStreamingProfilePacketFieldNumber:
-      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
-      ParseStreamingProfilePacket(ttp.timestamp,
-                                  ttp.packet_data.sequence_state.get(),
+      ParseStreamingProfilePacket(ts, data.sequence_state.get(),
                                   decoder.streaming_profile_packet());
       return;
     case TracePacket::kPerfSampleFieldNumber:
-      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
-      ParsePerfSample(ttp.timestamp, ttp.packet_data.sequence_state.get(),
-                      decoder);
+      ParsePerfSample(ts, data.sequence_state.get(), decoder);
       return;
     case TracePacket::kProfilePacketFieldNumber:
-      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
-      ParseProfilePacket(ttp.timestamp, ttp.packet_data.sequence_state.get(),
+      ParseProfilePacket(ts, data.sequence_state.get(),
                          decoder.trusted_packet_sequence_id(),
                          decoder.profile_packet());
       return;
     case TracePacket::kModuleSymbolsFieldNumber:
-      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
       ParseModuleSymbols(decoder.module_symbols());
       return;
     case TracePacket::kDeobfuscationMappingFieldNumber:
-      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
-      ParseDeobfuscationMapping(ttp.timestamp,
-                                ttp.packet_data.sequence_state.get(),
+      ParseDeobfuscationMapping(ts, data.sequence_state.get(),
                                 decoder.trusted_packet_sequence_id(),
                                 decoder.deobfuscation_mapping());
       return;
     case TracePacket::kSmapsPacketFieldNumber:
-      PERFETTO_DCHECK(ttp.type == TimestampedTracePiece::Type::kTracePacket);
-      ParseSmapsPacket(ttp.timestamp, decoder.smaps_packet());
+      ParseSmapsPacket(ts, decoder.smaps_packet());
       return;
   }
 }
@@ -446,7 +441,7 @@ void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
   StringId build_id;
   // TODO(b/148109467): Remove workaround once all active Chrome versions
   // write raw bytes instead of a string as build_id.
-  if (module_symbols.build_id().size == 33) {
+  if (util::IsHexModuleId(module_symbols.build_id())) {
     build_id = context_->storage->InternString(module_symbols.build_id());
   } else {
     build_id = context_->storage->InternString(base::StringView(base::ToHex(
@@ -587,6 +582,19 @@ void ProfileModule::ParseSmapsPacket(int64_t ts, ConstBytes blob) {
          static_cast<int64_t>(e.shared_clean_resident_kb()),
          static_cast<int64_t>(e.locked_kb()),
          static_cast<int64_t>(e.proportional_resident_kb())});
+  }
+}
+
+void ProfileModule::NotifyEndOfFile() {
+  for (auto it = context_->storage->stack_profile_mapping_table().IterateRows();
+       it; ++it) {
+    NullTermStringView path = context_->storage->GetString(it.name());
+    NullTermStringView build_id = context_->storage->GetString(it.build_id());
+
+    if (path.StartsWith("/data/local/tmp/") && build_id.empty()) {
+      context_->storage->IncrementStats(
+          stats::symbolization_tmp_build_id_not_found);
+    }
   }
 }
 

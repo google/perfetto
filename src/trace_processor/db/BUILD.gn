@@ -21,6 +21,7 @@ source_set("db") {
     "column.h",
     "column_storage.cc",
     "column_storage.h",
+    "column_storage_overlay.h",
     "compare.h",
     "table.cc",
     "table.h",
@@ -41,6 +42,7 @@ source_set("db") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
+    "column_storage_overlay_unittest.cc",
     "compare_unittest.cc",
     "table_unittest.cc",
     "view_unittest.cc",
@@ -53,4 +55,16 @@ perfetto_unittest_source_set("unittests") {
     "../tables",
     "../views",
   ]
+}
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":db",
+      "../../../gn:benchmark",
+      "../../../gn:default_deps",
+    ]
+    sources = [ "column_storage_overlay_benchmark.cc" ]
+  }
 }

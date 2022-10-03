@@ -13,8 +13,10 @@
 // limitations under the License.
 
 import {createEmptyRecordConfig} from '../controller/record_config_types';
-import {aggregationKey, columnKey} from '../frontend/pivot_table_redux';
-import {Aggregation} from '../frontend/pivot_table_redux_query_generator';
+import {
+  Aggregation,
+  aggregationKey,
+} from '../frontend/pivot_table_redux_types';
 import {
   autosaveConfigStore,
   recordTargetStore,
@@ -36,7 +38,7 @@ const AUTOLOAD_STARTED_CONFIG_FLAG = featureFlags.register({
   defaultValue: true,
 });
 
-function keyedMap<T>(
+export function keyedMap<T>(
     keyFn: (key: T) => string, ...values: T[]): Map<string, T> {
   const result = new Map<string, T>();
 
@@ -57,24 +59,27 @@ export const COUNT_AGGREGATION: Aggregation = {
 export function createEmptyNonSerializableState(): NonSerializableState {
   return {
     pivotTableRedux: {
-      selectionArea: null,
       queryResult: null,
-      editMode: true,
-      selectedPivotsMap: keyedMap(
-          columnKey,
-          {kind: 'regular', table: 'slice', column: 'category'},
-          {kind: 'regular', table: 'slice', column: 'name'}),
+      selectedSlicePivots: [{kind: 'regular', table: 'slice', column: 'name'}],
+      selectedPivots: [],
       selectedAggregations: keyedMap(
           aggregationKey,
           {
             aggregationFunction: 'SUM',
-            column:
-                {kind: 'regular', table: 'thread_slice', column: 'thread_dur'},
+            column: {kind: 'regular', table: 'slice', column: 'dur'},
+          },
+          {
+            aggregationFunction: 'SUM',
+            column: {kind: 'regular', table: 'slice', column: 'thread_dur'},
           },
           COUNT_AGGREGATION),
       constrainToArea: true,
       queryRequested: false,
       argumentNames: [],
+      sortCriteria: {
+        column: {kind: 'regular', table: 'slice', column: 'dur'},
+        order: 'DESC',
+      },
     },
   };
 }
@@ -89,6 +94,7 @@ export function createEmptyState(): State {
     traceTime: {...defaultTraceTime},
     tracks: {},
     uiTrackIdByTraceTrackId: {},
+    utidToThreadSortKey: {},
     aggregatePreferences: {},
     trackGroups: {},
     visibleTracks: [],
@@ -99,6 +105,7 @@ export function createEmptyState(): State {
     metrics: {},
     permalink: {},
     notes: {},
+    visualisedArgs: [],
 
     recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get() ?
         autosaveConfigStore.get() :

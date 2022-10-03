@@ -18,19 +18,32 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Measure app deadline missed.
+import "protos/perfetto/metrics/android/process_metadata.proto";
+
 message AndroidFrameTimelineMetric {
   message ProcessBreakdown {
-    // Process name
-    optional string process_name = 1;
-    // Count of app deadline missed in the process
-    optional int64 app_deadline_missed_count = 2;
+    optional AndroidProcessMetadata process = 3;
+
+    optional int64 total_frames = 4;
+    optional int64 missed_frames = 5;
+    optional int64 missed_app_frames = 6;
+    optional int64 missed_sf_frames = 7;
+
+    optional int64 frame_dur_max = 8;
+    optional int64 frame_dur_avg = 9;
+    optional int64 frame_dur_p50 = 10;
+    optional int64 frame_dur_p90 = 11;
+    optional int64 frame_dur_p95 = 12;
+    optional int64 frame_dur_p99 = 13;
+
+    reserved 1, 2;
   }
 
-  // Total count for app deadline missed
-  optional int64 app_deadline_missed_total_count = 1;
+  optional int64 total_frames = 4;
+  optional int64 missed_app_frames = 5;
 
-  // Process name and app deadline missed metrics
   repeated ProcessBreakdown process = 2;
+
+  reserved 1;
 }
 

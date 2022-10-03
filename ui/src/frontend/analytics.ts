@@ -35,7 +35,6 @@ export function initAnalytics() {
 }
 
 const gtagGlobals = window as {} as {
-  // tslint:disable-next-line no-any
   dataLayer: any[];
   gtag: (command: string, event: string|Date, args?: {}) => void;
 };

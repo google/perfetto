@@ -21,6 +21,14 @@ config_setting(
 )
 
 config_setting(
+    name = "cpu_arm64",
+    constraint_values = [
+        "@platforms//cpu:arm64",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+config_setting(
     name = "os_linux",
     constraint_values = [
         "@platforms//os:linux",

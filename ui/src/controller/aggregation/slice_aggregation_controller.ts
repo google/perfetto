@@ -19,11 +19,11 @@ import {toNs} from '../../common/time';
 import {
   ASYNC_SLICE_TRACK_KIND,
   Config as AsyncSliceConfig,
-} from '../../tracks/async_slices/common';
+} from '../../tracks/async_slices';
 import {
   Config as SliceConfig,
   SLICE_TRACK_KIND,
-} from '../../tracks/chrome_slices/common';
+} from '../../tracks/chrome_slices';
 import {globals} from '../globals';
 
 import {AggregationController} from './aggregation_controller';
@@ -86,7 +86,7 @@ export class SliceAggregationController extends AggregationController {
       {
         title: 'Name',
         kind: 'STRING',
-        columnConstructor: Uint16Array,
+        columnConstructor: Uint32Array,
         columnId: 'name',
       },
       {
@@ -105,7 +105,7 @@ export class SliceAggregationController extends AggregationController {
       {
         title: 'Occurrences',
         kind: 'NUMBER',
-        columnConstructor: Uint16Array,
+        columnConstructor: Uint32Array,
         columnId: 'occurrences',
         sum: true,
       },

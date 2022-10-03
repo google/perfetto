@@ -13,6 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT RUN_METRIC('experimental/chrome_long_latency.sql') AS suppress_query_output;
+SELECT RUN_METRIC('experimental/chrome_long_latency.sql');
 
 SELECT * FROM long_latency_with_process_info;

@@ -40,9 +40,12 @@ class ProfileModule : public ProtoImporterModule {
       PacketSequenceState* state,
       uint32_t field_id) override;
 
-  void ParsePacket(const protos::pbzero::TracePacket::Decoder& decoder,
-                   const TimestampedTracePiece& ttp,
-                   uint32_t field_id) override;
+  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
+                            int64_t ts,
+                            const TracePacketData& data,
+                            uint32_t field_id) override;
+
+  void NotifyEndOfFile() override;
 
  private:
   // chrome stack sampling:

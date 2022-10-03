@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT RUN_METRIC('chrome/rail_modes.sql') AS suppress_query_output;
+SELECT RUN_METRIC('chrome/rail_modes.sql');
 
 -- Creates a view cpu_time_by_rail_mode containing the CPU time used (across all
 -- cores) for each RAIL Mode slice in combined_overall_rail_slices.

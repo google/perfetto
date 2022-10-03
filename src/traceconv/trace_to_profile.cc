@@ -76,7 +76,7 @@ void MaybeSymbolize(trace_processor::TraceProcessor* tp) {
                                [tp](const std::string& trace_proto) {
                                  IngestTraceOrDie(tp, trace_proto);
                                });
-  tp->NotifyEndOfFile();
+  tp->Flush();
 }
 
 void MaybeDeobfuscate(trace_processor::TraceProcessor* tp) {
@@ -88,7 +88,7 @@ void MaybeDeobfuscate(trace_processor::TraceProcessor* tp) {
       maybe_map, [tp](const std::string& trace_proto) {
         IngestTraceOrDie(tp, trace_proto);
       });
-  tp->NotifyEndOfFile();
+  tp->Flush();
 }
 
 int TraceToProfile(
@@ -105,15 +105,15 @@ int TraceToProfile(
   std::unique_ptr<trace_processor::TraceProcessor> tp =
       trace_processor::TraceProcessor::CreateInstance(config);
 
-  if (!ReadTrace(tp.get(), input))
+  if (!ReadTraceUnfinalized(tp.get(), input))
     return -1;
-
-  tp->NotifyEndOfFile();
+  tp->Flush();
   MaybeSymbolize(tp.get());
   MaybeDeobfuscate(tp.get());
 
   TraceToPprof(tp.get(), &profiles, conversion_mode, conversion_flags, pid,
                timestamps);
+  tp->NotifyEndOfFile();
   if (profiles.empty()) {
     return 0;
   }

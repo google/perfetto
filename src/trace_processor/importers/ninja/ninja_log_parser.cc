@@ -91,22 +91,12 @@ util::Status NinjaLogParser::Parse(TraceBlobView blob) {
       continue;
     }
 
-    // The same log file can contain timestamps for different builds. The only
-    // way we can tell when a new build starts is by detecting the end timestamp
-    // breaking monotonicity.
-    if (last_end_seen_ == 0 || *t_end < last_end_seen_) {
-      // Create a new "process" for each build. In the UI this causes each build
-      // to be nested under a track group. |cur_build_id_| is the fake pid
-      // of the synthesized process.
-      ++cur_build_id_;
-      StringId name_id = ctx_->storage->InternString("Build");
-      ctx_->process_tracker->SetProcessNameIfUnset(
-          ctx_->process_tracker->GetOrCreateProcess(cur_build_id_), name_id);
-    }
-    last_end_seen_ = *t_end;
-
     // If more hashes show up back-to-back with the same timestamps, merge them
     // together as they identify multiple outputs for the same build rule.
+    // TODO(lalitm): this merging should really happen in NotifyEndOfFile
+    // because we want to merge across builds. However, this needs some
+    // non-significant rework of this class so it's not been found to be worth
+    // implementing yet.
     if (!jobs_.empty() && *cmdhash == jobs_.back().hash &&
         *t_start == jobs_.back().start_ms && *t_end == jobs_.back().end_ms) {
       jobs_.back().names.append(" ");
@@ -114,13 +104,13 @@ util::Status NinjaLogParser::Parse(TraceBlobView blob) {
       continue;
     }
 
-    jobs_.emplace_back(cur_build_id_, *t_start, *t_end, *cmdhash, name);
+    jobs_.emplace_back(*t_start, *t_end, *cmdhash, name);
   }
   log_.erase(log_.begin(), log_.begin() + static_cast<ssize_t>(valid_size));
   return util::OkStatus();
 }
 
-// This is called after the last Parase() call. At this point all |jobs_| have
+// This is called after the last Parse() call. At this point all |jobs_| have
 // been populated.
 void NinjaLogParser::NotifyEndOfFile() {
   std::sort(jobs_.begin(), jobs_.end(),
@@ -144,20 +134,14 @@ void NinjaLogParser::NotifyEndOfFile() {
     int64_t busy_until;
     TrackId track_id;
   };
-  std::map<uint32_t /*build_id*/, std::vector<Worker>> workers_by_build;
-
-  // Assign thread ids to worker without conflicting with builds' process ids
-  // (to avoid main-thread auto-mapping).s
-  uint32_t last_worker_id = cur_build_id_;
-
+  std::vector<Worker> workers;
   for (const auto& job : jobs_) {
     Worker* worker = nullptr;
-    auto& workers = workers_by_build[job.build_id];
     for (Worker& cur : workers) {
       // Pick the worker which has the greatest end time (busy_until) <= the
       // job's start time.
       if (cur.busy_until <= job.start_ms) {
-        if (!worker || cur.busy_until > worker->busy_until)
+        if (!worker || worker->busy_until < cur.busy_until)
           worker = &cur;
       }
     }
@@ -165,11 +149,18 @@ void NinjaLogParser::NotifyEndOfFile() {
       // Update the worker's end time with the newly assigned job.
       worker->busy_until = job.end_ms;
     } else {
+      static constexpr uint32_t kSyntheticNinjaPid = 1;
+
       // All workers are busy, allocate a new one.
-      uint32_t worker_id = ++last_worker_id;
-      base::StackString<32> name("Worker %zu", workers.size() + 1);
+      uint32_t worker_id = static_cast<uint32_t>(workers.size()) + 1;
+      ctx_->process_tracker->SetProcessNameIfUnset(
+          ctx_->process_tracker->GetOrCreateProcess(kSyntheticNinjaPid),
+          ctx_->storage->InternString("Build"));
+      auto utid =
+          ctx_->process_tracker->UpdateThread(worker_id, kSyntheticNinjaPid);
+
+      base::StackString<32> name("Worker");
       StringId name_id = ctx_->storage->InternString(name.string_view());
-      auto utid = ctx_->process_tracker->UpdateThread(worker_id, job.build_id);
       ctx_->process_tracker->UpdateThreadNameByUtid(utid, name_id,
                                                     ThreadNamePriority::kOther);
       TrackId track_id = ctx_->track_tracker->InternThreadTrack(utid);

@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/metadata_module.h"
 
 #include "perfetto/ext/base/base64.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
@@ -24,6 +25,7 @@
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_metadata.pbzero.h"
 #include "protos/perfetto/trace/trigger.pbzero.h"
+#include "src/trace_processor/parser_types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -58,11 +60,7 @@ ModuleResult MetadataModule::TokenizePacket(
     }
     case TracePacket::kChromeMetadataFieldNumber: {
       ParseChromeMetadataPacket(decoder.chrome_metadata());
-      // Metadata packets may also contain untyped metadata due to a bug in
-      // Chrome <M92.
-      // TODO(crbug.com/1194914): Replace this with Handled() once the
-      // Chrome-side fix has propagated into all release channels.
-      return ModuleResult::Ignored();
+      return ModuleResult::Handled();
     }
     case TracePacket::kChromeBenchmarkMetadataFieldNumber: {
       ParseChromeBenchmarkMetadata(decoder.chrome_benchmark_metadata());
@@ -72,16 +70,15 @@ ModuleResult MetadataModule::TokenizePacket(
   return ModuleResult::Ignored();
 }
 
-void MetadataModule::ParsePacket(
+void MetadataModule::ParseTracePacketData(
     const protos::pbzero::TracePacket::Decoder& decoder,
-    const TimestampedTracePiece& ttp,
+    int64_t ts,
+    const TracePacketData&,
     uint32_t field_id) {
-  switch (field_id) {
-    case TracePacket::kTriggerFieldNumber:
-      // We handle triggers at parse time rather at tokenization because
-      // we add slices to tables which need to happen post-sorting.
-      ParseTrigger(ttp.timestamp, decoder.trigger());
-      break;
+  if (field_id == TracePacket::kTriggerFieldNumber) {
+    // We handle triggers at parse time rather at tokenization because
+    // we add slices to tables which need to happen post-sorting.
+    ParseTrigger(ts, decoder.trigger());
   }
 }
 
@@ -141,6 +138,15 @@ void MetadataModule::ParseChromeMetadataPacket(ConstBytes blob) {
   // Typed chrome metadata proto. The untyped metadata is parsed below in
   // ParseChromeEvents().
   protos::pbzero::ChromeMetadataPacket::Decoder packet(blob.data, blob.size);
+
+  if (packet.has_background_tracing_metadata()) {
+    auto background_tracing_metadata = packet.background_tracing_metadata();
+    std::string base64 = base::Base64Encode(background_tracing_metadata.data,
+                                            background_tracing_metadata.size);
+    metadata->SetDynamicMetadata(
+        storage->InternString("cr-background_tracing_metadata"),
+        Variadic::String(storage->InternString(base::StringView(base64))));
+  }
 
   if (packet.has_chrome_version_code()) {
     metadata->SetDynamicMetadata(

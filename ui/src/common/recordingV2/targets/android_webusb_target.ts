@@ -12,11 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {fetchWithTimeout} from '../../../base/http_utils';
 import {assertExists} from '../../../base/logging';
+import {VERSION} from '../../../gen/perfetto_version';
 import {AdbConnectionOverWebusb} from '../adb_connection_over_webusb';
+import {
+  CUSTOM_TRACED_CONSUMER_SOCKET_PATH,
+  DEFAULT_TRACED_CONSUMER_SOCKET_PATH,
+  TRACEBOX_DEVICE_PATH,
+  TRACEBOX_FETCH_TIMEOUT,
+} from '../adb_targets_utils';
 import {AdbKeyManager} from '../auth/adb_key_manager';
 import {
-  DynamicTargetInfo,
+  DataSource,
   RecordingTargetV2,
   TargetInfo,
   TracingSession,
@@ -29,7 +37,9 @@ import {TracedTracingSession} from '../traced_tracing_session';
 
 export class AndroidWebusbTarget implements RecordingTargetV2 {
   private adbConnection: AdbConnectionOverWebusb;
-  private dynamicTargetInfo?: DynamicTargetInfo;
+  private androidApiLevel?: number;
+  private consumerSocketPath = DEFAULT_TRACED_CONSUMER_SOCKET_PATH;
+  private dataSources?: DataSource[];
 
   constructor(
       private factory: AndroidWebusbTargetFactory, private device: USBDevice,
@@ -43,7 +53,8 @@ export class AndroidWebusbTarget implements RecordingTargetV2 {
     return {
       targetType: 'ANDROID',
       // The method 'fetchInfo' will populate this after ADB authorization.
-      dynamicTargetInfo: this.dynamicTargetInfo,
+      androidApiLevel: this.androidApiLevel,
+      dataSources: this.dataSources || [],
       name,
     };
   }
@@ -55,25 +66,109 @@ export class AndroidWebusbTarget implements RecordingTargetV2 {
     await this.adbConnection.disconnect(disconnectMessage);
   }
 
+  // Starts a tracing session in order to fetch information such as apiLevel
+  // and dataSources from the device. Then, it cancels the session.
+  async fetchTargetInfo(tracingSessionListener: TracingSessionListener):
+      Promise<void> {
+    const tracingSession =
+        await this.createTracingSession(tracingSessionListener);
+    tracingSession.cancel();
+  }
+
   async createTracingSession(tracingSessionListener: TracingSessionListener):
       Promise<TracingSession> {
     this.adbConnection.onStatus = tracingSessionListener.onStatus;
     this.adbConnection.onDisconnect = tracingSessionListener.onDisconnect;
-    const adbStream =
-        await this.adbConnection.connectSocket('/dev/socket/traced_consumer');
 
-    if (!this.dynamicTargetInfo) {
+    if (!this.androidApiLevel) {
+      // 1. Fetch the API version from the device.
       const version = await this.adbConnection.shellAndGetOutput(
           'getprop ro.build.version.sdk');
-      this.dynamicTargetInfo = {androidApiLevel: Number(version)};
+      this.androidApiLevel = Number(version);
+
+      if (this.factory.onTargetChange) {
+        this.factory.onTargetChange();
+      }
+
+      // 2. For older OS versions we push the tracebox binary.
+      if (this.androidApiLevel < 29) {
+        await this.pushTracebox();
+        this.consumerSocketPath = CUSTOM_TRACED_CONSUMER_SOCKET_PATH;
+
+        await this.adbConnection.shellAndWaitCompletion(
+            this.composeTraceboxCommand('traced'));
+        await this.adbConnection.shellAndWaitCompletion(
+            this.composeTraceboxCommand('traced_probes'));
+      }
+    }
+
+    const adbStream =
+        await this.adbConnection.connectSocket(this.consumerSocketPath);
+
+    // 3. Start a tracing session.
+    const tracingSession =
+        new TracedTracingSession(adbStream, tracingSessionListener);
+    await tracingSession.initConnection();
+
+    if (!this.dataSources) {
+      // 4. Fetch dataSources from QueryServiceState.
+      this.dataSources = await tracingSession.queryServiceState();
+
       if (this.factory.onTargetChange) {
         this.factory.onTargetChange();
       }
     }
-
-    const tracingSession =
-        new TracedTracingSession(adbStream, tracingSessionListener);
-    await tracingSession.initConnection();
     return tracingSession;
+  }
+
+  async pushTracebox() {
+    const arch = await this.fetchArchitecture();
+    const shortVersion = VERSION.split('-')[0];
+    const traceboxBin =
+        await (
+            await fetchWithTimeout(
+                `https://commondatastorage.googleapis.com/perfetto-luci-artifacts/${
+                    shortVersion}/${arch}/tracebox`,
+                {method: 'get'},
+                TRACEBOX_FETCH_TIMEOUT))
+            .arrayBuffer();
+    await this.adbConnection.push(
+        new Uint8Array(traceboxBin), TRACEBOX_DEVICE_PATH);
+
+    // We explicitly set the tracebox permissions because adb does not reliably
+    // set permissions when uploading the binary.
+    await this.adbConnection.shellAndWaitCompletion(
+        `chmod 755 ${TRACEBOX_DEVICE_PATH}`);
+  }
+
+  async fetchArchitecture() {
+    const abiList = await this.adbConnection.shellAndGetOutput(
+        'getprop ro.vendor.product.cpu.abilist');
+    // If multiple ABIs are allowed, the 64bit ones should have higher priority.
+    if (abiList.includes('arm64-v8a')) {
+      return 'android-arm64';
+    } else if (abiList.includes('x86')) {
+      return 'android-x86';
+    } else if (abiList.includes('armeabi-v7a') || abiList.includes('armeabi')) {
+      return 'android-arm';
+    } else if (abiList.includes('x86_64')) {
+      return 'android-x64';
+    }
+    // Most devices have arm64 architectures, so we should return this if
+    // nothing else is found.
+    return 'android-arm64';
+  }
+
+  canConnectWithoutContention(): Promise<boolean> {
+    return this.adbConnection.canConnectWithoutContention();
+  }
+
+  composeTraceboxCommand(applet: string) {
+    // 1. Set the consumer socket.
+    return 'PERFETTO_CONSUMER_SOCK_NAME=@traced_consumer ' +
+        // 2. Set the producer socket.
+        'PERFETTO_PRODUCER_SOCK_NAME=@traced_producer ' +
+        // 3. Start the applet in the background.
+        `/data/local/tmp/tracebox ${applet} --background`;
   }
 }

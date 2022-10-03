@@ -132,6 +132,8 @@ class ArgsTranslationTable {
       "chrome_mojo_event_info.mojo_interface_method.native_symbol.rel_pc";
   static constexpr char kMojoMethodNameKey[] =
       "chrome_mojo_event_info.mojo_method_name";
+  static constexpr char kMojoIntefaceTagKey[] =
+      "chrome_mojo_event_info.mojo_interface_tag";
 
   TraceStorage* storage_;
   StringId interned_chrome_histogram_hash_key_;
@@ -146,6 +148,7 @@ class ArgsTranslationTable {
   StringId interned_mojo_method_mapping_id_;
   StringId interned_mojo_method_rel_pc_;
   StringId interned_mojo_method_name_;
+  StringId interned_mojo_interface_tag_;
 
   base::FlatHashMap<uint64_t, std::string> chrome_histogram_hash_to_name_;
   base::FlatHashMap<uint64_t, std::string> chrome_user_event_hash_to_action_;

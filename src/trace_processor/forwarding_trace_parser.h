@@ -35,6 +35,7 @@ enum TraceType {
   kGzipTraceType,
   kCtraceTraceType,
   kNinjaLogTraceType,
+  kAndroidBugreportTraceType,
 };
 
 TraceType GuessTraceType(const uint8_t* data, size_t size);

@@ -25,10 +25,12 @@ namespace {
 
 using ::testing::AllOf;
 using ::testing::Field;
+using ::testing::HasSubstr;
 using ::testing::InSequence;
 using ::testing::Invoke;
 using ::testing::IsNull;
 using ::testing::MockFunction;
+using ::testing::Not;
 using ::testing::NotNull;
 
 constexpr uint32_t kInstanceIndex = 42;
@@ -126,6 +128,72 @@ TEST_F(InterceptorTraceWriterTest, NewTracePacketLargePacket) {
   tw_.Flush();
 
   EXPECT_EQ(second_packet_size, first_packet_size + 20000u);
+}
+
+TEST_F(InterceptorTraceWriterTest, NewTracePacketTakeWriterLargePacket) {
+  size_t first_packet_size;
+  size_t second_packet_size;
+  EXPECT_CALL(trace_packet_callback_, Call)
+      .WillOnce(Invoke([&](TracePacketCallbackArgs args) {
+        first_packet_size = args.packet_data.size;
+      }))
+      .WillOnce(Invoke([&](TracePacketCallbackArgs args) {
+        second_packet_size = args.packet_data.size;
+      }));
+
+  tw_.NewTracePacket();
+  tw_.FinishTracePacket();
+
+  protozero::ScatteredStreamWriter* writer =
+      tw_.NewTracePacket().TakeStreamWriter();
+  std::vector<uint8_t> large(20000u, 0);
+  writer->WriteBytes(large.data(), large.size());
+  tw_.FinishTracePacket();
+  tw_.Flush();
+
+  EXPECT_EQ(second_packet_size, first_packet_size + 20000u);
+}
+
+TEST_F(InterceptorTraceWriterTest, MixManualTakeAndMessage) {
+  std::string content1 = "AAAAA";
+  std::string content2 = "BBBBB";
+  std::string content3 = "CCCCC";
+  EXPECT_CALL(trace_packet_callback_, Call)
+      .WillOnce(Invoke([&](TracePacketCallbackArgs args) {
+        std::string data = args.packet_data.ToStdString();
+        EXPECT_THAT(data, HasSubstr(content1));
+        EXPECT_THAT(data, Not(HasSubstr(content2)));
+        EXPECT_THAT(data, Not(HasSubstr(content3)));
+      }))
+      .WillOnce(Invoke([&](TracePacketCallbackArgs args) {
+        std::string data = args.packet_data.ToStdString();
+        EXPECT_THAT(data, Not(HasSubstr(content1)));
+        EXPECT_THAT(data, HasSubstr(content2));
+        EXPECT_THAT(data, Not(HasSubstr(content3)));
+      }))
+      .WillOnce(Invoke([&](TracePacketCallbackArgs args) {
+        std::string data = args.packet_data.ToStdString();
+        EXPECT_THAT(data, Not(HasSubstr(content1)));
+        EXPECT_THAT(data, Not(HasSubstr(content2)));
+        EXPECT_THAT(data, HasSubstr(content3));
+      }));
+
+  protozero::ScatteredStreamWriter* writer =
+      tw_.NewTracePacket().TakeStreamWriter();
+  writer->WriteBytes(reinterpret_cast<const uint8_t*>(content1.data()),
+                     content1.size());
+  tw_.FinishTracePacket();
+  {
+    auto msg = tw_.NewTracePacket();
+    msg->AppendRawProtoBytes(reinterpret_cast<const uint8_t*>(content2.data()),
+                             content2.size());
+  }
+  writer = tw_.NewTracePacket().TakeStreamWriter();
+  writer->WriteBytes(reinterpret_cast<const uint8_t*>(content3.data()),
+                     content3.size());
+  tw_.FinishTracePacket();
+
+  tw_.Flush();
 }
 
 TEST_F(InterceptorTraceWriterTest, FlushCallback) {

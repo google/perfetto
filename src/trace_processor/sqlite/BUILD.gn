@@ -25,6 +25,8 @@ if (enable_perfetto_trace_processor_sqlite) {
       "create_view_function.h",
       "db_sqlite_table.cc",
       "db_sqlite_table.h",
+      "pprof_functions.cc",
+      "pprof_functions.h",
       "query_cache.h",
       "register_function.cc",
       "register_function.h",
@@ -56,6 +58,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../storage",
       "../types",
       "../util",
+      "../util:profile_builder",
     ]
     public_deps = [ ":sqlite_minimal" ]
   }

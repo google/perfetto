@@ -17,7 +17,6 @@
 
 from os import sys, path
 
-
 from synth_common import CLONE_THREAD
 import synth_common
 

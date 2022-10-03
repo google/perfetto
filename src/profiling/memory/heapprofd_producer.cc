@@ -617,6 +617,11 @@ void HeapprofdProducer::ShutdownDataSource(DataSource* data_source) {
         if (ds_it != weak_producer->data_sources_.end()) {
           PERFETTO_ELOG("Final dump timed out.");
           DataSource& ds = ds_it->second;
+
+          for (const auto& pid_and_process_state : ds.process_states) {
+            pid_t pid = pid_and_process_state.first;
+            weak_producer->UnwinderForPID(pid).PostPurgeProcess(pid);
+          }
           // Do not dump any stragglers, just trigger the Flush and tear down
           // the data source.
           ds.process_states.clear();

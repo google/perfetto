@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT RUN_METRIC('chrome/scroll_jank.sql') AS suppress_query_output;
+SELECT RUN_METRIC('chrome/scroll_jank.sql');
 
 SELECT (
   -- There are only two valid scrolls (one additional scroll is missing a begin

@@ -20,10 +20,32 @@ executable("sdk_example") {
     "trace_categories.cc",
     "trace_categories.h",
   ]
-  cflags = [ "-DPERFETTO_SDK_EXAMPLE_USE_INTERNAL_HEADERS" ]
+  defines = [ "PERFETTO_SDK_EXAMPLE_USE_INTERNAL_HEADERS" ]
   testonly = true
   deps = [
     "../..:libperfetto_client_experimental",
     "../../gn:default_deps",
+  ]
+}
+
+executable("example_custom_data_source") {
+  sources = [ "example_custom_data_source.cc" ]
+  defines = [ "PERFETTO_SDK_EXAMPLE_USE_INTERNAL_HEADERS" ]
+  testonly = true
+  deps = [
+    "../..:libperfetto_client_experimental",
+    "../../gn:default_deps",
+    "../../src/base",
+  ]
+}
+
+executable("example_startup_trace") {
+  sources = [ "example_startup_trace.cc" ]
+  defines = [ "PERFETTO_SDK_EXAMPLE_USE_INTERNAL_HEADERS" ]
+  testonly = true
+  deps = [
+    "../..:libperfetto_client_experimental",
+    "../../gn:default_deps",
+    "../../src/base",
   ]
 }

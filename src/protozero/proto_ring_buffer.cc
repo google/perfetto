@@ -34,8 +34,8 @@ inline ProtoRingBuffer::Message FramingError() {
 // Tries to decode a length-delimited proto field from |start|.
 // Returns a valid boundary if the preamble is valid and the length is within
 // |end|, or an invalid message otherwise.
-ProtoRingBuffer::Message TryReadMessage(const uint8_t* start,
-                                        const uint8_t* end) {
+ProtoRingBuffer::Message TryReadProtoMessage(const uint8_t* start,
+                                             const uint8_t* end) {
   namespace proto_utils = protozero::proto_utils;
   uint64_t field_tag = 0;
   auto* start_of_len = proto_utils::ParseVarInt(start, end, &field_tag);
@@ -72,11 +72,11 @@ ProtoRingBuffer::Message TryReadMessage(const uint8_t* start,
 
 }  // namespace
 
-ProtoRingBuffer::ProtoRingBuffer()
+RingBufferMessageReader::RingBufferMessageReader()
     : buf_(perfetto::base::PagedMemory::Allocate(kGrowBytes)) {}
-ProtoRingBuffer::~ProtoRingBuffer() = default;
+RingBufferMessageReader::~RingBufferMessageReader() = default;
 
-void ProtoRingBuffer::Append(const void* data_void, size_t data_len) {
+void RingBufferMessageReader::Append(const void* data_void, size_t data_len) {
   if (failed_)
     return;
   const uint8_t* data = static_cast<const uint8_t*>(data_void);
@@ -150,7 +150,7 @@ void ProtoRingBuffer::Append(const void* data_void, size_t data_len) {
   wr_ += data_len;
 }
 
-ProtoRingBuffer::Message ProtoRingBuffer::ReadMessage() {
+RingBufferMessageReader::Message RingBufferMessageReader::ReadMessage() {
   if (failed_)
     return FramingError();
 
@@ -174,13 +174,19 @@ ProtoRingBuffer::Message ProtoRingBuffer::ReadMessage() {
     return msg;  // Return |msg| because it could be a framing error.
   }
 
-  // Note: msg.start is > buf[rd_], because it skips the proto preamble.
-  PERFETTO_DCHECK(msg.start > &buf[rd_]);
   const uint8_t* msg_end = msg.start + msg.len;
   PERFETTO_CHECK(msg_end > &buf[rd_] && msg_end <= &buf[wr_]);
   auto msg_outer_len = static_cast<size_t>(msg_end - &buf[rd_]);
   rd_ += msg_outer_len;
   return msg;
+}
+
+ProtoRingBuffer::ProtoRingBuffer() = default;
+ProtoRingBuffer::~ProtoRingBuffer() = default;
+
+ProtoRingBuffer::Message ProtoRingBuffer::TryReadMessage(const uint8_t* start,
+                                                         const uint8_t* end) {
+  return TryReadProtoMessage(start, end);
 }
 
 }  // namespace protozero

@@ -25,6 +25,7 @@ import sys
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+
 def main():
   errors = 0
   # Don't want to check protos/third_party:
@@ -48,9 +49,8 @@ def main():
           continue
 
         rel_path = os.path.relpath(fpath, ROOT_DIR)
-        sys.stderr.write(
-            ('Proto file %s has inline comment, please move to ' +
-            'the previous line:\t%s') % (rel_path, line))
+        sys.stderr.write(('Proto file %s has inline comment, please move to ' +
+                          'the previous line:\t%s') % (rel_path, line))
         errors += 1
 
   return 0 if errors == 0 else 1

@@ -140,6 +140,13 @@ util::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
         } else {
           return util::ErrStatus(kNoZlibErr);
         }
+      case kAndroidBugreportTraceType:
+        if (context_->android_bugreport_parser) {
+          reader_ = std::move(context_->android_bugreport_parser);
+          break;
+        }
+        return util::ErrStatus("Android Bugreport support is disabled. %s",
+                               kNoZlibErr);
       case kUnknownTraceType:
         // If renaming this error message don't remove the "(ERR:fmt)" part.
         // The UI's error_dialog.ts uses it to make the dialog more graceful.
@@ -176,8 +183,10 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
     return kSystraceTraceType;
 
   // Systrace with leading HTML.
-  if (base::StartsWith(start, "<!DOCTYPE html>") ||
-      base::StartsWith(start, "<html>"))
+  // Both: <!DOCTYPE html> and <!DOCTYPE HTML> have been observed.
+  std::string lower_start = base::ToLower(start);
+  if (base::StartsWith(lower_start, "<!doctype html>") ||
+      base::StartsWith(lower_start, "<html>"))
     return kSystraceTraceType;
 
   // Traces obtained from atrace -z (compress).
@@ -190,7 +199,7 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   if (base::Contains(start, "TRACE:\n"))
     return kSystraceTraceType;
 
-  // Ninja's buils log (.ninja_log).
+  // Ninja's build log (.ninja_log).
   if (base::StartsWith(start, "# ninja log"))
     return kNinjaLogTraceType;
 
@@ -204,6 +213,13 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
 
   if (base::StartsWith(start, "\x0a"))
     return kProtoTraceType;
+
+  // Android bugreport.zip
+  // TODO(primiano). For now we assume any .zip file is a bugreport. In future,
+  // if we want to support different trace formats based on a .zip arachive we
+  // will need an extra layer similar to what we did kGzipTraceType.
+  if (base::StartsWith(start, "PK\x03\x04"))
+    return kAndroidBugreportTraceType;
 
   return kUnknownTraceType;
 }

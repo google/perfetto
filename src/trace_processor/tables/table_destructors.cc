@@ -21,6 +21,7 @@
 #include "src/trace_processor/tables/metadata_tables.h"
 #include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/tables/slice_tables.h"
+#include "src/trace_processor/tables/trace_proto_tables.h"
 #include "src/trace_processor/tables/track_tables.h"
 
 namespace perfetto {
@@ -32,6 +33,8 @@ MacroTable::~MacroTable() = default;
 
 namespace tables {
 // android_tables.h
+AndroidDumpstateTable::~AndroidDumpstateTable() = default;
+AndroidGameInterventionListTable::~AndroidGameInterventionListTable() = default;
 AndroidLogTable::~AndroidLogTable() = default;
 
 // counter_tables.h
@@ -62,14 +65,12 @@ HeapGraphClassTable::~HeapGraphClassTable() = default;
 HeapGraphReferenceTable::~HeapGraphReferenceTable() = default;
 VulkanMemoryAllocationsTable::~VulkanMemoryAllocationsTable() = default;
 PackageListTable::~PackageListTable() = default;
-AndroidGameInterventionListTable::~AndroidGameInterventionListTable() = default;
 ProfilerSmapsTable::~ProfilerSmapsTable() = default;
 GpuCounterGroupTable::~GpuCounterGroupTable() = default;
 
 // slice_tables.h
 SliceTable::~SliceTable() = default;
 FlowTable::~FlowTable() = default;
-ThreadSliceTable::~ThreadSliceTable() = default;
 SchedSliceTable::~SchedSliceTable() = default;
 GpuSliceTable::~GpuSliceTable() = default;
 GraphicsFrameSliceTable::~GraphicsFrameSliceTable() = default;
@@ -92,6 +93,12 @@ IrqCounterTrackTable::~IrqCounterTrackTable() = default;
 SoftirqCounterTrackTable::~SoftirqCounterTrackTable() = default;
 GpuCounterTrackTable::~GpuCounterTrackTable() = default;
 PerfCounterTrackTable::~PerfCounterTrackTable() = default;
+EnergyCounterTrackTable::~EnergyCounterTrackTable() = default;
+UidCounterTrackTable::~UidCounterTrackTable() = default;
+EnergyPerUidCounterTrackTable::~EnergyPerUidCounterTrackTable() = default;
+
+// trace_proto_tables.h
+ExperimentalProtoContentTable::~ExperimentalProtoContentTable() = default;
 
 // memory_tables.h
 MemorySnapshotTable::~MemorySnapshotTable() = default;

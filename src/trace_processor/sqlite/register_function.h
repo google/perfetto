@@ -53,6 +53,15 @@ struct SqlFunction {
   // Can be redefined in any sub-classes to override the context.
   using Context = void;
 
+  // Indicates whether this function is "void" (i.e. doesn't actually want
+  // to return a value). While the function will still return null in SQL
+  // (because SQLite does not actually allow null functions), for accounting
+  // purposes, this null will be ignored when verifying whether this statement
+  // has any output.
+  // Can be redefined in any sub-classes to override it.
+  // If this is set to true, subclasses must not modify |out| or |destructors|.
+  static constexpr bool kVoidReturn = false;
+
   // Struct which holds destructors for strings/bytes returned from the
   // function. Passed as an argument to |Run| to allow implementations to
   // override the destructors.
@@ -78,11 +87,20 @@ struct SqlFunction {
                           Destructors& destructors);
 
   // Executed after the result from |Run| is reported to SQLite.
-  // Allows any pending state to be cleaned up post-copy of results by SQLite.
+  // Allows implementations to verify post-conditions without needing to worry
+  // about overwriting return types.
   //
   // Implementations do not need to define this function; a default no-op
   // implementation will be used in this case.
-  static base::Status Cleanup(Context*);
+  static base::Status VerifyPostConditions(Context*);
+
+  // Executed after the result from |Run| is reported to SQLite.
+  // Allows any pending state to be cleaned up post-copy of results by SQLite:
+  // this function will be called even if |Run| or |PostRun| returned errors.
+  //
+  // Implementations do not need to define this function; a default no-op
+  // implementation will be used in this case.
+  static void Cleanup(Context*);
 };
 
 // Registers a C++ function to be runnable from SQL.
@@ -126,24 +144,48 @@ namespace perfetto {
 namespace trace_processor {
 
 namespace sqlite_internal {
+
+// RAII type to call Function::Cleanup when destroyed.
+template <typename Function>
+struct ScopedCleanup {
+  typename Function::Context* ctx;
+  ~ScopedCleanup() { Function::Cleanup(ctx); }
+};
+
 template <typename Function>
 void WrapSqlFunction(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   using Context = typename Function::Context;
-  auto* ud = static_cast<Context*>(sqlite3_user_data(ctx));
+  Context* ud = static_cast<Context*>(sqlite3_user_data(ctx));
 
+  ScopedCleanup<Function> scoped_cleanup{ud};
   SqlValue value{};
   SqlFunction::Destructors destructors{};
   base::Status status =
       Function::Run(ud, static_cast<size_t>(argc), argv, value, destructors);
-
   if (!status.ok()) {
     sqlite3_result_error(ctx, status.c_message(), -1);
     return;
   }
-  sqlite_utils::ReportSqlValue(ctx, value, destructors.string_destructor,
-                               destructors.bytes_destructor);
 
-  status = Function::Cleanup(ud);
+  if (Function::kVoidReturn) {
+    if (!value.is_null()) {
+      sqlite3_result_error(ctx, "void SQL function returned value", -1);
+      return;
+    }
+
+    // If the function doesn't want to return anything, set the "VOID"
+    // pointer type to a non-null value. Note that because of the weird
+    // way |sqlite3_value_pointer| works, we need to set some value even
+    // if we don't actually read it - just set it to a pointer to an empty
+    // string for this reason.
+    static char kVoidValue[] = "";
+    sqlite3_result_pointer(ctx, kVoidValue, "VOID", nullptr);
+  } else {
+    sqlite_utils::ReportSqlValue(ctx, value, destructors.string_destructor,
+                                 destructors.bytes_destructor);
+  }
+
+  status = Function::VerifyPostConditions(ud);
   if (!status.ok()) {
     sqlite3_result_error(ctx, status.c_message(), -1);
     return;

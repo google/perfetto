@@ -35,7 +35,7 @@ class SystemInfoTracker : public Destructible {
 
   static SystemInfoTracker* GetOrCreate(TraceProcessorContext* context) {
     if (!context->system_info_tracker) {
-      context->system_info_tracker.reset(new SystemInfoTracker(context));
+      context->system_info_tracker.reset(new SystemInfoTracker());
     }
     return static_cast<SystemInfoTracker*>(context->system_info_tracker.get());
   }
@@ -45,7 +45,7 @@ class SystemInfoTracker : public Destructible {
   base::Optional<VersionNumber> GetKernelVersion() { return version_; }
 
  private:
-  explicit SystemInfoTracker(TraceProcessorContext*);
+  explicit SystemInfoTracker();
 
   base::Optional<VersionNumber> version_;
 };

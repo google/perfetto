@@ -34,6 +34,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BLOATY_PATH = os.path.join(ROOT_DIR, 'buildtools', 'bloaty', 'bloaty')
 GN_PATH = os.path.join(ROOT_DIR, 'tools', 'gn')
 
+
 def GetGnArgValueOrNone(arg):
   if 'current' in arg:
     return eval(arg['current']['value'])

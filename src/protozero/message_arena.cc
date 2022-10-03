@@ -27,9 +27,10 @@ namespace protozero {
 MessageArena::MessageArena() {
   // The code below assumes that there is always at least one block.
   blocks_.emplace_front();
-  static_assert(std::alignment_of<decltype(blocks_.back().storage[0])>::value >=
-                    alignof(Message),
-                "MessageArea's storage is not properly aligned");
+  static_assert(
+      std::alignment_of<decltype(blocks_.front().storage[0])>::value >=
+          alignof(Message),
+      "MessageArea's storage is not properly aligned");
 }
 
 MessageArena::~MessageArena() = default;
@@ -37,10 +38,10 @@ MessageArena::~MessageArena() = default;
 Message* MessageArena::NewMessage() {
   PERFETTO_DCHECK(!blocks_.empty());  // Should never become empty.
 
-  Block* block = &blocks_.back();
+  Block* block = &blocks_.front();
   if (PERFETTO_UNLIKELY(block->entries >= Block::kCapacity)) {
-    blocks_.emplace_back();
-    block = &blocks_.back();
+    blocks_.emplace_front();
+    block = &blocks_.front();
   }
   const auto idx = block->entries++;
   void* storage = &block->storage[idx];
@@ -50,7 +51,7 @@ Message* MessageArena::NewMessage() {
 
 void MessageArena::DeleteLastMessageInternal() {
   PERFETTO_DCHECK(!blocks_.empty());  // Should never be empty, see below.
-  Block* block = &blocks_.back();
+  Block* block = &blocks_.front();
   PERFETTO_DCHECK(block->entries > 0);
 
   // This is the reason why there is no ~Message() call here.
@@ -63,8 +64,8 @@ void MessageArena::DeleteLastMessageInternal() {
 
   // Don't remove the first block to avoid malloc/free calls when the root
   // message is reset. Hitting the allocator all the times is a waste of time.
-  if (block->entries == 0 && blocks_.size() > 1) {
-    blocks_.pop_back();
+  if (block->entries == 0 && std::next(blocks_.cbegin()) != blocks_.cend()) {
+    blocks_.pop_front();
   }
 }
 

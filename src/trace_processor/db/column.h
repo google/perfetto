@@ -25,6 +25,7 @@
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column_storage.h"
+#include "src/trace_processor/db/column_storage_overlay.h"
 #include "src/trace_processor/db/compare.h"
 #include "src/trace_processor/db/typed_column_internal.h"
 
@@ -257,7 +258,7 @@ class Column {
                          uint32_t row_map_idx);
 
   // Gets the value of the Column at the given |row|.
-  SqlValue Get(uint32_t row) const { return GetAtIdx(row_map().Get(row)); }
+  SqlValue Get(uint32_t row) const { return GetAtIdx(overlay().Get(row)); }
 
   // Returns the row containing the given value in the Column.
   base::Optional<uint32_t> IndexOf(SqlValue value) const {
@@ -270,7 +271,7 @@ class Column {
       case ColumnType::kInt64:
       case ColumnType::kDouble:
       case ColumnType::kString: {
-        for (uint32_t i = 0; i < row_map().size(); i++) {
+        for (uint32_t i = 0; i < overlay().size(); i++) {
           if (compare::SqlValue(Get(i), value) == 0)
             return i;
         }
@@ -279,7 +280,7 @@ class Column {
       case ColumnType::kId: {
         if (value.type != SqlValue::Type::kLong)
           return base::nullopt;
-        return row_map().RowOf(static_cast<uint32_t>(value.long_value));
+        return overlay().RowOf(static_cast<uint32_t>(value.long_value));
       }
       case ColumnType::kDummy:
         PERFETTO_FATAL("IndexOf not allowed on dummy column");
@@ -329,35 +330,35 @@ class Column {
   // Returns the minimum value in this column. Returns nullopt if this column
   // is empty.
   base::Optional<SqlValue> Min() const {
-    if (row_map().empty())
+    if (overlay().empty())
       return base::nullopt;
 
     if (IsSorted())
       return Get(0);
 
     Iterator b(this, 0);
-    Iterator e(this, row_map().size());
+    Iterator e(this, overlay().size());
     return *std::min_element(b, e, &compare::SqlValueComparator);
   }
 
   // Returns the minimum value in this column. Returns nullopt if this column
   // is empty.
   base::Optional<SqlValue> Max() const {
-    if (row_map().empty())
+    if (overlay().empty())
       return base::nullopt;
 
     if (IsSorted())
-      return Get(row_map().size() - 1);
+      return Get(overlay().size() - 1);
 
     Iterator b(this, 0);
-    Iterator e(this, row_map().size());
+    Iterator e(this, overlay().size());
     return *std::max_element(b, e, &compare::SqlValueComparator);
   }
 
   // Returns the backing RowMap for this Column.
   // This function is defined out of line because of a circular dependency
   // between |Table| and |Column|.
-  const RowMap& row_map() const;
+  const ColumnStorageOverlay& overlay() const;
 
   // Returns the name of the column.
   const char* name() const { return name_; }
@@ -389,46 +390,46 @@ class Column {
   bool IsDummy() const { return type_ == ColumnType::kDummy; }
 
   // Returns the index of the RowMap in the containing table.
-  uint32_t row_map_index() const { return row_map_idx_; }
+  uint32_t overlay_index() const { return overlay_index_; }
 
   // Returns the index of the current column in the containing table.
-  uint32_t index_in_table() const { return col_idx_in_table_; }
+  uint32_t index_in_table() const { return index_in_table_; }
 
   // Returns a Constraint for each type of filter operation for this Column.
   Constraint eq_value(SqlValue value) const {
-    return Constraint{col_idx_in_table_, FilterOp::kEq, value};
+    return Constraint{index_in_table_, FilterOp::kEq, value};
   }
   Constraint gt_value(SqlValue value) const {
-    return Constraint{col_idx_in_table_, FilterOp::kGt, value};
+    return Constraint{index_in_table_, FilterOp::kGt, value};
   }
   Constraint lt_value(SqlValue value) const {
-    return Constraint{col_idx_in_table_, FilterOp::kLt, value};
+    return Constraint{index_in_table_, FilterOp::kLt, value};
   }
   Constraint ne_value(SqlValue value) const {
-    return Constraint{col_idx_in_table_, FilterOp::kNe, value};
+    return Constraint{index_in_table_, FilterOp::kNe, value};
   }
   Constraint ge_value(SqlValue value) const {
-    return Constraint{col_idx_in_table_, FilterOp::kGe, value};
+    return Constraint{index_in_table_, FilterOp::kGe, value};
   }
   Constraint le_value(SqlValue value) const {
-    return Constraint{col_idx_in_table_, FilterOp::kLe, value};
+    return Constraint{index_in_table_, FilterOp::kLe, value};
   }
   Constraint is_not_null() const {
-    return Constraint{col_idx_in_table_, FilterOp::kIsNotNull, SqlValue()};
+    return Constraint{index_in_table_, FilterOp::kIsNotNull, SqlValue()};
   }
   Constraint is_null() const {
-    return Constraint{col_idx_in_table_, FilterOp::kIsNull, SqlValue()};
+    return Constraint{index_in_table_, FilterOp::kIsNull, SqlValue()};
   }
 
   // Returns an Order for each Order type for this Column.
-  Order ascending() const { return Order{col_idx_in_table_, false}; }
-  Order descending() const { return Order{col_idx_in_table_, true}; }
+  Order ascending() const { return Order{index_in_table_, false}; }
+  Order descending() const { return Order{index_in_table_, true}; }
 
   // Returns an iterator to the first entry in this column.
   Iterator begin() const { return Iterator(this, 0); }
 
   // Returns an iterator pointing beyond the last entry in this column.
-  Iterator end() const { return Iterator(this, row_map().size()); }
+  Iterator end() const { return Iterator(this, overlay().size()); }
 
   // Returns whether the given combination of flags when the column has the
   // given type is valid.
@@ -491,7 +492,7 @@ class Column {
          uint32_t flags,
          Table* table,
          uint32_t col_idx_in_table,
-         uint32_t row_map_idx,
+         uint32_t overlay_index,
          ColumnStorageBase* nullable_vector);
 
   Column(const Column&) = delete;
@@ -536,7 +537,7 @@ class Column {
     PERFETTO_DCHECK(value.type == type());
 
     Iterator b(this, 0);
-    Iterator e(this, row_map().size());
+    Iterator e(this, overlay().size());
     switch (op) {
       case FilterOp::kEq: {
         uint32_t beg = std::distance(
@@ -561,13 +562,13 @@ class Column {
       case FilterOp::kGe: {
         uint32_t beg = std::distance(
             b, std::lower_bound(b, e, value, &compare::SqlValueComparator));
-        rm->Intersect(beg, row_map().size());
+        rm->Intersect(beg, overlay().size());
         return true;
       }
       case FilterOp::kGt: {
         uint32_t beg = std::distance(
             b, std::upper_bound(b, e, value, &compare::SqlValueComparator));
-        rm->Intersect(beg, row_map().size());
+        rm->Intersect(beg, overlay().size());
         return true;
       }
       case FilterOp::kNe:
@@ -582,34 +583,34 @@ class Column {
     PERFETTO_DCHECK(!IsNullable());
 
     uint32_t filter_set_id = static_cast<uint32_t>(value);
-    const auto& nv = storage<uint32_t>();
-    const RowMap& col_rm = row_map();
+    const auto& st = storage<uint32_t>();
+    const ColumnStorageOverlay& ov = overlay();
 
     // If the set id is beyond the end of the column, there's no chance that
     // it exists.
-    if (PERFETTO_UNLIKELY(filter_set_id >= col_rm.size())) {
-      *rm = RowMap();
+    if (PERFETTO_UNLIKELY(filter_set_id >= st.size())) {
+      rm->Clear();
       return;
     }
 
-    uint32_t set_id = nv.Get(col_rm.Get(filter_set_id));
+    uint32_t set_id = st.Get(ov.Get(filter_set_id));
 
     // If the set at that index does not equal the set id we're looking for, the
     // set id doesn't exist either.
     if (PERFETTO_UNLIKELY(set_id != filter_set_id)) {
       PERFETTO_DCHECK(set_id < filter_set_id);
-      *rm = RowMap();
+      rm->Clear();
       return;
     }
 
     // Otherwise, find the end of the set and return the intersection for this.
-    for (uint32_t i = set_id + 1; i < col_rm.size(); ++i) {
-      if (nv.Get(col_rm.Get(i)) != filter_set_id) {
+    for (uint32_t i = set_id + 1; i < ov.size(); ++i) {
+      if (st.Get(ov.Get(i)) != filter_set_id) {
         rm->Intersect(set_id, i);
         return;
       }
     }
-    rm->Intersect(set_id, col_rm.size());
+    rm->Intersect(set_id, ov.size());
   }
 
   // Slow path filter method which will perform a full table scan.
@@ -703,8 +704,8 @@ class Column {
   const char* name_ = nullptr;
   uint32_t flags_ = Flag::kNoFlag;
   const Table* table_ = nullptr;
-  uint32_t col_idx_in_table_ = 0;
-  uint32_t row_map_idx_ = 0;
+  uint32_t index_in_table_ = 0;
+  uint32_t overlay_index_ = 0;
   const StringPool* string_pool_ = nullptr;
 };
 

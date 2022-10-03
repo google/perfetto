@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+syntax = "proto2";
+
 package perfetto.protos;
 
 // This is a manual import of ShellSubscription:
@@ -21,8 +23,8 @@ package perfetto.protos;
 // and its transitive dependencies.
 
 message StatsdShellSubscription {
-  repeated SimpleAtomMatcher pushed = 1;
-  repeated PulledAtomSubscription pulled = 2;
+  repeated StatsdSimpleAtomMatcher pushed = 1;
+  repeated StatsdPulledAtomSubscription pulled = 2;
 }
 
 message StatsdPulledAtomSubscription {

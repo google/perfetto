@@ -1,0 +1,32 @@
+packet {
+  timestamp: 1000
+  android_system_property {
+    values {
+      name: "debug.tracing.screen_state"
+      value: "2"
+    }
+    values {
+      name: "debug.tracing.device_state"
+      value: "some_state_from_sysprops"
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 2000
+      pid: 1
+      print {
+        buf: "C|1000|ScreenState|1\n"
+      }
+    }
+    event {
+      timestamp: 3000
+      pid: 1
+      print {
+        buf: "N|1000|DeviceStateChanged|some_state_from_atrace\n"
+      }
+    }
+  }
+}

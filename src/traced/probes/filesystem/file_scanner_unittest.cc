@@ -153,14 +153,14 @@ TEST(FileScannerTest, TestSynchronousFindFiles) {
           Eq(StatFileEntry(
               base::GetTestDataPath(
                   "src/traced/probes/filesystem/testdata/dir1/file1"),
-              protos::pbzero::InodeFileMap_Entry_Type_FILE)),
+              protos::pbzero::InodeFileMap::Entry::Type::FILE)),
           Eq(StatFileEntry(base::GetTestDataPath(
                                "src/traced/probes/filesystem/testdata/file2"),
-                           protos::pbzero::InodeFileMap_Entry_Type_FILE)),
+                           protos::pbzero::InodeFileMap::Entry::Type::FILE)),
           Eq(StatFileEntry(
               base::GetTestDataPath(
                   "src/traced/probes/filesystem/testdata/dir1"),
-              protos::pbzero::InodeFileMap_Entry_Type_DIRECTORY))));
+              protos::pbzero::InodeFileMap::Entry::Type::DIRECTORY))));
 }
 
 TEST(FileScannerTest, TestAsynchronousFindFiles) {
@@ -187,14 +187,14 @@ TEST(FileScannerTest, TestAsynchronousFindFiles) {
           Eq(StatFileEntry(
               base::GetTestDataPath(
                   "src/traced/probes/filesystem/testdata/dir1/file1"),
-              protos::pbzero::InodeFileMap_Entry_Type_FILE)),
+              protos::pbzero::InodeFileMap::Entry::Type::FILE)),
           Eq(StatFileEntry(base::GetTestDataPath(
                                "src/traced/probes/filesystem/testdata/file2"),
-                           protos::pbzero::InodeFileMap_Entry_Type_FILE)),
+                           protos::pbzero::InodeFileMap::Entry::Type::FILE)),
           Eq(StatFileEntry(
               base::GetTestDataPath(
                   "src/traced/probes/filesystem/testdata/dir1"),
-              protos::pbzero::InodeFileMap_Entry_Type_DIRECTORY))));
+              protos::pbzero::InodeFileMap::Entry::Type::DIRECTORY))));
 }
 
 }  // namespace

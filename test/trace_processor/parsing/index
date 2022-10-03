@@ -153,3 +153,6 @@ otheruuids.textproto android_other_traces otheruuids_android_other_traces.out
 
 # Per-process Binder transaction metrics
 android_binder.py android_binder android_binder.out
+
+# Statsd Atoms
+../../data/statsd_atoms.pb all_atoms_test.sql statsd_atoms_all_atoms.out

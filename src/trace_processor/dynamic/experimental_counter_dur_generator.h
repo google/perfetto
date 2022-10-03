@@ -25,7 +25,9 @@ namespace trace_processor {
 
 class ExperimentalCounterDurGenerator : public DynamicTableGenerator {
  public:
-  explicit ExperimentalCounterDurGenerator(const tables::CounterTable& table);
+  using CounterTable = tables::CounterTable;
+
+  explicit ExperimentalCounterDurGenerator(const CounterTable& table);
   virtual ~ExperimentalCounterDurGenerator() override;
 
   Table::Schema CreateSchema() override;
@@ -38,11 +40,11 @@ class ExperimentalCounterDurGenerator : public DynamicTableGenerator {
                             std::unique_ptr<Table>& table_return) override;
 
   // public + static for testing
-  static ColumnStorage<int64_t> ComputeDurColumn(const Table& table);
-  static ColumnStorage<double> ComputeDeltaColumn(const Table& table);
+  static ColumnStorage<int64_t> ComputeDurColumn(const CounterTable& table);
+  static ColumnStorage<double> ComputeDeltaColumn(const CounterTable& table);
 
  private:
-  const tables::CounterTable* counter_table_ = nullptr;
+  const CounterTable* counter_table_ = nullptr;
   std::unique_ptr<Table> counter_dur_table_;
 };
 

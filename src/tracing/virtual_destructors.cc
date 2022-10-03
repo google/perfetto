@@ -46,6 +46,5 @@ TracingTLS::~TracingTLS() {
 }  // namespace internal
 
 TracingBackend::~TracingBackend() = default;
-TracingSession::~TracingSession() = default;
 
 }  // namespace perfetto

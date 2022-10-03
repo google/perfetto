@@ -396,7 +396,7 @@ std::vector<uint8_t> ProtoBuilder::SerializeToProtoBuilderResult() {
   result->set_is_repeated(false);
 
   auto* single = result->set_single();
-  single->set_type(protos::pbzero::FieldDescriptorProto_Type_TYPE_MESSAGE);
+  single->set_type(protos::pbzero::FieldDescriptorProto::Type::TYPE_MESSAGE);
   single->set_type_name(type_name.c_str(), type_name.size());
   single->set_protobuf(serialized.data(), serialized.size());
   return result.SerializeAsArray();

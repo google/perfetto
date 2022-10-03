@@ -15,7 +15,7 @@
 --
 
 SELECT RUN_METRIC('chrome/chrome_thread_slice.sql')
-    AS suppress_query_output;
+   ;
 
 SELECT
   name,

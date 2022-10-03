@@ -58,8 +58,8 @@ LINUX_BUILD_CONFIGS = {
     'linux_msan': ('is_clang=true', 'is_debug=false', 'is_msan=true'),
     'linux_tsan': ('is_clang=true', 'is_debug=false', 'is_tsan=true'),
     'linux_ubsan': ('is_clang=true', 'is_debug=false', 'is_ubsan=true'),
-    'linux_fuzzer': ('is_clang=true', 'is_debug=false', 'is_fuzzer=true',
-                     'is_asan=true'),
+    'linux_fuzzer':
+        ('is_clang=true', 'is_debug=false', 'is_fuzzer=true', 'is_asan=true'),
 }
 
 LINUX_ARCHS = ('arm64',)
@@ -111,8 +111,8 @@ def main():
   gn = os.path.join(ROOT_DIR, 'tools', 'gn')
 
   for config_name, gn_args in iteritems(configs):
-    print('\n\033[32mBuilding %-20s[%s]\033[0m' % (config_name,
-                                                   ','.join(gn_args)))
+    print('\n\033[32mBuilding %-20s[%s]\033[0m' %
+          (config_name, ','.join(gn_args)))
     out_dir = os.path.join(ROOT_DIR, 'out', config_name)
     if not os.path.isdir(out_dir):
       os.mkdir(out_dir)

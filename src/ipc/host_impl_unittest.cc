@@ -183,7 +183,8 @@ class HostImplTest : public ::testing::Test {
     auto socket_pair = base::UnixSocketRaw::CreatePairPosix(
         base::SockFamily::kUnix, base::SockType::kStream);
     host->AdoptConnectedSocket_Fuchsia(
-        base::ScopedSocketHandle(socket_pair.first.ReleaseFd()));
+        base::ScopedSocketHandle(socket_pair.first.ReleaseFd()),
+        [](int) { return false; });
     cli_.reset(
         new FakeClient(base::ScopedSocketHandle(socket_pair.second.ReleaseFd()),
                        task_runner_.get()));

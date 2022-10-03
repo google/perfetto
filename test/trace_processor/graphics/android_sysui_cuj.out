@@ -5,6 +5,16 @@ android_sysui_cuj {
   process {
     name: "com.android.systemui"
     uid: 10001
+    package {
+      package_name: "com.android.systemui"
+      apk_version_code: 1
+      debuggable: false
+    }
+    packages_for_uid {
+      package_name: "com.android.systemui"
+      apk_version_code: 1
+      debuggable: false
+    }
  }
  frames {
    number: 1
@@ -84,5 +94,17 @@ android_sysui_cuj {
     dur: 26000000
     vsync: 140
     jank_cause: "MainThread - binder transaction time"
+  }
+  frames {
+    number: 12
+    ts: 700000000
+    dur: 15000000
+    vsync: 150
+  }
+  frames {
+    number: 13
+    ts: 800000000
+    dur: 2000000
+    vsync: 160
   }
 }

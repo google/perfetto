@@ -18,7 +18,8 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Data source that polls for display state.
+// Data source that polls for display state. This should only be used for
+// backward-compatibility; AndroidSystemPropertyConfig should be preferred.
 message AndroidPolledStateConfig {
   // Frequency of polling. If absent the state will be recorded once, at the
   // start of the trace.

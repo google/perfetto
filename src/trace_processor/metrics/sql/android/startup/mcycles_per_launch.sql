@@ -103,7 +103,7 @@ SELECT CREATE_FUNCTION(
   '
     SELECT RepeatedField(process_name)
     FROM (
-      SELECT process.name AS process_name
+      SELECT IFNULL(process.name, "[NULL]") AS process_name
       FROM top_mcyles_process_excluding_started_per_launch
       JOIN process USING (upid)
       WHERE launch_id = $launch_id

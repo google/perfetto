@@ -72,19 +72,19 @@ class TypedColumn : public Column {
   using Serializer = tc_internal::Serializer<non_optional_type>;
 
  public:
-  T operator[](uint32_t row) const { return GetAtIdx(row_map().Get(row)); }
+  T operator[](uint32_t row) const { return GetAtIdx(overlay().Get(row)); }
 
   // Special function only for string types to allow retrieving the string
   // directly from the column.
   template <bool is_string = TH::is_string>
   typename std::enable_if<is_string, NullTermStringView>::type GetString(
       uint32_t row) const {
-    return GetStringAtIdx(row_map().Get(row));
+    return GetStringAtIdx(overlay().Get(row));
   }
 
   // Sets the data in the column at index |row|.
   void Set(uint32_t row, non_optional_type v) {
-    SetAtIdx(row_map().Get(row), v);
+    SetAtIdx(overlay().Get(row), v);
   }
 
   // Inserts the value at the end of the column.
@@ -96,8 +96,8 @@ class TypedColumn : public Column {
   }
 
   std::vector<T> ToVectorForTesting() const {
-    std::vector<T> result(row_map().size());
-    for (uint32_t i = 0; i < row_map().size(); ++i)
+    std::vector<T> result(overlay().size());
+    for (uint32_t i = 0; i < overlay().size(); ++i)
       result[i] = (*this)[i];
     return result;
   }
@@ -188,10 +188,10 @@ class IdColumn : public Column {
   // The underlying type used when comparing ids.
   using stored_type = uint32_t;
 
-  Id operator[](uint32_t row) const { return Id(row_map().Get(row)); }
+  Id operator[](uint32_t row) const { return Id(overlay().Get(row)); }
 
   base::Optional<uint32_t> IndexOf(Id id) const {
-    return row_map().RowOf(id.value);
+    return overlay().RowOf(id.value);
   }
 
   // Public for use by macro tables.

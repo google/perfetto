@@ -85,7 +85,7 @@ export class SliceDetailsPanel extends SlicePanel {
 
       return m(
           '.details-table',
-          m('table.half-width', tableRows),
+          m('table.half-width-panel', tableRows),
       );
     }
   }

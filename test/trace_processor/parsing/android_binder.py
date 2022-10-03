@@ -39,11 +39,27 @@ trace.add_process(PROCESS_C_PID, PROCESS_C_PPID, PROCESS_C_NAME)
 trace.add_thread(PROCESS_A_TID, PROCESS_A_PID, cmdline='Binder')
 trace.add_ftrace_packet(cpu=0)
 
-trace.add_binder_transaction(transaction_id=1, ts_start=1, ts_end=2, tid=PROCESS_A_TID,
-                             pid=PROCESS_A_PID, reply_id=2, reply_ts_start=3, reply_ts_end=4,
-                             reply_tid=PROCESS_B_TID, reply_pid=PROCESS_B_PID)
-trace.add_binder_transaction(transaction_id=3, ts_start=5, ts_end=6, tid=PROCESS_A_TID,
-                             pid=PROCESS_A_PID, reply_id=4, reply_ts_start=7, reply_ts_end=8,
-                             reply_tid=PROCESS_C_TID, reply_pid=PROCESS_C_PID)
+trace.add_binder_transaction(
+    transaction_id=1,
+    ts_start=1,
+    ts_end=2,
+    tid=PROCESS_A_TID,
+    pid=PROCESS_A_PID,
+    reply_id=2,
+    reply_ts_start=3,
+    reply_ts_end=4,
+    reply_tid=PROCESS_B_TID,
+    reply_pid=PROCESS_B_PID)
+trace.add_binder_transaction(
+    transaction_id=3,
+    ts_start=5,
+    ts_end=6,
+    tid=PROCESS_A_TID,
+    pid=PROCESS_A_PID,
+    reply_id=4,
+    reply_ts_start=7,
+    reply_ts_end=8,
+    reply_tid=PROCESS_C_TID,
+    reply_pid=PROCESS_C_PID)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())

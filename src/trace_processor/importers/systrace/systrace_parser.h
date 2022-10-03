@@ -75,20 +75,18 @@ struct SystraceTracePoint {
                               std::move(track_name));
   }
 
-  static SystraceTracePoint T(uint32_t tgid,
+  static SystraceTracePoint G(uint32_t tgid,
                               base::StringView track_name,
                               base::StringView name,
                               int64_t cookie) {
-    return SystraceTracePoint('T', tgid, std::move(name), cookie,
+    return SystraceTracePoint('G', tgid, std::move(name), cookie,
                               std::move(track_name));
   }
 
-  static SystraceTracePoint U(uint32_t tgid,
+  static SystraceTracePoint H(uint32_t tgid,
                               base::StringView track_name,
-                              base::StringView name,
                               int64_t cookie) {
-    return SystraceTracePoint('U', tgid, std::move(name), cookie,
-                              std::move(track_name));
+    return SystraceTracePoint('H', tgid, {}, cookie, std::move(track_name));
   }
 
   SystraceTracePoint(char p,
@@ -98,18 +96,18 @@ struct SystraceTracePoint {
                      base::StringView s)
       : phase(p), tgid(tg), name(std::move(n)), int_value(v), str_value(s) {}
 
-  // Phase can be one of B, E, C, S, F, I, N, T, U.
+  // Phase can be one of B, E, C, S, F, I, N, G, H.
   char phase = '\0';
 
   uint32_t tgid = 0;
 
-  // For phase = B, C, S, F, N, U, T, U.
+  // For phase = B, C, S, F, N, U, G.
   base::StringView name;
 
-  // For phase = C (counter value) and B, S, F, N, T, U (async cookie).
+  // For phase = C (counter value) and B, S, F, N, G, H (async cookie).
   int64_t int_value = 0;
 
-  // For phase = N, T, U (track name)
+  // For phase = N, G, H (track name)
   base::StringView str_value;
 
   // Visible for unittesting.
@@ -132,8 +130,9 @@ struct SystraceTracePoint {
 // 7.   C|3209|TransfersBytesPendingOnDisk-value|0|Blob
 // 8.   I|4820|instant
 // 9.   N|1938|track_name|instant_name
-// 10.  T|1339|track_name|slice_name|789
-// 11.  U|6890|track_name|slice_name|135
+// 10.  G|1339|track_name|slice_name|789
+// 11.  H|6890|track_name|slice_name|135
+// 12.  H|6890|track_name|135
 // Counters emitted by chromium can have a further "category group" appended
 // ("Blob" in the example below). We ignore the category group.
 inline SystraceParseResult ParseSystraceTracePoint(
@@ -237,8 +236,7 @@ inline SystraceParseResult ParseSystraceTracePoint(
       out->int_value = *maybe_value;
       return SystraceParseResult::kSuccess;
     }
-    case 'T':    // Begin of async slice on track.
-    case 'U': {  // End of async slice on track.
+    case 'G': {  // Begin of async slice on track.
       auto f2_track_name = read_next_field();
       auto f3_name = read_next_field();
       auto maybe_cookie = base::StringToInt64(read_next_field().ToStdString());
@@ -247,6 +245,20 @@ inline SystraceParseResult ParseSystraceTracePoint(
         return SystraceParseResult::kFailure;
       }
       out->name = f3_name;
+      out->str_value = f2_track_name;
+      out->int_value = *maybe_cookie;
+      return SystraceParseResult::kSuccess;
+    }
+    case 'H': {  // End of async slice on track.
+      auto f2_track_name = read_next_field();
+      auto f3 = read_next_field();
+      auto f4 = read_next_field();
+      auto maybe_cookie_str = f4.empty() ? f3 : f4;
+      auto maybe_cookie = base::StringToInt64(maybe_cookie_str.ToStdString());
+      if (PERFETTO_UNLIKELY(!has_tgid || f2_track_name.empty() ||
+                            !maybe_cookie)) {
+        return SystraceParseResult::kFailure;
+      }
       out->str_value = f2_track_name;
       out->int_value = *maybe_cookie;
       return SystraceParseResult::kSuccess;

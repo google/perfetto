@@ -75,6 +75,8 @@ void InterceptorTraceWriter::Flush(std::function<void()> callback) {
     callback();
 }
 
+void InterceptorTraceWriter::FinishTracePacket() {}
+
 uint64_t InterceptorTraceWriter::written() const {
   return bytes_written_;
 }

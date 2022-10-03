@@ -34,7 +34,7 @@ trace = synth_common.create_trace()
 trace.add_packet()
 trace.add_process(1, 0, 'init')
 trace.add_process(SYSTEM_SERVER_PID, 1, 'system_server')
-trace.add_process(APP_PID, 1, 'com.some.app')
+trace.add_process(APP_PID, 1, 'com.some.app', uid=10001)
 trace.add_thread(tid=SECOND_APP_TID, tgid=APP_PID, cmdline='second_thread')
 trace.add_thread(
     tid=JIT_TID,
@@ -47,6 +47,8 @@ trace.add_thread(
     tid=GC2_TID, tgid=APP_PID, cmdline='HeapTaskDaemon', name='HeapTaskDaemon')
 trace.add_thread(tid=BINDER_TID, tgid=APP_PID, cmdline='Binder', name='Binder')
 trace.add_thread(tid=FONTS_TID, tgid=APP_PID, cmdline='fonts', name='fonts')
+
+trace.add_package_list(ts=99, name='com.some.app', uid=10001, version_code=123)
 
 trace.add_ftrace_packet(cpu=0)
 # Start intent.

@@ -42,7 +42,8 @@ class TracingMuxerImpl;
 
 class TracingBackend;
 class Platform;
-class TracingSession;  // Declared below.
+class StartupTracingSession;  // Declared below.
+class TracingSession;         // Declared below.
 
 struct TracingError {
   enum ErrorCode : uint32_t {
@@ -177,10 +178,84 @@ class PERFETTO_EXPORT_COMPONENT Tracing {
   static std::unique_ptr<TracingSession> NewTrace(
       BackendType = kUnspecifiedBackend);
 
+  // Shut down Perfetto, releasing any allocated OS resources (threads, files,
+  // sockets, etc.). Note that Perfetto cannot be reinitialized again in the
+  // same process[1]. Instead, this function is meant for shutting down all
+  // Perfetto-related code so that it can be safely unloaded, e.g., with
+  // dlclose().
+  //
+  // It is only safe to call this function when all threads recording trace
+  // events have been terminated or otherwise guaranteed to not make any further
+  // calls into Perfetto.
+  //
+  // [1] Unless static data is also cleared through other means.
+  static void Shutdown();
+
   // Uninitialize Perfetto. Only exposed for testing scenarios where it can be
   // guaranteed that no tracing sessions or other operations are happening when
   // this call is made.
   static void ResetForTesting();
+
+  // Start a new startup tracing session in the current process. Startup tracing
+  // can be used in anticipation of a session that will be started by the
+  // specified backend in the near future. The data source configs in the
+  // supplied TraceConfig have to (mostly) match those in the config that will
+  // later be provided by the backend.
+  // Learn more about config matching at ComputeStartupConfigHash.
+  //
+  // Note that startup tracing requires that either:
+  //  (a) the service backend already has an SMB set up, or
+  //  (b) the service backend to support producer-provided SMBs if the backend
+  //      is not yet connected or no SMB has been set up yet
+  //      (See `use_producer_provided_smb`). If necessary, the
+  //      client library will briefly disconnect and reconnect the backend to
+  //      supply an SMB to the backend. If the service does not accept the SMB,
+  //      startup tracing will be aborted, but the service may still start the
+  //      corresponding tracing session later.
+  //
+  // Startup tracing is NOT supported with the in-process backend. For this
+  // backend, you can just start a regular tracing session and block until it is
+  // set up instead.
+  //
+  // The client library will start the data sources instances specified in the
+  // config with a placeholder target buffer. Once the backend starts a matching
+  // tracing session, the session will resume as normal. If no matching session
+  // is started after a timeout (or the backend doesn't accept the
+  // producer-provided SMB), the startup tracing session will be aborted
+  // and the data source instances stopped.
+  struct OnStartupTracingSetupCallbackArgs {
+    int num_data_sources_started;
+  };
+  struct SetupStartupTracingOpts {
+    BackendType backend = kUnspecifiedBackend;
+    uint32_t timeout_ms = 10000;
+
+    // If set, this callback is executed (on an internal Perfetto thread) when
+    // startup tracing was set up.
+    std::function<void(OnStartupTracingSetupCallbackArgs)> on_setup;
+
+    // If set, this callback is executed (on an internal Perfetto thread) if any
+    // data sources were aborted, e.g. due to exceeding the timeout or as a
+    // response to Abort().
+    std::function<void()> on_aborted;
+
+    // If set, this callback is executed (on an internal Perfetto thread) after
+    // all data sources were adopted by a tracing session initiated by the
+    // backend.
+    std::function<void()> on_adopted;
+  };
+
+  static std::unique_ptr<StartupTracingSession> SetupStartupTracing(
+      const TraceConfig& config,
+      SetupStartupTracingOpts);
+
+  // Blocking version of above method, so callers can ensure that tracing is
+  // active before proceeding with app startup. Calls into
+  // DataSource::Trace() or trace macros right after this method are written
+  // into the startup session.
+  static std::unique_ptr<StartupTracingSession> SetupStartupTracingBlocking(
+      const TraceConfig& config,
+      SetupStartupTracingOpts);
 
  private:
   static void InitializeInternal(const TracingInitArgs&);
@@ -351,6 +426,23 @@ class PERFETTO_EXPORT_COMPONENT TracingSession {
 
   // Synchronous version of QueryServiceState() for convenience.
   QueryServiceStateCallbackArgs QueryServiceStateBlocking();
+};
+
+class PERFETTO_EXPORT_COMPONENT StartupTracingSession {
+ public:
+  // Note that destroying the StartupTracingSession object will not abort the
+  // startup session automatically. Call Abort() explicitly to do so.
+  virtual ~StartupTracingSession();
+
+  // Abort any active but still unbound data source instances that belong to
+  // this startup tracing session. Does not affect data source instances that
+  // were already bound to a service-controlled session.
+  virtual void Abort() = 0;
+
+  // Same as above, but blocks the current thread until aborted.
+  // Note some of the internal (non observable from public APIs) cleanup might
+  // be done even after this method returns.
+  virtual void AbortBlocking() = 0;
 };
 
 }  // namespace perfetto

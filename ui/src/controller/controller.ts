@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// tslint:disable-next-line no-any
 export type ControllerAny = Controller</* StateType=*/ any>;
 
 export interface ControllerFactory<ConstructorArgs> {
@@ -25,7 +24,6 @@ interface ControllerInitializer<ConstructorArgs> {
   args: ConstructorArgs;
 }
 
-// tslint:disable-next-line no-any
 export type ControllerInitializerAny = ControllerInitializer<any>;
 
 export function Child<ConstructorArgs>(

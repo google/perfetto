@@ -112,6 +112,9 @@ void GzipTraceParser::NotifyEndOfFile() {
   // util::Status.
   PERFETTO_DCHECK(!needs_more_input_);
   PERFETTO_DCHECK(!buffer_);
+
+  if (inner_)
+    inner_->NotifyEndOfFile();
 }
 
 }  // namespace trace_processor

@@ -118,6 +118,15 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   // Any built-in metric proto or sql files matching these paths are skipped
   // during trace processor metric initialization.
   std::vector<std::string> skip_builtin_metric_paths;
+
+  // When set to true, the trace processor analyzes trace proto content, and
+  // exports the field path -> total size mapping into an SQL table.
+  //
+  // The analysis feature is hidden behind the flag so that the users who don't
+  // need this feature don't pay the performance costs.
+  //
+  // The flag has no impact on non-proto traces.
+  bool analyze_trace_proto_content = false;
 };
 
 // Represents a dynamically typed value returned by SQL.

@@ -635,8 +635,7 @@ void SharedMemoryArbiterImpl::BindStartupTargetBuffer(
 
   std::unique_lock<std::mutex> scoped_lock(lock_);
 
-  // We should already be bound to an endpoint, but not fully bound.
-  PERFETTO_CHECK(!fully_bound_);
+  // We should already be bound to an endpoint.
   PERFETTO_CHECK(producer_endpoint_);
   PERFETTO_CHECK(task_runner_);
   PERFETTO_CHECK(task_runner_->RunsTasksOnCurrentThread());
@@ -665,8 +664,6 @@ void SharedMemoryArbiterImpl::AbortStartupTracingForReservation(
     });
     return;
   }
-
-  PERFETTO_CHECK(!fully_bound_);
 
   // Bind the target buffer reservation to an invalid buffer (ID 0), so that
   // existing commits, as well as future commits (of currently acquired chunks),

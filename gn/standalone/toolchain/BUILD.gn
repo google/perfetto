@@ -132,7 +132,13 @@ declare_args() {
   } else if (target_os == "linux" && target_cpu == "x64") {
     _target_triplet = "x86_64-linux-gnu"
   } else if (target_os == "linux" && target_cpu == "x86") {
-    _target_triplet = "i686-linux-gnu"
+    # Chrome's packaging of clang uses i386 for x86 libs, so an i686 triplet
+    # fails to find the necessary sanitizer archives.
+    if (is_hermetic_clang && (is_asan || is_lsan)) {
+      _target_triplet = "i386-linux-gnu"
+    } else {
+      _target_triplet = "i686-linux-gnu"
+    }
   } else if (target_os == "android" && target_cpu == "arm64") {
     _target_triplet = "aarch64-linux-android"
   } else if (target_os == "android" && target_cpu == "arm") {

@@ -21,6 +21,21 @@ packet {
         mapping_id: 1
         rel_pc: 123
     }
+    unsymbolized_source_locations {
+        iid: 2
+        mapping_id: 1
+        rel_pc: 234
+    }
+    unsymbolized_source_locations {
+        iid: 3
+        mapping_id: 1
+        rel_pc: 345
+    }
+    unsymbolized_source_locations {
+        iid: 4
+        mapping_id: 1
+        rel_pc: 456
+    }
   }
 }
 # Track for slice begin/end events.
@@ -40,7 +55,7 @@ packet {
   }
 }
 
-# Slice begin with mojo arg
+# Slice begins with mojo arg
 packet {
   trusted_packet_sequence_id: 1
   timestamp: 10
@@ -55,10 +70,85 @@ packet {
   }
 }
 
-# Slice end
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 11
+  track_event {
+    track_uuid: 12345
+    categories: "cat1"
+    type: 1
+    name: "slice2"
+    chrome_mojo_event_info {
+        mojo_interface_method_iid: 2
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 12
+  track_event {
+    track_uuid: 12345
+    categories: "cat1"
+    type: 1
+    name: "slice3"
+    chrome_mojo_event_info {
+        mojo_interface_method_iid: 3
+    }
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 13
+  track_event {
+    track_uuid: 12345
+    categories: "cat1"
+    type: 1
+    name: "slice4"
+    chrome_mojo_event_info {
+        mojo_interface_method_iid: 4
+    }
+  }
+}
+
+# Slice ends
 packet {
   trusted_packet_sequence_id: 1
   timestamp: 6000
+  track_event {
+    track_uuid: 12345
+    categories: "cat1"
+    name: "slice4"
+    type: 2
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 6001
+  track_event {
+    track_uuid: 12345
+    categories: "cat1"
+    name: "slice2"
+    type: 2
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 6002
+  track_event {
+    track_uuid: 12345
+    categories: "cat1"
+    name: "slice2"
+    type: 2
+  }
+}
+
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 6003
   track_event {
     track_uuid: 12345
     categories: "cat1"
@@ -75,7 +165,36 @@ packet {
     address_symbols {
       address: 123
       lines {
-        function_name: "symbolized_func"
+        # Unix-style symbol (no "()" in the end).
+        function_name: "storage::mojom::Directory::OpenFile_Sym::IPCStableHash"
+        source_file_name: "file.cc"
+        line_number: 33
+      }
+    }
+    address_symbols {
+      address: 234
+      lines {
+        # Windows-style symbol (with "()" in the end).
+        function_name: "storage::mojom::File::Close_Sym::IPCStableHash()"
+        source_file_name: "file.cc"
+        line_number: 33
+      }
+    }
+    # The following to symbols don't follow the naming pattern. Let's make sure
+    # the Trace Processor doesn't crash, and returns something reasonable.
+    address_symbols {
+      address: 345
+      lines {
+        function_name: "Class::Method"
+        source_file_name: "file.cc"
+        line_number: 33
+      }
+    }
+    address_symbols {
+      address: 456
+      lines {
+        # Windows-style symbol (with "()" in the end).
+        function_name: "Func"
         source_file_name: "file.cc"
         line_number: 33
       }

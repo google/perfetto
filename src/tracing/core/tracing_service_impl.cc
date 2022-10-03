@@ -313,9 +313,6 @@ void AppendOwnedSlicesToPacket(std::unique_ptr<uint8_t[]> data,
 }  // namespace
 
 // These constants instead are defined in the header because are used by tests.
-constexpr size_t TracingServiceImpl::kDefaultShmSize;
-constexpr size_t TracingServiceImpl::kDefaultShmPageSize;
-
 constexpr size_t TracingServiceImpl::kMaxShmSize;
 constexpr uint32_t TracingServiceImpl::kDataSourceStopTimeoutMs;
 constexpr uint8_t TracingServiceImpl::kSyncMarker[];
@@ -3263,6 +3260,7 @@ void TracingServiceImpl::MaybeEmitSystemInfo(
     PERFETTO_ELOG("Unable to read ro.build.version.sdk");
   }
   info->set_hz(sysconf(_SC_CLK_TCK));
+  info->set_page_size(static_cast<uint32_t>(sysconf(_SC_PAGESIZE)));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   packet->set_trusted_uid(static_cast<int32_t>(uid_));
   packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
@@ -3815,6 +3813,12 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
 TracingServiceImpl::ProducerEndpointImpl::~ProducerEndpointImpl() {
   service_->DisconnectProducer(id_);
   producer_->OnDisconnect();
+}
+
+void TracingServiceImpl::ProducerEndpointImpl::Disconnect() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  // Disconnection is only supported via destroying the ProducerEndpoint.
+  PERFETTO_FATAL("Not supported");
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::RegisterDataSource(

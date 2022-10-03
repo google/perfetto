@@ -41,4 +41,7 @@ message SystemInfo {
   // The Android SDK vesion (e.g. 21 for L, 31 for S etc).
   // Introduced in Android T.
   optional uint64 android_sdk_version = 5;
+
+  // Kernel page size - sysconf(_SC_PAGESIZE).
+  optional uint32 page_size = 6;
 }

@@ -36,4 +36,7 @@ SharedMemory::~SharedMemory() = default;
 SharedMemory::Factory::~Factory() = default;
 SharedMemoryArbiter::~SharedMemoryArbiter() = default;
 
+constexpr size_t TracingService::kDefaultShmSize;
+constexpr size_t TracingService::kDefaultShmPageSize;
+
 }  // namespace perfetto

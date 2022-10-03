@@ -20,7 +20,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-SystemInfoTracker::SystemInfoTracker(TraceProcessorContext*) {}
+SystemInfoTracker::SystemInfoTracker() {}
 SystemInfoTracker::~SystemInfoTracker() = default;
 
 void SystemInfoTracker::SetKernelVersion(base::StringView name,

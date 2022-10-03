@@ -93,11 +93,12 @@ class HeapGraphTracker : public Destructible {
     std::vector<uint64_t> object_ids;
   };
 
-  explicit HeapGraphTracker(TraceProcessorContext* context);
+  explicit HeapGraphTracker(TraceStorage* storage);
 
   static HeapGraphTracker* GetOrCreate(TraceProcessorContext* context) {
     if (!context->heap_graph_tracker) {
-      context->heap_graph_tracker.reset(new HeapGraphTracker(context));
+      context->heap_graph_tracker.reset(
+          new HeapGraphTracker(context->storage.get()));
     }
     return static_cast<HeapGraphTracker*>(context->heap_graph_tracker.get());
   }
@@ -230,7 +231,7 @@ class HeapGraphTracker : public Destructible {
   // all the other tables have been fully populated.
   void PopulateNativeSize(const SequenceState& seq);
 
-  TraceProcessorContext* const context_;
+  TraceStorage* const storage_;
   std::map<uint32_t, SequenceState> sequence_state_;
 
   std::map<std::pair<base::Optional<StringId>, StringId>,

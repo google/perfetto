@@ -29,10 +29,11 @@ namespace trace_processor {
 // See https://perfetto.dev/docs/analysis/metrics#metric-helper-functions for
 // usage of this function.
 struct CreateViewFunction : public SqlFunction {
-  using State = std::unordered_map<std::string, ScopedStmt>;
   struct Context {
     sqlite3* db;
   };
+
+  static constexpr bool kVoidReturn = true;
 
   static base::Status Run(Context* ctx,
                           size_t argc,
@@ -40,7 +41,7 @@ struct CreateViewFunction : public SqlFunction {
                           SqlValue& out,
                           Destructors&);
 
-  static void RegisterTable(sqlite3* db, State* state);
+  static void RegisterTable(sqlite3* db);
 };
 
 }  // namespace trace_processor

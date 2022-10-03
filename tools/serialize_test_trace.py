@@ -27,9 +27,7 @@ from proto_utils import serialize_python_trace, serialize_textproto_trace
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument(
-      '--out',
-      type=str,
-      help='out directory to search for trace descriptor')
+      '--out', type=str, help='out directory to search for trace descriptor')
   parser.add_argument(
       '--descriptor', type=str, help='path to the trace descriptor')
   parser.add_argument('trace_path', type=str, help='path of trace to serialize')

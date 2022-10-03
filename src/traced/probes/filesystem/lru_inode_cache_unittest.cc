@@ -35,17 +35,17 @@ const std::pair<BlockDeviceID, Inode> key2{0, 1};
 const std::pair<BlockDeviceID, Inode> key3{0, 2};
 
 InodeMapValue val1() {
-  return InodeMapValue(protos::pbzero::InodeFileMap_Entry_Type_DIRECTORY,
+  return InodeMapValue(protos::pbzero::InodeFileMap::Entry::Type::DIRECTORY,
                        std::set<std::string>{"Value 1"});
 }
 
 InodeMapValue val2() {
-  return InodeMapValue(protos::pbzero::InodeFileMap_Entry_Type_UNKNOWN,
+  return InodeMapValue(protos::pbzero::InodeFileMap::Entry::Type::UNKNOWN,
                        std::set<std::string>{"Value 2"});
 }
 
 InodeMapValue val3() {
-  return InodeMapValue(protos::pbzero::InodeFileMap_Entry_Type_UNKNOWN,
+  return InodeMapValue(protos::pbzero::InodeFileMap::Entry::Type::UNKNOWN,
                        std::set<std::string>{"Value 2"});
 }
 

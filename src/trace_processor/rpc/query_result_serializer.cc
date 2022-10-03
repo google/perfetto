@@ -194,8 +194,10 @@ void QueryResultSerializer::SerializeBatch(protos::pbzero::QueryResult* res) {
   strings = nullptr;
 
   // Write the cells headers (1 byte per cell).
-  batch->AppendBytes(BatchProto::kCellsFieldNumber, cell_types.data(),
-                     cell_idx);
+  if (cell_idx > 0) {
+    batch->AppendBytes(BatchProto::kCellsFieldNumber, cell_types.data(),
+                       cell_idx);
+  }
 
   // Append the |varint_cells|, copying over the packed varint buffer.
   if (varints.size())
@@ -234,7 +236,9 @@ void QueryResultSerializer::SerializeBatch(protos::pbzero::QueryResult* res) {
   }  // if (doubles_size > 0)
 
   // Append the blobs.
-  batch->AppendRawProtoBytes(blobs.data(), blobs.size());
+  if (blobs.size() > 0) {
+    batch->AppendRawProtoBytes(blobs.data(), blobs.size());
+  }
 
   // If this is the last batch, write the EOF field.
   if (!batch_full) {

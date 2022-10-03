@@ -37,9 +37,11 @@ class FakeTraceWriter : public TraceWriterBase {
   std::atomic<bool>* destroyed_flag;
 
   ~FakeTraceWriter() override { *destroyed_flag = true; }
-  protozero::MessageHandle<protos::pbzero::TracePacket> NewTracePacket() {
+  protozero::MessageHandle<protos::pbzero::TracePacket> NewTracePacket()
+      override {
     PERFETTO_CHECK(false);
   }
+  void FinishTracePacket() override { PERFETTO_CHECK(false); }
   void Flush(std::function<void()>) override {}
   uint64_t written() const override { return 0; }
 };

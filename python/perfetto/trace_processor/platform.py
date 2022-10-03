@@ -13,8 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
+import datetime
+from datetime import timezone
 import os
 import socket
+import stat
 import subprocess
 import tempfile
 from typing import Tuple
@@ -22,7 +26,6 @@ from urllib import request
 
 from perfetto.trace_uri_resolver.path import PathUriResolver
 from perfetto.trace_uri_resolver.registry import ResolverRegistry
-
 
 # URL to download script to run trace_processor
 SHELL_URL = 'http://get.perfetto.dev/trace_processor'
@@ -42,13 +45,34 @@ class PlatformDelegate:
         raise Exception('Path to binary is not valid')
       return bin_path
 
-    with tempfile.NamedTemporaryFile(delete=False) as file:
-      req = request.Request(SHELL_URL)
-      with request.urlopen(req) as req:
+    tp_path = os.path.join(tempfile.gettempdir(), 'trace_processor_python_api')
+    if self._should_download_tp(tp_path):
+      with contextlib.ExitStack() as stack:
+        req = stack.enter_context(request.urlopen(request.Request(SHELL_URL)))
+        file = stack.enter_context(open(tp_path, 'wb'))
         file.write(req.read())
-    if os.name != 'nt':
-      subprocess.check_output(['chmod', '+x', file.name])
-    return file.name
+    st = os.stat(tp_path)
+    os.chmod(tp_path, st.st_mode | stat.S_IEXEC)
+    return tp_path
+
+  def _should_download_tp(self, tp_path):
+    try:
+      st = os.stat(tp_path)
+
+      # If the file was empty (i.e. failed to be written properly last time),
+      # download it.
+      if st.st_size == 0:
+        return True
+
+      # Try and redownload if we last modified this file more than 7 days
+      # ago.
+      mod_time = datetime.datetime.fromtimestamp(st.st_mtime, tz=timezone.utc)
+      cutoff = datetime.datetime.now().astimezone() - datetime.timedelta(days=7)
+      return mod_time < cutoff
+    except OSError:
+      # Should happen if the file does not exist (i.e. this function has not
+      # been run before or tmp was cleared).
+      return True
 
   def get_bind_addr(self, port: int) -> Tuple[str, int]:
     if port:

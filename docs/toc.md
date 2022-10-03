@@ -3,6 +3,7 @@
 * [Quickstart](#)
   * [Record traces on Android](quickstart/android-tracing.md)
   * [Record traces on Linux](quickstart/linux-tracing.md)
+  * [Record Chrome traces](quickstart/chrome-tracing.md)
   * [SQL analysis and metrics](quickstart/trace-analysis.md)
   * [Trace conversion](quickstart/traceconv.md)
   * [Heap profiling](quickstart/heap-profiling.md)
@@ -35,6 +36,7 @@
 
 * [Trace analysis](#)
   * [Trace Processor (SQL)](analysis/trace-processor.md)
+  * [Batch Trace Processor](analysis/batch-trace-processor.md)
   * [Trace-based metrics](analysis/metrics.md)
   * [Common queries](analysis/common-queries.md)
   * [SQL tables](analysis/sql-tables.autogen)
@@ -70,6 +72,7 @@
 
 * [Design documents](#)
     * [API and ABI surface](design-docs/api-and-abi.md)
+    * [Batch Trace Processor](design-docs/batch-trace-processor.md)
     * [Heapprofd design](design-docs/heapprofd-design.md)
     * [Heapprofd wire protocol](design-docs/heapprofd-wire-protocol.md)
     * [Heapprofd sampling](design-docs/heapprofd-sampling.md)

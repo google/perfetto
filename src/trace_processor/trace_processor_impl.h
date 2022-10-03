@@ -59,6 +59,7 @@ class TraceProcessorImpl : public TraceProcessor,
 
   // TraceProcessorStorage implementation:
   base::Status Parse(TraceBlobView) override;
+  void Flush() override;
   void NotifyEndOfFile() override;
 
   // TraceProcessor implementation:
@@ -123,11 +124,6 @@ class TraceProcessorImpl : public TraceProcessor,
   // need to finalize any prepared statements *before* we destroy the database.
   CreateFunction::State create_function_state_;
 
-  // State necessary for CREATE_VIEW_FUNCTION invocations. We store this here as
-  // we need to finalize any prepared statements *before* we destroy the
-  // database.
-  CreateViewFunction::State create_view_function_state_;
-
   std::unique_ptr<QueryCache> query_cache_;
 
   DescriptorPool pool_;
@@ -145,6 +141,10 @@ class TraceProcessorImpl : public TraceProcessor,
 
   std::string current_trace_name_;
   uint64_t bytes_parsed_ = 0;
+
+  // NotifyEndOfFile should only be called once. Set to true whenever it is
+  // called.
+  bool notify_eof_called_ = false;
 };
 
 }  // namespace trace_processor

@@ -14,6 +14,11 @@
 
 import("../../../gn/perfetto_cc_proto_descriptor.gni")
 
+perfetto_cc_proto_descriptor("gen_cc_statsd_atoms_descriptor") {
+  descriptor_name = "atoms.descriptor"
+  descriptor_path = "./proto/atoms.descriptor"
+}
+
 perfetto_cc_proto_descriptor("gen_cc_config_descriptor") {
   descriptor_name = "config.descriptor"
   descriptor_target = "../../../protos/perfetto/config:descriptor"
@@ -27,4 +32,9 @@ perfetto_cc_proto_descriptor("gen_cc_chrome_track_event_descriptor") {
 perfetto_cc_proto_descriptor("gen_cc_track_event_descriptor") {
   descriptor_name = "track_event.descriptor"
   descriptor_target = "../../../protos/perfetto/trace/track_event:descriptor"
+}
+
+perfetto_cc_proto_descriptor("gen_cc_trace_descriptor") {
+  descriptor_name = "trace.descriptor"
+  descriptor_target = "../../../protos/perfetto/trace:descriptor"
 }
