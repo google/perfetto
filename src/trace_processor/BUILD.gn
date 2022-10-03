@@ -239,6 +239,8 @@ source_set("storage_full") {
     "importers/ftrace/sched_event_tracker.h",
     "importers/ftrace/thread_state_tracker.cc",
     "importers/ftrace/thread_state_tracker.h",
+    "importers/ftrace/v4l2_tracker.cc",
+    "importers/ftrace/v4l2_tracker.h",
     "importers/fuchsia/fuchsia_record.cc",
     "importers/fuchsia/fuchsia_trace_parser.cc",
     "importers/fuchsia/fuchsia_trace_parser.h",
