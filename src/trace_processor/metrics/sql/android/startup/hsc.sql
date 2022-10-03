@@ -95,7 +95,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.number=1 AND frame_times.name GLOB "*chrome*" AND frame_times.launch_id = launches.id;
+WHERE frame_times.number=4 AND frame_times.name GLOB "*chrome*" AND frame_times.launch_id = launches.id;
 
 -- Clock
 INSERT INTO hsc_based_startup_times
