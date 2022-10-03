@@ -41,6 +41,11 @@ class TraceProcessorContext;
 // Builds a |perftools.profiles.Profile| proto.
 class GProfileBuilder {
  public:
+  struct ValueType {
+    std::string type;
+    std::string unit;
+  };
+
   // |sample_types| A description of the values stored with each sample.
   // |annotated| Whether to annotate callstack frames.
   //
@@ -52,12 +57,13 @@ class GProfileBuilder {
   // from pprof perspective we now have different functions. So in flame graphs
   // for example you will have one separate slice for each of these same
   // functions with different annotations.
-  GProfileBuilder(
-      const TraceProcessorContext* context,
-      const std::vector<std::pair<std::string, std::string>>& sample_types,
-      bool annotated);
+  GProfileBuilder(const TraceProcessorContext* context,
+                  const std::vector<ValueType>& sample_types,
+                  bool annotated);
   ~GProfileBuilder();
-  void AddSample(uint32_t callsite_id, const protozero::PackedVarInt& values);
+
+  // Returns false if the callsite_id was not found and no sample was added.
+  bool AddSample(uint32_t callsite_id, const protozero::PackedVarInt& values);
 
   // Finalizes the profile and returns the serialized proto. Can be called
   // multiple times but after the first invocation `AddSample` calls will have
@@ -280,8 +286,7 @@ class GProfileBuilder {
   void WriteFunctions();
   void WriteLocations();
 
-  void WriteSampleTypes(
-      const std::vector<std::pair<std::string, std::string>>& sample_types);
+  void WriteSampleTypes(const std::vector<ValueType>& sample_types);
 
   void Finalize();
 
@@ -299,8 +304,6 @@ class GProfileBuilder {
 
   const TraceProcessorContext& context_;
   StringTable string_table_;
-
-  const size_t num_sample_types_;
 
   bool finalized_{false};
   base::Optional<AnnotatedCallsites> annotations_;
