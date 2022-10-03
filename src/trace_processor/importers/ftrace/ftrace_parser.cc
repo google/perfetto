@@ -23,6 +23,7 @@
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
 #include "src/trace_processor/importers/ftrace/thread_state_tracker.h"
 #include "src/trace_processor/importers/ftrace/v4l2_tracker.h"
+#include "src/trace_processor/importers/ftrace/virtio_video_tracker.h"
 #include "src/trace_processor/importers/i2c/i2c_tracker.h"
 #include "src/trace_processor/importers/proto/async_track_set_tracker.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
@@ -839,6 +840,14 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       case FtraceEvent::kVb2V4l2DqbufFieldNumber: {
         V4l2Tracker::GetOrCreate(context_)->ParseV4l2Event(fld.id(), ts, pid,
                                                            fld_bytes);
+        break;
+      }
+      case FtraceEvent::kVirtioVideoCmdFieldNumber:
+      case FtraceEvent::kVirtioVideoCmdDoneFieldNumber:
+      case FtraceEvent::kVirtioVideoResourceQueueFieldNumber:
+      case FtraceEvent::kVirtioVideoResourceQueueDoneFieldNumber: {
+        VirtioVideoTracker::GetOrCreate(context_)->ParseVirtioVideoEvent(
+            fld.id(), ts, fld_bytes);
         break;
       }
       default:
