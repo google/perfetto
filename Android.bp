@@ -4688,6 +4688,7 @@ genrule {
         "protos/perfetto/trace/clock_snapshot.proto",
         "protos/perfetto/trace/extension_descriptor.proto",
         "protos/perfetto/trace/filesystem/inode_file_map.proto",
+        "protos/perfetto/trace/ftrace/android_fs.proto",
         "protos/perfetto/trace/ftrace/binder.proto",
         "protos/perfetto/trace/ftrace/block.proto",
         "protos/perfetto/trace/ftrace/cgroup.proto",
@@ -4921,6 +4922,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_ftrace_cpp_gen",
     srcs: [
+        "protos/perfetto/trace/ftrace/android_fs.proto",
         "protos/perfetto/trace/ftrace/binder.proto",
         "protos/perfetto/trace/ftrace/block.proto",
         "protos/perfetto/trace/ftrace/cgroup.proto",
@@ -4986,6 +4988,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/ftrace/android_fs.gen.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/binder.gen.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/block.gen.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/cgroup.gen.cc",
@@ -5051,6 +5054,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_ftrace_cpp_gen_headers",
     srcs: [
+        "protos/perfetto/trace/ftrace/android_fs.proto",
         "protos/perfetto/trace/ftrace/binder.proto",
         "protos/perfetto/trace/ftrace/block.proto",
         "protos/perfetto/trace/ftrace/cgroup.proto",
@@ -5116,6 +5120,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/ftrace/android_fs.gen.h",
         "external/perfetto/protos/perfetto/trace/ftrace/binder.gen.h",
         "external/perfetto/protos/perfetto/trace/ftrace/block.gen.h",
         "external/perfetto/protos/perfetto/trace/ftrace/cgroup.gen.h",
@@ -5185,6 +5190,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_ftrace_lite_gen",
     srcs: [
+        "protos/perfetto/trace/ftrace/android_fs.proto",
         "protos/perfetto/trace/ftrace/binder.proto",
         "protos/perfetto/trace/ftrace/block.proto",
         "protos/perfetto/trace/ftrace/cgroup.proto",
@@ -5249,6 +5255,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/ftrace/android_fs.pb.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/binder.pb.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/block.pb.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/cgroup.pb.cc",
@@ -5314,6 +5321,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_ftrace_lite_gen_headers",
     srcs: [
+        "protos/perfetto/trace/ftrace/android_fs.proto",
         "protos/perfetto/trace/ftrace/binder.proto",
         "protos/perfetto/trace/ftrace/block.proto",
         "protos/perfetto/trace/ftrace/cgroup.proto",
@@ -5378,6 +5386,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/ftrace/android_fs.pb.h",
         "external/perfetto/protos/perfetto/trace/ftrace/binder.pb.h",
         "external/perfetto/protos/perfetto/trace/ftrace/block.pb.h",
         "external/perfetto/protos/perfetto/trace/ftrace/cgroup.pb.h",
@@ -5447,6 +5456,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_ftrace_zero_gen",
     srcs: [
+        "protos/perfetto/trace/ftrace/android_fs.proto",
         "protos/perfetto/trace/ftrace/binder.proto",
         "protos/perfetto/trace/ftrace/block.proto",
         "protos/perfetto/trace/ftrace/cgroup.proto",
@@ -5512,6 +5522,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/ftrace/android_fs.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/binder.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/block.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/cgroup.pbzero.cc",
@@ -5577,6 +5588,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_ftrace_zero_gen_headers",
     srcs: [
+        "protos/perfetto/trace/ftrace/android_fs.proto",
         "protos/perfetto/trace/ftrace/binder.proto",
         "protos/perfetto/trace/ftrace/block.proto",
         "protos/perfetto/trace/ftrace/cgroup.proto",
@@ -5642,6 +5654,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/ftrace/android_fs.pbzero.h",
         "external/perfetto/protos/perfetto/trace/ftrace/binder.pbzero.h",
         "external/perfetto/protos/perfetto/trace/ftrace/block.pbzero.h",
         "external/perfetto/protos/perfetto/trace/ftrace/cgroup.pbzero.h",
@@ -9112,6 +9125,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_importers_proto_storage_minimal",
     srcs: [
+        "src/trace_processor/importers/proto/active_chrome_processes_tracker.cc",
         "src/trace_processor/importers/proto/heap_profile_tracker.cc",
         "src/trace_processor/importers/proto/profiler_util.cc",
         "src/trace_processor/importers/proto/stack_profile_tracker.cc",
@@ -9122,6 +9136,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_importers_proto_unittests",
     srcs: [
+        "src/trace_processor/importers/proto/active_chrome_processes_tracker_unittest.cc",
         "src/trace_processor/importers/proto/heap_graph_tracker_unittest.cc",
         "src/trace_processor/importers/proto/heap_profile_tracker_unittest.cc",
     ],
@@ -9252,8 +9267,25 @@ genrule {
         "src/trace_processor/metrics/sql/android/java_heap_histogram.sql",
         "src/trace_processor/metrics/sql/android/java_heap_stats.sql",
         "src/trace_processor/metrics/sql/android/mem_stats_priority_breakdown.sql",
+        "src/trace_processor/metrics/sql/android/p_state.sql",
         "src/trace_processor/metrics/sql/android/power_drain_in_watts.sql",
         "src/trace_processor/metrics/sql/android/power_profile_data.sql",
+        "src/trace_processor/metrics/sql/android/power_profile_data/barbet.sql",
+        "src/trace_processor/metrics/sql/android/power_profile_data/bluejay.sql",
+        "src/trace_processor/metrics/sql/android/power_profile_data/blueline.sql",
+        "src/trace_processor/metrics/sql/android/power_profile_data/bonito.sql",
+        "src/trace_processor/metrics/sql/android/power_profile_data/bramble.sql",
+        "src/trace_processor/metrics/sql/android/power_profile_data/coral.sql",
+        "src/trace_processor/metrics/sql/android/power_profile_data/crosshatch.sql",
+        "src/trace_processor/metrics/sql/android/power_profile_data/flame.sql",
+        "src/trace_processor/metrics/sql/android/power_profile_data/marlin.sql",
+        "src/trace_processor/metrics/sql/android/power_profile_data/oriole.sql",
+        "src/trace_processor/metrics/sql/android/power_profile_data/raven.sql",
+        "src/trace_processor/metrics/sql/android/power_profile_data/redfin.sql",
+        "src/trace_processor/metrics/sql/android/power_profile_data/sargo.sql",
+        "src/trace_processor/metrics/sql/android/power_profile_data/sunfish.sql",
+        "src/trace_processor/metrics/sql/android/power_profile_data/taimen.sql",
+        "src/trace_processor/metrics/sql/android/power_profile_data/walleye.sql",
         "src/trace_processor/metrics/sql/android/process_counter_span_view.sql",
         "src/trace_processor/metrics/sql/android/process_mem.sql",
         "src/trace_processor/metrics/sql/android/process_metadata.sql",
@@ -9279,6 +9311,7 @@ genrule {
         "src/trace_processor/metrics/sql/chrome/chrome_input_to_browser_intervals.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_performance_mark_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_processes.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_reliable_range.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_scroll_inputs_per_frame.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_caused_by_scheduling.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_slice_names.sql",
@@ -9292,7 +9325,7 @@ genrule {
         "src/trace_processor/metrics/sql/chrome/cpu_time_by_rail_mode.sql",
         "src/trace_processor/metrics/sql/chrome/estimated_power_by_category.sql",
         "src/trace_processor/metrics/sql/chrome/estimated_power_by_rail_mode.sql",
-        "src/trace_processor/metrics/sql/chrome/event_lantency_to_breakdowns.sql",
+        "src/trace_processor/metrics/sql/chrome/event_latency_to_breakdowns.sql",
         "src/trace_processor/metrics/sql/chrome/gesture_flow_event.sql",
         "src/trace_processor/metrics/sql/chrome/gesture_flow_event_queuing_delay.sql",
         "src/trace_processor/metrics/sql/chrome/gesture_jank.sql",
@@ -9311,6 +9344,7 @@ genrule {
         "src/trace_processor/metrics/sql/chrome/touch_flow_event.sql",
         "src/trace_processor/metrics/sql/chrome/touch_flow_event_queuing_delay.sql",
         "src/trace_processor/metrics/sql/chrome/touch_jank.sql",
+        "src/trace_processor/metrics/sql/common/parent_slice.sql",
         "src/trace_processor/metrics/sql/experimental/blink_gc_metric.sql",
         "src/trace_processor/metrics/sql/experimental/chrome_dropped_frames.sql",
         "src/trace_processor/metrics/sql/experimental/chrome_long_latency.sql",
@@ -9578,6 +9612,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_util_profile_builder",
     srcs: [
+        "src/trace_processor/util/annotated_callsites.cc",
         "src/trace_processor/util/profile_builder.cc",
     ],
 }
@@ -10475,6 +10510,7 @@ java_library {
         "protos/perfetto/trace/clock_snapshot.proto",
         "protos/perfetto/trace/extension_descriptor.proto",
         "protos/perfetto/trace/filesystem/inode_file_map.proto",
+        "protos/perfetto/trace/ftrace/android_fs.proto",
         "protos/perfetto/trace/ftrace/binder.proto",
         "protos/perfetto/trace/ftrace/block.proto",
         "protos/perfetto/trace/ftrace/cgroup.proto",
@@ -12012,14 +12048,6 @@ python_library {
     data: [
         ":perfetto-trace-processor-python-data",
     ],
-    version: {
-        py2: {
-            enabled: false,
-        },
-        py3: {
-            enabled: true,
-        },
-    },
     libs: [
         "libprotobuf-python",
     ],

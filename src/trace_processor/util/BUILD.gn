@@ -156,6 +156,8 @@ source_set("proto_profiler") {
 
 source_set("profile_builder") {
   sources = [
+    "annotated_callsites.cc",
+    "annotated_callsites.h",
     "profile_builder.cc",
     "profile_builder.h",
   ]

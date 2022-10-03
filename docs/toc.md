@@ -25,6 +25,7 @@
   * [Power](#)
     * [Battery counters and rails](data-sources/battery-counters.md)
   * [Android system](#)
+    * [Android game intervention list](data-sources/android-game-intervention-list.md)
     * [Atrace instrumentation](data-sources/atrace.md)
     * [Android log (logcat)](data-sources/android-log.md)
     * [Android Janks](data-sources/frametimeline.md)
@@ -41,6 +42,7 @@
   * [Common queries](analysis/common-queries.md)
   * [SQL tables](analysis/sql-tables.autogen)
   * [Stats table](analysis/sql-stats.autogen)
+  * [Pivot tables](analysis/pivot-tables.md)
 
 * [Trace visualization](#)
   * [Perfetto UI](visualization/perfetto-ui.md)
@@ -69,6 +71,7 @@
     * [Embedding Perfetto](contributing/embedding.md)
     * [Releasing the SDK](contributing/sdk-releasing.md)
     * [Chrome branches](contributing/chrome-branches.md)
+    * [UI development](contributing/ui-development.md)
 
 * [Design documents](#)
     * [API and ABI surface](design-docs/api-and-abi.md)
@@ -78,7 +81,6 @@
     * [Heapprofd sampling](design-docs/heapprofd-sampling.md)
     * [Life of a tracing session](design-docs/life-of-a-tracing-session.md)
     * [Perfetto CI](design-docs/continuous-integration.md)
-    * [Pivot tables](design-docs/pivot-tables.md)
     * [ProtoZero](design-docs/protozero.md)
     * [Security model](design-docs/security-model.md)
     * [Statsd Checkpoint Atoms](design-docs/checkpoint-atoms.md)

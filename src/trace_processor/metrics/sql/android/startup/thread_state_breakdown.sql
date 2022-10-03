@@ -20,7 +20,8 @@ SELECT
   ts,
   IIF(dur = -1, (SELECT end_ts FROM trace_bounds), dur) AS dur,
   utid,
-  state
+  state,
+  io_wait
 FROM thread_state;
 
 DROP TABLE IF EXISTS launch_threads_by_thread_state;
@@ -31,9 +32,9 @@ USING SPAN_JOIN(
 );
 
 -- Materialized to avoid repeatedly span joining per each thread state.
-DROP TABLE IF EXISTS launch_thread_state_dur_sum;
-CREATE TABLE launch_thread_state_dur_sum AS
-SELECT launch_id, state, is_main_thread, thread_name, SUM(dur) AS dur
+DROP TABLE IF EXISTS launch_thread_state_io_wait_dur_sum;
+CREATE TABLE launch_thread_state_io_wait_dur_sum AS
+SELECT launch_id, state, is_main_thread, thread_name, io_wait, SUM(dur) AS dur
 FROM launch_threads_by_thread_state l
 WHERE
   is_main_thread OR
@@ -43,6 +44,12 @@ WHERE
   thread_name IN (
     'Jit thread pool'
   )
+GROUP BY 1, 2, 3, 4, 5;
+
+DROP VIEW IF EXISTS launch_thread_state_dur_sum;
+CREATE VIEW launch_thread_state_dur_sum AS
+SELECT launch_id, state, is_main_thread, thread_name, SUM(dur) AS dur
+FROM launch_thread_state_io_wait_dur_sum
 GROUP BY 1, 2, 3, 4;
 
 -- Given a launch id and thread state value, returns the aggregate sum
@@ -56,6 +63,20 @@ SELECT CREATE_FUNCTION(
     WHERE l.launch_id = $launch_id AND state GLOB $state AND is_main_thread;
   '
 );
+
+-- Given a launch id, thread state  and io_wait value, returns the aggregate sum
+-- of time spent in that state by the main thread of the process being started up.
+SELECT CREATE_FUNCTION(
+  'MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launch_id INT, state STRING, io_wait BOOL)',
+  'INT',
+  '
+    SELECT SUM(dur)
+    FROM launch_thread_state_io_wait_dur_sum l
+    WHERE l.launch_id = $launch_id AND state GLOB $state
+      AND is_main_thread AND l.io_wait = $io_wait;
+  '
+);
+
 
 -- Given a launch id, thread state value and name of a thread, returns the aggregate sum
 -- of time spent in that state by that thread. Note: only threads of the processes

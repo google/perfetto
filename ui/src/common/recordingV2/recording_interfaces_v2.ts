@@ -63,6 +63,9 @@ interface TargetInfoBase {
   // The dataSources exposed by a target. They are fetched from the target
   // (ex: using QSS for Android or GetCategories for Chrome).
   dataSources: DataSource[];
+
+  // Whether the TargetInfo corresponds to a real target.
+  isVirtual: boolean;
 }
 
 export interface AndroidTargetInfo extends TargetInfoBase {
@@ -95,9 +98,8 @@ export interface RecordingTargetV2 {
   // well known key/value pairs: OS, targetType('ANDROID', 'CHROME', etc.)
   getInfo(): TargetInfo;
 
-  // Disconnects the target. Depending on target type, this can be
-  // asynchronous (Example: WebUSB) or synchronous (Example: Websocket).
-  disconnect(disconnectMessage?: string): Promise<void>|void;
+  // Disconnects the target.
+  disconnect(disconnectMessage?: string): Promise<void>;
 
   // Returns true if we are able to connect to the target without interfering
   // with other processes. For example, for adb devices connected over WebUSB,
@@ -155,6 +157,9 @@ export interface AdbConnection {
   // this will be false when we can not claim the interface (Which most likely
   // means that 'adb server' is running locally.).
   canConnectWithoutContention(): Promise<boolean>;
+
+  // Ends the connection.
+  disconnect(disconnectMessage?: string): Promise<void>;
 }
 
 // A stream for a connection between a target and a tracing session.
@@ -164,9 +169,11 @@ export interface ByteStream {
   addOnStreamData(onStreamData: OnStreamDataCallback): void;
   addOnStreamClose(onStreamClose: OnStreamCloseCallback): void;
 
-  isOpen(): boolean;
+  isConnected(): boolean;
   write(data: string|Uint8Array): void;
+
   close(): void;
+  closeAndWaitForTeardown(): Promise<void>;
 }
 
 // Handles binary messages received over the ByteStream.

@@ -31,6 +31,7 @@ import {
   QuantizedLoad,
   ThreadDesc,
 } from '../frontend/globals';
+import {showModal} from '../frontend/modal';
 import {
   publishHasFtrace,
   publishMetricError,
@@ -127,6 +128,30 @@ const FLAGGED_METRICS: Array<[Flag, string]> = METRICS.map((m) => {
   });
   return [flag, m];
 });
+
+const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
+  id: 'enableChromeReliableRangeZoom',
+  name: 'Enable Chrome reliable range zoom',
+  description: 'Automatically zoom into the reliable range for Chrome traces',
+  defaultValue: false,
+});
+
+function showJsonWarning() {
+  showModal({
+    title: 'Warning',
+    content:
+        m('div',
+          m('span',
+            'Perfetto UI features are limited for JSON traces. ',
+            'We recommend recording ',
+            m('a',
+              {href: 'https://perfetto.dev/docs/quickstart/chrome-tracing'},
+              'proto-format traces'),
+            ' from Chrome.'),
+          m('br')),
+    buttons: [],
+  });
+};
 
 // TraceController handles handshakes with the frontend for everything that
 // concerns a single trace. It owns the WASM trace processor engine, handles
@@ -362,6 +387,16 @@ export class TraceController extends Controller<States> {
     const traceTimeState = {
       startSec,
       endSec,
+    };
+
+    {
+      // Show warning if the trace is in JSON format.
+      const query = `select str_value from metadata where name = 'trace_type'`;
+      const result = await assertExists(this.engine).query(query);
+      const traceType = result.firstRow({str_value: STR});
+      if (traceType.str_value == 'json') {
+        showJsonWarning();
+      }
     };
 
     const emptyOmniboxState = {
@@ -794,6 +829,14 @@ export class TraceController extends Controller<States> {
   }
 }
 
+async function computeTraceReliableRangeStart(engine: Engine): Promise<number> {
+  const result =
+      await engine.query(`SELECT RUN_METRIC('chrome/chrome_reliable_range.sql');
+       SELECT start FROM chrome_reliable_range`);
+  const bounds = result.firstRow({start: NUM});
+  return bounds.start / 1e9;
+}
+
 async function computeVisibleTime(
     traceStartSec: number, traceEndSec: number, engine: Engine):
     Promise<[number, number]> {
@@ -817,5 +860,11 @@ async function computeVisibleTime(
         Math.max(visibleStartSec, mdTime.start - TRACE_MARGIN_TIME_S);
     visibleEndSec = Math.min(visibleEndSec, mdTime.end + TRACE_MARGIN_TIME_S);
   }
+
+  if (ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG.get()) {
+    const reliableRangeStart = await computeTraceReliableRangeStart(engine);
+    visibleStartSec = Math.max(visibleStartSec, reliableRangeStart);
+  }
+
   return [visibleStartSec, visibleEndSec];
 }

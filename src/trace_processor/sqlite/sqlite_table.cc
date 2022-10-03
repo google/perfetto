@@ -28,7 +28,7 @@ namespace trace_processor {
 
 namespace {
 
-std::string TypeToString(SqlValue::Type type) {
+std::string TypeToSqlString(SqlValue::Type type) {
   switch (type) {
     case SqlValue::Type::kString:
       return "TEXT";
@@ -44,7 +44,7 @@ std::string TypeToString(SqlValue::Type type) {
   PERFETTO_FATAL("Not reached");  // For gcc
 }
 
-std::string OpToString(int op) {
+std::string OpToDebugString(int op) {
   switch (op) {
     case SQLITE_INDEX_CONSTRAINT_EQ:
       return "=";
@@ -66,6 +66,10 @@ std::string OpToString(int op) {
       return "is not null";
     case SQLITE_INDEX_CONSTRAINT_GLOB:
       return "glob";
+    case SQLITE_INDEX_CONSTRAINT_LIMIT:
+      return "limit";
+    case SQLITE_INDEX_CONSTRAINT_OFFSET:
+      return "offset";
     default:
       PERFETTO_FATAL("Operator to string conversion not impemented for %d", op);
   }
@@ -82,7 +86,7 @@ std::string QcDebugStr(const QueryConstraints& qc,
   for (const auto& cs : qc.constraints()) {
     str_result.append(schema.columns()[static_cast<size_t>(cs.column)].name());
     str_result.append(" ");
-    str_result.append(OpToString(cs.op));
+    str_result.append(OpToDebugString(cs.op));
     str_result.append(",");
   }
   str_result.back() = ';';
@@ -252,7 +256,7 @@ std::string SqliteTable::Schema::ToCreateTableStmt() const {
     stmt += " " + col.name();
 
     if (col.type() != SqlValue::Type::kNull) {
-      stmt += " " + TypeToString(col.type());
+      stmt += " " + TypeToSqlString(col.type());
     } else if (std::find(primary_keys_.begin(), primary_keys_.end(), i) !=
                primary_keys_.end()) {
       PERFETTO_FATAL("Unknown type for primary key column %s",

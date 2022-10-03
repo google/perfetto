@@ -821,6 +821,8 @@ void TracingMuxerImpl::Initialize(const TracingInitArgs& args) {
   PERFETTO_DCHECK_THREAD(thread_checker_);  // Rebind the thread checker.
 
   policy_ = args.tracing_policy;
+  supports_multiple_data_source_instances_ =
+      args.supports_multiple_data_source_instances;
 
   auto add_backend = [this, &args](TracingBackend* backend, BackendType type) {
     if (!backend) {
@@ -877,6 +879,7 @@ void TracingMuxerImpl::Initialize(const TracingInitArgs& args) {
 bool TracingMuxerImpl::RegisterDataSource(
     const DataSourceDescriptor& descriptor,
     DataSourceFactory factory,
+    bool supports_multiple_instances,
     DataSourceStaticState* static_state) {
   // Ignore repeated registrations.
   if (static_state->index != kMaxDataSources)
@@ -903,11 +906,14 @@ bool TracingMuxerImpl::RegisterDataSource(
   hash.Update(base::GetWallTimeNs().count());
   static_state->id = hash.digest() ? hash.digest() : 1;
 
-  task_runner_->PostTask([this, descriptor, factory, static_state] {
+  task_runner_->PostTask([this, descriptor, factory, static_state,
+                          supports_multiple_instances] {
     data_sources_.emplace_back();
     RegisteredDataSource& rds = data_sources_.back();
     rds.descriptor = descriptor;
     rds.factory = factory;
+    rds.supports_multiple_instances =
+        supports_multiple_data_source_instances_ && supports_multiple_instances;
     rds.static_state = static_state;
 
     UpdateDataSourceOnAllBackends(rds, /*is_changed=*/false);
@@ -1078,6 +1084,16 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
   PERFETTO_DCHECK_THREAD(thread_checker_);
   DataSourceStaticState& static_state = *rds.static_state;
 
+  // If any bit is set in `static_state.valid_instances` then at least one
+  // other instance of data source is running.
+  if (!rds.supports_multiple_instances &&
+      static_state.valid_instances.load(std::memory_order_acquire) != 0) {
+    PERFETTO_ELOG(
+        "Failed to setup data source because some another instance of this "
+        "data source is already active");
+    return FindDataSourceRes();
+  }
+
   for (uint32_t i = 0; i < kMaxDataSourceInstances; i++) {
     // Find a free slot.
     if (static_state.TryGet(i))
@@ -1232,6 +1248,7 @@ void TracingMuxerImpl::StartDataSourceImpl(const FindDataSourceRes& ds) {
   if (ds.internal_state->interceptor)
     ds.internal_state->interceptor->OnStart({});
   ds.internal_state->trace_lambda_enabled = true;
+  PERFETTO_DCHECK(ds.internal_state->data_source != nullptr);
   ds.internal_state->data_source->OnStart(start_args);
 }
 

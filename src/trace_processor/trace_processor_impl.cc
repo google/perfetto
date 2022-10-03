@@ -22,6 +22,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/trace_processor/demangle.h"
@@ -377,6 +378,39 @@ base::Status Hash::Run(void*,
     }
   }
   out = SqlValue::Long(static_cast<int64_t>(hash.digest()));
+  return base::OkStatus();
+}
+
+struct Base64Encode : public SqlFunction {
+  static base::Status Run(void*,
+                          size_t argc,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors&);
+};
+
+base::Status Base64Encode::Run(void*,
+                               size_t argc,
+                               sqlite3_value** argv,
+                               SqlValue& out,
+                               Destructors& destructors) {
+  if (argc != 1)
+    return base::ErrStatus("Unsupported number of arg passed to Base64Encode");
+
+  sqlite3_value* value = argv[0];
+  if (sqlite3_value_type(value) != SQLITE_BLOB)
+    return base::ErrStatus("Base64Encode only supports bytes argument");
+
+  size_t byte_count = static_cast<size_t>(sqlite3_value_bytes(value));
+  std::string res = base::Base64Encode(sqlite3_value_blob(value), byte_count);
+
+  std::unique_ptr<char, base::FreeDeleter> s(
+      static_cast<char*>(malloc(res.size() + 1)));
+  memcpy(s.get(), res.c_str(), res.size() + 1);
+
+  out = SqlValue::String(s.release());
+  destructors.string_destructor = free;
+
   return base::OkStatus();
 }
 
@@ -863,7 +897,8 @@ base::Status PrepareAndStepUntilLastValidStmt(
     if (prev_stmt) {
       PERFETTO_TP_TRACE(
           "STMT_STEP_UNTIL_DONE", [&prev_stmt](metatrace::Record* record) {
-            record->AddArg("SQL", sqlite3_expanded_sql(*prev_stmt));
+            auto expanded_sql = sqlite_utils::ExpandedSqlForStmt(*prev_stmt);
+            record->AddArg("SQL", expanded_sql.get());
           });
       RETURN_IF_ERROR(sqlite_utils::StepStmtUntilDone(prev_stmt.get()));
     }
@@ -873,7 +908,8 @@ base::Status PrepareAndStepUntilLastValidStmt(
     {
       PERFETTO_TP_TRACE(
           "STMT_FIRST_STEP", [&cur_stmt](metatrace::Record* record) {
-            record->AddArg("SQL", sqlite3_expanded_sql(*cur_stmt));
+            auto expanded_sql = sqlite_utils::ExpandedSqlForStmt(*cur_stmt);
+            record->AddArg("SQL", expanded_sql.get());
           });
 
       // Now step once into |cur_stmt| so that when we prepare the next statment
@@ -900,6 +936,30 @@ base::Status PrepareAndStepUntilLastValidStmt(
   metadata->column_count =
       static_cast<uint32_t>(sqlite3_column_count(output_stmt->get()));
   return base::OkStatus();
+}
+
+const char* TraceTypeToString(TraceType trace_type) {
+  switch (trace_type) {
+    case kUnknownTraceType:
+      return "unknown";
+    case kProtoTraceType:
+      return "proto";
+    case kJsonTraceType:
+      return "json";
+    case kFuchsiaTraceType:
+      return "fuchsia";
+    case kSystraceTraceType:
+      return "systrace";
+    case kGzipTraceType:
+      return "gzip";
+    case kCtraceTraceType:
+      return "ctrace";
+    case kNinjaLogTraceType:
+      return "ninja_log";
+    case kAndroidBugreportTraceType:
+      return "android_bugreport";
+  }
+  PERFETTO_FATAL("For GCC");
 }
 
 }  // namespace
@@ -941,6 +1001,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // New style function registration.
   RegisterFunction<Glob>(db, "glob", 2);
   RegisterFunction<Hash>(db, "HASH", -1);
+  RegisterFunction<Base64Encode>(db, "BASE64_ENCODE", 1);
   RegisterFunction<Demangle>(db, "DEMANGLE", 1);
   RegisterFunction<SourceGeq>(db, "SOURCE_GEQ", -1);
   RegisterFunction<ExportJson>(db, "EXPORT_JSON", 1, context_.storage.get(),
@@ -1101,6 +1162,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->memory_snapshot_edge_table());
 
   RegisterDbTable(storage->experimental_proto_content_table());
+
+  RegisterDbTable(storage->experimental_missing_chrome_processes_table());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() = default;
@@ -1127,6 +1190,10 @@ void TraceProcessorImpl::Flush() {
   context_.metadata_tracker->SetMetadata(
       metadata::trace_size_bytes,
       Variadic::Integer(static_cast<int64_t>(bytes_parsed_)));
+  const StringId trace_type_id =
+      context_.storage->InternString(TraceTypeToString(context_.trace_type));
+  context_.metadata_tracker->SetMetadata(metadata::trace_type,
+                                         Variadic::String(trace_type_id));
   BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
 }
 

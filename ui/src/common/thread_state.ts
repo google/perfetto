@@ -21,7 +21,7 @@ const states: {[key: string]: string} = {
   'X': 'Exit (Dead)',
   'Z': 'Exit (Zombie)',
   'x': 'Task Dead',
-  'I': 'Task Dead',
+  'I': 'Idle',
   'K': 'Wake Kill',
   'W': 'Waking',
   'P': 'Parked',

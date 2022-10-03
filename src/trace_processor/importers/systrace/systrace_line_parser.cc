@@ -84,7 +84,8 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
   if (line.event_name == "sched_switch") {
     auto prev_state_str = args["prev_state"];
     int64_t prev_state =
-        ftrace_utils::TaskState(prev_state_str.c_str()).raw_state();
+        ftrace_utils::TaskState::FromSystrace(prev_state_str.c_str())
+            .ToRawStateOnlyForSystraceConversions();
 
     auto prev_pid = base::StringToUInt32(args["prev_pid"]);
     auto prev_comm = base::StringView(args["prev_comm"]);

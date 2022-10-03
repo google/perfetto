@@ -438,7 +438,7 @@ export interface PivotTableReduxState {
   selectedSlicePivots: TableColumn[];
 
   // Selected aggregation columns. Stored same way as pivots.
-  selectedAggregations: Map<string, Aggregation>;
+  selectedAggregations: Aggregation[];
 
   // Present if the result should be sorted, and in which direction.
   sortCriteria?: {column: TableColumn, order: SortDirection};
@@ -601,8 +601,8 @@ export function isAdbTarget(target: RecordingTarget):
 }
 
 export function hasActiveProbes(config: RecordConfig) {
-  const fieldsWithEmptyResult =
-      new Set<string>(['hpBlockClient', 'allAtraceApps']);
+  const fieldsWithEmptyResult = new Set<string>(
+      ['hpBlockClient', 'allAtraceApps', 'chromePrivacyFiltering']);
   let key: keyof RecordConfig;
   for (key in config) {
     if (typeof (config[key]) === 'boolean' && config[key] === true &&

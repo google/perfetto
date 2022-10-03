@@ -207,6 +207,61 @@ void SchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
       ts, cpu, prev_utid, prev_state_string_id, next_utid);
 }
 
+// Processes a sched_waking that was decoded from a compact representation,
+// adding to the raw and instants tables.
+void SchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
+                                               int64_t ts,
+                                               uint32_t wakee_pid,
+                                               int32_t target_cpu,
+                                               int32_t prio,
+                                               StringId comm_id) {
+  // At this stage all events should be globally timestamp ordered.
+  if (ts < context_->event_tracker->max_timestamp()) {
+    PERFETTO_ELOG(
+        "sched_waking event out of order by %.4f ms, skipping",
+        static_cast<double>(context_->event_tracker->max_timestamp() - ts) /
+            1e6);
+    context_->storage->IncrementStats(stats::sched_waking_out_of_order);
+    return;
+  }
+  context_->event_tracker->UpdateMaxTimestamp(ts);
+
+  // We infer the task that emitted the event (i.e. common_pid) from the
+  // scheduling slices. Drop the event if we haven't seen any sched_switch
+  // events for this cpu yet.
+  // Note that if sched_switch wasn't enabled, we will have to skip all
+  // compact waking events.
+  auto* pending_sched = PendingSchedByCPU(cpu);
+  if (pending_sched->last_utid == std::numeric_limits<UniqueTid>::max()) {
+    context_->storage->IncrementStats(stats::compact_sched_waking_skipped);
+    return;
+  }
+  auto curr_utid = pending_sched->last_utid;
+
+  if (PERFETTO_LIKELY(context_->config.ingest_ftrace_in_raw_table)) {
+    // Add an entry to the raw table.
+    RawId id = context_->storage->mutable_raw_table()
+                   ->Insert({ts, sched_waking_id_, cpu, curr_utid})
+                   .id;
+
+    using SW = protos::pbzero::SchedWakingFtraceEvent;
+    auto inserter = context_->args_tracker->AddArgsTo(id);
+    auto add_raw_arg = [this, &inserter](int field_num, Variadic var) {
+      StringId key = sched_waking_field_ids_[static_cast<size_t>(field_num)];
+      inserter.AddArg(key, var);
+    };
+    add_raw_arg(SW::kCommFieldNumber, Variadic::String(comm_id));
+    add_raw_arg(SW::kPidFieldNumber, Variadic::Integer(wakee_pid));
+    add_raw_arg(SW::kPrioFieldNumber, Variadic::Integer(prio));
+    add_raw_arg(SW::kTargetCpuFieldNumber, Variadic::Integer(target_cpu));
+  }
+
+  // Add a waking entry to the ThreadState table.
+  auto wakee_utid = context_->process_tracker->GetOrCreateThread(wakee_pid);
+  ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(ts, wakee_utid,
+                                                             curr_utid);
+}
+
 PERFETTO_ALWAYS_INLINE
 uint32_t SchedEventTracker::AddRawEventAndStartSlice(uint32_t cpu,
                                                      int64_t ts,
@@ -256,9 +311,11 @@ uint32_t SchedEventTracker::AddRawEventAndStartSlice(uint32_t cpu,
 }
 
 StringId SchedEventTracker::TaskStateToStringId(int64_t task_state_int) {
-  auto kernel_version =
+  using ftrace_utils::TaskState;
+
+  base::Optional<VersionNumber> kernel_version =
       SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
-  auto task_state = ftrace_utils::TaskState(
+  TaskState task_state = TaskState::FromRawPrevState(
       static_cast<uint16_t>(task_state_int), kernel_version);
   return task_state.is_valid()
              ? context_->storage->InternString(task_state.ToString().data())
@@ -278,66 +335,6 @@ void SchedEventTracker::ClosePendingSlice(uint32_t pending_slice_idx,
   // when unpacking the information inside; this allows savings of 48 bits
   // per slice.
   slices->mutable_end_state()->Set(pending_slice_idx, prev_state);
-}
-
-// Processes a sched_waking that was decoded from a compact representation,
-// adding to the raw and instants tables.
-void SchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
-                                               int64_t ts,
-                                               uint32_t wakee_pid,
-                                               int32_t target_cpu,
-                                               int32_t prio,
-                                               StringId comm_id) {
-  // At this stage all events should be globally timestamp ordered.
-  if (ts < context_->event_tracker->max_timestamp()) {
-    PERFETTO_ELOG(
-        "sched_waking event out of order by %.4f ms, skipping",
-        static_cast<double>(context_->event_tracker->max_timestamp() - ts) /
-            1e6);
-    context_->storage->IncrementStats(stats::sched_waking_out_of_order);
-    return;
-  }
-  context_->event_tracker->UpdateMaxTimestamp(ts);
-
-  // We infer the task that emitted the event (i.e. common_pid) from the
-  // scheduling slices. Drop the event if we haven't seen any sched_switch
-  // events for this cpu yet.
-  // Note that if sched_switch wasn't enabled, we will have to skip all
-  // compact waking events.
-  auto* pending_sched = PendingSchedByCPU(cpu);
-  if (pending_sched->last_utid == std::numeric_limits<UniqueTid>::max()) {
-    context_->storage->IncrementStats(stats::compact_sched_waking_skipped);
-    return;
-  }
-  auto curr_utid = pending_sched->last_utid;
-
-  if (PERFETTO_LIKELY(context_->config.ingest_ftrace_in_raw_table)) {
-    // Add an entry to the raw table.
-    RawId id = context_->storage->mutable_raw_table()
-                   ->Insert({ts, sched_waking_id_, cpu, curr_utid})
-                   .id;
-
-    // "success" is hardcoded as always 1 by the kernel, with a TODO to remove
-    // it.
-    static constexpr int32_t kHardcodedSuccess = 1;
-
-    using SW = protos::pbzero::SchedWakingFtraceEvent;
-    auto inserter = context_->args_tracker->AddArgsTo(id);
-    auto add_raw_arg = [this, &inserter](int field_num, Variadic var) {
-      StringId key = sched_waking_field_ids_[static_cast<size_t>(field_num)];
-      inserter.AddArg(key, var);
-    };
-    add_raw_arg(SW::kCommFieldNumber, Variadic::String(comm_id));
-    add_raw_arg(SW::kPidFieldNumber, Variadic::Integer(wakee_pid));
-    add_raw_arg(SW::kPrioFieldNumber, Variadic::Integer(prio));
-    add_raw_arg(SW::kSuccessFieldNumber, Variadic::Integer(kHardcodedSuccess));
-    add_raw_arg(SW::kTargetCpuFieldNumber, Variadic::Integer(target_cpu));
-  }
-
-  // Add a waking entry to the ThreadState table.
-  auto wakee_utid = context_->process_tracker->GetOrCreateThread(wakee_pid);
-  ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(ts, wakee_utid,
-                                                             curr_utid);
 }
 
 }  // namespace trace_processor

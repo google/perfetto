@@ -16,12 +16,17 @@
 
 #include "src/traced/probes/ftrace/discover_vendor_tracepoints.h"
 
-#include "perfetto/ext/base/string_splitter.h"
-#include "perfetto/ext/base/string_utils.h"
-#include "src/traced/probes/ftrace/atrace_wrapper.h"
+#include <map>
+#include <string>
+#include <vector>
+
+#include "src/traced/probes/ftrace/atrace_hal_wrapper.h"
+#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/proto_translation_table.h"
 
 namespace perfetto {
 namespace vendor_tracepoints {
+namespace {
 
 std::vector<GroupAndName> DiscoverTracepoints(AtraceHalWrapper* hal,
                                               FtraceProcfs* ftrace,
@@ -41,10 +46,10 @@ std::vector<GroupAndName> DiscoverTracepoints(AtraceHalWrapper* hal,
   ftrace->DisableAllEvents();
   return events;
 }
+}  // namespace
 
-std::map<std::string, std::vector<GroupAndName>> DiscoverVendorTracepoints(
-    AtraceHalWrapper* hal,
-    FtraceProcfs* ftrace) {
+std::map<std::string, std::vector<GroupAndName>>
+DiscoverVendorTracepointsWithHal(AtraceHalWrapper* hal, FtraceProcfs* ftrace) {
   std::map<std::string, std::vector<GroupAndName>> results;
   for (const auto& category : hal->ListCategories()) {
     results.emplace(category, DiscoverTracepoints(hal, ftrace, category));

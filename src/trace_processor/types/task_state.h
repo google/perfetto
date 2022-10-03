@@ -17,78 +17,110 @@
 #ifndef SRC_TRACE_PROCESSOR_TYPES_TASK_STATE_H_
 #define SRC_TRACE_PROCESSOR_TYPES_TASK_STATE_H_
 
-#include <stddef.h>
+#include <stdint.h>
 #include <array>
-#include <utility>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
-#include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/string_writer.h"
 #include "src/trace_processor/types/version_number.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace ftrace_utils {
 
-// A strongly typed representation of the TaskState enum given in sched_switch
-// events.
+// Linux kernel scheduling events (sched_switch) contain a bitmask of the
+// switched-out task's state (prev_state). Perfetto doesn't record the event
+// format string during tracing, the trace contains only the raw bitmask as an
+// integer. Certain kernel versions made backwards incompatible changes to the
+// bitmask's raw representation, so this class guesses how to decode the flags
+// based on the kernel's major+minor version as recorded in the trace. Note:
+// this means we can be wrong if patch backports change the flags, or the
+// kernel diverged from upstream. But this has worked well enough in practice
+// so far.
+//
+// There are three specific kernel version intervals we handle:
+// * [4.14, ...)
+// * [4.8, 4.14)
+// * (..., 4.8), where we assume the 4.4 bitmask
+//
+// (Therefore kernels before 4.2 most likely have incorrect preemption flag
+// parsing.)
+//
+// For 4.14, we assume that the kernel has a backport of the bugfix
+// https://github.com/torvalds/linux/commit/3f5fe9fe ("sched/debug: Fix task
+// state recording/printout"). In other words, traces collected on unpatched
+// 4.14 kernels will have incorrect flags decoded.
 class TaskState {
  public:
   using TaskStateStr = std::array<char, 4>;
 
-  // The ordering and values of these fields comes from the kernel in the file
-  // https://android.googlesource.com/kernel/msm.git/+/android-msm-wahoo-4.4-pie-qpr1/include/linux/sched.h#212
-  enum Atom : uint16_t {
-    kRunnable = 0,
-    kInterruptibleSleep = 1,
-    kUninterruptibleSleep = 2,
-    kStopped = 4,
-    kTraced = 8,
-    kExitDead = 16,
-    kExitZombie = 32,
-    kTaskDead = 64,
-    kWakeKill = 128,
-    kWaking = 256,
-    kParked = 512,
-    kNoLoad = 1024,
-    // This was added in kernel v4.9 but is never used.
-    kTaskNew = 2048,
+  // We transcode the raw bitmasks into a set of these flags to make them
+  // kernel version agnostic.
+  //
+  // Warning: do NOT depend on the numeric values of these constants, and
+  // especially do NOT attempt to use these constants when operating on raw
+  // prev_state masks unless you're changing task_state.cc itself.
+  enum ParsedFlag : uint16_t {
+    kRunnable = 0x0000,  // no flag (besides kPreempted) means "running"
+    kInterruptibleSleep = 0x0001,
+    kUninterruptibleSleep = 0x0002,
+    kStopped = 0x0004,
+    kTraced = 0x0008,
+    kExitDead = 0x0010,
+    kExitZombie = 0x0020,
 
-    kValid = 0x8000,
+    // Starting from here, different kernels have different values:
+    kParked = 0x0040,
+
+    // No longer reported on 4.14+:
+    kTaskDead = 0x0080,
+    kWakeKill = 0x0100,
+    kWaking = 0x0200,
+    kNoLoad = 0x0400,
+
+    // Special states that don't map onto the scheduler's constants:
+    kIdle = 0x4000,
+    kPreempted = 0x8000,  // exclusive as only running tasks can be preempted
+
+    // Sentinel value that is an invalid combination of flags:
+    kInvalid = 0xffff
   };
 
-  TaskState() = default;
-  explicit TaskState(uint16_t raw_state,
-                     base::Optional<VersionNumber> = VersionNumber{4, 4});
-  explicit TaskState(const char* state_str);
+  static TaskState FromRawPrevState(
+      uint16_t raw_state,
+      base::Optional<VersionNumber> kernel_version);
+  static TaskState FromSystrace(const char* state_str);
+  static TaskState FromParsedFlags(uint16_t parsed_state);
 
-  // Returns if this TaskState has a valid representation.
-  bool is_valid() const { return state_ & kValid; }
+  // TODO(rsavitski): consider moving the factory methods to an optional return
+  // type instead.
+  bool is_valid() const { return parsed_ != kInvalid; }
 
-  // Returns the string representation of this (valid) TaskState. This array
-  // is null terminated. |separator| specifies if a separator should be printed
-  // between the atoms (default: \0 meaning no separator).
-  // Note: This function CHECKs that |is_valid()| is true.
+  // Returns the textual representation of this state as a null-terminated
+  // array. |separator| specifies if a separator should be printed between the
+  // atoms (default: \0 meaning no separator).
   TaskStateStr ToString(char separator = '\0') const;
 
-  // Returns the raw state this class can be recreated from.
-  uint16_t raw_state() const {
-    PERFETTO_DCHECK(is_valid());
-    return state_ & ~kValid;
-  }
+  // Converts the TaskState back to the raw format, to be used only when
+  // parsing systrace.
+  // NB: this makes a hard assumption on the 4.4 flag layout, since systrace
+  // files don't specify a kernel version, so when trace_processor later calls
+  // FromRawPrevState to construct sched.end_state column values, it'll default
+  // to the 4.4 layout.
+  // TODO(rsavitski): can we get rid of this entirely and avoid the
+  // str -> TaskState -> uint16_t -> str conversion chain?
+  uint16_t ToRawStateOnlyForSystraceConversions() const;
 
-  // Returns if this TaskState is runnable.
-  bool is_runnable() const { return ((state_ & (max_state_ - 1)) == 0); }
-
-  // Returns whether kernel preemption caused the exit state.
-  bool is_kernel_preempt() const { return state_ & max_state_; }
+  uint16_t ParsedForTesting() const { return parsed_; }
 
  private:
-  // One of Atom - based on given raw_state and version. Will have isValid set
-  // if valid.
-  uint16_t state_ = 0;
-  uint16_t max_state_ = 2048;
+  TaskState() = default;
+  explicit TaskState(uint16_t raw_state,
+                     base::Optional<VersionNumber> kernel_version);
+  explicit TaskState(const char* state_str);
+
+  bool is_runnable() const { return !(parsed_ & ~kPreempted); }
+
+  uint16_t parsed_ = 0;
 };
 
 }  // namespace ftrace_utils

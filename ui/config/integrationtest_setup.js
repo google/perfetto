@@ -14,7 +14,7 @@
 
 const path = require('path');
 const http = require('http');
-const child_process = require('child_process');
+const childProcess = require('child_process');
 
 module.exports = async function() {
   // Start the local HTTP server.
@@ -24,34 +24,33 @@ module.exports = async function() {
     path.join(ROOT_DIR, 'ui', 'build.js'),
     '--serve',
     '--no-build',
-    '--out=.'
+    '--out=.',
   ];
   const spwOpts = {stdio: ['ignore', 'inherit', 'inherit']};
-  const srvProc = child_process.spawn(node, args, spwOpts);
+  const srvProc = childProcess.spawn(node, args, spwOpts);
   global.__DEV_SERVER__ = srvProc;
 
   // Wait for the HTTP server to be ready.
   let attempts = 10;
   for (; attempts > 0; attempts--) {
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 1000));
     try {
       await new Promise((resolve, reject) => {
         const req = http.request('http://127.0.0.1:10000/frontend_bundle.js');
         req.end();
-        req.on('error', err => reject(err));
+        req.on('error', (err) => reject(err));
         req.on('finish', () => resolve());
       });
       break;
     } catch (err) {
       console.error('Waiting for HTTP server to come up', err.message);
-      continue;
     }
   }
-  if (attempts == 0) {
+  if (attempts === 0) {
     throw new Error('HTTP server didn\'t come up');
   }
   if (srvProc.exitCode !== null) {
     throw new Error(
         `The dev server unexpectedly exited, code=${srvProc.exitCode}`);
   }
-}
+};

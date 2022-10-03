@@ -31,10 +31,11 @@ import {
   ProcessStatsConfig,
   SysStatsConfig,
   TraceConfig,
+  TrackEventConfig,
   VmstatCounters,
 } from '../protos';
 
-import {RecordingTargetV2, TargetInfo} from './recording_interfaces_v2';
+import {TargetInfo} from './recording_interfaces_v2';
 
 export interface ConfigProtoEncoded {
   configProtoText?: string;
@@ -46,9 +47,8 @@ export class RecordingConfigUtils {
   private configProtoText?: string;
   private configProtoBase64?: string;
 
-  fetchLatestRecordCommand(
-      recordConfig: RecordConfig,
-      target: RecordingTargetV2): ConfigProtoEncoded {
+  fetchLatestRecordCommand(recordConfig: RecordConfig, targetInfo: TargetInfo):
+      ConfigProtoEncoded {
     if (recordConfig === this.lastConfig) {
       return {
         configProtoText: this.configProtoText,
@@ -57,7 +57,7 @@ export class RecordingConfigUtils {
     }
     this.lastConfig = recordConfig;
     const configProto =
-        TraceConfig.encode(genTraceConfig(this.lastConfig, target.getInfo()))
+        TraceConfig.encode(genTraceConfig(this.lastConfig, targetInfo))
             .finish();
     this.configProtoText = toPbtxt(configProto);
     this.configProtoBase64 = base64Encode(configProto);
@@ -348,6 +348,15 @@ export function genTraceConfig(
     }
   }
 
+  if (uiCfg.androidGameInterventionList) {
+    const ds = new TraceConfig.DataSource();
+    ds.config = new DataSourceConfig();
+    ds.config.name = 'android.game_interventions';
+    if (targetInfo.targetType !== 'CHROME') {
+      protoCfg.dataSources.push(ds);
+    }
+  }
+
   if (uiCfg.chromeLogs) {
     chromeCategories.add('log');
   }
@@ -411,6 +420,8 @@ export function genTraceConfig(
     const configStruct = {
       record_mode: chromeRecordMode,
       included_categories: [...chromeCategories.values()],
+      // Only include explicitly selected categories
+      excluded_categories: ['*'],
       memory_dump_config: {},
     };
     if (chromeCategories.has('disabled-by-default-memory-infra')) {
@@ -423,44 +434,51 @@ export function genTraceConfig(
         }],
       };
     }
-    const traceConfigJson = JSON.stringify(configStruct);
+    const chromeConfig = new ChromeConfig();
+    chromeConfig.clientPriority = ChromeConfig.ClientPriority.USER_INITIATED;
+    chromeConfig.privacyFilteringEnabled = uiCfg.chromePrivacyFiltering;
+    chromeConfig.traceConfig = JSON.stringify(configStruct);
 
     const traceDs = new TraceConfig.DataSource();
     traceDs.config = new DataSourceConfig();
     traceDs.config.name = 'org.chromium.trace_event';
-    traceDs.config.chromeConfig = new ChromeConfig();
-    traceDs.config.chromeConfig.clientPriority =
-        ChromeConfig.ClientPriority.USER_INITIATED;
-    traceDs.config.chromeConfig.traceConfig = traceConfigJson;
+    traceDs.config.chromeConfig = chromeConfig;
     protoCfg.dataSources.push(traceDs);
 
+    // Configure "track_event" datasource for the Chrome SDK build.
+    const trackEventDs = new TraceConfig.DataSource();
+    trackEventDs.config = new DataSourceConfig();
+    trackEventDs.config.name = 'track_event';
+    trackEventDs.config.chromeConfig = chromeConfig;
+    trackEventDs.config.trackEventConfig = new TrackEventConfig();
+    trackEventDs.config.trackEventConfig.disabledCategories = ['*'];
+    trackEventDs.config.trackEventConfig.enabledCategories =
+        [...chromeCategories.values(), '__metadata'];
+    trackEventDs.config.trackEventConfig.enableThreadTimeSampling = true;
+    trackEventDs.config.trackEventConfig.timestampUnitMultiplier = 1000;
+    trackEventDs.config.trackEventConfig.filterDynamicEventNames =
+        uiCfg.chromePrivacyFiltering;
+    trackEventDs.config.trackEventConfig.filterDebugAnnotations =
+        uiCfg.chromePrivacyFiltering;
+    protoCfg.dataSources.push(trackEventDs);
 
     const metadataDs = new TraceConfig.DataSource();
     metadataDs.config = new DataSourceConfig();
     metadataDs.config.name = 'org.chromium.trace_metadata';
-    metadataDs.config.chromeConfig = new ChromeConfig();
-    metadataDs.config.chromeConfig.clientPriority =
-        ChromeConfig.ClientPriority.USER_INITIATED;
-    metadataDs.config.chromeConfig.traceConfig = traceConfigJson;
+    metadataDs.config.chromeConfig = chromeConfig;
     protoCfg.dataSources.push(metadataDs);
 
     if (chromeCategories.has('disabled-by-default-memory-infra')) {
       const memoryDs = new TraceConfig.DataSource();
       memoryDs.config = new DataSourceConfig();
       memoryDs.config.name = 'org.chromium.memory_instrumentation';
-      memoryDs.config.chromeConfig = new ChromeConfig();
-      memoryDs.config.chromeConfig.clientPriority =
-          ChromeConfig.ClientPriority.USER_INITIATED;
-      memoryDs.config.chromeConfig.traceConfig = traceConfigJson;
+      memoryDs.config.chromeConfig = chromeConfig;
       protoCfg.dataSources.push(memoryDs);
 
       const HeapProfDs = new TraceConfig.DataSource();
       HeapProfDs.config = new DataSourceConfig();
       HeapProfDs.config.name = 'org.chromium.native_heap_profiler';
-      HeapProfDs.config.chromeConfig = new ChromeConfig();
-      HeapProfDs.config.chromeConfig.clientPriority =
-          ChromeConfig.ClientPriority.USER_INITIATED;
-      HeapProfDs.config.chromeConfig.traceConfig = traceConfigJson;
+      HeapProfDs.config.chromeConfig = chromeConfig;
       protoCfg.dataSources.push(HeapProfDs);
     }
 
@@ -469,10 +487,7 @@ export function genTraceConfig(
       const dataSource = new TraceConfig.DataSource();
       dataSource.config = new DataSourceConfig();
       dataSource.config.name = 'org.chromium.sampler_profiler';
-      dataSource.config.chromeConfig = new ChromeConfig();
-      dataSource.config.chromeConfig.clientPriority =
-          ChromeConfig.ClientPriority.USER_INITIATED;
-      dataSource.config.chromeConfig.traceConfig = traceConfigJson;
+      dataSource.config.chromeConfig = chromeConfig;
       protoCfg.dataSources.push(dataSource);
     }
   }

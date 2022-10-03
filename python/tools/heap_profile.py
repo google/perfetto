@@ -389,7 +389,8 @@ def main(argv):
                   'perfetto --txt -c - -o ' + profile_device_path + ' -d')
 
   if args.disable_selinux:
-    enforcing = subprocess.check_output(['adb', 'shell', 'getenforce'])
+    enforcing = subprocess.check_output(['adb', 'shell',
+                                         'getenforce']).decode('utf-8').strip()
     atexit.register(
         subprocess.check_call,
         ['adb', 'shell', 'su root setenforce %s' % enforcing])

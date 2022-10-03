@@ -496,7 +496,7 @@ class AmalgamatedProject(object):
     if not os.path.isdir(directory):
       os.makedirs(directory)
 
-  def save(self, output_prefix):
+  def save(self, output_prefix, system_buildtools=False):
     """Save the generated header and source file pair.
 
         Returns a message describing the output with build instructions.
@@ -511,7 +511,7 @@ class AmalgamatedProject(object):
       include_stmt = '#include "%s"' % os.path.basename(header_file)
       f.write('\n'.join([preamble] + self.source_defines + [include_stmt] +
                         self.source + ['\n']))
-    build_cmd = self.get_build_command(output_prefix)
+    build_cmd = self.get_build_command(output_prefix, system_buildtools)
     return """Amalgamated project written to %s and %s.
 
 Build settings:
@@ -525,12 +525,12 @@ Example build command:
 """ % (header_file, source_file, ' '.join(self.cflags), ' '.join(
         self.ldflags), ' '.join(self.libs), ' '.join(build_cmd))
 
-  def get_build_command(self, output_prefix):
+  def get_build_command(self, output_prefix, system_buildtools=False):
     """Returns an example command line for building the output source."""
     source = self._get_nice_path(output_prefix, '%s.cc')
     library = self._get_nice_path(output_prefix, 'lib%s.so')
 
-    if sys.platform.startswith('linux'):
+    if sys.platform.startswith('linux') and not system_buildtools:
       llvm_script = os.path.join(gn_utils.repo_root(), 'gn', 'standalone',
                                  'toolchain', 'linux_find_llvm.py')
       cxx = subprocess.check_output([llvm_script]).splitlines()[2].decode()
@@ -574,6 +574,11 @@ def main():
       help='List all source files that the amalgamated output depends on',
       action='store_true')
   parser.add_argument(
+      '--system_buildtools',
+      help='Use the buildtools (e.g. gn) preinstalled in the system instead '
+      'of the hermetic ones',
+      action='store_true')
+  parser.add_argument(
       'targets',
       nargs=argparse.REMAINDER,
       help='Targets to include in the output (e.g., "//:libperfetto")')
@@ -591,18 +596,22 @@ def main():
   if args.check:
     output = os.path.join(tempfile.mkdtemp(), 'perfetto_amalgamated')
 
-  out = gn_utils.prepare_out_directory(args.gn_args, args.out)
+  out = gn_utils.prepare_out_directory(args.gn_args,
+                                       args.out,
+                                       system_buildtools=args.system_buildtools)
   if not args.quiet:
     print('Building project...')
   try:
-    desc = gn_utils.load_build_description(out)
+    desc = gn_utils.load_build_description(out, args.system_buildtools)
 
     # We need to build everything first so that the necessary header
     # dependencies get generated. However if we are just dumping dependency
     # information this can be skipped, allowing cross-platform operation.
     if not args.dump_deps:
-      gn_utils.build_targets(out, targets)
-    source_deps = gn_utils.compute_source_dependencies(out)
+      gn_utils.build_targets(out, targets,
+                             system_buildtools=args.system_buildtools)
+    source_deps = gn_utils.compute_source_dependencies(out,
+                                                       args.system_buildtools)
     project = AmalgamatedProject(
         desc, source_deps, compute_deps_only=args.dump_deps)
 
@@ -617,14 +626,15 @@ def main():
       return
 
     project.generate()
-    result = project.save(output)
+    result = project.save(output, args.system_buildtools)
     if not args.quiet:
       print(result)
     if args.build:
       if not args.quiet:
         sys.stdout.write('Building amalgamated project...')
         sys.stdout.flush()
-      subprocess.check_call(project.get_build_command(output))
+      subprocess.check_call(project.get_build_command(output,
+                                                      args.system_buildtools))
       if not args.quiet:
         print('done')
   finally:

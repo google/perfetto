@@ -694,6 +694,15 @@ class TraceStorage {
     return &experimental_proto_content_table_;
   }
 
+  const tables::ExperimentalMissingChromeProcessesTable&
+  experimental_missing_chrome_processes_table() const {
+    return experimental_missing_chrome_processes_table_;
+  }
+  tables::ExperimentalMissingChromeProcessesTable*
+  mutable_experimental_missing_chrome_processes_table() {
+    return &experimental_missing_chrome_processes_table_;
+  }
+
   const views::ThreadSliceView& thread_slice_view() const {
     return thread_slice_view_;
   }
@@ -926,6 +935,9 @@ class TraceStorage {
 
   tables::ExperimentalProtoContentTable experimental_proto_content_table_{
       &string_pool_, nullptr};
+
+  tables::ExperimentalMissingChromeProcessesTable
+      experimental_missing_chrome_processes_table_{&string_pool_, nullptr};
 
   views::ThreadSliceView thread_slice_view_{&slice_table_, &thread_track_table_,
                                             &thread_table_};

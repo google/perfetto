@@ -71,6 +71,11 @@ android_startup {
     }
     activities {
       name: "com.google.android.calendar.MainActivity"
+      method: "performResume"
+      ts_method_start: 102000000000
+    }
+    activities {
+      name: "com.google.android.calendar.MainActivity"
       method: "performCreate"
       ts_method_start: 188000000000
     }
@@ -98,6 +103,7 @@ android_startup {
       most_active_non_launch_processes: "init"
       most_active_non_launch_processes: "system_server"
     }
+    slow_start_reason: "Main Thread - Time spent in Running state"
     slow_start_reason: "Main Thread - Time spent in Runnable state"
     slow_start_reason: "Time spent in bindApplication"
     slow_start_reason: "Time spent in view inflation"

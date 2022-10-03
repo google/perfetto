@@ -50,7 +50,7 @@ class DebugSliceTrackController extends TrackController<Config, Data> {
       Promise<Data> {
     const queryRes = await this.query(`select
       ifnull(id, -1) as id,
-      ifnull(name, '[null]') as name,
+      CAST(ifnull(name, '[null]') AS text) as name,
       ts,
       iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur) as dur,
       ifnull(depth, 0) as depth

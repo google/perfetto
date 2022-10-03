@@ -70,10 +70,12 @@ constexpr int64_t kPendingThreadInstructionDelta = -1;
 
 class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
  public:
-  TrackEventArgsParser(BoundInserter& inserter,
+  TrackEventArgsParser(int64_t packet_timestamp,
+                       BoundInserter& inserter,
                        TraceStorage& storage,
                        PacketSequenceStateGeneration& sequence_state)
-      : inserter_(inserter),
+      : packet_timestamp_(packet_timestamp),
+        inserter_(inserter),
         storage_(storage),
         sequence_state_(sequence_state) {}
 
@@ -146,9 +148,12 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
     return sequence_state_.GetInternedMessageView(field_id, iid);
   }
 
+  int64_t packet_timestamp() final { return packet_timestamp_; }
+
   PacketSequenceStateGeneration* seq_state() final { return &sequence_state_; }
 
  private:
+  int64_t packet_timestamp_;
   BoundInserter& inserter_;
   TraceStorage& storage_;
   PacketSequenceStateGeneration& sequence_state_;
@@ -1177,7 +1182,8 @@ class TrackEventParser::EventImporter {
           ParseHistogramName(event_.chrome_histogram_sample(), inserter));
     }
 
-    TrackEventArgsParser args_writer(*inserter, *storage_, *sequence_state_);
+    TrackEventArgsParser args_writer(ts_, *inserter, *storage_,
+                                     *sequence_state_);
     int unknown_extensions = 0;
     log_errors(parser_->args_parser_.ParseMessage(
         blob_, ".perfetto.protos.TrackEvent", &parser_->reflect_fields_,
@@ -1267,28 +1273,47 @@ class TrackEventParser::EventImporter {
 
     protos::pbzero::LogMessage::Decoder message(blob);
 
-    StringId log_message_id = kNullStringId;
-
-    auto* decoder = sequence_state_->LookupInternedMessage<
+    auto* body_decoder = sequence_state_->LookupInternedMessage<
         protos::pbzero::InternedData::kLogMessageBodyFieldNumber,
         protos::pbzero::LogMessageBody>(message.body_iid());
-    if (!decoder)
+    if (!body_decoder)
       return util::ErrStatus("LogMessage with invalid body_iid");
 
-    log_message_id = storage_->InternString(decoder->body());
+    const StringId log_message_id =
+        storage_->InternString(body_decoder->body());
+    inserter->AddArg(parser_->log_message_body_key_id_,
+                     Variadic::String(log_message_id));
 
-    // TODO(nicomazz): LogMessage also contains the source of the message (file
-    // and line number). Android logs doesn't support this so far.
+    StringId source_location_id = kNullStringId;
+    if (message.has_source_location_iid()) {
+      auto* source_location_decoder = sequence_state_->LookupInternedMessage<
+          protos::pbzero::InternedData::kSourceLocationsFieldNumber,
+          protos::pbzero::SourceLocation>(message.source_location_iid());
+      if (!source_location_decoder)
+        return util::ErrStatus("LogMessage with invalid source_location_iid");
+      const std::string source_location =
+          source_location_decoder->file_name().ToStdString() + ":" +
+          std::to_string(source_location_decoder->line_number());
+      source_location_id =
+          storage_->InternString(base::StringView(source_location));
+
+      inserter->AddArg(parser_->log_message_source_location_file_name_key_id_,
+                       Variadic::String(storage_->InternString(
+                           source_location_decoder->file_name())));
+      inserter->AddArg(
+          parser_->log_message_source_location_function_name_key_id_,
+          Variadic::String(storage_->InternString(
+              source_location_decoder->function_name())));
+      inserter->AddArg(
+          parser_->log_message_source_location_line_number_key_id_,
+          Variadic::Integer(source_location_decoder->line_number()));
+    }
+
     storage_->mutable_android_log_table()->Insert(
         {ts_, *utid_,
          /*priority*/ 0,
-         /*tag_id*/ kNullStringId,  // TODO(nicomazz): Abuse tag_id to display
-                                    // "file_name:line_number".
-         log_message_id});
+         /*tag_id*/ source_location_id, log_message_id});
 
-    inserter->AddArg(parser_->log_message_body_key_id_,
-                     Variadic::String(log_message_id));
-    // TODO(nicomazz): Add the source location as an argument.
     return util::OkStatus();
   }
 
@@ -1375,6 +1400,14 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
           context->storage->InternString("task.posted_from.line_number")),
       log_message_body_key_id_(
           context->storage->InternString("track_event.log_message")),
+      log_message_source_location_function_name_key_id_(
+          context->storage->InternString(
+              "track_event.log_message.function_name")),
+      log_message_source_location_file_name_key_id_(
+          context->storage->InternString("track_event.log_message.file_name")),
+      log_message_source_location_line_number_key_id_(
+          context->storage->InternString(
+              "track_event.log_message.line_number")),
       source_location_function_name_key_id_(
           context->storage->InternString("source.function_name")),
       source_location_file_name_key_id_(
@@ -1439,7 +1472,8 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       chrome_string_lookup_(context->storage.get()),
       counter_unit_ids_{{kNullStringId, context_->storage->InternString("ns"),
                          context_->storage->InternString("count"),
-                         context_->storage->InternString("bytes")}} {
+                         context_->storage->InternString("bytes")}},
+      active_chrome_processes_tracker_(context) {
   args_parser_.AddParsingOverrideForField(
       "chrome_mojo_event_info.mojo_interface_method_iid",
       [](const protozero::Field& field,
@@ -1491,12 +1525,24 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
         return annotation_parser.Parse(data, delegate);
       });
 
+  args_parser_.AddParsingOverrideForField(
+      "active_processes.pid", [&](const protozero::Field& field,
+                                  util::ProtoToArgsParser::Delegate& delegate) {
+        UniquePid upid = context_->process_tracker->GetOrCreateProcess(
+            static_cast<uint32_t>(field.as_int32()));
+        active_chrome_processes_tracker_.AddActiveProcessMetadata(
+            delegate.packet_timestamp(), upid);
+        // Fallthrough so that the parser adds pid as a regular arg.
+        return base::nullopt;
+      });
+
   for (uint16_t index : kReflectFields) {
     reflect_fields_.push_back(index);
   }
 }
 
 void TrackEventParser::ParseTrackDescriptor(
+    int64_t packet_timestamp,
     protozero::ConstBytes track_descriptor,
     uint32_t packet_sequence_id) {
   protos::pbzero::TrackDescriptor::Decoder decoder(track_descriptor);
@@ -1511,7 +1557,8 @@ void TrackEventParser::ParseTrackDescriptor(
     if (decoder.has_chrome_thread())
       ParseChromeThreadDescriptor(utid, decoder.chrome_thread());
   } else if (decoder.has_process()) {
-    UniquePid upid = ParseProcessDescriptor(decoder.process());
+    UniquePid upid =
+        ParseProcessDescriptor(packet_timestamp, decoder.process());
     if (decoder.has_chrome_process())
       ParseChromeProcessDescriptor(upid, decoder.chrome_process());
   } else if (decoder.has_counter()) {
@@ -1527,10 +1574,12 @@ void TrackEventParser::ParseTrackDescriptor(
 }
 
 UniquePid TrackEventParser::ParseProcessDescriptor(
+    int64_t packet_timestamp,
     protozero::ConstBytes process_descriptor) {
   protos::pbzero::ProcessDescriptor::Decoder decoder(process_descriptor);
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(decoder.pid()));
+  active_chrome_processes_tracker_.AddProcessDescriptor(packet_timestamp, upid);
   if (decoder.has_process_name() && decoder.process_name().size) {
     // Don't override system-provided names.
     context_->process_tracker->SetProcessNameIfUnset(
@@ -1667,6 +1716,10 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
     context_->storage->IncrementStats(stats::track_event_parser_errors);
     PERFETTO_DLOG("ParseTrackEvent error: %s", status.c_message());
   }
+}
+
+void TrackEventParser::NotifyEndOfFile() {
+  active_chrome_processes_tracker_.NotifyEndOfFile();
 }
 
 }  // namespace trace_processor

@@ -8,7 +8,7 @@
     "outDir": "../../out/tsc/service_worker",
     "lib": [
       "webworker",
-      "es2018",
+      "es2020",
     ],
     "types" : []
   }

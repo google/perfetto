@@ -43,4 +43,16 @@ trace.add_print(ts=104_000_000, tid=11, buf='C|10|panel_fps|90')
 trace.add_print(ts=105_000_000, tid=11, buf='C|10|panel_fps|24')
 trace.add_print(ts=106_000_000, tid=11, buf='C|10|panel_fps|24')
 
+trace.add_track_event_slice(
+    "DisplayPowerController#updatePowerState",
+    0,
+    5000000,
+    trusted_sequence_id=1)
+
+trace.add_track_event_slice(
+    "DisplayPowerController#updatePowerState",
+    0,
+    3000000,
+    trusted_sequence_id=1)
+
 sys.stdout.buffer.write(trace.trace.SerializeToString())
