@@ -1,0 +1,32 @@
+package {
+    // See: http://go/android-license-faq
+    // A large-scale-change added 'default_applicable_licenses' to import
+    // all of the 'license_kinds' from "external_perfetto_license"
+    // to get the below license kinds:
+    //   SPDX-license-identifier-Apache-2.0
+    default_applicable_licenses: ["external_perfetto_license"],
+}
+
+cc_test {
+  name: "VtsPerfettoTestCases",
+  srcs: [
+    "vendor_perfetto_atrace_test.cc",
+  ],
+  static_libs: [
+    "libgmock",
+    "perfetto_vts_deps",
+  ],
+  whole_static_libs: [
+    "perfetto_gtest_logcat_printer",
+  ],
+  shared_libs: [
+    "libandroid",
+    "liblog",
+  ],
+  test_suites: [
+    "vts",
+  ],
+  defaults: [
+    "perfetto_defaults",
+  ],
+}
