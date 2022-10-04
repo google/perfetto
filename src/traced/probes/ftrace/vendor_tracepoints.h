@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACED_PROBES_FTRACE_DISCOVER_VENDOR_TRACEPOINTS_H_
-#define SRC_TRACED_PROBES_FTRACE_DISCOVER_VENDOR_TRACEPOINTS_H_
+#ifndef SRC_TRACED_PROBES_FTRACE_VENDOR_TRACEPOINTS_H_
+#define SRC_TRACED_PROBES_FTRACE_VENDOR_TRACEPOINTS_H_
 
 #include <map>
 #include <string>
 #include <vector>
 
+#include "perfetto/base/status.h"
 #include "src/traced/probes/ftrace/atrace_hal_wrapper.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
@@ -28,12 +29,24 @@
 namespace perfetto {
 namespace vendor_tracepoints {
 
+// Path to the vendor categories file in Android (since Android 14).
+constexpr const char* kCategoriesFile =
+    "/vendor/etc/atrace/atrace_categories.pb";
+
 // Returns a map from vendor category to events we should enable. Queries the
 // atrace HAL.
 std::map<std::string, std::vector<GroupAndName>>
 DiscoverVendorTracepointsWithHal(AtraceHalWrapper* hal, FtraceProcfs* ftrace);
 
+// Fills `*categories_map` with a map from vendor category to events we should
+// enable. Queries the vendor categories file at
+// `vendor_atrace_categories_path` (which should always be `kCategoriesFile`
+// except in tests).
+base::Status DiscoverVendorTracepointsWithFile(
+    const std::string& vendor_atrace_categories_path,
+    std::map<std::string, std::vector<GroupAndName>>* categories_map);
+
 }  // namespace vendor_tracepoints
 }  // namespace perfetto
 
-#endif  // SRC_TRACED_PROBES_FTRACE_DISCOVER_VENDOR_TRACEPOINTS_H_
+#endif  // SRC_TRACED_PROBES_FTRACE_VENDOR_TRACEPOINTS_H_
