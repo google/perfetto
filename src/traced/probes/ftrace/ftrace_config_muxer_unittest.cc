@@ -1155,18 +1155,24 @@ TEST_F(FtraceConfigMuxerTest, Funcgraph) {
   *config.add_function_filters() = "sched*";
   *config.add_function_filters() = "handle_mm_fault";
 
+  *config.add_function_graph_roots() = "sched*";
+  *config.add_function_graph_roots() = "*mm_fault";
+
   EXPECT_CALL(ftrace, WriteToFile(_, _)).WillRepeatedly(Return(true));
 
   // Set up config, assert that the tracefs writes happened:
   EXPECT_CALL(ftrace, ClearFile("/root/set_ftrace_filter"));
+  EXPECT_CALL(ftrace, ClearFile("/root/set_graph_function"));
   EXPECT_CALL(ftrace, AppendToFile("/root/set_ftrace_filter",
                                    "sched*\nhandle_mm_fault"))
+      .WillOnce(Return(true));
+  EXPECT_CALL(ftrace,
+              AppendToFile("/root/set_graph_function", "sched*\n*mm_fault"))
       .WillOnce(Return(true));
   EXPECT_CALL(ftrace, WriteToFile("/root/current_tracer", "function_graph"))
       .WillOnce(Return(true));
   FtraceConfigId id = model.SetupConfig(config);
   ASSERT_TRUE(testing::Mock::VerifyAndClearExpectations(&ftrace));
-
   // Toggle config on and off, tracer won't be reset yet:
   ASSERT_TRUE(model.ActivateConfig(id));
   ASSERT_TRUE(model.RemoveConfig(id));
@@ -1175,6 +1181,7 @@ TEST_F(FtraceConfigMuxerTest, Funcgraph) {
   // Emulate ftrace_controller's call to ResetCurrentTracer (see impl comments
   // for why RemoveConfig is insufficient).
   EXPECT_CALL(ftrace, ClearFile("/root/set_ftrace_filter"));
+  EXPECT_CALL(ftrace, ClearFile("/root/set_graph_function"));
   EXPECT_CALL(ftrace, WriteToFile("/root/current_tracer", "nop"))
       .WillOnce(Return(true));
   ASSERT_TRUE(model.ResetCurrentTracer());
