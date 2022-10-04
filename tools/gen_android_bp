@@ -69,6 +69,7 @@ default_targets = [
     '//test/cts:perfetto_cts_deps',
     '//test/cts:perfetto_cts_jni_deps',
     '//test:perfetto_gtest_logcat_printer',
+    '//test/vts:perfetto_vts_deps',
 ]
 
 # Host targets
