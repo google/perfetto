@@ -1,0 +1,93 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 593125003271
+      pid: 2509
+      virtio_video_resource_queue {
+        data_size0: 0
+        data_size1: 0
+        data_size2: 0
+        data_size3: 0
+        queue_type: 257
+        resource_id: 102
+        stream_id: 4
+        timestamp: 378000000000
+      }
+    }
+    event {
+      timestamp: 593125003785
+      pid: 2509
+      virtio_video_cmd {
+        stream_id: 4
+        type: 261
+      }
+    }
+    event {
+      timestamp: 593125084611
+      pid: 2509
+      virtio_video_resource_queue {
+        data_size0: 0
+        data_size1: 0
+        data_size2: 0
+        data_size3: 0
+        queue_type: 257
+        resource_id: 62
+        stream_id: 3
+        timestamp: 392000000000
+      }
+    }
+    event {
+      timestamp: 593125084935
+      pid: 2509
+      virtio_video_cmd {
+        stream_id: 3
+        type: 261
+      }
+    }
+    event {
+      timestamp: 593209502603
+      pid: 2516
+      virtio_video_cmd_done {
+        stream_id: 4
+        type: 261
+      }
+    }
+    event {
+      timestamp: 593125794194
+      pid: 2516
+      virtio_video_cmd_done {
+        stream_id: 3
+        type: 261
+      }
+    }
+    event {
+      timestamp: 593125794307
+      pid: 2516
+      virtio_video_resource_queue_done {
+        data_size0: 0
+        data_size1: 0
+        data_size2: 0
+        data_size3: 0
+        queue_type: 257
+        resource_id: 62
+        stream_id: 3
+        timestamp: 416000000000
+      }
+    }
+    event {
+      timestamp: 593209503863
+      pid: 2516
+      virtio_video_resource_queue_done {
+        data_size0: 0
+        data_size1: 0
+        data_size2: 0
+        data_size3: 0
+        queue_type: 257
+        resource_id: 102
+        stream_id: 4
+        timestamp: 402000000000
+      }
+    }
+  }
+}
