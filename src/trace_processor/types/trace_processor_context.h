@@ -111,6 +111,8 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> sched_tracker;           // SchedEventTracker
   std::unique_ptr<Destructible> syscall_tracker;         // SyscallTracker
   std::unique_ptr<Destructible> system_info_tracker;     // SystemInfoTracker
+  std::unique_ptr<Destructible> v4l2_tracker;            // V4l2Tracker
+  std::unique_ptr<Destructible> virtio_video_tracker;    // VirtioVideoTracker
   std::unique_ptr<Destructible> systrace_parser;         // SystraceParser
   std::unique_ptr<Destructible> thread_state_tracker;    // ThreadStateTracker
   std::unique_ptr<Destructible> i2c_tracker;             // I2CTracker

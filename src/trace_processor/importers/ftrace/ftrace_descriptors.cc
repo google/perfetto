@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 439> descriptors{{
+std::array<FtraceMessageDescriptor, 443> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -4847,6 +4847,54 @@ std::array<FtraceMessageDescriptor, 439> descriptors{{
             {"func", ProtoSchemaType::kUint64},
             {"overrun", ProtoSchemaType::kUint64},
             {"rettime", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "virtio_video_cmd",
+        2,
+        {
+            {},
+            {"stream_id", ProtoSchemaType::kUint32},
+            {"type", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "virtio_video_cmd_done",
+        2,
+        {
+            {},
+            {"stream_id", ProtoSchemaType::kUint32},
+            {"type", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "virtio_video_resource_queue",
+        8,
+        {
+            {},
+            {"data_size0", ProtoSchemaType::kUint32},
+            {"data_size1", ProtoSchemaType::kUint32},
+            {"data_size2", ProtoSchemaType::kUint32},
+            {"data_size3", ProtoSchemaType::kUint32},
+            {"queue_type", ProtoSchemaType::kUint32},
+            {"resource_id", ProtoSchemaType::kInt32},
+            {"stream_id", ProtoSchemaType::kInt32},
+            {"timestamp", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "virtio_video_resource_queue_done",
+        8,
+        {
+            {},
+            {"data_size0", ProtoSchemaType::kUint32},
+            {"data_size1", ProtoSchemaType::kUint32},
+            {"data_size2", ProtoSchemaType::kUint32},
+            {"data_size3", ProtoSchemaType::kUint32},
+            {"queue_type", ProtoSchemaType::kUint32},
+            {"resource_id", ProtoSchemaType::kInt32},
+            {"stream_id", ProtoSchemaType::kInt32},
+            {"timestamp", ProtoSchemaType::kUint64},
         },
     },
 }};
