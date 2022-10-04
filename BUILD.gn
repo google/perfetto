@@ -173,6 +173,7 @@ if (perfetto_build_standalone) {
 # catch refactoring breakages earlier without having to wait for treehugger.
 if (is_android && (perfetto_build_standalone || perfetto_build_with_android)) {
   all_targets += [ "test/cts:perfetto_cts_deps" ]
+  all_targets += [ "test/vts:perfetto_vts_deps" ]
 }
 
 group("all") {

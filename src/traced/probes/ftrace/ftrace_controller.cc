@@ -40,7 +40,7 @@
 #include "src/traced/probes/ftrace/atrace_hal_wrapper.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
-#include "src/traced/probes/ftrace/discover_vendor_tracepoints.h"
+#include "src/traced/probes/ftrace/vendor_tracepoints.h"
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
@@ -151,9 +151,20 @@ std::unique_ptr<FtraceController> FtraceController::Create(
   if (!table)
     return nullptr;
 
-  AtraceHalWrapper hal;
-  auto vendor_evts = vendor_tracepoints::DiscoverVendorTracepointsWithHal(
-      &hal, ftrace_procfs.get());
+  std::map<std::string, std::vector<GroupAndName>> vendor_evts;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (base::FileExists(vendor_tracepoints::kCategoriesFile)) {
+    base::Status status = vendor_tracepoints::DiscoverVendorTracepointsWithFile(
+        vendor_tracepoints::kCategoriesFile, &vendor_evts);
+    if (!status.ok()) {
+      PERFETTO_ELOG("Cannot load vendor categories: %s", status.c_message());
+    }
+  } else {
+    AtraceHalWrapper hal;
+    vendor_evts = vendor_tracepoints::DiscoverVendorTracepointsWithHal(
+        &hal, ftrace_procfs.get());
+  }
+#endif
 
   auto syscalls = SyscallTable::FromCurrentArch();
 
