@@ -14,6 +14,7 @@
 
 
 import * as m from 'mithril';
+import {Attributes} from 'mithril';
 
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
@@ -22,6 +23,7 @@ import {
 } from '../common/recordingV2/recording_config_utils';
 import {
   ChromeTargetInfo,
+  RecordingTargetV2,
   TargetInfo,
 } from '../common/recordingV2/recording_interfaces_v2';
 import {
@@ -35,9 +37,9 @@ import {
 import {
   targetFactoryRegistry,
 } from '../common/recordingV2/target_factory_registry';
-import {hasActiveProbes} from '../common/state';
 
 import {globals} from './globals';
+import {fullscreenModalContainer} from './modal';
 import {createPage, PageAttrs} from './pages';
 import {recordConfigStore} from './record_config';
 import {
@@ -54,14 +56,28 @@ import {CpuSettings} from './recording/cpu_settings';
 import {GpuSettings} from './recording/gpu_settings';
 import {MemorySettings} from './recording/memory_settings';
 import {PowerSettings} from './recording/power_settings';
-import {FORCE_RESET_MESSAGE} from './recording/recording_modal';
 import {RecordingSectionAttrs} from './recording/recording_sections';
 import {RecordingSettings} from './recording/recording_settings';
+import {
+  FORCE_RESET_MESSAGE,
+} from './recording/recording_ui_utils';
+import {addNewTarget} from './recording/reset_target_modal';
 
 const START_RECORDING_MESSAGE = 'Start Recording';
 
 const controller = new RecordingPageController();
 const recordConfigUtils = new RecordingConfigUtils();
+// Whether the target selection modal is displayed.
+let shouldDisplayTargetModal: boolean = false;
+
+// Options for displaying a target selection menu.
+export interface TargetSelectionOptions {
+  // css attributes passed to the mithril components which displays the target
+  // selection menu.
+  attributes: Attributes;
+  // Whether the selection should be preceded by a text label.
+  shouldDisplayLabel: boolean;
+}
 
 function isChromeTargetInfo(targetInfo: TargetInfo):
     targetInfo is ChromeTargetInfo {
@@ -71,7 +87,7 @@ function isChromeTargetInfo(targetInfo: TargetInfo):
 function RecordHeader() {
   const platformSelection = RecordingPlatformSelection();
   const statusLabel = RecordingStatusLabel();
-  const buttons = RecordingButtons();
+  const buttons = RecordingButton();
   const notes = RecordingNotes();
   if (!platformSelection && !statusLabel && !buttons && !notes) {
     // The header should not be displayed when it has no content.
@@ -92,48 +108,72 @@ function RecordingPlatformSelection() {
   const components = [];
   components.push(
       m('.chip',
-        {onclick: () => controller.addAndroidDevice()},
-        m('button', 'Add ADB Device'),
+        {
+          onclick: () => {
+            shouldDisplayTargetModal = true;
+            fullscreenModalContainer.createNew(addNewTargetModal());
+            globals.rafScheduler.scheduleFullRedraw();
+          },
+        },
+        m('button', 'Add new recording target'),
         m('i.material-icons', 'add')));
 
   if (controller.getState() > RecordingState.NO_TARGET) {
-    const targets = [];
-    let selectedIndex = 0;
-    for (const [i, target] of targetFactoryRegistry.listTargets().entries()) {
-      targets.push(m('option', target.getInfo().name));
-      // We know that we have targetInfo because we checked the state.
-      if (target.getInfo().name ===
-          assertExists(controller.getTargetInfo()).name) {
-        selectedIndex = i;
-      }
-    }
-    components.push(m(
-        'label',
-        'Target platform:',
-        m('select',
-          {
-            selectedIndex,
-            onchange: (e: Event) => {
-              controller.onTargetSelection(
-                  (e.target as HTMLSelectElement).value);
-            },
-            onupdate: (select) => {
-              // Work around mithril bug
-              // (https://github.com/MithrilJS/mithril.js/issues/2107): We may
-              // update the select's options while also changing the
-              // selectedIndex at the same time. The update of selectedIndex
-              // may be applied before the new options are added to the select
-              // element. Because the new selectedIndex may be outside of the
-              // select's options at that time, we have to reselect the
-              // correct index here after any new children were added.
-              (select.dom as HTMLSelectElement).selectedIndex = selectedIndex;
-            },
-          },
-          ...targets),
-        ));
+    components.push(targetSelection());
   }
 
   return m('.target', components);
+}
+
+function addNewTargetModal() {
+  return {
+    ...addNewTarget(controller),
+    onClose: () => shouldDisplayTargetModal = false,
+  };
+}
+
+export function targetSelection(): m.Vnode|undefined {
+  if (!controller.shouldShowTargetSelection()) {
+    return undefined;
+  }
+
+  const targets: RecordingTargetV2[] = targetFactoryRegistry.listTargets();
+  const targetNames = [];
+  // defaultSelectedIndex is the index selected as a fallback case (-1 if
+  // nothing is selected).
+  let selectedIndex = 0;
+  for (let i = 0; i < targets.length; i++) {
+    const targetName = targets[i].getInfo().name;
+    targetNames.push(m('option', targetName));
+    // We know that we have targetInfo because we checked the state.
+    if (targetName === assertExists(controller.getTargetInfo()).name) {
+      selectedIndex = i;
+    }
+  }
+
+  return m(
+      'label',
+      'Target platform:',
+      m('select',
+        {
+          selectedIndex,
+          onchange: (e: Event) => {
+            controller.onTargetSelection((e.target as HTMLSelectElement).value);
+          },
+          onupdate: (select) => {
+            // Work around mithril bug
+            // (https://github.com/MithrilJS/mithril.js/issues/2107): We may
+            // update the select's options while also changing the
+            // selectedIndex at the same time. The update of selectedIndex
+            // may be applied before the new options are added to the select
+            // element. Because the new selectedIndex may be outside of the
+            // select's options at that time, we have to reselect the
+            // correct index here after any new children were added.
+            (select.dom as HTMLSelectElement).selectedIndex = selectedIndex;
+          },
+        },
+        ...targetNames),
+  );
 }
 
 // This will display status messages which are informative, but do not require
@@ -231,7 +271,11 @@ function RecordingNotes() {
         'It looks like you didn\'t add any probes. ' +
             'Please add at least one to get a non-empty trace.');
 
-  if (!hasActiveProbes(globals.state.recordConfig)) {
+  const targetInfo = controller.getTargetInfo();
+  if (targetInfo &&
+      !recordConfigUtils
+           .fetchLatestRecordCommand(globals.state.recordConfig, targetInfo)
+           .hasDataSources) {
     notes.push(msgZeroProbes);
   }
 
@@ -292,11 +336,11 @@ function RecordingSnippet(targetInfo: TargetInfo) {
 }
 
 function getRecordCommand(targetInfo: TargetInfo): string {
-  const data = recordConfigUtils.fetchLatestRecordCommand(
+  const recordCommand = recordConfigUtils.fetchLatestRecordCommand(
       globals.state.recordConfig, targetInfo);
 
-  const pbBase64 = data ? data.configProtoBase64 : '';
-  const pbtx = data ? data.configProtoText : '';
+  const pbBase64 = recordCommand ? recordCommand.configProtoBase64 : '';
+  const pbtx = recordCommand ? recordCommand.configProtoText : '';
   let cmd = '';
   if (targetInfo.targetType === 'ANDROID' &&
       targetInfo.androidApiLevel === 28) {
@@ -315,42 +359,35 @@ function getRecordCommand(targetInfo: TargetInfo): string {
   return cmd;
 }
 
-function RecordingButtons() {
-  if (controller.getState() !== RecordingState.TARGET_INFO_DISPLAYED) {
+function RecordingButton() {
+  if (controller.getState() !== RecordingState.TARGET_INFO_DISPLAYED ||
+      !controller.canCreateTracingSession()) {
     return undefined;
   }
 
-  // We only reach this logic after verifying that we have a valid target.
-  const targetInfo: TargetInfo = assertExists(controller.getTargetInfo());
-  if (targetInfo.isVirtual) {
+  // We know we have a target because we checked the state.
+  const targetInfo = assertExists(controller.getTargetInfo());
+  const hasDataSources =
+      recordConfigUtils
+          .fetchLatestRecordCommand(globals.state.recordConfig, targetInfo)
+          .hasDataSources;
+  if (!hasDataSources) {
     return undefined;
   }
 
-  const start =
-      m(`button`,
+  return m(
+      '.button',
+      m('button',
         {
-          class: controller.getState() > RecordingState.TARGET_INFO_DISPLAYED ?
-              '' :
-              'selected',
+          class: 'selected',
           onclick: () => controller.onStartRecordingPressed(),
         },
-        START_RECORDING_MESSAGE);
-
-  const buttons: m.Children = [];
-  if (targetInfo.targetType === 'ANDROID' &&
-      globals.state.recordConfig.mode !== 'LONG_TRACE') {
-    buttons.push(start);
-  } else if (
-      isChromeTargetInfo(targetInfo) && targetInfo.isExtensionInstalled) {
-    buttons.push(start);
-  }
-  return m('.button', buttons);
+        START_RECORDING_MESSAGE));
 }
 
 function StopCancelButtons() {
   // Show the Stop/Cancel buttons only while we are recording a trace.
-  if (!(RecordingState.AUTH_P2 <= controller.getState() &&
-        controller.getState() <= RecordingState.RECORDING)) {
+  if (!controller.shouldShowStopCancelButtons()) {
     return undefined;
   }
 
@@ -529,6 +566,10 @@ export const RecordPageV2 = createPage({
       m.Children {
         if (controller.getState() === RecordingState.NO_TARGET) {
           controller.selectTarget(targetFactoryRegistry.listTargets()[0]);
+        }
+
+        if (shouldDisplayTargetModal) {
+          fullscreenModalContainer.updateVdom(addNewTargetModal());
         }
 
         return m(
