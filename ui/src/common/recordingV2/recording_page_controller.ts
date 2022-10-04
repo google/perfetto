@@ -15,7 +15,12 @@
 import {assertExists, assertTrue} from '../../base/logging';
 import {globals} from '../../frontend/globals';
 import {autosaveConfigStore} from '../../frontend/record_config';
-import {couldNotClaimInterface} from '../../frontend/recording/recording_modal';
+import {
+  DEFAULT_ADB_WEBSOCKET_URL,
+} from '../../frontend/recording/recording_ui_utils';
+import {
+  couldNotClaimInterface,
+} from '../../frontend/recording/reset_interface_modal';
 import {Actions} from '../actions';
 import {TRACE_SUFFIX} from '../constants';
 import {TraceConfig} from '../protos';
@@ -41,8 +46,6 @@ import {
   ANDROID_WEBUSB_TARGET_FACTORY,
 } from './target_factories/android_webusb_target_factory';
 import {targetFactoryRegistry} from './target_factory_registry';
-
-const ADB_WEBSOCKET_URL = 'ws://127.0.0.1:8037/adb';
 
 // The recording page can be in any of these states. It can transition between
 // states:
@@ -323,6 +326,13 @@ export class RecordingPageController {
     return this.target.getInfo();
   }
 
+  canCreateTracingSession() {
+    if (!this.target) {
+      return false;
+    }
+    return this.target.canCreateTracingSession();
+  }
+
   selectTarget(selectedTarget?: RecordingTargetV2) {
     assertTrue(
         RecordingState.NO_TARGET <= this.state &&
@@ -349,7 +359,6 @@ export class RecordingPageController {
   }
 
   async addAndroidDevice(): Promise<void> {
-    assertTrue(this.state < RecordingState.RECORDING);
     try {
       const target =
           await targetFactoryRegistry.get(ANDROID_WEBUSB_TARGET_FACTORY)
@@ -442,8 +451,18 @@ export class RecordingPageController {
       const websocketTargetFactory =
           targetFactoryRegistry.get(ANDROID_WEBSOCKET_TARGET_FACTORY) as
           AndroidWebsocketTargetFactory;
-      websocketTargetFactory.tryEstablishWebsocket(ADB_WEBSOCKET_URL);
+      websocketTargetFactory.tryEstablishWebsocket(DEFAULT_ADB_WEBSOCKET_URL);
     }
+  }
+
+  shouldShowTargetSelection(): boolean {
+    return RecordingState.NO_TARGET < this.state &&
+        this.state < RecordingState.RECORDING;
+  }
+
+  shouldShowStopCancelButtons(): boolean {
+    return RecordingState.AUTH_P2 <= this.state &&
+        this.state <= RecordingState.RECORDING;
   }
 
   private onTargetChange() {

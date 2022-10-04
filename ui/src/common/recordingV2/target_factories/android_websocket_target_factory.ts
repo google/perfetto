@@ -156,6 +156,9 @@ export class WebsocketConnection {
       target.disconnect();
     }
     this.targets.clear();
+    if (this.onTargetChange) {
+      this.onTargetChange();
+    }
   }
 
   getUrl() {

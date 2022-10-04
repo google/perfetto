@@ -20,33 +20,26 @@ import {
   TracingSession,
   TracingSessionListener,
 } from '../recording_interfaces_v2';
-import {EXTENSION_ID} from '../recording_utils';
 
 export class ChromeTarget implements RecordingTargetV2 {
   onTargetChange?: OnTargetChangeCallback;
   private chromeCategories?: string[];
-  // We only check the connection once at the beginning to:
-  // a) Avoid creating a 'Port' object every time 'getInfo' is called.
-  // b) When a new Port is created, the extension starts communicating with it
-  // and leaves aside the old Port objects, so creating a new Port would break
-  // any ongoing tracing session.
-  private isExtensionInstalled: boolean;
 
-  constructor(private name: string, private targetType: 'CHROME'|'CHROME_OS') {
-    const testPort = chrome.runtime.connect(EXTENSION_ID);
-    this.isExtensionInstalled = !!testPort;
-    testPort.disconnect();
-  }
+  constructor(private name: string, private targetType: 'CHROME'|'CHROME_OS') {}
 
   getInfo(): ChromeTargetInfo {
     return {
       targetType: this.targetType,
       name: this.name,
-      isExtensionInstalled: this.isExtensionInstalled,
       dataSources:
           [{name: 'chromeCategories', descriptor: this.chromeCategories}],
-      isVirtual: false,
     };
+  }
+
+  // Chrome targets are created after we check that the extension is installed,
+  // so they support tracing sessions.
+  canCreateTracingSession(): boolean {
+    return true;
   }
 
   async createTracingSession(tracingSessionListener: TracingSessionListener):
