@@ -433,3 +433,7 @@ android_fs/android_fs_fsync_end
 android_fs/android_fs_fsync_start
 ftrace/funcgraph_entry
 ftrace/funcgraph_exit
+virtio_video/virtio_video_cmd
+virtio_video/virtio_video_cmd_done
+virtio_video/virtio_video_resource_queue
+virtio_video/virtio_video_resource_queue_done
