@@ -56,6 +56,11 @@ export abstract class AndroidTarget implements RecordingTargetV2 {
     tracingSession.cancel();
   }
 
+  // We do not support long tracing on Android.
+  canCreateTracingSession(recordingMode: string): boolean {
+    return recordingMode !== 'LONG_TRACE';
+  }
+
   async createTracingSession(tracingSessionListener: TracingSessionListener):
       Promise<TracingSession> {
     this.adbConnection.onStatus = tracingSessionListener.onStatus;
