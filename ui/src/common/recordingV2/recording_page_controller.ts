@@ -17,6 +17,7 @@ import {globals} from '../../frontend/globals';
 import {autosaveConfigStore} from '../../frontend/record_config';
 import {
   DEFAULT_ADB_WEBSOCKET_URL,
+  DEFAULT_TRACED_WEBSOCKET_URL,
 } from '../../frontend/recording/recording_ui_utils';
 import {
   couldNotClaimInterface,
@@ -45,6 +46,10 @@ import {
 import {
   ANDROID_WEBUSB_TARGET_FACTORY,
 } from './target_factories/android_webusb_target_factory';
+import {
+  HOST_OS_TARGET_FACTORY,
+  HostOsTargetFactory,
+} from './target_factories/host_os_target_factory';
 import {targetFactoryRegistry} from './target_factory_registry';
 
 // The recording page can be in any of these states. It can transition between
@@ -452,6 +457,13 @@ export class RecordingPageController {
           targetFactoryRegistry.get(ANDROID_WEBSOCKET_TARGET_FACTORY) as
           AndroidWebsocketTargetFactory;
       websocketTargetFactory.tryEstablishWebsocket(DEFAULT_ADB_WEBSOCKET_URL);
+    }
+    if (targetFactoryRegistry.has(HOST_OS_TARGET_FACTORY)) {
+      const websocketTargetFactory =
+          targetFactoryRegistry.get(HOST_OS_TARGET_FACTORY) as
+          HostOsTargetFactory;
+      websocketTargetFactory.tryEstablishWebsocket(
+          DEFAULT_TRACED_WEBSOCKET_URL);
     }
   }
 
