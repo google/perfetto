@@ -203,6 +203,18 @@ bool FtraceProcfs::ClearFunctionFilters() {
   return ClearFile(path);
 }
 
+bool FtraceProcfs::AppendFunctionGraphFilters(
+    const std::vector<std::string>& filters) {
+  std::string path = root_ + "set_graph_function";
+  std::string filter = base::Join(filters, "\n");
+  return AppendToFile(path, filter);
+}
+
+bool FtraceProcfs::ClearFunctionGraphFilters() {
+  std::string path = root_ + "set_graph_function";
+  return ClearFile(path);
+}
+
 std::vector<std::string> FtraceProcfs::ReadEventTriggers(
     const std::string& group,
     const std::string& name) const {
