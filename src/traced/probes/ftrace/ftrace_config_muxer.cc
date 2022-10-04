@@ -670,7 +670,11 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
   if (request.enable_function_graph()) {
     if (!current_state_.funcgraph_on && !ftrace_->ClearFunctionFilters())
       return 0;
+    if (!current_state_.funcgraph_on && !ftrace_->ClearFunctionGraphFilters())
+      return 0;
     if (!ftrace_->AppendFunctionFilters(request.function_filters()))
+      return 0;
+    if (!ftrace_->AppendFunctionGraphFilters(request.function_graph_roots()))
       return 0;
     if (!current_state_.funcgraph_on &&
         !ftrace_->SetCurrentTracer("function_graph")) {
@@ -811,8 +815,15 @@ bool FtraceConfigMuxer::ResetCurrentTracer() {
     PERFETTO_PLOG("Failed to reset current_tracer to nop");
     return false;
   }
-  ftrace_->ClearFunctionFilters();
   current_state_.funcgraph_on = false;
+  if (!ftrace_->ClearFunctionFilters()) {
+    PERFETTO_PLOG("Failed to reset set_ftrace_filter.");
+    return false;
+  }
+  if (!ftrace_->ClearFunctionGraphFilters()) {
+    PERFETTO_PLOG("Failed to reset set_function_graph.");
+    return false;
+  }
   return true;
 }
 
