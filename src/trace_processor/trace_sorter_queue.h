@@ -17,11 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_TRACE_SORTER_QUEUE_H_
 #define SRC_TRACE_PROCESSOR_TRACE_SORTER_QUEUE_H_
 
-#include <cstddef>
 #include <deque>
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/trace_processor/trace_sorter_internal.h"
+#include "perfetto/trace_processor/basic_types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -56,12 +54,12 @@ class VariadicQueue {
   uint32_t Append(T value) {
     PERFETTO_DCHECK(!mem_blocks_.empty());
 
-    size_t size = Block::AppendSize<T>(value);
-    if (PERFETTO_UNLIKELY(!mem_blocks_.back().HasSpace(size))) {
+    if (PERFETTO_UNLIKELY(!mem_blocks_.back().HasSpace<T>())) {
       mem_blocks_.emplace_back(Block(block_size_));
     }
+
     auto& back_block = mem_blocks_.back();
-    PERFETTO_DCHECK(back_block.HasSpace(size));
+    PERFETTO_DCHECK(back_block.HasSpace<T>());
     return GlobalMemOffsetFromLastBlockOffset(
         back_block.Append(std::move(value)));
   }
@@ -102,27 +100,36 @@ class VariadicQueue {
           storage_(
               base::AlignedAllocTyped<uint64_t>(size_ / sizeof(uint64_t))) {}
 
-    bool HasSpace(size_t size) const { return size <= size_ - offset_; }
+    template <typename T>
+    bool HasSpace() const {
+#if PERFETTO_DCHECK_IS_ON()
+      return sizeof(T) + sizeof(uint64_t) <= size_ - offset_;
+#else
+      return sizeof(T) <= size_ - offset_;
+#endif
+    }
 
     template <typename T>
     uint32_t Append(T value) {
       static_assert(alignof(T) <= 8,
                     "Class must have at most 8 byte alignment");
+
       PERFETTO_DCHECK(offset_ % 8 == 0);
-      PERFETTO_DCHECK(HasSpace(AppendSize(value)));
+      PERFETTO_DCHECK(HasSpace<T>());
 
+      uint32_t cur_offset = offset_;
       char* storage_begin_ptr = reinterpret_cast<char*>(storage_.get());
-      char* ptr = storage_begin_ptr + offset_;
-
+      char* ptr = storage_begin_ptr + cur_offset;
 #if PERFETTO_DCHECK_IS_ON()
-      ptr = AppendUnchecked(ptr, TypedMemoryAccessor<T>::AppendSize(value));
+      uint64_t* size_ptr = reinterpret_cast<uint64_t*>(ptr);
+      *size_ptr = sizeof(T);
+      ptr += sizeof(uint64_t);
 #endif
-      ptr = TypedMemoryAccessor<T>::Append(ptr, std::move(value));
+      new (ptr) T(std::move(value));
       num_elements_++;
-
-      auto cur_offset = offset_;
-      offset_ = static_cast<uint32_t>(base::AlignUp<8>(static_cast<uint32_t>(
-          ptr - reinterpret_cast<char*>(storage_.get()))));
+      ptr += sizeof(T);
+      offset_ = static_cast<uint32_t>(
+          base::AlignUp<8>(static_cast<uint32_t>(ptr - storage_begin_ptr)));
       return cur_offset;
     }
 
@@ -132,26 +139,16 @@ class VariadicQueue {
       PERFETTO_DCHECK(offset % 8 == 0);
 
       char* ptr = reinterpret_cast<char*>(storage_.get()) + offset;
-      size_t size = 0;
 #if PERFETTO_DCHECK_IS_ON()
-      size = EvictUnchecked<size_t>(&ptr);
+      uint64_t size = *reinterpret_cast<uint64_t*>(ptr);
+      PERFETTO_DCHECK(size == sizeof(T));
+      ptr += sizeof(uint64_t);
 #endif
-      T value = TypedMemoryAccessor<T>::Evict(ptr);
-      PERFETTO_DCHECK(size == TypedMemoryAccessor<T>::AppendSize(value));
+      T* type_ptr = reinterpret_cast<T*>(ptr);
+      T out(std::move(*type_ptr));
+      type_ptr->~T();
       num_elements_evicted_++;
-      return value;
-    }
-
-    template <typename T>
-    static size_t AppendSize(const T& value) {
-#if PERFETTO_DCHECK_IS_ON()
-      // On debug runs for each append of T we also append the sizeof(T) to the
-      // queue for sanity check, which we later evict and compare with object
-      // size. This value needs to be added to general size of an object.
-      return sizeof(size_t) + TypedMemoryAccessor<T>::AppendSize(value);
-#else
-      return TypedMemoryAccessor<T>::AppendSize(value);
-#endif
+      return out;
     }
 
     uint32_t offset() const { return offset_; }
