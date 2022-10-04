@@ -466,7 +466,7 @@ message ChromeConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 21.
+// Next id: 22.
 message FtraceConfig {
   repeated string ftrace_events = 1;
   repeated string atrace_categories = 2;
@@ -550,14 +550,18 @@ message FtraceConfig {
   // (funcgraph_entry/funcgraph_exit).
   // Notes on use:
   // * Requires |symbolize_ksyms| for function name resolution.
-  // * Use |function_filters| to constrain the traced set of functions,
-  //   otherwise the event bandwidth will be too high for practical use.
+  // * Use |function_filters| or |function_graph_roots| to constrain the traced
+  //   set of functions, otherwise the event bandwidth will be too high for
+  //   practical use.
   // * The data source might be rejected if there is already a concurrent
   //   ftrace data source that does not use function graph itself, as we do not
   //   support switching kernel tracers mid-trace.
+  // * Requires a kernel compiled with CONFIG_FUNCTION_GRAPH_TRACER. This is
+  //   enabled if "cat /sys/kernel/tracing/available_tracers" includes
+  //   "function_graph".
   // Android:
   // * Available only on debuggable builds.
-  // * Introduced in Android U.
+  // * Introduced in: Android U.
   optional bool enable_function_graph = 19;
 
   // Constrains the set of functions traced when |enable_function_graph| is
@@ -566,10 +570,18 @@ message FtraceConfig {
   // documentation on ftrace "set_ftrace_filter" file for more details.
   // Android:
   // * Available only on debuggable builds.
-  // * Introduced in Android U.
-  // TODO(rsavitski): look into supporting set_graph_filter as well (will trace
-  // the named function and all of its callees).
+  // * Introduced in: Android U.
   repeated string function_filters = 20;
+
+  // If |enable_function_graph| is true, trace this set of functions *and* all
+  // of its callees. Supports globs. Can be set together with
+  // |function_filters|, in which case only callees matching the filter will be
+  // traced. If setting both, you most likely want all roots to also be
+  // included in |function_filters|.
+  // Android:
+  // * Available only on debuggable builds.
+  // * Introduced in: Android U.
+  repeated string function_graph_roots = 21;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
