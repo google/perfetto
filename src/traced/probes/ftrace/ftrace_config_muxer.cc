@@ -321,8 +321,9 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         InsertEvent("ext4", "ext4_da_write_end", &events);
         InsertEvent("ext4", "ext4_sync_file_enter", &events);
         InsertEvent("ext4", "ext4_sync_file_exit", &events);
-        InsertEvent("block", "block_rq_issue", &events);
-        InsertEvent("block", "block_rq_complete", &events);
+        InsertEvent("block", "block_bio_queue", &events);
+        InsertEvent("block", "block_bio_complete", &events);
+        InsertEvent("ufs", "ufshcd_command", &events);
         continue;
       }
 
