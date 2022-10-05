@@ -399,6 +399,10 @@ SELECT
           'broadcastReceiveReg*'
         ) > 10
 
+        UNION ALL
+        SELECT 'No baseline or cloud profiles'
+        Where MISSING_BASELINE_PROFILE_FOR_LAUNCH(launches.id, launches.package)
+
       )
     )
   ) as startup
