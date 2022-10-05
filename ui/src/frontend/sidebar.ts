@@ -628,7 +628,11 @@ function downloadTrace(e: Event) {
     fileName = url.split('/').slice(-1)[0];
   } else if (src.type === 'ARRAY_BUFFER') {
     const blob = new Blob([src.buffer], {type: 'application/octet-stream'});
-    if (src.fileName) {
+    const inputFileName =
+        window.prompt('Please enter a name for your file or leave blank');
+    if (inputFileName) {
+      fileName = `${inputFileName}.perfetto_trace.gz`;
+    } else if (src.fileName) {
       fileName = src.fileName;
     }
     url = URL.createObjectURL(blob);
