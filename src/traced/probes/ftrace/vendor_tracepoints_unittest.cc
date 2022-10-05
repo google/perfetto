@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/ftrace/discover_vendor_tracepoints.h"
+#include "src/traced/probes/ftrace/vendor_tracepoints.h"
 
 #include <vector>
 
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/android_vendor/atrace_categories.gen.h"
+#include "src/base/test/tmp_dir_tree.h"
 #include "src/traced/probes/ftrace/atrace_hal_wrapper.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 
@@ -90,6 +92,55 @@ TEST(DiscoverVendorTracepointsTest, DiscoverVendorTracepointsWithHal) {
   EXPECT_THAT(DiscoverVendorTracepointsWithHal(&hal, &ftrace),
               ElementsAre(Pair("gfx", ElementsAre(GroupAndName("foo", "bar"),
                                                   GroupAndName("a", "b")))));
+}
+
+TEST(DiscoverVendorTracepointsTest, DiscoverVendorTracepointsWithFile) {
+  base::TmpDirTree tree;
+
+  perfetto::protos::atrace::gen::Categories categories;
+
+  {
+    auto* cat = categories.add_categories();
+    cat->set_name("gfx");
+    {
+      auto* grp = cat->add_groups();
+      grp->set_name("empty");
+    }
+    {
+      auto* grp = cat->add_groups();
+      grp->set_name("foo");
+      grp->add_events("bar");
+    }
+    {
+      auto* grp = cat->add_groups();
+      grp->set_name("g");
+      grp->add_events("a");
+      grp->add_events("b");
+    }
+  }
+
+  {
+    auto* cat = categories.add_categories();
+    cat->set_name("memory");
+    {
+      auto* grp = cat->add_groups();
+      grp->set_name("grp");
+      grp->add_events("evt");
+    }
+  }
+
+  tree.AddFile("vendor_atrace.pb", categories.SerializeAsString());
+
+  std::map<std::string, std::vector<GroupAndName>> result;
+  base::Status status = DiscoverVendorTracepointsWithFile(
+      tree.AbsolutePath("vendor_atrace.pb"), &result);
+  ASSERT_TRUE(status.ok()) << status.message();
+  EXPECT_THAT(
+      result,
+      ElementsAre(Pair("gfx", ElementsAre(GroupAndName("foo", "bar"),
+                                          GroupAndName("g", "a"),
+                                          GroupAndName("g", "b"))),
+                  Pair("memory", ElementsAre(GroupAndName("grp", "evt")))));
 }
 
 }  // namespace

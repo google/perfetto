@@ -72,6 +72,7 @@ import "protos/perfetto/trace/ftrace/tcp.proto";
 import "protos/perfetto/trace/ftrace/thermal.proto";
 import "protos/perfetto/trace/ftrace/ufs.proto";
 import "protos/perfetto/trace/ftrace/v4l2.proto";
+import "protos/perfetto/trace/ftrace/virtio_video.proto";
 import "protos/perfetto/trace/ftrace/vmscan.proto";
 import "protos/perfetto/trace/ftrace/workqueue.proto";
 import "protos/perfetto/trace/ftrace/generic.proto";
@@ -542,5 +543,10 @@ message FtraceEvent {
     AndroidFsFsyncStartFtraceEvent android_fs_fsync_start = 436;
     FuncgraphEntryFtraceEvent funcgraph_entry = 437;
     FuncgraphExitFtraceEvent funcgraph_exit = 438;
+    VirtioVideoCmdFtraceEvent virtio_video_cmd = 439;
+    VirtioVideoCmdDoneFtraceEvent virtio_video_cmd_done = 440;
+    VirtioVideoResourceQueueFtraceEvent virtio_video_resource_queue = 441;
+    VirtioVideoResourceQueueDoneFtraceEvent virtio_video_resource_queue_done =
+        442;
   }
 }

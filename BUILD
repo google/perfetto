@@ -281,6 +281,7 @@ perfetto_cc_library(
     ],
     deps = [
         ":perfetto_ipc",
+        ":protos_perfetto_android_vendor_cpp",
         ":protos_perfetto_common_cpp",
         ":protos_perfetto_common_zero",
         ":protos_perfetto_config_android_cpp",
@@ -1709,6 +1710,10 @@ perfetto_filegroup(
         "src/trace_processor/importers/ftrace/sched_event_tracker.h",
         "src/trace_processor/importers/ftrace/thread_state_tracker.cc",
         "src/trace_processor/importers/ftrace/thread_state_tracker.h",
+        "src/trace_processor/importers/ftrace/v4l2_tracker.cc",
+        "src/trace_processor/importers/ftrace/v4l2_tracker.h",
+        "src/trace_processor/importers/ftrace/virtio_video_tracker.cc",
+        "src/trace_processor/importers/ftrace/virtio_video_tracker.h",
         "src/trace_processor/importers/fuchsia/fuchsia_record.cc",
         "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.cc",
         "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h",
@@ -1833,7 +1838,6 @@ perfetto_filegroup(
         "src/trace_processor/trace_processor_storage_impl.h",
         "src/trace_processor/trace_sorter.cc",
         "src/trace_processor/trace_sorter.h",
-        "src/trace_processor/trace_sorter_internal.h",
         "src/trace_processor/trace_sorter_queue.h",
         "src/trace_processor/virtual_destructors.cc",
     ],
@@ -1973,8 +1977,6 @@ perfetto_filegroup(
         "src/traced/probes/ftrace/cpu_reader.h",
         "src/traced/probes/ftrace/cpu_stats_parser.cc",
         "src/traced/probes/ftrace/cpu_stats_parser.h",
-        "src/traced/probes/ftrace/discover_vendor_tracepoints.cc",
-        "src/traced/probes/ftrace/discover_vendor_tracepoints.h",
         "src/traced/probes/ftrace/event_info.cc",
         "src/traced/probes/ftrace/event_info.h",
         "src/traced/probes/ftrace/event_info_constants.cc",
@@ -1994,6 +1996,8 @@ perfetto_filegroup(
         "src/traced/probes/ftrace/printk_formats_parser.h",
         "src/traced/probes/ftrace/proto_translation_table.cc",
         "src/traced/probes/ftrace/proto_translation_table.h",
+        "src/traced/probes/ftrace/vendor_tracepoints.cc",
+        "src/traced/probes/ftrace/vendor_tracepoints.h",
     ],
 )
 
@@ -2550,6 +2554,25 @@ perfetto_py_proto_library(
     visibility = PERFETTO_CONFIG.public_visibility,
     deps = [
         ":chrome_metrics_proto",
+    ],
+)
+
+# GN target: //protos/perfetto/android_vendor:cpp
+perfetto_cc_protocpp_library(
+    name = "protos_perfetto_android_vendor_cpp",
+    deps = [
+        ":protos_perfetto_android_vendor_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/android_vendor:source_set
+perfetto_proto_library(
+    name = "protos_perfetto_android_vendor_protos",
+    srcs = [
+        "protos/perfetto/android_vendor/atrace_categories.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
     ],
 )
 
@@ -3400,6 +3423,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/ftrace/thermal.proto",
         "protos/perfetto/trace/ftrace/ufs.proto",
         "protos/perfetto/trace/ftrace/v4l2.proto",
+        "protos/perfetto/trace/ftrace/virtio_video.proto",
         "protos/perfetto/trace/ftrace/vmscan.proto",
         "protos/perfetto/trace/ftrace/workqueue.proto",
     ],

@@ -63,9 +63,6 @@ interface TargetInfoBase {
   // The dataSources exposed by a target. They are fetched from the target
   // (ex: using QSS for Android or GetCategories for Chrome).
   dataSources: DataSource[];
-
-  // Whether the TargetInfo corresponds to a real target.
-  isVirtual: boolean;
 }
 
 export interface AndroidTargetInfo extends TargetInfoBase {
@@ -78,7 +75,6 @@ export interface AndroidTargetInfo extends TargetInfoBase {
 }
 
 export interface ChromeTargetInfo extends TargetInfoBase {
-  isExtensionInstalled: boolean;
   targetType: 'CHROME'|'CHROME_OS';
 }
 
@@ -108,6 +104,10 @@ export interface RecordingTargetV2 {
   // the caller can decide if they want to connect to the target and as a side
   // effect take the connection away from other processes.
   canConnectWithoutContention(): Promise<boolean>;
+
+  // Whether the recording target can be used in a tracing session. For example,
+  // virtual targets do not support a tracing session.
+  canCreateTracingSession(recordingMode?: string): boolean;
 
   // Some target information can only be obtained after connecting to the
   // target. This will establish a connection and retrieve data such as

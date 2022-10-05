@@ -67,7 +67,7 @@ class HeapSettings implements m.ClassComponent<RecordingSectionAttrs> {
     return m(
         `.${attrs.cssClass}`,
         m(Textarea, {
-          title: 'Names or pids of the processes to track',
+          title: 'Names or pids of the processes to track (required)',
           docsLink:
               'https://perfetto.dev/docs/data-sources/native-heap-profiler#heapprofd-targets',
           placeholder: 'One per line, e.g.:\n' +
@@ -165,7 +165,7 @@ class JavaHeapDumpSettings implements m.ClassComponent<RecordingSectionAttrs> {
     return m(
         `.${attrs.cssClass}`,
         m(Textarea, {
-          title: 'Names or pids of the processes to track',
+          title: 'Names or pids of the processes to track (required)',
           placeholder: 'One per line, e.g.:\n' +
               'com.android.vending\n' +
               '1503',
