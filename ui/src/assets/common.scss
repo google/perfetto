@@ -311,6 +311,8 @@ button.close {
     width: 100%;
     text-align: right;
     line-height: 1;
+    display: block; // Required in order for inherited white-space property not
+                    // to screw up vertical rendering of the popup menu items.
 
     &:hover {
       background: #c7d0db;
@@ -796,6 +798,13 @@ button.query-ctrl {
 
   td.menu {
     text-align: left;
+  }
+
+  td {
+    // In context menu icon to go on a separate line.
+    // In regular pivot table cells, avoids wrapping the icon spacer to go on
+    // a separate line.
+    white-space: pre;
   }
 }
 
