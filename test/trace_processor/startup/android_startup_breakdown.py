@@ -91,8 +91,8 @@ trace.add_atrace_begin(
     ts=to_s(204),
     tid=3,
     pid=3,
-    buf='location=/system/framework/oat/arm/com.android.location.provider' \
-        '.odex status=up-to-date filter=speed reason=prebuilt')
+    buf='location=/system/framework/oat/arm/com.google.android.calendar' \
+        '.odex status=up-to-date filter=speed reason=install-dm')
 trace.add_atrace_end(ts=to_s(205), tid=3, pid=3)
 
 trace.add_atrace_async_end(

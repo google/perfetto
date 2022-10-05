@@ -82,8 +82,8 @@ android_startup {
     optimization_status {
       odex_status: "up-to-date"
       compilation_filter: "speed"
-      compilation_reason: "prebuilt"
-      location: "/system/framework/oat/arm/com.android.location.provider.odex"
+      compilation_reason: "install-dm"
+      location: "/system/framework/oat/arm/com.google.android.calendar.odex"
     }
     optimization_status {
       odex_status: "io-error-no-oat"
@@ -107,6 +107,7 @@ android_startup {
     slow_start_reason: "Main Thread - Time spent in Runnable state"
     slow_start_reason: "Time spent in bindApplication"
     slow_start_reason: "Time spent in ResourcesManager#getResources"
+    slow_start_reason: "No baseline or cloud profiles"
     startup_type: "cold"
   }
 }
