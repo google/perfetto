@@ -164,6 +164,7 @@ source_set("storage_minimal") {
     "trace_processor_storage_impl.h",
     "trace_sorter.cc",
     "trace_sorter.h",
+    "trace_sorter_internal.h",
     "trace_sorter_queue.h",
     "virtual_destructors.cc",
   ]
