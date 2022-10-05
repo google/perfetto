@@ -39,7 +39,15 @@ lib_perfetto = static_library(
 
 inc_perfetto = include_directories('sdk')
 
+dir_perfetto_trace = join_paths(meson.current_source_dir(),
+                                'protos/perfetto/trace')
+
+install_data(dir_perfetto_trace / 'perfetto_trace.proto')
+
 dep_perfetto = declare_dependency(
     link_with: lib_perfetto,
     include_directories: inc_perfetto,
+    variables: {
+        'pkgdatadir': dir_perfetto_trace,
+    }
 )
