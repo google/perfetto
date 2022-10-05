@@ -114,11 +114,11 @@ export class AdbOverWebsocketStream implements ByteStream {
     this.websocket.onclose = this.onClose.bind(this);
   }
 
-  addOnStreamData(onStreamData: OnStreamDataCallback) {
+  addOnStreamDataCallback(onStreamData: OnStreamDataCallback) {
     this.onStreamDataCallbacks.push(onStreamData);
   }
 
-  addOnStreamClose(onStreamClose: OnStreamCloseCallback) {
+  addOnStreamCloseCallback(onStreamClose: OnStreamCloseCallback) {
     this.onStreamCloseCallbacks.push(onStreamClose);
   }
 

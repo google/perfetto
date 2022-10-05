@@ -78,13 +78,13 @@ export interface ChromeTargetInfo extends TargetInfoBase {
   targetType: 'CHROME'|'CHROME_OS';
 }
 
-export interface LinuxTargetInfo extends TargetInfoBase {
-  targetType: 'LINUX';
+export interface HostOsTargetInfo extends TargetInfoBase {
+  targetType: 'LINUX'|'MACOS';
 }
 
 // Holds information about a target. It's used by the UI and the logic which
 // generates a config.
-export type TargetInfo = AndroidTargetInfo|ChromeTargetInfo|LinuxTargetInfo;
+export type TargetInfo = AndroidTargetInfo|ChromeTargetInfo|HostOsTargetInfo;
 
 // RecordingTargetV2 is subclassed by Android devices and the Chrome browser/OS.
 // It creates tracing sessions which are used by the UI. For Android, it manages
@@ -166,8 +166,8 @@ export interface AdbConnection {
 export interface ByteStream {
   // The caller can add callbacks, to be executed when the stream receives new
   // data or when it finished closing itself.
-  addOnStreamData(onStreamData: OnStreamDataCallback): void;
-  addOnStreamClose(onStreamClose: OnStreamCloseCallback): void;
+  addOnStreamDataCallback(onStreamData: OnStreamDataCallback): void;
+  addOnStreamCloseCallback(onStreamClose: OnStreamCloseCallback): void;
 
   isConnected(): boolean;
   write(data: string|Uint8Array): void;
