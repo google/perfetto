@@ -8,6 +8,7 @@ Unreleased:
   SDK:
     *
 
+
 v30.0 - 2022-10-06:
   Trace Processor:
     * Fixed parsing of "R+" (preempted) and "I" (idle kernel thread) end states
@@ -26,7 +27,8 @@ v30.0 - 2022-10-06:
     * Fix downloading profiles from flamegraphs.
     * Enable Pivot table support by default.
   SDK:
-    * Add support for disallowing concurrent tracnig sessions.
+    * Add support for disallowing concurrent tracing sessions.
+
 
 v29.0 - 2022-09-06:
   Tracing service and probes:
