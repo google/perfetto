@@ -25,6 +25,7 @@ import {
 
 export const FORCE_RESET_MESSAGE = 'Force reset the USB interface';
 export const DEFAULT_ADB_WEBSOCKET_URL = 'ws://127.0.0.1:8037/adb';
+export const DEFAULT_TRACED_WEBSOCKET_URL = 'ws://127.0.0.1:8037/traced';
 
 export function getWebsocketTargetFactory(): AndroidWebsocketTargetFactory {
   return targetFactoryRegistry.get(ANDROID_WEBSOCKET_TARGET_FACTORY) as
