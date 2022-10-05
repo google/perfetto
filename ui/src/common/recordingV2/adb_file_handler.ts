@@ -51,9 +51,9 @@ export class AdbFileHandler {
     this.isPushOngoing = true;
     const transferFinished = defer<void>();
 
-    this.byteStream.addOnStreamData(
+    this.byteStream.addOnStreamDataCallback(
         (data) => this.onStreamData(data, transferFinished));
-    this.byteStream.addOnStreamClose(() => this.isPushOngoing = false);
+    this.byteStream.addOnStreamCloseCallback(() => this.isPushOngoing = false);
 
     const sendMessage = new ArrayBufferBuilder();
     // 'SEND' is the API method used to send a file to device.
