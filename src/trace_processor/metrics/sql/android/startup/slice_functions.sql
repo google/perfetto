@@ -151,3 +151,28 @@ SELECT CREATE_FUNCTION(
           )
   '
 );
+
+-- Given a launch id and package name, returns if baseline or cloud profile is missing.
+SELECT CREATE_FUNCTION(
+  'MISSING_BASELINE_PROFILE_FOR_LAUNCH(launch_id LONG, pkg_name STRING)',
+  'BOOL',
+  '
+    SELECT (COUNT(slice_name) > 0)
+    FROM (
+      SELECT *
+      FROM SLICES_FOR_LAUNCH_AND_SLICE_NAME(
+        $launch_id,
+        "location=* status=* filter=* reason=*"
+      )
+      ORDER BY slice_name
+    )
+    WHERE
+      -- when location is the package odex file and the reason is "install" or "install-dm",
+      -- if the compilation filter is not "speed-profile", baseline/cloud profile is missing.
+      SUBSTR(STR_SPLIT(slice_name, " status=", 0), LENGTH("location=") + 1)
+        LIKE ("%" || $pkg_name || "%odex")
+      AND (STR_SPLIT(slice_name, " reason=", 1) = "install"
+        OR STR_SPLIT(slice_name, " reason=", 1) = "install-dm")
+      AND STR_SPLIT(STR_SPLIT(slice_name, " filter=", 1), " reason=", 0) != "speed-profile"
+  '
+);
