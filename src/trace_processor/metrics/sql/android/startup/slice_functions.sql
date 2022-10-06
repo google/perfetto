@@ -170,7 +170,7 @@ SELECT CREATE_FUNCTION(
       -- when location is the package odex file and the reason is "install" or "install-dm",
       -- if the compilation filter is not "speed-profile", baseline/cloud profile is missing.
       SUBSTR(STR_SPLIT(slice_name, " status=", 0), LENGTH("location=") + 1)
-        LIKE ("%" || $pkg_name || "%odex")
+        GLOB ("*" || $pkg_name || "*odex")
       AND (STR_SPLIT(slice_name, " reason=", 1) = "install"
         OR STR_SPLIT(slice_name, " reason=", 1) = "install-dm")
       AND STR_SPLIT(STR_SPLIT(slice_name, " filter=", 1), " reason=", 0) != "speed-profile"
