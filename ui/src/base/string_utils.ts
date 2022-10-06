@@ -113,5 +113,5 @@ export function binaryDecode(str: string): Uint8Array {
 // The purpose of this function is to use in simple comparisons, to escape
 // strings used in GLOB clauses see escapeQuery function.
 export function sqliteString(str: string): string {
-  return `'${str.replace('\'', '\'\'')}'`;
+  return `'${str.replace(/'/g, '\'\'')}'`;
 }
