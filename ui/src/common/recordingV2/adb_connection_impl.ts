@@ -42,7 +42,7 @@ export abstract class AdbConnectionImpl implements AdbConnection {
 
     // We wait for the stream to be closed by the device, which happens
     // after the shell command is successfully received.
-    adbStream.addOnStreamClose(() => {
+    adbStream.addOnStreamCloseCallback(() => {
       onStreamingEnded.resolve();
     });
     return onStreamingEnded;
@@ -55,10 +55,10 @@ export abstract class AdbConnectionImpl implements AdbConnection {
     const commandOutput = new ArrayBufferBuilder();
     const onStreamingEnded = defer<string>();
 
-    adbStream.addOnStreamData((data: Uint8Array) => {
+    adbStream.addOnStreamDataCallback((data: Uint8Array) => {
       commandOutput.append(data);
     });
-    adbStream.addOnStreamClose(() => {
+    adbStream.addOnStreamCloseCallback(() => {
       onStreamingEnded.resolve(
           textDecoder.decode(commandOutput.toArrayBuffer()));
     });

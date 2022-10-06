@@ -18,19 +18,15 @@ import {
   RecordingTargetV2,
   TargetFactory,
 } from '../recording_interfaces_v2';
-import {EXTENSION_ID, EXTENSION_NOT_INSTALLED} from '../recording_utils';
+import {
+  EXTENSION_ID,
+  EXTENSION_NOT_INSTALLED,
+  isCrOS,
+} from '../recording_utils';
 import {targetFactoryRegistry} from '../target_factory_registry';
 import {ChromeTarget} from '../targets/chrome_target';
 
 export const CHROME_TARGET_FACTORY = 'ChromeTargetFactory';
-
-// Sample user agent for Chrome on Chrome OS:
-// "Mozilla/5.0 (X11; CrOS x86_64 14816.99.0) AppleWebKit/537.36
-// (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36"
-// This condition is wider, in the unlikely possibility of different casing,
-export function isCrOS(userAgent: string) {
-  return userAgent.toLowerCase().includes(' cros ');
-}
 
 export class ChromeTargetFactory implements TargetFactory {
   readonly kind = CHROME_TARGET_FACTORY;

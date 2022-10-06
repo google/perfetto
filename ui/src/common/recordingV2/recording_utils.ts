@@ -29,6 +29,28 @@ export function buildAbdWebsocketCommand(cmd: string) {
   return hdr + cmd;
 }
 
+// Sample user agent for Chrome on Mac OS:
+// 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36
+// (KHTML, like Gecko) Chrome/104.0.0.0 Safari/537.36'
+export function isMacOs(userAgent: string) {
+  return userAgent.toLowerCase().includes(' mac os ');
+}
+
+// Sample user agent for Chrome on Linux:
+// Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)
+// Chrome/105.0.0.0 Safari/537.36
+export function isLinux(userAgent: string) {
+  return userAgent.toLowerCase().includes(' linux ');
+}
+
+// Sample user agent for Chrome on Chrome OS:
+// "Mozilla/5.0 (X11; CrOS x86_64 14816.99.0) AppleWebKit/537.36
+// (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36"
+// This condition is wider, in the unlikely possibility of different casing,
+export function isCrOS(userAgent: string) {
+  return userAgent.toLowerCase().includes(' cros ');
+}
+
 // End Websocket //////////////////////////////////////////////////////////
 
 // Begin Adb //////////////////////////////////////////////////////////////

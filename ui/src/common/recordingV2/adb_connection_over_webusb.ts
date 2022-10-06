@@ -465,11 +465,11 @@ export class AdbOverWebusbStream implements ByteStream {
     this._isConnected = true;
   }
 
-  addOnStreamData(onStreamData: OnStreamDataCallback): void {
+  addOnStreamDataCallback(onStreamData: OnStreamDataCallback): void {
     this.onStreamDataCallbacks.push(onStreamData);
   }
 
-  addOnStreamClose(onStreamClose: OnStreamCloseCallback): void {
+  addOnStreamCloseCallback(onStreamClose: OnStreamCloseCallback): void {
     this.onStreamCloseCallbacks.push(onStreamClose);
   }
 
