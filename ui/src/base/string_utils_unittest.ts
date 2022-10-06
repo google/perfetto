@@ -78,4 +78,5 @@ test('string_utils.binaryEncodeAndDecode', () => {
 test('string_utils.sqliteString', () => {
   expect(sqliteString('that\'s it')).toEqual('\'that\'\'s it\'');
   expect(sqliteString('no quotes')).toEqual('\'no quotes\'');
+  expect(sqliteString(`foo ' bar '`)).toEqual(`'foo '' bar '''`);
 });
