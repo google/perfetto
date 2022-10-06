@@ -23,15 +23,6 @@ import sys
 from compat import quote
 from platform import system
 
-GN_ARGS = ' '.join(
-    quote(s) for s in (
-        'is_debug=false',
-        'is_perfetto_build_generator=true',
-        'is_perfetto_embedder=true',
-        'use_custom_libcxx=false',
-        'enable_perfetto_ipc=true',
-    ))
-
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 OUT_DIR = os.path.join('out', 'amalgamated')
 GEN_AMALGAMATED = os.path.join('tools', 'gen_amalgamated')
@@ -72,7 +63,7 @@ def check_amalgamated_build():
 def check_amalgamated_dependencies():
   os_deps = {}
   for os_name in ['android', 'linux', 'mac']:
-    gn_args = (' target_os="%s"' % os_name) + GN_ARGS
+    gn_args = ' target_os="%s"' % os_name
     os_deps[os_name] = call(GEN_AMALGAMATED, '--gn_args', gn_args, '--out',
                             OUT_DIR, '--dump-deps', '--quiet').split('\n')
   for os_name, deps in os_deps.items():
