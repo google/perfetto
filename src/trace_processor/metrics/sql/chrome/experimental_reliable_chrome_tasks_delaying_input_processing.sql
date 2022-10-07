@@ -17,8 +17,17 @@
 -- {{duration_causing_jank_ms}} : The duration of a single task that would cause
 -- jank, by delaying input from being handled on the main thread.
 
+SELECT RUN_METRIC('chrome/chrome_reliable_range.sql') AS suppress_query_output;
+
+DROP VIEW IF EXISTS chrome_reliable_slice;
+
+CREATE VIEW chrome_reliable_slice AS
+SELECT *
+FROM slice
+WHERE ts + dur >= (SELECT start FROM chrome_reliable_range);
+
 SELECT RUN_METRIC(
   'chrome/chrome_tasks_delaying_input_processing_template.sql',
   'duration_causing_jank_ms', '{{duration_causing_jank_ms}}',
-  'slice_table_name', 'slice'
+  'slice_table_name', 'chrome_reliable_slice'
 );
