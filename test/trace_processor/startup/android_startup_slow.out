@@ -11,6 +11,8 @@ android_startup {
         runnable_dur_ns: 80000000000
         uninterruptible_sleep_dur_ns: 5000000000
         interruptible_sleep_dur_ns: 5000000000
+        uninterruptible_io_sleep_dur_ns: 5000000000
+        uninterruptible_non_io_sleep_dur_ns: 0
       }
       other_processes_spawned_count: 1
       time_activity_manager {

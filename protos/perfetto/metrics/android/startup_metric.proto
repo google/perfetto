@@ -29,6 +29,8 @@ message AndroidStartupMetric {
     optional int64 runnable_dur_ns = 2;
     optional int64 uninterruptible_sleep_dur_ns = 3;
     optional int64 interruptible_sleep_dur_ns = 4;
+    optional int64 uninterruptible_io_sleep_dur_ns = 5;
+    optional int64 uninterruptible_non_io_sleep_dur_ns = 6;
   }
 
   message McyclesByCoreType {
