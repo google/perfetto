@@ -2,14 +2,33 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    * Scheduling: fixed parsing of "R+" (preempted) and "I" (idle kernel
-      thread) end states in |sched.end_state| for traces collected on Linux
-      kernels v4.14 and above. Previously, preemption was not recognised, and
-      idle was reported as "x" (task dead). See commit c60a630cfe0.
+    *
   UI:
     *
   SDK:
     *
+
+
+v30.0 - 2022-10-06:
+  Trace Processor:
+    * Fixed parsing of "R+" (preempted) and "I" (idle kernel thread) end states
+      of sched_switch events, collected on Linux kernels v4.14 and above.
+      Previously, preemption was not recognised, and idle was reported as
+      "x" (task dead). See commit c60a630cfe0.
+    * Add support for parsing sys_write syscalls.
+    * Remove the thread_slice table: all columns have moved to the slice table
+      and thread_slice exists as a view for backwards compatibility. This view
+      will also be removed in the future
+    * Add Base64 encode SQL function.
+    * Add support for importing function graph ftrace events.
+    * Add support for importing V4L2 ftrace events.
+    * Add support for importing virtio-video ftrace events.
+  UI:
+    * Fix downloading profiles from flamegraphs.
+    * Enable Pivot table support by default.
+  SDK:
+    * Add support for disallowing concurrent tracing sessions.
+
 
 v29.0 - 2022-09-06:
   Tracing service and probes:

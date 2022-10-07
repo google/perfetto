@@ -510,7 +510,7 @@ StringId V4l2Tracker::InternBufFlags(uint32_t flags) {
     present_flags.push_back("NO_CACHE_CLEAN");
   if (flags & 0x0000e000)
     present_flags.push_back("TIMESTAMP_MASK");
-  if (flags & 0x00000000)
+  if (flags == 0x00000000)
     present_flags.push_back("TIMESTAMP_UNKNOWN");
   if (flags & 0x00002000)
     present_flags.push_back("TIMESTAMP_MONOTONIC");
@@ -518,7 +518,7 @@ StringId V4l2Tracker::InternBufFlags(uint32_t flags) {
     present_flags.push_back("TIMESTAMP_COPY");
   if (flags & 0x00070000)
     present_flags.push_back("TSTAMP_SRC_MASK");
-  if (flags & 0x00000000)
+  if (flags == 0x00000000)
     present_flags.push_back("TSTAMP_SRC_EOF");
   if (flags & 0x00010000)
     present_flags.push_back("TSTAMP_SRC_SOE");
@@ -535,7 +535,7 @@ StringId V4l2Tracker::InternTcFlags(uint32_t flags) {
   std::vector<std::string> present_flags;
 
   if (flags == 0x0000)
-    return kNullStringId;
+    present_flags.push_back("USERBITS_USERDEFINED");
   if (flags & 0x0001)
     present_flags.push_back("FLAG_DROPFRAME");
   if (flags & 0x0002)
@@ -546,8 +546,6 @@ StringId V4l2Tracker::InternTcFlags(uint32_t flags) {
     present_flags.push_back("USERBITS_field(10)");
   if ((flags & 0x000C) == 0x000C)
     present_flags.push_back("USERBITS_field(11)");
-  if (flags == 0x0000)
-    present_flags.push_back("USERBITS_USERDEFINED");
   if (flags & 0x0008)
     present_flags.push_back("USERBITS_8BITCHARS");
 
