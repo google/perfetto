@@ -264,6 +264,12 @@ config("default") {
   }
 
   if (is_linux) {
+    # Enable LFS (large file support) for stat() and other syscalls.
+    cflags += [
+      "-D_FILE_OFFSET_BITS=64",
+      "-D_LARGEFILE_SOURCE",
+      "-D_LARGEFILE64_SOURCE",
+    ]
     libs += [
       "pthread",
       "rt",
