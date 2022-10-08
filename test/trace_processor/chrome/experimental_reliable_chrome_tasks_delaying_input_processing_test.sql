@@ -13,12 +13,12 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Script params:
--- {{duration_causing_jank_ms}} : The duration of a single task that would cause
--- jank, by delaying input from being handled on the main thread.
-
 SELECT RUN_METRIC(
-  'chrome/chrome_tasks_delaying_input_processing_template.sql',
-  'duration_causing_jank_ms', '{{duration_causing_jank_ms}}',
-  'slice_table_name', 'slice'
-);
+    'chrome/experimental_reliable_chrome_tasks_delaying_input_processing.sql',
+    'duration_causing_jank_ms', '8');
+
+SELECT
+  full_name,
+  duration_ms,
+  thread_dur_ms
+FROM chrome_tasks_delaying_input_processing;

@@ -10,6 +10,8 @@ android_startup {
         runnable_dur_ns: 0
         uninterruptible_sleep_dur_ns: 0
         interruptible_sleep_dur_ns: 0
+        uninterruptible_io_sleep_dur_ns: 0
+        uninterruptible_non_io_sleep_dur_ns: 0
       }
       other_processes_spawned_count: 0
       dur_ms: 0.0001
