@@ -2259,18 +2259,24 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
   auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
       suspend_resume_name_id_);
 
+  // Hard code fix the timekeeping_freeze action's value to zero, the value is
+  // processor_id and device could enter suspend/resume from different
+  // processor.
+  auto val =
+      (evt.action().ToStdString() == "timekeeping_freeze") ? 0 : evt.val();
+
   base::StackString<64> str("%s(%" PRIu32 ")",
-                            evt.action().ToStdString().c_str(), evt.val());
+                            evt.action().ToStdString().c_str(), val);
   StringId slice_name_id = context_->storage->InternString(str.string_view());
 
   if (evt.start()) {
     TrackId start_id = context_->async_track_set_tracker->Begin(
-        async_track, static_cast<int64_t>(evt.val()));
+        async_track, static_cast<int64_t>(val));
     context_->slice_tracker->Begin(timestamp, start_id, suspend_resume_name_id_,
                                    slice_name_id);
   } else {
     TrackId end_id = context_->async_track_set_tracker->End(
-        async_track, static_cast<int64_t>(evt.val()));
+        async_track, static_cast<int64_t>(val));
     context_->slice_tracker->End(timestamp, end_id);
   }
 }
