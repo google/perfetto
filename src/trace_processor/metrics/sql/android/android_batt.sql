@@ -95,7 +95,7 @@ FROM
     ON slice.track_id = track.id
 WHERE
     track.name = 'Suspend/Resume Latency'
-    AND slice.name = 'syscore_resume(0)'
+    AND (slice.name = 'syscore_resume(0)' OR slice.name = 'timekeeping_freeze(0)')
     AND dur != -1
 ;
 
