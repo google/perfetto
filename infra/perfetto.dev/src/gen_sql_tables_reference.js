@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Generation of reference from protos
+// Generation of SQL table references from C++ headers.
 
 'use strict';
 
@@ -264,16 +264,16 @@ function main() {
   let graph = '## Tables diagram\n';
   const mkLabel = (table) => `${table.defMacro}["${table.name}"]`;
   for (const tableGroup of tableGroups) {
-    let gaphEdges = '';
-    let gaphLinks = '';
+    let graphEdges = '';
+    let graphLinks = '';
     graph += `#### ${tableGroup} tables\n`;
     graph += '```mermaid\ngraph TD\n';
     graph += `  subgraph ${tableGroup}\n`;
     for (const table of tablesByGroup[tableGroup]) {
       graph += `  ${mkLabel(table)}\n`;
-      gaphLinks += `  click ${table.defMacro} "#${table.name}"\n`
+      graphLinks += `  click ${table.defMacro} "#${table.name}"\n`
       if (table.parent) {
-        gaphEdges += ` ${mkLabel(table)} --> ${mkLabel(table.parent)}\n`
+        graphEdges += ` ${mkLabel(table)} --> ${mkLabel(table.parent)}\n`
       }
 
       for (const col of Object.values(table.cols)) {
@@ -288,14 +288,14 @@ function main() {
         }
         if (!refTable)
           continue;
-        gaphEdges +=
+        graphEdges +=
             `  ${mkLabel(table)} -. ${col.name} .-> ${mkLabel(refTable)}\n`
-        gaphLinks += `  click ${refTable.defMacro} "#${refTable.name}"\n`
+        graphLinks += `  click ${refTable.defMacro} "#${refTable.name}"\n`
       }
     }
     graph += `  end\n`;
-    graph += gaphEdges;
-    graph += gaphLinks;
+    graph += graphEdges;
+    graph += graphLinks;
     graph += '\n```\n';
   }
 
