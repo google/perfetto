@@ -16,5 +16,6 @@
 
 SELECT RUN_METRIC(
   "chrome/chrome_tasks_template.sql",
-  "slice_table_name", "slice"
+  "slice_table_name", "slice",
+  "function_prefix", ""
 );

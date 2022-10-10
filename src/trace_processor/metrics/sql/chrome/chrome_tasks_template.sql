@@ -17,7 +17,7 @@
 SELECT RUN_METRIC("common/parent_slice.sql");
 
 SELECT CREATE_FUNCTION(
-  'EXTRACT_MOJO_IPC_HASH(slice_id INT)',
+  '{{function_prefix}}EXTRACT_MOJO_IPC_HASH(slice_id INT)',
   'INT',
   '
     SELECT EXTRACT_ARG(s2.arg_set_id, "chrome_mojo_event_info.ipc_hash")
@@ -60,7 +60,7 @@ WITH
   old_associated_mojo_slices AS (
     SELECT
       s.name as interface_name,
-      EXTRACT_MOJO_IPC_HASH(s.id) as ipc_hash,
+      {{function_prefix}}EXTRACT_MOJO_IPC_HASH(s.id) as ipc_hash,
       "message" as message_type,
       s.id
     FROM {{slice_table_name}} s
@@ -75,7 +75,7 @@ WITH
         EXTRACT_ARG(s.arg_set_id, "chrome_mojo_event_info.watcher_notify_interface_tag"),
         EXTRACT_ARG(s.arg_set_id, "chrome_mojo_event_info.mojo_interface_tag")
       ) as interface_name,
-      EXTRACT_MOJO_IPC_HASH(s.id) as ipc_hash,
+      {{function_prefix}}EXTRACT_MOJO_IPC_HASH(s.id) as ipc_hash,
       "message" as message_type,
       s.id
     FROM {{slice_table_name}} s
