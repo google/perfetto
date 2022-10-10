@@ -1995,6 +1995,8 @@ perfetto_filegroup(
         "src/traced/probes/ftrace/ftrace_data_source.cc",
         "src/traced/probes/ftrace/ftrace_data_source.h",
         "src/traced/probes/ftrace/ftrace_metadata.h",
+        "src/traced/probes/ftrace/ftrace_print_filter.cc",
+        "src/traced/probes/ftrace/ftrace_print_filter.h",
         "src/traced/probes/ftrace/ftrace_stats.cc",
         "src/traced/probes/ftrace/ftrace_stats.h",
         "src/traced/probes/ftrace/printk_formats_parser.cc",

@@ -21,6 +21,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
+#include "src/traced/probes/ftrace/ftrace_print_filter.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 #include "src/traced/probes/ftrace/test/cpu_reader_support.h"
 
@@ -559,6 +560,7 @@ ExamplePage g_full_page_print{
 
 void DoParse(const ExamplePage& test_case,
              const std::vector<GroupAndName>& enabled_events,
+             base::Optional<FtraceConfig::PrintFilter> print_filter,
              benchmark::State& state) {
   ScatteredStreamWriterNullDelegate delegate(base::kPageSize);
   ScatteredStreamWriter stream(&delegate);
@@ -570,9 +572,15 @@ void DoParse(const ExamplePage& test_case,
   FtraceDataSourceConfig ds_config{EventFilter{},
                                    EventFilter{},
                                    DisabledCompactSchedConfigForTesting(),
+                                   base::nullopt,
                                    {},
                                    {},
                                    false /*symbolize_ksyms*/};
+  if (print_filter.has_value()) {
+    ds_config.print_filter =
+        FtracePrintFilterConfig::Create(print_filter.value(), table);
+    PERFETTO_CHECK(ds_config.print_filter.has_value());
+  }
   for (const GroupAndName& enabled_event : enabled_events) {
     ds_config.event_filter.AddEnabledEvent(
         table->EventToFtraceId(enabled_event));
@@ -601,14 +609,27 @@ void DoParse(const ExamplePage& test_case,
 
 void BM_ParsePageFullOfSchedSwitch(benchmark::State& state) {
   DoParse(g_full_page_sched_switch, {GroupAndName("sched", "sched_switch")},
-          state);
+          base::nullopt, state);
 }
 BENCHMARK(BM_ParsePageFullOfSchedSwitch);
 
 void BM_ParsePageFullOfPrint(benchmark::State& state) {
-  DoParse(g_full_page_print, {GroupAndName("ftrace", "print")}, state);
+  DoParse(g_full_page_print, {GroupAndName("ftrace", "print")}, base::nullopt,
+          state);
 }
 BENCHMARK(BM_ParsePageFullOfPrint);
+
+void BM_ParsePageFullOfPrintWithFilterRules(benchmark::State& state) {
+  FtraceConfig::PrintFilter filter_conf;
+  for (int i = 0; i < state.range(0); i++) {
+    auto* rule = filter_conf.add_rules();
+    rule->set_prefix("X");  // This rule will not match
+    rule->set_allow(false);
+  }
+  DoParse(g_full_page_print, {GroupAndName("ftrace", "print")}, filter_conf,
+          state);
+}
+BENCHMARK(BM_ParsePageFullOfPrintWithFilterRules)->DenseRange(0, 16, 1);
 
 }  // namespace
 }  // namespace perfetto

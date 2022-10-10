@@ -20,10 +20,11 @@
 #include <map>
 #include <set>
 
+#include "perfetto/ext/base/optional.h"
 #include "src/kernel_utils/syscall_table.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
-#include "src/traced/probes/ftrace/ftrace_controller.h"
+#include "src/traced/probes/ftrace/ftrace_print_filter.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
@@ -43,12 +44,14 @@ struct FtraceDataSourceConfig {
   FtraceDataSourceConfig(EventFilter _event_filter,
                          EventFilter _syscall_filter,
                          CompactSchedConfig _compact_sched,
+                         base::Optional<FtracePrintFilterConfig> _print_filter,
                          std::vector<std::string> _atrace_apps,
                          std::vector<std::string> _atrace_categories,
                          bool _symbolize_ksyms)
       : event_filter(std::move(_event_filter)),
         syscall_filter(std::move(_syscall_filter)),
         compact_sched(_compact_sched),
+        print_filter(std::move(_print_filter)),
         atrace_apps(std::move(_atrace_apps)),
         atrace_categories(std::move(_atrace_categories)),
         symbolize_ksyms(_symbolize_ksyms) {}
@@ -63,6 +66,10 @@ struct FtraceDataSourceConfig {
 
   // Configuration of the optional compact encoding of scheduling events.
   const CompactSchedConfig compact_sched;
+
+  // Optional configuration that's used to filter "ftrace/print" events based on
+  // the content of their "buf" field.
+  base::Optional<FtracePrintFilterConfig> print_filter;
 
   // Used only in Android for ATRACE_EVENT/os.Trace() userspace annotations.
   std::vector<std::string> atrace_apps;
