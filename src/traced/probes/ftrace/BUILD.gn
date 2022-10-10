@@ -66,14 +66,15 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "cpu_reader_unittest.cc",
     "cpu_stats_parser_unittest.cc",
-    "vendor_tracepoints_unittest.cc",
     "event_info_unittest.cc",
     "ftrace_config_muxer_unittest.cc",
     "ftrace_config_unittest.cc",
     "ftrace_controller_unittest.cc",
+    "ftrace_print_filter_unittest.cc",
     "ftrace_procfs_unittest.cc",
     "printk_formats_parser_unittest.cc",
     "proto_translation_table_unittest.cc",
+    "vendor_tracepoints_unittest.cc",
   ]
 }
 
@@ -137,8 +138,6 @@ source_set("ftrace") {
     "cpu_reader.h",
     "cpu_stats_parser.cc",
     "cpu_stats_parser.h",
-    "vendor_tracepoints.cc",
-    "vendor_tracepoints.h",
     "event_info.cc",
     "event_info.h",
     "event_info_constants.cc",
@@ -152,12 +151,16 @@ source_set("ftrace") {
     "ftrace_data_source.cc",
     "ftrace_data_source.h",
     "ftrace_metadata.h",
+    "ftrace_print_filter.cc",
+    "ftrace_print_filter.h",
     "ftrace_stats.cc",
     "ftrace_stats.h",
     "printk_formats_parser.cc",
     "printk_formats_parser.h",
     "proto_translation_table.cc",
     "proto_translation_table.h",
+    "vendor_tracepoints.cc",
+    "vendor_tracepoints.h",
   ]
 }
 

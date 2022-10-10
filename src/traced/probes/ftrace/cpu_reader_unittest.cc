@@ -60,13 +60,13 @@ using testing::Return;
 using testing::StartsWith;
 
 namespace perfetto {
-
 namespace {
 
 FtraceDataSourceConfig EmptyConfig() {
   return FtraceDataSourceConfig{EventFilter{},
                                 EventFilter{},
                                 DisabledCompactSchedConfigForTesting(),
+                                base::nullopt,
                                 {},
                                 {},
                                 false /*symbolize_ksyms*/};
@@ -185,8 +185,6 @@ class BinaryWriter {
   std::unique_ptr<uint8_t[]> page_;
   uint8_t* ptr_;
 };
-
-}  // namespace
 
 TEST(PageFromXxdTest, OneLine) {
   std::string text = R"(
@@ -756,6 +754,87 @@ TEST(CpuReaderTest, ParseThreePrint) {
   }
 }
 
+TEST(CpuReaderTest, ParsePrintWithAndWithoutFilter) {
+  const ExamplePage* test_case = &g_three_prints;
+
+  ProtoTranslationTable* table = GetTable(test_case->name);
+  auto page = PageFromXxd(test_case->data);
+
+  FtraceMetadata metadata{};
+  std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
+  const uint8_t* parse_pos = page.get();
+  base::Optional<CpuReader::PageHeader> page_header =
+      CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
+
+  const uint8_t* page_end = page.get() + base::kPageSize;
+  ASSERT_TRUE(page_header.has_value());
+  ASSERT_FALSE(page_header->lost_events);
+  ASSERT_LE(parse_pos + page_header->size, page_end);
+
+  {
+    FtraceDataSourceConfig ds_config_no_filter = EmptyConfig();
+    ds_config_no_filter.event_filter.AddEnabledEvent(
+        table->EventToFtraceId(GroupAndName("ftrace", "print")));
+
+    BundleProvider bundle_provider(base::kPageSize);
+    size_t evt_bytes = CpuReader::ParsePagePayload(
+        parse_pos, &page_header.value(), table, &ds_config_no_filter,
+        compact_buffer.get(), bundle_provider.writer(), &metadata);
+    ASSERT_GE(evt_bytes, 0u);
+
+    auto bundle = bundle_provider.ParseProto();
+    using ::testing::Pointee;
+    using ::testing::Property;
+    EXPECT_THAT(
+        bundle,
+        Pointee(Property(
+            &protos::gen::FtraceEventBundle::event,
+            ElementsAre(Property(&protos::gen::FtraceEvent::print,
+                                 Property(&protos::gen::PrintFtraceEvent::buf,
+                                          "Hello, world!\n")),
+                        Property(&protos::gen::FtraceEvent::print,
+                                 Property(&protos::gen::PrintFtraceEvent::buf,
+                                          "Good afternoon, world!\n")),
+                        Property(&protos::gen::FtraceEvent::print,
+                                 Property(&protos::gen::PrintFtraceEvent::buf,
+                                          "Goodbye, world!\n"))))));
+  }
+
+  {
+    FtraceDataSourceConfig ds_config_with_filter = EmptyConfig();
+    ds_config_with_filter.event_filter.AddEnabledEvent(
+        table->EventToFtraceId(GroupAndName("ftrace", "print")));
+
+    FtraceConfig::PrintFilter conf;
+    auto* rule = conf.add_rules();
+    rule->set_prefix("Good ");
+    rule->set_allow(false);
+    ds_config_with_filter.print_filter =
+        FtracePrintFilterConfig::Create(conf, table);
+    ASSERT_TRUE(ds_config_with_filter.print_filter.has_value());
+
+    BundleProvider bundle_provider(base::kPageSize);
+    size_t evt_bytes = CpuReader::ParsePagePayload(
+        parse_pos, &page_header.value(), table, &ds_config_with_filter,
+        compact_buffer.get(), bundle_provider.writer(), &metadata);
+    ASSERT_GE(evt_bytes, 0u);
+
+    auto bundle = bundle_provider.ParseProto();
+    using ::testing::Pointee;
+    using ::testing::Property;
+    EXPECT_THAT(
+        bundle,
+        Pointee(Property(
+            &protos::gen::FtraceEventBundle::event,
+            ElementsAre(Property(&protos::gen::FtraceEvent::print,
+                                 Property(&protos::gen::PrintFtraceEvent::buf,
+                                          "Hello, world!\n")),
+                        Property(&protos::gen::FtraceEvent::print,
+                                 Property(&protos::gen::PrintFtraceEvent::buf,
+                                          "Goodbye, world!\n"))))));
+  }
+}
+
 // clang-format off
 // # tracer: nop
 // #
@@ -865,6 +944,7 @@ TEST(CpuReaderTest, ParseSixSchedSwitchCompactFormat) {
   FtraceDataSourceConfig ds_config{EventFilter{},
                                    EventFilter{},
                                    EnabledCompactSchedConfigForTesting(),
+                                   base::nullopt,
                                    {},
                                    {},
                                    false /* symbolize_ksyms*/};
@@ -2982,4 +3062,5 @@ TEST(CpuReaderTest, ZeroPaddedPageWorkaround) {
   ASSERT_TRUE(bundle);
 }
 
+}  // namespace
 }  // namespace perfetto
