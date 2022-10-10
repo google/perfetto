@@ -20,5 +20,6 @@
 SELECT RUN_METRIC(
   'chrome/chrome_tasks_delaying_input_processing_template.sql',
   'duration_causing_jank_ms', '{{duration_causing_jank_ms}}',
-  'slice_table_name', 'slice'
+  'slice_table_name', 'slice',
+  'function_prefix', ''
 );
