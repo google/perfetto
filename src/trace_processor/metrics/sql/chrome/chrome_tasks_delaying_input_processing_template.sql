@@ -19,7 +19,8 @@
 
 SELECT RUN_METRIC(
   'chrome/chrome_input_to_browser_intervals_template.sql',
-  'slice_table_name', '{{slice_table_name}}'
+  'slice_table_name', '{{slice_table_name}}',
+  'function_prefix', '{{function_prefix}}'
 );
 
 -- Get the tasks that was running for more than 8ms within windows
