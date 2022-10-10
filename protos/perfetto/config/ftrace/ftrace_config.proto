@@ -18,7 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Next id: 22.
+// Next id: 23.
 message FtraceConfig {
   repeated string ftrace_events = 1;
   repeated string atrace_categories = 2;
@@ -36,6 +36,24 @@ message FtraceConfig {
     optional bool enabled = 1;
   }
   optional CompactSchedConfig compact_sched = 12;
+
+  // Optional filter for "ftrace/print" events.
+  //
+  // The filter consists of multiple rules. A rule matches if its prefix matches
+  // exactly with the beginning of the "ftrace/print" "buf" field. As soon as a
+  // rule matches (the rules are processed in order), its `allow` field will be
+  // used as the outcome: if `allow` is true, the event will be included in the
+  // trace, otherwise it will be discarded. If an event does not match any rule,
+  // it will be allowed by default (a rule with an empty prefix and allow=false,
+  // disallows everything by default).
+  message PrintFilter {
+    message Rule {
+      optional string prefix = 1;
+      optional bool allow = 2;
+    }
+    repeated Rule rules = 1;
+  }
+  optional PrintFilter print_filter = 22;
 
   // Enables symbol name resolution against /proc/kallsyms.
   // It requires that either traced_probes is running as root or that
