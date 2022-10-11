@@ -22,5 +22,6 @@
 
 SELECT RUN_METRIC(
   'chrome/chrome_input_to_browser_intervals_template.sql',
-  'slice_table_name', 'slice'
+  'slice_table_name', 'slice',
+  'function_prefix', ''
 );

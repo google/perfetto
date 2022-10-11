@@ -29,5 +29,6 @@ WHERE ts + dur >= (SELECT start FROM chrome_reliable_range);
 SELECT RUN_METRIC(
   'chrome/chrome_tasks_delaying_input_processing_template.sql',
   'duration_causing_jank_ms', '{{duration_causing_jank_ms}}',
-  'slice_table_name', 'chrome_reliable_slice'
+  'slice_table_name', 'chrome_reliable_slice',
+  'function_prefix', 'EXPERIMENTAL_RELIABLE_'
 );
