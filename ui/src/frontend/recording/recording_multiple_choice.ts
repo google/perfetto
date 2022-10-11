@@ -25,7 +25,7 @@ import {
 import {fullscreenModalContainer} from '../modal';
 
 interface RecordingMultipleChoiceAttrs {
-  targetFactory: TargetFactory;
+  targetFactories: TargetFactory[];
   // Reference to the controller which maintains the state of the recording
   // page.
   controller: RecordingPageController;
@@ -83,7 +83,12 @@ export class RecordingMultipleChoice implements
     if (!controller.shouldShowTargetSelection()) {
       return undefined;
     }
-    const targets = attrs.targetFactory.listTargets();
+    const targets: RecordingTargetV2[] = [];
+    for (const targetFactory of attrs.targetFactories) {
+      for (const target of targetFactory.listTargets()) {
+        targets.push(target);
+      }
+    }
     if (targets.length === 0) {
       return undefined;
     }

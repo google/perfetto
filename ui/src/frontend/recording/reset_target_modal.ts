@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import * as m from 'mithril';
-
 import {
   RecordingPageController,
 } from '../../common/recordingV2/recording_page_controller';
@@ -25,18 +24,23 @@ import {
 import {
   targetFactoryRegistry,
 } from '../../common/recordingV2/target_factory_registry';
+import {
+  WebsocketMenuController,
+} from '../../common/recordingV2/websocket_menu_controller';
 import {fullscreenModalContainer, ModalDefinition} from '../modal';
 import {CodeSnippet} from '../record_widgets';
 
 import {RecordingMultipleChoice} from './recording_multiple_choice';
-import {
-  DEFAULT_ADB_WEBSOCKET_URL,
-  getWebsocketTargetFactory,
-} from './recording_ui_utils';
 
-const RUN_WEBSOCKET_CMD = 'curl -LO https://get.perfetto.dev/tracebox\n' +
+const RUN_WEBSOCKET_CMD = '# Get tracebox\n' +
+    'curl -LO https://get.perfetto.dev/tracebox\n' +
     'chmod +x ./tracebox\n' +
+    '# Option A - trace android devices\n' +
     'adb start-server\n' +
+    '# Option B - trace the host OS\n' +
+    './tracebox traced --background\n' +
+    './tracebox traced_probes --background\n' +
+    '# Start the websocket server\n' +
     './tracebox websocket_bridge\n';
 
 export function addNewTarget(recordingPageController: RecordingPageController):
@@ -91,31 +95,30 @@ function assembleWebsocketSection(
   websocketComponents.push(
       m('text',
         'This option assumes that the adb server is already ' +
-            'running on your machine.'));
-  websocketComponents.push(
-      m('.record-modal-command', m(CodeSnippet, {text: RUN_WEBSOCKET_CMD})));
+            'running on your machine.'),
+      m('.record-modal-command', m(CodeSnippet, {
+          text: RUN_WEBSOCKET_CMD,
+        })));
+
   websocketComponents.push(m(
       '.record-modal-command',
       m('text', 'Websocket bridge address: '),
       m('input[type=text]', {
-        value: websocketPathState.getPath(),
+        value: websocketMenuController.getPath(),
         oninput() {
-          websocketPathState.setPath(this.value);
+          websocketMenuController.setPath(this.value);
         },
       }),
       m('.record-modal-logo-button',
         {
-          onclick: () => {
-            getWebsocketTargetFactory().tryEstablishWebsocket(
-                websocketPathState.getPath());
-          },
+          onclick: () => websocketMenuController.onPathChange(),
         },
         m('i.material-icons', 'refresh')),
       ));
 
   websocketComponents.push(m(RecordingMultipleChoice, {
     controller: recordingPageController,
-    targetFactory: getWebsocketTargetFactory(),
+    targetFactories: websocketMenuController.getTargetFactories(),
   }));
 
   return m(
@@ -145,7 +148,7 @@ function assembleChromeSection(
   } else {
     chromeComponents.push(m(RecordingMultipleChoice, {
       controller: recordingPageController,
-      targetFactory: chromeFactory,
+      targetFactories: [chromeFactory],
     }));
   }
 
@@ -155,16 +158,4 @@ function assembleChromeSection(
       m('.record-modal-description', ...chromeComponents));
 }
 
-class WebsocketPathState {
-  private path = DEFAULT_ADB_WEBSOCKET_URL;
-
-  getPath() {
-    return this.path;
-  }
-
-  setPath(value: string) {
-    this.path = value;
-  }
-}
-
-const websocketPathState = new WebsocketPathState();
+const websocketMenuController = new WebsocketMenuController();
