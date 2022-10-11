@@ -36,17 +36,9 @@ SELECT CREATE_FUNCTION(
   '{{function_prefix}}PRECEDING_IO_THREAD_EVENT_FLOW_ID(id LONG)',
   -- Returning the slice id for the flow_out on the chrome IO thread.
   'LONG',
-  'SELECT MAX(s.id) AS id
+  'SELECT MAX(flow.slice_out) AS id
   FROM
-    (SELECT * FROM PRECEDING_FLOW(($id))) flow
-    JOIN {{slice_table_name}} s
-      ON flow.slice_out = s.id
-    JOIN thread_track
-      ON thread_track.id = s.track_id
-    JOIN thread
-      ON thread.utid = thread_track.utid
-      AND thread.name = "Chrome_IOThread"
-      AND s.name = "SequenceManager PostTask"');
+    PRECEDING_FLOW(($id)) flow');
 
 SELECT CREATE_FUNCTION(
   '{{function_prefix}}GET_MOJO_PARENT_INTERFACE_TAG(id LONG)',
