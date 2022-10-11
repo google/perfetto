@@ -139,7 +139,9 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
 
     if (this.state === AdbState.DISCONNECTED) {
       await this.device.open();
-      await this.device.reset();
+      if (!(await this.canConnectWithoutContention())) {
+        await this.device.reset();
+      }
       const usbInterfaceNumber = await this.setupUsbInterface();
       await this.device.claimInterface(usbInterfaceNumber);
     }
