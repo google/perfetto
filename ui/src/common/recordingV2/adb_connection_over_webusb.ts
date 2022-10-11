@@ -285,7 +285,13 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
         this.isUsbReceiveLoopRunning = false;
         return;
       }
-      assertTrue(res.status === 'ok');
+      if (res.status !== 'ok') {
+        // Log and ignore messages with invalid status. These can occur
+        // when the device is connected/disconnected repeatedly.
+        console.error(
+            `Received message with unexpected status '${res.status}'`);
+        continue;
+      }
 
       const msg = AdbMsg.decodeHeader(res.data!);
       if (msg.dataLen > 0) {
