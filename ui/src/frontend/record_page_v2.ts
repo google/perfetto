@@ -105,8 +105,8 @@ function RecordingPlatformSelection() {
   // Don't show the platform selector while we are recording a trace.
   if (controller.getState() >= RecordingState.RECORDING) return undefined;
 
-  const components = [];
-  components.push(
+  return m(
+      '.target',
       m('.chip',
         {
           onclick: () => {
@@ -116,13 +116,8 @@ function RecordingPlatformSelection() {
           },
         },
         m('button', 'Add new recording target'),
-        m('i.material-icons', 'add')));
-
-  if (controller.getState() > RecordingState.NO_TARGET) {
-    components.push(targetSelection());
-  }
-
-  return m('.target', components);
+        m('i.material-icons', 'add')),
+      targetSelection());
 }
 
 function addNewTargetModal() {
@@ -139,14 +134,16 @@ export function targetSelection(): m.Vnode|undefined {
 
   const targets: RecordingTargetV2[] = targetFactoryRegistry.listTargets();
   const targetNames = [];
-  // defaultSelectedIndex is the index selected as a fallback case (-1 if
-  // nothing is selected).
+  const targetInfo = controller.getTargetInfo();
+  if (!targetInfo) {
+    targetNames.push(m('option', 'PLEASE_SELECT_TARGET'));
+  }
+
   let selectedIndex = 0;
   for (let i = 0; i < targets.length; i++) {
     const targetName = targets[i].getInfo().name;
     targetNames.push(m('option', targetName));
-    // We know that we have targetInfo because we checked the state.
-    if (targetName === assertExists(controller.getTargetInfo()).name) {
+    if (targetInfo && targetName === targetInfo.name) {
       selectedIndex = i;
     }
   }
@@ -554,10 +551,6 @@ export const RecordPageV2 = createPage({
 
   view({attrs}: m.Vnode<PageAttrs>): void |
       m.Children {
-        if (controller.getState() === RecordingState.NO_TARGET) {
-          controller.selectTarget(targetFactoryRegistry.listTargets()[0]);
-        }
-
         if (shouldDisplayTargetModal) {
           fullscreenModalContainer.updateVdom(addNewTargetModal());
         }
