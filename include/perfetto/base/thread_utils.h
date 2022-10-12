@@ -28,6 +28,7 @@ __declspec(dllimport) unsigned long __stdcall GetCurrentThreadId();
 }
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
 #include <zircon/process.h>
+#include <zircon/syscalls.h>
 #include <zircon/types.h>
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -52,9 +53,17 @@ inline PlatformThreadId GetThreadId() {
   return static_cast<pid_t>(syscall(__NR_gettid));
 }
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
-using PlatformThreadId = zx_handle_t;
+using PlatformThreadId = zx_koid_t;
+static PlatformThreadId ResolveThreadId() {
+  zx_info_handle_basic_t basic;
+  return (zx_object_get_info(zx_thread_self(), ZX_INFO_HANDLE_BASIC, &basic,
+                             sizeof(basic), nullptr, nullptr) == ZX_OK)
+             ? basic.koid
+             : ZX_KOID_INVALID;
+}
 inline PlatformThreadId GetThreadId() {
-  return zx_thread_self();
+  thread_local static PlatformThreadId thread_id = ResolveThreadId();
+  return thread_id;
 }
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 using PlatformThreadId = uint64_t;
