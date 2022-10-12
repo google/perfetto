@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/metatrace_events.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/thread_checker.h"
+#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 
 // Trace processor maintains its own base implementation to avoid the
 // threading and task runners which are required by base's metatracing.
@@ -36,8 +37,10 @@ namespace perfetto {
 namespace trace_processor {
 namespace metatrace {
 
+using Category = protos::pbzero::MetatraceCategories;
+
 // Stores whether meta-tracing is enabled.
-extern bool g_enabled;
+extern Category g_enabled_categories;
 
 inline uint64_t TraceTimeNowNs() {
   return static_cast<uint64_t>(base::GetBootTimeNs().count());
@@ -160,9 +163,10 @@ class ScopedEvent {
 
   template <typename Fn = void(Record*)>
   static ScopedEvent Create(
+      Category category,
       const char* event_id,
       Fn args_fn = [](Record*) {}) {
-    if (PERFETTO_LIKELY(!g_enabled))
+    if (PERFETTO_LIKELY((category & g_enabled_categories) == 0))
       return ScopedEvent();
 
     ScopedEvent event;
@@ -183,7 +187,7 @@ class ScopedEvent {
 };
 
 // Enables meta-tracing of trace-processor.
-void Enable();
+void Enable(Category categories = Category::ALL);
 
 // Disables meta-tracing of trace-processor and reads all records.
 void DisableAndReadBuffer(std::function<void(Record*)>);

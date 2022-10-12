@@ -51,6 +51,7 @@ source_set("metatrace") {
   deps = [
     "../../gn:default_deps",
     "../../include/perfetto/ext/base",
+    "../../protos/perfetto/trace_processor:zero",
   ]
 }
 

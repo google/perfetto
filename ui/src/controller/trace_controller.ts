@@ -22,6 +22,10 @@ import {TRACE_MARGIN_TIME_S} from '../common/constants';
 import {Engine} from '../common/engine';
 import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../common/feature_flags';
 import {HttpRpcEngine} from '../common/http_rpc_engine';
+import {
+  getEnabledMetatracingCategories,
+  isMetatracingEnabled,
+} from '../common/metatracing';
 import {NUM, NUM_NULL, QueryError, STR, STR_NULL} from '../common/query_result';
 import {defaultTraceTime, EngineMode, ProfileType} from '../common/state';
 import {TimeSpan, toNs, toNsCeil, toNsFloor} from '../common/time';
@@ -327,6 +331,11 @@ export class TraceController extends Controller<States> {
         this.engineId, enginePort, LoadingManager.getInstance);
     }
     this.engine = engine;
+
+    if (isMetatracingEnabled()) {
+      this.engine.enableMetatrace(
+          assertExists(getEnabledMetatracingCategories()));
+    }
 
     frontendGlobals.engines.set(this.engineId, engine);
     globals.dispatch(Actions.setEngineReady({
