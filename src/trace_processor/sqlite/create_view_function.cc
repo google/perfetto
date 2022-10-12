@@ -249,9 +249,11 @@ CreatedViewFunction::Cursor::~Cursor() = default;
 int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
                                         sqlite3_value** argv,
                                         FilterHistory) {
-  PERFETTO_TP_TRACE("CREATE_VIEW_FUNCTION", [this](metatrace::Record* r) {
-    r->AddArg("Function", table_->prototype_.function_name.c_str());
-  });
+  PERFETTO_TP_TRACE(metatrace::Category::FUNCTION, "CREATE_VIEW_FUNCTION",
+                    [this](metatrace::Record* r) {
+                      r->AddArg("Function",
+                                table_->prototype_.function_name.c_str());
+                    });
 
   auto col_to_arg_idx = [this](int col) {
     return static_cast<uint32_t>(col) -

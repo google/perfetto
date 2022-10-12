@@ -299,9 +299,13 @@ export abstract class Engine {
     return this._isMetatracingEnabled;
   }
 
-  enableMetatrace() {
+  enableMetatrace(categories?: perfetto.protos.MetatraceCategories) {
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_ENABLE_METATRACE;
+    if (categories) {
+      rpc.enableMetatraceArgs = new perfetto.protos.EnableMetatraceArgs();
+      rpc.enableMetatraceArgs.categories = categories;
+    }
     this._isMetatracingEnabled = true;
     this.rpcSendRequest(rpc);
   }

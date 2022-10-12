@@ -732,9 +732,9 @@ base::Status ComputeMetrics(TraceProcessor* tp,
 
     auto output_query =
         "SELECT * FROM " + sql_metric.output_table_name.value() + ";";
-    PERFETTO_TP_TRACE("COMPUTE_METRIC_QUERY", [&](metatrace::Record* r) {
-      r->AddArg("SQL", output_query);
-    });
+    PERFETTO_TP_TRACE(
+        metatrace::Category::QUERY, "COMPUTE_METRIC_QUERY",
+        [&](metatrace::Record* r) { r->AddArg("SQL", output_query); });
 
     auto it = tp->ExecuteQuery(output_query.c_str());
     auto has_next = it.Next();
