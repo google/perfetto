@@ -33,6 +33,7 @@ namespace views {
   PERFETTO_TP_VIEW_EXPORT_FROM_COLS(PERFETTO_TP_SLICE_TABLE_DEF, FCOL)      \
   COL(utid, track, utid)                                                    \
   COL(thread_name, thread, name)                                            \
+  COL(upid, thread, upid)                                                   \
   FROM(tables::SliceTable, slice)                                           \
   JOIN(tables::ThreadTrackTable, track, id, slice, track_id, View::kNoFlag) \
   JOIN(tables::ThreadTable, thread, id, track, utid,                        \
