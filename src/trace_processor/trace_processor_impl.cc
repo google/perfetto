@@ -68,6 +68,8 @@
 #include "src/trace_processor/util/protozero_to_text.h"
 #include "src/trace_processor/util/status_macros.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -879,7 +881,7 @@ base::Status PrepareAndStepUntilLastValidStmt(
   for (const char* rem_sql = sql.c_str(); rem_sql && rem_sql[0];) {
     ScopedStmt cur_stmt;
     {
-      PERFETTO_TP_TRACE("QUERY_PREPARE");
+      PERFETTO_TP_TRACE(metatrace::Category::QUERY, "QUERY_PREPARE");
       const char* tail = nullptr;
       RETURN_IF_ERROR(sqlite_utils::PrepareStmt(db, rem_sql, &cur_stmt, &tail));
       rem_sql = tail;
@@ -895,22 +897,24 @@ base::Status PrepareAndStepUntilLastValidStmt(
     // the previous statement so we don't have two clashing statements (e.g.
     // SELECT * FROM v and DROP VIEW v) partially stepped into.
     if (prev_stmt) {
-      PERFETTO_TP_TRACE(
-          "STMT_STEP_UNTIL_DONE", [&prev_stmt](metatrace::Record* record) {
-            auto expanded_sql = sqlite_utils::ExpandedSqlForStmt(*prev_stmt);
-            record->AddArg("SQL", expanded_sql.get());
-          });
+      PERFETTO_TP_TRACE(metatrace::Category::QUERY, "STMT_STEP_UNTIL_DONE",
+                        [&prev_stmt](metatrace::Record* record) {
+                          auto expanded_sql =
+                              sqlite_utils::ExpandedSqlForStmt(*prev_stmt);
+                          record->AddArg("SQL", expanded_sql.get());
+                        });
       RETURN_IF_ERROR(sqlite_utils::StepStmtUntilDone(prev_stmt.get()));
     }
 
     PERFETTO_DLOG("Executing statement: %s", sqlite3_sql(*cur_stmt));
 
     {
-      PERFETTO_TP_TRACE(
-          "STMT_FIRST_STEP", [&cur_stmt](metatrace::Record* record) {
-            auto expanded_sql = sqlite_utils::ExpandedSqlForStmt(*cur_stmt);
-            record->AddArg("SQL", expanded_sql.get());
-          });
+      PERFETTO_TP_TRACE(metatrace::Category::QUERY, "STMT_FIRST_STEP",
+                        [&cur_stmt](metatrace::Record* record) {
+                          auto expanded_sql =
+                              sqlite_utils::ExpandedSqlForStmt(*cur_stmt);
+                          record->AddArg("SQL", expanded_sql.get());
+                        });
 
       // Now step once into |cur_stmt| so that when we prepare the next statment
       // we will have executed any dependent bytecode in this one.
@@ -1270,7 +1274,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
 }
 
 Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
-  PERFETTO_TP_TRACE("QUERY_EXECUTE");
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY, "QUERY_EXECUTE");
 
   uint32_t sql_stats_row =
       context_.storage->mutable_sql_stats()->RecordQueryBegin(
@@ -1431,13 +1435,56 @@ std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
   return pool_.SerializeAsDescriptorSet();
 }
 
-void TraceProcessorImpl::EnableMetatrace() {
-  metatrace::Enable();
+namespace {
+
+using ProtoEnum = protos::pbzero::MetatraceCategories;
+ProtoEnum MetatraceCategoriesToProtoEnum(
+    TraceProcessor::MetatraceCategories categories) {
+  switch (categories) {
+    case TraceProcessor::TOPLEVEL:
+      return ProtoEnum::TOPLEVEL;
+    case TraceProcessor::FUNCTION:
+      return ProtoEnum::FUNCTION;
+    case TraceProcessor::QUERY:
+      return ProtoEnum::QUERY;
+    case TraceProcessor::ALL:
+      return ProtoEnum::ALL;
+    case TraceProcessor::NONE:
+      return ProtoEnum::NONE;
+  }
+  return ProtoEnum::NONE;
+}
+
+}  // namespace
+
+void TraceProcessorImpl::EnableMetatrace(MetatraceCategories categories) {
+  metatrace::Enable(MetatraceCategoriesToProtoEnum(categories));
 }
 
 base::Status TraceProcessorImpl::DisableAndReadMetatrace(
     std::vector<uint8_t>* trace_proto) {
   protozero::HeapBuffered<protos::pbzero::Trace> trace;
+
+  {
+    uint64_t realtime_timestamp = static_cast<uint64_t>(
+        std::chrono::system_clock::now().time_since_epoch() /
+        std::chrono::nanoseconds(1));
+    uint64_t boottime_timestamp = metatrace::TraceTimeNowNs();
+    auto* clock_snapshot = trace->add_packet()->set_clock_snapshot();
+    {
+      auto* realtime_clock = clock_snapshot->add_clocks();
+      realtime_clock->set_clock_id(
+          protos::pbzero::BuiltinClock::BUILTIN_CLOCK_REALTIME);
+      realtime_clock->set_timestamp(realtime_timestamp);
+    }
+    {
+      auto* boottime_clock = clock_snapshot->add_clocks();
+      boottime_clock->set_clock_id(
+          protos::pbzero::BuiltinClock::BUILTIN_CLOCK_BOOTTIME);
+      boottime_clock->set_timestamp(boottime_timestamp);
+    }
+  }
+
   metatrace::DisableAndReadBuffer([&trace](metatrace::Record* record) {
     auto packet = trace->add_packet();
     packet->set_timestamp(record->timestamp_ns);
