@@ -66,7 +66,7 @@ class EventContext;
 //   about tracing).
 //
 //
-// After definiting a conversion method, the object can be used directly as a
+// After defining a conversion method, the object can be used directly as a
 // TRACE_EVENT argument:
 //
 // Foo foo;
