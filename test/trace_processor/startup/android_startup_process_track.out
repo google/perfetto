@@ -61,6 +61,8 @@ android_startup {
       installd_running: false
       broadcast_dispatched_count: 0
       broadcast_received_count: 0
+      installd_dur_ns: 0
+      dex2oat_dur_ns: 0
     }
     startup_type: "cold"
   }
@@ -126,6 +128,8 @@ android_startup {
       installd_running: false
       broadcast_dispatched_count: 0
       broadcast_received_count: 0
+      installd_dur_ns: 0
+      dex2oat_dur_ns: 0
     }
     startup_type: "cold"
   }

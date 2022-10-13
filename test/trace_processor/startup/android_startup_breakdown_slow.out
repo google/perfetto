@@ -99,6 +99,8 @@ android_startup {
       broadcast_received_count: 0
       most_active_non_launch_processes: "init"
       most_active_non_launch_processes: "system_server"
+      installd_dur_ns: 0
+      dex2oat_dur_ns: 0
     }
     slow_start_reason: "Main Thread - Time spent in Running state"
     slow_start_reason: "Main Thread - Time spent in Runnable state"
