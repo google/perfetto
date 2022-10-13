@@ -119,8 +119,12 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
     NONE = 0,
     ALL = TOPLEVEL | QUERY | FUNCTION,
   };
-  virtual void EnableMetatrace(
-      MetatraceCategories categories = MetatraceCategories::ALL) = 0;
+  struct MetatraceConfig {
+    MetatraceConfig();
+
+    MetatraceCategories categories = MetatraceCategories::ALL;
+  };
+  virtual void EnableMetatrace(MetatraceConfig config = {}) = 0;
 
   // Disables "meta-tracing" of trace processor and writes the trace as a
   // sequence of |TracePackets| into |trace_proto| returning the status of this
