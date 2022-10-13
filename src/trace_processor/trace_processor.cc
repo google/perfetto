@@ -22,6 +22,8 @@
 namespace perfetto {
 namespace trace_processor {
 
+TraceProcessor::MetatraceConfig::MetatraceConfig() = default;
+
 // static
 std::unique_ptr<TraceProcessor> TraceProcessor::CreateInstance(
     const Config& config) {

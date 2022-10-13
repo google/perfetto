@@ -1457,8 +1457,8 @@ ProtoEnum MetatraceCategoriesToProtoEnum(
 
 }  // namespace
 
-void TraceProcessorImpl::EnableMetatrace(MetatraceCategories categories) {
-  metatrace::Enable(MetatraceCategoriesToProtoEnum(categories));
+void TraceProcessorImpl::EnableMetatrace(MetatraceConfig config) {
+  metatrace::Enable(MetatraceCategoriesToProtoEnum(config.categories));
 }
 
 base::Status TraceProcessorImpl::DisableAndReadMetatrace(

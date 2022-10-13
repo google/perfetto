@@ -242,16 +242,16 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
     }
     case RpcProto::TPM_ENABLE_METATRACE: {
       using protos::pbzero::MetatraceCategories;
-      MetatraceCategories categories = MetatraceCategories::ALL;
+      TraceProcessor::MetatraceConfig config;
       if (req.has_enable_metatrace_args()) {
         protos::pbzero::EnableMetatraceArgs::Decoder args(
             req.enable_metatrace_args());
         if (args.has_categories()) {
-          categories = static_cast<MetatraceCategories>(args.categories());
+          config.categories = MetatraceCategoriesToPublicEnum(
+              static_cast<MetatraceCategories>(args.categories()));
         }
       }
-      trace_processor_->EnableMetatrace(
-          MetatraceCategoriesToPublicEnum(categories));
+      trace_processor_->EnableMetatrace(config);
       Response resp(tx_seq_id_++, req_type);
       resp.Send(rpc_response_fn_);
       break;
