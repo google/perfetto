@@ -17,14 +17,13 @@
 -- Functions useful for filling the SystemState proto which gives
 -- context to what was happening on the system during a startup.
 
--- Given a launch id and process name glob, returns whether a process with
+-- Given a launch id and process name glob, returns the sched.dur if a process with
 -- that name was running on a CPU concurrent to that launch.
 SELECT CREATE_FUNCTION(
-  'IS_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launch_id INT, process_glob STRING)',
-  'BOOL',
+  'DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launch_id INT, process_glob STRING)',
+  'INT',
   '
-    SELECT EXISTS(
-      SELECT sched.dur
+      SELECT IFNULL(SUM(sched.dur), 0)
       FROM sched
       JOIN thread USING (utid)
       JOIN process USING (upid)
@@ -36,8 +35,6 @@ SELECT CREATE_FUNCTION(
       WHERE
         process.name GLOB $process_glob AND
         sched.ts BETWEEN launch.ts AND launch.ts_end
-      LIMIT 1
-    )
   '
 );
 

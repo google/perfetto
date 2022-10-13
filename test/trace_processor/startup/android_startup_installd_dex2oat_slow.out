@@ -4,7 +4,7 @@ android_startup {
     package_name: "com.google.android.calendar"
     zygote_new_process: false
     to_first_frame {
-      dur_ns: 100
+      dur_ns: 100000000000
       main_thread_by_task_state {
         running_dur_ns: 0
         runnable_dur_ns: 0
@@ -14,12 +14,12 @@ android_startup {
         uninterruptible_non_io_sleep_dur_ns: 0
       }
       other_processes_spawned_count: 0
-      dur_ms: 0.0001
+      dur_ms: 100000.0
     }
     activity_hosting_process_count: 0
     event_timestamps {
-      intent_received: 100
-      first_frame: 200
+      intent_received: 100000000000
+      first_frame: 200000000000
     }
     system_state {
       dex2oat_running: false
@@ -33,7 +33,7 @@ android_startup {
     package_name: "com.google.android.calculator"
     zygote_new_process: false
     to_first_frame {
-      dur_ns: 100
+      dur_ns: 100000000000
       main_thread_by_task_state {
         running_dur_ns: 0
         runnable_dur_ns: 0
@@ -43,12 +43,12 @@ android_startup {
         uninterruptible_non_io_sleep_dur_ns: 0
       }
       other_processes_spawned_count: 0
-      dur_ms: 0.0001
+      dur_ms: 100000.0
     }
     activity_hosting_process_count: 0
     event_timestamps {
-      intent_received: 300
-      first_frame: 400
+      intent_received: 300000000000
+      first_frame: 400000000000
     }
     system_state {
       dex2oat_running: true
@@ -57,13 +57,14 @@ android_startup {
       broadcast_received_count: 0
       most_active_non_launch_processes: "dex2oat64"
     }
+    slow_start_reason: "dex2oat running during launch"
   }
   startup {
     startup_id: 3
     package_name: "com.google.android.deskclock"
     zygote_new_process: false
     to_first_frame {
-      dur_ns: 100
+      dur_ns: 100000000000
       main_thread_by_task_state {
         running_dur_ns: 0
         runnable_dur_ns: 0
@@ -73,12 +74,12 @@ android_startup {
         uninterruptible_non_io_sleep_dur_ns: 0
       }
       other_processes_spawned_count: 0
-      dur_ms: 0.0001
+      dur_ms: 100000.0
     }
     activity_hosting_process_count: 0
     event_timestamps {
-      intent_received: 500
-      first_frame: 600
+      intent_received: 500000000000
+      first_frame: 600000000000
     }
     system_state {
       dex2oat_running: false
@@ -87,13 +88,14 @@ android_startup {
       broadcast_received_count: 0
       most_active_non_launch_processes: "installd"
     }
+    slow_start_reason: "installd running during launch"
   }
   startup {
     startup_id: 4
     package_name: "com.google.android.gm"
     zygote_new_process: false
     to_first_frame {
-      dur_ns: 100
+      dur_ns: 100000000000
       main_thread_by_task_state {
         running_dur_ns: 0
         runnable_dur_ns: 0
@@ -103,12 +105,12 @@ android_startup {
         uninterruptible_non_io_sleep_dur_ns: 0
       }
       other_processes_spawned_count: 0
-      dur_ms: 0.0001
+      dur_ms: 100000.0
     }
     activity_hosting_process_count: 0
     event_timestamps {
-      intent_received: 700
-      first_frame: 800
+      intent_received: 700000000000
+      first_frame: 800000000000
     }
     system_state {
       dex2oat_running: true
@@ -118,5 +120,7 @@ android_startup {
       most_active_non_launch_processes: "dex2oat64"
       most_active_non_launch_processes: "installd"
     }
+    slow_start_reason: "dex2oat running during launch"
+    slow_start_reason: "installd running during launch"
   }
 }
