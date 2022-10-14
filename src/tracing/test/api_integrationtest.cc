@@ -5152,6 +5152,59 @@ TEST_P(PerfettoApiTest, TrackEventObserver_TwoDataSources) {
   EXPECT_FALSE(tracing_module::IsEnabled());
 }
 
+TEST_P(PerfettoApiTest, TrackEventObserver_AsyncStop) {
+  class Observer : public perfetto::TrackEventSessionObserver {
+   public:
+    ~Observer() override = default;
+
+    void OnStop(const perfetto::DataSourceBase::StopArgs& args) {
+      async_stop_closure_ = args.HandleStopAsynchronously();
+    }
+
+    void EmitFinalEvents() {
+      EXPECT_TRUE(perfetto::TrackEvent::IsEnabled());
+      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      TRACE_EVENT_INSTANT("foo", "FinalEvent");
+      perfetto::TrackEvent::Flush();
+      async_stop_closure_();
+    }
+
+   private:
+    std::function<void()> async_stop_closure_;
+  };
+
+  EXPECT_FALSE(perfetto::TrackEvent::IsEnabled());
+  {
+    Observer observer;
+    perfetto::TrackEvent::AddSessionObserver(&observer);
+
+    auto* tracing_session = NewTraceWithCategories({"foo"});
+    WaitableTestEvent consumer_stop_signal;
+    tracing_session->get()->SetOnStopCallback(
+        [&consumer_stop_signal] { consumer_stop_signal.Notify(); });
+    tracing_session->get()->StartBlocking();
+
+    // Stop and wait for the producer to have seen the stop event.
+    tracing_session->get()->Stop();
+
+    // At this point tracing should be still allowed because of the
+    // HandleStopAsynchronously() call. This usleep is here just to prevent that
+    // we accidentally pass the test just by virtue of hitting some race. We
+    // should be able to trace up until 5 seconds after seeing the stop when
+    // using the deferred stop mechanism.
+    std::this_thread::sleep_for(std::chrono::milliseconds(250));
+    observer.EmitFinalEvents();
+
+    // Wait that the stop is propagated to the consumer.
+    consumer_stop_signal.Wait();
+
+    perfetto::TrackEvent::RemoveSessionObserver(&observer);
+    auto slices = ReadSlicesFromTraceSession(tracing_session->get());
+    EXPECT_THAT(slices, ElementsAre("I:foo.FinalEvent"));
+  }
+  EXPECT_FALSE(perfetto::TrackEvent::IsEnabled());
+}
+
 #if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_CLANG)
 struct __attribute__((capability("mutex"))) MockMutex {
   void Lock() __attribute__((acquire_capability())) {}
