@@ -125,6 +125,28 @@ void Rpc::OnRpcRequest(const void* data, size_t len) {
   }
 }
 
+namespace {
+
+using ProtoEnum = protos::pbzero::MetatraceCategories;
+TraceProcessor::MetatraceCategories MetatraceCategoriesToPublicEnum(
+    ProtoEnum categories) {
+  switch (categories) {
+    case ProtoEnum::TOPLEVEL:
+      return TraceProcessor::MetatraceCategories::TOPLEVEL;
+    case ProtoEnum::QUERY:
+      return TraceProcessor::MetatraceCategories::QUERY;
+    case ProtoEnum::FUNCTION:
+      return TraceProcessor::MetatraceCategories::FUNCTION;
+    case ProtoEnum::ALL:
+      return TraceProcessor::MetatraceCategories::ALL;
+    case ProtoEnum::NONE:
+      return TraceProcessor::MetatraceCategories::NONE;
+  }
+  return TraceProcessor::MetatraceCategories::NONE;
+}
+
+}  // namespace
+
 // [data, len] here is a tokenized TraceProcessorRpc proto message, without the
 // size header.
 void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
@@ -219,7 +241,17 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       break;
     }
     case RpcProto::TPM_ENABLE_METATRACE: {
-      trace_processor_->EnableMetatrace();
+      using protos::pbzero::MetatraceCategories;
+      TraceProcessor::MetatraceConfig config;
+      if (req.has_enable_metatrace_args()) {
+        protos::pbzero::EnableMetatraceArgs::Decoder args(
+            req.enable_metatrace_args());
+        if (args.has_categories()) {
+          config.categories = MetatraceCategoriesToPublicEnum(
+              static_cast<MetatraceCategories>(args.categories()));
+        }
+      }
+      trace_processor_->EnableMetatrace(config);
       Response resp(tx_seq_id_++, req_type);
       resp.Send(rpc_response_fn_);
       break;
@@ -309,7 +341,7 @@ Iterator Rpc::QueryInternal(const uint8_t* args, size_t len) {
   protos::pbzero::QueryArgs::Decoder query(args, len);
   std::string sql = query.sql_query().ToStdString();
   PERFETTO_DLOG("[RPC] Query < %s", sql.c_str());
-  PERFETTO_TP_TRACE("RPC_QUERY",
+  PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "RPC_QUERY",
                     [&](metatrace::Record* r) { r->AddArg("SQL", sql); });
 
   return trace_processor_->ExecuteQuery(sql.c_str());
@@ -334,12 +366,13 @@ void Rpc::ComputeMetricInternal(const uint8_t* data,
     metric_names.emplace_back(it->as_std_string());
   }
 
-  PERFETTO_TP_TRACE("RPC_COMPUTE_METRIC", [&](metatrace::Record* r) {
-    for (const auto& metric : metric_names) {
-      r->AddArg("Metric", metric);
-      r->AddArg("Format", std::to_string(args.format()));
-    }
-  });
+  PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "RPC_COMPUTE_METRIC",
+                    [&](metatrace::Record* r) {
+                      for (const auto& metric : metric_names) {
+                        r->AddArg("Metric", metric);
+                        r->AddArg("Format", std::to_string(args.format()));
+                      }
+                    });
 
   PERFETTO_DLOG("[RPC] ComputeMetrics(%zu, %s), format=%d", metric_names.size(),
                 metric_names.empty() ? "" : metric_names.front().c_str(),

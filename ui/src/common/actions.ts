@@ -30,6 +30,7 @@ import {DropDirection} from '../frontend/reorderable_cells';
 import {randomColor} from './colorizer';
 import {createEmptyState} from './empty_state';
 import {DEFAULT_VIEWING_OPTION, PERF_SAMPLES_KEY} from './flamegraph_util';
+import {traceEventBegin, traceEventEnd, TraceEventScope} from './metatracing';
 import {
   AdbRecordingTarget,
   Area,
@@ -128,6 +129,8 @@ function removeTrack(state: StateDraft, trackId: string) {
   }
   state.pinnedTracks = state.pinnedTracks.filter((id) => id !== trackId);
 }
+
+let statusTraceEvent: TraceEventScope|undefined;
 
 export const StateActions = {
 
@@ -517,6 +520,10 @@ export const StateActions = {
   },
 
   updateStatus(state: StateDraft, args: Status): void {
+    if (statusTraceEvent) {
+      traceEventEnd(statusTraceEvent);
+    }
+    statusTraceEvent = traceEventBegin(args.msg);
     state.status = args;
   },
 

@@ -111,7 +111,20 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // Metatracing involves tracing trace processor itself to root-cause
   // performace issues in trace processor. See |DisableAndReadMetatrace| for
   // more information on the format of the metatrace.
-  virtual void EnableMetatrace() = 0;
+  enum MetatraceCategories {
+    TOPLEVEL = 1 << 0,
+    QUERY = 1 << 1,
+    FUNCTION = 1 << 2,
+
+    NONE = 0,
+    ALL = TOPLEVEL | QUERY | FUNCTION,
+  };
+  struct MetatraceConfig {
+    MetatraceConfig();
+
+    MetatraceCategories categories = MetatraceCategories::ALL;
+  };
+  virtual void EnableMetatrace(MetatraceConfig config = {}) = 0;
 
   // Disables "meta-tracing" of trace processor and writes the trace as a
   // sequence of |TracePackets| into |trace_proto| returning the status of this

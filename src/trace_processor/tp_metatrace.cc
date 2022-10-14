@@ -20,14 +20,14 @@ namespace perfetto {
 namespace trace_processor {
 namespace metatrace {
 
-bool g_enabled = false;
+Category g_enabled_categories = Category::NONE;
 
-void Enable() {
-  g_enabled = true;
+void Enable(Category categories) {
+  g_enabled_categories = categories;
 }
 
 void DisableAndReadBuffer(std::function<void(Record*)> fn) {
-  g_enabled = false;
+  g_enabled_categories = Category::NONE;
   if (!fn)
     return;
   RingBuffer::GetInstance()->ReadAll(fn);

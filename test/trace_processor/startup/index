@@ -16,6 +16,7 @@ android_startup_lock_contention_slow.py android_startup android_startup_lock_con
 
 # Test that dex2oat/installd running in parallel are flagged.
 android_startup_installd_dex2oat.py android_startup android_startup_installd_dex2oat.out
+android_startup_installd_dex2oat_slow.py android_startup android_startup_installd_dex2oat_slow.out
 
 # Test that broadcasts are correctly counted.
 android_startup_broadcast.py android_startup android_startup_broadcast.out

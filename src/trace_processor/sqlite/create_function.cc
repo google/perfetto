@@ -71,16 +71,18 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
     }
   }
 
-  PERFETTO_TP_TRACE("CREATE_FUNCTION", [ctx, argv](metatrace::Record* r) {
-    r->AddArg("Function", ctx->prototype.function_name.c_str());
-    for (uint32_t i = 0; i < ctx->prototype.arguments.size(); ++i) {
-      std::string key = "Arg " + std::to_string(i);
-      const char* value =
-          reinterpret_cast<const char*>(sqlite3_value_text(argv[i]));
-      r->AddArg(base::StringView(key),
-                value ? base::StringView(value) : base::StringView("NULL"));
-    }
-  });
+  PERFETTO_TP_TRACE(
+      metatrace::Category::FUNCTION, "CREATE_FUNCTION",
+      [ctx, argv](metatrace::Record* r) {
+        r->AddArg("Function", ctx->prototype.function_name.c_str());
+        for (uint32_t i = 0; i < ctx->prototype.arguments.size(); ++i) {
+          std::string key = "Arg " + std::to_string(i);
+          const char* value =
+              reinterpret_cast<const char*>(sqlite3_value_text(argv[i]));
+          r->AddArg(base::StringView(key),
+                    value ? base::StringView(value) : base::StringView("NULL"));
+        }
+      });
 
   // Bind all the arguments to the appropriate places in the function.
   for (size_t i = 0; i < argc; ++i) {
