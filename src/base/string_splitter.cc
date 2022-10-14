@@ -23,20 +23,29 @@
 namespace perfetto {
 namespace base {
 
-StringSplitter::StringSplitter(std::string str, char delimiter)
-    : str_(std::move(str)), delimiter_(delimiter) {
+StringSplitter::StringSplitter(std::string str,
+                               char delimiter,
+                               EmptyTokenMode empty_token_mode)
+    : str_(std::move(str)),
+      delimiter_(delimiter),
+      empty_token_mode_(empty_token_mode) {
   // It's legal to access str[str.size()] in C++11 (it always returns \0),
   // hence the +1 (which becomes just size() after the -1 in Initialize()).
   Initialize(&str_[0], str_.size() + 1);
 }
 
-StringSplitter::StringSplitter(char* str, size_t size, char delimiter)
-    : delimiter_(delimiter) {
+StringSplitter::StringSplitter(char* str,
+                               size_t size,
+                               char delimiter,
+                               EmptyTokenMode empty_token_mode)
+    : delimiter_(delimiter), empty_token_mode_(empty_token_mode) {
   Initialize(str, size);
 }
 
-StringSplitter::StringSplitter(StringSplitter* outer, char delimiter)
-    : delimiter_(delimiter) {
+StringSplitter::StringSplitter(StringSplitter* outer,
+                               char delimiter,
+                               EmptyTokenMode empty_token_mode)
+    : delimiter_(delimiter), empty_token_mode_(empty_token_mode) {
   Initialize(outer->cur_token(), outer->cur_token_size() + 1);
 }
 
@@ -52,8 +61,11 @@ void StringSplitter::Initialize(char* str, size_t size) {
 
 bool StringSplitter::Next() {
   for (; next_ < end_; next_++) {
-    if (*next_ == delimiter_)
+    if (*next_ == delimiter_ &&
+        empty_token_mode_ == EmptyTokenMode::DISALLOW_EMPTY_TOKENS) {
+      // If empty tokens are disallowed, find fist non-delimiter character.
       continue;
+    }
     cur_ = next_;
     for (;; next_++) {
       if (*next_ == delimiter_) {
@@ -67,7 +79,7 @@ bool StringSplitter::Next() {
         break;
       }
     }
-    if (*cur_)
+    if (*cur_ || empty_token_mode_ == EmptyTokenMode::ALLOW_EMPTY_TOKENS)
       return true;
     break;
   }

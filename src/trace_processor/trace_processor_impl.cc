@@ -1496,7 +1496,9 @@ base::Status TraceProcessorImpl::DisableAndReadMetatrace(
     if (record->args_buffer_size == 0)
       return;
 
-    base::StringSplitter s(record->args_buffer, record->args_buffer_size, '\0');
+    base::StringSplitter s(
+        record->args_buffer, record->args_buffer_size, '\0',
+        base::StringSplitter::EmptyTokenMode::ALLOW_EMPTY_TOKENS);
     for (; s.Next();) {
       auto* arg_proto = evt->add_args();
       arg_proto->set_key(s.cur_token());
