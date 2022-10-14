@@ -183,8 +183,10 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
                             const DataSourceBase::SetupArgs&);
   static void OnStart(const TrackEventCategoryRegistry&,
                       const DataSourceBase::StartArgs&);
+  static void OnStop(const TrackEventCategoryRegistry&,
+                     const DataSourceBase::StopArgs&);
   static void DisableTracing(const TrackEventCategoryRegistry& registry,
-                             const DataSourceBase::StopArgs&);
+                             uint32_t internal_instance_index);
   static void WillClearIncrementalState(
       const TrackEventCategoryRegistry&,
       const DataSourceBase::ClearIncrementalStateArgs&);

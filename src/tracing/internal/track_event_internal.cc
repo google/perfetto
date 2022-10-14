@@ -210,13 +210,18 @@ void TrackEventInternal::OnStart(const TrackEventCategoryRegistry& registry,
 }
 
 // static
-void TrackEventInternal::DisableTracing(
-    const TrackEventCategoryRegistry& registry,
-    const DataSourceBase::StopArgs& args) {
+void TrackEventInternal::OnStop(const TrackEventCategoryRegistry& registry,
+                                const DataSourceBase::StopArgs& args) {
   TrackEventSessionObserverRegistry::GetInstance()->ForEachObserverForRegistry(
       registry, [&](TrackEventSessionObserver* o) { o->OnStop(args); });
+}
+
+// static
+void TrackEventInternal::DisableTracing(
+    const TrackEventCategoryRegistry& registry,
+    uint32_t internal_instance_index) {
   for (size_t i = 0; i < registry.category_count(); i++)
-    registry.DisableCategoryForInstance(i, args.internal_instance_index);
+    registry.DisableCategoryForInstance(i, internal_instance_index);
 }
 
 // static
