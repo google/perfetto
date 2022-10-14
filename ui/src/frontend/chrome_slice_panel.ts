@@ -378,10 +378,11 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
       } else {
         const contents: any[] = [row.contents.key];
         if (row.contents.isArg) {
-          contents.push(m(PopupMenuButton, {
-            icon: 'arrow_drop_down',
-            items: this.getArgumentContextMenuItems(row.contents),
-          }));
+          contents.push(
+              m('span.context-wrapper', m.trust('&nbsp;'), m(PopupMenuButton, {
+                  icon: 'arrow_drop_down',
+                  items: this.getArgumentContextMenuItems(row.contents),
+                })));
         }
 
         renderedRow.push(
