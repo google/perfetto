@@ -26,6 +26,8 @@ android_startup {
       installd_running: false
       broadcast_dispatched_count: 12
       broadcast_received_count: 11
+      installd_dur_ns: 0
+      dex2oat_dur_ns: 0
     }
     slow_start_reason: "Broadcast dispatched count"
     slow_start_reason: "Broadcast received count"
