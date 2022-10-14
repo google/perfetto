@@ -835,3 +835,11 @@ button.query-ctrl {
     border-right-color: red;
   }
 }
+
+.context-wrapper {
+  white-space: nowrap;
+
+  i.material-icons {
+    margin-left: 0;
+  }
+}
