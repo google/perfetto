@@ -19,6 +19,7 @@
 
 #include <math.h>
 #include <sqlite3.h>
+#include <string>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -232,6 +233,10 @@ inline base::Status GetColumnsForTable(
   }
   return base::OkStatus();
 }
+
+// Reads a `SQLITE_TEXT` value and returns it as a wstring (UTF-16) in the
+// default byte order. `value` must be a `SQLITE_TEXT`.
+std::wstring SqliteValueToWString(sqlite3_value* value);
 
 }  // namespace sqlite_utils
 }  // namespace trace_processor

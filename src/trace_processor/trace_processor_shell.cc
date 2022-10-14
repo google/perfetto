@@ -1311,6 +1311,10 @@ base::Status TraceProcessorMain(int argc, char** argv) {
     config.skip_builtin_metric_paths.push_back(extension.virtual_path());
   }
 
+  if (options.dev) {
+    config.enable_dev_features = true;
+  }
+
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
   g_tp = tp.get();
 
