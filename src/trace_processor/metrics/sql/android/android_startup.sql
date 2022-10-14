@@ -299,7 +299,11 @@ SELECT
       'broadcast_received_count',
         COUNT_SLICES_CONCURRENT_TO_LAUNCH(launches.id, 'broadcastReceiveReg*'),
       'most_active_non_launch_processes',
-        N_MOST_ACTIVE_PROCESS_NAMES_FOR_LAUNCH(launches.id)
+        N_MOST_ACTIVE_PROCESS_NAMES_FOR_LAUNCH(launches.id),
+      'installd_dur_ns',
+        DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*installd'),
+      'dex2oat_dur_ns',
+        DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*dex2oat64')
     ),
     'slow_start_reason', (SELECT RepeatedField(slow_cause)
       FROM (

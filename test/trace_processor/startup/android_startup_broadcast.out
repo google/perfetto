@@ -26,6 +26,8 @@ android_startup {
       installd_running: false
       broadcast_dispatched_count: 1
       broadcast_received_count: 1
+      installd_dur_ns: 0
+      dex2oat_dur_ns: 0
     }
   }
 }
