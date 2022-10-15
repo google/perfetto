@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 443> descriptors{{
+std::array<FtraceMessageDescriptor, 445> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -4895,6 +4895,38 @@ std::array<FtraceMessageDescriptor, 443> descriptors{{
             {"resource_id", ProtoSchemaType::kInt32},
             {"stream_id", ProtoSchemaType::kInt32},
             {"timestamp", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mm_shrink_slab_start",
+        11,
+        {
+            {},
+            {"cache_items", ProtoSchemaType::kUint64},
+            {"delta", ProtoSchemaType::kUint64},
+            {"gfp_flags", ProtoSchemaType::kUint32},
+            {"lru_pgs", ProtoSchemaType::kUint64},
+            {"nr_objects_to_shrink", ProtoSchemaType::kInt64},
+            {"pgs_scanned", ProtoSchemaType::kUint64},
+            {"shr", ProtoSchemaType::kUint64},
+            {"shrink", ProtoSchemaType::kUint64},
+            {"total_scan", ProtoSchemaType::kUint64},
+            {"nid", ProtoSchemaType::kInt32},
+            {"priority", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "mm_shrink_slab_end",
+        7,
+        {
+            {},
+            {"new_scan", ProtoSchemaType::kInt64},
+            {"retval", ProtoSchemaType::kInt32},
+            {"shr", ProtoSchemaType::kUint64},
+            {"shrink", ProtoSchemaType::kUint64},
+            {"total_scan", ProtoSchemaType::kInt64},
+            {"unused_scan", ProtoSchemaType::kInt64},
+            {"nid", ProtoSchemaType::kInt32},
         },
     },
 }};
