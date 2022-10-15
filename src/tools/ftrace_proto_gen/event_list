@@ -437,3 +437,5 @@ virtio_video/virtio_video_cmd
 virtio_video/virtio_video_cmd_done
 virtio_video/virtio_video_resource_queue
 virtio_video/virtio_video_resource_queue_done
+vmscan/mm_shrink_slab_start
+vmscan/mm_shrink_slab_end
