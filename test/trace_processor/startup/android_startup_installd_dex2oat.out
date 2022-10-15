@@ -26,6 +26,8 @@ android_startup {
       installd_running: false
       broadcast_dispatched_count: 0
       broadcast_received_count: 0
+      installd_dur_ns: 0
+      dex2oat_dur_ns: 0
     }
   }
   startup {
@@ -56,6 +58,8 @@ android_startup {
       broadcast_dispatched_count: 0
       broadcast_received_count: 0
       most_active_non_launch_processes: "dex2oat64"
+      installd_dur_ns: 0
+      dex2oat_dur_ns: 5
     }
   }
   startup {
@@ -86,6 +90,8 @@ android_startup {
       broadcast_dispatched_count: 0
       broadcast_received_count: 0
       most_active_non_launch_processes: "installd"
+      installd_dur_ns: 5
+      dex2oat_dur_ns: 0
     }
   }
   startup {
@@ -117,6 +123,8 @@ android_startup {
       broadcast_received_count: 0
       most_active_non_launch_processes: "dex2oat64"
       most_active_non_launch_processes: "installd"
+      installd_dur_ns: 5
+      dex2oat_dur_ns: 5
     }
   }
 }

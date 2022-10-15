@@ -45,8 +45,17 @@ SELECT CREATE_FUNCTION(
   'STRING',
   'SELECT
     interface_name
-    FROM ancestor_slice(($id)) ancestors
-    JOIN chrome_mojo_slices_tbl USING(id)'
+    FROM
+    (SELECT MAX(mojo.id),
+    interface_name
+      FROM ((SELECT id FROM ancestor_slice(($id))
+             UNION
+             SELECT slice.id as id FROM PRECEDING_FLOW(($id)) flow
+        	 JOIN slice ON flow.slice_out = slice.id) candidates
+    JOIN chrome_mojo_slices_tbl mojo
+    ON mojo.id = candidates.id
+      OR (SELECT COUNT() FROM ancestor_slice(candidates.id) parents
+      WHERE parents.id = mojo.id) > 0))'
 );
 
 SELECT CREATE_FUNCTION(
@@ -59,7 +68,7 @@ SELECT CREATE_FUNCTION(
             THEN "fling"
             WHEN ($mojo_interface_tag) = "blink.mojom.WidgetInputHandler"
             THEN "blocking_touch_move"
-            ELSE "unkown" END)
+            ELSE "unknown" END)
     ELSE "regular" END AS delay_type');
 
 -- Get all InputLatency::GestureScrollUpdate events, to use their
