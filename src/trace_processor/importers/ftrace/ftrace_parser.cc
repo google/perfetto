@@ -92,7 +92,7 @@ struct FtraceEventAndFieldId {
 // TODO(lalitm): going through this array is O(n) on a hot-path (see
 // ParseTypedFtraceToRaw). Consider changing this if we end up adding a lot of
 // events here.
-constexpr auto kKernelFunctionFields = std::array<FtraceEventAndFieldId, 5>{
+constexpr auto kKernelFunctionFields = std::array<FtraceEventAndFieldId, 6>{
     FtraceEventAndFieldId{
         protos::pbzero::FtraceEvent::kSchedBlockedReasonFieldNumber,
         protos::pbzero::SchedBlockedReasonFtraceEvent::kCallerFieldNumber},
@@ -107,7 +107,10 @@ constexpr auto kKernelFunctionFields = std::array<FtraceEventAndFieldId, 5>{
         protos::pbzero::FuncgraphEntryFtraceEvent::kFuncFieldNumber},
     FtraceEventAndFieldId{
         protos::pbzero::FtraceEvent::kFuncgraphExitFieldNumber,
-        protos::pbzero::FuncgraphExitFtraceEvent::kFuncFieldNumber}};
+        protos::pbzero::FuncgraphExitFtraceEvent::kFuncFieldNumber},
+    FtraceEventAndFieldId{
+        protos::pbzero::FtraceEvent::kMmShrinkSlabStartFieldNumber,
+        protos::pbzero::MmShrinkSlabStartFtraceEvent::kShrinkFieldNumber}};
 
 std::string GetUfsCmdString(uint32_t ufsopcode, uint32_t gid) {
   std::string buffer;
@@ -271,7 +274,12 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       ufs_clkgating_id_(context->storage->InternString(
           "io.ufs.clkgating (OFF:0/REQ_OFF/REQ_ON/ON:3)")),
       ufs_command_count_id_(
-          context->storage->InternString("io.ufs.command.count")) {
+          context->storage->InternString("io.ufs.command.count")),
+      shrink_slab_id_(context_->storage->InternString("mm_vmscan_shrink_slab")),
+      shrink_name_id_(context->storage->InternString("shrink_name")),
+      shrink_total_scan_id_(context->storage->InternString("total_scan")),
+      shrink_freed_id_(context->storage->InternString("freed")),
+      shrink_priority_id_(context->storage->InternString("priority")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -669,6 +677,14 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kMmVmscanDirectReclaimEndFieldNumber: {
         ParseDirectReclaimEnd(ts, pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kMmShrinkSlabStartFieldNumber: {
+        ParseShrinkSlabStart(ts, pid, fld_bytes, seq_state);
+        break;
+      }
+      case FtraceEvent::kMmShrinkSlabEndFieldNumber: {
+        ParseShrinkSlabEnd(ts, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kWorkqueueExecuteStartFieldNumber: {
@@ -1675,6 +1691,50 @@ void FtraceParser::ParseDirectReclaimEnd(int64_t timestamp,
       };
   context_->slice_tracker->End(timestamp, track_id, kNullStringId,
                                kNullStringId, args_inserter);
+}
+
+void FtraceParser::ParseShrinkSlabStart(
+    int64_t timestamp,
+    uint32_t pid,
+    ConstBytes blob,
+    PacketSequenceStateGeneration* seq_state) {
+  protos::pbzero::MmShrinkSlabStartFtraceEvent::Decoder shrink_slab_start(
+      blob.data, blob.size);
+
+  StringId shrink_name =
+      InternedKernelSymbolOrFallback(shrink_slab_start.shrink(), seq_state);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  auto args_inserter = [this, &shrink_slab_start,
+                        shrink_name](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(shrink_name_id_, Variadic::String(shrink_name));
+    inserter->AddArg(shrink_total_scan_id_,
+                     Variadic::UnsignedInteger(shrink_slab_start.total_scan()));
+    inserter->AddArg(shrink_priority_id_,
+                     Variadic::Integer(shrink_slab_start.priority()));
+  };
+
+  context_->slice_tracker->Begin(timestamp, track, kNullStringId,
+                                 shrink_slab_id_, args_inserter);
+}
+
+void FtraceParser::ParseShrinkSlabEnd(int64_t timestamp,
+                                      uint32_t pid,
+                                      ConstBytes blob) {
+  protos::pbzero::MmShrinkSlabEndFtraceEvent::Decoder shrink_slab_end(
+      blob.data, blob.size);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  auto args_inserter =
+      [this, &shrink_slab_end](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(shrink_freed_id_,
+                         Variadic::Integer(shrink_slab_end.retval()));
+      };
+  context_->slice_tracker->End(timestamp, track, kNullStringId, kNullStringId,
+                               args_inserter);
 }
 
 void FtraceParser::ParseWorkqueueExecuteStart(
