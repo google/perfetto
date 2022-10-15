@@ -548,5 +548,7 @@ message FtraceEvent {
     VirtioVideoResourceQueueFtraceEvent virtio_video_resource_queue = 441;
     VirtioVideoResourceQueueDoneFtraceEvent virtio_video_resource_queue_done =
         442;
+    MmShrinkSlabStartFtraceEvent mm_shrink_slab_start = 443;
+    MmShrinkSlabEndFtraceEvent mm_shrink_slab_end = 444;
   }
 }

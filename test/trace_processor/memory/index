@@ -18,3 +18,6 @@ android_dma_heap_stat.textproto dma_buffer_tracks_test.sql android_dma_buffer_tr
 
 # fastrpc metric
 android_fastrpc_dma_stat.textproto android_fastrpc android_fastrpc_dma_stat.out
+
+# shrink slab
+shrink_slab.textproto shrink_slab.sql shrink_slab.out
