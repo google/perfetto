@@ -51,7 +51,7 @@ class ProtoTraceParser : public TraceParser {
 
   void ParseFtraceEvent(uint32_t cpu,
                         int64_t /*ts*/,
-                        FtraceEventData data) override;
+                        TracePacketData data) override;
 
   void ParseInlineSchedSwitch(uint32_t cpu,
                               int64_t /*ts*/,

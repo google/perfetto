@@ -154,7 +154,7 @@ class TraceSorter {
                               PacketSequenceState* state) {
     auto* queue = GetQueue(cpu + 1);
     uint32_t offset = variadic_queue_.Append(
-        FtraceEventData{std::move(event), state->current_generation()});
+        TracePacketData{std::move(event), state->current_generation()});
     queue->Append(TimestampedDescriptor{
         timestamp, Descriptor(offset, EventType::kFtraceEvent)});
     UpdateGlobalTs(queue);

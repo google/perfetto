@@ -16,13 +16,14 @@
 
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include <cstdint>
+#include "src/trace_processor/parser_types.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 void FtraceModule::ParseFtraceEventData(uint32_t /*cpu*/,
                                         int64_t /*ts*/,
-                                        const FtraceEventData&) {}
+                                        const TracePacketData&) {}
 
 void FtraceModule::ParseInlineSchedSwitch(uint32_t /*cpu*/,
                                           int64_t /*ts*/,
