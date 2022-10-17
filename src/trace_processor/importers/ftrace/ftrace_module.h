@@ -19,6 +19,7 @@
 
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/parser_types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -27,7 +28,7 @@ class FtraceModule : public ProtoImporterModule {
  public:
   virtual void ParseFtraceEventData(uint32_t cpu,
                                     int64_t ts,
-                                    const FtraceEventData& data);
+                                    const TracePacketData& data);
 
   virtual void ParseInlineSchedSwitch(uint32_t cpu,
                                       int64_t ts,

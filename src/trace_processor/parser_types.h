@@ -46,11 +46,6 @@ struct TracePacketData {
   RefPtr<PacketSequenceStateGeneration> sequence_state;
 };
 
-struct FtraceEventData {
-  TraceBlobView event;
-  RefPtr<PacketSequenceStateGeneration> sequence_state;
-};
-
 struct TrackEventData : public TracePacketData {
   TrackEventData(TraceBlobView pv,
                  RefPtr<PacketSequenceStateGeneration> generation)
