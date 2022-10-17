@@ -291,7 +291,7 @@ class MockTracingMuxer : public perfetto::internal::TracingMuxer {
   bool RegisterDataSource(
       const perfetto::DataSourceDescriptor& dsd,
       DataSourceFactory,
-      bool,
+      perfetto::internal::DataSourceParams,
       perfetto::internal::DataSourceStaticState* static_state) override {
     data_sources.emplace_back(DataSource{dsd, static_state});
     return true;
