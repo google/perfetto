@@ -92,7 +92,7 @@ void TrackEventStateTracker::ProcessTracePacket(
   }
 
   if (name.data) {
-    base::Hash hash;
+    base::Hasher hash;
     hash.Update(name.data, name.size);
     name_hash = hash.digest();
   }

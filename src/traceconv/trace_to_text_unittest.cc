@@ -28,10 +28,10 @@ namespace perfetto {
 namespace trace_to_text {
 
 // Given a file, compute the checksum/hash of file.
-// Learn more @ base::Hash.
+// Learn more @ base::Hasher.
 // Precondition: File should exist and be accessible.
 static uint64_t FileHash(const string& filename) {
-  base::Hash hash;
+  base::Hasher hash;
   std::ifstream input_f(filename, std::ios::binary);
   PERFETTO_DCHECK(input_f.good());
   char buffer[4096];
