@@ -35,6 +35,11 @@ class TracingSession;
 
 namespace internal {
 
+struct DataSourceParams {
+  bool supports_multiple_instances;
+  bool requires_callbacks_under_lock;
+};
+
 struct DataSourceStaticState;
 
 // This class acts as a bridge between the public API methods and the
@@ -62,7 +67,7 @@ class PERFETTO_EXPORT_COMPONENT TracingMuxer {
   using DataSourceFactory = std::function<std::unique_ptr<DataSourceBase>()>;
   virtual bool RegisterDataSource(const DataSourceDescriptor&,
                                   DataSourceFactory,
-                                  bool supports_multiple_instances,
+                                  DataSourceParams,
                                   DataSourceStaticState*) = 0;
 
   // Updates the DataSourceDescriptor for the DataSource.
