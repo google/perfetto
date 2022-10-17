@@ -26,7 +26,7 @@ namespace {
 TEST(HashTest, StringView) {
   base::StringView a = "abc";
   base::StringView b = "def";
-  EXPECT_NE(Hash::Combine(a), Hash::Combine(b));
+  EXPECT_NE(Hasher::Combine(a), Hasher::Combine(b));
 }
 
 }  // namespace

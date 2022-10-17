@@ -91,8 +91,8 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       base::Optional<SliceId> slice_id =
           AddSlice(buf_name_id, timestamp, pid, evt);
 
-      uint64_t hash = base::Hash::Combine(evt.device_minor, evt.sequence,
-                                          *evt.type, *evt.index);
+      uint64_t hash = base::Hasher::Combine(evt.device_minor, evt.sequence,
+                                            *evt.type, *evt.index);
 
       QueuedBuffer queued_buffer;
       queued_buffer.queue_slice_id = slice_id;
@@ -132,8 +132,8 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       base::Optional<SliceId> slice_id =
           AddSlice(buf_name_id, timestamp, pid, evt);
 
-      uint64_t hash = base::Hash::Combine(evt.device_minor, evt.sequence,
-                                          *evt.type, *evt.index);
+      uint64_t hash = base::Hasher::Combine(evt.device_minor, evt.sequence,
+                                            *evt.type, *evt.index);
 
       const QueuedBuffer* queued_buffer = queued_buffers_.Find(hash);
       if (queued_buffer) {

@@ -361,7 +361,7 @@ base::Status Hash::Run(void*,
                        sqlite3_value** argv,
                        SqlValue& out,
                        Destructors&) {
-  base::Hash hash;
+  base::Hasher hash;
   for (size_t i = 0; i < argc; ++i) {
     sqlite3_value* value = argv[i];
     int type = sqlite3_value_type(value);

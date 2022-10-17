@@ -144,7 +144,7 @@ void CreatedFunction::Cleanup(CreatedFunction::Context* ctx) {
 
 size_t CreateFunction::NameAndArgc::Hasher::operator()(
     const NameAndArgc& s) const noexcept {
-  base::Hash hash;
+  base::Hasher hash;
   hash.Update(s.name.data(), s.name.size());
   hash.Update(s.argc);
   return static_cast<size_t>(hash.digest());

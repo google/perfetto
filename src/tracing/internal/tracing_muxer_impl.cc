@@ -125,7 +125,7 @@ class StopArgsImpl : public DataSourceBase::StopArgs {
 };
 
 uint64_t ComputeConfigHash(const DataSourceConfig& config) {
-  base::Hash hasher;
+  base::Hasher hasher;
   std::string config_bytes = config.SerializeAsString();
   hasher.Update(config_bytes.data(), config_bytes.size());
   return hasher.digest();
@@ -144,7 +144,7 @@ uint64_t ComputeStartupConfigHash(DataSourceConfig config) {
   config.set_trace_duration_ms(0);
   config.set_stop_timeout_ms(0);
   config.set_enable_extra_guardrails(false);
-  base::Hash hasher;
+  base::Hasher hasher;
   std::string config_bytes = config.SerializeAsString();
   hasher.Update(config_bytes.data(), config_bytes.size());
   return hasher.digest();
@@ -901,7 +901,7 @@ bool TracingMuxerImpl::RegisterDataSource(
   static_state->index = new_index;
 
   // Generate a semi-unique id for this data source.
-  base::Hash hash;
+  base::Hasher hash;
   hash.Update(reinterpret_cast<intptr_t>(static_state));
   hash.Update(base::GetWallTimeNs().count());
   static_state->id = hash.digest() ? hash.digest() : 1;
