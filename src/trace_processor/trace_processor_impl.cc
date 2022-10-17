@@ -909,7 +909,7 @@ base::Status PrepareAndStepUntilLastValidStmt(
     PERFETTO_DLOG("Executing statement: %s", sqlite3_sql(*cur_stmt));
 
     {
-      PERFETTO_TP_TRACE(metatrace::Category::QUERY, "STMT_FIRST_STEP",
+      PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "STMT_FIRST_STEP",
                         [&cur_stmt](metatrace::Record* record) {
                           auto expanded_sql =
                               sqlite_utils::ExpandedSqlForStmt(*cur_stmt);
@@ -1274,7 +1274,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
 }
 
 Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
-  PERFETTO_TP_TRACE(metatrace::Category::QUERY, "QUERY_EXECUTE");
+  PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "QUERY_EXECUTE");
 
   uint32_t sql_stats_row =
       context_.storage->mutable_sql_stats()->RecordQueryBegin(
