@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "perfetto/protozero/field.h"
+#include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -44,6 +45,7 @@ class SystemProbesParser {
 
  private:
   void ParseThreadStats(int64_t timestamp, uint32_t pid, ConstBytes);
+  void ParseDiskStats(int64_t ts, ConstBytes blob);
 
   TraceProcessorContext* const context_;
 
@@ -74,6 +76,15 @@ class SystemProbesParser {
 
   uint64_t ms_per_tick_ = 0;
   uint32_t page_size_ = 0;
+
+  int64_t prev_read_amount = -1;
+  int64_t prev_write_amount = -1;
+  int64_t prev_discard_amount = -1;
+  int64_t prev_flush_count = -1;
+  int64_t prev_read_time = -1;
+  int64_t prev_write_time = -1;
+  int64_t prev_discard_time = -1;
+  int64_t prev_flush_time = -1;
 };
 
 }  // namespace trace_processor
