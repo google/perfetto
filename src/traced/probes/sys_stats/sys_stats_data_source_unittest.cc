@@ -197,6 +197,11 @@ Node 1, zone  Normal   233   123   453   10    5    1  0  2  0  0  3)";
 const char kDevfreq1[] = "1000000";
 const char kDevfreq2[] = "20000000";
 
+const char kMockDiskStat[] = R"(
+ 253       0 zram0 13886 0 111088 128 57298 0 458384 48 0 15248 176 0 0 0 0 0 0
+   8       0 sda 54133 5368 8221736 75929 30333 1157434 9599744 143190 0 63672 249858 9595 0 2160072 19411 6649 11327
+   8       1 sda1 18 6 632 7 39 49 704 92 0 156 100 0 0 0 0 0 0)";
+
 class TestSysStatsDataSource : public SysStatsDataSource {
  public:
   TestSysStatsDataSource(base::TaskRunner* task_runner,
@@ -226,6 +231,8 @@ base::ScopedFile MockOpenReadOnly(const char* path) {
     EXPECT_GT(pwrite(tmp_.fd(), kMockStat, strlen(kMockStat), 0), 0);
   } else if (!strcmp(path, "/proc/buddyinfo")) {
     EXPECT_GT(pwrite(tmp_.fd(), kMockBuddy, strlen(kMockBuddy), 0), 0);
+  } else if (!strcmp(path, "/proc/diskstats")) {
+    EXPECT_GT(pwrite(tmp_.fd(), kMockDiskStat, strlen(kMockDiskStat), 0), 0);
   } else {
     PERFETTO_FATAL("Unexpected file opened %s", path);
   }
@@ -567,6 +574,49 @@ TEST_F(SysStatsDataSourceTest, Cpufreq) {
     // should be recorded as 0
     EXPECT_EQ(sys_stats.cpufreq_khz()[i], 0u);
   }
+}
+
+TEST_F(SysStatsDataSourceTest, DiskStat) {
+  protos::gen::SysStatsConfig cfg;
+  cfg.set_diskstat_period_ms(10);
+  DataSourceConfig config_obj;
+  config_obj.set_sys_stats_config_raw(cfg.SerializeAsString());
+  auto data_source = GetSysStatsDataSource(config_obj);
+
+  WaitTick(data_source.get());
+
+  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_sys_stats());
+  const auto& sys_stats = packet.sys_stats();
+  EXPECT_EQ(sys_stats.disk_stat_size(), 3);
+
+  EXPECT_EQ(sys_stats.disk_stat()[0].device_name(), "zram0");
+  EXPECT_EQ(sys_stats.disk_stat()[0].read_sectors(), 111088u);
+  EXPECT_EQ(sys_stats.disk_stat()[0].write_sectors(), 458384u);
+  EXPECT_EQ(sys_stats.disk_stat()[0].discard_sectors(), 0u);
+  EXPECT_EQ(sys_stats.disk_stat()[0].flush_count(), 0u);
+  EXPECT_EQ(sys_stats.disk_stat()[0].read_time_ms(), 128u);
+  EXPECT_EQ(sys_stats.disk_stat()[0].write_time_ms(), 48u);
+  EXPECT_EQ(sys_stats.disk_stat()[0].discard_time_ms(), 0u);
+  EXPECT_EQ(sys_stats.disk_stat()[0].flush_time_ms(), 0u);
+  EXPECT_EQ(sys_stats.disk_stat()[1].device_name(), "sda");
+  EXPECT_EQ(sys_stats.disk_stat()[1].read_sectors(), 8221736u);
+  EXPECT_EQ(sys_stats.disk_stat()[1].write_sectors(), 9599744u);
+  EXPECT_EQ(sys_stats.disk_stat()[1].discard_sectors(), 2160072u);
+  EXPECT_EQ(sys_stats.disk_stat()[1].flush_count(), 6649u);
+  EXPECT_EQ(sys_stats.disk_stat()[1].read_time_ms(), 75929u);
+  EXPECT_EQ(sys_stats.disk_stat()[1].write_time_ms(), 143190u);
+  EXPECT_EQ(sys_stats.disk_stat()[1].discard_time_ms(), 19411u);
+  EXPECT_EQ(sys_stats.disk_stat()[1].flush_time_ms(), 11327u);
+  EXPECT_EQ(sys_stats.disk_stat()[2].device_name(), "sda1");
+  EXPECT_EQ(sys_stats.disk_stat()[2].read_sectors(), 632u);
+  EXPECT_EQ(sys_stats.disk_stat()[2].write_sectors(), 704u);
+  EXPECT_EQ(sys_stats.disk_stat()[2].discard_sectors(), 0u);
+  EXPECT_EQ(sys_stats.disk_stat()[2].flush_count(), 0u);
+  EXPECT_EQ(sys_stats.disk_stat()[2].read_time_ms(), 7u);
+  EXPECT_EQ(sys_stats.disk_stat()[2].write_time_ms(), 92u);
+  EXPECT_EQ(sys_stats.disk_stat()[2].discard_time_ms(), 0u);
+  EXPECT_EQ(sys_stats.disk_stat()[2].flush_time_ms(), 0u);
 }
 
 }  // namespace
