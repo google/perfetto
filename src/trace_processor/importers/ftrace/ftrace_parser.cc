@@ -29,6 +29,7 @@
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
+#include "src/trace_processor/parser_types.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/softirq_action.h"
@@ -500,7 +501,7 @@ void FtraceParser::ParseFtraceStats(ConstBytes blob) {
 
 util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
                                             int64_t ts,
-                                            const FtraceEventData& data) {
+                                            const TracePacketData& data) {
   MaybeOnFirstFtraceEvent();
   if (PERFETTO_UNLIKELY(ts < drop_ftrace_data_before_ts_)) {
     context_->storage->IncrementStats(
@@ -508,7 +509,7 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
     return util::OkStatus();
   }
   using protos::pbzero::FtraceEvent;
-  const TraceBlobView& event = data.event;
+  const TraceBlobView& event = data.packet;
   PacketSequenceStateGeneration* seq_state = data.sequence_state.get();
   ProtoDecoder decoder(event.data(), event.length());
   uint64_t raw_pid = 0;
