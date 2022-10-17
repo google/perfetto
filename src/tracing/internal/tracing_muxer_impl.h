@@ -104,6 +104,7 @@ class TracingMuxerImpl : public TracingMuxer {
     DataSourceDescriptor descriptor;
     DataSourceFactory factory{};
     bool supports_multiple_instances = false;
+    bool requires_callbacks_under_lock = false;
     DataSourceStaticState* static_state = nullptr;
   };
 
@@ -114,7 +115,7 @@ class TracingMuxerImpl : public TracingMuxer {
   // TracingMuxer implementation.
   bool RegisterDataSource(const DataSourceDescriptor&,
                           DataSourceFactory,
-                          bool supports_multiple_instances,
+                          DataSourceParams,
                           DataSourceStaticState*) override;
   void UpdateDataSourceDescriptor(const DataSourceDescriptor&,
                                   const DataSourceStaticState*) override;
@@ -444,13 +445,20 @@ class TracingMuxerImpl : public TracingMuxer {
 
   struct FindDataSourceRes {
     FindDataSourceRes() = default;
-    FindDataSourceRes(DataSourceStaticState* a, DataSourceState* b, uint32_t c)
-        : static_state(a), internal_state(b), instance_idx(c) {}
+    FindDataSourceRes(DataSourceStaticState* a,
+                      DataSourceState* b,
+                      uint32_t c,
+                      bool d)
+        : static_state(a),
+          internal_state(b),
+          instance_idx(c),
+          requires_callbacks_under_lock(d) {}
     explicit operator bool() const { return !!internal_state; }
 
     DataSourceStaticState* static_state = nullptr;
     DataSourceState* internal_state = nullptr;
     uint32_t instance_idx = 0;
+    bool requires_callbacks_under_lock = false;
   };
   FindDataSourceRes FindDataSource(TracingBackendId, DataSourceInstanceID);
 

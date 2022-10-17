@@ -54,7 +54,7 @@ class TracingMuxerFake : public TracingMuxer {
   // TracingMuxer implementation.
   bool RegisterDataSource(const DataSourceDescriptor&,
                           DataSourceFactory,
-                          bool supports_multiple_instances,
+                          DataSourceParams,
                           DataSourceStaticState*) override;
   void UpdateDataSourceDescriptor(const DataSourceDescriptor&,
                                   const DataSourceStaticState*) override;
