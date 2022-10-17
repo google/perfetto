@@ -879,7 +879,7 @@ void TracingMuxerImpl::Initialize(const TracingInitArgs& args) {
 bool TracingMuxerImpl::RegisterDataSource(
     const DataSourceDescriptor& descriptor,
     DataSourceFactory factory,
-    bool supports_multiple_instances,
+    DataSourceParams params,
     DataSourceStaticState* static_state) {
   // Ignore repeated registrations.
   if (static_state->index != kMaxDataSources)
@@ -906,14 +906,15 @@ bool TracingMuxerImpl::RegisterDataSource(
   hash.Update(base::GetWallTimeNs().count());
   static_state->id = hash.digest() ? hash.digest() : 1;
 
-  task_runner_->PostTask([this, descriptor, factory, static_state,
-                          supports_multiple_instances] {
+  task_runner_->PostTask([this, descriptor, factory, static_state, params] {
     data_sources_.emplace_back();
     RegisteredDataSource& rds = data_sources_.back();
     rds.descriptor = descriptor;
     rds.factory = factory;
     rds.supports_multiple_instances =
-        supports_multiple_data_source_instances_ && supports_multiple_instances;
+        supports_multiple_data_source_instances_ &&
+        params.supports_multiple_instances;
+    rds.requires_callbacks_under_lock = params.requires_callbacks_under_lock;
     rds.static_state = static_state;
 
     UpdateDataSourceOnAllBackends(rds, /*is_changed=*/false);
@@ -988,6 +989,7 @@ static bool MaybeAdoptStartupTracingInDataSource(
     DataSourceStaticState* static_state = rds.static_state;
     for (uint32_t i = 0; i < kMaxDataSourceInstances; i++) {
       auto* internal_state = static_state->TryGet(i);
+
       // TODO(eseckler): Instead of comparing config_hashes here, should we ask
       // the data source instance for a compat check of the config?
       if (internal_state &&
@@ -1001,6 +1003,7 @@ static bool MaybeAdoptStartupTracingInDataSource(
                       " %s by adopting it from a startup tracing session",
                       instance_id, cfg.name().c_str());
 
+        std::lock_guard<std::recursive_mutex> lock(internal_state->lock);
         // Set the associations. The actual takeover happens in
         // StartDataSource().
         internal_state->data_source_instance_id = instance_id;
@@ -1101,7 +1104,7 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
 
     auto* internal_state =
         reinterpret_cast<DataSourceState*>(&static_state.instances[i]);
-    std::lock_guard<std::recursive_mutex> guard(internal_state->lock);
+    std::unique_lock<std::recursive_mutex> lock(internal_state->lock);
     static_assert(
         std::is_same<decltype(internal_state->data_source_instance_id),
                      DataSourceInstanceID>::value,
@@ -1163,8 +1166,13 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
     DataSourceBase::SetupArgs setup_args;
     setup_args.config = &cfg;
     setup_args.internal_instance_index = i;
+
+    if (!rds.requires_callbacks_under_lock)
+      lock.unlock();
     internal_state->data_source->OnSetup(setup_args);
-    return FindDataSourceRes(&static_state, internal_state, i);
+
+    return FindDataSourceRes(&static_state, internal_state, i,
+                             rds.requires_callbacks_under_lock);
   }
   PERFETTO_ELOG(
       "Maximum number of data source instances exhausted. "
@@ -1244,11 +1252,14 @@ void TracingMuxerImpl::StartDataSourceImpl(const FindDataSourceRes& ds) {
   DataSourceBase::StartArgs start_args{};
   start_args.internal_instance_index = ds.instance_idx;
 
-  std::lock_guard<std::recursive_mutex> guard(ds.internal_state->lock);
+  std::unique_lock<std::recursive_mutex> lock(ds.internal_state->lock);
   if (ds.internal_state->interceptor)
     ds.internal_state->interceptor->OnStart({});
   ds.internal_state->trace_lambda_enabled = true;
   PERFETTO_DCHECK(ds.internal_state->data_source != nullptr);
+
+  if (!ds.requires_callbacks_under_lock)
+    lock.unlock();
   ds.internal_state->data_source->OnStart(start_args);
 }
 
@@ -1291,9 +1302,12 @@ void TracingMuxerImpl::StopDataSource_AsyncBeginImpl(
   };
 
   {
-    std::lock_guard<std::recursive_mutex> guard(ds.internal_state->lock);
+    std::unique_lock<std::recursive_mutex> lock(ds.internal_state->lock);
     if (ds.internal_state->interceptor)
       ds.internal_state->interceptor->OnStop({});
+
+    if (!ds.requires_callbacks_under_lock)
+      lock.unlock();
     ds.internal_state->data_source->OnStop(stop_args);
   }
 
@@ -1410,9 +1424,10 @@ void TracingMuxerImpl::ClearDataSourceIncrementalState(
 
   DataSourceBase::ClearIncrementalStateArgs clear_incremental_state_args;
   clear_incremental_state_args.internal_instance_index = ds.instance_idx;
-
   {
-    std::lock_guard<std::recursive_mutex> guard(ds.internal_state->lock);
+    std::unique_lock<std::recursive_mutex> lock;
+    if (ds.requires_callbacks_under_lock)
+      lock = std::unique_lock<std::recursive_mutex>(ds.internal_state->lock);
     ds.internal_state->data_source->WillClearIncrementalState(
         clear_incremental_state_args);
   }
@@ -1895,7 +1910,8 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::FindDataSource(
               backend.producer->connection_id_.load(
                   std::memory_order_relaxed) &&
           internal_state->data_source_instance_id == instance_id) {
-        return FindDataSourceRes(static_state, internal_state, i);
+        return FindDataSourceRes(static_state, internal_state, i,
+                                 rds.requires_callbacks_under_lock);
       }
     }
   }
@@ -2218,7 +2234,8 @@ void TracingMuxerImpl::AbortStartupTracingSession(
           // StartDataSource().
           session_it->num_aborting_data_sources++;
           StopDataSource_AsyncBeginImpl(
-              FindDataSourceRes(static_state, internal_state, i));
+              FindDataSourceRes(static_state, internal_state, i,
+                                rds.requires_callbacks_under_lock));
         }
       }
     }
