@@ -71,4 +71,8 @@ message SysStatsConfig {
   // Polls /proc/buddyinfo every X ms, if non-zero.
   // This is required to be > 10ms to avoid excessive CPU usage.
   optional uint32 buddyinfo_period_ms = 9;
+
+  // Polls /proc/diskstats every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  optional uint32 diskstat_period_ms = 10;
 }
