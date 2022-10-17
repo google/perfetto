@@ -103,7 +103,7 @@ class Rpc {
   void NotifyEndOfFile();
   std::string GetCurrentTraceName();
   std::vector<uint8_t> ComputeMetric(const uint8_t* data, size_t len);
-  void EnableMetatrace();
+  void EnableMetatrace(const uint8_t* data, size_t len);  // EnableMetatraceArgs
   std::vector<uint8_t> DisableAndReadMetatrace();
   std::vector<uint8_t> GetStatus();
 

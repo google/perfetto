@@ -242,16 +242,9 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
     }
     case RpcProto::TPM_ENABLE_METATRACE: {
       using protos::pbzero::MetatraceCategories;
-      TraceProcessor::MetatraceConfig config;
-      if (req.has_enable_metatrace_args()) {
-        protos::pbzero::EnableMetatraceArgs::Decoder args(
-            req.enable_metatrace_args());
-        if (args.has_categories()) {
-          config.categories = MetatraceCategoriesToPublicEnum(
-              static_cast<MetatraceCategories>(args.categories()));
-        }
-      }
-      trace_processor_->EnableMetatrace(config);
+      protozero::ConstBytes args = req.enable_metatrace_args();
+      EnableMetatrace(args.data, args.size);
+
       Response resp(tx_seq_id_++, req_type);
       resp.Send(rpc_response_fn_);
       break;
@@ -404,8 +397,13 @@ void Rpc::ComputeMetricInternal(const uint8_t* data,
   }
 }
 
-void Rpc::EnableMetatrace() {
-  trace_processor_->EnableMetatrace();
+void Rpc::EnableMetatrace(const uint8_t* data, size_t len) {
+  using protos::pbzero::MetatraceCategories;
+  TraceProcessor::MetatraceConfig config;
+  protos::pbzero::EnableMetatraceArgs::Decoder args(data, len);
+  config.categories = MetatraceCategoriesToPublicEnum(
+      static_cast<MetatraceCategories>(args.categories()));
+  trace_processor_->EnableMetatrace(config);
 }
 
 std::vector<uint8_t> Rpc::DisableAndReadMetatrace() {
