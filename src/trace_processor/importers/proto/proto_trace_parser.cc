@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/parser_types.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -113,7 +114,7 @@ void ProtoTraceParser::ParseTrackEvent(int64_t ts, TrackEventData data) {
 
 void ProtoTraceParser::ParseFtraceEvent(uint32_t cpu,
                                         int64_t ts,
-                                        FtraceEventData data) {
+                                        TracePacketData data) {
   PERFETTO_DCHECK(context_->ftrace_module);
   context_->ftrace_module->ParseFtraceEventData(cpu, ts, data);
 
