@@ -92,6 +92,7 @@ SysStatsDataSource::SysStatsDataSource(
   vmstat_fd_ = open_fn("/proc/vmstat");
   stat_fd_ = open_fn("/proc/stat");
   buddy_fd_ = open_fn("/proc/buddyinfo");
+  diskstat_fd_ = open_fn("/proc/diskstats");
 
   read_buf_ = base::PagedMemory::Allocate(kReadBufSize);
 
@@ -144,8 +145,8 @@ SysStatsDataSource::SysStatsDataSource(
     stat_enabled_fields_ |= 1ul << static_cast<uint32_t>(*counter);
   }
 
-  std::array<uint32_t, 6> periods_ms{};
-  std::array<uint32_t, 6> ticks{};
+  std::array<uint32_t, 7> periods_ms{};
+  std::array<uint32_t, 7> ticks{};
   static_assert(periods_ms.size() == ticks.size(), "must have same size");
 
   periods_ms[0] = ClampTo10Ms(cfg.meminfo_period_ms(), "meminfo_period_ms");
@@ -154,6 +155,7 @@ SysStatsDataSource::SysStatsDataSource(
   periods_ms[3] = ClampTo10Ms(cfg.devfreq_period_ms(), "devfreq_period_ms");
   periods_ms[4] = ClampTo10Ms(cfg.cpufreq_period_ms(), "cpufreq_period_ms");
   periods_ms[5] = ClampTo10Ms(cfg.buddyinfo_period_ms(), "buddyinfo_period_ms");
+  periods_ms[6] = ClampTo10Ms(cfg.diskstat_period_ms(), "diskstat_period_ms");
 
   tick_period_ms_ = 0;
   for (uint32_t ms : periods_ms) {
@@ -178,6 +180,7 @@ SysStatsDataSource::SysStatsDataSource(
   devfreq_ticks_ = ticks[3];
   cpufreq_ticks_ = ticks[4];
   buddyinfo_ticks_ = ticks[5];
+  diskstat_ticks_ = ticks[6];
 }
 
 void SysStatsDataSource::Start() {
@@ -227,10 +230,66 @@ void SysStatsDataSource::ReadSysStats() {
   if (buddyinfo_ticks_ && tick_ % buddyinfo_ticks_ == 0)
     ReadBuddyInfo(sys_stats);
 
+  if (diskstat_ticks_ && tick_ % diskstat_ticks_ == 0)
+    ReadDiskStat(sys_stats);
+
   sys_stats->set_collection_end_timestamp(
       static_cast<uint64_t>(base::GetBootTimeNs().count()));
 
   tick_++;
+}
+
+void SysStatsDataSource::ReadDiskStat(protos::pbzero::SysStats* sys_stats) {
+  size_t rsize = ReadFile(&diskstat_fd_, "/proc/diskstats");
+  if (!rsize) {
+    return;
+  }
+
+  char* buf = static_cast<char*>(read_buf_.Get());
+  for (base::StringSplitter lines(buf, rsize, '\n'); lines.Next();) {
+    uint32_t index = 0;
+    auto* disk_stat = sys_stats->add_disk_stat();
+    for (base::StringSplitter words(&lines, ' '); words.Next(); index++) {
+      if (index == 2) {  // index for device name (string)
+        disk_stat->set_device_name(words.cur_token());
+      } else if (index >= 5) {  // integer values from index 5
+        base::Optional<uint64_t> value_address =
+            base::CStringToUInt64(words.cur_token());
+        uint64_t value = value_address ? *value_address : 0;
+
+        switch (index) {
+          case 5:
+            disk_stat->set_read_sectors(value);
+            break;
+          case 6:
+            disk_stat->set_read_time_ms(value);
+            break;
+          case 9:
+            disk_stat->set_write_sectors(value);
+            break;
+          case 10:
+            disk_stat->set_write_time_ms(value);
+            break;
+          case 16:
+            disk_stat->set_discard_sectors(value);
+            break;
+          case 17:
+            disk_stat->set_discard_time_ms(value);
+            break;
+          case 18:
+            disk_stat->set_flush_count(value);
+            break;
+          case 19:
+            disk_stat->set_flush_time_ms(value);
+            break;
+        }
+
+        if (index == 19) {
+          break;
+        }
+      }
+    }
+  }
 }
 
 void SysStatsDataSource::ReadBuddyInfo(protos::pbzero::SysStats* sys_stats) {

@@ -32,9 +32,16 @@
 
 #include "protos/perfetto/trace/ps/process_stats.pbzero.h"
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
-#include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
 #include "protos/perfetto/trace/system_info.pbzero.h"
 #include "protos/perfetto/trace/system_info/cpu_info.pbzero.h"
+
+namespace {
+
+bool IsSupportedDiskStatDevice(const std::string& device_name) {
+  return device_name == "sda";  // Primary SCSI disk device name
+}
+
+}  // namespace
 
 namespace perfetto {
 namespace trace_processor {
@@ -146,6 +153,82 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       context->storage->InternString("mem.rss.watermark");
   proc_stats_process_names_[ProcessStats::Process::kOomScoreAdjFieldNumber] =
       oom_score_adj_id_;
+}
+
+void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
+  protos::pbzero::SysStats::DiskStat::Decoder ds(blob.data, blob.size);
+  static constexpr double SECTORS_PER_MB = 2048.0;
+  static constexpr double MS_PER_SEC = 1000.0;
+  std::string device_name = ds.device_name().ToStdString();
+  if (!IsSupportedDiskStatDevice(device_name)) {
+    return;
+  }
+
+  base::StackString<512> tag_prefix("diskstat.[%s]", device_name.c_str());
+  auto push_counter = [this, ts, tag_prefix](const char* counter_name,
+                                             double value) {
+    base::StackString<512> track_name("%s.%s", tag_prefix.c_str(),
+                                      counter_name);
+    StringId string_id = context_->storage->InternString(track_name.c_str());
+    TrackId track =
+        context_->track_tracker->InternGlobalCounterTrack(string_id);
+    context_->event_tracker->PushCounter(ts, value, track);
+  };
+
+  auto calculate_throughput = [](double amount, int64_t diff) {
+    return diff == 0 ? 0 : amount * MS_PER_SEC / static_cast<double>(diff);
+  };
+
+  int64_t cur_read_amount = static_cast<int64_t>(ds.read_sectors());
+  int64_t cur_write_amount = static_cast<int64_t>(ds.write_sectors());
+  int64_t cur_discard_amount = static_cast<int64_t>(ds.discard_sectors());
+  int64_t cur_flush_count = static_cast<int64_t>(ds.flush_count());
+  int64_t cur_read_time = static_cast<int64_t>(ds.read_time_ms());
+  int64_t cur_write_time = static_cast<int64_t>(ds.write_time_ms());
+  int64_t cur_discard_time = static_cast<int64_t>(ds.discard_time_ms());
+  int64_t cur_flush_time = static_cast<int64_t>(ds.flush_time_ms());
+
+  if (prev_read_amount != -1) {
+    double read_amount =
+        static_cast<double>(cur_read_amount - prev_read_amount) /
+        SECTORS_PER_MB;
+    double write_amount =
+        static_cast<double>(cur_write_amount - prev_write_amount) /
+        SECTORS_PER_MB;
+    double discard_amount =
+        static_cast<double>(cur_discard_amount - prev_discard_amount) /
+        SECTORS_PER_MB;
+    double flush_count =
+        static_cast<double>(cur_flush_count - prev_flush_count);
+    int64_t read_time_diff = cur_read_time - prev_read_time;
+    int64_t write_time_diff = cur_write_time - prev_write_time;
+    int64_t discard_time_diff = cur_discard_time - prev_discard_time;
+    double flush_time_diff =
+        static_cast<double>(cur_flush_time - prev_flush_time);
+
+    double read_thpt = calculate_throughput(read_amount, read_time_diff);
+    double write_thpt = calculate_throughput(write_amount, write_time_diff);
+    double discard_thpt =
+        calculate_throughput(discard_amount, discard_time_diff);
+
+    push_counter("read_amount(mg)", read_amount);
+    push_counter("read_throughput(mg/s)", read_thpt);
+    push_counter("write_amount(mg)", write_amount);
+    push_counter("write_throughput(mg/s)", write_thpt);
+    push_counter("discard_amount(mg)", discard_amount);
+    push_counter("discard_throughput(mg/s)", discard_thpt);
+    push_counter("flush_amount(count)", flush_count);
+    push_counter("flush_time(ms)", flush_time_diff);
+  }
+
+  prev_read_amount = cur_read_amount;
+  prev_write_amount = cur_write_amount;
+  prev_discard_amount = cur_discard_amount;
+  prev_flush_count = cur_flush_count;
+  prev_read_time = cur_read_time;
+  prev_write_time = cur_write_time;
+  prev_discard_time = cur_discard_time;
+  prev_flush_time = cur_flush_time;
 }
 
 void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
@@ -303,6 +386,10 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
                                            track);
       order++;
     }
+  }
+
+  for (auto it = sys_stats.disk_stat(); it; ++it) {
+    ParseDiskStats(ts, *it);
   }
 }
 
