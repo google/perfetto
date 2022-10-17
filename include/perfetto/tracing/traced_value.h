@@ -177,9 +177,9 @@ class PERFETTO_EXPORT_COMPONENT TracedValue {
   static TracedValue CreateFromProto(protos::pbzero::DebugAnnotation* proto,
                                      EventContext* event_context = nullptr);
 
-  inline explicit TracedValue(protos::pbzero::DebugAnnotation* annotation,
-                              EventContext* event_context,
-                              internal::CheckedScope* parent_scope)
+  inline TracedValue(protos::pbzero::DebugAnnotation* annotation,
+                     EventContext* event_context,
+                     internal::CheckedScope* parent_scope)
       : annotation_(annotation),
         event_context_(event_context),
         checked_scope_(parent_scope) {}
@@ -228,9 +228,9 @@ class PERFETTO_EXPORT_COMPONENT TracedArray {
  private:
   friend class TracedValue;
 
-  inline explicit TracedArray(protos::pbzero::DebugAnnotation* annotation,
-                              EventContext* event_context,
-                              internal::CheckedScope* parent_scope)
+  inline TracedArray(protos::pbzero::DebugAnnotation* annotation,
+                     EventContext* event_context,
+                     internal::CheckedScope* parent_scope)
       : annotation_(annotation),
         event_context_(event_context),
         checked_scope_(parent_scope) {}
@@ -286,7 +286,7 @@ class PERFETTO_EXPORT_COMPONENT TracedDictionary {
   // Create a |TracedDictionary| which will populate the given field of the
   // given |message|.
   template <typename MessageType, typename FieldMetadata>
-  inline explicit TracedDictionary(
+  inline TracedDictionary(
       MessageType* message,
       protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>,
       EventContext* event_context,
