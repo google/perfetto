@@ -59,7 +59,7 @@ class GlobalArgsTracker {
 
   struct ArgHasher {
     uint64_t operator()(const Arg& arg) const noexcept {
-      base::Hash hash;
+      base::Hasher hash;
       hash.Update(arg.key.raw_id());
       // We don't hash arg.flat_key because it's a subsequence of arg.key.
       switch (arg.value.type) {
@@ -117,7 +117,7 @@ class GlobalArgsTracker {
       valid_indexes.emplace_back(i);
     }
 
-    base::Hash hash;
+    base::Hasher hash;
     for (uint32_t i : valid_indexes) {
       hash.Update(ArgHasher()(args[i]));
     }

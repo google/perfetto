@@ -170,7 +170,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
         break;
       }
       UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
-      int64_t cookie = static_cast<int64_t>(base::Hash::Combine(id.c_str()));
+      int64_t cookie = static_cast<int64_t>(base::Hasher::Combine(id.c_str()));
       StringId scope = kNullStringId;
       TrackId track_id = context_->track_tracker->InternLegacyChromeAsyncTrack(
           name_id, upid, cookie, true /* source_id_is_process_scoped */, scope);

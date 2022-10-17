@@ -86,7 +86,7 @@ void VirtioVideoTracker::ParseVirtioVideoEvent(uint64_t fld_id,
     case FtraceEvent::kVirtioVideoResourceQueueFieldNumber: {
       VirtioVideoResourceQueueFtraceEvent::Decoder pb_evt(blob.data, blob.size);
 
-      uint64_t hash = base::Hash::Combine(
+      uint64_t hash = base::Hasher::Combine(
           pb_evt.stream_id(), pb_evt.resource_id(), pb_evt.queue_type());
 
       base::StackString<64> name("Resource #%" PRIu32, pb_evt.resource_id());
@@ -104,7 +104,7 @@ void VirtioVideoTracker::ParseVirtioVideoEvent(uint64_t fld_id,
       VirtioVideoResourceQueueDoneFtraceEvent::Decoder pb_evt(blob.data,
                                                               blob.size);
 
-      uint64_t hash = base::Hash::Combine(
+      uint64_t hash = base::Hasher::Combine(
           pb_evt.stream_id(), pb_evt.resource_id(), pb_evt.queue_type());
 
       TrackSetId track_set_id =
