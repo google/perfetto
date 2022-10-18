@@ -317,7 +317,7 @@ export const TraceInfoPage = createPage({
           cssClass: '.errors',
           subTitle:
               `These counters are collected at trace recording time. The trace
-               data for one or more data sources was droppped and hence some
+               data for one or more data sources was dropped and hence some
                track contents will be incomplete.`,
           sqlConstraints: `severity = 'data_loss' and value > 0`,
         }),
