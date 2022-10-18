@@ -1537,6 +1537,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:glob
+perfetto_filegroup(
+    name = "src_trace_processor_util_glob",
+    srcs = [
+        "src/trace_processor/util/glob.cc",
+        "src/trace_processor/util/glob.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:gzip
 perfetto_filegroup(
     name = "src_trace_processor_util_gzip",
@@ -4237,6 +4246,7 @@ perfetto_cc_library(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_profile_builder",
@@ -4364,6 +4374,7 @@ perfetto_cc_binary(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_profile_builder",
@@ -4546,6 +4557,7 @@ perfetto_cc_binary(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_types_types",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
         ":src_trace_processor_util_profile_builder",
