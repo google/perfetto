@@ -126,9 +126,9 @@ base::Status CreatedViewFunction::Init(int argc,
   if (ret != SQLITE_OK) {
     return base::ErrStatus(
         "%s: Failed to prepare SQL statement for function. "
-        "Check the SQL defintion this function for syntax errors. "
-        "(SQLite error: %s).",
-        prototype_.function_name.c_str(), sqlite3_errmsg(db_));
+        "Check the SQL defintion this function for syntax errors.\n%s",
+        prototype_.function_name.c_str(),
+        sqlite_utils::FormatErrorMessage(raw_stmt, db_, ret).c_message());
   }
 
   // Verify that every argument name in the function appears in the
@@ -349,7 +349,8 @@ int CreatedViewFunction::Cursor::Next() {
   if (ret != SQLITE_ROW && ret != SQLITE_DONE) {
     table_->SetErrorMessage(sqlite3_mprintf(
         "%s: SQLite error while stepping statement: %s",
-        table_->prototype_.function_name.c_str(), sqlite3_errmsg(table_->db_)));
+        table_->prototype_.function_name.c_str(),
+        sqlite_utils::FormatErrorMessage(stmt_, table_->db_, ret).c_message()));
     return ret;
   }
   return SQLITE_OK;
