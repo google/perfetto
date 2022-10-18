@@ -977,8 +977,11 @@ base::Status PrepareAndStepUntilLastValidStmt(
       // Now step once into |cur_stmt| so that when we prepare the next statment
       // we will have executed any dependent bytecode in this one.
       int err = sqlite3_step(*cur_stmt);
-      if (err != SQLITE_ROW && err != SQLITE_DONE)
-        return base::ErrStatus("%s (errcode: %d)", sqlite3_errmsg(db), err);
+      if (err != SQLITE_ROW && err != SQLITE_DONE) {
+        return base::ErrStatus(
+            "%s", sqlite_utils::FormatErrorMessage(prev_stmt.get(), db, err)
+                      .c_message());
+      }
     }
 
     // Increment the neecessary counts for the statement.
