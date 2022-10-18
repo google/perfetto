@@ -1457,6 +1457,7 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/sqlite3_str_split.h",
         "src/trace_processor/sqlite/sqlite_raw_table.cc",
         "src/trace_processor/sqlite/sqlite_raw_table.h",
+        "src/trace_processor/sqlite/sqlite_utils.cc",
         "src/trace_processor/sqlite/sqlite_utils.h",
         "src/trace_processor/sqlite/stats_table.cc",
         "src/trace_processor/sqlite/stats_table.h",

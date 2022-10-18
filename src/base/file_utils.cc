@@ -28,6 +28,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/platform_handle.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
 
@@ -35,6 +36,7 @@
 #include <Windows.h>
 #include <direct.h>
 #include <io.h>
+#include <stringapiset.h>
 #else
 #include <dirent.h>
 #include <unistd.h>
@@ -50,6 +52,26 @@ constexpr size_t kBufSize = 2048;
 int CloseFindHandle(HANDLE h) {
   return FindClose(h) ? 0 : -1;
 }
+
+Optional<std::wstring> ToUtf16(const std::string str) {
+  int len = MultiByteToWideChar(CP_UTF8, 0, str.data(),
+                                static_cast<int>(str.size()), nullptr, 0);
+  if (len < 0) {
+    return base::nullopt;
+  }
+  std::vector<wchar_t> tmp;
+  tmp.resize(static_cast<std::vector<wchar_t>::size_type>(len));
+  len =
+      MultiByteToWideChar(CP_UTF8, 0, str.data(), static_cast<int>(str.size()),
+                          tmp.data(), static_cast<int>(tmp.size()));
+  if (len < 0) {
+    return base::nullopt;
+  }
+  PERFETTO_CHECK(static_cast<std::vector<wchar_t>::size_type>(len) ==
+                 tmp.size());
+  return std::wstring(tmp.data(), tmp.size());
+}
+
 #endif
 
 }  // namespace
@@ -200,6 +222,23 @@ ScopedFile OpenFile(const std::string& path, int flags, FileOpenMode mode) {
   ScopedFile fd(open(path.c_str(), flags | O_CLOEXEC, mode));
 #endif
   return fd;
+}
+
+ScopedFstream OpenFstream(const char* path, const char* mode) {
+  ScopedFstream file;
+// On Windows fopen interprets filename using the ANSI or OEM codepage but
+// sqlite3_value_text returns a UTF-8 string. To make sure we interpret the
+// filename correctly we use _wfopen and a UTF-16 string on windows.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  auto w_path = ToUtf16(path);
+  auto w_mode = ToUtf16(mode);
+  if (w_path && w_mode) {
+    file.reset(_wfopen(w_path->c_str(), w_mode->c_str()));
+  }
+#else
+  file.reset(fopen(path, mode));
+#endif
+  return file;
 }
 
 bool FileExists(const std::string& path) {

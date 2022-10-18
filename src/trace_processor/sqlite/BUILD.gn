@@ -38,6 +38,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "sqlite3_str_split.h",
       "sqlite_raw_table.cc",
       "sqlite_raw_table.h",
+      "sqlite_utils.cc",
       "sqlite_utils.h",
       "stats_table.cc",
       "stats_table.h",
