@@ -127,6 +127,10 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   //
   // The flag has no impact on non-proto traces.
   bool analyze_trace_proto_content = false;
+
+  // When set to true, trace processor will be augmented with a bunch of helpful
+  // features for local development such as extra SQL fuctions.
+  bool enable_dev_features = false;
 };
 
 // Represents a dynamically typed value returned by SQL.
