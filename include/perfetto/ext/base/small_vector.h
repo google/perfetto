@@ -110,6 +110,15 @@ class SmallVector {
     return static_cast<size_t>(end_of_storage_ - begin_);
   }
 
+  T& front() {
+    PERFETTO_DCHECK(!empty());
+    return begin_[0];
+  }
+  const T& front() const {
+    PERFETTO_DCHECK(!empty());
+    return begin_[0];
+  }
+
   T& back() {
     PERFETTO_DCHECK(!empty());
     return end_[-1];
