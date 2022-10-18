@@ -371,12 +371,15 @@ export function genTraceConfig(
 
   if (uiCfg.taskScheduling) {
     chromeCategories.add('toplevel');
+    chromeCategories.add('toplevel.flow');
+    chromeCategories.add('scheduler');
     chromeCategories.add('sequence_manager');
     chromeCategories.add('disabled-by-default-toplevel.flow');
   }
 
   if (uiCfg.ipcFlows) {
     chromeCategories.add('toplevel');
+    chromeCategories.add('toplevel.flow');
     chromeCategories.add('disabled-by-default-ipc.flow');
     chromeCategories.add('mojom');
   }
