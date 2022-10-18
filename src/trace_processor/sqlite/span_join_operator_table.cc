@@ -748,7 +748,9 @@ util::Status SpanJoinOperatorTable::Query::Rewind() {
 
   cursor_eof_ = res != SQLITE_OK;
   if (res != SQLITE_OK)
-    return util::ErrStatus("%s", sqlite3_errmsg(db_));
+    return util::ErrStatus(
+        "%s",
+        sqlite_utils::FormatErrorMessage(stmt_.get(), db_, res).c_message());
 
   RETURN_IF_ERROR(CursorNext());
 
