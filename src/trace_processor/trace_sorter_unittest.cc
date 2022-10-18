@@ -21,6 +21,7 @@
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_blob.h"
+#include "src/trace_processor/parser_types.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
@@ -47,9 +48,9 @@ class MockTraceParser : public ProtoTraceParser {
 
   void ParseFtraceEvent(uint32_t cpu,
                         int64_t timestamp,
-                        FtraceEventData data) override {
-    MOCK_ParseFtracePacket(cpu, timestamp, data.event.data(),
-                           data.event.length());
+                        TracePacketData data) override {
+    MOCK_ParseFtracePacket(cpu, timestamp, data.packet.data(),
+                           data.packet.length());
   }
 
   MOCK_METHOD3(MOCK_ParseTracePacket,

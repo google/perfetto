@@ -55,7 +55,7 @@ std::string TracingMuxerFake::FakePlatform::GetCurrentProcessName() {
 
 bool TracingMuxerFake::RegisterDataSource(const DataSourceDescriptor&,
                                           DataSourceFactory,
-                                          bool,
+                                          DataSourceParams,
                                           DataSourceStaticState*) {
   FailUninitialized();
 }

@@ -29,17 +29,17 @@ SELECT CREATE_FUNCTION(
   -- Function : function takes scroll ids of frames to verify it's from
   -- the same scroll, and makes sure the frame ts occured within the scroll
   -- timestamp of the neighbour and computes whether the frame was janky or not.
-  'IsJankyFrame(cur_id LONG,next_id LONG,neighbour_ts LONG,' ||
-  'cur_begin_ts LONG,cur_gesture_end LONG,cur_frame_exact FLOAT,' ||
+  'IsJankyFrame(cur_gesture_id LONG,neighbour_gesture_id LONG,neighbour_ts LONG,' ||
+  'cur_gesture_begin_ts LONG,cur_gesture_end_ts LONG,cur_frame_exact FLOAT,' ||
   'neighbour_frame_exact FLOAT)',
   -- Returns true if the frame was janky, false otherwise
   'BOOL',
   'SELECT
     CASE WHEN
-      $cur_id != $next_id OR
+      $cur_gesture_id != $neighbour_gesture_id OR
       $neighbour_ts IS NULL OR
-      $neighbour_ts < $cur_begin_ts OR
-      $neighbour_ts > $cur_gesture_end THEN
+      $neighbour_ts < $cur_gesture_begin_ts OR
+      $neighbour_ts > $cur_gesture_end_ts THEN
         FALSE ELSE
         $cur_frame_exact > $neighbour_frame_exact + 0.5 + 1e-9
     END'

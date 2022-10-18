@@ -233,7 +233,8 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   }
 
   if (req.uri == "/enable_metatrace") {
-    trace_processor_rpc_.EnableMetatrace();
+    trace_processor_rpc_.EnableMetatrace(
+        reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
     return conn.SendResponse("200 OK", headers);
   }
 
