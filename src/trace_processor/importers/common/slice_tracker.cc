@@ -421,7 +421,7 @@ int64_t SliceTracker::GetStackHash(const SlicesStack& stack) {
 
   const auto& slices = context_->storage->slice_table();
 
-  base::Hash hash;
+  base::Hasher hash;
   for (size_t i = 0; i < stack.size(); i++) {
     auto ref = stack[i].row.ToRowReference(slices);
     hash.Update(ref.category().value_or(kNullStringId).raw_id());

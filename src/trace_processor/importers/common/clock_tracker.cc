@@ -50,7 +50,7 @@ uint32_t ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
 
   // Compute the fingerprint of the snapshot by hashing all clock ids. This is
   // used by the clock pathfinding logic.
-  base::Hash hasher;
+  base::Hasher hasher;
   for (const auto& clock : clocks)
     hasher.Update(clock.clock_id);
   const auto snapshot_hash = static_cast<SnapshotHash>(hasher.digest());

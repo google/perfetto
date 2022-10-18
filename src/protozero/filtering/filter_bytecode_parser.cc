@@ -56,7 +56,7 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* bytecode_data,
   if (packed_parse_err || words.empty())
     return false;
 
-  perfetto::base::Hash hasher;
+  perfetto::base::Hasher hasher;
   for (size_t i = 0; i < words.size() - 1; ++i)
     hasher.Update(words[i]);
 
