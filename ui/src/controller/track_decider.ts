@@ -280,20 +280,22 @@ class TrackDecider {
 
   async addGlobalAsyncTracks(): Promise<void> {
     const rawGlobalAsyncTracks = await this.engine.query(`
-    SELECT
-      t.name as name,
-      t.track_ids as trackIds,
-      MAX(experimental_slice_layout.layout_depth) as maxDepth
-    FROM (
-      SELECT name, GROUP_CONCAT(track.id) AS track_ids
-      FROM track
-      WHERE track.type = "track" or track.type = "gpu_track"
-      GROUP BY name
-    ) AS t CROSS JOIN experimental_slice_layout
-    WHERE t.track_ids = experimental_slice_layout.filter_track_ids
-    GROUP BY t.track_ids
-    ORDER BY t.name;
-  `);
+      with global_tracks as materialized (
+        select
+          name,
+          group_concat(track.id) as trackIds,
+          count(track.id) as trackCount
+        from track
+        where track.type = "track" or track.type = "gpu_track"
+        group by name
+      )
+      select
+        t.name as name,
+        t.trackIds as trackIds,
+        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+      from global_tracks AS t
+      order by t.name;
+    `);
     const it = rawGlobalAsyncTracks.iter({
       name: STR_NULL,
       trackIds: STR,
@@ -932,12 +934,14 @@ class TrackDecider {
 
   async addProcessAsyncSliceTracks(): Promise<void> {
     const result = await this.engine.query(`
+      with process_async_tracks as materialized (
         select
           process_track.upid as upid,
           process_track.name as trackName,
-          group_concat(process_track.id) as trackIds,
           process.name as processName,
-          process.pid as pid
+          process.pid as pid,
+          group_concat(process_track.id) as trackIds,
+          count(1) as trackCount
         from process_track
         left join process using(upid)
         where
@@ -946,7 +950,12 @@ class TrackDecider {
         group by
           process_track.upid,
           process_track.name
-  `);
+      )
+      select
+        t.*,
+        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+      from process_async_tracks t;
+    `);
 
     const it = result.iter({
       upid: NUM,
@@ -954,6 +963,7 @@ class TrackDecider {
       trackIds: STR,
       processName: STR_NULL,
       pid: NUM_NULL,
+      maxDepth: NUM,
     });
     for (; it.valid(); it.next()) {
       const upid = it.upid;
@@ -962,15 +972,9 @@ class TrackDecider {
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
       const processName = it.processName;
       const pid = it.pid;
+      const maxDepth = it.maxDepth;
 
       const uuid = this.getUuid(0, upid);
-
-      // TODO(hjd): 1+N queries are bad in the track_decider
-      const depthResult = await this.engine.query(`
-      SELECT IFNULL(MAX(layout_depth), 0) as depth
-      FROM experimental_slice_layout('${rawTrackIds}');
-    `);
-      const maxDepth = depthResult.firstRow({depth: NUM}).depth;
 
       const kind = ASYNC_SLICE_TRACK_KIND;
       const name = TrackDecider.getTrackName(
@@ -991,23 +995,25 @@ class TrackDecider {
 
   async addActualFramesTracks(): Promise<void> {
     const result = await this.engine.query(`
+      with process_async_tracks as materialized (
         select
-          upid,
-          trackName,
-          trackIds,
+          process_track.upid as upid,
+          process_track.name as trackName,
           process.name as processName,
-          process.pid as pid
-        from (
-          select
-            process_track.upid as upid,
-            process_track.name as trackName,
-            group_concat(process_track.id) as trackIds
-          from process_track
-          where process_track.name like "Actual Timeline"
-          group by
-            process_track.upid,
-            process_track.name
-        ) left join process using(upid)
+          process.pid as pid,
+          group_concat(process_track.id) as trackIds,
+          count(1) as trackCount
+        from process_track
+        left join process using(upid)
+        where process_track.name = "Actual Timeline"
+        group by
+          process_track.upid,
+          process_track.name
+      )
+      select
+        t.*,
+        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+      from process_async_tracks t;
   `);
 
     const it = result.iter({
@@ -1016,6 +1022,7 @@ class TrackDecider {
       trackIds: STR,
       processName: STR_NULL,
       pid: NUM_NULL,
+      maxDepth: NUM,
     });
     for (; it.valid(); it.next()) {
       const upid = it.upid;
@@ -1024,15 +1031,9 @@ class TrackDecider {
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
       const processName = it.processName;
       const pid = it.pid;
+      const maxDepth = it.maxDepth;
 
       const uuid = this.getUuid(0, upid);
-
-      // TODO(hjd): 1+N queries are bad in the track_decider
-      const depthResult = await this.engine.query(`
-      SELECT IFNULL(MAX(layout_depth), 0) as depth
-      FROM experimental_slice_layout('${rawTrackIds}');
-    `);
-      const maxDepth = depthResult.firstRow({depth: NUM}).depth;
 
       const kind = ACTUAL_FRAMES_SLICE_TRACK_KIND;
       const name = TrackDecider.getTrackName(
@@ -1053,23 +1054,25 @@ class TrackDecider {
 
   async addExpectedFramesTracks(): Promise<void> {
     const result = await this.engine.query(`
+      with process_async_tracks as materialized (
         select
-          upid,
-          trackName,
-          trackIds,
+          process_track.upid as upid,
+          process_track.name as trackName,
           process.name as processName,
-          process.pid as pid
-        from (
-          select
-            process_track.upid as upid,
-            process_track.name as trackName,
-            group_concat(process_track.id) as trackIds
-          from process_track
-          where process_track.name like "Expected Timeline"
-          group by
-            process_track.upid,
-            process_track.name
-        ) left join process using(upid)
+          process.pid as pid,
+          group_concat(process_track.id) as trackIds,
+          count(1) as trackCount
+        from process_track
+        left join process using(upid)
+        where process_track.name = "Expected Timeline"
+        group by
+          process_track.upid,
+          process_track.name
+      )
+      select
+        t.*,
+        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+      from process_async_tracks t;
   `);
 
     const it = result.iter({
@@ -1078,6 +1081,7 @@ class TrackDecider {
       trackIds: STR,
       processName: STR_NULL,
       pid: NUM_NULL,
+      maxDepth: NUM,
     });
 
     for (; it.valid(); it.next()) {
@@ -1087,15 +1091,9 @@ class TrackDecider {
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
       const processName = it.processName;
       const pid = it.pid;
+      const maxDepth = it.maxDepth;
 
       const uuid = this.getUuid(0, upid);
-
-      // TODO(hjd): 1+N queries are bad in the track_decider
-      const depthResult = await this.engine.query(`
-      SELECT IFNULL(MAX(layout_depth), 0) as depth
-      FROM experimental_slice_layout('${rawTrackIds}');
-    `);
-      const maxDepth = depthResult.firstRow({depth: NUM}).depth;
 
       const kind = EXPECTED_FRAMES_SLICE_TRACK_KIND;
       const name = TrackDecider.getTrackName(
@@ -1403,7 +1401,14 @@ class TrackDecider {
       thread.tid as tid,
       process.name as processName,
       thread.name as threadName,
-      process.arg_set_id as argSetId,
+      ifnull((
+        select group_concat(string_value)
+        from args
+        where
+          process.arg_set_id is not null and
+          arg_set_id = process.arg_set_id and
+          flat_key = 'chrome.process_label'
+      ), '') AS chromeProcessLabels,
       (case process.name
          when 'Browser' then 3
          when 'Gpu' then 2
@@ -1502,7 +1507,7 @@ class TrackDecider {
       processName: STR_NULL,
       hasSched: NUM_NULL,
       hasHeapProfiles: NUM_NULL,
-      argSetId: NUM_NULL,
+      chromeProcessLabels: STR,
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
@@ -1513,22 +1518,6 @@ class TrackDecider {
       const processName = it.processName;
       const hasSched = !!it.hasSched;
       const hasHeapProfiles = !!it.hasHeapProfiles;
-
-      const labels = [];
-      if (it.argSetId !== null) {
-        const result = await this.engine.query(`
-          select string_value as label
-          from args
-          where arg_set_id = ${it.argSetId}
-          and flat_key = 'chrome.process_label'
-        `);
-        const argIt = result.iter({label: STR_NULL});
-        for (; argIt.valid(); argIt.next()) {
-          if (argIt.label !== null) {
-            labels.push(argIt.label);
-          }
-        }
-      }
 
       // Group by upid if present else by utid.
       let pUuid =
@@ -1551,7 +1540,7 @@ class TrackDecider {
               PrimaryTrackSortKey.PROCESS_SUMMARY_TRACK,
           name: `${upid === null ? tid : pid} summary`,
           config: {pidForColor, upid, utid, tid},
-          labels,
+          labels: it.chromeProcessLabels.split(','),
         });
 
         const name = TrackDecider.getTrackName(
@@ -1599,11 +1588,37 @@ class TrackDecider {
     return threadOrderingMetadata;
   }
 
+  private async defineMaxLayoutDepthSqlFunction(): Promise<void> {
+    await this.engine.query(`
+      select create_function(
+        'max_layout_depth(track_count INT, track_ids STRING)',
+        'INT',
+        '
+          select ifnull(iif(
+            $track_count = 1,
+            (
+              select max(depth)
+              from slice
+              where track_id = cast($track_ids AS int)
+            ),
+            (
+              select max(layout_depth)
+              from experimental_slice_layout("$track_ids")
+            )
+          ), 0);
+        '
+      );
+    `);
+  }
+
   async decideTracks(): Promise<DeferredAction[]> {
     // Add first the global tracks that don't require per-process track groups.
     if (NULL_TRACKS_FLAG.get()) {
       await this.addNullTracks();
     }
+
+    await this.defineMaxLayoutDepthSqlFunction();
+
     await this.addCpuSchedulingTracks();
     await this.addCpuFreqTracks();
     await this.addGlobalAsyncTracks();
@@ -1616,8 +1631,7 @@ class TrackDecider {
         F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
     await this.groupGlobalF2fsIostatTracks(
         F2FS_IOSTAT_LAT_TAG, F2FS_IOSTAT_LAT_GROUP_NAME);
-    await this.groupGlobalUfsCmdTagTracks(
-        UFS_CMD_TAG, UFS_CMD_TAG_GROUP_NAME);
+    await this.groupGlobalUfsCmdTagTracks(UFS_CMD_TAG, UFS_CMD_TAG_GROUP_NAME);
     await this.groupGlobalBuddyInfoTracks();
     await this.groupKernelWakelockTracks();
 
