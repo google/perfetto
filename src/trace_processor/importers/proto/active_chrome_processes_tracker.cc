@@ -74,7 +74,7 @@ ActiveChromeProcessesTracker::GetProcessesWithDataLoss() const {
 void ActiveChromeProcessesTracker::NotifyEndOfFile() {
   const auto processes = GetProcessesWithDataLoss();
   for (const auto& p : processes) {
-    tables::ExperimentalMissingChromeProcessesTable::Row row;
+    tables::ExpMissingChromeProcTable::Row row;
     row.upid = p.upid;
     row.reliable_from = p.reliable_from;
     context_->storage->mutable_experimental_missing_chrome_processes_table()
