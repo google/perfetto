@@ -172,7 +172,8 @@ test('ChromeConfig', () => {
 
   const expectedTraceConfig = '{"record_mode":"record-until-full",' +
       '"included_categories":' +
-      '["toplevel","disabled-by-default-ipc.flow","mojom","v8"],' +
+      '["toplevel","toplevel.flow","disabled-by-default-ipc.flow",' +
+      '"mojom","v8"],' +
       '"excluded_categories":["*"],' +
       '"memory_dump_config":{}}';
   expect(traceConfig).toEqual(expectedTraceConfig);
@@ -353,7 +354,8 @@ test('ChromeConfigRingBuffer', () => {
 
   const expectedTraceConfig = '{"record_mode":"record-continuously",' +
       '"included_categories":' +
-      '["toplevel","disabled-by-default-ipc.flow","mojom","v8"],' +
+      '["toplevel","toplevel.flow","disabled-by-default-ipc.flow",' +
+      '"mojom","v8"],' +
       '"excluded_categories":["*"],"memory_dump_config":{}}';
   expect(traceConfig).toEqual(expectedTraceConfig);
   expect(traceConfigT).toEqual(expectedTraceConfig);
@@ -386,7 +388,8 @@ test('ChromeConfigLongTrace', () => {
 
   const expectedTraceConfig = '{"record_mode":"record-continuously",' +
       '"included_categories":' +
-      '["toplevel","disabled-by-default-ipc.flow","mojom","v8"],' +
+      '["toplevel","toplevel.flow","disabled-by-default-ipc.flow",' +
+      '"mojom","v8"],' +
       '"excluded_categories":["*"],"memory_dump_config":{}}';
   expect(traceConfig).toEqual(expectedTraceConfig);
   expect(traceConfigT).toEqual(expectedTraceConfig);
