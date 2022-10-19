@@ -47,9 +47,9 @@ base::Optional<FilterOp> SqliteOpToFilterOp(int sqlite_op) {
       return FilterOp::kIsNull;
     case SQLITE_INDEX_CONSTRAINT_ISNOTNULL:
       return FilterOp::kIsNotNull;
-    case SQLITE_INDEX_CONSTRAINT_LIKE:
     case SQLITE_INDEX_CONSTRAINT_GLOB:
-      return base::nullopt;
+      return FilterOp::kGlob;
+    case SQLITE_INDEX_CONSTRAINT_LIKE:
     // TODO(lalitm): start supporting these constraints.
     case SQLITE_INDEX_CONSTRAINT_LIMIT:
     case SQLITE_INDEX_CONSTRAINT_OFFSET:
@@ -528,6 +528,9 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
               break;
             case FilterOp::kIsNotNull:
               writer.AppendString("IS NOT");
+              break;
+            case FilterOp::kGlob:
+              writer.AppendString("GLOB");
               break;
           }
           writer.AppendChar(' ');
