@@ -222,8 +222,8 @@ def download_or_get_cached(file_name, url, sha256):
   """ Downloads a prebuilt or returns a cached version
 
   The first time this is invoked, it downloads the |url| and caches it into
-  ~/.perfetto/prebuilts/$tool_name. On subsequent invocations it just runs the
-  cached version.
+  ~/.local/share/perfetto/prebuilts/$tool_name. On subsequent invocations it
+  just runs the cached version.
   """
   dir = os.path.join(
       os.path.expanduser('~'), '.local', 'share', 'perfetto', 'prebuilts')
