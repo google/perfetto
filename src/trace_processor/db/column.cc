@@ -18,6 +18,7 @@
 
 #include "src/trace_processor/db/compare.h"
 #include "src/trace_processor/db/table.h"
+#include "src/trace_processor/util/glob.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -277,6 +278,9 @@ void Column::FilterIntoNumericWithComparatorSlow(FilterOp op,
         return cmp(storage<T>().Get(idx)) >= 0;
       });
       break;
+    case FilterOp::kGlob:
+      rm->Clear();
+      break;
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
       PERFETTO_FATAL("Should be handled above");
@@ -347,6 +351,14 @@ void Column::FilterIntoStringSlow(FilterOp op,
         return v.data() != nullptr && compare::String(v, str_value) >= 0;
       });
       break;
+    case FilterOp::kGlob: {
+      util::GlobMatcher matcher = util::GlobMatcher::FromPattern(str_value);
+      overlay().FilterInto(rm, [this, &matcher](uint32_t idx) {
+        auto v = GetStringPoolStringAtIdx(idx);
+        return v.data() != nullptr && matcher.Matches(v);
+      });
+      break;
+    }
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
       PERFETTO_FATAL("Should be handled above");
@@ -401,6 +413,9 @@ void Column::FilterIntoIdSlow(FilterOp op, SqlValue value, RowMap* rm) const {
       overlay().FilterInto(rm, [id_value](uint32_t idx) {
         return compare::Numeric(idx, id_value) >= 0;
       });
+      break;
+    case FilterOp::kGlob:
+      rm->Clear();
       break;
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
