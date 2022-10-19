@@ -103,6 +103,7 @@ PERFETTO_DEFINE_CATEGORIES(
     perfetto::Category("network")
         .SetDescription("Network upload and download statistics"));
 
+PERFETTO_TRACK_EVENT_STATIC_STORAGE();
 ...
 
 int main(int argc, char** argv) {
