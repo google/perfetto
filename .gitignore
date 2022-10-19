@@ -31,3 +31,6 @@ perf.data*
 TAGS
 /*.pftrace
 examples/sdk/build/
+GPATH
+GRTAGS
+GTAGS
