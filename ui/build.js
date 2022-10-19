@@ -349,7 +349,10 @@ function compileProtos() {
     'protos/perfetto/trace/trace_packet.proto',
     'protos/perfetto/trace_processor/trace_processor.proto',
   ];
+  // Can't put --no-comments here - The comments are load bearing for
+  // the pbts invocation which follows.
   const pbjsArgs = [
+    '--no-beautify',
     '--force-number',
     '-t',
     'static-module',
@@ -361,7 +364,7 @@ function compileProtos() {
     dstJs,
   ].concat(inputs);
   addTask(execNode, ['pbjs', pbjsArgs]);
-  const pbtsArgs = ['-p', ROOT_DIR, '-o', dstTs, dstJs];
+  const pbtsArgs = ['--no-comments', '-p', ROOT_DIR, '-o', dstTs, dstJs];
   addTask(execNode, ['pbts', pbtsArgs]);
 }
 
