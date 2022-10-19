@@ -342,9 +342,9 @@ export class RecordingPageController {
     assertTrue(
         RecordingState.NO_TARGET <= this.state &&
         this.state < RecordingState.RECORDING);
-    // If the selected target is the same as the previous one, we don't need to
-    // do anything.
-    if (selectedTarget === this.target) {
+    // If the selected target exists and is the same as the previous one, we
+    // don't need to do anything.
+    if (selectedTarget && selectedTarget === this.target) {
       return;
     }
 
@@ -383,9 +383,7 @@ export class RecordingPageController {
         RecordingState.NO_TARGET <= this.state &&
         this.state < RecordingState.RECORDING);
     const allTargets = targetFactoryRegistry.listTargets();
-    this.selectTarget(
-        allTargets.find((t) => t.getInfo().name === targetName) ||
-        allTargets[0]);
+    this.selectTarget(allTargets.find((t) => t.getInfo().name === targetName));
   }
 
   onStartRecordingPressed(): void {
@@ -468,7 +466,7 @@ export class RecordingPageController {
   }
 
   shouldShowTargetSelection(): boolean {
-    return RecordingState.NO_TARGET < this.state &&
+    return RecordingState.NO_TARGET <= this.state &&
         this.state < RecordingState.RECORDING;
   }
 
@@ -479,11 +477,15 @@ export class RecordingPageController {
 
   private onTargetChange() {
     const allTargets = targetFactoryRegistry.listTargets();
+    // If the change happens for an existing target, the controller keeps the
+    // currently selected target in focus.
     if (this.target && allTargets.includes(this.target)) {
       globals.rafScheduler.scheduleFullRedraw();
       return;
     }
-    this.selectTarget(allTargets[0]);
+    // If the change happens to a new target or the controller does not have a
+    // defined target, the selection process again is run again.
+    this.selectTarget();
   }
 
   private createTracingSessionWrapper(target: RecordingTargetV2):
