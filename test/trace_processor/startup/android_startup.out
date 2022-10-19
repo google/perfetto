@@ -11,6 +11,8 @@ android_startup {
         runnable_dur_ns: 80
         uninterruptible_sleep_dur_ns: 0
         interruptible_sleep_dur_ns: 10
+        uninterruptible_io_sleep_dur_ns: 0
+        uninterruptible_non_io_sleep_dur_ns: 0
       }
       other_processes_spawned_count: 1
       time_activity_manager {
@@ -57,6 +59,8 @@ android_startup {
       broadcast_received_count: 0
       most_active_non_launch_processes: "init"
       most_active_non_launch_processes: "com.google.android.calendar"
+      installd_dur_ns: 0
+      dex2oat_dur_ns: 0
     }
     startup_type: "warm"
   }

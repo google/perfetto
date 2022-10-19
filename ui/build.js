@@ -335,13 +335,16 @@ function compileProtos() {
   const dstJs = pjoin(cfg.outGenDir, 'protos.js');
   const dstTs = pjoin(cfg.outGenDir, 'protos.d.ts');
   const inputs = [
-    'protos/perfetto/trace_processor/trace_processor.proto',
     'protos/perfetto/common/trace_stats.proto',
     'protos/perfetto/common/tracing_service_capabilities.proto',
     'protos/perfetto/config/perfetto_config.proto',
     'protos/perfetto/ipc/consumer_port.proto',
     'protos/perfetto/ipc/wire_protocol.proto',
     'protos/perfetto/metrics/metrics.proto',
+    'protos/perfetto/trace/perfetto/perfetto_metatrace.proto',
+    'protos/perfetto/trace/trace.proto',
+    'protos/perfetto/trace/trace_packet.proto',
+    'protos/perfetto/trace_processor/trace_processor.proto',
   ];
   const pbjsArgs = [
     '--force-number',

@@ -79,7 +79,7 @@ std::string FilterBytecodeGenerator::Serialize() {
   PERFETTO_CHECK(endmessage_called_);
   PERFETTO_CHECK(max_msg_index_ < num_messages_);
   protozero::PackedVarInt words;
-  perfetto::base::Hash hasher;
+  perfetto::base::Hasher hasher;
   for (uint32_t word : bytecode_) {
     words.Append(word);
     hasher.Update(word);

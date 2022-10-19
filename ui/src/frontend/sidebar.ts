@@ -21,6 +21,11 @@ import {TRACE_SUFFIX} from '../common/constants';
 import {ConversionJobStatus} from '../common/conversion_jobs';
 import {Engine} from '../common/engine';
 import {featureFlags} from '../common/feature_flags';
+import {
+  disableMetatracingAndGetTrace,
+  enableMetatracing,
+  isMetatracingEnabled,
+} from '../common/metatracing';
 import {EngineMode, TraceArrayBufferSource} from '../common/state';
 import * as version from '../gen/perfetto_version';
 
@@ -628,7 +633,11 @@ function downloadTrace(e: Event) {
     fileName = url.split('/').slice(-1)[0];
   } else if (src.type === 'ARRAY_BUFFER') {
     const blob = new Blob([src.buffer], {type: 'application/octet-stream'});
-    if (src.fileName) {
+    const inputFileName =
+        window.prompt('Please enter a name for your file or leave blank');
+    if (inputFileName) {
+      fileName = `${inputFileName}.perfetto_trace.gz`;
+    } else if (src.fileName) {
       fileName = src.fileName;
     }
     url = URL.createObjectURL(blob);
@@ -683,6 +692,7 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
           text: 'YES, record metatrace',
           primary: true,
           action: () => {
+            enableMetatracing();
             engine.enableMetatrace();
           },
         },
@@ -700,6 +710,8 @@ async function finaliseMetatrace(e: Event) {
   e.preventDefault();
   globals.logging.logEvent('Trace Actions', 'Finalise metatrace');
 
+  const jsEvents = disableMetatracingAndGetTrace();
+
   const engine = getCurrentEngine();
   if (!engine) return;
 
@@ -708,7 +720,8 @@ async function finaliseMetatrace(e: Event) {
     throw new Error(`Failed to read metatrace: ${result.error}`);
   }
 
-  const blob = new Blob([result.metatrace], {type: 'application/octet-stream'});
+  const blob = new Blob(
+      [result.metatrace, jsEvents], {type: 'application/octet-stream'});
   const url = URL.createObjectURL(blob);
 
   downloadUrl(url, 'metatrace');
@@ -901,14 +914,12 @@ export class Sidebar implements m.ClassComponent {
           continue;
         }
         if (item.checkMetatracingEnabled || item.checkMetatracingDisabled) {
-          const engine = getCurrentEngine();
-          if (!engine) continue;
           if (item.checkMetatracingEnabled === true &&
-              !engine.isMetatracingEnabled()) {
+              !isMetatracingEnabled()) {
             continue;
           }
           if (item.checkMetatracingDisabled === true &&
-              engine.isMetatracingEnabled()) {
+              isMetatracingEnabled()) {
             continue;
           }
           if (item.checkMetatracingDisabled &&

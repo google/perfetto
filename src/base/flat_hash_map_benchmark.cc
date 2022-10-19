@@ -116,7 +116,7 @@ std::vector<uint64_t> LoadTraceStrings(benchmark::State& state) {
   }
   char line[4096];
   while (fgets(line, sizeof(line), *f)) {
-    base::Hash hasher;
+    base::Hasher hasher;
     hasher.Update(line, strlen(line));
     str_hashes.emplace_back(hasher.digest());
   }

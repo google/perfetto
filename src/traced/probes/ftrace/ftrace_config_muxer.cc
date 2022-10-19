@@ -670,7 +670,11 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
   if (request.enable_function_graph()) {
     if (!current_state_.funcgraph_on && !ftrace_->ClearFunctionFilters())
       return 0;
+    if (!current_state_.funcgraph_on && !ftrace_->ClearFunctionGraphFilters())
+      return 0;
     if (!ftrace_->AppendFunctionFilters(request.function_filters()))
+      return 0;
+    if (!ftrace_->AppendFunctionGraphFilters(request.function_graph_roots()))
       return 0;
     if (!current_state_.funcgraph_on &&
         !ftrace_->SetCurrentTracer("function_graph")) {
@@ -685,14 +689,27 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
   auto compact_sched =
       CreateCompactSchedConfig(request, table_->compact_sched_format());
 
+  base::Optional<FtracePrintFilterConfig> ftrace_print_filter;
+  if (request.has_print_filter()) {
+    ftrace_print_filter =
+        FtracePrintFilterConfig::Create(request.print_filter(), table_);
+    if (!ftrace_print_filter.has_value()) {
+      if (errors) {
+        errors->failed_ftrace_events.push_back(
+            "ftrace/print (unexpected format for filtering)");
+      }
+    }
+  }
+
   std::vector<std::string> apps(request.atrace_apps());
   std::vector<std::string> categories(request.atrace_categories());
   FtraceConfigId id = ++last_id_;
   ds_configs_.emplace(
       std::piecewise_construct, std::forward_as_tuple(id),
       std::forward_as_tuple(std::move(filter), std::move(syscall_filter),
-                            compact_sched, std::move(apps),
-                            std::move(categories), request.symbolize_ksyms()));
+                            compact_sched, std::move(ftrace_print_filter),
+                            std::move(apps), std::move(categories),
+                            request.symbolize_ksyms()));
   return id;
 }
 
@@ -811,8 +828,15 @@ bool FtraceConfigMuxer::ResetCurrentTracer() {
     PERFETTO_PLOG("Failed to reset current_tracer to nop");
     return false;
   }
-  ftrace_->ClearFunctionFilters();
   current_state_.funcgraph_on = false;
+  if (!ftrace_->ClearFunctionFilters()) {
+    PERFETTO_PLOG("Failed to reset set_ftrace_filter.");
+    return false;
+  }
+  if (!ftrace_->ClearFunctionGraphFilters()) {
+    PERFETTO_PLOG("Failed to reset set_function_graph.");
+    return false;
+  }
   return true;
 }
 

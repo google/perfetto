@@ -28,19 +28,34 @@ namespace base {
 // The token returned in output are valid as long as the input string is valid.
 class StringSplitter {
  public:
+  // Whether an empty string (two delimiters side-to-side) is a valid token.
+  enum class EmptyTokenMode {
+    DISALLOW_EMPTY_TOKENS,
+    ALLOW_EMPTY_TOKENS,
+
+    DEFAULT = DISALLOW_EMPTY_TOKENS,
+  };
+
   // Can take ownership of the string if passed via std::move(), e.g.:
   // StringSplitter(std::move(str), '\n');
-  StringSplitter(std::string, char delimiter);
+  StringSplitter(std::string,
+                 char delimiter,
+                 EmptyTokenMode empty_token_mode = EmptyTokenMode::DEFAULT);
 
   // Splits a C-string. The input string will be forcefully null-terminated (so
   // str[size - 1] should be == '\0' or the last char will be truncated).
-  StringSplitter(char* str, size_t size, char delimiter);
+  StringSplitter(char* str,
+                 size_t size,
+                 char delimiter,
+                 EmptyTokenMode empty_token_mode = EmptyTokenMode::DEFAULT);
 
   // Splits the current token from an outer StringSplitter instance. This is to
   // chain splitters as follows:
   // for (base::StringSplitter lines(x, '\n'); ss.Next();)
   //   for (base::StringSplitter words(&lines, ' '); words.Next();)
-  StringSplitter(StringSplitter*, char delimiter);
+  StringSplitter(StringSplitter*,
+                 char delimiter,
+                 EmptyTokenMode empty_token_mode = EmptyTokenMode::DEFAULT);
 
   // Returns true if a token is found (in which case it will be stored in
   // cur_token()), false if no more tokens are found.
@@ -66,6 +81,7 @@ class StringSplitter {
   char* next_;
   char* end_;  // STL-style, points one past the last char.
   const char delimiter_;
+  const EmptyTokenMode empty_token_mode_;
 };
 
 }  // namespace base

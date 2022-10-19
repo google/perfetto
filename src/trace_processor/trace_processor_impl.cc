@@ -23,6 +23,8 @@
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/trace_processor/demangle.h"
@@ -51,6 +53,7 @@
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/sqlite/create_function.h"
+#include "src/trace_processor/sqlite/create_function_internal.h"
 #include "src/trace_processor/sqlite/create_view_function.h"
 #include "src/trace_processor/sqlite/pprof_functions.h"
 #include "src/trace_processor/sqlite/register_function.h"
@@ -68,6 +71,8 @@
 #include "src/trace_processor/util/protozero_to_text.h"
 #include "src/trace_processor/util/status_macros.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -327,10 +332,10 @@ base::Status ExportJson::Run(TraceStorage* storage,
                              sqlite3_value** argv,
                              SqlValue& /*out*/,
                              Destructors&) {
-  FILE* output;
+  base::ScopedFstream output;
   if (sqlite3_value_type(argv[0]) == SQLITE_INTEGER) {
     // Assume input is an FD.
-    output = fdopen(sqlite3_value_int(argv[0]), "w");
+    output.reset(fdopen(sqlite3_value_int(argv[0]), "w"));
     if (!output) {
       return base::ErrStatus(
           "EXPORT_JSON: Couldn't open output file from given FD");
@@ -338,12 +343,12 @@ base::Status ExportJson::Run(TraceStorage* storage,
   } else {
     const char* filename =
         reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
-    output = fopen(filename, "w");
+    output = base::OpenFstream(filename, "w");
     if (!output) {
       return base::ErrStatus("EXPORT_JSON: Couldn't open output file");
     }
   }
-  return json::ExportJson(storage, output);
+  return json::ExportJson(storage, output.get());
 }
 
 struct Hash : public SqlFunction {
@@ -359,7 +364,7 @@ base::Status Hash::Run(void*,
                        sqlite3_value** argv,
                        SqlValue& out,
                        Destructors&) {
-  base::Hash hash;
+  base::Hasher hash;
   for (size_t i = 0; i < argc; ++i) {
     sqlite3_value* value = argv[i];
     int type = sqlite3_value_type(value);
@@ -447,6 +452,61 @@ base::Status Demangle::Run(void*,
   destructors.string_destructor = free;
   out = SqlValue::String(demangled.release());
   return base::OkStatus();
+}
+
+struct WriteFile : public SqlFunction {
+  using Context = TraceStorage;
+  static base::Status Run(TraceStorage* storage,
+                          size_t,
+                          sqlite3_value** argv,
+                          SqlValue&,
+                          Destructors&);
+};
+
+base::Status WriteFile::Run(TraceStorage*,
+                            size_t argc,
+                            sqlite3_value** argv,
+                            SqlValue& out,
+                            Destructors&) {
+  if (argc != 2) {
+    return base::ErrStatus("WRITE_FILE: expected %d args but got %zu", 2, argc);
+  }
+
+  base::Status status = TypeCheckSqliteValue(argv[0], SqlValue::kString);
+  if (!status.ok()) {
+    return base::ErrStatus("WRITE_FILE: argument 1, filename; %s",
+                           status.c_message());
+  }
+
+  status = TypeCheckSqliteValue(argv[1], SqlValue::kBytes);
+  if (!status.ok()) {
+    return base::ErrStatus("WRITE_FILE: argument 2, content; %s",
+                           status.c_message());
+  }
+
+  const std::string filename =
+      reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+
+  base::ScopedFstream file = base::OpenFstream(filename.c_str(), "wb");
+  if (!file) {
+    return base::ErrStatus("WRITE_FILE: Couldn't open output file %s (%s)",
+                           filename.c_str(), strerror(errno));
+  }
+
+  int int_len = sqlite3_value_bytes(argv[1]);
+  PERFETTO_CHECK(int_len >= 0);
+  size_t len = (static_cast<size_t>(int_len));
+  // Make sure to call last as sqlite3_value_bytes can invalidate pointer
+  // returned.
+  const void* data = sqlite3_value_text(argv[1]);
+  if (fwrite(data, 1, len, file.get()) != len || fflush(file.get()) != 0) {
+    return base::ErrStatus("WRITE_FILE: Failed to write to file %s (%s)",
+                           filename.c_str(), strerror(errno));
+  }
+
+  out = SqlValue::Long(int_len);
+
+  return util::OkStatus();
 }
 
 void LastNonNullStep(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
@@ -879,7 +939,7 @@ base::Status PrepareAndStepUntilLastValidStmt(
   for (const char* rem_sql = sql.c_str(); rem_sql && rem_sql[0];) {
     ScopedStmt cur_stmt;
     {
-      PERFETTO_TP_TRACE("QUERY_PREPARE");
+      PERFETTO_TP_TRACE(metatrace::Category::QUERY, "QUERY_PREPARE");
       const char* tail = nullptr;
       RETURN_IF_ERROR(sqlite_utils::PrepareStmt(db, rem_sql, &cur_stmt, &tail));
       rem_sql = tail;
@@ -895,28 +955,33 @@ base::Status PrepareAndStepUntilLastValidStmt(
     // the previous statement so we don't have two clashing statements (e.g.
     // SELECT * FROM v and DROP VIEW v) partially stepped into.
     if (prev_stmt) {
-      PERFETTO_TP_TRACE(
-          "STMT_STEP_UNTIL_DONE", [&prev_stmt](metatrace::Record* record) {
-            auto expanded_sql = sqlite_utils::ExpandedSqlForStmt(*prev_stmt);
-            record->AddArg("SQL", expanded_sql.get());
-          });
+      PERFETTO_TP_TRACE(metatrace::Category::QUERY, "STMT_STEP_UNTIL_DONE",
+                        [&prev_stmt](metatrace::Record* record) {
+                          auto expanded_sql =
+                              sqlite_utils::ExpandedSqlForStmt(*prev_stmt);
+                          record->AddArg("SQL", expanded_sql.get());
+                        });
       RETURN_IF_ERROR(sqlite_utils::StepStmtUntilDone(prev_stmt.get()));
     }
 
     PERFETTO_DLOG("Executing statement: %s", sqlite3_sql(*cur_stmt));
 
     {
-      PERFETTO_TP_TRACE(
-          "STMT_FIRST_STEP", [&cur_stmt](metatrace::Record* record) {
-            auto expanded_sql = sqlite_utils::ExpandedSqlForStmt(*cur_stmt);
-            record->AddArg("SQL", expanded_sql.get());
-          });
+      PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "STMT_FIRST_STEP",
+                        [&cur_stmt](metatrace::Record* record) {
+                          auto expanded_sql =
+                              sqlite_utils::ExpandedSqlForStmt(*cur_stmt);
+                          record->AddArg("SQL", expanded_sql.get());
+                        });
 
       // Now step once into |cur_stmt| so that when we prepare the next statment
       // we will have executed any dependent bytecode in this one.
       int err = sqlite3_step(*cur_stmt);
-      if (err != SQLITE_ROW && err != SQLITE_DONE)
-        return base::ErrStatus("%s (errcode: %d)", sqlite3_errmsg(db), err);
+      if (err != SQLITE_ROW && err != SQLITE_DONE) {
+        return base::ErrStatus(
+            "%s", sqlite_utils::FormatErrorMessage(prev_stmt.get(), db, err)
+                      .c_message());
+      }
     }
 
     // Increment the neecessary counts for the statement.
@@ -962,6 +1027,11 @@ const char* TraceTypeToString(TraceType trace_type) {
   PERFETTO_FATAL("For GCC");
 }
 
+// Register SQL functions only used in local development instances.
+void RegisterDevFunctions(sqlite3* db) {
+  RegisterFunction<WriteFile>(db, "WRITE_FILE", 2);
+}
+
 }  // namespace
 
 template <typename View>
@@ -999,6 +1069,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   db_.reset(std::move(db));
 
   // New style function registration.
+  if (cfg.enable_dev_features) {
+    RegisterDevFunctions(db);
+  }
   RegisterFunction<Glob>(db, "glob", 2);
   RegisterFunction<Hash>(db, "HASH", -1);
   RegisterFunction<Base64Encode>(db, "BASE64_ENCODE", 1);
@@ -1270,7 +1343,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
 }
 
 Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
-  PERFETTO_TP_TRACE("QUERY_EXECUTE");
+  PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "QUERY_EXECUTE");
 
   uint32_t sql_stats_row =
       context_.storage->mutable_sql_stats()->RecordQueryBegin(
@@ -1431,13 +1504,56 @@ std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
   return pool_.SerializeAsDescriptorSet();
 }
 
-void TraceProcessorImpl::EnableMetatrace() {
-  metatrace::Enable();
+namespace {
+
+using ProtoEnum = protos::pbzero::MetatraceCategories;
+ProtoEnum MetatraceCategoriesToProtoEnum(
+    TraceProcessor::MetatraceCategories categories) {
+  switch (categories) {
+    case TraceProcessor::TOPLEVEL:
+      return ProtoEnum::TOPLEVEL;
+    case TraceProcessor::FUNCTION:
+      return ProtoEnum::FUNCTION;
+    case TraceProcessor::QUERY:
+      return ProtoEnum::QUERY;
+    case TraceProcessor::ALL:
+      return ProtoEnum::ALL;
+    case TraceProcessor::NONE:
+      return ProtoEnum::NONE;
+  }
+  return ProtoEnum::NONE;
+}
+
+}  // namespace
+
+void TraceProcessorImpl::EnableMetatrace(MetatraceConfig config) {
+  metatrace::Enable(MetatraceCategoriesToProtoEnum(config.categories));
 }
 
 base::Status TraceProcessorImpl::DisableAndReadMetatrace(
     std::vector<uint8_t>* trace_proto) {
   protozero::HeapBuffered<protos::pbzero::Trace> trace;
+
+  {
+    uint64_t realtime_timestamp = static_cast<uint64_t>(
+        std::chrono::system_clock::now().time_since_epoch() /
+        std::chrono::nanoseconds(1));
+    uint64_t boottime_timestamp = metatrace::TraceTimeNowNs();
+    auto* clock_snapshot = trace->add_packet()->set_clock_snapshot();
+    {
+      auto* realtime_clock = clock_snapshot->add_clocks();
+      realtime_clock->set_clock_id(
+          protos::pbzero::BuiltinClock::BUILTIN_CLOCK_REALTIME);
+      realtime_clock->set_timestamp(realtime_timestamp);
+    }
+    {
+      auto* boottime_clock = clock_snapshot->add_clocks();
+      boottime_clock->set_clock_id(
+          protos::pbzero::BuiltinClock::BUILTIN_CLOCK_BOOTTIME);
+      boottime_clock->set_timestamp(boottime_timestamp);
+    }
+  }
+
   metatrace::DisableAndReadBuffer([&trace](metatrace::Record* record) {
     auto packet = trace->add_packet();
     packet->set_timestamp(record->timestamp_ns);
@@ -1449,7 +1565,9 @@ base::Status TraceProcessorImpl::DisableAndReadMetatrace(
     if (record->args_buffer_size == 0)
       return;
 
-    base::StringSplitter s(record->args_buffer, record->args_buffer_size, '\0');
+    base::StringSplitter s(
+        record->args_buffer, record->args_buffer_size, '\0',
+        base::StringSplitter::EmptyTokenMode::ALLOW_EMPTY_TOKENS);
     for (; s.Next();) {
       auto* arg_proto = evt->add_args();
       arg_proto->set_key(s.cur_token());

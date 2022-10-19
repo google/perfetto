@@ -39,7 +39,7 @@ class FtraceParser {
 
   util::Status ParseFtraceEvent(uint32_t cpu,
                                 int64_t ts,
-                                const FtraceEventData& data);
+                                const TracePacketData& data);
   util::Status ParseInlineSchedSwitch(uint32_t cpu,
                                       int64_t ts,
                                       const InlineSchedSwitch& data);
@@ -143,6 +143,13 @@ class FtraceParser {
   void ParseDirectReclaimEnd(int64_t timestamp,
                              uint32_t pid,
                              protozero::ConstBytes);
+  void ParseShrinkSlabStart(int64_t timestamp,
+                            uint32_t pid,
+                            protozero::ConstBytes,
+                            PacketSequenceStateGeneration* seq_state);
+  void ParseShrinkSlabEnd(int64_t timestamp,
+                          uint32_t pid,
+                          protozero::ConstBytes);
   void ParseWorkqueueExecuteStart(uint32_t cpu,
                                   int64_t timestamp,
                                   uint32_t pid,
@@ -263,6 +270,11 @@ class FtraceParser {
   const StringId cros_ec_arg_sample_ts_id_;
   const StringId ufs_clkgating_id_;
   const StringId ufs_command_count_id_;
+  const StringId shrink_slab_id_;
+  const StringId shrink_name_id_;
+  const StringId shrink_total_scan_id_;
+  const StringId shrink_freed_id_;
+  const StringId shrink_priority_id_;
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).

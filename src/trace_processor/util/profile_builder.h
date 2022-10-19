@@ -122,7 +122,7 @@ class GProfileBuilder {
   struct AnnotatedFrameId {
     struct Hash {
       size_t operator()(const AnnotatedFrameId& id) const {
-        return static_cast<size_t>(perfetto::base::Hash::Combine(
+        return static_cast<size_t>(perfetto::base::Hasher::Combine(
             id.frame_id.value, static_cast<int>(id.annotation)));
       }
     };
@@ -151,7 +151,7 @@ class GProfileBuilder {
   struct Location {
     struct Hash {
       size_t operator()(const Location& loc) const {
-        perfetto::base::Hash hasher;
+        perfetto::base::Hasher hasher;
         hasher.UpdateAll(loc.mapping_id, loc.rel_pc, loc.lines.size());
         for (const auto& line : loc.lines) {
           hasher.UpdateAll(line.function_id, line.line);
@@ -178,7 +178,7 @@ class GProfileBuilder {
   struct MappingKey {
     struct Hash {
       size_t operator()(const MappingKey& mapping) const {
-        perfetto::base::Hash hasher;
+        perfetto::base::Hasher hasher;
         hasher.UpdateAll(mapping.size, mapping.file_offset,
                          mapping.build_id_or_filename);
         return static_cast<size_t>(hasher.digest());
@@ -235,7 +235,7 @@ class GProfileBuilder {
   struct Function {
     struct Hash {
       size_t operator()(const Function& func) const {
-        return static_cast<size_t>(perfetto::base::Hash::Combine(
+        return static_cast<size_t>(perfetto::base::Hasher::Combine(
             func.name, func.system_name, func.filename));
       }
     };

@@ -19,6 +19,12 @@
 namespace perfetto {
 namespace trace_processor {
 
+void ActiveChromeProcessesTracker::AddActiveProcessMetadata(int64_t timestamp,
+                                                            UniquePid upid) {
+  process_data_[upid].metadata_timestamps.insert(timestamp);
+  global_metadata_timestamps_.insert(timestamp);
+}
+
 std::vector<ProcessWithDataLoss>
 ActiveChromeProcessesTracker::GetProcessesWithDataLoss() const {
   std::vector<ProcessWithDataLoss> processes_with_data_loss;
@@ -46,8 +52,16 @@ ActiveChromeProcessesTracker::GetProcessesWithDataLoss() const {
         // There's no matching descriptor, and there're no descriptors in the
         // future.
         last_loss_moment = metadata_ts;
-        next_no_loss_moment = base::nullopt;
-        break;
+        auto global_metadata_it =
+            global_metadata_timestamps_.upper_bound(metadata_ts);
+        if (global_metadata_it != global_metadata_timestamps_.end()) {
+          // The process terminated before the next incremental state reset.
+          // So it has no data loss from the next reset until the end of the
+          // trace.
+          next_no_loss_moment = *global_metadata_it;
+        } else {
+          next_no_loss_moment = base::nullopt;
+        }
       }
     }
     if (last_loss_moment) {
@@ -60,7 +74,7 @@ ActiveChromeProcessesTracker::GetProcessesWithDataLoss() const {
 void ActiveChromeProcessesTracker::NotifyEndOfFile() {
   const auto processes = GetProcessesWithDataLoss();
   for (const auto& p : processes) {
-    tables::ExperimentalMissingChromeProcessesTable::Row row;
+    tables::ExpMissingChromeProcTable::Row row;
     row.upid = p.upid;
     row.reliable_from = p.reliable_from;
     context_->storage->mutable_experimental_missing_chrome_processes_table()

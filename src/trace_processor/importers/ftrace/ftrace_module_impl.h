@@ -23,6 +23,7 @@
 #include "src/trace_processor/importers/ftrace/ftrace_parser.h"
 #include "src/trace_processor/importers/ftrace/ftrace_tokenizer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/parser_types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -47,7 +48,7 @@ class FtraceModuleImpl : public FtraceModule {
 
   void ParseFtraceEventData(uint32_t cpu,
                             int64_t ts,
-                            const FtraceEventData& data) override {
+                            const TracePacketData& data) override {
     util::Status res = parser_.ParseFtraceEvent(cpu, ts, data);
     if (!res.ok()) {
       PERFETTO_ELOG("%s", res.message().c_str());

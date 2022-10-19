@@ -364,6 +364,17 @@ l1w1 l1w2 l1w3
                                             "w", "1", "l", "2", "w", "2"}));
 }  // namespace
 
+TEST(StringSplitterTest, EmptyTokens) {
+  char text[] = "a,,b";
+  std::vector<std::string> tokens;
+  for (StringSplitter lines(text, sizeof(text), ',',
+                            StringSplitter::EmptyTokenMode::ALLOW_EMPTY_TOKENS);
+       lines.Next();) {
+    tokens.push_back(lines.cur_token());
+  }
+  EXPECT_THAT(tokens, testing::ElementsAre("a", "", "b"));
+}  // namespace
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto

@@ -11,6 +11,8 @@ android_startup {
         runnable_dur_ns: 5000000000
         uninterruptible_sleep_dur_ns: 0
         interruptible_sleep_dur_ns: 0
+        uninterruptible_io_sleep_dur_ns: 0
+        uninterruptible_non_io_sleep_dur_ns: 0
       }
       other_processes_spawned_count: 0
       time_activity_manager {
@@ -71,19 +73,14 @@ android_startup {
     }
     activities {
       name: "com.google.android.calendar.MainActivity"
-      method: "performResume"
-      ts_method_start: 102000000000
-    }
-    activities {
-      name: "com.google.android.calendar.MainActivity"
       method: "performCreate"
       ts_method_start: 188000000000
     }
     optimization_status {
       odex_status: "up-to-date"
       compilation_filter: "speed"
-      compilation_reason: "prebuilt"
-      location: "/system/framework/oat/arm/com.android.location.provider.odex"
+      compilation_reason: "install-dm"
+      location: "/system/framework/oat/arm/com.google.android.calendar.odex"
     }
     optimization_status {
       odex_status: "io-error-no-oat"
@@ -102,11 +99,14 @@ android_startup {
       broadcast_received_count: 0
       most_active_non_launch_processes: "init"
       most_active_non_launch_processes: "system_server"
+      installd_dur_ns: 0
+      dex2oat_dur_ns: 0
     }
     slow_start_reason: "Main Thread - Time spent in Running state"
     slow_start_reason: "Main Thread - Time spent in Runnable state"
     slow_start_reason: "Time spent in bindApplication"
     slow_start_reason: "Time spent in ResourcesManager#getResources"
+    slow_start_reason: "No baseline or cloud profiles"
     startup_type: "cold"
   }
 }

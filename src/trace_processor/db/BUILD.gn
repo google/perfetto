@@ -36,6 +36,7 @@ source_set("db") {
     "../../../include/perfetto/ext/base",
     "../../../include/perfetto/trace_processor",
     "../containers",
+    "../util:glob",
   ]
 }
 

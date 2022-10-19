@@ -233,5 +233,28 @@ size_t SprintfTrunc(char* dst, size_t dst_size, const char* fmt, ...) {
   return res;
 }
 
+base::Optional<LineWithOffset> FindLineWithOffset(base::StringView str,
+                                                  uint32_t offset) {
+  static constexpr char kNewLine = '\n';
+  uint32_t line_offset = 0;
+  uint32_t line_count = 1;
+  for (uint32_t i = 0; i < str.size(); ++i) {
+    if (str.at(i) == kNewLine) {
+      line_offset = i + 1;
+      line_count++;
+      continue;
+    }
+    if (i == offset) {
+      size_t end_offset = str.find(kNewLine, i);
+      if (end_offset == std::string::npos) {
+        end_offset = str.size();
+      }
+      base::StringView line = str.substr(line_offset, end_offset - line_offset);
+      return LineWithOffset{line, offset - line_offset, line_count};
+    }
+  }
+  return base::nullopt;
+}
+
 }  // namespace base
 }  // namespace perfetto

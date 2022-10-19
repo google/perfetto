@@ -1424,7 +1424,7 @@ void TracingServiceImpl::ActivateTriggers(
   for (const auto& trigger_name : triggers) {
     PERFETTO_DLOG("Received ActivateTriggers request for \"%s\"",
                   trigger_name.c_str());
-    base::Hash hash;
+    base::Hasher hash;
     hash.Update(trigger_name.c_str(), trigger_name.size());
     std::string triggered_session_name;
     base::Uuid triggered_session_uuid;

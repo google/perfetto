@@ -115,7 +115,7 @@ struct Location {
 template <>
 struct std::hash<Function> {
   size_t operator()(const Function& loc) const {
-    perfetto::base::Hash hasher;
+    perfetto::base::Hasher hasher;
     hasher.Update(loc.name_id.raw_id());
     hasher.Update(loc.system_name_id.raw_id());
     hasher.Update(loc.filename_id.raw_id());
@@ -126,7 +126,7 @@ struct std::hash<Function> {
 template <>
 struct std::hash<Location> {
   size_t operator()(const Location& loc) const {
-    perfetto::base::Hash hasher;
+    perfetto::base::Hasher hasher;
     hasher.Update(loc.mapping_id);
     hasher.Update(loc.single_function_id);
     for (auto line : loc.inlined_functions) {

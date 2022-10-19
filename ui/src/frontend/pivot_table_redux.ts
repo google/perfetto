@@ -23,7 +23,6 @@ import {ColumnType} from '../common/query_result';
 import {
   Area,
   PivotTableReduxAreaState,
-  PivotTableReduxQuery,
   PivotTableReduxResult,
   SortDirection,
 } from '../common/state';
@@ -41,7 +40,6 @@ import {
   aggregationIndex,
   areaFilter,
   extractArgumentExpression,
-  generateQuery,
   sliceAggregationColumns,
   tables,
 } from './pivot_table_redux_query_generator';
@@ -114,15 +112,6 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
   }
 
   renderCanvas(): void {}
-
-  generateQuery(attrs: PivotTableReduxAttrs): PivotTableReduxQuery {
-    return generateQuery(
-        this.pivotState.selectedPivots,
-        this.pivotState.selectedSlicePivots,
-        this.selectedAggregations,
-        globals.state.areas[attrs.selectionArea.areaId],
-        this.constrainToArea);
-  }
 
   renderDrillDownCell(area: Area, filters: DrillFilter[]) {
     return m(

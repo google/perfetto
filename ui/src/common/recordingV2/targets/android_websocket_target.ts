@@ -33,9 +33,8 @@ export class AndroidWebsocketTarget extends AndroidTarget {
       targetType: 'ANDROID',
       // 'androidApiLevel' will be populated after ADB authorization.
       androidApiLevel: this.androidApiLevel,
-      dataSources: [],
+      dataSources: this.dataSources || [],
       name: this.serialNumber + ' WebSocket',
-      isVirtual: false,
     };
   }
 }

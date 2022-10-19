@@ -22,6 +22,7 @@
 #include <map>
 
 #include "perfetto/base/logging.h"
+#include "src/trace_processor/tp_metatrace.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -75,6 +76,36 @@ std::string OpToDebugString(int op) {
   }
 }
 
+void ConstraintsToString(const QueryConstraints& qc,
+                         const SqliteTable::Schema& schema,
+                         std::string& out) {
+  bool is_first = true;
+  for (const auto& cs : qc.constraints()) {
+    if (!is_first) {
+      out.append(",");
+    }
+    out.append(schema.columns()[static_cast<size_t>(cs.column)].name());
+    out.append(" ");
+    out.append(OpToDebugString(cs.op));
+    is_first = false;
+  }
+}
+
+void OrderByToString(const QueryConstraints& qc,
+                     const SqliteTable::Schema& schema,
+                     std::string& out) {
+  bool is_first = true;
+  for (const auto& ob : qc.order_by()) {
+    if (!is_first) {
+      out.append(",");
+    }
+    out.append(schema.columns()[static_cast<size_t>(ob.iColumn)].name());
+    out.append(" ");
+    out.append(std::to_string(ob.desc));
+    is_first = false;
+  }
+}
+
 std::string QcDebugStr(const QueryConstraints& qc,
                        const SqliteTable::Schema& schema) {
   std::string str_result;
@@ -83,29 +114,33 @@ std::string QcDebugStr(const QueryConstraints& qc,
   str_result.append("C");
   str_result.append(std::to_string(qc.constraints().size()));
   str_result.append(",");
-  for (const auto& cs : qc.constraints()) {
-    str_result.append(schema.columns()[static_cast<size_t>(cs.column)].name());
-    str_result.append(" ");
-    str_result.append(OpToDebugString(cs.op));
-    str_result.append(",");
-  }
-  str_result.back() = ';';
+  ConstraintsToString(qc, schema, str_result);
+  str_result.append(";");
 
   str_result.append("O");
   str_result.append(std::to_string(qc.order_by().size()));
   str_result.append(",");
-  for (const auto& ob : qc.order_by()) {
-    str_result.append(schema.columns()[static_cast<size_t>(ob.iColumn)].name());
-    str_result.append(" ");
-    str_result.append(std::to_string(ob.desc));
-    str_result.append(",");
-  }
-  str_result.back() = ';';
+  OrderByToString(qc, schema, str_result);
+  str_result.append(";");
 
   str_result.append("U");
   str_result.append(std::to_string(qc.cols_used()));
 
   return str_result;
+}
+
+void WriteQueryConstraintsToMetatrace(metatrace::Record* r,
+                                      const QueryConstraints& qc,
+                                      const SqliteTable::Schema& schema) {
+  r->AddArg("constraint_count", std::to_string(qc.constraints().size()));
+  std::string constraints;
+  ConstraintsToString(qc, schema, constraints);
+  r->AddArg("constraints", constraints);
+  r->AddArg("order_by_count", std::to_string(qc.order_by().size()));
+  std::string order_by;
+  OrderByToString(qc, schema, order_by);
+  r->AddArg("order_by", order_by);
+  r->AddArg("columns_used", std::to_string(qc.cols_used()));
 }
 
 }  // namespace
@@ -171,6 +206,17 @@ int SqliteTable::BestIndexInternal(sqlite3_index_info* idx) {
     u.argvIndex = static_cast<int>(i) + 1;
   }
 
+  PERFETTO_TP_TRACE(
+      metatrace::Category::QUERY, "SQLITE_TABLE_BEST_INDEX",
+      [&](metatrace::Record* r) {
+        r->AddArg("name", name_);
+        WriteQueryConstraintsToMetatrace(r, qc, schema());
+        r->AddArg("order_by_consumed", std::to_string(idx->orderByConsumed));
+        r->AddArg("estimated_cost", std::to_string(idx->estimatedCost));
+        r->AddArg("estimated_rows",
+                  std::to_string(static_cast<int64_t>(idx->estimatedRows)));
+      });
+
   auto out_qc_str = qc.ToNewSqlite3String();
   if (SqliteTable::debug) {
     PERFETTO_LOG(
@@ -206,6 +252,14 @@ bool SqliteTable::ReadConstraints(int idxNum, const char* idxStr, int argc) {
     qc_hash_ = idxNum;
     cache_hit = false;
   }
+
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY, "SQLITE_TABLE_READ_CONSTRAINTS",
+                    [&](metatrace::Record* r) {
+                      r->AddArg("cache_hit", std::to_string(cache_hit));
+                      r->AddArg("name", name_);
+                      WriteQueryConstraintsToMetatrace(r, qc_cache_, schema_);
+                      r->AddArg("argc", std::to_string(argc));
+                    });
 
   // Logging this every ReadConstraints just leads to log spam on joins making
   // it unusable. Instead, only print this out when we miss the cache (which

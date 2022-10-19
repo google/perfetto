@@ -19,9 +19,14 @@
 
 #include <math.h>
 #include <sqlite3.h>
+#include <cstddef>
+#include <cstring>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
@@ -132,6 +137,44 @@ inline void ReportSqlValue(
   }
 }
 
+inline ScopedSqliteString ExpandedSqlForStmt(sqlite3_stmt* stmt) {
+  return ScopedSqliteString(sqlite3_expanded_sql(stmt));
+}
+
+inline base::Status FormatErrorMessage(base::StringView sql,
+                                       sqlite3* db,
+                                       int error_code) {
+  uint32_t offset = static_cast<uint32_t>(sqlite3_error_offset(db));
+
+  auto error_opt = FindLineWithOffset(sql, offset);
+
+  if (!error_opt.has_value()) {
+    return base::ErrStatus("Error: %s (errcode: %d)", sqlite3_errmsg(db),
+                           error_code);
+  }
+
+  auto error = error_opt.value();
+
+  return base::ErrStatus(
+      "Error in line:%u, col: %u.\n"
+      "%s\n"
+      "%s^\n"
+      "%s (errcode: %d)",
+      error.line_num, error.line_offset + 1, error.line.ToStdString().c_str(),
+      std::string(error.line_offset, ' ').c_str(), sqlite3_errmsg(db),
+      error_code);
+}
+
+inline base::Status FormatErrorMessage(sqlite3_stmt* stmt,
+                                       sqlite3* db,
+                                       int error_code) {
+  PERFETTO_CHECK(stmt);
+  auto sql = ExpandedSqlForStmt(stmt);
+  PERFETTO_CHECK(sql);
+  base::Status error_msg_status = FormatErrorMessage(sql.get(), db, error_code);
+  return error_msg_status;
+}
+
 inline base::Status PrepareStmt(sqlite3* db,
                                 const char* sql,
                                 ScopedStmt* stmt,
@@ -140,12 +183,8 @@ inline base::Status PrepareStmt(sqlite3* db,
   int err = sqlite3_prepare_v2(db, sql, -1, &raw_stmt, tail);
   stmt->reset(raw_stmt);
   if (err != SQLITE_OK)
-    return base::ErrStatus("%s (errcode: %d)", sqlite3_errmsg(db), err);
+    return base::ErrStatus("%s", FormatErrorMessage(sql, db, err).c_message());
   return base::OkStatus();
-}
-
-inline ScopedSqliteString ExpandedSqlForStmt(sqlite3_stmt* stmt) {
-  return ScopedSqliteString(sqlite3_expanded_sql(stmt));
 }
 
 inline bool IsStmtDone(sqlite3_stmt* stmt) {
@@ -162,8 +201,8 @@ inline base::Status StepStmtUntilDone(sqlite3_stmt* stmt) {
   for (err = sqlite3_step(stmt); err == SQLITE_ROW; err = sqlite3_step(stmt)) {
   }
   if (err != SQLITE_DONE) {
-    return base::ErrStatus("%s (errcode: %d)",
-                           sqlite3_errmsg(sqlite3_db_handle(stmt)), err);
+    auto db = sqlite3_db_handle(stmt);
+    return base::ErrStatus("%s", FormatErrorMessage(stmt, db, err).c_message());
   }
   return base::OkStatus();
 }
@@ -232,6 +271,10 @@ inline base::Status GetColumnsForTable(
   }
   return base::OkStatus();
 }
+
+// Reads a `SQLITE_TEXT` value and returns it as a wstring (UTF-16) in the
+// default byte order. `value` must be a `SQLITE_TEXT`.
+std::wstring SqliteValueToWString(sqlite3_value* value);
 
 }  // namespace sqlite_utils
 }  // namespace trace_processor

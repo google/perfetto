@@ -110,8 +110,9 @@ export class TracedTracingSession implements TracingSession {
   constructor(
       private byteStream: ByteStream,
       private tracingSessionListener: TracingSessionListener) {
-    this.byteStream.addOnStreamData((data) => this.handleReceivedData(data));
-    this.byteStream.addOnStreamClose(() => this.clearState());
+    this.byteStream.addOnStreamDataCallback(
+        (data) => this.handleReceivedData(data));
+    this.byteStream.addOnStreamCloseCallback(() => this.clearState());
   }
 
   queryServiceState(): Promise<DataSource[]> {

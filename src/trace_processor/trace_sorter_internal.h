@@ -76,7 +76,7 @@ struct TrackEventDataDescriptor {
   }
 
   static uint64_t CountNumberOfCounterValues(const TrackEventData& ted) {
-    size_t num = 0;
+    uint32_t num = 0;
     for (; num < TrackEventData::kMaxNumExtraCounters; ++num) {
       if (std::equal_to<double>()(ted.extra_counter_values[num], 0)) {
         break;
@@ -130,7 +130,9 @@ class TypedMemoryAccessor {
     return AppendUnchecked(ptr, std::move(value));
   }
   static T Evict(char* ptr) { return EvictUnchecked<T>(&ptr); }
-  static size_t AppendSize(const T&) { return sizeof(T); }
+  static uint64_t AppendSize(const T&) {
+    return static_cast<uint64_t>(sizeof(T));
+  }
 };
 
 // Responsibe for accessing memory in the queue related to TrackEventData.
@@ -151,7 +153,7 @@ class TypedMemoryAccessor<TrackEventData> {
     if (ted_desc.HasThreadInstructionCount()) {
       ptr = AppendUnchecked(ptr, ted.thread_instruction_count.value());
     }
-    for (size_t i = 0; i < ted_desc.NumberOfCounterValues(); i++) {
+    for (uint32_t i = 0; i < ted_desc.NumberOfCounterValues(); i++) {
       ptr = AppendUnchecked(ptr, ted.extra_counter_values[i]);
     }
     return ptr;
@@ -167,15 +169,15 @@ class TypedMemoryAccessor<TrackEventData> {
     if (ted_desc.HasThreadInstructionCount()) {
       ted.thread_instruction_count = EvictUnchecked<int64_t>(&ptr);
     }
-    for (size_t i = 0; i < ted_desc.NumberOfCounterValues(); i++) {
+    for (uint32_t i = 0; i < ted_desc.NumberOfCounterValues(); i++) {
       ted.extra_counter_values[i] = EvictUnchecked<double>(&ptr);
     }
     return ted;
   }
 
-  static size_t AppendSize(const TrackEventData& value) {
-    return sizeof(TrackEventDataDescriptor) +
-           static_cast<size_t>(TrackEventDataDescriptor(value).AppendedSize());
+  static uint64_t AppendSize(const TrackEventData& value) {
+    return static_cast<uint64_t>(sizeof(TrackEventDataDescriptor)) +
+           TrackEventDataDescriptor(value).AppendedSize();
   }
 };
 

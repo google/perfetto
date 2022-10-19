@@ -91,7 +91,7 @@ class TraceProcessorImpl : public TraceProcessor,
   std::string GetCurrentTraceName() override;
   void SetCurrentTraceName(const std::string&) override;
 
-  void EnableMetatrace() override;
+  void EnableMetatrace(MetatraceConfig config) override;
 
   base::Status DisableAndReadMetatrace(
       std::vector<uint8_t>* trace_proto) override;

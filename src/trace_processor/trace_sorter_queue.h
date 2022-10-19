@@ -56,7 +56,7 @@ class VariadicQueue {
   uint32_t Append(T value) {
     PERFETTO_DCHECK(!mem_blocks_.empty());
 
-    size_t size = Block::AppendSize<T>(value);
+    uint64_t size = Block::AppendSize<T>(value);
     if (PERFETTO_UNLIKELY(!mem_blocks_.back().HasSpace(size))) {
       mem_blocks_.emplace_back(Block(block_size_));
     }
@@ -102,7 +102,7 @@ class VariadicQueue {
           storage_(
               base::AlignedAllocTyped<uint64_t>(size_ / sizeof(uint64_t))) {}
 
-    bool HasSpace(size_t size) const { return size <= size_ - offset_; }
+    bool HasSpace(uint64_t size) const { return size <= size_ - offset_; }
 
     template <typename T>
     uint32_t Append(T value) {
@@ -132,9 +132,9 @@ class VariadicQueue {
       PERFETTO_DCHECK(offset % 8 == 0);
 
       char* ptr = reinterpret_cast<char*>(storage_.get()) + offset;
-      size_t size = 0;
+      uint64_t size = 0;
 #if PERFETTO_DCHECK_IS_ON()
-      size = EvictUnchecked<size_t>(&ptr);
+      size = EvictUnchecked<uint64_t>(&ptr);
 #endif
       T value = TypedMemoryAccessor<T>::Evict(ptr);
       PERFETTO_DCHECK(size == TypedMemoryAccessor<T>::AppendSize(value));
@@ -143,12 +143,12 @@ class VariadicQueue {
     }
 
     template <typename T>
-    static size_t AppendSize(const T& value) {
+    static uint64_t AppendSize(const T& value) {
 #if PERFETTO_DCHECK_IS_ON()
       // On debug runs for each append of T we also append the sizeof(T) to the
       // queue for sanity check, which we later evict and compare with object
       // size. This value needs to be added to general size of an object.
-      return sizeof(size_t) + TypedMemoryAccessor<T>::AppendSize(value);
+      return sizeof(uint64_t) + TypedMemoryAccessor<T>::AppendSize(value);
 #else
       return TypedMemoryAccessor<T>::AppendSize(value);
 #endif

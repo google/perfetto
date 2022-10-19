@@ -54,7 +54,7 @@ void LegacyTraceId::Write(protos::pbzero::TrackEvent::LegacyEvent* event,
                                       legacy::kTraceEventFlagHasGlobalId);
   uint64_t id = raw_id_;
   if (scope_ && scope_flags != legacy::kTraceEventFlagHasGlobalId) {
-    id = base::Hash::Combine(id, scope_);
+    id = base::Hasher::Combine(id, scope_);
   }
 
   switch (scope_flags) {

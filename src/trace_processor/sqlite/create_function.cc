@@ -71,16 +71,18 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
     }
   }
 
-  PERFETTO_TP_TRACE("CREATE_FUNCTION", [ctx, argv](metatrace::Record* r) {
-    r->AddArg("Function", ctx->prototype.function_name.c_str());
-    for (uint32_t i = 0; i < ctx->prototype.arguments.size(); ++i) {
-      std::string key = "Arg " + std::to_string(i);
-      const char* value =
-          reinterpret_cast<const char*>(sqlite3_value_text(argv[i]));
-      r->AddArg(base::StringView(key),
-                value ? base::StringView(value) : base::StringView("NULL"));
-    }
-  });
+  PERFETTO_TP_TRACE(
+      metatrace::Category::FUNCTION, "CREATE_FUNCTION",
+      [ctx, argv](metatrace::Record* r) {
+        r->AddArg("Function", ctx->prototype.function_name.c_str());
+        for (uint32_t i = 0; i < ctx->prototype.arguments.size(); ++i) {
+          std::string key = "Arg " + std::to_string(i);
+          const char* value =
+              reinterpret_cast<const char*>(sqlite3_value_text(argv[i]));
+          r->AddArg(base::StringView(key),
+                    value ? base::StringView(value) : base::StringView("NULL"));
+        }
+      });
 
   // Bind all the arguments to the appropriate places in the function.
   for (size_t i = 0; i < argc; ++i) {
@@ -142,7 +144,7 @@ void CreatedFunction::Cleanup(CreatedFunction::Context* ctx) {
 
 size_t CreateFunction::NameAndArgc::Hasher::operator()(
     const NameAndArgc& s) const noexcept {
-  base::Hash hash;
+  base::Hasher hash;
   hash.Update(s.name.data(), s.name.size());
   hash.Update(s.argc);
   return static_cast<size_t>(hash.digest());
@@ -255,9 +257,9 @@ base::Status CreateFunction::Run(CreateFunction::Context* ctx,
   if (ret != SQLITE_OK) {
     return base::ErrStatus(
         "CREATE_FUNCTION[prototype=%s]: SQLite error when preparing "
-        "statement "
-        "%s",
-        prototype_str.ToStdString().c_str(), sqlite3_errmsg(ctx->db));
+        "statement %s",
+        prototype_str.ToStdString().c_str(),
+        sqlite_utils::FormatErrorMessage(stmt_raw, ctx->db, ret).c_message());
   }
   stmt.reset(stmt_raw);
 

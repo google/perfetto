@@ -24,9 +24,7 @@ SELECT CREATE_FUNCTION('STARTUP_SLICE_PROTO(dur INT)', 'PROTO', '
 
 -- View containing all the slices for all launches. Generally, this view
 -- should not be used. Instead, one of the helper functions below which wrap
--- this view should be used. Slices partially overlapping with launch duration
--- are included because slices such as bindApplication could start before launch_threads.ts,
--- slice_ts and slice_dur are recalculated to refect only the overlapping part in this case.
+-- this view should be used.
 DROP VIEW IF EXISTS thread_slices_for_all_launches;
 CREATE VIEW thread_slices_for_all_launches AS
 SELECT
@@ -38,21 +36,12 @@ SELECT
   launch_threads.is_main_thread AS is_main_thread,
   slice.arg_set_id AS arg_set_id,
   slice.name AS slice_name,
-  (CASE
-    WHEN slice.ts < launch_threads.ts
-      THEN launch_threads.ts
-      ELSE slice.ts
-  END) AS slice_ts,
-  (CASE
-    WHEN slice.ts < launch_threads.ts
-      THEN slice.ts + slice.dur - launch_threads.ts
-      ELSE slice.dur
-  END) AS slice_dur
+  slice.ts AS slice_ts,
+  slice.dur AS slice_dur
 FROM launch_threads
 JOIN thread_track USING (utid)
 JOIN slice ON (slice.track_id = thread_track.id)
-WHERE (slice.ts BETWEEN launch_threads.ts AND launch_threads.ts + launch_threads.dur)
-  OR (slice.ts + slice.dur BETWEEN launch_threads.ts AND launch_threads.ts + launch_threads.dur);
+WHERE slice.ts BETWEEN launch_threads.ts AND launch_threads.ts + launch_threads.dur;
 
 -- Given a launch id and GLOB for a slice name, returns columns for matching slices.
 SELECT CREATE_VIEW_FUNCTION(
@@ -149,5 +138,30 @@ SELECT CREATE_FUNCTION(
             slice_name GLOB "*mark sweep GC" OR
             slice_name GLOB "*concurrent copying GC"
           )
+  '
+);
+
+-- Given a launch id and package name, returns if baseline or cloud profile is missing.
+SELECT CREATE_FUNCTION(
+  'MISSING_BASELINE_PROFILE_FOR_LAUNCH(launch_id LONG, pkg_name STRING)',
+  'BOOL',
+  '
+    SELECT (COUNT(slice_name) > 0)
+    FROM (
+      SELECT *
+      FROM SLICES_FOR_LAUNCH_AND_SLICE_NAME(
+        $launch_id,
+        "location=* status=* filter=* reason=*"
+      )
+      ORDER BY slice_name
+    )
+    WHERE
+      -- when location is the package odex file and the reason is "install" or "install-dm",
+      -- if the compilation filter is not "speed-profile", baseline/cloud profile is missing.
+      SUBSTR(STR_SPLIT(slice_name, " status=", 0), LENGTH("location=") + 1)
+        GLOB ("*" || $pkg_name || "*odex")
+      AND (STR_SPLIT(slice_name, " reason=", 1) = "install"
+        OR STR_SPLIT(slice_name, " reason=", 1) = "install-dm")
+      AND STR_SPLIT(STR_SPLIT(slice_name, " filter=", 1), " reason=", 0) != "speed-profile"
   '
 );

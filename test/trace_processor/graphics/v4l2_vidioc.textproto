@@ -1,0 +1,101 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 593268475912
+      pid: 2488
+      v4l2_qbuf {
+        bytesused: 0
+        field: 0
+        flags: 16386
+        index: 19
+        minor: 0
+        sequence: 0
+        timecode_flags: 0
+        timecode_frames: 0
+        timecode_hours: 0
+        timecode_minutes: 0
+        timecode_seconds: 0
+        timecode_type: 0
+        timecode_userbits0: 0
+        timecode_userbits1: 0
+        timecode_userbits2: 0
+        timecode_userbits3: 0
+        timestamp: 404000000000
+        type: 9
+      }
+    }
+    event {
+      timestamp: 593268603800
+      pid: 2489
+      v4l2_qbuf {
+        bytesused: 0
+        field: 0
+        flags: 16386
+        index: 20
+        minor: 0
+        sequence: 0
+        timecode_flags: 0
+        timecode_frames: 0
+        timecode_hours: 0
+        timecode_minutes: 0
+        timecode_seconds: 0
+        timecode_type: 0
+        timecode_userbits0: 0
+        timecode_userbits1: 0
+        timecode_userbits2: 0
+        timecode_userbits3: 0
+        timestamp: 405000000000
+        type: 9
+      }
+    }
+    event {
+      timestamp: 593528238295
+      pid: 2489
+      v4l2_dqbuf {
+        bytesused: 0
+        field: 0
+        flags: 16384
+        index: 19
+        minor: 0
+        sequence: 0
+        timecode_flags: 0
+        timecode_frames: 0
+        timecode_hours: 0
+        timecode_minutes: 0
+        timecode_seconds: 0
+        timecode_type: 0
+        timecode_userbits0: 0
+        timecode_userbits1: 0
+        timecode_userbits2: 0
+        timecode_userbits3: 0
+        timestamp: 404000000000
+        type: 9
+      }
+    }
+    event {
+      timestamp: 593544028229
+      pid: 2489
+      v4l2_dqbuf {
+        bytesused: 0
+        field: 0
+        flags: 16384
+        index: 20
+        minor: 0
+        sequence: 0
+        timecode_flags: 0
+        timecode_frames: 0
+        timecode_hours: 0
+        timecode_minutes: 0
+        timecode_seconds: 0
+        timecode_type: 0
+        timecode_userbits0: 0
+        timecode_userbits1: 0
+        timecode_userbits2: 0
+        timecode_userbits3: 0
+        timestamp: 405000000000
+        type: 9
+      }
+    }
+  }
+}

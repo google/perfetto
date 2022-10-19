@@ -19,6 +19,7 @@
 #include <utility>
 
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
+#include "src/trace_processor/parser_types.h"
 #include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/trace_sorter_queue.h"
 
@@ -216,7 +217,7 @@ void TraceSorter::EvictVariadic(const TimestampedDescriptor& ts_desc) {
       EvictTypedVariadic<InlineSchedWaking>(ts_desc);
       return;
     case EventType::kFtraceEvent:
-      EvictTypedVariadic<FtraceEventData>(ts_desc);
+      EvictTypedVariadic<TracePacketData>(ts_desc);
       return;
     case EventType::kInvalid:
       PERFETTO_FATAL("Invalid event type");
@@ -268,7 +269,7 @@ void TraceSorter::ParseFtracePacket(uint32_t cpu,
       return;
     case EventType::kFtraceEvent:
       parser_->ParseFtraceEvent(cpu, ts_desc.ts,
-                                EvictTypedVariadic<FtraceEventData>(ts_desc));
+                                EvictTypedVariadic<TracePacketData>(ts_desc));
       return;
     case EventType::kTrackEvent:
     case EventType::kSystraceLine:
