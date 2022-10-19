@@ -55,6 +55,10 @@ export class HostOsTarget implements RecordingTargetV2 {
 
     this.websocket = new WebSocket(websocketUrl);
     this.websocket.onclose = this.onClose.bind(this);
+    // 'onError' gets called when the websocketURL where the UI tries to connect
+    // is disallowed by the Content Security Policy. In this case, we disconnect
+    // the target.
+    this.websocket.onerror = this.disconnect.bind(this);
   }
 
   getInfo(): HostOsTargetInfo {
