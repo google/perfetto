@@ -765,6 +765,46 @@ base::Status AbsTimeStr::Run(ClockTracker* tracker,
   return base::OkStatus();
 }
 
+struct ToMonotonic : public SqlFunction {
+  using Context = ClockTracker;
+  static base::Status Run(ClockTracker* tracker,
+                          size_t argc,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors& destructors);
+};
+
+base::Status ToMonotonic::Run(ClockTracker* tracker,
+                              size_t argc,
+                              sqlite3_value** argv,
+                              SqlValue& out,
+                              __attribute__((unused))
+                              Destructors& destructors) {
+  if (argc != 1) {
+    return base::ErrStatus("TO_MONOTONIC: 1 arg required");
+  }
+
+  // If the timestamp is null, just return null as the result.
+  if (sqlite3_value_type(argv[0]) == SQLITE_NULL) {
+    return base::OkStatus();
+  }
+  if (sqlite3_value_type(argv[0]) != SQLITE_INTEGER) {
+    return base::ErrStatus("TO_MONOTONIC: first argument should be timestamp");
+  }
+
+  int64_t ts = sqlite3_value_int64(argv[0]);
+  base::Optional<int64_t> monotonic =
+      tracker->FromTraceTime(protos::pbzero::BUILTIN_CLOCK_MONOTONIC, ts);
+
+  if (!monotonic.has_value()) {
+    // This means we'll return NULL
+    return base::OkStatus();
+  }
+
+  out = SqlValue::Long(*monotonic);
+  return base::OkStatus();
+}
+
 std::vector<std::string> SanitizeMetricMountPaths(
     const std::vector<std::string>& mount_paths) {
   std::vector<std::string> sanitized;
@@ -1082,6 +1122,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterFunction<ExtractArg>(db, "EXTRACT_ARG", 2, context_.storage.get());
   RegisterFunction<AbsTimeStr>(db, "ABS_TIME_STR", 1,
                                context_.clock_tracker.get());
+  RegisterFunction<ToMonotonic>(db, "TO_MONOTONIC", 1,
+                                context_.clock_tracker.get());
   RegisterFunction<CreateFunction>(
       db, "CREATE_FUNCTION", 3,
       std::unique_ptr<CreateFunction::Context>(
