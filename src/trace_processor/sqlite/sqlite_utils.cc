@@ -14,21 +14,21 @@
  * limitations under the License.
  */
 
-#include "perfetto/ext/base/hash.h"
-
-#include "perfetto/ext/base/string_view.h"
-#include "test/gtest_and_gmock.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto {
-namespace base {
-namespace {
+namespace trace_processor {
+namespace sqlite_utils {
 
-TEST(HashTest, StringView) {
-  base::StringView a = "abc";
-  base::StringView b = "def";
-  EXPECT_NE(Hasher::Combine(a), Hasher::Combine(b));
+std::wstring SqliteValueToWString(sqlite3_value* value) {
+  PERFETTO_CHECK(sqlite3_value_type(value) == SQLITE_TEXT);
+  int len = sqlite3_value_bytes16(value);
+  PERFETTO_CHECK(len >= 0);
+  size_t count = static_cast<size_t>(len) / sizeof(wchar_t);
+  return std::wstring(
+      reinterpret_cast<const wchar_t*>(sqlite3_value_text16(value)), count);
 }
 
-}  // namespace
-}  // namespace base
+}  // namespace sqlite_utils
+}  // namespace trace_processor
 }  // namespace perfetto

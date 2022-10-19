@@ -154,7 +154,7 @@ class StringView {
   }
 
   uint64_t Hash() const {
-    base::Hash hasher;
+    base::Hasher hasher;
     hasher.Update(data_, size_);
     return hasher.digest();
   }

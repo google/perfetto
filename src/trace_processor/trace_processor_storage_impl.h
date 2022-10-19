@@ -42,7 +42,7 @@ class TraceProcessorStorageImpl : public TraceProcessorStorage {
   TraceProcessorContext* context() { return &context_; }
 
  protected:
-  base::Hash trace_hash_;
+  base::Hasher trace_hash_;
   TraceProcessorContext context_;
   bool unrecoverable_parse_error_ = false;
   size_t hash_input_size_remaining_ = 4096;

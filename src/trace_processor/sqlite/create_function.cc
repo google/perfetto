@@ -144,7 +144,7 @@ void CreatedFunction::Cleanup(CreatedFunction::Context* ctx) {
 
 size_t CreateFunction::NameAndArgc::Hasher::operator()(
     const NameAndArgc& s) const noexcept {
-  base::Hash hash;
+  base::Hasher hash;
   hash.Update(s.name.data(), s.name.size());
   hash.Update(s.argc);
   return static_cast<size_t>(hash.digest());
@@ -257,9 +257,9 @@ base::Status CreateFunction::Run(CreateFunction::Context* ctx,
   if (ret != SQLITE_OK) {
     return base::ErrStatus(
         "CREATE_FUNCTION[prototype=%s]: SQLite error when preparing "
-        "statement "
-        "%s",
-        prototype_str.ToStdString().c_str(), sqlite3_errmsg(ctx->db));
+        "statement %s",
+        prototype_str.ToStdString().c_str(),
+        sqlite_utils::FormatErrorMessage(stmt_raw, ctx->db, ret).c_message());
   }
   stmt.reset(stmt_raw);
 

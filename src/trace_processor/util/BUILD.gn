@@ -139,6 +139,17 @@ source_set("zip_reader") {
   }
 }
 
+source_set("glob") {
+  sources = [
+    "glob.cc",
+    "glob.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+}
+
 source_set("proto_profiler") {
   sources = [
     "proto_profiler.cc",
@@ -177,6 +188,7 @@ source_set("profile_builder") {
 source_set("unittests") {
   sources = [
     "debug_annotation_parser_unittest.cc",
+    "glob_unittest.cc",
     "proto_profiler_unittest.cc",
     "proto_to_args_parser_unittest.cc",
     "protozero_to_text_unittests.cc",
@@ -186,6 +198,7 @@ source_set("unittests") {
   testonly = true
   deps = [
     ":descriptors",
+    ":glob",
     ":gzip",
     ":proto_profiler",
     ":proto_to_args_parser",
@@ -204,5 +217,19 @@ source_set("unittests") {
   if (enable_perfetto_zlib) {
     sources += [ "gzip_utils_unittest.cc" ]
     deps += [ "../../../gn:zlib" ]
+  }
+}
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":glob",
+      "../../../gn:benchmark",
+      "../../../gn:default_deps",
+      "../../../gn:sqlite",
+      "../../base",
+    ]
+    sources = [ "glob_benchmark.cc" ]
   }
 }
