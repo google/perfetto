@@ -259,7 +259,9 @@ base::Status CreateFunction::Run(CreateFunction::Context* ctx,
         "CREATE_FUNCTION[prototype=%s]: SQLite error when preparing "
         "statement %s",
         prototype_str.ToStdString().c_str(),
-        sqlite_utils::FormatErrorMessage(stmt_raw, ctx->db, ret).c_message());
+        sqlite_utils::FormatErrorMessage(
+            stmt_raw, base::StringView(sql_defn_str), ctx->db, ret)
+            .c_message());
   }
   stmt.reset(stmt_raw);
 

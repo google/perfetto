@@ -166,13 +166,16 @@ inline base::Status FormatErrorMessage(base::StringView sql,
 }
 
 inline base::Status FormatErrorMessage(sqlite3_stmt* stmt,
+                                       base::Optional<base::StringView> sql,
                                        sqlite3* db,
                                        int error_code) {
-  PERFETTO_CHECK(stmt);
-  auto sql = ExpandedSqlForStmt(stmt);
-  PERFETTO_CHECK(sql);
-  base::Status error_msg_status = FormatErrorMessage(sql.get(), db, error_code);
-  return error_msg_status;
+  if (stmt) {
+    auto expanded_sql = ExpandedSqlForStmt(stmt);
+    PERFETTO_CHECK(expanded_sql);
+    return FormatErrorMessage(expanded_sql.get(), db, error_code);
+  }
+  PERFETTO_CHECK(sql.has_value());
+  return FormatErrorMessage(sql.value(), db, error_code);
 }
 
 inline base::Status PrepareStmt(sqlite3* db,
@@ -202,7 +205,8 @@ inline base::Status StepStmtUntilDone(sqlite3_stmt* stmt) {
   }
   if (err != SQLITE_DONE) {
     auto db = sqlite3_db_handle(stmt);
-    return base::ErrStatus("%s", FormatErrorMessage(stmt, db, err).c_message());
+    return base::ErrStatus(
+        "%s", FormatErrorMessage(stmt, base::nullopt, db, err).c_message());
   }
   return base::OkStatus();
 }
