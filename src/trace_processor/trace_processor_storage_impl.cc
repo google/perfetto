@@ -146,6 +146,10 @@ void TraceProcessorStorageImpl::DestroyContext() {
   context.storage = std::move(context_.storage);
   context.heap_graph_tracker = std::move(context_.heap_graph_tracker);
   context.clock_tracker = std::move(context_.clock_tracker);
+  // "to_ftrace" textual converter of the "raw" table requires remembering the
+  // kernel version (inside system_info_tracker) to know how to textualise
+  // sched_switch.prev_state bitflags.
+  context.system_info_tracker = std::move(context_.system_info_tracker);
 
   context_ = std::move(context);
 }

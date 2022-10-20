@@ -47,7 +47,7 @@ TaskState TaskState::FromParsedFlags(uint16_t parsed_state) {
 // * a new flag is added to TASK_REPORT (see include/linux/sched.h kernel src)
 // * a new report-specific flag is added above TASK_REPORT
 // In both cases, this will change the value of TASK_REPORT_MAX that is used to
-// report preemption is sched_switch. We'll need to modify this class to keep
+// report preemption in sched_switch. We'll need to modify this class to keep
 // up, or make traced_probes record the sched_switch format string in traces.
 //
 // Note to maintainers: if changing the default kernel assumption or the 4.4
@@ -85,10 +85,13 @@ TaskState::TaskState(uint16_t raw_state,
       parsed_ |= kPreempted;
 
     // Attempt to notice REPORT_TASK_MAX changing. If this dcheck fires, please
-    // file a bug report against perfetto.
-    if (raw_state & 0x200) {
+    // file a bug report against perfetto. Exactly 4.14 kernels are excluded
+    // from the dcheck since there are known instances of such kernels that
+    // still use the old flag mask in practice. So we'll still mark the states
+    // as invalid but not crash debug builds.
+    if (raw_state & 0xfe00) {
       parsed_ = kInvalid;
-      PERFETTO_DCHECK(false);
+      PERFETTO_DCHECK((version == VersionNumber{4, 14}));
     }
     return;
   }
@@ -108,10 +111,12 @@ TaskState::TaskState(uint16_t raw_state,
   if (raw_state & 0x400)  // TASK_NOLOAD
     parsed_ |= kNoLoad;
 
-  // Note: we do not bother with converting kUninterruptibleSleep+kNoLoad into
-  // kIdle in this codepath for simplicity. Users that really care about
-  // kthread idle state on older kernels will need to know that "DN" is a
-  // synonym.
+  // Convert kUninterruptibleSleep+kNoLoad into kIdle since that's what it
+  // means, and the UI can present the latter better.
+  // See https://github.com/torvalds/linux/commit/80ed87c8a9ca.
+  if (parsed_ == (kUninterruptibleSleep | kNoLoad)) {
+    parsed_ = kIdle;
+  }
 
   // Kernel version range [4.8, 4.14) has TASK_NEW, hence preemption
   // (TASK_STATE_MAX) is 0x1000. We don't decode TASK_NEW itself since it will

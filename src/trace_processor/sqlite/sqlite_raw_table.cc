@@ -205,15 +205,6 @@ void ArgsSerializer::SerializeArgs() {
     WriteArgForField(SS::kPrevStateFieldNumber, [this](const Variadic& value) {
       PERFETTO_DCHECK(value.type == Variadic::Type::kInt);
       auto state = static_cast<uint16_t>(value.int_value);
-      // TODO(b/247222275): this is actively bugged when converting modern
-      // traces to systrace. This is called by the systrace converter after the
-      // trace has been fully parsed (and NotifyEndOfFile called), so the
-      // context has been destroyed. Hence this will recreate the tracker and
-      // return base::nullopt. The TaskState::ToString will in turn assume 4.4
-      // kernel even if the trace had an explicit kernel version. So we'll end
-      // up in a situation where the "sched" table is correct (since it used
-      // the kernel version in the trace), but the systrace output is
-      // incorrect. Same issue most likely applies to GFP flags below.
       base::Optional<VersionNumber> kernel_version =
           SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
       writer_->AppendString(
