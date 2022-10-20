@@ -149,9 +149,9 @@ Once finished you can commit and upload as part of your CL to cause the CI to
 use your new screenshots.
 
 NOTE: If you see a failing diff test you can see the pixel differences on the CI
-by using the link to the UI and replace `/ui/index.html` with
-`/ui-test-artifacts/<name_of_failing_png_test_from_logs>.png`. This allows you
-to tell where in the picture the change was introduced.
+by using a link ending with `ui-test-artifacts/index.html`. Report located on
+that page contains changed screenshots as well as a command to accept the
+changes if these are desirable.
 
 Android CTS tests
 -----------------
