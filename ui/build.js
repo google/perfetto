@@ -88,6 +88,7 @@ const cfg = {
   wasmModules: ['trace_processor', 'traceconv'],
   crossOriginIsolation: false,
   testFilter: '',
+  noOverrideGnArgs: false,
 
   // The fields below will be changed by main() after cmdline parsing.
   // Directory structure:
@@ -152,6 +153,7 @@ async function main() {
   parser.addArgument(
       ['--test-filter', '-f'],
       {help: 'filter Jest tests by regex, e.g. \'chrome_render\''});
+  parser.addArgument(['--no-override-gn-args'], {action: 'storeTrue'});
 
   const args = parser.parseArgs();
   const clean = !args.no_build;
@@ -170,6 +172,7 @@ async function main() {
   cfg.verbose = !!args.verbose;
   cfg.debug = !!args.debug;
   cfg.startHttpServer = args.serve;
+  cfg.noOverrideGnArgs = !!args.no_override_gn_args;
   if (args.serve_host) {
     cfg.httpServerListenHost = args.serve_host;
   }
@@ -253,7 +256,7 @@ async function main() {
   const tStart = Date.now();
   while (!isDistComplete()) {
     const secs = Math.ceil((Date.now() - tStart) / 1000);
-    process.stdout.write(`Waiting for first build to complete... ${secs} s\r`);
+    process.stdout.write(`\t\tWaiting for first build to complete... ${secs} s\r`);
     await new Promise((r) => setTimeout(r, 500));
   }
   if (cfg.watch) console.log('\nFirst build completed!');
@@ -410,8 +413,10 @@ function updateSymlinks() {
 // out/tsc/, so the typescript compiler and the bundler can pick them up.
 function buildWasm(skipWasmBuild) {
   if (!skipWasmBuild) {
-    const gnArgs = ['gen', `--args=is_debug=${cfg.debug}`, cfg.outDir];
-    addTask(exec, [pjoin(ROOT_DIR, 'tools/gn'), gnArgs]);
+    if (!cfg.noOverrideGnArgs) {
+      const gnArgs = ['gen', `--args=is_debug=${cfg.debug}`, cfg.outDir];
+      addTask(exec, [pjoin(ROOT_DIR, 'tools/gn'), gnArgs]);
+    }
 
     const ninjaArgs = ['-C', cfg.outDir];
     ninjaArgs.push(...cfg.wasmModules.map((x) => `${x}_wasm`));

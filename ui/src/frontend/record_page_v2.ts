@@ -105,8 +105,8 @@ function RecordingPlatformSelection() {
   // Don't show the platform selector while we are recording a trace.
   if (controller.getState() >= RecordingState.RECORDING) return undefined;
 
-  const components = [];
-  components.push(
+  return m(
+      '.target',
       m('.chip',
         {
           onclick: () => {
@@ -116,13 +116,8 @@ function RecordingPlatformSelection() {
           },
         },
         m('button', 'Add new recording target'),
-        m('i.material-icons', 'add')));
-
-  if (controller.getState() > RecordingState.NO_TARGET) {
-    components.push(targetSelection());
-  }
-
-  return m('.target', components);
+        m('i.material-icons', 'add')),
+      targetSelection());
 }
 
 function addNewTargetModal() {
@@ -139,14 +134,16 @@ export function targetSelection(): m.Vnode|undefined {
 
   const targets: RecordingTargetV2[] = targetFactoryRegistry.listTargets();
   const targetNames = [];
-  // defaultSelectedIndex is the index selected as a fallback case (-1 if
-  // nothing is selected).
+  const targetInfo = controller.getTargetInfo();
+  if (!targetInfo) {
+    targetNames.push(m('option', 'PLEASE_SELECT_TARGET'));
+  }
+
   let selectedIndex = 0;
   for (let i = 0; i < targets.length; i++) {
     const targetName = targets[i].getInfo().name;
     targetNames.push(m('option', targetName));
-    // We know that we have targetInfo because we checked the state.
-    if (targetName === assertExists(controller.getTargetInfo()).name) {
+    if (targetInfo && targetName === targetInfo.name) {
       selectedIndex = i;
     }
   }
@@ -229,8 +226,12 @@ function BufferUsageProgressBar() {
 }
 
 function RecordingNotes() {
-  const sideloadUrl =
-      'https://perfetto.dev/docs/contributing/build-instructions#get-the-code';
+  if (controller.getState() !== RecordingState.TARGET_INFO_DISPLAYED) {
+    return undefined;
+  }
+  // We will have a valid target at this step because we checked the state.
+  const targetInfo = assertExists(controller.getTargetInfo());
+
   const linuxUrl = 'https://perfetto.dev/docs/quickstart/linux-tracing';
   const cmdlineUrl =
       'https://perfetto.dev/docs/quickstart/android-tracing#perfetto-cmdline';
@@ -239,18 +240,13 @@ function RecordingNotes() {
 
   const msgFeatNotSupported =
       m('span', `Some probes are only supported in Perfetto versions running
-      on Android Q+. `);
+      on Android Q+. Therefore, Perfetto will sideload the latest version onto 
+      the device.`);
 
-  const msgPerfettoNotSupported =
-      m('span', `Perfetto is not supported natively before Android P. `);
-
-  const msgSideload =
-      m('span',
-        `If you have a rooted device you can `,
-        m('a',
-          {href: sideloadUrl, target: '_blank'},
-          `sideload the latest version of
-         Perfetto.`));
+  const msgPerfettoNotSupported = m(
+      'span',
+      `Perfetto is not supported natively before Android P. Therefore, Perfetto 
+       will sideload the latest version onto the device.`);
 
   const msgLinux =
       m('.note',
@@ -266,17 +262,13 @@ function RecordingNotes() {
         {href: cmdlineUrl, target: '_blank'},
         `collect the trace using ADB.`));
 
-  const msgZeroProbes =
-      m('.note',
-        'It looks like you didn\'t add any probes. ' +
-            'Please add at least one to get a non-empty trace.');
-
-  const targetInfo = controller.getTargetInfo();
-  if (targetInfo &&
-      !recordConfigUtils
+  if (!recordConfigUtils
            .fetchLatestRecordCommand(globals.state.recordConfig, targetInfo)
            .hasDataSources) {
-    notes.push(msgZeroProbes);
+    notes.push(
+        m('.note',
+          'It looks like you didn\'t add any probes. ' +
+              'Please add at least one to get a non-empty trace.'));
   }
 
   targetFactoryRegistry.listRecordingProblems().map((recordingProblem) => {
@@ -291,25 +283,20 @@ function RecordingNotes() {
     }
   });
 
-  if (controller.getState() >= RecordingState.TARGET_SELECTED) {
-    // We will have a valid target at this step because we checked the state.
-    const targetInfo = assertExists(controller.getTargetInfo());
-
-    switch (targetInfo.targetType) {
-      case 'LINUX':
-        notes.push(msgLinux);
-        break;
-      case 'ANDROID': {
-        const androidApiLevel = targetInfo.androidApiLevel;
-        if (androidApiLevel === 28) {
-          notes.push(m('.note', msgFeatNotSupported, msgSideload));
-        } else if (androidApiLevel && androidApiLevel <= 27) {
-          notes.push(m('.note', msgPerfettoNotSupported, msgSideload));
-        }
-        break;
+  switch (targetInfo.targetType) {
+    case 'LINUX':
+      notes.push(msgLinux);
+      break;
+    case 'ANDROID': {
+      const androidApiLevel = targetInfo.androidApiLevel;
+      if (androidApiLevel === 28) {
+        notes.push(m('.note', msgFeatNotSupported));
+      } else if (androidApiLevel && androidApiLevel <= 27) {
+        notes.push(m('.note', msgPerfettoNotSupported));
       }
-      default:
+      break;
     }
+    default:
   }
 
   if (globals.state.recordConfig.mode === 'LONG_TRACE') {
@@ -564,10 +551,6 @@ export const RecordPageV2 = createPage({
 
   view({attrs}: m.Vnode<PageAttrs>): void |
       m.Children {
-        if (controller.getState() === RecordingState.NO_TARGET) {
-          controller.selectTarget(targetFactoryRegistry.listTargets()[0]);
-        }
-
         if (shouldDisplayTargetModal) {
           fullscreenModalContainer.updateVdom(addNewTargetModal());
         }

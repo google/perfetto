@@ -12,22 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  ANDROID_WEBSOCKET_TARGET_FACTORY,
-  AndroidWebsocketTargetFactory,
-} from
-    // clang-format off
-'../../common/recordingV2/target_factories/android_websocket_target_factory';
-// clang-format on
-import {
-  targetFactoryRegistry,
-} from '../../common/recordingV2/target_factory_registry';
-
 export const FORCE_RESET_MESSAGE = 'Force reset the USB interface';
-export const DEFAULT_ADB_WEBSOCKET_URL = 'ws://127.0.0.1:8037/adb';
-export const DEFAULT_TRACED_WEBSOCKET_URL = 'ws://127.0.0.1:8037/traced';
-
-export function getWebsocketTargetFactory(): AndroidWebsocketTargetFactory {
-  return targetFactoryRegistry.get(ANDROID_WEBSOCKET_TARGET_FACTORY) as
-      AndroidWebsocketTargetFactory;
-}
+export const DEFAULT_WEBSOCKET_URL = 'ws://127.0.0.1:8037';
+export const ADB_ENDPOINT = '/adb';
+export const TRACED_ENDPOINT = '/traced';
+export const DEFAULT_ADB_WEBSOCKET_URL = DEFAULT_WEBSOCKET_URL + ADB_ENDPOINT;
+export const DEFAULT_TRACED_WEBSOCKET_URL =
+    DEFAULT_WEBSOCKET_URL + TRACED_ENDPOINT;

@@ -42,6 +42,7 @@ enum class FilterOp {
   kLe,
   kIsNull,
   kIsNotNull,
+  kGlob,
 };
 
 // Represents a constraint on a column.
@@ -574,6 +575,7 @@ class Column {
       case FilterOp::kNe:
       case FilterOp::kIsNull:
       case FilterOp::kIsNotNull:
+      case FilterOp::kGlob:
         break;
     }
     return false;
