@@ -1019,7 +1019,8 @@ base::Status PrepareAndStepUntilLastValidStmt(
       int err = sqlite3_step(*cur_stmt);
       if (err != SQLITE_ROW && err != SQLITE_DONE) {
         return base::ErrStatus(
-            "%s", sqlite_utils::FormatErrorMessage(prev_stmt.get(), db, err)
+            "%s", sqlite_utils::FormatErrorMessage(
+                      prev_stmt.get(), base::StringView(sql), db, err)
                       .c_message());
       }
     }

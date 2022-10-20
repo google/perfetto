@@ -24,6 +24,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/export.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/status.h"
@@ -85,9 +86,9 @@ class IteratorImpl {
 
     int ret = sqlite3_step(*stmt_);
     if (PERFETTO_UNLIKELY(ret != SQLITE_ROW && ret != SQLITE_DONE)) {
-      status_ = base::ErrStatus(
-          "%s",
-          sqlite_utils::FormatErrorMessage(stmt_.get(), db_, ret).c_message());
+      status_ = base::ErrStatus("%s", sqlite_utils::FormatErrorMessage(
+                                          stmt_.get(), base::nullopt, db_, ret)
+                                          .c_message());
       stmt_.reset();
       return false;
     }
