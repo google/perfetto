@@ -197,6 +197,7 @@ class FtraceParser {
   void ParseUfshcdClkGating(int64_t timestamp, protozero::ConstBytes);
 
   void ParseCrosEcSensorhubData(int64_t timestamp, protozero::ConstBytes);
+
   void ParseWakeSourceActivate(int64_t timestamp, protozero::ConstBytes);
   void ParseWakeSourceDeactivate(int64_t timestamp, protozero::ConstBytes);
   void ParseSuspendResume(int64_t timestamp, protozero::ConstBytes);
@@ -215,6 +216,43 @@ class FtraceParser {
   StringId InternedKernelSymbolOrFallback(
       uint64_t key,
       PacketSequenceStateGeneration* seq_state);
+  void ParseTrustySmc(uint32_t pid, int64_t timestamp, protozero::ConstBytes);
+  void ParseTrustySmcDone(uint32_t pid,
+                          int64_t timestamp,
+                          protozero::ConstBytes);
+  void ParseTrustyStdCall32(uint32_t pid,
+                            int64_t ts,
+                            protozero::ConstBytes data);
+  void ParseTrustyStdCall32Done(uint32_t pid,
+                                int64_t ts,
+                                protozero::ConstBytes data);
+  void ParseTrustyShareMemory(uint32_t pid, int64_t ts, protozero::ConstBytes);
+  void ParseTrustyShareMemoryDone(uint32_t pid,
+                                  int64_t ts,
+                                  protozero::ConstBytes);
+  void ParseTrustyReclaimMemory(uint32_t pid,
+                                int64_t ts,
+                                protozero::ConstBytes);
+  void ParseTrustyReclaimMemoryDone(uint32_t pid,
+                                    int64_t ts,
+                                    protozero::ConstBytes);
+  void ParseTrustyIrq(uint32_t pid, int64_t ts, protozero::ConstBytes);
+  void ParseTrustyIpcHandleEvent(uint32_t pid,
+                                 int64_t ts,
+                                 protozero::ConstBytes);
+  void ParseTrustyIpcConnect(uint32_t pid, int64_t ts, protozero::ConstBytes);
+  void ParseTrustyIpcConnectEnd(uint32_t pid,
+                                int64_t ts,
+                                protozero::ConstBytes);
+  void ParseTrustyIpcWrite(uint32_t pid, int64_t ts, protozero::ConstBytes);
+  void ParseTrustyIpcWriteEnd(uint32_t pid, int64_t ts, protozero::ConstBytes);
+  void ParseTrustyIpcRead(uint32_t pid, int64_t ts, protozero::ConstBytes);
+  void ParseTrustyIpcReadEnd(uint32_t pid, int64_t ts, protozero::ConstBytes);
+  void ParseTrustyIpcPoll(uint32_t pid, int64_t ts, protozero::ConstBytes);
+  void ParseTrustyIpcPollEnd(uint32_t pid, int64_t ts, protozero::ConstBytes);
+  void ParseTrustyIpcTx(uint32_t pid, int64_t ts, protozero::ConstBytes);
+  void ParseTrustyIpcRx(uint32_t pid, int64_t ts, protozero::ConstBytes);
+  void ParseTrustyEnqueueNop(uint32_t pid, int64_t ts, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
@@ -275,6 +313,10 @@ class FtraceParser {
   const StringId shrink_total_scan_id_;
   const StringId shrink_freed_id_;
   const StringId shrink_priority_id_;
+  const StringId trusty_category_id_;
+  const StringId trusty_name_trusty_std_id_;
+  const StringId trusty_name_tipc_tx_id_;
+  const StringId trusty_name_tipc_rx_id_;
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).
