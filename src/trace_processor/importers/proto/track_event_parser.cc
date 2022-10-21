@@ -243,11 +243,12 @@ class TrackEventParser::EventImporter {
         args_translation_table_(context_->args_translation_table.get()),
         ts_(ts),
         event_data_(event_data),
-        sequence_state_(event_data->sequence_state.get()),
+        sequence_state_(event_data->trace_packet_data.sequence_state.get()),
         blob_(std::move(blob)),
         event_(blob_),
         legacy_event_(event_.legacy_event()),
-        defaults_(event_data->sequence_state->GetTrackEventDefaults()),
+        defaults_(event_data->trace_packet_data.sequence_state
+                      ->GetTrackEventDefaults()),
         thread_timestamp_(event_data->thread_timestamp),
         thread_instruction_count_(event_data->thread_instruction_count),
         packet_sequence_id_(packet_sequence_id) {}
