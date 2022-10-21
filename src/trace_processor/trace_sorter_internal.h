@@ -144,8 +144,7 @@ class TypedMemoryAccessor<TrackEventData> {
   static char* Append(char* ptr, TrackEventData ted) {
     auto ted_desc = TrackEventDataDescriptor(ted);
     ptr = AppendUnchecked(ptr, ted_desc);
-    ptr = AppendUnchecked(ptr, TracePacketData{std::move(ted.packet),
-                                               std::move(ted.sequence_state)});
+    ptr = AppendUnchecked(ptr, std::move(ted.trace_packet_data));
     ptr = AppendUnchecked(ptr, ted.counter_value);
     if (ted_desc.HasThreadTimestamp()) {
       ptr = AppendUnchecked(ptr, ted.thread_timestamp.value());
