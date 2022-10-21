@@ -90,7 +90,7 @@ function parseTableDef(tableDefName, tableDef) {
       if (lastColumn === undefined) {
         tableDesc.comment += `${comm}\n`;
       } else {
-        lastColumn.comment = `${lastColumn.comment}${comm}\n`;
+        lastColumn.comment = `${lastColumn.comment}\n${comm}`;
       }
       continue;
     }
