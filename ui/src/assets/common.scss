@@ -836,6 +836,37 @@ button.query-ctrl {
   }
 }
 
+.history-item {
+  border-bottom: 1px solid hsl(213, 22%, 75%);
+  padding: 0.25em 0.5em;
+  max-height: 150px;
+  overflow: auto;
+
+  pre {
+    font-size: 10pt;
+    margin: 0;
+  }
+
+  &:hover .history-item-buttons {
+    visibility: visible;
+  }
+}
+
+.history-item-buttons {
+  position: sticky;
+  float: right;
+  top: 0;
+  visibility: hidden;
+
+  button {
+    margin: 0 0.5rem;
+
+    i.material-icons {
+      font-size: 18px;
+    }
+  }
+}
+
 .context-wrapper {
   white-space: nowrap;
 
