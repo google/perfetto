@@ -135,7 +135,6 @@ TEST(TaskStateUnittest, FromParsedFlags) {
 // Covers both:
 // * parsing from systrace format ("prev_state=D|K")
 // * traceconv serializing the "raw" table into systrace format
-// See TODOs attached to b/247222275 for known bugs.
 TEST(TaskStateUnittest, Systrace) {
   auto roundtrip = [](const char* in) {
     uint16_t raw =
@@ -149,11 +148,7 @@ TEST(TaskStateUnittest, Systrace) {
   EXPECT_STREQ(roundtrip("P").data(), "P");
   EXPECT_STREQ(roundtrip("x").data(), "x");
   EXPECT_STREQ(roundtrip("D|K").data(), "D|K");
-
-  // Idle state is parsed into kIdle when ingesting systrace, but not
-  // re-expanded when converting a trace to systrace format.
-  EXPECT_EQ(TaskState::FromSystrace("I").ParsedForTesting(), TaskState::kIdle);
-  EXPECT_STREQ(roundtrip("I").data(), "D|N");
+  EXPECT_STREQ(roundtrip("I").data(), "I");
 }
 
 }  // namespace

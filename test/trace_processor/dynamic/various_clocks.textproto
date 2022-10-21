@@ -40,3 +40,42 @@ packet {
   trusted_packet_sequence_id: 1
   timestamp: 30
 }
+packet {
+  clock_snapshot {
+    clocks {
+      clock_id: 3
+      timestamp: 15
+    }
+    clocks {
+      clock_id: 6
+      timestamp: 25
+    }
+  }
+  trusted_packet_sequence_id: 1
+}
+packet {
+  clock_snapshot {
+    clocks {
+      clock_id: 3
+      timestamp: 20
+    }
+    clocks {
+      clock_id: 6
+      timestamp: 35
+    }
+  }
+  trusted_packet_sequence_id: 1
+}
+packet {
+  clock_snapshot {
+    clocks {
+      clock_id: 3
+      timestamp: 25
+    }
+    clocks {
+      clock_id: 6
+      timestamp: 50
+    }
+  }
+  trusted_packet_sequence_id: 1
+}
