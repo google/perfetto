@@ -46,16 +46,17 @@ struct TracePacketData {
   RefPtr<PacketSequenceStateGeneration> sequence_state;
 };
 
-struct TrackEventData : public TracePacketData {
+struct TrackEventData {
   TrackEventData(TraceBlobView pv,
                  RefPtr<PacketSequenceStateGeneration> generation)
-      : TracePacketData{std::move(pv), std::move(generation)} {}
+      : trace_packet_data{std::move(pv), std::move(generation)} {}
 
   explicit TrackEventData(TracePacketData tpd)
-      : TracePacketData(std::move(tpd)) {}
+      : trace_packet_data(std::move(tpd)) {}
 
   static constexpr size_t kMaxNumExtraCounters = 8;
 
+  TracePacketData trace_packet_data;
   base::Optional<int64_t> thread_timestamp;
   base::Optional<int64_t> thread_instruction_count;
   double counter_value = 0;
