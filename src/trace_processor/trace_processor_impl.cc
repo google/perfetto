@@ -17,7 +17,9 @@
 #include "src/trace_processor/trace_processor_impl.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <memory>
+#include <type_traits>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -509,51 +511,110 @@ base::Status WriteFile::Run(TraceStorage*,
   return util::OkStatus();
 }
 
+// Keeps track of the latest non null value and its position withing the
+// window. Every time the window shrinks (`xInverse` is called) the window size
+// is reduced by one and the position of the value moves one back, if it gets
+// out of the window the value is discarded.
+class LastNonNullAggregateContext {
+ public:
+  static LastNonNullAggregateContext* Get(sqlite3_context* ctx) {
+    return reinterpret_cast<LastNonNullAggregateContext*>(
+        sqlite3_aggregate_context(ctx, 0));
+  }
+
+  static LastNonNullAggregateContext* GetOrCreate(sqlite3_context* ctx) {
+    return reinterpret_cast<LastNonNullAggregateContext*>(
+        sqlite3_aggregate_context(ctx, sizeof(LastNonNullAggregateContext)));
+  }
+
+  void PopFront() {
+    PERFETTO_CHECK(window_size_ > 0);
+    --window_size_;
+    if (!last_non_null_value_) {
+      return;
+    }
+    if (value_index_ == 0) {
+      sqlite3_value_free(last_non_null_value_);
+      last_non_null_value_ = nullptr;
+      return;
+    }
+    PERFETTO_CHECK(value_index_ > 0);
+    --value_index_;
+  }
+
+  void PushBack(sqlite3_value* value) {
+    ++window_size_;
+    if (sqlite3_value_type(value) == SQLITE_NULL) {
+      return;
+    }
+
+    Destroy();
+    last_non_null_value_ = sqlite3_value_dup(value);
+    value_index_ = window_size_ - 1;
+  }
+
+  void Destroy() {
+    if (last_non_null_value_) {
+      sqlite3_value_free(last_non_null_value_);
+    }
+  }
+
+  sqlite3_value* last_non_null_value() const { return last_non_null_value_; }
+
+ private:
+  int64_t window_size_;
+  // Index within the window of the last non null value. Only valid if `value`
+  // is set.
+  int64_t value_index_;
+  // Actual value
+  sqlite3_value* last_non_null_value_;
+};
+
+static_assert(std::is_standard_layout<LastNonNullAggregateContext>::value,
+              "Must be able to be initialized by sqlite3_aggregate_context "
+              "(similar to calloc, i.e. no constructor called)");
+static_assert(std::is_trivial<LastNonNullAggregateContext>::value,
+              "Must be able to be destroyed by just calling free (i.e. no "
+              "destructor called)");
+
 void LastNonNullStep(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   if (argc != 1) {
     sqlite3_result_error(
         ctx, "Unsupported number of args passed to LAST_NON_NULL", -1);
     return;
   }
-  sqlite3_value* value = argv[0];
-  if (sqlite3_value_type(value) == SQLITE_NULL) {
+
+  auto* ptr = LastNonNullAggregateContext::GetOrCreate(ctx);
+  if (!ptr) {
+    sqlite3_result_error(ctx, "LAST_NON_NULL: Failed to allocate context", -1);
     return;
   }
-  sqlite3_value** ptr = reinterpret_cast<sqlite3_value**>(
-      sqlite3_aggregate_context(ctx, sizeof(sqlite3_value*)));
-  if (ptr) {
-    if (*ptr != nullptr) {
-      sqlite3_value_free(*ptr);
-    }
-    *ptr = sqlite3_value_dup(value);
-  }
+
+  ptr->PushBack(argv[0]);
 }
 
-void LastNonNullInverse(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-  // Do nothing.
-  base::ignore_result(ctx);
-  base::ignore_result(argc);
-  base::ignore_result(argv);
+void LastNonNullInverse(sqlite3_context* ctx, int, sqlite3_value**) {
+  auto* ptr = LastNonNullAggregateContext::GetOrCreate(ctx);
+  PERFETTO_CHECK(ptr != nullptr);
+  ptr->PopFront();
 }
 
 void LastNonNullValue(sqlite3_context* ctx) {
-  sqlite3_value** ptr =
-      reinterpret_cast<sqlite3_value**>(sqlite3_aggregate_context(ctx, 0));
-  if (!ptr || !*ptr) {
+  auto* ptr = LastNonNullAggregateContext::GetOrCreate(ctx);
+  if (!ptr || !ptr->last_non_null_value()) {
     sqlite3_result_null(ctx);
   } else {
-    sqlite3_result_value(ctx, *ptr);
+    sqlite3_result_value(ctx, ptr->last_non_null_value());
   }
 }
 
 void LastNonNullFinal(sqlite3_context* ctx) {
-  sqlite3_value** ptr =
-      reinterpret_cast<sqlite3_value**>(sqlite3_aggregate_context(ctx, 0));
-  if (!ptr || !*ptr) {
+  auto* ptr = LastNonNullAggregateContext::Get(ctx);
+  if (!ptr || !ptr->last_non_null_value()) {
     sqlite3_result_null(ctx);
   } else {
-    sqlite3_result_value(ctx, *ptr);
-    sqlite3_value_free(*ptr);
+    sqlite3_result_value(ctx, ptr->last_non_null_value());
+    ptr->Destroy();
   }
 }
 
