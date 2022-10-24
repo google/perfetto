@@ -110,6 +110,67 @@ ReadStringRes ReadOneJsonString(const char* start,
   return ReadStringRes::kNeedsMoreData;
 }
 
+enum class SkipValueRes {
+  kEndOfValue,
+  kNeedsMoreData,
+  kFatalError,
+};
+SkipValueRes SkipOneJsonValue(const char* start,
+                              const char* end,
+                              const char** next) {
+  uint32_t brace_count = 0;
+  uint32_t bracket_count = 0;
+  for (const char* s = start; s < end; s++) {
+    if (*s == '"') {
+      // Because strings can contain {}[] characters, handle them separately
+      // before anything else.
+      std::string ignored;
+      const char* str_next = nullptr;
+      switch (ReadOneJsonString(s, end, &ignored, &str_next)) {
+        case ReadStringRes::kFatalError:
+          return SkipValueRes::kFatalError;
+        case ReadStringRes::kNeedsMoreData:
+          return SkipValueRes::kNeedsMoreData;
+        case ReadStringRes::kEndOfString:
+          // -1 as the loop body will +1 getting to the correct place.
+          s = str_next - 1;
+          break;
+      }
+      continue;
+    }
+    if (brace_count == 0 && bracket_count == 0 && (*s == ',' || *s == '}')) {
+      // If we're at the outermost level and we see a comma or a closing brace,
+      // we've hit the end of the value.
+      // +1 so we skip the closing comma/brace itself.
+      *next = s + 1;
+      return SkipValueRes::kEndOfValue;
+    }
+    if (*s == '[') {
+      ++bracket_count;
+      continue;
+    }
+    if (*s == ']') {
+      if (bracket_count == 0) {
+        return SkipValueRes::kFatalError;
+      }
+      --bracket_count;
+      continue;
+    }
+    if (*s == '{') {
+      ++brace_count;
+      continue;
+    }
+    if (*s == '}') {
+      if (brace_count == 0) {
+        return SkipValueRes::kFatalError;
+      }
+      --brace_count;
+      continue;
+    }
+  }
+  return SkipValueRes::kNeedsMoreData;
+}
+
 }  // namespace
 
 ReadDictRes ReadOneJsonDict(const char* start,
@@ -278,8 +339,11 @@ util::Status ExtractValueForJsonKey(base::StringView dict,
     if (res == ReadKeyRes::kEndOfDictionary)
       break;
 
-    if (res == ReadKeyRes::kFatalError)
-      return util::ErrStatus("Failure parsing JSON: encountered fatal error");
+    if (res == ReadKeyRes::kFatalError) {
+      return util::ErrStatus(
+          "Failure parsing JSON: encountered fatal error while parsing key for "
+          "value");
+    }
 
     if (res == ReadKeyRes::kNeedsMoreData) {
       return util::ErrStatus("Failure parsing JSON: partial JSON dictionary");
@@ -432,8 +496,10 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
 
       std::string key;
       ReadKeyRes res = ReadOneJsonKey(start, end, &key, &next);
-      if (res == ReadKeyRes::kFatalError)
-        return util::ErrStatus("Failure parsing JSON: encountered fatal error");
+      if (res == ReadKeyRes::kFatalError) {
+        return util::ErrStatus(
+            "Failure parsing JSON: encountered fatal error while parsing key");
+      }
 
       if (res == ReadKeyRes::kEndOfDictionary ||
           res == ReadKeyRes::kNeedsMoreData) {
@@ -477,40 +543,16 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
         return ParseInternal(next, end, out);
       }
 
-      // If we don't recognize the key, check if it could be a string or dict.
-      // If either of them, parse it and throw it away to move onto the next
-      // key.
-      if (*next == '"') {
-        std::string ignored;
-        ReadStringRes value_res = ReadOneJsonString(next, end, &ignored, &next);
-        if (value_res == ReadStringRes::kFatalError) {
+      // If we don't know the key for this JSON value just skip it.
+      switch (SkipOneJsonValue(next, end, &next)) {
+        case SkipValueRes::kFatalError:
           return base::ErrStatus(
-              "Failure parsing JSON: unable to read string for key %s",
+              "Failure parsing JSON: error while parsing value for key %s",
               key.c_str());
-        }
-        if (value_res == ReadStringRes::kNeedsMoreData) {
-          break;
-        }
-        return ParseInternal(next, end, out);
+        case SkipValueRes::kNeedsMoreData:
+        case SkipValueRes::kEndOfValue:
+          return ParseInternal(next, end, out);
       }
-      if (*next == '{') {
-        base::StringView ignored;
-        ReadDictRes value_res = ReadOneJsonDict(next, end, &ignored, &next);
-        if (value_res == ReadDictRes::kEndOfTrace ||
-            value_res == ReadDictRes::kEndOfArray) {
-          return util::ErrStatus(
-              "Failure parsing JSON: unable to read dict for key %s",
-              key.c_str());
-        }
-        if (value_res == ReadDictRes::kNeedsMoreData) {
-          break;
-        }
-        return ParseInternal(next, end, out);
-      }
-
-      // Otherwise, just jump to the end of the trace.
-      // TODO(lalitm): do something better here.
-      position_ = TracePosition::kEof;
       break;
     }
     case TracePosition::kInsideSystemTraceEventsString: {
@@ -522,9 +564,11 @@ util::Status JsonTraceTokenizer::ParseInternal(const char* start,
       while (next < end) {
         std::string raw_line;
         auto res = ReadOneSystemTraceLine(next, end, &raw_line, &next);
-        if (res == ReadSystemLineRes::kFatalError)
+        if (res == ReadSystemLineRes::kFatalError) {
           return util::ErrStatus(
-              "Failure parsing JSON: encountered fatal error");
+              "Failure parsing JSON: encountered fatal error while parsing "
+              "event inside trace event string");
+        }
 
         if (res == ReadSystemLineRes::kNeedsMoreData)
           break;
