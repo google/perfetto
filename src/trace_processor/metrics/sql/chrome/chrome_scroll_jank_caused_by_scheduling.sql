@@ -47,7 +47,8 @@ SELECT
   window_start_id,
   window_start_ts,
   window_end_id,
-  window_end_ts
+  window_end_ts,
+  scroll_type
 FROM
   (SELECT * FROM (
     (
