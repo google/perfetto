@@ -862,8 +862,9 @@ cc_library_static {
         "//apex_available:platform",
         "com.android.art",
         "com.android.art.debug",
+        "com.android.tethering",
     ],
-    min_sdk_version: "S",
+    min_sdk_version: "30",
 }
 
 // GN: //src/perfetto_cmd:perfetto

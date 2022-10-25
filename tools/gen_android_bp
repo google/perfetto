@@ -241,9 +241,9 @@ additional_args = {
     'libperfetto_client_experimental': [
         ('apex_available', {
             '//apex_available:platform', 'com.android.art',
-            'com.android.art.debug'
+            'com.android.art.debug', 'com.android.tethering'
         }),
-        ('min_sdk_version', 'S'),
+        ('min_sdk_version', '30'),
         ('shared_libs', {'liblog'}),
         ('export_include_dirs', {'include', buildflags_dir}),
     ],
