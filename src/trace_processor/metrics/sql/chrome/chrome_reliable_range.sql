@@ -75,6 +75,7 @@ DROP VIEW IF EXISTS chrome_reliable_range_per_thread;
 CREATE VIEW chrome_reliable_range_per_thread
 AS
 SELECT
+  utid,
   MIN(ts) AS start,
   MAX(IFNULL(EXTRACT_ARG(source_arg_set_id, 'has_first_packet_on_sequence'), 0))
     AS has_first_packet_on_sequence
@@ -100,17 +101,29 @@ DROP VIEW IF EXISTS chrome_processes_data_loss_free_period;
 CREATE VIEW chrome_processes_data_loss_free_period
 AS
 SELECT
-  -- If reliable_from is NULL, the process has data loss until the end of the trace.
-  MAX(IFNULL(reliable_from, (SELECT MAX(ts + dur) FROM slice))) AS start
-FROM
-  experimental_missing_chrome_processes;
+ upid AS limiting_upid,
+ -- If reliable_from is NULL, the process has data loss until the end of the trace.
+ IFNULL(reliable_from, (SELECT MAX(ts + dur) FROM slice)) AS start
+FROM experimental_missing_chrome_processes
+ORDER BY start DESC
+LIMIT 1;
 
 DROP VIEW IF EXISTS chrome_reliable_range;
 
 CREATE VIEW chrome_reliable_range
 AS
 SELECT
-  MAX(COALESCE(MAX(start), 0),
-      COALESCE((SELECT start FROM chrome_processes_data_loss_free_period), 0)) AS start
-FROM chrome_reliable_range_per_thread
-WHERE has_first_packet_on_sequence = 0;
+  MAX(thread_start, data_loss_free_start) AS start,
+  IIF(thread_start >= data_loss_free_start,
+      'First slice for utid=' || limiting_utid,
+      'Missing process data for upid=' || limiting_upid) AS reason,
+  limiting_upid AS debug_limiting_upid,
+  limiting_utid AS debug_limiting_utid
+FROM
+(SELECT
+  COALESCE(MAX(start), 0) AS thread_start,
+  utid AS limiting_utid,
+  COALESCE((SELECT start FROM chrome_processes_data_loss_free_period), 0) AS data_loss_free_start,
+  (SELECT limiting_upid FROM chrome_processes_data_loss_free_period) AS limiting_upid
+ FROM chrome_reliable_range_per_thread
+ WHERE has_first_packet_on_sequence = 0);
