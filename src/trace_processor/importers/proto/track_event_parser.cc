@@ -39,6 +39,7 @@
 
 #include "protos/perfetto/trace/extension_descriptor.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_active_processes.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_histogram_sample.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_legacy_ipc.pbzero.h"
@@ -1182,6 +1183,13 @@ class TrackEventParser::EventImporter {
       log_errors(
           ParseHistogramName(event_.chrome_histogram_sample(), inserter));
     }
+    if (event_.has_chrome_active_processes()) {
+      protos::pbzero::ChromeActiveProcesses::Decoder message(
+          event_.chrome_active_processes());
+      for (auto it = message.pid(); it; ++it) {
+        parser_->AddActiveProcess(ts_, *it);
+      }
+    }
 
     TrackEventArgsParser args_writer(ts_, *inserter, *storage_,
                                      *sequence_state_);
@@ -1529,10 +1537,7 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
   args_parser_.AddParsingOverrideForField(
       "active_processes.pid", [&](const protozero::Field& field,
                                   util::ProtoToArgsParser::Delegate& delegate) {
-        UniquePid upid = context_->process_tracker->GetOrCreateProcess(
-            static_cast<uint32_t>(field.as_int32()));
-        active_chrome_processes_tracker_.AddActiveProcessMetadata(
-            delegate.packet_timestamp(), upid);
+        AddActiveProcess(delegate.packet_timestamp(), field.as_int32());
         // Fallthrough so that the parser adds pid as a regular arg.
         return base::nullopt;
       });
@@ -1717,6 +1722,13 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
     context_->storage->IncrementStats(stats::track_event_parser_errors);
     PERFETTO_DLOG("ParseTrackEvent error: %s", status.c_message());
   }
+}
+
+void TrackEventParser::AddActiveProcess(int64_t packet_timestamp, int32_t pid) {
+  UniquePid upid =
+      context_->process_tracker->GetOrCreateProcess(static_cast<uint32_t>(pid));
+  active_chrome_processes_tracker_.AddActiveProcessMetadata(packet_timestamp,
+                                                            upid);
 }
 
 void TrackEventParser::NotifyEndOfFile() {
