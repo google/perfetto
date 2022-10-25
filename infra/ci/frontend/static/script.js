@@ -562,7 +562,7 @@ function stripEmail(email) {
 async function fetchGerritCLs() {
   console.log('Fetching CL list from Gerrit');
   let uri = '/gerrit/changes/?-age:7days';
-  uri += '+-is:abandoned&o=DETAILED_ACCOUNTS&o=CURRENT_REVISION';
+  uri += '+-is:abandoned+branch:master&o=DETAILED_ACCOUNTS&o=CURRENT_REVISION';
   const response = await fetch(uri);
   state.gerritCls = [];
   if (response.status !== 200) {
