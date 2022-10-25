@@ -282,11 +282,17 @@ export abstract class Engine {
   // for (const it = res.iter({foo: NUM, bar:STR}); it.valid(); it.next()) {
   //   console.log(it.foo, it.bar);
   // }
-  query(sqlQuery: string): Promise<QueryResult>&QueryResult {
+  //
+  // Optional |tag| (usually a component name) can be provided to allow
+  // attributing trace processor workload to different UI components.
+  query(sqlQuery: string, tag?: string): Promise<QueryResult>&QueryResult {
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_QUERY_STREAMING;
     rpc.queryArgs = new QueryArgs();
     rpc.queryArgs.sqlQuery = sqlQuery;
+    if (tag) {
+      rpc.queryArgs.tag = tag;
+    }
     const result = createQueryResult({
       query: sqlQuery,
     });
@@ -404,5 +410,25 @@ export abstract class Engine {
     }
 
     return new TimeSpan(startBound, endBound);
+  }
+
+  getProxy(tag: string): EngineProxy {
+    return new EngineProxy(this, tag);
+  }
+}
+
+// Lightweight wrapper over Engine exposing only `query` method and annotating
+// all queries going through it with a tag.
+export class EngineProxy {
+  private engine: Engine;
+  private tag: string;
+
+  constructor(engine: Engine, tag: string) {
+    this.engine = engine;
+    this.tag = tag;
+  }
+
+  query(sqlQuery: string, tag?: string): Promise<QueryResult>&QueryResult {
+    return this.engine.query(sqlQuery, tag || this.tag);
   }
 }

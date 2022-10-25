@@ -335,7 +335,12 @@ Iterator Rpc::QueryInternal(const uint8_t* args, size_t len) {
   std::string sql = query.sql_query().ToStdString();
   PERFETTO_DLOG("[RPC] Query < %s", sql.c_str());
   PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "RPC_QUERY",
-                    [&](metatrace::Record* r) { r->AddArg("SQL", sql); });
+                    [&](metatrace::Record* r) {
+                      r->AddArg("SQL", sql);
+                      if (query.has_tag()) {
+                        r->AddArg("tag", query.tag());
+                      }
+                    });
 
   return trace_processor_->ExecuteQuery(sql.c_str());
 }
