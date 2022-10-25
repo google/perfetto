@@ -67,7 +67,7 @@ export class LogPanel extends Panel<{}> {
     this.recomputeVisibleRowsAndUpdate();
   }
 
-  onupdate(_: m.CVnodeDOM) {
+  onbeforeupdate(_: m.CVnodeDOM) {
     this.bounds = globals.trackDataStore.get(LogBoundsKey) as LogBounds;
     this.entries = globals.trackDataStore.get(LogEntriesKey) as LogEntries;
     this.recomputeVisibleRowsAndUpdate();
@@ -101,7 +101,7 @@ export class LogPanel extends Panel<{}> {
     const isStaleRight = !rightSpan.isInBounds(vis.end);
     const isStale = isStaleLeft || isStaleRight;
     const offset = Math.min(this.visibleRowOffset, total);
-    const visCount = Math.min(total, this.visibleRowCount);
+    const visCount = Math.min(total - offset, this.visibleRowCount);
     return {isStale, total, count: visCount, offset};
   }
 
