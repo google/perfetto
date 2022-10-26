@@ -42,8 +42,10 @@ uint64_t PdepSlow(uint64_t word, uint64_t mask) {
   // one among those tested when writing this function.
   uint64_t result = 0;
   for (uint64_t bb = 1; mask; bb += bb) {
-    if (word & bb)
-      result |= mask & -mask;
+    if (word & bb) {
+      // MSVC doesn't like -mask so work around this by doing 0 - mask.
+      result |= mask & (0ull - mask);
+    }
     mask &= mask - 1;
   }
   return result;
