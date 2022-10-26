@@ -12,4 +12,4 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 SELECT RUN_METRIC('chrome/chrome_reliable_range.sql');
-SELECT start FROM chrome_reliable_range;
+SELECT start, reason, debug_limiting_upid, debug_limiting_utid FROM chrome_reliable_range;
