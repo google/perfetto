@@ -1030,6 +1030,7 @@ source_set("libunwindstack") {
     "android-unwinding/libunwindstack/RegsArm64.cpp",
     "android-unwinding/libunwindstack/RegsMips.cpp",
     "android-unwinding/libunwindstack/RegsMips64.cpp",
+    "android-unwinding/libunwindstack/RegsRiscv64.cpp",
     "android-unwinding/libunwindstack/RegsX86.cpp",
     "android-unwinding/libunwindstack/RegsX86_64.cpp",
     "android-unwinding/libunwindstack/Symbols.cpp",

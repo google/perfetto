@@ -231,7 +231,7 @@ BUILD_DEPS_HOST = [
     Dependency(
         'buildtools/android-unwinding',
         'https://android.googlesource.com/platform/system/unwinding.git',
-        '235e2604e2fa3c1f8f7a68c5e285f9622e741e64', 'all', 'all'),
+        '0cd809c7033d2f30ba6aa190f1e3fea7a7bab8a2', 'all', 'all'),
     Dependency('buildtools/android-logging',
                'https://android.googlesource.com/platform/system/logging.git',
                '7b36b566c9113fc703d68f76e8f40c0c2432481c', 'all', 'all'),
@@ -247,7 +247,7 @@ BUILD_DEPS_HOST = [
                '7851dce6f4ca17f5caa1c93a4e0a45686b1d56c3', 'all', 'all'),
     Dependency('buildtools/bionic',
                'https://android.googlesource.com/platform/bionic.git',
-               '332065d57e734b65f56474d136d22d767e36cbcd', 'all', 'all'),
+               '4b0e16bc72a82a63c699977376a7d6eadca1b206', 'all', 'all'),
 
     # Zlib used both in the tracing binaries, as well as the trace processor and
     # assorted tools.
