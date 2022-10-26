@@ -559,6 +559,19 @@ export const StateActions = {
     }
   },
 
+  addAutomaticNote(
+      state: StateDraft,
+      args: {timestamp: number, color: string, text: string}): void {
+    const id = generateNextId(state);
+    state.notes[id] = {
+      noteType: 'DEFAULT',
+      id,
+      timestamp: args.timestamp,
+      color: args.color,
+      text: args.text,
+    };
+  },
+
   addNote(state: StateDraft, args: {timestamp: number, color: string}): void {
     const id = generateNextId(state);
     state.notes[id] = {
