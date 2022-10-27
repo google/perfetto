@@ -82,6 +82,8 @@ const F2FS_IOSTAT_TAG = 'f2fs_iostat.';
 const F2FS_IOSTAT_GROUP_NAME = 'f2fs_iostat';
 const F2FS_IOSTAT_LAT_TAG = 'f2fs_iostat_latency.';
 const F2FS_IOSTAT_LAT_GROUP_NAME = 'f2fs_iostat_latency';
+const DISK_IOSTAT_TAG = 'diskstat.';
+const DISK_IOSTAT_GROUP_NAME = 'diskstat';
 const UFS_CMD_TAG = 'io.ufs.command.tag';
 const UFS_CMD_TAG_GROUP_NAME = 'io.ufs.command.tags';
 const BUDDY_INFO_TAG = 'mem.buddyinfo';
@@ -486,21 +488,21 @@ class TrackDecider {
     this.addTrackGroupActions.push(addGroup);
   }
 
-  async groupGlobalF2fsIostatTracks(tag: string, group: string): Promise<void> {
-    const f2fsIostatTracks: AddTrackArgs[] = [];
+  async groupGlobalIostatTracks(tag: string, group: string): Promise<void> {
+    const iostatTracks: AddTrackArgs[] = [];
     const devMap = new Map<string, string>();
 
     for (const track of this.tracksToAdd) {
       if (track.name.startsWith(tag)) {
-        f2fsIostatTracks.push(track);
+        iostatTracks.push(track);
       }
     }
 
-    if (f2fsIostatTracks.length === 0) {
+    if (iostatTracks.length === 0) {
       return;
     }
 
-    for (const track of f2fsIostatTracks) {
+    for (const track of iostatTracks) {
       const name = track.name.split('.', 3);
 
       if (!devMap.has(name[1])) {
@@ -1640,10 +1642,10 @@ class TrackDecider {
     await this.addAnnotationTracks(
         this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
     await this.groupGlobalIonTracks();
-    await this.groupGlobalF2fsIostatTracks(
-        F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
-    await this.groupGlobalF2fsIostatTracks(
+    await this.groupGlobalIostatTracks(F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
+    await this.groupGlobalIostatTracks(
         F2FS_IOSTAT_LAT_TAG, F2FS_IOSTAT_LAT_GROUP_NAME);
+    await this.groupGlobalIostatTracks(DISK_IOSTAT_TAG, DISK_IOSTAT_GROUP_NAME);
     await this.groupGlobalUfsCmdTagTracks(UFS_CMD_TAG, UFS_CMD_TAG_GROUP_NAME);
     await this.groupGlobalBuddyInfoTracks();
     await this.groupKernelWakelockTracks();
