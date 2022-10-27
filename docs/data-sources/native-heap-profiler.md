@@ -298,7 +298,7 @@ about correct filenames.
 If your profile contains obfuscated Java methods (like `fsd.a`), you can
 provide a deobfuscation map to turn them back into human readable.
 To do so, use the `PERFETTO_PROGUARD_MAP` environment variable, using the
-format `packagename=filename[:packagename=filename...]`, e.g.
+format `packagename=map_filename[:packagename=map_filename...]`, e.g.
 `PERFETTO_PROGUARD_MAP=com.example.pkg1=foo.txt:com.example.pkg2=bar.txt`.
 All tools
 (traceconv, trace_processor_shell, the heap_profile script) support specifying
@@ -306,12 +306,16 @@ the `PERFETTO_PROGUARD_MAP` as an environment variable.
 
 You can get a deobfuscation map for your trace using
 `tools/traceconv deobfuscate`. Then concatenate the resulting file to your
-trace to get a deobfuscated version of it.
+trace to get a deobfuscated version of it (the input trace should be in the
+perfetto format, otherwise concatenation will not produce a reasonable output).
 
 ```
-PERFETTO_PROGUARD_MAP=com.example.pkg tools/traceconv deobfuscate ${TRACE} > deobfuscation_map
+PERFETTO_PROGUARD_MAP=com.example.pkg=proguard_map.txt tools/traceconv deobfuscate ${TRACE} > deobfuscation_map
 cat ${TRACE} deobfuscation_map > deobfuscated_trace
 ```
+
+`deobfuscated_trace` can be viewed in the
+[Perfetto UI](https://ui.perfetto.dev).
 
 ## Troubleshooting
 
