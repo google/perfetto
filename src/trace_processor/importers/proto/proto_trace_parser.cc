@@ -153,6 +153,8 @@ void ProtoTraceParser::ParseTraceStats(ConstBytes blob) {
   auto* storage = context_->storage.get();
   storage->SetStats(stats::traced_producers_connected,
                     static_cast<int64_t>(evt.producers_connected()));
+  storage->SetStats(stats::traced_producers_seen,
+                    static_cast<int64_t>(evt.producers_seen()));
   storage->SetStats(stats::traced_data_sources_registered,
                     static_cast<int64_t>(evt.data_sources_registered()));
   storage->SetStats(stats::traced_data_sources_seen,
