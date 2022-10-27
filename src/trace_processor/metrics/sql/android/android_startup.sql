@@ -309,7 +309,7 @@ SELECT
       FROM (
         SELECT 'dex2oat running during launch' AS slow_cause
         WHERE
-          DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*dex2oat64') > 2e9
+          DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*dex2oat64') > 20e6
 
         UNION ALL
         SELECT 'installd running during launch' AS slow_cause
@@ -319,7 +319,7 @@ SELECT
         UNION ALL
         SELECT 'Main Thread - Time spent in Running state'
         AS slow_cause
-        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'Running') > 2e9
+        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'Running') > 150e6
 
         UNION ALL
         SELECT 'Main Thread - Time spent in Runnable state'
@@ -329,11 +329,11 @@ SELECT
         UNION ALL
         SELECT 'Main Thread - Time spent in interruptible sleep state'
         AS slow_cause
-        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'S') > 2e9
+        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'S') > 250e6
 
         UNION ALL
         SELECT 'Main Thread - Time spent in Blocking I/O'
-        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.id, 'D*', true) > 2e9
+        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.id, 'D*', true) > 300e6
 
         UNION ALL
         SELECT 'Time spent in OpenDexFilesFromOat*'
@@ -348,7 +348,7 @@ SELECT
         UNION ALL
         SELECT 'Time spent in view inflation'
         AS slow_cause
-        WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(launches.id, 'inflate') > 2e9
+        WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(launches.id, 'inflate') > 600e6
 
         UNION ALL
         SELECT 'Time spent in ResourcesManager#getResources'
@@ -359,7 +359,7 @@ SELECT
         UNION ALL
         SELECT 'Time spent verifying classes'
         AS slow_cause
-        WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(launches.id, 'VerifyClass*') > 2e9
+        WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(launches.id, 'VerifyClass*') > 10e6
 
         UNION ALL
         SELECT 'JIT Activity'
@@ -384,7 +384,7 @@ SELECT
         WHERE DUR_SUM_MAIN_THREAD_FOR_LAUNCH_AND_SLICE(
           launches.id,
           'Lock contention on a monitor*'
-        ) > 2e9
+        ) > 40e6
 
         UNION ALL
         SELECT 'GC Activity'
