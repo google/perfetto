@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,17 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/sqlite/register_function.h"
-#include "sqlite3.h"
-#include "src/trace_processor/sqlite/sqlite_utils.h"
+#ifndef SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_SQLITE3_STR_SPLIT_H_
+#define SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_SQLITE3_STR_SPLIT_H_
+
+struct sqlite3;
 
 namespace perfetto {
 namespace trace_processor {
 
-base::Status SqlFunction::VerifyPostConditions(Context*) {
-  return base::OkStatus();
-}
-
-void SqlFunction::Cleanup(Context*) {}
+void sqlite3_str_split_init(sqlite3* db);
 
 }  // namespace trace_processor
 }  // namespace perfetto
+
+#endif  // SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_SQLITE3_STR_SPLIT_H_
