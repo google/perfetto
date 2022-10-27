@@ -27,6 +27,7 @@
 #include <unwindstack/MachineArm64.h>
 #include <unwindstack/MachineMips.h>
 #include <unwindstack/MachineMips64.h>
+#include <unwindstack/MachineRiscv64.h>
 #include <unwindstack/MachineX86.h>
 #include <unwindstack/MachineX86_64.h>
 
@@ -54,13 +55,15 @@ constexpr size_t kMaxRegisterDataSize =
     constexpr_max(
       constexpr_max(
         constexpr_max(
-            constexpr_max(
-              sizeof(uint32_t) * unwindstack::ARM_REG_LAST,
-              sizeof(uint64_t) * unwindstack::ARM64_REG_LAST),
-            sizeof(uint32_t) * unwindstack::X86_REG_LAST),
-          sizeof(uint64_t) * unwindstack::X86_64_REG_LAST),
-        sizeof(uint32_t) * unwindstack::MIPS_REG_LAST),
-      sizeof(uint64_t) * unwindstack::MIPS64_REG_LAST
+          constexpr_max(
+              constexpr_max(
+                sizeof(uint32_t) * unwindstack::ARM_REG_LAST,
+                sizeof(uint64_t) * unwindstack::ARM64_REG_LAST),
+              sizeof(uint32_t) * unwindstack::X86_REG_LAST),
+            sizeof(uint64_t) * unwindstack::X86_64_REG_LAST),
+          sizeof(uint32_t) * unwindstack::MIPS_REG_LAST),
+        sizeof(uint64_t) * unwindstack::MIPS64_REG_LAST),
+      sizeof(uint64_t) * unwindstack::RISCV64_REG_MAX
   );
 // clang-format on
 

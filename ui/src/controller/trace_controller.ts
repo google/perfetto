@@ -140,6 +140,13 @@ const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
   defaultValue: false,
 });
 
+const ENABLE_CHROME_RELIABLE_RANGE_ANNOTATION_FLAG = featureFlags.register({
+  id: 'enableChromeReliableRangeAnnotation',
+  name: 'Enable Chrome reliable range annotation',
+  description: 'Automatically adds an annotation for the reliable range start',
+  defaultValue: false,
+});
+
 function showJsonWarning() {
   showModal({
     title: 'Warning',
@@ -474,6 +481,17 @@ export class TraceController extends Controller<States> {
     await this.selectFirstHeapProfile();
     if (PERF_SAMPLE_FLAG.get()) {
       await this.selectPerfSample();
+    }
+
+    if (ENABLE_CHROME_RELIABLE_RANGE_ANNOTATION_FLAG.get()) {
+      const reliableRangeStart = await computeTraceReliableRangeStart(engine);
+      if (reliableRangeStart > 0) {
+        globals.dispatch(Actions.addAutomaticNote({
+          timestamp: reliableRangeStart,
+          color: '#ff0000',
+          text: 'Reliable Range Start',
+        }));
+      }
     }
 
     return engineMode;

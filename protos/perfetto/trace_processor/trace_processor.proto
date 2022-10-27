@@ -141,9 +141,10 @@ message AppendTraceDataResult {
 
 message QueryArgs {
   optional string sql_query = 1;
-
   // Was time_queued_ns
   reserved 2;
+  // Optional string to tag this query with for performance diagnostic purposes.
+  optional string tag = 3;
 }
 
 // Output for the /query endpoint.

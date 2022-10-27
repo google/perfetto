@@ -368,3 +368,6 @@ class TraceProcessor:
       self.subprocess.kill()
       self.subprocess.wait()
     self.http.conn.close()
+
+  def __del__(self):
+    self.close()
