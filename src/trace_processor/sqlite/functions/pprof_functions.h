@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,23 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SQLITE_SQLITE3_STR_SPLIT_H_
-#define SRC_TRACE_PROCESSOR_SQLITE_SQLITE3_STR_SPLIT_H_
+#ifndef SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_PPROF_FUNCTIONS_H_
+#define SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_PPROF_FUNCTIONS_H_
 
-struct sqlite3;
+#include <sqlite3.h>
+
+#include "perfetto/base/status.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-void sqlite3_str_split_init(sqlite3* db);
+class TraceProcessorContext;
+
+struct PprofFunctions {
+  static base::Status Register(sqlite3* db, TraceProcessorContext* context);
+};
 
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SQLITE_SQLITE3_STR_SPLIT_H_
+#endif  // SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_PPROF_FUNCTIONS_H_

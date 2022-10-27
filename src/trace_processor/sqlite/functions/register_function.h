@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SQLITE_REGISTER_FUNCTION_H_
-#define SRC_TRACE_PROCESSOR_SQLITE_REGISTER_FUNCTION_H_
+#ifndef SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_REGISTER_FUNCTION_H_
+#define SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_REGISTER_FUNCTION_H_
 
 #include <sqlite3.h>
 #include <memory>
@@ -230,4 +230,4 @@ base::Status RegisterSqlFunction(
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SQLITE_REGISTER_FUNCTION_H_
+#endif  // SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_REGISTER_FUNCTION_H_
