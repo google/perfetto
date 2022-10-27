@@ -1977,6 +1977,7 @@ cc_test {
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
+        ":perfetto_src_trace_processor_sqlite_functions_functions",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
         ":perfetto_src_trace_processor_storage_full",
@@ -9482,19 +9483,34 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/sqlite/functions:functions
+filegroup {
+    name: "perfetto_src_trace_processor_sqlite_functions_functions",
+    srcs: [
+        "src/trace_processor/sqlite/functions/create_function.cc",
+        "src/trace_processor/sqlite/functions/create_function_internal.cc",
+        "src/trace_processor/sqlite/functions/create_view_function.cc",
+        "src/trace_processor/sqlite/functions/pprof_functions.cc",
+        "src/trace_processor/sqlite/functions/register_function.cc",
+        "src/trace_processor/sqlite/functions/sqlite3_str_split.cc",
+    ],
+}
+
+// GN: //src/trace_processor/sqlite/functions:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_sqlite_functions_unittests",
+    srcs: [
+        "src/trace_processor/sqlite/functions/sqlite3_str_split_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/sqlite:sqlite
 filegroup {
     name: "perfetto_src_trace_processor_sqlite_sqlite",
     srcs: [
-        "src/trace_processor/sqlite/create_function.cc",
-        "src/trace_processor/sqlite/create_function_internal.cc",
-        "src/trace_processor/sqlite/create_view_function.cc",
         "src/trace_processor/sqlite/db_sqlite_table.cc",
-        "src/trace_processor/sqlite/pprof_functions.cc",
-        "src/trace_processor/sqlite/register_function.cc",
         "src/trace_processor/sqlite/span_join_operator_table.cc",
         "src/trace_processor/sqlite/sql_stats_table.cc",
-        "src/trace_processor/sqlite/sqlite3_str_split.cc",
         "src/trace_processor/sqlite/sqlite_raw_table.cc",
         "src/trace_processor/sqlite/sqlite_utils.cc",
         "src/trace_processor/sqlite/stats_table.cc",
@@ -9518,7 +9534,6 @@ filegroup {
         "src/trace_processor/sqlite/db_sqlite_table_unittest.cc",
         "src/trace_processor/sqlite/query_constraints_unittest.cc",
         "src/trace_processor/sqlite/span_join_operator_table_unittest.cc",
-        "src/trace_processor/sqlite/sqlite3_str_split_unittest.cc",
         "src/trace_processor/sqlite/sqlite_utils_unittest.cc",
     ],
 }
@@ -11065,6 +11080,8 @@ cc_test {
         ":perfetto_src_trace_processor_metrics_unittests",
         ":perfetto_src_trace_processor_rpc_rpc",
         ":perfetto_src_trace_processor_rpc_unittests",
+        ":perfetto_src_trace_processor_sqlite_functions_functions",
+        ":perfetto_src_trace_processor_sqlite_functions_unittests",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
         ":perfetto_src_trace_processor_sqlite_unittests",
@@ -11699,6 +11716,7 @@ cc_binary {
         ":perfetto_src_trace_processor_metrics_metrics",
         ":perfetto_src_trace_processor_rpc_httpd",
         ":perfetto_src_trace_processor_rpc_rpc",
+        ":perfetto_src_trace_processor_sqlite_functions_functions",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
         ":perfetto_src_trace_processor_storage_full",
@@ -11886,6 +11904,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
+        ":perfetto_src_trace_processor_sqlite_functions_functions",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
         ":perfetto_src_trace_processor_storage_full",

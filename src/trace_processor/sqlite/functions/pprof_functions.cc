@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/sqlite/pprof_functions.h"
+#include "src/trace_processor/sqlite/functions/pprof_functions.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/status.h"
-#include "src/trace_processor/sqlite/create_function_internal.h"
+#include "src/trace_processor/sqlite/functions/create_function_internal.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/profile_builder.h"
 #include "src/trace_processor/util/status_macros.h"
