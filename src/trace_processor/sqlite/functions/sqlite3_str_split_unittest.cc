@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/sqlite/sqlite3_str_split.h"
+#include "src/trace_processor/sqlite/functions/sqlite3_str_split.h"
 
 #include <sqlite3.h>
 #include <string>

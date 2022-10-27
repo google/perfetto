@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SQLITE_CREATE_FUNCTION_INTERNAL_H_
-#define SRC_TRACE_PROCESSOR_SQLITE_CREATE_FUNCTION_INTERNAL_H_
+#ifndef SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_CREATE_FUNCTION_INTERNAL_H_
+#define SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_CREATE_FUNCTION_INTERNAL_H_
 
 #include <sqlite3.h>
 #include <string>
@@ -76,4 +76,4 @@ base::Status MaybeBindArgument(sqlite3_stmt*,
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SQLITE_CREATE_FUNCTION_INTERNAL_H_
+#endif  // SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_CREATE_FUNCTION_INTERNAL_H_
