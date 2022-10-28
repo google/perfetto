@@ -40,6 +40,12 @@ function isTrustedOrigin(origin: string): boolean {
   return false;
 }
 
+// Returns whether we should ignore a given message based on the value of
+// the 'perfettoIgnore' field in the event data.
+function shouldGracefullyIgnoreMessage(messageEvent: MessageEvent) {
+  return messageEvent.data.perfettoIgnore === true;
+}
+
 // The message handler supports loading traces from an ArrayBuffer.
 // There is no other requirement than sending the ArrayBuffer as the |data|
 // property. However, since this will happen across different origins, it is not
@@ -47,6 +53,12 @@ function isTrustedOrigin(origin: string): boolean {
 // ready, so the message handler always replies to a 'PING' message with 'PONG',
 // which indicates it is ready to receive a trace.
 export function postMessageHandler(messageEvent: MessageEvent) {
+  if (shouldGracefullyIgnoreMessage(messageEvent)) {
+    // This message should not be handled in this handler,
+    // because it will be handled elsewhere.
+    return;
+  }
+
   if (messageEvent.origin === 'https://tagassistant.google.com') {
     // The GA debugger, does a window.open() and sends messages to the GA
     // script. Ignore them.
