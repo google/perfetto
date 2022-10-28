@@ -26,8 +26,8 @@ export function assertExists<A>(value: A | null | undefined): A {
 }
 
 export function assertTrue(value: boolean, optMsg?: string) {
-  if (value !== true) {
-    throw new Error(optMsg ? optMsg : 'Failed assertion');
+  if (!value) {
+    throw new Error(optMsg ?? 'Failed assertion');
   }
 }
 
