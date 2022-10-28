@@ -50,6 +50,7 @@ perfetto_component("base") {
     "string_view.cc",
     "temp_file.cc",
     "thread_checker.cc",
+    "thread_utils.cc",
     "time.cc",
     "utils.cc",
     "uuid.cc",
