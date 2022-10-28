@@ -83,6 +83,12 @@ export interface PostedTrace {
   keepApiOpen?: boolean;
 }
 
+export interface PostedScrollToRange {
+  timeStart: number;
+  timeEnd: number;
+  viewPercentage?: number;
+}
+
 function clearTraceState(state: StateDraft) {
   const nextId = state.nextId;
   const recordConfig = state.recordConfig;
