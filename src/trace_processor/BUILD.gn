@@ -353,8 +353,6 @@ if (enable_perfetto_trace_processor_sqlite) {
     ]
 
     deps = [
-      ":demangle",
-      ":export_json",
       ":metatrace",
       ":storage_full",
       "../../gn:default_deps",
