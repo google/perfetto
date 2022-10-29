@@ -19,6 +19,7 @@
 
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
+#include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -57,6 +58,11 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
 
   TraceProcessorContext* const context_;
   std::vector<uint8_t> leftover_bytes_;
+
+  // Proto reader creates state that the blobs it emits reference, so the
+  // proto_reader needs to live for as long as the tokenizer.
+  ProtoTraceReader proto_reader_;
+  std::vector<uint8_t> proto_trace_data_;
 
   // Map from tid to pid. Used because in some places we do not get pid info.
   // Fuchsia tids are never reused.
