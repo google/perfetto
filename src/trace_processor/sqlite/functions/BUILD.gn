@@ -29,12 +29,17 @@ if (enable_perfetto_trace_processor_sqlite) {
       "register_function.h",
       "sqlite3_str_split.cc",
       "sqlite3_str_split.h",
+      "utils.h",
+      "window_functions.h",
     ]
     deps = [
+      "../..:demangle",
+      "../..:export_json",
       "../..:ftrace_descriptors",
       "../..:metatrace",
       "../../../../gn:default_deps",
       "../../../../gn:sqlite",
+      "../../../../protos/perfetto/common:zero",
       "../../../../protos/perfetto/trace/ftrace:zero",
       "../../../base",
       "../../containers",
