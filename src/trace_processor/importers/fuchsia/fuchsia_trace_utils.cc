@@ -173,6 +173,18 @@ bool RecordCursor::ReadDouble(double* out) {
   return true;
 }
 
+bool RecordCursor::ReadBlob(size_t num_bytes,
+                            std::vector<uint8_t>& append_buffer) {
+  const uint8_t* data = begin_ + sizeof(uint64_t) * word_index_;
+  auto num_words = (num_bytes + 7) / 8;
+  if (data + sizeof(uint64_t) * num_words > end_) {
+    return false;
+  }
+  word_index_ += num_words;
+  append_buffer.insert(append_buffer.end(), data, data + num_bytes);
+  return true;
+}
+
 bool RecordCursor::ReadWords(size_t num_words, const uint8_t** data_out) {
   const uint8_t* data = begin_ + sizeof(uint64_t) * word_index_;
   // This addition is unconditional so that callers with data_out == nullptr do

@@ -353,8 +353,6 @@ if (enable_perfetto_trace_processor_sqlite) {
     ]
 
     deps = [
-      ":demangle",
-      ":export_json",
       ":metatrace",
       ":storage_full",
       "../../gn:default_deps",
@@ -429,6 +427,7 @@ perfetto_unittest_source_set("unittests") {
     "importers/ftrace/binder_tracker_unittest.cc",
     "importers/ftrace/sched_event_tracker_unittest.cc",
     "importers/ftrace/thread_state_tracker_unittest.cc",
+    "importers/fuchsia/fuchsia_parser_unittest.cc",
     "importers/fuchsia/fuchsia_trace_utils_unittest.cc",
     "importers/memory_tracker/graph_processor_unittest.cc",
     "importers/memory_tracker/graph_unittest.cc",
