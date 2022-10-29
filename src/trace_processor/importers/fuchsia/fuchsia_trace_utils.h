@@ -209,6 +209,7 @@ class RecordCursor {
   bool ReadInt64(int64_t* out);
   bool ReadUint64(uint64_t* out);
   bool ReadDouble(double* out);
+  bool ReadBlob(size_t num_bytes, std::vector<uint8_t>& out);
 
  private:
   bool ReadWords(size_t num_words, const uint8_t** data_out);
