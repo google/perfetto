@@ -750,6 +750,7 @@ perfetto_cc_library(
         "src/base/temp_file.cc",
         "src/base/thread_checker.cc",
         "src/base/thread_task_runner.cc",
+        "src/base/thread_utils.cc",
         "src/base/time.cc",
         "src/base/unix_task_runner.cc",
         "src/base/utils.cc",
