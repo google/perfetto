@@ -1449,6 +1449,8 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/functions/register_function.h",
         "src/trace_processor/sqlite/functions/sqlite3_str_split.cc",
         "src/trace_processor/sqlite/functions/sqlite3_str_split.h",
+        "src/trace_processor/sqlite/functions/utils.h",
+        "src/trace_processor/sqlite/functions/window_functions.h",
     ],
 )
 
