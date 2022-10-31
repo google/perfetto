@@ -72,6 +72,7 @@ android_sql_files = [
   "android/jank/internal/derived_events.sql",
   "android/jank/internal/query_base.sql",
   "android/jank/internal/query_frame_slice.sql",
+  "android/jank/params.sql",
   "android/jank/query_functions.sql",
   "android/jank/relevant_slices.sql",
   "android/jank/relevant_threads.sql",
