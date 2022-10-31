@@ -76,13 +76,12 @@ struct TrackEventDataDescriptor {
   }
 
   static uint64_t CountNumberOfCounterValues(const TrackEventData& ted) {
-    uint32_t num = 0;
-    for (; num < TrackEventData::kMaxNumExtraCounters; ++num) {
-      if (std::equal_to<double>()(ted.extra_counter_values[num], 0)) {
-        break;
+    for (uint32_t i = 0; i < TrackEventData::kMaxNumExtraCounters; ++i) {
+      if (std::equal_to<double>()(ted.extra_counter_values[i], 0)) {
+        return i;
       }
     }
-    return num;
+    return TrackEventData::kMaxNumExtraCounters;
   }
 
   static uint64_t GetPacketValue(bool has_thread_timestamp,
