@@ -14,13 +14,18 @@
 
 import * as m from 'mithril';
 
-import {Actions, PostedTrace} from '../common/actions';
+import {Actions, PostedScrollToRange, PostedTrace} from '../common/actions';
 
 import {globals} from './globals';
 import {showModal} from './modal';
+import {focusHorizontalRange} from './scroll_helper';
 
 interface PostedTraceWrapped {
   perfetto: PostedTrace;
+}
+
+interface PostedScrollToRangeWrapped {
+  perfetto: PostedScrollToRange;
 }
 
 // Returns whether incoming traces should be opened automatically or should
@@ -99,6 +104,13 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     return;
   }
 
+  let postedScrollToRange: PostedScrollToRange;
+  if (isPostedScrollToRange(messageEvent.data)) {
+    postedScrollToRange = messageEvent.data.perfetto;
+    scrollToTimeRange(postedScrollToRange);
+    return;
+  }
+
   let postedTrace: PostedTrace;
   let keepApiOpen = false;
   if (isPostedTraceWrapped(messageEvent.data)) {
@@ -172,6 +184,41 @@ function sanitizePostedTrace(postedTrace: PostedTrace): PostedTrace {
 
 function sanitizeString(str: string): string {
   return str.replace(/[^A-Za-z0-9.\-_#:/?=&;%+ ]/g, ' ');
+}
+
+function isTraceViewerReady(): boolean {
+  return !!(globals.getCurrentEngine()?.ready);
+}
+
+const _maxScrollToRangeAttempts = 20;
+async function scrollToTimeRange(
+    postedScrollToRange: PostedScrollToRange, maxAttempts?: number) {
+  const ready = isTraceViewerReady();
+  if (!ready) {
+    if (maxAttempts === undefined) {
+      maxAttempts = 0;
+    }
+    if (maxAttempts > _maxScrollToRangeAttempts) {
+      console.warn('Could not scroll to time range. Trace viewer not ready.');
+      return;
+    }
+    setTimeout(scrollToTimeRange, 200, postedScrollToRange, maxAttempts + 1);
+  } else {
+    focusHorizontalRange(
+        postedScrollToRange.timeStart,
+        postedScrollToRange.timeEnd,
+        postedScrollToRange.viewPercentage);
+  }
+}
+
+function isPostedScrollToRange(obj: unknown):
+    obj is PostedScrollToRangeWrapped {
+  const wrapped = obj as PostedScrollToRangeWrapped;
+  if (wrapped.perfetto === undefined) {
+    return false;
+  }
+  return wrapped.perfetto.timeStart !== undefined ||
+      wrapped.perfetto.timeEnd !== undefined;
 }
 
 function isPostedTraceWrapped(obj: any): obj is PostedTraceWrapped {
