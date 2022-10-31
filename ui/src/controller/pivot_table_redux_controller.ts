@@ -240,13 +240,6 @@ export class PivotTableReduxController extends Controller<{}> {
     }
 
     const pivotTableState = globals.state.nonSerializableState.pivotTableRedux;
-
-    if (pivotTableState.queryRequested) {
-      globals.dispatch(
-          Actions.setPivotTableQueryRequested({queryRequested: false}));
-      this.processQuery(generateQueryFromState(pivotTableState));
-    }
-
     const selection = globals.state.currentSelection;
 
     if (pivotTableState.queryRequested ||
