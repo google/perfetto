@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/ftrace/ftrace_parser.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_writer.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -69,6 +70,7 @@
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
 #include "protos/perfetto/trace/ftrace/tcp.pbzero.h"
 #include "protos/perfetto/trace/ftrace/thermal.pbzero.h"
+#include "protos/perfetto/trace/ftrace/trusty.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ufs.pbzero.h"
 #include "protos/perfetto/trace/ftrace/vmscan.pbzero.h"
 #include "protos/perfetto/trace/ftrace/workqueue.pbzero.h"
@@ -280,7 +282,11 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       shrink_name_id_(context->storage->InternString("shrink_name")),
       shrink_total_scan_id_(context->storage->InternString("total_scan")),
       shrink_freed_id_(context->storage->InternString("freed")),
-      shrink_priority_id_(context->storage->InternString("priority")) {
+      shrink_priority_id_(context->storage->InternString("priority")),
+      trusty_category_id_(context_->storage->InternString("tipc")),
+      trusty_name_trusty_std_id_(context_->storage->InternString("trusty_std")),
+      trusty_name_tipc_tx_id_(context_->storage->InternString("tipc_tx")),
+      trusty_name_tipc_rx_id_(context_->storage->InternString("tipc_rx")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -865,6 +871,86 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       case FtraceEvent::kVirtioVideoResourceQueueDoneFieldNumber: {
         VirtioVideoTracker::GetOrCreate(context_)->ParseVirtioVideoEvent(
             fld.id(), ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustySmcFieldNumber: {
+        ParseTrustySmc(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustySmcDoneFieldNumber: {
+        ParseTrustySmcDone(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyStdCall32FieldNumber: {
+        ParseTrustyStdCall32(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyStdCall32DoneFieldNumber: {
+        ParseTrustyStdCall32Done(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyShareMemoryFieldNumber: {
+        ParseTrustyShareMemory(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyShareMemoryDoneFieldNumber: {
+        ParseTrustyShareMemoryDone(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyReclaimMemoryFieldNumber: {
+        ParseTrustyReclaimMemory(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyReclaimMemoryDoneFieldNumber: {
+        ParseTrustyReclaimMemoryDone(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyIrqFieldNumber: {
+        ParseTrustyIrq(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyIpcHandleEventFieldNumber: {
+        ParseTrustyIpcHandleEvent(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyIpcConnectFieldNumber: {
+        ParseTrustyIpcConnect(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyIpcConnectEndFieldNumber: {
+        ParseTrustyIpcConnectEnd(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyIpcWriteFieldNumber: {
+        ParseTrustyIpcWrite(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyIpcReadFieldNumber: {
+        ParseTrustyIpcRead(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyIpcReadEndFieldNumber: {
+        ParseTrustyIpcReadEnd(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyIpcPollFieldNumber: {
+        ParseTrustyIpcPoll(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyIpcPollEndFieldNumber: {
+        ParseTrustyIpcPollEnd(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyIpcTxFieldNumber: {
+        ParseTrustyIpcTx(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyIpcRxFieldNumber: {
+        ParseTrustyIpcRx(pid, ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kTrustyEnqueueNopFieldNumber: {
+        ParseTrustyEnqueueNop(pid, ts, fld_bytes);
         break;
       }
       default:
@@ -2234,6 +2320,337 @@ void FtraceParser::ParseUfshcdClkGating(int64_t timestamp,
       context_->track_tracker->InternGlobalCounterTrack(ufs_clkgating_id_);
   context_->event_tracker->PushCounter(timestamp,
                                        static_cast<double>(clk_state), track);
+}
+
+void FtraceParser::ParseTrustySmc(uint32_t pid,
+                                  int64_t timestamp,
+                                  protozero::ConstBytes blob) {
+  protos::pbzero::TrustySmcFtraceEvent::Decoder evt(blob.data, blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  base::StackString<48> name("trusty_smc:r0= %" PRIu64, evt.r0());
+  StringId name_generic = context_->storage->InternString(name.string_view());
+
+  context_->slice_tracker->Begin(timestamp, track, trusty_category_id_,
+                                 name_generic);
+}
+
+void FtraceParser::ParseTrustySmcDone(uint32_t pid,
+                                      int64_t timestamp,
+                                      protozero::ConstBytes blob) {
+  protos::pbzero::TrustySmcDoneFtraceEvent::Decoder evt(blob.data, blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  context_->slice_tracker->End(timestamp, track, trusty_category_id_);
+  base::StackString<256> name("trusty_smc_done:r0= %" PRIu64, evt.ret());
+  StringId name_generic = context_->storage->InternString(name.string_view());
+  context_->slice_tracker->Scoped(timestamp, track, trusty_category_id_,
+                                  name_generic, 0);
+}
+
+void FtraceParser::ParseTrustyStdCall32(uint32_t pid,
+                                        int64_t timestamp,
+                                        protozero::ConstBytes blob) {
+  protos::pbzero::TrustyStdCall32FtraceEvent::Decoder evt(blob.data, blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  context_->slice_tracker->Begin(timestamp, track, trusty_category_id_,
+                                 trusty_name_trusty_std_id_);
+}
+
+void FtraceParser::ParseTrustyStdCall32Done(uint32_t pid,
+                                            int64_t timestamp,
+                                            protozero::ConstBytes blob) {
+  protos::pbzero::TrustyStdCall32DoneFtraceEvent::Decoder evt(blob.data,
+                                                              blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  context_->slice_tracker->End(timestamp, track, trusty_category_id_);
+  if (evt.ret() < 0) {
+    base::StackString<256> name("trusty_err_std: err= %" PRIi64, evt.ret());
+    StringId name_generic = context_->storage->InternString(name.string_view());
+    context_->slice_tracker->Scoped(timestamp, track, trusty_category_id_,
+                                    name_generic, 0);
+  }
+}
+
+void FtraceParser::ParseTrustyShareMemory(uint32_t pid,
+                                          int64_t timestamp,
+                                          protozero::ConstBytes blob) {
+  protos::pbzero::TrustyShareMemoryFtraceEvent::Decoder evt(blob.data,
+                                                            blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  base::StackString<256> name(
+      "trusty_share_mem: len= %" PRIu64 " nents= %" PRIu32 " lend= %" PRIu32,
+      static_cast<uint64_t>(evt.len()), evt.nents(), evt.lend());
+  StringId name_generic = context_->storage->InternString(name.string_view());
+
+  context_->slice_tracker->Begin(timestamp, track, trusty_category_id_,
+                                 name_generic);
+}
+
+void FtraceParser::ParseTrustyShareMemoryDone(uint32_t pid,
+                                              int64_t timestamp,
+                                              protozero::ConstBytes blob) {
+  protos::pbzero::TrustyShareMemoryDoneFtraceEvent::Decoder evt(blob.data,
+                                                                blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+  context_->slice_tracker->End(timestamp, track, trusty_category_id_);
+
+  base::StackString<256> name("trusty_share_mem: handle= %" PRIu64
+                              " ret= %" PRIi32,
+                              evt.handle(), evt.ret());
+  StringId name_generic = context_->storage->InternString(name.string_view());
+  context_->slice_tracker->Scoped(timestamp, track, trusty_category_id_,
+                                  name_generic, 0);
+}
+
+void FtraceParser::ParseTrustyReclaimMemory(uint32_t pid,
+                                            int64_t timestamp,
+                                            protozero::ConstBytes blob) {
+  protos::pbzero::TrustyReclaimMemoryFtraceEvent::Decoder evt(blob.data,
+                                                              blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  base::StackString<256> name("trusty_reclaim_mem: id=%" PRIu64, evt.id());
+  StringId name_generic = context_->storage->InternString(name.string_view());
+
+  context_->slice_tracker->Begin(timestamp, track, trusty_category_id_,
+                                 name_generic);
+}
+
+void FtraceParser::ParseTrustyReclaimMemoryDone(uint32_t pid,
+                                                int64_t timestamp,
+                                                protozero::ConstBytes blob) {
+  protos::pbzero::TrustyReclaimMemoryDoneFtraceEvent::Decoder evt(blob.data,
+                                                                  blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+  context_->slice_tracker->End(timestamp, track, trusty_category_id_);
+
+  if (evt.ret() < 0) {
+    base::StackString<256> name("trusty_reclaim_mem_err: err= %" PRIi32,
+                                evt.ret());
+    StringId name_generic = context_->storage->InternString(name.string_view());
+    context_->slice_tracker->Scoped(timestamp, track, trusty_category_id_,
+                                    name_generic, 0);
+  }
+}
+
+void FtraceParser::ParseTrustyIrq(uint32_t pid,
+                                  int64_t timestamp,
+                                  protozero::ConstBytes blob) {
+  protos::pbzero::TrustyIrqFtraceEvent::Decoder evt(blob.data, blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  base::StackString<256> name("trusty_irq: irq= %" PRIi32, evt.irq());
+  StringId name_generic = context_->storage->InternString(name.string_view());
+
+  context_->slice_tracker->Scoped(timestamp, track, trusty_category_id_,
+                                  name_generic, 0);
+}
+
+void FtraceParser::ParseTrustyIpcHandleEvent(uint32_t pid,
+                                             int64_t timestamp,
+                                             protozero::ConstBytes blob) {
+  protos::pbzero::TrustyIpcHandleEventFtraceEvent::Decoder evt(blob.data,
+                                                               blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  base::StackString<256> name(
+      "trusty_ipc_handle_event: chan=%" PRIu32 " srv_name=%s event=%" PRIu32,
+      evt.chan(), evt.srv_name().ToStdString().c_str(), evt.event_id());
+  StringId name_generic = context_->storage->InternString(name.string_view());
+
+  context_->slice_tracker->Scoped(timestamp, track, trusty_category_id_,
+                                  name_generic, 0);
+}
+
+void FtraceParser::ParseTrustyEnqueueNop(uint32_t pid,
+                                         int64_t timestamp,
+                                         protozero::ConstBytes blob) {
+  protos::pbzero::TrustyEnqueueNopFtraceEvent::Decoder evt(blob.data,
+                                                           blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  base::StackString<256> name("trusty_enqueue_nop: arg1= %" PRIu32
+                              " arg2= %" PRIu32 " arg3=%" PRIu32,
+                              evt.arg1(), evt.arg2(), evt.arg3());
+  StringId name_generic = context_->storage->InternString(name.string_view());
+  context_->slice_tracker->Scoped(timestamp, track, trusty_category_id_,
+                                  name_generic, 0);
+}
+
+void FtraceParser::ParseTrustyIpcConnect(uint32_t pid,
+                                         int64_t timestamp,
+                                         protozero::ConstBytes blob) {
+  protos::pbzero::TrustyIpcConnectFtraceEvent::Decoder evt(blob.data,
+                                                           blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  base::StackString<256> name("tipc_connect: %s",
+                              evt.port().ToStdString().c_str());
+  StringId name_generic = context_->storage->InternString(name.string_view());
+
+  context_->slice_tracker->Begin(timestamp, track, trusty_category_id_,
+                                 name_generic);
+}
+
+void FtraceParser::ParseTrustyIpcConnectEnd(uint32_t pid,
+                                            int64_t timestamp,
+                                            protozero::ConstBytes blob) {
+  protos::pbzero::TrustyIpcConnectEndFtraceEvent::Decoder evt(blob.data,
+                                                              blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  context_->slice_tracker->End(timestamp, track, trusty_category_id_);
+  if (evt.err()) {
+    base::StackString<256> name("tipc_err_connect:err= %" PRIi32, evt.err());
+    StringId name_generic = context_->storage->InternString(name.string_view());
+    context_->slice_tracker->Scoped(timestamp, track, trusty_category_id_,
+                                    name_generic, 0);
+  }
+}
+
+void FtraceParser::ParseTrustyIpcWrite(uint32_t pid,
+                                       int64_t timestamp,
+                                       protozero::ConstBytes blob) {
+  protos::pbzero::TrustyIpcWriteFtraceEvent::Decoder evt(blob.data, blob.size);
+
+  StringId name_generic = kNullStringId;
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  if (evt.shm_cnt() > 0) {
+    base::StackString<256> name("tipc_write: %s shm_cnt:[%" PRIu64 "]",
+                                evt.srv_name().ToStdString().c_str(),
+                                evt.shm_cnt());
+    name_generic = context_->storage->InternString(name.string_view());
+  } else {
+    base::StackString<256> name("tipc_write: %s",
+                                evt.srv_name().ToStdString().c_str());
+    name_generic = context_->storage->InternString(name.string_view());
+  }
+  context_->slice_tracker->Scoped(timestamp, track, trusty_category_id_,
+                                  name_generic, 0);
+
+  if (evt.len_or_err() < 0) {
+    base::StackString<256> name("tipc_err_write:len_or_err= %" PRIi32,
+                                evt.len_or_err());
+    name_generic = context_->storage->InternString(name.string_view());
+    context_->slice_tracker->Scoped(timestamp, track, trusty_category_id_,
+                                    name_generic, 0);
+  }
+}
+
+void FtraceParser::ParseTrustyIpcRead(uint32_t pid,
+                                      int64_t timestamp,
+                                      protozero::ConstBytes blob) {
+  protos::pbzero::TrustyIpcReadFtraceEvent::Decoder evt(blob.data, blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  base::StackString<256> name("tipc_read: %s",
+                              evt.srv_name().ToStdString().c_str());
+  StringId name_generic = context_->storage->InternString(name.string_view());
+  context_->slice_tracker->Begin(timestamp, track, trusty_category_id_,
+                                 name_generic);
+}
+
+void FtraceParser::ParseTrustyIpcReadEnd(uint32_t pid,
+                                         int64_t timestamp,
+                                         protozero::ConstBytes blob) {
+  protos::pbzero::TrustyIpcReadEndFtraceEvent::Decoder evt(blob.data,
+                                                           blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+  context_->slice_tracker->End(timestamp, track, trusty_category_id_);
+
+  if (evt.len_or_err() <= 0) {
+    base::StackString<256> name("tipc_err_read:len_or_err= %" PRIi32,
+                                evt.len_or_err());
+    StringId name_generic = context_->storage->InternString(name.string_view());
+    context_->slice_tracker->Scoped(timestamp, track, trusty_category_id_,
+                                    name_generic, 0);
+  }
+}
+
+void FtraceParser::ParseTrustyIpcPoll(uint32_t pid,
+                                      int64_t timestamp,
+                                      protozero::ConstBytes blob) {
+  protos::pbzero::TrustyIpcPollFtraceEvent::Decoder evt(blob.data, blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  base::StackString<256> name("tipc_poll: %s",
+                              evt.srv_name().ToStdString().c_str());
+  StringId name_generic = context_->storage->InternString(name.string_view());
+  context_->slice_tracker->Begin(timestamp, track, trusty_category_id_,
+                                 name_generic);
+}
+
+void FtraceParser::ParseTrustyIpcPollEnd(uint32_t pid,
+                                         int64_t timestamp,
+                                         protozero::ConstBytes blob) {
+  protos::pbzero::TrustyIpcPollEndFtraceEvent::Decoder evt(blob.data,
+                                                           blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+  context_->slice_tracker->End(timestamp, track, trusty_category_id_);
+}
+
+void FtraceParser::ParseTrustyIpcTx(uint32_t pid,
+                                    int64_t ts,
+                                    protozero::ConstBytes blob) {
+  protos::pbzero::TrustyIpcTxFtraceEvent::Decoder evt(blob.data, blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  context_->slice_tracker->Scoped(ts, track, trusty_category_id_,
+                                  trusty_name_tipc_tx_id_, 0);
+}
+
+void FtraceParser::ParseTrustyIpcRx(uint32_t pid,
+                                    int64_t ts,
+                                    protozero::ConstBytes blob) {
+  protos::pbzero::TrustyIpcRxFtraceEvent::Decoder evt(blob.data, blob.size);
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+
+  context_->slice_tracker->Scoped(ts, track, trusty_category_id_,
+                                  trusty_name_tipc_rx_id_, 0);
 }
 
 void FtraceParser::ParseUfshcdCommand(int64_t timestamp,
