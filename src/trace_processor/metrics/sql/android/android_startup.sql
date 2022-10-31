@@ -314,7 +314,7 @@ SELECT
         UNION ALL
         SELECT 'installd running during launch' AS slow_cause
         WHERE
-          DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*installd') > 2e9
+          DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*installd') > 150e6
 
         UNION ALL
         SELECT 'Main Thread - Time spent in Running state'
