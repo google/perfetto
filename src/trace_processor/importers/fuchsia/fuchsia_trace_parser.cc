@@ -62,24 +62,15 @@ struct Arg {
 }  // namespace
 
 FuchsiaTraceParser::FuchsiaTraceParser(TraceProcessorContext* context)
-    : context_(context),
-      // TODO(140860736): The ProtoTraceParser modifies the context on creation,
-      // so don't actually set the parser until we use it.
-      proto_parser_(nullptr) {}
+    : context_(context), proto_parser_(new ProtoTraceParser(context_)) {}
 
 FuchsiaTraceParser::~FuchsiaTraceParser() = default;
 
 void FuchsiaTraceParser::ParseTrackEvent(int64_t ts, TrackEventData data) {
-  if (!proto_parser_) {
-    proto_parser_.reset(new ProtoTraceParser(context_));
-  }
   proto_parser_->ParseTrackEvent(ts, std::move(data));
 }
 
 void FuchsiaTraceParser::ParseTracePacket(int64_t ts, TracePacketData data) {
-  if (!proto_parser_) {
-    proto_parser_.reset(new ProtoTraceParser(context_));
-  }
   proto_parser_->ParseTracePacket(ts, std::move(data));
 }
 
