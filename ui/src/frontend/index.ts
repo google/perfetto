@@ -338,7 +338,9 @@ function onCssLoaded() {
   // accidentially clober the state of an open trace processor instance
   // otherwise.
   CheckHttpRpcConnection().then(() => {
-    installFileDropHandler();
+    if (!globals.embeddedMode) {
+      installFileDropHandler();
+    }
 
     // Don't allow postMessage or opening trace from route when the user says
     // that they want to reuse the already loaded trace in trace processor.
