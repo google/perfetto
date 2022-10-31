@@ -102,3 +102,6 @@ chrome_missing_processes.textproto chrome_missing_processes_test.sql chrome_miss
 chrome_missing_processes.textproto chrome_missing_processes_args_test.sql chrome_missing_processes_args.out
 chrome_missing_processes_extension.textproto chrome_missing_processes_test.sql chrome_missing_processes.out
 chrome_missing_processes_extension.textproto chrome_missing_processes_args_test.sql chrome_missing_processes_extension_args.out
+
+# Chrome custom navigation event names
+../../data/chrome_custom_navigation_trace.gz chrome_custom_navigation_tasks_test.sql chrome_custom_navigation_tasks.out
