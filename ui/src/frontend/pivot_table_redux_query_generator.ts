@@ -264,9 +264,9 @@ export function generateQueryFromState(
   }
 
   const joins = `
-    join thread_track on thread_track.id = preaggregated.track_id
-    join thread using (utid)
-    join process using (upid)
+    left join thread_track on thread_track.id = preaggregated.track_id
+    left join thread using (utid)
+    left join process using (upid)
   `;
 
   const text = `
