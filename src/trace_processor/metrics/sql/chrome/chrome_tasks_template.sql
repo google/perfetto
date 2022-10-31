@@ -28,6 +28,20 @@ SELECT CREATE_FUNCTION(
   '
 );
 
+SELECT CREATE_FUNCTION(
+  '{{function_prefix}}EXTRACT_FRAME_TYPE(slice_id INT)',
+  'INT',
+  '
+    SELECT EXTRACT_ARG(descendants.arg_set_id, "render_frame_host.frame_type")
+    FROM descendant_slice($slice_id) descendants
+    WHERE descendants.name IN ("RenderFrameHostImpl::BeginNavigation",
+        "RenderFrameHostImpl::DidCommitProvisionalLoad",
+        "RenderFrameHostImpl::DidCommitSameDocumentNavigation",
+        "RenderFrameHostImpl::DidStopLoading")
+    LIMIT 1
+  '
+);
+
 -- Create |chrome_mojo_slices_tbl| table, containing a subset of slice
 -- table with the slices corresponding to mojo messages.
 --
@@ -316,17 +330,38 @@ WITH
         "mojo/public/cpp/bindings/lib/connector.cc:PostDispatchNextMessageFromPipe",
         "ipc/ipc_mojo_bootstrap.cc:Accept")
   ),
+  navigation_tasks AS (
+  SELECT
+    printf("%s (%s)",
+      CASE
+        WHEN full_name = 'content.mojom.FrameHost message (hash=2168461044)' THEN 'FrameHost::BeginNavigation'
+        WHEN full_name = 'content.mojom.FrameHost message (hash=3561497419)' THEN 'FrameHost::DidCommitProvisionalLoad'
+        WHEN full_name = 'content.mojom.FrameHost message (hash=1421450774)' THEN 'FrameHost::DidCommitSameDocumentNavigation'
+        WHEN full_name = 'content.mojom.FrameHost message (hash=368650583)' THEN 'FrameHost::DidStopLoading'
+      END,
+      IFNULL({{function_prefix}}EXTRACT_FRAME_TYPE(id), 'unknown frame type')) as full_name,
+      'navigation_task' as task_type,
+      id
+  FROM (
+    SELECT * from scheduler_tasks_with_mojo
+    WHERE full_name IN ('content.mojom.FrameHost message (hash=2168461044)',
+      'content.mojom.FrameHost message (hash=3561497419)',
+      'content.mojom.FrameHost message (hash=1421450774)',
+      'content.mojom.FrameHost message (hash=368650583)')
+    )
+  ),
   -- Add scheduler and mojo full names to non-embedded slices from
   -- the "toplevel" category, with mojo ones taking precedence.
   non_embedded_toplevel_slices_with_full_name AS (
     SELECT
-       COALESCE(s4.full_name, s2.full_name, s3.full_name, s1.name) AS full_name,
-       COALESCE(s4.task_type, s2.task_type, s3.task_type, "other") as task_type,
+       COALESCE(s5.full_name, s4.full_name, s2.full_name, s3.full_name, s1.name) AS full_name,
+       COALESCE(s5.task_type, s4.task_type, s2.task_type, s3.task_type, "other") as task_type,
        s1.id as id
     FROM non_embedded_toplevel_slices s1
     LEFT JOIN scheduler_tasks_with_mojo s2 ON s2.id=s1.id
     LEFT JOIN scheduler_tasks_with_full_names s3 ON s3.id=s1.id
     LEFT JOIN java_views_tasks s4 ON s4.id=s1.id
+    LEFT JOIN navigation_tasks s5 ON s5.id=s1.id
   )
 -- Merge slices from toplevel and Java categories.
 SELECT * from non_embedded_toplevel_slices_with_full_name
