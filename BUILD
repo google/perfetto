@@ -1274,6 +1274,7 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/android/jank/internal/derived_events.sql",
         "src/trace_processor/metrics/sql/android/jank/internal/query_base.sql",
         "src/trace_processor/metrics/sql/android/jank/internal/query_frame_slice.sql",
+        "src/trace_processor/metrics/sql/android/jank/params.sql",
         "src/trace_processor/metrics/sql/android/jank/query_functions.sql",
         "src/trace_processor/metrics/sql/android/jank/relevant_slices.sql",
         "src/trace_processor/metrics/sql/android/jank/relevant_threads.sql",
