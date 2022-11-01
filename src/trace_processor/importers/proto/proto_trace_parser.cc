@@ -63,12 +63,7 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
       raw_chrome_legacy_system_trace_event_id_(
           context->storage->InternString("chrome_event.legacy_system_trace")),
       raw_chrome_legacy_user_trace_event_id_(
-          context->storage->InternString("chrome_event.legacy_user_trace")) {
-  // TODO(140860736): Once we support null values for
-  // stack_profile_frame.symbol_set_id remove this hack
-  context_->storage->mutable_symbol_table()->Insert(
-      {0, kNullStringId, kNullStringId, 0});
-}
+          context->storage->InternString("chrome_event.legacy_user_trace")) {}
 
 ProtoTraceParser::~ProtoTraceParser() = default;
 

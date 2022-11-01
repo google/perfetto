@@ -41,7 +41,7 @@ export class VisualisedArgController extends Controller<'init'|'running'> {
     super('init');
     this.argName = args.argName;
     this.engine = args.engine;
-    this.escapedArgName = this.argName.replace(/\./g, '_');
+    this.escapedArgName = this.argName.replace(/[^a-zA-Z]/g, '_');
     this.tableName = `__arg_visualisation_helper_${this.escapedArgName}_slice`;
     this.addedTrackIds = [];
   }

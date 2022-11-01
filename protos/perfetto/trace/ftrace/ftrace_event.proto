@@ -70,6 +70,7 @@ import "protos/perfetto/trace/ftrace/systrace.proto";
 import "protos/perfetto/trace/ftrace/task.proto";
 import "protos/perfetto/trace/ftrace/tcp.proto";
 import "protos/perfetto/trace/ftrace/thermal.proto";
+import "protos/perfetto/trace/ftrace/trusty.proto";
 import "protos/perfetto/trace/ftrace/ufs.proto";
 import "protos/perfetto/trace/ftrace/v4l2.proto";
 import "protos/perfetto/trace/ftrace/virtio_video.proto";
@@ -550,5 +551,25 @@ message FtraceEvent {
         442;
     MmShrinkSlabStartFtraceEvent mm_shrink_slab_start = 443;
     MmShrinkSlabEndFtraceEvent mm_shrink_slab_end = 444;
+    TrustySmcFtraceEvent trusty_smc = 445;
+    TrustySmcDoneFtraceEvent trusty_smc_done = 446;
+    TrustyStdCall32FtraceEvent trusty_std_call32 = 447;
+    TrustyStdCall32DoneFtraceEvent trusty_std_call32_done = 448;
+    TrustyShareMemoryFtraceEvent trusty_share_memory = 449;
+    TrustyShareMemoryDoneFtraceEvent trusty_share_memory_done = 450;
+    TrustyReclaimMemoryFtraceEvent trusty_reclaim_memory = 451;
+    TrustyReclaimMemoryDoneFtraceEvent trusty_reclaim_memory_done = 452;
+    TrustyIrqFtraceEvent trusty_irq = 453;
+    TrustyIpcHandleEventFtraceEvent trusty_ipc_handle_event = 454;
+    TrustyIpcConnectFtraceEvent trusty_ipc_connect = 455;
+    TrustyIpcConnectEndFtraceEvent trusty_ipc_connect_end = 456;
+    TrustyIpcWriteFtraceEvent trusty_ipc_write = 457;
+    TrustyIpcPollFtraceEvent trusty_ipc_poll = 458;
+    TrustyIpcPollEndFtraceEvent trusty_ipc_poll_end = 459;
+    TrustyIpcReadFtraceEvent trusty_ipc_read = 460;
+    TrustyIpcReadEndFtraceEvent trusty_ipc_read_end = 461;
+    TrustyIpcRxFtraceEvent trusty_ipc_rx = 462;
+    TrustyIpcTxFtraceEvent trusty_ipc_tx = 463;
+    TrustyEnqueueNopFtraceEvent trusty_enqueue_nop = 464;
   }
 }

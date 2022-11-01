@@ -35,6 +35,9 @@ export function horizontalScrollToTs(ts: number) {
 
 // Given a start and end timestamp (in ns), move the viewport to center this
 // range and zoom if necessary:
+// - If [viewPercentage] is specified, the viewport will be zoomed so that
+//   the given time range takes up this percentage of the viewport.
+// The following scenarios assume [viewPercentage] is undefined.
 // - If the new range is more than 50% of the viewport, zoom out to a level
 // where
 //   the range is 1/5 of the viewport.
@@ -42,7 +45,8 @@ export function horizontalScrollToTs(ts: number) {
 // viewport
 //   to cover 1/5 of the viewport.
 // - Otherwise, preserve the zoom range.
-export function focusHorizontalRange(startTs: number, endTs: number) {
+export function focusHorizontalRange(
+    startTs: number, endTs: number, viewPercentage?: number) {
   const visibleDur = globals.frontendLocalState.visibleWindowTime.end -
       globals.frontendLocalState.visibleWindowTime.start;
   let selectDur = endTs - startTs;
@@ -52,6 +56,24 @@ export function focusHorizontalRange(startTs: number, endTs: number) {
     selectDur = INCOMPLETE_SLICE_TIME_S;
     endTs = startTs;
   }
+
+  if (viewPercentage !== undefined) {
+    if (viewPercentage <= 0.0 || viewPercentage > 1.0) {
+      console.warn(
+          'Invalid value for [viewPercentage]. ' +
+              'Value must be between 0.0 (exclusive) and 1.0 (inclusive).',
+      );
+      // Default to 50%.
+      viewPercentage = 0.5;
+    }
+    const paddingPercentage = 1.0 - viewPercentage;
+    const paddingTime = selectDur * paddingPercentage;
+    const halfPaddingTime = paddingTime / 2;
+    globals.frontendLocalState.updateVisibleTime(
+        new TimeSpan(startTs - halfPaddingTime, endTs + halfPaddingTime));
+    return;
+  }
+
   // If the range is too large to fit on the current zoom level, resize.
   if (selectDur > 0.5 * visibleDur) {
     globals.frontendLocalState.updateVisibleTime(

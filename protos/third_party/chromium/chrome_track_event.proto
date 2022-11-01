@@ -929,7 +929,8 @@ message AndroidToolbar {
     BLOCKED_STATUS_ICON_ANIMATION_IN_PROGRESS = 7;
     BLOCKED_SCROLL_ABLATION = 8;
     BLOCKED_BROWSER_CONTROLS_LOCKED = 9;
-    // TODO(https://crbug.com/1324678): SCROLL_IN_PROGRESS.
+    BLOCKED_TAB_SWITCHER_MODE = 10;
+    BLOCKED_COMPOSITOR_IN_MOTION = 11;
     // TODO(https://crbug.com/1324678): NATIVE_PAGE.
   }
   enum AllowCaptureReason {
@@ -951,8 +952,8 @@ message AndroidToolbar {
     DIFF_LOCATION_BAR_WIDTH = 10;
     DIFF_URL_TEXT = 11;
     DIFF_HOME_BUTTON_COLOR = 12;
-    TITLE_TEXT = 13;
-    CCT_ANIMATION = 14;
+    DIFF_TITLE_TEXT = 13;
+    DIFF_CCT_ANIMATION = 14;
   }
 
   optional BlockCaptureReason block_capture_reason = 1;
@@ -982,9 +983,73 @@ message UkmPageLoadTimingUpdate {
   optional double first_contentful_paint_ms = 5;
 }
 
+// Serializes the blink::ExecutionContext object.
+message BlinkExecutionContext {
+  // Definition of different context types.
+  enum ContextType {
+    UNKNOWN_CONTEXT = 0;
+    WINDOW = 1;
+    WORKLET = 2;
+    DEDICATED_WORKER = 3;
+    SHARED_WORKER = 4;
+    SERVICE_WORKER = 5;
+  }
+
+  optional ContextType type = 1;
+  // Contains url of frame or worker.
+  optional string url = 2;
+  // The origin of the execution context.
+  optional string origin = 3;
+}
+
+// Serializes the blink::SourceLocation object.
+message BlinkSourceLocation {
+  optional string function_name = 1;
+  optional int32 script_id = 2;
+  optional string url = 3;
+  optional int32 line_number = 4;
+  optional int32 column_number = 5;
+  optional string stack_trace = 6;
+}
+// Contains the meta information for high entropy events (like api calls)
+// that are to be traced for debugging in the context of identifiability study.
+message BlinkHighEntropyAPI {
+  // Serialization of a parameter passed to a javascript function.
+  // Contains the stringified type of the object and some string representation
+  // of its value.
+  message JSFunctionArgument {
+    // Definition of different types of function parameters.
+    enum ArgumentType {
+      UNKNOWN_TYPE = 0;
+      NULL_TYPE = 1;
+      UNDEFINED = 2;
+      BIGINT = 3;
+      BOOLEAN = 4;
+      FUNCTION = 5;
+      NUMBER = 6;
+      STRING = 7;
+      SYMBOL = 8;
+      OBJECT = 9;
+    }
+    optional ArgumentType type = 1;
+    optional string value = 2;
+  }
+
+  // Describes a Javascript API call.
+  message CalledJsApi {
+    // Contains class and function name of api called
+    // similar to "Navigator.languages.get".
+    optional string identifier = 1;
+    repeated JSFunctionArgument func_arguments = 2;
+    optional BlinkSourceLocation source_location = 3;
+  }
+  optional BlinkExecutionContext execution_context = 1;
+  optional CalledJsApi called_api = 2;
+}
+
 message ChromeTrackEvent {
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1045
+  // Next ID: 1046
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -1080,5 +1145,7 @@ message ChromeTrackEvent {
     optional BlinkTaskScope blink_task_scope = 1043;
 
     optional UkmPageLoadTimingUpdate ukm_page_load_timing_update = 1044;
+
+    optional BlinkHighEntropyAPI high_entropy_api = 1045;
   }
 }

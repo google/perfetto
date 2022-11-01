@@ -126,9 +126,9 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
               }
               const query = `
                 select slice.* from slice
-                join thread_track on slice.track_id = thread_track.id
-                join thread using (utid)
-                join process using (upid)
+                left join thread_track on slice.track_id = thread_track.id
+                left join thread using (utid)
+                left join process using (upid)
                 where ${queryFilters.join(' and \n')}
               `;
               // TODO(ddrone): the UI of running query as if it was a canned or
