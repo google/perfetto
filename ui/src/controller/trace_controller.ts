@@ -872,7 +872,9 @@ async function computeVisibleTime(
   // if we have non-default visible state, update the visible time to it
   const previousVisibleState = globals.state.frontendLocalState.visibleState;
   if (!(previousVisibleState.startSec === defaultTraceTime.startSec &&
-        previousVisibleState.endSec === defaultTraceTime.endSec)) {
+        previousVisibleState.endSec === defaultTraceTime.endSec) &&
+        (previousVisibleState.startSec >= traceStartSec &&
+        previousVisibleState.endSec <= traceEndSec)) {
     return [previousVisibleState.startSec, previousVisibleState.endSec];
   }
 
