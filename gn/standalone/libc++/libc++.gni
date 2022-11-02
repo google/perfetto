@@ -40,7 +40,7 @@ declare_args() {
   #    We still retain libstdc++ coverage on the CI bots by overriding
   #    use_custom_libcxx=false when we target a modern library (see the
   #    GCC target in infra/ci/config.py).
-  use_custom_libcxx = is_linux && is_clang && !is_wasm
+  use_custom_libcxx = is_linux && is_hermetic_clang && !is_wasm
   custom_libcxx_is_static = !using_sanitizer
 }
 
