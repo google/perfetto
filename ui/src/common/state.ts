@@ -496,6 +496,12 @@ export interface State {
    * Open traces.
    */
   newEngineMode: NewEngineMode;
+
+  /**
+   * At some point there were plans to support multiple traces support in the
+   * same instance UI. For now, the `engines` mapping contains at most one
+   * EngineConfig.
+   */
   engines: ObjectById<EngineConfig>;
   traceTime: TraceTime;
   traceUuid?: string;
