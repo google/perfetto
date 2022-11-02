@@ -347,8 +347,7 @@ base::Status ToMonotonic::Run(ClockTracker* tracker,
                               size_t argc,
                               sqlite3_value** argv,
                               SqlValue& out,
-                              __attribute__((unused))
-                              Destructors& destructors) {
+                              Destructors&) {
   if (argc != 1) {
     return base::ErrStatus("TO_MONOTONIC: 1 arg required");
   }
