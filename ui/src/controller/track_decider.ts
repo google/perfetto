@@ -1632,15 +1632,15 @@ class TrackDecider {
     await this.addCpuFreqTracks(
         this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
     await this.addGlobalAsyncTracks(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+        this.engine.getProxy('TrackDecider::addGlobalAsyncTracks'));
     await this.addGpuFreqTracks(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+        this.engine.getProxy('TrackDecider::addGpuFreqTracks'));
     await this.addGlobalCounterTracks(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+        this.engine.getProxy('TrackDecider::addGlobalCounterTracks'));
     await this.addCpuPerfCounterTracks(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+        this.engine.getProxy('TrackDecider::addCpuPerfCounterTracks'));
     await this.addAnnotationTracks(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+        this.engine.getProxy('TrackDecider::addAnnotationTrack'));
     await this.groupGlobalIonTracks();
     await this.groupGlobalIostatTracks(F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
     await this.groupGlobalIostatTracks(
@@ -1657,39 +1657,38 @@ class TrackDecider {
     // TrackKindPriority.MAIN_THREAD, any process-level tracks will end up
     // pushed to the bottom of the group in the UI.
     await this.addKernelThreadGrouping(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+        this.engine.getProxy('TrackDecider::addKernelThreadGrouping'));
 
     // Create the per-process track groups. Note that this won't necessarily
     // create a track per process. If a process has been completely idle and has
     // no sched events, no track group will be emitted.
     // Will populate this.addTrackGroupActions
     await this.addProcessTrackGroups(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+        this.engine.getProxy('TrackDecider::addProcessTrackGroups'));
 
     await this.addProcessHeapProfileTracks(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+        this.engine.getProxy('TrackDecider::addProcessHeapProfileTracks'));
     if (PERF_SAMPLE_FLAG.get()) {
       await this.addProcessPerfSamplesTracks(
-          this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+          this.engine.getProxy('TrackDecider::addProcessPerfSamplesTracks'));
     }
     await this.addProcessCounterTracks(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+        this.engine.getProxy('TrackDecider::addProcessCounterTracks'));
     await this.addProcessAsyncSliceTracks(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+        this.engine.getProxy('TrackDecider::addProcessAsyncSliceTrack'));
     await this.addActualFramesTracks(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+        this.engine.getProxy('TrackDecider::addActualFramesTracks'));
     await this.addExpectedFramesTracks(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+        this.engine.getProxy('TrackDecider::addExpectedFramesTracks'));
     await this.addThreadCounterTracks(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+        this.engine.getProxy('TrackDecider::addThreadCounterTracks'));
     await this.addThreadStateTracks(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+        this.engine.getProxy('TrackDecider::addThreadStateTracks'));
     await this.addThreadSliceTracks(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+        this.engine.getProxy('TrackDecider::addThreadSliceTracks'));
     await this.addThreadCpuSampleTracks(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
-    await this.addLogsTrack(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+        this.engine.getProxy('TrackDecider::addThreadCpuSampleTracks'));
+    await this.addLogsTrack(this.engine.getProxy('TrackDecider::addLogsTrack'));
 
     // TODO(hjd): Move into plugin API.
     {
