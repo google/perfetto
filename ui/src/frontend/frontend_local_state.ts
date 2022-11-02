@@ -33,7 +33,7 @@ interface Range {
   end?: number;
 }
 
-function chooseLatest<T extends Timestamped<{}>>(current: T, next: T): T {
+function chooseLatest<T extends Timestamped>(current: T, next: T): T {
   if (next !== current && next.lastUpdate > current.lastUpdate) {
     // |next| is from state. Callers may mutate the return value of
     // this function so we need to clone |next| to prevent bad mutations
