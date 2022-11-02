@@ -118,6 +118,7 @@ config("c++11") {
 
 # Used in buildtools dependencies for standalone builds.
 config("c++14") {
+  visibility = [ "//buildtools:llvm_demangle" ]
   if (is_win) {
     cflags_cc = [ "/std:c++14" ]
   } else {
@@ -127,10 +128,21 @@ config("c++14") {
 
 # Used in buildtools dependencies for standalone builds.
 config("c++17") {
+  visibility = [ "//buildtools:libunwindstack" ]
   if (is_win) {
     cflags_cc = [ "/std:c++17" ]
   } else {
     cflags_cc = [ "-std=c++17" ]
+  }
+}
+
+# Used in buildtools dependencies for standalone builds.
+config("c++20") {
+  visibility = [ "//buildtools:libc++config" ]
+  if (is_win) {
+    cflags_cc = [ "/std:c++20" ]
+  } else {
+    cflags_cc = [ "-std=c++20" ]
   }
 }
 
