@@ -127,6 +127,7 @@ bool HardResetFtraceState() {
     // Not checking success because these files might not be accessible on
     // older or release builds of Android:
     WriteToFile((prefix + "events/enable").c_str(), "0");
+    WriteToFile((prefix + "events/raw_syscalls/filter").c_str(), "0");
     WriteToFile((prefix + "current_tracer").c_str(), "nop");
     res &= ClearFile((prefix + "trace").c_str());
     if (res)
