@@ -27,16 +27,22 @@ import {
  */
 export interface ObjectById<Class extends{id: string}> { [id: string]: Class; }
 
-export type Timestamped<T> = {
-  [P in keyof T]: T[P];
-}&{lastUpdate: number};
+export interface Timestamped {
+  lastUpdate: number;
+}
 
 export type OmniboxMode = 'SEARCH'|'COMMAND';
 
-export type OmniboxState = Timestamped<{omnibox: string; mode: OmniboxMode}>;
+export interface OmniboxState extends Timestamped {
+  omnibox: string;
+  mode: OmniboxMode;
+}
 
-export type VisibleState =
-    Timestamped<{startSec: number; endSec: number; resolution: number;}>;
+export interface VisibleState extends Timestamped {
+  startSec: number;
+  endSec: number;
+  resolution: number;
+}
 
 export interface AreaSelection {
   kind: 'AREA';
