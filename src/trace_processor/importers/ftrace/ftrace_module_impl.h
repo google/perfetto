@@ -32,7 +32,7 @@ class TraceBlobView;
 
 class FtraceModuleImpl : public FtraceModule {
  public:
-  FtraceModuleImpl(TraceProcessorContext* context);
+  explicit FtraceModuleImpl(TraceProcessorContext* context);
 
   ModuleResult TokenizePacket(
       const protos::pbzero::TracePacket::Decoder& decoder,
@@ -40,11 +40,6 @@ class FtraceModuleImpl : public FtraceModule {
       int64_t packet_timestamp,
       PacketSequenceState* state,
       uint32_t field_id) override;
-
-  void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder&,
-                            int64_t ts,
-                            const TracePacketData&,
-                            uint32_t /*field_id*/) override;
 
   void ParseFtraceEventData(uint32_t cpu,
                             int64_t ts,
