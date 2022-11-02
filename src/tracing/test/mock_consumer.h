@@ -47,7 +47,9 @@ class MockConsumer : public Consumer {
   explicit MockConsumer(base::TestTaskRunner*);
   ~MockConsumer() override;
 
+  void Connect(std::unique_ptr<TracingService::ConsumerEndpoint>);
   void Connect(TracingService* svc, uid_t = 0);
+  void ForceDisconnect();
   void EnableTracing(const TraceConfig&, base::ScopedFile = base::ScopedFile());
   void StartTracing();
   void ChangeTraceConfig(const TraceConfig&);
