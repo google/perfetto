@@ -40,6 +40,7 @@ export class RunningStatistics {
   private _count = 0;
   private _mean = 0;
   private _lastValue = 0;
+  private _ptr = 0;
 
   private buffer: number[] = [];
 
@@ -47,10 +48,15 @@ export class RunningStatistics {
 
   addValue(value: number) {
     this._lastValue = value;
-    this.buffer.push(value);
-    if (this.buffer.length > this._maxBufferSize) {
-      this.buffer.shift();
+    if (this.buffer.length >= this._maxBufferSize) {
+      this.buffer[this._ptr++] = value;
+      if (this._ptr >= this.buffer.length) {
+        this._ptr -= this.buffer.length;
+      }
+    } else {
+      this.buffer.push(value);
     }
+
     this._mean = (this._mean * this._count + value) / (this._count + 1);
     this._count++;
   }

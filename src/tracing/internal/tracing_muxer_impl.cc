@@ -1009,6 +1009,7 @@ static bool MaybeAdoptStartupTracingInDataSource(
         internal_state->data_source_instance_id = instance_id;
         internal_state->buffer_id =
             static_cast<internal::BufferId>(cfg.target_buffer());
+        internal_state->config_hash = ComputeConfigHash(cfg);
 
         // TODO(eseckler): Should the data souce config provided by the service
         // be allowed to specify additional interceptors / additional data
