@@ -1444,6 +1444,8 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/functions/create_function_internal.h",
         "src/trace_processor/sqlite/functions/create_view_function.cc",
         "src/trace_processor/sqlite/functions/create_view_function.h",
+        "src/trace_processor/sqlite/functions/import.cc",
+        "src/trace_processor/sqlite/functions/import.h",
         "src/trace_processor/sqlite/functions/pprof_functions.cc",
         "src/trace_processor/sqlite/functions/pprof_functions.h",
         "src/trace_processor/sqlite/functions/register_function.cc",
@@ -1508,7 +1510,7 @@ perfetto_genrule(
 perfetto_filegroup(
     name = "src_trace_processor_stdlib_stdlib",
     srcs = [
-        "src/trace_processor/stdlib/dummy.h",
+        "src/trace_processor/stdlib/utils.h",
     ],
 )
 
