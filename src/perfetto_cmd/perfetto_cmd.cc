@@ -959,6 +959,7 @@ int PerfettoCmd::ConnectToServiceAndRun() {
 }
 
 void PerfettoCmd::OnConnect() {
+  connected_ = true;
   LogUploadEvent(PerfettoStatsdAtom::kOnConnect);
 
   if (background_wait_) {
@@ -1029,7 +1030,23 @@ void PerfettoCmd::OnConnect() {
 }
 
 void PerfettoCmd::OnDisconnect() {
-  PERFETTO_LOG("Disconnected from the Perfetto traced service");
+  if (connected_) {
+    PERFETTO_LOG("Disconnected from the traced service");
+  } else {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+    static const char kDocUrl[] =
+        "https://perfetto.dev/docs/quickstart/android-tracing";
+#else
+    static const char kDocUrl[] =
+        "https://perfetto.dev/docs/quickstart/linux-tracing";
+#endif
+    PERFETTO_LOG(
+        "Could not connect to the traced socket %s. Ensure traced is "
+        "running or use tracebox. See %s.",
+        GetConsumerSocket(), kDocUrl);
+  }
+
+  connected_ = false;
   task_runner_.Quit();
 }
 

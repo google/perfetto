@@ -83,6 +83,12 @@ export interface PostedTrace {
   keepApiOpen?: boolean;
 }
 
+export interface PostedScrollToRange {
+  timeStart: number;
+  timeEnd: number;
+  viewPercentage?: number;
+}
+
 function clearTraceState(state: StateDraft) {
   const nextId = state.nextId;
   const recordConfig = state.recordConfig;
@@ -557,6 +563,19 @@ export const StateActions = {
         id: args.id,
       };
     }
+  },
+
+  addAutomaticNote(
+      state: StateDraft,
+      args: {timestamp: number, color: string, text: string}): void {
+    const id = generateNextId(state);
+    state.notes[id] = {
+      noteType: 'DEFAULT',
+      id,
+      timestamp: args.timestamp,
+      color: args.color,
+      text: args.text,
+    };
   },
 
   addNote(state: StateDraft, args: {timestamp: number, color: string}): void {

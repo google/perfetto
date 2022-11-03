@@ -76,13 +76,12 @@ struct TrackEventDataDescriptor {
   }
 
   static uint64_t CountNumberOfCounterValues(const TrackEventData& ted) {
-    uint32_t num = 0;
-    for (; num < TrackEventData::kMaxNumExtraCounters; ++num) {
-      if (std::equal_to<double>()(ted.extra_counter_values[num], 0)) {
-        break;
+    for (uint32_t i = 0; i < TrackEventData::kMaxNumExtraCounters; ++i) {
+      if (std::equal_to<double>()(ted.extra_counter_values[i], 0)) {
+        return i;
       }
     }
-    return num;
+    return TrackEventData::kMaxNumExtraCounters;
   }
 
   static uint64_t GetPacketValue(bool has_thread_timestamp,
@@ -144,8 +143,7 @@ class TypedMemoryAccessor<TrackEventData> {
   static char* Append(char* ptr, TrackEventData ted) {
     auto ted_desc = TrackEventDataDescriptor(ted);
     ptr = AppendUnchecked(ptr, ted_desc);
-    ptr = AppendUnchecked(ptr, TracePacketData{std::move(ted.packet),
-                                               std::move(ted.sequence_state)});
+    ptr = AppendUnchecked(ptr, std::move(ted.trace_packet_data));
     ptr = AppendUnchecked(ptr, ted.counter_value);
     if (ted_desc.HasThreadTimestamp()) {
       ptr = AppendUnchecked(ptr, ted.thread_timestamp.value());

@@ -42,6 +42,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../base",
       "../../protozero:protozero",
       "../sqlite",
+      "../sqlite/functions",
     ]
     public_deps = [
       ":gen_cc_all_chrome_metrics_descriptor",

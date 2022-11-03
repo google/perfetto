@@ -22,6 +22,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/proto/proto_trace_parser.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -61,9 +62,17 @@ struct Arg {
 }  // namespace
 
 FuchsiaTraceParser::FuchsiaTraceParser(TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context), proto_parser_(new ProtoTraceParser(context_)) {}
 
 FuchsiaTraceParser::~FuchsiaTraceParser() = default;
+
+void FuchsiaTraceParser::ParseTrackEvent(int64_t ts, TrackEventData data) {
+  proto_parser_->ParseTrackEvent(ts, std::move(data));
+}
+
+void FuchsiaTraceParser::ParseTracePacket(int64_t ts, TracePacketData data) {
+  proto_parser_->ParseTracePacket(ts, std::move(data));
+}
 
 void FuchsiaTraceParser::ParseFuchsiaRecord(int64_t, FuchsiaRecord fr) {
   // The timestamp is also present in the record, so we'll ignore the one passed

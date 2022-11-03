@@ -233,6 +233,8 @@ class HelpPanningNotification implements m.ClassComponent {
 
 class TraceErrorIcon implements m.ClassComponent {
   view() {
+    if (globals.embeddedMode) return;
+
     const errors = globals.traceErrors;
     if (!errors && !globals.metricError || mode === COMMAND) return;
     const message = errors ? `${errors} import or data loss errors detected.` :

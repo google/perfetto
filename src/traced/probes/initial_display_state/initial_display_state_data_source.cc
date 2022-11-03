@@ -106,6 +106,12 @@ void InitialDisplayStateDataSource::WriteState() {
     }
   }
   packet->Finalize();
+  // For most data sources we would not want to flush every time we have
+  // something to write. However this source tends to emit very slowly and it is
+  // very possible that it would only flush at the end of the trace - at which
+  // point it might not be able to write anything (e.g. DISCARD buffer might be
+  // full). Taking the hit of 4kB each time we write seems reasonable to make
+  // this behave more predictably.
   writer_->Flush();
 }
 

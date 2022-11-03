@@ -46,6 +46,7 @@ class TraceProcessorConfig:
   unique_port: bool
   verbose: bool
   ingest_ftrace_in_raw: bool
+  enable_dev_features: bool
   resolver_registry: Optional[ResolverRegistry]
 
   def __init__(self,
@@ -53,11 +54,13 @@ class TraceProcessorConfig:
                unique_port: bool = True,
                verbose: bool = False,
                ingest_ftrace_in_raw: bool = False,
+               enable_dev_features=False,
                resolver_registry: Optional[ResolverRegistry] = None):
     self.bin_path = bin_path
     self.unique_port = unique_port
     self.verbose = verbose
     self.ingest_ftrace_in_raw = ingest_ftrace_in_raw
+    self.enable_dev_features = enable_dev_features
     self.resolver_registry = resolver_registry
 
 
@@ -328,6 +331,7 @@ class TraceProcessor:
                                       self.config.unique_port,
                                       self.config.verbose,
                                       self.config.ingest_ftrace_in_raw,
+                                      self.config.enable_dev_features,
                                       self.platform_delegate)
     return TraceProcessorHttp(url, protos=self.protos)
 
@@ -364,3 +368,6 @@ class TraceProcessor:
       self.subprocess.kill()
       self.subprocess.wait()
     self.http.conn.close()
+
+  def __del__(self):
+    self.close()

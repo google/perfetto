@@ -135,7 +135,8 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
                     // Required to stop hot-key handling:
                     onkeydown: (e: Event) => e.stopPropagation(),
                   }),
-                  this.profileType === ProfileType.NATIVE_HEAP_PROFILE ?
+                  this.profileType === ProfileType.NATIVE_HEAP_PROFILE ||
+                          this.profileType === ProfileType.JAVA_HEAP_PROFILE ?
                       m('button.download',
                         {
                           onclick: () => {

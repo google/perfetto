@@ -1977,6 +1977,7 @@ cc_test {
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
+        ":perfetto_src_trace_processor_sqlite_functions_functions",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
         ":perfetto_src_trace_processor_storage_full",
@@ -4790,6 +4791,7 @@ genrule {
         "protos/perfetto/trace/ftrace/tcp.proto",
         "protos/perfetto/trace/ftrace/test_bundle_wrapper.proto",
         "protos/perfetto/trace/ftrace/thermal.proto",
+        "protos/perfetto/trace/ftrace/trusty.proto",
         "protos/perfetto/trace/ftrace/ufs.proto",
         "protos/perfetto/trace/ftrace/v4l2.proto",
         "protos/perfetto/trace/ftrace/virtio_video.proto",
@@ -4823,6 +4825,7 @@ genrule {
         "protos/perfetto/trace/trace.proto",
         "protos/perfetto/trace/trace_packet.proto",
         "protos/perfetto/trace/trace_packet_defaults.proto",
+        "protos/perfetto/trace/track_event/chrome_active_processes.proto",
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
         "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
@@ -5025,6 +5028,7 @@ genrule {
         "protos/perfetto/trace/ftrace/tcp.proto",
         "protos/perfetto/trace/ftrace/test_bundle_wrapper.proto",
         "protos/perfetto/trace/ftrace/thermal.proto",
+        "protos/perfetto/trace/ftrace/trusty.proto",
         "protos/perfetto/trace/ftrace/ufs.proto",
         "protos/perfetto/trace/ftrace/v4l2.proto",
         "protos/perfetto/trace/ftrace/virtio_video.proto",
@@ -5092,6 +5096,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/ftrace/tcp.gen.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/test_bundle_wrapper.gen.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/thermal.gen.cc",
+        "external/perfetto/protos/perfetto/trace/ftrace/trusty.gen.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/ufs.gen.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/v4l2.gen.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/virtio_video.gen.cc",
@@ -5159,6 +5164,7 @@ genrule {
         "protos/perfetto/trace/ftrace/tcp.proto",
         "protos/perfetto/trace/ftrace/test_bundle_wrapper.proto",
         "protos/perfetto/trace/ftrace/thermal.proto",
+        "protos/perfetto/trace/ftrace/trusty.proto",
         "protos/perfetto/trace/ftrace/ufs.proto",
         "protos/perfetto/trace/ftrace/v4l2.proto",
         "protos/perfetto/trace/ftrace/virtio_video.proto",
@@ -5226,6 +5232,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/ftrace/tcp.gen.h",
         "external/perfetto/protos/perfetto/trace/ftrace/test_bundle_wrapper.gen.h",
         "external/perfetto/protos/perfetto/trace/ftrace/thermal.gen.h",
+        "external/perfetto/protos/perfetto/trace/ftrace/trusty.gen.h",
         "external/perfetto/protos/perfetto/trace/ftrace/ufs.gen.h",
         "external/perfetto/protos/perfetto/trace/ftrace/v4l2.gen.h",
         "external/perfetto/protos/perfetto/trace/ftrace/virtio_video.gen.h",
@@ -5297,6 +5304,7 @@ genrule {
         "protos/perfetto/trace/ftrace/tcp.proto",
         "protos/perfetto/trace/ftrace/test_bundle_wrapper.proto",
         "protos/perfetto/trace/ftrace/thermal.proto",
+        "protos/perfetto/trace/ftrace/trusty.proto",
         "protos/perfetto/trace/ftrace/ufs.proto",
         "protos/perfetto/trace/ftrace/v4l2.proto",
         "protos/perfetto/trace/ftrace/virtio_video.proto",
@@ -5363,6 +5371,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/ftrace/tcp.pb.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/test_bundle_wrapper.pb.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/thermal.pb.cc",
+        "external/perfetto/protos/perfetto/trace/ftrace/trusty.pb.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/ufs.pb.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/v4l2.pb.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/virtio_video.pb.cc",
@@ -5430,6 +5439,7 @@ genrule {
         "protos/perfetto/trace/ftrace/tcp.proto",
         "protos/perfetto/trace/ftrace/test_bundle_wrapper.proto",
         "protos/perfetto/trace/ftrace/thermal.proto",
+        "protos/perfetto/trace/ftrace/trusty.proto",
         "protos/perfetto/trace/ftrace/ufs.proto",
         "protos/perfetto/trace/ftrace/v4l2.proto",
         "protos/perfetto/trace/ftrace/virtio_video.proto",
@@ -5496,6 +5506,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/ftrace/tcp.pb.h",
         "external/perfetto/protos/perfetto/trace/ftrace/test_bundle_wrapper.pb.h",
         "external/perfetto/protos/perfetto/trace/ftrace/thermal.pb.h",
+        "external/perfetto/protos/perfetto/trace/ftrace/trusty.pb.h",
         "external/perfetto/protos/perfetto/trace/ftrace/ufs.pb.h",
         "external/perfetto/protos/perfetto/trace/ftrace/v4l2.pb.h",
         "external/perfetto/protos/perfetto/trace/ftrace/virtio_video.pb.h",
@@ -5567,6 +5578,7 @@ genrule {
         "protos/perfetto/trace/ftrace/tcp.proto",
         "protos/perfetto/trace/ftrace/test_bundle_wrapper.proto",
         "protos/perfetto/trace/ftrace/thermal.proto",
+        "protos/perfetto/trace/ftrace/trusty.proto",
         "protos/perfetto/trace/ftrace/ufs.proto",
         "protos/perfetto/trace/ftrace/v4l2.proto",
         "protos/perfetto/trace/ftrace/virtio_video.proto",
@@ -5634,6 +5646,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/ftrace/tcp.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/test_bundle_wrapper.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/thermal.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace/ftrace/trusty.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/ufs.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/v4l2.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/virtio_video.pbzero.cc",
@@ -5701,6 +5714,7 @@ genrule {
         "protos/perfetto/trace/ftrace/tcp.proto",
         "protos/perfetto/trace/ftrace/test_bundle_wrapper.proto",
         "protos/perfetto/trace/ftrace/thermal.proto",
+        "protos/perfetto/trace/ftrace/trusty.proto",
         "protos/perfetto/trace/ftrace/ufs.proto",
         "protos/perfetto/trace/ftrace/v4l2.proto",
         "protos/perfetto/trace/ftrace/virtio_video.proto",
@@ -5768,6 +5782,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/ftrace/tcp.pbzero.h",
         "external/perfetto/protos/perfetto/trace/ftrace/test_bundle_wrapper.pbzero.h",
         "external/perfetto/protos/perfetto/trace/ftrace/thermal.pbzero.h",
+        "external/perfetto/protos/perfetto/trace/ftrace/trusty.pbzero.h",
         "external/perfetto/protos/perfetto/trace/ftrace/ufs.pbzero.h",
         "external/perfetto/protos/perfetto/trace/ftrace/v4l2.pbzero.h",
         "external/perfetto/protos/perfetto/trace/ftrace/virtio_video.pbzero.h",
@@ -7278,6 +7293,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_track_event_cpp_gen",
     srcs: [
+        "protos/perfetto/trace/track_event/chrome_active_processes.proto",
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
         "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
@@ -7309,6 +7325,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/track_event/chrome_active_processes.gen.cc",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_application_state_info.gen.cc",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.gen.cc",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_content_settings_event_info.gen.cc",
@@ -7340,6 +7357,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_track_event_cpp_gen_headers",
     srcs: [
+        "protos/perfetto/trace/track_event/chrome_active_processes.proto",
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
         "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
@@ -7371,6 +7389,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/track_event/chrome_active_processes.gen.h",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_application_state_info.gen.h",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.gen.h",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_content_settings_event_info.gen.h",
@@ -7406,6 +7425,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_track_event_descriptor",
     srcs: [
+        "protos/perfetto/trace/track_event/chrome_active_processes.proto",
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
         "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
@@ -7444,6 +7464,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_track_event_lite_gen",
     srcs: [
+        "protos/perfetto/trace/track_event/chrome_active_processes.proto",
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
         "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
@@ -7474,6 +7495,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/track_event/chrome_active_processes.pb.cc",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_application_state_info.pb.cc",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pb.cc",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_content_settings_event_info.pb.cc",
@@ -7505,6 +7527,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_track_event_lite_gen_headers",
     srcs: [
+        "protos/perfetto/trace/track_event/chrome_active_processes.proto",
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
         "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
@@ -7535,6 +7558,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/track_event/chrome_active_processes.pb.h",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_application_state_info.pb.h",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pb.h",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_content_settings_event_info.pb.h",
@@ -7570,6 +7594,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_track_event_zero_gen",
     srcs: [
+        "protos/perfetto/trace/track_event/chrome_active_processes.proto",
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
         "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
@@ -7601,6 +7626,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/track_event/chrome_active_processes.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_application_state_info.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_content_settings_event_info.pbzero.cc",
@@ -7632,6 +7658,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_track_event_zero_gen_headers",
     srcs: [
+        "protos/perfetto/trace/track_event/chrome_active_processes.proto",
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
         "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
@@ -7663,6 +7690,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
     out: [
+        "external/perfetto/protos/perfetto/trace/track_event/chrome_active_processes.pbzero.h",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_application_state_info.pbzero.h",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h",
         "external/perfetto/protos/perfetto/trace/track_event/chrome_content_settings_event_info.pbzero.h",
@@ -7804,6 +7832,7 @@ genrule {
 genrule {
     name: "perfetto_protos_third_party_chromium_descriptor",
     srcs: [
+        "protos/perfetto/trace/track_event/chrome_active_processes.proto",
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
         "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
@@ -7963,6 +7992,7 @@ filegroup {
         "src/base/temp_file.cc",
         "src/base/thread_checker.cc",
         "src/base/thread_task_runner.cc",
+        "src/base/thread_utils.cc",
         "src/base/time.cc",
         "src/base/unix_task_runner.cc",
         "src/base/utils.cc",
@@ -9324,6 +9354,7 @@ genrule {
         "src/trace_processor/metrics/sql/android/jank/internal/derived_events.sql",
         "src/trace_processor/metrics/sql/android/jank/internal/query_base.sql",
         "src/trace_processor/metrics/sql/android/jank/internal/query_frame_slice.sql",
+        "src/trace_processor/metrics/sql/android/jank/params.sql",
         "src/trace_processor/metrics/sql/android/jank/query_functions.sql",
         "src/trace_processor/metrics/sql/android/jank/relevant_slices.sql",
         "src/trace_processor/metrics/sql/android/jank/relevant_threads.sql",
@@ -9467,19 +9498,34 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/sqlite/functions:functions
+filegroup {
+    name: "perfetto_src_trace_processor_sqlite_functions_functions",
+    srcs: [
+        "src/trace_processor/sqlite/functions/create_function.cc",
+        "src/trace_processor/sqlite/functions/create_function_internal.cc",
+        "src/trace_processor/sqlite/functions/create_view_function.cc",
+        "src/trace_processor/sqlite/functions/pprof_functions.cc",
+        "src/trace_processor/sqlite/functions/register_function.cc",
+        "src/trace_processor/sqlite/functions/sqlite3_str_split.cc",
+    ],
+}
+
+// GN: //src/trace_processor/sqlite/functions:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_sqlite_functions_unittests",
+    srcs: [
+        "src/trace_processor/sqlite/functions/sqlite3_str_split_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/sqlite:sqlite
 filegroup {
     name: "perfetto_src_trace_processor_sqlite_sqlite",
     srcs: [
-        "src/trace_processor/sqlite/create_function.cc",
-        "src/trace_processor/sqlite/create_function_internal.cc",
-        "src/trace_processor/sqlite/create_view_function.cc",
         "src/trace_processor/sqlite/db_sqlite_table.cc",
-        "src/trace_processor/sqlite/pprof_functions.cc",
-        "src/trace_processor/sqlite/register_function.cc",
         "src/trace_processor/sqlite/span_join_operator_table.cc",
         "src/trace_processor/sqlite/sql_stats_table.cc",
-        "src/trace_processor/sqlite/sqlite3_str_split.cc",
         "src/trace_processor/sqlite/sqlite_raw_table.cc",
         "src/trace_processor/sqlite/sqlite_utils.cc",
         "src/trace_processor/sqlite/stats_table.cc",
@@ -9503,7 +9549,6 @@ filegroup {
         "src/trace_processor/sqlite/db_sqlite_table_unittest.cc",
         "src/trace_processor/sqlite/query_constraints_unittest.cc",
         "src/trace_processor/sqlite/span_join_operator_table_unittest.cc",
-        "src/trace_processor/sqlite/sqlite3_str_split_unittest.cc",
         "src/trace_processor/sqlite/sqlite_utils_unittest.cc",
     ],
 }
@@ -9645,6 +9690,7 @@ filegroup {
         "src/trace_processor/importers/ftrace/binder_tracker_unittest.cc",
         "src/trace_processor/importers/ftrace/sched_event_tracker_unittest.cc",
         "src/trace_processor/importers/ftrace/thread_state_tracker_unittest.cc",
+        "src/trace_processor/importers/fuchsia/fuchsia_parser_unittest.cc",
         "src/trace_processor/importers/fuchsia/fuchsia_trace_utils_unittest.cc",
         "src/trace_processor/importers/memory_tracker/graph_processor_unittest.cc",
         "src/trace_processor/importers/memory_tracker/graph_unittest.cc",
@@ -10649,6 +10695,7 @@ java_library {
         "protos/perfetto/trace/ftrace/tcp.proto",
         "protos/perfetto/trace/ftrace/test_bundle_wrapper.proto",
         "protos/perfetto/trace/ftrace/thermal.proto",
+        "protos/perfetto/trace/ftrace/trusty.proto",
         "protos/perfetto/trace/ftrace/ufs.proto",
         "protos/perfetto/trace/ftrace/v4l2.proto",
         "protos/perfetto/trace/ftrace/virtio_video.proto",
@@ -10682,6 +10729,7 @@ java_library {
         "protos/perfetto/trace/trace.proto",
         "protos/perfetto/trace/trace_packet.proto",
         "protos/perfetto/trace/trace_packet_defaults.proto",
+        "protos/perfetto/trace/track_event/chrome_active_processes.proto",
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
         "protos/perfetto/trace/track_event/chrome_content_settings_event_info.proto",
@@ -11049,6 +11097,8 @@ cc_test {
         ":perfetto_src_trace_processor_metrics_unittests",
         ":perfetto_src_trace_processor_rpc_rpc",
         ":perfetto_src_trace_processor_rpc_unittests",
+        ":perfetto_src_trace_processor_sqlite_functions_functions",
+        ":perfetto_src_trace_processor_sqlite_functions_unittests",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
         ":perfetto_src_trace_processor_sqlite_unittests",
@@ -11683,6 +11733,7 @@ cc_binary {
         ":perfetto_src_trace_processor_metrics_metrics",
         ":perfetto_src_trace_processor_rpc_httpd",
         ":perfetto_src_trace_processor_rpc_rpc",
+        ":perfetto_src_trace_processor_sqlite_functions_functions",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
         ":perfetto_src_trace_processor_storage_full",
@@ -11870,6 +11921,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
+        ":perfetto_src_trace_processor_sqlite_functions_functions",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
         ":perfetto_src_trace_processor_storage_full",

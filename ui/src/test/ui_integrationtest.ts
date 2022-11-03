@@ -133,6 +133,23 @@ describe('chrome_rendering_desktop', () => {
     await page.keyboard.type('f');  // Zoom to selection
     await waitForPerfettoIdle(page);
   });
+
+  test('area selection', async () => {
+    const page = await getPage();
+    const panelContainer =
+        assertExists(await page.waitForSelector('.scrolling-panel-container'));
+    const bbox = assertExists(await panelContainer.boundingBox());
+    const offset = 20;
+    const trackShellWidth = 250;  // --track-shell-width variable in CSS
+
+    await page.mouse.move(bbox.x + trackShellWidth + offset, bbox.y + offset);
+    await page.mouse.down();
+    await page.mouse.move(
+        bbox.x + bbox.width - offset, bbox.y + bbox.height - offset);
+    await page.mouse.up();
+
+    await waitForPerfettoIdle(page);
+  });
 });
 
 describe('routing', () => {

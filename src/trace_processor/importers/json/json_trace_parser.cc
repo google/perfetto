@@ -30,6 +30,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/json/json_utils.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -109,7 +110,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
   base::StringView name = value.isMember("name")
                               ? base::StringView(value["name"].asCString())
                               : base::StringView();
-  StringId name_id = storage->InternString(name);
+  StringId name_id = name.empty() ? kNullStringId : storage->InternString(name);
 
   auto args_inserter = [this, &value](ArgsTracker::BoundInserter* inserter) {
     if (value.isMember("args")) {
