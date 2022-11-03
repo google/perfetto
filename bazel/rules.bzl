@@ -22,7 +22,7 @@ load("@perfetto//bazel:proto_gen.bzl", "proto_descriptor_gen", "proto_gen")
 def default_cc_args():
     return {
         "deps": PERFETTO_CONFIG.deps.build_config,
-        "copts": [
+        "copts": PERFETTO_CONFIG.default_copts + [
             "-Wno-pragma-system-header-outside-header",
         ],
         "includes": ["include"],
