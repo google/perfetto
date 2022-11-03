@@ -414,7 +414,7 @@ SpanJoinOperatorTable::Cursor::Cursor(SpanJoinOperatorTable* table, sqlite3* db)
 base::Status SpanJoinOperatorTable::Cursor::FilterInner(
     const QueryConstraints& qc,
     sqlite3_value** argv) {
-  PERFETTO_TP_TRACE("SPAN_JOIN_XFILTER");
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY, "SPAN_JOIN_XFILTER");
 
   bool t1_partitioned_mixed =
       t1_.definition()->IsPartitioned() &&
@@ -748,7 +748,9 @@ util::Status SpanJoinOperatorTable::Query::Rewind() {
 
   cursor_eof_ = res != SQLITE_OK;
   if (res != SQLITE_OK)
-    return util::ErrStatus("%s", sqlite3_errmsg(db_));
+    return util::ErrStatus(
+        "%s",
+        sqlite_utils::FormatErrorMessage(stmt_.get(), db_, res).c_message());
 
   RETURN_IF_ERROR(CursorNext());
 

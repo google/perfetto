@@ -321,8 +321,9 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         InsertEvent("ext4", "ext4_da_write_end", &events);
         InsertEvent("ext4", "ext4_sync_file_enter", &events);
         InsertEvent("ext4", "ext4_sync_file_exit", &events);
-        InsertEvent("block", "block_rq_issue", &events);
-        InsertEvent("block", "block_rq_complete", &events);
+        InsertEvent("block", "block_bio_queue", &events);
+        InsertEvent("block", "block_bio_complete", &events);
+        InsertEvent("ufs", "ufshcd_command", &events);
         continue;
       }
 
@@ -437,6 +438,12 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         continue;
       }
     }
+  }
+
+  // function_graph tracer emits two builtin ftrace events
+  if (request.enable_function_graph()) {
+    InsertEvent("ftrace", "funcgraph_entry", &events);
+    InsertEvent("ftrace", "funcgraph_exit", &events);
   }
 
   // If throttle_rss_stat: true, use the rss_stat_throttled event if supported
@@ -649,8 +656,50 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
     return 0;
   }
 
+  // Kernel function tracing (function_graph).
+  // Note 1: there is no cleanup in |RemoveConfig| because tracers cannot be
+  // changed while tracing pipes are opened. So we'll keep the current_tracer
+  // until all data sources are gone, at which point ftrace_controller will
+  // make an explicit call to |ResetCurrentTracer|.
+  // Note 2: we don't track the set of filters ourselves and instead let the
+  // kernel statefully collate them, hence the use of |AppendFunctionFilters|.
+  // This is because each concurrent data source that wants funcgraph will get
+  // all of the enabled functions (we don't go as far as doing per-DS event
+  // steering in the parser), and we don't want to remove functions midway
+  // through a trace (but some might get added).
+  if (request.enable_function_graph()) {
+    if (!current_state_.funcgraph_on && !ftrace_->ClearFunctionFilters())
+      return 0;
+    if (!current_state_.funcgraph_on && !ftrace_->ClearFunctionGraphFilters())
+      return 0;
+    if (!ftrace_->AppendFunctionFilters(request.function_filters()))
+      return 0;
+    if (!ftrace_->AppendFunctionGraphFilters(request.function_graph_roots()))
+      return 0;
+    if (!current_state_.funcgraph_on &&
+        !ftrace_->SetCurrentTracer("function_graph")) {
+      PERFETTO_LOG(
+          "Unable to enable function_graph tracing since a concurrent ftrace "
+          "data source is using a different tracer");
+      return 0;
+    }
+    current_state_.funcgraph_on = true;
+  }
+
   auto compact_sched =
       CreateCompactSchedConfig(request, table_->compact_sched_format());
+
+  base::Optional<FtracePrintFilterConfig> ftrace_print_filter;
+  if (request.has_print_filter()) {
+    ftrace_print_filter =
+        FtracePrintFilterConfig::Create(request.print_filter(), table_);
+    if (!ftrace_print_filter.has_value()) {
+      if (errors) {
+        errors->failed_ftrace_events.push_back(
+            "ftrace/print (unexpected format for filtering)");
+      }
+    }
+  }
 
   std::vector<std::string> apps(request.atrace_apps());
   std::vector<std::string> categories(request.atrace_categories());
@@ -658,8 +707,9 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
   ds_configs_.emplace(
       std::piecewise_construct, std::forward_as_tuple(id),
       std::forward_as_tuple(std::move(filter), std::move(syscall_filter),
-                            compact_sched, std::move(apps),
-                            std::move(categories), request.symbolize_ksyms()));
+                            compact_sched, std::move(ftrace_print_filter),
+                            std::move(apps), std::move(categories),
+                            request.symbolize_ksyms()));
   return id;
 }
 
@@ -713,7 +763,7 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
       (current_state_.atrace_apps.size() != expected_apps.size()) ||
       (current_state_.atrace_categories.size() != expected_categories.size());
 
-  if (!SetSyscallEventFilter({})) {
+  if (!SetSyscallEventFilter(/*extra_syscalls=*/{})) {
     PERFETTO_ELOG("Failed to set raw_syscall ftrace filter in RemoveConfig");
   }
 
@@ -768,6 +818,25 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
     }
   }
 
+  return true;
+}
+
+bool FtraceConfigMuxer::ResetCurrentTracer() {
+  if (!current_state_.funcgraph_on)
+    return true;
+  if (!ftrace_->ResetCurrentTracer()) {
+    PERFETTO_PLOG("Failed to reset current_tracer to nop");
+    return false;
+  }
+  current_state_.funcgraph_on = false;
+  if (!ftrace_->ClearFunctionFilters()) {
+    PERFETTO_PLOG("Failed to reset set_ftrace_filter.");
+    return false;
+  }
+  if (!ftrace_->ClearFunctionGraphFilters()) {
+    PERFETTO_PLOG("Failed to reset set_function_graph.");
+    return false;
+  }
   return true;
 }
 

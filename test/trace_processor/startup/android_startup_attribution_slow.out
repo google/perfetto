@@ -11,6 +11,8 @@ android_startup {
         runnable_dur_ns: 0
         uninterruptible_sleep_dur_ns: 0
         interruptible_sleep_dur_ns: 0
+        uninterruptible_io_sleep_dur_ns: 0
+        uninterruptible_non_io_sleep_dur_ns: 0
       }
       other_processes_spawned_count: 0
       time_activity_manager {
@@ -68,12 +70,14 @@ android_startup {
       installd_running: false
       broadcast_dispatched_count: 0
       broadcast_received_count: 0
+      installd_dur_ns: 0
+      dex2oat_dur_ns: 0
     }
     startup_type: "hot"
+    slow_start_reason: "Time spent in OpenDexFilesFromOat*"
     slow_start_reason: "Time spent verifying classes"
     slow_start_reason: "JIT Activity"
-    slow_start_reason: "GC - Total time"
-    slow_start_reason: "GC - Time on CPU"
+    slow_start_reason: "GC Activity"
     slow_start_reason: "JIT compiled methods"
   }
 }

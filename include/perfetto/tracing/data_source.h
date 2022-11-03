@@ -177,6 +177,20 @@ class DataSource : public DataSourceBase {
   constexpr static BufferExhaustedPolicy kBufferExhaustedPolicy =
       BufferExhaustedPolicy::kDrop;
 
+  // When this flag is false, we cannot have multiple instances of this data
+  // source. When a data source is already active and if we attempt
+  // to start another instance of that data source (via another tracing
+  // session), it will fail to start the second instance of data source.
+  static constexpr bool kSupportsMultipleInstances = true;
+
+  // When this flag is true, DataSource callbacks (OnSetup, OnStart, etc.) are
+  // called under the lock (the same that is used in GetDataSourceLocked
+  // function). This is not recommended because it can lead to deadlocks, but
+  // it was the default behavior for a long time and some embedders rely on it
+  // to protect concurrent access to the DataSource members. So we keep the
+  // "true" value as the default.
+  static constexpr bool kRequiresCallbacksUnderLock = true;
+
   // Argument passed to the lambda function passed to Trace() (below).
   class TraceContext {
    public:
@@ -467,7 +481,10 @@ class DataSource : public DataSourceBase {
           new DataSourceType(constructor_args...));
     };
     auto* tracing_impl = internal::TracingMuxer::Get();
-    return tracing_impl->RegisterDataSource(descriptor, factory,
+    internal::DataSourceParams params{
+        DataSourceType::kSupportsMultipleInstances,
+        DataSourceType::kRequiresCallbacksUnderLock};
+    return tracing_impl->RegisterDataSource(descriptor, factory, params,
                                             &static_state_);
   }
 

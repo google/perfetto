@@ -19,6 +19,7 @@ syntax = "proto2";
 package perfetto.protos;
 
 import "protos/perfetto/common/descriptor.proto";
+import "protos/perfetto/trace_processor/metatrace_categories.proto";
 
 // This file defines the schema for {,un}marshalling arguments and return values
 // when interfacing to the trace processor binary interface.
@@ -41,7 +42,7 @@ enum TraceProcessorApiVersion {
   // every time a new feature that the UI depends on is being introduced (e.g.
   // new tables, new SQL operators, metrics that are required by the UI).
   // See also StatusResult.api_version (below).
-  TRACE_PROCESSOR_CURRENT_API_VERSION = 5;
+  TRACE_PROCESSOR_CURRENT_API_VERSION = 6;
 }
 
 // At lowest level, the wire-format of the RPC procol is a linear sequence of
@@ -109,6 +110,8 @@ message TraceProcessorRpc {
     QueryArgs query_args = 103;
     // For TPM_COMPUTE_METRIC.
     ComputeMetricArgs compute_metric_args = 105;
+    // For TPM_ENABLE_METATRACE.
+    EnableMetatraceArgs enable_metatrace_args = 106;
 
     // TraceProcessorMethod response args.
     // For TPM_APPEND_TRACE_DATA.
@@ -250,7 +253,9 @@ message ComputeMetricResult {
 }
 
 // Input for the /enable_metatrace endpoint.
-message EnableMetatraceArgs {}
+message EnableMetatraceArgs {
+  optional MetatraceCategories categories = 1;
+}
 
 // Output for the /enable_metatrace endpoint.
 message EnableMetatraceResult {}

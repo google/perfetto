@@ -154,7 +154,7 @@ class TraceSorter {
                               PacketSequenceState* state) {
     auto* queue = GetQueue(cpu + 1);
     uint32_t offset = variadic_queue_.Append(
-        FtraceEventData{std::move(event), state->current_generation()});
+        TracePacketData{std::move(event), state->current_generation()});
     queue->Append(TimestampedDescriptor{
         timestamp, Descriptor(offset, EventType::kFtraceEvent)});
     UpdateGlobalTs(queue);
@@ -211,7 +211,7 @@ class TraceSorter {
   int64_t max_timestamp() const { return global_max_ts_; }
 
  private:
-  // Stores offset and type of metadat.
+  // Stores offset and type of metadata.
   struct Descriptor {
    public:
     static constexpr uint8_t kTypeBits = 4;

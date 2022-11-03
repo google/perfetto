@@ -15,3 +15,5 @@
 import './android_webusb_target_factory';
 import './android_websocket_target_factory';
 import './chrome_target_factory';
+import './host_os_target_factory';
+import './virtual_target_factory';

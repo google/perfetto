@@ -104,8 +104,11 @@ function convertToRecordingV2Input(
       name: '',
     };
   } else if (targetType === 'CHROME' || targetType === 'CHROME_OS') {
-    targetInfo =
-        {targetType, isExtensionInstalled: false, dataSources: [], name: ''};
+    targetInfo = {
+      targetType,
+      dataSources: [],
+      name: '',
+    };
   } else {
     targetInfo = {targetType, dataSources: [], name: ''};
   }

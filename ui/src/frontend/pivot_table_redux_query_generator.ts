@@ -133,8 +133,9 @@ function aggregationExpression(aggregation: Aggregation): string {
       expression(aggregation.column)})`;
 }
 
-export function extractArgumentExpression(argument: string) {
-  return `extract_arg(arg_set_id, ${sqliteString(argument)})`;
+export function extractArgumentExpression(argument: string, table?: string) {
+  const prefix = table === undefined ? '' : `${table}.`;
+  return `extract_arg(${prefix}arg_set_id, ${sqliteString(argument)})`;
 }
 
 function generateInnerQuery(
@@ -201,26 +202,14 @@ export function generateQueryFromState(
   if (state.selectionArea === undefined) {
     throw new QueryGeneratorError('Should not be called without area');
   }
-  return generateQuery(
-      state.selectedPivots,
-      state.selectedSlicePivots,
-      state.selectedAggregations,
-      globals.state.areas[state.selectionArea.areaId],
-      state.constrainToArea);
-}
 
-export function generateQuery(
-    nonSlicePivots: RegularColumn[],
-    slicePivots: TableColumn[],
-    selectedAggregations: Map<string, Aggregation>,
-    area: Area,
-    constrainToArea: boolean): PivotTableReduxQuery {
-  const sliceTableAggregations = [...selectedAggregations.values()];
-
+  const sliceTableAggregations = [...state.selectedAggregations.values()];
   if (sliceTableAggregations.length === 0) {
     throw new QueryGeneratorError('No aggregations selected');
   }
 
+  const nonSlicePivots = state.selectedPivots;
+  const slicePivots = state.selectedSlicePivots;
   if (slicePivots.length === 0 && nonSlicePivots.length === 0) {
     throw new QueryGeneratorError('No pivots selected');
   }
@@ -230,8 +219,8 @@ export function generateQuery(
       slicePivots,
       sliceTableAggregations,
       nonSlicePivots.length > 0,
-      area,
-      constrainToArea);
+      globals.state.areas[state.selectionArea.areaId],
+      state.constrainToArea);
 
   const prefixedSlicePivots =
       innerQuery.groupByColumns.map((p) => `preaggregated.${p}`);

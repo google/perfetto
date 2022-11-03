@@ -37,6 +37,7 @@
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
+#include "src/traced/probes/ftrace/ftrace_print_filter.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -622,6 +623,9 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
           const CompactSchedWakingFormat& sched_waking_format =
               table->compact_sched_format().sched_waking;
 
+          bool ftrace_print_filter_enabled =
+              ds_config->print_filter.has_value();
+
           // compact sched_switch
           if (compact_sched_enabled &&
               ftrace_event_id == sched_switch_format.event_id) {
@@ -640,6 +644,15 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
             ParseSchedWakingCompact(start, timestamp, &sched_waking_format,
                                     compact_sched_buffer, metadata);
 
+          } else if (ftrace_print_filter_enabled &&
+                     ftrace_event_id == ds_config->print_filter->event_id()) {
+            if (ds_config->print_filter->IsEventInteresting(start, next)) {
+              protos::pbzero::FtraceEvent* event = bundle->add_event();
+              event->set_timestamp(timestamp);
+              if (!ParseEvent(ftrace_event_id, start, next, table, event,
+                              metadata))
+                return 0;
+            }
           } else {
             // Common case: parse all other types of enabled events.
             protos::pbzero::FtraceEvent* event = bundle->add_event();

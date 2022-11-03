@@ -61,6 +61,16 @@ class FtraceProcfs {
 
   virtual std::string ReadPageHeaderFormat() const;
 
+  // Sets the "current_tracer". Might fail with EBUSY if tracing pipes have
+  // already been opened for reading.
+  bool SetCurrentTracer(const std::string& tracer);
+  // Resets the "current_tracer" to "nop".
+  bool ResetCurrentTracer();
+  bool AppendFunctionFilters(const std::vector<std::string>& filters);
+  bool ClearFunctionFilters();
+  bool AppendFunctionGraphFilters(const std::vector<std::string>& filters);
+  bool ClearFunctionGraphFilters();
+
   // Get all triggers for event with the given |group| and |name|.
   std::vector<std::string> ReadEventTriggers(const std::string& group,
                                              const std::string& name) const;

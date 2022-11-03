@@ -19,6 +19,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/utils.h"
 
 #include <algorithm>
@@ -81,7 +82,7 @@ struct QuadraticHalfProbe {
 
 template <typename Key,
           typename Value,
-          typename Hasher = std::hash<Key>,
+          typename Hasher = base::Hash<Key>,
           typename Probe = QuadraticProbe,
           bool AppendOnly = false>
 class FlatHashMap {

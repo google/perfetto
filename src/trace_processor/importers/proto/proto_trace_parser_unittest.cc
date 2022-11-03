@@ -2239,6 +2239,9 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
   storage_->mutable_thread_table()->Insert(row);
 
   StringId body_1 = storage_->InternString("body1");
+  StringId file_1 = storage_->InternString("file1");
+  StringId func_1 = storage_->InternString("func1");
+  StringId source_location_id = storage_->InternString("file1:1");
 
   constexpr TrackId track{0};
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
@@ -2250,12 +2253,16 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
 
   // Call with logMessageBody (body1 in this case).
   EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(body_1), _));
+  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(file_1), _));
+  EXPECT_CALL(inserter, AddArg(_, _, Variadic::String(func_1), _));
+  EXPECT_CALL(inserter, AddArg(_, _, Variadic::Integer(1), _));
 
   context_.sorter->ExtractEventsForced();
 
   EXPECT_GT(context_.storage->android_log_table().row_count(), 0u);
   EXPECT_EQ(context_.storage->android_log_table().ts()[0], 1010000);
   EXPECT_EQ(context_.storage->android_log_table().msg()[0], body_1);
+  EXPECT_EQ(context_.storage->android_log_table().tag()[0], source_location_id);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {

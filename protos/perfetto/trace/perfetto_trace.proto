@@ -466,7 +466,7 @@ message ChromeConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 19.
+// Next id: 23.
 message FtraceConfig {
   repeated string ftrace_events = 1;
   repeated string atrace_categories = 2;
@@ -484,6 +484,24 @@ message FtraceConfig {
     optional bool enabled = 1;
   }
   optional CompactSchedConfig compact_sched = 12;
+
+  // Optional filter for "ftrace/print" events.
+  //
+  // The filter consists of multiple rules. A rule matches if its prefix matches
+  // exactly with the beginning of the "ftrace/print" "buf" field. As soon as a
+  // rule matches (the rules are processed in order), its `allow` field will be
+  // used as the outcome: if `allow` is true, the event will be included in the
+  // trace, otherwise it will be discarded. If an event does not match any rule,
+  // it will be allowed by default (a rule with an empty prefix and allow=false,
+  // disallows everything by default).
+  message PrintFilter {
+    message Rule {
+      optional string prefix = 1;
+      optional bool allow = 2;
+    }
+    repeated Rule rules = 1;
+  }
+  optional PrintFilter print_filter = 22;
 
   // Enables symbol name resolution against /proc/kallsyms.
   // It requires that either traced_probes is running as root or that
@@ -518,7 +536,7 @@ message FtraceConfig {
 
   // When this boolean is true AND the ftrace_events contains "kmem/rss_stat",
   // this option causes traced_probes to enable the "kmem/rss_stat_throttled"
-  // event instad if present, and fall back to "kmem/rss_stat" if not present.
+  // event instead if present, and fall back to "kmem/rss_stat" if not present.
   // The historical context for this is the following:
   // - Up to Android S (12), the rss_stat was internally throttled in its
   //   kernel implementation.
@@ -528,8 +546,6 @@ message FtraceConfig {
   // - Not all Android T/13 devices will receive a new kernel though, hence we
   //   need to deal with both cases.
   // For more context: go/rss-stat-throttled.
-  // TODO(kaleshsingh): implement the logic behind this. Right now this flag
-  // does nothing.
   optional bool throttle_rss_stat = 15;
 
   // If true, avoid enabling events that aren't statically known by
@@ -546,6 +562,44 @@ message FtraceConfig {
   // are enabled, this setting has no effect. Example: ["sys_read", "sys_open"].
   // Introduced in: Android U.
   repeated string syscall_events = 18;
+
+  // If true, enable the "function_graph" kernel tracer that emits events
+  // whenever a kernel function is entered and exited
+  // (funcgraph_entry/funcgraph_exit).
+  // Notes on use:
+  // * Requires |symbolize_ksyms| for function name resolution.
+  // * Use |function_filters| or |function_graph_roots| to constrain the traced
+  //   set of functions, otherwise the event bandwidth will be too high for
+  //   practical use.
+  // * The data source might be rejected if there is already a concurrent
+  //   ftrace data source that does not use function graph itself, as we do not
+  //   support switching kernel tracers mid-trace.
+  // * Requires a kernel compiled with CONFIG_FUNCTION_GRAPH_TRACER. This is
+  //   enabled if "cat /sys/kernel/tracing/available_tracers" includes
+  //   "function_graph".
+  // Android:
+  // * Available only on debuggable builds.
+  // * Introduced in: Android U.
+  optional bool enable_function_graph = 19;
+
+  // Constrains the set of functions traced when |enable_function_graph| is
+  // true. Supports globs, e.g. "sched*". You can specify multiple filters,
+  // in which case all matching functions will be traced. See kernel
+  // documentation on ftrace "set_ftrace_filter" file for more details.
+  // Android:
+  // * Available only on debuggable builds.
+  // * Introduced in: Android U.
+  repeated string function_filters = 20;
+
+  // If |enable_function_graph| is true, trace this set of functions *and* all
+  // of its callees. Supports globs. Can be set together with
+  // |function_filters|, in which case only callees matching the filter will be
+  // traced. If setting both, you most likely want all roots to also be
+  // included in |function_filters|.
+  // Android:
+  // * Available only on debuggable builds.
+  // * Introduced in: Android U.
+  repeated string function_graph_roots = 21;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
@@ -2124,6 +2178,10 @@ message SysStatsConfig {
   // Polls /proc/buddyinfo every X ms, if non-zero.
   // This is required to be > 10ms to avoid excessive CPU usage.
   optional uint32 buddyinfo_period_ms = 9;
+
+  // Polls /proc/diskstats every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  optional uint32 diskstat_period_ms = 10;
 }
 
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto
@@ -2350,7 +2408,7 @@ message DataSourceConfig {
   optional AndroidLogConfig android_log_config = 107 [lazy = true];
   // TODO(fmayer): Add data source name for this.
   optional GpuCounterConfig gpu_counter_config = 108 [lazy = true];
-  // Data source name: android.game_intervention_list
+  // Data source name: android.game_interventions
   optional AndroidGameInterventionListConfig
       android_game_intervention_list_config = 116 [lazy = true];
   // Data source name: android.packages_list
@@ -4067,6 +4125,51 @@ message InodeFileMap {
 
 // End of protos/perfetto/trace/filesystem/inode_file_map.proto
 
+// Begin of protos/perfetto/trace/ftrace/android_fs.proto
+
+message AndroidFsDatareadEndFtraceEvent {
+  optional int32 bytes = 1;
+  optional uint64 ino = 2;
+  optional int64 offset = 3;
+}
+message AndroidFsDatareadStartFtraceEvent {
+  optional int32 bytes = 1;
+  optional string cmdline = 2;
+  optional int64 i_size = 3;
+  optional uint64 ino = 4;
+  optional int64 offset = 5;
+  optional string pathbuf = 6;
+  optional int32 pid = 7;
+}
+message AndroidFsDatawriteEndFtraceEvent {
+  optional int32 bytes = 1;
+  optional uint64 ino = 2;
+  optional int64 offset = 3;
+}
+message AndroidFsDatawriteStartFtraceEvent {
+  optional int32 bytes = 1;
+  optional string cmdline = 2;
+  optional int64 i_size = 3;
+  optional uint64 ino = 4;
+  optional int64 offset = 5;
+  optional string pathbuf = 6;
+  optional int32 pid = 7;
+}
+message AndroidFsFsyncEndFtraceEvent {
+  optional int32 bytes = 1;
+  optional uint64 ino = 2;
+  optional int64 offset = 3;
+}
+message AndroidFsFsyncStartFtraceEvent {
+  optional string cmdline = 1;
+  optional int64 i_size = 2;
+  optional uint64 ino = 3;
+  optional string pathbuf = 4;
+  optional int32 pid = 5;
+}
+
+// End of protos/perfetto/trace/ftrace/android_fs.proto
+
 // Begin of protos/perfetto/trace/ftrace/binder.proto
 
 message BinderTransactionFtraceEvent {
@@ -5586,6 +5689,17 @@ message PrintFtraceEvent {
   optional uint64 ip = 1;
   optional string buf = 2;
 }
+message FuncgraphEntryFtraceEvent {
+  optional int32 depth = 1;
+  optional uint64 func = 2;
+}
+message FuncgraphExitFtraceEvent {
+  optional uint64 calltime = 1;
+  optional int32 depth = 2;
+  optional uint64 func = 3;
+  optional uint64 overrun = 4;
+  optional uint64 rettime = 5;
+}
 
 // End of protos/perfetto/trace/ftrace/ftrace.proto
 
@@ -6960,6 +7074,39 @@ message Vb2V4l2DqbufFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/v4l2.proto
 
+// Begin of protos/perfetto/trace/ftrace/virtio_video.proto
+
+message VirtioVideoCmdFtraceEvent {
+  optional uint32 stream_id = 1;
+  optional uint32 type = 2;
+}
+message VirtioVideoCmdDoneFtraceEvent {
+  optional uint32 stream_id = 1;
+  optional uint32 type = 2;
+}
+message VirtioVideoResourceQueueFtraceEvent {
+  optional uint32 data_size0 = 1;
+  optional uint32 data_size1 = 2;
+  optional uint32 data_size2 = 3;
+  optional uint32 data_size3 = 4;
+  optional uint32 queue_type = 5;
+  optional int32 resource_id = 6;
+  optional int32 stream_id = 7;
+  optional uint64 timestamp = 8;
+}
+message VirtioVideoResourceQueueDoneFtraceEvent {
+  optional uint32 data_size0 = 1;
+  optional uint32 data_size1 = 2;
+  optional uint32 data_size2 = 3;
+  optional uint32 data_size3 = 4;
+  optional uint32 queue_type = 5;
+  optional int32 resource_id = 6;
+  optional int32 stream_id = 7;
+  optional uint64 timestamp = 8;
+}
+
+// End of protos/perfetto/trace/ftrace/virtio_video.proto
+
 // Begin of protos/perfetto/trace/ftrace/vmscan.proto
 
 message MmVmscanDirectReclaimBeginFtraceEvent {
@@ -6977,6 +7124,28 @@ message MmVmscanKswapdWakeFtraceEvent {
 }
 message MmVmscanKswapdSleepFtraceEvent {
   optional int32 nid = 1;
+}
+message MmShrinkSlabStartFtraceEvent {
+  optional uint64 cache_items = 1;
+  optional uint64 delta = 2;
+  optional uint32 gfp_flags = 3;
+  optional uint64 lru_pgs = 4;
+  optional int64 nr_objects_to_shrink = 5;
+  optional uint64 pgs_scanned = 6;
+  optional uint64 shr = 7;
+  optional uint64 shrink = 8;
+  optional uint64 total_scan = 9;
+  optional int32 nid = 10;
+  optional int32 priority = 11;
+}
+message MmShrinkSlabEndFtraceEvent {
+  optional int64 new_scan = 1;
+  optional int32 retval = 2;
+  optional uint64 shr = 3;
+  optional uint64 shrink = 4;
+  optional int64 total_scan = 5;
+  optional int64 unused_scan = 6;
+  optional int32 nid = 7;
 }
 
 // End of protos/perfetto/trace/ftrace/vmscan.proto
@@ -7462,6 +7631,21 @@ message FtraceEvent {
     DsiCmdFifoStatusFtraceEvent dsi_cmd_fifo_status = 428;
     DsiRxFtraceEvent dsi_rx = 429;
     DsiTxFtraceEvent dsi_tx = 430;
+    AndroidFsDatareadEndFtraceEvent android_fs_dataread_end = 431;
+    AndroidFsDatareadStartFtraceEvent android_fs_dataread_start = 432;
+    AndroidFsDatawriteEndFtraceEvent android_fs_datawrite_end = 433;
+    AndroidFsDatawriteStartFtraceEvent android_fs_datawrite_start = 434;
+    AndroidFsFsyncEndFtraceEvent android_fs_fsync_end = 435;
+    AndroidFsFsyncStartFtraceEvent android_fs_fsync_start = 436;
+    FuncgraphEntryFtraceEvent funcgraph_entry = 437;
+    FuncgraphExitFtraceEvent funcgraph_exit = 438;
+    VirtioVideoCmdFtraceEvent virtio_video_cmd = 439;
+    VirtioVideoCmdDoneFtraceEvent virtio_video_cmd_done = 440;
+    VirtioVideoResourceQueueFtraceEvent virtio_video_resource_queue = 441;
+    VirtioVideoResourceQueueDoneFtraceEvent virtio_video_resource_queue_done =
+        442;
+    MmShrinkSlabStartFtraceEvent mm_shrink_slab_start = 443;
+    MmShrinkSlabEndFtraceEvent mm_shrink_slab_end = 444;
   }
 }
 
@@ -10100,6 +10284,7 @@ message Profiling {
     UNWIND_ERROR_BAD_ARCH = 12;
     UNWIND_ERROR_MAPS_PARSE = 13;
     UNWIND_ERROR_INVALID_PARAMETER = 14;
+    UNWIND_ERROR_PTRACE_CALL = 15;
   }
 }
 
@@ -10473,6 +10658,21 @@ message SysStats {
   }
   // One entry per each node's zones.
   repeated BuddyInfo buddy_info = 12;
+
+  // Counters from /proc/diskstats.
+  message DiskStat {
+    optional string device_name = 1;
+    optional uint64 read_sectors = 2;
+    optional uint64 read_time_ms = 3;
+    optional uint64 write_sectors = 4;
+    optional uint64 write_time_ms = 5;
+    optional uint64 discard_sectors = 6;
+    optional uint64 discard_time_ms = 7;
+    optional uint64 flush_count = 8;
+    optional uint64 flush_time_ms = 9;
+  }
+  // One entry per disk device.
+  repeated DiskStat disk_stat = 13;
 }
 
 // End of protos/perfetto/trace/sys_stats/sys_stats.proto

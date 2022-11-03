@@ -31,20 +31,7 @@
 --       TraceEvents and this table will be empty.
 
 SELECT RUN_METRIC('chrome/jank_utilities.sql');
-
--- Note: Must be a TABLE because it uses a window function which can behave
---       strangely in views.
-DROP TABLE IF EXISTS vsync_intervals;
-CREATE TABLE vsync_intervals AS
-  SELECT
-    slice_id,
-    ts,
-    dur,
-    track_id,
-    LEAD(ts) OVER(PARTITION BY track_id ORDER BY ts) - ts AS time_to_next_vsync
-  FROM slice
-  WHERE name = "VSync"
-  ORDER BY track_id, ts;
+SELECT RUN_METRIC('chrome/vsync_intervals.sql');
 
 -- Get all the "begin" and "end" events. We take their IDs to group them
 -- together into gestures later and the timestamp and duration to compute the
@@ -88,15 +75,7 @@ CREATE VIEW joined_{{prefix}}_begin_and_end AS
     end.ts AS end_ts,
     end.ts + end.dur AS end_ts_and_dur,
     end.trace_id AS end_trace_id,
-    COALESCE((
-      SELECT
-        CAST(AVG(time_to_next_vsync) AS FLOAT)
-      FROM vsync_intervals in_query
-      WHERE
-        time_to_next_vsync IS NOT NULL AND
-        in_query.ts > begin.ts AND
-        in_query.ts < end.ts
-    ), 1e+9 / 60) AS avg_vsync_interval
+    CalculateAvgVsyncInterval(begin.ts, end.ts) AS avg_vsync_interval
   FROM {{prefix}}_begin_and_end begin JOIN {{prefix}}_begin_and_end end ON
     begin.trace_id < end.trace_id AND
     begin.name = 'InputLatency::{{gesture_start}}' AND
@@ -159,6 +138,7 @@ CREATE VIEW {{id_field}}_update AS
     begin_track_id,
     begin_trace_id,
     COALESCE({{id_field}}, begin_trace_id) AS {{id_field}},
+    end_ts,
     CASE WHEN
       end_ts_and_dur > ts + dur THEN
         end_ts_and_dur

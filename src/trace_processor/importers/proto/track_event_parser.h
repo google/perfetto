@@ -25,6 +25,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
+#include "src/trace_processor/importers/proto/active_chrome_processes_tracker.h"
 #include "src/trace_processor/importers/proto/chrome_string_lookup.h"
 #include "src/trace_processor/parser_types.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -54,14 +55,19 @@ class TrackEventParser {
  public:
   TrackEventParser(TraceProcessorContext*, TrackEventTracker*);
 
-  void ParseTrackDescriptor(protozero::ConstBytes, uint32_t packet_sequence_id);
-  UniquePid ParseProcessDescriptor(protozero::ConstBytes);
+  void ParseTrackDescriptor(int64_t packet_timestamp,
+                            protozero::ConstBytes,
+                            uint32_t packet_sequence_id);
+  UniquePid ParseProcessDescriptor(int64_t packet_timestamp,
+                                   protozero::ConstBytes);
   UniqueTid ParseThreadDescriptor(protozero::ConstBytes);
 
   void ParseTrackEvent(int64_t ts,
                        const TrackEventData* event_data,
                        protozero::ConstBytes,
                        uint32_t packet_sequence_id);
+
+  void NotifyEndOfFile();
 
  private:
   class EventImporter;
@@ -82,6 +88,9 @@ class TrackEventParser {
   const StringId task_function_name_args_key_id_;
   const StringId task_line_number_args_key_id_;
   const StringId log_message_body_key_id_;
+  const StringId log_message_source_location_function_name_key_id_;
+  const StringId log_message_source_location_file_name_key_id_;
+  const StringId log_message_source_location_line_number_key_id_;
   const StringId source_location_function_name_key_id_;
   const StringId source_location_file_name_key_id_;
   const StringId source_location_line_number_key_id_;
@@ -118,6 +127,8 @@ class TrackEventParser {
   std::array<StringId, 4> counter_unit_ids_;
 
   std::vector<uint16_t> reflect_fields_;
+
+  ActiveChromeProcessesTracker active_chrome_processes_tracker_;
 };
 
 }  // namespace trace_processor

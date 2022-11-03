@@ -107,14 +107,6 @@ python_library {
     data: [
         ":perfetto-trace-processor-python-data",
     ],
-    version: {
-        py2: {
-            enabled: false,
-        },
-        py3: {
-            enabled: true,
-        },
-    },
     libs: [
         "libprotobuf-python",
     ],
@@ -137,6 +129,11 @@ filegroup {
     name: "perfetto-trace-processor-python-data",
     srcs: ["python/perfetto/trace_processor/*.descriptor*"],
     path: "python",
+}
+
+filegroup {
+    name: "perfetto-atrace-categories-proto",
+    srcs: ["protos/perfetto/android_vendor/atrace_categories.proto"],
 }
 
 // Added automatically by a large-scale-change that took the approach of

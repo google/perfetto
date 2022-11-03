@@ -18,8 +18,8 @@
 
 project(
     'perfetto',
-    ['c','cpp'],
-    default_options: ['c_std=c99', 'cpp_std=c++11']
+    ['cpp'],
+    default_options: ['cpp_std=c++11']
 )
 
 fs = import('fs')
@@ -28,18 +28,32 @@ if not fs.is_dir('sdk')
     error('sdk dir not found, please checkout a release tag, e.g. v14.0')
 endif
 
-dep_threads = dependency('threads')
+cpp = meson.get_compiler('cpp')
+
+deps_perfetto = [dependency('threads')]
+
+if host_machine.system() == 'android'
+  deps_perfetto += cpp.find_library('log')
+endif
 
 lib_perfetto = static_library(
     'perfetto',
     sources: 'sdk/perfetto.cc',
-    dependencies: dep_threads,
+    dependencies: deps_perfetto,
     install: true,
 )
 
 inc_perfetto = include_directories('sdk')
 
+dir_perfetto_trace = join_paths(meson.current_source_dir(),
+                                'protos/perfetto/trace')
+
+install_data(dir_perfetto_trace / 'perfetto_trace.proto')
+
 dep_perfetto = declare_dependency(
     link_with: lib_perfetto,
     include_directories: inc_perfetto,
+    variables: {
+        'pkgdatadir': dir_perfetto_trace,
+    }
 )

@@ -29,24 +29,33 @@ WHERE
 DROP VIEW IF EXISTS launch_complete_events;
 CREATE VIEW launch_complete_events AS
 SELECT
-  STR_SPLIT(completed, ':completed:', 0) id,
-  STR_SPLIT(completed, ':completed:', 1) package_name,
+  STR_SPLIT(completed, ':', 0) id,
+  STR_SPLIT(completed, ':', 2) package_name,
+  CASE
+    WHEN STR_SPLIT(completed, ':', 1) = 'completed-hot' THEN 'hot'
+    WHEN STR_SPLIT(completed, ':', 1) = 'completed-warm' THEN 'warm'
+    WHEN STR_SPLIT(completed, ':', 1) = 'completed-cold' THEN 'cold'
+    ELSE NULL
+  END launch_type,
   MIN(ts)
 FROM (
   SELECT ts, SUBSTR(name, 19) completed
   FROM slice
   WHERE
     dur = 0 AND
-    name GLOB 'launchingActivity#*:completed:*'
+    -- Originally completed was unqualified, but at some point we introduced
+    -- the startup type as well
+    name GLOB 'launchingActivity#*:completed*:*'
 )
-GROUP BY 1, 2;
+GROUP BY 1, 2, 3;
 
-INSERT INTO launches(id, ts, ts_end, dur, package)
+INSERT INTO launches(id, ts, ts_end, dur, package, launch_type)
 SELECT
   id,
   ts,
   ts + dur ts_end,
   dur,
-  package_name
+  package_name,
+  launch_type
 FROM launch_async_events
 JOIN launch_complete_events USING (id);

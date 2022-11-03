@@ -18,7 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Next id: 19.
+// Next id: 23.
 message FtraceConfig {
   repeated string ftrace_events = 1;
   repeated string atrace_categories = 2;
@@ -36,6 +36,24 @@ message FtraceConfig {
     optional bool enabled = 1;
   }
   optional CompactSchedConfig compact_sched = 12;
+
+  // Optional filter for "ftrace/print" events.
+  //
+  // The filter consists of multiple rules. A rule matches if its prefix matches
+  // exactly with the beginning of the "ftrace/print" "buf" field. As soon as a
+  // rule matches (the rules are processed in order), its `allow` field will be
+  // used as the outcome: if `allow` is true, the event will be included in the
+  // trace, otherwise it will be discarded. If an event does not match any rule,
+  // it will be allowed by default (a rule with an empty prefix and allow=false,
+  // disallows everything by default).
+  message PrintFilter {
+    message Rule {
+      optional string prefix = 1;
+      optional bool allow = 2;
+    }
+    repeated Rule rules = 1;
+  }
+  optional PrintFilter print_filter = 22;
 
   // Enables symbol name resolution against /proc/kallsyms.
   // It requires that either traced_probes is running as root or that
@@ -70,7 +88,7 @@ message FtraceConfig {
 
   // When this boolean is true AND the ftrace_events contains "kmem/rss_stat",
   // this option causes traced_probes to enable the "kmem/rss_stat_throttled"
-  // event instad if present, and fall back to "kmem/rss_stat" if not present.
+  // event instead if present, and fall back to "kmem/rss_stat" if not present.
   // The historical context for this is the following:
   // - Up to Android S (12), the rss_stat was internally throttled in its
   //   kernel implementation.
@@ -80,8 +98,6 @@ message FtraceConfig {
   // - Not all Android T/13 devices will receive a new kernel though, hence we
   //   need to deal with both cases.
   // For more context: go/rss-stat-throttled.
-  // TODO(kaleshsingh): implement the logic behind this. Right now this flag
-  // does nothing.
   optional bool throttle_rss_stat = 15;
 
   // If true, avoid enabling events that aren't statically known by
@@ -98,4 +114,42 @@ message FtraceConfig {
   // are enabled, this setting has no effect. Example: ["sys_read", "sys_open"].
   // Introduced in: Android U.
   repeated string syscall_events = 18;
+
+  // If true, enable the "function_graph" kernel tracer that emits events
+  // whenever a kernel function is entered and exited
+  // (funcgraph_entry/funcgraph_exit).
+  // Notes on use:
+  // * Requires |symbolize_ksyms| for function name resolution.
+  // * Use |function_filters| or |function_graph_roots| to constrain the traced
+  //   set of functions, otherwise the event bandwidth will be too high for
+  //   practical use.
+  // * The data source might be rejected if there is already a concurrent
+  //   ftrace data source that does not use function graph itself, as we do not
+  //   support switching kernel tracers mid-trace.
+  // * Requires a kernel compiled with CONFIG_FUNCTION_GRAPH_TRACER. This is
+  //   enabled if "cat /sys/kernel/tracing/available_tracers" includes
+  //   "function_graph".
+  // Android:
+  // * Available only on debuggable builds.
+  // * Introduced in: Android U.
+  optional bool enable_function_graph = 19;
+
+  // Constrains the set of functions traced when |enable_function_graph| is
+  // true. Supports globs, e.g. "sched*". You can specify multiple filters,
+  // in which case all matching functions will be traced. See kernel
+  // documentation on ftrace "set_ftrace_filter" file for more details.
+  // Android:
+  // * Available only on debuggable builds.
+  // * Introduced in: Android U.
+  repeated string function_filters = 20;
+
+  // If |enable_function_graph| is true, trace this set of functions *and* all
+  // of its callees. Supports globs. Can be set together with
+  // |function_filters|, in which case only callees matching the filter will be
+  // traced. If setting both, you most likely want all roots to also be
+  // included in |function_filters|.
+  // Android:
+  // * Available only on debuggable builds.
+  // * Introduced in: Android U.
+  repeated string function_graph_roots = 21;
 }

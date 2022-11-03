@@ -50,15 +50,10 @@ base::Optional<FilterOp> SqliteOpToFilterOp(int sqlite_op) {
     case SQLITE_INDEX_CONSTRAINT_LIKE:
     case SQLITE_INDEX_CONSTRAINT_GLOB:
       return base::nullopt;
-#if SQLITE_VERSION_NUMBER >= 3038000
-    // LIMIT and OFFSET constraints were introduced in 3.38 but we
-    // still build for older versions in most places. We still need
-    // to handle this here as Chrome is very good at staying up to date
-    // with SQLite versions and crashes if we don't have this.
+    // TODO(lalitm): start supporting these constraints.
     case SQLITE_INDEX_CONSTRAINT_LIMIT:
     case SQLITE_INDEX_CONSTRAINT_OFFSET:
       return base::nullopt;
-#endif
     default:
       PERFETTO_FATAL("Currently unsupported constraint");
   }
@@ -474,9 +469,10 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
       TryCacheCreateSortedTable(qc, history);
       break;
     case TableComputation::kDynamic: {
-      PERFETTO_TP_TRACE("DYNAMIC_TABLE_GENERATE", [this](metatrace::Record* r) {
-        r->AddArg("Table", db_sqlite_table_->name());
-      });
+      PERFETTO_TP_TRACE(metatrace::Category::QUERY, "DYNAMIC_TABLE_GENERATE",
+                        [this](metatrace::Record* r) {
+                          r->AddArg("Table", db_sqlite_table_->name());
+                        });
       // If we have a dynamically created table, regenerate the table based on
       // the new constraints.
       std::unique_ptr<Table> computed_table;
@@ -498,73 +494,75 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
     }
   }
 
-  PERFETTO_TP_TRACE("DB_TABLE_FILTER_AND_SORT", [this](metatrace::Record* r) {
-    const Table* source = SourceTable();
-    char buffer[2048];
-    for (const Constraint& c : constraints_) {
-      base::StringWriter writer(buffer, sizeof(buffer));
-      writer.AppendString(source->GetColumn(c.col_idx).name());
+  PERFETTO_TP_TRACE(
+      metatrace::Category::QUERY, "DB_TABLE_FILTER_AND_SORT",
+      [this](metatrace::Record* r) {
+        const Table* source = SourceTable();
+        char buffer[2048];
+        for (const Constraint& c : constraints_) {
+          base::StringWriter writer(buffer, sizeof(buffer));
+          writer.AppendString(source->GetColumn(c.col_idx).name());
 
-      writer.AppendChar(' ');
-      switch (c.op) {
-        case FilterOp::kEq:
-          writer.AppendString("=");
-          break;
-        case FilterOp::kGe:
-          writer.AppendString(">=");
-          break;
-        case FilterOp::kGt:
-          writer.AppendString(">");
-          break;
-        case FilterOp::kLe:
-          writer.AppendString("<=");
-          break;
-        case FilterOp::kLt:
-          writer.AppendString("<");
-          break;
-        case FilterOp::kNe:
-          writer.AppendString("!=");
-          break;
-        case FilterOp::kIsNull:
-          writer.AppendString("IS");
-          break;
-        case FilterOp::kIsNotNull:
-          writer.AppendString("IS NOT");
-          break;
-      }
-      writer.AppendChar(' ');
+          writer.AppendChar(' ');
+          switch (c.op) {
+            case FilterOp::kEq:
+              writer.AppendString("=");
+              break;
+            case FilterOp::kGe:
+              writer.AppendString(">=");
+              break;
+            case FilterOp::kGt:
+              writer.AppendString(">");
+              break;
+            case FilterOp::kLe:
+              writer.AppendString("<=");
+              break;
+            case FilterOp::kLt:
+              writer.AppendString("<");
+              break;
+            case FilterOp::kNe:
+              writer.AppendString("!=");
+              break;
+            case FilterOp::kIsNull:
+              writer.AppendString("IS");
+              break;
+            case FilterOp::kIsNotNull:
+              writer.AppendString("IS NOT");
+              break;
+          }
+          writer.AppendChar(' ');
 
-      switch (c.value.type) {
-        case SqlValue::kString:
-          writer.AppendString(c.value.AsString());
-          break;
-        case SqlValue::kBytes:
-          writer.AppendString("<bytes>");
-          break;
-        case SqlValue::kNull:
-          writer.AppendString("<null>");
-          break;
-        case SqlValue::kDouble: {
-          writer.AppendDouble(c.value.AsDouble());
-          break;
+          switch (c.value.type) {
+            case SqlValue::kString:
+              writer.AppendString(c.value.AsString());
+              break;
+            case SqlValue::kBytes:
+              writer.AppendString("<bytes>");
+              break;
+            case SqlValue::kNull:
+              writer.AppendString("<null>");
+              break;
+            case SqlValue::kDouble: {
+              writer.AppendDouble(c.value.AsDouble());
+              break;
+            }
+            case SqlValue::kLong: {
+              writer.AppendInt(c.value.AsLong());
+              break;
+            }
+          }
+          r->AddArg("Table", db_sqlite_table_->name());
+          r->AddArg("Constraint", writer.GetStringView());
         }
-        case SqlValue::kLong: {
-          writer.AppendInt(c.value.AsLong());
-          break;
-        }
-      }
-      r->AddArg("Table", db_sqlite_table_->name());
-      r->AddArg("Constraint", writer.GetStringView());
-    }
 
-    for (const auto& o : orders_) {
-      base::StringWriter writer(buffer, sizeof(buffer));
-      writer.AppendString(source->GetColumn(o.col_idx).name());
-      if (o.desc)
-        writer.AppendString(" desc");
-      r->AddArg("Order by", writer.GetStringView());
-    }
-  });
+        for (const auto& o : orders_) {
+          base::StringWriter writer(buffer, sizeof(buffer));
+          writer.AppendString(source->GetColumn(o.col_idx).name());
+          if (o.desc)
+            writer.AppendString(" desc");
+          r->AddArg("Order by", writer.GetStringView());
+        }
+      });
 
   // Attempt to filter into a RowMap first - weall figure out whether to apply
   // this to the table or we should use the RowMap directly. Also, if we are

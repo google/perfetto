@@ -103,6 +103,8 @@ class TracingMuxerImpl : public TracingMuxer {
   struct RegisteredDataSource {
     DataSourceDescriptor descriptor;
     DataSourceFactory factory{};
+    bool supports_multiple_instances = false;
+    bool requires_callbacks_under_lock = false;
     DataSourceStaticState* static_state = nullptr;
   };
 
@@ -113,6 +115,7 @@ class TracingMuxerImpl : public TracingMuxer {
   // TracingMuxer implementation.
   bool RegisterDataSource(const DataSourceDescriptor&,
                           DataSourceFactory,
+                          DataSourceParams,
                           DataSourceStaticState*) override;
   void UpdateDataSourceDescriptor(const DataSourceDescriptor&,
                                   const DataSourceStaticState*) override;
@@ -442,13 +445,20 @@ class TracingMuxerImpl : public TracingMuxer {
 
   struct FindDataSourceRes {
     FindDataSourceRes() = default;
-    FindDataSourceRes(DataSourceStaticState* a, DataSourceState* b, uint32_t c)
-        : static_state(a), internal_state(b), instance_idx(c) {}
+    FindDataSourceRes(DataSourceStaticState* a,
+                      DataSourceState* b,
+                      uint32_t c,
+                      bool d)
+        : static_state(a),
+          internal_state(b),
+          instance_idx(c),
+          requires_callbacks_under_lock(d) {}
     explicit operator bool() const { return !!internal_state; }
 
     DataSourceStaticState* static_state = nullptr;
     DataSourceState* internal_state = nullptr;
     uint32_t instance_idx = 0;
+    bool requires_callbacks_under_lock = false;
   };
   FindDataSourceRes FindDataSource(TracingBackendId, DataSourceInstanceID);
 
@@ -475,6 +485,9 @@ class TracingMuxerImpl : public TracingMuxer {
   std::vector<RegisteredBackend> backends_;
   std::vector<RegisteredInterceptor> interceptors_;
   TracingPolicy* policy_ = nullptr;
+
+  // Learn more at TracingInitArgs::supports_multiple_data_source_instances
+  bool supports_multiple_data_source_instances_ = true;
 
   std::atomic<TracingSessionGlobalID> next_tracing_session_id_{};
   std::atomic<uint32_t> next_data_source_index_{};

@@ -54,3 +54,31 @@ packet {
     }
   }
 }
+packet {
+  ftrace_events {
+    cpu: 4
+    event {
+      timestamp: 50000
+      pid: 0
+      suspend_resume {
+        action: "timekeeping_freeze"
+        val: 4
+        start: 1
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 60000
+      pid: 0
+      suspend_resume {
+        action: "timekeeping_freeze"
+        val: 1
+        start: 0
+      }
+    }
+  }
+}

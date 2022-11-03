@@ -11,6 +11,8 @@ android_startup {
         runnable_dur_ns: 0
         uninterruptible_sleep_dur_ns: 0
         interruptible_sleep_dur_ns: 0
+        uninterruptible_io_sleep_dur_ns: 0
+        uninterruptible_non_io_sleep_dur_ns: 0
       }
       other_processes_spawned_count: 0
       time_bind_application {
@@ -63,6 +65,8 @@ android_startup {
       installd_running: false
       broadcast_dispatched_count: 0
       broadcast_received_count: 0
+      installd_dur_ns: 0
+      dex2oat_dur_ns: 0
     }
     startup_type: "cold"
   }

@@ -85,7 +85,9 @@ class IteratorImpl {
 
     int ret = sqlite3_step(*stmt_);
     if (PERFETTO_UNLIKELY(ret != SQLITE_ROW && ret != SQLITE_DONE)) {
-      status_ = base::ErrStatus("%s (errcode %d)", sqlite3_errmsg(db_), ret);
+      status_ = base::ErrStatus(
+          "%s",
+          sqlite_utils::FormatErrorMessage(stmt_.get(), db_, ret).c_message());
       stmt_.reset();
       return false;
     }

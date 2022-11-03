@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,6 +25,21 @@ message ChromeMemoryPressureNotification {
 
   // ID of interned source location where MemoryPressureListener was created
   optional uint64 creation_location_iid = 2;
+}
+
+message BlinkTaskScope {
+  enum TaskScopeType {
+    TASK_SCOPE_UNKNOWN = 0;
+    TASK_SCOPE_CALLBACK = 1;
+    TASK_SCOPE_SCHEDULED_ACTION = 2;
+    TASK_SCOPE_SCRIPT_EXECUTION = 3;
+    TASK_SCOPE_POST_MESSAGE = 4;
+  }
+  optional TaskScopeType type = 1;
+  optional int64 scope_task_id = 2;
+  optional int64 running_task_id_to_be_restored = 3;
+  optional int64 continuation_task_id_to_be_restored = 4;
+  optional int64 parent_task_id = 5;
 }
 
 message ChromeTaskAnnotator {
@@ -156,6 +171,18 @@ message FrameTreeNodeInfo {
   optional RenderFrameHost current_frame_host = 4;
   optional RenderFrameHost speculative_frame_host = 5;
 
+  // NOTE: this proto must be kept consistent with
+  // content::FrameType.
+  enum FrameType {
+    UNSPECIFIED_FRAME_TYPE = 0;
+    SUBFRAME = 1;
+    PRIMARY_MAIN_FRAME = 2;
+    PRERENDER_MAIN_FRAME = 3;
+    FENCED_FRAME_ROOT = 4;
+  }
+
+  optional FrameType frame_type = 6;
+
   // Additional untyped debug information associated with this
   // FrameTreeNode, populated via TracedProto::AddDebugAnnotations API.
   repeated DebugAnnotation debug_annotations = 99;
@@ -203,6 +230,7 @@ message ChromeSqlDiagnostics {
 
   optional bool has_valid_header = 8;
   optional bool has_valid_schema = 9;
+  optional string error_message = 10;
 }
 
 message ChromeWebAppBadNavigate {
@@ -509,6 +537,7 @@ message RenderFrameHost {
   optional RenderFrameHost outer_document = 9;
   optional RenderFrameHost embedder = 10;
   optional BrowsingContextState browsing_context_state = 11;
+  optional FrameTreeNodeInfo.FrameType frame_type = 12;
 
   // Additional untyped debug information associated with this
   // RenderViewHost, populated via TracedProto::AddDebugAnnotations API.
@@ -812,9 +841,150 @@ message AndroidIPC {
   optional int64 dur_ms = 2;
 }
 
+message SequenceManagerTask {
+  enum Priority {
+    UNKNOWN = 0;
+    CONTROL_PRIORITY = 1;
+    HIGHEST_PRIORITY = 2;
+    VERY_HIGH_PRIORITY = 3;
+    HIGH_PRIORITY = 4;
+    NORMAL_PRIORITY = 5;
+    LOW_PRIORITY = 6;
+    BEST_EFFORT_PRIORITY = 7;
+  }
+
+  enum QueueName {
+    UNKNOWN_TQ = 0;
+    DEFAULT_TQ = 1;
+    TASK_ENVIRONMENT_DEFAULT_TQ = 2;
+    TEST2_TQ = 3;
+    TEST_TQ = 4;
+    CONTROL_TQ = 5;
+
+    SUBTHREAD_CONTROL_TQ = 6;
+    SUBTHREAD_DEFAULT_TQ = 7;
+    SUBTHREAD_INPUT_TQ = 8;
+
+    UI_BEST_EFFORT_TQ = 9;
+    UI_BOOTSTRAP_TQ = 10;
+    UI_CONTROL_TQ = 11;
+    UI_DEFAULT_TQ = 12;
+    UI_NAVIGATION_NETWORK_RESPONSE_TQ = 13;
+    UI_RUN_ALL_PENDING_TQ = 14;
+    UI_SERVICE_WORKER_STORAGE_CONTROL_RESPONSE_TQ = 15;
+    UI_THREAD_TQ = 16;
+    UI_USER_BLOCKING_TQ = 17;
+    UI_USER_INPUT_TQ = 18;
+    UI_USER_VISIBLE_TQ = 19;
+
+    IO_BEST_EFFORT_TQ = 20;
+    IO_BOOTSTRAP_TQ = 21;
+    IO_CONTROL_TQ = 22;
+    IO_DEFAULT_TQ = 23;
+    IO_NAVIGATION_NETWORK_RESPONSE_TQ = 24;
+    IO_RUN_ALL_PENDING_TQ = 25;
+    IO_SERVICE_WORKER_STORAGE_CONTROL_RESPONSE_TQ = 26;
+    IO_THREAD_TQ = 27;
+    IO_USER_BLOCKING_TQ = 28;
+    IO_USER_INPUT_TQ = 29;
+    IO_USER_VISIBLE_TQ = 30;
+
+    COMPOSITOR_TQ = 31;
+    DETACHED_TQ = 32;
+    FRAME_DEFERRABLE_TQ = 33;
+    FRAME_LOADING_CONTROL_TQ = 34;
+    FRAME_LOADING_TQ = 35;
+    FRAME_PAUSABLE_TQ = 36;
+    FRAME_THROTTLEABLE_TQ = 37;
+    FRAME_UNPAUSABLE_TQ = 38;
+    IDLE_TQ = 39;
+    INPUT_TQ = 40;
+    IPC_TRACKING_FOR_CACHED_PAGES_TQ = 41;
+    NON_WAKING_TQ = 42;
+    OTHER_TQ = 43;
+    V8_TQ = 44;
+    WEB_SCHEDULING_TQ = 45;
+
+    WORKER_IDLE_TQ = 46;
+    WORKER_PAUSABLE_TQ = 47;
+    WORKER_THREAD_INTERNAL_TQ = 48;
+    WORKER_THROTTLEABLE_TQ = 49;
+    WORKER_UNPAUSABLE_TQ = 50;
+    WORKER_WEB_SCHEDULING_TQ = 51;
+  }
+
+  optional Priority priority = 1;
+  optional QueueName queue_name = 2;
+}
+
+message AndroidToolbar {
+  enum BlockCaptureReason {
+    BLOCKED_UNKNOWN = 0;
+    BLOCKED_TOOLBAR_OR_RESULT_NULL = 1;
+    BLOCKED_VIEW_NOT_DIRTY = 2;
+    BLOCKED_SNAPSHOT_SAME = 3;
+    BLOCKED_URL_BAR_HAS_FOCUS = 4;
+    BLOCKED_URL_BAR_FOCUS_IN_PROGRESS = 5;
+    BLOCKED_OPTIONAL_BUTTON_ANIMATION_IN_PROGRESS = 6;
+    BLOCKED_STATUS_ICON_ANIMATION_IN_PROGRESS = 7;
+    BLOCKED_SCROLL_ABLATION = 8;
+    BLOCKED_BROWSER_CONTROLS_LOCKED = 9;
+    // TODO(https://crbug.com/1324678): SCROLL_IN_PROGRESS.
+    // TODO(https://crbug.com/1324678): NATIVE_PAGE.
+  }
+  enum AllowCaptureReason {
+    ALLOWED_UNKNOWN = 0;
+    ALLOWED_FORCE_CAPTURE = 1;
+    ALLOWED_SNAPSHOT_DIFFERENCE = 2;
+  }
+  enum SnapshotDifference {
+    DIFF_NONE = 0;
+    DIFF_NULL = 1;
+    DIFF_TINT = 2;
+    DIFF_TAB_COUNT = 3;
+    DIFF_OPTIONAL_BUTTON_DATA = 4;
+    DIFF_VISUAL_STATE = 5;
+    DIFF_SECURITY_ICON = 6;
+    DIFF_SHOWING_UPDATE_BADGE = 7;
+    DIFF_PAINT_PREVIEW = 8;
+    DIFF_PROGRESS = 9;
+    DIFF_LOCATION_BAR_WIDTH = 10;
+    DIFF_URL_TEXT = 11;
+    DIFF_HOME_BUTTON_COLOR = 12;
+    TITLE_TEXT = 13;
+    CCT_ANIMATION = 14;
+  }
+
+  optional BlockCaptureReason block_capture_reason = 1;
+  optional AllowCaptureReason allow_capture_reason = 2;
+  optional SnapshotDifference snapshot_difference = 3;
+}
+
+message ActiveProcesses {
+  repeated int32 pid = 1;
+}
+
+message UkmPageLoadTimingUpdate {
+  // This can be used to uniquely identify a navigation from the point of view
+  // of UKM.
+  optional int64 ukm_source_id = 1;
+
+  // The URL of a page can change throughout its lifetime. This is the current
+  // url when this timing update was dispatched.
+  optional string latest_url = 2;
+
+  // Latest fully aggregated value of Cumulative Layout Shift.
+  optional float latest_cumulative_layout_shift = 3;
+
+  // Latest fully aggregated value of Largest Contentful Paint.
+  optional double latest_largest_contentful_paint_ms = 4;
+
+  optional double first_contentful_paint_ms = 5;
+}
+
 message ChromeTrackEvent {
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1040
+  // Next ID: 1045
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -900,5 +1070,15 @@ message ChromeTrackEvent {
     optional AndroidIPC android_ipc = 1038;
 
     optional ChromeSqlDiagnostics sql_diagnostics = 1039;
+
+    optional SequenceManagerTask sequence_manager_task = 1040;
+
+    optional AndroidToolbar android_toolbar = 1041;
+
+    optional ActiveProcesses active_processes = 1042;
+
+    optional BlinkTaskScope blink_task_scope = 1043;
+
+    optional UkmPageLoadTimingUpdate ukm_page_load_timing_update = 1044;
   }
 }

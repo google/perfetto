@@ -167,6 +167,20 @@ inline void StringCopy(char* dst, const char* src, size_t dst_size) {
 size_t SprintfTrunc(char* dst, size_t dst_size, const char* fmt, ...)
     PERFETTO_PRINTF_FORMAT(3, 4);
 
+// Line number starts from 1
+struct LineWithOffset {
+  base::StringView line;
+  uint32_t line_offset;
+  uint32_t line_num;
+};
+
+// For given string and offset Pfinds a line with character for
+// which offset points, what number is this line (starts from 1), and the offset
+// inside this line. returns nullopt if the offset points to
+// line break character or exceeds string length.
+base::Optional<LineWithOffset> FindLineWithOffset(base::StringView str,
+                                                  uint32_t offset);
+
 // A helper class to facilitate construction and usage of write-once stack
 // strings.
 // Example usage:

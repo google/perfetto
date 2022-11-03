@@ -13,11 +13,8 @@
 // limitations under the License.
 
 import {assertExists} from '../../../base/logging';
+import {getErrorMessage} from '../../errors';
 import {RECORDING_V2_FLAG} from '../../feature_flags';
-import {
-  ADB_DEVICE_FILTER,
-  findInterfaceAndEndpoint,
-} from '../adb_over_webusb_utils';
 import {AdbKeyManager} from '../auth/adb_key_manager';
 import {RecordingError} from '../recording_error_handling';
 import {
@@ -25,6 +22,7 @@ import {
   RecordingTargetV2,
   TargetFactory,
 } from '../recording_interfaces_v2';
+import {ADB_DEVICE_FILTER, findInterfaceAndEndpoint} from '../recording_utils';
 import {targetFactoryRegistry} from '../target_factory_registry';
 import {AndroidWebusbTarget} from '../targets/android_webusb_target';
 
@@ -44,7 +42,7 @@ function createDeviceErrorMessage(device: USBDevice, issue: string): string {
 
 export class AndroidWebusbTargetFactory implements TargetFactory {
   readonly kind = ANDROID_WEBUSB_TARGET_FACTORY;
-  onTargetChange?: OnTargetChangeCallback;
+  onTargetChange: OnTargetChangeCallback = () => {};
   private recordingProblems: string[] = [];
   private targets: Map<string, AndroidWebusbTarget> =
       new Map<string, AndroidWebusbTarget>();
@@ -69,15 +67,20 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
   }
 
   async connectNewTarget(): Promise<RecordingTargetV2> {
-    const device: USBDevice =
-        await this.usb.requestDevice({filters: [ADB_DEVICE_FILTER]});
+    let device: USBDevice;
+    try {
+      device = await this.usb.requestDevice({filters: [ADB_DEVICE_FILTER]});
+    } catch (e) {
+      throw new RecordingError(getErrorMessage(e));
+    }
+
     const deviceValid = this.checkDeviceValidity(device);
     if (!deviceValid.isValid) {
       throw new RecordingError(deviceValid.issues.join('\n'));
     }
 
     const androidTarget =
-        new AndroidWebusbTarget(this, device, this.keyManager);
+        new AndroidWebusbTarget(device, this.keyManager, this.onTargetChange);
     this.targets.set(assertExists(device.serialNumber), androidTarget);
     return androidTarget;
   }
@@ -91,7 +94,8 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
       if (this.checkDeviceValidity(device).isValid) {
         this.targets.set(
             assertExists(device.serialNumber),
-            new AndroidWebusbTarget(this, device, this.keyManager));
+            new AndroidWebusbTarget(
+                device, this.keyManager, this.onTargetChange));
       }
     }
 
@@ -99,10 +103,9 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
       if (this.checkDeviceValidity(ev.device).isValid) {
         this.targets.set(
             assertExists(ev.device.serialNumber),
-            new AndroidWebusbTarget(this, ev.device, this.keyManager));
-        if (this.onTargetChange) {
-          this.onTargetChange();
-        }
+            new AndroidWebusbTarget(
+                ev.device, this.keyManager, this.onTargetChange));
+        this.onTargetChange();
       }
     });
 
@@ -113,9 +116,7 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
       await assertExists(this.targets.get(serialNumber))
           .disconnect(`Device with serial ${serialNumber} was disconnected.`);
       this.targets.delete(serialNumber);
-      if (this.onTargetChange) {
-        this.onTargetChange();
-      }
+      this.onTargetChange();
     });
   }
 

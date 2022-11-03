@@ -1,0 +1,72 @@
+/*
+ * Copyright (C) 2022 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos.atrace;
+
+// Used to map atrace categories to linux kernel ftrace events.
+// Example:
+//
+// * "gfx" category maps to:
+//   * "/sys/kernel/tracing/events/sde/sde_cmd_release_bw"
+//   * "/sys/kernel/tracing/events/sde/sde_cmd_release_bw"
+//   * "/sys/kernel/tracing/events/mali/gpu_power_state"
+// * "ion" category maps to:
+//   * "/sys/kernel/tracing/kmem/ion_alloc_buffer_start"
+//
+// categories {
+//   name: "gfx"
+//   description: "Graphics"
+//   groups {
+//     name: "sde"
+//     events: "sde_cmd_release_bw"
+//     events: "sde_encoder_underrun"
+//   }
+//   groups {
+//     name: "mali"
+//     events: "gpu_power_state"
+//   }
+// }
+// categories {
+//   name: "ion"
+//   description: "ION Allocation"
+//   groups {
+//     name: "kmem"
+//     events: "ion_alloc_buffer_start"
+//   }
+// }
+
+message FtraceGroup {
+  // The name of this ftrace group.
+  optional string name = 1;
+  // The events that are to be enabled in this ftrace group.
+  repeated string events = 2;
+}
+
+message Category {
+  // The name of the atrace category (e.g. "gfx", "memory").
+  optional string name = 1;
+  // A brief human readable description of the category.
+  optional string description = 2;
+  // The ftrace events groups that are enabled by this category.
+  repeated FtraceGroup groups = 3;
+}
+
+message Categories {
+  // List of categories.
+  repeated Category categories = 1;
+}

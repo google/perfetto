@@ -27,12 +27,14 @@
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 
 using testing::_;
+using testing::AllOf;
 using testing::AnyNumber;
 using testing::Contains;
 using testing::Eq;
 using testing::IsNull;
 using testing::Pointee;
 using testing::Return;
+using testing::StrEq;
 using testing::TestWithParam;
 using testing::Values;
 using testing::ValuesIn;
@@ -542,6 +544,54 @@ TEST(EventFilterTest, EnableEventsFrom) {
   EXPECT_TRUE(empty_filter.IsEventEnabled(4));
   EXPECT_TRUE(empty_filter.IsEventEnabled(17));
   EXPECT_TRUE(empty_filter.IsEventEnabled(1));
+}
+
+TEST(TranslationTableTest, FuncgraphEvents) {
+  std::string path =
+      base::GetTestDataPath("src/traced/probes/ftrace/test/data/synthetic/");
+  FtraceProcfs ftrace_procfs(path);
+  auto table = ProtoTranslationTable::Create(
+      &ftrace_procfs, GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+  PERFETTO_CHECK(table);
+
+  {
+    auto* event = table->GetEvent(GroupAndName("ftrace", "funcgraph_entry"));
+    EXPECT_EQ(std::string(event->name), "funcgraph_entry");
+    EXPECT_EQ(std::string(event->group), "ftrace");
+
+    // field:unsigned long func;  offset:8;   size:8;  signed:0;
+    // field:int depth;           offset:16;  size:4;  signed:1;
+    ASSERT_EQ(event->fields.size(), 2u);
+
+    // note: fields in struct are ordered as in the proto, not the format file
+    EXPECT_THAT(
+        event->fields,
+        Contains(
+            AllOf(testing::Field(&Field::ftrace_name, StrEq("func")),
+                  testing::Field(&Field::ftrace_offset, Eq(8u)),
+                  testing::Field(&Field::ftrace_type, kFtraceSymAddr64),
+                  testing::Field(&Field::strategy, kFtraceSymAddr64ToUint64))));
+  }
+  {
+    auto* event = table->GetEvent(GroupAndName("ftrace", "funcgraph_exit"));
+    EXPECT_EQ(std::string(event->name), "funcgraph_exit");
+    EXPECT_EQ(std::string(event->group), "ftrace");
+
+    // field:unsigned long func;           offset:8;   size:8;  signed:0;
+    // field:int depth;                    offset:16;  size:4;  signed:1;
+    // field:unsigned int overrun;         offset:20;  size:4;  signed:0;
+    // field:unsigned long long calltime;  offset:24;  size:8;  signed:0;
+    // field:unsigned long long rettime;   offset:32;  size:8;  signed:0;
+    ASSERT_EQ(event->fields.size(), 5u);
+    // note: fields in struct are ordered as in the proto, not the format file
+    EXPECT_THAT(
+        event->fields,
+        Contains(
+            AllOf(testing::Field(&Field::ftrace_name, StrEq("func")),
+                  testing::Field(&Field::ftrace_offset, Eq(8u)),
+                  testing::Field(&Field::ftrace_type, kFtraceSymAddr64),
+                  testing::Field(&Field::strategy, kFtraceSymAddr64ToUint64))));
+  }
 }
 
 }  // namespace

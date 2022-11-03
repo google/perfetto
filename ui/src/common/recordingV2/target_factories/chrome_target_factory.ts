@@ -12,34 +12,47 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {EXTENSION_NOT_INSTALLED} from '../chrome_utils';
 import {RecordingError} from '../recording_error_handling';
 import {
   OnTargetChangeCallback,
   RecordingTargetV2,
   TargetFactory,
 } from '../recording_interfaces_v2';
+import {
+  EXTENSION_ID,
+  EXTENSION_NOT_INSTALLED,
+  isCrOS,
+} from '../recording_utils';
 import {targetFactoryRegistry} from '../target_factory_registry';
 import {ChromeTarget} from '../targets/chrome_target';
 
-const CHROME_TARGET_FACTORY = 'ChromeTargetFactory';
-
-// Sample user agent for Chrome on Chrome OS:
-// "Mozilla/5.0 (X11; CrOS x86_64 14816.99.0) AppleWebKit/537.36
-// (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36"
-// This condition is wider, in the unlikely possibility of different casing,
-export function isCrOS(userAgent: string) {
-  return userAgent.toLowerCase().includes(' cros ');
-}
+export const CHROME_TARGET_FACTORY = 'ChromeTargetFactory';
 
 export class ChromeTargetFactory implements TargetFactory {
   readonly kind = CHROME_TARGET_FACTORY;
-  private targets: ChromeTarget[];
+  // We only check the connection once at the beginning to:
+  // a) Avoid creating a 'Port' object every time 'getInfo' is called.
+  // b) When a new Port is created, the extension starts communicating with it
+  // and leaves aside the old Port objects, so creating a new Port would break
+  // any ongoing tracing session.
+  isExtensionInstalled: boolean = false;
+  private targets: ChromeTarget[] = [];
 
   constructor() {
-    this.targets = [new ChromeTarget('Chrome', 'CHROME')];
+    this.init();
+  }
+
+  init() {
+    const testPort = chrome.runtime.connect(EXTENSION_ID);
+    this.isExtensionInstalled = !!testPort;
+    testPort.disconnect();
+
+    if (!this.isExtensionInstalled) {
+      return;
+    }
+    this.targets.push(new ChromeTarget('Chrome', 'CHROME'));
     if (isCrOS(navigator.userAgent)) {
-      this.targets.push(new ChromeTarget('Chrome', 'CHROME_OS'));
+      this.targets.push(new ChromeTarget('ChromeOS', 'CHROME_OS'));
     }
   }
 
@@ -55,7 +68,7 @@ export class ChromeTargetFactory implements TargetFactory {
 
   listRecordingProblems(): string[] {
     const recordingProblems = [];
-    if (!this.targets[0].getInfo().isExtensionInstalled) {
+    if (!this.isExtensionInstalled) {
       recordingProblems.push(EXTENSION_NOT_INSTALLED);
     }
     return recordingProblems;

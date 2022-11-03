@@ -13,12 +13,15 @@
 // limitations under the License.
 
 import {RECORDING_V2_FLAG} from '../../feature_flags';
-import {buildAbdWebsocketCommand} from '../adb_over_websocket_utils';
 import {
   OnTargetChangeCallback,
   RecordingTargetV2,
   TargetFactory,
 } from '../recording_interfaces_v2';
+import {
+  buildAbdWebsocketCommand,
+  WEBSOCKET_CLOSED_ABNORMALLY_CODE,
+} from '../recording_utils';
 import {targetFactoryRegistry} from '../target_factory_registry';
 import {AndroidWebsocketTarget} from '../targets/android_websocket_target';
 
@@ -27,8 +30,6 @@ export const ANDROID_WEBSOCKET_TARGET_FACTORY = 'AndroidWebsocketTargetFactory';
 // https://cs.android.com/android/platform/superproject/+/master:packages/
 // modules/adb/SERVICES.TXT;l=135
 const PREFIX_LENGTH = 4;
-// https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
-const WEBSOCKET_CLOSED_ABNORMALLY_CODE = 1006;
 
 // information received over the websocket regarding a device
 // Ex: "${serialNumber} authorized"
@@ -106,7 +107,7 @@ export class WebsocketConnection {
   constructor(
       private websocket: WebSocket,
       private maybeClearConnection: (connection: WebsocketConnection) => void,
-      private onTargetChange?: OnTargetChangeCallback) {
+      private onTargetChange: OnTargetChangeCallback) {
     this.initWebsocket();
   }
 
@@ -155,6 +156,9 @@ export class WebsocketConnection {
       target.disconnect();
     }
     this.targets.clear();
+    if (this.onTargetChange) {
+      this.onTargetChange();
+    }
   }
 
   getUrl() {
@@ -181,13 +185,15 @@ export class WebsocketConnection {
         this.targets.set(
             listedDevice.serialNumber,
             new AndroidWebsocketTarget(
-                listedDevice.serialNumber, this.websocket.url));
+                listedDevice.serialNumber,
+                this.websocket.url,
+                this.onTargetChange));
         targetsUpdated = true;
       }
     }
 
     // Notify the calling code that the list of targets has been updated.
-    if (targetsUpdated && this.onTargetChange) {
+    if (targetsUpdated) {
       this.onTargetChange();
     }
   }
@@ -195,7 +201,7 @@ export class WebsocketConnection {
 
 export class AndroidWebsocketTargetFactory implements TargetFactory {
   readonly kind = ANDROID_WEBSOCKET_TARGET_FACTORY;
-  private onTargetChange?: OnTargetChangeCallback;
+  private onTargetChange: OnTargetChangeCallback = () => {};
   private websocketConnection?: WebsocketConnection;
 
   getName() {

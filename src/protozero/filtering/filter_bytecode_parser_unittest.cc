@@ -28,7 +28,7 @@ namespace {
 
 bool LoadBytecode(FilterBytecodeParser* parser,
                   std::initializer_list<uint32_t> bytecode) {
-  perfetto::base::Hash hasher;
+  perfetto::base::Hasher hasher;
   protozero::PackedVarInt words;
   for (uint32_t w : bytecode) {
     words.Append(w);

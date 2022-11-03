@@ -15,7 +15,7 @@
 import("../../../../gn/perfetto.gni")
 
 # Keep this list sorted.
-sql_files = [
+android_sql_files = [
   "android/android_batt.sql",
   "android/android_binder.sql",
   "android/android_camera_unagg.sql",
@@ -79,7 +79,24 @@ sql_files = [
   "android/java_heap_histogram.sql",
   "android/java_heap_stats.sql",
   "android/mem_stats_priority_breakdown.sql",
+  "android/p_state.sql",
   "android/power_drain_in_watts.sql",
+  "android/power_profile_data/marlin.sql",
+  "android/power_profile_data/walleye.sql",
+  "android/power_profile_data/taimen.sql",
+  "android/power_profile_data/blueline.sql",
+  "android/power_profile_data/crosshatch.sql",
+  "android/power_profile_data/bonito.sql",
+  "android/power_profile_data/sargo.sql",
+  "android/power_profile_data/flame.sql",
+  "android/power_profile_data/coral.sql",
+  "android/power_profile_data/sunfish.sql",
+  "android/power_profile_data/bramble.sql",
+  "android/power_profile_data/redfin.sql",
+  "android/power_profile_data/barbet.sql",
+  "android/power_profile_data/oriole.sql",
+  "android/power_profile_data/raven.sql",
+  "android/power_profile_data/bluejay.sql",
   "android/power_profile_data.sql",
   "android/process_counter_span_view.sql",
   "android/process_counter_span_view.sql",
@@ -100,19 +117,26 @@ sql_files = [
   "android/startup/system_state.sql",
   "android/startup/thread_state_breakdown.sql",
   "android/unsymbolized_frames.sql",
+]
+
+chrome_sql_files = [
   "chrome/actual_power_by_category.sql",
   "chrome/actual_power_by_rail_mode.sql",
   "chrome/chrome_event_metadata.sql",
   "chrome/chrome_histogram_hashes.sql",
+  "chrome/chrome_input_to_browser_intervals_template.sql",
   "chrome/chrome_input_to_browser_intervals.sql",
   "chrome/chrome_performance_mark_hashes.sql",
   "chrome/chrome_processes.sql",
+  "chrome/chrome_reliable_range.sql",
   "chrome/chrome_scroll_jank_caused_by_scheduling.sql",
   "chrome/chrome_scroll_inputs_per_frame.sql",
   "chrome/chrome_slice_names.sql",
   "chrome/chrome_stack_samples_for_task.sql",
   "chrome/chrome_unsymbolized_args.sql",
+  "chrome/chrome_tasks_template.sql",
   "chrome/chrome_tasks.sql",
+  "chrome/chrome_tasks_delaying_input_processing_template.sql",
   "chrome/chrome_tasks_delaying_input_processing.sql",
   "chrome/chrome_thread_slice.sql",
   "chrome/chrome_user_event_hashes.sql",
@@ -120,6 +144,10 @@ sql_files = [
   "chrome/cpu_time_by_rail_mode.sql",
   "chrome/estimated_power_by_category.sql",
   "chrome/estimated_power_by_rail_mode.sql",
+  "chrome/experimental_reliable_chrome_tasks_delaying_input_processing.sql",
+  "chrome/event_latency_scroll_jank.sql",
+  "chrome/vsync_intervals.sql",
+  "chrome/event_latency_to_breakdowns.sql",
   "chrome/gesture_flow_event_queuing_delay.sql",
   "chrome/gesture_flow_event.sql",
   "chrome/gesture_jank.sql",
@@ -127,7 +155,6 @@ sql_files = [
   "chrome/rail_modes.sql",
   "chrome/scroll_flow_event_queuing_delay.sql",
   "chrome/scroll_flow_event.sql",
-  "chrome/event_lantency_to_breakdowns.sql",
   "chrome/scroll_jank_cause_blocking_task.sql",
   "chrome/scroll_jank_cause_blocking_touch_move.sql",
   "chrome/scroll_jank_cause_get_bitmap.sql",
@@ -139,16 +166,26 @@ sql_files = [
   "chrome/touch_flow_event_queuing_delay.sql",
   "chrome/touch_flow_event.sql",
   "chrome/touch_jank.sql",
+]
+
+experiemntal_sql_files = [
   "experimental/blink_gc_metric.sql",
   "experimental/chrome_dropped_frames.sql",
   "experimental/chrome_long_latency.sql",
   "experimental/frame_times.sql",
   "experimental/media_metric.sql",
   "experimental/reported_by_page.sql",
+]
+
+other_sql_files = [
   "trace_metadata.sql",
   "trace_stats.sql",
+  "common/parent_slice.sql",
   "webview/webview_power_usage.sql",
 ]
+
+sql_files = android_sql_files + chrome_sql_files + experiemntal_sql_files +
+            other_sql_files
 
 config("gen_config") {
   include_dirs = [ "${root_gen_dir}/${perfetto_root_path}" ]

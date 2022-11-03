@@ -209,6 +209,15 @@ class AndroidGameInterventionList implements m.ClassComponent {
       } else {
         batteryInterventions = 'Not supported';
       }
+      // Game mode numbers are defined in
+      // https://cs.android.com/android/platform/superproject/+/master:frameworks/base/core/java/android/app/GameManager.java;l=68
+      if (row.current_mode === 1) {
+        row.current_mode = 'Standard';
+      } else if (row.current_mode === 2) {
+        row.current_mode = 'Performance';
+      } else if (row.current_mode === 3) {
+        row.current_mode = 'Battery';
+      }
       tableRows.push(m(
           'tr',
           m('td.name', `${row.package_name}`),
@@ -308,7 +317,7 @@ export const TraceInfoPage = createPage({
           cssClass: '.errors',
           subTitle:
               `These counters are collected at trace recording time. The trace
-               data for one or more data sources was droppped and hence some
+               data for one or more data sources was dropped and hence some
                track contents will be incomplete.`,
           sqlConstraints: `severity = 'data_loss' and value > 0`,
         }),
