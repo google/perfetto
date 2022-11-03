@@ -49,6 +49,7 @@ std::string ExtractMojoInterfaceTag(const std::string& method_symbol) {
 
 }  // namespace
 
+#if !PERFETTO_IS_AT_LEAST_CPP17()
 constexpr char ArgsTranslationTable::kChromeHistogramHashKey[];
 constexpr char ArgsTranslationTable::kChromeHistogramNameKey[];
 
@@ -65,6 +66,7 @@ constexpr char ArgsTranslationTable::kMojoMethodMappingIdKey[];
 constexpr char ArgsTranslationTable::kMojoMethodRelPcKey[];
 constexpr char ArgsTranslationTable::kMojoMethodNameKey[];
 constexpr char ArgsTranslationTable::kMojoIntefaceTagKey[];
+#endif
 
 ArgsTranslationTable::ArgsTranslationTable(TraceStorage* storage)
     : storage_(storage),
