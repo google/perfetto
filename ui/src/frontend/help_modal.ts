@@ -48,6 +48,20 @@ function showHelp() {
                 m('td', 'Pan left/right'),
                 ),
             ),
+        m('h2', 'Navigation (Dvorak)'),
+        m(
+            'table',
+            m(
+                'tr',
+                m('td', keycap(','), '/', keycap('o')),
+                m('td', 'Zoom in/out'),
+                ),
+            m(
+                'tr',
+                m('td', keycap('a'), '/', keycap('e')),
+                m('td', 'Pan left/right'),
+                ),
+            ),
         m('h2', 'Mouse Controls'),
         m('table',
           m('tr', m('td', 'Click'), m('td', 'Select event')),
