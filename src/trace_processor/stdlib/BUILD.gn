@@ -33,10 +33,9 @@ action("gen_amalgamated_stdlib") {
   outputs = [ generated_header ]
   public_configs = [ ":gen_config" ]
 }
-
 if (enable_perfetto_trace_processor_sqlite) {
   source_set("stdlib") {
-    sources = [ "dummy.h" ]
+    sources = [ "utils.h" ]
     deps = [ ":gen_amalgamated_stdlib" ]
   }
 }
