@@ -114,6 +114,9 @@ external_deps = {
     '//src/trace_processor/metrics/sql:gen_amalgamated_sql_metrics': [[
         ':cc_amalgamated_sql_metrics'
     ]],
+    '//src/trace_processor/stdlib:gen_amalgamated_stdlib': [[
+        ':cc_amalgamated_stdlib'
+    ]],
     gn_utils.GEN_VERSION_TARGET: ['PERFETTO_CONFIG.deps.version_header'],
 }
 
@@ -122,8 +125,18 @@ def gen_amalgamated_sql_metrics(target):
   label = BazelLabel(get_bazel_label_name(target.name), 'perfetto_genrule')
   label.srcs += [re.sub('^//', '', x) for x in sorted(target.inputs)]
   label.outs += target.outputs
-  label.cmd = r'$(location gen_amalgamated_sql_metrics_py) --cpp_out=$@ $(SRCS)'
-  label.exec_tools += [':gen_amalgamated_sql_metrics_py']
+  label.cmd = (r'$(location gen_amalgamated_sql_py) ' 
+  r'--type=METRICS --cpp_out=$@ $(SRCS)')
+  label.exec_tools += [':gen_amalgamated_sql_py']
+  return [label]
+
+def gen_amalgamated_stdlib(target):
+  label = BazelLabel(get_bazel_label_name(target.name), 'perfetto_genrule')
+  label.srcs += [re.sub('^//', '', x) for x in sorted(target.inputs)]
+  label.outs += target.outputs
+  label.cmd = (r'$(location gen_amalgamated_sql_py) '
+  r'--type=LIB --cpp_out=$@ $(SRCS)')
+  label.exec_tools += [':gen_amalgamated_sql_py']
   return [label]
 
 
@@ -152,6 +165,8 @@ custom_actions = {
         gen_version_header,
     '//src/trace_processor/metrics/sql:gen_amalgamated_sql_metrics':
         gen_amalgamated_sql_metrics,
+    '//src/trace_processor/stdlib:gen_amalgamated_stdlib':
+        gen_amalgamated_stdlib,
 }
 
 # ------------------------------------------------------------------------------
