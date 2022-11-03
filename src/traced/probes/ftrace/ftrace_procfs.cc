@@ -119,7 +119,7 @@ bool FtraceProcfs::SetSyscallFilter(const std::set<size_t>& filter) {
     filter_str = base::Join(parts, " || ");
   }
 
-  for (const std::string& event : {"sys_enter", "sys_exit"}) {
+  for (const char* event : {"sys_enter", "sys_exit"}) {
     std::string path = root_ + "events/raw_syscalls/" + event + "/filter";
     if (!WriteToFile(path, filter_str)) {
       PERFETTO_ELOG("Failed to write file: %s", path.c_str());

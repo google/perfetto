@@ -140,7 +140,10 @@ config("protobuf_config") {
       "-Wno-inconsistent-missing-override",
     ]
   } else if (!is_win) {  # implies gcc
-    cflags += [ "-Wno-return-type" ]
+    cflags += [
+      "-Wno-return-type",
+      "-Wno-stringop-overread",
+    ]
   }
   if (is_win) {
     cflags += [ "/W0" ]
