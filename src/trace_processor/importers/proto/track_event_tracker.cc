@@ -24,8 +24,10 @@
 namespace perfetto {
 namespace trace_processor {
 
+#if !PERFETTO_IS_AT_LEAST_CPP17()
 // static
 constexpr uint64_t TrackEventTracker::kDefaultDescriptorTrackUuid;
+#endif
 
 TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
     : source_key_(context->storage->InternString("source")),

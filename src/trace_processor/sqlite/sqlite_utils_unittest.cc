@@ -16,7 +16,6 @@
 
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
-#include "gtest/gtest.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {

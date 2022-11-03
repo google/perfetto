@@ -8,7 +8,7 @@ developing, debugging and performance analysis.
 Dependencies:
 
 - [CMake](https://cmake.org/)
-- C++11
+- C++17
 
 ## Building
 

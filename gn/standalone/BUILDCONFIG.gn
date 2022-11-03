@@ -17,6 +17,7 @@ declare_args() {
   is_clang = true
   is_system_compiler = false
   is_lto = false
+  perfetto_cpp11_until_q1_2023 = false
 
   # This is defined here because it's needed below for determining the value of
   # |is_cross_compiling|.
@@ -65,7 +66,6 @@ declare_args() {
 default_configs = [
   "//gn/standalone:debug_symbols",
   "//gn/standalone:default",
-  "//gn/standalone:c++11",
   "//gn/standalone:extra_warnings",
   "//gn/standalone:no_exceptions",
   "//gn/standalone:no_rtti",
@@ -73,6 +73,12 @@ default_configs = [
   "//gn/standalone/libc++:config",
   "//gn/standalone/sanitizers:sanitizers_cflags",
 ]
+
+if (perfetto_cpp11_until_q1_2023) {
+  default_configs += [ "//gn/standalone:c++11" ]
+} else {
+  default_configs += [ "//gn/standalone:c++17" ]
+}
 
 if (is_win) {
   default_configs += [ "//gn/standalone:win32_lean_and_mean" ]

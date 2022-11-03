@@ -144,6 +144,14 @@
     }                                                                          \
   } while (false)
 
+// C++17 doesn't like a move constructor being defined for the EventFinalizer
+// class but C++11 doesn't compile without it being defined so support both.
+#if PERFETTO_IS_AT_LEAST_CPP17()
+#define PERFETTO_INTERNAL_EVENT_FINALIZER_KEYWORD delete
+#else
+#define PERFETTO_INTERNAL_EVENT_FINALIZER_KEYWORD default
+#endif
+
 #define PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(category, name, ...)             \
   struct PERFETTO_UID(ScopedEvent) {                                          \
     struct EventFinalizer {                                                   \
@@ -160,7 +168,8 @@
       EventFinalizer(const EventFinalizer&) = delete;                         \
       inline EventFinalizer& operator=(const EventFinalizer&) = delete;       \
                                                                               \
-      EventFinalizer(EventFinalizer&&) = default;                             \
+      EventFinalizer(EventFinalizer&&) =                                      \
+          PERFETTO_INTERNAL_EVENT_FINALIZER_KEYWORD;                          \
       EventFinalizer& operator=(EventFinalizer&&) = delete;                   \
     } finalizer;                                                              \
   } PERFETTO_UID(scoped_event) {                                              \
