@@ -326,6 +326,12 @@ See also the [custom toolchain](#custom-toolchain) section below.
 
 Use bundled toolchain from `buildtools/` rather than system-wide one.
 
+`non_hermetic_clang_stdlib = libc++ | libstdc++`
+
+If `is_hermetic_clang` is `false`, sets the `-stdlib` flag for clang
+invocations. `libstdc++` is default on Linux hosts and `libc++` is
+default everywhere else.
+
 `cc = "gcc" / cxx = "g++"`
 
 Uses a different compiler binary (default: autodetected depending on is_clang).
