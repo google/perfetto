@@ -47,7 +47,8 @@ def handle_report(report: str, run: str):
     output_path = path.join('test', 'data', 'ui-screenshots', screenshot_name)
     print(f'Downloading {url}')
     urllib.request.urlretrieve(url, output_path)
-  print('All done!')
+  print('Done. Now run:')
+  print('./tools/test_data upload')
 
 
 if __name__ == "__main__":
