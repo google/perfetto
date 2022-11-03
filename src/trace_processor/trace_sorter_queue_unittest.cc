@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 #include "src/trace_processor/trace_sorter_queue.h"
-#include "gtest/gtest.h"
+
 #include "src/trace_processor/types/variadic.h"
 #include "test/gtest_and_gmock.h"
 

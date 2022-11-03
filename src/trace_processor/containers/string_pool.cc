@@ -24,6 +24,7 @@
 namespace perfetto {
 namespace trace_processor {
 
+#if !PERFETTO_IS_AT_LEAST_CPP17()
 // static
 constexpr size_t StringPool::kNumBlockIndexBits;
 // static
@@ -38,6 +39,7 @@ constexpr size_t StringPool::kBlockIndexBitMask;
 constexpr size_t StringPool::kBlockSizeBytes;
 // static
 constexpr size_t StringPool::kMinLargeStringSizeBytes;
+#endif
 
 StringPool::StringPool() {
   static_assert(

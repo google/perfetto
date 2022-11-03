@@ -26,8 +26,10 @@
 
 namespace perfetto {
 
+#if !PERFETTO_IS_AT_LEAST_CPP17()
 // static
 constexpr char MetatraceWriter::kDataSourceName[];
+#endif
 
 MetatraceWriter::MetatraceWriter() : weak_ptr_factory_(this) {}
 
