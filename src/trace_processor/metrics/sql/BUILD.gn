@@ -193,9 +193,10 @@ config("gen_config") {
 }
 
 action("gen_amalgamated_sql_metrics") {
-  script = "../../../../tools/gen_amalgamated_sql_metrics.py"
+  script = "../../../../tools/gen_amalgamated_sql.py"
   generated_header = "${target_gen_dir}/amalgamated_sql_metrics.h"
   args = rebase_path(sql_files, root_build_dir) + [
+           "--type=METRICS",
            "--cpp_out",
            rebase_path(generated_header, root_build_dir),
          ]
