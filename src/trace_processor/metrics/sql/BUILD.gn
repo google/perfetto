@@ -169,7 +169,7 @@ chrome_sql_files = [
   "chrome/touch_jank.sql",
 ]
 
-experiemntal_sql_files = [
+experimental_sql_files = [
   "experimental/blink_gc_metric.sql",
   "experimental/chrome_dropped_frames.sql",
   "experimental/chrome_long_latency.sql",
@@ -185,7 +185,7 @@ other_sql_files = [
   "webview/webview_power_usage.sql",
 ]
 
-sql_files = android_sql_files + chrome_sql_files + experiemntal_sql_files +
+sql_files = android_sql_files + chrome_sql_files + experimental_sql_files +
             other_sql_files
 
 config("gen_config") {
