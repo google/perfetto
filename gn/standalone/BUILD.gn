@@ -237,6 +237,11 @@ config("default") {
     not_needed([ "hermetic_clang_suppressions" ])
   }
 
+  if (is_clang && !is_hermetic_clang && !is_wasm) {
+    cflags_cc += [ "-stdlib=" + non_hermetic_clang_stdlib ]
+    ldflags += [ "-stdlib=" + non_hermetic_clang_stdlib ]
+  }
+
   if (is_lto) {
     cflags += [ "-flto=full" ]
     ldflags += [ "-flto=full" ]
