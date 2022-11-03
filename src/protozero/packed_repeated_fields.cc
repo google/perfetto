@@ -20,8 +20,10 @@
 
 namespace protozero {
 
+#if !PERFETTO_IS_AT_LEAST_CPP17()
 // static
 constexpr size_t PackedBufferBase::kOnStackStorageSize;
+#endif
 
 void PackedBufferBase::GrowSlowpath() {
   size_t write_off = static_cast<size_t>(write_ptr_ - storage_begin_);

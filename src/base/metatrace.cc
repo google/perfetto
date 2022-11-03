@@ -29,7 +29,6 @@ std::atomic<uint32_t> g_enabled_tags{0};
 std::atomic<uint64_t> g_enabled_timestamp{0};
 
 // static members
-constexpr size_t RingBuffer::kCapacity;
 std::array<Record, RingBuffer::kCapacity> RingBuffer::records_;
 std::atomic<bool> RingBuffer::read_task_queued_;
 std::atomic<uint64_t> RingBuffer::wr_index_;
@@ -37,9 +36,12 @@ std::atomic<uint64_t> RingBuffer::rd_index_;
 std::atomic<bool> RingBuffer::has_overruns_;
 Record RingBuffer::bankruptcy_record_;
 
+#if !PERFETTO_IS_AT_LEAST_CPP17()
+constexpr size_t RingBuffer::kCapacity;
 constexpr uint16_t Record::kTypeMask;
 constexpr uint16_t Record::kTypeCounter;
 constexpr uint16_t Record::kTypeEvent;
+#endif
 
 namespace {
 

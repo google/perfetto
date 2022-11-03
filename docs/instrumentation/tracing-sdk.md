@@ -1,6 +1,6 @@
 # Tracing SDK
 
-The Perfetto Tracing SDK is a C++11 library that allows userspace applications
+The Perfetto Tracing SDK is a C++17 library that allows userspace applications
 to emit trace events and add more app-specific context to a Perfetto trace.
 
 When using the Tracing SDK there are two main aspects to consider:
@@ -35,7 +35,7 @@ git clone https://android.googlesource.com/platform/external/perfetto -b v29.0
 
 The SDK consists of two files, `sdk/perfetto.h` and `sdk/perfetto.cc`. These are
 an amalgamation of the Client API designed to easy to integrate to existing
-build systems. The sources are self-contained and require only a C++11 compliant
+build systems. The sources are self-contained and require only a C++17 compliant
 standard library.
 
 For example, to add the SDK to a CMake project, edit your CMakeLists.txt:
