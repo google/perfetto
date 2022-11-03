@@ -52,6 +52,7 @@
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/sqlite/functions/create_function.h"
 #include "src/trace_processor/sqlite/functions/create_view_function.h"
+#include "src/trace_processor/sqlite/functions/import.h"
 #include "src/trace_processor/sqlite/functions/pprof_functions.h"
 #include "src/trace_processor/sqlite/functions/register_function.h"
 #include "src/trace_processor/sqlite/functions/sqlite3_str_split.h"
@@ -65,6 +66,7 @@
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/sqlite/window_operator_table.h"
+#include "src/trace_processor/stdlib/utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/protozero_to_text.h"
@@ -705,6 +707,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       db, "CREATE_VIEW_FUNCTION", 3,
       std::unique_ptr<CreateViewFunction::Context>(
           new CreateViewFunction::Context{db_.get()}));
+  RegisterFunction<Import>(db, "IMPORT", 1,
+                           std::unique_ptr<Import::Context>(new Import::Context{
+                               db_.get(), this, stdlib::SetupStdLib()}));
 
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
@@ -1001,8 +1006,8 @@ base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
     }
   }
 
-  // Check if the metric with the given path already exists and if it does, just
-  // update the SQL associated with it.
+  // Check if the metric with the given path already exists and if it does,
+  // just update the SQL associated with it.
   auto it = std::find_if(
       sql_metrics_.begin(), sql_metrics_.end(),
       [&path](const metrics::SqlMetricFile& m) { return m.path == path; });
@@ -1040,7 +1045,8 @@ base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
       const auto& prev_path = field_it_and_inserted.first->second;
       PERFETTO_DCHECK(prev_path != path);
       return base::ErrStatus(
-          "RegisterMetric Error: Metric paths %s (which is already registered) "
+          "RegisterMetric Error: Metric paths %s (which is already "
+          "registered) "
           "and %s are both trying to output the proto field %s",
           prev_path.c_str(), path.c_str(), metric.proto_field_name->c_str());
     }
