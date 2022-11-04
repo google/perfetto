@@ -83,7 +83,8 @@ const char* const FtraceProcfs::kTracingPaths[] = {
 
 // static
 std::unique_ptr<FtraceProcfs> FtraceProcfs::CreateGuessingMountPoint(
-    const std::string& instance_path) {
+    const std::string& instance_path,
+    bool preserve_ftrace_buffer) {
   std::unique_ptr<FtraceProcfs> ftrace_procfs;
   size_t index = 0;
   while (!ftrace_procfs && kTracingPaths[index]) {
@@ -91,14 +92,16 @@ std::unique_ptr<FtraceProcfs> FtraceProcfs::CreateGuessingMountPoint(
     if (!instance_path.empty())
       path += instance_path;
 
-    ftrace_procfs = Create(path);
+    ftrace_procfs = Create(path, preserve_ftrace_buffer);
   }
   return ftrace_procfs;
 }
 
 // static
-std::unique_ptr<FtraceProcfs> FtraceProcfs::Create(const std::string& root) {
-  if (!CheckRootPath(root)) {
+std::unique_ptr<FtraceProcfs> FtraceProcfs::Create(
+    const std::string& root,
+    bool preserve_ftrace_buffer) {
+  if (!preserve_ftrace_buffer && !CheckRootPath(root)) {
     return nullptr;
   }
   return std::unique_ptr<FtraceProcfs>(new FtraceProcfs(root));
