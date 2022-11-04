@@ -18,7 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Next id: 23.
+// Next id: 24.
 message FtraceConfig {
   repeated string ftrace_events = 1;
   repeated string atrace_categories = 2;
@@ -152,4 +152,11 @@ message FtraceConfig {
   // * Available only on debuggable builds.
   // * Introduced in: Android U.
   repeated string function_graph_roots = 21;
+
+  // If true, does not clear ftrace buffers before the start of the program.
+  // This makes sense only if this is the first ftrace data source instance
+  // created after the daemon has been started. Can be useful for gathering boot
+  // traces, if ftrace has been separately configured (e.g. via kernel
+  // commandline).
+  optional bool preserve_ftrace_buffer = 23;
 }

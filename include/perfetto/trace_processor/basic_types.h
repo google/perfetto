@@ -77,7 +77,8 @@ enum class SortingMode {
 enum class DropFtraceDataBefore {
   // Drops ftrace data before timestmap specified by the
   // TracingServiceEvent::tracing_started packet. If this packet is not in the
-  // trace, no data is dropped.
+  // trace, no data is dropped. If preserve_ftrace_buffer (from the trace
+  // config) is set, no data is dropped.
   // Note: this event was introduced in S+ so no data will be dropped on R-
   // traces.
   // This is the default approach.
