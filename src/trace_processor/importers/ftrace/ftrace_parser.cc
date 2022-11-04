@@ -502,6 +502,9 @@ void FtraceParser::ParseFtraceStats(ConstBytes blob) {
     auto error_str_id = storage->InternString(base::StringView(error_str));
     context_->metadata_tracker->SetMetadata(metadata::ftrace_setup_errors,
                                             Variadic::String(error_str_id));
+    if (evt.preserve_ftrace_buffer()) {
+      preserve_ftrace_buffer_ = true;
+    }
   }
 }
 
@@ -1002,7 +1005,10 @@ void FtraceParser::MaybeOnFirstFtraceEvent() {
   if (PERFETTO_LIKELY(has_seen_first_ftrace_packet_)) {
     return;
   }
-  DropFtraceDataBefore drop_before = context_->config.drop_ftrace_data_before;
+
+  DropFtraceDataBefore drop_before =
+      preserve_ftrace_buffer_ ? DropFtraceDataBefore::kNoDrop
+                              : context_->config.drop_ftrace_data_before;
   switch (drop_before) {
     case DropFtraceDataBefore::kNoDrop: {
       drop_ftrace_data_before_ts_ = 0;

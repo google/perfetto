@@ -367,6 +367,9 @@ class FtraceParser {
   // Stores information about the timestamp from the metadata table which is
   // used to filter ftrace packets which happen before this point.
   int64_t drop_ftrace_data_before_ts_ = 0;
+
+  // Does not skip any ftrace events.
+  bool preserve_ftrace_buffer_ = false;
 };
 
 }  // namespace trace_processor
