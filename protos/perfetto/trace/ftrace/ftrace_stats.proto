@@ -92,4 +92,8 @@ message FtraceStats {
   // failed to enable due to permissions, or due to a conflicting option
   // (currently FtraceConfig.disable_generic_events).
   repeated string failed_ftrace_events = 7;
+
+  // The data source was configured to preserve existing events in the ftrace
+  // buffer before the start of the trace.
+  optional bool preserve_ftrace_buffer = 8;
 }

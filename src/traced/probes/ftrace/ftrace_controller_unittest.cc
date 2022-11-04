@@ -175,7 +175,8 @@ class TestFtraceController : public FtraceController,
                          std::move(table),
                          std::move(model),
                          runner.get(),
-                         /*observer=*/this),
+                         /*observer=*/this,
+                         false),
         runner_(std::move(runner)),
         procfs_(raw_procfs) {}
 
