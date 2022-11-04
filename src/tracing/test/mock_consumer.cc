@@ -39,13 +39,22 @@ MockConsumer::~MockConsumer() {
   task_runner_->RunUntilCheckpoint(checkpoint_name);
 }
 
-void MockConsumer::Connect(TracingService* svc, uid_t uid) {
-  service_endpoint_ = svc->ConnectConsumer(this, uid);
+void MockConsumer::Connect(
+    std::unique_ptr<TracingService::ConsumerEndpoint> service_endpoint) {
+  service_endpoint_ = std::move(service_endpoint);
   static int i = 0;
   auto checkpoint_name = "on_consumer_connect_" + std::to_string(i++);
   auto on_connect = task_runner_->CreateCheckpoint(checkpoint_name);
   EXPECT_CALL(*this, OnConnect()).WillOnce(Invoke(on_connect));
   task_runner_->RunUntilCheckpoint(checkpoint_name);
+}
+
+void MockConsumer::Connect(TracingService* svc, uid_t uid) {
+  Connect(svc->ConnectConsumer(this, uid));
+}
+
+void MockConsumer::ForceDisconnect() {
+  service_endpoint_.reset();
 }
 
 void MockConsumer::EnableTracing(const TraceConfig& trace_config,

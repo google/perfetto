@@ -358,8 +358,12 @@ source_set("end_to_end_tests") {
     "../../base",
     "../../base:test_support",
     "../../trace_processor:lib",
+    "../../tracing/test:test_support",
   ]
-  sources = [ "heapprofd_end_to_end_test.cc" ]
+  sources = [
+    "heapprofd_end_to_end_test.cc",
+    "heapprofd_producer_integrationtest.cc",
+  ]
   if (perfetto_build_with_android) {
     deps += [ ":heapprofd_client_api" ]
   } else {
