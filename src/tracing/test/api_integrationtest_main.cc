@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
+#include "test/gtest_and_gmock.h"
 
 #include "perfetto/tracing.h"
 

@@ -1,0 +1,41 @@
+# Copyright (C) 2022 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("../../../gn/perfetto.gni")
+import("android/sql_files.gni")
+
+config("gen_config") {
+  include_dirs = [ "${root_gen_dir}/${perfetto_root_path}" ]
+}
+
+sql_files = android_sql_files
+
+action("gen_amalgamated_stdlib") {
+  script = "../../../tools/gen_amalgamated_sql.py"
+  generated_header = "${target_gen_dir}/amalgamated_stdlib.h"
+  args = rebase_path(sql_files, root_build_dir) + [
+           "--type=LIB",
+           "--cpp_out",
+           rebase_path(generated_header, root_build_dir),
+         ]
+  inputs = sql_files
+  outputs = [ generated_header ]
+  public_configs = [ ":gen_config" ]
+}
+if (enable_perfetto_trace_processor_sqlite) {
+  source_set("stdlib") {
+    sources = [ "utils.h" ]
+    deps = [ ":gen_amalgamated_stdlib" ]
+  }
+}

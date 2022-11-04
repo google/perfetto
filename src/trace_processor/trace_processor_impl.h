@@ -29,6 +29,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "sqlite/functions/import.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/functions/create_function.h"
 #include "src/trace_processor/sqlite/functions/create_view_function.h"

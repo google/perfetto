@@ -1379,9 +1379,9 @@ perfetto_genrule(
     outs = [
         "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h",
     ],
-    cmd = "$(location gen_amalgamated_sql_metrics_py) --cpp_out=$@ $(SRCS)",
+    cmd = "$(location gen_amalgamated_sql_py) --type=METRICS --cpp_out=$@ $(SRCS)",
     exec_tools = [
-        ":gen_amalgamated_sql_metrics_py",
+        ":gen_amalgamated_sql_py",
     ],
 )
 
@@ -1444,6 +1444,8 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/functions/create_function_internal.h",
         "src/trace_processor/sqlite/functions/create_view_function.cc",
         "src/trace_processor/sqlite/functions/create_view_function.h",
+        "src/trace_processor/sqlite/functions/import.cc",
+        "src/trace_processor/sqlite/functions/import.h",
         "src/trace_processor/sqlite/functions/pprof_functions.cc",
         "src/trace_processor/sqlite/functions/pprof_functions.h",
         "src/trace_processor/sqlite/functions/register_function.cc",
@@ -1487,6 +1489,28 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/sqlite_table.cc",
         "src/trace_processor/sqlite/sqlite_table.h",
         "src/trace_processor/sqlite/sqlite_utils.h",
+    ],
+)
+
+perfetto_genrule(
+    name = "src_trace_processor_stdlib_gen_amalgamated_stdlib",
+    srcs = [
+        "src/trace_processor/stdlib/android/binder.sql",
+    ],
+    outs = [
+        "src/trace_processor/stdlib/amalgamated_stdlib.h",
+    ],
+    cmd = "$(location gen_amalgamated_sql_py) --type=LIB --cpp_out=$@ $(SRCS)",
+    exec_tools = [
+        ":gen_amalgamated_sql_py",
+    ],
+)
+
+# GN target: //src/trace_processor/stdlib:stdlib
+perfetto_filegroup(
+    name = "src_trace_processor_stdlib_stdlib",
+    srcs = [
+        "src/trace_processor/stdlib/utils.h",
     ],
 )
 
@@ -4254,6 +4278,7 @@ perfetto_cc_library(
         ":src_trace_processor_sqlite_functions_functions",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_sqlite_sqlite_minimal",
+        ":src_trace_processor_stdlib_stdlib",
         ":src_trace_processor_storage_full",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
@@ -4339,6 +4364,8 @@ perfetto_cc_library(
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib + [
         ":cc_amalgamated_sql_metrics",
+    ] + [
+        ":cc_amalgamated_stdlib",
     ] +
            PERFETTO_CONFIG.deps.demangle_wrapper,
     linkstatic = True,
@@ -4383,6 +4410,7 @@ perfetto_cc_binary(
         ":src_trace_processor_sqlite_functions_functions",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_sqlite_sqlite_minimal",
+        ":src_trace_processor_stdlib_stdlib",
         ":src_trace_processor_storage_full",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
@@ -4461,6 +4489,8 @@ perfetto_cc_binary(
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib + [
         ":cc_amalgamated_sql_metrics",
+    ] + [
+        ":cc_amalgamated_stdlib",
     ] +
            PERFETTO_CONFIG.deps.demangle_wrapper,
 )
@@ -4567,6 +4597,7 @@ perfetto_cc_binary(
         ":src_trace_processor_sqlite_functions_functions",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_sqlite_sqlite_minimal",
+        ":src_trace_processor_stdlib_stdlib",
         ":src_trace_processor_storage_full",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
@@ -4644,6 +4675,8 @@ perfetto_cc_binary(
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib + [
         ":cc_amalgamated_sql_metrics",
+    ] + [
+        ":cc_amalgamated_stdlib",
     ] +
            PERFETTO_CONFIG.deps.demangle_wrapper,
 )
@@ -4695,12 +4728,17 @@ perfetto_cc_library(
     hdrs = ["src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"],
 )
 
+perfetto_cc_library(
+    name = "cc_amalgamated_stdlib",
+    hdrs = ["src/trace_processor/stdlib/amalgamated_stdlib.h"],
+)
+
 perfetto_py_binary(
-    name = "gen_amalgamated_sql_metrics_py",
+    name = "gen_amalgamated_sql_py",
     srcs = [
-        "tools/gen_amalgamated_sql_metrics.py",
+        "tools/gen_amalgamated_sql.py",
     ],
-    main = "tools/gen_amalgamated_sql_metrics.py",
+    main = "tools/gen_amalgamated_sql.py",
     python_version = "PY3",
 )
 

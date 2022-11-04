@@ -125,4 +125,9 @@ PERFETTO_CONFIG = struct(
 
         go_proto_library = None,
     ),
+
+    # The default copts which we use to compile C++ code.
+    default_copts = [
+        "-std=c++17",
+    ]
 )

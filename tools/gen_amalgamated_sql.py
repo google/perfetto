@@ -21,7 +21,7 @@ import sys
 # as a string constant to allow trace processor to exectue the metrics.
 
 REPLACEMENT_HEADER = '''/*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,11 +45,30 @@ REPLACEMENT_HEADER = '''/*
  #include <string.h>
 '''
 
-NAMESPACE_BEGIN = '''
+STDLIB_NAMESPACE_BEGIN = '''
+namespace perfetto {
+namespace trace_processor {
+namespace stdlib {
+'''
+
+STDLIB_NAMESPACE_END = '''
+}  // namespace stdlib
+}  // namespace trace_processor
+}  // namespace perfetto
+'''
+
+METRICS_NAMESPACE_BEGIN = '''
 namespace perfetto {
 namespace trace_processor {
 namespace metrics {
 namespace sql_metrics {
+'''
+
+METRICS_NAMESPACE_END = '''
+}  // namespace sql_metrics
+}  // namespace metrics
+}  // namespace trace_processor
+}  // namespace perfetto
 '''
 
 FILE_TO_SQL_STRUCT = '''
@@ -59,12 +78,8 @@ struct FileToSql {
 };
 '''
 
-NAMESPACE_END = '''
-}  // namespace sql_metrics
-}  // namespace metrics
-}  // namespace trace_processor
-}  // namsepace perfetto
-'''
+ROOT = '''
+const char kRootPath[] = '''
 
 
 def filename_to_variable(filename):
@@ -73,11 +88,14 @@ def filename_to_variable(filename):
 
 def main():
   parser = argparse.ArgumentParser()
+  parser.add_argument('--type', required=True)
   parser.add_argument('--cpp_out', required=True)
   parser.add_argument('sql_files', nargs='*')
   args = parser.parse_args()
 
   root_path = os.path.commonprefix([os.path.abspath(x) for x in args.sql_files])
+  if '.sql' in root_path:
+    root_path = root_path.rsplit('/', 1)[0]
 
   # Extract the SQL output from each file.
   sql_outputs = {}
@@ -89,7 +107,13 @@ def main():
 
   with open(args.cpp_out, 'w+') as output:
     output.write(REPLACEMENT_HEADER)
-    output.write(NAMESPACE_BEGIN)
+    output.write(
+        METRICS_NAMESPACE_BEGIN) if args.type == 'METRICS' else output.write(
+            STDLIB_NAMESPACE_BEGIN)
+
+    if args.type == "LIB":
+      output.write(ROOT + f'''"{root_path.rsplit("stdlib/")[-1]}";
+      ''')
 
     # Create the C++ variable for each SQL file.
     for path, sql in sql_outputs.items():
@@ -122,7 +146,9 @@ def main():
       output.write('\n  {{"{}", {}}},\n'.format(path, variable))
     output.write("};\n")
 
-    output.write(NAMESPACE_END)
+    output.write(
+        METRICS_NAMESPACE_END) if args.type == 'METRICS' else output.write(
+            STDLIB_NAMESPACE_END)
 
   return 0
 
