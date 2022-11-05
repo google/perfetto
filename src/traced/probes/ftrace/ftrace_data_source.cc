@@ -112,6 +112,13 @@ void FtraceDataSource::Start() {
     return;
   DumpFtraceStats(&stats_before_);
   setup_errors_ = FtraceSetupErrors();  // Dump only on START_OF_TRACE.
+
+  if (config_.preserve_ftrace_buffer()) {
+    auto stats_packet = writer_->NewTracePacket();
+    auto* stats = stats_packet->set_ftrace_stats();
+    stats->set_phase(protos::pbzero::FtraceStats::Phase::START_OF_TRACE);
+    stats->set_preserve_ftrace_buffer(true);
+  }
 }
 
 void FtraceDataSource::DumpFtraceStats(FtraceStats* stats) {
