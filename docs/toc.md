@@ -72,6 +72,7 @@
     * [Releasing the SDK](contributing/sdk-releasing.md)
     * [Chrome branches](contributing/chrome-branches.md)
     * [UI development](contributing/ui-development.md)
+    * [Press](contributing/perfetto-in-the-press.md)
 
 * [Design documents](#)
     * [API and ABI surface](design-docs/api-and-abi.md)
