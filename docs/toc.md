@@ -9,6 +9,8 @@
   * [Heap profiling](quickstart/heap-profiling.md)
   * [Callstack sampling on Android](quickstart/callstack-sampling.md)
 
+* [FAQ](faq.md)
+
 * [Case studies](#)
   * [Android boot tracing](case-studies/android-boot-tracing.md)
   * [Debugging memory usage](case-studies/memory.md)
