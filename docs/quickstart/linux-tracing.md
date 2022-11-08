@@ -22,7 +22,7 @@ _If the script fails with SSL errors, try upgrading your openssl package._
 3. Generate the build configuration
 ```bash
 tools/gn gen --args='is_debug=false' out/linux
-# Or use `tools/build_all_configs.py` to generate more build configs.
+# Or use `tools/setup_all_configs.py` to generate more build configs.
 ```
 
 4. Build the Linux tracing binaries (On Linux it uses a hermetic clang toolchain, downloaded as part of step 2):
