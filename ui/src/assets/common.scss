@@ -840,11 +840,12 @@ button.query-ctrl {
   border-bottom: 1px solid hsl(213, 22%, 75%);
   padding: 0.25em 0.5em;
   max-height: 150px;
-  overflow: auto;
+  overflow-y: auto;
 
   pre {
     font-size: 10pt;
     margin: 0;
+    overflow-x: auto;
   }
 
   &:hover .history-item-buttons {
