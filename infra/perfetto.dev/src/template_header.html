@@ -29,6 +29,13 @@
   </div>
   <a href="#toggle" class="menu"><i class="material-icons-round">menu</i></a>
 
+  <% if (fileName.startsWith('/docs/')) { %>
+    <div id="search">
+      <input id="search-box" type="text" placeholder="Search" autocomplete="off">
+      <div id="search-res"></div>
+    </div>
+  <% } %>
+
   <a href="/docs/">Docs</a>
   <a href="/docs/contributing/getting-started#community">Community</a>
   <a href="https://ui.perfetto.dev/">Trace Viewer</a>

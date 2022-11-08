@@ -253,6 +253,69 @@ function initMermaid() {
   document.body.appendChild(script);
 }
 
+function setupSearch() {
+  const URL =
+      'https://www.googleapis.com/customsearch/v1?key=AIzaSyBTD2XJkQkkuvDn76LSftsgWOkdBz9Gfwo&cx=007128963598137843411:8suis14kcmy&q='
+  const searchContainer = document.getElementById('search');
+  const searchBox = document.getElementById('search-box');
+  const searchRes = document.getElementById('search-res')
+  if (!searchBox || !searchRes) return;
+
+  document.body.addEventListener('keydown', (e) => {
+    if (e.key === '/' && e.target.tagName.toLowerCase() === 'body') {
+      searchBox.setSelectionRange(0, -1);
+      searchBox.focus();
+      e.preventDefault();
+    } else if (e.key === 'Escape' && searchContainer.contains(e.target)) {
+      searchBox.blur();
+
+      // Handle the case of clicking Tab and moving down to results.
+      e.target.blur();
+    }
+  });
+
+  let timerId = -1;
+  let lastSearchId = 0;
+
+  const doSearch = async () => {
+    timerId = -1;
+    searchRes.style.width = `${searchBox.offsetWidth}px`;
+
+    // `searchId` handles the case of two subsequent requests racing. This is to
+    // prevent older results, delivered in reverse order, to replace newer ones.
+    const searchId = ++lastSearchId;
+    const f = await fetch(URL + encodeURIComponent(searchBox.value));
+    const jsonRes = await f.json();
+    const results = jsonRes['items'];
+    searchRes.innerHTML = '';
+    if (results === undefined || searchId != lastSearchId) {
+      return;
+    }
+    for (const res of results) {
+      const link = document.createElement('a');
+      link.href = res.link;
+      const title = document.createElement('div');
+      title.className = 'sr-title';
+      title.innerText = res.title.replace(' - Perfetto Tracing Docs', '');
+      link.appendChild(title);
+
+      const snippet = document.createElement('div');
+      snippet.className = 'sr-snippet';
+      snippet.innerText = res.snippet;
+      link.appendChild(snippet);
+
+      const div = document.createElement('div');
+      div.appendChild(link);
+      searchRes.appendChild(div);
+    }
+  };
+
+  searchBox.addEventListener('keyup', () => {
+    if (timerId >= 0) return;
+    timerId = setTimeout(doSearch, 200);
+  });
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   updateNav();
   updateTOC();
@@ -275,6 +338,7 @@ window.addEventListener('load', () => {
   }
 
   updateTOC();
+  setupSearch();
 
   // Enable animations only after the load event. This is to prevent glitches
   // when switching pages.
