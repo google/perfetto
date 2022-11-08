@@ -394,7 +394,7 @@ First [build Perfetto](/docs/contributing/build-instructions.md). You only need
 to do this once.
 
 ```
-tools/build_all_configs.py
+tools/setup_all_configs.py
 ninja -C out/linux_clang_release
 ```
 
