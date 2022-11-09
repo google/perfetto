@@ -280,6 +280,34 @@ def perfetto_cc_proto_descriptor(name, deps, outs, **kwargs):
         **kwargs
     )
 
+def perfetto_cc_amalgamated_sql(name, deps, outs, root_dir, namespace,
+                                **kwargs):
+    cmd = [
+        "$(location gen_amalgamated_sql_py)",
+        "--namespace",
+        namespace,
+        "--root-dir",
+        root_dir,
+        "--cpp-out=$@",
+        "$(SRCS)",
+    ]
+
+    perfetto_genrule(
+        name = name + "_gen",
+        cmd = " ".join(cmd),
+        exec_tools = [
+            ":gen_amalgamated_sql_py",
+        ],
+        srcs = deps,
+        outs = outs,
+    )
+
+    perfetto_cc_library(
+        name = name,
+        hdrs = [":" + name + "_gen"],
+        **kwargs,
+    )
+
 # +----------------------------------------------------------------------------+
 # | Misc utility functions                                                     |
 # +----------------------------------------------------------------------------+
