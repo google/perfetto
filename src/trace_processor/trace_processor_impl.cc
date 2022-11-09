@@ -1119,31 +1119,43 @@ std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
   return pool_.SerializeAsDescriptorSet();
 }
 
+void TraceProcessorImpl::EnableMetatrace(MetatraceConfig config) {
+  metatrace::Enable(config);
+}
+
 namespace {
 
-using ProtoEnum = protos::pbzero::MetatraceCategories;
-ProtoEnum MetatraceCategoriesToProtoEnum(
-    TraceProcessor::MetatraceCategories categories) {
-  switch (categories) {
-    case TraceProcessor::TOPLEVEL:
-      return ProtoEnum::TOPLEVEL;
-    case TraceProcessor::FUNCTION:
-      return ProtoEnum::FUNCTION;
-    case TraceProcessor::QUERY:
-      return ProtoEnum::QUERY;
-    case TraceProcessor::ALL:
-      return ProtoEnum::ALL;
-    case TraceProcessor::NONE:
-      return ProtoEnum::NONE;
+class StringInterner {
+ public:
+  StringInterner(protos::pbzero::PerfettoMetatrace& event,
+                 base::FlatHashMap<std::string, uint64_t>& interned_strings)
+      : event_(event), interned_strings_(interned_strings) {}
+
+  ~StringInterner() {
+    for (const auto& interned_string : new_interned_strings_) {
+      auto* interned_string_proto = event_.add_interned_strings();
+      interned_string_proto->set_iid(interned_string.first);
+      interned_string_proto->set_value(interned_string.second);
+    }
   }
-  return ProtoEnum::NONE;
-}
+
+  uint64_t InternString(const std::string& str) {
+    uint64_t new_iid = interned_strings_.size();
+    auto insert_result = interned_strings_.Insert(str, new_iid);
+    if (insert_result.second) {
+      new_interned_strings_.emplace_back(new_iid, str);
+    }
+    return *insert_result.first;
+  }
+
+ private:
+  protos::pbzero::PerfettoMetatrace& event_;
+  base::FlatHashMap<std::string, uint64_t>& interned_strings_;
+
+  base::SmallVector<std::pair<uint64_t, std::string>, 16> new_interned_strings_;
+};
 
 }  // namespace
-
-void TraceProcessorImpl::EnableMetatrace(MetatraceConfig config) {
-  metatrace::Enable(MetatraceCategoriesToProtoEnum(config.categories));
-}
 
 base::Status TraceProcessorImpl::DisableAndReadMetatrace(
     std::vector<uint8_t>* trace_proto) {
@@ -1169,11 +1181,16 @@ base::Status TraceProcessorImpl::DisableAndReadMetatrace(
     }
   }
 
-  metatrace::DisableAndReadBuffer([&trace](metatrace::Record* record) {
+  base::FlatHashMap<std::string, uint64_t> interned_strings;
+  metatrace::DisableAndReadBuffer([&trace, &interned_strings](
+                                      metatrace::Record* record) {
     auto packet = trace->add_packet();
     packet->set_timestamp(record->timestamp_ns);
     auto* evt = packet->set_perfetto_metatrace();
-    evt->set_event_name(record->event_name);
+
+    StringInterner interner(*evt, interned_strings);
+
+    evt->set_event_name_iid(interner.InternString(record->event_name));
     evt->set_event_duration_ns(record->duration_ns);
     evt->set_thread_id(1);  // Not really important, just required for the ui.
 
@@ -1185,11 +1202,11 @@ base::Status TraceProcessorImpl::DisableAndReadMetatrace(
         base::StringSplitter::EmptyTokenMode::ALLOW_EMPTY_TOKENS);
     for (; s.Next();) {
       auto* arg_proto = evt->add_args();
-      arg_proto->set_key(s.cur_token());
+      arg_proto->set_key_iid(interner.InternString(s.cur_token()));
 
       bool has_next = s.Next();
       PERFETTO_CHECK(has_next);
-      arg_proto->set_value(s.cur_token());
+      arg_proto->set_value_iid(interner.InternString(s.cur_token()));
     }
   });
   *trace_proto = trace.SerializeAsArray();

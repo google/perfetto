@@ -63,7 +63,9 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
       raw_chrome_legacy_system_trace_event_id_(
           context->storage->InternString("chrome_event.legacy_system_trace")),
       raw_chrome_legacy_user_trace_event_id_(
-          context->storage->InternString("chrome_event.legacy_user_trace")) {}
+          context->storage->InternString("chrome_event.legacy_user_trace")),
+      missing_metatrace_interned_string_id_(
+          context->storage->InternString("MISSING STRING")) {}
 
 ProtoTraceParser::~ProtoTraceParser() = default;
 
@@ -317,6 +319,14 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
   StringId name_id = kNullStringId;
   char fallback[64];
 
+  for (auto it = event.interned_strings(); it; ++it) {
+    protos::pbzero::PerfettoMetatrace::InternedString::Decoder interned_string(
+        it->data(), it->size());
+    metatrace_interned_strings_.Insert(
+        interned_string.iid(),
+        context_->storage->InternString(interned_string.value()));
+  }
+
   // This function inserts the args from the proto into the args table.
   // Args inserted with the same key multiple times are treated as an array:
   // this function correctly creates the key and flat key for each arg array.
@@ -327,8 +337,18 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
     std::vector<Arg> interned;
     for (auto it = event.args(); it; ++it) {
       protos::pbzero::PerfettoMetatrace::Arg::Decoder arg_proto(*it);
-      StringId key = context_->storage->InternString(arg_proto.key());
-      StringId value = context_->storage->InternString(arg_proto.value());
+      StringId key;
+      if (arg_proto.has_key_iid()) {
+        key = GetMetatraceInternedString(arg_proto.key_iid());
+      } else {
+        key = context_->storage->InternString(arg_proto.key());
+      }
+      StringId value;
+      if (arg_proto.has_value_iid()) {
+        value = GetMetatraceInternedString(arg_proto.value_iid());
+      } else {
+        value = context_->storage->InternString(arg_proto.value());
+      }
       interned.emplace_back(key, value);
     }
 
@@ -373,7 +393,8 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
     }
   };
 
-  if (event.has_event_id() || event.has_event_name()) {
+  if (event.has_event_id() || event.has_event_name() ||
+      event.has_event_name_iid()) {
     if (event.has_event_id()) {
       auto eid = event.event_id();
       if (eid < metatrace::EVENTS_MAX) {
@@ -382,6 +403,8 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
         sprintf(fallback, "Event %d", eid);
         name_id = context_->storage->InternString(fallback);
       }
+    } else if (event.has_event_name_iid()) {
+      name_id = GetMetatraceInternedString(event.event_name_iid());
     } else {
       name_id = context_->storage->InternString(event.event_name());
     }
@@ -452,6 +475,13 @@ void ProtoTraceParser::ParseTraceConfig(ConstBytes blob) {
   StringId id = context_->storage->InternString(base::StringView(text));
   context_->metadata_tracker->SetMetadata(metadata::trace_config_pbtxt,
                                           Variadic::String(id));
+}
+
+StringId ProtoTraceParser::GetMetatraceInternedString(uint64_t iid) {
+  StringId* maybe_id = metatrace_interned_strings_.Find(iid);
+  if (!maybe_id)
+    return missing_metatrace_interned_string_id_;
+  return *maybe_id;
 }
 
 }  // namespace trace_processor
