@@ -19,6 +19,6 @@ module.exports = async function() {
   for (;;) {
     if (proc.exitCode !== null || proc.killed) break;
     console.log('Waiting for dev server termination');
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 1000));
   }
-}
+};
