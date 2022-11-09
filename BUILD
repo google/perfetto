@@ -1215,8 +1215,9 @@ perfetto_cc_proto_descriptor(
     ],
 )
 
-perfetto_genrule(
-    name = "src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
+# GN target: //src/trace_processor/metrics/sql/android:android
+perfetto_filegroup(
+    name = "src_trace_processor_metrics_sql_android_android",
     srcs = [
         "src/trace_processor/metrics/sql/android/android_batt.sql",
         "src/trace_processor/metrics/sql/android/android_binder.sql",
@@ -1319,6 +1320,13 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/android/startup/system_state.sql",
         "src/trace_processor/metrics/sql/android/startup/thread_state_breakdown.sql",
         "src/trace_processor/metrics/sql/android/unsymbolized_frames.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/metrics/sql/chrome:chrome
+perfetto_filegroup(
+    name = "src_trace_processor_metrics_sql_chrome_chrome",
+    srcs = [
         "src/trace_processor/metrics/sql/chrome/actual_power_by_category.sql",
         "src/trace_processor/metrics/sql/chrome/actual_power_by_rail_mode.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_event_metadata.sql",
@@ -1365,16 +1373,47 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/chrome/touch_flow_event_queuing_delay.sql",
         "src/trace_processor/metrics/sql/chrome/touch_jank.sql",
         "src/trace_processor/metrics/sql/chrome/vsync_intervals.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/metrics/sql/common:common
+perfetto_filegroup(
+    name = "src_trace_processor_metrics_sql_common_common",
+    srcs = [
         "src/trace_processor/metrics/sql/common/parent_slice.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/metrics/sql/experimental:experimental
+perfetto_filegroup(
+    name = "src_trace_processor_metrics_sql_experimental_experimental",
+    srcs = [
         "src/trace_processor/metrics/sql/experimental/blink_gc_metric.sql",
         "src/trace_processor/metrics/sql/experimental/chrome_dropped_frames.sql",
         "src/trace_processor/metrics/sql/experimental/chrome_long_latency.sql",
         "src/trace_processor/metrics/sql/experimental/frame_times.sql",
         "src/trace_processor/metrics/sql/experimental/media_metric.sql",
         "src/trace_processor/metrics/sql/experimental/reported_by_page.sql",
-        "src/trace_processor/metrics/sql/trace_metadata.sql",
-        "src/trace_processor/metrics/sql/trace_stats.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/metrics/sql/webview:webview
+perfetto_filegroup(
+    name = "src_trace_processor_metrics_sql_webview_webview",
+    srcs = [
         "src/trace_processor/metrics/sql/webview/webview_power_usage.sql",
+    ],
+)
+
+perfetto_genrule(
+    name = "src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
+    srcs = [
+        ":src_trace_processor_metrics_sql_android_android",
+        ":src_trace_processor_metrics_sql_chrome_chrome",
+        ":src_trace_processor_metrics_sql_common_common",
+        ":src_trace_processor_metrics_sql_experimental_experimental",
+        ":src_trace_processor_metrics_sql_misc_sql",
+        ":src_trace_processor_metrics_sql_webview_webview",
     ],
     outs = [
         "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h",
@@ -1382,6 +1421,15 @@ perfetto_genrule(
     cmd = "$(location gen_amalgamated_sql_py) --namespace=sql_metrics --root-dir=src/trace_processor/metrics/sql --cpp-out=$@ $(SRCS)",
     exec_tools = [
         ":gen_amalgamated_sql_py",
+    ],
+)
+
+# GN target: //src/trace_processor/metrics/sql:misc_sql
+perfetto_filegroup(
+    name = "src_trace_processor_metrics_sql_misc_sql",
+    srcs = [
+        "src/trace_processor/metrics/sql/trace_metadata.sql",
+        "src/trace_processor/metrics/sql/trace_stats.sql",
     ],
 )
 
