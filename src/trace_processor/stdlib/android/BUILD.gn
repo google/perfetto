@@ -12,21 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/perfetto.gni")
-import("../../../gn/perfetto_sql.gni")
+import("../../../../gn/perfetto_sql.gni")
 
-assert(enable_perfetto_trace_processor_sqlite)
-
-source_set("stdlib") {
-  sources = [ "utils.h" ]
-  deps = [ ":gen_amalgamated_stdlib" ]
-}
-
-perfetto_amalgamated_sql_header("gen_amalgamated_stdlib") {
-  deps = [
-    "android",
-    "experimental",
-  ]
-  generated_header = "amalgamated_stdlib.h"
-  namespace = "stdlib"
+perfetto_sql_source_set("android") {
+  sources = [ "binder.sql" ]
 }

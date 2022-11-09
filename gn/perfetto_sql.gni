@@ -1,0 +1,71 @@
+# Copyright (C) 2022 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("perfetto.gni")
+
+template("perfetto_sql_source_set") {
+  source_set("${target_name}") {
+    forward_variables_from(invoker, [ "deps" ])
+    inputs = invoker.sources
+    if (defined(metadata)) {
+      metadata.perfetto_sql_source_files = invoker.sources
+    } else {
+      metadata = {
+        perfetto_sql_source_files = invoker.sources
+      }
+    }
+  }
+}
+
+template("perfetto_amalgamated_sql_header") {
+  gen_txt_file = "$target_gen_dir/${target_name}.txt"
+
+  generated_file("${target_name}_generated_file") {
+    forward_variables_from(invoker, [ "deps" ])
+    outputs = [ gen_txt_file ]
+    data_keys = [ "perfetto_sql_source_files" ]
+    rebase = root_build_dir
+    metadata = {
+      perfetto_generated_file_type_for_generator = [ "sql_amalgamation" ]
+    }
+  }
+
+  config("${target_name}_config") {
+    include_dirs = [ "${root_gen_dir}/${perfetto_root_path}" ]
+  }
+
+  action(target_name) {
+    deps = [ ":${target_name}_generated_file" ]
+    deps += invoker.deps
+
+    script = "$perfetto_root_path/tools/gen_amalgamated_sql.py"
+    generated_header = "${target_gen_dir}/" + invoker.generated_header
+    args = [
+      "--namespace",
+      invoker.namespace,
+      "--root-dir",
+      rebase_path(".", root_build_dir),
+      "--cpp-out",
+      rebase_path(generated_header, root_build_dir),
+      "--input-list-file",
+      rebase_path(gen_txt_file, root_build_dir),
+    ]
+    inputs = [ gen_txt_file ]
+    outputs = [ generated_header ]
+    public_configs = [ ":${target_name}_config" ]
+    metadata = {
+      perfetto_action_type_for_generator = [ "sql_amalgamation" ]
+    }
+  }
+}

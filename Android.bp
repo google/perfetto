@@ -9458,7 +9458,7 @@ genrule {
         "src/trace_processor/metrics/sql/trace_stats.sql",
         "src/trace_processor/metrics/sql/webview/webview_power_usage.sql",
     ],
-    cmd: "$(location tools/gen_amalgamated_sql.py) --type=METRICS --cpp_out=$(out) $(in)",
+    cmd: "$(location tools/gen_amalgamated_sql.py) --namespace=sql_metrics --root-dir=src/trace_processor/metrics/sql --cpp-out=$(out) $(in)",
     out: [
         "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h",
     ],
@@ -9561,8 +9561,9 @@ genrule {
     name: "perfetto_src_trace_processor_stdlib_gen_amalgamated_stdlib",
     srcs: [
         "src/trace_processor/stdlib/android/binder.sql",
+        "src/trace_processor/stdlib/experimental/dummy.sql",
     ],
-    cmd: "$(location tools/gen_amalgamated_sql.py) --type=LIB --cpp_out=$(out) $(in)",
+    cmd: "$(location tools/gen_amalgamated_sql.py) --namespace=stdlib --root-dir=src/trace_processor/stdlib --cpp-out=$(out) $(in)",
     out: [
         "src/trace_processor/stdlib/amalgamated_stdlib.h",
     ],

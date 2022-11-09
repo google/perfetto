@@ -42,18 +42,16 @@ inline std::string ReplaceSlashWithDot(std::string str) {
   return str;
 }
 
-inline std::string GetImportKey(std::string root, std::string path) {
+inline std::string GetImportKey(std::string path) {
   base::StringView path_view(path);
   auto path_no_extension = path_view.substr(0, path_view.rfind('.'));
-  return ReplaceSlashWithDot(root) + "." +
-         ReplaceSlashWithDot(path_no_extension.ToStdString());
+  return ReplaceSlashWithDot(path_no_extension.ToStdString());
 }
 
 inline base::FlatHashMap<std::string, LibFile> SetupStdLib() {
   base::FlatHashMap<std::string, LibFile> lib_files;
   for (const auto& file_to_sql : stdlib::kFileToSql) {
-    lib_files.Insert(GetImportKey(stdlib::kRootPath, file_to_sql.path),
-                     {file_to_sql.sql, false});
+    lib_files.Insert(GetImportKey(file_to_sql.path), {file_to_sql.sql, false});
   }
   return lib_files;
 }
