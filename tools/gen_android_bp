@@ -906,7 +906,7 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
     if target.custom_action_type == 'sql_amalgamation':
       return create_amalgamated_sql_module(blueprint, gn, target)
 
-    if re.match('.*gen_cc_.*_descriptor$', name_without_toolchain):
+    if target.custom_action_type == 'cc_proto_descriptor':
       module = create_cc_proto_descriptor_module(blueprint, target)
     elif name_without_toolchain == gn_utils.GEN_VERSION_TARGET:
       module = create_gen_version_module(blueprint, target, bp_module_name)
