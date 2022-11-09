@@ -121,18 +121,6 @@ external_deps = {
 }
 
 
-def gen_amalgamated_sql_metrics(target):
-  label = BazelLabel(get_bazel_label_name(target.name), 'perfetto_genrule')
-  label.srcs += [re.sub('^//', '', x) for x in sorted(target.inputs)]
-  label.outs += target.outputs
-  label.cmd = (
-      r'$(location gen_amalgamated_sql_py) '
-      r'--namespace=sql_metrics --root-dir=src/trace_processor/metrics/sql '
-      r'--cpp-out=$@ $(SRCS)')
-  label.exec_tools += [':gen_amalgamated_sql_py']
-  return [label]
-
-
 def gen_amalgamated_sql(target):
   label = BazelLabel(get_bazel_label_name(target.name), 'perfetto_genrule')
 
@@ -179,10 +167,7 @@ def gen_cc_metrics_descriptor(target):
 
 
 custom_actions = {
-    gn_utils.GEN_VERSION_TARGET:
-        gen_version_header,
-    '//src/trace_processor/metrics/sql:gen_amalgamated_sql_metrics':
-        gen_amalgamated_sql_metrics,
+    gn_utils.GEN_VERSION_TARGET: gen_version_header,
 }
 
 # ------------------------------------------------------------------------------
@@ -426,10 +411,10 @@ def gen_target(gn_target):
   elif gn_target.type == 'action':
     if gn_target.name in custom_actions:
       return custom_actions[gn_target.name](gn_target)
-    if re.match('.*gen_cc_.*_descriptor$', gn_target.name):
-      return gen_cc_metrics_descriptor(gn_target)
     if gn_target.custom_action_type == 'sql_amalgamation':
       return gen_amalgamated_sql(gn_target)
+    if re.match('.*gen_cc_.*_descriptor$', gn_target.name):
+      return gen_cc_metrics_descriptor(gn_target)
     return []
   elif gn_target.type == 'group':
     return []
