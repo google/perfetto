@@ -413,7 +413,7 @@ def gen_target(gn_target):
       return custom_actions[gn_target.name](gn_target)
     if gn_target.custom_action_type == 'sql_amalgamation':
       return gen_amalgamated_sql(gn_target)
-    if re.match('.*gen_cc_.*_descriptor$', gn_target.name):
+    if gn_target.custom_action_type == 'cc_proto_descriptor':
       return gen_cc_metrics_descriptor(gn_target)
     return []
   elif gn_target.type == 'group':

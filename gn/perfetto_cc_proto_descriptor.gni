@@ -50,5 +50,8 @@ template("perfetto_cc_proto_descriptor") {
     inputs = [ descriptor_file_path ]
     outputs = [ generated_header ]
     public_configs = [ ":${target_name}_config" ]
+    metadata = {
+      perfetto_action_type_for_generator = [ "cc_proto_descriptor" ]
+    }
   }
 }
