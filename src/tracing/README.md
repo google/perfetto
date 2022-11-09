@@ -47,7 +47,7 @@ at a source-code level.
 **Both have the following sub-structure**:
 
 `{include,src}/core/`
-"Core" is the pure c++11 tracing machinery that deals with bookkeeping,
+"Core" is the pure c++17 tracing machinery that deals with bookkeeping,
 ring-buffering, partitioning and multiplexing but knows nothing about
 platform-specific things like implementation of shared memory and RPC mechanism.
 
