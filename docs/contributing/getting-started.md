@@ -3,7 +3,7 @@
 ## Repository
 
 This project uses [Android AOSP Gerrit][perfetto-gerrit] for code reviews,
-follows the [Google C++ style][google-cpp-style], and targets `-std=c++11`.
+follows the [Google C++ style][google-cpp-style], and targets `-std=c++17`.
 
 Development happens in the AOSP repository:
 https://android.googlesource.com/platform/external/perfetto/
