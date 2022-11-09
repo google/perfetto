@@ -45,30 +45,16 @@ REPLACEMENT_HEADER = '''/*
  #include <string.h>
 '''
 
-STDLIB_NAMESPACE_BEGIN = '''
-namespace perfetto {
-namespace trace_processor {
-namespace stdlib {
+NAMESPACE_BEGIN = '''
+namespace perfetto {{
+namespace trace_processor {{
+namespace {} {{
 '''
 
-STDLIB_NAMESPACE_END = '''
-}  // namespace stdlib
-}  // namespace trace_processor
-}  // namespace perfetto
-'''
-
-METRICS_NAMESPACE_BEGIN = '''
-namespace perfetto {
-namespace trace_processor {
-namespace metrics {
-namespace sql_metrics {
-'''
-
-METRICS_NAMESPACE_END = '''
-}  // namespace sql_metrics
-}  // namespace metrics
-}  // namespace trace_processor
-}  // namespace perfetto
+NAMESPACE_END = '''
+}}  // namespace {}
+}}  // namespace trace_processor
+}}  // namespace perfetto
 '''
 
 FILE_TO_SQL_STRUCT = '''
@@ -78,42 +64,42 @@ struct FileToSql {
 };
 '''
 
-ROOT = '''
-const char kRootPath[] = '''
-
-
 def filename_to_variable(filename):
   return "k" + "".join([x.capitalize() for x in filename.split("_")])
 
 
 def main():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--type', required=True)
-  parser.add_argument('--cpp_out', required=True)
+  parser.add_argument('--namespace', required=True)
+  parser.add_argument('--cpp-out', required=True)
+  parser.add_argument('--input-list-file')
+  parser.add_argument('--root-dir', required=True)
   parser.add_argument('sql_files', nargs='*')
   args = parser.parse_args()
 
-  root_path = os.path.commonprefix([os.path.abspath(x) for x in args.sql_files])
-  if '.sql' in root_path:
-    root_path = root_path.rsplit('/', 1)[0]
+  if args.input_list_file and args.sql_files:
+    print("Only one of --input-list-file and list of SQL files expected")
+    return 1
+
+  sql_files = []
+  if args.input_list_file:
+    with open(args.input_list_file, 'r') as input_list_file:
+      for line in input_list_file.read().splitlines():
+        sql_files.append(line)
+  else:
+    sql_files = args.sql_files
 
   # Extract the SQL output from each file.
   sql_outputs = {}
-  for file_name in args.sql_files:
+  for file_name in sql_files:
     with open(file_name, 'r') as f:
-      relpath = os.path.relpath(file_name, root_path)
+      relpath = os.path.relpath(file_name, args.root_dir)
       sql_outputs[relpath] = "".join(
           x.lstrip() for x in f.readlines() if not x.lstrip().startswith('--'))
 
   with open(args.cpp_out, 'w+') as output:
     output.write(REPLACEMENT_HEADER)
-    output.write(
-        METRICS_NAMESPACE_BEGIN) if args.type == 'METRICS' else output.write(
-            STDLIB_NAMESPACE_BEGIN)
-
-    if args.type == "LIB":
-      output.write(ROOT + f'''"{root_path.rsplit("stdlib/")[-1]}";
-      ''')
+    output.write(NAMESPACE_BEGIN.format(args.namespace))
 
     # Create the C++ variable for each SQL file.
     for path, sql in sql_outputs.items():
@@ -146,9 +132,7 @@ def main():
       output.write('\n  {{"{}", {}}},\n'.format(path, variable))
     output.write("};\n")
 
-    output.write(
-        METRICS_NAMESPACE_END) if args.type == 'METRICS' else output.write(
-            STDLIB_NAMESPACE_END)
+    output.write(NAMESPACE_END.format(args.namespace))
 
   return 0
 
