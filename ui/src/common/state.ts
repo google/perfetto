@@ -160,7 +160,7 @@ export type UtidToTrackSortKey = {
 export enum ProfileType {
   HEAP_PROFILE = 'heap_profile',
   NATIVE_HEAP_PROFILE = 'heap_profile:libc.malloc',
-  JAVA_HEAP_PROFILE = 'heap_profile:com.android.art',
+  JAVA_HEAP_SAMPLES = 'heap_profile:com.android.art',
   JAVA_HEAP_GRAPH = 'graph',
   PERF_SAMPLE = 'perf',
 }
