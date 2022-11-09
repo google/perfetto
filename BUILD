@@ -1379,7 +1379,7 @@ perfetto_genrule(
     outs = [
         "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h",
     ],
-    cmd = "$(location gen_amalgamated_sql_py) --type=METRICS --cpp_out=$@ $(SRCS)",
+    cmd = "$(location gen_amalgamated_sql_py) --namespace=sql_metrics --root-dir=src/trace_processor/metrics/sql --cpp-out=$@ $(SRCS)",
     exec_tools = [
         ":gen_amalgamated_sql_py",
     ],
@@ -1492,15 +1492,32 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/stdlib/android:android
+perfetto_filegroup(
+    name = "src_trace_processor_stdlib_android_android",
+    srcs = [
+        "src/trace_processor/stdlib/android/binder.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/stdlib/experimental:experimental
+perfetto_filegroup(
+    name = "src_trace_processor_stdlib_experimental_experimental",
+    srcs = [
+        "src/trace_processor/stdlib/experimental/dummy.sql",
+    ],
+)
+
 perfetto_genrule(
     name = "src_trace_processor_stdlib_gen_amalgamated_stdlib",
     srcs = [
-        "src/trace_processor/stdlib/android/binder.sql",
+        ":src_trace_processor_stdlib_android_android",
+        ":src_trace_processor_stdlib_experimental_experimental",
     ],
     outs = [
         "src/trace_processor/stdlib/amalgamated_stdlib.h",
     ],
-    cmd = "$(location gen_amalgamated_sql_py) --type=LIB --cpp_out=$@ $(SRCS)",
+    cmd = "$(location gen_amalgamated_sql_py) --namespace=stdlib --root-dir=src/trace_processor/stdlib --cpp-out=$@ $(SRCS)",
     exec_tools = [
         ":gen_amalgamated_sql_py",
     ],
