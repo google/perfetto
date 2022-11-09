@@ -23,6 +23,7 @@ import {
 } from '../common/actions';
 import {Engine, EngineProxy} from '../common/engine';
 import {featureFlags, PERF_SAMPLE_FLAG} from '../common/feature_flags';
+import {pluginManager} from '../common/plugins';
 import {
   NUM,
   NUM_NULL,
@@ -656,6 +657,17 @@ class TrackDecider {
     }
   }
 
+  applyDefaultCounterScale(): void {
+    for (const track of this.tracksToAdd) {
+      if (track.kind === COUNTER_TRACK_KIND) {
+        const scaleConfig = {
+          scale: getCounterScale(track.name),
+        };
+        track.config = Object.assign({}, track.config, scaleConfig);
+      }
+    }
+  }
+
   async addLogsTrack(engine: EngineProxy): Promise<void> {
     const result =
         await engine.query(`select count(1) as cnt from android_logs`);
@@ -935,7 +947,6 @@ class TrackDecider {
           startTs,
           endTs,
           tid,
-          scale: getCounterScale(name),
         },
       });
     }
@@ -1248,7 +1259,6 @@ class TrackDecider {
           trackId,
           startTs,
           endTs,
-          scale: getCounterScale(name),
         },
       });
     }
@@ -1620,6 +1630,25 @@ class TrackDecider {
     `);
   }
 
+  async addPluginTracks(): Promise<void> {
+    const promises = pluginManager.findPotentialTracks(this.engine);
+    const groups = await Promise.all(promises);
+    for (const infos of groups) {
+      for (const info of infos) {
+        this.tracksToAdd.push({
+          engineId: this.engineId,
+          kind: info.trackKind,
+          name: info.name,
+          // TODO(hjd): Fix how sorting works. Plugins should expose
+          // 'sort keys' which the user can use to choose a sort order.
+          trackSortKey: PrimaryTrackSortKey.COUNTER_TRACK,
+          trackGroup: SCROLLING_TRACK_GROUP,
+          config: info.config,
+        });
+      }
+    }
+  }
+
   async decideTracks(): Promise<DeferredAction[]> {
     // Add first the global tracks that don't require per-process track groups.
     if (NULL_TRACKS_FLAG.get()) {
@@ -1635,12 +1664,11 @@ class TrackDecider {
         this.engine.getProxy('TrackDecider::addGlobalAsyncTracks'));
     await this.addGpuFreqTracks(
         this.engine.getProxy('TrackDecider::addGpuFreqTracks'));
-    await this.addGlobalCounterTracks(
-        this.engine.getProxy('TrackDecider::addGlobalCounterTracks'));
     await this.addCpuPerfCounterTracks(
         this.engine.getProxy('TrackDecider::addCpuPerfCounterTracks'));
+    await this.addPluginTracks();
     await this.addAnnotationTracks(
-        this.engine.getProxy('TrackDecider::addAnnotationTrack'));
+        this.engine.getProxy('TrackDecider::addAnnotationTracks'));
     await this.groupGlobalIonTracks();
     await this.groupGlobalIostatTracks(F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
     await this.groupGlobalIostatTracks(
@@ -1707,6 +1735,8 @@ class TrackDecider {
     const threadOrderingMetadata = await this.computeThreadOrderingMetadata();
     this.addTrackGroupActions.push(
         Actions.setUtidToTrackSortKey({threadOrderingMetadata}));
+
+    this.applyDefaultCounterScale();
 
     return this.addTrackGroupActions;
   }
