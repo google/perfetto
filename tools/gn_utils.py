@@ -310,11 +310,12 @@ class GnParser(object):
       self.name = name  # e.g. //src/ipc:ipc
 
       VALID_TYPES = ('static_library', 'shared_library', 'executable', 'group',
-                     'action', 'source_set', 'proto_library')
+                     'action', 'source_set', 'proto_library', 'generated_file')
       assert (type in VALID_TYPES)
       self.type = type
       self.testonly = False
       self.toolchain = None
+      self.generated_file_contents = {}
 
       # These are valid only for type == proto_library.
       # This is typically: 'proto', 'protozero', 'ipc'.
@@ -332,6 +333,7 @@ class GnParser(object):
       self.outputs = set()
       self.script = None
       self.args = []
+      self.custom_action_type = None
 
       # These variables are propagated up when encountering a dependency
       # on a source_set target.
@@ -420,6 +422,7 @@ class GnParser(object):
     elif target.type == 'source_set':
       self.source_sets[gn_target_name] = target
       target.sources.update(desc.get('sources', []))
+      target.inputs.update(desc.get('inputs', []))
     elif target.type in LINKER_UNIT_TYPES:
       self.linker_units[gn_target_name] = target
       target.sources.update(desc.get('sources', []))
@@ -433,6 +436,10 @@ class GnParser(object):
       # Args are typically relative to the root build dir (../../xxx)
       # because root build dir is typically out/xxx/).
       target.args = [re.sub('^../../', '//', x) for x in desc['args']]
+      action_types = desc.get('metadata',
+                              {}).get('perfetto_action_type_for_generator', [])
+      target.custom_action_type = action_types[0] if len(
+          action_types) > 0 else None
 
     # Default for 'public' is //* - all headers in 'sources' are public.
     # TODO(primiano): if a 'public' section is specified (even if empty), then
