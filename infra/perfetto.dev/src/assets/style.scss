@@ -147,8 +147,105 @@ h3 {
     }
 }
 
+
+#search {
+    position: relative;
+    flex-grow: 0;
+    transition: flex-grow cubic-bezier(1, 0.01, 1, 1) var(--anim-time), background-color ease var(--anim-time);
+    padding: 0;
+    &::before {
+        visibility: hidden;
+        user-select: none;
+        content: '';
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: var(--site-header-height);
+        bottom: 0;
+        z-index: -100;
+        background-color: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(3px);
+        opacity: 0;
+        transition: opacity ease var(--anim-time), visibility 0s;
+
+    }
+    &:focus-within {
+        flex-grow: 1000;
+        &::before {
+            display: block;
+            opacity: 1;
+            visibility: visible;
+        }
+        #search-res {
+            display: block;
+        }
+
+    }
+
+    @media #{$mobile} {
+        display: none;
+    }
+
+    #search-box {
+        width: 100%;
+        height: 32px;
+        font-size: 1rem;;
+        color: #333;
+        background-color: rgba(255, 255, 255, 0.9);
+        border: 1px solid #eee;
+        border-radius: 2px;
+        background-image: url('data:image/svg+xml;utf-8,<svg xmlns="http://www.w3.org/2000/svg" height="48" width="48"><path d="M39.8 41.95 26.65 28.8q-1.5 1.3-3.5 2.025-2 .725-4.25.725-5.4 0-9.15-3.75T6 18.75q0-5.3 3.75-9.05 3.75-3.75 9.1-3.75 5.3 0 9.025 3.75 3.725 3.75 3.725 9.05 0 2.15-.7 4.15-.7 2-2.1 3.75L42 39.75Zm-20.95-13.4q4.05 0 6.9-2.875Q28.6 22.8 28.6 18.75t-2.85-6.925Q22.9 8.95 18.85 8.95q-4.1 0-6.975 2.875T9 18.75q0 4.05 2.875 6.925t6.975 2.875Z"/></svg>');
+        background-repeat: no-repeat;
+        background-size: contain;
+        padding-left: 40px;
+        outline: none;
+        &:hover, &:focus {
+            background-color: rgba(255, 255, 255, 0.95);
+        }
+    }
+
+    #search-res {
+        display: none;
+        background-color: rgba(255, 255, 255, 1.0);
+        border: 1px solid #eee;
+        box-shadow: #aaa 0px 1px 5px;
+        color: #333;
+        line-height: initial;
+        margin-top: -4px;
+        overflow-x: auto;
+        position: fixed;
+        top: var(--site-header-height);
+        max-height: calc(100vh - var(--site-header-height));
+        z-index: 10;
+        >div {
+            padding: 10px;
+            margin: 0;
+            &:hover {
+                background-color: #f0f0f0;
+            }
+        }
+        .sr-title {
+            color: #333;
+            font-weight: bold;
+        }
+        .sr-snippet {
+            color: #444;
+            font-size: 0.9rem;
+         }
+
+        a { text-decoration: none; }
+        a:hover { color: initial };
+
+        &:empty {
+            visibility: hidden;
+        }
+    }
+
+}
+
+
 // -----------------------------------------------------------------------------
-// Site header
+// Site footer
 // -----------------------------------------------------------------------------
 
 // Footer in the index page.

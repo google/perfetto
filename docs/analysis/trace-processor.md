@@ -289,9 +289,11 @@ advantage of.
 
 ### Span join
 Span join is a custom operator table which computes the intersection of
-spans of time from two tables or views. A column (called the *partition*)
-can optionally be specified which divides the rows from each table into
-partitions before computing the intersection.
+spans of time from two tables or views. A span in this concept is a row in a
+table/view which contains a "ts" (timestamp) and "dur" (duration) columns.
+
+A column (called the *partition*) can optionally be specified which divides the
+rows from each table into partitions before computing the intersection.
 
 ![Span join block diagram](/docs/images/span-join.png)
 
