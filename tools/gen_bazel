@@ -111,44 +111,26 @@ external_deps = {
     '//gn:zlib': ['PERFETTO_CONFIG.deps.zlib'],
     '//gn:llvm_demangle': ['PERFETTO_CONFIG.deps.llvm_demangle'],
     '//src/trace_processor:demangle': ['PERFETTO_CONFIG.deps.demangle_wrapper'],
-    '//src/trace_processor/metrics/sql:gen_amalgamated_sql_metrics': [[
-        ':cc_amalgamated_sql_metrics'
-    ]],
-    '//src/trace_processor/stdlib:gen_amalgamated_stdlib': [[
-        ':cc_amalgamated_stdlib'
-    ]],
     gn_utils.GEN_VERSION_TARGET: ['PERFETTO_CONFIG.deps.version_header'],
 }
 
 
-def gen_amalgamated_sql(target):
-  label = BazelLabel(get_bazel_label_name(target.name), 'perfetto_genrule')
+def gen_cc_amalgamated_sql(target):
+  label = BazelLabel(
+      get_bazel_label_name(target.name), 'perfetto_cc_amalgamated_sql')
 
   def find_arg(name):
     for i, arg in enumerate(target.args):
       if arg.startswith(f'--{name}'):
         return target.args[i + 1]
 
-  namespace = find_arg('namespace')
-  root_dir = gn_utils.label_to_path(find_arg('root-dir'))
+  label.namespace = find_arg('namespace')
+  label.root_dir = gn_utils.label_to_path(find_arg('root-dir'))
 
-  label.srcs += sorted(
+  label.deps += sorted(
       ':' + get_bazel_label_name(x) for x in target.source_set_deps)
   label.outs += target.outputs
-  label.cmd = (r'$(location gen_amalgamated_sql_py) '
-               f'--namespace={namespace} --root-dir={root_dir} '
-               r'--cpp-out=$@ $(SRCS)')
-  label.exec_tools += [':gen_amalgamated_sql_py']
-  return [label]
 
-
-def gen_version_header(target):
-  label = BazelLabel(get_bazel_label_name(target.name), 'perfetto_genrule')
-  label.srcs += [gn_utils.label_to_path(x) for x in sorted(target.inputs)]
-  label.outs += target.outputs
-  label.cmd = r'$(location gen_version_header_py)'
-  label.cmd += r' --cpp_out=$@ --changelog=$(location CHANGELOG)'
-  label.exec_tools += [':gen_version_header_py']
   return [label]
 
 
@@ -163,6 +145,16 @@ def gen_cc_metrics_descriptor(target):
   ]
 
   label.outs += target.outputs
+  return [label]
+
+
+def gen_version_header(target):
+  label = BazelLabel(get_bazel_label_name(target.name), 'perfetto_genrule')
+  label.srcs += [gn_utils.label_to_path(x) for x in sorted(target.inputs)]
+  label.outs += target.outputs
+  label.cmd = r'$(location gen_version_header_py)'
+  label.cmd += r' --cpp_out=$@ --changelog=$(location CHANGELOG)'
+  label.exec_tools += [':gen_version_header_py']
   return [label]
 
 
@@ -412,7 +404,7 @@ def gen_target(gn_target):
     if gn_target.name in custom_actions:
       return custom_actions[gn_target.name](gn_target)
     if gn_target.custom_action_type == 'sql_amalgamation':
-      return gen_amalgamated_sql(gn_target)
+      return gen_cc_amalgamated_sql(gn_target)
     if gn_target.custom_action_type == 'cc_proto_descriptor':
       return gen_cc_metrics_descriptor(gn_target)
     return []
@@ -521,6 +513,7 @@ load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
 load(
     "@perfetto//bazel:rules.bzl",
     "perfetto_build_config_cc_library",
+    "perfetto_cc_amalgamated_sql",
     "perfetto_cc_binary",
     "perfetto_filegroup",
     "perfetto_genrule",
