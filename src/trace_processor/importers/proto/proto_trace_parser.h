@@ -67,6 +67,8 @@ class ProtoTraceParser : public TraceParser {
   void ParseTraceConfig(ConstBytes);
 
  private:
+  StringId GetMetatraceInternedString(uint64_t iid);
+
   TraceProcessorContext* context_;
 
   const StringId metatrace_id_;
@@ -74,6 +76,9 @@ class ProtoTraceParser : public TraceParser {
   const StringId raw_chrome_metadata_event_id_;
   const StringId raw_chrome_legacy_system_trace_event_id_;
   const StringId raw_chrome_legacy_user_trace_event_id_;
+  const StringId missing_metatrace_interned_string_id_;
+
+  base::FlatHashMap<uint64_t, StringId> metatrace_interned_strings_;
 };
 
 }  // namespace trace_processor
