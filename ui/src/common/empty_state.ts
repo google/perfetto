@@ -157,5 +157,8 @@ export function createEmptyState(): State {
     fetchChromeCategories: false,
     chromeCategories: undefined,
     nonSerializableState: createEmptyNonSerializableState(),
+
+    // The first two log priorities are ignored.
+    logFilteringCriteria: {minimumLevel: 2},
   };
 }
