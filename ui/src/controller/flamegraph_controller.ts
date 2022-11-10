@@ -60,7 +60,7 @@ function getFlamegraphType(type: ProfileType) {
   switch (type) {
     case ProfileType.HEAP_PROFILE:
     case ProfileType.NATIVE_HEAP_PROFILE:
-    case ProfileType.JAVA_HEAP_PROFILE:
+    case ProfileType.JAVA_HEAP_SAMPLES:
       return 'native';
     case ProfileType.JAVA_HEAP_GRAPH:
       return 'graph';

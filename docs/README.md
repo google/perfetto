@@ -49,7 +49,7 @@ examples:
   memory to call-stacks, based on out-of-process unwinding, configurable
   sampling, attachable to already running processes.
 
-* [Java heap profiling](/docs/data-sources/java-heap-profiler.md): an
+* Capturing [Java heap dumps](/docs/data-sources/java-heap-profiler.md) with an
   out-of-process profiler tightly integrated with the Android RunTime that
   allows to get full snapshots of the managed heap retention graph (types,
   field names, retained size and references to other objects) without, however,

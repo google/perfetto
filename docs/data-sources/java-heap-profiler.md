@@ -1,15 +1,17 @@
-# Memory: Java heap profiler
+# Memory: Java heap dumps
 
-NOTE: The Java heap profiler requires Android 11 or higher
+NOTE: Capturing Java heap dumps requires Android 11 or higher
 
 See the [Memory Guide](/docs/case-studies/memory.md#java-hprof) for getting
-started with Java heap profiling.
+started with Java heap dumps.
 
-Conversely from the [Native heap profiler](native-heap-profiler.md), the Java
-heap profiler reports full retention graphs of managed objects but not
-call-stacks. The information recorded by the Java heap profiler is of the form:
-_Object X retains object Y, which is N bytes large, through its class member
-named Z_.
+Conversely from [Native heap profiles](native-heap-profiler.md), Java heap dumps
+report full retention graphs of managed objects but not call-stacks. The
+information recorded in a Java heap dump is of the form: _Object X retains
+object Y, which is N bytes large, through its class member named Z_.
+
+Java heap dumps are not to be confused with profiles taken by the
+[Java heap sampler](native-heap-profiler.md#java-heap-sampling)
 
 ## UI
 
@@ -17,13 +19,13 @@ Heap graph dumps are shown as flamegraphs in the UI after clicking on the
 diamond in the _"Heap Profile"_ track of a process. Each diamond corresponds to
 a heap dump.
 
-![Java heap profiles in the process tracks](/docs/images/profile-diamond.png)
+![Java heap dumps in the process tracks](/docs/images/profile-diamond.png)
 
-![Flamegraph of a Java heap profiler](/docs/images/java-flamegraph.png)
+![Flamegraph of a Java heap dump](/docs/images/java-heap-graph.png)
 
 The native size of certain objects is represented as an extra child node in the
 flamegraph, prefixed with "[native]". The extra node counts as an extra object.
-This is available only on Android T+.
+This is available only on Android 13 or higher.
 
 ## SQL
 
@@ -93,7 +95,7 @@ select name, cumulative_size
 
 ## TraceConfig
 
-The Java heap profiler is configured through the
+The Java heap dump data source is configured through the
 [JavaHprofConfig](/docs/reference/trace-config-proto.autogen#JavaHprofConfig)
 section of the trace config.
 
