@@ -1551,7 +1551,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_stdlib_experimental_experimental",
     srcs = [
-        "src/trace_processor/stdlib/experimental/dummy.sql",
+        "src/trace_processor/stdlib/experimental/android_broadcast.sql",
     ],
 )
 
