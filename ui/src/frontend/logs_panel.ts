@@ -26,11 +26,10 @@ import {formatTimestamp} from '../common/time';
 import {TimeSpan} from '../common/time';
 
 import {globals} from './globals';
+import {LOG_PRIORITIES, LogsFilters} from './logs_filters';
 import {Panel} from './panel';
 
 const ROW_H = 20;
-
-const PRIO_TO_LETTER = ['-', '-', 'V', 'D', 'I', 'W', 'E', 'F'];
 
 export class LogPanel extends Panel<{}> {
   private scrollContainer?: HTMLElement;
@@ -116,7 +115,7 @@ export class LogPanel extends Panel<{}> {
       const tags = this.entries.tags;
       const messages = this.entries.messages;
       for (let i = 0; i < this.entries.timestamps.length; i++) {
-        const priorityLetter = PRIO_TO_LETTER[priorities[i]];
+        const priorityLetter = LOG_PRIORITIES[priorities[i]][0];
         const ts = timestamps[i];
         const prioClass = priorityLetter || '';
         rows.push(
@@ -142,7 +141,10 @@ export class LogPanel extends Panel<{}> {
           {
             'class': isStale ? 'stale' : '',
           },
-          `Logs rows [${offset}, ${offset + count}] / ${total}`),
+          [
+            `Logs rows [${offset}, ${offset + count}] / ${total}`,
+            m(LogsFilters),
+          ]),
         m('.rows', {style: {height: `${total * ROW_H}px`}}, rows));
   }
 
