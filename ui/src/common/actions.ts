@@ -1137,6 +1137,10 @@ export const StateActions = {
         args.to,
         args.direction);
   },
+
+  setMinimumLogLevel(state: StateDraft, args: {minimumLevel: number}) {
+    state.logFilteringCriteria.minimumLevel = args.minimumLevel;
+  },
 };
 
 // Move element at `from` index to `direction` of `to` element.
