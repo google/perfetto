@@ -17,7 +17,9 @@ import("../../../../../gn/perfetto_sql.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
-perfetto_sql_source_set("chrome") {
+# This target cannot be named "chrome" because it breaks Chrome on iOS from
+# being built.
+perfetto_sql_source_set("chrome_sql") {
   sources = [
     "actual_power_by_category.sql",
     "actual_power_by_rail_mode.sql",
