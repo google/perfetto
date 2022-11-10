@@ -18,6 +18,9 @@ import subprocess
 import time
 
 
+USE_PYTHON3 = True
+
+
 def RunAndReportIfLong(func, *args, **kargs):
   start = time.time()
   results = func(*args, **kargs)
