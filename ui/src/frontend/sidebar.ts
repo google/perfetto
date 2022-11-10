@@ -961,6 +961,9 @@ export class Sidebar implements m.ClassComponent {
             case 'ARRAY_BUFFER':
               traceTitle = engines[0].source.title;
               traceUrl = engines[0].source.url || '';
+              const arrayBufferSizeMB =
+                  Math.ceil(engines[0].source.buffer.byteLength / 1e6);
+              traceTitle += ` (${arrayBufferSizeMB} MB)`;
               break;
             case 'HTTP_RPC':
               traceTitle = 'External trace (RPC)';
