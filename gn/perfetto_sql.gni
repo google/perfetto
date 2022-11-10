@@ -30,6 +30,7 @@ template("perfetto_sql_source_set") {
 
 template("perfetto_amalgamated_sql_header") {
   gen_txt_file = "$target_gen_dir/${target_name}.txt"
+  gen_depfile = "$target_gen_dir/${target_name}.d"
 
   generated_file("${target_name}_generated_file") {
     forward_variables_from(invoker, [ "deps" ])
@@ -49,6 +50,7 @@ template("perfetto_amalgamated_sql_header") {
     deps = [ ":${target_name}_generated_file" ]
     deps += invoker.deps
 
+    depfile = gen_depfile
     script = "$perfetto_root_path/tools/gen_amalgamated_sql.py"
     generated_header = "${target_gen_dir}/" + invoker.generated_header
     args = [
@@ -60,6 +62,8 @@ template("perfetto_amalgamated_sql_header") {
       rebase_path(generated_header, root_build_dir),
       "--input-list-file",
       rebase_path(gen_txt_file, root_build_dir),
+      "--depfile",
+      rebase_path(gen_depfile, root_build_dir),
     ]
     inputs = [ gen_txt_file ]
     outputs = [ generated_header ]
