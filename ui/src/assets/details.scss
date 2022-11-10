@@ -411,6 +411,18 @@
     background-color: white;
     color: #3c4b5d;
     padding: 5px;
+    display: grid;
+    grid-template-columns: auto auto;
+    justify-content: space-between;
+  }
+
+  .log-filters {
+    display: flex;
+    margin-right: 5px;
+
+    .log-label {
+      padding-right: 0.35rem;
+    }
   }
 
   header.stale {
