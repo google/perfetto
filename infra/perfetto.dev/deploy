@@ -29,7 +29,7 @@ readonly CUR_DIR="$(cd -P ${BASH_SOURCE[0]%/*}; pwd)"
 readonly ROOT_DIR=$(dirname $(dirname "$CUR_DIR"))
 
 # The directory that will contain the static website artifacts.
-readonly OUT_DIR="$ROOT_DIR/out/perfetto.dev"
+readonly OUT_DIR="$ROOT_DIR/out/perfetto.dev/site"
 
 # Build first.
 "$CUR_DIR/build"

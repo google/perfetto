@@ -319,6 +319,12 @@ declare_args() {
       perfetto_build_standalone && enable_perfetto_trace_processor_sqlite &&
       host_os != "win"
 
+  # Allows to build the perfetto.dev website.
+  # WARNING: if this flag is enabled, the build performs globbing at generation
+  # time. Incremental builds that add/remove files will not be supported without
+  # rerunning gn.
+  enable_perfetto_site = false
+
   # Skip buildtools dependency checks (needed for ChromeOS).
   skip_buildtools_check = false
 
