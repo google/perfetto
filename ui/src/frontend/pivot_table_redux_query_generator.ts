@@ -40,7 +40,7 @@ export interface Table {
 
 export const sliceTable = {
   name: 'slice',
-  columns: ['type', 'ts', 'dur', 'category', 'name'],
+  columns: ['type', 'ts', 'dur', 'category', 'name', 'depth'],
 };
 
 // Columns of `slice` table available for aggregation.
