@@ -61,4 +61,4 @@ heap_graph.textproto java_heap_histogram java_heap_histogram.out
 ../../data/callstack_sampling.pftrace callstack_sampling_flamegraph_test.sql callstack_sampling_flamegraph.out
 ../../data/callstack_sampling.pftrace callstack_sampling_flamegraph_multi_process_test.sql callstack_sampling_flamegraph_multi_process.out
 
-heap_profile_data_local_tmp.textproto no_build_id.sql no_build_id.out
+heap_profile_data_local_tmp.textproto no_build_id_test.sql no_build_id.out
