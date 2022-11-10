@@ -258,6 +258,7 @@ bool SqliteTable::ReadConstraints(int idxNum, const char* idxStr, int argc) {
                       r->AddArg("cache_hit", std::to_string(cache_hit));
                       r->AddArg("name", name_);
                       WriteQueryConstraintsToMetatrace(r, qc_cache_, schema_);
+                      r->AddArg("raw_constraints", idxStr);
                       r->AddArg("argc", std::to_string(argc));
                     });
 

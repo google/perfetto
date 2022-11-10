@@ -652,6 +652,31 @@ class MetricExtension {
   }
 };
 
+metatrace::MetatraceCategories ParseMetatraceCategories(std::string s) {
+  using Cat = metatrace::MetatraceCategories;
+  std::transform(s.begin(), s.end(), s.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+  base::StringSplitter splitter(s, ',');
+
+  Cat result = Cat::NONE;
+  for (; splitter.Next();) {
+    std::string cur = splitter.cur_token();
+    if (cur == "all" || cur == "*") {
+      result = Cat::ALL;
+    } else if (cur == "toplevel") {
+      result = static_cast<Cat>(result | Cat::TOPLEVEL);
+    } else if (cur == "function") {
+      result = static_cast<Cat>(result | Cat::FUNCTION);
+    } else if (cur == "query") {
+      result = static_cast<Cat>(result | Cat::QUERY);
+    } else {
+      PERFETTO_ELOG("Unknown metatrace category %s", cur.data());
+      exit(1);
+    }
+  }
+  return result;
+}
+
 struct CommandLineOptions {
   std::string perf_file_path;
   std::string query_file_path;
@@ -667,6 +692,9 @@ struct CommandLineOptions {
   bool wide = false;
   bool force_full_sort = false;
   std::string metatrace_path;
+  size_t metatrace_buffer_capacity = 0;
+  metatrace::MetatraceCategories metatrace_categories =
+      metatrace::MetatraceCategories::ALL;
   bool dev = false;
   bool no_ftrace_raw = false;
 };
@@ -713,6 +741,10 @@ Options:
                                       text).
  -m, --metatrace FILE                 Enables metatracing of trace processor
                                       writing the resulting trace into FILE.
+ --metatrace-buffer-capacity N        Sets metatrace event buffer to capture
+                                      last N events.
+ --metatrace-categories CATEGORIES    A comma-separated list of metatrace
+                                      categories to enable.
  --full-sort                          Forces the trace processor into performing
                                       a full sort ignoring any windowing
                                       logic.
@@ -745,6 +777,8 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_METRIC_EXTENSION,
     OPT_DEV,
     OPT_NO_FTRACE_RAW,
+    OPT_METATRACE_BUFFER_CAPACITY,
+    OPT_METATRACE_CATEGORIES,
   };
 
   static const option long_options[] = {
@@ -758,6 +792,10 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"query-file", required_argument, nullptr, 'q'},
       {"export", required_argument, nullptr, 'e'},
       {"metatrace", required_argument, nullptr, 'm'},
+      {"metatrace-buffer-capacity", required_argument, nullptr,
+       OPT_METATRACE_BUFFER_CAPACITY},
+      {"metatrace-categories", required_argument, nullptr,
+       OPT_METATRACE_CATEGORIES},
       {"run-metrics", required_argument, nullptr, OPT_RUN_METRICS},
       {"pre-metrics", required_argument, nullptr, OPT_PRE_METRICS},
       {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
@@ -864,6 +902,18 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_NO_FTRACE_RAW) {
       command_line_options.no_ftrace_raw = true;
+      continue;
+    }
+
+    if (option == OPT_METATRACE_BUFFER_CAPACITY) {
+      command_line_options.metatrace_buffer_capacity =
+          static_cast<size_t>(atoi(optarg));
+      continue;
+    }
+
+    if (option == OPT_METATRACE_CATEGORIES) {
+      command_line_options.metatrace_categories =
+          ParseMetatraceCategories(optarg);
       continue;
     }
 
@@ -1294,6 +1344,25 @@ base::Status StartInteractiveShell(const InteractiveOptions& options) {
   return base::OkStatus();
 }
 
+base::Status MaybeWriteMetatrace(const std::string& metatrace_path) {
+  if (metatrace_path.empty()) {
+    return base::OkStatus();
+  }
+  std::vector<uint8_t> serialized;
+  base::Status status = g_tp->DisableAndReadMetatrace(&serialized);
+  if (!status.ok())
+    return status;
+
+  auto file = base::OpenFile(metatrace_path, O_CREAT | O_RDWR | O_TRUNC);
+  if (!file)
+    return base::ErrStatus("Unable to open metatrace file");
+
+  ssize_t res = base::WriteAll(*file, serialized.data(), serialized.size());
+  if (res < 0)
+    return base::ErrStatus("Error while writing metatrace file");
+  return base::OkStatus();
+}
+
 base::Status TraceProcessorMain(int argc, char** argv) {
   CommandLineOptions options = ParseCommandLineOptions(argc, argv);
 
@@ -1320,7 +1389,10 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 
   // Enable metatracing as soon as possible.
   if (!options.metatrace_path.empty()) {
-    tp->EnableMetatrace();
+    metatrace::MetatraceConfig metatrace_config;
+    metatrace_config.override_buffer_size = options.metatrace_buffer_capacity;
+    metatrace_config.categories = options.metatrace_categories;
+    tp->EnableMetatrace(metatrace_config);
   }
 
   // We load all the metric extensions even when --run-metrics arg is not there,
@@ -1344,14 +1416,8 @@ base::Status TraceProcessorMain(int argc, char** argv) {
     RETURN_IF_ERROR(PrintStats());
   }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
-  if (options.enable_httpd) {
-    RunHttpRPCServer(std::move(tp), options.port_number);
-    PERFETTO_FATAL("Should never return");
-  }
-#endif
-
 #if PERFETTO_HAS_SIGNAL_H()
+  // Set up interrupt signal to allow the user to abort query.
   signal(SIGINT, [](int) { g_tp->InterruptQuery(); });
 #endif
 
@@ -1380,13 +1446,31 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   }
 
   if (!options.query_file_path.empty()) {
-    RETURN_IF_ERROR(RunQueries(options.query_file_path, true));
+    base::Status status = RunQueries(options.query_file_path, true);
+    if (!status.ok()) {
+      // Write metatrace if needed before exiting.
+      RETURN_IF_ERROR(MaybeWriteMetatrace(options.metatrace_path));
+      return status;
+    }
   }
   base::TimeNanos t_query = base::GetWallTimeNs() - t_query_start;
 
   if (!options.sqlite_file_path.empty()) {
     RETURN_IF_ERROR(ExportTraceToDatabase(options.sqlite_file_path));
   }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
+  if (options.enable_httpd) {
+#if PERFETTO_HAS_SIGNAL_H()
+    // Restore the default signal handler to allow the user to terminate
+    // httpd server via Ctrl-C.
+    signal(SIGINT, SIG_DFL);
+#endif
+
+    RunHttpRPCServer(std::move(tp), options.port_number);
+    PERFETTO_FATAL("Should never return");
+  }
+#endif
 
   if (options.launch_shell) {
     RETURN_IF_ERROR(StartInteractiveShell(
@@ -1396,21 +1480,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
     RETURN_IF_ERROR(PrintPerfFile(options.perf_file_path, t_load, t_query));
   }
 
-  if (!options.metatrace_path.empty()) {
-    std::vector<uint8_t> serialized;
-    base::Status status = g_tp->DisableAndReadMetatrace(&serialized);
-    if (!status.ok())
-      return status;
-
-    auto file =
-        base::OpenFile(options.metatrace_path, O_CREAT | O_RDWR | O_TRUNC);
-    if (!file)
-      return base::ErrStatus("Unable to open metatrace file");
-
-    ssize_t res = base::WriteAll(*file, serialized.data(), serialized.size());
-    if (res < 0)
-      return base::ErrStatus("Error while writing metatrace file");
-  }
+  RETURN_IF_ERROR(MaybeWriteMetatrace(options.metatrace_path));
 
   return base::OkStatus();
 }

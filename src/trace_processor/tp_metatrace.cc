@@ -20,10 +20,34 @@ namespace perfetto {
 namespace trace_processor {
 namespace metatrace {
 
+namespace {
+
+using ProtoEnum = protos::pbzero::MetatraceCategories;
+ProtoEnum MetatraceCategoriesToProtoEnum(MetatraceCategories categories) {
+  switch (categories) {
+    case MetatraceCategories::TOPLEVEL:
+      return ProtoEnum::TOPLEVEL;
+    case MetatraceCategories::FUNCTION:
+      return ProtoEnum::FUNCTION;
+    case MetatraceCategories::QUERY:
+      return ProtoEnum::QUERY;
+    case MetatraceCategories::ALL:
+      return ProtoEnum::ALL;
+    case MetatraceCategories::NONE:
+      return ProtoEnum::NONE;
+  }
+  return ProtoEnum::NONE;
+}
+
+}  // namespace
+
 Category g_enabled_categories = Category::NONE;
 
-void Enable(Category categories) {
-  g_enabled_categories = categories;
+void Enable(MetatraceConfig config) {
+  g_enabled_categories = MetatraceCategoriesToProtoEnum(config.categories);
+  if (config.override_buffer_size) {
+    RingBuffer::GetInstance()->Resize(config.override_buffer_size);
+  }
 }
 
 void DisableAndReadBuffer(std::function<void(Record*)> fn) {
@@ -33,9 +57,18 @@ void DisableAndReadBuffer(std::function<void(Record*)> fn) {
   RingBuffer::GetInstance()->ReadAll(fn);
 }
 
-RingBuffer::RingBuffer() {
-  static_assert((kCapacity & (kCapacity - 1)) == 0,
+RingBuffer::RingBuffer() : data_(kDefaultCapacity) {
+  static_assert((kDefaultCapacity & (kDefaultCapacity - 1)) == 0,
                 "Capacity should be a power of 2");
+}
+
+void RingBuffer::Resize(size_t requested_capacity) {
+  size_t actual_capacity = 1;
+  while (actual_capacity < requested_capacity)
+    actual_capacity <<= 1;
+  data_.resize(actual_capacity);
+  start_idx_ = 0;
+  write_idx_ = 0;
 }
 
 void RingBuffer::ReadAll(std::function<void(Record*)> fn) {
@@ -43,9 +76,9 @@ void RingBuffer::ReadAll(std::function<void(Record*)> fn) {
   // trace events.
   is_reading_ = true;
 
-  uint64_t start = (write_idx_ - start_idx_) < kCapacity
+  uint64_t start = (write_idx_ - start_idx_) < data_.size()
                        ? start_idx_
-                       : write_idx_ - kCapacity;
+                       : write_idx_ - data_.size();
   uint64_t end = write_idx_;
 
   // Increment the write index by kCapacity + 1. This ensures that if
@@ -54,7 +87,7 @@ void RingBuffer::ReadAll(std::function<void(Record*)> fn) {
   // This works because of the logic in ~ScopedEntry and
   // RingBuffer::HasOverwritten which ensures that we don't overwrite entries
   // more than kCapcity elements in the past.
-  write_idx_ += kCapacity + 1;
+  write_idx_ += data_.size() + 1;
 
   for (uint64_t i = start; i < end; ++i) {
     Record* record = At(i);

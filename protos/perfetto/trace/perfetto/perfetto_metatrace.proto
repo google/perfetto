@@ -27,11 +27,19 @@ message PerfettoMetatrace {
 
     // For trace processor metatracing.
     string event_name = 8;
+    uint64 event_name_iid = 11;
+
     string counter_name = 9;
   }
   message Arg {
-    optional string key = 1;
-    optional string value = 2;
+    oneof key_or_interned_key {
+      string key = 1;
+      uint64 key_iid = 3;
+    }
+    oneof value_or_interned_value {
+      string value = 2;
+      uint64 value_iid = 4;
+    }
   }
 
   // Only when using |event_id|.
@@ -49,4 +57,12 @@ message PerfettoMetatrace {
 
   // Args for the event.
   repeated Arg args = 7;
+
+  // Interned strings corresponding to the |event_name_iid|, |key_iid| and
+  // |value_iid| above.
+  message InternedString {
+    optional uint64 iid = 1;
+    optional string value = 2;
+  };
+  repeated InternedString interned_strings = 10;
 }
