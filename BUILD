@@ -18,6 +18,7 @@ load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
 load(
     "@perfetto//bazel:rules.bzl",
     "perfetto_build_config_cc_library",
+    "perfetto_cc_amalgamated_sql",
     "perfetto_cc_binary",
     "perfetto_filegroup",
     "perfetto_genrule",
@@ -1215,8 +1216,9 @@ perfetto_cc_proto_descriptor(
     ],
 )
 
-perfetto_genrule(
-    name = "src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
+# GN target: //src/trace_processor/metrics/sql/android:android
+perfetto_filegroup(
+    name = "src_trace_processor_metrics_sql_android_android",
     srcs = [
         "src/trace_processor/metrics/sql/android/android_batt.sql",
         "src/trace_processor/metrics/sql/android/android_binder.sql",
@@ -1319,6 +1321,13 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/android/startup/system_state.sql",
         "src/trace_processor/metrics/sql/android/startup/thread_state_breakdown.sql",
         "src/trace_processor/metrics/sql/android/unsymbolized_frames.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/metrics/sql/chrome:chrome
+perfetto_filegroup(
+    name = "src_trace_processor_metrics_sql_chrome_chrome",
+    srcs = [
         "src/trace_processor/metrics/sql/chrome/actual_power_by_category.sql",
         "src/trace_processor/metrics/sql/chrome/actual_power_by_rail_mode.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_event_metadata.sql",
@@ -1365,23 +1374,61 @@ perfetto_genrule(
         "src/trace_processor/metrics/sql/chrome/touch_flow_event_queuing_delay.sql",
         "src/trace_processor/metrics/sql/chrome/touch_jank.sql",
         "src/trace_processor/metrics/sql/chrome/vsync_intervals.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/metrics/sql/common:common
+perfetto_filegroup(
+    name = "src_trace_processor_metrics_sql_common_common",
+    srcs = [
         "src/trace_processor/metrics/sql/common/parent_slice.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/metrics/sql/experimental:experimental
+perfetto_filegroup(
+    name = "src_trace_processor_metrics_sql_experimental_experimental",
+    srcs = [
         "src/trace_processor/metrics/sql/experimental/blink_gc_metric.sql",
         "src/trace_processor/metrics/sql/experimental/chrome_dropped_frames.sql",
         "src/trace_processor/metrics/sql/experimental/chrome_long_latency.sql",
         "src/trace_processor/metrics/sql/experimental/frame_times.sql",
         "src/trace_processor/metrics/sql/experimental/media_metric.sql",
         "src/trace_processor/metrics/sql/experimental/reported_by_page.sql",
-        "src/trace_processor/metrics/sql/trace_metadata.sql",
-        "src/trace_processor/metrics/sql/trace_stats.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/metrics/sql/webview:webview
+perfetto_filegroup(
+    name = "src_trace_processor_metrics_sql_webview_webview",
+    srcs = [
         "src/trace_processor/metrics/sql/webview/webview_power_usage.sql",
+    ],
+)
+
+perfetto_cc_amalgamated_sql(
+    name = "src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
+    deps = [
+        ":src_trace_processor_metrics_sql_android_android",
+        ":src_trace_processor_metrics_sql_chrome_chrome",
+        ":src_trace_processor_metrics_sql_common_common",
+        ":src_trace_processor_metrics_sql_experimental_experimental",
+        ":src_trace_processor_metrics_sql_misc_sql",
+        ":src_trace_processor_metrics_sql_webview_webview",
     ],
     outs = [
         "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h",
     ],
-    cmd = "$(location gen_amalgamated_sql_py) --type=METRICS --cpp_out=$@ $(SRCS)",
-    exec_tools = [
-        ":gen_amalgamated_sql_py",
+    root_dir = "src/trace_processor/metrics/sql",
+    namespace = "sql_metrics",
+)
+
+# GN target: //src/trace_processor/metrics/sql:misc_sql
+perfetto_filegroup(
+    name = "src_trace_processor_metrics_sql_misc_sql",
+    srcs = [
+        "src/trace_processor/metrics/sql/trace_metadata.sql",
+        "src/trace_processor/metrics/sql/trace_stats.sql",
     ],
 )
 
@@ -1492,18 +1539,33 @@ perfetto_filegroup(
     ],
 )
 
-perfetto_genrule(
-    name = "src_trace_processor_stdlib_gen_amalgamated_stdlib",
+# GN target: //src/trace_processor/stdlib/android:android
+perfetto_filegroup(
+    name = "src_trace_processor_stdlib_android_android",
     srcs = [
         "src/trace_processor/stdlib/android/binder.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/stdlib/experimental:experimental
+perfetto_filegroup(
+    name = "src_trace_processor_stdlib_experimental_experimental",
+    srcs = [
+        "src/trace_processor/stdlib/experimental/dummy.sql",
+    ],
+)
+
+perfetto_cc_amalgamated_sql(
+    name = "src_trace_processor_stdlib_gen_amalgamated_stdlib",
+    deps = [
+        ":src_trace_processor_stdlib_android_android",
+        ":src_trace_processor_stdlib_experimental_experimental",
     ],
     outs = [
         "src/trace_processor/stdlib/amalgamated_stdlib.h",
     ],
-    cmd = "$(location gen_amalgamated_sql_py) --type=LIB --cpp_out=$@ $(SRCS)",
-    exec_tools = [
-        ":gen_amalgamated_sql_py",
-    ],
+    root_dir = "src/trace_processor/stdlib",
+    namespace = "stdlib",
 )
 
 # GN target: //src/trace_processor/stdlib:stdlib
@@ -4359,14 +4421,12 @@ perfetto_cc_library(
                ":src_trace_processor_importers_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
+               ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
+               ":src_trace_processor_stdlib_gen_amalgamated_stdlib",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
-           PERFETTO_CONFIG.deps.zlib + [
-        ":cc_amalgamated_sql_metrics",
-    ] + [
-        ":cc_amalgamated_stdlib",
-    ] +
+           PERFETTO_CONFIG.deps.zlib +
            PERFETTO_CONFIG.deps.demangle_wrapper,
     linkstatic = True,
 )
@@ -4482,16 +4542,14 @@ perfetto_cc_binary(
                ":src_trace_processor_importers_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
+               ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
+               ":src_trace_processor_stdlib_gen_amalgamated_stdlib",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.linenoise +
            PERFETTO_CONFIG.deps.protobuf_full +
            PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
-           PERFETTO_CONFIG.deps.zlib + [
-        ":cc_amalgamated_sql_metrics",
-    ] + [
-        ":cc_amalgamated_stdlib",
-    ] +
+           PERFETTO_CONFIG.deps.zlib +
            PERFETTO_CONFIG.deps.demangle_wrapper,
 )
 
@@ -4669,15 +4727,13 @@ perfetto_cc_binary(
                ":src_trace_processor_importers_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
+               ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
+               ":src_trace_processor_stdlib_gen_amalgamated_stdlib",
                ":src_traceconv_gen_cc_trace_descriptor",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
-           PERFETTO_CONFIG.deps.zlib + [
-        ":cc_amalgamated_sql_metrics",
-    ] + [
-        ":cc_amalgamated_stdlib",
-    ] +
+           PERFETTO_CONFIG.deps.zlib +
            PERFETTO_CONFIG.deps.demangle_wrapper,
 )
 
@@ -4721,16 +4777,6 @@ perfetto_build_config_cc_library(
     name = "build_config_hdr",
     hdrs = [build_config_dir_ + "/perfetto_build_flags.h"],
     includes = [build_config_dir_],
-)
-
-perfetto_cc_library(
-    name = "cc_amalgamated_sql_metrics",
-    hdrs = ["src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"],
-)
-
-perfetto_cc_library(
-    name = "cc_amalgamated_stdlib",
-    hdrs = ["src/trace_processor/stdlib/amalgamated_stdlib.h"],
 )
 
 perfetto_py_binary(

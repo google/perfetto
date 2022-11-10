@@ -442,7 +442,7 @@ void SetupMetrics(TraceProcessor* tp,
   bool skip_all_sql = std::find(extension_paths.begin(), extension_paths.end(),
                                 "") != extension_paths.end();
   if (!skip_all_sql) {
-    for (const auto& file_to_sql : metrics::sql_metrics::kFileToSql) {
+    for (const auto& file_to_sql : sql_metrics::kFileToSql) {
       if (base::StartsWithAny(file_to_sql.path, sanitized_extension_paths))
         continue;
       tp->RegisterMetric(file_to_sql.path, file_to_sql.sql);
