@@ -15,5 +15,5 @@
 module.exports = {
   transform: {},
   testRegex: '_(unittest|jsdomtest)[.]js$',
-  testEnvironment: 'jsdom'
-}
+  testEnvironment: 'jsdom',
+};
