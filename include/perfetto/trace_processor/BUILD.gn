@@ -15,6 +15,7 @@
 source_set("trace_processor") {
   sources = [
     "iterator.h",
+    "metatrace_config.h",
     "read_trace.h",
     "ref_counted.h",
     "trace_processor.h",

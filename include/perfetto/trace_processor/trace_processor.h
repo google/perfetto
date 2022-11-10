@@ -24,6 +24,7 @@
 #include "perfetto/base/export.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
+#include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_processor_storage.h"
 
@@ -111,19 +112,8 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // Metatracing involves tracing trace processor itself to root-cause
   // performace issues in trace processor. See |DisableAndReadMetatrace| for
   // more information on the format of the metatrace.
-  enum MetatraceCategories {
-    TOPLEVEL = 1 << 0,
-    QUERY = 1 << 1,
-    FUNCTION = 1 << 2,
-
-    NONE = 0,
-    ALL = TOPLEVEL | QUERY | FUNCTION,
-  };
-  struct MetatraceConfig {
-    MetatraceConfig();
-
-    MetatraceCategories categories = MetatraceCategories::ALL;
-  };
+  using MetatraceConfig = metatrace::MetatraceConfig;
+  using MetatraceCategories = metatrace::MetatraceCategories;
   virtual void EnableMetatrace(MetatraceConfig config = {}) = 0;
 
   // Disables "meta-tracing" of trace processor and writes the trace as a
