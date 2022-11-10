@@ -1,12 +1,16 @@
-# Native heap profiler
+# Heap profiler
 
 NOTE: **heapprofd requires Android 10 or higher**
 
-Heapprofd is a tool that tracks native heap allocations & deallocations of an
-Android process within a given time period. The resulting profile can be used to
+Heapprofd is a tool that tracks heap allocations & deallocations of an Android
+process within a given time period. The resulting profile can be used to
 attribute memory usage to particular call-stacks, supporting a mix of both
 native and java code. The tool can be used by Android platform and app
 developers to investigate memory issues.
+
+By default, the tool records native allocations and deallocations done with
+malloc/free (or new/delete). It can be configured to record java heap memory
+allocations instead: see [Java heap sampling](#java-heap-sampling) below.
 
 On debug Android builds, you can profile all apps and most system services.
 On "user" builds, you can only use it on apps with the debuggable or
@@ -25,7 +29,7 @@ callstacks collected at that point in time.
 
 ![heapprofd snapshots in the UI tracks](/docs/images/profile-diamond.png)
 
-![heapprofd flamegraph](/docs/images/native-flamegraph.png)
+![heapprofd flamegraph](/docs/images/native-heap-prof.png)
 
 ## SQL
 
@@ -80,14 +84,14 @@ Windows.
 
 The resulting profile proto contains four views on the data
 
-* **Unreleased size**: how many bytes were allocated but not freed at this
-  callstack the moment the dump was created.
-* **Total size**: how many bytes were allocated (including ones freed at the
-  moment of the dump) at this callstack
-* **Unreleased count**: how many allocations without matching frees were done at
-  this callstack.
-* **Total count**: how many allocations (including ones with matching frees)
-  were done at this callstack.
+* **Unreleased malloc size**: how many bytes were allocated but not freed at
+  this callstack the moment the dump was created.
+* **Total malloc size**: how many bytes were allocated (including ones freed at
+  the moment of the dump) at this callstack.
+* **Unreleased malloc count**: how many allocations without matching frees were
+  done at this callstack.
+* **Total malloc count**: how many allocations (including ones with matching
+  frees) were done at this callstack.
 
 _(Googlers: You can also open the gzipped protos using http://pprof/)_
 
@@ -216,6 +220,41 @@ the `<application>` section of the app manifest.
     </application>
 </manifest>
 ```
+
+## {#java-heap-sampling} Java heap sampling
+
+NOTE: **Java heap sampling is available on Android 12 or higher**
+
+NOTE: **Java heap sampling is not to be confused with [Java heap
+dumps](/docs/data-sources/java-heap-profiler.md)**
+
+Heapprofd can be configured to track Java allocations instead of native one.
+* By setting adding `heaps: "com.android.art"` in
+  [HeapprofdConfig](/docs/reference/trace-config-proto.autogen#HeapprofdConfig).
+* By adding `--heaps com.android.art` to the invocation of
+  [`tools/heap_profile`](/docs/reference/heap_profile-cli).
+
+Unlike java heap dumps (which show the retention graph of a snapshot of the live
+objects) but like native heap profiles, java heap samples show callstacks of
+allocations over time of the entire profile.
+
+Java heap samples only show callstacks of when objects are created, not when
+they're deleted or garbage collected.
+
+![javaheapsamples](/docs/images/java-heap-samples.png)
+
+The resulting profile proto contains two views on the data:
+
+* **Total allocation size**: how many bytes were allocated at this callstack
+  over time of the profile until this point. The bytes might have been freed or
+  not, the tool does not keep track of that.
+* **Total allocation count**: how many object were allocated at this callstack
+  over time of the profile until this point. The objects might have been freed
+  or not, the tool does not keep track of that.
+
+Java heap samples are useful to understand memory churn showing the call stack
+of which parts of the code large allocations are attributed to as well as the
+allocation type from the ART runtime.
 
 ## DEDUPED frames
 

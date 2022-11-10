@@ -307,7 +307,7 @@ to be killed) when it is opened, and gets increased again once it is closed.
 **Native Heap Profiles require Android 10.**
 
 NOTE: For detailed instructions about the native heap profiler and
-      troubleshooting see the [Data sources > Native heap profiler](
+      troubleshooting see the [Data sources > Heap profiler](
       /docs/data-sources/native-heap-profiler.md) page.
 
 Applications usually get memory through `malloc` or C++'s `new` rather than
@@ -353,42 +353,40 @@ shows.
 
 The tabs that are available are
 
-* **Unreleased size**: how many bytes were allocated but not freed at this
-  callstack the moment the dump was created.
-* **Total size**: how many bytes were allocated (including ones freed at the
-  moment of the dump) at this callstack
-* **Unreleased count**: how many allocations without matching frees were done at
-  this callstack.
-* **Total count**: how many allocations (including ones with matching frees)
-  were done at this callstack.
+* **Unreleased malloc size**: how many bytes were allocated but not freed at
+  this callstack the moment the dump was created.
+* **Total malloc size**: how many bytes were allocated (including ones freed at
+  the moment of the dump) at this callstack.
+* **Unreleased malloc count**: how many allocations without matching frees were
+  done at this callstack.
+* **Total malloc count**: how many allocations (including ones with matching
+  frees) were done at this callstack.
 
 The default view will show you all allocations that were done while the
 profile was running but that weren't freed (the **space** tab).
 
-![Native Flamegraph](/docs/images/syssrv-apk-assets-two.png)
+![Native Flamegraph](/docs/images/native-heap-prof.png)
 
 We can see that a lot of memory gets allocated in paths through
-`ResourceManager.loadApkAssets`. To get the total memory that was allocated
-this way, we can enter "loadApkAssets" into the Focus textbox. This will only
-show callstacks where some frame matches "loadApkAssets".
+`AssetManager.applyStyle`. To get the total memory that was allocated
+this way, we can enter "applyStyle" into the Focus textbox. This will only
+show callstacks where some frame matches "applyStyle".
 
-![Native Flamegraph with Focus](/docs/images/syssrv-apk-assets-focus.png)
+![Native Flamegraph with Focus](/docs/images/native-heap-prof-focus.png)
 
 From this we have a clear idea where in the code we have to look. From the
 code we can see how that memory is being used and if we actually need all of
-it. In this case the key is the `_CompressedAsset` that requires decompressing
-into RAM rather than being able to (_cleanly_) memory-map. By not compressing
-these data, we can save RAM.
+it.
 
 ## {#java-hprof} Analyzing the Java Heap
 
 **Java Heap Dumps require Android 11.**
 
-NOTE: For detailed instructions about the Java heap profiler and
-      troubleshooting see the [Data sources > Java heap profiler](
+NOTE: For detailed instructions about capturing Java heap dumps and
+      troubleshooting see the [Data sources > Java heap dumps](
       /docs/data-sources/java-heap-profiler.md) page.
 
-### {#capture-profile-java} Capturing the profile
+### {#capture-profile-java} Dumping the java heap
 We can get a snapshot of the graph of all the Java objects that constitute the
 Java heap. We use the `tools/java_heap_dump` script. If you are having trouble
 make sure you are using the [latest version](
@@ -415,12 +413,12 @@ we only show the shortest as that reduces the complexity of the data displayed
 and is generally the highest-signal. The rightmost `[merged]` stacks is the
 sum of all objects that are too small to be displayed.
 
-![Java Flamegraph](/docs/images/java-flamegraph.png)
+![Java Flamegraph](/docs/images/java-heap-graph.png)
 
 The tabs that are available are
 
-* **space**: how many bytes are retained via this path to the GC root.
-* **objects**: how many objects are retained via this path to the GC root.
+* **Size**: how many bytes are retained via this path to the GC root.
+* **Objects**: how many objects are retained via this path to the GC root.
 
 If we want to only see callstacks that have a frame that contains some string,
 we can use the Focus feature. If we want to know all allocations that have to
@@ -430,7 +428,7 @@ As with native heap profiles, if we want to focus on some specific aspect of the
 graph, we can filter by the names of the classes. If we wanted to see everything
 that could be caused by notifications, we can put "notification" in the Focus box.
 
-![Java Flamegraph with Focus](/docs/images/java-flamegraph-focus.png)
+![Java Flamegraph with Focus](/docs/images/java-heap-graph-focus.png)
 
 We aggregate the paths per class name, so if there are multiple objects of the
 same type retained by a `java.lang.Object[]`, we will show one element as its
