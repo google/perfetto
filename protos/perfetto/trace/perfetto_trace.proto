@@ -9144,6 +9144,9 @@ message ChromeMojoEventInfo {
   // trace requires storing them in the binary, which causes a significant
   // binary size bloat for Chromium.
   optional uint64 mojo_interface_method_iid = 4;
+
+  // Indicate whether this is a message or reply.
+  optional bool is_reply = 5;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_mojo_event_info.proto
