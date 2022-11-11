@@ -62,4 +62,4 @@ module.exports = class IntegrationtestEnvironment extends NodeEnvironment {
   runScript(script) {
     return super.runScript(script);
   }
-}
+};

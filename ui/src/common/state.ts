@@ -92,7 +92,8 @@ export const MAX_TIME = 180;
 // 20: Refactored thread sorting order.
 // 21: Updated perf sample selection to include a ts range instead of single ts
 // 22: Add log selection kind.
-export const STATE_VERSION = 22;
+// 23: Add log filtering criteria for Android log entries.
+export const STATE_VERSION = 23;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -160,7 +161,7 @@ export type UtidToTrackSortKey = {
 export enum ProfileType {
   HEAP_PROFILE = 'heap_profile',
   NATIVE_HEAP_PROFILE = 'heap_profile:libc.malloc',
-  JAVA_HEAP_PROFILE = 'heap_profile:com.android.art',
+  JAVA_HEAP_SAMPLES = 'heap_profile:com.android.art',
   JAVA_HEAP_GRAPH = 'graph',
   PERF_SAMPLE = 'perf',
 }
@@ -480,6 +481,10 @@ export interface NonSerializableState {
   pivotTableRedux: PivotTableReduxState;
 }
 
+export interface LogFilteringCriteria {
+  minimumLevel: number;
+}
+
 export interface State {
   version: number;
   currentEngineId?: string;
@@ -574,6 +579,9 @@ export interface State {
   // using permalink. Can be used to store those parts of the state that can't
   // be serialized at the moment, such as ES6 Set and Map.
   nonSerializableState: NonSerializableState;
+
+  // Android logs filtering state.
+  logFilteringCriteria: LogFilteringCriteria;
 }
 
 export const defaultTraceTime = {

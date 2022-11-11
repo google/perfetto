@@ -591,6 +591,7 @@ perfetto_filegroup(
     name = "include_perfetto_trace_processor_trace_processor",
     srcs = [
         "include/perfetto/trace_processor/iterator.h",
+        "include/perfetto/trace_processor/metatrace_config.h",
         "include/perfetto/trace_processor/read_trace.h",
         "include/perfetto/trace_processor/ref_counted.h",
         "include/perfetto/trace_processor/trace_processor.h",
@@ -1324,9 +1325,9 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/metrics/sql/chrome:chrome
+# GN target: //src/trace_processor/metrics/sql/chrome:chrome_sql
 perfetto_filegroup(
-    name = "src_trace_processor_metrics_sql_chrome_chrome",
+    name = "src_trace_processor_metrics_sql_chrome_chrome_sql",
     srcs = [
         "src/trace_processor/metrics/sql/chrome/actual_power_by_category.sql",
         "src/trace_processor/metrics/sql/chrome/actual_power_by_rail_mode.sql",
@@ -1410,7 +1411,7 @@ perfetto_cc_amalgamated_sql(
     name = "src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
     deps = [
         ":src_trace_processor_metrics_sql_android_android",
-        ":src_trace_processor_metrics_sql_chrome_chrome",
+        ":src_trace_processor_metrics_sql_chrome_chrome_sql",
         ":src_trace_processor_metrics_sql_common_common",
         ":src_trace_processor_metrics_sql_experimental_experimental",
         ":src_trace_processor_metrics_sql_misc_sql",

@@ -147,6 +147,10 @@ const ENABLE_CHROME_RELIABLE_RANGE_ANNOTATION_FLAG = featureFlags.register({
   defaultValue: false,
 });
 
+// A local storage key where the indication that JSON warning has been shown is
+// stored.
+const SHOWN_JSON_WARNING_KEY = 'shownJsonWarning';
+
 function showJsonWarning() {
   showModal({
     title: 'Warning',
@@ -162,7 +166,7 @@ function showJsonWarning() {
           m('br')),
     buttons: [],
   });
-};
+}
 
 // TraceController handles handshakes with the frontend for everything that
 // concerns a single trace. It owns the WASM trace processor engine, handles
@@ -405,7 +409,10 @@ export class TraceController extends Controller<States> {
       endSec,
     };
 
-    {
+    const shownJsonWarning =
+        window.localStorage.getItem(SHOWN_JSON_WARNING_KEY) !== null;
+
+    if (!shownJsonWarning) {
       // Show warning if the trace is in JSON format.
       const query = `select str_value from metadata where name = 'trace_type'`;
       const result = await assertExists(this.engine).query(query);
@@ -414,8 +421,11 @@ export class TraceController extends Controller<States> {
       // it passes to Perfetto, so we don't need to show this warning.
       if (traceType.str_value == 'json' && !frontendGlobals.embeddedMode) {
         showJsonWarning();
+        // Save that the warning has been shown. Value is irrelevant since only
+        // the presence of key is going to be checked.
+        window.localStorage.setItem(SHOWN_JSON_WARNING_KEY, 'true');
       }
-    };
+    }
 
     const emptyOmniboxState = {
       omnibox: '',

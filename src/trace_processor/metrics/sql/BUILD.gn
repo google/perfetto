@@ -28,7 +28,7 @@ perfetto_amalgamated_sql_header("gen_amalgamated_sql_metrics") {
   deps = [
     ":misc_sql",
     "android",
-    "chrome",
+    "chrome:chrome_sql",
     "common",
     "experimental",
     "webview",

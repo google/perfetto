@@ -18,4 +18,4 @@ module.exports = {
   globalSetup: __dirname + '/integrationtest_setup.js',
   globalTeardown: __dirname + '/integrationtest_teardown.js',
   testEnvironment: __dirname + '/integrationtest_env.js',
-}
+};

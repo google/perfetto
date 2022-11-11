@@ -21,23 +21,25 @@ import {
   LogExistsKey,
 } from '../common/logs';
 import {NUM, STR} from '../common/query_result';
+import {LogFilteringCriteria} from '../common/state';
 import {fromNs, TimeSpan, toNsCeil, toNsFloor} from '../common/time';
 import {publishTrackData} from '../frontend/publish';
 
 import {Controller} from './controller';
-import {App} from './globals';
+import {App, globals} from './globals';
 
 async function updateLogBounds(
     engine: Engine, span: TimeSpan): Promise<LogBounds> {
   const vizStartNs = toNsFloor(span.start);
   const vizEndNs = toNsCeil(span.end);
 
-  const countResult = await engine.query(`
-     select
+  const countResult = await engine.query(`select
       ifnull(min(ts), 0) as minTs,
       ifnull(max(ts), 0) as maxTs,
       count(ts) as countTs
-     from android_logs where ts >= ${vizStartNs} and ts <= ${vizEndNs}`);
+     from filtered_logs
+        where ts >= ${vizStartNs}
+        and ts <= ${vizEndNs}`);
 
   const countRow = countResult.firstRow({minTs: NUM, maxTs: NUM, countTs: NUM});
 
@@ -46,12 +48,12 @@ async function updateLogBounds(
   const total = countRow.countTs;
 
   const minResult = await engine.query(`
-     select ifnull(max(ts), 0) as maxTs from android_logs where ts < ${
+     select ifnull(max(ts), 0) as maxTs from filtered_logs where ts < ${
       vizStartNs}`);
   const startNs = minResult.firstRow({maxTs: NUM}).maxTs;
 
   const maxResult = await engine.query(`
-     select ifnull(min(ts), 0) as minTs from android_logs where ts > ${
+     select ifnull(min(ts), 0) as minTs from filtered_logs where ts > ${
       vizEndNs}`);
   const endNs = maxResult.firstRow({minTs: NUM}).minTs;
 
@@ -81,7 +83,7 @@ async function updateLogEntries(
           prio,
           ifnull(tag, '[NULL]') as tag,
           ifnull(msg, '[NULL]') as msg
-        from android_logs
+        from filtered_logs
         where ${vizSqlBounds}
         order by ts
         limit ${pagination.start}, ${pagination.count}
@@ -147,12 +149,15 @@ export interface LogsControllerArgs {
 }
 
 /**
- * LogsController looks at two parts of the state:
+ * LogsController looks at three parts of the state:
  * 1. The visible trace window
  * 2. The requested offset and count the log lines to display
+ * 3. The log filtering criteria.
  * And keeps two bits of published information up to date:
  * 1. The total number of log messages in visible range
  * 2. The logs lines that should be displayed
+ * Based on the log filtering criteria, it also builds the filtered_logs view
+ * and keeps it up to date.
  */
 export class LogsController extends Controller<'main'> {
   private app: App;
@@ -160,6 +165,9 @@ export class LogsController extends Controller<'main'> {
   private span: TimeSpan;
   private pagination: Pagination;
   private hasLogs = false;
+  private logFilteringCriteria?: LogFilteringCriteria;
+  private requestingData = false;
+  private queuedRunRequest = false;
 
   constructor(args: LogsControllerArgs) {
     super('main');
@@ -187,7 +195,21 @@ export class LogsController extends Controller<'main'> {
 
   run() {
     if (!this.hasLogs) return;
+    if (this.requestingData) {
+      this.queuedRunRequest = true;
+      return;
+    }
+    this.requestingData = true;
+    this.updateLogTracks().finally(() => {
+      this.requestingData = false;
+      if (this.queuedRunRequest) {
+        this.queuedRunRequest = false;
+        this.run();
+      }
+    });
+  }
 
+  private async updateLogTracks() {
     const traceTime = this.app.state.frontendLocalState.visibleState;
     const newSpan = new TimeSpan(traceTime.startSec, traceTime.endSec);
     const oldSpan = this.span;
@@ -204,36 +226,37 @@ export class LogsController extends Controller<'main'> {
     const requestedPagination = new Pagination(offset, count);
     const oldPagination = this.pagination;
 
-    const needSpanUpdate = !oldSpan.equals(newSpan);
-    const needPaginationUpdate = !oldPagination.contains(requestedPagination);
+    const newFilteringCriteria =
+        this.logFilteringCriteria !== globals.state.logFilteringCriteria;
+    const needBoundsUpdate = !oldSpan.equals(newSpan) || newFilteringCriteria;
+    const needEntriesUpdate =
+        !oldPagination.contains(requestedPagination) || needBoundsUpdate;
 
-    // TODO(hjd): We could waste a lot of time queueing useless updates here.
-    // We should avoid enqueuing a request when one is in progress.
-    if (needSpanUpdate) {
+    if (newFilteringCriteria) {
+      this.logFilteringCriteria = globals.state.logFilteringCriteria;
+      await this.engine.query('drop view if exists filtered_logs');
+      await this.engine.query(`create view filtered_logs as
+          select * from android_logs
+          where prio >= ${this.logFilteringCriteria.minimumLevel}`);
+    }
+
+    if (needBoundsUpdate) {
       this.span = newSpan;
-      updateLogBounds(this.engine, newSpan).then((data) => {
-        if (!newSpan.equals(this.span)) return;
-        publishTrackData({
-          id: LogBoundsKey,
-          data,
-        });
+      const logBounds = await updateLogBounds(this.engine, newSpan);
+      publishTrackData({
+        id: LogBoundsKey,
+        data: logBounds,
       });
     }
 
-    // TODO(hjd): We could waste a lot of time queueing useless updates here.
-    // We should avoid enqueuing a request when one is in progress.
-    if (needSpanUpdate || needPaginationUpdate) {
+    if (needEntriesUpdate) {
       this.pagination = requestedPagination.grow(100);
-
-      updateLogEntries(this.engine, newSpan, this.pagination).then((data) => {
-        if (!this.pagination.contains(requestedPagination)) return;
-        publishTrackData({
-          id: LogEntriesKey,
-          data,
-        });
+      const logEntries =
+          await updateLogEntries(this.engine, newSpan, this.pagination);
+      publishTrackData({
+        id: LogEntriesKey,
+        data: logEntries,
       });
     }
-
-    return [];
   }
 }
