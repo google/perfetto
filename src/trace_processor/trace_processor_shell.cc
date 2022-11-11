@@ -1353,7 +1353,7 @@ base::Status MaybeWriteMetatrace(const std::string& metatrace_path) {
   if (!status.ok())
     return status;
 
-  auto file = base::OpenFile(metatrace_path, O_CREAT | O_RDWR | O_TRUNC);
+  auto file = base::OpenFile(metatrace_path, O_CREAT | O_RDWR | O_TRUNC, 0600);
   if (!file)
     return base::ErrStatus("Unable to open metatrace file");
 
@@ -1462,9 +1462,18 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
   if (options.enable_httpd) {
 #if PERFETTO_HAS_SIGNAL_H()
-    // Restore the default signal handler to allow the user to terminate
-    // httpd server via Ctrl-C.
-    signal(SIGINT, SIG_DFL);
+    if (options.metatrace_path.empty()) {
+      // Restore the default signal handler to allow the user to terminate
+      // httpd server via Ctrl-C.
+      signal(SIGINT, SIG_DFL);
+    } else {
+      // Write metatrace to file before exiting.
+      static std::string* metatrace_path = &options.metatrace_path;
+      signal(SIGINT, [](int) {
+        MaybeWriteMetatrace(*metatrace_path);
+        exit(1);
+      });
+    }
 #endif
 
     RunHttpRPCServer(std::move(tp), options.port_number);
