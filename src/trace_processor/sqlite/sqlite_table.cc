@@ -71,6 +71,8 @@ std::string OpToDebugString(int op) {
       return "limit";
     case SQLITE_INDEX_CONSTRAINT_OFFSET:
       return "offset";
+    case SqliteTable::CustomFilterOpcode::kSourceGeqOpCode:
+      return "source_geq";
     default:
       PERFETTO_FATAL("Operator to string conversion not impemented for %d", op);
   }

@@ -70,8 +70,6 @@ namespace trace_processor {
 // are passed through unchanged.
 class SpanJoinOperatorTable : public SqliteTable {
  public:
-  static constexpr int kSourceGeqOpCode = SQLITE_INDEX_CONSTRAINT_FUNCTION + 1;
-
   // Enum indicating whether the queries on the two inner tables should
   // emit shadows.
   enum class EmitShadowType {
