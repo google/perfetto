@@ -15,5 +15,5 @@
 import("../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("experimental") {
-  sources = [ "dummy.sql" ]
+  sources = [ "android_broadcast.sql" ]
 }
