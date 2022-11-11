@@ -3620,6 +3620,28 @@ message ClkSetRateFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/clk.proto
 
+// Begin of protos/perfetto/trace/ftrace/cma.proto
+
+message CmaAllocStartFtraceEvent {
+  optional uint32 align = 1;
+  optional uint32 count = 2;
+  optional string name = 3;
+}
+message CmaAllocInfoFtraceEvent {
+  optional uint32 align = 1;
+  optional uint32 count = 2;
+  optional uint32 err_iso = 3;
+  optional uint32 err_mig = 4;
+  optional uint32 err_test = 5;
+  optional string name = 6;
+  optional uint64 nr_mapped = 7;
+  optional uint64 nr_migrated = 8;
+  optional uint64 nr_reclaimed = 9;
+  optional uint64 pfn = 10;
+}
+
+// End of protos/perfetto/trace/ftrace/cma.proto
+
 // Begin of protos/perfetto/trace/ftrace/compaction.proto
 
 message MmCompactionBeginFtraceEvent {
@@ -6542,6 +6564,9 @@ message FtraceEvent {
     DmaFenceSignaledFtraceEvent dma_fence_signaled = 416;
     DmaFenceWaitStartFtraceEvent dma_fence_wait_start = 417;
     DmaFenceWaitEndFtraceEvent dma_fence_wait_end = 418;
+    // Reserved: 419-464.
+    CmaAllocStartFtraceEvent cma_alloc_start = 465;
+    CmaAllocInfoFtraceEvent cma_alloc_info = 466;
   }
 }
 

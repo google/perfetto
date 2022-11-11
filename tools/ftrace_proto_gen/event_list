@@ -413,3 +413,5 @@ dma_fence/dma_fence_emit
 dma_fence/dma_fence_signaled
 dma_fence/dma_fence_wait_start
 dma_fence/dma_fence_wait_end
+cma/cma_alloc_start
+cma/cma_alloc_info
