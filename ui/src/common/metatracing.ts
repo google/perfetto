@@ -97,8 +97,10 @@ export type TraceEventScope = {
   startNs: number, eventName: string;
 };
 
+const correctedTimeOrigin = new Date().getTime() - performance.now();
+
 function now(): number {
-  return toNs((performance.timeOrigin + performance.now()) / 1000);
+  return toNs((correctedTimeOrigin + performance.now()) / 1000);
 }
 
 export function traceEventBegin(eventName: string): TraceEventScope {
