@@ -72,6 +72,13 @@ after the profiling session is started.
 For the full arguments list see the
 [heap_profile cmdline reference page](/docs/reference/heap_profile-cli).
 
+You can use the [Perfetto UI](https://ui.perfetto.dev) to visualize heap dumps.
+Upload the `raw-trace` file in your output directory. You will see all heap
+dumps as diamonds on the timeline, click any of them to get a flamegraph.
+
+Alternatively [Speedscope](https://speedscope.app) can be used to visualize
+the gzipped protos, but will only show the "Unreleased malloc size" view.
+
 #### Using the Recording page of Perfetto UI
 
 You can also use the [Perfetto UI](https://ui.perfetto.dev/#!/record/memory)
@@ -82,29 +89,55 @@ Windows.
 
 ## Viewing the data
 
-The resulting profile proto contains four views on the data
+![Profile Diamond](/docs/images/profile-diamond.png)
+
+The resulting profile proto contains four views on the data, for each diamond.
 
 * **Unreleased malloc size**: how many bytes were allocated but not freed at
-  this callstack the moment the dump was created.
+  this callstack, from the moment the recording was started until the timestamp
+  of the diamond.
 * **Total malloc size**: how many bytes were allocated (including ones freed at
-  the moment of the dump) at this callstack.
+  the moment of the dump) at this callstack, from the moment the recording was
+  started until the timestamp of the diamond.
 * **Unreleased malloc count**: how many allocations without matching frees were
-  done at this callstack.
+  done at this callstack, from the moment the recording was started until the
+  timestamp of the diamond.
 * **Total malloc count**: how many allocations (including ones with matching
-  frees) were done at this callstack.
+  frees) were done at this callstack, from the moment the recording was started
+  started until the timestamp of the diamond.
 
 _(Googlers: You can also open the gzipped protos using http://pprof/)_
 
 TIP: you might want to put `libart.so` as a "Hide regex" when profiling apps.
 
-You can use the [Perfetto UI](https://ui.perfetto.dev) to visualize heap dumps.
-Upload the `raw-trace` file in your output directory. You will see all heap
-dumps as diamonds on the timeline, click any of them to get a flamegraph.
-
-Alternatively [Speedscope](https://speedscope.app) can be used to visualize
-the gzipped protos, but will only show the space view.
-
 TIP: Click Left Heavy on the top left for a good visualization.
+
+## Continuous dumps
+
+By default, the heap profiler captures all the allocations from the beginning of
+the recording and stores a single snapshot, shown as a single diamond in the UI,
+which summarizes all allocations/frees.
+
+It is possible to configure the heap profiler to periodically (not just at the
+end of the trace) store snapshots (continuous dumps), for example every 5000ms
+
+* By setting "Continuous dumps interval" in the UI to 5000.
+* By adding
+  ```
+  continuous_dump_config {
+    dump_interval_ms: 5000
+  }
+  ```
+  in the
+  [HeapprofdConfig](/docs/reference/trace-config-proto.autogen#HeapprofdConfig).
+* By adding `-c 5000` to the invocation of
+  [`tools/heap_profile`](/docs/reference/heap_profile-cli).
+
+![Continuous dump flamegraph](/docs/images/heap_prof_continuous.png)
+
+The resulting visualization shows multiple diamonds. Clicking on each diamond
+shows a summary of the allocations/frees from the beginning of the trace until
+that point (i.e. the summary is cumulative).
 
 ## Sampling interval
 
@@ -228,7 +261,7 @@ NOTE: **Java heap sampling is available on Android 12 or higher**
 NOTE: **Java heap sampling is not to be confused with [Java heap
 dumps](/docs/data-sources/java-heap-profiler.md)**
 
-Heapprofd can be configured to track Java allocations instead of native one.
+Heapprofd can be configured to track Java allocations instead of native ones.
 * By setting adding `heaps: "com.android.art"` in
   [HeapprofdConfig](/docs/reference/trace-config-proto.autogen#HeapprofdConfig).
 * By adding `--heaps com.android.art` to the invocation of
@@ -575,7 +608,7 @@ We can get the callstacks that allocated using an SQL Query in the
 Trace Processor. For each frame, we get one row for the number of allocated
 bytes, where `count` and `size` is positive, and, if any of them were already
 freed, another line with negative `count` and `size`. The sum of those gets us
-the `space` view.
+the `Unreleased malloc size` view.
 
 ```sql
 select a.callsite_id, a.ts, a.upid, f.name, f.rel_pc, m.build_id, m.name as mapping_name,
