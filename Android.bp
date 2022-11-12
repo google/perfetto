@@ -9562,7 +9562,7 @@ genrule {
     name: "perfetto_src_trace_processor_stdlib_gen_amalgamated_stdlib",
     srcs: [
         "src/trace_processor/stdlib/android/binder.sql",
-        "src/trace_processor/stdlib/experimental/dummy.sql",
+        "src/trace_processor/stdlib/experimental/android_broadcast.sql",
     ],
     cmd: "$(location tools/gen_amalgamated_sql.py) --namespace=stdlib --root-dir=src/trace_processor/stdlib --cpp-out=$(out) $(in)",
     out: [

@@ -1,5 +1,7 @@
 * [Overview](README.md)
 
+* [Tracing 101](tracing-101.md)
+
 * [Quickstart](#)
   * [Record traces on Android](quickstart/android-tracing.md)
   * [Record traces on Linux](quickstart/linux-tracing.md)
