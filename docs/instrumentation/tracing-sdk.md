@@ -52,6 +52,21 @@ add_library(perfetto STATIC perfetto/sdk/perfetto.cc)
 # Link the library to your main executable.
 add_executable(example example.cc)
 target_link_libraries(example perfetto ${CMAKE_THREAD_LIBS_INIT})
+
+if (WIN32)
+  # The perfetto library contains many symbols, so it needs the big object
+  # format.
+  target_compile_options(perfetto PRIVATE "/bigobj")
+  # Disable legacy features in windows.h.
+  add_definitions(-DWIN32_LEAN_AND_MEAN -DNOMINMAX)
+  # On Windows we should link to WinSock2.
+  target_link_libraries(example ws2_32)
+endif (WIN32)
+
+# Enable standards-compliant mode when using the Visual Studio compiler.
+if (MSVC)
+  target_compile_options(example PRIVATE "/permissive-")
+endif (MSVC)
 ```
 
 Next, initialize Perfetto in your program:
