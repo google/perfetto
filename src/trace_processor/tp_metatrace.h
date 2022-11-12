@@ -66,6 +66,17 @@ struct Record {
 
   // Adds an arg to the record.
   void AddArg(base::StringView key, base::StringView value) {
+#if PERFETTO_DCHECK_IS_ON()
+    // |key| and |value| should not contain any '\0' characters as it
+    // messes with the |args_buffer| which uses '\0' to deliniate different
+    // arguments.
+    for (char c : key) {
+      PERFETTO_DCHECK(c != '\0');
+    }
+    for (char c : value) {
+      PERFETTO_DCHECK(c != '\0');
+    }
+#endif
     size_t new_buffer_size = args_buffer_size + key.size() + value.size() + 2;
     args_buffer = static_cast<char*>(realloc(args_buffer, new_buffer_size));
 
