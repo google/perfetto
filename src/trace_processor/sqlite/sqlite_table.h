@@ -45,6 +45,13 @@ class SqliteTable : public sqlite3_vtab {
   using Factory =
       std::function<std::unique_ptr<SqliteTable>(sqlite3*, Context)>;
 
+  // Custom opcodes used by subclasses of SqliteTable.
+  // Stored here as we need a central repository of opcodes to prevent clashes
+  // between different sub-classes.
+  enum CustomFilterOpcode {
+    kSourceGeqOpCode = SQLITE_INDEX_CONSTRAINT_FUNCTION + 1,
+  };
+
   // Describes a column of this table.
   class Column {
    public:
