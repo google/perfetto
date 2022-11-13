@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 
+#include "include/perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/sqlite/query_cache.h"
@@ -98,6 +99,31 @@ BitVector ColsUsedBitVector(uint64_t sqlite_cols_used, size_t col_count) {
         return sqlite_cols_used & (1ull << std::min(idx, 63u));
       });
 }
+
+class SafeStringWriter {
+ public:
+  SafeStringWriter() {}
+  ~SafeStringWriter() {}
+
+  void AppendString(const char* s) {
+    for (const char* c = s; *c; ++c) {
+      buffer_.emplace_back(*c);
+    }
+  }
+
+  void AppendString(const std::string& s) {
+    for (char c : s) {
+      buffer_.emplace_back(c);
+    }
+  }
+
+  base::StringView GetStringView() const {
+    return base::StringView(buffer_.data(), buffer_.size());
+  }
+
+ private:
+  base::SmallVector<char, 2048> buffer_;
+};
 
 }  // namespace
 
@@ -498,12 +524,12 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
       metatrace::Category::QUERY, "DB_TABLE_FILTER_AND_SORT",
       [this](metatrace::Record* r) {
         const Table* source = SourceTable();
-        char buffer[2048];
+        r->AddArg("Table", db_sqlite_table_->name());
         for (const Constraint& c : constraints_) {
-          base::StringWriter writer(buffer, sizeof(buffer));
+          SafeStringWriter writer;
           writer.AppendString(source->GetColumn(c.col_idx).name());
 
-          writer.AppendChar(' ');
+          writer.AppendString(" ");
           switch (c.op) {
             case FilterOp::kEq:
               writer.AppendString("=");
@@ -533,7 +559,7 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
               writer.AppendString("GLOB");
               break;
           }
-          writer.AppendChar(' ');
+          writer.AppendString(" ");
 
           switch (c.value.type) {
             case SqlValue::kString:
@@ -546,20 +572,19 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
               writer.AppendString("<null>");
               break;
             case SqlValue::kDouble: {
-              writer.AppendDouble(c.value.AsDouble());
+              writer.AppendString(std::to_string(c.value.AsDouble()));
               break;
             }
             case SqlValue::kLong: {
-              writer.AppendInt(c.value.AsLong());
+              writer.AppendString(std::to_string(c.value.AsLong()));
               break;
             }
           }
-          r->AddArg("Table", db_sqlite_table_->name());
           r->AddArg("Constraint", writer.GetStringView());
         }
 
         for (const auto& o : orders_) {
-          base::StringWriter writer(buffer, sizeof(buffer));
+          SafeStringWriter writer;
           writer.AppendString(source->GetColumn(o.col_idx).name());
           if (o.desc)
             writer.AppendString(" desc");
