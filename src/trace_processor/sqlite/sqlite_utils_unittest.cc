@@ -66,6 +66,12 @@ TEST_F(GetColumnsForTableTest, UnknownType) {
   ASSERT_FALSE(status.ok());
 }
 
+TEST_F(GetColumnsForTableTest, UnknownTableName) {
+  std::vector<SqliteTable::Column> columns;
+  auto status = sqlite_utils::GetColumnsForTable(*db_, "unknowntable", columns);
+  ASSERT_FALSE(status.ok());
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
