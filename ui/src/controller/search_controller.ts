@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {sqliteString} from '../base/string_utils';
-import {TRACE_MARGIN_TIME_S} from '../common/constants';
 import {Engine} from '../common/engine';
 import {NUM, STR} from '../common/query_result';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
@@ -89,9 +88,14 @@ export class SearchController extends Controller<'main'> {
         newSearch === this.previousSearch) {
       return;
     }
-    this.previousSpan = new TimeSpan(
-        Math.max(newSpan.start - newSpan.duration, -TRACE_MARGIN_TIME_S),
-        newSpan.end + newSpan.duration);
+
+
+    // TODO(hjd): We should restrict this to the start of the trace but
+    // that is not easily available here.
+    // N.B. Timestamps can be negative.
+    const start = newSpan.start - newSpan.duration;
+    const end = newSpan.end + newSpan.duration;
+    this.previousSpan = new TimeSpan(start, end);
     this.previousResolution = newResolution;
     this.previousSearch = newSearch;
     if (newSearch === '' || newSearch.length < 4) {
