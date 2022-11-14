@@ -90,6 +90,16 @@ base::Status GetColumnsForTable(sqlite3* db,
     }
     columns.emplace_back(columns.size(), name, type);
   }
+
+  // Catch mis-spelt table names.
+  //
+  // A SELECT on pragma_table_info() returns no rows if the
+  // table that was queried is not present.
+  if (columns.empty()) {
+    return base::ErrStatus("Unknown table or view name '%s'",
+                           raw_table_name.c_str());
+  }
+
   return base::OkStatus();
 }
 }  // namespace sqlite_utils
