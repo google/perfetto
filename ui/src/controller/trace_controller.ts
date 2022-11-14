@@ -412,14 +412,15 @@ export class TraceController extends Controller<States> {
     const shownJsonWarning =
         window.localStorage.getItem(SHOWN_JSON_WARNING_KEY) !== null;
 
+    // Show warning if the trace is in JSON format.
+    const query = `select str_value from metadata where name = 'trace_type'`;
+    const result = await assertExists(this.engine).query(query);
+    const traceType = result.firstRow({str_value: STR}).str_value;
+    const isJsonTrace = traceType == 'json';
     if (!shownJsonWarning) {
-      // Show warning if the trace is in JSON format.
-      const query = `select str_value from metadata where name = 'trace_type'`;
-      const result = await assertExists(this.engine).query(query);
-      const traceType = result.firstRow({str_value: STR});
       // When in embedded mode, the host app will control which trace format
       // it passes to Perfetto, so we don't need to show this warning.
-      if (traceType.str_value == 'json' && !frontendGlobals.embeddedMode) {
+      if (isJsonTrace && !frontendGlobals.embeddedMode) {
         showJsonWarning();
         // Save that the warning has been shown. Value is irrelevant since only
         // the presence of key is going to be checked.
@@ -441,7 +442,7 @@ export class TraceController extends Controller<States> {
     ];
 
     const [startVisibleTime, endVisibleTime] =
-        await computeVisibleTime(startSec, endSec, this.engine);
+        await computeVisibleTime(startSec, endSec, isJsonTrace, this.engine);
     // We don't know the resolution at this point. However this will be
     // replaced in 50ms so a guess is fine.
     const resolution = (endVisibleTime - startVisibleTime) / 1000;
@@ -495,7 +496,9 @@ export class TraceController extends Controller<States> {
       await this.selectPerfSample();
     }
 
-    if (ENABLE_CHROME_RELIABLE_RANGE_ANNOTATION_FLAG.get()) {
+    // Trace Processor doesn't support the reliable range feature for JSON
+    // traces.
+    if (!isJsonTrace && ENABLE_CHROME_RELIABLE_RANGE_ANNOTATION_FLAG.get()) {
       const reliableRangeStart = await computeTraceReliableRangeStart(engine);
       if (reliableRangeStart > 0) {
         globals.dispatch(Actions.addAutomaticNote({
@@ -877,8 +880,10 @@ async function computeTraceReliableRangeStart(engine: Engine): Promise<number> {
 }
 
 async function computeVisibleTime(
-    traceStartSec: number, traceEndSec: number, engine: Engine):
-    Promise<[number, number]> {
+    traceStartSec: number,
+    traceEndSec: number,
+    isJsonTrace: boolean,
+    engine: Engine): Promise<[number, number]> {
   // if we have non-default visible state, update the visible time to it
   const previousVisibleState = globals.state.frontendLocalState.visibleState;
   if (!(previousVisibleState.startSec === defaultTraceTime.startSec &&
@@ -902,7 +907,9 @@ async function computeVisibleTime(
     visibleEndSec = Math.min(visibleEndSec, mdTime.end + TRACE_MARGIN_TIME_S);
   }
 
-  if (ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG.get()) {
+  // Trace Processor doesn't support the reliable range feature for JSON
+  // traces.
+  if (!isJsonTrace && ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG.get()) {
     const reliableRangeStart = await computeTraceReliableRangeStart(engine);
     visibleStartSec = Math.max(visibleStartSec, reliableRangeStart);
   }
