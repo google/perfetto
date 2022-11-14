@@ -18,16 +18,11 @@ import * as m from 'mithril';
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 import {Row} from '../common/query_result';
-import {fromNs} from '../common/time';
 
 import {copyToClipboard, queryResponseToClipboard} from './clipboard';
 import {globals} from './globals';
 import {Panel} from './panel';
 import {Router} from './router';
-import {
-  focusHorizontalRange,
-  verticalScrollToTrack,
-} from './scroll_helper';
 
 interface QueryTableRowAttrs {
   row: Row;
@@ -51,15 +46,9 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     // the slice.
     event.stopPropagation();
 
-    const sliceStart = fromNs(row.ts as number);
-    // row.dur can be negative. Clamp to 1ns.
-    const sliceDur = fromNs(Math.max(row.dur as number, 1));
-    const sliceEnd = sliceStart + sliceDur;
     const trackId = row.track_id as number;
     const uiTrackId = globals.state.uiTrackIdByTraceTrackId[trackId];
     if (uiTrackId === undefined) return;
-    verticalScrollToTrack(uiTrackId, true);
-    focusHorizontalRange(sliceStart, sliceEnd);
     let sliceId: number|undefined;
     if (row.type?.toString().includes('slice')) {
       sliceId = row.id as number | undefined;
@@ -69,7 +58,7 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     if (sliceId !== undefined) {
       globals.makeSelection(
           Actions.selectChromeSlice(
-              {id: sliceId, trackId: uiTrackId, table: 'slice'}),
+              {id: sliceId, trackId: uiTrackId, table: 'slice', scroll: true}),
           nextTab === 'QueryResults' ? globals.state.currentTab :
                                        'current_selection');
     }
