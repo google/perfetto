@@ -285,25 +285,28 @@ class TrackDecider {
     const rawGlobalAsyncTracks = await engine.query(`
       with global_tracks as materialized (
         select
+          track.id,
+          track.name,
+          count(1) cnt
+        from track
+        join slice on slice.track_id = track.id
+        where track.type = "track" or track.type = "gpu_track"
+        group by 1
+        having cnt > 0
+      ),
+      global_tracks_grouped as (
+        select
           track.name,
           group_concat(track.id) as trackIds,
           count(track.id) as trackCount
-        from track
-        where
-          (track.type = "track" or track.type = "gpu_track") and
-          exists(
-            select 1
-            from slice
-            where slice.track_id = track.id
-            limit 1
-          )
+        from global_tracks track
         group by track.name
       )
       select
         t.name as name,
         t.trackIds as trackIds,
         max_layout_depth(t.trackCount, t.trackIds) as maxDepth
-      from global_tracks AS t
+      from global_tracks_grouped AS t
       order by t.name;
     `);
     const it = rawGlobalAsyncTracks.iter({
