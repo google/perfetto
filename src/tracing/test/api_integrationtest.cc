@@ -91,6 +91,7 @@
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.gen.h"
 #include "protos/perfetto/trace/track_event/track_event.gen.h"
+#include "protos/perfetto/trace/trigger.gen.h"
 
 // Events in categories starting with "dynamic" will use dynamic category
 // lookup.
@@ -194,6 +195,7 @@ using perfetto::internal::TrackEventIncrementalState;
 using perfetto::internal::TrackEventInternal;
 using ::testing::_;
 using ::testing::ContainerEq;
+using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Invoke;
@@ -322,6 +324,8 @@ class MockTracingMuxer : public perfetto::internal::TracingMuxer {
       InterceptorFactory,
       perfetto::InterceptorBase::TLSFactory,
       perfetto::InterceptorBase::TracePacketCallback) override {}
+
+  void ActivateTriggers(const std::vector<std::string>&) override {}
 
   std::vector<DataSource> data_sources;
 
@@ -5433,6 +5437,44 @@ TEST_P(PerfettoApiTest, CorrectTrackUUIDForLegacyEvents) {
   EXPECT_THAT(slices,
               ElementsAre("[track=0]Legacy_b(unscoped_id=11250026935264495724)("
                           "id_scope=\"foo\"):cat.foo"));
+}
+
+TEST_P(PerfettoApiTest, ActivateTriggers) {
+  // Create a new trace session without any data sources configured.
+  perfetto::TraceConfig cfg;
+  cfg.add_buffers()->set_size_kb(1024);
+  perfetto::TraceConfig::TriggerConfig* tr_cfg = cfg.mutable_trigger_config();
+  tr_cfg->set_trigger_mode(perfetto::TraceConfig::TriggerConfig::STOP_TRACING);
+  tr_cfg->set_trigger_timeout_ms(5000);
+  perfetto::TraceConfig::TriggerConfig::Trigger* trigger =
+      tr_cfg->add_triggers();
+  trigger->set_name("trigger1");
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  perfetto::Tracing::ActivateTriggers({"trigger2", "trigger1"});
+
+  bool done = false;
+  std::mutex mutex;
+  std::condition_variable cv;
+  std::unique_lock<std::mutex> lock(mutex);
+  tracing_session->get()->SetOnStopCallback([&]() {
+    std::lock_guard<std::mutex> inner_lock(mutex);
+    done = true;
+    cv.notify_one();
+  });
+  cv.wait(lock, [&done] { return done; });
+
+  std::vector<char> bytes = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace parsed_trace;
+  ASSERT_TRUE(parsed_trace.ParseFromArray(bytes.data(), bytes.size()));
+  EXPECT_THAT(
+      parsed_trace,
+      Property(&perfetto::protos::gen::Trace::packet,
+               Contains(Property(
+                   &perfetto::protos::gen::TracePacket::trigger,
+                   Property(&perfetto::protos::gen::Trigger::trigger_name,
+                            "trigger1")))));
 }
 
 class PerfettoStartupTracingApiTest : public PerfettoApiTest {
