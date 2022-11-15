@@ -10,6 +10,8 @@ Unreleased:
   SDK:
     * Added TracingInitArgs::enable_system_consumer configuration option, that
       allows the linker to discard the consumer IPC, if not required.
+    * Add perfetto::Tracing::ActivateTriggers() function.
+
 
 v25.0 - 2022-04-01:
   Tracing service and probes:

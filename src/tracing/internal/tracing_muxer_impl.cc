@@ -894,6 +894,16 @@ void TracingMuxerImpl::RegisterInterceptor(
       });
 }
 
+void TracingMuxerImpl::ActivateTriggers(const std::vector<std::string>& triggers) {
+  task_runner_->PostTask([this, triggers] {
+    for (RegisteredBackend& backend : backends_) {
+      if (backend.producer->connected_) {
+        backend.producer->service_->ActivateTriggers(triggers);
+      }
+    }
+  });
+}
+
 // Called by the service of one of the backends.
 void TracingMuxerImpl::SetupDataSource(TracingBackendId backend_id,
                                        uint32_t backend_connection_id,

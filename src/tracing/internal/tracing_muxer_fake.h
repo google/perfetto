@@ -67,6 +67,7 @@ class TracingMuxerFake : public TracingMuxer {
                            InterceptorFactory,
                            InterceptorBase::TLSFactory,
                            InterceptorBase::TracePacketCallback) override;
+  void ActivateTriggers(const std::vector<std::string>& triggers) override;
 
  private:
   static TracingMuxerFake instance;

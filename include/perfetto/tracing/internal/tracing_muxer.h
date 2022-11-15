@@ -88,6 +88,10 @@ class PERFETTO_EXPORT TracingMuxer {
                                    InterceptorBase::TLSFactory,
                                    InterceptorBase::TracePacketCallback) = 0;
 
+  // Informs the tracing services to activate any of these triggers if any
+  // tracing session was waiting for them.
+  virtual void ActivateTriggers(const std::vector<std::string>&) = 0;
+
  protected:
   explicit TracingMuxer(Platform* platform) : platform_(platform) {}
 

@@ -84,6 +84,11 @@ std::unique_ptr<TracingSession> Tracing::NewTrace(BackendType backend) {
       ->CreateTracingSession(backend);
 }
 
+//  static
+void Tracing::ActivateTriggers(const std::vector<std::string>& triggers) {
+  internal::TracingMuxer::Get()->ActivateTriggers(triggers);
+}
+
 // Can be called from any thread.
 bool TracingSession::FlushBlocking(uint32_t timeout_ms) {
   std::atomic<bool> flush_result;

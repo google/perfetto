@@ -116,6 +116,8 @@ class TracingMuxerImpl : public TracingMuxer {
                            InterceptorBase::TLSFactory,
                            InterceptorBase::TracePacketCallback) override;
 
+  void ActivateTriggers(const std::vector<std::string>& triggers) override;
+
   std::unique_ptr<TracingSession> CreateTracingSession(BackendType);
 
   // Producer-side bookkeeping methods.
