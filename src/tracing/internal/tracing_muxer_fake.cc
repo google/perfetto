@@ -86,5 +86,9 @@ void TracingMuxerFake::RegisterInterceptor(
   FailUninitialized();
 }
 
+void TracingMuxerFake::ActivateTriggers(const std::vector<std::string>&) {
+  FailUninitialized();
+}
+
 }  // namespace internal
 }  // namespace perfetto
