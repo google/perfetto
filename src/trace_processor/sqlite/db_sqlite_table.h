@@ -110,7 +110,6 @@ class DbSqliteTable : public SqliteTable {
   };
   struct Context {
     QueryCache* cache;
-    Table::Schema schema;
     TableComputation computation;
 
     // Only valid when computation == TableComputation::kStatic.
@@ -122,7 +121,6 @@ class DbSqliteTable : public SqliteTable {
 
   static void RegisterTable(sqlite3* db,
                             QueryCache* cache,
-                            Table::Schema schema,
                             const Table* table,
                             const std::string& name);
 
@@ -158,9 +156,11 @@ class DbSqliteTable : public SqliteTable {
 
  private:
   QueryCache* cache_ = nullptr;
-  Table::Schema schema_;
 
   TableComputation computation_ = TableComputation::kStatic;
+
+  // Only valid after Init has completed.
+  Table::Schema schema_;
 
   // Only valid when computation_ == TableComputation::kStatic.
   const Table* static_table_ = nullptr;

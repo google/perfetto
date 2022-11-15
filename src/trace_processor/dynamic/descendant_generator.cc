@@ -163,9 +163,9 @@ base::Status DescendantGenerator::ComputeTable(
 Table::Schema DescendantGenerator::CreateSchema() {
   switch (type_) {
     case Descendant::kSlice:
-      return tables::DescendantSliceTable::Schema();
+      return tables::DescendantSliceTable::ComputeStaticSchema();
     case Descendant::kSliceByStack:
-      return tables::DescendantSliceByStackTable::Schema();
+      return tables::DescendantSliceByStackTable::ComputeStaticSchema();
   }
   PERFETTO_FATAL("For GCC");
 }
