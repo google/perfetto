@@ -264,6 +264,10 @@ class PERFETTO_EXPORT_COMPONENT Tracing {
       const TraceConfig& config,
       SetupStartupTracingOpts);
 
+  // Informs the tracing services to activate any of these triggers if any
+  // tracing session was waiting for them.
+  static void ActivateTriggers(const std::vector<std::string>& triggers);
+
  private:
   static void InitializeInternal(const TracingInitArgs&);
 

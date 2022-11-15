@@ -983,6 +983,16 @@ void TracingMuxerImpl::RegisterInterceptor(
       });
 }
 
+void TracingMuxerImpl::ActivateTriggers(const std::vector<std::string>& triggers) {
+  task_runner_->PostTask([this, triggers] {
+    for (RegisteredBackend& backend : backends_) {
+      if (backend.producer->connected_) {
+        backend.producer->service_->ActivateTriggers(triggers);
+      }
+    }
+  });
+}
+
 // Checks if there is any matching startup tracing data source instance for a
 // new SetupDataSource call. If so, moves the data source to this tracing
 // session (and its target buffer) and returns true, otherwise returns false.
