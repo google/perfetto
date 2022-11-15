@@ -20,8 +20,7 @@
 #include <algorithm>
 #include <vector>
 
-#include "perfetto/ext/base/flat_hash_map.h"
-
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/util/descriptors.h"
 
@@ -31,42 +30,69 @@ namespace util {
 
 class SizeProfileComputer {
  public:
-  using FieldPath = std::vector<std::string>;
-  using SizeSamples = std::vector<size_t>;
+  struct Field {
+    Field(uint32_t field_idx_in,
+          const FieldDescriptor* field_descriptor_in,
+          uint32_t type_in,
+          const ProtoDescriptor* proto_descriptor_in);
 
+    bool has_field_name() const {
+      return field_descriptor || field_idx == static_cast<uint32_t>(-1);
+    }
+
+    std::string field_name() const;
+    std::string type_name() const;
+
+    bool operator==(const Field& other) const {
+      return field_idx == other.field_idx && type == other.type;
+    }
+
+    uint32_t field_idx;
+    uint32_t type;
+    const FieldDescriptor* field_descriptor;
+    const ProtoDescriptor* proto_descriptor;
+  };
+
+  using FieldPath = std::vector<Field>;
   struct FieldPathHasher {
-    using argument_type = std::vector<std::string>;
+    using argument_type = FieldPath;
     using result_type = size_t;
 
     result_type operator()(const argument_type& p) const {
       size_t h = 0u;
-      for (auto v : p)
-        h ^= std::hash<std::string>{}(v);
+      for (auto v : p) {
+        h += (std::hash<uint32_t>{}(v.field_idx) +
+              std::hash<uint32_t>{}(v.type));
+        h = (h << 5) - h;
+      }
       return h;
     }
   };
 
-  using PathToSamplesMap =
-      base::FlatHashMap<FieldPath, SizeSamples, FieldPathHasher>;
+  explicit SizeProfileComputer(DescriptorPool* pool,
+                               const std::string& message_type);
 
-  explicit SizeProfileComputer(DescriptorPool* pool);
-
-  // Returns a list of samples (i.e. all encountered field sizes) for each
-  // field path in trace proto.
+  // Re-initializes the computer to iterate over samples (i.e. all encountered
+  // field sizes) for each field path in trace proto contained in the given
+  // range.
   // TODO(kraskevich): consider switching to internal DescriptorPool.
+  void Reset(const uint8_t* ptr, size_t size);
 
-  PathToSamplesMap Compute(const uint8_t* ptr,
-                           size_t size,
-                           const std::string& message_type);
+  // Returns the next sample size, or nullopt if data is exhausted. The
+  // associated path can be queried with GetPath().
+  base::Optional<size_t> GetNext();
+
+  // Returns the field path associated with the last sample returned by
+  // GetNext().
+  const FieldPath& GetPath() const { return field_path_; }
+
+  operator bool() const;
 
  private:
-  void ComputeInner(const uint8_t* ptr,
-                    size_t size,
-                    const std::string& message_type);
-  void Sample(size_t size);
   size_t GetFieldSize(const protozero::Field& f);
 
   DescriptorPool* pool_;
+  uint32_t root_message_idx_;
   // The current 'stack' we're considering as we parse the protobuf.
   // For example if we're currently looking at the varint field baz which is
   // nested inside message Bar which is in turn a field named bar on the message
@@ -74,10 +100,16 @@ class SizeProfileComputer {
   // We keep track of both the field names (#bar, #baz) and the field types
   // (Foo, Bar, int) as sometimes we are intrested in which fields are big
   // and sometimes which types are big.
-  std::vector<std::string> stack_;
+  FieldPath field_path_;
 
-  // Information about each field path seen.
-  PathToSamplesMap path_to_samples_;
+  // Internal state used to iterate over field path.
+  struct State {
+    const ProtoDescriptor* descriptor;
+    protozero::ProtoDecoder decoder;
+    size_t overhead;
+    size_t unknown;
+  };
+  std::vector<State> state_stack_;
 };
 
 }  // namespace util

@@ -26,13 +26,18 @@ namespace perfetto {
 namespace trace_processor {
 
 ContentAnalyzerModule::ContentAnalyzerModule(TraceProcessorContext* context)
-    : context_(context) {
-  base::Status status = pool_.AddFromFileDescriptorSet(kTraceDescriptor.data(),
-                                                       kTraceDescriptor.size());
-  if (!status.ok()) {
-    PERFETTO_ELOG("Could not add TracePacket proto descriptor %s",
-                  status.c_message());
-  }
+    : context_(context),
+      pool_([]() {
+        DescriptorPool pool;
+        base::Status status = pool.AddFromFileDescriptorSet(
+            kTraceDescriptor.data(), kTraceDescriptor.size());
+        if (!status.ok()) {
+          PERFETTO_ELOG("Could not add TracePacket proto descriptor %s",
+                        status.c_message());
+        }
+        return pool;
+      }()),
+      computer_(&pool_, ".perfetto.protos.TracePacket") {
   RegisterForAllFields(context_);
 }
 
@@ -42,13 +47,14 @@ ModuleResult ContentAnalyzerModule::TokenizePacket(
     int64_t /*packet_timestamp*/,
     PacketSequenceState*,
     uint32_t /*field_id*/) {
-  util::SizeProfileComputer computer(&pool_);
-  auto packet_samples = computer.Compute(packet->data(), packet->length(),
-                                         ".perfetto.protos.TracePacket");
-  for (auto it = packet_samples.GetIterator(); it; ++it) {
-    auto& aggregated_samples_for_path = aggregated_samples_[it.key()];
-    aggregated_samples_for_path.insert(aggregated_samples_for_path.end(),
-                                       it.value().begin(), it.value().end());
+  computer_.Reset(packet->data(), packet->length());
+  for (auto sample = computer_.GetNext(); sample.has_value();
+       sample = computer_.GetNext()) {
+    auto* value = aggregated_samples_.Find(computer_.GetPath());
+    if (value)
+      *value += *sample;
+    else
+      aggregated_samples_.Insert(computer_.GetPath(), *sample);
   }
   return ModuleResult::Ignored();
 }
@@ -56,12 +62,16 @@ ModuleResult ContentAnalyzerModule::TokenizePacket(
 void ContentAnalyzerModule::NotifyEndOfFile() {
   // TODO(kraskevich): consider generating a flamegraph-compatable table once
   // Perfetto UI supports custom flamegraphs (b/227644078).
-  for (auto it = aggregated_samples_.GetIterator(); it; ++it) {
-    auto field_path = base::Join(it.key(), ".");
-    auto total_size = std::accumulate(it.value().begin(), it.value().end(), 0L);
+  for (auto sample = aggregated_samples_.GetIterator(); sample; ++sample) {
+    std::string path_string;
+    for (const auto& field : sample.key()) {
+      if (field.has_field_name())
+        path_string.append(field.field_name());
+      path_string.append(field.type_name());
+    }
     tables::ExperimentalProtoContentTable::Row row;
-    row.path = context_->storage->InternString(base::StringView(field_path));
-    row.total_size = total_size;
+    row.path = context_->storage->InternString(base::StringView(path_string));
+    row.total_size = static_cast<int64_t>(sample.value());
     context_->storage->mutable_experimental_proto_content_table()->Insert(row);
   }
   aggregated_samples_.Clear();
