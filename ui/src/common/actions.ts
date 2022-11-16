@@ -19,7 +19,6 @@ import {RecordConfig} from '../controller/record_config_types';
 import {globals} from '../frontend/globals';
 import {
   Aggregation,
-  aggregationEquals,
   AggregationFunction,
   TableColumn,
   tableColumnEquals,
@@ -1045,6 +1044,17 @@ export const StateActions = {
     state.flamegraphModalDismissed = true;
   },
 
+  addPivotTableAggregation(
+      state: StateDraft, args: {aggregation: Aggregation, after: number}) {
+    state.nonSerializableState.pivotTableRedux.selectedAggregations.splice(
+        args.after, 0, args.aggregation);
+  },
+
+  removePivotTableAggregation(state: StateDraft, args: {index: number}) {
+    state.nonSerializableState.pivotTableRedux.selectedAggregations.splice(
+        args.index, 1);
+  },
+
   setPivotTableQueryRequested(
       state: StateDraft, args: {queryRequested: boolean}) {
     state.nonSerializableState.pivotTableRedux.queryRequested =
@@ -1066,15 +1076,6 @@ export const StateActions = {
           args.column,
           args.selected);
     }
-  },
-
-  setPivotTableAggregationSelected(
-      state: StateDraft, args: {column: Aggregation, selected: boolean}) {
-    toggleEnabled(
-        aggregationEquals,
-        state.nonSerializableState.pivotTableRedux.selectedAggregations,
-        args.column,
-        args.selected);
   },
 
   setPivotTableAggregationFunction(
