@@ -170,17 +170,6 @@ export class Router {
     const argsStr = argsStart < 0 ? '' : hash.substr(argsStart + 1);
     const args = argsStr ? m.parseQueryString(hash.substr(argsStart)) : {};
 
-    // TODO(primiano): remove this in mid-2022. trace_id is the same concept of
-    // local_cache_key. Just at some point we renamed it to make it more obvious
-    // to people that those URLs cannot be copy-pasted in bugs. For now this
-    // handles cases of reloading pages from old version.
-    if ('trace_id' in args) {
-      if (!('local_cache_key' in args)) {
-        args['local_cache_key'] = args['trace_id'];
-      }
-      delete args['trace_id'];
-    }
-
     return {page, subpage, args};
   }
 
