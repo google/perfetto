@@ -340,6 +340,41 @@ TEST_F(SpanJoinOperatorTableTest, LeftJoinTwoSpanTables_EmptyRight) {
   ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_DONE);
 }
 
+TEST_F(SpanJoinOperatorTableTest, CapitalizedLeftJoin) {
+  RunStatement(
+      "CREATE TEMP TABLE f("
+      "ts BIG INT PRIMARY KEY, "
+      "dur BIG INT, "
+      "cpu UNSIGNED INT"
+      ");");
+  RunStatement(
+      "CREATE TEMP TABLE s("
+      "ts BIG INT PRIMARY KEY, "
+      "dur BIG INT, "
+      "tid UNSIGNED INT"
+      ");");
+  RunStatement("CREATE VIRTUAL TABLE sp USING SPAN_LEFT_JOIN(f, s);");
+
+  RunStatement("INSERT INTO f VALUES(100, 10, 0);");
+  RunStatement("INSERT INTO f VALUES(110, 50, 1);");
+
+  PrepareValidStatement("SELECT * FROM sp");
+
+  ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 0), 100);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 1), 10);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 2), 0);
+  ASSERT_EQ(sqlite3_column_type(stmt_.get(), 3), SQLITE_NULL);
+
+  ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_ROW);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 0), 110);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 1), 50);
+  ASSERT_EQ(sqlite3_column_int64(stmt_.get(), 2), 1);
+  ASSERT_EQ(sqlite3_column_type(stmt_.get(), 3), SQLITE_NULL);
+
+  ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_DONE);
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto

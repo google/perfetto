@@ -359,7 +359,7 @@ base::Status ExperimentalFlamegraphGenerator::ComputeTable(
 }
 
 Table::Schema ExperimentalFlamegraphGenerator::CreateSchema() {
-  return tables::ExperimentalFlamegraphNodesTable::Schema();
+  return tables::ExperimentalFlamegraphNodesTable::ComputeStaticSchema();
 }
 
 std::string ExperimentalFlamegraphGenerator::TableName() {
