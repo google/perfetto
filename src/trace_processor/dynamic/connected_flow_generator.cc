@@ -261,7 +261,7 @@ base::Status ConnectedFlowGenerator::ComputeTable(
 }
 
 Table::Schema ConnectedFlowGenerator::CreateSchema() {
-  return tables::ConnectedFlowTable::Schema();
+  return tables::ConnectedFlowTable::ComputeStaticSchema();
 }
 
 std::string ConnectedFlowGenerator::TableName() {

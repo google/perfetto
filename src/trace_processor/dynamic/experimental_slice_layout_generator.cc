@@ -52,7 +52,7 @@ ExperimentalSliceLayoutGenerator::ExperimentalSliceLayoutGenerator(
 ExperimentalSliceLayoutGenerator::~ExperimentalSliceLayoutGenerator() = default;
 
 Table::Schema ExperimentalSliceLayoutGenerator::CreateSchema() {
-  return tables::ExperimentalSliceLayoutTable::Schema();
+  return tables::ExperimentalSliceLayoutTable::ComputeStaticSchema();
 }
 
 std::string ExperimentalSliceLayoutGenerator::TableName() {

@@ -129,7 +129,6 @@ class SafeStringWriter {
 
 DbSqliteTable::DbSqliteTable(sqlite3*, Context context)
     : cache_(context.cache),
-      schema_(std::move(context.schema)),
       computation_(context.computation),
       static_table_(context.static_table),
       generator_(std::move(context.generator)) {}
@@ -137,10 +136,9 @@ DbSqliteTable::~DbSqliteTable() = default;
 
 void DbSqliteTable::RegisterTable(sqlite3* db,
                                   QueryCache* cache,
-                                  Table::Schema schema,
                                   const Table* table,
                                   const std::string& name) {
-  Context context{cache, schema, TableComputation::kStatic, table, nullptr};
+  Context context{cache, TableComputation::kStatic, table, nullptr};
   SqliteTable::Register<DbSqliteTable, Context>(db, std::move(context), name);
 }
 
@@ -148,22 +146,28 @@ void DbSqliteTable::RegisterTable(
     sqlite3* db,
     QueryCache* cache,
     std::unique_ptr<DynamicTableGenerator> generator) {
-  Table::Schema schema = generator->CreateSchema();
-  std::string name = generator->TableName();
-
   // Figure out if the table needs explicit args (in the form of constraints
   // on hidden columns) passed to it in order to make the query valid.
   base::Status status = generator->ValidateConstraints(
       QueryConstraints(std::numeric_limits<uint64_t>::max()));
   bool requires_args = !status.ok();
 
-  Context context{cache, std::move(schema), TableComputation::kDynamic, nullptr,
+  std::string table_name = generator->TableName();
+  Context context{cache, TableComputation::kDynamic, nullptr,
                   std::move(generator)};
-  SqliteTable::Register<DbSqliteTable, Context>(db, std::move(context), name,
-                                                false, requires_args);
+  SqliteTable::Register<DbSqliteTable, Context>(
+      db, std::move(context), table_name, false, requires_args);
 }
 
 base::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
+  switch (computation_) {
+    case TableComputation::kStatic:
+      schema_ = static_table_->ComputeSchema();
+      break;
+    case TableComputation::kDynamic:
+      schema_ = generator_->CreateSchema();
+      break;
+  }
   *schema = ComputeSchema(schema_, name().c_str());
   return base::OkStatus();
 }
