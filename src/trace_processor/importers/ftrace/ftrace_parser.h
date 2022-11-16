@@ -28,6 +28,8 @@
 #include "src/trace_processor/parser_types.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
+#include <unordered_set>
+
 namespace perfetto {
 namespace trace_processor {
 
@@ -35,7 +37,7 @@ class FtraceParser {
  public:
   explicit FtraceParser(TraceProcessorContext* context);
 
-  void ParseFtraceStats(protozero::ConstBytes);
+  void ParseFtraceStats(protozero::ConstBytes, uint32_t packet_sequence_id);
 
   util::Status ParseFtraceEvent(uint32_t cpu,
                                 int64_t ts,
@@ -370,6 +372,11 @@ class FtraceParser {
 
   // Does not skip any ftrace events.
   bool preserve_ftrace_buffer_ = false;
+
+  // Sequence ids for which ftrace_errors have been seen. Used to avoid
+  // putting them in the metadata multiple times (the ftrace data sources
+  // re-emits begin stats on every flush).
+  std::unordered_set<uint32_t> seen_errors_for_sequence_id_;
 };
 
 }  // namespace trace_processor
