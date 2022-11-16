@@ -190,11 +190,11 @@ base::Status AncestorGenerator::ComputeTable(
 Table::Schema AncestorGenerator::CreateSchema() {
   switch (type_) {
     case Ancestor::kSlice:
-      return tables::AncestorSliceTable::Schema();
+      return tables::AncestorSliceTable::ComputeStaticSchema();
     case Ancestor::kStackProfileCallsite:
-      return tables::AncestorStackProfileCallsiteTable::Schema();
+      return tables::AncestorStackProfileCallsiteTable::ComputeStaticSchema();
     case Ancestor::kSliceByStack:
-      return tables::AncestorSliceByStackTable::Schema();
+      return tables::AncestorSliceByStackTable::ComputeStaticSchema();
   }
   PERFETTO_FATAL("For GCC");
 }

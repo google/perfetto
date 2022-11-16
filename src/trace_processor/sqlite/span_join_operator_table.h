@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
@@ -416,8 +417,12 @@ class SpanJoinOperatorTable : public SqliteTable {
     size_t col_index;
   };
 
-  bool IsLeftJoin() const { return name() == "span_left_join"; }
-  bool IsOuterJoin() const { return name() == "span_outer_join"; }
+  bool IsLeftJoin() const {
+    return base::CaseInsensitiveEqual(module_name(), "span_left_join");
+  }
+  bool IsOuterJoin() const {
+    return base::CaseInsensitiveEqual(module_name(), "span_outer_join");
+  }
 
   const std::string& partition_col() const {
     return t1_defn_.IsPartitioned() ? t1_defn_.partition_col()

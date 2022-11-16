@@ -38,7 +38,7 @@ ExperimentalCounterDurGenerator::ExperimentalCounterDurGenerator(
 ExperimentalCounterDurGenerator::~ExperimentalCounterDurGenerator() = default;
 
 Table::Schema ExperimentalCounterDurGenerator::CreateSchema() {
-  return tables::ExperimentalCounterDurTable::Schema();
+  return tables::ExperimentalCounterDurTable::ComputeStaticSchema();
 }
 
 std::string ExperimentalCounterDurGenerator::TableName() {
