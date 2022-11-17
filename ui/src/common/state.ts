@@ -93,7 +93,8 @@ export const MAX_TIME = 180;
 // 21: Updated perf sample selection to include a ts range instead of single ts
 // 22: Add log selection kind.
 // 23: Add log filtering criteria for Android log entries.
-export const STATE_VERSION = 23;
+// 24: Store only a single Engine.
+export const STATE_VERSION = 24;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -487,7 +488,6 @@ export interface LogFilteringCriteria {
 
 export interface State {
   version: number;
-  currentEngineId?: string;
   nextId: string;
 
   /**
@@ -501,13 +501,7 @@ export interface State {
    * Open traces.
    */
   newEngineMode: NewEngineMode;
-
-  /**
-   * At some point there were plans to support multiple traces support in the
-   * same instance UI. For now, the `engines` mapping contains at most one
-   * EngineConfig.
-   */
-  engines: ObjectById<EngineConfig>;
+  engine?: EngineConfig;
   traceTime: TraceTime;
   traceUuid?: string;
   trackGroups: ObjectById<TrackGroupState>;

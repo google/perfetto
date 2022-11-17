@@ -48,7 +48,8 @@ export class AppController extends Controller<'main'> {
           RecordController,
           {app: globals, extensionPort: this.extensionPort}));
     }
-    for (const engineCfg of Object.values(globals.state.engines)) {
+    if (globals.state.engine !== undefined) {
+      const engineCfg = globals.state.engine;
       childControllers.push(Child(engineCfg.id, TraceController, engineCfg.id));
     }
     return childControllers;
