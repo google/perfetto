@@ -17,7 +17,7 @@ import {getContainingTrackId, PrimaryTrackSortKey, State} from './state';
 
 test('createEmptyState', () => {
   const state: State = createEmptyState();
-  expect(state.currentEngineId).toEqual(undefined);
+  expect(state.engine).toEqual(undefined);
 });
 
 test('getContainingTrackId', () => {
