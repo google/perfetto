@@ -1011,17 +1011,6 @@ source_set("sqlite") {
   deps = [ "//gn:default_deps" ]
 }
 
-source_set("sqlite_shell") {
-  visibility = _buildtools_visibility
-  testonly = true
-  sources = [ "sqlite/shell.c" ]
-  configs -= [ "//gn/standalone:extra_warnings" ]
-  deps = [
-    ":sqlite",
-    "//gn:default_deps",
-  ]
-}
-
 source_set("lzma") {
   visibility = _buildtools_visibility
   defines = [ "_7ZIP_ST" ]
