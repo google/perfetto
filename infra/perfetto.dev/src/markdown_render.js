@@ -27,6 +27,7 @@ const ROOT_DIR = path.dirname(path.dirname(path.dirname(__dirname)));
 let outDir = '';
 let curMdFile = '';
 let title = '';
+let depFileFd = undefined;
 
 function hrefInDocs(href) {
   if (href.match(/^(https?:)|^(mailto:)|^#/)) {
@@ -131,6 +132,9 @@ function renderImage(originalImgFn, href, title, text) {
     const outParDir = path.dirname(outFile);
     fs.ensureDirSync(outParDir);
     fs.copyFileSync(ROOT_DIR + docsHref, outFile);
+    if (depFileFd) {
+      fs.write(depFileFd, ` ${ROOT_DIR + docsHref}`);
+    }
   }
   if (href.endsWith('.svg')) {
     return `<object type="image/svg+xml" data="${href}"></object>`
@@ -187,14 +191,23 @@ function main() {
   const inFile = argv['i'];
   const outFile = argv['o'];
   outDir = argv['odir'];
+  depFile = argv['depfile'];
   const templateFile = argv['t'];
   if (!outFile || !outDir) {
     console.error(
-        'Usage: --odir site -o out.html [-i input.md] [-t templ.html]');
+        'Usage: --odir site -o out.html ' +
+        '[-i input.md] [-t templ.html] ' +
+        '[--depfile depfile.d]');
     process.exit(1);
   }
   curMdFile = inFile;
 
+  if (depFile) {
+    const depFileDir = path.dirname(depFile);
+    fs.ensureDirSync(depFileDir);
+    depFileFd = fs.openSync(depFile, 'w');
+    fs.write(depFileFd, `${outFile}:`);
+  }
   let markdownHtml = '';
   if (inFile) {
     markdownHtml = render(fs.readFileSync(inFile, 'utf8'));
