@@ -182,7 +182,7 @@ export class TraceController extends Controller<States> {
   }
 
   run() {
-    const engineCfg = assertExists(globals.state.engines[this.engineId]);
+    const engineCfg = assertExists(globals.state.engine);
     switch (this.state) {
       case 'init':
         this.loadTrace()
@@ -226,11 +226,10 @@ export class TraceController extends Controller<States> {
         // Create a QueryController for each query.
         for (const queryId of Object.keys(globals.state.queries)) {
           // If the expected engineId was not specified in the query, we
-          // assume it's `state.currentEngineId`. The engineId is not specified
+          // assume it's current engine id. The engineId is not specified
           // for instances with queries created prior to the creation of the
           // first engine.
-          const expectedEngineId = globals.state.queries[queryId].engineId ||
-              frontendGlobals.state.currentEngineId;
+          const expectedEngineId = globals.state.engine?.id;
           // Check that we are executing the query on the correct engine.
           if (expectedEngineId !== engine.id) {
             continue;
@@ -354,7 +353,8 @@ export class TraceController extends Controller<States> {
       ready: false,
       mode: engineMode,
     }));
-    const engineCfg = assertExists(globals.state.engines[this.engineId]);
+    const engineCfg = assertExists(globals.state.engine);
+    assertTrue(engineCfg.id === this.engineId);
     let traceStream: TraceStream | undefined;
     if (engineCfg.source.type === 'FILE') {
       traceStream = new TraceFileStream(engineCfg.source.file);
@@ -675,7 +675,8 @@ export class TraceController extends Controller<States> {
       return '';
     }
     const traceUuid = result.firstRow({uuid: STR}).uuid;
-    const engineConfig = assertExists(globals.state.engines[engine.id]);
+    const engineConfig = assertExists(globals.state.engine);
+    assertTrue(engineConfig.id === this.engineId);
     if (!(await cacheTrace(engineConfig.source, traceUuid))) {
       // If the trace is not cacheable (cacheable means it has been opened from
       // URL or RPC) only append '?local_cache_key' to the URL, without the
