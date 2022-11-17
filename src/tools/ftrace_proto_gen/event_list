@@ -459,3 +459,5 @@ trusty/trusty_ipc_read_end
 trusty/trusty_ipc_rx
 trusty/trusty_ipc_tx
 trusty/trusty_enqueue_nop
+cma/cma_alloc_start
+cma/cma_alloc_info
