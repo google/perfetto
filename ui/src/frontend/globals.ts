@@ -28,6 +28,7 @@ import {CallsiteInfo, EngineConfig, ProfileType, State} from '../common/state';
 import {fromNs, toNs} from '../common/time';
 
 import {Analytics, initAnalytics} from './analytics';
+import {BottomTabList} from './bottom_tab';
 import {FrontendLocalState} from './frontend_local_state';
 import {RafScheduler} from './raf_scheduler';
 import {Router} from './router';
@@ -183,6 +184,8 @@ function getRoot() {
  */
 class Globals {
   readonly root = getRoot();
+
+  bottomTabList?: BottomTabList = undefined;
 
   private _testing = false;
   private _dispatch?: Dispatch = undefined;

@@ -361,7 +361,7 @@ export interface LogSelection {
   trackId: string;
 }
 
-type Selection =
+export type Selection =
     (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
      CpuProfileSampleSelection|ChromeSliceSelection|ThreadStateSelection|
      AreaSelection|PerfSamplesSelection|LogSelection)&{trackId?: string};

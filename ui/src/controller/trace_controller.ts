@@ -26,9 +26,11 @@ import {
   isMetatracingEnabled,
 } from '../common/metatracing';
 import {NUM, NUM_NULL, QueryError, STR, STR_NULL} from '../common/query_result';
+import {onSelectionChanged} from '../common/selection_observer';
 import {defaultTraceTime, EngineMode, ProfileType} from '../common/state';
 import {TimeSpan, toNs, toNsCeil, toNsFloor} from '../common/time';
 import {resetEngineWorker, WasmEngineProxy} from '../common/wasm_engine_proxy';
+import {BottomTabList} from '../frontend/bottom_tab';
 import {
   globals as frontendGlobals,
   QuantizedLoad,
@@ -345,6 +347,8 @@ export class TraceController extends Controller<States> {
       this.engine.enableMetatrace(
           assertExists(getEnabledMetatracingCategories()));
     }
+    frontendGlobals.bottomTabList =
+        new BottomTabList(engine.getProxy('BottomTabList'));
 
     frontendGlobals.engines.set(this.engineId, engine);
     globals.dispatch(Actions.setEngineReady({
@@ -489,6 +493,13 @@ export class TraceController extends Controller<States> {
     await this.selectFirstHeapProfile();
     if (PERF_SAMPLE_FLAG.get()) {
       await this.selectPerfSample();
+    }
+
+    // If the trace was shared via a permalink, it might already have a
+    // selection. Emit onSelectionChanged to ensure that the components (like
+    // current selection details) react to it.
+    if (globals.state.currentSelection !== null) {
+      onSelectionChanged(globals.state.currentSelection, undefined);
     }
 
     // Trace Processor doesn't support the reliable range feature for JSON
