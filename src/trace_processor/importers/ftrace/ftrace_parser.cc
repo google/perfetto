@@ -374,7 +374,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
            context->storage->InternString("mem.mm.kern_alloc.avg_lat"))}};
 }
 
-void FtraceParser::ParseFtraceStats(ConstBytes blob) {
+void FtraceParser::ParseFtraceStats(ConstBytes blob,
+                                    uint32_t packet_sequence_id) {
   protos::pbzero::FtraceStats::Decoder evt(blob.data, blob.size);
   bool is_start =
       evt.phase() == protos::pbzero::FtraceStats::Phase::START_OF_TRACE;
@@ -500,22 +501,27 @@ void FtraceParser::ParseFtraceStats(ConstBytes blob) {
   //    medatata table.
   // Both will be reported in the 'Info & stats' page in the UI.
   if (is_start) {
-    std::string error_str;
-    for (auto it = evt.failed_ftrace_events(); it; ++it) {
-      storage->IncrementStats(stats::ftrace_setup_errors, 1);
-      error_str += "Ftrace event failed: " + it->as_std_string() + "\n";
+    if (seen_errors_for_sequence_id_.count(packet_sequence_id) == 0) {
+      std::string error_str;
+      for (auto it = evt.failed_ftrace_events(); it; ++it) {
+        storage->IncrementStats(stats::ftrace_setup_errors, 1);
+        error_str += "Ftrace event failed: " + it->as_std_string() + "\n";
+      }
+      for (auto it = evt.unknown_ftrace_events(); it; ++it) {
+        storage->IncrementStats(stats::ftrace_setup_errors, 1);
+        error_str += "Ftrace event unknown: " + it->as_std_string() + "\n";
+      }
+      if (evt.atrace_errors().size > 0) {
+        storage->IncrementStats(stats::ftrace_setup_errors, 1);
+        error_str += "Atrace failures: " + evt.atrace_errors().ToStdString();
+      }
+      if (!error_str.empty()) {
+        auto error_str_id = storage->InternString(base::StringView(error_str));
+        context_->metadata_tracker->AppendMetadata(
+            metadata::ftrace_setup_errors, Variadic::String(error_str_id));
+        seen_errors_for_sequence_id_.insert(packet_sequence_id);
+      }
     }
-    for (auto it = evt.unknown_ftrace_events(); it; ++it) {
-      storage->IncrementStats(stats::ftrace_setup_errors, 1);
-      error_str += "Ftrace event unknown: " + it->as_std_string() + "\n";
-    }
-    if (evt.atrace_errors().size > 0) {
-      storage->IncrementStats(stats::ftrace_setup_errors, 1);
-      error_str += "Atrace failures: " + evt.atrace_errors().ToStdString();
-    }
-    auto error_str_id = storage->InternString(base::StringView(error_str));
-    context_->metadata_tracker->SetMetadata(metadata::ftrace_setup_errors,
-                                            Variadic::String(error_str_id));
     if (evt.preserve_ftrace_buffer()) {
       preserve_ftrace_buffer_ = true;
     }
