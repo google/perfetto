@@ -430,9 +430,7 @@ export class TraceController extends Controller<States> {
 
     const emptyOmniboxState = {
       omnibox: '',
-      mode: frontendGlobals.state.frontendLocalState.omniboxState.mode ||
-          'SEARCH',
-      lastUpdate: Date.now() / 1000,
+      mode: frontendGlobals.state.omniboxState.mode || 'SEARCH',
     };
 
     const actions: DeferredAction[] = [
