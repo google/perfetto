@@ -857,7 +857,7 @@ export const StateActions = {
   },
 
   setOmnibox(state: StateDraft, args: OmniboxState): void {
-    state.frontendLocalState.omniboxState = args;
+    state.omniboxState = args;
   },
 
   selectArea(state: StateDraft, args: {area: Area}): void {
