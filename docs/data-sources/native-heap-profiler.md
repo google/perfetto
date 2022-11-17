@@ -503,6 +503,18 @@ be correctly tracked.
 
 ## Known Issues
 
+### {#known-issues-android13} Android 13
+
+* Unwinding java frames might not work properly, depending on the ART module
+  version in use. The UI reports a single "unknown" frame at the top of the
+  stack in this case. The problem is fixed in Android 13 QPR1.
+
+### {#known-issues-android12} Android 12
+
+* Unwinding java frames might not work properly, depending on the ART module
+  version in use. The UI reports a single "unknown" frame at the top of the
+  stack in this case.
+
 ### {#known-issues-android11} Android 11
 
 * 32-bit programs cannot be targeted on 64-bit devices.
