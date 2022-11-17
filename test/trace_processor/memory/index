@@ -21,3 +21,6 @@ android_fastrpc_dma_stat.textproto android_fastrpc android_fastrpc_dma_stat.out
 
 # shrink slab
 shrink_slab.textproto shrink_slab_test.sql shrink_slab.out
+
+# cma alloc
+cma.textproto cma_test.sql cma.out
