@@ -19,6 +19,7 @@
 
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/system_info_tracker.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/ftrace/drm_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
@@ -137,6 +138,10 @@ class FtraceParser {
                          uint32_t pid,
                          protozero::ConstBytes);
   void ParseScmCallEnd(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
+  void ParseCmaAllocStart(int64_t timestamp, uint32_t pid);
+  void ParseCmaAllocInfo(int64_t timestamp,
+                         uint32_t pid,
+                         protozero::ConstBytes);
   void ParseDirectReclaimBegin(int64_t timestamp,
                                uint32_t pid,
                                protozero::ConstBytes);
@@ -317,6 +322,16 @@ class FtraceParser {
   const StringId trusty_name_trusty_std_id_;
   const StringId trusty_name_tipc_tx_id_;
   const StringId trusty_name_tipc_rx_id_;
+  const StringId cma_alloc_id_;
+  const StringId cma_name_id_;
+  const StringId cma_pfn_id_;
+  const StringId cma_req_pages_id_;
+  const StringId cma_nr_migrated_id_;
+  const StringId cma_nr_reclaimed_id_;
+  const StringId cma_nr_mapped_id_;
+  const StringId cma_nr_isolate_fail_id_;
+  const StringId cma_nr_migrate_fail_id_;
+  const StringId cma_nr_test_fail_id_;
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).
