@@ -203,6 +203,12 @@ if (enable_perfetto_ui) {
   }
 }
 
+if (enable_perfetto_site) {
+  group("site") {
+    deps = [ "infra/perfetto.dev:site" ]
+  }
+}
+
 # In Android builds, we build the code of traced and traced_probes in one shared
 # library that exposes one xxx_main() for each. The executables themselves are
 # tiny shells that just invoke their own entry point into the library.
