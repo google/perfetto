@@ -93,12 +93,10 @@ class Omnibox implements m.ClassComponent {
 
   view() {
     const msgTTL = globals.state.status.timestamp + 1 - Date.now() / 1e3;
-    let enginesAreBusy = false;
-    for (const engine of Object.values(globals.state.engines)) {
-      enginesAreBusy = enginesAreBusy || !engine.ready;
-    }
+    const engineIsBusy =
+        globals.state.engine !== undefined && !globals.state.engine.ready;
 
-    if (msgTTL > 0 || enginesAreBusy) {
+    if (msgTTL > 0 || engineIsBusy) {
       setTimeout(
           () => globals.rafScheduler.scheduleFullRedraw(), msgTTL * 1000);
       return m(

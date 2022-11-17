@@ -86,10 +86,8 @@ export function createEmptyNonSerializableState(): NonSerializableState {
 export function createEmptyState(): State {
   return {
     version: STATE_VERSION,
-    currentEngineId: undefined,
     nextId: '-1',
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE',
-    engines: {},
     traceTime: {...defaultTraceTime},
     tracks: {},
     uiTrackIdByTraceTrackId: {},
