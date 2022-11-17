@@ -18,7 +18,6 @@ import {
   DeferredAction,
 } from '../common/actions';
 import {cacheTrace} from '../common/cache_manager';
-import {TRACE_MARGIN_TIME_S} from '../common/constants';
 import {Engine} from '../common/engine';
 import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../common/feature_flags';
 import {HttpRpcEngine} from '../common/http_rpc_engine';
@@ -400,10 +399,8 @@ export class TraceController extends Controller<States> {
     const traceUuid = await this.cacheCurrentTrace();
 
     const traceTime = await this.engine.getTraceTimeBounds();
-    let startSec = traceTime.start;
-    let endSec = traceTime.end;
-    startSec -= TRACE_MARGIN_TIME_S;
-    endSec += TRACE_MARGIN_TIME_S;
+    const startSec = traceTime.start;
+    const endSec = traceTime.end;
     const traceTimeState = {
       startSec,
       endSec,
@@ -900,11 +897,11 @@ async function computeVisibleTime(
   // compare start and end with metadata computed by the trace processor
   const mdTime = await engine.getTracingMetadataTimeBounds();
   // make sure the bounds hold
-  if (Math.max(visibleStartSec, mdTime.start - TRACE_MARGIN_TIME_S) <
-      Math.min(visibleEndSec, mdTime.end + TRACE_MARGIN_TIME_S)) {
+  if (Math.max(visibleStartSec, mdTime.start) <
+      Math.min(visibleEndSec, mdTime.end)) {
     visibleStartSec =
-        Math.max(visibleStartSec, mdTime.start - TRACE_MARGIN_TIME_S);
-    visibleEndSec = Math.min(visibleEndSec, mdTime.end + TRACE_MARGIN_TIME_S);
+        Math.max(visibleStartSec, mdTime.start);
+    visibleEndSec = Math.min(visibleEndSec, mdTime.end);
   }
 
   // Trace Processor doesn't support the reliable range feature for JSON
