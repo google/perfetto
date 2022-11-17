@@ -33,7 +33,7 @@ export interface Timestamped {
 
 export type OmniboxMode = 'SEARCH'|'COMMAND';
 
-export interface OmniboxState extends Timestamped {
+export interface OmniboxState {
   omnibox: string;
   mode: OmniboxMode;
 }
@@ -94,7 +94,8 @@ export const MAX_TIME = 180;
 // 22: Add log selection kind.
 // 23: Add log filtering criteria for Android log entries.
 // 24: Store only a single Engine.
-export const STATE_VERSION = 24;
+// 25: Move omnibox state off VisibleState.
+export const STATE_VERSION = 25;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -267,7 +268,6 @@ export interface TraceTime {
 }
 
 export interface FrontendLocalState {
-  omniboxState: OmniboxState;
   visibleState: VisibleState;
 }
 
@@ -576,6 +576,9 @@ export interface State {
 
   // Android logs filtering state.
   logFilteringCriteria: LogFilteringCriteria;
+
+  // Omnibox info.
+  omniboxState: OmniboxState;
 }
 
 export const defaultTraceTime = {
