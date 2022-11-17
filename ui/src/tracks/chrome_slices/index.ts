@@ -15,7 +15,6 @@
 import {Actions} from '../../common/actions';
 import {cropText, drawIncompleteSlice} from '../../common/canvas_utils';
 import {colorForThreadIdleSlice, hslForSlice} from '../../common/colorizer';
-import {TRACE_MARGIN_TIME_S} from '../../common/constants';
 import {PluginContext} from '../../common/plugin_api';
 import {NUM, NUM_NULL, STR} from '../../common/query_result';
 import {fromNs, toNs} from '../../common/time';
@@ -438,7 +437,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       |undefined {
     const {timeScale, visibleWindowTime} = globals.frontendLocalState;
     const pxEnd = timeScale.timeToPx(visibleWindowTime.end);
-    const left = Math.max(timeScale.timeToPx(tStart), -TRACE_MARGIN_TIME_S);
+    const left = Math.max(timeScale.timeToPx(tStart), 0);
     const right = Math.min(timeScale.timeToPx(tEnd), pxEnd);
     return {
       left,
