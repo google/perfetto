@@ -143,8 +143,7 @@ export const StateActions = {
   openTraceFromFile(state: StateDraft, args: {file: File}): void {
     clearTraceState(state);
     const id = generateNextId(state);
-    state.currentEngineId = id;
-    state.engines[id] = {
+    state.engine = {
       id,
       ready: false,
       source: {type: 'FILE', file: args.file},
@@ -154,8 +153,7 @@ export const StateActions = {
   openTraceFromBuffer(state: StateDraft, args: PostedTrace): void {
     clearTraceState(state);
     const id = generateNextId(state);
-    state.currentEngineId = id;
-    state.engines[id] = {
+    state.engine = {
       id,
       ready: false,
       source: {type: 'ARRAY_BUFFER', ...args},
@@ -165,8 +163,7 @@ export const StateActions = {
   openTraceFromUrl(state: StateDraft, args: {url: string}): void {
     clearTraceState(state);
     const id = generateNextId(state);
-    state.currentEngineId = id;
-    state.engines[id] = {
+    state.engine = {
       id,
       ready: false,
       source: {type: 'URL', url: args.url},
@@ -176,8 +173,7 @@ export const StateActions = {
   openTraceFromHttpRpc(state: StateDraft, _args: {}): void {
     clearTraceState(state);
     const id = generateNextId(state);
-    state.currentEngineId = id;
-    state.engines[id] = {
+    state.engine = {
       id,
       ready: false,
       source: {type: 'HTTP_RPC'},
@@ -478,8 +474,8 @@ export const StateActions = {
   setEngineReady(
       state: StateDraft,
       args: {engineId: string; ready: boolean, mode: EngineMode}): void {
-    const engine = state.engines[args.engineId];
-    if (engine === undefined) {
+    const engine = state.engine;
+    if (engine === undefined || engine.id !== args.engineId) {
       return;
     }
     engine.ready = args.ready;
@@ -493,8 +489,8 @@ export const StateActions = {
   // Marks all engines matching the given |mode| as failed.
   setEngineFailed(state: StateDraft, args: {mode: EngineMode; failure: string}):
       void {
-        for (const engine of Object.values(state.engines)) {
-          if (engine.mode === args.mode) engine.failed = args.failure;
+        if (state.engine !== undefined && state.engine.mode === args.mode) {
+          state.engine.failed = args.failure;
         }
       },
 
@@ -544,8 +540,8 @@ export const StateActions = {
 
     // If we're loading from a permalink then none of the engines can
     // possibly be ready:
-    for (const engine of Object.values(state.engines)) {
-      engine.ready = false;
+    if (state.engine !== undefined) {
+      state.engine.ready = false;
     }
   },
 

@@ -531,10 +531,7 @@ class Globals {
   }
 
   getCurrentEngine(): EngineConfig|undefined {
-    if (!this.state.currentEngineId) {
-      return undefined;
-    }
-    return this.state.engines[this.state.currentEngineId];
+    return this.state.engine;
   }
 
   makeSelection(action: DeferredAction<{}>, tabToOpen = 'current_selection') {
