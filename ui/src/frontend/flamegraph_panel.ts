@@ -299,7 +299,8 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
         return [
           this.buildButtonComponent(
               SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY, 'Unreleased size'),
-          this.buildButtonComponent(OBJECTS_ALLOCATED_NOT_FREED_KEY, 'Count'),
+          this.buildButtonComponent(
+              OBJECTS_ALLOCATED_NOT_FREED_KEY, 'Unreleased count'),
           this.buildButtonComponent(
               ALLOC_SPACE_MEMORY_ALLOCATED_KEY, 'Total size'),
           this.buildButtonComponent(OBJECTS_ALLOCATED_KEY, 'Total count'),
