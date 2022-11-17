@@ -99,7 +99,7 @@ base::Status DescribeSliceGenerator::ComputeTable(
 }
 
 Table::Schema DescribeSliceGenerator::CreateSchema() {
-  return tables::DescribeSliceTable::Schema();
+  return tables::DescribeSliceTable::ComputeStaticSchema();
 }
 
 std::string DescribeSliceGenerator::TableName() {
