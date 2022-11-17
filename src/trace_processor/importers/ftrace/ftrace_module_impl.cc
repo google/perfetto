@@ -47,7 +47,8 @@ ModuleResult FtraceModuleImpl::TokenizePacket(
           decoder.trusted_packet_sequence_id());
     }
     case TracePacket::kFtraceStatsFieldNumber: {
-      parser_.ParseFtraceStats(decoder.ftrace_stats());
+      parser_.ParseFtraceStats(decoder.ftrace_stats(),
+                               decoder.trusted_packet_sequence_id());
       return ModuleResult::Handled();
     }
   }

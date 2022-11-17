@@ -41,7 +41,7 @@ namespace metadata {
   F(benchmark_story_run_index,         KeyType::kSingle,  Variadic::kInt),    \
   F(benchmark_story_run_time_us,       KeyType::kSingle,  Variadic::kInt),    \
   F(benchmark_story_tags,              KeyType::kMulti,   Variadic::kString), \
-  F(ftrace_setup_errors,               KeyType::kSingle,  Variadic::kString), \
+  F(ftrace_setup_errors,               KeyType::kMulti,   Variadic::kString), \
   F(statsd_triggering_subscription_id, KeyType::kSingle,  Variadic::kInt),    \
   F(system_machine,                    KeyType::kSingle,  Variadic::kString), \
   F(system_name,                       KeyType::kSingle,  Variadic::kString), \
