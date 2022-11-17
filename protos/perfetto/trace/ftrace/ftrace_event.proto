@@ -25,6 +25,7 @@ import "protos/perfetto/trace/ftrace/binder.proto";
 import "protos/perfetto/trace/ftrace/block.proto";
 import "protos/perfetto/trace/ftrace/cgroup.proto";
 import "protos/perfetto/trace/ftrace/clk.proto";
+import "protos/perfetto/trace/ftrace/cma.proto";
 import "protos/perfetto/trace/ftrace/compaction.proto";
 import "protos/perfetto/trace/ftrace/cpuhp.proto";
 import "protos/perfetto/trace/ftrace/cros_ec.proto";
@@ -571,5 +572,7 @@ message FtraceEvent {
     TrustyIpcRxFtraceEvent trusty_ipc_rx = 462;
     TrustyIpcTxFtraceEvent trusty_ipc_tx = 463;
     TrustyEnqueueNopFtraceEvent trusty_enqueue_nop = 464;
+    CmaAllocStartFtraceEvent cma_alloc_start = 465;
+    CmaAllocInfoFtraceEvent cma_alloc_info = 466;
   }
 }
