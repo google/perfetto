@@ -38,6 +38,7 @@
 
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/ftrace/binder.pbzero.h"
+#include "protos/perfetto/trace/ftrace/cma.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cpuhp.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cros_ec.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dmabuf_heap.pbzero.h"
@@ -286,7 +287,20 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       trusty_category_id_(context_->storage->InternString("tipc")),
       trusty_name_trusty_std_id_(context_->storage->InternString("trusty_std")),
       trusty_name_tipc_tx_id_(context_->storage->InternString("tipc_tx")),
-      trusty_name_tipc_rx_id_(context_->storage->InternString("tipc_rx")) {
+      trusty_name_tipc_rx_id_(context_->storage->InternString("tipc_rx")),
+      cma_alloc_id_(context_->storage->InternString("mm_cma_alloc")),
+      cma_name_id_(context_->storage->InternString("cma_name")),
+      cma_pfn_id_(context_->storage->InternString("cma_pfn")),
+      cma_req_pages_id_(context_->storage->InternString("cma_req_pages")),
+      cma_nr_migrated_id_(context_->storage->InternString("cma_nr_migrated")),
+      cma_nr_reclaimed_id_(context_->storage->InternString("cma_nr_reclaimed")),
+      cma_nr_mapped_id_(context_->storage->InternString("cma_nr_mapped")),
+      cma_nr_isolate_fail_id_(
+          context_->storage->InternString("cma_nr_isolate_fail")),
+      cma_nr_migrate_fail_id_(
+          context_->storage->InternString("cma_nr_migrate_fail")),
+      cma_nr_test_fail_id_(
+          context_->storage->InternString("cma_nr_test_fail")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -360,7 +374,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
            context->storage->InternString("mem.mm.kern_alloc.avg_lat"))}};
 }
 
-void FtraceParser::ParseFtraceStats(ConstBytes blob) {
+void FtraceParser::ParseFtraceStats(ConstBytes blob,
+                                    uint32_t packet_sequence_id) {
   protos::pbzero::FtraceStats::Decoder evt(blob.data, blob.size);
   bool is_start =
       evt.phase() == protos::pbzero::FtraceStats::Phase::START_OF_TRACE;
@@ -486,22 +501,27 @@ void FtraceParser::ParseFtraceStats(ConstBytes blob) {
   //    medatata table.
   // Both will be reported in the 'Info & stats' page in the UI.
   if (is_start) {
-    std::string error_str;
-    for (auto it = evt.failed_ftrace_events(); it; ++it) {
-      storage->IncrementStats(stats::ftrace_setup_errors, 1);
-      error_str += "Ftrace event failed: " + it->as_std_string() + "\n";
+    if (seen_errors_for_sequence_id_.count(packet_sequence_id) == 0) {
+      std::string error_str;
+      for (auto it = evt.failed_ftrace_events(); it; ++it) {
+        storage->IncrementStats(stats::ftrace_setup_errors, 1);
+        error_str += "Ftrace event failed: " + it->as_std_string() + "\n";
+      }
+      for (auto it = evt.unknown_ftrace_events(); it; ++it) {
+        storage->IncrementStats(stats::ftrace_setup_errors, 1);
+        error_str += "Ftrace event unknown: " + it->as_std_string() + "\n";
+      }
+      if (evt.atrace_errors().size > 0) {
+        storage->IncrementStats(stats::ftrace_setup_errors, 1);
+        error_str += "Atrace failures: " + evt.atrace_errors().ToStdString();
+      }
+      if (!error_str.empty()) {
+        auto error_str_id = storage->InternString(base::StringView(error_str));
+        context_->metadata_tracker->AppendMetadata(
+            metadata::ftrace_setup_errors, Variadic::String(error_str_id));
+        seen_errors_for_sequence_id_.insert(packet_sequence_id);
+      }
     }
-    for (auto it = evt.unknown_ftrace_events(); it; ++it) {
-      storage->IncrementStats(stats::ftrace_setup_errors, 1);
-      error_str += "Ftrace event unknown: " + it->as_std_string() + "\n";
-    }
-    if (evt.atrace_errors().size > 0) {
-      storage->IncrementStats(stats::ftrace_setup_errors, 1);
-      error_str += "Atrace failures: " + evt.atrace_errors().ToStdString();
-    }
-    auto error_str_id = storage->InternString(base::StringView(error_str));
-    context_->metadata_tracker->SetMetadata(metadata::ftrace_setup_errors,
-                                            Variadic::String(error_str_id));
     if (evt.preserve_ftrace_buffer()) {
       preserve_ftrace_buffer_ = true;
     }
@@ -679,6 +699,14 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kScmCallEndFieldNumber: {
         ParseScmCallEnd(ts, pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kCmaAllocStartFieldNumber: {
+        ParseCmaAllocStart(ts, pid);
+        break;
+      }
+      case FtraceEvent::kCmaAllocInfoFieldNumber: {
+        ParseCmaAllocInfo(ts, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kMmVmscanDirectReclaimBeginFieldNumber: {
@@ -1740,6 +1768,59 @@ void FtraceParser::ParseScmCallEnd(int64_t timestamp,
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
   context_->slice_tracker->End(timestamp, track_id);
+}
+
+void FtraceParser::ParseCmaAllocStart(int64_t timestamp, uint32_t pid) {
+  base::Optional<VersionNumber> kernel_version =
+      SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
+  // CmaAllocInfo event only exists after 5.10
+  if (kernel_version < VersionNumber{5, 10})
+    return;
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+
+  context_->slice_tracker->Begin(timestamp, track_id, kNullStringId,
+                                 cma_alloc_id_);
+}
+
+void FtraceParser::ParseCmaAllocInfo(int64_t timestamp,
+                                     uint32_t pid,
+                                     ConstBytes blob) {
+  base::Optional<VersionNumber> kernel_version =
+      SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
+  // CmaAllocInfo event only exists after 5.10
+  if (kernel_version < VersionNumber{5, 10})
+    return;
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  protos::pbzero::CmaAllocInfoFtraceEvent::Decoder cma_alloc_info(blob.data,
+                                                                  blob.size);
+  auto args_inserter = [this,
+                        &cma_alloc_info](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(cma_name_id_,
+                     Variadic::String(context_->storage->InternString(
+                         cma_alloc_info.name())));
+    inserter->AddArg(cma_pfn_id_,
+                     Variadic::UnsignedInteger(cma_alloc_info.pfn()));
+    inserter->AddArg(cma_req_pages_id_,
+                     Variadic::UnsignedInteger(cma_alloc_info.count()));
+    inserter->AddArg(cma_nr_migrated_id_,
+                     Variadic::UnsignedInteger(cma_alloc_info.nr_migrated()));
+    inserter->AddArg(cma_nr_reclaimed_id_,
+                     Variadic::UnsignedInteger(cma_alloc_info.nr_reclaimed()));
+    inserter->AddArg(cma_nr_mapped_id_,
+                     Variadic::UnsignedInteger(cma_alloc_info.nr_mapped()));
+    inserter->AddArg(cma_nr_isolate_fail_id_,
+                     Variadic::UnsignedInteger(cma_alloc_info.err_iso()));
+    inserter->AddArg(cma_nr_migrate_fail_id_,
+                     Variadic::UnsignedInteger(cma_alloc_info.err_mig()));
+    inserter->AddArg(cma_nr_test_fail_id_,
+                     Variadic::UnsignedInteger(cma_alloc_info.err_test()));
+  };
+  context_->slice_tracker->End(timestamp, track_id, kNullStringId,
+                               kNullStringId, args_inserter);
 }
 
 void FtraceParser::ParseDirectReclaimBegin(int64_t timestamp,

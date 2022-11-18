@@ -75,7 +75,7 @@ export class SearchController extends Controller<'main'> {
     }
 
     const visibleState = this.app.state.frontendLocalState.visibleState;
-    const omniboxState = this.app.state.frontendLocalState.omniboxState;
+    const omniboxState = this.app.state.omniboxState;
     if (visibleState === undefined || omniboxState === undefined ||
         omniboxState.mode === 'COMMAND') {
       return;

@@ -86,10 +86,8 @@ export function createEmptyNonSerializableState(): NonSerializableState {
 export function createEmptyState(): State {
   return {
     version: STATE_VERSION,
-    currentEngineId: undefined,
     nextId: '-1',
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE',
-    engines: {},
     traceTime: {...defaultTraceTime},
     tracks: {},
     uiTrackIdByTraceTrackId: {},
@@ -113,17 +111,16 @@ export function createEmptyState(): State {
     lastLoadedConfig: {type: 'NONE'},
 
     frontendLocalState: {
-      omniboxState: {
-        lastUpdate: 0,
-        omnibox: '',
-        mode: 'SEARCH',
-      },
-
       visibleState: {
         ...defaultTraceTime,
         lastUpdate: 0,
         resolution: 0,
       },
+    },
+
+    omniboxState: {
+      omnibox: '',
+      mode: 'SEARCH',
     },
 
     logsPagination: {

@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 445> descriptors{{
+std::array<FtraceMessageDescriptor, 467> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -4927,6 +4927,226 @@ std::array<FtraceMessageDescriptor, 445> descriptors{{
             {"total_scan", ProtoSchemaType::kInt64},
             {"unused_scan", ProtoSchemaType::kInt64},
             {"nid", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "trusty_smc",
+        4,
+        {
+            {},
+            {"r0", ProtoSchemaType::kUint64},
+            {"r1", ProtoSchemaType::kUint64},
+            {"r2", ProtoSchemaType::kUint64},
+            {"r3", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "trusty_smc_done",
+        1,
+        {
+            {},
+            {"ret", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "trusty_std_call32",
+        4,
+        {
+            {},
+            {"r0", ProtoSchemaType::kUint64},
+            {"r1", ProtoSchemaType::kUint64},
+            {"r2", ProtoSchemaType::kUint64},
+            {"r3", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "trusty_std_call32_done",
+        1,
+        {
+            {},
+            {"ret", ProtoSchemaType::kInt64},
+        },
+    },
+    {
+        "trusty_share_memory",
+        3,
+        {
+            {},
+            {"len", ProtoSchemaType::kUint64},
+            {"lend", ProtoSchemaType::kUint32},
+            {"nents", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "trusty_share_memory_done",
+        5,
+        {
+            {},
+            {"handle", ProtoSchemaType::kUint64},
+            {"len", ProtoSchemaType::kUint64},
+            {"lend", ProtoSchemaType::kUint32},
+            {"nents", ProtoSchemaType::kUint32},
+            {"ret", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "trusty_reclaim_memory",
+        1,
+        {
+            {},
+            {"id", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "trusty_reclaim_memory_done",
+        2,
+        {
+            {},
+            {"id", ProtoSchemaType::kUint64},
+            {"ret", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "trusty_irq",
+        1,
+        {
+            {},
+            {"irq", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "trusty_ipc_handle_event",
+        3,
+        {
+            {},
+            {"chan", ProtoSchemaType::kUint32},
+            {"event_id", ProtoSchemaType::kUint32},
+            {"srv_name", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "trusty_ipc_connect",
+        3,
+        {
+            {},
+            {"chan", ProtoSchemaType::kUint32},
+            {"port", ProtoSchemaType::kString},
+            {"state", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "trusty_ipc_connect_end",
+        3,
+        {
+            {},
+            {"chan", ProtoSchemaType::kUint32},
+            {"err", ProtoSchemaType::kInt32},
+            {"state", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "trusty_ipc_write",
+        6,
+        {
+            {},
+            {"buf_id", ProtoSchemaType::kUint64},
+            {"chan", ProtoSchemaType::kUint32},
+            {"kind_shm", ProtoSchemaType::kInt32},
+            {"len_or_err", ProtoSchemaType::kInt32},
+            {"shm_cnt", ProtoSchemaType::kUint64},
+            {"srv_name", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "trusty_ipc_poll",
+        3,
+        {
+            {},
+            {"chan", ProtoSchemaType::kUint32},
+            {"poll_mask", ProtoSchemaType::kUint32},
+            {"srv_name", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "trusty_ipc_poll_end",
+        0,
+        {
+            {},
+        },
+    },
+    {
+        "trusty_ipc_read",
+        2,
+        {
+            {},
+            {"chan", ProtoSchemaType::kUint32},
+            {"srv_name", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "trusty_ipc_read_end",
+        5,
+        {
+            {},
+            {"buf_id", ProtoSchemaType::kUint64},
+            {"chan", ProtoSchemaType::kUint32},
+            {"len_or_err", ProtoSchemaType::kInt32},
+            {"shm_cnt", ProtoSchemaType::kUint64},
+            {"srv_name", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "trusty_ipc_rx",
+        3,
+        {
+            {},
+            {"buf_id", ProtoSchemaType::kUint64},
+            {"chan", ProtoSchemaType::kUint32},
+            {"srv_name", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "trusty_ipc_tx",
+        0,
+        {
+            {},
+        },
+    },
+    {
+        "trusty_enqueue_nop",
+        3,
+        {
+            {},
+            {"arg1", ProtoSchemaType::kUint32},
+            {"arg2", ProtoSchemaType::kUint32},
+            {"arg3", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "cma_alloc_start",
+        3,
+        {
+            {},
+            {"align", ProtoSchemaType::kUint32},
+            {"count", ProtoSchemaType::kUint32},
+            {"name", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "cma_alloc_info",
+        10,
+        {
+            {},
+            {"align", ProtoSchemaType::kUint32},
+            {"count", ProtoSchemaType::kUint32},
+            {"err_iso", ProtoSchemaType::kUint32},
+            {"err_mig", ProtoSchemaType::kUint32},
+            {"err_test", ProtoSchemaType::kUint32},
+            {"name", ProtoSchemaType::kString},
+            {"nr_mapped", ProtoSchemaType::kUint64},
+            {"nr_migrated", ProtoSchemaType::kUint64},
+            {"nr_reclaimed", ProtoSchemaType::kUint64},
+            {"pfn", ProtoSchemaType::kUint64},
         },
     },
 }};

@@ -5440,7 +5440,6 @@ TEST_P(PerfettoApiTest, CorrectTrackUUIDForLegacyEvents) {
 }
 
 TEST_P(PerfettoApiTest, ActivateTriggers) {
-  // Create a new trace session without any data sources configured.
   perfetto::TraceConfig cfg;
   cfg.add_buffers()->set_size_kb(1024);
   perfetto::TraceConfig::TriggerConfig* tr_cfg = cfg.mutable_trigger_config();
@@ -5454,16 +5453,7 @@ TEST_P(PerfettoApiTest, ActivateTriggers) {
 
   perfetto::Tracing::ActivateTriggers({"trigger2", "trigger1"});
 
-  bool done = false;
-  std::mutex mutex;
-  std::condition_variable cv;
-  std::unique_lock<std::mutex> lock(mutex);
-  tracing_session->get()->SetOnStopCallback([&]() {
-    std::lock_guard<std::mutex> inner_lock(mutex);
-    done = true;
-    cv.notify_one();
-  });
-  cv.wait(lock, [&done] { return done; });
+  tracing_session->on_stop.Wait();
 
   std::vector<char> bytes = tracing_session->get()->ReadTraceBlocking();
   perfetto::protos::gen::Trace parsed_trace;

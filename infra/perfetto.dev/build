@@ -19,10 +19,10 @@ set -eu
 # other paths. the cd is required for npm install.
 cd -P ${BASH_SOURCE[0]%/*}
 
-# Ensure that `npm install` has been called and is current. Note that the set of
+# Ensure that `npm ci` has been called and is current. Note that the set of
 # packages that the docs website requires is != the UI ones.
 if ! test node_modules/.stamp -nt package-lock.json; then
-  ../../tools/npm install
+  ../../tools/npm ci
   touch node_modules/.stamp
 fi
 

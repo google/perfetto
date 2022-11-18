@@ -18,7 +18,6 @@ import {
   DeferredAction,
 } from '../common/actions';
 import {cacheTrace} from '../common/cache_manager';
-import {TRACE_MARGIN_TIME_S} from '../common/constants';
 import {Engine} from '../common/engine';
 import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../common/feature_flags';
 import {HttpRpcEngine} from '../common/http_rpc_engine';
@@ -182,7 +181,7 @@ export class TraceController extends Controller<States> {
   }
 
   run() {
-    const engineCfg = assertExists(globals.state.engines[this.engineId]);
+    const engineCfg = assertExists(globals.state.engine);
     switch (this.state) {
       case 'init':
         this.loadTrace()
@@ -226,11 +225,10 @@ export class TraceController extends Controller<States> {
         // Create a QueryController for each query.
         for (const queryId of Object.keys(globals.state.queries)) {
           // If the expected engineId was not specified in the query, we
-          // assume it's `state.currentEngineId`. The engineId is not specified
+          // assume it's current engine id. The engineId is not specified
           // for instances with queries created prior to the creation of the
           // first engine.
-          const expectedEngineId = globals.state.queries[queryId].engineId ||
-              frontendGlobals.state.currentEngineId;
+          const expectedEngineId = globals.state.engine?.id;
           // Check that we are executing the query on the correct engine.
           if (expectedEngineId !== engine.id) {
             continue;
@@ -354,7 +352,8 @@ export class TraceController extends Controller<States> {
       ready: false,
       mode: engineMode,
     }));
-    const engineCfg = assertExists(globals.state.engines[this.engineId]);
+    const engineCfg = assertExists(globals.state.engine);
+    assertTrue(engineCfg.id === this.engineId);
     let traceStream: TraceStream | undefined;
     if (engineCfg.source.type === 'FILE') {
       traceStream = new TraceFileStream(engineCfg.source.file);
@@ -400,10 +399,8 @@ export class TraceController extends Controller<States> {
     const traceUuid = await this.cacheCurrentTrace();
 
     const traceTime = await this.engine.getTraceTimeBounds();
-    let startSec = traceTime.start;
-    let endSec = traceTime.end;
-    startSec -= TRACE_MARGIN_TIME_S;
-    endSec += TRACE_MARGIN_TIME_S;
+    const startSec = traceTime.start;
+    const endSec = traceTime.end;
     const traceTimeState = {
       startSec,
       endSec,
@@ -430,9 +427,7 @@ export class TraceController extends Controller<States> {
 
     const emptyOmniboxState = {
       omnibox: '',
-      mode: frontendGlobals.state.frontendLocalState.omniboxState.mode ||
-          'SEARCH',
-      lastUpdate: Date.now() / 1000,
+      mode: frontendGlobals.state.omniboxState.mode || 'SEARCH',
     };
 
     const actions: DeferredAction[] = [
@@ -675,7 +670,8 @@ export class TraceController extends Controller<States> {
       return '';
     }
     const traceUuid = result.firstRow({uuid: STR}).uuid;
-    const engineConfig = assertExists(globals.state.engines[engine.id]);
+    const engineConfig = assertExists(globals.state.engine);
+    assertTrue(engineConfig.id === this.engineId);
     if (!(await cacheTrace(engineConfig.source, traceUuid))) {
       // If the trace is not cacheable (cacheable means it has been opened from
       // URL or RPC) only append '?local_cache_key' to the URL, without the
@@ -900,11 +896,11 @@ async function computeVisibleTime(
   // compare start and end with metadata computed by the trace processor
   const mdTime = await engine.getTracingMetadataTimeBounds();
   // make sure the bounds hold
-  if (Math.max(visibleStartSec, mdTime.start - TRACE_MARGIN_TIME_S) <
-      Math.min(visibleEndSec, mdTime.end + TRACE_MARGIN_TIME_S)) {
+  if (Math.max(visibleStartSec, mdTime.start) <
+      Math.min(visibleEndSec, mdTime.end)) {
     visibleStartSec =
-        Math.max(visibleStartSec, mdTime.start - TRACE_MARGIN_TIME_S);
-    visibleEndSec = Math.min(visibleEndSec, mdTime.end + TRACE_MARGIN_TIME_S);
+        Math.max(visibleStartSec, mdTime.start);
+    visibleEndSec = Math.min(visibleEndSec, mdTime.end);
   }
 
   // Trace Processor doesn't support the reliable range feature for JSON

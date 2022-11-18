@@ -33,7 +33,7 @@ export interface Timestamped {
 
 export type OmniboxMode = 'SEARCH'|'COMMAND';
 
-export interface OmniboxState extends Timestamped {
+export interface OmniboxState {
   omnibox: string;
   mode: OmniboxMode;
 }
@@ -93,7 +93,9 @@ export const MAX_TIME = 180;
 // 21: Updated perf sample selection to include a ts range instead of single ts
 // 22: Add log selection kind.
 // 23: Add log filtering criteria for Android log entries.
-export const STATE_VERSION = 23;
+// 24: Store only a single Engine.
+// 25: Move omnibox state off VisibleState.
+export const STATE_VERSION = 25;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -266,7 +268,6 @@ export interface TraceTime {
 }
 
 export interface FrontendLocalState {
-  omniboxState: OmniboxState;
   visibleState: VisibleState;
 }
 
@@ -487,7 +488,6 @@ export interface LogFilteringCriteria {
 
 export interface State {
   version: number;
-  currentEngineId?: string;
   nextId: string;
 
   /**
@@ -501,13 +501,7 @@ export interface State {
    * Open traces.
    */
   newEngineMode: NewEngineMode;
-
-  /**
-   * At some point there were plans to support multiple traces support in the
-   * same instance UI. For now, the `engines` mapping contains at most one
-   * EngineConfig.
-   */
-  engines: ObjectById<EngineConfig>;
+  engine?: EngineConfig;
   traceTime: TraceTime;
   traceUuid?: string;
   trackGroups: ObjectById<TrackGroupState>;
@@ -582,6 +576,9 @@ export interface State {
 
   // Android logs filtering state.
   logFilteringCriteria: LogFilteringCriteria;
+
+  // Omnibox info.
+  omniboxState: OmniboxState;
 }
 
 export const defaultTraceTime = {
