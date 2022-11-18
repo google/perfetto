@@ -119,6 +119,11 @@ def parse_and_validate_args():
       metavar="CONFIG",
       default=None)
   parser.add_argument(
+      "--no-annotations",
+      help="Do not suffix the pprof function names with Android ART mode "
+      "annotations such as [jit].",
+      action="store_true")
+  parser.add_argument(
       "--print-config",
       action="store_true",
       help="Print config instead of running. For debugging.")
@@ -394,7 +399,7 @@ def symbolize_trace(traceconv, profile_target):
   return trace_file
 
 
-def generate_pprof_profiles(traceconv, trace_file):
+def generate_pprof_profiles(traceconv, trace_file, args):
   """Generates pprof profiles from the recorded trace.
 
   Args:
@@ -405,8 +410,9 @@ def generate_pprof_profiles(traceconv, trace_file):
     The directory where pprof profiles are output.
   """
   try:
-    traceconv_output = subprocess.check_output(
-        [traceconv, 'profile', '--perf', trace_file])
+    conversion_args = [traceconv, 'profile', '--perf'] + (
+        ['--no-annotations'] if args.no_annotations else []) + [trace_file]
+    traceconv_output = subprocess.check_output(conversion_args)
   except Exception as error:
     exit_with_bug_report(
         "Unable to extract profiles from trace: {}".format(error))
@@ -445,8 +451,8 @@ def main(argv):
   record_trace(trace_config, profile_target)
   traceconv = get_traceconv()
   trace_file = symbolize_trace(traceconv, profile_target)
-  copy_profiles_to_destination(profile_target,
-                               generate_pprof_profiles(traceconv, trace_file))
+  copy_profiles_to_destination(
+      profile_target, generate_pprof_profiles(traceconv, trace_file, args))
   return 0
 
 
