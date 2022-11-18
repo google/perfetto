@@ -273,6 +273,11 @@ def main(argv):
   parser.add_argument(
       "--traceconv-binary", help="Path to local trace to text. For debugging.")
   parser.add_argument(
+      "--no-annotations",
+      help="Do not suffix the pprof function names with Android ART mode "
+      "annotations such as [jit].",
+      action="store_true")
+  parser.add_argument(
       "--print-config",
       action="store_true",
       help="Print config instead of running. For debugging.")
@@ -533,8 +538,9 @@ def main(argv):
             out.write(buf)
     trace_file = os.path.join(profile_target, 'symbolized-trace')
 
-  traceconv_output = subprocess.check_output(
-      [traceconv_binary, 'profile', trace_file])
+  conversion_args = [traceconv_binary, 'profile'] + (
+      ['--no-annotations'] if args.no_annotations else []) + [trace_file]
+  traceconv_output = subprocess.check_output(conversion_args)
   profile_path = None
   for word in traceconv_output.decode('utf-8').split():
     if 'heap_profile-' in word:
