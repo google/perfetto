@@ -94,10 +94,12 @@ class FtraceParser {
   void ParseMmEventRecord(int64_t timestamp,
                           uint32_t pid,
                           protozero::ConstBytes);
-  void ParseSysEvent(int64_t timestamp,
-                     uint32_t pid,
-                     bool is_enter,
-                     protozero::ConstBytes);
+  void ParseSysEnterEvent(int64_t timestamp,
+                          uint32_t pid,
+                          protozero::ConstBytes);
+  void ParseSysExitEvent(int64_t timestamp,
+                         uint32_t pid,
+                         protozero::ConstBytes);
   void ParseI2cReadEvent(int64_t timestamp,
                          uint32_t pid,
                          protozero::ConstBytes);
@@ -332,6 +334,7 @@ class FtraceParser {
   const StringId cma_nr_isolate_fail_id_;
   const StringId cma_nr_migrate_fail_id_;
   const StringId cma_nr_test_fail_id_;
+  const StringId syscall_ret_id_;
 
   struct FtraceMessageStrings {
     // The string id of name of the event field (e.g. sched_switch's id).

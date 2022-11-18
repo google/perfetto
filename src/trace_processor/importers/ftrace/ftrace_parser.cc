@@ -299,8 +299,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
           context_->storage->InternString("cma_nr_isolate_fail")),
       cma_nr_migrate_fail_id_(
           context_->storage->InternString("cma_nr_migrate_fail")),
-      cma_nr_test_fail_id_(
-          context_->storage->InternString("cma_nr_test_fail")) {
+      cma_nr_test_fail_id_(context_->storage->InternString("cma_nr_test_fail")),
+      syscall_ret_id_(context->storage->InternString("ret")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -632,11 +632,11 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kSysEnterFieldNumber: {
-        ParseSysEvent(ts, pid, true, fld_bytes);
+        ParseSysEnterEvent(ts, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kSysExitFieldNumber: {
-        ParseSysEvent(ts, pid, false, fld_bytes);
+        ParseSysExitEvent(ts, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kTaskNewtaskFieldNumber: {
@@ -1552,28 +1552,32 @@ void FtraceParser::ParseMmEventRecord(int64_t timestamp,
       timestamp, evt.avg_lat(), counter_names.avg_lat, utid);
 }
 
-void FtraceParser::ParseSysEvent(int64_t timestamp,
-                                 uint32_t pid,
-                                 bool is_enter,
-                                 ConstBytes blob) {
+void FtraceParser::ParseSysEnterEvent(int64_t timestamp,
+                                      uint32_t pid,
+                                      ConstBytes blob) {
   protos::pbzero::SysEnterFtraceEvent::Decoder evt(blob.data, blob.size);
   uint32_t syscall_num = static_cast<uint32_t>(evt.id());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
   SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(context_);
-  if (is_enter) {
-    syscall_tracker->Enter(timestamp, utid, syscall_num);
-  } else {
-    syscall_tracker->Exit(timestamp, utid, syscall_num);
-  }
+  syscall_tracker->Enter(timestamp, utid, syscall_num);
+}
 
-  // We are reusing the same function for sys_enter and sys_exit.
-  // It is fine as the arguments are the same, but we need to be sure that the
-  // protobuf field id for both are the same.
-  static_assert(
-      static_cast<int>(protos::pbzero::SysEnterFtraceEvent::kIdFieldNumber) ==
-          static_cast<int>(protos::pbzero::SysExitFtraceEvent::kIdFieldNumber),
-      "field mismatch");
+void FtraceParser::ParseSysExitEvent(int64_t timestamp,
+                                     uint32_t pid,
+                                     ConstBytes blob) {
+  protos::pbzero::SysExitFtraceEvent::Decoder evt(blob.data, blob.size);
+  uint32_t syscall_num = static_cast<uint32_t>(evt.id());
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+
+  SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(context_);
+  auto args_callback = [this, &evt](ArgsTracker::BoundInserter* inserter) {
+    if (evt.has_ret()) {
+      const auto ret = evt.ret();
+      inserter->AddArg(syscall_ret_id_, Variadic::Integer(ret));
+    }
+  };
+  syscall_tracker->Exit(timestamp, utid, syscall_num, args_callback);
 }
 
 void FtraceParser::ParseI2cReadEvent(int64_t timestamp,
