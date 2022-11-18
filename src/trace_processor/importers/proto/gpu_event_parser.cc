@@ -198,17 +198,7 @@ void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
       // Check missing counter_id
       if (gpu_counter_track_ids_.find(counter_id) ==
           gpu_counter_track_ids_.end()) {
-        char buffer[64];
-        base::StringWriter writer(buffer, sizeof(buffer));
-        writer.AppendString("gpu_counter(");
-        writer.AppendUnsignedInt(counter_id);
-        writer.AppendString(")");
-        auto name_id = context_->storage->InternString(writer.GetStringView());
-
-        TrackId track = context_->track_tracker->CreateGpuCounterTrack(
-            name_id, 0 /* gpu_id */);
-        gpu_counter_track_ids_.emplace(counter_id, track);
-        context_->storage->IncrementStats(stats::gpu_counters_missing_spec);
+        continue;
       }
       double counter_val = counter.has_int_value()
                                ? static_cast<double>(counter.int_value())
