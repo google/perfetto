@@ -23,6 +23,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/kernel_utils/syscall_table.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -62,7 +63,11 @@ class SyscallTracker : public Destructible {
     }
   }
 
-  void Exit(int64_t ts, UniqueTid utid, uint32_t syscall_num) {
+  void Exit(int64_t ts,
+            UniqueTid utid,
+            uint32_t syscall_num,
+            EventTracker::SetArgsCallback args_callback =
+                EventTracker::SetArgsCallback()) {
     StringId name = SyscallNumberToStringId(syscall_num);
     if (name.is_null())
       return;
@@ -79,7 +84,8 @@ class SyscallTracker : public Destructible {
     }
 
     TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-    context_->slice_tracker->End(ts, track_id, kNullStringId /* cat */, name);
+    context_->slice_tracker->End(ts, track_id, kNullStringId /* cat */, name,
+                                 args_callback);
   }
 
   // Resolves slice nesting issues when the sys_write is for an atrace slice on
