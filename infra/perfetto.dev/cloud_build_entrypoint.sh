@@ -32,8 +32,8 @@ git clone --depth 1 $UPSTREAM upstream
 cd upstream/
 git rev-parse HEAD
 
-# Install only NodeJS, no need to install the other toolchains.
-tools/install-build-deps --ui --filter=nodejs
+# Install only NodeJS, gn and ninja no need to install the other toolchains.
+tools/install-build-deps --ui --filter=nodejs --filter=gn --filter=ninja
 
 # The deploy script takes care of building by invoking ./build internally.
 infra/perfetto.dev/deploy
