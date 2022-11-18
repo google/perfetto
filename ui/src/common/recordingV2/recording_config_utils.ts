@@ -145,10 +145,15 @@ export function genTraceConfig(
     ftraceEvents.add('power/suspend_resume');
   }
 
+  let sysStatsCfg: SysStatsConfig|undefined = undefined;
+
   if (uiCfg.cpuFreq) {
     ftraceEvents.add('power/cpu_frequency');
     ftraceEvents.add('power/cpu_idle');
     ftraceEvents.add('power/suspend_resume');
+
+    sysStatsCfg = new SysStatsConfig();
+    sysStatsCfg.cpufreqPeriodMs = uiCfg.cpuFreqPollMs;
   }
 
   if (uiCfg.gpuFreq) {
@@ -202,10 +207,8 @@ export function genTraceConfig(
     ftraceEvents.add('power/suspend_resume');
   }
 
-  let sysStatsCfg: SysStatsConfig|undefined = undefined;
-
   if (uiCfg.cpuCoarse) {
-    sysStatsCfg = new SysStatsConfig();
+    if (sysStatsCfg === undefined) sysStatsCfg = new SysStatsConfig();
     sysStatsCfg.statPeriodMs = uiCfg.cpuCoarsePollMs;
     sysStatsCfg.statCounters = [
       SysStatsConfig.StatCounters.STAT_CPU_TIMES,
