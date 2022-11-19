@@ -37,8 +37,8 @@ AsyncTrackSetTracker::TrackSetId AsyncTrackSetTracker::InternGlobalTrackSet(
   uint32_t id = static_cast<uint32_t>(track_sets_.size());
   TrackSet set;
   set.global_track_name = name;
-  set.type = TrackSetType::kGlobal;
-  set.nesting_behaviour = NestingBehaviour::kUnnestable;
+  set.scope = TrackSetScope::kGlobal;
+  set.nesting_behaviour = NestingBehaviour::kNestable;
   track_sets_.emplace_back(set);
 
   return global_track_set_ids_[name] = id;
@@ -57,8 +57,8 @@ AsyncTrackSetTracker::TrackSetId AsyncTrackSetTracker::InternProcessTrackSet(
 
   TrackSet set;
   set.process_tuple = tuple;
-  set.type = TrackSetType::kProcess;
-  set.nesting_behaviour = NestingBehaviour::kUnnestable;
+  set.scope = TrackSetScope::kProcess;
+  set.nesting_behaviour = NestingBehaviour::kNestable;
   track_sets_.emplace_back(set);
 
   process_track_set_ids_[tuple] = id;
@@ -78,7 +78,7 @@ AsyncTrackSetTracker::InternAndroidLegacyUnnestableTrackSet(UniquePid upid,
 
   TrackSet set;
   set.process_tuple = tuple;
-  set.type = TrackSetType::kAndroidLegacyUnnestable;
+  set.scope = TrackSetScope::kProcess;
   set.nesting_behaviour = NestingBehaviour::kLegacySaturatingUnnestable;
   track_sets_.emplace_back(set);
 
@@ -92,13 +92,12 @@ TrackId AsyncTrackSetTracker::Begin(TrackSetId id, int64_t cookie) {
   TrackSet& set = track_sets_[id];
   TrackState& state = GetOrCreateTrackForCookie(set, cookie);
   switch (set.nesting_behaviour) {
+    case NestingBehaviour::kNestable:
+      state.nest_count++;
+      break;
     case NestingBehaviour::kLegacySaturatingUnnestable:
       PERFETTO_DCHECK(state.nest_count <= 1);
       state.nest_count = 1;
-      break;
-    case NestingBehaviour::kUnnestable:
-      PERFETTO_DCHECK(state.nest_count == 0);
-      state.nest_count++;
       break;
   }
   return state.id;
@@ -126,7 +125,8 @@ TrackId AsyncTrackSetTracker::Scoped(TrackSetId id, int64_t ts, int64_t dur) {
   PERFETTO_DCHECK(id < track_sets_.size());
 
   TrackSet& set = track_sets_[id];
-  PERFETTO_DCHECK(set.nesting_behaviour == NestingBehaviour::kUnnestable);
+  PERFETTO_DCHECK(set.nesting_behaviour !=
+                  NestingBehaviour::kLegacySaturatingUnnestable);
 
   auto it = std::find_if(
       set.tracks.begin(), set.tracks.end(), [ts](const TrackState& state) {
@@ -180,20 +180,21 @@ AsyncTrackSetTracker::GetOrCreateTrackForCookie(TrackSet& set, int64_t cookie) {
 }
 
 TrackId AsyncTrackSetTracker::CreateTrackForSet(const TrackSet& set) {
-  switch (set.type) {
-    case TrackSetType::kGlobal:
+  switch (set.scope) {
+    case TrackSetScope::kGlobal:
       // TODO(lalitm): propogate source from callers rather than just passing
       // kNullStringId here.
       return context_->track_tracker->CreateGlobalAsyncTrack(
           set.global_track_name, kNullStringId);
-    case TrackSetType::kProcess:
+    case TrackSetScope::kProcess:
       // TODO(lalitm): propogate source from callers rather than just passing
       // kNullStringId here.
+      StringId source =
+          set.nesting_behaviour == NestingBehaviour::kLegacySaturatingUnnestable
+              ? android_source_
+              : kNullStringId;
       return context_->track_tracker->CreateProcessAsyncTrack(
-          set.process_tuple.name, set.process_tuple.upid, kNullStringId);
-    case TrackSetType::kAndroidLegacyUnnestable:
-      return context_->track_tracker->CreateProcessAsyncTrack(
-          set.process_tuple.name, set.process_tuple.upid, android_source_);
+          set.process_tuple.name, set.process_tuple.upid, source);
   }
   PERFETTO_FATAL("For GCC");
 }
