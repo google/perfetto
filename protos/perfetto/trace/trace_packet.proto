@@ -25,6 +25,7 @@ import "protos/perfetto/trace/android/frame_timeline_event.proto";
 import "protos/perfetto/trace/android/gpu_mem_event.proto";
 import "protos/perfetto/trace/android/graphics_frame_event.proto";
 import "protos/perfetto/trace/android/initial_display_state.proto";
+import "protos/perfetto/trace/android/network_trace.proto";
 import "protos/perfetto/trace/android/packages_list.proto";
 import "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto";
 import "protos/perfetto/trace/chrome/chrome_metadata.proto";
@@ -87,7 +88,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 83.
+// Next id: 89.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -187,6 +188,9 @@ message TracePacket {
     // allows trace_processor to deserialize extended messages using reflection
     // even if the extension proto is not checked in the Perfetto repo.
     ExtensionDescriptor extension_descriptor = 72;
+
+    // Represents a single packet sent or received by the network.
+    NetworkPacketEvent network_packet = 88;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
