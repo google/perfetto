@@ -315,7 +315,6 @@ class GnParser(object):
       self.type = type
       self.testonly = False
       self.toolchain = None
-      self.generated_file_contents = {}
 
       # These are valid only for type == proto_library.
       # This is typically: 'proto', 'protozero', 'ipc'.
@@ -329,11 +328,13 @@ class GnParser(object):
       self.public_headers = set()  # 'public'
 
       # These are valid only for type == 'action'
+      self.data = set()
       self.inputs = set()
       self.outputs = set()
       self.script = None
       self.args = []
       self.custom_action_type = None
+      self.python_main = None
 
       # These variables are propagated up when encountering a dependency
       # on a source_set target.
@@ -370,9 +371,9 @@ class GnParser(object):
                         sort_keys=True)
 
     def update(self, other):
-      for key in ('cflags', 'defines', 'deps', 'include_dirs', 'ldflags',
-                  'source_set_deps', 'proto_deps', 'transitive_proto_deps',
-                  'libs', 'proto_paths'):
+      for key in ('cflags', 'data', 'defines', 'deps', 'include_dirs',
+                  'ldflags', 'source_set_deps', 'proto_deps',
+                  'transitive_proto_deps', 'libs', 'proto_paths'):
         self.__dict__[key].update(other.__dict__.get(key, []))
 
   def __init__(self, gn_desc):
@@ -428,6 +429,7 @@ class GnParser(object):
       target.sources.update(desc.get('sources', []))
     elif target.type == 'action':
       self.actions[gn_target_name] = target
+      target.data.update(desc.get('metadata', {}).get('perfetto_data', []))
       target.inputs.update(desc.get('inputs', []))
       target.sources.update(desc.get('sources', []))
       outs = [re.sub('^//out/.+?/gen/', '', x) for x in desc['outputs']]
@@ -440,6 +442,8 @@ class GnParser(object):
                               {}).get('perfetto_action_type_for_generator', [])
       target.custom_action_type = action_types[0] if len(
           action_types) > 0 else None
+      python_main = desc.get('metadata', {}).get('perfetto_python_main', [])
+      target.python_main = python_main[0] if python_main else None
 
     # Default for 'public' is //* - all headers in 'sources' are public.
     # TODO(primiano): if a 'public' section is specified (even if empty), then
