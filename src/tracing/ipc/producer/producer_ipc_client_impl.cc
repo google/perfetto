@@ -97,6 +97,8 @@ ProducerIPCClientImpl::ProducerIPCClientImpl(
     std::unique_ptr<SharedMemoryArbiter> shm_arbiter)
     : producer_(producer),
       task_runner_(task_runner),
+      receive_shmem_fd_cb_fuchsia_(
+          std::move(conn_args.receive_shmem_fd_cb_fuchsia)),
       ipc_channel_(
           ipc::Client::CreateInstance(std::move(conn_args), task_runner)),
       producer_port_(
@@ -106,9 +108,7 @@ ProducerIPCClientImpl::ProducerIPCClientImpl(
       name_(producer_name),
       shared_memory_page_size_hint_bytes_(shared_memory_page_size_hint_bytes),
       shared_memory_size_hint_bytes_(shared_memory_size_hint_bytes),
-      smb_scraping_mode_(smb_scraping_mode),
-      receive_shmem_fd_cb_fuchsia_(
-          std::move(conn_args.receive_shmem_fd_cb_fuchsia)) {
+      smb_scraping_mode_(smb_scraping_mode) {
   // Check for producer-provided SMB (used by Chrome for startup tracing).
   if (shared_memory_) {
     // We also expect a valid (unbound) arbiter. Bind it to this endpoint now.
