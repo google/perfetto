@@ -287,6 +287,9 @@ export class NotesEditorTab extends BottomTab<NotesEditorTabConfig> {
 
   viewTab() {
     const note = globals.state.notes[this.config.id];
+    if (note === undefined) {
+      return m('.', `No Note with id ${this.config.id}`);
+    }
     const startTime =
         getStartTimestamp(note) - globals.state.traceTime.startSec;
     return m(
