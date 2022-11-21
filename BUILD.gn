@@ -150,6 +150,9 @@ if (perfetto_build_standalone) {
   all_targets += [
     "test/configs",
 
+    # Used to evaluate the Python folder for Bazel script generation.
+    "python:trace_processor_py",
+
     # For syntax-checking the protos.
     "protos/perfetto/trace:merged_trace_lite",
 
