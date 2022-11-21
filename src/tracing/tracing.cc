@@ -110,8 +110,9 @@ std::unique_ptr<StartupTracingSession> Tracing::SetupStartupTracingBlocking(
 }
 
 //  static
-void Tracing::ActivateTriggers(const std::vector<std::string>& triggers) {
-  internal::TracingMuxer::Get()->ActivateTriggers(triggers);
+void Tracing::ActivateTriggers(const std::vector<std::string>& triggers,
+                               uint32_t ttl_ms) {
+  internal::TracingMuxer::Get()->ActivateTriggers(triggers, ttl_ms);
 }
 
 TracingSession::~TracingSession() = default;
