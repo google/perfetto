@@ -10,10 +10,10 @@ system.*
 Performance analysis is concerned with making software run *better*.
 The definition of *better* varies widely and depends on the situation.
 Examples include:
-* performing the same work using fewer resources (e.g. CPU, memory,
-  network, battery etc.)
+* performing the same work using fewer resources (CPU, memory,
+  network, battery, etc.)
 * increasing utilization of available resources
-* identifying and eliminating unnecessary work altogether.
+* identifying and eliminating unnecessary work altogether
 
 Much of the difficulty in improving performance comes from
 identifying the root cause of performance issues. Modern software systems are
@@ -32,14 +32,14 @@ or **trace** for short.
 
 Traces contain enough detail to fully reconstruct the timeline of events.
 They often include low-level kernel events like scheduler context switches,
-thread wakeups, syscalls etc. With the "right" trace, reproduction of a
+thread wakeups, syscalls, etc. With the "right" trace, reproduction of a
 performance bug is not needed as the trace provides all necessary context.
 
 Application code is also **instrumented** in areas of the program which are
 considered to be *important*. This instrumentation keeps track of what the
-program was doing over time (i.e. which functions were being run, how long each
-call took etc.) and context about the execution (i.e. what were the parameters
-to a function call, why was a function run etc).
+program was doing over time (e.g. which functions were being run, or how long
+each call took) and context about the execution (e.g. what were the parameters
+to a function call, or why was a function run).
 
 The level of detail in traces makes it impractical to read traces directly
 like a log file in all but the simplest cases. Instead, a combination of
@@ -50,16 +50,15 @@ timeline which give users a graphical view of what their system was doing
 over time.
 
 #### Logging vs tracing
-A good intuition is that logging is that, logging is to functional testing what
+A good intuition is that logging is to functional testing what
 tracing is to performance analysis. Tracing is, in a sense, "structured"
-logging: instead of having arbitrary strings which emitted from parts of the
-system, tracing reflects the detailed state of a
-system in a structured way to allow reconstruction of the timeline
-of events.
+logging: instead of having arbitrary strings emitted from parts of the system,
+tracing reflects the detailed state of a system in a structured way to allow
+reconstruction of the timeline of events.
 
 Moreover, tracing frameworks (like Perfetto) place heavy emphasis
 on having minimal overhead. This is essential so that the framework
-does not cause disrupt whatever is being measured: modern frameworks
+does not significantly disrupt whatever is being measured: modern frameworks
 are fast enough that they can measure execution at the nanosecond level
 without significantly impacting the execution speed of the program.
 
@@ -70,7 +69,7 @@ different enough that the two tend to be separate.*
 #### Metrics vs tracing
 Metrics are numerical values which track the performance of a system over time.
 Usually metrics map to high-level concepts. Examples of metrics include: CPU
-usage, memory usage, network bandwidth etc. Metrics are collected directly from
+usage, memory usage, network bandwidth, etc. Metrics are collected directly from
 the app or operating system while the program is running.
 
 After glimpsing the power of tracing, a natural question arises: why bother
@@ -104,7 +103,7 @@ of the resource by that callstack. By far the most common types of profiling are
 
 Memory profiling is used to understand which parts of a program are allocating
 memory on the heap. The profiler generally hooks into `malloc` (and `free`)
-calls of a native (i.e. C/C++/Rust etc) program to sample the callstacks
+calls of a native (C/C++/Rust/etc.) program to sample the callstacks
 calling `malloc`. Information about how many bytes were allocated is also
 retained. CPU profiling is used for understanding where the program is
 spending CPU time. The profiler captures the callstack running on a CPU
@@ -119,7 +118,7 @@ There are two main questions for comparing profiling and tracing:
 
 ##### When to use profiling over tracing
 Traces cannot feasibly capture execution of extreme high frequency
-events e.g. every function call.  Profiling tools fill this niche: by
+events e.g. every function call. Profiling tools fill this niche: by
 sampling, they can significantly cut down on how much information they store.
 The statistical nature of profilers are rarely a problem; the sampling
 algorithms for profilers are specifically designed to capture data which is
