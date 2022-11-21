@@ -917,6 +917,11 @@ export const StateActions = {
         }
       }
     }
+    // It's super unexpected that |toggleTrackSelection| does not cause
+    // selection to be updated and this leads to bugs for people who do:
+    // if (oldSelection !== state.selection) etc.
+    // To solve this re-create the selection object here:
+    state.currentSelection = Object.assign({}, state.currentSelection);
   },
 
   setVisibleTraceTime(state: StateDraft, args: VisibleState): void {
