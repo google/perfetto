@@ -196,7 +196,12 @@ class PERFETTO_EXPORT Tracing {
 
   // Informs the tracing services to activate any of these triggers if any
   // tracing session was waiting for them.
-  static void ActivateTriggers(const std::vector<std::string>& triggers);
+  //
+  // Sends the trigger signal to all the initialized backends that are currently
+  // connected and that connect in the next `ttl_ms` milliseconds (but
+  // returns immediately anyway).
+  static void ActivateTriggers(const std::vector<std::string>& triggers,
+                               uint32_t ttl_ms);
 
  private:
   static void InitializeInternal(const TracingInitArgs&);

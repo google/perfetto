@@ -90,7 +90,12 @@ class PERFETTO_EXPORT TracingMuxer {
 
   // Informs the tracing services to activate any of these triggers if any
   // tracing session was waiting for them.
-  virtual void ActivateTriggers(const std::vector<std::string>&) = 0;
+  //
+  // Sends the trigger signal to all the initialized backends that are currently
+  // connected and that connect in the next `ttl_ms` milliseconds (but returns
+  // immediately anyway).
+  virtual void ActivateTriggers(const std::vector<std::string>&,
+                                uint32_t ttl_ms) = 0;
 
  protected:
   explicit TracingMuxer(Platform* platform) : platform_(platform) {}

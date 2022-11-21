@@ -180,6 +180,7 @@ void TracingMuxerImpl::ProducerImpl::OnConnect() {
   PERFETTO_DCHECK(!connected_);
   connected_ = true;
   muxer_->UpdateDataSourcesOnAllBackends();
+  SendOnConnectTriggers();
 }
 
 void TracingMuxerImpl::ProducerImpl::OnDisconnect() {
@@ -278,6 +279,22 @@ bool TracingMuxerImpl::ProducerImpl::SweepDeadServices() {
     it = next_it;
   }
   return dead_services_.empty();
+}
+
+void TracingMuxerImpl::ProducerImpl::SendOnConnectTriggers() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  base::TimeMillis now = base::GetWallTimeMs();
+  std::vector<std::string> triggers;
+  while (!on_connect_triggers_.empty()) {
+    // Skip if we passed TTL.
+    if (on_connect_triggers_.front().second > now) {
+      triggers.push_back(std::move(on_connect_triggers_.front().first));
+    }
+    on_connect_triggers_.pop_front();
+  }
+  if (!triggers.empty()) {
+    service_->ActivateTriggers(triggers);
+  }
 }
 
 // ----- End of TracingMuxerImpl::ProducerImpl methods.
@@ -894,11 +911,20 @@ void TracingMuxerImpl::RegisterInterceptor(
       });
 }
 
-void TracingMuxerImpl::ActivateTriggers(const std::vector<std::string>& triggers) {
-  task_runner_->PostTask([this, triggers] {
+void TracingMuxerImpl::ActivateTriggers(
+    const std::vector<std::string>& triggers,
+    uint32_t ttl_ms) {
+  base::TimeMillis expire_time =
+      base::GetWallTimeMs() + base::TimeMillis(ttl_ms);
+  task_runner_->PostTask([this, triggers, expire_time] {
     for (RegisteredBackend& backend : backends_) {
       if (backend.producer->connected_) {
         backend.producer->service_->ActivateTriggers(triggers);
+      } else {
+        for (const std::string& trigger : triggers) {
+          backend.producer->on_connect_triggers_.emplace_back(trigger,
+                                                              expire_time);
+        }
       }
     }
   });

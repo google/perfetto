@@ -1829,6 +1829,7 @@ cc_test {
         ":perfetto_src_tracing_core_core",
         ":perfetto_src_tracing_core_service",
         ":perfetto_src_tracing_in_process_backend",
+        ":perfetto_src_tracing_integrationtests",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_consumer_consumer",
         ":perfetto_src_tracing_ipc_default_socket",
@@ -9310,6 +9311,14 @@ filegroup {
     name: "perfetto_src_tracing_in_process_backend",
     srcs: [
         "src/tracing/internal/in_process_tracing_backend.cc",
+    ],
+}
+
+// GN: //src/tracing:integrationtests
+filegroup {
+    name: "perfetto_src_tracing_integrationtests",
+    srcs: [
+        "src/tracing/internal/tracing_muxer_impl_integrationtest.cc",
     ],
 }
 
