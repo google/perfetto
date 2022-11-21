@@ -187,13 +187,14 @@ base::Status WriteFile::Run(TraceStorage*,
     return base::ErrStatus("WRITE_FILE: expected %d args but got %zu", 2, argc);
   }
 
-  base::Status status = TypeCheckSqliteValue(argv[0], SqlValue::kString);
+  base::Status status =
+      sqlite_utils::TypeCheckSqliteValue(argv[0], SqlValue::kString);
   if (!status.ok()) {
     return base::ErrStatus("WRITE_FILE: argument 1, filename; %s",
                            status.c_message());
   }
 
-  status = TypeCheckSqliteValue(argv[1], SqlValue::kBytes);
+  status = sqlite_utils::TypeCheckSqliteValue(argv[1], SqlValue::kBytes);
   if (!status.ok()) {
     return base::ErrStatus("WRITE_FILE: argument 2, content; %s",
                            status.c_message());

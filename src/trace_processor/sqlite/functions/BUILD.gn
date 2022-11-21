@@ -53,6 +53,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../types",
       "../../util",
       "../../util:profile_builder",
+      "../../util:sql_argument",
     ]
     public_deps = [ "..:sqlite_minimal" ]
   }

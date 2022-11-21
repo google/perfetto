@@ -102,6 +102,42 @@ base::Status GetColumnsForTable(sqlite3* db,
 
   return base::OkStatus();
 }
+
+const char* SqliteTypeToFriendlyString(SqlValue::Type type) {
+  switch (type) {
+    case SqlValue::Type::kNull:
+      return "NULL";
+    case SqlValue::Type::kLong:
+      return "BOOL/INT/UINT/LONG";
+    case SqlValue::Type::kDouble:
+      return "FLOAT/DOUBLE";
+    case SqlValue::Type::kString:
+      return "STRING";
+    case SqlValue::Type::kBytes:
+      return "BYTES/PROTO";
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+base::Status TypeCheckSqliteValue(sqlite3_value* value,
+                                  SqlValue::Type expected_type) {
+  return TypeCheckSqliteValue(value, expected_type,
+                              SqliteTypeToFriendlyString(expected_type));
+}
+
+base::Status TypeCheckSqliteValue(sqlite3_value* value,
+                                  SqlValue::Type expected_type,
+                                  const char* expected_type_str) {
+  SqlValue::Type actual_type =
+      sqlite_utils::SqliteTypeToSqlValueType(sqlite3_value_type(value));
+  if (actual_type != SqlValue::Type::kNull && actual_type != expected_type) {
+    return base::ErrStatus(
+        "does not have expected type: expected %s, actual %s",
+        expected_type_str, SqliteTypeToFriendlyString(actual_type));
+  }
+  return base::OkStatus();
+}
+
 }  // namespace sqlite_utils
 }  // namespace trace_processor
 }  // namespace perfetto
