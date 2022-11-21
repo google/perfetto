@@ -20,19 +20,19 @@ load(
     "perfetto_build_config_cc_library",
     "perfetto_cc_amalgamated_sql",
     "perfetto_cc_binary",
-    "perfetto_filegroup",
-    "perfetto_genrule",
     "perfetto_cc_ipc_library",
     "perfetto_cc_library",
     "perfetto_cc_proto_descriptor",
     "perfetto_cc_proto_library",
     "perfetto_cc_protocpp_library",
     "perfetto_cc_protozero_library",
+    "perfetto_filegroup",
+    "perfetto_genrule",
     "perfetto_go_proto_library",
-    "perfetto_java_proto_library",
     "perfetto_java_lite_proto_library",
-    "perfetto_proto_library",
+    "perfetto_java_proto_library",
     "perfetto_proto_descriptor",
+    "perfetto_proto_library",
     "perfetto_py_binary",
     "perfetto_py_library",
     "perfetto_py_proto_library",
@@ -869,6 +869,7 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/perfetto_cmd:gen_cc_config_descriptor
 perfetto_cc_proto_descriptor(
     name = "src_perfetto_cmd_gen_cc_config_descriptor",
     deps = [
@@ -1167,6 +1168,7 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/importers:gen_cc_chrome_track_event_descriptor
 perfetto_cc_proto_descriptor(
     name = "src_trace_processor_importers_gen_cc_chrome_track_event_descriptor",
     deps = [
@@ -1177,6 +1179,7 @@ perfetto_cc_proto_descriptor(
     ],
 )
 
+# GN target: //src/trace_processor/importers:gen_cc_config_descriptor
 perfetto_cc_proto_descriptor(
     name = "src_trace_processor_importers_gen_cc_config_descriptor",
     deps = [
@@ -1187,6 +1190,7 @@ perfetto_cc_proto_descriptor(
     ],
 )
 
+# GN target: //src/trace_processor/importers:gen_cc_statsd_atoms_descriptor
 perfetto_cc_proto_descriptor(
     name = "src_trace_processor_importers_gen_cc_statsd_atoms_descriptor",
     deps = [
@@ -1197,6 +1201,7 @@ perfetto_cc_proto_descriptor(
     ],
 )
 
+# GN target: //src/trace_processor/importers:gen_cc_trace_descriptor
 perfetto_cc_proto_descriptor(
     name = "src_trace_processor_importers_gen_cc_trace_descriptor",
     deps = [
@@ -1207,6 +1212,7 @@ perfetto_cc_proto_descriptor(
     ],
 )
 
+# GN target: //src/trace_processor/importers:gen_cc_track_event_descriptor
 perfetto_cc_proto_descriptor(
     name = "src_trace_processor_importers_gen_cc_track_event_descriptor",
     deps = [
@@ -1407,6 +1413,7 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/metrics/sql:gen_amalgamated_sql_metrics
 perfetto_cc_amalgamated_sql(
     name = "src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
     deps = [
@@ -1433,6 +1440,7 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/metrics:gen_cc_all_chrome_metrics_descriptor
 perfetto_cc_proto_descriptor(
     name = "src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
     deps = [
@@ -1443,6 +1451,7 @@ perfetto_cc_proto_descriptor(
     ],
 )
 
+# GN target: //src/trace_processor/metrics:gen_cc_metrics_descriptor
 perfetto_cc_proto_descriptor(
     name = "src_trace_processor_metrics_gen_cc_metrics_descriptor",
     deps = [
@@ -1556,6 +1565,7 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/stdlib:gen_amalgamated_stdlib
 perfetto_cc_amalgamated_sql(
     name = "src_trace_processor_stdlib_gen_amalgamated_stdlib",
     deps = [
@@ -1958,6 +1968,7 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/traceconv:gen_cc_trace_descriptor
 perfetto_cc_proto_descriptor(
     name = "src_traceconv_gen_cc_trace_descriptor",
     deps = [

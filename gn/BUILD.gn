@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("perfetto.gni")
+import("perfetto_python.gni")
 import("proto_library.gni")
 
 if (perfetto_root_path == "//") {
@@ -410,4 +411,13 @@ if (enable_perfetto_fuzzers && use_libfuzzer) {
     assert(perfetto_root_path == "//")
     public_deps = [ "//buildtools:libfuzzer" ]
   }
+}
+
+# Python libraries which need to be installed on the system
+# or provided (for other build systems).
+perfetto_py_library("pandas_py") {
+}
+perfetto_py_library("tp_vendor_py") {
+}
+perfetto_py_library("protobuf_py") {
 }
