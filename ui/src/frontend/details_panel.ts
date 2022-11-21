@@ -225,7 +225,7 @@ function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
           kind: NotesEditorTab.kind,
           tag: currentSelectionTag,
           config: {
-            id: newSelection.areaId,
+            id: newSelection.noteId,
           },
         });
       }
