@@ -58,6 +58,11 @@ base::Optional<MappingId> SequenceStackProfileTracker::AddMapping(
       break;
     path += "/" + *opt_str;
   }
+  // When path strings just have single full path(like Chrome does), the mapping
+  // path gets an extra '/' prepended, strip the extra '/'.
+  if(base::StartsWith(path, "//")) {
+    path = path.substr(1);
+  }
 
   auto opt_build_id = FindAndInternString(mapping.build_id, intern_lookup,
                                           InternedStringType::kBuildId);
