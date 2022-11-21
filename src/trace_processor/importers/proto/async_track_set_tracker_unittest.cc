@@ -38,8 +38,8 @@ class AsyncTrackSetTrackerUnittest : public testing::Test {
     storage_ = context_.storage.get();
     tracker_ = context_.async_track_set_tracker.get();
 
-    unnestable_id_ = tracker_->CreateUnnestableTrackSetForTesting(
-        1, storage_->InternString("test"));
+    nestable_id_ =
+        tracker_->InternProcessTrackSet(1, storage_->InternString("test"));
     legacy_unnestable_id_ = tracker_->InternAndroidLegacyUnnestableTrackSet(
         2, storage_->InternString("test"));
   }
@@ -48,7 +48,7 @@ class AsyncTrackSetTrackerUnittest : public testing::Test {
   TraceStorage* storage_ = nullptr;
   AsyncTrackSetTracker* tracker_ = nullptr;
 
-  AsyncTrackSetTracker::TrackSetId unnestable_id_;
+  AsyncTrackSetTracker::TrackSetId nestable_id_;
   AsyncTrackSetTracker::TrackSetId legacy_unnestable_id_;
 
  private:
@@ -73,7 +73,7 @@ TEST_F(AsyncTrackSetTrackerUnittest, Smoke) {
 }
 
 TEST_F(AsyncTrackSetTrackerUnittest, EndFirst) {
-  auto end = tracker_->End(unnestable_id_, 1);
+  auto end = tracker_->End(nestable_id_, 1);
 
   uint32_t row = *storage_->process_track_table().id().IndexOf(end);
   ASSERT_EQ(storage_->process_track_table().upid()[row], 1u);
@@ -88,29 +88,44 @@ TEST_F(AsyncTrackSetTrackerUnittest, LegacySaturating) {
   ASSERT_EQ(begin, begin_2);
 }
 
-TEST_F(AsyncTrackSetTrackerUnittest, Unnestable) {
-  auto begin = tracker_->Begin(unnestable_id_, 1);
-  auto end = tracker_->End(unnestable_id_, 1);
-  auto begin_2 = tracker_->Begin(unnestable_id_, 1);
+TEST_F(AsyncTrackSetTrackerUnittest, DoubleBegin) {
+  auto begin = tracker_->Begin(nestable_id_, 1);
+  auto end = tracker_->End(nestable_id_, 1);
+  auto begin_2 = tracker_->Begin(nestable_id_, 1);
 
   ASSERT_EQ(begin, end);
   ASSERT_EQ(begin, begin_2);
 }
 
-TEST_F(AsyncTrackSetTrackerUnittest, UnnestableMultipleEndAfterBegin) {
-  auto begin = tracker_->Begin(unnestable_id_, 1);
-  auto end = tracker_->End(unnestable_id_, 1);
-  auto end_2 = tracker_->End(unnestable_id_, 1);
+TEST_F(AsyncTrackSetTrackerUnittest, Nesting) {
+  auto begin = tracker_->Begin(nestable_id_, 1);
+  auto begin_nested = tracker_->Begin(nestable_id_, 1);
+  auto begin_other = tracker_->Begin(nestable_id_, 2);
+  auto end_nested = tracker_->End(nestable_id_, 1);
+  auto end = tracker_->End(nestable_id_, 1);
+  auto end_other = tracker_->Begin(nestable_id_, 2);
+
+  ASSERT_EQ(begin, begin_nested);
+  ASSERT_NE(begin, begin_other);
+  ASSERT_EQ(begin_nested, end_nested);
+  ASSERT_EQ(begin, end);
+  ASSERT_EQ(begin_other, end_other);
+}
+
+TEST_F(AsyncTrackSetTrackerUnittest, NestableMultipleEndAfterBegin) {
+  auto begin = tracker_->Begin(nestable_id_, 1);
+  auto end = tracker_->End(nestable_id_, 1);
+  auto end_2 = tracker_->End(nestable_id_, 1);
 
   ASSERT_EQ(begin, end);
   ASSERT_EQ(end, end_2);
 }
 
 TEST_F(AsyncTrackSetTrackerUnittest, OnlyScoped) {
-  TrackId a = tracker_->Scoped(unnestable_id_, 100, 10);
-  TrackId b = tracker_->Scoped(unnestable_id_, 105, 2);
-  TrackId c = tracker_->Scoped(unnestable_id_, 107, 3);
-  TrackId d = tracker_->Scoped(unnestable_id_, 110, 5);
+  TrackId a = tracker_->Scoped(nestable_id_, 100, 10);
+  TrackId b = tracker_->Scoped(nestable_id_, 105, 2);
+  TrackId c = tracker_->Scoped(nestable_id_, 107, 3);
+  TrackId d = tracker_->Scoped(nestable_id_, 110, 5);
 
   ASSERT_NE(a, b);
   ASSERT_EQ(b, c);
@@ -118,12 +133,12 @@ TEST_F(AsyncTrackSetTrackerUnittest, OnlyScoped) {
 }
 
 TEST_F(AsyncTrackSetTrackerUnittest, MixScopedAndBeginEnd) {
-  TrackId a = tracker_->Scoped(unnestable_id_, 100, 10);
+  TrackId a = tracker_->Scoped(nestable_id_, 100, 10);
 
-  TrackId begin = tracker_->Begin(unnestable_id_, 777);
-  TrackId end = tracker_->End(unnestable_id_, 777);
+  TrackId begin = tracker_->Begin(nestable_id_, 777);
+  TrackId end = tracker_->End(nestable_id_, 777);
 
-  TrackId b = tracker_->Scoped(unnestable_id_, 105, 2);
+  TrackId b = tracker_->Scoped(nestable_id_, 105, 2);
 
   ASSERT_NE(a, begin);
   ASSERT_NE(b, begin);
@@ -131,9 +146,9 @@ TEST_F(AsyncTrackSetTrackerUnittest, MixScopedAndBeginEnd) {
 }
 
 TEST_F(AsyncTrackSetTrackerUnittest, DifferentTracksInterleave) {
-  TrackId b1 = tracker_->Begin(unnestable_id_, 666);
+  TrackId b1 = tracker_->Begin(nestable_id_, 666);
   TrackId b2 = tracker_->Begin(legacy_unnestable_id_, 777);
-  TrackId e1 = tracker_->End(unnestable_id_, 666);
+  TrackId e1 = tracker_->End(nestable_id_, 666);
   TrackId e2 = tracker_->End(legacy_unnestable_id_, 777);
 
   ASSERT_EQ(b1, e1);

@@ -98,11 +98,11 @@ class AsyncTrackSetTracker {
   // Indicates the nesting behaviour of slices associated to a single slice
   // stack.
   enum class NestingBehaviour {
-    // Indicates that slices are unnestable; that is, it is an error
-    // to call Begin -> Begin with a single cookie without End inbetween.
+    // Indicates that slices are nestable; that is, a stack of slices with
+    // the same cookie should stack correctly (but are not allowed to overlap).
     // This pattern should be the default behaviour that most async slices
     // should use.
-    kUnnestable,
+    kNestable,
 
     // Indicates that slices are unnestable but also saturating; that is
     // calling Begin -> Begin only causes a single Begin to be recorded.
@@ -113,10 +113,9 @@ class AsyncTrackSetTracker {
     kLegacySaturatingUnnestable,
   };
 
-  enum class TrackSetType {
+  enum class TrackSetScope {
     kGlobal,
     kProcess,
-    kAndroidLegacyUnnestable,
   };
 
   struct TrackState {
@@ -138,26 +137,17 @@ class AsyncTrackSetTracker {
   };
 
   struct TrackSet {
-    TrackSetType type;
+    TrackSetScope scope;
     union {
-      // Only set when |type| == |TrackSetType::kGlobal|.
+      // Only set when |scope| == |TrackSetScope::kGlobal|.
       StringId global_track_name;
-      // Only set when |type| == |TrackSetType::kFrameTimeline| or
-      // |TrackSetType::kAndroidLegacyUnnestable|.
+      // Only set when |scope| == |TrackSetScope::kFrameTimeline| or
+      // |TrackSetScope::kAndroidLegacyUnnestable|.
       ProcessTuple process_tuple;
     };
     NestingBehaviour nesting_behaviour;
     std::vector<TrackState> tracks;
   };
-
-  TrackSetId CreateUnnestableTrackSetForTesting(UniquePid upid, StringId name) {
-    AsyncTrackSetTracker::TrackSet set;
-    set.process_tuple = ProcessTuple{upid, name};
-    set.type = AsyncTrackSetTracker::TrackSetType::kAndroidLegacyUnnestable;
-    set.nesting_behaviour = NestingBehaviour::kUnnestable;
-    track_sets_.emplace_back(set);
-    return static_cast<TrackSetId>(track_sets_.size() - 1);
-  }
 
   // Returns the state for a track using the following algorithm:
   // 1. If a track exists with the given cookie in the track set, returns
