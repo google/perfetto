@@ -20,12 +20,12 @@ select ps.ts, ps.cpu, ps.cpu_mode, ps.unwind_error, ps.perf_session_id,
        spf.name
 from experimental_annotated_callstack eac
 join perf_sample ps
-  on (eac.start_id == ps.callsite_id)
+  on (eac.start_id = ps.callsite_id)
 join perf_counter_track pct
   using(perf_session_id, cpu)
 join thread
   using(utid)
 join stack_profile_frame spf
-  on (eac.frame_id == spf.id)
+  on (eac.frame_id = spf.id)
 order by ps.ts asc, eac.depth asc
 

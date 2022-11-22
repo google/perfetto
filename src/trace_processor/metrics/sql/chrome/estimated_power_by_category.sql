@@ -66,6 +66,6 @@ FROM (
       SUM(r.power_ma * r.dur) / 1e9 AS mas
     FROM {{input}}_power r
       JOIN {{input}} s
-    WHERE r.id == s.id
+    WHERE r.id = s.id
     GROUP BY s.id
   );

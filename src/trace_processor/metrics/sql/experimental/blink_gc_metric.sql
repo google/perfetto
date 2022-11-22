@@ -233,7 +233,7 @@ WHERE (
   ) AND (
     -- This replaces isForcedGarbageCollectionEvent.
     SELECT name FROM ANCESTOR_SLICE(blink_gc_cpu_slice.id) AS ancestor
-    WHERE ancestor.name == 'V8.GCLowMemoryNotification'
+    WHERE ancestor.name = 'V8.GCLowMemoryNotification'
     LIMIT 1
   ) IS NULL
 ) OR (
