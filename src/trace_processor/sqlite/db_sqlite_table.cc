@@ -16,7 +16,7 @@
 
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 
-#include "include/perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/sqlite/query_cache.h"
