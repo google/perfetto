@@ -15,10 +15,10 @@
 --
 create table t1(
   a1 STRING,
-  a2 BIG INT,
-  dur BIG INT,
-  a3 BIG INT,
-  ts BIG INT PRIMARY KEY
+  a2 BIGINT,
+  dur BIGINT,
+  a3 BIGINT,
+  ts BIGINT PRIMARY KEY
 ) without rowid;
 
 INSERT INTO t1(a1, a2, dur, a3, ts)
@@ -29,11 +29,11 @@ VALUES
 
 create table t2(
   b1 STRING,
-  ts BIG INT,
-  b2 BIG INT,
-  part BIG INT,
-  dur BIG INT,
-  b3 BIG INT,
+  ts BIGINT,
+  b2 BIGINT,
+  part BIGINT,
+  dur BIGINT,
+  b3 BIGINT,
   PRIMARY KEY (part, ts)
 ) without rowid;
 
