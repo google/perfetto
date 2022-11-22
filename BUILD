@@ -1337,6 +1337,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/metrics/sql/chrome/actual_power_by_category.sql",
         "src/trace_processor/metrics/sql/chrome/actual_power_by_rail_mode.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_args_class_names.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_event_metadata.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_histogram_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_input_to_browser_intervals.sql",
@@ -3355,6 +3356,7 @@ perfetto_proto_library(
     name = "protos_perfetto_metrics_chrome_protos",
     srcs = [
         "protos/perfetto/metrics/chrome/all_chrome_metrics.proto",
+        "protos/perfetto/metrics/chrome/args_class_names.proto",
         "protos/perfetto/metrics/chrome/blink_gc_metric.proto",
         "protos/perfetto/metrics/chrome/dropped_frames.proto",
         "protos/perfetto/metrics/chrome/frame_times.proto",
