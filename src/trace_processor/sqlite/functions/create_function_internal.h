@@ -24,32 +24,14 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/util/sql_argument.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-bool IsValidName(base::StringView str);
-
-base::Optional<SqlValue::Type> ParseType(base::StringView str);
-
-const char* SqliteTypeToFriendlyString(SqlValue::Type type);
-
-base::Status TypeCheckSqliteValue(sqlite3_value* value,
-                                  SqlValue::Type expected_type);
-
 struct Prototype {
-  struct Argument {
-    std::string name;
-    std::string dollar_name;
-    SqlValue::Type type;
-
-    bool operator==(const Argument& other) const {
-      return name == other.name && dollar_name == other.dollar_name &&
-             type == other.type;
-    }
-  };
   std::string function_name;
-  std::vector<Argument> arguments;
+  std::vector<sql_argument::ArgumentDefinition> arguments;
 
   bool operator==(const Prototype& other) const {
     return function_name == other.function_name && arguments == other.arguments;
@@ -62,15 +44,13 @@ base::Status ParseFunctionName(base::StringView raw,
 
 base::Status ParsePrototype(base::StringView raw, Prototype& out);
 
-base::Status ParseArgs(std::string args, std::vector<Prototype::Argument>&);
-
 base::Status SqliteRetToStatus(sqlite3* db,
                                const std::string& function_name,
                                int ret);
 
 base::Status MaybeBindArgument(sqlite3_stmt*,
                                const std::string& function_name,
-                               const Prototype::Argument&,
+                               const sql_argument::ArgumentDefinition&,
                                sqlite3_value*);
 
 }  // namespace trace_processor

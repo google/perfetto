@@ -220,6 +220,19 @@ base::Status GetColumnsForTable(sqlite3* db,
 // default byte order. `value` must be a `SQLITE_TEXT`.
 std::wstring SqliteValueToWString(sqlite3_value* value);
 
+// Given an SqlValue::Type, converts it to a human-readable string.
+// This should really only be used for debugging messages.
+const char* SqliteTypeToFriendlyString(SqlValue::Type type);
+
+// Verifies if |value| has the type represented by |expected_type|.
+// Returns base::OkStatus if it does or an base::ErrStatus with an
+// appropriate error mesage (incorporating |expected_type_str| if specified).
+base::Status TypeCheckSqliteValue(sqlite3_value* value,
+                                  SqlValue::Type expected_type);
+base::Status TypeCheckSqliteValue(sqlite3_value* value,
+                                  SqlValue::Type expected_type,
+                                  const char* expected_type_str);
+
 }  // namespace sqlite_utils
 }  // namespace trace_processor
 }  // namespace perfetto
