@@ -73,7 +73,7 @@ class CreatedViewFunction : public SqliteTable {
   sqlite3* db_ = nullptr;
 
   Prototype prototype_;
-  std::vector<Prototype::Argument> return_values_;
+  std::vector<sql_argument::ArgumentDefinition> return_values_;
 
   std::string prototype_str_;
   std::string sql_defn_str_;
@@ -108,7 +108,8 @@ base::Status CreatedViewFunction::Init(int argc,
   }
 
   // Parse the return type into a enum format.
-  status = ParseArgs(return_prototype_str, return_values_);
+  status = sql_argument::ParseArgumentDefinitions(return_prototype_str,
+                                                  return_values_);
   if (!status.ok()) {
     return base::ErrStatus(
         "CREATE_VIEW_FUNCTION[prototype=%s, return=%s]: unknown return type "
@@ -159,8 +160,8 @@ base::Status CreatedViewFunction::Init(int argc,
 
     auto it =
         std::find_if(prototype_.arguments.begin(), prototype_.arguments.end(),
-                     [name](const Prototype::Argument& arg) {
-                       return arg.dollar_name == name;
+                     [name](const sql_argument::ArgumentDefinition& arg) {
+                       return arg.dollar_name() == name;
                      });
     if (it == prototype_.arguments.end()) {
       return base::ErrStatus(
@@ -183,11 +184,11 @@ base::Status CreatedViewFunction::Init(int argc,
   // Verify that the return names matches the prepared statment column names.
   for (uint32_t i = 0; i < col_count; ++i) {
     const char* name = sqlite3_column_name(stmt.get(), static_cast<int>(i));
-    if (name != return_values_[i].name) {
+    if (name != return_values_[i].name()) {
       return base::ErrStatus(
           "%s: column %s at index %u does not match return value name %s.",
           prototype_.function_name.c_str(), name, i,
-          return_values_[i].name.c_str());
+          return_values_[i].name().c_str());
     }
   }
 
@@ -201,14 +202,17 @@ SqliteTable::Schema CreatedViewFunction::CreateSchema() {
   std::vector<Column> columns;
   for (size_t i = 0; i < return_values_.size(); ++i) {
     const auto& ret = return_values_[i];
-    columns.push_back(Column(columns.size(), ret.name, ret.type));
+    columns.push_back(Column(columns.size(), ret.name().ToStdString(),
+                             sql_argument::TypeToSqlValueType(ret.type())));
   }
   for (size_t i = 0; i < prototype_.arguments.size(); ++i) {
     const auto& arg = prototype_.arguments[i];
 
     // Add the "in_" prefix to every argument param to avoid clashes between the
     // output and input parameters.
-    columns.push_back(Column(columns.size(), "in_" + arg.name, arg.type, true));
+    columns.push_back(Column(columns.size(), "in_" + arg.name().ToStdString(),
+                             sql_argument::TypeToSqlValueType(arg.type()),
+                             true));
   }
 
   std::vector<size_t> primary_keys(return_values_.size());
@@ -281,13 +285,14 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
     }
 
     const auto& arg = table_->prototype_.arguments[col_to_arg_idx(cs.column)];
-    SqlValue::Type expected_type = arg.type;
-    base::Status status = TypeCheckSqliteValue(argv[i], expected_type);
+    base::Status status = sqlite_utils::TypeCheckSqliteValue(
+        argv[i], sql_argument::TypeToSqlValueType(arg.type()),
+        sql_argument::TypeToHumanFriendlyString(arg.type()));
     if (!status.ok()) {
       table_->SetErrorMessage(
           sqlite3_mprintf("%s: argument %s (index %u) %s",
                           table_->prototype_.function_name.c_str(),
-                          arg.name.c_str(), i, status.c_message()));
+                          arg.name().c_str(), i, status.c_message()));
       return SQLITE_ERROR;
     }
 
@@ -395,7 +400,7 @@ base::Status CreateViewFunction::Run(CreateViewFunction::Context* ctx,
   {
     auto type_check = [prototype_value](sqlite3_value* value,
                                         SqlValue::Type type, const char* desc) {
-      base::Status status = TypeCheckSqliteValue(value, type);
+      base::Status status = sqlite_utils::TypeCheckSqliteValue(value, type);
       if (!status.ok()) {
         return base::ErrStatus("CREATE_VIEW_FUNCTION[prototype=%s]: %s %s",
                                sqlite3_value_text(prototype_value), desc,

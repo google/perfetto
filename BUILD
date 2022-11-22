@@ -1711,6 +1711,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:sql_argument
+perfetto_filegroup(
+    name = "src_trace_processor_util_sql_argument",
+    srcs = [
+        "src/trace_processor/util/sql_argument.cc",
+        "src/trace_processor/util/sql_argument.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:stack_traces_util
 perfetto_filegroup(
     name = "src_trace_processor_util_stack_traces_util",
@@ -4367,6 +4376,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_proto_profiler",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
+        ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stack_traces_util",
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_zip_reader",
@@ -4497,6 +4507,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_proto_profiler",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
+        ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stack_traces_util",
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_zip_reader",
@@ -4682,6 +4693,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_proto_profiler",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
+        ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stack_traces_util",
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_zip_reader",
