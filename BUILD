@@ -2772,6 +2772,7 @@ perfetto_proto_library(
         "protos/perfetto/config/android/android_log_config.proto",
         "protos/perfetto/config/android/android_polled_state_config.proto",
         "protos/perfetto/config/android/android_system_property_config.proto",
+        "protos/perfetto/config/android/network_trace_config.proto",
         "protos/perfetto/config/android/packages_list_config.proto",
     ],
     visibility = [
@@ -3429,6 +3430,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/gpu_mem_event.proto",
         "protos/perfetto/trace/android/graphics_frame_event.proto",
         "protos/perfetto/trace/android/initial_display_state.proto",
+        "protos/perfetto/trace/android/network_trace.proto",
         "protos/perfetto/trace/android/packages_list.proto",
     ],
     visibility = [
