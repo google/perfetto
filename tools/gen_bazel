@@ -115,37 +115,20 @@ external_deps = {
 }
 
 
-def gen_cc_amalgamated_sql(target):
-  label = BazelLabel(
-      get_bazel_label_name(target.name), 'perfetto_cc_amalgamated_sql')
-
-  def find_arg(name):
-    for i, arg in enumerate(target.args):
-      if arg.startswith(f'--{name}'):
-        return target.args[i + 1]
-
-  label.namespace = find_arg('namespace')
-  label.root_dir = gn_utils.label_to_path(find_arg('root-dir'))
-
-  label.deps += sorted(
-      ':' + get_bazel_label_name(x) for x in target.source_set_deps)
-  label.outs += target.outputs
-
-  return [label]
+# These are Python targets which are exposed by default.
+default_python_targets = [
+  '//python:batch_trace_processor',
+  '//python:experimental_slice_breakdown_bin',
+  '//python:trace_processor_py_example',
+]
 
 
-def gen_cc_metrics_descriptor(target):
-  label = BazelLabel(
-      get_bazel_label_name(target.name), 'perfetto_cc_proto_descriptor')
-  label.deps += [':' + get_bazel_label_name(x) for x in target.proto_deps]
-  label.deps += [
-      gn_utils.label_to_path(src)
-      for src in target.inputs
-      if "tmp.gn_utils" not in src
-  ]
-
-  label.outs += target.outputs
-  return [label]
+# Internal equivalents for third-party Python libraries.
+external_python_deps = {
+  '//gn:pandas_py': ['PERFETTO_CONFIG.deps.pandas_py'],
+  '//gn:protobuf_py': ['PERFETTO_CONFIG.deps.protobuf_py'],
+  '//gn:tp_vendor_py': ['PERFETTO_CONFIG.deps.tp_vendor_py'],
+}
 
 
 def gen_version_header(target):
@@ -167,6 +150,125 @@ custom_actions = {
 # ------------------------------------------------------------------------------
 
 
+class PythonBuildGenerator:
+  '''Generator of the BUILD file in the python folder.
+
+  This code is split into its own class to avoid polluting
+  the generation of the main build file with Python related
+  content.
+  '''
+
+
+  def populate_python_deps(self, target, label):
+    '''Populates deps for a GN target into Bazel Python label.'''
+    for dep in sorted(target.deps):
+      if dep in external_python_deps:
+        assert (isinstance(external_python_deps[dep], list))
+        label.external_deps += external_python_deps[dep]
+      else:
+        label.deps += [':' + get_bazel_python_label_name(dep)]
+
+
+  def python_label_to_path(self, gn_name):
+    """Converts a Python GN path label into a Bazel path."""
+    return re.sub(r'^python/', '', gn_utils.label_to_path(gn_name))
+
+
+  def python_data_to_path(self, gn_name):
+    """Converts a Python GN data label into a Bazel data label."""
+    return re.sub(r'^\.\.(.*)', r'PERFETTO_CONFIG.root + "\1"', gn_name)
+
+
+  def gen_python_library(self, target):
+    """Creates a Bazel target for a Python library GN target."""
+    label = BazelLabel(
+        get_bazel_python_label_name(target.name), 'perfetto_py_library')
+    label.comment = target.name
+    label.srcs += (self.python_label_to_path(x) for x in target.sources)
+    label.data += (self.python_data_to_path(x) for x in target.data)
+    self.populate_python_deps(target, label)
+    return [label]
+
+
+  def gen_python_binary(self, target):
+    """Creates a Bazel target for a Python binary GN target."""
+    label = BazelLabel(
+        get_bazel_python_label_name(target.name), 'perfetto_py_binary')
+    label.comment = target.name
+    label.srcs += (self.python_label_to_path(x) for x in target.sources)
+    label.data += (self.python_data_to_path(x) for x in target.data)
+    label.main = target.python_main
+    label.python_version = 'PY3'
+    self.populate_python_deps(target, label)
+    return [label]
+
+
+  def gen_target(self, gn_target):
+    """Creates a Bazel target for a Python GN target."""
+    assert(gn_target.type == 'action')
+    if gn_target.name in external_python_deps:
+      return []
+    if gn_target.custom_action_type == 'python_library':
+      return self.gen_python_library(gn_target)
+    if gn_target.custom_action_type == 'python_binary':
+      return self.gen_python_binary(gn_target)
+    assert(False)
+
+
+  def gen_target_str(self, gn_target):
+    """Creates a Bazel target string for a Python GN target."""
+    return ''.join(str(x) for x in self.gen_target(gn_target))
+
+
+  def generate(self, gn_desc):
+    """Creates a Python BUILD file for the GN description."""
+    gn = gn_utils.GnParser(gn_desc)
+    project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+    tool_name = os.path.relpath(os.path.abspath(__file__), project_root)
+    res = '''
+# Copyright (C) 2022 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# This file is automatically generated by {}. Do not edit.
+
+load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
+load(
+    "@perfetto//bazel:rules.bzl",
+    "perfetto_py_binary",
+    "perfetto_py_library",
+)
+
+licenses(["notice"])
+
+package(default_visibility = ["//visibility:private"])
+
+'''.format(tool_name).lstrip()
+
+    # Find all the targets in the //python folder.
+    for target_name in default_python_targets:
+      target = gn.get_target(target_name)
+      res += self.gen_target_str(target)
+
+    # Generate all the intermediate targets.
+    for target in sorted(itervalues(gn.all_targets)):
+      if target.name in default_python_targets:
+        continue
+      res += self.gen_target_str(target)
+
+    return res
+
+
 class Error(Exception):
   pass
 
@@ -180,12 +282,15 @@ class BazelLabel(object):
     self.visibility = []
     self.srcs = []
     self.hdrs = []
+    self.data = []
     self.deps = []
     self.external_deps = []
     self.tools = []
     self.exec_tools = []
     self.outs = []
     self.exports = []
+    self.main = None
+    self.python_version = None
 
   def __lt__(self, other):
     if isinstance(other, self.__class__):
@@ -201,8 +306,8 @@ class BazelLabel(object):
     res += '%s(\n' % self.type
     any_deps = len(self.deps) + len(self.external_deps) > 0
     ORD = [
-        'name', 'srcs', 'hdrs', 'visibility', 'deps', 'outs', 'cmd', 'tools',
-        'exec_tools', 'exports'
+        'name', 'srcs', 'hdrs', 'visibility', 'data', 'deps', 'outs', 'cmd',
+        'tools', 'exec_tools', 'exports', 'main', 'python_version'
     ]
     hasher = lambda x: sum((99,) + tuple(ord(c) for c in x))
     key_sorter = lambda kv: ORD.index(kv[0]) if kv[0] in ORD else hasher(kv[0])
@@ -264,6 +369,12 @@ def get_bazel_label_name(gn_name):
   if gn_name in default_targets:
     return gn_utils.label_without_toolchain(gn_name).split(':')[1]
   return gn_utils.label_to_target_name_with_path(gn_name)
+
+
+def get_bazel_python_label_name(gn_name):
+  """Converts a Python GN label into a Bazel label."""
+  name = re.sub(r'^//python:?', '', gn_name)
+  return gn_utils.label_to_target_name_with_path(name)
 
 
 def get_bazel_proto_sources_label(target_name):
@@ -397,6 +508,41 @@ def gen_proto_group_target(gn, name, target_names):
   return [sources_label, cc_label, java_label, java_lite_label, py_label]
 
 
+def gen_cc_proto_descriptor(target):
+  label = BazelLabel(
+      get_bazel_label_name(target.name), 'perfetto_cc_proto_descriptor')
+  label.comment = target.name
+  label.deps += [':' + get_bazel_label_name(x) for x in target.proto_deps]
+  label.deps += [
+      gn_utils.label_to_path(src)
+      for src in target.inputs
+      if "tmp.gn_utils" not in src
+  ]
+
+  label.outs += target.outputs
+  return [label]
+
+
+def gen_cc_amalgamated_sql(target):
+  label = BazelLabel(
+      get_bazel_label_name(target.name), 'perfetto_cc_amalgamated_sql')
+
+  def find_arg(name):
+    for i, arg in enumerate(target.args):
+      if arg.startswith(f'--{name}'):
+        return target.args[i + 1]
+
+  label.comment = target.name
+  label.namespace = find_arg('namespace')
+  label.root_dir = gn_utils.label_to_path(find_arg('root-dir'))
+
+  label.deps += sorted(
+      ':' + get_bazel_label_name(x) for x in target.source_set_deps)
+  label.outs += target.outputs
+
+  return [label]
+
+
 def gen_target(gn_target):
   if gn_target.type == 'proto_library':
     return [gen_proto_label(gn_target)]
@@ -406,7 +552,7 @@ def gen_target(gn_target):
     if gn_target.custom_action_type == 'sql_amalgamation':
       return gen_cc_amalgamated_sql(gn_target)
     if gn_target.custom_action_type == 'cc_proto_descriptor':
-      return gen_cc_metrics_descriptor(gn_target)
+      return gen_cc_proto_descriptor(gn_target)
     return []
   elif gn_target.type == 'group':
     return []
@@ -515,19 +661,19 @@ load(
     "perfetto_build_config_cc_library",
     "perfetto_cc_amalgamated_sql",
     "perfetto_cc_binary",
-    "perfetto_filegroup",
-    "perfetto_genrule",
     "perfetto_cc_ipc_library",
     "perfetto_cc_library",
     "perfetto_cc_proto_descriptor",
     "perfetto_cc_proto_library",
     "perfetto_cc_protocpp_library",
     "perfetto_cc_protozero_library",
+    "perfetto_filegroup",
+    "perfetto_genrule",
     "perfetto_go_proto_library",
-    "perfetto_java_proto_library",
     "perfetto_java_lite_proto_library",
-    "perfetto_proto_library",
+    "perfetto_java_proto_library",
     "perfetto_proto_descriptor",
+    "perfetto_proto_library",
     "perfetto_py_binary",
     "perfetto_py_library",
     "perfetto_py_proto_library",
@@ -635,9 +781,9 @@ def main():
       default=os.path.join(gn_utils.repo_root(), 'BUILD'),
   )
   parser.add_argument(
-      '--output-proto',
-      help='Proto BUILD file to create',
-      default=os.path.join(gn_utils.repo_root(), 'protos', 'BUILD'),
+      '--output-python',
+      help='Python BUILD file to create',
+      default=os.path.join(gn_utils.repo_root(), 'python', 'BUILD'),
   )
   parser.add_argument(
       'targets',
@@ -661,6 +807,13 @@ def main():
   out_files.append(args.output + '.swp')
   with open(out_files[-1], 'w') as out_f:
     out_f.write(contents)
+
+  # Generate the python BUILD file.
+  python_gen = PythonBuildGenerator()
+  python_contents = python_gen.generate(desc)
+  out_files.append(args.output_python + '.swp')
+  with open(out_files[-1], 'w') as out_f:
+    out_f.write(python_contents)
 
   # Generate the build flags file.
   out_files.append(os.path.join(buildflags_dir, 'perfetto_build_flags.h.swp'))
