@@ -23,6 +23,7 @@ perfetto_sql_source_set("chrome_sql") {
   sources = [
     "actual_power_by_category.sql",
     "actual_power_by_rail_mode.sql",
+    "chrome_args_class_names.sql",
     "chrome_event_metadata.sql",
     "chrome_histogram_hashes.sql",
     "chrome_input_to_browser_intervals.sql",
