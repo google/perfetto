@@ -724,9 +724,9 @@ export class TraceController extends Controller<States> {
     this.updateStatus('Creating annotation counter table');
     await engine.query(`
       CREATE TABLE annotation_counter(
-        id BIG INT,
+        id BIGINT,
         track_id INT,
-        ts BIG INT,
+        ts BIGINT,
         value DOUBLE,
         PRIMARY KEY (track_id, ts)
       ) WITHOUT ROWID;
@@ -736,9 +736,9 @@ export class TraceController extends Controller<States> {
       CREATE TABLE annotation_slice(
         id INTEGER PRIMARY KEY,
         track_id INT,
-        ts BIG INT,
-        dur BIG INT,
-        thread_dur BIG INT,
+        ts BIGINT,
+        dur BIGINT,
+        thread_dur BIGINT,
         depth INT,
         cat STRING,
         name STRING,
