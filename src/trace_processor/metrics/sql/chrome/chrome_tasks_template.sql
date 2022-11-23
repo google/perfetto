@@ -244,7 +244,7 @@ WITH
      SELECT * FROM {{slice_table_name}} s
      WHERE
        category IN ("toplevel", "toplevel,viz")
-       AND (SELECT count() FROM ancestor_slice(s.id) s2 
+       AND (SELECT count() FROM ancestor_slice(s.id) s2
             WHERE s2.category IN ("toplevel", "toplevel.viz"))=0
   ),
   -- Select slices from "Java" category which do not have another "Java" or
