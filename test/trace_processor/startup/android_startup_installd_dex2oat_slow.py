@@ -66,9 +66,9 @@ trace.add_atrace_instant(
 trace.add_atrace_async_begin(ts=to_s(500), tid=2, pid=2, buf='launchingActivity#3')
 trace.add_sched(ts=to_s(505), prev_pid=0, next_pid=11)
 trace.add_sched(ts=to_s(510), prev_pid=11, next_pid=0)
-trace.add_atrace_async_end(ts=to_s(600), tid=2, pid=2, buf='launchingActivity#3')
+trace.add_atrace_async_end(ts=to_s(750), tid=2, pid=2, buf='launchingActivity#3')
 trace.add_atrace_instant(
-    ts=to_s(601),
+    ts=to_s(751),
     tid=2,
     pid=2,
     buf='launchingActivity#3:completed:com.google.android.deskclock')
