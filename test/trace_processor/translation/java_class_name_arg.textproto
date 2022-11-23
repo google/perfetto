@@ -1,0 +1,54 @@
+packet {
+  packages_list {
+    packages {
+      name: "package_name_1"
+      version_code: 123
+    }
+  }
+}
+# Packet with arguments
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_event {
+    categories: "cat1"
+    type: 3
+    name: "name1"
+    [perfetto.protos.ChromeTrackEvent.android_view_dump] {
+      activity {
+        name: "A1"
+        view {
+          class_name: "abc"
+        },
+        view {
+          class_name: "def"
+        },
+        view {
+          class_name: "ghi"
+        }
+      }
+      activity {
+        name: "B1"
+        view {
+          class_name: "jkl"
+        }
+      }
+    }
+  }
+}
+# Packet with DeobfuscationMapping
+packet {
+  deobfuscation_mapping {
+    package_name: "package_name_1"
+    version_code: 123
+    obfuscated_classes {
+        obfuscated_name: "abc"
+        deobfuscated_name: "class_A"
+    }
+    obfuscated_classes {
+        obfuscated_name: "jkl"
+        deobfuscated_name: "class_J"
+    }
+  }
+}
