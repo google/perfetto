@@ -14,17 +14,17 @@
 -- limitations under the License.
 --
 create table t1(
-  ts BIG INT,
-  dur BIG INT,
-  part BIG INT,
-  a BIG INT,
+  ts BIGINT,
+  dur BIGINT,
+  part BIGINT,
+  a BIGINT,
   PRIMARY KEY (part, ts)
 ) without rowid;
 
 create table t2(
-  ts BIG INT,
-  dur BIG INT,
-  b BIG INT,
+  ts BIGINT,
+  dur BIGINT,
+  b BIGINT,
   PRIMARY KEY (ts)
 ) without rowid;
 

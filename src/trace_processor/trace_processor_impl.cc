@@ -159,8 +159,7 @@ void CreateBuiltinTables(sqlite3* db) {
     PERFETTO_ELOG("Error initializing: %s", error);
     sqlite3_free(error);
   }
-  sqlite3_exec(db,
-               "CREATE TABLE trace_bounds(start_ts BIG INT, end_ts BIG INT)",
+  sqlite3_exec(db, "CREATE TABLE trace_bounds(start_ts BIGINT, end_ts BIGINT)",
                nullptr, nullptr, &error);
   if (error) {
     PERFETTO_ELOG("Error initializing: %s", error);
@@ -187,8 +186,8 @@ void CreateBuiltinTables(sqlite3* db) {
   // in the table is shown specially in the UI, and users can insert rows into
   // this table to draw more things.
   sqlite3_exec(db,
-               "CREATE TABLE debug_slices (id BIG INT, name STRING, ts BIG INT,"
-               "dur BIG INT, depth BIG INT)",
+               "CREATE TABLE debug_slices (id BIGINT, name STRING, ts BIGINT,"
+               "dur BIGINT, depth BIGINT)",
                nullptr, nullptr, &error);
   if (error) {
     PERFETTO_ELOG("Error initializing: %s", error);
