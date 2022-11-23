@@ -190,6 +190,17 @@ TEST(GlobUnittest, CharacterClassNormal) {
   ASSERT_FALSE(matcher.Matches("ABCABaCAB"));
 }
 
+TEST(GlobUnittest, CharacterClassMultiple) {
+  GlobMatcher matcher = GlobMatcher::FromPattern("*[rR][eE][nN]*");
+
+  // Matching patterns.
+  ASSERT_TRUE(matcher.Matches("renderScreenImplLock"));
+
+  // Non-matching patterns.
+  ASSERT_FALSE(matcher.Matches("updateVrFlinger"));
+  ASSERT_FALSE(matcher.Matches("waitForever"));
+}
+
 TEST(GlobUnittest, CharacterClassMixed) {
   GlobMatcher matcher = GlobMatcher::FromPattern("AB[abcf-zA-DEFG-Z]CAB");
 
