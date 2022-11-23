@@ -77,7 +77,7 @@ SELECT slice.id,
   CASE
     -- Add 1 to the duration to ensure you cannot get a zero-sized RAIL mode
     -- slice, which can throw off the later queries.
-    WHEN dur == -1 THEN max_ts_per_process.ts - slice.ts + 1
+    WHEN dur = -1 THEN max_ts_per_process.ts - slice.ts + 1
     ELSE dur
   END AS dur,
   track_id,
@@ -106,7 +106,7 @@ DROP VIEW IF EXISTS rail_mode_slices;
 CREATE VIEW rail_mode_slices AS
 SELECT ts, dur, track_id,
     CASE
-      WHEN rail_mode == "RAIL_MODE_LOAD" THEN "RAIL_MODE_ANIMATION"
+      WHEN rail_mode = "RAIL_MODE_LOAD" THEN "RAIL_MODE_ANIMATION"
       ELSE rail_mode
     END AS rail_mode
 FROM original_rail_mode_slices;
@@ -141,7 +141,7 @@ WHERE (
       s.end_ts > r.ts AND s.end_ts <= r.ts + r.dur
     )
   )
-  AND r.rail_mode == rail_modes.mode
+  AND r.rail_mode = rail_modes.mode
   AND trace_has_realistic_length.value
 GROUP BY s.ts;
 
@@ -357,7 +357,7 @@ WHERE name GLOB "InputLatency::*"
     SELECT 1
     FROM slice
       JOIN input_latency_begin_end_names
-    WHERE s.name == full_name
+    WHERE s.name = full_name
   );
 
 -- Turn the simple input slices into +1s and -1s at the start and end of each
@@ -452,8 +452,8 @@ CREATE VIEW has_modified_rail_slices AS
 SELECT (
     SELECT value
     FROM chrome_event_metadata
-    WHERE name == "os-name"
-  ) == "Android" AS value;
+    WHERE name = "os-name"
+  ) = "Android" AS value;
 
 -- Mapping to allow CamelCased names to be produced from the modified rail
 -- modes.

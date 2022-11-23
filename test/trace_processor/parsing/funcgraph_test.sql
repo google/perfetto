@@ -16,7 +16,7 @@
 
 select ts, dur, tid, s.name, depth
 from slices s
-join thread_track tt on (s.track_id == tt.id)
+join thread_track tt on (s.track_id = tt.id)
 join thread using (utid)
-where tid == 385482;
+where tid = 385482;
 

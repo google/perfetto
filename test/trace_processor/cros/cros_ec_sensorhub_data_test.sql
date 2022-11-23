@@ -8,4 +8,4 @@ SELECT
 FROM counter c
 JOIN track t
   ON c.track_id = t.id
-WHERE t.name == 'cros_ec.cros_ec_sensorhub_data.0';
+WHERE t.name = 'cros_ec.cros_ec_sensorhub_data.0';

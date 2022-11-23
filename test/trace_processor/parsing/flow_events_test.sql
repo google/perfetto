@@ -14,5 +14,5 @@
 -- limitations under the License.
 --
 select t1.name as slice_out, t2.name as slice_in from flow t
-join slice t1 on t.slice_out == t1.slice_id
-join slice t2 on t.slice_in == t2.slice_id;
+join slice t1 on t.slice_out = t1.slice_id
+join slice t2 on t.slice_in = t2.slice_id;
