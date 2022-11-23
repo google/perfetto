@@ -73,7 +73,7 @@ CREATE TABLE blocking_chrome_tasks_without_threadpool AS
 -- generic (and thus hard to figure out whats the cause) so we grab the src
 -- location to make it more meaningful.
 --
--- See b/184134310 for why we allow depth == 1 and ancestor.id is null (which
+-- See b/184134310 for why we allow depth = 1 and ancestor.id is null (which
 -- implies its a "ThreadController active" slice because we removed it
 -- previously).
 DROP TABLE IF EXISTS blocking_tasks_queuing_delay;

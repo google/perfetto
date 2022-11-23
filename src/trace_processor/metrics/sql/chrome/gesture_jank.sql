@@ -126,7 +126,7 @@ CREATE VIEW gesture_update AS
 -- {{gesture_update}} event to the information about its "begin" and "end"
 -- events for easy computation later.
 --
--- We remove updates with |dur| == -1 because this means we have no "end" event
+-- We remove updates with |dur| = -1 because this means we have no "end" event
 -- and can't reasonably determine what it should be. We have separate tracking
 -- to ensure this only happens at the end of the trace where its expected.
 DROP VIEW IF EXISTS {{id_field}}_update;
@@ -168,7 +168,7 @@ CREATE VIEW {{id_field}}_update AS
 -- event (relative to fps).
 --
 -- We only compare an "update" event to another event within the same gesture
--- ({{id_field}} == prev/next {{id_field}}). This controls somewhat for
+-- ({{id_field}} = prev/next {{id_field}}). This controls somewhat for
 -- variability of gestures.
 --
 -- Note: Must be a TABLE because it uses a window function which can behave

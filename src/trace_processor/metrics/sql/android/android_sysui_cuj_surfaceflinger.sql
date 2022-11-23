@@ -234,7 +234,7 @@ SELECT ts, ts_end - ts AS dur, ts_end
 FROM (
   SELECT MIN(ts) AS ts, MAX(ts_end) AS ts_end
   FROM android_sysui_cuj_surfaceflinger_main_thread_frames
-  JOIN android_sysui_cuj_sf_vsync_boundaries ON vsync == vsync_min OR vsync == vsync_max
+  JOIN android_sysui_cuj_sf_vsync_boundaries ON vsync = vsync_min OR vsync = vsync_max
   );
 
 DROP TABLE IF EXISTS android_sysui_cuj_surfaceflinger_main_thread_slices_in_cuj;
