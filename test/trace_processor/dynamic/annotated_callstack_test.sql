@@ -18,8 +18,8 @@ select eac.id, eac.depth, eac.frame_id, eac.annotation,
        spf.name
 from experimental_annotated_callstack eac
 join perf_sample ps
-  on (eac.start_id == ps.callsite_id)
+  on (eac.start_id = ps.callsite_id)
 join stack_profile_frame spf
-  on (eac.frame_id == spf.id)
+  on (eac.frame_id = spf.id)
 order by eac.start_id asc, eac.depth asc;
 

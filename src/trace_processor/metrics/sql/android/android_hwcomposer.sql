@@ -81,7 +81,7 @@ FROM (
 ) s JOIN process p USING (upid);
 
 -- These systrace counters are coming from dedicated kernel threads, so we can
--- assume pid == tid.
+-- assume pid = tid.
 DROP VIEW IF EXISTS dpu_vote_metrics;
 CREATE VIEW dpu_vote_metrics AS
 SELECT AndroidHwcomposerMetrics_DpuVoteMetrics(
