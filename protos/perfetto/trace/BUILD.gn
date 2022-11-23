@@ -39,6 +39,7 @@ proto_sources_non_minimal = [
 
 proto_sources_minimal = [
   "clock_snapshot.proto",
+  "trace_uuid.proto",
   "trigger.proto",
   "system_info.proto",
 ]

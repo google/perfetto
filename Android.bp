@@ -4859,6 +4859,7 @@ genrule {
         "protos/perfetto/trace/trace.proto",
         "protos/perfetto/trace/trace_packet.proto",
         "protos/perfetto/trace/trace_packet_defaults.proto",
+        "protos/perfetto/trace/trace_uuid.proto",
         "protos/perfetto/trace/track_event/chrome_active_processes.proto",
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
@@ -6107,6 +6108,7 @@ genrule {
     srcs: [
         "protos/perfetto/trace/clock_snapshot.proto",
         "protos/perfetto/trace/system_info.proto",
+        "protos/perfetto/trace/trace_uuid.proto",
         "protos/perfetto/trace/trigger.proto",
     ],
     tools: [
@@ -6117,6 +6119,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/clock_snapshot.gen.cc",
         "external/perfetto/protos/perfetto/trace/system_info.gen.cc",
+        "external/perfetto/protos/perfetto/trace/trace_uuid.gen.cc",
         "external/perfetto/protos/perfetto/trace/trigger.gen.cc",
     ],
 }
@@ -6127,6 +6130,7 @@ genrule {
     srcs: [
         "protos/perfetto/trace/clock_snapshot.proto",
         "protos/perfetto/trace/system_info.proto",
+        "protos/perfetto/trace/trace_uuid.proto",
         "protos/perfetto/trace/trigger.proto",
     ],
     tools: [
@@ -6137,6 +6141,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/clock_snapshot.gen.h",
         "external/perfetto/protos/perfetto/trace/system_info.gen.h",
+        "external/perfetto/protos/perfetto/trace/trace_uuid.gen.h",
         "external/perfetto/protos/perfetto/trace/trigger.gen.h",
     ],
     export_include_dirs: [
@@ -6151,6 +6156,7 @@ genrule {
     srcs: [
         "protos/perfetto/trace/clock_snapshot.proto",
         "protos/perfetto/trace/system_info.proto",
+        "protos/perfetto/trace/trace_uuid.proto",
         "protos/perfetto/trace/trigger.proto",
     ],
     tools: [
@@ -6160,6 +6166,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/clock_snapshot.pb.cc",
         "external/perfetto/protos/perfetto/trace/system_info.pb.cc",
+        "external/perfetto/protos/perfetto/trace/trace_uuid.pb.cc",
         "external/perfetto/protos/perfetto/trace/trigger.pb.cc",
     ],
 }
@@ -6170,6 +6177,7 @@ genrule {
     srcs: [
         "protos/perfetto/trace/clock_snapshot.proto",
         "protos/perfetto/trace/system_info.proto",
+        "protos/perfetto/trace/trace_uuid.proto",
         "protos/perfetto/trace/trigger.proto",
     ],
     tools: [
@@ -6179,6 +6187,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/clock_snapshot.pb.h",
         "external/perfetto/protos/perfetto/trace/system_info.pb.h",
+        "external/perfetto/protos/perfetto/trace/trace_uuid.pb.h",
         "external/perfetto/protos/perfetto/trace/trigger.pb.h",
     ],
     export_include_dirs: [
@@ -6193,6 +6202,7 @@ genrule {
     srcs: [
         "protos/perfetto/trace/clock_snapshot.proto",
         "protos/perfetto/trace/system_info.proto",
+        "protos/perfetto/trace/trace_uuid.proto",
         "protos/perfetto/trace/trigger.proto",
     ],
     tools: [
@@ -6203,6 +6213,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/clock_snapshot.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/system_info.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace/trace_uuid.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/trigger.pbzero.cc",
     ],
 }
@@ -6213,6 +6224,7 @@ genrule {
     srcs: [
         "protos/perfetto/trace/clock_snapshot.proto",
         "protos/perfetto/trace/system_info.proto",
+        "protos/perfetto/trace/trace_uuid.proto",
         "protos/perfetto/trace/trigger.proto",
     ],
     tools: [
@@ -6223,6 +6235,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/clock_snapshot.pbzero.h",
         "external/perfetto/protos/perfetto/trace/system_info.pbzero.h",
+        "external/perfetto/protos/perfetto/trace/trace_uuid.pbzero.h",
         "external/perfetto/protos/perfetto/trace/trigger.pbzero.h",
     ],
     export_include_dirs: [
@@ -10821,6 +10834,7 @@ java_library {
         "protos/perfetto/trace/trace.proto",
         "protos/perfetto/trace/trace_packet.proto",
         "protos/perfetto/trace/trace_packet_defaults.proto",
+        "protos/perfetto/trace/trace_uuid.proto",
         "protos/perfetto/trace/track_event/chrome_active_processes.proto",
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",

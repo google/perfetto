@@ -49,6 +49,7 @@
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/trace_uuid.pbzero.h"
 #include "track_event_module.h"
 
 namespace perfetto {
@@ -95,6 +96,10 @@ void ProtoTraceParser::ParseTracePacket(int64_t ts, TracePacketData data) {
 
   if (packet.has_perfetto_metatrace()) {
     ParseMetatraceEvent(ts, packet.perfetto_metatrace());
+  }
+
+  if (packet.has_trace_uuid()) {
+    ParseTraceUuid(packet.trace_uuid());
   }
 
   if (packet.has_trace_config()) {
@@ -439,6 +444,23 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
     context_->storage->IncrementStats(stats::metatrace_overruns);
 }
 
+void ProtoTraceParser::ParseTraceUuid(ConstBytes blob) {
+  // If both the TraceUuid packet and TraceConfig.trace_uuid_msb/lsb are set,
+  // the former (which is emitted first) takes precedence. This is because the
+  // UUID can change throughout the lifecycle of a tracing session if gap-less
+  // snapshots are used. Each trace file has at most one TraceUuid packet (i
+  // has if it comes from an older version of the tracing service < v32)
+  protos::pbzero::TraceUuid::Decoder uuid_packet(blob.data, blob.size);
+  if (uuid_packet.msb() != 0 || uuid_packet.lsb() != 0) {
+    base::Uuid uuid(uuid_packet.lsb(), uuid_packet.msb());
+    std::string str = uuid.ToPrettyString();
+    StringId id = context_->storage->InternString(base::StringView(str));
+    context_->metadata_tracker->SetMetadata(metadata::trace_uuid,
+                                            Variadic::String(id));
+    context_->uuid_found_in_trace = true;
+  }
+}
+
 void ProtoTraceParser::ParseTraceConfig(ConstBytes blob) {
   protos::pbzero::TraceConfig::Decoder trace_config(blob.data, blob.size);
 
@@ -449,7 +471,7 @@ void ProtoTraceParser::ParseTraceConfig(ConstBytes blob) {
 
   int64_t uuid_msb = trace_config.trace_uuid_msb();
   int64_t uuid_lsb = trace_config.trace_uuid_lsb();
-  if (uuid_msb != 0 || uuid_lsb != 0) {
+  if (!context_->uuid_found_in_trace && (uuid_msb != 0 || uuid_lsb != 0)) {
     base::Uuid uuid(uuid_lsb, uuid_msb);
     std::string str = uuid.ToPrettyString();
     StringId id = context_->storage->InternString(base::StringView(str));

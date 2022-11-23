@@ -3647,6 +3647,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/trace/clock_snapshot.proto",
         "protos/perfetto/trace/system_info.proto",
+        "protos/perfetto/trace/trace_uuid.proto",
         "protos/perfetto/trace/trigger.proto",
     ],
     visibility = [
