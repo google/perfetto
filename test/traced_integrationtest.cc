@@ -71,7 +71,7 @@ TEST(PerfettoTracedIntegrationTest, TestFakeProducer) {
   ds_config->set_name("android.perfetto.FakeProducer");
   ds_config->set_target_buffer(0);
 
-  static constexpr size_t kNumPackets = 11;
+  static constexpr size_t kNumPackets = 12;
   static constexpr uint32_t kRandomSeed = 42;
   static constexpr uint32_t kMsgSize = 1024;
   ds_config->mutable_for_testing()->set_seed(kRandomSeed);

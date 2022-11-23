@@ -46,6 +46,7 @@
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/trace_uuid.gen.h"
 #include "protos/perfetto/trace/trigger.gen.h"
 
 using ::testing::_;
@@ -61,6 +62,7 @@ using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
 using ::testing::IsEmpty;
 using ::testing::Mock;
+using ::testing::Ne;
 using ::testing::Not;
 using ::testing::Property;
 using ::testing::StrictMock;
@@ -1632,12 +1634,13 @@ TEST_F(TracingServiceImplTest, WriteIntoFileAndStopOnMaxSize) {
   // Trace start clock snapshot
   // Trace most recent clock snapshot
   // Trace synchronisation
+  // TraceUuid
   // Config
   // SystemInfo
   // Tracing started (TracingServiceEvent)
   // All data source started (TracingServiceEvent)
   // Tracing disabled (TracingServiceEvent)
-  static const int kNumPreamblePackets = 8;
+  static const int kNumPreamblePackets = 9;
   static const int kNumTestPackets = 9;
   static const char kPayload[] = "1234567890abcdef-";
 
@@ -3864,6 +3867,54 @@ TEST_F(TracingServiceImplTest, ProducerProvidedSMBInvalidSizes) {
                     std::move(shm));
   EXPECT_FALSE(producer->endpoint()->IsShmemProvidedByProducer());
   EXPECT_EQ(producer->endpoint()->shared_memory(), nullptr);
+}
+
+// If the consumer specifies a UUID in the TraceConfig, the TraceUuid packet
+// must match that.
+TEST_F(TracingServiceImplTest, UuidPacketMatchesConfigUuid) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  TraceConfig trace_config;
+  trace_config.set_trace_uuid_lsb(1);
+  trace_config.set_trace_uuid_msb(2);
+  trace_config.add_buffers()->set_size_kb(8);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+
+  consumer->EnableTracing(trace_config);
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+
+  auto packets = consumer->ReadBuffers();
+
+  EXPECT_THAT(
+      packets,
+      Contains(Property(&protos::gen::TracePacket::trace_uuid,
+                        AllOf(Property(&protos::gen::TraceUuid::lsb, Eq(1)),
+                              Property(&protos::gen::TraceUuid::msb, Eq(2))))));
+}
+
+// If the consumer does not specify any UUID in the TraceConfig, a random
+// UUID must be generated and reported in the TraceUuid packet.
+TEST_F(TracingServiceImplTest, RandomUuidIfNoConfigUuid) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(8);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("data_source");
+
+  consumer->EnableTracing(trace_config);
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+
+  auto packets = consumer->ReadBuffers();
+
+  EXPECT_THAT(packets,
+              Contains(Property(
+                  &protos::gen::TracePacket::trace_uuid,
+                  Not(AnyOf(Property(&protos::gen::TraceUuid::lsb, Eq(0)),
+                            Property(&protos::gen::TraceUuid::msb, Eq(0)))))));
 }
 
 }  // namespace perfetto
