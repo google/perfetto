@@ -289,6 +289,12 @@ SELECT
         ORDER BY slice_name
       )
     ),
+    'startup_concurrent_to_launch', (
+      SELECT RepeatedField(package)
+      FROM launches l
+      WHERE l.id != launches.id
+        AND IS_SPANS_OVERLAPPING(l.ts, l.ts_end, launches.ts, launches.ts_end)
+    ),
     'system_state', AndroidStartupMetric_SystemState(
       'dex2oat_running',
         DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*dex2oat64') > 0,
@@ -415,6 +421,15 @@ SELECT
         UNION ALL
         SELECT 'No baseline or cloud profiles'
         Where MISSING_BASELINE_PROFILE_FOR_LAUNCH(launches.id, launches.package)
+
+        UNION ALL
+        SELECT 'Startup running concurrent to launch'
+        WHERE EXISTS(
+          SELECT package
+          FROM launches l
+          WHERE l.id != launches.id
+            AND IS_SPANS_OVERLAPPING(l.ts, l.ts_end, launches.ts, launches.ts_end)
+        )
 
       )
     )
