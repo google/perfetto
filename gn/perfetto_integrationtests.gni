@@ -21,7 +21,10 @@ perfetto_integrationtests_targets = [
 
 if (enable_perfetto_ipc && enable_perfetto_system_consumer) {
   perfetto_integrationtests_targets +=
-      [ "src/tracing/test:tracing_integration_test" ]
+      [
+        "src/tracing/test:tracing_integration_test",
+        "src/tracing:integrationtests",
+      ]
 }
 
 if (enable_perfetto_traced_probes) {
