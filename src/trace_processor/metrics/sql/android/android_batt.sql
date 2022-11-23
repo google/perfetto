@@ -172,7 +172,7 @@ SELECT ts,
 FROM doze_deep_state_span;
 
 DROP VIEW IF EXISTS android_batt_output;
-CREATE VIEW android_batt_output AS 
+CREATE VIEW android_batt_output AS
 SELECT AndroidBatteryMetric(
   'battery_counters', (
     SELECT RepeatedField(
