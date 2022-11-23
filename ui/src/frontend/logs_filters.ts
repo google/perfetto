@@ -27,6 +27,15 @@ interface LogPriorityWidgetAttrs {
   onSelect: (id: number) => void;
 }
 
+interface LogTagChipAttrs {
+  name: string;
+  removeTag: (name: string) => void;
+}
+
+interface LogTagsWidgetAttrs {
+  tags: string[];
+}
+
 class LogPriorityWidget implements m.ClassComponent<LogPriorityWidgetAttrs> {
   view(vnode: m.Vnode<LogPriorityWidgetAttrs>) {
     const attrs = vnode.attrs;
@@ -49,15 +58,75 @@ class LogPriorityWidget implements m.ClassComponent<LogPriorityWidgetAttrs> {
   }
 }
 
+class LogTagChip implements m.ClassComponent<LogTagChipAttrs> {
+  view({attrs}: m.CVnode<LogTagChipAttrs>) {
+    return m(
+        '.chip',
+        m('.chip-text', attrs.name),
+        m('button.chip-button',
+          {
+            onclick: () => {
+              attrs.removeTag(attrs.name);
+            },
+          },
+          '×'));
+  }
+}
+
+class LogTagsWidget implements m.ClassComponent<LogTagsWidgetAttrs> {
+  removeTag(tag: string) {
+    globals.dispatch(Actions.removeLogTag({tag}));
+  }
+
+  view(vnode: m.Vnode<LogTagsWidgetAttrs>) {
+    const tags = vnode.attrs.tags;
+    return m(
+        '.tag-container',
+        m('.chips', tags.map((tag) => m(LogTagChip, {
+                               name: tag,
+                               removeTag: this.removeTag.bind(this),
+                             }))),
+        m(`input.chip-input[placeholder='Add new tag']`, {
+          onkeydown: (e: KeyboardEvent) => {
+            // This is to avoid zooming on 'w'(and other unexpected effects
+            // of key presses in this input field).
+            e.stopPropagation();
+            const htmlElement = e.target as HTMLInputElement;
+
+            // When the user clicks 'Backspace' we delete the previous tag.
+            if (e.key === 'Backspace' && tags.length > 0 &&
+                htmlElement.value === '') {
+              globals.dispatch(
+                  Actions.removeLogTag({tag: tags[tags.length - 1]}));
+              return;
+            }
+
+            if (e.key !== 'Enter') {
+              return;
+            }
+            if (htmlElement.value === '') {
+              return;
+            }
+            globals.dispatch(
+                Actions.addLogTag({tag: htmlElement.value.trim()}));
+            htmlElement.value = '';
+          },
+        }));
+  }
+}
+
 export class LogsFilters implements m.ClassComponent {
   view(_: m.CVnode<{}>) {
     return m(
-        '.log-filters', m('.log-label', 'Log Level'), m(LogPriorityWidget, {
+        '.log-filters',
+        m('.log-label', 'Log Level'),
+        m(LogPriorityWidget, {
           options: LOG_PRIORITIES,
           selectedIndex: globals.state.logFilteringCriteria.minimumLevel,
           onSelect: (minimumLevel) => {
             globals.dispatch(Actions.setMinimumLogLevel({minimumLevel}));
           },
-        }));
+        }),
+        m(LogTagsWidget, {tags: globals.state.logFilteringCriteria.tags}));
   }
 }

@@ -95,7 +95,8 @@ export const MAX_TIME = 180;
 // 23: Add log filtering criteria for Android log entries.
 // 24: Store only a single Engine.
 // 25: Move omnibox state off VisibleState.
-export const STATE_VERSION = 25;
+// 26: Add tags for filtering Android log entries.
+export const STATE_VERSION = 26;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -484,6 +485,7 @@ export interface NonSerializableState {
 
 export interface LogFilteringCriteria {
   minimumLevel: number;
+  tags: string[];
 }
 
 export interface State {

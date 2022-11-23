@@ -21,6 +21,7 @@ import {
   LogExistsKey,
 } from '../common/logs';
 import {NUM, STR} from '../common/query_result';
+import {escapeQuery} from '../common/query_utils';
 import {LogFilteringCriteria} from '../common/state';
 import {fromNs, TimeSpan, toNsCeil, toNsFloor} from '../common/time';
 import {publishTrackData} from '../frontend/publish';
@@ -235,9 +236,16 @@ export class LogsController extends Controller<'main'> {
     if (newFilteringCriteria) {
       this.logFilteringCriteria = globals.state.logFilteringCriteria;
       await this.engine.query('drop view if exists filtered_logs');
-      await this.engine.query(`create view filtered_logs as
+
+      let filterQuery = `create view filtered_logs as
           select * from android_logs
-          where prio >= ${this.logFilteringCriteria.minimumLevel}`);
+          where prio >= ${this.logFilteringCriteria.minimumLevel}`;
+      if (this.logFilteringCriteria.tags.length) {
+        filterQuery += ` and tag in (${
+            LogsController.serializeTags(this.logFilteringCriteria.tags)})`;
+      }
+
+      await this.engine.query(filterQuery);
     }
 
     if (needBoundsUpdate) {
@@ -258,5 +266,9 @@ export class LogsController extends Controller<'main'> {
         data: logEntries,
       });
     }
+  }
+
+  private static serializeTags(tags: string[]) {
+    return tags.map((tag) => escapeQuery(tag)).join();
   }
 }

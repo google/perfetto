@@ -155,7 +155,10 @@ export function createEmptyState(): State {
     chromeCategories: undefined,
     nonSerializableState: createEmptyNonSerializableState(),
 
-    // The first two log priorities are ignored.
-    logFilteringCriteria: {minimumLevel: 2},
+    logFilteringCriteria: {
+      // The first two log priorities are ignored.
+      minimumLevel: 2,
+      tags: [],
+    },
   };
 }
