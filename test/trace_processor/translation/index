@@ -1,3 +1,4 @@
+java_class_name_arg.textproto chrome_args_test.sql java_class_name_arg.out
 chrome_histogram.textproto chrome_args_test.sql chrome_histogram.out
 chrome_user_event.textproto chrome_args_test.sql chrome_user_event.out
 chrome_performance_mark.textproto chrome_args_test.sql chrome_performance_mark.out

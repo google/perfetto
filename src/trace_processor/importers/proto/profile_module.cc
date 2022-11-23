@@ -18,9 +18,11 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/deobfuscation_mapping_table.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/heap_profile_tracker.h"
@@ -503,6 +505,7 @@ void ProfileModule::ParseDeobfuscationMapping(int64_t,
                                               PacketSequenceStateGeneration*,
                                               uint32_t /* seq_id */,
                                               ConstBytes blob) {
+  DeobfuscationMappingTable deobfuscation_mapping_table;
   protos::pbzero::DeobfuscationMapping::Decoder deobfuscation_mapping(
       blob.data, blob.size);
   if (deobfuscation_mapping.package_name().size == 0)
@@ -517,6 +520,7 @@ void ProfileModule::ParseDeobfuscationMapping(int64_t,
   for (auto class_it = deobfuscation_mapping.obfuscated_classes(); class_it;
        ++class_it) {
     protos::pbzero::ObfuscatedClass::Decoder cls(*class_it);
+    base::FlatHashMap<StringId, StringId> obfuscated_to_deobfuscated_members;
     for (auto member_it = cls.obfuscated_methods(); member_it; ++member_it) {
       protos::pbzero::ObfuscatedMember::Decoder member(*member_it);
       std::string merged_obfuscated = cls.obfuscated_name().ToStdString() +
@@ -556,8 +560,21 @@ void ProfileModule::ParseDeobfuscationMapping(int64_t,
             context_->storage->InternString(
                 base::StringView(merged_deobfuscated)));
       }
+      obfuscated_to_deobfuscated_members[context_->storage->InternString(
+          member.obfuscated_name())] =
+          context_->storage->InternString(member.deobfuscated_name());
     }
+    // Members can contain a class name (e.g "ClassA.FunctionF")
+    deobfuscation_mapping_table.AddClassTranslation(
+        DeobfuscationMappingTable::PackageId{
+            deobfuscation_mapping.package_name().ToStdString(),
+            deobfuscation_mapping.version_code()},
+        context_->storage->InternString(cls.obfuscated_name()),
+        context_->storage->InternString(cls.deobfuscated_name()),
+        std::move(obfuscated_to_deobfuscated_members));
   }
+  context_->args_translation_table->AddDeobfuscationMappingTable(
+      std::move(deobfuscation_mapping_table));
 }
 
 void ProfileModule::ParseSmapsPacket(int64_t ts, ConstBytes blob) {
