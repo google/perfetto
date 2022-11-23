@@ -21,7 +21,7 @@ import {
   createEmptyNonSerializableState,
   createEmptyState,
 } from '../common/empty_state';
-import {State} from '../common/state';
+import {EngineConfig, ObjectById, State} from '../common/state';
 import {STATE_VERSION} from '../common/state';
 import {
   BUCKET_NAME,
@@ -37,6 +37,19 @@ import {Controller} from './controller';
 import {globals} from './globals';
 import {RecordConfig, recordConfigValidator} from './record_config_types';
 import {runValidator} from './validators';
+
+interface MultiEngineState {
+  currentEngineId?: string;
+  engines: ObjectById<EngineConfig>
+}
+
+function isMultiEngineState(state: State|
+                            MultiEngineState): state is MultiEngineState {
+  if ((state as MultiEngineState).engines !== undefined) {
+    return true;
+  }
+  return false;
+}
 
 export class PermalinkController extends Controller<'main'> {
   private lastRequestId?: string;
@@ -97,10 +110,22 @@ export class PermalinkController extends Controller<'main'> {
   private static upgradeState(state: State): State {
     if (state.version !== STATE_VERSION) {
       const newState = createEmptyState();
-      newState.engine = state.engine;
+      // Old permalinks from state versions prior to version 24
+      // have multiple engines of which only one is identified as the
+      // current engine via currentEngineId. Handle this case:
+      if (isMultiEngineState(state)) {
+        const engineId = state.currentEngineId;
+        if (engineId !== undefined) {
+          newState.engine = state.engines[engineId];
+        }
+      } else {
+        newState.engine = state.engine;
+      }
+
       if (newState.engine !== undefined) {
         newState.engine.ready = false;
       }
+
       const message = `Unable to parse old state version. Discarding state ` +
           `and loading trace.`;
       console.warn(message);

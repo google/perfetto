@@ -19,7 +19,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/status.h"
-#include "src/trace_processor/sqlite/functions/create_function_internal.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/profile_builder.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -195,7 +195,8 @@ class ProfileFunctionBase {
       return base::ErrStatus("missing argument callstack_id");
     }
 
-    base::Status status = TypeCheckSqliteValue(argv[0], SqlValue::kLong);
+    base::Status status =
+        sqlite_utils::TypeCheckSqliteValue(argv[0], SqlValue::kLong);
     if (!status.ok()) {
       return base::ErrStatus("argument 1; value %s", status.c_message());
     }
@@ -294,7 +295,8 @@ class ProfileFunction : public ProfileFunctionBase {
     }
 
     for (int i = 1; i < argc;) {
-      base::Status status = TypeCheckSqliteValue(argv[i], SqlValue::kString);
+      base::Status status =
+          sqlite_utils::TypeCheckSqliteValue(argv[i], SqlValue::kString);
       if (!status.ok()) {
         return base::ErrStatus("argument %d; type %s", i + 1,
                                status.c_message());
@@ -303,7 +305,7 @@ class ProfileFunction : public ProfileFunctionBase {
       if (i == argc) {
         return base::ErrStatus("arguments missing; expected unit, value");
       }
-      status = TypeCheckSqliteValue(argv[i], SqlValue::kString);
+      status = sqlite_utils::TypeCheckSqliteValue(argv[i], SqlValue::kString);
       if (!status.ok()) {
         return base::ErrStatus("argument %d; unit %s", i + 1,
                                status.c_message());
@@ -312,7 +314,7 @@ class ProfileFunction : public ProfileFunctionBase {
       if (i == argc) {
         return base::ErrStatus("argument missing; expected value");
       }
-      status = TypeCheckSqliteValue(argv[i], SqlValue::kLong);
+      status = sqlite_utils::TypeCheckSqliteValue(argv[i], SqlValue::kLong);
       if (!status.ok()) {
         return base::ErrStatus("argument %d; value %s", i + 1,
                                status.c_message());

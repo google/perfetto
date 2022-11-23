@@ -33,7 +33,7 @@ struct CreatedFunction : public SqlFunction {
   struct Context {
     sqlite3* db;
     Prototype prototype;
-    SqlValue::Type return_type;
+    sql_argument::Type return_type;
     std::string sql;
     sqlite3_stmt* stmt;
   };
@@ -62,8 +62,10 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
   // Type check all the arguments.
   for (size_t i = 0; i < argc; ++i) {
     sqlite3_value* arg = argv[i];
-    base::Status status =
-        TypeCheckSqliteValue(arg, ctx->prototype.arguments[i].type);
+    sql_argument::Type type = ctx->prototype.arguments[i].type();
+    base::Status status = sqlite_utils::TypeCheckSqliteValue(
+        arg, sql_argument::TypeToSqlValueType(type),
+        sql_argument::TypeToHumanFriendlyString(type));
     if (!status.ok()) {
       return base::ErrStatus("%s[arg=%s]: argument %zu %s",
                              ctx->prototype.function_name.c_str(),
@@ -169,7 +171,7 @@ base::Status CreateFunction::Run(CreateFunction::Context* ctx,
   {
     auto type_check = [prototype_value](sqlite3_value* value,
                                         SqlValue::Type type, const char* desc) {
-      base::Status status = TypeCheckSqliteValue(value, type);
+      base::Status status = sqlite_utils::TypeCheckSqliteValue(value, type);
       if (!status.ok()) {
         return base::ErrStatus("CREATE_FUNCTION[prototype=%s]: %s %s",
                                sqlite3_value_text(prototype_value), desc,
@@ -204,7 +206,7 @@ base::Status CreateFunction::Run(CreateFunction::Context* ctx,
   }
 
   // Parse the return type into a enum format.
-  auto opt_return_type = ParseType(return_type_str);
+  auto opt_return_type = sql_argument::ParseType(return_type_str);
   if (!opt_return_type) {
     return base::ErrStatus(
         "CREATE_FUNCTION[prototype=%s, return=%s]: unknown return type "
@@ -212,7 +214,6 @@ base::Status CreateFunction::Run(CreateFunction::Context* ctx,
         prototype_str.ToStdString().c_str(),
         return_type_str.ToStdString().c_str());
   }
-  SqlValue::Type return_type = *opt_return_type;
 
   int created_argc = static_cast<int>(prototype.arguments.size());
   NameAndArgc key{prototype.function_name, created_argc};
@@ -231,11 +232,11 @@ base::Status CreateFunction::Run(CreateFunction::Context* ctx,
           prototype_str.ToStdString().c_str());
     }
 
-    if (created_ctx->return_type != return_type) {
+    if (created_ctx->return_type != *opt_return_type) {
       return base::ErrStatus(
           "CREATE_FUNCTION[prototype=%s]: return type changed from %s to %s",
           prototype_str.ToStdString().c_str(),
-          SqliteTypeToFriendlyString(created_ctx->return_type),
+          sql_argument::TypeToHumanFriendlyString(created_ctx->return_type),
           return_type_str.ToStdString().c_str());
     }
 
@@ -266,8 +267,9 @@ base::Status CreateFunction::Run(CreateFunction::Context* ctx,
   stmt.reset(stmt_raw);
 
   std::unique_ptr<CreatedFunction::Context> created(
-      new CreatedFunction::Context{ctx->db, std::move(prototype), return_type,
-                                   std::move(sql_defn_str), stmt.get()});
+      new CreatedFunction::Context{ctx->db, std::move(prototype),
+                                   *opt_return_type, std::move(sql_defn_str),
+                                   stmt.get()});
   CreatedFunction::Context* created_ptr = created.get();
   RETURN_IF_ERROR(RegisterSqlFunction<CreatedFunction>(
       ctx->db, key.name.c_str(), created_argc, std::move(created)));

@@ -1337,6 +1337,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/metrics/sql/chrome/actual_power_by_category.sql",
         "src/trace_processor/metrics/sql/chrome/actual_power_by_rail_mode.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_args_class_names.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_event_metadata.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_histogram_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_input_to_browser_intervals.sql",
@@ -1708,6 +1709,15 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/util/protozero_to_text.cc",
         "src/trace_processor/util/protozero_to_text.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:sql_argument
+perfetto_filegroup(
+    name = "src_trace_processor_util_sql_argument",
+    srcs = [
+        "src/trace_processor/util/sql_argument.cc",
+        "src/trace_processor/util/sql_argument.h",
     ],
 )
 
@@ -2763,6 +2773,7 @@ perfetto_proto_library(
         "protos/perfetto/config/android/android_log_config.proto",
         "protos/perfetto/config/android/android_polled_state_config.proto",
         "protos/perfetto/config/android/android_system_property_config.proto",
+        "protos/perfetto/config/android/network_trace_config.proto",
         "protos/perfetto/config/android/packages_list_config.proto",
     ],
     visibility = [
@@ -3345,6 +3356,7 @@ perfetto_proto_library(
     name = "protos_perfetto_metrics_chrome_protos",
     srcs = [
         "protos/perfetto/metrics/chrome/all_chrome_metrics.proto",
+        "protos/perfetto/metrics/chrome/args_class_names.proto",
         "protos/perfetto/metrics/chrome/blink_gc_metric.proto",
         "protos/perfetto/metrics/chrome/dropped_frames.proto",
         "protos/perfetto/metrics/chrome/frame_times.proto",
@@ -3420,6 +3432,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/gpu_mem_event.proto",
         "protos/perfetto/trace/android/graphics_frame_event.proto",
         "protos/perfetto/trace/android/initial_display_state.proto",
+        "protos/perfetto/trace/android/network_trace.proto",
         "protos/perfetto/trace/android/packages_list.proto",
     ],
     visibility = [
@@ -4367,6 +4380,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_proto_profiler",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
+        ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stack_traces_util",
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_zip_reader",
@@ -4497,6 +4511,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_proto_profiler",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
+        ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stack_traces_util",
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_zip_reader",
@@ -4682,6 +4697,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_proto_profiler",
         ":src_trace_processor_util_proto_to_args_parser",
         ":src_trace_processor_util_protozero_to_text",
+        ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stack_traces_util",
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_zip_reader",
