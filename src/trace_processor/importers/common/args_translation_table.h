@@ -23,6 +23,7 @@
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/deobfuscation_mapping_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
@@ -53,7 +54,9 @@ class ArgsTranslationTable {
   explicit ArgsTranslationTable(TraceStorage* storage);
 
   // Returns true if an arg with the given key and type requires translation.
-  bool NeedsTranslation(StringId key_id, Variadic::Type type) const;
+  bool NeedsTranslation(StringId flat_key_id,
+                        StringId key_id,
+                        Variadic::Type type) const;
 
   void TranslateArgs(const ArgsTracker::CompactArgSet& arg_set,
                      ArgsTracker::BoundInserter& inserter) const;
@@ -78,6 +81,10 @@ class ArgsTranslationTable {
                                       const SourceLocation& loc) {
     native_symbol_to_location_.Insert(std::make_pair(mapping_id, rel_pc), loc);
   }
+  void AddDeobfuscationMappingTable(
+      DeobfuscationMappingTable deobfuscation_mapping_table) {
+    deobfuscation_mapping_table_ = std::move(deobfuscation_mapping_table);
+  }
 
   base::Optional<base::StringView> TranslateChromeHistogramHashForTesting(
       uint64_t hash) const {
@@ -95,6 +102,10 @@ class ArgsTranslationTable {
   TranslateChromePerformanceMarkMarkHashForTesting(uint64_t hash) const {
     return TranslateChromePerformanceMarkMarkHash(hash);
   }
+  base::Optional<StringId> TranslateClassNameForTesting(
+      StringId obfuscated_class_name_id) const {
+    return TranslateClassName(obfuscated_class_name_id);
+  }
 
  private:
   enum class KeyType {
@@ -104,6 +115,7 @@ class ArgsTranslationTable {
     kChromePerformanceMarkSiteHash = 3,
     kMojoMethodMappingId = 4,
     kMojoMethodRelPc = 5,
+    kClassName = 6,
   };
 
   static constexpr char kChromeHistogramHashKey[] =
@@ -135,6 +147,9 @@ class ArgsTranslationTable {
   static constexpr char kMojoIntefaceTagKey[] =
       "chrome_mojo_event_info.mojo_interface_tag";
 
+  static constexpr char kObfuscatedViewDumpClassNameFlatKey[] =
+      "android_view_dump.activity.view.class_name";
+
   TraceStorage* storage_;
   StringId interned_chrome_histogram_hash_key_;
   StringId interned_chrome_histogram_name_key_;
@@ -150,6 +165,10 @@ class ArgsTranslationTable {
   StringId interned_mojo_method_name_;
   StringId interned_mojo_interface_tag_;
 
+  // A "flat_key" of an argument from the "args" table that has to be
+  // deobfuscated. A Java class name must be contained in this argument.
+  StringId interned_obfuscated_view_dump_class_name_flat_key_;
+
   base::FlatHashMap<uint64_t, std::string> chrome_histogram_hash_to_name_;
   base::FlatHashMap<uint64_t, std::string> chrome_user_event_hash_to_action_;
   base::FlatHashMap<uint64_t, std::string>
@@ -157,10 +176,13 @@ class ArgsTranslationTable {
   base::FlatHashMap<uint64_t, std::string>
       chrome_performance_mark_mark_hash_to_name_;
   base::FlatHashMap<NativeSymbolKey, SourceLocation> native_symbol_to_location_;
+  // A translation mapping for obfuscated Java class names and its members.
+  DeobfuscationMappingTable deobfuscation_mapping_table_;
 
   // Returns the corresponding SupportedKey enum if the table knows how to
   // translate the argument with the given key and type, and nullopt otherwise.
-  base::Optional<KeyType> KeyIdAndTypeToEnum(StringId key_id,
+  base::Optional<KeyType> KeyIdAndTypeToEnum(StringId flat_key_id,
+                                             StringId key_id,
                                              Variadic::Type type) const;
 
   base::Optional<base::StringView> TranslateChromeHistogramHash(
@@ -173,6 +195,11 @@ class ArgsTranslationTable {
       uint64_t hash) const;
   base::Optional<SourceLocation> TranslateNativeSymbol(MappingId mapping_id,
                                                        uint64_t rel_pc) const;
+
+  // Returns the deobfuscated name of a Java class or base::nullopt if
+  // translation is not found.
+  base::Optional<StringId> TranslateClassName(
+      StringId obfuscated_class_name_id) const;
 
   void EmitMojoMethodLocation(base::Optional<uint64_t> mapping_id,
                               base::Optional<uint64_t> rel_pc,
