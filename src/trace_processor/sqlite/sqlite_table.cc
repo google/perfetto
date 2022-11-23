@@ -34,7 +34,7 @@ std::string TypeToSqlString(SqlValue::Type type) {
     case SqlValue::Type::kString:
       return "TEXT";
     case SqlValue::Type::kLong:
-      return "BIG INT";
+      return "BIGINT";
     case SqlValue::Type::kDouble:
       return "DOUBLE";
     case SqlValue::Type::kBytes:

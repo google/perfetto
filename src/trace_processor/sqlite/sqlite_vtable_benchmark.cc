@@ -144,7 +144,7 @@ ScopedDb CreateDbAndRegisterVtable(sqlite3_module& module,
     auto& _context = *static_cast<VtabContext*>(aux);
     std::string sql = "CREATE TABLE x(";
     for (size_t col = 0; col < _context.num_cols; col++)
-      sql += "c" + std::to_string(col) + " BIG INT,";
+      sql += "c" + std::to_string(col) + " BIGINT,";
     sql[sql.size() - 1] = ')';
     int res = sqlite3_declare_vtab(xdb, sql.c_str());
     PERFETTO_CHECK(res == SQLITE_OK);

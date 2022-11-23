@@ -75,6 +75,7 @@ base::Status GetColumnsForTable(sqlite3* db,
     } else if (base::CaseInsensitiveEqual(raw_type, "DOUBLE")) {
       type = SqlValue::Type::kDouble;
     } else if (base::CaseInsensitiveEqual(raw_type, "BIG INT") ||
+               base::CaseInsensitiveEqual(raw_type, "BIGINT") ||
                base::CaseInsensitiveEqual(raw_type, "UNSIGNED INT") ||
                base::CaseInsensitiveEqual(raw_type, "INT") ||
                base::CaseInsensitiveEqual(raw_type, "BOOLEAN") ||

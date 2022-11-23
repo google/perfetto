@@ -45,9 +45,9 @@ SELECT CREATE_FUNCTION(
 DROP TABLE IF EXISTS launches;
 CREATE TABLE launches(
   id INTEGER PRIMARY KEY,
-  ts BIG INT,
-  ts_end BIG INT,
-  dur BIG INT,
+  ts BIGINT,
+  ts_end BIGINT,
+  dur BIGINT,
   package STRING,
   launch_type STRING
 );
@@ -91,7 +91,7 @@ SELECT CREATE_FUNCTION(
 -- However it is possible that the process dies during the activity launch
 -- and is respawned.
 DROP TABLE IF EXISTS launch_processes;
-CREATE TABLE launch_processes(launch_id INT, upid BIG INT, launch_type STRING);
+CREATE TABLE launch_processes(launch_id INT, upid BIGINT, launch_type STRING);
 
 INSERT INTO launch_processes(launch_id, upid, launch_type)
 -- This is intentionally a materizlied query. For some reason, if we don't
