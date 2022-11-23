@@ -115,6 +115,13 @@ external_deps = {
 }
 
 
+# These are Python targets which are exposed with public visibility.
+public_python_targets = [
+  '//python:batch_trace_processor',
+  '//python:trace_processor_py',
+]
+
+
 # These are Python targets which are exposed by default.
 default_python_targets = [
   '//python:batch_trace_processor',
@@ -187,6 +194,9 @@ class PythonBuildGenerator:
     label.srcs += (self.python_label_to_path(x) for x in target.sources)
     label.data += (self.python_data_to_path(x) for x in target.data)
     self.populate_python_deps(target, label)
+    if target.name in public_python_targets:
+      label.visibility = ['//visibility:public']
+
     return [label]
 
 
@@ -199,6 +209,9 @@ class PythonBuildGenerator:
     label.data += (self.python_data_to_path(x) for x in target.data)
     label.main = target.python_main
     label.python_version = 'PY3'
+    if target.name in public_python_targets:
+      label.visibility = ['//visibility:public']
+
     self.populate_python_deps(target, label)
     return [label]
 
