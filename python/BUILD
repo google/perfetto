@@ -33,6 +33,9 @@ perfetto_py_library(
         "perfetto/batch_trace_processor/api.py",
         "perfetto/batch_trace_processor/platform.py",
     ],
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
                ":trace_processor_py",
            ] + PERFETTO_CONFIG.deps.pandas_py +
@@ -88,6 +91,9 @@ perfetto_py_library(
         "perfetto/trace_processor/platform.py",
         "perfetto/trace_processor/protos.py",
         "perfetto/trace_processor/shell.py",
+    ],
+    visibility = [
+        "//visibility:public",
     ],
     data = [
         PERFETTO_CONFIG.root + ":trace_processor_shell",
