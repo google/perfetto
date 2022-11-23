@@ -108,3 +108,6 @@ chrome_missing_processes_extension.textproto chrome_missing_processes_args_test.
 
 # Chrome custom navigation event names
 ../../data/chrome_custom_navigation_trace.gz chrome_custom_navigation_tasks_test.sql chrome_custom_navigation_tasks.out
+
+# Trace proto content
+../../data/chrome_scroll_without_vsync.pftrace proto_content_test.sql proto_content.out
