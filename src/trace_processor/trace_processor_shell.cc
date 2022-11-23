@@ -697,6 +697,7 @@ struct CommandLineOptions {
       metatrace::MetatraceCategories::ALL;
   bool dev = false;
   bool no_ftrace_raw = false;
+  bool analyze_trace_proto_content = false;
 };
 
 void PrintUsage(char** argv) {
@@ -762,7 +763,9 @@ Options:
                                       into the raw table. This significantly
                                       reduces the memory usage of trace
                                       processor when loading traces containing
-                                      ftrace events.)",
+                                      ftrace events.
+--analyze-trace-proto-content         Enables trace proto content analysis in
+                                      trace processor.)",
                 argv[0]);
 }
 
@@ -779,6 +782,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_NO_FTRACE_RAW,
     OPT_METATRACE_BUFFER_CAPACITY,
     OPT_METATRACE_CATEGORIES,
+    OPT_ANALYZE_TRACE_PROTO_CONTENT,
   };
 
   static const option long_options[] = {
@@ -804,6 +808,8 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"metric-extension", required_argument, nullptr, OPT_METRIC_EXTENSION},
       {"dev", no_argument, nullptr, OPT_DEV},
       {"no-ftrace-raw", no_argument, nullptr, OPT_NO_FTRACE_RAW},
+      {"analyze-trace-proto-content", no_argument, nullptr,
+       OPT_ANALYZE_TRACE_PROTO_CONTENT},
       {nullptr, 0, nullptr, 0}};
 
   bool explicit_interactive = false;
@@ -914,6 +920,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     if (option == OPT_METATRACE_CATEGORIES) {
       command_line_options.metatrace_categories =
           ParseMetatraceCategories(optarg);
+      continue;
+    }
+
+    if (option == OPT_ANALYZE_TRACE_PROTO_CONTENT) {
+      command_line_options.analyze_trace_proto_content = true;
       continue;
     }
 
@@ -1371,6 +1382,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
                             ? SortingMode::kForceFullSort
                             : SortingMode::kDefaultHeuristics;
   config.ingest_ftrace_in_raw_table = !options.no_ftrace_raw;
+  config.analyze_trace_proto_content = options.analyze_trace_proto_content;
 
   std::vector<MetricExtension> metric_extensions;
   RETURN_IF_ERROR(ParseMetricExtensionPaths(
