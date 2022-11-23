@@ -44,6 +44,7 @@ class AsyncTrackSetTracker;
 class AndroidProbesTracker;
 class ChunkedTraceReader;
 class ClockTracker;
+class DeobfuscationMappingTable;
 class EventTracker;
 class ForwardingTraceParser;
 class FtraceModule;
