@@ -69,14 +69,15 @@ class TraceBufferTest : public testing::Test {
         p, w, c, patches.data(), patches.size(), other_patches_pending);
   }
 
-  std::vector<FakePacketFragment> ReadPacket(
+  static std::vector<FakePacketFragment> ReadPacket(
+      const std::unique_ptr<TraceBuffer>& buf,
       TraceBuffer::PacketSequenceProperties* sequence_properties = nullptr,
       bool* previous_packet_dropped = nullptr) {
     std::vector<FakePacketFragment> fragments;
     TracePacket packet;
     TraceBuffer::PacketSequenceProperties ignored_sequence_properties{};
     bool ignored_previous_packet_dropped;
-    if (!trace_buffer_->ReadNextTracePacket(
+    if (!buf->ReadNextTracePacket(
             &packet,
             sequence_properties ? sequence_properties
                                 : &ignored_sequence_properties,
@@ -87,6 +88,13 @@ class TraceBufferTest : public testing::Test {
     for (const Slice& slice : packet.slices())
       fragments.emplace_back(slice.start, slice.size);
     return fragments;
+  }
+
+  std::vector<FakePacketFragment> ReadPacket(
+      TraceBuffer::PacketSequenceProperties* sequence_properties = nullptr,
+      bool* previous_packet_dropped = nullptr) {
+    return ReadPacket(trace_buffer_, sequence_properties,
+                      previous_packet_dropped);
   }
 
   void AppendChunks(
@@ -1836,8 +1844,89 @@ TEST_F(TraceBufferTest, MissingPacketsOnSequence) {
   ASSERT_TRUE(previous_packet_dropped);
 }
 
-// TODO(primiano): test stats().
-// TODO(primiano): test multiple streams interleaved.
-// TODO(primiano): more testing on packet merging.
+TEST_F(TraceBufferTest, Clone_NoFragments) {
+  const char kNumWriters = 3;
+  for (char num_pre_reads = 0; num_pre_reads < kNumWriters; num_pre_reads++) {
+    ResetBuffer(4096);
+    for (char i = 'A'; i < 'A' + kNumWriters; i++) {
+      ASSERT_EQ(32u, CreateChunk(ProducerID(i), WriterID(i), ChunkID(i))
+                         .AddPacket(32 - 16, i)
+                         .CopyIntoTraceBuffer());
+    }
+
+    // Make some reads *before* cloning. This is to check that the behaviour of
+    // CloneReadOnly() is not affected by reads made before cloning.
+    // On every round (|num_pre_reads|), read a different number of packets.
+    for (char i = 0; i < num_pre_reads; i++) {
+      if (i == 0)
+        trace_buffer()->BeginRead();
+      ASSERT_THAT(ReadPacket(),
+                  ElementsAre(FakePacketFragment(32 - 16, 'A' + i)));
+    }
+
+    // Now create a snapshot and make sure we always read all the packets.
+    std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+    snap->BeginRead();
+    for (char i = 'A'; i < 'A' + kNumWriters; i++) {
+      auto frags = ReadPacket(snap);
+      ASSERT_THAT(frags, ElementsAre(FakePacketFragment(32 - 16, i)));
+    }
+    ASSERT_THAT(ReadPacket(snap), IsEmpty());
+  }
+}
+
+TEST_F(TraceBufferTest, Clone_FragmentsOutOfOrder) {
+  ResetBuffer(4096);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(10, 'a')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
+      .AddPacket(30, 'c')
+      .CopyIntoTraceBuffer();
+
+  {
+    // Create a snapshot before the middle 'b' chunk is copied. Only 'a' should
+    // be readable at this point.
+    std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+    snap->BeginRead();
+    ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(10, 'a')));
+    ASSERT_THAT(ReadPacket(snap), IsEmpty());
+  }
+
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(20, 'b')
+      .CopyIntoTraceBuffer();
+
+  // Now all three packes should be readable.
+  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+  snap->BeginRead();
+  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(10, 'a')));
+  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(20, 'b')));
+  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(30, 'c')));
+  ASSERT_THAT(ReadPacket(snap), IsEmpty());
+}
+
+TEST_F(TraceBufferTest, Clone_WithPatches) {
+  ResetBuffer(4096);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(100, 'a')
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(0))
+      .AddPacket(9, 'b')
+      .ClearBytes(5, 4)  // 5 := 4th payload byte. Byte 0 is the varint header.
+      .CopyIntoTraceBuffer();
+  CreateChunk(ProducerID(3), WriterID(1), ChunkID(0))
+      .AddPacket(100, 'c')
+      .CopyIntoTraceBuffer();
+  ASSERT_TRUE(TryPatchChunkContents(ProducerID(2), WriterID(1), ChunkID(0),
+                                    {{5, {{'Y', 'M', 'C', 'A'}}}}));
+
+  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+  snap->BeginRead();
+  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(100, 'a')));
+  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment("b00-YMCA", 8)));
+  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(100, 'c')));
+  ASSERT_THAT(ReadPacket(snap), IsEmpty());
+}
 
 }  // namespace perfetto
