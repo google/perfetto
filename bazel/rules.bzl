@@ -282,12 +282,15 @@ def perfetto_cc_proto_descriptor(name, deps, outs, **kwargs):
 
 def perfetto_cc_amalgamated_sql(name, deps, outs, root_dir, namespace,
                                 **kwargs):
+    if PERFETTO_CONFIG.root[:2] != "//":
+        fail("Expected PERFETTO_CONFIG.root to start with //")
+
     cmd = [
         "$(location gen_amalgamated_sql_py)",
         "--namespace",
         namespace,
         "--root-dir",
-        root_dir,
+        PERFETTO_CONFIG.root[2:] + "/" + root_dir,
         "--cpp-out=$@",
         "$(SRCS)",
     ]
