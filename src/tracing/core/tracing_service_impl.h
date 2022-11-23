@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/periodic_task.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
@@ -639,6 +640,12 @@ class TracingServiceImpl : public TracingService {
     uint64_t filter_input_bytes = 0;
     uint64_t filter_output_bytes = 0;
     uint64_t filter_errors = 0;
+
+    // A randomly generated trace identifier. Note that this does NOT always
+    // match the requested TraceConfig.trace_uuid_msb/lsb. Spcifically, it does
+    // until a gap-less snapshot is requested. Each snapshot re-generates the
+    // uuid to avoid emitting two different traces with the same uuid.
+    base::Uuid trace_uuid;
   };
 
   TracingServiceImpl(const TracingServiceImpl&) = delete;
@@ -685,7 +692,7 @@ class TracingServiceImpl : public TracingService {
   TraceStats GetTraceStats(TracingSession*);
   void EmitLifecycleEvents(TracingSession*, std::vector<TracePacket>*);
   void EmitSeizedForBugreportLifecycleEvent(std::vector<TracePacket>*);
-  void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
+  void MaybeEmitUuidAndTraceConfig(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitSystemInfo(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void MaybeNotifyAllDataSourcesStarted(TracingSession*);
@@ -729,6 +736,7 @@ class TracingServiceImpl : public TracingService {
                      std::vector<TracePacket> packets);
   void OnStartTriggersTimeout(TracingSessionID tsid);
   void MaybeLogUploadEvent(const TraceConfig&,
+                           const base::Uuid&,
                            PerfettoStatsdAtom atom,
                            const std::string& trigger_name = "");
   void MaybeLogTriggerEvent(const TraceConfig&,
