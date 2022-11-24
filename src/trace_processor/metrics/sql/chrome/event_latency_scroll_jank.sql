@@ -41,8 +41,8 @@ SELECT
   name as last_breakdown_name
 FROM event_latency_breakdowns
 GROUP BY event_latency_id
-HAVING last_breakdown_name != "RendererCompositorFinishedToTermination" OR
-       event_type = "GESTURE_SCROLL_BEGIN";
+HAVING last_breakdown_name != "RendererCompositorFinishedToTermination"
+       OR event_type = "GESTURE_SCROLL_BEGIN";
 
 -- Select events that were shown on the screen.
 -- An update event was shown on the screen if and only if
@@ -124,11 +124,11 @@ SELECT
   scroll_event_latency_begins.ts as gesture_begin_ts,
   scroll_event_latency_begins.next_gesture_begin_ts as next_gesture_begin_ts
 FROM filtered_scroll_event_latency LEFT JOIN scroll_event_latency_begins
-ON filtered_scroll_event_latency.ts >= scroll_event_latency_begins.ts AND
-   (filtered_scroll_event_latency.ts < next_gesture_begin_ts OR next_gesture_begin_ts is NULL) AND
-   filtered_scroll_event_latency.upid = scroll_event_latency_begins.upid
-WHERE filtered_scroll_event_latency.id != scroll_event_latency_begins.id AND
-      filtered_scroll_event_latency.event_type != "GESTURE_SCROLL_BEGIN";
+ON filtered_scroll_event_latency.ts >= scroll_event_latency_begins.ts
+   AND (filtered_scroll_event_latency.ts < next_gesture_begin_ts OR next_gesture_begin_ts is NULL)
+   AND filtered_scroll_event_latency.upid = scroll_event_latency_begins.upid
+WHERE filtered_scroll_event_latency.id != scroll_event_latency_begins.id
+      AND filtered_scroll_event_latency.event_type != "GESTURE_SCROLL_BEGIN";
 
 -- Find the last EventLatency scroll update event in the scroll.
 -- We will use the last EventLatency event insted of "InputLatency::GestureScrollEnd" event.
@@ -154,8 +154,8 @@ SELECT
   scroll_event_latency_updates.*,
   scroll_event_latency_updates_ends.gesture_end_ts as gesture_end_ts
 FROM scroll_event_latency_updates LEFT JOIN scroll_event_latency_updates_ends
-ON scroll_event_latency_updates.upid = scroll_event_latency_updates_ends.upid AND
-  scroll_event_latency_updates.gesture_begin_ts = scroll_event_latency_updates_ends.gesture_begin_ts;
+ON scroll_event_latency_updates.upid = scroll_event_latency_updates_ends.upid
+  AND scroll_event_latency_updates.gesture_begin_ts = scroll_event_latency_updates_ends.gesture_begin_ts;
 
 -- Creates table where each event contains info about it's previous and next events.
 -- We consider only previous and next events from the same scroll id

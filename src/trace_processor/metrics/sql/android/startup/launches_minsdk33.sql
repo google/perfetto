@@ -22,9 +22,9 @@ SELECT
   SUBSTR(name, 19) id
 FROM slice
 WHERE
-  name GLOB 'launchingActivity#*' AND
-  dur != 0 AND
-  INSTR(name, ':') = 0;
+  name GLOB 'launchingActivity#*'
+  AND dur != 0
+  AND INSTR(name, ':') = 0;
 
 DROP VIEW IF EXISTS launch_complete_events;
 CREATE VIEW launch_complete_events AS
@@ -42,10 +42,10 @@ FROM (
   SELECT ts, SUBSTR(name, 19) completed
   FROM slice
   WHERE
-    dur = 0 AND
+    dur = 0
     -- Originally completed was unqualified, but at some point we introduced
     -- the startup type as well
-    name GLOB 'launchingActivity#*:completed*:*'
+    AND name GLOB 'launchingActivity#*:completed*:*'
 )
 GROUP BY 1, 2, 3;
 

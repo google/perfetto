@@ -32,9 +32,9 @@ SELECT
   oom_scores.oom_score_val AS score
 FROM raw_events
 LEFT JOIN oom_score_span oom_scores
-  ON (raw_events.upid = oom_scores.upid AND
-      raw_events.ts >= oom_scores.ts AND
-      raw_events.ts < oom_scores.ts + oom_scores.dur)
+  ON (raw_events.upid = oom_scores.upid
+      AND raw_events.ts >= oom_scores.ts
+      AND raw_events.ts < oom_scores.ts + oom_scores.dur)
 ORDER BY 1;
 
 DROP VIEW IF EXISTS android_lmk_event;

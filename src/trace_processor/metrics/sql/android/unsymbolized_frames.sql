@@ -40,16 +40,16 @@ CREATE VIEW mangled_stack_profile_mapping AS
         ) AND length(build_id) >= 40)
       WHEN 0 THEN build_id
       ELSE (
-        SUBSTR(build_id, 7, 2) ||
-        SUBSTR(build_id, 5, 2) ||
-        SUBSTR(build_id, 3, 2) ||
-        SUBSTR(build_id, 1, 2) ||
-        SUBSTR(build_id, 11, 2) ||
-        SUBSTR(build_id, 9, 2) ||
-        SUBSTR(build_id, 15, 2) ||
-        SUBSTR(build_id, 13, 2) ||
-        SUBSTR(build_id, 17, 16) ||
-      '0')
+        SUBSTR(build_id, 7, 2)
+        || SUBSTR(build_id, 5, 2)
+        || SUBSTR(build_id, 3, 2)
+        || SUBSTR(build_id, 1, 2)
+        || SUBSTR(build_id, 11, 2)
+        || SUBSTR(build_id, 9, 2)
+        || SUBSTR(build_id, 15, 2)
+        || SUBSTR(build_id, 13, 2)
+        || SUBSTR(build_id, 17, 16)
+      || '0')
     END as google_lookup_id
   FROM stack_profile_mapping;
 

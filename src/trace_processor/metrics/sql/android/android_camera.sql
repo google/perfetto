@@ -79,10 +79,10 @@ SELECT
   ts,
   dur,
   CAST(
-    IFNULL(gca_rss_val, 0) +
-    IFNULL(hal_rss_val, 0) +
-    IFNULL(cameraserver_rss_val, 0) +
-    IFNULL(dma_val, 0) AS int) AS rss_and_dma_val
+    IFNULL(gca_rss_val, 0)
+    + IFNULL(hal_rss_val, 0)
+    + IFNULL(cameraserver_rss_val, 0)
+    + IFNULL(dma_val, 0) AS int) AS rss_and_dma_val
 FROM rss_and_dma_all_camera_join;
 
 -- we are dividing and casting to real when calculating avg_value

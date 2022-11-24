@@ -40,8 +40,8 @@ CREATE TABLE touch_move_and_begin_flow AS
           AS begin_flow_trace_id
     FROM slice
     WHERE
-      name = "LatencyInfo.Flow" AND
-      EXTRACT_ARG(arg_set_id, "chrome_latency_info.step") IS NULL
+      name = "LatencyInfo.Flow"
+      AND EXTRACT_ARG(arg_set_id, "chrome_latency_info.step") IS NULL
     GROUP BY begin_flow_trace_id
   ) flow ON flow.begin_flow_trace_id = move.trace_id;
 
@@ -65,13 +65,13 @@ CREATE TABLE touch_move_begin_and_end_flow AS
           AS end_flow_trace_id
     FROM slice
     WHERE
-      name = "LatencyInfo.Flow" AND
-      EXTRACT_ARG(arg_set_id, "chrome_latency_info.step") IS NULL
+      name = "LatencyInfo.Flow"
+      AND EXTRACT_ARG(arg_set_id, "chrome_latency_info.step") IS NULL
     GROUP BY end_flow_trace_id
   ) flow ON
-      flow.end_flow_trace_id = move.trace_id AND
-      move.begin_flow_track_id = flow.end_flow_track_id AND
-      flow.end_flow_id != move.begin_flow_id
+      flow.end_flow_trace_id = move.trace_id
+      AND move.begin_flow_track_id = flow.end_flow_track_id
+      AND flow.end_flow_id != move.begin_flow_id
   WHERE flow.end_flow_id IS NOT NULL;
 
 -- Now that we have the begin and the end we need to find the parent stack of
@@ -116,8 +116,8 @@ CREATE TABLE blocking_touch_move_with_scroll_update AS
           slice LEFT JOIN
           ancestor_slice(slice.id) AS ancestor ON ancestor.depth = 0
         WHERE
-          slice.name = "LatencyInfo.Flow" AND
-          EXTRACT_ARG(slice.arg_set_id, "chrome_latency_info.step") IS NULL
+          slice.name = "LatencyInfo.Flow"
+          AND EXTRACT_ARG(slice.arg_set_id, "chrome_latency_info.step") IS NULL
         GROUP BY scroll_begin_flow_trace_id
       ) in_flow JOIN (
         SELECT
@@ -126,17 +126,17 @@ CREATE TABLE blocking_touch_move_with_scroll_update AS
               AS scroll_trace_id
         FROM slice in_scroll
         WHERE
-          name = "InputLatency::GestureScrollUpdate" AND
-          dur != -1 AND
-          NOT EXTRACT_ARG(arg_set_id, "chrome_latency_info.is_coalesced")
+          name = "InputLatency::GestureScrollUpdate"
+          AND dur != -1
+          AND NOT EXTRACT_ARG(arg_set_id, "chrome_latency_info.is_coalesced")
       ) in_scroll ON
           in_scroll.scroll_trace_id = in_flow.scroll_begin_flow_trace_id
     ) scroll ON
-      scroll.scroll_begin_flow_track_id = move.end_ancestor_track_id AND
-      scroll.scroll_begin_flow_ancestor_id = move.end_ancestor_id AND
-      scroll.scroll_begin_flow_ts > move.end_ancestor_ts AND
-      scroll.scroll_begin_flow_ts < move.end_ancestor_ts + move.end_ancestor_dur AND
-      scroll.scroll_begin_flow_id > move.end_ancestor_id
+      scroll.scroll_begin_flow_track_id = move.end_ancestor_track_id
+      AND scroll.scroll_begin_flow_ancestor_id = move.end_ancestor_id
+      AND scroll.scroll_begin_flow_ts > move.end_ancestor_ts
+      AND scroll.scroll_begin_flow_ts < move.end_ancestor_ts + move.end_ancestor_dur
+      AND scroll.scroll_begin_flow_id > move.end_ancestor_id
     WHERE scroll.scroll_id IS NOT NULL;
 
 -- Now filter out any TouchMoves that weren't during a complete scroll. Most of
@@ -156,7 +156,7 @@ CREATE VIEW scroll_jank_cause_blocking_touch_move AS
       *
     FROM blocking_touch_move_with_scroll_update
   ) touch ON
-    touch.ts <= begin_and_end.end_ts AND
-    touch.ts > begin_and_end.begin_ts + begin_and_end.begin_dur AND
-    touch.trace_id > begin_and_end.begin_trace_id AND
-    touch.trace_id < begin_and_end.end_trace_id;
+    touch.ts <= begin_and_end.end_ts
+    AND touch.ts > begin_and_end.begin_ts + begin_and_end.begin_dur
+    AND touch.trace_id > begin_and_end.begin_trace_id
+    AND touch.trace_id < begin_and_end.end_trace_id;

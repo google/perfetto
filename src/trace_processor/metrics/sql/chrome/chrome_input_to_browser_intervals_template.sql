@@ -114,8 +114,8 @@ JOIN chrome_valid_gesture_updates
     chrome_valid_gesture_updates.trace_id = EXTRACT_ARG(
     s.arg_set_id, 'chrome_latency_info.trace_id')
     AND s.ts >= chrome_valid_gesture_updates.ts
-    AND s.ts + s.dur <=
-      chrome_valid_gesture_updates.ts + chrome_valid_gesture_updates.dur
+    AND s.ts + s.dur
+      <= chrome_valid_gesture_updates.ts + chrome_valid_gesture_updates.dur
 WHERE
   s.name = 'LatencyInfo.Flow'
   AND trace_id != -1;
@@ -235,8 +235,8 @@ SELECT
         WHERE
           chrome_gestures.trace_id = chrome_categorized_first_flow_events.trace_id
           AND chrome_gestures.ts <= chrome_categorized_first_flow_events.ts
-          AND chrome_gestures.ts + chrome_gestures.dur >= chrome_categorized_first_flow_events.ts +
-            chrome_categorized_first_flow_events.dur
+          AND chrome_gestures.ts + chrome_gestures.dur >= chrome_categorized_first_flow_events.ts
+            + chrome_categorized_first_flow_events.dur
       )
     END AS window_start_id,
   blocked_gesture,
