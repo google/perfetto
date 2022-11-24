@@ -14,23 +14,31 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_STDLIB_UTILS_H_
-#define SRC_TRACE_PROCESSOR_STDLIB_UTILS_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_SQL_MODULES_H_
+#define SRC_TRACE_PROCESSOR_UTIL_SQL_MODULES_H_
 
 #include <string>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_view.h"
-#include "src/trace_processor/stdlib/amalgamated_stdlib.h"
 
 namespace perfetto {
 namespace trace_processor {
-namespace stdlib {
+namespace sql_modules {
 
-struct LibFile {
-  std::string sql;
-  bool imported;
+using NameToModule =
+    base::FlatHashMap<std::string,
+                      std::vector<std::pair<std::string, std::string>>>;
+
+// Map from import key to sql file. Import key is the string used in IMPORT
+// function.
+struct Module {
+  struct ModuleFile {
+    std::string sql;
+    bool imported;
+  };
+  base::FlatHashMap<std::string, ModuleFile> import_key_to_file;
 };
 
 inline std::string ReplaceSlashWithDot(std::string str) {
@@ -48,15 +56,15 @@ inline std::string GetImportKey(std::string path) {
   return ReplaceSlashWithDot(path_no_extension.ToStdString());
 }
 
-inline base::FlatHashMap<std::string, LibFile> SetupStdLib() {
-  base::FlatHashMap<std::string, LibFile> lib_files;
-  for (const auto& file_to_sql : stdlib::kFileToSql) {
-    lib_files.Insert(GetImportKey(file_to_sql.path), {file_to_sql.sql, false});
+inline std::string GetModuleName(std::string str) {
+  size_t found = str.find('.');
+  if (found == std::string::npos) {
+    return str;
   }
-  return lib_files;
+  return str.substr(0, found);
 }
 
-}  // namespace stdlib
+}  // namespace sql_modules
 }  // namespace trace_processor
 }  // namespace perfetto
-#endif  // SRC_TRACE_PROCESSOR_STDLIB_UTILS_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_SQL_MODULES_H_
