@@ -1128,9 +1128,25 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/slice_translation_table.h",
         "src/trace_processor/importers/common/system_info_tracker.cc",
         "src/trace_processor/importers/common/system_info_tracker.h",
-        "src/trace_processor/importers/common/trace_parser.h",
         "src/trace_processor/importers/common/track_tracker.cc",
         "src/trace_processor/importers/common/track_tracker.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/common:trace_parser
+perfetto_filegroup(
+    name = "src_trace_processor_importers_common_trace_parser",
+    srcs = [
+        "src/trace_processor/importers/common/trace_parser.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/fuchsia:fuchsia_record
+perfetto_filegroup(
+    name = "src_trace_processor_importers_fuchsia_fuchsia_record",
+    srcs = [
+        "src/trace_processor/importers/fuchsia/fuchsia_record.cc",
+        "src/trace_processor/importers/fuchsia/fuchsia_record.h",
     ],
 )
 
@@ -1167,6 +1183,14 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/profiler_util.h",
         "src/trace_processor/importers/proto/stack_profile_tracker.cc",
         "src/trace_processor/importers/proto/stack_profile_tracker.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/systrace:systrace_line
+perfetto_filegroup(
+    name = "src_trace_processor_importers_systrace_systrace_line",
+    srcs = [
+        "src/trace_processor/importers/systrace/systrace_line.h",
     ],
 )
 
@@ -1253,7 +1277,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/ftrace/v4l2_tracker.h",
         "src/trace_processor/importers/ftrace/virtio_video_tracker.cc",
         "src/trace_processor/importers/ftrace/virtio_video_tracker.h",
-        "src/trace_processor/importers/fuchsia/fuchsia_record.cc",
         "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.cc",
         "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h",
         "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.cc",
@@ -1911,7 +1934,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/default_modules.h",
         "src/trace_processor/importers/ftrace/ftrace_module.cc",
         "src/trace_processor/importers/ftrace/ftrace_module.h",
-        "src/trace_processor/importers/fuchsia/fuchsia_record.h",
         "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h",
         "src/trace_processor/importers/json/json_utils.cc",
         "src/trace_processor/importers/json/json_utils.h",
@@ -1965,7 +1987,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/translation_table_module.cc",
         "src/trace_processor/importers/proto/translation_table_module.h",
         "src/trace_processor/importers/syscalls/syscall_tracker.h",
-        "src/trace_processor/importers/systrace/systrace_line.h",
         "src/trace_processor/parser_types.h",
         "src/trace_processor/trace_blob.cc",
         "src/trace_processor/trace_processor_context.cc",
@@ -4360,10 +4381,13 @@ perfetto_cc_library(
         ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
+        ":src_trace_processor_importers_common_trace_parser",
+        ":src_trace_processor_importers_fuchsia_fuchsia_record",
         ":src_trace_processor_importers_importers_full",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_importers_proto_storage_full",
         ":src_trace_processor_importers_proto_storage_minimal",
+        ":src_trace_processor_importers_systrace_systrace_line",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
@@ -4489,10 +4513,13 @@ perfetto_cc_binary(
         ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
+        ":src_trace_processor_importers_common_trace_parser",
+        ":src_trace_processor_importers_fuchsia_fuchsia_record",
         ":src_trace_processor_importers_importers_full",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_importers_proto_storage_full",
         ":src_trace_processor_importers_proto_storage_minimal",
+        ":src_trace_processor_importers_systrace_systrace_line",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
@@ -4677,10 +4704,13 @@ perfetto_cc_binary(
         ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
+        ":src_trace_processor_importers_common_trace_parser",
+        ":src_trace_processor_importers_fuchsia_fuchsia_record",
         ":src_trace_processor_importers_importers_full",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
         ":src_trace_processor_importers_proto_storage_full",
         ":src_trace_processor_importers_proto_storage_minimal",
+        ":src_trace_processor_importers_systrace_systrace_line",
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",

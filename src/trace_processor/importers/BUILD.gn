@@ -40,7 +40,6 @@ source_set("importers_full") {
     "ftrace/v4l2_tracker.h",
     "ftrace/virtio_video_tracker.cc",
     "ftrace/virtio_video_tracker.h",
-    "fuchsia/fuchsia_record.cc",
     "fuchsia/fuchsia_trace_parser.cc",
     "fuchsia/fuchsia_trace_parser.h",
     "fuchsia/fuchsia_trace_tokenizer.cc",
@@ -109,8 +108,10 @@ source_set("importers_full") {
     "../views",
     "android_bugreport",
     "common",
+    "fuchsia:fuchsia_record",
     "proto:storage_full",
     "proto:storage_minimal",
+    "systrace:systrace_line",
   ]
   if (enable_perfetto_trace_processor_json) {
     deps += [ "../../../gn:jsoncpp" ]
