@@ -55,6 +55,17 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // the returned iterator.
   virtual Iterator ExecuteQuery(const std::string& sql) = 0;
 
+  // Registers SQL files with the associated path under the module named
+  // |module_name|. These modules can be run by using the |IMPORT| SQL function.
+  //
+  // For example, if you registered a module called "camera" with a file path
+  // "camera/cpu/metrics.sql" you can import it (run the file) using "SELECT
+  // IMPORT('camera.cpu.metrics');". The first word of the string has to be a
+  // module name and there can be only one module registered with a given name.
+  virtual base::Status RegisterSqlModule(
+      const std::string& module_name,
+      const std::vector<std::pair<std::string, std::string>>& files) = 0;
+
   // Registers a metric at the given path which will run the specified SQL.
   virtual base::Status RegisterMetric(const std::string& path,
                                       const std::string& sql) = 0;

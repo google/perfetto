@@ -29,6 +29,10 @@ source_set("util") {
   ]
 }
 
+source_set("stdlib") {
+  sources = [ "sql_modules.h" ]
+}
+
 source_set("gzip") {
   sources = [
     "gzip_utils.cc",

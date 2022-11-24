@@ -27,6 +27,7 @@
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
+#include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
@@ -43,31 +44,38 @@ base::Status Import::Run(Import::Context* ctx,
         "%zu",
         argc);
   }
-  sqlite3_value* path_val = argv[0];
+  sqlite3_value* import_val = argv[0];
 
   // Type check
   {
     base::Status status =
-        sqlite_utils::TypeCheckSqliteValue(path_val, SqlValue::Type::kString);
+        sqlite_utils::TypeCheckSqliteValue(import_val, SqlValue::Type::kString);
     if (!status.ok()) {
-      return base::ErrStatus("IMPORT(%s): %s", sqlite3_value_text(path_val),
+      return base::ErrStatus("IMPORT(%s): %s", sqlite3_value_text(import_val),
                              status.c_message());
     }
   }
 
-  const char* path =
-      reinterpret_cast<const char*>(sqlite3_value_text(path_val));
+  const char* import_key =
+      reinterpret_cast<const char*>(sqlite3_value_text(import_val));
 
-  auto lib_file = ctx->path_to_lib_file.Find(std::string(path));
-  if (!lib_file) {
-    return base::ErrStatus("IMPORT: Unknown filename provided - %s", path);
+  std::string module_name = sql_modules::GetModuleName(import_key);
+  auto module = ctx->modules->Find(module_name);
+  if (!module)
+    return base::ErrStatus("IMPORT: Unknown module name provided - %s",
+                           import_key);
+
+  auto module_file = module->import_key_to_file.Find(import_key);
+  if (!module_file) {
+    return base::ErrStatus("IMPORT: Unknown filename provided - %s",
+                           import_key);
   }
   // IMPORT is noop for already imported files.
-  if (lib_file->imported) {
+  if (module_file->imported) {
     return base::OkStatus();
   }
 
-  auto import_iter = ctx->tp->ExecuteQuery(lib_file->sql);
+  auto import_iter = ctx->tp->ExecuteQuery(module_file->sql);
   bool import_has_more = import_iter.Next();
   if (import_has_more)
     return base::ErrStatus("IMPORT: Imported file returning values.");
@@ -77,7 +85,7 @@ base::Status Import::Run(Import::Context* ctx,
       return base::ErrStatus("SQLite error on IMPORT: %s", status.c_message());
   }
 
-  lib_file->imported = true;
+  module_file->imported = true;
   return base::OkStatus();
 }
 
