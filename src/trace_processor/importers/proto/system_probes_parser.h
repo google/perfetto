@@ -46,6 +46,7 @@ class SystemProbesParser {
  private:
   void ParseThreadStats(int64_t timestamp, uint32_t pid, ConstBytes);
   void ParseDiskStats(int64_t ts, ConstBytes blob);
+  void ParseProcessFds(int64_t ts, uint32_t pid, ConstBytes);
 
   TraceProcessorContext* const context_;
 
