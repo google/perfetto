@@ -63,10 +63,10 @@ CREATE VIEW scroll_jank_cause_explained_jank AS
       FALSE
     ELSE
       CASE WHEN
-        blocking_touch_move OR
-        blocked_by_language_detection OR
-        blocked_by_copy_request OR
-        blocked_by_bitmap
+        blocking_touch_move
+        OR blocked_by_language_detection
+        OR blocked_by_copy_request
+        OR blocked_by_bitmap
       THEN
         TRUE
       ELSE

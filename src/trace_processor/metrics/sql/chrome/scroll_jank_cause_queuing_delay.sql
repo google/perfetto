@@ -27,8 +27,8 @@ CREATE VIEW blocking_tasks_no_threadcontroller_active AS
     chrome_thread_slice AS slice LEFT JOIN
     ancestor_slice(slice.id) as ancestor ON ancestor.id = slice.parent_id
   WHERE
-    slice.name != "ThreadController active" AND
-    (slice.depth = 0 OR ancestor.name = "ThreadController active");
+    slice.name != "ThreadController active"
+    AND (slice.depth = 0 OR ancestor.name = "ThreadController active");
 
 -- Sort track ids to optimize joining with slices
 -- as engine doesn't do the sort to join in O(LogN)
@@ -45,8 +45,8 @@ CREATE TABLE chrome_annotated_threads_and_processes AS
     thread_track JOIN
     chrome_thread JOIN
     chrome_process ON
-    thread_track.utid = chrome_thread.utid AND
-    chrome_thread.upid = chrome_process.upid
+    thread_track.utid = chrome_thread.utid
+    AND chrome_thread.upid = chrome_process.upid
   ORDER BY
     track_id ASC;
 
@@ -108,12 +108,12 @@ CREATE TABLE blocking_tasks_queuing_delay AS
   FROM
     scroll_flow_event_queuing_delay queuing JOIN
     blocking_chrome_tasks_without_threadpool AS slice ON
-        slice.ts + slice.dur > queuing.ancestor_end AND
-        queuing.maybe_next_ancestor_ts > slice.ts AND
-        slice.track_id = queuing.next_track_id
+        slice.ts + slice.dur > queuing.ancestor_end
+        AND queuing.maybe_next_ancestor_ts > slice.ts
+        AND slice.track_id = queuing.next_track_id
   WHERE
-    queuing_time_ns IS NOT NULL AND
-    queuing_time_ns > 0;
+    queuing_time_ns IS NOT NULL
+    AND queuing_time_ns > 0;
 
 -- Now for each toplevel task (depth = 0 from above) we want to grab all their
 -- children slices. This is done by joining on descendant_slice which is a
@@ -155,13 +155,13 @@ CREATE TABLE all_descendant_blocking_tasks_queuing_delay_with_cpu_time AS
     cpu.thread_dur AS descendant_thread_dur,
     CAST(cpu.thread_dur AS REAL) / descendant.thread_dur
         AS descendant_cpu_percentage,
-    CAST(cpu.thread_dur AS REAL) /
-        (descendant.thread_dur /
-          (1 << (descendant.descendant_depth - 1))) > 0.5
+    CAST(cpu.thread_dur AS REAL)
+        / (descendant.thread_dur
+          / (1 << (descendant.descendant_depth - 1))) > 0.5
             AS descendant_cpu_time_above_relative_threshold,
     descendant_dur / descendant.dur AS descendant_dur_percentage,
-    descendant_dur /
-        (descendant.dur / (1 << (descendant.descendant_depth - 1))) > 0.5
+    descendant_dur
+        / (descendant.dur / (1 << (descendant.descendant_depth - 1))) > 0.5
         AS descendant_dur_above_relative_threshold,
     descendant.*
   FROM
@@ -203,11 +203,11 @@ CREATE VIEW blocking_tasks_queuing_delay_with_invalid_depth AS
   SELECT
     base.*,
     (
-      descendant_cpu_time_above_relative_threshold AND
-      descendant_cpu_percentage > 0.05
+      descendant_cpu_time_above_relative_threshold
+      AND descendant_cpu_percentage > 0.05
     ) OR (
-      descendant_dur_above_relative_threshold AND
-      descendant_dur_percentage > 0.05
+      descendant_dur_above_relative_threshold
+      AND descendant_dur_percentage > 0.05
     ) AS descendant_major_slice,
     COALESCE(depth.invalid_depth, 10) AS invalid_depth
   FROM
@@ -303,8 +303,8 @@ CREATE VIEW descendant_blocking_tasks_queuing_delay AS
     MIN(descendant_ipc_hash) AS mojom_ipc_hash,
     GROUP_CONCAT(
       CASE WHEN
-        descendant_category = "toplevel" AND
-        descendant_name NOT GLOB "*ThreadController*" THEN
+        descendant_category = "toplevel"
+        AND descendant_name NOT GLOB "*ThreadController*" THEN
           descendant_name
       ELSE
           NULL
@@ -490,9 +490,9 @@ DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay_unannotated;
 CREATE VIEW scroll_jank_cause_queuing_delay_unannotated AS
   SELECT
     base.*,
-    'InputLatency.LatencyInfo.Flow.QueuingDelay.' ||
-    CASE WHEN jank THEN 'Jank' ELSE 'NoJank' END || '.BlockingTasksUs.' ||
-      base.location as metric_name,
+    'InputLatency.LatencyInfo.Flow.QueuingDelay.'
+    || CASE WHEN jank THEN 'Jank' ELSE 'NoJank' END || '.BlockingTasksUs.'
+      || base.location as metric_name,
     COALESCE(avg_no_jank.avg_dur_overlapping_ns, 0)
         AS avg_no_jank_dur_overlapping_ns
   FROM
@@ -505,9 +505,9 @@ DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay;
 CREATE VIEW scroll_jank_cause_queuing_delay AS
   SELECT
     base.*,
-    'QueuingDelay.' ||
-    CASE WHEN jank THEN 'Jank' ELSE 'NoJank' END || '.BlockingTasksUs.' ||
-      base.restricted_location AS restricted_metric_name,
+    'QueuingDelay.'
+    || CASE WHEN jank THEN 'Jank' ELSE 'NoJank' END || '.BlockingTasksUs.'
+      || base.restricted_location AS restricted_metric_name,
     COALESCE(avg_no_jank.avg_dur_overlapping_ns_restricted, 0)
         AS avg_no_jank_dur_overlapping_ns_restricted
   FROM

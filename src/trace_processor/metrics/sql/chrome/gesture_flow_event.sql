@@ -59,8 +59,8 @@ CREATE VIEW {{prefix}}_latency_info_flow_step_and_ancestors AS
           ON ancestor_zero.depth = 0 LEFT JOIN
       ancestor_slice(slice.id) AS ancestor_one ON ancestor_one.depth = 1
     WHERE
-      slice.name = 'LatencyInfo.Flow' AND
-      EXTRACT_ARG(slice.arg_set_id, 'chrome_latency_info.trace_id') != -1
+      slice.name = 'LatencyInfo.Flow'
+      AND EXTRACT_ARG(slice.arg_set_id, 'chrome_latency_info.trace_id') != -1
   ) flow JOIN (
       SELECT
         id AS gesture_slice_id,
@@ -140,8 +140,8 @@ CREATE VIEW {{prefix}}_max_latency_info_ts_per_trace_id AS
     MIN(ts) AS max_flow_ts
   FROM {{prefix}}_latency_info_flow_step
   WHERE
-    trace_id = {{prefix}}_trace_id AND
-    ts > gesture_ts + {{prefix}}_dur
+    trace_id = {{prefix}}_trace_id
+    AND ts > gesture_ts + {{prefix}}_dur
   GROUP BY gesture_slice_id;
 
 -- As described by the comments about this uses the heuristic to remove any flow
@@ -162,8 +162,8 @@ CREATE TABLE {{prefix}}_latency_info_flow_step_filtered AS
     {{prefix}}_max_latency_info_ts_per_trace_id max_flow on
     max_flow.gesture_slice_id = flow.gesture_slice_id
   WHERE
-    ts >= gesture_ts AND
-    ts <= max_flow_ts
+    ts >= gesture_ts
+    AND ts <= max_flow_ts
   ORDER BY flow.{{id_field}} ASC, flow.trace_id ASC, flow.ts ASC;
 
 -- Take all the LatencyInfo.Flow events and within a |trace_id| join it with the
@@ -197,16 +197,16 @@ CREATE TABLE {{prefix}}_latency_info_flow_null_step_removed AS
     curr.ancestor_ts + curr.ancestor_dur AS ancestor_end,
     CASE WHEN curr.step IS NULL THEN
       CASE WHEN
-          prev.{{id_field}} != curr.{{id_field}} OR
-          prev.trace_id != curr.trace_id OR
-          prev.trace_id IS NULL OR
-          prev.step = 'AsyncBegin' THEN
+          prev.{{id_field}} != curr.{{id_field}}
+          OR prev.trace_id != curr.trace_id
+          OR prev.trace_id IS NULL
+          OR prev.step = 'AsyncBegin' THEN
         'Begin'
       ELSE
         CASE WHEN
-            next.{{id_field}} != curr.{{id_field}} OR
-            next.trace_id != curr.trace_id OR
-            next.trace_id IS NULL THEN
+            next.{{id_field}} != curr.{{id_field}}
+            OR next.trace_id != curr.trace_id
+            OR next.trace_id IS NULL THEN
           'End'
         ELSE
          'Unknown'

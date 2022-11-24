@@ -33,8 +33,8 @@ SELECT
 FROM (
   SELECT
     name,
-    (LEAD(value) OVER (PARTITION BY name ORDER BY ts) - value) /
-      (LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts) AS avg_used_power,
+    (LEAD(value) OVER (PARTITION BY name ORDER BY ts) - value)
+      / (LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts) AS avg_used_power,
     (LEAD(value) OVER (PARTITION BY name ORDER BY ts) - value) AS tot_used_power,
     ts AS powrail_start_ts,
     (LEAD(ts) OVER (PARTITION BY name ORDER BY ts)) as powrail_end_ts

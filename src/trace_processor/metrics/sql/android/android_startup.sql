@@ -140,8 +140,8 @@ SELECT
       ))
       FROM thread_slices_for_all_launches s
       WHERE
-        s.launch_id = launches.id AND
-        (s.slice_name GLOB 'performResume:*' OR s.slice_name GLOB 'performCreate:*')
+        s.launch_id = launches.id
+        AND (s.slice_name GLOB 'performResume:*' OR s.slice_name GLOB 'performCreate:*')
     ),
     'long_binder_transactions', BINDER_TRANSACTION_PROTO_FOR_LAUNCH(launches.id),
     'zygote_new_process', EXISTS(SELECT TRUE FROM ZYGOTE_FORK_FOR_LAUNCH(launches.id)),
@@ -258,8 +258,8 @@ SELECT
         SELECT COUNT(1)
         FROM process
         WHERE
-          process.start_ts BETWEEN launches.ts AND launches.ts + launches.dur AND
-          process.upid NOT IN (
+          process.start_ts BETWEEN launches.ts AND launches.ts + launches.dur
+          AND process.upid NOT IN (
             SELECT upid FROM launch_processes
             WHERE launch_processes.launch_id = launches.id
           )

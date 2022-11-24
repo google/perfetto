@@ -65,8 +65,8 @@ SELECT
   NULL AS launch_type
 FROM launch_partitions AS lpart
 JOIN launching_events ON
-  (launching_events.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur) AND
-  (launching_events.ts_end BETWEEN lpart.ts AND lpart.ts + lpart.dur)
+  (launching_events.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur)
+  AND (launching_events.ts_end BETWEEN lpart.ts AND lpart.ts + lpart.dur)
 WHERE (
   SELECT COUNT(1)
   FROM activity_intent_launch_successful AS successful

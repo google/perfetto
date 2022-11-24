@@ -19,9 +19,9 @@ CREATE VIEW gc_slices AS
 SELECT slice_ts AS ts, slice_dur AS dur, utid, launch_id
 FROM thread_slices_for_all_launches
 WHERE
-  slice_name GLOB '*mark sweep GC' OR
-  slice_name GLOB '*concurrent copying GC' OR
-  slice_name GLOB '*semispace GC';
+  slice_name GLOB '*mark sweep GC'
+  OR slice_name GLOB '*concurrent copying GC'
+  OR slice_name GLOB '*semispace GC';
 
 DROP TABLE IF EXISTS gc_slices_by_state;
 CREATE VIRTUAL TABLE gc_slices_by_state
