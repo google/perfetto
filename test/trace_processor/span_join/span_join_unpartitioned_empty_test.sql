@@ -16,14 +16,14 @@
 
 -- Model that the first table is empty and the second is has some data.
 create table t1(
-  ts BIG INT,
-  dur BIG INT,
+  ts BIGINT,
+  dur BIGINT,
   PRIMARY KEY (ts, dur)
 ) without rowid;
 
 create table t2(
-  ts BIG INT,
-  dur BIG INT,
+  ts BIGINT,
+  dur BIGINT,
   PRIMARY KEY (ts, dur)
 ) without rowid;
 

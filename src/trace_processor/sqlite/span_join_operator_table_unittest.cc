@@ -62,14 +62,14 @@ class SpanJoinOperatorTableTest : public ::testing::Test {
 TEST_F(SpanJoinOperatorTableTest, JoinTwoSpanTables) {
   RunStatement(
       "CREATE TEMP TABLE f("
-      "ts BIG INT PRIMARY KEY, "
-      "dur BIG INT, "
+      "ts BIGINT PRIMARY KEY, "
+      "dur BIGINT, "
       "cpu UNSIGNED INT"
       ");");
   RunStatement(
       "CREATE TEMP TABLE s("
-      "ts BIG INT PRIMARY KEY, "
-      "dur BIG INT, "
+      "ts BIGINT PRIMARY KEY, "
+      "dur BIGINT, "
       "cpu UNSIGNED INT"
       ");");
   RunStatement(
@@ -124,14 +124,14 @@ TEST_F(SpanJoinOperatorTableTest, JoinTwoSpanTables) {
 TEST_F(SpanJoinOperatorTableTest, NullPartitionKey) {
   RunStatement(
       "CREATE TEMP TABLE f("
-      "ts BIG INT PRIMARY KEY, "
-      "dur BIG INT, "
+      "ts BIGINT PRIMARY KEY, "
+      "dur BIGINT, "
       "cpu UNSIGNED INT"
       ");");
   RunStatement(
       "CREATE TEMP TABLE s("
-      "ts BIG INT PRIMARY KEY, "
-      "dur BIG INT, "
+      "ts BIGINT PRIMARY KEY, "
+      "dur BIGINT, "
       "cpu UNSIGNED INT"
       ");");
   RunStatement(
@@ -188,15 +188,15 @@ TEST_F(SpanJoinOperatorTableTest, NullPartitionKey) {
 TEST_F(SpanJoinOperatorTableTest, MixedPartitioning) {
   RunStatement(
       "CREATE TEMP TABLE f("
-      "ts BIG INT PRIMARY KEY, "
-      "dur BIG INT, "
+      "ts BIGINT PRIMARY KEY, "
+      "dur BIGINT, "
       "upid UNSIGNED INT"
       ");");
   RunStatement(
       "CREATE TEMP TABLE s("
-      "ts BIG INT PRIMARY KEY, "
-      "dur BIG INT, "
-      "s_val BIG INT"
+      "ts BIGINT PRIMARY KEY, "
+      "dur BIGINT, "
+      "s_val BIGINT"
       ");");
   RunStatement(
       "CREATE VIRTUAL TABLE sp USING span_join(f PARTITIONED upid, s);");
@@ -226,15 +226,15 @@ TEST_F(SpanJoinOperatorTableTest, MixedPartitioning) {
 TEST_F(SpanJoinOperatorTableTest, NoPartitioning) {
   RunStatement(
       "CREATE TEMP TABLE f("
-      "ts BIG INT PRIMARY KEY, "
-      "dur BIG INT, "
-      "f_val BIG INT"
+      "ts BIGINT PRIMARY KEY, "
+      "dur BIGINT, "
+      "f_val BIGINT"
       ");");
   RunStatement(
       "CREATE TEMP TABLE s("
-      "ts BIG INT PRIMARY KEY, "
-      "dur BIG INT, "
-      "s_val BIG INT"
+      "ts BIGINT PRIMARY KEY, "
+      "dur BIGINT, "
+      "s_val BIGINT"
       ");");
   RunStatement("CREATE VIRTUAL TABLE sp USING span_join(f, s);");
 
@@ -257,14 +257,14 @@ TEST_F(SpanJoinOperatorTableTest, NoPartitioning) {
 TEST_F(SpanJoinOperatorTableTest, LeftJoinTwoSpanTables) {
   RunStatement(
       "CREATE TEMP TABLE f("
-      "ts BIG INT PRIMARY KEY, "
-      "dur BIG INT, "
+      "ts BIGINT PRIMARY KEY, "
+      "dur BIGINT, "
       "cpu UNSIGNED INT"
       ");");
   RunStatement(
       "CREATE TEMP TABLE s("
-      "ts BIG INT PRIMARY KEY, "
-      "dur BIG INT, "
+      "ts BIGINT PRIMARY KEY, "
+      "dur BIGINT, "
       "tid UNSIGNED INT"
       ");");
   RunStatement("CREATE VIRTUAL TABLE sp USING span_left_join(f, s);");
@@ -308,14 +308,14 @@ TEST_F(SpanJoinOperatorTableTest, LeftJoinTwoSpanTables) {
 TEST_F(SpanJoinOperatorTableTest, LeftJoinTwoSpanTables_EmptyRight) {
   RunStatement(
       "CREATE TEMP TABLE f("
-      "ts BIG INT PRIMARY KEY, "
-      "dur BIG INT, "
+      "ts BIGINT PRIMARY KEY, "
+      "dur BIGINT, "
       "cpu UNSIGNED INT"
       ");");
   RunStatement(
       "CREATE TEMP TABLE s("
-      "ts BIG INT PRIMARY KEY, "
-      "dur BIG INT, "
+      "ts BIGINT PRIMARY KEY, "
+      "dur BIGINT, "
       "tid UNSIGNED INT"
       ");");
   RunStatement("CREATE VIRTUAL TABLE sp USING span_left_join(f, s);");
@@ -343,14 +343,14 @@ TEST_F(SpanJoinOperatorTableTest, LeftJoinTwoSpanTables_EmptyRight) {
 TEST_F(SpanJoinOperatorTableTest, CapitalizedLeftJoin) {
   RunStatement(
       "CREATE TEMP TABLE f("
-      "ts BIG INT PRIMARY KEY, "
-      "dur BIG INT, "
+      "ts BIGINT PRIMARY KEY, "
+      "dur BIGINT, "
       "cpu UNSIGNED INT"
       ");");
   RunStatement(
       "CREATE TEMP TABLE s("
-      "ts BIG INT PRIMARY KEY, "
-      "dur BIG INT, "
+      "ts BIGINT PRIMARY KEY, "
+      "dur BIGINT, "
       "tid UNSIGNED INT"
       ");");
   RunStatement("CREATE VIRTUAL TABLE sp USING SPAN_LEFT_JOIN(f, s);");

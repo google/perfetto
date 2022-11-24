@@ -31,7 +31,7 @@ SELECT (
   --     starts at: 546027000403
   --     ends at:   546753574829
   --     adds dur:     726574426 nanoseconds of scrolling.
-  -- This means we should have scroll_dur == 1628470852
+  -- This means we should have scroll_dur = 1628470852
   SELECT SUM(scroll_dur) FROM (
     SELECT
       gesture_scroll_id, max(maybe_gesture_end) - begin_ts AS scroll_dur

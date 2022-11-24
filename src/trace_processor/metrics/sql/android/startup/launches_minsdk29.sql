@@ -25,7 +25,7 @@ WHERE name = 'MetricsLogger:launchObserverNotifyIntentStarted';
 -- We will refine these progressively in the next steps to only encompass
 -- activity starts.
 DROP TABLE IF EXISTS activity_intent_recv_spans;
-CREATE TABLE activity_intent_recv_spans(id INT, ts BIG INT, dur BIG INT);
+CREATE TABLE activity_intent_recv_spans(id INT, ts BIGINT, dur BIGINT);
 
 INSERT INTO activity_intent_recv_spans
 SELECT

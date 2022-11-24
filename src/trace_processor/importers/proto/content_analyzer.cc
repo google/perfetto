@@ -65,8 +65,15 @@ void ContentAnalyzerModule::NotifyEndOfFile() {
   for (auto sample = aggregated_samples_.GetIterator(); sample; ++sample) {
     std::string path_string;
     for (const auto& field : sample.key()) {
-      if (field.has_field_name())
+      if (field.has_field_name()) {
+        if (!path_string.empty()) {
+          path_string += '.';
+        }
         path_string.append(field.field_name());
+      }
+      if (!path_string.empty()) {
+        path_string += '.';
+      }
       path_string.append(field.type_name());
     }
     tables::ExperimentalProtoContentTable::Row row;

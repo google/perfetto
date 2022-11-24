@@ -285,7 +285,7 @@ as follows:
 
 ```C++
 perfetto::DynamicCategory dynamic_category{"nodejs.something"};
-TRACE_EVENT(dynamic_category, "SomeEvent", ...);
+TRACE_EVENT_BEGIN(dynamic_category, "SomeEvent", ...);
 ```
 
 TIP: It's also possible to use dynamic event names by passing `nullptr` as

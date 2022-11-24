@@ -45,9 +45,9 @@ SELECT CREATE_FUNCTION(
 DROP TABLE IF EXISTS launches;
 CREATE TABLE launches(
   id INTEGER PRIMARY KEY,
-  ts BIG INT,
-  ts_end BIG INT,
-  dur BIG INT,
+  ts BIGINT,
+  ts_end BIGINT,
+  dur BIGINT,
   package STRING,
   launch_type STRING
 );
@@ -91,7 +91,7 @@ SELECT CREATE_FUNCTION(
 -- However it is possible that the process dies during the activity launch
 -- and is respawned.
 DROP TABLE IF EXISTS launch_processes;
-CREATE TABLE launch_processes(launch_id INT, upid BIG INT, launch_type STRING);
+CREATE TABLE launch_processes(launch_id INT, upid BIGINT, launch_type STRING);
 
 INSERT INTO launch_processes(launch_id, upid, launch_type)
 -- This is intentionally a materizlied query. For some reason, if we don't
@@ -133,6 +133,16 @@ WITH launch_with_type AS MATERIALIZED (
 SELECT *
 FROM launch_with_type
 WHERE launch_type IS NOT NULL;
+
+-- Checks if the duration of two spans overlap, given the start and end time stamps.
+SELECT CREATE_FUNCTION(
+  'IS_SPANS_OVERLAPPING(ts1 LONG, ts_end1 LONG, ts2 LONG, ts_end2 LONG)',
+  'BOOL',
+  '
+    SELECT (IIF($ts1 < $ts2, $ts2, $ts1)
+      < IIF($ts_end1 < $ts_end2, $ts_end1, $ts_end2))
+  '
+);
 
 -- Tracks all main process threads.
 DROP VIEW IF EXISTS launch_threads;

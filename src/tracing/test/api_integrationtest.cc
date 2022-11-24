@@ -325,7 +325,7 @@ class MockTracingMuxer : public perfetto::internal::TracingMuxer {
       perfetto::InterceptorBase::TLSFactory,
       perfetto::InterceptorBase::TracePacketCallback) override {}
 
-  void ActivateTriggers(const std::vector<std::string>&) override {}
+  void ActivateTriggers(const std::vector<std::string>&, uint32_t) override {}
 
   std::vector<DataSource> data_sources;
 
@@ -5451,7 +5451,7 @@ TEST_P(PerfettoApiTest, ActivateTriggers) {
   auto* tracing_session = NewTrace(cfg);
   tracing_session->get()->StartBlocking();
 
-  perfetto::Tracing::ActivateTriggers({"trigger2", "trigger1"});
+  perfetto::Tracing::ActivateTriggers({"trigger2", "trigger1"}, 10000);
 
   tracing_session->on_stop.Wait();
 
