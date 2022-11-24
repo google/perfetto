@@ -1981,7 +1981,6 @@ cc_test {
         ":perfetto_src_trace_processor_sqlite_functions_functions",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
-        ":perfetto_src_trace_processor_stdlib_stdlib",
         ":perfetto_src_trace_processor_storage_full",
         ":perfetto_src_trace_processor_storage_minimal",
         ":perfetto_src_trace_processor_storage_storage",
@@ -1997,6 +1996,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stack_traces_util",
+        ":perfetto_src_trace_processor_util_stdlib",
         ":perfetto_src_trace_processor_util_util",
         ":perfetto_src_trace_processor_util_zip_reader",
         ":perfetto_src_trace_processor_views_views",
@@ -9633,11 +9633,6 @@ genrule {
     ],
 }
 
-// GN: //src/trace_processor/stdlib:stdlib
-filegroup {
-    name: "perfetto_src_trace_processor_stdlib_stdlib",
-}
-
 // GN: //src/trace_processor:storage_full
 filegroup {
     name: "perfetto_src_trace_processor_storage_full",
@@ -9868,6 +9863,11 @@ filegroup {
     srcs: [
         "src/trace_processor/util/stack_traces_util.cc",
     ],
+}
+
+// GN: //src/trace_processor/util:stdlib
+filegroup {
+    name: "perfetto_src_trace_processor_util_stdlib",
 }
 
 // GN: //src/trace_processor/util:unittests
@@ -11208,7 +11208,6 @@ cc_test {
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
         ":perfetto_src_trace_processor_sqlite_unittests",
-        ":perfetto_src_trace_processor_stdlib_stdlib",
         ":perfetto_src_trace_processor_storage_full",
         ":perfetto_src_trace_processor_storage_minimal",
         ":perfetto_src_trace_processor_storage_storage",
@@ -11227,6 +11226,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stack_traces_util",
+        ":perfetto_src_trace_processor_util_stdlib",
         ":perfetto_src_trace_processor_util_unittests",
         ":perfetto_src_trace_processor_util_util",
         ":perfetto_src_trace_processor_util_zip_reader",
@@ -11845,7 +11845,6 @@ cc_binary {
         ":perfetto_src_trace_processor_sqlite_functions_functions",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
-        ":perfetto_src_trace_processor_stdlib_stdlib",
         ":perfetto_src_trace_processor_storage_full",
         ":perfetto_src_trace_processor_storage_minimal",
         ":perfetto_src_trace_processor_storage_storage",
@@ -11861,6 +11860,7 @@ cc_binary {
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stack_traces_util",
+        ":perfetto_src_trace_processor_util_stdlib",
         ":perfetto_src_trace_processor_util_util",
         ":perfetto_src_trace_processor_util_zip_reader",
         ":perfetto_src_trace_processor_views_views",
@@ -12036,7 +12036,6 @@ cc_binary_host {
         ":perfetto_src_trace_processor_sqlite_functions_functions",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
-        ":perfetto_src_trace_processor_stdlib_stdlib",
         ":perfetto_src_trace_processor_storage_full",
         ":perfetto_src_trace_processor_storage_minimal",
         ":perfetto_src_trace_processor_storage_storage",
@@ -12052,6 +12051,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stack_traces_util",
+        ":perfetto_src_trace_processor_util_stdlib",
         ":perfetto_src_trace_processor_util_util",
         ":perfetto_src_trace_processor_util_zip_reader",
         ":perfetto_src_trace_processor_views_views",
