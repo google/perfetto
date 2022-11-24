@@ -21,7 +21,7 @@ CREATE VIEW freq_slice AS
     track.name AS freq_name,
     ts,
     value AS freq_value,
-    LEAD(ts, 1, (SELECT end_ts+1 FROM trace_bounds))
+    LEAD(ts, 1, (SELECT end_ts + 1 FROM trace_bounds))
       OVER (PARTITION by track.id ORDER BY ts)  - ts AS duration
   FROM counter
   LEFT JOIN track ON counter.track_id = track.id

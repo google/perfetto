@@ -50,8 +50,8 @@ SELECT
   window_end_ts,
   scroll_type
 FROM
-  (SELECT * FROM (
-    (
+  (
+    SELECT * FROM (
       SELECT
         chrome_tasks.full_name AS full_name,
         chrome_tasks.dur  AS dur,
@@ -62,9 +62,9 @@ FROM
       FROM
         chrome_tasks
       WHERE
-         chrome_tasks.thread_name = "CrBrowserMain"
-         AND task_type != "java"
-         AND task_type != "choreographer"
+        chrome_tasks.thread_name = "CrBrowserMain"
+        AND task_type != "java"
+        AND task_type != "choreographer"
       ORDER BY chrome_tasks.ts
     ) tasks
     JOIN chrome_input_to_browser_longer_intervals
@@ -75,9 +75,8 @@ FROM
       AND tasks.ts > chrome_input_to_browser_longer_intervals.window_start_ts
       AND tasks.ts < chrome_input_to_browser_longer_intervals.window_end_ts
       -- For cases when there are multiple chrome instances.
-      and tasks.upid = chrome_input_to_browser_longer_intervals.upid)
-    ORDER BY
-    window_start_ts, window_end_ts
+      and tasks.upid = chrome_input_to_browser_longer_intervals.upid
+    ORDER BY window_start_ts, window_end_ts
   )
   GROUP BY window_start_ts, window_end_ts;
 
