@@ -211,6 +211,24 @@ inline base::Status StepStmtUntilDone(sqlite3_stmt* stmt) {
   return base::OkStatus();
 }
 
+// Exracts the given type from the SqlValue if |value| can fit
+// in the provided optional. Note that SqlValue::kNull will always
+// succeed and cause base::nullopt to be set.
+//
+// Returns base::ErrStatus if the type does not match or does not
+// fit in the width of the provided optional type (i.e. int64 value
+// not fitting in int32 optional).
+base::Status ExtractFromSqlValue(const SqlValue& value,
+                                 base::Optional<int64_t>&);
+base::Status ExtractFromSqlValue(const SqlValue& value,
+                                 base::Optional<int32_t>&);
+base::Status ExtractFromSqlValue(const SqlValue& value,
+                                 base::Optional<uint32_t>&);
+base::Status ExtractFromSqlValue(const SqlValue& value,
+                                 base::Optional<double>&);
+base::Status ExtractFromSqlValue(const SqlValue& value,
+                                 base::Optional<const char*>&);
+
 // Returns the column names for the table named by |raw_table_name|.
 base::Status GetColumnsForTable(sqlite3* db,
                                 const std::string& raw_table_name,
