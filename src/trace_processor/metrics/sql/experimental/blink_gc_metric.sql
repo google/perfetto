@@ -61,7 +61,7 @@ SELECT
 DROP TABLE IF EXISTS blink_gc_cpu_slice;
 CREATE TABLE blink_gc_cpu_slice AS
 SELECT
-  CASE WHEN dur != 0 THEN cpuDurNs/1e6 ELSE 0.0 END AS cpuDurMs,
+  CASE WHEN dur != 0 THEN cpuDurNs / 1e6 ELSE 0.0 END AS cpuDurMs,
   *
 FROM (
   SELECT

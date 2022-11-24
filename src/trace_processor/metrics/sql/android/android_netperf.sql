@@ -89,8 +89,8 @@ CREATE VIEW device_per_core_ingress_traffic AS
         'bytes', SUM(len),
         'first_packet_timestamp_ns', MIN(ts),
         'last_packet_timestamp_ns', MAX(ts),
-        'interval_ns', IIF((MAX(ts)-MIN(ts))>10000000, MAX(ts)-MIN(ts), 10000000),
-        'data_rate_kbps', (SUM(len)*8)/(IIF((MAX(ts)-MIN(ts))>10000000, MAX(ts)-MIN(ts), 10000000)/1e9)/1024
+        'interval_ns', IIF((MAX(ts) - MIN(ts)) > 10000000, MAX(ts) - MIN(ts), 10000000),
+        'data_rate_kbps', (SUM(len) * 8) / (IIF((MAX(ts) - MIN(ts)) > 10000000, MAX(ts) - MIN(ts), 10000000) / 1e9) / 1024
       )
     ) AS proto
   FROM rx_packets
@@ -107,8 +107,8 @@ CREATE VIEW device_per_core_egress_traffic AS
         'bytes', SUM(len),
         'first_packet_timestamp_ns', MIN(ts),
         'last_packet_timestamp_ns', MAX(ts),
-        'interval_ns', IIF((MAX(ts)-MIN(ts))>10000000, MAX(ts)-MIN(ts), 10000000),
-        'data_rate_kbps', (SUM(len)*8)/(IIF((MAX(ts)-MIN(ts))>10000000, MAX(ts)-MIN(ts), 10000000)/1e9)/1024
+        'interval_ns', IIF((MAX(ts) - MIN(ts)) > 10000000, MAX(ts) - MIN(ts), 10000000),
+        'data_rate_kbps', (SUM(len) * 8) / (IIF((MAX(ts) - MIN(ts)) > 10000000, MAX(ts) - MIN(ts), 10000000) / 1e9) / 1024
       )
     ) AS proto
   FROM tx_packets
@@ -120,7 +120,7 @@ CREATE VIEW device_total_ingress_traffic AS
     dev,
     MIN(ts) AS start_ts,
     MAX(ts) AS end_ts,
-    IIF((MAX(ts) - MIN(ts)) > 10000000, MAX(ts)-MIN(ts), 10000000) AS interval,
+    IIF((MAX(ts) - MIN(ts)) > 10000000, MAX(ts) - MIN(ts), 10000000) AS interval,
     COUNT(1) AS packets,
     SUM(len) AS bytes
   FROM rx_packets
@@ -132,7 +132,7 @@ CREATE VIEW device_total_egress_traffic AS
     dev,
     MIN(ts) AS start_ts,
     MAX(ts) AS end_ts,
-    IIF((MAX(ts) - MIN(ts)) > 10000000, MAX(ts)-MIN(ts), 10000000) AS interval,
+    IIF((MAX(ts) - MIN(ts)) > 10000000, MAX(ts) - MIN(ts), 10000000) AS interval,
     COUNT(1) AS packets,
     SUM(len) AS bytes
   FROM tx_packets
@@ -152,7 +152,7 @@ CREATE VIEW device_traffic_statistic AS
               'first_packet_timestamp_ns', start_ts,
               'last_packet_timestamp_ns', end_ts,
               'interval_ns', interval,
-              'data_rate_kbps', (bytes*8)/(interval/1e9)/1024
+              'data_rate_kbps', (bytes * 8) / (interval / 1e9) / 1024
             ),
             'core', (
               SELECT
@@ -163,12 +163,12 @@ CREATE VIEW device_traffic_statistic AS
             'gro_aggregation_ratio', (
               SELECT
                 CASE
-                  WHEN packets > 0 THEN '1:' || CAST( (cnt*1.0/packets) AS text)
+                  WHEN packets > 0 THEN '1:' || CAST( (cnt * 1.0 / packets) AS text)
                   ELSE '0:' || cnt
                END
               FROM gro_rx_packet_count
               WHERE gro_rx_packet_count.dev = net_devices.dev
-	    )
+      )
           )
         FROM device_total_ingress_traffic
         WHERE device_total_ingress_traffic.dev = net_devices.dev
@@ -182,7 +182,7 @@ CREATE VIEW device_traffic_statistic AS
               'first_packet_timestamp_ns', start_ts,
               'last_packet_timestamp_ns', end_ts,
               'interval_ns', interval,
-              'data_rate_kbps', (bytes*8)/(interval/1e9)/1024
+              'data_rate_kbps', (bytes * 8) / (interval / 1e9) / 1024
             ),
            'core', (
               SELECT
@@ -295,8 +295,8 @@ CREATE VIEW per_core_net_rx_action_statistic AS
       'id', cpu,
       'net_rx_action_statistic', AndroidNetworkMetric_NetRxActionStatistic(
         'count', (SELECT COUNT(1) FROM net_rx_actions AS na WHERE na.cpu = ac.cpu),
-        'runtime_ms',  (SELECT SUM(dur)/1e6 FROM net_rx_actions AS na WHERE na.cpu = ac.cpu),
-        'avg_runtime_ms', (SELECT AVG(dur)/1e6 FROM net_rx_actions AS na WHERE na.cpu = ac.cpu),
+        'runtime_ms',  (SELECT SUM(dur) / 1e6 FROM net_rx_actions AS na WHERE na.cpu = ac.cpu),
+        'avg_runtime_ms', (SELECT AVG(dur) / 1e6 FROM net_rx_actions AS na WHERE na.cpu = ac.cpu),
         'avg_freq_khz', (SELECT SUM(dur * freq_khz) / SUM(dur) FROM cpu_freq_net_rx_action_per_core AS cc WHERE cc.cpu = ac.cpu),
         'mcycles', (SELECT CAST(SUM(dur * freq_khz / 1000) / 1e9 AS INT) FROM cpu_freq_net_rx_action_per_core AS cc WHERE cc.cpu = ac.cpu)
       )
@@ -310,8 +310,8 @@ CREATE VIEW per_core_net_tx_action_statistic AS
       'id', cpu,
       'net_tx_action_statistic', AndroidNetworkMetric_NetTxActionStatistic(
         'count', (SELECT COUNT(1) FROM net_tx_actions AS na WHERE na.cpu = ac.cpu),
-        'runtime_ms',  (SELECT SUM(dur)/1e6 FROM net_tx_actions AS na WHERE na.cpu = ac.cpu),
-        'avg_runtime_ms', (SELECT AVG(dur)/1e6 FROM net_tx_actions AS na WHERE na.cpu = ac.cpu),
+        'runtime_ms',  (SELECT SUM(dur) / 1e6 FROM net_tx_actions AS na WHERE na.cpu = ac.cpu),
+        'avg_runtime_ms', (SELECT AVG(dur) / 1e6 FROM net_tx_actions AS na WHERE na.cpu = ac.cpu),
         'avg_freq_khz', (SELECT SUM(dur * freq_khz) / SUM(dur) FROM cpu_freq_net_tx_action_per_core AS cc WHERE cc.cpu = ac.cpu),
         'mcycles', (SELECT CAST(SUM(dur * freq_khz / 1000) / 1e9 AS INT) FROM cpu_freq_net_tx_action_per_core AS cc WHERE cc.cpu = ac.cpu)
       )
@@ -329,8 +329,8 @@ CREATE VIEW android_netperf_output AS
     'net_rx_action', AndroidNetworkMetric_NetRxAction(
        'total', AndroidNetworkMetric_NetRxActionStatistic(
          'count', (SELECT times FROM total_net_rx_action_statistic),
-         'runtime_ms', (SELECT runtime/1e6 FROM total_net_rx_action_statistic),
-         'avg_runtime_ms', (SELECT avg_runtime/1e6 FROM total_net_rx_action_statistic),
+         'runtime_ms', (SELECT runtime / 1e6 FROM total_net_rx_action_statistic),
+         'avg_runtime_ms', (SELECT avg_runtime / 1e6 FROM total_net_rx_action_statistic),
          'avg_freq_khz', (SELECT SUM(dur * freq_khz) / SUM(dur) FROM cpu_freq_net_rx_action_per_core),
          'mcycles', (SELECT CAST(SUM(dur * freq_khz / 1000) / 1e9 AS INT) FROM cpu_freq_net_rx_action_per_core)
        ),
@@ -341,7 +341,7 @@ CREATE VIEW android_netperf_output AS
        ),
        'avg_interstack_latency_ms', (
          SELECT
-           runtime/total_packet/1e6
+           runtime / total_packet / 1e6
          FROM total_net_rx_action_statistic
        )
     ),
@@ -358,8 +358,8 @@ CREATE VIEW android_netperf_output AS
     'net_tx_action', AndroidNetworkMetric_NetTxAction(
        'total', AndroidNetworkMetric_NetTxActionStatistic(
          'count', (SELECT times FROM total_net_tx_action_statistic),
-         'runtime_ms', (SELECT runtime/1e6 FROM total_net_tx_action_statistic),
-         'avg_runtime_ms', (SELECT avg_runtime/1e6 FROM total_net_tx_action_statistic),
+         'runtime_ms', (SELECT runtime / 1e6 FROM total_net_tx_action_statistic),
+         'avg_runtime_ms', (SELECT avg_runtime / 1e6 FROM total_net_tx_action_statistic),
          'avg_freq_khz', (SELECT SUM(dur * freq_khz) / SUM(dur) FROM cpu_freq_net_tx_action_per_core),
          'mcycles', (SELECT CAST(SUM(dur * freq_khz / 1000) / 1e9 AS INT) FROM cpu_freq_net_tx_action_per_core)
        ),
@@ -372,8 +372,8 @@ CREATE VIEW android_netperf_output AS
     'ipi_action', AndroidNetworkMetric_IpiAction(
        'total', AndroidNetworkMetric_IpiActionStatistic(
          'count', (SELECT times FROM total_ipi_action_statistic),
-         'runtime_ms', (SELECT runtime/1e6 FROM total_ipi_action_statistic),
-         'avg_runtime_ms', (SELECT avg_runtime/1e6 FROM total_ipi_action_statistic)
+         'runtime_ms', (SELECT runtime / 1e6 FROM total_ipi_action_statistic),
+         'avg_runtime_ms', (SELECT avg_runtime / 1e6 FROM total_ipi_action_statistic)
        )
     )
   );
