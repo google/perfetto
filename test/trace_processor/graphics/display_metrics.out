@@ -22,6 +22,6 @@ display_metrics {
     avg_dur_ms: 2
   }
   update_power_state {
-    avg_runtime_ms: 4
+    avg_runtime_micro_secs: 4000
   }
 }
