@@ -19,11 +19,14 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <type_traits>
+#include <unordered_map>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -66,10 +69,10 @@
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/sqlite/window_operator_table.h"
-#include "src/trace_processor/stdlib/utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/protozero_to_text.h"
+#include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -82,6 +85,7 @@
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
+#include "src/trace_processor/stdlib/amalgamated_stdlib.h"
 
 // In Android and Chromium tree builds, we don't have the percentile module.
 // Just don't include it.
@@ -646,6 +650,16 @@ void RegisterDevFunctions(sqlite3* db) {
   RegisterFunction<WriteFile>(db, "WRITE_FILE", 2);
 }
 
+sql_modules::NameToModule GetStdlibModules() {
+  sql_modules::NameToModule modules;
+  for (const auto& file_to_sql : stdlib::kFileToSql) {
+    std::string import_key = sql_modules::GetImportKey(file_to_sql.path);
+    std::string module = sql_modules::GetModuleName(import_key);
+    modules.Insert(module, {}).first->push_back({import_key, file_to_sql.sql});
+  }
+  return modules;
+}
+
 }  // namespace
 
 template <typename View>
@@ -708,7 +722,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
           new CreateViewFunction::Context{db_.get()}));
   RegisterFunction<Import>(db, "IMPORT", 1,
                            std::unique_ptr<Import::Context>(new Import::Context{
-                               db_.get(), this, stdlib::SetupStdLib()}));
+                               db_.get(), this, &sql_modules_}));
 
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
@@ -720,6 +734,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     if (!status.ok()) {
       PERFETTO_ELOG("%s", status.c_message());
     }
+  }
+
+  auto stdlib_modules = GetStdlibModules();
+  for (auto module_it = stdlib_modules.GetIterator(); module_it; ++module_it) {
+    RegisterSqlModule(module_it.key(), module_it.value());
   }
 
   SetupMetrics(this, *db_, &sql_metrics_, cfg.skip_builtin_metric_paths);
@@ -993,6 +1012,24 @@ bool TraceProcessorImpl::IsRootMetricField(const std::string& metric_name) {
     return false;
   auto field_idx = pool_.descriptors()[*desc_idx].FindFieldByName(metric_name);
   return field_idx != nullptr;
+}
+
+base::Status TraceProcessorImpl::RegisterSqlModule(
+    const std::string& module_name,
+    const std::vector<std::pair<std::string, std::string>>& files) {
+  sql_modules::Module new_module;
+  for (auto const& name_and_sql : files) {
+    if (sql_modules::GetModuleName(name_and_sql.first) != module_name) {
+      return base::ErrStatus(
+          "File import key doesn't match the module name. First part of import "
+          "key should be module name. Import key: %s, module name: %s.",
+          name_and_sql.first.c_str(), module_name.c_str());
+    }
+    new_module.import_key_to_file.Insert(name_and_sql.first,
+                                         {name_and_sql.second, false});
+  }
+  sql_modules_.Insert(module_name, std::move(new_module));
+  return base::OkStatus();
 }
 
 base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,

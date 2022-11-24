@@ -368,13 +368,14 @@ if (enable_perfetto_trace_processor_sqlite) {
       "metrics",
       "sqlite",
       "sqlite/functions",
-      "stdlib",
+      "stdlib:gen_amalgamated_stdlib",
       "storage",
       "tables",
       "types",
       "util",
       "util:gzip",
       "util:protozero_to_text",
+      "util:stdlib",
       "views",
     ]
     public_deps = [
@@ -399,6 +400,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../base:version",
       "metrics",
       "util",
+      "util:stdlib",
     ]
     if (enable_perfetto_trace_processor_linenoise) {
       deps += [ "../../gn:linenoise" ]
