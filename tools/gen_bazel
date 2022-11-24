@@ -126,6 +126,7 @@ public_python_targets = [
 default_python_targets = [
   '//python:batch_trace_processor',
   '//python:experimental_slice_breakdown_bin',
+  '//python:trace_processor_table_generator',
   '//python:trace_processor_py_example',
 ]
 
