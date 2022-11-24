@@ -68,10 +68,10 @@ FROM
       ORDER BY chrome_tasks.ts
     ) tasks
     JOIN chrome_input_to_browser_longer_intervals
-      ON (tasks.ts + tasks.dur) >
-      chrome_input_to_browser_longer_intervals.window_start_ts
-      AND (tasks.ts + tasks.dur) <
-      chrome_input_to_browser_longer_intervals.window_end_ts
+      ON (tasks.ts + tasks.dur)
+      > chrome_input_to_browser_longer_intervals.window_start_ts
+      AND (tasks.ts + tasks.dur)
+      < chrome_input_to_browser_longer_intervals.window_end_ts
       AND tasks.ts > chrome_input_to_browser_longer_intervals.window_start_ts
       AND tasks.ts < chrome_input_to_browser_longer_intervals.window_end_ts
       -- For cases when there are multiple chrome instances.

@@ -210,10 +210,10 @@ WITH
        END) as kind
     FROM {{slice_table_name}}
     WHERE
-      (name GLOB 'Looper.dispatch: android.view.Choreographer$FrameHandler*') OR
-      (name = 'ThreadControllerImpl::RunTask' AND
-        EXTRACT_ARG(arg_set_id, 'task.posted_from.file_name') = 'cc/trees/single_thread_proxy.cc' AND
-        EXTRACT_ARG(arg_set_id, 'task.posted_from.function_name') = 'ScheduledActionSendBeginMainFrame')
+      (name GLOB 'Looper.dispatch: android.view.Choreographer$FrameHandler*')
+      OR (name = 'ThreadControllerImpl::RunTask'
+        AND EXTRACT_ARG(arg_set_id, 'task.posted_from.file_name') = 'cc/trees/single_thread_proxy.cc'
+        AND EXTRACT_ARG(arg_set_id, 'task.posted_from.function_name') = 'ScheduledActionSendBeginMainFrame')
   ),
   -- Intermediate step to allow us to sort java view names.
   root_slice_and_java_view_not_grouped AS (
@@ -270,8 +270,8 @@ WITH
       s.id
     FROM {{slice_table_name}} s
     WHERE
-      category = "toplevel" AND
-      (name = "ThreadControllerImpl::RunTask" or name = "ThreadPool_RunTask")
+      category = "toplevel"
+      AND (name = "ThreadControllerImpl::RunTask" or name = "ThreadPool_RunTask")
   ),
   scheduler_tasks AS (
     SELECT
