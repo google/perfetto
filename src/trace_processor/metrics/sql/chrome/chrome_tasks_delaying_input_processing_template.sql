@@ -35,27 +35,24 @@ SELECT
   thread_dur / 1e6 AS thread_dur_ms,
   chrome_input_to_browser_intervals.window_start_id,
   chrome_input_to_browser_intervals.window_end_id
-FROM
-  (
-    (
-      SELECT
-        chrome_tasks.full_name AS full_name,
-        chrome_tasks.dur AS dur,
-        chrome_tasks.ts AS ts,
-        chrome_tasks.id AS id,
-        chrome_tasks.upid AS upid,
-        thread_dur
-      FROM
-        chrome_tasks
-      WHERE
-        chrome_tasks.dur >= {{duration_causing_jank_ms}} * 1e6
-        and chrome_tasks.thread_name = "CrBrowserMain"
-    ) tasks
-    JOIN chrome_input_to_browser_intervals
-      ON tasks.ts + tasks.dur > chrome_input_to_browser_intervals.window_start_ts
-      AND tasks.ts + tasks.dur < chrome_input_to_browser_intervals.window_end_ts
-      AND tasks.upid = chrome_input_to_browser_intervals.upid
-  );
+FROM (
+  SELECT
+    chrome_tasks.full_name AS full_name,
+    chrome_tasks.dur AS dur,
+    chrome_tasks.ts AS ts,
+    chrome_tasks.id AS id,
+    chrome_tasks.upid AS upid,
+    thread_dur
+  FROM
+    chrome_tasks
+  WHERE
+    chrome_tasks.dur >= {{duration_causing_jank_ms}} * 1e6
+    and chrome_tasks.thread_name = "CrBrowserMain"
+) tasks
+JOIN chrome_input_to_browser_intervals
+  ON tasks.ts + tasks.dur > chrome_input_to_browser_intervals.window_start_ts
+  AND tasks.ts + tasks.dur < chrome_input_to_browser_intervals.window_end_ts
+  AND tasks.upid = chrome_input_to_browser_intervals.upid;
 
 -- Same task can delay multiple GestureUpdates, this step dedups
 -- multiple occrences of the same slice_id
