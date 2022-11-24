@@ -1582,14 +1582,6 @@ perfetto_cc_amalgamated_sql(
     namespace = "stdlib",
 )
 
-# GN target: //src/trace_processor/stdlib:stdlib
-perfetto_filegroup(
-    name = "src_trace_processor_stdlib_stdlib",
-    srcs = [
-        "src/trace_processor/stdlib/utils.h",
-    ],
-)
-
 # GN target: //src/trace_processor/storage:storage
 perfetto_filegroup(
     name = "src_trace_processor_storage_storage",
@@ -1729,6 +1721,14 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/util/stack_traces_util.cc",
         "src/trace_processor/util/stack_traces_util.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:stdlib
+perfetto_filegroup(
+    name = "src_trace_processor_util_stdlib",
+    srcs = [
+        "src/trace_processor/util/sql_modules.h",
     ],
 )
 
@@ -4369,7 +4369,6 @@ perfetto_cc_library(
         ":src_trace_processor_sqlite_functions_functions",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_sqlite_sqlite_minimal",
-        ":src_trace_processor_stdlib_stdlib",
         ":src_trace_processor_storage_full",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
@@ -4385,6 +4384,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stack_traces_util",
+        ":src_trace_processor_util_stdlib",
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_zip_reader",
         ":src_trace_processor_views_views",
@@ -4500,7 +4500,6 @@ perfetto_cc_binary(
         ":src_trace_processor_sqlite_functions_functions",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_sqlite_sqlite_minimal",
-        ":src_trace_processor_stdlib_stdlib",
         ":src_trace_processor_storage_full",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
@@ -4516,6 +4515,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stack_traces_util",
+        ":src_trace_processor_util_stdlib",
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_zip_reader",
         ":src_trace_processor_views_views",
@@ -4686,7 +4686,6 @@ perfetto_cc_binary(
         ":src_trace_processor_sqlite_functions_functions",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_sqlite_sqlite_minimal",
-        ":src_trace_processor_stdlib_stdlib",
         ":src_trace_processor_storage_full",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
@@ -4702,6 +4701,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stack_traces_util",
+        ":src_trace_processor_util_stdlib",
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_zip_reader",
         ":src_trace_processor_views_views",
