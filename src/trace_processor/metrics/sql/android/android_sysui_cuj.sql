@@ -172,8 +172,8 @@ CREATE TABLE android_sysui_cuj_ts_boundaries AS
 SELECT ts, ts_end - ts as dur, ts_end FROM (
 SELECT
 (SELECT ts_adjusted FROM android_sysui_cuj_do_frame_slices_in_cuj_adjusted ORDER BY ts ASC LIMIT 1) as ts,
-(SELECT ts FROM android_sysui_cuj_do_frame_slices_in_cuj ORDER BY ts DESC LIMIT 1) +
-(SELECT dur_actual FROM android_sysui_cuj_frame_timeline_events ORDER BY vsync DESC LIMIT 1) as ts_end);
+(SELECT ts FROM android_sysui_cuj_do_frame_slices_in_cuj ORDER BY ts DESC LIMIT 1)
++ (SELECT dur_actual FROM android_sysui_cuj_frame_timeline_events ORDER BY vsync DESC LIMIT 1) as ts_end);
 
 DROP VIEW IF EXISTS android_sysui_cuj_thread;
 CREATE VIEW android_sysui_cuj_thread AS

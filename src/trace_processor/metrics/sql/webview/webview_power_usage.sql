@@ -31,9 +31,9 @@ DROP TABLE IF EXISTS top_level_slice;
 CREATE TABLE top_level_slice AS
   SELECT *
   FROM slice WHERE
-  depth = 0 AND
-  ((category GLOB '*toplevel*' OR category = 'Java') AND
-  name NOT GLOB '*looper*');
+  depth = 0
+  AND ((category GLOB '*toplevel*' OR category = 'Java')
+  AND name NOT GLOB '*looper*');
 
 DROP TABLE IF EXISTS webview_browser_slices;
 
