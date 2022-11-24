@@ -28,7 +28,7 @@ SELECT
   id,
   name,
   ts AS begin_ts,
-  ts+dur AS end_ts,
+  ts + dur AS end_ts,
   dur,
   LEAD(name, 1, '') OVER (PARTITION BY track_id ORDER BY ts) AS next_name,
   LEAD(ts, 1, 0) OVER (PARTITION BY track_id ORDER BY ts) AS next_ts,

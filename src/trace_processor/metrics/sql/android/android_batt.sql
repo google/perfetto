@@ -31,25 +31,25 @@ LEFT JOIN (
   SELECT ts, value AS current_avg_ua
   FROM counter c
   JOIN counter_track t on c.track_id = t.id
-  WHERE name='batt.current.avg_ua'
+  WHERE name = 'batt.current.avg_ua'
 ) USING(ts)
 LEFT JOIN (
   SELECT ts, value AS capacity_percent
   FROM counter c
   JOIN counter_track t on c.track_id = t.id
-  WHERE name='batt.capacity_pct'
+  WHERE name = 'batt.capacity_pct'
 ) USING(ts)
 LEFT JOIN (
   SELECT ts, value AS charge_uah
   FROM counter c
   JOIN counter_track t on c.track_id = t.id
-  WHERE name='batt.charge_uah'
+  WHERE name = 'batt.charge_uah'
 ) USING(ts)
 LEFT JOIN (
   SELECT ts, value AS current_ua
   FROM counter c
   JOIN counter_track t on c.track_id = t.id
-  WHERE name='batt.current_ua'
+  WHERE name = 'batt.current_ua'
 ) USING(ts)
 ORDER BY ts;
 

@@ -150,7 +150,7 @@ CREATE VIEW {{id_field}}_update AS
     dur,
     track_id,
     trace_id,
-    dur/avg_vsync_interval AS gesture_frames_exact,
+    dur / avg_vsync_interval AS gesture_frames_exact,
     avg_vsync_interval
   FROM joined_{{prefix}}_begin_and_end begin_and_end JOIN gesture_update ON
   gesture_update.ts <= begin_and_end.end_ts AND
@@ -246,13 +246,13 @@ CREATE VIEW {{prefix}}_jank_output AS
       '{{prefix}}_jank_percentage', (
         SELECT
           (
-            SUM(CASE WHEN jank THEN dur ELSE 0 END)/CAST(SUM(dur) AS REAL)
+            SUM(CASE WHEN jank THEN dur ELSE 0 END) / CAST(SUM(dur) AS REAL)
           ) * 100.0
         FROM {{prefix}}_jank
       ),
       '{{prefix}}_ms', (
         SELECT
-          CAST(SUM({{prefix}}_dur)/1e6 AS REAL)
+          CAST(SUM({{prefix}}_dur) / 1e6 AS REAL)
         FROM (
           SELECT
             MAX({{prefix}}_dur) AS {{prefix}}_dur
@@ -260,9 +260,9 @@ CREATE VIEW {{prefix}}_jank_output AS
           GROUP BY {{id_field}}
         )
       ),
-      '{{prefix}}_processing_ms', CAST(SUM(dur)/1e6 AS REAL),
+      '{{prefix}}_processing_ms', CAST(SUM(dur) / 1e6 AS REAL),
       '{{prefix}}_jank_processing_ms', (
-        SELECT CAST(SUM(dur)/1e6 AS REAL) FROM {{prefix}}_jank WHERE jank
+        SELECT CAST(SUM(dur) / 1e6 AS REAL) FROM {{prefix}}_jank WHERE jank
       ),
       'num_{{prefix}}_update_count', COUNT(*),
       'num_{{prefix}}_update_jank_count', SUM(jank),
