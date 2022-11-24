@@ -84,9 +84,9 @@ struct TrackEventDataDescriptor {
     return TrackEventData::kMaxNumExtraCounters;
   }
 
-  static uint64_t GetPacketValue(bool has_thread_timestamp,
-                                 bool has_thread_instruction_count,
-                                 uint64_t number_of_counter_values) {
+  static constexpr uint64_t GetPacketValue(bool has_thread_timestamp,
+                                           bool has_thread_instruction_count,
+                                           uint64_t number_of_counter_values) {
     return (static_cast<uint64_t>(has_thread_timestamp)
             << (kBitsForCounterValues + 1)) |
            (static_cast<uint64_t>(has_thread_instruction_count)
@@ -119,18 +119,42 @@ struct TrackEventDataDescriptor {
   uint64_t packed_value_ = 0;
 };
 
+struct AppendOptions {
+  bool skip_trace_blob_view;
+  bool skip_sequence_state;
+};
+
+struct EvictSkippedFields {
+  base::Optional<TraceBlobView> skipped_trace_blob_view;
+  base::Optional<RefPtr<PacketSequenceStateGeneration>> skipped_sequence_state;
+};
+
 // Adds and removes object of the type from queue memory. Can be overriden
 // for more specific functionality related to a type. All child classes
 // should implement the same interface.
 template <typename T>
 class TypedMemoryAccessor {
  public:
-  static char* Append(char* ptr, T value) {
+  static char* Append(char* ptr, T value, AppendOptions options) {
+    PERFETTO_DCHECK(!options.skip_trace_blob_view);
+    PERFETTO_DCHECK(!options.skip_sequence_state);
     return AppendUnchecked(ptr, std::move(value));
   }
-  static T Evict(char* ptr) { return EvictUnchecked<T>(&ptr); }
+  static T Evict(char* ptr, EvictSkippedFields options) {
+    PERFETTO_DCHECK(!options.skipped_trace_blob_view);
+    PERFETTO_DCHECK(!options.skipped_sequence_state);
+    return EvictUnchecked<T>(&ptr);
+  }
   static uint64_t AppendSize(const T&) {
     return static_cast<uint64_t>(sizeof(T));
+  }
+
+  static base::Optional<TraceBlobView> GetTraceBlobView(const T&) {
+    return base::nullopt;
+  }
+  static base::Optional<RefPtr<PacketSequenceStateGeneration>> GetSequenceState(
+      const T&) {
+    return base::nullopt;
   }
 };
 
@@ -140,26 +164,52 @@ class TypedMemoryAccessor {
 template <>
 class TypedMemoryAccessor<TrackEventData> {
  public:
-  static char* Append(char* ptr, TrackEventData ted) {
+  static char* Append(char* ptr, TrackEventData ted, AppendOptions options) {
     auto ted_desc = TrackEventDataDescriptor(ted);
     ptr = AppendUnchecked(ptr, ted_desc);
-    ptr = AppendUnchecked(ptr, std::move(ted.trace_packet_data));
-    ptr = AppendUnchecked(ptr, ted.counter_value);
+
+    TraceBlobView& packet = ted.trace_packet_data.packet;
+    if (options.skip_trace_blob_view) {
+      // Noop: keep this empty branch to keep consistency with Evict.
+    } else {
+      ptr = AppendUnchecked<TraceBlobView>(ptr, std::move(packet));
+    }
+    if (options.skip_sequence_state) {
+      // Noop: keep this empty branch to keep consistency with Evict.
+    } else {
+      ptr = AppendUnchecked<RefPtr<PacketSequenceStateGeneration>>(
+          ptr, ted.trace_packet_data.sequence_state);
+    }
+    ptr = AppendUnchecked<double>(ptr, ted.counter_value);
     if (ted_desc.HasThreadTimestamp()) {
-      ptr = AppendUnchecked(ptr, ted.thread_timestamp.value());
+      ptr = AppendUnchecked<int64_t>(ptr, ted.thread_timestamp.value());
     }
     if (ted_desc.HasThreadInstructionCount()) {
-      ptr = AppendUnchecked(ptr, ted.thread_instruction_count.value());
+      ptr = AppendUnchecked<int64_t>(ptr, ted.thread_instruction_count.value());
     }
     for (uint32_t i = 0; i < ted_desc.NumberOfCounterValues(); i++) {
-      ptr = AppendUnchecked(ptr, ted.extra_counter_values[i]);
+      ptr = AppendUnchecked<double>(ptr, ted.extra_counter_values[i]);
     }
     return ptr;
   }
 
-  static TrackEventData Evict(char* ptr) {
+  static TrackEventData Evict(char* ptr, EvictSkippedFields fields) {
     auto ted_desc = EvictUnchecked<TrackEventDataDescriptor>(&ptr);
-    TrackEventData ted(EvictUnchecked<TracePacketData>(&ptr));
+
+    TrackEventData ted({}, {});
+    if (fields.skipped_trace_blob_view) {
+      ted.trace_packet_data.packet = std::move(*fields.skipped_trace_blob_view);
+    } else {
+      ted.trace_packet_data.packet = EvictUnchecked<TraceBlobView>(&ptr);
+    }
+    if (fields.skipped_sequence_state) {
+      ted.trace_packet_data.sequence_state =
+          std::move(*fields.skipped_sequence_state);
+    } else {
+      ted.trace_packet_data.sequence_state =
+          EvictUnchecked<RefPtr<PacketSequenceStateGeneration>>(&ptr);
+    }
+
     ted.counter_value = EvictUnchecked<double>(&ptr);
     if (ted_desc.HasThreadTimestamp()) {
       ted.thread_timestamp = EvictUnchecked<int64_t>(&ptr);
@@ -171,6 +221,15 @@ class TypedMemoryAccessor<TrackEventData> {
       ted.extra_counter_values[i] = EvictUnchecked<double>(&ptr);
     }
     return ted;
+  }
+
+  static TraceBlobView GetTraceBlobView(const TrackEventData& ted) {
+    return ted.trace_packet_data.packet.copy();
+  }
+
+  static RefPtr<PacketSequenceStateGeneration> GetSequenceState(
+      const TrackEventData& ted) {
+    return ted.trace_packet_data.sequence_state;
   }
 
   static uint64_t AppendSize(const TrackEventData& value) {

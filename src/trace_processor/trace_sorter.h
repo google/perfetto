@@ -120,32 +120,35 @@ class TraceSorter {
   inline void PushTracePacket(int64_t timestamp,
                               PacketSequenceState* state,
                               TraceBlobView event) {
-    uint32_t offset = variadic_queue_.Append(
-        TracePacketData{std::move(event), state->current_generation()});
-    AppendNonFtraceEvent(timestamp, offset, EventType::kTracePacket);
+    TracePacketData tpd{std::move(event), state->current_generation()};
+    AppendNonFtraceEvent(timestamp, variadic_queue_.Append(std::move(tpd)),
+                         EventType::kTracePacket);
   }
 
   inline void PushJsonValue(int64_t timestamp, std::string json_value) {
-    uint32_t offset = variadic_queue_.Append(std::move(json_value));
-    AppendNonFtraceEvent(timestamp, offset, EventType::kJsonValue);
+    AppendNonFtraceEvent(timestamp,
+                         variadic_queue_.Append(std::move(json_value)),
+                         EventType::kJsonValue);
   }
 
   inline void PushFuchsiaRecord(int64_t timestamp,
                                 FuchsiaRecord fuchsia_record) {
-    uint32_t offset = variadic_queue_.Append(std::move(fuchsia_record));
-    AppendNonFtraceEvent(timestamp, offset, EventType::kFuchsiaRecord);
+    AppendNonFtraceEvent(timestamp,
+                         variadic_queue_.Append(std::move(fuchsia_record)),
+                         EventType::kFuchsiaRecord);
   }
 
   inline void PushSystraceLine(SystraceLine systrace_line) {
     auto ts = systrace_line.ts;
-    auto offset = variadic_queue_.Append(std::move(systrace_line));
-    AppendNonFtraceEvent(ts, offset, EventType::kSystraceLine);
+    AppendNonFtraceEvent(ts, variadic_queue_.Append(std::move(systrace_line)),
+                         EventType::kSystraceLine);
   }
 
   inline void PushTrackEventPacket(int64_t timestamp,
                                    TrackEventData track_event) {
-    uint32_t offset = variadic_queue_.Append(std::move(track_event));
-    AppendNonFtraceEvent(timestamp, offset, EventType::kTrackEvent);
+    AppendNonFtraceEvent(timestamp,
+                         variadic_queue_.Append(std::move(track_event)),
+                         EventType::kTrackEvent);
   }
 
   inline void PushFtraceEvent(uint32_t cpu,
@@ -153,10 +156,10 @@ class TraceSorter {
                               TraceBlobView event,
                               PacketSequenceState* state) {
     auto* queue = GetQueue(cpu + 1);
-    uint32_t offset = variadic_queue_.Append(
+    VariadicQueue::ValueReference ref = variadic_queue_.Append(
         TracePacketData{std::move(event), state->current_generation()});
     queue->Append(TimestampedDescriptor{
-        timestamp, Descriptor(offset, EventType::kFtraceEvent)});
+        timestamp, Descriptor(ref, EventType::kFtraceEvent)});
     UpdateGlobalTs(queue);
   }
   inline void PushInlineFtraceEvent(uint32_t cpu,
@@ -170,9 +173,10 @@ class TraceSorter {
     // merge-sort fashion
     // // instead.
     auto* queue = GetQueue(cpu + 1);
-    uint32_t offset = variadic_queue_.Append(inline_sched_switch);
+    VariadicQueue::ValueReference ref =
+        variadic_queue_.Append(inline_sched_switch);
     queue->Append(TimestampedDescriptor{
-        timestamp, Descriptor(offset, EventType::kInlineSchedSwitch)});
+        timestamp, Descriptor(ref, EventType::kInlineSchedSwitch)});
     UpdateGlobalTs(queue);
   }
   inline void PushInlineFtraceEvent(uint32_t cpu,
@@ -180,9 +184,10 @@ class TraceSorter {
                                     InlineSchedWaking inline_sched_waking) {
     auto* queue = GetQueue(cpu + 1);
 
-    uint32_t offset = variadic_queue_.Append(inline_sched_waking);
+    VariadicQueue::ValueReference ref =
+        variadic_queue_.Append(inline_sched_waking);
     queue->Append(TimestampedDescriptor{
-        timestamp, Descriptor(offset, EventType::kInlineSchedWaking)});
+        timestamp, Descriptor(ref, EventType::kInlineSchedWaking)});
     UpdateGlobalTs(queue);
   }
 
@@ -211,27 +216,43 @@ class TraceSorter {
   int64_t max_timestamp() const { return global_max_ts_; }
 
  private:
-  // Stores offset and type of metadata.
+  // Stores offset, type of metadata and whether this object is stored as
+  // compressed or uncompressed.
+  // { offset (58b) | type (4b) | tbv_compressed(1b) | seq_compressed(1b)}
   struct Descriptor {
    public:
     static constexpr uint8_t kTypeBits = 4;
-    static constexpr uint64_t kTypeMask = (1 << kTypeBits) - 1;
-    static constexpr uint64_t kOffsetShift = kTypeBits;
+    static constexpr uint8_t kCompressionBits = 2;
+    static constexpr uint64_t kTypeMask = ((1 << kTypeBits) - 1)
+                                          << kCompressionBits;
+    static constexpr uint64_t kCompressionMask = 3;
+    static constexpr uint64_t kOffsetShift = kTypeBits + kCompressionBits;
     static constexpr uint64_t kMaxType = kTypeMask;
 
     static_assert(static_cast<uint8_t>(EventType::kSize) <= kTypeMask,
                   "Too many bits for type");
 
-    Descriptor(uint32_t offset, EventType type)
-        : packed_value_((static_cast<uint64_t>(offset) << kOffsetShift) |
-                        static_cast<uint64_t>(type)) {}
+    Descriptor(VariadicQueue::ValueReference ref, EventType type)
+        : packed_value_((static_cast<uint64_t>(ref.offset) << kOffsetShift) |
+                        (static_cast<uint64_t>(type) << kCompressionBits) |
+                        (static_cast<uint64_t>(ref.blob_compressed) << 1) |
+                        static_cast<uint64_t>(ref.seq_compressed)) {}
 
     uint32_t offset() const {
       return static_cast<uint32_t>(packed_value_ >> kOffsetShift);
     }
 
     EventType type() const {
-      return static_cast<EventType>(packed_value_ & kTypeMask);
+      return static_cast<EventType>((packed_value_ & kTypeMask) >>
+                                    kCompressionBits);
+    }
+
+    VariadicQueue::ValueReference ToVariadicQueueValueReference() const {
+      bool blob_compressed =
+          static_cast<bool>((packed_value_ & kCompressionMask) >> 1);
+      bool seq_compressed = static_cast<bool>(packed_value_ & 1);
+      return VariadicQueue::ValueReference{offset(), blob_compressed,
+                                           seq_compressed};
     }
 
    private:
@@ -315,10 +336,10 @@ class TraceSorter {
   }
 
   inline void AppendNonFtraceEvent(int64_t ts,
-                                   uint32_t offset,
+                                   VariadicQueue::ValueReference ref,
                                    EventType type) {
     Queue* queue = GetQueue(0);
-    queue->Append(TimestampedDescriptor{ts, Descriptor{offset, type}});
+    queue->Append(TimestampedDescriptor{ts, Descriptor{std::move(ref), type}});
     UpdateGlobalTs(queue);
   }
 
@@ -332,7 +353,8 @@ class TraceSorter {
 
   template <typename T>
   T EvictTypedVariadic(const TimestampedDescriptor& ts_desc) {
-    return variadic_queue_.Evict<T>(ts_desc.descriptor.offset());
+    return variadic_queue_.Evict<T>(
+        ts_desc.descriptor.ToVariadicQueueValueReference());
   }
 
   void EvictVariadic(const TimestampedDescriptor& ts_desc);
