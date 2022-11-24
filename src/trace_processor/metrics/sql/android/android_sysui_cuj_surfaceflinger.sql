@@ -2,7 +2,7 @@
 DROP TABLE IF EXISTS android_sysui_cuj_sf_process;
 CREATE TABLE android_sysui_cuj_sf_process AS
 SELECT name, upid FROM process
-WHERE process.name='/system/bin/surfaceflinger'
+WHERE process.name = '/system/bin/surfaceflinger'
 LIMIT 1;
 
 DROP VIEW IF EXISTS android_sysui_cuj_sf_actual_frame_timeline_slice;

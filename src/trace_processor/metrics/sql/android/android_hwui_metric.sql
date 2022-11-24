@@ -24,7 +24,7 @@ SELECT
   CAST(SUM(sched.dur) / 1e6 as INT64) as rt_cpu_time_ms,
   thread.utid as render_thread_id
 FROM sched
-INNER JOIN thread ON (thread.utid = sched.utid AND thread.name='RenderThread')
+INNER JOIN thread ON (thread.utid = sched.utid AND thread.name = 'RenderThread')
 INNER JOIN process ON (process.upid = thread.upid)
 GROUP BY process.name
 ORDER BY rt_cpu_time_ms DESC;
@@ -52,7 +52,7 @@ SELECT
   thread_track.utid as render_thread_id
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-WHERE slice.name='flush commands' AND slice.dur >= 0
+WHERE slice.name = 'flush commands' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_prepare_tree;
@@ -65,7 +65,7 @@ SELECT
   thread_track.utid as render_thread_id
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-WHERE slice.name='prepareTree' AND slice.dur >= 0
+WHERE slice.name = 'prepareTree' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_gpu_completion;
@@ -78,7 +78,7 @@ SELECT
   thread.upid as process_upid
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-INNER JOIN thread ON (thread.name='GPU completion' AND thread.utid = thread_track.utid)
+INNER JOIN thread ON (thread.name = 'GPU completion' AND thread.utid = thread_track.utid)
 WHERE slice.name GLOB 'waiting for GPU completion*' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
@@ -92,9 +92,9 @@ SELECT
   thread.upid as process_upid
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-INNER JOIN thread ON (thread.name=substr(process.name,-15) AND thread.utid = thread_track.utid)
+INNER JOIN thread ON (thread.name = substr(process.name,-15) AND thread.utid = thread_track.utid)
 INNER JOIN process ON (process.upid = thread.upid)
-WHERE slice.name='Record View#draw()' AND slice.dur >= 0
+WHERE slice.name = 'Record View#draw()' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_shader_compile;
@@ -106,7 +106,7 @@ SELECT
   thread_track.utid as render_thread_id
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-WHERE slice.name='shader_compile' AND slice.dur >= 0
+WHERE slice.name = 'shader_compile' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_cache_hit;
@@ -118,7 +118,7 @@ SELECT
   thread_track.utid as render_thread_id
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-WHERE slice.name='cache_hit' AND slice.dur >= 0
+WHERE slice.name = 'cache_hit' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_cache_miss;
@@ -130,7 +130,7 @@ SELECT
   thread_track.utid as render_thread_id
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-WHERE slice.name='cache_miss' AND slice.dur >= 0
+WHERE slice.name = 'cache_miss' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_graphics_cpu_mem;
@@ -142,7 +142,7 @@ SELECT
   process_counter_track.upid as process_upid
 FROM counter
 INNER JOIN process_counter_track ON (counter.track_id = process_counter_track.id)
-WHERE name='HWUI CPU Memory' AND counter.value >= 0
+WHERE name = 'HWUI CPU Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
 DROP VIEW IF EXISTS hwui_graphics_gpu_mem;
@@ -154,7 +154,7 @@ SELECT
   process_counter_track.upid as process_upid
 FROM counter
 INNER JOIN process_counter_track ON (counter.track_id = process_counter_track.id)
-WHERE name='HWUI Misc Memory' AND counter.value >= 0
+WHERE name = 'HWUI Misc Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
 DROP VIEW IF EXISTS hwui_texture_mem;
@@ -166,7 +166,7 @@ SELECT
   process_counter_track.upid as process_upid
 FROM counter
 INNER JOIN process_counter_track ON (counter.track_id = process_counter_track.id)
-WHERE name='HWUI Texture Memory' AND counter.value >= 0
+WHERE name = 'HWUI Texture Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
 DROP VIEW IF EXISTS hwui_all_mem;
@@ -178,7 +178,7 @@ SELECT
   process_counter_track.upid as process_upid
 FROM counter
 INNER JOIN process_counter_track ON (counter.track_id = process_counter_track.id)
-WHERE name='HWUI All Memory' AND counter.value >= 0
+WHERE name = 'HWUI All Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
 DROP VIEW IF EXISTS android_hwui_metric_output;

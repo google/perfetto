@@ -17,7 +17,7 @@
 -- View of Power Rail counters with ts converted from ns to ms.
 DROP VIEW IF EXISTS power_rails_counters;
 CREATE VIEW power_rails_counters AS
-SELECT value, ts/1000000 AS ts, name
+SELECT value, ts / 1000000 AS ts, name
 FROM counter c
 JOIN counter_track t on c.track_id = t.id
 WHERE name GLOB 'power.*';
