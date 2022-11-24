@@ -28,9 +28,9 @@ FROM
     SELECT MIN(slice.ts) AS user_start_time_ns
     FROM slice
     WHERE (
-        slice.name = "UserDetailView.Adapter#onClick" OR -- QuickSettings
-        slice.name = "UserDetailSettings.switchUser" OR -- Settings
-        slice.name = "shell_runSwitchUser" -- adb shell
+        slice.name = "UserDetailView.Adapter#onClick" -- QuickSettings
+        OR slice.name = "UserDetailSettings.switchUser" -- Settings
+        OR slice.name = "shell_runSwitchUser" -- adb shell
     )
   ),
   (
@@ -42,10 +42,10 @@ FROM
     SELECT MIN(slice.ts) AS user_create_time_ns
     FROM slice
     WHERE (
-        slice.name = "UserDetailView.Adapter#onClick" OR -- QuickSettings
-        slice.name = "UserSettings.addUserNow" OR -- Settings
-        slice.name = "UserSettings.addGuest" OR -- Settings
-        slice.name = "shell_runCreateUser" -- adb shell
+        slice.name = "UserDetailView.Adapter#onClick" -- QuickSettings
+        OR slice.name = "UserSettings.addUserNow" -- Settings
+        OR slice.name = "UserSettings.addGuest" -- Settings
+        OR slice.name = "shell_runCreateUser" -- adb shell
     )
   );
 

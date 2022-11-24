@@ -74,9 +74,9 @@ SELECT
   CAST(IFNULL(shmem_rss_val, 0) AS INT) shmem_rss_val,
   CAST(IFNULL(swap_val, 0) AS INT) swap_val,
   CAST(
-    IFNULL(anon_rss_val, 0) +
-    IFNULL(file_rss_val, 0) +
-    IFNULL(shmem_rss_val, 0) AS int) AS rss_val,
+    IFNULL(anon_rss_val, 0)
+    + IFNULL(file_rss_val, 0)
+    + IFNULL(shmem_rss_val, 0) AS int) AS rss_val,
   CAST(
     IFNULL(anon_rss_val, 0)
     + IFNULL(swap_val, 0)

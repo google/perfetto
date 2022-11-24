@@ -73,8 +73,8 @@ WITH mcycles_per_launch_and_process AS MATERIALIZED (
   JOIN thread USING (utid)
   JOIN process USING (upid)
   WHERE
-    utid != 0 AND
-    upid NOT IN (
+    utid != 0
+    AND upid NOT IN (
       SELECT upid
       FROM launch_processes l
     )

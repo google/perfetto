@@ -35,14 +35,14 @@ CREATE VIEW sufficient_chrome_processes AS
       SELECT COUNT(*) >= 3 FROM (
         SELECT name FROM chrome_process
         WHERE
-          name GLOB "Browser" OR
-          name GLOB "Renderer" OR
-          name GLOB "Gpu" OR
-          name GLOB 'com.android.chrome*' OR
-          name GLOB 'com.chrome.beta*' OR
-          name GLOB 'com.chrome.dev*' OR
-          name GLOB 'com.chrome.canary*' OR
-          name GLOB 'com.google.android.apps.chrome*' OR
-          name GLOB 'org.chromium.chrome*'
+          name GLOB "Browser"
+          OR name GLOB "Renderer"
+          OR name GLOB "Gpu"
+          OR name GLOB 'com.android.chrome*'
+          OR name GLOB 'com.chrome.beta*'
+          OR name GLOB 'com.chrome.dev*'
+          OR name GLOB 'com.chrome.canary*'
+          OR name GLOB 'com.google.android.apps.chrome*'
+          OR name GLOB 'org.chromium.chrome*'
         GROUP BY name
     )) END AS have_enough_chrome_processes;
