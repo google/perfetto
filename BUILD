@@ -1000,15 +1000,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/analysis:analysis
-perfetto_filegroup(
-    name = "src_trace_processor_analysis_analysis",
-    srcs = [
-        "src/trace_processor/analysis/describe_slice.cc",
-        "src/trace_processor/analysis/describe_slice.h",
-    ],
-)
-
 # GN target: //src/trace_processor/containers:containers
 perfetto_cc_library(
     name = "src_trace_processor_containers_containers",
@@ -1067,8 +1058,6 @@ perfetto_filegroup(
         "src/trace_processor/dynamic/connected_flow_generator.h",
         "src/trace_processor/dynamic/descendant_generator.cc",
         "src/trace_processor/dynamic/descendant_generator.h",
-        "src/trace_processor/dynamic/describe_slice_generator.cc",
-        "src/trace_processor/dynamic/describe_slice_generator.h",
         "src/trace_processor/dynamic/dynamic_table_generator.cc",
         "src/trace_processor/dynamic/dynamic_table_generator.h",
         "src/trace_processor/dynamic/experimental_annotated_stack_generator.cc",
@@ -4353,7 +4342,6 @@ perfetto_cc_library(
     name = "trace_processor",
     srcs = [
         ":src_kernel_utils_syscall_table",
-        ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_db_db",
         ":src_trace_processor_dynamic_dynamic",
         ":src_trace_processor_export_json",
@@ -4482,7 +4470,6 @@ perfetto_cc_binary(
         ":src_profiling_symbolizer_symbolize_database",
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_proto_ring_buffer",
-        ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_db_db",
         ":src_trace_processor_dynamic_dynamic",
         ":src_trace_processor_export_json",
@@ -4670,7 +4657,6 @@ perfetto_cc_binary(
         ":src_profiling_symbolizer_symbolize_database",
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_proto_ring_buffer",
-        ":src_trace_processor_analysis_analysis",
         ":src_trace_processor_db_db",
         ":src_trace_processor_dynamic_dynamic",
         ":src_trace_processor_export_json",
