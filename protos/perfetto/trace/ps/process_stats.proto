@@ -40,6 +40,11 @@ message ProcessStats {
     reserved 4;
   }
 
+  message FDInfo {
+    optional uint64 fd = 1;
+    optional string path = 2;
+  }
+
   message Process {
     optional int32 pid = 1;
 
@@ -69,6 +74,8 @@ message ProcessStats {
     // https://docs.google.com/document/d/1_WmgE1F5WUrhwkPqJis3dWyOiUmQKvpXp5cd4w86TvA
     optional uint32 chrome_private_footprint_kb = 13;
     optional uint32 chrome_peak_resident_set_kb = 14;
+
+    repeated FDInfo fds = 15;
   }
   repeated Process processes = 1;
 
