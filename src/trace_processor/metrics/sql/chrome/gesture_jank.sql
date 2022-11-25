@@ -77,20 +77,20 @@ CREATE VIEW joined_{{prefix}}_begin_and_end AS
     end.trace_id AS end_trace_id,
     CalculateAvgVsyncInterval(begin.ts, end.ts) AS avg_vsync_interval
   FROM {{prefix}}_begin_and_end begin JOIN {{prefix}}_begin_and_end end ON
-    begin.trace_id < end.trace_id AND
-    begin.name = 'InputLatency::{{gesture_start}}' AND
-    end.name = 'InputLatency::{{gesture_end}}' AND (
+    begin.trace_id < end.trace_id
+    AND begin.name = 'InputLatency::{{gesture_start}}'
+    AND end.name = 'InputLatency::{{gesture_end}}' AND (
       (
-        begin.{{id_field}} IS NULL AND
-        end.trace_id = (
+        begin.{{id_field}} IS NULL
+        AND end.trace_id = (
           SELECT MIN(trace_id)
           FROM {{prefix}}_begin_and_end in_query
           WHERE
-            name = 'InputLatency::{{gesture_end}}' AND
-          in_query.trace_id > begin.trace_id
+            name = 'InputLatency::{{gesture_end}}'
+          AND in_query.trace_id > begin.trace_id
         )
-      ) OR
-      end.{{id_field}} = begin.{{id_field}}
+      )
+      OR end.{{id_field}} = begin.{{id_field}}
     )
   ORDER BY begin.ts;
 
@@ -106,9 +106,9 @@ CREATE VIEW gesture_update AS
   FROM
     slice JOIN track ON slice.track_id = track.id
   WHERE
-    slice.name = 'InputLatency::{{gesture_update}}' AND
-    slice.dur != -1 AND
-    NOT COALESCE(
+    slice.name = 'InputLatency::{{gesture_update}}'
+    AND slice.dur != -1
+    AND NOT COALESCE(
             EXTRACT_ARG(arg_set_id, "chrome_latency_info.is_coalesced"),
             TRUE)
     AND slice.arg_set_id IN (
@@ -150,15 +150,15 @@ CREATE VIEW {{id_field}}_update AS
     dur,
     track_id,
     trace_id,
-    dur/avg_vsync_interval AS gesture_frames_exact,
+    dur / avg_vsync_interval AS gesture_frames_exact,
     avg_vsync_interval
   FROM joined_{{prefix}}_begin_and_end begin_and_end JOIN gesture_update ON
-  gesture_update.ts <= begin_and_end.end_ts AND
-  gesture_update.ts >= begin_and_end.begin_ts AND
-  gesture_update.trace_id > begin_and_end.begin_trace_id AND
-  gesture_update.trace_id < begin_and_end.end_trace_id AND (
-    gesture_update.{{id_field}} IS NULL OR
-    gesture_update.{{id_field}} = begin_and_end.begin_{{id_field}}
+  gesture_update.ts <= begin_and_end.end_ts
+  AND gesture_update.ts >= begin_and_end.begin_ts
+  AND gesture_update.trace_id > begin_and_end.begin_trace_id
+  AND gesture_update.trace_id < begin_and_end.end_trace_id AND (
+    gesture_update.{{id_field}} IS NULL
+    OR gesture_update.{{id_field}} = begin_and_end.begin_{{id_field}}
   )
   ORDER BY {{id_field}} ASC, ts ASC;
 
@@ -230,8 +230,8 @@ DROP VIEW IF EXISTS {{prefix}}_jank;
 CREATE VIEW {{prefix}}_jank AS
   SELECT
     id AS slice_id,
-    (next_jank IS NOT NULL AND next_jank) OR
-    (prev_jank IS NOT NULL AND prev_jank)
+    (next_jank IS NOT NULL AND next_jank)
+    OR (prev_jank IS NOT NULL AND prev_jank)
     AS jank,
     JankBudget(gesture_frames_exact, prev_gesture_frames_exact,
       next_gesture_frames_exact) * avg_vsync_interval AS jank_budget,
@@ -246,13 +246,13 @@ CREATE VIEW {{prefix}}_jank_output AS
       '{{prefix}}_jank_percentage', (
         SELECT
           (
-            SUM(CASE WHEN jank THEN dur ELSE 0 END)/CAST(SUM(dur) AS REAL)
+            SUM(CASE WHEN jank THEN dur ELSE 0 END) / CAST(SUM(dur) AS REAL)
           ) * 100.0
         FROM {{prefix}}_jank
       ),
       '{{prefix}}_ms', (
         SELECT
-          CAST(SUM({{prefix}}_dur)/1e6 AS REAL)
+          CAST(SUM({{prefix}}_dur) / 1e6 AS REAL)
         FROM (
           SELECT
             MAX({{prefix}}_dur) AS {{prefix}}_dur
@@ -260,9 +260,9 @@ CREATE VIEW {{prefix}}_jank_output AS
           GROUP BY {{id_field}}
         )
       ),
-      '{{prefix}}_processing_ms', CAST(SUM(dur)/1e6 AS REAL),
+      '{{prefix}}_processing_ms', CAST(SUM(dur) / 1e6 AS REAL),
       '{{prefix}}_jank_processing_ms', (
-        SELECT CAST(SUM(dur)/1e6 AS REAL) FROM {{prefix}}_jank WHERE jank
+        SELECT CAST(SUM(dur) / 1e6 AS REAL) FROM {{prefix}}_jank WHERE jank
       ),
       'num_{{prefix}}_update_count', COUNT(*),
       'num_{{prefix}}_update_jank_count', SUM(jank),

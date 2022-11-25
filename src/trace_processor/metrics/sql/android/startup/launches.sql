@@ -30,8 +30,8 @@ FROM slice s
 JOIN process_track t ON s.track_id = t.id
 JOIN process USING(upid)
 WHERE
-  s.name GLOB 'launching: *' AND
-  (process.name IS NULL OR process.name = 'system_server');
+  s.name GLOB 'launching: *'
+  AND (process.name IS NULL OR process.name = 'system_server');
 
 SELECT CREATE_FUNCTION(
   'SLICE_COUNT(slice_glob STRING)',
@@ -118,13 +118,13 @@ WITH launch_with_type AS MATERIALIZED (
       LAUNCH_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityResume') a_resume
     FROM launches l
     JOIN process_metadata_table p ON (
-      l.package = p.package_name OR
+      l.package = p.package_name
       -- If the package list data source was not enabled in the trace, nothing
       -- will match the above constraint so also match any process whose name
       -- is a prefix of the package name.
-      (
-        (SELECT COUNT(1) = 0 FROM package_list) AND
-        p.process_name GLOB l.package || '*'
+      OR (
+        (SELECT COUNT(1) = 0 FROM package_list)
+        AND p.process_name GLOB l.package || '*'
       )
     )
     JOIN thread t ON (p.upid = t.upid AND t.is_main_thread)

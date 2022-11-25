@@ -64,7 +64,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.number=2 AND frame_times.name GLOB "*roid.calcul*" AND frame_times.launch_id = launches.id;
+WHERE frame_times.number = 2 AND frame_times.name GLOB "*roid.calcul*" AND frame_times.launch_id = launches.id;
 
 -- Calendar
 INSERT INTO hsc_based_startup_times
@@ -85,7 +85,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.number=2 AND frame_times.name GLOB "*GoogleCamera*" AND frame_times.launch_id = launches.id;
+WHERE frame_times.number = 2 AND frame_times.name GLOB "*GoogleCamera*" AND frame_times.launch_id = launches.id;
 
 -- Chrome
 INSERT INTO hsc_based_startup_times
@@ -95,7 +95,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.number=4 AND frame_times.name GLOB "*chrome*" AND frame_times.launch_id = launches.id;
+WHERE frame_times.number = 4 AND frame_times.name GLOB "*chrome*" AND frame_times.launch_id = launches.id;
 
 -- Clock
 INSERT INTO hsc_based_startup_times
@@ -105,7 +105,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.ts > (SELECT ts + dur FROM animators WHERE animator_name="animator:translationZ" AND process_name GLOB "*id.deskclock" ORDER BY (ts+dur) DESC LIMIT 1) AND frame_times.name GLOB "*id.deskclock" AND frame_times.launch_id = launches.id
+WHERE frame_times.ts > (SELECT ts + dur FROM animators WHERE animator_name = "animator:translationZ" AND process_name GLOB "*id.deskclock" ORDER BY (ts + dur) DESC LIMIT 1) AND frame_times.name GLOB "*id.deskclock" AND frame_times.launch_id = launches.id
 ORDER BY ts_total LIMIT 1;
 
 -- Contacts
@@ -116,7 +116,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.number=3 AND frame_times.name GLOB "*id.contacts" AND frame_times.launch_id=launches.id;
+WHERE frame_times.number = 3 AND frame_times.name GLOB "*id.contacts" AND frame_times.launch_id = launches.id;
 
 -- Dialer
 INSERT INTO hsc_based_startup_times
@@ -126,7 +126,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.number=1 AND frame_times.name GLOB "*id.dialer" AND frame_times.launch_id=launches.id;
+WHERE frame_times.number = 1 AND frame_times.name GLOB "*id.dialer" AND frame_times.launch_id = launches.id;
 
 -- Facebook
 INSERT INTO hsc_based_startup_times
@@ -136,7 +136,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.ts > (SELECT ts+dur FROM slices WHERE slices.name GLOB "fb_startup_complete" ORDER BY ts LIMIT 1) AND frame_times.name GLOB "*ok.katana" AND frame_times.launch_id = launches.id
+WHERE frame_times.ts > (SELECT ts + dur FROM slices WHERE slices.name GLOB "fb_startup_complete" ORDER BY ts LIMIT 1) AND frame_times.name GLOB "*ok.katana" AND frame_times.launch_id = launches.id
 ORDER BY ts_total LIMIT 1;
 
 -- Facebook Messenger
@@ -147,7 +147,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.ts > (SELECT ts+dur FROM slices WHERE slices.name GLOB "msgr_cold_start_to_cached_content" ORDER BY ts LIMIT 1) AND frame_times.name GLOB "*book.orca" AND frame_times.launch_id = launches.id
+WHERE frame_times.ts > (SELECT ts + dur FROM slices WHERE slices.name GLOB "msgr_cold_start_to_cached_content" ORDER BY ts LIMIT 1) AND frame_times.name GLOB "*book.orca" AND frame_times.launch_id = launches.id
 ORDER BY ts_total LIMIT 1;
 
 -- Gmail
@@ -158,7 +158,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.ts > (SELECT ts + dur FROM animators WHERE animator_name="animator:elevation" AND process_name GLOB "*android.gm" ORDER BY (ts+dur) DESC LIMIT 1) AND frame_times.name GLOB "*android.gm" AND frame_times.launch_id = launches.id
+WHERE frame_times.ts > (SELECT ts + dur FROM animators WHERE animator_name = "animator:elevation" AND process_name GLOB "*android.gm" ORDER BY (ts + dur) DESC LIMIT 1) AND frame_times.name GLOB "*android.gm" AND frame_times.launch_id = launches.id
 ORDER BY ts_total LIMIT 1;
 
 -- Instagram
@@ -169,7 +169,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.ts > (SELECT ts+dur FROM slices WHERE slices.name GLOB "ig_cold_start_to_cached_content" ORDER BY ts LIMIT 1) AND frame_times.name GLOB "*gram.android" AND frame_times.launch_id = launches.id
+WHERE frame_times.ts > (SELECT ts + dur FROM slices WHERE slices.name GLOB "ig_cold_start_to_cached_content" ORDER BY ts LIMIT 1) AND frame_times.name GLOB "*gram.android" AND frame_times.launch_id = launches.id
 ORDER BY ts_total LIMIT 1;
 
 -- Maps
@@ -180,7 +180,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.number=1 AND frame_times.name GLOB "*maps*" AND frame_times.launch_id = launches.id;
+WHERE frame_times.number = 1 AND frame_times.name GLOB "*maps*" AND frame_times.launch_id = launches.id;
 
 -- Messages
 INSERT INTO hsc_based_startup_times
@@ -190,7 +190,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.ts_end > (SELECT ts + dur FROM animators WHERE animator_name="animator:translationZ" AND process_name GLOB "*apps.messaging*" ORDER BY ts LIMIT 1) AND frame_times.name GLOB "*apps.messaging*" AND frame_times.launch_id = launches.id
+WHERE frame_times.ts_end > (SELECT ts + dur FROM animators WHERE animator_name = "animator:translationZ" AND process_name GLOB "*apps.messaging*" ORDER BY ts LIMIT 1) AND frame_times.name GLOB "*apps.messaging*" AND frame_times.launch_id = launches.id
 ORDER BY ts_total LIMIT 1;
 
 -- Netflix
@@ -212,7 +212,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.number=1 AND frame_times.name GLOB "*apps.photos*" AND frame_times.launch_id = launches.id;
+WHERE frame_times.number = 1 AND frame_times.name GLOB "*apps.photos*" AND frame_times.launch_id = launches.id;
 
 -- Settings was deprecated in favor of reportFullyDrawn b/169694037.
 
@@ -224,7 +224,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.number=1 AND frame_times.name GLOB "*napchat.android" AND frame_times.launch_id = launches.id;
+WHERE frame_times.number = 1 AND frame_times.name GLOB "*napchat.android" AND frame_times.launch_id = launches.id;
 
 -- Twitter
 INSERT INTO hsc_based_startup_times
@@ -234,7 +234,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.ts_end > (SELECT ts FROM animators WHERE animator_name="animator" AND process_name GLOB "*tter.android" ORDER BY ts LIMIT 1) AND frame_times.name GLOB "*tter.android" AND frame_times.launch_id = launches.id
+WHERE frame_times.ts_end > (SELECT ts FROM animators WHERE animator_name = "animator" AND process_name GLOB "*tter.android" ORDER BY ts LIMIT 1) AND frame_times.name GLOB "*tter.android" AND frame_times.launch_id = launches.id
 ORDER BY ts_total LIMIT 1;
 
 -- WhatsApp
@@ -245,7 +245,7 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.ts > (SELECT ts+dur FROM slices WHERE slices.name GLOB "wa_startup_complete" ORDER BY ts LIMIT 1) AND frame_times.name GLOB "*om.whatsapp" AND frame_times.launch_id = launches.id
+WHERE frame_times.ts > (SELECT ts + dur FROM slices WHERE slices.name GLOB "wa_startup_complete" ORDER BY ts LIMIT 1) AND frame_times.name GLOB "*om.whatsapp" AND frame_times.launch_id = launches.id
 ORDER BY ts_total LIMIT 1;
 
 -- Youtube
@@ -256,4 +256,4 @@ SELECT
     frame_times.ts_end - launches.ts as ts_total
 FROM frame_times
 INNER JOIN launches on launches.package GLOB '*' || frame_times.name || '*'
-WHERE frame_times.number=2 AND frame_times.name GLOB "*id.youtube" AND frame_times.launch_id = launches.id;
+WHERE frame_times.number = 2 AND frame_times.name GLOB "*id.youtube" AND frame_times.launch_id = launches.id;

@@ -311,11 +311,11 @@ ORDER BY ts;
 DROP VIEW IF EXISTS unified_input_pair_increments;
 CREATE VIEW unified_input_pair_increments AS
 SELECT ts,
-  scroll_increment +
-  pinch_increment +
-  touch_increment +
-  fling_increment +
-  pointer_increment AS increment
+  scroll_increment
+  + pinch_increment
+  + touch_increment
+  + fling_increment
+  + pointer_increment AS increment
 FROM input_begin_end_slices;
 
 -- It's possible there's an end slice without a start slice (as it occurred
@@ -328,11 +328,11 @@ FROM input_begin_end_slices;
 DROP VIEW IF EXISTS initial_paired_increment;
 CREATE VIEW initial_paired_increment AS
 SELECT ts,
-  MIN(0, MIN(scroll_total)) +
-  MIN(0, MIN(pinch_total))  +
-  MIN(0, MIN(touch_total))  +
-  MIN(0, MIN(fling_total))  +
-  MIN(0, MIN(pointer_total)) AS offset
+  MIN(0, MIN(scroll_total))
+  + MIN(0, MIN(pinch_total))
+  + MIN(0, MIN(touch_total))
+  + MIN(0, MIN(fling_total))
+  + MIN(0, MIN(pointer_total)) AS offset
 FROM (
     SELECT ts,
       SUM(scroll_increment) OVER(ROWS UNBOUNDED PRECEDING) AS scroll_total,

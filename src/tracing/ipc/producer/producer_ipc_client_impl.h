@@ -110,6 +110,9 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   Producer* const producer_;
   base::TaskRunner* const task_runner_;
 
+  // A callback used to receive the shmem region out of band of the socket.
+  std::function<int(void)> receive_shmem_fd_cb_fuchsia_;
+
   // The object that owns the client socket and takes care of IPC traffic.
   std::unique_ptr<ipc::Client> ipc_channel_;
 
@@ -129,7 +132,6 @@ class ProducerIPCClientImpl : public TracingService::ProducerEndpoint,
   bool is_shmem_provided_by_producer_ = false;
   bool direct_smb_patching_supported_ = false;
   std::vector<std::function<void()>> pending_sync_reqs_;
-  std::function<int(void)> receive_shmem_fd_cb_fuchsia_;
   base::WeakPtrFactory<ProducerIPCClientImpl> weak_factory_{this};
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };

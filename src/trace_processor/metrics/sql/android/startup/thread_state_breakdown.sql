@@ -37,11 +37,11 @@ CREATE TABLE launch_thread_state_io_wait_dur_sum AS
 SELECT launch_id, state, is_main_thread, thread_name, io_wait, SUM(dur) AS dur
 FROM launch_threads_by_thread_state l
 WHERE
-  is_main_thread OR
+  is_main_thread
   -- Allowlist specific threads which need this. Do not add to this list
   -- without careful consideration as every thread added here can cause
   -- memory usage to balloon.
-  thread_name IN (
+  OR thread_name IN (
     'Jit thread pool'
   )
 GROUP BY 1, 2, 3, 4, 5;

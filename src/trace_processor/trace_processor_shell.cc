@@ -21,6 +21,8 @@
 #include <cinttypes>
 #include <functional>
 #include <iostream>
+#include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -34,11 +36,13 @@
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/version.h"
 
 #include "perfetto/trace_processor/read_trace.h"
@@ -48,6 +52,7 @@
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/util/proto_to_json.h"
+#include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -686,6 +691,7 @@ struct CommandLineOptions {
   std::string metric_output;
   std::string trace_file_path;
   std::string port_number;
+  std::string override_stdlib_path;
   std::vector<std::string> raw_metric_extensions;
   bool launch_shell = false;
   bool enable_httpd = false;
@@ -759,6 +765,10 @@ Options:
                                       *should not* be enabled on production
                                       builds. The features behind this flag can
                                       break at any time without any warning.
+ --override-stdlib=[path_to_stdlib]   Will override trace_processor/stdlib with
+                                      passed contents. The outer directory will
+                                      be ignored. Only allowed when --dev is
+                                      specified.
  --no-ftrace-raw                      Prevents ingestion of typed ftrace events
                                       into the raw table. This significantly
                                       reduces the memory usage of trace
@@ -779,6 +789,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_HTTP_PORT,
     OPT_METRIC_EXTENSION,
     OPT_DEV,
+    OPT_OVERRIDE_STDLIB,
     OPT_NO_FTRACE_RAW,
     OPT_METATRACE_BUFFER_CAPACITY,
     OPT_METATRACE_CATEGORIES,
@@ -807,6 +818,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
       {"metric-extension", required_argument, nullptr, OPT_METRIC_EXTENSION},
       {"dev", no_argument, nullptr, OPT_DEV},
+      {"override-stdlib", required_argument, nullptr, OPT_OVERRIDE_STDLIB},
       {"no-ftrace-raw", no_argument, nullptr, OPT_NO_FTRACE_RAW},
       {"analyze-trace-proto-content", no_argument, nullptr,
        OPT_ANALYZE_TRACE_PROTO_CONTENT},
@@ -903,6 +915,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_DEV) {
       command_line_options.dev = true;
+      continue;
+    }
+
+    if (option == OPT_OVERRIDE_STDLIB) {
+      command_line_options.override_stdlib_path = optarg;
       continue;
     }
 
@@ -1099,6 +1116,39 @@ base::Status ParseMetricExtensionPaths(
                                                    metric_extensions.back()));
   }
   return CheckForDuplicateMetricExtension(metric_extensions);
+}
+
+base::Status LoadOverridenStdlib(std::string root) {
+  // Remove trailing slash
+  if (root.back() == '/') {
+    root = root.substr(0, root.length() - 1);
+  }
+
+  if (!base::FileExists(root)) {
+    return base::ErrStatus("Directory %s does not exist.", root.c_str());
+  }
+
+  std::vector<std::string> paths;
+  RETURN_IF_ERROR(base::ListFilesRecursive(root, paths));
+  sql_modules::NameToModule modules;
+  for (const auto& path : paths) {
+    if (base::GetFileExtension(path) != ".sql") {
+      continue;
+    }
+    std::string filename = root + "/" + path;
+    std::string file_contents;
+    if (!base::ReadFile(filename, &file_contents)) {
+      return base::ErrStatus("Cannot read file %s", filename.c_str());
+    }
+    std::string import_key = sql_modules::GetImportKey(path);
+    std::string module = sql_modules::GetModuleName(import_key);
+    modules.Insert(module, {}).first->push_back({import_key, file_contents});
+  }
+  for (auto module_it = modules.GetIterator(); module_it; ++module_it) {
+    g_tp->RegisterSqlModule(module_it.key(), module_it.value());
+  }
+
+  return base::OkStatus();
 }
 
 base::Status LoadMetricExtensionProtos(const std::string& proto_root,
@@ -1398,6 +1448,16 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
   g_tp = tp.get();
+
+  if (!options.override_stdlib_path.empty()) {
+    if (!options.dev)
+      return base::ErrStatus("Overriding stdlib requires --dev flag");
+
+    auto status = LoadOverridenStdlib(options.override_stdlib_path);
+    if (!status.ok())
+      return base::ErrStatus("Couldn't override stdlib: %s",
+                             status.c_message());
+  }
 
   // Enable metatracing as soon as possible.
   if (!options.metatrace_path.empty()) {

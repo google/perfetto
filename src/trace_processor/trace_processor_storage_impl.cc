@@ -102,7 +102,8 @@ util::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
       stats::parse_trace_duration_ns);
 
   if (hash_input_size_remaining_ > 0 && !context_.uuid_found_in_trace) {
-    const size_t hash_size = std::min(hash_input_size_remaining_, blob.size());
+    const size_t hash_size =
+        std::min(hash_input_size_remaining_, static_cast<size_t>(blob.size()));
     hash_input_size_remaining_ -= hash_size;
 
     trace_hash_.Update(reinterpret_cast<const char*>(blob.data()), hash_size);

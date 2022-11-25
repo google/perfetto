@@ -21,8 +21,8 @@ SELECT slice.* FROM slice
 INNER JOIN args
 ON slice.arg_set_id = args.arg_set_id
 WHERE
-  slice.name = 'PipelineReporter' AND
-  args.string_value = 'STATE_DROPPED';
+  slice.name = 'PipelineReporter'
+  AND args.string_value = 'STATE_DROPPED';
 
 -- Find the upid of the proccesses where the dropped frames occur.
 DROP VIEW IF EXISTS dropped_frames_with_upid;

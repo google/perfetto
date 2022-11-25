@@ -50,10 +50,10 @@ CREATE VIEW {{prefix}}_flow_event_queuing_delay AS
     maybe_next_ancestor_ts,
     next_track_id,
       CASE WHEN trace_id = next_trace_id THEN
-      'InputLatency.LatencyInfo.Flow.QueuingDelay.' ||
-      CASE WHEN
-        jank IS NOT NULL AND
-        jank = 1
+      'InputLatency.LatencyInfo.Flow.QueuingDelay.'
+      || CASE WHEN
+        jank IS NOT NULL
+        AND jank = 1
       THEN
           'Jank.'
       ELSE

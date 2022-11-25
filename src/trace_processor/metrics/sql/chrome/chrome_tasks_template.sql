@@ -67,7 +67,7 @@ WITH
       s.id
     FROM {{slice_table_name}} s
     WHERE
-      category="toplevel"
+      category = "toplevel"
       AND name GLOB 'Receive *'
   ),
   -- Select old-style slices for channel-associated mojo events.
@@ -79,7 +79,7 @@ WITH
       s.id
     FROM {{slice_table_name}} s
     WHERE
-      category="mojom"
+      category = "mojom"
       AND name GLOB '*.mojom.*'
   ),
   -- Select old-style slices for non-(channel-associated) mojo events.
@@ -94,7 +94,7 @@ WITH
       s.id
     FROM {{slice_table_name}} s
     WHERE
-      category="toplevel" and name="Connector::DispatchMessage"
+      category = "toplevel" and name = "Connector::DispatchMessage"
   )
 -- Merge all mojo slices.
 SELECT * from new_mojo_slices
@@ -131,7 +131,7 @@ WITH
       ".Measure", "") as name
     FROM
       {{slice_table_name}} s1
-    where category="Java" and dur > 0
+    where category = "Java" and dur > 0
   ),
   -- We filter out generic slices from various UI frameworks which don't tell us much about
   -- what exactly this view is doing.
@@ -181,7 +181,7 @@ SELECT
 FROM interesting_java_slices s1
 WHERE (select count()
   from ancestor_slice(s1.id) s2
-  join interesting_java_slices s3 on s2.id=s3.id)=0;
+  join interesting_java_slices s3 on s2.id = s3.id) = 0;
 
 -- |chrome_java_views| is a view over |chrome_java_views_internal| table, adding the necessary columns
 -- from |slice|.
@@ -210,10 +210,10 @@ WITH
        END) as kind
     FROM {{slice_table_name}}
     WHERE
-      (name GLOB 'Looper.dispatch: android.view.Choreographer$FrameHandler*') OR
-      (name='ThreadControllerImpl::RunTask' AND
-        EXTRACT_ARG(arg_set_id, 'task.posted_from.file_name')='cc/trees/single_thread_proxy.cc' AND
-        EXTRACT_ARG(arg_set_id, 'task.posted_from.function_name')='ScheduledActionSendBeginMainFrame')
+      (name GLOB 'Looper.dispatch: android.view.Choreographer$FrameHandler*')
+      OR (name = 'ThreadControllerImpl::RunTask'
+        AND EXTRACT_ARG(arg_set_id, 'task.posted_from.file_name') = 'cc/trees/single_thread_proxy.cc'
+        AND EXTRACT_ARG(arg_set_id, 'task.posted_from.function_name') = 'ScheduledActionSendBeginMainFrame')
   ),
   -- Intermediate step to allow us to sort java view names.
   root_slice_and_java_view_not_grouped AS (
@@ -221,7 +221,7 @@ WITH
       s1.id, s1.kind, s3.name as java_view_name
     FROM root_slices s1
     JOIN descendant_slice(s1.id) s2
-    JOIN chrome_java_views_internal s3 ON s2.id=s3.id
+    JOIN chrome_java_views_internal s3 ON s2.id = s3.id
   )
 SELECT
   s1.id,
@@ -245,7 +245,7 @@ WITH
      WHERE
        category IN ("toplevel", "toplevel,viz")
        AND (SELECT count() FROM ancestor_slice(s.id) s2
-            WHERE s2.category IN ("toplevel", "toplevel.viz"))=0
+            WHERE s2.category IN ("toplevel", "toplevel.viz")) = 0
   ),
   -- Select slices from "Java" category which do not have another "Java" or
   -- "toplevel" slice as parent. In the longer term they should probably belong
@@ -254,10 +254,10 @@ WITH
     SELECT name as full_name, "java" as task_type, id
     FROM {{slice_table_name}} s
     WHERE
-      category="Java"
+      category = "Java"
       AND (SELECT count()
            FROM ancestor_slice(s.id) s2
-           WHERE s2.category="toplevel" or s2.category="Java")=0
+           WHERE s2.category = "toplevel" or s2.category = "Java") = 0
   ),
   raw_scheduler_tasks AS (
     SELECT
@@ -270,8 +270,8 @@ WITH
       s.id
     FROM {{slice_table_name}} s
     WHERE
-      category="toplevel" AND
-      (name="ThreadControllerImpl::RunTask" or name="ThreadPool_RunTask")
+      category = "toplevel"
+      AND (name = "ThreadControllerImpl::RunTask" or name = "ThreadPool_RunTask")
   ),
   scheduler_tasks AS (
     SELECT
@@ -358,10 +358,10 @@ WITH
        COALESCE(s5.task_type, s4.task_type, s2.task_type, s3.task_type, "other") as task_type,
        s1.id as id
     FROM non_embedded_toplevel_slices s1
-    LEFT JOIN scheduler_tasks_with_mojo s2 ON s2.id=s1.id
-    LEFT JOIN scheduler_tasks_with_full_names s3 ON s3.id=s1.id
-    LEFT JOIN java_views_tasks s4 ON s4.id=s1.id
-    LEFT JOIN navigation_tasks s5 ON s5.id=s1.id
+    LEFT JOIN scheduler_tasks_with_mojo s2 ON s2.id = s1.id
+    LEFT JOIN scheduler_tasks_with_full_names s3 ON s3.id = s1.id
+    LEFT JOIN java_views_tasks s4 ON s4.id = s1.id
+    LEFT JOIN navigation_tasks s5 ON s5.id = s1.id
   )
 -- Merge slices from toplevel and Java categories.
 SELECT * from non_embedded_toplevel_slices_with_full_name
@@ -380,7 +380,7 @@ SELECT
   ts.*
 FROM chrome_tasks_internal cti
 JOIN {{slice_table_name}} ts USING (id)
-JOIN thread_track tt ON ts.track_id=tt.id
+JOIN thread_track tt ON ts.track_id = tt.id
 JOIN thread USING (utid)
 JOIN process USING (upid);
 
@@ -395,5 +395,5 @@ LEFT JOIN chrome_tasks s2 USING (id)
 WHERE
   (SELECT count()
    FROM ancestor_slice(s1.id) s3
-   JOIN chrome_tasks s4 ON s3.id=s4.id)=0
+   JOIN chrome_tasks s4 ON s3.id = s4.id) = 0
   and s2.id IS NULL;

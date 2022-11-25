@@ -17,7 +17,7 @@
 -- View of Power Rail counters with ts converted from ns to ms.
 DROP VIEW IF EXISTS power_rails_counters;
 CREATE VIEW power_rails_counters AS
-SELECT value, ts/1000000 AS ts, name
+SELECT value, ts / 1000000 AS ts, name
 FROM counter c
 JOIN counter_track t on c.track_id = t.id
 WHERE name GLOB 'power.*';
@@ -33,8 +33,8 @@ SELECT
 FROM (
   SELECT
     name,
-    (LEAD(value) OVER (PARTITION BY name ORDER BY ts) - value) /
-      (LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts) AS avg_used_power,
+    (LEAD(value) OVER (PARTITION BY name ORDER BY ts) - value)
+      / (LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts) AS avg_used_power,
     (LEAD(value) OVER (PARTITION BY name ORDER BY ts) - value) AS tot_used_power,
     ts AS powrail_start_ts,
     (LEAD(ts) OVER (PARTITION BY name ORDER BY ts)) as powrail_end_ts

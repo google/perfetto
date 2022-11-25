@@ -104,13 +104,11 @@ export class SelectionController extends Controller<'main'> {
     const table = selection.table;
 
     let leafTable: string;
-    let promisedDescription: Promise<Map<string, string>>;
     let promisedArgs: Promise<Args>;
     // TODO(b/155483804): This is a hack to ensure annotation slices are
     // selectable for now. We should tidy this up when improving this class.
     if (table === 'annotation') {
       leafTable = 'annotation_slice';
-      promisedDescription = Promise.resolve(new Map());
       promisedArgs = Promise.resolve(new Map());
     } else {
       const result = await this.args.engine.query(`
@@ -130,7 +128,6 @@ export class SelectionController extends Controller<'main'> {
 
       leafTable = row.leafTable;
       const argSetId = row.argSetId;
-      promisedDescription = this.describeSlice(selectedId);
       promisedArgs = this.getArgs(argSetId);
     }
 
@@ -139,8 +136,7 @@ export class SelectionController extends Controller<'main'> {
         selectedId};
     `);
 
-    const [details, args, description] =
-        await Promise.all([promisedDetails, promisedArgs, promisedDescription]);
+    const [details, args] = await Promise.all([promisedDetails, promisedArgs]);
 
     if (details.numRows() <= 0) return;
     const rowIter = details.iter({});
@@ -222,7 +218,6 @@ export class SelectionController extends Controller<'main'> {
       category,
       args,
       argsTree,
-      description,
     };
 
     if (trackId !== undefined) {
@@ -267,27 +262,6 @@ export class SelectionController extends Controller<'main'> {
     if (selection === globals.state.currentSelection) {
       publishSliceDetails(selected);
     }
-  }
-
-  async describeSlice(id: number): Promise<Map<string, string>> {
-    const map = new Map<string, string>();
-    if (id === -1) return map;
-    const query = `
-      select
-        ifnull(description, '') as description,
-        ifnull(doc_link, '') as docLink
-      from describe_slice
-      where slice_id = ${id}
-    `;
-    const result = await this.args.engine.query(query);
-    const it = result.iter({description: STR, docLink: STR});
-    for (; it.valid(); it.next()) {
-      const description = it.description;
-      const docLink = it.docLink;
-      map.set('Description', description);
-      map.set('Documentation', docLink);
-    }
-    return map;
   }
 
   async getArgs(argId: number): Promise<Args> {

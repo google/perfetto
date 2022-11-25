@@ -48,12 +48,12 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../db",
       "../../dynamic",
       "../../importers/common",
-      "../../stdlib:stdlib",
       "../../storage",
       "../../types",
       "../../util",
       "../../util:profile_builder",
       "../../util:sql_argument",
+      "../../util:stdlib",
     ]
     public_deps = [ "..:sqlite_minimal" ]
   }
