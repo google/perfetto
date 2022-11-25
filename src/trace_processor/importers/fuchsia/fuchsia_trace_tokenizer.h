@@ -43,13 +43,13 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
     std::string name;
 
     std::unordered_map<uint64_t, StringId> string_table;
-    std::unordered_map<uint64_t, fuchsia_trace_utils::ThreadInfo> thread_table;
+    std::unordered_map<uint64_t, FuchsiaThreadInfo> thread_table;
 
     uint64_t ticks_per_second = 1000000000;
   };
 
   struct RunningThread {
-    fuchsia_trace_utils::ThreadInfo info;
+    FuchsiaThreadInfo info;
     int64_t start_ts;
   };
 

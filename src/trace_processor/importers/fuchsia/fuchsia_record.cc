@@ -19,7 +19,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-void FuchsiaRecord::InsertString(uint32_t index, StringId string_id) {
+void FuchsiaRecord::InsertString(uint32_t index, StringPool::Id string_id) {
   StringTableEntry entry;
   entry.index = index;
   entry.string_id = string_id;
@@ -27,16 +27,15 @@ void FuchsiaRecord::InsertString(uint32_t index, StringId string_id) {
   string_entries_.push_back(entry);
 }
 
-StringId FuchsiaRecord::GetString(uint32_t index) {
+StringPool::Id FuchsiaRecord::GetString(uint32_t index) {
   for (const auto& entry : string_entries_) {
     if (entry.index == index)
       return entry.string_id;
   }
-  return StringId();
+  return StringPool::Id();
 }
 
-void FuchsiaRecord::InsertThread(uint32_t index,
-                                 fuchsia_trace_utils::ThreadInfo info) {
+void FuchsiaRecord::InsertThread(uint32_t index, FuchsiaThreadInfo info) {
   ThreadTableEntry entry;
   entry.index = index;
   entry.info = info;
@@ -44,12 +43,12 @@ void FuchsiaRecord::InsertThread(uint32_t index,
   thread_entries_.push_back(entry);
 }
 
-fuchsia_trace_utils::ThreadInfo FuchsiaRecord::GetThread(uint32_t index) {
+FuchsiaThreadInfo FuchsiaRecord::GetThread(uint32_t index) {
   for (const auto& entry : thread_entries_) {
     if (entry.index == index)
       return entry.info;
   }
-  return fuchsia_trace_utils::ThreadInfo();
+  return FuchsiaThreadInfo();
 }
 
 }  // namespace trace_processor
