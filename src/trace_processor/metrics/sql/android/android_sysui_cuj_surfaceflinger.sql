@@ -186,7 +186,7 @@ CREATE VIEW android_sysui_cuj_surfaceflinger_commit_composite_frames_in_cuj AS
       max(commits.ts_end, COALESCE(min(composite_ts_end), 0)) AS ts_end,
       max(commits.ts_end, COALESCE(min(composite_ts_end), 0)) - commits.ts AS dur,
       commits.expected_vsync_ts,
-      min(composite.gcs_idx) as gcs_idx
+      min(composite.gcs_idx) AS gcs_idx
     FROM android_sysui_cuj_surfaceflinger_commit_slices_in_cuj commits
     LEFT JOIN composite_to_commit composite
     USING(vsync)

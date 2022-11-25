@@ -23,4 +23,3 @@
 SELECT RUN_METRIC('chrome/gesture_flow_event_queuing_delay.sql',
     'prefix', 'touch',
     'id_field', 'touch_id');
-

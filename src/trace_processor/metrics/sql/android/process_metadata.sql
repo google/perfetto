@@ -32,7 +32,7 @@ SELECT
       -- cmdline gets rewritten after fork, if these are still there we must
       -- have seen a racy capture.
     WHEN length(process.name) = 15 AND (
-      process.cmdline in ('zygote', 'zygote64', '<pre-initialized>')
+      process.cmdline IN ('zygote', 'zygote64', '<pre-initialized>')
       OR process.cmdline GLOB '*' || process.name)
     THEN process.cmdline
     ELSE process.name

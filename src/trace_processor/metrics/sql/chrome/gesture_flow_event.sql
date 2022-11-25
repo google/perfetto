@@ -159,7 +159,7 @@ CREATE TABLE {{prefix}}_latency_info_flow_step_filtered AS
     *
   FROM
     {{prefix}}_latency_info_flow_step flow JOIN
-    {{prefix}}_max_latency_info_ts_per_trace_id max_flow on
+    {{prefix}}_max_latency_info_ts_per_trace_id max_flow ON
     max_flow.gesture_slice_id = flow.gesture_slice_id
   WHERE
     ts >= gesture_ts
@@ -244,7 +244,7 @@ CREATE VIEW {{prefix}}_flow_event AS
     curr.ancestor_ts,
     curr.ancestor_dur,
     curr.ancestor_end,
-    next.id as next_id,
+    next.id AS next_id,
     next.ts AS next_ts,
     next.dur AS next_dur,
     next.track_id AS next_track_id,

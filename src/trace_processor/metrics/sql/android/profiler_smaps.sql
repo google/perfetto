@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT RUN_METRIC('android/process_metadata.sql') as unused;
+SELECT RUN_METRIC('android/process_metadata.sql') AS unused;
 
 DROP VIEW IF EXISTS profiler_smaps_output;
 CREATE VIEW profiler_smaps_output AS

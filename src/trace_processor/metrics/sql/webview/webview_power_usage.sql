@@ -83,7 +83,7 @@ DROP TABLE IF EXISTS webview_renderer_threads;
 CREATE TABLE webview_renderer_threads AS
 SELECT
   thread.utid AS utid,
-  extract_arg(process.arg_set_id, 'chrome.host_app_package_name') as app_name
+  extract_arg(process.arg_set_id, 'chrome.host_app_package_name') AS app_name
   FROM process
   INNER JOIN thread
   ON thread.upid = process.upid
@@ -131,7 +131,7 @@ CREATE TABLE host_app_threads AS
 SELECT
     thread.utid AS utid,
     thread.name AS name,
-    extract_arg(process.arg_set_id, 'chrome.host_app_package_name') as app_name
+    extract_arg(process.arg_set_id, 'chrome.host_app_package_name') AS app_name
   FROM thread
   JOIN process ON thread.upid = process.upid
   WHERE thread.upid IN
@@ -215,7 +215,7 @@ DROP TABLE IF EXISTS total_app_power_output;
 
 CREATE TABLE total_app_power_output AS
   SELECT
-    host_app_power_summary.app_name as app_name,
+    host_app_power_summary.app_name AS app_name,
     host_app_power_summary.power_mas AS total_mas,
     host_app_power_little_cores_mas.power_mas AS little_cores_mas,
     host_app_power_big_cores_mas.power_mas AS big_cores_mas,

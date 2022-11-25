@@ -43,7 +43,7 @@ SELECT
   SUM(thread_dur / 1e6) AS total_thread_duration_ms,
   MIN(id) AS first_id_per_task_barrage,
   MAX(id) AS last_id_per_task_barrage,
-  COUNT(*) as count,
+  COUNT(*) AS count,
   window_start_id,
   window_start_ts,
   window_end_id,
@@ -75,7 +75,7 @@ FROM
       AND tasks.ts > chrome_input_to_browser_longer_intervals.window_start_ts
       AND tasks.ts < chrome_input_to_browser_longer_intervals.window_end_ts
       -- For cases when there are multiple chrome instances.
-      and tasks.upid = chrome_input_to_browser_longer_intervals.upid
+      AND tasks.upid = chrome_input_to_browser_longer_intervals.upid
     ORDER BY window_start_ts, window_end_ts
   )
   GROUP BY window_start_ts, window_end_ts;

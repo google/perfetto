@@ -25,6 +25,6 @@ SELECT
       'oom_score', oom_score_val,
       'value', {{table_name}}_val
     )
-  ) as metric
+  ) AS metric
 FROM {{table_name}}_by_oom_span
 GROUP BY upid;

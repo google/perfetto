@@ -58,7 +58,7 @@ WITH raw_events AS (
 lmks_with_proc_name AS (
   SELECT
     *,
-    process.name as process_name
+    process.name AS process_name
   FROM raw_events
   LEFT JOIN process ON
     process.pid = raw_events.pid
@@ -67,15 +67,15 @@ lmks_with_proc_name AS (
   WHERE raw_events.pid != 0
 )
 SELECT
-  'slice' as track_type,
-  'Low Memory Kills (LMKs)' as track_name,
+  'slice' AS track_type,
+  'Low Memory Kills (LMKs)' AS track_name,
   ts,
   dur,
   CASE
     WHEN process_name IS NULL THEN printf('Process %d', lmk.pid)
     ELSE printf('%s (pid: %d)', process_name, lmk.pid)
   END AS slice_name
-FROM lmks_with_proc_name as lmk;
+FROM lmks_with_proc_name AS lmk;
 
 DROP VIEW IF EXISTS android_lmk_output;
 CREATE VIEW android_lmk_output AS
