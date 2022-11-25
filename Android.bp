@@ -1972,16 +1972,19 @@ cc_test {
         ":perfetto_src_trace_processor_ftrace_descriptors",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_common_common",
+        ":perfetto_src_trace_processor_importers_common_trace_parser",
+        ":perfetto_src_trace_processor_importers_fuchsia_fuchsia_record",
+        ":perfetto_src_trace_processor_importers_importers_full",
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_proto_storage_full",
         ":perfetto_src_trace_processor_importers_proto_storage_minimal",
+        ":perfetto_src_trace_processor_importers_systrace_systrace_line",
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
         ":perfetto_src_trace_processor_sqlite_functions_functions",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
-        ":perfetto_src_trace_processor_storage_full",
         ":perfetto_src_trace_processor_storage_minimal",
         ":perfetto_src_trace_processor_storage_storage",
         ":perfetto_src_trace_processor_tables_tables",
@@ -9167,6 +9170,11 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/importers/common:trace_parser
+filegroup {
+    name: "perfetto_src_trace_processor_importers_common_trace_parser",
+}
+
 // GN: //src/trace_processor/importers/common:unittests
 filegroup {
     name: "perfetto_src_trace_processor_importers_common_unittests",
@@ -9179,6 +9187,14 @@ filegroup {
         "src/trace_processor/importers/common/process_tracker_unittest.cc",
         "src/trace_processor/importers/common/slice_tracker_unittest.cc",
         "src/trace_processor/importers/common/slice_translation_table_unittest.cc",
+    ],
+}
+
+// GN: //src/trace_processor/importers/fuchsia:fuchsia_record
+filegroup {
+    name: "perfetto_src_trace_processor_importers_fuchsia_fuchsia_record",
+    srcs: [
+        "src/trace_processor/importers/fuchsia/fuchsia_record.cc",
     ],
 }
 
@@ -9257,6 +9273,49 @@ genrule {
     ],
 }
 
+// GN: //src/trace_processor/importers:importers_full
+filegroup {
+    name: "perfetto_src_trace_processor_importers_importers_full",
+    srcs: [
+        "src/trace_processor/importers/additional_modules.cc",
+        "src/trace_processor/importers/ftrace/binder_tracker.cc",
+        "src/trace_processor/importers/ftrace/drm_tracker.cc",
+        "src/trace_processor/importers/ftrace/ftrace_module_impl.cc",
+        "src/trace_processor/importers/ftrace/ftrace_parser.cc",
+        "src/trace_processor/importers/ftrace/ftrace_tokenizer.cc",
+        "src/trace_processor/importers/ftrace/iostat_tracker.cc",
+        "src/trace_processor/importers/ftrace/rss_stat_tracker.cc",
+        "src/trace_processor/importers/ftrace/sched_event_tracker.cc",
+        "src/trace_processor/importers/ftrace/thread_state_tracker.cc",
+        "src/trace_processor/importers/ftrace/v4l2_tracker.cc",
+        "src/trace_processor/importers/ftrace/virtio_video_tracker.cc",
+        "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.cc",
+        "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.cc",
+        "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.cc",
+        "src/trace_processor/importers/gzip/gzip_trace_parser.cc",
+        "src/trace_processor/importers/i2c/i2c_tracker.cc",
+        "src/trace_processor/importers/json/json_trace_parser.cc",
+        "src/trace_processor/importers/json/json_trace_tokenizer.cc",
+        "src/trace_processor/importers/proto/android_probes_module.cc",
+        "src/trace_processor/importers/proto/android_probes_parser.cc",
+        "src/trace_processor/importers/proto/android_probes_tracker.cc",
+        "src/trace_processor/importers/proto/content_analyzer.cc",
+        "src/trace_processor/importers/proto/frame_timeline_event_parser.cc",
+        "src/trace_processor/importers/proto/gpu_event_parser.cc",
+        "src/trace_processor/importers/proto/graphics_event_module.cc",
+        "src/trace_processor/importers/proto/graphics_frame_event_parser.cc",
+        "src/trace_processor/importers/proto/heap_graph_module.cc",
+        "src/trace_processor/importers/proto/system_probes_module.cc",
+        "src/trace_processor/importers/proto/system_probes_parser.cc",
+        "src/trace_processor/importers/proto/vulkan_memory_tracker.cc",
+        "src/trace_processor/importers/syscalls/syscall_tracker.cc",
+        "src/trace_processor/importers/systrace/systrace_line_parser.cc",
+        "src/trace_processor/importers/systrace/systrace_line_tokenizer.cc",
+        "src/trace_processor/importers/systrace/systrace_parser.cc",
+        "src/trace_processor/importers/systrace/systrace_trace_parser.cc",
+    ],
+}
+
 // GN: //src/trace_processor/importers/memory_tracker:graph_processor
 filegroup {
     name: "perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
@@ -9296,6 +9355,11 @@ filegroup {
         "src/trace_processor/importers/proto/heap_graph_tracker_unittest.cc",
         "src/trace_processor/importers/proto/heap_profile_tracker_unittest.cc",
     ],
+}
+
+// GN: //src/trace_processor/importers/systrace:systrace_line
+filegroup {
+    name: "perfetto_src_trace_processor_importers_systrace_systrace_line",
 }
 
 // GN: //src/trace_processor:lib
@@ -9630,50 +9694,6 @@ genrule {
     ],
     tool_files: [
         "tools/gen_amalgamated_sql.py",
-    ],
-}
-
-// GN: //src/trace_processor:storage_full
-filegroup {
-    name: "perfetto_src_trace_processor_storage_full",
-    srcs: [
-        "src/trace_processor/importers/additional_modules.cc",
-        "src/trace_processor/importers/ftrace/binder_tracker.cc",
-        "src/trace_processor/importers/ftrace/drm_tracker.cc",
-        "src/trace_processor/importers/ftrace/ftrace_module_impl.cc",
-        "src/trace_processor/importers/ftrace/ftrace_parser.cc",
-        "src/trace_processor/importers/ftrace/ftrace_tokenizer.cc",
-        "src/trace_processor/importers/ftrace/iostat_tracker.cc",
-        "src/trace_processor/importers/ftrace/rss_stat_tracker.cc",
-        "src/trace_processor/importers/ftrace/sched_event_tracker.cc",
-        "src/trace_processor/importers/ftrace/thread_state_tracker.cc",
-        "src/trace_processor/importers/ftrace/v4l2_tracker.cc",
-        "src/trace_processor/importers/ftrace/virtio_video_tracker.cc",
-        "src/trace_processor/importers/fuchsia/fuchsia_record.cc",
-        "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.cc",
-        "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.cc",
-        "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.cc",
-        "src/trace_processor/importers/gzip/gzip_trace_parser.cc",
-        "src/trace_processor/importers/i2c/i2c_tracker.cc",
-        "src/trace_processor/importers/json/json_trace_parser.cc",
-        "src/trace_processor/importers/json/json_trace_tokenizer.cc",
-        "src/trace_processor/importers/proto/android_probes_module.cc",
-        "src/trace_processor/importers/proto/android_probes_parser.cc",
-        "src/trace_processor/importers/proto/android_probes_tracker.cc",
-        "src/trace_processor/importers/proto/content_analyzer.cc",
-        "src/trace_processor/importers/proto/frame_timeline_event_parser.cc",
-        "src/trace_processor/importers/proto/gpu_event_parser.cc",
-        "src/trace_processor/importers/proto/graphics_event_module.cc",
-        "src/trace_processor/importers/proto/graphics_frame_event_parser.cc",
-        "src/trace_processor/importers/proto/heap_graph_module.cc",
-        "src/trace_processor/importers/proto/system_probes_module.cc",
-        "src/trace_processor/importers/proto/system_probes_parser.cc",
-        "src/trace_processor/importers/proto/vulkan_memory_tracker.cc",
-        "src/trace_processor/importers/syscalls/syscall_tracker.cc",
-        "src/trace_processor/importers/systrace/systrace_line_parser.cc",
-        "src/trace_processor/importers/systrace/systrace_line_tokenizer.cc",
-        "src/trace_processor/importers/systrace/systrace_parser.cc",
-        "src/trace_processor/importers/systrace/systrace_trace_parser.cc",
     ],
 }
 
@@ -11192,11 +11212,15 @@ cc_test {
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_unittests",
         ":perfetto_src_trace_processor_importers_common_common",
+        ":perfetto_src_trace_processor_importers_common_trace_parser",
         ":perfetto_src_trace_processor_importers_common_unittests",
+        ":perfetto_src_trace_processor_importers_fuchsia_fuchsia_record",
+        ":perfetto_src_trace_processor_importers_importers_full",
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_proto_storage_full",
         ":perfetto_src_trace_processor_importers_proto_storage_minimal",
         ":perfetto_src_trace_processor_importers_proto_unittests",
+        ":perfetto_src_trace_processor_importers_systrace_systrace_line",
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
@@ -11208,7 +11232,6 @@ cc_test {
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
         ":perfetto_src_trace_processor_sqlite_unittests",
-        ":perfetto_src_trace_processor_storage_full",
         ":perfetto_src_trace_processor_storage_minimal",
         ":perfetto_src_trace_processor_storage_storage",
         ":perfetto_src_trace_processor_tables_tables",
@@ -11834,9 +11857,13 @@ cc_binary {
         ":perfetto_src_trace_processor_ftrace_descriptors",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_common_common",
+        ":perfetto_src_trace_processor_importers_common_trace_parser",
+        ":perfetto_src_trace_processor_importers_fuchsia_fuchsia_record",
+        ":perfetto_src_trace_processor_importers_importers_full",
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_proto_storage_full",
         ":perfetto_src_trace_processor_importers_proto_storage_minimal",
+        ":perfetto_src_trace_processor_importers_systrace_systrace_line",
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
@@ -11845,7 +11872,6 @@ cc_binary {
         ":perfetto_src_trace_processor_sqlite_functions_functions",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
-        ":perfetto_src_trace_processor_storage_full",
         ":perfetto_src_trace_processor_storage_minimal",
         ":perfetto_src_trace_processor_storage_storage",
         ":perfetto_src_trace_processor_tables_tables",
@@ -12027,16 +12053,19 @@ cc_binary_host {
         ":perfetto_src_trace_processor_ftrace_descriptors",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_common_common",
+        ":perfetto_src_trace_processor_importers_common_trace_parser",
+        ":perfetto_src_trace_processor_importers_fuchsia_fuchsia_record",
+        ":perfetto_src_trace_processor_importers_importers_full",
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_proto_storage_full",
         ":perfetto_src_trace_processor_importers_proto_storage_minimal",
+        ":perfetto_src_trace_processor_importers_systrace_systrace_line",
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
         ":perfetto_src_trace_processor_sqlite_functions_functions",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
-        ":perfetto_src_trace_processor_storage_full",
         ":perfetto_src_trace_processor_storage_minimal",
         ":perfetto_src_trace_processor_storage_storage",
         ":perfetto_src_trace_processor_tables_tables",

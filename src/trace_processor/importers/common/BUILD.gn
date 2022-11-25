@@ -39,11 +39,11 @@ source_set("common") {
     "slice_translation_table.h",
     "system_info_tracker.cc",
     "system_info_tracker.h",
-    "trace_parser.h",
     "track_tracker.cc",
     "track_tracker.h",
   ]
   public_deps = [
+    ":trace_parser",
     "../:gen_cc_config_descriptor",
     "../../util:proto_to_args_parser",
     "../../util:protozero_to_text",
@@ -59,6 +59,11 @@ source_set("common") {
     "../../storage",
     "../../types",
   ]
+}
+
+source_set("trace_parser") {
+  sources = [ "trace_parser.h" ]
+  deps = [ "../../../../gn:default_deps" ]
 }
 
 source_set("unittests") {

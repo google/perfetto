@@ -126,7 +126,7 @@ bool RecordCursor::ReadInlineString(uint32_t string_ref_or_len,
   return true;
 }
 
-bool RecordCursor::ReadInlineThread(ThreadInfo* thread_out) {
+bool RecordCursor::ReadInlineThread(FuchsiaThreadInfo* thread_out) {
   const uint8_t* thread_data;
   if (!ReadWords(2, &thread_data)) {
     return false;
