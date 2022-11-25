@@ -23,99 +23,14 @@
 #include <vector>
 
 #include "perfetto/base/compiler.h"
-#include "perfetto/protozero/proto_decoder.h"
-#include "perfetto/trace_processor/ref_counted.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/interned_message_view.h"
 
-#include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
-#include "protos/perfetto/trace/track_event/track_event.pbzero.h"
-
 namespace perfetto {
 namespace trace_processor {
-
-using InternedMessageMap =
-    std::unordered_map<uint64_t /*iid*/, InternedMessageView>;
-using InternedFieldMap =
-    std::unordered_map<uint32_t /*field_id*/, InternedMessageMap>;
-
-class PacketSequenceState;
-
-class PacketSequenceStateGeneration : public RefCounted {
- public:
-  // Returns |nullptr| if the message with the given |iid| was not found (also
-  // records a stat in this case).
-  template <uint32_t FieldId, typename MessageType>
-  typename MessageType::Decoder* LookupInternedMessage(uint64_t iid);
-
-  InternedMessageView* GetInternedMessageView(uint32_t field_id, uint64_t iid);
-  // Returns |nullptr| if no defaults were set.
-  InternedMessageView* GetTracePacketDefaultsView() {
-    if (!trace_packet_defaults_)
-      return nullptr;
-    return &trace_packet_defaults_.value();
-  }
-
-  // Returns |nullptr| if no defaults were set.
-  protos::pbzero::TracePacketDefaults::Decoder* GetTracePacketDefaults() {
-    InternedMessageView* view = GetTracePacketDefaultsView();
-    if (!view)
-      return nullptr;
-    return view->GetOrCreateDecoder<protos::pbzero::TracePacketDefaults>();
-  }
-
-  // Returns |nullptr| if no TrackEventDefaults were set.
-  protos::pbzero::TrackEventDefaults::Decoder* GetTrackEventDefaults() {
-    auto* packet_defaults_view = GetTracePacketDefaultsView();
-    if (packet_defaults_view) {
-      auto* track_event_defaults_view =
-          packet_defaults_view
-              ->GetOrCreateSubmessageView<protos::pbzero::TracePacketDefaults,
-                                          protos::pbzero::TracePacketDefaults::
-                                              kTrackEventDefaultsFieldNumber>();
-      if (track_event_defaults_view) {
-        return track_event_defaults_view
-            ->GetOrCreateDecoder<protos::pbzero::TrackEventDefaults>();
-      }
-    }
-    return nullptr;
-  }
-
-  PacketSequenceState* state() const { return state_; }
-  size_t generation_index() const { return generation_index_; }
-
- private:
-  friend class PacketSequenceState;
-
-  PacketSequenceStateGeneration(PacketSequenceState* state,
-                                size_t generation_index)
-      : state_(state), generation_index_(generation_index) {}
-
-  PacketSequenceStateGeneration(PacketSequenceState* state,
-                                size_t generation_index,
-                                InternedFieldMap interned_data,
-                                TraceBlobView defaults)
-      : state_(state),
-        generation_index_(generation_index),
-        interned_data_(interned_data),
-        trace_packet_defaults_(InternedMessageView(std::move(defaults))) {}
-
-  void InternMessage(uint32_t field_id, TraceBlobView message);
-
-  void SetTracePacketDefaults(TraceBlobView defaults) {
-    // Defaults should only be set once per generation.
-    PERFETTO_DCHECK(!trace_packet_defaults_);
-    trace_packet_defaults_ = InternedMessageView(std::move(defaults));
-  }
-
-  PacketSequenceState* state_;
-  size_t generation_index_;
-  InternedFieldMap interned_data_;
-  base::Optional<InternedMessageView> trace_packet_defaults_;
-};
 
 class PacketSequenceState {
  public:
