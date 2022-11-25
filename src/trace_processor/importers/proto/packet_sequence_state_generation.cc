@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 
 namespace perfetto {
