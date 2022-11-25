@@ -44,7 +44,7 @@ oom_score_at_lmk_time AS (
 ion_at_lmk_time AS (
   SELECT
     lmk_events.ts,
-    CAST(ion_timeline.value AS INT) ion_size
+    CAST(ion_timeline.value AS INT) AS ion_size
   FROM lmk_events
   JOIN ion_timeline ON (
     lmk_events.ts
@@ -76,7 +76,7 @@ lmk_process_sizes_output AS (
     'anon_rss_bytes', anon_rss_val,
     'shmem_rss_bytes', shmem_rss_val,
     'swap_bytes', swap_val
-  )) processes
+  )) AS processes
   FROM lmk_process_sizes
   JOIN process_metadata USING (upid)
   LEFT JOIN oom_score_at_lmk_time USING (ts, upid)

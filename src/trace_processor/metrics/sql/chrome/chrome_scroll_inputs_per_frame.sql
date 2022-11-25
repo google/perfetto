@@ -90,7 +90,7 @@ FROM chrome_all_scroll_updates scrolls;
 DROP VIEW IF EXISTS chrome_scroll_inputs_per_frame;
 CREATE VIEW chrome_scroll_inputs_per_frame AS
 SELECT
-    COUNT() count_for_frame,
+    COUNT() AS count_for_frame,
     presented_scroll_id,
     ts,
     dur,
