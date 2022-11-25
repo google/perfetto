@@ -19,11 +19,11 @@
 
 #include "perfetto/base/build_config.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/ftrace/ftrace_parser.h"
 #include "src/trace_processor/importers/ftrace/ftrace_tokenizer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/parser_types.h"
 
 namespace perfetto {
 namespace trace_processor {

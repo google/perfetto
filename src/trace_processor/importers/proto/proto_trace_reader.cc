@@ -224,7 +224,8 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
 
   // Use parent data and length because we want to parse this again
   // later to get the exact type of the packet.
-  context_->sorter->PushTracePacket(timestamp, state, std::move(packet));
+  context_->sorter->PushTracePacket(timestamp, state->current_generation(),
+                                    std::move(packet));
 
   return util::OkStatus();
 }

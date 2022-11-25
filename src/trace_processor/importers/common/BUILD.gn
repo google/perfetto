@@ -39,16 +39,18 @@ source_set("common") {
     "slice_translation_table.h",
     "system_info_tracker.cc",
     "system_info_tracker.h",
+    "trace_parser.cc",
     "track_tracker.cc",
     "track_tracker.h",
   ]
   public_deps = [
-    ":trace_parser",
+    ":trace_parser_hdr",
     "../:gen_cc_config_descriptor",
     "../../util:proto_to_args_parser",
     "../../util:protozero_to_text",
   ]
   deps = [
+    ":parser_types",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor",
     "../../../../include/perfetto/trace_processor:basic_types",
@@ -58,12 +60,24 @@ source_set("common") {
     "../../../base",
     "../../storage",
     "../../types",
+    "../fuchsia:fuchsia_record",
+    "../systrace:systrace_line",
   ]
 }
 
-source_set("trace_parser") {
+source_set("trace_parser_hdr") {
   sources = [ "trace_parser.h" ]
   deps = [ "../../../../gn:default_deps" ]
+}
+
+source_set("parser_types") {
+  sources = [ "parser_types.h" ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../include/perfetto/trace_processor:storage",
+    "../../containers",
+    "../proto:packet_sequence_state_generation_hdr",
+  ]
 }
 
 source_set("unittests") {
