@@ -63,13 +63,13 @@ cuj_frame_timeline AS (
   SELECT
     cuj_id,
     vsync,
-    e.ts as ts_expected,
+    e.ts AS ts_expected,
     -- In cases where we are drawing multiple layers, there will be  one
     -- expected frame timeline slice, but multiple actual frame timeline slices.
     -- As a simplification we just take here the min(ts) and max(ts_end) of
     -- the actual frame timeline slices.
-    MIN(a.ts) as ts_actual_min,
-    MAX(a.ts + a.dur) as ts_end_actual_max
+    MIN(a.ts) AS ts_actual_min,
+    MAX(a.ts + a.dur) AS ts_end_actual_max
   FROM android_jank_cuj_vsync_boundary vsync_boundary
   JOIN expected_timeline e
     ON e.upid = vsync_boundary.upid

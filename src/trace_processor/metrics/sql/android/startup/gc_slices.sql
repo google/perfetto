@@ -29,7 +29,7 @@ USING SPAN_JOIN(gc_slices PARTITIONED utid, thread_state_extended PARTITIONED ut
 
 DROP TABLE IF EXISTS running_gc_slices_materialized;
 CREATE TABLE running_gc_slices_materialized AS
-SELECT launch_id, SUM(dur) as sum_dur
+SELECT launch_id, SUM(dur) AS sum_dur
 FROM gc_slices_by_state
 WHERE state = 'Running'
 GROUP BY launch_id;

@@ -21,8 +21,8 @@ DROP VIEW IF EXISTS chrome_args_class_names_per_version;
 CREATE VIEW chrome_args_class_names_per_version AS
 WITH class_info AS (
   SELECT
-    package_list.package_name as package_name,
-    package_list.version_code as version_code,
+    package_list.package_name AS package_name,
+    package_list.version_code AS version_code,
     RepeatedField(args.string_value) class_names
   FROM args
   JOIN slice

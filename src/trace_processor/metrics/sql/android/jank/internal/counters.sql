@@ -22,7 +22,7 @@ WITH cuj_counter_track AS (
     -- extract the CUJ name inside <>
     STR_SPLIT(STR_SPLIT(track.name, '>#', 0), '<', 1) AS cuj_name,
     -- take the name of the counter after #
-    STR_SPLIT(track.name, '#', 1) as counter_name
+    STR_SPLIT(track.name, '#', 1) AS counter_name
   FROM process_counter_track track
   JOIN android_jank_cuj USING (upid)
   WHERE track.name GLOB 'J<*>#*'
@@ -32,7 +32,7 @@ SELECT
   upid,
   cuj_name,
   counter_name,
-  CAST(value AS INTEGER) as value
+  CAST(value AS INTEGER) AS value
 FROM counter
 JOIN cuj_counter_track ON counter.track_id = cuj_counter_track.track_id;
 
