@@ -269,7 +269,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
     case kThread: {
       uint32_t index = fuchsia_trace_utils::ReadField<uint32_t>(header, 16, 23);
       if (index != 0) {
-        fuchsia_trace_utils::ThreadInfo tinfo;
+        FuchsiaThreadInfo tinfo;
         if (!cursor.ReadInlineThread(&tinfo)) {
           context_->storage->IncrementStats(stats::fuchsia_invalid_event);
           return;
@@ -514,7 +514,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
         return;
       }
 
-      fuchsia_trace_utils::ThreadInfo outgoing_thread;
+      FuchsiaThreadInfo outgoing_thread;
       if (fuchsia_trace_utils::IsInlineThread(outgoing_thread_ref)) {
         if (!cursor.ReadInlineThread(&outgoing_thread)) {
           context_->storage->IncrementStats(stats::fuchsia_invalid_event);
@@ -524,7 +524,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
         outgoing_thread = current_provider_->thread_table[outgoing_thread_ref];
       }
 
-      fuchsia_trace_utils::ThreadInfo incoming_thread;
+      FuchsiaThreadInfo incoming_thread;
       if (fuchsia_trace_utils::IsInlineThread(incoming_thread_ref)) {
         if (!cursor.ReadInlineThread(&incoming_thread)) {
           context_->storage->IncrementStats(stats::fuchsia_invalid_event);
