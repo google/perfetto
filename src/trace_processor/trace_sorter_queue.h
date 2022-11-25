@@ -237,12 +237,12 @@ class VariadicQueue {
 
       template <typename T>
       T ExtractFromPacked(uint8_t bits, uint8_t shift) const {
-        return static_cast<T>(packed_ >> shift & ((1 << bits) - 1));
+        return static_cast<T>(packed_ >> shift & ((1ull << bits) - 1));
       }
 
       static bool FitsInBits(uint64_t value, uint8_t bits) {
         PERFETTO_DCHECK(bits > 0);
-        return value < (1 << bits);
+        return value < (1ull << bits);
       }
 
       uint64_t packed_ = 0;
