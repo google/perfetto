@@ -54,7 +54,7 @@ CREATE VIEW shown_on_display_event_latency
 AS
 SELECT
   event_latency_id,
-  CASE WHEN name = "SubmitCompositorFrameToPresentationCompositorFrame" THEN ts END ts_before_show_on_screen
+  CASE WHEN name = "SubmitCompositorFrameToPresentationCompositorFrame" THEN ts END AS ts_before_show_on_screen
 FROM event_latency_breakdowns
 WHERE name = "SubmitCompositorFrameToPresentationCompositorFrame" OR event_type = "GESTURE_SCROLL_BEGIN";
 

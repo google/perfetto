@@ -23,7 +23,7 @@ WITH class_info AS (
   SELECT
     package_list.package_name AS package_name,
     package_list.version_code AS version_code,
-    RepeatedField(args.string_value) class_names
+    RepeatedField(args.string_value) AS class_names
   FROM args
   JOIN slice
   ON args.arg_set_id = slice.arg_set_id
@@ -43,7 +43,7 @@ ChromeArgsClassNames_ChromeArgsClassNamesPerVersion(
   'package_name', package_name,
   'version_code', version_code,
   'class_name', class_names
-) class_names_per_version
+) AS class_names_per_version
 FROM class_info;
 
 DROP VIEW IF EXISTS chrome_args_class_names_output;

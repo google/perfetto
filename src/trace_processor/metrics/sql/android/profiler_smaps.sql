@@ -23,9 +23,9 @@ CREATE VIEW profiler_smaps_output AS
       ts,
       upid,
       path,
-      SUM(size_kb) size_kb,
-      SUM(private_dirty_kb) private_dirty_kb,
-      SUM(swap_kb) swap_kb
+      SUM(size_kb) AS size_kb,
+      SUM(private_dirty_kb) AS private_dirty_kb,
+      SUM(swap_kb) AS swap_kb
     FROM profiler_smaps
     GROUP BY 1, 2, 3
     ORDER BY 4 DESC
@@ -39,7 +39,7 @@ CREATE VIEW profiler_smaps_output AS
         'size_kb', size_kb,
         'private_dirty_kb', private_dirty_kb,
         'swap_kb', swap_kb
-      )) mappings
+      )) AS mappings
     FROM base_stat_counts
     GROUP BY 1, 2
   )

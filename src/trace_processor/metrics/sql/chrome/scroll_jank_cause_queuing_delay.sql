@@ -66,7 +66,7 @@ CREATE TABLE blocking_chrome_tasks_without_threadpool AS
     chrome_annotated_threads_and_processes AS annotations ON
     annotations.track_id = slice.track_id
   WHERE
-    NOT (thread_name GLOB "*ThreadPool*");
+    NOT(thread_name GLOB "*ThreadPool*");
 
 -- This view grabs any slice that could have prevented any GestureScrollUpdate
 -- flow event from being run (queuing delays). For RunTask we know that its
