@@ -118,7 +118,7 @@ GROUP BY 1, 2, 3, 4;
 -- All events that should be summed up to 'blink-gc-mark-roots'.
 DROP VIEW IF EXISTS blink_top_gc_roots_marking_event;
 CREATE VIEW blink_top_gc_roots_marking_event AS
-SELECT * FROM blink_slice WHERE name in (
+SELECT * FROM blink_slice WHERE name IN (
   'BlinkGC.VisitRoots'
 );
 
@@ -126,7 +126,7 @@ SELECT * FROM blink_slice WHERE name in (
 -- 'blink-gc-atomic-pause-mark-transitive-closure'.
 DROP VIEW IF EXISTS blink_gc_atomic_pause_transitive_closure_event;
 CREATE VIEW blink_gc_atomic_pause_transitive_closure_event AS
-SELECT * FROM blink_slice WHERE name in (
+SELECT * FROM blink_slice WHERE name IN (
   'BlinkGC.AtomicPauseMarkTransitiveClosure'
 );
 
@@ -134,7 +134,7 @@ SELECT * FROM blink_slice WHERE name in (
 DROP VIEW IF EXISTS blink_gc_foreground_marking_transitive_closure_event;
 CREATE VIEW
       blink_gc_foreground_marking_transitive_closure_event AS
-SELECT * FROM blink_slice WHERE name in (
+SELECT * FROM blink_slice WHERE name IN (
   'BlinkGC.AtomicPauseMarkTransitiveClosure',
   'BlinkGC.IncrementalMarkingStep',
   'BlinkGC.UnifiedMarkingStep'
@@ -143,7 +143,7 @@ SELECT * FROM blink_slice WHERE name in (
 -- Names of Blink GC foreground marking events in timeline.
 DROP VIEW IF EXISTS blink_top_gc_foreground_marking_event;
 CREATE VIEW blink_top_gc_foreground_marking_event AS
-SELECT * FROM blink_slice WHERE name in (
+SELECT * FROM blink_slice WHERE name IN (
   'BlinkGC.AtomicPauseMarkEpilogue',
   'BlinkGC.AtomicPauseMarkPrologue',
   'BlinkGC.AtomicPauseMarkRoots',
@@ -155,7 +155,7 @@ SELECT * FROM blink_gc_foreground_marking_transitive_closure_event;
 -- Names of Blink GC foreground marking events in timeline.
 DROP VIEW IF EXISTS blink_gc_forced_foreground_marking_event;
 CREATE VIEW blink_gc_forced_foreground_marking_event AS
-SELECT * FROM blink_slice WHERE name in (
+SELECT * FROM blink_slice WHERE name IN (
   'BlinkGC.AtomicPauseMarkEpilogue',
   'BlinkGC.AtomicPauseMarkPrologue',
   'BlinkGC.AtomicPauseMarkRoots',
@@ -168,14 +168,14 @@ SELECT * FROM blink_slice WHERE name in (
 -- Names of Blink GC background marking events in timeline.
 DROP VIEW IF EXISTS blink_top_gc_background_marking_event;
 CREATE VIEW blink_top_gc_background_marking_event AS
-SELECT * FROM blink_slice WHERE name in (
+SELECT * FROM blink_slice WHERE name IN (
   'BlinkGC.ConcurrentMarkingStep'
 );
 
 -- Names of Blink GC foreground sweeping events in timeline.
 DROP VIEW IF EXISTS blink_top_gc_foreground_sweeping_event;
 CREATE VIEW blink_top_gc_foreground_sweeping_event AS
-SELECT * FROM blink_slice WHERE name in (
+SELECT * FROM blink_slice WHERE name IN (
   'BlinkGC.CompleteSweep',
   'BlinkGC.LazySweepInIdle',
   'BlinkGC.LazySweepOnAllocation'
@@ -184,16 +184,16 @@ SELECT * FROM blink_slice WHERE name in (
 -- Names of Blink GC background sweeping events in timeline.
 DROP VIEW IF EXISTS blink_top_gc_background_sweeping_event;
 CREATE VIEW blink_top_gc_background_sweeping_event AS
-SELECT * FROM blink_slice WHERE name in (
+SELECT * FROM blink_slice WHERE name IN (
   'BlinkGC.ConcurrentSweepingStep'
 );
 
 -- Names of all Blink Unified GC events in timeline.
 DROP VIEW IF EXISTS blink_top_gc_event;
 CREATE VIEW blink_top_gc_event AS
-SELECT * FROM blink_slice WHERE name in (
+SELECT * FROM blink_slice WHERE name IN (
   SELECT name FROM blink_non_aggregated_gc_event_name
-) OR name in (
+) OR name IN (
   SELECT name FROM blink_gc_atomic_pause_transitive_closure_event
 );
 
@@ -201,7 +201,7 @@ SELECT * FROM blink_slice WHERE name in (
 -- this events need to have an epoch counter in args.epoch.
 DROP VIEW IF EXISTS atomic_pause_event;
 CREATE VIEW atomic_pause_event AS
-SELECT * FROM blink_slice WHERE name in (
+SELECT * FROM blink_slice WHERE name IN (
   'BlinkGC.AtomicPauseMarkEpilogue',
   'BlinkGC.AtomicPauseMarkPrologue',
   'BlinkGC.AtomicPauseMarkRoots',
@@ -221,7 +221,7 @@ WHERE (
   -- metrics.v8.utils.isNotForcedTopGarbageCollectionEvent()
 
   -- These names are found in isTopGarbageCollectionEvent().
-  name in (
+  name IN (
     'V8.GCCompactor',
     'V8.GCFinalizeMC',
     'V8.GCFinalizeMCReduceMemory',
@@ -432,7 +432,7 @@ SELECT BlinkGcMetric(
   (
     SELECT RepeatedField(val) FROM (
       SELECT
-        SUM(cpuDurMs) as val
+        SUM(cpuDurMs) AS val
       FROM atomic_pause_event
       GROUP BY epoch
     )
@@ -447,7 +447,7 @@ SELECT BlinkGcMetric(
   (
     SELECT RepeatedField(val) FROM (
       SELECT
-        SUM(cpuDurMs) as val
+        SUM(cpuDurMs) AS val
       FROM blink_gc_atomic_pause_transitive_closure_event
       GROUP BY epoch
     )
@@ -462,7 +462,7 @@ SELECT BlinkGcMetric(
   (
     SELECT RepeatedField(val) FROM (
       SELECT
-        SUM(cpuDurMs) as val
+        SUM(cpuDurMs) AS val
       FROM blink_top_gc_event
       GROUP BY epoch
     )
@@ -477,7 +477,7 @@ SELECT BlinkGcMetric(
   (
     SELECT RepeatedField(val) FROM (
       SELECT
-        SUM(cpuDurMs) as val
+        SUM(cpuDurMs) AS val
       FROM blink_top_gc_roots_marking_event
       GROUP BY epoch
     )
@@ -492,7 +492,7 @@ SELECT BlinkGcMetric(
   (
     SELECT RepeatedField(val) FROM (
       SELECT
-        SUM(cpuDurMs) as val
+        SUM(cpuDurMs) AS val
       FROM blink_gc_foreground_marking_transitive_closure_event
       GROUP BY epoch
     )
@@ -507,7 +507,7 @@ SELECT BlinkGcMetric(
   (
     SELECT RepeatedField(val) FROM (
       SELECT
-        SUM(cpuDurMs) as val
+        SUM(cpuDurMs) AS val
       FROM blink_top_gc_foreground_marking_event
       GROUP BY epoch
     )
@@ -522,7 +522,7 @@ SELECT BlinkGcMetric(
   (
     SELECT RepeatedField(val) FROM (
       SELECT
-        SUM(cpuDurMs) as val
+        SUM(cpuDurMs) AS val
       FROM blink_gc_forced_foreground_marking_event
       GROUP BY epoch
     )
@@ -537,7 +537,7 @@ SELECT BlinkGcMetric(
   (
     SELECT RepeatedField(val) FROM (
       SELECT
-        SUM(cpuDurMs) as val
+        SUM(cpuDurMs) AS val
       FROM blink_top_gc_background_marking_event
       GROUP BY epoch
     )
@@ -552,7 +552,7 @@ SELECT BlinkGcMetric(
   (
     SELECT RepeatedField(val) FROM (
       SELECT
-        SUM(cpuDurMs) as val
+        SUM(cpuDurMs) AS val
       FROM blink_top_gc_foreground_sweeping_event
       GROUP BY epoch
     )
@@ -567,7 +567,7 @@ SELECT BlinkGcMetric(
   (
     SELECT RepeatedField(val) FROM (
       SELECT
-        SUM(cpuDurMs) as val
+        SUM(cpuDurMs) AS val
       FROM blink_top_gc_background_sweeping_event
       GROUP BY epoch
     )

@@ -58,12 +58,12 @@ WITH
   -- and method hash into the full name.
   new_mojo_slices AS (
     SELECT
-      EXTRACT_ARG(s.arg_set_id, "chrome_mojo_event_info.mojo_interface_tag") as interface_name,
-      EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.ipc_hash") as ipc_hash,
+      EXTRACT_ARG(s.arg_set_id, "chrome_mojo_event_info.mojo_interface_tag") AS interface_name,
+      EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.ipc_hash") AS ipc_hash,
       CASE name
         WHEN "Receive mojo message" THEN "message"
         WHEN "Receive mojo reply" THEN "reply"
-      END as message_type,
+      END AS message_type,
       s.id
     FROM {{slice_table_name}} s
     WHERE
@@ -73,9 +73,9 @@ WITH
   -- Select old-style slices for channel-associated mojo events.
   old_associated_mojo_slices AS (
     SELECT
-      s.name as interface_name,
-      {{function_prefix}}EXTRACT_MOJO_IPC_HASH(s.id) as ipc_hash,
-      "message" as message_type,
+      s.name AS interface_name,
+      {{function_prefix}}EXTRACT_MOJO_IPC_HASH(s.id) AS ipc_hash,
+      "message" AS message_type,
       s.id
     FROM {{slice_table_name}} s
     WHERE
@@ -88,20 +88,20 @@ WITH
       COALESCE(
         EXTRACT_ARG(s.arg_set_id, "chrome_mojo_event_info.watcher_notify_interface_tag"),
         EXTRACT_ARG(s.arg_set_id, "chrome_mojo_event_info.mojo_interface_tag")
-      ) as interface_name,
-      {{function_prefix}}EXTRACT_MOJO_IPC_HASH(s.id) as ipc_hash,
-      "message" as message_type,
+      ) AS interface_name,
+      {{function_prefix}}EXTRACT_MOJO_IPC_HASH(s.id) AS ipc_hash,
+      "message" AS message_type,
       s.id
     FROM {{slice_table_name}} s
     WHERE
-      category = "toplevel" and name = "Connector::DispatchMessage"
+      category = "toplevel" AND name = "Connector::DispatchMessage"
   )
 -- Merge all mojo slices.
-SELECT * from new_mojo_slices
+SELECT * FROM new_mojo_slices
 UNION ALL
-SELECT * from old_associated_mojo_slices
+SELECT * FROM old_associated_mojo_slices
 UNION ALL
-SELECT * from old_non_associated_mojo_slices;
+SELECT * FROM old_non_associated_mojo_slices;
 
 -- As we lookup by ID on |chrome_mojo_slices_tbl| table, add an index on
 -- id to make lookups fast.
@@ -128,10 +128,10 @@ WITH
               ".onLayout", ""),
           ".onMeasure", ""),
         ".Layout", ""),
-      ".Measure", "") as name
+      ".Measure", "") AS name
     FROM
       {{slice_table_name}} s1
-    where category = "Java" and dur > 0
+    WHERE category = "Java" AND dur > 0
   ),
   -- We filter out generic slices from various UI frameworks which don't tell us much about
   -- what exactly this view is doing.
@@ -139,7 +139,7 @@ WITH
     SELECT
       id, name
     FROM java_slices_with_trimmed_names
-    WHERE not name in (
+    WHERE NOT name IN (
       -- AndroidX.
       "FitWindowsFrameLayout",
       "FitWindowsLinearLayout",
@@ -173,27 +173,27 @@ SELECT
   HAS_PARENT_SLICE_WITH_NAME(
     s1.id,
     "ViewResourceAdapter:captureWithSoftwareDraw"
-  ) as is_software_screenshot,
+  ) AS is_software_screenshot,
   HAS_PARENT_SLICE_WITH_NAME(
     s1.id,
     "ViewResourceAdapter:captureWithHardwareDraw"
-  ) as is_hardware_screenshot
+  ) AS is_hardware_screenshot
 FROM interesting_java_slices s1
-WHERE (select count()
-  from ancestor_slice(s1.id) s2
-  join interesting_java_slices s3 on s2.id = s3.id) = 0;
+WHERE (SELECT count()
+  FROM ancestor_slice(s1.id) s2
+  JOIN interesting_java_slices s3 ON s2.id = s3.id) = 0;
 
 -- |chrome_java_views| is a view over |chrome_java_views_internal| table, adding the necessary columns
 -- from |slice|.
 DROP VIEW IF EXISTS chrome_java_views;
 CREATE VIEW chrome_java_views AS
 SELECT
-  s1.name as filtered_name,
+  s1.name AS filtered_name,
   s1.is_software_screenshot,
   s1.is_hardware_screenshot,
   s2.*
 FROM chrome_java_views_internal s1
-JOIN {{slice_table_name}} s2 using (id);
+JOIN {{slice_table_name}} s2 USING (id);
 
 -- Most of java views will be triggered either by Chrome's BeginMainFrame
 -- or by Android's Choreographer.
@@ -207,7 +207,7 @@ WITH
       (CASE name
         WHEN 'ThreadControllerImpl::RunTask' THEN 'SingleThreadProxy::BeginMainFrame'
         ELSE 'Choreographer'
-       END) as kind
+       END) AS kind
     FROM {{slice_table_name}}
     WHERE
       (name GLOB 'Looper.dispatch: android.view.Choreographer$FrameHandler*')
@@ -218,7 +218,7 @@ WITH
   -- Intermediate step to allow us to sort java view names.
   root_slice_and_java_view_not_grouped AS (
     SELECT
-      s1.id, s1.kind, s3.name as java_view_name
+      s1.id, s1.kind, s3.name AS java_view_name
     FROM root_slices s1
     JOIN descendant_slice(s1.id) s2
     JOIN chrome_java_views_internal s3 ON s2.id = s3.id
@@ -226,7 +226,7 @@ WITH
 SELECT
   s1.id,
   s1.kind,
-  GROUP_CONCAT(DISTINCT s2.java_view_name) as java_views
+  GROUP_CONCAT(DISTINCT s2.java_view_name) AS java_views
 FROM root_slices s1
 LEFT JOIN root_slice_and_java_view_not_grouped s2 USING (id)
 GROUP BY s1.id;
@@ -251,31 +251,31 @@ WITH
   -- "toplevel" slice as parent. In the longer term they should probably belong
   -- to "toplevel" category as well, but for now this will have to do.
   non_embedded_java_slices AS (
-    SELECT name as full_name, "java" as task_type, id
+    SELECT name AS full_name, "java" AS task_type, id
     FROM {{slice_table_name}} s
     WHERE
       category = "Java"
       AND (SELECT count()
            FROM ancestor_slice(s.id) s2
-           WHERE s2.category = "toplevel" or s2.category = "Java") = 0
+           WHERE s2.category = "toplevel" OR s2.category = "Java") = 0
   ),
   raw_scheduler_tasks AS (
     SELECT
-      EXTRACT_ARG(s.arg_set_id, "task.posted_from.file_name") as posted_from_file_name,
-      EXTRACT_ARG(s.arg_set_id, "task.posted_from.function_name") as posted_from_function_name,
+      EXTRACT_ARG(s.arg_set_id, "task.posted_from.file_name") AS posted_from_file_name,
+      EXTRACT_ARG(s.arg_set_id, "task.posted_from.function_name") AS posted_from_function_name,
       (CASE name
         WHEN "ThreadControllerImpl::RunTask" THEN "SequenceManager"
         WHEN "ThreadPool_RunTask" THEN "ThreadPool"
-      END) as scheduler_type,
+      END) AS scheduler_type,
       s.id
     FROM {{slice_table_name}} s
     WHERE
       category = "toplevel"
-      AND (name = "ThreadControllerImpl::RunTask" or name = "ThreadPool_RunTask")
+      AND (name = "ThreadControllerImpl::RunTask" OR name = "ThreadPool_RunTask")
   ),
   scheduler_tasks AS (
     SELECT
-      s1.posted_from_file_name || ":" || s1.posted_from_function_name as posted_from,
+      s1.posted_from_file_name || ":" || s1.posted_from_function_name AS posted_from,
       s1.posted_from_file_name,
       s1.posted_from_function_name,
       s1.scheduler_type,
@@ -285,8 +285,8 @@ WITH
   -- Generate full names for scheduler tasks.
   scheduler_tasks_with_full_names AS (
     SELECT
-      printf("RunTask(posted_from=%s)", s.posted_from) as full_name,
-      "scheduler" as task_type,
+      printf("RunTask(posted_from=%s)", s.posted_from) AS full_name,
+      "scheduler" AS task_type,
       s.id
     FROM scheduler_tasks s
   ),
@@ -294,19 +294,19 @@ WITH
   mojo_slices AS (
     SELECT
       printf('%s %s (hash=%d)',
-        interface_name, message_type, ipc_hash) as full_name,
-      "mojo" as task_type,
+        interface_name, message_type, ipc_hash) AS full_name,
+      "mojo" AS task_type,
       id
     FROM chrome_mojo_slices_tbl
   ),
   -- Generate full names for tasks with java views.
   java_views_tasks AS (
     SELECT
-      printf('%s(java_views=%s)', kind, java_views) as full_name,
+      printf('%s(java_views=%s)', kind, java_views) AS full_name,
       (CASE kind
         WHEN 'Choreographer' THEN 'choreographer'
         WHEN 'SingleThreadProxy::BeginMainFrame' THEN 'ui_thread_begin_main_frame'
-       END) as task_type,
+       END) AS task_type,
       id
     FROM chrome_slices_with_java_views_internal
   ),
@@ -319,8 +319,8 @@ WITH
       (SELECT s3.full_name
         FROM descendant_slice(s1.id) s2
         JOIN mojo_slices s3 USING (id)
-        ORDER BY s2.depth LIMIT 1) as full_name,
-      "mojo" as task_type,
+        ORDER BY s2.depth LIMIT 1) AS full_name,
+      "mojo" AS task_type,
       s1.id
     FROM
       scheduler_tasks s1
@@ -339,11 +339,11 @@ WITH
         WHEN full_name = 'content.mojom.FrameHost message (hash=1421450774)' THEN 'FrameHost::DidCommitSameDocumentNavigation'
         WHEN full_name = 'content.mojom.FrameHost message (hash=368650583)' THEN 'FrameHost::DidStopLoading'
       END,
-      IFNULL({{function_prefix}}EXTRACT_FRAME_TYPE(id), 'unknown frame type')) as full_name,
-      'navigation_task' as task_type,
+      IFNULL({{function_prefix}}EXTRACT_FRAME_TYPE(id), 'unknown frame type')) AS full_name,
+      'navigation_task' AS task_type,
       id
   FROM (
-    SELECT * from scheduler_tasks_with_mojo
+    SELECT * FROM scheduler_tasks_with_mojo
     WHERE full_name IN ('content.mojom.FrameHost message (hash=2168461044)',
       'content.mojom.FrameHost message (hash=3561497419)',
       'content.mojom.FrameHost message (hash=1421450774)',
@@ -355,8 +355,8 @@ WITH
   non_embedded_toplevel_slices_with_full_name AS (
     SELECT
        COALESCE(s5.full_name, s4.full_name, s2.full_name, s3.full_name, s1.name) AS full_name,
-       COALESCE(s5.task_type, s4.task_type, s2.task_type, s3.task_type, "other") as task_type,
-       s1.id as id
+       COALESCE(s5.task_type, s4.task_type, s2.task_type, s3.task_type, "other") AS task_type,
+       s1.id AS id
     FROM non_embedded_toplevel_slices s1
     LEFT JOIN scheduler_tasks_with_mojo s2 ON s2.id = s1.id
     LEFT JOIN scheduler_tasks_with_full_names s3 ON s3.id = s1.id
@@ -364,18 +364,18 @@ WITH
     LEFT JOIN navigation_tasks s5 ON s5.id = s1.id
   )
 -- Merge slices from toplevel and Java categories.
-SELECT * from non_embedded_toplevel_slices_with_full_name
+SELECT * FROM non_embedded_toplevel_slices_with_full_name
 UNION ALL
-SELECT * from non_embedded_java_slices;
+SELECT * FROM non_embedded_java_slices;
 
 DROP VIEW IF EXISTS chrome_tasks;
 CREATE VIEW chrome_tasks AS
 SELECT
   full_name,
   task_type,
-  thread.name as thread_name,
+  thread.name AS thread_name,
   thread.utid,
-  process.name as process_name,
+  process.name AS process_name,
   thread.upid,
   ts.*
 FROM chrome_tasks_internal cti
@@ -396,4 +396,4 @@ WHERE
   (SELECT count()
    FROM ancestor_slice(s1.id) s3
    JOIN chrome_tasks s4 ON s3.id = s4.id) = 0
-  and s2.id IS NULL;
+  AND s2.id IS NULL;

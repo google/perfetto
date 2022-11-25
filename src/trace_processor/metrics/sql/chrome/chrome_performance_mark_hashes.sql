@@ -30,4 +30,3 @@ SELECT ChromePerformanceMarkHashes(
     ORDER BY int_value
   )
 );
-

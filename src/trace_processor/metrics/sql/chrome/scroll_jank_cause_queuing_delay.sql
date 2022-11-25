@@ -25,7 +25,7 @@ CREATE VIEW blocking_tasks_no_threadcontroller_active AS
     ancestor.name AS task_ancestor_name
   FROM
     chrome_thread_slice AS slice LEFT JOIN
-    ancestor_slice(slice.id) as ancestor ON ancestor.id = slice.parent_id
+    ancestor_slice(slice.id) AS ancestor ON ancestor.id = slice.parent_id
   WHERE
     slice.name != "ThreadController active"
     AND (slice.depth = 0 OR ancestor.name = "ThreadController active");
@@ -79,8 +79,8 @@ CREATE TABLE blocking_chrome_tasks_without_threadpool AS
 DROP TABLE IF EXISTS blocking_tasks_queuing_delay;
 CREATE TABLE blocking_tasks_queuing_delay AS
   SELECT
-    EXTRACT_ARG(slice.arg_set_id, "task.posted_from.file_name") as file,
-    EXTRACT_ARG(slice.arg_set_id, "task.posted_from.function_name") as function,
+    EXTRACT_ARG(slice.arg_set_id, "task.posted_from.file_name") AS file,
+    EXTRACT_ARG(slice.arg_set_id, "task.posted_from.function_name") AS function,
     trace_id,
     queuing_time_ns,
     avg_vsync_interval,
@@ -141,7 +141,7 @@ CREATE VIEW all_descendant_blocking_tasks_queuing_delay AS
       descendant.name) AS descendant_name,
     EXTRACT_ARG(descendant.arg_set_id,
         "chrome_mojo_event_info.ipc_hash") AS descendant_ipc_hash,
-    descendant.parent_id As descendant_parent_id,
+    descendant.parent_id AS descendant_parent_id,
     descendant.depth AS descendant_depth,
     descendant.category AS descendant_category,
     base.*
@@ -467,7 +467,7 @@ DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay_average_no_jank_time;
 CREATE VIEW scroll_jank_cause_queuing_delay_average_no_jank_time AS
   SELECT
     location,
-    AVG(dur_overlapping_ns) as avg_dur_overlapping_ns
+    AVG(dur_overlapping_ns) AS avg_dur_overlapping_ns
   FROM scroll_jank_cause_queuing_delay_temp
   WHERE NOT jank
   GROUP BY 1;
@@ -478,7 +478,7 @@ DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay_average_no_jank_time_restric
 CREATE VIEW scroll_jank_cause_queuing_delay_average_no_jank_time_restricted AS
   SELECT
     restricted_location,
-    AVG(dur_overlapping_ns) as avg_dur_overlapping_ns_restricted
+    AVG(dur_overlapping_ns) AS avg_dur_overlapping_ns_restricted
   FROM scroll_jank_cause_queuing_delay_temp
   WHERE NOT jank
   GROUP BY 1;
@@ -492,7 +492,7 @@ CREATE VIEW scroll_jank_cause_queuing_delay_unannotated AS
     base.*,
     'InputLatency.LatencyInfo.Flow.QueuingDelay.'
     || CASE WHEN jank THEN 'Jank' ELSE 'NoJank' END || '.BlockingTasksUs.'
-      || base.location as metric_name,
+      || base.location AS metric_name,
     COALESCE(avg_no_jank.avg_dur_overlapping_ns, 0)
         AS avg_no_jank_dur_overlapping_ns
   FROM
