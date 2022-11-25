@@ -69,10 +69,10 @@ DROP VIEW IF EXISTS rss_and_swap_span;
 CREATE VIEW rss_and_swap_span AS
 SELECT
   ts, dur, upid,
-  CAST(IFNULL(file_rss_val, 0) AS INT) file_rss_val,
-  CAST(IFNULL(anon_rss_val, 0) AS INT) anon_rss_val,
-  CAST(IFNULL(shmem_rss_val, 0) AS INT) shmem_rss_val,
-  CAST(IFNULL(swap_val, 0) AS INT) swap_val,
+  CAST(IFNULL(file_rss_val, 0) AS INT) AS file_rss_val,
+  CAST(IFNULL(anon_rss_val, 0) AS INT) AS anon_rss_val,
+  CAST(IFNULL(shmem_rss_val, 0) AS INT) AS shmem_rss_val,
+  CAST(IFNULL(swap_val, 0) AS INT) AS swap_val,
   CAST(
     IFNULL(anon_rss_val, 0)
     + IFNULL(file_rss_val, 0)
