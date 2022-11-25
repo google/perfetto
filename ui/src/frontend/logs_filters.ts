@@ -115,6 +115,27 @@ class LogTagsWidget implements m.ClassComponent<LogTagsWidgetAttrs> {
   }
 }
 
+class LogTextWidget implements m.ClassComponent {
+  view() {
+    return m(
+        '.tag-container', m(`input.chip-input[placeholder='Search log text']`, {
+          onkeydown: (e: KeyboardEvent) => {
+            // This is to avoid zooming on 'w'(and other unexpected effects
+            // of key presses in this input field).
+            e.stopPropagation();
+          },
+
+          onkeyup: (e: KeyboardEvent) => {
+            // We want to use the value of the input field after it has been
+            // updated with the latest key (onkeyup).
+            const htmlElement = e.target as HTMLInputElement;
+            globals.dispatch(
+                Actions.updateLogFilterText({textEntry: htmlElement.value}));
+          },
+        }));
+  }
+}
+
 export class LogsFilters implements m.ClassComponent {
   view(_: m.CVnode<{}>) {
     return m(
@@ -127,6 +148,7 @@ export class LogsFilters implements m.ClassComponent {
             globals.dispatch(Actions.setMinimumLogLevel({minimumLevel}));
           },
         }),
-        m(LogTagsWidget, {tags: globals.state.logFilteringCriteria.tags}));
+        m(LogTagsWidget, {tags: globals.state.logFilteringCriteria.tags}),
+        m(LogTextWidget));
   }
 }

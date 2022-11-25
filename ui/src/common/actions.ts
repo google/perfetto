@@ -1153,6 +1153,10 @@ export const StateActions = {
     state.logFilteringCriteria.tags =
         state.logFilteringCriteria.tags.filter((t) => t !== args.tag);
   },
+
+  updateLogFilterText(state: StateDraft, args: {textEntry: string}) {
+    state.logFilteringCriteria.textEntry = args.textEntry;
+  },
 };
 
 // Move element at `from` index to `direction` of `to` element.

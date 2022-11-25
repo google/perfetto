@@ -30,3 +30,9 @@ export function escapeQuery(s: string): string {
 export function escapeAndExpandQuery(s: string): string {
   return `'*${replaceUndesiredCharacters(s)}*'`;
 }
+
+export function escapeGlob(s: string): string {
+  // For globs we are only preoccupied by mismatching single quotes.
+  s = s.replace(/\'/g, '\'\'');
+  return `'*${s}*'`;
+}

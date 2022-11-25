@@ -159,6 +159,7 @@ export function createEmptyState(): State {
       // The first two log priorities are ignored.
       minimumLevel: 2,
       tags: [],
+      textEntry: '',
     },
   };
 }

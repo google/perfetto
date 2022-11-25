@@ -21,7 +21,7 @@ import {
   LogExistsKey,
 } from '../common/logs';
 import {NUM, STR} from '../common/query_result';
-import {escapeQuery} from '../common/query_utils';
+import {escapeGlob, escapeQuery} from '../common/query_utils';
 import {LogFilteringCriteria} from '../common/state';
 import {fromNs, TimeSpan, toNsCeil, toNsFloor} from '../common/time';
 import {publishTrackData} from '../frontend/publish';
@@ -243,6 +243,10 @@ export class LogsController extends Controller<'main'> {
       if (this.logFilteringCriteria.tags.length) {
         filterQuery += ` and tag in (${
             LogsController.serializeTags(this.logFilteringCriteria.tags)})`;
+      }
+      if (this.logFilteringCriteria.textEntry) {
+        filterQuery +=
+            ` and msg glob ${escapeGlob(this.logFilteringCriteria.textEntry)}`;
       }
 
       await this.engine.query(filterQuery);
