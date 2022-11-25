@@ -113,9 +113,9 @@ WITH launch_with_type AS MATERIALIZED (
       l.id AS launch_id,
       l.launch_type,
       p.upid,
-      LAUNCH_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'bindApplication') bind_app,
-      LAUNCH_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityStart') a_start,
-      LAUNCH_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityResume') a_resume
+      LAUNCH_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'bindApplication') AS bind_app,
+      LAUNCH_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityStart') AS a_start,
+      LAUNCH_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityResume') AS a_resume
     FROM launches l
     JOIN process_metadata_table p ON (
       l.package = p.package_name

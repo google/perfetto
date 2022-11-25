@@ -65,7 +65,7 @@ WITH upid_packages AS (
     'package_name', package_list.package_name,
     'apk_version_code', package_list.version_code,
     'debuggable', package_list.debuggable
-  )) packages_for_uid
+  )) AS packages_for_uid
   FROM process
   JOIN package_list ON process.android_appid = package_list.uid
   GROUP BY upid
