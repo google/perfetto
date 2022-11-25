@@ -18,12 +18,15 @@ source_set("storage_minimal") {
     "active_chrome_processes_tracker.h",
     "heap_profile_tracker.cc",
     "heap_profile_tracker.h",
+    "packet_sequence_state.h",
+    "packet_sequence_state_generation.cc",
     "profiler_util.cc",
     "profiler_util.h",
     "stack_profile_tracker.cc",
     "stack_profile_tracker.h",
   ]
   deps = [
+    ":packet_sequence_state_generation_hdr",
     "../../../../gn:default_deps",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../base",
@@ -49,6 +52,17 @@ source_set("storage_full") {
     "../../storage",
     "../../tables",
     "../../types",
+  ]
+}
+
+source_set("packet_sequence_state_generation_hdr") {
+  sources = [ "packet_sequence_state_generation.h" ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base",
+    "../../../../protos/perfetto/trace:non_minimal_zero",
+    "../../../../protos/perfetto/trace/track_event:zero",
+    "../../util:interned_message_view",
   ]
 }
 
