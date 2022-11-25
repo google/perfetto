@@ -1162,6 +1162,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/importers/proto:packet_sequence_state_generation_hdr
+perfetto_filegroup(
+    name = "src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
+    srcs = [
+        "src/trace_processor/importers/proto/packet_sequence_state_generation.h",
+    ],
+)
+
 # GN target: //src/trace_processor/importers/proto:storage_full
 perfetto_filegroup(
     name = "src_trace_processor_importers_proto_storage_full",
@@ -1179,6 +1187,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/active_chrome_processes_tracker.h",
         "src/trace_processor/importers/proto/heap_profile_tracker.cc",
         "src/trace_processor/importers/proto/heap_profile_tracker.h",
+        "src/trace_processor/importers/proto/packet_sequence_state.h",
+        "src/trace_processor/importers/proto/packet_sequence_state_generation.cc",
         "src/trace_processor/importers/proto/profiler_util.cc",
         "src/trace_processor/importers/proto/profiler_util.h",
         "src/trace_processor/importers/proto/stack_profile_tracker.cc",
@@ -1957,8 +1967,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/metadata_module.h",
         "src/trace_processor/importers/proto/metadata_tracker.cc",
         "src/trace_processor/importers/proto/metadata_tracker.h",
-        "src/trace_processor/importers/proto/packet_sequence_state.cc",
-        "src/trace_processor/importers/proto/packet_sequence_state.h",
         "src/trace_processor/importers/proto/perf_sample_tracker.cc",
         "src/trace_processor/importers/proto/perf_sample_tracker.h",
         "src/trace_processor/importers/proto/profile_module.cc",
@@ -4385,6 +4393,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_fuchsia_fuchsia_record",
         ":src_trace_processor_importers_importers_full",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
+        ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_storage_full",
         ":src_trace_processor_importers_proto_storage_minimal",
         ":src_trace_processor_importers_systrace_systrace_line",
@@ -4517,6 +4526,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_fuchsia_fuchsia_record",
         ":src_trace_processor_importers_importers_full",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
+        ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_storage_full",
         ":src_trace_processor_importers_proto_storage_minimal",
         ":src_trace_processor_importers_systrace_systrace_line",
@@ -4708,6 +4718,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_fuchsia_fuchsia_record",
         ":src_trace_processor_importers_importers_full",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
+        ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_storage_full",
         ":src_trace_processor_importers_proto_storage_minimal",
         ":src_trace_processor_importers_systrace_systrace_line",
