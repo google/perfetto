@@ -1142,6 +1142,21 @@ export const StateActions = {
   setMinimumLogLevel(state: StateDraft, args: {minimumLevel: number}) {
     state.logFilteringCriteria.minimumLevel = args.minimumLevel;
   },
+
+  addLogTag(state: StateDraft, args: {tag: string}) {
+    if (!state.logFilteringCriteria.tags.includes(args.tag)) {
+      state.logFilteringCriteria.tags.push(args.tag);
+    }
+  },
+
+  removeLogTag(state: StateDraft, args: {tag: string}) {
+    state.logFilteringCriteria.tags =
+        state.logFilteringCriteria.tags.filter((t) => t !== args.tag);
+  },
+
+  updateLogFilterText(state: StateDraft, args: {textEntry: string}) {
+    state.logFilteringCriteria.textEntry = args.textEntry;
+  },
 };
 
 // Move element at `from` index to `direction` of `to` element.
