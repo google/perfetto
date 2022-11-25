@@ -14,9 +14,14 @@
 -- limitations under the License.
 --
 
--- Count Binder transactions per process
-DROP VIEW IF EXISTS binder_metrics_by_process;
-CREATE VIEW binder_metrics_by_process AS
+-- Count Binder transactions per process.
+--
+-- @column process_name  Name of the process that started the binder transaction.
+-- @column pid           PID of the process that started the binder transaction.
+-- @column slice_name    Name of the slice with binder transaction.
+-- @column event_count   Number of binder transactions in process in slice.
+--
+CREATE VIEW android_binder_metrics_by_process AS
 SELECT
   process.name as process_name,
   process.pid as pid,
