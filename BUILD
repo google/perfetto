@@ -1614,6 +1614,17 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/sorter:sorter
+perfetto_filegroup(
+    name = "src_trace_processor_sorter_sorter",
+    srcs = [
+        "src/trace_processor/sorter/trace_sorter.cc",
+        "src/trace_processor/sorter/trace_sorter.h",
+        "src/trace_processor/sorter/trace_sorter_internal.h",
+        "src/trace_processor/sorter/trace_sorter_queue.h",
+    ],
+)
+
 # GN target: //src/trace_processor/sqlite/functions:functions
 perfetto_filegroup(
     name = "src_trace_processor_sqlite_functions_functions",
@@ -2008,10 +2019,6 @@ perfetto_filegroup(
         "src/trace_processor/trace_processor_storage.cc",
         "src/trace_processor/trace_processor_storage_impl.cc",
         "src/trace_processor/trace_processor_storage_impl.h",
-        "src/trace_processor/trace_sorter.cc",
-        "src/trace_processor/trace_sorter.h",
-        "src/trace_processor/trace_sorter_internal.h",
-        "src/trace_processor/trace_sorter_queue.h",
         "src/trace_processor/virtual_destructors.cc",
     ],
 )
@@ -4408,6 +4415,7 @@ perfetto_cc_library(
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
+        ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_functions_functions",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_sqlite_sqlite_minimal",
@@ -4544,6 +4552,7 @@ perfetto_cc_binary(
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
+        ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_functions_functions",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_sqlite_sqlite_minimal",
@@ -4735,6 +4744,7 @@ perfetto_cc_binary(
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
+        ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_functions_functions",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_sqlite_sqlite_minimal",

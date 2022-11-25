@@ -99,6 +99,7 @@ source_set("importers_full") {
     "../../../protos/perfetto/trace/gpu:zero",
     "../../../protos/perfetto/trace/interned_data:zero",
     "../../protozero",
+    "../sorter",
     "../storage",
     "../tables",
     "../types",

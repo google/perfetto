@@ -1984,6 +1984,7 @@ cc_test {
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
+        ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_functions_functions",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
@@ -9638,6 +9639,23 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/sorter:sorter
+filegroup {
+    name: "perfetto_src_trace_processor_sorter_sorter",
+    srcs: [
+        "src/trace_processor/sorter/trace_sorter.cc",
+    ],
+}
+
+// GN: //src/trace_processor/sorter:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_sorter_unittests",
+    srcs: [
+        "src/trace_processor/sorter/trace_sorter_queue_unittest.cc",
+        "src/trace_processor/sorter/trace_sorter_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/sqlite/functions:functions
 filegroup {
     name: "perfetto_src_trace_processor_sqlite_functions_functions",
@@ -9745,7 +9763,6 @@ filegroup {
         "src/trace_processor/trace_processor_context.cc",
         "src/trace_processor/trace_processor_storage.cc",
         "src/trace_processor/trace_processor_storage_impl.cc",
-        "src/trace_processor/trace_sorter.cc",
         "src/trace_processor/virtual_destructors.cc",
     ],
 }
@@ -9812,8 +9829,6 @@ filegroup {
         "src/trace_processor/importers/syscalls/syscall_tracker_unittest.cc",
         "src/trace_processor/importers/systrace/systrace_parser_unittest.cc",
         "src/trace_processor/ref_counted_unittest.cc",
-        "src/trace_processor/trace_sorter_queue_unittest.cc",
-        "src/trace_processor/trace_sorter_unittest.cc",
     ],
 }
 
@@ -11240,6 +11255,8 @@ cc_test {
         ":perfetto_src_trace_processor_metrics_unittests",
         ":perfetto_src_trace_processor_rpc_rpc",
         ":perfetto_src_trace_processor_rpc_unittests",
+        ":perfetto_src_trace_processor_sorter_sorter",
+        ":perfetto_src_trace_processor_sorter_unittests",
         ":perfetto_src_trace_processor_sqlite_functions_functions",
         ":perfetto_src_trace_processor_sqlite_functions_unittests",
         ":perfetto_src_trace_processor_sqlite_sqlite",
@@ -11884,6 +11901,7 @@ cc_binary {
         ":perfetto_src_trace_processor_metrics_metrics",
         ":perfetto_src_trace_processor_rpc_httpd",
         ":perfetto_src_trace_processor_rpc_rpc",
+        ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_functions_functions",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",
@@ -12080,6 +12098,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
+        ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_functions_functions",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_sqlite_minimal",

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_TRACE_SORTER_QUEUE_H_
-#define SRC_TRACE_PROCESSOR_TRACE_SORTER_QUEUE_H_
+#ifndef SRC_TRACE_PROCESSOR_SORTER_TRACE_SORTER_QUEUE_H_
+#define SRC_TRACE_PROCESSOR_SORTER_TRACE_SORTER_QUEUE_H_
 
 #include <cstddef>
 #include <deque>
@@ -23,7 +23,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/utils.h"
-#include "src/trace_processor/trace_sorter_internal.h"
+#include "src/trace_processor/sorter/trace_sorter_internal.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -360,4 +360,4 @@ class VariadicQueue {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_TRACE_SORTER_QUEUE_H_
+#endif  // SRC_TRACE_PROCESSOR_SORTER_TRACE_SORTER_QUEUE_H_
