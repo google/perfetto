@@ -70,9 +70,9 @@ DROP VIEW IF EXISTS sp_frequency;
 CREATE VIEW sp_frequency AS
 SELECT
   ts,
-  lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts as dur,
+  lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
   cpu,
-  value as freq_khz
+  value AS freq_khz
 FROM counter
 JOIN cpu_counter_track ON counter.track_id = cpu_counter_track.id;
 -- Create the span joined table which combines cpu frequency with scheduling slices.

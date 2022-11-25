@@ -64,7 +64,7 @@ WHERE dur > 0;
 DROP VIEW IF EXISTS update_power_state_stats;
 CREATE VIEW update_power_state_stats AS
 SELECT
-  CAST(AVG(dur) / 1e3 as INT64) as avg_runtime_micro_secs
+  CAST(AVG(dur) / 1e3 AS INT64) AS avg_runtime_micro_secs
 FROM slice
 WHERE slice.name = 'DisplayPowerController#updatePowerState' AND slice.dur >= 0;
 

@@ -236,11 +236,11 @@ CREATE VIEW cpu_freq_view AS
 SELECT
   cpu,
   ts,
-  LEAD(ts, 1, (SELECT end_ts from trace_bounds))
-    OVER (PARTITION by cpu ORDER BY ts) - ts AS dur,
-  CAST(value AS INT) as freq_khz
+  LEAD(ts, 1, (SELECT end_ts FROM trace_bounds))
+    OVER (PARTITION BY cpu ORDER BY ts) - ts AS dur,
+  CAST(value AS INT) AS freq_khz
 FROM counter
-JOIN cpu_counter_track on counter.track_id = cpu_counter_track.id
+JOIN cpu_counter_track ON counter.track_id = cpu_counter_track.id
 WHERE name = 'cpufreq';
 
 DROP TABLE IF EXISTS cpu_freq_net_rx_action_per_core;
@@ -295,7 +295,7 @@ CREATE VIEW per_core_net_rx_action_statistic AS
       'id', cpu,
       'net_rx_action_statistic', AndroidNetworkMetric_NetRxActionStatistic(
         'count', (SELECT COUNT(1) FROM net_rx_actions AS na WHERE na.cpu = ac.cpu),
-        'runtime_ms',  (SELECT SUM(dur) / 1e6 FROM net_rx_actions AS na WHERE na.cpu = ac.cpu),
+        'runtime_ms', (SELECT SUM(dur) / 1e6 FROM net_rx_actions AS na WHERE na.cpu = ac.cpu),
         'avg_runtime_ms', (SELECT AVG(dur) / 1e6 FROM net_rx_actions AS na WHERE na.cpu = ac.cpu),
         'avg_freq_khz', (SELECT SUM(dur * freq_khz) / SUM(dur) FROM cpu_freq_net_rx_action_per_core AS cc WHERE cc.cpu = ac.cpu),
         'mcycles', (SELECT CAST(SUM(dur * freq_khz / 1000) / 1e9 AS INT) FROM cpu_freq_net_rx_action_per_core AS cc WHERE cc.cpu = ac.cpu)
@@ -310,7 +310,7 @@ CREATE VIEW per_core_net_tx_action_statistic AS
       'id', cpu,
       'net_tx_action_statistic', AndroidNetworkMetric_NetTxActionStatistic(
         'count', (SELECT COUNT(1) FROM net_tx_actions AS na WHERE na.cpu = ac.cpu),
-        'runtime_ms',  (SELECT SUM(dur) / 1e6 FROM net_tx_actions AS na WHERE na.cpu = ac.cpu),
+        'runtime_ms', (SELECT SUM(dur) / 1e6 FROM net_tx_actions AS na WHERE na.cpu = ac.cpu),
         'avg_runtime_ms', (SELECT AVG(dur) / 1e6 FROM net_tx_actions AS na WHERE na.cpu = ac.cpu),
         'avg_freq_khz', (SELECT SUM(dur * freq_khz) / SUM(dur) FROM cpu_freq_net_tx_action_per_core AS cc WHERE cc.cpu = ac.cpu),
         'mcycles', (SELECT CAST(SUM(dur * freq_khz / 1000) / 1e9 AS INT) FROM cpu_freq_net_tx_action_per_core AS cc WHERE cc.cpu = ac.cpu)
@@ -377,4 +377,3 @@ CREATE VIEW android_netperf_output AS
        )
     )
   );
-

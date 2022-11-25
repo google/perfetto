@@ -62,8 +62,8 @@ WHERE
 DROP VIEW IF EXISTS chrome_non_symbolized_frames;
 CREATE VIEW chrome_non_symbolized_frames AS
 SELECT
-  frames.name as frame_name,
-  callsite.id as callsite_id,
+  frames.name AS frame_name,
+  callsite.id AS callsite_id,
   *
 FROM
   stack_profile_frame frames
@@ -75,7 +75,7 @@ FROM
 DROP VIEW IF EXISTS chrome_symbolized_child_frames;
 CREATE VIEW chrome_symbolized_child_frames AS
 SELECT
-  thread.name as thread_name,
+  thread.name AS thread_name,
   sample.utid AS sample_utid,
   *
 FROM

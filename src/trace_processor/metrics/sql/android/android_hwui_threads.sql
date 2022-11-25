@@ -18,7 +18,7 @@
 DROP VIEW IF EXISTS {{table_name_prefix}}_main_thread;
 CREATE VIEW {{table_name_prefix}}_main_thread AS
   SELECT
-    process.name as process_name,
+    process.name AS process_name,
     thread.utid
   FROM thread
   JOIN {{process_allowlist_table}} process_allowlist USING (upid)
@@ -28,7 +28,7 @@ CREATE VIEW {{table_name_prefix}}_main_thread AS
 DROP VIEW IF EXISTS {{table_name_prefix}}_render_thread;
 CREATE VIEW {{table_name_prefix}}_render_thread AS
   SELECT
-    process.name as process_name,
+    process.name AS process_name,
     thread.utid
   FROM thread
   JOIN {{process_allowlist_table}} process_allowlist USING (upid)
@@ -38,7 +38,7 @@ CREATE VIEW {{table_name_prefix}}_render_thread AS
 DROP VIEW IF EXISTS {{table_name_prefix}}_gpu_completion_thread;
 CREATE VIEW {{table_name_prefix}}_gpu_completion_thread AS
   SELECT
-    process.name as process_name,
+    process.name AS process_name,
     thread.utid
   FROM thread
   JOIN {{process_allowlist_table}} process_allowlist USING (upid)
@@ -48,7 +48,7 @@ CREATE VIEW {{table_name_prefix}}_gpu_completion_thread AS
 DROP VIEW IF EXISTS {{table_name_prefix}}_hwc_release_thread;
 CREATE VIEW {{table_name_prefix}}_hwc_release_thread AS
   SELECT
-    process.name as process_name,
+    process.name AS process_name,
     thread.utid
   FROM thread
   JOIN {{process_allowlist_table}} process_allowlist USING (upid)
@@ -71,7 +71,7 @@ DROP VIEW IF EXISTS {{table_name_prefix}}_do_frame_slices;
 CREATE VIEW {{table_name_prefix}}_do_frame_slices AS
   SELECT
     *,
-    CAST(STR_SPLIT(name, ' ', 1) AS INTEGER) as vsync
+    CAST(STR_SPLIT(name, ' ', 1) AS INTEGER) AS vsync
   FROM {{table_name_prefix}}_main_thread_slices
   WHERE name GLOB 'Choreographer#doFrame*';
 
@@ -91,7 +91,7 @@ DROP VIEW IF EXISTS {{table_name_prefix}}_draw_frame_slices;
 CREATE VIEW {{table_name_prefix}}_draw_frame_slices AS
   SELECT
     *,
-    CAST(STR_SPLIT(name, ' ', 1) AS INTEGER) as vsync
+    CAST(STR_SPLIT(name, ' ', 1) AS INTEGER) AS vsync
   FROM {{table_name_prefix}}_render_thread_slices
   WHERE name GLOB 'DrawFrame*';
 
@@ -103,7 +103,7 @@ CREATE VIEW {{table_name_prefix}}_gpu_completion_slices AS
     slice.*,
     ts + dur AS ts_end,
     -- Extracts 1234 from 'waiting for GPU completion 1234'
-    CAST(STR_SPLIT(slice.name, ' ', 4) AS INTEGER) as idx
+    CAST(STR_SPLIT(slice.name, ' ', 4) AS INTEGER) AS idx
   FROM slice
   JOIN thread_track ON slice.track_id = thread_track.id
   JOIN {{table_name_prefix}}_gpu_completion_thread thread USING (utid)
@@ -116,9 +116,9 @@ CREATE VIEW {{table_name_prefix}}_hwc_release_slices AS
     process_name,
     thread.utid,
     slice.*,
-    ts + dur as ts_end,
+    ts + dur AS ts_end,
     -- Extracts 1234 from 'waiting for HWC release 1234'
-    CAST(STR_SPLIT(slice.name, ' ', 4) AS INTEGER) as idx
+    CAST(STR_SPLIT(slice.name, ' ', 4) AS INTEGER) AS idx
   FROM slice
   JOIN thread_track ON slice.track_id = thread_track.id
   JOIN {{table_name_prefix}}_hwc_release_thread thread USING (utid)

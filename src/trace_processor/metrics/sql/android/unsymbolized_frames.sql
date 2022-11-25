@@ -50,7 +50,7 @@ CREATE VIEW mangled_stack_profile_mapping AS
         || SUBSTR(build_id, 13, 2)
         || SUBSTR(build_id, 17, 16)
       || '0')
-    END as google_lookup_id
+    END AS google_lookup_id
   FROM stack_profile_mapping;
 
 DROP VIEW IF EXISTS unsymbolized_frames_view;
