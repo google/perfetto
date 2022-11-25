@@ -419,9 +419,53 @@
   .log-filters {
     display: flex;
     margin-right: 5px;
+    align-items: center;
 
     .log-label {
       padding-right: 0.35rem;
+    }
+
+    .tag-container {
+      height: auto;
+      min-height: 34px;
+      border: 2px solid #737679;
+      padding: 8px;
+      margin: 8px;
+      cursor: text;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+
+      box-shadow: 0 2px 6px rgba(25,25,25,0.2);
+
+      .chips .chip {
+        display: inline-block;
+        width: auto;
+        float: left;
+
+        background-color: #0878b2;
+        color: #fff;
+        border-radius: 3px;
+        margin: 2px;
+        overflow: hidden;
+
+        .chip-button {
+          padding: 4px;
+          cursor: pointer;
+          background-color: #054570;
+          display: inline-block;
+        }
+
+        .chip-text {
+          padding: 4px;
+          display: inline-block;
+          pointer-events: none;
+        }
+      }
+
+      .chip-input {
+        margin-left: 5px;
+      }
     }
   }
 
