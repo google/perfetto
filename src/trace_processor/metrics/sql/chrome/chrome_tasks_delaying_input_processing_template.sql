@@ -47,7 +47,7 @@ FROM (
     chrome_tasks
   WHERE
     chrome_tasks.dur >= {{duration_causing_jank_ms}} * 1e6
-    and chrome_tasks.thread_name = "CrBrowserMain"
+    AND chrome_tasks.thread_name = "CrBrowserMain"
 ) tasks
 JOIN chrome_input_to_browser_intervals
   ON tasks.ts + tasks.dur > chrome_input_to_browser_intervals.window_start_ts
@@ -76,7 +76,7 @@ SELECT
   AVG(duration_ms) AS avg_duration_ms,
   AVG(thread_dur_ms) AS avg_thread_duration_ms,
   MIN(duration_ms) AS min_task_duration,
-  MAX(duration_ms) as max_task_duration,
+  MAX(duration_ms) AS max_task_duration,
   SUM(duration_ms) AS total_duration_ms,
   SUM(thread_dur_ms) AS total_thread_duration_ms,
   GROUP_CONCAT(slice_id, '-') AS slice_ids,

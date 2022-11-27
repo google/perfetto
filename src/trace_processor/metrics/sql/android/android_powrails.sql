@@ -19,7 +19,7 @@ DROP VIEW IF EXISTS power_rails_counters;
 CREATE VIEW power_rails_counters AS
 SELECT value, ts / 1000000 AS ts, name
 FROM counter c
-JOIN counter_track t on c.track_id = t.id
+JOIN counter_track t ON c.track_id = t.id
 WHERE name GLOB 'power.*';
 
 DROP VIEW IF EXISTS avg_used_powers;
@@ -37,7 +37,7 @@ FROM (
       / (LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts) AS avg_used_power,
     (LEAD(value) OVER (PARTITION BY name ORDER BY ts) - value) AS tot_used_power,
     ts AS powrail_start_ts,
-    (LEAD(ts) OVER (PARTITION BY name ORDER BY ts)) as powrail_end_ts
+    (LEAD(ts) OVER (PARTITION BY name ORDER BY ts)) AS powrail_end_ts
   FROM (
     SELECT name, MIN(ts) AS ts, value
     FROM power_rails_counters

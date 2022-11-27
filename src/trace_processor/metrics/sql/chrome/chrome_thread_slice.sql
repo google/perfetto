@@ -35,4 +35,4 @@ CREATE VIEW chrome_thread_slice AS
     chrome_track ON
         chrome_track.id = slice.track_id
   WHERE
-    track_id in (SELECT id FROM chrome_track);
+    track_id IN (SELECT id FROM chrome_track);

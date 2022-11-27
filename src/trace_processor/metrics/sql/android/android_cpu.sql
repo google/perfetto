@@ -55,7 +55,7 @@ SELECT
         'avg_freq_khz', avg_freq_khz
       )
     )
-  ) as proto
+  ) AS proto
 FROM raw_metrics_per_core
 GROUP BY utid;
 
@@ -68,7 +68,7 @@ SELECT
       'type', core_type,
       'metrics', metrics_per_core_type.proto
     )
-  ) as proto
+  ) AS proto
 FROM metrics_per_core_type
 GROUP BY utid;
 
@@ -100,7 +100,7 @@ SELECT
       'core', core_proto_per_thread.proto,
       'core_type', core_type_proto_per_thread.proto
     )
-  ) as proto
+  ) AS proto
 FROM thread
 LEFT JOIN core_proto_per_thread USING (utid)
 LEFT JOIN core_type_proto_per_thread USING (utid)
@@ -136,7 +136,7 @@ SELECT
       'id', cpu,
       'metrics', core_metrics_per_process.proto
     )
-  ) as proto
+  ) AS proto
 FROM core_metrics_per_process
 GROUP BY upid;
 
@@ -169,7 +169,7 @@ SELECT
       'type', core_type,
       'metrics', core_type_metrics_per_process.proto
     )
-  ) as proto
+  ) AS proto
 FROM core_type_metrics_per_process
 GROUP BY upid;
 

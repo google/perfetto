@@ -40,7 +40,7 @@ WITH rolling_delta AS (
 SELECT
   upid,
   -- max over all ts
-  MAX(delta) delta
+  MAX(delta) AS delta
 FROM rolling_delta
 GROUP BY 1;
 

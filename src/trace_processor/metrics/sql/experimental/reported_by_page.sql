@@ -20,7 +20,7 @@
 
 DROP VIEW IF EXISTS page_reported_events;
 CREATE VIEW page_reported_events AS
-SELECT ts, name, EXTRACT_ARG(arg_set_id, "debug.data.navigationId") as nav_id
+SELECT ts, name, EXTRACT_ARG(arg_set_id, "debug.data.navigationId") AS nav_id
 FROM slice
 WHERE category = 'blink.user_timing'
     AND (name = 'navigationStart' OR name GLOB 'telemetry:reported_by_page:*')
@@ -45,7 +45,7 @@ SELECT p.name, (p.ts - (
         OR (p.name = 'telemetry:reported_by_page:benchmark_end'
          AND name = 'telemetry:reported_by_page:benchmark_begin')
       ))
-    ) / 1e6 as dur_ms
+    ) / 1e6 AS dur_ms
 FROM page_reported_events p;
 
 --------------------------------------------------------------------------------

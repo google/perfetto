@@ -406,7 +406,7 @@ SELECT
 
         UNION ALL
         SELECT 'Broadcast dispatched count'
-        Where COUNT_SLICES_CONCURRENT_TO_LAUNCH(
+        WHERE COUNT_SLICES_CONCURRENT_TO_LAUNCH(
           launches.id,
           'Broadcast dispatched*'
         ) > 10
@@ -420,7 +420,7 @@ SELECT
 
         UNION ALL
         SELECT 'No baseline or cloud profiles'
-        Where MISSING_BASELINE_PROFILE_FOR_LAUNCH(launches.id, launches.package)
+        WHERE MISSING_BASELINE_PROFILE_FOR_LAUNCH(launches.id, launches.package)
 
         UNION ALL
         SELECT 'Startup running concurrent to launch'
@@ -433,17 +433,17 @@ SELECT
 
       )
     )
-  ) as startup
+  ) AS startup
 FROM launches;
 
 DROP VIEW IF EXISTS android_startup_event;
 CREATE VIEW android_startup_event AS
 SELECT
-  'slice' as track_type,
-  'Android App Startups' as track_name,
-  l.ts as ts,
-  l.dur as dur,
-  l.package as slice_name
+  'slice' AS track_type,
+  'Android App Startups' AS track_name,
+  l.ts AS ts,
+  l.dur AS dur,
+  l.package AS slice_name
 FROM launches l;
 
 DROP VIEW IF EXISTS android_startup_output;

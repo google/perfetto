@@ -15,21 +15,13 @@
 import {sqliteString} from '../base/string_utils';
 import {Engine} from '../common/engine';
 import {NUM, STR} from '../common/query_result';
+import {escapeAndExpandQuery} from '../common/query_utils';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {TimeSpan} from '../common/time';
 import {publishSearch, publishSearchResult} from '../frontend/publish';
 
 import {Controller} from './controller';
 import {App} from './globals';
-
-export function escapeQuery(s: string): string {
-  // See https://www.sqlite.org/lang_expr.html#:~:text=A%20string%20constant
-  s = s.replace(/\'/g, '\'\'');
-  s = s.replace(/\[/g, '[[]');
-  s = s.replace(/\?/g, '[?]');
-  s = s.replace(/\*/g, '[*]');
-  return `'*${s}*'`;
-}
 
 export interface SearchControllerArgs {
   engine: Engine;
@@ -154,7 +146,7 @@ export class SearchController extends Controller<'main'> {
       resolution: number): Promise<SearchSummary> {
     const quantumNs = Math.round(resolution * 10 * 1e9);
 
-    const searchLiteral = escapeQuery(search);
+    const searchLiteral = escapeAndExpandQuery(search);
 
     startNs = Math.floor(startNs / quantumNs) * quantumNs;
 
@@ -213,7 +205,7 @@ export class SearchController extends Controller<'main'> {
   }
 
   private async specificSearch(search: string) {
-    const searchLiteral = escapeQuery(search);
+    const searchLiteral = escapeAndExpandQuery(search);
     // TODO(hjd): we should avoid recomputing this every time. This will be
     // easier once the track table has entries for all the tracks.
     const cpuToTrackId = new Map();

@@ -16,39 +16,39 @@
 DROP VIEW IF EXISTS battery_view;
 CREATE VIEW battery_view AS
 SELECT
-  all_ts.ts as ts,
+  all_ts.ts AS ts,
   current_avg_ua,
   capacity_percent,
   charge_uah,
   current_ua
 FROM (
-  SELECT distinct(ts) AS ts
+  SELECT DISTINCT(ts) AS ts
   FROM counter c
-  JOIN counter_track t on c.track_id = t.id
+  JOIN counter_track t ON c.track_id = t.id
   WHERE name GLOB 'batt.*'
 ) AS all_ts
 LEFT JOIN (
   SELECT ts, value AS current_avg_ua
   FROM counter c
-  JOIN counter_track t on c.track_id = t.id
+  JOIN counter_track t ON c.track_id = t.id
   WHERE name = 'batt.current.avg_ua'
 ) USING(ts)
 LEFT JOIN (
   SELECT ts, value AS capacity_percent
   FROM counter c
-  JOIN counter_track t on c.track_id = t.id
+  JOIN counter_track t ON c.track_id = t.id
   WHERE name = 'batt.capacity_pct'
 ) USING(ts)
 LEFT JOIN (
   SELECT ts, value AS charge_uah
   FROM counter c
-  JOIN counter_track t on c.track_id = t.id
+  JOIN counter_track t ON c.track_id = t.id
   WHERE name = 'batt.charge_uah'
 ) USING(ts)
 LEFT JOIN (
   SELECT ts, value AS current_ua
   FROM counter c
-  JOIN counter_track t on c.track_id = t.id
+  JOIN counter_track t ON c.track_id = t.id
   WHERE name = 'batt.current_ua'
 ) USING(ts)
 ORDER BY ts;

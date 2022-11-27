@@ -32,7 +32,7 @@ SELECT
       -- cmdline gets rewritten after fork, if these are still there we must
       -- have seen a racy capture.
     WHEN length(process.name) = 15 AND (
-      process.cmdline in ('zygote', 'zygote64', '<pre-initialized>')
+      process.cmdline IN ('zygote', 'zygote64', '<pre-initialized>')
       OR process.cmdline GLOB '*' || process.name)
     THEN process.cmdline
     ELSE process.name
@@ -65,7 +65,7 @@ WITH upid_packages AS (
     'package_name', package_list.package_name,
     'apk_version_code', package_list.version_code,
     'debuggable', package_list.debuggable
-  )) packages_for_uid
+  )) AS packages_for_uid
   FROM process
   JOIN package_list ON process.android_appid = package_list.uid
   GROUP BY upid

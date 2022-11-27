@@ -4,12 +4,12 @@
 DROP VIEW IF EXISTS android_trusty_workqueues_event;
 CREATE VIEW android_trusty_workqueues_event AS
 SELECT
-  'slice' as track_type,
-  name as slice_name,
+  'slice' AS track_type,
+  name AS slice_name,
   ts,
   dur,
-  'Cpu ' || EXTRACT_ARG(arg_set_id, 'cpu') as track_name,
-  'Trusty Workqueues' as group_name
+  'Cpu ' || EXTRACT_ARG(arg_set_id, 'cpu') AS track_name,
+  'Trusty Workqueues' AS group_name
 FROM slice
 WHERE slice.name GLOB 'nop_work_func*';
 
