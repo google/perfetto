@@ -75,6 +75,8 @@ struct ProtoFile {
     std::vector<Field> deleted_fields;
   };
 
+  std::string preamble;
+
   std::vector<Message> messages;
   std::vector<Enum> enums;
 
@@ -83,7 +85,8 @@ struct ProtoFile {
 };
 
 // Creates a ProtoFile struct from a libprotobuf-full descriptor clas.
-ProtoFile ProtoFileFromDescriptor(const google::protobuf::FileDescriptor&);
+ProtoFile ProtoFileFromDescriptor(std::string premable,
+                                  const google::protobuf::FileDescriptor&);
 
 }  // namespace proto_merger
 }  // namespace perfetto

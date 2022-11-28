@@ -197,6 +197,8 @@ std::string SerializeMessage(size_t indent, const ProtoFile::Message& message) {
 
 std::string ProtoFileToDotProto(const ProtoFile& proto_file) {
   std::string output;
+  output += proto_file.preamble;
+
   for (const auto& en : proto_file.enums) {
     output += SerializeEnum(0, en);
   }
