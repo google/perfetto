@@ -108,6 +108,7 @@ source_set("importers_full") {
     "../views",
     "android_bugreport",
     "common",
+    "common:parser_types",
     "fuchsia:fuchsia_record",
     "proto:storage_full",
     "proto:storage_minimal",

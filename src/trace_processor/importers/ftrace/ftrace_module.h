@@ -17,9 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_MODULE_H_
 
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/parser_types.h"
 
 namespace perfetto {
 namespace trace_processor {

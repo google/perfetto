@@ -19,6 +19,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_sorter.h"
@@ -153,7 +154,8 @@ void FtraceTokenizer::TokenizeFtraceEvent(uint32_t cpu,
       ResolveTraceTime(context_, clock_id, int64_timestamp);
   if (!timestamp)
     return;
-  context_->sorter->PushFtraceEvent(cpu, *timestamp, std::move(event), state);
+  context_->sorter->PushFtraceEvent(cpu, *timestamp, std::move(event),
+                                    state->current_generation());
 }
 
 PERFETTO_ALWAYS_INLINE
