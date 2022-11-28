@@ -23,7 +23,7 @@
 #include "perfetto/trace_processor/trace_blob.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
-#include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
 

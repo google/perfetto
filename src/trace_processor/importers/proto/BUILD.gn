@@ -12,23 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("storage_minimal") {
+import("../../../../gn/perfetto_cc_proto_descriptor.gni")
+
+source_set("minimal") {
   sources = [
     "active_chrome_processes_tracker.cc",
     "active_chrome_processes_tracker.h",
+    "async_track_set_tracker.cc",
+    "async_track_set_tracker.h",
+    "chrome_string_lookup.cc",
+    "chrome_string_lookup.h",
     "heap_profile_tracker.cc",
     "heap_profile_tracker.h",
     "packet_sequence_state.h",
     "packet_sequence_state_generation.cc",
     "profiler_util.cc",
     "profiler_util.h",
+    "proto_importer_module.cc",
+    "proto_importer_module.h",
     "stack_profile_tracker.cc",
     "stack_profile_tracker.h",
   ]
   deps = [
     ":packet_sequence_state_generation_hdr",
     "../../../../gn:default_deps",
+    "../../../../protos/perfetto/trace/chrome:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
+    "../../../../protos/perfetto/trace/track_event:zero",
     "../../../base",
     "../../storage",
     "../../tables",
@@ -38,20 +48,29 @@ source_set("storage_minimal") {
   ]
 }
 
-source_set("storage_full") {
+source_set("full") {
   sources = [
     "heap_graph_tracker.cc",
     "heap_graph_tracker.h",
+    "statsd_module.cc",
+    "statsd_module.h",
   ]
   deps = [
-    ":storage_minimal",
+    ":gen_cc_statsd_atoms_descriptor",
+    ":minimal",
     "../../../../gn:default_deps",
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
+    "../../../../protos/perfetto/trace/statsd:zero",
     "../../../base",
+    "../../sorter",
     "../../storage",
     "../../tables",
     "../../types",
+    "../../util:descriptors",
+    "../../util:proto_profiler",
+    "../../util:proto_to_args_parser",
+    "../common",
   ]
 }
 
@@ -66,6 +85,11 @@ source_set("packet_sequence_state_generation_hdr") {
   ]
 }
 
+perfetto_cc_proto_descriptor("gen_cc_statsd_atoms_descriptor") {
+  descriptor_name = "atoms.descriptor"
+  descriptor_path = "atoms.descriptor"
+}
+
 source_set("unittests") {
   testonly = true
   sources = [
@@ -74,8 +98,8 @@ source_set("unittests") {
     "heap_profile_tracker_unittest.cc",
   ]
   deps = [
-    ":storage_full",
-    ":storage_minimal",
+    ":full",
+    ":minimal",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../types",

@@ -24,8 +24,8 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/async_track_set_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/trace_sorter.h"
 
 namespace perfetto {
 namespace trace_processor {
