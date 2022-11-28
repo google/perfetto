@@ -215,14 +215,9 @@ button.close {
     &.pivot-table{
       thead, i {
         cursor: pointer;
-        td.drop-location {
-          background-color: hsla(210, 38%, 95%, 1);
-        }
-        .total-aggregation {
-          white-space: pre;
-          font-weight: 600;
-          font-size: 12px
-        }
+      }
+      thead td.reorderable-cell {
+        cursor: grab;
       }
       td {
         height: 25px;
