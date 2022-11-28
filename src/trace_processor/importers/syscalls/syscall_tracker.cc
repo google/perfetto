@@ -20,6 +20,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "perfetto/ext/base/string_utils.h"
 #include "src/kernel_utils/syscall_table.h"
 #include "src/trace_processor/storage/stats.h"
 
@@ -50,9 +51,8 @@ void SyscallTracker::SetArchitecture(Architecture arch) {
       if (!strcmp(name, "sys_write"))
         sys_write_string_id_ = id;
     } else {
-      char unknown_str[64];
-      sprintf(unknown_str, "sys_%zu", i);
-      id = context_->storage->InternString(unknown_str);
+      base::StackString<64> unknown_str("sys_%zu", i);
+      id = context_->storage->InternString(unknown_str.string_view());
     }
     arch_syscall_to_string_id_[i] = id;
   }
