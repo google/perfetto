@@ -3559,6 +3559,16 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
                             "B:disabled-by-default-cat.SlowDisabledEvent"));
   }
 
+  // Enable all legacy disabled-by-default categories by a pattern
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_disabled_categories("*");
+    te_cfg.add_enabled_categories("disabled-by-default-*");
+    auto slices = check_config(te_cfg);
+    EXPECT_THAT(slices,
+                ElementsAre("B:disabled-by-default-cat.SlowDisabledEvent"));
+  }
+
   // Enable everything including slow/debug categories.
   {
     perfetto::protos::gen::TrackEventConfig te_cfg;
