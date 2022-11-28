@@ -46,15 +46,6 @@ Here is an [example change](https://android-review.googlesource.com/c/platform/e
   3. Run the newly added test with `tools/diff_test_trace_processor.py <path to trace processor binary>`.
 4. Upload and land your change as normal.
 
-## {#new-annotation} Add a new annotation
-
-NOTE: all currently implemented annotations are based only on the name of the slice. It is straightforward to extend this to also consider ancestors and other similar properties; we plan on doing this in the future.
-
-1. Change the [`DescribeSlice`](/src/trace_processor/analysis/describe_slice.h) function as appropriate.
-  * The inputs are the table containing all the slices from the trace and the id of the slice which an embedder (e.g. the UI) is requesting a description for.
-  * The output is a `SliceDescription` which is simply a `pair<description, doc link>`.
-2. Upload and land your change as normal.
-
 ## Adding new derived events
 
 As derived events depend on metrics, the initial steps are same as that of developing a metric (see above).
