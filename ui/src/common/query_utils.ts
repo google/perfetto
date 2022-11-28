@@ -14,21 +14,38 @@
  * limitations under the License.
  */
 
-function replaceUndesiredCharacters(s: string): string {
+enum EscapeFlag {
+  CaseInsensitive = 1,
+  MatchAny = 2,
+}
+
+function escape(s: string, flags?: number): string {
+  flags = flags === undefined ? 0 : flags;
   // See https://www.sqlite.org/lang_expr.html#:~:text=A%20string%20constant
   s = s.replace(/\'/g, '\'\'');
   s = s.replace(/\[/g, '[[]');
+  if (flags & EscapeFlag.CaseInsensitive) {
+    s = s.replace(/[a-zA-Z]/g, (m) => {
+      const lower = m.toLowerCase();
+      const upper = m.toUpperCase();
+      return `[${lower}${upper}]`;
+    });
+  }
   s = s.replace(/\?/g, '[?]');
   s = s.replace(/\*/g, '[*]');
+  if (flags & EscapeFlag.MatchAny) {
+    s = `*${s}*`;
+  }
+  s = `'${s}'`;
   return s;
 }
 
 export function escapeQuery(s: string): string {
-  return `'${replaceUndesiredCharacters(s)}'`;
+  return escape(s);
 }
 
-export function escapeAndExpandQuery(s: string): string {
-  return `'*${replaceUndesiredCharacters(s)}*'`;
+export function escapeSearchQuery(s: string): string {
+  return escape(s, EscapeFlag.CaseInsensitive | EscapeFlag.MatchAny);
 }
 
 export function escapeGlob(s: string): string {

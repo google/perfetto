@@ -15,7 +15,7 @@
 import {sqliteString} from '../base/string_utils';
 import {Engine} from '../common/engine';
 import {NUM, STR} from '../common/query_result';
-import {escapeAndExpandQuery} from '../common/query_utils';
+import {escapeSearchQuery} from '../common/query_utils';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {TimeSpan} from '../common/time';
 import {publishSearch, publishSearchResult} from '../frontend/publish';
@@ -146,7 +146,7 @@ export class SearchController extends Controller<'main'> {
       resolution: number): Promise<SearchSummary> {
     const quantumNs = Math.round(resolution * 10 * 1e9);
 
-    const searchLiteral = escapeAndExpandQuery(search);
+    const searchLiteral = escapeSearchQuery(search);
 
     startNs = Math.floor(startNs / quantumNs) * quantumNs;
 
@@ -205,7 +205,7 @@ export class SearchController extends Controller<'main'> {
   }
 
   private async specificSearch(search: string) {
-    const searchLiteral = escapeAndExpandQuery(search);
+    const searchLiteral = escapeSearchQuery(search);
     // TODO(hjd): we should avoid recomputing this every time. This will be
     // easier once the track table has entries for all the tracks.
     const cpuToTrackId = new Map();
