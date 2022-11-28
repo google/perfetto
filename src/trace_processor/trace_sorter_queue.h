@@ -19,7 +19,9 @@
 
 #include <cstddef>
 #include <deque>
+
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/trace_sorter_internal.h"
 

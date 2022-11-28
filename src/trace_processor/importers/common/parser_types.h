@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PARSER_TYPES_H_
-#define SRC_TRACE_PROCESSOR_PARSER_TYPES_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_PARSER_TYPES_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_PARSER_TYPES_H_
 
 #include <stdint.h>
 
-#include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
-#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -31,14 +30,14 @@ struct InlineSchedSwitch {
   int64_t prev_state;
   int32_t next_pid;
   int32_t next_prio;
-  StringId next_comm;
+  StringPool::Id next_comm;
 };
 
 struct InlineSchedWaking {
   int32_t pid;
   int32_t target_cpu;
   int32_t prio;
-  StringId comm;
+  StringPool::Id comm;
 };
 
 struct TracePacketData {
@@ -66,4 +65,4 @@ struct TrackEventData {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_PARSER_TYPES_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_PARSER_TYPES_H_

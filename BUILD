@@ -1117,14 +1117,23 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/slice_translation_table.h",
         "src/trace_processor/importers/common/system_info_tracker.cc",
         "src/trace_processor/importers/common/system_info_tracker.h",
+        "src/trace_processor/importers/common/trace_parser.cc",
         "src/trace_processor/importers/common/track_tracker.cc",
         "src/trace_processor/importers/common/track_tracker.h",
     ],
 )
 
-# GN target: //src/trace_processor/importers/common:trace_parser
+# GN target: //src/trace_processor/importers/common:parser_types
 perfetto_filegroup(
-    name = "src_trace_processor_importers_common_trace_parser",
+    name = "src_trace_processor_importers_common_parser_types",
+    srcs = [
+        "src/trace_processor/importers/common/parser_types.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/common:trace_parser_hdr
+perfetto_filegroup(
+    name = "src_trace_processor_importers_common_trace_parser_hdr",
     srcs = [
         "src/trace_processor/importers/common/trace_parser.h",
     ],
@@ -1928,7 +1937,6 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/forwarding_trace_parser.cc",
         "src/trace_processor/forwarding_trace_parser.h",
-        "src/trace_processor/importers/common/trace_parser.cc",
         "src/trace_processor/importers/default_modules.cc",
         "src/trace_processor/importers/default_modules.h",
         "src/trace_processor/importers/ftrace/ftrace_module.cc",
@@ -1984,7 +1992,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/translation_table_module.cc",
         "src/trace_processor/importers/proto/translation_table_module.h",
         "src/trace_processor/importers/syscalls/syscall_tracker.h",
-        "src/trace_processor/parser_types.h",
         "src/trace_processor/trace_blob.cc",
         "src/trace_processor/trace_processor_context.cc",
         "src/trace_processor/trace_processor_storage.cc",
@@ -4377,7 +4384,8 @@ perfetto_cc_library(
         ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
-        ":src_trace_processor_importers_common_trace_parser",
+        ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_trace_parser_hdr",
         ":src_trace_processor_importers_fuchsia_fuchsia_record",
         ":src_trace_processor_importers_importers_full",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
@@ -4509,7 +4517,8 @@ perfetto_cc_binary(
         ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
-        ":src_trace_processor_importers_common_trace_parser",
+        ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_trace_parser_hdr",
         ":src_trace_processor_importers_fuchsia_fuchsia_record",
         ":src_trace_processor_importers_importers_full",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
@@ -4700,7 +4709,8 @@ perfetto_cc_binary(
         ":src_trace_processor_ftrace_descriptors",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
-        ":src_trace_processor_importers_common_trace_parser",
+        ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_trace_parser_hdr",
         ":src_trace_processor_importers_fuchsia_fuchsia_record",
         ":src_trace_processor_importers_importers_full",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
