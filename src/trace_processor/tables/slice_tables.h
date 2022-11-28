@@ -130,15 +130,6 @@ PERFETTO_TP_TABLE(PERFETTO_TP_GPU_SLICES_DEF);
 
 PERFETTO_TP_TABLE(PERFETTO_TP_GRAPHICS_FRAME_SLICES_DEF);
 
-#define PERFETTO_TP_DESCRIBE_SLICE_TABLE(NAME, PARENT, C) \
-  NAME(DescribeSliceTable, "describe_slice")              \
-  PERFETTO_TP_ROOT_TABLE(PARENT, C)                       \
-  C(uint32_t, slice_id, Column::Flag::kHidden)            \
-  C(StringPool::Id, description)                          \
-  C(StringPool::Id, doc_link)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_DESCRIBE_SLICE_TABLE);
-
 #define PERFETTO_TP_EXPECTED_FRAME_TIMELINE_SLICES_DEF(NAME, PARENT, C)  \
   NAME(ExpectedFrameTimelineSliceTable, "expected_frame_timeline_slice") \
   PARENT(PERFETTO_TP_SLICE_TABLE_DEF, C)                                 \

@@ -33,7 +33,6 @@
 #include "src/trace_processor/dynamic/ancestor_generator.h"
 #include "src/trace_processor/dynamic/connected_flow_generator.h"
 #include "src/trace_processor/dynamic/descendant_generator.h"
-#include "src/trace_processor/dynamic/describe_slice_generator.h"
 #include "src/trace_processor/dynamic/experimental_annotated_stack_generator.h"
 #include "src/trace_processor/dynamic/experimental_counter_dur_generator.h"
 #include "src/trace_processor/dynamic/experimental_flamegraph_generator.h"
@@ -311,6 +310,15 @@ void CreateBuiltinViews(sqlite3* db) {
                "  WHEN 'json' THEN string_value "
                "ELSE NULL END AS display_value "
                "FROM internal_args;",
+               nullptr, nullptr, &error);
+  MaybeRegisterError(error);
+
+  // TODO(lalitm): delete this any time after ~Feb 2023 when no version of the
+  // UI will be querying this anymore (describe_slice backing code was removed
+  // at end of November).
+  sqlite3_exec(db,
+               "CREATE TABLE describe_slice(id INT, type TEXT, "
+               "slice_id INT, description TEXT, doc_link TEXT);",
                nullptr, nullptr, &error);
   MaybeRegisterError(error);
 
@@ -764,8 +772,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       new ExperimentalFlamegraphGenerator(&context_)));
   RegisterDynamicTable(std::unique_ptr<ExperimentalCounterDurGenerator>(
       new ExperimentalCounterDurGenerator(storage->counter_table())));
-  RegisterDynamicTable(std::unique_ptr<DescribeSliceGenerator>(
-      new DescribeSliceGenerator(&context_)));
   RegisterDynamicTable(std::unique_ptr<ExperimentalSliceLayoutGenerator>(
       new ExperimentalSliceLayoutGenerator(
           context_.storage.get()->mutable_string_pool(),
