@@ -20,9 +20,9 @@
 
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/sorter/trace_sorter_queue.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/trace_sorter.h"
-#include "src/trace_processor/trace_sorter_queue.h"
 
 namespace perfetto {
 namespace trace_processor {
