@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_TRACE_SORTER_H_
-#define SRC_TRACE_PROCESSOR_TRACE_SORTER_H_
+#ifndef SRC_TRACE_PROCESSOR_SORTER_TRACE_SORTER_H_
+#define SRC_TRACE_PROCESSOR_SORTER_TRACE_SORTER_H_
 
 #include <algorithm>
 #include <memory>
@@ -30,7 +30,7 @@
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
-#include "src/trace_processor/trace_sorter_queue.h"
+#include "src/trace_processor/sorter/trace_sorter_queue.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -400,4 +400,4 @@ class TraceSorter {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_TRACE_SORTER_H_
+#endif  // SRC_TRACE_PROCESSOR_SORTER_TRACE_SORTER_H_

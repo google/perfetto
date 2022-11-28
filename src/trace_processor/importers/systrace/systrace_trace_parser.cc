@@ -21,7 +21,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 
 #include <cctype>
 #include <cinttypes>
