@@ -35,8 +35,9 @@
   background-color: #fff;
   display: grid;
   grid-template-rows: auto 1fr;
-  grid-template-areas: "header"
-                       "content";
+  grid-template-areas:
+    "header"
+    "content";
   overflow: hidden;
   z-index: 6;
 
@@ -52,7 +53,7 @@
     height: 100%;
     text-align: center;
     padding: 180px 30px;
-    font-family: 'Raleway', sans-serif;
+    font-family: "Raleway", sans-serif;
     font-size: 25px;
   }
 }
@@ -67,13 +68,12 @@
   }
 
   .record-modal-section {
-
     display: flex;
     flex-direction: row;
 
     .logo-wrapping {
       border-radius: 50%;
-      background-color: #F0F0F0;
+      background-color: #f0f0f0;
       width: 150px;
       height: 150px;
       display: inline-block;
@@ -81,7 +81,7 @@
       align-self: center;
 
       i.material-icons {
-        color: #0000FF;
+        color: #0000ff;
         font-size: 150px;
       }
     }
@@ -112,7 +112,7 @@
         padding-top: 15px;
         align-self: start;
         font-size: 1.2rem;
-        color: #0000FF;
+        color: #0000ff;
       }
 
       h4 {
@@ -125,7 +125,7 @@
         color: #000000;
       }
 
-      input[type=text] {
+      input[type="text"] {
         flex-grow: 1;
         border-radius: 4px;
         border: 1px solid #dcdcdc;
@@ -141,13 +141,15 @@
     }
   }
 
-  .record-modal-button, .record-modal-button-high, .record-modal-logo-button {
-    font-size: .875rem;
+  .record-modal-button,
+  .record-modal-button-high,
+  .record-modal-logo-button {
+    font-size: 0.875rem;
     padding-left: 1rem;
     padding-right: 1rem;
-    padding-top: .5rem;
-    padding-bottom: .5rem;
-    background-color: #0000FF;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    background-color: #0000ff;
     color: #ffffff;
     cursor: pointer;
     -webkit-appearance: button;
@@ -160,13 +162,14 @@
     -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
     transform: translateZ(0);
-    transition: transform .25s ease-out;
+    transition: transform 0.25s ease-out;
     align-self: end;
     text-align: center;
   }
 
-  .record-modal-button, .record-modal-button-high {
-    border-radius: .25rem;
+  .record-modal-button,
+  .record-modal-button-high {
+    border-radius: 0.25rem;
     border-style: none;
     border-width: 0;
   }
@@ -224,14 +227,14 @@
       width: auto;
       height: 50px;
       margin: 0;
-      >* {
+      > * {
         @include transition(0.2s);
         cursor: pointer;
         border-radius: 10px;
         margin: 10px;
         text-align: center;
         background-color: #eee;
-        font-family: 'Raleway', sans-serif;
+        font-family: "Raleway", sans-serif;
         font-size: 17px;
         @media (max-width: 1280px) {
           font-size: 1.6vw;
@@ -265,12 +268,14 @@
         align-items: center;
       }
 
-      label, select, button {
+      label,
+      select,
+      button {
         font-weight: 300;
         margin: 3px;
         color: #333;
         font-size: 17px;
-        font-family: 'Roboto', sans-serif;
+        font-family: "Roboto", sans-serif;
         align-items: center;
 
         &.error-label {
@@ -289,7 +294,8 @@
         border-radius: 20px;
         padding: 4px;
         height: 30px;
-        &:hover, &:active {
+        &:hover,
+        &:active {
           box-shadow: 0 0 4px 0 #ccc;
           background-color: #fafafa;
         }
@@ -306,7 +312,7 @@
     margin-bottom: 5px;
     background: #f9eeba;
     padding: 10px;
-    font-family: 'Roboto', sans-serif;
+    font-family: "Roboto", sans-serif;
     font-size: 14px;
     line-height: 20px;
   }
@@ -317,7 +323,8 @@
     border-radius: 0;
     border: 1px solid #eee;
     outline: none;
-    &:hover, &:active {
+    &:hover,
+    &:active {
       box-shadow: 0 0 6px #ccc;
     }
   }
@@ -326,14 +333,16 @@
 // The left-hand-side menu with 'Cpu', 'Memory' etc.
 .record-menu {
   grid-area: sidebar;
-  .rec { color: #ee3326; }
+  .rec {
+    color: #ee3326;
+  }
 
   background-color: #fcfcfc;
   border-right: 1px solid #eee;
   padding-bottom: 1em;
 
   header {
-    font-family: 'Roboto', sans-serif;
+    font-family: "Roboto", sans-serif;
     font-size: 14px;
     font-weight: 700;
     margin: 1em;
@@ -345,7 +354,9 @@
     padding: 0;
   }
 
-  a, a:link, a:visited {
+  a,
+  a:link,
+  a:visited {
     text-decoration: none;
   }
 
@@ -355,7 +366,7 @@
     padding: 0 1em;
     font-size: 15px;
     letter-spacing: 0.5px;
-    font-family: 'Raleway', sans-serif;
+    font-family: "Raleway", sans-serif;
     font-weight: 600;
     color: #666;
     display: grid;
@@ -377,7 +388,7 @@
     }
 
     .title {
-      transition: line-height .25s ease;
+      transition: line-height 0.25s ease;
       grid-area: title;
       line-height: 55px;
       display: block;
@@ -394,28 +405,30 @@
 
     &:hover {
       background-color: hsl(214, 0%, 90%);
-      .title { line-height: 50px; }
+      .title {
+        line-height: 50px;
+      }
       .sub {
         opacity: 1;
         transition-duration: 0.25s;
-        transition-delay: 0.0s;
+        transition-delay: 0s;
       }
     }
 
     &.active {
       background-color: hsl(214, 80%, 70%);
-      .title, .sub {
+      .title,
+      .sub {
         color: white;
       }
     }
-  }  // li
+  } // li
 
   &.disabled {
-    opacity: 0.50;
+    opacity: 0.5;
     pointer-events: none;
   }
-}  // record-menu
-
+} // record-menu
 
 .record-section {
   grid-area: section;
@@ -463,7 +476,7 @@
     margin-right: 10px;
     text-align: center;
     justify-items: center;
-    font-family: 'Raleway', sans-serif;
+    font-family: "Raleway", sans-serif;
     padding: 7px;
 
     &:hover:enabled {
@@ -516,7 +529,7 @@
       line-height: 36px;
       padding: 0 10px;
       font-size: 18px;
-      font-family: 'Roboto Condensed', sans-serif;
+      font-family: "Roboto Condensed", sans-serif;
       font-weight: 300;
       color: #666;
       flex-grow: 1;
@@ -529,7 +542,7 @@
       }
       &::placeholder {
         color: #b4b7ba;
-        font-family: 'Raleway', sans-serif;
+        font-family: "Raleway", sans-serif;
         font-weight: 400;
       }
     }
@@ -538,16 +551,20 @@
   // By default space all section elements by the same amount.
   --record-section-padding: 20px;
 
-  >* {
+  > * {
     padding-left: var(--record-section-padding);
     padding-right: var(--record-section-padding);
-    &:first-child { padding-top: 20px; }
-    &:last-child { padding-bottom: 20px; }
+    &:first-child {
+      padding-top: 20px;
+    }
+    &:last-child {
+      padding-bottom: 20px;
+    }
   }
 
-  >header {
+  > header {
     text-align: center;
-    font-family: 'Raleway', sans-serif;
+    font-family: "Raleway", sans-serif;
     font-size: 20px;
     padding: 15px 10px;
     color: #333;
@@ -577,7 +594,7 @@
       background-color: #f9f9f9;
     }
 
-    >img {
+    > img {
       transition: filter 0.2s ease, opacity 0.2s ease;
       grid-area: img;
       width: 210px;
@@ -588,25 +605,27 @@
     }
 
     &:hover {
-      >img { opacity: 1; }
-      >label {
+      > img {
+        opacity: 1;
+      }
+      > label {
         color: #333;
-        input[type=checkbox]::after {
+        input[type="checkbox"]::after {
           background: hsl(207, 60%, 60%);
         }
       }
-    }  // :hover
+    } // :hover
 
-    >label {
+    > label {
       grid-area: label;
       cursor: pointer;
-      font-family: 'Roboto' , sans-serif;
+      font-family: "Roboto", sans-serif;
       font-size: 20px;
       font-weight: 400;
       color: #999;
 
       // The per-probe on-off switch.
-      input[type=checkbox] {
+      input[type="checkbox"] {
         -moz-appearance: none;
         -webkit-appearance: none;
         cursor: pointer;
@@ -634,8 +653,8 @@
           height: 26px;
           border-radius: 100px;
           background: #f5f5f5;
-          box-shadow: 0 3px 3px rgba(0,0,0,0.15);
-          content: '';
+          box-shadow: 0 3px 3px rgba(0, 0, 0, 0.15);
+          content: "";
           transition: all 0.3s ease;
         }
         &:checked {
@@ -648,11 +667,11 @@
           left: 20px;
           background: #27303d;
         }
-      }  // checkbox
-    }  // label
+      } // checkbox
+    } // label
 
     // The content of the probe section.
-    >div {
+    > div {
       grid-area: descr;
       font-size: 14px;
       font-weight: 200;
@@ -676,35 +695,39 @@
         visibility: visible;
         max-height: 100vh;
       }
-      >label span { color: #4e80b7; }
-      >img {
+      > label span {
+        color: #4e80b7;
+      }
+      > img {
         filter: saturate(1);
         opacity: 1;
       }
     }
-  }  // probe
+  } // probe
 
   .toggle {
     transition: color 0.2s ease;
     padding-top: var(--record-section-padding);
 
     &:hover {
-      >img { opacity: 1; }
-      >label {
+      > img {
+        opacity: 1;
+      }
+      > label {
         color: #333;
-        input[type=checkbox]::after {
+        input[type="checkbox"]::after {
           background: hsl(207, 60%, 60%);
         }
       }
-    }  // :hover
+    } // :hover
 
-    >label {
+    > label {
       cursor: pointer;
       font-size: 14px;
       color: var(--record-text-color);
 
       // The per-probe on-off switch.
-      input[type=checkbox] {
+      input[type="checkbox"] {
         -moz-appearance: none;
         -webkit-appearance: none;
         cursor: pointer;
@@ -732,8 +755,8 @@
           height: 20px;
           border-radius: 100px;
           background: #f5f5f5;
-          box-shadow: 0 3px 3px rgba(0,0,0,0.15);
-          content: '';
+          box-shadow: 0 3px 3px rgba(0, 0, 0, 0.15);
+          content: "";
           transition: all 0.3s ease;
         }
         &:checked {
@@ -746,16 +769,16 @@
           left: 12px;
           background: #27303d;
         }
-      }  // checkbox
-    }  // label
+      } // checkbox
+    } // label
 
     // The content of the toggle section.
-    >div.descr {
+    > div.descr {
       padding-left: 36px;
       font-size: 12px;
       color: #666;
     }
-  }  // toggle
+  } // toggle
 
   // The three "Stop when full", "Ring buffer", "Long trace" buttons.
   .record-mode {
@@ -765,20 +788,20 @@
     grid-template-rows: 1fr;
     padding-top: 0;
 
-    input[type=radio] {
+    input[type="radio"] {
       appearance: none;
       -webkit-appearance: none;
       display: none;
     }
 
-    >* {
+    > * {
       @include transition(0.2s);
       cursor: pointer;
       border-radius: 15px;
       margin: 5px;
       text-align: center;
       background-color: #eee;
-      font-family: 'Raleway', sans-serif;
+      font-family: "Raleway", sans-serif;
       font-size: 20px;
       @media (max-width: 1280px) {
         font-size: 1.6vw;
@@ -799,7 +822,7 @@
         width: 100%;
       }
     }
-  }  // record-mode
+  } // record-mode
 
   // There are two types of sliders:
   // 1) The full-width one (default), e.g. the one used in the main recording
@@ -811,39 +834,41 @@
     display: grid;
     grid-template-columns: 40px 1fr 130px 0;
     grid-template-rows: 30px min-content 1fr;
-    grid-template-areas: "hdr hdr hdr hdr" "descr descr descr descr"
-    "icon slider label unit";
+    grid-template-areas:
+      "hdr hdr hdr hdr" "descr descr descr descr"
+      "icon slider label unit";
     margin-top: var(--record-section-padding);
 
     &.thin {
       grid-template-columns: 1fr 1fr 100px 0;
-      grid-template-areas: "hdr hdr hdr hdr" "descr descr descr descr"
-      "slider slider label unit";
+      grid-template-areas:
+        "hdr hdr hdr hdr" "descr descr descr descr"
+        "slider slider label unit";
     }
 
     &.greyed-out {
       opacity: 0.5;
     }
 
-    >* {
+    > * {
       height: 40px;
       line-height: 40px;
     }
 
-    >header {
+    > header {
       @include transition(0.3s);
       opacity: 0.6;
       color: #333;
       grid-area: hdr;
     }
 
-    &.thin >header {
+    &.thin > header {
       opacity: 1;
       color: var(--record-text-color);
       font-size: 14px;
     }
 
-    &.thin >header.descr {
+    &.thin > header.descr {
       grid-area: descr;
       font-size: 12px;
       color: #666;
@@ -856,19 +881,19 @@
       transition-duration: 0.15s;
     }
 
-    >i {
+    > i {
       grid-area: icon;
       font-size: 32px;
       color: #333;
     }
 
-    input[type=range] {
+    input[type="range"] {
       grid-area: slider;
       width: 100%;
       appearance: none;
       -webkit-appearance: none;
       scroll-snap-type: x mandatory;
-      background-color : transparent;
+      background-color: transparent;
       outline: none;
       margin-left: -10px;
       margin-top: -5px;
@@ -877,7 +902,7 @@
         margin: 10px;
         width: 100%;
         height: 10px;
-        background-color : #ddd;
+        background-color: #ddd;
         border-radius: 4px;
       }
 
@@ -902,11 +927,11 @@
       }
     }
 
-    &.thin input[type=range]::-webkit-slider-runnable-track {
+    &.thin input[type="range"]::-webkit-slider-runnable-track {
       height: 8px;
     }
 
-    &.thin input[type=range]::-webkit-slider-thumb {
+    &.thin input[type="range"]::-webkit-slider-thumb {
       width: 20px;
       border-radius: 100%;
     }
@@ -919,7 +944,7 @@
       padding: 0 5px;
       border-radius: 2px;
       background-color: rgba(255, 255, 255, 60%);
-      font-family: 'Roboto', sans-serif;
+      font-family: "Roboto", sans-serif;
       font-size: 16px;
       font-weight: 100;
       height: 35px;
@@ -932,14 +957,15 @@
         margin: 0;
       }
 
-      &:hover, &:focus {
+      &:hover,
+      &:focus {
         border-bottom-color: hsl(207, 90%, 54%);
-        background-color: hsl(207, 50%, 97%);;
+        background-color: hsl(207, 50%, 97%);
       }
 
       &:invalid {
         border-bottom-color: hsl(9, 90%, 54%);
-        background-color: hsl(9, 50%, 97%);;
+        background-color: hsl(9, 50%, 97%);
       }
     }
 
@@ -979,13 +1005,13 @@
         border-radius: 10px;
         border: 1px solid #eee;
         margin: 0 5px;
-        font-size: .8rem;
+        font-size: 0.8rem;
       }
 
       .checkboxes {
         list-style-type: none;
         padding: 0;
-        font-size: .9rem;
+        font-size: 0.9rem;
 
         li {
           margin: 6px 0;
@@ -1002,7 +1028,8 @@
     outline: none;
     -webkit-appearance: none;
 
-    option, optgroup {
+    option,
+    optgroup {
       @include transition();
       min-height: 25px;
       font-size: 12px;
@@ -1019,7 +1046,7 @@
       }
       &::before {
         display: none;
-        content: '';
+        content: "";
       }
     }
 
@@ -1093,7 +1120,9 @@
     outline: none;
     font-family: var(--monospace-font);
 
-    &::placeholder { color: #aaa; }
+    &::placeholder {
+      color: #aaa;
+    }
   }
 
   textarea.atrace-apps-list {
@@ -1102,11 +1131,12 @@
   }
 
   &.instructions {
-    label, select {
+    label,
+    select {
       font-weight: 100;
       color: #333;
       font-size: 16px;
-      font-family: 'Roboto', sans-serif;
+      font-family: "Roboto", sans-serif;
     }
 
     .note {
@@ -1114,7 +1144,7 @@
       background: #f9eeba;
       margin: var(--record-section-padding);
       padding: 10px;
-      font-family: 'Roboto', sans-serif;
+      font-family: "Roboto", sans-serif;
       font-size: 14px;
       line-height: 20px;
     }
@@ -1126,7 +1156,8 @@
       border: 1px solid #eee;
       outline: none;
 
-      &:hover, &:active {
+      &:hover,
+      &:active {
         box-shadow: 0 0 6px #ccc;
       }
     }
@@ -1137,14 +1168,14 @@
       align-items: center;
       width: auto;
       height: 70px;
-      >* {
+      > * {
         @include transition(0.2s);
         cursor: pointer;
         border-radius: 10px;
         text-align: center;
         margin: 3px;
         background-color: #eee;
-        font-family: 'Raleway', sans-serif;
+        font-family: "Raleway", sans-serif;
         flex-grow: 1;
         font-size: 17px;
         @media (max-width: 1280px) {
@@ -1171,7 +1202,7 @@
       border-radius: 10px;
       text-align: center;
       justify-items: center;
-      font-family: 'Raleway', sans-serif;
+      font-family: "Raleway", sans-serif;
       padding: 7px;
       background-color: hsl(88, 50%, 67%);
 
@@ -1195,16 +1226,17 @@
       background-color: #eee;
     }
   }
-}  // record-section
+} // record-section
 
 .inline-chip {
   @include transition();
-  &:hover, &:active {
+  &:hover,
+  &:active {
     box-shadow: 0 0 2px 0 #ccc;
     background-color: #fafafa;
   }
 
-  >i.material-icons {
+  > i.material-icons {
     color: rgb(60, 60, 60);
     font-size: 14px;
   }
@@ -1217,7 +1249,9 @@
   border-radius: 9px;
 }
 
-a.inline-chip, a.inline-chip:link, a.inline-chip:visited {
+a.inline-chip,
+a.inline-chip:link,
+a.inline-chip:visited {
   text-decoration: none;
   color: var(--record-text-color);
 }
@@ -1231,12 +1265,22 @@ a.inline-chip, a.inline-chip:link, a.inline-chip:visited {
   border-radius: 4px;
   box-shadow: 0 0 12px #999;
 
-  @keyframes ripple{
-    0% { transform: scale(1.00); }
-    30% { transform: scale(1.20); }
-    60% { transform: scale(1.00); }
-    80% { transform: scale(1.30); }
-    100% { transform: scale(1.20); }
+  @keyframes ripple {
+    0% {
+      transform: scale(1);
+    }
+    30% {
+      transform: scale(1.2);
+    }
+    60% {
+      transform: scale(1);
+    }
+    80% {
+      transform: scale(1.3);
+    }
+    100% {
+      transform: scale(1.2);
+    }
   }
 
   &::before {
@@ -1253,7 +1297,7 @@ a.inline-chip, a.inline-chip:link, a.inline-chip:visited {
     }
   }
 
-  >code {
+  > code {
     display: block;
     margin: 10px 5px 20px 20px;
     color: #ccc;
@@ -1269,7 +1313,7 @@ a.inline-chip, a.inline-chip:link, a.inline-chip:visited {
     max-height: 510px;
   }
 
-  >button {
+  > button {
     @include transition();
     display: inline-block;
     position: absolute;
@@ -1281,7 +1325,7 @@ a.inline-chip, a.inline-chip:link, a.inline-chip:visited {
     box-shadow: 0 0 2px rgba(255, 255, 255, 200);
     padding: 5px;
     font-size: 16px;
-    line-height: 13px;  // Deliberately smaller to center the icon.
+    line-height: 13px; // Deliberately smaller to center the icon.
     user-select: none;
 
     &:hover {
@@ -1290,13 +1334,13 @@ a.inline-chip, a.inline-chip:link, a.inline-chip:visited {
     }
   }
 
-  &:active:hover >button:not(:hover) {
+  &:active:hover > button:not(:hover) {
     animation: ripple linear 0.5s;
     background-color: #701d17;
     transform: scale(1.1);
   }
 
-  >button:active:hover {
+  > button:active:hover {
     transform: scale(0.9);
   }
-}  // code-snippet
+} // code-snippet
