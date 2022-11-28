@@ -19,11 +19,11 @@
 
 #include <cstdint>
 #include "perfetto/base/build_config.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/frame_timeline_event_parser.h"
 #include "src/trace_processor/importers/proto/gpu_event_parser.h"
 #include "src/trace_processor/importers/proto/graphics_frame_event_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/parser_types.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 

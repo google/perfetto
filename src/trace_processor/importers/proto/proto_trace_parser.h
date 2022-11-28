@@ -23,8 +23,8 @@
 #include <memory>
 
 #include "perfetto/protozero/field.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
-#include "src/trace_processor/parser_types.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
