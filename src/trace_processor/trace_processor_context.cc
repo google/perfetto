@@ -38,7 +38,7 @@
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
-#include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/destructible.h"
 
 namespace perfetto {

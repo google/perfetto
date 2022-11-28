@@ -99,6 +99,7 @@ source_set("importers_full") {
     "../../../protos/perfetto/trace/gpu:zero",
     "../../../protos/perfetto/trace/interned_data:zero",
     "../../protozero",
+    "../sorter",
     "../storage",
     "../tables",
     "../types",
@@ -110,18 +111,13 @@ source_set("importers_full") {
     "common",
     "common:parser_types",
     "fuchsia:fuchsia_record",
-    "proto:storage_full",
-    "proto:storage_minimal",
+    "proto:full",
+    "proto:minimal",
     "systrace:systrace_line",
   ]
   if (enable_perfetto_trace_processor_json) {
     deps += [ "../../../gn:jsoncpp" ]
   }
-}
-
-perfetto_cc_proto_descriptor("gen_cc_statsd_atoms_descriptor") {
-  descriptor_name = "atoms.descriptor"
-  descriptor_path = "./proto/atoms.descriptor"
 }
 
 perfetto_cc_proto_descriptor("gen_cc_config_descriptor") {
