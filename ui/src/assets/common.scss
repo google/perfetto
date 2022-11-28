@@ -12,50 +12,41 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 :root {
-    --sidebar-width: 256px;
-    --topbar-height: 48px;
-    --monospace-font: 'Roboto Mono', monospace;
-    --track-shell-width: 250px;
-    --track-border-color: #00000025;
-    --anim-easing: cubic-bezier(0.4, 0.0, 0.2, 1);
-    --selection-stroke-color: #00344596;
-    --selection-fill-color: #8398e64d;
-    --overview-timeline-non-visible-color: #c8c8c8cc;
-    --details-content-height: 280px;
+  --sidebar-width: 256px;
+  --topbar-height: 48px;
+  --monospace-font: "Roboto Mono", monospace;
+  --track-shell-width: 250px;
+  --track-border-color: #00000025;
+  --anim-easing: cubic-bezier(0.4, 0, 0.2, 1);
+  --selection-stroke-color: #00344596;
+  --selection-fill-color: #8398e64d;
+  --overview-timeline-non-visible-color: #c8c8c8cc;
+  --details-content-height: 280px;
 }
 
-@mixin transition($time:0.1s) {
-    transition: opacity $time ease,
-                color $time ease,
-                background-color $time ease,
-                border-color $time ease,
-                width $time ease,
-                height $time ease,
-                max-width $time ease,
-                max-height $time ease,
-                margin $time ease,
-                transform $time ease,
-                box-shadow $time ease,
-                border-radius $time ease;
+@mixin transition($time: 0.1s) {
+  transition: opacity $time ease, color $time ease, background-color $time ease,
+    border-color $time ease, width $time ease, height $time ease,
+    max-width $time ease, max-height $time ease, margin $time ease,
+    transform $time ease, box-shadow $time ease, border-radius $time ease;
 }
 
 @mixin material-icon($content) {
-    direction: ltr;
-    display: inline-block;
-    font-family: 'Material Icons';
-    font-size: 24px;
-    font-style: normal;
-    font-weight: normal;
-    letter-spacing: normal;
-    line-height: 1;
-    text-transform: none;
-    white-space: nowrap;
-    word-wrap: normal;
-    -webkit-font-feature-settings: 'liga';
-    -webkit-font-smoothing: antialiased;
-    content: $content;
+  direction: ltr;
+  display: inline-block;
+  font-family: "Material Icons";
+  font-size: 24px;
+  font-style: normal;
+  font-weight: normal;
+  letter-spacing: normal;
+  line-height: 1;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  content: $content;
 }
-
 
 @mixin track_shell_title() {
   // line-height is deliberately 1px larger than font-size. Roboto seems to
@@ -66,34 +57,35 @@
   overflow: hidden;
   text-align: left;
   overflow-wrap: break-word;
-  font-family: 'Roboto Condensed', sans-serif;
+  font-family: "Roboto Condensed", sans-serif;
   font-weight: 300;
   letter-spacing: -0.25px;
 }
 
 * {
-    box-sizing: border-box;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: none;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
 }
 
 html {
-    font-family: Roboto, verdana, sans-serif;
-    height: 100%;
-    width: 100%;
+  font-family: Roboto, verdana, sans-serif;
+  height: 100%;
+  width: 100%;
 }
 
 html,
 body,
-body>main {
-    height: 100%;
-    width: 100%;
-    padding: 0;
-    margin: 0;
-    overscroll-behavior: none;
+body > main {
+  height: 100%;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  overscroll-behavior: none;
 }
 
-pre, code {
+pre,
+code {
   font-family: var(--monospace-font);
 }
 
@@ -107,30 +99,30 @@ body.testing {
 h1,
 h2,
 h3 {
-    font-family: inherit;
-    font-size: inherit;
-    font-weight: inherit;
-    padding: 0;
-    margin: 0;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  padding: 0;
+  margin: 0;
 }
 table {
-    user-select: text;
+  user-select: text;
 }
 
-body>main {
-    display: grid;
-    grid-template-areas:
-      "sidebar topbar"
-      "sidebar alerts"
-      "sidebar page";
-    grid-template-rows: auto auto 1fr;
-    grid-template-columns: auto 1fr;
-    color: #121212;
-    overflow: hidden;
+body > main {
+  display: grid;
+  grid-template-areas:
+    "sidebar topbar"
+    "sidebar alerts"
+    "sidebar page";
+  grid-template-rows: auto auto 1fr;
+  grid-template-columns: auto 1fr;
+  color: #121212;
+  overflow: hidden;
 }
 
 body.filedrag::after {
-  content: 'Drop the trace file to open it';
+  content: "Drop the trace file to open it";
   position: fixed;
   z-index: 99;
   top: 0;
@@ -160,22 +152,22 @@ button.close {
 }
 
 .full-page-loading-screen {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-direction: row;
-    background: #3e4a5a url('assets/logo-3d.png') no-repeat fixed center;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: row;
+  background: #3e4a5a url("assets/logo-3d.png") no-repeat fixed center;
 }
 
 .page {
-    grid-area: page;
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+  grid-area: page;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .split-panel {
@@ -189,8 +181,8 @@ button.close {
 .alerts {
   grid-area: alerts;
   background-color: #f2f2f2;
-  >div {
-    font-family: 'Raleway', sans-serif;
+  > div {
+    font-family: "Raleway", sans-serif;
     font-weight: 400;
     letter-spacing: 0.25px;
     padding: 1rem;
@@ -200,7 +192,6 @@ button.close {
       width: 24px;
       height: 24px;
     }
-
   }
 }
 
@@ -209,68 +200,69 @@ button.close {
 }
 
 .query-table {
-    width: 100%;
-    font-size: 14px;
-    border: 0;
-    &.pivot-table{
-      thead, i {
-        cursor: pointer;
-      }
-      thead td.reorderable-cell {
-        cursor: grab;
-      }
-      td {
-        height: 25px;
-      }
-      .disabled {
-        cursor: default;
-      }
-      .indent {
-        display: inline-block;
-        // 24px is the width of expand_more/expand_less icon to pad out cells
-        // without the button
-        width: 24px;
-      }
+  width: 100%;
+  font-size: 14px;
+  border: 0;
+  &.pivot-table {
+    thead,
+    i {
+      cursor: pointer;
     }
-    thead td {
-        position: sticky;
-        top: 0;
-        background-color: hsl(214, 22%, 90%);
-        color: #262f3c;
-        text-align: center;
-        padding: 1px 3px;
-        border-style: solid;
-        border-color: #fff;
-        border-right-width: 1px;
-        border-left-width: 1px;
+    thead td.reorderable-cell {
+      cursor: grab;
     }
-    tbody tr {
-        @include transition();
-        background-color: hsl(214, 22%, 100%);
-        font-family: var(--monospace-font);
-        &:nth-child(even) {
-            background-color: hsl(214, 22%, 95%);
-        }
-        td:first-child {
-            padding-left: 5px;
-        }
-        td:last-child {
-            padding-right: 5px;
-        }
-        &:hover {
-            background-color: hsl(214, 22%, 90%);
-        }
-        &[clickable] {
-          cursor: pointer;
-        }
+    td {
+      height: 25px;
     }
+    .disabled {
+      cursor: default;
+    }
+    .indent {
+      display: inline-block;
+      // 24px is the width of expand_more/expand_less icon to pad out cells
+      // without the button
+      width: 24px;
+    }
+  }
+  thead td {
+    position: sticky;
+    top: 0;
+    background-color: hsl(214, 22%, 90%);
+    color: #262f3c;
+    text-align: center;
+    padding: 1px 3px;
+    border-style: solid;
+    border-color: #fff;
+    border-right-width: 1px;
+    border-left-width: 1px;
+  }
+  tbody tr {
+    @include transition();
+    background-color: hsl(214, 22%, 100%);
+    font-family: var(--monospace-font);
+    &:nth-child(even) {
+      background-color: hsl(214, 22%, 95%);
+    }
+    td:first-child {
+      padding-left: 5px;
+    }
+    td:last-child {
+      padding-right: 5px;
+    }
+    &:hover {
+      background-color: hsl(214, 22%, 90%);
+    }
+    &[clickable] {
+      cursor: pointer;
+    }
+  }
 }
 
 .query-error {
-    padding: 20px 10px;
-    color: hsl(-10, 50%, 50%);
-    font-family: 'Roboto Condensed', sans-serif;
-    font-weight: 300;
+  padding: 20px 10px;
+  color: hsl(-10, 50%, 50%);
+  font-family: "Roboto Condensed", sans-serif;
+  font-weight: 300;
 }
 
 .dropdown {
@@ -307,7 +299,7 @@ button.close {
     text-align: right;
     line-height: 1;
     display: block; // Required in order for inherited white-space property not
-                    // to screw up vertical rendering of the popup menu items.
+    // to screw up vertical rendering of the popup menu items.
 
     &:hover {
       background: #c7d0db;
@@ -320,98 +312,98 @@ button.close {
 }
 
 .track {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: 1fr 0;
+
+  &::after {
+    display: block;
+    content: "";
+    grid-column: 1 / span 2;
+    border-top: 1px solid var(--track-border-color);
+    margin-top: -1px;
+    z-index: 2;
+  }
+
+  .track-shell {
+    @include transition();
+    padding-left: 10px;
     display: grid;
-    grid-template-columns: auto 1fr;
-    grid-template-rows: 1fr 0;
+    cursor: grab;
+    grid-template-areas: "title buttons";
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    width: var(--track-shell-width);
+    background: #fff;
+    border-right: 1px solid #c7d0db;
 
-    &::after {
-      display: block;
-      content: '';
-      grid-column: 1 / span 2;
-      border-top: 1px solid var(--track-border-color);
-      margin-top: -1px;
-      z-index: 2;
+    &.drag {
+      background-color: #eee;
+      box-shadow: 0 4px 12px -4px #999 inset;
+    }
+    &.drop-before {
+      box-shadow: 0 4px 2px -1px hsl(213, 40%, 50%) inset;
+    }
+    &.drop-after {
+      box-shadow: 0 -4px 2px -1px hsl(213, 40%, 50%) inset;
     }
 
-    .track-shell {
-        @include transition();
-        padding-left: 10px;
-        display: grid;
-        cursor: grab;
-        grid-template-areas: "title buttons";
-        grid-template-columns: 1fr auto;
-        align-items: center;
-        width: var(--track-shell-width);
-        background: #fff;
-        border-right: 1px solid #c7d0db;
-
-        &.drag {
-          background-color: #eee;
-          box-shadow: 0 4px 12px -4px #999 inset;
-        }
-        &.drop-before {
-          box-shadow: 0 4px 2px -1px hsl(213, 40%, 50%) inset;
-        }
-        &.drop-after {
-          box-shadow: 0 -4px 2px -1px hsl(213, 40%, 50%) inset;
-        }
-
-        &.selected {
-          background-color: #ebeef9;
-        }
-
-        &.alternating-thread-track {
-          background: hsl(214, 22%, 95%);
-        }
-
-        .chip {
-          background-color: #bed6ff;
-          border-radius: 3px;
-          font-size: smaller;
-          padding: 0 0.1rem;
-          margin-left: 1ch;
-        }
-
-        h1 {
-            grid-area: title;
-            color: hsl(213, 22%, 30%);
-            @include track_shell_title();
-        }
-        .track-buttons {
-          grid-area: buttons;
-          display: flex;
-          height: 100%;
-          align-items: center;
-        }
-        .track-button {
-          @include transition();
-          color: rgb(60, 86, 136);
-          cursor: pointer;
-          width: 22px;
-          font-size: 18px;
-          opacity: 0;
-        }
-
-        .track-button.show {
-          opacity: 1;
-        }
-        .track-button.full-height {
-          display: flex;
-          height: 100%;
-          align-items: center;
-
-          &:hover {
-            background-color: #ebeef9;
-          }
-        }
-
-        &:hover .track-button{
-          opacity: 1;
-        }
-        &.flash {
-          background-color: #ffe263;
-        }
+    &.selected {
+      background-color: #ebeef9;
     }
+
+    &.alternating-thread-track {
+      background: hsl(214, 22%, 95%);
+    }
+
+    .chip {
+      background-color: #bed6ff;
+      border-radius: 3px;
+      font-size: smaller;
+      padding: 0 0.1rem;
+      margin-left: 1ch;
+    }
+
+    h1 {
+      grid-area: title;
+      color: hsl(213, 22%, 30%);
+      @include track_shell_title();
+    }
+    .track-buttons {
+      grid-area: buttons;
+      display: flex;
+      height: 100%;
+      align-items: center;
+    }
+    .track-button {
+      @include transition();
+      color: rgb(60, 86, 136);
+      cursor: pointer;
+      width: 22px;
+      font-size: 18px;
+      opacity: 0;
+    }
+
+    .track-button.show {
+      opacity: 1;
+    }
+    .track-button.full-height {
+      display: flex;
+      height: 100%;
+      align-items: center;
+
+      &:hover {
+        background-color: #ebeef9;
+      }
+    }
+
+    &:hover .track-button {
+      opacity: 1;
+    }
+    &.flash {
+      background-color: #ffe263;
+    }
+  }
 }
 
 .scrolling-panel-container {
@@ -419,7 +411,7 @@ button.close {
   overflow-x: hidden;
   overflow-y: auto;
   flex: 1 1 auto;
-  will-change: transform;  // Force layer creation.
+  will-change: transform; // Force layer creation.
   display: grid;
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
@@ -473,7 +465,7 @@ canvas.main-canvas {
 }
 
 .panel {
-  position: relative;  // Otherwise canvas covers panel dom.
+  position: relative; // Otherwise canvas covers panel dom.
 
   &.sticky {
     position: sticky;
@@ -515,7 +507,7 @@ header.overview {
   align-content: center;
   background-color: hsl(213, 22%, 82%);
   color: hsl(213, 22%, 20%);
-  font-family: 'Roboto Condensed', sans-serif;
+  font-family: "Roboto Condensed", sans-serif;
   font-size: 15px;
   font-weight: 400;
   padding: 4px 10px;
@@ -524,10 +516,10 @@ header.overview {
   border-style: solid;
   border-width: 1px 0;
   .code {
-      font-family: var(--monospace-font);
-      font-size: 12px;
-      margin-left: 10px;
-      color: hsl(213, 22%, 40%);
+    font-family: var(--monospace-font);
+    font-size: 12px;
+    margin-left: 10px;
+    color: hsl(213, 22%, 40%);
   }
   span {
     white-space: nowrap;
@@ -576,7 +568,7 @@ button.query-ctrl {
   font-family: var(--monospace-font);
   padding: 10px 24px;
   z-index: 100;
-  background-color: rgba(27, 28, 29, 0.90);
+  background-color: rgba(27, 28, 29, 0.9);
   button {
     text-decoration: underline;
     color: hsl(45, 100%, 48%);
@@ -590,7 +582,7 @@ button.query-ctrl {
     top: 10px;
     width: 20px;
     height: 20px;
-    color: var(--stroke-color)
+    color: var(--stroke-color);
   }
   & > section {
     padding: 5px;
@@ -599,7 +591,9 @@ button.query-ctrl {
   div {
     margin: 2px 0;
   }
-  table, td, th {
+  table,
+  td,
+  th {
     border: 1px solid var(--stroke-color);
     text-align: center;
     padding: 4px;
@@ -618,16 +612,16 @@ button.query-ctrl {
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-rows: 1fr;
-  transition: background-color .4s, color .4s;
+  transition: background-color 0.4s, color 0.4s;
   height: 40px;
   &::after {
     display: block;
-    content: '';
+    content: "";
     grid-column: 1 / span 2;
     border-top: 1px solid var(--track-border-color);
     margin-top: -1px;
   }
-  &[collapsed=true] {
+  &[collapsed="true"] {
     background-color: var(--collapsed-transparent);
     .shell {
       border-right: 1px solid #c7d0db;
@@ -635,9 +629,9 @@ button.query-ctrl {
     }
     .track-button {
       color: rgb(60, 86, 136);
-    };
+    }
   }
-  &[collapsed=false] {
+  &[collapsed="false"] {
     background-color: var(--expanded-transparent);
     color: white;
     font-weight: bold;
@@ -660,7 +654,7 @@ button.query-ctrl {
     line-height: 1;
     width: var(--track-shell-width);
     min-height: 40px;
-    transition: background-color .4s;
+    transition: background-color 0.4s;
 
     .track-title {
       user-select: text;
@@ -723,16 +717,15 @@ button.query-ctrl {
   height: 10px;
 }
 
-
 .cookie-consent {
   position: absolute;
   z-index: 10;
   left: 10px;
   bottom: 10px;
   width: 550px;
-  background-color:#19212b;
+  background-color: #19212b;
   font-size: 14px;
-  color:rgb(180, 183, 186);
+  color: rgb(180, 183, 186);
   border-radius: 5px;
   padding: 20px;
 
@@ -740,7 +733,7 @@ button.query-ctrl {
     display: flex;
     justify-content: flex-end;
     margin-top: 10px;
-    font-size: 15px
+    font-size: 15px;
   }
 
   button {

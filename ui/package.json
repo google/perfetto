@@ -47,6 +47,7 @@
     "node-watch": "^0.7.1",
     "pixelmatch": "^5.2.1",
     "pngjs": "^6.0.0",
+    "prettier": "^2.8.0",
     "puppeteer": "^14.1.0",
     "rollup": "^2.38.5",
     "rollup-plugin-re": "^1.0.7",
