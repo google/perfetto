@@ -33,9 +33,9 @@
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/gzip_utils.h"
 
@@ -224,7 +224,8 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
 
   // Use parent data and length because we want to parse this again
   // later to get the exact type of the packet.
-  context_->sorter->PushTracePacket(timestamp, state, std::move(packet));
+  context_->sorter->PushTracePacket(timestamp, state->current_generation(),
+                                    std::move(packet));
 
   return util::OkStatus();
 }

@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_TRACE_SORTER_INTERNAL_H_
-#define SRC_TRACE_PROCESSOR_TRACE_SORTER_INTERNAL_H_
+#ifndef SRC_TRACE_PROCESSOR_SORTER_TRACE_SORTER_INTERNAL_H_
+#define SRC_TRACE_PROCESSOR_SORTER_TRACE_SORTER_INTERNAL_H_
 
 #include <deque>
+
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/parser_types.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -241,4 +242,4 @@ class TypedMemoryAccessor<TrackEventData> {
 }  // namespace trace_sorter_internal
 }  // namespace trace_processor
 }  // namespace perfetto
-#endif  // SRC_TRACE_PROCESSOR_TRACE_SORTER_INTERNAL_H_
+#endif  // SRC_TRACE_PROCESSOR_SORTER_TRACE_SORTER_INTERNAL_H_

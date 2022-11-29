@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "src/trace_processor/trace_sorter_queue.h"
+#include "src/trace_processor/sorter/trace_sorter_queue.h"
 
 #include "src/trace_processor/types/variadic.h"
 #include "test/gtest_and_gmock.h"

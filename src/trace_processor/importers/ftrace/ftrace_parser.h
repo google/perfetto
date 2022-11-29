@@ -19,6 +19,7 @@
 
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/system_info_tracker.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/ftrace/drm_tracker.h"
@@ -26,7 +27,6 @@
 #include "src/trace_processor/importers/ftrace/iostat_tracker.h"
 #include "src/trace_processor/importers/ftrace/rss_stat_tracker.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
-#include "src/trace_processor/parser_types.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include <unordered_set>

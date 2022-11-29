@@ -31,10 +31,10 @@
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/importers/proto/profiler_util.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables.h"
-#include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/stack_traces_util.h"
 
@@ -138,8 +138,8 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
     sequence_state->IncrementAndGetTrackEventTimeNs(*timestamp_it * 1000);
   }
 
-  context_->sorter->PushTracePacket(packet_ts, sequence_state,
-                                    std::move(*packet));
+  context_->sorter->PushTracePacket(
+      packet_ts, sequence_state->current_generation(), std::move(*packet));
   return ModuleResult::Handled();
 }
 

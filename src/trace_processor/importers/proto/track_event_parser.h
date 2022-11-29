@@ -23,11 +23,11 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/proto/active_chrome_processes_tracker.h"
 #include "src/trace_processor/importers/proto/chrome_string_lookup.h"
-#include "src/trace_processor/parser_types.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 

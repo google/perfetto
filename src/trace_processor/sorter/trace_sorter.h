@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_TRACE_SORTER_H_
-#define SRC_TRACE_PROCESSOR_TRACE_SORTER_H_
+#ifndef SRC_TRACE_PROCESSOR_SORTER_TRACE_SORTER_H_
+#define SRC_TRACE_PROCESSOR_SORTER_TRACE_SORTER_H_
 
 #include <algorithm>
 #include <memory>
@@ -26,11 +26,12 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
-#include "src/trace_processor/parser_types.h"
-#include "src/trace_processor/trace_sorter_queue.h"
+#include "src/trace_processor/sorter/trace_sorter_queue.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -51,10 +52,6 @@ enum class EventType : uint8_t {
 namespace trace_sorter_internal {
 class VariadicQueue;
 }  // namespace trace_sorter_internal
-
-class PacketSequenceState;
-class FuchsiaRecord;
-struct SystraceLine;
 
 // This class takes care of sorting events parsed from the trace stream in
 // arbitrary order and pushing them to the next pipeline stages (parsing) in
@@ -118,9 +115,9 @@ class TraceSorter {
   ~TraceSorter();
 
   inline void PushTracePacket(int64_t timestamp,
-                              PacketSequenceState* state,
+                              RefPtr<PacketSequenceStateGeneration> state,
                               TraceBlobView event) {
-    TracePacketData tpd{std::move(event), state->current_generation()};
+    TracePacketData tpd{std::move(event), std::move(state)};
     AppendNonFtraceEvent(timestamp, variadic_queue_.Append(std::move(tpd)),
                          EventType::kTracePacket);
   }
@@ -154,10 +151,10 @@ class TraceSorter {
   inline void PushFtraceEvent(uint32_t cpu,
                               int64_t timestamp,
                               TraceBlobView event,
-                              PacketSequenceState* state) {
+                              RefPtr<PacketSequenceStateGeneration> state) {
     auto* queue = GetQueue(cpu + 1);
     VariadicQueue::ValueReference ref = variadic_queue_.Append(
-        TracePacketData{std::move(event), state->current_generation()});
+        TracePacketData{std::move(event), std::move(state)});
     queue->Append(TimestampedDescriptor{
         timestamp, Descriptor(ref, EventType::kFtraceEvent)});
     UpdateGlobalTs(queue);
@@ -403,4 +400,4 @@ class TraceSorter {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_TRACE_SORTER_H_
+#endif  // SRC_TRACE_PROCESSOR_SORTER_TRACE_SORTER_H_

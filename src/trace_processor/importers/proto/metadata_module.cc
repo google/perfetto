@@ -25,7 +25,7 @@
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_metadata.pbzero.h"
 #include "protos/perfetto/trace/trigger.pbzero.h"
-#include "src/trace_processor/parser_types.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 
 namespace perfetto {
 namespace trace_processor {
