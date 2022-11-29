@@ -263,6 +263,17 @@ class PERFETTO_EXPORT_COMPONENT LegacyTraceId {
       : raw_id_(static_cast<uint64_t>(raw_id)) {}
   explicit LegacyTraceId(int8_t raw_id)
       : raw_id_(static_cast<uint64_t>(raw_id)) {}
+// Different platforms disagree on which integer types are same and which
+// are different. E.g. on Mac size_t is considered a different type from
+// uint64_t even though it has the same size and signedness.
+// Below we add overloads for those types that are known to cause ambiguity.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  explicit LegacyTraceId(size_t raw_id) : raw_id_(raw_id) {}
+  explicit LegacyTraceId(intptr_t raw_id)
+      : raw_id_(static_cast<uint64_t>(raw_id)) {}
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  explicit LegacyTraceId(unsigned long raw_id) : raw_id_(raw_id) {}
+#endif
   explicit LegacyTraceId(LocalId raw_id) : raw_id_(raw_id.raw_id()) {
     id_flags_ = legacy::kTraceEventFlagHasLocalId;
   }
