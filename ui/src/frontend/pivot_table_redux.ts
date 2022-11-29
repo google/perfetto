@@ -102,11 +102,6 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
   get pivotState() {
     return globals.state.nonSerializableState.pivotTableRedux;
   }
-  get selectedAggregations() {
-    return globals.state.nonSerializableState.pivotTableRedux
-        .selectedAggregations;
-  }
-
   get constrainToArea() {
     return globals.state.nonSerializableState.pivotTableRedux.constrainToArea;
   }
