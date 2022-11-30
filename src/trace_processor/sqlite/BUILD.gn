@@ -34,7 +34,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "window_operator_table.h",
     ]
     deps = [
-      "..:ftrace_descriptors",
       "..:metatrace",
       "../../../gn:default_deps",
       "../../../gn:sqlite",
@@ -43,6 +42,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../containers",
       "../db",
       "../dynamic",
+      "../importers:ftrace_descriptors",
       "../importers/common",
       "../storage",
       "../types",
