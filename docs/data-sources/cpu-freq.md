@@ -121,7 +121,7 @@ The list of known CPU frequencies, can be queried using the
 ### TraceConfig
 
 ```protobuf
-// Event-driven recording of frequency and idle state changes.
+# Event-driven recording of frequency and idle state changes.
 data_sources: {
     config {
         name: "linux.ftrace"
@@ -133,7 +133,7 @@ data_sources: {
     }
 }
 
-// Polling the current cpu frequency.
+# Polling the current cpu frequency.
 data_sources: {
     config {
         name: "linux.sys_stats"
@@ -143,7 +143,7 @@ data_sources: {
     }
 }
 
-// Reporting the list of available frequency for each CPU.
+# Reporting the list of available frequency for each CPU.
 data_sources {
     config {
         name: "linux.system_info"
