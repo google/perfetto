@@ -118,13 +118,13 @@ void PerfettoCmd::ReportTraceToAndroidFrameworkOrCrash() {
 // errors.
 void PerfettoCmd::SaveOutputToIncidentTraceOrCrash() {
   LogUploadEvent(PerfettoStatsdAtom::kUploadIncidentBegin);
-  char kIncidentTracePath[256];
-  sprintf(kIncidentTracePath, "%s/incident-trace", kStateDir);
+  base::StackString<256> kIncidentTracePath("%s/incident-trace", kStateDir);
 
-  char kTempIncidentTracePath[256];
-  sprintf(kTempIncidentTracePath, "%s.temp", kIncidentTracePath);
+  base::StackString<256> kTempIncidentTracePath("%s.temp",
+                                                kIncidentTracePath.c_str());
 
-  PERFETTO_CHECK(unlink(kTempIncidentTracePath) == 0 || errno == ENOENT);
+  PERFETTO_CHECK(unlink(kTempIncidentTracePath.c_str()) == 0 ||
+                 errno == ENOENT);
 
   // TODO(b/155024256) These should not be necessary (we flush when destroying
   // packet writer and sendfile should ignore file offset) however they should
@@ -133,8 +133,8 @@ void PerfettoCmd::SaveOutputToIncidentTraceOrCrash() {
   PERFETTO_CHECK(fseek(*trace_out_stream_, 0, SEEK_SET) == 0);
 
   // SELinux constrains the set of readers.
-  base::ScopedFile staging_fd =
-      base::OpenFile(kTempIncidentTracePath, O_CREAT | O_EXCL | O_RDWR, 0666);
+  base::ScopedFile staging_fd = base::OpenFile(kTempIncidentTracePath.c_str(),
+                                               O_CREAT | O_EXCL | O_RDWR, 0666);
   PERFETTO_CHECK(staging_fd);
 
   int fd = fileno(*trace_out_stream_);
@@ -169,7 +169,8 @@ void PerfettoCmd::SaveOutputToIncidentTraceOrCrash() {
   }
 
   staging_fd.reset();
-  PERFETTO_CHECK(rename(kTempIncidentTracePath, kIncidentTracePath) == 0);
+  PERFETTO_CHECK(
+      rename(kTempIncidentTracePath.c_str(), kIncidentTracePath.c_str()) == 0);
   // Note: not calling fsync(2), as we're not interested in the file being
   // consistent in case of a crash.
   LogUploadEvent(PerfettoStatsdAtom::kUploadIncidentSuccess);

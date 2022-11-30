@@ -19,6 +19,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/proc_utils.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "src/tracing/internal/tracing_muxer_impl.h"
 
@@ -145,9 +146,8 @@ bool EnableDirectSMBPatching(BackendType backend_type) {
 TestTempFile CreateTempFile() {
   TestTempFile res{};
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  char temp_file[255]{};
-  sprintf(temp_file, "%s\\perfetto-XXXXXX", getenv("TMP"));
-  PERFETTO_CHECK(_mktemp_s(temp_file, strlen(temp_file) + 1) == 0);
+  base::StackString<255> temp_file("%s\\perfetto-XXXXXX", getenv("TMP"));
+  PERFETTO_CHECK(_mktemp_s(temp_file.c_str(), temp_file.len() + 1) == 0);
   HANDLE handle =
       ::CreateFileA(temp_file, GENERIC_READ | GENERIC_WRITE,
                     FILE_SHARE_DELETE | FILE_SHARE_READ, nullptr, CREATE_ALWAYS,

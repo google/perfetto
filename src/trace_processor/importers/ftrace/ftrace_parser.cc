@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/ftrace/ftrace_parser.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -1760,9 +1761,8 @@ void FtraceParser::ParseScmCallStart(int64_t timestamp,
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
   protos::pbzero::ScmCallStartFtraceEvent::Decoder evt(blob.data, blob.size);
 
-  char str[64];
-  sprintf(str, "scm id=%#" PRIx64, evt.x0());
-  StringId name_id = context_->storage->InternString(str);
+  base::StackString<64> str("scm id=%#" PRIx64, evt.x0());
+  StringId name_id = context_->storage->InternString(str.string_view());
   context_->slice_tracker->Begin(timestamp, track_id, kNullStringId, name_id);
 }
 
@@ -2231,9 +2231,9 @@ void FtraceParser::ParseInetSockSetState(int64_t timestamp,
     skaddr_to_stream_[evt.skaddr()] = ++num_of_tcp_stream_;
   }
   uint32_t stream = skaddr_to_stream_[evt.skaddr()];
-  char stream_str[64];
-  sprintf(stream_str, "TCP stream#%" PRIu32 "", stream);
-  StringId stream_id = context_->storage->InternString(stream_str);
+  base::StackString<64> stream_str("TCP stream#%" PRIu32 "", stream);
+  StringId stream_id =
+      context_->storage->InternString(stream_str.string_view());
 
   StringId slice_name_id;
   if (evt.newstate() == TCP_SYN_SENT) {
