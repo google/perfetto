@@ -231,7 +231,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
             {column: result.metadata.pivotColumns[j], value: row[j]});
       }
       for (let j = 0; j < result.metadata.aggregationColumns.length; j++) {
-        const value = row[aggregationIndex(treeDepth, j, treeDepth)];
+        const value = row[aggregationIndex(treeDepth, j)];
         const renderedValue = this.renderCell(
             result.metadata.aggregationColumns[j].column, value);
         renderedCells.push(m('td', renderedValue));
