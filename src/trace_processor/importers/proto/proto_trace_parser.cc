@@ -23,6 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/metatrace_events.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/ext/base/uuid.h"
@@ -322,7 +323,6 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
 
   StringId cat_id = metatrace_id_;
   StringId name_id = kNullStringId;
-  char fallback[64];
 
   for (auto it = event.interned_strings(); it; ++it) {
     protos::pbzero::PerfettoMetatrace::InternedString::Decoder interned_string(
@@ -405,8 +405,8 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
       if (eid < metatrace::EVENTS_MAX) {
         name_id = context_->storage->InternString(metatrace::kEventNames[eid]);
       } else {
-        sprintf(fallback, "Event %d", eid);
-        name_id = context_->storage->InternString(fallback);
+        base::StackString<64> fallback("Event %d", eid);
+        name_id = context_->storage->InternString(fallback.string_view());
       }
     } else if (event.has_event_name_iid()) {
       name_id = GetMetatraceInternedString(event.event_name_iid());
@@ -424,8 +424,8 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
         name_id =
             context_->storage->InternString(metatrace::kCounterNames[cid]);
       } else {
-        sprintf(fallback, "Counter %d", cid);
-        name_id = context_->storage->InternString(fallback);
+        base::StackString<64> fallback("Counter %d", cid);
+        name_id = context_->storage->InternString(fallback.string_view());
       }
     } else {
       name_id = context_->storage->InternString(event.counter_name());
