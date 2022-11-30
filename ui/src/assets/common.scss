@@ -211,9 +211,6 @@ button.close {
     thead td.reorderable-cell {
       cursor: grab;
     }
-    td {
-      height: 25px;
-    }
     .disabled {
       cursor: default;
     }
@@ -793,6 +790,10 @@ button.query-ctrl {
     // In regular pivot table cells, avoids wrapping the icon spacer to go on
     // a separate line.
     white-space: pre;
+
+    i.material-icons {
+      font-size: 16px;
+    }
   }
 }
 
