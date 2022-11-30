@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/traced/probes/common/cpu_freq_info_for_testing.h"
@@ -437,14 +438,12 @@ TEST_F(SysStatsDataSourceTest, DevfreqAll) {
   auto make_devfreq_paths = [&symlinks_to_delete, &dirs_to_delete](
                                 base::TempDir& temp_dir, base::TempDir& sym_dir,
                                 const char* name) {
-    char path[256];
-    sprintf(path, "%s/%s", temp_dir.path().c_str(), name);
-    dirs_to_delete.push_back(path);
-    mkdir(path, 0755);
-    char sym_path[256];
-    sprintf(sym_path, "%s/%s", sym_dir.path().c_str(), name);
-    symlinks_to_delete.push_back(sym_path);
-    symlink(path, sym_path);
+    base::StackString<256> path("%s/%s", temp_dir.path().c_str(), name);
+    dirs_to_delete.push_back(path.ToStdString());
+    mkdir(path.c_str(), 0755);
+    base::StackString<256> sym_path("%s/%s", sym_dir.path().c_str(), name);
+    symlinks_to_delete.push_back(sym_path.ToStdString());
+    symlink(path.c_str(), sym_path.c_str());
   };
   auto fake_devfreq = base::TempDir::Create();
   auto fake_devfreq_symdir = base::TempDir::Create();
