@@ -1160,6 +1160,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/importers/ninja:ninja
+perfetto_filegroup(
+    name = "src_trace_processor_importers_ninja_ninja",
+    srcs = [
+        "src/trace_processor/importers/ninja/ninja_log_parser.cc",
+        "src/trace_processor/importers/ninja/ninja_log_parser.h",
+    ],
+)
+
 # GN target: //src/trace_processor/importers/proto:full
 perfetto_filegroup(
     name = "src_trace_processor_importers_proto_full",
@@ -1963,8 +1972,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h",
         "src/trace_processor/importers/json/json_utils.cc",
         "src/trace_processor/importers/json/json_utils.h",
-        "src/trace_processor/importers/ninja/ninja_log_parser.cc",
-        "src/trace_processor/importers/ninja/ninja_log_parser.h",
         "src/trace_processor/importers/proto/android_camera_event_module.cc",
         "src/trace_processor/importers/proto/android_camera_event_module.h",
         "src/trace_processor/importers/proto/chrome_system_probes_module.cc",
@@ -4396,6 +4403,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_fuchsia_fuchsia_record",
         ":src_trace_processor_importers_importers_full",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
+        ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_proto_full",
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
@@ -4530,6 +4538,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_fuchsia_fuchsia_record",
         ":src_trace_processor_importers_importers_full",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
+        ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_proto_full",
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
@@ -4723,6 +4732,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_fuchsia_fuchsia_record",
         ":src_trace_processor_importers_importers_full",
         ":src_trace_processor_importers_memory_tracker_graph_processor",
+        ":src_trace_processor_importers_ninja_ninja",
         ":src_trace_processor_importers_proto_full",
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
