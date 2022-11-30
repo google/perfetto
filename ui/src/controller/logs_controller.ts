@@ -83,7 +83,8 @@ async function updateLogEntries(
           ts,
           prio,
           ifnull(tag, '[NULL]') as tag,
-          ifnull(msg, '[NULL]') as msg
+          ifnull(msg, '[NULL]') as msg,
+          is_highlighted as isHighlighted
         from filtered_logs
         where ${vizSqlBounds}
         order by ts
@@ -94,13 +95,16 @@ async function updateLogEntries(
   const priorities = [];
   const tags = [];
   const messages = [];
+  const isHighlighted = [];
 
-  const it = rowsResult.iter({ts: NUM, prio: NUM, tag: STR, msg: STR});
+  const it = rowsResult.iter(
+      {ts: NUM, prio: NUM, tag: STR, msg: STR, isHighlighted: NUM});
   for (; it.valid(); it.next()) {
     timestamps.push(it.ts);
     priorities.push(it.prio);
     tags.push(it.tag);
     messages.push(it.msg);
+    isHighlighted.push(it.isHighlighted !== 0);
   }
 
   return {
@@ -109,6 +113,7 @@ async function updateLogEntries(
     priorities,
     tags,
     messages,
+    isHighlighted,
   };
 }
 
@@ -237,19 +242,20 @@ export class LogsController extends Controller<'main'> {
       this.logFilteringCriteria = globals.state.logFilteringCriteria;
       await this.engine.query('drop view if exists filtered_logs');
 
-      let filterQuery = `create view filtered_logs as
-          select * from android_logs
+      const globMatch = LogsController.composeGlobMatch(
+          this.logFilteringCriteria.hideNonMatching,
+          this.logFilteringCriteria.textEntry);
+      let selectedRows = `select *, ${globMatch}
+          from android_logs
           where prio >= ${this.logFilteringCriteria.minimumLevel}`;
       if (this.logFilteringCriteria.tags.length) {
-        filterQuery += ` and tag in (${
+        selectedRows += ` and tag in (${
             LogsController.serializeTags(this.logFilteringCriteria.tags)})`;
       }
-      if (this.logFilteringCriteria.textEntry) {
-        filterQuery +=
-            ` and msg glob ${escapeGlob(this.logFilteringCriteria.textEntry)}`;
-      }
 
-      await this.engine.query(filterQuery);
+      // We extract only the rows which will be visible.
+      await this.engine.query(`create view filtered_logs as select * from (${
+          selectedRows}) where is_chosen is 1`);
     }
 
     if (needBoundsUpdate) {
@@ -274,5 +280,20 @@ export class LogsController extends Controller<'main'> {
 
   private static serializeTags(tags: string[]) {
     return tags.map((tag) => escapeQuery(tag)).join();
+  }
+
+  private static composeGlobMatch(isCollaped: boolean, textEntry: string) {
+    if (isCollaped) {
+      // If the entries are collapsed, we won't highlight any lines.
+      return `msg glob ${
+          escapeGlob(textEntry)} as is_chosen, 0 as is_highlighted`;
+    } else if (!textEntry) {
+      // If there is no text entry, we will show all lines, but won't highlight.
+      // any.
+      return `1 as is_chosen, 0 as is_highlighted`;
+    } else {
+      return `1 as is_chosen, msg glob ${
+          escapeGlob(textEntry)} as is_highlighted`;
+    }
   }
 }

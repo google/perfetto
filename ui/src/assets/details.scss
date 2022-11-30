@@ -467,6 +467,33 @@
         margin-left: 5px;
       }
     }
+
+    .filter-widget {
+      user-select: none;
+      cursor: pointer;
+      position: relative;
+      display: inline-block;
+    }
+
+    .filter-widget .tooltip {
+      visibility: hidden;
+      width: 120px;
+      background-color: black;
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 5px 0;
+
+      /* Position the tooltip */
+      position: absolute;
+      z-index: 1;
+      top: 130%;
+      right: 50%;
+    }
+
+    .filter-widget:hover .tooltip {
+      visibility: visible;
+    }
   }
 
   header.stale {

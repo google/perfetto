@@ -25,6 +25,7 @@ import {
 import {formatTimestamp} from '../common/time';
 import {TimeSpan} from '../common/time';
 
+import {SELECTED_LOG_ROWS_COLOR} from './css_constants';
 import {globals} from './globals';
 import {LOG_PRIORITIES, LogsFilters} from './logs_filters';
 import {Panel} from './panel';
@@ -118,11 +119,18 @@ export class LogPanel extends Panel<{}> {
         const priorityLetter = LOG_PRIORITIES[priorities[i]][0];
         const ts = timestamps[i];
         const prioClass = priorityLetter || '';
+        const style: {top: string, backgroundColor?: string} = {
+          top: `${(offset + i) * ROW_H}px`,
+        };
+        if (this.entries.isHighlighted[i]) {
+          style.backgroundColor = SELECTED_LOG_ROWS_COLOR;
+        }
+
         rows.push(
             m(`.row.${prioClass}`,
               {
                 'class': isStale ? 'stale' : '',
-                'style': {top: `${(offset + i) * ROW_H}px`},
+                style,
                 'onmouseover': this.onRowOver.bind(this, ts / 1e9),
                 'onmouseout': this.onRowOut.bind(this),
               },
