@@ -127,7 +127,7 @@ class Table {
   // Note: the RowMap should not reorder this table; this is guaranteed if the
   // passed RowMap is generated using |FilterToRowMap|.
   Table Apply(RowMap rm) const {
-    Table table = CopyExceptRowMaps();
+    Table table = CopyExceptOverlays();
     table.row_count_ = rm.size();
     table.overlays_.reserve(overlays_.size());
     for (const ColumnStorageOverlay& map : overlays_) {
@@ -227,7 +227,7 @@ class Table {
   friend class Column;
   friend class View;
 
-  Table CopyExceptRowMaps() const;
+  Table CopyExceptOverlays() const;
 };
 
 }  // namespace trace_processor
