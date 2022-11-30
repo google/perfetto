@@ -37,6 +37,10 @@ SELECT CREATE_FUNCTION(
       THEN
         CAST(STR_SPLIT($slice_name, " ", 4) AS INTEGER)
       WHEN
+        $slice_name GLOB "Trace HWC release fence *"
+      THEN
+        CAST(STR_SPLIT($slice_name, " ", 4) AS INTEGER)
+      WHEN
         $slice_name GLOB "waiting for HWC release *"
       THEN
         CAST(STR_SPLIT($slice_name, " ", 4) AS INTEGER)
@@ -101,23 +105,17 @@ FROM android_jank_cuj_draw_frame_slice draw_frame
 JOIN descendant_slice(draw_frame.id) fence
   ON fence.name GLOB '*GPU completion fence*';
 
--- Find GPU completion slices which indicate when the GPU finished drawing.
-DROP TABLE IF EXISTS android_jank_cuj_gpu_completion_slice;
-CREATE TABLE android_jank_cuj_gpu_completion_slice AS
+-- Similarly find descendants of DrawFrames which have the HWC release fence ID
+DROP TABLE IF EXISTS android_jank_cuj_hwc_release_fence;
+CREATE TABLE android_jank_cuj_hwc_release_fence AS
 SELECT
-  fence.cuj_id,
+  cuj_id,
   vsync,
-  slice.*,
-  slice.ts + slice.dur AS ts_end,
-  fence.fence_idx
-FROM android_jank_cuj_gpu_completion_thread gpu_completion_thread
-JOIN slice USING (track_id)
-JOIN android_jank_cuj_gpu_completion_fence fence
-  ON fence.cuj_id = gpu_completion_thread.cuj_id
-  AND fence.fence_idx = GPU_COMPLETION_FENCE_ID_FROM_NAME(slice.name)
-WHERE
-  slice.name GLOB 'waiting for GPU completion *'
-  AND slice.dur > 0;
+  draw_frame.id AS draw_frame_slice_id,
+  GPU_COMPLETION_FENCE_ID_FROM_NAME(fence.name) AS fence_idx
+FROM android_jank_cuj_draw_frame_slice draw_frame
+JOIN descendant_slice(draw_frame.id) fence
+  ON fence.name GLOB '*HWC release fence *';
 
 -- Find HWC release slices which indicate when the HWC released the buffer.
 DROP TABLE IF EXISTS android_jank_cuj_hwc_release_slice;
@@ -127,14 +125,36 @@ SELECT
   vsync,
   slice.*,
   slice.ts + slice.dur AS ts_end,
-  fence.fence_idx
+  fence.fence_idx,
+  draw_frame_slice_id
 FROM android_jank_cuj_hwc_release_thread hwc_release_thread
 JOIN slice USING (track_id)
-JOIN android_jank_cuj_gpu_completion_fence fence
+JOIN android_jank_cuj_hwc_release_fence fence
   ON fence.cuj_id = hwc_release_thread.cuj_id
   AND fence.fence_idx = GPU_COMPLETION_FENCE_ID_FROM_NAME(slice.name)
 WHERE
   slice.name GLOB 'waiting for HWC release *'
+  AND slice.dur > 0;
+
+-- Find GPU completion slices which indicate when the GPU finished drawing.
+DROP TABLE IF EXISTS android_jank_cuj_gpu_completion_slice;
+CREATE TABLE android_jank_cuj_gpu_completion_slice AS
+SELECT
+  fence.cuj_id,
+  vsync,
+  slice.*,
+  slice.ts + slice.dur AS ts_end,
+  hwc_release.ts_end AS hwc_release_ts_end,
+  fence.fence_idx
+FROM android_jank_cuj_gpu_completion_thread gpu_completion_thread
+JOIN slice USING (track_id)
+JOIN android_jank_cuj_gpu_completion_fence fence
+  ON fence.cuj_id = gpu_completion_thread.cuj_id
+  AND fence.fence_idx = GPU_COMPLETION_FENCE_ID_FROM_NAME(slice.name)
+LEFT JOIN android_jank_cuj_hwc_release_slice hwc_release
+  USING (cuj_id, vsync, draw_frame_slice_id)
+WHERE
+  slice.name GLOB 'waiting for GPU completion *'
   AND slice.dur > 0;
 
 -- Match the frame timeline on the app side with the frame timeline on the SF side.
