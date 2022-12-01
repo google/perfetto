@@ -18,6 +18,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import auto
 from enum import Flag as enum_Flag
+from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -94,7 +96,7 @@ class TableDoc:
     with.
   """
   doc: str
-  columns: dict[str, Union[ColumnDoc, str]]
+  columns: Dict[str, Union[ColumnDoc, str]]
   real_sql_name: Optional[str] = None
   group: Optional[str] = None
 
@@ -112,7 +114,7 @@ class Table:
   """
   class_name: str
   sql_name: str
-  columns: list[Column]
+  columns: List[Column]
   tabledoc: TableDoc
 
 

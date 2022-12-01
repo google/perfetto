@@ -12,7 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../gn/perfetto_tp_tables.gni")
 import("../../../gn/test.gni")
+
+perfetto_tp_tables("tables_python") {
+  sources = [
+    "android_tables.py",
+    "metadata_tables.py",
+  ]
+}
 
 source_set("tables") {
   sources = [
@@ -30,6 +38,7 @@ source_set("tables") {
     "track_tables.h",
   ]
   deps = [
+    ":tables_python",
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
     "../db",

@@ -311,6 +311,40 @@ def perfetto_cc_amalgamated_sql(name, deps, outs, root_dir, namespace,
         **kwargs,
     )
 
+def perfetto_cc_tp_tables(name, srcs, outs, **kwargs):
+    perfetto_py_binary(
+        name = name + "_tool",
+        deps = [
+            PERFETTO_CONFIG.root + "python:trace_processor_table_generator",
+        ],
+        srcs = srcs + [
+            "tools/gen_tp_table_headers.py",
+        ],
+        main = "tools/gen_tp_table_headers.py",
+        python_version = "PY3",
+    )
+
+    cmd = ["$(location " + name + "_tool)"]
+    cmd += ["--gen-dir", "$(RULEDIR)"]
+    cmd += ["--inputs", "$(SRCS)"]
+    cmd += ["--outputs", "$(OUTS)"]
+
+    perfetto_genrule(
+        name = name + "_gen",
+        cmd = " ".join(cmd),
+        exec_tools = [
+            ":" + name + "_tool",
+        ],
+        srcs = srcs,
+        outs = outs,
+    )
+
+    perfetto_cc_library(
+        name = name,
+        hdrs = [":" + name + "_gen"],
+        **kwargs,
+    )
+
 # +----------------------------------------------------------------------------+
 # | Misc utility functions                                                     |
 # +----------------------------------------------------------------------------+

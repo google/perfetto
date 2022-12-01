@@ -265,7 +265,7 @@ load(
 
 licenses(["notice"])
 
-package(default_visibility = ["//visibility:private"])
+package(default_visibility = [PERFETTO_CONFIG.root + ":__subpackages__"])
 
 '''.format(tool_name).lstrip()
 
@@ -557,6 +557,15 @@ def gen_cc_amalgamated_sql(target):
   return [label]
 
 
+def gen_cc_tp_tables(target):
+  label = BazelLabel(
+      get_bazel_label_name(target.name), 'perfetto_cc_tp_tables')
+  label.comment = target.name
+  label.srcs += (gn_utils.label_to_path(x) for x in target.sources)
+  label.outs += target.outputs
+  return [label]
+
+
 def gen_target(gn_target):
   if gn_target.type == 'proto_library':
     return [gen_proto_label(gn_target)]
@@ -567,6 +576,8 @@ def gen_target(gn_target):
       return gen_cc_amalgamated_sql(gn_target)
     if gn_target.custom_action_type == 'cc_proto_descriptor':
       return gen_cc_proto_descriptor(gn_target)
+    if gn_target.custom_action_type == 'tp_tables':
+      return gen_cc_tp_tables(gn_target)
     return []
   elif gn_target.type == 'group':
     return []
@@ -623,6 +634,7 @@ def gen_target(gn_target):
     for dep in sorted(gn_target.deps):
       if dep.startswith('//gn:'):
         assert (dep in external_deps), dep
+
       if dep in external_deps:
         assert (isinstance(external_deps[dep], list))
         label.external_deps += external_deps[dep]
@@ -681,6 +693,7 @@ load(
     "perfetto_cc_proto_library",
     "perfetto_cc_protocpp_library",
     "perfetto_cc_protozero_library",
+    "perfetto_cc_tp_tables",
     "perfetto_filegroup",
     "perfetto_genrule",
     "perfetto_go_proto_library",
@@ -693,7 +706,7 @@ load(
     "perfetto_py_proto_library",
 )
 
-package(default_visibility = ["//visibility:private"])
+package(default_visibility = [PERFETTO_CONFIG.root + ":__subpackages__"])
 
 licenses(["notice"])
 
