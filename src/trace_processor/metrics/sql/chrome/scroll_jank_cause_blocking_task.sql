@@ -198,23 +198,11 @@ SELECT
   copy.dur,
   copy.track_id,
   CASE WHEN copy.track_id = scroll.browser_track_id THEN
-    CASE WHEN copy.ts < scroll.browser_flow_ts THEN
-      TRUE
-    ELSE
-      FALSE
-    END
+    COALESCE(copy.ts < scroll.browser_flow_ts, FALSE)
   WHEN copy.track_id = scroll.viz_track_id THEN
-    CASE WHEN copy.ts < scroll.viz_flow_ts THEN
-      TRUE
-    ELSE
-      FALSE
-    END
+    COALESCE(copy.ts < scroll.viz_flow_ts, FALSE)
   WHEN copy.track_id = scroll.gpu_track_id THEN
-    CASE WHEN copy.ts < scroll.gpu_flow_ts THEN
-      TRUE
-    ELSE
-      FALSE
-    END
+    COALESCE(copy.ts < scroll.gpu_flow_ts, FALSE)
   ELSE
     FALSE
   END AS blocked_by_copy
@@ -260,11 +248,7 @@ SELECT
   lang.dur,
   lang.track_id,
   CASE WHEN lang.track_id = scroll.browser_track_id THEN
-    CASE WHEN lang.ts < scroll.browser_flow_ts THEN
-      TRUE
-    ELSE
-      FALSE
-    END
+    COALESCE(lang.ts < scroll.browser_flow_ts, FALSE)
   END AS blocked_by_language_detection
 FROM
   scroll_with_browser_gpu_and_viz_flows scroll JOIN

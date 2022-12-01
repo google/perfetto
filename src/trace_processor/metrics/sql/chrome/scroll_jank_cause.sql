@@ -62,16 +62,10 @@ CREATE VIEW scroll_jank_cause_explained_jank AS
     THEN
       FALSE
     ELSE
-      CASE WHEN
-        blocking_touch_move
+      COALESCE(blocking_touch_move
         OR blocked_by_language_detection
         OR blocked_by_copy_request
-        OR blocked_by_bitmap
-      THEN
-        TRUE
-      ELSE
-        FALSE
-      END
+        OR blocked_by_bitmap, FALSE)
     END AS explained_jank,
     jank.*
   FROM scroll_jank_cause_joined jank;

@@ -163,7 +163,7 @@ CREATE VIEW device_traffic_statistic AS
             'gro_aggregation_ratio', (
               SELECT
                 CASE
-                  WHEN packets > 0 THEN '1:' || CAST( (cnt * 1.0 / packets) AS text)
+                  WHEN packets > 0 THEN '1:' || CAST((cnt * 1.0 / packets) AS text)
                   ELSE '0:' || cnt
                END
               FROM gro_rx_packet_count
@@ -278,14 +278,14 @@ CREATE VIEW total_ipi_action_statistic AS
 
 DROP VIEW IF EXISTS activated_cores_net_rx;
 CREATE VIEW activated_cores_net_rx AS
- SELECT
-   DISTINCT cpu
+ SELECT DISTINCT
+   cpu
  FROM net_rx_actions;
 
 DROP VIEW IF EXISTS activated_cores_net_tx;
 CREATE VIEW activated_cores_net_tx AS
- SELECT
-   DISTINCT cpu
+ SELECT DISTINCT
+   cpu
  FROM net_tx_actions;
 
 DROP VIEW IF EXISTS per_core_net_rx_action_statistic;
