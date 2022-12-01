@@ -80,31 +80,6 @@ SELECT CREATE_FUNCTION(
   '
 );
 
--- Returns a repeated field of all long binder transaction protos for
--- a given launch id.
-SELECT CREATE_FUNCTION(
-  'BINDER_TRANSACTION_PROTO_FOR_LAUNCH(launch_id INT)',
-  'PROTO',
-  '
-    SELECT RepeatedField(
-      AndroidStartupMetric_BinderTransaction(
-        "duration", STARTUP_SLICE_PROTO(s.slice_dur),
-        "thread", s.thread_name,
-        "destination_thread", EXTRACT_ARG(s.arg_set_id, "destination name"),
-        "destination_process", process.name,
-        "flags", EXTRACT_ARG(s.arg_set_id, "flags"),
-        "code", EXTRACT_ARG(s.arg_set_id, "code"),
-        "data_size", EXTRACT_ARG(s.arg_set_id, "data_size")
-      )
-    )
-    FROM SLICES_FOR_LAUNCH_AND_SLICE_NAME($launch_id, "binder transaction") s
-    JOIN process ON (
-      EXTRACT_ARG(s.arg_set_id, "destination process") = process.pid
-    )
-    WHERE s.slice_dur > 5e7
-  '
-);
-
 -- Define the view
 DROP VIEW IF EXISTS startup_view;
 CREATE VIEW startup_view AS
@@ -143,7 +118,20 @@ SELECT
         s.launch_id = launches.id
         AND (s.slice_name GLOB 'performResume:*' OR s.slice_name GLOB 'performCreate:*')
     ),
-    'long_binder_transactions', BINDER_TRANSACTION_PROTO_FOR_LAUNCH(launches.id),
+    'long_binder_transactions', (
+      SELECT RepeatedField(
+        AndroidStartupMetric_BinderTransaction(
+          "duration", STARTUP_SLICE_PROTO(s.slice_dur),
+          "thread", s.thread_name,
+          "destination_thread", EXTRACT_ARG(s.arg_set_id, "destination name"),
+          "destination_process", s.process,
+          "flags", EXTRACT_ARG(s.arg_set_id, "flags"),
+          "code", EXTRACT_ARG(s.arg_set_id, "code"),
+          "data_size", EXTRACT_ARG(s.arg_set_id, "data_size")
+        )
+      )
+      FROM BINDER_TRANSACTION_SLICES_FOR_LAUNCH(launches.id, 5e7) s
+    ),
     'zygote_new_process', EXISTS(SELECT TRUE FROM ZYGOTE_FORK_FOR_LAUNCH(launches.id)),
     'activity_hosting_process_count', (
       SELECT COUNT(1) FROM launch_processes p
@@ -430,6 +418,13 @@ SELECT
           WHERE l.id != launches.id
             AND IS_SPANS_OVERLAPPING(l.ts, l.ts_end, launches.ts, launches.ts_end)
         )
+
+        UNION ALL
+        SELECT 'Main Thread - Binder transactions blocked'
+        WHERE (
+          SELECT COUNT(1)
+          FROM BINDER_TRANSACTION_REPLY_SLICES_FOR_LAUNCH(launches.id, 2e7)
+        ) > 0
 
       )
     )
