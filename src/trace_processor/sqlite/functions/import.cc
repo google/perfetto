@@ -76,8 +76,7 @@ base::Status Import::Run(Import::Context* ctx,
   }
 
   auto import_iter = ctx->tp->ExecuteQuery(module_file->sql);
-  bool import_has_more = import_iter.Next();
-  if (import_has_more)
+  if (import_iter.StatementWithOutputCount() > 0)
     return base::ErrStatus("IMPORT: Imported file returning values.");
   {
     auto status = import_iter.Status();
