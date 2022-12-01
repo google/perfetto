@@ -56,6 +56,14 @@ perfetto_py_binary(
     python_version = "PY3",
 )
 
+# GN target: //python:trace_processor_table_generator
+perfetto_py_library(
+    name = "trace_processor_table_generator",
+    srcs = [
+        "generators/trace_processor_table/public.py",
+    ],
+)
+
 # GN target: //python:trace_processor_py_example
 perfetto_py_binary(
     name = "trace_processor_py_example",
