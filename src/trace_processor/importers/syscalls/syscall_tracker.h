@@ -47,13 +47,18 @@ class SyscallTracker : public Destructible {
 
   void SetArchitecture(Architecture architecture);
 
-  void Enter(int64_t ts, UniqueTid utid, uint32_t syscall_num) {
+  void Enter(int64_t ts,
+             UniqueTid utid,
+             uint32_t syscall_num,
+             EventTracker::SetArgsCallback args_callback =
+                 EventTracker::SetArgsCallback()) {
     StringId name = SyscallNumberToStringId(syscall_num);
     if (name.is_null())
       return;
 
     TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-    context_->slice_tracker->Begin(ts, track_id, kNullStringId /* cat */, name);
+    context_->slice_tracker->Begin(ts, track_id, kNullStringId /* cat */, name,
+                                   args_callback);
 
     if (name == sys_write_string_id_) {
       if (utid >= in_sys_write_.size())

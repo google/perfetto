@@ -287,6 +287,20 @@ bool InferFtraceType(const std::string& type_and_name,
     return true;
   }
 
+  // Parsing of sys_enter argument field declared as
+  //    field:unsigned long args[6];
+  if (type_and_name == "unsigned long args[6]") {
+    if (size == 24) {
+      // 24 / 6 = 4 -> 32bit system
+      *out = kFtraceUint32;
+      return true;
+    } else if (size == 48) {
+      // 48 / 6 = 8 -> 64bit system
+      *out = kFtraceUint64;
+      return true;
+    }
+  }
+
   if (Contains(type_and_name, "char[] ")) {
     *out = kFtraceStringPtr;
     return true;

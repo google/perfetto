@@ -215,6 +215,13 @@ class CpuReader {
                          protozero::Message* message,
                          FtraceMetadata* metadata);
 
+  // Parse a sys_enter event according to the pre-validated expected format
+  static bool ParseSysEnter(const Event& info,
+                            const uint8_t* start,
+                            const uint8_t* end,
+                            protozero::Message* message,
+                            FtraceMetadata* metadata);
+
   // Parse a sched_switch event according to pre-validated format, and buffer
   // the individual fields in the given compact encoding batch.
   static void ParseSchedSwitchCompact(const uint8_t* start,

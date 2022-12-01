@@ -18,6 +18,7 @@
 
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/utils.h"
@@ -39,6 +40,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.gen.h"
+#include "protos/perfetto/trace/ftrace/raw_syscalls.gen.h"
 #include "protos/perfetto/trace/ftrace/sched.gen.h"
 #include "protos/perfetto/trace/ftrace/task.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
@@ -1234,6 +1236,45 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
               Contains(Pair(98u, kUserspaceBlockDeviceId)));
   EXPECT_THAT(metadata.inode_and_device,
               Contains(Pair(99u, k64BitUserspaceBlockDeviceId)));
+}
+
+TEST(CpuReaderTest, SysEnterEvent) {
+  BinaryWriter writer;
+  ProtoTranslationTable* table = GetTable("synthetic");
+
+  const auto kSysEnterId = static_cast<uint16_t>(
+      table->EventToFtraceId(GroupAndName("raw_syscalls", "sys_enter")));
+  ASSERT_GT(kSysEnterId, 0ul);
+  constexpr uint32_t kPid = 23;
+  constexpr uint32_t kFd = 7;
+  constexpr auto kSyscall = SYS_close;
+
+  writer.Write<int32_t>(1001);      // Common field.
+  writer.Write<int32_t>(kPid);      // Common pid
+  writer.Write<int64_t>(kSyscall);  // id
+  for (uint32_t i = 0; i < 6; ++i) {
+    writer.Write<uint64_t>(kFd + i);  // args
+  }
+
+  auto input = writer.GetCopy();
+  auto length = writer.written();
+
+  BundleProvider bundle_provider(base::kPageSize);
+  FtraceMetadata metadata{};
+
+  ASSERT_TRUE(CpuReader::ParseEvent(
+      kSysEnterId, input.get(), input.get() + length, table,
+      bundle_provider.writer()->add_event(), &metadata));
+
+  std::unique_ptr<protos::gen::FtraceEventBundle> a =
+      bundle_provider.ParseProto();
+  ASSERT_NE(a, nullptr);
+  ASSERT_EQ(a->event().size(), 1u);
+  const auto& event = a->event()[0].sys_enter();
+  EXPECT_EQ(event.id(), kSyscall);
+  for (uint32_t i = 0; i < 6; ++i) {
+    EXPECT_EQ(event.args()[i], kFd + i);
+  }
 }
 
 TEST(CpuReaderTest, TaskRenameEvent) {
