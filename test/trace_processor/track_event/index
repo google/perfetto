@@ -45,3 +45,6 @@ experimental_slice_layout_depth.py experimental_slice_layout_depth_test.sql expe
 
 # Descriptor merging regression test (bug: b/197203390)
 ../../data/trace_with_descriptor.pftrace merging_regression_test.sql merging_regression.out
+
+# Range of interest
+range_of_interest.textproto range_of_interest_test.sql range_of_interest.out

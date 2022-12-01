@@ -1760,6 +1760,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/stdlib/common:common
+perfetto_filegroup(
+    name = "src_trace_processor_stdlib_common_common",
+    srcs = [
+        "src/trace_processor/stdlib/common/metadata.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/stdlib/experimental:experimental
 perfetto_filegroup(
     name = "src_trace_processor_stdlib_experimental_experimental",
@@ -1773,6 +1781,7 @@ perfetto_cc_amalgamated_sql(
     name = "src_trace_processor_stdlib_gen_amalgamated_stdlib",
     deps = [
         ":src_trace_processor_stdlib_android_android",
+        ":src_trace_processor_stdlib_common_common",
         ":src_trace_processor_stdlib_experimental_experimental",
     ],
     outs = [
@@ -4084,6 +4093,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/track_event/debug_annotation.proto",
         "protos/perfetto/trace/track_event/log_message.proto",
         "protos/perfetto/trace/track_event/process_descriptor.proto",
+        "protos/perfetto/trace/track_event/range_of_interest.proto",
         "protos/perfetto/trace/track_event/source_location.proto",
         "protos/perfetto/trace/track_event/task_execution.proto",
         "protos/perfetto/trace/track_event/thread_descriptor.proto",

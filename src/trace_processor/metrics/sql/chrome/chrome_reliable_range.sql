@@ -19,6 +19,7 @@
 -- 3. The "reliable range" is an intersection of reliable thread ranges for all threads such that:
 --   a. The number of events on the thread is at or above 25p.
 --   b. The event rate for the thread is at or above 75p.
+SELECT IMPORT('common.metadata');
 
 DROP VIEW IF EXISTS chrome_event_stats_per_thread;
 
@@ -113,10 +114,15 @@ DROP VIEW IF EXISTS chrome_reliable_range;
 CREATE VIEW chrome_reliable_range
 AS
 SELECT
-  MAX(thread_start, data_loss_free_start) AS start,
-  IIF(thread_start >= data_loss_free_start,
-      'First slice for utid=' || limiting_utid,
-      'Missing process data for upid=' || limiting_upid) AS reason,
+  -- If the trace has a cropping packet, we don't want to recompute the reliable
+  -- based on cropped track events - the result might be incorrect.g
+  IFNULL(EXTRACT_INT_METADATA('range_of_interest_start_us'),
+         MAX(thread_start, data_loss_free_start)) AS start,
+  IIF(EXTRACT_INT_METADATA('range_of_interest_start_us') IS NOT NULL,
+      'Range of interest packet',
+      IIF(thread_start >= data_loss_free_start,
+          'First slice for utid=' || limiting_utid,
+          'Missing process data for upid=' || limiting_upid)) AS reason,
   limiting_upid AS debug_limiting_upid,
   limiting_utid AS debug_limiting_utid
 FROM
