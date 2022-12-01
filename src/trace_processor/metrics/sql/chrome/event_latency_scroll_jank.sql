@@ -81,7 +81,7 @@ SELECT
   event_latency_with_track.dur,
  EXTRACT_ARG(event_latency_with_track.arg_set_id, "event_latency.event_type") AS event_type
 FROM event_latency_with_track INNER JOIN not_coalesced_event_latency
-ON event_latency_with_track.id =  not_coalesced_event_latency.event_latency_id
+ON event_latency_with_track.id = not_coalesced_event_latency.event_latency_id
 WHERE
   event_type IN (
     "GESTURE_SCROLL_BEGIN", "GESTURE_SCROLL_UPDATE",

@@ -158,10 +158,10 @@ SELECT
           MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'S'), 0
         ),
         'uninterruptible_io_sleep_dur_ns', IFNULL(
-          MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.id, 'D*', true), 0
+          MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.id, 'D*', TRUE), 0
         ),
         'uninterruptible_non_io_sleep_dur_ns', IFNULL(
-          MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.id, 'D*', false), 0
+          MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.id, 'D*', FALSE), 0
         )
 
       ),
@@ -327,7 +327,7 @@ SELECT
 
         UNION ALL
         SELECT 'Main Thread - Time spent in Blocking I/O'
-        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.id, 'D*', true) > 300e6
+        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.id, 'D*', TRUE) > 300e6
 
         UNION ALL
         SELECT 'Time spent in OpenDexFilesFromOat*'

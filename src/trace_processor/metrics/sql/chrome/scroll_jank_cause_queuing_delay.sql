@@ -256,22 +256,22 @@ CREATE VIEW descendant_blocking_tasks_queuing_delay AS
         descendant_id
       ELSE
         NULL
-      END
-    , "-") AS descendant_id,
+      END,
+    "-") AS descendant_id,
     GROUP_CONCAT(
       CASE WHEN descendant_depth < invalid_depth OR descendant_major_slice THEN
         descendant_ts
       ELSE
         NULL
-      END
-    , "-") AS descendant_ts,
+      END,
+    "-") AS descendant_ts,
     GROUP_CONCAT(
       CASE WHEN descendant_depth < invalid_depth OR descendant_major_slice THEN
         descendant_dur
       ELSE
         NULL
-      END
-    , "-") AS descendant_dur,
+      END,
+    "-") AS descendant_dur,
     GROUP_CONCAT(
       CASE WHEN descendant_depth < invalid_depth OR descendant_major_slice THEN
         descendant_name
@@ -283,22 +283,22 @@ CREATE VIEW descendant_blocking_tasks_queuing_delay AS
         descendant_thread_dur
       ELSE
         NULL
-      END
-    , "-") AS descendant_thread_dur,
+      END,
+    "-") AS descendant_thread_dur,
     GROUP_CONCAT(
       CASE WHEN descendant_depth < invalid_depth OR descendant_major_slice THEN
         descendant_cpu_percentage
       ELSE
         NULL
-      END
-    , "-") AS descendant_cpu_time,
+      END,
+    "-") AS descendant_cpu_time,
     GROUP_CONCAT(
       CASE WHEN descendant_category = "mojom" THEN
         descendant_name
       ELSE
         NULL
-      END
-    , "-") AS mojom_name,
+      END,
+    "-") AS mojom_name,
     -- All ipc_hashes should be equal so just select the first non-null one.
     MIN(descendant_ipc_hash) AS mojom_ipc_hash,
     GROUP_CONCAT(
@@ -308,15 +308,15 @@ CREATE VIEW descendant_blocking_tasks_queuing_delay AS
           descendant_name
       ELSE
           NULL
-      END
-    , "-") AS toplevel_name,
+      END,
+    "-") AS toplevel_name,
     GROUP_CONCAT(
       CASE WHEN descendant_category = "Java" THEN
         descendant_name
       ELSE
         NULL
-      END
-    , "-") AS java_name
+      END,
+    "-") AS java_name
   FROM
     blocking_tasks_queuing_delay_with_invalid_depth
   GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20

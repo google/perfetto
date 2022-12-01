@@ -368,7 +368,8 @@ CREATE TABLE android_sysui_cuj_sf_jank_causes AS
     STR_SPLIT(remainder, ",", 0) AS jank_cause,
     TRIM(SUBSTR(remainder, INSTR(remainder, ",") + 1)) AS remainder
     FROM split_jank_type
-    WHERE remainder <> "")
+    WHERE remainder <> ""
+)
   SELECT frame_number, jank_cause
   FROM split_jank_type
   WHERE jank_cause NOT IN ('', 'App Deadline Missed', 'None', 'Buffer Stuffing')

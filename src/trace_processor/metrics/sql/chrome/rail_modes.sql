@@ -336,10 +336,10 @@ SELECT ts,
 FROM (
     SELECT ts,
       SUM(scroll_increment) OVER(ROWS UNBOUNDED PRECEDING) AS scroll_total,
-      SUM(pinch_increment)  OVER(ROWS UNBOUNDED PRECEDING) AS pinch_total,
-      SUM(touch_increment)  OVER(ROWS UNBOUNDED PRECEDING) AS touch_total,
-      SUM(fling_increment)  OVER(ROWS UNBOUNDED PRECEDING) AS fling_total,
-      SUM(pointer_increment)  OVER(ROWS UNBOUNDED PRECEDING) AS pointer_total
+      SUM(pinch_increment) OVER(ROWS UNBOUNDED PRECEDING) AS pinch_total,
+      SUM(touch_increment) OVER(ROWS UNBOUNDED PRECEDING) AS touch_total,
+      SUM(fling_increment) OVER(ROWS UNBOUNDED PRECEDING) AS fling_total,
+      SUM(pointer_increment) OVER(ROWS UNBOUNDED PRECEDING) AS pointer_total
     FROM input_begin_end_slices
   );
 
@@ -512,7 +512,8 @@ CREATE TABLE modified_rail_slices AS
 WITH const (end_ts) AS (SELECT ts + dur
               FROM unmerged_modified_rail_slices
               ORDER BY ts DESC
-              LIMIT 1)
+              LIMIT 1
+)
 SELECT ROW_NUMBER() OVER () AS id, lag(next_ts) OVER() AS ts,
   ts + dur - lag(next_ts) OVER() AS dur,
   mode AS mode

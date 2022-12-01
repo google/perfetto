@@ -78,7 +78,8 @@ cuj_frame_timeline AS (
   JOIN actual_frame_timeline_slice a
     ON e.upid = a.upid
     AND e.name = a.name
-  GROUP BY cuj_id, e.vsync, e.ts),
+  GROUP BY cuj_id, e.vsync, e.ts
+),
 -- Orders do_frame slices by vsync to calculate the ts_end of the previous frame
 -- android_jank_cuj_do_frame_slice only contains frames within the CUJ so
 -- the ts_prev_do_frame_end is always missing for the very first frame
@@ -179,7 +180,8 @@ frame_boundary_base AS (
   JOIN android_jank_cuj_do_frame_slice do_frame USING (cuj_id, vsync)
   JOIN descendant_slice(do_frame.id) post_and_wait
   WHERE post_and_wait.name = 'postAndWait'
-  GROUP BY draw_frame.cuj_id, draw_frame.utid, draw_frame.vsync)
+  GROUP BY draw_frame.cuj_id, draw_frame.utid, draw_frame.vsync
+)
 SELECT
   *,
   ts_end - ts AS dur
@@ -225,7 +227,8 @@ WITH boundary_base AS (
     -- In that case we compute the boundary based on the last doFrame and the
     -- CUJ markers.
     AND vsync_max = CAST(timeline_slice.name AS INTEGER)
-  GROUP BY cuj_id, cuj.upid, main_thread_boundary.ts)
+  GROUP BY cuj_id, cuj.upid, main_thread_boundary.ts
+)
 SELECT
   *,
   ts_end - ts AS dur

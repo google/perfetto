@@ -195,7 +195,8 @@ CREATE TABLE {{prefix}}_latency_info_flow_null_step_removed AS
     curr.ancestor_ts,
     curr.ancestor_dur,
     curr.ancestor_ts + curr.ancestor_dur AS ancestor_end,
-    CASE WHEN curr.step IS NULL THEN
+    COALESCE(
+      curr.step,
       CASE WHEN
           prev.{{id_field}} != curr.{{id_field}}
           OR prev.trace_id != curr.trace_id
@@ -212,7 +213,7 @@ CREATE TABLE {{prefix}}_latency_info_flow_null_step_removed AS
          'Unknown'
         END
       END
-    ELSE curr.step END AS step
+    ) AS step
   FROM
     {{prefix}}_latency_info_flow_step_filtered curr LEFT JOIN
     {{prefix}}_latency_info_flow_step_filtered prev ON
