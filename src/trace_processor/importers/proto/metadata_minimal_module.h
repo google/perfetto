@@ -14,22 +14,23 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_METADATA_MODULE_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_METADATA_MODULE_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_METADATA_MINIMAL_MODULE_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_METADATA_MINIMAL_MODULE_H_
 
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/storage/trace_storage.h"
+
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-class MetadataModule : public ProtoImporterModule {
+class MetadataMinimalModule : public ProtoImporterModule {
  public:
   using ConstBytes = protozero::ConstBytes;
-  explicit MetadataModule(TraceProcessorContext* context);
+  explicit MetadataMinimalModule(TraceProcessorContext* context);
 
   ModuleResult TokenizePacket(
       const protos::pbzero::TracePacket::Decoder& decoder,
@@ -38,23 +39,14 @@ class MetadataModule : public ProtoImporterModule {
       PacketSequenceState* state,
       uint32_t field_id) override;
 
-  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
-                            int64_t ts,
-                            const TracePacketData&,
-                            uint32_t field_id) override;
-
-  void ParseTraceConfig(const protos::pbzero::TraceConfig_Decoder&) override;
-
  private:
-  void ParseTrigger(int64_t ts, ConstBytes);
-  void ParseTraceUuid(ConstBytes);
+  void ParseChromeBenchmarkMetadata(ConstBytes);
+  void ParseChromeMetadataPacket(ConstBytes);
 
   TraceProcessorContext* context_;
-  StringId producer_name_key_id_ = kNullStringId;
-  StringId trusted_producer_uid_key_id_ = kNullStringId;
 };
 
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_METADATA_MODULE_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_METADATA_MINIMAL_MODULE_H_
