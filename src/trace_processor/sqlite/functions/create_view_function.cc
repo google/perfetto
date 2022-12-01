@@ -53,6 +53,7 @@ class CreatedViewFunction : public SqliteTable {
     sqlite3_stmt* stmt_ = nullptr;
     CreatedViewFunction* table_ = nullptr;
     bool is_eof_ = false;
+    int next_call_count_ = 0;
   };
 
   CreatedViewFunction(sqlite3*, void*);
@@ -69,6 +70,22 @@ class CreatedViewFunction : public SqliteTable {
 
  private:
   Schema CreateSchema();
+
+  bool IsReturnValueColumn(size_t i) const {
+    PERFETTO_DCHECK(i < schema().columns().size());
+    return i < return_values_.size();
+  }
+
+  bool IsArgumentColumn(size_t i) const {
+    PERFETTO_DCHECK(i < schema().columns().size());
+    return i >= return_values_.size() &&
+           (i - return_values_.size()) < prototype_.arguments.size();
+  }
+
+  bool IsPrimaryKeyColumn(size_t i) const {
+    PERFETTO_DCHECK(i < schema().columns().size());
+    return i == (return_values_.size() + prototype_.arguments.size());
+  }
 
   sqlite3* db_ = nullptr;
 
@@ -215,8 +232,16 @@ SqliteTable::Schema CreatedViewFunction::CreateSchema() {
                              true));
   }
 
-  std::vector<size_t> primary_keys(return_values_.size());
-  std::iota(primary_keys.begin(), primary_keys.end(), 0);
+  std::vector<size_t> primary_keys;
+
+  // Add the "primary key" column. SQLite requires that we provide a column
+  // which is non-null and unique. Unfortunately, we have no restrictions on
+  // the subqueries so we cannot rely on this constriant being held there.
+  // Therefore, we create a "primary key" column which exists purely for SQLite
+  // primary key purposes and is equal to the row number.
+  columns.push_back(
+      Column(columns.size(), "_primary_key", SqlValue::kLong, true));
+  primary_keys.emplace_back(columns.size() - 1);
 
   return SqliteTable::Schema(std::move(columns), std::move(primary_keys));
 }
@@ -228,19 +253,17 @@ std::unique_ptr<SqliteTable::Cursor> CreatedViewFunction::CreateCursor() {
 int CreatedViewFunction::BestIndex(const QueryConstraints& qc,
                                    BestIndexInfo* info) {
   // Only accept constraint sets where every input parameter has a value.
-  size_t seen_hidden_constraints = 0;
+  size_t seen_argument_constraints = 0;
   for (size_t i = 0; i < qc.constraints().size(); ++i) {
     const auto& cs = qc.constraints()[i];
-    if (!schema().columns()[static_cast<size_t>(cs.column)].hidden())
-      continue;
-    seen_hidden_constraints++;
+    seen_argument_constraints += IsArgumentColumn(static_cast<size_t>(cs.column));
   }
-  if (seen_hidden_constraints < prototype_.arguments.size())
+  if (seen_argument_constraints < prototype_.arguments.size())
     return SQLITE_CONSTRAINT;
 
   for (size_t i = 0; i < info->sqlite_omit_constraint.size(); ++i) {
     size_t col = static_cast<size_t>(qc.constraints()[i].column);
-    if (schema().columns()[col].hidden()) {
+    if (IsArgumentColumn(col)) {
       info->sqlite_omit_constraint[i] = true;
     }
   }
@@ -266,13 +289,13 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
            static_cast<uint32_t>(table_->return_values_.size());
   };
 
-  size_t seen_hidden_constraints = 0;
+  size_t seen_argument_constraints = 0;
   for (size_t i = 0; i < qc.constraints().size(); ++i) {
     const auto& cs = qc.constraints()[i];
 
-    // Only consider hidden columns (i.e. input parameters) as we're delegating
+    // Only consider argument columns (i.e. input parameters) as we're delegating
     // the rest to SQLite.
-    if (!table_->schema().columns()[static_cast<size_t>(cs.column)].hidden())
+    if (!table_->IsArgumentColumn(static_cast<size_t>(cs.column)))
       continue;
 
     // We only support equality constraints as we're expecting "input arguments"
@@ -296,15 +319,15 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
       return SQLITE_ERROR;
     }
 
-    seen_hidden_constraints++;
+    seen_argument_constraints++;
   }
 
   // Verify that we saw one valid constriant for every input argument.
-  if (seen_hidden_constraints < table_->prototype_.arguments.size()) {
+  if (seen_argument_constraints < table_->prototype_.arguments.size()) {
     table_->SetErrorMessage(sqlite3_mprintf(
         "%s: missing value for input argument. Saw %u arguments but expected "
         "%u",
-        table_->prototype_.function_name.c_str(), seen_hidden_constraints,
+        table_->prototype_.function_name.c_str(), seen_argument_constraints,
         table_->prototype_.arguments.size()));
     return SQLITE_ERROR;
   }
@@ -328,7 +351,7 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
     // TODO(lalitm): reconsider this decision to allow more efficient queries:
     // we would need to wrap the query in a SELECT * FROM (...) WHERE constraint
     // like we do for SPAN JOIN.
-    if (!table_->schema().columns()[static_cast<size_t>(cs.column)].hidden())
+    if (!table_->IsArgumentColumn(static_cast<size_t>(cs.column)))
       continue;
 
     uint32_t index = col_to_arg_idx(cs.column);
@@ -343,16 +366,16 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
     }
   }
 
-  ret = Next();
-  if (ret != SQLITE_OK)
-    return ret;
-
-  return SQLITE_OK;
+  // Reset the next call count - this is necessary because the same cursor
+  // can be used for multiple filter operations.
+  next_call_count_ = 0;
+  return Next();
 }
 
 int CreatedViewFunction::Cursor::Next() {
   int ret = sqlite3_step(stmt_);
   is_eof_ = ret == SQLITE_DONE;
+  next_call_count_++;
   if (ret != SQLITE_ROW && ret != SQLITE_DONE) {
     table_->SetErrorMessage(sqlite3_mprintf(
         "%s: SQLite error while stepping statement: %s",
@@ -370,10 +393,17 @@ int CreatedViewFunction::Cursor::Eof() {
 
 int CreatedViewFunction::Cursor::Column(sqlite3_context* ctx, int i) {
   size_t idx = static_cast<size_t>(i);
-  if (idx < table_->return_values_.size()) {
+  if (table_->IsReturnValueColumn(idx)) {
     sqlite3_result_value(ctx, sqlite3_column_value(stmt_, i));
-  } else {
+  } else if (table_->IsArgumentColumn(idx)) {
+    // TODO(lalitm): it may be more appropriate to keep a note of the arguments
+    // which we passed in and return them here. Not doing this to because it
+    // doesn't seem necessary for any useful thing but something which may need
+    // to be changed in the future.
     sqlite3_result_null(ctx);
+  } else {
+    PERFETTO_DCHECK(table_->IsPrimaryKeyColumn(idx));
+    sqlite3_result_int(ctx, next_call_count_);
   }
   return SQLITE_OK;
 }
