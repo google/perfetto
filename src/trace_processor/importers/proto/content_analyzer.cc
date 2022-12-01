@@ -19,8 +19,9 @@
 
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/proto/content_analyzer.h"
-#include "src/trace_processor/importers/trace.descriptor.h"
 #include "src/trace_processor/storage/trace_storage.h"
+
+#include "src/trace_processor/importers/proto/trace.descriptor.h"
 
 namespace perfetto {
 namespace trace_processor {
