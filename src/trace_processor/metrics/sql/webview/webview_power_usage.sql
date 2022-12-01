@@ -177,7 +177,7 @@ SELECT *
 FROM host_app_threads
   WHERE name GLOB 'Chrome*' OR name GLOB 'CookieMonster*'
   OR name GLOB 'CompositorTileWorker*' OR name GLOB 'ThreadPool*ground*'
-  OR NAME GLOB 'ThreadPoolService*' OR  name GLOB 'VizCompositorThread*'
+  OR NAME GLOB 'ThreadPoolService*' OR name GLOB 'VizCompositorThread*'
   OR name IN ('AudioThread', 'DedicatedWorker thread', 'GpuMemoryThread',
   'JavaBridge', 'LevelDBEnv.IDB', 'MemoryInfra', 'NetworkService', 'VizWebView');
 

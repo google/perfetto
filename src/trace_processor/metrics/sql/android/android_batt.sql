@@ -75,7 +75,7 @@ FROM (
                     ORDER BY ts
                     ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
                 ) < ts,
-                true
+                TRUE
             ) AS new_group
         FROM slice
         WHERE slice.name GLOB 'WakeLock *' AND dur != -1

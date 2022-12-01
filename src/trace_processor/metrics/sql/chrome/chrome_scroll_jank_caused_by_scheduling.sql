@@ -54,7 +54,7 @@ FROM
     SELECT * FROM (
       SELECT
         chrome_tasks.full_name AS full_name,
-        chrome_tasks.dur  AS dur,
+        chrome_tasks.dur AS dur,
         chrome_tasks.thread_dur AS thread_dur,
         chrome_tasks.ts AS ts,
         chrome_tasks.id,

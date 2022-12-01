@@ -141,29 +141,14 @@ SELECT
   bitmap.ts,
   bitmap.dur,
   bitmap.track_id,
-  CASE WHEN
-      bitmap.track_id = scroll.browser_track_id
-      AND bitmap.ts < scroll.browser_flow_ts THEN
-    TRUE
-  ELSE
-    FALSE
-  END AS blocked_by_bitmap,
-  CASE WHEN
-      bitmap.track_id = scroll.browser_track_id
+  COALESCE(bitmap.track_id = scroll.browser_track_id
+      AND bitmap.ts < scroll.browser_flow_ts, FALSE) AS blocked_by_bitmap,
+  COALESCE(bitmap.track_id = scroll.browser_track_id
       AND bitmap.toolbar_id IS NOT NULL
-      AND bitmap.ts < scroll.browser_flow_ts THEN
-    TRUE
-  ELSE
-    FALSE
-  END AS blocked_by_toolbar,
-  CASE WHEN
-      bitmap.track_id = scroll.browser_track_id
+      AND bitmap.ts < scroll.browser_flow_ts, FALSE) AS blocked_by_toolbar,
+  COALESCE(bitmap.track_id = scroll.browser_track_id
       AND bitmap.toolbar_id IS NULL
-      AND bitmap.ts < scroll.browser_flow_ts THEN
-    TRUE
-  ELSE
-    FALSE
-  END AS blocked_by_bitmap_no_toolbar
+      AND bitmap.ts < scroll.browser_flow_ts, FALSE) AS blocked_by_bitmap_no_toolbar
 FROM
   scroll_with_browser_flows scroll JOIN
   get_bitmaps_and_toolbar bitmap ON
