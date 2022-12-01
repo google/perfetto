@@ -173,6 +173,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "importers/android_bugreport",
       "importers/common",
       "importers/ninja",
+      "importers/proto:minimal",
       "metrics",
       "sqlite",
       "sqlite/functions",
@@ -256,6 +257,7 @@ perfetto_unittest_source_set("top_level_unittests") {
       "containers",
       "importers:minimal",
       "importers/common",
+      "importers/proto:minimal",
       "storage",
       "types",
     ]
