@@ -13,8 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT RUN_METRIC('chrome/touch_flow_event_queuing_delay.sql')
- ;
+SELECT RUN_METRIC('chrome/touch_flow_event_queuing_delay.sql');
 
 -- trace 6911 is janky and 6915 and 6940 succeed it (both are not janky).
 SELECT

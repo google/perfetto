@@ -1,5 +1,5 @@
-select * from experimental_flamegraph
-where ts = 605908369259172
-    and upid = 1
-    and profile_type = 'native'
-limit 10;
+SELECT * FROM experimental_flamegraph
+WHERE ts = 605908369259172
+  AND upid = 1
+  AND profile_type = 'native'
+LIMIT 10;

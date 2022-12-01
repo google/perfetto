@@ -13,6 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select ts from sched
-where ts > 0.1 + 1e9
-limit 10;
+SELECT ts FROM sched
+WHERE ts > 0.1 + 1e9
+LIMIT 10;

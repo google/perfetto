@@ -13,6 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select pid, uid
-from process
-order by pid;
+SELECT pid, uid
+FROM process
+ORDER BY pid;

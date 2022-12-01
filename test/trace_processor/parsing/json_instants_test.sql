@@ -1,12 +1,12 @@
-select
+SELECT
   slice.ts,
-  slice.name as slice_name,
+  slice.name AS slice_name,
   thread.tid,
   process.pid
-from slice
-join track on (slice.track_id = track.id)
-left join thread_track on (slice.track_id = thread_track.id)
-left join thread on (thread_track.utid = thread.utid)
-left join process_track on (slice.track_id = process_track.id)
-left join process on (process_track.upid = process.upid)
-where dur = 0;
+FROM slice
+JOIN track ON (slice.track_id = track.id)
+LEFT JOIN thread_track ON (slice.track_id = thread_track.id)
+LEFT JOIN thread ON (thread_track.utid = thread.utid)
+LEFT JOIN process_track ON (slice.track_id = process_track.id)
+LEFT JOIN process ON (process_track.upid = process.upid)
+WHERE dur = 0;

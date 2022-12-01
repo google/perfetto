@@ -13,9 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select ts
-from sched
-inner join thread using(utid)
-where tid = 23850
-order by ts desc
-limit 10
+SELECT ts
+FROM sched
+INNER JOIN thread USING(utid)
+WHERE tid = 23850
+ORDER BY ts DESC
+LIMIT 10;

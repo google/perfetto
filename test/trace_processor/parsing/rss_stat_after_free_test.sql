@@ -1,8 +1,8 @@
-select
+SELECT
   pid,
-  max(c.ts) as last_rss,
-  p.end_ts as process_end
-from counter c
-join process_counter_track t on c.track_id = t.id
-join process p using(upid)
-group by upid
+  max(c.ts) AS last_rss,
+  p.end_ts AS process_end
+FROM counter c
+JOIN process_counter_track t ON c.track_id = t.id
+JOIN process p USING(upid)
+GROUP BY upid;

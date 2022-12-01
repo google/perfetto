@@ -13,4 +13,4 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select count(*) from counters where -1 < ts
+SELECT count(*) FROM counters WHERE -1 < ts;

@@ -22,4 +22,4 @@ SELECT
   detail_level
 FROM memory_snapshot ms
 LEFT JOIN process_memory_snapshot pms
-  ON ms.id = pms.snapshot_id
+  ON ms.id = pms.snapshot_id;

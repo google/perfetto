@@ -14,8 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT RUN_METRIC('chrome/chrome_thread_slice.sql')
-   ;
+SELECT RUN_METRIC('chrome/chrome_thread_slice.sql');
 
 SELECT
   EXTRACT_ARG(arg_set_id, 'chrome_latency_info.trace_id') AS trace_id,
@@ -23,5 +22,5 @@ SELECT
   thread_dur
 FROM chrome_thread_slice
 WHERE
-  name = 'LatencyInfo.Flow' AND
-  EXTRACT_ARG(arg_set_id, 'chrome_latency_info.trace_id') = 2734;
+  name = 'LatencyInfo.Flow'
+  AND EXTRACT_ARG(arg_set_id, 'chrome_latency_info.trace_id') = 2734;
