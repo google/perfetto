@@ -19,6 +19,7 @@
 #include <dirent.h>
 
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -330,10 +331,9 @@ TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
   const int kPids[] = {1, 2};
   std::vector<std::string> dirs_to_delete;
   for (int pid : kPids) {
-    char path[256];
-    sprintf(path, "%s/%d", fake_proc.path().c_str(), pid);
-    dirs_to_delete.push_back(path);
-    mkdir(path, 0755);
+    base::StackString<256> path("%s/%d", fake_proc.path().c_str(), pid);
+    dirs_to_delete.push_back(path.ToStdString());
+    mkdir(path.c_str(), 0755);
   }
 
   auto checkpoint = task_runner_.CreateCheckpoint("all_done");
@@ -346,13 +346,13 @@ TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
   int iter = 0;
   for (int pid : kPids) {
     EXPECT_CALL(*data_source, ReadProcPidFile(pid, "status"))
-        .WillRepeatedly(Invoke([checkpoint, &iter](int32_t p,
-                                                   const std::string&) {
-          char ret[1024];
-          sprintf(ret, "Name:	pid_10\nVmSize:	 %d kB\nVmRSS:\t%d  kB\n",
+        .WillRepeatedly(
+            Invoke([checkpoint, &iter](int32_t p, const std::string&) {
+              base::StackString<1024> ret(
+                  "Name:	pid_10\nVmSize:	 %d kB\nVmRSS:\t%d  kB\n",
                   p * 100 + iter * 10 + 1, p * 100 + iter * 10 + 2);
-          return std::string(ret);
-        }));
+              return ret.ToStdString();
+            }));
 
     EXPECT_CALL(*data_source, ReadProcPidFile(pid, "oom_score_adj"))
         .WillRepeatedly(Invoke(
@@ -409,9 +409,8 @@ TEST_F(ProcessStatsDataSourceTest, CacheProcessStats) {
   auto fake_proc = base::TempDir::Create();
   const int kPid = 1;
 
-  char path[256];
-  sprintf(path, "%s/%d", fake_proc.path().c_str(), kPid);
-  mkdir(path, 0755);
+  base::StackString<256> path("%s/%d", fake_proc.path().c_str(), kPid);
+  mkdir(path.c_str(), 0755);
 
   auto checkpoint = task_runner_.CreateCheckpoint("all_done");
 
@@ -423,10 +422,10 @@ TEST_F(ProcessStatsDataSourceTest, CacheProcessStats) {
   int iter = 0;
   EXPECT_CALL(*data_source, ReadProcPidFile(kPid, "status"))
       .WillRepeatedly(Invoke([checkpoint](int32_t p, const std::string&) {
-        char ret[1024];
-        sprintf(ret, "Name:	pid_10\nVmSize:	 %d kB\nVmRSS:\t%d  kB\n",
-                p * 100 + 1, p * 100 + 2);
-        return std::string(ret);
+        base::StackString<1024> ret(
+            "Name:	pid_10\nVmSize:	 %d kB\nVmRSS:\t%d  kB\n", p * 100 + 1,
+            p * 100 + 2);
+        return ret.ToStdString();
       }));
 
   EXPECT_CALL(*data_source, ReadProcPidFile(kPid, "oom_score_adj"))
@@ -461,7 +460,7 @@ TEST_F(ProcessStatsDataSourceTest, CacheProcessStats) {
   }
 
   // Cleanup |fake_proc|. TempDir checks that the directory is empty.
-  base::Rmdir(path);
+  base::Rmdir(path.ToStdString());
 }
 
 TEST_F(ProcessStatsDataSourceTest, NamespacedProcess) {

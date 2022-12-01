@@ -46,11 +46,11 @@ perfetto_unittest_source_set("unittests") {
   ]
   deps = [
     ":sorter",
-    "..:storage_minimal",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../include/perfetto/trace_processor:storage",
     "../../base",
+    "../importers:minimal",
     "../importers/common:parser_types",
     "../importers/proto:minimal",
     "../types",

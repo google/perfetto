@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {escapeAndExpandQuery, escapeGlob, escapeQuery} from './query_utils';
+import {escapeGlob, escapeQuery, escapeSearchQuery} from './query_utils';
 
 test('escapeQuery', () => {
   expect(escapeQuery(``)).toEqual(`''`);
@@ -23,12 +23,12 @@ test('escapeQuery', () => {
   expect(escapeQuery('[]?')).toEqual(`'[[]][?]'`);
 });
 
-test('escapeAndExpandQuery', () => {
-  expect(escapeAndExpandQuery(``)).toEqual(`'**'`);
-  expect(escapeAndExpandQuery(`hello`)).toEqual(`'*hello*'`);
-  expect(escapeAndExpandQuery('foo\'bar')).toEqual(`'*foo''bar*'`);
-  expect(escapeAndExpandQuery('*_*')).toEqual(`'*[*]_[*]*'`);
-  expect(escapeAndExpandQuery('[]?')).toEqual(`'*[[]][?]*'`);
+test('escapeSearchQuery', () => {
+  expect(escapeSearchQuery(``)).toEqual(`'**'`);
+  expect(escapeSearchQuery(`hello`)).toEqual(`'*[hH][eE][lL][lL][oO]*'`);
+  expect(escapeSearchQuery('a\'b')).toEqual(`'*[aA]''[bB]*'`);
+  expect(escapeSearchQuery('*_*')).toEqual(`'*[*]_[*]*'`);
+  expect(escapeSearchQuery('[]?')).toEqual(`'*[[]][?]*'`);
 });
 
 test('escapeGlob', () => {
