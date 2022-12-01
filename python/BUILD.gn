@@ -14,6 +14,10 @@
 
 import("../gn/perfetto_python.gni")
 
+perfetto_py_library("trace_processor_table_generator") {
+  sources = [ "generators/trace_processor_table/public.py" ]
+}
+
 perfetto_py_binary("trace_processor_py_example") {
   sources = [ "example.py" ]
   deps = [
