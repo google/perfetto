@@ -20,7 +20,7 @@ SELECT RUN_METRIC('android/process_mem.sql');
 -- Compute DMA spans.
 SELECT RUN_METRIC('android/global_counter_span_view.sql',
   'table_name', 'dma',
-   'counter_name', 'mem.dma_heap');
+  'counter_name', 'mem.dma_heap');
 
 -- RSS of GCA.
 DROP VIEW IF EXISTS rss_gca;

@@ -34,7 +34,7 @@ FROM (
   SELECT
     name,
     (LEAD(value) OVER (PARTITION BY name ORDER BY ts) - value)
-      / (LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts) AS avg_used_power,
+    / (LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts) AS avg_used_power,
     (LEAD(value) OVER (PARTITION BY name ORDER BY ts) - value) AS tot_used_power,
     ts AS powrail_start_ts,
     (LEAD(ts) OVER (PARTITION BY name ORDER BY ts)) AS powrail_end_ts
@@ -65,7 +65,7 @@ SELECT
       )
     ),
     'avg_used_power_mw', (SELECT avg_used_power FROM avg_used_powers
-        WHERE avg_used_powers.name = power_rails_counters.name)
+      WHERE avg_used_powers.name = power_rails_counters.name)
   ) AS power_rails_proto
 FROM power_rails_counters
 GROUP BY name

@@ -80,8 +80,8 @@ closest_anon_swap AS (
         WHERE upid = base_stats.upid)
       WHERE
         (graph_sample_ts >= ts AND graph_sample_ts < ts + dur)
-         -- If the first memory sample for the UPID comes *after* the heap profile
-         -- accept it if close (500ms)
+        -- If the first memory sample for the UPID comes *after* the heap profile
+        -- accept it if close (500ms)
         OR (graph_sample_ts < ts AND diff <= 500 * 1e6)
       ORDER BY diff LIMIT 1
     ) AS val

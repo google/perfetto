@@ -45,15 +45,15 @@ SELECT RUN_METRIC('android/power_profile_data.sql');
 DROP VIEW IF EXISTS device;
 CREATE VIEW device AS
 WITH
-  after_first_slash(str) AS (
-      SELECT SUBSTR(str_value, INSTR(str_value, '/') + 1)
-      FROM metadata
-      WHERE name = 'android_build_fingerprint'
-  ),
-  before_second_slash(str) AS (
-      SELECT SUBSTR(str, 0, INSTR(str, '/'))
-      FROM after_first_slash
-  )
+after_first_slash(str) AS (
+  SELECT SUBSTR(str_value, INSTR(str_value, '/') + 1)
+  FROM metadata
+  WHERE name = 'android_build_fingerprint'
+),
+before_second_slash(str) AS (
+  SELECT SUBSTR(str, 0, INSTR(str, '/'))
+  FROM after_first_slash
+)
 SELECT str AS name FROM before_second_slash;
 
 DROP VIEW IF EXISTS power_view;
@@ -68,7 +68,7 @@ JOIN power_profile ON (
   power_profile.device = (SELECT name FROM device)
   AND power_profile.cpu = cpu_freq_view.cpu
   AND power_profile.freq = cpu_freq_view.freq_khz
-);
+  );
 
 -- utid = 0 is a reserved value used to mark sched slices where CPU was idle.
 -- It doesn't correspond to any real thread.

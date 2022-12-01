@@ -30,7 +30,7 @@ CREATE TABLE activity_intent_recv_spans(id INT, ts BIGINT, dur BIGINT);
 INSERT INTO activity_intent_recv_spans
 SELECT
   ROW_NUMBER()
-    OVER(ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS id,
+  OVER(ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS id,
   ts,
   LEAD(ts, 1, (SELECT end_ts FROM trace_bounds)) OVER(ORDER BY ts) - ts AS dur
 FROM activity_intent_received

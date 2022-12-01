@@ -19,7 +19,7 @@ CREATE VIEW dma_heap_timeline AS
 SELECT
   ts,
   LEAD(ts, 1, (SELECT end_ts FROM trace_bounds))
-    OVER(PARTITION BY track_id ORDER BY ts) - ts AS dur,
+  OVER(PARTITION BY track_id ORDER BY ts) - ts AS dur,
   track_id,
   value
 FROM counter JOIN counter_track
@@ -70,9 +70,9 @@ GROUP BY 1, 2, 3;
 DROP VIEW IF EXISTS android_dma_heap_output;
 CREATE VIEW android_dma_heap_output AS
 SELECT AndroidDmaHeapMetric(
-      'avg_size_bytes', avg_size,
-      'min_size_bytes', min_size,
-      'max_size_bytes', max_size,
-      'total_alloc_size_bytes', total_alloc_size_bytes
+  'avg_size_bytes', avg_size,
+  'min_size_bytes', min_size,
+  'max_size_bytes', max_size,
+  'total_alloc_size_bytes', total_alloc_size_bytes
   )
 FROM dma_heap_stats JOIN dma_heap_total_stats;
