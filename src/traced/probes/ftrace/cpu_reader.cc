@@ -710,6 +710,10 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
                                   field.ftrace_name);
       success &= ParseField(field, start, end, table, generic_field, metadata);
     }
+  } else if (PERFETTO_UNLIKELY(
+                 info.proto_field_id ==
+                 protos::pbzero::FtraceEvent::kSysEnterFieldNumber)) {
+    success &= ParseSysEnter(info, start, end, nested, metadata);
   } else {  // Parse all other events.
     for (const Field& field : info.fields) {
       success &= ParseField(field, start, end, table, nested, metadata);
@@ -834,6 +838,54 @@ bool CpuReader::ParseField(const Field& field,
       break;
   }
   PERFETTO_FATAL("Unexpected translation strategy");
+}
+
+bool CpuReader::ParseSysEnter(const Event& info,
+                              const uint8_t* start,
+                              const uint8_t* end,
+                              protozero::Message* message,
+                              FtraceMetadata* /* metadata */) {
+  if (info.fields.size() != 2) {
+    PERFETTO_DLOG("Unexpected number of fields for sys_enter");
+    return false;
+  }
+  const auto& id_field = info.fields[0];
+  const auto& args_field = info.fields[1];
+  if (start + id_field.ftrace_size + args_field.ftrace_size > end) {
+    return false;
+  }
+  // field:long id;
+  if (id_field.ftrace_type != kFtraceInt32 &&
+      id_field.ftrace_type != kFtraceInt64) {
+    return false;
+  }
+  const int64_t syscall_id = ReadSignedFtraceValue(
+      start + id_field.ftrace_offset, id_field.ftrace_type);
+  message->AppendVarInt(id_field.proto_field_id, syscall_id);
+  // field:unsigned long args[6];
+  // proto_translation_table will only allow exactly 6-element array, so we can
+  // make the same hard assumption here.
+  constexpr uint16_t arg_count = 6;
+  size_t element_size = 0;
+  if (args_field.ftrace_type == kFtraceUint32) {
+    element_size = 4u;
+  } else if (args_field.ftrace_type == kFtraceUint64) {
+    element_size = 8u;
+  } else {
+    return false;
+  }
+  for (uint16_t i = 0; i < arg_count; ++i) {
+    const uint8_t* element_ptr =
+        start + args_field.ftrace_offset + i * element_size;
+    uint64_t arg_value = 0;
+    if (element_size == 8) {
+      arg_value = ReadValue<uint64_t>(element_ptr);
+    } else {
+      arg_value = ReadValue<uint32_t>(element_ptr);
+    }
+    message->AppendVarInt(args_field.proto_field_id, arg_value);
+  }
+  return true;
 }
 
 // Parse a sched_switch event according to pre-validated format, and buffer the
