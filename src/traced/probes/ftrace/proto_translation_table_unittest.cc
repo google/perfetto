@@ -373,6 +373,12 @@ TEST(TranslationTableTest, InferFtraceType) {
   ASSERT_EQ(type, kFtraceDataLoc);
   ASSERT_FALSE(InferFtraceType("__data_loc char[] foo", 8, false, &type));
 
+  ASSERT_TRUE(InferFtraceType("unsigned long args[6]", 24, true, &type));
+  ASSERT_EQ(type, kFtraceUint32);
+  ASSERT_TRUE(InferFtraceType("unsigned long args[6]", 48, true, &type));
+  ASSERT_EQ(type, kFtraceUint64);
+  ASSERT_FALSE(InferFtraceType("unsigned long args[6]", 96, true, &type));
+
   EXPECT_FALSE(InferFtraceType("foo", 64, false, &type));
 }
 
