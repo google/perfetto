@@ -24,11 +24,11 @@ CREATE VIEW android_lmk_reason_output AS
 WITH
 total_ion_name AS (
   SELECT
-  CASE
-    WHEN EXISTS(SELECT TRUE FROM ion_timeline WHERE heap_name = 'all')
-      THEN 'all'
-    ELSE 'system'
-  END AS name
+    CASE
+      WHEN EXISTS(SELECT TRUE FROM ion_timeline WHERE heap_name = 'all')
+        THEN 'all'
+      ELSE 'system'
+    END AS name
 ),
 oom_score_at_lmk_time AS (
   SELECT
@@ -76,7 +76,7 @@ lmk_process_sizes_output AS (
     'anon_rss_bytes', anon_rss_val,
     'shmem_rss_bytes', shmem_rss_val,
     'swap_bytes', swap_val
-  )) AS processes
+    )) AS processes
   FROM lmk_process_sizes
   JOIN process_metadata USING (upid)
   LEFT JOIN oom_score_at_lmk_time USING (ts, upid)
@@ -89,7 +89,7 @@ SELECT AndroidLmkReasonMetric(
       'system_ion_heap_size', ion_size,
       'ion_heaps_bytes', ion_size,
       'processes', processes
-    ))
+      ))
     FROM lmk_events
     LEFT JOIN oom_score_at_lmk_time USING (ts, upid)
     LEFT JOIN ion_at_lmk_time USING (ts)

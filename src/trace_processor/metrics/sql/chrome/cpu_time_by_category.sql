@@ -43,7 +43,7 @@ FROM counters,
   (
     SELECT thread_counter_track.id
     FROM chrome_thread
-      JOIN thread_counter_track ON chrome_thread.utid = thread_counter_track.utid
+    JOIN thread_counter_track ON chrome_thread.utid = thread_counter_track.utid
   ) AS t
 WHERE t.id = track_id;
 
@@ -66,6 +66,6 @@ SELECT s.id,
   s.{{category}},
   SUM(cpu_dur) AS cpu_dur
 FROM {{input}}_cpu_time r
-  JOIN {{input}} s
+JOIN {{input}} s
 WHERE r.id = s.id
 GROUP BY r.id;

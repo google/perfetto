@@ -42,7 +42,7 @@ SELECT
   SUM(mem_valxdur) / SUM(mem_dur) AS mem_avg
 FROM process
 JOIN proc_gpu_memory_view
-USING(upid)
+  USING(upid)
 GROUP BY name;
 
 DROP VIEW IF EXISTS proc_gpu_view;
@@ -96,7 +96,7 @@ SELECT
     'freq_min', CAST(MIN(gpu_freq_val) AS INT64),
     'freq_avg', SUM(gpu_freq_val * dur) / SUM(dur),
     'used_freqs', (SELECT RepeatedField(proto) FROM metrics_per_freq_view
-        WHERE metrics_per_freq_view.gpu_id = gpu_freq_span.gpu_id)
+      WHERE metrics_per_freq_view.gpu_id = gpu_freq_span.gpu_id)
   ) AS proto
 FROM gpu_freq_span
 GROUP BY gpu_id;

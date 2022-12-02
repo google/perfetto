@@ -41,7 +41,7 @@ DROP VIEW IF EXISTS android_other_traces_output;
 CREATE VIEW android_other_traces_output AS
 SELECT AndroidOtherTracesMetric(
     'finalized_traces_uuid', (
-    SELECT RepeatedField(uuid)
-    FROM android_other_traces_view
-    WHERE event_type = 'Finalize')
+      SELECT RepeatedField(uuid)
+      FROM android_other_traces_view
+      WHERE event_type = 'Finalize')
   );

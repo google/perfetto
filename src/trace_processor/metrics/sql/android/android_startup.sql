@@ -112,7 +112,7 @@ SELECT
         'name', (SELECT STR_SPLIT(s.slice_name, ':', 1)),
         'method', (SELECT STR_SPLIT(s.slice_name, ':', 0)),
         'ts_method_start', s.slice_ts
-      ))
+        ))
       FROM thread_slices_for_all_launches s
       WHERE
         s.launch_id = launches.id
@@ -172,51 +172,51 @@ SELECT
         'unknown', MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(launches.id, 'unknown')
       )),
       'to_post_fork',
-        LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(launches.id, 'PostFork'),
+      LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(launches.id, 'PostFork'),
       'to_activity_thread_main',
-        LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(launches.id, 'ActivityThreadMain'),
+      LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(launches.id, 'ActivityThreadMain'),
       'to_bind_application',
-        LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(launches.id, 'bindApplication'),
+      LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(launches.id, 'bindApplication'),
       'time_activity_manager', (
         SELECT STARTUP_SLICE_PROTO(l.ts - launches.ts)
         FROM launching_events l
         WHERE l.ts BETWEEN launches.ts AND launches.ts + launches.dur
       ),
       'time_post_fork',
-        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'PostFork'),
+      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'PostFork'),
       'time_activity_thread_main',
-        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'ActivityThreadMain'),
+      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'ActivityThreadMain'),
       'time_bind_application',
-        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'bindApplication'),
+      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'bindApplication'),
       'time_activity_start',
-        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'activityStart'),
+      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'activityStart'),
       'time_activity_resume',
-        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'activityResume'),
+      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'activityResume'),
       'time_activity_restart',
-        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'activityRestart'),
+      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'activityRestart'),
       'time_choreographer',
-        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'Choreographer#doFrame*'),
+      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'Choreographer#doFrame*'),
       'time_inflate',
-        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'inflate'),
+      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'inflate'),
       'time_get_resources',
-        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'ResourcesManager#getResources'),
+      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'ResourcesManager#getResources'),
       'time_dex_open',
-        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'OpenDexFilesFromOat*'),
+      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'OpenDexFilesFromOat*'),
       'time_verify_class',
-        DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'VerifyClass*'),
+      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.id, 'VerifyClass*'),
       'time_gc_total', (
         SELECT NULL_IF_EMPTY(STARTUP_SLICE_PROTO(TOTAL_GC_TIME_BY_LAUNCH(launches.id)))
       ),
       'time_lock_contention_thread_main',
-        DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
-          launches.id,
-          'Lock contention on*'
-        ),
+      DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
+        launches.id,
+        'Lock contention on*'
+      ),
       'time_monitor_contention_thread_main',
-        DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
-          launches.id,
-          'Lock contention on a monitor*'
-        ),
+      DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
+        launches.id,
+        'Lock contention on a monitor*'
+      ),
       'time_before_start_process', (
         SELECT STARTUP_SLICE_PROTO(ts - launches.ts)
         FROM ZYGOTE_FORK_FOR_LAUNCH(launches.id)
@@ -267,7 +267,7 @@ SELECT
         'odex_status', STR_SPLIT(STR_SPLIT(slice_name, ' status=', 1), ' filter=', 0),
         'compilation_filter', STR_SPLIT(STR_SPLIT(slice_name, ' filter=', 1), ' reason=', 0),
         'compilation_reason', STR_SPLIT(slice_name, ' reason=', 1)
-      ))
+        ))
       FROM (
         SELECT *
         FROM SLICES_FOR_LAUNCH_AND_SLICE_NAME(
@@ -285,19 +285,19 @@ SELECT
     ),
     'system_state', AndroidStartupMetric_SystemState(
       'dex2oat_running',
-        DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*dex2oat64') > 0,
+      DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*dex2oat64') > 0,
       'installd_running',
-        DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*installd') > 0,
+      DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*installd') > 0,
       'broadcast_dispatched_count',
-        COUNT_SLICES_CONCURRENT_TO_LAUNCH(launches.id, 'Broadcast dispatched*'),
+      COUNT_SLICES_CONCURRENT_TO_LAUNCH(launches.id, 'Broadcast dispatched*'),
       'broadcast_received_count',
-        COUNT_SLICES_CONCURRENT_TO_LAUNCH(launches.id, 'broadcastReceiveReg*'),
+      COUNT_SLICES_CONCURRENT_TO_LAUNCH(launches.id, 'broadcastReceiveReg*'),
       'most_active_non_launch_processes',
-        N_MOST_ACTIVE_PROCESS_NAMES_FOR_LAUNCH(launches.id),
+      N_MOST_ACTIVE_PROCESS_NAMES_FOR_LAUNCH(launches.id),
       'installd_dur_ns',
-        DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*installd'),
+      DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*installd'),
       'dex2oat_dur_ns',
-        DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*dex2oat64')
+      DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.id, '*dex2oat64')
     ),
     'slow_start_reason', (SELECT RepeatedField(slow_cause)
       FROM (
@@ -312,17 +312,17 @@ SELECT
 
         UNION ALL
         SELECT 'Main Thread - Time spent in Running state'
-        AS slow_cause
+          AS slow_cause
         WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'Running') > 150e6
 
         UNION ALL
         SELECT 'Main Thread - Time spent in Runnable state'
-        AS slow_cause
+          AS slow_cause
         WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'R') > 1e8
 
         UNION ALL
         SELECT 'Main Thread - Time spent in interruptible sleep state'
-        AS slow_cause
+          AS slow_cause
         WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.id, 'S') > 250e6
 
         UNION ALL
@@ -331,33 +331,33 @@ SELECT
 
         UNION ALL
         SELECT 'Time spent in OpenDexFilesFromOat*'
-        AS slow_cause
+          AS slow_cause
         WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(launches.id, 'OpenDexFilesFromOat*') > 1e6
 
         UNION ALL
         SELECT 'Time spent in bindApplication'
-        AS slow_cause
+          AS slow_cause
         WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(launches.id, 'bindApplication') > 10e6
 
         UNION ALL
         SELECT 'Time spent in view inflation'
-        AS slow_cause
+          AS slow_cause
         WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(launches.id, 'inflate') > 600e6
 
         UNION ALL
         SELECT 'Time spent in ResourcesManager#getResources'
-        AS slow_cause
+          AS slow_cause
         WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(
           launches.id, 'ResourcesManager#getResources') > 10e6
 
         UNION ALL
         SELECT 'Time spent verifying classes'
-        AS slow_cause
+          AS slow_cause
         WHERE DUR_SUM_FOR_LAUNCH_AND_SLICE(launches.id, 'VerifyClass*') > 10e6
 
         UNION ALL
         SELECT 'JIT Activity'
-        AS slow_cause
+          AS slow_cause
         WHERE THREAD_TIME_FOR_LAUNCH_STATE_AND_THREAD(
           launches.id,
           'Running',
@@ -366,7 +366,7 @@ SELECT
 
         UNION ALL
         SELECT 'Main Thread - Lock contention'
-        AS slow_cause
+          AS slow_cause
         WHERE DUR_SUM_MAIN_THREAD_FOR_LAUNCH_AND_SLICE(
           launches.id,
           'Lock contention on*'
@@ -374,7 +374,7 @@ SELECT
 
         UNION ALL
         SELECT 'Main Thread - Monitor contention'
-        AS slow_cause
+          AS slow_cause
         WHERE DUR_SUM_MAIN_THREAD_FOR_LAUNCH_AND_SLICE(
           launches.id,
           'Lock contention on a monitor*'

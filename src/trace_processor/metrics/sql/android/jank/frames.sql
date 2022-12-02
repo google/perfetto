@@ -45,8 +45,8 @@ SELECT
 FROM android_jank_cuj_vsync_boundary boundary
 JOIN actual_timeline_with_vsync timeline
   ON boundary.upid = timeline.upid
-  AND vsync >= vsync_min
-  AND vsync <= vsync_max
+    AND vsync >= vsync_min
+    AND vsync <= vsync_max
 LEFT JOIN expected_frame_timeline_slice expected
   ON expected.upid = timeline.upid AND expected.name = timeline.name
 GROUP BY cuj_id, vsync;
@@ -114,7 +114,7 @@ FROM android_jank_cuj_sf_main_thread_frame_boundary boundary
 JOIN android_jank_cuj_sf_process sf_process
 JOIN actual_frame_timeline_slice actual_timeline
   ON actual_timeline.upid = sf_process.upid
-  AND boundary.vsync = CAST(actual_timeline.name AS INTEGER)
+    AND boundary.vsync = CAST(actual_timeline.name AS INTEGER)
 LEFT JOIN expected_frame_timeline_slice expected_timeline
   ON expected_timeline.upid = actual_timeline.upid
-  AND expected_timeline.name = actual_timeline.name;
+    AND expected_timeline.name = actual_timeline.name;

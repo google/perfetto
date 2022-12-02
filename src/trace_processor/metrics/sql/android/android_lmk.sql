@@ -41,19 +41,19 @@ DROP VIEW IF EXISTS android_lmk_event;
 CREATE VIEW android_lmk_event AS
 WITH raw_events AS (
   SELECT
-      ts,
-      LEAD(ts) OVER (ORDER BY ts) - ts AS dur,
-      CAST(value AS INTEGER) AS pid
-    FROM counter c
-    JOIN counter_track t ON t.id = c.track_id
-    WHERE t.name = 'kill_one_process'
+    ts,
+    LEAD(ts) OVER (ORDER BY ts) - ts AS dur,
+    CAST(value AS INTEGER) AS pid
+  FROM counter c
+  JOIN counter_track t ON t.id = c.track_id
+  WHERE t.name = 'kill_one_process'
   UNION ALL
   SELECT
-      slice.ts,
-      slice.dur,
-      CAST(STR_SPLIT(slice.name, ",", 1) AS INTEGER) AS pid
-    FROM slice
-    WHERE slice.name GLOB 'lmk,*'
+    slice.ts,
+    slice.dur,
+    CAST(STR_SPLIT(slice.name, ",", 1) AS INTEGER) AS pid
+  FROM slice
+  WHERE slice.name GLOB 'lmk,*'
 ),
 lmks_with_proc_name AS (
   SELECT
