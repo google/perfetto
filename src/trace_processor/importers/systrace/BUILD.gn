@@ -19,3 +19,17 @@ source_set("systrace_line") {
     "../../containers",
   ]
 }
+
+source_set("systrace_parser") {
+  sources = [
+    "systrace_parser.cc",
+    "systrace_parser.h",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../containers",
+    "../../storage",
+    "../../types",
+    "../common",
+  ]
+}

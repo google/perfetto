@@ -20,7 +20,6 @@
 #include <stdint.h>
 
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
-#include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/systrace/systrace_line_tokenizer.h"
 #include "src/trace_processor/storage/trace_storage.h"
 

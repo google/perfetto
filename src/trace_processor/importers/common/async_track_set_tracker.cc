@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/proto/async_track_set_tracker.h"
+#include "src/trace_processor/importers/common/async_track_set_tracker.h"
 
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"

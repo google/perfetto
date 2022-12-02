@@ -19,58 +19,10 @@ source_set("minimal") {
   sources = [
     "default_modules.cc",
     "default_modules.h",
-    "ftrace/ftrace_module.cc",
-    "ftrace/ftrace_module.h",
     "fuchsia/fuchsia_trace_utils.h",
-    "json/json_utils.cc",
-    "json/json_utils.h",
-    "proto/chrome_system_probes_module.cc",
-    "proto/chrome_system_probes_module.h",
-    "proto/chrome_system_probes_parser.cc",
-    "proto/chrome_system_probes_parser.h",
-    "proto/memory_tracker_snapshot_module.cc",
-    "proto/memory_tracker_snapshot_module.h",
-    "proto/memory_tracker_snapshot_parser.cc",
-    "proto/memory_tracker_snapshot_parser.h",
-    "proto/perf_sample_tracker.cc",
-    "proto/perf_sample_tracker.h",
-    "proto/profile_module.cc",
-    "proto/profile_module.h",
-    "proto/profile_packet_utils.cc",
-    "proto/profile_packet_utils.h",
-    "proto/proto_incremental_state.h",
-    "proto/proto_trace_parser.cc",
-    "proto/proto_trace_parser.h",
-    "proto/proto_trace_reader.cc",
-    "proto/proto_trace_reader.h",
-    "proto/proto_trace_tokenizer.cc",
-    "proto/proto_trace_tokenizer.h",
-    "proto/track_event_module.cc",
-    "proto/track_event_module.h",
-    "proto/track_event_parser.cc",
-    "proto/track_event_parser.h",
-    "proto/track_event_tokenizer.cc",
-    "proto/track_event_tokenizer.h",
-    "proto/track_event_tracker.cc",
-    "proto/track_event_tracker.h",
   ]
   deps = [
     "../../../gn:default_deps",
-    "../../../protos/perfetto/common:zero",
-    "../../../protos/perfetto/config:zero",
-    "../../../protos/perfetto/trace:zero",
-    "../../../protos/perfetto/trace/android:zero",
-    "../../../protos/perfetto/trace/chrome:zero",
-    "../../../protos/perfetto/trace/ftrace:zero",
-    "../../../protos/perfetto/trace/interned_data:zero",
-    "../../../protos/perfetto/trace/perfetto:zero",
-    "../../../protos/perfetto/trace/power:zero",
-    "../../../protos/perfetto/trace/profiling:zero",
-    "../../../protos/perfetto/trace/ps:zero",
-    "../../../protos/perfetto/trace/sys_stats:zero",
-    "../../../protos/perfetto/trace/system_info:zero",
-    "../../../protos/perfetto/trace/track_event:zero",
-    "../../../protos/perfetto/trace/translation:zero",
     "../../protozero",
     "../containers",
     "../sorter",
@@ -83,41 +35,17 @@ source_set("minimal") {
     "../util:stack_traces_util",
     "common",
     "common:parser_types",
+    "ftrace:minimal",
     "fuchsia:fuchsia_record",
     "memory_tracker:graph_processor",
     "proto:minimal",
   ]
-  if (enable_perfetto_trace_processor_json) {
-    deps += [ "../../../gn:jsoncpp" ]
-  }
 }
 
 source_set("full") {
   sources = [
     "additional_modules.cc",
     "additional_modules.h",
-    "ftrace/binder_tracker.cc",
-    "ftrace/binder_tracker.h",
-    "ftrace/drm_tracker.cc",
-    "ftrace/drm_tracker.h",
-    "ftrace/ftrace_module_impl.cc",
-    "ftrace/ftrace_module_impl.h",
-    "ftrace/ftrace_parser.cc",
-    "ftrace/ftrace_parser.h",
-    "ftrace/ftrace_tokenizer.cc",
-    "ftrace/ftrace_tokenizer.h",
-    "ftrace/iostat_tracker.cc",
-    "ftrace/iostat_tracker.h",
-    "ftrace/rss_stat_tracker.cc",
-    "ftrace/rss_stat_tracker.h",
-    "ftrace/sched_event_tracker.cc",
-    "ftrace/sched_event_tracker.h",
-    "ftrace/thread_state_tracker.cc",
-    "ftrace/thread_state_tracker.h",
-    "ftrace/v4l2_tracker.cc",
-    "ftrace/v4l2_tracker.h",
-    "ftrace/virtio_video_tracker.cc",
-    "ftrace/virtio_video_tracker.h",
     "fuchsia/fuchsia_trace_parser.cc",
     "fuchsia/fuchsia_trace_parser.h",
     "fuchsia/fuchsia_trace_tokenizer.cc",
@@ -125,72 +53,23 @@ source_set("full") {
     "fuchsia/fuchsia_trace_utils.cc",
     "gzip/gzip_trace_parser.cc",
     "gzip/gzip_trace_parser.h",
-    "i2c/i2c_tracker.cc",
-    "i2c/i2c_tracker.h",
     "json/json_trace_parser.cc",
     "json/json_trace_parser.h",
     "json/json_trace_tokenizer.cc",
     "json/json_trace_tokenizer.h",
-    "proto/android_camera_event_module.cc",
-    "proto/android_camera_event_module.h",
-    "proto/android_probes_module.cc",
-    "proto/android_probes_module.h",
-    "proto/android_probes_parser.cc",
-    "proto/android_probes_parser.h",
-    "proto/android_probes_tracker.cc",
-    "proto/android_probes_tracker.h",
-    "proto/content_analyzer.cc",
-    "proto/content_analyzer.h",
-    "proto/frame_timeline_event_parser.cc",
-    "proto/frame_timeline_event_parser.h",
-    "proto/gpu_event_parser.cc",
-    "proto/gpu_event_parser.h",
-    "proto/graphics_event_module.cc",
-    "proto/graphics_event_module.h",
-    "proto/graphics_frame_event_parser.cc",
-    "proto/graphics_frame_event_parser.h",
-    "proto/heap_graph_module.cc",
-    "proto/heap_graph_module.h",
-    "proto/system_probes_module.cc",
-    "proto/system_probes_module.h",
-    "proto/system_probes_parser.cc",
-    "proto/system_probes_parser.h",
-    "proto/translation_table_module.cc",
-    "proto/translation_table_module.h",
-    "proto/vulkan_memory_tracker.cc",
-    "proto/vulkan_memory_tracker.h",
-    "syscalls/syscall_tracker.cc",
-    "syscalls/syscall_tracker.h",
     "systrace/systrace_line_parser.cc",
     "systrace/systrace_line_parser.h",
     "systrace/systrace_line_tokenizer.cc",
     "systrace/systrace_line_tokenizer.h",
-    "systrace/systrace_parser.cc",
-    "systrace/systrace_parser.h",
     "systrace/systrace_trace_parser.cc",
     "systrace/systrace_trace_parser.h",
   ]
   public_deps = [ "../:storage_minimal" ]
   deps = [
-    ":ftrace_descriptors",
-    ":gen_cc_trace_descriptor",
     ":minimal",
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base:base",
-    "../../../include/perfetto/ext/traced:sys_stats_counters",
-    "../../../protos/perfetto/common:zero",
-    "../../../protos/perfetto/config:zero",
-    "../../../protos/perfetto/trace:zero",
-    "../../../protos/perfetto/trace/android:zero",
     "../../../protos/perfetto/trace/ftrace:zero",
-    "../../../protos/perfetto/trace/gpu:zero",
-    "../../../protos/perfetto/trace/interned_data:zero",
-    "../../../protos/perfetto/trace/power:zero",
-    "../../../protos/perfetto/trace/profiling:zero",
-    "../../../protos/perfetto/trace/ps:zero",
-    "../../../protos/perfetto/trace/sys_stats:zero",
-    "../../../protos/perfetto/trace/system_info:zero",
-    "../../../protos/perfetto/trace/translation:zero",
     "../../protozero",
     "../containers",
     "../sorter",
@@ -204,25 +83,13 @@ source_set("full") {
     "android_bugreport",
     "common",
     "common:parser_types",
+    "ftrace:full",
     "fuchsia:fuchsia_record",
+    "json:minimal",
     "proto:full",
     "proto:minimal",
     "systrace:systrace_line",
-  ]
-  if (enable_perfetto_trace_processor_json) {
-    deps += [ "../../../gn:jsoncpp" ]
-  }
-}
-
-source_set("ftrace_descriptors") {
-  sources = [
-    "ftrace/ftrace_descriptors.cc",
-    "ftrace/ftrace_descriptors.h",
-  ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../../include/perfetto/ext/base:base",
-    "../../protozero",
+    "systrace:systrace_parser",
   ]
 }
 
@@ -241,11 +108,6 @@ perfetto_cc_proto_descriptor("gen_cc_track_event_descriptor") {
   descriptor_target = "../../../protos/perfetto/trace/track_event:descriptor"
 }
 
-perfetto_cc_proto_descriptor("gen_cc_trace_descriptor") {
-  descriptor_name = "trace.descriptor"
-  descriptor_target = "../../../protos/perfetto/trace:descriptor"
-}
-
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
@@ -257,7 +119,6 @@ perfetto_unittest_source_set("unittests") {
     "memory_tracker/graph_processor_unittest.cc",
     "memory_tracker/graph_unittest.cc",
     "memory_tracker/raw_process_memory_node_unittest.cc",
-    "proto/async_track_set_tracker_unittest.cc",
     "proto/perf_sample_tracker_unittest.cc",
     "proto/proto_trace_parser_unittest.cc",
     "syscalls/syscall_tracker_unittest.cc",
@@ -295,8 +156,12 @@ perfetto_unittest_source_set("unittests") {
     "../util:descriptors",
     "../util:proto_to_args_parser",
     "common",
+    "ftrace:full",
+    "json:minimal",
     "memory_tracker:graph_processor",
     "proto:minimal",
+    "syscalls:full",
+    "systrace:systrace_parser",
   ]
 
   if (enable_perfetto_trace_processor_json) {
@@ -304,6 +169,5 @@ perfetto_unittest_source_set("unittests") {
       "json/json_trace_tokenizer_unittest.cc",
       "json/json_utils_unittest.cc",
     ]
-    deps += [ "../../../gn:jsoncpp" ]
   }
 }

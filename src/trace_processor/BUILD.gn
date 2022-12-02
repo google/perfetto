@@ -101,6 +101,7 @@ source_set("storage_minimal") {
     "importers:minimal",
     "importers/common",
     "importers/common:parser_types",
+    "importers/ftrace:minimal",
     "importers/fuchsia:fuchsia_record",
     "importers/memory_tracker:graph_processor",
     "importers/proto:minimal",
@@ -115,15 +116,7 @@ source_set("storage_minimal") {
     "util:stack_traces_util",
     "views",
   ]
-  public_deps = [
-    "../../include/perfetto/trace_processor:storage",
-    "../../src/kernel_utils:syscall_table",
-  ]
-
-  # json_utils optionally depends on jsoncpp.
-  if (enable_perfetto_trace_processor_json) {
-    deps += [ "../../gn:jsoncpp" ]
-  }
+  public_deps = [ "../../include/perfetto/trace_processor:storage" ]
 }
 
 source_set("export_json") {
@@ -135,14 +128,11 @@ source_set("export_json") {
     ":storage_minimal",
     "../../gn:default_deps",
     "../base",
-    "importers:minimal",
+    "importers/json:minimal",
     "storage",
     "types",
   ]
   public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]
-  if (enable_perfetto_trace_processor_json) {
-    deps += [ "../../gn:jsoncpp" ]
-  }
 }
 
 if (enable_perfetto_trace_processor_sqlite) {
@@ -172,6 +162,8 @@ if (enable_perfetto_trace_processor_sqlite) {
       "importers:minimal",
       "importers/android_bugreport",
       "importers/common",
+      "importers/ftrace:full",
+      "importers/json:minimal",
       "importers/ninja",
       "importers/proto:minimal",
       "metrics",
@@ -191,9 +183,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../gn:sqlite",  # iterator_impl.h includes sqlite3.h.
       "../../include/perfetto/trace_processor",
     ]
-    if (enable_perfetto_trace_processor_json) {
-      deps += [ "../../gn:jsoncpp" ]
-    }
   }
 
   executable("trace_processor_shell") {
@@ -319,9 +308,6 @@ source_set("integrationtests") {
       "../base:test_support",
       "sqlite",
     ]
-    if (enable_perfetto_trace_processor_json) {
-      deps += [ "../../gn:jsoncpp" ]
-    }
   }
 }
 
