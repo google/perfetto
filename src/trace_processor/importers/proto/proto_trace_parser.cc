@@ -34,7 +34,6 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/config.descriptor.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
@@ -43,15 +42,12 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/protozero_to_text.h"
 
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/perfetto/trace/trace_uuid.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -99,12 +95,12 @@ void ProtoTraceParser::ParseTracePacket(int64_t ts, TracePacketData data) {
     ParseMetatraceEvent(ts, packet.perfetto_metatrace());
   }
 
-  if (packet.has_trace_uuid()) {
-    ParseTraceUuid(packet.trace_uuid());
-  }
-
   if (packet.has_trace_config()) {
-    ParseTraceConfig(packet.trace_config());
+    // TODO(eseckler): Propagate statuses from modules.
+    protos::pbzero::TraceConfig::Decoder config(packet.trace_config());
+    for (auto& module : context_->modules) {
+      module->ParseTraceConfig(config);
+    }
   }
 }
 
@@ -442,61 +438,6 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
 
   if (event.has_overruns())
     context_->storage->IncrementStats(stats::metatrace_overruns);
-}
-
-void ProtoTraceParser::ParseTraceUuid(ConstBytes blob) {
-  // If both the TraceUuid packet and TraceConfig.trace_uuid_msb/lsb are set,
-  // the former (which is emitted first) takes precedence. This is because the
-  // UUID can change throughout the lifecycle of a tracing session if gap-less
-  // snapshots are used. Each trace file has at most one TraceUuid packet (i
-  // has if it comes from an older version of the tracing service < v32)
-  protos::pbzero::TraceUuid::Decoder uuid_packet(blob.data, blob.size);
-  if (uuid_packet.msb() != 0 || uuid_packet.lsb() != 0) {
-    base::Uuid uuid(uuid_packet.lsb(), uuid_packet.msb());
-    std::string str = uuid.ToPrettyString();
-    StringId id = context_->storage->InternString(base::StringView(str));
-    context_->metadata_tracker->SetMetadata(metadata::trace_uuid,
-                                            Variadic::String(id));
-    context_->uuid_found_in_trace = true;
-  }
-}
-
-void ProtoTraceParser::ParseTraceConfig(ConstBytes blob) {
-  protos::pbzero::TraceConfig::Decoder trace_config(blob.data, blob.size);
-
-  // TODO(eseckler): Propagate statuses from modules.
-  for (auto& module : context_->modules) {
-    module->ParseTraceConfig(trace_config);
-  }
-
-  int64_t uuid_msb = trace_config.trace_uuid_msb();
-  int64_t uuid_lsb = trace_config.trace_uuid_lsb();
-  if (!context_->uuid_found_in_trace && (uuid_msb != 0 || uuid_lsb != 0)) {
-    base::Uuid uuid(uuid_lsb, uuid_msb);
-    std::string str = uuid.ToPrettyString();
-    StringId id = context_->storage->InternString(base::StringView(str));
-    context_->metadata_tracker->SetMetadata(metadata::trace_uuid,
-                                            Variadic::String(id));
-    context_->uuid_found_in_trace = true;
-  }
-
-  if (trace_config.has_unique_session_name()) {
-    StringId id = context_->storage->InternString(
-        base::StringView(trace_config.unique_session_name()));
-    context_->metadata_tracker->SetMetadata(metadata::unique_session_name,
-                                            Variadic::String(id));
-  }
-
-  DescriptorPool pool;
-  pool.AddFromFileDescriptorSet(kConfigDescriptor.data(),
-                                kConfigDescriptor.size());
-
-  std::string text = protozero_to_text::ProtozeroToText(
-      pool, ".perfetto.protos.TraceConfig", blob,
-      protozero_to_text::kIncludeNewLines);
-  StringId id = context_->storage->InternString(base::StringView(text));
-  context_->metadata_tracker->SetMetadata(metadata::trace_config_pbtxt,
-                                          Variadic::String(id));
 }
 
 StringId ProtoTraceParser::GetMetatraceInternedString(uint64_t iid) {

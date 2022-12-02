@@ -21,6 +21,7 @@
 #include "src/trace_processor/importers/proto/content_analyzer.h"
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
+#include "src/trace_processor/importers/proto/metadata_module.h"
 #include "src/trace_processor/importers/proto/statsd_module.h"
 #include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "src/trace_processor/importers/proto/translation_table_module.h"
@@ -36,6 +37,7 @@ void RegisterAdditionalModules(TraceProcessorContext* context) {
   context->modules.emplace_back(new TranslationTableModule(context));
   context->modules.emplace_back(new StatsdModule(context));
   context->modules.emplace_back(new AndroidCameraEventModule(context));
+  context->modules.emplace_back(new MetadataModule(context));
 
   if (context->config.analyze_trace_proto_content) {
     context->modules.emplace_back(new ContentAnalyzerModule(context));

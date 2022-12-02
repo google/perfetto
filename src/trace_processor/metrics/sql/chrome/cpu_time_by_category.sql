@@ -21,7 +21,7 @@
 -- category: name of the category column in the input table, which will be
 --   preserved in the output
 
-SELECT RUN_METRIC('chrome/chrome_processes.sql') ;
+SELECT RUN_METRIC('chrome/chrome_processes.sql');
 
 -- CPU time slices for Chrome threads.
 DROP VIEW IF EXISTS chrome_cpu_slices;

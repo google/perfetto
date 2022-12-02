@@ -64,8 +64,6 @@ class ProtoTraceParser : public TraceParser {
   void ParseTraceStats(ConstBytes);
   void ParseChromeEvents(int64_t ts, ConstBytes);
   void ParseMetatraceEvent(int64_t ts, ConstBytes);
-  void ParseTraceConfig(ConstBytes);
-  void ParseTraceUuid(ConstBytes);
 
  private:
   StringId GetMetatraceInternedString(uint64_t iid);

@@ -24,6 +24,10 @@ source_set("minimal") {
     "chrome_string_lookup.h",
     "heap_profile_tracker.cc",
     "heap_profile_tracker.h",
+    "metadata_minimal_module.cc",
+    "metadata_minimal_module.h",
+    "metadata_tracker.cc",
+    "metadata_tracker.h",
     "packet_sequence_state.h",
     "packet_sequence_state_generation.cc",
     "profiler_util.cc",
@@ -36,6 +40,7 @@ source_set("minimal") {
   deps = [
     ":packet_sequence_state_generation_hdr",
     "../../../../gn:default_deps",
+    "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/chrome:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../../protos/perfetto/trace/track_event:zero",
@@ -52,6 +57,8 @@ source_set("full") {
   sources = [
     "heap_graph_tracker.cc",
     "heap_graph_tracker.h",
+    "metadata_module.cc",
+    "metadata_module.h",
     "statsd_module.cc",
     "statsd_module.h",
   ]
@@ -59,6 +66,7 @@ source_set("full") {
     ":gen_cc_statsd_atoms_descriptor",
     ":minimal",
     "../../../../gn:default_deps",
+    "../../../../protos/perfetto/config:zero",
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../../protos/perfetto/trace/statsd:zero",

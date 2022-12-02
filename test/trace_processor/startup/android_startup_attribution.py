@@ -165,7 +165,7 @@ trace.add_binder_transaction(3, 3 * (10**8), 5 * (10**8), FONTS_TID, APP_PID, 4,
                              APP_PID)
 
 # A short binder transaction.
-trace.add_binder_transaction(5, 10**7, 5 * (10**7), BINDER_TID, APP_TID, 6,
+trace.add_binder_transaction(5, 10**7, 5 * (10**7), APP_TID, APP_PID, 6,
                              10**7 + 1, 5 * (10**7) - 1, SYSTEM_SERVER_TID,
                              SYSTEM_SERVER_PID)
 
