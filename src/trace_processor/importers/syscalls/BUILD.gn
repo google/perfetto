@@ -1,4 +1,4 @@
-# Copyright (C) 2019 The Android Open Source Project
+# Copyright (C) 2022 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,25 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/perfetto_host_executable.gni")
-
-perfetto_host_executable("protoprofile") {
-  testonly = true
+source_set("full") {
+  sources = [
+    "syscall_tracker.cc",
+    "syscall_tracker.h",
+  ]
   deps = [
-    ":common",
-    "../../../gn:default_deps",
+    "../../../../gn:default_deps",
+    "../../../kernel_utils:syscall_table",
+    "../../containers",
+    "../../storage",
+    "../../types",
+    "../common",
   ]
-}
-
-source_set("common") {
-  testonly = true
-  public_deps = [
-    "../../../gn:default_deps",
-    "../../../protos/third_party/pprof:zero",
-    "../../base",
-    "../../protozero",
-    "../../trace_processor/util:proto_profiler",
-  ]
-  sources = [ "main.cc" ]
-  deps = [ "../../trace_processor/importers/proto:gen_cc_trace_descriptor" ]
 }

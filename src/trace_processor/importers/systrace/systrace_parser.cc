@@ -18,11 +18,11 @@
 
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/proto/async_track_set_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {

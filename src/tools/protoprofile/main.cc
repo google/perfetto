@@ -25,7 +25,7 @@
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "src/trace_processor/importers/trace.descriptor.h"
+#include "src/trace_processor/importers/proto/trace.descriptor.h"
 #include "src/trace_processor/util/proto_profiler.h"
 
 #include "protos/third_party/pprof/profile.pbzero.h"
