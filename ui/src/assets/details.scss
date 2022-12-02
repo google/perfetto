@@ -416,6 +416,11 @@
     justify-content: space-between;
   }
 
+  .log-rows-label {
+    display: flex;
+    align-items: center;
+  }
+
   .log-filters {
     display: flex;
     margin-right: 5px;
@@ -544,8 +549,7 @@
         font-size: 11px;
         font-family: var(--monospace-font);
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        overflow: scroll;
         padding-left: 10px;
         padding-right: 10px;
         display: inline-block;
@@ -555,22 +559,54 @@
         &:last-child {
           padding-right: 5px;
         }
+        &:only-child {
+          width: 100%;
+        }
+
+        // The following children will be used as columns in the table showing
+        // Android logs.
+
+        // 1.Timestamp
         &:nth-child(1) {
-          width: 110px;
+          width: 7rem;
           text-overflow: clip;
           text-align: right;
         }
+        // 2.Level
         &:nth-child(2) {
-          width: 20px;
+          width: 4rem;
         }
+        // 3.Tag
         &:nth-child(3) {
-          width: 15%;
+          width: 13rem;
         }
-        &:nth-child(4) {
-          width: calc(100% - 110px - 20px - 15%);
+
+        &.with-process {
+          // 4.Process name
+          &:nth-child(4) {
+            width: 18rem;
+          }
+          // 5.Message - a long string, will take most of the display space.
+          &:nth-child(5) {
+            width: calc(100% - 42rem);
+          }
         }
-        &:only-child {
-          width: 100%;
+
+        &.no-process {
+          // 4.Message - a long string, will take most of the display space.
+          &:nth-child(4) {
+            width: calc(100% - 24rem);
+          }
+        }
+
+        &.row-header {
+          text-align: left;
+          font-weight: bold;
+          font-size: 13px;
+        }
+
+        &.row-header:first-child {
+          padding-left: 15px;
         }
       }
     }

@@ -84,7 +84,9 @@ async function updateLogEntries(
           prio,
           ifnull(tag, '[NULL]') as tag,
           ifnull(msg, '[NULL]') as msg,
-          is_highlighted as isHighlighted
+          is_msg_highlighted as isMsgHighlighted,
+          is_process_highlighted as isProcessHighlighted,
+          ifnull(process_name, '') as processName
         from filtered_logs
         where ${vizSqlBounds}
         order by ts
@@ -96,15 +98,25 @@ async function updateLogEntries(
   const tags = [];
   const messages = [];
   const isHighlighted = [];
+  const processName = [];
 
-  const it = rowsResult.iter(
-      {ts: NUM, prio: NUM, tag: STR, msg: STR, isHighlighted: NUM});
+  const it = rowsResult.iter({
+    ts: NUM,
+    prio: NUM,
+    tag: STR,
+    msg: STR,
+    isMsgHighlighted: NUM,
+    isProcessHighlighted: NUM,
+    processName: STR,
+  });
   for (; it.valid(); it.next()) {
     timestamps.push(it.ts);
     priorities.push(it.prio);
     tags.push(it.tag);
     messages.push(it.msg);
-    isHighlighted.push(it.isHighlighted !== 0);
+    isHighlighted.push(
+        it.isMsgHighlighted === 1 || it.isProcessHighlighted === 1);
+    processName.push(it.processName);
   }
 
   return {
@@ -114,6 +126,7 @@ async function updateLogEntries(
     tags,
     messages,
     isHighlighted,
+    processName,
   };
 }
 
@@ -245,8 +258,11 @@ export class LogsController extends Controller<'main'> {
       const globMatch = LogsController.composeGlobMatch(
           this.logFilteringCriteria.hideNonMatching,
           this.logFilteringCriteria.textEntry);
-      let selectedRows = `select *, ${globMatch}
+      let selectedRows = `select prio, ts, tag, msg,
+          process.name as process_name, ${globMatch}
           from android_logs
+          left join thread using(utid)
+          left join process using(upid)
           where prio >= ${this.logFilteringCriteria.minimumLevel}`;
       if (this.logFilteringCriteria.tags.length) {
         selectedRows += ` and tag in (${
@@ -254,8 +270,9 @@ export class LogsController extends Controller<'main'> {
       }
 
       // We extract only the rows which will be visible.
-      await this.engine.query(`create view filtered_logs as select * from (${
-          selectedRows}) where is_chosen is 1`);
+      await this.engine.query(`create view filtered_logs as select *
+        from (${selectedRows})
+        where is_msg_chosen is 1 or is_process_chosen is 1`);
     }
 
     if (needBoundsUpdate) {
@@ -285,15 +302,24 @@ export class LogsController extends Controller<'main'> {
   private static composeGlobMatch(isCollaped: boolean, textEntry: string) {
     if (isCollaped) {
       // If the entries are collapsed, we won't highlight any lines.
-      return `msg glob ${
-          escapeGlob(textEntry)} as is_chosen, 0 as is_highlighted`;
+      return `msg glob ${escapeGlob(textEntry)} as is_msg_chosen,
+        (process.name is not null and process.name glob ${
+          escapeGlob(textEntry)}) as is_process_chosen,
+        0 as is_msg_highlighted,
+        0 as is_process_highlighted`;
     } else if (!textEntry) {
       // If there is no text entry, we will show all lines, but won't highlight.
       // any.
-      return `1 as is_chosen, 0 as is_highlighted`;
+      return `1 as is_msg_chosen,
+        1 as is_process_chosen,
+        0 as is_msg_highlighted,
+        0 as is_process_highlighted`;
     } else {
-      return `1 as is_chosen, msg glob ${
-          escapeGlob(textEntry)} as is_highlighted`;
+      return `1 as is_msg_chosen,
+        1 as is_process_chosen,
+        msg glob ${escapeGlob(textEntry)} as is_msg_highlighted,
+        (process.name is not null and process.name glob ${
+          escapeGlob(textEntry)}) as is_process_highlighted`;
     }
   }
 }
