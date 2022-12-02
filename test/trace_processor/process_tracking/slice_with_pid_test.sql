@@ -1,5 +1,5 @@
-select s.name, dur, tid, pid
-from slice s
-join thread_track t on s.track_id = t.id
-join thread using(utid)
-left join process using(upid);
+SELECT s.name, dur, tid, pid
+FROM slice s
+JOIN thread_track t ON s.track_id = t.id
+JOIN thread USING(utid)
+LEFT JOIN process USING(upid);

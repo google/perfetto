@@ -12,8 +12,7 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
-SELECT RUN_METRIC('chrome/scroll_flow_event_queuing_delay.sql')
-   ;
+SELECT RUN_METRIC('chrome/scroll_flow_event_queuing_delay.sql');
 
 SELECT
   -- Each trace_id (in our example trace not true in general) has 8 steps. There

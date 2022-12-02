@@ -4,7 +4,7 @@ SELECT
   value
 FROM
   counter AS c
-  JOIN
+JOIN
   counter_track AS ct
   ON c.track_id = ct.id
-ORDER BY name,ts
+ORDER BY name, ts;

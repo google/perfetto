@@ -13,6 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select ts, cast(value as integer) as int_value
-from counters
-where name GLOB 'gpu_counter*'
+SELECT ts, cast(value AS integer) AS int_value
+FROM counters
+WHERE name GLOB 'gpu_counter*';

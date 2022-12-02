@@ -13,4 +13,4 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select count(*) from android_logs;
+SELECT count(*) FROM android_logs;

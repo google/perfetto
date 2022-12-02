@@ -14,9 +14,9 @@
 -- limitations under the License.
 
 SELECT
-    EXTRACT_ARG(s.arg_set_id, 'track_event.log_message') AS log_message,
-    EXTRACT_ARG(s.arg_set_id, 'track_event.log_message.function_name') AS function_name,
-    EXTRACT_ARG(s.arg_set_id, 'track_event.log_message.file_name') AS file_name,
-    EXTRACT_ARG(s.arg_set_id, 'track_event.log_message.line_number') AS line_number
+  EXTRACT_ARG(s.arg_set_id, 'track_event.log_message') AS log_message,
+  EXTRACT_ARG(s.arg_set_id, 'track_event.log_message.function_name') AS function_name,
+  EXTRACT_ARG(s.arg_set_id, 'track_event.log_message.file_name') AS file_name,
+  EXTRACT_ARG(s.arg_set_id, 'track_event.log_message.line_number') AS line_number
 FROM
-    slice s;
+  slice s;

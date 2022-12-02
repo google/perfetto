@@ -13,13 +13,13 @@
 -- limitations under the License.
 SELECT pid, name, string_value AS chrome_process_type
 FROM
-    process
+  process
 -- EXTRACT_ARG doesn't make sense here - it would get chrome.process_type
 -- (or NULL) for each process in the trace. But what we want is - a subset
 -- of process that have a "chrome.process_type" argument, whether it's NULL or
 -- not.
 JOIN
-    (SELECT * FROM args WHERE key = "chrome.process_type") chrome_process_args
-ON
+  (SELECT * FROM args WHERE key = "chrome.process_type") chrome_process_args
+  ON
     process.arg_set_id = chrome_process_args.arg_set_id
 ORDER BY pid;

@@ -13,6 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select ts, dur, name
-from slice
-where category = 'Video 4 Linux 2';
+SELECT ts, dur, name
+FROM slice
+WHERE category = 'Video 4 Linux 2';

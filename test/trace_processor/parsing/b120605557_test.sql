@@ -13,6 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select count(*)
-from counter
-inner join counter_track on counter_track.id = counter.track_id
+SELECT count(*)
+FROM counter
+INNER JOIN counter_track ON counter_track.id = counter.track_id;

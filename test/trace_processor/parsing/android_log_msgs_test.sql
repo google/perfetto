@@ -13,22 +13,22 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-create view v1 as select tag, count(*) from android_logs group by tag order by 2 desc limit 5;
+CREATE VIEW v1 AS SELECT tag, count(*) FROM android_logs GROUP BY tag ORDER BY 2 DESC LIMIT 5;
 
-create view v2 as select tag, count(*) from android_logs group by tag order by 2 asc limit 5;
+CREATE VIEW v2 AS SELECT tag, count(*) FROM android_logs GROUP BY tag ORDER BY 2 ASC LIMIT 5;
 
-create view v3 as
-select tag, count(*)
-from android_logs
-where msg GLOB '*wakelock*' or msg GLOB '*Wakelock*' or msg GLOB '*WakeLock*' or msg GLOB '*wakeLock*'
-group by tag;
+CREATE VIEW v3 AS
+SELECT tag, count(*)
+FROM android_logs
+WHERE msg GLOB '*wakelock*' OR msg GLOB '*Wakelock*' OR msg GLOB '*WakeLock*' OR msg GLOB '*wakeLock*'
+GROUP BY tag;
 
-create view v4 as select msg, 1 from android_logs limit 10;
+CREATE VIEW v4 AS SELECT msg, 1 FROM android_logs LIMIT 10;
 
-select * from v1 union all
-select '-----', 0 union all
-select * from v2 union all
-select '-----', 0 union all
-select * from v3 union all
-select '-----', 0 union all
-select * from v4;
+SELECT * FROM v1 UNION ALL
+SELECT '-----', 0 UNION ALL
+SELECT * FROM v2 UNION ALL
+SELECT '-----', 0 UNION ALL
+SELECT * FROM v3 UNION ALL
+SELECT '-----', 0 UNION ALL
+SELECT * FROM v4;
