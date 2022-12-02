@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select ts, value, t.name as name
-from counter c inner join counter_track t on t.id = c.track_id
-order by ts
-limit 20
+SELECT ts, value, t.name AS name
+FROM counter c INNER JOIN counter_track t ON t.id = c.track_id
+ORDER BY ts
+LIMIT 20;

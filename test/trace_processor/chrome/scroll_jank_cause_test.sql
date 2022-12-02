@@ -16,17 +16,17 @@ SELECT RUN_METRIC('chrome/scroll_jank_cause.sql');
 
 SELECT
   COUNT(*) AS total,
-  SUM(jank) as total_jank,
+  SUM(jank) AS total_jank,
   SUM(explained_jank + unexplained_jank) AS sum_explained_and_unexplained,
   SUM(
     CASE WHEN explained_jank THEN
       unexplained_jank
-    ELSE
-      CASE WHEN jank AND NOT unexplained_jank THEN
-        1
       ELSE
-        0
-      END
+        CASE WHEN jank AND NOT unexplained_jank THEN
+          1
+          ELSE
+            0
+        END
     END
   ) AS error_rows
 FROM scroll_jank_cause;

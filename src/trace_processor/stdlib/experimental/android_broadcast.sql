@@ -23,26 +23,26 @@
 --                       dispatched from.
 CREATE VIEW experimental_android_broadcasts_minsdk_u AS
 WITH
-  broadcast_queues AS (
-    SELECT process_track.id, process_track.name as queue_name
-    FROM process_track
-    JOIN process USING (upid)
-    WHERE
-      process_track.name GLOB 'BroadcastQueue.mRunning*' AND
-      process.name = 'system_server'
-  ),
-  broadcast_process_running AS (
-    SELECT ts, dur, str_split(slice.name, '/', 0) AS process_name, queue_name
-    FROM slice
-    JOIN broadcast_queues ON broadcast_queues.id = slice.track_id
-    WHERE slice.name GLOB '* running'
-  )
+broadcast_queues AS (
+  SELECT process_track.id, process_track.name AS queue_name
+  FROM process_track
+  JOIN process USING (upid)
+  WHERE
+    process_track.name GLOB 'BroadcastQueue.mRunning*'
+    AND process.name = 'system_server'
+),
+broadcast_process_running AS (
+  SELECT ts, dur, str_split(slice.name, '/', 0) AS process_name, queue_name
+  FROM slice
+  JOIN broadcast_queues ON broadcast_queues.id = slice.track_id
+  WHERE slice.name GLOB '* running'
+)
 SELECT str_split(slice.name, '/', 0) AS type, process_name, queue_name
 FROM broadcast_process_running
 JOIN broadcast_queues USING (queue_name)
 JOIN slice ON (
-  broadcast_process_running.ts < slice.ts AND
-  slice.ts < broadcast_process_running.ts + broadcast_process_running.dur AND
-  slice.track_id = broadcast_queues.id
-)
+  broadcast_process_running.ts < slice.ts
+  AND slice.ts < broadcast_process_running.ts + broadcast_process_running.dur
+  AND slice.track_id = broadcast_queues.id
+  )
 WHERE slice.name GLOB '* scheduled';

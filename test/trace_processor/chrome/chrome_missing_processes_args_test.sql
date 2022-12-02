@@ -15,8 +15,8 @@
 
 SELECT arg_set_id, key, int_value
 FROM
-    slice
+  slice
 JOIN
-    args
-USING(arg_set_id)
+  args
+  USING(arg_set_id)
 ORDER BY arg_set_id, key;

@@ -1,26 +1,26 @@
-select count(*) as count, 'BothProcesses' as description
-from experimental_flamegraph
-where
+SELECT count(*) AS count, 'BothProcesses' AS description
+FROM experimental_flamegraph
+WHERE
   upid_group = (
-    select group_concat(distinct upid)
-    from perf_sample join thread t using (utid) join process p using (upid)
+    SELECT group_concat(DISTINCT upid)
+    FROM perf_sample JOIN thread t USING (utid) JOIN process p USING (upid)
   )
-  and profile_type = 'perf'
-  and ts <= 7689491063351
-  and size > 0
-union all
-select count(*) as count, 'FirstProcess' as description
-from experimental_flamegraph
-  join process using (upid)
-where pid = 1728
-  and profile_type = 'perf'
-  and ts <= 7689491063351
-  and size > 0
-union all
-select count(*) as count, 'SecondProcess' as description
-from experimental_flamegraph
-  join process using (upid)
-where pid = 703
-  and profile_type = 'perf'
-  and ts <= 7689491063351
-  and size > 0;
+  AND profile_type = 'perf'
+  AND ts <= 7689491063351
+  AND size > 0
+UNION ALL
+SELECT count(*) AS count, 'FirstProcess' AS description
+FROM experimental_flamegraph
+JOIN process USING (upid)
+WHERE pid = 1728
+  AND profile_type = 'perf'
+  AND ts <= 7689491063351
+  AND size > 0
+UNION ALL
+SELECT count(*) AS count, 'SecondProcess' AS description
+FROM experimental_flamegraph
+JOIN process USING (upid)
+WHERE pid = 703
+  AND profile_type = 'perf'
+  AND ts <= 7689491063351
+  AND size > 0;

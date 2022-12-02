@@ -15,7 +15,7 @@
 
 SELECT RUN_METRIC('chrome/chrome_tasks.sql');
 
-SELECT full_name, task_type, count() as count
+SELECT full_name, task_type, count() AS count
 FROM chrome_tasks
 GROUP BY full_name, task_type
 ORDER BY count DESC

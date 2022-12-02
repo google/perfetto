@@ -20,4 +20,4 @@ FROM
   heap_graph_object AS obj
 WHERE
   obj.reachable != 0
-GROUP BY obj.upid, obj.graph_sample_ts
+GROUP BY obj.upid, obj.graph_sample_ts;

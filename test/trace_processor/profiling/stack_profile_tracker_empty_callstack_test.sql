@@ -1,1 +1,1 @@
-select count(1) as count from heap_profile_allocation;
+SELECT count(1) AS count FROM heap_profile_allocation;

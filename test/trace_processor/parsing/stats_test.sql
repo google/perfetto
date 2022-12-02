@@ -13,5 +13,5 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select name, idx, severity, source, value
-from stats where name GLOB 'ftrace_cpu_*' or name GLOB 'traced_buf_*';
+SELECT name, idx, severity, source, value
+FROM stats WHERE name GLOB 'ftrace_cpu_*' OR name GLOB 'traced_buf_*';

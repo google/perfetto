@@ -10,5 +10,5 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-select layout_depth from experimental_slice_layout
-where filter_track_ids = (select group_concat(track_id, ',') from slice);
+SELECT layout_depth FROM experimental_slice_layout
+WHERE filter_track_ids = (SELECT group_concat(track_id, ',') FROM slice);

@@ -1,2 +1,2 @@
 SELECT ts, dur, name
-FROM slice
+FROM slice;

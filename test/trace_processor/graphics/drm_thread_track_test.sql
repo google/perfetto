@@ -8,8 +8,8 @@ SELECT
   string_value
 FROM
   thread_track
-  JOIN slice
+JOIN slice
   ON slice.track_id = thread_track.id
-  JOIN args
+JOIN args
   ON slice.arg_set_id = args.arg_set_id
-ORDER BY ts
+ORDER BY ts;

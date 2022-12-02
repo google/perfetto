@@ -13,4 +13,4 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select int_value from metadata where name = 'trace_size_bytes';
+SELECT int_value FROM metadata WHERE name = 'trace_size_bytes';

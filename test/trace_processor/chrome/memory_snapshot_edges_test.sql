@@ -20,4 +20,4 @@ SELECT
   target_node_id,
   importance
 FROM memory_snapshot_edge
-LIMIT 20
+LIMIT 20;

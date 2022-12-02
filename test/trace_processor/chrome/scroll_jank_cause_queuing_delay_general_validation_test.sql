@@ -12,26 +12,25 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
-SELECT RUN_METRIC('chrome/scroll_jank_cause_queuing_delay.sql')
-   ;
+SELECT RUN_METRIC('chrome/scroll_jank_cause_queuing_delay.sql');
 
 SELECT
-  COUNT(*) as total,
+  COUNT(*) AS total,
   (
-    SELECT
-      DISTINCT(avg_no_jank_dur_overlapping_ns)
+    SELECT DISTINCT
+      (avg_no_jank_dur_overlapping_ns)
     FROM scroll_jank_cause_queuing_delay
     WHERE
-      location = "LatencyInfo.Flow" AND
-      jank
+      location = "LatencyInfo.Flow"
+      AND jank
   ) AS janky_latency_info_non_jank_avg_dur,
   (
-    SELECT
-      DISTINCT(avg_no_jank_dur_overlapping_ns)
+    SELECT DISTINCT
+      (avg_no_jank_dur_overlapping_ns)
     FROM scroll_jank_cause_queuing_delay
     WHERE
-      location = "LatencyInfo.Flow" AND
-      NOT jank
+      location = "LatencyInfo.Flow"
+      AND NOT jank
   ) AS non_janky_latency_info_non_jank_avg_dur
 FROM (
   SELECT
