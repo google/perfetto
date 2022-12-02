@@ -472,6 +472,7 @@ class Module(object):
     self.gn_target = gn_target
     self.name = name
     self.srcs = set()
+    self.main = None
     self.comment = 'GN: ' + gn_utils.label_without_toolchain(gn_target)
     self.shared_libs = set()
     self.static_libs = set()
@@ -551,6 +552,7 @@ class Module(object):
     self._output_field(output, 'test_config')
     self._output_field(output, 'stubs')
     self._output_field(output, 'proto')
+    self._output_field(output, 'main')
 
     target_out = []
     self._output_field(target_out, 'android')
@@ -767,6 +769,41 @@ def create_proto_modules(blueprint, gn, target):
   return source_module
 
 
+def create_tp_tables_module(blueprint, gn, target):
+  bp_module_name = label_to_module_name(target.name)
+  bp_binary_module_name = f'{bp_module_name}_binary'
+  srcs = [gn_utils.label_to_path(src) for src in target.sources]
+
+  binary_module = Module('python_binary_host', bp_binary_module_name, target.name)
+  for dep in target.deps:
+    binary_module.srcs.update([
+      gn_utils.label_to_path(src) for src in gn.get_target(dep).sources
+    ])
+  binary_module.srcs.update(srcs)
+  binary_module.srcs.add('tools/gen_tp_table_headers.py')
+  binary_module.main = 'tools/gen_tp_table_headers.py'
+  blueprint.add_module(binary_module)
+
+  module = Module('genrule', bp_module_name, target.name)
+  module.tools = set([
+      bp_binary_module_name,
+  ])
+  module.cmd = ' '.join([
+      f'$(location {bp_binary_module_name})',
+      '--gen-dir=$(genDir)',
+      '--inputs',
+      '$(in)',
+      '--outputs',
+      '$(out)',
+  ])
+  module.out.update(target.outputs)
+  module.genrule_headers.add(module.name)
+  module.srcs.update(srcs)
+  blueprint.add_module(module)
+
+  return module
+
+
 def create_amalgamated_sql_module(blueprint, gn, target):
   bp_module_name = label_to_module_name(target.name)
 
@@ -905,6 +942,8 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
   elif target.type == 'action':
     if target.custom_action_type == 'sql_amalgamation':
       return create_amalgamated_sql_module(blueprint, gn, target)
+    if target.custom_action_type == 'tp_tables':
+      return create_tp_tables_module(blueprint, gn, target)
 
     if target.custom_action_type == 'cc_proto_descriptor':
       module = create_cc_proto_descriptor_module(blueprint, target)

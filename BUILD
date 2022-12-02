@@ -26,6 +26,7 @@ load(
     "perfetto_cc_proto_library",
     "perfetto_cc_protocpp_library",
     "perfetto_cc_protozero_library",
+    "perfetto_cc_tp_tables",
     "perfetto_filegroup",
     "perfetto_genrule",
     "perfetto_go_proto_library",
@@ -38,7 +39,7 @@ load(
     "perfetto_py_proto_library",
 )
 
-package(default_visibility = ["//visibility:private"])
+package(default_visibility = [PERFETTO_CONFIG.root + ":__subpackages__"])
 
 licenses(["notice"])
 
@@ -1809,6 +1810,19 @@ perfetto_filegroup(
         "src/trace_processor/tables/table_destructors.cc",
         "src/trace_processor/tables/trace_proto_tables.h",
         "src/trace_processor/tables/track_tables.h",
+    ],
+)
+
+# GN target: //src/trace_processor/tables:tables_python
+perfetto_cc_tp_tables(
+    name = "src_trace_processor_tables_tables_python",
+    srcs = [
+        "src/trace_processor/tables/android_tables.py",
+        "src/trace_processor/tables/metadata_tables.py",
+    ],
+    outs = [
+        "src/trace_processor/tables/android_tables_py.h",
+        "src/trace_processor/tables/metadata_tables_py.h",
     ],
 )
 
@@ -4508,6 +4522,7 @@ perfetto_cc_library(
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
                ":src_trace_processor_stdlib_gen_amalgamated_stdlib",
+               ":src_trace_processor_tables_tables_python",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
@@ -4637,6 +4652,7 @@ perfetto_cc_binary(
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
                ":src_trace_processor_stdlib_gen_amalgamated_stdlib",
+               ":src_trace_processor_tables_tables_python",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.linenoise +
            PERFETTO_CONFIG.deps.protobuf_full +
@@ -4830,6 +4846,7 @@ perfetto_cc_binary(
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
                ":src_trace_processor_stdlib_gen_amalgamated_stdlib",
+               ":src_trace_processor_tables_tables_python",
                ":src_traceconv_gen_cc_trace_descriptor",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.sqlite +
