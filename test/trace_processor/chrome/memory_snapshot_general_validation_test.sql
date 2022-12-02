@@ -33,9 +33,9 @@ SELECT
     SELECT COUNT(DISTINCT args.id)
     FROM args
     INNER JOIN memory_snapshot_node
-    ON args.arg_set_id = memory_snapshot_node.arg_set_id
+      ON args.arg_set_id = memory_snapshot_node.arg_set_id
   ) AS total_node_args,
   (
     SELECT COUNT(*) FROM profiler_smaps
     INNER JOIN memory_snapshot ON timestamp = ts
-  ) AS total_smaps
+  ) AS total_smaps;

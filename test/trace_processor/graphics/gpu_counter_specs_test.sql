@@ -12,7 +12,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select group_id,c.name,c.description,unit
-from gpu_counter_group as g
-join gpu_counter_track as c
-  on g.track_id = c.id
+SELECT group_id, c.name, c.description, unit
+FROM gpu_counter_group AS g
+JOIN gpu_counter_track AS c
+  ON g.track_id = c.id;

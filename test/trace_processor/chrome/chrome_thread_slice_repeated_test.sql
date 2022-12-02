@@ -14,12 +14,11 @@
 -- limitations under the License.
 --
 
-SELECT RUN_METRIC('chrome/chrome_thread_slice.sql')
-   ;
+SELECT RUN_METRIC('chrome/chrome_thread_slice.sql');
 
 SELECT
   name,
   ts,
   dur,
   thread_dur
-FROM chrome_thread_slice
+FROM chrome_thread_slice;

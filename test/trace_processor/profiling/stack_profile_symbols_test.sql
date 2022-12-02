@@ -1,1 +1,1 @@
-select name, source_file, line_number from stack_profile_symbol
+SELECT name, source_file, line_number FROM stack_profile_symbol;

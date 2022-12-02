@@ -15,8 +15,8 @@
 
 SELECT upid, pid, reliable_from
 FROM
-    experimental_missing_chrome_processes
+  experimental_missing_chrome_processes
 JOIN
-    process
-USING(upid)
+  process
+  USING(upid)
 ORDER BY upid;

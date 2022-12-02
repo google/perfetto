@@ -13,59 +13,59 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-create view freq_view as
-  select
-    ts,
-    lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts as dur,
-    cpu,
-    name as freq_name,
-    value as freq_value
-  from counter
-  inner join cpu_counter_track
-    on counter.track_id = cpu_counter_track.id
-  where name = 'cpufreq';
+CREATE VIEW freq_view AS
+SELECT
+  ts,
+  lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
+  cpu,
+  name AS freq_name,
+  value AS freq_value
+FROM counter
+INNER JOIN cpu_counter_track
+  ON counter.track_id = cpu_counter_track.id
+WHERE name = 'cpufreq';
 
-create view idle_view
-  as select
-    ts,
-    lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts as dur,
-    cpu,
-    name as idle_name,
-    value as idle_value
-  from counter
-  inner join cpu_counter_track
-    on counter.track_id = cpu_counter_track.id
-  where name = 'cpuidle';
+CREATE VIEW idle_view
+AS SELECT
+  ts,
+  lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
+  cpu,
+  name AS idle_name,
+  value AS idle_value
+FROM counter
+INNER JOIN cpu_counter_track
+  ON counter.track_id = cpu_counter_track.id
+WHERE name = 'cpuidle';
 
-create virtual table freq_idle
-  using span_join(freq_view PARTITIONED cpu, idle_view PARTITIONED cpu);
+CREATE VIRTUAL TABLE freq_idle
+USING span_join(freq_view PARTITIONED cpu, idle_view PARTITIONED cpu);
 
-create virtual table window_freq_idle using window;
+CREATE VIRTUAL TABLE window_freq_idle USING window;
 
-create virtual table span_freq_idle
-  using span_join(freq_idle PARTITIONED cpu, window_freq_idle);
+CREATE VIRTUAL TABLE span_freq_idle
+USING span_join(freq_idle PARTITIONED cpu, window_freq_idle);
 
-update window_freq_idle
-  set
-    window_start=(select min(ts) from sched),
-    window_dur=(select max(ts) - min(ts) from sched),
-    quantum=1000000
-  where rowid = 0;
+UPDATE window_freq_idle
+SET
+  window_start = (SELECT min(ts) FROM sched),
+  window_dur = (SELECT max(ts) - min(ts) FROM sched),
+  quantum = 1000000
+WHERE rowid = 0;
 
-create view counter_view
-  as select
-    ts,
-    dur,
-    quantum_ts,
-    cpu,
-    case idle_value
-      when 4294967295 then "freq"
-      else "idle"
-    end as name,
-    case idle_value
-      when 4294967295 then freq_value
-      else idle_value
-    end as value
-  from span_freq_idle;
+CREATE VIEW counter_view
+AS SELECT
+  ts,
+  dur,
+  quantum_ts,
+  cpu,
+  CASE idle_value
+    WHEN 4294967295 THEN "freq"
+    ELSE "idle"
+  END AS name,
+  CASE idle_value
+    WHEN 4294967295 THEN freq_value
+    ELSE idle_value
+  END AS value
+FROM span_freq_idle;
 
-select cpu, name, value, sum(dur) from counter_view group by cpu, name, value;
+SELECT cpu, name, value, sum(dur) FROM counter_view GROUP BY cpu, name, value;

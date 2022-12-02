@@ -9,7 +9,7 @@ SELECT
   cumulative_size,
   parent_id
 FROM experimental_flamegraph
-where upid = (select max(upid) from heap_graph_object)
-  and profile_type = 'graph'
-  and ts = (select max(graph_sample_ts) from heap_graph_object)
-LIMIT 10
+WHERE upid = (SELECT max(upid) FROM heap_graph_object)
+  AND profile_type = 'graph'
+  AND ts = (SELECT max(graph_sample_ts) FROM heap_graph_object)
+LIMIT 10;

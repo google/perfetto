@@ -13,8 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select track.type as type, depth, count(*) as count
-from slice
-inner join track on slice.track_id = track.id
-group by track.type, depth
-order by track.type, depth;
+SELECT track.type AS type, depth, count(*) AS count
+FROM slice
+INNER JOIN track ON slice.track_id = track.id
+GROUP BY track.type, depth
+ORDER BY track.type, depth;

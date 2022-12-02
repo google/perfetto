@@ -13,9 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select
+SELECT
   id,
   slice_out,
   slice_in
-from flow
-limit 10;
+FROM flow
+LIMIT 10;

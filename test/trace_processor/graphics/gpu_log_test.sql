@@ -13,10 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select scope, track.name as track_name, ts, dur, gpu_slice.name as slice_name,
-    key, string_value as value
-from gpu_track
-left join track using (id)
-left join gpu_slice on gpu_track.id=gpu_slice.track_id
-left join args using (arg_set_id)
-order by ts, slice_name, key
+SELECT scope, track.name AS track_name, ts, dur, gpu_slice.name AS slice_name,
+  key, string_value AS value
+FROM gpu_track
+LEFT JOIN track USING (id)
+LEFT JOIN gpu_slice ON gpu_track.id = gpu_slice.track_id
+LEFT JOIN args USING (arg_set_id)
+ORDER BY ts, slice_name, key;

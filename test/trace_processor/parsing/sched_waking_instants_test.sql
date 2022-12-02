@@ -17,4 +17,4 @@ SELECT ts, thread.name, thread.tid
 FROM thread_state
 JOIN thread USING (utid)
 WHERE state = 'R'
-ORDER BY ts
+ORDER BY ts;

@@ -13,10 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select ts, name, value, upid
-from counter c
-join process_counter_track t
-  on c.track_id = t.id
-where name = "oom_score_adj"
-order by ts
-limit 20
+SELECT ts, name, value, upid
+FROM counter c
+JOIN process_counter_track t
+  ON c.track_id = t.id
+WHERE name = "oom_score_adj"
+ORDER BY ts
+LIMIT 20;

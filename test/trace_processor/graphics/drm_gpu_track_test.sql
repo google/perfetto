@@ -8,8 +8,8 @@ SELECT
   string_value
 FROM
   gpu_track
-  JOIN slice
+JOIN slice
   ON slice.track_id = gpu_track.id
-  JOIN args
+JOIN args
   ON slice.arg_set_id = args.arg_set_id
-ORDER BY ts
+ORDER BY ts;

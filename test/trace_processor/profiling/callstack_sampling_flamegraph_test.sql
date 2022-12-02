@@ -1,7 +1,7 @@
-select ef.*
-from experimental_flamegraph ef
-  join process using (upid)
-where pid = 1728
-  and profile_type = 'perf'
-  and ts <= 7689491063351
-limit 10;
+SELECT ef.*
+FROM experimental_flamegraph ef
+JOIN process USING (upid)
+WHERE pid = 1728
+  AND profile_type = 'perf'
+  AND ts <= 7689491063351
+LIMIT 10;

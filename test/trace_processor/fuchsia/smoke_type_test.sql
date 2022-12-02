@@ -13,9 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select
+SELECT
   id,
   name,
   type
-from track
-limit 10;
+FROM track
+LIMIT 10;
