@@ -13,8 +13,6 @@
 # limitations under the License.
 """Contains the public API for generating C++ tables."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from enum import auto
 from enum import Flag as enum_Flag
