@@ -26,31 +26,31 @@ WITH class_info AS (
     RepeatedField(args.string_value) AS class_names
   FROM args
   JOIN slice
-  ON args.arg_set_id = slice.arg_set_id
-  AND args.flat_key = 'android_view_dump.activity.view.class_name'
+    ON args.arg_set_id = slice.arg_set_id
+      AND args.flat_key = 'android_view_dump.activity.view.class_name'
   JOIN thread_track
-  ON slice.track_id = thread_track.id
+    ON slice.track_id = thread_track.id
   JOIN thread
-  ON thread_track.utid = thread.utid
+    ON thread_track.utid = thread.utid
   JOIN process
-  ON thread.upid = process.upid
+    ON thread.upid = process.upid
   LEFT JOIN package_list
-  ON process.uid = package_list.uid
+    ON process.uid = package_list.uid
   GROUP BY package_name, version_code
 )
 SELECT
-ChromeArgsClassNames_ChromeArgsClassNamesPerVersion(
-  'package_name', package_name,
-  'version_code', version_code,
-  'class_name', class_names
-) AS class_names_per_version
+  ChromeArgsClassNames_ChromeArgsClassNamesPerVersion(
+    'package_name', package_name,
+    'version_code', version_code,
+    'class_name', class_names
+  ) AS class_names_per_version
 FROM class_info;
 
 DROP VIEW IF EXISTS chrome_args_class_names_output;
 CREATE VIEW chrome_args_class_names_output
 AS
 SELECT
-ChromeArgsClassNames(
-  'class_names_per_version', RepeatedField(class_names_per_version)
-)
+  ChromeArgsClassNames(
+    'class_names_per_version', RepeatedField(class_names_per_version)
+  )
 FROM chrome_args_class_names_per_version;

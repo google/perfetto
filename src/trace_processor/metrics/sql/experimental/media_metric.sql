@@ -86,8 +86,8 @@ SELECT
   vs.upid,
   SUM(
     CASE
-    WHEN s.arg_set_id IS NULL THEN 0
-    ELSE EXTRACT_ARG(s.arg_set_id, 'debug.count') END
+      WHEN s.arg_set_id IS NULL THEN 0
+      ELSE EXTRACT_ARG(s.arg_set_id, 'debug.count') END
   ) AS dropped_frame_count
 FROM VideoStart vs
 LEFT JOIN thread_slice s ON
@@ -210,7 +210,7 @@ INNER JOIN slice ON slice.id = (
     AND s.upid = AVStart.upid
   ORDER BY s.ts ASC
   LIMIT 1
-)
+  )
 WHERE NOT EXISTS (
   SELECT 1 FROM SeekStart
   WHERE SeekStart.playback_id = AVStart.playback_id

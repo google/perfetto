@@ -22,6 +22,6 @@ SELECT AndroidPackageList(
       'package_name', package_name,
       'uid', uid,
       'version_code', version_code
-    )) FROM package_list
+      )) FROM package_list
   )
 );

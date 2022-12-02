@@ -19,7 +19,7 @@ CREATE VIEW {{table_name}}_span AS
 SELECT
   ts,
   LEAD(ts, 1, (SELECT end_ts + 1 FROM trace_bounds))
-      OVER(ORDER BY ts) - ts AS dur,
+  OVER(ORDER BY ts) - ts AS dur,
   CAST(value AS INT) AS {{table_name}}_val
 FROM (
     SELECT ts, value, LAG(value) OVER (ORDER BY ts) AS lag_value

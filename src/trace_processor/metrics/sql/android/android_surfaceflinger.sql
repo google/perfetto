@@ -44,7 +44,7 @@ DROP VIEW IF EXISTS surfaceflinger_track;
 CREATE VIEW surfaceflinger_track AS
 SELECT tr.id AS track_id, t.utid, t.tid
 FROM process p JOIN thread t ON p.upid = t.upid
-     JOIN thread_track tr ON tr.utid = t.utid
+JOIN thread_track tr ON tr.utid = t.utid
 WHERE p.cmdline = '/system/bin/surfaceflinger';
 
 DROP VIEW IF EXISTS gpu_waiting_start;
@@ -99,5 +99,5 @@ SELECT
     'gpu_invocations', (SELECT COUNT(1) FROM gpu_waiting_end),
     'avg_gpu_waiting_dur_ms', (SELECT AVG(dur) / 1e6 FROM gpu_waiting_span),
     'total_non_empty_gpu_waiting_dur_ms',
-        (SELECT SUM(dur) / 1e6 FROM gpu_waiting_end)
+    (SELECT SUM(dur) / 1e6 FROM gpu_waiting_end)
   );

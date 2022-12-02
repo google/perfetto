@@ -24,9 +24,9 @@ SELECT
     'gc_rss_and_dma', (
       SELECT RepeatedField(
           AndroidCameraUnaggregatedMetric_Value(
-          'ts', ts,
-          'value', CAST(rss_and_dma_val AS real)
-        )
+            'ts', ts,
+            'value', CAST(rss_and_dma_val AS real)
+          )
       )
       FROM rss_and_dma_all_camera_span
     )

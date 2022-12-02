@@ -33,7 +33,7 @@ SELECT TraceAnalysisStats(
         WHEN 'error' THEN 'SEVERITY_ERROR'
         ELSE 'SEVERITY_UNKNOWN'
       END
-    ))
+      ))
     FROM stats ORDER BY name ASC
   )
 );

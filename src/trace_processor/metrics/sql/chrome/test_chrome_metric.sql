@@ -15,4 +15,4 @@
 
 DROP VIEW IF EXISTS test_chrome_metric_output;
 CREATE VIEW test_chrome_metric_output AS
-SELECT TestChromeMetric('test_value', 1)
+SELECT TestChromeMetric('test_value', 1);

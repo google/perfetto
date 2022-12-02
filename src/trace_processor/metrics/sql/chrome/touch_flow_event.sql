@@ -28,4 +28,4 @@ SELECT RUN_METRIC(
     'prefix', 'touch',
     'gesture_update', 'TouchMove',
     'id_field', 'touch_id'
-    );
+);
