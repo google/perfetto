@@ -462,6 +462,25 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
   return events;
 }
 
+base::FlatSet<int64_t> FtraceConfigMuxer::GetSyscallsReturningFds(
+    const SyscallTable& syscalls) {
+  auto insertSyscallId = [&syscalls](base::FlatSet<int64_t>& set,
+                                     const char* syscall) {
+    auto syscall_id = syscalls.GetByName(syscall);
+    if (syscall_id)
+      set.insert(static_cast<int64_t>(*syscall_id));
+  };
+
+  base::FlatSet<int64_t> call_ids;
+  insertSyscallId(call_ids, "sys_open");
+  insertSyscallId(call_ids, "sys_openat");
+  insertSyscallId(call_ids, "sys_socket");
+  insertSyscallId(call_ids, "sys_dup");
+  insertSyscallId(call_ids, "sys_dup2");
+  insertSyscallId(call_ids, "sys_dup3");
+  return call_ids;
+}
+
 bool FtraceConfigMuxer::FilterHasGroup(const EventFilter& filter,
                                        const std::string& group) {
   const std::vector<const Event*>* events = table_->GetEventsByGroup(group);
@@ -712,7 +731,8 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
                             compact_sched, std::move(ftrace_print_filter),
                             std::move(apps), std::move(categories),
                             request.symbolize_ksyms(),
-                            request.preserve_ftrace_buffer()));
+                            request.preserve_ftrace_buffer(),
+                            GetSyscallsReturningFds(syscalls_)));
   return id;
 }
 
