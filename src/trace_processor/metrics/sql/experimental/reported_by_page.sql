@@ -23,7 +23,7 @@ CREATE VIEW page_reported_events AS
 SELECT ts, name, EXTRACT_ARG(arg_set_id, "debug.data.navigationId") AS nav_id
 FROM slice
 WHERE category = 'blink.user_timing'
-    AND (name = 'navigationStart' OR name GLOB 'telemetry:reported_by_page:*')
+  AND (name = 'navigationStart' OR name GLOB 'telemetry:reported_by_page:*')
 ORDER BY nav_id, ts ASC;
 
 --------------------------------------------------------------------------------
@@ -43,9 +43,9 @@ SELECT p.name, (p.ts - (
          AND name = 'navigationStart')
         -- Benchmark end markers measure time from the most recent begin marker.
         OR (p.name = 'telemetry:reported_by_page:benchmark_end'
-         AND name = 'telemetry:reported_by_page:benchmark_begin')
+            AND name = 'telemetry:reported_by_page:benchmark_begin')
       ))
-    ) / 1e6 AS dur_ms
+) / 1e6 AS dur_ms
 FROM page_reported_events p;
 
 --------------------------------------------------------------------------------
@@ -55,12 +55,12 @@ DROP VIEW IF EXISTS reported_by_page_output;
 CREATE VIEW reported_by_page_output AS
 SELECT ReportedByPage(
   'time_to_viewable', (
-      SELECT RepeatedField(dur_ms) FROM page_reported_durations
-      WHERE name = 'telemetry:reported_by_page:viewable'),
+    SELECT RepeatedField(dur_ms) FROM page_reported_durations
+    WHERE name = 'telemetry:reported_by_page:viewable'),
   'time_to_interactive', (
-      SELECT RepeatedField(dur_ms) FROM page_reported_durations
-      WHERE name = 'telemetry:reported_by_page:interactive'),
+    SELECT RepeatedField(dur_ms) FROM page_reported_durations
+    WHERE name = 'telemetry:reported_by_page:interactive'),
   'benchmark_time', (
-      SELECT RepeatedField(dur_ms) FROM page_reported_durations
-      WHERE name = 'telemetry:reported_by_page:benchmark_end')
+    SELECT RepeatedField(dur_ms) FROM page_reported_durations
+    WHERE name = 'telemetry:reported_by_page:benchmark_end')
 );

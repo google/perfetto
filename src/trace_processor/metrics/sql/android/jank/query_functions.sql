@@ -42,9 +42,9 @@
 -- table_name_prefix - Running the function will create multiple tables. This value will be used
 --                     as a prefx for their names to avoid name collisions with other tables.
 SELECT CREATE_FUNCTION(
-   'ANDROID_JANK_CORRELATE_FRAME_SLICE_IMPL(table_set STRING, relevant_slice_table_name STRING, table_name_prefix STRING)',
-   'STRING',
-   '
+  'ANDROID_JANK_CORRELATE_FRAME_SLICE_IMPL(table_set STRING, relevant_slice_table_name STRING, table_name_prefix STRING)',
+  'STRING',
+  '
       SELECT COALESCE( -- COALESCE to return the text with table names to the caller instead of NULL
           RUN_METRIC(
             "android/jank/internal/query_frame_slice.sql",
@@ -61,7 +61,7 @@ SELECT CREATE_FUNCTION(
 -- Provides a default value for table_name_prefix in ANDROID_JANK_CORRELATE_FRAME_SLICE_IMPL.
 -- See documentation for ANDROID_JANK_CORRELATE_FRAME_SLICE_IMPL.
 SELECT CREATE_FUNCTION(
-   'ANDROID_JANK_CORRELATE_FRAME_SLICE(table_set STRING, relevant_slice_table_name STRING)',
-   'STRING',
-   'SELECT ANDROID_JANK_CORRELATE_FRAME_SLICE_IMPL($table_set, $relevant_slice_table_name, "jank_query")'
+  'ANDROID_JANK_CORRELATE_FRAME_SLICE(table_set STRING, relevant_slice_table_name STRING)',
+  'STRING',
+  'SELECT ANDROID_JANK_CORRELATE_FRAME_SLICE_IMPL($table_set, $relevant_slice_table_name, "jank_query")'
 );

@@ -66,7 +66,7 @@ JOIN slice
   ON slice.ts + slice.dur >= cuj.ts AND slice.ts <= cuj.ts_end
 JOIN android_jank_cuj_main_thread main_thread
   ON cuj.cuj_id = main_thread.cuj_id
-  AND main_thread.track_id = slice.track_id
+    AND main_thread.track_id = slice.track_id
 WHERE
   slice.name GLOB 'Choreographer#doFrame*'
   AND slice.dur > 0;
@@ -89,8 +89,8 @@ JOIN android_jank_cuj_render_thread render_thread USING (cuj_id)
 JOIN slice
   ON slice.track_id = render_thread.track_id
 WHERE slice.name GLOB 'DrawFrame*'
-AND VSYNC_FROM_NAME(slice.name) = do_frame.vsync
-AND slice.dur > 0;
+  AND VSYNC_FROM_NAME(slice.name) = do_frame.vsync
+  AND slice.dur > 0;
 
 -- Find descendants of DrawFrames which contain the GPU completion fence ID that
 -- is used for signaling that the GPU finished drawing.
@@ -131,7 +131,7 @@ FROM android_jank_cuj_hwc_release_thread hwc_release_thread
 JOIN slice USING (track_id)
 JOIN android_jank_cuj_hwc_release_fence fence
   ON fence.cuj_id = hwc_release_thread.cuj_id
-  AND fence.fence_idx = GPU_COMPLETION_FENCE_ID_FROM_NAME(slice.name)
+    AND fence.fence_idx = GPU_COMPLETION_FENCE_ID_FROM_NAME(slice.name)
 WHERE
   slice.name GLOB 'waiting for HWC release *'
   AND slice.dur > 0;
@@ -172,7 +172,7 @@ SELECT
 FROM android_jank_cuj_do_frame_slice do_frame
 JOIN actual_frame_timeline_slice app_timeline
   ON do_frame.upid = app_timeline.upid
-  AND do_frame.vsync = CAST(app_timeline.name AS INTEGER)
+    AND do_frame.vsync = CAST(app_timeline.name AS INTEGER)
 JOIN directly_connected_flow(app_timeline.id) flow
   ON flow.slice_in = app_timeline.id
 JOIN actual_frame_timeline_slice sf_timeline
@@ -255,7 +255,7 @@ FROM android_jank_cuj_sf_gpu_completion_fence fence
 JOIN android_jank_cuj_sf_gpu_completion_thread gpu_completion_thread
 JOIN slice
   ON slice.track_id = gpu_completion_thread.track_id
-  AND fence.fence_idx = GPU_COMPLETION_FENCE_ID_FROM_NAME(slice.name)
+    AND fence.fence_idx = GPU_COMPLETION_FENCE_ID_FROM_NAME(slice.name)
 WHERE
   slice.name GLOB 'waiting for GPU completion *'
   AND slice.dur > 0;
@@ -268,15 +268,15 @@ WHERE
 DROP TABLE IF EXISTS android_jank_cuj_sf_draw_layers_slice;
 CREATE TABLE android_jank_cuj_sf_draw_layers_slice AS
 WITH compose_surfaces AS (
-SELECT
-  cuj_id,
-  vsync,
-  sf_root_slice.id AS sf_root_slice_id,
-  compose_surfaces.ts,
-  compose_surfaces.ts + compose_surfaces.dur AS ts_end
-FROM android_jank_cuj_sf_root_slice sf_root_slice
-JOIN descendant_slice(sf_root_slice.id) compose_surfaces
-  ON compose_surfaces.name = 'composeSurfaces'
+  SELECT
+    cuj_id,
+    vsync,
+    sf_root_slice.id AS sf_root_slice_id,
+    compose_surfaces.ts,
+    compose_surfaces.ts + compose_surfaces.dur AS ts_end
+  FROM android_jank_cuj_sf_root_slice sf_root_slice
+  JOIN descendant_slice(sf_root_slice.id) compose_surfaces
+    ON compose_surfaces.name = 'composeSurfaces'
 )
 SELECT
   cuj_id,
@@ -290,8 +290,8 @@ FROM compose_surfaces
 JOIN android_jank_cuj_sf_render_engine_thread re_thread
 JOIN slice draw_layers
   ON draw_layers.track_id = re_thread.track_id
-  AND draw_layers.ts >= compose_surfaces.ts
-  AND draw_layers.ts + draw_layers.dur <= compose_surfaces.ts_end
+    AND draw_layers.ts >= compose_surfaces.ts
+    AND draw_layers.ts + draw_layers.dur <= compose_surfaces.ts_end
 WHERE
   draw_layers.name = 'REThreaded::drawLayers'
   AND draw_layers.dur > 0;

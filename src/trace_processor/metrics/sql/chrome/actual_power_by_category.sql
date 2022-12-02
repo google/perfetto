@@ -36,12 +36,12 @@ DROP VIEW IF EXISTS mapped_drain_in_watts;
 CREATE VIEW mapped_drain_in_watts AS
 SELECT d.name, ts, dur, drain_w, idx
 FROM drain_in_watts d
-  JOIN power_rail_name_mapping p ON d.name = p.name;
+JOIN power_rail_name_mapping p ON d.name = p.name;
 
 DROP TABLE IF EXISTS real_{{input}}_power;
 CREATE VIRTUAL TABLE real_{{input}}_power USING SPAN_JOIN(
-    {{input}},
-    mapped_drain_in_watts PARTITIONED idx
+  {{input}},
+  mapped_drain_in_watts PARTITIONED idx
 );
 
 -- Actual power usage for chrome across the categorised slices contained in the
@@ -60,20 +60,20 @@ FROM (
       subsystem,
       SUM(drain_w * dur / 1e9) AS joules
     FROM real_{{input}}_power
-      JOIN power_counters
+    JOIN power_counters
     WHERE real_{{input}}_power.name = power_counters.name
     GROUP BY id,
       subsystem
   ) p
-  JOIN {{input}} s
+JOIN {{input}} s
 WHERE s.id = p.id
 ORDER BY s.id;
 
 SELECT id,
-      subsystem,
-      SUM(drain_w * dur / 1e9) AS joules
-    FROM real_{{input}}_power
-      JOIN power_counters
-    WHERE real_{{input}}_power.name = power_counters.name
-    GROUP BY id,
-      subsystem
+  subsystem,
+  SUM(drain_w * dur / 1e9) AS joules
+FROM real_{{input}}_power
+JOIN power_counters
+WHERE real_{{input}}_power.name = power_counters.name
+GROUP BY id,
+  subsystem;

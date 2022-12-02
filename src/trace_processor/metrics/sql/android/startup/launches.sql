@@ -61,7 +61,7 @@ SELECT CASE
   WHEN SLICE_COUNT('MetricsLogger:*') > 0
     THEN RUN_METRIC('android/startup/launches_minsdk29.sql')
   ELSE RUN_METRIC('android/startup/launches_maxsdk28.sql')
-END;
+  END;
 
 -- Create a table containing only the slices which are necessary for determining
 -- whether a launch happened
@@ -126,7 +126,7 @@ WITH launch_with_type AS MATERIALIZED (
         (SELECT COUNT(1) = 0 FROM package_list)
         AND p.process_name GLOB l.package || '*'
       )
-    )
+      )
     JOIN thread t ON (p.upid = t.upid AND t.is_main_thread)
   )
 )

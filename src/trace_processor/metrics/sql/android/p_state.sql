@@ -28,7 +28,7 @@ SELECT
   iif(value = 4294967295, -1, cast(value AS int)) AS idle_value
 FROM
   counter c
-  JOIN cpu_counter_track t ON c.track_id = t.id
+JOIN cpu_counter_track t ON c.track_id = t.id
 WHERE
   t.name = "cpuidle";
 

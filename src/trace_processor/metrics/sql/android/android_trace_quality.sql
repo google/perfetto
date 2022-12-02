@@ -28,7 +28,7 @@ SELECT AndroidTraceQualityMetric(
   'failures', (
     SELECT RepeatedField(AndroidTraceQualityMetric_Failure(
       'name', name
-    ))
+      ))
     FROM android_trace_quality_failures
     WHERE failed
   )

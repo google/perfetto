@@ -130,8 +130,7 @@ WHERE ts = ts_fs AND dur = dur_fs;
 DROP VIEW IF EXISTS RefreshPeriodAndroid;
 CREATE VIEW RefreshPeriodAndroid AS
 -- Not implemented yet.
-SELECT NULL AS interval_ms
-;
+SELECT NULL AS interval_ms;
 
 DROP VIEW IF EXISTS RefreshPeriodNonAndroid;
 CREATE VIEW RefreshPeriodNonAndroid AS
