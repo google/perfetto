@@ -72,7 +72,8 @@ FtraceDataSourceConfig EmptyConfig() {
                                 {},
                                 {},
                                 false /*symbolize_ksyms*/,
-                                false /*preserve_ftrace_buffer*/};
+                                false /*preserve_ftrace_buffer*/,
+                                {}};
 }
 
 constexpr uint64_t kNanoInSecond = 1000 * 1000 * 1000;
@@ -951,7 +952,8 @@ TEST(CpuReaderTest, ParseSixSchedSwitchCompactFormat) {
                                    {},
                                    {},
                                    false /* symbolize_ksyms*/,
-                                   false /*preserve_ftrace_buffer*/};
+                                   false /*preserve_ftrace_buffer*/,
+                                   {}};
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
@@ -1172,6 +1174,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
       &ftrace_, events, std::move(common_fields),
       ProtoTranslationTable::DefaultPageHeaderSpecForTesting(),
       InvalidCompactSchedEventFormatForTesting(), printk_formats);
+  FtraceDataSourceConfig ds_config = EmptyConfig();
 
   FakeEventProvider provider(base::kPageSize);
 
@@ -1208,7 +1211,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
   FtraceMetadata metadata{};
 
   ASSERT_TRUE(CpuReader::ParseEvent(ftrace_event_id, input.get(),
-                                    input.get() + length, &table,
+                                    input.get() + length, &table, &ds_config,
                                     provider.writer(), &metadata));
 
   auto event = provider.ParseProto();
@@ -1241,6 +1244,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
 TEST(CpuReaderTest, SysEnterEvent) {
   BinaryWriter writer;
   ProtoTranslationTable* table = GetTable("synthetic");
+  FtraceDataSourceConfig ds_config = EmptyConfig();
 
   const auto kSysEnterId = static_cast<uint16_t>(
       table->EventToFtraceId(GroupAndName("raw_syscalls", "sys_enter")));
@@ -1263,7 +1267,7 @@ TEST(CpuReaderTest, SysEnterEvent) {
   FtraceMetadata metadata{};
 
   ASSERT_TRUE(CpuReader::ParseEvent(
-      kSysEnterId, input.get(), input.get() + length, table,
+      kSysEnterId, input.get(), input.get() + length, table, &ds_config,
       bundle_provider.writer()->add_event(), &metadata));
 
   std::unique_ptr<protos::gen::FtraceEventBundle> a =
@@ -1277,11 +1281,54 @@ TEST(CpuReaderTest, SysEnterEvent) {
   }
 }
 
+TEST(CpuReaderTest, SysExitEvent) {
+  BinaryWriter writer;
+  ProtoTranslationTable* table = GetTable("synthetic");
+  FtraceDataSourceConfig ds_config = EmptyConfig();
+  const auto syscalls = SyscallTable::FromCurrentArch();
+
+  const auto kSysExitId = static_cast<uint16_t>(
+      table->EventToFtraceId(GroupAndName("raw_syscalls", "sys_exit")));
+  ASSERT_GT(kSysExitId, 0ul);
+  constexpr pid_t kPid = 23;
+  constexpr int64_t kFd = 2;
+
+  ds_config.syscalls_returning_fd =
+      FtraceConfigMuxer::GetSyscallsReturningFds(syscalls);
+  ASSERT_FALSE(ds_config.syscalls_returning_fd.empty());
+  const auto syscall_id = *ds_config.syscalls_returning_fd.begin();
+
+  writer.Write<int32_t>(1001);        // Common field.
+  writer.Write<int32_t>(kPid);        // Common pid
+  writer.Write<int64_t>(syscall_id);  // id
+  writer.Write<int64_t>(kFd);         // ret
+
+  auto input = writer.GetCopy();
+  auto length = writer.written();
+  BundleProvider bundle_provider(base::kPageSize);
+  FtraceMetadata metadata{};
+
+  ASSERT_TRUE(CpuReader::ParseEvent(
+      kSysExitId, input.get(), input.get() + length, table, &ds_config,
+      bundle_provider.writer()->add_event(), &metadata));
+
+  std::unique_ptr<protos::gen::FtraceEventBundle> a =
+      bundle_provider.ParseProto();
+  ASSERT_NE(a, nullptr);
+  ASSERT_EQ(a->event().size(), 1u);
+  const auto& event = a->event()[0].sys_exit();
+  EXPECT_EQ(event.id(), syscall_id);
+  EXPECT_EQ(event.ret(), kFd);
+  const auto& known_fds = metadata.fds[kPid];
+  EXPECT_THAT(known_fds, Contains(kFd));
+}
+
 TEST(CpuReaderTest, TaskRenameEvent) {
   BundleProvider bundle_provider(base::kPageSize);
 
   BinaryWriter writer;
   ProtoTranslationTable* table = GetTable("android_seed_N2F62_3.10.49");
+  FtraceDataSourceConfig ds_config = EmptyConfig();
 
   constexpr uint32_t kTaskRenameId = 19;
 
@@ -1298,7 +1345,7 @@ TEST(CpuReaderTest, TaskRenameEvent) {
   FtraceMetadata metadata{};
 
   ASSERT_TRUE(CpuReader::ParseEvent(kTaskRenameId, input.get(),
-                                    input.get() + length, table,
+                                    input.get() + length, table, &ds_config,
                                     bundle_provider.writer(), &metadata));
   EXPECT_THAT(metadata.rename_pids, Contains(9999));
   EXPECT_THAT(metadata.pids, Contains(9999));
@@ -1313,6 +1360,7 @@ TEST(CpuReaderTest, EventNonZeroTerminated) {
 
   BinaryWriter writer;
   ProtoTranslationTable* table = GetTable("android_seed_N2F62_3.10.49");
+  FtraceDataSourceConfig ds_config = EmptyConfig();
 
   constexpr uint32_t kTaskRenameId = 19;
 
@@ -1331,7 +1379,7 @@ TEST(CpuReaderTest, EventNonZeroTerminated) {
   FtraceMetadata metadata{};
 
   ASSERT_TRUE(CpuReader::ParseEvent(
-      kTaskRenameId, input.get(), input.get() + length, table,
+      kTaskRenameId, input.get(), input.get() + length, table, &ds_config,
       bundle_provider.writer()->add_event(), &metadata));
   std::unique_ptr<protos::gen::FtraceEventBundle> a =
       bundle_provider.ParseProto();
@@ -3015,7 +3063,7 @@ static ExamplePage g_zero_padded{
     00000CA0: 502D 7072 6564 6963 7469 6F6E 7C32 3137   P-prediction|217
     00000CB0: 3332 3932 3839 3739 3138 0A00 70FE 0600   3292897918..p...
     00000CC0: 0500 0000 EF02 0000 50AA 4C00 AEFF FFFF   ........P.L.....
-    00000CD0: 427C 3633 397C 6170 7020 616C 6172 6D20   B|639|app alarm 
+    00000CD0: 427C 3633 397C 6170 7020 616C 6172 6D20   B|639|app alarm
     00000CE0: 696E 2037 3837 3875 733B 2056 5359 4E43   in 7878us; VSYNC
     00000CF0: 2069 6E20 3338 3837 3875 730A 0000 0000    in 38878us.....
     00000D00: C7AD 0100 0500 0000 EF02 0000 50AA 4C00   ............P.L.
