@@ -205,6 +205,7 @@ class CpuReader {
                          const uint8_t* start,
                          const uint8_t* end,
                          const ProtoTranslationTable* table,
+                         const FtraceDataSourceConfig* ds_config,
                          protozero::Message* message,
                          FtraceMetadata* metadata);
 
@@ -221,6 +222,14 @@ class CpuReader {
                             const uint8_t* end,
                             protozero::Message* message,
                             FtraceMetadata* metadata);
+
+  // Parse a sys_exit event according to the pre-validated expected format
+  static bool ParseSysExit(const Event& info,
+                           const uint8_t* start,
+                           const uint8_t* end,
+                           const FtraceDataSourceConfig* ds_config,
+                           protozero::Message* message,
+                           FtraceMetadata* metadata);
 
   // Parse a sched_switch event according to pre-validated format, and buffer
   // the individual fields in the given compact encoding batch.
