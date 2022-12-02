@@ -24,7 +24,7 @@
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/ftrace/virtio_video.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/proto/async_track_set_tracker.h"
+#include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
