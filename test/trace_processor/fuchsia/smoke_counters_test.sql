@@ -13,9 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select
+SELECT
   ts,
   value,
   name
-from counters
-limit 10;
+FROM counters
+LIMIT 10;

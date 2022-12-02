@@ -13,6 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select ts, dur, name
-from slices
-limit 10
+SELECT ts, dur, name
+FROM slices
+LIMIT 10;

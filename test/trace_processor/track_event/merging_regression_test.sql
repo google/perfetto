@@ -16,4 +16,4 @@
 
 -- Actual query in this file does not matter: we only want to ensure that
 -- parsing of the trace succeeds.
-select ts from slice order by ts limit 10;
+SELECT ts FROM slice ORDER BY ts LIMIT 10;

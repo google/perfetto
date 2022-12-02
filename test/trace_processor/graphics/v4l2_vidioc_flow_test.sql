@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select qbuf.ts, qbuf.dur, qbuf.name, dqbuf.ts, dqbuf.dur, dqbuf.name
-from flow
-inner join slice qbuf on flow.slice_out = qbuf.id
-inner join slice dqbuf on flow.slice_in = dqbuf.id
+SELECT qbuf.ts, qbuf.dur, qbuf.name, dqbuf.ts, dqbuf.dur, dqbuf.name
+FROM flow
+INNER JOIN slice qbuf ON flow.slice_out = qbuf.id
+INNER JOIN slice dqbuf ON flow.slice_in = dqbuf.id;

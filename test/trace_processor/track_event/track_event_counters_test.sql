@@ -13,19 +13,19 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select
-  counter_track.name as counter_name,
-  process.name as process,
-  thread.name as thread,
-  thread_process.name as thread_process,
-  counter_track.unit as unit,
+SELECT
+  counter_track.name AS counter_name,
+  process.name AS process,
+  thread.name AS thread,
+  thread_process.name AS thread_process,
+  counter_track.unit AS unit,
   counter.ts,
   counter.value
-from counter
-left join counter_track on counter.track_id = counter_track.id
-left join process_counter_track on counter.track_id = process_counter_track.id
-left join process on process_counter_track.upid = process.upid
-left join thread_counter_track on counter.track_id = thread_counter_track.id
-left join thread on thread_counter_track.utid = thread.utid
-left join process thread_process on thread.upid = thread_process.upid
-order by ts asc;
+FROM counter
+LEFT JOIN counter_track ON counter.track_id = counter_track.id
+LEFT JOIN process_counter_track ON counter.track_id = process_counter_track.id
+LEFT JOIN process ON process_counter_track.upid = process.upid
+LEFT JOIN thread_counter_track ON counter.track_id = thread_counter_track.id
+LEFT JOIN thread ON thread_counter_track.utid = thread.utid
+LEFT JOIN process thread_process ON thread.upid = thread_process.upid
+ORDER BY ts ASC;

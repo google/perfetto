@@ -1,4 +1,4 @@
-select ts, dur, tid
-from sched
-join thread using(utid)
-order by ts
+SELECT ts, dur, tid
+FROM sched
+JOIN thread USING(utid)
+ORDER BY ts;

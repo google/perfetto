@@ -13,10 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select count(*) as cnt from android_logs union all
-select count(*) as cnt from android_logs where prio = 3 union all
-select count(*) as cnt from android_logs where prio > 4 union all
-select count(*) as cnt from android_logs where tag = 'screen_toggled' union all
-select count(*) as cnt from android_logs where tag GLOB '*_pss' union all
-select count(*) as cnt from android_logs where msg GLOB '*i2c?write*' or msg GLOB '*I2C?Write*' union all
-select count(*) as cnt from android_logs where ts >= 1510113924391 and ts < 1512610021879;
+SELECT count(*) AS cnt FROM android_logs UNION ALL
+SELECT count(*) AS cnt FROM android_logs WHERE prio = 3 UNION ALL
+SELECT count(*) AS cnt FROM android_logs WHERE prio > 4 UNION ALL
+SELECT count(*) AS cnt FROM android_logs WHERE tag = 'screen_toggled' UNION ALL
+SELECT count(*) AS cnt FROM android_logs WHERE tag GLOB '*_pss' UNION ALL
+SELECT count(*) AS cnt FROM android_logs WHERE msg GLOB '*i2c?write*' OR msg GLOB '*I2C?Write*' UNION ALL
+SELECT count(*) AS cnt FROM android_logs WHERE ts >= 1510113924391 AND ts < 1512610021879;

@@ -13,11 +13,11 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select
-  track.name as track,
-  process.name as process,
-  thread.name as thread,
-  thread_process.name as thread_process,
+SELECT
+  track.name AS track,
+  process.name AS process,
+  thread.name AS thread,
+  thread_process.name AS thread_process,
   slice.ts,
   slice.dur,
   slice.category,
@@ -25,12 +25,12 @@ select
   args.key,
   args.string_value,
   args.int_value
-from slice
-left join track on slice.track_id = track.id
-left join process_track on slice.track_id = process_track.id
-left join process on process_track.upid = process.upid
-left join thread_track on slice.track_id = thread_track.id
-left join thread on thread_track.utid = thread.utid
-left join process thread_process on thread.upid = thread_process.upid
-left join args on slice.arg_set_id = args.arg_set_id
-order by ts asc;
+FROM slice
+LEFT JOIN track ON slice.track_id = track.id
+LEFT JOIN process_track ON slice.track_id = process_track.id
+LEFT JOIN process ON process_track.upid = process.upid
+LEFT JOIN thread_track ON slice.track_id = thread_track.id
+LEFT JOIN thread ON thread_track.utid = thread.utid
+LEFT JOIN process thread_process ON thread.upid = thread_process.upid
+LEFT JOIN args ON slice.arg_set_id = args.arg_set_id
+ORDER BY ts ASC;

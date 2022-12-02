@@ -14,7 +14,7 @@
 SELECT RUN_METRIC('chrome/chrome_scroll_inputs_per_frame.sql');
 
 SELECT
-count_for_frame,
-ts
+  count_for_frame,
+  ts
 FROM chrome_scroll_inputs_per_frame
 WHERE ts = 60934316798158;

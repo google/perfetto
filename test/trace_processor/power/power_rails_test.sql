@@ -13,8 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select name, AVG(value), COUNT(*)
-from counters
-where name GLOB "power.*"
-group by name
-limit 20
+SELECT name, AVG(value), COUNT(*)
+FROM counters
+WHERE name GLOB "power.*"
+GROUP BY name
+LIMIT 20;
