@@ -18,18 +18,18 @@
 -- Used to simplify passing arguments to other functions / metrics.
 DROP TABLE IF EXISTS android_jank_cuj_table_set;
 CREATE TABLE android_jank_cuj_table_set(
-    name TEXT,
-    slice_table_name TEXT,
-    frame_boundary_table_name TEXT,
-    cuj_boundary_table_name TEXT,
-    frame_table_name TEXT);
+  name TEXT,
+  slice_table_name TEXT,
+  frame_boundary_table_name TEXT,
+  cuj_boundary_table_name TEXT,
+  frame_table_name TEXT);
 
 INSERT INTO android_jank_cuj_table_set(
-    name,
-    slice_table_name,
-    frame_boundary_table_name,
-    cuj_boundary_table_name,
-    frame_table_name)
+  name,
+  slice_table_name,
+  frame_boundary_table_name,
+  cuj_boundary_table_name,
+  frame_table_name)
 VALUES
 ('App threads',
   'android_jank_cuj_slice',
@@ -65,27 +65,27 @@ VALUES
 -- Functions below retrieve specific columns for a given table set.
 
 SELECT CREATE_FUNCTION(
-   'ANDROID_JANK_CUJ_TABLE_SET_SLICE(table_set STRING)',
-   'STRING',
-   'SELECT slice_table_name FROM android_jank_cuj_table_set ts WHERE ts.name = $table_set'
+  'ANDROID_JANK_CUJ_TABLE_SET_SLICE(table_set STRING)',
+  'STRING',
+  'SELECT slice_table_name FROM android_jank_cuj_table_set ts WHERE ts.name = $table_set'
 );
 
 SELECT CREATE_FUNCTION(
-   'ANDROID_JANK_CUJ_TABLE_SET_FRAME_BOUNDARY(table_set STRING)',
-   'STRING',
-   'SELECT frame_boundary_table_name FROM android_jank_cuj_table_set ts WHERE ts.name = $table_set'
+  'ANDROID_JANK_CUJ_TABLE_SET_FRAME_BOUNDARY(table_set STRING)',
+  'STRING',
+  'SELECT frame_boundary_table_name FROM android_jank_cuj_table_set ts WHERE ts.name = $table_set'
 );
 
 SELECT CREATE_FUNCTION(
-   'ANDROID_JANK_CUJ_TABLE_SET_CUJ_BOUNDARY(table_set STRING)',
-   'STRING',
-   'SELECT cuj_boundary_table_name FROM android_jank_cuj_table_set ts WHERE ts.name = $table_set'
+  'ANDROID_JANK_CUJ_TABLE_SET_CUJ_BOUNDARY(table_set STRING)',
+  'STRING',
+  'SELECT cuj_boundary_table_name FROM android_jank_cuj_table_set ts WHERE ts.name = $table_set'
 );
 
 SELECT CREATE_FUNCTION(
-   'ANDROID_JANK_CUJ_TABLE_SET_FRAME(table_set STRING)',
-   'STRING',
-   'SELECT frame_table_name FROM android_jank_cuj_table_set ts WHERE ts.name = $table_set'
+  'ANDROID_JANK_CUJ_TABLE_SET_FRAME(table_set STRING)',
+  'STRING',
+  'SELECT frame_table_name FROM android_jank_cuj_table_set ts WHERE ts.name = $table_set'
 );
 
 -- Checks if two slices, described by ts and dur, ts_second and dur_second, overlap.

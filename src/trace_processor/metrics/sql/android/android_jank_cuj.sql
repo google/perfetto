@@ -157,7 +157,7 @@ SELECT
             FROM android_jank_cuj_sf_frame f
             WHERE f.cuj_id = cuj.cuj_id
             ORDER BY frame_number ASC)
-          ))
+        ))
       FROM android_jank_cuj cuj
       LEFT JOIN android_jank_cuj_boundary boundary USING (cuj_id)
       ORDER BY cuj.cuj_id ASC));

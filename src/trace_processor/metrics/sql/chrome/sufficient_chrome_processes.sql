@@ -26,11 +26,11 @@ SELECT RUN_METRIC('chrome/chrome_processes.sql');
 -- See b/151077536 for historical context.
 DROP VIEW IF EXISTS sufficient_chrome_processes;
 CREATE VIEW sufficient_chrome_processes AS
-  SELECT
-    CASE WHEN (
+SELECT
+  CASE WHEN (
       SELECT COUNT(*) FROM chrome_process) = 0
     THEN
-      FALSE
+    FALSE
     ELSE (
       SELECT COUNT(*) >= 3 FROM (
         SELECT name FROM chrome_process
@@ -45,4 +45,4 @@ CREATE VIEW sufficient_chrome_processes AS
           OR name GLOB 'com.google.android.apps.chrome*'
           OR name GLOB 'org.chromium.chrome*'
         GROUP BY name
-    )) END AS have_enough_chrome_processes;
+      )) END AS have_enough_chrome_processes;

@@ -19,7 +19,7 @@ CREATE VIEW ion_timeline AS
 SELECT
   ts,
   LEAD(ts, 1, (SELECT end_ts FROM trace_bounds))
-    OVER(PARTITION BY track_id ORDER BY ts) - ts AS dur,
+  OVER(PARTITION BY track_id ORDER BY ts) - ts AS dur,
   CASE name
     WHEN 'mem.ion' THEN 'all'
     ELSE SUBSTR(name, 9)
