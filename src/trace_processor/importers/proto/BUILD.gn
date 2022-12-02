@@ -24,6 +24,8 @@ source_set("minimal") {
     "chrome_system_probes_module.h",
     "chrome_system_probes_parser.cc",
     "chrome_system_probes_parser.h",
+    "default_modules.cc",
+    "default_modules.h",
     "heap_profile_tracker.cc",
     "heap_profile_tracker.h",
     "memory_tracker_snapshot_module.cc",
@@ -101,6 +103,8 @@ source_set("minimal") {
 
 source_set("full") {
   sources = [
+    "additional_modules.cc",
+    "additional_modules.h",
     "android_camera_event_module.cc",
     "android_camera_event_module.h",
     "android_probes_module.cc",
@@ -137,6 +141,7 @@ source_set("full") {
     "vulkan_memory_tracker.h",
   ]
   deps = [
+    ":gen_cc_config_descriptor",
     ":gen_cc_statsd_atoms_descriptor",
     ":gen_cc_trace_descriptor",
     ":minimal",
@@ -169,6 +174,7 @@ source_set("full") {
     "../../util:proto_to_args_parser",
     "../common",
     "../common:parser_types",
+    "../ftrace:full",
     "../syscalls:full",
   ]
 }
@@ -207,19 +213,55 @@ perfetto_cc_proto_descriptor("gen_cc_trace_descriptor") {
   descriptor_target = "../../../../protos/perfetto/trace:descriptor"
 }
 
+perfetto_cc_proto_descriptor("gen_cc_track_event_descriptor") {
+  descriptor_name = "track_event.descriptor"
+  descriptor_target = "../../../../protos/perfetto/trace/track_event:descriptor"
+}
+
+perfetto_cc_proto_descriptor("gen_cc_chrome_track_event_descriptor") {
+  descriptor_name = "chrome_track_event.descriptor"
+  descriptor_target = "../../../../protos/third_party/chromium:descriptor"
+}
+
+perfetto_cc_proto_descriptor("gen_cc_config_descriptor") {
+  descriptor_name = "config.descriptor"
+  descriptor_target = "../../../../protos/perfetto/config:descriptor"
+}
+
 source_set("unittests") {
   testonly = true
   sources = [
     "active_chrome_processes_tracker_unittest.cc",
     "heap_graph_tracker_unittest.cc",
     "heap_profile_tracker_unittest.cc",
+    "perf_sample_tracker_unittest.cc",
+    "proto_trace_parser_unittest.cc",
   ]
   deps = [
     ":full",
     ":minimal",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
+    "../../../../protos/perfetto/common:cpp",
+    "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/config:zero",
+    "../../../../protos/perfetto/trace:non_minimal_cpp",
+    "../../../../protos/perfetto/trace:zero",
+    "../../../../protos/perfetto/trace/android:zero",
+    "../../../../protos/perfetto/trace/chrome:zero",
+    "../../../../protos/perfetto/trace/ftrace:zero",
+    "../../../../protos/perfetto/trace/interned_data:zero",
+    "../../../../protos/perfetto/trace/profiling:cpp",
+    "../../../../protos/perfetto/trace/profiling:zero",
+    "../../../../protos/perfetto/trace/ps:zero",
+    "../../../../protos/perfetto/trace/sys_stats:zero",
+    "../../../../protos/perfetto/trace/track_event:zero",
+    "../../../protozero",
+    "../../sorter",
+    "../../storage",
     "../../types",
+    "../../util:descriptors",
     "../common",
+    "../ftrace:full",
   ]
 }
