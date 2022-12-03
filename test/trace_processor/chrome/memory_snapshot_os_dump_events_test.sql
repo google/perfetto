@@ -28,15 +28,15 @@ LEFT JOIN memory_snapshot
 LEFT JOIN (
   SELECT id, upid
   FROM process_counter_track
-  WHERE name IS 'chrome.private_footprint_kb'
+  WHERE name = 'chrome.private_footprint_kb'
   ) AS pct_pf
   ON p.upid = pct_pf.upid
 LEFT JOIN counter pf ON timestamp = pf.ts AND pct_pf.id = pf.track_id
 LEFT JOIN (
   SELECT id, upid
   FROM process_counter_track
-  WHERE name IS 'chrome.peak_resident_set_kb'
+  WHERE name = 'chrome.peak_resident_set_kb'
   ) AS pct_prs
   ON p.upid = pct_prs.upid
 LEFT JOIN counter prs ON timestamp = prs.ts AND pct_prs.id = prs.track_id
-ORDER BY timestamp
+ORDER BY timestamp;

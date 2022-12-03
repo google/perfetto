@@ -216,9 +216,9 @@ button.close {
     }
     .indent {
       display: inline-block;
-      // 24px is the width of expand_more/expand_less icon to pad out cells
+      // 16px is the width of expand_more/expand_less icon to pad out cells
       // without the button
-      width: 24px;
+      width: 16px;
     }
   }
   thead td {

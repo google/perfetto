@@ -83,8 +83,8 @@ FROM (
   INNER JOIN thread ON thread_track.utid = thread.id
   WHERE
     slice.dur >= 0 AND (
-    slice.name GLOB "V8.GC*" OR (slice.name GLOB "BlinkGC*" AND NOT forced)
-  )
+      slice.name GLOB "V8.GC*" OR (slice.name GLOB "BlinkGC*" AND NOT forced)
+    )
 );
 
 -- This grabs all the single events for "BlinkGC.*", and restricts to only
@@ -98,7 +98,7 @@ SELECT
 FROM
   blink_gc_cpu_slice LEFT JOIN
   blink_non_aggregated_gc_event_name AS event_name ON
-      event_name.name = blink_gc_cpu_slice.name
+    event_name.name = blink_gc_cpu_slice.name
 WHERE
   blink_gc_cpu_slice.name GLOB "BlinkGC*" AND NOT forced;
 
@@ -133,7 +133,7 @@ SELECT * FROM blink_slice WHERE name IN (
 -- All events that should be summed up to 'blink-gc-mark-transitive-closure'.
 DROP VIEW IF EXISTS blink_gc_foreground_marking_transitive_closure_event;
 CREATE VIEW
-      blink_gc_foreground_marking_transitive_closure_event AS
+blink_gc_foreground_marking_transitive_closure_event AS
 SELECT * FROM blink_slice WHERE name IN (
   'BlinkGC.AtomicPauseMarkTransitiveClosure',
   'BlinkGC.IncrementalMarkingStep',
@@ -271,7 +271,7 @@ SELECT BlinkGcMetric(
     FROM blink_per_epoch_slice
     WHERE
       blink_non_aggregated_gc_events_new_name
-          = 'blink:gc:main_thread:cycle:full:atomic:mark:epilogue'
+      = 'blink:gc:main_thread:cycle:full:atomic:mark:epilogue'
   ),
   'blink_gc_atomic_pause_mark_prologue',
   (
@@ -280,7 +280,7 @@ SELECT BlinkGcMetric(
     FROM blink_slice
     WHERE
       blink_non_aggregated_gc_event_name
-          = 'blink-gc-atomic-pause-mark-prologue'
+      = 'blink-gc-atomic-pause-mark-prologue'
   ),
   'blink_gc_main_thread_cycle_full_atomic_mark_prologue',
   (
@@ -289,7 +289,7 @@ SELECT BlinkGcMetric(
     FROM blink_per_epoch_slice
     WHERE
       blink_non_aggregated_gc_events_new_name
-          = 'blink:gc:main_thread:cycle:full:atomic:mark:prologue'
+      = 'blink:gc:main_thread:cycle:full:atomic:mark:prologue'
   ),
   'blink_gc_atomic_pause_mark_roots',
   (
@@ -306,7 +306,7 @@ SELECT BlinkGcMetric(
     FROM blink_per_epoch_slice
     WHERE
       blink_non_aggregated_gc_events_new_name
-          = 'blink:gc:main_thread:cycle:full:atomic:mark:roots'
+      = 'blink:gc:main_thread:cycle:full:atomic:mark:roots'
   ),
   'blink_gc_atomic_pause_sweep_and_compact',
   (
@@ -315,7 +315,7 @@ SELECT BlinkGcMetric(
     FROM blink_slice
     WHERE
       blink_non_aggregated_gc_event_name
-          = 'blink-gc-atomic-pause-sweep-and-compact'
+      = 'blink-gc-atomic-pause-sweep-and-compact'
   ),
   'blink_gc_main_thread_cycle_full_atomic_sweep_compact',
   (
@@ -324,7 +324,7 @@ SELECT BlinkGcMetric(
     FROM blink_per_epoch_slice
     WHERE
       blink_non_aggregated_gc_events_new_name
-          = 'blink:gc:main_thread:cycle:full:atomic:sweep:compact'
+      = 'blink:gc:main_thread:cycle:full:atomic:sweep:compact'
   ),
   'blink_gc_complete_sweep',
   (
@@ -340,7 +340,7 @@ SELECT BlinkGcMetric(
     FROM blink_per_epoch_slice
     WHERE
       blink_non_aggregated_gc_events_new_name
-          = 'blink:gc:main_thread:cycle:full:sweep:complete'
+      = 'blink:gc:main_thread:cycle:full:sweep:complete'
   ),
   'blink_gc_incremental_start',
   (
@@ -356,7 +356,7 @@ SELECT BlinkGcMetric(
     FROM blink_per_epoch_slice
     WHERE
       blink_non_aggregated_gc_events_new_name
-          = 'blink:gc:main_thread:cycle:full:incremental:mark:start'
+      = 'blink:gc:main_thread:cycle:full:incremental:mark:start'
   ),
   'blink_gc_incremental_step',
   (
@@ -372,7 +372,7 @@ SELECT BlinkGcMetric(
     FROM blink_per_epoch_slice
     WHERE
       blink_non_aggregated_gc_events_new_name
-          = 'blink:gc:main_thread:cycle:full:incremental:mark:step'
+      = 'blink:gc:main_thread:cycle:full:incremental:mark:step'
   ),
   'blink_gc_sweep_allocation',
   (
@@ -388,7 +388,7 @@ SELECT BlinkGcMetric(
     FROM blink_per_epoch_slice
     WHERE
       blink_non_aggregated_gc_events_new_name
-          = 'blink:gc:main_thread:cycle:full:sweep:on_allocation'
+      = 'blink:gc:main_thread:cycle:full:sweep:on_allocation'
   ),
   'blink_gc_sweep_task_foreground',
   (
@@ -404,7 +404,7 @@ SELECT BlinkGcMetric(
     FROM blink_per_epoch_slice
     WHERE
       blink_non_aggregated_gc_events_new_name
-          = 'blink:gc:main_thread:cycle:full:sweep:idle'
+      = 'blink:gc:main_thread:cycle:full:sweep:idle'
   ),
   'blink_gc_unified_marking_by_v8',
   (
@@ -420,7 +420,7 @@ SELECT BlinkGcMetric(
     FROM blink_per_epoch_slice
     WHERE
       blink_non_aggregated_gc_events_new_name
-          = 'unified:gc:main_thread:cycle:full:mark:step'
+      = 'unified:gc:main_thread:cycle:full:mark:step'
   ),
   'blink_gc_atomic_pause',
   (

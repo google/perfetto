@@ -13,9 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select
+SELECT
   key,
   COUNT(*)
-from args
-group by key
-limit 10;
+FROM args
+GROUP BY key
+LIMIT 10;

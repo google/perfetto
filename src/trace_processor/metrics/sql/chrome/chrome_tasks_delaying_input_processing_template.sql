@@ -51,8 +51,8 @@ FROM (
 ) tasks
 JOIN chrome_input_to_browser_intervals
   ON tasks.ts + tasks.dur > chrome_input_to_browser_intervals.window_start_ts
-  AND tasks.ts + tasks.dur < chrome_input_to_browser_intervals.window_end_ts
-  AND tasks.upid = chrome_input_to_browser_intervals.upid;
+    AND tasks.ts + tasks.dur < chrome_input_to_browser_intervals.window_end_ts
+    AND tasks.upid = chrome_input_to_browser_intervals.upid;
 
 -- Same task can delay multiple GestureUpdates, this step dedups
 -- multiple occrences of the same slice_id

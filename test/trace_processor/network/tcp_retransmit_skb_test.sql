@@ -4,7 +4,7 @@ SELECT
   dur
 FROM
   slice AS s
-  LEFT JOIN track AS t
+LEFT JOIN track AS t
   ON s.track_id = t.id
 WHERE
   t.name = "TCP Retransmit Skb"

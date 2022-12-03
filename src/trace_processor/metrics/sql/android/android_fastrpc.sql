@@ -3,7 +3,7 @@ CREATE VIEW fastrpc_timeline AS
 SELECT
   ts,
   LEAD(ts, 1, (SELECT end_ts FROM trace_bounds))
-    OVER(PARTITION BY track_id ORDER BY ts) - ts AS dur,
+  OVER(PARTITION BY track_id ORDER BY ts) - ts AS dur,
   RTRIM(SUBSTR(name, 13), ']') AS subsystem_name,
   track_id,
   value

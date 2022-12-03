@@ -19,17 +19,17 @@ SELECT RUN_METRIC('chrome/chrome_stack_samples_for_task.sql',
     'task_name', '"sendTouchEvent"');
 
 SELECT
-    sample.description,
-    sample.ts,
-    sample.depth
+  sample.description,
+  sample.ts,
+  sample.depth
 FROM chrome_stack_samples_for_task sample
 JOIN (
     SELECT
-        ts,
-        dur
+      ts,
+      dur
     FROM slice
     WHERE ts = 696373965001470
 ) test_slice
-    ON sample.ts >= test_slice.ts
-    AND sample.ts <= test_slice.ts + test_slice.dur
+ON sample.ts >= test_slice.ts
+  AND sample.ts <= test_slice.ts + test_slice.dur
 ORDER BY sample.ts, sample.depth;

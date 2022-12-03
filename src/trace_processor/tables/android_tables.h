@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_TABLES_ANDROID_TABLES_H_
 #define SRC_TRACE_PROCESSOR_TABLES_ANDROID_TABLES_H_
 
+#include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/macros.h"
 
 namespace perfetto {

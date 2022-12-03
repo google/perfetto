@@ -1,2 +1,2 @@
 SELECT consumer_id, name, consumer_type, ordinal
-FROM energy_counter_track
+FROM energy_counter_track;

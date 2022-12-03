@@ -4,7 +4,7 @@ SELECT
   s.name AS action
 FROM
   slice AS s
-  JOIN
+JOIN
   track AS t
   ON s.track_id = t.id
 WHERE

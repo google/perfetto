@@ -22,4 +22,4 @@ SELECT
   string_value
 FROM memory_snapshot_node node
 INNER JOIN args ON node.arg_set_id = args.arg_set_id
-LIMIT 20
+LIMIT 20;

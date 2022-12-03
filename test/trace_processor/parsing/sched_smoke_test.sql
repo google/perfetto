@@ -1,2 +1,2 @@
 SELECT COUNT(1)
-FROM sched
+FROM sched;

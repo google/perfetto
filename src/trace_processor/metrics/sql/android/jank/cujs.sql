@@ -59,9 +59,9 @@ cuj_state_markers AS (
   FROM cujs
   LEFT JOIN slice cuj_state_marker
     ON cuj_state_marker.ts >= cujs.ts
-    AND cuj_state_marker.ts < cujs.ts_end
-    -- e.g. J<CUJ_NAME>#FT#end#0
-    AND cuj_state_marker.name GLOB (cujs.cuj_slice_name || "#FT#*")
+      AND cuj_state_marker.ts < cujs.ts_end
+      -- e.g. J<CUJ_NAME>#FT#end#0
+      AND cuj_state_marker.name GLOB (cujs.cuj_slice_name || "#FT#*")
 )
 SELECT
   cujs.*,
@@ -70,19 +70,19 @@ SELECT
       SELECT 1
       FROM cuj_state_markers csm
       WHERE csm.cuj_id = cujs.cuj_id
-      AND csm.marker_type = 'cancel')
-    THEN 'canceled'
+        AND csm.marker_type = 'cancel')
+      THEN 'canceled'
     WHEN EXISTS (
       SELECT 1
       FROM cuj_state_markers csm
       WHERE csm.cuj_id = cujs.cuj_id
-      AND csm.marker_type = 'end')
-    THEN 'completed'
-  ELSE NULL
+        AND csm.marker_type = 'end')
+      THEN 'completed'
+    ELSE NULL
   END AS state
 FROM cujs
 WHERE
-  state <> 'canceled'
+  state != 'canceled'
   -- Older builds don't have the state markers so we allow NULL but filter out
   -- CUJs that are <4ms long - assuming CUJ was canceled in that case.
   OR (state IS NULL AND cujs.dur > 4e6)

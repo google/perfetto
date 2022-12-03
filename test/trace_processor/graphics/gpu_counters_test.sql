@@ -13,8 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select "ts","value","name","gpu_id","description","unit"
-from counter
-join gpu_counter_track
-  on counter.track_id = gpu_counter_track.id
-order by "ts";
+SELECT "ts", "value", "name", "gpu_id", "description", "unit"
+FROM counter
+JOIN gpu_counter_track
+  ON counter.track_id = gpu_counter_track.id
+ORDER BY "ts";

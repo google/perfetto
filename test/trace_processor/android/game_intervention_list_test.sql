@@ -31,4 +31,4 @@ SELECT
   battery_mode_use_angle,
   battery_mode_fps
 FROM android_game_intervention_list
-ORDER BY package_name
+ORDER BY package_name;

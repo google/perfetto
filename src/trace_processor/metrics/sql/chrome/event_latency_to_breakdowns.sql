@@ -42,7 +42,7 @@ SELECT
   event_latency.dur AS event_latency_dur,
   event_latency.event_type AS event_type
 FROM slice JOIN event_latency
-ON slice.parent_id = event_latency.slice_id;
+  ON slice.parent_id = event_latency.slice_id;
 
 -- The function takes a breakdown name and checks if the breakdown name is known or not.
 SELECT CREATE_FUNCTION(
@@ -133,8 +133,8 @@ SELECT
   max(CASE WHEN name = "Commit" THEN dur END) AS CommitNs,
   max(CASE WHEN name = "EndCommitToActivation" THEN dur END) AS EndCommitToActivationNs,
   max(CASE WHEN name = "Activation" THEN dur END) AS ActivationNs,
--- This column indicates whether there are unknown breakdowns.
--- Contains: NULL if there are no unknown breakdowns, otherwise a list of unknown breakdows.
+  -- This column indicates whether there are unknown breakdowns.
+  -- Contains: NULL if there are no unknown breakdowns, otherwise a list of unknown breakdows.
   group_concat(InvalidNameOrNull(name), ', ') AS unknown_stages_seen
 FROM event_latency_breakdowns
 GROUP BY event_latency_id;

@@ -5,15 +5,15 @@
 --       TraceEvents and this table will be empty.
 DROP TABLE IF EXISTS vsync_intervals;
 CREATE TABLE vsync_intervals AS
-  SELECT
-    slice_id,
-    ts,
-    dur,
-    track_id,
-    LEAD(ts) OVER(PARTITION BY track_id ORDER BY ts) - ts AS time_to_next_vsync
-  FROM slice
-  WHERE name = "VSync"
-  ORDER BY track_id, ts;
+SELECT
+  slice_id,
+  ts,
+  dur,
+  track_id,
+  LEAD(ts) OVER(PARTITION BY track_id ORDER BY ts) - ts AS time_to_next_vsync
+FROM slice
+WHERE name = "VSync"
+ORDER BY track_id, ts;
 
 SELECT CREATE_FUNCTION(
   -- Function: compute the average Vysnc interval of the

@@ -28,4 +28,4 @@ SELECT RUN_METRIC(
     'prefix', 'scroll',
     'gesture_update', 'GestureScrollUpdate',
     'id_field', 'gesture_scroll_id'
-    );
+);

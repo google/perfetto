@@ -66,7 +66,7 @@ SELECT
   slice.*,
   process_track.upid AS upid
 FROM slice INNER JOIN process_track
-ON slice.track_id = process_track.id
+  ON slice.track_id = process_track.id
 WHERE slice.name = "EventLatency";
 
 -- Select non coalesced scroll EventLatency events.
@@ -79,9 +79,9 @@ SELECT
   event_latency_with_track.upid,
   event_latency_with_track.ts,
   event_latency_with_track.dur,
- EXTRACT_ARG(event_latency_with_track.arg_set_id, "event_latency.event_type") AS event_type
+  EXTRACT_ARG(event_latency_with_track.arg_set_id, "event_latency.event_type") AS event_type
 FROM event_latency_with_track INNER JOIN not_coalesced_event_latency
-ON event_latency_with_track.id = not_coalesced_event_latency.event_latency_id
+  ON event_latency_with_track.id = not_coalesced_event_latency.event_latency_id
 WHERE
   event_type IN (
     "GESTURE_SCROLL_BEGIN", "GESTURE_SCROLL_UPDATE",
@@ -95,7 +95,7 @@ SELECT
   not_coalesced_scroll_event_latency.*,
   shown_on_display_event_latency.ts_before_show_on_screen
 FROM not_coalesced_scroll_event_latency LEFT JOIN shown_on_display_event_latency
-ON not_coalesced_scroll_event_latency.id = shown_on_display_event_latency.event_latency_id;
+  ON not_coalesced_scroll_event_latency.id = shown_on_display_event_latency.event_latency_id;
 
 -- Select begin events and it's next begin event witin the same process (same upid).
 --
@@ -124,9 +124,9 @@ SELECT
   scroll_event_latency_begins.ts AS gesture_begin_ts,
   scroll_event_latency_begins.next_gesture_begin_ts AS next_gesture_begin_ts
 FROM filtered_scroll_event_latency LEFT JOIN scroll_event_latency_begins
-ON filtered_scroll_event_latency.ts >= scroll_event_latency_begins.ts
-   AND (filtered_scroll_event_latency.ts < next_gesture_begin_ts OR next_gesture_begin_ts IS NULL)
-   AND filtered_scroll_event_latency.upid = scroll_event_latency_begins.upid
+  ON filtered_scroll_event_latency.ts >= scroll_event_latency_begins.ts
+     AND (filtered_scroll_event_latency.ts < next_gesture_begin_ts OR next_gesture_begin_ts IS NULL)
+     AND filtered_scroll_event_latency.upid = scroll_event_latency_begins.upid
 WHERE filtered_scroll_event_latency.id != scroll_event_latency_begins.id
       AND filtered_scroll_event_latency.event_type != "GESTURE_SCROLL_BEGIN";
 
@@ -154,8 +154,8 @@ SELECT
   scroll_event_latency_updates.*,
   scroll_event_latency_updates_ends.gesture_end_ts AS gesture_end_ts
 FROM scroll_event_latency_updates LEFT JOIN scroll_event_latency_updates_ends
-ON scroll_event_latency_updates.upid = scroll_event_latency_updates_ends.upid
-  AND scroll_event_latency_updates.gesture_begin_ts = scroll_event_latency_updates_ends.gesture_begin_ts;
+  ON scroll_event_latency_updates.upid = scroll_event_latency_updates_ends.upid
+    AND scroll_event_latency_updates.gesture_begin_ts = scroll_event_latency_updates_ends.gesture_begin_ts;
 
 -- Creates table where each event contains info about it's previous and next events.
 -- We consider only previous and next events from the same scroll id

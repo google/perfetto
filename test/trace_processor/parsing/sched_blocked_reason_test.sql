@@ -1,5 +1,5 @@
-select ts, tid, io_wait
-from thread_state
-join thread using (utid)
-where state = 'D'
-order by ts
+SELECT ts, tid, io_wait
+FROM thread_state
+JOIN thread USING (utid)
+WHERE state = 'D'
+ORDER BY ts;

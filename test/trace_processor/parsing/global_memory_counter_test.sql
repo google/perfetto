@@ -13,8 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select ts, value, name
-from counter
-inner join counter_track on counter.track_id = counter_track.id
-where name = 'MemAvailable' and counter_track.type = 'counter_track'
-limit 10
+SELECT ts, value, name
+FROM counter
+INNER JOIN counter_track ON counter.track_id = counter_track.id
+WHERE name = 'MemAvailable' AND counter_track.type = 'counter_track'
+LIMIT 10;
