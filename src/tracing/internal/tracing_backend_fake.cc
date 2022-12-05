@@ -131,6 +131,7 @@ class UnsupportedConsumerEndpoint : public ConsumerEndpoint {
   void QueryCapabilities(QueryCapabilitiesCallback) override {}
 
   void SaveTraceForBugreport(SaveTraceForBugreportCallback) override {}
+  void CloneSession(TracingSessionID) override {}
 
  private:
   Consumer* const consumer_;

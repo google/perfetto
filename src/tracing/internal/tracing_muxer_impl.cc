@@ -562,6 +562,13 @@ void TracingMuxerImpl::ConsumerImpl::OnObservableEvents(
   }
 }
 
+void TracingMuxerImpl::ConsumerImpl::OnSessionCloned(
+    bool /*success*/,
+    const std::string& /*error*/) {
+  // CloneSession is not exposed in the SDK. This should never happen.
+  PERFETTO_DCHECK(false);
+}
+
 void TracingMuxerImpl::ConsumerImpl::OnTraceStats(
     bool success,
     const TraceStats& trace_stats) {

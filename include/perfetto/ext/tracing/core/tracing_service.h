@@ -189,6 +189,12 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
 
   virtual void DisableTracing() = 0;
 
+  // Clones an existing tracing session and attaches to it. The session is
+  // cloned in read-only mode and can only be used to read a snapshot of an
+  // existing tracing session. Will invoke Consumer::OnSessionCloned().
+  // TODO(primiano): make pure virtual after various 3way patches.
+  virtual void CloneSession(TracingSessionID);
+
   // Requests all data sources to flush their data immediately and invokes the
   // passed callback once all of them have acked the flush (in which case
   // the callback argument |success| will be true) or |timeout_ms| are elapsed
