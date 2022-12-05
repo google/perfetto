@@ -160,6 +160,7 @@ export function createEmptyState(): State {
       minimumLevel: 2,
       tags: [],
       textEntry: '',
+      hideNonMatching: true,
     },
   };
 }
