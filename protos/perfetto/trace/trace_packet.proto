@@ -61,6 +61,7 @@ import "protos/perfetto/trace/system_info.proto";
 import "protos/perfetto/trace/system_info/cpu_info.proto";
 import "protos/perfetto/trace/trace_packet_defaults.proto";
 import "protos/perfetto/trace/track_event/process_descriptor.proto";
+import "protos/perfetto/trace/track_event/range_of_interest.proto";
 import "protos/perfetto/trace/track_event/thread_descriptor.proto";
 import "protos/perfetto/trace/track_event/track_descriptor.proto";
 import "protos/perfetto/trace/track_event/track_event.proto";
@@ -92,7 +93,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 90.
+// Next id: 91.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -199,6 +200,10 @@ message TracePacket {
 
     // Represents a single packet sent or received by the network.
     NetworkPacketEvent network_packet = 88;
+
+    // The "range of interest" for track events. See the message definition
+    // comments for more details.
+    TrackEventRangeOfInterest track_event_range_of_interest = 90;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
