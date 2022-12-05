@@ -1158,6 +1158,11 @@ export const StateActions = {
   updateLogFilterText(state: StateDraft, args: {textEntry: string}) {
     state.logFilteringCriteria.textEntry = args.textEntry;
   },
+
+  toggleCollapseByTextEntry(state: StateDraft, _: {}) {
+    state.logFilteringCriteria.hideNonMatching =
+        !state.logFilteringCriteria.hideNonMatching;
+  },
 };
 
 // Move element at `from` index to `direction` of `to` element.

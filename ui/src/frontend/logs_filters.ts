@@ -36,6 +36,10 @@ interface LogTagsWidgetAttrs {
   tags: string[];
 }
 
+interface FilterByTextWidgetAttrs {
+  hideNonMatching: boolean;
+}
+
 class LogPriorityWidget implements m.ClassComponent<LogPriorityWidgetAttrs> {
   view(vnode: m.Vnode<LogPriorityWidgetAttrs>) {
     const attrs = vnode.attrs;
@@ -136,6 +140,24 @@ class LogTextWidget implements m.ClassComponent {
   }
 }
 
+class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
+  view({attrs}: m.Vnode<FilterByTextWidgetAttrs>) {
+    const icon = attrs.hideNonMatching ? 'unfold_less' : 'unfold_more';
+    const tooltip = attrs.hideNonMatching ? 'Expand all and view highlighted' :
+                                            'Collapse all';
+    return m(
+        '.filter-widget',
+        m('.tooltip', tooltip),
+        m('i.material-icons',
+          {
+            onclick: () => {
+              globals.dispatch(Actions.toggleCollapseByTextEntry({}));
+            },
+          },
+          icon));
+  }
+}
+
 export class LogsFilters implements m.ClassComponent {
   view(_: m.CVnode<{}>) {
     return m(
@@ -149,6 +171,9 @@ export class LogsFilters implements m.ClassComponent {
           },
         }),
         m(LogTagsWidget, {tags: globals.state.logFilteringCriteria.tags}),
-        m(LogTextWidget));
+        m(LogTextWidget),
+        m(FilterByTextWidget, {
+          hideNonMatching: globals.state.logFilteringCriteria.hideNonMatching,
+        }));
   }
 }

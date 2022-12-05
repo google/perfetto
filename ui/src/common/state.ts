@@ -97,7 +97,8 @@ export const MAX_TIME = 180;
 // 25: Move omnibox state off VisibleState.
 // 26: Add tags for filtering Android log entries.
 // 27. Add a text entry for filtering Android log entries.
-export const STATE_VERSION = 27;
+// 28. Add a boolean indicating if non matching log entries are hidden.
+export const STATE_VERSION = 28;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -488,6 +489,7 @@ export interface LogFilteringCriteria {
   minimumLevel: number;
   tags: string[];
   textEntry: string;
+  hideNonMatching: boolean;
 }
 
 export interface State {
