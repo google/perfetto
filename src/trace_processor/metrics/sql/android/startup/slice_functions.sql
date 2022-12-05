@@ -182,6 +182,26 @@ SELECT CREATE_FUNCTION(
   '
 );
 
+SELECT CREATE_FUNCTION(
+  'RUN_FROM_APK_FOR_LAUNCH(launch_id LONG)',
+  'BOOL',
+  '
+    SELECT EXISTS(
+      SELECT slice_name
+      FROM (
+        SELECT *
+        FROM SLICES_FOR_LAUNCH_AND_SLICE_NAME(
+          $launch_id,
+          "location=* status=* filter=* reason=*"
+        )
+      )
+      WHERE
+        STR_SPLIT(STR_SPLIT(slice_name, " filter=", 1), " reason=", 0)
+          GLOB ("*" || "run-from-apk" || "*")
+    )
+  '
+);
+
 SELECT CREATE_VIEW_FUNCTION(
   'BINDER_TRANSACTION_REPLY_SLICES_FOR_LAUNCH(launch_id INT, threshold DOUBLE)',
   'name STRING',

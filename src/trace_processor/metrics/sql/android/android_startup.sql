@@ -411,6 +411,10 @@ SELECT
         WHERE MISSING_BASELINE_PROFILE_FOR_LAUNCH(launches.id, launches.package)
 
         UNION ALL
+        SELECT 'Optimized artifacts missing, run from apk'
+        WHERE  RUN_FROM_APK_FOR_LAUNCH(launches.id)
+
+        UNION ALL
         SELECT 'Startup running concurrent to launch'
         WHERE EXISTS(
           SELECT package
