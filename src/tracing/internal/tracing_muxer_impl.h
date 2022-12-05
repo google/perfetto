@@ -289,6 +289,7 @@ class TracingMuxerImpl : public TracingMuxer {
     void OnAttach(bool success, const TraceConfig&) override;
     void OnTraceStats(bool success, const TraceStats&) override;
     void OnObservableEvents(const ObservableEvents&) override;
+    void OnSessionCloned(bool, const std::string&) override;
 
     void NotifyStartComplete();
     void NotifyError(const TracingError&);

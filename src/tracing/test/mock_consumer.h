@@ -76,6 +76,7 @@ class MockConsumer : public Consumer {
   MOCK_METHOD2(OnAttach, void(bool, const TraceConfig&));
   MOCK_METHOD2(OnTraceStats, void(bool, const TraceStats&));
   MOCK_METHOD1(OnObservableEvents, void(const ObservableEvents&));
+  MOCK_METHOD2(OnSessionCloned, void(bool, const std::string&));
 
   // gtest doesn't support move-only types. This wrapper is here jut to pass
   // a pointer to the vector (rather than the vector itself) to the mock method.
