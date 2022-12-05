@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto.gni")
+import("../../../../gn/test.gni")
 
 source_set("graph_processor") {
   deps = [ "../../../../gn:default_deps" ]
@@ -27,5 +28,20 @@ source_set("graph_processor") {
     "memory_allocator_node_id.cc",
     "raw_memory_graph_node.cc",
     "raw_process_memory_node.cc",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [
+    "graph_processor_unittest.cc",
+    "graph_unittest.cc",
+    "raw_process_memory_node_unittest.cc",
+  ]
+  deps = [
+    ":graph_processor",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../../base",
   ]
 }

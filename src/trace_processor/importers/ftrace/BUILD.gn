@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../../gn/test.gni")
+
 source_set("minimal") {
   sources = [
     "ftrace_module.cc",
@@ -80,5 +82,22 @@ source_set("ftrace_descriptors") {
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base:base",
     "../../../protozero",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [
+    "binder_tracker_unittest.cc",
+    "sched_event_tracker_unittest.cc",
+    "thread_state_tracker_unittest.cc",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../storage",
+    "../../types",
+    "../common",
+    "../ftrace:full",
   ]
 }

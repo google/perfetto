@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../../gn/test.gni")
+
 source_set("systrace_line") {
   sources = [ "systrace_line.h" ]
   deps = [
@@ -31,5 +33,40 @@ source_set("systrace_parser") {
     "../../storage",
     "../../types",
     "../common",
+  ]
+}
+
+source_set("full") {
+  sources = [
+    "systrace_line_parser.cc",
+    "systrace_line_parser.h",
+    "systrace_line_tokenizer.cc",
+    "systrace_line_tokenizer.h",
+    "systrace_trace_parser.cc",
+    "systrace_trace_parser.h",
+  ]
+  deps = [
+    ":systrace_line",
+    ":systrace_parser",
+    "../..:storage_minimal",
+    "../../../../gn:default_deps",
+    "../../containers",
+    "../../sorter",
+    "../../storage",
+    "../../types",
+    "../common",
+    "../ftrace:full",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [ "systrace_parser_unittest.cc" ]
+  deps = [
+    ":full",
+    ":systrace_line",
+    ":systrace_parser",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
   ]
 }

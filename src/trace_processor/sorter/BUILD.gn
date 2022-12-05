@@ -50,7 +50,6 @@ perfetto_unittest_source_set("unittests") {
     "../../../gn:gtest_and_gmock",
     "../../../include/perfetto/trace_processor:storage",
     "../../base",
-    "../importers:minimal",
     "../importers/common:parser_types",
     "../importers/proto:minimal",
     "../types",
