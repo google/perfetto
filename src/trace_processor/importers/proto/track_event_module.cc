@@ -35,6 +35,7 @@ TrackEventModule::TrackEventModule(TraceProcessorContext* context)
     : track_event_tracker_(new TrackEventTracker(context)),
       tokenizer_(context, track_event_tracker_.get()),
       parser_(context, track_event_tracker_.get()) {
+  RegisterForField(TracePacket::kTrackEventRangeOfInterestFieldNumber, context);
   RegisterForField(TracePacket::kTrackEventFieldNumber, context);
   RegisterForField(TracePacket::kTrackDescriptorFieldNumber, context);
   RegisterForField(TracePacket::kThreadDescriptorFieldNumber, context);
@@ -50,6 +51,9 @@ ModuleResult TrackEventModule::TokenizePacket(
     PacketSequenceState* state,
     uint32_t field_id) {
   switch (field_id) {
+    case TracePacket::kTrackEventRangeOfInterestFieldNumber:
+      return tokenizer_.TokenizeRangeOfInterestPacket(state, decoder,
+                                                      packet_timestamp);
     case TracePacket::kTrackDescriptorFieldNumber:
       return tokenizer_.TokenizeTrackDescriptorPacket(state, decoder,
                                                       packet_timestamp);
