@@ -62,4 +62,11 @@ message ProcessStatsConfig {
 
   // DEPRECATED thread_time_in_state_cache_size
   reserved 8;
+
+  // If true this will resolve filedescriptors for each process so these
+  // can be mapped to their actual device or file.
+  // Requires raw_syscalls/sys_exit ftrace events to be enabled or
+  // new fds opened after initially scanning a process will not be
+  // recognized.
+  optional bool resolve_process_fds = 9;
 }

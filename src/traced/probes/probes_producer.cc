@@ -611,6 +611,8 @@ void ProbesProducer::OnFtraceDataWrittenIntoDataSourceBuffers() {
           ps_ds->OnRenamePids(metadata->rename_pids);
         if (!metadata->pids.empty())
           ps_ds->OnPids(metadata->pids);
+        if (!metadata->fds.empty())
+          ps_ds->OnFds(metadata->fds);
       }
       for (auto in_it = ino_range.first; in_it != ino_range.second; in_it++) {
         auto* inode_ds = static_cast<InodeFileDataSource*>(in_it->second);
