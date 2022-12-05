@@ -704,6 +704,7 @@ struct CommandLineOptions {
   bool dev = false;
   bool no_ftrace_raw = false;
   bool analyze_trace_proto_content = false;
+  bool crop_track_events = false;
 };
 
 void PrintUsage(char** argv) {
@@ -775,7 +776,9 @@ Options:
                                       processor when loading traces containing
                                       ftrace events.
 --analyze-trace-proto-content         Enables trace proto content analysis in
-                                      trace processor.)",
+                                      trace processor.
+--crop-track-events                   Ignores track event outside of the
+                                      range of interest in trace processor.)",
                 argv[0]);
 }
 
@@ -794,6 +797,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_METATRACE_BUFFER_CAPACITY,
     OPT_METATRACE_CATEGORIES,
     OPT_ANALYZE_TRACE_PROTO_CONTENT,
+    OPT_CROP_TRACK_EVENTS,
   };
 
   static const option long_options[] = {
@@ -822,6 +826,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"no-ftrace-raw", no_argument, nullptr, OPT_NO_FTRACE_RAW},
       {"analyze-trace-proto-content", no_argument, nullptr,
        OPT_ANALYZE_TRACE_PROTO_CONTENT},
+      {"crop-track-events", no_argument, nullptr, OPT_CROP_TRACK_EVENTS},
       {nullptr, 0, nullptr, 0}};
 
   bool explicit_interactive = false;
@@ -942,6 +947,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_ANALYZE_TRACE_PROTO_CONTENT) {
       command_line_options.analyze_trace_proto_content = true;
+      continue;
+    }
+
+    if (option == OPT_CROP_TRACK_EVENTS) {
+      command_line_options.crop_track_events = true;
       continue;
     }
 
@@ -1433,6 +1443,10 @@ base::Status TraceProcessorMain(int argc, char** argv) {
                             : SortingMode::kDefaultHeuristics;
   config.ingest_ftrace_in_raw_table = !options.no_ftrace_raw;
   config.analyze_trace_proto_content = options.analyze_trace_proto_content;
+  config.drop_track_event_data_before =
+      options.crop_track_events
+          ? DropTrackEventDataBefore::kTrackEventRangeOfInterest
+          : DropTrackEventDataBefore::kNoDrop;
 
   std::vector<MetricExtension> metric_extensions;
   RETURN_IF_ERROR(ParseMetricExtensionPaths(
