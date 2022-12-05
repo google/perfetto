@@ -3494,6 +3494,13 @@ size_t TracingServiceImpl::PurgeExpiredAndCountTriggerInWindow(
   return trigger_count;
 }
 
+base::Status TracingServiceImpl::CloneSession(ConsumerEndpointImpl* consumer,
+                                              TracingSessionID src_tsid) {
+  PERFETTO_DLOG("CloneSession(%" PRIu64 ") started, consumer uid: %d", src_tsid,
+                static_cast<int>(consumer->uid_));
+  // TODO(primiano): implement in next CLs (b/260112703).
+  return base::ErrStatus("CloneSession is not yet implemented");
+}
 ////////////////////////////////////////////////////////////////////////////////
 // TracingServiceImpl::ConsumerEndpointImpl implementation
 ////////////////////////////////////////////////////////////////////////////////
@@ -3815,6 +3822,13 @@ void TracingServiceImpl::ConsumerEndpointImpl::SaveTraceForBugreport(
                       "No trace with TraceConfig.bugreport_score > 0 eligible "
                       "for bug reporting was found");
   }
+}
+
+void TracingServiceImpl::ConsumerEndpointImpl::CloneSession(
+    TracingSessionID tsid) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  base::Status result = service_->CloneSession(this, tsid);
+  consumer_->OnSessionCloned(result.ok(), result.message());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

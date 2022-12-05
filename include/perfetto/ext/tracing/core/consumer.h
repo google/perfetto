@@ -77,6 +77,11 @@ class PERFETTO_EXPORT_COMPONENT Consumer {
   // TracingService::ConsumerEndpoint::ObserveEvents() whenever one or more
   // ObservableEvents of enabled event types occur.
   virtual void OnObservableEvents(const ObservableEvents&) = 0;
+
+  // Called back by the Service (or transport layer) after invoking
+  // TracingService::ConsumerEndpoint::CloneSession().
+  // TODO(primiano): make pure virtual after various 3way patches.
+  virtual void OnSessionCloned(bool success, const std::string& error);
 };
 
 }  // namespace perfetto

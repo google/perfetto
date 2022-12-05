@@ -67,6 +67,7 @@ class PerfettoCmd : public Consumer {
   void OnAttach(bool, const TraceConfig&) override;
   void OnTraceStats(bool, const TraceStats&) override;
   void OnObservableEvents(const ObservableEvents&) override;
+  void OnSessionCloned(bool, const std::string&) override;
 
   void SignalCtrlC() { ctrl_c_evt_.Notify(); }
 
