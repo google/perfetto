@@ -26,13 +26,6 @@ package perfetto.protos;
 
 // IPC interface definition for the consumer port of the tracing service.
 service ConsumerPort {
-  // Creates the ring buffers that will be used for the tracing session.
-  // TODO(primiano): not implemented yet. EnableTracing will implicitly create
-  // the required buffer. This is to allow Enabling/Disabling tracing with
-  // different configs without losing the contents of the buffers for the
-  // previous tracing session.
-  // rpc CreateBuffers(CreateBuffersRequest) returns (CreateBuffersResponse) {}
-
   // Enables tracing for one or more data sources. At least one buffer must have
   // been previously created. The EnableTracingResponse is sent when tracing is
   // disabled (either explicitly or because of the |duration_ms| expired).
@@ -116,8 +109,24 @@ service ConsumerPort {
   // ----------------------------------------------------
   // All methods below have been introduced in Android S.
   // ----------------------------------------------------
+
+  // This method has been deprecated and removed in Android U in favour of
+  // CloneSession.
   rpc SaveTraceForBugreport(SaveTraceForBugreportRequest)
       returns (SaveTraceForBugreportResponse) {}
+
+  // ----------------------------------------------------
+  // All methods below have been introduced in Android U.
+  // ----------------------------------------------------
+
+  // Clones an existing tracing session and binds the consumer to it (as if
+  // the session was created via EnableTracing), copying over all the tracing
+  // data (including metadata and stats).
+  // The cloned session is stopped and read-only (as if DisableTracing was
+  // invoked).
+  // A consumer can clone a session only if the uid of the consumer matches the
+  // uid of the source session or if the consumer uid is 0 (root).
+  rpc CloneSession(CloneSessionRequest) returns (CloneSessionResponse) {}
 }
 
 // Arguments for rpc EnableTracing().
@@ -266,4 +275,16 @@ message SaveTraceForBugreportResponse {
   // see |msg| in that case for details about the failure.
   optional bool success = 1;
   optional string msg = 2;
+}
+
+// Arguments for rpc CloneSession.
+message CloneSessionRequest {
+  optional uint64 session_id = 1;
+}
+
+message CloneSessionResponse {
+  // If true, the clone was successful. If false it failed and |error| contains
+  // the details about the failure.
+  optional bool success = 1;
+  optional string error = 2;
 }

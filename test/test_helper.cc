@@ -296,6 +296,8 @@ void TestHelper::OnTraceStats(bool, const TraceStats&) {}
 
 void TestHelper::OnObservableEvents(const ObservableEvents&) {}
 
+void TestHelper::OnSessionCloned(bool, const std::string&) {}
+
 // static
 const char* TestHelper::GetDefaultModeConsumerSocketName() {
   return ConsumerSocketForMode(TestHelper::kDefaultMode);
