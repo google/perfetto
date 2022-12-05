@@ -24,6 +24,7 @@
 #include "perfetto/tracing/core/trace_config.h"
 
 #include "protos/perfetto/config/ftrace/ftrace_config.gen.h"
+#include "protos/perfetto/config/sys_stats/sys_stats_config.gen.h"
 
 namespace perfetto {
 namespace {
@@ -131,6 +132,18 @@ bool CreateConfigFromOptions(const ConfigOptions& options,
       auto* frame_timeline = config->add_data_sources();
       frame_timeline->mutable_config()->set_name(
           "android.surfaceflinger.frametimeline");
+    }
+
+    // For the disk category, add the diskstat data source
+    // to figure out disk io statistics.
+    if (category == "disk") {
+      protos::gen::SysStatsConfig cfg;
+      cfg.set_diskstat_period_ms(1000);
+
+      auto* sys_stats_ds = config->add_data_sources();
+      sys_stats_ds->mutable_config()->set_name("linux.sys_stats");
+      sys_stats_ds->mutable_config()->set_sys_stats_config_raw(
+          cfg.SerializeAsString());
     }
   }
 
