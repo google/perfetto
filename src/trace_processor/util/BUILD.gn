@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../../gn/perfetto.gni")
+import("../../../gn/perfetto_cc_proto_descriptor.gni")
 
 # Track event args parsing logic here is tentatitively planned to eventually
 # move to src/util and will be used to implement writing typed args in console
@@ -72,7 +73,7 @@ source_set("protozero_to_text") {
     "../../../protos/perfetto/trace/track_event:zero",
     "../../base",
     "../../protozero",
-    "../importers:gen_cc_track_event_descriptor",
+    "../importers/proto:gen_cc_track_event_descriptor",
   ]
 }
 
@@ -97,7 +98,7 @@ source_set("descriptors") {
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
     "../../protozero",
-    "../importers:gen_cc_track_event_descriptor",
+    "../importers/proto:gen_cc_track_event_descriptor",
   ]
 }
 
@@ -115,7 +116,7 @@ source_set("proto_to_args_parser") {
     "../../../protos/perfetto/trace/track_event:zero",
     "../../../protos/perfetto/trace_processor:zero",
     "../../protozero",
-    "../importers:gen_cc_track_event_descriptor",
+    "../importers/proto:gen_cc_track_event_descriptor",
   ]
 
   public_deps = [
@@ -232,7 +233,7 @@ source_set("unittests") {
     "../../../protos/perfetto/trace/track_event:zero",
     "../../protozero",
     "../../protozero:testing_messages_zero",
-    "../importers:gen_cc_track_event_descriptor",
+    "../importers/proto:gen_cc_track_event_descriptor",
   ]
   if (enable_perfetto_zlib) {
     sources += [ "gzip_utils_unittest.cc" ]

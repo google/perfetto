@@ -21,7 +21,6 @@
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/slice_tables.h"
 #include "src/trace_processor/types/task_state.h"
 
 namespace perfetto {
