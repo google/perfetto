@@ -793,6 +793,13 @@ message ProcessStatsConfig {
 
   // DEPRECATED thread_time_in_state_cache_size
   reserved 8;
+
+  // If true this will resolve filedescriptors for each process so these
+  // can be mapped to their actual device or file.
+  // Requires raw_syscalls/sys_exit ftrace events to be enabled or
+  // new fds opened after initially scanning a process will not be
+  // recognized.
+  optional bool resolve_process_fds = 9;
 }
 
 // End of protos/perfetto/config/process_stats/process_stats_config.proto
@@ -10682,6 +10689,11 @@ message ProcessStats {
     reserved 4;
   }
 
+  message FDInfo {
+    optional uint64 fd = 1;
+    optional string path = 2;
+  }
+
   message Process {
     optional int32 pid = 1;
 
@@ -10711,6 +10723,8 @@ message ProcessStats {
     // https://docs.google.com/document/d/1_WmgE1F5WUrhwkPqJis3dWyOiUmQKvpXp5cd4w86TvA
     optional uint32 chrome_private_footprint_kb = 13;
     optional uint32 chrome_peak_resident_set_kb = 14;
+
+    repeated FDInfo fds = 15;
   }
   repeated Process processes = 1;
 
