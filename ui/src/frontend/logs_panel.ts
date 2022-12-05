@@ -25,6 +25,7 @@ import {
 import {formatTimestamp} from '../common/time';
 import {TimeSpan} from '../common/time';
 
+import {SELECTED_LOG_ROWS_COLOR} from './css_constants';
 import {globals} from './globals';
 import {LOG_PRIORITIES, LogsFilters} from './logs_filters';
 import {Panel} from './panel';
@@ -107,22 +108,44 @@ export class LogPanel extends Panel<{}> {
   view(_: m.CVnode<{}>) {
     const {isStale, total, offset, count} = this.totalRows();
 
+    const hasProcessNames = this.entries &&
+        this.entries.processName.filter((name) => name).length > 0;
+
     const rows: m.Children = [];
+    rows.push(
+        m(`.row`,
+          m('.cell.row-header', 'Timestamp'),
+          m('.cell.row-header', 'Level'),
+          m('.cell.row-header', 'Tag'),
+          hasProcessNames ? m('.cell.with-process.row-header', 'Process name') :
+                            undefined,
+          hasProcessNames ? m('.cell.with-process.row-header', 'Message') :
+                            m('.cell.no-process.row-header', 'Message'),
+          m('br')));
     if (this.entries) {
       const offset = this.entries.offset;
       const timestamps = this.entries.timestamps;
       const priorities = this.entries.priorities;
       const tags = this.entries.tags;
       const messages = this.entries.messages;
+      const processNames = this.entries.processName;
       for (let i = 0; i < this.entries.timestamps.length; i++) {
         const priorityLetter = LOG_PRIORITIES[priorities[i]][0];
         const ts = timestamps[i];
         const prioClass = priorityLetter || '';
+        const style: {top: string, backgroundColor?: string} = {
+          // 1.5 is for the width of the header
+          top: `${(offset + i + 1.5) * ROW_H}px`,
+        };
+        if (this.entries.isHighlighted[i]) {
+          style.backgroundColor = SELECTED_LOG_ROWS_COLOR;
+        }
+
         rows.push(
             m(`.row.${prioClass}`,
               {
                 'class': isStale ? 'stale' : '',
-                'style': {top: `${(offset + i) * ROW_H}px`},
+                style,
                 'onmouseover': this.onRowOver.bind(this, ts / 1e9),
                 'onmouseout': this.onRowOut.bind(this),
               },
@@ -130,7 +153,10 @@ export class LogPanel extends Panel<{}> {
                 formatTimestamp(ts / 1e9 - globals.state.traceTime.startSec)),
               m('.cell', priorityLetter || '?'),
               m('.cell', tags[i]),
-              m('.cell', messages[i]),
+              hasProcessNames ? m('.cell.with-process', processNames[i]) :
+                                undefined,
+              hasProcessNames ? m('.cell.with-process', messages[i]) :
+                                m('.cell.no-process', messages[i]),
               m('br')));
       }
     }
@@ -142,7 +168,8 @@ export class LogPanel extends Panel<{}> {
             'class': isStale ? 'stale' : '',
           },
           [
-            `Logs rows [${offset}, ${offset + count}] / ${total}`,
+            m('.log-rows-label',
+              `Logs rows [${offset}, ${offset + count}] / ${total}`),
             m(LogsFilters),
           ]),
         m('.rows', {style: {height: `${total * ROW_H}px`}}, rows));

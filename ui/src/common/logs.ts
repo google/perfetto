@@ -32,4 +32,6 @@ export interface LogEntries {
   priorities: number[];
   tags: string[];
   messages: string[];
+  isHighlighted: boolean[];
+  processName: string[];
 }
