@@ -18,13 +18,14 @@
 
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h"
-#include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
-#include "src/trace_processor/importers/track_event.descriptor.h"
+#include "src/trace_processor/importers/proto/track_event.descriptor.h"
 #include "src/trace_processor/test_messages.descriptor.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
+
+#include "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h"
+#include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {

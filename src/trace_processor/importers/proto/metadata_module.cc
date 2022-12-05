@@ -20,7 +20,7 @@
 #include "perfetto/ext/base/uuid.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/config.descriptor.h"
+#include "src/trace_processor/importers/proto/config.descriptor.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/protozero_to_text.h"
