@@ -713,6 +713,8 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   if (!cfg.unique_session_name().empty()) {
     const std::string& name = cfg.unique_session_name();
     for (auto& kv : tracing_sessions_) {
+      if (kv.second.state == TracingSession::CLONED_READ_ONLY)
+        continue;  // Don't consider cloned sessions in uniqueness checks.
       if (kv.second.config.unique_session_name() == name) {
         MaybeLogUploadEvent(
             cfg, uuid,
@@ -1271,6 +1273,10 @@ void TracingServiceImpl::DisableTracing(TracingSessionID tsid,
       PERFETTO_DCHECK(tracing_session->AllDataSourceInstancesStopped());
       return;
 
+    case TracingSession::CLONED_READ_ONLY:
+      PERFETTO_DLOG("DisableTracing() cannot be called on a cloned session");
+      return;
+
     // This is either:
     // A) The case of a graceful DisableTracing() call followed by a call to
     //    FreeBuffers(), iff |disable_immediately| == true. In this case we want
@@ -1470,9 +1476,10 @@ void TracingServiceImpl::ActivateTriggers(
           [&trigger_name](const TraceConfig::TriggerConfig::Trigger& trigger) {
             return trigger.name() == trigger_name;
           });
-      if (iter == tracing_session.config.trigger_config().triggers().end()) {
+      if (iter == tracing_session.config.trigger_config().triggers().end())
         continue;
-      }
+      if (tracing_session.state == TracingSession::CLONED_READ_ONLY)
+        continue;
 
       // If this trigger requires a certain producer to have sent it
       // (non-empty producer_name()) ensure the producer who sent this trigger
@@ -2128,6 +2135,13 @@ bool TracingServiceImpl::ReadBuffersIntoFile(TracingSessionID tsid) {
 }
 
 bool TracingServiceImpl::IsWaitingForTrigger(TracingSession* tracing_session) {
+  // Ignore the logic below for cloned tracing sessions. In this case we
+  // actually want to read the (cloned) trace buffers even if no trigger was
+  // hit.
+  if (tracing_session->state == TracingSession::CLONED_READ_ONLY) {
+    return false;
+  }
+
   // When a tracing session is waiting for a trigger, it is considered empty. If
   // a tracing session finishes and moves into DISABLED without ever receiving a
   // trigger, the trace should never return any data. This includes the
@@ -2433,7 +2447,9 @@ void TracingServiceImpl::FreeBuffers(TracingSessionID tsid) {
     PERFETTO_DCHECK(buffers_.count(buffer_id) == 1);
     buffers_.erase(buffer_id);
   }
-  bool notify_traceur = tracing_session->config.notify_traceur();
+  bool notify_traceur =
+      tracing_session->config.notify_traceur() &&
+      tracing_session->state != TracingSession::CLONED_READ_ONLY;
   bool is_long_trace =
       (tracing_session->config.write_into_file() &&
        tracing_session->config.file_write_period_ms() < kMillisPerDay);
@@ -3494,13 +3510,111 @@ size_t TracingServiceImpl::PurgeExpiredAndCountTriggerInWindow(
   return trigger_count;
 }
 
-base::Status TracingServiceImpl::CloneSession(ConsumerEndpointImpl* consumer,
-                                              TracingSessionID src_tsid) {
+void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
+                                              TracingSessionID tsid) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+  auto weak_consumer = consumer->GetWeakPtr();
+  Flush(tsid, 0, [weak_this, tsid, weak_consumer](bool final_flush_outcome) {
+    PERFETTO_LOG("FlushAndCloneSession(%" PRIu64 ") started, success=%d", tsid,
+                 final_flush_outcome);
+    if (!weak_this || !weak_consumer)
+      return;
+    base::Status result =
+        weak_this->DoCloneSession(&*weak_consumer, tsid, final_flush_outcome);
+    weak_consumer->consumer_->OnSessionCloned(result.ok(), result.message());
+  });
+}
+
+base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
+                                                TracingSessionID src_tsid,
+                                                bool final_flush_outcome) {
   PERFETTO_DLOG("CloneSession(%" PRIu64 ") started, consumer uid: %d", src_tsid,
                 static_cast<int>(consumer->uid_));
-  // TODO(primiano): implement in next CLs (b/260112703).
-  return base::ErrStatus("CloneSession is not yet implemented");
+  TracingSession* src = GetTracingSession(src_tsid);
+
+  // The session might be gone by the time we try to clone it.
+  if (!src)
+    return PERFETTO_SVC_ERR("session not found");
+
+  if (consumer->tracing_session_id_) {
+    return PERFETTO_SVC_ERR(
+        "The consumer is already attached to another tracing session");
+  }
+
+  if (src->consumer_uid != consumer->uid_ && consumer->uid_ != 0)
+    return PERFETTO_SVC_ERR("Not allowed to clone a session from another UID");
+
+  // First clone all TraceBuffer(s). This can fail because of ENOMEM. If it
+  // happens bail out early before creating any session.
+  std::vector<std::pair<BufferID, std::unique_ptr<TraceBuffer>>> buf_snaps;
+  buf_snaps.reserve(src->num_buffers());
+  bool buf_clone_failed = false;
+  for (BufferID src_buf_id : src->buffers_index) {
+    TraceBuffer* src_buf = GetBufferByID(src_buf_id);
+    std::unique_ptr<TraceBuffer> buf_snap = src_buf->CloneReadOnly();
+    BufferID buf_global_id = buffer_ids_.Allocate();
+    buf_clone_failed |= !buf_snap.get() || !buf_global_id;
+    buf_snaps.emplace_back(buf_global_id, std::move(buf_snap));
+  }
+
+  // Free up allocated IDs in case of failure. No need to free the TraceBuffers,
+  // as they are still owned by the temporary |buf_snaps|.
+  if (buf_clone_failed) {
+    for (auto& kv : buf_snaps) {
+      if (kv.first)
+        buffer_ids_.Free(kv.first);
+    }
+    return PERFETTO_SVC_ERR("Buffer allocation failed");
+  }
+
+  const TracingSessionID tsid = ++last_tracing_session_id_;
+  TracingSession* cloned_session =
+      &tracing_sessions_
+           .emplace(
+               std::piecewise_construct, std::forward_as_tuple(tsid),
+               std::forward_as_tuple(tsid, consumer, src->config, task_runner_))
+           .first->second;
+
+  cloned_session->state = TracingSession::CLONED_READ_ONLY;
+  cloned_session->trace_uuid = base::Uuidv4();  // Generate a new UUID.
+
+  for (auto& kv : buf_snaps) {
+    BufferID buf_global_id = kv.first;
+    std::unique_ptr<TraceBuffer>& buf = kv.second;
+    buffers_.emplace(buf_global_id, std::move(buf));
+    cloned_session->buffers_index.emplace_back(buf_global_id);
+  }
+  UpdateMemoryGuardrail();
+
+  // Copy over relevant state that we want to persist in the cloned session.
+  // Mostly stats and metadata that is emitted in the trace file by the service.
+  cloned_session->received_triggers = src->received_triggers;
+  cloned_session->lifecycle_events =
+      std::vector<TracingSession::LifecycleEvent>(src->lifecycle_events);
+  cloned_session->initial_clock_snapshot = src->initial_clock_snapshot;
+  cloned_session->clock_snapshot_ring_buffer = src->clock_snapshot_ring_buffer;
+  cloned_session->invalid_packets = src->invalid_packets;
+  cloned_session->flushes_requested = src->flushes_requested;
+  cloned_session->flushes_succeeded = src->flushes_succeeded;
+  cloned_session->flushes_failed = src->flushes_failed;
+  if (src->trace_filter) {
+    // Copy the trace filter.
+    cloned_session->trace_filter.reset(
+        new protozero::MessageFilter(*src->trace_filter));
+  }
+
+  PERFETTO_DLOG("Consumer (uid:%d) cloned tracing session %" PRIu64
+                " -> %" PRIu64,
+                static_cast<int>(consumer->uid_), src_tsid, tsid);
+
+  consumer->tracing_session_id_ = tsid;
+  cloned_session->final_flush_outcome = final_flush_outcome
+                                            ? TraceStats::FINAL_FLUSH_SUCCEEDED
+                                            : TraceStats::FINAL_FLUSH_FAILED;
+  return base::OkStatus();
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 // TracingServiceImpl::ConsumerEndpointImpl implementation
 ////////////////////////////////////////////////////////////////////////////////
@@ -3786,6 +3900,9 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
       case TracingSession::State::DISABLING_WAITING_STOP_ACKS:
         session->set_state("STOP_WAIT");
         break;
+      case TracingSession::State::CLONED_READ_ONLY:
+        session->set_state("CLONED_READ_ONLY");
+        break;
     }
   }
   callback(/*success=*/true, svc_state);
@@ -3827,8 +3944,8 @@ void TracingServiceImpl::ConsumerEndpointImpl::SaveTraceForBugreport(
 void TracingServiceImpl::ConsumerEndpointImpl::CloneSession(
     TracingSessionID tsid) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  base::Status result = service_->CloneSession(this, tsid);
-  consumer_->OnSessionCloned(result.ok(), result.message());
+  // FlushAndCloneSession will call OnSessionCloned after the async flush.
+  service_->FlushAndCloneSession(this, tsid);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
