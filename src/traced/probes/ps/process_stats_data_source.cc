@@ -17,6 +17,7 @@
 #include "src/traced/probes/ps/process_stats_data_source.h"
 
 #include <stdlib.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <array>
