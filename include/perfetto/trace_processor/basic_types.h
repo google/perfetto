@@ -95,6 +95,18 @@ enum class DropFtraceDataBefore {
   kAllDataSourcesStarted = 2,
 };
 
+// Enum which encodes which timestamp source (if any) should be used to drop
+// track event data before this timestamp.
+enum class DropTrackEventDataBefore {
+  // Retain all track events. This is the default approach.
+  kNoDrop = 0,
+
+  // Drops track events before the timestamp specified by the
+  // TrackEventRangeOfInterest trace packet. No data is dropped if this packet
+  // is not present in the trace.
+  kTrackEventRangeOfInterest = 1,
+};
+
 // Struct for configuring a TraceProcessor instance (see trace_processor.h).
 struct PERFETTO_EXPORT_COMPONENT Config {
   // Indicates the sortinng mode that trace processor should use on the passed
@@ -115,6 +127,11 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   // the trace before that event. See the ennu documenetation for more details.
   DropFtraceDataBefore drop_ftrace_data_before =
       DropFtraceDataBefore::kTracingStarted;
+
+  // Indicates the source of timestamp before which track events should be
+  // dropped. See the enum documentation for more details.
+  DropTrackEventDataBefore drop_track_event_data_before =
+      DropTrackEventDataBefore::kNoDrop;
 
   // Any built-in metric proto or sql files matching these paths are skipped
   // during trace processor metric initialization.

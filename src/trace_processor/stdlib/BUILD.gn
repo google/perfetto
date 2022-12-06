@@ -20,6 +20,7 @@ assert(enable_perfetto_trace_processor_sqlite)
 perfetto_amalgamated_sql_header("gen_amalgamated_stdlib") {
   deps = [
     "android",
+    "common",
     "experimental",
   ]
   generated_header = "amalgamated_stdlib.h"

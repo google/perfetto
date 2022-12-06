@@ -34,6 +34,7 @@
 
 using ::perfetto::protos::gen::ProcessStatsConfig;
 using ::testing::_;
+using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::ElementsAreArray;
 using ::testing::Invoke;
@@ -57,6 +58,7 @@ class TestProcessStatsDataSource : public ProcessStatsDataSource {
                                config,
                                std::move(cpu_freq_info)) {}
 
+  MOCK_METHOD0(GetProcMountpoint, const char*());
   MOCK_METHOD0(OpenProcDir, base::ScopedDir());
   MOCK_METHOD2(ReadProcPidFile, std::string(int32_t pid, const std::string&));
 };
@@ -322,6 +324,7 @@ TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
   DataSourceConfig ds_config;
   ProcessStatsConfig cfg;
   cfg.set_proc_stats_poll_ms(1);
+  cfg.set_resolve_process_fds(true);
   cfg.add_quirks(ProcessStatsConfig::DISABLE_ON_DEMAND);
   ds_config.set_process_stats_config_raw(cfg.SerializeAsString());
   auto data_source = GetProcessStatsDataSource(ds_config);
@@ -329,18 +332,39 @@ TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
   // Populate a fake /proc/ directory.
   auto fake_proc = base::TempDir::Create();
   const int kPids[] = {1, 2};
+  const uint64_t kFds[] = {5u, 7u};
+  const char kDevice[] = "/dev/dummy";
   std::vector<std::string> dirs_to_delete;
+  std::vector<std::string> links_to_delete;
   for (int pid : kPids) {
     base::StackString<256> path("%s/%d", fake_proc.path().c_str(), pid);
     dirs_to_delete.push_back(path.ToStdString());
-    mkdir(path.c_str(), 0755);
+    EXPECT_EQ(mkdir(path.c_str(), 0755), 0)
+        << "mkdir('" << path.c_str() << "') failed";
+
+    base::StackString<256> path_fd("%s/fd", path.c_str());
+    dirs_to_delete.push_back(path_fd.ToStdString());
+    EXPECT_EQ(mkdir(path_fd.c_str(), 0755), 0)
+        << "mkdir('" << path_fd.c_str() << "') failed";
+
+    for (auto fd : kFds) {
+      base::StackString<256> link("%s/%" PRIu64, path_fd.c_str(), fd);
+      links_to_delete.push_back(link.ToStdString());
+      EXPECT_EQ(symlink(kDevice, link.c_str()), 0)
+          << "symlink('" << kDevice << "','" << link.c_str() << "') failed";
+    }
   }
 
   auto checkpoint = task_runner_.CreateCheckpoint("all_done");
 
-  EXPECT_CALL(*data_source, OpenProcDir()).WillRepeatedly(Invoke([&fake_proc] {
-    return base::ScopedDir(opendir(fake_proc.path().c_str()));
-  }));
+  const auto fake_proc_path = fake_proc.path();
+  EXPECT_CALL(*data_source, OpenProcDir())
+      .WillRepeatedly(Invoke([&fake_proc_path] {
+        return base::ScopedDir(opendir(fake_proc_path.c_str()));
+      }));
+  EXPECT_CALL(*data_source, GetProcMountpoint())
+      .WillRepeatedly(
+          Invoke([&fake_proc_path] { return fake_proc_path.c_str(); }));
 
   const int kNumIters = 4;
   int iter = 0;
@@ -387,13 +411,22 @@ TEST_F(ProcessStatsDataSourceTest, ProcessStats) {
               pid * 100 + iter * 10 + 2);
     ASSERT_EQ(static_cast<int>(proc_counters.oom_score_adj()),
               pid * 100 + iter * 10 + 3);
+    ASSERT_EQ(proc_counters.fds().size(), base::ArraySize(kFds));
+    for (const auto& fd_path : proc_counters.fds()) {
+      ASSERT_THAT(kFds, Contains(fd_path.fd()));
+      ASSERT_EQ(fd_path.path(), kDevice);
+    }
     if (pid == kPids[base::ArraySize(kPids) - 1])
       iter++;
   }
 
   // Cleanup |fake_proc|. TempDir checks that the directory is empty.
-  for (std::string& path : dirs_to_delete)
-    base::Rmdir(path);
+  for (auto path = links_to_delete.rbegin(); path != links_to_delete.rend();
+       path++)
+    unlink(path->c_str());
+  for (auto path = dirs_to_delete.rbegin(); path != dirs_to_delete.rend();
+       path++)
+    base::Rmdir(*path);
 }
 
 TEST_F(ProcessStatsDataSourceTest, CacheProcessStats) {

@@ -96,14 +96,13 @@ source_set("storage_minimal") {
     "../base",
     "../protozero",
     "containers",
-    "importers:gen_cc_chrome_track_event_descriptor",
-    "importers:gen_cc_track_event_descriptor",
-    "importers:minimal",
     "importers/common",
     "importers/common:parser_types",
     "importers/ftrace:minimal",
     "importers/fuchsia:fuchsia_record",
     "importers/memory_tracker:graph_processor",
+    "importers/proto:gen_cc_chrome_track_event_descriptor",
+    "importers/proto:gen_cc_track_event_descriptor",
     "importers/proto:minimal",
     "importers/systrace:systrace_line",
     "sorter",
@@ -150,6 +149,7 @@ if (enable_perfetto_trace_processor_sqlite) {
 
     deps = [
       ":metatrace",
+      ":storage_minimal",
       "../../gn:default_deps",
       "../../protos/perfetto/common:zero",
       "../../protos/perfetto/trace:zero",
@@ -158,14 +158,17 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../protozero",
       "db",
       "dynamic",
-      "importers:full",
-      "importers:minimal",
       "importers/android_bugreport",
       "importers/common",
       "importers/ftrace:full",
+      "importers/fuchsia:full",
+      "importers/gzip:full",
+      "importers/json:full",
       "importers/json:minimal",
       "importers/ninja",
+      "importers/proto:full",
       "importers/proto:minimal",
+      "importers/systrace:full",
       "metrics",
       "sqlite",
       "sqlite/functions",
@@ -244,7 +247,6 @@ perfetto_unittest_source_set("top_level_unittests") {
       ":export_json",
       "../../gn:jsoncpp",
       "containers",
-      "importers:minimal",
       "importers/common",
       "importers/proto:minimal",
       "storage",
@@ -262,10 +264,14 @@ perfetto_unittest_source_set("unittests") {
     ":top_level_unittests",
     "containers:unittests",
     "db:unittests",
-    "importers:unittests",
     "importers/android_bugreport:unittests",
     "importers/common:unittests",
+    "importers/ftrace:unittests",
+    "importers/fuchsia:unittests",
+    "importers/memory_tracker:unittests",
     "importers/proto:unittests",
+    "importers/syscalls:unittests",
+    "importers/systrace:unittests",
     "rpc:unittests",
     "sorter:unittests",
     "sqlite/functions:unittests",
@@ -275,6 +281,9 @@ perfetto_unittest_source_set("unittests") {
     "util:unittests",
     "views:unittests",
   ]
+  if (enable_perfetto_trace_processor_json) {
+    deps += [ "importers/json:unittests" ]
+  }
   if (enable_perfetto_trace_processor_sqlite) {
     deps += [
       "dynamic:unittests",
@@ -331,8 +340,8 @@ perfetto_fuzzer_test("trace_processor_fuzzer") {
   testonly = true
   sources = [ "trace_parsing_fuzzer.cc" ]
   deps = [
+    ":storage_minimal",
     "../../gn:default_deps",
     "../base",
-    "importers:full",
   ]
 }

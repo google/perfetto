@@ -285,6 +285,7 @@ class TestHelper : public Consumer {
   void OnAttach(bool, const TraceConfig&) override;
   void OnTraceStats(bool, const TraceStats&) override;
   void OnObservableEvents(const ObservableEvents&) override;
+  void OnSessionCloned(bool, const std::string&) override;
 
   // Starts the tracing service if in kStartDaemons mode.
   void StartServiceIfRequired();

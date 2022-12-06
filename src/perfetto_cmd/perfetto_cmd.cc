@@ -1236,6 +1236,11 @@ void PerfettoCmd::OnTraceStats(bool /*success*/,
   // TODO(eseckler): Support GetTraceStats().
 }
 
+void PerfettoCmd::OnSessionCloned(bool success, const std::string& error) {
+  // TODO(primiano): implement in next CLs (b/260112703).
+  base::ignore_result(success && error.empty());
+}
+
 void PerfettoCmd::PrintServiceState(bool success,
                                     const TracingServiceState& svc_state) {
   if (!success) {

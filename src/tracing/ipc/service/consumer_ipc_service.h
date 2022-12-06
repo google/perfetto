@@ -71,6 +71,8 @@ class ConsumerIPCService : public protos::gen::ConsumerPort {
                          DeferredQueryCapabilitiesResponse) override;
   void SaveTraceForBugreport(const protos::gen::SaveTraceForBugreportRequest&,
                              DeferredSaveTraceForBugreportResponse) override;
+  void CloneSession(const protos::gen::CloneSessionRequest&,
+                    DeferredCloneSessionResponse) override;
   void OnClientDisconnected() override;
 
  private:
@@ -92,6 +94,7 @@ class ConsumerIPCService : public protos::gen::ConsumerPort {
     void OnAttach(bool, const TraceConfig&) override;
     void OnTraceStats(bool, const TraceStats&) override;
     void OnObservableEvents(const ObservableEvents&) override;
+    void OnSessionCloned(bool, const std::string&) override;
 
     void CloseObserveEventsResponseStream();
 
@@ -117,6 +120,9 @@ class ConsumerIPCService : public protos::gen::ConsumerPort {
 
     // As above, but for GetTraceStats().
     DeferredGetTraceStatsResponse get_trace_stats_response;
+
+    // As above, but for CloneSession().
+    DeferredCloneSessionResponse clone_session_response;
 
     // After ObserveEvents() is invoked, this binds the async callback that
     // allows to stream ObservableEvents back to the client.

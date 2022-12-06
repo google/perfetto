@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,17 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_DEFAULT_MODULES_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_DEFAULT_MODULES_H_
+syntax = "proto2";
 
-#include "src/trace_processor/types/trace_processor_context.h"
+package perfetto.protos;
 
-namespace perfetto {
-namespace trace_processor {
-
-void RegisterDefaultModules(TraceProcessorContext*);
-
-}  // namespace trace_processor
-}  // namespace perfetto
-
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_DEFAULT_MODULES_H_
+// This message specifies the "range of interest" for track events. With the
+// `drop_track_event_data_before` option set to `kTrackEventRangeOfInterest`,
+// Trace Processor drops track events outside of this range.
+message TrackEventRangeOfInterest {
+  optional int64 start_us = 1;
+}

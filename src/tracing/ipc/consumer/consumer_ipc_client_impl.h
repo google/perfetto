@@ -74,6 +74,7 @@ class ConsumerIPCClientImpl : public TracingService::ConsumerEndpoint,
   void QueryServiceState(QueryServiceStateCallback) override;
   void QueryCapabilities(QueryCapabilitiesCallback) override;
   void SaveTraceForBugreport(SaveTraceForBugreportCallback) override;
+  void CloneSession(TracingSessionID) override;
 
   // ipc::ServiceProxy::EventListener implementation.
   // These methods are invoked by the IPC layer, which knows nothing about

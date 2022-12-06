@@ -12,30 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../gn/test.gni")
+import("../../../../gn/perfetto_sql.gni")
 
-source_set("full") {
-  sources = [
-    "syscall_tracker.cc",
-    "syscall_tracker.h",
-  ]
-  deps = [
-    "../../../../gn:default_deps",
-    "../../../kernel_utils:syscall_table",
-    "../../containers",
-    "../../storage",
-    "../../types",
-    "../common",
-  ]
-}
-
-perfetto_unittest_source_set("unittests") {
-  testonly = true
-  sources = [ "syscall_tracker_unittest.cc" ]
-  deps = [
-    ":full",
-    "../../../../gn:default_deps",
-    "../../../../gn:gtest_and_gmock",
-    "../common",
-  ]
+perfetto_sql_source_set("common") {
+  sources = [ "metadata.sql" ]
 }
