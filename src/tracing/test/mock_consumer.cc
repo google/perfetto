@@ -69,6 +69,10 @@ void MockConsumer::FreeBuffers() {
   service_endpoint_->FreeBuffers();
 }
 
+void MockConsumer::CloneSession(TracingSessionID tsid) {
+  service_endpoint_->CloneSession(tsid);
+}
+
 void MockConsumer::WaitForTracingDisabled(uint32_t timeout_ms) {
   static int i = 0;
   auto checkpoint_name = "on_tracing_disabled_consumer_" + std::to_string(i++);
