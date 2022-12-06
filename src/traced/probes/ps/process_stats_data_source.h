@@ -127,7 +127,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   void WriteAllProcessStats();
   bool WriteMemCounters(int32_t pid, const std::string& proc_status);
   void WriteFds(int32_t pid);
-  void WriteSingleFd(int32_t tid, uint64_t fd);
+  void WriteSingleFd(int32_t pid, uint64_t fd);
   bool ShouldWriteThreadStats(int32_t pid);
   void WriteThreadStats(int32_t pid, int32_t tid);
 
