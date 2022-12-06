@@ -445,9 +445,6 @@ export interface PivotTableReduxState {
   // located in separate arrays.
   selectedPivots: RegularColumn[];
 
-  // Selected pivots for slice table.
-  selectedSlicePivots: TableColumn[];
-
   // Selected aggregation columns. Stored same way as pivots.
   selectedAggregations: Aggregation[];
 
