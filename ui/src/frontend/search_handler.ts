@@ -19,13 +19,16 @@ import {toNs} from '../common/time';
 import {globals} from './globals';
 
 function setToPrevious(current: number) {
-  const index = Math.max(current - 1, 0);
+  let index = current - 1;
+  if (index < 0) {
+    index = globals.currentSearchResults.totalResults - 1;
+  }
   globals.dispatch(Actions.setSearchIndex({index}));
 }
 
 function setToNext(current: number) {
   const index =
-      Math.min(current + 1, globals.currentSearchResults.totalResults - 1);
+      (current + 1) % globals.currentSearchResults.totalResults;
   globals.dispatch(Actions.setSearchIndex({index}));
 }
 
