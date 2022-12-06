@@ -191,6 +191,19 @@ class CircularQueue {
     return *this;
   }
 
+  explicit CircularQueue(const CircularQueue& other) noexcept {
+    Grow(other.capacity());
+    for (const auto& e : const_cast<CircularQueue&>(other))
+      emplace_back(e);
+    PERFETTO_DCHECK(size() == other.size());
+  }
+
+  CircularQueue& operator=(const CircularQueue& other) noexcept {
+    this->~CircularQueue();           // Destroy the current state.
+    new (this) CircularQueue(other);  // Use the copy ctor above.
+    return *this;
+  }
+
   ~CircularQueue() {
     if (!entries_) {
       PERFETTO_DCHECK(empty());
@@ -249,9 +262,6 @@ class CircularQueue {
 #endif
 
  private:
-  CircularQueue(const CircularQueue&) = delete;
-  CircularQueue& operator=(const CircularQueue&) = delete;
-
   void Grow(size_t new_capacity = 0) {
     // Capacity must be always a power of two. This allows Get() to use a simple
     // bitwise-AND for handling the wrapping instead of a full division.
