@@ -43,7 +43,7 @@ T EvictUnchecked(char** ptr) {
   T* type_ptr = reinterpret_cast<T*>(*ptr);
   T out(std::move(*type_ptr));
   type_ptr->~T();
-  *ptr += sizeof(T);
+  *ptr += base::AlignUp<8>(sizeof(T));
   return out;
 }
 
