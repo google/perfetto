@@ -819,6 +819,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->arg_table());
   RegisterDbTable(storage->thread_table());
   RegisterDbTable(storage->process_table());
+  RegisterDbTable(storage->filedescriptor_table());
 
   RegisterDbTable(storage->slice_table());
   RegisterDbTable(storage->flow_table());

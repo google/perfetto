@@ -330,6 +330,13 @@ class TraceStorage {
   const tables::ProcessTable& process_table() const { return process_table_; }
   tables::ProcessTable* mutable_process_table() { return &process_table_; }
 
+  const tables::FiledescriptorTable& filedescriptor_table() const {
+    return filedescriptor_table_;
+  }
+  tables::FiledescriptorTable* mutable_filedescriptor_table() {
+    return &filedescriptor_table_;
+  }
+
   const tables::TrackTable& track_table() const { return track_table_; }
   tables::TrackTable* mutable_track_table() { return &track_table_; }
 
@@ -849,6 +856,7 @@ class TraceStorage {
   // Information about all the threads and processes in the trace.
   tables::ThreadTable thread_table_{&string_pool_, nullptr};
   tables::ProcessTable process_table_{&string_pool_, nullptr};
+  tables::FiledescriptorTable filedescriptor_table_{&string_pool_, nullptr};
 
   // Slices coming from userspace events (e.g. Chromium TRACE_EVENT macros).
   tables::SliceTable slice_table_{&string_pool_, nullptr};
