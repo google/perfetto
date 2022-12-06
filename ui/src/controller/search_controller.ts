@@ -22,6 +22,7 @@ import {publishSearch, publishSearchResult} from '../frontend/publish';
 
 import {Controller} from './controller';
 import {App} from './globals';
+import {toNs} from '../common/time';
 
 export interface SearchControllerArgs {
   engine: Engine;
@@ -107,8 +108,8 @@ export class SearchController extends Controller<'main'> {
       return;
     }
 
-    let startNs = Math.round(newSpan.start * 1e9);
-    let endNs = Math.round(newSpan.end * 1e9);
+    let startNs = toNs(newSpan.start);
+    let endNs = toNs(newSpan.end);
 
     // TODO(hjd): We shouldn't need to be so defensive here:
     if (!Number.isFinite(startNs)) {
