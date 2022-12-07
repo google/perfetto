@@ -145,6 +145,7 @@ void ProcessStatsDataSource::WriteAllProcesses() {
   base::ScopedDir proc_dir = OpenProcDir();
   if (!proc_dir)
     return;
+  base::FlatSet<int32_t> pids;
   while (int32_t pid = ReadNextNumericDir(*proc_dir)) {
     WriteProcessOrThread(pid);
     base::StackString<128> task_path("/proc/%d/task", pid);
@@ -166,12 +167,16 @@ void ProcessStatsDataSource::WriteAllProcesses() {
         WriteThread(tid, pid, /*optional_name=*/nullptr, proc_status);
       }
     }
+
+    pids.insert(pid);
   }
   FinalizeCurPacket();
 
   // Also collect any fds open when starting up
-  for (const auto pid : seen_pids_)
+  for (const auto pid : pids) {
+    cur_ps_stats_process_ = nullptr;
     WriteFds(pid);
+  }
   FinalizeCurPacket();
 }
 
@@ -211,7 +216,14 @@ void ProcessStatsDataSource::OnFds(
     return;
 
   for (const auto& pid_fds : fds) {
-    const auto pid = pid_fds.first;
+    auto it = tids_to_pids_.find(pid_fds.first);
+    if (it == tids_to_pids_.end()) {
+      // TID is not known yet, skip resolving the fd and let the
+      // periodic stats scanner resolve the fd together with its TID later
+      continue;
+    }
+    const auto pid = it->second;
+
     cur_ps_stats_process_ = nullptr;
     for (const auto fd : pid_fds.second) {
       WriteSingleFd(pid, fd);
@@ -643,14 +655,7 @@ void ProcessStatsDataSource::WriteFds(int32_t pid) {
   }
 }
 
-void ProcessStatsDataSource::WriteSingleFd(int32_t tid, uint64_t fd) {
-  int32_t pid = tid;
-  auto it = tids_to_pids_.find(tid);
-  if (it != tids_to_pids_.end()) {
-    pid = it->second;
-  } else {
-    PERFETTO_DLOG("TID %" PRId32 " has no process mapping", tid);
-  }
+void ProcessStatsDataSource::WriteSingleFd(int32_t pid, uint64_t fd) {
   CachedProcessStats& cached = process_stats_cache_[pid];
   if (cached.seen_fds.count(fd)) {
     return;
