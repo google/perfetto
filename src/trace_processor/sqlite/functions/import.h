@@ -33,7 +33,7 @@ struct Import : public SqlFunction {
   struct Context {
     sqlite3* db;
     TraceProcessor* tp;
-    base::FlatHashMap<std::string, sql_modules::Module>* modules;
+    base::FlatHashMap<std::string, sql_modules::RegisteredModule>* modules;
   };
 
   static constexpr bool kVoidReturn = true;
