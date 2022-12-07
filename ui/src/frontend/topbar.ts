@@ -135,7 +135,6 @@ class Omnibox implements m.ClassComponent {
                               globals.currentSearchResults.totalResults}`}`),
                 m('button',
                   {
-                    disabled: globals.state.searchIndex <= 0,
                     onclick: () => {
                       executeSearch(true /* reverse direction */);
                     },
@@ -143,8 +142,6 @@ class Omnibox implements m.ClassComponent {
                   m('i.material-icons.left', 'keyboard_arrow_left')),
                 m('button',
                   {
-                    disabled: globals.state.searchIndex ===
-                        globals.currentSearchResults.totalResults - 1,
                     onclick: () => {
                       executeSearch();
                     },

@@ -32,7 +32,7 @@ template <typename T>
 char* AppendUnchecked(char* ptr, T value) {
   PERFETTO_DCHECK(reinterpret_cast<uintptr_t>(ptr) % alignof(T) == 0);
   new (ptr) T(std::move(value));
-  return ptr + sizeof(T);
+  return ptr + base::AlignUp<8>(sizeof(T));
 }
 
 // Evicts object the the specified pointer, which now points to the space behind

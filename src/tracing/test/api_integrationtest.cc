@@ -926,6 +926,7 @@ TEST_P(PerfettoApiTest, StartAndStopWithoutDataSources) {
 // Disabled by default because it leaks tracing sessions into subsequent tests,
 // which can result in the per-uid tracing session limit (5) to be hit in later
 // tests.
+// TODO(b/261493947): fix or remove.
 TEST_P(PerfettoApiTest, DISABLED_TrackEventStartStopAndDestroy) {
   // This test used to cause a use after free as the tracing session got
   // destroyed. It needed to be run approximately 2000 times to catch it so test
@@ -1936,6 +1937,7 @@ TEST_P(PerfettoApiTest, TrackEventCustomTimestampClock) {
 
 // Only synchronous phases are supported for other threads. Hence disabled this
 // test.
+// TODO(b/261493947): fix or remove.
 TEST_P(PerfettoApiTest, DISABLED_LegacyEventWithThreadOverride) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"cat"});
@@ -5696,7 +5698,7 @@ TEST_P(PerfettoStartupTracingApiTest, MultipleDataSourceAllContributing) {
 
 // Startup tracing requires BufferExhaustedPolicy::kDrop, i.e. once the SMB is
 // filled with startup events, any further events should be dropped.
-// TODO(mohitms): It seems flaky. Debug and enable again - go/aosp_ci_failure23
+// TODO(b/261493947): fix or remove. go/aosp_ci_failure23
 TEST_P(PerfettoStartupTracingApiTest, DISABLED_DropPolicy) {
   SetupStartupTracing();
   constexpr int kNumEvents = 100000;
@@ -5716,7 +5718,7 @@ TEST_P(PerfettoStartupTracingApiTest, DISABLED_DropPolicy) {
   EXPECT_LT(freq_map["B:test.StartupEvent"], kNumEvents);
 }
 
-// TODO(mohitms): It seems flaky. Debug and enable again.
+// TODO(b/261493947): fix or remove.
 TEST_P(PerfettoStartupTracingApiTest, DISABLED_Abort) {
   SetupStartupTracing();
   TRACE_EVENT_BEGIN("test", "StartupEvent");
@@ -5773,7 +5775,8 @@ TEST_P(PerfettoStartupTracingApiTest, Timeout) {
   EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
 }
 
-TEST_P(PerfettoStartupTracingApiTest, Callbacks) {
+// TODO(b/261493947): fix or remove.
+TEST_P(PerfettoStartupTracingApiTest, DISABLED_Callbacks) {
   for (bool abort : {true, false}) {
     SetupStartupTracingOpts args;
     std::vector<std::string> callback_events;
@@ -5814,6 +5817,7 @@ TEST_P(PerfettoStartupTracingApiTest, Callbacks) {
 }
 
 // Test that it's ok if main tracing is never started.
+// TODO(b/261493947): fix or remove.
 TEST_P(PerfettoStartupTracingApiTest, DISABLED_MainTracingNeverStarted) {
   SetupStartupTracing();
   TRACE_EVENT_BEGIN("test", "StartupEvent");
