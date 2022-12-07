@@ -312,10 +312,15 @@ def perfetto_cc_amalgamated_sql(name, deps, outs, root_dir, namespace,
     )
 
 def perfetto_cc_tp_tables(name, srcs, outs, **kwargs):
+    if PERFETTO_CONFIG.root == "//":
+      python_path = PERFETTO_CONFIG.root + "python"
+    else:
+      python_path = PERFETTO_CONFIG.root + "/python"
+
     perfetto_py_binary(
         name = name + "_tool",
         deps = [
-            PERFETTO_CONFIG.root + "python:trace_processor_table_generator",
+            python_path + ":trace_processor_table_generator",
         ],
         srcs = srcs + [
             "tools/gen_tp_table_headers.py",
