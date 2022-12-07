@@ -54,7 +54,7 @@ packet {
 # Slice begin events
 packet {
   trusted_packet_sequence_id: 1
-  timestamp: 11
+  timestamp: 11000
   track_event {
     track_uuid: 1
     categories: "cat"
@@ -64,7 +64,7 @@ packet {
 }
 packet {
   trusted_packet_sequence_id: 2
-  timestamp: 12
+  timestamp: 12000
   track_event {
     track_uuid: 2
     categories: "cat"
@@ -74,7 +74,7 @@ packet {
 }
 packet {
   trusted_packet_sequence_id: 3
-  timestamp: 13
+  timestamp: 13000
   track_event {
     track_uuid: 3
     categories: "cat"
@@ -86,7 +86,7 @@ packet {
 # Slice end events
 packet {
   trusted_packet_sequence_id: 1
-  timestamp: 1011
+  timestamp: 1011000
   track_event {
     track_uuid: 1
     categories: "cat"
@@ -95,7 +95,7 @@ packet {
 }
 packet {
   trusted_packet_sequence_id: 2
-  timestamp: 1012
+  timestamp: 1012000
   track_event {
     track_uuid: 2
     categories: "cat"
@@ -104,7 +104,7 @@ packet {
 }
 packet {
   trusted_packet_sequence_id: 3
-  timestamp: 1013
+  timestamp: 1013000
   track_event {
     track_uuid: 3
     categories: "cat"
