@@ -33,7 +33,7 @@ using NameToModule =
 
 // Map from import key to sql file. Import key is the string used in IMPORT
 // function.
-struct Module {
+struct RegisteredModule {
   struct ModuleFile {
     std::string sql;
     bool imported;

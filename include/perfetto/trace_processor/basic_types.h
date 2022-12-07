@@ -226,6 +226,27 @@ struct PERFETTO_EXPORT_COMPONENT SqlValue {
   Type type = kNull;
 };
 
+// Data used to register a new SQL module.
+struct SqlModule {
+  // Must be unique among modules, or can be used to override existing module if
+  // |allow_module_override| is set.
+  std::string name;
+
+  // Pairs of strings used for |IMPORT| with the contents of SQL files being
+  // run. Strings should only contain alphanumeric characters and '.', where
+  // string before the first dot has to be module name.
+  //
+  // It is encouraged that import key should be the path to the SQL file being
+  // run, with slashes replaced by dots and without the SQL extension. For
+  // example, 'android/camera/junk.sql' would be imported by
+  // 'android.camera.junk'.
+  std::vector<std::pair<std::string, std::string>> files;
+
+  // If true, SqlModule will override registered module with the same name. Can
+  // only be set if enable_dev_features is true, otherwise will throw an error.
+  bool allow_module_override;
+};
+
 }  // namespace trace_processor
 }  // namespace perfetto
 
