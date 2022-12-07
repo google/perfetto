@@ -465,13 +465,26 @@ base::Status CreateViewFunction::Run(CreateViewFunction::Context* ctx,
     USING INTERNAL_VIEW_FUNCTION_IMPL('%s', '%s', '%s');
   )""";
   std::string function_name_str = function_name.ToStdString();
-  base::StackString<1024> sql(kSqlTemplate, function_name_str.c_str(),
-                              function_name_str.c_str(), prototype_str,
-                              return_prototype_str, sql_defn_str);
 
   ScopedSqliteString errmsg;
   char* errmsg_raw = nullptr;
-  int ret = sqlite3_exec(ctx->db, sql.c_str(), nullptr, nullptr, &errmsg_raw);
+  int ret;
+
+  NullTermStringView sql_defn(sql_defn_str);
+  if (sql_defn.size() < 512) {
+    base::StackString<1024> sql(kSqlTemplate, function_name_str.c_str(),
+                                function_name_str.c_str(), prototype_str,
+                                return_prototype_str, sql_defn_str);
+    ret = sqlite3_exec(ctx->db, sql.c_str(), nullptr, nullptr, &errmsg_raw);
+  } else {
+    std::vector<char> formatted_sql(sql_defn.size() + 1024);
+    base::SprintfTrunc(formatted_sql.data(), formatted_sql.size(), kSqlTemplate,
+                       function_name_str.c_str(), function_name_str.c_str(),
+                       prototype_str, return_prototype_str, sql_defn_str);
+    ret = sqlite3_exec(ctx->db, formatted_sql.data(), nullptr, nullptr,
+                       &errmsg_raw);
+  }
+
   errmsg.reset(errmsg_raw);
   if (ret != SQLITE_OK)
     return base::ErrStatus("%s", errmsg.get());
