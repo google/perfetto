@@ -116,7 +116,7 @@ AS
 SELECT
   -- If the trace has a cropping packet, we don't want to recompute the reliable
   -- based on cropped track events - the result might be incorrect.g
-  IFNULL(EXTRACT_INT_METADATA('range_of_interest_start_us'),
+  IFNULL(EXTRACT_INT_METADATA('range_of_interest_start_us') * 1000,
          MAX(thread_start, data_loss_free_start)) AS start,
   IIF(EXTRACT_INT_METADATA('range_of_interest_start_us') IS NOT NULL,
       'Range of interest packet',
