@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SQLITE_WINDOW_OPERATOR_TABLE_H_
-#define SRC_TRACE_PROCESSOR_SQLITE_WINDOW_OPERATOR_TABLE_H_
+#ifndef SRC_TRACE_PROCESSOR_PRELUDE_OPERATORS_WINDOW_OPERATOR_H_
+#define SRC_TRACE_PROCESSOR_PRELUDE_OPERATORS_WINDOW_OPERATOR_H_
 
 #include <limits>
 #include <memory>
@@ -40,7 +40,7 @@ class WindowOperatorTable : public SqliteTable {
   };
   class Cursor : public SqliteTable::Cursor {
    public:
-    Cursor(WindowOperatorTable*);
+    explicit Cursor(WindowOperatorTable*);
 
     // Implementation of SqliteTable::Cursor.
     int Filter(const QueryConstraints& qc,
@@ -94,4 +94,4 @@ class WindowOperatorTable : public SqliteTable {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SQLITE_WINDOW_OPERATOR_TABLE_H_
+#endif  // SRC_TRACE_PROCESSOR_PRELUDE_OPERATORS_WINDOW_OPERATOR_H_
