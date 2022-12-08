@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/sqlite/window_operator_table.h"
+#include "src/trace_processor/prelude/operators/window_operator.h"
 
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 

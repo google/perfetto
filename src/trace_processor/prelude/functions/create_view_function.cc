@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/sqlite/functions/create_view_function.h"
+#include "src/trace_processor/prelude/functions/create_view_function.h"
 
 #include <numeric>
 
@@ -22,7 +22,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/sqlite/functions/create_function_internal.h"
+#include "src/trace_processor/prelude/functions/create_function_internal.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
@@ -256,7 +256,8 @@ int CreatedViewFunction::BestIndex(const QueryConstraints& qc,
   size_t seen_argument_constraints = 0;
   for (size_t i = 0; i < qc.constraints().size(); ++i) {
     const auto& cs = qc.constraints()[i];
-    seen_argument_constraints += IsArgumentColumn(static_cast<size_t>(cs.column));
+    seen_argument_constraints +=
+        IsArgumentColumn(static_cast<size_t>(cs.column));
   }
   if (seen_argument_constraints < prototype_.arguments.size())
     return SQLITE_CONSTRAINT;
@@ -293,8 +294,8 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
   for (size_t i = 0; i < qc.constraints().size(); ++i) {
     const auto& cs = qc.constraints()[i];
 
-    // Only consider argument columns (i.e. input parameters) as we're delegating
-    // the rest to SQLite.
+    // Only consider argument columns (i.e. input parameters) as we're
+    // delegating the rest to SQLite.
     if (!table_->IsArgumentColumn(static_cast<size_t>(cs.column)))
       continue;
 
