@@ -73,6 +73,11 @@ MessageFilter::MessageFilter() {
   stack_.emplace_back();
 }
 
+MessageFilter::MessageFilter(const MessageFilter& other)
+    : root_msg_index_(other.root_msg_index_), filter_(other.filter_) {
+  stack_.emplace_back();
+}
+
 MessageFilter::~MessageFilter() = default;
 
 bool MessageFilter::LoadFilterBytecode(const void* filter_data, size_t len) {

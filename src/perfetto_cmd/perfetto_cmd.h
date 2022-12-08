@@ -91,6 +91,8 @@ class PerfettoCmd : public Consumer {
 
   int ConnectToServiceAndRun();
 
+  void ReadbackTraceDataAndQuit(const std::string& error);
+
   enum BgProcessStatus : char {
     kBackgroundOk = 0,
     kBackgroundOtherError = 1,
@@ -154,6 +156,7 @@ class PerfettoCmd : public Consumer {
   bool upload_flag_ = false;
   bool connected_ = false;
   std::string uuid_;
+  base::Optional<TracingSessionID> clone_tsid_{};
 
   // How long we expect to trace for or 0 if the trace is indefinite.
   uint32_t expected_duration_ms_ = 0;
