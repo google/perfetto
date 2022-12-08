@@ -145,19 +145,14 @@ export function generateQueryFromState(
     throw new QueryGeneratorError('No aggregations selected');
   }
 
-  const nonSlicePivots = state.selectedPivots;
-  const slicePivots = state.selectedSlicePivots;
-  if (slicePivots.length === 0 && nonSlicePivots.length === 0) {
-    throw new QueryGeneratorError('No pivots selected');
-  }
+  const pivots = state.selectedPivots;
 
   const aggregations = sliceTableAggregations.map(
       (agg, index) =>
           `${aggregationExpression(agg)} as ${aggregationAlias(index)}`);
 
-  const prefixedSlicePivots = slicePivots.map(expression);
-  const renderedNonSlicePivots =
-      nonSlicePivots.map((pivot) => `${pivot.table}.${pivot.column}`);
+  const renderedPivots =
+      pivots.map((pivot) => `${pivot.table}.${pivot.column}`);
   const sortCriteria =
       globals.state.nonSerializableState.pivotTableRedux.sortCriteria;
   const sortClauses: string[] = [];
@@ -180,20 +175,18 @@ export function generateQueryFromState(
       '';
   const text = `
     select
-      ${
-      renderedNonSlicePivots.concat(prefixedSlicePivots, aggregations)
-          .join(',\n')}
+      ${renderedPivots.concat(aggregations).join(',\n')}
     from slice
-    ${nonSlicePivots.length > 0 ? joins : ''}
+    ${pivots.length > 0 ? joins : ''}
     ${whereClause}
-    group by ${renderedNonSlicePivots.concat(prefixedSlicePivots).join(', ')}
+    group by ${renderedPivots.join(', ')}
     ${sortClauses.length > 0 ? ('order by ' + sortClauses.join(', ')) : ''}
   `;
 
   return {
     text,
     metadata: {
-      pivotColumns: (nonSlicePivots as TableColumn[]).concat(slicePivots),
+      pivotColumns: pivots,
       aggregationColumns: sliceTableAggregations,
     },
   };
