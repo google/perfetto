@@ -648,7 +648,7 @@ export function getDefaultRecordingTargets(): RecordingTarget[] {
 }
 
 export function getBuiltinChromeCategoryList(): string[] {
-  // List of static Chrome categories, last updated at 2022-10-18 from HEAD of
+  // List of static Chrome categories, last updated at 2022-12-05 from HEAD of
   // Chromium's //base/trace_event/builtin_categories.h.
   return [
     'accessibility',
@@ -768,6 +768,7 @@ export function getBuiltinChromeCategoryList(): string[] {
     'SiteEngagement',
     'safe_browsing',
     'scheduler',
+    'scheduler.long_tasks',
     'screenlock_monitor',
     'segmentation_platform',
     'sequence_manager',
@@ -796,11 +797,13 @@ export function getBuiltinChromeCategoryList(): string[] {
     'views.frame',
     'viz',
     'vk',
+    'wakeup.flow',
     'wayland',
     'webaudio',
     'weblayer',
     'WebCore',
     'webrtc',
+    'webrtc_stats',
     'xr',
     'disabled-by-default-android_view_hierarchy',
     'disabled-by-default-animation-worklet',
