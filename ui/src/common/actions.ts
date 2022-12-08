@@ -1064,19 +1064,11 @@ export const StateActions = {
 
   setPivotTablePivotSelected(
       state: StateDraft, args: {column: TableColumn, selected: boolean}) {
-    if (args.column.kind === 'argument' || args.column.table === 'slice') {
-      toggleEnabled(
-          tableColumnEquals,
-          state.nonSerializableState.pivotTableRedux.selectedSlicePivots,
-          args.column,
-          args.selected);
-    } else {
-      toggleEnabled(
-          tableColumnEquals,
-          state.nonSerializableState.pivotTableRedux.selectedPivots,
-          args.column,
-          args.selected);
-    }
+    toggleEnabled(
+        tableColumnEquals,
+        state.nonSerializableState.pivotTableRedux.selectedPivots,
+        args.column,
+        args.selected);
   },
 
   setPivotTableAggregationFunction(
@@ -1115,16 +1107,6 @@ export const StateActions = {
       args: {from: number, to: number, direction: DropDirection}) {
     moveElement(
         state.nonSerializableState.pivotTableRedux.selectedPivots,
-        args.from,
-        args.to,
-        args.direction);
-  },
-
-  changePivotTableSlicePivotOrder(
-      state: StateDraft,
-      args: {from: number, to: number, direction: DropDirection}) {
-    moveElement(
-        state.nonSerializableState.pivotTableRedux.selectedSlicePivots,
         args.from,
         args.to,
         args.direction);
