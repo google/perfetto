@@ -170,8 +170,9 @@ if (enable_perfetto_trace_processor_sqlite) {
       "importers/proto:minimal",
       "importers/systrace:full",
       "metrics",
+      "prelude/functions",
+      "prelude/operators",
       "sqlite",
-      "sqlite/functions",
       "stdlib:gen_amalgamated_stdlib",
       "storage",
       "tables",
@@ -274,10 +275,8 @@ perfetto_unittest_source_set("unittests") {
     "importers/systrace:unittests",
     "rpc:unittests",
     "sorter:unittests",
-    "sqlite/functions:unittests",
     "tables:unittests",
     "types:unittests",
-    "util:descriptors",
     "util:unittests",
     "views:unittests",
   ]
@@ -287,6 +286,8 @@ perfetto_unittest_source_set("unittests") {
   if (enable_perfetto_trace_processor_sqlite) {
     deps += [
       "dynamic:unittests",
+      "prelude/functions:unittests",
+      "prelude/operators:unittests",
       "sqlite:unittests",
     ]
   }

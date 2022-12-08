@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SQLITE_SPAN_JOIN_OPERATOR_TABLE_H_
-#define SRC_TRACE_PROCESSOR_SQLITE_SPAN_JOIN_OPERATOR_TABLE_H_
+#ifndef SRC_TRACE_PROCESSOR_PRELUDE_OPERATORS_SPAN_JOIN_OPERATOR_H_
+#define SRC_TRACE_PROCESSOR_PRELUDE_OPERATORS_SPAN_JOIN_OPERATOR_H_
 
 #include <sqlite3.h>
 
@@ -456,4 +456,4 @@ class SpanJoinOperatorTable : public SqliteTable {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SQLITE_SPAN_JOIN_OPERATOR_TABLE_H_
+#endif  // SRC_TRACE_PROCESSOR_PRELUDE_OPERATORS_SPAN_JOIN_OPERATOR_H_
