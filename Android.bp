@@ -9892,6 +9892,7 @@ genrule {
     name: "perfetto_src_trace_processor_stdlib_gen_amalgamated_stdlib",
     srcs: [
         "src/trace_processor/stdlib/android/binder.sql",
+        "src/trace_processor/stdlib/chrome/cpu_powerups.sql",
         "src/trace_processor/stdlib/common/metadata.sql",
         "src/trace_processor/stdlib/experimental/android_broadcast.sql",
     ],
