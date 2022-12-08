@@ -235,6 +235,54 @@ TEST(ExperimentalSliceLayoutGeneratorTest, MultipleTracksWithGap) {
 )");
 }
 
+TEST(ExperimentalSliceLayoutGeneratorTest, PreviousGroupFullyNested) {
+  StringPool pool;
+  tables::SliceTable slice_table(&pool, nullptr);
+  StringId name = pool.InternString("Slice");
+
+  // This test ensures that our bounding box logic works when the bounding box
+  // of an earlier group is nested inside bounding box of a later group.
+  // In that case, we should still layout in a way which avoids overlaps.
+
+  // Group 1 exists just to create push group 2 down one row.
+  auto a = Insert(&slice_table, 0 /*ts*/, 1 /*dur*/, 1 /*track_id*/, name,
+                  base::nullopt);
+  base::ignore_result(a);
+
+  // Group 2 has a depth of 2 so it theoretically "nests" inside a group of
+  // depth 4.
+  auto c = Insert(&slice_table, 0 /*ts*/, 10 /*dur*/, 2 /*track_id*/, name,
+                  base::nullopt);
+  auto d = Insert(&slice_table, 0 /*ts*/, 9 /*dur*/, 2 /*track_id*/, name, c);
+  base::ignore_result(d);
+
+  // Group 3 has a depth of 4 so it could cause group 2 to "nest" if our
+  // layout algorithm did not work correctly.
+  auto p = Insert(&slice_table, 3 /*ts*/, 4 /*dur*/, 3 /*track_id*/, name,
+                  base::nullopt);
+  auto q = Insert(&slice_table, 3 /*ts*/, 3 /*dur*/, 3 /*track_id*/, name, p);
+  auto r = Insert(&slice_table, 3 /*ts*/, 2 /*dur*/, 3 /*track_id*/, name, q);
+  auto s = Insert(&slice_table, 3 /*ts*/, 1 /*dur*/, 3 /*track_id*/, name, r);
+  base::ignore_result(s);
+
+  ExperimentalSliceLayoutGenerator gen(&pool, &slice_table);
+
+  std::unique_ptr<Table> table;
+  auto status = gen.ComputeTable(
+      {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1,2,3")}}, {},
+      BitVector(), table);
+  EXPECT_TRUE(status.ok());
+  ExpectOutput(*table, R"(
+#
+##########
+#########
+   ####
+   ###
+   ##
+   #
+)");
+}
+
 TEST(ExperimentalSliceLayoutGeneratorTest, FilterOutTracks) {
   StringPool pool;
   tables::SliceTable slice_table(&pool, nullptr);
