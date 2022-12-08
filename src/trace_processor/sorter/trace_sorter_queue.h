@@ -37,14 +37,6 @@ static constexpr uint32_t kDefaultSize = 1 * 1024 * 1024;  // 1MB
 // Used for storing the data for all different packet data types.
 class VariadicQueue {
  public:
-  // Returned by |Append| and should be passed |Evict| to extract the
-  // stored state from the queue.
-  struct ValueReference {
-    uint32_t offset;
-    bool blob_compressed;
-    bool seq_compressed;
-  };
-
   VariadicQueue() : VariadicQueue(kDefaultSize) {}
   ~VariadicQueue() {
     // These checks verify that we evicted all elements from this queue. This is
@@ -63,7 +55,7 @@ class VariadicQueue {
 
   // Moves packet data type to the end of the queue storage.
   template <typename T>
-  ValueReference Append(T value) {
+  uint32_t Append(T value) {
     PERFETTO_DCHECK(!mem_blocks_.empty());
 
     uint64_t size = Block::AppendSize<T>(value);
@@ -72,16 +64,16 @@ class VariadicQueue {
     }
     auto& back_block = mem_blocks_.back();
     PERFETTO_DCHECK(back_block.HasSpace(size));
-    return GlobalRefFromLastBlockRef(back_block.Append(std::move(value)));
+    return GlobalMemOffsetFromLastBlockOffset(
+        back_block.Append(std::move(value)));
   }
 
   // Moves object out of queue storage.
   template <typename T>
-  T Evict(ValueReference ref) {
-    uint32_t block = (ref.offset / block_size_) - deleted_blocks_;
-    uint32_t block_offset = ref.offset % block_size_;
-    return mem_blocks_[block].Evict<T>(block_offset, ref.blob_compressed,
-                                       ref.seq_compressed);
+  T Evict(uint32_t global_offset) {
+    uint32_t block = (global_offset / block_size_) - deleted_blocks_;
+    uint32_t block_offset = global_offset % block_size_;
+    return mem_blocks_[block].Evict<T>(block_offset);
   }
 
   // Clears the empty front of queue storage.
@@ -115,7 +107,7 @@ class VariadicQueue {
     bool HasSpace(uint64_t size) const { return size <= size_ - offset_; }
 
     template <typename T>
-    ValueReference Append(T value) {
+    uint32_t Append(T value) {
       static_assert(alignof(T) <= 8,
                     "Class must have at most 8 byte alignment");
       PERFETTO_DCHECK(offset_ % 8 == 0);
@@ -123,27 +115,21 @@ class VariadicQueue {
 
       char* storage_begin_ptr = reinterpret_cast<char*>(storage_.get());
       char* ptr = storage_begin_ptr + offset_;
+
 #if PERFETTO_DCHECK_IS_ON()
       ptr = AppendUnchecked(ptr, TypedMemoryAccessor<T>::AppendSize(value));
 #endif
-
-      auto tbv = TypedMemoryAccessor<T>::GetTraceBlobView(value);
-      auto seq_state = TypedMemoryAccessor<T>::GetSequenceState(value);
-      AppendOptions options =
-          CreateAppendOptions(&ptr, std::move(tbv), seq_state);
-
-      ptr = TypedMemoryAccessor<T>::Append(ptr, std::move(value), options);
+      ptr = TypedMemoryAccessor<T>::Append(ptr, std::move(value));
       num_elements_++;
 
       auto cur_offset = offset_;
       offset_ = static_cast<uint32_t>(base::AlignUp<8>(static_cast<uint32_t>(
           ptr - reinterpret_cast<char*>(storage_.get()))));
-      return ValueReference{cur_offset, options.skip_trace_blob_view,
-                            options.skip_sequence_state};
+      return cur_offset;
     }
 
     template <typename T>
-    T Evict(uint32_t offset, bool blob_compressed, bool seq_compressed) {
+    T Evict(uint32_t offset) {
       PERFETTO_DCHECK(offset < size_);
       PERFETTO_DCHECK(offset % 8 == 0);
 
@@ -152,10 +138,7 @@ class VariadicQueue {
 #if PERFETTO_DCHECK_IS_ON()
       size = EvictUnchecked<uint64_t>(&ptr);
 #endif
-
-      EvictSkippedFields fields =
-          CreateEvictSkippedFields(&ptr, blob_compressed, seq_compressed);
-      T value = TypedMemoryAccessor<T>::Evict(ptr, std::move(fields));
+      T value = TypedMemoryAccessor<T>::Evict(ptr);
       PERFETTO_DCHECK(size == TypedMemoryAccessor<T>::AppendSize(value));
       num_elements_evicted_++;
       return value;
@@ -177,160 +160,12 @@ class VariadicQueue {
     bool empty() const { return num_elements_ == num_elements_evicted_; }
 
    private:
-    struct CompressionDescriptor {
-     public:
-      // Most rightmost 28 bits are used to store lenght, next are 28 bits for
-      // offset and the left 8 bits are for index.
-      // [2b - blob index][6b - sequence index][28b - length][28b - offset]
-      static constexpr uint8_t kBitsForOffset = 28;
-      static constexpr uint8_t kBitsForLength = 28;
-      static constexpr uint8_t kBitsForSequenceIndex = 6;
-      static constexpr uint8_t kBitsForBlobIndex = 2;
-      static constexpr uint8_t kBitsTotal = kBitsForBlobIndex +
-                                            kBitsForSequenceIndex +
-                                            kBitsForOffset + kBitsForLength;
-
-      static constexpr uint8_t kOffsetShift = 0;
-      static constexpr uint8_t kLengthShift = kOffsetShift + kBitsForOffset;
-      static constexpr uint8_t kSequenceIndexShift =
-          kLengthShift + kBitsForLength;
-      static constexpr uint8_t kBlobIndexShift =
-          kSequenceIndexShift + kBitsForSequenceIndex;
-
-      CompressionDescriptor(uint8_t blob_index,
-                            uint8_t seq_index,
-                            uint32_t offset,
-                            uint32_t length)
-          : packed_(ComputePacked(blob_index, seq_index, offset, length)) {}
-
-      uint8_t blob_index() const {
-        return ExtractFromPacked<uint8_t>(kBitsForBlobIndex, kBlobIndexShift);
-      }
-      uint8_t seq_index() const {
-        return ExtractFromPacked<uint8_t>(kBitsForSequenceIndex,
-                                          kSequenceIndexShift);
-      }
-      uint32_t length() const {
-        return ExtractFromPacked<uint32_t>(kBitsForLength, kLengthShift);
-      }
-      uint32_t offset() const {
-        return ExtractFromPacked<uint32_t>(kBitsForOffset, kOffsetShift);
-      }
-
-     private:
-      static uint64_t ComputePacked(uint8_t blob_index,
-                                    uint8_t seq_index,
-                                    uint32_t offset,
-                                    uint32_t length) {
-        static_assert(kBitsTotal == 64, "Wrong bitpacking sizes.");
-
-        PERFETTO_DCHECK(FitsInBits(blob_index, kBitsForBlobIndex));
-        PERFETTO_DCHECK(FitsInBits(seq_index, kBitsForSequenceIndex));
-        PERFETTO_DCHECK(FitsInBits(offset, kBitsForOffset));
-        PERFETTO_DCHECK(FitsInBits(length, kBitsForLength));
-
-        uint64_t packed = 0;
-        packed |= static_cast<uint64_t>(blob_index) << kBlobIndexShift;
-        packed |= static_cast<uint64_t>(seq_index) << kSequenceIndexShift;
-        packed |= static_cast<uint64_t>(offset) << kOffsetShift;
-        packed |= static_cast<uint64_t>(length) << kLengthShift;
-        return packed;
-      }
-
-      template <typename T>
-      T ExtractFromPacked(uint8_t bits, uint8_t shift) const {
-        return static_cast<T>(packed_ >> shift & ((1ull << bits) - 1));
-      }
-
-      static bool FitsInBits(uint64_t value, uint8_t bits) {
-        PERFETTO_DCHECK(bits > 0);
-        return value < (1ull << bits);
-      }
-
-      uint64_t packed_ = 0;
-    };
-
-    static constexpr uint8_t kMaxBlobVectorSize =
-        1 << CompressionDescriptor::kBitsForBlobIndex;
-    static constexpr uint8_t kMaxSequenceVectorSize =
-        1 << CompressionDescriptor::kBitsForSequenceIndex;
-
-    AppendOptions CreateAppendOptions(
-        char** ptr,
-        base::Optional<TraceBlobView> tbv,
-        base::Optional<RefPtr<PacketSequenceStateGeneration>> seq_state) {
-      base::Optional<uint8_t> blob_idx =
-          tbv ? FindBlobIndex(tbv->blob()) : base::nullopt;
-      base::Optional<uint8_t> seq_index =
-          seq_state ? FindSequenceIndex(*seq_state) : base::nullopt;
-      if (blob_idx || seq_index) {
-        uint32_t tbv_offset = tbv ? tbv->offset() : 0;
-        uint32_t tbv_length = tbv ? tbv->length() : 0;
-        CompressionDescriptor descriptor(blob_idx.value_or(0),
-                                         seq_index.value_or(0), tbv_offset,
-                                         tbv_length);
-        *ptr =
-            AppendUnchecked<CompressionDescriptor>(*ptr, std::move(descriptor));
-      }
-      return AppendOptions{blob_idx.has_value(), seq_index.has_value()};
-    }
-
-    EvictSkippedFields CreateEvictSkippedFields(char** ptr,
-                                                bool blob_compressed,
-                                                bool seq_compressed) {
-      base::Optional<CompressionDescriptor> compression_descriptor;
-      if (blob_compressed || seq_compressed) {
-        compression_descriptor = EvictUnchecked<CompressionDescriptor>(ptr);
-      }
-
-      EvictSkippedFields fields;
-      if (blob_compressed) {
-        RefPtr<TraceBlob> blob = blobs_[compression_descriptor->blob_index()];
-        fields.skipped_trace_blob_view =
-            TraceBlobView(blob, compression_descriptor->offset(),
-                          compression_descriptor->length());
-      }
-      if (seq_compressed) {
-        fields.skipped_sequence_state =
-            sequences_[compression_descriptor->seq_index()];
-      }
-      return fields;
-    }
-
-    base::Optional<uint8_t> FindBlobIndex(const RefPtr<TraceBlob>& tb) {
-      if (!blobs_.empty() && blobs_.back() == tb) {
-        return static_cast<uint8_t>(blobs_.size() - 1);
-      }
-      if (blobs_.size() >= decltype(blobs_)::kInlineSize) {
-        return base::nullopt;
-      }
-      blobs_.emplace_back(tb);
-      return static_cast<uint8_t>(blobs_.size() - 1);
-    }
-
-    base::Optional<uint8_t> FindSequenceIndex(
-        const RefPtr<PacketSequenceStateGeneration>& seq) {
-      auto it = std::find(sequences_.begin(), sequences_.end(), seq);
-      if (it != sequences_.end()) {
-        return static_cast<uint8_t>(std::distance(sequences_.begin(), it));
-      }
-      if (sequences_.size() >= decltype(sequences_)::kInlineSize) {
-        return base::nullopt;
-      }
-      sequences_.emplace_back(seq);
-      return static_cast<uint8_t>(sequences_.size() - 1);
-    }
-
     uint32_t size_;
     uint32_t offset_ = 0;
 
     uint32_t num_elements_ = 0;
     uint32_t num_elements_evicted_ = 0;
 
-    base::SmallVector<RefPtr<TraceBlob>, kMaxBlobVectorSize> blobs_;
-    base::SmallVector<RefPtr<PacketSequenceStateGeneration>,
-                      kMaxSequenceVectorSize>
-        sequences_;
     base::AlignedUniquePtr<uint64_t> storage_;
   };
 
@@ -342,12 +177,6 @@ class VariadicQueue {
     return (deleted_blocks_ + static_cast<uint32_t>(mem_blocks_.size()) - 1) *
                block_size_ +
            block_offset;
-  }
-
-  ValueReference GlobalRefFromLastBlockRef(ValueReference ref) const {
-    uint32_t global_offset = GlobalMemOffsetFromLastBlockOffset(ref.offset);
-    return ValueReference{global_offset, ref.blob_compressed,
-                          ref.seq_compressed};
   }
 
   std::deque<Block> mem_blocks_;
