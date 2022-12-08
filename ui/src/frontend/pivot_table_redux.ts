@@ -505,14 +505,9 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         state.queryResult,
         renderedRows);
 
-    const selectedPivots = new Set([
-      ...this.pivotState.selectedPivots,
-      ...this.pivotState.selectedSlicePivots,
-    ].map((pivot) => columnKey(pivot)));
+    const selectedPivots =
+        new Set(this.pivotState.selectedPivots.map(columnKey));
     const pivotTableHeaders = state.selectedPivots.map(
-        (pivot) =>
-            this.renderPivotColumnHeader(queryResult, pivot, selectedPivots));
-    const slicePivotTableHeaders = state.selectedSlicePivots.map(
         (pivot) =>
             this.renderPivotColumnHeader(queryResult, pivot, selectedPivots));
 
@@ -539,16 +534,6 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
                 globals.dispatch(Actions.setPivotTableQueryRequested(
                     {queryRequested: true}));
               },
-            }),
-            m(ReorderableCellGroup, {
-              cells: slicePivotTableHeaders,
-              onReorder:
-                  (from: number, to: number, direction: DropDirection) => {
-                    globals.dispatch(Actions.changePivotTableSlicePivotOrder(
-                        {from, to, direction}));
-                    globals.dispatch(Actions.setPivotTableQueryRequested(
-                        {queryRequested: true}));
-                  },
             }),
             m(ReorderableCellGroup, {
               cells: aggregationTableHeaders,
