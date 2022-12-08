@@ -52,9 +52,8 @@ enum Pan {
   Right = 1
 }
 function keyToPan(e: KeyboardEvent): Pan {
-  const key = e.key.toLowerCase();
-  if (['a'].includes(key)) return Pan.Left;
-  if (['d', 'e'].includes(key)) return Pan.Right;
+  if (e.code == "KeyA") return Pan.Left;
+  if (e.code == "KeyD") return Pan.Right;
   return Pan.None;
 }
 
@@ -64,9 +63,8 @@ enum Zoom {
   Out = -1
 }
 function keyToZoom(e: KeyboardEvent): Zoom {
-  const key = e.key.toLowerCase();
-  if (['w', ','].includes(key)) return Zoom.In;
-  if (['s', 'o'].includes(key)) return Zoom.Out;
+  if (e.code == "KeyW") return Zoom.In;
+  if (e.code == "KeyS") return Zoom.Out;
   return Zoom.None;
 }
 
