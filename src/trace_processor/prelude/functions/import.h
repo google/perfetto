@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_IMPORT_H_
-#define SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_IMPORT_H_
+#ifndef SRC_TRACE_PROCESSOR_PRELUDE_FUNCTIONS_IMPORT_H_
+#define SRC_TRACE_PROCESSOR_PRELUDE_FUNCTIONS_IMPORT_H_
 
 #include <sqlite3.h>
 #include <string>
@@ -23,7 +23,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/sqlite/functions/register_function.h"
+#include "src/trace_processor/prelude/functions/register_function.h"
 #include "src/trace_processor/util/sql_modules.h"
 
 namespace perfetto {
@@ -48,4 +48,4 @@ struct Import : public SqlFunction {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_IMPORT_H_
+#endif  // SRC_TRACE_PROCESSOR_PRELUDE_FUNCTIONS_IMPORT_H_
