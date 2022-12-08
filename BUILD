@@ -1734,6 +1734,40 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/prelude/functions:functions
+perfetto_filegroup(
+    name = "src_trace_processor_prelude_functions_functions",
+    srcs = [
+        "src/trace_processor/prelude/functions/create_function.cc",
+        "src/trace_processor/prelude/functions/create_function.h",
+        "src/trace_processor/prelude/functions/create_function_internal.cc",
+        "src/trace_processor/prelude/functions/create_function_internal.h",
+        "src/trace_processor/prelude/functions/create_view_function.cc",
+        "src/trace_processor/prelude/functions/create_view_function.h",
+        "src/trace_processor/prelude/functions/import.cc",
+        "src/trace_processor/prelude/functions/import.h",
+        "src/trace_processor/prelude/functions/pprof_functions.cc",
+        "src/trace_processor/prelude/functions/pprof_functions.h",
+        "src/trace_processor/prelude/functions/register_function.cc",
+        "src/trace_processor/prelude/functions/register_function.h",
+        "src/trace_processor/prelude/functions/sqlite3_str_split.cc",
+        "src/trace_processor/prelude/functions/sqlite3_str_split.h",
+        "src/trace_processor/prelude/functions/utils.h",
+        "src/trace_processor/prelude/functions/window_functions.h",
+    ],
+)
+
+# GN target: //src/trace_processor/prelude/operators:operators
+perfetto_filegroup(
+    name = "src_trace_processor_prelude_operators_operators",
+    srcs = [
+        "src/trace_processor/prelude/operators/span_join_operator.cc",
+        "src/trace_processor/prelude/operators/span_join_operator.h",
+        "src/trace_processor/prelude/operators/window_operator.cc",
+        "src/trace_processor/prelude/operators/window_operator.h",
+    ],
+)
+
 # GN target: //src/trace_processor/rpc:httpd
 perfetto_filegroup(
     name = "src_trace_processor_rpc_httpd",
@@ -1765,29 +1799,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/sqlite/functions:functions
-perfetto_filegroup(
-    name = "src_trace_processor_sqlite_functions_functions",
-    srcs = [
-        "src/trace_processor/sqlite/functions/create_function.cc",
-        "src/trace_processor/sqlite/functions/create_function.h",
-        "src/trace_processor/sqlite/functions/create_function_internal.cc",
-        "src/trace_processor/sqlite/functions/create_function_internal.h",
-        "src/trace_processor/sqlite/functions/create_view_function.cc",
-        "src/trace_processor/sqlite/functions/create_view_function.h",
-        "src/trace_processor/sqlite/functions/import.cc",
-        "src/trace_processor/sqlite/functions/import.h",
-        "src/trace_processor/sqlite/functions/pprof_functions.cc",
-        "src/trace_processor/sqlite/functions/pprof_functions.h",
-        "src/trace_processor/sqlite/functions/register_function.cc",
-        "src/trace_processor/sqlite/functions/register_function.h",
-        "src/trace_processor/sqlite/functions/sqlite3_str_split.cc",
-        "src/trace_processor/sqlite/functions/sqlite3_str_split.h",
-        "src/trace_processor/sqlite/functions/utils.h",
-        "src/trace_processor/sqlite/functions/window_functions.h",
-    ],
-)
-
 # GN target: //src/trace_processor/sqlite:sqlite
 perfetto_filegroup(
     name = "src_trace_processor_sqlite_sqlite",
@@ -1795,8 +1806,6 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/db_sqlite_table.cc",
         "src/trace_processor/sqlite/db_sqlite_table.h",
         "src/trace_processor/sqlite/query_cache.h",
-        "src/trace_processor/sqlite/span_join_operator_table.cc",
-        "src/trace_processor/sqlite/span_join_operator_table.h",
         "src/trace_processor/sqlite/sql_stats_table.cc",
         "src/trace_processor/sqlite/sql_stats_table.h",
         "src/trace_processor/sqlite/sqlite_raw_table.cc",
@@ -1805,8 +1814,6 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/sqlite_utils.h",
         "src/trace_processor/sqlite/stats_table.cc",
         "src/trace_processor/sqlite/stats_table.h",
-        "src/trace_processor/sqlite/window_operator_table.cc",
-        "src/trace_processor/sqlite/window_operator_table.h",
     ],
 )
 
@@ -4525,8 +4532,9 @@ perfetto_cc_library(
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
+        ":src_trace_processor_prelude_functions_functions",
+        ":src_trace_processor_prelude_operators_operators",
         ":src_trace_processor_sorter_sorter",
-        ":src_trace_processor_sqlite_functions_functions",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_sqlite_sqlite_minimal",
         ":src_trace_processor_storage_minimal",
@@ -4672,10 +4680,11 @@ perfetto_cc_binary(
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
+        ":src_trace_processor_prelude_functions_functions",
+        ":src_trace_processor_prelude_operators_operators",
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_sorter_sorter",
-        ":src_trace_processor_sqlite_functions_functions",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_sqlite_sqlite_minimal",
         ":src_trace_processor_storage_minimal",
@@ -4878,8 +4887,9 @@ perfetto_cc_binary(
         ":src_trace_processor_lib",
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
+        ":src_trace_processor_prelude_functions_functions",
+        ":src_trace_processor_prelude_operators_operators",
         ":src_trace_processor_sorter_sorter",
-        ":src_trace_processor_sqlite_functions_functions",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_sqlite_sqlite_minimal",
         ":src_trace_processor_storage_minimal",

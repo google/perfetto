@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_WINDOW_FUNCTIONS_H_
-#define SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_WINDOW_FUNCTIONS_H_
+#ifndef SRC_TRACE_PROCESSOR_PRELUDE_FUNCTIONS_WINDOW_FUNCTIONS_H_
+#define SRC_TRACE_PROCESSOR_PRELUDE_FUNCTIONS_WINDOW_FUNCTIONS_H_
 
 #include <sqlite3.h>
 #include <unordered_map>
@@ -25,10 +25,10 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/export_json.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
-#include "src/trace_processor/sqlite/functions/create_function_internal.h"
+#include "src/trace_processor/prelude/functions/create_function_internal.h"
 #include "src/trace_processor/util/status_macros.h"
 
-#include "src/trace_processor/sqlite/functions/register_function.h"
+#include "src/trace_processor/prelude/functions/register_function.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -153,4 +153,4 @@ inline void RegisterLastNonNullFunction(sqlite3* db) {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SQLITE_FUNCTIONS_WINDOW_FUNCTIONS_H_
+#endif  // SRC_TRACE_PROCESSOR_PRELUDE_FUNCTIONS_WINDOW_FUNCTIONS_H_

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/sqlite/span_join_operator_table.h"
+#include "src/trace_processor/prelude/operators/span_join_operator.h"
 
 #include "test/gtest_and_gmock.h"
 

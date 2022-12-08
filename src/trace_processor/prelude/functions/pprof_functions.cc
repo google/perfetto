@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/sqlite/functions/pprof_functions.h"
+#include "src/trace_processor/prelude/functions/pprof_functions.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
