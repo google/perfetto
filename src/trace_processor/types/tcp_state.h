@@ -26,6 +26,8 @@ constexpr int kAfNet = 2;
 constexpr int kAfNet6 = 10;
 // Sock TCP protocol Definition, from include/uapi/linux/in.h.
 constexpr int kIpprotoTcp = 6;
+// Sock UDP protocol Definition, from include/uapi/linux/in.h.
+constexpr int kIpprotoUdp = 17;
 // Skb IPV4 Protocol Definition, from include/uapi/linux/if_ether.h.
 constexpr int kEthPIp = 0x800;
 // Skb IPV6 Protocol Definition, from include/uapi/linux/if_ether.h.
