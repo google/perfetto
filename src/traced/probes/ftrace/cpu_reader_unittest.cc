@@ -1319,8 +1319,7 @@ TEST(CpuReaderTest, SysExitEvent) {
   const auto& event = a->event()[0].sys_exit();
   EXPECT_EQ(event.id(), syscall_id);
   EXPECT_EQ(event.ret(), kFd);
-  const auto& known_fds = metadata.fds[kPid];
-  EXPECT_THAT(known_fds, Contains(kFd));
+  EXPECT_THAT(metadata.fds, Contains(std::make_pair(kPid, kFd)));
 }
 
 TEST(CpuReaderTest, TaskRenameEvent) {
