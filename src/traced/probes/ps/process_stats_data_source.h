@@ -62,7 +62,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   void WriteAllProcesses();
   void OnPids(const base::FlatSet<int32_t>& pids);
   void OnRenamePids(const base::FlatSet<int32_t>& pids);
-  void OnFds(const std::unordered_map<pid_t, base::FlatSet<uint64_t>>& fds);
+  void OnFds(const base::FlatSet<std::pair<pid_t, uint64_t>>& fds);
 
   // ProbesDataSource implementation.
   void Start() override;
