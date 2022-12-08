@@ -150,7 +150,7 @@ struct FtraceMetadata {
   base::FlatSet<int32_t> rename_pids;
   base::FlatSet<int32_t> pids;
   base::FlatSet<KernelAddr> kernel_addrs;
-  std::unordered_map<pid_t, base::FlatSet<uint64_t>> fds;
+  base::FlatSet<std::pair<pid_t, uint64_t>> fds;
 
   // This bitmap is a cache for |pids|. It speculates on the fact that on most
   // Android kernels, PID_MAX=32768. It saves ~1-2% cpu time on high load

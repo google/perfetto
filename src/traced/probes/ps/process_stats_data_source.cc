@@ -211,12 +211,16 @@ void ProcessStatsDataSource::OnRenamePids(const base::FlatSet<int32_t>& pids) {
 }
 
 void ProcessStatsDataSource::OnFds(
-    const std::unordered_map<pid_t, base::FlatSet<uint64_t>>& fds) {
+    const base::FlatSet<std::pair<pid_t, uint64_t>>& fds) {
   if (!resolve_process_fds_)
     return;
 
-  for (const auto& pid_fds : fds) {
-    auto it = seen_pids_.find(pid_fds.first);
+  pid_t last_pid = 0;
+  for (const auto& tid_fd : fds) {
+    const auto tid = tid_fd.first;
+    const auto fd = tid_fd.second;
+
+    auto it = seen_pids_.find(tid);
     if (it == seen_pids_.end()) {
       // TID is not known yet, skip resolving the fd and let the
       // periodic stats scanner resolve the fd together with its TID later
@@ -224,10 +228,11 @@ void ProcessStatsDataSource::OnFds(
     }
     const auto pid = it->tgid;
 
-    cur_ps_stats_process_ = nullptr;
-    for (const auto fd : pid_fds.second) {
-      WriteSingleFd(pid, fd);
+    if (last_pid != pid) {
+      cur_ps_stats_process_ = nullptr;
+      last_pid = pid;
     }
+    WriteSingleFd(pid, fd);
   }
   FinalizeCurPacket();
 }
