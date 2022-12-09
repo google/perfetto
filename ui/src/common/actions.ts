@@ -24,9 +24,13 @@ import {
   tableColumnEquals,
   toggleEnabled,
 } from '../frontend/pivot_table_redux_types';
-import {DropDirection} from '../frontend/reorderable_cells';
 
 import {randomColor} from './colorizer';
+import {
+  computeIntervals,
+  DropDirection,
+  performReordering,
+} from './dragndrop_logic';
 import {createEmptyState} from './empty_state';
 import {DEFAULT_VIEWING_OPTION, PERF_SAMPLES_KEY} from './flamegraph_util';
 import {traceEventBegin, traceEventEnd, TraceEventScope} from './metatracing';
@@ -1078,11 +1082,16 @@ export const StateActions = {
   },
 
   setPivotTableSortColumn(
-      state: StateDraft, args: {column: TableColumn, order: SortDirection}) {
-    state.nonSerializableState.pivotTableRedux.sortCriteria = {
-      column: args.column,
-      order: args.order,
-    };
+      state: StateDraft,
+      args: {aggregationIndex: number, order: SortDirection}) {
+    state.nonSerializableState.pivotTableRedux.selectedAggregations =
+        state.nonSerializableState.pivotTableRedux.selectedAggregations.map(
+            (agg, index) => ({
+              column: agg.column,
+              aggregationFunction: agg.aggregationFunction,
+              sortDirection: (index === args.aggregationIndex) ? args.order :
+                                                                 undefined,
+            }));
   },
 
   addVisualisedArg(state: StateDraft, args: {argName: string}) {
@@ -1105,21 +1114,23 @@ export const StateActions = {
   changePivotTablePivotOrder(
       state: StateDraft,
       args: {from: number, to: number, direction: DropDirection}) {
-    moveElement(
-        state.nonSerializableState.pivotTableRedux.selectedPivots,
-        args.from,
-        args.to,
-        args.direction);
+    const pivots = state.nonSerializableState.pivotTableRedux.selectedPivots;
+    state.nonSerializableState.pivotTableRedux.selectedPivots =
+        performReordering(
+            computeIntervals(pivots.length, args.from, args.to, args.direction),
+            pivots);
   },
 
   changePivotTableAggregationOrder(
       state: StateDraft,
       args: {from: number, to: number, direction: DropDirection}) {
-    moveElement(
-        state.nonSerializableState.pivotTableRedux.selectedAggregations,
-        args.from,
-        args.to,
-        args.direction);
+    const aggregations =
+        state.nonSerializableState.pivotTableRedux.selectedAggregations;
+    state.nonSerializableState.pivotTableRedux.selectedAggregations =
+        performReordering(
+            computeIntervals(
+                aggregations.length, args.from, args.to, args.direction),
+            aggregations);
   },
 
   setMinimumLogLevel(state: StateDraft, args: {minimumLevel: number}) {
@@ -1146,22 +1157,6 @@ export const StateActions = {
         !state.logFilteringCriteria.hideNonMatching;
   },
 };
-
-// Move element at `from` index to `direction` of `to` element.
-// Implements logic for reordering table columns via drag'n'drop.
-function moveElement<T>(
-    array: Draft<T[]>, from: number, to: number, direction: DropDirection) {
-  // New location of the "to" element: would be shifted by minus one if "from"
-  // element comes before it.
-  const newTo = to - ((from < to) ? 1 : 0);
-
-  // The resulting index where the "from" element has to be spliced in to.
-  const insertionPoint = newTo + ((direction === 'right') ? 1 : 0);
-
-  const fromElement = array[from];
-  array.splice(from, 1);
-  array.splice(insertionPoint, 0, fromElement);
-}
 
 // When we are on the frontend side, we don't really want to execute the
 // actions above, we just want to serialize them and marshal their
