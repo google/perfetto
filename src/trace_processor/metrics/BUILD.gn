@@ -42,8 +42,8 @@ source_set("metrics") {
     "../../../protos/perfetto/trace_processor:metrics_impl_zero",
     "../../base",
     "../../protozero:protozero",
+    "../prelude/functions",
     "../sqlite",
-    "../sqlite/functions",
   ]
   public_deps = [
     ":gen_cc_all_chrome_metrics_descriptor",

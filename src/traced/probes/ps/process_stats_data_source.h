@@ -62,7 +62,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   void WriteAllProcesses();
   void OnPids(const base::FlatSet<int32_t>& pids);
   void OnRenamePids(const base::FlatSet<int32_t>& pids);
-  void OnFds(const std::unordered_map<pid_t, base::FlatSet<uint64_t>>& fds);
+  void OnFds(const base::FlatSet<std::pair<pid_t, uint64_t>>& fds);
 
   // ProbesDataSource implementation.
   void Start() override;
@@ -164,10 +164,20 @@ class ProcessStatsDataSource : public ProbesDataSource {
   // This set contains PIDs as per the Linux kernel notion of a PID (which is
   // really a TID). In practice this set will contain all TIDs for all processes
   // seen, not just the main thread id (aka thread group ID).
-  base::FlatSet<int32_t> seen_pids_;
+  struct SeenPid {
+    int32_t pid;
+    int32_t tgid;
 
-  // This contains a mapping of tids to their parent pid
-  std::unordered_map<int32_t, int32_t> tids_to_pids_;
+    inline SeenPid(int32_t _pid, int32_t _tgid = 0) : pid(_pid), tgid(_tgid) {}
+    // TODO(rsavitski): add comparator support to FlatSet
+    inline bool operator==(const SeenPid& other) const {
+      return pid == other.pid;
+    }
+    inline bool operator<(const SeenPid& other) const {
+      return pid < other.pid;
+    }
+  };
+  base::FlatSet<SeenPid> seen_pids_;
 
   // Fields for keeping track of the periodic stats/counters.
   uint32_t poll_period_ms_ = 0;

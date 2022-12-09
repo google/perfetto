@@ -21,8 +21,6 @@ source_set("sqlite") {
     "db_sqlite_table.cc",
     "db_sqlite_table.h",
     "query_cache.h",
-    "span_join_operator_table.cc",
-    "span_join_operator_table.h",
     "sql_stats_table.cc",
     "sql_stats_table.h",
     "sqlite_raw_table.cc",
@@ -31,8 +29,6 @@ source_set("sqlite") {
     "sqlite_utils.h",
     "stats_table.cc",
     "stats_table.h",
-    "window_operator_table.cc",
-    "window_operator_table.h",
   ]
   deps = [
     "..:metatrace",
@@ -76,7 +72,6 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "db_sqlite_table_unittest.cc",
     "query_constraints_unittest.cc",
-    "span_join_operator_table_unittest.cc",
     "sqlite_utils_unittest.cc",
   ]
   deps = [
