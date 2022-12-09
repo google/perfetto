@@ -15,9 +15,10 @@
  */
 
 import * as m from 'mithril';
-import {globals} from './globals';
 
-export type DropDirection = 'left'|'right';
+import {DropDirection} from '../common/dragndrop_logic';
+
+import {globals} from './globals';
 
 export interface ReorderableCellGroupAttrs {
   cells: m.Children[];
