@@ -12,13 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("protos") {
-  sources = [
-    "common/builtin_clock.pzc.h",
-    "config/data_source_config.pzc.h",
-    "config/trace_config.pzc.h",
-    "trace/test_event.pzc.h",
-    "trace/trace.pzc.h",
-    "trace/trace_packet.pzc.h",
+import("../../../gn/perfetto.gni")
+
+source_set("utils") {
+  testonly = true
+  deps = [
+    "..:shared_lib",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+    "../../../include/perfetto/public",
   ]
+  sources = [ "utils.cc" ]
+}
+
+if (enable_perfetto_benchmarks) {
+  source_set("benchmarks") {
+    testonly = true
+    deps = [
+      ":utils",
+      "..:shared_lib",
+      "../../../gn:benchmark",
+      "../../../gn:default_deps",
+      "../../../include/perfetto/public",
+    ]
+    sources = [ "benchmark.cc" ]
+  }
 }
