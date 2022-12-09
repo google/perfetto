@@ -664,12 +664,16 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       }
       buf_size_sum += buf.size_kb();
     }
-    if (buf_size_sum > kGuardrailsMaxTracingBufferSizeKb) {
+
+    uint32_t max_tracing_buffer_size_kb =
+        std::max(kGuardrailsMaxTracingBufferSizeKb,
+                 cfg.guardrail_overrides().max_tracing_buffer_size_kb());
+    if (buf_size_sum > max_tracing_buffer_size_kb) {
       MaybeLogUploadEvent(
           cfg, PerfettoStatsdAtom::kTracedEnableTracingBufferSizeTooLarge);
       return PERFETTO_SVC_ERR("Requested too large trace buffer (%" PRIu64
                               "kB  > %" PRIu32 " kB)",
-                              buf_size_sum, kGuardrailsMaxTracingBufferSizeKb);
+                              buf_size_sum, max_tracing_buffer_size_kb);
     }
   }
 

@@ -208,6 +208,10 @@ message TraceConfig {
     // On R-, this override only affected userdebug builds. Since S, it also
     // affects user builds.
     optional uint64 max_upload_per_day_bytes = 1;
+
+    // Overrides the guardrail for maximum trace buffer size.
+    // Available on U+
+    optional uint32 max_tracing_buffer_size_kb = 2;
   }
   optional GuardrailOverrides guardrail_overrides = 11;
 
