@@ -64,6 +64,7 @@ export function createEmptyNonSerializableState(): NonSerializableState {
         {
           aggregationFunction: 'SUM',
           column: {kind: 'regular', table: 'slice', column: 'dur'},
+          sortDirection: 'DESC',
         },
         {
           aggregationFunction: 'SUM',
@@ -74,10 +75,6 @@ export function createEmptyNonSerializableState(): NonSerializableState {
       constrainToArea: true,
       queryRequested: false,
       argumentNames: [],
-      sortCriteria: {
-        column: {kind: 'regular', table: 'slice', column: 'dur'},
-        order: 'DESC',
-      },
     },
   };
 }

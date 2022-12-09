@@ -14,6 +14,7 @@
 
 import {EqualsBuilder} from '../common/comparator_builder';
 import {ColumnType} from '../common/query_result';
+import {SortDirection} from '../common/state';
 
 // Node in the hierarchical pivot tree. Only leaf nodes contain data from the
 // query result.
@@ -81,6 +82,9 @@ export function toggleEnabled<T>(
 export interface Aggregation {
   aggregationFunction: AggregationFunction;
   column: TableColumn;
+
+  // If the aggregation is sorted, the field contains a sorting direction.
+  sortDirection?: SortDirection;
 }
 
 export function aggregationEquals(agg1: Aggregation, agg2: Aggregation) {

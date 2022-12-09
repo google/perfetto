@@ -29,7 +29,6 @@ import {globals} from './globals';
 import {
   Aggregation,
   TableColumn,
-  tableColumnEquals,
 } from './pivot_table_redux_types';
 
 export interface Table {
@@ -153,14 +152,11 @@ export function generateQueryFromState(
 
   const renderedPivots =
       pivots.map((pivot) => `${pivot.table}.${pivot.column}`);
-  const sortCriteria =
-      globals.state.nonSerializableState.pivotTableRedux.sortCriteria;
   const sortClauses: string[] = [];
   for (let i = 0; i < sliceTableAggregations.length; i++) {
-    if (sortCriteria !== undefined &&
-        tableColumnEquals(
-            sliceTableAggregations[i].column, sortCriteria.column)) {
-      sortClauses.push(`${aggregationAlias(i)} ${sortCriteria.order}`);
+    const sortDirection = sliceTableAggregations[i].sortDirection;
+    if (sortDirection !== undefined) {
+      sortClauses.push(`${aggregationAlias(i)} ${sortDirection}`);
     }
   }
 
