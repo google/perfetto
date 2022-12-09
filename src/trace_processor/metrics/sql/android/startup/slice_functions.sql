@@ -47,9 +47,9 @@ WHERE slice.ts BETWEEN launch_threads.ts AND launch_threads.ts + launch_threads.
 -- Given a launch id and GLOB for a slice name, returns columns for matching slices.
 SELECT CREATE_VIEW_FUNCTION(
   'SLICES_FOR_LAUNCH_AND_SLICE_NAME(launch_id INT, slice_name STRING)',
-  'slice_id INT, slice_name STRING, slice_ts INT, slice_dur INT, thread_name STRING, arg_set_id INT, is_main_thread BOOL',
+  'slice_name STRING, slice_ts INT, slice_dur INT, thread_name STRING, arg_set_id INT',
   '
-    SELECT slice_id, slice_name, slice_ts, slice_dur, thread_name, arg_set_id, is_main_thread
+    SELECT slice_name, slice_ts, slice_dur, thread_name, arg_set_id
     FROM thread_slices_for_all_launches
     WHERE launch_id = $launch_id AND slice_name GLOB $slice_name
   '
@@ -194,3 +194,22 @@ SELECT CREATE_VIEW_FUNCTION(
   '
 );
 
+-- Given a launch id, return if unlock is running by systemui during the launch.
+SELECT CREATE_FUNCTION(
+  'IS_UNLOCK_RUNNING_DURING_LAUNCH(launch_id LONG)',
+  'BOOL',
+  '
+    SELECT EXISTS(
+      SELECT slice.name
+      FROM slice, launches
+      INNER JOIN thread_track ON slice.track_id = thread_track.id
+      INNER JOIN thread USING(utid)
+      INNER JOIN process USING(upid)
+      WHERE launches.id = $launch_id
+      AND slice.name = "KeyguardUpdateMonitor#onAuthenticationSucceeded"
+      AND process.name = "com.android.systemui"
+      AND slice.ts >= launches.ts
+      AND (slice.ts + slice.dur) <= launches.ts_end
+    )
+  '
+);
