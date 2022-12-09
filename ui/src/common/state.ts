@@ -448,9 +448,6 @@ export interface PivotTableReduxState {
   // Selected aggregation columns. Stored same way as pivots.
   selectedAggregations: Aggregation[];
 
-  // Present if the result should be sorted, and in which direction.
-  sortCriteria?: {column: TableColumn, order: SortDirection};
-
   // Whether the pivot table results should be constrained to the selected area.
   constrainToArea: boolean;
 
