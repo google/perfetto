@@ -18,6 +18,7 @@ import * as m from 'mithril';
 
 import {sqliteString} from '../base/string_utils';
 import {Actions} from '../common/actions';
+import {DropDirection} from '../common/dragndrop_logic';
 import {COUNT_AGGREGATION} from '../common/empty_state';
 import {ColumnType} from '../common/query_result';
 import {
@@ -49,10 +50,9 @@ import {
   columnKey,
   PivotTree,
   TableColumn,
-  tableColumnEquals,
 } from './pivot_table_redux_types';
 import {PopupMenuButton, PopupMenuItem} from './popup_menu';
-import {DropDirection, ReorderableCellGroup} from './reorderable_cells';
+import {ReorderableCellGroup} from './reorderable_cells';
 
 
 interface PathItem {
@@ -258,12 +258,13 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
     return m('tr', overallValuesRow);
   }
 
-  sortingItem(column: TableColumn, order: SortDirection): PopupMenuItem {
+  sortingItem(aggregationIndex: number, order: SortDirection): PopupMenuItem {
     return {
       itemType: 'regular',
       text: order === 'DESC' ? 'Highest first' : 'Lowest first',
       callback() {
-        globals.dispatch(Actions.setPivotTableSortColumn({column, order}));
+        globals.dispatch(
+            Actions.setPivotTableSortColumn({aggregationIndex, order}));
         globals.dispatch(
             Actions.setPivotTableQueryRequested({queryRequested: true}));
       },
@@ -317,21 +318,19 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
   renderAggregationHeaderCell(
       aggregation: Aggregation, index: number,
       removeItem: boolean): m.Children {
-    const column = aggregation.column;
     const popupItems: PopupMenuItem[] = [];
     const state = globals.state.nonSerializableState.pivotTableRedux;
     let icon = 'more_horiz';
-    if (state.sortCriteria === undefined ||
-        !tableColumnEquals(column, state.sortCriteria.column)) {
+    if (aggregation.sortDirection === undefined) {
       popupItems.push(
-          this.sortingItem(column, 'DESC'), this.sortingItem(column, 'ASC'));
+          this.sortingItem(index, 'DESC'), this.sortingItem(index, 'ASC'));
     } else {
       // Table is already sorted by the same column, return one item with
       // opposite direction.
       popupItems.push(this.sortingItem(
-          column, state.sortCriteria.order === 'DESC' ? 'ASC' : 'DESC'));
-      icon = state.sortCriteria.order === 'DESC' ? 'arrow_drop_down' :
-                                                   'arrow_drop_up';
+          index, aggregation.sortDirection === 'DESC' ? 'ASC' : 'DESC'));
+      icon = aggregation.sortDirection === 'DESC' ? 'arrow_drop_down' :
+                                                    'arrow_drop_up';
     }
     const otherAggs: AggregationFunction[] = ['SUM', 'MAX', 'MIN'];
     if (aggregation.aggregationFunction !== 'COUNT') {

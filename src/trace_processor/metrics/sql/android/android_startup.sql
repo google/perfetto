@@ -426,6 +426,10 @@ SELECT
           FROM BINDER_TRANSACTION_REPLY_SLICES_FOR_LAUNCH(launches.id, 2e7)
         ) > 0
 
+        UNION ALL
+        SELECT 'Unlock running during launch'
+        WHERE IS_UNLOCK_RUNNING_DURING_LAUNCH(launches.id)
+
       )
     )
   ) AS startup
