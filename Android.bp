@@ -9910,6 +9910,7 @@ genrule {
         "src/trace_processor/stdlib/android/binder.sql",
         "src/trace_processor/stdlib/chrome/cpu_powerups.sql",
         "src/trace_processor/stdlib/common/metadata.sql",
+        "src/trace_processor/stdlib/common/parent_slice.sql",
         "src/trace_processor/stdlib/experimental/android_broadcast.sql",
     ],
     cmd: "$(location tools/gen_amalgamated_sql.py) --namespace=stdlib --root-dir=src/trace_processor/stdlib --cpp-out=$(out) $(in)",

@@ -13,13 +13,21 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Extracts an int value with the given name from the metadata table.
+-- Checks if slice has an ancestor with provided name.
 --
--- @arg name STRING The name of the metadata entry.
--- @ret LONG int_value for the given name. NULL if there's no such entry.
+-- @arg id INT              Id of the slice to check parents of.
+-- @arg parent_name STRING  Name of potential ancestor slice.
+-- @ret BOOL                Whether `parent_name` is a name of an ancestor slice.
 SELECT
-    CREATE_FUNCTION(
-        'EXTRACT_INT_METADATA(name STRING)',
-        'LONG',
-        'SELECT int_value FROM metadata WHERE name = ($name)'
+  CREATE_FUNCTION(
+    'HAS_PARENT_SLICE_WITH_NAME(id INT, parent_name STRING)',
+    'BOOL',
+    '
+    SELECT EXISTS(
+      SELECT 1
+      FROM ancestor_slice($id)
+      WHERE name = $parent_name
+      LIMIT 1
     );
+  '
+  );
