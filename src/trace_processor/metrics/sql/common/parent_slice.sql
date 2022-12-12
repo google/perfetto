@@ -14,15 +14,4 @@
 -- limitations under the License.
 --
 
-SELECT CREATE_FUNCTION(
-  'HAS_PARENT_SLICE_WITH_NAME(id INT, parent_name STRING)',
-  'BOOL',
-  '
-    SELECT EXISTS(
-      SELECT 1
-      FROM ancestor_slice($id)
-      WHERE name = $parent_name
-      LIMIT 1
-    );
-  '
-);
+SELECT IMPORT('common.parent_slice');

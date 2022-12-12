@@ -1851,6 +1851,7 @@ perfetto_filegroup(
     name = "src_trace_processor_stdlib_common_common",
     srcs = [
         "src/trace_processor/stdlib/common/metadata.sql",
+        "src/trace_processor/stdlib/common/parent_slice.sql",
     ],
 )
 
