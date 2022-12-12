@@ -38,7 +38,7 @@ PACKAGES_LIST_CFG = '''data_sources {
 CFG_IDENT = '      '
 CFG = '''buffers {{
   size_kb: {size_kb}
-  fill_policy: RING_BUFFER
+  fill_policy: DISCARD
 }}
 
 data_sources {{
@@ -53,6 +53,29 @@ data_sources {{
 
 data_source_stop_timeout_ms: {data_source_stop_timeout_ms}
 duration_ms: {duration_ms}
+'''
+
+OOM_CFG = '''buffers: {{
+    size_kb: {size_kb}
+    fill_policy: DISCARD
+}}
+
+data_sources: {{
+    config {{
+        name: "android.java_hprof.oom"
+    }}
+}}
+
+data_source_stop_timeout_ms: 100000
+
+trigger_config {{
+    trigger_mode: START_TRACING
+    trigger_timeout_ms: {wait_duration_ms}
+    triggers {{
+      name: "com.android.telemetry.art-outofmemory"
+      stop_delay_ms: 500
+    }}
+}}
 '''
 
 CONTINUOUS_DUMP = """
@@ -70,6 +93,7 @@ PERFETTO_CMD = ('CFG=\'{cfg}\'; echo ${{CFG}} | '
 
 SDK = {
     'S': 31,
+    'UpsideDownCake': 34,
 }
 
 
@@ -94,6 +118,75 @@ def convert_size_to_kb(size):
     return int(size[:-2]) * 1024 * 1024
   else:
     return int(size)
+
+def generate_heap_dump_config(args):
+  fail = False
+  if args.pid is None and args.name is None:
+    print("FATAL: Neither PID nor NAME given.", file=sys.stderr)
+    fail = True
+
+  target_cfg = ""
+  if args.pid:
+    for pid in args.pid.split(','):
+      try:
+        pid = int(pid)
+      except ValueError:
+        print("FATAL: invalid PID %s" % pid, file=sys.stderr)
+        fail = True
+      target_cfg += '{}pid: {}\n'.format(CFG_IDENT, pid)
+  if args.name:
+    for name in args.name.split(','):
+      target_cfg += '{}process_cmdline: "{}"\n'.format(CFG_IDENT, name)
+  if args.dump_smaps:
+    target_cfg += '{}dump_smaps: true\n'.format(CFG_IDENT)
+
+  if fail:
+    return None
+
+  continuous_dump_cfg = ""
+  if args.continuous_dump:
+    continuous_dump_cfg = CONTINUOUS_DUMP.format(
+        dump_interval=args.continuous_dump)
+
+  if args.stop_when_done:
+    duration_ms = 1000
+    data_source_stop_timeout_ms = 100000
+  else:
+    duration_ms = 20000
+    data_source_stop_timeout_ms = 0
+
+  return CFG.format(
+      size_kb=convert_size_to_kb(args.buffer_size),
+      target_cfg=target_cfg,
+      continuous_dump_config=continuous_dump_cfg,
+      duration_ms=duration_ms,
+      data_source_stop_timeout_ms=data_source_stop_timeout_ms)
+
+def generate_oom_config(args):
+  if not release_or_newer('UpsideDownCake'):
+    print("FATAL: OOM mode not supported for this android version",
+        file=sys.stderr)
+    return None
+
+  if args.pid or args.name:
+    print("FATAL: Specifying process not supported in OOM mode",
+        file=sys.stderr)
+    return None
+
+  if args.continuous_dump:
+    print("FATAL: Specifying continuous dump not supported in OOM mode",
+        file=sys.stderr)
+    return None
+
+  if args.dump_smaps:
+    print("FATAL: Dumping smaps not supported in OOM mode",
+        file=sys.stderr)
+    return None
+
+  return OOM_CFG.format(
+      size_kb=convert_size_to_kb(args.buffer_size),
+      wait_duration_ms=args.oom_wait_seconds * 1000)
+
 
 def main(argv):
   parser = argparse.ArgumentParser()
@@ -150,68 +243,46 @@ def main(argv):
       action="store_false",
       dest='stop_when_done',
       help="Do not use a new method to stop the profile when the dump is done.")
+  parser.add_argument(
+      "--wait-for-oom",
+      action="store_true",
+      dest='wait_for_oom',
+      help="Starts a tracing session waiting for an OutOfMemoryError to be "
+      "thrown. Available on U.")
+  parser.add_argument(
+      "--oom-wait-seconds",
+      type=int,
+      default=60,
+      help="Seconds to wait for an OutOfMemoryError to be thrown. "
+      "Defaults to 60.")
 
   args = parser.parse_args()
 
   if args.stop_when_done is None:
     args.stop_when_done = release_or_newer('S')
 
-  fail = False
-  if args.pid is None and args.name is None:
-    print("FATAL: Neither PID nor NAME given.", file=sys.stderr)
-    fail = True
+  cfg = None
+  if args.wait_for_oom:
+    cfg = generate_oom_config(args)
+  else:
+    cfg = generate_heap_dump_config(args)
 
-  target_cfg = ""
-  if args.pid:
-    for pid in args.pid.split(','):
-      try:
-        pid = int(pid)
-      except ValueError:
-        print("FATAL: invalid PID %s" % pid, file=sys.stderr)
-        fail = True
-      target_cfg += '{}pid: {}\n'.format(CFG_IDENT, pid)
-  if args.name:
-    for name in args.name.split(','):
-      target_cfg += '{}process_cmdline: "{}"\n'.format(CFG_IDENT, name)
-  if args.dump_smaps:
-    target_cfg += '{}dump_smaps: true\n'.format(CFG_IDENT)
-
-  if fail:
+  if not cfg:
     parser.print_help()
     return 1
 
-  output_file = args.output
-  if output_file is None:
-    fd, name = tempfile.mkstemp('profile')
-    os.close(fd)
-    output_file = name
-
-  size_kb = convert_size_to_kb(args.buffer_size)
-
-  continuous_dump_cfg = ""
-  if args.continuous_dump:
-    continuous_dump_cfg = CONTINUOUS_DUMP.format(
-        dump_interval=args.continuous_dump)
-
-  if args.stop_when_done:
-    duration_ms = 1000
-    data_source_stop_timeout_ms = 100000
-  else:
-    duration_ms = 20000
-    data_source_stop_timeout_ms = 0
-
-  cfg = CFG.format(
-      size_kb=size_kb,
-      target_cfg=target_cfg,
-      continuous_dump_config=continuous_dump_cfg,
-      duration_ms=duration_ms,
-      data_source_stop_timeout_ms=data_source_stop_timeout_ms)
   if not args.no_versions:
     cfg += PACKAGES_LIST_CFG
 
   if args.print_config:
     print(cfg)
     return 0
+
+  output_file = args.output
+  if output_file is None:
+    fd, name = tempfile.mkstemp('profile')
+    os.close(fd)
+    output_file = name
 
   user = subprocess.check_output(['adb', 'shell',
                                   'whoami']).strip().decode('utf8')
@@ -224,9 +295,12 @@ def main(argv):
     print("Failed to invoke perfetto: {}".format(perfetto_pid), file=sys.stderr)
     return 1
 
-  print("Dumping Java Heap.")
-  exists = True
+  if args.wait_for_oom:
+    print("Waiting for OutOfMemoryError")
+  else:
+    print("Dumping Java Heap.")
 
+  exists = True
   # Wait for perfetto cmd to return.
   while exists:
     exists = subprocess.call(
