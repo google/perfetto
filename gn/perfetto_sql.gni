@@ -19,20 +19,21 @@ template("perfetto_sql_source_set") {
     forward_variables_from(invoker, [ "deps" ])
     inputs = invoker.sources
     if (defined(metadata)) {
-      metadata.perfetto_sql_source_files = invoker.sources
+      metadata.perfetto_sql_source_files = inputs
     } else {
       metadata = {
-        perfetto_sql_source_files = invoker.sources
+        perfetto_sql_source_files = inputs
       }
     }
   }
 }
 
 template("perfetto_amalgamated_sql_header") {
+  invoker_target = target_name
   gen_txt_file = "$target_gen_dir/${target_name}.txt"
   gen_depfile = "$target_gen_dir/${target_name}.d"
 
-  generated_file("${target_name}_generated_file") {
+  generated_file("${invoker_target}_generated_file") {
     forward_variables_from(invoker, [ "deps" ])
     outputs = [ gen_txt_file ]
     data_keys = [ "perfetto_sql_source_files" ]
@@ -42,34 +43,54 @@ template("perfetto_amalgamated_sql_header") {
     }
   }
 
-  config("${target_name}_config") {
+  config("${invoker_target}_config") {
     include_dirs = [ "${root_gen_dir}/${perfetto_root_path}" ]
   }
 
-  action(target_name) {
-    deps = [ ":${target_name}_generated_file" ]
+  action(invoker_target) {
+    deps = [ ":${invoker_target}_generated_file" ]
     deps += invoker.deps
 
     depfile = gen_depfile
     script = "$perfetto_root_path/tools/gen_amalgamated_sql.py"
-    generated_header = "${target_gen_dir}/" + invoker.generated_header
+    generated_file = "${target_gen_dir}/" + invoker.generated_header
     args = [
       "--namespace",
       invoker.namespace,
       "--root-dir",
       rebase_path(".", root_build_dir),
       "--cpp-out",
-      rebase_path(generated_header, root_build_dir),
+      rebase_path(generated_file, root_build_dir),
       "--input-list-file",
       rebase_path(gen_txt_file, root_build_dir),
       "--depfile",
       rebase_path(gen_depfile, root_build_dir),
     ]
     inputs = [ gen_txt_file ]
-    outputs = [ generated_header ]
-    public_configs = [ ":${target_name}_config" ]
+    outputs = [ generated_file ]
+    public_configs = [ ":${invoker_target}_config" ]
     metadata = {
       perfetto_action_type_for_generator = [ "sql_amalgamation" ]
     }
+  }
+
+  action("${invoker_target}_json_docs") {
+    deps = [ ":${invoker_target}_generated_file" ]
+    deps += invoker.deps
+
+    script = "$perfetto_root_path/tools/gen_stdlib_docs_json.py"
+    generated_file = "${target_gen_dir}/stdlib_docs.json"
+
+    args = [
+      "--root-dir",
+      rebase_path(".", root_build_dir),
+      "--json-out",
+      rebase_path(generated_file, root_build_dir),
+      "--input-list-file",
+      rebase_path(gen_txt_file, root_build_dir),
+    ]
+    public_configs = [ ":${invoker_target}_config" ]
+    inputs = [ gen_txt_file ]
+    outputs = [ generated_file ]
   }
 }
