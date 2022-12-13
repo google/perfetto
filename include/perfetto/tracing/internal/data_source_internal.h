@@ -179,7 +179,7 @@ struct DataSourceInstanceThreadLocalState {
   BufferId buffer_id = 0;
   uint64_t data_source_instance_id = 0;
   bool is_intercepted = false;
-  bool last_packet_was_empty = false;
+  uint64_t last_empty_packet_position = 0;
   uint16_t startup_target_buffer_reservation = 0;
 };
 
