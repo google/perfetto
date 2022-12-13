@@ -209,17 +209,18 @@ class DataSource : public DataSourceBase {
     // safely read the last event from the trace buffer.
     // See PERFETTO_INTERNAL_ADD_EMPTY_EVENT macros for context.
     void AddEmptyTracePacket() {
-      // Only add a new empty packet if the previous packet wasn't empty.
-      // Otherwise, there's nothing to flush, so adding more empty packets
-      // serves no purpose.
-      if (tls_inst_->last_packet_was_empty)
+      // If nothing was written since the last empty packet, there's nothing to
+      // scrape, so adding more empty packets serves no purpose.
+      if (tls_inst_->trace_writer->written() ==
+          tls_inst_->last_empty_packet_position) {
         return;
-      tls_inst_->last_packet_was_empty = true;
+      }
       tls_inst_->trace_writer->NewTracePacket();
+      tls_inst_->last_empty_packet_position =
+          tls_inst_->trace_writer->written();
     }
 
     TracePacketHandle NewTracePacket() {
-      tls_inst_->last_packet_was_empty = false;
       return tls_inst_->trace_writer->NewTracePacket();
     }
 
