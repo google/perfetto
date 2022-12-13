@@ -153,6 +153,7 @@ class MockFtraceProcfs : public FtraceProcfs {
   MOCK_CONST_METHOD0(NumberOfCpus, size_t());
   MOCK_METHOD1(ReadOneCharFromFile, char(const std::string& path));
   MOCK_METHOD1(ClearFile, bool(const std::string& path));
+  MOCK_METHOD1(IsFileWriteable, bool(const std::string& path));
   MOCK_CONST_METHOD1(ReadFileIntoString, std::string(const std::string& path));
 
   bool is_tracing_on() { return tracing_on_; }
