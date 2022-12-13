@@ -64,7 +64,7 @@ Example of function in module `common`:
 -- Extracts an int value with the given name from the metadata table.
 --
 -- @arg name STRING The name of the metadata entry.
--- @res LONG int_value for the given name. NULL if there's no such entry.
+-- @ret LONG int_value for the given name. NULL if there's no such entry.
 SELECT CREATE_FUNCTION(
     'EXTRACT_INT_METADATA(name STRING)',
     'LONG',
