@@ -20,7 +20,6 @@
 -- @column pid           PID of the process that started the binder transaction.
 -- @column slice_name    Name of the slice with binder transaction.
 -- @column event_count   Number of binder transactions in process in slice.
---
 CREATE VIEW android_binder_metrics_by_process AS
 SELECT
   process.name AS process_name,
