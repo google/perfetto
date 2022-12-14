@@ -461,3 +461,4 @@ trusty/trusty_ipc_tx
 trusty/trusty_enqueue_nop
 cma/cma_alloc_start
 cma/cma_alloc_info
+lwis/tracing_mark_write

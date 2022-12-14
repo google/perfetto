@@ -49,6 +49,7 @@ ftrace_proto_names = [
   "kmem.proto",
   "kvm.proto",
   "lowmemorykiller.proto",
+  "lwis.proto",
   "mali.proto",
   "mdss.proto",
   "mm_event.proto",
