@@ -74,23 +74,30 @@ template("perfetto_amalgamated_sql_header") {
     }
   }
 
-  action("${invoker_target}_json_docs") {
-    deps = [ ":${invoker_target}_generated_file" ]
-    deps += invoker.deps
+  generate_docs = false
+  if (defined(invoker.generate_docs)) {
+    generate_docs = invoker.generate_docs
+  }
 
-    script = "$perfetto_root_path/tools/gen_stdlib_docs_json.py"
-    generated_file = "${target_gen_dir}/stdlib_docs.json"
+  if (generate_docs) {
+    action("${invoker_target}_json_docs") {
+      deps = [ ":${invoker_target}_generated_file" ]
+      deps += invoker.deps
 
-    args = [
-      "--root-dir",
-      rebase_path(".", root_build_dir),
-      "--json-out",
-      rebase_path(generated_file, root_build_dir),
-      "--input-list-file",
-      rebase_path(gen_txt_file, root_build_dir),
-    ]
-    public_configs = [ ":${invoker_target}_config" ]
-    inputs = [ gen_txt_file ]
-    outputs = [ generated_file ]
+      script = "$perfetto_root_path/tools/gen_stdlib_docs_json.py"
+      generated_file = "${target_gen_dir}/stdlib_docs.json"
+
+      args = [
+        "--root-dir",
+        rebase_path(".", root_build_dir),
+        "--json-out",
+        rebase_path(generated_file, root_build_dir),
+        "--input-list-file",
+        rebase_path(gen_txt_file, root_build_dir),
+      ]
+      public_configs = [ ":${invoker_target}_config" ]
+      inputs = [ gen_txt_file ]
+      outputs = [ generated_file ]
+    }
   }
 }
