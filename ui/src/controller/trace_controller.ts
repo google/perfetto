@@ -148,6 +148,26 @@ const ENABLE_CHROME_RELIABLE_RANGE_ANNOTATION_FLAG = featureFlags.register({
   defaultValue: false,
 });
 
+// The following flags control TraceProcessor Config.
+const CROP_TRACK_EVENTS_FLAG = featureFlags.register({
+  id: 'cropTrackEvents',
+  name: 'Crop track events',
+  description: 'Ignores track events outside of the range of interest',
+  defaultValue: false,
+});
+const INGEST_FTRACE_IN_RAW_TABLE_FLAG = featureFlags.register({
+  id: 'ingestFtraceInRawTable',
+  name: 'Ingest ftrace in raw table',
+  description: 'Enables ingestion of typed ftrace events into the raw table',
+  defaultValue: true,
+});
+const ANALYZE_TRACE_PROTO_CONTENT_FLAG = featureFlags.register({
+  id: 'analyzeTraceProtoContent',
+  name: 'Analyze trace proto content',
+  description: 'Enables trace proto content analysis',
+  defaultValue: false,
+});
+
 // A local storage key where the indication that JSON warning has been shown is
 // stored.
 const SHOWN_JSON_WARNING_KEY = 'shownJsonWarning';
@@ -340,6 +360,11 @@ export class TraceController extends Controller<States> {
       const enginePort = resetEngineWorker();
       engine = new WasmEngineProxy(
         this.engineId, enginePort, LoadingManager.getInstance);
+      engine.resetTraceProcessor({
+        cropTrackEvents: CROP_TRACK_EVENTS_FLAG.get(),
+        ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
+        analyzeTraceProtoContent: ANALYZE_TRACE_PROTO_CONTENT_FLAG.get(),
+      });
     }
     this.engine = engine;
 
