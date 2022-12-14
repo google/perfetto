@@ -5393,31 +5393,27 @@ TEST_P(PerfettoApiTest, Counters) {
 }
 
 TEST_P(PerfettoApiTest, EmptyEvent) {
-  auto* tracing_session = NewTraceWithCategories({"cat"});
+  auto* tracing_session = NewTraceWithCategories({"test"});
   tracing_session->get()->StartBlocking();
 
-  // Emit an empty event.
+  TRACE_EVENT_BEGIN("test", "MainEvent");
+
+  // An empty event will allow the previous track packet to be scraped.
   PERFETTO_INTERNAL_ADD_EMPTY_EVENT();
-  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
-  auto it = std::find_if(trace.packet().begin(), trace.packet().end(),
-                         [](const perfetto::protos::gen::TracePacket& packet) {
-                           return packet.has_trace_stats();
-                         });
-  EXPECT_NE(it, trace.packet().end());
-  // The empty event required a trace chunk.
-  EXPECT_EQ(it->trace_stats().buffer_stats()[0].chunks_read(), 1u);
-  // But it isn't in the trace, because empty packets are skipped when reading
-  // from TraceBuffer.
-  it = std::find_if(trace.packet().begin(), trace.packet().end(),
-                    [](const perfetto::protos::gen::TracePacket& packet) {
-                      return packet.has_track_event();
-                    });
-  EXPECT_EQ(it, trace.packet().end());
+
+  // Stop tracing but don't flush. Rely on scraping to get the chunk contents.
+  tracing_session->get()->StopBlocking();
+
+  auto slices = ReadSlicesFromTraceSession(tracing_session->get());
+
+  EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
 }
 
 TEST_P(PerfettoApiTest, ConsecutiveEmptyEventsSkipped) {
-  auto* tracing_session = NewTraceWithCategories({"cat"});
+  auto* tracing_session = NewTraceWithCategories({"test"});
   tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("test", "MainEvent");
 
   // Emit many empty events that wouldn't fit into one chunk.
   constexpr int kNumEvents = 10000;
