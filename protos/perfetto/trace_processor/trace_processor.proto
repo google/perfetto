@@ -83,6 +83,7 @@ message TraceProcessorRpc {
     TPM_ENABLE_METATRACE = 8;
     TPM_DISABLE_AND_READ_METATRACE = 9;
     TPM_GET_STATUS = 10;
+    TPM_RESET_TRACE_PROCESSOR = 11;
   }
 
   oneof type {
@@ -112,6 +113,8 @@ message TraceProcessorRpc {
     ComputeMetricArgs compute_metric_args = 105;
     // For TPM_ENABLE_METATRACE.
     EnableMetatraceArgs enable_metatrace_args = 106;
+    // For TPM_RESET_TRACE_PROCESSOR.
+    ResetTraceProcessorArgs reset_trace_processor_args = 107;
 
     // TraceProcessorMethod response args.
     // For TPM_APPEND_TRACE_DATA.
@@ -276,4 +279,18 @@ message DisableAndReadMetatraceResult {
 // in descriptor.proto.
 message DescriptorSet {
   repeated DescriptorProto descriptors = 1;
+}
+
+// Input for setting Trace Processor config. This method works only in the WASM
+// mode. trace_processor_shell supports configuration through command line
+// flags.
+message ResetTraceProcessorArgs {
+  enum DropTrackEventDataBefore {
+    NO_DROP = 0;
+    TRACK_EVENT_RANGE_OF_INTEREST = 1;
+  }
+  // Mirror of the corresponding perfetto::trace_processor::Config fields.
+  optional DropTrackEventDataBefore drop_track_event_data_before = 1;
+  optional bool ingest_ftrace_in_raw_table = 2;
+  optional bool analyze_trace_proto_content = 3;
 }

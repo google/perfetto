@@ -66,6 +66,7 @@ import QueryServiceStateResponse =
     protos.perfetto.protos.QueryServiceStateResponse;
 // Trace Processor protos.
 import QueryArgs = protos.perfetto.protos.QueryArgs;
+import ResetTraceProcessorArgs = protos.perfetto.protos.ResetTraceProcessorArgs;
 import StatusResult = protos.perfetto.protos.StatusResult;
 import ComputeMetricArgs = protos.perfetto.protos.ComputeMetricArgs;
 import ComputeMetricResult = protos.perfetto.protos.ComputeMetricResult;
@@ -118,6 +119,7 @@ export {
   QueryServiceStateRequest,
   QueryServiceStateResponse,
   QueryArgs,
+  ResetTraceProcessorArgs,
   StatCounters,
   StatusResult,
   SysStatsConfig,
