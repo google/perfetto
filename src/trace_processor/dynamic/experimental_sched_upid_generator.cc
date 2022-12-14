@@ -36,7 +36,7 @@ ExperimentalSchedUpidGenerator::ExperimentalSchedUpidGenerator(
 ExperimentalSchedUpidGenerator::~ExperimentalSchedUpidGenerator() = default;
 
 Table::Schema ExperimentalSchedUpidGenerator::CreateSchema() {
-  return tables::ExperimentalSchedUpidTable::Schema();
+  return tables::ExperimentalSchedUpidTable::ComputeStaticSchema();
 }
 
 std::string ExperimentalSchedUpidGenerator::TableName() {

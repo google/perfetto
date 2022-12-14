@@ -76,6 +76,7 @@ chrome_performance_mark_hashes.textproto chrome_performance_mark_hashes chrome_p
 
 # Chrome reliable range
 chrome_reliable_range.textproto chrome_reliable_range_test.sql chrome_reliable_range.out
+chrome_reliable_range_cropping.textproto chrome_reliable_range_test.sql chrome_reliable_range_cropping.out
 chrome_reliable_range_missing_processes.textproto chrome_reliable_range_test.sql chrome_reliable_range_missing_processes.out
 
 # Chrome slices
@@ -92,6 +93,9 @@ unsymbolized_args.textproto chrome_unsymbolized_args unsymbolized_args.out
 ../../data/async-trace-1.json count_slices_test.sql async-trace-1_count_slices.out
 ../../data/async-trace-2.json count_slices_test.sql async-trace-2_count_slices.out
 
+# Chrome args class names
+chrome_args_class_names.textproto chrome_args_class_names chrome_args_class_names.out
+
 # Log messages.
 chrome_log_message.textproto chrome_log_message_test.sql chrome_log_message.out
 chrome_log_message.textproto chrome_log_message_args_test.sql chrome_log_message_args.out
@@ -105,3 +109,6 @@ chrome_missing_processes_extension.textproto chrome_missing_processes_args_test.
 
 # Chrome custom navigation event names
 ../../data/chrome_custom_navigation_trace.gz chrome_custom_navigation_tasks_test.sql chrome_custom_navigation_tasks.out
+
+# Trace proto content
+../../data/chrome_scroll_without_vsync.pftrace proto_content_test.sql proto_content.out

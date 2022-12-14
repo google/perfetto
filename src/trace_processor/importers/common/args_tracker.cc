@@ -106,10 +106,10 @@ ArgsTracker::CompactArgSet ArgsTracker::ToCompactArgSet(
 }
 
 bool ArgsTracker::NeedsTranslation(const ArgsTranslationTable& table) const {
-  return std::any_of(args_.begin(), args_.end(),
-                     [&table](const GlobalArgsTracker::Arg& arg) {
-                       return table.NeedsTranslation(arg.key, arg.value.type);
-                     });
+  return std::any_of(
+      args_.begin(), args_.end(), [&table](const GlobalArgsTracker::Arg& arg) {
+        return table.NeedsTranslation(arg.flat_key, arg.key, arg.value.type);
+      });
 }
 
 ArgsTracker::BoundInserter::BoundInserter(ArgsTracker* args_tracker,

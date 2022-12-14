@@ -21,6 +21,7 @@
 #include <unordered_map>
 
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/temp_file.h"
 
@@ -143,10 +144,9 @@ TEST(KernelSymbolMapTest, GoldenTest) {
     for (size_t i = 0; i < sym_name_len; i++)
       sym_name[i] = kCharset[rng() % strlen(kCharset)];
     sym_name[sym_name_len] = '\0';
-    char line[kNameMax + 40];
-    sprintf(line, "%" PRIx64 " t %s\n", addr, sym_name);
+    base::StackString<128> line("%" PRIx64 " t %s\n", addr, sym_name);
     symbols[addr] = sym_name;
-    fake_kallsyms += line;
+    fake_kallsyms += line.ToStdString();
   }
   base::TempFile tmp = base::TempFile::Create();
   base::WriteAll(tmp.fd(), fake_kallsyms.data(), fake_kallsyms.size());

@@ -256,7 +256,7 @@ ExperimentalFlatSliceGenerator::ComputeFlatSliceTable(
 }
 
 Table::Schema ExperimentalFlatSliceGenerator::CreateSchema() {
-  return tables::ExperimentalFlatSliceTable::Schema();
+  return tables::ExperimentalFlatSliceTable::ComputeStaticSchema();
 }
 
 std::string ExperimentalFlatSliceGenerator::TableName() {

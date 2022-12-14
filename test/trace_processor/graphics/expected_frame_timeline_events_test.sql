@@ -13,11 +13,11 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-select ts, dur, process.pid as pid, display_frame_token, surface_frame_token, layer_name
-from
-  (select t.*, process_track.name as track_name from
-    process_track left join expected_frame_timeline_slice t
-    on process_track.id = t.track_id) s
-join process using(upid)
-where s.track_name = 'Expected Timeline'
-order by ts
+SELECT ts, dur, process.pid AS pid, display_frame_token, surface_frame_token, layer_name
+FROM
+  (SELECT t.*, process_track.name AS track_name FROM
+    process_track LEFT JOIN expected_frame_timeline_slice t
+    ON process_track.id = t.track_id) s
+JOIN process USING(upid)
+WHERE s.track_name = 'Expected Timeline'
+ORDER BY ts;

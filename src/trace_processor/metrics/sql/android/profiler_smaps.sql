@@ -14,40 +14,40 @@
 -- limitations under the License.
 --
 
-SELECT RUN_METRIC('android/process_metadata.sql') as unused;
+SELECT RUN_METRIC('android/process_metadata.sql') AS unused;
 
 DROP VIEW IF EXISTS profiler_smaps_output;
 CREATE VIEW profiler_smaps_output AS
-  WITH base_stat_counts AS (
-    SELECT
-      ts,
-      upid,
-      path,
-      SUM(size_kb) size_kb,
-      SUM(private_dirty_kb) private_dirty_kb,
-      SUM(swap_kb) swap_kb
-    FROM profiler_smaps
-    GROUP BY 1, 2, 3
-    ORDER BY 4 DESC
-  ),
-  mapping_protos AS (
-    SELECT
-      ts,
-      upid,
-      RepeatedField(ProfilerSmaps_Mapping(
+WITH base_stat_counts AS (
+  SELECT
+    ts,
+    upid,
+    path,
+    SUM(size_kb) AS size_kb,
+    SUM(private_dirty_kb) AS private_dirty_kb,
+    SUM(swap_kb) AS swap_kb
+  FROM profiler_smaps
+  GROUP BY 1, 2, 3
+  ORDER BY 4 DESC
+),
+mapping_protos AS (
+  SELECT
+    ts,
+    upid,
+    RepeatedField(ProfilerSmaps_Mapping(
         'path', path,
         'size_kb', size_kb,
         'private_dirty_kb', private_dirty_kb,
         'swap_kb', swap_kb
-      )) mappings
-    FROM base_stat_counts
-    GROUP BY 1, 2
-  )
-  SELECT ProfilerSmaps(
+      )) AS mappings
+  FROM base_stat_counts
+  GROUP BY 1, 2
+)
+SELECT ProfilerSmaps(
     'instance', RepeatedField(
       ProfilerSmaps_Instance(
         'process', process_metadata.metadata,
         'mappings', mappings
       ))
   )
-  FROM mapping_protos JOIN process_metadata USING (upid);
+FROM mapping_protos JOIN process_metadata USING (upid);

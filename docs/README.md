@@ -49,7 +49,7 @@ examples:
   memory to call-stacks, based on out-of-process unwinding, configurable
   sampling, attachable to already running processes.
 
-* [Java heap profiling](/docs/data-sources/java-heap-profiler.md): an
+* Capturing [Java heap dumps](/docs/data-sources/java-heap-profiler.md) with an
   out-of-process profiler tightly integrated with the Android RunTime that
   allows to get full snapshots of the managed heap retention graph (types,
   field names, retained size and references to other objects) without, however,
@@ -82,7 +82,7 @@ Perfetto tracing service on a dedicated thread, or in _system mode_, connecting
 to the Linux/Android tracing daemon through a UNIX socket, allowing to combine
 app-specific instrumentation points with system-wide tracing events.
 
-The SDK is based on portable C++11 code [tested](/docs/contributing/testing.md)
+The SDK is based on portable C++17 code [tested](/docs/contributing/testing.md)
 with the major C++ sanitizers (ASan, TSan, MSan, LSan). It doesn't rely on
 run-time code modifications or compiler plugins.
 
@@ -109,7 +109,7 @@ Beyond the trace recording capabilities, the Perfetto codebase includes a
 dedicated project for importing, parsing and querying new and legacy trace
 formats, [Trace Processor](/docs/analysis/trace-processor.md).
 
-Trace Processor is a portable C++11 library that provides column-oriented
+Trace Processor is a portable C++17 library that provides column-oriented
 table storage, designed ad-hoc for efficiently holding hours of trace data
 into memory and exposes a SQL query interface based on the popular SQLite query
 engine.

@@ -13,11 +13,13 @@
 // limitations under the License.
 
 import * as m from 'mithril';
-import {QueryResponse} from 'src/common/queries';
 
 import {Actions} from '../common/actions';
 import {isEmptyData} from '../common/aggregation_data';
 import {LogExists, LogExistsKey} from '../common/logs';
+import {QueryResponse} from '../common/queries';
+import {addSelectionChangeObserver} from '../common/selection_observer';
+import {Selection} from '../common/state';
 
 import {AggregationPanel} from './aggregation_panel';
 import {ChromeSliceDetailsPanel} from './chrome_slice_panel';
@@ -32,7 +34,7 @@ import {
 } from './flow_events_panel';
 import {globals} from './globals';
 import {LogPanel} from './logs_panel';
-import {NotesEditorPanel} from './notes_panel';
+import {NotesEditorTab} from './notes_panel';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
 import {PivotTableRedux} from './pivot_table_redux';
 import {QueryTable} from './query_table';
@@ -199,6 +201,41 @@ function userVisibleQueryName(id: string): string|null {
   return null;
 }
 
+function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
+  const currentSelectionTag = 'current_selection';
+  const bottomTabList = globals.bottomTabList;
+  if (!bottomTabList) return;
+  if (newSelection === undefined) {
+    bottomTabList.closeTabByTag(currentSelectionTag);
+    return;
+  }
+  switch (newSelection.kind) {
+    case 'NOTE':
+      bottomTabList.addTab({
+        kind: NotesEditorTab.kind,
+        tag: currentSelectionTag,
+        config: {
+          id: newSelection.id,
+        },
+      });
+      break;
+    case 'AREA':
+      if (newSelection.noteId !== undefined) {
+        bottomTabList.addTab({
+          kind: NotesEditorTab.kind,
+          tag: currentSelectionTag,
+          config: {
+            id: newSelection.noteId,
+          },
+        });
+      }
+      break;
+    default:
+      bottomTabList.closeTabByTag(currentSelectionTag);
+  }
+}
+addSelectionChangeObserver(handleSelectionChange);
+
 export class DetailsPanel implements m.ClassComponent {
   private detailsHeight = getDetailsHeight();
 
@@ -210,30 +247,24 @@ export class DetailsPanel implements m.ClassComponent {
     }
 
     const detailsPanels: DetailsPanel[] = [];
+
+    if (globals.bottomTabList) {
+      for (const tab of globals.bottomTabList.tabs) {
+        detailsPanels.push({
+          key: tab.uuid,
+          name: tab.getTitle(),
+          vnode: tab.createPanelVnode(),
+        });
+      }
+    }
+
     const curSelection = globals.state.currentSelection;
     if (curSelection) {
       switch (curSelection.kind) {
         case 'NOTE':
-          detailsPanels.push({
-            key: 'current_selection',
-            name: 'Current Selection',
-            vnode: m(NotesEditorPanel, {
-              key: 'notes',
-              id: curSelection.id,
-            }),
-          });
+          // Handled in handleSelectionChange.
           break;
         case 'AREA':
-          if (curSelection.noteId !== undefined) {
-            detailsPanels.push({
-              key: 'current_selection',
-              name: 'Current Selection',
-              vnode: m(NotesEditorPanel, {
-                key: 'area_notes',
-                id: curSelection.noteId,
-              }),
-            });
-          }
           if (globals.flamegraphDetails.isInAreaSelection) {
             detailsPanels.push({
               key: 'flamegraph_selection',

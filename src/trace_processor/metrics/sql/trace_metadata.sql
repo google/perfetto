@@ -18,11 +18,11 @@
 DROP VIEW IF EXISTS trace_metadata_event;
 CREATE VIEW trace_metadata_event AS
 SELECT
-  'slice' as track_type,
-  'Clock Snapshots' as track_name,
+  'slice' AS track_type,
+  'Clock Snapshots' AS track_name,
   ts,
-  0 as dur,
-  'Snapshot' as slice_name
+  0 AS dur,
+  'Snapshot' AS slice_name
 FROM clock_snapshot
 GROUP BY ts;
 
@@ -42,7 +42,7 @@ SELECT TraceMetadata(
     SELECT str_value FROM metadata
     WHERE name = 'unique_session_name'
   ),
- 'trace_size_bytes', (
+  'trace_size_bytes', (
     SELECT int_value FROM metadata
     WHERE name = 'trace_size_bytes'
   ),
@@ -56,6 +56,6 @@ SELECT TraceMetadata(
     WHERE name = 'trace_config_pbtxt'
   ),
   'sched_duration_ns', (
-    SELECT MAX(ts) - MIN(ts) from sched
+    SELECT MAX(ts) - MIN(ts) FROM sched
   )
 );

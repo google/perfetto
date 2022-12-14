@@ -55,7 +55,10 @@ message AndroidDisplayMetrics {
   // Stats to measure the runtime of updating the power state in
   // DisplayPowerController
   message UpdatePowerState {
-    optional uint32 avg_runtime_ms = 1;
+    optional uint32 avg_runtime_micro_secs = 2;
+
+    // Removed: avg_runtime_ms
+    reserved 1;
   }
 
   optional UpdatePowerState update_power_state = 6;

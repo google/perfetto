@@ -23,6 +23,7 @@ import {
 } from '../common/actions';
 import {Engine, EngineProxy} from '../common/engine';
 import {featureFlags, PERF_SAMPLE_FLAG} from '../common/feature_flags';
+import {pluginManager} from '../common/plugins';
 import {
   NUM,
   NUM_NULL,
@@ -87,7 +88,11 @@ const DISK_IOSTAT_GROUP_NAME = 'diskstat';
 const UFS_CMD_TAG = 'io.ufs.command.tag';
 const UFS_CMD_TAG_GROUP_NAME = 'io.ufs.command.tags';
 const BUDDY_INFO_TAG = 'mem.buddyinfo';
-const KERNEL_WAKELOCK_PREFIX = 'Wakelock';
+// NB: Userspace wakelocks start with "WakeLock" not "Wakelock".
+const KERNEL_WAKELOCK_REGEX = new RegExp('^Wakelock.*$');
+const KERNEL_WAKELOCK_GROUP = 'Kernel wakelocks';
+const NETWORK_TRACK_REGEX = new RegExp('^.* (Received|Transmitted)( KB)?$');
+const NETWORK_TRACK_GROUP = 'Networking';
 
 // Sets the default 'scale' for counter tracks. If the regex matches
 // then the paired mode is used. Entries are in priority order so the
@@ -284,25 +289,28 @@ class TrackDecider {
     const rawGlobalAsyncTracks = await engine.query(`
       with global_tracks as materialized (
         select
+          track.id,
+          track.name,
+          count(1) cnt
+        from track
+        join slice on slice.track_id = track.id
+        where track.type = "track" or track.type = "gpu_track"
+        group by 1
+        having cnt > 0
+      ),
+      global_tracks_grouped as (
+        select
           track.name,
           group_concat(track.id) as trackIds,
           count(track.id) as trackCount
-        from track
-        where
-          (track.type = "track" or track.type = "gpu_track") and
-          exists(
-            select 1
-            from slice
-            where slice.track_id = track.id
-            limit 1
-          )
+        from global_tracks track
         group by track.name
       )
       select
         t.name as name,
         t.trackIds as trackIds,
         max_layout_depth(t.trackCount, t.trackIds) as maxDepth
-      from global_tracks AS t
+      from global_tracks_grouped AS t
       order by t.name;
     `);
     const it = rawGlobalAsyncTracks.iter({
@@ -620,12 +628,11 @@ class TrackDecider {
     }
   }
 
-  async groupKernelWakelockTracks(): Promise<void> {
+  async groupTracksByRegex(regex: RegExp, groupName: string): Promise<void> {
     let groupUuid = undefined;
 
     for (const track of this.tracksToAdd) {
-      // NB: Userspace wakelocks start with "WakeLock" not "Wakelock".
-      if (track.name.startsWith(KERNEL_WAKELOCK_PREFIX)) {
+      if (regex.test(track.name)) {
         if (groupUuid === undefined) {
           groupUuid = uuidv4();
         }
@@ -640,7 +647,7 @@ class TrackDecider {
         engineId: this.engineId,
         kind: NULL_TRACK_KIND,
         trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-        name: 'Kernel wakelocks',
+        name: groupName,
         trackGroup: undefined,
         config: {},
       });
@@ -648,11 +655,22 @@ class TrackDecider {
       const addGroup = Actions.addTrackGroup({
         engineId: this.engineId,
         summaryTrackId,
-        name: 'Kernel wakelocks',
+        name: groupName,
         id: groupUuid,
         collapsed: true,
       });
       this.addTrackGroupActions.push(addGroup);
+    }
+  }
+
+  applyDefaultCounterScale(): void {
+    for (const track of this.tracksToAdd) {
+      if (track.kind === COUNTER_TRACK_KIND) {
+        const scaleConfig = {
+          scale: getCounterScale(track.name),
+        };
+        track.config = Object.assign({}, track.config, scaleConfig);
+      }
     }
   }
 
@@ -935,7 +953,6 @@ class TrackDecider {
           startTs,
           endTs,
           tid,
-          scale: getCounterScale(name),
         },
       });
     }
@@ -1248,7 +1265,6 @@ class TrackDecider {
           trackId,
           startTs,
           endTs,
-          scale: getCounterScale(name),
         },
       });
     }
@@ -1620,6 +1636,25 @@ class TrackDecider {
     `);
   }
 
+  async addPluginTracks(): Promise<void> {
+    const promises = pluginManager.findPotentialTracks(this.engine);
+    const groups = await Promise.all(promises);
+    for (const infos of groups) {
+      for (const info of infos) {
+        this.tracksToAdd.push({
+          engineId: this.engineId,
+          kind: info.trackKind,
+          name: info.name,
+          // TODO(hjd): Fix how sorting works. Plugins should expose
+          // 'sort keys' which the user can use to choose a sort order.
+          trackSortKey: PrimaryTrackSortKey.COUNTER_TRACK,
+          trackGroup: SCROLLING_TRACK_GROUP,
+          config: info.config,
+        });
+      }
+    }
+  }
+
   async decideTracks(): Promise<DeferredAction[]> {
     // Add first the global tracks that don't require per-process track groups.
     if (NULL_TRACKS_FLAG.get()) {
@@ -1635,12 +1670,11 @@ class TrackDecider {
         this.engine.getProxy('TrackDecider::addGlobalAsyncTracks'));
     await this.addGpuFreqTracks(
         this.engine.getProxy('TrackDecider::addGpuFreqTracks'));
-    await this.addGlobalCounterTracks(
-        this.engine.getProxy('TrackDecider::addGlobalCounterTracks'));
     await this.addCpuPerfCounterTracks(
         this.engine.getProxy('TrackDecider::addCpuPerfCounterTracks'));
+    await this.addPluginTracks();
     await this.addAnnotationTracks(
-        this.engine.getProxy('TrackDecider::addAnnotationTrack'));
+        this.engine.getProxy('TrackDecider::addAnnotationTracks'));
     await this.groupGlobalIonTracks();
     await this.groupGlobalIostatTracks(F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
     await this.groupGlobalIostatTracks(
@@ -1648,7 +1682,8 @@ class TrackDecider {
     await this.groupGlobalIostatTracks(DISK_IOSTAT_TAG, DISK_IOSTAT_GROUP_NAME);
     await this.groupGlobalUfsCmdTagTracks(UFS_CMD_TAG, UFS_CMD_TAG_GROUP_NAME);
     await this.groupGlobalBuddyInfoTracks();
-    await this.groupKernelWakelockTracks();
+    await this.groupTracksByRegex(KERNEL_WAKELOCK_REGEX, KERNEL_WAKELOCK_GROUP);
+    await this.groupTracksByRegex(NETWORK_TRACK_REGEX, NETWORK_TRACK_GROUP);
 
     // Pre-group all kernel "threads" (actually processes) if this is a linux
     // system trace. Below, addProcessTrackGroups will skip them due to an
@@ -1707,6 +1742,8 @@ class TrackDecider {
     const threadOrderingMetadata = await this.computeThreadOrderingMetadata();
     this.addTrackGroupActions.push(
         Actions.setUtidToTrackSortKey({threadOrderingMetadata}));
+
+    this.applyDefaultCounterScale();
 
     return this.addTrackGroupActions;
   }

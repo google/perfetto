@@ -34,7 +34,7 @@ std::string TypeToSqlString(SqlValue::Type type) {
     case SqlValue::Type::kString:
       return "TEXT";
     case SqlValue::Type::kLong:
-      return "BIG INT";
+      return "BIGINT";
     case SqlValue::Type::kDouble:
       return "DOUBLE";
     case SqlValue::Type::kBytes:
@@ -71,6 +71,8 @@ std::string OpToDebugString(int op) {
       return "limit";
     case SQLITE_INDEX_CONSTRAINT_OFFSET:
       return "offset";
+    case SqliteTable::CustomFilterOpcode::kSourceGeqOpCode:
+      return "source_geq";
     default:
       PERFETTO_FATAL("Operator to string conversion not impemented for %d", op);
   }
@@ -258,6 +260,7 @@ bool SqliteTable::ReadConstraints(int idxNum, const char* idxStr, int argc) {
                       r->AddArg("cache_hit", std::to_string(cache_hit));
                       r->AddArg("name", name_);
                       WriteQueryConstraintsToMetatrace(r, qc_cache_, schema_);
+                      r->AddArg("raw_constraints", idxStr);
                       r->AddArg("argc", std::to_string(argc));
                     });
 

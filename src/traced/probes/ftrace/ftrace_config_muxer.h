@@ -47,15 +47,18 @@ struct FtraceDataSourceConfig {
                          base::Optional<FtracePrintFilterConfig> _print_filter,
                          std::vector<std::string> _atrace_apps,
                          std::vector<std::string> _atrace_categories,
-                         bool _symbolize_ksyms)
+                         bool _symbolize_ksyms,
+                         bool _preserve_ftrace_buffer,
+                         base::FlatSet<int64_t> _syscalls_returning_fd)
       : event_filter(std::move(_event_filter)),
         syscall_filter(std::move(_syscall_filter)),
         compact_sched(_compact_sched),
         print_filter(std::move(_print_filter)),
         atrace_apps(std::move(_atrace_apps)),
         atrace_categories(std::move(_atrace_categories)),
-        symbolize_ksyms(_symbolize_ksyms) {}
-
+        symbolize_ksyms(_symbolize_ksyms),
+        preserve_ftrace_buffer(_preserve_ftrace_buffer),
+        syscalls_returning_fd(std::move(_syscalls_returning_fd)) {}
   // The event filter allows to quickly check if a certain ftrace event with id
   // x is enabled for this data source.
   EventFilter event_filter;
@@ -77,6 +80,12 @@ struct FtraceDataSourceConfig {
 
   // When enabled will turn on the kallsyms symbolizer in CpuReader.
   const bool symbolize_ksyms;
+
+  // Does not clear previous traces.
+  const bool preserve_ftrace_buffer;
+
+  // List of syscalls monitored to return a new filedescriptor upon success
+  base::FlatSet<int64_t> syscalls_returning_fd;
 };
 
 // Ftrace is a bunch of globally modifiable persistent state.
@@ -154,6 +163,12 @@ class FtraceConfigMuxer {
   const std::set<size_t>& GetSyscallFilterForTesting() const {
     return current_state_.syscall_filter;
   }
+
+  // Returns the syscall ids for the current architecture
+  // matching the (subjectively) most commonly used syscalls
+  // producing a new file descriptor as their return value.
+  static base::FlatSet<int64_t> GetSyscallsReturningFds(
+      const SyscallTable& syscalls);
 
  private:
   static bool StartAtrace(const std::vector<std::string>& apps,

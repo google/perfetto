@@ -52,7 +52,7 @@ def check_amalgamated_output():
 
 def check_amalgamated_build():
   args = [
-      '-std=c++11', '-Werror', '-Wall', '-Wextra',
+      '-std=c++17', '-Werror', '-Wall', '-Wextra',
       '-DPERFETTO_AMALGAMATED_SDK_TEST', '-I' + OUT_DIR,
       OUT_DIR + '/perfetto.cc', 'test/client_api_example.cc', '-o',
       OUT_DIR + '/test'

@@ -1715,6 +1715,17 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
                                        const TrackEventData* event_data,
                                        ConstBytes blob,
                                        uint32_t packet_sequence_id) {
+  const auto range_of_interest_start_us =
+      track_event_tracker_->range_of_interest_start_us();
+  if (context_->config.drop_track_event_data_before ==
+          DropTrackEventDataBefore::kTrackEventRangeOfInterest &&
+      range_of_interest_start_us && ts < *range_of_interest_start_us * 1000) {
+    // The event is outside of the range of interest, and dropping is enabled.
+    // So we drop the event.
+    context_->storage->IncrementStats(
+        stats::track_event_dropped_packets_outside_of_range_of_interest);
+    return;
+  }
   util::Status status =
       EventImporter(this, ts, event_data, std::move(blob), packet_sequence_id)
           .Import();

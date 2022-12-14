@@ -36,4 +36,4 @@ SELECT
 FROM process
 INNER JOIN profiler_smaps smap ON process.upid = smap.upid
 INNER JOIN memory_snapshot ms ON ms.timestamp = smap.ts
-LIMIT 20
+LIMIT 20;

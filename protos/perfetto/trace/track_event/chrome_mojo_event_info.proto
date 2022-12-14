@@ -43,4 +43,13 @@ message ChromeMojoEventInfo {
   // trace requires storing them in the binary, which causes a significant
   // binary size bloat for Chromium.
   optional uint64 mojo_interface_method_iid = 4;
+
+  // Indicate whether this is a message or reply.
+  optional bool is_reply = 5;
+
+  // The payload size of the message being sent through mojo messages.
+  optional uint64 payload_size = 6;
+
+  // Represents the size of the message. Includes all headers and user payload.
+  optional uint64 data_num_bytes = 7;
 }

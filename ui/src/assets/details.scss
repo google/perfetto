@@ -18,7 +18,7 @@
 
   .handle {
     background-color: hsl(215, 1%, 95%);
-    border: 1px solid rgba(0,0,0,0.1);
+    border: 1px solid rgba(0, 0, 0, 0.1);
     border-bottom: none;
     cursor: row-resize;
     // Disable user selection since this handle is draggable to resize the
@@ -36,7 +36,7 @@
       overflow: hidden;
 
       .tab {
-        font-family: 'Roboto Condensed', sans-serif;
+        font-family: "Roboto Condensed", sans-serif;
         color: #3c4b5d;
         padding: 3px 10px 0 10px;
         margin-top: 3px;
@@ -69,12 +69,12 @@
       font-size: 24px;
       margin-right: 5px;
       margin-top: 1px;
-      &:hover{
+      &:hover {
         cursor: pointer;
       }
       &[disabled] {
         color: rgb(219, 219, 219);
-        &:hover{
+        &:hover {
           cursor: default;
         }
       }
@@ -86,7 +86,7 @@
     }
 
     .handle-title {
-      font-family: 'Roboto Condensed', sans-serif;
+      font-family: "Roboto Condensed", sans-serif;
       font-weight: 300;
       color: #3c4b5d;
       margin-left: 5px;
@@ -94,11 +94,10 @@
       font-size: 13px;
     }
   }
-
 }
 
 .details-panel {
-  font-family: 'Roboto Condensed', sans-serif;
+  font-family: "Roboto Condensed", sans-serif;
   font-weight: 300;
   color: #3c4b5d;
 
@@ -128,8 +127,9 @@
     &.aggregation {
       padding-top: 5px;
       display: grid;
-      grid-template-areas: "description range"
-                            "heading heading";
+      grid-template-areas:
+        "description range"
+        "heading heading";
       grid-template-columns: 1fr auto;
       .states {
         font-size: 11px;
@@ -146,7 +146,6 @@
             min-width: fit-content;
           }
         }
-
       }
       .time-range {
         text-align: right;
@@ -244,7 +243,8 @@
     word-wrap: break-word;
     padding: 0 10px;
     tr:hover {
-      td, th {
+      td,
+      th {
         background-color: hsl(214, 22%, 90%);
 
         &.no-highlight {
@@ -279,9 +279,9 @@
     font-size: 0.875rem;
     padding-left: 1rem;
     padding-right: 1rem;
-    padding-top: .5rem;
-    padding-bottom: .5rem;
-    border-radius: .25rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-radius: 0.25rem;
     margin-top: 12px;
     margin-left: 10px;
   }
@@ -348,7 +348,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  font-family: 'Roboto Condensed', sans-serif;
+  font-family: "Roboto Condensed", sans-serif;
   font-weight: 300;
   color: #3c4b5d;
 
@@ -365,20 +365,20 @@
   }
 
   button {
-   background: #262f3c;
-   color: white;
-   border-radius: 10px;
-   font-size: 10px;
-   height: 22px;
-   line-height: 18px;
-   min-width: 7em;
-   margin: auto 0 auto 1rem;
+    background: #262f3c;
+    color: white;
+    border-radius: 10px;
+    font-size: 10px;
+    height: 22px;
+    line-height: 18px;
+    min-width: 7em;
+    margin: auto 0 auto 1rem;
   }
 
-  input[type=text] {
+  input[type="text"] {
     flex-grow: 1;
     border-radius: 4px;
-    border:1px solid #dcdcdc;
+    border: 1px solid #dcdcdc;
     padding: 3px;
     margin: 0 10px;
     &:focus {
@@ -401,7 +401,7 @@
   height: 100%;
   display: grid;
   grid-template-rows: auto 1fr;
-  font-family: 'Roboto Condensed', sans-serif;
+  font-family: "Roboto Condensed", sans-serif;
   user-select: text;
 
   header {
@@ -411,71 +411,204 @@
     background-color: white;
     color: #3c4b5d;
     padding: 5px;
+    display: grid;
+    grid-template-columns: auto auto;
+    justify-content: space-between;
+  }
+
+  .log-rows-label {
+    display: flex;
+    align-items: center;
+  }
+
+  .log-filters {
+    display: flex;
+    margin-right: 5px;
+    align-items: center;
+
+    .log-label {
+      padding-right: 0.35rem;
+    }
+
+    .tag-container {
+      height: auto;
+      min-height: 34px;
+      border: 2px solid #737679;
+      padding: 8px;
+      margin: 8px;
+      cursor: text;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+
+      box-shadow: 0 2px 6px rgba(25, 25, 25, 0.2);
+
+      .chips .chip {
+        display: inline-block;
+        width: auto;
+        float: left;
+
+        background-color: #0878b2;
+        color: #fff;
+        border-radius: 3px;
+        margin: 2px;
+        overflow: hidden;
+
+        .chip-button {
+          padding: 4px;
+          cursor: pointer;
+          background-color: #054570;
+          display: inline-block;
+        }
+
+        .chip-text {
+          padding: 4px;
+          display: inline-block;
+          pointer-events: none;
+        }
+      }
+
+      .chip-input {
+        margin-left: 5px;
+      }
+    }
+
+    .filter-widget {
+      user-select: none;
+      cursor: pointer;
+      position: relative;
+      display: inline-block;
+    }
+
+    .filter-widget .tooltip {
+      visibility: hidden;
+      width: 120px;
+      background-color: black;
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 5px 0;
+
+      /* Position the tooltip */
+      position: absolute;
+      z-index: 1;
+      top: 130%;
+      right: 50%;
+    }
+
+    .filter-widget:hover .tooltip {
+      visibility: visible;
+    }
   }
 
   header.stale {
     color: grey;
   }
 
-    .rows {
-      position: relative;
-      direction: ltr;
+  .rows {
+    position: relative;
+    direction: ltr;
+    width: 100%;
+
+    .row {
+      @include transition();
+      position: absolute;
       width: 100%;
+      height: 20px;
+      line-height: 20px;
+      background-color: hsl(214, 22%, 100%);
 
-      .row {
-        @include transition();
-        position: absolute;
-        width: 100%;
-        height: 20px;
-        line-height: 20px;
-        background-color: hsl(214, 22%, 100%);
+      &.D {
+        color: hsl(122, 20%, 40%);
+      }
+      &.V {
+        color: hsl(122, 20%, 30%);
+      }
+      &.I {
+        color: hsl(0, 0%, 20%);
+      }
+      &.W {
+        color: hsl(45, 60%, 45%);
+      }
+      &.E {
+        color: hsl(4, 90%, 58%);
+      }
+      &.F {
+        color: hsl(291, 64%, 42%);
+      }
+      &.stale {
+        color: #aaa;
+      }
+      &:nth-child(even) {
+        background-color: hsl(214, 22%, 95%);
+      }
+      &:hover {
+        background-color: hsl(214, 22%, 90%);
+      }
+      .cell {
+        font-size: 11px;
+        font-family: var(--monospace-font);
+        white-space: nowrap;
+        overflow: scroll;
+        padding-left: 10px;
+        padding-right: 10px;
+        display: inline-block;
+        &:first-child {
+          padding-left: 5px;
+        }
+        &:last-child {
+          padding-right: 5px;
+        }
+        &:only-child {
+          width: 100%;
+        }
 
-        &.D { color: hsl(122, 20%, 40%); }
-        &.V { color: hsl(122, 20%, 30%); }
-        &.I { color: hsl(0, 0%, 20%); }
-        &.W { color: hsl(45, 60%, 45%); }
-        &.E { color: hsl(4, 90%, 58%); }
-        &.F { color: hsl(291, 64%, 42%); }
-        &.stale { color: #aaa; }
-        &:nth-child(even) {
-            background-color: hsl(214, 22%, 95%);
+        // The following children will be used as columns in the table showing
+        // Android logs.
+
+        // 1.Timestamp
+        &:nth-child(1) {
+          width: 7rem;
+          text-overflow: clip;
+          text-align: right;
         }
-        &:hover {
-          background-color: hsl(214, 22%, 90%);
+        // 2.Level
+        &:nth-child(2) {
+          width: 4rem;
         }
-        .cell {
-          font-size: 11px;
-          font-family: var(--monospace-font);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          padding-left: 10px;
-          padding-right: 10px;
-          display: inline-block;
-          &:first-child {
-            padding-left: 5px;
-          }
-          &:last-child {
-            padding-right: 5px;
-          }
-          &:nth-child(1) {
-            width: 110px;
-            text-overflow: clip;
-            text-align: right;
-          }
-          &:nth-child(2) {
-            width: 20px;
-          }
-          &:nth-child(3) {
-            width: 15%;
-          }
+        // 3.Tag
+        &:nth-child(3) {
+          width: 13rem;
+        }
+
+        &.with-process {
+          // 4.Process name
           &:nth-child(4) {
-            width: calc(100% - 110px - 20px - 15%);
+            width: 18rem;
           }
-          &:only-child {
-            width: 100%;
+          // 5.Message - a long string, will take most of the display space.
+          &:nth-child(5) {
+            width: calc(100% - 42rem);
           }
+        }
+
+        &.no-process {
+          // 4.Message - a long string, will take most of the display space.
+          &:nth-child(4) {
+            width: calc(100% - 24rem);
+          }
+        }
+
+        &.row-header {
+          text-align: left;
+          font-weight: bold;
+          font-size: 13px;
+        }
+
+        &.row-header:first-child {
+          padding-left: 15px;
         }
       }
+    }
   }
 }

@@ -150,6 +150,9 @@ if (perfetto_build_standalone) {
   all_targets += [
     "test/configs",
 
+    # Used to evaluate the Python folder for Bazel script generation.
+    "python:trace_processor_py",
+
     # For syntax-checking the protos.
     "protos/perfetto/trace:merged_trace_lite",
 
@@ -200,6 +203,12 @@ group("default") {
 if (enable_perfetto_ui) {
   group("ui") {
     deps = [ "ui" ]
+  }
+}
+
+if (enable_perfetto_site) {
+  group("site") {
+    deps = [ "infra/perfetto.dev:site" ]
   }
 }
 

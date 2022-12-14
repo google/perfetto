@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select ts, cpu, dur, ts_end, utid, end_state, priority, upid, name, tid
-from sched
-join thread using(utid)
-order by ts;
+SELECT ts, cpu, dur, ts_end, utid, end_state, priority, upid, name, tid
+FROM sched
+JOIN thread USING(utid)
+ORDER BY ts;

@@ -93,9 +93,10 @@ void TestHelper::ReadTraceData(std::vector<TracePacket> packets) {
     PERFETTO_CHECK(
         packet.ParseFromString(encoded_packet.GetRawBytesForTesting()));
     full_trace_.push_back(packet);
-    if (packet.has_clock_snapshot() || packet.has_trace_config() ||
-        packet.has_trace_stats() || !packet.synchronization_marker().empty() ||
-        packet.has_system_info() || packet.has_service_event()) {
+    if (packet.has_clock_snapshot() || packet.has_trace_uuid() ||
+        packet.has_trace_config() || packet.has_trace_stats() ||
+        !packet.synchronization_marker().empty() || packet.has_system_info() ||
+        packet.has_service_event()) {
       continue;
     }
     PERFETTO_CHECK(packet.has_trusted_uid());
@@ -294,6 +295,8 @@ void TestHelper::OnAttach(bool success, const TraceConfig&) {
 void TestHelper::OnTraceStats(bool, const TraceStats&) {}
 
 void TestHelper::OnObservableEvents(const ObservableEvents&) {}
+
+void TestHelper::OnSessionCloned(bool, const std::string&) {}
 
 // static
 const char* TestHelper::GetDefaultModeConsumerSocketName() {

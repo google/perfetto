@@ -26,7 +26,7 @@
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
-#include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/task_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -67,7 +67,15 @@ constexpr uint32_t kArgKernelObject = 8;
 }  // namespace
 
 FuchsiaTraceTokenizer::FuchsiaTraceTokenizer(TraceProcessorContext* context)
-    : context_(context), proto_reader_(context) {
+    : context_(context),
+      proto_reader_(context),
+      running_string_id_(context->storage->InternString("Running")),
+      runnable_string_id_(context->storage->InternString("R")),
+      preempted_string_id_(context->storage->InternString("R+")),
+      blocked_string_id_(context->storage->InternString("S")),
+      suspended_string_id_(context->storage->InternString("T")),
+      exit_dying_string_id_(context->storage->InternString("Z")),
+      exit_dead_string_id_(context->storage->InternString("X")) {
   RegisterProvider(0, "");
 }
 
@@ -184,14 +192,30 @@ util::Status FuchsiaTraceTokenizer::Parse(TraceBlobView blob) {
   return proto_reader_.Parse(TraceBlobView(std::move(perfetto_blob)));
 }
 
+StringId FuchsiaTraceTokenizer::IdForOutgoingThreadState(uint32_t state) {
+  switch (state) {
+    case kThreadNew:
+    case kThreadRunning:
+      return runnable_string_id_;
+    case kThreadBlocked:
+      return blocked_string_id_;
+    case kThreadSuspended:
+      return suspended_string_id_;
+    case kThreadDying:
+      return exit_dying_string_id_;
+    case kThreadDead:
+      return exit_dead_string_id_;
+    default:
+      return kNullStringId;
+  }
+}
+
 // Most record types are read and recorded in |TraceStorage| here directly.
 // Event records are sorted by timestamp before processing, so instead of
 // recording them in |TraceStorage| they are given to |TraceSorter|. In order to
 // facilitate the parsing after sorting, a small view of the provider's string
 // and thread tables is passed alongside the record. See |FuchsiaProviderView|.
 void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
-  using ftrace_utils::TaskState;
-
   TraceStorage* storage = context_->storage.get();
   ProcessTracker* procs = context_->process_tracker.get();
   TraceSorter* sorter = context_->sorter.get();
@@ -269,7 +293,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
     case kThread: {
       uint32_t index = fuchsia_trace_utils::ReadField<uint32_t>(header, 16, 23);
       if (index != 0) {
-        fuchsia_trace_utils::ThreadInfo tinfo;
+        FuchsiaThreadInfo tinfo;
         if (!cursor.ReadInlineThread(&tinfo)) {
           context_->storage->IncrementStats(stats::fuchsia_invalid_event);
           return;
@@ -477,7 +501,8 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
             cursor.SetWordIndex(arg_base + arg_size);
           }
 
-          pid_table_[obj_id] = pid;
+          Thread& thread = GetThread(obj_id);
+          thread.info.pid = pid;
 
           UniqueTid utid = procs->UpdateThread(static_cast<uint32_t>(obj_id),
                                                static_cast<uint32_t>(pid));
@@ -499,10 +524,12 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           fuchsia_trace_utils::ReadField<uint32_t>(header, 24, 27);
       uint32_t outgoing_thread_ref =
           fuchsia_trace_utils::ReadField<uint32_t>(header, 28, 35);
-      uint32_t incoming_thread_ref =
-          fuchsia_trace_utils::ReadField<uint32_t>(header, 36, 43);
       int32_t outgoing_priority =
           fuchsia_trace_utils::ReadField<int32_t>(header, 44, 51);
+      uint32_t incoming_thread_ref =
+          fuchsia_trace_utils::ReadField<uint32_t>(header, 36, 43);
+      int32_t incoming_priority =
+          fuchsia_trace_utils::ReadField<int32_t>(header, 52, 59);
 
       int64_t ts;
       if (!cursor.ReadTimestamp(current_provider_->ticks_per_second, &ts)) {
@@ -514,81 +541,117 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
         return;
       }
 
-      fuchsia_trace_utils::ThreadInfo outgoing_thread;
+      FuchsiaThreadInfo outgoing_thread_info;
       if (fuchsia_trace_utils::IsInlineThread(outgoing_thread_ref)) {
-        if (!cursor.ReadInlineThread(&outgoing_thread)) {
+        if (!cursor.ReadInlineThread(&outgoing_thread_info)) {
           context_->storage->IncrementStats(stats::fuchsia_invalid_event);
           return;
         }
       } else {
-        outgoing_thread = current_provider_->thread_table[outgoing_thread_ref];
+        outgoing_thread_info =
+            current_provider_->thread_table[outgoing_thread_ref];
       }
+      Thread& outgoing_thread = GetThread(outgoing_thread_info.tid);
 
-      fuchsia_trace_utils::ThreadInfo incoming_thread;
+      FuchsiaThreadInfo incoming_thread_info;
       if (fuchsia_trace_utils::IsInlineThread(incoming_thread_ref)) {
-        if (!cursor.ReadInlineThread(&incoming_thread)) {
+        if (!cursor.ReadInlineThread(&incoming_thread_info)) {
           context_->storage->IncrementStats(stats::fuchsia_invalid_event);
           return;
         }
       } else {
-        incoming_thread = current_provider_->thread_table[incoming_thread_ref];
+        incoming_thread_info =
+            current_provider_->thread_table[incoming_thread_ref];
       }
+      Thread& incoming_thread = GetThread(incoming_thread_info.tid);
 
-      // A thread with priority 0 represents an idle CPU
-      if (cpu_threads_.count(cpu) != 0 && outgoing_priority != 0) {
-        // TODO(bhamrick): Some early events will fail to associate with their
-        // pid because the kernel object info event hasn't been processed yet.
-        if (pid_table_.count(outgoing_thread.tid) > 0) {
-          outgoing_thread.pid = pid_table_[outgoing_thread.tid];
+      // Idle threads are identified by pid == 0 and prio == 0.
+      const bool incoming_is_idle =
+          incoming_thread.info.pid == 0 && incoming_priority == 0;
+      const bool outgoing_is_idle =
+          outgoing_thread.info.pid == 0 && outgoing_priority == 0;
+
+      // Handle switching away from the currently running thread.
+      if (!outgoing_is_idle) {
+        UniqueTid utid = procs->UpdateThread(
+            static_cast<uint32_t>(outgoing_thread.info.tid),
+            static_cast<uint32_t>(outgoing_thread.info.pid));
+
+        StringId state = IdForOutgoingThreadState(outgoing_state);
+
+        const auto duration = ts - outgoing_thread.last_ts;
+        outgoing_thread.last_ts = ts;
+
+        // Close the slice record if one is open for this thread.
+        if (outgoing_thread.last_slice_row.has_value()) {
+          auto row_ref = outgoing_thread.last_slice_row->ToRowReference(
+              storage->mutable_sched_slice_table());
+          row_ref.set_dur(duration);
+          row_ref.set_end_state(state);
+          row_ref.set_priority(outgoing_priority);
+          outgoing_thread.last_slice_row.reset();
         }
 
-        UniqueTid utid =
-            procs->UpdateThread(static_cast<uint32_t>(outgoing_thread.tid),
-                                static_cast<uint32_t>(outgoing_thread.pid));
-        RunningThread previous_thread = cpu_threads_[cpu];
-
-        base::Optional<TaskState> end_state;
-        switch (outgoing_state) {
-          case kThreadNew:
-          case kThreadRunning: {
-            end_state = TaskState::FromParsedFlags(TaskState::kRunnable);
-            break;
-          }
-          case kThreadBlocked: {
-            end_state =
-                TaskState::FromParsedFlags(TaskState::kInterruptibleSleep);
-            break;
-          }
-          case kThreadSuspended: {
-            end_state = TaskState::FromParsedFlags(TaskState::kStopped);
-            break;
-          }
-          case kThreadDying: {
-            end_state = TaskState::FromParsedFlags(TaskState::kExitZombie);
-            break;
-          }
-          case kThreadDead: {
-            end_state = TaskState::FromParsedFlags(TaskState::kExitDead);
-            break;
-          }
-          default: {
-            break;
-          }
+        // Close the state record if one is open for this thread.
+        if (outgoing_thread.last_state_row.has_value()) {
+          auto row_ref = outgoing_thread.last_state_row->ToRowReference(
+              storage->mutable_thread_state_table());
+          row_ref.set_dur(duration);
+          outgoing_thread.last_state_row.reset();
         }
 
-        auto id =
-            end_state.has_value()
-                ? context_->storage->InternString(end_state->ToString().data())
-                : kNullStringId;
-        storage->mutable_sched_slice_table()->Insert(
-            {previous_thread.start_ts, ts - previous_thread.start_ts, cpu, utid,
-             id, outgoing_priority});
+        // Open a new state record to track the duration of the outgoing state.
+        tables::ThreadStateTable::Row state_row;
+        state_row.ts = ts;
+        state_row.cpu = cpu;
+        state_row.dur = -1;
+        state_row.state = state;
+        state_row.utid = utid;
+        auto state_row_number =
+            storage->mutable_thread_state_table()->Insert(state_row).row_number;
+        outgoing_thread.last_state_row = state_row_number;
       }
 
-      RunningThread new_running;
-      new_running.info = incoming_thread;
-      new_running.start_ts = ts;
-      cpu_threads_[cpu] = new_running;
+      // Handle switching to the new currently running thread.
+      if (!incoming_is_idle) {
+        UniqueTid utid = procs->UpdateThread(
+            static_cast<uint32_t>(incoming_thread.info.tid),
+            static_cast<uint32_t>(incoming_thread.info.pid));
+
+        const auto duration = ts - incoming_thread.last_ts;
+        incoming_thread.last_ts = ts;
+
+        // Close the state record if one is open for this thread.
+        if (incoming_thread.last_state_row.has_value()) {
+          auto row_ref = incoming_thread.last_state_row->ToRowReference(
+              storage->mutable_thread_state_table());
+          row_ref.set_dur(duration);
+          incoming_thread.last_state_row.reset();
+        }
+
+        // Open a new slice record for this thread.
+        tables::SchedSliceTable::Row slice_row;
+        slice_row.ts = ts;
+        slice_row.cpu = cpu;
+        slice_row.dur = -1;
+        slice_row.utid = utid;
+        slice_row.priority = incoming_priority;
+        auto slice_row_number =
+            storage->mutable_sched_slice_table()->Insert(slice_row).row_number;
+        incoming_thread.last_slice_row = slice_row_number;
+
+        // Open a new state record for this thread.
+        tables::ThreadStateTable::Row state_row;
+        state_row.ts = ts;
+        state_row.cpu = cpu;
+        state_row.dur = -1;
+        state_row.state = running_string_id_;
+        state_row.utid = utid;
+        auto state_row_number =
+            storage->mutable_thread_state_table()->Insert(state_row).row_number;
+        incoming_thread.last_state_row = state_row_number;
+      }
+
       break;
     }
     default: {

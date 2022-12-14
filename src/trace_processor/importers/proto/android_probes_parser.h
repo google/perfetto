@@ -44,6 +44,7 @@ class AndroidProbesParser {
   void ParseInitialDisplayState(int64_t ts, ConstBytes);
   void ParseAndroidSystemProperty(int64_t ts, ConstBytes);
   void ParseAndroidGameIntervention(ConstBytes);
+  void ParseNetworkPacketEvent(int64_t ts, ConstBytes);
 
  private:
   TraceProcessorContext* const context_;
@@ -54,6 +55,15 @@ class AndroidProbesParser {
   const StringId batt_current_avg_id_;
   const StringId screen_state_id_;
   const StringId device_state_id_;
+
+  const StringId net_arg_length_;
+  const StringId net_arg_ip_proto_;
+  const StringId net_arg_tcp_flags_;
+  const StringId net_arg_tag_;
+  const StringId net_arg_local_port_;
+  const StringId net_arg_remote_port_;
+  const StringId net_ipproto_tcp_;
+  const StringId net_ipproto_udp_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto

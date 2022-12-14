@@ -300,3 +300,45 @@ test('QueryResult.DuplicateColumnNames', () => {
   }
   expect(() => qr.iter({x_3: NUM})).toThrowError(/\bx_3\b.*not found/);
 });
+
+
+test('QueryResult.WaitMoreRows', async () => {
+  const batchA = QueryResultProto.CellsBatch.create({
+    cells: [T.CELL_VARINT],
+    varintCells: [42],
+    isLastBatch: false,
+  });
+  const resProtoA = QueryResultProto.create({
+    columnNames: ['a_int'],
+    batch: [batchA],
+  });
+
+  const qr = createQueryResult({query: 'Some query'});
+  qr.appendResultBatch(QueryResultProto.encode(resProtoA).finish());
+
+  const batchB = QueryResultProto.CellsBatch.create({
+    cells: [T.CELL_VARINT],
+    varintCells: [43],
+    isLastBatch: true,
+  });
+  const resProtoB = QueryResultProto.create({
+    columnNames: [],
+    batch: [batchB],
+  });
+
+  const waitPromise = qr.waitMoreRows();
+  const appendPromise = new Promise<void>((resolve, _) => {
+    setTimeout(() => {
+      qr.appendResultBatch(QueryResultProto.encode(resProtoB).finish());
+      resolve();
+    }, 0);
+  });
+
+  expect(qr.isComplete()).toBe(false);
+  expect(qr.numRows()).toBe(1);
+
+  await Promise.all([waitPromise, appendPromise]);
+
+  expect(qr.isComplete()).toBe(true);
+  expect(qr.numRows()).toBe(2);
+});

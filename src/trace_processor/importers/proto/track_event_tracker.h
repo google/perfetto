@@ -132,6 +132,14 @@ class TrackEventTracker {
 
   void OnFirstPacketOnSequence(uint32_t packet_sequence_id);
 
+  void SetRangeOfInterestStartUs(int64_t range_of_interest_start_us) {
+    range_of_interest_start_us_ = range_of_interest_start_us;
+  }
+
+  base::Optional<int64_t> range_of_interest_start_us() const {
+    return range_of_interest_start_us_;
+  }
+
  private:
   struct DescriptorTrackReservation {
     uint64_t parent_uuid = 0;
@@ -239,6 +247,8 @@ class TrackEventTracker {
   const StringId descriptor_source_ = kNullStringId;
 
   const StringId default_descriptor_track_name_ = kNullStringId;
+
+  base::Optional<int64_t> range_of_interest_start_us_;
 
   TraceProcessorContext* const context_;
 };

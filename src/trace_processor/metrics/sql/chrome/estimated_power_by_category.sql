@@ -39,7 +39,7 @@ SELECT ts,
   upid,
   is_main_thread
 FROM power_per_thread
-  JOIN chrome_thread
+JOIN chrome_thread
 WHERE power_per_thread.utid = chrome_thread.utid;
 
 DROP TABLE IF EXISTS {{input}}_power;
@@ -65,7 +65,7 @@ FROM (
       s.{{category}},
       SUM(r.power_ma * r.dur) / 1e9 AS mas
     FROM {{input}}_power r
-      JOIN {{input}} s
-    WHERE r.id == s.id
+    JOIN {{input}} s
+    WHERE r.id = s.id
     GROUP BY s.id
   );

@@ -13,10 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select ts, cpu, dur from sched
-where
-  cpu = 1 and
-  dur > 50 and
-  dur <= 100 and
-  ts >= 100 and
-  ts <= 400;
+SELECT ts, cpu, dur FROM sched
+WHERE
+  cpu = 1
+  AND dur > 50
+  AND dur <= 100
+  AND ts >= 100
+  AND ts <= 400;

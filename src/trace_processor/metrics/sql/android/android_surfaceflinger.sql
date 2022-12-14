@@ -44,8 +44,8 @@ DROP VIEW IF EXISTS surfaceflinger_track;
 CREATE VIEW surfaceflinger_track AS
 SELECT tr.id AS track_id, t.utid, t.tid
 FROM process p JOIN thread t ON p.upid = t.upid
-     JOIN thread_track tr ON tr.utid = t.utid
-WHERE p.cmdline='/system/bin/surfaceflinger';
+JOIN thread_track tr ON tr.utid = t.utid
+WHERE p.cmdline = '/system/bin/surfaceflinger';
 
 DROP VIEW IF EXISTS gpu_waiting_start;
 CREATE VIEW gpu_waiting_start AS
@@ -60,7 +60,7 @@ CREATE VIEW gpu_waiting_end AS
 SELECT
   CAST(SUBSTR(s.name, 28) AS UINT32) AS fence_id,
   dur,
-  ts+dur AS end_ts
+  ts + dur AS end_ts
 FROM slices s JOIN surfaceflinger_track t ON s.track_id = t.track_id
 WHERE s.name GLOB 'waiting for GPU completion *';
 
@@ -90,14 +90,14 @@ DROP VIEW IF EXISTS android_surfaceflinger_output;
 CREATE VIEW android_surfaceflinger_output AS
 SELECT
   AndroidSurfaceflingerMetric(
-    'missed_frames', (SELECT COUNT(1) FROM frame_missed WHERE value=1),
-    'missed_hwc_frames', (SELECT COUNT(1) FROM hwc_frame_missed WHERE value=1),
-    'missed_gpu_frames', (SELECT COUNT(1) FROM gpu_frame_missed WHERE value=1),
+    'missed_frames', (SELECT COUNT(1) FROM frame_missed WHERE value = 1),
+    'missed_hwc_frames', (SELECT COUNT(1) FROM hwc_frame_missed WHERE value = 1),
+    'missed_gpu_frames', (SELECT COUNT(1) FROM gpu_frame_missed WHERE value = 1),
     'missed_frame_rate', (SELECT AVG(value) FROM frame_missed),
     'missed_hwc_frame_rate', (SELECT AVG(value) FROM hwc_frame_missed),
     'missed_gpu_frame_rate', (SELECT AVG(value) FROM gpu_frame_missed),
     'gpu_invocations', (SELECT COUNT(1) FROM gpu_waiting_end),
-    'avg_gpu_waiting_dur_ms', (SELECT AVG(dur)/1e6 FROM gpu_waiting_span),
+    'avg_gpu_waiting_dur_ms', (SELECT AVG(dur) / 1e6 FROM gpu_waiting_span),
     'total_non_empty_gpu_waiting_dur_ms',
-        (SELECT SUM(dur)/1e6 FROM gpu_waiting_end)
+    (SELECT SUM(dur) / 1e6 FROM gpu_waiting_end)
   );

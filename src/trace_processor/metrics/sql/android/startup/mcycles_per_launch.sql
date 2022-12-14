@@ -73,8 +73,8 @@ WITH mcycles_per_launch_and_process AS MATERIALIZED (
   JOIN thread USING (utid)
   JOIN process USING (upid)
   WHERE
-    utid != 0 AND
-    upid NOT IN (
+    utid != 0
+    AND upid NOT IN (
       SELECT upid
       FROM launch_processes l
     )
@@ -84,7 +84,7 @@ SELECT *
 FROM (
   SELECT
     *,
-    ROW_NUMBER() OVER (PARTITION BY launch_id ORDER BY mcycles DESC) mcycles_rank
+    ROW_NUMBER() OVER (PARTITION BY launch_id ORDER BY mcycles DESC) AS mcycles_rank
   FROM mcycles_per_launch_and_process
 )
 WHERE mcycles_rank <= 5;

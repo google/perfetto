@@ -123,6 +123,8 @@ def run_metrics_test(trace_processor_path, gen_trace_path, metric,
   json_output = os.path.basename(expected_path).endswith('.json.out')
   cmd = [
       trace_processor_path,
+      '--analyze-trace-proto-content',
+      '--crop-track-events',
       '--run-metrics',
       metric,
       '--metrics-output=%s' % ('json' if json_output else 'binary'),
@@ -163,6 +165,8 @@ def run_query_test(trace_processor_path, gen_trace_path, query_path,
 
   cmd = [
       trace_processor_path,
+      '--analyze-trace-proto-content',
+      '--crop-track-events',
       '-q',
       query_path,
       '--perf-file',

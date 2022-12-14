@@ -14,12 +14,11 @@
 -- limitations under the License.
 --
 
-select eac.id, eac.depth, eac.frame_id, eac.annotation,
+SELECT eac.id, eac.depth, eac.frame_id, eac.annotation,
        spf.name
-from experimental_annotated_callstack eac
-join perf_sample ps
-  on (eac.start_id == ps.callsite_id)
-join stack_profile_frame spf
-  on (eac.frame_id == spf.id)
-order by eac.start_id asc, eac.depth asc;
-
+FROM experimental_annotated_callstack eac
+JOIN perf_sample ps
+  ON (eac.start_id = ps.callsite_id)
+JOIN stack_profile_frame spf
+  ON (eac.frame_id = spf.id)
+ORDER BY eac.start_id ASC, eac.depth ASC;

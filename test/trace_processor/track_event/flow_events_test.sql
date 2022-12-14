@@ -13,6 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select t1.name as slice_out, t2.name as slice_in from flow t
-join slice t1 on t.slice_out == t1.slice_id
-join slice t2 on t.slice_in == t2.slice_id;
+SELECT t1.name AS slice_out, t2.name AS slice_in FROM flow t
+JOIN slice t1 ON t.slice_out = t1.slice_id
+JOIN slice t2 ON t.slice_in = t2.slice_id;

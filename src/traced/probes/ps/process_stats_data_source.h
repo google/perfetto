@@ -62,6 +62,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   void WriteAllProcesses();
   void OnPids(const base::FlatSet<int32_t>& pids);
   void OnRenamePids(const base::FlatSet<int32_t>& pids);
+  void OnFds(const base::FlatSet<std::pair<pid_t, uint64_t>>& fds);
 
   // ProbesDataSource implementation.
   void Start() override;
@@ -71,6 +72,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   bool on_demand_dumps_enabled() const { return enable_on_demand_dumps_; }
 
   // Virtual for testing.
+  virtual const char* GetProcMountpoint();
   virtual base::ScopedDir OpenProcDir();
   virtual std::string ReadProcPidFile(int32_t pid, const std::string& file);
 
@@ -88,6 +90,9 @@ class ProcessStatsDataSource : public ProbesDataSource {
 
     // ctime + stime from /proc/pid/stat
     uint64_t cpu_time = std::numeric_limits<uint64_t>::max();
+
+    // file descriptors
+    base::FlatSet<uint64_t> seen_fds;
   };
 
   // Common functions.
@@ -121,6 +126,8 @@ class ProcessStatsDataSource : public ProbesDataSource {
   static void Tick(base::WeakPtr<ProcessStatsDataSource>);
   void WriteAllProcessStats();
   bool WriteMemCounters(int32_t pid, const std::string& proc_status);
+  void WriteFds(int32_t pid);
+  void WriteSingleFd(int32_t pid, uint64_t fd);
   bool ShouldWriteThreadStats(int32_t pid);
   void WriteThreadStats(int32_t pid, int32_t tid);
 
@@ -152,11 +159,25 @@ class ProcessStatsDataSource : public ProbesDataSource {
   bool record_thread_names_ = false;
   bool enable_on_demand_dumps_ = true;
   bool dump_all_procs_on_start_ = false;
+  bool resolve_process_fds_ = false;
 
   // This set contains PIDs as per the Linux kernel notion of a PID (which is
   // really a TID). In practice this set will contain all TIDs for all processes
   // seen, not just the main thread id (aka thread group ID).
-  base::FlatSet<int32_t> seen_pids_;
+  struct SeenPid {
+    int32_t pid;
+    int32_t tgid;
+
+    inline SeenPid(int32_t _pid, int32_t _tgid = 0) : pid(_pid), tgid(_tgid) {}
+    // TODO(rsavitski): add comparator support to FlatSet
+    inline bool operator==(const SeenPid& other) const {
+      return pid == other.pid;
+    }
+    inline bool operator<(const SeenPid& other) const {
+      return pid < other.pid;
+    }
+  };
+  base::FlatSet<SeenPid> seen_pids_;
 
   // Fields for keeping track of the periodic stats/counters.
   uint32_t poll_period_ms_ = 0;

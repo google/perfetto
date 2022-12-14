@@ -32,33 +32,33 @@ SELECT
   oom_scores.oom_score_val AS score
 FROM raw_events
 LEFT JOIN oom_score_span oom_scores
-  ON (raw_events.upid = oom_scores.upid AND
-      raw_events.ts >= oom_scores.ts AND
-      raw_events.ts < oom_scores.ts + oom_scores.dur)
+  ON (raw_events.upid = oom_scores.upid
+      AND raw_events.ts >= oom_scores.ts
+      AND raw_events.ts < oom_scores.ts + oom_scores.dur)
 ORDER BY 1;
 
 DROP VIEW IF EXISTS android_lmk_event;
 CREATE VIEW android_lmk_event AS
 WITH raw_events AS (
   SELECT
-      ts,
-      LEAD(ts) OVER (ORDER BY ts) - ts AS dur,
-      CAST(value AS INTEGER) AS pid
-    FROM counter c
-    JOIN counter_track t ON t.id = c.track_id
-    WHERE t.name = 'kill_one_process'
+    ts,
+    LEAD(ts) OVER (ORDER BY ts) - ts AS dur,
+    CAST(value AS INTEGER) AS pid
+  FROM counter c
+  JOIN counter_track t ON t.id = c.track_id
+  WHERE t.name = 'kill_one_process'
   UNION ALL
   SELECT
-      slice.ts,
-      slice.dur,
-      CAST(STR_SPLIT(slice.name, ",", 1) AS INTEGER) AS pid
-    FROM slice
-    WHERE slice.name GLOB 'lmk,*'
+    slice.ts,
+    slice.dur,
+    CAST(STR_SPLIT(slice.name, ",", 1) AS INTEGER) AS pid
+  FROM slice
+  WHERE slice.name GLOB 'lmk,*'
 ),
 lmks_with_proc_name AS (
   SELECT
     *,
-    process.name as process_name
+    process.name AS process_name
   FROM raw_events
   LEFT JOIN process ON
     process.pid = raw_events.pid
@@ -67,15 +67,15 @@ lmks_with_proc_name AS (
   WHERE raw_events.pid != 0
 )
 SELECT
-  'slice' as track_type,
-  'Low Memory Kills (LMKs)' as track_name,
+  'slice' AS track_type,
+  'Low Memory Kills (LMKs)' AS track_name,
   ts,
   dur,
   CASE
     WHEN process_name IS NULL THEN printf('Process %d', lmk.pid)
     ELSE printf('%s (pid: %d)', process_name, lmk.pid)
   END AS slice_name
-FROM lmks_with_proc_name as lmk;
+FROM lmks_with_proc_name AS lmk;
 
 DROP VIEW IF EXISTS android_lmk_output;
 CREATE VIEW android_lmk_output AS

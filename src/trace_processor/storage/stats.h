@@ -134,6 +134,12 @@ namespace stats {
   F(traced_total_buffers,               kSingle,  kInfo,     kTrace,    ""),   \
   F(traced_tracing_sessions,            kSingle,  kInfo,     kTrace,    ""),   \
   F(track_event_parser_errors,          kSingle,  kInfo,     kAnalysis, ""),   \
+  F(track_event_dropped_packets_outside_of_range_of_interest,                  \
+                                        kSingle,  kInfo,     kAnalysis,        \
+      "The number of TrackEvent packets dropped by trace processor due to "    \
+      "being outside of the range of interest. This happens if a trace has a " \
+      "TrackEventRangeOfInterest packet, and track event dropping is "         \
+      "enabled."),                                                             \
   F(track_event_tokenizer_errors,       kSingle,  kInfo,     kAnalysis, ""),   \
   F(track_event_thread_invalid_end,     kSingle,  kError,    kTrace,           \
       "The end event for a thread track does not match a track event "         \

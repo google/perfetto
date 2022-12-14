@@ -30,8 +30,8 @@ FROM slice s
 JOIN process_track t ON s.track_id = t.id
 JOIN process USING(upid)
 WHERE
-  s.name GLOB 'launching: *' AND
-  (process.name IS NULL OR process.name = 'system_server');
+  s.name GLOB 'launching: *'
+  AND (process.name IS NULL OR process.name = 'system_server');
 
 SELECT CREATE_FUNCTION(
   'SLICE_COUNT(slice_glob STRING)',
@@ -45,9 +45,9 @@ SELECT CREATE_FUNCTION(
 DROP TABLE IF EXISTS launches;
 CREATE TABLE launches(
   id INTEGER PRIMARY KEY,
-  ts BIG INT,
-  ts_end BIG INT,
-  dur BIG INT,
+  ts BIGINT,
+  ts_end BIGINT,
+  dur BIGINT,
   package STRING,
   launch_type STRING
 );
@@ -61,7 +61,7 @@ SELECT CASE
   WHEN SLICE_COUNT('MetricsLogger:*') > 0
     THEN RUN_METRIC('android/startup/launches_minsdk29.sql')
   ELSE RUN_METRIC('android/startup/launches_maxsdk28.sql')
-END;
+  END;
 
 -- Create a table containing only the slices which are necessary for determining
 -- whether a launch happened
@@ -91,7 +91,7 @@ SELECT CREATE_FUNCTION(
 -- However it is possible that the process dies during the activity launch
 -- and is respawned.
 DROP TABLE IF EXISTS launch_processes;
-CREATE TABLE launch_processes(launch_id INT, upid BIG INT, launch_type STRING);
+CREATE TABLE launch_processes(launch_id INT, upid BIGINT, launch_type STRING);
 
 INSERT INTO launch_processes(launch_id, upid, launch_type)
 -- This is intentionally a materizlied query. For some reason, if we don't
@@ -113,26 +113,36 @@ WITH launch_with_type AS MATERIALIZED (
       l.id AS launch_id,
       l.launch_type,
       p.upid,
-      LAUNCH_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'bindApplication') bind_app,
-      LAUNCH_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityStart') a_start,
-      LAUNCH_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityResume') a_resume
+      LAUNCH_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'bindApplication') AS bind_app,
+      LAUNCH_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityStart') AS a_start,
+      LAUNCH_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityResume') AS a_resume
     FROM launches l
     JOIN process_metadata_table p ON (
-      l.package = p.package_name OR
+      l.package = p.package_name
       -- If the package list data source was not enabled in the trace, nothing
       -- will match the above constraint so also match any process whose name
       -- is a prefix of the package name.
-      (
-        (SELECT COUNT(1) = 0 FROM package_list) AND
-        p.process_name GLOB l.package || '*'
+      OR (
+        (SELECT COUNT(1) = 0 FROM package_list)
+        AND p.process_name GLOB l.package || '*'
       )
-    )
+      )
     JOIN thread t ON (p.upid = t.upid AND t.is_main_thread)
   )
 )
 SELECT *
 FROM launch_with_type
 WHERE launch_type IS NOT NULL;
+
+-- Checks if the duration of two spans overlap, given the start and end time stamps.
+SELECT CREATE_FUNCTION(
+  'IS_SPANS_OVERLAPPING(ts1 LONG, ts_end1 LONG, ts2 LONG, ts_end2 LONG)',
+  'BOOL',
+  '
+    SELECT (IIF($ts1 < $ts2, $ts2, $ts1)
+      < IIF($ts_end1 < $ts_end2, $ts_end1, $ts_end2))
+  '
+);
 
 -- Tracks all main process threads.
 DROP VIEW IF EXISTS launch_threads;

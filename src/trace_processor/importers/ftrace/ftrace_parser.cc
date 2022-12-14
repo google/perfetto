@@ -17,20 +17,22 @@
 #include "src/trace_processor/importers/ftrace/ftrace_parser.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/async_track_set_tracker.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
 #include "src/trace_processor/importers/ftrace/thread_state_tracker.h"
 #include "src/trace_processor/importers/ftrace/v4l2_tracker.h"
 #include "src/trace_processor/importers/ftrace/virtio_video_tracker.h"
 #include "src/trace_processor/importers/i2c/i2c_tracker.h"
-#include "src/trace_processor/importers/proto/async_track_set_tracker.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
-#include "src/trace_processor/parser_types.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/softirq_action.h"
@@ -38,6 +40,7 @@
 
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/ftrace/binder.pbzero.h"
+#include "protos/perfetto/trace/ftrace/cma.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cpuhp.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cros_ec.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dmabuf_heap.pbzero.h"
@@ -286,7 +289,21 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       trusty_category_id_(context_->storage->InternString("tipc")),
       trusty_name_trusty_std_id_(context_->storage->InternString("trusty_std")),
       trusty_name_tipc_tx_id_(context_->storage->InternString("tipc_tx")),
-      trusty_name_tipc_rx_id_(context_->storage->InternString("tipc_rx")) {
+      trusty_name_tipc_rx_id_(context_->storage->InternString("tipc_rx")),
+      cma_alloc_id_(context_->storage->InternString("mm_cma_alloc")),
+      cma_name_id_(context_->storage->InternString("cma_name")),
+      cma_pfn_id_(context_->storage->InternString("cma_pfn")),
+      cma_req_pages_id_(context_->storage->InternString("cma_req_pages")),
+      cma_nr_migrated_id_(context_->storage->InternString("cma_nr_migrated")),
+      cma_nr_reclaimed_id_(context_->storage->InternString("cma_nr_reclaimed")),
+      cma_nr_mapped_id_(context_->storage->InternString("cma_nr_mapped")),
+      cma_nr_isolate_fail_id_(
+          context_->storage->InternString("cma_nr_isolate_fail")),
+      cma_nr_migrate_fail_id_(
+          context_->storage->InternString("cma_nr_migrate_fail")),
+      cma_nr_test_fail_id_(context_->storage->InternString("cma_nr_test_fail")),
+      syscall_ret_id_(context->storage->InternString("ret")),
+      syscall_args_id_(context->storage->InternString("args")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -360,7 +377,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
            context->storage->InternString("mem.mm.kern_alloc.avg_lat"))}};
 }
 
-void FtraceParser::ParseFtraceStats(ConstBytes blob) {
+void FtraceParser::ParseFtraceStats(ConstBytes blob,
+                                    uint32_t packet_sequence_id) {
   protos::pbzero::FtraceStats::Decoder evt(blob.data, blob.size);
   bool is_start =
       evt.phase() == protos::pbzero::FtraceStats::Phase::START_OF_TRACE;
@@ -486,22 +504,30 @@ void FtraceParser::ParseFtraceStats(ConstBytes blob) {
   //    medatata table.
   // Both will be reported in the 'Info & stats' page in the UI.
   if (is_start) {
-    std::string error_str;
-    for (auto it = evt.failed_ftrace_events(); it; ++it) {
-      storage->IncrementStats(stats::ftrace_setup_errors, 1);
-      error_str += "Ftrace event failed: " + it->as_std_string() + "\n";
+    if (seen_errors_for_sequence_id_.count(packet_sequence_id) == 0) {
+      std::string error_str;
+      for (auto it = evt.failed_ftrace_events(); it; ++it) {
+        storage->IncrementStats(stats::ftrace_setup_errors, 1);
+        error_str += "Ftrace event failed: " + it->as_std_string() + "\n";
+      }
+      for (auto it = evt.unknown_ftrace_events(); it; ++it) {
+        storage->IncrementStats(stats::ftrace_setup_errors, 1);
+        error_str += "Ftrace event unknown: " + it->as_std_string() + "\n";
+      }
+      if (evt.atrace_errors().size > 0) {
+        storage->IncrementStats(stats::ftrace_setup_errors, 1);
+        error_str += "Atrace failures: " + evt.atrace_errors().ToStdString();
+      }
+      if (!error_str.empty()) {
+        auto error_str_id = storage->InternString(base::StringView(error_str));
+        context_->metadata_tracker->AppendMetadata(
+            metadata::ftrace_setup_errors, Variadic::String(error_str_id));
+        seen_errors_for_sequence_id_.insert(packet_sequence_id);
+      }
     }
-    for (auto it = evt.unknown_ftrace_events(); it; ++it) {
-      storage->IncrementStats(stats::ftrace_setup_errors, 1);
-      error_str += "Ftrace event unknown: " + it->as_std_string() + "\n";
+    if (evt.preserve_ftrace_buffer()) {
+      preserve_ftrace_buffer_ = true;
     }
-    if (evt.atrace_errors().size > 0) {
-      storage->IncrementStats(stats::ftrace_setup_errors, 1);
-      error_str += "Atrace failures: " + evt.atrace_errors().ToStdString();
-    }
-    auto error_str_id = storage->InternString(base::StringView(error_str));
-    context_->metadata_tracker->SetMetadata(metadata::ftrace_setup_errors,
-                                            Variadic::String(error_str_id));
   }
 }
 
@@ -615,11 +641,11 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kSysEnterFieldNumber: {
-        ParseSysEvent(ts, pid, true, fld_bytes);
+        ParseSysEnterEvent(ts, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kSysExitFieldNumber: {
-        ParseSysEvent(ts, pid, false, fld_bytes);
+        ParseSysExitEvent(ts, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kTaskNewtaskFieldNumber: {
@@ -676,6 +702,14 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kScmCallEndFieldNumber: {
         ParseScmCallEnd(ts, pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kCmaAllocStartFieldNumber: {
+        ParseCmaAllocStart(ts, pid);
+        break;
+      }
+      case FtraceEvent::kCmaAllocInfoFieldNumber: {
+        ParseCmaAllocInfo(ts, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kMmVmscanDirectReclaimBeginFieldNumber: {
@@ -1002,7 +1036,10 @@ void FtraceParser::MaybeOnFirstFtraceEvent() {
   if (PERFETTO_LIKELY(has_seen_first_ftrace_packet_)) {
     return;
   }
-  DropFtraceDataBefore drop_before = context_->config.drop_ftrace_data_before;
+
+  DropFtraceDataBefore drop_before =
+      preserve_ftrace_buffer_ ? DropFtraceDataBefore::kNoDrop
+                              : context_->config.drop_ftrace_data_before;
   switch (drop_before) {
     case DropFtraceDataBefore::kNoDrop: {
       drop_ftrace_data_before_ts_ = 0;
@@ -1524,28 +1561,51 @@ void FtraceParser::ParseMmEventRecord(int64_t timestamp,
       timestamp, evt.avg_lat(), counter_names.avg_lat, utid);
 }
 
-void FtraceParser::ParseSysEvent(int64_t timestamp,
-                                 uint32_t pid,
-                                 bool is_enter,
-                                 ConstBytes blob) {
+void FtraceParser::ParseSysEnterEvent(int64_t timestamp,
+                                      uint32_t pid,
+                                      ConstBytes blob) {
   protos::pbzero::SysEnterFtraceEvent::Decoder evt(blob.data, blob.size);
   uint32_t syscall_num = static_cast<uint32_t>(evt.id());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
   SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(context_);
-  if (is_enter) {
-    syscall_tracker->Enter(timestamp, utid, syscall_num);
-  } else {
-    syscall_tracker->Exit(timestamp, utid, syscall_num);
-  }
+  auto args_callback = [this, &evt](ArgsTracker::BoundInserter* inserter) {
+    // process all syscall arguments
+    uint32_t count = 0;
+    for (auto it = evt.args(); it; ++it) {
+      if (syscall_arg_name_ids_.size() == count) {
+        base::StackString<32> string_arg("args[%" PRId32 "]", count);
+        auto string_id =
+            context_->storage->InternString(string_arg.string_view());
+        syscall_arg_name_ids_.emplace_back(string_id);
+      }
+      inserter->AddArg(syscall_args_id_, syscall_arg_name_ids_[count],
+                       Variadic::UnsignedInteger(*it));
+      ++count;
+    }
+  };
+  syscall_tracker->Enter(timestamp, utid, syscall_num, args_callback);
+}
 
-  // We are reusing the same function for sys_enter and sys_exit.
-  // It is fine as the arguments are the same, but we need to be sure that the
-  // protobuf field id for both are the same.
-  static_assert(
-      static_cast<int>(protos::pbzero::SysEnterFtraceEvent::kIdFieldNumber) ==
-          static_cast<int>(protos::pbzero::SysExitFtraceEvent::kIdFieldNumber),
-      "field mismatch");
+void FtraceParser::ParseSysExitEvent(int64_t timestamp,
+                                     uint32_t pid,
+                                     ConstBytes blob) {
+  // Note: Although this seems duplicated to ParseSysEnterEvent, it is
+  //       not. We decode SysExitFtraceEvent here to handle the return
+  //       value of a syscall whereas SysEnterFtraceEvent is decoded
+  //       above to handle the syscall arguments.
+  protos::pbzero::SysExitFtraceEvent::Decoder evt(blob.data, blob.size);
+  uint32_t syscall_num = static_cast<uint32_t>(evt.id());
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+
+  SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(context_);
+  auto args_callback = [this, &evt](ArgsTracker::BoundInserter* inserter) {
+    if (evt.has_ret()) {
+      const auto ret = evt.ret();
+      inserter->AddArg(syscall_ret_id_, Variadic::Integer(ret));
+    }
+  };
+  syscall_tracker->Exit(timestamp, utid, syscall_num, args_callback);
 }
 
 void FtraceParser::ParseI2cReadEvent(int64_t timestamp,
@@ -1721,9 +1781,8 @@ void FtraceParser::ParseScmCallStart(int64_t timestamp,
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
   protos::pbzero::ScmCallStartFtraceEvent::Decoder evt(blob.data, blob.size);
 
-  char str[64];
-  sprintf(str, "scm id=%#" PRIx64, evt.x0());
-  StringId name_id = context_->storage->InternString(str);
+  base::StackString<64> str("scm id=%#" PRIx64, evt.x0());
+  StringId name_id = context_->storage->InternString(str.string_view());
   context_->slice_tracker->Begin(timestamp, track_id, kNullStringId, name_id);
 }
 
@@ -1734,6 +1793,59 @@ void FtraceParser::ParseScmCallEnd(int64_t timestamp,
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
   context_->slice_tracker->End(timestamp, track_id);
+}
+
+void FtraceParser::ParseCmaAllocStart(int64_t timestamp, uint32_t pid) {
+  base::Optional<VersionNumber> kernel_version =
+      SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
+  // CmaAllocInfo event only exists after 5.10
+  if (kernel_version < VersionNumber{5, 10})
+    return;
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+
+  context_->slice_tracker->Begin(timestamp, track_id, kNullStringId,
+                                 cma_alloc_id_);
+}
+
+void FtraceParser::ParseCmaAllocInfo(int64_t timestamp,
+                                     uint32_t pid,
+                                     ConstBytes blob) {
+  base::Optional<VersionNumber> kernel_version =
+      SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
+  // CmaAllocInfo event only exists after 5.10
+  if (kernel_version < VersionNumber{5, 10})
+    return;
+
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  protos::pbzero::CmaAllocInfoFtraceEvent::Decoder cma_alloc_info(blob.data,
+                                                                  blob.size);
+  auto args_inserter = [this,
+                        &cma_alloc_info](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(cma_name_id_,
+                     Variadic::String(context_->storage->InternString(
+                         cma_alloc_info.name())));
+    inserter->AddArg(cma_pfn_id_,
+                     Variadic::UnsignedInteger(cma_alloc_info.pfn()));
+    inserter->AddArg(cma_req_pages_id_,
+                     Variadic::UnsignedInteger(cma_alloc_info.count()));
+    inserter->AddArg(cma_nr_migrated_id_,
+                     Variadic::UnsignedInteger(cma_alloc_info.nr_migrated()));
+    inserter->AddArg(cma_nr_reclaimed_id_,
+                     Variadic::UnsignedInteger(cma_alloc_info.nr_reclaimed()));
+    inserter->AddArg(cma_nr_mapped_id_,
+                     Variadic::UnsignedInteger(cma_alloc_info.nr_mapped()));
+    inserter->AddArg(cma_nr_isolate_fail_id_,
+                     Variadic::UnsignedInteger(cma_alloc_info.err_iso()));
+    inserter->AddArg(cma_nr_migrate_fail_id_,
+                     Variadic::UnsignedInteger(cma_alloc_info.err_mig()));
+    inserter->AddArg(cma_nr_test_fail_id_,
+                     Variadic::UnsignedInteger(cma_alloc_info.err_test()));
+  };
+  context_->slice_tracker->End(timestamp, track_id, kNullStringId,
+                               kNullStringId, args_inserter);
 }
 
 void FtraceParser::ParseDirectReclaimBegin(int64_t timestamp,
@@ -2139,9 +2251,9 @@ void FtraceParser::ParseInetSockSetState(int64_t timestamp,
     skaddr_to_stream_[evt.skaddr()] = ++num_of_tcp_stream_;
   }
   uint32_t stream = skaddr_to_stream_[evt.skaddr()];
-  char stream_str[64];
-  sprintf(stream_str, "TCP stream#%" PRIu32 "", stream);
-  StringId stream_id = context_->storage->InternString(stream_str);
+  base::StackString<64> stream_str("TCP stream#%" PRIu32 "", stream);
+  StringId stream_id =
+      context_->storage->InternString(stream_str.string_view());
 
   StringId slice_name_id;
   if (evt.newstate() == TCP_SYN_SENT) {

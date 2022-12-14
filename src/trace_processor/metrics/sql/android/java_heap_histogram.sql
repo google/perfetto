@@ -37,19 +37,19 @@ SELECT * FROM cls_visitor;
 
 DROP TABLE IF EXISTS heap_obj_histograms;
 CREATE TABLE heap_obj_histograms AS
-  SELECT
-    o.upid,
-    o.graph_sample_ts,
-    o.type_id cls_id,
-    COUNT(1) obj_count,
-    SUM(IIF(o.reachable, 1, 0)) reachable_obj_count,
-    SUM(self_size) / 1024 size_kb,
-    SUM(IIF(o.reachable, self_size, 0)) / 1024 reachable_size_kb,
-    SUM(native_size) / 1024 native_size_kb,
-    SUM(IIF(o.reachable, native_size, 0)) / 1024 reachable_native_size_kb
-  FROM heap_graph_object o
-  GROUP BY 1, 2, 3
-  ORDER BY 1, 2, 3;
+SELECT
+  o.upid,
+  o.graph_sample_ts,
+  o.type_id AS cls_id,
+  COUNT(1) AS obj_count,
+  SUM(IIF(o.reachable, 1, 0)) AS reachable_obj_count,
+  SUM(self_size) / 1024 AS size_kb,
+  SUM(IIF(o.reachable, self_size, 0)) / 1024 AS reachable_size_kb,
+  SUM(native_size) / 1024 AS native_size_kb,
+  SUM(IIF(o.reachable, native_size, 0)) / 1024 AS reachable_native_size_kb
+FROM heap_graph_object o
+GROUP BY 1, 2, 3
+ORDER BY 1, 2, 3;
 
 DROP VIEW IF EXISTS java_heap_histogram_output;
 CREATE VIEW java_heap_histogram_output AS

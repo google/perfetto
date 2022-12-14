@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../gn/perfetto.gni")
+
+assert(enable_perfetto_trace_processor_sqlite)
+
 source_set("dynamic") {
   sources = [
     "ancestor_generator.cc",
@@ -20,8 +24,6 @@ source_set("dynamic") {
     "connected_flow_generator.h",
     "descendant_generator.cc",
     "descendant_generator.h",
-    "describe_slice_generator.cc",
-    "describe_slice_generator.h",
     "dynamic_table_generator.cc",
     "dynamic_table_generator.h",
     "experimental_annotated_stack_generator.cc",
@@ -45,11 +47,10 @@ source_set("dynamic") {
     "../../../gn:default_deps",
     "../../../gn:sqlite",
     "../../base",
-    "../analysis",
     "../containers",
     "../db",
-    "../importers/proto:storage_full",
-    "../importers/proto:storage_minimal",
+    "../importers/proto:full",
+    "../importers/proto:minimal",
     "../sqlite:sqlite_minimal",
     "../storage",
     "../tables",

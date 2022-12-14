@@ -13,12 +13,12 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-select ts, dur, process.pid as pid, display_frame_token, surface_frame_token, layer_name,
-    present_type, on_time_finish, gpu_composition, jank_type, prediction_type, jank_tag
-from
-  (select t.*, process_track.name as track_name from
-    process_track left join actual_frame_timeline_slice t
-    on process_track.id = t.track_id) s
-join process using(upid)
-where s.track_name = 'Actual Timeline'
-order by ts
+SELECT ts, dur, process.pid AS pid, display_frame_token, surface_frame_token, layer_name,
+  present_type, on_time_finish, gpu_composition, jank_type, prediction_type, jank_tag
+FROM
+  (SELECT t.*, process_track.name AS track_name FROM
+    process_track LEFT JOIN actual_frame_timeline_slice t
+    ON process_track.id = t.track_id) s
+JOIN process USING(upid)
+WHERE s.track_name = 'Actual Timeline'
+ORDER BY ts;

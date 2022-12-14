@@ -419,6 +419,21 @@ message AndroidSystemPropertyConfig {
 
 // End of protos/perfetto/config/android/android_system_property_config.proto
 
+// Begin of protos/perfetto/config/android/network_trace_config.proto
+
+// Network tracing data source that records details on all packets sent or
+// received by the network.
+message NetworkPacketTraceConfig {
+  // Polling frequency in milliseconds. Network tracing writes to a fixed size
+  // ring buffer. The polling interval should be such that the ring buffer is
+  // unlikely to fill in that interval (or that filling is an acceptable risk).
+  // The minimum polling rate is 100ms (values below this are ignored).
+  // Introduced in Android 14 (U).
+  optional uint32 poll_ms = 1;
+}
+
+// End of protos/perfetto/config/android/network_trace_config.proto
+
 // Begin of protos/perfetto/config/android/packages_list_config.proto
 
 // Data source that lists details (such as version code) about packages on an
@@ -466,7 +481,7 @@ message ChromeConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 23.
+// Next id: 24.
 message FtraceConfig {
   repeated string ftrace_events = 1;
   repeated string atrace_categories = 2;
@@ -600,6 +615,13 @@ message FtraceConfig {
   // * Available only on debuggable builds.
   // * Introduced in: Android U.
   repeated string function_graph_roots = 21;
+
+  // If true, does not clear ftrace buffers before the start of the program.
+  // This makes sense only if this is the first ftrace data source instance
+  // created after the daemon has been started. Can be useful for gathering boot
+  // traces, if ftrace has been separately configured (e.g. via kernel
+  // commandline).
+  optional bool preserve_ftrace_buffer = 23;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
@@ -771,6 +793,13 @@ message ProcessStatsConfig {
 
   // DEPRECATED thread_time_in_state_cache_size
   reserved 8;
+
+  // If true this will resolve filedescriptors for each process so these
+  // can be mapped to their actual device or file.
+  // Requires raw_syscalls/sys_exit ftrace events to be enabled or
+  // new fds opened after initially scanning a process will not be
+  // recognized.
+  optional bool resolve_process_fds = 9;
 }
 
 // End of protos/perfetto/config/process_stats/process_stats_config.proto
@@ -2332,7 +2361,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 120
+// Next id: 121
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -2445,6 +2474,11 @@ message DataSourceConfig {
   // through the Perfetto SDK API. Data sources that don't use that API (e.g.,
   // traced_probes) may not support interception.
   optional InterceptorConfig interceptor_config = 115;
+
+  // Data source name: android.network_packets.
+  // Introduced in Android 14 (U).
+  optional NetworkPacketTraceConfig network_packet_trace_config = 120
+      [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
@@ -2653,6 +2687,10 @@ message TraceConfig {
     // On R-, this override only affected userdebug builds. Since S, it also
     // affects user builds.
     optional uint64 max_upload_per_day_bytes = 1;
+
+    // Overrides the guardrail for maximum trace buffer size.
+    // Available on U+
+    optional uint32 max_tracing_buffer_size_kb = 2;
   }
   optional GuardrailOverrides guardrail_overrides = 11;
 
@@ -2862,10 +2900,14 @@ message TraceConfig {
 
   // DEPRECATED. Was trace_uuid, use trace_uuid_msb and trace_uuid_lsb instead.
   reserved 26;
+
   // An identifier clients can use to tie this trace to other logging.
-  // Alternative encoding of trace_uuid as two int64s.
-  optional int64 trace_uuid_msb = 27;
-  optional int64 trace_uuid_lsb = 28;
+  // DEPRECATED as per v32. See TracePacket.trace_uuid for the authoritative
+  // Trace UUID. If this field is set, the tracing service will respect the
+  // requested UUID (i.e. TracePacket.trace_uuid == this field) but only if
+  // gap-less snapshotting is not used.
+  optional int64 trace_uuid_msb = 27 [deprecated = true];
+  optional int64 trace_uuid_lsb = 28 [deprecated = true];
 
   // When set applies a post-filter to the trace contents using the filter
   // provided. The filter is applied at ReadBuffers() time and works both in the

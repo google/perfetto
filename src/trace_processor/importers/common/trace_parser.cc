@@ -16,9 +16,9 @@
 
 #include "src/trace_processor/importers/common/trace_parser.h"
 
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
-#include "src/trace_processor/parser_types.h"
 
 namespace perfetto {
 namespace trace_processor {

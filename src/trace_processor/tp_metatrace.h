@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/metatrace_events.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/thread_checker.h"
+#include "perfetto/trace_processor/metatrace_config.h"
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 
 // Trace processor maintains its own base implementation to avoid the
@@ -65,6 +66,17 @@ struct Record {
 
   // Adds an arg to the record.
   void AddArg(base::StringView key, base::StringView value) {
+#if PERFETTO_DCHECK_IS_ON()
+    // |key| and |value| should not contain any '\0' characters as it
+    // messes with the |args_buffer| which uses '\0' to deliniate different
+    // arguments.
+    for (char c : key) {
+      PERFETTO_DCHECK(c != '\0');
+    }
+    for (char c : value) {
+      PERFETTO_DCHECK(c != '\0');
+    }
+#endif
     size_t new_buffer_size = args_buffer_size + key.size() + value.size() + 2;
     args_buffer = static_cast<char*>(realloc(args_buffer, new_buffer_size));
 
@@ -97,7 +109,7 @@ struct Record {
 //     is enabled and read one-shot at the end of execution.
 class RingBuffer {
  public:
-  static constexpr uint32_t kCapacity = 256 * 1024;
+  static constexpr uint32_t kDefaultCapacity = 256 * 1024;
 
   RingBuffer();
   ~RingBuffer() = default;
@@ -115,7 +127,7 @@ class RingBuffer {
     return std::make_pair(idx, record);
   }
 
-  Record* At(uint64_t idx) { return &data_[idx % kCapacity]; }
+  Record* At(uint64_t idx) { return &data_[idx % data_.size()]; }
 
   void ReadAll(std::function<void(Record*)>);
 
@@ -130,14 +142,19 @@ class RingBuffer {
 
   // Returns whether the record at the |index| has been overwritten because
   // of wraps of the ring buffer.
-  bool HasOverwritten(uint64_t index) { return index + kCapacity < write_idx_; }
+  bool HasOverwritten(uint64_t index) {
+    return index + data_.size() < write_idx_;
+  }
+
+  // Request the ring buffer to be resized. Clears the existing buffer.
+  void Resize(size_t requested_capacity);
 
  private:
   bool is_reading_ = false;
 
   uint64_t start_idx_ = 0;
   uint64_t write_idx_ = 0;
-  std::array<Record, kCapacity> data_;
+  std::vector<Record> data_;
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };
@@ -187,7 +204,7 @@ class ScopedEvent {
 };
 
 // Enables meta-tracing of trace-processor.
-void Enable(Category categories = Category::ALL);
+void Enable(MetatraceConfig config = {});
 
 // Disables meta-tracing of trace-processor and reads all records.
 void DisableAndReadBuffer(std::function<void(Record*)>);

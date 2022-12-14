@@ -1,5 +1,7 @@
 * [Overview](README.md)
 
+* [Tracing 101](tracing-101.md)
+
 * [Quickstart](#)
   * [Record traces on Android](quickstart/android-tracing.md)
   * [Record traces on Linux](quickstart/linux-tracing.md)
@@ -9,6 +11,8 @@
   * [Heap profiling](quickstart/heap-profiling.md)
   * [Callstack sampling on Android](quickstart/callstack-sampling.md)
 
+* [FAQ](faq.md)
+
 * [Case studies](#)
   * [Android boot tracing](case-studies/android-boot-tracing.md)
   * [Debugging memory usage](case-studies/memory.md)
@@ -16,8 +20,8 @@
 * [Data sources](#)
   * [Memory](#)
     * [Counters and events](data-sources/memory-counters.md)
-    * [Native heap profiler](data-sources/native-heap-profiler.md)
-    * [Java heap profiler](data-sources/java-heap-profiler.md)
+    * [Heap profiler](data-sources/native-heap-profiler.md)
+    * [Java heap dumps](data-sources/java-heap-profiler.md)
   * [CPU](#)
     * [Scheduling events](data-sources/cpu-scheduling.md)
     * [System calls](data-sources/syscalls.md)
@@ -38,6 +42,7 @@
 * [Trace analysis](#)
   * [Trace Processor (SQL)](analysis/trace-processor.md)
   * [Batch Trace Processor](analysis/batch-trace-processor.md)
+  * [Standard library](analysis/stdlib-docs.autogen)
   * [Trace-based metrics](analysis/metrics.md)
   * [Common queries](analysis/common-queries.md)
   * [SQL tables](analysis/sql-tables.autogen)
@@ -72,6 +77,7 @@
     * [Releasing the SDK](contributing/sdk-releasing.md)
     * [Chrome branches](contributing/chrome-branches.md)
     * [UI development](contributing/ui-development.md)
+    * [Press](contributing/perfetto-in-the-press.md)
 
 * [Design documents](#)
     * [API and ABI surface](design-docs/api-and-abi.md)

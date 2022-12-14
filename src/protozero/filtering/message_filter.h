@@ -53,6 +53,7 @@ namespace protozero {
 class MessageFilter {
  public:
   MessageFilter();
+  explicit MessageFilter(const MessageFilter&);
   ~MessageFilter();
 
   struct InputSlice {

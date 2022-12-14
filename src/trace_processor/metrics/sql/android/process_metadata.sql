@@ -29,12 +29,12 @@ SELECT
   -- workaround for b/169226092: the bug has been fixed it Android T, but
   -- we support ingesting traces from older Android versions.
   CASE
-      -- cmdline gets rewritten after fork, if these are still there we must
-      -- have seen a racy capture.
+    -- cmdline gets rewritten after fork, if these are still there we must
+    -- have seen a racy capture.
     WHEN length(process.name) = 15 AND (
-      process.cmdline in ('zygote', 'zygote64', '<pre-initialized>')
+      process.cmdline IN ('zygote', 'zygote64', '<pre-initialized>')
       OR process.cmdline GLOB '*' || process.name)
-    THEN process.cmdline
+      THEN process.cmdline
     ELSE process.name
   END AS process_name,
   process.android_appid AS uid,
@@ -45,14 +45,14 @@ SELECT
 FROM process
 LEFT JOIN uid_package_count ON process.android_appid = uid_package_count.uid
 LEFT JOIN package_list plist
-ON (
-  process.android_appid = plist.uid
-  AND uid_package_count.uid = plist.uid
-  AND (
-    -- unique match
-    uid_package_count.cnt = 1
-    -- or process name starts with the package name
-    OR process.name GLOB plist.package_name || '*')
+  ON (
+    process.android_appid = plist.uid
+    AND uid_package_count.uid = plist.uid
+    AND (
+      -- unique match
+      uid_package_count.cnt = 1
+      -- or process name starts with the package name
+      OR process.name GLOB plist.package_name || '*')
   );
 
 DROP VIEW IF EXISTS process_metadata;
@@ -60,12 +60,12 @@ DROP VIEW IF EXISTS process_metadata;
 CREATE VIEW process_metadata AS
 WITH upid_packages AS (
   SELECT
-  upid,
-  RepeatedField(AndroidProcessMetadata_Package(
-    'package_name', package_list.package_name,
-    'apk_version_code', package_list.version_code,
-    'debuggable', package_list.debuggable
-  )) packages_for_uid
+    upid,
+    RepeatedField(AndroidProcessMetadata_Package(
+      'package_name', package_list.package_name,
+      'apk_version_code', package_list.version_code,
+      'debuggable', package_list.debuggable
+    )) AS packages_for_uid
   FROM process
   JOIN package_list ON process.android_appid = package_list.uid
   GROUP BY upid

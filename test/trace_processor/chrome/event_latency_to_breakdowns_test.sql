@@ -16,14 +16,14 @@
 SELECT RUN_METRIC('chrome/event_latency_to_breakdowns.sql');
 
 SELECT
-    event_latency_ts,
-    event_latency_dur,
-    event_type,
-    GenerationToRendererCompositorNs,
-    GenerationToBrowserMainNs,
-    BrowserMainToRendererCompositorNs,
-    RendererCompositorQueueingDelayNs,
-    unknown_stages_seen
+  event_latency_ts,
+  event_latency_dur,
+  event_type,
+  GenerationToRendererCompositorNs,
+  GenerationToBrowserMainNs,
+  BrowserMainToRendererCompositorNs,
+  RendererCompositorQueueingDelayNs,
+  unknown_stages_seen
 FROM event_latency_to_breakdowns
 ORDER BY event_latency_id
 LIMIT 30;

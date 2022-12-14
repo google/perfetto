@@ -19,7 +19,9 @@
 namespace perfetto {
 namespace trace_processor {
 
+#if !PERFETTO_IS_AT_LEAST_CPP17()
 constexpr const char* Variadic::kTypeNames[];
+#endif
 
 }  // namespace trace_processor
 }  // namespace perfetto

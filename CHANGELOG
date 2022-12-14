@@ -1,12 +1,35 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Added an explicit TraceUuid packet. The tracing service now always
+      generates a UUID, even if TraceConfig.trace_uuid_msb/lsb is empty.
   Trace Processor:
     *
   UI:
     *
   SDK:
-    *
+    * Add perfetto::Tracing::ActivateTriggers() function.
+
+
+v31.0 - 2022-11-10:
+  Tracing service and probes:
+    * Added support for collecting Android Trusty ftrace events.
+    * Fixed resetting syscall filter when recording selected syscalls.
+  Trace Processor:
+    * Improved error messages on SQL syntax errors.
+    * Improved performance of queries containing GLOB. Handling of GLOB
+      constraints now happens inside trace processor instead of SQLite.
+    * Added support for parsing Android Trusty ftrace events.
+  UI:
+    * Added support for metatracing UI code and integrate with trace processor
+      metatracing.
+    * Added support for scrolling to a time region using the postMessage API.
+    * Enabled Pivot table functionality by default.
+    * Fixed downloading of Java heap profiles.
+  SDK:
+    * Switched to require C++17 by default. A time-limited opt-out exists but
+      is planned to be removed in v34. Please contact us at
+      perfetto-dev@googlegroups.com if you have thoughts or concerns on this
+      move.
 
 
 v30.0 - 2022-10-06:

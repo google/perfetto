@@ -21,7 +21,7 @@ CREATE VIEW event_latency
 AS
 SELECT
   *,
-  EXTRACT_ARG(arg_set_id, "event_latency.event_type") as event_type
+  EXTRACT_ARG(arg_set_id, "event_latency.event_type") AS event_type
 FROM slice
 WHERE
   name = "EventLatency";
@@ -31,18 +31,18 @@ DROP VIEW IF EXISTS event_latency_breakdowns;
 CREATE VIEW event_latency_breakdowns
 AS
 SELECT
-  slice.id as slice_id,
-  slice.name as name,
-  slice.dur as dur,
-  slice.track_id as track_id,
-  slice.ts as ts,
-  event_latency.slice_id as event_latency_id,
-  event_latency.track_id as event_latency_track_id,
-  event_latency.ts as event_latency_ts,
-  event_latency.dur as event_latency_dur,
-  event_latency.event_type as event_type
+  slice.id AS slice_id,
+  slice.name AS name,
+  slice.dur AS dur,
+  slice.track_id AS track_id,
+  slice.ts AS ts,
+  event_latency.slice_id AS event_latency_id,
+  event_latency.track_id AS event_latency_track_id,
+  event_latency.ts AS event_latency_ts,
+  event_latency.dur AS event_latency_dur,
+  event_latency.event_type AS event_type
 FROM slice JOIN event_latency
-ON slice.parent_id = event_latency.slice_id;
+  ON slice.parent_id = event_latency.slice_id;
 
 -- The function takes a breakdown name and checks if the breakdown name is known or not.
 SELECT CREATE_FUNCTION(
@@ -97,44 +97,44 @@ SELECT
   event_latency_ts,
   event_latency_dur,
   event_type,
-  max(CASE WHEN name = "GenerationToRendererCompositor" THEN dur end) GenerationToRendererCompositorNs,
-  max(CASE WHEN name = "GenerationToBrowserMain" THEN dur end) GenerationToBrowserMainNs,
-  max(CASE WHEN name = "BrowserMainToRendererCompositor" THEN dur end) BrowserMainToRendererCompositorNs,
-  max(CASE WHEN name = "RendererCompositorQueueingDelay" THEN dur end) RendererCompositorQueueingDelayNs,
-  max(CASE WHEN name = "RendererCompositorProcessing" THEN dur end) RendererCompositorProcessingNs,
-  max(CASE WHEN name = "RendererCompositorToMain" THEN dur end) RendererCompositorToMainNs,
-  max(CASE WHEN name = "RendererMainProcessing" THEN dur end) RendererMainProcessingNs,
+  max(CASE WHEN name = "GenerationToRendererCompositor" THEN dur END) AS GenerationToRendererCompositorNs,
+  max(CASE WHEN name = "GenerationToBrowserMain" THEN dur END) AS GenerationToBrowserMainNs,
+  max(CASE WHEN name = "BrowserMainToRendererCompositor" THEN dur END) AS BrowserMainToRendererCompositorNs,
+  max(CASE WHEN name = "RendererCompositorQueueingDelay" THEN dur END) AS RendererCompositorQueueingDelayNs,
+  max(CASE WHEN name = "RendererCompositorProcessing" THEN dur END) AS RendererCompositorProcessingNs,
+  max(CASE WHEN name = "RendererCompositorToMain" THEN dur END) AS RendererCompositorToMainNs,
+  max(CASE WHEN name = "RendererMainProcessing" THEN dur END) AS RendererMainProcessingNs,
 
-  max(CASE WHEN name = "ArrivedInRendererCompositorToTermination" THEN dur end) ArrivedInRendererCompositorToTerminationNs,
-  max(CASE WHEN name = "RendererCompositorStartedToTermination" THEN dur end) RendererCompositorStartedToTerminationNs,
-  max(CASE WHEN name = "RendererCompositorFinishedToTermination" THEN dur end) RendererCompositorFinishedToTerminationNs,
-  max(CASE WHEN name = "RendererMainStartedToTermination" THEN dur end) RendererMainStartedToTerminationNs,
-  max(CASE WHEN name = "RendererMainFinishedToTermination" THEN dur end) RendererMainFinishedToTerminationNs,
+  max(CASE WHEN name = "ArrivedInRendererCompositorToTermination" THEN dur END) AS ArrivedInRendererCompositorToTerminationNs,
+  max(CASE WHEN name = "RendererCompositorStartedToTermination" THEN dur END) AS RendererCompositorStartedToTerminationNs,
+  max(CASE WHEN name = "RendererCompositorFinishedToTermination" THEN dur END) AS RendererCompositorFinishedToTerminationNs,
+  max(CASE WHEN name = "RendererMainStartedToTermination" THEN dur END) AS RendererMainStartedToTerminationNs,
+  max(CASE WHEN name = "RendererMainFinishedToTermination" THEN dur END) AS RendererMainFinishedToTerminationNs,
 
-  max(CASE WHEN name = "BeginImplFrameToSendBeginMainFrame" THEN dur end) BeginImplFrameToSendBeginMainFrameNs,
-  max(CASE WHEN name = "RendererCompositorFinishedToSendBeginMainFrame" THEN dur end) RendererCompositorFinishedToSendBeginMainFrameNs,
-  max(CASE WHEN name = "RendererCompositorFinishedToBeginImplFrame" THEN dur end) RendererCompositorFinishedToBeginImplFrameNs,
-  max(CASE WHEN name = "RendererCompositorFinishedToCommit" THEN dur end) RendererCompositorFinishedToCommitNs,
-  max(CASE WHEN name = "RendererCompositorFinishedToEndCommit" THEN dur end) RendererCompositorFinishedToEndCommitNs,
-  max(CASE WHEN name = "RendererCompositorFinishedToActivation" THEN dur end) RendererCompositorFinishedToActivationNs,
-  max(CASE WHEN name = "RendererCompositorFinishedToEndActivate" THEN dur end) RendererCompositorFinishedToEndActivateNs,
-  max(CASE WHEN name = "RendererCompositorFinishedToSubmitCompositorFrame" THEN dur end) RendererCompositorFinishedToSubmitCompositorFrameNs,
-  max(CASE WHEN name = "RendererMainFinishedToBeginImplFrame" THEN dur end) RendererMainFinishedToBeginImplFrameNs,
-  max(CASE WHEN name = "RendererMainFinishedToSendBeginMainFrame" THEN dur end) RendererMainFinishedToSendBeginMainFrameNs,
-  max(CASE WHEN name = "RendererMainFinishedToCommit" THEN dur end) RendererMainFinishedToCommitNs,
-  max(CASE WHEN name = "RendererMainFinishedToEndCommit" THEN dur end) RendererMainFinishedToEndCommitNs,
-  max(CASE WHEN name = "RendererMainFinishedToActivation" THEN dur end) RendererMainFinishedToActivationNs,
-  max(CASE WHEN name = "RendererMainFinishedToEndActivate" THEN dur end) RendererMainFinishedToEndActivateNs,
-  max(CASE WHEN name = "RendererMainFinishedToSubmitCompositorFrame" THEN dur end) RendererMainFinishedToSubmitCompositorFrameNs,
+  max(CASE WHEN name = "BeginImplFrameToSendBeginMainFrame" THEN dur END) AS BeginImplFrameToSendBeginMainFrameNs,
+  max(CASE WHEN name = "RendererCompositorFinishedToSendBeginMainFrame" THEN dur END) AS RendererCompositorFinishedToSendBeginMainFrameNs,
+  max(CASE WHEN name = "RendererCompositorFinishedToBeginImplFrame" THEN dur END) AS RendererCompositorFinishedToBeginImplFrameNs,
+  max(CASE WHEN name = "RendererCompositorFinishedToCommit" THEN dur END) AS RendererCompositorFinishedToCommitNs,
+  max(CASE WHEN name = "RendererCompositorFinishedToEndCommit" THEN dur END) AS RendererCompositorFinishedToEndCommitNs,
+  max(CASE WHEN name = "RendererCompositorFinishedToActivation" THEN dur END) AS RendererCompositorFinishedToActivationNs,
+  max(CASE WHEN name = "RendererCompositorFinishedToEndActivate" THEN dur END) AS RendererCompositorFinishedToEndActivateNs,
+  max(CASE WHEN name = "RendererCompositorFinishedToSubmitCompositorFrame" THEN dur END) AS RendererCompositorFinishedToSubmitCompositorFrameNs,
+  max(CASE WHEN name = "RendererMainFinishedToBeginImplFrame" THEN dur END) AS RendererMainFinishedToBeginImplFrameNs,
+  max(CASE WHEN name = "RendererMainFinishedToSendBeginMainFrame" THEN dur END) AS RendererMainFinishedToSendBeginMainFrameNs,
+  max(CASE WHEN name = "RendererMainFinishedToCommit" THEN dur END) AS RendererMainFinishedToCommitNs,
+  max(CASE WHEN name = "RendererMainFinishedToEndCommit" THEN dur END) AS RendererMainFinishedToEndCommitNs,
+  max(CASE WHEN name = "RendererMainFinishedToActivation" THEN dur END) AS RendererMainFinishedToActivationNs,
+  max(CASE WHEN name = "RendererMainFinishedToEndActivate" THEN dur END) AS RendererMainFinishedToEndActivateNs,
+  max(CASE WHEN name = "RendererMainFinishedToSubmitCompositorFrame" THEN dur END) AS RendererMainFinishedToSubmitCompositorFrameNs,
 
-  max(CASE WHEN name = "EndActivateToSubmitCompositorFrame" THEN dur end) EndActivateToSubmitCompositorFrameNs,
-  max(CASE WHEN name = "SubmitCompositorFrameToPresentationCompositorFrame" THEN dur end) SubmitCompositorFrameToPresentationCompositorFrameNs,
-  max(CASE WHEN name = "SendBeginMainFrameToCommit" THEN dur end) SendBeginMainFrameToCommitNs,
-  max(CASE WHEN name = "Commit" THEN dur end) CommitNs,
-  max(CASE WHEN name = "EndCommitToActivation" THEN dur end) EndCommitToActivationNs,
-  max(CASE WHEN name = "Activation" THEN dur end) ActivationNs,
--- This column indicates whether there are unknown breakdowns.
--- Contains: NULL if there are no unknown breakdowns, otherwise a list of unknown breakdows.
-  group_concat(InvalidNameOrNull(name), ', ') as unknown_stages_seen
+  max(CASE WHEN name = "EndActivateToSubmitCompositorFrame" THEN dur END) AS EndActivateToSubmitCompositorFrameNs,
+  max(CASE WHEN name = "SubmitCompositorFrameToPresentationCompositorFrame" THEN dur END) AS SubmitCompositorFrameToPresentationCompositorFrameNs,
+  max(CASE WHEN name = "SendBeginMainFrameToCommit" THEN dur END) AS SendBeginMainFrameToCommitNs,
+  max(CASE WHEN name = "Commit" THEN dur END) AS CommitNs,
+  max(CASE WHEN name = "EndCommitToActivation" THEN dur END) AS EndCommitToActivationNs,
+  max(CASE WHEN name = "Activation" THEN dur END) AS ActivationNs,
+  -- This column indicates whether there are unknown breakdowns.
+  -- Contains: NULL if there are no unknown breakdowns, otherwise a list of unknown breakdows.
+  group_concat(InvalidNameOrNull(name), ', ') AS unknown_stages_seen
 FROM event_latency_breakdowns
 GROUP BY event_latency_id;

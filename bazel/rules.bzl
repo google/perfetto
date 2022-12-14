@@ -22,7 +22,7 @@ load("@perfetto//bazel:proto_gen.bzl", "proto_descriptor_gen", "proto_gen")
 def default_cc_args():
     return {
         "deps": PERFETTO_CONFIG.deps.build_config,
-        "copts": [
+        "copts": PERFETTO_CONFIG.default_copts + [
             "-Wno-pragma-system-header-outside-header",
         ],
         "includes": ["include"],
@@ -278,6 +278,76 @@ def perfetto_cc_proto_descriptor(name, deps, outs, **kwargs):
         name = name,
         hdrs = [":" + name + "_gen"],
         **kwargs
+    )
+
+def perfetto_cc_amalgamated_sql(name, deps, outs, root_dir, namespace,
+                                **kwargs):
+    if PERFETTO_CONFIG.root[:2] != "//":
+        fail("Expected PERFETTO_CONFIG.root to start with //")
+
+    cmd = [
+        "$(location gen_amalgamated_sql_py)",
+        "--namespace",
+        namespace,
+        "--root-dir",
+        PERFETTO_CONFIG.root[2:] + "/" + root_dir,
+        "--cpp-out=$@",
+        "$(SRCS)",
+    ]
+
+    perfetto_genrule(
+        name = name + "_gen",
+        cmd = " ".join(cmd),
+        exec_tools = [
+            ":gen_amalgamated_sql_py",
+        ],
+        srcs = deps,
+        outs = outs,
+    )
+
+    perfetto_cc_library(
+        name = name,
+        hdrs = [":" + name + "_gen"],
+        **kwargs,
+    )
+
+def perfetto_cc_tp_tables(name, srcs, outs, **kwargs):
+    if PERFETTO_CONFIG.root == "//":
+      python_path = PERFETTO_CONFIG.root + "python"
+    else:
+      python_path = PERFETTO_CONFIG.root + "/python"
+
+    perfetto_py_binary(
+        name = name + "_tool",
+        deps = [
+            python_path + ":trace_processor_table_generator",
+        ],
+        srcs = srcs + [
+            "tools/gen_tp_table_headers.py",
+        ],
+        main = "tools/gen_tp_table_headers.py",
+        python_version = "PY3",
+    )
+
+    cmd = ["$(location " + name + "_tool)"]
+    cmd += ["--gen-dir", "$(RULEDIR)"]
+    cmd += ["--inputs", "$(SRCS)"]
+    cmd += ["--outputs", "$(OUTS)"]
+
+    perfetto_genrule(
+        name = name + "_gen",
+        cmd = " ".join(cmd),
+        exec_tools = [
+            ":" + name + "_tool",
+        ],
+        srcs = srcs,
+        outs = outs,
+    )
+
+    perfetto_cc_library(
+        name = name,
+        hdrs = [":" + name + "_gen"],
+        **kwargs,
     )
 
 # +----------------------------------------------------------------------------+

@@ -20,6 +20,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/traceconv/utils.h"
@@ -45,9 +46,9 @@ bool ExportUserspaceEvents(trace_processor::TraceProcessor* tp,
   // Write userspace trace to a temporary file.
   // TODO(eseckler): Support streaming the result out of TP directly instead.
   auto file = base::TempFile::Create();
-  char query[100];
-  sprintf(query, "select export_json(\"%s\")", file.path().c_str());
-  auto it = tp->ExecuteQuery(query);
+  base::StackString<100> query("select export_json(\"%s\")",
+                               file.path().c_str());
+  auto it = tp->ExecuteQuery(query.ToStdString());
 
   if (!it.Next()) {
     auto status = it.Status();

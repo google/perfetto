@@ -27,5 +27,5 @@ SELECT RUN_METRIC(
     'chrome/gesture_flow_event.sql',
     'prefix', 'scroll',
     'gesture_update', 'GestureScrollUpdate',
-    'id_field', 'gesture_scroll_id' 
-    );
+    'id_field', 'gesture_scroll_id'
+);

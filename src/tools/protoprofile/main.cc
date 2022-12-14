@@ -25,7 +25,7 @@
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "src/trace_processor/importers/trace.descriptor.h"
+#include "src/trace_processor/importers/proto/trace.descriptor.h"
 #include "src/trace_processor/util/proto_profiler.h"
 
 #include "protos/third_party/pprof/profile.pbzero.h"
@@ -81,8 +81,17 @@ std::string PprofProfileComputer::Compute(
     trace_processor::DescriptorPool* pool) {
   PERFETTO_CHECK(InternString("") == 0);
 
-  trace_processor::util::SizeProfileComputer computer(pool);
-  auto field_path_to_samples = computer.Compute(ptr, size, message_type);
+  trace_processor::util::SizeProfileComputer computer(pool, message_type);
+  computer.Reset(ptr, size);
+
+  using PathToSamplesMap = std::unordered_map<
+      trace_processor::util::SizeProfileComputer::FieldPath,
+      std::vector<size_t>,
+      trace_processor::util::SizeProfileComputer::FieldPathHasher>;
+  PathToSamplesMap field_path_to_samples;
+  for (auto sample = computer.GetNext(); sample; sample = computer.GetNext()) {
+    field_path_to_samples[computer.GetPath()].push_back(*sample);
+  }
 
   protozero::HeapBuffered<third_party::perftools::profiles::pbzero::Profile>
       profile;
@@ -108,9 +117,14 @@ std::string PprofProfileComputer::Compute(
   sample_type->set_unit(InternString("bytes"));
 
   // For each unique field path we've seen write out the stats:
-  for (auto it = field_path_to_samples.GetIterator(); it; ++it) {
-    const auto& field_path = it.key();
-    auto& samples = it.value();
+  for (auto& entry : field_path_to_samples) {
+    std::vector<std::string> field_path;
+    for (const auto& field : entry.first) {
+      if (field.has_field_name())
+        field_path.push_back(field.field_name());
+      field_path.push_back(field.type_name());
+    }
+    std::vector<size_t>& samples = entry.second;
 
     protozero::PackedVarInt location_ids;
     auto* sample = profile->add_sample();

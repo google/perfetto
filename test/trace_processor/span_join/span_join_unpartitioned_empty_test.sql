@@ -15,17 +15,17 @@
 --
 
 -- Model that the first table is empty and the second is has some data.
-create table t1(
-  ts BIG INT,
-  dur BIG INT,
+CREATE TABLE t1(
+  ts BIGINT,
+  dur BIGINT,
   PRIMARY KEY (ts, dur)
-) without rowid;
+) WITHOUT ROWID;
 
-create table t2(
-  ts BIG INT,
-  dur BIG INT,
+CREATE TABLE t2(
+  ts BIGINT,
+  dur BIGINT,
   PRIMARY KEY (ts, dur)
-) without rowid;
+) WITHOUT ROWID;
 
 INSERT INTO t2(ts, dur)
 VALUES
@@ -33,6 +33,6 @@ VALUES
 (5, 0),
 (1, 1);
 
-create virtual table sp using span_join(t1, t2);
+CREATE VIRTUAL TABLE sp USING span_join(t1, t2);
 
-select ts, dur from sp;
+SELECT ts, dur FROM sp;

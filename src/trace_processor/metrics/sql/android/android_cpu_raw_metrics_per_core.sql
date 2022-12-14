@@ -20,7 +20,7 @@ CREATE TABLE {{output_table}} AS
 SELECT
   utid,
   cpu,
-  IFNULL(core_type_per_cpu.core_type, 'unknown') core_type,
+  IFNULL(core_type_per_cpu.core_type, 'unknown') AS core_type,
   -- We divide by 1e3 here as dur is in ns and freq_khz in khz. In total
   -- this means we need to divide the duration by 1e9 and multiply the
   -- frequency by 1e3 then multiply again by 1e3 to get millicycles
@@ -38,5 +38,5 @@ SELECT
   CAST(SUM(dur * freq_khz / 1000) / SUM(dur / 1000) AS INT) AS avg_freq_khz
 FROM {{input_table}}
 LEFT JOIN core_type_per_cpu USING (cpu)
-WHERE utid != 0 and dur != -1
+WHERE utid != 0 AND dur != -1
 GROUP BY utid, cpu;

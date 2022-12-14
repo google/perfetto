@@ -22,4 +22,4 @@ SELECT
   size,
   effective_size
 FROM memory_snapshot_node
-LIMIT 20
+LIMIT 20;

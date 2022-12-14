@@ -16,40 +16,40 @@
 DROP VIEW IF EXISTS battery_view;
 CREATE VIEW battery_view AS
 SELECT
-  all_ts.ts as ts,
+  all_ts.ts AS ts,
   current_avg_ua,
   capacity_percent,
   charge_uah,
   current_ua
 FROM (
-  SELECT distinct(ts) AS ts
+  SELECT DISTINCT(ts) AS ts
   FROM counter c
-  JOIN counter_track t on c.track_id = t.id
+  JOIN counter_track t ON c.track_id = t.id
   WHERE name GLOB 'batt.*'
 ) AS all_ts
 LEFT JOIN (
   SELECT ts, value AS current_avg_ua
   FROM counter c
-  JOIN counter_track t on c.track_id = t.id
-  WHERE name='batt.current.avg_ua'
+  JOIN counter_track t ON c.track_id = t.id
+  WHERE name = 'batt.current.avg_ua'
 ) USING(ts)
 LEFT JOIN (
   SELECT ts, value AS capacity_percent
   FROM counter c
-  JOIN counter_track t on c.track_id = t.id
-  WHERE name='batt.capacity_pct'
+  JOIN counter_track t ON c.track_id = t.id
+  WHERE name = 'batt.capacity_pct'
 ) USING(ts)
 LEFT JOIN (
   SELECT ts, value AS charge_uah
   FROM counter c
-  JOIN counter_track t on c.track_id = t.id
-  WHERE name='batt.charge_uah'
+  JOIN counter_track t ON c.track_id = t.id
+  WHERE name = 'batt.charge_uah'
 ) USING(ts)
 LEFT JOIN (
   SELECT ts, value AS current_ua
   FROM counter c
-  JOIN counter_track t on c.track_id = t.id
-  WHERE name='batt.current_ua'
+  JOIN counter_track t ON c.track_id = t.id
+  WHERE name = 'batt.current_ua'
 ) USING(ts)
 ORDER BY ts;
 
@@ -60,23 +60,23 @@ SELECT
   MAX(ts_end) AS ts_end
 FROM (
     SELECT
-        *,
-        SUM(new_group) OVER (ORDER BY ts) AS group_id
+      *,
+      SUM(new_group) OVER (ORDER BY ts) AS group_id
     FROM (
         SELECT
-            ts,
-            ts + dur AS ts_end,
-            -- There is a new group if there was a gap before this wakelock.
-            -- i.e. the max end timestamp of all preceding wakelocks is before
-            -- the start timestamp of this one.
-            -- The null check is for the first row which is always a new group.
-            IFNULL(
-                MAX(ts + dur) OVER (
-                    ORDER BY ts
-                    ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
-                ) < ts,
-                true
-            ) AS new_group
+          ts,
+          ts + dur AS ts_end,
+          -- There is a new group if there was a gap before this wakelock.
+          -- i.e. the max end timestamp of all preceding wakelocks is before
+          -- the start timestamp of this one.
+          -- The null check is for the first row which is always a new group.
+          IFNULL(
+            MAX(ts + dur) OVER (
+              ORDER BY ts
+              ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+            ) < ts,
+            TRUE
+          ) AS new_group
         FROM slice
         WHERE slice.name GLOB 'WakeLock *' AND dur != -1
     )
@@ -86,18 +86,17 @@ GROUP BY group_id;
 DROP TABLE IF EXISTS suspend_slice_;
 CREATE TABLE suspend_slice_ AS
 SELECT
-    ts,
-    dur
+  ts,
+  dur
 FROM
-    slice
-    JOIN
-    track
-    ON slice.track_id = track.id
+  slice
+JOIN
+  track
+  ON slice.track_id = track.id
 WHERE
-    track.name = 'Suspend/Resume Latency'
-    AND (slice.name = 'syscore_resume(0)' OR slice.name = 'timekeeping_freeze(0)')
-    AND dur != -1
-;
+  track.name = 'Suspend/Resume Latency'
+  AND (slice.name = 'syscore_resume(0)' OR slice.name = 'timekeeping_freeze(0)')
+  AND dur != -1;
 
 SELECT RUN_METRIC('android/global_counter_span_view_merged.sql',
   'table_name', 'screen_state',
@@ -113,25 +112,25 @@ SELECT RUN_METRIC('android/process_counter_span_view.sql',
 
 DROP TABLE IF EXISTS screen_state_span_with_suspend;
 CREATE VIRTUAL TABLE screen_state_span_with_suspend
-    USING span_join(screen_state_span, suspend_slice_);
+USING span_join(screen_state_span, suspend_slice_);
 
 DROP VIEW IF EXISTS android_batt_event;
 CREATE VIEW android_batt_event AS
 SELECT
-       ts,
-       dur,
-       'Suspended' AS slice_name,
-       'Suspend / resume' AS track_name,
-       'slice' AS track_type
+  ts,
+  dur,
+  'Suspended' AS slice_name,
+  'Suspend / resume' AS track_name,
+  'slice' AS track_type
 FROM suspend_slice_
 UNION ALL
 SELECT ts,
        dur,
        CASE screen_state_val
-         WHEN 1 THEN 'Screen off'
-         WHEN 2 THEN 'Screen on'
-         WHEN 3 THEN 'Always-on display (doze)'
-         ELSE 'unknown'
+       WHEN 1 THEN 'Screen off'
+       WHEN 2 THEN 'Screen on'
+       WHEN 3 THEN 'Always-on display (doze)'
+       ELSE 'unknown'
        END AS slice_name,
        'Screen state' AS track_name,
        'slice' AS track_type
@@ -142,13 +141,13 @@ UNION ALL
 SELECT ts,
        dur,
        CASE doze_light_state_val
-         WHEN 0 THEN 'active'
-         WHEN 1 THEN 'inactive'
-         WHEN 4 THEN 'idle'
-         WHEN 5 THEN 'waiting_for_network'
-         WHEN 6 THEN 'idle_maintenance'
-         WHEN 7 THEN 'override'
-         ELSE 'unknown'
+       WHEN 0 THEN 'active'
+       WHEN 1 THEN 'inactive'
+       WHEN 4 THEN 'idle'
+       WHEN 5 THEN 'waiting_for_network'
+       WHEN 6 THEN 'idle_maintenance'
+       WHEN 7 THEN 'override'
+       ELSE 'unknown'
        END AS slice_name,
        'Doze light state' AS track_name,
        'slice' AS track_type
@@ -157,22 +156,22 @@ UNION ALL
 SELECT ts,
        dur,
        CASE doze_deep_state_val
-         WHEN 0 THEN 'active'
-         WHEN 1 THEN 'inactive'
-         WHEN 2 THEN 'idle_pending'
-         WHEN 3 THEN 'sensing'
-         WHEN 4 THEN 'locating'
-         WHEN 5 THEN 'idle'
-         WHEN 6 THEN 'idle_maintenance'
-         WHEN 7 THEN 'quick_doze_delay'
-         ELSE 'unknown'
+       WHEN 0 THEN 'active'
+       WHEN 1 THEN 'inactive'
+       WHEN 2 THEN 'idle_pending'
+       WHEN 3 THEN 'sensing'
+       WHEN 4 THEN 'locating'
+       WHEN 5 THEN 'idle'
+       WHEN 6 THEN 'idle_maintenance'
+       WHEN 7 THEN 'quick_doze_delay'
+       ELSE 'unknown'
        END AS slice_name,
        'Doze deep state' AS track_name,
        'slice' AS track_type
 FROM doze_deep_state_span;
 
 DROP VIEW IF EXISTS android_batt_output;
-CREATE VIEW android_batt_output AS 
+CREATE VIEW android_batt_output AS
 SELECT AndroidBatteryMetric(
   'battery_counters', (
     SELECT RepeatedField(
@@ -204,13 +203,13 @@ SELECT AndroidBatteryMetric(
       SUM(CASE WHEN state = 3.0 AND tbl = 'sleep' THEN dur ELSE 0 END),
       'total_wakelock_ns',
       (SELECT SUM(ts_end - ts) FROM android_batt_wakelocks_merged)
-    ))
+      ))
     FROM (
-         SELECT dur, screen_state_val AS state, 'total' AS tbl
-         FROM screen_state_span
-         UNION ALL
-         SELECT dur, screen_state_val AS state, 'sleep' AS tbl
-         FROM screen_state_span_with_suspend
+      SELECT dur, screen_state_val AS state, 'total' AS tbl
+      FROM screen_state_span
+      UNION ALL
+      SELECT dur, screen_state_val AS state, 'sleep' AS tbl
+      FROM screen_state_span_with_suspend
     )
   ),
   'suspend_period', (

@@ -33,10 +33,10 @@ INSERT INTO null_test(
   start_double_nulls
 )
 VALUES
-(1,     "test",   2.0,  NULL, NULL,   NULL),
-(2,     NULL,     NULL, NULL, "test", NULL),
-(1,     "other",  NULL, NULL, NULL,   NULL),
-(4,     NULL,     NULL, NULL, NULL,   1.0),
-(NULL,  "test",   1.0,  1,    NULL,   NULL);
+(1, "test", 2.0, NULL, NULL, NULL),
+(2, NULL, NULL, NULL, "test", NULL),
+(1, "other", NULL, NULL, NULL, NULL),
+(4, NULL, NULL, NULL, NULL, 1.0),
+(NULL, "test", 1.0, 1, NULL, NULL);
 
-SELECT * from null_test;
+SELECT * FROM null_test;

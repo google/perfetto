@@ -642,14 +642,22 @@ struct View {
   const char* aggregator;
   const char* filter;
 };
-const View kSpaceView{"space", "bytes", "SUM(size)", nullptr};
-const View kAllocSpaceView{"alloc_space", "bytes", "SUM(size)", "size >= 0"};
-const View kAllocObjectsView{"alloc_objects", "count", "sum(count)",
-                             "size >= 0"};
-const View kObjectsView{"objects", "count", "SUM(count)", nullptr};
 
-const View kViews[] = {kAllocObjectsView, kObjectsView, kAllocSpaceView,
-                       kSpaceView};
+const View kMallocViews[] = {
+    {"Total malloc count", "count", "sum(count)", "size >= 0"},
+    {"Total malloc size", "bytes", "SUM(size)", "size >= 0"},
+    {"Unreleased malloc count", "count", "SUM(count)", nullptr},
+    {"Unreleased malloc size", "bytes", "SUM(size)", nullptr}};
+
+const View kGenericViews[] = {
+    {"Total count", "count", "sum(count)", "size >= 0"},
+    {"Total size", "bytes", "SUM(size)", "size >= 0"},
+    {"Unreleased count", "count", "SUM(count)", nullptr},
+    {"Unreleased size", "bytes", "SUM(size)", nullptr}};
+
+const View kJavaSamplesViews[] = {
+    {"Total allocation count", "count", "SUM(count)", nullptr},
+    {"Total allocation size", "bytes", "SUM(size)", nullptr}};
 
 static bool VerifyPIDStats(trace_processor::TraceProcessor* tp, uint64_t pid) {
   bool success = true;
@@ -692,10 +700,10 @@ static std::vector<Iterator> BuildViewIterators(
     trace_processor::TraceProcessor* tp,
     uint64_t upid,
     uint64_t ts,
-    const char* heap_name) {
+    const char* heap_name,
+    const std::vector<View>& views) {
   std::vector<Iterator> view_its;
-  for (size_t i = 0; i < base::ArraySize(kViews); ++i) {
-    const View& v = kViews[i];
+  for (const View& v : views) {
     std::string query = "SELECT hpa.callsite_id ";
     query +=
         ", " + std::string(v.aggregator) + " FROM heap_profile_allocation hpa ";
@@ -717,7 +725,7 @@ static bool WriteAllocations(GProfileBuilder* builder,
   for (;;) {
     bool all_next = true;
     bool any_next = false;
-    for (size_t i = 0; i < base::ArraySize(kViews); ++i) {
+    for (size_t i = 0; i < view_its->size(); ++i) {
       Iterator& it = (*view_its)[i];
       bool next = it.Next();
       if (!it.Status().ok()) {
@@ -736,7 +744,7 @@ static bool WriteAllocations(GProfileBuilder* builder,
 
     protozero::PackedVarInt sample_values;
     int64_t callstack_id = -1;
-    for (size_t i = 0; i < base::ArraySize(kViews); ++i) {
+    for (size_t i = 0; i < view_its->size(); ++i) {
       if (i == 0) {
         callstack_id = (*view_its)[i].Get(0).AsLong();
       } else if (callstack_id != (*view_its)[i].Get(0).AsLong()) {
@@ -782,15 +790,23 @@ static bool TraceToHeapPprof(trace_processor::TraceProcessor* tp,
     if (!VerifyPIDStats(tp, profile_pid))
       any_fail = true;
 
+    std::vector<View> views;
+    if (base::StringView(heap_name) == "libc.malloc") {
+      views.assign(std::begin(kMallocViews), std::end(kMallocViews));
+    } else if (base::StringView(heap_name) == "com.android.art") {
+      views.assign(std::begin(kJavaSamplesViews), std::end(kJavaSamplesViews));
+    } else {
+      views.assign(std::begin(kGenericViews), std::end(kGenericViews));
+    }
+
     std::vector<std::pair<std::string, std::string>> sample_types;
-    for (size_t i = 0; i < base::ArraySize(kViews); ++i) {
-      sample_types.emplace_back(std::string(kViews[i].type),
-                                std::string(kViews[i].unit));
+    for (const View& view : views) {
+      sample_types.emplace_back(view.type, view.unit);
     }
     builder.WriteSampleTypes(sample_types);
 
     std::vector<Iterator> view_its =
-        BuildViewIterators(tp, upid, ts, heap_name);
+        BuildViewIterators(tp, upid, ts, heap_name, views);
     std::string profile_proto;
     if (WriteAllocations(&builder, &view_its)) {
       profile_proto = builder.CompleteProfile(tp);

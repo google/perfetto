@@ -39,8 +39,8 @@ heap_roots AS (
     upid,
     graph_sample_ts,
     root_type,
-    IFNULL(t.deobfuscated_name, t.name) type_name,
-    COUNT(1) obj_count
+    IFNULL(t.deobfuscated_name, t.name) AS type_name,
+    COUNT(1) AS obj_count
   FROM heap_graph_object o
   JOIN heap_graph_class t ON o.type_id = t.id
   -- Classes are going to be particularly spammy and uninteresting
@@ -57,7 +57,7 @@ heap_roots_proto AS (
       'root_type', root_type,
       'type_name', type_name,
       'obj_count', obj_count
-    )) roots
+    )) AS roots
   FROM heap_roots
   GROUP BY 1, 2
 ),
@@ -74,17 +74,17 @@ closest_anon_swap AS (
       FROM (
         SELECT
           ts, dur,
-          CAST(anon_and_swap_val AS INTEGER) anon_swap_val,
-          ABS(ts - base_stats.graph_sample_ts) diff
+          CAST(anon_and_swap_val AS INTEGER) AS anon_swap_val,
+          ABS(ts - base_stats.graph_sample_ts) AS diff
         FROM anon_and_swap_span
         WHERE upid = base_stats.upid)
       WHERE
         (graph_sample_ts >= ts AND graph_sample_ts < ts + dur)
-         -- If the first memory sample for the UPID comes *after* the heap profile
-         -- accept it if close (500ms)
+        -- If the first memory sample for the UPID comes *after* the heap profile
+        -- accept it if close (500ms)
         OR (graph_sample_ts < ts AND diff <= 500 * 1e6)
       ORDER BY diff LIMIT 1
-    ) val
+    ) AS val
   FROM base_stats
 ),
 -- Group by upid
@@ -101,7 +101,7 @@ heap_graph_sample_protos AS (
       'reachable_obj_count', reachable_obj_count,
       'roots', roots,
       'anon_rss_and_swap_size', closest_anon_swap.val
-    )) sample_protos
+    )) AS sample_protos
   FROM base_stats
   LEFT JOIN closest_anon_swap USING (upid, graph_sample_ts)
   GROUP BY 1

@@ -19,6 +19,11 @@ import {randomColor} from '../common/colorizer';
 import {AreaNote, Note} from '../common/state';
 import {timeToString} from '../common/time';
 
+import {
+  BottomTab,
+  bottomTabRegistry,
+  NewBottomTabArgs,
+} from './bottom_tab';
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {PerfettoMouseEvent} from './events';
 import {globals} from './globals';
@@ -259,13 +264,32 @@ export class NotesPanel extends Panel {
   }
 }
 
-interface NotesEditorPanelAttrs {
+interface NotesEditorTabConfig {
   id: string;
 }
 
-export class NotesEditorPanel extends Panel<NotesEditorPanelAttrs> {
-  view({attrs}: m.CVnode<NotesEditorPanelAttrs>) {
-    const note = globals.state.notes[attrs.id];
+export class NotesEditorTab extends BottomTab<NotesEditorTabConfig> {
+  static readonly kind = 'org.perfetto.NotesEditorTab';
+
+  static create(args: NewBottomTabArgs): NotesEditorTab {
+    return new NotesEditorTab(args);
+  }
+
+  constructor(args: NewBottomTabArgs) {
+    super(args);
+  }
+
+  renderTabCanvas() {}
+
+  getTitle() {
+    return 'Current Selection';
+  }
+
+  viewTab() {
+    const note = globals.state.notes[this.config.id];
+    if (note === undefined) {
+      return m('.', `No Note with id ${this.config.id}`);
+    }
     const startTime =
         getStartTimestamp(note) - globals.state.traceTime.startSec;
     return m(
@@ -281,7 +305,7 @@ export class NotesEditorPanel extends Panel<NotesEditorPanelAttrs> {
             onchange: (e: InputEvent) => {
               const newText = (e.target as HTMLInputElement).value;
               globals.dispatch(Actions.changeNoteText({
-                id: attrs.id,
+                id: this.config.id,
                 newText,
               }));
             },
@@ -291,7 +315,7 @@ export class NotesEditorPanel extends Panel<NotesEditorPanelAttrs> {
               onchange: (e: Event) => {
                 const newColor = (e.target as HTMLInputElement).value;
                 globals.dispatch(Actions.changeNoteColor({
-                  id: attrs.id,
+                  id: this.config.id,
                   newColor,
                 }));
               },
@@ -299,7 +323,7 @@ export class NotesEditorPanel extends Panel<NotesEditorPanelAttrs> {
           m('button',
             {
               onclick: () => {
-                globals.dispatch(Actions.removeNote({id: attrs.id}));
+                globals.dispatch(Actions.removeNote({id: this.config.id}));
                 globals.dispatch(Actions.setCurrentTab({tab: undefined}));
                 globals.rafScheduler.scheduleFullRedraw();
               },
@@ -307,6 +331,6 @@ export class NotesEditorPanel extends Panel<NotesEditorPanelAttrs> {
             'Remove')),
     );
   }
-
-  renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}
 }
+
+bottomTabRegistry.register(NotesEditorTab);

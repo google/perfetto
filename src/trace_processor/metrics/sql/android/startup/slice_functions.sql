@@ -35,6 +35,7 @@ SELECT
   launch_threads.thread_name AS thread_name,
   launch_threads.is_main_thread AS is_main_thread,
   slice.arg_set_id AS arg_set_id,
+  slice.id as slice_id,
   slice.name AS slice_name,
   slice.ts AS slice_ts,
   slice.dur AS slice_dur
@@ -53,6 +54,21 @@ SELECT CREATE_VIEW_FUNCTION(
     WHERE launch_id = $launch_id AND slice_name GLOB $slice_name
   '
 );
+
+--- Returns long binder transaction slices for a given launch id.
+SELECT CREATE_VIEW_FUNCTION(
+  'BINDER_TRANSACTION_SLICES_FOR_LAUNCH(launch_id INT, threshold DOUBLE)',
+  'id INT, slice_dur INT, thread_name STRING, process STRING, arg_set_id INT, is_main_thread BOOL',
+  '
+    SELECT slice_id as id, slice_dur, thread_name, process.name as process, s.arg_set_id, is_main_thread
+    FROM thread_slices_for_all_launches s
+    JOIN process ON (
+      EXTRACT_ARG(s.arg_set_id, "destination process") = process.pid
+    )
+    WHERE launch_id = $launch_id AND slice_name GLOB "binder transaction" AND slice_dur > $threshold
+  '
+);
+
 
 -- Given a launch id and GLOB for a slice name,
 -- summing the slice durations across the whole startup.
@@ -163,5 +179,37 @@ SELECT CREATE_FUNCTION(
       AND (STR_SPLIT(slice_name, " reason=", 1) = "install"
         OR STR_SPLIT(slice_name, " reason=", 1) = "install-dm")
       AND STR_SPLIT(STR_SPLIT(slice_name, " filter=", 1), " reason=", 0) != "speed-profile"
+  '
+);
+
+SELECT CREATE_VIEW_FUNCTION(
+  'BINDER_TRANSACTION_REPLY_SLICES_FOR_LAUNCH(launch_id INT, threshold DOUBLE)',
+  'name STRING',
+  '
+    SELECT reply.name AS name
+    FROM BINDER_TRANSACTION_SLICES_FOR_LAUNCH($launch_id, $threshold) request
+    JOIN following_flow(request.id) arrow
+    JOIN slice reply ON reply.id = arrow.slice_in
+    WHERE reply.dur > $threshold AND request.is_main_thread
+  '
+);
+
+-- Given a launch id, return if unlock is running by systemui during the launch.
+SELECT CREATE_FUNCTION(
+  'IS_UNLOCK_RUNNING_DURING_LAUNCH(launch_id LONG)',
+  'BOOL',
+  '
+    SELECT EXISTS(
+      SELECT slice.name
+      FROM slice, launches
+      INNER JOIN thread_track ON slice.track_id = thread_track.id
+      INNER JOIN thread USING(utid)
+      INNER JOIN process USING(upid)
+      WHERE launches.id = $launch_id
+      AND slice.name = "KeyguardUpdateMonitor#onAuthenticationSucceeded"
+      AND process.name = "com.android.systemui"
+      AND slice.ts >= launches.ts
+      AND (slice.ts + slice.dur) <= launches.ts_end
+    )
   '
 );

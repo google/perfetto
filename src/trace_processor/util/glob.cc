@@ -94,8 +94,8 @@ bool GlobMatcher::Matches(base::StringView in) {
   // characters is equal to the length of the input: this is basically the
   // same as checking equality.
   if (segments_.size() == 1 && !leading_star_ && !trailing_star_) {
-    return StartsWith(in, segments_.front()) &&
-           segments_.front().matched_chars == in.size();
+    return segments_.front().matched_chars == in.size() &&
+           StartsWith(in, segments_.front());
   }
 
   // If there's no leading star, the first segment needs to be handled
@@ -133,8 +133,13 @@ bool GlobMatcher::Matches(base::StringView in) {
 
 bool GlobMatcher::StartsWithSlow(base::StringView in, const Segment& segment) {
   base::StringView pattern = segment.pattern;
+  for (uint32_t i = 0, p = 0; p < pattern.size(); ++i, ++p) {
+    // We've run out of characters to consume in the input but still have more
+    // to consume in the pattern: |in| cannot possibly start with |pattern|.
+    if (i >= in.size()) {
+      return false;
+    }
 
-  for (uint32_t i = 0, p = 0; i < in.size() && p < pattern.size(); ++i, ++p) {
     char in_c = in.at(i);
     char pattern_c = pattern.at(p);
 

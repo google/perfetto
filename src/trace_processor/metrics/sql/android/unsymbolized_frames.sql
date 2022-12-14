@@ -28,30 +28,30 @@
 -- Note that in SQL SUBSTR() indexes are 1-based, not 0 based.
 DROP VIEW IF EXISTS mangled_stack_profile_mapping;
 CREATE VIEW mangled_stack_profile_mapping AS
-  SELECT
-    id,
-    name,
-    build_id,
-    CASE ((name GLOB '*libmonochrome_64.so'
-         OR name GLOB '*libchrome.so'
-         OR name GLOB '*libmonochrome.so'
-         OR name GLOB '*libwebviewchromium.so'
-         OR name GLOB '*libchromium_android_linker.so'
-        ) AND length(build_id) >= 40)
-      WHEN 0 THEN build_id
-      ELSE (
-        SUBSTR(build_id, 7, 2) ||
-        SUBSTR(build_id, 5, 2) ||
-        SUBSTR(build_id, 3, 2) ||
-        SUBSTR(build_id, 1, 2) ||
-        SUBSTR(build_id, 11, 2) ||
-        SUBSTR(build_id, 9, 2) ||
-        SUBSTR(build_id, 15, 2) ||
-        SUBSTR(build_id, 13, 2) ||
-        SUBSTR(build_id, 17, 16) ||
-      '0')
-    END as google_lookup_id
-  FROM stack_profile_mapping;
+SELECT
+  id,
+  name,
+  build_id,
+  CASE ((name GLOB '*libmonochrome_64.so'
+    OR name GLOB '*libchrome.so'
+    OR name GLOB '*libmonochrome.so'
+    OR name GLOB '*libwebviewchromium.so'
+    OR name GLOB '*libchromium_android_linker.so'
+  ) AND length(build_id) >= 40)
+  WHEN 0 THEN build_id
+  ELSE (
+    SUBSTR(build_id, 7, 2)
+    || SUBSTR(build_id, 5, 2)
+    || SUBSTR(build_id, 3, 2)
+    || SUBSTR(build_id, 1, 2)
+    || SUBSTR(build_id, 11, 2)
+    || SUBSTR(build_id, 9, 2)
+    || SUBSTR(build_id, 15, 2)
+    || SUBSTR(build_id, 13, 2)
+    || SUBSTR(build_id, 17, 16)
+    || '0')
+  END AS google_lookup_id
+FROM stack_profile_mapping;
 
 DROP VIEW IF EXISTS unsymbolized_frames_view;
 CREATE VIEW unsymbolized_frames_view AS
@@ -63,9 +63,9 @@ SELECT UnsymbolizedFrames_Frame(
 ) AS frame_proto
 FROM stack_profile_frame spf
 JOIN mangled_stack_profile_mapping spm
-ON spf.mapping = spm.id
+  ON spf.mapping = spm.id
 WHERE spm.build_id != ''
-AND (spf.symbol_set_id == 0 OR spf.symbol_set_id IS NULL);
+  AND (spf.symbol_set_id = 0 OR spf.symbol_set_id IS NULL);
 
 DROP VIEW IF EXISTS unsymbolized_frames_output;
 CREATE VIEW unsymbolized_frames_output AS

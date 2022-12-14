@@ -183,6 +183,12 @@ export interface QueryResult {
   // have been fetched. The promise return value is always the object iself.
   waitAllRows(): Promise<QueryResult>;
 
+  // Returns a promise that is resolved when either:
+  // - more rows are available
+  // - all rows are available
+  // The promise return value is always the object iself.
+  waitMoreRows(): Promise<QueryResult>;
+
   // Can return an empty array if called before the first batch is resolved.
   // This should be called only after having awaited for at least one batch.
   columns(): string[];
@@ -194,10 +200,6 @@ export interface QueryResult {
   // Returns the number of SQL statement that produced output rows. This number
   // is <= statementCount().
   statementWithOutputCount(): number;
-
-  // TODO(primiano): next CLs will introduce a waitMoreRows() to allow tracks
-  // to await until some more data (but not necessarily all) is available. For
-  // now everything uses waitAllRows().
 }
 
 // Interface exposed to engine.ts to pump in the data as new row batches arrive.
@@ -248,6 +250,10 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   // last result batch has been been retrieved.
   private allRowsPromise?: Deferred<QueryResult>;
 
+  // Promise awaiting on waitMoreRows(). This resolved when the next
+  // batch is appended via appendResultBatch.
+  private moreRowsPromise?: Deferred<QueryResult>;
+
   isComplete(): boolean {
     return this._isComplete;
   }
@@ -286,6 +292,20 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
       this.resolveOrReject(this.allRowsPromise, this);
     }
     return this.allRowsPromise;
+  }
+
+  waitMoreRows(): Promise<QueryResult> {
+    if (this.moreRowsPromise !== undefined) {
+      return this.moreRowsPromise;
+    }
+
+    const moreRowsPromise = defer<QueryResult>();
+    if (this._isComplete) {
+      this.resolveOrReject(moreRowsPromise, this);
+    } else {
+      this.moreRowsPromise = moreRowsPromise;
+    }
+    return moreRowsPromise;
   }
 
   // --- WritableQueryResult implementation.
@@ -368,6 +388,11 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
           break;
       }  // switch (tag)
     }    // while (pos < end)
+
+    if (this.moreRowsPromise !== undefined) {
+      this.resolveOrReject(this.moreRowsPromise, this);
+      this.moreRowsPromise = undefined;
+    }
 
     if (this._isComplete && this.allRowsPromise !== undefined) {
       this.resolveOrReject(this.allRowsPromise, this);
@@ -767,6 +792,9 @@ class WaitableQueryResultImpl implements QueryResult, WritableQueryResult,
   }
   waitAllRows() {
     return this.impl.waitAllRows();
+  }
+  waitMoreRows() {
+    return this.impl.waitMoreRows();
   }
   isComplete() {
     return this.impl.isComplete();

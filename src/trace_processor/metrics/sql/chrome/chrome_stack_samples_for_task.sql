@@ -62,27 +62,27 @@ WHERE
 DROP VIEW IF EXISTS chrome_non_symbolized_frames;
 CREATE VIEW chrome_non_symbolized_frames AS
 SELECT
-  frames.name as frame_name,
-  callsite.id as callsite_id,
+  frames.name AS frame_name,
+  callsite.id AS callsite_id,
   *
 FROM
   stack_profile_frame frames
-  JOIN stack_profile_callsite callsite
-    ON callsite.frame_id = frames.id;
+JOIN stack_profile_callsite callsite
+  ON callsite.frame_id = frames.id;
 
 -- Only lowest child frames are join-able with chrome_non_symbolized_frames
 -- which we need for the time at which the callstack was taken.
 DROP VIEW IF EXISTS chrome_symbolized_child_frames;
 CREATE VIEW chrome_symbolized_child_frames AS
 SELECT
-  thread.name as thread_name,
+  thread.name AS thread_name,
   sample.utid AS sample_utid,
   *
 FROM
   chrome_non_symbolized_frames frames
-  JOIN cpu_profile_stack_sample sample USING(callsite_id)
-  JOIN thread USING(utid)
-  JOIN process USING(upid);
+JOIN cpu_profile_stack_sample sample USING(callsite_id)
+JOIN thread USING(utid)
+JOIN process USING(upid);
 
 -- Not all frames are symbolized, in cases where those frames
 -- are not symbolized, use the file name as it is usually descriptive
@@ -90,13 +90,13 @@ FROM
 DROP VIEW IF EXISTS chrome_thread_symbolized_child_frames;
 CREATE VIEW chrome_thread_symbolized_child_frames AS
 SELECT
- DescribeSymbol(symbol.name, frame_name) AS description,
- depth,
- ts,
- callsite_id,
- sample_utid
+  DescribeSymbol(symbol.name, frame_name) AS description,
+  depth,
+  ts,
+  callsite_id,
+  sample_utid
 FROM chrome_symbolized_child_frames
-  LEFT JOIN stack_profile_symbol symbol USING(symbol_set_id)
+LEFT JOIN stack_profile_symbol symbol USING(symbol_set_id)
 WHERE thread_name = {{thread_name}} ORDER BY ts DESC;
 
 -- Since only leaf stack frames have a timestamp, let's export this
@@ -104,31 +104,31 @@ WHERE thread_name = {{thread_name}} ORDER BY ts DESC;
 -- filtering frames within specific windows
 DROP VIEW IF EXISTS chrome_non_symbolized_frames_timed;
 CREATE VIEW chrome_non_symbolized_frames_timed AS
-  SELECT
-    chrome_non_symbolized_frames.frame_name,
-    chrome_non_symbolized_frames.depth,
-    chrome_thread_symbolized_child_frames.ts,
-    chrome_thread_symbolized_child_frames.sample_utid,
-    chrome_non_symbolized_frames.callsite_id,
-    symbol_set_id,
-    chrome_non_symbolized_frames.frame_id
+SELECT
+  chrome_non_symbolized_frames.frame_name,
+  chrome_non_symbolized_frames.depth,
+  chrome_thread_symbolized_child_frames.ts,
+  chrome_thread_symbolized_child_frames.sample_utid,
+  chrome_non_symbolized_frames.callsite_id,
+  symbol_set_id,
+  chrome_non_symbolized_frames.frame_id
 FROM chrome_thread_symbolized_child_frames
-  JOIN experimental_ancestor_stack_profile_callsite(
+JOIN experimental_ancestor_stack_profile_callsite(
     chrome_thread_symbolized_child_frames.callsite_id) child
-  JOIN chrome_non_symbolized_frames
+JOIN chrome_non_symbolized_frames
   ON chrome_non_symbolized_frames.callsite_id = child.id;
 
 DROP VIEW IF EXISTS chrome_frames_timed_and_symbolized;
 CREATE VIEW chrome_frames_timed_and_symbolized AS
-  SELECT
-    DescribeSymbol(symbol.name, frame_name) AS description,
-    ts,
-    depth,
-    callsite_id,
-    sample_utid
+SELECT
+  DescribeSymbol(symbol.name, frame_name) AS description,
+  ts,
+  depth,
+  callsite_id,
+  sample_utid
 FROM chrome_non_symbolized_frames_timed
-  LEFT JOIN stack_profile_symbol symbol
-    USING(symbol_set_id)
+LEFT JOIN stack_profile_symbol symbol
+  USING(symbol_set_id)
 ORDER BY DEPTH ASC;
 
 -- Union leaf stack frames with all stack frames after the timestamp
@@ -140,15 +140,15 @@ SELECT
 FROM
   (SELECT
     * FROM
-      chrome_frames_timed_and_symbolized
-  UNION
-  SELECT
-    description,
+    chrome_frames_timed_and_symbolized
+    UNION
+    SELECT
+      description,
       ts,
       depth,
       callsite_id,
       sample_utid
-  FROM chrome_thread_symbolized_child_frames)
+    FROM chrome_thread_symbolized_child_frames)
 ORDER BY depth ASC;
 
 -- Filter stack samples that happened only during the specified
@@ -156,10 +156,10 @@ ORDER BY depth ASC;
 DROP VIEW IF EXISTS chrome_stack_samples_for_task;
 CREATE VIEW chrome_stack_samples_for_task AS
 SELECT
-    all_frames.*
+  all_frames.*
 FROM
-    all_frames JOIN
-    chrome_targeted_task ON
+  all_frames JOIN
+  chrome_targeted_task ON
     all_frames.sample_utid = chrome_targeted_task.utid
     AND all_frames.ts >= chrome_targeted_task.ts
     AND all_frames.ts <= chrome_targeted_task.ts + chrome_targeted_task.dur;

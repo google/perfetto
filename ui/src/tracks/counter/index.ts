@@ -17,8 +17,14 @@ import * as m from 'mithril';
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
-import {PluginContext} from '../../common/plugin_api';
-import {NUM, NUM_NULL} from '../../common/query_result';
+import {
+  EngineProxy,
+  NUM,
+  NUM_NULL,
+  PluginContext,
+  STR,
+  TrackInfo,
+} from '../../common/plugin_api';
 import {fromNs, toNs} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
@@ -524,9 +530,47 @@ class CounterTrack extends Track<Config, Data> {
   }
 }
 
+async function globalTrackProvider(engine: EngineProxy): Promise<TrackInfo[]> {
+  const result = await engine.query(`
+    select name, id
+    from (
+      select name, id
+      from counter_track
+      where type = 'counter_track'
+      union
+      select name, id
+      from gpu_counter_track
+      where name != 'gpufreq'
+    )
+    order by name
+  `);
+
+  // Add global or GPU counter tracks that are not bound to any pid/tid.
+  const it = result.iter({
+    name: STR,
+    id: NUM,
+  });
+
+  const tracks: TrackInfo[] = [];
+  for (; it.valid(); it.next()) {
+    const name = it.name;
+    const trackId = it.id;
+    tracks.push({
+      trackKind: COUNTER_TRACK_KIND,
+      name,
+      config: {
+        name,
+        trackId,
+      },
+    });
+  }
+  return tracks;
+}
+
 export function activate(ctx: PluginContext) {
   ctx.registerTrackController(CounterTrackController);
   ctx.registerTrack(CounterTrack);
+  ctx.registerTrackProvider(globalTrackProvider);
 }
 
 export const plugin = {

@@ -63,22 +63,23 @@ cuj_frame_timeline AS (
   SELECT
     cuj_id,
     vsync,
-    e.ts as ts_expected,
+    e.ts AS ts_expected,
     -- In cases where we are drawing multiple layers, there will be  one
     -- expected frame timeline slice, but multiple actual frame timeline slices.
     -- As a simplification we just take here the min(ts) and max(ts_end) of
     -- the actual frame timeline slices.
-    MIN(a.ts) as ts_actual_min,
-    MAX(a.ts + a.dur) as ts_end_actual_max
+    MIN(a.ts) AS ts_actual_min,
+    MAX(a.ts + a.dur) AS ts_end_actual_max
   FROM android_jank_cuj_vsync_boundary vsync_boundary
   JOIN expected_timeline e
     ON e.upid = vsync_boundary.upid
-    AND e.vsync >= vsync_min
-    AND e.vsync <= vsync_max
+      AND e.vsync >= vsync_min
+      AND e.vsync <= vsync_max
   JOIN actual_frame_timeline_slice a
     ON e.upid = a.upid
-    AND e.name = a.name
-  GROUP BY cuj_id, e.vsync, e.ts),
+      AND e.name = a.name
+  GROUP BY cuj_id, e.vsync, e.ts
+),
 -- Orders do_frame slices by vsync to calculate the ts_end of the previous frame
 -- android_jank_cuj_do_frame_slice only contains frames within the CUJ so
 -- the ts_prev_do_frame_end is always missing for the very first frame
@@ -102,26 +103,26 @@ frame_boundary_base AS (
     timeline.ts_expected,
     CASE
       WHEN timeline.ts_expected IS NULL
-      THEN do_frame.ts
+        THEN do_frame.ts
       ELSE MAX(do_frame.ts_prev_do_frame_end, timeline.ts_expected)
     END AS ts
   FROM do_frame_ordered do_frame
   LEFT JOIN cuj_frame_timeline timeline
     ON timeline.cuj_id = do_frame.cuj_id
-    AND do_frame.vsync = timeline.vsync
-  -- There are a few special cases we have to handle:
-  -- *) In rare cases there is a clock drift after device suspends
-  -- This may cause the actual/expected timeline to be misaligned with the rest
-  -- of the trace for a short period.
-  -- Do not use the timelines if it seems that this happened.
-  -- *) Actual timeline start time might also be reported slightly after doFrame
-  -- starts. We allow it to start up to 1ms later.
-  -- *) If the frame is significantly (~100s of ms) over the deadline,
-  -- expected timeline data will be dropped in SF and never recorded. In that case
-  -- the actual timeline will only report the end ts correctly. If this happens
-  -- fall back to calculating the boundaries based on doFrame slices. Ideally we
-  -- would prefer to infer the intended start time of the frame instead.
-  AND do_frame.ts >= timeline.ts_actual_min - 1e6 AND do_frame.ts <= timeline.ts_end_actual_max
+      AND do_frame.vsync = timeline.vsync
+      -- There are a few special cases we have to handle:
+      -- *) In rare cases there is a clock drift after device suspends
+      -- This may cause the actual/expected timeline to be misaligned with the rest
+      -- of the trace for a short period.
+      -- Do not use the timelines if it seems that this happened.
+      -- *) Actual timeline start time might also be reported slightly after doFrame
+      -- starts. We allow it to start up to 1ms later.
+      -- *) If the frame is significantly (~100s of ms) over the deadline,
+      -- expected timeline data will be dropped in SF and never recorded. In that case
+      -- the actual timeline will only report the end ts correctly. If this happens
+      -- fall back to calculating the boundaries based on doFrame slices. Ideally we
+      -- would prefer to infer the intended start time of the frame instead.
+      AND do_frame.ts >= timeline.ts_actual_min - 1e6 AND do_frame.ts <= timeline.ts_end_actual_max
 )
 SELECT
   *,
@@ -179,7 +180,8 @@ frame_boundary_base AS (
   JOIN android_jank_cuj_do_frame_slice do_frame USING (cuj_id, vsync)
   JOIN descendant_slice(do_frame.id) post_and_wait
   WHERE post_and_wait.name = 'postAndWait'
-  GROUP BY draw_frame.cuj_id, draw_frame.utid, draw_frame.vsync)
+  GROUP BY draw_frame.cuj_id, draw_frame.utid, draw_frame.vsync
+)
 SELECT
   *,
   ts_end - ts AS dur
@@ -209,7 +211,7 @@ WITH boundary_base AS (
     main_thread_boundary.ts,
     CASE
       WHEN timeline_slice.ts IS NOT NULL
-      THEN MAX(timeline_slice.ts + timeline_slice.dur)
+        THEN MAX(timeline_slice.ts + timeline_slice.dur)
       ELSE (
         SELECT MAX(MAX(ts_end), cuj.ts_end)
         FROM android_jank_cuj_do_frame_slice do_frame
@@ -220,12 +222,13 @@ WITH boundary_base AS (
   JOIN android_jank_cuj_vsync_boundary USING (cuj_id)
   LEFT JOIN actual_frame_timeline_slice timeline_slice
     ON cuj.upid = timeline_slice.upid
-    -- Timeline slices for this exact VSYNC might be missing (e.g. if the last
-    -- doFrame did not actually produce anything to draw).
-    -- In that case we compute the boundary based on the last doFrame and the
-    -- CUJ markers.
-    AND vsync_max = CAST(timeline_slice.name AS INTEGER)
-  GROUP BY cuj_id, cuj.upid, main_thread_boundary.ts)
+      -- Timeline slices for this exact VSYNC might be missing (e.g. if the last
+      -- doFrame did not actually produce anything to draw).
+      -- In that case we compute the boundary based on the last doFrame and the
+      -- CUJ markers.
+      AND vsync_max = CAST(timeline_slice.name AS INTEGER)
+  GROUP BY cuj_id, cuj.upid, main_thread_boundary.ts
+)
 SELECT
   *,
   ts_end - ts AS dur

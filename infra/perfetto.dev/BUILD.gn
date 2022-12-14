@@ -1,0 +1,381 @@
+# Copyright (C) 2022 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("../../gn/perfetto.gni")
+
+# Prevent that this file is accidentally included in embedder builds.
+assert(enable_perfetto_site)
+
+nodejs_bin = rebase_path("../../tools/node", root_build_dir)
+
+# The destination directory where the website will be built. GN pollutes
+# root_out_dir with all sorts of files, so we use a subdirectory.
+perfetto_website_out_dir = "$root_out_dir/site"
+
+# The directory containing all the markdown sources for the docs.
+src_doc_dir = "../../docs"
+
+group("site") {
+  deps = [
+    ":all_mdfiles",
+    ":assets",
+    ":gen_index",
+    ":gen_sql_stats_html",
+    ":gen_sql_tables_html",
+    ":gen_stdlib_docs_html",
+    ":gen_toc",
+    ":gen_trace_config_proto",
+    ":gen_trace_packet_proto",
+    ":node_assets",
+    ":readme",
+    ":style_scss",
+  ]
+}
+
+# Runs a nodejs script using the hermetic node toolchain.
+# Args:
+# * script: The .js script to execute
+# * inputs
+# * outputs
+# * deps
+# * depfile
+template("nodejs_script") {
+  assert(defined(invoker.script), "Need script in $target_name")
+
+  action(target_name) {
+    forward_variables_from(invoker,
+                           [
+                             "outputs",
+                             "depfile",
+                           ])
+    deps = [ ":node_modules" ]
+    if (defined(invoker.deps)) {
+      deps += invoker.deps
+    }
+    script = "../../gn/standalone/build_tool_wrapper.py"
+    inputs = [ invoker.script ]
+    inputs += invoker.inputs
+    args = [
+      nodejs_bin,
+      rebase_path(invoker.script, root_build_dir),
+    ]
+    args += invoker.args
+  }
+}
+
+# Installs the node modules specified in package.json
+action("node_modules") {
+  script = "../../gn/standalone/build_tool_wrapper.py"
+  stamp_file = "$target_out_dir/.$target_name.stamp"
+  cur_dir = rebase_path(".", root_build_dir)
+  args = [
+    "--stamp",
+    rebase_path(stamp_file, root_build_dir),
+    "--chdir=$cur_dir",
+    rebase_path("../../tools/npm", root_build_dir),
+    "ci",
+  ]
+  inputs = [
+    "../../tools/npm",
+    "package.json",
+    "package-lock.json",
+  ]
+  outputs = [ stamp_file ]
+}
+
+# Renders a markdown file into html.
+# Args:
+# * markdown: Optional. The source markdown file
+# * html_template: Optional. The html template to use
+# * out_html: The generated html, relative to `perfetto_website_out_dir`
+# * deps
+template("md_to_html") {
+  assert(defined(invoker.out_html), "Need out_html in $target_name")
+  assert(defined(invoker.html_template) || defined(invoker.markdown),
+         "Need html_template or markdown in $target_name")
+  nodejs_script(target_name) {
+    forward_variables_from(invoker, [ "deps" ])
+    script = "src/markdown_render.js"
+    inputs = []
+    if (defined(invoker.markdown)) {
+      inputs += [ invoker.markdown ]
+    }
+    depfile = "${target_gen_dir}/$target_name.d"
+    if (defined(invoker.html_template)) {
+      inputs += [ invoker.html_template ]
+    }
+    outputs = [ "${perfetto_website_out_dir}/${invoker.out_html}" ]
+    args = [
+      "--odir",
+      rebase_path(perfetto_website_out_dir, root_build_dir),
+      "-o",
+      rebase_path("${perfetto_website_out_dir}/${invoker.out_html}",
+                  root_build_dir),
+      "--depfile",
+      rebase_path(depfile, root_build_dir),
+    ]
+    if (defined(invoker.markdown)) {
+      args += [
+        "-i",
+        rebase_path(invoker.markdown, root_build_dir),
+      ]
+    }
+    if (defined(invoker.html_template)) {
+      args += [
+        "-t",
+        rebase_path(invoker.html_template, root_build_dir),
+      ]
+    }
+  }
+}
+
+md_to_html("gen_toc") {
+  markdown = "${src_doc_dir}/toc.md"
+  out_html = "docs/_nav.html"
+}
+
+md_to_html("gen_index") {
+  html_template = "src/template_index.html"
+  deps = [ ":gen_toc" ]
+  out_html = "index.html"
+}
+
+nodejs_script("style_scss") {
+  script = "node_modules/.bin/node-sass"
+  input = "src/assets/style.scss"
+  inputs = [ input ]
+  output = "${perfetto_website_out_dir}/assets/style.css"
+  outputs = [ output ]
+  args = [
+    "--quiet",
+    rebase_path(input, root_build_dir),
+    rebase_path(output, root_build_dir),
+  ]
+  deps = [ ":node_modules" ]
+}
+
+sql_stats_md = "${target_gen_dir}/sql-stats.md"
+
+nodejs_script("gen_sql_stats_md") {
+  script = "src/gen_stats_reference.js"
+  input = "../../src/trace_processor/storage/stats.h"
+  inputs = [ input ]
+  outputs = [ sql_stats_md ]
+  args = [
+    "-i",
+    rebase_path(input, root_build_dir),
+    "-o",
+    rebase_path(sql_stats_md, root_build_dir),
+  ]
+}
+
+md_to_html("gen_sql_stats_html") {
+  markdown = sql_stats_md
+  html_template = "src/template_markdown.html"
+  deps = [
+    ":gen_sql_stats_md",
+    ":gen_toc",
+  ]
+  out_html = "docs/analysis/sql-stats"
+}
+
+# Generates a html reference for a proto
+# Args:
+# * proto: The path to a .proto file
+# * message_name: The proto message name
+# * out_html
+template("proto_reference") {
+  sql_stats_md = "${target_gen_dir}/${target_name}.md"
+  nodejs_script("${target_name}_md") {
+    script = "src/gen_proto_reference.js"
+    inputs = [ invoker.proto ]
+    outputs = [ sql_stats_md ]
+    args = [
+      "-i",
+      rebase_path(invoker.proto, root_build_dir),
+      "-p",
+      invoker.message_name,
+      "-o",
+      rebase_path(sql_stats_md, root_build_dir),
+    ]
+  }
+
+  md_to_html(target_name) {
+    markdown = sql_stats_md
+    html_template = "src/template_markdown.html"
+    deps = [
+      ":${target_name}_md",
+      ":gen_toc",
+    ]
+    out_html = invoker.out_html
+  }
+}
+
+proto_reference("gen_trace_config_proto") {
+  proto = "../../protos/perfetto/config/trace_config.proto"
+  message_name = "perfetto.protos.TraceConfig"
+  out_html = "docs/reference/trace-config-proto"
+}
+
+proto_reference("gen_trace_packet_proto") {
+  proto = "../../protos/perfetto/trace/trace_packet.proto"
+  message_name = "perfetto.protos.TracePacket"
+  out_html = "docs/reference/trace-packet-proto"
+}
+
+# WARNING: this does globbing at generation time. Incremental builds are not
+# going to work properly if files are added/removed. `gn gen` needs to be
+# rerun.
+sql_tables =
+    exec_script("../../gn/standalone/glob.py",
+                [
+                  "--root=" + rebase_path("../../src/trace_processor/tables",
+                                          root_build_dir),
+                  "--filter=*.h",
+                ],
+                "list lines")
+
+src_sql_tables = []
+
+foreach(i, sql_tables) {
+  src_sql_tables += [ rebase_path(i, ".", root_build_dir) ]
+}
+
+sql_tables_md = "${target_gen_dir}/sql-tables.md"
+stdlib_docs_md = "${target_gen_dir}/stdlib_docs.md"
+
+action("gen_stdlib_docs_md") {
+  script = "src/gen_stdlib_docs_md.py"
+  label_info = get_label_info(
+          "../../src/trace_processor/stdlib:gen_amalgamated_stdlib_json_docs",
+          "target_gen_dir")
+  absolute_input_path = label_info + "/stdlib_docs.json"
+  deps = [ "../../src/trace_processor/stdlib:gen_amalgamated_stdlib_json_docs" ]
+  outputs = [ stdlib_docs_md ]
+  args = [
+    "--input",
+    rebase_path(absolute_input_path, root_build_dir),
+    "--output",
+    rebase_path(stdlib_docs_md, root_build_dir),
+  ]
+}
+
+md_to_html("gen_stdlib_docs_html") {
+  markdown = stdlib_docs_md
+  html_template = "src/template_markdown.html"
+  deps = [
+    ":gen_stdlib_docs_md",
+    ":gen_toc",
+  ]
+  out_html = "docs/analysis/stdlib-docs"
+}
+
+nodejs_script("gen_sql_tables_md") {
+  script = "src/gen_sql_tables_reference.js"
+  inputs = src_sql_tables
+  outputs = [ sql_tables_md ]
+  args = [
+    "-o",
+    rebase_path(sql_tables_md, root_build_dir),
+  ]
+  foreach(file, src_sql_tables) {
+    args += [
+      "-i",
+      rebase_path(file, root_build_dir),
+    ]
+  }
+}
+
+md_to_html("gen_sql_tables_html") {
+  markdown = sql_tables_md
+  html_template = "src/template_markdown.html"
+  deps = [
+    ":gen_sql_tables_md",
+    ":gen_toc",
+  ]
+  out_html = "docs/analysis/sql-tables"
+}
+
+md_to_html("readme") {
+  markdown = "${src_doc_dir}/README.md"
+  html_template = "src/template_markdown.html"
+  out_html = "docs/index.html"
+  deps = [ ":gen_toc" ]
+}
+
+# WARNING: this does globbing at generation time. Incremental builds are not
+# going to work properly if files are added/removed. `gn gen` needs to be
+# rerun.
+mdfiles = exec_script("../../gn/standalone/glob.py",
+                      [
+                        "--root=" + rebase_path(src_doc_dir, root_build_dir),
+                        "--filter=*.md",
+                      ],
+                      "list lines")
+
+mdfiles -= [
+  rebase_path("../../docs/README.md", root_build_dir),
+  rebase_path("../../docs/toc.md", root_build_dir),
+]
+
+mdtargets = []
+
+foreach(source, mdfiles) {
+  filename = rebase_path(string_replace(source, ".md", ""),
+                         rebase_path("../../docs", root_build_dir))
+
+  md_to_html("mdfile_${source}") {
+    markdown = rebase_path(source, ".", root_build_dir)
+    html_template = "src/template_markdown.html"
+    out_html = "docs/${filename}"
+    deps = [ ":gen_toc" ]
+  }
+  mdtargets += [ ":mdfile_${source}" ]
+}
+
+group("all_mdfiles") {
+  deps = mdtargets
+}
+
+copy("node_assets") {
+  sources = [
+    "node_modules/highlight.js/styles/tomorrow-night.css",
+    "node_modules/mermaid/dist/mermaid.min.js",
+  ]
+  deps = [ ":node_modules" ]
+
+  outputs = [ "${perfetto_website_out_dir}/assets/{{source_file_part}}" ]
+}
+
+# WARNING: this does globbing at generation time. Incremental builds are not
+# going to work properly if files are added/removed. `gn gen` needs to be
+# rerun.
+assets = exec_script("../../gn/standalone/glob.py",
+                     [
+                       "--root=" + rebase_path("src/assets", root_build_dir),
+                       "--filter=*.png",
+                       "--filter=*.js",
+                     ],
+                     "list lines")
+
+src_assets = []
+
+foreach(i, assets) {
+  src_assets += [ rebase_path(i, ".", root_build_dir) ]
+}
+
+copy("assets") {
+  sources = src_assets
+  outputs = [ "${perfetto_website_out_dir}/assets/{{source_file_part}}" ]
+}

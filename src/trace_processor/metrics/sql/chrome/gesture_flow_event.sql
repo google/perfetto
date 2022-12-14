@@ -34,9 +34,9 @@ SELECT RUN_METRIC('chrome/{{prefix}}_jank.sql');
 -- for this table.
 DROP VIEW IF EXISTS {{prefix}}_latency_info_flow_step_and_ancestors;
 CREATE VIEW {{prefix}}_latency_info_flow_step_and_ancestors AS
-  SELECT
-    *
-  FROM (
+SELECT
+  *
+FROM (
     SELECT
       slice.name,
       slice.id,
@@ -56,67 +56,67 @@ CREATE VIEW {{prefix}}_latency_info_flow_step_and_ancestors AS
     FROM
       slice LEFT JOIN
       ancestor_slice(slice.id) AS ancestor_zero
-          ON ancestor_zero.depth = 0 LEFT JOIN
+      ON ancestor_zero.depth = 0 LEFT JOIN
       ancestor_slice(slice.id) AS ancestor_one ON ancestor_one.depth = 1
     WHERE
-      slice.name = 'LatencyInfo.Flow' AND
-      EXTRACT_ARG(slice.arg_set_id, 'chrome_latency_info.trace_id') != -1
+      slice.name = 'LatencyInfo.Flow'
+      AND EXTRACT_ARG(slice.arg_set_id, 'chrome_latency_info.trace_id') != -1
   ) flow JOIN (
-      SELECT
-        id AS gesture_slice_id,
-        ts AS gesture_ts,
-        dur AS {{prefix}}_dur,
-        track_id AS gesture_track_id,
-        trace_id AS {{prefix}}_trace_id,
-        jank,
-        {{id_field}},
-        avg_vsync_interval
-      FROM {{prefix}}_jank
+    SELECT
+      id AS gesture_slice_id,
+      ts AS gesture_ts,
+      dur AS {{prefix}}_dur,
+      track_id AS gesture_track_id,
+      trace_id AS {{prefix}}_trace_id,
+      jank,
+      {{id_field}},
+      avg_vsync_interval
+    FROM {{prefix}}_jank
   ) gesture ON
     flow.trace_id = gesture.{{prefix}}_trace_id
-  UNION ALL
-  SELECT
-    'InputLatency::{{gesture_update}}' AS name,
-    id,
-    ts,
-    dur,
-    track_id,
-    trace_id,
-    'AsyncBegin' AS step,
-    'InputLatency::{{gesture_update}}' AS ancestor_name_zero,
-    id AS ancestor_id_zero,
-    ts AS ancestor_ts_zero,
-    0 AS ancestor_dur_zero,
-    'InputLatency::{{gesture_update}}' AS ancestor_name_one,
-    id AS ancestor_id_one,
-    ts AS ancestor_ts_one,
-    0 AS ancestor_dur_one,
-    id AS gesture_slice_id,
-    ts AS gesture_ts,
-    dur AS {{prefix}}_dur,
-    track_id AS gesture_track_id,
-    trace_id AS {{prefix}}_trace_id,
-    jank,
-    {{id_field}},
-    avg_vsync_interval
-  FROM {{prefix}}_jank
-  ORDER BY {{id_field}} ASC, trace_id ASC, ts ASC;
+UNION ALL
+SELECT
+  'InputLatency::{{gesture_update}}' AS name,
+  id,
+  ts,
+  dur,
+  track_id,
+  trace_id,
+  'AsyncBegin' AS step,
+  'InputLatency::{{gesture_update}}' AS ancestor_name_zero,
+  id AS ancestor_id_zero,
+  ts AS ancestor_ts_zero,
+  0 AS ancestor_dur_zero,
+  'InputLatency::{{gesture_update}}' AS ancestor_name_one,
+  id AS ancestor_id_one,
+  ts AS ancestor_ts_one,
+  0 AS ancestor_dur_one,
+  id AS gesture_slice_id,
+  ts AS gesture_ts,
+  dur AS {{prefix}}_dur,
+  track_id AS gesture_track_id,
+  trace_id AS {{prefix}}_trace_id,
+  jank,
+  {{id_field}},
+  avg_vsync_interval
+FROM {{prefix}}_jank
+ORDER BY {{id_field}} ASC, trace_id ASC, ts ASC;
 
 -- See b/184134310, but "ThreadController active" spans multiple tasks and when
 -- the top level parent is this event we should use the second event instead.
 DROP VIEW IF EXISTS {{prefix}}_latency_info_flow_step;
 CREATE VIEW {{prefix}}_latency_info_flow_step AS
-  SELECT
-    *,
-    CASE WHEN ancestor_name_zero != "ThreadController active" THEN
+SELECT
+  *,
+  CASE WHEN ancestor_name_zero != "ThreadController active" THEN
       ancestor_name_zero ELSE ancestor_name_one END AS ancestor_name,
-    CASE WHEN ancestor_name_zero != "ThreadController active" THEN
+  CASE WHEN ancestor_name_zero != "ThreadController active" THEN
       ancestor_id_zero ELSE ancestor_id_one END AS ancestor_id,
-    CASE WHEN ancestor_name_zero != "ThreadController active" THEN
+  CASE WHEN ancestor_name_zero != "ThreadController active" THEN
       ancestor_ts_zero ELSE ancestor_ts_one END AS ancestor_ts,
-    CASE WHEN ancestor_name_zero != "ThreadController active" THEN
+  CASE WHEN ancestor_name_zero != "ThreadController active" THEN
       ancestor_dur_zero ELSE ancestor_dur_one END AS ancestor_dur
-  FROM {{prefix}}_latency_info_flow_step_and_ancestors;
+FROM {{prefix}}_latency_info_flow_step_and_ancestors;
 
 -- This is a heuristic to figure out which flow event properly joins this
 -- {{gesture_update}}. This heuristic is only needed in traces before we added
@@ -135,14 +135,14 @@ CREATE VIEW {{prefix}}_latency_info_flow_step AS
 -- both browsers but this is hopefully unlikely.
 DROP VIEW IF EXISTS {{prefix}}_max_latency_info_ts_per_trace_id;
 CREATE VIEW {{prefix}}_max_latency_info_ts_per_trace_id AS
-  SELECT
-    gesture_slice_id,
-    MIN(ts) AS max_flow_ts
-  FROM {{prefix}}_latency_info_flow_step
-  WHERE
-    trace_id = {{prefix}}_trace_id AND
-    ts > gesture_ts + {{prefix}}_dur
-  GROUP BY gesture_slice_id;
+SELECT
+  gesture_slice_id,
+  MIN(ts) AS max_flow_ts
+FROM {{prefix}}_latency_info_flow_step
+WHERE
+  trace_id = {{prefix}}_trace_id
+  AND ts > gesture_ts + {{prefix}}_dur
+GROUP BY gesture_slice_id;
 
 -- As described by the comments about this uses the heuristic to remove any flow
 -- events that aren't contained within the |max_flow_ts| and the beginning of
@@ -153,18 +153,18 @@ CREATE VIEW {{prefix}}_max_latency_info_ts_per_trace_id AS
 --       strangely in views.
 DROP TABLE IF EXISTS {{prefix}}_latency_info_flow_step_filtered;
 CREATE TABLE {{prefix}}_latency_info_flow_step_filtered AS
-  SELECT
-    ROW_NUMBER() OVER (ORDER BY
+SELECT
+  ROW_NUMBER() OVER (ORDER BY
       flow.{{id_field}} ASC, trace_id ASC, ts ASC) AS row_number,
-    *
-  FROM
-    {{prefix}}_latency_info_flow_step flow JOIN
-    {{prefix}}_max_latency_info_ts_per_trace_id max_flow on
+  *
+FROM
+  {{prefix}}_latency_info_flow_step flow JOIN
+  {{prefix}}_max_latency_info_ts_per_trace_id max_flow ON
     max_flow.gesture_slice_id = flow.gesture_slice_id
-  WHERE
-    ts >= gesture_ts AND
-    ts <= max_flow_ts
-  ORDER BY flow.{{id_field}} ASC, flow.trace_id ASC, flow.ts ASC;
+WHERE
+  ts >= gesture_ts
+  AND ts <= max_flow_ts
+ORDER BY flow.{{id_field}} ASC, flow.trace_id ASC, flow.ts ASC;
 
 -- Take all the LatencyInfo.Flow events and within a |trace_id| join it with the
 -- previous and nextflows. Some events are 'Unknown' when they don't have a step
@@ -175,8 +175,8 @@ CREATE TABLE {{prefix}}_latency_info_flow_step_filtered AS
 --       strangely in views.
 DROP TABLE IF EXISTS {{prefix}}_latency_info_flow_null_step_removed;
 CREATE TABLE {{prefix}}_latency_info_flow_null_step_removed AS
-  SELECT
-    ROW_NUMBER() OVER (ORDER BY
+SELECT
+  ROW_NUMBER() OVER (ORDER BY
       curr.{{id_field}} ASC, curr.trace_id ASC, curr.ts ASC
     ) AS row_number,
     curr.id,
@@ -195,24 +195,25 @@ CREATE TABLE {{prefix}}_latency_info_flow_null_step_removed AS
     curr.ancestor_ts,
     curr.ancestor_dur,
     curr.ancestor_ts + curr.ancestor_dur AS ancestor_end,
-    CASE WHEN curr.step IS NULL THEN
+    COALESCE(
+      curr.step,
       CASE WHEN
-          prev.{{id_field}} != curr.{{id_field}} OR
-          prev.trace_id != curr.trace_id OR
-          prev.trace_id IS NULL OR
-          prev.step = 'AsyncBegin' THEN
+          prev.{{id_field}} != curr.{{id_field}}
+          OR prev.trace_id != curr.trace_id
+          OR prev.trace_id IS NULL
+          OR prev.step = 'AsyncBegin' THEN
         'Begin'
       ELSE
         CASE WHEN
-            next.{{id_field}} != curr.{{id_field}} OR
-            next.trace_id != curr.trace_id OR
-            next.trace_id IS NULL THEN
+          next.{{id_field}} != curr.{{id_field}}
+          OR next.trace_id != curr.trace_id
+          OR next.trace_id IS NULL THEN
           'End'
-        ELSE
-         'Unknown'
+          ELSE
+            'Unknown'
         END
       END
-    ELSE curr.step END AS step
+    ) AS step
   FROM
     {{prefix}}_latency_info_flow_step_filtered curr LEFT JOIN
     {{prefix}}_latency_info_flow_step_filtered prev ON
@@ -226,37 +227,37 @@ CREATE TABLE {{prefix}}_latency_info_flow_null_step_removed AS
 -- step and the beginning of the next step.
 DROP VIEW IF EXISTS {{prefix}}_flow_event;
 CREATE VIEW {{prefix}}_flow_event AS
-  SELECT
-    curr.trace_id,
-    curr.id,
-    curr.ts,
-    curr.dur,
-    curr.track_id,
-    curr.{{id_field}},
-    curr.avg_vsync_interval,
-    curr.gesture_slice_id AS {{prefix}}_slice_id,
-    curr.gesture_ts AS {{prefix}}_ts,
-    curr.{{prefix}}_dur AS {{prefix}}_dur,
-    curr.gesture_track_id AS {{prefix}}_track_id,
-    curr.jank,
-    curr.step,
-    curr.ancestor_id,
-    curr.ancestor_ts,
-    curr.ancestor_dur,
-    curr.ancestor_end,
-    next.id as next_id,
-    next.ts AS next_ts,
-    next.dur AS next_dur,
-    next.track_id AS next_track_id,
-    next.trace_id AS next_trace_id,
-    next.step AS next_step,
-    CASE WHEN next.trace_id = curr.trace_id THEN
+SELECT
+  curr.trace_id,
+  curr.id,
+  curr.ts,
+  curr.dur,
+  curr.track_id,
+  curr.{{id_field}},
+  curr.avg_vsync_interval,
+  curr.gesture_slice_id AS {{prefix}}_slice_id,
+  curr.gesture_ts AS {{prefix}}_ts,
+  curr.{{prefix}}_dur AS {{prefix}}_dur,
+  curr.gesture_track_id AS {{prefix}}_track_id,
+  curr.jank,
+  curr.step,
+  curr.ancestor_id,
+  curr.ancestor_ts,
+  curr.ancestor_dur,
+  curr.ancestor_end,
+  next.id AS next_id,
+  next.ts AS next_ts,
+  next.dur AS next_dur,
+  next.track_id AS next_track_id,
+  next.trace_id AS next_trace_id,
+  next.step AS next_step,
+  CASE WHEN next.trace_id = curr.trace_id THEN
       next.ancestor_ts
     ELSE
       NULL
-    END AS maybe_next_ancestor_ts
-  FROM
-    {{prefix}}_latency_info_flow_null_step_removed curr LEFT JOIN
-    {{prefix}}_latency_info_flow_null_step_removed next ON
+  END AS maybe_next_ancestor_ts
+FROM
+  {{prefix}}_latency_info_flow_null_step_removed curr LEFT JOIN
+  {{prefix}}_latency_info_flow_null_step_removed next ON
     curr.row_number + 1 = next.row_number
-  ORDER BY curr.{{id_field}}, curr.trace_id, curr.ts;
+ORDER BY curr.{{id_field}}, curr.trace_id, curr.ts;

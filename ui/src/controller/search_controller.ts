@@ -13,24 +13,16 @@
 // limitations under the License.
 
 import {sqliteString} from '../base/string_utils';
-import {TRACE_MARGIN_TIME_S} from '../common/constants';
 import {Engine} from '../common/engine';
 import {NUM, STR} from '../common/query_result';
+import {escapeSearchQuery} from '../common/query_utils';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {TimeSpan} from '../common/time';
 import {publishSearch, publishSearchResult} from '../frontend/publish';
 
 import {Controller} from './controller';
 import {App} from './globals';
-
-export function escapeQuery(s: string): string {
-  // See https://www.sqlite.org/lang_expr.html#:~:text=A%20string%20constant
-  s = s.replace(/\'/g, '\'\'');
-  s = s.replace(/\[/g, '[[]');
-  s = s.replace(/\?/g, '[?]');
-  s = s.replace(/\*/g, '[*]');
-  return `'*${s}*'`;
-}
+import {toNs} from '../common/time';
 
 export interface SearchControllerArgs {
   engine: Engine;
@@ -76,7 +68,7 @@ export class SearchController extends Controller<'main'> {
     }
 
     const visibleState = this.app.state.frontendLocalState.visibleState;
-    const omniboxState = this.app.state.frontendLocalState.omniboxState;
+    const omniboxState = this.app.state.omniboxState;
     if (visibleState === undefined || omniboxState === undefined ||
         omniboxState.mode === 'COMMAND') {
       return;
@@ -89,9 +81,14 @@ export class SearchController extends Controller<'main'> {
         newSearch === this.previousSearch) {
       return;
     }
-    this.previousSpan = new TimeSpan(
-        Math.max(newSpan.start - newSpan.duration, -TRACE_MARGIN_TIME_S),
-        newSpan.end + newSpan.duration);
+
+
+    // TODO(hjd): We should restrict this to the start of the trace but
+    // that is not easily available here.
+    // N.B. Timestamps can be negative.
+    const start = newSpan.start - newSpan.duration;
+    const end = newSpan.end + newSpan.duration;
+    this.previousSpan = new TimeSpan(start, end);
     this.previousResolution = newResolution;
     this.previousSearch = newSearch;
     if (newSearch === '' || newSearch.length < 4) {
@@ -111,8 +108,8 @@ export class SearchController extends Controller<'main'> {
       return;
     }
 
-    let startNs = Math.round(newSpan.start * 1e9);
-    let endNs = Math.round(newSpan.end * 1e9);
+    let startNs = toNs(newSpan.start);
+    let endNs = toNs(newSpan.end);
 
     // TODO(hjd): We shouldn't need to be so defensive here:
     if (!Number.isFinite(startNs)) {
@@ -150,7 +147,7 @@ export class SearchController extends Controller<'main'> {
       resolution: number): Promise<SearchSummary> {
     const quantumNs = Math.round(resolution * 10 * 1e9);
 
-    const searchLiteral = escapeQuery(search);
+    const searchLiteral = escapeSearchQuery(search);
 
     startNs = Math.floor(startNs / quantumNs) * quantumNs;
 
@@ -209,7 +206,7 @@ export class SearchController extends Controller<'main'> {
   }
 
   private async specificSearch(search: string) {
-    const searchLiteral = escapeQuery(search);
+    const searchLiteral = escapeSearchQuery(search);
     // TODO(hjd): we should avoid recomputing this every time. This will be
     // easier once the track table has entries for all the tracks.
     const cpuToTrackId = new Map();

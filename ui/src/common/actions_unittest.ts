@@ -269,9 +269,8 @@ test('open trace', () => {
     });
   });
 
-  const engineKeys = Object.keys(after.engines);
-  expect(engineKeys.length).toBe(1);
-  expect((after.engines[engineKeys[0]].source as TraceUrlSource).url)
+  expect(after.engine).not.toBeUndefined();
+  expect((after.engine!!.source as TraceUrlSource).url)
       .toBe('https://example.com/bar');
   expect(after.recordConfig).toBe(recordConfig);
 });
@@ -299,9 +298,8 @@ test('open second trace from file', () => {
     });
   });
 
-  const engineKeys = Object.keys(thrice.engines);
-  expect(engineKeys.length).toBe(1);
-  expect((thrice.engines[engineKeys[0]].source as TraceUrlSource).url)
+  expect(thrice.engine).not.toBeUndefined();
+  expect((thrice.engine!!.source as TraceUrlSource).url)
       .toBe('https://example.com/foo');
   expect(thrice.pinnedTracks.length).toBe(0);
   expect(thrice.scrollingTracks.length).toBe(0);
@@ -317,17 +315,15 @@ test('setEngineReady with missing engine is ignored', () => {
 
 test('setEngineReady', () => {
   const state = createEmptyState();
-  let latestEngineId = 'dummy value will be replaced';
-  state.currentEngineId = '100';
   const after = produce(state, (draft) => {
     StateActions.openTraceFromUrl(draft, {
       url: 'https://example.com/bar',
     });
-    latestEngineId = assertExists(draft.currentEngineId);
+    const latestEngineId = assertExists(draft.engine).id;
     StateActions.setEngineReady(
         draft, {engineId: latestEngineId, ready: true, mode: 'WASM'});
   });
-  expect(after.engines[latestEngineId].ready).toBe(true);
+  expect(after.engine!!.ready).toBe(true);
 });
 
 test('sortTracksByPriority', () => {

@@ -60,7 +60,7 @@ Download the
 script. Then start the profile:
 
 ```bash
-python /path/to/heap_profile -n system_server 
+python /path/to/heap_profile -n system_server
 ```
 
 ## View profile
@@ -70,7 +70,7 @@ https://ui.perfetto.dev) and click on diamond marker in the UI track labeled
 _"Heap profile"_.
 
 ![Profile Diamond](/docs/images/profile-diamond.png)
-![Native Flamegraph](/docs/images/syssrv-apk-assets-two.png)
+![Native Flamegraph](/docs/images/native-heap-prof.png)
 
 ## Next steps
 

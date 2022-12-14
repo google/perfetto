@@ -20,7 +20,6 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_blob.h"
-#include "src/trace_processor/importers/additional_modules.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -29,14 +28,15 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/default_modules.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
+#include "src/trace_processor/importers/proto/additional_modules.h"
+#include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
@@ -60,6 +60,7 @@
 #include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/trace_uuid.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
@@ -2867,6 +2868,38 @@ TEST_F(ProtoTraceParserTest, ConfigUuid) {
   auto* config = trace_->add_packet()->set_trace_config();
   config->set_trace_uuid_lsb(1);
   config->set_trace_uuid_msb(2);
+
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  SqlValue value = context_.metadata_tracker->GetMetadata(metadata::trace_uuid);
+  EXPECT_STREQ(value.string_value, "00000000-0000-0002-0000-000000000001");
+  ASSERT_TRUE(context_.uuid_found_in_trace);
+}
+
+TEST_F(ProtoTraceParserTest, PacketUuid) {
+  auto* uuid = trace_->add_packet()->set_trace_uuid();
+  uuid->set_lsb(1);
+  uuid->set_msb(2);
+
+  ASSERT_TRUE(Tokenize().ok());
+  context_.sorter->ExtractEventsForced();
+
+  SqlValue value = context_.metadata_tracker->GetMetadata(metadata::trace_uuid);
+  EXPECT_STREQ(value.string_value, "00000000-0000-0002-0000-000000000001");
+  ASSERT_TRUE(context_.uuid_found_in_trace);
+}
+
+// If both the TraceConfig and TracePacket.trace_uuid are present, the latter
+// is considered the source of truth.
+TEST_F(ProtoTraceParserTest, PacketAndConfigUuid) {
+  auto* uuid = trace_->add_packet()->set_trace_uuid();
+  uuid->set_lsb(1);
+  uuid->set_msb(2);
+
+  auto* config = trace_->add_packet()->set_trace_config();
+  config->set_trace_uuid_lsb(42);
+  config->set_trace_uuid_msb(42);
 
   ASSERT_TRUE(Tokenize().ok());
   context_.sorter->ExtractEventsForced();

@@ -36,7 +36,7 @@ FROM (
   SELECT
     ts,
     phase,
-    LEAD(ts) OVER (ORDER BY ts) - ts as dur
+    LEAD(ts) OVER (ORDER BY ts) - ts AS dur
   FROM GestureLegacyEvents
 )
 WHERE phase = 'S';
@@ -107,9 +107,9 @@ DROP VIEW IF EXISTS FrameSegments;
 CREATE VIEW FrameSegments AS
 SELECT
   ts,
-  LEAD(ts) OVER wnd - ts as dur,
-  ts as ts_fs,
-  LEAD(ts) OVER wnd - ts as dur_fs,
+  LEAD(ts) OVER wnd - ts AS dur,
+  ts AS ts_fs,
+  LEAD(ts) OVER wnd - ts AS dur_fs,
   exp
 FROM DisplayCompositorPresentationEvents
 WINDOW wnd AS (PARTITION BY exp ORDER BY ts);
@@ -130,8 +130,7 @@ WHERE ts = ts_fs AND dur = dur_fs;
 DROP VIEW IF EXISTS RefreshPeriodAndroid;
 CREATE VIEW RefreshPeriodAndroid AS
 -- Not implemented yet.
-SELECT NULL AS interval_ms
-;
+SELECT NULL AS interval_ms;
 
 DROP VIEW IF EXISTS RefreshPeriodNonAndroid;
 CREATE VIEW RefreshPeriodNonAndroid AS
@@ -181,4 +180,3 @@ SELECT FrameTimes(
   'avg_surface_fps', (SELECT fps FROM AvgSurfaceFps WHERE NOT exp),
   'exp_avg_surface_fps', (SELECT fps FROM AvgSurfaceFps WHERE exp)
 );
-

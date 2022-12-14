@@ -15,6 +15,8 @@
  */
 
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "perfetto/ext/base/optional.h"
+#include "src/trace_processor/importers/common/deobfuscation_mapping_table.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -78,31 +80,83 @@ TEST(ArgsTranslationTable, TranslatesPerformanceMarkMarkHashes) {
             base::nullopt);
 }
 
+TEST(ArgsTranslationTable, TranslateClassName) {
+  TraceStorage storage;
+  StringId xyz_id = storage.InternString("xyz");
+  StringId abc_id = storage.InternString("abc");
+  StringId class_x_id = storage.InternString("class_X");
+  DeobfuscationMappingTable deobfuscation_mapping;
+  deobfuscation_mapping.AddClassTranslation(
+      DeobfuscationMappingTable::PackageId{"app", 123}, xyz_id, class_x_id,
+      base::FlatHashMap<StringId, StringId>{});
+  ArgsTranslationTable table(&storage);
+  table.AddDeobfuscationMappingTable(std::move(deobfuscation_mapping));
+
+  EXPECT_EQ(table.TranslateClassNameForTesting(xyz_id),
+            base::Optional<StringId>(class_x_id));
+  EXPECT_EQ(table.TranslateClassNameForTesting(abc_id), base::nullopt);
+}
+
 TEST(ArgsTranslationTable, NeedsTranslation) {
   TraceStorage storage;
   ArgsTranslationTable table(&storage);
 
   EXPECT_TRUE(table.NeedsTranslation(
+      storage.InternString("unused_flat_key"),
+      storage.InternString("chrome_histogram_sample.name_hash"),
+      Variadic::Type::kUint));
+  EXPECT_TRUE(table.NeedsTranslation(
+      storage.InternString("unused_flat_key"),
+      storage.InternString("chrome_user_event.action_hash"),
+      Variadic::Type::kUint));
+  EXPECT_TRUE(table.NeedsTranslation(
+      storage.InternString("unused_flat_key"),
+      storage.InternString("chrome_hashed_performance_mark.site_hash"),
+      Variadic::Type::kUint));
+  EXPECT_TRUE(table.NeedsTranslation(
+      storage.InternString("unused_flat_key"),
+      storage.InternString("chrome_hashed_performance_mark.mark_hash"),
+      Variadic::Type::kUint));
+
+  // A real life case, where flat_key == key.
+  EXPECT_TRUE(table.NeedsTranslation(
+      storage.InternString("chrome_histogram_sample.name_hash"),
       storage.InternString("chrome_histogram_sample.name_hash"),
       Variadic::Type::kUint));
   EXPECT_TRUE(table.NeedsTranslation(
       storage.InternString("chrome_user_event.action_hash"),
+      storage.InternString("chrome_user_event.action_hash"),
       Variadic::Type::kUint));
   EXPECT_TRUE(table.NeedsTranslation(
       storage.InternString("chrome_hashed_performance_mark.site_hash"),
+      storage.InternString("chrome_hashed_performance_mark.site_hash"),
       Variadic::Type::kUint));
   EXPECT_TRUE(table.NeedsTranslation(
+      storage.InternString("chrome_hashed_performance_mark.mark_hash"),
       storage.InternString("chrome_hashed_performance_mark.mark_hash"),
       Variadic::Type::kUint));
 
   // The key needs translation, but the arg type is wrong (not uint).
   EXPECT_FALSE(table.NeedsTranslation(
+      storage.InternString("unused_flat_key"),
       storage.InternString("chrome_histogram_sample.name_hash"),
       Variadic::Type::kInt));
   // The key does not require translation.
   EXPECT_FALSE(table.NeedsTranslation(
+      storage.InternString("unused_flat_key"),
       storage.InternString("chrome_histogram_sample.name"),
       Variadic::Type::kUint));
+
+  // The key needs translation by flat_key.
+  EXPECT_TRUE(table.NeedsTranslation(
+      storage.InternString("android_view_dump.activity.view.class_name"),
+      storage.InternString("android_view_dump.activity[0].view[0].class_name"),
+      Variadic::Type::kString));
+  // The key does not require translation because flat_key and key are swapped.
+  EXPECT_FALSE(table.NeedsTranslation(
+      storage.InternString("android_view_dump.activity[0].view[0].class_name"),
+      storage.InternString("android_view_dump.activity.view.class_name"),
+      Variadic::Type::kString));
 }
 
 }  // namespace

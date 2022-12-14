@@ -38,7 +38,7 @@ SELECT
   process_track.upid
 FROM long_eventlatency_slice
 INNER JOIN process_track
-ON long_eventlatency_slice.track_id = process_track.id;
+  ON long_eventlatency_slice.track_id = process_track.id;
 
 -- Find the name and pid of the processes.
 -- Long latency events with the same timestamp and from the same process
@@ -60,7 +60,7 @@ SELECT
   process.pid AS process_id
 FROM long_latency_with_upid
 INNER JOIN process
-ON long_latency_with_upid.upid = process.upid
+  ON long_latency_with_upid.upid = process.upid
 GROUP BY ts, process.pid;
 
 -- Create the derived event track for long latency.
@@ -80,7 +80,7 @@ SELECT
   'Long Latency' AS group_name
 FROM long_latency_with_process_info
 WHERE (SELECT COUNT(DISTINCT process_id)
-       FROM long_latency_with_process_info) > 1
+                    FROM long_latency_with_process_info) > 1
 GROUP BY ts
 UNION ALL
 SELECT

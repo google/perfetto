@@ -22,6 +22,7 @@
 #include <unistd.h>
 
 #include <bitset>
+#include <unordered_map>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
@@ -125,6 +126,7 @@ struct FtraceMetadata {
     pids.clear();
     pids_cache.reset();
     kernel_addrs.clear();
+    fds.clear();
     last_kernel_addr_index_written = 0;
     FinishEvent();
   }
@@ -148,6 +150,7 @@ struct FtraceMetadata {
   base::FlatSet<int32_t> rename_pids;
   base::FlatSet<int32_t> pids;
   base::FlatSet<KernelAddr> kernel_addrs;
+  base::FlatSet<std::pair<pid_t, uint64_t>> fds;
 
   // This bitmap is a cache for |pids|. It speculates on the fact that on most
   // Android kernels, PID_MAX=32768. It saves ~1-2% cpu time on high load

@@ -13,6 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select slice.ts, slice.dur, slice.name, track.name
-from slice
-inner join track on slice.track_id = track.id;
+SELECT slice.ts, slice.dur, slice.name, track.name
+FROM slice
+INNER JOIN track ON slice.track_id = track.id;

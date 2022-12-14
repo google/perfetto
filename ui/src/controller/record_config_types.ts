@@ -34,6 +34,7 @@ export const recordConfigValidator = record({
 
   cpuSched: bool(),
   cpuFreq: bool(),
+  cpuFreqPollMs: num(1000),
   cpuSyscall: bool(),
 
   gpuFreq: bool(),

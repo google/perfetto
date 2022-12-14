@@ -231,7 +231,7 @@ BUILD_DEPS_HOST = [
     Dependency(
         'buildtools/android-unwinding',
         'https://android.googlesource.com/platform/system/unwinding.git',
-        'd66882575ebe3700d6a6b10185f3aee28acc1051', 'all', 'all'),
+        '11cf5564fbff659b5cdba9c3e977d4fc51bab4b3', 'all', 'all'),
     Dependency('buildtools/android-logging',
                'https://android.googlesource.com/platform/system/logging.git',
                '7b36b566c9113fc703d68f76e8f40c0c2432481c', 'all', 'all'),
@@ -534,7 +534,7 @@ def Main():
       action='store_true',
       help='Node and NPM packages to Build the Web-based UI via ./ui/build')
   parser.add_argument('--check-only')
-  parser.add_argument('--filter', default='')
+  parser.add_argument('--filter', action='append')
   parser.add_argument('--verify', help='Check all URLs', action='store_true')
   parser.add_argument(
       '--no-toolchain', help='Do not download toolchain', action='store_true')
@@ -569,7 +569,7 @@ def Main():
     matches_arch = dep.target_arch == 'all' or target_arch == dep.target_arch
     if not matches_os or not matches_arch:
       continue
-    if args.filter and args.filter not in dep.target_folder:
+    if args.filter and not any(f in dep.target_folder for f in args.filter):
       continue
     local_path = os.path.join(ROOT_DIR, dep.target_folder)
     if dep.source_url.endswith('.git'):

@@ -13,9 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select ts, gpu_track.name as track_name, dur, frame_slice.name as slice_name,
-    frame_number, layer_name
-from gpu_track
-left join frame_slice on gpu_track.id=frame_slice.track_id
-where scope='graphics_frame_event'
-order by ts
+SELECT ts, gpu_track.name AS track_name, dur, frame_slice.name AS slice_name,
+  frame_number, layer_name
+FROM gpu_track
+LEFT JOIN frame_slice ON gpu_track.id = frame_slice.track_id
+WHERE scope = 'graphics_frame_event'
+ORDER BY ts;

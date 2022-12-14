@@ -39,8 +39,8 @@ DROP VIEW IF EXISTS simpleperf_event_raw;
 CREATE VIEW simpleperf_event_raw AS
 SELECT
   SUBSTR(name, 0, tid_pos) AS name,
-  CAST(SUBSTR(name, tid_pos+4, cpu_pos-tid_pos-4) AS INT)  AS tid,
-  CAST(SUBSTR(name, cpu_pos+4) AS INT) AS cpu,
+  CAST(SUBSTR(name, tid_pos + 4, cpu_pos - tid_pos - 4) AS INT) AS tid,
+  CAST(SUBSTR(name, cpu_pos + 4) AS INT) AS cpu,
   total
 FROM (
   SELECT

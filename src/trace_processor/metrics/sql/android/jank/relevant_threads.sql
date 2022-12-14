@@ -57,7 +57,7 @@ SELECT * FROM ANDROID_JANK_CUJ_APP_THREAD('HWC release');
 DROP TABLE IF EXISTS android_jank_cuj_sf_process;
 CREATE TABLE android_jank_cuj_sf_process AS
 SELECT * FROM process
-WHERE process.name='/system/bin/surfaceflinger'
+WHERE process.name = '/system/bin/surfaceflinger'
 LIMIT 1;
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_main_thread;

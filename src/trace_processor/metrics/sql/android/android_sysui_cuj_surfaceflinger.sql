@@ -2,7 +2,7 @@
 DROP TABLE IF EXISTS android_sysui_cuj_sf_process;
 CREATE TABLE android_sysui_cuj_sf_process AS
 SELECT name, upid FROM process
-WHERE process.name='/system/bin/surfaceflinger'
+WHERE process.name = '/system/bin/surfaceflinger'
 LIMIT 1;
 
 DROP VIEW IF EXISTS android_sysui_cuj_sf_actual_frame_timeline_slice;
@@ -15,9 +15,9 @@ FROM actual_frame_timeline_slice actual JOIN android_sysui_cuj_sf_process USING 
 
 DROP TABLE IF EXISTS android_sysui_cuj_surfaceflinger_main_thread;
 CREATE TABLE android_sysui_cuj_surfaceflinger_main_thread AS
-  SELECT android_sysui_cuj_sf_process.name AS process_name, thread.utid
-  FROM thread JOIN android_sysui_cuj_sf_process USING (upid)
-  WHERE thread.is_main_thread;
+SELECT android_sysui_cuj_sf_process.name AS process_name, thread.utid
+FROM thread JOIN android_sysui_cuj_sf_process USING (upid)
+WHERE thread.is_main_thread;
 
 DROP TABLE IF EXISTS android_sysui_cuj_sf_main_thread_track;
 CREATE TABLE android_sysui_cuj_sf_main_thread_track AS
@@ -27,29 +27,29 @@ JOIN android_sysui_cuj_surfaceflinger_main_thread thread USING (utid);
 
 DROP VIEW IF EXISTS android_sysui_cuj_surfaceflinger_gpu_completion_thread;
 CREATE VIEW android_sysui_cuj_surfaceflinger_gpu_completion_thread AS
-  SELECT android_sysui_cuj_sf_process.name AS process_name, thread.utid
-  FROM thread JOIN android_sysui_cuj_sf_process USING (upid)
-  WHERE thread.name = 'GPU completion';
+SELECT android_sysui_cuj_sf_process.name AS process_name, thread.utid
+FROM thread JOIN android_sysui_cuj_sf_process USING (upid)
+WHERE thread.name = 'GPU completion';
 
 DROP VIEW IF EXISTS android_sysui_cuj_surfaceflinger_renderengine_thread;
 CREATE VIEW android_sysui_cuj_surfaceflinger_renderengine_thread AS
-  SELECT android_sysui_cuj_sf_process.name AS process_name, thread.utid
-  FROM thread JOIN android_sysui_cuj_sf_process USING (upid)
-  WHERE thread.name = 'RenderEngine';
+SELECT android_sysui_cuj_sf_process.name AS process_name, thread.utid
+FROM thread JOIN android_sysui_cuj_sf_process USING (upid)
+WHERE thread.name = 'RenderEngine';
 
 DROP VIEW IF EXISTS android_sysui_cuj_surfaceflinger_gpu_completion_slices;
 CREATE VIEW android_sysui_cuj_surfaceflinger_gpu_completion_slices AS
-  SELECT
-    process_name,
-    thread.utid,
-    slice.*,
-    slice.ts + slice.dur AS ts_end,
-    -- Extracts 1234 from 'waiting for GPU completion 1234'
-    CAST(STR_SPLIT(slice.name, ' ', 4) AS INTEGER) AS idx
-  FROM slice
-  JOIN thread_track ON slice.track_id = thread_track.id
-  JOIN android_sysui_cuj_surfaceflinger_gpu_completion_thread thread USING (utid)
-  WHERE slice.name GLOB 'waiting for GPU completion *'
+SELECT
+  process_name,
+  thread.utid,
+  slice.*,
+  slice.ts + slice.dur AS ts_end,
+  -- Extracts 1234 from 'waiting for GPU completion 1234'
+  CAST(STR_SPLIT(slice.name, ' ', 4) AS INTEGER) AS idx
+FROM slice
+JOIN thread_track ON slice.track_id = thread_track.id
+JOIN android_sysui_cuj_surfaceflinger_gpu_completion_thread thread USING (utid)
+WHERE slice.name GLOB 'waiting for GPU completion *'
   AND dur > 0;
 
 -- Find flows between actual frame slices from app process to surfaceflinger, allowing us to
@@ -104,33 +104,33 @@ SELECT * FROM
     slice.ts,
     slice.dur,
     slice.ts + slice.dur AS ts_end
-  FROM slice
-  JOIN android_sysui_cuj_sf_main_thread_track main_track ON slice.track_id = main_track.id
-  WHERE slice.dur > 0 AND slice.name GLOB 'commit *')
+    FROM slice
+    JOIN android_sysui_cuj_sf_main_thread_track main_track ON slice.track_id = main_track.id
+    WHERE slice.dur > 0 AND slice.name GLOB 'commit *')
 JOIN android_sysui_cuj_sf_vsync_boundaries cuj_boundaries
 WHERE vsync >= cuj_boundaries.vsync_min AND vsync <= cuj_boundaries.vsync_max;
 
 -- Find matching GPU completion slice idx for top-level mainthread slices
 DROP TABLE IF EXISTS android_sysui_cuj_sf_mts_to_gcs;
 CREATE TABLE android_sysui_cuj_sf_mts_to_gcs AS
-  SELECT
-    slice.ts,
-    CASE
-      WHEN fence.name GLOB 'GPU completion fence *'
-        THEN CAST(STR_SPLIT(fence.name, ' ', 3) AS INTEGER)
-      WHEN fence.name GLOB 'Trace GPU completion fence *'
-        THEN CAST(STR_SPLIT(fence.name, ' ', 4) AS INTEGER)
-      ELSE NULL
-    END AS gcs_idx
-  FROM slice
-  JOIN android_sysui_cuj_sf_main_thread_track main_track ON slice.track_id = main_track.id
-  JOIN descendant_slice(slice.id) fence ON fence.name GLOB '*GPU completion fence*'
-  WHERE (slice.name GLOB 'composite*' OR slice.name GLOB 'onMessageInvalidate*');
+SELECT
+  slice.ts,
+  CASE
+    WHEN fence.name GLOB 'GPU completion fence *'
+      THEN CAST(STR_SPLIT(fence.name, ' ', 3) AS INTEGER)
+    WHEN fence.name GLOB 'Trace GPU completion fence *'
+      THEN CAST(STR_SPLIT(fence.name, ' ', 4) AS INTEGER)
+    ELSE NULL
+  END AS gcs_idx
+FROM slice
+JOIN android_sysui_cuj_sf_main_thread_track main_track ON slice.track_id = main_track.id
+JOIN descendant_slice(slice.id) fence ON fence.name GLOB '*GPU completion fence*'
+WHERE (slice.name GLOB 'composite*' OR slice.name GLOB 'onMessageInvalidate*');
 
 -- Find just the onMessageInvalidate slices, within the CUJ (by vsync)
 DROP VIEW IF EXISTS android_sysui_cuj_surfaceflinger_on_message_invalidate_slices_in_cuj;
 CREATE VIEW android_sysui_cuj_surfaceflinger_on_message_invalidate_slices_in_cuj AS
-  WITH on_msg AS (
+WITH on_msg AS (
   SELECT
     -- Extract the vsync number from name like 'onMessageInvalidate 235991 vsyncIn 15.992ms'
     CAST(STR_SPLIT(slice.name, ' ', 1) AS INTEGER) AS vsync,
@@ -143,60 +143,60 @@ CREATE VIEW android_sysui_cuj_surfaceflinger_on_message_invalidate_slices_in_cuj
   JOIN android_sysui_cuj_sf_main_thread_track main_track ON slice.track_id = main_track.id
   LEFT JOIN android_sysui_cuj_sf_mts_to_gcs gcs ON slice.ts = gcs.ts
   WHERE slice.name GLOB 'onMessageInvalidate *'
-  )
+)
 SELECT
-    on_msg.*,
-    lag(on_msg.ts_end) OVER (ORDER BY on_msg.ts_end ASC) AS ts_prev_frame_end,
-    lead(on_msg.ts) OVER (ORDER BY on_msg.ts ASC) AS ts_next_frame_start
+  on_msg.*,
+  lag(on_msg.ts_end) OVER (ORDER BY on_msg.ts_end ASC) AS ts_prev_frame_end,
+  lead(on_msg.ts) OVER (ORDER BY on_msg.ts ASC) AS ts_next_frame_start
 FROM on_msg
 JOIN android_sysui_cuj_sf_vsync_boundaries cuj_boundaries
-ON on_msg.vsync >= cuj_boundaries.vsync_min AND on_msg.vsync <= cuj_boundaries.vsync_max;
+  ON on_msg.vsync >= cuj_boundaries.vsync_min AND on_msg.vsync <= cuj_boundaries.vsync_max;
 
 -- Find just the composite slices
 DROP TABLE IF EXISTS android_sysui_cuj_surfaceflinger_composite_slices;
 CREATE TABLE android_sysui_cuj_surfaceflinger_composite_slices AS
-  SELECT
-    slice.name,
-    slice.ts,
-    slice.dur,
-    slice.ts + slice.dur AS ts_end,
-    gcs.gcs_idx
-  FROM slice
-  JOIN android_sysui_cuj_sf_main_thread_track main_track ON slice.track_id = main_track.id
-  LEFT JOIN android_sysui_cuj_sf_mts_to_gcs gcs ON slice.ts = gcs.ts
-  WHERE slice.dur > 0 AND slice.name GLOB 'composite*';
+SELECT
+  slice.name,
+  slice.ts,
+  slice.dur,
+  slice.ts + slice.dur AS ts_end,
+  gcs.gcs_idx
+FROM slice
+JOIN android_sysui_cuj_sf_main_thread_track main_track ON slice.track_id = main_track.id
+LEFT JOIN android_sysui_cuj_sf_mts_to_gcs gcs ON slice.ts = gcs.ts
+WHERE slice.dur > 0 AND slice.name GLOB 'composite*';
 
 DROP VIEW IF EXISTS android_sysui_cuj_surfaceflinger_commit_composite_frames_in_cuj;
 CREATE VIEW android_sysui_cuj_surfaceflinger_commit_composite_frames_in_cuj AS
-  WITH composite_to_commit AS (
-    SELECT
-      commits.vsync,
-      max(commits.ts) AS commit_ts,
-      composite.ts AS composite_ts,
-      composite.ts_end AS composite_ts_end,
-      composite.gcs_idx
-      FROM android_sysui_cuj_surfaceflinger_composite_slices composite
-      JOIN android_sysui_cuj_surfaceflinger_commit_slices_in_cuj commits ON composite.ts > commits.ts_end
-      GROUP BY composite.ts
-  ),
-  frames AS (
-    SELECT
-      commits.vsync,
-      commits.ts AS ts,
-      max(commits.ts_end, COALESCE(min(composite_ts_end), 0)) AS ts_end,
-      max(commits.ts_end, COALESCE(min(composite_ts_end), 0)) - commits.ts AS dur,
-      commits.expected_vsync_ts,
-      min(composite.gcs_idx) as gcs_idx
-    FROM android_sysui_cuj_surfaceflinger_commit_slices_in_cuj commits
-    LEFT JOIN composite_to_commit composite
-    USING(vsync)
-    GROUP BY (commits.vsync)
-  )
+WITH composite_to_commit AS (
   SELECT
-    *,
-    lag(ts_end) OVER (ORDER BY ts_end ASC) AS ts_prev_frame_end,
-    lead(ts) OVER (ORDER BY ts ASC) AS ts_next_frame_start
-  FROM frames;
+    commits.vsync,
+    max(commits.ts) AS commit_ts,
+    composite.ts AS composite_ts,
+    composite.ts_end AS composite_ts_end,
+    composite.gcs_idx
+  FROM android_sysui_cuj_surfaceflinger_composite_slices composite
+  JOIN android_sysui_cuj_surfaceflinger_commit_slices_in_cuj commits ON composite.ts > commits.ts_end
+  GROUP BY composite.ts
+),
+frames AS (
+  SELECT
+    commits.vsync,
+    commits.ts AS ts,
+    max(commits.ts_end, COALESCE(min(composite_ts_end), 0)) AS ts_end,
+    max(commits.ts_end, COALESCE(min(composite_ts_end), 0)) - commits.ts AS dur,
+    commits.expected_vsync_ts,
+    min(composite.gcs_idx) AS gcs_idx
+  FROM android_sysui_cuj_surfaceflinger_commit_slices_in_cuj commits
+  LEFT JOIN composite_to_commit composite
+    USING(vsync)
+  GROUP BY (commits.vsync)
+)
+SELECT
+  *,
+  lag(ts_end) OVER (ORDER BY ts_end ASC) AS ts_prev_frame_end,
+  lead(ts) OVER (ORDER BY ts ASC) AS ts_next_frame_start
+FROM frames;
 
 -- All SF frames in the CUJ
 DROP TABLE IF EXISTS android_sysui_cuj_surfaceflinger_main_thread_frames;
@@ -234,40 +234,40 @@ SELECT ts, ts_end - ts AS dur, ts_end
 FROM (
   SELECT MIN(ts) AS ts, MAX(ts_end) AS ts_end
   FROM android_sysui_cuj_surfaceflinger_main_thread_frames
-  JOIN android_sysui_cuj_sf_vsync_boundaries ON vsync == vsync_min OR vsync == vsync_max
+  JOIN android_sysui_cuj_sf_vsync_boundaries ON vsync = vsync_min OR vsync = vsync_max
   );
 
 DROP TABLE IF EXISTS android_sysui_cuj_surfaceflinger_main_thread_slices_in_cuj;
 CREATE TABLE android_sysui_cuj_surfaceflinger_main_thread_slices_in_cuj AS
-  SELECT
-    slice.*,
-    slice.ts + slice.dur AS ts_end
-  FROM slice
-  JOIN android_sysui_cuj_sf_main_thread_track main_track ON slice.track_id = main_track.id
-  JOIN android_sysui_cuj_sf_ts_boundaries cuj_boundaries
+SELECT
+  slice.*,
+  slice.ts + slice.dur AS ts_end
+FROM slice
+JOIN android_sysui_cuj_sf_main_thread_track main_track ON slice.track_id = main_track.id
+JOIN android_sysui_cuj_sf_ts_boundaries cuj_boundaries
   ON slice.ts >= cuj_boundaries.ts AND slice.ts <= cuj_boundaries.ts_end
-  WHERE slice.dur > 0;
+WHERE slice.dur > 0;
 
 -- Find SurfaceFlinger GPU completions that are within the CUJ
 DROP TABLE IF EXISTS android_sysui_cuj_surfaceflinger_gpu_completion_slices_in_cuj;
 CREATE TABLE android_sysui_cuj_surfaceflinger_gpu_completion_slices_in_cuj AS
 SELECT slice.* FROM android_sysui_cuj_surfaceflinger_gpu_completion_slices slice
 JOIN android_sysui_cuj_sf_ts_boundaries cuj_boundaries
-ON slice.ts >= cuj_boundaries.ts AND slice.ts <= cuj_boundaries.ts_end;
+  ON slice.ts >= cuj_boundaries.ts AND slice.ts <= cuj_boundaries.ts_end;
 
 DROP TABLE IF EXISTS android_sysui_cuj_surfaceflinger_renderengine_slices_in_cuj;
 CREATE TABLE android_sysui_cuj_surfaceflinger_renderengine_slices_in_cuj AS
-  SELECT
-    process_name,
-    thread.utid,
-    slice.*,
-    slice.ts + slice.dur AS ts_end
-  FROM slice
-  JOIN thread_track ON slice.track_id = thread_track.id
-  JOIN android_sysui_cuj_surfaceflinger_renderengine_thread thread USING (utid)
-  JOIN android_sysui_cuj_sf_ts_boundaries cuj_boundaries
+SELECT
+  process_name,
+  thread.utid,
+  slice.*,
+  slice.ts + slice.dur AS ts_end
+FROM slice
+JOIN thread_track ON slice.track_id = thread_track.id
+JOIN android_sysui_cuj_surfaceflinger_renderengine_thread thread USING (utid)
+JOIN android_sysui_cuj_sf_ts_boundaries cuj_boundaries
   ON slice.ts >= cuj_boundaries.ts AND slice.ts <= cuj_boundaries.ts_end
-  WHERE slice.dur > 0;
+WHERE slice.dur > 0;
 
 -- Those SurfaceFlinger Frames where we missed the deadline
 -- To avoid overlap - which could result in counting janky slices more than once - we limit the
@@ -284,11 +284,11 @@ SELECT
   MAX(COALESCE(mtf.ts_prev_frame_end, 0), frame.ts) AS ts,
   MIN(COALESCE(mtf.ts_next_frame_start, frame.ts_end), frame.ts_end) AS ts_end,
   MIN(COALESCE(mtf.ts_next_frame_start, frame.ts_end), frame.ts_end)
-    - MAX(COALESCE(mtf.ts_prev_frame_end, 0), frame.ts) AS dur,
+  - MAX(COALESCE(mtf.ts_prev_frame_end, 0), frame.ts) AS dur,
   -- Same as `dur` but INTEGER - needed for compatibility with downstream scripts
   CAST((
     MIN(COALESCE(mtf.ts_next_frame_start, frame.ts_end), frame.ts_end)
-      - MAX(COALESCE(mtf.ts_prev_frame_end, 0), frame.ts))
+    - MAX(COALESCE(mtf.ts_prev_frame_end, 0), frame.ts))
     AS INTEGER) AS dur_frame,
   gcs.ts AS gcs_ts,
   gcs.ts_end AS gcs_ts_end,

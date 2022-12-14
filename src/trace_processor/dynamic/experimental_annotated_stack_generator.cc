@@ -103,7 +103,7 @@ std::string ExperimentalAnnotatedStackGenerator::TableName() {
 }
 
 Table::Schema ExperimentalAnnotatedStackGenerator::CreateSchema() {
-  return tables::ExperimentalAnnotatedCallstackTable::Schema();
+  return tables::ExperimentalAnnotatedCallstackTable::ComputeStaticSchema();
 }
 
 base::Status ExperimentalAnnotatedStackGenerator::ValidateConstraints(

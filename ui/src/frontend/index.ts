@@ -21,7 +21,8 @@ import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {createEmptyState} from '../common/empty_state';
 import {RECORDING_V2_FLAG} from '../common/feature_flags';
 import {initializeImmerJs} from '../common/immer_init';
-import {PluginContextImpl, pluginRegistry} from '../common/plugins';
+import {pluginManager, pluginRegistry} from '../common/plugins';
+import {onSelectionChanged} from '../common/selection_observer';
 import {State} from '../common/state';
 import {initWasm} from '../common/wasm_engine_proxy';
 import {ControllerWorkerInitMessage} from '../common/worker_messages';
@@ -91,6 +92,15 @@ class FrontendApi {
         globals.rafScheduler.scheduleFullRedraw();
         break;
       }
+    }
+
+    if (this.state.currentSelection !== oldState.currentSelection) {
+      // TODO(altimin): Currently we are not triggering this when changing
+      // the set of selected tracks via toggling per-track checkboxes.
+      // Fix that.
+      onSelectionChanged(
+          this.state.currentSelection || undefined,
+          oldState.currentSelection || undefined);
     }
 
     if (patches.length > 0) {
@@ -299,8 +309,7 @@ function main() {
 
   // Initialize all plugins:
   for (const plugin of pluginRegistry.values()) {
-    const context = new PluginContextImpl(plugin.pluginId);
-    plugin.activate(context);
+    pluginManager.activatePlugin(plugin.pluginId);
   }
 }
 

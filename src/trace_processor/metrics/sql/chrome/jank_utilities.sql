@@ -29,9 +29,9 @@ SELECT CREATE_FUNCTION(
   -- Function : function takes scroll ids of frames to verify it's from
   -- the same scroll, and makes sure the frame ts occured within the scroll
   -- timestamp of the neighbour and computes whether the frame was janky or not.
-  'IsJankyFrame(cur_gesture_id LONG,neighbour_gesture_id LONG,neighbour_ts LONG,' ||
-  'cur_gesture_begin_ts LONG,cur_gesture_end_ts LONG,cur_frame_exact FLOAT,' ||
-  'neighbour_frame_exact FLOAT)',
+  'IsJankyFrame(cur_gesture_id LONG,neighbour_gesture_id LONG,neighbour_ts LONG,'
+  || 'cur_gesture_begin_ts LONG,cur_gesture_end_ts LONG,cur_frame_exact FLOAT,'
+  || 'neighbour_frame_exact FLOAT)',
   -- Returns true if the frame was janky, false otherwise
   'BOOL',
   'SELECT
@@ -52,8 +52,8 @@ SELECT CREATE_FUNCTION(
   --
   -- JankBudget is the minimum amount of frames/time we need to reduce the frame
   -- duration by for it to be no longer considered janky.
-  'JankBudget(cur_frame_exact FLOAT, prev_frame_exact FLOAT, ' ||
-  ' next_frame_exact FLOAT)',
+  'JankBudget(cur_frame_exact FLOAT, prev_frame_exact FLOAT, '
+  || ' next_frame_exact FLOAT)',
   -- Returns the jank budget in percentage (i.e. 0.75) of vsync interval
   -- percentage.
   --

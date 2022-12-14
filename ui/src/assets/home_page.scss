@@ -31,27 +31,29 @@
       font-size: 60px;
       margin: 25px;
       text-align: center;
-      font-family: 'Raleway', sans-serif;
+      font-family: "Raleway", sans-serif;
       font-weight: 100;
       color: #333;
     }
 
     .channel-select {
-      font-family: 'Roboto', sans-serif;
+      font-family: "Roboto", sans-serif;
       font-size: 1.2rem;
       font-weight: 200;
       margin-top: 3em;
       --chan-width: 100px;
       --chan-num: 2;
 
-      input[type=radio] {
+      input[type="radio"] {
         width: 0;
         height: 0;
         margin: 0;
         padding: 0;
         -moz-appearance: none;
         -webkit-appearance: none;
-        &:nth-of-type(1):checked ~ .highlight { margin-left: 0; }
+        &:nth-of-type(1):checked ~ .highlight {
+          margin-left: 0;
+        }
         &:nth-of-type(2):checked ~ .highlight {
           margin-left: 100px;
           background-color: hsl(54, 100%, 40%);
@@ -86,7 +88,7 @@
         z-index: 2;
         text-transform: uppercase;
         font-size: 16px;
-        font-family: 'Raleway';
+        font-family: "Raleway";
         font-weight: 400;
         letter-spacing: 0.3px;
       }
@@ -96,7 +98,10 @@
         height: 100%;
         position: absolute;
         background: hsla(122, 45%, 45%, 0.99);
-        background-image: linear-gradient(rgba(255, 255, 255, 0.2), transparent);
+        background-image: linear-gradient(
+          rgba(255, 255, 255, 0.2),
+          transparent
+        );
         top: 0;
         left: 0;
         z-index: 1;
@@ -110,17 +115,19 @@
         color: #da4534;
         font-weight: 400;
         @include transition();
-        &.show { opacity: 1; }
+        &.show {
+          opacity: 1;
+        }
       }
-    }  // .channel-select
-  }  // .home-page-center
+    } // .channel-select
+  } // .home-page-center
 
   .privacy {
     grid-area: footer;
     text-decoration: none;
-    font-family: 'Roboto', sans-serif;
+    font-family: "Roboto", sans-serif;
     font-weight: 200;
     color: #333;
     font-size: 15px;
   }
-}  // .home-page
+} // .home-page
