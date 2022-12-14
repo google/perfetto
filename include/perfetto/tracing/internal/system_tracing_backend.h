@@ -35,6 +35,8 @@ class Producer;
 // together with system traces, useful to correlate on the timeline system
 // events (e.g. scheduling slices from the kernel) with in-app events.
 namespace internal {
+
+// Full backend (with producer and consumer)
 class PERFETTO_EXPORT SystemTracingBackend : public TracingBackend {
  public:
   static TracingBackend* GetInstance();
@@ -47,6 +49,21 @@ class PERFETTO_EXPORT SystemTracingBackend : public TracingBackend {
 
  private:
   SystemTracingBackend();
+};
+
+// Producer only backend.
+class PERFETTO_EXPORT SystemTracingProducerOnlyBackend : public TracingBackend {
+ public:
+  static TracingBackend* GetInstance();
+
+  // TracingBackend implementation.
+  std::unique_ptr<ProducerEndpoint> ConnectProducer(
+      const ConnectProducerArgs&) override;
+  std::unique_ptr<ConsumerEndpoint> ConnectConsumer(
+      const ConnectConsumerArgs&) override;
+
+ private:
+  SystemTracingProducerOnlyBackend();
 };
 
 }  // namespace internal

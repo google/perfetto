@@ -380,6 +380,8 @@ class TracingMuxerImpl : public TracingMuxer {
     // The calling code can request more than one concurrently active tracing
     // session for the same backend. We need to create one consumer per session.
     std::vector<std::unique_ptr<ConsumerImpl>> consumers;
+
+    bool consumer_enabled = true;
   };
 
   void UpdateDataSourceOnAllBackends(RegisteredDataSource& rds,

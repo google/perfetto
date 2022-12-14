@@ -761,6 +761,7 @@ void TracingMuxerImpl::Initialize(const TracingInitArgs& args) {
     rb.backend = backend;
     rb.id = backend_id;
     rb.type = type;
+    rb.consumer_enabled = type != kSystemBackend || args.enable_system_consumer;
     rb.producer.reset(new ProducerImpl(this, backend_id,
                                        args.shmem_batch_commits_duration_ms));
     rb.producer_conn_args.producer = rb.producer.get();
@@ -1642,6 +1643,10 @@ std::unique_ptr<TracingSession> TracingMuxerImpl::CreateTracingSession(
     for (RegisteredBackend& backend : backends_) {
       if (requested_backend_type && backend.type &&
           backend.type != requested_backend_type) {
+        continue;
+      }
+
+      if (!backend.consumer_enabled) {
         continue;
       }
 
