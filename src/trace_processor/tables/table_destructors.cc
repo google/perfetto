@@ -99,6 +99,7 @@ UidCounterTrackTable::~UidCounterTrackTable() = default;
 EnergyPerUidCounterTrackTable::~EnergyPerUidCounterTrackTable() = default;
 
 // trace_proto_tables.h
+ExperimentalProtoPathTable::~ExperimentalProtoPathTable() = default;
 ExperimentalProtoContentTable::~ExperimentalProtoContentTable() = default;
 
 // memory_tables.h
