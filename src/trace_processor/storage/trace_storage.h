@@ -692,6 +692,14 @@ class TraceStorage {
     return &actual_frame_timeline_slice_table_;
   }
 
+  const tables::ExperimentalProtoPathTable& experimental_proto_path_table()
+      const {
+    return experimental_proto_path_table_;
+  }
+  tables::ExperimentalProtoPathTable* mutable_experimental_proto_path_table() {
+    return &experimental_proto_path_table_;
+  }
+
   const tables::ExperimentalProtoContentTable&
   experimental_proto_content_table() const {
     return experimental_proto_content_table_;
@@ -941,6 +949,8 @@ class TraceStorage {
   tables::ActualFrameTimelineSliceTable actual_frame_timeline_slice_table_{
       &string_pool_, &slice_table_};
 
+  tables::ExperimentalProtoPathTable experimental_proto_path_table_{
+      &string_pool_, nullptr};
   tables::ExperimentalProtoContentTable experimental_proto_content_table_{
       &string_pool_, nullptr};
 
