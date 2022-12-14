@@ -91,14 +91,15 @@ void Response::Send(Rpc::RpcResponseFunction send_fn) {
 Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance)
     : trace_processor_(std::move(preloaded_instance)) {
   if (!trace_processor_)
-    ResetTraceProcessor();
+    ResetTraceProcessorInternal(Config());
 }
 
 Rpc::Rpc() : Rpc(nullptr) {}
 Rpc::~Rpc() = default;
 
-void Rpc::ResetTraceProcessor() {
-  trace_processor_ = TraceProcessor::CreateInstance(Config());
+void Rpc::ResetTraceProcessorInternal(const Config& config) {
+  trace_processor_config_ = config;
+  trace_processor_ = TraceProcessor::CreateInstance(config);
   bytes_parsed_ = bytes_last_progress_ = 0;
   t_parse_started_ = base::GetWallTimeNs().count();
   // Deliberately not resetting the RPC channel state (rxbuf_, {tx,rx}_seq_id_).
@@ -262,6 +263,13 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       resp.Send(rpc_response_fn_);
       break;
     }
+    case RpcProto::TPM_RESET_TRACE_PROCESSOR: {
+      Response resp(tx_seq_id_++, req_type);
+      protozero::ConstBytes args = req.reset_trace_processor_args();
+      ResetTraceProcessor(args.data, args.size);
+      resp.Send(rpc_response_fn_);
+      break;
+    }
     default: {
       // This can legitimately happen if the client is newer. We reply with a
       // generic "unkown request" response, so the client can do feature
@@ -282,8 +290,8 @@ util::Status Rpc::Parse(const uint8_t* data, size_t len) {
       [&](metatrace::Record* r) { r->AddArg("length", std::to_string(len)); });
   if (eof_) {
     // Reset the trace processor state if another trace has been previously
-    // loaded.
-    ResetTraceProcessor();
+    // loaded. Use the same TraceProcessor Config.
+    ResetTraceProcessorInternal(trace_processor_config_);
   }
 
   eof_ = false;
@@ -305,6 +313,29 @@ void Rpc::NotifyEndOfFile() {
   trace_processor_->NotifyEndOfFile();
   eof_ = true;
   MaybePrintProgress();
+}
+
+void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
+  protos::pbzero::ResetTraceProcessorArgs::Decoder reset_trace_processor_args(
+      args, len);
+  Config config;
+  if (reset_trace_processor_args.has_drop_track_event_data_before()) {
+    config.drop_track_event_data_before =
+        reset_trace_processor_args.drop_track_event_data_before() ==
+                protos::pbzero::ResetTraceProcessorArgs::
+                    TRACK_EVENT_RANGE_OF_INTEREST
+            ? DropTrackEventDataBefore::kTrackEventRangeOfInterest
+            : DropTrackEventDataBefore::kNoDrop;
+  }
+  if (reset_trace_processor_args.has_ingest_ftrace_in_raw_table()) {
+    config.ingest_ftrace_in_raw_table =
+        reset_trace_processor_args.ingest_ftrace_in_raw_table();
+  }
+  if (reset_trace_processor_args.has_analyze_trace_proto_content()) {
+    config.analyze_trace_proto_content =
+        reset_trace_processor_args.analyze_trace_proto_content();
+  }
+  ResetTraceProcessorInternal(config);
 }
 
 void Rpc::MaybePrintProgress() {

@@ -22,6 +22,7 @@ import {
   ComputeMetricResult,
   DisableAndReadMetatraceResult,
   QueryArgs,
+  ResetTraceProcessorArgs,
 } from './protos';
 import {NUM, NUM_NULL, STR} from './query_result';
 import {
@@ -53,6 +54,12 @@ interface QueryResultBypass {
   rawQueryResult: Uint8Array;
 }
 
+export interface TraceProcessorConfig {
+  cropTrackEvents: boolean;
+  ingestFtraceInRawTable: boolean;
+  analyzeTraceProtoContent: boolean;
+}
+
 // Abstract interface of a trace proccessor.
 // This is the TypeScript equivalent of src/trace_processor/rpc.h.
 // There are two concrete implementations:
@@ -74,6 +81,7 @@ export abstract class Engine {
   private rxBuf = new ProtoRingBuffer();
   private pendingParses = new Array<Deferred<void>>();
   private pendingEOFs = new Array<Deferred<void>>();
+  private pendingResetTraceProcessors = new Array<Deferred<void>>();
   private pendingQueries = new Array<WritableQueryResult>();
   private pendingRestoreTables = new Array<Deferred<void>>();
   private pendingComputeMetrics = new Array<Deferred<ComputeMetricResult>>();
@@ -170,6 +178,9 @@ export abstract class Engine {
       case TPM.TPM_FINALIZE_TRACE_DATA:
         assertExists(this.pendingEOFs.shift()).resolve();
         break;
+      case TPM.TPM_RESET_TRACE_PROCESSOR:
+        assertExists(this.pendingResetTraceProcessors.shift()).resolve();
+        break;
       case TPM.TPM_RESTORE_INITIAL_TABLES:
         assertExists(this.pendingRestoreTables.shift()).resolve();
         break;
@@ -240,6 +251,27 @@ export abstract class Engine {
     rpc.request = TPM.TPM_FINALIZE_TRACE_DATA;
     this.rpcSendRequest(rpc);
     return asyncRes;  // Linearize with the worker.
+  }
+
+  // Updates the TraceProcessor Config. This method creates a new
+  // TraceProcessor instance, so it should be called before passing any trace
+  // data.
+  resetTraceProcessor(
+      {cropTrackEvents, ingestFtraceInRawTable, analyzeTraceProtoContent}:
+          TraceProcessorConfig): Promise<void> {
+    const asyncRes = defer<void>();
+    this.pendingResetTraceProcessors.push(asyncRes);
+    const rpc = TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_RESET_TRACE_PROCESSOR;
+    const args = rpc.resetTraceProcessorArgs = new ResetTraceProcessorArgs();
+    args.dropTrackEventDataBefore = cropTrackEvents ?
+        ResetTraceProcessorArgs.DropTrackEventDataBefore
+            .TRACK_EVENT_RANGE_OF_INTEREST :
+        ResetTraceProcessorArgs.DropTrackEventDataBefore.NO_DROP;
+    args.ingestFtraceInRawTable = ingestFtraceInRawTable;
+    args.analyzeTraceProtoContent = analyzeTraceProtoContent;
+    this.rpcSendRequest(rpc);
+    return asyncRes;
   }
 
   // Resets the trace processor state by destroying any table/views created by
