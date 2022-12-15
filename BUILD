@@ -126,6 +126,7 @@ perfetto_cc_library(
     name = "protozero",
     srcs = [
         "src/protozero/field.cc",
+        "src/protozero/gen_field_helpers.cc",
         "src/protozero/message.cc",
         "src/protozero/message_arena.cc",
         "src/protozero/message_handle.cc",
@@ -554,6 +555,7 @@ perfetto_filegroup(
         "include/perfetto/protozero/cpp_message_obj.h",
         "include/perfetto/protozero/field.h",
         "include/perfetto/protozero/field_writer.h",
+        "include/perfetto/protozero/gen_field_helpers.h",
         "include/perfetto/protozero/message.h",
         "include/perfetto/protozero/message_arena.h",
         "include/perfetto/protozero/message_handle.h",
