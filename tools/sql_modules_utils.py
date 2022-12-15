@@ -13,46 +13,69 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List
 import re
 
+LOWER_NAME = r'[a-z_\d]*'
+UPPER_NAME = r'[A-Z_\d]*'
+ANY_WORDS = r'[A-Za-z_\d, ]*'
+TYPE = r'[A-Z]*'
+SQL = r'[\s\S]*?'
 
-def create_table_view_pattern():
+
+def create_table_view_pattern() -> str:
   return (
       # Match create table/view and catch type
       r'CREATE (?:VIRTUAL )?(TABLE|VIEW)?(?:IF NOT EXISTS)?\s*'
       # Catch the name
-      r'([a-z_\d]*)\s*(?:AS|USING)?.*')
+      fr'({LOWER_NAME})\s*(?:AS|USING)?.*')
 
 
-def column_pattern():
-  return r'^-- @column[ \t]+(\w+)[ \t]+(.*)'
-
-
-def create_function_pattern():
+def create_function_pattern() -> str:
   return (r"SELECT\s*CREATE_FUNCTION\(\s*"
           # Function name: we are matching everything [A-Z]* between ' and ).
-          r"'([A-Z_]*)\s*\("
+          fr"'({UPPER_NAME})\s*\("
           # Args: anything before closing bracket with '.
-          r"([A-Za-z_\d, ]*)\)',\s*"
+          fr"({ANY_WORDS})\)',\s*"
           # Type: [A-Z]* between two '.
-          r"'([A-Z]*)',\s*"
+          fr"'({TYPE})',\s*"
           # Sql: Anything between ' and ');. We are catching \'.
-          r"'([\s\S]*?)'\s*\);")
+          fr"'({SQL})'\s*\);")
 
 
-def args_pattern():
-  return r'^-- @arg\s*([a-z_]*)\s*([A-Z]*)\s*(.*)'
+def create_view_function_pattern() -> str:
+  return (r"SELECT\s*CREATE_VIEW_FUNCTION\(\s*"
+          # Function name: we are matching everything [A-Z]* between ' and ).
+          fr"'({UPPER_NAME})\s*\("
+          # Args: anything before closing bracket with '.
+          fr"({ANY_WORDS})\)',\s*"
+          # Return columns: anything between two '.
+          fr"'({ANY_WORDS})',\s*"
+          # Sql: Anything between ' and ');. We are catching \'.
+          fr"'({SQL})'\s*\);")
 
 
-def arg_pattern():
-  return r"\s*([a-z_]*)\s*([A-Z]*)\s*"
+def column_pattern() -> str:
+  return fr'^-- @column\s*({LOWER_NAME})\s*(.*)'
 
 
-def function_return_pattern():
-  return r"^-- @ret ([A-Z]*)\s*(.*)"
+def arg_str_pattern() -> str:
+  return fr"\s*({LOWER_NAME})\s*({TYPE})\s*"
 
 
-def fetch_comment(lines_reversed):
+def args_pattern() -> str:
+  return fr'^-- @arg{arg_str_pattern()}(.*)'
+
+
+def function_return_pattern() -> str:
+  return fr"^-- @ret ({TYPE})\s*(.*)"
+
+
+def typed_comment_pattern() -> str:
+  return fr'^-- @([a-z]*)'
+
+
+def fetch_comment(lines_reversed: List[str]) -> List[str]:
   comment_reversed = []
   for line in lines_reversed:
     # Break on empty line, as that suggests it is no longer a part of
@@ -68,7 +91,7 @@ def fetch_comment(lines_reversed):
   return comment_reversed
 
 
-def match_pattern(pattern, file_str):
+def match_pattern(pattern: str, file_str: str) -> dict:
   objects = {}
   for match in re.finditer(pattern, file_str):
     line_id = file_str[:match.start()].count('\n')
