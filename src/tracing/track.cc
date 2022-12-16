@@ -184,8 +184,7 @@ void TrackRegistry::InitializeInstance() {
 }
 
 void TrackRegistry::ResetForTesting() {
-  delete instance_;
-  instance_ = nullptr;
+  instance_->tracks_.clear();
 }
 
 void TrackRegistry::UpdateTrack(Track track,
