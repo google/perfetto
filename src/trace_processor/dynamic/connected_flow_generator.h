@@ -25,6 +25,16 @@
 
 namespace perfetto {
 namespace trace_processor {
+namespace tables {
+
+#define PERFETTO_TP_CONNECTED_FLOW_TABLE_DEF(NAME, PARENT, C) \
+  NAME(ConnectedFlowTable, "not_exposed_to_sql")              \
+  PARENT(PERFETTO_TP_FLOW_TABLE_DEF, C)                       \
+  C(uint32_t, start_id, Column::Flag::kHidden)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_CONNECTED_FLOW_TABLE_DEF);
+
+}  // namespace tables
 
 class TraceProcessorContext;
 
@@ -46,7 +56,7 @@ class ConnectedFlowGenerator : public DynamicTableGenerator {
     kFollowingFlow,
   };
 
-  ConnectedFlowGenerator(Mode mode, TraceProcessorContext* context);
+  ConnectedFlowGenerator(Mode mode, const TraceStorage*);
   ~ConnectedFlowGenerator() override;
 
   Table::Schema CreateSchema() override;
@@ -60,7 +70,7 @@ class ConnectedFlowGenerator : public DynamicTableGenerator {
 
  private:
   Mode mode_;
-  TraceProcessorContext* context_ = nullptr;
+  const TraceStorage* storage_ = nullptr;
 };
 
 }  // namespace trace_processor
