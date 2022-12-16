@@ -20,6 +20,7 @@ import json
 import re
 from collections import defaultdict
 from sql_modules_utils import *
+from typing import Union, List
 
 # Creates a JSON file with documentation for stdlib files.
 
@@ -49,123 +50,278 @@ REPLACEMENT_HEADER = '''/*
 '''
 
 
-def parse_columns(col_lines):
+# Stores documentation for CREATE {TABLE|VIEW} with comment split into
+# segments.
+class TableViewDocs:
+
+  def __init__(self, name: str, type: str, desc: List[str], columns: List[str]):
+    self.name = name
+    self.type = type
+    self.desc = desc
+    self.columns = columns
+
+  # Contructs new TableViewDocs from whole comment, by splitting it on typed
+  # lines.
+  @staticmethod
+  def create_from_comment(comment: List[str],
+                          matches: tuple) -> "TableViewDocs":
+    obj_type, name = matches[:2]
+
+    # Ignore internal tables and views.
+    if re.match(r"^internal_.*", name):
+      return None
+
+    col_start = None
+
+    # Splits code into segments by finding beginning of column segment.
+    for i, line in enumerate(comment):
+      # Ignore only '--' line.
+      if line == "--":
+        continue
+
+      m = re.match(typed_comment_pattern(), line)
+
+      # Ignore untyped lines
+      if not m:
+        continue
+
+      line_type = m.group(1)
+      if line_type == "column" and not col_start:
+        col_start = i
+        continue
+
+    return TableViewDocs(name, obj_type, comment[:col_start],
+                         comment[col_start:])
+
+  def parse_comment(self) -> dict:
+    return {
+        'name': self.name,
+        'type': self.type,
+        'desc': parse_desc(self),
+        'cols': parse_columns(self)
+    }
+
+
+# Stores documentation for CREATE_FUNCTION with comment split into segments.
+class FunctionDocs:
+
+  def __init__(
+      self,
+      name: str,
+      desc: str,
+      args: List[str],
+      ret: List[str],
+  ):
+    self.name = name
+    self.desc = desc
+    self.args = args
+    self.ret = ret
+
+  @staticmethod
+  def create_from_comment(comment: List[str], matches: tuple) -> "FunctionDocs":
+    name = matches[0]
+
+    # Ignore internal functions.
+    if re.match(r"^INTERNAL_.*", name):
+      return None
+
+    start_args, start_ret = None, None
+
+    # Splits code into segments by finding beginning of args and ret segments.
+    for i, line in enumerate(comment):
+      # Ignore only '--' line.
+      if line == "--":
+        continue
+
+      m = re.match(typed_comment_pattern(), line)
+
+      # Ignore untyped lines
+      if not m:
+        continue
+
+      line_type = m.group(1)
+      if line_type == "arg" and not start_args:
+        start_args = i
+        continue
+
+      if line_type == "ret" and not start_ret:
+        start_ret = i
+        continue
+
+    return FunctionDocs(name, comment[:start_args],
+                        comment[start_args:start_ret], comment[start_ret:])
+
+  def parse_comment(self) -> dict:
+    ret_type, ret_desc = parse_ret(self)
+    return {
+        'name': self.name,
+        'desc': parse_desc(self),
+        'args': parse_args(self),
+        'return_type': ret_type,
+        'return_desc': ret_desc
+    }
+
+
+# Stores documentation for CREATE_VIEW_FUNCTION with comment split into
+# segments.
+class ViewFunctionDocs:
+
+  def __init__(
+      self,
+      name: str,
+      desc: List[str],
+      args: List[str],
+      columns: List[str],
+  ):
+    self.name = name
+    self.desc = desc
+    self.args = args
+    self.columns = columns
+
+  @staticmethod
+  def create_from_comment(comment: List[str],
+                          matches: tuple) -> "ViewFunctionDocs":
+    name = matches[0]
+
+    # Ignore internal functions.
+    if re.match(r"^INTERNAL_.*", name):
+      return None
+
+    start_args, start_cols = None, None
+
+    # Splits code into segments by finding beginning of args and cols segments.
+    for i, line in enumerate(comment):
+      # Ignore only '--' line.
+      if line == "--":
+        continue
+
+      m = re.match(typed_comment_pattern(), line)
+
+      # Ignore untyped lines
+      if not m:
+        continue
+
+      line_type = m.group(1)
+      if line_type == "arg" and not start_args:
+        start_args = i
+        continue
+
+      if line_type == "column" and not start_cols:
+        start_cols = i
+        continue
+
+    return ViewFunctionDocs(
+        name,
+        comment[:start_args],
+        comment[start_args:start_cols],
+        comment[start_cols:],
+    )
+
+  def parse_comment(self) -> dict:
+    return {
+        'name': self.name,
+        'desc': parse_desc(self),
+        'args': parse_args(self),
+        'cols': parse_columns(self)
+    }
+
+
+def get_text(line: str, no_break_line: bool = True) -> str:
+  line = line.lstrip('--').strip()
+  if not line:
+    return '' if no_break_line else '\n'
+  return line
+
+
+def parse_desc(docs: Union["TableViewDocs", "FunctionDocs", "ViewFunctionDocs"]
+              ) -> str:
+  desc_lines = [get_text(line, False) for line in docs.desc]
+  return ' '.join(desc_lines).strip('\n').strip()
+
+
+# Whether comment segment about columns contain proper schema. Can be matched
+# against parsed SQL data by setting `use_data_from_sql`.
+def parse_columns(docs: Union["TableViewDocs", "ViewFunctionDocs"]) -> dict:
   cols = {}
-  last_col_name = ""
-  for line in col_lines:
-    m = re.match(r'^-- @column[ \t]+(\w+)[ \t]+(.*)', line)
-    if m:
-      cols[m.group(1)] = m.group(2)
-      last_col_name = m.group(1)
-    else:
-      line = line.strip('--').lstrip()
-      if line:
-        cols[last_col_name] += " " + line
+  last_col = None
+  last_desc = []
+  for line in docs.columns:
+    # Ignore only '--' line.
+    if line == "--" or not line.startswith("-- @column"):
+      last_desc.append(get_text(line))
+      continue
+
+    # Look for '-- @column' line as a column description
+    m = re.match(column_pattern(), line)
+    if last_col:
+      cols[last_col] = ' '.join(last_desc)
+    last_col, last_desc = m.group(1), [m.group(2)]
+
+  cols[last_col] = ' '.join(last_desc)
   return cols
 
 
-def parse_comment(comment_lines):
-  text_lines = []
-  for i, line in enumerate(comment_lines):
-    # Break if columns definition started.
-    m = re.match(r'^-- @column[ \t]+(\w+)[ \t]+(.*)', line)
-    if m is not None:
-      return dict(
-          cols=parse_columns(comment_lines[i:]),
-          desc=" ".join(text_lines).strip('\n').strip())
-
-    line = line.strip('--').lstrip()
-    if line:
-      text_lines.append(line)
-    if not line:
-      text_lines.append('\n')
-  raise ValueError('No columns found')
-
-
-def parse_function_comment(comment):
-  text = []
-  next_block = 0
-
-  # Fetch function description
-  for i, line in enumerate(comment):
-    if line.startswith('-- @arg'):
-      next_block = i
-      break
-
-    line = line.strip('--').lstrip()
-    if line:
-      text.append(line)
-    if not line:
-      text.append('\n')
-
-  # Fetch function args
+def parse_args(docs: "FunctionDocs") -> dict:
   args = {}
-  last_arg_name = ""
-  for i, line in enumerate(comment[next_block:]):
-    if line.startswith('-- @ret'):
-      next_block = i
-      break
+  last_arg, last_desc, last_type = None, [], None
+  for line in docs.args:
+    # Ignore only '--' line.
+    if line == "--" or not line.startswith("-- @arg"):
+      last_desc.append(get_text(line))
+      continue
 
     m = re.match(args_pattern(), line)
-    if m:
-      args[m.group(1)] = dict(type=m.group(2), desc=m.group(3))
-      last_arg_name = m.group(1)
-    else:
-      line = line.strip('--').lstrip()
-      if line:
-        args[last_arg_name]['desc'] += " " + line
+    if last_arg:
+      args[last_arg] = {'type': last_type, 'desc': ' '.join(last_desc)}
+    last_arg, last_type, last_desc = m.group(1), m.group(2), [m.group(3)]
 
-  # Fetch function ret
-  ret_type, ret_desc = "", ""
-  for line in comment[next_block:]:
+  args[last_arg] = {'type': last_type, 'desc': ' '.join(last_desc)}
+  return args
+
+
+# Whether comment segment about return contain proper schema. Matches against
+# parsed SQL data.
+def parse_ret(docs: "FunctionDocs") -> tuple:
+  desc = []
+  for line in docs.ret:
+    # Ignore only '--' line.
+    if line == "--" or not line.startswith("-- @ret"):
+      desc.append(get_text(line))
+
     m = re.match(function_return_pattern(), line)
-    if m:
-      ret_type, ret_desc = m.group(1), m.group(2)
-    else:
-      line = line.strip('--').lstrip()
-      if line:
-        ret_desc += " " + line
-
-  return dict(
-      args=args,
-      desc=" ".join(text).strip('\n').strip(),
-      return_type=ret_type,
-      return_desc=ret_desc)
+    ret_type, desc = m.group(1), [m.group(2)]
+  return (ret_type, ' '.join(desc))
 
 
-def docs_for_obj_in_file(sql):
-  line_to_match_dict = match_pattern(create_table_view_pattern(), sql)
-  if not line_to_match_dict:
-    return []
-
-  lines = sql.split('\n')
+# After matching file to pattern, fetches and validates related documentation.
+def parse_docs_for_sql_object_type(sql: str, pattern: str,
+                                   docs_object: type) -> List:
   ret = []
-  for line_id, match_groups in line_to_match_dict.items():
-    name, obj_type = match_groups[1], match_groups[0]
-    if re.match(r'^internal_.*', name):
-      continue
-
+  line_id_to_match = match_pattern(pattern, sql)
+  lines = sql.split("\n")
+  for line_id, matches in line_id_to_match.items():
+    # Fetch comment by looking at lines over beginning of match in reverse
+    # order.
     comment = fetch_comment(lines[line_id - 1::-1])
-    ret.append(dict(name=name, type=obj_type, **parse_comment(comment)))
+    docs = docs_object.create_from_comment(comment, matches)
+    if docs:
+      ret.append(docs.parse_comment())
 
   return ret
 
 
-def docs_for_functions_in_file(sql):
-  line_to_match_dict = match_pattern(create_function_pattern(), sql)
-  if not bool(line_to_match_dict):
-    return []
-
-  lines = sql.split('\n')
-  ret = []
-  for line_id, match_groups in line_to_match_dict.items():
-    name = match_groups[0]
-    if re.match(r'^INTERNAL_.*', name):
-      continue
-
-    comment = fetch_comment(lines[line_id - 1::-1])
-    ret.append(dict(name=name, **parse_function_comment(comment)))
-  return ret
+def parse_file(sql: str):
+  return {
+      'imports':
+          parse_docs_for_sql_object_type(sql, create_table_view_pattern(),
+                                         TableViewDocs),
+      'functions':
+          parse_docs_for_sql_object_type(sql, create_function_pattern(),
+                                         FunctionDocs),
+      'view_functions':
+          parse_docs_for_sql_object_type(sql, create_view_function_pattern(),
+                                         ViewFunctionDocs)
+  }
 
 
 def main():
@@ -205,10 +361,10 @@ def main():
     if module_name == 'common':
       import_key = import_key.split(".", 1)[-1]
 
-    file_dict = dict(
-        import_key=import_key,
-        imports=docs_for_obj_in_file(sql),
-        functions=docs_for_functions_in_file(sql))
+    docs = parse_file(sql)
+    if not any(docs.values()):
+      continue
+    file_dict = {'import_key': import_key, **docs}
     modules[module_name].append(file_dict)
 
   with open(args.json_out, 'w+') as f:
