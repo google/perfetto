@@ -71,8 +71,7 @@ class TableViewDocs:
         continue
 
     if not col_start:
-      errors.append(f"No columns for {obj_type}.\n"
-                    f"'{name}' in {path}:\n'{line}'\n")
+      errors.append(f"No columns for {obj_type}.\n'{name}' in {path}'\n")
       return None, errors
 
     return (
@@ -144,7 +143,7 @@ class FunctionDocs:
 
     if not start_ret or not start_args:
       errors.append(f"Function requires 'arg' and 'ret' comments.\n"
-                    f"'{name}' in {path}:\n'{line}'\n")
+                    f"'{name}' in {path}")
       return None, errors
 
     args_dict, parse_errors = parse_args(args)
@@ -229,7 +228,7 @@ class ViewFunctionDocs:
 
     if not start_cols or not start_args:
       errors.append(f"Function requires 'arg' and 'column' comments.\n"
-                    f"'{name}' in {path}:\n'{line}'\n")
+                    f"'{name}' in {path}")
       return None, errors
 
     args_dict, parse_errors = parse_args(args)
