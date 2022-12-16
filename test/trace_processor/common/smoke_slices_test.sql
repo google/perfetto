@@ -15,6 +15,6 @@
 --
 SELECT track.type AS type, depth, count(*) AS count
 FROM slice
-INNER JOIN track ON slice.track_id = track.id
+JOIN track ON slice.track_id = track.id
 GROUP BY track.type, depth
 ORDER BY track.type, depth;

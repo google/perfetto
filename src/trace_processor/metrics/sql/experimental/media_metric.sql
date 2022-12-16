@@ -20,8 +20,8 @@ DROP VIEW IF EXISTS thread_slice;
 CREATE VIEW thread_slice AS
 SELECT s.*, thread.utid, thread.upid
 FROM slice s
-INNER JOIN thread_track ON s.track_id = thread_track.id
-INNER JOIN thread USING(utid);
+JOIN thread_track ON s.track_id = thread_track.id
+JOIN thread USING(utid);
 
 --------------------------------------------------------------------------------
 -- Find all playbacks on renderer main threads.
@@ -33,8 +33,8 @@ SELECT
   s.ts AS playback_start,
   upid
 FROM slice s
-INNER JOIN thread_track ON s.track_id = thread_track.id
-INNER JOIN thread USING(utid)
+JOIN thread_track ON s.track_id = thread_track.id
+JOIN thread USING(utid)
 WHERE
   s.name = 'WebMediaPlayerImpl::DoLoad'
   AND thread.name = 'CrRendererMain';
@@ -201,7 +201,7 @@ SELECT
   slice.ts AS playback_end,
   EXTRACT_ARG(slice.arg_set_id, 'debug.duration') * 1e9 AS duration
 FROM AVStart
-INNER JOIN slice ON slice.id = (
+JOIN slice ON slice.id = (
   SELECT s.id
   FROM thread_slice s
   WHERE
@@ -227,7 +227,7 @@ SELECT
   PlaybackStart.upid,
   MAX(EXTRACT_ARG(s.arg_set_id, 'debug.roughness')) AS roughness
 FROM PlaybackStart
-INNER JOIN thread_slice s
+JOIN thread_slice s
 WHERE
   s.name = 'VideoPlaybackRoughness'
   AND EXTRACT_ARG(s.arg_set_id, 'debug.id') = playback_id
@@ -242,7 +242,7 @@ SELECT
   PlaybackStart.upid,
   MAX(EXTRACT_ARG(s.arg_set_id, 'debug.freezing')) AS freezing
 FROM PlaybackStart
-INNER JOIN thread_slice s
+JOIN thread_slice s
 WHERE
   s.name = 'VideoPlaybackFreezing'
   AND EXTRACT_ARG(s.arg_set_id, 'debug.id') = playback_id

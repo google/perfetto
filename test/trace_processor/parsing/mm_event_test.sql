@@ -15,7 +15,7 @@
 --
 SELECT ts, name, value
 FROM counter
-INNER JOIN counter_track
+JOIN counter_track
   ON counter.track_id = counter_track.id
 WHERE name GLOB 'mem.mm.*'
 ORDER BY ts
