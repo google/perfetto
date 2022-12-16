@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT RUN_METRIC("common/parent_slice.sql");
+SELECT IMPORT("common.slices");
 
 SELECT CREATE_FUNCTION(
   '{{function_prefix}}EXTRACT_MOJO_IPC_HASH(slice_id INT)',

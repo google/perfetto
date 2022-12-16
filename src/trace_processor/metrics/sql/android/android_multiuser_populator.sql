@@ -15,7 +15,7 @@
 --
 
 -- Create the base tables and views containing the launch spans.
-SELECT RUN_METRIC('android/startup/launches.sql');
+SELECT IMPORT ('android.startup.startups');
 
 -- Collect the important timestamps for Multiuser events.
 DROP VIEW IF EXISTS multiuser_events;
@@ -35,7 +35,7 @@ FROM
   ),
   (
     SELECT ts_end AS launcher_end_time_ns
-    FROM launches
+    FROM android_startups
     WHERE (package = 'com.android.launcher3' OR package = 'com.google.android.apps.nexuslauncher')
   ),
   (

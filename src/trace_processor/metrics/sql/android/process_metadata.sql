@@ -14,49 +14,17 @@
 -- limitations under the License.
 --
 
-DROP TABLE IF EXISTS uid_package_count;
+SELECT IMPORT('android.process_metadata');
 
-CREATE TABLE uid_package_count AS
-SELECT uid, COUNT(1) AS cnt
-FROM package_list
-GROUP BY 1;
+DROP VIEW IF EXISTS process_metadata_table;
+CREATE VIEW process_metadata_table AS
+SELECT * FROM android_process_metadata;
 
-DROP TABLE IF EXISTS process_metadata_table;
-
-CREATE TABLE process_metadata_table AS
-SELECT
-  process.upid,
-  -- workaround for b/169226092: the bug has been fixed it Android T, but
-  -- we support ingesting traces from older Android versions.
-  CASE
-    -- cmdline gets rewritten after fork, if these are still there we must
-    -- have seen a racy capture.
-    WHEN length(process.name) = 15 AND (
-      process.cmdline IN ('zygote', 'zygote64', '<pre-initialized>')
-      OR process.cmdline GLOB '*' || process.name)
-      THEN process.cmdline
-    ELSE process.name
-  END AS process_name,
-  process.android_appid AS uid,
-  CASE WHEN uid_package_count.cnt > 1 THEN TRUE ELSE NULL END AS shared_uid,
-  plist.package_name,
-  plist.version_code,
-  plist.debuggable
-FROM process
-LEFT JOIN uid_package_count ON process.android_appid = uid_package_count.uid
-LEFT JOIN package_list plist
-  ON (
-    process.android_appid = plist.uid
-    AND uid_package_count.uid = plist.uid
-    AND (
-      -- unique match
-      uid_package_count.cnt = 1
-      -- or process name starts with the package name
-      OR process.name GLOB plist.package_name || '*')
-  );
+DROP VIEW IF EXISTS uid_package_count;
+CREATE VIEW uid_package_count AS
+SELECT * FROM internal_uid_package_count;
 
 DROP VIEW IF EXISTS process_metadata;
-
 CREATE VIEW process_metadata AS
 WITH upid_packages AS (
   SELECT
