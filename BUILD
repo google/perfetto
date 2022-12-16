@@ -1852,9 +1852,9 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/stdlib/chrome:chrome
+# GN target: //src/trace_processor/stdlib/chrome:chrome_sql
 perfetto_filegroup(
-    name = "src_trace_processor_stdlib_chrome_chrome",
+    name = "src_trace_processor_stdlib_chrome_chrome_sql",
     srcs = [
         "src/trace_processor/stdlib/chrome/cpu_powerups.sql",
     ],
@@ -1884,7 +1884,7 @@ perfetto_cc_amalgamated_sql(
     deps = [
         ":src_trace_processor_stdlib_android_android",
         ":src_trace_processor_stdlib_android_startup_startup",
-        ":src_trace_processor_stdlib_chrome_chrome",
+        ":src_trace_processor_stdlib_chrome_chrome_sql",
         ":src_trace_processor_stdlib_common_common",
         ":src_trace_processor_stdlib_experimental_experimental",
     ],
