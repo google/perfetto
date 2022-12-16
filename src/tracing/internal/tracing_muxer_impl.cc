@@ -2376,9 +2376,9 @@ void TracingMuxerImpl::ResetForTesting() {
     muxer->interceptors_.clear();
 
     for (auto& ds : muxer->data_sources_) {
-      ds.static_state->~DataSourceStaticState();
-      new (ds.static_state) DataSourceStaticState{};
+      ds.static_state->ResetForTesting();
     }
+
     muxer->data_sources_.clear();
     muxer->next_data_source_index_ = 0;
 
