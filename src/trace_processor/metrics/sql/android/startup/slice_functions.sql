@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+SELECT IMPORT('android.startup.startups');
+
 -- Helper function to build a Slice proto from a duration.
 SELECT CREATE_FUNCTION('STARTUP_SLICE_PROTO(dur INT)', 'PROTO', '
   SELECT AndroidStartupMetric_Slice(
@@ -27,96 +29,44 @@ SELECT CREATE_FUNCTION('STARTUP_SLICE_PROTO(dur INT)', 'PROTO', '
 -- this view should be used.
 DROP VIEW IF EXISTS thread_slices_for_all_launches;
 CREATE VIEW thread_slices_for_all_launches AS
-SELECT
-  launch_threads.ts AS launch_ts,
-  launch_threads.ts + launch_threads.dur AS launch_ts_end,
-  launch_threads.launch_id AS launch_id,
-  launch_threads.utid AS utid,
-  launch_threads.thread_name AS thread_name,
-  launch_threads.is_main_thread AS is_main_thread,
-  slice.arg_set_id AS arg_set_id,
-  slice.id as slice_id,
-  slice.name AS slice_name,
-  slice.ts AS slice_ts,
-  slice.dur AS slice_dur
-FROM launch_threads
-JOIN thread_track USING (utid)
-JOIN slice ON (slice.track_id = thread_track.id)
-WHERE slice.ts BETWEEN launch_threads.ts AND launch_threads.ts + launch_threads.dur;
-
--- Given a launch id and GLOB for a slice name, returns columns for matching slices.
-SELECT CREATE_VIEW_FUNCTION(
-  'SLICES_FOR_LAUNCH_AND_SLICE_NAME(launch_id INT, slice_name STRING)',
-  'slice_name STRING, slice_ts INT, slice_dur INT, thread_name STRING, arg_set_id INT',
-  '
-    SELECT slice_name, slice_ts, slice_dur, thread_name, arg_set_id
-    FROM thread_slices_for_all_launches
-    WHERE launch_id = $launch_id AND slice_name GLOB $slice_name
-  '
-);
-
---- Returns long binder transaction slices for a given launch id.
-SELECT CREATE_VIEW_FUNCTION(
-  'BINDER_TRANSACTION_SLICES_FOR_LAUNCH(launch_id INT, threshold DOUBLE)',
-  'id INT, slice_dur INT, thread_name STRING, process STRING, arg_set_id INT, is_main_thread BOOL',
-  '
-    SELECT slice_id as id, slice_dur, thread_name, process.name as process, s.arg_set_id, is_main_thread
-    FROM thread_slices_for_all_launches s
-    JOIN process ON (
-      EXTRACT_ARG(s.arg_set_id, "destination process") = process.pid
-    )
-    WHERE launch_id = $launch_id AND slice_name GLOB "binder transaction" AND slice_dur > $threshold
-  '
-);
+SELECT * FROM android_thread_slices_for_all_startups;
 
 
 -- Given a launch id and GLOB for a slice name,
 -- summing the slice durations across the whole startup.
 SELECT CREATE_FUNCTION(
-  'DUR_SUM_FOR_LAUNCH_AND_SLICE(launch_id LONG, slice_name STRING)',
+  'ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(startup_id LONG, slice_name STRING)',
   'INT',
   '
     SELECT SUM(slice_dur)
-    FROM thread_slices_for_all_launches
-    WHERE launch_id = $launch_id AND slice_name GLOB $slice_name
+    FROM android_thread_slices_for_all_startups
+    WHERE startup_id = $startup_id AND slice_name GLOB $slice_name
   '
 );
 
 -- Given a launch id and GLOB for a slice name, returns the startup slice proto,
 -- summing the slice durations across the whole startup.
 SELECT CREATE_FUNCTION(
-  'DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launch_id LONG, slice_name STRING)',
+  'DUR_SUM_SLICE_PROTO_FOR_LAUNCH(startup_id LONG, slice_name STRING)',
   'PROTO',
   '
     SELECT NULL_IF_EMPTY(
       STARTUP_SLICE_PROTO(
-        DUR_SUM_FOR_LAUNCH_AND_SLICE($launch_id, $slice_name)
+        ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE($startup_id, $slice_name)
       )
     )
-  '
-);
-
--- Same as |DUR_SUM_FOR_LAUNCH_AND_LAUNCH| except only counting slices happening
--- on the main thread.
-SELECT CREATE_FUNCTION(
-  'DUR_SUM_MAIN_THREAD_FOR_LAUNCH_AND_SLICE(launch_id LONG, slice_name STRING)',
-  'INT',
-  '
-    SELECT SUM(slice_dur)
-    FROM thread_slices_for_all_launches
-    WHERE launch_id = $launch_id AND slice_name GLOB $slice_name AND is_main_thread
   '
 );
 
 -- Same as |DUR_SUM_SLICE_PROTO_FOR_LAUNCH| except only counting slices happening
 -- on the main thread.
 SELECT CREATE_FUNCTION(
-  'DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(launch_id LONG, slice_name STRING)',
+  'DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(startup_id LONG, slice_name STRING)',
   'PROTO',
   '
     SELECT NULL_IF_EMPTY(
       STARTUP_SLICE_PROTO(
-        DUR_SUM_MAIN_THREAD_FOR_LAUNCH_AND_SLICE($launch_id, $slice_name)
+        ANDROID_SUM_DUR_ON_MAIN_THREAD_FOR_STARTUP_AND_SLICE($startup_id, $slice_name)
       )
     )
   '
@@ -126,29 +76,29 @@ SELECT CREATE_FUNCTION(
 -- taking the duration between the start of the launch and start of the slice.
 -- If multiple slices match, picks the latest one which started during the launch.
 SELECT CREATE_FUNCTION(
-  'LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(launch_id INT, slice_name STRING)',
+  'LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(startup_id INT, slice_name STRING)',
   'PROTO',
   '
-    SELECT NULL_IF_EMPTY(STARTUP_SLICE_PROTO(MAX(slice_ts) - launch_ts))
-    FROM thread_slices_for_all_launches s
+    SELECT NULL_IF_EMPTY(STARTUP_SLICE_PROTO(MAX(slice_ts) - startup_ts))
+    FROM android_thread_slices_for_all_startups s
     JOIN thread t USING (utid)
     WHERE
       s.slice_name GLOB $slice_name AND
-      s.launch_id = $launch_id AND
+      s.startup_id = $startup_id AND
       s.is_main_thread AND
-      (t.end_ts IS NULL OR t.end_ts >= s.launch_ts_end)
+      (t.end_ts IS NULL OR t.end_ts >= s.startup_ts_end)
   '
 );
 
 -- Given a lauch id, returns the total time spent in GC
 SELECT CREATE_FUNCTION(
-  'TOTAL_GC_TIME_BY_LAUNCH(launch_id LONG)',
+  'TOTAL_GC_TIME_BY_LAUNCH(startup_id LONG)',
   'INT',
   '
     SELECT SUM(slice_dur)
-        FROM thread_slices_for_all_launches slice
+        FROM android_thread_slices_for_all_startups slice
         WHERE
-          slice.launch_id = $launch_id AND
+          slice.startup_id = $startup_id AND
           (
             slice_name GLOB "*semispace GC" OR
             slice_name GLOB "*mark sweep GC" OR
@@ -159,14 +109,14 @@ SELECT CREATE_FUNCTION(
 
 -- Given a launch id and package name, returns if baseline or cloud profile is missing.
 SELECT CREATE_FUNCTION(
-  'MISSING_BASELINE_PROFILE_FOR_LAUNCH(launch_id LONG, pkg_name STRING)',
+  'MISSING_BASELINE_PROFILE_FOR_LAUNCH(startup_id LONG, pkg_name STRING)',
   'BOOL',
   '
     SELECT (COUNT(slice_name) > 0)
     FROM (
       SELECT *
-      FROM SLICES_FOR_LAUNCH_AND_SLICE_NAME(
-        $launch_id,
+      FROM ANDROID_SLICES_FOR_STARTUP_AND_SLICE_NAME(
+        $startup_id,
         "location=* status=* filter=* reason=*"
       )
       ORDER BY slice_name
@@ -190,7 +140,7 @@ SELECT CREATE_FUNCTION(
       SELECT slice_name
       FROM (
         SELECT *
-        FROM SLICES_FOR_LAUNCH_AND_SLICE_NAME(
+        FROM ANDROID_SLICES_FOR_STARTUP_AND_SLICE_NAME(
           $launch_id,
           "location=* status=* filter=* reason=*"
         )
@@ -203,11 +153,11 @@ SELECT CREATE_FUNCTION(
 );
 
 SELECT CREATE_VIEW_FUNCTION(
-  'BINDER_TRANSACTION_REPLY_SLICES_FOR_LAUNCH(launch_id INT, threshold DOUBLE)',
+  'BINDER_TRANSACTION_REPLY_SLICES_FOR_LAUNCH(startup_id INT, threshold DOUBLE)',
   'name STRING',
   '
     SELECT reply.name AS name
-    FROM BINDER_TRANSACTION_SLICES_FOR_LAUNCH($launch_id, $threshold) request
+    FROM ANDROID_BINDER_TRANSACTION_SLICES_FOR_STARTUP($startup_id, $threshold) request
     JOIN following_flow(request.id) arrow
     JOIN slice reply ON reply.id = arrow.slice_in
     WHERE reply.dur > $threshold AND request.is_main_thread
@@ -216,16 +166,16 @@ SELECT CREATE_VIEW_FUNCTION(
 
 -- Given a launch id, return if unlock is running by systemui during the launch.
 SELECT CREATE_FUNCTION(
-  'IS_UNLOCK_RUNNING_DURING_LAUNCH(launch_id LONG)',
+  'IS_UNLOCK_RUNNING_DURING_LAUNCH(startup_id LONG)',
   'BOOL',
   '
     SELECT EXISTS(
       SELECT slice.name
-      FROM slice, launches
+      FROM slice, android_startups launches
       INNER JOIN thread_track ON slice.track_id = thread_track.id
       INNER JOIN thread USING(utid)
       INNER JOIN process USING(upid)
-      WHERE launches.id = $launch_id
+      WHERE launches.startup_id = $startup_id
       AND slice.name = "KeyguardUpdateMonitor#onAuthenticationSucceeded"
       AND process.name = "com.android.systemui"
       AND slice.ts >= launches.ts
