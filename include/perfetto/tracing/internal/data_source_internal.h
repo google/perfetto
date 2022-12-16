@@ -162,6 +162,14 @@ struct DataSourceStaticState {
     static_assert(sizeof(valid_instances.load()) * 8 >= kMaxDataSourceInstances,
                   "kMaxDataSourceInstances too high");
   }
+
+  void ResetForTesting() {
+    id = 0;
+    index = kMaxDataSources;
+    valid_instances.store(0, std::memory_order_release);
+    instances = {};
+    incremental_state_generation.store(0, std::memory_order_release);
+  }
 };
 
 // Per-DataSource-instance thread-local state.
