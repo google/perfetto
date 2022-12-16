@@ -23,7 +23,6 @@ SELECT
   gesture_end_ts,
   ts,
   dur,
-  dur_before_show_on_screen,
   event_type,
   next_ts,
   next_dur,
