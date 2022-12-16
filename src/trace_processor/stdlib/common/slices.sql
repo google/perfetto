@@ -30,4 +30,14 @@ SELECT
       LIMIT 1
     );
   '
-  );
+);
+
+-- Count slices with specified name.
+--
+-- @arg slice_glob STRING Name of the slices to counted.
+-- @ret INT               Number of slices with the name.
+SELECT CREATE_FUNCTION(
+  'SLICE_COUNT(slice_glob STRING)',
+  'INT',
+  'SELECT COUNT(1) FROM slice WHERE name GLOB $slice_glob'
+);

@@ -49,7 +49,7 @@ CREATE VIEW chrome_cpu_power_slice AS
     SELECT
       c.id AS id,
       cct.cpu AS cpu,
-      c.ts AS ts,
+      c.ts,
       -- Encode the 'value' field as a power state.
       CAST((CASE c.value WHEN 4294967295 THEN 0 ELSE c.value + 1 END)
         AS INT) AS power_state
@@ -142,8 +142,8 @@ CREATE VIEW internal_cpu_power_thread_and_toplevel_slice AS
   SELECT
     t.utid AS utid,
     s.id AS slice_id,
-    s.ts AS ts,
-    s.dur AS dur
+    s.ts,
+    s.dur
   FROM slice AS s
   JOIN thread_track AS t
     ON s.track_id = t.id
