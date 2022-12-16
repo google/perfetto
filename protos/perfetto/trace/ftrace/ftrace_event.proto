@@ -567,11 +567,11 @@ message FtraceEvent {
     TrustyIpcConnectEndFtraceEvent trusty_ipc_connect_end = 456;
     TrustyIpcWriteFtraceEvent trusty_ipc_write = 457;
     TrustyIpcPollFtraceEvent trusty_ipc_poll = 458;
-    TrustyIpcPollEndFtraceEvent trusty_ipc_poll_end = 459;
+    // removed field with id 459;
     TrustyIpcReadFtraceEvent trusty_ipc_read = 460;
     TrustyIpcReadEndFtraceEvent trusty_ipc_read_end = 461;
     TrustyIpcRxFtraceEvent trusty_ipc_rx = 462;
-    TrustyIpcTxFtraceEvent trusty_ipc_tx = 463;
+    // removed field with id 463;
     TrustyEnqueueNopFtraceEvent trusty_enqueue_nop = 464;
     CmaAllocStartFtraceEvent cma_alloc_start = 465;
     CmaAllocInfoFtraceEvent cma_alloc_info = 466;

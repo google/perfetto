@@ -288,7 +288,6 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       shrink_priority_id_(context->storage->InternString("priority")),
       trusty_category_id_(context_->storage->InternString("tipc")),
       trusty_name_trusty_std_id_(context_->storage->InternString("trusty_std")),
-      trusty_name_tipc_tx_id_(context_->storage->InternString("tipc_tx")),
       trusty_name_tipc_rx_id_(context_->storage->InternString("tipc_rx")),
       cma_alloc_id_(context_->storage->InternString("mm_cma_alloc")),
       cma_name_id_(context_->storage->InternString("cma_name")),
@@ -969,14 +968,6 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kTrustyIpcPollFieldNumber: {
         ParseTrustyIpcPoll(pid, ts, fld_bytes);
-        break;
-      }
-      case FtraceEvent::kTrustyIpcPollEndFieldNumber: {
-        ParseTrustyIpcPollEnd(pid, ts, fld_bytes);
-        break;
-      }
-      case FtraceEvent::kTrustyIpcTxFieldNumber: {
-        ParseTrustyIpcTx(pid, ts, fld_bytes);
         break;
       }
       case FtraceEvent::kTrustyIpcRxFieldNumber: {
@@ -2726,31 +2717,8 @@ void FtraceParser::ParseTrustyIpcPoll(uint32_t pid,
   base::StackString<256> name("tipc_poll: %s",
                               evt.srv_name().ToStdString().c_str());
   StringId name_generic = context_->storage->InternString(name.string_view());
-  context_->slice_tracker->Begin(timestamp, track, trusty_category_id_,
-                                 name_generic);
-}
-
-void FtraceParser::ParseTrustyIpcPollEnd(uint32_t pid,
-                                         int64_t timestamp,
-                                         protozero::ConstBytes blob) {
-  protos::pbzero::TrustyIpcPollEndFtraceEvent::Decoder evt(blob.data,
-                                                           blob.size);
-
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId track = context_->track_tracker->InternThreadTrack(utid);
-  context_->slice_tracker->End(timestamp, track, trusty_category_id_);
-}
-
-void FtraceParser::ParseTrustyIpcTx(uint32_t pid,
-                                    int64_t ts,
-                                    protozero::ConstBytes blob) {
-  protos::pbzero::TrustyIpcTxFtraceEvent::Decoder evt(blob.data, blob.size);
-
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId track = context_->track_tracker->InternThreadTrack(utid);
-
-  context_->slice_tracker->Scoped(ts, track, trusty_category_id_,
-                                  trusty_name_tipc_tx_id_, 0);
+  context_->slice_tracker->Scoped(timestamp, track, trusty_category_id_,
+                                  name_generic, 0);
 }
 
 void FtraceParser::ParseTrustyIpcRx(uint32_t pid,
