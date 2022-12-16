@@ -14,23 +14,12 @@
 -- limitations under the License.
 --
 
+SELECT IMPORT('android.binder');
+
 -- Count Binder transactions per process
 DROP VIEW IF EXISTS binder_metrics_by_process;
 CREATE VIEW binder_metrics_by_process AS
-SELECT
-  process.name AS process_name,
-  process.pid AS pid,
-  slice.name AS slice_name,
-  COUNT(*) AS event_count
-FROM slice
-INNER JOIN thread_track ON slice.track_id = thread_track.id
-INNER JOIN thread ON thread.utid = thread_track.utid
-INNER JOIN process ON thread.upid = process.upid
-WHERE
-  slice.name GLOB 'binder*'
-GROUP BY
-  process_name,
-  slice_name;
+SELECT * FROM android_binder_metrics_by_process;
 
 DROP VIEW IF EXISTS android_binder_output;
 CREATE VIEW android_binder_output AS
@@ -44,6 +33,6 @@ SELECT AndroidBinderMetric(
         'count', event_count
       )
     )
-    FROM binder_metrics_by_process
+    FROM android_binder_metrics_by_process
   )
 );

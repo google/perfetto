@@ -1831,11 +1831,24 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/stdlib/android/startup:startup
+perfetto_filegroup(
+    name = "src_trace_processor_stdlib_android_startup_startup",
+    srcs = [
+        "src/trace_processor/stdlib/android/startup/internal_startups_maxsdk28.sql",
+        "src/trace_processor/stdlib/android/startup/internal_startups_minsdk29.sql",
+        "src/trace_processor/stdlib/android/startup/internal_startups_minsdk33.sql",
+        "src/trace_processor/stdlib/android/startup/startups.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/stdlib/android:android
 perfetto_filegroup(
     name = "src_trace_processor_stdlib_android_android",
     srcs = [
+        "src/trace_processor/stdlib/android/battery.sql",
         "src/trace_processor/stdlib/android/binder.sql",
+        "src/trace_processor/stdlib/android/process_metadata.sql",
     ],
 )
 
@@ -1852,7 +1865,8 @@ perfetto_filegroup(
     name = "src_trace_processor_stdlib_common_common",
     srcs = [
         "src/trace_processor/stdlib/common/metadata.sql",
-        "src/trace_processor/stdlib/common/parent_slice.sql",
+        "src/trace_processor/stdlib/common/slices.sql",
+        "src/trace_processor/stdlib/common/timestamps.sql",
     ],
 )
 
@@ -1869,6 +1883,7 @@ perfetto_cc_amalgamated_sql(
     name = "src_trace_processor_stdlib_gen_amalgamated_stdlib",
     deps = [
         ":src_trace_processor_stdlib_android_android",
+        ":src_trace_processor_stdlib_android_startup_startup",
         ":src_trace_processor_stdlib_chrome_chrome",
         ":src_trace_processor_stdlib_common_common",
         ":src_trace_processor_stdlib_experimental_experimental",

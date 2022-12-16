@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../gn/perfetto_sql.gni")
+import("../../../../../gn/perfetto_sql.gni")
 
-perfetto_sql_source_set("common") {
+perfetto_sql_source_set("startup") {
   sources = [
-    "metadata.sql",
-    "slices.sql",
-    "timestamps.sql",
+    "internal_startups_maxsdk28.sql",
+    "internal_startups_minsdk29.sql",
+    "internal_startups_minsdk33.sql",
+    "startups.sql",
   ]
 }
