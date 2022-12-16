@@ -829,7 +829,7 @@ def create_amalgamated_sql_module(blueprint, gn, target):
   module.genrule_headers.add(module.name)
   module.out.update(target.outputs)
 
-  for dep in target.source_set_deps:
+  for dep in target.deps:
     module.srcs.update(
         [gn_utils.label_to_path(src) for src in gn.get_target(dep).inputs])
   blueprint.add_module(module)
