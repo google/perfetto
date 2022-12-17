@@ -26,13 +26,15 @@
 # libraries are also mapped to their Android equivalents -- see |builtin_deps|.
 
 import argparse
-import collections
 import json
 import os
 import re
 import sys
+from typing import List
+from typing import Optional
 
 import gn_utils
+from gn_utils import GnParser
 
 from compat import itervalues
 
@@ -472,14 +474,14 @@ class Module(object):
     self.gn_target = gn_target
     self.name = name
     self.srcs = set()
-    self.main = None
+    self.main: Optional[str] = None
     self.comment = 'GN: ' + gn_utils.label_without_toolchain(gn_target)
     self.shared_libs = set()
     self.static_libs = set()
     self.whole_static_libs = set()
     self.runtime_libs = set()
     self.tools = set()
-    self.cmd = None
+    self.cmd: Optional[str] = None
     self.host_supported = False
     self.vendor_available = False
     self.init_rc = set()
@@ -493,10 +495,10 @@ class Module(object):
     self.header_libs = set()
     self.required = set()
     self.user_debug_flag = False
-    self.tool_files = None
+    self.tool_files: Optional[List[str]] = None
     self.android = Target('android')
     self.host = Target('host')
-    self.lto = None
+    self.lto: Optional[bool] = None
     self.stl = None
     self.dist = dict()
     self.strip = dict()
@@ -623,7 +625,7 @@ class Blueprint(object):
       m.to_string(output)
 
 
-def label_to_module_name(label):
+def label_to_module_name(label: str):
   """Turn a GN label (e.g., //:perfetto_tests) into a module name."""
   # If the label is explicibly listed in the default target list, don't prefix
   # its name and return just the target name. This is so tools like
@@ -639,12 +641,13 @@ def label_to_module_name(label):
   return module
 
 
-def is_supported_source_file(name):
+def is_supported_source_file(name: str):
   """Returns True if |name| can appear in a 'srcs' list."""
   return os.path.splitext(name)[1] in ['.c', '.cc', '.proto']
 
 
-def create_proto_modules(blueprint, gn, target):
+def create_proto_modules(blueprint: Blueprint, gn: GnParser,
+                         target: GnParser.Target):
   """Generate genrules for a proto GN target.
 
     GN actions are used to dynamically generate files during the build. The
@@ -661,6 +664,11 @@ def create_proto_modules(blueprint, gn, target):
     """
   assert (target.type == 'proto_library')
 
+  # We don't generate any targets for source_set proto modules because
+  # they will be inlined into other modules if required.
+  if target.proto_plugin == 'source_set':
+    return None
+
   tools = {'aprotoc'}
   cpp_out_dir = '$(genDir)/%s/' % tree_path
   target_module_name = label_to_module_name(target.name)
@@ -673,11 +681,6 @@ def create_proto_modules(blueprint, gn, target):
   if buildtools_protobuf_src in target.proto_paths:
     cmd += ['--proto_path=%s' % android_protobuf_src]
 
-  # We don't generate any targets for source_set proto modules because
-  # they will be inlined into other modules if required.
-  if target.proto_plugin == 'source_set':
-    return None
-
   # Descriptor targets only generate a single target.
   if target.proto_plugin == 'descriptor':
     out = '{}.bin'.format(target_module_name)
@@ -687,7 +690,7 @@ def create_proto_modules(blueprint, gn, target):
 
     descriptor_module = Module('genrule', target_module_name, target.name)
     descriptor_module.cmd = ' '.join(cmd)
-    descriptor_module.out = [out]
+    descriptor_module.out.add(out)
     descriptor_module.tools = tools
     blueprint.add_module(descriptor_module)
 
@@ -735,18 +738,21 @@ def create_proto_modules(blueprint, gn, target):
   elif target.proto_plugin == 'protozero':
     suffixes = ['pbzero']
     plugin = create_modules_from_target(blueprint, gn, protozero_plugin)
+    assert (plugin)
     tools.add(plugin.name)
     cmd += ['--plugin=protoc-gen-plugin=$(location %s)' % plugin.name]
     cmd += ['--plugin_out=wrapper_namespace=pbzero:' + cpp_out_dir]
   elif target.proto_plugin == 'cppgen':
     suffixes = ['gen']
     plugin = create_modules_from_target(blueprint, gn, cppgen_plugin)
+    assert (plugin)
     tools.add(plugin.name)
     cmd += ['--plugin=protoc-gen-plugin=$(location %s)' % plugin.name]
     cmd += ['--plugin_out=wrapper_namespace=gen:' + cpp_out_dir]
   elif target.proto_plugin == 'ipc':
     suffixes = ['ipc']
     plugin = create_modules_from_target(blueprint, gn, ipc_plugin)
+    assert (plugin)
     tools.add(plugin.name)
     cmd += ['--plugin=protoc-gen-plugin=$(location %s)' % plugin.name]
     cmd += ['--plugin_out=wrapper_namespace=gen:' + cpp_out_dir]
@@ -769,16 +775,17 @@ def create_proto_modules(blueprint, gn, target):
   return source_module
 
 
-def create_tp_tables_module(blueprint, gn, target):
+def create_tp_tables_module(blueprint: Blueprint, gn: GnParser,
+                            target: GnParser.Target):
   bp_module_name = label_to_module_name(target.name)
   bp_binary_module_name = f'{bp_module_name}_binary'
   srcs = [gn_utils.label_to_path(src) for src in target.sources]
 
-  binary_module = Module('python_binary_host', bp_binary_module_name, target.name)
+  binary_module = Module('python_binary_host', bp_binary_module_name,
+                         target.name)
   for dep in target.deps:
-    binary_module.srcs.update([
-      gn_utils.label_to_path(src) for src in gn.get_target(dep).sources
-    ])
+    binary_module.srcs.update(
+        [gn_utils.label_to_path(src) for src in gn.get_target(dep).sources])
   binary_module.srcs.update(srcs)
   binary_module.srcs.add('tools/gen_tp_table_headers.py')
   binary_module.main = 'tools/gen_tp_table_headers.py'
@@ -836,7 +843,8 @@ def create_amalgamated_sql_module(blueprint, gn, target):
   return module
 
 
-def create_cc_proto_descriptor_module(blueprint, target):
+def create_cc_proto_descriptor_module(blueprint: Blueprint,
+                                      target: GnParser.Target):
   bp_module_name = label_to_module_name(target.name)
   module = Module('genrule', bp_module_name, target.name)
   module.tool_files = [
@@ -892,7 +900,7 @@ def create_proto_group_modules(blueprint, gn, module_name, target_names):
   blueprint.add_module(module)
 
 
-def _get_cflags(target):
+def _get_cflags(target: GnParser.Target):
   cflags = {flag for flag in target.cflags if re.match(cflag_allowlist, flag)}
   cflags |= set("-D%s" % define
                 for define in target.defines
@@ -900,7 +908,8 @@ def _get_cflags(target):
   return cflags
 
 
-def create_modules_from_target(blueprint, gn, gn_target_name):
+def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
+                               gn_target_name: str) -> Optional[Module]:
   """Generate module(s) for a given GN target.
 
     Given a GN target name, generate one or more corresponding modules into a
@@ -957,7 +966,7 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
   blueprint.add_module(module)
   module.host_supported = (name_without_toolchain in target_host_supported)
   module.vendor_available = (name_without_toolchain in target_vendor_available)
-  module.init_rc = target_initrc.get(target.name, [])
+  module.init_rc.update(target_initrc.get(target.name, []))
   module.srcs.update(
       gn_utils.label_to_path(src)
       for src in target.sources
@@ -970,7 +979,7 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
   if module_is_compiled:
     # Don't try to inject library/source dependencies into genrules or
     # filegroups because they are not compiled in the traditional sense.
-    module.defaults = [defaults_module]
+    module.defaults.update([defaults_module])
     for lib in target.libs:
       # Generally library names should be mangled as 'libXXX', unless they
       # are HAL libraries (e.g., android.hardware.health@2.0) or AIDL c++ / NDK
@@ -1056,7 +1065,7 @@ def create_modules_from_target(blueprint, gn, gn_target_name):
   return module
 
 
-def create_blueprint_for_targets(gn, desc, targets):
+def create_blueprint_for_targets(gn: GnParser, targets: List[str]):
   """Generate a blueprint for a list of GN targets."""
   blueprint = Blueprint()
 
@@ -1072,14 +1081,14 @@ def create_blueprint_for_targets(gn, desc, targets):
       tree_path, tree_path + '/include', tree_path + '/' + buildflags_dir,
       tree_path + '/src/profiling/memory/include'
   }
-  defaults.cflags = [
+  defaults.cflags.update([
       '-Wno-error=return-type',
       '-Wno-sign-compare',
       '-Wno-sign-promo',
       '-Wno-unused-parameter',
       '-fvisibility=hidden',
       '-O2',
-  ]
+  ])
   defaults.user_debug_flag = True
   defaults.lto = True
 
@@ -1123,8 +1132,7 @@ def main():
     desc = gn_utils.create_build_description(gn_args)
 
   gn = gn_utils.GnParser(desc)
-  blueprint = create_blueprint_for_targets(gn, desc, args.targets or
-                                           default_targets)
+  blueprint = create_blueprint_for_targets(gn, args.targets or default_targets)
   project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
   tool_name = os.path.relpath(os.path.abspath(__file__), project_root)
 

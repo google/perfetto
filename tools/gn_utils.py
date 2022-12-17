@@ -17,6 +17,7 @@
 
 from __future__ import print_function
 import collections
+from compat import iteritems
 import errno
 import filecmp
 import json
@@ -25,7 +26,9 @@ import re
 import shutil
 import subprocess
 import sys
-from compat import iteritems
+from typing import Dict
+from typing import Optional
+from typing import Tuple
 
 BUILDFLAGS_TARGET = '//gn:gen_buildflags'
 GEN_VERSION_TARGET = '//src/base:version_gen_h'
@@ -318,7 +321,7 @@ class GnParser(object):
 
       # These are valid only for type == proto_library.
       # This is typically: 'proto', 'protozero', 'ipc'.
-      self.proto_plugin = None
+      self.proto_plugin: Optional[str] = None
       self.proto_paths = set()
       self.proto_exports = set()
 
@@ -384,7 +387,7 @@ class GnParser(object):
     self.actions = {}
     self.proto_libs = {}
 
-  def get_target(self, gn_target_name):
+  def get_target(self, gn_target_name) -> Target:
     """Returns a Target object from the fully qualified GN target name.
 
         It bubbles up variables from source_set dependencies as described in the
@@ -412,7 +415,8 @@ class GnParser(object):
       return target
 
     proto_target_type, proto_desc = self.get_proto_target_type(target)
-    if proto_target_type is not None:
+    if proto_target_type:
+      assert proto_desc
       self.proto_libs[target.name] = target
       target.type = 'proto_library'
       target.proto_plugin = proto_target_type
@@ -492,7 +496,8 @@ class GnParser(object):
     metadata = proto_desc.get('metadata', {})
     return metadata.get('import_dirs', [])
 
-  def get_proto_target_type(self, target):
+  def get_proto_target_type(self, target: Target
+                           ) -> Tuple[Optional[str], Optional[Dict]]:
     """ Checks if the target is a proto library and return the plugin.
 
         Returns:
