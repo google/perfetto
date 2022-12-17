@@ -263,6 +263,9 @@ class FtraceParser {
   void ParseTrustyIpcTx(uint32_t pid, int64_t ts, protozero::ConstBytes);
   void ParseTrustyIpcRx(uint32_t pid, int64_t ts, protozero::ConstBytes);
   void ParseTrustyEnqueueNop(uint32_t pid, int64_t ts, protozero::ConstBytes);
+  void ParseMaliKcpuCqsSet(uint32_t pid, int64_t ts);
+  void ParseMaliKcpuCqsWaitStart(uint32_t pid, int64_t ts);
+  void ParseMaliKcpuCqsWaitEnd(uint32_t pid, int64_t ts);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
@@ -338,6 +341,9 @@ class FtraceParser {
   const StringId cma_nr_isolate_fail_id_;
   const StringId cma_nr_migrate_fail_id_;
   const StringId cma_nr_test_fail_id_;
+  const StringId mali_KCPU_CQS_SET_id_;
+  const StringId mali_KCPU_CQS_WAIT_START_id_;
+  const StringId mali_KCPU_CQS_WAIT_END_id_;
   const StringId syscall_ret_id_;
   const StringId syscall_args_id_;
   std::vector<StringId> syscall_arg_name_ids_;

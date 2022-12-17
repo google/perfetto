@@ -71,3 +71,6 @@ virtio_video.textproto virtio_video_slice_test.sql virtio_video_slice.out
 
 # virtgpu (drm/virtio) related tests
 virtio_gpu.textproto virtio_gpu_test.sql virtio_gpu_test.out
+
+# mali GPU events
+mali.textproto mali_test.sql mali_test.out
