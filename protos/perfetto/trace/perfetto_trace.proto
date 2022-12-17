@@ -6425,6 +6425,27 @@ message MaliTracingMarkWriteFtraceEvent {
   optional uint32 type = 3;
   optional int32 value = 4;
 }
+message MaliMaliKCPUCQSSETFtraceEvent {
+  optional uint32 id = 1;
+  optional uint64 info_val1 = 2;
+  optional uint64 info_val2 = 3;
+  optional uint32 kctx_id = 4;
+  optional int32 kctx_tgid = 5;
+}
+message MaliMaliKCPUCQSWAITSTARTFtraceEvent {
+  optional uint32 id = 1;
+  optional uint64 info_val1 = 2;
+  optional uint64 info_val2 = 3;
+  optional uint32 kctx_id = 4;
+  optional int32 kctx_tgid = 5;
+}
+message MaliMaliKCPUCQSWAITENDFtraceEvent {
+  optional uint32 id = 1;
+  optional uint64 info_val1 = 2;
+  optional uint64 info_val2 = 3;
+  optional uint32 kctx_id = 4;
+  optional int32 kctx_tgid = 5;
+}
 
 // End of protos/perfetto/trace/ftrace/mali.proto
 
@@ -7912,6 +7933,9 @@ message FtraceEvent {
     LwisTracingMarkWriteFtraceEvent lwis_tracing_mark_write = 467;
     VirtioGpuCmdQueueFtraceEvent virtio_gpu_cmd_queue = 468;
     VirtioGpuCmdResponseFtraceEvent virtio_gpu_cmd_response = 469;
+    MaliMaliKCPUCQSSETFtraceEvent mali_mali_KCPU_CQS_SET = 470;
+    MaliMaliKCPUCQSWAITSTARTFtraceEvent mali_mali_KCPU_CQS_WAIT_START = 471;
+    MaliMaliKCPUCQSWAITENDFtraceEvent mali_mali_KCPU_CQS_WAIT_END = 472;
   }
 }
 

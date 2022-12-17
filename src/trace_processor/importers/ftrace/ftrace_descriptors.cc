@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 470> descriptors{{
+std::array<FtraceMessageDescriptor, 473> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5192,6 +5192,42 @@ std::array<FtraceMessageDescriptor, 470> descriptors{{
             {"seqno", ProtoSchemaType::kUint32},
             {"type", ProtoSchemaType::kUint32},
             {"vq", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "mali_mali_KCPU_CQS_SET",
+        5,
+        {
+            {},
+            {"id", ProtoSchemaType::kUint32},
+            {"info_val1", ProtoSchemaType::kUint64},
+            {"info_val2", ProtoSchemaType::kUint64},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "mali_mali_KCPU_CQS_WAIT_START",
+        5,
+        {
+            {},
+            {"id", ProtoSchemaType::kUint32},
+            {"info_val1", ProtoSchemaType::kUint64},
+            {"info_val2", ProtoSchemaType::kUint64},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "mali_mali_KCPU_CQS_WAIT_END",
+        5,
+        {
+            {},
+            {"id", ProtoSchemaType::kUint32},
+            {"info_val1", ProtoSchemaType::kUint64},
+            {"info_val2", ProtoSchemaType::kUint64},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
         },
     },
 }};
