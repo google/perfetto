@@ -471,7 +471,7 @@ class Module(object):
   """A single module (e.g., cc_binary, cc_test) in a blueprint."""
 
   def __init__(self, mod_type, name, gn_target):
-    assert(gn_target)
+    assert (gn_target)
     self.type = mod_type
     self.gn_target = gn_target
     self.name = name
@@ -702,8 +702,8 @@ def create_proto_modules(blueprint: Blueprint, gn: GnParser,
     # add them to srcs.
     descriptor_module.srcs.update(
         gn_utils.label_to_path(src) for src in target.sources)
-    for dep in target.transitive_proto_deps:
-      current_target = gn.get_target(dep)
+    for dep in target.transitive_proto_deps():
+      current_target = gn.get_target(dep.name)
       descriptor_module.srcs.update(
           gn_utils.label_to_path(src) for src in current_target.sources)
 
@@ -787,9 +787,10 @@ def create_tp_tables_module(blueprint: Blueprint, gn: GnParser,
 
   binary_module = Module('python_binary_host', bp_binary_module_name,
                          target.name)
-  for dep in target.deps:
-    binary_module.srcs.update(
-        [gn_utils.label_to_path(src) for src in gn.get_target(dep).sources])
+  for dep in target.non_proto_or_source_set_deps():
+    binary_module.srcs.update([
+        gn_utils.label_to_path(src) for src in gn.get_target(dep.name).sources
+    ])
   binary_module.srcs.update(srcs)
   binary_module.srcs.add('tools/gen_tp_table_headers.py')
   binary_module.main = 'tools/gen_tp_table_headers.py'
@@ -815,7 +816,8 @@ def create_tp_tables_module(blueprint: Blueprint, gn: GnParser,
   return module
 
 
-def create_amalgamated_sql_module(blueprint, gn, target):
+def create_amalgamated_sql_module(blueprint: Blueprint, gn: GnParser,
+                                  target: GnParser.Target):
   bp_module_name = label_to_module_name(target.name)
 
   def find_arg(name):
@@ -840,9 +842,9 @@ def create_amalgamated_sql_module(blueprint, gn, target):
   module.genrule_headers.add(module.name)
   module.out.update(target.outputs)
 
-  for dep in target.deps:
+  for dep in target.non_proto_or_source_set_deps():
     module.srcs.update(
-        [gn_utils.label_to_path(src) for src in gn.get_target(dep).inputs])
+        [gn_utils.label_to_path(src) for src in gn.get_target(dep.name).inputs])
   blueprint.add_module(module)
   return module
 
@@ -860,7 +862,7 @@ def create_cc_proto_descriptor_module(blueprint: Blueprint,
   ])
   module.genrule_headers.add(module.name)
   module.srcs.update(
-      ':' + label_to_module_name(dep) for dep in target.proto_deps)
+      ':' + label_to_module_name(dep.name) for dep in target.proto_deps())
   module.srcs.update(
       gn_utils.label_to_path(src)
       for src in target.inputs
@@ -870,7 +872,8 @@ def create_cc_proto_descriptor_module(blueprint: Blueprint,
   return module
 
 
-def create_gen_version_module(blueprint, target, bp_module_name):
+def create_gen_version_module(blueprint: Blueprint, target: GnParser.Target,
+                              bp_module_name: str):
   module = Module('genrule', bp_module_name, gn_utils.GEN_VERSION_TARGET)
   script_path = gn_utils.label_to_path(target.script)
   module.genrule_headers.add(bp_module_name)
@@ -885,7 +888,8 @@ def create_gen_version_module(blueprint, target, bp_module_name):
   return module
 
 
-def create_proto_group_modules(blueprint, gn, module_name, target_names):
+def create_proto_group_modules(blueprint, gn: GnParser, module_name: str,
+                               target_names):
   # TODO(lalitm): today, we're only adding a Java lite module because that's
   # the only one used in practice. In the future, if we need other target types
   # (e.g. C++, Java full etc.) add them here.
@@ -897,8 +901,8 @@ def create_proto_group_modules(blueprint, gn, module_name, target_names):
   for name in target_names:
     target = gn.get_target(name)
     module.srcs.update(gn_utils.label_to_path(src) for src in target.sources)
-    for dep_label in target.transitive_proto_deps:
-      dep = gn.get_target(dep_label)
+    for dep_label in target.transitive_proto_deps():
+      dep = gn.get_target(dep_label.name)
       module.srcs.update(gn_utils.label_to_path(src) for src in dep.sources)
 
   blueprint.add_module(module)
@@ -1017,12 +1021,15 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
                   (type(add_val), key))
 
   # dep_name is an unmangled GN target name (e.g. //foo:bar(toolchain)).
-  all_deps = target.deps | target.source_set_deps | target.transitive_proto_deps
-  for dep_name in all_deps:
+  all_deps = target.non_proto_or_source_set_deps()
+  all_deps |= target.transitive_source_set_deps()
+  all_deps |= target.transitive_proto_deps()
+  for dep in all_deps:
     # If the dependency refers to a library which we can replace with an
     # Android equivalent, stop recursing and patch the dependency in.
     # Don't recurse into //buildtools, builtin_deps are intercepted at
     # the //gn:xxx level.
+    dep_name = dep.name
     if dep_name.startswith('//buildtools'):
       continue
 
