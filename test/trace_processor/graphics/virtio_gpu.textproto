@@ -1,0 +1,76 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 1345091904071
+      pid: 4244
+      virtio_gpu_cmd_response {
+        ctx_id: 27
+        dev: 4
+        fence_id: 67980
+        flags: 3
+        name: "control"
+        num_free: 506
+        seqno: 143910
+        type: 4352
+        vq: 0
+      }
+    }
+    event {
+      timestamp: 1345091913446
+      pid: 4244
+      virtio_gpu_cmd_response {
+        ctx_id: 0
+        dev: 4
+        fence_id: 0
+        flags: 0
+        name: "control"
+        num_free: 506
+        seqno: 143911
+        type: 4352
+        vq: 0
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 7
+    event {
+      timestamp: 1345090723759
+      pid: 3687
+      virtio_gpu_cmd_queue {
+        ctx_id: 27
+        dev: 4
+        fence_id: 67980
+        flags: 3
+        name: "control"
+        num_free: 503
+        seqno: 143910
+        type: 519
+        vq: 0
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 5
+    event {
+      timestamp: 1345090746311
+      pid: 3687
+      virtio_gpu_cmd_queue {
+        ctx_id: 27
+        dev: 4
+        fence_id: 0
+        flags: 0
+        name: "control"
+        num_free: 501
+        seqno: 143911
+        type: 515
+        vq: 0
+      }
+    }
+  }
+}
+

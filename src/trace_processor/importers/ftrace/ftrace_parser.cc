@@ -219,6 +219,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       rss_stat_tracker_(context),
       drm_tracker_(context),
       iostat_tracker_(context),
+      virtio_gpu_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
@@ -782,6 +783,11 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kMaliTracingMarkWriteFieldNumber: {
         ParseMaliTracingMarkWrite(ts, pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kVirtioGpuCmdQueueFieldNumber:
+      case FtraceEvent::kVirtioGpuCmdResponseFieldNumber: {
+        virtio_gpu_tracker_.ParseVirtioGpu(ts, fld.id(), pid, fld_bytes);
         break;
       }
       case FtraceEvent::kCpuhpPauseFieldNumber: {
