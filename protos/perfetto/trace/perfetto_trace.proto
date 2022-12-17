@@ -7288,6 +7288,33 @@ message Vb2V4l2DqbufFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/v4l2.proto
 
+// Begin of protos/perfetto/trace/ftrace/virtio_gpu.proto
+
+message VirtioGpuCmdQueueFtraceEvent {
+  optional uint32 ctx_id = 1;
+  optional int32 dev = 2;
+  optional uint64 fence_id = 3;
+  optional uint32 flags = 4;
+  optional string name = 5;
+  optional uint32 num_free = 6;
+  optional uint32 seqno = 7;
+  optional uint32 type = 8;
+  optional uint32 vq = 9;
+}
+message VirtioGpuCmdResponseFtraceEvent {
+  optional uint32 ctx_id = 1;
+  optional int32 dev = 2;
+  optional uint64 fence_id = 3;
+  optional uint32 flags = 4;
+  optional string name = 5;
+  optional uint32 num_free = 6;
+  optional uint32 seqno = 7;
+  optional uint32 type = 8;
+  optional uint32 vq = 9;
+}
+
+// End of protos/perfetto/trace/ftrace/virtio_gpu.proto
+
 // Begin of protos/perfetto/trace/ftrace/virtio_video.proto
 
 message VirtioVideoCmdFtraceEvent {
@@ -7883,6 +7910,8 @@ message FtraceEvent {
     CmaAllocStartFtraceEvent cma_alloc_start = 465;
     CmaAllocInfoFtraceEvent cma_alloc_info = 466;
     LwisTracingMarkWriteFtraceEvent lwis_tracing_mark_write = 467;
+    VirtioGpuCmdQueueFtraceEvent virtio_gpu_cmd_queue = 468;
+    VirtioGpuCmdResponseFtraceEvent virtio_gpu_cmd_response = 469;
   }
 }
 

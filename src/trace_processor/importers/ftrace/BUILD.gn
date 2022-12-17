@@ -49,6 +49,8 @@ source_set("full") {
     "thread_state_tracker.h",
     "v4l2_tracker.cc",
     "v4l2_tracker.h",
+    "virtio_gpu_tracker.cc",
+    "virtio_gpu_tracker.h",
     "virtio_video_tracker.cc",
     "virtio_video_tracker.h",
   ]
