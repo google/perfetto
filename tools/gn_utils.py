@@ -17,6 +17,7 @@
 
 from __future__ import print_function
 import collections
+from compat import iteritems
 import errno
 import filecmp
 import json
@@ -25,7 +26,10 @@ import re
 import shutil
 import subprocess
 import sys
-from compat import iteritems
+from typing import Dict
+from typing import Optional
+from typing import Set
+from typing import Tuple
 
 BUILDFLAGS_TARGET = '//gn:gen_buildflags'
 GEN_VERSION_TARGET = '//src/base:version_gen_h'
@@ -222,10 +226,10 @@ class ODRChecker(object):
   traced.exe -> libperfetto(static lib) -> base(file group)
   """
 
-  def __init__(self, gn, target_name):
+  def __init__(self, gn: 'GnParser', target_name: str):
     self.gn = gn
     self.root = gn.get_target(target_name)
-    self.source_sets = collections.defaultdict(set)
+    self.source_sets: Dict[str, Set[str]] = collections.defaultdict(set)
     self.deps_visited = set()
     self.source_set_hdr_only = {}
 
@@ -246,18 +250,17 @@ class ODRChecker(object):
       raise Exception('%d ODR violations detected. Build generation aborted' %
                       num_violations)
 
-  def _visit(self, target_name, parent_path=''):
+  def _visit(self, target_name: str, parent_path=''):
     target = self.gn.get_target(target_name)
     path = ((parent_path + ' > ') if parent_path else '') + target_name
     if not target:
       raise Exception('Cannot find target %s' % target_name)
-    for ssdep in target.source_set_deps:
+    for ssdep in target.transitive_source_set_deps():
       name_and_path = '%s (via %s)' % (target_name, path)
-      self.source_sets[ssdep].add(name_and_path)
-    deps = set(target.deps).union(
-        target.transitive_proto_deps) - self.deps_visited
-    for dep_name in deps:
-      dep = self.gn.get_target(dep_name)
+      self.source_sets[ssdep.name].add(name_and_path)
+    deps = set(target.non_proto_or_source_set_deps()).union(
+        target.transitive_proto_deps()) - self.deps_visited
+    for dep in deps:
       if dep.type == 'executable':
         continue  # Execs are strong boundaries and don't cause ODR violations.
       # static_library dependencies should reset the path. It doesn't matter if
@@ -267,10 +270,10 @@ class ODRChecker(object):
       # This is NOT an ODR violation because source.cc is linked from the same
       # static library
       next_parent_path = path if dep.type != 'static_library' else ''
-      self.deps_visited.add(dep_name)
-      self._visit(dep_name, next_parent_path)
+      self.deps_visited.add(dep.name)
+      self._visit(dep.name, next_parent_path)
 
-  def is_header_only(self, source_set_name):
+  def is_header_only(self, source_set_name: str):
     cached = self.source_set_hdr_only.get(source_set_name)
     if cached is not None:
       return cached
@@ -318,7 +321,7 @@ class GnParser(object):
 
       # These are valid only for type == proto_library.
       # This is typically: 'proto', 'protozero', 'ipc'.
-      self.proto_plugin = None
+      self.proto_plugin: Optional[str] = None
       self.proto_paths = set()
       self.proto_exports = set()
 
@@ -340,13 +343,11 @@ class GnParser(object):
       # on a source_set target.
       self.cflags = set()
       self.defines = set()
-      self.deps = set()
+      self.deps: Set[GnParser.Target] = set()
+      self.transitive_deps: Set[GnParser.Target] = set()
       self.libs = set()
       self.include_dirs = set()
       self.ldflags = set()
-      self.source_set_deps = set()  # Transitive set of source_set deps.
-      self.proto_deps = set()
-      self.transitive_proto_deps = set()
 
       # Deps on //gn:xxx have this flag set to True. These dependencies
       # are special because they pull third_party code from buildtools/.
@@ -354,6 +355,24 @@ class GnParser(object):
       # this flag is used to stop the recursion and create an empty
       # placeholder target once we hit //gn:protoc or similar.
       self.is_third_party_dep_ = False
+
+    def non_proto_or_source_set_deps(self):
+      return set(d for d in self.deps
+                 if d.type != 'proto_library' and d.type != 'source_set')
+
+    def proto_deps(self):
+      return set(d for d in self.deps if d.type == 'proto_library')
+
+    def transitive_proto_deps(self):
+      return set(d for d in self.transitive_deps if d.type == 'proto_library')
+
+    def transitive_cpp_proto_deps(self):
+      return set(
+          d for d in self.transitive_deps if d.type == 'proto_library' and
+          d.proto_plugin != 'descriptor' and d.proto_plugin != 'source_set')
+
+    def transitive_source_set_deps(self):
+      return set(d for d in self.transitive_deps if d.type == 'source_set')
 
     def __lt__(self, other):
       if isinstance(other, self.__class__):
@@ -372,8 +391,7 @@ class GnParser(object):
 
     def update(self, other):
       for key in ('cflags', 'data', 'defines', 'deps', 'include_dirs',
-                  'ldflags', 'source_set_deps', 'proto_deps',
-                  'transitive_proto_deps', 'libs', 'proto_paths'):
+                  'ldflags', 'transitive_deps', 'libs', 'proto_paths'):
         self.__dict__[key].update(other.__dict__.get(key, []))
 
   def __init__(self, gn_desc):
@@ -384,7 +402,7 @@ class GnParser(object):
     self.actions = {}
     self.proto_libs = {}
 
-  def get_target(self, gn_target_name):
+  def get_target(self, gn_target_name: str) -> Target:
     """Returns a Target object from the fully qualified GN target name.
 
         It bubbles up variables from source_set dependencies as described in the
@@ -412,7 +430,8 @@ class GnParser(object):
       return target
 
     proto_target_type, proto_desc = self.get_proto_target_type(target)
-    if proto_target_type is not None:
+    if proto_target_type:
+      assert proto_desc
       self.proto_libs[target.name] = target
       target.type = 'proto_library'
       target.proto_plugin = proto_target_type
@@ -462,23 +481,42 @@ class GnParser(object):
     # Recurse in dependencies.
     for dep_name in desc.get('deps', []):
       dep = self.get_target(dep_name)
-      if dep.is_third_party_dep_:
-        target.deps.add(dep_name)
-      elif dep.type == 'proto_library':
-        target.proto_deps.add(dep_name)
-        target.transitive_proto_deps.add(dep_name)
-        target.proto_paths.update(dep.proto_paths)
-        target.transitive_proto_deps.update(dep.transitive_proto_deps)
-      elif dep.type == 'source_set':
-        target.source_set_deps.add(dep_name)
-        target.update(dep)  # Bubble up source set's cflags/ldflags etc.
-      elif dep.type == 'group':
+
+      # generated_file targets only exist for GN builds: we can safely ignore
+      # them.
+      if dep.type == 'generated_file':
+        continue
+
+      # When a proto_library depends on an action, that is always the "_gen"
+      # rule of the action which is "private" to the proto_library rule.
+      # therefore, just ignore it for dep tracking purposes.
+      if dep.type == 'action' and proto_target_type is not None:
+        target_no_toolchain = label_without_toolchain(target.name)
+        dep_no_toolchain = label_without_toolchain(dep.name)
+        assert (dep_no_toolchain == f'{target_no_toolchain}_gen')
+        continue
+
+      # Non-third party groups are only used for bubbling cflags etc so don't
+      # add a dep.
+      if dep.type == 'group' and not dep.is_third_party_dep_:
         target.update(dep)  # Bubble up groups's cflags/ldflags etc.
-      elif dep.type == 'action':
-        if proto_target_type is None:
-          target.deps.add(dep_name)
-      elif dep.type in LINKER_UNIT_TYPES:
-        target.deps.add(dep_name)
+        continue
+
+      # Linker units act as a hard boundary making all their internal deps
+      # opaque to the outside world. For this reason, do not propogate deps
+      # transitively across them.
+      if dep.type in LINKER_UNIT_TYPES:
+        target.deps.add(dep)
+        continue
+
+      if dep.type == 'source_set':
+        target.update(dep)  # Bubble up source set's cflags/ldflags etc.
+      elif dep.type == 'proto_library':
+        target.proto_paths.update(dep.proto_paths)
+
+      target.deps.add(dep)
+      target.transitive_deps.add(dep)
+      target.transitive_deps.update(dep.transitive_deps)
 
     return target
 
@@ -492,7 +530,8 @@ class GnParser(object):
     metadata = proto_desc.get('metadata', {})
     return metadata.get('import_dirs', [])
 
-  def get_proto_target_type(self, target):
+  def get_proto_target_type(self, target: Target
+                           ) -> Tuple[Optional[str], Optional[Dict]]:
     """ Checks if the target is a proto library and return the plugin.
 
         Returns:

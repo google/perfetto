@@ -15,6 +15,7 @@
 import("../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("android") {
+  deps = [ "startup" ]
   sources = [
     "battery.sql",
     "binder.sql",
