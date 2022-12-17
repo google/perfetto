@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT RUN_METRIC("common/parent_slice.sql");
+SELECT IMPORT("common.slices");
 
 SELECT CREATE_FUNCTION(
   '{{function_prefix}}EXTRACT_MOJO_IPC_HASH(slice_id INT)',
@@ -67,7 +67,7 @@ new_mojo_slices AS (
     s.id
   FROM {{slice_table_name}} s
   WHERE
-    category = "toplevel"
+    category GLOB "*toplevel*"
     AND name GLOB 'Receive *'
 ),
 -- Select old-style slices for channel-associated mojo events.
@@ -79,7 +79,7 @@ old_associated_mojo_slices AS (
     s.id
   FROM {{slice_table_name}} s
   WHERE
-    category = "mojom"
+    category GLOB "*mojom*"
     AND name GLOB '*.mojom.*'
 ),
 -- Select old-style slices for non-(channel-associated) mojo events.
@@ -94,7 +94,7 @@ old_non_associated_mojo_slices AS (
     s.id
   FROM {{slice_table_name}} s
   WHERE
-    category = "toplevel" AND name = "Connector::DispatchMessage"
+    category GLOB "*toplevel*" AND name = "Connector::DispatchMessage"
 )
 -- Merge all mojo slices.
 SELECT * FROM new_mojo_slices
@@ -131,7 +131,7 @@ java_slices_with_trimmed_names AS (
       ".Measure", "") AS name
   FROM
     {{slice_table_name}} s1
-  WHERE category = "Java" AND dur > 0
+  WHERE category GLOB "*Java*" AND dur > 0
 ),
 -- We filter out generic slices from various UI frameworks which don't tell us much about
 -- what exactly this view is doing.
@@ -245,7 +245,7 @@ non_embedded_toplevel_slices AS (
   WHERE
     category IN ("toplevel", "toplevel,viz")
     AND (SELECT count() FROM ancestor_slice(s.id) s2
-      WHERE s2.category IN ("toplevel", "toplevel.viz")) = 0
+      WHERE s2.category GLOB "*toplevel*" or s2.category GLOB "*toplevel.viz*") = 0
 ),
 -- Select slices from "Java" category which do not have another "Java" or
 -- "toplevel" slice as parent. In the longer term they should probably belong
@@ -254,10 +254,10 @@ non_embedded_java_slices AS (
   SELECT name AS full_name, "java" AS task_type, id
   FROM {{slice_table_name}} s
   WHERE
-    category = "Java"
+    category GLOB "*Java*"
     AND (SELECT count()
       FROM ancestor_slice(s.id) s2
-      WHERE s2.category = "toplevel" OR s2.category = "Java") = 0
+      WHERE s2.category GLOB "*toplevel*" OR s2.category GLOB "*Java*") = 0
 ),
 raw_scheduler_tasks AS (
   SELECT
@@ -270,7 +270,7 @@ raw_scheduler_tasks AS (
     s.id
   FROM {{slice_table_name}} s
   WHERE
-    category = "toplevel"
+    category GLOB "*toplevel*"
     AND (name = "ThreadControllerImpl::RunTask" OR name = "ThreadPool_RunTask")
 ),
 scheduler_tasks AS (

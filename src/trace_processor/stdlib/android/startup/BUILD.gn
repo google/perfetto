@@ -12,20 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/perfetto.gni")
-import("../../../gn/perfetto_sql.gni")
+import("../../../../../gn/perfetto_sql.gni")
 
-assert(enable_perfetto_trace_processor_sqlite)
-
-perfetto_amalgamated_sql_header("gen_amalgamated_stdlib") {
-  deps = [
-    "android",
-    "android/startup",
-    "chrome:chrome_sql",
-    "common",
-    "experimental",
+perfetto_sql_source_set("startup") {
+  sources = [
+    "internal_startups_maxsdk28.sql",
+    "internal_startups_minsdk29.sql",
+    "internal_startups_minsdk33.sql",
+    "startups.sql",
   ]
-  generated_header = "amalgamated_stdlib.h"
-  namespace = "stdlib"
-  generate_docs = true
 }

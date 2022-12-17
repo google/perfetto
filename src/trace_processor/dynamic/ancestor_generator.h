@@ -23,6 +23,31 @@
 
 namespace perfetto {
 namespace trace_processor {
+namespace tables {
+
+#define PERFETTO_TP_ANCESTOR_SLICE_TABLE_DEF(NAME, PARENT, C) \
+  NAME(AncestorSliceTable, "ancestor_slice")                  \
+  PARENT(PERFETTO_TP_SLICE_TABLE_DEF, C)                      \
+  C(tables::SliceTable::Id, start_id, Column::Flag::kHidden)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_ANCESTOR_SLICE_TABLE_DEF);
+
+#define PERFETTO_TP_ANCESTOR_STACK_PROFILE_CALLSITE_TABLE_DEF(NAME, PARENT, C) \
+  NAME(AncestorStackProfileCallsiteTable,                                      \
+       "experimental_ancestor_stack_profile_callsite")                         \
+  PARENT(PERFETTO_TP_STACK_PROFILE_CALLSITE_DEF, C)                            \
+  C(tables::StackProfileCallsiteTable::Id, start_id, Column::Flag::kHidden)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_ANCESTOR_STACK_PROFILE_CALLSITE_TABLE_DEF);
+
+#define PERFETTO_TP_ANCESTOR_SLICE_BY_STACK_TABLE_DEF(NAME, PARENT, C) \
+  NAME(AncestorSliceByStackTable, "ancestor_slice_by_stack")           \
+  PARENT(PERFETTO_TP_SLICE_TABLE_DEF, C)                               \
+  C(int64_t, start_stack_id, Column::Flag::kHidden)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_ANCESTOR_SLICE_BY_STACK_TABLE_DEF);
+
+}  // namespace tables
 
 class TraceProcessorContext;
 
@@ -40,7 +65,7 @@ class AncestorGenerator : public DynamicTableGenerator {
     kSliceByStack = 3
   };
 
-  AncestorGenerator(Ancestor type, TraceProcessorContext* context);
+  AncestorGenerator(Ancestor type, const TraceStorage* storage);
 
   Table::Schema CreateSchema() override;
   std::string TableName() override;
@@ -59,7 +84,7 @@ class AncestorGenerator : public DynamicTableGenerator {
 
  private:
   Ancestor type_;
-  TraceProcessorContext* context_ = nullptr;
+  const TraceStorage* storage_ = nullptr;
 };
 
 }  // namespace trace_processor
