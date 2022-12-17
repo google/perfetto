@@ -30,6 +30,7 @@ import json
 import os
 import re
 import sys
+from typing import Dict
 from typing import List
 from typing import Optional
 
@@ -470,6 +471,7 @@ class Module(object):
   """A single module (e.g., cc_binary, cc_test) in a blueprint."""
 
   def __init__(self, mod_type, name, gn_target):
+    assert(gn_target)
     self.type = mod_type
     self.gn_target = gn_target
     self.name = name
@@ -609,9 +611,10 @@ class Blueprint(object):
   """In-memory representation of an Android.bp file."""
 
   def __init__(self):
-    self.modules = {}
+    self.modules: Dict[str, Module] = {}
+    self.gn_target_to_module: Dict[str, Module] = {}
 
-  def add_module(self, module):
+  def add_module(self, module: Module):
     """Adds a new module to the blueprint, replacing any existing module
         with the same name.
 
@@ -619,6 +622,7 @@ class Blueprint(object):
             module: Module instance.
         """
     self.modules[module.name] = module
+    self.gn_target_to_module[module.gn_target] = module
 
   def to_string(self, output):
     for m in sorted(itervalues(self.modules), key=lambda m: m.name):
@@ -920,11 +924,11 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
         gn: gn_utils.GnParser object.
         gn_target_name: GN target for module generation.
     """
-  bp_module_name = label_to_module_name(gn_target_name)
-  if bp_module_name in blueprint.modules:
-    return blueprint.modules[bp_module_name]
-  target = gn.get_target(gn_target_name)
+  if gn_target_name in blueprint.gn_target_to_module:
+    return blueprint.gn_target_to_module[gn_target_name]
 
+  target = gn.get_target(gn_target_name)
+  bp_module_name = label_to_module_name(gn_target_name)
   name_without_toolchain = gn_utils.label_without_toolchain(target.name)
   if target.type == 'executable':
     if target.toolchain == gn_utils.HOST_TOOLCHAIN:
