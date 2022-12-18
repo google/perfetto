@@ -15,4 +15,4 @@
 --
 SELECT count(*)
 FROM counter
-INNER JOIN counter_track ON counter_track.id = counter.track_id;
+JOIN counter_track ON counter_track.id = counter.track_id;

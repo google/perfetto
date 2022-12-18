@@ -15,6 +15,6 @@
 --
 SELECT ts, value, name
 FROM counter
-INNER JOIN counter_track ON counter.track_id = counter_track.id
+JOIN counter_track ON counter.track_id = counter_track.id
 WHERE name = 'MemAvailable' AND counter_track.type = 'counter_track'
 LIMIT 10;

@@ -34,7 +34,7 @@ AS
 SELECT
   slice.*,
   process_track.upid AS upid
-FROM slice INNER JOIN process_track
+FROM slice JOIN process_track
   ON slice.track_id = process_track.id
 WHERE slice.name = "EventLatency";
 
@@ -61,7 +61,7 @@ SELECT
   event_latency_with_track.ts,
   event_latency_with_track.dur,
   EXTRACT_ARG(event_latency_with_track.arg_set_id, "event_latency.event_type") AS event_type
-FROM event_latency_with_track INNER JOIN shown_on_display_event_latency_ids
+FROM event_latency_with_track JOIN shown_on_display_event_latency_ids
   ON event_latency_with_track.id = shown_on_display_event_latency_ids.event_latency_id
 WHERE
   event_type IN (

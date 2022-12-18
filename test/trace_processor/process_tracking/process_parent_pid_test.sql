@@ -17,6 +17,6 @@ SELECT
   child.pid AS child_pid,
   parent.pid AS parent_pid
 FROM process AS child
-INNER JOIN process AS parent
+JOIN process AS parent
   ON child.parent_upid = parent.upid
 ORDER BY child_pid;
