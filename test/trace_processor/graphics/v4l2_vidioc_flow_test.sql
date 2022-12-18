@@ -15,5 +15,5 @@
 --
 SELECT qbuf.ts, qbuf.dur, qbuf.name, dqbuf.ts, dqbuf.dur, dqbuf.name
 FROM flow
-INNER JOIN slice qbuf ON flow.slice_out = qbuf.id
-INNER JOIN slice dqbuf ON flow.slice_in = dqbuf.id;
+JOIN slice qbuf ON flow.slice_out = qbuf.id
+JOIN slice dqbuf ON flow.slice_in = dqbuf.id;

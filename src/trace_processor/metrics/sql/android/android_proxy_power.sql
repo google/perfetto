@@ -29,7 +29,7 @@
 --     CREATE VIEW my_slice_utid AS
 --     SELECT ts, dur, utid
 --     FROM my_slice
---     INNER JOIN thread_track ON track_id = thread_track.id;
+--     JOIN thread_track ON track_id = thread_track.id;
 --
 --     CREATE VIRTUAL TABLE my_slice_power
 --     USING SPAN_JOIN(power_per_thread PARTITIONED utid,
