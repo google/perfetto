@@ -49,11 +49,11 @@ SELECT
   process.upid AS upid,
   extract_arg(process.arg_set_id, 'chrome.host_app_package_name') AS app_name
 FROM top_level_slice
-INNER JOIN thread_track
+JOIN thread_track
   ON top_level_slice.track_id = thread_track.id
-INNER JOIN process
+JOIN process
   ON thread.upid = process.upid
-INNER JOIN thread
+JOIN thread
   ON thread_track.utid = thread.utid
 WHERE process.name NOT GLOB '*SandboxedProcessService*'
   AND process.name NOT GLOB '*chrome*'
@@ -85,7 +85,7 @@ SELECT
   thread.utid AS utid,
   extract_arg(process.arg_set_id, 'chrome.host_app_package_name') AS app_name
 FROM process
-INNER JOIN thread
+JOIN thread
   ON thread.upid = process.upid
 WHERE process.name GLOB '*webview*SandboxedProcessService*'
   AND app_name IS NOT NULL;
@@ -99,7 +99,7 @@ SELECT
   app_name,
   SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
 FROM power_per_thread
-INNER JOIN webview_renderer_threads
+JOIN webview_renderer_threads
   ON power_per_thread.utid = webview_renderer_threads.utid
 GROUP BY app_name;
 
@@ -113,9 +113,9 @@ SELECT
   core_type_per_cpu.core_type AS core_type,
   SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
 FROM power_per_thread
-INNER JOIN webview_renderer_threads
+JOIN webview_renderer_threads
   ON power_per_thread.utid = webview_renderer_threads.utid
-INNER JOIN core_type_per_cpu
+JOIN core_type_per_cpu
   ON power_per_thread.cpu = core_type_per_cpu.cpu
 GROUP BY app_name, core_type_per_cpu.core_type;
 
@@ -149,7 +149,7 @@ SELECT
   app_name,
   SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
 FROM power_per_thread
-INNER JOIN host_app_threads
+JOIN host_app_threads
   ON power_per_thread.utid = host_app_threads.utid
 GROUP BY app_name;
 
@@ -163,9 +163,9 @@ SELECT
   core_type_per_cpu.core_type AS core_type,
   SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
 FROM power_per_thread
-INNER JOIN host_app_threads
+JOIN host_app_threads
   ON power_per_thread.utid = host_app_threads.utid
-INNER JOIN core_type_per_cpu
+JOIN core_type_per_cpu
   ON power_per_thread.cpu = core_type_per_cpu.cpu
 GROUP BY app_name, core_type_per_cpu.core_type;
 
@@ -190,7 +190,7 @@ SELECT
   app_name,
   SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
 FROM power_per_thread
-INNER JOIN webview_only_threads
+JOIN webview_only_threads
   ON power_per_thread.utid = webview_only_threads.utid
 GROUP BY app_name;
 
@@ -203,9 +203,9 @@ SELECT app_name,
   core_type_per_cpu.core_type AS core_type,
   SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
 FROM power_per_thread
-INNER JOIN webview_only_threads
+JOIN webview_only_threads
   ON power_per_thread.utid = webview_only_threads.utid
-INNER JOIN core_type_per_cpu
+JOIN core_type_per_cpu
   ON power_per_thread.cpu = core_type_per_cpu.cpu
 GROUP BY app_name, core_type_per_cpu.core_type;
 

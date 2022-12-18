@@ -37,7 +37,7 @@ SELECT
   long_eventlatency_slice.event_type,
   process_track.upid
 FROM long_eventlatency_slice
-INNER JOIN process_track
+JOIN process_track
   ON long_eventlatency_slice.track_id = process_track.id;
 
 -- Find the name and pid of the processes.
@@ -59,7 +59,7 @@ SELECT
     '') AS process_name,
   process.pid AS process_id
 FROM long_latency_with_upid
-INNER JOIN process
+JOIN process
   ON long_latency_with_upid.upid = process.upid
 GROUP BY ts, process.pid;
 

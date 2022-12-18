@@ -79,8 +79,8 @@ FROM (
     slice.thread_dur AS cpuDurNs,
     slice.*
   FROM slice
-  INNER JOIN thread_track ON slice.track_id = thread_track.id
-  INNER JOIN thread ON thread_track.utid = thread.id
+  JOIN thread_track ON slice.track_id = thread_track.id
+  JOIN thread ON thread_track.utid = thread.id
   WHERE
     slice.dur >= 0 AND (
       slice.name GLOB "V8.GC*" OR (slice.name GLOB "BlinkGC*" AND NOT forced)

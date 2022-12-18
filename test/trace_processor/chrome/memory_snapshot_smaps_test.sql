@@ -34,6 +34,6 @@ SELECT
   locked_kb,
   proportional_resident_kb
 FROM process
-INNER JOIN profiler_smaps smap ON process.upid = smap.upid
-INNER JOIN memory_snapshot ms ON ms.timestamp = smap.ts
+JOIN profiler_smaps smap ON process.upid = smap.upid
+JOIN memory_snapshot ms ON ms.timestamp = smap.ts
 LIMIT 20;
