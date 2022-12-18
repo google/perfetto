@@ -259,8 +259,6 @@ class FtraceParser {
   void ParseTrustyIpcRead(uint32_t pid, int64_t ts, protozero::ConstBytes);
   void ParseTrustyIpcReadEnd(uint32_t pid, int64_t ts, protozero::ConstBytes);
   void ParseTrustyIpcPoll(uint32_t pid, int64_t ts, protozero::ConstBytes);
-  void ParseTrustyIpcPollEnd(uint32_t pid, int64_t ts, protozero::ConstBytes);
-  void ParseTrustyIpcTx(uint32_t pid, int64_t ts, protozero::ConstBytes);
   void ParseTrustyIpcRx(uint32_t pid, int64_t ts, protozero::ConstBytes);
   void ParseTrustyEnqueueNop(uint32_t pid, int64_t ts, protozero::ConstBytes);
   void ParseMaliKcpuCqsSet(uint32_t pid, int64_t ts);
@@ -329,7 +327,6 @@ class FtraceParser {
   const StringId shrink_priority_id_;
   const StringId trusty_category_id_;
   const StringId trusty_name_trusty_std_id_;
-  const StringId trusty_name_tipc_tx_id_;
   const StringId trusty_name_tipc_rx_id_;
   const StringId cma_alloc_id_;
   const StringId cma_name_id_;

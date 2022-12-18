@@ -8420,7 +8420,6 @@ std::vector<Event> GetStaticEventInfo() {
        kUnsetFtraceId,
        458,
        kUnsetSize},
-      {"trusty_ipc_poll_end", "trusty", {}, kUnsetFtraceId, 459, kUnsetSize},
       {"trusty_ipc_read",
        "trusty",
        {
@@ -8472,7 +8471,6 @@ std::vector<Event> GetStaticEventInfo() {
        kUnsetFtraceId,
        462,
        kUnsetSize},
-      {"trusty_ipc_tx", "trusty", {}, kUnsetFtraceId, 463, kUnsetSize},
       {"trusty_enqueue_nop",
        "trusty",
        {
