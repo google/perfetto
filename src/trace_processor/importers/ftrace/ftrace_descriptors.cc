@@ -5068,13 +5068,7 @@ std::array<FtraceMessageDescriptor, 473> descriptors{{
             {"srv_name", ProtoSchemaType::kString},
         },
     },
-    {
-        "trusty_ipc_poll_end",
-        0,
-        {
-            {},
-        },
-    },
+    {nullptr, 0, {}},
     {
         "trusty_ipc_read",
         2,
@@ -5106,13 +5100,7 @@ std::array<FtraceMessageDescriptor, 473> descriptors{{
             {"srv_name", ProtoSchemaType::kString},
         },
     },
-    {
-        "trusty_ipc_tx",
-        0,
-        {
-            {},
-        },
-    },
+    {nullptr, 0, {}},
     {
         "trusty_enqueue_nop",
         3,
