@@ -462,3 +462,8 @@ trusty/trusty_enqueue_nop
 cma/cma_alloc_start
 cma/cma_alloc_info
 lwis/tracing_mark_write
+virtio_gpu/virtio_gpu_cmd_queue
+virtio_gpu/virtio_gpu_cmd_response
+mali/mali_KCPU_CQS_SET
+mali/mali_KCPU_CQS_WAIT_START
+mali/mali_KCPU_CQS_WAIT_END

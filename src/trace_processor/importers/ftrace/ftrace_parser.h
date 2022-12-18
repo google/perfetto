@@ -27,6 +27,7 @@
 #include "src/trace_processor/importers/ftrace/iostat_tracker.h"
 #include "src/trace_processor/importers/ftrace/rss_stat_tracker.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
+#include "src/trace_processor/importers/ftrace/virtio_gpu_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include <unordered_set>
@@ -262,11 +263,15 @@ class FtraceParser {
   void ParseTrustyIpcTx(uint32_t pid, int64_t ts, protozero::ConstBytes);
   void ParseTrustyIpcRx(uint32_t pid, int64_t ts, protozero::ConstBytes);
   void ParseTrustyEnqueueNop(uint32_t pid, int64_t ts, protozero::ConstBytes);
+  void ParseMaliKcpuCqsSet(uint32_t pid, int64_t ts);
+  void ParseMaliKcpuCqsWaitStart(uint32_t pid, int64_t ts);
+  void ParseMaliKcpuCqsWaitEnd(uint32_t pid, int64_t ts);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
   DrmTracker drm_tracker_;
   IostatTracker iostat_tracker_;
+  VirtioGpuTracker virtio_gpu_tracker_;
 
   const StringId sched_wakeup_name_id_;
   const StringId sched_waking_name_id_;
@@ -336,6 +341,9 @@ class FtraceParser {
   const StringId cma_nr_isolate_fail_id_;
   const StringId cma_nr_migrate_fail_id_;
   const StringId cma_nr_test_fail_id_;
+  const StringId mali_KCPU_CQS_SET_id_;
+  const StringId mali_KCPU_CQS_WAIT_START_id_;
+  const StringId mali_KCPU_CQS_WAIT_END_id_;
   const StringId syscall_ret_id_;
   const StringId syscall_args_id_;
   std::vector<StringId> syscall_arg_name_ids_;

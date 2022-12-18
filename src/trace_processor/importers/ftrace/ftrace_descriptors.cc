@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 468> descriptors{{
+std::array<FtraceMessageDescriptor, 473> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5160,6 +5160,74 @@ std::array<FtraceMessageDescriptor, 468> descriptors{{
             {"pid", ProtoSchemaType::kInt32},
             {"func_name", ProtoSchemaType::kString},
             {"value", ProtoSchemaType::kInt64},
+        },
+    },
+    {
+        "virtio_gpu_cmd_queue",
+        9,
+        {
+            {},
+            {"ctx_id", ProtoSchemaType::kUint32},
+            {"dev", ProtoSchemaType::kInt32},
+            {"fence_id", ProtoSchemaType::kUint64},
+            {"flags", ProtoSchemaType::kUint32},
+            {"name", ProtoSchemaType::kString},
+            {"num_free", ProtoSchemaType::kUint32},
+            {"seqno", ProtoSchemaType::kUint32},
+            {"type", ProtoSchemaType::kUint32},
+            {"vq", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "virtio_gpu_cmd_response",
+        9,
+        {
+            {},
+            {"ctx_id", ProtoSchemaType::kUint32},
+            {"dev", ProtoSchemaType::kInt32},
+            {"fence_id", ProtoSchemaType::kUint64},
+            {"flags", ProtoSchemaType::kUint32},
+            {"name", ProtoSchemaType::kString},
+            {"num_free", ProtoSchemaType::kUint32},
+            {"seqno", ProtoSchemaType::kUint32},
+            {"type", ProtoSchemaType::kUint32},
+            {"vq", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "mali_mali_KCPU_CQS_SET",
+        5,
+        {
+            {},
+            {"id", ProtoSchemaType::kUint32},
+            {"info_val1", ProtoSchemaType::kUint64},
+            {"info_val2", ProtoSchemaType::kUint64},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "mali_mali_KCPU_CQS_WAIT_START",
+        5,
+        {
+            {},
+            {"id", ProtoSchemaType::kUint32},
+            {"info_val1", ProtoSchemaType::kUint64},
+            {"info_val2", ProtoSchemaType::kUint64},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "mali_mali_KCPU_CQS_WAIT_END",
+        5,
+        {
+            {},
+            {"id", ProtoSchemaType::kUint32},
+            {"info_val1", ProtoSchemaType::kUint64},
+            {"info_val2", ProtoSchemaType::kUint64},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
         },
     },
 }};

@@ -75,6 +75,7 @@ import "protos/perfetto/trace/ftrace/thermal.proto";
 import "protos/perfetto/trace/ftrace/trusty.proto";
 import "protos/perfetto/trace/ftrace/ufs.proto";
 import "protos/perfetto/trace/ftrace/v4l2.proto";
+import "protos/perfetto/trace/ftrace/virtio_gpu.proto";
 import "protos/perfetto/trace/ftrace/virtio_video.proto";
 import "protos/perfetto/trace/ftrace/vmscan.proto";
 import "protos/perfetto/trace/ftrace/workqueue.proto";
@@ -576,5 +577,10 @@ message FtraceEvent {
     CmaAllocStartFtraceEvent cma_alloc_start = 465;
     CmaAllocInfoFtraceEvent cma_alloc_info = 466;
     LwisTracingMarkWriteFtraceEvent lwis_tracing_mark_write = 467;
+    VirtioGpuCmdQueueFtraceEvent virtio_gpu_cmd_queue = 468;
+    VirtioGpuCmdResponseFtraceEvent virtio_gpu_cmd_response = 469;
+    MaliMaliKCPUCQSSETFtraceEvent mali_mali_KCPU_CQS_SET = 470;
+    MaliMaliKCPUCQSWAITSTARTFtraceEvent mali_mali_KCPU_CQS_WAIT_START = 471;
+    MaliMaliKCPUCQSWAITENDFtraceEvent mali_mali_KCPU_CQS_WAIT_END = 472;
   }
 }
