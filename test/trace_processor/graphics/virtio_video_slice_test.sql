@@ -15,4 +15,4 @@
 --
 SELECT slice.ts, slice.dur, slice.name, track.name
 FROM slice
-INNER JOIN track ON slice.track_id = track.id;
+JOIN track ON slice.track_id = track.id;

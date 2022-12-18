@@ -15,7 +15,7 @@
 --
 SELECT ts
 FROM sched
-INNER JOIN thread USING(utid)
+JOIN thread USING(utid)
 WHERE tid = 23850
 ORDER BY ts DESC
 LIMIT 10;

@@ -21,7 +21,7 @@ SELECT
   name AS freq_name,
   value AS freq_value
 FROM counter
-INNER JOIN cpu_counter_track
+JOIN cpu_counter_track
   ON counter.track_id = cpu_counter_track.id
 WHERE name = 'cpufreq';
 
@@ -33,7 +33,7 @@ AS SELECT
   name AS idle_name,
   value AS idle_value
 FROM counter
-INNER JOIN cpu_counter_track
+JOIN cpu_counter_track
   ON counter.track_id = cpu_counter_track.id
 WHERE name = 'cpuidle';
 
