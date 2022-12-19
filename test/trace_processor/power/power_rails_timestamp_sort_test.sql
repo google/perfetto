@@ -14,6 +14,6 @@
 -- limitations under the License.
 --
 SELECT ts, value, t.name AS name
-FROM counter c INNER JOIN counter_track t ON t.id = c.track_id
+FROM counter c JOIN counter_track t ON t.id = c.track_id
 ORDER BY ts
 LIMIT 20;

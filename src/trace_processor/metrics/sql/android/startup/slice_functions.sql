@@ -172,9 +172,9 @@ SELECT CREATE_FUNCTION(
     SELECT EXISTS(
       SELECT slice.name
       FROM slice, android_startups launches
-      INNER JOIN thread_track ON slice.track_id = thread_track.id
-      INNER JOIN thread USING(utid)
-      INNER JOIN process USING(upid)
+      JOIN thread_track ON slice.track_id = thread_track.id
+      JOIN thread USING(utid)
+      JOIN process USING(upid)
       WHERE launches.startup_id = $startup_id
       AND slice.name = "KeyguardUpdateMonitor#onAuthenticationSucceeded"
       AND process.name = "com.android.systemui"

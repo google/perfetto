@@ -73,7 +73,6 @@ message TrustyIpcPollFtraceEvent {
   optional uint32 poll_mask = 2;
   optional string srv_name = 3;
 }
-message TrustyIpcPollEndFtraceEvent {}
 message TrustyIpcReadFtraceEvent {
   optional uint32 chan = 1;
   optional string srv_name = 2;
@@ -90,7 +89,6 @@ message TrustyIpcRxFtraceEvent {
   optional uint32 chan = 2;
   optional string srv_name = 3;
 }
-message TrustyIpcTxFtraceEvent {}
 message TrustyEnqueueNopFtraceEvent {
   optional uint32 arg1 = 1;
   optional uint32 arg2 = 2;
