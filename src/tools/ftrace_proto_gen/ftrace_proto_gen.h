@@ -29,9 +29,7 @@
 
 namespace perfetto {
 
-bool GenerateProto(const std::string& group,
-                   const FtraceEvent& format,
-                   Proto* proto_out);
+std::vector<Proto::Field> ToProtoFields(const FtraceEvent& format);
 
 std::string EventNameToProtoName(const std::string& group,
                                  const std::string& name);
