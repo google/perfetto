@@ -189,13 +189,8 @@ int main(int argc, char** argv) {
           return 1;
         }
 
-        perfetto::Proto event_proto;
-        if (!perfetto::GenerateProto(group, format, &event_proto)) {
-          fprintf(stderr, "Could not generate proto for file %s\n",
-                  input_path.c_str());
-          return 1;
-        }
-        proto.MergeFrom(event_proto);
+        auto proto_fields = perfetto::ToProtoFields(format);
+        proto.UnionFields(proto_fields);
       }
 
       uint32_t i = 0;
