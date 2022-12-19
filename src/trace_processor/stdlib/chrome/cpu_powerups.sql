@@ -29,7 +29,6 @@
 
 -- The CPU power transitions in the trace.
 --
--- Schema:
 -- @column ts            The timestamp at the start of the slice.
 -- @column dur           The duration of the slice.
 -- @column cpu           The CPU on which the transition occurred
@@ -105,7 +104,6 @@ USING
 -- The Linux scheduler slices that executed immediately after a
 -- CPU power up.
 --
--- Schema:
 -- @column ts          The timestamp at the start of the slice.
 -- @column dur         The duration of the slice.
 -- @column cpu         The cpu on which the slice executed.
@@ -133,7 +131,6 @@ CREATE TABLE chrome_cpu_power_first_sched_slice_after_powerup AS
 -- This view is intended to be intersected by time with the scheduler
 -- slices scheduled after a CPU power up.
 --
--- Schema:
 --   utid      Thread unique id.
 --   slice_id  The slice_id for the top-level slice.
 --   ts        Starting timestamp for the slice.
@@ -153,7 +150,6 @@ CREATE VIEW internal_cpu_power_thread_and_toplevel_slice AS
 -- A table holding the slices that executed within the scheduler
 -- slice that ran on a CPU immediately after power-up.
 --
--- Schema:
 -- @column  ts        Timestamp of the resulting slice
 -- @column dur        Duration of the slice.
 -- @column cpu        The CPU the sched slice ran on.
@@ -170,7 +166,6 @@ USING
 
 -- The first top-level slice that ran after a CPU power-up.
 --
--- Schema:
 -- @column slice_id              ID of the slice in the slice table.
 -- @column previous_power_state  The power state of the CPU prior to power-up.
 CREATE VIEW chrome_cpu_power_first_toplevel_slice_after_powerup AS
