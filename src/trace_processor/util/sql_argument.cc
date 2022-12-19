@@ -97,8 +97,10 @@ SqlValue::Type TypeToSqlValueType(sql_argument::Type type) {
 
 base::Status ParseArgumentDefinitions(const std::string& args,
                                       std::vector<ArgumentDefinition>& out) {
-  for (const auto& arg : base::SplitString(args, ",")) {
-    const auto& arg_name_and_type = base::SplitString(arg, " ");
+  std::string trimmed_args = base::TrimWhitespace(args);
+  for (const auto& arg : base::SplitString(trimmed_args, ",")) {
+    const auto& arg_name_and_type =
+        (base::SplitString(base::TrimWhitespace(arg), " "));
     if (arg_name_and_type.size() != 2) {
       return base::ErrStatus(
           "argument '%s' in function prototype should be of the form `name "
