@@ -356,10 +356,7 @@ def main():
   # Add documentation from each file
   for path, sql in sql_outputs.items():
     module_name = path.split("/")[0]
-
     import_key = path.split(".sql")[0].replace("/", ".")
-    if module_name == 'common':
-      import_key = import_key.split(".", 1)[-1]
 
     docs = parse_file(sql)
     if not any(docs.values()):
