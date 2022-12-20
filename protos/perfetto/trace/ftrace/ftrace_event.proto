@@ -582,5 +582,8 @@ message FtraceEvent {
     MaliMaliKCPUCQSSETFtraceEvent mali_mali_KCPU_CQS_SET = 470;
     MaliMaliKCPUCQSWAITSTARTFtraceEvent mali_mali_KCPU_CQS_WAIT_START = 471;
     MaliMaliKCPUCQSWAITENDFtraceEvent mali_mali_KCPU_CQS_WAIT_END = 472;
+    MaliMaliKCPUFENCESIGNALFtraceEvent mali_mali_KCPU_FENCE_SIGNAL = 473;
+    MaliMaliKCPUFENCEWAITSTARTFtraceEvent mali_mali_KCPU_FENCE_WAIT_START = 474;
+    MaliMaliKCPUFENCEWAITENDFtraceEvent mali_mali_KCPU_FENCE_WAIT_END = 475;
   }
 }
