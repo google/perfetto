@@ -41,6 +41,8 @@ source_set("full") {
     "ftrace_tokenizer.h",
     "iostat_tracker.cc",
     "iostat_tracker.h",
+    "mali_gpu_event_tracker.cc",
+    "mali_gpu_event_tracker.h",
     "rss_stat_tracker.cc",
     "rss_stat_tracker.h",
     "sched_event_tracker.cc",
