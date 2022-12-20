@@ -85,7 +85,7 @@ struct Proto {
   std::map<std::string, Field> fields;
 
   std::string ToString();
-  void MergeFrom(const Proto& other);
+  void UnionFields(const std::vector<Proto::Field>& candidate_fields);
   void AddField(Proto::Field field);
   std::vector<const Field*> SortedFields();
   uint32_t max_id = 0;

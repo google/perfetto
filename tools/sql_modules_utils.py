@@ -18,7 +18,7 @@ import re
 
 LOWER_NAME = r'[a-z_\d]*'
 UPPER_NAME = r'[A-Z_\d]*'
-ANY_WORDS = r'[A-Za-z_\d, ]*'
+ANY_WORDS = r'[A-Za-z_\d, \n]*'
 TYPE = r'[A-Z]*'
 SQL = r'[\s\S]*?'
 
@@ -34,7 +34,7 @@ def create_table_view_pattern() -> str:
 def create_function_pattern() -> str:
   return (r"SELECT\s*CREATE_FUNCTION\(\s*"
           # Function name: we are matching everything [A-Z]* between ' and ).
-          fr"'({UPPER_NAME})\s*\("
+          fr"'\s*({UPPER_NAME})\s*\("
           # Args: anything before closing bracket with '.
           fr"({ANY_WORDS})\)',\s*"
           # Type: [A-Z]* between two '.
@@ -50,7 +50,7 @@ def create_view_function_pattern() -> str:
           # Args: anything before closing bracket with '.
           fr"({ANY_WORDS})\)',\s*"
           # Return columns: anything between two '.
-          fr"'({ANY_WORDS})',\s*"
+          fr"'\s*({ANY_WORDS})',\s*"
           # Sql: Anything between ' and ');. We are catching \'.
           fr"'({SQL})'\s*\);")
 
