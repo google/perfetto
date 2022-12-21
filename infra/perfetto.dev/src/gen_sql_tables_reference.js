@@ -192,14 +192,18 @@ function parseTablesInJson(filePath) {
 
 function overrideCppTablesWithJsonTables(cpp, json) {
   const out = [];
-  var jsonLookup = new Map(json.map(i => [i.name, i]));
+  const jsonAdded = new Set();
+  for (const table of json) {
+    out.push(table);
+    jsonAdded.add(table.name);
+  }
   for (const table of cpp) {
-    const jsonTable = jsonLookup.get(table.name);
-    out.push(jsonTable === undefined ? table : jsonTable);
+    if (!jsonAdded.has(table.name)) {
+      out.push(table);
+    }
   }
   return out;
 }
-
 
 function genLink(table) {
   return `[${table.name}](#${table.name})`;
