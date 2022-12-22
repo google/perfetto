@@ -131,7 +131,9 @@ java_slices_with_trimmed_names AS (
       ".Measure", "") AS name
   FROM
     {{slice_table_name}} s1
-  WHERE category GLOB "*Java*" AND dur > 0
+  -- Ensure that toplevel Java slices are not included, as they may be logged
+  -- with either category = "toplevel" or category = "toplevel,Java".
+  WHERE category GLOB "*Java*" AND category not GLOB "*toplevel*" AND dur > 0
 ),
 -- We filter out generic slices from various UI frameworks which don't tell us much about
 -- what exactly this view is doing.
@@ -239,22 +241,25 @@ CREATE TABLE chrome_tasks_internal AS
 WITH
 -- Select slices from "toplevel" category which do not have another
 -- "toplevel" slice as ancestor. The possible cases include sync mojo messages
--- and tasks in nested runloops.
+-- and tasks in nested runloops. Toplevel events may also be logged as with
+-- the Java category.
 non_embedded_toplevel_slices AS (
   SELECT * FROM {{slice_table_name}} s
   WHERE
-    category IN ("toplevel", "toplevel,viz")
+    category IN ("toplevel", "toplevel,viz", "toplevel,Java")
     AND (SELECT count() FROM ancestor_slice(s.id) s2
       WHERE s2.category GLOB "*toplevel*" or s2.category GLOB "*toplevel.viz*") = 0
 ),
 -- Select slices from "Java" category which do not have another "Java" or
 -- "toplevel" slice as parent. In the longer term they should probably belong
--- to "toplevel" category as well, but for now this will have to do.
+-- to "toplevel" category as well, but for now this will have to do. Ensure
+-- that "Java" slices do not include "toplevel" slices as those would be
+-- handled elsewhere.
 non_embedded_java_slices AS (
   SELECT name AS full_name, "java" AS task_type, id
   FROM {{slice_table_name}} s
   WHERE
-    category GLOB "*Java*"
+    category GLOB "*Java*" and category not GLOB "*toplevel*"
     AND (SELECT count()
       FROM ancestor_slice(s.id) s2
       WHERE s2.category GLOB "*toplevel*" OR s2.category GLOB "*Java*") = 0
