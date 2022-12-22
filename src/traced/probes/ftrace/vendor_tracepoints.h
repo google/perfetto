@@ -31,7 +31,7 @@ namespace vendor_tracepoints {
 
 // Path to the vendor categories file in Android (since Android 14).
 constexpr const char* kCategoriesFile =
-    "/vendor/etc/atrace/atrace_categories.pb";
+    "/vendor/etc/atrace/atrace_categories.txt";
 
 // Returns a map from vendor category to events we should enable. Queries the
 // atrace HAL.
