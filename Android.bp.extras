@@ -131,11 +131,6 @@ filegroup {
     path: "python",
 }
 
-filegroup {
-    name: "perfetto-atrace-categories-proto",
-    srcs: ["protos/perfetto/android_vendor/atrace_categories.proto"],
-}
-
 // Added automatically by a large-scale-change that took the approach of
 // 'apply every license found to every target'. While this makes sure we respect
 // every license restriction, it may not be entirely correct.
