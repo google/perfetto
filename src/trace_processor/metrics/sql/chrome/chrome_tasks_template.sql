@@ -42,6 +42,64 @@ SELECT CREATE_FUNCTION(
   '
 );
 
+-- Selects the ScheduledActionSendBeginMainFrame slices, used for root-level
+-- processing. In top-level/Java based slices, these will correspond with the
+-- ancestor of descendant slices; in long-task tracking, these tasks will be
+-- on a custom track and will need to be associated with children by timestamp
+-- and duration. Corresponds with the Choreographer root slices in
+-- chrome_choreographer_tasks below.
+--
+-- Schema:
+-- @column is            The slice id.
+-- @column kind          The type of Java slice.
+-- @column ts            The timestamp of the slice.
+-- @column name          The name of the slice.
+--
+-- Power states are encoded as non-negative integers, with zero representing
+-- full-power operation and positive values representing increasingly deep
+-- sleep states.
+SELECT CREATE_VIEW_FUNCTION(
+  'SELECT_BEGIN_MAIN_FRAME_JAVA_SLICES(name STRING)',
+  'id INT, kind STRING, ts LONG, dur LONG, name STRING',
+  'SELECT
+      id,
+      "SingleThreadProxy::BeginMainFrame" AS kind,
+      ts,
+      dur,
+      name
+    FROM slice
+    WHERE
+      (name = $name
+        AND EXTRACT_ARG(arg_set_id, "task.posted_from.file_name") = "cc/trees/single_thread_proxy.cc"
+        AND EXTRACT_ARG(arg_set_id, "task.posted_from.function_name") = "ScheduledActionSendBeginMainFrame")
+  '
+);
+
+SELECT CREATE_FUNCTION(
+  -- Function prototype: takes a formatted chrome scheduler task name and
+  -- returns a readable task name.
+  '{{function_prefix}}HUMAN_READABLE_NAVIGATION_TASK_NAME(full_name STRING)',
+  'STRING',
+  'SELECT
+    CASE
+      WHEN $full_name = "content.mojom.FrameHost message (hash=2168461044)" THEN "FrameHost::BeginNavigation"
+      WHEN $full_name = "content.mojom.FrameHost message (hash=3561497419)" THEN "FrameHost::DidCommitProvisionalLoad"
+      WHEN $full_name = "content.mojom.FrameHost message (hash=1421450774)" THEN "FrameHost::DidCommitSameDocumentNavigation"
+      WHEN $full_name = "content.mojom.FrameHost message (hash=368650583)" THEN "FrameHost::DidStopLoading"
+    END
+  '
+);
+
+SELECT CREATE_FUNCTION(
+  -- Function prototype: takes a task name and formats it correctly for
+  -- scheduler tasks.
+  '{{function_prefix}}FORMAT_SCHEDULER_TASK_NAME(full_name STRING)',
+  'STRING',
+  'SELECT
+    printf("RunTask(posted_from=%s)", $full_name)
+  '
+);
+
 -- Create |chrome_mojo_slices_tbl| table, containing a subset of slice
 -- table with the slices corresponding to mojo messages.
 --
@@ -128,20 +186,22 @@ java_slices_with_trimmed_names AS (
             ".onLayout", ""),
           ".onMeasure", ""),
         ".Layout", ""),
-      ".Measure", "") AS name
-  FROM
-    {{slice_table_name}} s1
-  -- Ensure that toplevel Java slices are not included, as they may be logged
-  -- with either category = "toplevel" or category = "toplevel,Java".
-  WHERE category GLOB "*Java*" AND category not GLOB "*toplevel*" AND dur > 0
-),
--- We filter out generic slices from various UI frameworks which don't tell us much about
--- what exactly this view is doing.
-interesting_java_slices AS (
-  SELECT
-    id, name
-  FROM java_slices_with_trimmed_names
-  WHERE NOT name IN (
+      ".Measure", "") AS name,
+      ts,
+      dur
+    FROM
+      {{slice_table_name}} s1
+    -- Ensure that toplevel Java slices are not included, as they may be logged
+    -- with either category = "toplevel" or category = "toplevel,Java".
+    WHERE category GLOB "*Java*" AND category not GLOB "*toplevel*" AND dur > 0
+  ),
+  -- We filter out generic slices from various UI frameworks which don't tell us much about
+  -- what exactly this view is doing.
+  interesting_java_slices AS (
+    SELECT
+      id, name, ts, dur
+    FROM java_slices_with_trimmed_names
+    WHERE NOT name IN (
       -- AndroidX.
       "FitWindowsFrameLayout",
       "FitWindowsLinearLayout",
@@ -197,34 +257,39 @@ SELECT
 FROM chrome_java_views_internal s1
 JOIN {{slice_table_name}} s2 USING (id);
 
+DROP VIEW IF EXISTS chrome_choreographer_tasks;
+CREATE VIEW chrome_choreographer_tasks
+AS
+SELECT
+  id,
+  "Choreographer" AS kind,
+  ts,
+  dur,
+  name
+FROM slice
+WHERE
+  name GLOB "Looper.dispatch: android.view.Choreographer$FrameHandler*";
+
 -- Most of java views will be triggered either by Chrome's BeginMainFrame
 -- or by Android's Choreographer.
 DROP VIEW IF EXISTS chrome_slices_with_java_views_internal;
 CREATE VIEW chrome_slices_with_java_views_internal AS
 WITH
--- Select UI thread BeginMainFrames and Choreographer frames.
-root_slices AS (
-  SELECT
-    id,
-    (CASE name
-        WHEN 'ThreadControllerImpl::RunTask' THEN 'SingleThreadProxy::BeginMainFrame'
-        ELSE 'Choreographer'
-      END) AS kind
-  FROM {{slice_table_name}}
-  WHERE
-    (name GLOB 'Looper.dispatch: android.view.Choreographer$FrameHandler*')
-    OR (name = 'ThreadControllerImpl::RunTask'
-      AND EXTRACT_ARG(arg_set_id, 'task.posted_from.file_name') = 'cc/trees/single_thread_proxy.cc'
-      AND EXTRACT_ARG(arg_set_id, 'task.posted_from.function_name') = 'ScheduledActionSendBeginMainFrame')
-),
--- Intermediate step to allow us to sort java view names.
-root_slice_and_java_view_not_grouped AS (
-  SELECT
-    s1.id, s1.kind, s3.name AS java_view_name
-  FROM root_slices s1
-  JOIN descendant_slice(s1.id) s2
-  JOIN chrome_java_views_internal s3 ON s2.id = s3.id
-)
+  -- Select UI thread BeginMainFrames and Choreographer frames.
+  root_slices AS (
+    SELECT *
+    FROM SELECT_BEGIN_MAIN_FRAME_JAVA_SLICES('ThreadControllerImpl::RunTask')
+    UNION ALL
+    SELECT * FROM chrome_choreographer_tasks
+  ),
+  -- Intermediate step to allow us to sort java view names.
+  root_slice_and_java_view_not_grouped AS (
+    SELECT
+      s1.id, s1.kind, s3.name AS java_view_name
+    FROM root_slices s1
+    JOIN descendant_slice(s1.id) s2
+    JOIN chrome_java_views_internal s3 ON s2.id = s3.id
+  )
 SELECT
   s1.id,
   s1.kind,
@@ -290,7 +355,7 @@ scheduler_tasks AS (
 -- Generate full names for scheduler tasks.
 scheduler_tasks_with_full_names AS (
   SELECT
-    printf("RunTask(posted_from=%s)", s.posted_from) AS full_name,
+    {{function_prefix}}FORMAT_SCHEDULER_TASK_NAME(s.posted_from) AS full_name,
     "scheduler" AS task_type,
     s.id
   FROM scheduler_tasks s
@@ -338,21 +403,13 @@ scheduler_tasks_with_mojo AS (
 navigation_tasks AS (
   SELECT
     printf("%s (%s)",
-      CASE
-        WHEN full_name = 'content.mojom.FrameHost message (hash=2168461044)' THEN 'FrameHost::BeginNavigation'
-        WHEN full_name = 'content.mojom.FrameHost message (hash=3561497419)' THEN 'FrameHost::DidCommitProvisionalLoad'
-        WHEN full_name = 'content.mojom.FrameHost message (hash=1421450774)' THEN 'FrameHost::DidCommitSameDocumentNavigation'
-        WHEN full_name = 'content.mojom.FrameHost message (hash=368650583)' THEN 'FrameHost::DidStopLoading'
-      END,
+      {{function_prefix}}HUMAN_READABLE_NAVIGATION_TASK_NAME(full_name),
       IFNULL({{function_prefix}}EXTRACT_FRAME_TYPE(id), 'unknown frame type')) AS full_name,
     'navigation_task' AS task_type,
     id
   FROM (
     SELECT * FROM scheduler_tasks_with_mojo
-    WHERE full_name IN ('content.mojom.FrameHost message (hash=2168461044)',
-      'content.mojom.FrameHost message (hash=3561497419)',
-      'content.mojom.FrameHost message (hash=1421450774)',
-      'content.mojom.FrameHost message (hash=368650583)')
+    WHERE {{function_prefix}}HUMAN_READABLE_NAVIGATION_TASK_NAME(full_name) IS NOT NULL
     )
 ),
 -- Add scheduler and mojo full names to non-embedded slices from
