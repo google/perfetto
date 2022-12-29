@@ -74,3 +74,4 @@ virtio_gpu.textproto virtio_gpu_test.sql virtio_gpu_test.out
 
 # mali GPU events
 mali.textproto mali_test.sql mali_test.out
+mali_fence.textproto mali_fence_test.sql mali_fence_test.out
