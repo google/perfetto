@@ -135,6 +135,26 @@ describe('chrome_rendering_desktop', () => {
   });
 });
 
+// Tests that chrome traces with missing process/thread names still open
+// correctly in the UI.
+describe('chrome_missing_track_names', () => {
+  let page: puppeteer.Page;
+
+  beforeAll(async () => {
+    page = await getPage();
+    await page.goto('http://localhost:10000/?testing=1');
+    await waitForPerfettoIdle(page);
+  });
+
+  test('load', async () => {
+    const page = await getPage();
+    const file = await page.waitForSelector('input.trace_file');
+    const tracePath = getTestTracePath('chrome_missing_track_names.pb.gz');
+    assertExists(file).uploadFile(tracePath);
+    await waitForPerfettoIdle(page);
+  });
+});
+
 describe('routing', () => {
   describe('open_two_traces_then_go_back', () => {
     let page: puppeteer.Page;

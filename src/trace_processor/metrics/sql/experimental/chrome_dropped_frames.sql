@@ -75,7 +75,7 @@ GROUP BY ts
 UNION ALL
 SELECT
   'slice' AS track_type,
-  process_name || ' ' || process_id AS track_name,
+  COALESCE(process_name, 'Process') || ' ' || process_id AS track_name,
   ts,
   0 AS dur,
   'Dropped Frame' AS slice_name,
