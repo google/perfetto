@@ -439,6 +439,12 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         InsertEvent("thermal", "cdev_update", &events);
         continue;
       }
+
+      if (category == "camera") {
+        AddEventGroup(table, "lwis", &events);
+        InsertEvent("lwis", "tracing_mark_write", &events);
+        continue;
+      }
     }
   }
 
