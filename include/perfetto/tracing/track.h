@@ -193,7 +193,7 @@ struct PERFETTO_EXPORT_COMPONENT ThreadTrack : public Track {
 // A track for recording counter values with the TRACE_COUNTER macro. Counter
 // tracks can optionally be given units and other metadata. See
 // /protos/perfetto/trace/track_event/counter_descriptor.proto for details.
-class CounterTrack : public Track {
+class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
   // A random value mixed into counter track uuids to avoid collisions with
   // other types of tracks.
   static constexpr uint64_t kCounterMagic = 0xb1a4a67d7970839eul;
