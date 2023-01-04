@@ -55,7 +55,6 @@ perfetto_proto_library("@TYPE@") {
     "simpleperf.proto",
     "startup_metric.proto",
     "surfaceflinger.proto",
-    "sysui_cuj_metrics.proto",
     "task_names.proto",
     "thread_time_in_state_metric.proto",
     "trace_quality.proto",
