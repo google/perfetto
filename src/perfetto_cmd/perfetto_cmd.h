@@ -137,6 +137,7 @@ class PerfettoCmd : public Consumer {
   std::vector<std::string> triggers_to_activate_;
   std::string trace_out_path_;
   base::EventFd ctrl_c_evt_;
+  bool ctrl_c_handler_installed_ = false;
   base::Pipe background_wait_pipe_;
   bool save_to_incidentd_ = false;
   bool report_to_android_framework_ = false;
