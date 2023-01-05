@@ -24,7 +24,7 @@ namespace base {
 // On Windows: installs a SetConsoleCtrlHandler() handler.
 // The passed handler must be async safe.
 using CtrlCHandlerFunction = void (*)();
-void InstallCtrCHandler(CtrlCHandlerFunction);
+void InstallCtrlCHandler(CtrlCHandlerFunction);
 
 }  // namespace base
 }  // namespace perfetto
