@@ -452,7 +452,7 @@ void StressTestMain(int argc, char** argv) {
   }
 
   g_sig = new SigHandlerCtx();
-  base::InstallCtrCHandler(&CtrlCHandler);
+  base::InstallCtrlCHandler(&CtrlCHandler);
 
   for (size_t i = 0; i < base::ArraySize(kStressTestConfigs) && !g_sig->aborted;
        ++i) {
