@@ -46,8 +46,8 @@ struct ParseFieldResult {
 
 // Parses one field and returns the field itself and a pointer to the next
 // field to parse. If parsing fails, the returned |next| == |buffer|.
-PERFETTO_ALWAYS_INLINE ParseFieldResult
-ParseOneField(const uint8_t* const buffer, const uint8_t* const end) {
+ParseFieldResult ParseOneField(const uint8_t* const buffer,
+                               const uint8_t* const end) {
   ParseFieldResult res{ParseFieldResult::kAbort, buffer, Field{}};
 
   // The first byte of a proto field is structured as follows:
@@ -172,7 +172,6 @@ Field ProtoDecoder::FindField(uint32_t field_id) {
   return res;
 }
 
-PERFETTO_ALWAYS_INLINE
 Field ProtoDecoder::ReadField() {
   ParseFieldResult res;
   do {
