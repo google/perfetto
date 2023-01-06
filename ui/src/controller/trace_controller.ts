@@ -113,7 +113,6 @@ const METRICS = [
   'android_dma_heap',
   'android_surfaceflinger',
   'android_batt',
-  'android_sysui_cuj',
   'android_camera',
   'android_other_traces',
   'chrome_dropped_frames',
@@ -176,15 +175,15 @@ function showJsonWarning() {
   showModal({
     title: 'Warning',
     content:
-        m('div',
-          m('span',
-            'Perfetto UI features are limited for JSON traces. ',
-            'We recommend recording ',
-            m('a',
-              {href: 'https://perfetto.dev/docs/quickstart/chrome-tracing'},
-              'proto-format traces'),
-            ' from Chrome.'),
-          m('br')),
+      m('div',
+        m('span',
+          'Perfetto UI features are limited for JSON traces. ',
+          'We recommend recording ',
+          m('a',
+            {href: 'https://perfetto.dev/docs/quickstart/chrome-tracing'},
+            'proto-format traces'),
+          ' from Chrome.'),
+        m('br')),
     buttons: [],
   });
 }
@@ -207,17 +206,17 @@ export class TraceController extends Controller<States> {
     switch (this.state) {
       case 'init':
         this.loadTrace()
-            .then((mode) => {
-              globals.dispatch(Actions.setEngineReady({
-                engineId: this.engineId,
-                ready: true,
-                mode,
-              }));
-            })
-            .catch((err) => {
-              this.updateStatus(`${err}`);
-              throw err;
-            });
+          .then((mode) => {
+            globals.dispatch(Actions.setEngineReady({
+              engineId: this.engineId,
+              ready: true,
+              mode,
+            }));
+          })
+          .catch((err) => {
+            this.updateStatus(`${err}`);
+            throw err;
+          });
         this.updateStatus('Opening trace');
         this.setState('loading_trace');
         break;
@@ -261,7 +260,7 @@ export class TraceController extends Controller<States> {
 
         for (const argName of globals.state.visualisedArgs) {
           childControllers.push(
-              Child(argName, VisualisedArgController, {argName, engine}));
+            Child(argName, VisualisedArgController, {argName, engine}));
         }
 
         const selectionArgs: SelectionControllerArgs = {engine};
@@ -280,47 +279,47 @@ export class TraceController extends Controller<States> {
         childControllers.push(
           Child('flamegraph', FlamegraphController, flamegraphArgs));
         childControllers.push(Child(
-            'cpu_aggregation',
-            CpuAggregationController,
-            {engine, kind: 'cpu_aggregation'}));
+          'cpu_aggregation',
+          CpuAggregationController,
+          {engine, kind: 'cpu_aggregation'}));
         childControllers.push(Child(
-            'thread_aggregation',
-            ThreadAggregationController,
-            {engine, kind: 'thread_state_aggregation'}));
+          'thread_aggregation',
+          ThreadAggregationController,
+          {engine, kind: 'thread_state_aggregation'}));
         childControllers.push(Child(
-            'cpu_process_aggregation',
-            CpuByProcessAggregationController,
-            {engine, kind: 'cpu_by_process_aggregation'}));
+          'cpu_process_aggregation',
+          CpuByProcessAggregationController,
+          {engine, kind: 'cpu_by_process_aggregation'}));
         if (!PIVOT_TABLE_REDUX_FLAG.get()) {
           // Pivot table is supposed to handle the use cases the slice
           // aggregation panel is used right now. When a flag to use pivot
           // tables is enabled, do not add slice aggregation controller.
           childControllers.push(Child(
-              'slice_aggregation',
-              SliceAggregationController,
-              {engine, kind: 'slice_aggregation'}));
+            'slice_aggregation',
+            SliceAggregationController,
+            {engine, kind: 'slice_aggregation'}));
         }
         childControllers.push(Child(
-            'counter_aggregation',
-            CounterAggregationController,
-            {engine, kind: 'counter_aggregation'}));
+          'counter_aggregation',
+          CounterAggregationController,
+          {engine, kind: 'counter_aggregation'}));
         childControllers.push(Child(
-            'frame_aggregation',
-            FrameAggregationController,
-            {engine, kind: 'frame_aggregation'}));
+          'frame_aggregation',
+          FrameAggregationController,
+          {engine, kind: 'frame_aggregation'}));
         childControllers.push(Child('search', SearchController, {
           engine,
           app: globals,
         }));
         childControllers.push(
-            Child('pivot_table_redux', PivotTableReduxController, {engine}));
+          Child('pivot_table_redux', PivotTableReduxController, {engine}));
 
         childControllers.push(Child('logs', LogsController, {
           engine,
           app: globals,
         }));
         childControllers.push(
-            Child('traceError', TraceErrorController, {engine}));
+          Child('traceError', TraceErrorController, {engine}));
         childControllers.push(Child('metrics', MetricsController, {engine}));
 
         return childControllers;
@@ -351,7 +350,7 @@ export class TraceController extends Controller<States> {
       engine = new HttpRpcEngine(this.engineId, LoadingManager.getInstance);
       engine.errorHandler = (err) => {
         globals.dispatch(
-            Actions.setEngineFailed({mode: 'HTTP_RPC', failure: `${err}`}));
+          Actions.setEngineFailed({mode: 'HTTP_RPC', failure: `${err}`}));
         throw err;
       };
     } else {
@@ -370,10 +369,10 @@ export class TraceController extends Controller<States> {
 
     if (isMetatracingEnabled()) {
       this.engine.enableMetatrace(
-          assertExists(getEnabledMetatracingCategories()));
+        assertExists(getEnabledMetatracingCategories()));
     }
     frontendGlobals.bottomTabList =
-        new BottomTabList(engine.getProxy('BottomTabList'));
+      new BottomTabList(engine.getProxy('BottomTabList'));
 
     frontendGlobals.engines.set(this.engineId, engine);
     globals.dispatch(Actions.setEngineReady({
@@ -436,7 +435,7 @@ export class TraceController extends Controller<States> {
     };
 
     const shownJsonWarning =
-        window.localStorage.getItem(SHOWN_JSON_WARNING_KEY) !== null;
+      window.localStorage.getItem(SHOWN_JSON_WARNING_KEY) !== null;
 
     // Show warning if the trace is in JSON format.
     const query = `select str_value from metadata where name = 'trace_type'`;
@@ -466,7 +465,7 @@ export class TraceController extends Controller<States> {
     ];
 
     const [startVisibleTime, endVisibleTime] =
-        await computeVisibleTime(startSec, endSec, isJsonTrace, this.engine);
+      await computeVisibleTime(startSec, endSec, isJsonTrace, this.engine);
     // We don't know the resolution at this point. However this will be
     // replaced in 50ms so a guess is fine.
     const resolution = (endVisibleTime - startVisibleTime) / 1000;
@@ -556,7 +555,7 @@ export class TraceController extends Controller<States> {
     const leftTs = toNs(globals.state.traceTime.startSec);
     const rightTs = toNs(globals.state.traceTime.endSec);
     globals.dispatch(Actions.selectPerfSamples(
-        {id: 0, upid, leftTs, rightTs, type: ProfileType.PERF_SAMPLE}));
+      {id: 0, upid, leftTs, rightTs, type: ProfileType.PERF_SAMPLE}));
   }
 
   private async selectFirstHeapProfile() {
@@ -642,7 +641,7 @@ export class TraceController extends Controller<States> {
         `select sum(dur)/${stepSec}/1e9 as load, cpu from sched ` +
         `where ts >= ${startNs} and ts < ${endNs} and utid != 0 ` +
         'group by cpu order by cpu');
-      const schedData: { [key: string]: QuantizedLoad } = {};
+      const schedData: {[key: string]: QuantizedLoad} = {};
       const it = schedResult.iter({load: NUM, cpu: NUM});
       for (; it.valid(); it.next()) {
         const load = it.load;
@@ -677,7 +676,7 @@ export class TraceController extends Controller<States> {
          where upid is not null
          group by bucket, upid`);
 
-    const slicesData: { [key: string]: QuantizedLoad[] } = {};
+    const slicesData: {[key: string]: QuantizedLoad[]} = {};
     const it = sliceResult.iter({bucket: NUM, upid: NUM, load: NUM});
     for (; it.valid(); it.next()) {
       const bucket = it.bucket;
@@ -905,23 +904,23 @@ export class TraceController extends Controller<States> {
 
 async function computeTraceReliableRangeStart(engine: Engine): Promise<number> {
   const result =
-      await engine.query(`SELECT RUN_METRIC('chrome/chrome_reliable_range.sql');
+    await engine.query(`SELECT RUN_METRIC('chrome/chrome_reliable_range.sql');
        SELECT start FROM chrome_reliable_range`);
   const bounds = result.firstRow({start: NUM});
   return bounds.start / 1e9;
 }
 
 async function computeVisibleTime(
-    traceStartSec: number,
-    traceEndSec: number,
-    isJsonTrace: boolean,
-    engine: Engine): Promise<[number, number]> {
+  traceStartSec: number,
+  traceEndSec: number,
+  isJsonTrace: boolean,
+  engine: Engine): Promise<[number, number]> {
   // if we have non-default visible state, update the visible time to it
   const previousVisibleState = globals.state.frontendLocalState.visibleState;
   if (!(previousVisibleState.startSec === defaultTraceTime.startSec &&
-        previousVisibleState.endSec === defaultTraceTime.endSec) &&
-        (previousVisibleState.startSec >= traceStartSec &&
-        previousVisibleState.endSec <= traceEndSec)) {
+    previousVisibleState.endSec === defaultTraceTime.endSec) &&
+    (previousVisibleState.startSec >= traceStartSec &&
+      previousVisibleState.endSec <= traceEndSec)) {
     return [previousVisibleState.startSec, previousVisibleState.endSec];
   }
 
@@ -933,9 +932,9 @@ async function computeVisibleTime(
   const mdTime = await engine.getTracingMetadataTimeBounds();
   // make sure the bounds hold
   if (Math.max(visibleStartSec, mdTime.start) <
-      Math.min(visibleEndSec, mdTime.end)) {
+    Math.min(visibleEndSec, mdTime.end)) {
     visibleStartSec =
-        Math.max(visibleStartSec, mdTime.start);
+      Math.max(visibleStartSec, mdTime.start);
     visibleEndSec = Math.min(visibleEndSec, mdTime.end);
   }
 

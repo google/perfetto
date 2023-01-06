@@ -202,6 +202,9 @@ PerfettoCmd::PerfettoCmd() {
 
 PerfettoCmd::~PerfettoCmd() {
   PERFETTO_DCHECK(g_perfetto_cmd == this);
+  if (ctrl_c_handler_installed_) {
+    task_runner_.RemoveFileDescriptorWatch(ctrl_c_evt_.fd());
+  }
   g_perfetto_cmd = nullptr;
 }
 
@@ -1199,7 +1202,12 @@ bool PerfettoCmd::OpenOutputFile() {
 }
 
 void PerfettoCmd::SetupCtrlCSignalHandler() {
-  base::InstallCtrCHandler([] { g_perfetto_cmd->SignalCtrlC(); });
+  ctrl_c_handler_installed_ = true;
+  base::InstallCtrlCHandler([] {
+    if (!g_perfetto_cmd)
+      return;
+    g_perfetto_cmd->SignalCtrlC();
+  });
   task_runner_.AddFileDescriptorWatch(ctrl_c_evt_.fd(), [this] {
     PERFETTO_LOG("SIGINT/SIGTERM received: disabling tracing.");
     ctrl_c_evt_.Clear();
