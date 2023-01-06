@@ -58,14 +58,18 @@ struct ProtoType {
   Type type;
   uint16_t size;
   bool is_signed;
+  bool is_repeated;
 
   ProtoType GetSigned() const;
   std::string ToString() const;
 
   static ProtoType Invalid();
-  static ProtoType String();
-  static ProtoType Numeric(uint16_t size, bool is_signed);
-  static ProtoType FromDescriptor(google::protobuf::FieldDescriptor::Type type);
+  static ProtoType String(bool is_repeated = false);
+  static ProtoType Numeric(uint16_t size,
+                           bool is_signed,
+                           bool is_repeated = false);
+  static ProtoType FromDescriptor(google::protobuf::FieldDescriptor::Type type,
+                                  bool is_repeated = false);
 };
 
 struct Proto {

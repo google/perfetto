@@ -19,7 +19,11 @@ SELECT cuj_id, cuj.upid, utid, thread.name, thread_track.id AS track_id
 FROM thread
 JOIN android_jank_cuj cuj USING (upid)
 JOIN thread_track USING (utid)
-WHERE thread.is_main_thread;
+JOIN android_jank_cuj_param p USING (cuj_id)
+WHERE
+  (p.main_thread_override IS NULL AND thread.is_main_thread)
+  -- Some CUJs use a dedicated thread for Choreographer callbacks
+  OR (p.main_thread_override = thread.name);
 
 SELECT CREATE_VIEW_FUNCTION(
   'ANDROID_JANK_CUJ_APP_THREAD(thread_name STRING)',
@@ -53,7 +57,7 @@ SELECT * FROM ANDROID_JANK_CUJ_APP_THREAD('HWC release');
 DROP TABLE IF EXISTS android_jank_cuj_sf_process;
 CREATE TABLE android_jank_cuj_sf_process AS
 SELECT * FROM process
-WHERE process.name='/system/bin/surfaceflinger'
+WHERE process.name = '/system/bin/surfaceflinger'
 LIMIT 1;
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_main_thread;

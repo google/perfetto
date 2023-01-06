@@ -8,17 +8,12 @@ perfetto_build_config_cc_library(
     includes = [build_config_dir_],
 )
 
-perfetto_cc_library(
-    name = "cc_amalgamated_sql_metrics",
-    hdrs = ["src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"],
-)
-
 perfetto_py_binary(
-    name = "gen_amalgamated_sql_metrics_py",
+    name = "gen_amalgamated_sql_py",
     srcs = [
-        "tools/gen_amalgamated_sql_metrics.py",
+        "tools/gen_amalgamated_sql.py",
     ],
-    main = "tools/gen_amalgamated_sql_metrics.py",
+    main = "tools/gen_amalgamated_sql.py",
     python_version = "PY3",
 )
 

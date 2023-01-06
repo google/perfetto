@@ -17,6 +17,10 @@
 -- found in the trace.
 SELECT RUN_METRIC('android/jank/cujs.sql');
 
+-- Creates tables that store constant parameters for each CUJ - e.g. parameter
+-- that describes whether Choreographer callbacks run on a dedicated thread.
+SELECT RUN_METRIC('android/jank/params.sql');
+
 -- Create tables to store each CUJs main, render, HWC release,
 -- and GPU completion threads.
 -- Also stores the (not CUJ-specific) threads of SF: main, render engine,
@@ -153,7 +157,7 @@ SELECT
             FROM android_jank_cuj_sf_frame f
             WHERE f.cuj_id = cuj.cuj_id
             ORDER BY frame_number ASC)
-          ))
+        ))
       FROM android_jank_cuj cuj
       LEFT JOIN android_jank_cuj_boundary boundary USING (cuj_id)
       ORDER BY cuj.cuj_id ASC));

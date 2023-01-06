@@ -13,8 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select tid, pid, process.name as pname, thread.name as tname
-from thread
-left join process using(upid)
-where tid > 0
-order by tid
+SELECT tid, pid, process.name AS pname, thread.name AS tname
+FROM thread
+LEFT JOIN process USING(upid)
+WHERE tid > 0
+ORDER BY tid;

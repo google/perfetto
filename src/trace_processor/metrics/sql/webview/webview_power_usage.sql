@@ -29,11 +29,11 @@ DROP TABLE IF EXISTS top_level_slice;
 -- Slices are only used to calculate the contribution of the browser process,
 -- renderer contribution will be calculated as the sum of all renderer processes' usage.
 CREATE TABLE top_level_slice AS
-  SELECT *
-  FROM slice WHERE
-  depth = 0 AND
-  ((category GLOB '*toplevel*' OR category = 'Java') AND
-  name NOT GLOB '*looper*');
+SELECT *
+FROM slice WHERE
+  depth = 0
+  AND ((category GLOB '*toplevel*' OR category = 'Java')
+    AND name NOT GLOB '*looper*');
 
 DROP TABLE IF EXISTS webview_browser_slices;
 
@@ -42,20 +42,20 @@ DROP TABLE IF EXISTS webview_browser_slices;
 -- as a whole separately.
 -- Slices from Chrome browser processes are also excluded.
 CREATE TABLE webview_browser_slices AS
-  SELECT
-    top_level_slice.ts,
-    top_level_slice.dur,
-    thread_track.utid,
-    process.upid AS upid,
-    extract_arg(process.arg_set_id, 'chrome.host_app_package_name') AS app_name
-  FROM top_level_slice
-  INNER JOIN thread_track
+SELECT
+  top_level_slice.ts,
+  top_level_slice.dur,
+  thread_track.utid,
+  process.upid AS upid,
+  extract_arg(process.arg_set_id, 'chrome.host_app_package_name') AS app_name
+FROM top_level_slice
+INNER JOIN thread_track
   ON top_level_slice.track_id = thread_track.id
-  INNER JOIN process
+INNER JOIN process
   ON thread.upid = process.upid
-  INNER JOIN thread
+INNER JOIN thread
   ON thread_track.utid = thread.utid
-  WHERE process.name NOT GLOB '*SandboxedProcessService*'
+WHERE process.name NOT GLOB '*SandboxedProcessService*'
   AND process.name NOT GLOB '*chrome*'
   AND app_name IS NOT NULL;
 
@@ -74,8 +74,8 @@ CREATE TABLE webview_browser_slices_power_summary AS
 SELECT
   app_name,
   SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
-  FROM webview_browser_slices_power
-  GROUP BY app_name;
+FROM webview_browser_slices_power
+GROUP BY app_name;
 
 DROP TABLE IF EXISTS webview_renderer_threads;
 
@@ -83,11 +83,11 @@ DROP TABLE IF EXISTS webview_renderer_threads;
 CREATE TABLE webview_renderer_threads AS
 SELECT
   thread.utid AS utid,
-  extract_arg(process.arg_set_id, 'chrome.host_app_package_name') as app_name
-  FROM process
-  INNER JOIN thread
+  extract_arg(process.arg_set_id, 'chrome.host_app_package_name') AS app_name
+FROM process
+INNER JOIN thread
   ON thread.upid = process.upid
-  WHERE process.name GLOB '*webview*SandboxedProcessService*'
+WHERE process.name GLOB '*webview*SandboxedProcessService*'
   AND app_name IS NOT NULL;
 
 DROP TABLE IF EXISTS webview_renderer_power_summary;
@@ -95,13 +95,13 @@ DROP TABLE IF EXISTS webview_renderer_power_summary;
 -- Calculate the power usage of all WebView renderer processes for each app
 -- in milliampere-seconds.
 CREATE TABLE webview_renderer_power_summary AS
-  SELECT
-    app_name,
-    SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
-  FROM power_per_thread
-  INNER JOIN webview_renderer_threads
+SELECT
+  app_name,
+  SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
+FROM power_per_thread
+INNER JOIN webview_renderer_threads
   ON power_per_thread.utid = webview_renderer_threads.utid
-  GROUP BY app_name;
+GROUP BY app_name;
 
 DROP TABLE IF EXISTS webview_renderer_power_per_core_type;
 
@@ -129,13 +129,13 @@ DROP TABLE IF EXISTS host_app_threads;
 -- Excludes all renderer processes and Chrome browser processes.
 CREATE TABLE host_app_threads AS
 SELECT
-    thread.utid AS utid,
-    thread.name AS name,
-    extract_arg(process.arg_set_id, 'chrome.host_app_package_name') as app_name
-  FROM thread
-  JOIN process ON thread.upid = process.upid
-  WHERE thread.upid IN
-    (SELECT DISTINCT(webview_browser_slices.upid) FROM webview_browser_slices)
+  thread.utid AS utid,
+  thread.name AS name,
+  extract_arg(process.arg_set_id, 'chrome.host_app_package_name') AS app_name
+FROM thread
+JOIN process ON thread.upid = process.upid
+WHERE thread.upid IN
+  (SELECT DISTINCT(webview_browser_slices.upid) FROM webview_browser_slices)
   AND process.name NOT GLOB '*SandboxedProcessService*'
   AND process.name NOT GLOB '*chrome*'
   AND app_name IS NOT NULL;
@@ -145,13 +145,13 @@ DROP TABLE IF EXISTS host_app_power_summary;
 -- Calculate the power usage of all WebView (host app+browser) processes for each app
 -- in milliampere-seconds.
 CREATE TABLE host_app_power_summary AS
-  SELECT
-    app_name,
-    SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
-  FROM power_per_thread
-  INNER JOIN host_app_threads
+SELECT
+  app_name,
+  SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
+FROM power_per_thread
+INNER JOIN host_app_threads
   ON power_per_thread.utid = host_app_threads.utid
-  GROUP BY app_name;
+GROUP BY app_name;
 
 DROP TABLE IF EXISTS host_app_power_per_core_type;
 
@@ -175,31 +175,31 @@ DROP TABLE IF EXISTS webview_only_threads;
 CREATE TABLE webview_only_threads AS
 SELECT *
 FROM host_app_threads
-  WHERE name GLOB 'Chrome*' OR name GLOB 'CookieMonster*'
+WHERE name GLOB 'Chrome*' OR name GLOB 'CookieMonster*'
   OR name GLOB 'CompositorTileWorker*' OR name GLOB 'ThreadPool*ground*'
-  OR NAME GLOB 'ThreadPoolService*' OR  name GLOB 'VizCompositorThread*'
+  OR NAME GLOB 'ThreadPoolService*' OR name GLOB 'VizCompositorThread*'
   OR name IN ('AudioThread', 'DedicatedWorker thread', 'GpuMemoryThread',
-  'JavaBridge', 'LevelDBEnv.IDB', 'MemoryInfra', 'NetworkService', 'VizWebView');
+    'JavaBridge', 'LevelDBEnv.IDB', 'MemoryInfra', 'NetworkService', 'VizWebView');
 
 DROP TABLE IF EXISTS webview_only_power_summary;
 
 -- Calculate the power usage of all WebView-specific host app threads
 -- (browser + in-process renderers) for each app in milliampere-seconds.
 CREATE TABLE webview_only_power_summary AS
-  SELECT
-    app_name,
-    SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
-  FROM power_per_thread
-  INNER JOIN webview_only_threads
+SELECT
+  app_name,
+  SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
+FROM power_per_thread
+INNER JOIN webview_only_threads
   ON power_per_thread.utid = webview_only_threads.utid
-  GROUP BY app_name;
+GROUP BY app_name;
 
 DROP TABLE IF EXISTS webview_only_power_per_core_type;
 
 -- Calculate the power usage of all WebView-specific host app threads
 -- for each app in milliampere-seconds grouped by core type.
 CREATE TABLE webview_only_power_per_core_type AS
-  SELECT app_name,
+SELECT app_name,
   core_type_per_cpu.core_type AS core_type,
   SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
 FROM power_per_thread
@@ -214,63 +214,63 @@ GROUP BY app_name, core_type_per_cpu.core_type;
 DROP TABLE IF EXISTS total_app_power_output;
 
 CREATE TABLE total_app_power_output AS
-  SELECT
-    host_app_power_summary.app_name as app_name,
-    host_app_power_summary.power_mas AS total_mas,
-    host_app_power_little_cores_mas.power_mas AS little_cores_mas,
-    host_app_power_big_cores_mas.power_mas AS big_cores_mas,
-    host_app_power_bigger_cores_mas.power_mas AS bigger_cores_mas
-  FROM host_app_power_summary LEFT JOIN host_app_power_per_core_type AS host_app_power_little_cores_mas
+SELECT
+  host_app_power_summary.app_name AS app_name,
+  host_app_power_summary.power_mas AS total_mas,
+  host_app_power_little_cores_mas.power_mas AS little_cores_mas,
+  host_app_power_big_cores_mas.power_mas AS big_cores_mas,
+  host_app_power_bigger_cores_mas.power_mas AS bigger_cores_mas
+FROM host_app_power_summary LEFT JOIN host_app_power_per_core_type AS host_app_power_little_cores_mas
   ON host_app_power_summary.app_name = host_app_power_little_cores_mas.app_name
-  AND host_app_power_little_cores_mas.core_type = 'little'
-  LEFT JOIN host_app_power_per_core_type AS host_app_power_big_cores_mas
+    AND host_app_power_little_cores_mas.core_type = 'little'
+LEFT JOIN host_app_power_per_core_type AS host_app_power_big_cores_mas
   ON host_app_power_summary.app_name = host_app_power_big_cores_mas.app_name
-  AND host_app_power_big_cores_mas.core_type = 'big'
-  LEFT JOIN host_app_power_per_core_type AS host_app_power_bigger_cores_mas
+    AND host_app_power_big_cores_mas.core_type = 'big'
+LEFT JOIN host_app_power_per_core_type AS host_app_power_bigger_cores_mas
   ON host_app_power_summary.app_name = host_app_power_bigger_cores_mas.app_name
-  AND host_app_power_bigger_cores_mas.core_type = 'bigger';
+    AND host_app_power_bigger_cores_mas.core_type = 'bigger';
 
 DROP TABLE IF EXISTS webview_renderer_power_output;
 
 CREATE TABLE webview_renderer_power_output AS
-  SELECT
-    webview_renderer_power_summary.app_name AS app_name,
-    webview_renderer_power_summary.power_mas AS total_mas,
-    webview_renderer_little_power.power_mas AS little_cores_mas,
-    webview_renderer_big_power.power_mas AS big_cores_mas,
-    webview_renderer_bigger_power.power_mas AS bigger_cores_mas
-  FROM webview_renderer_power_summary LEFT JOIN webview_renderer_power_per_core_type AS webview_renderer_little_power
+SELECT
+  webview_renderer_power_summary.app_name AS app_name,
+  webview_renderer_power_summary.power_mas AS total_mas,
+  webview_renderer_little_power.power_mas AS little_cores_mas,
+  webview_renderer_big_power.power_mas AS big_cores_mas,
+  webview_renderer_bigger_power.power_mas AS bigger_cores_mas
+FROM webview_renderer_power_summary LEFT JOIN webview_renderer_power_per_core_type AS webview_renderer_little_power
   ON webview_renderer_power_summary.app_name = webview_renderer_little_power.app_name
-  AND webview_renderer_little_power.core_type = 'little'
-  LEFT JOIN webview_renderer_power_per_core_type AS webview_renderer_big_power
+    AND webview_renderer_little_power.core_type = 'little'
+LEFT JOIN webview_renderer_power_per_core_type AS webview_renderer_big_power
   ON webview_renderer_power_summary.app_name = webview_renderer_big_power.app_name
-  AND webview_renderer_big_power.core_type = 'big'
-  LEFT JOIN webview_renderer_power_per_core_type AS webview_renderer_bigger_power
+    AND webview_renderer_big_power.core_type = 'big'
+LEFT JOIN webview_renderer_power_per_core_type AS webview_renderer_bigger_power
   ON webview_renderer_power_summary.app_name = webview_renderer_bigger_power.app_name
-  AND webview_renderer_bigger_power.core_type = 'bigger';
+    AND webview_renderer_bigger_power.core_type = 'bigger';
 
 DROP TABLE IF EXISTS webview_only_power_output;
 
 CREATE TABLE webview_only_power_output AS
-  SELECT
-    webview_only_power_summary.app_name AS app_name,
-    webview_only_power_summary.power_mas AS total_mas,
-    webview_only_power_little_cores_mas.power_mas AS little_cores_mas,
-    webview_only_power_big_cores_mas.power_mas AS big_cores_mas,
-    webview_only_power_bigger_cores_mas.power_mas AS bigger_cores_mas
-  FROM webview_only_power_summary LEFT JOIN webview_only_power_per_core_type AS webview_only_power_little_cores_mas
+SELECT
+  webview_only_power_summary.app_name AS app_name,
+  webview_only_power_summary.power_mas AS total_mas,
+  webview_only_power_little_cores_mas.power_mas AS little_cores_mas,
+  webview_only_power_big_cores_mas.power_mas AS big_cores_mas,
+  webview_only_power_bigger_cores_mas.power_mas AS bigger_cores_mas
+FROM webview_only_power_summary LEFT JOIN webview_only_power_per_core_type AS webview_only_power_little_cores_mas
   ON webview_only_power_summary.app_name = webview_only_power_little_cores_mas.app_name
-  AND webview_only_power_little_cores_mas.core_type = 'little'
-  LEFT JOIN webview_only_power_per_core_type AS webview_only_power_big_cores_mas
+    AND webview_only_power_little_cores_mas.core_type = 'little'
+LEFT JOIN webview_only_power_per_core_type AS webview_only_power_big_cores_mas
   ON webview_only_power_summary.app_name = webview_only_power_big_cores_mas.app_name
-  AND webview_only_power_big_cores_mas.core_type = 'big'
-  LEFT JOIN webview_only_power_per_core_type AS webview_only_power_bigger_cores_mas
+    AND webview_only_power_big_cores_mas.core_type = 'big'
+LEFT JOIN webview_only_power_per_core_type AS webview_only_power_bigger_cores_mas
   ON webview_only_power_summary.app_name = webview_only_power_bigger_cores_mas.app_name
-  AND webview_only_power_bigger_cores_mas.core_type = 'bigger';
+    AND webview_only_power_bigger_cores_mas.core_type = 'bigger';
 
 DROP TABLE IF EXISTS total_device_power;
 
 -- Calculate the power usage of the device in milliampere-seconds.
 CREATE TABLE total_device_power AS
-  SELECT SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
-  FROM power_per_thread;
+SELECT SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
+FROM power_per_thread;

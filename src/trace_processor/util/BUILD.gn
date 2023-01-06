@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../../gn/perfetto.gni")
+import("../../../gn/perfetto_cc_proto_descriptor.gni")
 
 # Track event args parsing logic here is tentatitively planned to eventually
 # move to src/util and will be used to implement writing typed args in console
@@ -27,6 +28,10 @@ source_set("util") {
     "../../../gn:default_deps",
     "../../../include/perfetto/trace_processor:basic_types",
   ]
+}
+
+source_set("stdlib") {
+  sources = [ "sql_modules.h" ]
 }
 
 source_set("gzip") {
@@ -68,7 +73,7 @@ source_set("protozero_to_text") {
     "../../../protos/perfetto/trace/track_event:zero",
     "../../base",
     "../../protozero",
-    "../importers:gen_cc_track_event_descriptor",
+    "../importers/proto:gen_cc_track_event_descriptor",
   ]
 }
 
@@ -93,7 +98,7 @@ source_set("descriptors") {
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
     "../../protozero",
-    "../importers:gen_cc_track_event_descriptor",
+    "../importers/proto:gen_cc_track_event_descriptor",
   ]
 }
 
@@ -111,7 +116,7 @@ source_set("proto_to_args_parser") {
     "../../../protos/perfetto/trace/track_event:zero",
     "../../../protos/perfetto/trace_processor:zero",
     "../../protozero",
-    "../importers:gen_cc_track_event_descriptor",
+    "../importers/proto:gen_cc_track_event_descriptor",
   ]
 
   public_deps = [
@@ -150,6 +155,20 @@ source_set("glob") {
   ]
 }
 
+source_set("sql_argument") {
+  sources = [
+    "sql_argument.cc",
+    "sql_argument.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/base",
+    "../../../include/perfetto/ext/base",
+    "../../../include/perfetto/trace_processor",
+    "../containers",
+  ]
+}
+
 source_set("proto_profiler") {
   sources = [
     "proto_profiler.cc",
@@ -178,7 +197,7 @@ source_set("profile_builder") {
     "../../../include/perfetto/protozero:protozero",
     "../../../protos/third_party/pprof:zero",
     "../../base",
-    "../containers:containers",
+    "../containers",
     "../storage",
     "../tables",
     "../types",
@@ -192,6 +211,7 @@ source_set("unittests") {
     "proto_profiler_unittest.cc",
     "proto_to_args_parser_unittest.cc",
     "protozero_to_text_unittests.cc",
+    "sql_argument_unittest.cc",
     "streaming_line_reader_unittest.cc",
     "zip_reader_unittest.cc",
   ]
@@ -203,6 +223,7 @@ source_set("unittests") {
     ":proto_profiler",
     ":proto_to_args_parser",
     ":protozero_to_text",
+    ":sql_argument",
     ":zip_reader",
     "..:gen_cc_test_messages_descriptor",
     "../../../gn:default_deps",
@@ -212,7 +233,7 @@ source_set("unittests") {
     "../../../protos/perfetto/trace/track_event:zero",
     "../../protozero",
     "../../protozero:testing_messages_zero",
-    "../importers:gen_cc_track_event_descriptor",
+    "../importers/proto:gen_cc_track_event_descriptor",
   ]
   if (enable_perfetto_zlib) {
     sources += [ "gzip_utils_unittest.cc" ]

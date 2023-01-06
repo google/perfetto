@@ -46,6 +46,10 @@ class TrackEventTokenizer {
  public:
   explicit TrackEventTokenizer(TraceProcessorContext*, TrackEventTracker*);
 
+  ModuleResult TokenizeRangeOfInterestPacket(
+      PacketSequenceState* state,
+      const protos::pbzero::TracePacket_Decoder&,
+      int64_t packet_timestamp);
   ModuleResult TokenizeTrackDescriptorPacket(
       PacketSequenceState* state,
       const protos::pbzero::TracePacket_Decoder&,

@@ -31,7 +31,7 @@ SELECT (
   --     starts at: 546027000403
   --     ends at:   546753574829
   --     adds dur:     726574426 nanoseconds of scrolling.
-  -- This means we should have scroll_dur == 1628470852
+  -- This means we should have scroll_dur = 1628470852
   SELECT SUM(scroll_dur) FROM (
     SELECT
       gesture_scroll_id, max(maybe_gesture_end) - begin_ts AS scroll_dur
@@ -73,10 +73,9 @@ SELECT (
 (
   -- This is floor((non_coalesced_janky_dur/non_coalesced_dur) * 100) in SQLite.
   SELECT
-    CAST((CAST((SELECT SUM(dur) FROM scroll_jank WHERE jank) AS FLOAT) /
-    CAST((SELECT SUM(dur) FROM scroll_jank) AS FLOAT)) * 100 AS INT)
+    CAST((CAST((SELECT SUM(dur) FROM scroll_jank WHERE jank) AS FLOAT)
+      / CAST((SELECT SUM(dur) FROM scroll_jank) AS FLOAT)) * 100 AS INT)
 ) AS janky_percentage,
 (
   SELECT avg_vsync_interval FROM joined_scroll_begin_and_end
-) as avg_vsync_interval;
-
+) AS avg_vsync_interval;

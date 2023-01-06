@@ -28,49 +28,49 @@ SELECT RUN_METRIC('chrome/{{prefix}}_flow_event.sql');
 DROP VIEW IF EXISTS {{prefix}}_flow_event_queuing_delay;
 
 CREATE VIEW {{prefix}}_flow_event_queuing_delay AS
-  SELECT
-    trace_id,
-    id,
-    ts,
-    dur,
-    track_id,
-    {{id_field}},
-    avg_vsync_interval,
-    {{prefix}}_slice_id,
-    {{prefix}}_ts,
-    {{prefix}}_dur,
-    {{prefix}}_track_id,
-    jank,
-    step,
-    ancestor_id,
-    ancestor_ts,
-    ancestor_end,
-    next_id,
-    next_step,
-    maybe_next_ancestor_ts,
-    next_track_id,
-      CASE WHEN trace_id = next_trace_id THEN
-      'InputLatency.LatencyInfo.Flow.QueuingDelay.' ||
-      CASE WHEN
-        jank IS NOT NULL AND
-        jank = 1
-      THEN
-          'Jank.'
-      ELSE
+SELECT
+  trace_id,
+  id,
+  ts,
+  dur,
+  track_id,
+  {{id_field}},
+  avg_vsync_interval,
+  {{prefix}}_slice_id,
+  {{prefix}}_ts,
+  {{prefix}}_dur,
+  {{prefix}}_track_id,
+  jank,
+  step,
+  ancestor_id,
+  ancestor_ts,
+  ancestor_end,
+  next_id,
+  next_step,
+  maybe_next_ancestor_ts,
+  next_track_id,
+  CASE WHEN trace_id = next_trace_id THEN
+      'InputLatency.LatencyInfo.Flow.QueuingDelay.'
+      || CASE WHEN
+        jank IS NOT NULL
+        AND jank = 1
+        THEN
+        'Jank.'
+        ELSE
           'NoJank.'
       END
       || step || '-to-' || next_step
     ELSE
       step
-    END AS description,
-    CASE WHEN maybe_next_ancestor_ts IS NULL THEN
+  END AS description,
+  CASE WHEN maybe_next_ancestor_ts IS NULL THEN
       NULL
     ELSE
       CASE WHEN maybe_next_ancestor_ts > ancestor_end THEN
         (maybe_next_ancestor_ts - ancestor_end)
-      ELSE
-        0
+        ELSE
+          0
       END
-    END AS queuing_time_ns
-  FROM {{prefix}}_flow_event
-  ORDER BY {{id_field}}, trace_id, ts;
+  END AS queuing_time_ns
+FROM {{prefix}}_flow_event
+ORDER BY {{id_field}}, trace_id, ts;

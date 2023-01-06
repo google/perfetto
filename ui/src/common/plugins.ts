@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Engine} from '../common/engine';
 import {
   TrackControllerFactory,
   trackControllerRegistry,
@@ -19,19 +20,28 @@ import {
 import {TrackCreator} from '../frontend/track';
 import {trackRegistry} from '../frontend/track_registry';
 
-import {PluginContext, PluginInfo} from './plugin_api';
+import {
+  PluginContext,
+  PluginInfo,
+  TrackInfo,
+  TrackProvider,
+} from './plugin_api';
 import {Registry} from './registry';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
 // plugins.
 export class PluginContextImpl implements PluginContext {
-  pluginName: string;
+  readonly pluginId: string;
+  private trackProviders: TrackProvider[];
 
-  constructor(pluginName: string) {
-    this.pluginName = pluginName;
+  constructor(pluginId: string) {
+    this.pluginId = pluginId;
+    this.trackProviders = [];
   }
 
+  // ==================================================================
+  // The plugin facing API of PluginContext:
   registerTrackController(track: TrackControllerFactory): void {
     trackControllerRegistry.register(track);
   }
@@ -39,8 +49,82 @@ export class PluginContextImpl implements PluginContext {
   registerTrack(track: TrackCreator): void {
     trackRegistry.register(track);
   }
+
+  registerTrackProvider(provider: TrackProvider) {
+    this.trackProviders.push(provider);
+  }
+  // ==================================================================
+
+  // ==================================================================
+  // Internal facing API:
+  findPotentialTracks(engine: Engine): Promise<TrackInfo[]>[] {
+    const proxy = engine.getProxy(this.pluginId);
+    return this.trackProviders.map((f) => f(proxy));
+  }
+
+  // Unload the plugin. Ideally no plugin code runs after this point.
+  // PluginContext should unregister everything.
+  revoke() {
+    // TODO(hjd): Remove from trackControllerRegistry, trackRegistry,
+    // etc.
+  }
+  // ==================================================================
 }
 
-export const pluginRegistry = new Registry<PluginInfo>((info) => {
-  return info.pluginId;
-});
+// 'Static' registry of all known plugins.
+export class PluginRegistry extends Registry<PluginInfo> {
+  constructor() {
+    super((info) => info.pluginId);
+  }
+}
+
+export class PluginManager {
+  private registry: PluginRegistry;
+  private contexts: Map<string, PluginContextImpl>;
+
+  constructor(registry: PluginRegistry) {
+    this.registry = registry;
+    this.contexts = new Map();
+  }
+
+  activatePlugin(pluginId: string): void {
+    if (this.isActive(pluginId)) {
+      return;
+    }
+    const pluginInfo = this.registry.get(pluginId);
+    const context = new PluginContextImpl(pluginId);
+    this.contexts.set(pluginId, context);
+    pluginInfo.activate(context);
+  }
+
+  deactivatePlugin(pluginId: string): void {
+    const context = this.getPluginContext(pluginId);
+    if (context === undefined) {
+      return;
+    }
+    context.revoke();
+    this.contexts.delete(pluginId);
+  }
+
+  isActive(pluginId: string): boolean {
+    return this.getPluginContext(pluginId) !== undefined;
+  }
+
+  getPluginContext(pluginId: string): PluginContextImpl|undefined {
+    return this.contexts.get(pluginId);
+  }
+
+  findPotentialTracks(engine: Engine): Promise<TrackInfo[]>[] {
+    const promises = [];
+    for (const context of this.contexts.values()) {
+      for (const promise of context.findPotentialTracks(engine)) {
+        promises.push(promise);
+      }
+    }
+    return promises;
+  }
+}
+
+// TODO(hjd): Sort out the story for global singletons like these:
+export const pluginRegistry = new PluginRegistry();
+export const pluginManager = new PluginManager(pluginRegistry);

@@ -1,5 +1,5 @@
-select ts, t.name, value, tid
-from counter c
-join thread_counter_track t on c.track_id = t.id
-join thread using (utid)
-order by ts;
+SELECT ts, t.name, value, tid
+FROM counter c
+JOIN thread_counter_track t ON c.track_id = t.id
+JOIN thread USING (utid)
+ORDER BY ts;

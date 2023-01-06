@@ -152,7 +152,7 @@ function showDebugTrack(): (_: Event) => void {
     globals.dispatch(Actions.addDebugTrack({
       // The debug track will only be shown once we have a currentEngineId which
       // is not undefined.
-      engineId: assertExists(globals.state.currentEngineId),
+      engineId: assertExists(globals.state.engine).id,
       name: 'Debug Slices',
     }));
   };
@@ -162,7 +162,7 @@ const EXAMPLE_ANDROID_TRACE_URL =
     'https://storage.googleapis.com/perfetto-misc/example_android_trace_15s';
 
 const EXAMPLE_CHROME_TRACE_URL =
-    'https://storage.googleapis.com/perfetto-misc/example_chrome_trace_4s_1.json';
+    'https://storage.googleapis.com/perfetto-misc/chrome_example_wikipedia.perfetto_trace.gz';
 
 interface SectionItem {
   t: string;
@@ -307,7 +307,7 @@ const SECTIONS: Section[] = [
         t: 'Show Debug Track',
         a: showDebugTrack(),
         i: 'view_day',
-        isVisible: () => globals.state.currentEngineId !== undefined,
+        isVisible: () => globals.state.engine !== undefined,
       },
       {
         t: 'Record metatrace',
@@ -736,10 +736,8 @@ const EngineRPCWidget: m.Component = {
     let failed = false;
     let mode: EngineMode|undefined;
 
-    // We are assuming we have at most one engine here.
-    const engines = Object.values(globals.state.engines);
-    assertTrue(engines.length <= 1);
-    for (const engine of engines) {
+    const engine = globals.state.engine;
+    if (engine !== undefined) {
       mode = engine.mode;
       if (engine.failed !== undefined) {
         cssClass += '.red';
@@ -943,24 +941,27 @@ export class Sidebar implements m.ClassComponent {
             'li', m(`a${css}`, attrs, m('i.material-icons', item.i), item.t)));
       }
       if (section.appendOpenedTraceTitle) {
-        const engines = Object.values(globals.state.engines);
-        if (engines.length === 1) {
+        const engine = globals.state.engine;
+        if (engine !== undefined) {
           let traceTitle = '';
           let traceUrl = '';
-          switch (engines[0].source.type) {
+          switch (engine.source.type) {
             case 'FILE':
               // Split on both \ and / (because C:\Windows\paths\are\like\this).
-              traceTitle = engines[0].source.file.name.split(/[/\\]/).pop()!;
-              const fileSizeMB = Math.ceil(engines[0].source.file.size / 1e6);
+              traceTitle = engine.source.file.name.split(/[/\\]/).pop()!;
+              const fileSizeMB = Math.ceil(engine.source.file.size / 1e6);
               traceTitle += ` (${fileSizeMB} MB)`;
               break;
             case 'URL':
-              traceUrl = engines[0].source.url;
+              traceUrl = engine.source.url;
               traceTitle = traceUrl.split('/').pop()!;
               break;
             case 'ARRAY_BUFFER':
-              traceTitle = engines[0].source.title;
-              traceUrl = engines[0].source.url || '';
+              traceTitle = engine.source.title;
+              traceUrl = engine.source.url || '';
+              const arrayBufferSizeMB =
+                  Math.ceil(engine.source.buffer.byteLength / 1e6);
+              traceTitle += ` (${arrayBufferSizeMB} MB)`;
               break;
             case 'HTTP_RPC':
               traceTitle = 'External trace (RPC)';

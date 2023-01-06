@@ -16,19 +16,19 @@
 SELECT RUN_METRIC('chrome/event_latency_scroll_jank.sql');
 
 SELECT
-    jank,
-    next_jank,
-    prev_jank,
-    gesture_begin_ts,
-    gesture_end_ts,
-    ts,
-    dur,
-    dur_before_show_on_screen,
-    event_type,
-    next_ts,
-    next_dur,
-    prev_ts,
-    prev_dur
+  jank,
+  next_jank,
+  prev_jank,
+  gesture_begin_ts,
+  gesture_end_ts,
+  ts,
+  dur,
+  dur_before_show_on_screen,
+  event_type,
+  next_ts,
+  next_dur,
+  prev_ts,
+  prev_dur
 FROM scroll_event_latency_jank
 ORDER BY jank DESC
 LIMIT 10;

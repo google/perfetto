@@ -459,4 +459,32 @@ void ConsumerIPCClientImpl::SaveTraceForBugreport(
   consumer_port_.SaveTraceForBugreport(req, std::move(async_response));
 }
 
+void ConsumerIPCClientImpl::CloneSession(TracingSessionID tsid) {
+  if (!connected_) {
+    PERFETTO_DLOG("Cannot CloneSession(), not connected to tracing service");
+    return;
+  }
+
+  protos::gen::CloneSessionRequest req;
+  req.set_session_id(tsid);
+  ipc::Deferred<protos::gen::CloneSessionResponse> async_response;
+  auto weak_this = weak_ptr_factory_.GetWeakPtr();
+
+  async_response.Bind(
+      [weak_this](
+          ipc::AsyncResult<protos::gen::CloneSessionResponse> response) {
+        if (!weak_this)
+          return;
+        if (!response) {
+          // If the IPC fails, we are talking to an older version of the service
+          // that didn't support CloneSession at all.
+          weak_this->consumer_->OnSessionCloned(
+              false, "CloneSession IPC not supported");
+        } else {
+          weak_this->consumer_->OnSessionCloned(response->success(),
+                                                response->error());
+        }
+      });
+  consumer_port_.CloneSession(req, std::move(async_response));
+}
 }  // namespace perfetto

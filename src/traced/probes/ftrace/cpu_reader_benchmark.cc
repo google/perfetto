@@ -575,7 +575,9 @@ void DoParse(const ExamplePage& test_case,
                                    base::nullopt,
                                    {},
                                    {},
-                                   false /*symbolize_ksyms*/};
+                                   false /*symbolize_ksyms*/,
+                                   false /*preserve_ftrace_buffer*/,
+                                   {}};
   if (print_filter.has_value()) {
     ds_config.print_filter =
         FtracePrintFilterConfig::Create(print_filter.value(), table);

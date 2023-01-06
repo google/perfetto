@@ -339,6 +339,10 @@ base::Status MergeProtoFiles(const ProtoFile& input,
                              const ProtoFile& upstream,
                              const Allowlist& allowlist,
                              ProtoFile& out) {
+  // The preamble is taken directly from upstream. This allows private stuff
+  // to be in the preamble without being present in upstream.
+  out.preamble = input.preamble;
+
   // Compute all the enums and messages present in the input but deleted in the
   // source of truth.
   out.deleted_enums = ComputeDeletedByName(input.enums, upstream.enums);

@@ -39,23 +39,20 @@ ModuleResult FtraceModuleImpl::TokenizePacket(
     int64_t /*packet_timestamp*/,
     PacketSequenceState* seq_state,
     uint32_t field_id) {
-  if (field_id == TracePacket::kFtraceEventsFieldNumber) {
-    auto ftrace_field = decoder.ftrace_events();
-    return tokenizer_.TokenizeFtraceBundle(
-        packet->slice(ftrace_field.data, ftrace_field.size), seq_state,
-        decoder.trusted_packet_sequence_id());
+  switch (field_id) {
+    case TracePacket::kFtraceEventsFieldNumber: {
+      auto ftrace_field = decoder.ftrace_events();
+      return tokenizer_.TokenizeFtraceBundle(
+          packet->slice(ftrace_field.data, ftrace_field.size), seq_state,
+          decoder.trusted_packet_sequence_id());
+    }
+    case TracePacket::kFtraceStatsFieldNumber: {
+      parser_.ParseFtraceStats(decoder.ftrace_stats(),
+                               decoder.trusted_packet_sequence_id());
+      return ModuleResult::Handled();
+    }
   }
   return ModuleResult::Ignored();
-}
-
-void FtraceModuleImpl::ParseTracePacketData(
-    const protos::pbzero::TracePacket_Decoder& decoder,
-    int64_t /*ts*/,
-    const TracePacketData&,
-    uint32_t field_id) {
-  if (field_id == TracePacket::kFtraceStatsFieldNumber) {
-    parser_.ParseFtraceStats(decoder.ftrace_stats());
-  }
 }
 
 }  // namespace trace_processor

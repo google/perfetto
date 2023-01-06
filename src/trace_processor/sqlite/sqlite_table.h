@@ -45,6 +45,13 @@ class SqliteTable : public sqlite3_vtab {
   using Factory =
       std::function<std::unique_ptr<SqliteTable>(sqlite3*, Context)>;
 
+  // Custom opcodes used by subclasses of SqliteTable.
+  // Stored here as we need a central repository of opcodes to prevent clashes
+  // between different sub-classes.
+  enum CustomFilterOpcode {
+    kSourceGeqOpCode = SQLITE_INDEX_CONSTRAINT_FUNCTION + 1,
+  };
+
   // Describes a column of this table.
   class Column {
    public:
@@ -182,7 +189,6 @@ class SqliteTable : public sqlite3_vtab {
   struct TableDescriptor {
     SqliteTable::Factory<Context> factory;
     Context context;
-    std::string name;
     sqlite3_module module = {};
   };
 
@@ -197,7 +203,7 @@ class SqliteTable : public sqlite3_vtab {
   template <typename TTable, typename Context = const TraceStorage*>
   static void Register(sqlite3* db,
                        Context ctx,
-                       const std::string& table_name,
+                       const std::string& module_name,
                        bool read_write = false,
                        bool requires_args = false) {
     using TCursor = typename TTable::Cursor;
@@ -206,7 +212,6 @@ class SqliteTable : public sqlite3_vtab {
         new TableDescriptor<Context>());
     desc->context = std::move(ctx);
     desc->factory = GetFactory<TTable, Context>();
-    desc->name = table_name;
     sqlite3_module* module = &desc->module;
     memset(module, 0, sizeof(*module));
 
@@ -215,7 +220,16 @@ class SqliteTable : public sqlite3_vtab {
                         char** pzErr) {
       auto* xdesc = static_cast<TableDescriptor<Context>*>(arg);
       auto table = xdesc->factory(xdb, std::move(xdesc->context));
-      table->name_ = xdesc->name;
+
+      // SQLite guarantees that argv[0] will be the "module" name: this is the
+      // same as |table_name| passed to the Register function.
+      table->module_name_ = argv[0];
+
+      // SQLite guarantees that argv[2] contains the name of the table: for
+      // non-arg taking tables, this will be the same as |table_name| but for
+      // arg-taking tables, this will be the table name as defined by the user
+      // in the CREATE VIRTUAL TABLE call.
+      table->name_ = argv[2];
 
       Schema schema;
       base::Status status = table->Init(argc, argv, &schema);
@@ -291,7 +305,7 @@ class SqliteTable : public sqlite3_vtab {
     }
 
     int res = sqlite3_create_module_v2(
-        db, table_name.c_str(), module, desc.release(),
+        db, module_name.c_str(), module, desc.release(),
         [](void* arg) { delete static_cast<TableDescriptor<Context>*>(arg); });
     PERFETTO_CHECK(res == SQLITE_OK);
 
@@ -300,8 +314,9 @@ class SqliteTable : public sqlite3_vtab {
     // that virtual tables requiring arguments aren't registered because they
     // can't be automatically instantiated for exporting.
     if (!requires_args) {
-      char* insert_sql = sqlite3_mprintf(
-          "INSERT INTO perfetto_tables(name) VALUES('%q')", table_name.c_str());
+      char* insert_sql =
+          sqlite3_mprintf("INSERT INTO perfetto_tables(name) VALUES('%q')",
+                          module_name.c_str());
       char* error = nullptr;
       sqlite3_exec(db, insert_sql, nullptr, nullptr, &error);
       sqlite3_free(insert_sql);
@@ -331,6 +346,7 @@ class SqliteTable : public sqlite3_vtab {
   }
 
   const Schema& schema() const { return schema_; }
+  const std::string& module_name() const { return module_name_; }
   const std::string& name() const { return name_; }
 
  private:
@@ -350,7 +366,17 @@ class SqliteTable : public sqlite3_vtab {
   SqliteTable(const SqliteTable&) = delete;
   SqliteTable& operator=(const SqliteTable&) = delete;
 
+  // This name of the table. For tables created using CREATE VIRTUAL TABLE, this
+  // will be the name of the table specified by the query. For automatically
+  // created tables, this will be the same as the module name passed to
+  // RegisterTable.
   std::string name_;
+
+  // The module name is the name passed to RegisterTable. This is differs from
+  // the table name (|name_|) where the table was created using CREATE VIRTUAL
+  // TABLE.
+  std::string module_name_;
+
   Schema schema_;
 
   QueryConstraints qc_cache_;

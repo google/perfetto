@@ -208,6 +208,10 @@ message TraceConfig {
     // On R-, this override only affected userdebug builds. Since S, it also
     // affects user builds.
     optional uint64 max_upload_per_day_bytes = 1;
+
+    // Overrides the guardrail for maximum trace buffer size.
+    // Available on U+
+    optional uint32 max_tracing_buffer_size_kb = 2;
   }
   optional GuardrailOverrides guardrail_overrides = 11;
 
@@ -417,10 +421,14 @@ message TraceConfig {
 
   // DEPRECATED. Was trace_uuid, use trace_uuid_msb and trace_uuid_lsb instead.
   reserved 26;
+
   // An identifier clients can use to tie this trace to other logging.
-  // Alternative encoding of trace_uuid as two int64s.
-  optional int64 trace_uuid_msb = 27;
-  optional int64 trace_uuid_lsb = 28;
+  // DEPRECATED as per v32. See TracePacket.trace_uuid for the authoritative
+  // Trace UUID. If this field is set, the tracing service will respect the
+  // requested UUID (i.e. TracePacket.trace_uuid == this field) but only if
+  // gap-less snapshotting is not used.
+  optional int64 trace_uuid_msb = 27 [deprecated = true];
+  optional int64 trace_uuid_lsb = 28 [deprecated = true];
 
   // When set applies a post-filter to the trace contents using the filter
   // provided. The filter is applied at ReadBuffers() time and works both in the

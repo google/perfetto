@@ -33,6 +33,7 @@
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/periodic_task.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
@@ -224,11 +225,16 @@ class TracingServiceImpl : public TracingService {
     void QueryServiceState(QueryServiceStateCallback) override;
     void QueryCapabilities(QueryCapabilitiesCallback) override;
     void SaveTraceForBugreport(SaveTraceForBugreportCallback) override;
+    void CloneSession(TracingSessionID) override;
 
     // Will queue a task to notify the consumer about the state change.
     void OnDataSourceInstanceStateChange(const ProducerEndpointImpl&,
                                          const DataSourceInstance&);
     void OnAllDataSourcesStarted();
+
+    base::WeakPtr<ConsumerEndpointImpl> GetWeakPtr() {
+      return weak_ptr_factory_.GetWeakPtr();
+    }
 
    private:
     friend class TracingServiceImpl;
@@ -299,6 +305,7 @@ class TracingServiceImpl : public TracingService {
              uint32_t timeout_ms,
              ConsumerEndpoint::FlushCallback);
   void FlushAndDisableTracing(TracingSessionID);
+  void FlushAndCloneSession(ConsumerEndpointImpl*, TracingSessionID);
 
   // Starts reading the internal tracing buffers from the tracing session `tsid`
   // and sends them to `*consumer` (which must be != nullptr).
@@ -421,7 +428,8 @@ class TracingServiceImpl : public TracingService {
       DISABLED = 0,
       CONFIGURED,
       STARTED,
-      DISABLING_WAITING_STOP_ACKS
+      DISABLING_WAITING_STOP_ACKS,
+      CLONED_READ_ONLY,
     };
 
     TracingSession(TracingSessionID,
@@ -639,6 +647,17 @@ class TracingServiceImpl : public TracingService {
     uint64_t filter_input_bytes = 0;
     uint64_t filter_output_bytes = 0;
     uint64_t filter_errors = 0;
+
+    // A randomly generated trace identifier. Note that this does NOT always
+    // match the requested TraceConfig.trace_uuid_msb/lsb. Spcifically, it does
+    // until a gap-less snapshot is requested. Each snapshot re-generates the
+    // uuid to avoid emitting two different traces with the same uuid.
+    base::Uuid trace_uuid;
+
+    // NOTE: when adding new fields here consider whether that state should be
+    // copied over in DoCloneSession() or not. Ask yourself: is this a
+    // "runtime state" (e.g. active data sources) or a "trace (meta)data state"?
+    // If the latter, it should be handled by DoCloneSession()).
   };
 
   TracingServiceImpl(const TracingServiceImpl&) = delete;
@@ -685,7 +704,7 @@ class TracingServiceImpl : public TracingService {
   TraceStats GetTraceStats(TracingSession*);
   void EmitLifecycleEvents(TracingSession*, std::vector<TracePacket>*);
   void EmitSeizedForBugreportLifecycleEvent(std::vector<TracePacket>*);
-  void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
+  void MaybeEmitUuidAndTraceConfig(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitSystemInfo(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void MaybeNotifyAllDataSourcesStarted(TracingSession*);
@@ -700,6 +719,9 @@ class TracingServiceImpl : public TracingService {
   void ScrapeSharedMemoryBuffers(TracingSession*, ProducerEndpointImpl*);
   void PeriodicClearIncrementalStateTask(TracingSessionID, bool post_next_only);
   TraceBuffer* GetBufferByID(BufferID);
+  base::Status DoCloneSession(ConsumerEndpointImpl*,
+                              TracingSessionID,
+                              bool final_flush_outcome);
 
   // Returns true if `*tracing_session` is waiting for a trigger that hasn't
   // happened.
@@ -729,6 +751,7 @@ class TracingServiceImpl : public TracingService {
                      std::vector<TracePacket> packets);
   void OnStartTriggersTimeout(TracingSessionID tsid);
   void MaybeLogUploadEvent(const TraceConfig&,
+                           const base::Uuid&,
                            PerfettoStatsdAtom atom,
                            const std::string& trigger_name = "");
   void MaybeLogTriggerEvent(const TraceConfig&,

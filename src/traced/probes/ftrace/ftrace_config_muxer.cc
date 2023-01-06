@@ -462,6 +462,25 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
   return events;
 }
 
+base::FlatSet<int64_t> FtraceConfigMuxer::GetSyscallsReturningFds(
+    const SyscallTable& syscalls) {
+  auto insertSyscallId = [&syscalls](base::FlatSet<int64_t>& set,
+                                     const char* syscall) {
+    auto syscall_id = syscalls.GetByName(syscall);
+    if (syscall_id)
+      set.insert(static_cast<int64_t>(*syscall_id));
+  };
+
+  base::FlatSet<int64_t> call_ids;
+  insertSyscallId(call_ids, "sys_open");
+  insertSyscallId(call_ids, "sys_openat");
+  insertSyscallId(call_ids, "sys_socket");
+  insertSyscallId(call_ids, "sys_dup");
+  insertSyscallId(call_ids, "sys_dup2");
+  insertSyscallId(call_ids, "sys_dup3");
+  return call_ids;
+}
+
 bool FtraceConfigMuxer::FilterHasGroup(const EventFilter& filter,
                                        const std::string& group) {
   const std::vector<const Event*>* events = table_->GetEventsByGroup(group);
@@ -571,14 +590,16 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
     PERFETTO_DCHECK(active_configs_.empty());
 
     // If someone outside of perfetto is using ftrace give up now.
-    if (is_ftrace_enabled && !IsOldAtrace()) {
+    if (!request.preserve_ftrace_buffer() && is_ftrace_enabled &&
+        !IsOldAtrace()) {
       PERFETTO_ELOG("ftrace in use by non-Perfetto.");
       return 0;
     }
 
     // Setup ftrace, without starting it. Setting buffers can be quite slow
     // (up to hundreds of ms).
-    SetupClock(request);
+    if (!request.preserve_ftrace_buffer())
+      SetupClock(request);
     SetupBufferSize(request);
   } else {
     // Did someone turn ftrace off behind our back? If so give up.
@@ -709,7 +730,9 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
       std::forward_as_tuple(std::move(filter), std::move(syscall_filter),
                             compact_sched, std::move(ftrace_print_filter),
                             std::move(apps), std::move(categories),
-                            request.symbolize_ksyms()));
+                            request.symbolize_ksyms(),
+                            request.preserve_ftrace_buffer(),
+                            GetSyscallsReturningFds(syscalls_)));
   return id;
 }
 
@@ -720,7 +743,8 @@ bool FtraceConfigMuxer::ActivateConfig(FtraceConfigId id) {
   }
 
   if (active_configs_.empty()) {
-    if (ftrace_->IsTracingEnabled() && !IsOldAtrace()) {
+    if (!ds_configs_.at(id).preserve_ftrace_buffer &&
+        ftrace_->IsTracingEnabled() && !IsOldAtrace()) {
       // If someone outside of perfetto is using ftrace give up now.
       PERFETTO_ELOG("ftrace in use by non-Perfetto.");
       return false;

@@ -263,6 +263,17 @@ class PERFETTO_EXPORT_COMPONENT LegacyTraceId {
       : raw_id_(static_cast<uint64_t>(raw_id)) {}
   explicit LegacyTraceId(int8_t raw_id)
       : raw_id_(static_cast<uint64_t>(raw_id)) {}
+// Different platforms disagree on which integer types are same and which
+// are different. E.g. on Mac size_t is considered a different type from
+// uint64_t even though it has the same size and signedness.
+// Below we add overloads for those types that are known to cause ambiguity.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  explicit LegacyTraceId(size_t raw_id) : raw_id_(raw_id) {}
+  explicit LegacyTraceId(intptr_t raw_id)
+      : raw_id_(static_cast<uint64_t>(raw_id)) {}
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  explicit LegacyTraceId(unsigned long raw_id) : raw_id_(raw_id) {}
+#endif
   explicit LegacyTraceId(LocalId raw_id) : raw_id_(raw_id.raw_id()) {
     id_flags_ = legacy::kTraceEventFlagHasLocalId;
   }
@@ -1202,7 +1213,7 @@ inline ::perfetto::StaticString GetEventNameTypeForLegacyEvents(
       TRACE_EVENT_PHASE_NESTABLE_ASYNC_END, category_group,                   \
       ::perfetto::DynamicString{name}, id, TRACE_EVENT_API_CURRENT_THREAD_ID, \
       timestamp, TRACE_EVENT_FLAG_NONE)
-#define TRACE_EVENT_NESTABLE_ASYNC_END_WITH_TIMESTAMP2(                    \
+#define TRACE_EVENT_COPY_NESTABLE_ASYNC_END_WITH_TIMESTAMP2(               \
     category_group, name, id, timestamp, arg1_name, arg1_val, arg2_name,   \
     arg2_val)                                                              \
   INTERNAL_TRACE_EVENT_ADD_WITH_ID_TID_AND_TIMESTAMP(                      \

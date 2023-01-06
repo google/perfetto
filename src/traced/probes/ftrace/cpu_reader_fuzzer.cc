@@ -60,7 +60,9 @@ void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size) {
                                    base::nullopt,
                                    {},
                                    {},
-                                   /*symbolize_ksyms=*/false};
+                                   /*symbolize_ksyms=*/false,
+                                   /*preserve_ftrace_buffer=*/false,
+                                   {}};
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
   ds_config.event_filter.AddEnabledEvent(

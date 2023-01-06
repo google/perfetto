@@ -14,6 +14,64 @@ The checklists below show how to achieve some common tasks in the codebase.
 
 Here is an [example change](https://android-review.googlesource.com/c/platform/external/perfetto/+/1290645) which added the `ion/ion_stat` event.
 
+## Contribute to SQL standard library
+
+1. Add or edit an SQL file inside `perfetto/src/trace_processor/stdlib/`.
+2. For a new file inside an existing module add the file to the corresponding `BUILD.gn`.
+3. For a new module (subdirectory of `/stdlib/`), module name (directory name) has to be added to the list in `/stdlib/BUILD.gn`.
+
+Files inside the standard library have to be formatted in a very specific way, as its structure is used to generate documentation. There are presubmit checks, but they are not infallible.
+
+- Running the file cannot generate any data. There can be only `CREATE_FUNCTION` or `CREATE TABLE/VIEW` inside.
+- The name of each table/view/function needs to start with `{module_name}_` or `{internal_}`. Views/tables are must be `[a-z_]`, while functions are `[A-Z_]`. When a module is imported (using the `IMPORT` function), objects prefixed with internal should not be used.
+  - The only exception is the `common` module. The name of functions/views/tables inside should not be prefixed with `common_`, as they are supposed to be module agnostic and widely used.
+- Every non internal object has be prefixed with an SQL comment following a particular documentation schema e.g. similar to javadoc. The schema is a comment directly over the SQL which creates it, without empty lines. Any text is going to be parsed as markdown, so usage of markdown functionality (code, links, lists) is encouraged. Whitespaces in anything apart from descriptions are ignored, so comments can be formatted neatly. If the line with description exceeds 80 chars, description can be continued in following lines.
+  - Table/view: each has to have object description and list of columns.
+    - Description is any text above column comments.
+    - For each column there has to be a comment line `-- @column {col name} {col description}`.
+  - Functions: each has to have a function description, list of arguments (names, types, description) and description of return value in this order.
+    - Function description is any text above argument comments.
+    - For each argument there has to be a comment line `-- @arg {arg name} {arg type} {arg description}`. Arg name should follow `[a-z_]*`, arg type has to be exactly the same as specified in the function, so `[A-Z]*`.
+    - Return comment is `-- @ret {return type} {return description}`. Return type should be exactly the same as specified in the function, so `[A-Z]*`.
+
+Example of properly formatted view in module `android`:
+```sql
+-- Count Binder transactions per process.
+--
+-- @column process_name  Name of the process that started the binder transaction.
+-- @column pid           PID of the process that started the binder transaction.
+-- @column slice_name    Name of the slice with binder transaction.
+-- @column event_count   Number of binder transactions in process in slice.
+CREATE VIEW android_binder_metrics_by_process AS
+SELECT
+  process.name AS process_name,
+  process.pid AS pid,
+  slice.name AS slice_name,
+  COUNT(*) AS event_count
+FROM slice
+INNER JOIN thread_track ON slice.track_id = thread_track.id
+INNER JOIN thread ON thread.utid = thread_track.utid
+INNER JOIN process ON thread.upid = process.upid
+WHERE
+  slice.name GLOB 'binder*'
+GROUP BY
+  process_name,
+  slice_name;
+```
+
+Example of function in module `common`:
+```sql
+-- Extracts an int value with the given name from the metadata table.
+--
+-- @arg name STRING The name of the metadata entry.
+-- @ret LONG int_value for the given name. NULL if there's no such entry.
+SELECT CREATE_FUNCTION(
+    'EXTRACT_INT_METADATA(name STRING)',
+    'LONG',
+    'SELECT int_value FROM metadata WHERE name = ($name)');
+```
+
+
 ## {#new-metric} Add a new trace-based metric
 
 1. Create the proto file containing the metric in the [protos/perfetto/metrics](/protos/perfetto/metrics) folder. The appropriate` BUILD.gn` file should be updated as well.
@@ -21,7 +79,7 @@ Here is an [example change](https://android-review.googlesource.com/c/platform/e
 3. Run `tools/gen_all out/YOUR_BUILD_DIRECTORY`. This will update the generated headers containing the descriptors for the proto.
   * *Note: this step has to be performed any time any metric-related proto is modified.*
   * If you don't see anything inside the `out/` directory you might have to
-  rerun `tools/build_all_configs.py`.
+  rerun `tools/setup_all_configs.py`.
 4. Add a new SQL file for the metric to [src/trace_processor/metrics](/src/trace_processor/metrics). The appropriate `BUILD.gn` file should be updated as well.
   * To learn how to write new metrics, see the [trace-based metrics documentation](/docs/analysis/metrics.md).
 5. Build all targets in your out directory with `tools/ninja -C out/YOUR_BUILD_DIRECTORY`.
@@ -46,15 +104,6 @@ Here is an [example change](https://android-review.googlesource.com/c/platform/e
   3. Run the newly added test with `tools/diff_test_trace_processor.py <path to trace processor binary>`.
 4. Upload and land your change as normal.
 
-## {#new-annotation} Add a new annotation
-
-NOTE: all currently implemented annotations are based only on the name of the slice. It is straightforward to extend this to also consider ancestors and other similar properties; we plan on doing this in the future.
-
-1. Change the [`DescribeSlice`](/src/trace_processor/analysis/describe_slice.h) function as appropriate.
-  * The inputs are the table containing all the slices from the trace and the id of the slice which an embedder (e.g. the UI) is requesting a description for.
-  * The output is a `SliceDescription` which is simply a `pair<description, doc link>`.
-2. Upload and land your change as normal.
-
 ## Adding new derived events
 
 As derived events depend on metrics, the initial steps are same as that of developing a metric (see above).
@@ -72,14 +121,14 @@ To extend a metric with annotations:
 
 The schema of the `<metric name>_event` table/view is as follows:
 
-| Name         | Type     | Presence                              | Meaning                                                      |
-| :----------- | -------- | ------------------------------------- | ------------------------------------------------------------ |
-| `track_type` | `string` | Mandatory                             | 'slice' for slices, 'counter' for counters                   |
-| `track_name` | `string` | Mandatory                             | Name of the track to display in the UI. Also the track identifier i.e. all events with same `track_name` appear on the same track. |
-| `ts`         | `int64`  | Mandatory                             | The timestamp of the event (slice or counter)                |
-| `dur`        | `int64`  | Mandatory for slice, NULL for counter | The duration of the slice                                    |
-| `slice_name` | `string` | Mandatory for slice, NULL for counter | The name of the slice                                        |
-| `value`      | `double` | Mandatory for counter, NULL for slice | The value of the counter                                     |
+| Name         | Type     | Presence                              | Meaning                                                                                                                                                                                                                                     |
+| :----------- | -------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `track_type` | `string` | Mandatory                             | 'slice' for slices, 'counter' for counters                                                                                                                                                                                                  |
+| `track_name` | `string` | Mandatory                             | Name of the track to display in the UI. Also the track identifier i.e. all events with same `track_name` appear on the same track.                                                                                                          |
+| `ts`         | `int64`  | Mandatory                             | The timestamp of the event (slice or counter)                                                                                                                                                                                               |
+| `dur`        | `int64`  | Mandatory for slice, NULL for counter | The duration of the slice                                                                                                                                                                                                                   |
+| `slice_name` | `string` | Mandatory for slice, NULL for counter | The name of the slice                                                                                                                                                                                                                       |
+| `value`      | `double` | Mandatory for counter, NULL for slice | The value of the counter                                                                                                                                                                                                                    |
 | `group_name` | `string` | Optional                              | Name of the track group under which the track appears. All tracks with the same `group_name` are placed under the same group by that name. Tracks that lack this field or have NULL value in this field are displayed without any grouping. |
 
 #### Known issues:

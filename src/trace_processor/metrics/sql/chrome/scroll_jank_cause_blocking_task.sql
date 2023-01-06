@@ -58,7 +58,7 @@ SELECT
 FROM slice
 WHERE
   EXTRACT_ARG(arg_set_id, "task.posted_from.file_name") GLOB
-      "*gpu/command_buffer/service/scheduler.cc"
+  "*gpu/command_buffer/service/scheduler.cc"
 LIMIT 1;
 
 -- TODO(nuskos): Determine a good way to get all the renderer track_ids (each
@@ -81,9 +81,9 @@ FROM slice
 WHERE
   track_id = (
     SELECT id FROM browser_main_track_id
-  ) AND
-  name = "LatencyInfo.Flow"
-  GROUP BY trace_id;
+  )
+  AND name = "LatencyInfo.Flow"
+GROUP BY trace_id;
 
 -- Grab the last LatencyInfo.Flow for each trace_id on the VizCompositor.
 DROP VIEW IF EXISTS viz_flows;
@@ -97,9 +97,9 @@ FROM slice
 WHERE
   track_id = (
     SELECT id FROM viz_compositor_track_id
-  ) AND
-  name = "LatencyInfo.Flow"
-  GROUP BY trace_id;
+  )
+  AND name = "LatencyInfo.Flow"
+GROUP BY trace_id;
 
 -- Grab the last LatencyInfo.Flow for each trace_id on the GPU main.
 DROP VIEW IF EXISTS gpu_flows;
@@ -113,9 +113,9 @@ FROM slice
 WHERE
   track_id = (
     SELECT id FROM gpu_main_track_id
-  ) AND
-  name = "LatencyInfo.Flow"
-  GROUP BY trace_id;
+  )
+  AND name = "LatencyInfo.Flow"
+GROUP BY trace_id;
 
 --------------------------------------------------------------------------------
 -- Finally join the relevant tracks/flows to the individual scrolls.
@@ -149,9 +149,9 @@ FROM (
     track_id
   FROM scroll_jank
 ) scroll JOIN browser_flows ON
-    scroll.trace_id = browser_flows.trace_id
-  JOIN viz_flows ON viz_flows.trace_id = scroll.trace_id
-  JOIN gpu_flows ON gpu_flows.trace_id = scroll.trace_id;
+  scroll.trace_id = browser_flows.trace_id
+JOIN viz_flows ON viz_flows.trace_id = scroll.trace_id
+JOIN gpu_flows ON gpu_flows.trace_id = scroll.trace_id;
 
 --------------------------------------------------------------------------------
 -- Below we determine individual causes of blocking tasks.
@@ -173,17 +173,17 @@ FROM slice
 WHERE
   (
     (
-      name = "viz.mojom.CopyOutputResultSender" OR
-      name = "GLRenderer::CopyDrawnRenderPass"
-    ) AND
-    track_id = (SELECT id FROM browser_main_track_id)
+      name = "viz.mojom.CopyOutputResultSender"
+      OR name = "GLRenderer::CopyDrawnRenderPass"
+    )
+    AND track_id = (SELECT id FROM browser_main_track_id)
   ) OR (
     EXTRACT_ARG(arg_set_id, "task.posted_from.file_name") GLOB
-        "*components/viz/common/frame_sinks/copy_output_request.cc" AND
-    track_id = (SELECT id FROM viz_compositor_track_id)
+    "*components/viz/common/frame_sinks/copy_output_request.cc"
+    AND track_id = (SELECT id FROM viz_compositor_track_id)
   ) OR (
-    name = "SkiaOutputSurfaceImplOnGpu::CopyOutput" AND
-    track_id = (SELECT id FROM gpu_main_track_id)
+    name = "SkiaOutputSurfaceImplOnGpu::CopyOutput"
+    AND track_id = (SELECT id FROM gpu_main_track_id)
   );
 
 -- Determine based on the LatencyInfo.Flow timestamp and the copy task overlap
@@ -198,31 +198,19 @@ SELECT
   copy.dur,
   copy.track_id,
   CASE WHEN copy.track_id = scroll.browser_track_id THEN
-    CASE WHEN copy.ts < scroll.browser_flow_ts THEN
-      TRUE
+    COALESCE(copy.ts < scroll.browser_flow_ts, FALSE)
+    WHEN copy.track_id = scroll.viz_track_id THEN
+      COALESCE(copy.ts < scroll.viz_flow_ts, FALSE)
+    WHEN copy.track_id = scroll.gpu_track_id THEN
+      COALESCE(copy.ts < scroll.gpu_flow_ts, FALSE)
     ELSE
       FALSE
-    END
-  WHEN copy.track_id = scroll.viz_track_id THEN
-    CASE WHEN copy.ts < scroll.viz_flow_ts THEN
-      TRUE
-    ELSE
-      FALSE
-    END
-  WHEN copy.track_id = scroll.gpu_track_id THEN
-    CASE WHEN copy.ts < scroll.gpu_flow_ts THEN
-      TRUE
-    ELSE
-      FALSE
-    END
-  ELSE
-    FALSE
   END AS blocked_by_copy
 FROM
   scroll_with_browser_gpu_and_viz_flows scroll JOIN
   blocking_browser_gpu_and_viz_copies copy ON
-  scroll.ts + scroll.dur >= copy.ts AND
-  copy.ts + copy.dur >= scroll.ts;
+    scroll.ts + scroll.dur >= copy.ts
+    AND copy.ts + copy.dur >= scroll.ts;
 
 -- Group by scroll so we can equally join one reply to the ScrollJankAndCauses
 -- view.
@@ -246,8 +234,8 @@ SELECT
 FROM slice
 WHERE
   (
-    name = "language_detection.mojom.LanguageDetectionService" AND
-    track_id = (SELECT id FROM browser_main_track_id)
+    name = "language_detection.mojom.LanguageDetectionService"
+    AND track_id = (SELECT id FROM browser_main_track_id)
   );
 
 DROP VIEW IF EXISTS blocking_language_detection_tasks;
@@ -260,17 +248,13 @@ SELECT
   lang.dur,
   lang.track_id,
   CASE WHEN lang.track_id = scroll.browser_track_id THEN
-    CASE WHEN lang.ts < scroll.browser_flow_ts THEN
-      TRUE
-    ELSE
-      FALSE
-    END
+    COALESCE(lang.ts < scroll.browser_flow_ts, FALSE)
   END AS blocked_by_language_detection
 FROM
   scroll_with_browser_gpu_and_viz_flows scroll JOIN
   blocking_browser_language_detection lang ON
-  scroll.ts + scroll.dur >= lang.ts AND
-  lang.ts + lang.dur >= scroll.ts;
+    scroll.ts + scroll.dur >= lang.ts
+    AND lang.ts + lang.dur >= scroll.ts;
 
 DROP VIEW IF EXISTS language_detection_overlapping_scrolls;
 CREATE VIEW language_detection_overlapping_scrolls AS
@@ -285,10 +269,10 @@ GROUP BY 1, 2;
 --------------------------------------------------------------------------------
 DROP VIEW IF EXISTS scroll_jank_cause_blocking_task;
 CREATE VIEW scroll_jank_cause_blocking_task AS
-  SELECT
-    lang.scroll_id,
-    lang.blocked_by_language_detection,
-    copy.blocked_by_copy_request
-  FROM
-    language_detection_overlapping_scrolls lang JOIN
-    screenshot_overlapping_scrolls copy ON copy.scroll_id = lang.scroll_id;
+SELECT
+  lang.scroll_id,
+  lang.blocked_by_language_detection,
+  copy.blocked_by_copy_request
+FROM
+  language_detection_overlapping_scrolls lang JOIN
+  screenshot_overlapping_scrolls copy ON copy.scroll_id = lang.scroll_id;

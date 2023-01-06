@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 SELECT RUN_METRIC('chrome/chrome_scroll_jank_caused_by_scheduling.sql',
-'dur_causes_jank_ms',
+  'dur_causes_jank_ms',
 /* dur_causes_jank_ms = */ '5');
 
 SELECT
@@ -23,5 +23,6 @@ SELECT
   total_thread_duration_ms,
   count,
   window_start_ts,
-  window_end_ts
+  window_end_ts,
+  scroll_type
 FROM chrome_scroll_jank_caused_by_scheduling;

@@ -21,16 +21,16 @@ SELECT RUN_METRIC('android/startup/launches.sql');
 DROP VIEW IF EXISTS multiuser_events;
 CREATE VIEW multiuser_events AS
 SELECT
-      {{start_event}}_time_ns AS event_start_time_ns,
-      {{end_event}}_time_ns AS event_end_time_ns
+  {{start_event}}_time_ns AS event_start_time_ns,
+  {{end_event}}_time_ns AS event_end_time_ns
 FROM
   (
     SELECT MIN(slice.ts) AS user_start_time_ns
     FROM slice
     WHERE (
-        slice.name = "UserDetailView.Adapter#onClick" OR -- QuickSettings
-        slice.name = "UserDetailSettings.switchUser" OR -- Settings
-        slice.name = "shell_runSwitchUser" -- adb shell
+        slice.name = "UserDetailView.Adapter#onClick" -- QuickSettings
+        OR slice.name = "UserDetailSettings.switchUser" -- Settings
+        OR slice.name = "shell_runSwitchUser" -- adb shell
     )
   ),
   (
@@ -42,10 +42,10 @@ FROM
     SELECT MIN(slice.ts) AS user_create_time_ns
     FROM slice
     WHERE (
-        slice.name = "UserDetailView.Adapter#onClick" OR -- QuickSettings
-        slice.name = "UserSettings.addUserNow" OR -- Settings
-        slice.name = "UserSettings.addGuest" OR -- Settings
-        slice.name = "shell_runCreateUser" -- adb shell
+        slice.name = "UserDetailView.Adapter#onClick" -- QuickSettings
+        OR slice.name = "UserSettings.addUserNow" -- Settings
+        OR slice.name = "UserSettings.addGuest" -- Settings
+        OR slice.name = "shell_runCreateUser" -- adb shell
     )
   );
 
@@ -53,7 +53,7 @@ FROM
 DROP VIEW IF EXISTS multiuser_timing;
 CREATE VIEW multiuser_timing AS
 SELECT
-      CAST((event_end_time_ns - event_start_time_ns) / 1e6 + 0.5 AS INT) AS duration_ms
+  CAST((event_end_time_ns - event_start_time_ns) / 1e6 + 0.5 AS INT) AS duration_ms
 FROM
   multiuser_events;
 
@@ -70,9 +70,9 @@ DROP VIEW IF EXISTS sp_frequency;
 CREATE VIEW sp_frequency AS
 SELECT
   ts,
-  lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts as dur,
+  lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
   cpu,
-  value as freq_khz
+  value AS freq_khz
 FROM counter
 JOIN cpu_counter_track ON counter.track_id = cpu_counter_track.id;
 -- Create the span joined table which combines cpu frequency with scheduling slices.
@@ -84,17 +84,17 @@ USING SPAN_JOIN(sp_sched PARTITIONED cpu, sp_frequency PARTITIONED cpu);
 DROP VIEW IF EXISTS cpu_usage_all;
 CREATE VIEW cpu_usage_all AS
 SELECT
-    process.uid / 100000 AS user_id,
-    process.name AS process_name,
-    SUM(dur * freq_khz) / 1e9 AS cpu_kcycles
+  process.uid / 100000 AS user_id,
+  process.name AS process_name,
+  SUM(dur * freq_khz) / 1e9 AS cpu_kcycles
 FROM
-    sched_with_frequency
-    JOIN thread USING (utid)
-    JOIN process USING (upid)
+  sched_with_frequency
+JOIN thread USING (utid)
+JOIN process USING (upid)
 WHERE
-    ts >= (SELECT event_start_time_ns FROM multiuser_events)
-    AND
-    ts <= (SELECT event_end_time_ns FROM multiuser_events)
+  ts >= (SELECT event_start_time_ns FROM multiuser_events)
+  AND
+  ts <= (SELECT event_end_time_ns FROM multiuser_events)
 GROUP BY upid, process.name
 ORDER BY cpu_kcycles DESC;
 
@@ -102,13 +102,13 @@ ORDER BY cpu_kcycles DESC;
 DROP VIEW IF EXISTS cpu_usage;
 CREATE VIEW cpu_usage AS
 SELECT
-    user_id,
-    process_name,
-    process_name || ":" || (CASE WHEN user_id = 0 THEN "system" ELSE "secondary" END) AS identifier,
-    CAST(cpu_kcycles / 1e3 AS INT) AS cpu_mcycles,
-    cpu_kcycles / (SELECT SUM(cpu_kcycles) FROM cpu_usage_all) * 100 AS cpu_percentage
+  user_id,
+  process_name,
+  process_name || ":" || (CASE WHEN user_id = 0 THEN "system" ELSE "secondary" END) AS identifier,
+  CAST(cpu_kcycles / 1e3 AS INT) AS cpu_mcycles,
+  cpu_kcycles / (SELECT SUM(cpu_kcycles) FROM cpu_usage_all) * 100 AS cpu_percentage
 FROM
-    cpu_usage_all
+  cpu_usage_all
 ORDER BY cpu_mcycles DESC LIMIT 25;
 
 

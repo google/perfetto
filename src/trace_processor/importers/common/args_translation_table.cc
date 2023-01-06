@@ -15,7 +15,9 @@
  */
 
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -49,6 +51,7 @@ std::string ExtractMojoInterfaceTag(const std::string& method_symbol) {
 
 }  // namespace
 
+#if !PERFETTO_IS_AT_LEAST_CPP17()
 constexpr char ArgsTranslationTable::kChromeHistogramHashKey[];
 constexpr char ArgsTranslationTable::kChromeHistogramNameKey[];
 
@@ -65,6 +68,7 @@ constexpr char ArgsTranslationTable::kMojoMethodMappingIdKey[];
 constexpr char ArgsTranslationTable::kMojoMethodRelPcKey[];
 constexpr char ArgsTranslationTable::kMojoMethodNameKey[];
 constexpr char ArgsTranslationTable::kMojoIntefaceTagKey[];
+#endif
 
 ArgsTranslationTable::ArgsTranslationTable(TraceStorage* storage)
     : storage_(storage),
@@ -88,12 +92,14 @@ ArgsTranslationTable::ArgsTranslationTable(TraceStorage* storage)
           storage->InternString(kMojoMethodMappingIdKey)),
       interned_mojo_method_rel_pc_(storage->InternString(kMojoMethodRelPcKey)),
       interned_mojo_method_name_(storage->InternString(kMojoMethodNameKey)),
-      interned_mojo_interface_tag_(storage->InternString(kMojoIntefaceTagKey)) {
-}
+      interned_mojo_interface_tag_(storage->InternString(kMojoIntefaceTagKey)),
+      interned_obfuscated_view_dump_class_name_flat_key_(
+          storage->InternString(kObfuscatedViewDumpClassNameFlatKey)) {}
 
-bool ArgsTranslationTable::NeedsTranslation(StringId key_id,
+bool ArgsTranslationTable::NeedsTranslation(StringId flat_key_id,
+                                            StringId key_id,
                                             Variadic::Type type) const {
-  return KeyIdAndTypeToEnum(key_id, type).has_value();
+  return KeyIdAndTypeToEnum(flat_key_id, key_id, type).has_value();
 }
 
 void ArgsTranslationTable::TranslateArgs(
@@ -103,9 +109,10 @@ void ArgsTranslationTable::TranslateArgs(
   base::Optional<uint64_t> rel_pc;
 
   for (const auto& arg : arg_set) {
-    const auto key_type = KeyIdAndTypeToEnum(arg.key, arg.value.type);
+    const auto key_type =
+        KeyIdAndTypeToEnum(arg.flat_key, arg.key, arg.value.type);
     if (!key_type.has_value()) {
-      inserter.AddArg(arg.key, arg.value, arg.update_policy);
+      inserter.AddArg(arg.flat_key, arg.key, arg.value, arg.update_policy);
       continue;
     }
 
@@ -156,6 +163,17 @@ void ArgsTranslationTable::TranslateArgs(
         }
         break;
       }
+      case KeyType::kClassName: {
+        const base::Optional<StringId> translated_class_name =
+            TranslateClassName(arg.value.string_value);
+        if (translated_class_name) {
+          inserter.AddArg(arg.flat_key, arg.key,
+                          Variadic::String(*translated_class_name));
+        } else {
+          inserter.AddArg(arg.flat_key, arg.key, arg.value);
+        }
+        break;
+      }
       case KeyType::kMojoMethodMappingId: {
         mapping_id = arg.value.uint_value;
         break;
@@ -170,28 +188,32 @@ void ArgsTranslationTable::TranslateArgs(
 }
 
 base::Optional<ArgsTranslationTable::KeyType>
-ArgsTranslationTable::KeyIdAndTypeToEnum(StringId key_id,
+ArgsTranslationTable::KeyIdAndTypeToEnum(StringId flat_key_id,
+                                         StringId key_id,
                                          Variadic::Type type) const {
-  if (type != Variadic::Type::kUint) {
-    return base::nullopt;
-  }
-  if (key_id == interned_chrome_histogram_hash_key_) {
-    return KeyType::kChromeHistogramHash;
-  }
-  if (key_id == interned_chrome_user_event_hash_key_) {
-    return KeyType::kChromeUserEventHash;
-  }
-  if (key_id == interned_chrome_performance_mark_mark_hash_key_) {
-    return KeyType::kChromePerformanceMarkMarkHash;
-  }
-  if (key_id == interned_chrome_performance_mark_site_hash_key_) {
-    return KeyType::kChromePerformanceMarkSiteHash;
-  }
-  if (key_id == interned_mojo_method_mapping_id_) {
-    return KeyType::kMojoMethodMappingId;
-  }
-  if (key_id == interned_mojo_method_rel_pc_) {
-    return KeyType::kMojoMethodRelPc;
+  if (type == Variadic::Type::kUint) {
+    if (key_id == interned_chrome_histogram_hash_key_) {
+      return KeyType::kChromeHistogramHash;
+    }
+    if (key_id == interned_chrome_user_event_hash_key_) {
+      return KeyType::kChromeUserEventHash;
+    }
+    if (key_id == interned_chrome_performance_mark_mark_hash_key_) {
+      return KeyType::kChromePerformanceMarkMarkHash;
+    }
+    if (key_id == interned_chrome_performance_mark_site_hash_key_) {
+      return KeyType::kChromePerformanceMarkSiteHash;
+    }
+    if (key_id == interned_mojo_method_mapping_id_) {
+      return KeyType::kMojoMethodMappingId;
+    }
+    if (key_id == interned_mojo_method_rel_pc_) {
+      return KeyType::kMojoMethodRelPc;
+    }
+  } else if (type == Variadic::Type::kString) {
+    if (flat_key_id == interned_obfuscated_view_dump_class_name_flat_key_) {
+      return KeyType::kClassName;
+    }
   }
   return base::nullopt;
 }
@@ -243,6 +265,11 @@ ArgsTranslationTable::TranslateNativeSymbol(MappingId mapping_id,
     return base::nullopt;
   }
   return *loc;
+}
+
+base::Optional<StringId> ArgsTranslationTable::TranslateClassName(
+    StringId obfuscated_class_name_id) const {
+  return deobfuscation_mapping_table_.TranslateClass(obfuscated_class_name_id);
 }
 
 void ArgsTranslationTable::EmitMojoMethodLocation(

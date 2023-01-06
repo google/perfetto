@@ -16,6 +16,7 @@ import("//gn/standalone/sanitizers/vars.gni")
 
 declare_args() {
   is_hermetic_clang = is_clang && (is_linux_host || is_win_host)
+  non_hermetic_clang_stdlib = ""
 }
 
 assert(!is_hermetic_clang || is_clang, "is_hermetic_clang requires is_clang")

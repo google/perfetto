@@ -90,6 +90,7 @@ export class RafScheduler {
     this.canvasRedrawCallbacks.delete(cb);
   }
 
+  // Schedule re-rendering of canvas only.
   scheduleRedraw() {
     this.maybeScheduleAnimationFrame(true);
   }
@@ -98,10 +99,11 @@ export class RafScheduler {
     this._shutdown = true;
   }
 
-  set domRedraw(cb: RedrawCallback|null) {
-    this._syncDomRedraw = cb || ((_) => {});
+  set domRedraw(cb: RedrawCallback) {
+    this._syncDomRedraw = cb;
   }
 
+  // Schedule re-rendering of virtual DOM and canvas.
   scheduleFullRedraw() {
     this.requestedFullRedraw = true;
     this.maybeScheduleAnimationFrame(true);

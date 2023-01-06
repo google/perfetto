@@ -28,9 +28,7 @@ import {
 import {globals} from './globals';
 import {
   Aggregation,
-  AggregationFunction,
   TableColumn,
-  tableColumnEquals,
 } from './pivot_table_redux_types';
 
 export interface Table {
@@ -40,7 +38,7 @@ export interface Table {
 
 export const sliceTable = {
   name: 'slice',
-  columns: ['type', 'ts', 'dur', 'category', 'name'],
+  columns: ['type', 'ts', 'dur', 'category', 'name', 'depth'],
 };
 
 // Columns of `slice` table available for aggregation.
@@ -90,22 +88,14 @@ export interface ArgumentColumn {
   argument: string;
 }
 
-function outerAggregation(fn: AggregationFunction): AggregationFunction {
-  if (fn === 'COUNT') {
-    return 'SUM';
-  }
-  return fn;
-}
-
 // Exception thrown by query generator in case incoming parameters are not
 // suitable in order to build a correct query; these are caught by the UI and
 // displayed to the user.
 export class QueryGeneratorError extends Error {}
 
 // Internal column name for different rollover levels of aggregate columns.
-function aggregationAlias(
-    aggregationIndex: number, rolloverLevel: number): string {
-  return `agg_${aggregationIndex}_level_${rolloverLevel}`;
+function aggregationAlias(aggregationIndex: number): string {
+  return `agg_${aggregationIndex}`;
 }
 
 export function areaFilter(area: Area): string {
@@ -119,7 +109,7 @@ export function areaFilter(area: Area): string {
 export function expression(column: TableColumn): string {
   switch (column.kind) {
     case 'regular':
-      return column.column;
+      return `${column.table}.${column.column}`;
     case 'argument':
       return extractArgumentExpression(column.argument);
   }
@@ -138,62 +128,8 @@ export function extractArgumentExpression(argument: string, table?: string) {
   return `extract_arg(${prefix}arg_set_id, ${sqliteString(argument)})`;
 }
 
-function generateInnerQuery(
-    pivots: TableColumn[],
-    aggregations: Aggregation[],
-    includeTrack: boolean,
-    area: Area,
-    constrainToArea: boolean): {query: string, groupByColumns: string[]} {
-  const aggregationColumns: string[] = [];
-
-  for (let i = 0; i < aggregations.length; i++) {
-    aggregationColumns.push(`${aggregationExpression(aggregations[i])} as ${
-        aggregationAlias(i, 0)}`);
-  }
-
-  const selectColumns: string[] = [];
-  const groupByColumns: string[] = [];
-
-  let argumentCount = 0;
-  for (const column of pivots) {
-    switch (column.kind) {
-      case 'regular': {
-        selectColumns.push(column.column);
-        groupByColumns.push(column.column);
-        break;
-      }
-      case 'argument': {
-        const alias = `pivot_argument_${argumentCount++}`;
-        selectColumns.push(
-            `${extractArgumentExpression(column.argument)} as ${alias}`);
-        groupByColumns.push(alias);
-        break;
-      }
-    }
-  }
-  if (includeTrack) {
-    selectColumns.push('track_id');
-  }
-
-  const query = `
-    select
-      ${selectColumns.concat(aggregationColumns).join(',\n')}
-    from slice
-    ${(constrainToArea ? `where ${areaFilter(area)}` : '')}
-    group by ${
-      groupByColumns.concat(includeTrack ? ['track_id'] : []).join(', ')}
-  `;
-
-  return {query, groupByColumns};
-}
-
-// Every aggregation in the request is contained in the result in (number of
-// pivots + 1) times for each rollover level. This helper function returs an
-// index of the necessary column in the response.
-export function aggregationIndex(
-    pivotColumns: number, aggregationNo: number, depth: number) {
-  return pivotColumns + aggregationNo * (pivotColumns + 1) +
-      (pivotColumns - depth);
+export function aggregationIndex(pivotColumns: number, aggregationNo: number) {
+  return pivotColumns + aggregationNo;
 }
 
 export function generateQueryFromState(
@@ -208,84 +144,45 @@ export function generateQueryFromState(
     throw new QueryGeneratorError('No aggregations selected');
   }
 
-  const nonSlicePivots = state.selectedPivots;
-  const slicePivots = state.selectedSlicePivots;
-  if (slicePivots.length === 0 && nonSlicePivots.length === 0) {
-    throw new QueryGeneratorError('No pivots selected');
-  }
+  const pivots = state.selectedPivots;
 
-  const outerAggregations = [];
-  const innerQuery = generateInnerQuery(
-      slicePivots,
-      sliceTableAggregations,
-      nonSlicePivots.length > 0,
-      globals.state.areas[state.selectionArea.areaId],
-      state.constrainToArea);
+  const aggregations = sliceTableAggregations.map(
+      (agg, index) =>
+          `${aggregationExpression(agg)} as ${aggregationAlias(index)}`);
 
-  const prefixedSlicePivots =
-      innerQuery.groupByColumns.map((p) => `preaggregated.${p}`);
-  const renderedNonSlicePivots =
-      nonSlicePivots.map((pivot) => `${pivot.table}.${pivot.column}`);
-  const totalPivotsArray = renderedNonSlicePivots.concat(prefixedSlicePivots);
-  const sortCriteria =
-      globals.state.nonSerializableState.pivotTableRedux.sortCriteria;
+  const renderedPivots =
+      pivots.map((pivot) => `${pivot.table}.${pivot.column}`);
   const sortClauses: string[] = [];
   for (let i = 0; i < sliceTableAggregations.length; i++) {
-    const agg = `preaggregated.${aggregationAlias(i, 0)}`;
-    const fn = outerAggregation(sliceTableAggregations[i].aggregationFunction);
-    outerAggregations.push(`${fn}(${agg}) as ${aggregationAlias(i, 0)}`);
-
-    for (let level = 1; level < totalPivotsArray.length; level++) {
-      // Peculiar form "SUM(SUM(agg)) over (partition by columns)" here means
-      // following: inner SUM(agg) is an aggregation that is going to collapse
-      // tracks with the same pivot values, which is going to be post-aggregated
-      // by the set of columns by outer **window** SUM function.
-
-      // Need to use complicated query syntax can be avoided by having yet
-      // another nested subquery computing only aggregation values with window
-      // functions in the wrapper, but the generation code is going to be more
-      // complex; so complexity of the query is traded for complexity of the
-      // query generator.
-      outerAggregations.push(`${fn}(${fn}(${agg})) over (partition by ${
-          totalPivotsArray.slice(0, totalPivotsArray.length - level)
-              .join(', ')}) as ${aggregationAlias(i, level)}`);
-    }
-
-    outerAggregations.push(`${fn}(${fn}(${agg})) over () as ${
-        aggregationAlias(i, totalPivotsArray.length)}`);
-
-    if (sortCriteria !== undefined &&
-        tableColumnEquals(
-            sliceTableAggregations[i].column, sortCriteria.column)) {
-      for (let level = totalPivotsArray.length - 1; level >= 0; level--) {
-        sortClauses.push(`${aggregationAlias(i, level)} ${sortCriteria.order}`);
-      }
+    const sortDirection = sliceTableAggregations[i].sortDirection;
+    if (sortDirection !== undefined) {
+      sortClauses.push(`${aggregationAlias(i)} ${sortDirection}`);
     }
   }
 
   const joins = `
-    join thread_track on thread_track.id = preaggregated.track_id
-    join thread using (utid)
-    join process using (upid)
+    left join thread_track on thread_track.id = slice.track_id
+    left join thread using (utid)
+    left join process using (upid)
   `;
 
+  const whereClause = state.constrainToArea ?
+      `where ${areaFilter(globals.state.areas[state.selectionArea.areaId])}` :
+      '';
   const text = `
     select
-      ${
-      renderedNonSlicePivots.concat(prefixedSlicePivots, outerAggregations)
-          .join(',\n')}
-    from (
-      ${innerQuery.query}
-    ) preaggregated
-    ${nonSlicePivots.length > 0 ? joins : ''}
-    group by ${renderedNonSlicePivots.concat(prefixedSlicePivots).join(', ')}
+      ${renderedPivots.concat(aggregations).join(',\n')}
+    from slice
+    ${pivots.length > 0 ? joins : ''}
+    ${whereClause}
+    group by ${renderedPivots.join(', ')}
     ${sortClauses.length > 0 ? ('order by ' + sortClauses.join(', ')) : ''}
   `;
 
   return {
     text,
     metadata: {
-      pivotColumns: (nonSlicePivots as TableColumn[]).concat(slicePivots),
+      pivotColumns: pivots,
       aggregationColumns: sliceTableAggregations,
     },
   };

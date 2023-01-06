@@ -39,6 +39,7 @@
 
 #include "protos/perfetto/trace/extension_descriptor.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_active_processes.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_histogram_sample.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_legacy_ipc.pbzero.h"
@@ -243,11 +244,12 @@ class TrackEventParser::EventImporter {
         args_translation_table_(context_->args_translation_table.get()),
         ts_(ts),
         event_data_(event_data),
-        sequence_state_(event_data->sequence_state.get()),
+        sequence_state_(event_data->trace_packet_data.sequence_state.get()),
         blob_(std::move(blob)),
         event_(blob_),
         legacy_event_(event_.legacy_event()),
-        defaults_(event_data->sequence_state->GetTrackEventDefaults()),
+        defaults_(event_data->trace_packet_data.sequence_state
+                      ->GetTrackEventDefaults()),
         thread_timestamp_(event_data->thread_timestamp),
         thread_instruction_count_(event_data->thread_instruction_count),
         packet_sequence_id_(packet_sequence_id) {}
@@ -1181,6 +1183,13 @@ class TrackEventParser::EventImporter {
       log_errors(
           ParseHistogramName(event_.chrome_histogram_sample(), inserter));
     }
+    if (event_.has_chrome_active_processes()) {
+      protos::pbzero::ChromeActiveProcesses::Decoder message(
+          event_.chrome_active_processes());
+      for (auto it = message.pid(); it; ++it) {
+        parser_->AddActiveProcess(ts_, *it);
+      }
+    }
 
     TrackEventArgsParser args_writer(ts_, *inserter, *storage_,
                                      *sequence_state_);
@@ -1528,10 +1537,7 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
   args_parser_.AddParsingOverrideForField(
       "active_processes.pid", [&](const protozero::Field& field,
                                   util::ProtoToArgsParser::Delegate& delegate) {
-        UniquePid upid = context_->process_tracker->GetOrCreateProcess(
-            static_cast<uint32_t>(field.as_int32()));
-        active_chrome_processes_tracker_.AddActiveProcessMetadata(
-            delegate.packet_timestamp(), upid);
+        AddActiveProcess(delegate.packet_timestamp(), field.as_int32());
         // Fallthrough so that the parser adds pid as a regular arg.
         return base::nullopt;
       });
@@ -1709,6 +1715,17 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
                                        const TrackEventData* event_data,
                                        ConstBytes blob,
                                        uint32_t packet_sequence_id) {
+  const auto range_of_interest_start_us =
+      track_event_tracker_->range_of_interest_start_us();
+  if (context_->config.drop_track_event_data_before ==
+          DropTrackEventDataBefore::kTrackEventRangeOfInterest &&
+      range_of_interest_start_us && ts < *range_of_interest_start_us * 1000) {
+    // The event is outside of the range of interest, and dropping is enabled.
+    // So we drop the event.
+    context_->storage->IncrementStats(
+        stats::track_event_dropped_packets_outside_of_range_of_interest);
+    return;
+  }
   util::Status status =
       EventImporter(this, ts, event_data, std::move(blob), packet_sequence_id)
           .Import();
@@ -1716,6 +1733,13 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
     context_->storage->IncrementStats(stats::track_event_parser_errors);
     PERFETTO_DLOG("ParseTrackEvent error: %s", status.c_message());
   }
+}
+
+void TrackEventParser::AddActiveProcess(int64_t packet_timestamp, int32_t pid) {
+  UniquePid upid =
+      context_->process_tracker->GetOrCreateProcess(static_cast<uint32_t>(pid));
+  active_chrome_processes_tracker_.AddActiveProcessMetadata(packet_timestamp,
+                                                            upid);
 }
 
 void TrackEventParser::NotifyEndOfFile() {

@@ -18,15 +18,14 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "protos/perfetto/trace/statsd/statsd_atom.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/json/json_utils.h"
-#include "src/trace_processor/importers/proto/async_track_set_tracker.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/trace_sorter.h"
 #include "src/trace_processor/util/descriptors.h"
 
-#include "src/trace_processor/importers/atoms.descriptor.h"
+#include "src/trace_processor/importers/proto/atoms.descriptor.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -102,14 +101,8 @@ class InserterDelegate : public util::ProtoToArgsParser::Delegate {
     inserter_.AddArg(flat_key_id, key_id, variadic_val);
   }
 
-  bool AddJson(const Key& key, const protozero::ConstChars& value) override {
-    auto json_value = json::ParseJsonString(value);
-    if (!json_value) {
-      return false;
-    }
-    return json::AddJsonValueToArgs(*json_value, base::StringView(key.flat_key),
-                                    base::StringView(key.key), &storage_,
-                                    &inserter_);
+  bool AddJson(const Key&, const protozero::ConstChars&) override {
+    PERFETTO_FATAL("Unexpected JSON value when parsing statsd data");
   }
 
   void AddNull(const Key& key) override {

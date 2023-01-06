@@ -46,9 +46,9 @@ FROM slice
 WHERE
   track_id = (
     SELECT id FROM browser_main_track_id
-  ) AND
-  name = "LatencyInfo.Flow"
-  GROUP BY trace_id;
+  )
+  AND name = "LatencyInfo.Flow"
+GROUP BY trace_id;
 
 --------------------------------------------------------------------------------
 -- Join the relevant tracks/flows to the individual scrolls.
@@ -76,55 +76,55 @@ FROM (
     track_id
   FROM scroll_jank
 ) scroll JOIN browser_flows ON
-    scroll.trace_id = browser_flows.trace_id;
+  scroll.trace_id = browser_flows.trace_id;
 
 --------------------------------------------------------------------------------
 -- Below we determine if there was any bitmaps taken on the browser main.
 --------------------------------------------------------------------------------
 DROP VIEW IF EXISTS get_bitmap_calls;
 CREATE VIEW get_bitmap_calls AS
-  SELECT
-    id,
-    ts,
-    dur,
-    track_id
-  FROM slice
-  WHERE
-    slice.name = "ViewResourceAdapter:getBitmap" AND
-    track_id = (SELECT id FROM browser_main_track_id);
+SELECT
+  id,
+  ts,
+  dur,
+  track_id
+FROM slice
+WHERE
+  slice.name = "ViewResourceAdapter:getBitmap"
+  AND track_id = (SELECT id FROM browser_main_track_id);
 
 DROP VIEW IF EXISTS toolbar_bitmaps;
 CREATE VIEW toolbar_bitmaps AS
-  SELECT
-    slice.id,
-    slice.ts,
-    slice.dur,
-    slice.track_id,
-    ancestor.id AS ancestor_id
-  FROM
-    slice JOIN
-    ancestor_slice(slice.id) AS ancestor ON
-      ancestor.depth = slice.depth - 1
-  WHERE
-    slice.name = "ToolbarLayout.draw" AND
-    ancestor.name = "ViewResourceAdapter:getBitmap" AND
-    slice.track_id = (SELECT id FROM browser_main_track_id);
+SELECT
+  slice.id,
+  slice.ts,
+  slice.dur,
+  slice.track_id,
+  ancestor.id AS ancestor_id
+FROM
+  slice JOIN
+  ancestor_slice(slice.id) AS ancestor ON
+    ancestor.depth = slice.depth - 1
+WHERE
+  slice.name = "ToolbarLayout.draw"
+  AND ancestor.name = "ViewResourceAdapter:getBitmap"
+  AND slice.track_id = (SELECT id FROM browser_main_track_id);
 
 DROP VIEW IF EXISTS get_bitmaps_and_toolbar;
 CREATE VIEW get_bitmaps_and_toolbar AS
-  SELECT
-    bitmap.id AS id,
-    bitmap.ts AS ts,
-    bitmap.dur AS dur,
-    bitmap.track_id AS track_id,
-    toolbar.id AS toolbar_id,
-    toolbar.ts AS toolbar_ts,
-    toolbar.dur AS toolbar_dur,
-    toolbar.track_id AS toolbar_track_id
-  FROM
-    get_bitmap_calls bitmap LEFT JOIN
-    toolbar_bitmaps toolbar ON
-      toolbar.ancestor_id = bitmap.id;
+SELECT
+  bitmap.id AS id,
+  bitmap.ts AS ts,
+  bitmap.dur AS dur,
+  bitmap.track_id AS track_id,
+  toolbar.id AS toolbar_id,
+  toolbar.ts AS toolbar_ts,
+  toolbar.dur AS toolbar_dur,
+  toolbar.track_id AS toolbar_track_id
+FROM
+  get_bitmap_calls bitmap LEFT JOIN
+  toolbar_bitmaps toolbar ON
+    toolbar.ancestor_id = bitmap.id;
 
 --------------------------------------------------------------------------------
 -- Take bitmaps and determine if it could have been blocked by a scroll. I.E. if
@@ -141,34 +141,19 @@ SELECT
   bitmap.ts,
   bitmap.dur,
   bitmap.track_id,
-  CASE WHEN
-      bitmap.track_id = scroll.browser_track_id AND
-      bitmap.ts < scroll.browser_flow_ts THEN
-    TRUE
-  ELSE
-    FALSE
-  END AS blocked_by_bitmap,
-  CASE WHEN
-      bitmap.track_id = scroll.browser_track_id AND
-      bitmap.toolbar_id IS NOT NULL AND
-      bitmap.ts < scroll.browser_flow_ts THEN
-    TRUE
-  ELSE
-    FALSE
-  END AS blocked_by_toolbar,
-  CASE WHEN
-      bitmap.track_id = scroll.browser_track_id AND
-      bitmap.toolbar_id IS NULL AND
-      bitmap.ts < scroll.browser_flow_ts THEN
-    TRUE
-  ELSE
-    FALSE
-  END AS blocked_by_bitmap_no_toolbar
+  COALESCE(bitmap.track_id = scroll.browser_track_id
+    AND bitmap.ts < scroll.browser_flow_ts, FALSE) AS blocked_by_bitmap,
+  COALESCE(bitmap.track_id = scroll.browser_track_id
+    AND bitmap.toolbar_id IS NOT NULL
+    AND bitmap.ts < scroll.browser_flow_ts, FALSE) AS blocked_by_toolbar,
+  COALESCE(bitmap.track_id = scroll.browser_track_id
+    AND bitmap.toolbar_id IS NULL
+    AND bitmap.ts < scroll.browser_flow_ts, FALSE) AS blocked_by_bitmap_no_toolbar
 FROM
   scroll_with_browser_flows scroll JOIN
   get_bitmaps_and_toolbar bitmap ON
-  scroll.ts + scroll.dur >= bitmap.ts AND
-  bitmap.ts + bitmap.dur >= scroll.ts;
+    scroll.ts + scroll.dur >= bitmap.ts
+    AND bitmap.ts + bitmap.dur >= scroll.ts;
 
 
 --------------------------------------------------------------------------------

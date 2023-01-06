@@ -46,6 +46,7 @@
 #include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/internal/tracing_muxer_fake.h"
 
+#include "protos/perfetto/config/chrome/chrome_config.gen.h"
 #include "protos/perfetto/config/interceptor_config.gen.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -144,6 +145,14 @@ uint64_t ComputeStartupConfigHash(DataSourceConfig config) {
   config.set_trace_duration_ms(0);
   config.set_stop_timeout_ms(0);
   config.set_enable_extra_guardrails(false);
+  // Clear client priority inside Chrome config, because Chrome always sets
+  // the priority to USER_INITIATED when setting up startup tracing.
+  // TODO(khokhlov): Remove this when Chrome correctly sets client_priority
+  // for startup tracing (and propagates it to all child processes).
+  if (config.has_chrome_config()) {
+    config.mutable_chrome_config()->set_client_priority(
+        perfetto::protos::gen::ChromeConfig::UNKNOWN);
+  }
   base::Hasher hasher;
   std::string config_bytes = config.SerializeAsString();
   hasher.Update(config_bytes.data(), config_bytes.size());
@@ -211,6 +220,7 @@ void TracingMuxerImpl::ProducerImpl::OnConnect() {
   }
   connected_ = true;
   muxer_->UpdateDataSourcesOnAllBackends();
+  SendOnConnectTriggers();
 }
 
 void TracingMuxerImpl::ProducerImpl::OnDisconnect() {
@@ -315,6 +325,22 @@ bool TracingMuxerImpl::ProducerImpl::SweepDeadServices() {
     it = next_it;
   }
   return dead_services_.empty();
+}
+
+void TracingMuxerImpl::ProducerImpl::SendOnConnectTriggers() {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  base::TimeMillis now = base::GetWallTimeMs();
+  std::vector<std::string> triggers;
+  while (!on_connect_triggers_.empty()) {
+    // Skip if we passed TTL.
+    if (on_connect_triggers_.front().second > now) {
+      triggers.push_back(std::move(on_connect_triggers_.front().first));
+    }
+    on_connect_triggers_.pop_front();
+  }
+  if (!triggers.empty()) {
+    service_->ActivateTriggers(triggers);
+  }
 }
 
 // ----- End of TracingMuxerImpl::ProducerImpl methods.
@@ -534,6 +560,13 @@ void TracingMuxerImpl::ConsumerImpl::OnObservableEvents(
         NotifyStartComplete();
     }
   }
+}
+
+void TracingMuxerImpl::ConsumerImpl::OnSessionCloned(
+    bool /*success*/,
+    const std::string& /*error*/) {
+  // CloneSession is not exposed in the SDK. This should never happen.
+  PERFETTO_DCHECK(false);
 }
 
 void TracingMuxerImpl::ConsumerImpl::OnTraceStats(
@@ -974,6 +1007,25 @@ void TracingMuxerImpl::RegisterInterceptor(
       });
 }
 
+void TracingMuxerImpl::ActivateTriggers(
+    const std::vector<std::string>& triggers,
+    uint32_t ttl_ms) {
+  base::TimeMillis expire_time =
+      base::GetWallTimeMs() + base::TimeMillis(ttl_ms);
+  task_runner_->PostTask([this, triggers, expire_time] {
+    for (RegisteredBackend& backend : backends_) {
+      if (backend.producer->connected_) {
+        backend.producer->service_->ActivateTriggers(triggers);
+      } else {
+        for (const std::string& trigger : triggers) {
+          backend.producer->on_connect_triggers_.emplace_back(trigger,
+                                                              expire_time);
+        }
+      }
+    }
+  });
+}
+
 // Checks if there is any matching startup tracing data source instance for a
 // new SetupDataSource call. If so, moves the data source to this tracing
 // session (and its target buffer) and returns true, otherwise returns false.
@@ -1009,6 +1061,7 @@ static bool MaybeAdoptStartupTracingInDataSource(
         internal_state->data_source_instance_id = instance_id;
         internal_state->buffer_id =
             static_cast<internal::BufferId>(cfg.target_buffer());
+        internal_state->config_hash = ComputeConfigHash(cfg);
 
         // TODO(eseckler): Should the data souce config provided by the service
         // be allowed to specify additional interceptors / additional data

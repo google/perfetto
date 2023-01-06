@@ -803,7 +803,7 @@ class AbstractConstRowReference {
               RowNumber(row_number)};                                         \
     }                                                                         \
                                                                               \
-    static Table::Schema Schema() {                                           \
+    static Table::Schema ComputeStaticSchema() {                              \
       Table::Schema schema;                                                   \
       schema.columns.emplace_back(Table::Schema::Column{                      \
           "id", SqlValue::Type::kLong, true, true, false, false});            \

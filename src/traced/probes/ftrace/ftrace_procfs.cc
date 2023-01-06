@@ -83,7 +83,8 @@ const char* const FtraceProcfs::kTracingPaths[] = {
 
 // static
 std::unique_ptr<FtraceProcfs> FtraceProcfs::CreateGuessingMountPoint(
-    const std::string& instance_path) {
+    const std::string& instance_path,
+    bool preserve_ftrace_buffer) {
   std::unique_ptr<FtraceProcfs> ftrace_procfs;
   size_t index = 0;
   while (!ftrace_procfs && kTracingPaths[index]) {
@@ -91,14 +92,16 @@ std::unique_ptr<FtraceProcfs> FtraceProcfs::CreateGuessingMountPoint(
     if (!instance_path.empty())
       path += instance_path;
 
-    ftrace_procfs = Create(path);
+    ftrace_procfs = Create(path, preserve_ftrace_buffer);
   }
   return ftrace_procfs;
 }
 
 // static
-std::unique_ptr<FtraceProcfs> FtraceProcfs::Create(const std::string& root) {
-  if (!CheckRootPath(root)) {
+std::unique_ptr<FtraceProcfs> FtraceProcfs::Create(
+    const std::string& root,
+    bool preserve_ftrace_buffer) {
+  if (!preserve_ftrace_buffer && !CheckRootPath(root)) {
     return nullptr;
   }
   return std::unique_ptr<FtraceProcfs>(new FtraceProcfs(root));
@@ -119,7 +122,7 @@ bool FtraceProcfs::SetSyscallFilter(const std::set<size_t>& filter) {
     filter_str = base::Join(parts, " || ");
   }
 
-  for (const std::string& event : {"sys_enter", "sys_exit"}) {
+  for (const char* event : {"sys_enter", "sys_exit"}) {
     std::string path = root_ + "events/raw_syscalls/" + event + "/filter";
     if (!WriteToFile(path, filter_str)) {
       PERFETTO_ELOG("Failed to write file: %s", path.c_str());

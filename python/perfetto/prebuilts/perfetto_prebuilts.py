@@ -52,8 +52,8 @@ def download_or_get_cached(file_name, url, sha256):
   """ Downloads a prebuilt or returns a cached version
 
   The first time this is invoked, it downloads the |url| and caches it into
-  ~/.perfetto/prebuilts/$tool_name. On subsequent invocations it just runs the
-  cached version.
+  ~/.local/share/perfetto/prebuilts/$tool_name. On subsequent invocations it
+  just runs the cached version.
   """
   dir = os.path.join(
       os.path.expanduser('~'), '.local', 'share', 'perfetto', 'prebuilts')
@@ -81,7 +81,7 @@ def download_or_get_cached(file_name, url, sha256):
       raise Exception('Checksum mismatch for %s (actual: %s, expected: %s)' %
                       (url, actual_sha256, sha256))
     os.chmod(tmp_path, 0o755)
-    os.rename(tmp_path, bin_path)
+    os.replace(tmp_path, bin_path)
     with open(sha256_path, 'w') as f:
       f.write(sha256)
   return bin_path

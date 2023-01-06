@@ -21,7 +21,7 @@ import {
   createEmptyNonSerializableState,
   createEmptyState,
 } from '../common/empty_state';
-import {State} from '../common/state';
+import {EngineConfig, ObjectById, State} from '../common/state';
 import {STATE_VERSION} from '../common/state';
 import {
   BUCKET_NAME,
@@ -37,6 +37,19 @@ import {Controller} from './controller';
 import {globals} from './globals';
 import {RecordConfig, recordConfigValidator} from './record_config_types';
 import {runValidator} from './validators';
+
+interface MultiEngineState {
+  currentEngineId?: string;
+  engines: ObjectById<EngineConfig>
+}
+
+function isMultiEngineState(state: State|
+                            MultiEngineState): state is MultiEngineState {
+  if ((state as MultiEngineState).engines !== undefined) {
+    return true;
+  }
+  return false;
+}
 
 export class PermalinkController extends Controller<'main'> {
   private lastRequestId?: string;
@@ -97,17 +110,22 @@ export class PermalinkController extends Controller<'main'> {
   private static upgradeState(state: State): State {
     if (state.version !== STATE_VERSION) {
       const newState = createEmptyState();
-      let maxEngineId = Number.MIN_SAFE_INTEGER;
-      // Copy the URL of the trace into the empty state.
-      for (const cfg of Object.values(state.engines)) {
-        newState
-            .engines[cfg.id] = {id: cfg.id, ready: false, source: cfg.source};
-        maxEngineId = Math.max(maxEngineId, Number(cfg.id));
+      // Old permalinks from state versions prior to version 24
+      // have multiple engines of which only one is identified as the
+      // current engine via currentEngineId. Handle this case:
+      if (isMultiEngineState(state)) {
+        const engineId = state.currentEngineId;
+        if (engineId !== undefined) {
+          newState.engine = state.engines[engineId];
+        }
+      } else {
+        newState.engine = state.engine;
       }
-      if (maxEngineId !== Number.MIN_SAFE_INTEGER) {
-        // set the current engine Id to the maximum engine Id in the permalink
-        newState.currentEngineId = String(maxEngineId);
+
+      if (newState.engine !== undefined) {
+        newState.engine.ready = false;
       }
+
       const message = `Unable to parse old state version. Discarding state ` +
           `and loading trace.`;
       console.warn(message);
@@ -153,7 +171,7 @@ export class PermalinkController extends Controller<'main'> {
         const url = await saveTrace(dataToUpload);
         // Convert state to use URLs and remove permalink.
         uploadState = produce(globals.state, (draft) => {
-          draft.engines[engine.id].source = {type: 'URL', url};
+          assertExists(draft.engine).source = {type: 'URL', url};
           draft.permalink = {};
         });
       }

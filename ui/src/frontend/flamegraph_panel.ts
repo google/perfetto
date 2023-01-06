@@ -135,7 +135,8 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
                     // Required to stop hot-key handling:
                     onkeydown: (e: Event) => e.stopPropagation(),
                   }),
-                  this.profileType === ProfileType.NATIVE_HEAP_PROFILE ?
+                  this.profileType === ProfileType.NATIVE_HEAP_PROFILE ||
+                          this.profileType === ProfileType.JAVA_HEAP_SAMPLES ?
                       m('button.download',
                         {
                           onclick: () => {
@@ -189,8 +190,8 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
         return 'Heap profile:';
       case ProfileType.NATIVE_HEAP_PROFILE:
         return 'Native heap profile:';
-      case ProfileType.JAVA_HEAP_PROFILE:
-        return 'Java heap profile:';
+      case ProfileType.JAVA_HEAP_SAMPLES:
+        return 'Java heap samples:';
       case ProfileType.JAVA_HEAP_GRAPH:
         return 'Java heap graph:';
       case ProfileType.PERF_SAMPLE:
@@ -214,7 +215,7 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
         }
       case ProfileType.HEAP_PROFILE:
       case ProfileType.NATIVE_HEAP_PROFILE:
-      case ProfileType.JAVA_HEAP_PROFILE:
+      case ProfileType.JAVA_HEAP_SAMPLES:
       case ProfileType.PERF_SAMPLE:
         return RENDER_SELF_AND_TOTAL;
       default:
@@ -298,7 +299,8 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
         return [
           this.buildButtonComponent(
               SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY, 'Unreleased size'),
-          this.buildButtonComponent(OBJECTS_ALLOCATED_NOT_FREED_KEY, 'Count'),
+          this.buildButtonComponent(
+              OBJECTS_ALLOCATED_NOT_FREED_KEY, 'Unreleased count'),
           this.buildButtonComponent(
               ALLOC_SPACE_MEMORY_ALLOCATED_KEY, 'Total size'),
           this.buildButtonComponent(OBJECTS_ALLOCATED_KEY, 'Total count'),
@@ -314,7 +316,7 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
           this.buildButtonComponent(
               OBJECTS_ALLOCATED_KEY, 'Total malloc count'),
         ];
-      case ProfileType.JAVA_HEAP_PROFILE:
+      case ProfileType.JAVA_HEAP_SAMPLES:
         return [
           this.buildButtonComponent(
               ALLOC_SPACE_MEMORY_ALLOCATED_KEY, 'Total allocation size'),

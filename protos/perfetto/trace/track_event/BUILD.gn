@@ -16,6 +16,7 @@ import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
   sources = [
+    "chrome_active_processes.proto",
     "chrome_application_state_info.proto",
     "chrome_compositor_scheduler_state.proto",
     "chrome_content_settings_event_info.proto",
@@ -35,6 +36,7 @@ perfetto_proto_library("@TYPE@") {
     "debug_annotation.proto",
     "log_message.proto",
     "process_descriptor.proto",
+    "range_of_interest.proto",
     "source_location.proto",
     "task_execution.proto",
     "thread_descriptor.proto",

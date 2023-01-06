@@ -18,14 +18,13 @@ import {HttpRpcState} from '../common/http_rpc_engine';
 import {
   Area,
   FrontendLocalState as FrontendState,
-  OmniboxState,
   Timestamped,
   VisibleState,
 } from '../common/state';
 import {TimeSpan} from '../common/time';
 
 import {globals} from './globals';
-import {debounce, ratelimit} from './rate_limiters';
+import {ratelimit} from './rate_limiters';
 import {TimeScale} from './time_scale';
 
 interface Range {
@@ -33,7 +32,7 @@ interface Range {
   end?: number;
 }
 
-function chooseLatest<T extends Timestamped<{}>>(current: T, next: T): T {
+function chooseLatest<T extends Timestamped>(current: T, next: T): T {
   if (next !== current && next.lastUpdate > current.lastUpdate) {
     // |next| is from state. Callers may mutate the return value of
     // this function so we need to clone |next| to prevent bad mutations
@@ -81,12 +80,6 @@ export class FrontendLocalState {
   areaY: Range = {};
 
   private scrollBarWidth?: number;
-
-  private _omniboxState: OmniboxState = {
-    lastUpdate: 0,
-    omnibox: '',
-    mode: 'SEARCH',
-  };
 
   private _visibleState: VisibleState = {
     lastUpdate: 0,
@@ -147,7 +140,6 @@ export class FrontendLocalState {
     // that is the newer state. All of these complications should vanish when
     // we remove this class.
     const previousVisibleState = this._visibleState;
-    this._omniboxState = chooseLatest(this._omniboxState, state.omniboxState);
     this._visibleState = chooseLatest(this._visibleState, state.visibleState);
     const visibleStateWasUpdated = previousVisibleState !== this._visibleState;
     if (visibleStateWasUpdated) {
@@ -172,21 +164,6 @@ export class FrontendLocalState {
 
   get selectedArea(): Area|undefined {
     return this._selectedArea;
-  }
-
-  private setOmniboxDebounced = debounce(() => {
-    globals.dispatch(Actions.setOmnibox({...this._omniboxState}));
-  }, 20);
-
-  setOmnibox(value: string, mode: 'SEARCH'|'COMMAND') {
-    this._omniboxState.omnibox = value;
-    this._omniboxState.mode = mode;
-    this._omniboxState.lastUpdate = Date.now() / 1000;
-    this.setOmniboxDebounced();
-  }
-
-  get omnibox(): string {
-    return this._omniboxState.omnibox;
   }
 
   private ratelimitedUpdateVisible = ratelimit(() => {

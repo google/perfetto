@@ -18,11 +18,11 @@ SELECT RUN_METRIC('android/power_profile_data.sql');
 
 DROP TABLE IF EXISTS cluster_core_type;
 CREATE TABLE cluster_core_type AS
-    SELECT 0 as cluster, 'little' as core_type
-    UNION ALL
-    SELECT 1, 'big'
-    UNION ALL
-    SELECT 2, 'bigger';
+SELECT 0 AS cluster, 'little' AS core_type
+UNION ALL
+SELECT 1, 'big'
+UNION ALL
+SELECT 2, 'bigger';
 
 DROP VIEW IF EXISTS device_power_profile;
 CREATE VIEW device_power_profile AS

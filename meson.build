@@ -19,7 +19,7 @@
 project(
     'perfetto',
     ['cpp'],
-    default_options: ['cpp_std=c++11']
+    default_options: ['cpp_std=c++17']
 )
 
 fs = import('fs')

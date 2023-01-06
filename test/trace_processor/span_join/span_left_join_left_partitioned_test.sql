@@ -13,20 +13,20 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-create table t1(
-  ts BIG INT,
-  dur BIG INT,
-  part BIG INT,
-  a BIG INT,
+CREATE TABLE t1(
+  ts BIGINT,
+  dur BIGINT,
+  part BIGINT,
+  a BIGINT,
   PRIMARY KEY (part, ts)
-) without rowid;
+) WITHOUT ROWID;
 
-create table t2(
-  ts BIG INT,
-  dur BIG INT,
-  b BIG INT,
+CREATE TABLE t2(
+  ts BIGINT,
+  dur BIGINT,
+  b BIGINT,
   PRIMARY KEY (ts)
-) without rowid;
+) WITHOUT ROWID;
 
 -- Then insert some rows into t1 in part 1, 3, 4 and 5.
 INSERT INTO t1(ts, dur, part, a)
@@ -44,6 +44,6 @@ VALUES
 (300, 100, 222),
 (400, 250, 333);
 
-create virtual table sp using span_left_join(t1 PARTITIONED part, t2);
+CREATE VIRTUAL TABLE sp USING span_left_join(t1 PARTITIONED part, t2);
 
-select * from sp;
+SELECT * FROM sp;

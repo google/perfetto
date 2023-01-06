@@ -261,6 +261,12 @@ class TraceBuffer {
                            PacketSequenceProperties* sequence_properties,
                            bool* previous_packet_on_sequence_dropped);
 
+  // Creates a read-only clone of the trace buffer. The read iterators of the
+  // new buffer will be reset, as if no Read() had been called. Calls to
+  // CopyChunkUntrusted() and TryPatchChunkContents() on the returned cloned
+  // TraceBuffer will CHECK().
+  std::unique_ptr<TraceBuffer> CloneReadOnly() const;
+
   const TraceStats::BufferStats& stats() const { return stats_; }
   size_t size() const { return size_; }
 
@@ -340,6 +346,9 @@ class TraceBuffer {
       Key(ProducerID p, WriterID w, ChunkID c)
           : producer_id{p}, writer_id{w}, chunk_id{c} {}
 
+      Key(const Key&) noexcept = default;
+      Key& operator=(const Key&) = default;
+
       explicit Key(const ChunkRecord& cr)
           : Key(cr.producer_id, cr.writer_id, cr.chunk_id) {}
 
@@ -379,20 +388,22 @@ class TraceBuffer {
       kLastReadPacketSkipped = 1 << 1
     };
 
-    ChunkMeta(ChunkRecord* r,
-              uint16_t p,
+    ChunkMeta(uint32_t _record_off,
+              uint16_t _num_fragments,
               bool complete,
-              uint8_t f,
-              uid_t u,
-              pid_t pid)
-        : chunk_record{r},
-          trusted_uid{u},
-          trusted_pid(pid),
-          flags{f},
-          num_fragments{p} {
+              uint8_t _flags,
+              uid_t _trusted_uid,
+              pid_t _trusted_pid)
+        : record_off{_record_off},
+          trusted_uid{_trusted_uid},
+          trusted_pid(_trusted_pid),
+          flags{_flags},
+          num_fragments{_num_fragments} {
       if (complete)
         index_flags = kComplete;
     }
+
+    ChunkMeta(const ChunkMeta&) noexcept = default;
 
     bool is_complete() const { return index_flags & kComplete; }
 
@@ -416,9 +427,9 @@ class TraceBuffer {
       }
     }
 
-    ChunkRecord* const chunk_record;  // Addr of ChunkRecord within |data_|.
-    const uid_t trusted_uid;          // uid of the producer.
-    const pid_t trusted_pid;          // pid of the producer.
+    const uint32_t record_off;  // Offset of ChunkRecord within |data_|.
+    const uid_t trusted_uid;    // uid of the producer.
+    const pid_t trusted_pid;    // pid of the producer.
 
     // Flags set by TraceBuffer to track the state of the chunk in the index.
     uint8_t index_flags = 0;
@@ -512,6 +523,11 @@ class TraceBuffer {
   explicit TraceBuffer(OverwritePolicy);
   TraceBuffer(const TraceBuffer&) = delete;
   TraceBuffer& operator=(const TraceBuffer&) = delete;
+
+  // Not using the implicit copy ctor to avoid unintended copies.
+  // This tagged ctor should be used only for Clone().
+  struct CloneCtor {};
+  TraceBuffer(CloneCtor, const TraceBuffer&);
 
   bool Initialize(size_t size);
 
@@ -626,6 +642,13 @@ class TraceBuffer {
     memset(wptr + sizeof(record) + size, 0, rounding_size);
   }
 
+  uint32_t GetOffset(const void* _addr) {
+    const uintptr_t addr = reinterpret_cast<uintptr_t>(_addr);
+    const uintptr_t buf_start = reinterpret_cast<uintptr_t>(begin());
+    PERFETTO_DCHECK(addr >= buf_start && addr < buf_start + size_);
+    return static_cast<uint32_t>(addr - buf_start);
+  }
+
   uint8_t* begin() const { return reinterpret_cast<uint8_t*>(data_.Get()); }
   uint8_t* end() const { return begin() + size_; }
   size_t size_to_end() const { return static_cast<size_t>(end() - wptr_); }
@@ -645,6 +668,10 @@ class TraceBuffer {
 
   // See comments at the top of the file.
   OverwritePolicy overwrite_policy_ = kOverwrite;
+
+  // This buffer is a read-only snapshot obtained via Clone(). If this is true
+  // calls to CopyChunkUntrusted() and TryPatchChunkContents() will CHECK().
+  bool read_only_ = false;
 
   // Only used when |overwrite_policy_ == kDiscard|. This is set the first time
   // a write fails because it would overwrite unread chunks.

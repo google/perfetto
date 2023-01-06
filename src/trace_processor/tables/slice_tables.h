@@ -53,10 +53,25 @@ namespace tables {
 
 PERFETTO_TP_TABLE(PERFETTO_TP_SLICE_TABLE_DEF);
 
+// @name sched_slice
+//   This table holds slices with kernel thread scheduling information.
+//   These slices are collected when the Linux "ftrace" data source is
+//   used with the "sched/switch" and "sched/wakeup*" events enabled.
 // @tablegroup Events
-// @param ts timestamp of the start of the slice (in nanoseconds)
-// @param dur duration of the slice (in nanoseconds)
-// @param utid {@joinable thread.utid}
+// @param id The row id for the table row.
+// @param type This field always contains the string 'sched_slice'.
+// @param ts The timestamp at the start of the slice (in nanoseconds).
+// @param dur The duration of the slice (in nanoseconds).
+// @param utid The thread's unique id in the trace. {@joinable thread.utid}.
+// @param cpu The CPU that the slice executed on.
+// @param end_state A string representing the scheduling state of the
+//   kernel thread at the end of the slice.  The individual characters in
+//   the string mean the following: R (runnable), S (awaiting a wakeup),
+//   D (in an uninterruptible sleep), T (suspended), t (being traced),
+//   X (exiting), P (parked), W (waking), I (idle), N (not contributing
+//   to the load average), K (wakeable on fatal signals) and
+//   Z (zombie, awaiting cleanup).
+// @param priority The kernel priority that the thread ran at.
 #define PERFETTO_TP_SCHED_SLICE_TABLE_DEF(NAME, PARENT, C) \
   NAME(SchedSliceTable, "sched_slice")                     \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                        \
@@ -114,15 +129,6 @@ PERFETTO_TP_TABLE(PERFETTO_TP_GPU_SLICES_DEF);
   C(int64_t, latch_to_present_time)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_GRAPHICS_FRAME_SLICES_DEF);
-
-#define PERFETTO_TP_DESCRIBE_SLICE_TABLE(NAME, PARENT, C) \
-  NAME(DescribeSliceTable, "describe_slice")              \
-  PERFETTO_TP_ROOT_TABLE(PARENT, C)                       \
-  C(uint32_t, slice_id, Column::Flag::kHidden)            \
-  C(StringPool::Id, description)                          \
-  C(StringPool::Id, doc_link)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_DESCRIBE_SLICE_TABLE);
 
 #define PERFETTO_TP_EXPECTED_FRAME_TIMELINE_SLICES_DEF(NAME, PARENT, C)  \
   NAME(ExpectedFrameTimelineSliceTable, "expected_frame_timeline_slice") \

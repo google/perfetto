@@ -19,20 +19,20 @@ SELECT RUN_METRIC('chrome/chrome_processes.sql');
 -- Grab all the thread tracks which are found in chrome threads.
 DROP VIEW IF EXISTS chrome_track;
 CREATE VIEW chrome_track AS
-  SELECT
-    *
-  FROM thread_track
-  WHERE utid IN (SELECT utid FROM chrome_thread);
+SELECT
+  *
+FROM thread_track
+WHERE utid IN (SELECT utid FROM chrome_thread);
 
 -- From all the chrome thread tracks select all the slice details for thread
 -- slices.
 DROP VIEW IF EXISTS chrome_thread_slice;
 CREATE VIEW chrome_thread_slice AS
-  SELECT
-    slice.*
-  FROM
-    slice JOIN
-    chrome_track ON
-        chrome_track.id = slice.track_id
-  WHERE
-    track_id in (SELECT id FROM chrome_track);
+SELECT
+  slice.*
+FROM
+  slice JOIN
+  chrome_track ON
+    chrome_track.id = slice.track_id
+WHERE
+  track_id IN (SELECT id FROM chrome_track);

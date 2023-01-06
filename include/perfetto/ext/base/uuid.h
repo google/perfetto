@@ -38,6 +38,8 @@ class Uuid {
 
   bool operator!=(const Uuid& other) const { return !(*this == other); }
 
+  explicit operator bool() const { return *this != Uuid(); }
+
   int64_t msb() const {
     int64_t result;
     memcpy(&result, data_.data() + 8, 8);

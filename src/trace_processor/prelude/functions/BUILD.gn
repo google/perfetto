@@ -1,0 +1,73 @@
+# Copyright (C) 2022 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("../../../../gn/test.gni")
+
+assert(enable_perfetto_trace_processor_sqlite)
+
+source_set("functions") {
+  sources = [
+    "create_function.cc",
+    "create_function.h",
+    "create_function_internal.cc",
+    "create_function_internal.h",
+    "create_view_function.cc",
+    "create_view_function.h",
+    "import.cc",
+    "import.h",
+    "pprof_functions.cc",
+    "pprof_functions.h",
+    "register_function.cc",
+    "register_function.h",
+    "sqlite3_str_split.cc",
+    "sqlite3_str_split.h",
+    "utils.h",
+    "window_functions.h",
+  ]
+  deps = [
+    "../..:demangle",
+    "../..:export_json",
+    "../..:metatrace",
+    "../../../../gn:default_deps",
+    "../../../../gn:sqlite",
+    "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/trace/ftrace:zero",
+    "../../../base",
+    "../../containers",
+    "../../db",
+    "../../dynamic",
+    "../../importers/common",
+    "../../importers/ftrace:ftrace_descriptors",
+    "../../sqlite:sqlite_minimal",
+    "../../storage",
+    "../../types",
+    "../../util",
+    "../../util:profile_builder",
+    "../../util:sql_argument",
+    "../../util:stdlib",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [ "sqlite3_str_split_unittest.cc" ]
+  deps = [
+    ":functions",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../../../gn:sqlite",
+    "../../../base",
+    "../../sqlite:sqlite_minimal",
+  ]
+}

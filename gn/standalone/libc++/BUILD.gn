@@ -32,6 +32,7 @@ config("config") {
       "-isystem" + rebase_path("$libcxx_prefix/include", root_build_dir),
       "-isystem" + rebase_path("$libcxxabi_prefix/include", root_build_dir),
     ]
+    include_dirs = [ "//buildtools/libcxx_config" ]
 
     # Avoid linking both libc++ and libstdc++.
     ldflags = [ "-nostdlib++" ]

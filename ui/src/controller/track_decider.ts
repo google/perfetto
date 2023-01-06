@@ -21,8 +21,9 @@ import {
   AddTrackArgs,
   DeferredAction,
 } from '../common/actions';
-import {Engine} from '../common/engine';
+import {Engine, EngineProxy} from '../common/engine';
 import {featureFlags, PERF_SAMPLE_FLAG} from '../common/feature_flags';
+import {pluginManager} from '../common/plugins';
 import {
   NUM,
   NUM_NULL,
@@ -82,10 +83,16 @@ const F2FS_IOSTAT_TAG = 'f2fs_iostat.';
 const F2FS_IOSTAT_GROUP_NAME = 'f2fs_iostat';
 const F2FS_IOSTAT_LAT_TAG = 'f2fs_iostat_latency.';
 const F2FS_IOSTAT_LAT_GROUP_NAME = 'f2fs_iostat_latency';
+const DISK_IOSTAT_TAG = 'diskstat.';
+const DISK_IOSTAT_GROUP_NAME = 'diskstat';
 const UFS_CMD_TAG = 'io.ufs.command.tag';
 const UFS_CMD_TAG_GROUP_NAME = 'io.ufs.command.tags';
 const BUDDY_INFO_TAG = 'mem.buddyinfo';
-const KERNEL_WAKELOCK_PREFIX = 'Wakelock';
+// NB: Userspace wakelocks start with "WakeLock" not "Wakelock".
+const KERNEL_WAKELOCK_REGEX = new RegExp('^Wakelock.*$');
+const KERNEL_WAKELOCK_GROUP = 'Kernel wakelocks';
+const NETWORK_TRACK_REGEX = new RegExp('^.* (Received|Transmitted)( KB)?$');
+const NETWORK_TRACK_GROUP = 'Networking';
 
 // Sets the default 'scale' for counter tracks. If the regex matches
 // then the paired mode is used. Entries are in priority order so the
@@ -222,10 +229,10 @@ class TrackDecider {
     }
   }
 
-  async addCpuFreqTracks(): Promise<void> {
+  async addCpuFreqTracks(engine: EngineProxy): Promise<void> {
     const cpus = await this.engine.getCpus();
 
-    const maxCpuFreqResult = await this.engine.query(`
+    const maxCpuFreqResult = await engine.query(`
     select ifnull(max(value), 0) as freq
     from counter c
     inner join cpu_counter_track t on c.track_id = t.id
@@ -238,7 +245,7 @@ class TrackDecider {
       // cpu freq data.
       // TODO(hjd): Find a way to display cpu idle
       // events even if there are no cpu freq events.
-      const cpuFreqIdleResult = await this.engine.query(`
+      const cpuFreqIdleResult = await engine.query(`
       select
         id as cpuFreqId,
         (
@@ -278,29 +285,32 @@ class TrackDecider {
     }
   }
 
-  async addGlobalAsyncTracks(): Promise<void> {
-    const rawGlobalAsyncTracks = await this.engine.query(`
+  async addGlobalAsyncTracks(engine: EngineProxy): Promise<void> {
+    const rawGlobalAsyncTracks = await engine.query(`
       with global_tracks as materialized (
+        select
+          track.id,
+          track.name,
+          count(1) cnt
+        from track
+        join slice on slice.track_id = track.id
+        where track.type = "track" or track.type = "gpu_track"
+        group by 1
+        having cnt > 0
+      ),
+      global_tracks_grouped as (
         select
           track.name,
           group_concat(track.id) as trackIds,
           count(track.id) as trackCount
-        from track
-        where
-          (track.type = "track" or track.type = "gpu_track") and
-          exists(
-            select 1
-            from slice
-            where slice.track_id = track.id
-            limit 1
-          )
+        from global_tracks track
         group by track.name
       )
       select
         t.name as name,
         t.trackIds as trackIds,
         max_layout_depth(t.trackCount, t.trackIds) as maxDepth
-      from global_tracks AS t
+      from global_tracks_grouped AS t
       order by t.name;
     `);
     const it = rawGlobalAsyncTracks.iter({
@@ -330,9 +340,9 @@ class TrackDecider {
     }
   }
 
-  async addGpuFreqTracks(): Promise<void> {
+  async addGpuFreqTracks(engine: EngineProxy): Promise<void> {
     const numGpus = await this.engine.getNumberOfGpus();
-    const maxGpuFreqResult = await this.engine.query(`
+    const maxGpuFreqResult = await engine.query(`
     select ifnull(max(value), 0) as maximumValue
     from counter c
     inner join gpu_counter_track t on c.track_id = t.id
@@ -344,7 +354,7 @@ class TrackDecider {
     for (let gpu = 0; gpu < numGpus; gpu++) {
       // Only add a gpu freq track if we have
       // gpu freq data.
-      const freqExistsResult = await this.engine.query(`
+      const freqExistsResult = await engine.query(`
       select id
       from gpu_counter_track
       where name = 'gpufreq' and gpu_id = ${gpu}
@@ -367,9 +377,9 @@ class TrackDecider {
     }
   }
 
-  async addGlobalCounterTracks(): Promise<void> {
+  async addGlobalCounterTracks(engine: EngineProxy): Promise<void> {
     // Add global or GPU counter tracks that are not bound to any pid/tid.
-    const globalCounters = await this.engine.query(`
+    const globalCounters = await engine.query(`
     select name, id
     from (
       select name, id
@@ -406,14 +416,14 @@ class TrackDecider {
     }
   }
 
-  async addCpuPerfCounterTracks(): Promise<void> {
+  async addCpuPerfCounterTracks(engine: EngineProxy): Promise<void> {
     // Perf counter tracks are bound to CPUs, follow the scheduling and
     // frequency track naming convention ("Cpu N ...").
     // Note: we might not have a track for a given cpu if no data was seen from
     // it. This might look surprising in the UI, but placeholder tracks are
     // wasteful as there's no way of collapsing global counter tracks at the
     // moment.
-    const result = await this.engine.query(`
+    const result = await engine.query(`
       select printf("Cpu %u %s", cpu, name) as name, id
       from perf_counter_track as pct
       order by perf_session_id asc, pct.name asc, cpu asc
@@ -486,21 +496,21 @@ class TrackDecider {
     this.addTrackGroupActions.push(addGroup);
   }
 
-  async groupGlobalF2fsIostatTracks(tag: string, group: string): Promise<void> {
-    const f2fsIostatTracks: AddTrackArgs[] = [];
+  async groupGlobalIostatTracks(tag: string, group: string): Promise<void> {
+    const iostatTracks: AddTrackArgs[] = [];
     const devMap = new Map<string, string>();
 
     for (const track of this.tracksToAdd) {
       if (track.name.startsWith(tag)) {
-        f2fsIostatTracks.push(track);
+        iostatTracks.push(track);
       }
     }
 
-    if (f2fsIostatTracks.length === 0) {
+    if (iostatTracks.length === 0) {
       return;
     }
 
-    for (const track of f2fsIostatTracks) {
+    for (const track of iostatTracks) {
       const name = track.name.split('.', 3);
 
       if (!devMap.has(name[1])) {
@@ -618,12 +628,11 @@ class TrackDecider {
     }
   }
 
-  async groupKernelWakelockTracks(): Promise<void> {
+  async groupTracksByRegex(regex: RegExp, groupName: string): Promise<void> {
     let groupUuid = undefined;
 
     for (const track of this.tracksToAdd) {
-      // NB: Userspace wakelocks start with "WakeLock" not "Wakelock".
-      if (track.name.startsWith(KERNEL_WAKELOCK_PREFIX)) {
+      if (regex.test(track.name)) {
         if (groupUuid === undefined) {
           groupUuid = uuidv4();
         }
@@ -638,7 +647,7 @@ class TrackDecider {
         engineId: this.engineId,
         kind: NULL_TRACK_KIND,
         trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-        name: 'Kernel wakelocks',
+        name: groupName,
         trackGroup: undefined,
         config: {},
       });
@@ -646,7 +655,7 @@ class TrackDecider {
       const addGroup = Actions.addTrackGroup({
         engineId: this.engineId,
         summaryTrackId,
-        name: 'Kernel wakelocks',
+        name: groupName,
         id: groupUuid,
         collapsed: true,
       });
@@ -654,9 +663,20 @@ class TrackDecider {
     }
   }
 
-  async addLogsTrack(): Promise<void> {
+  applyDefaultCounterScale(): void {
+    for (const track of this.tracksToAdd) {
+      if (track.kind === COUNTER_TRACK_KIND) {
+        const scaleConfig = {
+          scale: getCounterScale(track.name),
+        };
+        track.config = Object.assign({}, track.config, scaleConfig);
+      }
+    }
+  }
+
+  async addLogsTrack(engine: EngineProxy): Promise<void> {
     const result =
-        await this.engine.query(`select count(1) as cnt from android_logs`);
+        await engine.query(`select count(1) as cnt from android_logs`);
     const count = result.firstRow({cnt: NUM}).cnt;
 
     if (count > 0) {
@@ -671,8 +691,8 @@ class TrackDecider {
     }
   }
 
-  async addAnnotationTracks(): Promise<void> {
-    const sliceResult = await this.engine.query(`
+  async addAnnotationTracks(engine: EngineProxy): Promise<void> {
+    const sliceResult = await engine.query(`
       select id, name, upid, group_name
       from annotation_slice_track
       order by name
@@ -745,7 +765,7 @@ class TrackDecider {
       this.addTrackGroupActions.push(addGroup);
     }
 
-    const counterResult = await this.engine.query(`
+    const counterResult = await engine.query(`
     SELECT
       id,
       name,
@@ -788,8 +808,8 @@ class TrackDecider {
     }
   }
 
-  async addThreadStateTracks(): Promise<void> {
-    const result = await this.engine.query(`
+  async addThreadStateTracks(engine: EngineProxy): Promise<void> {
+    const result = await engine.query(`
       select
         utid,
         tid,
@@ -837,8 +857,8 @@ class TrackDecider {
     }
   }
 
-  async addThreadCpuSampleTracks(): Promise<void> {
-    const result = await this.engine.query(`
+  async addThreadCpuSampleTracks(engine: EngineProxy): Promise<void> {
+    const result = await engine.query(`
       select
         utid,
         tid,
@@ -878,8 +898,8 @@ class TrackDecider {
     }
   }
 
-  async addThreadCounterTracks(): Promise<void> {
-    const result = await this.engine.query(`
+  async addThreadCounterTracks(engine: EngineProxy): Promise<void> {
+    const result = await engine.query(`
     select
       thread_counter_track.name as trackName,
       utid,
@@ -933,14 +953,13 @@ class TrackDecider {
           startTs,
           endTs,
           tid,
-          scale: getCounterScale(name),
         },
       });
     }
   }
 
-  async addProcessAsyncSliceTracks(): Promise<void> {
-    const result = await this.engine.query(`
+  async addProcessAsyncSliceTracks(engine: EngineProxy): Promise<void> {
+    const result = await engine.query(`
       with process_async_tracks as materialized (
         select
           process_track.upid as upid,
@@ -1000,8 +1019,8 @@ class TrackDecider {
     }
   }
 
-  async addActualFramesTracks(): Promise<void> {
-    const result = await this.engine.query(`
+  async addActualFramesTracks(engine: EngineProxy): Promise<void> {
+    const result = await engine.query(`
       with process_async_tracks as materialized (
         select
           process_track.upid as upid,
@@ -1059,8 +1078,8 @@ class TrackDecider {
     }
   }
 
-  async addExpectedFramesTracks(): Promise<void> {
-    const result = await this.engine.query(`
+  async addExpectedFramesTracks(engine: EngineProxy): Promise<void> {
+    const result = await engine.query(`
       with process_async_tracks as materialized (
         select
           process_track.upid as upid,
@@ -1119,8 +1138,8 @@ class TrackDecider {
     }
   }
 
-  async addThreadSliceTracks(): Promise<void> {
-    const result = await this.engine.query(`
+  async addThreadSliceTracks(engine: EngineProxy): Promise<void> {
+    const result = await engine.query(`
         select
           thread_track.utid as utid,
           thread_track.id as trackId,
@@ -1200,8 +1219,8 @@ class TrackDecider {
     }
   }
 
-  async addProcessCounterTracks(): Promise<void> {
-    const result = await this.engine.query(`
+  async addProcessCounterTracks(engine: EngineProxy): Promise<void> {
+    const result = await engine.query(`
     select
       process_counter_track.id as trackId,
       process_counter_track.name as trackName,
@@ -1246,14 +1265,13 @@ class TrackDecider {
           trackId,
           startTs,
           endTs,
-          scale: getCounterScale(name),
         },
       });
     }
   }
 
-  async addProcessHeapProfileTracks(): Promise<void> {
-    const result = await this.engine.query(`
+  async addProcessHeapProfileTracks(engine: EngineProxy): Promise<void> {
+    const result = await engine.query(`
     select distinct(upid) from heap_profile_allocation
     union
     select distinct(upid) from heap_graph_object
@@ -1272,8 +1290,8 @@ class TrackDecider {
     }
   }
 
-  async addProcessPerfSamplesTracks(): Promise<void> {
-    const result = await this.engine.query(`
+  async addProcessPerfSamplesTracks(engine: EngineProxy): Promise<void> {
+    const result = await engine.query(`
       select distinct upid, pid
       from perf_sample join thread using (utid) join process using (upid)
       where callsite_id is not null
@@ -1319,7 +1337,7 @@ class TrackDecider {
     this.upidToUuid.set(upid, uuid);
   }
 
-  async addKernelThreadGrouping(): Promise<void> {
+  async addKernelThreadGrouping(engine: EngineProxy): Promise<void> {
     // Identify kernel threads if this is a linux system trace, and sufficient
     // process information is available. Kernel threads are identified by being
     // children of kthreadd (always pid 2).
@@ -1329,7 +1347,7 @@ class TrackDecider {
     // which has pid 0 but appears as a distinct process (with its own comm) on
     // each cpu. It'd make sense to exclude its thread state track, but still
     // put process-scoped tracks in this group.
-    const result = await this.engine.query(`
+    const result = await engine.query(`
       select
         t.utid, p.upid, (case p.pid when 2 then 1 else 0 end) isKthreadd
       from
@@ -1385,7 +1403,7 @@ class TrackDecider {
     }
   }
 
-  async addProcessTrackGroups(): Promise<void> {
+  async addProcessTrackGroups(engine: EngineProxy): Promise<void> {
     // We want to create groups of tracks in a specific order.
     // The tracks should be grouped:
     //    by upid
@@ -1398,7 +1416,7 @@ class TrackDecider {
     //  upid
     //  thread name
     //  utid
-    const result = await this.engine.query(`
+    const result = await engine.query(`
     select
       the_tracks.upid,
       the_tracks.utid,
@@ -1618,6 +1636,25 @@ class TrackDecider {
     `);
   }
 
+  async addPluginTracks(): Promise<void> {
+    const promises = pluginManager.findPotentialTracks(this.engine);
+    const groups = await Promise.all(promises);
+    for (const infos of groups) {
+      for (const info of infos) {
+        this.tracksToAdd.push({
+          engineId: this.engineId,
+          kind: info.trackKind,
+          name: info.name,
+          // TODO(hjd): Fix how sorting works. Plugins should expose
+          // 'sort keys' which the user can use to choose a sort order.
+          trackSortKey: PrimaryTrackSortKey.COUNTER_TRACK,
+          trackGroup: SCROLLING_TRACK_GROUP,
+          config: info.config,
+        });
+      }
+    }
+  }
+
   async decideTracks(): Promise<DeferredAction[]> {
     // Add first the global tracks that don't require per-process track groups.
     if (NULL_TRACKS_FLAG.get()) {
@@ -1627,20 +1664,26 @@ class TrackDecider {
     await this.defineMaxLayoutDepthSqlFunction();
 
     await this.addCpuSchedulingTracks();
-    await this.addCpuFreqTracks();
-    await this.addGlobalAsyncTracks();
-    await this.addGpuFreqTracks();
-    await this.addGlobalCounterTracks();
-    await this.addCpuPerfCounterTracks();
-    await this.addAnnotationTracks();
+    await this.addCpuFreqTracks(
+        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+    await this.addGlobalAsyncTracks(
+        this.engine.getProxy('TrackDecider::addGlobalAsyncTracks'));
+    await this.addGpuFreqTracks(
+        this.engine.getProxy('TrackDecider::addGpuFreqTracks'));
+    await this.addCpuPerfCounterTracks(
+        this.engine.getProxy('TrackDecider::addCpuPerfCounterTracks'));
+    await this.addPluginTracks();
+    await this.addAnnotationTracks(
+        this.engine.getProxy('TrackDecider::addAnnotationTracks'));
     await this.groupGlobalIonTracks();
-    await this.groupGlobalF2fsIostatTracks(
-        F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
-    await this.groupGlobalF2fsIostatTracks(
+    await this.groupGlobalIostatTracks(F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
+    await this.groupGlobalIostatTracks(
         F2FS_IOSTAT_LAT_TAG, F2FS_IOSTAT_LAT_GROUP_NAME);
+    await this.groupGlobalIostatTracks(DISK_IOSTAT_TAG, DISK_IOSTAT_GROUP_NAME);
     await this.groupGlobalUfsCmdTagTracks(UFS_CMD_TAG, UFS_CMD_TAG_GROUP_NAME);
     await this.groupGlobalBuddyInfoTracks();
-    await this.groupKernelWakelockTracks();
+    await this.groupTracksByRegex(KERNEL_WAKELOCK_REGEX, KERNEL_WAKELOCK_GROUP);
+    await this.groupTracksByRegex(NETWORK_TRACK_REGEX, NETWORK_TRACK_GROUP);
 
     // Pre-group all kernel "threads" (actually processes) if this is a linux
     // system trace. Below, addProcessTrackGroups will skip them due to an
@@ -1648,27 +1691,39 @@ class TrackDecider {
     // per-thread tracks. Quirk: since all threads will appear to be
     // TrackKindPriority.MAIN_THREAD, any process-level tracks will end up
     // pushed to the bottom of the group in the UI.
-    await this.addKernelThreadGrouping();
+    await this.addKernelThreadGrouping(
+        this.engine.getProxy('TrackDecider::addKernelThreadGrouping'));
 
     // Create the per-process track groups. Note that this won't necessarily
     // create a track per process. If a process has been completely idle and has
     // no sched events, no track group will be emitted.
     // Will populate this.addTrackGroupActions
-    await this.addProcessTrackGroups();
+    await this.addProcessTrackGroups(
+        this.engine.getProxy('TrackDecider::addProcessTrackGroups'));
 
-    await this.addProcessHeapProfileTracks();
+    await this.addProcessHeapProfileTracks(
+        this.engine.getProxy('TrackDecider::addProcessHeapProfileTracks'));
     if (PERF_SAMPLE_FLAG.get()) {
-      await this.addProcessPerfSamplesTracks();
+      await this.addProcessPerfSamplesTracks(
+          this.engine.getProxy('TrackDecider::addProcessPerfSamplesTracks'));
     }
-    await this.addProcessCounterTracks();
-    await this.addProcessAsyncSliceTracks();
-    await this.addActualFramesTracks();
-    await this.addExpectedFramesTracks();
-    await this.addThreadCounterTracks();
-    await this.addThreadStateTracks();
-    await this.addThreadSliceTracks();
-    await this.addThreadCpuSampleTracks();
-    await this.addLogsTrack();
+    await this.addProcessCounterTracks(
+        this.engine.getProxy('TrackDecider::addProcessCounterTracks'));
+    await this.addProcessAsyncSliceTracks(
+        this.engine.getProxy('TrackDecider::addProcessAsyncSliceTrack'));
+    await this.addActualFramesTracks(
+        this.engine.getProxy('TrackDecider::addActualFramesTracks'));
+    await this.addExpectedFramesTracks(
+        this.engine.getProxy('TrackDecider::addExpectedFramesTracks'));
+    await this.addThreadCounterTracks(
+        this.engine.getProxy('TrackDecider::addThreadCounterTracks'));
+    await this.addThreadStateTracks(
+        this.engine.getProxy('TrackDecider::addThreadStateTracks'));
+    await this.addThreadSliceTracks(
+        this.engine.getProxy('TrackDecider::addThreadSliceTracks'));
+    await this.addThreadCpuSampleTracks(
+        this.engine.getProxy('TrackDecider::addThreadCpuSampleTracks'));
+    await this.addLogsTrack(this.engine.getProxy('TrackDecider::addLogsTrack'));
 
     // TODO(hjd): Move into plugin API.
     {
@@ -1687,6 +1742,8 @@ class TrackDecider {
     const threadOrderingMetadata = await this.computeThreadOrderingMetadata();
     this.addTrackGroupActions.push(
         Actions.setUtidToTrackSortKey({threadOrderingMetadata}));
+
+    this.applyDefaultCounterScale();
 
     return this.addTrackGroupActions;
   }

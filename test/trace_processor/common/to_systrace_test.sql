@@ -1,2 +1,2 @@
-select to_ftrace(id) as line
-from raw
+SELECT to_ftrace(id) AS line
+FROM raw;

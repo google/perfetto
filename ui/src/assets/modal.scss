@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 // The opacity changes are only transitional. Once the `modalFadeOut` animation
 // reaches the end, the Mithril component that renders .modal-backdrop
 // (and .modal-dialog) is fully destroyed and removed from the DOM.
@@ -20,13 +19,21 @@
 // hooking the onanimationend events to synchronize the Mithril removal with
 // the end of the CSS animation.
 @keyframes modalFadeOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 @keyframes modalFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .modal-backdrop {
@@ -71,7 +78,7 @@
     transform: translate(-50%, 0);
   }
 
-  >header {
+  > header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -79,7 +86,7 @@
     h2 {
       margin-top: 0;
       margin-bottom: 0;
-      font-family: 'Raleway', sans-serif;
+      font-family: "Raleway", sans-serif;
       font-weight: 600;
       font-size: 1.25rem;
       line-height: 1.25;
@@ -91,14 +98,14 @@
       background: transparent;
       border: 0;
     }
-  }  // header
+  } // header
 
   main {
     font-size: 1rem;
     margin-top: 2rem;
     margin-bottom: 2rem;
     line-height: 1.5;
-    color: rgba(0,0,0,.8);
+    color: rgba(0, 0, 0, 0.8);
 
     .small-font {
       font-size: 0.9rem;
@@ -108,16 +115,16 @@
   footer {
     display: flex;
     justify-content: space-around;
-  }  // footer
+  } // footer
 
   .modal-btn {
-    font-size: .875rem;
+    font-size: 0.875rem;
     padding-left: 1rem;
     padding-right: 1rem;
-    padding-top: .5rem;
-    padding-bottom: .5rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
     background-color: #e6e6e6;
-    color: rgba(0,0,0,.8);
+    color: rgba(0, 0, 0, 0.8);
     border: 2px solid transparent;
     border-radius: 4px;
     cursor: pointer;
@@ -125,17 +132,23 @@
     overflow: visible;
     margin: 5px;
     transform: translateZ(0);
-    transition: border-color .25s var(--anim-easing),
-                background-color .25s var(--anim-easing);
+    transition: border-color 0.25s var(--anim-easing),
+      background-color 0.25s var(--anim-easing);
 
-    &:focus { border-color: #03A9F4;}
-    &:hover { background-color: #ececec; }
+    &:focus {
+      border-color: #03a9f4;
+    }
+    &:hover {
+      background-color: #ececec;
+    }
   }
 
   .modal-btn-primary {
     background-color: hsl(215deg, 22%, 19%);
     color: #fff;
-    &:hover { background-color: hsl(215deg, 22%, 35%) }
+    &:hover {
+      background-color: hsl(215deg, 22%, 35%);
+    }
   }
 }
 
@@ -160,7 +173,8 @@
   font-size: 13px;
 }
 
-.modal-logs, .modal-bash {
+.modal-logs,
+.modal-bash {
   white-space: pre-wrap;
   border: 1px solid #999;
   background: #eee;

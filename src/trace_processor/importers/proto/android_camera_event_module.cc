@@ -13,17 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include "src/trace_processor/importers/proto/android_camera_event_module.h"
 
 #include "perfetto/ext/base/string_utils.h"
 #include "protos/perfetto/trace/android/camera_event.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/importers/common/async_track_set_tracker.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/proto/async_track_set_tracker.h"
-#include "src/trace_processor/parser_types.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/trace_sorter.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -51,8 +53,8 @@ ModuleResult AndroidCameraEventModule::TokenizePacket(
       protos::pbzero::AndroidCameraFrameEvent::Decoder(
           decoder.android_camera_frame_event());
   context_->sorter->PushTracePacket(
-      android_camera_frame_event.request_processing_started_ns(), state,
-      std::move(*packet));
+      android_camera_frame_event.request_processing_started_ns(),
+      state->current_generation(), std::move(*packet));
   return ModuleResult::Handled();
 }
 

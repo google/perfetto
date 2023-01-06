@@ -19,6 +19,7 @@ syntax = "proto2";
 package perfetto.protos;
 
 import "protos/perfetto/metrics/metrics.proto";
+import "protos/perfetto/metrics/chrome/args_class_names.proto";
 import "protos/perfetto/metrics/chrome/blink_gc_metric.proto";
 import "protos/perfetto/metrics/chrome/dropped_frames.proto";
 import "protos/perfetto/metrics/chrome/frame_times.proto";
@@ -50,4 +51,5 @@ extend TraceMetrics {
   optional ChromePerformanceMarkHashes chrome_performance_mark_hashes = 1012;
   optional ChromeSliceNames chrome_slice_names = 1013;
   optional ChromeUnsymbolizedArgs chrome_unsymbolized_args = 1014;
+  optional ChromeArgsClassNames chrome_args_class_names = 1015;
 }

@@ -67,6 +67,7 @@ class PerfettoCmd : public Consumer {
   void OnAttach(bool, const TraceConfig&) override;
   void OnTraceStats(bool, const TraceStats&) override;
   void OnObservableEvents(const ObservableEvents&) override;
+  void OnSessionCloned(bool, const std::string&) override;
 
   void SignalCtrlC() { ctrl_c_evt_.Notify(); }
 
@@ -89,6 +90,8 @@ class PerfettoCmd : public Consumer {
   void CheckTraceDataTimeout();
 
   int ConnectToServiceAndRun();
+
+  void ReadbackTraceDataAndQuit(const std::string& error);
 
   enum BgProcessStatus : char {
     kBackgroundOk = 0,
@@ -151,7 +154,9 @@ class PerfettoCmd : public Consumer {
   bool background_wait_ = false;
   bool ignore_guardrails_ = false;
   bool upload_flag_ = false;
+  bool connected_ = false;
   std::string uuid_;
+  base::Optional<TracingSessionID> clone_tsid_{};
 
   // How long we expect to trace for or 0 if the trace is indefinite.
   uint32_t expected_duration_ms_ = 0;

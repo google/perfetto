@@ -19,15 +19,18 @@ import {RecordConfig} from '../controller/record_config_types';
 import {globals} from '../frontend/globals';
 import {
   Aggregation,
-  aggregationEquals,
   AggregationFunction,
   TableColumn,
   tableColumnEquals,
   toggleEnabled,
 } from '../frontend/pivot_table_redux_types';
-import {DropDirection} from '../frontend/reorderable_cells';
 
 import {randomColor} from './colorizer';
+import {
+  computeIntervals,
+  DropDirection,
+  performReordering,
+} from './dragndrop_logic';
 import {createEmptyState} from './empty_state';
 import {DEFAULT_VIEWING_OPTION, PERF_SAMPLES_KEY} from './flamegraph_util';
 import {traceEventBegin, traceEventEnd, TraceEventScope} from './metatracing';
@@ -81,6 +84,12 @@ export interface PostedTrace {
   uuid?: string;
   localOnly?: boolean;
   keepApiOpen?: boolean;
+}
+
+export interface PostedScrollToRange {
+  timeStart: number;
+  timeEnd: number;
+  viewPercentage?: number;
 }
 
 function clearTraceState(state: StateDraft) {
@@ -137,8 +146,7 @@ export const StateActions = {
   openTraceFromFile(state: StateDraft, args: {file: File}): void {
     clearTraceState(state);
     const id = generateNextId(state);
-    state.currentEngineId = id;
-    state.engines[id] = {
+    state.engine = {
       id,
       ready: false,
       source: {type: 'FILE', file: args.file},
@@ -148,8 +156,7 @@ export const StateActions = {
   openTraceFromBuffer(state: StateDraft, args: PostedTrace): void {
     clearTraceState(state);
     const id = generateNextId(state);
-    state.currentEngineId = id;
-    state.engines[id] = {
+    state.engine = {
       id,
       ready: false,
       source: {type: 'ARRAY_BUFFER', ...args},
@@ -159,8 +166,7 @@ export const StateActions = {
   openTraceFromUrl(state: StateDraft, args: {url: string}): void {
     clearTraceState(state);
     const id = generateNextId(state);
-    state.currentEngineId = id;
-    state.engines[id] = {
+    state.engine = {
       id,
       ready: false,
       source: {type: 'URL', url: args.url},
@@ -170,8 +176,7 @@ export const StateActions = {
   openTraceFromHttpRpc(state: StateDraft, _args: {}): void {
     clearTraceState(state);
     const id = generateNextId(state);
-    state.currentEngineId = id;
-    state.engines[id] = {
+    state.engine = {
       id,
       ready: false,
       source: {type: 'HTTP_RPC'},
@@ -472,8 +477,8 @@ export const StateActions = {
   setEngineReady(
       state: StateDraft,
       args: {engineId: string; ready: boolean, mode: EngineMode}): void {
-    const engine = state.engines[args.engineId];
-    if (engine === undefined) {
+    const engine = state.engine;
+    if (engine === undefined || engine.id !== args.engineId) {
       return;
     }
     engine.ready = args.ready;
@@ -487,8 +492,8 @@ export const StateActions = {
   // Marks all engines matching the given |mode| as failed.
   setEngineFailed(state: StateDraft, args: {mode: EngineMode; failure: string}):
       void {
-        for (const engine of Object.values(state.engines)) {
-          if (engine.mode === args.mode) engine.failed = args.failure;
+        if (state.engine !== undefined && state.engine.mode === args.mode) {
+          state.engine.failed = args.failure;
         }
       },
 
@@ -538,8 +543,8 @@ export const StateActions = {
 
     // If we're loading from a permalink then none of the engines can
     // possibly be ready:
-    for (const engine of Object.values(state.engines)) {
-      engine.ready = false;
+    if (state.engine !== undefined) {
+      state.engine.ready = false;
     }
   },
 
@@ -557,6 +562,19 @@ export const StateActions = {
         id: args.id,
       };
     }
+  },
+
+  addAutomaticNote(
+      state: StateDraft,
+      args: {timestamp: number, color: string, text: string}): void {
+    const id = generateNextId(state);
+    state.notes[id] = {
+      noteType: 'DEFAULT',
+      id,
+      timestamp: args.timestamp,
+      color: args.color,
+      text: args.text,
+    };
   },
 
   addNote(state: StateDraft, args: {timestamp: number, color: string}): void {
@@ -842,7 +860,7 @@ export const StateActions = {
   },
 
   setOmnibox(state: StateDraft, args: OmniboxState): void {
-    state.frontendLocalState.omniboxState = args;
+    state.omniboxState = args;
   },
 
   selectArea(state: StateDraft, args: {area: Area}): void {
@@ -902,6 +920,11 @@ export const StateActions = {
         }
       }
     }
+    // It's super unexpected that |toggleTrackSelection| does not cause
+    // selection to be updated and this leads to bugs for people who do:
+    // if (oldSelection !== state.selection) etc.
+    // To solve this re-create the selection object here:
+    state.currentSelection = Object.assign({}, state.currentSelection);
   },
 
   setVisibleTraceTime(state: StateDraft, args: VisibleState): void {
@@ -1026,6 +1049,17 @@ export const StateActions = {
     state.flamegraphModalDismissed = true;
   },
 
+  addPivotTableAggregation(
+      state: StateDraft, args: {aggregation: Aggregation, after: number}) {
+    state.nonSerializableState.pivotTableRedux.selectedAggregations.splice(
+        args.after, 0, args.aggregation);
+  },
+
+  removePivotTableAggregation(state: StateDraft, args: {index: number}) {
+    state.nonSerializableState.pivotTableRedux.selectedAggregations.splice(
+        args.index, 1);
+  },
+
   setPivotTableQueryRequested(
       state: StateDraft, args: {queryRequested: boolean}) {
     state.nonSerializableState.pivotTableRedux.queryRequested =
@@ -1034,26 +1068,9 @@ export const StateActions = {
 
   setPivotTablePivotSelected(
       state: StateDraft, args: {column: TableColumn, selected: boolean}) {
-    if (args.column.kind === 'argument' || args.column.table === 'slice') {
-      toggleEnabled(
-          tableColumnEquals,
-          state.nonSerializableState.pivotTableRedux.selectedSlicePivots,
-          args.column,
-          args.selected);
-    } else {
-      toggleEnabled(
-          tableColumnEquals,
-          state.nonSerializableState.pivotTableRedux.selectedPivots,
-          args.column,
-          args.selected);
-    }
-  },
-
-  setPivotTableAggregationSelected(
-      state: StateDraft, args: {column: Aggregation, selected: boolean}) {
     toggleEnabled(
-        aggregationEquals,
-        state.nonSerializableState.pivotTableRedux.selectedAggregations,
+        tableColumnEquals,
+        state.nonSerializableState.pivotTableRedux.selectedPivots,
         args.column,
         args.selected);
   },
@@ -1065,11 +1082,16 @@ export const StateActions = {
   },
 
   setPivotTableSortColumn(
-      state: StateDraft, args: {column: TableColumn, order: SortDirection}) {
-    state.nonSerializableState.pivotTableRedux.sortCriteria = {
-      column: args.column,
-      order: args.order,
-    };
+      state: StateDraft,
+      args: {aggregationIndex: number, order: SortDirection}) {
+    state.nonSerializableState.pivotTableRedux.selectedAggregations =
+        state.nonSerializableState.pivotTableRedux.selectedAggregations.map(
+            (agg, index) => ({
+              column: agg.column,
+              aggregationFunction: agg.aggregationFunction,
+              sortDirection: (index === args.aggregationIndex) ? args.order :
+                                                                 undefined,
+            }));
   },
 
   addVisualisedArg(state: StateDraft, args: {argName: string}) {
@@ -1092,49 +1114,49 @@ export const StateActions = {
   changePivotTablePivotOrder(
       state: StateDraft,
       args: {from: number, to: number, direction: DropDirection}) {
-    moveElement(
-        state.nonSerializableState.pivotTableRedux.selectedPivots,
-        args.from,
-        args.to,
-        args.direction);
-  },
-
-  changePivotTableSlicePivotOrder(
-      state: StateDraft,
-      args: {from: number, to: number, direction: DropDirection}) {
-    moveElement(
-        state.nonSerializableState.pivotTableRedux.selectedSlicePivots,
-        args.from,
-        args.to,
-        args.direction);
+    const pivots = state.nonSerializableState.pivotTableRedux.selectedPivots;
+    state.nonSerializableState.pivotTableRedux.selectedPivots =
+        performReordering(
+            computeIntervals(pivots.length, args.from, args.to, args.direction),
+            pivots);
   },
 
   changePivotTableAggregationOrder(
       state: StateDraft,
       args: {from: number, to: number, direction: DropDirection}) {
-    moveElement(
-        state.nonSerializableState.pivotTableRedux.selectedAggregations,
-        args.from,
-        args.to,
-        args.direction);
+    const aggregations =
+        state.nonSerializableState.pivotTableRedux.selectedAggregations;
+    state.nonSerializableState.pivotTableRedux.selectedAggregations =
+        performReordering(
+            computeIntervals(
+                aggregations.length, args.from, args.to, args.direction),
+            aggregations);
+  },
+
+  setMinimumLogLevel(state: StateDraft, args: {minimumLevel: number}) {
+    state.logFilteringCriteria.minimumLevel = args.minimumLevel;
+  },
+
+  addLogTag(state: StateDraft, args: {tag: string}) {
+    if (!state.logFilteringCriteria.tags.includes(args.tag)) {
+      state.logFilteringCriteria.tags.push(args.tag);
+    }
+  },
+
+  removeLogTag(state: StateDraft, args: {tag: string}) {
+    state.logFilteringCriteria.tags =
+        state.logFilteringCriteria.tags.filter((t) => t !== args.tag);
+  },
+
+  updateLogFilterText(state: StateDraft, args: {textEntry: string}) {
+    state.logFilteringCriteria.textEntry = args.textEntry;
+  },
+
+  toggleCollapseByTextEntry(state: StateDraft, _: {}) {
+    state.logFilteringCriteria.hideNonMatching =
+        !state.logFilteringCriteria.hideNonMatching;
   },
 };
-
-// Move element at `from` index to `direction` of `to` element.
-// Implements logic for reordering table columns via drag'n'drop.
-function moveElement<T>(
-    array: Draft<T[]>, from: number, to: number, direction: DropDirection) {
-  // New location of the "to" element: would be shifted by minus one if "from"
-  // element comes before it.
-  const newTo = to - ((from < to) ? 1 : 0);
-
-  // The resulting index where the "from" element has to be spliced in to.
-  const insertionPoint = newTo + ((direction === 'right') ? 1 : 0);
-
-  const fromElement = array[from];
-  array.splice(from, 1);
-  array.splice(insertionPoint, 0, fromElement);
-}
 
 // When we are on the frontend side, we don't really want to execute the
 // actions above, we just want to serialize them and marshal their

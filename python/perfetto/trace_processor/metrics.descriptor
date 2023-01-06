@@ -103,8 +103,8 @@ avgFreqKhze
 Value
 ts (Rts
 value (Rvalue
-ÿ
-5protos/perfetto/metrics/android/display_metrics.protoperfetto.protos"ç
+Ì
+5protos/perfetto/metrics/android/display_metrics.protoperfetto.protos"¢
 AndroidDisplayMetrics4
 total_duplicate_frames (RtotalDuplicateFrames6
 duplicate_frames_logged (RduplicateFramesLogged7
@@ -118,9 +118,9 @@ avgFreqKhze
 total_dur_ms (R
 totalDurMs
 
-avg_dur_ms (RavgDurMs8
-UpdatePowerState$
-avg_runtime_ms (RavgRuntimeMs
+avg_dur_ms (RavgDurMsM
+UpdatePowerState3
+avg_runtime_micro_secs (RavgRuntimeMicroSecsJ
 à
 5protos/perfetto/metrics/android/dma_heap_metric.protoperfetto.protos"Ω
 AndroidDmaHeapMetric$
@@ -622,8 +622,8 @@ maxRuntime$
 name (	RnameY
 threads (2?.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ThreadRthreads
 total (Rtotal
-ó+
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ï*
+ÿ+
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"÷*
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupÛ
 TaskStateBreakdown$
@@ -704,7 +704,7 @@ firstFrame˜
 broadcast_received_count (RbroadcastReceivedCountF
  most_active_non_launch_processes (	RmostActiveNonLaunchProcesses&
 installd_dur_ns (RinstalldDurNs$
-dex2oat_dur_ns (Rdex2oatDurNsÿ
+dex2oat_dur_ns (Rdex2oatDurNsô	
 Startup
 
 startup_id (R	startupId!
@@ -722,7 +722,8 @@ activitiesq
 process (2'.perfetto.protos.AndroidProcessMetadataRprocessB
 hsc (20.perfetto.protos.AndroidStartupMetric.HscMetricsRhscY
 report_fully_drawn	 (2+.perfetto.protos.AndroidStartupMetric.SliceRreportFullyDrawni
-optimization_status (28.perfetto.protos.AndroidStartupMetric.OptimizationStatusRoptimizationStatusT
+optimization_status (28.perfetto.protos.AndroidStartupMetric.OptimizationStatusRoptimizationStatus?
+startup_concurrent_to_launch (	RstartupConcurrentToLaunchT
 system_state (21.perfetto.protos.AndroidStartupMetric.SystemStateRsystemState*
 slow_start_reason (	RslowStartReasonJ
 

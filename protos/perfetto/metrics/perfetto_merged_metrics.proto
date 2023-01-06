@@ -302,7 +302,10 @@ message AndroidDisplayMetrics {
   // Stats to measure the runtime of updating the power state in
   // DisplayPowerController
   message UpdatePowerState {
-    optional uint32 avg_runtime_ms = 1;
+    optional uint32 avg_runtime_micro_secs = 2;
+
+    // Removed: avg_runtime_ms
+    reserved 1;
   }
 
   optional UpdatePowerState update_power_state = 6;
@@ -1519,7 +1522,7 @@ message AndroidStartupMetric {
     optional int64 dex2oat_dur_ns = 7;
   }
 
-  // Next id: 18
+  // Next id: 19
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -1571,6 +1574,9 @@ message AndroidStartupMetric {
 
     // Contains information about the status of odex files.
     repeated OptimizationStatus optimization_status = 12;
+
+    // Package name of startups running concurrent to the launch.
+    repeated string startup_concurrent_to_launch = 18;
 
     // Contains information about the state of the rest of the system during the
     // startup. This is useful for getting context about why a startup might

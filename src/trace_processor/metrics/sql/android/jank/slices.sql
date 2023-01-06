@@ -29,9 +29,9 @@ JOIN thread USING (upid)
 JOIN thread_track USING (utid)
 JOIN slice
   ON slice.track_id = thread_track.id
-  -- Take slices which overlap even they started before the boundaries
-  -- This is to be able to query slices that delayed start of a frame
-  AND slice.ts + slice.dur >= boundary.ts AND slice.ts <= boundary.ts_end
+    -- Take slices which overlap even they started before the boundaries
+    -- This is to be able to query slices that delayed start of a frame
+    AND slice.ts + slice.dur >= boundary.ts AND slice.ts <= boundary.ts_end
 WHERE slice.dur > 0;
 
 DROP TABLE IF EXISTS android_jank_cuj_main_thread_slice;
@@ -47,10 +47,10 @@ JOIN thread_track USING (utid)
 JOIN thread USING (utid)
 JOIN slice
   ON slice.track_id = thread_track.id
-  -- Take slices which overlap even they started before the boundaries
-  -- This is to be able to query slices that delayed start of a frame
-  AND slice.ts + slice.dur >= boundary.ts
-  AND slice.ts <= boundary.ts_end
+    -- Take slices which overlap even they started before the boundaries
+    -- This is to be able to query slices that delayed start of a frame
+    AND slice.ts + slice.dur >= boundary.ts
+    AND slice.ts <= boundary.ts_end
 WHERE slice.dur > 0;
 
 DROP TABLE IF EXISTS android_jank_cuj_render_thread_slice;
@@ -66,10 +66,10 @@ JOIN thread_track USING (utid)
 JOIN thread USING (utid)
 JOIN slice
   ON slice.track_id = thread_track.id
-  -- Take slices which overlap even they started before the boundaries
-  -- This is to be able to query slices that delayed start of a frame
-  AND slice.ts + slice.dur >= boundary.ts
-  AND slice.ts <= boundary.ts_end
+    -- Take slices which overlap even they started before the boundaries
+    -- This is to be able to query slices that delayed start of a frame
+    AND slice.ts + slice.dur >= boundary.ts
+    AND slice.ts <= boundary.ts_end
 WHERE slice.dur > 0;
 
 DROP VIEW IF EXISTS android_jank_cuj_sf_slice;
@@ -88,9 +88,9 @@ JOIN thread USING (upid)
 JOIN thread_track USING (utid)
 JOIN slice
   ON slice.track_id = thread_track.id
-  -- Take slices which overlap even they started before the boundaries
-  -- This is to be able to query slices that delayed start of a frame
-  AND slice.ts + slice.dur >= sf_boundary.ts AND slice.ts <= sf_boundary.ts_end
+    -- Take slices which overlap even they started before the boundaries
+    -- This is to be able to query slices that delayed start of a frame
+    AND slice.ts + slice.dur >= sf_boundary.ts AND slice.ts <= sf_boundary.ts_end
 WHERE slice.dur > 0;
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_main_thread_slice;
@@ -106,10 +106,10 @@ JOIN thread_track USING (utid)
 JOIN thread USING (utid)
 JOIN slice
   ON slice.track_id = thread_track.id
-  -- Take slices which overlap even they started before the boundaries
-  -- This is to be able to query slices that delayed start of a frame
-  AND slice.ts + slice.dur >= boundary.ts
-  AND slice.ts <= boundary.ts_end
+    -- Take slices which overlap even they started before the boundaries
+    -- This is to be able to query slices that delayed start of a frame
+    AND slice.ts + slice.dur >= boundary.ts
+    AND slice.ts <= boundary.ts_end
 WHERE slice.dur > 0;
 
 -- For RenderEngine thread we use a different approach as it's only used when SF falls back to
@@ -128,8 +128,8 @@ JOIN thread_track USING (utid)
 JOIN thread USING (utid)
 JOIN slice
   ON slice.track_id = thread_track.id
-  -- Take slices which overlap even they started before the boundaries
-  -- This is to be able to query slices that delayed start of a frame
-  AND slice.ts + slice.dur >= boundary.ts
-  AND slice.ts <= boundary.ts_end
+    -- Take slices which overlap even they started before the boundaries
+    -- This is to be able to query slices that delayed start of a frame
+    AND slice.ts + slice.dur >= boundary.ts
+    AND slice.ts <= boundary.ts_end
 WHERE slice.dur > 0;

@@ -19,10 +19,9 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/ninja/ninja_log_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
-#include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -101,8 +100,11 @@ util::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
       }
       case kNinjaLogTraceType: {
         PERFETTO_DLOG("Ninja log detected");
-        reader_.reset(new NinjaLogParser(context_));
-        break;
+        if (context_->ninja_log_parser) {
+          reader_ = std::move(context_->ninja_log_parser);
+          break;
+        }
+        return util::ErrStatus("Ninja support is disabled");
       }
       case kFuchsiaTraceType: {
         PERFETTO_DLOG("Fuchsia trace detected");

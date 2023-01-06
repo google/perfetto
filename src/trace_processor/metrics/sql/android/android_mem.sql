@@ -41,33 +41,33 @@ DROP VIEW IF EXISTS mem_all_processes;
 CREATE VIEW mem_all_processes AS
 SELECT DISTINCT process_name
 FROM
-(
-  SELECT process_name FROM anon_rss_stats_proto
-  UNION
-  SELECT process_name FROM file_rss_stats_proto
-  UNION
-  SELECT process_name FROM swap_stats_proto
-  UNION
-  SELECT process_name FROM anon_and_swap_stats_proto
-  UNION
-  SELECT process_name FROM java_heap_stats_proto
-);
+  (
+    SELECT process_name FROM anon_rss_stats_proto
+    UNION
+    SELECT process_name FROM file_rss_stats_proto
+    UNION
+    SELECT process_name FROM swap_stats_proto
+    UNION
+    SELECT process_name FROM anon_and_swap_stats_proto
+    UNION
+    SELECT process_name FROM java_heap_stats_proto
+  );
 
 DROP VIEW IF EXISTS mem_all_process_priorities;
 CREATE VIEW mem_all_process_priorities AS
 SELECT DISTINCT process_name, priority
 FROM
-(
-  SELECT process_name, priority FROM anon_rss_by_priority_stats_proto
-  UNION
-  SELECT process_name, priority FROM file_rss_by_priority_stats_proto
-  UNION
-  SELECT process_name, priority FROM swap_by_priority_stats_proto
-  UNION
-  SELECT process_name, priority FROM anon_and_swap_by_priority_stats_proto
-  UNION
-  SELECT process_name, priority FROM java_heap_by_priority_stats_proto
-);
+  (
+    SELECT process_name, priority FROM anon_rss_by_priority_stats_proto
+    UNION
+    SELECT process_name, priority FROM file_rss_by_priority_stats_proto
+    UNION
+    SELECT process_name, priority FROM swap_by_priority_stats_proto
+    UNION
+    SELECT process_name, priority FROM anon_and_swap_by_priority_stats_proto
+    UNION
+    SELECT process_name, priority FROM java_heap_by_priority_stats_proto
+  );
 
 DROP VIEW IF EXISTS process_priority_view;
 CREATE VIEW process_priority_view AS
@@ -110,11 +110,11 @@ SELECT
   ) AS metric
 FROM
   mem_all_processes
-  LEFT JOIN anon_rss_stats_proto USING (process_name)
-  LEFT JOIN file_rss_stats_proto USING (process_name)
-  LEFT JOIN swap_stats_proto USING (process_name)
-  LEFT JOIN anon_and_swap_stats_proto USING (process_name)
-  LEFT JOIN java_heap_stats_proto USING (process_name);
+LEFT JOIN anon_rss_stats_proto USING (process_name)
+LEFT JOIN file_rss_stats_proto USING (process_name)
+LEFT JOIN swap_stats_proto USING (process_name)
+LEFT JOIN anon_and_swap_stats_proto USING (process_name)
+LEFT JOIN java_heap_stats_proto USING (process_name);
 
 DROP VIEW IF EXISTS android_mem_output;
 CREATE VIEW android_mem_output AS

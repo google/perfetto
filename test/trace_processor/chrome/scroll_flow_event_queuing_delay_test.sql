@@ -13,8 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT RUN_METRIC('chrome/scroll_flow_event_queuing_delay.sql')
- ;
+SELECT RUN_METRIC('chrome/scroll_flow_event_queuing_delay.sql');
 
 -- trace 2956 is janky and 2954 and 2960 surround it (both are not janky). We
 -- just manually computed these values to ensure the queuing time is correct.

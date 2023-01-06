@@ -71,20 +71,21 @@ base::Status GetDescendants(
                            static_cast<uint32_t>(starting_id.value));
   }
 
-  // All nested descendents must be on the same track, with a ts greater than
-  // |start_ref.ts| and whose depth is larger than |start_ref|'s.
-  std::vector<Constraint> cs({slices.ts().ge(start_ref->ts()),
-                              slices.track_id().eq(start_ref->track_id().value),
-                              slices.depth().gt(start_ref->depth())});
-
   // As an optimization, for any finished slices, we only need to consider
   // slices which started before the end of this slice (because slices on a
   // track are always perfectly stacked).
   // For unfinshed slices (i.e. -1 dur), we need to consider until the end of
   // the trace so we cannot add any similar constraint.
+  std::vector<Constraint> cs;
   if (start_ref->dur() >= 0) {
     cs.emplace_back(slices.ts().le(start_ref->ts() + start_ref->dur()));
   }
+
+  // All nested descendents must be on the same track, with a ts greater than
+  // |start_ref.ts| and whose depth is larger than |start_ref|'s.
+  cs.emplace_back(slices.ts().ge(start_ref->ts()));
+  cs.emplace_back(slices.track_id().eq(start_ref->track_id().value));
+  cs.emplace_back(slices.depth().gt(start_ref->depth()));
 
   // It's important we insert directly into |row_numbers_accumulator| and not
   // overwrite it because we expect the existing elements in
@@ -162,9 +163,9 @@ base::Status DescendantGenerator::ComputeTable(
 Table::Schema DescendantGenerator::CreateSchema() {
   switch (type_) {
     case Descendant::kSlice:
-      return tables::DescendantSliceTable::Schema();
+      return tables::DescendantSliceTable::ComputeStaticSchema();
     case Descendant::kSliceByStack:
-      return tables::DescendantSliceByStackTable::Schema();
+      return tables::DescendantSliceByStackTable::ComputeStaticSchema();
   }
   PERFETTO_FATAL("For GCC");
 }

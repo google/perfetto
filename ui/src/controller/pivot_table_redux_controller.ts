@@ -31,6 +31,7 @@ import {
   generateQueryFromState,
 } from '../frontend/pivot_table_redux_query_generator';
 import {
+  Aggregation,
   PivotTree,
 } from '../frontend/pivot_table_redux_types';
 
@@ -48,62 +49,83 @@ export const PIVOT_TABLE_REDUX_FLAG = featureFlags.register({
 // Auxiliary class to build the tree from query response.
 class TreeBuilder {
   private readonly root: PivotTree;
-  lastRow: ColumnType[];
   pivotColumns: number;
-  aggregateColumns: number;
+  aggregateColumns: Aggregation[];
 
   constructor(
-      pivotColumns: number, aggregateColumns: number, firstRow: ColumnType[]) {
+      pivotColumns: number, aggregateColumns: Aggregation[],
+      firstRow: ColumnType[]) {
     this.pivotColumns = pivotColumns;
     this.aggregateColumns = aggregateColumns;
-    this.root = this.createNode(0, firstRow);
+    this.root = this.createNode(firstRow);
     let tree = this.root;
     for (let i = 0; i + 1 < this.pivotColumns; i++) {
       const value = firstRow[i];
-      tree = TreeBuilder.insertChild(
-          tree, value, this.createNode(i + 1, firstRow));
+      tree = this.insertChild(tree, value, this.createNode(firstRow));
     }
     tree.rows.push(firstRow);
-    this.lastRow = firstRow;
   }
 
   // Add incoming row to the tree being built.
   ingestRow(row: ColumnType[]) {
     let tree = this.root;
+    this.updateAggregates(tree, row);
     for (let i = 0; i + 1 < this.pivotColumns; i++) {
       const nextTree = tree.children.get(row[i]);
       if (nextTree === undefined) {
         // Insert the new node into the tree, and make variable `tree` point
         // to the newly created node.
-        tree =
-            TreeBuilder.insertChild(tree, row[i], this.createNode(i + 1, row));
+        tree = this.insertChild(tree, row[i], this.createNode(row));
       } else {
+        this.updateAggregates(nextTree, row);
         tree = nextTree;
       }
     }
     tree.rows.push(row);
-    this.lastRow = row;
   }
 
   build(): PivotTree {
     return this.root;
   }
 
+  updateAggregates(tree: PivotTree, row: ColumnType[]) {
+    for (let i = 0; i < this.aggregateColumns.length; i++) {
+      const agg = this.aggregateColumns[i];
+
+      const currAgg = tree.aggregates[i];
+      const childAgg = row[aggregationIndex(this.pivotColumns, i)];
+      if (typeof currAgg === 'number' && typeof childAgg === 'number') {
+        switch (agg.aggregationFunction) {
+          case 'COUNT':
+          case 'SUM':
+            tree.aggregates[i] = currAgg + childAgg;
+            break;
+          case 'MAX':
+            tree.aggregates[i] = Math.max(currAgg, childAgg);
+            break;
+          case 'MIN':
+            tree.aggregates[i] = Math.min(currAgg, childAgg);
+            break;
+        }
+      }
+    }
+  }
+
   // Helper method that inserts child node into the tree and returns it, used
   // for more concise modification of local variable pointing to the current
   // node being built.
-  static insertChild(tree: PivotTree, key: ColumnType, child: PivotTree):
-      PivotTree {
+  insertChild(tree: PivotTree, key: ColumnType, child: PivotTree): PivotTree {
     tree.children.set(key, child);
+
     return child;
   }
 
   // Initialize PivotTree from a row.
-  createNode(depth: number, row: ColumnType[]): PivotTree {
+  createNode(row: ColumnType[]): PivotTree {
     const aggregates = [];
 
-    for (let j = 0; j < this.aggregateColumns; j++) {
-      aggregates.push(row[aggregationIndex(this.pivotColumns, j, depth)]);
+    for (let j = 0; j < this.aggregateColumns.length; j++) {
+      aggregates.push(row[aggregationIndex(this.pivotColumns, j)]);
     }
 
     return {
@@ -204,7 +226,7 @@ export class PivotTableReduxController extends Controller<{}> {
 
     const treeBuilder = new TreeBuilder(
         query.metadata.pivotColumns.length,
-        query.metadata.aggregationColumns.length,
+        query.metadata.aggregationColumns,
         nextRow());
     while (it.valid()) {
       treeBuilder.ingestRow(nextRow());
@@ -242,13 +264,6 @@ export class PivotTableReduxController extends Controller<{}> {
     }
 
     const pivotTableState = globals.state.nonSerializableState.pivotTableRedux;
-
-    if (pivotTableState.queryRequested) {
-      globals.dispatch(
-          Actions.setPivotTableQueryRequested({queryRequested: false}));
-      this.processQuery(generateQueryFromState(pivotTableState));
-    }
-
     const selection = globals.state.currentSelection;
 
     if (pivotTableState.queryRequested ||

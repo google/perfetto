@@ -23,11 +23,11 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/proto/active_chrome_processes_tracker.h"
 #include "src/trace_processor/importers/proto/chrome_string_lookup.h"
-#include "src/trace_processor/parser_types.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
@@ -45,7 +45,7 @@ namespace trace_processor {
 // TODO(ddrone): replace with a predicate on field id to import new fields
 // automatically
 static constexpr uint16_t kReflectFields[] = {24, 25, 26, 27, 28, 29, 32, 33,
-                                              34, 35, 38, 39, 40, 41, 43};
+                                              34, 35, 38, 39, 40, 41, 43, 49};
 
 class PacketSequenceStateGeneration;
 class TraceProcessorContext;
@@ -75,6 +75,7 @@ class TrackEventParser {
   void ParseChromeProcessDescriptor(UniquePid, protozero::ConstBytes);
   void ParseChromeThreadDescriptor(UniqueTid, protozero::ConstBytes);
   void ParseCounterDescriptor(TrackId, protozero::ConstBytes);
+  void AddActiveProcess(int64_t packet_timestamp, int32_t pid);
 
   // Reflection-based proto TrackEvent field parser.
   util::ProtoToArgsParser args_parser_;

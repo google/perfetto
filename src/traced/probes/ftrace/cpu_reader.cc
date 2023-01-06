@@ -649,16 +649,16 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
             if (ds_config->print_filter->IsEventInteresting(start, next)) {
               protos::pbzero::FtraceEvent* event = bundle->add_event();
               event->set_timestamp(timestamp);
-              if (!ParseEvent(ftrace_event_id, start, next, table, event,
-                              metadata))
+              if (!ParseEvent(ftrace_event_id, start, next, table, ds_config,
+                              event, metadata))
                 return 0;
             }
           } else {
             // Common case: parse all other types of enabled events.
             protos::pbzero::FtraceEvent* event = bundle->add_event();
             event->set_timestamp(timestamp);
-            if (!ParseEvent(ftrace_event_id, start, next, table, event,
-                            metadata))
+            if (!ParseEvent(ftrace_event_id, start, next, table, ds_config,
+                            event, metadata))
               return 0;
           }
         }
@@ -677,6 +677,7 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
                            const uint8_t* start,
                            const uint8_t* end,
                            const ProtoTranslationTable* table,
+                           const FtraceDataSourceConfig* ds_config,
                            protozero::Message* message,
                            FtraceMetadata* metadata) {
   PERFETTO_DCHECK(start < end);
@@ -710,6 +711,14 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
                                   field.ftrace_name);
       success &= ParseField(field, start, end, table, generic_field, metadata);
     }
+  } else if (PERFETTO_UNLIKELY(
+                 info.proto_field_id ==
+                 protos::pbzero::FtraceEvent::kSysEnterFieldNumber)) {
+    success &= ParseSysEnter(info, start, end, nested, metadata);
+  } else if (PERFETTO_UNLIKELY(
+                 info.proto_field_id ==
+                 protos::pbzero::FtraceEvent::kSysExitFieldNumber)) {
+    success &= ParseSysExit(info, start, end, ds_config, nested, metadata);
   } else {  // Parse all other events.
     for (const Field& field : info.fields) {
       success &= ParseField(field, start, end, table, nested, metadata);
@@ -834,6 +843,97 @@ bool CpuReader::ParseField(const Field& field,
       break;
   }
   PERFETTO_FATAL("Unexpected translation strategy");
+}
+
+bool CpuReader::ParseSysEnter(const Event& info,
+                              const uint8_t* start,
+                              const uint8_t* end,
+                              protozero::Message* message,
+                              FtraceMetadata* /* metadata */) {
+  if (info.fields.size() != 2) {
+    PERFETTO_DLOG("Unexpected number of fields for sys_enter");
+    return false;
+  }
+  const auto& id_field = info.fields[0];
+  const auto& args_field = info.fields[1];
+  if (start + id_field.ftrace_size + args_field.ftrace_size > end) {
+    return false;
+  }
+  // field:long id;
+  if (id_field.ftrace_type != kFtraceInt32 &&
+      id_field.ftrace_type != kFtraceInt64) {
+    return false;
+  }
+  const int64_t syscall_id = ReadSignedFtraceValue(
+      start + id_field.ftrace_offset, id_field.ftrace_type);
+  message->AppendVarInt(id_field.proto_field_id, syscall_id);
+  // field:unsigned long args[6];
+  // proto_translation_table will only allow exactly 6-element array, so we can
+  // make the same hard assumption here.
+  constexpr uint16_t arg_count = 6;
+  size_t element_size = 0;
+  if (args_field.ftrace_type == kFtraceUint32) {
+    element_size = 4u;
+  } else if (args_field.ftrace_type == kFtraceUint64) {
+    element_size = 8u;
+  } else {
+    return false;
+  }
+  for (uint16_t i = 0; i < arg_count; ++i) {
+    const uint8_t* element_ptr =
+        start + args_field.ftrace_offset + i * element_size;
+    uint64_t arg_value = 0;
+    if (element_size == 8) {
+      arg_value = ReadValue<uint64_t>(element_ptr);
+    } else {
+      arg_value = ReadValue<uint32_t>(element_ptr);
+    }
+    message->AppendVarInt(args_field.proto_field_id, arg_value);
+  }
+  return true;
+}
+
+bool CpuReader::ParseSysExit(const Event& info,
+                             const uint8_t* start,
+                             const uint8_t* end,
+                             const FtraceDataSourceConfig* ds_config,
+                             protozero::Message* message,
+                             FtraceMetadata* metadata) {
+  if (info.fields.size() != 2) {
+    PERFETTO_DLOG("Unexpected number of fields for sys_exit");
+    return false;
+  }
+  const auto& id_field = info.fields[0];
+  const auto& ret_field = info.fields[1];
+  if (start + id_field.ftrace_size + ret_field.ftrace_size > end) {
+    return false;
+  }
+  //    field:long id;
+  if (id_field.ftrace_type != kFtraceInt32 &&
+      id_field.ftrace_type != kFtraceInt64) {
+    return false;
+  }
+  const int64_t syscall_id = ReadSignedFtraceValue(
+      start + id_field.ftrace_offset, id_field.ftrace_type);
+  message->AppendVarInt(id_field.proto_field_id, syscall_id);
+  //    field:long ret;
+  if (ret_field.ftrace_type != kFtraceInt32 &&
+      ret_field.ftrace_type != kFtraceInt64) {
+    return false;
+  }
+  const int64_t syscall_ret = ReadSignedFtraceValue(
+      start + ret_field.ftrace_offset, ret_field.ftrace_type);
+  message->AppendVarInt(ret_field.proto_field_id, syscall_ret);
+  // for any syscalls which return a new filedescriptor
+  // we mark the fd as potential candidate for scraping
+  // if the call succeeded and is within fd bounds
+  if (ds_config->syscalls_returning_fd.count(syscall_id) && syscall_ret >= 0 &&
+      syscall_ret <= std::numeric_limits<int>::max()) {
+    const auto pid = metadata->last_seen_common_pid;
+    const auto syscall_ret_u = static_cast<uint64_t>(syscall_ret);
+    metadata->fds.insert(std::make_pair(pid, syscall_ret_u));
+  }
+  return true;
 }
 
 // Parse a sched_switch event according to pre-validated format, and buffer the

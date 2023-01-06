@@ -36,7 +36,7 @@ dependencies, and then build the standalone library:
 ```
 $ cd perfetto
 perfetto/ $ tools/install-build-deps --android
-perfetto/ $ tools/build_all_configs.py --android
+perfetto/ $ tools/setup_all_configs.py --android
 perfetto/ $ ninja -C out/android_release_incl_heapprofd_arm64 \
 libheapprofd_standalone_client.so
 ```

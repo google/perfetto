@@ -14,7 +14,7 @@
 
 .metrics-page {
   padding: 30px;
-  font-family: 'Raleway', sans-serif;
+  font-family: "Raleway", sans-serif;
   overflow-y: auto;
 
   .metric-run-button {
@@ -23,12 +23,12 @@
     border-radius: 4px;
     padding: 5px 10px;
     font-weight: bold;
-    font-family: 'Raleway';
+    font-family: "Raleway";
   }
 
   select {
     margin: 10px;
-    font-family: 'Raleway';
+    font-family: "Raleway";
     font-size: 1em;
     border: 1px solid black;
     background-color: #eee;
@@ -37,12 +37,12 @@
   pre {
     background-color: #eee;
     padding: 20px;
-    font-family: 'Roboto Mono';
+    font-family: "Roboto Mono";
     line-height: 1.5em;
     border-radius: 5px;
     overflow-x: auto;
     &.metric-error {
-      color: #EF6C00;
+      color: #ef6c00;
     }
   }
 }

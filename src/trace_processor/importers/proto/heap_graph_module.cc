@@ -16,15 +16,16 @@
 
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
 
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/proto/profiler_util.h"
-#include "src/trace_processor/parser_types.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
+#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {

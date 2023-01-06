@@ -322,6 +322,14 @@ void ConsumerIPCService::SaveTraceForBugreport(
   remote_consumer->service_endpoint->SaveTraceForBugreport(callback);
 }
 
+void ConsumerIPCService::CloneSession(
+    const protos::gen::CloneSessionRequest& req,
+    DeferredCloneSessionResponse resp) {
+  RemoteConsumer* remote_consumer = GetConsumerForCurrentRequest();
+  remote_consumer->clone_session_response = std::move(resp);
+  remote_consumer->service_endpoint->CloneSession(req.session_id());
+}
+
 // Called by the service in response to
 // service_endpoint->SaveTraceForBugreport().
 void ConsumerIPCService::OnSaveTraceForBugreportCallback(
@@ -469,6 +477,18 @@ void ConsumerIPCService::RemoteConsumer::CloseObserveEventsResponseStream() {
   auto result = ipc::AsyncResult<protos::gen::ObserveEventsResponse>::Create();
   result.set_has_more(false);
   observe_events_response.Resolve(std::move(result));
+}
+
+void ConsumerIPCService::RemoteConsumer::OnSessionCloned(
+    bool success,
+    const std::string& error) {
+  if (!clone_session_response.IsBound())
+    return;
+
+  auto resp = ipc::AsyncResult<protos::gen::CloneSessionResponse>::Create();
+  resp->set_success(success);
+  resp->set_error(error);
+  std::move(clone_session_response).Resolve(std::move(resp));
 }
 
 }  // namespace perfetto

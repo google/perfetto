@@ -22,7 +22,8 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 #include "src/trace_processor/importers/proto/android_probes_tracker.h"
-#include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 
 #include "protos/perfetto/common/android_energy_consumer_descriptor.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
@@ -93,6 +94,7 @@ AndroidProbesModule::AndroidProbesModule(TraceProcessorContext* context)
                    context);
   RegisterForField(TracePacket::kInitialDisplayStateFieldNumber, context);
   RegisterForField(TracePacket::kAndroidSystemPropertyFieldNumber, context);
+  RegisterForField(TracePacket::kNetworkPacketFieldNumber, context);
 }
 
 ModuleResult AndroidProbesModule::TokenizePacket(
@@ -178,7 +180,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
 
     std::vector<uint8_t> vec = data_packet.SerializeAsArray();
     TraceBlob blob = TraceBlob::CopyFrom(vec.data(), vec.size());
-    context_->sorter->PushTracePacket(actual_ts, state,
+    context_->sorter->PushTracePacket(actual_ts, state->current_generation(),
                                       TraceBlobView(std::move(blob)));
   }
 
@@ -216,6 +218,9 @@ void AndroidProbesModule::ParseTracePacketData(
       return;
     case TracePacket::kAndroidSystemPropertyFieldNumber:
       parser_.ParseAndroidSystemProperty(ts, decoder.android_system_property());
+      return;
+    case TracePacket::kNetworkPacketFieldNumber:
+      parser_.ParseNetworkPacketEvent(ts, decoder.network_packet());
       return;
   }
 }

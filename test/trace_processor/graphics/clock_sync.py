@@ -35,6 +35,19 @@ SEQ_CLOCK1 = 64
 
 trace = synth_common.create_trace()
 
+# See gpu_counter_descriptor.proto
+SECOND = 22
+PIXEL = 26
+
+# Add a counter descriptor for our test counter:
+trace.add_gpu_counter_spec(
+    ts=1,
+    counter_id=42,
+    name="gpu_counter(42)",
+    description="Number of fragments per second",
+    unit_numerators=[PIXEL],
+    unit_denominators=[SECOND])
+
 # The default trace clock domain is CLOCK_BOOTTIME.
 trace.add_gpu_counter(ts=1, counter_id=42, value=3)
 

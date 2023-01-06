@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select ts, value
-from counters
-where name GLOB "power.*"
-limit 20
+SELECT ts, value
+FROM counters
+WHERE name GLOB "power.*"
+LIMIT 20;

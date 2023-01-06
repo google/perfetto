@@ -25,12 +25,12 @@ WHERE name = 'MetricsLogger:launchObserverNotifyIntentStarted';
 -- We will refine these progressively in the next steps to only encompass
 -- activity starts.
 DROP TABLE IF EXISTS activity_intent_recv_spans;
-CREATE TABLE activity_intent_recv_spans(id INT, ts BIG INT, dur BIG INT);
+CREATE TABLE activity_intent_recv_spans(id INT, ts BIGINT, dur BIGINT);
 
 INSERT INTO activity_intent_recv_spans
 SELECT
   ROW_NUMBER()
-    OVER(ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS id,
+  OVER(ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS id,
   ts,
   LEAD(ts, 1, (SELECT end_ts FROM trace_bounds)) OVER(ORDER BY ts) - ts AS dur
 FROM activity_intent_received
@@ -65,8 +65,8 @@ SELECT
   NULL AS launch_type
 FROM launch_partitions AS lpart
 JOIN launching_events ON
-  (launching_events.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur) AND
-  (launching_events.ts_end BETWEEN lpart.ts AND lpart.ts + lpart.dur)
+  (launching_events.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur)
+  AND (launching_events.ts_end BETWEEN lpart.ts AND lpart.ts + lpart.dur)
 WHERE (
   SELECT COUNT(1)
   FROM activity_intent_launch_successful AS successful

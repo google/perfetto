@@ -43,17 +43,18 @@ SELECT
   SUM(thread_dur / 1e6) AS total_thread_duration_ms,
   MIN(id) AS first_id_per_task_barrage,
   MAX(id) AS last_id_per_task_barrage,
-  COUNT(*) as count,
+  COUNT(*) AS count,
   window_start_id,
   window_start_ts,
   window_end_id,
-  window_end_ts
+  window_end_ts,
+  scroll_type
 FROM
-  (SELECT * FROM (
-    (
+  (
+    SELECT * FROM (
       SELECT
         chrome_tasks.full_name AS full_name,
-        chrome_tasks.dur  AS dur,
+        chrome_tasks.dur AS dur,
         chrome_tasks.thread_dur AS thread_dur,
         chrome_tasks.ts AS ts,
         chrome_tasks.id,
@@ -61,30 +62,29 @@ FROM
       FROM
         chrome_tasks
       WHERE
-         chrome_tasks.thread_name = "CrBrowserMain"
-         AND task_type != "java"
-         AND task_type != "choreographer"
+        chrome_tasks.thread_name = "CrBrowserMain"
+        AND task_type != "java"
+        AND task_type != "choreographer"
       ORDER BY chrome_tasks.ts
     ) tasks
     JOIN chrome_input_to_browser_longer_intervals
-      ON (tasks.ts + tasks.dur) >
-      chrome_input_to_browser_longer_intervals.window_start_ts
-      AND (tasks.ts + tasks.dur) <
-      chrome_input_to_browser_longer_intervals.window_end_ts
-      AND tasks.ts > chrome_input_to_browser_longer_intervals.window_start_ts
-      AND tasks.ts < chrome_input_to_browser_longer_intervals.window_end_ts
-      -- For cases when there are multiple chrome instances.
-      and tasks.upid = chrome_input_to_browser_longer_intervals.upid)
-    ORDER BY
-    window_start_ts, window_end_ts
+      ON (tasks.ts + tasks.dur)
+        > chrome_input_to_browser_longer_intervals.window_start_ts
+        AND (tasks.ts + tasks.dur)
+        < chrome_input_to_browser_longer_intervals.window_end_ts
+        AND tasks.ts > chrome_input_to_browser_longer_intervals.window_start_ts
+        AND tasks.ts < chrome_input_to_browser_longer_intervals.window_end_ts
+        -- For cases when there are multiple chrome instances.
+        AND tasks.upid = chrome_input_to_browser_longer_intervals.upid
+    ORDER BY window_start_ts, window_end_ts
   )
-  GROUP BY window_start_ts, window_end_ts;
+GROUP BY window_start_ts, window_end_ts;
 
 -- Filter to task barrages that took more than 8ms, as barrages
 -- that lasted less than that are unlikely to have caused jank.
 DROP VIEW IF EXISTS chrome_scroll_jank_caused_by_scheduling;
 CREATE VIEW chrome_scroll_jank_caused_by_scheduling AS
-  SELECT *
-  FROM chrome_task_barrages_per_interval
-  WHERE total_duration_ms > {{dur_causes_jank_ms}} AND count > 1
-  ORDER BY total_duration_ms DESC;
+SELECT *
+FROM chrome_task_barrages_per_interval
+WHERE total_duration_ms > {{dur_causes_jank_ms}} AND count > 1
+ORDER BY total_duration_ms DESC;

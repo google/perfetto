@@ -12,8 +12,7 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
-SELECT RUN_METRIC('chrome/scroll_jank_cause_queuing_delay.sql')
-   ;
+SELECT RUN_METRIC('chrome/scroll_jank_cause_queuing_delay.sql');
 
 SELECT
   process_name,
@@ -24,4 +23,4 @@ SELECT
   restricted_metric_name
 FROM scroll_jank_cause_queuing_delay
 WHERE trace_id = 2918 OR trace_id = 2926
-ORDER BY trace_id ASC, ts ASC
+ORDER BY trace_id ASC, ts ASC;

@@ -23,4 +23,4 @@ SELECT
   metric_name
 FROM scroll_jank_cause_queuing_delay
 WHERE trace_id = 2918 OR trace_id = 2926
-ORDER BY trace_id ASC, ts ASC
+ORDER BY trace_id ASC, ts ASC;

@@ -13,10 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select
+SELECT
   ts,
   name
-from slice
-where
+FROM slice
+WHERE
   dur = 0
-limit 10;
+LIMIT 10;

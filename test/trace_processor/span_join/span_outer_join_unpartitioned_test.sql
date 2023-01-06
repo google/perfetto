@@ -13,19 +13,19 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-create table t1(
-  ts BIG INT,
-  dur BIG INT,
-  a BIG INT,
+CREATE TABLE t1(
+  ts BIGINT,
+  dur BIGINT,
+  a BIGINT,
   PRIMARY KEY (ts)
-) without rowid;
+) WITHOUT ROWID;
 
-create table t2(
-  ts BIG INT,
-  dur BIG INT,
-  b BIG INT,
+CREATE TABLE t2(
+  ts BIGINT,
+  dur BIGINT,
+  b BIGINT,
   PRIMARY KEY (ts)
-) without rowid;
+) WITHOUT ROWID;
 
 -- Add some rows to t1.
 INSERT INTO t1(ts, dur, a)
@@ -42,6 +42,6 @@ VALUES
 (600, 50, 6),
 (900, 500, 7);
 
-create virtual table sp using span_outer_join(t1, t2);
+CREATE VIRTUAL TABLE sp USING span_outer_join(t1, t2);
 
-select * from sp;
+SELECT * FROM sp;

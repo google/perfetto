@@ -26,10 +26,13 @@ struct VersionNumber {
   uint32_t major;
   uint32_t minor;
 
-  bool operator<(const VersionNumber& other) {
+  bool operator==(const VersionNumber& other) const {
+    return std::tie(major, minor) == std::tie(other.major, other.minor);
+  }
+  bool operator<(const VersionNumber& other) const {
     return std::tie(major, minor) < std::tie(other.major, other.minor);
   }
-  bool operator>=(const VersionNumber& other) {
+  bool operator>=(const VersionNumber& other) const {
     return std::tie(major, minor) >= std::tie(other.major, other.minor);
   }
 };

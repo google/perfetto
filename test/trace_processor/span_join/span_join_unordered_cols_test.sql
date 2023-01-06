@@ -13,13 +13,13 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-create table t1(
+CREATE TABLE t1(
   a1 STRING,
-  a2 BIG INT,
-  dur BIG INT,
-  a3 BIG INT,
-  ts BIG INT PRIMARY KEY
-) without rowid;
+  a2 BIGINT,
+  dur BIGINT,
+  a3 BIGINT,
+  ts BIGINT PRIMARY KEY
+) WITHOUT ROWID;
 
 INSERT INTO t1(a1, a2, dur, a3, ts)
 VALUES
@@ -27,15 +27,15 @@ VALUES
 ("B", 2, 90, 101, 10),
 ("C", 3, 1, 102, 100);
 
-create table t2(
+CREATE TABLE t2(
   b1 STRING,
-  ts BIG INT,
-  b2 BIG INT,
-  part BIG INT,
-  dur BIG INT,
-  b3 BIG INT,
+  ts BIGINT,
+  b2 BIGINT,
+  part BIGINT,
+  dur BIGINT,
+  b3 BIGINT,
   PRIMARY KEY (part, ts)
-) without rowid;
+) WITHOUT ROWID;
 
 INSERT INTO t2(b1, ts, b2, part, dur, b3)
 VALUES
@@ -46,6 +46,6 @@ VALUES
 ("B", 50, 90, 1, 40, 200),
 ("C", 90, 1, 1, 100, 300);
 
-create virtual table sp using span_join(t1, t2 PARTITIONED part);
+CREATE VIRTUAL TABLE sp USING span_join(t1, t2 PARTITIONED part);
 
-select ts,dur,part,b1,b2,b3,a1,a2,a3 from sp;
+SELECT ts, dur, part, b1, b2, b3, a1, a2, a3 FROM sp;

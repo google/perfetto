@@ -80,8 +80,8 @@ SELECT
             'anomaly_ratio',
             CAST(
               over_threshold_count AS DOUBLE)
-              / CAST(
-                total_count AS DOUBLE)),
+            / CAST(
+              total_count AS DOUBLE)),
           'longest_irq_slices',
           (
             SELECT
@@ -109,8 +109,8 @@ SELECT
             'anomaly_ratio',
             CAST(
               over_threshold_count AS DOUBLE)
-              / CAST(
-                total_count AS DOUBLE)),
+            / CAST(
+              total_count AS DOUBLE)),
           'longest_irq_slices',
           (
             SELECT

@@ -1,12 +1,16 @@
-# Native heap profiler
+# Heap profiler
 
 NOTE: **heapprofd requires Android 10 or higher**
 
-Heapprofd is a tool that tracks native heap allocations & deallocations of an
-Android process within a given time period. The resulting profile can be used to
+Heapprofd is a tool that tracks heap allocations & deallocations of an Android
+process within a given time period. The resulting profile can be used to
 attribute memory usage to particular call-stacks, supporting a mix of both
 native and java code. The tool can be used by Android platform and app
 developers to investigate memory issues.
+
+By default, the tool records native allocations and deallocations done with
+malloc/free (or new/delete). It can be configured to record java heap memory
+allocations instead: see [Java heap sampling](#java-heap-sampling) below.
 
 On debug Android builds, you can profile all apps and most system services.
 On "user" builds, you can only use it on apps with the debuggable or
@@ -25,7 +29,7 @@ callstacks collected at that point in time.
 
 ![heapprofd snapshots in the UI tracks](/docs/images/profile-diamond.png)
 
-![heapprofd flamegraph](/docs/images/native-flamegraph.png)
+![heapprofd flamegraph](/docs/images/native-heap-prof.png)
 
 ## SQL
 
@@ -68,6 +72,13 @@ after the profiling session is started.
 For the full arguments list see the
 [heap_profile cmdline reference page](/docs/reference/heap_profile-cli).
 
+You can use the [Perfetto UI](https://ui.perfetto.dev) to visualize heap dumps.
+Upload the `raw-trace` file in your output directory. You will see all heap
+dumps as diamonds on the timeline, click any of them to get a flamegraph.
+
+Alternatively [Speedscope](https://speedscope.app) can be used to visualize
+the gzipped protos, but will only show the "Unreleased malloc size" view.
+
 #### Using the Recording page of Perfetto UI
 
 You can also use the [Perfetto UI](https://ui.perfetto.dev/#!/record/memory)
@@ -78,29 +89,55 @@ Windows.
 
 ## Viewing the data
 
-The resulting profile proto contains four views on the data
+![Profile Diamond](/docs/images/profile-diamond.png)
 
-* **Unreleased size**: how many bytes were allocated but not freed at this
-  callstack the moment the dump was created.
-* **Total size**: how many bytes were allocated (including ones freed at the
-  moment of the dump) at this callstack
-* **Unreleased count**: how many allocations without matching frees were done at
-  this callstack.
-* **Total count**: how many allocations (including ones with matching frees)
-  were done at this callstack.
+The resulting profile proto contains four views on the data, for each diamond.
+
+* **Unreleased malloc size**: how many bytes were allocated but not freed at
+  this callstack, from the moment the recording was started until the timestamp
+  of the diamond.
+* **Total malloc size**: how many bytes were allocated (including ones freed at
+  the moment of the dump) at this callstack, from the moment the recording was
+  started until the timestamp of the diamond.
+* **Unreleased malloc count**: how many allocations without matching frees were
+  done at this callstack, from the moment the recording was started until the
+  timestamp of the diamond.
+* **Total malloc count**: how many allocations (including ones with matching
+  frees) were done at this callstack, from the moment the recording was started
+  started until the timestamp of the diamond.
 
 _(Googlers: You can also open the gzipped protos using http://pprof/)_
 
 TIP: you might want to put `libart.so` as a "Hide regex" when profiling apps.
 
-You can use the [Perfetto UI](https://ui.perfetto.dev) to visualize heap dumps.
-Upload the `raw-trace` file in your output directory. You will see all heap
-dumps as diamonds on the timeline, click any of them to get a flamegraph.
-
-Alternatively [Speedscope](https://speedscope.app) can be used to visualize
-the gzipped protos, but will only show the space view.
-
 TIP: Click Left Heavy on the top left for a good visualization.
+
+## Continuous dumps
+
+By default, the heap profiler captures all the allocations from the beginning of
+the recording and stores a single snapshot, shown as a single diamond in the UI,
+which summarizes all allocations/frees.
+
+It is possible to configure the heap profiler to periodically (not just at the
+end of the trace) store snapshots (continuous dumps), for example every 5000ms
+
+* By setting "Continuous dumps interval" in the UI to 5000.
+* By adding
+  ```
+  continuous_dump_config {
+    dump_interval_ms: 5000
+  }
+  ```
+  in the
+  [HeapprofdConfig](/docs/reference/trace-config-proto.autogen#HeapprofdConfig).
+* By adding `-c 5000` to the invocation of
+  [`tools/heap_profile`](/docs/reference/heap_profile-cli).
+
+![Continuous dump flamegraph](/docs/images/heap_prof_continuous.png)
+
+The resulting visualization shows multiple diamonds. Clicking on each diamond
+shows a summary of the allocations/frees from the beginning of the trace until
+that point (i.e. the summary is cumulative).
 
 ## Sampling interval
 
@@ -217,6 +254,41 @@ the `<application>` section of the app manifest.
 </manifest>
 ```
 
+## {#java-heap-sampling} Java heap sampling
+
+NOTE: **Java heap sampling is available on Android 12 or higher**
+
+NOTE: **Java heap sampling is not to be confused with [Java heap
+dumps](/docs/data-sources/java-heap-profiler.md)**
+
+Heapprofd can be configured to track Java allocations instead of native ones.
+* By setting adding `heaps: "com.android.art"` in
+  [HeapprofdConfig](/docs/reference/trace-config-proto.autogen#HeapprofdConfig).
+* By adding `--heaps com.android.art` to the invocation of
+  [`tools/heap_profile`](/docs/reference/heap_profile-cli).
+
+Unlike java heap dumps (which show the retention graph of a snapshot of the live
+objects) but like native heap profiles, java heap samples show callstacks of
+allocations over time of the entire profile.
+
+Java heap samples only show callstacks of when objects are created, not when
+they're deleted or garbage collected.
+
+![javaheapsamples](/docs/images/java-heap-samples.png)
+
+The resulting profile proto contains two views on the data:
+
+* **Total allocation size**: how many bytes were allocated at this callstack
+  over time of the profile until this point. The bytes might have been freed or
+  not, the tool does not keep track of that.
+* **Total allocation count**: how many object were allocated at this callstack
+  over time of the profile until this point. The objects might have been freed
+  or not, the tool does not keep track of that.
+
+Java heap samples are useful to understand memory churn showing the call stack
+of which parts of the code large allocations are attributed to as well as the
+allocation type from the ART runtime.
+
 ## DEDUPED frames
 
 If the name of a Java method includes `[DEDUPED]`, this means that multiple
@@ -298,7 +370,7 @@ about correct filenames.
 If your profile contains obfuscated Java methods (like `fsd.a`), you can
 provide a deobfuscation map to turn them back into human readable.
 To do so, use the `PERFETTO_PROGUARD_MAP` environment variable, using the
-format `packagename=filename[:packagename=filename...]`, e.g.
+format `packagename=map_filename[:packagename=map_filename...]`, e.g.
 `PERFETTO_PROGUARD_MAP=com.example.pkg1=foo.txt:com.example.pkg2=bar.txt`.
 All tools
 (traceconv, trace_processor_shell, the heap_profile script) support specifying
@@ -306,12 +378,16 @@ the `PERFETTO_PROGUARD_MAP` as an environment variable.
 
 You can get a deobfuscation map for your trace using
 `tools/traceconv deobfuscate`. Then concatenate the resulting file to your
-trace to get a deobfuscated version of it.
+trace to get a deobfuscated version of it (the input trace should be in the
+perfetto format, otherwise concatenation will not produce a reasonable output).
 
 ```
-PERFETTO_PROGUARD_MAP=com.example.pkg tools/traceconv deobfuscate ${TRACE} > deobfuscation_map
+PERFETTO_PROGUARD_MAP=com.example.pkg=proguard_map.txt tools/traceconv deobfuscate ${TRACE} > deobfuscation_map
 cat ${TRACE} deobfuscation_map > deobfuscated_trace
 ```
+
+`deobfuscated_trace` can be viewed in the
+[Perfetto UI](https://ui.perfetto.dev).
 
 ## Troubleshooting
 
@@ -390,7 +466,7 @@ First [build Perfetto](/docs/contributing/build-instructions.md). You only need
 to do this once.
 
 ```
-tools/build_all_configs.py
+tools/setup_all_configs.py
 ninja -C out/linux_clang_release
 ```
 
@@ -426,6 +502,18 @@ be blocked until heapprofd initializes fully but means every allocation will
 be correctly tracked.
 
 ## Known Issues
+
+### {#known-issues-android13} Android 13
+
+* Unwinding java frames might not work properly, depending on the ART module
+  version in use. The UI reports a single "unknown" frame at the top of the
+  stack in this case. The problem is fixed in Android 13 QPR1.
+
+### {#known-issues-android12} Android 12
+
+* Unwinding java frames might not work properly, depending on the ART module
+  version in use. The UI reports a single "unknown" frame at the top of the
+  stack in this case.
 
 ### {#known-issues-android11} Android 11
 
@@ -532,7 +620,7 @@ We can get the callstacks that allocated using an SQL Query in the
 Trace Processor. For each frame, we get one row for the number of allocated
 bytes, where `count` and `size` is positive, and, if any of them were already
 freed, another line with negative `count` and `size`. The sum of those gets us
-the `space` view.
+the `Unreleased malloc size` view.
 
 ```sql
 select a.callsite_id, a.ts, a.upid, f.name, f.rel_pc, m.build_id, m.name as mapping_name,

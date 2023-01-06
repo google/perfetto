@@ -30,12 +30,12 @@ ExperimentalSliceLayoutTable::~ExperimentalSliceLayoutTable() = default;
 namespace {
 
 struct GroupInfo {
-  GroupInfo(int64_t _start, int64_t _end, uint32_t _max_height)
-      : start(_start), end(_end), max_height(_max_height) {}
+  GroupInfo(int64_t _start, int64_t _end, uint32_t _max_depth)
+      : start(_start), end(_end), layout_depth(0), max_depth(_max_depth) {}
   int64_t start;
   int64_t end;
-  uint32_t max_height;
   uint32_t layout_depth;
+  uint32_t max_depth;
 };
 
 static constexpr uint32_t kFilterTrackIdsColumnIndex =
@@ -52,7 +52,7 @@ ExperimentalSliceLayoutGenerator::ExperimentalSliceLayoutGenerator(
 ExperimentalSliceLayoutGenerator::~ExperimentalSliceLayoutGenerator() = default;
 
 Table::Schema ExperimentalSliceLayoutGenerator::CreateSchema() {
-  return tables::ExperimentalSliceLayoutTable::Schema();
+  return tables::ExperimentalSliceLayoutTable::ComputeStaticSchema();
 }
 
 std::string ExperimentalSliceLayoutGenerator::TableName() {
@@ -193,9 +193,9 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::ComputeLayoutTable(
     bool inserted;
     std::tie(it, inserted) = groups.emplace(
         std::piecewise_construct, std::forward_as_tuple(id_map[id]),
-        std::forward_as_tuple(start, end, depth + 1));
+        std::forward_as_tuple(start, end, depth));
     if (!inserted) {
-      it->second.max_height = std::max(it->second.max_height, depth + 1);
+      it->second.max_depth = std::max(it->second.max_depth, depth);
       it->second.end = std::max(it->second.end, end);
     }
   }
@@ -219,7 +219,7 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::ComputeLayoutTable(
   std::vector<GroupInfo*> still_open;
   for (GroupInfo* group : sorted_groups) {
     int64_t start = group->start;
-    uint32_t max_height = group->max_height;
+    uint32_t max_depth = group->max_depth;
 
     // Discard all 'closed' groups where that groups end_ts is < our start_ts:
     {
@@ -241,13 +241,13 @@ std::unique_ptr<Table> ExperimentalSliceLayoutGenerator::ComputeLayoutTable(
     while (!done) {
       done = true;
       uint32_t start_depth = layout_depth;
-      uint32_t end_depth = layout_depth + max_height;
+      uint32_t end_depth = layout_depth + max_depth;
       for (const auto& open : still_open) {
-        bool top = open->layout_depth <= start_depth &&
-                   start_depth < open->layout_depth + open->max_height;
-        bool bottom = open->layout_depth < end_depth &&
-                      end_depth <= open->layout_depth + open->max_height;
-        if (top || bottom) {
+        uint32_t open_start_depth = open->layout_depth;
+        uint32_t open_end_depth = open->layout_depth + open->max_depth;
+        bool fully_above_open = end_depth < open_start_depth;
+        bool fully_below_open = open_end_depth < start_depth;
+        if (!fully_above_open && !fully_below_open) {
           // This is extremely dumb, we can make a much better guess for what
           // depth to try next but it is a little complicated to get right.
           layout_depth++;

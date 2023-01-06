@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_CONTENT_ANALYZER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_CONTENT_ANALYZER_H_
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -29,6 +30,11 @@ namespace trace_processor {
 // an SQL table.
 class ContentAnalyzerModule : public ProtoImporterModule {
  public:
+  using PathToSamplesMap =
+      base::FlatHashMap<util::SizeProfileComputer::FieldPath,
+                        size_t,
+                        util::SizeProfileComputer::FieldPathHasher>;
+
   explicit ContentAnalyzerModule(TraceProcessorContext* context);
 
   ~ContentAnalyzerModule() override = default;
@@ -44,7 +50,8 @@ class ContentAnalyzerModule : public ProtoImporterModule {
  private:
   TraceProcessorContext* context_;
   DescriptorPool pool_;
-  util::SizeProfileComputer::PathToSamplesMap aggregated_samples_;
+  util::SizeProfileComputer computer_;
+  PathToSamplesMap aggregated_samples_;
 };
 
 }  // namespace trace_processor

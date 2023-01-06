@@ -37,14 +37,14 @@ Table& Table::operator=(Table&& other) noexcept {
 }
 
 Table Table::Copy() const {
-  Table table = CopyExceptRowMaps();
+  Table table = CopyExceptOverlays();
   for (const ColumnStorageOverlay& overlay : overlays_) {
     table.overlays_.emplace_back(overlay.Copy());
   }
   return table;
 }
 
-Table Table::CopyExceptRowMaps() const {
+Table Table::CopyExceptOverlays() const {
   Table table(string_pool_);
   table.row_count_ = row_count_;
   for (const Column& col : columns_) {
@@ -113,7 +113,7 @@ Table Table::Sort(const std::vector<Order>& od) const {
 
   // Return a copy of this table with the RowMaps using the computed ordered
   // RowMap.
-  Table table = CopyExceptRowMaps();
+  Table table = CopyExceptOverlays();
   RowMap rm(std::move(idx));
   for (const ColumnStorageOverlay& overlay : overlays_) {
     table.overlays_.emplace_back(overlay.SelectRows(rm));

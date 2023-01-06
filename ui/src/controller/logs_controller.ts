@@ -21,23 +21,26 @@ import {
   LogExistsKey,
 } from '../common/logs';
 import {NUM, STR} from '../common/query_result';
+import {escapeGlob, escapeQuery} from '../common/query_utils';
+import {LogFilteringCriteria} from '../common/state';
 import {fromNs, TimeSpan, toNsCeil, toNsFloor} from '../common/time';
 import {publishTrackData} from '../frontend/publish';
 
 import {Controller} from './controller';
-import {App} from './globals';
+import {App, globals} from './globals';
 
 async function updateLogBounds(
     engine: Engine, span: TimeSpan): Promise<LogBounds> {
   const vizStartNs = toNsFloor(span.start);
   const vizEndNs = toNsCeil(span.end);
 
-  const countResult = await engine.query(`
-     select
+  const countResult = await engine.query(`select
       ifnull(min(ts), 0) as minTs,
       ifnull(max(ts), 0) as maxTs,
       count(ts) as countTs
-     from android_logs where ts >= ${vizStartNs} and ts <= ${vizEndNs}`);
+     from filtered_logs
+        where ts >= ${vizStartNs}
+        and ts <= ${vizEndNs}`);
 
   const countRow = countResult.firstRow({minTs: NUM, maxTs: NUM, countTs: NUM});
 
@@ -46,12 +49,12 @@ async function updateLogBounds(
   const total = countRow.countTs;
 
   const minResult = await engine.query(`
-     select ifnull(max(ts), 0) as maxTs from android_logs where ts < ${
+     select ifnull(max(ts), 0) as maxTs from filtered_logs where ts < ${
       vizStartNs}`);
   const startNs = minResult.firstRow({maxTs: NUM}).maxTs;
 
   const maxResult = await engine.query(`
-     select ifnull(min(ts), 0) as minTs from android_logs where ts > ${
+     select ifnull(min(ts), 0) as minTs from filtered_logs where ts > ${
       vizEndNs}`);
   const endNs = maxResult.firstRow({minTs: NUM}).minTs;
 
@@ -80,8 +83,11 @@ async function updateLogEntries(
           ts,
           prio,
           ifnull(tag, '[NULL]') as tag,
-          ifnull(msg, '[NULL]') as msg
-        from android_logs
+          ifnull(msg, '[NULL]') as msg,
+          is_msg_highlighted as isMsgHighlighted,
+          is_process_highlighted as isProcessHighlighted,
+          ifnull(process_name, '') as processName
+        from filtered_logs
         where ${vizSqlBounds}
         order by ts
         limit ${pagination.start}, ${pagination.count}
@@ -91,13 +97,26 @@ async function updateLogEntries(
   const priorities = [];
   const tags = [];
   const messages = [];
+  const isHighlighted = [];
+  const processName = [];
 
-  const it = rowsResult.iter({ts: NUM, prio: NUM, tag: STR, msg: STR});
+  const it = rowsResult.iter({
+    ts: NUM,
+    prio: NUM,
+    tag: STR,
+    msg: STR,
+    isMsgHighlighted: NUM,
+    isProcessHighlighted: NUM,
+    processName: STR,
+  });
   for (; it.valid(); it.next()) {
     timestamps.push(it.ts);
     priorities.push(it.prio);
     tags.push(it.tag);
     messages.push(it.msg);
+    isHighlighted.push(
+        it.isMsgHighlighted === 1 || it.isProcessHighlighted === 1);
+    processName.push(it.processName);
   }
 
   return {
@@ -106,6 +125,8 @@ async function updateLogEntries(
     priorities,
     tags,
     messages,
+    isHighlighted,
+    processName,
   };
 }
 
@@ -147,12 +168,15 @@ export interface LogsControllerArgs {
 }
 
 /**
- * LogsController looks at two parts of the state:
+ * LogsController looks at three parts of the state:
  * 1. The visible trace window
  * 2. The requested offset and count the log lines to display
+ * 3. The log filtering criteria.
  * And keeps two bits of published information up to date:
  * 1. The total number of log messages in visible range
  * 2. The logs lines that should be displayed
+ * Based on the log filtering criteria, it also builds the filtered_logs view
+ * and keeps it up to date.
  */
 export class LogsController extends Controller<'main'> {
   private app: App;
@@ -160,6 +184,9 @@ export class LogsController extends Controller<'main'> {
   private span: TimeSpan;
   private pagination: Pagination;
   private hasLogs = false;
+  private logFilteringCriteria?: LogFilteringCriteria;
+  private requestingData = false;
+  private queuedRunRequest = false;
 
   constructor(args: LogsControllerArgs) {
     super('main');
@@ -187,7 +214,21 @@ export class LogsController extends Controller<'main'> {
 
   run() {
     if (!this.hasLogs) return;
+    if (this.requestingData) {
+      this.queuedRunRequest = true;
+      return;
+    }
+    this.requestingData = true;
+    this.updateLogTracks().finally(() => {
+      this.requestingData = false;
+      if (this.queuedRunRequest) {
+        this.queuedRunRequest = false;
+        this.run();
+      }
+    });
+  }
 
+  private async updateLogTracks() {
     const traceTime = this.app.state.frontendLocalState.visibleState;
     const newSpan = new TimeSpan(traceTime.startSec, traceTime.endSec);
     const oldSpan = this.span;
@@ -204,36 +245,81 @@ export class LogsController extends Controller<'main'> {
     const requestedPagination = new Pagination(offset, count);
     const oldPagination = this.pagination;
 
-    const needSpanUpdate = !oldSpan.equals(newSpan);
-    const needPaginationUpdate = !oldPagination.contains(requestedPagination);
+    const newFilteringCriteria =
+        this.logFilteringCriteria !== globals.state.logFilteringCriteria;
+    const needBoundsUpdate = !oldSpan.equals(newSpan) || newFilteringCriteria;
+    const needEntriesUpdate =
+        !oldPagination.contains(requestedPagination) || needBoundsUpdate;
 
-    // TODO(hjd): We could waste a lot of time queueing useless updates here.
-    // We should avoid enqueuing a request when one is in progress.
-    if (needSpanUpdate) {
+    if (newFilteringCriteria) {
+      this.logFilteringCriteria = globals.state.logFilteringCriteria;
+      await this.engine.query('drop view if exists filtered_logs');
+
+      const globMatch = LogsController.composeGlobMatch(
+          this.logFilteringCriteria.hideNonMatching,
+          this.logFilteringCriteria.textEntry);
+      let selectedRows = `select prio, ts, tag, msg,
+          process.name as process_name, ${globMatch}
+          from android_logs
+          left join thread using(utid)
+          left join process using(upid)
+          where prio >= ${this.logFilteringCriteria.minimumLevel}`;
+      if (this.logFilteringCriteria.tags.length) {
+        selectedRows += ` and tag in (${
+            LogsController.serializeTags(this.logFilteringCriteria.tags)})`;
+      }
+
+      // We extract only the rows which will be visible.
+      await this.engine.query(`create view filtered_logs as select *
+        from (${selectedRows})
+        where is_msg_chosen is 1 or is_process_chosen is 1`);
+    }
+
+    if (needBoundsUpdate) {
       this.span = newSpan;
-      updateLogBounds(this.engine, newSpan).then((data) => {
-        if (!newSpan.equals(this.span)) return;
-        publishTrackData({
-          id: LogBoundsKey,
-          data,
-        });
+      const logBounds = await updateLogBounds(this.engine, newSpan);
+      publishTrackData({
+        id: LogBoundsKey,
+        data: logBounds,
       });
     }
 
-    // TODO(hjd): We could waste a lot of time queueing useless updates here.
-    // We should avoid enqueuing a request when one is in progress.
-    if (needSpanUpdate || needPaginationUpdate) {
+    if (needEntriesUpdate) {
       this.pagination = requestedPagination.grow(100);
-
-      updateLogEntries(this.engine, newSpan, this.pagination).then((data) => {
-        if (!this.pagination.contains(requestedPagination)) return;
-        publishTrackData({
-          id: LogEntriesKey,
-          data,
-        });
+      const logEntries =
+          await updateLogEntries(this.engine, newSpan, this.pagination);
+      publishTrackData({
+        id: LogEntriesKey,
+        data: logEntries,
       });
     }
+  }
 
-    return [];
+  private static serializeTags(tags: string[]) {
+    return tags.map((tag) => escapeQuery(tag)).join();
+  }
+
+  private static composeGlobMatch(isCollaped: boolean, textEntry: string) {
+    if (isCollaped) {
+      // If the entries are collapsed, we won't highlight any lines.
+      return `msg glob ${escapeGlob(textEntry)} as is_msg_chosen,
+        (process.name is not null and process.name glob ${
+          escapeGlob(textEntry)}) as is_process_chosen,
+        0 as is_msg_highlighted,
+        0 as is_process_highlighted`;
+    } else if (!textEntry) {
+      // If there is no text entry, we will show all lines, but won't highlight.
+      // any.
+      return `1 as is_msg_chosen,
+        1 as is_process_chosen,
+        0 as is_msg_highlighted,
+        0 as is_process_highlighted`;
+    } else {
+      return `1 as is_msg_chosen,
+        1 as is_process_chosen,
+        msg glob ${escapeGlob(textEntry)} as is_msg_highlighted,
+        (process.name is not null and process.name glob ${
+          escapeGlob(textEntry)}) as is_process_highlighted`;
+    }
   }
 }

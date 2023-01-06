@@ -73,29 +73,29 @@ JOIN chrome_update_count_per_scroll USING(scroll_id);
 DROP VIEW IF EXISTS chrome_frame_main_input_id;
 CREATE VIEW chrome_frame_main_input_id AS
 SELECT
-    id,
-    scroll_id,
-    is_coalesced,
-    ts,
-    dur,
-    track_id,
-    (SELECT
-        MAX(id)
+  id,
+  scroll_id,
+  is_coalesced,
+  ts,
+  dur,
+  track_id,
+  (SELECT
+    MAX(id)
     FROM chrome_all_scroll_updates parent_scrolls
     WHERE NOT is_coalesced
-        AND parent_scrolls.ts <= scrolls.ts) AS presented_scroll_id
+      AND parent_scrolls.ts <= scrolls.ts) AS presented_scroll_id
 FROM chrome_all_scroll_updates scrolls;
 
 -- Count the number of inputs per presented frame.
 DROP VIEW IF EXISTS chrome_scroll_inputs_per_frame;
 CREATE VIEW chrome_scroll_inputs_per_frame AS
 SELECT
-    COUNT() count_for_frame,
-    presented_scroll_id,
-    ts,
-    dur,
-    id AS slice_id,
-    track_id
+  COUNT() AS count_for_frame,
+  presented_scroll_id,
+  ts,
+  dur,
+  id AS slice_id,
+  track_id
 FROM
-    chrome_frame_main_input_id
+  chrome_frame_main_input_id
 GROUP BY presented_scroll_id;

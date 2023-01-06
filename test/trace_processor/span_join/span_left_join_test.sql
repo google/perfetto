@@ -13,21 +13,21 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-create table t1(
-  ts BIG INT,
-  dur BIG INT,
-  part BIG INT,
-  a BIG INT,
+CREATE TABLE t1(
+  ts BIGINT,
+  dur BIGINT,
+  part BIGINT,
+  a BIGINT,
   PRIMARY KEY (part, ts)
-) without rowid;
+) WITHOUT ROWID;
 
-create table t2(
-  ts BIG INT,
-  dur BIG INT,
-  part BIG INT,
-  b BIG INT,
+CREATE TABLE t2(
+  ts BIGINT,
+  dur BIGINT,
+  part BIGINT,
+  b BIGINT,
   PRIMARY KEY (part, ts)
-) without rowid;
+) WITHOUT ROWID;
 
 -- Insert some rows into t2 which are in part 0 and 1 but before t1's rows.
 INSERT INTO t2(ts, dur, part, b)
@@ -72,7 +72,7 @@ INSERT INTO t2(ts, dur, part, b) VALUES (125, 50, 5, 1111);
 -- Insert a row into t2 which intersects the first row of partition 5.
 INSERT INTO t2(ts, dur, part, b) VALUES (190, 20, 5, 2222);
 
-create virtual table sp using span_left_join(t1 PARTITIONED part,
+CREATE VIRTUAL TABLE sp USING span_left_join(t1 PARTITIONED part,
                                              t2 PARTITIONED part);
 
-select * from sp;
+SELECT * FROM sp;

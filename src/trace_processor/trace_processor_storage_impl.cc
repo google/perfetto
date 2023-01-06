@@ -19,9 +19,9 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/uuid.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
-#include "src/trace_processor/importers/chrome_track_event.descriptor.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
@@ -29,16 +29,16 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/default_modules.h"
-#include "src/trace_processor/importers/proto/async_track_set_tracker.h"
+#include "src/trace_processor/importers/proto/chrome_track_event.descriptor.h"
+#include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/heap_profile_tracker.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
-#include "src/trace_processor/importers/track_event.descriptor.h"
-#include "src/trace_processor/trace_sorter.h"
+#include "src/trace_processor/importers/proto/track_event.descriptor.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto {
@@ -146,6 +146,10 @@ void TraceProcessorStorageImpl::DestroyContext() {
   context.storage = std::move(context_.storage);
   context.heap_graph_tracker = std::move(context_.heap_graph_tracker);
   context.clock_tracker = std::move(context_.clock_tracker);
+  // "to_ftrace" textual converter of the "raw" table requires remembering the
+  // kernel version (inside system_info_tracker) to know how to textualise
+  // sched_switch.prev_state bitflags.
+  context.system_info_tracker = std::move(context_.system_info_tracker);
 
   context_ = std::move(context);
 }

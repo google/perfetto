@@ -27,6 +27,7 @@ import "protos/perfetto/trace/android/frame_timeline_event.proto";
 import "protos/perfetto/trace/android/gpu_mem_event.proto";
 import "protos/perfetto/trace/android/graphics_frame_event.proto";
 import "protos/perfetto/trace/android/initial_display_state.proto";
+import "protos/perfetto/trace/android/network_trace.proto";
 import "protos/perfetto/trace/android/packages_list.proto";
 import "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto";
 import "protos/perfetto/trace/chrome/chrome_metadata.proto";
@@ -60,10 +61,12 @@ import "protos/perfetto/trace/system_info.proto";
 import "protos/perfetto/trace/system_info/cpu_info.proto";
 import "protos/perfetto/trace/trace_packet_defaults.proto";
 import "protos/perfetto/trace/track_event/process_descriptor.proto";
+import "protos/perfetto/trace/track_event/range_of_interest.proto";
 import "protos/perfetto/trace/track_event/thread_descriptor.proto";
 import "protos/perfetto/trace/track_event/track_descriptor.proto";
 import "protos/perfetto/trace/track_event/track_event.proto";
 import "protos/perfetto/trace/translation/translation_table.proto";
+import "protos/perfetto/trace/trace_uuid.proto";
 import "protos/perfetto/trace/trigger.proto";
 import "protos/perfetto/trace/test_event.proto";
 import "protos/perfetto/trace/ui_state.proto";
@@ -90,7 +93,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 88.
+// Next id: 91.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -119,6 +122,7 @@ message TracePacket {
     // IDs up to 15 are reserved. They take only one byte to encode their
     // preamble so should be used for frequent events.
 
+    TraceUuid trace_uuid = 89;
     TraceConfig trace_config = 33;
     FtraceStats ftrace_stats = 34;
     TraceStats trace_stats = 35;
@@ -193,6 +197,13 @@ message TracePacket {
     // allows trace_processor to deserialize extended messages using reflection
     // even if the extension proto is not checked in the Perfetto repo.
     ExtensionDescriptor extension_descriptor = 72;
+
+    // Represents a single packet sent or received by the network.
+    NetworkPacketEvent network_packet = 88;
+
+    // The "range of interest" for track events. See the message definition
+    // comments for more details.
+    TrackEventRangeOfInterest track_event_range_of_interest = 90;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

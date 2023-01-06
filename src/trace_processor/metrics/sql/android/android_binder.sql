@@ -18,16 +18,16 @@
 DROP VIEW IF EXISTS binder_metrics_by_process;
 CREATE VIEW binder_metrics_by_process AS
 SELECT
-  process.name as process_name,
-  process.pid as pid,
-  slice.name as slice_name,
-  COUNT(*) as event_count
+  process.name AS process_name,
+  process.pid AS pid,
+  slice.name AS slice_name,
+  COUNT(*) AS event_count
 FROM slice
-  INNER JOIN thread_track ON slice.track_id=thread_track.id
-  INNER JOIN thread ON thread.utid=thread_track.utid
-  INNER JOIN process ON thread.upid=process.upid
+INNER JOIN thread_track ON slice.track_id = thread_track.id
+INNER JOIN thread ON thread.utid = thread_track.utid
+INNER JOIN process ON thread.upid = process.upid
 WHERE
-  slice.name glob 'binder*'
+  slice.name GLOB 'binder*'
 GROUP BY
   process_name,
   slice_name;

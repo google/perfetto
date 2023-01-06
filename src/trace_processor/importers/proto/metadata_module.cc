@@ -17,15 +17,18 @@
 #include "src/trace_processor/importers/proto/metadata_module.h"
 
 #include "perfetto/ext/base/base64.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "perfetto/ext/base/uuid.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/proto/config.descriptor.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
+#include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/util/protozero_to_text.h"
 
-#include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
-#include "protos/perfetto/trace/chrome/chrome_metadata.pbzero.h"
+#include "protos/perfetto/config/trace_config.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace/trace_uuid.pbzero.h"
 #include "protos/perfetto/trace/trigger.pbzero.h"
-#include "src/trace_processor/parser_types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -38,9 +41,8 @@ MetadataModule::MetadataModule(TraceProcessorContext* context)
       trusted_producer_uid_key_id_(
           context_->storage->InternString("trusted_producer_uid")) {
   RegisterForField(TracePacket::kUiStateFieldNumber, context);
-  RegisterForField(TracePacket::kChromeMetadataFieldNumber, context);
-  RegisterForField(TracePacket::kChromeBenchmarkMetadataFieldNumber, context);
   RegisterForField(TracePacket::kTriggerFieldNumber, context);
+  RegisterForField(TracePacket::kTraceUuidFieldNumber, context);
 }
 
 ModuleResult MetadataModule::TokenizePacket(
@@ -58,12 +60,22 @@ ModuleResult MetadataModule::TokenizePacket(
                                               Variadic::String(id));
       return ModuleResult::Handled();
     }
-    case TracePacket::kChromeMetadataFieldNumber: {
-      ParseChromeMetadataPacket(decoder.chrome_metadata());
-      return ModuleResult::Handled();
-    }
-    case TracePacket::kChromeBenchmarkMetadataFieldNumber: {
-      ParseChromeBenchmarkMetadata(decoder.chrome_benchmark_metadata());
+    case TracePacket::kTraceUuidFieldNumber: {
+      // If both the TraceUuid packet and TraceConfig.trace_uuid_msb/lsb are
+      // set, the former (which is emitted first) takes precedence. This is
+      // because the UUID can change throughout the lifecycle of a tracing
+      // session if gap-less snapshots are used. Each trace file has at most one
+      // TraceUuid packet (i has if it comes from an older version of the
+      // tracing service < v32)
+      protos::pbzero::TraceUuid::Decoder uuid_packet(decoder.trace_uuid());
+      if (uuid_packet.msb() != 0 || uuid_packet.lsb() != 0) {
+        base::Uuid uuid(uuid_packet.lsb(), uuid_packet.msb());
+        std::string str = uuid.ToPrettyString();
+        StringId id = context_->storage->InternString(base::StringView(str));
+        context_->metadata_tracker->SetMetadata(metadata::trace_uuid,
+                                                Variadic::String(id));
+        context_->uuid_found_in_trace = true;
+      }
       return ModuleResult::Handled();
     }
   }
@@ -79,84 +91,6 @@ void MetadataModule::ParseTracePacketData(
     // We handle triggers at parse time rather at tokenization because
     // we add slices to tables which need to happen post-sorting.
     ParseTrigger(ts, decoder.trigger());
-  }
-}
-
-void MetadataModule::ParseChromeBenchmarkMetadata(ConstBytes blob) {
-  TraceStorage* storage = context_->storage.get();
-  MetadataTracker* metadata = context_->metadata_tracker.get();
-
-  protos::pbzero::ChromeBenchmarkMetadata::Decoder packet(blob.data, blob.size);
-  if (packet.has_benchmark_name()) {
-    auto benchmark_name_id = storage->InternString(packet.benchmark_name());
-    metadata->SetMetadata(metadata::benchmark_name,
-                          Variadic::String(benchmark_name_id));
-  }
-  if (packet.has_benchmark_description()) {
-    auto benchmark_description_id =
-        storage->InternString(packet.benchmark_description());
-    metadata->SetMetadata(metadata::benchmark_description,
-                          Variadic::String(benchmark_description_id));
-  }
-  if (packet.has_label()) {
-    auto label_id = storage->InternString(packet.label());
-    metadata->SetMetadata(metadata::benchmark_label,
-                          Variadic::String(label_id));
-  }
-  if (packet.has_story_name()) {
-    auto story_name_id = storage->InternString(packet.story_name());
-    metadata->SetMetadata(metadata::benchmark_story_name,
-                          Variadic::String(story_name_id));
-  }
-  for (auto it = packet.story_tags(); it; ++it) {
-    auto story_tag_id = storage->InternString(*it);
-    metadata->AppendMetadata(metadata::benchmark_story_tags,
-                             Variadic::String(story_tag_id));
-  }
-  if (packet.has_benchmark_start_time_us()) {
-    metadata->SetMetadata(metadata::benchmark_start_time_us,
-                          Variadic::Integer(packet.benchmark_start_time_us()));
-  }
-  if (packet.has_story_run_time_us()) {
-    metadata->SetMetadata(metadata::benchmark_story_run_time_us,
-                          Variadic::Integer(packet.story_run_time_us()));
-  }
-  if (packet.has_story_run_index()) {
-    metadata->SetMetadata(metadata::benchmark_story_run_index,
-                          Variadic::Integer(packet.story_run_index()));
-  }
-  if (packet.has_had_failures()) {
-    metadata->SetMetadata(metadata::benchmark_had_failures,
-                          Variadic::Integer(packet.had_failures()));
-  }
-}
-
-void MetadataModule::ParseChromeMetadataPacket(ConstBytes blob) {
-  TraceStorage* storage = context_->storage.get();
-  MetadataTracker* metadata = context_->metadata_tracker.get();
-
-  // Typed chrome metadata proto. The untyped metadata is parsed below in
-  // ParseChromeEvents().
-  protos::pbzero::ChromeMetadataPacket::Decoder packet(blob.data, blob.size);
-
-  if (packet.has_background_tracing_metadata()) {
-    auto background_tracing_metadata = packet.background_tracing_metadata();
-    std::string base64 = base::Base64Encode(background_tracing_metadata.data,
-                                            background_tracing_metadata.size);
-    metadata->SetDynamicMetadata(
-        storage->InternString("cr-background_tracing_metadata"),
-        Variadic::String(storage->InternString(base::StringView(base64))));
-  }
-
-  if (packet.has_chrome_version_code()) {
-    metadata->SetDynamicMetadata(
-        storage->InternString("cr-playstore_version_code"),
-        Variadic::Integer(packet.chrome_version_code()));
-  }
-  if (packet.has_enabled_categories()) {
-    auto categories_id = storage->InternString(packet.enabled_categories());
-    metadata->SetDynamicMetadata(storage->InternString("cr-enabled_categories"),
-                                 Variadic::String(categories_id));
   }
 }
 
@@ -180,6 +114,58 @@ void MetadataModule::ParseTrigger(int64_t ts, ConstBytes blob) {
                              Variadic::Integer(trigger.trusted_producer_uid()));
         }
       });
+}
+
+void MetadataModule::ParseTraceUuid(ConstBytes blob) {
+  // If both the TraceUuid packet and TraceConfig.trace_uuid_msb/lsb are set,
+  // the former (which is emitted first) takes precedence. This is because the
+  // UUID can change throughout the lifecycle of a tracing session if gap-less
+  // snapshots are used. Each trace file has at most one TraceUuid packet (i
+  // has if it comes from an older version of the tracing service < v32)
+  protos::pbzero::TraceUuid::Decoder uuid_packet(blob.data, blob.size);
+  if (uuid_packet.msb() != 0 || uuid_packet.lsb() != 0) {
+    base::Uuid uuid(uuid_packet.lsb(), uuid_packet.msb());
+    std::string str = uuid.ToPrettyString();
+    StringId id = context_->storage->InternString(base::StringView(str));
+    context_->metadata_tracker->SetMetadata(metadata::trace_uuid,
+                                            Variadic::String(id));
+    context_->uuid_found_in_trace = true;
+  }
+}
+
+void MetadataModule::ParseTraceConfig(
+    const protos::pbzero::TraceConfig_Decoder& trace_config) {
+  int64_t uuid_msb = trace_config.trace_uuid_msb();
+  int64_t uuid_lsb = trace_config.trace_uuid_lsb();
+  if (!context_->uuid_found_in_trace && (uuid_msb != 0 || uuid_lsb != 0)) {
+    base::Uuid uuid(uuid_lsb, uuid_msb);
+    std::string str = uuid.ToPrettyString();
+    StringId id = context_->storage->InternString(base::StringView(str));
+    context_->metadata_tracker->SetMetadata(metadata::trace_uuid,
+                                            Variadic::String(id));
+    context_->uuid_found_in_trace = true;
+  }
+
+  if (trace_config.has_unique_session_name()) {
+    StringId id = context_->storage->InternString(
+        base::StringView(trace_config.unique_session_name()));
+    context_->metadata_tracker->SetMetadata(metadata::unique_session_name,
+                                            Variadic::String(id));
+  }
+
+  DescriptorPool pool;
+  pool.AddFromFileDescriptorSet(kConfigDescriptor.data(),
+                                kConfigDescriptor.size());
+
+  std::string text = protozero_to_text::ProtozeroToText(
+      pool, ".perfetto.protos.TraceConfig",
+      protozero::ConstBytes{
+          trace_config.begin(),
+          static_cast<uint32_t>(trace_config.end() - trace_config.begin())},
+      protozero_to_text::kIncludeNewLines);
+  StringId id = context_->storage->InternString(base::StringView(text));
+  context_->metadata_tracker->SetMetadata(metadata::trace_config_pbtxt,
+                                          Variadic::String(id));
 }
 
 }  // namespace trace_processor

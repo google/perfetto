@@ -26,10 +26,10 @@ DROP VIEW IF EXISTS proc_gpu_memory_view;
 CREATE VIEW proc_gpu_memory_view AS
 SELECT
   upid,
-  MAX(proc_gpu_memory_val) as mem_max,
-  MIN(proc_gpu_memory_val) as mem_min,
-  SUM(proc_gpu_memory_val * dur) as mem_valxdur,
-  SUM(dur) as mem_dur
+  MAX(proc_gpu_memory_val) AS mem_max,
+  MIN(proc_gpu_memory_val) AS mem_min,
+  SUM(proc_gpu_memory_val * dur) AS mem_valxdur,
+  SUM(dur) AS mem_dur
 FROM proc_gpu_memory_span
 GROUP BY upid;
 
@@ -37,12 +37,12 @@ DROP VIEW IF EXISTS agg_proc_gpu_view;
 CREATE VIEW agg_proc_gpu_view AS
 SELECT
   name,
-  MAX(mem_max) as mem_max,
-  MIN(mem_min) as mem_min,
-  SUM(mem_valxdur) / SUM(mem_dur) as mem_avg
+  MAX(mem_max) AS mem_max,
+  MIN(mem_min) AS mem_min,
+  SUM(mem_valxdur) / SUM(mem_dur) AS mem_avg
 FROM process
 JOIN proc_gpu_memory_view
-USING(upid)
+  USING(upid)
 GROUP BY name;
 
 DROP VIEW IF EXISTS proc_gpu_view;
@@ -50,9 +50,9 @@ CREATE VIEW proc_gpu_view AS
 SELECT
   AndroidGpuMetric_Process(
     'name', name,
-    'mem_max', CAST(mem_max as INT64),
-    'mem_min', CAST(mem_min as INT64),
-    'mem_avg', CAST(mem_avg as INT64)
+    'mem_max', CAST(mem_max AS INT64),
+    'mem_min', CAST(mem_min AS INT64),
+    'mem_avg', CAST(mem_avg AS INT64)
   ) AS proto
 FROM agg_proc_gpu_view;
 
@@ -81,7 +81,7 @@ total_dur_per_gpu AS (
 SELECT
   gpu_id,
   AndroidGpuMetric_FrequencyMetric_MetricsPerFrequency(
-    'freq', CAST(freq as INT64),
+    'freq', CAST(freq AS INT64),
     'dur_ms', f.dur_ns / 1e6,
     'percentage', f.dur_ns * 100.0 / g.dur_ns
   ) AS proto
@@ -92,11 +92,11 @@ CREATE VIEW gpu_freq_metrics_view AS
 SELECT
   AndroidGpuMetric_FrequencyMetric(
     'gpu_id', gpu_id,
-    'freq_max', CAST(MAX(gpu_freq_val) as INT64),
-    'freq_min', CAST(MIN(gpu_freq_val) as INT64),
+    'freq_max', CAST(MAX(gpu_freq_val) AS INT64),
+    'freq_min', CAST(MIN(gpu_freq_val) AS INT64),
     'freq_avg', SUM(gpu_freq_val * dur) / SUM(dur),
     'used_freqs', (SELECT RepeatedField(proto) FROM metrics_per_freq_view
-        WHERE metrics_per_freq_view.gpu_id = gpu_freq_span.gpu_id)
+      WHERE metrics_per_freq_view.gpu_id = gpu_freq_span.gpu_id)
   ) AS proto
 FROM gpu_freq_span
 GROUP BY gpu_id;
@@ -105,9 +105,9 @@ DROP VIEW IF EXISTS android_gpu_output;
 CREATE VIEW android_gpu_output AS
 SELECT AndroidGpuMetric(
   'processes', (SELECT RepeatedField(proto) FROM proc_gpu_view),
-  'mem_max', CAST(MAX(global_gpu_memory_val) as INT64),
-  'mem_min', CAST(MIN(global_gpu_memory_val) as INT64),
-  'mem_avg', CAST(SUM(global_gpu_memory_val * dur) / SUM(dur) as INT64),
+  'mem_max', CAST(MAX(global_gpu_memory_val) AS INT64),
+  'mem_min', CAST(MIN(global_gpu_memory_val) AS INT64),
+  'mem_avg', CAST(SUM(global_gpu_memory_val * dur) / SUM(dur) AS INT64),
   'freq_metrics', (SELECT RepeatedField(proto) FROM gpu_freq_metrics_view)
 )
 FROM global_gpu_memory_span;

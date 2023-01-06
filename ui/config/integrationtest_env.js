@@ -42,7 +42,7 @@ module.exports = class IntegrationtestEnvironment extends NodeEnvironment {
                                   // determinism.
       ],
 
-      // This is so screenshot in --interactive and headles mode match. The
+      // This is so screenshot in --interactive and headless mode match. The
       // scrollbars are never part of the screenshot, but without this cmdline
       // switch, in headless mode we don't get any blank space (as if it was
       // overflow:hidden) and that changes the layout of the page.
@@ -62,4 +62,4 @@ module.exports = class IntegrationtestEnvironment extends NodeEnvironment {
   runScript(script) {
     return super.runScript(script);
   }
-}
+};

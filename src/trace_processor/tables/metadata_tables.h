@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_TABLES_METADATA_TABLES_H_
 
 #include "src/trace_processor/tables/macros.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -139,6 +140,32 @@ PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_TABLE_DEF);
   C(uint32_t, arg_set_id)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_PROCESS_TABLE_DEF);
+
+// Contains information of filedescriptors collected during the trace
+//
+// @name filedescriptor
+// @param ufd             {int64_t} Unique fd. This is != the OS fd.
+//                        This is a monotonic number associated to each
+//                        filedescriptor. The OS assigned fd cannot be used as
+//                        primary key because fds are recycled by most kernels.
+// @param fd              The OS id for this process. Note: this is *not*
+//                        unique over the lifetime of the trace so cannot be
+//                        used as a primary key. Use |ufd| instead.
+// @param ts              The timestamp for when the fd was collected.
+// @param upid            {@joinable process.upid} The upid of the process which
+//                        opened the filedescriptor.
+// @param path            The path to the file or device backing the fd
+//                        In case this was a socket the path will be the port
+//                        number.
+#define PERFETTO_TP_FILEDESCRIPTOR_TABLE_DEF(NAME, PARENT, C) \
+  NAME(FiledescriptorTable, "filedescriptor")                 \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                           \
+  C(int64_t, fd)                                              \
+  C(base::Optional<int64_t>, ts)                              \
+  C(base::Optional<uint32_t>, upid)                           \
+  C(base::Optional<StringPool::Id>, path)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_FILEDESCRIPTOR_TABLE_DEF);
 
 // Experimental table, subject to arbitrary breaking changes.
 #define PERFETTO_TP_EXP_MISSING_CHROME_PROC_TABLE_DEF(NAME, PARENT, C)     \

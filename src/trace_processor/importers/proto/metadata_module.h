@@ -43,10 +43,11 @@ class MetadataModule : public ProtoImporterModule {
                             const TracePacketData&,
                             uint32_t field_id) override;
 
+  void ParseTraceConfig(const protos::pbzero::TraceConfig_Decoder&) override;
+
  private:
-  void ParseChromeBenchmarkMetadata(ConstBytes);
-  void ParseChromeMetadataPacket(ConstBytes);
   void ParseTrigger(int64_t ts, ConstBytes);
+  void ParseTraceUuid(ConstBytes);
 
   TraceProcessorContext* context_;
   StringId producer_name_key_id_ = kNullStringId;

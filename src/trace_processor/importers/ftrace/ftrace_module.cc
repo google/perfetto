@@ -16,7 +16,7 @@
 
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include <cstdint>
-#include "src/trace_processor/parser_types.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 
 namespace perfetto {
 namespace trace_processor {

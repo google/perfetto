@@ -20,9 +20,13 @@ source_set("common") {
     "args_tracker.h",
     "args_translation_table.cc",
     "args_translation_table.h",
+    "async_track_set_tracker.cc",
+    "async_track_set_tracker.h",
     "chunked_trace_reader.h",
     "clock_tracker.cc",
     "clock_tracker.h",
+    "deobfuscation_mapping_table.cc",
+    "deobfuscation_mapping_table.h",
     "event_tracker.cc",
     "event_tracker.h",
     "flow_tracker.cc",
@@ -37,16 +41,17 @@ source_set("common") {
     "slice_translation_table.h",
     "system_info_tracker.cc",
     "system_info_tracker.h",
-    "trace_parser.h",
+    "trace_parser.cc",
     "track_tracker.cc",
     "track_tracker.h",
   ]
   public_deps = [
-    "../:gen_cc_config_descriptor",
+    ":trace_parser_hdr",
     "../../util:proto_to_args_parser",
     "../../util:protozero_to_text",
   ]
   deps = [
+    ":parser_types",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor",
     "../../../../include/perfetto/trace_processor:basic_types",
@@ -56,13 +61,32 @@ source_set("common") {
     "../../../base",
     "../../storage",
     "../../types",
+    "../fuchsia:fuchsia_record",
+    "../systrace:systrace_line",
+  ]
+}
+
+source_set("trace_parser_hdr") {
+  sources = [ "trace_parser.h" ]
+  deps = [ "../../../../gn:default_deps" ]
+}
+
+source_set("parser_types") {
+  sources = [ "parser_types.h" ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../include/perfetto/trace_processor:storage",
+    "../../containers",
+    "../proto:packet_sequence_state_generation_hdr",
   ]
 }
 
 source_set("unittests") {
   sources = [
     "args_translation_table_unittest.cc",
+    "async_track_set_tracker_unittest.cc",
     "clock_tracker_unittest.cc",
+    "deobfuscation_mapping_table_unittest.cc",
     "event_tracker_unittest.cc",
     "flow_tracker_unittest.cc",
     "process_tracker_unittest.cc",

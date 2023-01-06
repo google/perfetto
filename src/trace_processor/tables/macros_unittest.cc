@@ -463,7 +463,7 @@ TEST_F(TableMacrosUnittest, Sort) {
 
 TEST_F(TableMacrosUnittest, ChildDoesntInheritArgsSetFlag) {
   ASSERT_FALSE(args_child_.arg_set_id().IsSetId());
-  ASSERT_FALSE(TestArgsChildTable::Schema()
+  ASSERT_FALSE(TestArgsChildTable::ComputeStaticSchema()
                    .columns[args_child_.arg_set_id().index_in_table()]
                    .is_set_id);
 }

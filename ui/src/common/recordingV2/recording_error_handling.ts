@@ -77,6 +77,8 @@ export function showRecordingModal(message: string): void {
         'Unable to claim interface.',
         'The specified endpoint is not part of a claimed and selected ' +
             'alternate interface.',
+        // thrown when calling the 'reset' method on a WebUSB device.
+        'Unable to reset the device.',
       ].some((partOfMessage) => message.includes(partOfMessage))) {
     showWebUSBErrorV2();
   } else if (

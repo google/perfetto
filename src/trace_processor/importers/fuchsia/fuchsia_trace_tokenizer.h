@@ -19,7 +19,9 @@
 
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
+#include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/task_state.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -42,29 +44,57 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
     std::string name;
 
     std::unordered_map<uint64_t, StringId> string_table;
-    std::unordered_map<uint64_t, fuchsia_trace_utils::ThreadInfo> thread_table;
+    std::unordered_map<uint64_t, FuchsiaThreadInfo> thread_table;
 
     uint64_t ticks_per_second = 1000000000;
   };
 
-  struct RunningThread {
-    fuchsia_trace_utils::ThreadInfo info;
-    int64_t start_ts;
+  // Tracks the state for updating sched slice and thread state tables.
+  struct Thread {
+    explicit Thread(uint64_t tid) : info{0, tid} {}
+
+    FuchsiaThreadInfo info;
+    int64_t last_ts{0};
+    base::Optional<tables::SchedSliceTable::RowNumber> last_slice_row;
+    base::Optional<tables::ThreadStateTable::RowNumber> last_state_row;
   };
+
+  // Allocates or returns an existing Thread instance for the given tid.
+  Thread& GetThread(uint64_t tid) {
+    auto search = threads_.find(tid);
+    if (search != threads_.end()) {
+      return search->second;
+    }
+    auto result = threads_.emplace(tid, tid);
+    return result.first->second;
+  }
 
   void ParseRecord(TraceBlobView);
   void RegisterProvider(uint32_t, std::string);
+  StringId IdForOutgoingThreadState(uint32_t state);
 
   TraceProcessorContext* const context_;
   std::vector<uint8_t> leftover_bytes_;
 
-  // Map from tid to pid. Used because in some places we do not get pid info.
-  // Fuchsia tids are never reused.
-  std::unordered_map<uint64_t, uint64_t> pid_table_;
+  // Proto reader creates state that the blobs it emits reference, so the
+  // proto_reader needs to live for as long as the tokenizer.
+  ProtoTraceReader proto_reader_;
+  std::vector<uint8_t> proto_trace_data_;
+
   std::unordered_map<uint32_t, std::unique_ptr<ProviderInfo>> providers_;
   ProviderInfo* current_provider_;
 
-  std::unordered_map<uint32_t, RunningThread> cpu_threads_;
+  // Interned string ids for the relevant thread states.
+  StringId running_string_id_;
+  StringId runnable_string_id_;
+  StringId preempted_string_id_;
+  StringId blocked_string_id_;
+  StringId suspended_string_id_;
+  StringId exit_dying_string_id_;
+  StringId exit_dead_string_id_;
+
+  // Map from tid to Thread.
+  std::unordered_map<uint64_t, Thread> threads_;
 };
 
 }  // namespace trace_processor

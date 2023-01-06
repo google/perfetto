@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/export.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 extern "C" {
@@ -27,8 +28,6 @@ extern "C" {
 __declspec(dllimport) unsigned long __stdcall GetCurrentThreadId();
 }
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
-#include <zircon/process.h>
-#include <zircon/syscalls.h>
 #include <zircon/types.h>
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -54,17 +53,8 @@ inline PlatformThreadId GetThreadId() {
 }
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_FUCHSIA)
 using PlatformThreadId = zx_koid_t;
-static PlatformThreadId ResolveThreadId() {
-  zx_info_handle_basic_t basic;
-  return (zx_object_get_info(zx_thread_self(), ZX_INFO_HANDLE_BASIC, &basic,
-                             sizeof(basic), nullptr, nullptr) == ZX_OK)
-             ? basic.koid
-             : ZX_KOID_INVALID;
-}
-inline PlatformThreadId GetThreadId() {
-  thread_local static PlatformThreadId thread_id = ResolveThreadId();
-  return thread_id;
-}
+// Not inlined because the result is cached internally.
+PERFETTO_EXPORT_COMPONENT PlatformThreadId GetThreadId();
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 using PlatformThreadId = uint64_t;
 inline PlatformThreadId GetThreadId() {

@@ -19,12 +19,12 @@
 DROP VIEW IF EXISTS hwui_processes;
 CREATE VIEW hwui_processes AS
 SELECT
-  process.name as process_name,
-  process.upid as process_upid,
-  CAST(SUM(sched.dur) / 1e6 as INT64) as rt_cpu_time_ms,
-  thread.utid as render_thread_id
+  process.name AS process_name,
+  process.upid AS process_upid,
+  CAST(SUM(sched.dur) / 1e6 AS INT64) AS rt_cpu_time_ms,
+  thread.utid AS render_thread_id
 FROM sched
-INNER JOIN thread ON (thread.utid = sched.utid AND thread.name='RenderThread')
+INNER JOIN thread ON (thread.utid = sched.utid AND thread.name = 'RenderThread')
 INNER JOIN process ON (process.upid = thread.upid)
 GROUP BY process.name
 ORDER BY rt_cpu_time_ms DESC;
@@ -32,11 +32,11 @@ ORDER BY rt_cpu_time_ms DESC;
 DROP VIEW IF EXISTS hwui_draw_frame;
 CREATE VIEW hwui_draw_frame AS
 SELECT
-  count(*) as draw_frame_count,
-  max(dur) as draw_frame_max,
-  min(dur) as draw_frame_min,
-  avg(dur) as draw_frame_avg,
-  thread_track.utid as render_thread_id
+  count(*) AS draw_frame_count,
+  max(dur) AS draw_frame_max,
+  min(dur) AS draw_frame_min,
+  avg(dur) AS draw_frame_avg,
+  thread_track.utid AS render_thread_id
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
 WHERE slice.name GLOB 'DrawFrame*' AND slice.dur >= 0
@@ -45,140 +45,140 @@ GROUP BY thread_track.utid;
 DROP VIEW IF EXISTS hwui_flush_commands;
 CREATE VIEW hwui_flush_commands AS
 SELECT
-  count(*) as flush_count,
-  max(dur) as flush_max,
-  min(dur) as flush_min,
-  avg(dur) as flush_avg,
-  thread_track.utid as render_thread_id
+  count(*) AS flush_count,
+  max(dur) AS flush_max,
+  min(dur) AS flush_min,
+  avg(dur) AS flush_avg,
+  thread_track.utid AS render_thread_id
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-WHERE slice.name='flush commands' AND slice.dur >= 0
+WHERE slice.name = 'flush commands' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_prepare_tree;
 CREATE VIEW hwui_prepare_tree AS
 SELECT
-  count(*) as prepare_tree_count,
-  max(dur) as prepare_tree_max,
-  min(dur) as prepare_tree_min,
-  avg(dur) as prepare_tree_avg,
-  thread_track.utid as render_thread_id
+  count(*) AS prepare_tree_count,
+  max(dur) AS prepare_tree_max,
+  min(dur) AS prepare_tree_min,
+  avg(dur) AS prepare_tree_avg,
+  thread_track.utid AS render_thread_id
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-WHERE slice.name='prepareTree' AND slice.dur >= 0
+WHERE slice.name = 'prepareTree' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_gpu_completion;
 CREATE VIEW hwui_gpu_completion AS
 SELECT
-  count(*) as gpu_completion_count,
-  max(dur) as gpu_completion_max,
-  min(dur) as gpu_completion_min,
-  avg(dur) as gpu_completion_avg,
-  thread.upid as process_upid
+  count(*) AS gpu_completion_count,
+  max(dur) AS gpu_completion_max,
+  min(dur) AS gpu_completion_min,
+  avg(dur) AS gpu_completion_avg,
+  thread.upid AS process_upid
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-INNER JOIN thread ON (thread.name='GPU completion' AND thread.utid = thread_track.utid)
+INNER JOIN thread ON (thread.name = 'GPU completion' AND thread.utid = thread_track.utid)
 WHERE slice.name GLOB 'waiting for GPU completion*' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_ui_record;
 CREATE VIEW hwui_ui_record AS
 SELECT
-  count(*) as ui_record_count,
-  max(dur) as ui_record_max,
-  min(dur) as ui_record_min,
-  avg(dur) as ui_record_avg,
-  thread.upid as process_upid
+  count(*) AS ui_record_count,
+  max(dur) AS ui_record_max,
+  min(dur) AS ui_record_min,
+  avg(dur) AS ui_record_avg,
+  thread.upid AS process_upid
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-INNER JOIN thread ON (thread.name=substr(process.name,-15) AND thread.utid = thread_track.utid)
+INNER JOIN thread ON (thread.name = substr(process.name, -15) AND thread.utid = thread_track.utid)
 INNER JOIN process ON (process.upid = thread.upid)
-WHERE slice.name='Record View#draw()' AND slice.dur >= 0
+WHERE slice.name = 'Record View#draw()' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_shader_compile;
 CREATE VIEW hwui_shader_compile AS
 SELECT
-  count(*) as shader_compile_count,
-  sum(dur) as shader_compile_time,
-  avg(dur) as shader_compile_avg,
-  thread_track.utid as render_thread_id
+  count(*) AS shader_compile_count,
+  sum(dur) AS shader_compile_time,
+  avg(dur) AS shader_compile_avg,
+  thread_track.utid AS render_thread_id
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-WHERE slice.name='shader_compile' AND slice.dur >= 0
+WHERE slice.name = 'shader_compile' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_cache_hit;
 CREATE VIEW hwui_cache_hit AS
 SELECT
-  count(*) as cache_hit_count,
-  sum(dur) as cache_hit_time,
-  avg(dur) as cache_hit_avg,
-  thread_track.utid as render_thread_id
+  count(*) AS cache_hit_count,
+  sum(dur) AS cache_hit_time,
+  avg(dur) AS cache_hit_avg,
+  thread_track.utid AS render_thread_id
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-WHERE slice.name='cache_hit' AND slice.dur >= 0
+WHERE slice.name = 'cache_hit' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_cache_miss;
 CREATE VIEW hwui_cache_miss AS
 SELECT
-  count(*) as cache_miss_count,
-  sum(dur) as cache_miss_time,
-  avg(dur) as cache_miss_avg,
-  thread_track.utid as render_thread_id
+  count(*) AS cache_miss_count,
+  sum(dur) AS cache_miss_time,
+  avg(dur) AS cache_miss_avg,
+  thread_track.utid AS render_thread_id
 FROM slice
 INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-WHERE slice.name='cache_miss' AND slice.dur >= 0
+WHERE slice.name = 'cache_miss' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_graphics_cpu_mem;
 CREATE VIEW hwui_graphics_cpu_mem AS
 SELECT
-  max(value) as graphics_cpu_mem_max,
-  min(value) as graphics_cpu_mem_min,
-  avg(value) as graphics_cpu_mem_avg,
-  process_counter_track.upid as process_upid
+  max(value) AS graphics_cpu_mem_max,
+  min(value) AS graphics_cpu_mem_min,
+  avg(value) AS graphics_cpu_mem_avg,
+  process_counter_track.upid AS process_upid
 FROM counter
 INNER JOIN process_counter_track ON (counter.track_id = process_counter_track.id)
-WHERE name='HWUI CPU Memory' AND counter.value >= 0
+WHERE name = 'HWUI CPU Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
 DROP VIEW IF EXISTS hwui_graphics_gpu_mem;
 CREATE VIEW hwui_graphics_gpu_mem AS
 SELECT
-  max(value) as graphics_gpu_mem_max,
-  min(value) as graphics_gpu_mem_min,
-  avg(value) as graphics_gpu_mem_avg,
-  process_counter_track.upid as process_upid
+  max(value) AS graphics_gpu_mem_max,
+  min(value) AS graphics_gpu_mem_min,
+  avg(value) AS graphics_gpu_mem_avg,
+  process_counter_track.upid AS process_upid
 FROM counter
 INNER JOIN process_counter_track ON (counter.track_id = process_counter_track.id)
-WHERE name='HWUI Misc Memory' AND counter.value >= 0
+WHERE name = 'HWUI Misc Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
 DROP VIEW IF EXISTS hwui_texture_mem;
 CREATE VIEW hwui_texture_mem AS
 SELECT
-  max(value) as texture_mem_max,
-  min(value) as texture_mem_min,
-  avg(value) as texture_mem_avg,
-  process_counter_track.upid as process_upid
+  max(value) AS texture_mem_max,
+  min(value) AS texture_mem_min,
+  avg(value) AS texture_mem_avg,
+  process_counter_track.upid AS process_upid
 FROM counter
 INNER JOIN process_counter_track ON (counter.track_id = process_counter_track.id)
-WHERE name='HWUI Texture Memory' AND counter.value >= 0
+WHERE name = 'HWUI Texture Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
 DROP VIEW IF EXISTS hwui_all_mem;
 CREATE VIEW hwui_all_mem AS
 SELECT
-  max(value) as all_mem_max,
-  min(value) as all_mem_min,
-  avg(value) as all_mem_avg,
-  process_counter_track.upid as process_upid
+  max(value) AS all_mem_max,
+  min(value) AS all_mem_min,
+  avg(value) AS all_mem_avg,
+  process_counter_track.upid AS process_upid
 FROM counter
 INNER JOIN process_counter_track ON (counter.track_id = process_counter_track.id)
-WHERE name='HWUI All Memory' AND counter.value >= 0
+WHERE name = 'HWUI All Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
 DROP VIEW IF EXISTS android_hwui_metric_output;
@@ -227,20 +227,20 @@ SELECT AndroidHwuiMetric(
         'cache_miss_time', hwui_cache_miss.cache_miss_time,
         'cache_miss_avg', hwui_cache_miss.cache_miss_avg,
 
-        'graphics_cpu_mem_max', CAST(hwui_graphics_cpu_mem.graphics_cpu_mem_max as INT64),
-        'graphics_cpu_mem_min', CAST(hwui_graphics_cpu_mem.graphics_cpu_mem_min as INT64),
+        'graphics_cpu_mem_max', CAST(hwui_graphics_cpu_mem.graphics_cpu_mem_max AS INT64),
+        'graphics_cpu_mem_min', CAST(hwui_graphics_cpu_mem.graphics_cpu_mem_min AS INT64),
         'graphics_cpu_mem_avg', hwui_graphics_cpu_mem.graphics_cpu_mem_avg,
 
-        'graphics_gpu_mem_max', CAST(hwui_graphics_gpu_mem.graphics_gpu_mem_max as INT64),
-        'graphics_gpu_mem_min', CAST(hwui_graphics_gpu_mem.graphics_gpu_mem_min as INT64),
+        'graphics_gpu_mem_max', CAST(hwui_graphics_gpu_mem.graphics_gpu_mem_max AS INT64),
+        'graphics_gpu_mem_min', CAST(hwui_graphics_gpu_mem.graphics_gpu_mem_min AS INT64),
         'graphics_gpu_mem_avg', hwui_graphics_gpu_mem.graphics_gpu_mem_avg,
 
-        'texture_mem_max', CAST(hwui_texture_mem.texture_mem_max as INT64),
-        'texture_mem_min', CAST(hwui_texture_mem.texture_mem_min as INT64),
+        'texture_mem_max', CAST(hwui_texture_mem.texture_mem_max AS INT64),
+        'texture_mem_min', CAST(hwui_texture_mem.texture_mem_min AS INT64),
         'texture_mem_avg', hwui_texture_mem.texture_mem_avg,
 
-        'all_mem_max', CAST(hwui_all_mem.all_mem_max as INT64),
-        'all_mem_min', CAST(hwui_all_mem.all_mem_min as INT64),
+        'all_mem_max', CAST(hwui_all_mem.all_mem_max AS INT64),
+        'all_mem_min', CAST(hwui_all_mem.all_mem_min AS INT64),
         'all_mem_avg', hwui_all_mem.all_mem_avg
       )
     )

@@ -126,7 +126,7 @@ bool RecordCursor::ReadInlineString(uint32_t string_ref_or_len,
   return true;
 }
 
-bool RecordCursor::ReadInlineThread(ThreadInfo* thread_out) {
+bool RecordCursor::ReadInlineThread(FuchsiaThreadInfo* thread_out) {
   const uint8_t* thread_data;
   if (!ReadWords(2, &thread_data)) {
     return false;
@@ -170,6 +170,18 @@ bool RecordCursor::ReadDouble(double* out) {
   if (out != nullptr) {
     memcpy(out, out_data, sizeof(double));
   }
+  return true;
+}
+
+bool RecordCursor::ReadBlob(size_t num_bytes,
+                            std::vector<uint8_t>& append_buffer) {
+  const uint8_t* data = begin_ + sizeof(uint64_t) * word_index_;
+  auto num_words = (num_bytes + 7) / 8;
+  if (data + sizeof(uint64_t) * num_words > end_) {
+    return false;
+  }
+  word_index_ += num_words;
+  append_buffer.insert(append_buffer.end(), data, data + num_bytes);
   return true;
 }
 

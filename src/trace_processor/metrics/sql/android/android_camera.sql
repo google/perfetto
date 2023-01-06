@@ -20,7 +20,7 @@ SELECT RUN_METRIC('android/process_mem.sql');
 -- Compute DMA spans.
 SELECT RUN_METRIC('android/global_counter_span_view.sql',
   'table_name', 'dma',
-   'counter_name', 'mem.dma_heap');
+  'counter_name', 'mem.dma_heap');
 
 -- RSS of GCA.
 DROP VIEW IF EXISTS rss_gca;
@@ -79,10 +79,10 @@ SELECT
   ts,
   dur,
   CAST(
-    IFNULL(gca_rss_val, 0) +
-    IFNULL(hal_rss_val, 0) +
-    IFNULL(cameraserver_rss_val, 0) +
-    IFNULL(dma_val, 0) AS int) AS rss_and_dma_val
+    IFNULL(gca_rss_val, 0)
+    + IFNULL(hal_rss_val, 0)
+    + IFNULL(cameraserver_rss_val, 0)
+    + IFNULL(dma_val, 0) AS int) AS rss_and_dma_val
 FROM rss_and_dma_all_camera_join;
 
 -- we are dividing and casting to real when calculating avg_value

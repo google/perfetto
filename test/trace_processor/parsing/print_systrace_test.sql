@@ -14,4 +14,4 @@
 -- limitations under the License.
 --
 SELECT to_ftrace(id)
-from raw;
+FROM raw;

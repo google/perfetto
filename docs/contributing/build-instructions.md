@@ -290,7 +290,7 @@ below.
 
 ## Build configurations
 
-TIP: `tools/build_all_configs.py` can be used to generate out/XXX folders for
+TIP: `tools/setup_all_configs.py` can be used to generate out/XXX folders for
 most of the supported configurations.
 
 The following [GN args][gn-quickstart] are supported:
@@ -325,6 +325,12 @@ See also the [custom toolchain](#custom-toolchain) section below.
 `is_hermetic_clang = true | false`
 
 Use bundled toolchain from `buildtools/` rather than system-wide one.
+
+`non_hermetic_clang_stdlib = libc++ | libstdc++`
+
+If `is_hermetic_clang` is `false`, sets the `-stdlib` flag for clang
+invocations. `libstdc++` is default on Linux hosts and `libc++` is
+default everywhere else.
 
 `cc = "gcc" / cxx = "g++"`
 

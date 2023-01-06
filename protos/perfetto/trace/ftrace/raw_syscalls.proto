@@ -7,6 +7,7 @@ package perfetto.protos;
 
 message SysEnterFtraceEvent {
   optional int64 id = 1;
+  repeated uint64 args = 2;
 }
 message SysExitFtraceEvent {
   optional int64 id = 1;

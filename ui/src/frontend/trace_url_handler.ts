@@ -111,7 +111,8 @@ async function maybeOpenCachedTrace(traceUuid: string) {
   // This early out prevents to re-trigger the openTraceFromXXX() action if the
   // URL changes (e.g. if the user navigates back/fwd) while the new trace is
   // being loaded.
-  for (const eng of Object.values(globals.state.engines)) {
+  if (globals.state.engine !== undefined) {
+    const eng = globals.state.engine;
     if (eng.source.type === 'ARRAY_BUFFER' && eng.source.uuid === traceUuid) {
       return;
     }

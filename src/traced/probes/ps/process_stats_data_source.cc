@@ -17,8 +17,10 @@
 #include "src/traced/probes/ps/process_stats_data_source.h"
 
 #include <stdlib.h>
+#include <unistd.h>
 
 #include <algorithm>
+#include <array>
 #include <utility>
 
 #include "perfetto/base/task_runner.h"
@@ -93,6 +95,7 @@ ProcessStatsDataSource::ProcessStatsDataSource(
   ProcessStatsConfig::Decoder cfg(ds_config.process_stats_config_raw());
   record_thread_names_ = cfg.record_thread_names();
   dump_all_procs_on_start_ = cfg.scan_all_processes_on_start();
+  resolve_process_fds_ = cfg.resolve_process_fds();
 
   enable_on_demand_dumps_ = true;
   for (auto quirk = cfg.quirks(); quirk; ++quirk) {
@@ -118,8 +121,9 @@ ProcessStatsDataSource::ProcessStatsDataSource(
 ProcessStatsDataSource::~ProcessStatsDataSource() = default;
 
 void ProcessStatsDataSource::Start() {
-  if (dump_all_procs_on_start_)
+  if (dump_all_procs_on_start_) {
     WriteAllProcesses();
+  }
 
   if (poll_period_ms_) {
     auto weak_this = GetWeakPtr();
@@ -141,6 +145,7 @@ void ProcessStatsDataSource::WriteAllProcesses() {
   base::ScopedDir proc_dir = OpenProcDir();
   if (!proc_dir)
     return;
+  base::FlatSet<int32_t> pids;
   while (int32_t pid = ReadNextNumericDir(*proc_dir)) {
     WriteProcessOrThread(pid);
     base::StackString<128> task_path("/proc/%d/task", pid);
@@ -162,6 +167,15 @@ void ProcessStatsDataSource::WriteAllProcesses() {
         WriteThread(tid, pid, /*optional_name=*/nullptr, proc_status);
       }
     }
+
+    pids.insert(pid);
+  }
+  FinalizeCurPacket();
+
+  // Also collect any fds open when starting up
+  for (const auto pid : pids) {
+    cur_ps_stats_process_ = nullptr;
+    WriteFds(pid);
   }
   FinalizeCurPacket();
 }
@@ -194,6 +208,33 @@ void ProcessStatsDataSource::OnRenamePids(const base::FlatSet<int32_t>& pids) {
   PERFETTO_DCHECK(!cur_ps_tree_);
   for (int32_t pid : pids)
     seen_pids_.erase(pid);
+}
+
+void ProcessStatsDataSource::OnFds(
+    const base::FlatSet<std::pair<pid_t, uint64_t>>& fds) {
+  if (!resolve_process_fds_)
+    return;
+
+  pid_t last_pid = 0;
+  for (const auto& tid_fd : fds) {
+    const auto tid = tid_fd.first;
+    const auto fd = tid_fd.second;
+
+    auto it = seen_pids_.find(tid);
+    if (it == seen_pids_.end()) {
+      // TID is not known yet, skip resolving the fd and let the
+      // periodic stats scanner resolve the fd together with its TID later
+      continue;
+    }
+    const auto pid = it->tgid;
+
+    if (last_pid != pid) {
+      cur_ps_stats_process_ = nullptr;
+      last_pid = pid;
+    }
+    WriteSingleFd(pid, fd);
+  }
+  FinalizeCurPacket();
 }
 
 void ProcessStatsDataSource::Flush(FlushRequestID,
@@ -295,7 +336,7 @@ void ProcessStatsDataSource::WriteProcess(int32_t pid,
     // Nothing in cmdline so use the thread name instead (which is == "comm").
     proc->add_cmdline(ReadProcStatusEntry(proc_status, "Name:").c_str());
   }
-  seen_pids_.insert(pid);
+  seen_pids_.insert({pid, pid});
 }
 
 void ProcessStatsDataSource::WriteThread(int32_t tid,
@@ -316,13 +357,18 @@ void ProcessStatsDataSource::WriteThread(int32_t tid,
       break;
     thread->add_nstid(nstid);
   }
-  seen_pids_.insert(tid);
+  seen_pids_.insert({tid, tgid});
+}
+
+const char* ProcessStatsDataSource::GetProcMountpoint() {
+  static constexpr char kDefaultProcMountpoint[] = "/proc";
+  return kDefaultProcMountpoint;
 }
 
 base::ScopedDir ProcessStatsDataSource::OpenProcDir() {
-  base::ScopedDir proc_dir(opendir("/proc"));
+  base::ScopedDir proc_dir(opendir(GetProcMountpoint()));
   if (!proc_dir)
-    PERFETTO_PLOG("Failed to opendir(/proc)");
+    PERFETTO_PLOG("Failed to opendir(%s)", GetProcMountpoint());
   return proc_dir;
 }
 
@@ -469,6 +515,9 @@ void ProcessStatsDataSource::WriteAllProcessStats() {
       }
     }
 
+    // Ensure we write data on any fds not seen before
+    WriteFds(pid);
+
     pids.insert(pid);
   }
   FinalizeCurPacket();
@@ -587,6 +636,46 @@ bool ProcessStatsDataSource::WriteMemCounters(int32_t pid,
     }
   }
   return proc_status_has_mem_counters;
+}
+
+void ProcessStatsDataSource::WriteFds(int32_t pid) {
+  if (!resolve_process_fds_) {
+    return;
+  }
+
+  base::StackString<64> path("%s/%" PRId32 "/fd", GetProcMountpoint(), pid);
+  base::ScopedDir proc_dir(opendir(path.c_str()));
+  if (!proc_dir) {
+    PERFETTO_DPLOG("Failed to opendir(%s)", path.c_str());
+    return;
+  }
+  while (struct dirent* dir_ent = readdir(*proc_dir)) {
+    if (dir_ent->d_type != DT_LNK)
+      continue;
+    auto fd = base::CStringToUInt64(dir_ent->d_name);
+    if (fd)
+      WriteSingleFd(pid, *fd);
+  }
+}
+
+void ProcessStatsDataSource::WriteSingleFd(int32_t pid, uint64_t fd) {
+  CachedProcessStats& cached = process_stats_cache_[pid];
+  if (cached.seen_fds.count(fd)) {
+    return;
+  }
+
+  base::StackString<128> proc_fd("%s/%" PRId32 "/fd/%" PRIu64,
+                                 GetProcMountpoint(), pid, fd);
+  std::array<char, 256> path;
+  ssize_t actual = readlink(proc_fd.c_str(), path.data(), path.size());
+  if (actual >= 0) {
+    auto* fd_info = GetOrCreateStatsProcess(pid)->add_fds();
+    fd_info->set_fd(fd);
+    fd_info->set_path(path.data(), static_cast<size_t>(actual));
+    cached.seen_fds.insert(fd);
+  } else if (ENOENT != errno) {
+    PERFETTO_DPLOG("Failed to readlink '%s'", proc_fd.c_str());
+  }
 }
 
 uint64_t ProcessStatsDataSource::CacheProcFsScanStartTimestamp() {

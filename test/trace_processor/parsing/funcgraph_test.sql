@@ -14,9 +14,8 @@
 -- limitations under the License.
 --
 
-select ts, dur, tid, s.name, depth
-from slices s
-join thread_track tt on (s.track_id == tt.id)
-join thread using (utid)
-where tid == 385482;
-
+SELECT ts, dur, tid, s.name, depth
+FROM slices s
+JOIN thread_track tt ON (s.track_id = tt.id)
+JOIN thread USING (utid)
+WHERE tid = 385482;

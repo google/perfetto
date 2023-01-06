@@ -13,5 +13,4 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-select ts, dur, name from slice order by ts desc;
-
+SELECT ts, dur, name FROM slice ORDER BY ts DESC;

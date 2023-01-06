@@ -77,7 +77,8 @@ enum class SortingMode {
 enum class DropFtraceDataBefore {
   // Drops ftrace data before timestmap specified by the
   // TracingServiceEvent::tracing_started packet. If this packet is not in the
-  // trace, no data is dropped.
+  // trace, no data is dropped. If preserve_ftrace_buffer (from the trace
+  // config) is set, no data is dropped.
   // Note: this event was introduced in S+ so no data will be dropped on R-
   // traces.
   // This is the default approach.
@@ -92,6 +93,18 @@ enum class DropFtraceDataBefore {
   // This option can be used in cases where R- traces are being considered and
   // |kTracingStart| cannot be used because the event was not present.
   kAllDataSourcesStarted = 2,
+};
+
+// Enum which encodes which timestamp source (if any) should be used to drop
+// track event data before this timestamp.
+enum class DropTrackEventDataBefore {
+  // Retain all track events. This is the default approach.
+  kNoDrop = 0,
+
+  // Drops track events before the timestamp specified by the
+  // TrackEventRangeOfInterest trace packet. No data is dropped if this packet
+  // is not present in the trace.
+  kTrackEventRangeOfInterest = 1,
 };
 
 // Struct for configuring a TraceProcessor instance (see trace_processor.h).
@@ -114,6 +127,11 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   // the trace before that event. See the ennu documenetation for more details.
   DropFtraceDataBefore drop_ftrace_data_before =
       DropFtraceDataBefore::kTracingStarted;
+
+  // Indicates the source of timestamp before which track events should be
+  // dropped. See the enum documentation for more details.
+  DropTrackEventDataBefore drop_track_event_data_before =
+      DropTrackEventDataBefore::kNoDrop;
 
   // Any built-in metric proto or sql files matching these paths are skipped
   // during trace processor metric initialization.
@@ -206,6 +224,27 @@ struct PERFETTO_EXPORT_COMPONENT SqlValue {
   // The size of bytes_value. Only valid when |type == kBytes|.
   size_t bytes_count = 0;
   Type type = kNull;
+};
+
+// Data used to register a new SQL module.
+struct SqlModule {
+  // Must be unique among modules, or can be used to override existing module if
+  // |allow_module_override| is set.
+  std::string name;
+
+  // Pairs of strings used for |IMPORT| with the contents of SQL files being
+  // run. Strings should only contain alphanumeric characters and '.', where
+  // string before the first dot has to be module name.
+  //
+  // It is encouraged that import key should be the path to the SQL file being
+  // run, with slashes replaced by dots and without the SQL extension. For
+  // example, 'android/camera/junk.sql' would be imported by
+  // 'android.camera.junk'.
+  std::vector<std::pair<std::string, std::string>> files;
+
+  // If true, SqlModule will override registered module with the same name. Can
+  // only be set if enable_dev_features is true, otherwise will throw an error.
+  bool allow_module_override;
 };
 
 }  // namespace trace_processor

@@ -140,7 +140,10 @@ config("protobuf_config") {
       "-Wno-inconsistent-missing-override",
     ]
   } else if (!is_win) {  # implies gcc
-    cflags += [ "-Wno-return-type" ]
+    cflags += [
+      "-Wno-return-type",
+      "-Wno-stringop-overread",
+    ]
   }
   if (is_win) {
     cflags += [ "/W0" ]
@@ -580,35 +583,41 @@ if (current_toolchain == host_toolchain) {
 }  # host_toolchain
 
 if (use_custom_libcxx) {
-  # Config applied to both libc++ and libc++abi targets below.
-  config("libc++config") {
-    visibility = _buildtools_visibility
-    defines = [
-      "LIBCXX_BUILDING_LIBCXXABI",
-      "_LIBCXXABI_NO_EXCEPTIONS",
-      "_LIBCPP_OVERRIDABLE_FUNC_VIS=__attribute__((__visibility__(\"default\")))",
+  config("libunwind_config") {
+    defines = [ "_LIBUNWIND_IS_NATIVE_ONLY" ]
+    cflags = [
+      "-fstrict-aliasing",
+      "-fPIC",
+
+      # ValueAsBitPattern in Unwind-EHABI.cpp is only used on Debug builds.
+      "-Wno-unused-function",
+
+      # libunwind expects to be compiled with unwind tables so it can
+      # unwind its own frames.
+      "-funwind-tables",
     ]
-    cflags = [ "-fstrict-aliasing" ]
   }
 
   source_set("libunwind") {
     visibility = _buildtools_visibility
-    cflags = [
-      # libunwind expects to be compiled with unwind tables so it can
-      # unwind its own frames.
-      "-funwind-tables",
-      "-fstrict-aliasing",
-    ]
     sources = [
+      # C++ sources
       "libunwind/src/Unwind-EHABI.cpp",
+      "libunwind/src/libunwind.cpp",
+
+      # C sources
       "libunwind/src/Unwind-sjlj.c",
       "libunwind/src/UnwindLevel1-gcc-ext.c",
       "libunwind/src/UnwindLevel1.c",
+
+      # ASM sources
       "libunwind/src/UnwindRegistersRestore.S",
       "libunwind/src/UnwindRegistersSave.S",
-      "libunwind/src/libunwind.cpp",
     ]
-    include_dirs = [ "libunwind/include" ]
+    include_dirs = [
+      "libunwind/include",
+      "libunwind/src",
+    ]
     configs -= [
       "//gn/standalone:extra_warnings",
       "//gn/standalone:no_exceptions",
@@ -620,24 +629,52 @@ if (use_custom_libcxx) {
       "//gn/standalone/sanitizers:sanitizers_cflags",
     ]
     configs += [
-      ":libc++config",
       "//gn/standalone/sanitizers:sanitizer_options_link_helper",
+
+      ":libunwind_config",
     ]
+  }
+
+  # Config applied to both libc++ and libc++abi targets below.
+  config("libc++config") {
+    visibility = _buildtools_visibility
+    cflags = [ "-fstrict-aliasing" ]
+    if (is_win) {
+      cflags += [
+        # libc++ wants to redefine the macros WIN32_LEAN_AND_MEAN and
+        # _CRT_RAND_S in its implementation.
+        "-Wno-macro-redefined",
+      ]
+    } else {
+      cflags += [ "-fPIC" ]
+    }
+    configs = [ "//gn/standalone:c++20" ]
+    defines = [ "_LIBCPP_BUILDING_LIBRARY" ]
   }
 
   source_set("libc++abi") {
     visibility = _buildtools_visibility
+
+    # Fuchsia builds don't link against any libraries that provide stack
+    # unwinding symbols, unlike Linux does with glibc (same applies for
+    # Android). Build and link against libunwind manually to get this
+    # functionality.
+    if (is_fuchsia || is_android) {
+      deps = [ ":libunwind" ]
+    }
+
     sources = [
       "libcxxabi/src/abort_message.cpp",
       "libcxxabi/src/cxa_aux_runtime.cpp",
       "libcxxabi/src/cxa_default_handlers.cpp",
-      "libcxxabi/src/cxa_demangle.cpp",
       "libcxxabi/src/cxa_exception.cpp",
       "libcxxabi/src/cxa_exception_storage.cpp",
-      "libcxxabi/src/cxa_guard.cpp",
       "libcxxabi/src/cxa_handlers.cpp",
+
+      # This file is supposed to be used in fno-exception builds of
+      # libc++abi.  We build lib++/libc++abi with exceptions enabled.
+      #"trunk/src/cxa_noexception.cpp",
       "libcxxabi/src/cxa_personality.cpp",
-      "libcxxabi/src/cxa_unexpected.cpp",
       "libcxxabi/src/cxa_vector.cpp",
       "libcxxabi/src/cxa_virtual.cpp",
       "libcxxabi/src/fallback_malloc.cpp",
@@ -647,21 +684,57 @@ if (use_custom_libcxx) {
       "libcxxabi/src/stdlib_typeinfo.cpp",
     ]
 
-    # On linux this seems to introduce an unwanted glibc 2.18 dependency.
-    if (is_android) {
+    if (!is_tsan) {
+      sources += [ "libcxxabi/src/cxa_guard.cpp" ]
+    }
+
+    # See the comment in cxa_demangle_stub.cc for why we don't use LLVM's
+    # demangler on android.
+    sources += [ "libcxxabi/src/cxa_demangle.cpp" ]
+
+    if (is_fuchsia || is_android || is_linux) {
       sources += [ "libcxxabi/src/cxa_thread_atexit.cpp" ]
     }
+
+    defines = [
+      "LIBCXXABI_SILENT_TERMINATE",
+
+      # TODO(crbug.com/1298070) _LIBCPP_CONSTINIT is defined in a libc++
+      # revision more recent than the one currently used in Perfetto/Chrome.
+      "_LIBCPP_CONSTINIT=constinit",
+    ]
+
     configs -= [
       "//gn/standalone:extra_warnings",
       "//gn/standalone:no_exceptions",
       "//gn/standalone:no_rtti",
-      "//gn/standalone:visibility_hidden",
     ]
+    if (perfetto_cpp11_until_q1_2023) {
+      configs -= [ "//gn/standalone:c++11" ]
+    } else {
+      configs -= [ "//gn/standalone:c++17" ]
+    }
     configs += [
       ":libc++config",
       "//gn/standalone/sanitizers:sanitizer_options_link_helper",
     ]
-    deps = [ ":libunwind" ]
+    if (!custom_libcxx_is_static) {
+      configs -= [ "//gn/standalone:visibility_hidden" ]
+    }
+
+    # libc++abi depends on libc++ internals.
+    include_dirs = [ "libcxx/src" ]
+  }
+
+  # Explicitly set version macros to Windows 7 to prevent libc++ from adding a
+  # hard dependency on GetSystemTimePreciseAsFileTime, which was introduced in
+  # Windows 8.
+  config("libc++winver") {
+    defines = [
+      "NTDDI_VERSION=NTDDI_WIN7",
+      "_WIN32_WINNT=_WIN32_WINNT_WIN7",
+      "WINVER=_WIN32_WINNT_WIN7",
+    ]
   }
 
   if (custom_libcxx_is_static) {
@@ -673,21 +746,32 @@ if (use_custom_libcxx) {
   target(libcxx_target_type, "libc++") {
     visibility = _buildtools_visibility
     visibility += [ "../gn/standalone/libc++:*" ]
+
+    if (is_linux && !is_clang) {
+      libs = [ "atomic" ]
+    }
+
+    inputs = [ "libcxx_config/__config_site" ]
+
     sources = [
       "libcxx/src/algorithm.cpp",
       "libcxx/src/any.cpp",
+      "libcxx/src/atomic.cpp",
+      "libcxx/src/barrier.cpp",
       "libcxx/src/bind.cpp",
       "libcxx/src/charconv.cpp",
       "libcxx/src/chrono.cpp",
       "libcxx/src/condition_variable.cpp",
       "libcxx/src/condition_variable_destructor.cpp",
-      "libcxx/src/debug.cpp",
       "libcxx/src/exception.cpp",
+      "libcxx/src/format.cpp",
       "libcxx/src/functional.cpp",
       "libcxx/src/future.cpp",
       "libcxx/src/hash.cpp",
       "libcxx/src/ios.cpp",
+      "libcxx/src/ios.instantiations.cpp",
       "libcxx/src/iostream.cpp",
+      "libcxx/src/legacy_pointer_safety.cpp",
       "libcxx/src/locale.cpp",
       "libcxx/src/memory.cpp",
       "libcxx/src/mutex.cpp",
@@ -695,7 +779,11 @@ if (use_custom_libcxx) {
       "libcxx/src/new.cpp",
       "libcxx/src/optional.cpp",
       "libcxx/src/random.cpp",
+      "libcxx/src/random_shuffle.cpp",
       "libcxx/src/regex.cpp",
+      "libcxx/src/ryu/d2fixed.cpp",
+      "libcxx/src/ryu/d2s.cpp",
+      "libcxx/src/ryu/f2s.cpp",
       "libcxx/src/shared_mutex.cpp",
       "libcxx/src/stdexcept.cpp",
       "libcxx/src/string.cpp",
@@ -707,27 +795,81 @@ if (use_custom_libcxx) {
       "libcxx/src/valarray.cpp",
       "libcxx/src/variant.cpp",
       "libcxx/src/vector.cpp",
+      "libcxx/src/verbose_abort.cpp",
     ]
+
+    include_dirs = [ "libcxx/src" ]
+    if (is_win) {
+      sources += [
+        "libcxx/src/support/win32/locale_win32.cpp",
+        "libcxx/src/support/win32/support.cpp",
+        "libcxx/src/support/win32/thread_win32.cpp",
+      ]
+      configs += [ ":libc++winver" ]
+    }
     configs -= [
       "//gn/standalone:extra_warnings",
       "//gn/standalone:no_exceptions",
       "//gn/standalone:no_rtti",
-      "//gn/standalone:visibility_hidden",
     ]
+    if (perfetto_cpp11_until_q1_2023) {
+      configs -= [ "//gn/standalone:c++11" ]
+    } else {
+      configs -= [ "//gn/standalone:c++17" ]
+    }
+    if ((is_android || is_mac) && !custom_libcxx_is_static) {
+      # Use libc++_perfetto to avoid conflicting with system libc++
+      output_name = "libc++_perfettto"
+    }
     configs += [
       ":libc++config",
       "//gn/standalone/sanitizers:sanitizer_options_link_helper",
     ]
-    defines = [ "_LIBCPP_BUILDING_LIBRARY" ]
-    if ((is_linux || is_android) && using_sanitizer &&
-        (is_asan || is_tsan || is_msan)) {
+    if (!custom_libcxx_is_static) {
+      configs -= [ "//gn/standalone:visibility_hidden" ]
+    }
+
+    defines = []
+    if (custom_libcxx_is_static) {
+      if (is_mac && is_clang) {
+        # We want operator new/delete to be private on Mac, but these functions
+        # are implicitly created by the compiler for each translation unit, as
+        # specified in the C++ spec 3.7.4p2, which makes them always have
+        # default visibility.  This option is needed to force hidden visibility
+        # since -fvisibility=hidden doesn't have the desired effect.
+        cflags = [ "-fvisibility-global-new-delete-hidden" ]
+      } else {
+        defines += [
+          # This resets the visibility to default only for the various
+          # flavors of operator new and operator delete.  These symbols
+          # are weak and get overriden by Chromium-provided ones, but if
+          # these symbols had hidden visibility, this would make the
+          # Chromium symbols hidden too because elf visibility rules
+          # require that linkers use the least visible form when merging,
+          # and if this is hidden, then when we merge it with tcmalloc's
+          # operator new, hidden visibility would win. However, tcmalloc
+          # needs a visible operator new to also override operator new
+          # references from system libraries.
+          # TODO(lld): Ask lld for a --force-public-visibility flag or
+          # similar to that overrides the default elf merging rules, and
+          # make tcmalloc's gn config pass that to all its dependencies,
+          # then remove this override here.
+          "_LIBCPP_OVERRIDABLE_FUNC_VIS=__attribute__((__visibility__(\"default\")))",
+        ]
+      }
+    }
+    if (!is_mac && using_sanitizer && (is_asan || is_tsan || is_msan)) {
       # In {a,t,m}san configurations, operator new and operator delete will be
       # provided by the sanitizer runtime library.  Since libc++ defines these
       # symbols with weak linkage, and the *san runtime uses strong linkage, it
       # should technically be OK to omit this, but it's added to be explicit.
       defines += [ "_LIBCPP_DISABLE_NEW_DELETE_DEFINITIONS" ]
     }
-    deps = [ ":libc++abi" ]
+
+    if (!is_win) {
+      defines += [ "LIBCXX_BUILDING_LIBCXXABI" ]
+      deps = [ ":libc++abi" ]
+    }
   }
 }  # if (use_custom_libcxx)
 
@@ -867,17 +1009,6 @@ source_set("sqlite") {
   configs -= [ "//gn/standalone:extra_warnings" ]
   public_configs = [ ":sqlite_config" ]
   deps = [ "//gn:default_deps" ]
-}
-
-source_set("sqlite_shell") {
-  visibility = _buildtools_visibility
-  testonly = true
-  sources = [ "sqlite/shell.c" ]
-  configs -= [ "//gn/standalone:extra_warnings" ]
-  deps = [
-    ":sqlite",
-    "//gn:default_deps",
-  ]
 }
 
 source_set("lzma") {
@@ -1030,6 +1161,7 @@ source_set("libunwindstack") {
     "android-unwinding/libunwindstack/RegsArm64.cpp",
     "android-unwinding/libunwindstack/RegsMips.cpp",
     "android-unwinding/libunwindstack/RegsMips64.cpp",
+    "android-unwinding/libunwindstack/RegsRiscv64.cpp",
     "android-unwinding/libunwindstack/RegsX86.cpp",
     "android-unwinding/libunwindstack/RegsX86_64.cpp",
     "android-unwinding/libunwindstack/Symbols.cpp",
@@ -1055,14 +1187,18 @@ source_set("libunwindstack") {
   }
   configs -= [
     "//gn/standalone:extra_warnings",
-    "//gn/standalone:c++11",
     "//gn/standalone:visibility_hidden",
   ]
   cflags = [ "-DFAKE_LOG_DEVICE=1" ]
-  public_configs = [
-    ":libunwindstack_config",
-    "//gn/standalone:c++17",
-  ]
+  if (!is_win) {
+    cflags += [ "-Wno-deprecated-declarations" ]
+  }
+  public_configs = [ ":libunwindstack_config" ]
+
+  if (perfetto_cpp11_until_q1_2023) {
+    configs -= [ "//gn/standalone:c++11" ]
+    public_configs += [ "//gn/standalone:c++17" ]
+  }
 }
 
 config("bionic_kernel_uapi_headers") {
@@ -1168,18 +1304,19 @@ config("llvm_demangle_config") {
   include_dirs = [ "llvm-project/llvm/include" ]
 }
 
-# NB: this is built under c++14 and linked into code that is c++11 by default.
-# We rely on the ABIs being compatible for this to be sane. At the time of
-# writing, the only c++14 specific code is behind an #ifndef NDEBUG, so we
-# could keep building as c++11 in non-debug builds, but we always use c++14 for
-# consistency.
 source_set("llvm_demangle") {
   visibility = _buildtools_visibility
-  configs -= [
-    "//gn/standalone:extra_warnings",
-    "//gn/standalone:c++11",
-  ]
-  configs += [ "//gn/standalone:c++14" ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
+
+  # NB: this is built under c++14 and linked into code that is c++11 by default.
+  # We rely on the ABIs being compatible for this to be sane. At the time of
+  # writing, the only c++14 specific code is behind an #ifndef NDEBUG, so we
+  # could keep building as c++11 in non-debug builds, but we always use c++14 for
+  # consistency.
+  if (perfetto_cpp11_until_q1_2023) {
+    configs -= [ "//gn/standalone:c++11" ]
+    configs += [ "//gn/standalone:c++14" ]
+  }
   public_configs = [ ":llvm_demangle_config" ]
   sources = [
     "llvm-project/llvm/include/llvm/Demangle/Demangle.h",

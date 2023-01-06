@@ -16,6 +16,8 @@ import("../../../gn/perfetto.gni")
 import("../../../gn/perfetto_cc_proto_descriptor.gni")
 import("../../../gn/test.gni")
 
+assert(enable_perfetto_trace_processor_sqlite)
+
 perfetto_cc_proto_descriptor("gen_cc_metrics_descriptor") {
   descriptor_name = "metrics.descriptor"
   descriptor_target = "../../../protos/perfetto/metrics:descriptor"
@@ -26,42 +28,41 @@ perfetto_cc_proto_descriptor("gen_cc_all_chrome_metrics_descriptor") {
   descriptor_target = "../../../protos/perfetto/metrics/chrome:descriptor"
 }
 
-if (enable_perfetto_trace_processor_sqlite) {
-  source_set("metrics") {
-    sources = [
-      "metrics.cc",
-      "metrics.h",
-    ]
-    deps = [
-      "..:metatrace",
-      "../../../gn:default_deps",
-      "../../../gn:sqlite",
-      "../../../include/perfetto/trace_processor",
-      "../../../protos/perfetto/common:zero",
-      "../../../protos/perfetto/trace_processor:metrics_impl_zero",
-      "../../base",
-      "../../protozero:protozero",
-      "../sqlite",
-    ]
-    public_deps = [
-      ":gen_cc_all_chrome_metrics_descriptor",
-      ":gen_cc_metrics_descriptor",
-      "../util",
-      "../util:descriptors",
-      "sql:gen_amalgamated_sql_metrics",
-    ]
-  }
+source_set("metrics") {
+  sources = [
+    "metrics.cc",
+    "metrics.h",
+  ]
+  deps = [
+    "..:metatrace",
+    "../../../gn:default_deps",
+    "../../../gn:sqlite",
+    "../../../include/perfetto/trace_processor",
+    "../../../protos/perfetto/common:zero",
+    "../../../protos/perfetto/trace_processor:metrics_impl_zero",
+    "../../base",
+    "../../protozero:protozero",
+    "../prelude/functions",
+    "../sqlite",
+  ]
+  public_deps = [
+    ":gen_cc_all_chrome_metrics_descriptor",
+    ":gen_cc_metrics_descriptor",
+    "../util",
+    "../util:descriptors",
+    "sql:gen_amalgamated_sql_metrics",
+  ]
+}
 
-  perfetto_unittest_source_set("unittests") {
-    testonly = true
-    sources = [ "metrics_unittest.cc" ]
-    deps = [
-      ":metrics",
-      "..:lib",
-      "../../../gn:default_deps",
-      "../../../gn:gtest_and_gmock",
-      "../../../gn:sqlite",
-      "../../../protos/perfetto/common:zero",
-    ]
-  }
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [ "metrics_unittest.cc" ]
+  deps = [
+    ":metrics",
+    "..:lib",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+    "../../../gn:sqlite",
+    "../../../protos/perfetto/common:zero",
+  ]
 }

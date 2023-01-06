@@ -51,6 +51,7 @@ source_set("metatrace") {
   deps = [
     "../../gn:default_deps",
     "../../include/perfetto/ext/base",
+    "../../include/perfetto/trace_processor",
     "../../protos/perfetto/trace_processor:zero",
   ]
 }
@@ -79,94 +80,15 @@ target(_demangle_target_type, "demangle") {
   }
 }
 
-source_set("ftrace_descriptors") {
-  sources = [
-    "importers/ftrace/ftrace_descriptors.cc",
-    "importers/ftrace/ftrace_descriptors.h",
-  ]
-  deps = [
-    "../../gn:default_deps",
-    "../../include/perfetto/ext/base:base",
-    "../protozero",
-  ]
-}
-
 source_set("storage_minimal") {
   sources = [
     "forwarding_trace_parser.cc",
     "forwarding_trace_parser.h",
-    "importers/common/trace_parser.cc",
-    "importers/default_modules.cc",
-    "importers/default_modules.h",
-    "importers/ftrace/ftrace_module.cc",
-    "importers/ftrace/ftrace_module.h",
-    "importers/fuchsia/fuchsia_record.h",
-    "importers/fuchsia/fuchsia_trace_utils.h",
-    "importers/json/json_utils.cc",
-    "importers/json/json_utils.h",
-    "importers/ninja/ninja_log_parser.cc",
-    "importers/ninja/ninja_log_parser.h",
-    "importers/proto/android_camera_event_module.cc",
-    "importers/proto/android_camera_event_module.h",
-    "importers/proto/async_track_set_tracker.cc",
-    "importers/proto/async_track_set_tracker.h",
-    "importers/proto/chrome_string_lookup.cc",
-    "importers/proto/chrome_string_lookup.h",
-    "importers/proto/chrome_system_probes_module.cc",
-    "importers/proto/chrome_system_probes_module.h",
-    "importers/proto/chrome_system_probes_parser.cc",
-    "importers/proto/chrome_system_probes_parser.h",
-    "importers/proto/memory_tracker_snapshot_module.cc",
-    "importers/proto/memory_tracker_snapshot_module.h",
-    "importers/proto/memory_tracker_snapshot_parser.cc",
-    "importers/proto/memory_tracker_snapshot_parser.h",
-    "importers/proto/metadata_module.cc",
-    "importers/proto/metadata_module.h",
-    "importers/proto/metadata_tracker.cc",
-    "importers/proto/metadata_tracker.h",
-    "importers/proto/packet_sequence_state.cc",
-    "importers/proto/packet_sequence_state.h",
-    "importers/proto/perf_sample_tracker.cc",
-    "importers/proto/perf_sample_tracker.h",
-    "importers/proto/profile_module.cc",
-    "importers/proto/profile_module.h",
-    "importers/proto/profile_packet_utils.cc",
-    "importers/proto/profile_packet_utils.h",
-    "importers/proto/proto_importer_module.cc",
-    "importers/proto/proto_importer_module.h",
-    "importers/proto/proto_incremental_state.h",
-    "importers/proto/proto_trace_parser.cc",
-    "importers/proto/proto_trace_parser.h",
-    "importers/proto/proto_trace_reader.cc",
-    "importers/proto/proto_trace_reader.h",
-    "importers/proto/proto_trace_tokenizer.cc",
-    "importers/proto/proto_trace_tokenizer.h",
-
-    # XXX: is this the correct place
-    "importers/proto/statsd_module.cc",
-    "importers/proto/statsd_module.h",
-    "importers/proto/track_event_module.cc",
-    "importers/proto/track_event_module.h",
-    "importers/proto/track_event_parser.cc",
-    "importers/proto/track_event_parser.h",
-    "importers/proto/track_event_tokenizer.cc",
-    "importers/proto/track_event_tokenizer.h",
-    "importers/proto/track_event_tracker.cc",
-    "importers/proto/track_event_tracker.h",
-    "importers/proto/translation_table_module.cc",
-    "importers/proto/translation_table_module.h",
-    "importers/syscalls/syscall_tracker.h",
-    "importers/systrace/systrace_line.h",
-    "parser_types.h",
     "trace_blob.cc",
     "trace_processor_context.cc",
     "trace_processor_storage.cc",
     "trace_processor_storage_impl.cc",
     "trace_processor_storage_impl.h",
-    "trace_sorter.cc",
-    "trace_sorter.h",
-    "trace_sorter_internal.h",
-    "trace_sorter_queue.h",
     "virtual_destructors.cc",
   ]
   deps = [
@@ -174,151 +96,26 @@ source_set("storage_minimal") {
     "../base",
     "../protozero",
     "containers",
-    "importers:gen_cc_chrome_track_event_descriptor",
-    "importers:gen_cc_statsd_atoms_descriptor",
-    "importers:gen_cc_track_event_descriptor",
     "importers/common",
+    "importers/common:parser_types",
+    "importers/ftrace:minimal",
+    "importers/fuchsia:fuchsia_record",
     "importers/memory_tracker:graph_processor",
-    "importers/proto:storage_minimal",
+    "importers/proto:gen_cc_chrome_track_event_descriptor",
+    "importers/proto:gen_cc_track_event_descriptor",
+    "importers/proto:minimal",
+    "importers/systrace:systrace_line",
+    "sorter",
     "storage",
     "tables",
     "types",
-    "util",
     "util:descriptors",
     "util:gzip",
-    "util:interned_message_view",
     "util:proto_to_args_parser",
     "util:stack_traces_util",
     "views",
   ]
-  public_deps = [
-    "../../include/perfetto/trace_processor:storage",
-    "../../protos/perfetto/common:zero",
-    "../../protos/perfetto/config:zero",
-    "../../protos/perfetto/trace:zero",
-    "../../protos/perfetto/trace/android:zero",
-    "../../protos/perfetto/trace/chrome:zero",
-    "../../protos/perfetto/trace/ftrace:zero",
-    "../../protos/perfetto/trace/interned_data:zero",
-    "../../protos/perfetto/trace/perfetto:zero",
-    "../../protos/perfetto/trace/power:zero",
-    "../../protos/perfetto/trace/profiling:zero",
-    "../../protos/perfetto/trace/ps:zero",
-    "../../protos/perfetto/trace/statsd:zero",
-    "../../protos/perfetto/trace/sys_stats:zero",
-    "../../protos/perfetto/trace/system_info:zero",
-    "../../protos/perfetto/trace/track_event:zero",
-    "../../protos/perfetto/trace/translation:zero",
-    "../../src/kernel_utils:syscall_table",
-  ]
-
-  # json_utils optionally depends on jsoncpp.
-  if (enable_perfetto_trace_processor_json) {
-    deps += [ "../../gn:jsoncpp" ]
-  }
-}
-
-source_set("storage_full") {
-  sources = [
-    "importers/additional_modules.cc",
-    "importers/additional_modules.h",
-    "importers/ftrace/binder_tracker.cc",
-    "importers/ftrace/binder_tracker.h",
-    "importers/ftrace/drm_tracker.cc",
-    "importers/ftrace/drm_tracker.h",
-    "importers/ftrace/ftrace_module_impl.cc",
-    "importers/ftrace/ftrace_module_impl.h",
-    "importers/ftrace/ftrace_parser.cc",
-    "importers/ftrace/ftrace_parser.h",
-    "importers/ftrace/ftrace_tokenizer.cc",
-    "importers/ftrace/ftrace_tokenizer.h",
-    "importers/ftrace/iostat_tracker.cc",
-    "importers/ftrace/iostat_tracker.h",
-    "importers/ftrace/rss_stat_tracker.cc",
-    "importers/ftrace/rss_stat_tracker.h",
-    "importers/ftrace/sched_event_tracker.cc",
-    "importers/ftrace/sched_event_tracker.h",
-    "importers/ftrace/thread_state_tracker.cc",
-    "importers/ftrace/thread_state_tracker.h",
-    "importers/ftrace/v4l2_tracker.cc",
-    "importers/ftrace/v4l2_tracker.h",
-    "importers/ftrace/virtio_video_tracker.cc",
-    "importers/ftrace/virtio_video_tracker.h",
-    "importers/fuchsia/fuchsia_record.cc",
-    "importers/fuchsia/fuchsia_trace_parser.cc",
-    "importers/fuchsia/fuchsia_trace_parser.h",
-    "importers/fuchsia/fuchsia_trace_tokenizer.cc",
-    "importers/fuchsia/fuchsia_trace_tokenizer.h",
-    "importers/fuchsia/fuchsia_trace_utils.cc",
-    "importers/gzip/gzip_trace_parser.cc",
-    "importers/gzip/gzip_trace_parser.h",
-    "importers/i2c/i2c_tracker.cc",
-    "importers/i2c/i2c_tracker.h",
-    "importers/json/json_trace_parser.cc",
-    "importers/json/json_trace_parser.h",
-    "importers/json/json_trace_tokenizer.cc",
-    "importers/json/json_trace_tokenizer.h",
-    "importers/proto/android_probes_module.cc",
-    "importers/proto/android_probes_module.h",
-    "importers/proto/android_probes_parser.cc",
-    "importers/proto/android_probes_parser.h",
-    "importers/proto/android_probes_tracker.cc",
-    "importers/proto/android_probes_tracker.h",
-    "importers/proto/content_analyzer.cc",
-    "importers/proto/content_analyzer.h",
-    "importers/proto/frame_timeline_event_parser.cc",
-    "importers/proto/frame_timeline_event_parser.h",
-    "importers/proto/gpu_event_parser.cc",
-    "importers/proto/gpu_event_parser.h",
-    "importers/proto/graphics_event_module.cc",
-    "importers/proto/graphics_event_module.h",
-    "importers/proto/graphics_frame_event_parser.cc",
-    "importers/proto/graphics_frame_event_parser.h",
-    "importers/proto/heap_graph_module.cc",
-    "importers/proto/heap_graph_module.h",
-    "importers/proto/system_probes_module.cc",
-    "importers/proto/system_probes_module.h",
-    "importers/proto/system_probes_parser.cc",
-    "importers/proto/system_probes_parser.h",
-    "importers/proto/vulkan_memory_tracker.cc",
-    "importers/proto/vulkan_memory_tracker.h",
-    "importers/syscalls/syscall_tracker.cc",
-    "importers/systrace/systrace_line_parser.cc",
-    "importers/systrace/systrace_line_parser.h",
-    "importers/systrace/systrace_line_tokenizer.cc",
-    "importers/systrace/systrace_line_tokenizer.h",
-    "importers/systrace/systrace_parser.cc",
-    "importers/systrace/systrace_parser.h",
-    "importers/systrace/systrace_trace_parser.cc",
-    "importers/systrace/systrace_trace_parser.h",
-  ]
-  public_deps = [ ":storage_minimal" ]
-  deps = [
-    ":ftrace_descriptors",
-    "../../include/perfetto/ext/base:base",
-    "../../include/perfetto/ext/traced:sys_stats_counters",
-    "../../protos/perfetto/common:zero",
-    "../../protos/perfetto/trace:zero",
-    "../../protos/perfetto/trace/android:zero",
-    "../../protos/perfetto/trace/gpu:zero",
-    "../../protos/perfetto/trace/interned_data:zero",
-    "../protozero",
-    "importers:gen_cc_trace_descriptor",
-    "importers/android_bugreport",
-    "importers/common",
-    "importers/proto:storage_full",
-    "importers/proto:storage_minimal",
-    "storage",
-    "tables",
-    "types",
-    "util",
-    "util:gzip",
-    "util:proto_profiler",
-    "views",
-  ]
-  if (enable_perfetto_trace_processor_json) {
-    deps += [ "../../gn:jsoncpp" ]
-  }
+  public_deps = [ "../../include/perfetto/trace_processor:storage" ]
 }
 
 source_set("export_json") {
@@ -330,13 +127,11 @@ source_set("export_json") {
     ":storage_minimal",
     "../../gn:default_deps",
     "../base",
+    "importers/json:minimal",
     "storage",
     "types",
   ]
   public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]
-  if (enable_perfetto_trace_processor_json) {
-    deps += [ "../../gn:jsoncpp" ]
-  }
 }
 
 if (enable_perfetto_trace_processor_sqlite) {
@@ -353,36 +148,45 @@ if (enable_perfetto_trace_processor_sqlite) {
     ]
 
     deps = [
-      ":demangle",
-      ":export_json",
       ":metatrace",
-      ":storage_full",
+      ":storage_minimal",
       "../../gn:default_deps",
-      "../../protos/perfetto/trace/ftrace:zero",
+      "../../protos/perfetto/common:zero",
+      "../../protos/perfetto/trace:zero",
+      "../../protos/perfetto/trace/perfetto:zero",
       "../base",
       "../protozero",
-      "analysis",
       "db",
       "dynamic",
       "importers/android_bugreport",
       "importers/common",
+      "importers/ftrace:full",
+      "importers/fuchsia:full",
+      "importers/gzip:full",
+      "importers/json:full",
+      "importers/json:minimal",
+      "importers/ninja",
+      "importers/proto:full",
+      "importers/proto:minimal",
+      "importers/systrace:full",
       "metrics",
+      "prelude/functions",
+      "prelude/operators",
       "sqlite",
+      "stdlib:gen_amalgamated_stdlib",
       "storage",
       "tables",
       "types",
       "util",
       "util:gzip",
       "util:protozero_to_text",
+      "util:stdlib",
       "views",
     ]
     public_deps = [
       "../../gn:sqlite",  # iterator_impl.h includes sqlite3.h.
       "../../include/perfetto/trace_processor",
     ]
-    if (enable_perfetto_trace_processor_json) {
-      deps += [ "../../gn:jsoncpp" ]
-    }
   }
 
   executable("trace_processor_shell") {
@@ -398,6 +202,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../base:version",
       "metrics",
       "util",
+      "util:stdlib",
     ]
     if (enable_perfetto_trace_processor_linenoise) {
       deps += [ "../../gn:linenoise" ]
@@ -421,94 +226,70 @@ if (enable_perfetto_trace_processor_sqlite) {
   }
 }  # if (enable_perfetto_trace_processor_sqlite)
 
-perfetto_unittest_source_set("unittests") {
+perfetto_unittest_source_set("top_level_unittests") {
   testonly = true
+
   sources = [
     "forwarding_trace_parser_unittest.cc",
-    "importers/ftrace/binder_tracker_unittest.cc",
-    "importers/ftrace/sched_event_tracker_unittest.cc",
-    "importers/ftrace/thread_state_tracker_unittest.cc",
-    "importers/fuchsia/fuchsia_trace_utils_unittest.cc",
-    "importers/memory_tracker/graph_processor_unittest.cc",
-    "importers/memory_tracker/graph_unittest.cc",
-    "importers/memory_tracker/raw_process_memory_node_unittest.cc",
-    "importers/proto/async_track_set_tracker_unittest.cc",
-    "importers/proto/perf_sample_tracker_unittest.cc",
-    "importers/proto/proto_trace_parser_unittest.cc",
-    "importers/syscalls/syscall_tracker_unittest.cc",
-    "importers/systrace/systrace_parser_unittest.cc",
     "ref_counted_unittest.cc",
-    "trace_sorter_queue_unittest.cc",
-    "trace_sorter_unittest.cc",
   ]
   deps = [
-    ":gen_cc_test_messages_descriptor",
-    ":storage_full",
+    ":storage_minimal",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
-    "../../protos/perfetto/common:cpp",
-    "../../protos/perfetto/common:zero",
-    "../../protos/perfetto/trace:cpp",
-    "../../protos/perfetto/trace:minimal_zero",
-    "../../protos/perfetto/trace:zero",
-    "../../protos/perfetto/trace/android:zero",
-    "../../protos/perfetto/trace/chrome:zero",
-    "../../protos/perfetto/trace/ftrace:zero",
-    "../../protos/perfetto/trace/gpu:zero",
-    "../../protos/perfetto/trace/interned_data:zero",
-    "../../protos/perfetto/trace/profiling:cpp",
-    "../../protos/perfetto/trace/ps:zero",
-    "../../protos/perfetto/trace/sys_stats:zero",
-    "../../protos/perfetto/trace/track_event:zero",
-    "../base",
-    "../protozero",
-    "../protozero:testing_messages_zero",
-    "containers",
-    "containers:unittests",
-    "db:unittests",
-    "dynamic",
-    "importers/android_bugreport:unittests",
-    "importers/common",
-    "importers/common:unittests",
-    "importers/memory_tracker:graph_processor",
-    "importers/proto:storage_minimal",
-    "importers/proto:unittests",
-    "rpc:unittests",
-    "storage",
-    "tables:unittests",
-    "types",
-    "types:unittests",
-    "util:descriptors",
-    "util:unittests",
-    "views",
-    "views:unittests",
+    "../../include/perfetto/trace_processor",
   ]
 
-  if (enable_perfetto_trace_processor_sqlite) {
+  if (enable_perfetto_trace_processor_json && !is_win) {
+    # export_json_unittest.cc uses base::TempFile, which is not supported on
+    # windows.
+    sources += [ "export_json_unittest.cc" ]
     deps += [
-      ":lib",
-      "../../gn:sqlite",
-      "dynamic:unittests",
-      "sqlite:unittests",
+      ":export_json",
+      "../../gn:jsoncpp",
+      "containers",
+      "importers/common",
+      "importers/proto:minimal",
+      "storage",
+      "types",
     ]
   }
+}
 
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+
+  # Do not add sources to this target: use top_level_unittests
+  # instead. This us really just a grouping
+  deps = [
+    ":top_level_unittests",
+    "containers:unittests",
+    "db:unittests",
+    "importers/android_bugreport:unittests",
+    "importers/common:unittests",
+    "importers/ftrace:unittests",
+    "importers/fuchsia:unittests",
+    "importers/memory_tracker:unittests",
+    "importers/proto:unittests",
+    "importers/syscalls:unittests",
+    "importers/systrace:unittests",
+    "rpc:unittests",
+    "sorter:unittests",
+    "tables:unittests",
+    "types:unittests",
+    "util:unittests",
+    "views:unittests",
+  ]
   if (enable_perfetto_trace_processor_json) {
-    sources += [
-      "importers/json/json_trace_tokenizer_unittest.cc",
-      "importers/json/json_utils_unittest.cc",
+    deps += [ "importers/json:unittests" ]
+  }
+  if (enable_perfetto_trace_processor_sqlite) {
+    deps += [
+      "dynamic:unittests",
+      "prelude/functions:unittests",
+      "prelude/operators:unittests",
+      "sqlite:unittests",
     ]
-    deps += [ "../../gn:jsoncpp" ]
-
-    if (!is_win) {
-      # export_json_unittest.cc uses base::TempFile, which is not supported on
-      # windows.
-      sources += [ "export_json_unittest.cc" ]
-      deps += [
-        ":export_json",
-        "../../include/perfetto/ext/trace_processor:export_json",
-      ]
-    }
   }
 }
 
@@ -537,9 +318,6 @@ source_set("integrationtests") {
       "../base:test_support",
       "sqlite",
     ]
-    if (enable_perfetto_trace_processor_json) {
-      deps += [ "../../gn:jsoncpp" ]
-    }
   }
 }
 
@@ -563,7 +341,7 @@ perfetto_fuzzer_test("trace_processor_fuzzer") {
   testonly = true
   sources = [ "trace_parsing_fuzzer.cc" ]
   deps = [
-    ":storage_full",
+    ":storage_minimal",
     "../../gn:default_deps",
     "../base",
   ]

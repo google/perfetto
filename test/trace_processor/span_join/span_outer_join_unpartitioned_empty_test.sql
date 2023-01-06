@@ -13,20 +13,20 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-create table t1(
-  ts BIG INT,
-  dur BIG INT,
+CREATE TABLE t1(
+  ts BIGINT,
+  dur BIGINT,
   PRIMARY KEY (ts)
-) without rowid;
+) WITHOUT ROWID;
 
-create table t2(
-  ts BIG INT,
-  dur BIG INT,
+CREATE TABLE t2(
+  ts BIGINT,
+  dur BIGINT,
   PRIMARY KEY (ts)
-) without rowid;
+) WITHOUT ROWID;
 
 -- t1 and t2 are empty.
 
-create virtual table sp using span_outer_join(t1, t2);
+CREATE VIRTUAL TABLE sp USING span_outer_join(t1, t2);
 
-select * from sp;
+SELECT * FROM sp;

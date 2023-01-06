@@ -277,6 +277,9 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
 }
 
 util::Status Rpc::Parse(const uint8_t* data, size_t len) {
+  PERFETTO_TP_TRACE(
+      metatrace::Category::TOPLEVEL, "RPC_PARSE",
+      [&](metatrace::Record* r) { r->AddArg("length", std::to_string(len)); });
   if (eof_) {
     // Reset the trace processor state if another trace has been previously
     // loaded.
@@ -297,6 +300,8 @@ util::Status Rpc::Parse(const uint8_t* data, size_t len) {
 }
 
 void Rpc::NotifyEndOfFile() {
+  PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "RPC_NOTIFY_END_OF_FILE");
+
   trace_processor_->NotifyEndOfFile();
   eof_ = true;
   MaybePrintProgress();
@@ -335,7 +340,12 @@ Iterator Rpc::QueryInternal(const uint8_t* args, size_t len) {
   std::string sql = query.sql_query().ToStdString();
   PERFETTO_DLOG("[RPC] Query < %s", sql.c_str());
   PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "RPC_QUERY",
-                    [&](metatrace::Record* r) { r->AddArg("SQL", sql); });
+                    [&](metatrace::Record* r) {
+                      r->AddArg("SQL", sql);
+                      if (query.has_tag()) {
+                        r->AddArg("tag", query.tag());
+                      }
+                    });
 
   return trace_processor_->ExecuteQuery(sql.c_str());
 }

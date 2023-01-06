@@ -430,7 +430,8 @@ TEST_F(UnixSocketTest, TcpStream) {
   // Try listening on a random port. Some ports might be taken by other syste
   // services. Do a bunch of attempts on different ports before giving up.
   do {
-    sprintf(host_and_port, "127.0.0.1:%d", 10000 + (rand() % 10000));
+    base::SprintfTrunc(host_and_port, sizeof(host_and_port), "127.0.0.1:%d",
+                       10000 + (rand() % 10000));
     srv = UnixSocket::Listen(host_and_port, &event_listener_, &task_runner_,
                              SockFamily::kInet, SockType::kStream);
   } while ((!srv || !srv->is_listening()) && attempt++ < 10);

@@ -91,6 +91,7 @@
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.gen.h"
 #include "protos/perfetto/trace/track_event/track_event.gen.h"
+#include "protos/perfetto/trace/trigger.gen.h"
 
 // Events in categories starting with "dynamic" will use dynamic category
 // lookup.
@@ -139,8 +140,8 @@ static void WriteFile(const std::string& file_name,
 
 // Unused in merged code, but very handy for debugging when trace generated in
 // a test needs to be exported, to understand it further with other tools.
-__attribute__((unused)) static void WriteFile(const std::string& file_name,
-                                              const std::vector<char>& data) {
+PERFETTO_UNUSED static void WriteFile(const std::string& file_name,
+                                      const std::vector<char>& data) {
   return WriteFile(file_name, data.data(), data.size());
 }
 
@@ -194,6 +195,7 @@ using perfetto::internal::TrackEventIncrementalState;
 using perfetto::internal::TrackEventInternal;
 using ::testing::_;
 using ::testing::ContainerEq;
+using ::testing::Contains;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Invoke;
@@ -322,6 +324,8 @@ class MockTracingMuxer : public perfetto::internal::TracingMuxer {
       InterceptorFactory,
       perfetto::InterceptorBase::TLSFactory,
       perfetto::InterceptorBase::TracePacketCallback) override {}
+
+  void ActivateTriggers(const std::vector<std::string>&, uint32_t) override {}
 
   std::vector<DataSource> data_sources;
 
@@ -922,6 +926,7 @@ TEST_P(PerfettoApiTest, StartAndStopWithoutDataSources) {
 // Disabled by default because it leaks tracing sessions into subsequent tests,
 // which can result in the per-uid tracing session limit (5) to be hit in later
 // tests.
+// TODO(b/261493947): fix or remove.
 TEST_P(PerfettoApiTest, DISABLED_TrackEventStartStopAndDestroy) {
   // This test used to cause a use after free as the tracing session got
   // destroyed. It needed to be run approximately 2000 times to catch it so test
@@ -1881,9 +1886,9 @@ TEST_P(PerfettoApiTest, TrackEventCustomTimestampClock) {
   auto* tracing_session = NewTraceWithCategories({"foo"});
   tracing_session->get()->StartBlocking();
 
-  const perfetto::protos::pbzero::BuiltinClock kMyClockId =
+  static constexpr perfetto::protos::pbzero::BuiltinClock kMyClockId =
       static_cast<perfetto::protos::pbzero::BuiltinClock>(700);
-  const uint64_t kTimestamp = 12345678;
+  static constexpr uint64_t kTimestamp = 12345678;
 
   // First emit a clock snapshot that maps our custom clock to regular trace
   // time. Note that the clock snapshot should come before any events
@@ -1932,6 +1937,7 @@ TEST_P(PerfettoApiTest, TrackEventCustomTimestampClock) {
 
 // Only synchronous phases are supported for other threads. Hence disabled this
 // test.
+// TODO(b/261493947): fix or remove.
 TEST_P(PerfettoApiTest, DISABLED_LegacyEventWithThreadOverride) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"cat"});
@@ -3553,6 +3559,16 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     EXPECT_THAT(slices,
                 ElementsAre("B:cat.SlowEvent",
                             "B:disabled-by-default-cat.SlowDisabledEvent"));
+  }
+
+  // Enable all legacy disabled-by-default categories by a pattern
+  {
+    perfetto::protos::gen::TrackEventConfig te_cfg;
+    te_cfg.add_disabled_categories("*");
+    te_cfg.add_enabled_categories("disabled-by-default-*");
+    auto slices = check_config(te_cfg);
+    EXPECT_THAT(slices,
+                ElementsAre("B:disabled-by-default-cat.SlowDisabledEvent"));
   }
 
   // Enable everything including slow/debug categories.
@@ -5377,31 +5393,27 @@ TEST_P(PerfettoApiTest, Counters) {
 }
 
 TEST_P(PerfettoApiTest, EmptyEvent) {
-  auto* tracing_session = NewTraceWithCategories({"cat"});
+  auto* tracing_session = NewTraceWithCategories({"test"});
   tracing_session->get()->StartBlocking();
 
-  // Emit an empty event.
+  TRACE_EVENT_BEGIN("test", "MainEvent");
+
+  // An empty event will allow the previous track packet to be scraped.
   PERFETTO_INTERNAL_ADD_EMPTY_EVENT();
-  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
-  auto it = std::find_if(trace.packet().begin(), trace.packet().end(),
-                         [](const perfetto::protos::gen::TracePacket& packet) {
-                           return packet.has_trace_stats();
-                         });
-  EXPECT_NE(it, trace.packet().end());
-  // The empty event required a trace chunk.
-  EXPECT_EQ(it->trace_stats().buffer_stats()[0].chunks_read(), 1u);
-  // But it isn't in the trace, because empty packets are skipped when reading
-  // from TraceBuffer.
-  it = std::find_if(trace.packet().begin(), trace.packet().end(),
-                    [](const perfetto::protos::gen::TracePacket& packet) {
-                      return packet.has_track_event();
-                    });
-  EXPECT_EQ(it, trace.packet().end());
+
+  // Stop tracing but don't flush. Rely on scraping to get the chunk contents.
+  tracing_session->get()->StopBlocking();
+
+  auto slices = ReadSlicesFromTraceSession(tracing_session->get());
+
+  EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
 }
 
 TEST_P(PerfettoApiTest, ConsecutiveEmptyEventsSkipped) {
-  auto* tracing_session = NewTraceWithCategories({"cat"});
+  auto* tracing_session = NewTraceWithCategories({"test"});
   tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("test", "MainEvent");
 
   // Emit many empty events that wouldn't fit into one chunk.
   constexpr int kNumEvents = 10000;
@@ -5433,6 +5445,34 @@ TEST_P(PerfettoApiTest, CorrectTrackUUIDForLegacyEvents) {
   EXPECT_THAT(slices,
               ElementsAre("[track=0]Legacy_b(unscoped_id=11250026935264495724)("
                           "id_scope=\"foo\"):cat.foo"));
+}
+
+TEST_P(PerfettoApiTest, ActivateTriggers) {
+  perfetto::TraceConfig cfg;
+  cfg.add_buffers()->set_size_kb(1024);
+  perfetto::TraceConfig::TriggerConfig* tr_cfg = cfg.mutable_trigger_config();
+  tr_cfg->set_trigger_mode(perfetto::TraceConfig::TriggerConfig::STOP_TRACING);
+  tr_cfg->set_trigger_timeout_ms(5000);
+  perfetto::TraceConfig::TriggerConfig::Trigger* trigger =
+      tr_cfg->add_triggers();
+  trigger->set_name("trigger1");
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  perfetto::Tracing::ActivateTriggers({"trigger2", "trigger1"}, 10000);
+
+  tracing_session->on_stop.Wait();
+
+  std::vector<char> bytes = tracing_session->get()->ReadTraceBlocking();
+  perfetto::protos::gen::Trace parsed_trace;
+  ASSERT_TRUE(parsed_trace.ParseFromArray(bytes.data(), bytes.size()));
+  EXPECT_THAT(
+      parsed_trace,
+      Property(&perfetto::protos::gen::Trace::packet,
+               Contains(Property(
+                   &perfetto::protos::gen::TracePacket::trigger,
+                   Property(&perfetto::protos::gen::Trigger::trigger_name,
+                            "trigger1")))));
 }
 
 class PerfettoStartupTracingApiTest : public PerfettoApiTest {
@@ -5654,7 +5694,7 @@ TEST_P(PerfettoStartupTracingApiTest, MultipleDataSourceAllContributing) {
 
 // Startup tracing requires BufferExhaustedPolicy::kDrop, i.e. once the SMB is
 // filled with startup events, any further events should be dropped.
-// TODO(mohitms): It seems flaky. Debug and enable again - go/aosp_ci_failure23
+// TODO(b/261493947): fix or remove. go/aosp_ci_failure23
 TEST_P(PerfettoStartupTracingApiTest, DISABLED_DropPolicy) {
   SetupStartupTracing();
   constexpr int kNumEvents = 100000;
@@ -5674,7 +5714,7 @@ TEST_P(PerfettoStartupTracingApiTest, DISABLED_DropPolicy) {
   EXPECT_LT(freq_map["B:test.StartupEvent"], kNumEvents);
 }
 
-// TODO(mohitms): It seems flaky. Debug and enable again.
+// TODO(b/261493947): fix or remove.
 TEST_P(PerfettoStartupTracingApiTest, DISABLED_Abort) {
   SetupStartupTracing();
   TRACE_EVENT_BEGIN("test", "StartupEvent");
@@ -5731,7 +5771,8 @@ TEST_P(PerfettoStartupTracingApiTest, Timeout) {
   EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
 }
 
-TEST_P(PerfettoStartupTracingApiTest, Callbacks) {
+// TODO(b/261493947): fix or remove.
+TEST_P(PerfettoStartupTracingApiTest, DISABLED_Callbacks) {
   for (bool abort : {true, false}) {
     SetupStartupTracingOpts args;
     std::vector<std::string> callback_events;
@@ -5772,6 +5813,7 @@ TEST_P(PerfettoStartupTracingApiTest, Callbacks) {
 }
 
 // Test that it's ok if main tracing is never started.
+// TODO(b/261493947): fix or remove.
 TEST_P(PerfettoStartupTracingApiTest, DISABLED_MainTracingNeverStarted) {
   SetupStartupTracing();
   TRACE_EVENT_BEGIN("test", "StartupEvent");

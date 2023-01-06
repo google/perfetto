@@ -26,22 +26,30 @@
 #include <unwindstack/Elf.h>
 #include <unwindstack/MachineArm.h>
 #include <unwindstack/MachineArm64.h>
+#include <unwindstack/MachineRiscv64.h>
 #include <unwindstack/Regs.h>
 #include <unwindstack/RegsArm.h>
 #include <unwindstack/RegsArm64.h>
+#include <unwindstack/RegsRiscv64.h>
 #include <unwindstack/RegsX86.h>
 #include <unwindstack/RegsX86_64.h>
 #include <unwindstack/UserArm.h>
 #include <unwindstack/UserArm64.h>
+#include <unwindstack/UserRiscv64.h>
 #include <unwindstack/UserX86.h>
 #include <unwindstack/UserX86_64.h>
 
 // kernel uapi headers
 #include <uapi/asm-arm/asm/perf_regs.h>
+#undef PERF_REG_EXTENDED_MASK
 #include <uapi/asm-x86/asm/perf_regs.h>
+#undef PERF_REG_EXTENDED_MASK
 #define perf_event_arm_regs perf_event_arm64_regs
 #include <uapi/asm-arm64/asm/perf_regs.h>
+#undef PERF_REG_EXTENDED_MASK
 #undef perf_event_arm_regs
+#include <uapi/asm-riscv/asm/perf_regs.h>
+#undef PERF_REG_EXTENDED_MASK
 
 namespace perfetto {
 namespace profiling {
@@ -65,14 +73,14 @@ const char* ReadValue(T* value_out, const char* ptr) {
 // Register parsing handles the mixed userspace ABI cases.
 // For simplicity, we ask for as many registers as we can, even if not all of
 // them will be used during unwinding.
-// TODO(rsavitski): cleanly detect 32 bit builds being side-loaded onto a system
-// with 64 bit userspace processes.
+// TODO(rsavitski): cleanly detect 32 bit traced_perf builds being side-loaded
+// onto a system with 64 bit userspace processes.
 uint64_t PerfUserRegsMask(unwindstack::ArchEnum arch) {
   switch (static_cast<uint8_t>(arch)) {  // cast to please -Wswitch-enum
     case unwindstack::ARCH_ARM64:
       return (1ULL << PERF_REG_ARM64_MAX) - 1;
     case unwindstack::ARCH_ARM:
-      return ((1ULL << PERF_REG_ARM_MAX) - 1);
+      return (1ULL << PERF_REG_ARM_MAX) - 1;
     // perf on x86_64 doesn't allow sampling ds/es/fs/gs registers. See
     // arch/x86/kernel/perf_regs.c in the kernel.
     case unwindstack::ARCH_X86_64:
@@ -85,6 +93,8 @@ uint64_t PerfUserRegsMask(unwindstack::ArchEnum arch) {
       return ((1ULL << PERF_REG_X86_32_MAX) - 1) & ~(1ULL << PERF_REG_X86_DS) &
              ~(1ULL << PERF_REG_X86_ES) & ~(1ULL << PERF_REG_X86_FS) &
              ~(1ULL << PERF_REG_X86_GS);
+    case unwindstack::ARCH_RISCV64:
+      return (1ULL << PERF_REG_RISCV_MAX) - 1;
     default:
       PERFETTO_FATAL("Unsupported architecture");
   }
@@ -93,6 +103,7 @@ uint64_t PerfUserRegsMask(unwindstack::ArchEnum arch) {
 // Adjusts the given architecture enum based on the ABI (as recorded in the perf
 // sample). Note: we do not support 64 bit samples on a 32 bit daemon build, so
 // this only converts from 64 bit to 32 bit architectures.
+// TODO(rsavitski): on riscv64, are 32 bit userspace processes posible?
 unwindstack::ArchEnum ArchForAbi(unwindstack::ArchEnum arch, uint64_t abi) {
   if (arch == unwindstack::ARCH_ARM64 && abi == PERF_SAMPLE_REGS_ABI_32) {
     return unwindstack::ARCH_ARM;
@@ -107,8 +118,8 @@ unwindstack::ArchEnum ArchForAbi(unwindstack::ArchEnum arch, uint64_t abi) {
 // values. Unsampled values will be left as zeroes.
 struct RawRegisterData {
   static constexpr uint64_t kMaxSize =
-      constexpr_max(PERF_REG_ARM64_MAX,
-                    constexpr_max(PERF_REG_ARM_MAX, PERF_REG_X86_64_MAX));
+      constexpr_max(constexpr_max(PERF_REG_ARM_MAX, PERF_REG_ARM64_MAX),
+                    constexpr_max(PERF_REG_X86_64_MAX, PERF_REG_RISCV_MAX));
   uint64_t regs[kMaxSize] = {};
 };
 
@@ -196,6 +207,22 @@ std::unique_ptr<unwindstack::Regs> ToLibUnwindstackRegs(
     x86_user_regs.eip = static_cast<uint32_t>(raw_regs.regs[PERF_REG_X86_IP]);
     return std::unique_ptr<unwindstack::Regs>(
         unwindstack::RegsX86::Read(&x86_user_regs));
+  }
+
+  if (arch == unwindstack::ARCH_RISCV64) {
+    static_assert(static_cast<int>(unwindstack::RISCV64_REG_PC) ==
+                          static_cast<int>(PERF_REG_RISCV_PC) &&
+                      static_cast<int>(unwindstack::RISCV64_REG_PC) == 0,
+                  "register layout mismatch");
+    static_assert(static_cast<int>(unwindstack::RISCV64_REG_MAX) ==
+                      static_cast<int>(PERF_REG_RISCV_MAX),
+                  "register layout mismatch");
+    // Register layout should match, memcpy the 32 registers directly.
+    unwindstack::riscv64_user_regs riscv64_user_regs = {};
+    memcpy(&riscv64_user_regs.regs[0], &raw_regs.regs[0],
+           sizeof(uint64_t) * PERF_REG_RISCV_MAX);
+    return std::unique_ptr<unwindstack::Regs>(
+        unwindstack::RegsRiscv64::Read(&riscv64_user_regs));
   }
 
   PERFETTO_FATAL("Unsupported architecture");

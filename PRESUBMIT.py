@@ -18,6 +18,9 @@ import subprocess
 import time
 
 
+USE_PYTHON3 = True
+
+
 def RunAndReportIfLong(func, *args, **kargs):
   start = time.time()
   results = func(*args, **kargs)
@@ -74,6 +77,7 @@ def CheckChange(input, output):
   results += RunAndReportIfLong(CheckMergedTraceConfigProto, input, output)
   results += RunAndReportIfLong(CheckProtoEventList, input, output)
   results += RunAndReportIfLong(CheckBannedCpp, input, output)
+  results += RunAndReportIfLong(CheckSqlModules, input, output)
   results += RunAndReportIfLong(CheckSqlMetrics, input, output)
   results += RunAndReportIfLong(CheckTestData, input, output)
   results += RunAndReportIfLong(CheckAmalgamatedPythonTools, input, output)
@@ -258,6 +262,20 @@ def CheckProtoComments(input_api, output_api):
   def file_filter(x):
     return input_api.FilterSourceFile(
         x, files_to_check=['protos/perfetto/.*[.]proto$', tool])
+
+  if not input_api.AffectedSourceFiles(file_filter):
+    return []
+  if subprocess.call([tool]):
+    return [output_api.PresubmitError(tool + ' failed')]
+  return []
+
+
+def CheckSqlModules(input_api, output_api):
+  tool = 'tools/check_sql_modules.py'
+
+  def file_filter(x):
+    return input_api.FilterSourceFile(
+        x, files_to_check=['src/trace_processor/stdlib/.*[.]sql$', tool])
 
   if not input_api.AffectedSourceFiles(file_filter):
     return []

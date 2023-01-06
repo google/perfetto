@@ -16,6 +16,8 @@
 INSTALL_BUILD_DEPS_ARGS="--ui"
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 
+infra/perfetto.dev/build
+
 ui/build --out ${OUT_PATH}
 
 cp -a ${OUT_PATH}/ui/dist/ /ci/artifacts/ui

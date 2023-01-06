@@ -44,11 +44,15 @@ void TmpDirTree::AddDir(const std::string& relative_path) {
 
 void TmpDirTree::AddFile(const std::string& relative_path,
                          const std::string& content) {
-  files_to_remove_.push(relative_path);
+  TrackFile(relative_path);
   base::ScopedFile fd(base::OpenFile(AbsolutePath(relative_path),
                                      O_WRONLY | O_CREAT | O_TRUNC, 0600));
   PERFETTO_CHECK(base::WriteAll(fd.get(), content.c_str(), content.size()) ==
                  static_cast<ssize_t>(content.size()));
+}
+
+void TmpDirTree::TrackFile(const std::string& relative_path) {
+  files_to_remove_.push(relative_path);
 }
 
 }  // namespace base
