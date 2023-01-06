@@ -18,6 +18,15 @@ perfetto_py_library("trace_processor_table_generator") {
   sources = [ "generators/trace_processor_table/public.py" ]
 }
 
+perfetto_py_library("trace_processor_stdlib_docs") {
+  sources = [
+    "generators/stlib_docs/parse.py",
+    "generators/stlib_docs/stdlib.py",
+    "generators/stlib_docs/utils.py",
+    "generators/stlib_docs/validate.py",
+  ]
+}
+
 perfetto_py_binary("trace_processor_py_example") {
   sources = [ "example.py" ]
   deps = [
