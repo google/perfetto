@@ -366,6 +366,9 @@ void JsonTraceParser::MaybeAddFlow(TrackId track_id, const Json::Value& event) {
       context_->storage->IncrementStats(stats::flow_without_direction);
     }
   }
+#else
+  perfetto::base::ignore_result(track_id);
+  perfetto::base::ignore_result(event);
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 }
 

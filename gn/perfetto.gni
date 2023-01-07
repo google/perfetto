@@ -332,6 +332,10 @@ declare_args() {
   # from /usr/include instead of the hermetic one.
   perfetto_use_system_protobuf = false
 
+  # Used by CrOS system builds. Uses the system version of sqlite
+  # from /usr/include instead of the hermetic one.
+  perfetto_use_system_sqlite = false
+
   perfetto_use_system_zlib = false
 }
 
