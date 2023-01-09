@@ -8,7 +8,7 @@ fs/index
 fuchsia/index
 functions/index
 graphics/index
-io/index
+ufs/index
 memory/index
 network/index
 parsing/index
