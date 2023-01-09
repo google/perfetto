@@ -261,7 +261,10 @@ action("gen_stdlib_docs_md") {
           "../../src/trace_processor/stdlib:gen_amalgamated_stdlib_json_docs",
           "target_gen_dir")
   absolute_input_path = label_info + "/stdlib_docs.json"
-  deps = [ "../../src/trace_processor/stdlib:gen_amalgamated_stdlib_json_docs" ]
+  deps = [
+    "../../python:trace_processor_stdlib_docs",
+    "../../src/trace_processor/stdlib:gen_amalgamated_stdlib_json_docs",
+  ]
   outputs = [ stdlib_docs_md ]
   args = [
     "--input",
