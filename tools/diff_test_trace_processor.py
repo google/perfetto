@@ -28,12 +28,17 @@ import signal
 import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass
+from typing import List, Tuple
 
 from google.protobuf import text_format
 
-from proto_utils import create_message_factory, serialize_textproto_trace, serialize_python_trace
-
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(ROOT_DIR))
+
+from tools.proto_utils import create_message_factory, serialize_textproto_trace, serialize_python_trace
+from python.generators.diff_tests.testing import DiffTest, Path, DiffTestBlueprint, TestType
+
 ENV = {
     'PERFETTO_BINARY_PATH': os.path.join(ROOT_DIR, 'test', 'data'),
 }
@@ -48,6 +53,7 @@ elif sys.platform.startswith('win32'):
   ENV['PATH'] = os.path.join(ROOT_DIR, 'buildtools', 'win', 'clang', 'bin')
 
 USE_COLOR_CODES = sys.stderr.isatty()
+
 
 def red(no_colors):
   return "\u001b[31m" if USE_COLOR_CODES and not no_colors else ""
@@ -65,15 +71,7 @@ def end_color(no_colors):
   return "\u001b[0m" if USE_COLOR_CODES and not no_colors else ""
 
 
-class Test(object):
-
-  def __init__(self, type, trace_path, query_path_or_metric, expected_path):
-    self.type = type
-    self.trace_path = trace_path
-    self.query_path_or_metric = query_path_or_metric
-    self.expected_path = expected_path
-
-
+@dataclass
 class PerfResult(object):
 
   def __init__(self, test_type, trace_path, query_path_or_metric,
@@ -115,18 +113,22 @@ def write_diff(expected, actual):
   return res
 
 
-def run_metrics_test(trace_processor_path, gen_trace_path, metric,
-                     expected_path, perf_path, metrics_message_factory):
-  with open(expected_path, 'r') as expected_file:
-    expected = expected_file.read()
+def run_metrics_test(test: DiffTest, trace_processor_path: str,
+                     gen_trace_path: str, perf_path: str,
+                     metrics_message_factory) -> TestResult:
+  if test.expected_path:
+    with open(test.expected_path, 'r') as expected_file:
+      expected = expected_file.read()
+  else:
+    expected = test.blueprint.out
 
-  json_output = os.path.basename(expected_path).endswith('.json.out')
+  json_output = os.path.basename(test.expected_path).endswith('.json.out')
   cmd = [
       trace_processor_path,
       '--analyze-trace-proto-content',
       '--crop-track-events',
       '--run-metrics',
-      metric,
+      test.query_path,
       '--metrics-output=%s' % ('json' if json_output else 'binary'),
       '--perf-file',
       perf_path,
@@ -154,13 +156,13 @@ def run_metrics_test(trace_processor_path, gen_trace_path, metric,
     expected_text = text_format.MessageToString(expected_message)
     actual_text = text_format.MessageToString(actual_message)
 
-  return TestResult('metric', metric, gen_trace_path, cmd, expected_text,
-                    actual_text, stderr.decode('utf8'), tp.returncode)
+  return TestResult(test.type, test.query_path,
+                    gen_trace_path, cmd, expected_text, actual_text,
+                    stderr.decode('utf8'), tp.returncode)
 
 
-def run_query_test(trace_processor_path, gen_trace_path, query_path,
-                   expected_path, perf_path):
-  with open(expected_path, 'r') as expected_file:
+def run_query_test(test, trace_processor_path, gen_trace_path, perf_path):
+  with open(test.expected_path, 'r') as expected_file:
     expected = expected_file.read()
 
   cmd = [
@@ -168,7 +170,7 @@ def run_query_test(trace_processor_path, gen_trace_path, query_path,
       '--analyze-trace-proto-content',
       '--crop-track-events',
       '-q',
-      query_path,
+      test.query_path if test.query_path else test.blueprint.query,
       '--perf-file',
       perf_path,
       gen_trace_path,
@@ -176,7 +178,7 @@ def run_query_test(trace_processor_path, gen_trace_path, query_path,
   tp = subprocess.Popen(
       cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=ENV)
   (stdout, stderr) = tp.communicate()
-  return TestResult('query', query_path, gen_trace_path, cmd, expected,
+  return TestResult(test.type, test.query_path, gen_trace_path, cmd, expected,
                     stdout.decode('utf8'), stderr.decode('utf8'), tp.returncode)
 
 
@@ -207,8 +209,7 @@ def run_test(trace_descriptor_path, extension_descriptor_paths, args, test):
   end_color_str = end_color(args.no_colors)
   trace_path = test.trace_path
   expected_path = test.expected_path
-  test_name = f"{os.path.basename(test.query_path_or_metric)}\
-  {os.path.basename(trace_path)}"
+  test_name = f"{test.name}"
 
   if not os.path.exists(trace_path):
     result_str += f"Trace file not found {trace_path}\n"
@@ -241,18 +242,16 @@ def run_test(trace_descriptor_path, extension_descriptor_paths, args, test):
   result_str += f"{test_name}\n"
 
   tmp_perf_path = tmp_perf_file.name
-  if test.type == 'queries':
-    query_path = test.query_path_or_metric
+  if test.type == TestType.QUERY:
 
-    if not os.path.exists(test.query_path_or_metric):
-      result_str += f"Query file not found {query_path}"
+    if not os.path.exists(test.query_path):
+      result_str += f"Query file not found {test.query_path}"
       return test_name, False, result_str, ""
 
-    result = run_query_test(args.trace_processor, gen_trace_path, query_path,
-                            expected_path, tmp_perf_path)
-  elif test.type == 'metrics':
-    result = run_metrics_test(args.trace_processor, gen_trace_path,
-                              test.query_path_or_metric, expected_path,
+    result = run_query_test(test, args.trace_processor, gen_trace_path,
+                            tmp_perf_path)
+  elif test.type == TestType.METRIC:
+    result = run_metrics_test(test, args.trace_processor, gen_trace_path,
                               tmp_perf_path, metrics_message_factory)
   else:
     assert False
@@ -312,14 +311,12 @@ def run_test(trace_descriptor_path, extension_descriptor_paths, args, test):
     perf_numbers = perf_lines[0].split(',')
 
     assert len(perf_numbers) == 2
-    perf_result = PerfResult(test.type, trace_path, test.query_path_or_metric,
+    perf_result = PerfResult(test.type, trace_path, test.query_path,
                              perf_numbers[0], perf_numbers[1])
 
-    result_str += f"{green_str}[       OK ]{end_color_str} "
-    result_str += f"{os.path.basename(test.query_path_or_metric)} "
-    result_str += f"{os.path.basename(trace_path)} "
-    result_str += f"(ingest: {perf_result.ingest_time_ns / 1000000:.2f} ms "
-    result_str += f"query: {perf_result.real_time_ns / 1000000:.2f} ms)\n"
+    result_str += (f"{green_str}[       OK ]{end_color_str} {test.name} "
+                   f"(ingest: {perf_result.ingest_time_ns / 1000000:.2f} ms "
+                   f"query: {perf_result.real_time_ns / 1000000:.2f} ms)\n")
   return test_name, True, result_str, perf_result
 
 
@@ -346,53 +343,33 @@ def run_all_tests(trace_descriptor_path, extension_descriptor_paths, args,
   return test_failure, perf_data, rebased
 
 
-def read_all_tests_from_index(index_path, query_metric_pattern, trace_pattern):
-  index_dir = os.path.dirname(index_path)
+def import_all_tests(include_index_dir):
+  INCLUDE_PATH = os.path.join(ROOT_DIR, 'test', 'trace_processor')
+  sys.path.append(INCLUDE_PATH)
 
-  with open(index_path, 'r') as index_file:
-    index_lines = index_file.readlines()
-
-  tests = []
-  for line in index_lines:
-    stripped = line.strip()
-    if stripped.startswith('#'):
-      continue
-    elif not stripped:
-      continue
-
-    [trace_fname, query_fname_or_metric, expected_fname] = stripped.split(' ')
-    if not query_metric_pattern.match(os.path.basename(query_fname_or_metric)):
-      continue
-
-    if not trace_pattern.match(os.path.basename(trace_fname)):
-      continue
-
-    trace_path = os.path.abspath(os.path.join(index_dir, trace_fname))
-    expected_path = os.path.abspath(os.path.join(index_dir, expected_fname))
-
-    if query_fname_or_metric.endswith('.sql'):
-      test_type = 'queries'
-      query_path_or_metric = os.path.abspath(
-          os.path.join(index_dir, query_fname_or_metric))
-    else:
-      test_type = 'metrics'
-      query_path_or_metric = query_fname_or_metric
-
-    tests.append(
-        Test(test_type, trace_path, query_path_or_metric, expected_path))
-  return tests
+  from include_index import fetch_all_diff_tests
+  sys.path.pop()
+  return fetch_all_diff_tests(include_index_dir)
 
 
 def read_all_tests(query_metric_pattern, trace_pattern):
   include_index_dir = os.path.join(ROOT_DIR, 'test', 'trace_processor')
-  include_index = os.path.join(include_index_dir, 'include_index')
   tests = []
-  with open(include_index, 'r') as include_file:
-    for index_relpath in include_file.readlines():
-      index_path = os.path.join(include_index_dir, index_relpath.strip())
-      tests.extend(
-          read_all_tests_from_index(index_path, query_metric_pattern,
-                                    trace_pattern))
+  diff_tests = import_all_tests(include_index_dir)
+  for test in diff_tests:
+    # Temporary assertion until string passing is supported.
+    if not (test.blueprint.is_out_file() and test.blueprint.is_query_file() and
+            test.blueprint.is_trace_file()):
+      raise AssertionError("Test parameters should be passed as files.")
+    if test.query_path and not query_metric_pattern.match(
+        os.path.basename(test.query_path)):
+      continue
+
+    if test.trace_path and not trace_pattern.match(
+        os.path.basename(test.trace_path)):
+      continue
+
+    tests.append(test)
   return tests
 
 
@@ -497,12 +474,12 @@ def main():
     metrics = []
     sorted_data = sorted(
         perf_data,
-        key=lambda x: (x.test_type, x.trace_path, x.query_path_or_metric))
+        key=lambda x: (x.test_type.name, x.trace_path, x.query_path_or_metric))
     for perf_args in sorted_data:
       trace_short_path = os.path.relpath(perf_args.trace_path, test_dir)
 
       query_short_path_or_metric = perf_args.query_path_or_metric
-      if perf_args.test_type == 'queries':
+      if perf_args.test_type == TestType.QUERY:
         query_short_path_or_metric = os.path.relpath(
             perf_args.query_path_or_metric, trace_processor_dir)
 
@@ -512,7 +489,7 @@ def main():
           'unit': 's',
           'tags': {
               'test_name': f"{trace_short_path}-{query_short_path_or_metric}",
-              'test_type': perf_args.test_type,
+              'test_type': perf_args.test_type.name,
           },
           'labels': {},
       })
@@ -522,7 +499,7 @@ def main():
           'unit': 's',
           'tags': {
               'test_name': f"{trace_short_path}-{query_short_path_or_metric}",
-              'test_type': perf_args.test_type,
+              'test_type': perf_args.test_type.name,
           },
           'labels': {},
       })
