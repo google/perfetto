@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/util/protozero_to_text.h"
 
+#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/proto_decoder.h"
@@ -113,6 +114,31 @@ void DecreaseIndents(std::string* out) {
   out->erase(out->size() - 2);
 }
 
+void PrintUnknownVarIntField(uint16_t id, int64_t value, std::string* out) {
+  StrAppend(out, std::to_string(id), ": ", std::to_string(value));
+}
+
+void PrintEnumField(const FieldDescriptor& fd,
+                    const DescriptorPool& pool,
+                    uint16_t id,
+                    int32_t enum_value,
+                    std::string* out) {
+  auto opt_enum_descriptor_idx =
+      pool.FindDescriptorIdx(fd.resolved_type_name());
+  if (!opt_enum_descriptor_idx) {
+    PrintUnknownVarIntField(id, enum_value, out);
+    return;
+  }
+  auto opt_enum_string =
+      pool.descriptors()[*opt_enum_descriptor_idx].FindEnumString(enum_value);
+  // If the enum value is unknown, treat it like a completely unknown field.
+  if (!opt_enum_string) {
+    PrintUnknownVarIntField(id, enum_value, out);
+    return;
+  }
+  StrAppend(out, fd.name(), ": ", *opt_enum_string);
+}
+
 std::string FormattedFieldDescriptorName(
     const FieldDescriptor& field_descriptor) {
   if (field_descriptor.is_extension()) {
@@ -154,26 +180,14 @@ void PrintVarIntField(const FieldDescriptor* fd,
     case FieldDescriptorProto::TYPE_BOOL:
       StrAppend(out, fd->name(), ": ", field.as_bool() ? "true" : "false");
       return;
-    case FieldDescriptorProto::TYPE_ENUM: {
-      // If the enum value is unknown, treat it like a completely unknown field.
-      auto opt_enum_descriptor_idx =
-          pool.FindDescriptorIdx(fd->resolved_type_name());
-      if (!opt_enum_descriptor_idx)
-        break;
-      auto opt_enum_string =
-          pool.descriptors()[*opt_enum_descriptor_idx].FindEnumString(
-              field.as_int32());
-      if (!opt_enum_string)
-        break;
-      StrAppend(out, fd->name(), ": ", *opt_enum_string);
+    case FieldDescriptorProto::TYPE_ENUM:
+      PrintEnumField(*fd, pool, field.id(), field.as_int32(), out);
       return;
-    }
     case 0:
     default:
-      break;
+      PrintUnknownVarIntField(field.id(), field.as_int64(), out);
+      return;
   }
-  StrAppend(out, std::to_string(field.id()), ": ",
-            std::to_string(field.as_uint64()));
 }
 
 void PrintFixed32Field(const FieldDescriptor* fd,
@@ -232,6 +246,7 @@ void PrintPackedField(const FieldDescriptor& fd,
                       const protozero::Field& field,
                       NewLinesMode new_lines_mode,
                       const std::string& indents,
+                      const DescriptorPool& pool,
                       std::string* out) {
   const bool include_new_lines = new_lines_mode == kIncludeNewLines;
   bool err = false;
@@ -247,7 +262,12 @@ void PrintPackedField(const FieldDescriptor& fd,
         StrAppend(out, " ");
       }
     }
-    StrAppend(out, fd.name(), ": ", std::to_string(value));
+    std::string serialized_value;
+    if (fd.type() == FieldDescriptorProto::TYPE_ENUM) {
+      PrintEnumField(fd, pool, field.id(), static_cast<int32_t>(value), out);
+    } else {
+      StrAppend(out, fd.name(), ": ", std::to_string(value));
+    }
     first_output = false;
   }
 
@@ -294,49 +314,58 @@ void PrintLengthDelimitedField(const FieldDescriptor* fd,
       return;
     case FieldDescriptorProto::TYPE_DOUBLE:
       PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed64, double>(
-          *fd, field, new_lines_mode, *indents, out);
+          *fd, field, new_lines_mode, *indents, pool, out);
       return;
     case FieldDescriptorProto::TYPE_FLOAT:
       PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed32, float>(
-          *fd, field, new_lines_mode, *indents, out);
+          *fd, field, new_lines_mode, *indents, pool, out);
       return;
     case FieldDescriptorProto::TYPE_INT64:
       PrintPackedField<protozero::proto_utils::ProtoWireType::kVarInt, int64_t>(
-          *fd, field, new_lines_mode, *indents, out);
+          *fd, field, new_lines_mode, *indents, pool, out);
       return;
     case FieldDescriptorProto::TYPE_UINT64:
       PrintPackedField<protozero::proto_utils::ProtoWireType::kVarInt,
-                       uint64_t>(*fd, field, new_lines_mode, *indents, out);
+                       uint64_t>(*fd, field, new_lines_mode, *indents, pool,
+                                 out);
       return;
     case FieldDescriptorProto::TYPE_INT32:
       PrintPackedField<protozero::proto_utils::ProtoWireType::kVarInt, int32_t>(
-          *fd, field, new_lines_mode, *indents, out);
+          *fd, field, new_lines_mode, *indents, pool, out);
       return;
     case FieldDescriptorProto::TYPE_FIXED64:
       PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed64,
-                       uint64_t>(*fd, field, new_lines_mode, *indents, out);
+                       uint64_t>(*fd, field, new_lines_mode, *indents, pool,
+                                 out);
       return;
     case FieldDescriptorProto::TYPE_FIXED32:
       PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed32,
-                       uint32_t>(*fd, field, new_lines_mode, *indents, out);
+                       uint32_t>(*fd, field, new_lines_mode, *indents, pool,
+                                 out);
       return;
     case FieldDescriptorProto::TYPE_UINT32:
       PrintPackedField<protozero::proto_utils::ProtoWireType::kVarInt,
-                       uint32_t>(*fd, field, new_lines_mode, *indents, out);
+                       uint32_t>(*fd, field, new_lines_mode, *indents, pool,
+                                 out);
       return;
     case FieldDescriptorProto::TYPE_SFIXED32:
       PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed32,
-                       int32_t>(*fd, field, new_lines_mode, *indents, out);
+                       int32_t>(*fd, field, new_lines_mode, *indents, pool,
+                                out);
       return;
     case FieldDescriptorProto::TYPE_SFIXED64:
       PrintPackedField<protozero::proto_utils::ProtoWireType::kFixed64,
-                       int64_t>(*fd, field, new_lines_mode, *indents, out);
+                       int64_t>(*fd, field, new_lines_mode, *indents, pool,
+                                out);
+      return;
+    case FieldDescriptorProto::TYPE_ENUM:
+      PrintPackedField<protozero::proto_utils::ProtoWireType::kVarInt, int32_t>(
+          *fd, field, new_lines_mode, *indents, pool, out);
       return;
     // Our protoc plugin cannot generate code for packed repeated fields with
     // these types. Output a comment and then fall back to the raw field_id:
     // string representation.
     case FieldDescriptorProto::TYPE_BOOL:
-    case FieldDescriptorProto::TYPE_ENUM:
     case FieldDescriptorProto::TYPE_SINT32:
     case FieldDescriptorProto::TYPE_SINT64:
       StrAppend(out, "# Packed type ", std::to_string(type),

@@ -118,10 +118,9 @@ message PackedRepeatedFields {
   // Repeated (even non-packed) bool fields are currently unsupported by our
   // protoc plugin.
   // repeated bool field_bool = 13 [packed = true];
-  // Repeated packed enum fields are currently unsupported by our protoc plugin.
-  // repeated SmallEnum small_enum = 51 [packed = true];
-  // repeated SignedEnum signed_enum = 52 [packed = true];
-  // repeated BigEnum big_enum = 53 [packed = true];
+  repeated SmallEnum small_enum = 51 [packed = true];
+  repeated SignedEnum signed_enum = 52 [packed = true];
+  repeated BigEnum big_enum = 53 [packed = true];
 }
 
 // The following two messages are for testing that unknown fields being
