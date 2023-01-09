@@ -258,7 +258,7 @@ class PackedRepeatedFieldIterator {
   // points at the start of the next element to be decoded.
   // |read_ptr_| might be null if the backing proto field isn't set.
   const uint8_t* read_ptr_;
-  CppType curr_value_ = 0;
+  CppType curr_value_ = {};
 
   // Set to false once we've exhausted the iterator, or encountered an error.
   bool curr_value_valid_ = true;

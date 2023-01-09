@@ -597,6 +597,57 @@ TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedFixed64Double) {
                   StartsWith("field_double: 42.125")));
 }
 
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedSmallEnum) {
+  protozero::HeapBuffered<PackedRepeatedFields> msg;
+  protozero::PackedVarInt buf;
+  buf.Append(1);
+  buf.Append(0);
+  buf.Append(-1);
+  msg->set_small_enum(buf);
+
+  EXPECT_THAT(
+      base::SplitString(
+          ProtozeroToText(pool_, ".protozero.test.protos.PackedRepeatedFields",
+                          msg.SerializeAsArray(), kIncludeNewLines),
+          "\n"),
+      ElementsAre(Eq("small_enum: TO_BE"), Eq("small_enum: NOT_TO_BE"),
+                  Eq("51: -1")));
+}
+
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedSignedEnum) {
+  protozero::HeapBuffered<PackedRepeatedFields> msg;
+  protozero::PackedVarInt buf;
+  buf.Append(1);
+  buf.Append(0);
+  buf.Append(-1);
+  buf.Append(-100);
+  msg->set_signed_enum(buf);
+
+  EXPECT_THAT(
+      base::SplitString(
+          ProtozeroToText(pool_, ".protozero.test.protos.PackedRepeatedFields",
+                          msg.SerializeAsArray(), kIncludeNewLines),
+          "\n"),
+      ElementsAre(Eq("signed_enum: POSITIVE"), Eq("signed_enum: NEUTRAL"),
+                  Eq("signed_enum: NEGATIVE"), Eq("52: -100")));
+}
+
+TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedBigEnum) {
+  protozero::HeapBuffered<PackedRepeatedFields> msg;
+  protozero::PackedVarInt buf;
+  buf.Append(10);
+  buf.Append(100500);
+  buf.Append(-1);
+  msg->set_big_enum(buf);
+
+  EXPECT_THAT(
+      base::SplitString(
+          ProtozeroToText(pool_, ".protozero.test.protos.PackedRepeatedFields",
+                          msg.SerializeAsArray(), kIncludeNewLines),
+          "\n"),
+      ElementsAre(Eq("big_enum: BEGIN"), Eq("big_enum: END"), Eq("53: -1")));
+}
+
 TEST_F(ProtozeroToTextTestMessageTest, FieldLengthLimitedPackedFixedErrShort) {
   protozero::HeapBuffered<PackedRepeatedFields> msg;
   std::string buf;
