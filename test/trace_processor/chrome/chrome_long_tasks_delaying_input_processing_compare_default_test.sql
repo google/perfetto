@@ -20,10 +20,8 @@
 -- metric - chrome_long_tasks_delaying_input_processing_test.sql
 
 SELECT RUN_METRIC(
-  'chrome/chrome_tasks_delaying_input_processing_template.sql',
-  'duration_causing_jank_ms', '4',
-  'slice_table_name', 'slice',
-  'function_prefix', ''
+  'chrome/chrome_tasks_delaying_input_processing.sql',
+  'duration_causing_jank_ms', '4'
 );
 
 SELECT
