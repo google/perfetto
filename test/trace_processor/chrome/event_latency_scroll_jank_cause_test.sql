@@ -24,7 +24,8 @@ SELECT
   next_delta_dur_ns,
   prev_delta_dur_ns,
   cause_of_jank,
-  max_delta_dur_ns
+  max_delta_dur_ns,
+  sub_cause_of_jank
 FROM event_latency_scroll_jank_cause
 ORDER by ts;
 
