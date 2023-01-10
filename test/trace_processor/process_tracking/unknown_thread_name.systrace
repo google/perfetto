@@ -1,0 +1,2 @@
+          <idle>-0     [001] d..2  1234.000001: sched_switch: prev_comm=swapper/1 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=real_name next_pid=19999 next_prio=120
+           <...>-19999 [001] d..3  1234.000002: sched_wake_idle_without_ipi: cpu=2
