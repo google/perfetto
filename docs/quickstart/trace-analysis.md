@@ -20,7 +20,7 @@ chmod +x ./trace_processor
 ./trace_processor trace.perfetto-trace
 
 # Start a local trace processor instance to replace wasm module in the UI
-./trace_processor trace.perfetto-trace --http
+./trace_processor trace.perfetto-trace --httpd
 ```
 
 NOTE: In HTTP mode the trace will be loaded into the `trace_processor` and
