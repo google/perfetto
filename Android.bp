@@ -9933,6 +9933,34 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/tables:py_tables_unittest
+genrule {
+    name: "perfetto_src_trace_processor_tables_py_tables_unittest",
+    srcs: [
+        "src/trace_processor/tables/py_tables_unittest.py",
+    ],
+    tools: [
+        "perfetto_src_trace_processor_tables_py_tables_unittest_binary",
+    ],
+    cmd: "$(location perfetto_src_trace_processor_tables_py_tables_unittest_binary) --gen-dir=$(genDir) --inputs $(in) --outputs $(out)",
+    out: [
+        "src/trace_processor/tables/py_tables_unittest_py.h",
+    ],
+}
+
+// GN: //src/trace_processor/tables:py_tables_unittest
+python_binary_host {
+    name: "perfetto_src_trace_processor_tables_py_tables_unittest_binary",
+    srcs: [
+        "python/generators/trace_processor_table/public.py",
+        "python/generators/trace_processor_table/serialize.py",
+        "python/generators/trace_processor_table/util.py",
+        "src/trace_processor/tables/py_tables_unittest.py",
+        "tools/gen_tp_table_headers.py",
+    ],
+    main: "tools/gen_tp_table_headers.py",
+}
+
 // GN: //src/trace_processor/tables:tables
 filegroup {
     name: "perfetto_src_trace_processor_tables_tables",
@@ -9963,6 +9991,7 @@ python_binary_host {
     name: "perfetto_src_trace_processor_tables_tables_python_binary",
     srcs: [
         "python/generators/trace_processor_table/public.py",
+        "python/generators/trace_processor_table/serialize.py",
         "python/generators/trace_processor_table/util.py",
         "src/trace_processor/tables/android_tables.py",
         "src/trace_processor/tables/metadata_tables.py",
@@ -9976,6 +10005,7 @@ filegroup {
     name: "perfetto_src_trace_processor_tables_unittests",
     srcs: [
         "src/trace_processor/tables/macros_unittest.cc",
+        "src/trace_processor/tables/py_tables_unittest.cc",
     ],
 }
 
@@ -11684,6 +11714,7 @@ cc_test {
         "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
         "perfetto_src_trace_processor_stdlib_gen_amalgamated_stdlib",
+        "perfetto_src_trace_processor_tables_py_tables_unittest",
         "perfetto_src_trace_processor_tables_tables_python",
         "perfetto_src_traced_probes_ftrace_test_messages_cpp_gen_headers",
         "perfetto_src_traced_probes_ftrace_test_messages_lite_gen_headers",
