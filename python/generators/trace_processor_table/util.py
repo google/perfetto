@@ -14,7 +14,11 @@
 
 import dataclasses
 from dataclasses import dataclass
+from typing import Dict
+from typing import List
+from typing import Set
 from typing import Optional
+from typing import Union
 
 from python.generators.trace_processor_table.public import Alias
 from python.generators.trace_processor_table.public import Column
@@ -31,7 +35,7 @@ from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import Table
 
 
-@dataclass()
+@dataclass
 class ParsedType:
   """Result of parsing a CppColumnType into its parts."""
   cpp_type: str
@@ -40,6 +44,24 @@ class ParsedType:
   alias_underlying_name: Optional[str] = None
   is_self_id: bool = False
   id_table: Optional[Table] = None
+
+  def cpp_type_with_optionality(self) -> str:
+    """Returns the C++ type wrapping with base::Optional if necessary."""
+
+    # ThreadTable and ProcessTable are special for legacy reasons as they were
+    # around even before the advent of C++ macro tables. Because of this a lot
+    # of code was written assuming that upid and utid were uint32 (e.g. indexing
+    # directly into vectors using them) and it was decided this behaviour was
+    # too expensive in engineering cost to fix given the trivial benefit. For
+    # this reason, continue to maintain this illusion.
+    if self.id_table and (self.id_table.class_name == 'ThreadTable' or
+                          self.id_table.class_name == 'ProcessTable'):
+      cpp_type = 'uint32_t'
+    else:
+      cpp_type = self.cpp_type
+    if self.is_optional:
+      return f'base::Optional<{cpp_type}>'
+    return cpp_type
 
 
 def public_sql_name_for_table(table: Table) -> str:
@@ -92,7 +114,7 @@ def augment_table_with_auto_cols(table: Table) -> Table:
       Column('type', CppString(), ColumnFlag.NONE, _is_auto_added_type=True),
   ]
   public_sql_name = public_sql_name_for_table(table)
-  new_cols_doc = {
+  new_cols_doc: Dict[str, Union[ColumnDoc, str]] = {
       'id':
           ColumnDoc(doc=f'Unique idenitifier for this {public_sql_name}.'),
       'type':
@@ -105,3 +127,71 @@ def augment_table_with_auto_cols(table: Table) -> Table:
       table,
       columns=auto_cols + table.columns,
       tabledoc=dataclasses.replace(table.tabledoc, columns=new_cols_doc))
+
+
+def find_table_deps(table: Table) -> Set[str]:
+  """Finds all the other table class names this table depends on.
+
+  By "depends", we mean this table in C++ would need the dependency to be
+  defined (or included) before this table is defined."""
+  deps: Set[str] = set()
+  for c in table.columns:
+    id_table = parse_type(table, c.type).id_table
+    if id_table:
+      deps.add(id_table.class_name)
+  return deps
+
+
+def topological_sort_tables(tables: List[Table]) -> List[Table]:
+  """Topologically sorts a list of tables (i.e. dependenices appear earlier).
+
+  See [1] for information on a topological sort. We do this to allow
+  dependencies to be processed and appear ealier than their dependents.
+
+  [1] https://en.wikipedia.org/wiki/Topological_sorting"""
+  tables_by_name: dict[str, Table] = dict((t.class_name, t) for t in tables)
+  visited: Set[str] = set()
+  result: List[Table] = []
+
+  # Topological sorting is really just a DFS where we put the nodes in the list
+  # after any dependencies.
+  def dfs(table_class_name: str):
+    table = tables_by_name.get(table_class_name)
+    # If the table is not found, that might be because it's not in this list of
+    # tables. Just ignore this as its up to the caller to make sure any external
+    # deps are handled correctly.
+    if not table or table.class_name in visited:
+      return
+    visited.add(table.class_name)
+
+    for dep in find_table_deps(table):
+      dfs(dep)
+    result.append(table)
+
+  for table in tables:
+    dfs(table.class_name)
+  return result
+
+
+def to_cpp_flags(raw_flag: ColumnFlag) -> str:
+  """Converts a ColumnFlag to the C++ flags which it represents
+
+  It is not valid to call this function with ColumnFlag.NONE as in this case
+  defaults for that column should be implicitly used."""
+
+  assert raw_flag != ColumnFlag.NONE
+  flags = []
+  if ColumnFlag.SORTED in raw_flag:
+    flags.append('Column::Flag::kSorted')
+  if ColumnFlag.SET_ID in raw_flag:
+    flags.append('Column::Flag::kSetId')
+  return ' | '.join(flags)
+
+
+def typed_column_type(table: Table, col: Column) -> str:
+  """Returns the TypedColumn/IdColumn C++ type for a given column."""
+
+  parsed = parse_type(table, col.type)
+  if col._is_auto_added_id:
+    return f'IdColumn<{parsed.cpp_type}>'
+  return f'TypedColumn<{parsed.cpp_type_with_optionality()}>'
