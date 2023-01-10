@@ -862,8 +862,8 @@ class TraceStorage {
   tables::ArgTable arg_table_{&string_pool_, nullptr};
 
   // Information about all the threads and processes in the trace.
-  tables::ThreadTable thread_table_{&string_pool_, nullptr};
-  tables::ProcessTable process_table_{&string_pool_, nullptr};
+  tables::ThreadTable thread_table_{&string_pool_};
+  tables::ProcessTable process_table_{&string_pool_};
   tables::FiledescriptorTable filedescriptor_table_{&string_pool_, nullptr};
 
   // Slices coming from userspace events (e.g. Chromium TRACE_EVENT macros).
@@ -899,7 +899,7 @@ class TraceStorage {
 
   tables::CpuFreqTable cpu_freq_table_{&string_pool_, nullptr};
 
-  tables::AndroidLogTable android_log_table_{&string_pool_, nullptr};
+  tables::AndroidLogTable android_log_table_{&string_pool_};
 
   tables::AndroidDumpstateTable android_dumpstate_table_{&string_pool_,
                                                          nullptr};
