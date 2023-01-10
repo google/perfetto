@@ -285,8 +285,13 @@ md_to_html("gen_stdlib_docs_html") {
 }
 
 nodejs_script("gen_sql_tables_md") {
+  python_label = "../../src/trace_processor/tables:tables_python_docs"
+  python_docs_json = get_label_info(python_label, "target_gen_dir") + "/" +
+                     get_label_info(python_label, "name") + ".json"
+
   script = "src/gen_sql_tables_reference.js"
   inputs = src_sql_tables
+  deps = [ python_label ]
   outputs = [ sql_tables_md ]
   args = [
     "-o",
@@ -298,6 +303,10 @@ nodejs_script("gen_sql_tables_md") {
       rebase_path(file, root_build_dir),
     ]
   }
+  args += [
+    "-j",
+    rebase_path(python_docs_json, root_build_dir),
+  ]
 }
 
 md_to_html("gen_sql_tables_html") {

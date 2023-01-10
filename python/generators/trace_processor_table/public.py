@@ -87,16 +87,32 @@ class TableDoc:
 
   Attributes:
     doc: Freeform docstring for the table.
+    group: The group of tables this table belongs to. Examples include "Tracks",
+    "Events", "ART Heap Graphs" etc: see the docs page for all the existing
+    groups.
     columns: Documentation for each table column.
-    real_table_name: The real name of the table in SQL. Should be
-    specified if wrapping the table with a view.
-    group: The group of tables this table should be assciated
-    with.
+    skip_id_and_type: Skips publishing these columns in the documentation.
+    Should only be used when these columns
+    are not meaningful or are aliased to something better.
   """
   doc: str
+  group: str
   columns: Dict[str, Union[ColumnDoc, str]]
-  real_sql_name: Optional[str] = None
-  group: Optional[str] = None
+  skip_id_and_type: bool = False
+
+
+@dataclass
+class WrappingSqlView:
+  """
+  Specifies information about SQL view wrapping a table.
+
+  Useful for tables which are not exposed directly to
+  SQL but instead are wrapped with a SQL view.
+
+  Attributes:
+    view_name: The name of the SQL view exposed to SQL.
+  """
+  view_name: str
 
 
 @dataclass
@@ -108,12 +124,16 @@ class Table:
     class_name: Name of the C++ table class.
     sql_name: Name of the table in SQL.
     columns: The columns in this table.
-    tabledoc: Documentation for this table.
+    wrapping_sql_view: See |WrappingSqlView|.
+    tabledoc: Documentation for this table. Can include
+    documentation overrides for auto-added columns (i.e.
+    id and type) and aliases added in |wrapping_sql_view|.
   """
   class_name: str
   sql_name: str
   columns: List[Column]
   tabledoc: TableDoc
+  wrapping_sql_view: Optional[WrappingSqlView] = None
 
 
 @dataclass
@@ -151,3 +171,13 @@ class CppTableId(CppColumnType):
 @dataclass
 class CppSelfTableId(CppColumnType):
   """Represents the Id C++ type."""
+
+
+@dataclass
+class Alias(CppColumnType):
+  """Represents a column which aliases another column.
+
+  Aliasing refers to re-exporting a column with a different name. This is useful
+  especially for exporting "id" columns which names which associate it to the
+  table name: e.g. exporting thread.id as thread.utid"""
+  underlying_column: str

@@ -20,6 +20,7 @@ perfetto_tp_tables("tables_python") {
     "android_tables.py",
     "metadata_tables.py",
   ]
+  generate_docs = true
 }
 
 source_set("tables") {
