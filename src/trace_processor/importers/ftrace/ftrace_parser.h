@@ -83,6 +83,9 @@ class FtraceParser {
   void ParseMaliTracingMarkWrite(int64_t timestamp,
                                  uint32_t pid,
                                  protozero::ConstBytes);
+  void ParseLwisTracingMarkWrite(int64_t timestamp,
+                                 uint32_t pid,
+                                 protozero::ConstBytes);
   void ParseIonHeapGrowOrShrink(int64_t timestamp,
                                 uint32_t pid,
                                 protozero::ConstBytes,

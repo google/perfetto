@@ -20,10 +20,10 @@ perfetto_py_library("trace_processor_table_generator") {
 
 perfetto_py_library("trace_processor_stdlib_docs") {
   sources = [
-    "generators/stlib_docs/parse.py",
-    "generators/stlib_docs/stdlib.py",
-    "generators/stlib_docs/utils.py",
-    "generators/stlib_docs/validate.py",
+    "generators/stdlib_docs/parse.py",
+    "generators/stdlib_docs/stdlib.py",
+    "generators/stdlib_docs/utils.py",
+    "generators/stdlib_docs/validate.py",
   ]
 }
 
