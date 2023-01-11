@@ -75,7 +75,8 @@ template("perfetto_amalgamated_sql_header") {
     }
   }
 
-  if (defined(invoker.generate_docs) && invoker.generate_docs) {
+  if (defined(invoker.generate_docs) && invoker.generate_docs &&
+      perfetto_build_standalone) {
     action("${invoker_target}_json_docs") {
       deps = [ ":${invoker_target}_generated_file" ]
       deps += invoker.deps
