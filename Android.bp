@@ -9964,6 +9964,7 @@ python_binary_host {
     name: "perfetto_src_trace_processor_tables_tables_python_binary",
     srcs: [
         "python/generators/trace_processor_table/public.py",
+        "python/generators/trace_processor_table/util.py",
         "src/trace_processor/tables/android_tables.py",
         "src/trace_processor/tables/metadata_tables.py",
         "tools/gen_tp_table_headers.py",

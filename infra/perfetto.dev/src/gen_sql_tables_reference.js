@@ -25,6 +25,7 @@ const argv = require('yargs').argv
 function singleLineComment(comment) {
   comment = comment || '';
   comment = comment.trim();
+  comment = comment.replaceAll('|', '\\|');
   comment = comment.replace(/\.\n/g, '<br>');
   comment = comment.replace(/\n/g, ' ');
   return comment;
@@ -185,6 +186,20 @@ function parseTablesInCppFile(filePath) {
   return tables;
 }
 
+function parseTablesInJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'UTF8'));
+}
+
+function overrideCppTablesWithJsonTables(cpp, json) {
+  const out = [];
+  var jsonLookup = new Map(json.map(i => [i.name, i]));
+  for (const table of cpp) {
+    const jsonTable = jsonLookup.get(table.name);
+    out.push(jsonTable === undefined ? table : jsonTable);
+  }
+  return out;
+}
+
 
 function genLink(table) {
   return `[${table.name}](#${table.name})`;
@@ -222,15 +237,22 @@ function tableToMarkdown(table) {
 function main() {
   const inFile = argv['i'];
   const outFile = argv['o'];
+  const jsonFile = argv['j'];
   if (!inFile) {
-    console.error('Usage: -i hdr1.h -i hdr2.h -[-o out.md]');
+    console.error('Usage: -i hdr1.h -i hdr2.h -j tbls.json -[-o out.md]');
     process.exit(1);
   }
 
   // Can be either a string (-i single) or an array (-i one -i two).
   const inFiles = (inFile instanceof Array) ? inFile : [inFile];
+  const cppTables =
+      Array.prototype.concat(...inFiles.map(parseTablesInCppFile));
 
-  const tables = Array.prototype.concat(...inFiles.map(parseTablesInCppFile));
+  // Can be either a string (-j single) or an array (-j one -j two).
+  const jsonFiles = (jsonFile instanceof Array) ? jsonFile : [jsonFile];
+  const jsonTables =
+      Array.prototype.concat(...jsonFiles.map(parseTablesInJson));
+  const tables = overrideCppTablesWithJsonTables(cppTables, jsonTables)
 
   // Resolve parents.
   const tablesIndex = {};    // 'TP_SCHED_SLICE_TABLE_DEF' -> table
