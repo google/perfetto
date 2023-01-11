@@ -39,6 +39,7 @@ source_set("base") {
     "scoped_file.h",
     "small_set.h",
     "small_vector.h",
+    "status_or.h",
     "string_splitter.h",
     "string_utils.h",
     "string_view.h",
