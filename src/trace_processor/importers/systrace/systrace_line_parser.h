@@ -45,6 +45,7 @@ class SystraceLineParser {
   const StringId sched_blocked_reason_id_ = kNullStringId;
   const StringId io_wait_id_ = kNullStringId;
   const StringId waker_utid_id_ = kNullStringId;
+  const StringId unknown_thread_name_id_ = kNullStringId;
 };
 
 }  // namespace trace_processor
