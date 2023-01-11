@@ -65,7 +65,7 @@ FROM stack_profile_frame spf
 JOIN mangled_stack_profile_mapping spm
   ON spf.mapping = spm.id
 WHERE spm.build_id != ''
-  AND (spf.symbol_set_id = 0 OR spf.symbol_set_id IS NULL);
+  AND spf.symbol_set_id IS NULL;
 
 DROP VIEW IF EXISTS unsymbolized_frames_output;
 CREATE VIEW unsymbolized_frames_output AS
