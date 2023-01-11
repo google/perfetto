@@ -20,11 +20,6 @@ from typing import Dict, List, Union
 from enum import Enum
 
 
-class TestType(Enum):
-  QUERY = 1
-  METRIC = 2
-
-
 @dataclass
 class Path:
   filename: str
@@ -55,6 +50,10 @@ class DiffTestBlueprint:
 # script.
 class DiffTest:
 
+  class TestType(Enum):
+    QUERY = 1
+    METRIC = 2
+
   def __init__(self, name: str, blueprint: DiffTestBlueprint,
                index_dir: str) -> None:
     self.name = name
@@ -62,14 +61,14 @@ class DiffTest:
 
     if blueprint.is_query_file():
       if blueprint.query.filename.endswith('.sql'):
-        self.type = TestType.QUERY
+        self.type = DiffTest.TestType.QUERY
         self.query_path = os.path.abspath(
             os.path.join(index_dir, blueprint.query.filename))
       else:
-        self.type = TestType.METRIC
+        self.type = DiffTest.TestType.METRIC
         self.query_path = blueprint.query.filename
     else:
-      self.type = TestType.METRIC
+      self.type = DiffTest.TestType.METRIC
       self.query_path = None
 
     if blueprint.is_trace_file():
