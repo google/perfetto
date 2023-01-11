@@ -344,9 +344,9 @@ def perfetto_cc_tp_tables(name, srcs, outs, **kwargs):
         outs = outs,
     )
 
-    perfetto_cc_library(
+    perfetto_filegroup(
         name = name,
-        hdrs = [":" + name + "_gen"],
+        srcs = [":" + name + "_gen"],
         **kwargs,
     )
 
