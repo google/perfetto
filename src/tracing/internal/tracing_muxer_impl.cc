@@ -145,13 +145,18 @@ uint64_t ComputeStartupConfigHash(DataSourceConfig config) {
   config.set_trace_duration_ms(0);
   config.set_stop_timeout_ms(0);
   config.set_enable_extra_guardrails(false);
-  // Clear client priority inside Chrome config, because Chrome always sets
-  // the priority to USER_INITIATED when setting up startup tracing.
-  // TODO(khokhlov): Remove this when Chrome correctly sets client_priority
+  // Clear some fields inside Chrome config:
+  // * client_priority, because Chrome always sets the priority to
+  // USER_INITIATED when setting up startup tracing.
+  // * convert_to_legacy_json, because Telemetry initiates tracing with proto
+  // format, but in some cases adopts the tracing session later via devtools
+  // which expect json format.
+  // TODO(khokhlov): Don't clear client_priority when Chrome correctly sets it
   // for startup tracing (and propagates it to all child processes).
   if (config.has_chrome_config()) {
     config.mutable_chrome_config()->set_client_priority(
         perfetto::protos::gen::ChromeConfig::UNKNOWN);
+    config.mutable_chrome_config()->set_convert_to_legacy_json(false);
   }
   base::Hasher hasher;
   std::string config_bytes = config.SerializeAsString();
@@ -2376,9 +2381,9 @@ void TracingMuxerImpl::ResetForTesting() {
     muxer->interceptors_.clear();
 
     for (auto& ds : muxer->data_sources_) {
-      ds.static_state->~DataSourceStaticState();
-      new (ds.static_state) DataSourceStaticState{};
+      ds.static_state->ResetForTesting();
     }
+
     muxer->data_sources_.clear();
     muxer->next_data_source_index_ = 0;
 

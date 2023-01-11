@@ -13,6 +13,7 @@
 # limitations under the License.
 """Contains metadata tables for a wide range of usecases."""
 
+from python.generators.trace_processor_table.public import Alias
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import CppInt64
@@ -23,11 +24,13 @@ from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import CppSelfTableId
+from python.generators.trace_processor_table.public import WrappingSqlView
 
 PROCESS_TABLE = Table(
     class_name='ProcessTable',
     sql_name='internal_process',
     columns=[
+        C('upid', Alias(underlying_column='id')),
         C('pid', CppUint32()),
         C('name', CppOptional(CppString())),
         C('start_ts', CppOptional(CppInt64())),
@@ -38,9 +41,11 @@ PROCESS_TABLE = Table(
         C('cmdline', CppOptional(CppString())),
         C('arg_set_id', CppUint32()),
     ],
+    wrapping_sql_view=WrappingSqlView(view_name='process',),
     tabledoc=TableDoc(
         doc='Contains information of processes seen during the trace',
-        real_sql_name='process',
+        group='Misc',
+        skip_id_and_type=True,
         columns={
             'upid':
                 '''
@@ -94,6 +99,7 @@ THREAD_TABLE = Table(
     class_name='ThreadTable',
     sql_name='internal_thread',
     columns=[
+        C('utid', Alias(underlying_column='id')),
         C('tid', CppUint32()),
         C('name', CppOptional(CppString())),
         C('start_ts', CppOptional(CppInt64())),
@@ -101,47 +107,49 @@ THREAD_TABLE = Table(
         C('upid', CppOptional(CppTableId(PROCESS_TABLE))),
         C('is_main_thread', CppOptional(CppUint32())),
     ],
+    wrapping_sql_view=WrappingSqlView(view_name='thread',),
     tabledoc=TableDoc(
         doc='Contains information of threads seen during the trace',
-        real_sql_name='thread',
+        group='Misc',
+        skip_id_and_type=True,
         columns={
             'utid':
-                ColumnDoc('''
+                '''
                   Unique thread id. This is != the OS tid. This is a monotonic
                   number associated to each thread. The OS thread id (tid)
                   cannot be used as primary key because tids and pids are
                   recycled by most kernels.
-                '''),
+                ''',
             'tid':
-                ColumnDoc('''
+                '''
                   The OS id for this thread. Note: this is *not* unique over the
                   lifetime of the trace so cannot be used as a primary key. Use
                   |utid| instead.
-                '''),
+                ''',
             'name':
-                ColumnDoc('''
+                '''
                   The name of the thread. Can be populated from many sources
                   (e.g. ftrace, /proc scraping, track event etc).
-                '''),
+                ''',
             'start_ts':
-                ColumnDoc('''
+                '''
                   The start timestamp of this thread (if known). Is null in most
                   cases unless a thread creation event is enabled (e.g.
                   task_newtask ftrace event on Linux/Android).
-                '''),
+                ''',
             'end_ts':
-                ColumnDoc('''
+                '''
                   The end timestamp of this thread (if known). Is null in most
                   cases unless a thread destruction event is enabled (e.g.
                   sched_process_free ftrace event on Linux/Android).
-                '''),
+                ''',
             'upid':
-                ColumnDoc('The process hosting this thread.'),
+                'The process hosting this thread.',
             'is_main_thread':
-                ColumnDoc('''
+                '''
                   Boolean indicating if this thread is the main thread
                   in the process.
-                ''')
+                '''
         }))
 
 # Keep this list sorted.

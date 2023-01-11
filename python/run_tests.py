@@ -21,6 +21,7 @@ import unittest
 from test import api_unittest
 from test import api_integrationtest
 from test import resolver_unittest
+from test import stdlib_unittest
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -47,6 +48,7 @@ def main():
   suite.addTests(loader.loadTestsFromModule(api_unittest))
   suite.addTests(loader.loadTestsFromModule(resolver_unittest))
   suite.addTests(loader.loadTestsFromModule(api_integrationtest))
+  suite.addTests(loader.loadTestsFromModule(stdlib_unittest))
 
   # Initialise runner to run all tests in suite
   runner = unittest.TextTestRunner(verbosity=3)

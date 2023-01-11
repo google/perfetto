@@ -74,7 +74,6 @@ def main():
   parser.add_argument('--cpp-out', required=True)
   parser.add_argument('--input-list-file')
   parser.add_argument('--root-dir', required=True)
-  parser.add_argument('--depfile')
   parser.add_argument('sql_files', nargs='*')
   args = parser.parse_args()
 
@@ -134,12 +133,6 @@ def main():
     output.write("};\n")
 
     output.write(NAMESPACE_END.format(args.namespace))
-
-  if args.depfile:
-    with open(args.depfile, 'w', encoding='utf-8') as f:
-      f.write(args.cpp_out + ":")
-      for line in sql_files:
-        f.write(' ' + line)
 
   return 0
 

@@ -25,8 +25,10 @@
 #include "src/trace_processor/importers/ftrace/drm_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/importers/ftrace/iostat_tracker.h"
+#include "src/trace_processor/importers/ftrace/mali_gpu_event_tracker.h"
 #include "src/trace_processor/importers/ftrace/rss_stat_tracker.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
+#include "src/trace_processor/importers/ftrace/virtio_gpu_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include <unordered_set>
@@ -79,6 +81,9 @@ class FtraceParser {
                                 uint32_t pid,
                                 protozero::ConstBytes);
   void ParseMaliTracingMarkWrite(int64_t timestamp,
+                                 uint32_t pid,
+                                 protozero::ConstBytes);
+  void ParseLwisTracingMarkWrite(int64_t timestamp,
                                  uint32_t pid,
                                  protozero::ConstBytes);
   void ParseIonHeapGrowOrShrink(int64_t timestamp,
@@ -258,15 +263,21 @@ class FtraceParser {
   void ParseTrustyIpcRead(uint32_t pid, int64_t ts, protozero::ConstBytes);
   void ParseTrustyIpcReadEnd(uint32_t pid, int64_t ts, protozero::ConstBytes);
   void ParseTrustyIpcPoll(uint32_t pid, int64_t ts, protozero::ConstBytes);
-  void ParseTrustyIpcPollEnd(uint32_t pid, int64_t ts, protozero::ConstBytes);
-  void ParseTrustyIpcTx(uint32_t pid, int64_t ts, protozero::ConstBytes);
   void ParseTrustyIpcRx(uint32_t pid, int64_t ts, protozero::ConstBytes);
   void ParseTrustyEnqueueNop(uint32_t pid, int64_t ts, protozero::ConstBytes);
+  void ParseMaliKcpuCqsSet(uint32_t pid, int64_t ts);
+  void ParseMaliKcpuCqsWaitStart(uint32_t pid, int64_t ts);
+  void ParseMaliKcpuCqsWaitEnd(uint32_t pid, int64_t ts);
+  void ParseMaliKcpuFenceSignal(uint32_t pid, int64_t ts);
+  void ParseMaliKcpuFenceWaitStart(uint32_t pid, int64_t ts);
+  void ParseMaliKcpuFenceWaitEnd(uint32_t pid, int64_t ts);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
   DrmTracker drm_tracker_;
   IostatTracker iostat_tracker_;
+  VirtioGpuTracker virtio_gpu_tracker_;
+  MaliGpuEventTracker mali_gpu_event_tracker_;
 
   const StringId sched_wakeup_name_id_;
   const StringId sched_waking_name_id_;
@@ -324,7 +335,6 @@ class FtraceParser {
   const StringId shrink_priority_id_;
   const StringId trusty_category_id_;
   const StringId trusty_name_trusty_std_id_;
-  const StringId trusty_name_tipc_tx_id_;
   const StringId trusty_name_tipc_rx_id_;
   const StringId cma_alloc_id_;
   const StringId cma_name_id_;

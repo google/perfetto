@@ -251,6 +251,16 @@ TEST(StringUtilsTest, Strip) {
   EXPECT_EQ(StripChars("foobar", "froab", '_'), "______");
 }
 
+TEST(StringUtilsTest, TrimWhitespace) {
+  EXPECT_EQ(TrimWhitespace(""), "");
+  EXPECT_EQ(TrimWhitespace(" "), "");
+  EXPECT_EQ(TrimWhitespace("\t\n"), "");
+
+  EXPECT_EQ(TrimWhitespace("\tx\n\n"), "x");
+  EXPECT_EQ(TrimWhitespace("\tx\n"), "x");
+  EXPECT_EQ(TrimWhitespace("\tx\nx\n"), "x\nx");
+}
+
 TEST(StringUtilsTest, Contains) {
   EXPECT_TRUE(Contains("", ""));
   EXPECT_TRUE(Contains("abc", ""));

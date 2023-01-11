@@ -61,14 +61,9 @@ TEST(FtraceEventParserTest, InferProtoType) {
       "uint64");
 }
 
-TEST(FtraceEventParserTest, GenerateProtoName) {
-  FtraceEvent input;
-  Proto output;
-  input.name = "the_snake_case_name";
-
-  GenerateProto("group", input, &output);
-
-  EXPECT_EQ(output.name, "TheSnakeCaseNameFtraceEvent");
+TEST(FtraceEventParserTest, EventNameToProtoName) {
+  std::string s = EventNameToProtoName("group", "the_snake_case_name");
+  EXPECT_EQ(s, "TheSnakeCaseNameFtraceEvent");
 }
 
 }  // namespace

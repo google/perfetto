@@ -35,7 +35,7 @@ namespace {
 CtrlCHandlerFunction g_handler = nullptr;
 }
 
-void InstallCtrCHandler(CtrlCHandlerFunction handler) {
+void InstallCtrlCHandler(CtrlCHandlerFunction handler) {
   PERFETTO_CHECK(g_handler == nullptr);
   g_handler = handler;
 

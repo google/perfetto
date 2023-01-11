@@ -27,52 +27,33 @@ SELECT RUN_METRIC('chrome/jank_utilities.sql');
 SELECT RUN_METRIC('chrome/event_latency_to_breakdowns.sql');
 SELECT RUN_METRIC('chrome/vsync_intervals.sql');
 
-
--- Select non coalesced EventLatency events.
--- We define a coalesced event as an event whose last breakdown is "RendererCompositorFinishedToTermination".
--- But this logic is not applied for begin event, because a begin event is an artifical marker
--- and never gets shown to the screen because it doesn't contain any update.
-DROP VIEW IF EXISTS not_coalesced_event_latency;
-CREATE VIEW not_coalesced_event_latency
-AS
-SELECT
-  event_latency_id,
-  MAX(ts) AS last_breakdown_ts,
-  name AS last_breakdown_name
-FROM event_latency_breakdowns
-GROUP BY event_latency_id
-HAVING last_breakdown_name != "RendererCompositorFinishedToTermination"
-       OR event_type = "GESTURE_SCROLL_BEGIN";
-
--- Select events that were shown on the screen.
--- An update event was shown on the screen if and only if
--- it has a "SubmitCompositorFrameToPresentationCompositorFrame" breakdown.
--- But this logic is not applied for begin events, because a begin event is an artifical marker
--- and never gets shown to the screen because it doesn't contain any update.
-DROP VIEW IF EXISTS shown_on_display_event_latency;
-CREATE VIEW shown_on_display_event_latency
-AS
-SELECT
-  event_latency_id,
-  CASE WHEN name = "SubmitCompositorFrameToPresentationCompositorFrame" THEN ts END AS ts_before_show_on_screen
-FROM event_latency_breakdowns
-WHERE name = "SubmitCompositorFrameToPresentationCompositorFrame" OR event_type = "GESTURE_SCROLL_BEGIN";
-
--- Creates table view where each EventLatency event has it's upid
+-- Creates table view where each EventLatency event has its upid.
 DROP VIEW IF EXISTS event_latency_with_track;
 CREATE VIEW event_latency_with_track
 AS
 SELECT
   slice.*,
   process_track.upid AS upid
-FROM slice INNER JOIN process_track
+FROM slice JOIN process_track
   ON slice.track_id = process_track.id
 WHERE slice.name = "EventLatency";
 
--- Select non coalesced scroll EventLatency events.
-DROP VIEW IF EXISTS not_coalesced_scroll_event_latency;
-CREATE VIEW not_coalesced_scroll_event_latency
+-- Select scroll EventLatency events that were shown on the screen.
+-- An update event was shown on the screen if and only if
+-- it has a "SubmitCompositorFrameToPresentationCompositorFrame" breakdown.
+-- But this logic is not applied for begin events, because a begin event is an artifical marker
+-- and never gets shown to the screen because it doesn't contain any update.
+-- Also it automaticly only includes non-coalesced EventLatency events,
+-- because coalesced ones are not shown on the screen.
+DROP VIEW IF EXISTS filtered_scroll_event_latency;
+CREATE VIEW filtered_scroll_event_latency
 AS
+WITH shown_on_display_event_latency_ids AS (
+  SELECT
+  event_latency_id
+  FROM event_latency_breakdowns
+  WHERE name = "SubmitCompositorFrameToPresentationCompositorFrame" OR event_type = "GESTURE_SCROLL_BEGIN"
+)
 SELECT
   event_latency_with_track.id,
   event_latency_with_track.track_id,
@@ -80,22 +61,12 @@ SELECT
   event_latency_with_track.ts,
   event_latency_with_track.dur,
   EXTRACT_ARG(event_latency_with_track.arg_set_id, "event_latency.event_type") AS event_type
-FROM event_latency_with_track INNER JOIN not_coalesced_event_latency
-  ON event_latency_with_track.id = not_coalesced_event_latency.event_latency_id
+FROM event_latency_with_track JOIN shown_on_display_event_latency_ids
+  ON event_latency_with_track.id = shown_on_display_event_latency_ids.event_latency_id
 WHERE
   event_type IN (
     "GESTURE_SCROLL_BEGIN", "GESTURE_SCROLL_UPDATE",
     "INERTIAL_GESTURE_SCROLL_UPDATE", "FIRST_GESTURE_SCROLL_UPDATE");
-
--- Select non coalesced scroll EventLatency events that were shown on the screen.
-DROP VIEW IF EXISTS filtered_scroll_event_latency;
-CREATE VIEW filtered_scroll_event_latency
-AS
-SELECT
-  not_coalesced_scroll_event_latency.*,
-  shown_on_display_event_latency.ts_before_show_on_screen
-FROM not_coalesced_scroll_event_latency LEFT JOIN shown_on_display_event_latency
-  ON not_coalesced_scroll_event_latency.id = shown_on_display_event_latency.event_latency_id;
 
 -- Select begin events and it's next begin event witin the same process (same upid).
 --
@@ -120,7 +91,6 @@ CREATE VIEW scroll_event_latency_updates
 AS
 SELECT
   filtered_scroll_event_latency.*,
-  filtered_scroll_event_latency.ts_before_show_on_screen - filtered_scroll_event_latency.ts AS dur_before_show_on_screen,
   scroll_event_latency_begins.ts AS gesture_begin_ts,
   scroll_event_latency_begins.next_gesture_begin_ts AS next_gesture_begin_ts
 FROM filtered_scroll_event_latency LEFT JOIN scroll_event_latency_begins

@@ -6405,6 +6405,18 @@ message LowmemoryKillFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/lowmemorykiller.proto
 
+// Begin of protos/perfetto/trace/ftrace/lwis.proto
+
+message LwisTracingMarkWriteFtraceEvent {
+  optional string lwis_name = 1;
+  optional uint32 type = 2;
+  optional int32 pid = 3;
+  optional string func_name = 4;
+  optional int64 value = 5;
+}
+
+// End of protos/perfetto/trace/ftrace/lwis.proto
+
 // Begin of protos/perfetto/trace/ftrace/mali.proto
 
 message MaliTracingMarkWriteFtraceEvent {
@@ -6412,6 +6424,48 @@ message MaliTracingMarkWriteFtraceEvent {
   optional int32 pid = 2;
   optional uint32 type = 3;
   optional int32 value = 4;
+}
+message MaliMaliKCPUCQSSETFtraceEvent {
+  optional uint32 id = 1;
+  optional uint64 info_val1 = 2;
+  optional uint64 info_val2 = 3;
+  optional uint32 kctx_id = 4;
+  optional int32 kctx_tgid = 5;
+}
+message MaliMaliKCPUCQSWAITSTARTFtraceEvent {
+  optional uint32 id = 1;
+  optional uint64 info_val1 = 2;
+  optional uint64 info_val2 = 3;
+  optional uint32 kctx_id = 4;
+  optional int32 kctx_tgid = 5;
+}
+message MaliMaliKCPUCQSWAITENDFtraceEvent {
+  optional uint32 id = 1;
+  optional uint64 info_val1 = 2;
+  optional uint64 info_val2 = 3;
+  optional uint32 kctx_id = 4;
+  optional int32 kctx_tgid = 5;
+}
+message MaliMaliKCPUFENCESIGNALFtraceEvent {
+  optional uint64 info_val1 = 1;
+  optional uint64 info_val2 = 2;
+  optional int32 kctx_tgid = 3;
+  optional uint32 kctx_id = 4;
+  optional uint32 id = 5;
+}
+message MaliMaliKCPUFENCEWAITSTARTFtraceEvent {
+  optional uint64 info_val1 = 1;
+  optional uint64 info_val2 = 2;
+  optional int32 kctx_tgid = 3;
+  optional uint32 kctx_id = 4;
+  optional uint32 id = 5;
+}
+message MaliMaliKCPUFENCEWAITENDFtraceEvent {
+  optional uint64 info_val1 = 1;
+  optional uint64 info_val2 = 2;
+  optional int32 kctx_tgid = 3;
+  optional uint32 kctx_id = 4;
+  optional uint32 id = 5;
 }
 
 // End of protos/perfetto/trace/ftrace/mali.proto
@@ -7116,7 +7170,6 @@ message TrustyIpcPollFtraceEvent {
   optional uint32 poll_mask = 2;
   optional string srv_name = 3;
 }
-message TrustyIpcPollEndFtraceEvent {}
 message TrustyIpcReadFtraceEvent {
   optional uint32 chan = 1;
   optional string srv_name = 2;
@@ -7133,7 +7186,6 @@ message TrustyIpcRxFtraceEvent {
   optional uint32 chan = 2;
   optional string srv_name = 3;
 }
-message TrustyIpcTxFtraceEvent {}
 message TrustyEnqueueNopFtraceEvent {
   optional uint32 arg1 = 1;
   optional uint32 arg2 = 2;
@@ -7275,6 +7327,33 @@ message Vb2V4l2DqbufFtraceEvent {
 }
 
 // End of protos/perfetto/trace/ftrace/v4l2.proto
+
+// Begin of protos/perfetto/trace/ftrace/virtio_gpu.proto
+
+message VirtioGpuCmdQueueFtraceEvent {
+  optional uint32 ctx_id = 1;
+  optional int32 dev = 2;
+  optional uint64 fence_id = 3;
+  optional uint32 flags = 4;
+  optional string name = 5;
+  optional uint32 num_free = 6;
+  optional uint32 seqno = 7;
+  optional uint32 type = 8;
+  optional uint32 vq = 9;
+}
+message VirtioGpuCmdResponseFtraceEvent {
+  optional uint32 ctx_id = 1;
+  optional int32 dev = 2;
+  optional uint64 fence_id = 3;
+  optional uint32 flags = 4;
+  optional string name = 5;
+  optional uint32 num_free = 6;
+  optional uint32 seqno = 7;
+  optional uint32 type = 8;
+  optional uint32 vq = 9;
+}
+
+// End of protos/perfetto/trace/ftrace/virtio_gpu.proto
 
 // Begin of protos/perfetto/trace/ftrace/virtio_video.proto
 
@@ -7862,14 +7941,23 @@ message FtraceEvent {
     TrustyIpcConnectEndFtraceEvent trusty_ipc_connect_end = 456;
     TrustyIpcWriteFtraceEvent trusty_ipc_write = 457;
     TrustyIpcPollFtraceEvent trusty_ipc_poll = 458;
-    TrustyIpcPollEndFtraceEvent trusty_ipc_poll_end = 459;
+    // removed field with id 459;
     TrustyIpcReadFtraceEvent trusty_ipc_read = 460;
     TrustyIpcReadEndFtraceEvent trusty_ipc_read_end = 461;
     TrustyIpcRxFtraceEvent trusty_ipc_rx = 462;
-    TrustyIpcTxFtraceEvent trusty_ipc_tx = 463;
+    // removed field with id 463;
     TrustyEnqueueNopFtraceEvent trusty_enqueue_nop = 464;
     CmaAllocStartFtraceEvent cma_alloc_start = 465;
     CmaAllocInfoFtraceEvent cma_alloc_info = 466;
+    LwisTracingMarkWriteFtraceEvent lwis_tracing_mark_write = 467;
+    VirtioGpuCmdQueueFtraceEvent virtio_gpu_cmd_queue = 468;
+    VirtioGpuCmdResponseFtraceEvent virtio_gpu_cmd_response = 469;
+    MaliMaliKCPUCQSSETFtraceEvent mali_mali_KCPU_CQS_SET = 470;
+    MaliMaliKCPUCQSWAITSTARTFtraceEvent mali_mali_KCPU_CQS_WAIT_START = 471;
+    MaliMaliKCPUCQSWAITENDFtraceEvent mali_mali_KCPU_CQS_WAIT_END = 472;
+    MaliMaliKCPUFENCESIGNALFtraceEvent mali_mali_KCPU_FENCE_SIGNAL = 473;
+    MaliMaliKCPUFENCEWAITSTARTFtraceEvent mali_mali_KCPU_FENCE_WAIT_START = 474;
+    MaliMaliKCPUFENCEWAITENDFtraceEvent mali_mali_KCPU_FENCE_WAIT_END = 475;
   }
 }
 

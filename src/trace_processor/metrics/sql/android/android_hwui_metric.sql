@@ -24,8 +24,8 @@ SELECT
   CAST(SUM(sched.dur) / 1e6 AS INT64) AS rt_cpu_time_ms,
   thread.utid AS render_thread_id
 FROM sched
-INNER JOIN thread ON (thread.utid = sched.utid AND thread.name = 'RenderThread')
-INNER JOIN process ON (process.upid = thread.upid)
+JOIN thread ON (thread.utid = sched.utid AND thread.name = 'RenderThread')
+JOIN process ON (process.upid = thread.upid)
 GROUP BY process.name
 ORDER BY rt_cpu_time_ms DESC;
 
@@ -38,7 +38,7 @@ SELECT
   avg(dur) AS draw_frame_avg,
   thread_track.utid AS render_thread_id
 FROM slice
-INNER JOIN thread_track ON (thread_track.id = slice.track_id)
+JOIN thread_track ON (thread_track.id = slice.track_id)
 WHERE slice.name GLOB 'DrawFrame*' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
@@ -51,7 +51,7 @@ SELECT
   avg(dur) AS flush_avg,
   thread_track.utid AS render_thread_id
 FROM slice
-INNER JOIN thread_track ON (thread_track.id = slice.track_id)
+JOIN thread_track ON (thread_track.id = slice.track_id)
 WHERE slice.name = 'flush commands' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
@@ -64,7 +64,7 @@ SELECT
   avg(dur) AS prepare_tree_avg,
   thread_track.utid AS render_thread_id
 FROM slice
-INNER JOIN thread_track ON (thread_track.id = slice.track_id)
+JOIN thread_track ON (thread_track.id = slice.track_id)
 WHERE slice.name = 'prepareTree' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
@@ -77,8 +77,8 @@ SELECT
   avg(dur) AS gpu_completion_avg,
   thread.upid AS process_upid
 FROM slice
-INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-INNER JOIN thread ON (thread.name = 'GPU completion' AND thread.utid = thread_track.utid)
+JOIN thread_track ON (thread_track.id = slice.track_id)
+JOIN thread ON (thread.name = 'GPU completion' AND thread.utid = thread_track.utid)
 WHERE slice.name GLOB 'waiting for GPU completion*' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
@@ -91,9 +91,9 @@ SELECT
   avg(dur) AS ui_record_avg,
   thread.upid AS process_upid
 FROM slice
-INNER JOIN thread_track ON (thread_track.id = slice.track_id)
-INNER JOIN thread ON (thread.name = substr(process.name, -15) AND thread.utid = thread_track.utid)
-INNER JOIN process ON (process.upid = thread.upid)
+JOIN thread_track ON (thread_track.id = slice.track_id)
+JOIN thread ON (thread.name = substr(process.name, -15) AND thread.utid = thread_track.utid)
+JOIN process ON (process.upid = thread.upid)
 WHERE slice.name = 'Record View#draw()' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
@@ -105,7 +105,7 @@ SELECT
   avg(dur) AS shader_compile_avg,
   thread_track.utid AS render_thread_id
 FROM slice
-INNER JOIN thread_track ON (thread_track.id = slice.track_id)
+JOIN thread_track ON (thread_track.id = slice.track_id)
 WHERE slice.name = 'shader_compile' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
@@ -117,7 +117,7 @@ SELECT
   avg(dur) AS cache_hit_avg,
   thread_track.utid AS render_thread_id
 FROM slice
-INNER JOIN thread_track ON (thread_track.id = slice.track_id)
+JOIN thread_track ON (thread_track.id = slice.track_id)
 WHERE slice.name = 'cache_hit' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
@@ -129,7 +129,7 @@ SELECT
   avg(dur) AS cache_miss_avg,
   thread_track.utid AS render_thread_id
 FROM slice
-INNER JOIN thread_track ON (thread_track.id = slice.track_id)
+JOIN thread_track ON (thread_track.id = slice.track_id)
 WHERE slice.name = 'cache_miss' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
@@ -141,7 +141,7 @@ SELECT
   avg(value) AS graphics_cpu_mem_avg,
   process_counter_track.upid AS process_upid
 FROM counter
-INNER JOIN process_counter_track ON (counter.track_id = process_counter_track.id)
+JOIN process_counter_track ON (counter.track_id = process_counter_track.id)
 WHERE name = 'HWUI CPU Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
@@ -153,7 +153,7 @@ SELECT
   avg(value) AS graphics_gpu_mem_avg,
   process_counter_track.upid AS process_upid
 FROM counter
-INNER JOIN process_counter_track ON (counter.track_id = process_counter_track.id)
+JOIN process_counter_track ON (counter.track_id = process_counter_track.id)
 WHERE name = 'HWUI Misc Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
@@ -165,7 +165,7 @@ SELECT
   avg(value) AS texture_mem_avg,
   process_counter_track.upid AS process_upid
 FROM counter
-INNER JOIN process_counter_track ON (counter.track_id = process_counter_track.id)
+JOIN process_counter_track ON (counter.track_id = process_counter_track.id)
 WHERE name = 'HWUI Texture Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
@@ -177,7 +177,7 @@ SELECT
   avg(value) AS all_mem_avg,
   process_counter_track.upid AS process_upid
 FROM counter
-INNER JOIN process_counter_track ON (counter.track_id = process_counter_track.id)
+JOIN process_counter_track ON (counter.track_id = process_counter_track.id)
 WHERE name = 'HWUI All Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 

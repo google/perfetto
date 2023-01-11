@@ -61,10 +61,11 @@ function main() {
   ninjaBuild();
 
   if (args.watch) {
-    watchDir('infra/perfetto.dev/src/assets');
-    watchDir('src/trace_processor/tables');
-    watchDir('protos');
     watchDir('docs');
+    watchDir('infra/perfetto.dev/src/assets');
+    watchDir('protos');
+    watchDir('python');
+    watchDir('src/trace_processor/tables');
   }
   if (args.serve) {
     startServer();

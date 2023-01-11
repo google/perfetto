@@ -41,6 +41,8 @@ source_set("full") {
     "ftrace_tokenizer.h",
     "iostat_tracker.cc",
     "iostat_tracker.h",
+    "mali_gpu_event_tracker.cc",
+    "mali_gpu_event_tracker.h",
     "rss_stat_tracker.cc",
     "rss_stat_tracker.h",
     "sched_event_tracker.cc",
@@ -49,6 +51,8 @@ source_set("full") {
     "thread_state_tracker.h",
     "v4l2_tracker.cc",
     "v4l2_tracker.h",
+    "virtio_gpu_tracker.cc",
+    "virtio_gpu_tracker.h",
     "virtio_video_tracker.cc",
     "virtio_video_tracker.h",
   ]

@@ -317,6 +317,8 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         InsertEvent("f2fs", "f2fs_sync_file_exit", &events);
         InsertEvent("f2fs", "f2fs_write_begin", &events);
         InsertEvent("f2fs", "f2fs_write_end", &events);
+        InsertEvent("f2fs", "f2fs_iostat", &events);
+        InsertEvent("f2fs", "f2fs_iostat_latency", &events);
         InsertEvent("ext4", "ext4_da_write_begin", &events);
         InsertEvent("ext4", "ext4_da_write_end", &events);
         InsertEvent("ext4", "ext4_sync_file_enter", &events);
@@ -435,6 +437,12 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
       if (category == "thermal") {
         InsertEvent("thermal", "thermal_temperature", &events);
         InsertEvent("thermal", "cdev_update", &events);
+        continue;
+      }
+
+      if (category == "camera") {
+        AddEventGroup(table, "lwis", &events);
+        InsertEvent("lwis", "tracing_mark_write", &events);
         continue;
       }
     }

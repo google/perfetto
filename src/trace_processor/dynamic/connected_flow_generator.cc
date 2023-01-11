@@ -29,20 +29,13 @@ namespace perfetto {
 namespace trace_processor {
 namespace tables {
 
-#define PERFETTO_TP_CONNECTED_FLOW_TABLE_DEF(NAME, PARENT, C) \
-  NAME(ConnectedFlowTable, "not_exposed_to_sql")              \
-  PARENT(PERFETTO_TP_FLOW_TABLE_DEF, C)                       \
-  C(uint32_t, start_id, Column::Flag::kHidden)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_CONNECTED_FLOW_TABLE_DEF);
-
 ConnectedFlowTable::~ConnectedFlowTable() = default;
 
 }  // namespace tables
 
 ConnectedFlowGenerator::ConnectedFlowGenerator(Mode mode,
-                                               TraceProcessorContext* context)
-    : mode_(mode), context_(context) {}
+                                               const TraceStorage* storage)
+    : mode_(mode), storage_(storage) {}
 
 ConnectedFlowGenerator::~ConnectedFlowGenerator() = default;
 
@@ -50,9 +43,9 @@ base::Status ConnectedFlowGenerator::ValidateConstraints(
     const QueryConstraints& qc) {
   const auto& cs = qc.constraints();
 
-  auto flow_id_fn = [this](const QueryConstraints::Constraint& c) {
+  auto flow_id_fn = [](const QueryConstraints::Constraint& c) {
     return c.column == static_cast<int>(
-                           context_->storage->flow_table().GetColumnCount()) &&
+                           tables::ConnectedFlowTable::ColumnIndex::start_id) &&
            sqlite_utils::IsOpEq(c.op);
   };
   bool has_flow_id_cs =
@@ -92,7 +85,7 @@ enum RelativesVisitMode : uint8_t {
 //  bfs.TakeResultingFlows();
 class BFS {
  public:
-  explicit BFS(TraceProcessorContext* context) : context_(context) {}
+  explicit BFS(const TraceStorage* storage) : storage_(storage) {}
 
   std::vector<tables::FlowTable::RowNumber> TakeResultingFlows() && {
     return std::move(flow_rows_);
@@ -133,7 +126,7 @@ class BFS {
 
   // Includes the relatives of |slice_id| to the list of slices to visit.
   BFS& GoToRelatives(SliceId slice_id, RelativesVisitMode visit_relatives) {
-    const auto& slice_table = context_->storage->slice_table();
+    const auto& slice_table = storage_->slice_table();
     if (visit_relatives & VISIT_ANCESTORS) {
       auto opt_ancestors =
           AncestorGenerator::GetAncestorSlices(slice_table, slice_id);
@@ -165,7 +158,7 @@ class BFS {
   void GoByFlow(SliceId slice_id, FlowDirection flow_direction) {
     PERFETTO_DCHECK(known_slices_.count(slice_id) != 0);
 
-    const auto& flow = context_->storage->flow_table();
+    const auto& flow = storage_->flow_table();
 
     const TypedColumn<SliceId>& start_col =
         flow_direction == FlowDirection::OUTGOING ? flow.slice_out()
@@ -190,7 +183,7 @@ class BFS {
 
   void GoToRelativesImpl(
       const std::vector<tables::SliceTable::RowNumber>& rows) {
-    const auto& slice = context_->storage->slice_table();
+    const auto& slice = storage_->slice_table();
     for (tables::SliceTable::RowNumber row : rows) {
       auto relative_slice_id = row.ToRowReference(slice).id();
       if (known_slices_.count(relative_slice_id))
@@ -204,7 +197,7 @@ class BFS {
   std::set<SliceId> known_slices_;
   std::vector<tables::FlowTable::RowNumber> flow_rows_;
 
-  TraceProcessorContext* context_;
+  const TraceStorage* storage_;
 };
 
 }  // namespace
@@ -214,15 +207,24 @@ base::Status ConnectedFlowGenerator::ComputeTable(
     const std::vector<Order>&,
     const BitVector&,
     std::unique_ptr<Table>& table_return) {
-  const auto& flow = context_->storage->flow_table();
-  const auto& slice = context_->storage->slice_table();
+  const auto& flow = storage_->flow_table();
+  const auto& slice = storage_->slice_table();
 
-  auto it = std::find_if(cs.begin(), cs.end(), [&flow](const Constraint& c) {
-    return c.col_idx == flow.GetColumnCount() && c.op == FilterOp::kEq;
+  auto it = std::find_if(cs.begin(), cs.end(), [](const Constraint& c) {
+    return c.col_idx == tables::ConnectedFlowTable::ColumnIndex::start_id &&
+           c.op == FilterOp::kEq;
   });
-  PERFETTO_DCHECK(it != cs.end());
-  if (it == cs.end() || it->value.type != SqlValue::Type::kLong) {
-    return base::ErrStatus("invalid start_id");
+  if (it == cs.end()) {
+    return base::ErrStatus("no start id specified.");
+  }
+  if (it->value.type == SqlValue::Type::kNull) {
+    // Nothing matches a null id so return an empty table.
+    table_return =
+        tables::ConnectedFlowTable::SelectAndExtendParent(flow, {}, {});
+    return base::OkStatus();
+  }
+  if (it->value.type != SqlValue::Type::kLong) {
+    return base::ErrStatus("start id should be an integer.");
   }
 
   SliceId start_id{static_cast<uint32_t>(it->value.AsLong())};
@@ -232,7 +234,7 @@ base::Status ConnectedFlowGenerator::ComputeTable(
                            static_cast<uint32_t>(start_id.value));
   }
 
-  BFS bfs(context_);
+  BFS bfs(storage_);
 
   switch (mode_) {
     case Mode::kDirectlyConnectedFlow:

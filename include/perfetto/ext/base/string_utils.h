@@ -109,6 +109,7 @@ std::vector<std::string> SplitString(const std::string& text,
                                      const std::string& delimiter);
 std::string StripPrefix(const std::string& str, const std::string& prefix);
 std::string StripSuffix(const std::string& str, const std::string& suffix);
+std::string TrimWhitespace(const std::string& str);
 std::string ToLower(const std::string& str);
 std::string ToUpper(const std::string& str);
 std::string StripChars(const std::string& str,

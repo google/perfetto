@@ -72,6 +72,10 @@ TEST(SqlArgumentTest, ParseArguments) {
                         {ArgumentDefinition("$foo", Type::kUint),
                          ArgumentDefinition("$bar", Type::kLong),
                          ArgumentDefinition("$baz", Type::kProto)});
+  ParseArgsSuccessfully("\nfoo UINT,\n bar LONG, baz PROTO\n",
+                        {ArgumentDefinition("$foo", Type::kUint),
+                         ArgumentDefinition("$bar", Type::kLong),
+                         ArgumentDefinition("$baz", Type::kProto)});
   ParseArgsSuccessfully("foo123 UINT",
                         {ArgumentDefinition("$foo123", Type::kUint)});
 

@@ -78,7 +78,7 @@ class ColumnStorage<base::Optional<T>> : public ColumnStorageBase {
 
   base::Optional<T> Get(uint32_t idx) const { return nv_.Get(idx); }
   void Append(T val) { nv_.Append(val); }
-  void Append(base::Optional<T> val) { nv_.Append(val); }
+  void Append(base::Optional<T> val) { nv_.Append(std::move(val)); }
   void Set(uint32_t idx, T val) { nv_.Set(idx, val); }
   uint32_t size() const { return nv_.size(); }
   bool IsDense() const { return nv_.IsDense(); }

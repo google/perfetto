@@ -14,4 +14,4 @@
 -- limitations under the License.
 --
 
-SELECT IMPORT('common.parent_slice');
+SELECT IMPORT('common.slices');

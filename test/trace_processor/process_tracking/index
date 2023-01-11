@@ -22,3 +22,6 @@ reused_thread_print.py ../common/process_tracking_test.sql process_tracking_reus
 
 # TODO(lalitm): move this out of this folder.
 sde_tracing_mark_write.textproto slice_with_pid_test.sql slice_with_pid_sde_tracing_mark_write.out
+
+# Check that a <...> thread name doesn't overwrite a useful thread name
+unknown_thread_name.systrace ../common/process_tracking_test.sql unknown_thread_name_tracking.out
