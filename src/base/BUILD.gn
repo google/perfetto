@@ -186,6 +186,7 @@ perfetto_unittest_source_set("unittests") {
     "periodic_task_unittest.cc",
     "scoped_file_unittest.cc",
     "small_vector_unittest.cc",
+    "status_or_unittest.cc",
     "string_splitter_unittest.cc",
     "string_utils_unittest.cc",
     "string_view_unittest.cc",
