@@ -308,6 +308,8 @@ class ViewFunctionDocs:
 # Reads the provided SQL and, if possible, generates a dictionary with data
 # from documentation together with errors from validation of the schema.
 def parse_file_to_dict(path: str, sql: str) -> Tuple[Dict[str, any], Errors]:
+  if sys.platform.startswith('win'):
+    path.replace("\\", "/")
 
   # Get module name
   module_name = path.split("/stdlib/")[-1].split("/")[0]
