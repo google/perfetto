@@ -145,5 +145,29 @@ base::Status DiscoverVendorTracepointsWithFile(
   return base::OkStatus();
 }
 
+base::Status DiscoverAccessibleVendorTracepointsWithFile(
+    const std::string& vendor_atrace_categories_path,
+    std::map<std::string, std::vector<GroupAndName>>* categories_map,
+    FtraceProcfs* ftrace) {
+  categories_map->clear();
+  base::Status status = DiscoverVendorTracepointsWithFile(
+      vendor_atrace_categories_path, categories_map);
+  if (!status.ok()) {
+    return status;
+  }
+
+  for (auto& it : *categories_map) {
+    std::vector<GroupAndName>& events = it.second;
+    events.erase(std::remove_if(events.begin(), events.end(),
+                                [ftrace](const GroupAndName& event) {
+                                  return !ftrace->IsEventAccessible(
+                                      event.group(), event.name());
+                                }),
+                 events.end());
+  }
+
+  return base::OkStatus();
+}
+
 }  // namespace vendor_tracepoints
 }  // namespace perfetto
