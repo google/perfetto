@@ -603,10 +603,14 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreqKHz) {
   context_.sorter->ExtractEventsForced();
 
   EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
-  EXPECT_EQ(context_.storage->track_table().name().GetString(0),
-            "CPU 0 Freq in kHz");
-  EXPECT_EQ(context_.storage->track_table().name().GetString(1),
-            "CPU 1 Freq in kHz");
+  EXPECT_EQ(context_.storage->cpu_counter_track_table().row_count(), 2u);
+
+  auto row = context_.storage->cpu_counter_track_table().FindById(TrackId(0));
+  EXPECT_EQ(context_.storage->GetString(row->name()), "cpufreq");
+  EXPECT_EQ(row->cpu(), 0u);
+
+  row = context_.storage->cpu_counter_track_table().FindById(TrackId(1));
+  EXPECT_EQ(row->cpu(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadMemInfo) {
