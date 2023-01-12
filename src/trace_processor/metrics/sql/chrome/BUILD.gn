@@ -27,6 +27,7 @@ perfetto_sql_source_set("chrome_sql") {
     "chrome_event_metadata.sql",
     "chrome_histogram_hashes.sql",
     "chrome_input_to_browser_intervals.sql",
+    "chrome_input_to_browser_intervals_base.sql",
     "chrome_input_to_browser_intervals_template.sql",
     "chrome_long_tasks.sql",
     "chrome_long_tasks_delaying_input_processing.sql",

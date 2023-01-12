@@ -27,7 +27,7 @@ SELECT RUN_METRIC(
 -- browser interval base calculations. Determining whether an input is a fling
 -- or other blocked input will need to be calculated differently, below.
 SELECT RUN_METRIC(
-  'chrome/chrome_input_to_browser_intervals_template.sql',
+  'chrome/chrome_input_to_browser_intervals_base.sql',
   'slice_table_name', 'slice',
   'function_prefix', ''
 );
