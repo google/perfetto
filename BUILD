@@ -1604,6 +1604,7 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/chrome/chrome_event_metadata.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_histogram_hashes.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_input_to_browser_intervals.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_input_to_browser_intervals_base.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_input_to_browser_intervals_template.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_long_tasks.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_long_tasks_delaying_input_processing.sql",
