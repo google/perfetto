@@ -60,8 +60,6 @@ template("perfetto_amalgamated_sql_header") {
     args = [
       "--namespace",
       invoker.namespace,
-      "--root-dir",
-      rebase_path(".", root_build_dir),
       "--cpp-out",
       rebase_path(generated_file, root_build_dir),
       "--input-list-file",
@@ -85,8 +83,6 @@ template("perfetto_amalgamated_sql_header") {
       generated_file = "${target_gen_dir}/stdlib_docs.json"
 
       args = [
-        "--root-dir",
-        rebase_path(".", root_build_dir),
         "--json-out",
         rebase_path(generated_file, root_build_dir),
         "--input-list-file",
