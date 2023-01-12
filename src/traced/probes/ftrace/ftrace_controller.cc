@@ -156,8 +156,10 @@ std::unique_ptr<FtraceController> FtraceController::Create(
   std::map<std::string, std::vector<GroupAndName>> vendor_evts;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   if (base::FileExists(vendor_tracepoints::kCategoriesFile)) {
-    base::Status status = vendor_tracepoints::DiscoverVendorTracepointsWithFile(
-        vendor_tracepoints::kCategoriesFile, &vendor_evts);
+    base::Status status =
+        vendor_tracepoints::DiscoverAccessibleVendorTracepointsWithFile(
+            vendor_tracepoints::kCategoriesFile, &vendor_evts,
+            ftrace_procfs.get());
     if (!status.ok()) {
       PERFETTO_ELOG("Cannot load vendor categories: %s", status.c_message());
     }
