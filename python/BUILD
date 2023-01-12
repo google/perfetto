@@ -61,6 +61,7 @@ perfetto_py_library(
     name = "trace_processor_table_generator",
     srcs = [
         "generators/trace_processor_table/public.py",
+        "generators/trace_processor_table/serialize.py",
         "generators/trace_processor_table/util.py",
     ],
 )
