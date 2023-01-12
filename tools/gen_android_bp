@@ -826,7 +826,6 @@ def create_amalgamated_sql_module(blueprint: Blueprint, gn: GnParser,
         return target.args[i + 1]
 
   namespace = find_arg('namespace')
-  root_dir = gn_utils.label_to_path(find_arg('root-dir'))
 
   module = Module('genrule', bp_module_name, target.name)
   module.tool_files = [
@@ -835,7 +834,6 @@ def create_amalgamated_sql_module(blueprint: Blueprint, gn: GnParser,
   module.cmd = ' '.join([
       '$(location tools/gen_amalgamated_sql.py)',
       f'--namespace={namespace}',
-      f'--root-dir={root_dir}',
       '--cpp-out=$(out)',
       '$(in)',
   ])
