@@ -120,6 +120,19 @@ SELECT CREATE_FUNCTION(
   '
 );
 
+SELECT CREATE_FUNCTION(
+  -- Function prototype: takes a task name and formats it correctly for
+  -- scheduler tasks.
+  '{{function_prefix}}GET_JAVA_VIEWS_TASK_TYPE(kind STRING)',
+  'STRING',
+    'SELECT
+      (CASE $kind
+        WHEN "Choreographer" THEN "choreographer"
+        WHEN "SingleThreadProxy::BeginMainFrame" THEN "ui_thread_begin_main_frame"
+      END)
+    '
+);
+
 -- Create |chrome_mojo_slices_tbl| table, containing a subset of slice
 -- table with the slices corresponding to mojo messages.
 --
@@ -393,10 +406,7 @@ mojo_slices AS (
 java_views_tasks AS (
   SELECT
     printf('%s(java_views=%s)', kind, java_views) AS full_name,
-    (CASE kind
-        WHEN 'Choreographer' THEN 'choreographer'
-        WHEN 'SingleThreadProxy::BeginMainFrame' THEN 'ui_thread_begin_main_frame'
-      END) AS task_type,
+    {{function_prefix}}GET_JAVA_VIEWS_TASK_TYPE(kind) AS task_type,
     id
   FROM chrome_slices_with_java_views_internal
 ),
