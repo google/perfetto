@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path
+from python.generators.diff_tests.testing import Path, Metric
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -125,6 +125,15 @@ class DiffTestModule_Chrome(DiffTestModule):
         query=Path('chrome_tasks_delaying_input_processing_test.sql'),
         out=Path('chrome_tasks_delaying_input_processing_test.out'))
 
+  def test_long_task_tracking_trace_chrome_long_tasks_delaying_input_processing_test(
+      self):
+    return DiffTestBlueprint(
+        trace=Path('../../data/long_task_tracking_trace'),
+        query=Path('chrome_long_tasks_delaying_input_processing_test.sql'),
+        out=Path(
+            'long_task_tracking_trace_chrome_long_tasks_delaying_input_processing_test.out'
+        ))
+
   def test_experimental_reliable_chrome_tasks_delaying_input_processing_test(
       self):
     return DiffTestBlueprint(
@@ -152,13 +161,13 @@ class DiffTestModule_Chrome(DiffTestModule):
   def test_frame_times_metric(self):
     return DiffTestBlueprint(
         trace=Path('../../data/chrome_rendering_desktop.pftrace'),
-        query=Path('frame_times'),
+        query=Metric('frame_times'),
         out=Path('frame_times_metric.out'))
 
   def test_chrome_dropped_frames_metric(self):
     return DiffTestBlueprint(
         trace=Path('../../data/chrome_rendering_desktop.pftrace'),
-        query=Path('chrome_dropped_frames'),
+        query=Metric('chrome_dropped_frames'),
         out=Path('chrome_dropped_frames_metric.out'))
 
   def test_chrome_long_latency_metric(self):
@@ -356,19 +365,19 @@ class DiffTestModule_Chrome(DiffTestModule):
   def test_chrome_histogram_hashes(self):
     return DiffTestBlueprint(
         trace=Path('chrome_histogram_hashes.textproto'),
-        query=Path('chrome_histogram_hashes'),
+        query=Metric('chrome_histogram_hashes'),
         out=Path('chrome_histogram_hashes.out'))
 
   def test_chrome_user_event_hashes(self):
     return DiffTestBlueprint(
         trace=Path('chrome_user_event_hashes.textproto'),
-        query=Path('chrome_user_event_hashes'),
+        query=Metric('chrome_user_event_hashes'),
         out=Path('chrome_user_event_hashes.out'))
 
   def test_chrome_performance_mark_hashes(self):
     return DiffTestBlueprint(
         trace=Path('chrome_performance_mark_hashes.textproto'),
-        query=Path('chrome_performance_mark_hashes'),
+        query=Metric('chrome_performance_mark_hashes'),
         out=Path('chrome_performance_mark_hashes.out'))
 
   def test_chrome_reliable_range(self):
@@ -392,7 +401,7 @@ class DiffTestModule_Chrome(DiffTestModule):
   def test_chrome_slice_names(self):
     return DiffTestBlueprint(
         trace=Path('chrome_slice_names.textproto'),
-        query=Path('chrome_slice_names'),
+        query=Metric('chrome_slice_names'),
         out=Path('chrome_slice_names.out'))
 
   def test_chrome_tasks(self):
@@ -403,6 +412,15 @@ class DiffTestModule_Chrome(DiffTestModule):
         query=Path('chrome_tasks_test.sql'),
         out=Path('chrome_tasks.out'))
 
+  def test_top_level_java_choreographer_slices_top_level_java_chrome_tasks_test(
+      self):
+    return DiffTestBlueprint(
+        trace=Path('../../data/top_level_java_choreographer_slices'),
+        query=Path('top_level_java_chrome_tasks_test.sql'),
+        out=Path(
+            'top_level_java_choreographer_slices_top_level_java_chrome_tasks_test.out'
+        ))
+
   def test_chrome_stack_samples_for_task_test(self):
     return DiffTestBlueprint(
         trace=Path('../../data/chrome_stack_traces_symbolized_trace.pftrace'),
@@ -412,7 +430,7 @@ class DiffTestModule_Chrome(DiffTestModule):
   def test_unsymbolized_args(self):
     return DiffTestBlueprint(
         trace=Path('unsymbolized_args.textproto'),
-        query=Path('chrome_unsymbolized_args'),
+        query=Metric('chrome_unsymbolized_args'),
         out=Path('unsymbolized_args.out'))
 
   def test_async_trace_1_count_slices(self):
@@ -430,7 +448,7 @@ class DiffTestModule_Chrome(DiffTestModule):
   def test_chrome_args_class_names(self):
     return DiffTestBlueprint(
         trace=Path('chrome_args_class_names.textproto'),
-        query=Path('chrome_args_class_names'),
+        query=Metric('chrome_args_class_names'),
         out=Path('chrome_args_class_names.out'))
 
   def test_chrome_log_message(self):

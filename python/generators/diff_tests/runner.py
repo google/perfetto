@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
 from google.protobuf import text_format
-from python.generators.diff_tests.testing import DiffTest
+from python.generators.diff_tests.testing import DiffTest, TestType
 from python.generators.diff_tests.utils import (
     ColorFormatter, create_message_factory, get_env, get_trace_descriptor_path,
     read_all_tests, serialize_python_trace, serialize_textproto_trace)
@@ -37,7 +37,7 @@ ROOT_DIR = os.path.dirname(
 # Performance result of running the test.
 @dataclass
 class PerfResult:
-  test_type: DiffTest.TestType
+  test_type: TestType
   trace_path: str
   query_path_or_metric: str
   ingest_time_ns: int
@@ -156,7 +156,7 @@ class DiffTestExecutor:
         '--analyze-trace-proto-content',
         '--crop-track-events',
         '--run-metrics',
-        self.test.query_path,
+        self.test.blueprint.query.name,
         '--metrics-output=%s' % ('json' if json_output else 'binary'),
         '--perf-file',
         tmp_perf_file.name,
@@ -248,12 +248,12 @@ class DiffTestExecutor:
 
     str = f"{self.colors.yellow('[ RUN      ]')} {self.test.name}\n"
 
-    if self.test.type == DiffTest.TestType.QUERY:
+    if self.test.type == TestType.QUERY:
       if not os.path.exists(self.test.query_path):
         return None, str + f"Query file not found {self.test.query_path}"
 
       result = self.__run_query_test(gen_trace_path)
-    elif self.test.type == DiffTest.TestType.METRIC:
+    elif self.test.type == TestType.METRIC:
       result = self.__run_metrics_test(
           gen_trace_path,
           create_message_factory(metrics_descriptor_paths,

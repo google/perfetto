@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path
+from python.generators.diff_tests.testing import Path, Metric
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -23,7 +23,7 @@ class DiffTestModule_Performance(DiffTestModule):
   def test_irq_runtime_metric(self):
     return DiffTestBlueprint(
         trace=Path('irq_runtime_metric.textproto'),
-        query=Path('android_irq_runtime'),
+        query=Metric('android_irq_runtime'),
         out=Path('irq_runtime_metric.out'))
 
   def test_cpu_frequency_limits(self):
@@ -35,5 +35,5 @@ class DiffTestModule_Performance(DiffTestModule):
   def test_frame_timeline_metric(self):
     return DiffTestBlueprint(
         trace=Path('frame_timeline_metric.py'),
-        query=Path('android_frame_timeline_metric'),
+        query=Metric('android_frame_timeline_metric'),
         out=Path('frame_timeline_metric.out'))

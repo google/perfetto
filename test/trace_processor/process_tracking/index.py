@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path
+from python.generators.diff_tests.testing import Path, Metric
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -73,3 +73,9 @@ class DiffTestModule_Process_tracking(DiffTestModule):
         trace=Path('sde_tracing_mark_write.textproto'),
         query=Path('slice_with_pid_test.sql'),
         out=Path('slice_with_pid_sde_tracing_mark_write.out'))
+
+  def test_unknown_thread_name_tracking(self):
+    return DiffTestBlueprint(
+        trace=Path('unknown_thread_name.systrace'),
+        query=Path('../common/process_tracking_test.sql'),
+        out=Path('unknown_thread_name_tracking.out'))

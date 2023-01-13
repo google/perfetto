@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path
+from python.generators.diff_tests.testing import Path, Metric
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -89,31 +89,31 @@ class DiffTestModule_Graphics(DiffTestModule):
   def test_frame_missed_metrics(self):
     return DiffTestBlueprint(
         trace=Path('frame_missed.py'),
-        query=Path('android_surfaceflinger'),
+        query=Metric('android_surfaceflinger'),
         out=Path('frame_missed_metrics.out'))
 
   def test_surfaceflinger_gpu_invocation(self):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_gpu_invocation.py'),
-        query=Path('android_surfaceflinger'),
+        query=Metric('android_surfaceflinger'),
         out=Path('surfaceflinger_gpu_invocation.out'))
 
   def test_gpu_metric(self):
     return DiffTestBlueprint(
         trace=Path('gpu_metric.py'),
-        query=Path('android_gpu'),
+        query=Metric('android_gpu'),
         out=Path('gpu_metric.out'))
 
   def test_gpu_frequency_metric(self):
     return DiffTestBlueprint(
         trace=Path('gpu_frequency_metric.textproto'),
-        query=Path('android_gpu'),
+        query=Metric('android_gpu'),
         out=Path('gpu_frequency_metric.out'))
 
   def test_android_jank_cuj(self):
     return DiffTestBlueprint(
         trace=Path('android_jank_cuj.py'),
-        query=Path('android_jank_cuj'),
+        query=Metric('android_jank_cuj'),
         out=Path('android_jank_cuj.out'))
 
   def test_android_jank_cuj_query(self):
@@ -143,7 +143,7 @@ class DiffTestModule_Graphics(DiffTestModule):
   def test_g2d_metrics(self):
     return DiffTestBlueprint(
         trace=Path('g2d_metrics.textproto'),
-        query=Path('g2d'),
+        query=Metric('g2d'),
         out=Path('g2d_metrics.out'))
 
   def test_composer_execution(self):
@@ -155,13 +155,13 @@ class DiffTestModule_Graphics(DiffTestModule):
   def test_display_metrics(self):
     return DiffTestBlueprint(
         trace=Path('display_metrics.py'),
-        query=Path('display_metrics'),
+        query=Metric('display_metrics'),
         out=Path('display_metrics.out'))
 
   def test_dpu_vote_clock_bw(self):
     return DiffTestBlueprint(
         trace=Path('dpu_vote_clock_bw.textproto'),
-        query=Path('android_hwcomposer'),
+        query=Metric('android_hwcomposer'),
         out=Path('dpu_vote_clock_bw.out'))
 
   def test_drm_vblank_gpu_track(self):

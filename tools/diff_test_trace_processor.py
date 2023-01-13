@@ -28,7 +28,7 @@ import sys
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.diff_tests.testing import DiffTest
+from python.generators.diff_tests.testing import TestType
 from python.generators.diff_tests.utils import ctrl_c_handler
 from python.generators.diff_tests.runner import DiffTestSuiteRunner
 
@@ -91,7 +91,7 @@ def main():
       trace_short_path = os.path.relpath(perf_args.trace_path, test_dir)
 
       query_short_path_or_metric = perf_args.query_path_or_metric
-      if perf_args.test_type == DiffTest.TestType.QUERY:
+      if perf_args.test_type == TestType.QUERY:
         query_short_path_or_metric = os.path.relpath(
             perf_args.query_path_or_metric, trace_processor_dir)
 
