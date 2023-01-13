@@ -17,7 +17,6 @@ import("perfetto.gni")
 template("perfetto_tp_tables") {
   config_name = target_name + "_config"
   action_name = target_name
-  docs_name = target_name + "_docs"
 
   config(config_name) {
     include_dirs = [ root_gen_dir ]
@@ -48,7 +47,9 @@ template("perfetto_tp_tables") {
     }
   }
 
-  if (defined(invoker.generate_docs) && invoker.generate_docs) {
+  if (defined(invoker.generate_docs) && invoker.generate_docs &&
+      perfetto_build_standalone) {
+    docs_name = target_name + "_docs"
     action(docs_name) {
       sources = invoker.sources
       script = "$perfetto_root_path/tools/gen_tp_table_docs.py"

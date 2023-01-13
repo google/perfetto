@@ -547,7 +547,6 @@ def gen_cc_amalgamated_sql(target: GnParser.Target):
 
   label.comment = target.name
   label.namespace = find_arg('namespace')
-  label.root_dir = gn_utils.label_to_path(find_arg('root-dir'))
 
   label.deps += sorted(':' + get_bazel_label_name(x.name)
                        for x in target.transitive_deps)

@@ -162,6 +162,13 @@ bool FtraceProcfs::DisableEvent(const std::string& group,
   return ret;
 }
 
+bool FtraceProcfs::IsEventAccessible(const std::string& group,
+                                     const std::string& name) {
+  std::string path = root_ + "events/" + group + "/" + name + "/enable";
+
+  return IsFileWriteable(path);
+}
+
 bool FtraceProcfs::DisableAllEvents() {
   std::string path = root_ + "events/enable";
   return WriteToFile(path, "0");
@@ -514,6 +521,10 @@ char FtraceProcfs::ReadOneCharFromFile(const std::string& path) {
 bool FtraceProcfs::ClearFile(const std::string& path) {
   base::ScopedFile fd = base::OpenFile(path, O_WRONLY | O_TRUNC);
   return !!fd;
+}
+
+bool FtraceProcfs::IsFileWriteable(const std::string& path) {
+  return access(path.c_str(), W_OK) == 0;
 }
 
 std::string FtraceProcfs::ReadFileIntoString(const std::string& path) const {

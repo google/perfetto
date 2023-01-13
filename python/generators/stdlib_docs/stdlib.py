@@ -309,7 +309,7 @@ class ViewFunctionDocs:
 # from documentation together with errors from validation of the schema.
 def parse_file_to_dict(path: str, sql: str) -> Tuple[Dict[str, any], Errors]:
   if sys.platform.startswith('win'):
-    path.replace("\\", "/")
+    path = path.replace("\\", "/")
 
   # Get module name
   module_name = path.split("/stdlib/")[-1].split("/")[0]

@@ -60,6 +60,7 @@ class MockFtraceProcfs : public FtraceProcfs {
                bool(const std::string& path, const std::string& str));
   MOCK_METHOD1(ReadOneCharFromFile, char(const std::string& path));
   MOCK_METHOD1(ClearFile, bool(const std::string& path));
+  MOCK_METHOD1(IsFileWriteable, bool(const std::string& path));
   MOCK_CONST_METHOD1(ReadFileIntoString, std::string(const std::string& path));
   MOCK_METHOD0(ReadEnabledEvents, std::vector<std::string>());
   MOCK_CONST_METHOD0(NumberOfCpus, size_t());
@@ -235,6 +236,35 @@ TEST(DiscoverVendorTracepointsTest,
       tree.AbsolutePath("vendor_atrace.txt"), &result);
 
   EXPECT_THAT(status.message(), HasSubstr("name empty"));
+}
+
+TEST(DiscoverVendorTracepointsTest,
+     DiscoverAccessibleVendorTracepointsWithFile) {
+  base::TmpDirTree tree;
+  std::string contents =
+      "gfx\n"
+      " g/a\n"
+      " g/b\n"
+      "memory\n"
+      " g/c\n";
+  tree.AddFile("vendor_atrace.txt", contents);
+  MockFtraceProcfs ftrace;
+
+  EXPECT_CALL(ftrace, IsFileWriteable("/root/events/g/a/enable"))
+      .WillOnce(Return(false));
+  EXPECT_CALL(ftrace, IsFileWriteable("/root/events/g/b/enable"))
+      .WillOnce(Return(true));
+  EXPECT_CALL(ftrace, IsFileWriteable("/root/events/g/c/enable"))
+      .WillOnce(Return(false));
+
+  std::map<std::string, std::vector<GroupAndName>> result;
+  base::Status status = DiscoverAccessibleVendorTracepointsWithFile(
+      tree.AbsolutePath("vendor_atrace.txt"), &result, &ftrace);
+
+  ASSERT_TRUE(status.ok()) << status.message();
+  EXPECT_THAT(result,
+              ElementsAre(Pair("gfx", ElementsAre(GroupAndName("g", "b"))),
+                          Pair("memory", ElementsAre())));
 }
 
 }  // namespace

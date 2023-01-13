@@ -100,6 +100,26 @@ SELECT CREATE_FUNCTION(
   '
 );
 
+SELECT CREATE_FUNCTION(
+  -- Function prototype: takes the category and determines whether it is "Java"
+  -- only, as opposed to "toplevel,Java".
+  '{{function_prefix}}JAVA_NOT_TOP_LEVEL_CATEGORY(category STRING)',
+  'BOOL',
+  'SELECT
+    $category GLOB "*Java*" AND $category not GLOB "*toplevel*"
+  '
+);
+
+SELECT CREATE_FUNCTION(
+  -- Function prototype: takes the category and determines whether is any valid
+  -- toplevel category or combination of categories.
+  '{{function_prefix}}ANY_TOP_LEVEL_CATEGORY(category STRING)',
+  'BOOL',
+  'SELECT
+    $category IN ("toplevel", "toplevel,viz", "toplevel,Java")
+  '
+);
+
 -- Create |chrome_mojo_slices_tbl| table, containing a subset of slice
 -- table with the slices corresponding to mojo messages.
 --
@@ -193,7 +213,7 @@ java_slices_with_trimmed_names AS (
       {{slice_table_name}} s1
     -- Ensure that toplevel Java slices are not included, as they may be logged
     -- with either category = "toplevel" or category = "toplevel,Java".
-    WHERE category GLOB "*Java*" AND category not GLOB "*toplevel*" AND dur > 0
+    WHERE {{function_prefix}}JAVA_NOT_TOP_LEVEL_CATEGORY(category) AND dur > 0
   ),
   -- We filter out generic slices from various UI frameworks which don't tell us much about
   -- what exactly this view is doing.
@@ -311,7 +331,7 @@ WITH
 non_embedded_toplevel_slices AS (
   SELECT * FROM {{slice_table_name}} s
   WHERE
-    category IN ("toplevel", "toplevel,viz", "toplevel,Java")
+    {{function_prefix}}ANY_TOP_LEVEL_CATEGORY(category)
     AND (SELECT count() FROM ancestor_slice(s.id) s2
       WHERE s2.category GLOB "*toplevel*" or s2.category GLOB "*toplevel.viz*") = 0
 ),
@@ -324,7 +344,7 @@ non_embedded_java_slices AS (
   SELECT name AS full_name, "java" AS task_type, id
   FROM {{slice_table_name}} s
   WHERE
-    category GLOB "*Java*" and category not GLOB "*toplevel*"
+    {{function_prefix}}JAVA_NOT_TOP_LEVEL_CATEGORY(category)
     AND (SELECT count()
       FROM ancestor_slice(s.id) s2
       WHERE s2.category GLOB "*toplevel*" OR s2.category GLOB "*Java*") = 0

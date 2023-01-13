@@ -1695,7 +1695,6 @@ perfetto_cc_amalgamated_sql(
     outs = [
         "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h",
     ],
-    root_dir = "src/trace_processor/metrics/sql",
     namespace = "sql_metrics",
 )
 
@@ -1895,7 +1894,6 @@ perfetto_cc_amalgamated_sql(
     outs = [
         "src/trace_processor/stdlib/amalgamated_stdlib.h",
     ],
-    root_dir = "src/trace_processor/stdlib",
     namespace = "stdlib",
 )
 
