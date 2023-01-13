@@ -18,32 +18,13 @@
  * containing it is discarded by Chrome (e.g. because the tab was not used for
  * a long time) or when the user accidentally hits reload.
  */
-import {getErrorMessage} from './errors';
+import {ignoreCacheUnactionableErrors} from './errors';
 import {TraceArrayBufferSource, TraceSource} from './state';
 
 const TRACE_CACHE_NAME = 'cached_traces';
 const TRACE_CACHE_SIZE = 10;
 
 let LAZY_CACHE: Cache|undefined = undefined;
-
-// Occasionally operations using the cache API throw:
-// 'UnknownError: Unexpected internal error. {}'
-// It's not clear under which circumstances this can occur. A dive of
-// the Chromium code didn't shed much light:
-// https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/modules/cache_storage/cache_storage_error.cc;l=26;drc=4cfe86482b000e848009077783ba35f83f3c3cfe
-// https://source.chromium.org/chromium/chromium/src/+/main:content/browser/cache_storage/cache_storage_cache.cc;l=1686;drc=ab68c05beb790d04d1cb7fd8faa0a197fb40d399
-// Given the error is not actionable at present and caching is 'best
-// effort' in any case ignore this error. We will want to throw for
-// errors in general though so as not to hide errors we actually could
-// fix.
-// See b/227785665 for an example.
-function ignoreNonActionableErrors<T>(e: unknown, result: T): T {
-  if (getErrorMessage(e).includes('UnknownError')) {
-    return result;
-  } else {
-    throw e;
-  }
-}
 
 async function getCache(): Promise<Cache|undefined> {
   if (self.caches === undefined) {
@@ -64,7 +45,7 @@ async function cacheDelete(key: Request): Promise<boolean> {
     if (cache === undefined) return false;  // Cache storage not supported.
     return cache.delete(key);
   } catch (e) {
-    return ignoreNonActionableErrors(e, false);
+    return ignoreCacheUnactionableErrors(e, false);
   }
 }
 
@@ -74,7 +55,7 @@ async function cachePut(key: string, value: Response): Promise<void> {
     if (cache === undefined) return;  // Cache storage not supported.
     cache.put(key, value);
   } catch (e) {
-    ignoreNonActionableErrors(e, undefined);
+    ignoreCacheUnactionableErrors(e, undefined);
   }
 }
 
@@ -84,7 +65,7 @@ async function cacheMatch(key: Request|string): Promise<Response|undefined> {
     if (cache === undefined) return undefined;  // Cache storage not supported.
     return cache.match(key);
   } catch (e) {
-    return ignoreNonActionableErrors(e, undefined);
+    return ignoreCacheUnactionableErrors(e, undefined);
   }
 }
 
@@ -94,7 +75,7 @@ async function cacheKeys(): Promise<readonly Request[]> {
     if (cache === undefined) return [];  // Cache storage not supported.
     return cache.keys();
   } catch (e) {
-    return ignoreNonActionableErrors(e, []);
+    return ignoreCacheUnactionableErrors(e, []);
   }
 }
 
