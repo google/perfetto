@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path
+from python.generators.diff_tests.testing import Path, Metric
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -299,7 +299,7 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_android_package_list(self):
     return DiffTestBlueprint(
         trace=Path('android_package_list.py'),
-        query=Path('android_package_list'),
+        query=Metric('android_package_list'),
         out=Path('android_package_list.out'))
 
   def test_process_metadata_matching(self):
@@ -373,7 +373,7 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_very_long_sched_android_trace_quality(self):
     return DiffTestBlueprint(
         trace=Path('very_long_sched.py'),
-        query=Path('android_trace_quality'),
+        query=Metric('android_trace_quality'),
         out=Path('very_long_sched_android_trace_quality.out'))
 
   def test_sched_smoke_trailing_empty_2(self):
@@ -385,7 +385,7 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_android_multiuser_switch(self):
     return DiffTestBlueprint(
         trace=Path('android_multiuser_switch.textproto'),
-        query=Path('android_multiuser'),
+        query=Metric('android_multiuser'),
         out=Path('android_multiuser_switch.out'))
 
   def test_atrace_compressed_sched_count(self):
@@ -403,13 +403,13 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_otheruuids_android_other_traces(self):
     return DiffTestBlueprint(
         trace=Path('otheruuids.textproto'),
-        query=Path('android_other_traces'),
+        query=Metric('android_other_traces'),
         out=Path('otheruuids_android_other_traces.out'))
 
   def test_android_binder(self):
     return DiffTestBlueprint(
         trace=Path('android_binder.py'),
-        query=Path('android_binder'),
+        query=Metric('android_binder'),
         out=Path('android_binder.out'))
 
   def test_statsd_atoms_all_atoms(self):

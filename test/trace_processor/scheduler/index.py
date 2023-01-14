@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path
+from python.generators.diff_tests.testing import Path, Metric
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
