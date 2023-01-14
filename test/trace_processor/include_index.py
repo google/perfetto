@@ -15,6 +15,7 @@
 from typing import List
 from python.generators.diff_tests import testing
 
+
 from android.index import DiffTestModule_Android
 from atrace.index import DiffTestModule_Atrace
 from camera.index import DiffTestModule_Camera
@@ -40,7 +41,6 @@ from startup.index import DiffTestModule_Startup
 from tables.index import DiffTestModule_Tables
 from track_event.index import DiffTestModule_Track_event
 from translation.index import DiffTestModule_Translation
-
 
 def fetch_all_diff_tests(include_index_path: str) -> List['testing.DiffTest']:
   diff_tests = []

@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path
+from python.generators.diff_tests.testing import Path, Metric
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -47,7 +47,7 @@ class DiffTestModule_Power(DiffTestModule):
   def test_dvfs_metric(self):
     return DiffTestBlueprint(
         trace=Path('dvfs_metric.textproto'),
-        query=Path('android_dvfs'),
+        query=Metric('android_dvfs'),
         out=Path('dvfs_metric.out'))
 
   def test_wakesource_wakesource(self):
@@ -65,7 +65,7 @@ class DiffTestModule_Power(DiffTestModule):
   def test_suspend_period(self):
     return DiffTestBlueprint(
         trace=Path('suspend_period.textproto'),
-        query=Path('android_batt'),
+        query=Metric('android_batt'),
         out=Path('suspend_period.out'))
 
   def test_energy_breakdown_table_test(self):

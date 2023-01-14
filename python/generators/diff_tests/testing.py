@@ -28,13 +28,24 @@ class Path:
   filename: str
 
 
+@dataclass
+class Metric:
+  name: str
+
+
+class TestType(Enum):
+  QUERY = 1
+  METRIC = 2
+
+
 # Blueprint for running the diff test. 'query' is being run over data from the
 # 'trace 'and result will be compared to the 'out. Each test (function in class
 # inheriting from DiffTestModule) returns a DiffTestBlueprint.
 @dataclass
 class DiffTestBlueprint:
-  trace: Union[str, 'Path']
-  query: Union[str, 'Path']
+
+  trace: Union[str, Path]
+  query: Union[str, Path, Metric]
   out: Union[str, 'Path']
 
   def is_trace_file(self):
@@ -42,6 +53,9 @@ class DiffTestBlueprint:
 
   def is_query_file(self):
     return isinstance(self.query, Path)
+
+  def is_metric(self):
+    return isinstance(self.query, Metric)
 
   def is_out_file(self):
     return isinstance(self.out, Path)
@@ -53,25 +67,20 @@ class DiffTestBlueprint:
 # script.
 class DiffTest:
 
-  class TestType(Enum):
-    QUERY = 1
-    METRIC = 2
-
   def __init__(self, name: str, blueprint: DiffTestBlueprint,
                index_dir: str) -> None:
     self.name = name
     self.blueprint = blueprint
 
-    if blueprint.is_query_file():
-      if blueprint.query.filename.endswith('.sql'):
-        self.type = DiffTest.TestType.QUERY
-        self.query_path = os.path.abspath(
-            os.path.join(index_dir, blueprint.query.filename))
-      else:
-        self.type = DiffTest.TestType.METRIC
-        self.query_path = blueprint.query.filename
+    if blueprint.is_metric():
+      self.type = TestType.METRIC
     else:
-      self.type = DiffTest.TestType.METRIC
+      self.type = TestType.QUERY
+
+    if blueprint.is_query_file():
+      self.query_path = os.path.abspath(
+          os.path.join(index_dir, blueprint.query.filename))
+    else:
       self.query_path = None
 
     if blueprint.is_trace_file():
@@ -89,9 +98,12 @@ class DiffTest:
   # Verifies that the test should be in test suite. If False, test will not be
   # executed.
   def validate(self, query_metric_filter: str, trace_filter: str):
-    if not (self.blueprint.is_out_file() and self.blueprint.is_query_file() and
-            self.blueprint.is_trace_file()):
+    # Assertions until string passing is supported
+    if not (self.blueprint.is_out_file() and self.blueprint.is_trace_file()):
       raise AssertionError("Test parameters should be passed as files.")
+    if (self.type == TestType.QUERY and not self.blueprint.is_query_file()):
+      raise AssertionError(
+          "Only METRIC tests can have `query` passed as string.")
 
     query_metric_pattern = re.compile(query_metric_filter)
     trace_pattern = re.compile(trace_filter)
