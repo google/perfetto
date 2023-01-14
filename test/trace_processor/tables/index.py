@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path
+from python.generators.diff_tests.testing import Path, Metric
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -95,13 +95,13 @@ class DiffTestModule_Tables(DiffTestModule):
   def test_trace_metadata(self):
     return DiffTestBlueprint(
         trace=Path('../../data/memory_counters.pb'),
-        query=Path('trace_metadata'),
+        query=Metric('trace_metadata'),
         out=Path('trace_metadata.json.out'))
 
   def test_android_task_names(self):
     return DiffTestBlueprint(
         trace=Path('process_uids.textproto'),
-        query=Path('android_task_names'),
+        query=Metric('android_task_names'),
         out=Path('android_task_names.out'))
 
   def test_ftrace_setup_errors(self):

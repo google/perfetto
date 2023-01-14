@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path
+from python.generators.diff_tests.testing import Path, Metric
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -35,7 +35,7 @@ class DiffTestModule_Network(DiffTestModule):
   def test_netperf_metric(self):
     return DiffTestBlueprint(
         trace=Path('netperf_metric.textproto'),
-        query=Path('android_netperf'),
+        query=Metric('android_netperf'),
         out=Path('netperf_metric.out'))
 
   def test_inet_sock_set_state(self):
