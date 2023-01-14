@@ -18,6 +18,9 @@ import os
 from dataclasses import dataclass
 from typing import Dict, List, Union
 from enum import Enum
+import re
+
+TestName = str
 
 
 @dataclass
@@ -83,6 +86,25 @@ class DiffTest:
     else:
       self.expected_path = None
 
+  # Verifies that the test should be in test suite. If False, test will not be
+  # executed.
+  def validate(self, query_metric_filter: str, trace_filter: str):
+    if not (self.blueprint.is_out_file() and self.blueprint.is_query_file() and
+            self.blueprint.is_trace_file()):
+      raise AssertionError("Test parameters should be passed as files.")
+
+    query_metric_pattern = re.compile(query_metric_filter)
+    trace_pattern = re.compile(trace_filter)
+    if self.query_path and not query_metric_pattern.match(
+        os.path.basename(self.name)):
+      return False
+
+    if self.trace_path and not trace_pattern.match(
+        os.path.basename(self.trace_path)):
+      False
+
+    return True
+
 
 # Virtual class responsible for fetching diff tests.
 # All functions with name starting with `test_` have to return
@@ -93,8 +115,8 @@ class DiffTestModule:
 
   def __init__(
       self,
-      include_index_dir,
-      dir_name,
+      include_index_dir: str,
+      dir_name: str,
   ) -> None:
     self.dir_name = dir_name
     self.index_dir = os.path.join(include_index_dir, dir_name)
