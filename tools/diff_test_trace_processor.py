@@ -28,10 +28,9 @@ import sys
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.diff_tests.testing import DiffTest
-from python.generators.diff_tests.utils import red, green, end_color
-from python.generators.diff_tests.utils import ctrl_c_handler, find_trace_descriptor
-from python.generators.diff_tests.runner import run_all_tests, read_all_tests
+from python.generators.diff_tests.testing import TestType
+from python.generators.diff_tests.utils import ctrl_c_handler
+from python.generators.diff_tests.runner import DiffTestSuiteRunner
 
 
 def main():
@@ -65,54 +64,19 @@ def main():
       'trace_processor', type=str, help='location of trace processor binary')
   args = parser.parse_args()
 
-  query_metric_pattern = re.compile(args.query_metric_filter)
-  trace_pattern = re.compile(args.trace_filter)
+  test_runner = DiffTestSuiteRunner(args.query_metric_filter, args.trace_filter,
+                                    args.trace_processor, args.trace_descriptor,
+                                    args.no_colors)
+  sys.stderr.write(f"[==========] Running {len(test_runner.tests)} tests.\n")
 
-  tests = read_all_tests(query_metric_pattern, trace_pattern)
-  sys.stderr.write(f"[==========] Running {len(tests)} tests.\n")
-
-  out_path = os.path.dirname(args.trace_processor)
-  if args.trace_descriptor:
-    trace_descriptor_path = args.trace_descriptor
-  else:
-
-    trace_descriptor_path = find_trace_descriptor(out_path)
-    if not os.path.exists(trace_descriptor_path):
-      trace_descriptor_path = find_trace_descriptor(
-          os.path.join(out_path, 'gcc_like_host'))
-
-  chrome_extensions = os.path.join(out_path, 'gen', 'protos', 'third_party',
-                                   'chromium', 'chrome_track_event.descriptor')
-  test_extensions = os.path.join(out_path, 'gen', 'protos', 'perfetto', 'trace',
-                                 'test_extensions.descriptor')
-
-  test_run_start = datetime.datetime.now()
-  test_failures, perf_data, rebased = run_all_tests(
-      trace_descriptor_path, [chrome_extensions, test_extensions], args, tests)
-  test_run_end = datetime.datetime.now()
-  test_time_ms = int((test_run_end - test_run_start).total_seconds() * 1000)
-
-  sys.stderr.write(
-      f"[==========] {len(tests)} tests ran. ({test_time_ms} ms total)\n")
-  sys.stderr.write(
-      f"{green(args.no_colors)}[  PASSED  ]{end_color(args.no_colors)} "
-      f"{len(tests) - len(test_failures)} tests.\n")
-  if len(test_failures) > 0:
-    sys.stderr.write(
-        f"{red(args.no_colors)}[  FAILED  ]{end_color(args.no_colors)} "
-        f"{len(test_failures)} tests.\n")
-    for failure in test_failures:
-      sys.stderr.write(
-          f"{red(args.no_colors)}[  FAILED  ]{end_color(args.no_colors)} "
-          f"{failure}\n")
+  results = test_runner.run_all_tests(args.metrics_descriptor, args.keep_input,
+                                      args.rebase)
+  sys.stderr.write(results.str(args.no_colors, len(test_runner.tests)))
 
   if args.rebase:
-    sys.stderr.write('\n')
-    sys.stderr.write(f"{rebased} tests rebased.\n")
-    for name in rebased:
-      sys.stderr.write(f"[  REBASED  ] {name}\n")
+    sys.stderr.write(results.rebase_str())
 
-  if len(test_failures) > 0:
+  if len(results.test_failures) > 0:
     return 1
 
   if args.perf_file:
@@ -121,13 +85,13 @@ def main():
 
     metrics = []
     sorted_data = sorted(
-        perf_data,
+        results.perf_data,
         key=lambda x: (x.test_type.name, x.trace_path, x.query_path_or_metric))
     for perf_args in sorted_data:
       trace_short_path = os.path.relpath(perf_args.trace_path, test_dir)
 
       query_short_path_or_metric = perf_args.query_path_or_metric
-      if perf_args.test_type == DiffTest.TestType.QUERY:
+      if perf_args.test_type == TestType.QUERY:
         query_short_path_or_metric = os.path.relpath(
             perf_args.query_path_or_metric, trace_processor_dir)
 

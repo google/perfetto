@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path
+from python.generators.diff_tests.testing import Path, Metric
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -59,7 +59,7 @@ class DiffTestModule_Profiling(DiffTestModule):
   def test_profiler_smaps_metric(self):
     return DiffTestBlueprint(
         trace=Path('profiler_smaps.textproto'),
-        query=Path('profiler_smaps'),
+        query=Metric('profiler_smaps'),
         out=Path('profiler_smaps_metric.out'))
 
   def test_heap_graph_flamegraph(self):
@@ -203,31 +203,31 @@ class DiffTestModule_Profiling(DiffTestModule):
   def test_unsymbolized_frames(self):
     return DiffTestBlueprint(
         trace=Path('heap_profile_no_symbols.textproto'),
-        query=Path('unsymbolized_frames'),
+        query=Metric('unsymbolized_frames'),
         out=Path('unsymbolized_frames.out'))
 
   def test_simpleperf_event(self):
     return DiffTestBlueprint(
         trace=Path('simpleperf_event.py'),
-        query=Path('android_simpleperf'),
+        query=Metric('android_simpleperf'),
         out=Path('simpleperf_event.out'))
 
   def test_java_heap_stats(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph.textproto'),
-        query=Path('java_heap_stats'),
+        query=Metric('java_heap_stats'),
         out=Path('java_heap_stats.out'))
 
   def test_heap_stats_closest_proc(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph_closest_proc.textproto'),
-        query=Path('java_heap_stats'),
+        query=Metric('java_heap_stats'),
         out=Path('heap_stats_closest_proc.out'))
 
   def test_java_heap_histogram(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph.textproto'),
-        query=Path('java_heap_histogram'),
+        query=Metric('java_heap_histogram'),
         out=Path('java_heap_histogram.out'))
 
   def test_perf_sample_rvc(self):

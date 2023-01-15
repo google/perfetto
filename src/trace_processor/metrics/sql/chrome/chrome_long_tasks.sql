@@ -98,7 +98,7 @@ WITH -- Generate full names for tasks with java views.
   java_views_tasks AS (
     SELECT
       printf('%s(java_views=%s)', kind, java_views) as full_name,
-      'ui_thread_begin_main_frame' AS task_type,
+      GET_JAVA_VIEWS_TASK_TYPE(kind) AS task_type,
       id
     FROM long_task_slices_with_java_views
   ),

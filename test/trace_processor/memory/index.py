@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path
+from python.generators.diff_tests.testing import Path, Metric
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -23,55 +23,55 @@ class DiffTestModule_Memory(DiffTestModule):
   def test_android_mem_counters(self):
     return DiffTestBlueprint(
         trace=Path('../../data/memory_counters.pb'),
-        query=Path('android_mem'),
+        query=Metric('android_mem'),
         out=Path('android_mem_counters.out'))
 
   def test_trace_metadata(self):
     return DiffTestBlueprint(
         trace=Path('../../data/memory_counters.pb'),
-        query=Path('trace_metadata'),
+        query=Metric('trace_metadata'),
         out=Path('trace_metadata.out'))
 
   def test_android_mem_by_priority(self):
     return DiffTestBlueprint(
         trace=Path('android_mem_by_priority.py'),
-        query=Path('android_mem'),
+        query=Metric('android_mem'),
         out=Path('android_mem_by_priority.out'))
 
   def test_android_mem_lmk(self):
     return DiffTestBlueprint(
         trace=Path('android_systrace_lmk.py'),
-        query=Path('android_lmk'),
+        query=Metric('android_lmk'),
         out=Path('android_mem_lmk.out'))
 
   def test_android_lmk_oom(self):
     return DiffTestBlueprint(
         trace=Path('../common/oom_kill.textproto'),
-        query=Path('android_lmk'),
+        query=Metric('android_lmk'),
         out=Path('android_lmk_oom.out'))
 
   def test_android_mem_delta(self):
     return DiffTestBlueprint(
         trace=Path('android_mem_delta.py'),
-        query=Path('android_mem'),
+        query=Metric('android_mem'),
         out=Path('android_mem_delta.out'))
 
   def test_android_ion(self):
     return DiffTestBlueprint(
         trace=Path('android_ion.py'),
-        query=Path('android_ion'),
+        query=Metric('android_ion'),
         out=Path('android_ion.out'))
 
   def test_android_ion_stat(self):
     return DiffTestBlueprint(
         trace=Path('android_ion_stat.textproto'),
-        query=Path('android_ion'),
+        query=Metric('android_ion'),
         out=Path('android_ion_stat.out'))
 
   def test_android_dma_heap_stat(self):
     return DiffTestBlueprint(
         trace=Path('android_dma_heap_stat.textproto'),
-        query=Path('android_dma_heap'),
+        query=Metric('android_dma_heap'),
         out=Path('android_dma_heap_stat.out'))
 
   def test_android_dma_buffer_tracks(self):
@@ -83,7 +83,7 @@ class DiffTestModule_Memory(DiffTestModule):
   def test_android_fastrpc_dma_stat(self):
     return DiffTestBlueprint(
         trace=Path('android_fastrpc_dma_stat.textproto'),
-        query=Path('android_fastrpc'),
+        query=Metric('android_fastrpc'),
         out=Path('android_fastrpc_dma_stat.out'))
 
   def test_shrink_slab(self):
