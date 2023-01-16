@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from python.generators.diff_tests.testing import Path, Metric
+from python.generators.diff_tests.testing import Csv, Json, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -36,7 +37,17 @@ class DiffTestModule_Translation(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('chrome_user_event.textproto'),
         query=Path('chrome_args_test.sql'),
-        out=Path('chrome_user_event.out'))
+        out=Csv("""
+"flat_key","key","int_value","string_value"
+"is_root_in_scope","is_root_in_scope",1,"[NULL]"
+"source","source","[NULL]","descriptor"
+"source_id","source_id",12345,"[NULL]"
+"chrome_user_event.action","chrome_user_event.action","[NULL]","action1"
+"chrome_user_event.action_hash","chrome_user_event.action_hash",10,"[NULL]"
+"chrome_user_event.action","chrome_user_event.action","[NULL]","action2"
+"chrome_user_event.action_hash","chrome_user_event.action_hash",20,"[NULL]"
+"chrome_user_event.action_hash","chrome_user_event.action_hash",30,"[NULL]"
+"""))
 
   def test_chrome_performance_mark(self):
     return DiffTestBlueprint(
@@ -48,13 +59,25 @@ class DiffTestModule_Translation(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('slice_name.textproto'),
         query=Path('slice_name_test.sql'),
-        out=Path('slice_name.out'))
+        out=Csv("""
+"name"
+"mapped_name1"
+"mapped_name2"
+"raw_name3"
+"slice_begin"
+"""))
 
   def test_slice_name_2(self):
     return DiffTestBlueprint(
         trace=Path('slice_name_negative_timestamp.textproto'),
         query=Path('slice_name_test.sql'),
-        out=Path('slice_name.out'))
+        out=Csv("""
+"name"
+"mapped_name1"
+"mapped_name2"
+"raw_name3"
+"slice_begin"
+"""))
 
   def test_native_symbol_arg(self):
     return DiffTestBlueprint(

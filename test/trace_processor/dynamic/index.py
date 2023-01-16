@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from python.generators.diff_tests.testing import Path, Metric
+from python.generators.diff_tests.testing import Csv, Json, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -36,13 +37,25 @@ class DiffTestModule_Dynamic(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('slice_stacks.textproto'),
         query=Path('ancestor_slice_by_stack_test.sql'),
-        out=Path('ancestor_slice_by_stack.out'))
+        out=Csv("""
+"ts","name"
+1000,"event_depth_0"
+2000,"event_depth_1"
+8000,"event_depth_0"
+9000,"event_depth_1"
+"""))
 
   def test_descendant_slice_by_stack(self):
     return DiffTestBlueprint(
         trace=Path('slice_stacks.textproto'),
         query=Path('descendant_slice_by_stack_test.sql'),
-        out=Path('descendant_slice_by_stack.out'))
+        out=Csv("""
+"ts","name"
+2000,"event_depth_1"
+3000,"event_depth_2"
+9000,"event_depth_1"
+10000,"event_depth_2"
+"""))
 
   def test_connected_flow(self):
     return DiffTestBlueprint(
@@ -66,16 +79,25 @@ class DiffTestModule_Dynamic(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('../common/empty.textproto'),
         query=Path('abs_time_str_test.sql'),
-        out=Path('empty_abs_time_str.out'))
+        out=Csv("""
+"t15","t25","t35"
+"[NULL]","[NULL]","[NULL]"
+"""))
 
   def test_various_clocks_to_monotonic(self):
     return DiffTestBlueprint(
         trace=Path('various_clocks.textproto'),
         query=Path('to_monotonic_test.sql'),
-        out=Path('various_clocks_to_monotonic.out'))
+        out=Csv("""
+"t15","t20","t25"
+15,20,25
+"""))
 
   def test_empty_to_monotonic(self):
     return DiffTestBlueprint(
         trace=Path('../common/empty.textproto'),
         query=Path('to_monotonic_test.sql'),
-        out=Path('empty_to_monotonic.out'))
+        out=Csv("""
+"t15","t20","t25"
+"[NULL]","[NULL]","[NULL]"
+"""))
