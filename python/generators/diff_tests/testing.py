@@ -33,6 +33,21 @@ class Metric:
   name: str
 
 
+@dataclass
+class Json:
+  contents: str
+
+
+@dataclass
+class Csv:
+  contents: str
+
+
+@dataclass
+class TextProto:
+  contents: str
+
+
 class TestType(Enum):
   QUERY = 1
   METRIC = 2
@@ -46,7 +61,7 @@ class DiffTestBlueprint:
 
   trace: Union[str, Path]
   query: Union[str, Path, Metric]
-  out: Union[str, 'Path']
+  out: Union[Path, Json, Csv]
 
   def is_trace_file(self):
     return isinstance(self.trace, Path)
@@ -59,6 +74,15 @@ class DiffTestBlueprint:
 
   def is_out_file(self):
     return isinstance(self.out, Path)
+
+  def is_out_json(self):
+    return isinstance(self.out, Json)
+
+  def is_out_texproto(self):
+    return isinstance(self.out, TextProto)
+
+  def is_out_csv(self):
+    return isinstance(self.out, Csv)
 
 
 # Description of a diff test. Created in `fetch_diff_tests()` in
@@ -99,7 +123,7 @@ class DiffTest:
   # executed.
   def validate(self, query_metric_filter: str, trace_filter: str):
     # Assertions until string passing is supported
-    if not (self.blueprint.is_out_file() and self.blueprint.is_trace_file()):
+    if not (self.blueprint.is_trace_file()):
       raise AssertionError("Test parameters should be passed as files.")
     if (self.type == TestType.QUERY and not self.blueprint.is_query_file()):
       raise AssertionError(

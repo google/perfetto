@@ -77,11 +77,14 @@ class TestResult:
     self.cmd = cmd
     self.stderr = stderr
     self.exit_code = exit_code
-    self.expected = expected_text
-    self.actual = actual_text
 
-    expected_content = expected_text.replace('\r\n', '\n')
-    actual_content = actual_text.replace('\r\n', '\n')
+    # For better string formatting we often add whitespaces, which has to now
+    # be removed.
+    self.expected = expected_text.lstrip('\n')
+    self.actual = actual_text.lstrip('\n')
+
+    expected_content = self.expected.replace('\r\n', '\n')
+    actual_content = self.actual.replace('\r\n', '\n')
     self.passed = (expected_content == actual_content)
 
     self.perf_result = PerfResult(self.test, perf_lines)
@@ -96,12 +99,14 @@ class TestResult:
   def rebase(self, rebase) -> str:
     if not rebase or self.passed:
       return ""
+    if not self.test.blueprint.is_out_file():
+      return f"Can't rebase expected results passed as strings.\n"
     if self.exit_code != 0:
-      return f"Rebase failed for {self.test.expected_path} as query failed\n"
+      return f"Rebase failed for {self.test.name} as query failed\n"
 
     with open(self.test.expected_path, 'w') as f:
       f.write(self.actual)
-    return f"Rebasing {self.test.expected_path}\n"
+    return f"Rebasing {self.test.name}\n"
 
 
 # Results of running the test suite. Mostly used for printing aggregated
@@ -142,22 +147,23 @@ class DiffTestExecutor:
 
   def __run_metrics_test(self, gen_trace_path: str,
                          metrics_message_factory) -> TestResult:
-    if self.test.expected_path:
+    if self.test.blueprint.is_out_file():
       with open(self.test.expected_path, 'r') as expected_file:
         expected = expected_file.read()
     else:
-      expected = self.test.blueprint.out
+      expected = self.test.blueprint.out.contents
 
     tmp_perf_file = tempfile.NamedTemporaryFile(delete=False)
-    json_output = os.path.basename(
-        self.test.expected_path).endswith('.json.out')
+    is_json_output_file = self.test.blueprint.is_out_file(
+    ) and os.path.basename(self.test.expected_path).endswith('.json.out')
+    is_json_output = is_json_output_file or self.test.blueprint.is_out_json()
     cmd = [
         self.trace_processor_path,
         '--analyze-trace-proto-content',
         '--crop-track-events',
         '--run-metrics',
         self.test.blueprint.query.name,
-        '--metrics-output=%s' % ('json' if json_output else 'binary'),
+        '--metrics-output=%s' % ('json' if is_json_output else 'binary'),
         '--perf-file',
         tmp_perf_file.name,
         gen_trace_path,
@@ -169,7 +175,7 @@ class DiffTestExecutor:
         env=get_env(ROOT_DIR))
     (stdout, stderr) = tp.communicate()
 
-    if json_output:
+    if is_json_output:
       expected_text = expected
       actual_text = stdout.decode('utf8')
     else:
@@ -196,8 +202,11 @@ class DiffTestExecutor:
 
   # Run a query based Diff Test.
   def __run_query_test(self, gen_trace_path: str) -> TestResult:
-    with open(self.test.expected_path, 'r') as expected_file:
-      expected = expected_file.read()
+    if self.test.expected_path:
+      with open(self.test.expected_path, 'r') as expected_file:
+        expected = expected_file.read()
+    else:
+      expected = self.test.blueprint.out.contents
     tmp_perf_file = tempfile.NamedTemporaryFile(delete=False)
     cmd = [
         self.trace_processor_path,
@@ -284,17 +293,13 @@ class DiffTestExecutor:
       str += result.stderr
 
       if result.exit_code == 0:
-        str += (
-            f"Expected did not match actual for trace {self.test.trace_path} "
-            f"and {self.test.type} {self.test.query_path}\n"
-            f"Expected file: {self.test.expected_path}\n")
+        str += f"Expected did not match actual for test {self.test.name}.\n"
         str += write_cmdlines()
         str += result.write_diff()
       else:
         str += write_cmdlines()
 
-      str += (f"{self.colors.red('[  FAILED  ]')} "
-              f"{self.test.name} {os.path.basename(self.test.trace_path)}\n")
+      str += (f"{self.colors.red('[  FAILED  ]')} {self.test.name}\n")
       str += result.rebase(rebase)
 
       return result, str
@@ -324,7 +329,8 @@ class DiffTestExecutor:
     if not os.path.exists(self.test.trace_path):
       result_str += f"Trace file not found {self.test.trace_path}\n"
       return self.test.name, result_str, None
-    elif not os.path.exists(self.test.expected_path):
+    elif self.test.expected_path and not os.path.exists(
+        self.test.expected_path):
       result_str = f"Expected file not found {self.test.expected_path}"
       return self.test.name, result_str, None
 
