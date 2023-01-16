@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from python.generators.diff_tests.testing import Path, Metric
+from python.generators.diff_tests.testing import Csv, Json, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -24,19 +25,37 @@ class DiffTestModule_Track_event(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('track_event_same_tids.textproto'),
         query=Path('../common/process_tracking_test.sql'),
-        out=Path('track_event_same_tids_threads.out'))
+        out=Csv("""
+"tid","pid","pname","tname"
+1,5,"[NULL]","t1"
+1,10,"[NULL]","t2"
+5,5,"[NULL]","[NULL]"
+10,10,"[NULL]","[NULL]"
+"""))
 
   def test_track_event_same_tids_slices(self):
     return DiffTestBlueprint(
         trace=Path('track_event_same_tids.textproto'),
         query=Path('track_event_slices_test.sql'),
-        out=Path('track_event_same_tids_slices.out'))
+        out=Csv("""
+"track","process","thread","thread_process","ts","dur","category","name"
+"[NULL]","[NULL]","t1","[NULL]",1000,0,"cat","name1"
+"[NULL]","[NULL]","t2","[NULL]",2000,0,"cat","name2"
+"""))
 
   def test_track_event_typed_args_slices(self):
     return DiffTestBlueprint(
         trace=Path('track_event_typed_args.textproto'),
         query=Path('track_event_slices_test.sql'),
-        out=Path('track_event_typed_args_slices.out'))
+        out=Csv("""
+"track","process","thread","thread_process","ts","dur","category","name"
+"[NULL]","[NULL]","t1","[NULL]",1000,0,"cat","name1"
+"[NULL]","[NULL]","t1","[NULL]",2000,0,"cat","name2"
+"[NULL]","[NULL]","t1","[NULL]",3000,0,"cat","name3"
+"[NULL]","[NULL]","t1","[NULL]",4000,0,"cat","name4"
+"[NULL]","[NULL]","t1","[NULL]",6000,0,"cat","name5"
+"[NULL]","[NULL]","t1","[NULL]",7000,0,"cat","name6"
+"""))
 
   def test_track_event_typed_args_args(self):
     return DiffTestBlueprint(
@@ -54,19 +73,44 @@ class DiffTestModule_Track_event(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('track_event_tracks.textproto'),
         query=Path('track_event_processes_test.sql'),
-        out=Path('track_event_tracks_processes.out'))
+        out=Csv("""
+"id","name","host_app"
+0,"[NULL]","[NULL]"
+1,"p1","host_app"
+2,"p2","[NULL]"
+"""))
 
   def test_track_event_tracks(self):
     return DiffTestBlueprint(
         trace=Path('track_event_tracks.textproto'),
         query=Path('track_event_tracks_test.sql'),
-        out=Path('track_event_tracks.out'))
+        out=Csv("""
+"name","parent_name","has_first_packet_on_sequence"
+"Default Track","[NULL]","[NULL]"
+"async","process=p1",1
+"async2","process=p1",1
+"async3","thread=t2",1
+"event_and_track_async3","process=p1",1
+"process=p1","[NULL]","[NULL]"
+"process=p2","[NULL]","[NULL]"
+"process=p2","[NULL]","[NULL]"
+"thread=t1","process=p1",1
+"thread=t2","process=p1",1
+"thread=t3","process=p1",1
+"thread=t4","process=p2","[NULL]"
+"tid=1","[NULL]","[NULL]"
+"""))
 
   def test_track_event_instant_slices(self):
     return DiffTestBlueprint(
         trace=Path('track_event_instant.textproto'),
         query=Path('track_event_slices_test.sql'),
-        out=Path('track_event_instant_slices.out'))
+        out=Csv("""
+"track","process","thread","thread_process","ts","dur","category","name"
+"[NULL]","[NULL]","t1","[NULL]",1000,0,"cat","instant_on_t1"
+"[NULL]","[NULL]","t1","[NULL]",2000,0,"cat","legacy_instant_on_t1"
+"[NULL]","[NULL]","t1","[NULL]",3000,0,"cat","legacy_mark_on_t1"
+"""))
 
   def test_legacy_async_event(self):
     return DiffTestBlueprint(
@@ -78,7 +122,12 @@ class DiffTestModule_Track_event(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('track_event_with_atrace.textproto'),
         query=Path('track_event_slices_test.sql'),
-        out=Path('track_event_with_atrace.out'))
+        out=Csv("""
+"track","process","thread","thread_process","ts","dur","category","name"
+"[NULL]","[NULL]","t1","[NULL]",10000,1000,"cat","event1"
+"[NULL]","[NULL]","t1","[NULL]",20000,8000,"cat","event2"
+"[NULL]","[NULL]","t1","[NULL]",21000,7000,"[NULL]","atrace"
+"""))
 
   def test_track_event_merged_debug_annotations_args(self):
     return DiffTestBlueprint(
@@ -90,7 +139,16 @@ class DiffTestModule_Track_event(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('track_event_counters.textproto'),
         query=Path('track_event_slices_test.sql'),
-        out=Path('track_event_counters_slices.out'))
+        out=Csv("""
+"track","process","thread","thread_process","ts","dur","category","name"
+"[NULL]","[NULL]","t1","Browser",1000,100,"cat","event1_on_t1"
+"[NULL]","[NULL]","t1","Browser",2000,200,"cat","event2_on_t1"
+"[NULL]","[NULL]","t1","Browser",2000,200,"cat","event3_on_t1"
+"[NULL]","[NULL]","t1","Browser",4000,0,"cat","event4_on_t1"
+"[NULL]","[NULL]","t4","Browser",4000,100,"cat","event1_on_t3"
+"[NULL]","[NULL]","t1","Browser",4300,0,"cat","float_counter_on_t1"
+"[NULL]","[NULL]","t1","Browser",4500,0,"cat","float_counter_on_t1"
+"""))
 
   def test_track_event_counters_counters(self):
     return DiffTestBlueprint(
@@ -102,7 +160,11 @@ class DiffTestModule_Track_event(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('track_event_monotonic_trace_clock.textproto'),
         query=Path('track_event_slices_test.sql'),
-        out=Path('track_event_monotonic_trace_clock_slices.out'))
+        out=Csv("""
+"track","process","thread","thread_process","ts","dur","category","name"
+"name1","[NULL]","[NULL]","[NULL]",1000,0,"cat","name1"
+"name1","[NULL]","[NULL]","[NULL]",2000,0,"cat","name2"
+"""))
 
   def test_track_event_chrome_histogram_sample_args(self):
     return DiffTestBlueprint(
@@ -114,34 +176,74 @@ class DiffTestModule_Track_event(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('flow_events_track_event.textproto'),
         query=Path('flow_events_test.sql'),
-        out=Path('flow_events_track_event.out'))
+        out=Csv("""
+"slice_out","slice_in"
+"FlowSlice1Start","FlowSlice1End"
+"FlowSlice1Start2Start","FlowSlice1End"
+"FlowSlice1Start2Start","FlowSlice2End"
+"FlowSlice3Begin","FlowSlice3End4Begin"
+"FlowSlice3End4Begin","FlowSlice4Step"
+"FlowSlice4Step","FlowSlice4Step2_FlowIdOnAsyncEndEvent"
+"FlowSlice4Step2_FlowIdOnAsyncEndEvent","FlowSlice4End"
+"""))
 
   def test_flow_events_proto_v2(self):
     return DiffTestBlueprint(
         trace=Path('flow_events_proto_v2.textproto'),
         query=Path('flow_events_test.sql'),
-        out=Path('flow_events_proto_v2.out'))
+        out=Csv("""
+"slice_out","slice_in"
+"FlowBeginSlice","FlowEndSlice_1"
+"FlowBeginSlice","FlowStepSlice"
+"FlowStepSlice","FlowEndSlice_2"
+"""))
 
   def test_flow_events_proto_v1(self):
     return DiffTestBlueprint(
         trace=Path('flow_events_proto_v1.textproto'),
         query=Path('flow_events_test.sql'),
-        out=Path('flow_events_proto_v1.out'))
+        out=Csv("""
+"slice_out","slice_in"
+"FlowBeginSlice","FlowEndSlice_1"
+"FlowEndSlice_1","FlowStepSlice"
+"FlowStepSlice","FlowEndSlice_2"
+"""))
 
   def test_experimental_slice_layout_depth(self):
     return DiffTestBlueprint(
         trace=Path('experimental_slice_layout_depth.py'),
         query=Path('experimental_slice_layout_depth_test.sql'),
-        out=Path('experimental_slice_layout_depth.out'))
+        out=Csv("""
+"layout_depth"
+0
+0
+0
+"""))
 
   def test_merging_regression(self):
     return DiffTestBlueprint(
         trace=Path('../../data/trace_with_descriptor.pftrace'),
         query=Path('merging_regression_test.sql'),
-        out=Path('merging_regression.out'))
+        out=Csv("""
+"ts"
+605361018360000
+605361018360000
+605361028265000
+605361028265000
+605361028361000
+605361028878000
+605361033445000
+605361033445000
+605361034257000
+605361035040000
+"""))
 
   def test_range_of_interest(self):
     return DiffTestBlueprint(
         trace=Path('range_of_interest.textproto'),
         query=Path('range_of_interest_test.sql'),
-        out=Path('range_of_interest.out'))
+        out=Csv("""
+"ts","name"
+12000,"slice3"
+13000,"slice4"
+"""))

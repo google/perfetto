@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from python.generators.diff_tests.testing import Path, Metric
+from python.generators.diff_tests.testing import Csv, Json, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -24,10 +25,20 @@ class DiffTestModule_Ufs(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('ufshcd_command.textproto'),
         query=Path('ufshcd_command_test.sql'),
-        out=Path('ufshcd_command.out'))
+        out=Csv("""
+"ts","value"
+10000,1.000000
+10008,2.000000
+10010,3.000000
+10011,1.000000
+"""))
 
   def test_ufshcd_command_tag(self):
     return DiffTestBlueprint(
         trace=Path('ufshcd_command_tag.textproto'),
         query=Path('ufshcd_command_tag_test.sql'),
-        out=Path('ufshcd_command_tag.out'))
+        out=Csv("""
+"ts","dur","name"
+10000,800,"READ (10)"
+10900,50,"WRITE (10) (GID=0x16)"
+"""))
