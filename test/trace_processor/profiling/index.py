@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from python.generators.diff_tests.testing import Path, Metric
+from python.generators.diff_tests.testing import Csv, Json, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -24,37 +25,59 @@ class DiffTestModule_Profiling(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('heap_profile_jit.textproto'),
         query=Path('heap_profile_frames_test.sql'),
-        out=Path('heap_profile_jit.out'))
+        out=Csv("""
+"name","mapping","rel_pc"
+"java_frame_1",0,4096
+"java_frame_2",0,4096
+"""))
 
   def test_heap_profile_deobfuscate(self):
     return DiffTestBlueprint(
         trace=Path('heap_profile_deobfuscate.textproto'),
         query=Path('heap_profile_deobfuscate_test.sql'),
-        out=Path('heap_profile_deobfuscate.out'))
+        out=Csv("""
+"deobfuscated_name","mapping","rel_pc"
+"Bar.function1",0,4096
+"""))
 
   def test_heap_profile_deobfuscate_2(self):
     return DiffTestBlueprint(
         trace=Path('heap_profile_deobfuscate_memfd.textproto'),
         query=Path('heap_profile_deobfuscate_test.sql'),
-        out=Path('heap_profile_deobfuscate.out'))
+        out=Csv("""
+"deobfuscated_name","mapping","rel_pc"
+"Bar.function1",0,4096
+"""))
 
   def test_heap_profile_dump_max_legacy(self):
     return DiffTestBlueprint(
         trace=Path('heap_profile_dump_max_legacy.textproto'),
         query=Path('heap_profile_tracker_new_stack_test.sql'),
-        out=Path('heap_profile_dump_max_legacy.out'))
+        out=Csv("""
+"id","type","ts","upid","heap_name","callsite_id","count","size"
+0,"heap_profile_allocation",-10,2,"malloc",2,0,1000
+1,"heap_profile_allocation",-10,2,"malloc",3,0,90
+"""))
 
   def test_heap_profile_dump_max(self):
     return DiffTestBlueprint(
         trace=Path('heap_profile_dump_max.textproto'),
         query=Path('heap_profile_tracker_new_stack_test.sql'),
-        out=Path('heap_profile_dump_max.out'))
+        out=Csv("""
+"id","type","ts","upid","heap_name","callsite_id","count","size"
+0,"heap_profile_allocation",-10,2,"malloc",2,6,1000
+1,"heap_profile_allocation",-10,2,"malloc",3,1,90
+"""))
 
   def test_profiler_smaps(self):
     return DiffTestBlueprint(
         trace=Path('profiler_smaps.textproto'),
         query=Path('profiler_smaps_test.sql'),
-        out=Path('profiler_smaps.out'))
+        out=Csv("""
+"id","type","upid","ts","path","size_kb","private_dirty_kb","swap_kb"
+0,"profiler_smaps",2,10,"/system/lib64/libc.so",20,4,4
+1,"profiler_smaps",2,10,"[anon: libc_malloc]",30,10,10
+"""))
 
   def test_profiler_smaps_metric(self):
     return DiffTestBlueprint(
@@ -156,13 +179,25 @@ class DiffTestModule_Profiling(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('heap_profile_tracker_new_stack.textproto'),
         query=Path('heap_profile_tracker_new_stack_test.sql'),
-        out=Path('heap_profile_tracker_new_stack.out'))
+        out=Csv("""
+"id","type","ts","upid","heap_name","callsite_id","count","size"
+0,"heap_profile_allocation",0,0,"malloc",0,1,1
+1,"heap_profile_allocation",0,0,"malloc",0,-1,-1
+2,"heap_profile_allocation",1,0,"malloc",0,1,1
+3,"heap_profile_allocation",1,0,"malloc",0,-1,-1
+"""))
 
   def test_heap_profile_tracker_twoheaps(self):
     return DiffTestBlueprint(
         trace=Path('heap_profile_tracker_twoheaps.textproto'),
         query=Path('heap_profile_tracker_twoheaps_test.sql'),
-        out=Path('heap_profile_tracker_twoheaps.out'))
+        out=Csv("""
+"id","type","ts","upid","heap_name","callsite_id","count","size"
+0,"heap_profile_allocation",0,0,"malloc",0,1,1
+1,"heap_profile_allocation",0,0,"malloc",0,-1,-1
+2,"heap_profile_allocation",0,0,"custom",0,1,1
+3,"heap_profile_allocation",0,0,"custom",0,-1,-1
+"""))
 
   def test_heap_graph_flamegraph_focused(self):
     return DiffTestBlueprint(
@@ -174,19 +209,34 @@ class DiffTestModule_Profiling(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('heap_graph_superclass.textproto'),
         query=Path('heap_graph_superclass_test.sql'),
-        out=Path('heap_graph_superclass.out'))
+        out=Csv("""
+"id","superclass_id","name","superclass_name","location"
+0,"[NULL]","java.lang.Class<java.lang.Object>","[NULL]","l1"
+1,"[NULL]","java.lang.Class<MySuperClass>","[NULL]","l1"
+2,"[NULL]","java.lang.Class<MyChildClass>","[NULL]","l2"
+3,"[NULL]","java.lang.Object","[NULL]","l1"
+4,3,"MySuperClass","java.lang.Object","l1"
+5,4,"MyChildClass","MySuperClass","l2"
+"""))
 
   def test_heap_graph_native_size(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph_native_size.textproto'),
         query=Path('heap_graph_native_size_test.sql'),
-        out=Path('heap_graph_native_size.out'))
+        out=Csv("""
+"type_name","native_size"
+"android.graphics.Bitmap",123456
+"android.os.BinderProxy",0
+"""))
 
   def test_heap_graph_flamegraph_matches_objects(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph_huge_size.textproto'),
         query=Path('heap_graph_flamegraph_matches_objects_test.sql'),
-        out=Path('heap_graph_flamegraph_matches_objects.out'))
+        out=Csv("""
+"upid","ts","total_objects_size","total_flamegraph_size"
+1,10,3000000036,3000000036
+"""))
 
   def test_heap_graph_flamegraph_3(self):
     return DiffTestBlueprint(
@@ -198,7 +248,10 @@ class DiffTestModule_Profiling(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('stack_profile_tracker_empty_callstack.textproto'),
         query=Path('stack_profile_tracker_empty_callstack_test.sql'),
-        out=Path('stack_profile_tracker_empty_callstack.out'))
+        out=Csv("""
+"count"
+0
+"""))
 
   def test_unsymbolized_frames(self):
     return DiffTestBlueprint(
@@ -258,10 +311,18 @@ class DiffTestModule_Profiling(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('../../data/callstack_sampling.pftrace'),
         query=Path('callstack_sampling_flamegraph_multi_process_test.sql'),
-        out=Path('callstack_sampling_flamegraph_multi_process.out'))
+        out=Csv("""
+"count","description"
+658,"BothProcesses"
+483,"FirstProcess"
+175,"SecondProcess"
+"""))
 
   def test_no_build_id(self):
     return DiffTestBlueprint(
         trace=Path('heap_profile_data_local_tmp.textproto'),
         query=Path('no_build_id_test.sql'),
-        out=Path('no_build_id.out'))
+        out=Csv("""
+"value"
+1
+"""))

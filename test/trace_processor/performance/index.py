@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from python.generators.diff_tests.testing import Path, Metric
+from python.generators.diff_tests.testing import Csv, Json, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -30,7 +31,21 @@ class DiffTestModule_Performance(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('cpu_frequency_limits.textproto'),
         query=Path('cpu_frequency_limits_test.sql'),
-        out=Path('cpu_frequency_limits.out'))
+        out=Csv("""
+"ts","value","cpu"
+90000000,2800000.000000,"Cpu 6 Max"
+90000000,500000.000000,"Cpu 6 Min"
+100000000,1700000.000000,"Cpu 6 Max"
+100000000,500000.000000,"Cpu 6 Min"
+110000000,2800000.000000,"Cpu 6 Max"
+110000000,1400000.000000,"Cpu 6 Min"
+120000000,1500000.000000,"Cpu 6 Max"
+120000000,500000.000000,"Cpu 6 Min"
+120000000,1400000.000000,"Cpu 4 Max"
+120000000,600000.000000,"Cpu 4 Min"
+130000000,2200000.000000,"Cpu 4 Max"
+130000000,800000.000000,"Cpu 4 Min"
+"""))
 
   def test_frame_timeline_metric(self):
     return DiffTestBlueprint(

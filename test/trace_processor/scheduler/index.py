@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from python.generators.diff_tests.testing import Path, Metric
+from python.generators.diff_tests.testing import Csv, Json, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -24,4 +25,18 @@ class DiffTestModule_Scheduler(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('sched_cpu_util_cfs.textproto'),
         query=Path('sched_cpu_util_cfs_test.sql'),
-        out=Path('sched_cpu_util_cfs.out'))
+        out=Csv("""
+"name","ts","value"
+"Cpu 6 Util",10000,1.000000
+"Cpu 6 Cap",10000,1004.000000
+"Cpu 6 Nr Running",10000,0.000000
+"Cpu 7 Util",11000,1.000000
+"Cpu 7 Cap",11000,1007.000000
+"Cpu 7 Nr Running",11000,0.000000
+"Cpu 4 Util",12000,43.000000
+"Cpu 4 Cap",12000,760.000000
+"Cpu 4 Nr Running",12000,0.000000
+"Cpu 5 Util",13000,125.000000
+"Cpu 5 Cap",13000,757.000000
+"Cpu 5 Nr Running",13000,1.000000
+"""))
