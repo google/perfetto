@@ -201,7 +201,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     HeapInfo& GetHeapInfo(uint32_t heap_id) {
       auto it = heap_infos.find(heap_id);
       if (it == heap_infos.end()) {
-        std::tie(it, std::ignore) = heap_infos.emplace(
+        it = heap_infos.emplace_hint(it,
             std::piecewise_construct, std::forward_as_tuple(heap_id),
             std::forward_as_tuple(callsites, dump_at_max_mode));
       }
