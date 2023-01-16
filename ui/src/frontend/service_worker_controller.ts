@@ -19,6 +19,7 @@
 // Design doc: http://go/perfetto-offline.
 
 import {reportError} from '../base/logging';
+import {ignoreCacheUnactionableErrors} from '../common/errors';
 
 import {globals} from './globals';
 
@@ -26,6 +27,28 @@ import {globals} from './globals';
 // thread and the SW. SW cannot use local-storage or anything else other than
 // IndexedDB (which would be overkill).
 const BYPASS_ID = 'BYPASS_SERVICE_WORKER';
+
+class BypassCache {
+  static async isBypassed(): Promise<boolean> {
+    try {
+      return await caches.has(BYPASS_ID);
+    } catch (e) {
+      return ignoreCacheUnactionableErrors(e, false);
+    }
+  }
+
+  static async setBypass(bypass: boolean): Promise<void> {
+    try {
+      if (bypass) {
+        await caches.open(BYPASS_ID);
+      } else {
+        await caches.delete(BYPASS_ID);
+      }
+    } catch (e) {
+      ignoreCacheUnactionableErrors(e, undefined);
+    }
+  }
+}
 
 export class ServiceWorkerController {
   private _initialWorker: ServiceWorker|null = null;
@@ -37,12 +60,12 @@ export class ServiceWorkerController {
     if (!('serviceWorker' in navigator)) return;  // Not supported.
     this._bypassed = bypass;
     if (bypass) {
-      await caches.open(BYPASS_ID);  // Create the entry.
+      await BypassCache.setBypass(true);  // Create the entry.
       for (const reg of await navigator.serviceWorker.getRegistrations()) {
         await reg.unregister();
       }
     } else {
-      await caches.delete(BYPASS_ID);
+      await BypassCache.setBypass(false);
       if (window.localStorage) {
         window.localStorage.setItem('bypassDisabled', '1');
       }
@@ -94,7 +117,7 @@ export class ServiceWorkerController {
       await this.setBypass(true);  // Will cause the check below to bail out.
     }
 
-    if (await caches.has(BYPASS_ID)) {
+    if (await BypassCache.isBypassed()) {
       this._bypassed = true;
       console.log('Skipping service worker registration, disabled by the user');
       return;
