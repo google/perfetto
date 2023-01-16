@@ -217,8 +217,8 @@ async function installAppVersionIntoCache(version: string) {
     await cache.addAll(urlsToCache);
     console.log(LOG_TAG + 'installation completed for ' + version);
   } catch (err) {
-    await caches.delete(CACHE_NAME);
     console.error(LOG_TAG + `Installation failed for ${manifestUrl}`, err);
+    await caches.delete(CACHE_NAME);
     throw err;
   }
 }
