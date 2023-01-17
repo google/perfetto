@@ -116,6 +116,9 @@
 //  '----------------------------------'
 //
 
+// DEPRECATED: Please use PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE to implement
+// multiple track event category sets in one program.
+//
 // Each compilation unit can be in exactly one track event namespace,
 // allowing the overall program to use multiple track event data sources and
 // category lists if necessary. Use this macro to select the namespace for the
@@ -125,7 +128,7 @@
 // registration (see quickstart above) needs to happen for both namespaces
 // separately.
 #ifndef PERFETTO_TRACK_EVENT_NAMESPACE
-#define PERFETTO_TRACK_EVENT_NAMESPACE perfetto
+#define PERFETTO_TRACK_EVENT_NAMESPACE perfetto_track_event
 #endif
 
 // Deprecated; see perfetto::Category().
@@ -170,28 +173,85 @@ constexpr bool IsDynamicCategory(const ::perfetto::DynamicCategory&) {
   PERFETTO_INTERNAL_SWALLOW_SEMICOLON()
 
 // Register the set of available categories by passing a list of categories to
-// this macro: PERFETTO_CATEGORY(cat1), PERFETTO_CATEGORY(cat2), ...
-#define PERFETTO_DEFINE_CATEGORIES(...)                        \
-  namespace PERFETTO_TRACK_EVENT_NAMESPACE {                   \
-  /* The list of category names */                             \
-  PERFETTO_INTERNAL_DECLARE_CATEGORIES(__VA_ARGS__)            \
-  /* The track event data source for this set of categories */ \
-  PERFETTO_INTERNAL_DECLARE_TRACK_EVENT_DATA_SOURCE();         \
-  } /* namespace PERFETTO_TRACK_EVENT_NAMESPACE */             \
-  PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(                 \
-      PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent,              \
-      perfetto::internal::TrackEventDataSourceTraits)
+// this macro: perfetto::Category("cat1"), perfetto::Category("cat2"), ...
+// `ns` is the name of the namespace in which the categories should be declared.
+// `attrs` are linkage attributes for the underlying data source. See
+// PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS_WITH_ATTRS.
+//
+// Implementation note: the extra namespace (PERFETTO_TRACK_EVENT_NAMESPACE) is
+// kept here only for backward compatibility.
+#define PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE_WITH_ATTRS(ns, attrs, ...) \
+  namespace ns {                                                           \
+  namespace PERFETTO_TRACK_EVENT_NAMESPACE {                               \
+  /* The list of category names */                                         \
+  PERFETTO_INTERNAL_DECLARE_CATEGORIES(attrs, __VA_ARGS__)                 \
+  /* The track event data source for this set of categories */             \
+  PERFETTO_INTERNAL_DECLARE_TRACK_EVENT_DATA_SOURCE(attrs);                \
+  } /* namespace PERFETTO_TRACK_EVENT_NAMESPACE  */                        \
+  using PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent;                        \
+  } /* namespace ns */                                                     \
+  PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS_WITH_ATTRS(                  \
+      attrs, ns::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent,               \
+      ::perfetto::internal::TrackEventDataSourceTraits)
+
+// Register the set of available categories by passing a list of categories to
+// this macro: perfetto::Category("cat1"), perfetto::Category("cat2"), ...
+// `ns` is the name of the namespace in which the categories should be declared.
+#define PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE(ns, ...) \
+  PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE_WITH_ATTRS(    \
+      ns, PERFETTO_COMPONENT_EXPORT, __VA_ARGS__)
+
+// Make categories in a given namespace the default ones used by track events
+// for the current translation unit. Can only be used *once* in a given global
+// or namespace scope.
+#define PERFETTO_USE_CATEGORIES_FROM_NAMESPACE(ns)                         \
+  namespace PERFETTO_TRACK_EVENT_NAMESPACE {                               \
+  using ::ns::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent;                  \
+  namespace internal {                                                     \
+  using ::ns::PERFETTO_TRACK_EVENT_NAMESPACE::internal::kCategoryRegistry; \
+  using ::ns::PERFETTO_TRACK_EVENT_NAMESPACE::internal::                   \
+      kConstExprCategoryRegistry;                                          \
+  } /* namespace internal */                                               \
+  } /* namespace PERFETTO_TRACK_EVENT_NAMESPACE */                         \
+  PERFETTO_INTERNAL_SWALLOW_SEMICOLON()
+
+// Make categories in a given namespace the default ones used by track events
+// for the current block scope. Can only be used in a function or block scope.
+#define PERFETTO_USE_CATEGORIES_FROM_NAMESPACE_SCOPED(ns) \
+  namespace PERFETTO_TRACK_EVENT_NAMESPACE = ns::PERFETTO_TRACK_EVENT_NAMESPACE
+
+// Register categories in the default (global) namespace. Warning: only one set
+// of global categories can be defined in a single program. Create namespaced
+// categories with PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE to work around this
+// limitation.
+#define PERFETTO_DEFINE_CATEGORIES(...)                           \
+  PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE(perfetto, __VA_ARGS__); \
+  PERFETTO_USE_CATEGORIES_FROM_NAMESPACE(perfetto)
+
+// Allocate storage for each category by using this macro once per track event
+// namespace. `ns` is the name of the namespace in which the categories should
+// be declared and `attrs` specify linkage attributes for the data source.
+#define PERFETTO_TRACK_EVENT_STATIC_STORAGE_IN_NAMESPACE_WITH_ATTRS(ns, attrs) \
+  namespace ns {                                                               \
+  namespace PERFETTO_TRACK_EVENT_NAMESPACE {                                   \
+  PERFETTO_INTERNAL_CATEGORY_STORAGE(attrs)                                    \
+  PERFETTO_INTERNAL_DEFINE_TRACK_EVENT_DATA_SOURCE()                           \
+  } /* namespace PERFETTO_TRACK_EVENT_NAMESPACE */                             \
+  } /* namespace ns */                                                         \
+  PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS_WITH_ATTRS(                       \
+      attrs, ns::PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent,                   \
+      ::perfetto::internal::TrackEventDataSourceTraits)
 
 // Allocate storage for each category by using this macro once per track event
 // namespace.
-#define PERFETTO_TRACK_EVENT_STATIC_STORAGE()        \
-  namespace PERFETTO_TRACK_EVENT_NAMESPACE {         \
-  PERFETTO_INTERNAL_CATEGORY_STORAGE()               \
-  PERFETTO_INTERNAL_DEFINE_TRACK_EVENT_DATA_SOURCE() \
-  } /* namespace PERFETTO_TRACK_EVENT_NAMESPACE */   \
-  PERFETTO_DEFINE_DATA_SOURCE_STATIC_MEMBERS(        \
-      PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent,    \
-      perfetto::internal::TrackEventDataSourceTraits)
+#define PERFETTO_TRACK_EVENT_STATIC_STORAGE_IN_NAMESPACE(ns)   \
+  PERFETTO_TRACK_EVENT_STATIC_STORAGE_IN_NAMESPACE_WITH_ATTRS( \
+      ns, PERFETTO_COMPONENT_EXPORT)
+
+// Allocate storage for each category by using this macro once per track event
+// namespace.
+#define PERFETTO_TRACK_EVENT_STATIC_STORAGE() \
+  PERFETTO_TRACK_EVENT_STATIC_STORAGE_IN_NAMESPACE(perfetto)
 
 // Ignore GCC warning about a missing argument for a variadic macro parameter.
 #if defined(__GNUC__) || defined(__clang__)
