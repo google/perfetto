@@ -104,18 +104,24 @@ class DiffTest:
     if blueprint.is_query_file():
       self.query_path = os.path.abspath(
           os.path.join(index_dir, blueprint.query.filename))
+      if not os.path.exists(self.query_path):
+        raise AssertionError(f"Query file for {self.name} does not exist.")
     else:
       self.query_path = None
 
     if blueprint.is_trace_file():
       self.trace_path = os.path.abspath(
           os.path.join(index_dir, blueprint.trace.filename))
+      if not os.path.exists(self.trace_path):
+        raise AssertionError(f"Trace file for {self.name} does not exist.")
     else:
       self.trace_path = None
 
     if blueprint.is_out_file():
       self.expected_path = os.path.abspath(
           os.path.join(index_dir, blueprint.out.filename))
+      if not os.path.exists(self.expected_path):
+        raise AssertionError(f"Out file for {self.name} does not exist.")
     else:
       self.expected_path = None
 
@@ -125,9 +131,6 @@ class DiffTest:
     # Assertions until string passing is supported
     if not (self.blueprint.is_trace_file()):
       raise AssertionError("Test parameters should be passed as files.")
-    if (self.type == TestType.QUERY and not self.blueprint.is_query_file()):
-      raise AssertionError(
-          "Only METRIC tests can have `query` passed as string.")
 
     query_metric_pattern = re.compile(query_metric_filter)
     trace_pattern = re.compile(trace_filter)

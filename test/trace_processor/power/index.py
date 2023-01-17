@@ -24,7 +24,13 @@ class DiffTestModule_Power(DiffTestModule):
   def test_power_rails_power_rails(self):
     return DiffTestBlueprint(
         trace=Path('../../data/power_rails.pb'),
-        query=Path('power_rails_test.sql'),
+        query="""
+SELECT name, AVG(value), COUNT(*)
+FROM counters
+WHERE name GLOB "power.*"
+GROUP BY name
+LIMIT 20;
+""",
         out=Csv("""
 "name","AVG(value)","COUNT(*)"
 "power.PPVAR_VPH_PWR_ABH_uws",7390700.360656,61
@@ -34,7 +40,12 @@ class DiffTestModule_Power(DiffTestModule):
   def test_power_rails_event_power_rails_custom_clock(self):
     return DiffTestBlueprint(
         trace=Path('power_rails_custom_clock.textproto'),
-        query=Path('power_rails_event_test.sql'),
+        query="""
+SELECT ts, value
+FROM counters
+WHERE name GLOB "power.*"
+LIMIT 20;
+""",
         out=Csv("""
 "ts","value"
 104000000,333.000000
@@ -46,7 +57,12 @@ class DiffTestModule_Power(DiffTestModule):
   def test_power_rails_timestamp_sort(self):
     return DiffTestBlueprint(
         trace=Path('power_rails.textproto'),
-        query=Path('power_rails_timestamp_sort_test.sql'),
+        query="""
+SELECT ts, value, t.name AS name
+FROM counter c JOIN counter_track t ON t.id = c.track_id
+ORDER BY ts
+LIMIT 20;
+""",
         out=Csv("""
 "ts","value","name"
 3000000,333.000000,"power.test_rail_uws"
@@ -59,7 +75,13 @@ class DiffTestModule_Power(DiffTestModule):
   def test_power_rails_well_known_power_rails(self):
     return DiffTestBlueprint(
         trace=Path('power_rails_well_known.textproto'),
-        query=Path('power_rails_test.sql'),
+        query="""
+SELECT name, AVG(value), COUNT(*)
+FROM counters
+WHERE name GLOB "power.*"
+GROUP BY name
+LIMIT 20;
+""",
         out=Csv("""
 "name","AVG(value)","COUNT(*)"
 "power.rails.cpu.mid",333.000000,3
@@ -75,7 +97,13 @@ class DiffTestModule_Power(DiffTestModule):
   def test_wakesource_wakesource(self):
     return DiffTestBlueprint(
         trace=Path('wakesource.textproto'),
-        query=Path('wakesource_test.sql'),
+        query="""
+SELECT ts, dur, slice.name
+FROM slice
+JOIN track ON slice.track_id = track.id
+WHERE track.name GLOB 'Wakelock*'
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","dur","name"
 34298714043271,7872467,"Wakelock(s2mpw02-power-keys)"
@@ -87,7 +115,20 @@ class DiffTestModule_Power(DiffTestModule):
   def test_suspend_resume(self):
     return DiffTestBlueprint(
         trace=Path('suspend_resume.textproto'),
-        query=Path('suspend_resume_test.sql'),
+        query="""
+SELECT
+  s.ts,
+  s.dur,
+  s.name AS action
+FROM
+  slice AS s
+JOIN
+  track AS t
+  ON s.track_id = t.id
+WHERE
+  t.name = 'Suspend/Resume Latency'
+ORDER BY s.ts;
+""",
         out=Csv("""
 "ts","dur","action"
 10000,10000,"suspend_enter(3)"
@@ -118,7 +159,10 @@ android_batt {
   def test_energy_breakdown_table_test(self):
     return DiffTestBlueprint(
         trace=Path('energy_breakdown.textproto'),
-        query=Path('energy_breakdown_table_test.sql'),
+        query="""
+SELECT consumer_id, name, consumer_type, ordinal
+FROM energy_counter_track;
+""",
         out=Csv("""
 "consumer_id","name","consumer_type","ordinal"
 0,"CPUCL0","CPU_CLUSTER",0
@@ -127,7 +171,12 @@ android_batt {
   def test_energy_breakdown_event_test(self):
     return DiffTestBlueprint(
         trace=Path('energy_breakdown.textproto'),
-        query=Path('energy_breakdown_event_test.sql'),
+        query="""
+SELECT ts, value
+FROM counter
+JOIN energy_counter_track ON counter.track_id = energy_counter_track.id
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","value"
 1030255882785,98567522.000000
@@ -136,7 +185,10 @@ android_batt {
   def test_energy_breakdown_uid_table_test(self):
     return DiffTestBlueprint(
         trace=Path('energy_breakdown_uid.textproto'),
-        query=Path('energy_breakdown_uid_table_test.sql'),
+        query="""
+SELECT uid, name
+FROM uid_counter_track;
+""",
         out=Csv("""
 "uid","name"
 10234,"GPU"
@@ -147,7 +199,12 @@ android_batt {
   def test_energy_breakdown_uid_event_test(self):
     return DiffTestBlueprint(
         trace=Path('energy_breakdown_uid.textproto'),
-        query=Path('energy_breakdown_uid_event_test.sql'),
+        query="""
+SELECT ts, value
+FROM counter
+JOIN uid_counter_track ON counter.track_id = uid_counter_track.id
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","value"
 1026753926322,3004536.000000
@@ -158,7 +215,10 @@ android_batt {
   def test_energy_per_uid_table_test(self):
     return DiffTestBlueprint(
         trace=Path('energy_breakdown_uid.textproto'),
-        query=Path('energy_per_uid_table_test.sql'),
+        query="""
+SELECT consumer_id, uid
+FROM energy_per_uid_counter_track;
+""",
         out=Csv("""
 "consumer_id","uid"
 3,10234
@@ -169,13 +229,20 @@ android_batt {
   def test_cpu_counters_p_state_test(self):
     return DiffTestBlueprint(
         trace=Path('../../data/cpu_counters.pb'),
-        query=Path('p_state_test.sql'),
+        query="""
+SELECT RUN_METRIC("android/p_state.sql");
+
+SELECT * FROM P_STATE_OVER_INTERVAL(2579596465618, 2579606465618);
+""",
         out=Path('cpu_counters_p_state_test.out'))
 
   def test_cpu_powerups_test(self):
     return DiffTestBlueprint(
         trace=Path('../../data/cpu_powerups_1.pb'),
-        query=Path('cpu_powerups_test.sql'),
+        query="""
+SELECT IMPORT("chrome.cpu_powerups");
+SELECT * FROM chrome_cpu_power_first_toplevel_slice_after_powerup;
+""",
         out=Csv("""
 "slice_id","previous_power_state"
 424,2

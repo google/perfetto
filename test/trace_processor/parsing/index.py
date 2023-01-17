@@ -24,7 +24,14 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_ts_desc_filter_android_sched_and_ps(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_sched_and_ps.pb'),
-        query=Path('ts_desc_filter_test.sql'),
+        query="""
+SELECT ts
+FROM sched
+JOIN thread USING(utid)
+WHERE tid = 23850
+ORDER BY ts DESC
+LIMIT 10;
+""",
         out=Csv("""
 "ts"
 81492536383477
@@ -42,7 +49,12 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_android_sched_and_ps_end_reason_eq(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_sched_and_ps.pb'),
-        query=Path('end_reason_eq_test.sql'),
+        query="""
+SELECT end_state, count(*)
+FROM sched
+WHERE end_state = 'D'
+GROUP BY end_state;
+""",
         out=Csv("""
 "end_state","count(*)"
 "D",10503
@@ -51,7 +63,12 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_android_sched_and_ps_end_reason_neq(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_sched_and_ps.pb'),
-        query=Path('end_reason_neq_test.sql'),
+        query="""
+SELECT end_state, count(*)
+FROM sched
+WHERE end_state != 'D'
+GROUP BY end_state;
+""",
         out=Csv("""
 "end_state","count(*)"
 "DK",30
@@ -70,7 +87,12 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_ftrace_with_tracing_start_list_sched_slice_spans(self):
     return DiffTestBlueprint(
         trace=Path('ftrace_with_tracing_start.py'),
-        query=Path('list_sched_slice_spans_test.sql'),
+        query="""
+SELECT ts, dur, tid
+FROM sched
+JOIN thread USING(utid)
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","dur","tid"
 100,10,1
@@ -80,7 +102,13 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_rss_stat_mm_id(self):
     return DiffTestBlueprint(
         trace=Path('rss_stat_mm_id.py'),
-        query=Path('rss_stat_test.sql'),
+        query="""
+SELECT c.ts, t.name, p.pid, p.name, c.value
+FROM counter c
+JOIN process_counter_track t ON c.track_id = t.id
+JOIN process p USING (upid)
+ORDER BY ts, pid;
+""",
         out=Csv("""
 "ts","name","pid","name","value"
 90,"mem.rss.file",3,"kthreadd_child",9.000000
@@ -92,7 +120,13 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_rss_stat_mm_id_clone(self):
     return DiffTestBlueprint(
         trace=Path('rss_stat_mm_id_clone.py'),
-        query=Path('rss_stat_test.sql'),
+        query="""
+SELECT c.ts, t.name, p.pid, p.name, c.value
+FROM counter c
+JOIN process_counter_track t ON c.track_id = t.id
+JOIN process p USING (upid)
+ORDER BY ts, pid;
+""",
         out=Csv("""
 "ts","name","pid","name","value"
 100,"mem.rss.file",3,"kernel_thread",10.000000
@@ -108,7 +142,13 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_rss_stat_mm_id_reuse(self):
     return DiffTestBlueprint(
         trace=Path('rss_stat_mm_id_reuse.py'),
-        query=Path('rss_stat_test.sql'),
+        query="""
+SELECT c.ts, t.name, p.pid, p.name, c.value
+FROM counter c
+JOIN process_counter_track t ON c.track_id = t.id
+JOIN process p USING (upid)
+ORDER BY ts, pid;
+""",
         out=Csv("""
 "ts","name","pid","name","value"
 100,"mem.rss.file",10,"parent_process",100.000000
@@ -118,7 +158,13 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_rss_stat_legacy(self):
     return DiffTestBlueprint(
         trace=Path('rss_stat_legacy.py'),
-        query=Path('rss_stat_test.sql'),
+        query="""
+SELECT c.ts, t.name, p.pid, p.name, c.value
+FROM counter c
+JOIN process_counter_track t ON c.track_id = t.id
+JOIN process p USING (upid)
+ORDER BY ts, pid;
+""",
         out=Csv("""
 "ts","name","pid","name","value"
 90,"mem.rss.file",3,"kthreadd_child",9.000000
@@ -131,7 +177,16 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_rss_stat_after_free(self):
     return DiffTestBlueprint(
         trace=Path('rss_stat_after_free.py'),
-        query=Path('rss_stat_after_free_test.sql'),
+        query="""
+SELECT
+  pid,
+  max(c.ts) AS last_rss,
+  p.end_ts AS process_end
+FROM counter c
+JOIN process_counter_track t ON c.track_id = t.id
+JOIN process p USING(upid)
+GROUP BY upid;
+""",
         out=Csv("""
 "pid","last_rss","process_end"
 10,100,101
@@ -149,7 +204,12 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_memory_counters_args_string_is_null(self):
     return DiffTestBlueprint(
         trace=Path('../../data/memory_counters.pb'),
-        query=Path('args_string_is_null_test.sql'),
+        query="""
+SELECT string_value
+FROM args
+WHERE string_value IS NULL
+LIMIT 10;
+""",
         out=Csv("""
 "string_value"
 "[NULL]"
@@ -167,7 +227,12 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_memory_counters_args_string_is_not_null(self):
     return DiffTestBlueprint(
         trace=Path('../../data/memory_counters.pb'),
-        query=Path('args_string_is_not_null_test.sql'),
+        query="""
+SELECT string_value
+FROM args
+WHERE string_value IS NOT NULL
+LIMIT 10;
+""",
         out=Csv("""
 "string_value"
 "traced_probes"
@@ -185,7 +250,11 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_memory_counters_b120605557(self):
     return DiffTestBlueprint(
         trace=Path('../../data/memory_counters.pb'),
-        query=Path('b120605557_test.sql'),
+        query="""
+SELECT count(*)
+FROM counter
+JOIN counter_track ON counter_track.id = counter.track_id;
+""",
         out=Csv("""
 "count(*)"
 98688
@@ -194,7 +263,13 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_global_memory_counter_memory_counters(self):
     return DiffTestBlueprint(
         trace=Path('../../data/memory_counters.pb'),
-        query=Path('global_memory_counter_test.sql'),
+        query="""
+SELECT ts, value, name
+FROM counter
+JOIN counter_track ON counter.track_id = counter_track.id
+WHERE name = 'MemAvailable' AND counter_track.type = 'counter_track'
+LIMIT 10;
+""",
         out=Csv("""
 "ts","value","name"
 22240334823167,2696392704.000000,"MemAvailable"
@@ -212,7 +287,12 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_ion_stat(self):
     return DiffTestBlueprint(
         trace=Path('ion_stat.textproto'),
-        query=Path('ion_stat_test.sql'),
+        query="""
+SELECT t.name, c.ts, c.value
+FROM counter c
+JOIN track t ON c.track_id = t.id
+WHERE t.name GLOB 'mem.ion*';
+""",
         out=Csv("""
 "name","ts","value"
 "mem.ion",1234,200.000000
@@ -222,13 +302,21 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_sched_slices_sched_switch_original(self):
     return DiffTestBlueprint(
         trace=Path('../../data/sched_switch_original.pb'),
-        query=Path('sched_slices_test.sql'),
+        query="""
+SELECT ts, cpu, dur, ts_end, end_state, priority, tid, name
+FROM sched JOIN thread ON sched.utid = thread.utid
+ORDER BY cpu, sched.ts ASC;
+""",
         out=Path('sched_slices_sched_switch_original.out'))
 
   def test_sched_slices_sched_switch_compact(self):
     return DiffTestBlueprint(
         trace=Path('../../data/sched_switch_compact.pb'),
-        query=Path('sched_slices_test.sql'),
+        query="""
+SELECT ts, cpu, dur, ts_end, end_state, priority, tid, name
+FROM sched JOIN thread ON sched.utid = thread.utid
+ORDER BY cpu, sched.ts ASC;
+""",
         out=Path('sched_slices_sched_switch_compact.out'))
 
   def test_sched_waking_raw_compact_sched(self):
@@ -240,25 +328,48 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_sched_waking_instants_compact_sched(self):
     return DiffTestBlueprint(
         trace=Path('../../data/compact_sched.pb'),
-        query=Path('sched_waking_instants_test.sql'),
+        query="""
+SELECT ts, thread.name, thread.tid
+FROM thread_state
+JOIN thread USING (utid)
+WHERE state = 'R'
+ORDER BY ts;
+""",
         out=Path('sched_waking_instants_compact_sched.out'))
 
   def test_mm_event(self):
     return DiffTestBlueprint(
         trace=Path('../../data/mm_event.pb'),
-        query=Path('mm_event_test.sql'),
+        query="""
+SELECT ts, name, value
+FROM counter
+JOIN counter_track
+  ON counter.track_id = counter_track.id
+WHERE name GLOB 'mem.mm.*'
+ORDER BY ts
+LIMIT 40;
+""",
         out=Path('mm_event.out'))
 
   def test_print_systrace_lmk_userspace(self):
     return DiffTestBlueprint(
         trace=Path('../../data/lmk_userspace.pb'),
-        query=Path('print_systrace_test.sql'),
+        query="""
+SELECT to_ftrace(id)
+FROM raw;
+""",
         out=Path('print_systrace_lmk_userspace.out'))
 
   def test_kernel_tmw_counter_process_counter_and_track(self):
     return DiffTestBlueprint(
         trace=Path('kernel_tmw_counter.textproto'),
-        query=Path('process_counter_and_track_test.sql'),
+        query="""
+SELECT ts, pct.name, value, pid
+FROM counter c
+JOIN process_counter_track pct ON c.track_id = pct.id
+JOIN process USING (upid)
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","name","value","pid"
 795572805481,"g2d_frame_hw#15",0.000000,237
@@ -273,7 +384,13 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_kernel_dpu_tmw_counter_process_counter_and_track(self):
     return DiffTestBlueprint(
         trace=Path('kernel_dpu_tmw_counter.textproto'),
-        query=Path('process_counter_and_track_test.sql'),
+        query="""
+SELECT ts, pct.name, value, pid
+FROM counter c
+JOIN process_counter_track pct ON c.track_id = pct.id
+JOIN process USING (upid)
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","name","value","pid"
 795572805481,"dpu_vote_clock",123.000000,237
@@ -285,31 +402,48 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_print_systrace_unsigned(self):
     return DiffTestBlueprint(
         trace=Path('print_systrace_unsigned.py'),
-        query=Path('print_systrace_test.sql'),
+        query="""
+SELECT to_ftrace(id)
+FROM raw;
+""",
         out=Path('print_systrace_unsigned.out'))
 
   def test_cgroup_attach_task_pre_s_print_systrace(self):
     return DiffTestBlueprint(
         trace=Path('cgroup_attach_task_pre_s.textproto'),
-        query=Path('print_systrace_test.sql'),
+        query="""
+SELECT to_ftrace(id)
+FROM raw;
+""",
         out=Path('cgroup_attach_task_pre_s_print_systrace.out'))
 
   def test_cgroup_attach_task_post_s_print_systrace(self):
     return DiffTestBlueprint(
         trace=Path('cgroup_attach_task_post_s.textproto'),
-        query=Path('print_systrace_test.sql'),
+        query="""
+SELECT to_ftrace(id)
+FROM raw;
+""",
         out=Path('cgroup_attach_task_post_s_print_systrace.out'))
 
   def test_systrace_html(self):
     return DiffTestBlueprint(
         trace=Path('../../data/systrace.html'),
-        query=Path('systrace_html_test.sql'),
+        query="""
+SELECT ts, cpu, dur, ts_end, utid, end_state, priority, upid, name, tid
+FROM sched
+JOIN thread USING(utid)
+ORDER BY ts;
+""",
         out=Path('systrace_html.out'))
 
   def test_sched_smoke_trailing_empty(self):
     return DiffTestBlueprint(
         trace=Path('../../data/trailing_empty.systrace'),
-        query=Path('sched_smoke_test.sql'),
+        query="""
+SELECT COUNT(1)
+FROM sched;
+""",
         out=Csv("""
 "COUNT(1)"
 2
@@ -318,7 +452,12 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_lmk_userspace_lmk(self):
     return DiffTestBlueprint(
         trace=Path('../../data/lmk_userspace.pb'),
-        query=Path('lmk_test.sql'),
+        query="""
+SELECT ts, process.pid
+FROM instant
+JOIN process_track ON instant.track_id = process_track.id
+JOIN process USING (upid);
+""",
         out=Csv("""
 "ts","pid"
 732246100696424,17924
@@ -330,7 +469,13 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_oom_kill(self):
     return DiffTestBlueprint(
         trace=Path('../common/oom_kill.textproto'),
-        query=Path('oom_kill_test.sql'),
+        query="""
+SELECT ts, instant.name, process.pid, process.name
+FROM instant
+JOIN thread_track ON instant.track_id = thread_track.id
+JOIN thread USING (utid)
+JOIN process USING (upid);
+""",
         out=Csv("""
 "ts","name","pid","name"
 1234,"mem.oom_kill",1000,"com.google.android.gm"
@@ -360,7 +505,9 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_android_log_ring_buffer_mode(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_log_ring_buffer_mode.pb'),
-        query=Path('android_log_ring_buffer_mode_test.sql'),
+        query="""
+SELECT count(*) FROM android_logs;
+""",
         out=Csv("""
 "count(*)"
 26
@@ -375,19 +522,34 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_process_stats_poll_oom_score(self):
     return DiffTestBlueprint(
         trace=Path('../../data/process_stats_poll.pb'),
-        query=Path('oom_score_poll_test.sql'),
+        query="""
+SELECT ts, name, value, upid
+FROM counter c
+JOIN process_counter_track t
+  ON c.track_id = t.id
+WHERE name = "oom_score_adj"
+ORDER BY ts
+LIMIT 20;
+""",
         out=Path('process_stats_poll_oom_score.out'))
 
   def test_android_sched_and_ps_stats(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_sched_and_ps.pb'),
-        query=Path('stats_test.sql'),
+        query="""
+SELECT name, idx, severity, source, value
+FROM stats WHERE name GLOB 'ftrace_cpu_*' OR name GLOB 'traced_buf_*';
+""",
         out=Path('android_sched_and_ps_stats.out'))
 
   def test_sys_syscall(self):
     return DiffTestBlueprint(
         trace=Path('syscall.py'),
-        query=Path('sys_test.sql'),
+        query="""
+SELECT ts, dur, name
+FROM slices
+LIMIT 10;
+""",
         out=Csv("""
 "ts","dur","name"
 100,6,"sys_io_setup"
@@ -397,7 +559,11 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_thread_time_in_thread_slice(self):
     return DiffTestBlueprint(
         trace=Path('flow_events_json_v2.json'),
-        query=Path('thread_time_in_thread_slice_test.sql'),
+        query="""
+SELECT
+  name, thread_ts, thread_dur
+FROM slice;
+""",
         out=Csv("""
 "name","thread_ts","thread_dur"
 "SenderB",1000,5000
@@ -412,7 +578,14 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_initial_display_state(self):
     return DiffTestBlueprint(
         trace=Path('initial_display_state.textproto'),
-        query=Path('initial_display_state_test.sql'),
+        query="""
+SELECT t.name,
+       c.ts,
+       c.value
+FROM counter_track t
+JOIN counter c ON t.id = c.track_id
+WHERE t.name = 'ScreenState';
+""",
         out=Csv("""
 "name","ts","value"
 "ScreenState",1,2.000000
@@ -422,7 +595,9 @@ class DiffTestModule_Parsing(DiffTestModule):
   def test_config_metadata(self):
     return DiffTestBlueprint(
         trace=Path('config_metadata.textproto'),
-        query=Path('metadata_test.sql'),
+        query="""
+SELECT name, str_value FROM metadata WHERE str_value IS NOT NULL ORDER BY name;
+""",
         out=Csv("""
 "name","str_value"
 "android_build_fingerprint","the fingerprint"
@@ -445,13 +620,21 @@ trace_uuid_lsb: -6605018796207623390"
   def test_chrome_metadata(self):
     return DiffTestBlueprint(
         trace=Path('chrome_metadata.textproto'),
-        query=Path('chrome_metadata_test.sql'),
+        query="""
+SELECT * FROM metadata;
+""",
         out=Path('chrome_metadata.out'))
 
   def test_cpu(self):
     return DiffTestBlueprint(
         trace=Path('cpu_info.textproto'),
-        query=Path('cpu_test.sql'),
+        query="""
+SELECT
+  id,
+  cluster_id,
+  processor
+FROM cpu;
+""",
         out=Csv("""
 "id","cluster_id","processor"
 0,0,"AArch64 Processor rev 13 (aarch64)"
@@ -467,13 +650,22 @@ trace_uuid_lsb: -6605018796207623390"
   def test_cpu_freq(self):
     return DiffTestBlueprint(
         trace=Path('cpu_info.textproto'),
-        query=Path('cpu_freq_test.sql'),
+        query="""
+SELECT
+  freq,
+  GROUP_CONCAT(cpu_id) AS cpus
+FROM cpu_freq
+GROUP BY freq
+ORDER BY freq;
+""",
         out=Path('cpu_freq.out'))
 
   def test_android_sched_and_ps_trace_size(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_sched_and_ps.pb'),
-        query=Path('trace_size_test.sql'),
+        query="""
+SELECT int_value FROM metadata WHERE name = 'trace_size_bytes';
+""",
         out=Csv("""
 "int_value"
 18761615
@@ -496,7 +688,16 @@ android_package_list {
   def test_process_metadata_matching(self):
     return DiffTestBlueprint(
         trace=Path('process_metadata_matching.textproto'),
-        query=Path('process_metadata_matching_test.sql'),
+        query="""
+CREATE TABLE TEST_TMP AS
+SELECT RUN_METRIC('android/process_metadata.sql');
+
+DROP TABLE TEST_TMP;
+
+SELECT upid, process_name, uid, shared_uid, package_name, version_code
+FROM process_metadata_table
+WHERE upid != 0;
+""",
         out=Csv("""
 "upid","process_name","uid","shared_uid","package_name","version_code"
 1,"init",0,"[NULL]","[NULL]","[NULL]"
@@ -509,7 +710,11 @@ android_package_list {
   def test_flow_events_json_v1(self):
     return DiffTestBlueprint(
         trace=Path('flow_events_json_v1.json'),
-        query=Path('flow_events_test.sql'),
+        query="""
+SELECT t1.name AS slice_out, t2.name AS slice_in FROM flow t
+JOIN slice t1 ON t.slice_out = t1.slice_id
+JOIN slice t2 ON t.slice_in = t2.slice_id;
+""",
         out=Csv("""
 "slice_out","slice_in"
 "SenderB","Blergh"
@@ -520,7 +725,11 @@ android_package_list {
   def test_flow_events_json_v2(self):
     return DiffTestBlueprint(
         trace=Path('flow_events_json_v2.json'),
-        query=Path('flow_events_test.sql'),
+        query="""
+SELECT t1.name AS slice_out, t2.name AS slice_in FROM flow t
+JOIN slice t1 ON t.slice_out = t1.slice_id
+JOIN slice t2 ON t.slice_in = t2.slice_id;
+""",
         out=Csv("""
 "slice_out","slice_in"
 "SenderB","Blergh"
@@ -532,7 +741,9 @@ android_package_list {
   def test_display_time_unit_slices(self):
     return DiffTestBlueprint(
         trace=Path('../../data/display_time_unit.json'),
-        query=Path('slices_test.sql'),
+        query="""
+SELECT ts, dur, name FROM slice ORDER BY ts DESC;
+""",
         out=Csv("""
 "ts","dur","name"
 -7794778920422990592,211463000000,"add_graph"
@@ -541,7 +752,13 @@ android_package_list {
   def test_sched_blocked_proto_sched_blocked_reason(self):
     return DiffTestBlueprint(
         trace=Path('sched_blocked_proto.py'),
-        query=Path('sched_blocked_reason_test.sql'),
+        query="""
+SELECT ts, tid, io_wait
+FROM thread_state
+JOIN thread USING (utid)
+WHERE state = 'D'
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","tid","io_wait"
 100,1,0
@@ -551,7 +768,13 @@ android_package_list {
   def test_sched_blocked_systrace_sched_blocked_reason(self):
     return DiffTestBlueprint(
         trace=Path('sched_blocked_systrace.systrace'),
-        query=Path('sched_blocked_reason_test.sql'),
+        query="""
+SELECT ts, tid, io_wait
+FROM thread_state
+JOIN thread USING (utid)
+WHERE state = 'D'
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","tid","io_wait"
 20258854000,269,0
@@ -561,7 +784,16 @@ android_package_list {
   def test_sched_blocked_reason_symbolized_sched_blocked_reason_function(self):
     return DiffTestBlueprint(
         trace=Path('sched_blocked_reason_symbolized.textproto'),
-        query=Path('sched_blocked_reason_function_test.sql'),
+        query="""
+SELECT
+  ts,
+  thread.tid AS pid,
+  blocked_function AS func
+FROM thread_state
+JOIN thread USING (utid)
+WHERE state = 'D'
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","pid","func"
 999000,105,"some_fn"
@@ -576,13 +808,18 @@ android_package_list {
   def test_sched_blocked_reason_symbolized_to_systrace(self):
     return DiffTestBlueprint(
         trace=Path('sched_blocked_reason_symbolized.textproto'),
-        query=Path('../common/to_systrace_test.sql'),
+        query="""
+SELECT to_ftrace(id) AS line
+FROM raw;
+""",
         out=Path('sched_blocked_reason_symbolized_to_systrace.out'))
 
   def test_decimal_timestamp_slices(self):
     return DiffTestBlueprint(
         trace=Path('../../data/decimal_timestamp.json'),
-        query=Path('slices_test.sql'),
+        query="""
+SELECT ts, dur, name FROM slice ORDER BY ts DESC;
+""",
         out=Csv("""
 "ts","dur","name"
 5100,500100,"name.exec"
@@ -591,7 +828,14 @@ android_package_list {
   def test_counters_json_counters(self):
     return DiffTestBlueprint(
         trace=Path('../../data/counters.json'),
-        query=Path('json_counters_test.sql'),
+        query="""
+SELECT
+  process_counter_track.name,
+  counter.ts,
+  counter.value
+FROM counter
+JOIN process_counter_track ON (counter.track_id = process_counter_track.id);
+""",
         out=Csv("""
 "name","ts","value"
 "ctr cats",0,0.000000
@@ -602,7 +846,20 @@ android_package_list {
   def test_instants_json_instants(self):
     return DiffTestBlueprint(
         trace=Path('../../data/instants.json'),
-        query=Path('json_instants_test.sql'),
+        query="""
+SELECT
+  slice.ts,
+  slice.name AS slice_name,
+  thread.tid,
+  process.pid
+FROM slice
+JOIN track ON (slice.track_id = track.id)
+LEFT JOIN thread_track ON (slice.track_id = thread_track.id)
+LEFT JOIN thread ON (thread_track.utid = thread.utid)
+LEFT JOIN process_track ON (slice.track_id = process_track.id)
+LEFT JOIN process ON (process_track.upid = process.upid)
+WHERE dur = 0;
+""",
         out=Csv("""
 "ts","slice_name","tid","pid"
 1234523300,"Thread",2347,"[NULL]"
@@ -627,7 +884,10 @@ android_trace_quality {
   def test_sched_smoke_trailing_empty_2(self):
     return DiffTestBlueprint(
         trace=Path('../../data/atrace_b_193721088.atr'),
-        query=Path('sched_smoke_test.sql'),
+        query="""
+SELECT COUNT(1)
+FROM sched;
+""",
         out=Csv("""
 "COUNT(1)"
 2
@@ -647,7 +907,10 @@ android_multiuser: {
   def test_atrace_compressed_sched_count(self):
     return DiffTestBlueprint(
         trace=Path('../../data/atrace_compressed.ctrace'),
-        query=Path('sched_smoke_test.sql'),
+        query="""
+SELECT COUNT(1)
+FROM sched;
+""",
         out=Csv("""
 "COUNT(1)"
 1120
@@ -656,7 +919,10 @@ android_multiuser: {
   def test_atrace_uncompressed_sched_count(self):
     return DiffTestBlueprint(
         trace=Path('../../data/atrace_uncompressed_b_208691037'),
-        query=Path('sched_smoke_test.sql'),
+        query="""
+SELECT COUNT(1)
+FROM sched;
+""",
         out=Csv("""
 "COUNT(1)"
 9
@@ -678,7 +944,27 @@ android_other_traces {
     return DiffTestBlueprint(
         trace=Path('android_binder.py'),
         query=Metric('android_binder'),
-        out=Path('android_binder.out'))
+        out=TextProto(r"""
+android_binder {
+  process_breakdown {
+    process_name: "test_process_a"
+    pid: 1
+    slice_name: "binder transaction"
+    count: 2
+  }
+  process_breakdown {
+    process_name: "test_process_b"
+    pid: 2
+    slice_name: "binder reply"
+    count: 1
+  }
+  process_breakdown {
+    process_name: "test_process_c"
+    pid: 3
+    slice_name: "binder reply"
+    count: 1
+  }
+}"""))
 
   def test_statsd_atoms_all_atoms(self):
     return DiffTestBlueprint(
@@ -689,7 +975,13 @@ android_other_traces {
   def test_funcgraph_trace_funcgraph_test(self):
     return DiffTestBlueprint(
         trace=Path('funcgraph_trace.textproto'),
-        query=Path('funcgraph_test.sql'),
+        query="""
+SELECT ts, dur, tid, s.name, depth
+FROM slices s
+JOIN thread_track tt ON (s.track_id = tt.id)
+JOIN thread USING (utid)
+WHERE tid = 385482;
+""",
         out=Csv("""
 "ts","dur","tid","name","depth"
 679375600673065,3797,385482,"__handle_mm_fault",0

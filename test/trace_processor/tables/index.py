@@ -24,7 +24,9 @@ class DiffTestModule_Tables(DiffTestModule):
   def test_android_sched_and_ps_smoke_window(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_sched_and_ps.pb'),
-        query=Path('smoke_window_test.sql'),
+        query="""
+SELECT * FROM "window";
+""",
         out=Csv("""
 "ts","dur","quantum_ts"
 0,9223372036854775807,0
@@ -33,7 +35,15 @@ class DiffTestModule_Tables(DiffTestModule):
   def test_synth_1_filter_sched(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
-        query=Path('filter_sched_test.sql'),
+        query="""
+SELECT ts, cpu, dur FROM sched
+WHERE
+  cpu = 1
+  AND dur > 50
+  AND dur <= 100
+  AND ts >= 100
+  AND ts <= 400;
+""",
         out=Csv("""
 "ts","cpu","dur"
 170,1,80
@@ -42,7 +52,9 @@ class DiffTestModule_Tables(DiffTestModule):
   def test_android_sched_and_ps_b119496959(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_sched_and_ps.pb'),
-        query=Path('b119496959_test.sql'),
+        query="""
+SELECT ts, cpu FROM sched WHERE ts >= 81473797418963 LIMIT 10;
+""",
         out=Csv("""
 "ts","cpu"
 81473797824982,3
@@ -60,7 +72,11 @@ class DiffTestModule_Tables(DiffTestModule):
   def test_android_sched_and_ps_b119301023(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_sched_and_ps.pb'),
-        query=Path('b119301023_test.sql'),
+        query="""
+SELECT ts FROM sched
+WHERE ts > 0.1 + 1e9
+LIMIT 10;
+""",
         out=Csv("""
 "ts"
 81473010031230
@@ -78,7 +94,12 @@ class DiffTestModule_Tables(DiffTestModule):
   def test_synth_1_filter_counter(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
-        query=Path('filter_counter_test.sql'),
+        query="""
+SELECT COUNT(*)
+FROM counter
+WHERE
+  track_id = 0;
+""",
         out=Csv("""
 "COUNT(*)"
 2
@@ -87,7 +108,9 @@ class DiffTestModule_Tables(DiffTestModule):
   def test_memory_counters_b120278869_neg_ts_end(self):
     return DiffTestBlueprint(
         trace=Path('../../data/memory_counters.pb'),
-        query=Path('b120278869_neg_ts_end_test.sql'),
+        query="""
+SELECT count(*) FROM counters WHERE -1 < ts;
+""",
         out=Csv("""
 "count(*)"
 98688
@@ -96,7 +119,15 @@ class DiffTestModule_Tables(DiffTestModule):
   def test_counters_where_cpu_counters_where_cpu(self):
     return DiffTestBlueprint(
         trace=Path('counters_where_cpu.py'),
-        query=Path('counters_where_cpu_test.sql'),
+        query="""
+SELECT
+  ts,
+  lead(ts, 1, ts) OVER (PARTITION BY name ORDER BY ts) - ts AS dur,
+  value
+FROM counter c
+JOIN cpu_counter_track t ON t.id = c.track_id
+WHERE cpu = 1;
+""",
         out=Csv("""
 "ts","dur","value"
 1000,1,3000.000000
@@ -106,7 +137,20 @@ class DiffTestModule_Tables(DiffTestModule):
   def test_counters_group_by_freq_counters_group_by_freq(self):
     return DiffTestBlueprint(
         trace=Path('counters_group_by_freq.py'),
-        query=Path('counters_group_by_freq_test.sql'),
+        query="""
+SELECT
+  value,
+  sum(dur) AS dur_sum
+FROM (
+  SELECT value,
+    lead(ts) OVER (PARTITION BY name, track_id ORDER BY ts) - ts AS dur
+  FROM counter
+  JOIN counter_track ON counter.track_id = counter_track.id
+)
+WHERE value > 0
+GROUP BY value
+ORDER BY dur_sum DESC;
+""",
         out=Csv("""
 "value","dur_sum"
 4000.000000,2
@@ -116,7 +160,22 @@ class DiffTestModule_Tables(DiffTestModule):
   def test_filter_row_vector_example_android_trace_30s(self):
     return DiffTestBlueprint(
         trace=Path('../../data/example_android_trace_30s.pb'),
-        query=Path('filter_row_vector_test.sql'),
+        query="""
+SELECT ts
+FROM counter
+WHERE
+  ts > 72563651549
+  AND track_id = (
+    SELECT t.id
+    FROM process_counter_track t
+    JOIN process p USING (upid)
+    WHERE
+      t.name = 'Heap size (KB)'
+      AND p.pid = 1204
+  )
+  AND value != 17952.000000
+LIMIT 20;
+""",
         out=Path('filter_row_vector_example_android_trace_30s.out'))
 
   def test_counter_dur_example_android_trace_30s(self):
@@ -140,13 +199,48 @@ class DiffTestModule_Tables(DiffTestModule):
   def test_nulls(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
-        query=Path('nulls_test.sql'),
+        query="""
+CREATE TABLE null_test (
+  primary_key INTEGER PRIMARY KEY,
+  int_nulls INTEGER,
+  string_nulls STRING,
+  double_nulls DOUBLE,
+  start_int_nulls INTEGER,
+  start_string_nulls STRING,
+  start_double_nulls DOUBLE,
+  all_nulls INTEGER
+);
+
+INSERT INTO null_test(
+  int_nulls,
+  string_nulls,
+  double_nulls,
+  start_int_nulls,
+  start_string_nulls,
+  start_double_nulls
+)
+VALUES
+(1, "test", 2.0, NULL, NULL, NULL),
+(2, NULL, NULL, NULL, "test", NULL),
+(1, "other", NULL, NULL, NULL, NULL),
+(4, NULL, NULL, NULL, NULL, 1.0),
+(NULL, "test", 1.0, 1, NULL, NULL);
+
+SELECT * FROM null_test;
+""",
         out=Path('nulls.out'))
 
   def test_thread_main_thread(self):
     return DiffTestBlueprint(
         trace=Path('thread_main_thread.textproto'),
-        query=Path('thread_main_thread_test.sql'),
+        query="""
+SELECT
+  tid,
+  is_main_thread
+FROM thread
+WHERE tid IN (5, 7, 11, 12, 99)
+ORDER BY tid;
+""",
         out=Csv("""
 "tid","is_main_thread"
 5,1
@@ -185,7 +279,11 @@ android_task_names {
   def test_ftrace_setup_errors(self):
     return DiffTestBlueprint(
         trace=Path('../../data/ftrace_error_stats.pftrace'),
-        query=Path('ftrace_setup_errors_test.sql'),
+        query="""
+SELECT value FROM stats WHERE name = 'ftrace_setup_errors'
+UNION ALL
+SELECT str_value FROM metadata WHERE name = 'ftrace_setup_errors';
+""",
         out=Csv("""
 "value"
 3

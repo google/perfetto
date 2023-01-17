@@ -24,7 +24,19 @@ class DiffTestModule_Fuchsia(DiffTestModule):
   def test_fuchsia_smoke(self):
     return DiffTestBlueprint(
         trace=Path('../../data/fuchsia_trace.fxt'),
-        query=Path('../common/smoke_test.sql'),
+        query="""
+SELECT
+  ts,
+  cpu,
+  dur,
+  end_state,
+  priority,
+  tid
+FROM sched
+JOIN thread USING(utid)
+ORDER BY ts
+LIMIT 10;
+""",
         out=Csv("""
 "ts","cpu","dur","end_state","priority","tid"
 19675868967,2,79022,"S",20,4344
@@ -42,7 +54,13 @@ class DiffTestModule_Fuchsia(DiffTestModule):
   def test_fuchsia_smoke_slices(self):
     return DiffTestBlueprint(
         trace=Path('../../data/fuchsia_trace.fxt'),
-        query=Path('../common/smoke_slices_test.sql'),
+        query="""
+SELECT track.type AS type, depth, count(*) AS count
+FROM slice
+JOIN track ON slice.track_id = track.id
+GROUP BY track.type, depth
+ORDER BY track.type, depth;
+""",
         out=Csv("""
 "type","depth","count"
 "thread_track",0,2153
@@ -52,7 +70,15 @@ class DiffTestModule_Fuchsia(DiffTestModule):
   def test_fuchsia_smoke_instants(self):
     return DiffTestBlueprint(
         trace=Path('../../data/fuchsia_trace.fxt'),
-        query=Path('smoke_instants_test.sql'),
+        query="""
+SELECT
+  ts,
+  name
+FROM slice
+WHERE
+  dur = 0
+LIMIT 10;
+""",
         out=Csv("""
 "ts","name"
 21442756010,"task_start"
@@ -70,7 +96,14 @@ class DiffTestModule_Fuchsia(DiffTestModule):
   def test_fuchsia_smoke_counters(self):
     return DiffTestBlueprint(
         trace=Path('../../data/fuchsia_trace.fxt'),
-        query=Path('smoke_counters_test.sql'),
+        query="""
+SELECT
+  ts,
+  value,
+  name
+FROM counters
+LIMIT 10;
+""",
         out=Csv("""
 "ts","value","name"
 20329439768,30.331177,"cpu_usage:average_cpu_percentage"
@@ -83,7 +116,14 @@ class DiffTestModule_Fuchsia(DiffTestModule):
   def test_fuchsia_smoke_flow(self):
     return DiffTestBlueprint(
         trace=Path('../../data/fuchsia_trace.fxt'),
-        query=Path('smoke_flow_test.sql'),
+        query="""
+SELECT
+  id,
+  slice_out,
+  slice_in
+FROM flow
+LIMIT 10;
+""",
         out=Csv("""
 "id","slice_out","slice_in"
 0,0,1
@@ -101,7 +141,14 @@ class DiffTestModule_Fuchsia(DiffTestModule):
   def test_fuchsia_smoke_type(self):
     return DiffTestBlueprint(
         trace=Path('../../data/fuchsia_trace.fxt'),
-        query=Path('smoke_type_test.sql'),
+        query="""
+SELECT
+  id,
+  name,
+  type
+FROM track
+LIMIT 10;
+""",
         out=Csv("""
 "id","name","type"
 0,"[NULL]","thread_track"
@@ -119,13 +166,26 @@ class DiffTestModule_Fuchsia(DiffTestModule):
   def test_fuchsia_workstation_smoke_slices(self):
     return DiffTestBlueprint(
         trace=Path('../../data/fuchsia_workstation.fxt'),
-        query=Path('../common/smoke_slices_test.sql'),
+        query="""
+SELECT track.type AS type, depth, count(*) AS count
+FROM slice
+JOIN track ON slice.track_id = track.id
+GROUP BY track.type, depth
+ORDER BY track.type, depth;
+""",
         out=Path('fuchsia_workstation_smoke_slices.out'))
 
   def test_fuchsia_workstation_smoke_args(self):
     return DiffTestBlueprint(
         trace=Path('../../data/fuchsia_workstation.fxt'),
-        query=Path('smoke_args_test.sql'),
+        query="""
+SELECT
+  key,
+  COUNT(*)
+FROM args
+GROUP BY key
+LIMIT 10;
+""",
         out=Csv("""
 "key","COUNT(*)"
 "Dart Arguments",3
