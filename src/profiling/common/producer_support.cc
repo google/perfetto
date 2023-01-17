@@ -110,10 +110,25 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
     return true;
   }
 
+  bool trusted_initiator = ds_config.session_initiator() ==
+                           DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM;
+
   uint64_t uid_without_profile = uid % kAidUserOffset;
   uint64_t uid_for_lookup = 0;
-  if (uid_without_profile >= kAidAppStart &&
-      uid_without_profile <= kAidAppEnd) {
+  if (uid_without_profile < kAidAppStart) {
+    // Platform processes are considered profileable by the platform itself.
+    // This includes platform UIDs from other profiles, e.g. "u10_system".
+    // It's possible that this is an app (e.g. com.android.settings runs as
+    // AID_SYSTEM), but we will skip checking packages.list for the profileable
+    // manifest flags, as running under a platform UID is considered sufficient.
+    // Minor consequence: shell cannot profile platform apps, even if their
+    // manifest flags opt into profiling from shell. Resolving this would
+    // require definitively disambiguating native processes from apps if both
+    // can run as the same platform UID.
+    return trusted_initiator;
+
+  } else if (uid_without_profile >= kAidAppStart &&
+             uid_without_profile <= kAidAppEnd) {
     // normal app
     uid_for_lookup = uid_without_profile;
 
@@ -133,8 +148,6 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
     // even be the package in which the service was defined).
     // TODO(rsavitski): find a way for the platform to tell native services
     // about isolated<->app relations.
-    bool trusted_initiator = ds_config.session_initiator() ==
-                             DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM;
     return trusted_initiator &&
            AllPackagesProfileableByTrustedInitiator(packages_list_path);
 
