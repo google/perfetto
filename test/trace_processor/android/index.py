@@ -14,6 +14,7 @@
 # limitations under the License.
 
 from python.generators.diff_tests.testing import Path, Metric
+from python.generators.diff_tests.testing import Csv, Json, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import DiffTestModule
 
@@ -30,7 +31,11 @@ class DiffTestModule_Android(DiffTestModule):
     return DiffTestBlueprint(
         trace=Path('android_system_property.textproto'),
         query=Path('android_system_property_counter_test.sql'),
-        out=Path('android_system_property_counter.out'))
+        out=Csv("""
+"id","type","name","id","ts","type","value"
+0,"counter_track","ScreenState",0,1000,"counter",2.000000
+0,"counter_track","ScreenState",1,2000,"counter",1.000000
+"""))
 
   def test_android_system_property_slice(self):
     return DiffTestBlueprint(
