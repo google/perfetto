@@ -464,8 +464,9 @@ TrackEventInternal::NewTracePacket(TraceWriterBase* trace_writer,
       // No need to set the clock id here, since kClockIdIncremental is the
       // clock id assumed by default.
       auto time_diff_ns = timestamp.value - incr_state->last_timestamp_ns;
-      packet->set_timestamp(time_diff_ns / ts_unit_multiplier);
-      incr_state->last_timestamp_ns = timestamp.value;
+      auto time_diff_units = time_diff_ns / ts_unit_multiplier;
+      packet->set_timestamp(time_diff_units);
+      incr_state->last_timestamp_ns += time_diff_units * ts_unit_multiplier;
     } else {
       packet->set_timestamp(timestamp.value / ts_unit_multiplier);
       packet->set_timestamp_clock_id(ts_unit_multiplier == 1
