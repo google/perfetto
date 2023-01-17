@@ -44,14 +44,14 @@ export class TraceFileStream implements TraceStream {
     this.reader.onloadend = () => this.onLoad();
   }
 
-  onLoad() {
-    const res = assertExists(this.reader.result) as ArrayBuffer;
+  private onLoad() {
     const pendingRead = assertExists(this.pendingRead);
     this.pendingRead = undefined;
     if (this.reader.error) {
       pendingRead.reject(this.reader.error);
       return;
     }
+    const res = assertExists(this.reader.result) as ArrayBuffer;
     this.bytesRead += res.byteLength;
     pendingRead.resolve({
       data: new Uint8Array(res),
