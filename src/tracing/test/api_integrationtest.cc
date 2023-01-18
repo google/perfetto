@@ -1153,6 +1153,36 @@ TEST_P(PerfettoApiTest, TrackEventTimestampUnitIncremental) {
   }
 }
 
+// Tests that we don't accumulate error when using incremental timestamps with
+// timestamp unit multiplier.
+TEST_P(PerfettoApiTest, TrackEventTimestampIncrementalAccumulatedError) {
+  constexpr uint64_t kUnitMultiplier = 100000;
+  constexpr uint64_t kNumberOfEvents = 1000;
+  constexpr uint64_t kTimeBetweenEventsNs = 50000;
+
+  perfetto::protos::gen::TrackEventConfig te_cfg;
+  te_cfg.set_timestamp_unit_multiplier(kUnitMultiplier);
+  auto* tracing_session = NewTraceWithCategories({"foo"}, te_cfg);
+  tracing_session->get()->StartBlocking();
+  auto start = perfetto::TrackEvent::GetTraceTimeNs();
+  TRACE_EVENT_BEGIN("foo", "Start");
+  for (uint64_t i = 0; i < kNumberOfEvents; ++i) {
+    SpinForThreadTimeNanos(kTimeBetweenEventsNs);
+    TRACE_EVENT_BEGIN("foo", "Event");
+  }
+  auto end = perfetto::TrackEvent::GetTraceTimeNs();
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+  uint64_t accumulated_timestamp = 0;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_track_event()) {
+      accumulated_timestamp += packet.timestamp() * kUnitMultiplier;
+    }
+  }
+
+  EXPECT_GE(accumulated_timestamp, kNumberOfEvents * kTimeBetweenEventsNs);
+  EXPECT_LE(accumulated_timestamp, end - start);
+}
+
 TEST_P(PerfettoApiTest, TrackEvent) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"test"});
