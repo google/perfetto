@@ -15,5 +15,6 @@
 
 SELECT RUN_METRIC('android/android_hwcomposer.sql');
 
-SELECT AVG(value)
-FROM total_layers;
+SELECT display_id, AVG(value)
+FROM total_layers
+GROUP BY display_id;
