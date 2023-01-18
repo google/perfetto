@@ -88,7 +88,24 @@ android_mem {
     return DiffTestBlueprint(
         trace=Path('android_ion.py'),
         query=Metric('android_ion'),
-        out=Path('android_ion.out'))
+        out=TextProto(r"""
+android_ion {
+  buffer {
+    name: "adsp"
+    avg_size_bytes: 1000.0
+    min_size_bytes: 1000.0
+    max_size_bytes: 1100.0
+    total_alloc_size_bytes: 1100.0
+  }
+  buffer {
+    name: "system"
+    avg_size_bytes: 1497.4874371859296
+    min_size_bytes: 1000.0
+    max_size_bytes: 2000.0
+    total_alloc_size_bytes: 2000.0
+  }
+}
+"""))
 
   def test_android_ion_stat(self):
     return DiffTestBlueprint(
@@ -121,7 +138,11 @@ android_dma_heap {
   def test_android_dma_buffer_tracks(self):
     return DiffTestBlueprint(
         trace=Path('android_dma_heap_stat.textproto'),
-        query=Path('dma_buffer_tracks_test.sql'),
+        query="""
+SELECT track.name, slice.ts, slice.dur, slice.name
+FROM slice JOIN track ON slice.track_id = track.id
+WHERE track.name = 'mem.dma_buffer';
+""",
         out=Csv("""
 "name","ts","dur","name"
 "mem.dma_buffer",100,100,"1 kB"
@@ -146,7 +167,9 @@ android_fastrpc {
   def test_shrink_slab(self):
     return DiffTestBlueprint(
         trace=Path('shrink_slab.textproto'),
-        query=Path('shrink_slab_test.sql'),
+        query="""
+SELECT ts, dur, name FROM slice WHERE name = 'mm_vmscan_shrink_slab';
+""",
         out=Csv("""
 "ts","dur","name"
 36448185787847,692,"mm_vmscan_shrink_slab"
@@ -155,7 +178,9 @@ android_fastrpc {
   def test_cma(self):
     return DiffTestBlueprint(
         trace=Path('cma.textproto'),
-        query=Path('cma_test.sql'),
+        query="""
+SELECT ts, dur, name FROM slice WHERE name = 'mm_cma_alloc';
+""",
         out=Csv("""
 "ts","dur","name"
 74288080958099,110151652,"mm_cma_alloc"
