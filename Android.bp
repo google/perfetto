@@ -10875,6 +10875,7 @@ filegroup {
         "src/tracing/test/api_integrationtest_main.cc",
         "src/tracing/test/tracing_module.cc",
         "src/tracing/test/tracing_module2.cc",
+        "src/tracing/test/tracing_module3.cc",
     ],
 }
 

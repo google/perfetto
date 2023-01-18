@@ -114,6 +114,12 @@ PERFETTO_DEFINE_CATEGORIES(
     perfetto::Category(TRACE_DISABLED_BY_DEFAULT("cat")));
 PERFETTO_TRACK_EVENT_STATIC_STORAGE();
 
+// Test declaring an extra set of categories in a namespace in addition to the
+// default one.
+PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE(other_ns,
+                                        perfetto::Category("other_ns"));
+PERFETTO_TRACK_EVENT_STATIC_STORAGE_IN_NAMESPACE(other_ns);
+
 // For testing interning of complex objects.
 using SourceLocation = std::tuple<const char* /* file_name */,
                                   const char* /* function_name */,
@@ -1473,14 +1479,17 @@ TEST_P(PerfettoApiTest, TrackEventRegistrationWithModule) {
   EXPECT_EQ(1u, muxer.data_sources.size());
 
   tracing_module::InitializeCategories();
-  EXPECT_EQ(2u, muxer.data_sources.size());
+  EXPECT_EQ(3u, muxer.data_sources.size());
 
   // Both data sources have the same name but distinct static data (i.e.,
   // individual instance states).
   EXPECT_EQ("track_event", muxer.data_sources[0].dsd.name());
   EXPECT_EQ("track_event", muxer.data_sources[1].dsd.name());
+  EXPECT_EQ("track_event", muxer.data_sources[2].dsd.name());
   EXPECT_NE(muxer.data_sources[0].static_state,
             muxer.data_sources[1].static_state);
+  EXPECT_NE(muxer.data_sources[0].static_state,
+            muxer.data_sources[2].static_state);
 }
 
 TEST_P(PerfettoApiTest, TrackEventDescriptor) {
@@ -1583,6 +1592,41 @@ TEST_P(PerfettoApiTest, TrackEventCategoriesWithModule) {
       EXPECT_EQ(sequence_id, packet.trusted_packet_sequence_id());
     }
   }
+}
+
+TEST_P(PerfettoApiTest, TrackEventNamespaces) {
+  perfetto::TrackEvent::Register();
+  other_ns::TrackEvent::Register();
+  tracing_module::InitializeCategories();
+
+  auto* tracing_session =
+      NewTraceWithCategories({"test", "cat1", "extra", "other_ns"});
+  tracing_session->get()->StartBlocking();
+
+  // Default namespace.
+  TRACE_EVENT_INSTANT("test", "MainNamespaceEvent");
+
+  // Other namespace in a block scope.
+  {
+    PERFETTO_USE_CATEGORIES_FROM_NAMESPACE_SCOPED(other_ns);
+    TRACE_EVENT_INSTANT("other_ns", "OtherNamespaceEvent");
+  }
+
+  // Back to the default namespace.
+  TRACE_EVENT_INSTANT("test", "MainNamespaceEvent2");
+
+  // More namespaces defined in another module.
+  tracing_module::EmitTrackEventsFromAllNamespaces();
+
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
+  EXPECT_THAT(
+      slices,
+      ElementsAre("I:test.MainNamespaceEvent", "I:other_ns.OtherNamespaceEvent",
+                  "I:test.MainNamespaceEvent2",
+                  "B:cat1.DefaultNamespaceFromModule",
+                  "B:extra.ExtraNamespaceFromModule",
+                  "B:extra.OverrideNamespaceFromModule",
+                  "B:extra.DefaultNamespace", "B:cat1.DefaultNamespace"));
 }
 
 TEST_P(PerfettoApiTest, TrackEventDynamicCategories) {

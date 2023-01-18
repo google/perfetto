@@ -34,6 +34,7 @@ void RemoveSessionObserver(perfetto::TrackEventSessionObserver* observer);
 bool IsEnabled();
 void EmitTrackEvents();
 void EmitTrackEvents2();
+void EmitTrackEventsFromAllNamespaces();
 perfetto::internal::TrackEventIncrementalState* GetIncrementalState();
 
 // These functions are used to check the instruction size overhead track events.
@@ -49,5 +50,7 @@ void FunctionWithOneLegacyEvent();
 void FunctionWithOneScopedLegacyEvent();
 
 }  // namespace tracing_module
+
+void TestDeprecatedNamespacing();
 
 #endif  // SRC_TRACING_TEST_TRACING_MODULE_H_
