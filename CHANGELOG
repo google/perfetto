@@ -8,6 +8,13 @@ Unreleased:
     *
   SDK:
     * Add perfetto::Tracing::ActivateTriggers() function.
+    * Made it possible to declare track event categories in a C++ namespace
+      with PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE, allowing multiple category
+      sets to be used in one same translation unit. Correspondingly, the
+      PERFETTO_COMPONENT_EXPORT and PERFETTO_TRACK_EVENT_NAMESPACE macros have
+      been deprecated in favor of this new functionality.
+    * Deprecated the PERFETTO_COMPONENT_EXPORT macro in favor of
+      PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE_WITH_ATTRS.
 
 
 v31.0 - 2022-11-10:
