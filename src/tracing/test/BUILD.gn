@@ -122,6 +122,7 @@ if (enable_perfetto_integration_tests) {
       "tracing_module.cc",
       "tracing_module.h",
       "tracing_module2.cc",
+      "tracing_module3.cc",
       "tracing_module_categories.h",
     ]
   }
