@@ -18,13 +18,19 @@ CREATE VIEW {{output}} AS
 WITH composition_layer_counts AS (
   SELECT
     LAG(ts) OVER (ORDER BY ts) AS ts,
+    name,
+    INSTR(name, '(') AS separator_pos,
     value
   FROM counter c
   JOIN process_counter_track t ON c.track_id = t.id
-  WHERE t.name = '{{track_name}}'
+  WHERE t.name GLOB '{{track_name}}*'
 )
 SELECT
   ts,
+  CASE
+    WHEN separator_pos = 0 THEN 'unspecified'
+    ELSE SUBSTR(name, separator_pos + 1, INSTR(name, ')') - separator_pos - 1)
+  END AS display_id,
   value
 FROM composition_layer_counts
 WHERE value >= 0 AND ts IS NOT NULL;
