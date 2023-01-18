@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
+#include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -198,6 +199,10 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     timestamp = std::max(latest_timestamp_, context_->sorter->max_timestamp());
   }
   latest_timestamp_ = std::max(timestamp, latest_timestamp_);
+
+  if (context_->content_analyzer && !decoder.has_track_event()) {
+    PacketAnalyzer::Get(context_)->ProcessPacket(packet, {});
+  }
 
   auto& modules = context_->modules_by_field;
   for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {

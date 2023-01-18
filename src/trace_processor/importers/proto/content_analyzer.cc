@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-#include <numeric>
-#include <utility>
+#include "src/trace_processor/importers/proto/content_analyzer.h"
 
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/proto/content_analyzer.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -27,7 +26,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-ContentAnalyzerModule::ContentAnalyzerModule(TraceProcessorContext* context)
+ProtoContentAnalyzer::ProtoContentAnalyzer(TraceProcessorContext* context)
     : context_(context),
       pool_([]() {
         DescriptorPool pool;
@@ -39,84 +38,95 @@ ContentAnalyzerModule::ContentAnalyzerModule(TraceProcessorContext* context)
         }
         return pool;
       }()),
-      computer_(&pool_, ".perfetto.protos.TracePacket") {
-  RegisterForAllFields(context_);
-}
+      computer_(&pool_, ".perfetto.protos.TracePacket") {}
 
-ModuleResult ContentAnalyzerModule::TokenizePacket(
-    const protos::pbzero::TracePacket_Decoder&,
-    TraceBlobView* packet,
-    int64_t /*packet_timestamp*/,
-    PacketSequenceState*,
-    uint32_t /*field_id*/) {
-  computer_.Reset(packet->data(), packet->length());
+ProtoContentAnalyzer::~ProtoContentAnalyzer() = default;
+
+void ProtoContentAnalyzer::ProcessPacket(
+    const TraceBlobView& packet,
+    const SampleAnnotation& packet_annotations) {
+  auto& map = aggregated_samples_[packet_annotations];
+  computer_.Reset(packet.data(), packet.length());
   for (auto sample = computer_.GetNext(); sample.has_value();
        sample = computer_.GetNext()) {
-    auto* value = aggregated_samples_.Find(computer_.GetPath());
+    auto* value = map.Find(computer_.GetPath());
     if (value)
       *value += *sample;
     else
-      aggregated_samples_.Insert(computer_.GetPath(), *sample);
+      map.Insert(computer_.GetPath(), *sample);
   }
-  return ModuleResult::Ignored();
 }
 
-void ContentAnalyzerModule::NotifyEndOfFile() {
+void ProtoContentAnalyzer::NotifyEndOfFile() {
   // TODO(kraskevich): consider generating a flamegraph-compatable table once
   // Perfetto UI supports custom flamegraphs (b/227644078).
-  base::FlatHashMap<util::SizeProfileComputer::FieldPath,
-                    tables::ExperimentalProtoPathTable::Id,
-                    util::SizeProfileComputer::FieldPathHasher>
-      path_ids;
-  for (auto sample = aggregated_samples_.GetIterator(); sample; ++sample) {
-    std::string path_string;
-    base::Optional<tables::ExperimentalProtoPathTable::Id> previous_path_id;
-    util::SizeProfileComputer::FieldPath path;
-    for (const auto& field : sample.key()) {
-      if (field.has_field_name()) {
+  for (auto annotated_map = aggregated_samples_.GetIterator(); annotated_map;
+       ++annotated_map) {
+    base::FlatHashMap<util::SizeProfileComputer::FieldPath,
+                      tables::ExperimentalProtoPathTable::Id,
+                      util::SizeProfileComputer::FieldPathHasher>
+        path_ids;
+    for (auto sample = annotated_map.value().GetIterator(); sample; ++sample) {
+      std::string path_string;
+      base::Optional<tables::ExperimentalProtoPathTable::Id> previous_path_id;
+      util::SizeProfileComputer::FieldPath path;
+      for (const auto& field : sample.key()) {
+        if (field.has_field_name()) {
+          if (!path_string.empty()) {
+            path_string += '.';
+          }
+          path_string.append(field.field_name());
+        }
         if (!path_string.empty()) {
           path_string += '.';
         }
-        path_string.append(field.field_name());
-      }
-      if (!path_string.empty()) {
-        path_string += '.';
-      }
-      path_string.append(field.type_name());
+        path_string.append(field.type_name());
 
-      path.push_back(field);
-      // Reuses existing path from |path_ids| if possible.
-      auto* path_id = path_ids.Find(path);
-      if (path_id) {
-        previous_path_id = *path_id;
-        continue;
-      }
-      // Create a new row in experimental_proto_path.
-      tables::ExperimentalProtoPathTable::Row path_row;
-      if (field.has_field_name()) {
-        path_row.field_name = context_->storage->InternString(
-            base::StringView(field.field_name()));
-      }
-      path_row.field_type =
-          context_->storage->InternString(base::StringView(field.type_name()));
-      if (previous_path_id.has_value())
-        path_row.parent_id = *previous_path_id;
+        path.push_back(field);
+        // Reuses existing path from |path_ids| if possible.
+        {
+          auto* path_id = path_ids.Find(path);
+          if (path_id) {
+            previous_path_id = *path_id;
+            continue;
+          }
+        }
+        // Create a new row in experimental_proto_path.
+        tables::ExperimentalProtoPathTable::Row path_row;
+        if (field.has_field_name()) {
+          path_row.field_name = context_->storage->InternString(
+              base::StringView(field.field_name()));
+        }
+        path_row.field_type = context_->storage->InternString(
+            base::StringView(field.type_name()));
+        if (previous_path_id.has_value())
+          path_row.parent_id = *previous_path_id;
 
-      previous_path_id =
-          context_->storage->mutable_experimental_proto_path_table()
-              ->Insert(path_row)
-              .id;
-      path_ids[path] = *previous_path_id;
+        auto path_id =
+            context_->storage->mutable_experimental_proto_path_table()
+                ->Insert(path_row)
+                .id;
+        if (!previous_path_id.has_value()) {
+          // Add annotations to the current row as an args set.
+          auto inserter = context_->args_tracker->AddArgsTo(path_id);
+          for (auto& annotation : annotated_map.key()) {
+            inserter.AddArg(annotation.first,
+                            Variadic::String(annotation.second));
+          }
+        }
+        previous_path_id = path_id;
+        path_ids[path] = path_id;
+      }
+
+      // Add a content row referring to |previous_path_id|.
+      tables::ExperimentalProtoContentTable::Row content_row;
+      content_row.path =
+          context_->storage->InternString(base::StringView(path_string));
+      content_row.path_id = *previous_path_id;
+      content_row.total_size = static_cast<int64_t>(sample.value());
+      context_->storage->mutable_experimental_proto_content_table()->Insert(
+          content_row);
     }
-
-    // Add a content row referring to |previous_path_id|.
-    tables::ExperimentalProtoContentTable::Row content_row;
-    content_row.path =
-        context_->storage->InternString(base::StringView(path_string));
-    content_row.path_id = *previous_path_id;
-    content_row.total_size = static_cast<int64_t>(sample.value());
-    context_->storage->mutable_experimental_proto_content_table()->Insert(
-        content_row);
   }
   aggregated_samples_.Clear();
 }
