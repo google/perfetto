@@ -24,7 +24,13 @@ class DiffTestModule_Process_tracking(DiffTestModule):
   def test_process_tracking(self):
     return DiffTestBlueprint(
         trace=Path('synth_process_tracking.py'),
-        query=Path('../common/process_tracking_test.sql'),
+        query="""
+SELECT tid, pid, process.name AS pname, thread.name AS tname
+FROM thread
+LEFT JOIN process USING(upid)
+WHERE tid > 0
+ORDER BY tid;
+""",
         out=Csv("""
 "tid","pid","pname","tname"
 10,10,"process1","p1-t0"
@@ -45,7 +51,13 @@ class DiffTestModule_Process_tracking(DiffTestModule):
   def test_process_tracking_process_tracking_short_lived_1(self):
     return DiffTestBlueprint(
         trace=Path('process_tracking_short_lived_1.py'),
-        query=Path('../common/process_tracking_test.sql'),
+        query="""
+SELECT tid, pid, process.name AS pname, thread.name AS tname
+FROM thread
+LEFT JOIN process USING(upid)
+WHERE tid > 0
+ORDER BY tid;
+""",
         out=Csv("""
 "tid","pid","pname","tname"
 10,10,"parent","parent"
@@ -55,7 +67,13 @@ class DiffTestModule_Process_tracking(DiffTestModule):
   def test_process_tracking_process_tracking_short_lived_2(self):
     return DiffTestBlueprint(
         trace=Path('process_tracking_short_lived_2.py'),
-        query=Path('../common/process_tracking_test.sql'),
+        query="""
+SELECT tid, pid, process.name AS pname, thread.name AS tname
+FROM thread
+LEFT JOIN process USING(upid)
+WHERE tid > 0
+ORDER BY tid;
+""",
         out=Csv("""
 "tid","pid","pname","tname"
 10,10,"parent","parent"
@@ -65,7 +83,11 @@ class DiffTestModule_Process_tracking(DiffTestModule):
   def test_process_tracking_uid(self):
     return DiffTestBlueprint(
         trace=Path('synth_process_tracking.py'),
-        query=Path('process_tracking_uid_test.sql'),
+        query="""
+SELECT pid, uid
+FROM process
+ORDER BY pid;
+""",
         out=Csv("""
 "pid","uid"
 0,"[NULL]"
@@ -78,7 +100,13 @@ class DiffTestModule_Process_tracking(DiffTestModule):
   def test_process_tracking_process_tracking_exec(self):
     return DiffTestBlueprint(
         trace=Path('process_tracking_exec.py'),
-        query=Path('../common/process_tracking_test.sql'),
+        query="""
+SELECT tid, pid, process.name AS pname, thread.name AS tname
+FROM thread
+LEFT JOIN process USING(upid)
+WHERE tid > 0
+ORDER BY tid;
+""",
         out=Csv("""
 "tid","pid","pname","tname"
 10,10,"parent","parent"
@@ -88,7 +116,15 @@ class DiffTestModule_Process_tracking(DiffTestModule):
   def test_process_parent_pid_process_parent_pid_tracking_1(self):
     return DiffTestBlueprint(
         trace=Path('process_parent_pid_tracking_1.py'),
-        query=Path('process_parent_pid_test.sql'),
+        query="""
+SELECT
+  child.pid AS child_pid,
+  parent.pid AS parent_pid
+FROM process AS child
+JOIN process AS parent
+  ON child.parent_upid = parent.upid
+ORDER BY child_pid;
+""",
         out=Csv("""
 "child_pid","parent_pid"
 10,0
@@ -98,7 +134,15 @@ class DiffTestModule_Process_tracking(DiffTestModule):
   def test_process_parent_pid_process_parent_pid_tracking_2(self):
     return DiffTestBlueprint(
         trace=Path('process_parent_pid_tracking_2.py'),
-        query=Path('process_parent_pid_test.sql'),
+        query="""
+SELECT
+  child.pid AS child_pid,
+  parent.pid AS parent_pid
+FROM process AS child
+JOIN process AS parent
+  ON child.parent_upid = parent.upid
+ORDER BY child_pid;
+""",
         out=Csv("""
 "child_pid","parent_pid"
 10,0
@@ -108,7 +152,13 @@ class DiffTestModule_Process_tracking(DiffTestModule):
   def test_process_tracking_reused_thread_print(self):
     return DiffTestBlueprint(
         trace=Path('reused_thread_print.py'),
-        query=Path('../common/process_tracking_test.sql'),
+        query="""
+SELECT tid, pid, process.name AS pname, thread.name AS tname
+FROM thread
+LEFT JOIN process USING(upid)
+WHERE tid > 0
+ORDER BY tid;
+""",
         out=Csv("""
 "tid","pid","pname","tname"
 10,10,"parent","[NULL]"
@@ -119,7 +169,13 @@ class DiffTestModule_Process_tracking(DiffTestModule):
   def test_slice_with_pid_sde_tracing_mark_write(self):
     return DiffTestBlueprint(
         trace=Path('sde_tracing_mark_write.textproto'),
-        query=Path('slice_with_pid_test.sql'),
+        query="""
+SELECT s.name, dur, tid, pid
+FROM slice s
+JOIN thread_track t ON s.track_id = t.id
+JOIN thread USING(utid)
+LEFT JOIN process USING(upid);
+""",
         out=Csv("""
 "name","dur","tid","pid"
 "test_event",1,403,403
@@ -128,7 +184,13 @@ class DiffTestModule_Process_tracking(DiffTestModule):
   def test_unknown_thread_name_tracking(self):
     return DiffTestBlueprint(
         trace=Path('unknown_thread_name.systrace'),
-        query=Path('../common/process_tracking_test.sql'),
+        query="""
+SELECT tid, pid, process.name AS pname, thread.name AS tname
+FROM thread
+LEFT JOIN process USING(upid)
+WHERE tid > 0
+ORDER BY tid;
+""",
         out=Csv("""
 "tid","pid","pname","tname"
 19999,"[NULL]","[NULL]","real_name"

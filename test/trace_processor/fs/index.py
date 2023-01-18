@@ -24,11 +24,33 @@ class DiffTestModule_Fs(DiffTestModule):
   def test_f2fs_iostat(self):
     return DiffTestBlueprint(
         trace=Path('f2fs_iostat.textproto'),
-        query=Path('f2fs_iostat_test.sql'),
+        query="""
+SELECT
+  name,
+  ts,
+  value
+FROM
+  counter AS c
+JOIN
+  counter_track AS ct
+  ON c.track_id = ct.id
+ORDER BY name, ts;
+""",
         out=Path('f2fs_iostat.out'))
 
   def test_f2fs_iostat_latency(self):
     return DiffTestBlueprint(
         trace=Path('f2fs_iostat_latency.textproto'),
-        query=Path('f2fs_iostat_latency_test.sql'),
+        query="""
+SELECT
+  name,
+  ts,
+  value
+FROM
+  counter AS c
+JOIN
+  counter_track AS ct
+  ON c.track_id = ct.id
+ORDER BY name, ts;
+""",
         out=Path('f2fs_iostat_latency.out'))

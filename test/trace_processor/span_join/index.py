@@ -74,7 +74,29 @@ class DiffTestModule_Span_join(DiffTestModule):
   def test_span_join_unpartitioned_empty(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_sched_and_ps.pb'),
-        query=Path('span_join_unpartitioned_empty_test.sql'),
+        query="""
+CREATE TABLE t1(
+  ts BIGINT,
+  dur BIGINT,
+  PRIMARY KEY (ts, dur)
+) WITHOUT ROWID;
+
+CREATE TABLE t2(
+  ts BIGINT,
+  dur BIGINT,
+  PRIMARY KEY (ts, dur)
+) WITHOUT ROWID;
+
+INSERT INTO t2(ts, dur)
+VALUES
+(1, 2),
+(5, 0),
+(1, 1);
+
+CREATE VIRTUAL TABLE sp USING span_join(t1, t2);
+
+SELECT ts, dur FROM sp;
+""",
         out=Csv("""
 "ts","dur"
 """))
@@ -88,7 +110,30 @@ class DiffTestModule_Span_join(DiffTestModule):
   def test_span_outer_join_empty(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
-        query=Path('span_outer_join_empty_test.sql'),
+        query="""
+CREATE TABLE t1(
+  ts BIGINT,
+  dur BIGINT,
+  part BIGINT,
+  PRIMARY KEY (part, ts)
+) WITHOUT ROWID;
+
+CREATE TABLE t2(
+  ts BIGINT,
+  dur BIGINT,
+  part BIGINT,
+  PRIMARY KEY (part, ts)
+) WITHOUT ROWID;
+
+INSERT INTO t1(ts, dur, part)
+VALUES (500, 100, 10);
+
+
+CREATE VIRTUAL TABLE sp USING span_outer_join(t1 PARTITIONED part,
+                                              t2 PARTITIONED part);
+
+SELECT * FROM sp;
+""",
         out=Csv("""
 "ts","dur","part"
 500,100,10
@@ -97,7 +142,24 @@ class DiffTestModule_Span_join(DiffTestModule):
   def test_span_outer_join_unpartitioned_empty(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
-        query=Path('span_outer_join_unpartitioned_empty_test.sql'),
+        query="""
+CREATE TABLE t1(
+  ts BIGINT,
+  dur BIGINT,
+  PRIMARY KEY (ts)
+) WITHOUT ROWID;
+
+CREATE TABLE t2(
+  ts BIGINT,
+  dur BIGINT,
+  PRIMARY KEY (ts)
+) WITHOUT ROWID;
+
+
+CREATE VIRTUAL TABLE sp USING span_outer_join(t1, t2);
+
+SELECT * FROM sp;
+""",
         out=Csv("""
 "ts","dur"
 """))
@@ -105,7 +167,29 @@ class DiffTestModule_Span_join(DiffTestModule):
   def test_span_outer_join_unpartitioned_left_empty(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
-        query=Path('span_outer_join_unpartitioned_left_empty_test.sql'),
+        query="""
+CREATE TABLE t1(
+  ts BIGINT,
+  dur BIGINT,
+  PRIMARY KEY (ts)
+) WITHOUT ROWID;
+
+CREATE TABLE t2(
+  ts BIGINT,
+  dur BIGINT,
+  PRIMARY KEY (ts)
+) WITHOUT ROWID;
+
+INSERT INTO t2(ts, dur)
+VALUES
+(100, 400),
+(500, 50),
+(600, 100);
+
+CREATE VIRTUAL TABLE sp USING span_outer_join(t1, t2);
+
+SELECT * FROM sp;
+""",
         out=Csv("""
 "ts","dur"
 100,400
@@ -116,7 +200,29 @@ class DiffTestModule_Span_join(DiffTestModule):
   def test_span_outer_join_unpartitioned_right_empty(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
-        query=Path('span_outer_join_unpartitioned_right_empty_test.sql'),
+        query="""
+CREATE TABLE t1(
+  ts BIGINT,
+  dur BIGINT,
+  PRIMARY KEY (ts)
+) WITHOUT ROWID;
+
+CREATE TABLE t2(
+  ts BIGINT,
+  dur BIGINT,
+  PRIMARY KEY (ts)
+) WITHOUT ROWID;
+
+INSERT INTO t1(ts, dur)
+VALUES
+(100, 400),
+(500, 50),
+(600, 100);
+
+CREATE VIRTUAL TABLE sp USING span_outer_join(t1, t2);
+
+SELECT * FROM sp;
+""",
         out=Csv("""
 "ts","dur"
 100,400
@@ -133,7 +239,25 @@ class DiffTestModule_Span_join(DiffTestModule):
   def test_span_outer_join_mixed_empty(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
-        query=Path('span_outer_join_mixed_empty_test.sql'),
+        query="""
+CREATE TABLE t1(
+  ts BIGINT,
+  dur BIGINT,
+  part BIGINT,
+  PRIMARY KEY (part, ts)
+) WITHOUT ROWID;
+
+CREATE TABLE t2(
+  ts BIGINT,
+  dur BIGINT,
+  PRIMARY KEY (ts)
+) WITHOUT ROWID;
+
+
+CREATE VIRTUAL TABLE sp USING span_outer_join(t1 PARTITIONED part, t2);
+
+SELECT * FROM sp;
+""",
         out=Csv("""
 "ts","dur","part"
 """))
@@ -141,7 +265,30 @@ class DiffTestModule_Span_join(DiffTestModule):
   def test_span_outer_join_mixed_left_empty(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
-        query=Path('span_outer_join_mixed_left_empty_test.sql'),
+        query="""
+CREATE TABLE t1(
+  ts BIGINT,
+  dur BIGINT,
+  part BIGINT,
+  PRIMARY KEY (part, ts)
+) WITHOUT ROWID;
+
+CREATE TABLE t2(
+  ts BIGINT,
+  dur BIGINT,
+  PRIMARY KEY (ts)
+) WITHOUT ROWID;
+
+INSERT INTO t2(ts, dur)
+VALUES
+(100, 400),
+(500, 50),
+(600, 100);
+
+CREATE VIRTUAL TABLE sp USING span_outer_join(t1 PARTITIONED part, t2);
+
+SELECT * FROM sp;
+""",
         out=Csv("""
 "ts","dur","part"
 """))
@@ -149,7 +296,30 @@ class DiffTestModule_Span_join(DiffTestModule):
   def test_span_outer_join_mixed_left_empty_rev(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
-        query=Path('span_outer_join_mixed_left_empty_rev_test.sql'),
+        query="""
+CREATE TABLE t1(
+  ts BIGINT,
+  dur BIGINT,
+  part BIGINT,
+  PRIMARY KEY (part, ts)
+) WITHOUT ROWID;
+
+CREATE TABLE t2(
+  ts BIGINT,
+  dur BIGINT,
+  PRIMARY KEY (ts)
+) WITHOUT ROWID;
+
+INSERT INTO t1(ts, dur, part)
+VALUES
+(100, 400, 0),
+(100, 50, 1),
+(600, 100, 1);
+
+CREATE VIRTUAL TABLE sp USING span_outer_join(t2, t1 PARTITIONED part);
+
+SELECT * FROM sp;
+""",
         out=Csv("""
 "ts","dur","part"
 100,400,0
@@ -160,7 +330,31 @@ class DiffTestModule_Span_join(DiffTestModule):
   def test_span_outer_join_mixed_right_empty(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
-        query=Path('span_outer_join_mixed_right_empty_test.sql'),
+        query="""
+CREATE TABLE t1(
+  ts BIGINT,
+  dur BIGINT,
+  part BIGINT,
+  PRIMARY KEY (part, ts)
+) WITHOUT ROWID;
+
+CREATE TABLE t2(
+  ts BIGINT,
+  dur BIGINT,
+  b BIGINT,
+  PRIMARY KEY (ts)
+) WITHOUT ROWID;
+
+INSERT INTO t1(ts, dur, part)
+VALUES
+(100, 400, 0),
+(100, 50, 1),
+(600, 100, 1);
+
+CREATE VIRTUAL TABLE sp USING span_outer_join(t1 PARTITIONED part, t2);
+
+SELECT * FROM sp;
+""",
         out=Csv("""
 "ts","dur","part","b"
 100,400,0,"[NULL]"
@@ -171,7 +365,31 @@ class DiffTestModule_Span_join(DiffTestModule):
   def test_span_outer_join_mixed_right_empty_rev(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
-        query=Path('span_outer_join_mixed_right_empty_rev_test.sql'),
+        query="""
+CREATE TABLE t1(
+  ts BIGINT,
+  dur BIGINT,
+  part BIGINT,
+  PRIMARY KEY (part, ts)
+) WITHOUT ROWID;
+
+CREATE TABLE t2(
+  ts BIGINT,
+  dur BIGINT,
+  b BIGINT,
+  PRIMARY KEY (ts)
+) WITHOUT ROWID;
+
+INSERT INTO t2(ts, dur)
+VALUES
+(100, 400),
+(500, 50),
+(600, 100);
+
+CREATE VIRTUAL TABLE sp USING span_outer_join(t2, t1 PARTITIONED part);
+
+SELECT * FROM sp;
+""",
         out=Csv("""
 "ts","dur","part","b"
 """))
@@ -209,7 +427,30 @@ class DiffTestModule_Span_join(DiffTestModule):
   def test_span_left_join_empty_right(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
-        query=Path('span_left_join_empty_right_test.sql'),
+        query="""
+CREATE TABLE t1(
+  ts BIGINT,
+  dur BIGINT,
+  part BIGINT,
+  PRIMARY KEY (part, ts)
+) WITHOUT ROWID;
+
+CREATE TABLE t2(
+  ts BIGINT,
+  dur BIGINT,
+  part BIGINT,
+  PRIMARY KEY (part, ts)
+) WITHOUT ROWID;
+
+INSERT INTO t1(ts, dur, part)
+VALUES
+(500, 500, 100);
+
+CREATE VIRTUAL TABLE sp USING span_left_join(t1 PARTITIONED part,
+                                             t2 PARTITIONED part);
+
+SELECT * FROM sp;
+""",
         out=Csv("""
 "ts","dur","part"
 500,500,100
@@ -218,7 +459,32 @@ class DiffTestModule_Span_join(DiffTestModule):
   def test_span_left_join_unordered_android_sched_and_ps(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
-        query=Path('span_left_join_unordered_test.sql'),
+        query="""
+CREATE TABLE t1(
+  ts BIGINT,
+  dur BIGINT,
+  part BIGINT,
+  PRIMARY KEY (part, ts)
+) WITHOUT ROWID;
+
+CREATE TABLE t2(
+  ts BIGINT,
+  dur BIGINT,
+  part BIGINT,
+  PRIMARY KEY (part, ts)
+) WITHOUT ROWID;
+
+INSERT INTO t1(ts, dur, part)
+VALUES (500, 100, 10);
+
+INSERT INTO t2(ts, dur, part)
+VALUES (500, 100, 5);
+
+CREATE VIRTUAL TABLE sp USING span_left_join(t1 PARTITIONED part,
+                                             t2 PARTITIONED part);
+
+SELECT * FROM sp;
+""",
         out=Csv("""
 "ts","dur","part"
 500,100,10

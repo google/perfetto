@@ -24,7 +24,19 @@ class DiffTestModule_Functions(DiffTestModule):
   def test_first_non_null_frame(self):
     return DiffTestBlueprint(
         trace=Path('../common/empty.textproto'),
-        query=Path('first_non_null_frame_test.sql'),
+        query="""
+CREATE TABLE TEST(id INTEGER, val INTEGER);
+
+INSERT INTO TEST
+VALUES (1, 1), (2, NULL), (3, 3), (4, 4), (5, NULL), (6, NULL), (7, NULL);
+
+SELECT
+  id,
+  LAST_NON_NULL(val)
+  OVER (ORDER BY id ASC ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING) AS val
+FROM TEST
+ORDER BY id ASC;
+""",
         out=Csv("""
 "id","val"
 1,3
@@ -39,7 +51,23 @@ class DiffTestModule_Functions(DiffTestModule):
   def test_first_non_null_partition(self):
     return DiffTestBlueprint(
         trace=Path('../common/empty.textproto'),
-        query=Path('first_non_null_partition_test.sql'),
+        query="""
+CREATE TABLE TEST(id INTEGER, part TEXT, val INTEGER);
+
+INSERT INTO TEST
+VALUES
+(1, 'A', 1),
+(2, 'A', NULL),
+(3, 'A', 3),
+(4, 'B', NULL),
+(5, 'B', 5),
+(6, 'B', NULL),
+(7, 'B', 7);
+
+SELECT id, LAST_NON_NULL(val) OVER (PARTITION BY part ORDER BY id ASC) AS val
+FROM TEST
+ORDER BY id ASC;
+""",
         out=Csv("""
 "id","val"
 1,1
@@ -54,7 +82,16 @@ class DiffTestModule_Functions(DiffTestModule):
   def test_first_non_null(self):
     return DiffTestBlueprint(
         trace=Path('../common/empty.textproto'),
-        query=Path('first_non_null_test.sql'),
+        query="""
+CREATE TABLE TEST(id INTEGER, val INTEGER);
+
+INSERT INTO TEST
+VALUES (1, 1), (2, NULL), (3, 3), (4, 4), (5, NULL), (6, NULL), (7, NULL);
+
+SELECT id, LAST_NON_NULL(val) OVER (ORDER BY id ASC) AS val
+FROM TEST
+ORDER BY id ASC;
+""",
         out=Csv("""
 "id","val"
 1,1

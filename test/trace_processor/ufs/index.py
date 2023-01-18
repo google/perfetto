@@ -24,7 +24,19 @@ class DiffTestModule_Ufs(DiffTestModule):
   def test_ufshcd_command(self):
     return DiffTestBlueprint(
         trace=Path('ufshcd_command.textproto'),
-        query=Path('ufshcd_command_test.sql'),
+        query="""
+SELECT
+  ts,
+  value
+FROM
+  counter AS c
+JOIN
+  counter_track AS ct
+  ON c.track_id = ct.id
+WHERE
+  ct.name = "io.ufs.command.count"
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","value"
 10000,1.000000
@@ -36,7 +48,13 @@ class DiffTestModule_Ufs(DiffTestModule):
   def test_ufshcd_command_tag(self):
     return DiffTestBlueprint(
         trace=Path('ufshcd_command_tag.textproto'),
-        query=Path('ufshcd_command_tag_test.sql'),
+        query="""
+SELECT ts, dur, slice.name
+FROM slice
+JOIN track ON slice.track_id = track.id
+WHERE track.name GLOB 'io.ufs.command.tag*'
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","dur","name"
 10000,800,"READ (10)"
