@@ -24,7 +24,13 @@ class DiffTestModule_Track_event(DiffTestModule):
   def test_track_event_same_tids_threads(self):
     return DiffTestBlueprint(
         trace=Path('track_event_same_tids.textproto'),
-        query=Path('../common/process_tracking_test.sql'),
+        query="""
+SELECT tid, pid, process.name AS pname, thread.name AS tname
+FROM thread
+LEFT JOIN process USING(upid)
+WHERE tid > 0
+ORDER BY tid;
+""",
         out=Csv("""
 "tid","pid","pname","tname"
 1,5,"[NULL]","t1"
@@ -36,7 +42,25 @@ class DiffTestModule_Track_event(DiffTestModule):
   def test_track_event_same_tids_slices(self):
     return DiffTestBlueprint(
         trace=Path('track_event_same_tids.textproto'),
-        query=Path('track_event_slices_test.sql'),
+        query="""
+SELECT
+  track.name AS track,
+  process.name AS process,
+  thread.name AS thread,
+  thread_process.name AS thread_process,
+  slice.ts,
+  slice.dur,
+  slice.category,
+  slice.name
+FROM slice
+LEFT JOIN track ON slice.track_id = track.id
+LEFT JOIN process_track ON slice.track_id = process_track.id
+LEFT JOIN process ON process_track.upid = process.upid
+LEFT JOIN thread_track ON slice.track_id = thread_track.id
+LEFT JOIN thread ON thread_track.utid = thread.utid
+LEFT JOIN process thread_process ON thread.upid = thread_process.upid
+ORDER BY ts ASC;
+""",
         out=Csv("""
 "track","process","thread","thread_process","ts","dur","category","name"
 "[NULL]","[NULL]","t1","[NULL]",1000,0,"cat","name1"
@@ -46,7 +70,25 @@ class DiffTestModule_Track_event(DiffTestModule):
   def test_track_event_typed_args_slices(self):
     return DiffTestBlueprint(
         trace=Path('track_event_typed_args.textproto'),
-        query=Path('track_event_slices_test.sql'),
+        query="""
+SELECT
+  track.name AS track,
+  process.name AS process,
+  thread.name AS thread,
+  thread_process.name AS thread_process,
+  slice.ts,
+  slice.dur,
+  slice.category,
+  slice.name
+FROM slice
+LEFT JOIN track ON slice.track_id = track.id
+LEFT JOIN process_track ON slice.track_id = process_track.id
+LEFT JOIN process ON process_track.upid = process.upid
+LEFT JOIN thread_track ON slice.track_id = thread_track.id
+LEFT JOIN thread ON thread_track.utid = thread.utid
+LEFT JOIN process thread_process ON thread.upid = thread_process.upid
+ORDER BY ts ASC;
+""",
         out=Csv("""
 "track","process","thread","thread_process","ts","dur","category","name"
 "[NULL]","[NULL]","t1","[NULL]",1000,0,"cat","name1"
@@ -66,13 +108,37 @@ class DiffTestModule_Track_event(DiffTestModule):
   def test_track_event_tracks_slices(self):
     return DiffTestBlueprint(
         trace=Path('track_event_tracks.textproto'),
-        query=Path('track_event_slices_test.sql'),
+        query="""
+SELECT
+  track.name AS track,
+  process.name AS process,
+  thread.name AS thread,
+  thread_process.name AS thread_process,
+  slice.ts,
+  slice.dur,
+  slice.category,
+  slice.name
+FROM slice
+LEFT JOIN track ON slice.track_id = track.id
+LEFT JOIN process_track ON slice.track_id = process_track.id
+LEFT JOIN process ON process_track.upid = process.upid
+LEFT JOIN thread_track ON slice.track_id = thread_track.id
+LEFT JOIN thread ON thread_track.utid = thread.utid
+LEFT JOIN process thread_process ON thread.upid = thread_process.upid
+ORDER BY ts ASC;
+""",
         out=Path('track_event_tracks_slices.out'))
 
   def test_track_event_tracks_processes(self):
     return DiffTestBlueprint(
         trace=Path('track_event_tracks.textproto'),
-        query=Path('track_event_processes_test.sql'),
+        query="""
+SELECT
+  id,
+  name,
+  extract_arg(arg_set_id, "chrome.host_app_package_name") AS host_app
+FROM process;
+""",
         out=Csv("""
 "id","name","host_app"
 0,"[NULL]","[NULL]"
@@ -83,7 +149,31 @@ class DiffTestModule_Track_event(DiffTestModule):
   def test_track_event_tracks(self):
     return DiffTestBlueprint(
         trace=Path('track_event_tracks.textproto'),
-        query=Path('track_event_tracks_test.sql'),
+        query="""
+WITH track_with_name AS (
+  SELECT
+    COALESCE(
+      t1.name,
+      'thread=' || thread.name,
+      'process=' || process.name,
+      'tid=' || thread.tid,
+      'pid=' || process.pid
+    ) AS full_name,
+    *
+  FROM track t1
+  LEFT JOIN thread_track t2 USING (id)
+  LEFT JOIN thread USING (utid)
+  LEFT JOIN process_track t3 USING (id)
+  LEFT JOIN process ON t3.upid = process.id
+  ORDER BY id
+)
+SELECT t1.full_name AS name, t2.full_name AS parent_name,
+       EXTRACT_ARG(t1.source_arg_set_id, 'has_first_packet_on_sequence')
+       AS has_first_packet_on_sequence
+FROM track_with_name t1
+LEFT JOIN track_with_name t2 ON t1.parent_id = t2.id
+ORDER BY 1, 2;
+""",
         out=Csv("""
 "name","parent_name","has_first_packet_on_sequence"
 "Default Track","[NULL]","[NULL]"
@@ -104,7 +194,25 @@ class DiffTestModule_Track_event(DiffTestModule):
   def test_track_event_instant_slices(self):
     return DiffTestBlueprint(
         trace=Path('track_event_instant.textproto'),
-        query=Path('track_event_slices_test.sql'),
+        query="""
+SELECT
+  track.name AS track,
+  process.name AS process,
+  thread.name AS thread,
+  thread_process.name AS thread_process,
+  slice.ts,
+  slice.dur,
+  slice.category,
+  slice.name
+FROM slice
+LEFT JOIN track ON slice.track_id = track.id
+LEFT JOIN process_track ON slice.track_id = process_track.id
+LEFT JOIN process ON process_track.upid = process.upid
+LEFT JOIN thread_track ON slice.track_id = thread_track.id
+LEFT JOIN thread ON thread_track.utid = thread.utid
+LEFT JOIN process thread_process ON thread.upid = thread_process.upid
+ORDER BY ts ASC;
+""",
         out=Csv("""
 "track","process","thread","thread_process","ts","dur","category","name"
 "[NULL]","[NULL]","t1","[NULL]",1000,0,"cat","instant_on_t1"
@@ -115,13 +223,53 @@ class DiffTestModule_Track_event(DiffTestModule):
   def test_legacy_async_event(self):
     return DiffTestBlueprint(
         trace=Path('legacy_async_event.textproto'),
-        query=Path('track_event_slice_with_args_test.sql'),
+        query="""
+SELECT
+  track.name AS track,
+  process.name AS process,
+  thread.name AS thread,
+  thread_process.name AS thread_process,
+  slice.ts,
+  slice.dur,
+  slice.category,
+  slice.name,
+  args.key,
+  args.string_value,
+  args.int_value
+FROM slice
+LEFT JOIN track ON slice.track_id = track.id
+LEFT JOIN process_track ON slice.track_id = process_track.id
+LEFT JOIN process ON process_track.upid = process.upid
+LEFT JOIN thread_track ON slice.track_id = thread_track.id
+LEFT JOIN thread ON thread_track.utid = thread.utid
+LEFT JOIN process thread_process ON thread.upid = thread_process.upid
+LEFT JOIN args ON slice.arg_set_id = args.arg_set_id
+ORDER BY ts ASC;
+""",
         out=Path('legacy_async_event.out'))
 
   def test_track_event_with_atrace(self):
     return DiffTestBlueprint(
         trace=Path('track_event_with_atrace.textproto'),
-        query=Path('track_event_slices_test.sql'),
+        query="""
+SELECT
+  track.name AS track,
+  process.name AS process,
+  thread.name AS thread,
+  thread_process.name AS thread_process,
+  slice.ts,
+  slice.dur,
+  slice.category,
+  slice.name
+FROM slice
+LEFT JOIN track ON slice.track_id = track.id
+LEFT JOIN process_track ON slice.track_id = process_track.id
+LEFT JOIN process ON process_track.upid = process.upid
+LEFT JOIN thread_track ON slice.track_id = thread_track.id
+LEFT JOIN thread ON thread_track.utid = thread.utid
+LEFT JOIN process thread_process ON thread.upid = thread_process.upid
+ORDER BY ts ASC;
+""",
         out=Csv("""
 "track","process","thread","thread_process","ts","dur","category","name"
 "[NULL]","[NULL]","t1","[NULL]",10000,1000,"cat","event1"
@@ -138,7 +286,25 @@ class DiffTestModule_Track_event(DiffTestModule):
   def test_track_event_counters_slices(self):
     return DiffTestBlueprint(
         trace=Path('track_event_counters.textproto'),
-        query=Path('track_event_slices_test.sql'),
+        query="""
+SELECT
+  track.name AS track,
+  process.name AS process,
+  thread.name AS thread,
+  thread_process.name AS thread_process,
+  slice.ts,
+  slice.dur,
+  slice.category,
+  slice.name
+FROM slice
+LEFT JOIN track ON slice.track_id = track.id
+LEFT JOIN process_track ON slice.track_id = process_track.id
+LEFT JOIN process ON process_track.upid = process.upid
+LEFT JOIN thread_track ON slice.track_id = thread_track.id
+LEFT JOIN thread ON thread_track.utid = thread.utid
+LEFT JOIN process thread_process ON thread.upid = thread_process.upid
+ORDER BY ts ASC;
+""",
         out=Csv("""
 "track","process","thread","thread_process","ts","dur","category","name"
 "[NULL]","[NULL]","t1","Browser",1000,100,"cat","event1_on_t1"
@@ -153,13 +319,48 @@ class DiffTestModule_Track_event(DiffTestModule):
   def test_track_event_counters_counters(self):
     return DiffTestBlueprint(
         trace=Path('track_event_counters.textproto'),
-        query=Path('track_event_counters_test.sql'),
+        query="""
+SELECT
+  counter_track.name AS counter_name,
+  process.name AS process,
+  thread.name AS thread,
+  thread_process.name AS thread_process,
+  counter_track.unit AS unit,
+  counter.ts,
+  counter.value
+FROM counter
+LEFT JOIN counter_track ON counter.track_id = counter_track.id
+LEFT JOIN process_counter_track ON counter.track_id = process_counter_track.id
+LEFT JOIN process ON process_counter_track.upid = process.upid
+LEFT JOIN thread_counter_track ON counter.track_id = thread_counter_track.id
+LEFT JOIN thread ON thread_counter_track.utid = thread.utid
+LEFT JOIN process thread_process ON thread.upid = thread_process.upid
+ORDER BY ts ASC;
+""",
         out=Path('track_event_counters_counters.out'))
 
   def test_track_event_monotonic_trace_clock_slices(self):
     return DiffTestBlueprint(
         trace=Path('track_event_monotonic_trace_clock.textproto'),
-        query=Path('track_event_slices_test.sql'),
+        query="""
+SELECT
+  track.name AS track,
+  process.name AS process,
+  thread.name AS thread,
+  thread_process.name AS thread_process,
+  slice.ts,
+  slice.dur,
+  slice.category,
+  slice.name
+FROM slice
+LEFT JOIN track ON slice.track_id = track.id
+LEFT JOIN process_track ON slice.track_id = process_track.id
+LEFT JOIN process ON process_track.upid = process.upid
+LEFT JOIN thread_track ON slice.track_id = thread_track.id
+LEFT JOIN thread ON thread_track.utid = thread.utid
+LEFT JOIN process thread_process ON thread.upid = thread_process.upid
+ORDER BY ts ASC;
+""",
         out=Csv("""
 "track","process","thread","thread_process","ts","dur","category","name"
 "name1","[NULL]","[NULL]","[NULL]",1000,0,"cat","name1"
@@ -175,7 +376,11 @@ class DiffTestModule_Track_event(DiffTestModule):
   def test_flow_events_track_event(self):
     return DiffTestBlueprint(
         trace=Path('flow_events_track_event.textproto'),
-        query=Path('flow_events_test.sql'),
+        query="""
+SELECT t1.name AS slice_out, t2.name AS slice_in FROM flow t
+JOIN slice t1 ON t.slice_out = t1.slice_id
+JOIN slice t2 ON t.slice_in = t2.slice_id;
+""",
         out=Csv("""
 "slice_out","slice_in"
 "FlowSlice1Start","FlowSlice1End"
@@ -190,7 +395,11 @@ class DiffTestModule_Track_event(DiffTestModule):
   def test_flow_events_proto_v2(self):
     return DiffTestBlueprint(
         trace=Path('flow_events_proto_v2.textproto'),
-        query=Path('flow_events_test.sql'),
+        query="""
+SELECT t1.name AS slice_out, t2.name AS slice_in FROM flow t
+JOIN slice t1 ON t.slice_out = t1.slice_id
+JOIN slice t2 ON t.slice_in = t2.slice_id;
+""",
         out=Csv("""
 "slice_out","slice_in"
 "FlowBeginSlice","FlowEndSlice_1"
@@ -201,7 +410,11 @@ class DiffTestModule_Track_event(DiffTestModule):
   def test_flow_events_proto_v1(self):
     return DiffTestBlueprint(
         trace=Path('flow_events_proto_v1.textproto'),
-        query=Path('flow_events_test.sql'),
+        query="""
+SELECT t1.name AS slice_out, t2.name AS slice_in FROM flow t
+JOIN slice t1 ON t.slice_out = t1.slice_id
+JOIN slice t2 ON t.slice_in = t2.slice_id;
+""",
         out=Csv("""
 "slice_out","slice_in"
 "FlowBeginSlice","FlowEndSlice_1"
@@ -212,7 +425,10 @@ class DiffTestModule_Track_event(DiffTestModule):
   def test_experimental_slice_layout_depth(self):
     return DiffTestBlueprint(
         trace=Path('experimental_slice_layout_depth.py'),
-        query=Path('experimental_slice_layout_depth_test.sql'),
+        query="""
+SELECT layout_depth FROM experimental_slice_layout
+WHERE filter_track_ids = (SELECT group_concat(track_id, ',') FROM slice);
+""",
         out=Csv("""
 "layout_depth"
 0
@@ -223,7 +439,9 @@ class DiffTestModule_Track_event(DiffTestModule):
   def test_merging_regression(self):
     return DiffTestBlueprint(
         trace=Path('../../data/trace_with_descriptor.pftrace'),
-        query=Path('merging_regression_test.sql'),
+        query="""
+SELECT ts FROM slice ORDER BY ts LIMIT 10;
+""",
         out=Csv("""
 "ts"
 605361018360000
@@ -241,7 +459,11 @@ class DiffTestModule_Track_event(DiffTestModule):
   def test_range_of_interest(self):
     return DiffTestBlueprint(
         trace=Path('range_of_interest.textproto'),
-        query=Path('range_of_interest_test.sql'),
+        query="""
+SELECT ts, name
+FROM slice
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","name"
 12000,"slice3"

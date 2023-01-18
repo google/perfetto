@@ -24,7 +24,19 @@ class DiffTestModule_Smoke(DiffTestModule):
   def test_sfgate_smoke(self):
     return DiffTestBlueprint(
         trace=Path('../../data/sfgate.json'),
-        query=Path('../common/smoke_test.sql'),
+        query="""
+SELECT
+  ts,
+  cpu,
+  dur,
+  end_state,
+  priority,
+  tid
+FROM sched
+JOIN thread USING(utid)
+ORDER BY ts
+LIMIT 10;
+""",
         out=Csv("""
 "ts","cpu","dur","end_state","priority","tid"
 """))
@@ -32,7 +44,13 @@ class DiffTestModule_Smoke(DiffTestModule):
   def test_sfgate_smoke_slices(self):
     return DiffTestBlueprint(
         trace=Path('../../data/sfgate.json'),
-        query=Path('../common/smoke_slices_test.sql'),
+        query="""
+SELECT track.type AS type, depth, count(*) AS count
+FROM slice
+JOIN track ON slice.track_id = track.id
+GROUP BY track.type, depth
+ORDER BY track.type, depth;
+""",
         out=Csv("""
 "type","depth","count"
 "thread_track",0,16888
@@ -50,7 +68,19 @@ class DiffTestModule_Smoke(DiffTestModule):
   def test_android_sched_and_ps_smoke(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_sched_and_ps.pb'),
-        query=Path('../common/smoke_test.sql'),
+        query="""
+SELECT
+  ts,
+  cpu,
+  dur,
+  end_state,
+  priority,
+  tid
+FROM sched
+JOIN thread USING(utid)
+ORDER BY ts
+LIMIT 10;
+""",
         out=Csv("""
 "ts","cpu","dur","end_state","priority","tid"
 81473010031230,2,78021,"S",120,26204
@@ -68,7 +98,19 @@ class DiffTestModule_Smoke(DiffTestModule):
   def test_compressed_smoke(self):
     return DiffTestBlueprint(
         trace=Path('../../data/compressed.pb'),
-        query=Path('../common/smoke_test.sql'),
+        query="""
+SELECT
+  ts,
+  cpu,
+  dur,
+  end_state,
+  priority,
+  tid
+FROM sched
+JOIN thread USING(utid)
+ORDER BY ts
+LIMIT 10;
+""",
         out=Csv("""
 "ts","cpu","dur","end_state","priority","tid"
 170601497673450,2,53646,"DK",120,6790
@@ -86,7 +128,19 @@ class DiffTestModule_Smoke(DiffTestModule):
   def test_synth_1_smoke(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
-        query=Path('../common/smoke_test.sql'),
+        query="""
+SELECT
+  ts,
+  cpu,
+  dur,
+  end_state,
+  priority,
+  tid
+FROM sched
+JOIN thread USING(utid)
+ORDER BY ts
+LIMIT 10;
+""",
         out=Csv("""
 "ts","cpu","dur","end_state","priority","tid"
 1,0,99,"R",0,3
@@ -102,11 +156,46 @@ class DiffTestModule_Smoke(DiffTestModule):
   def test_thread_cpu_time_example_android_trace_30s(self):
     return DiffTestBlueprint(
         trace=Path('../../data/example_android_trace_30s.pb'),
-        query=Path('thread_cpu_time_test.sql'),
+        query="""
+SELECT
+  tid,
+  pid,
+  thread.name AS threadName,
+  process.name AS processName,
+  total_dur AS totalDur
+FROM
+  thread
+LEFT JOIN process USING(upid)
+LEFT JOIN
+  (SELECT upid, sum(dur) AS total_dur
+    FROM sched JOIN thread USING(utid)
+    WHERE dur != -1
+    GROUP BY upid
+  ) USING(upid)
+WHERE utid != 0
+ORDER BY total_dur DESC, pid, tid;
+""",
         out=Path('thread_cpu_time_example_android_trace_30s.out'))
 
   def test_proxy_power(self):
     return DiffTestBlueprint(
         trace=Path('../../data/cpu_counters.pb'),
-        query=Path('proxy_power_test.sql'),
+        query="""
+SELECT RUN_METRIC('android/android_proxy_power.sql');
+
+DROP VIEW device;
+
+CREATE TABLE device (name STRING);
+
+INSERT INTO device VALUES ('walleye');
+
+SELECT
+  tid,
+  SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
+FROM power_per_thread
+JOIN thread USING (utid)
+GROUP BY utid
+ORDER BY power_mas DESC
+LIMIT 10;
+""",
         out=Path('proxy_power.out'))
