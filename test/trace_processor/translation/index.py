@@ -58,7 +58,9 @@ class DiffTestModule_Translation(DiffTestModule):
   def test_slice_name(self):
     return DiffTestBlueprint(
         trace=Path('slice_name.textproto'),
-        query=Path('slice_name_test.sql'),
+        query="""
+SELECT name FROM slice ORDER BY name;
+""",
         out=Csv("""
 "name"
 "mapped_name1"
@@ -70,7 +72,9 @@ class DiffTestModule_Translation(DiffTestModule):
   def test_slice_name_2(self):
     return DiffTestBlueprint(
         trace=Path('slice_name_negative_timestamp.textproto'),
-        query=Path('slice_name_test.sql'),
+        query="""
+SELECT name FROM slice ORDER BY name;
+""",
         out=Csv("""
 "name"
 "mapped_name1"

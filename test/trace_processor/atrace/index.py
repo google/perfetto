@@ -24,7 +24,10 @@ class DiffTestModule_Atrace(DiffTestModule):
   def test_bad_print_textproto_list_slices(self):
     return DiffTestBlueprint(
         trace=Path('bad_print.textproto'),
-        query=Path('../common/list_slices_test.sql'),
+        query="""
+SELECT ts, dur, name
+FROM slice;
+""",
         out=Csv("""
 "ts","dur","name"
 74662603048,2,"valid_print"
@@ -33,7 +36,10 @@ class DiffTestModule_Atrace(DiffTestModule):
   def test_bad_print_systrace_list_slices(self):
     return DiffTestBlueprint(
         trace=Path('bad_print.systrace'),
-        query=Path('../common/list_slices_test.sql'),
+        query="""
+SELECT ts, dur, name
+FROM slice;
+""",
         out=Csv("""
 "ts","dur","name"
 10852771242000,3000,"some event"
@@ -42,7 +48,13 @@ class DiffTestModule_Atrace(DiffTestModule):
   def test_instant_atrace_instant_with_thread(self):
     return DiffTestBlueprint(
         trace=Path('instant_atrace.py'),
-        query=Path('instant_with_thread_test.sql'),
+        query="""
+SELECT thread.name AS thread_name, instant.name AS track_name, instant.ts
+FROM slice instant
+JOIN thread_track ON instant.track_id = thread_track.id
+JOIN thread USING (utid)
+WHERE dur = 0;
+""",
         out=Csv("""
 "thread_name","track_name","ts"
 "t2","t2_event",51
@@ -52,7 +64,17 @@ class DiffTestModule_Atrace(DiffTestModule):
   def test_instant_async_atrace_instant_async(self):
     return DiffTestBlueprint(
         trace=Path('instant_async_atrace.py'),
-        query=Path('instant_async_test.sql'),
+        query="""
+SELECT
+  process.name AS process_name,
+  process_track.name AS track_name,
+  instant.name AS instant_name,
+  ts
+FROM slice instant
+JOIN process_track ON instant.track_id = process_track.id
+JOIN process USING (upid)
+WHERE dur = 0;
+""",
         out=Csv("""
 "process_name","track_name","instant_name","ts"
 "p2","track_p2","ev1",51
@@ -62,7 +84,10 @@ class DiffTestModule_Atrace(DiffTestModule):
   def test_android_b2b_async_begin_list_slices(self):
     return DiffTestBlueprint(
         trace=Path('android_b2b_async_begin.textproto'),
-        query=Path('../common/list_slices_test.sql'),
+        query="""
+SELECT ts, dur, name
+FROM slice;
+""",
         out=Csv("""
 "ts","dur","name"
 1000,30,"multistart"
@@ -73,13 +98,33 @@ class DiffTestModule_Atrace(DiffTestModule):
   def test_process_track_slices_android_async_slice(self):
     return DiffTestBlueprint(
         trace=Path('android_async_slice.textproto'),
-        query=Path('../common/process_track_slices_test.sql'),
+        query="""
+SELECT
+  ts,
+  dur,
+  pid,
+  slice.name AS slice_name,
+  process_track.name AS track_name
+FROM slice
+JOIN process_track ON slice.track_id = process_track.id
+JOIN process USING (upid);
+""",
         out=Path('process_track_slices_android_async_slice.out'))
 
   def test_async_track_atrace_process_track_slices(self):
     return DiffTestBlueprint(
         trace=Path('async_track_atrace.py'),
-        query=Path('../common/process_track_slices_test.sql'),
+        query="""
+SELECT
+  ts,
+  dur,
+  pid,
+  slice.name AS slice_name,
+  process_track.name AS track_name
+FROM slice
+JOIN process_track ON slice.track_id = process_track.id
+JOIN process USING (upid);
+""",
         out=Csv("""
 "ts","dur","pid","slice_name","track_name"
 50,25,1,"ev","track"
@@ -90,7 +135,13 @@ class DiffTestModule_Atrace(DiffTestModule):
   def test_sys_write_and_atrace(self):
     return DiffTestBlueprint(
         trace=Path('sys_write_and_atrace.py'),
-        query=Path('sys_write_and_atrace_test.sql'),
+        query="""
+SELECT slice.ts, slice.dur, slice.name, slice.depth
+FROM slice
+JOIN thread_track ON (slice.track_id = thread_track.id)
+JOIN thread USING (utid)
+WHERE tid = 42;
+""",
         out=Csv("""
 "ts","dur","name","depth"
 100,100,"sys_write",0

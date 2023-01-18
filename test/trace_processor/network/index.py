@@ -24,7 +24,21 @@ class DiffTestModule_Network(DiffTestModule):
   def test_netif_receive_skb(self):
     return DiffTestBlueprint(
         trace=Path('netif_receive_skb.textproto'),
-        query=Path('netif_receive_skb_test.sql'),
+        query="""
+SELECT
+  ts,
+  REPLACE(name, " Received KB", "") AS dev,
+  EXTRACT_ARG(arg_set_id, 'cpu') AS cpu,
+  EXTRACT_ARG(arg_set_id, 'len') AS len
+FROM
+  counter AS c
+LEFT JOIN
+  counter_track AS t
+  ON c.track_id = t.id
+WHERE
+  name GLOB "* Received KB"
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","dev","cpu","len"
 10000,"rmnet0",0,1000
@@ -37,7 +51,21 @@ class DiffTestModule_Network(DiffTestModule):
   def test_net_dev_xmit(self):
     return DiffTestBlueprint(
         trace=Path('net_dev_xmit.textproto'),
-        query=Path('net_dev_xmit_test.sql'),
+        query="""
+SELECT
+  ts,
+  REPLACE(name, " Transmitted KB", "") AS dev,
+  EXTRACT_ARG(arg_set_id, 'cpu') AS cpu,
+  EXTRACT_ARG(arg_set_id, 'len') AS len
+FROM
+  counter AS c
+LEFT JOIN
+  counter_track AS t
+  ON c.track_id = t.id
+WHERE
+  name GLOB "* Transmitted KB"
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","dev","cpu","len"
 10000,"rmnet0",0,1000
@@ -55,7 +83,20 @@ class DiffTestModule_Network(DiffTestModule):
   def test_inet_sock_set_state(self):
     return DiffTestBlueprint(
         trace=Path('inet_sock_set_state.textproto'),
-        query=Path('inet_sock_set_state_test.sql'),
+        query="""
+SELECT
+  ts,
+  s.name,
+  dur,
+  t.name
+FROM
+  slice AS s
+LEFT JOIN track AS t
+  ON s.track_id = t.id
+WHERE
+  t.name GLOB "TCP stream#*"
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","name","dur","name"
 10000000,"TCP_SYN_SENT(pid=123)",100000000,"TCP stream#1"
@@ -69,7 +110,19 @@ class DiffTestModule_Network(DiffTestModule):
   def test_tcp_retransmit_skb(self):
     return DiffTestBlueprint(
         trace=Path('tcp_retransmit_skb.textproto'),
-        query=Path('tcp_retransmit_skb_test.sql'),
+        query="""
+SELECT
+  ts,
+  s.name,
+  dur
+FROM
+  slice AS s
+LEFT JOIN track AS t
+  ON s.track_id = t.id
+WHERE
+  t.name = "TCP Retransmit Skb"
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","name","dur"
 110000000,"sport=56789,dport=5001",0
@@ -79,7 +132,24 @@ class DiffTestModule_Network(DiffTestModule):
   def test_napi_gro_receive(self):
     return DiffTestBlueprint(
         trace=Path('napi_gro_receive.textproto'),
-        query=Path('napi_gro_receive_test.sql'),
+        query="""
+SELECT
+  ts,
+  s.name,
+  dur,
+  cat,
+  t.name,
+  EXTRACT_ARG(arg_set_id, 'ret') AS ret,
+  EXTRACT_ARG(arg_set_id, 'len') AS len
+FROM
+  slice AS s
+LEFT JOIN
+  track AS t
+  ON s.track_id = t.id
+WHERE
+  t.name GLOB "Napi Gro Cpu *"
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","name","dur","cat","name","ret","len"
 10000,"rmnet0",20,"napi_gro","Napi Gro Cpu 2",2,1000
@@ -90,7 +160,20 @@ class DiffTestModule_Network(DiffTestModule):
   def test_kfree_skb(self):
     return DiffTestBlueprint(
         trace=Path('kfree_skb.textproto'),
-        query=Path('kfree_skb_test.sql'),
+        query="""
+SELECT
+  ts,
+  value,
+  EXTRACT_ARG(arg_set_id, 'protocol') AS prot
+FROM
+  counter AS c
+LEFT JOIN
+  counter_track AS t
+  ON c.track_id = t.id
+WHERE
+  name GLOB "Kfree Skb IP Prot"
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","value","prot"
 10000,1.000000,"IP"

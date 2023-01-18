@@ -24,7 +24,13 @@ class DiffTestModule_Graphics(DiffTestModule):
   def test_gpu_counters(self):
     return DiffTestBlueprint(
         trace=Path('gpu_counters.py'),
-        query=Path('gpu_counters_test.sql'),
+        query="""
+SELECT "ts", "value", "name", "gpu_id", "description", "unit"
+FROM counter
+JOIN gpu_counter_track
+  ON counter.track_id = gpu_counter_track.id
+ORDER BY "ts";
+""",
         out=Csv("""
 "ts","value","name","gpu_id","description","unit"
 11,5.000000,"Vertex / Second",0,"Number of vertices per second","25/22"
@@ -41,7 +47,12 @@ class DiffTestModule_Graphics(DiffTestModule):
   def test_gpu_counter_specs(self):
     return DiffTestBlueprint(
         trace=Path('gpu_counter_specs.textproto'),
-        query=Path('gpu_counter_specs_test.sql'),
+        query="""
+SELECT group_id, c.name, c.description, unit
+FROM gpu_counter_group AS g
+JOIN gpu_counter_track AS c
+  ON g.track_id = c.id;
+""",
         out=Csv("""
 "group_id","name","description","unit"
 0,"GPU Frequency","clock speed","/22"
@@ -66,13 +77,30 @@ class DiffTestModule_Graphics(DiffTestModule):
   def test_vulkan_api_events(self):
     return DiffTestBlueprint(
         trace=Path('vulkan_api_events.py'),
-        query=Path('vulkan_api_events_test.sql'),
+        query="""
+SELECT track.name AS track_name, gpu_track.description AS track_desc, ts, dur,
+  gpu_slice.name AS slice_name, depth, flat_key, int_value,
+  gpu_slice.context_id, command_buffer, submission_id
+FROM gpu_track
+LEFT JOIN track USING (id)
+JOIN gpu_slice ON gpu_track.id = gpu_slice.track_id
+LEFT JOIN args ON gpu_slice.arg_set_id = args.arg_set_id
+ORDER BY ts;
+""",
         out=Path('vulkan_api_events.out'))
 
   def test_gpu_log(self):
     return DiffTestBlueprint(
         trace=Path('gpu_log.py'),
-        query=Path('gpu_log_test.sql'),
+        query="""
+SELECT scope, track.name AS track_name, ts, dur, gpu_slice.name AS slice_name,
+  key, string_value AS value
+FROM gpu_track
+LEFT JOIN track USING (id)
+LEFT JOIN gpu_slice ON gpu_track.id = gpu_slice.track_id
+LEFT JOIN args USING (arg_set_id)
+ORDER BY ts, slice_name, key;
+""",
         out=Csv("""
 "scope","track_name","ts","dur","slice_name","key","value"
 "gpu_log","GPU Log",1,0,"VERBOSE","message","message0"
@@ -92,7 +120,14 @@ class DiffTestModule_Graphics(DiffTestModule):
   def test_graphics_frame_events(self):
     return DiffTestBlueprint(
         trace=Path('graphics_frame_events.py'),
-        query=Path('graphics_frame_events_test.sql'),
+        query="""
+SELECT ts, gpu_track.name AS track_name, dur, frame_slice.name AS slice_name,
+  frame_number, layer_name
+FROM gpu_track
+LEFT JOIN frame_slice ON gpu_track.id = frame_slice.track_id
+WHERE scope = 'graphics_frame_event'
+ORDER BY ts;
+""",
         out=Path('graphics_frame_events.out'))
 
   def test_gpu_mem_total(self):
@@ -123,7 +158,11 @@ class DiffTestModule_Graphics(DiffTestModule):
   def test_clock_sync(self):
     return DiffTestBlueprint(
         trace=Path('clock_sync.py'),
-        query=Path('clock_sync_test.sql'),
+        query="""
+SELECT ts, cast(value AS integer) AS int_value
+FROM counters
+WHERE name GLOB 'gpu_counter*';
+""",
         out=Csv("""
 "ts","int_value"
 1,3
@@ -140,7 +179,12 @@ class DiffTestModule_Graphics(DiffTestModule):
   def test_frame_missed_event_frame_missed(self):
     return DiffTestBlueprint(
         trace=Path('frame_missed.py'),
-        query=Path('frame_missed_event_test.sql'),
+        query="""
+SELECT RUN_METRIC('android/android_surfaceflinger.sql');
+
+SELECT ts, dur
+FROM android_surfaceflinger_event;
+""",
         out=Csv("""
 "ts","dur"
 100,1
@@ -181,7 +225,25 @@ android_surfaceflinger {
     return DiffTestBlueprint(
         trace=Path('gpu_metric.py'),
         query=Metric('android_gpu'),
-        out=Path('gpu_metric.out'))
+        out=TextProto(r"""
+android_gpu {
+  processes {
+    name: "app_1"
+    mem_max: 8
+    mem_min: 2
+    mem_avg: 3
+  }
+  processes {
+    name: "app_2"
+    mem_max: 10
+    mem_min: 6
+    mem_avg: 8
+  }
+  mem_max: 4
+  mem_min: 1
+  mem_avg: 2
+}
+"""))
 
   def test_gpu_frequency_metric(self):
     return DiffTestBlueprint(
@@ -230,7 +292,12 @@ android_surfaceflinger {
   def test_composition_layer_count(self):
     return DiffTestBlueprint(
         trace=Path('composition_layer.py'),
-        query=Path('composition_layer_count_test.sql'),
+        query="""
+SELECT RUN_METRIC('android/android_hwcomposer.sql');
+
+SELECT AVG(value)
+FROM total_layers;
+""",
         out=Csv("""
 "AVG(value)"
 3.000000
@@ -245,7 +312,18 @@ android_surfaceflinger {
   def test_composer_execution(self):
     return DiffTestBlueprint(
         trace=Path('composer_execution.py'),
-        query=Path('composer_execution_test.sql'),
+        query="""
+SELECT RUN_METRIC('android/composer_execution.sql',
+  'output', 'hwc_execution_spans');
+
+SELECT
+  validation_type,
+  COUNT(*) AS count,
+  SUM(execution_time_ns) AS total
+FROM hwc_execution_spans
+GROUP BY validation_type
+ORDER BY validation_type;
+""",
         out=Csv("""
 "validation_type","count","total"
 "separated_validation",1,200
@@ -257,18 +335,80 @@ android_surfaceflinger {
     return DiffTestBlueprint(
         trace=Path('display_metrics.py'),
         query=Metric('display_metrics'),
-        out=Path('display_metrics.out'))
+        out=TextProto(r"""
+display_metrics {
+  total_duplicate_frames: 0
+  duplicate_frames_logged: 0
+  total_dpu_underrun_count: 0
+  refresh_rate_switches: 5
+  refresh_rate_stats {
+    refresh_rate_fps: 60
+    count: 2
+    total_dur_ms: 2
+    avg_dur_ms: 1
+  }
+  refresh_rate_stats {
+    refresh_rate_fps: 90
+    count: 2
+    total_dur_ms: 2
+    avg_dur_ms: 1
+  }
+  refresh_rate_stats {
+    refresh_rate_fps: 120
+    count: 1
+    total_dur_ms: 2
+    avg_dur_ms: 2
+  }
+  update_power_state {
+    avg_runtime_micro_secs: 4000
+  }
+}
+"""))
 
   def test_dpu_vote_clock_bw(self):
     return DiffTestBlueprint(
         trace=Path('dpu_vote_clock_bw.textproto'),
         query=Metric('android_hwcomposer'),
-        out=Path('dpu_vote_clock_bw.out'))
+        out=TextProto(r"""
+android_hwcomposer {
+  skipped_validation_count: 0
+  unskipped_validation_count: 0
+  separated_validation_count: 0
+  unknown_validation_count: 0
+  dpu_vote_metrics {
+    tid: 237
+    avg_dpu_vote_clock: 206250
+    avg_dpu_vote_avg_bw: 210000
+    avg_dpu_vote_peak_bw: 205000
+    avg_dpu_vote_rt_bw: 271000
+  }
+  dpu_vote_metrics {
+    tid: 299
+    avg_dpu_vote_clock: 250000
+  }
+}
+"""))
 
   def test_drm_vblank_gpu_track(self):
     return DiffTestBlueprint(
         trace=Path('drm_vblank.textproto'),
-        query=Path('drm_gpu_track_test.sql'),
+        query="""
+SELECT
+  gpu_track.name,
+  ts,
+  dur,
+  slice.name,
+  flat_key,
+  int_value,
+  string_value
+FROM
+  gpu_track
+JOIN slice
+  ON slice.track_id = gpu_track.id
+JOIN args
+  ON slice.arg_set_id = args.arg_set_id
+ORDER BY ts;
+""",
         out=Csv("""
 "name","ts","dur","name","flat_key","int_value","string_value"
 "vblank-0",6159770881976,0,"signal","vblank seqno",3551,"[NULL]"
@@ -278,7 +418,23 @@ android_surfaceflinger {
   def test_drm_sched_gpu_track(self):
     return DiffTestBlueprint(
         trace=Path('drm_sched.textproto'),
-        query=Path('drm_gpu_track_test.sql'),
+        query="""
+SELECT
+  gpu_track.name,
+  ts,
+  dur,
+  slice.name,
+  flat_key,
+  int_value,
+  string_value
+FROM
+  gpu_track
+JOIN slice
+  ON slice.track_id = gpu_track.id
+JOIN args
+  ON slice.arg_set_id = args.arg_set_id
+ORDER BY ts;
+""",
         out=Csv("""
 "name","ts","dur","name","flat_key","int_value","string_value"
 "sched-ring0",9246165349383,4729073,"job","gpu sched job",13481,"[NULL]"
@@ -290,7 +446,23 @@ android_surfaceflinger {
   def test_drm_sched_thread_track(self):
     return DiffTestBlueprint(
         trace=Path('drm_sched.textproto'),
-        query=Path('drm_thread_track_test.sql'),
+        query="""
+SELECT
+  utid,
+  ts,
+  dur,
+  slice.name,
+  flat_key,
+  int_value,
+  string_value
+FROM
+  thread_track
+JOIN slice
+  ON slice.track_id = thread_track.id
+JOIN args
+  ON slice.arg_set_id = args.arg_set_id
+ORDER BY ts;
+""",
         out=Csv("""
 "utid","ts","dur","name","flat_key","int_value","string_value"
 1,9246165326050,0,"drm_sched_job","gpu sched ring","[NULL]","ring0"
@@ -306,7 +478,23 @@ android_surfaceflinger {
   def test_drm_dma_fence_gpu_track(self):
     return DiffTestBlueprint(
         trace=Path('drm_dma_fence.textproto'),
-        query=Path('drm_gpu_track_test.sql'),
+        query="""
+SELECT
+  gpu_track.name,
+  ts,
+  dur,
+  slice.name,
+  flat_key,
+  int_value,
+  string_value
+FROM
+  gpu_track
+JOIN slice
+  ON slice.track_id = gpu_track.id
+JOIN args
+  ON slice.arg_set_id = args.arg_set_id
+ORDER BY ts;
+""",
         out=Csv("""
 "name","ts","dur","name","flat_key","int_value","string_value"
 "fence-gpu-ring-0-1",11303602488073,12813,"fence","fence seqno",16665,"[NULL]"
@@ -318,7 +506,23 @@ android_surfaceflinger {
   def test_drm_dma_fence_thread_track(self):
     return DiffTestBlueprint(
         trace=Path('drm_dma_fence.textproto'),
-        query=Path('drm_thread_track_test.sql'),
+        query="""
+SELECT
+  utid,
+  ts,
+  dur,
+  slice.name,
+  flat_key,
+  int_value,
+  string_value
+FROM
+  thread_track
+JOIN slice
+  ON slice.track_id = thread_track.id
+JOIN args
+  ON slice.arg_set_id = args.arg_set_id
+ORDER BY ts;
+""",
         out=Csv("""
 "utid","ts","dur","name","flat_key","int_value","string_value"
 3,11303702851231,4867658,"dma_fence_wait","fence context",9,"[NULL]"
@@ -328,7 +532,11 @@ android_surfaceflinger {
   def test_v4l2_vidioc_slice(self):
     return DiffTestBlueprint(
         trace=Path('v4l2_vidioc.textproto'),
-        query=Path('v4l2_vidioc_slice_test.sql'),
+        query="""
+SELECT ts, dur, name
+FROM slice
+WHERE category = 'Video 4 Linux 2';
+""",
         out=Csv("""
 "ts","dur","name"
 593268475912,0,"VIDIOC_QBUF minor=0 seq=0 type=9 index=19"
@@ -340,13 +548,22 @@ android_surfaceflinger {
   def test_v4l2_vidioc_flow(self):
     return DiffTestBlueprint(
         trace=Path('v4l2_vidioc.textproto'),
-        query=Path('v4l2_vidioc_flow_test.sql'),
+        query="""
+SELECT qbuf.ts, qbuf.dur, qbuf.name, dqbuf.ts, dqbuf.dur, dqbuf.name
+FROM flow
+JOIN slice qbuf ON flow.slice_out = qbuf.id
+JOIN slice dqbuf ON flow.slice_in = dqbuf.id;
+""",
         out=Path('v4l2_vidioc_flow.out'))
 
   def test_virtio_video_slice(self):
     return DiffTestBlueprint(
         trace=Path('virtio_video.textproto'),
-        query=Path('virtio_video_slice_test.sql'),
+        query="""
+SELECT slice.ts, slice.dur, slice.name, track.name
+FROM slice
+JOIN track ON slice.track_id = track.id;
+""",
         out=Csv("""
 "ts","dur","name","name"
 593125003271,84500592,"Resource #102","virtio_video stream #4 OUTPUT"
@@ -360,7 +577,15 @@ android_surfaceflinger {
   def test_virtio_gpu_test(self):
     return DiffTestBlueprint(
         trace=Path('virtio_gpu.textproto'),
-        query=Path('virtio_gpu_test.sql'),
+        query="""
+SELECT
+  ts,
+  dur,
+  name
+FROM
+  slice
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","dur","name"
 1345090723759,1180312,"SUBMIT_3D"
@@ -370,7 +595,9 @@ android_surfaceflinger {
   def test_mali_test(self):
     return DiffTestBlueprint(
         trace=Path('mali.textproto'),
-        query=Path('mali_test.sql'),
+        query="""
+SELECT ts, dur, name FROM slice WHERE name GLOB "mali_KCPU_CQS*";
+""",
         out=Csv("""
 "ts","dur","name"
 751796307210,4313965,"mali_KCPU_CQS_WAIT"
@@ -380,7 +607,9 @@ android_surfaceflinger {
   def test_mali_fence_test(self):
     return DiffTestBlueprint(
         trace=Path('mali_fence.textproto'),
-        query=Path('mali_fence_test.sql'),
+        query="""
+SELECT ts, dur, name FROM slice WHERE name GLOB "mali_KCPU_FENCE*";
+""",
         out=Csv("""
 "ts","dur","name"
 751796307210,4313965,"mali_KCPU_FENCE_WAIT"
