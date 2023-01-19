@@ -202,18 +202,29 @@ class DiffTestExecutor:
 
   # Run a query based Diff Test.
   def __run_query_test(self, gen_trace_path: str) -> TestResult:
+    # Fetch expected text.
     if self.test.expected_path:
       with open(self.test.expected_path, 'r') as expected_file:
         expected = expected_file.read()
     else:
       expected = self.test.blueprint.out.contents
+
+    # Fetch query.
+    if self.test.blueprint.is_query_file():
+      query = self.test.query_path
+    else:
+      tmp_query_file = tempfile.NamedTemporaryFile(delete=False)
+      with open(tmp_query_file.name, 'w') as query_file:
+        query_file.write(self.test.blueprint.query)
+      query = tmp_query_file.name
+
     tmp_perf_file = tempfile.NamedTemporaryFile(delete=False)
     cmd = [
         self.trace_processor_path,
         '--analyze-trace-proto-content',
         '--crop-track-events',
         '-q',
-        self.test.query_path,
+        query,
         '--perf-file',
         tmp_perf_file.name,
         gen_trace_path,
@@ -225,6 +236,9 @@ class DiffTestExecutor:
         env=get_env(ROOT_DIR))
     (stdout, stderr) = tp.communicate()
 
+    if not self.test.blueprint.is_query_file():
+      tmp_query_file.close()
+      os.remove(tmp_query_file.name)
     perf_lines = [line.decode('utf8') for line in tmp_perf_file.readlines()]
     tmp_perf_file.close()
     os.remove(tmp_perf_file.name)
@@ -237,6 +251,10 @@ class DiffTestExecutor:
             extension_descriptor_paths: List[str], keep_input,
             rebase) -> Tuple[TestResult, str]:
     is_generated_trace = True
+    # We can't use delete=True here. When using that on Windows, the
+    # resulting file is opened in exclusive mode (in turn that's a subtle
+    # side-effect of the underlying CreateFile(FILE_ATTRIBUTE_TEMPORARY))
+    # and TP fails to open the passed path.
     if self.test.trace_path.endswith('.py'):
       gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
       serialize_python_trace(ROOT_DIR, self.trace_descriptor_path,
@@ -258,9 +276,6 @@ class DiffTestExecutor:
     str = f"{self.colors.yellow('[ RUN      ]')} {self.test.name}\n"
 
     if self.test.type == TestType.QUERY:
-      if not os.path.exists(self.test.query_path):
-        return None, str + f"Query file not found {self.test.query_path}"
-
       result = self.__run_query_test(gen_trace_path)
     elif self.test.type == TestType.METRIC:
       result = self.__run_metrics_test(
@@ -326,18 +341,6 @@ class DiffTestExecutor:
       ]
     result_str = ""
 
-    if not os.path.exists(self.test.trace_path):
-      result_str += f"Trace file not found {self.test.trace_path}\n"
-      return self.test.name, result_str, None
-    elif self.test.expected_path and not os.path.exists(
-        self.test.expected_path):
-      result_str = f"Expected file not found {self.test.expected_path}"
-      return self.test.name, result_str, None
-
-    # We can't use delete=True here. When using that on Windows, the
-    # resulting file is opened in exclusive mode (in turn that's a subtle
-    # side-effect of the underlying CreateFile(FILE_ATTRIBUTE_TEMPORARY))
-    # and TP fails to open the passed path.
     result, run_str = self.__run(metrics_descriptor_paths,
                                  extension_descriptor_paths, keep_input, rebase)
     result_str += run_str

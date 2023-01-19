@@ -30,7 +30,20 @@ class DiffTestModule_Performance(DiffTestModule):
   def test_cpu_frequency_limits(self):
     return DiffTestBlueprint(
         trace=Path('cpu_frequency_limits.textproto'),
-        query=Path('cpu_frequency_limits_test.sql'),
+        query="""
+SELECT
+  ts,
+  value,
+  REPLACE(name, " Freq Limit", "") AS cpu
+FROM
+  counter AS c
+LEFT JOIN
+  counter_track AS t
+  ON c.track_id = t.id
+WHERE
+  name GLOB "* Freq Limit"
+ORDER BY ts;
+""",
         out=Csv("""
 "ts","value","cpu"
 90000000,2800000.000000,"Cpu 6 Max"

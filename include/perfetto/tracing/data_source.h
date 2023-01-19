@@ -46,6 +46,11 @@
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
+// DEPRECATED: Instead of using this macro, prefer specifying symbol linkage
+// attributes explicitly using the `_WITH_ATTRS` macro variants (e.g.,
+// PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS_WITH_ATTRS). This avoids
+// potential macro definition collisions between two libraries using Perfetto.
+//
 // PERFETTO_COMPONENT_EXPORT is used to mark symbols in Perfetto's headers
 // (typically templates) that are defined by the user outside of Perfetto and
 // should be made visible outside the current module. (e.g., in Chrome's
