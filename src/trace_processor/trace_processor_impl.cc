@@ -52,6 +52,7 @@
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/ninja/ninja_log_parser.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
+#include "src/trace_processor/importers/proto/content_analyzer.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/iterator_impl.h"
@@ -697,6 +698,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   if (json::IsJsonSupported()) {
     context_.json_trace_tokenizer.reset(new JsonTraceTokenizer(&context_));
     context_.json_trace_parser.reset(new JsonTraceParser(&context_));
+  }
+
+  if (context_.config.analyze_trace_proto_content) {
+    context_.content_analyzer.reset(new ProtoContentAnalyzer(&context_));
   }
 
   RegisterAdditionalModules(&context_);

@@ -131,6 +131,7 @@ base::Optional<size_t> SizeProfileComputer::GetNext() {
     if (type == ProtoWireType::kLengthDelimited && is_message_type) {
       auto message_idx =
           pool_->FindDescriptorIdx(field_descriptor->resolved_type_name());
+
       if (!message_idx) {
         PERFETTO_ELOG("Cannot find descriptor for type %s",
                       field_descriptor->resolved_type_name().c_str());
@@ -139,10 +140,10 @@ base::Optional<size_t> SizeProfileComputer::GetNext() {
 
       protozero::ProtoDecoder decoder(field.data(), field.size());
       const ProtoDescriptor* descriptor = &pool_->descriptors()[*message_idx];
-      state_stack_.push_back(
-          State{descriptor, std::move(decoder), field.size(), 0U});
       field_path_.emplace_back(field.id(), field_descriptor, *message_idx,
                                descriptor);
+      state_stack_.push_back(
+          State{descriptor, std::move(decoder), field.size(), 0U});
       return GetNext();
     } else {
       field_path_.emplace_back(field.id(), field_descriptor,

@@ -117,3 +117,4 @@ chrome_missing_processes_extension.textproto chrome_missing_processes_args_test.
 
 # Trace proto content
 ../../data/chrome_scroll_without_vsync.pftrace proto_content_test.sql proto_content.out
+../../data/chrome_scroll_without_vsync.pftrace proto_content_path_test.sql proto_content_path.out

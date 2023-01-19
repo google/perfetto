@@ -13,4 +13,4 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-SELECT flat_key, key, int_value, string_value FROM args ORDER BY arg_set_id, key ASC;
+SELECT flat_key, key, int_value, string_value FROM args ORDER BY key, display_value, arg_set_id, key ASC;
