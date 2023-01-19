@@ -13,8 +13,11 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT path, SUM(total_size) as total_size
-FROM experimental_proto_content as content JOIN experimental_proto_path as frame ON content.path_id = frame.id
-GROUP BY path
+SELECT content.total_size,
+  frame.field_type, frame.field_name,
+  frame.parent_id,
+  EXTRACT_ARG(frame.arg_set_id, 'event.category') AS event_category,
+  EXTRACT_ARG(frame.arg_set_id, 'event.name') AS event_name
+FROM experimental_proto_path AS frame JOIN experimental_proto_content AS content ON content.path_id = frame.id
 ORDER BY total_size DESC, path
 LIMIT 10;
