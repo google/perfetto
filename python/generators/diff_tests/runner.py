@@ -37,16 +37,12 @@ ROOT_DIR = os.path.dirname(
 # Performance result of running the test.
 @dataclass
 class PerfResult:
-  test_type: TestType
-  trace_path: str
-  query_path_or_metric: str
+  test: DiffTest
   ingest_time_ns: int
   real_time_ns: int
 
   def __init__(self, test: DiffTest, perf_lines: List[str]):
-    self.test_type = test.type
-    self.trace_path = test.trace_path
-    self.query_path_or_metric = test.query_path
+    self.test = test
 
     assert len(perf_lines) == 1
     perf_numbers = perf_lines[0].split(',')
