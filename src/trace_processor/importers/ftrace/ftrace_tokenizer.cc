@@ -87,6 +87,9 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
       clock_id = ClockTracker::SeqScopedClockIdToGlobal(
           packet_sequence_id, kFtraceGlobalClockIdForOldKernels);
       break;
+    case FtraceClock::FTRACE_CLOCK_MONO_RAW:
+      clock_id = BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW;
+      break;
     case FtraceClock::FTRACE_CLOCK_LOCAL:
       return base::ErrStatus("Unable to parse ftrace packets with local clock");
     default:

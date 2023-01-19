@@ -49,6 +49,10 @@ constexpr size_t kAllSyscallsId = kMaxSyscalls + 1;
 // and FtraceConfigMuxer::SetupClock() should be also changed accordingly.
 constexpr const char* kClocks[] = {"boot", "global", "local"};
 
+// optional monotonic raw clock.
+// Enabled by the "use_monotonic_raw_clock" option in the ftrace config.
+constexpr const char* kClockMonoRaw = "mono_raw";
+
 void AddEventGroup(const ProtoTranslationTable* table,
                    const std::string& group,
                    std::set<GroupAndName>* to) {
@@ -879,19 +883,25 @@ const FtraceDataSourceConfig* FtraceConfigMuxer::GetDataSourceConfig(
   return &ds_configs_.at(id);
 }
 
-void FtraceConfigMuxer::SetupClock(const FtraceConfig&) {
+void FtraceConfigMuxer::SetupClock(const FtraceConfig& config) {
   std::string current_clock = ftrace_->GetClock();
   std::set<std::string> clocks = ftrace_->AvailableClocks();
 
-  for (size_t i = 0; i < base::ArraySize(kClocks); i++) {
-    std::string clock = std::string(kClocks[i]);
-    if (!clocks.count(clock))
-      continue;
-    if (current_clock == clock)
+  if (config.has_use_monotonic_raw_clock() &&
+      config.use_monotonic_raw_clock() && clocks.count(kClockMonoRaw)) {
+    ftrace_->SetClock(kClockMonoRaw);
+    current_clock = kClockMonoRaw;
+  } else {
+    for (size_t i = 0; i < base::ArraySize(kClocks); i++) {
+      std::string clock = std::string(kClocks[i]);
+      if (!clocks.count(clock))
+        continue;
+      if (current_clock == clock)
+        break;
+      ftrace_->SetClock(clock);
+      current_clock = clock;
       break;
-    ftrace_->SetClock(clock);
-    current_clock = clock;
-    break;
+    }
   }
 
   namespace pb0 = protos::pbzero;
@@ -904,6 +914,8 @@ void FtraceConfigMuxer::SetupClock(const FtraceConfig&) {
     current_state_.ftrace_clock = pb0::FTRACE_CLOCK_GLOBAL;
   } else if (current_clock == "local") {
     current_state_.ftrace_clock = pb0::FTRACE_CLOCK_LOCAL;
+  } else if (current_clock == kClockMonoRaw) {
+    current_state_.ftrace_clock = pb0::FTRACE_CLOCK_MONO_RAW;
   } else {
     current_state_.ftrace_clock = pb0::FTRACE_CLOCK_UNKNOWN;
   }

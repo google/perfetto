@@ -159,4 +159,9 @@ message FtraceConfig {
   // traces, if ftrace has been separately configured (e.g. via kernel
   // commandline).
   optional bool preserve_ftrace_buffer = 23;
+
+  // If true, overrides the default timestamp clock and uses a raw hardware
+  // based monotonic clock for getting timestamps.
+  // * Introduced in: Android U.
+  optional bool use_monotonic_raw_clock = 24;
 }
