@@ -18,6 +18,12 @@ down by process, thread and thread state.
 
 import argparse
 import sys
+import os
+
+PYTHON_DIR = os.path.join(
+    os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "python")
+sys.path.append(os.path.join(PYTHON_DIR))
 
 from perfetto.experimental.slice_breakdown import compute_breakdown
 from perfetto.experimental.slice_breakdown import compute_breakdown_for_startup
