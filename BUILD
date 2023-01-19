@@ -1403,6 +1403,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/metadata_minimal_module.h",
         "src/trace_processor/importers/proto/metadata_tracker.cc",
         "src/trace_processor/importers/proto/metadata_tracker.h",
+        "src/trace_processor/importers/proto/packet_analyzer.cc",
+        "src/trace_processor/importers/proto/packet_analyzer.h",
         "src/trace_processor/importers/proto/packet_sequence_state.h",
         "src/trace_processor/importers/proto/packet_sequence_state_generation.cc",
         "src/trace_processor/importers/proto/perf_sample_tracker.cc",
