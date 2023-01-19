@@ -1,7 +1,5 @@
 
-"validation_type","display_id","count","total"
-"separated_validation","1",1,200
-"skipped_validation","0",2,200
-"skipped_validation","1",1,100
-"unknown","1",1,0
-"unskipped_validation","0",1,200
+"validation_type","count","total"
+"separated_validation",1,200
+"skipped_validation",2,200
+"unskipped_validation",1,200
