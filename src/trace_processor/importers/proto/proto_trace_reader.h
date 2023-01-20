@@ -96,6 +96,9 @@ class ProtoTraceReader : public ChunkedTraceReader {
   // Stores incremental state and references to interned data, e.g. for track
   // event protos.
   std::unique_ptr<ProtoIncrementalState> incremental_state;
+
+  StringId skipped_packet_key_id_;
+  StringId invalid_incremental_state_key_id_;
 };
 
 }  // namespace trace_processor
