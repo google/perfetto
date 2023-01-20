@@ -1374,8 +1374,10 @@ LIMIT 50;
     return DiffTestBlueprint(
         trace=Path('../../data/chrome_scroll_without_vsync.pftrace'),
         query="""
-SELECT path, total_size
-FROM experimental_proto_content
+SELECT path, SUM(total_size) as total_size
+FROM experimental_proto_content as content 
+JOIN experimental_proto_path as frame ON content.path_id = frame.id
+GROUP BY path
 ORDER BY total_size DESC, path
 LIMIT 10;
 """,

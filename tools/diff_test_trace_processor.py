@@ -85,23 +85,15 @@ def main():
 
     metrics = []
     sorted_data = sorted(
-        results.perf_data,
-        key=lambda x: (x.test_type.name, x.trace_path, x.query_path_or_metric))
+        results.perf_data, key=lambda x: (x.test.type.name, x.test.name))
     for perf_args in sorted_data:
-      trace_short_path = os.path.relpath(perf_args.trace_path, test_dir)
-
-      query_short_path_or_metric = perf_args.query_path_or_metric
-      if perf_args.test_type == TestType.QUERY:
-        query_short_path_or_metric = os.path.relpath(
-            perf_args.query_path_or_metric, trace_processor_dir)
-
       metrics.append({
           'metric': 'tp_perf_test_ingest_time',
           'value': float(perf_args.ingest_time_ns) / 1.0e9,
           'unit': 's',
           'tags': {
-              'test_name': f"{trace_short_path}-{query_short_path_or_metric}",
-              'test_type': perf_args.test_type.name,
+              'test_name': perf_args.test.name,
+              'test_type': perf_args.test.type.name,
           },
           'labels': {},
       })
@@ -110,8 +102,8 @@ def main():
           'value': float(perf_args.real_time_ns) / 1.0e9,
           'unit': 's',
           'tags': {
-              'test_name': f"{trace_short_path}-{query_short_path_or_metric}",
-              'test_type': perf_args.test_type.name,
+              'test_name': perf_args.test.name,
+              'test_type': perf_args.test.type.name,
           },
           'labels': {},
       })

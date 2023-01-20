@@ -186,14 +186,15 @@ def compute_breakdown_for_startup(tp: TraceProcessor,
     The same as |compute_breakdown| but only containing slices which happened
     during app startup.
   """
-  tp.metric(['android_startup'])
 
   # Verify there was only one startup in the trace matching the package
   # name.
   filter = "WHERE package = '{}'".format(package_name) if package_name else ''
   launches = tp.query(f'''
+    SELECT IMPORT('android.startups');
+
     SELECT ts, ts_end, dur
-    FROM launches
+    FROM android_startups
     {filter}
   ''').as_pandas_dataframe()
   if len(launches) == 0:

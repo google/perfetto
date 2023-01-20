@@ -123,6 +123,8 @@ class TrackEventParser {
   const StringId chrome_crash_trace_id_name_id_;
   const StringId chrome_process_label_flat_key_id_;
   const StringId chrome_process_type_id_;
+  const StringId event_category_key_id_;
+  const StringId event_name_key_id_;
 
   ChromeStringLookup chrome_string_lookup_;
   std::array<StringId, 4> counter_unit_ids_;
