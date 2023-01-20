@@ -502,16 +502,28 @@ message FtraceConfig {
 
   // Optional filter for "ftrace/print" events.
   //
-  // The filter consists of multiple rules. A rule matches if its prefix matches
-  // exactly with the beginning of the "ftrace/print" "buf" field. As soon as a
-  // rule matches (the rules are processed in order), its `allow` field will be
-  // used as the outcome: if `allow` is true, the event will be included in the
-  // trace, otherwise it will be discarded. If an event does not match any rule,
-  // it will be allowed by default (a rule with an empty prefix and allow=false,
-  // disallows everything by default).
+  // The filter consists of multiple rules. As soon as a rule matches (the rules
+  // are processed in order), its `allow` field will be used as the outcome: if
+  // `allow` is true, the event will be included in the trace, otherwise it will
+  // be discarded. If an event does not match any rule, it will be allowed by
+  // default (a rule with an empty prefix and allow=false, disallows everything
+  // by default).
   message PrintFilter {
     message Rule {
-      optional string prefix = 1;
+      // Matches an atrace message of the form:
+      // <type>|pid|<prefix>...
+      message AtraceMessage {
+        optional string type = 1;
+        optional string prefix = 2;
+      }
+      oneof match {
+        // This rule matches if `prefix` matches exactly with the beginning of
+        // the "ftrace/print" "buf" field.
+        string prefix = 1;
+        // This rule matches if the "buf" field contains an atrace-style print
+        // message as specified in `atrace_msg`.
+        AtraceMessage atrace_msg = 3;
+      }
       optional bool allow = 2;
     }
     repeated Rule rules = 1;
