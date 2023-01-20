@@ -53,7 +53,10 @@ namespace perfetto {
 namespace trace_processor {
 
 ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx)
-    : context_(ctx) {}
+    : context_(ctx),
+      skipped_packet_key_id_(ctx->storage->InternString("skipped_packet")),
+      invalid_incremental_state_key_id_(
+          ctx->storage->InternString("invalid_incremental_state")) {}
 ProtoTraceReader::~ProtoTraceReader() = default;
 
 util::Status ProtoTraceReader::Parse(TraceBlobView blob) {
@@ -137,6 +140,14 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     }
 
     if (!state->IsIncrementalStateValid()) {
+      if (context_->content_analyzer) {
+        // Account for the skipped packet for trace proto content analysis,
+        // with a special annotation.
+        PacketAnalyzer::SampleAnnotation annotation;
+        annotation.push_back(
+            {skipped_packet_key_id_, invalid_incremental_state_key_id_});
+        PacketAnalyzer::Get(context_)->ProcessPacket(packet, annotation);
+      }
       context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
       return util::OkStatus();
     }
