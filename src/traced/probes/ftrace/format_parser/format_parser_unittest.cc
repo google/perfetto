@@ -58,6 +58,25 @@ print fmt: "client_name=%s heap_name=%s len=%zu mask=0x%x flags=0x%x", REC->clie
           Eq(FtraceEvent::Field{"int common_pid", 4, 4, true})));
 }
 
+TEST(FtraceEventParserTest, OnlyCommonFields) {
+  const std::string input = R"(name: another_name
+ID: 42
+format:
+	field:unsigned short common_type;	offset:0;	size:2;	signed:0;
+
+print fmt: " ",
+)";
+
+  FtraceEvent output;
+  EXPECT_TRUE(ParseFtraceEvent(input));
+  EXPECT_TRUE(ParseFtraceEvent(input, &output));
+  EXPECT_EQ(output.name, "another_name");
+  EXPECT_EQ(output.id, 42u);
+  EXPECT_THAT(output.common_fields,
+              ElementsAre(Eq(FtraceEvent::Field{"unsigned short common_type", 0,
+                                                2, false})));
+}
+
 TEST(FtraceEventParserTest, MissingName) {
   const std::string input = R"(ID: 42
 format:
