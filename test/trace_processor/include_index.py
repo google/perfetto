@@ -16,91 +16,133 @@ from typing import List
 from python.generators.diff_tests import testing
 
 
-from android.index import DiffTestModule_Android
-from atrace.index import DiffTestModule_Atrace
-from camera.index import DiffTestModule_Camera
-from chrome.index import DiffTestModule_Chrome
-from cros.index import DiffTestModule_Cros
-from dynamic.index import DiffTestModule_Dynamic
-from fs.index import DiffTestModule_Fs
-from fuchsia.index import DiffTestModule_Fuchsia
-from functions.index import DiffTestModule_Functions
-from graphics.index import DiffTestModule_Graphics
-from ufs.index import DiffTestModule_Ufs
-from memory.index import DiffTestModule_Memory
-from network.index import DiffTestModule_Network
-from parsing.index import DiffTestModule_Parsing
-from performance.index import DiffTestModule_Performance
-from power.index import DiffTestModule_Power
-from process_tracking.index import DiffTestModule_Process_tracking
-from profiling.index import DiffTestModule_Profiling
-from scheduler.index import DiffTestModule_Scheduler
-from smoke.index import DiffTestModule_Smoke
-from span_join.index import DiffTestModule_Span_join
-from startup.index import DiffTestModule_Startup
-from tables.index import DiffTestModule_Tables
-from track_event.index import DiffTestModule_Track_event
-from translation.index import DiffTestModule_Translation
+from android.tests import Android
+from android.tests_bugreport import AndroidBugreport
+from android.tests_games import AndroidGames
+from atrace.tests import Atrace
+from atrace.tests_error_handling import AtraceErrorHandling
+from camera.tests import Camera
+from chrome.tests_scroll_jank import ChromeScrollJank
+from chrome.tests_touch_gesture import ChromeTouchGesture
+from chrome.tests_memory_snapshots import ChromeMemorySnapshots
+from chrome.tests_rail_modes import ChromeRailModes
+from chrome.tests_processes import ChromeProcesses
+from chrome.tests_args import ChromeArgs
+from chrome.tests import Chrome
+from cros.tests import Cros
+from dynamic.tests import Dynamic
+from fs.tests import Fs
+from fuchsia.tests import Fuchsia
+from functions.tests import Functions
+from graphics.tests import Graphics
+from graphics.tests_gpu_trace import GraphicsGpuTrace
+from graphics.tests_drm_related_ftrace_events import GraphicsDrmRelatedFtraceEvents
+from ufs.tests import Ufs
+from memory.tests import Memory
+from memory.tests_metrics import MemoryMetrics
+from network.tests import Network
+from parsing.tests import Parsing
+from parsing.tests_rss_stats import ParsingRssStats
+from parsing.tests_memory_counters import ParsingMemoryCounters
+from performance.tests import Performance
+from power.tests import Power
+from power.tests_power_rails import PowerPowerRails
+from power.tests_voltage_and_scaling import PowerVoltageAndScaling
+from power.tests_energy_breakdown import PowerEnergyBreakdown
+from process_tracking.tests import ProcessTracking
+from profiling.tests import Profiling
+from profiling.tests_heap_profiling import ProfilingHeapProfiling
+from profiling.tests_heap_graph import ProfilingHeapGraph
+from profiling.tests_metrics import ProfilingMetrics
+from profiling.tests_llvm_symbolizer import ProfilingLlvmSymbolizer
+from scheduler.tests import Scheduler
+from smoke.tests import Smoke
+from smoke.tests_json import SmokeJson
+from smoke.tests_sched_events import SmokeSchedEvents
+from smoke.tests_compute_metrics import SmokeComputeMetrics
+from span_join.tests_outer_join import SpanJoinOuterJoin
+from span_join.tests_left_join import SpanJoinLeftJoin
+from span_join.tests_smoke import SpanJoinSmoke
+from span_join.tests_regression import SpanJoinRegression
+from startup.tests import Startup
+from startup.tests_broadcasts import StartupBroadcasts
+from startup.tests_metrics import StartupMetrics
+from startup.tests_lock_contention import StartupLockContention
+from tables.tests import Tables
+from tables.tests_counters import TablesCounters
+from tables.tests_sched import TablesSched
+from track_event.tests import TrackEvent
+from translation.tests import Translation
 
-def fetch_all_diff_tests(include_index_path: str) -> List['testing.DiffTest']:
-  diff_tests = []
-  diff_tests.extend(
-      DiffTestModule_Android(include_index_path, 'android').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Atrace(include_index_path, 'atrace').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Camera(include_index_path, 'camera').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Chrome(include_index_path, 'chrome').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Cros(include_index_path, 'cros').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Dynamic(include_index_path, 'dynamic').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Fs(include_index_path, 'fs').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Fuchsia(include_index_path, 'fuchsia').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Functions(include_index_path,
-                               'functions').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Graphics(include_index_path,
-                              'graphics').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Ufs(include_index_path, 'ufs').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Memory(include_index_path, 'memory').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Network(include_index_path, 'network').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Parsing(include_index_path, 'parsing').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Performance(include_index_path,
-                                 'performance').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Power(include_index_path, 'power').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Process_tracking(include_index_path,
-                                      'process_tracking').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Profiling(include_index_path,
-                               'profiling').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Scheduler(include_index_path,
-                               'scheduler').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Smoke(include_index_path, 'smoke').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Span_join(include_index_path,
-                               'span_join').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Startup(include_index_path, 'startup').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Tables(include_index_path, 'tables').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Track_event(include_index_path,
-                                 'track_event').fetch_diff_tests())
-  diff_tests.extend(
-      DiffTestModule_Translation(include_index_path,
-                                 'translation').fetch_diff_tests())
-  return diff_tests
+
+def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
+  return [
+      *Android(index_path, 'android', 'Android').fetch(),
+      *AndroidBugreport(index_path, 'android', 'AndroidBugreport').fetch(),
+      *AndroidGames(index_path, 'android', 'AndroidGames').fetch(),
+      *Atrace(index_path, 'atrace', 'Atrace').fetch(),
+      *AtraceErrorHandling(index_path, 'atrace', 'AtraceErrorHandling').fetch(),
+      *Camera(index_path, 'camera', 'Camera').fetch(),
+      *ChromeScrollJank(index_path, 'chrome', 'ChromeScrollJank').fetch(),
+      *ChromeTouchGesture(index_path, 'chrome', 'ChromeTouchGesture').fetch(),
+      *ChromeMemorySnapshots(index_path, 'chrome',
+                             'ChromeMemorySnapshots').fetch(),
+      *ChromeRailModes(index_path, 'chrome', 'ChromeRailModes').fetch(),
+      *ChromeProcesses(index_path, 'chrome', 'ChromeProcesses').fetch(),
+      *ChromeArgs(index_path, 'chrome', 'ChromeArgs').fetch(),
+      *Chrome(index_path, 'chrome', 'Chrome').fetch(),
+      *Cros(index_path, 'cros', 'Cros').fetch(),
+      *Dynamic(index_path, 'dynamic', 'Dynamic').fetch(),
+      *Fs(index_path, 'fs', 'Fs').fetch(),
+      *Fuchsia(index_path, 'fuchsia', 'Fuchsia').fetch(),
+      *Functions(index_path, 'functions', 'Functions').fetch(),
+      *Graphics(index_path, 'graphics', 'Graphics').fetch(),
+      *GraphicsGpuTrace(index_path, 'graphics', 'GraphicsGpuTrace').fetch(),
+      *GraphicsDrmRelatedFtraceEvents(index_path, 'graphics',
+                                      'GraphicsDrmRelatedFtraceEvents').fetch(),
+      *Ufs(index_path, 'ufs', 'Ufs').fetch(),
+      *Memory(index_path, 'memory', 'Memory').fetch(),
+      *MemoryMetrics(index_path, 'memory', 'MemoryMetrics').fetch(),
+      *Network(index_path, 'network', 'Network').fetch(),
+      *Parsing(index_path, 'parsing', 'Parsing').fetch(),
+      *ParsingRssStats(index_path, 'parsing', 'ParsingRssStats').fetch(),
+      *ParsingMemoryCounters(index_path, 'parsing',
+                             'ParsingMemoryCounters').fetch(),
+      *Performance(index_path, 'performance', 'Performance').fetch(),
+      *Power(index_path, 'power', 'Power').fetch(),
+      *PowerPowerRails(index_path, 'power', 'PowerPowerRails').fetch(),
+      *PowerVoltageAndScaling(index_path, 'power',
+                              'PowerVoltageAndScaling').fetch(),
+      *PowerEnergyBreakdown(index_path, 'power',
+                            'PowerEnergyBreakdown').fetch(),
+      *ProcessTracking(index_path, 'process_tracking',
+                       'ProcessTracking').fetch(),
+      *Profiling(index_path, 'profiling', 'Profiling').fetch(),
+      *ProfilingHeapProfiling(index_path, 'profiling',
+                              'ProfilingHeapProfiling').fetch(),
+      *ProfilingHeapGraph(index_path, 'profiling',
+                          'ProfilingHeapGraph').fetch(),
+      *ProfilingMetrics(index_path, 'profiling', 'ProfilingMetrics').fetch(),
+      *ProfilingLlvmSymbolizer(index_path, 'profiling',
+                               'ProfilingLlvmSymbolizer').fetch(),
+      *Scheduler(index_path, 'scheduler', 'Scheduler').fetch(),
+      *Smoke(index_path, 'smoke', 'Smoke').fetch(),
+      *SmokeJson(index_path, 'smoke', 'SmokeJson').fetch(),
+      *SmokeSchedEvents(index_path, 'smoke', 'SmokeSchedEvents').fetch(),
+      *SmokeComputeMetrics(index_path, 'smoke', 'SmokeComputeMetrics').fetch(),
+      *SpanJoinOuterJoin(index_path, 'span_join', 'SpanJoinOuterJoin').fetch(),
+      *SpanJoinLeftJoin(index_path, 'span_join', 'SpanJoinLeftJoin').fetch(),
+      *SpanJoinSmoke(index_path, 'span_join', 'SpanJoinSmoke').fetch(),
+      *SpanJoinRegression(index_path, 'span_join',
+                          'SpanJoinRegression').fetch(),
+      *Startup(index_path, 'startup', 'Startup').fetch(),
+      *StartupBroadcasts(index_path, 'startup', 'StartupBroadcasts').fetch(),
+      *StartupMetrics(index_path, 'startup', 'StartupMetrics').fetch(),
+      *StartupLockContention(index_path, 'startup',
+                             'StartupLockContention').fetch(),
+      *Tables(index_path, 'tables', 'Tables').fetch(),
+      *TablesCounters(index_path, 'tables', 'TablesCounters').fetch(),
+      *TablesSched(index_path, 'tables', 'TablesSched').fetch(),
+      *TrackEvent(index_path, 'track_event', 'TrackEvent').fetch(),
+      *Translation(index_path, 'translation', 'Translation').fetch(),
+  ]

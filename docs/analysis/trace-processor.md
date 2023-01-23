@@ -787,8 +787,8 @@ difference is highlighted.
 All diff tests are organized under [test/trace_processor](/test/trace_processor)
 and are run by the script
 [`tools/diff_test_trace_processor.py`](/tools/diff_test_trace_processor.py).
-New tests can be added with the helper script
-[`tools/add_tp_diff_test.py`](/tools/add_tp_diff_test.py).
+Add new tests by adding a line of `{trace_path} {query_file|metric} {out_file}` 
+into a `tests|tests_{something}` file in subirectory of `test/trace_processor`.
 
 NOTE: `trace_processor_shell` and associated proto descriptors needs to be
 built before running `tools/diff_test_trace_processor.py`. The easiest way
@@ -796,8 +796,7 @@ to do this is to run `tools/ninja -C <out directory>` both initially and on
 every change to trace processor code or builtin metrics.
 
 #### Choosing where to add diff tests
-When adding a new test with `tools/add_tp_diff_test.py`, the user is
-prompted for a folder to add the new test to. Often this can be confusing
+Choosing a folter with a diff tests often can be confusing
 as a test can fall into more than one category. This section is a guide
 to decide which folder to choose.
 
