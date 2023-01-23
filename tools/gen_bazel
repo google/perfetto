@@ -70,6 +70,7 @@ public_targets = [
 # These targets are required by internal build rules but don't need to be
 # exported publicly.
 default_targets = [
+    '//src/base:perfetto_base_default_platform',
     '//src/ipc:perfetto_ipc',
     '//src/ipc/protoc_plugin:ipc_plugin',
     '//src/protozero:protozero',
@@ -102,6 +103,7 @@ buildflags_dir = 'include/perfetto/base/build_configs/bazel'
 # depends on.
 external_deps = {
     '//gn:default_deps': [],
+    '//gn:base_platform': ['PERFETTO_CONFIG.deps.base_platform'],
     '//gn:jsoncpp': ['PERFETTO_CONFIG.deps.jsoncpp'],
     '//gn:linenoise': ['PERFETTO_CONFIG.deps.linenoise'],
     '//gn:protobuf_full': ['PERFETTO_CONFIG.deps.protobuf_full'],
