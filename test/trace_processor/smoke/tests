@@ -1,0 +1,7 @@
+# Contains smoke tests which test the most fundamentally important
+# features of trace processor
+#
+# Note: new tests here should only be added by the Perfetto team.
+
+# Compresesed traces
+../../data/compressed.pb ../common/smoke_test.sql compressed_smoke.out

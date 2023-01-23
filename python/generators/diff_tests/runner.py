@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
 from google.protobuf import text_format
-from python.generators.diff_tests.testing import DiffTest, TestType
+from python.generators.diff_tests.testing import TestCase, TestType
 from python.generators.diff_tests.utils import (
     ColorFormatter, create_message_factory, get_env, get_trace_descriptor_path,
     read_all_tests, serialize_python_trace, serialize_textproto_trace)
@@ -37,11 +37,11 @@ ROOT_DIR = os.path.dirname(
 # Performance result of running the test.
 @dataclass
 class PerfResult:
-  test: DiffTest
+  test: TestCase
   ingest_time_ns: int
   real_time_ns: int
 
-  def __init__(self, test: DiffTest, perf_lines: List[str]):
+  def __init__(self, test: TestCase, perf_lines: List[str]):
     self.test = test
 
     assert len(perf_lines) == 1
@@ -55,7 +55,7 @@ class PerfResult:
 # Data gathered from running the test.
 @dataclass
 class TestResult:
-  test: DiffTest
+  test: TestCase
   trace: str
   cmd: List[str]
   expected: str
@@ -65,7 +65,7 @@ class TestResult:
   exit_code: int
   perf_result: PerfResult
 
-  def __init__(self, test: DiffTest, gen_trace_path: str, cmd: List[str],
+  def __init__(self, test: TestCase, gen_trace_path: str, cmd: List[str],
                expected_text: str, actual_text: str, stderr: str,
                exit_code: int, perf_lines: List[str]) -> None:
     self.test = test
@@ -76,10 +76,15 @@ class TestResult:
 
     # For better string formatting we often add whitespaces, which has to now
     # be removed.
-    self.expected = expected_text.lstrip('\n')
-    self.actual = actual_text.lstrip('\n')
+    def strip_whitespaces(text: str):
+      no_front_new_line_text = text.lstrip('\n')
+      return '\n'.join(s.strip() for s in no_front_new_line_text.split('\n'))
+
+    self.expected = strip_whitespaces(expected_text)
+    self.actual = strip_whitespaces(actual_text)
 
     expected_content = self.expected.replace('\r\n', '\n')
+
     actual_content = self.actual.replace('\r\n', '\n')
     self.passed = (expected_content == actual_content)
 
@@ -135,8 +140,8 @@ class TestResults:
 
 # Responsible for executing singular diff test.
 @dataclass
-class DiffTestExecutor:
-  test: DiffTest
+class TestCaseRunner:
+  test: TestCase
   trace_processor_path: str
   trace_descriptor_path: str
   colors: ColorFormatter
@@ -320,7 +325,7 @@ class DiffTestExecutor:
               f"query: {result.perf_result.real_time_ns / 1000000:.2f} ms)\n")
     return result, str
 
-  # Run a DiffTest.
+  # Run a TestCase.
   def execute(self, extension_descriptor_paths: List[str],
               metrics_descriptor: str, keep_input: bool,
               rebase: bool) -> Tuple[str, str, TestResult]:
@@ -348,11 +353,11 @@ class DiffTestExecutor:
 
 # Fetches and executes all diff viable tests.
 @dataclass
-class DiffTestSuiteRunner:
-  tests: List[DiffTest]
+class DiffTestsRunner:
+  tests: List[TestCase]
   trace_processor_path: str
   trace_descriptor_path: str
-  test_runners: List[DiffTestExecutor]
+  test_runners: List[TestCaseRunner]
 
   def __init__(self, query_metric_filter: str, trace_filter: str,
                trace_processor_path: str, trace_descriptor: str,
@@ -367,8 +372,8 @@ class DiffTestSuiteRunner:
     color_formatter = ColorFormatter(no_colors)
     for test in self.tests:
       self.test_runners.append(
-          DiffTestExecutor(test, self.trace_processor_path,
-                           self.trace_descriptor_path, color_formatter))
+          TestCaseRunner(test, self.trace_processor_path,
+                         self.trace_descriptor_path, color_formatter))
 
   def run_all_tests(self, metrics_descriptor: str, keep_input: bool,
                     rebase: bool) -> TestResults:

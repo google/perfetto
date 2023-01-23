@@ -55,7 +55,7 @@ class TestType(Enum):
 
 # Blueprint for running the diff test. 'query' is being run over data from the
 # 'trace 'and result will be compared to the 'out. Each test (function in class
-# inheriting from DiffTestModule) returns a DiffTestBlueprint.
+# inheriting from TestSuite) returns a DiffTestBlueprint.
 @dataclass
 class DiffTestBlueprint:
 
@@ -86,10 +86,10 @@ class DiffTestBlueprint:
 
 
 # Description of a diff test. Created in `fetch_diff_tests()` in
-# DiffTestModule: each test (function starting with `test_`) returns
-# DiffTestBlueprint and function name is a DiffTest name. Used by diff test
+# TestSuite: each test (function starting with `test_`) returns
+# DiffTestBlueprint and function name is a TestCase name. Used by diff test
 # script.
-class DiffTest:
+class TestCase:
 
   def __init__(self, name: str, blueprint: DiffTestBlueprint,
                index_dir: str) -> None:
@@ -150,21 +150,22 @@ class DiffTest:
 # DiffTestBlueprint and function name is a test name. All DiffTestModules have
 # to be included in `test/trace_processor/include_index.py`.
 # `fetch_diff_test` function should not be overwritten.
-class DiffTestModule:
+class TestSuite:
 
-  def __init__(
-      self,
-      include_index_dir: str,
-      dir_name: str,
-  ) -> None:
+  def __init__(self, include_index_dir: str, dir_name: str,
+               class_name: str) -> None:
     self.dir_name = dir_name
     self.index_dir = os.path.join(include_index_dir, dir_name)
+    self.class_name = class_name
 
-  def fetch_diff_tests(self) -> List['DiffTest']:
+  def __test_name(self, method_name):
+    return f"{self.class_name}:{method_name.split('test_',1)[1]}"
+
+  def fetch(self) -> List['TestCase']:
     attrs = (getattr(self, name) for name in dir(self))
     methods = [attr for attr in attrs if inspect.ismethod(attr)]
     return [
-        DiffTest(f"{self.dir_name}:{method.__name__}", method(), self.index_dir)
+        TestCase(self.__test_name(method.__name__), method(), self.index_dir)
         for method in methods
         if method.__name__.startswith('test_')
     ]

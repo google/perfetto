@@ -1,0 +1,14 @@
+../../data/chrome_scroll_without_vsync.pftrace chrome_processes_test.sql chrome_processes.out
+../../data/chrome_android_systrace.pftrace chrome_processes_test.sql chrome_processes_android_systrace.out
+../../data/chrome_scroll_without_vsync.pftrace chrome_threads_test.sql chrome_threads.out
+../../data/chrome_android_systrace.pftrace chrome_threads_test.sql chrome_threads_android_systrace.out
+../../data/chrome_scroll_without_vsync.pftrace chrome_processes_type_test.sql chrome_processes_type.out
+../../data/chrome_android_systrace.pftrace chrome_processes_type_test.sql chrome_processes_type_android_systrace.out
+track_with_chrome_process.textproto chrome_processes_type_test.sql track_with_chrome_process.out
+
+# Missing processes.
+../../data/chrome_scroll_without_vsync.pftrace chrome_missing_processes_test.sql chrome_missing_processes_default_trace.out
+chrome_missing_processes.textproto chrome_missing_processes_test.sql chrome_missing_processes.out
+chrome_missing_processes.textproto chrome_missing_processes_args_test.sql chrome_missing_processes_args.out
+chrome_missing_processes_extension.textproto chrome_missing_processes_test.sql chrome_missing_processes.out
+chrome_missing_processes_extension.textproto chrome_missing_processes_args_test.sql chrome_missing_processes_extension_args.out
