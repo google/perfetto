@@ -177,12 +177,32 @@
     }()                                                                       \
   }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
+// On GCC versions <9 there's a bug that prevents using captured constant
+// variables in constexpr evaluation inside a lambda:
+// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=82643
+// TODO(khokhlov): Remove this fallback after Perfetto moves to a more recent
+// GCC version.
 #define PERFETTO_INTERNAL_CATEGORY_ENABLED(category)                           \
   (::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory(category)     \
        ? PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::IsDynamicCategoryEnabled( \
              ::perfetto::DynamicCategory(category))                            \
        : PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent::IsCategoryEnabled(        \
              PERFETTO_GET_CATEGORY_INDEX(category)))
+#else  // !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
+#define PERFETTO_INTERNAL_CATEGORY_ENABLED(category)                     \
+  [&]() -> bool {                                                        \
+    using PERFETTO_TRACK_EVENT_NAMESPACE::TrackEvent;                    \
+    using ::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory; \
+    constexpr auto PERFETTO_UID(index) =                                 \
+        PERFETTO_GET_CATEGORY_INDEX(category);                           \
+    constexpr auto PERFETTO_UID(dynamic) = IsDynamicCategory(category);  \
+    return PERFETTO_UID(dynamic)                                         \
+               ? TrackEvent::IsDynamicCategoryEnabled(                   \
+                     ::perfetto::DynamicCategory(category))              \
+               : TrackEvent::IsCategoryEnabled(PERFETTO_UID(index));     \
+  }()
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
 
 // Emits an empty trace packet into the trace to ensure that the service can
 // safely read the last event from the trace buffer. This can be used to
