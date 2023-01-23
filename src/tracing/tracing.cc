@@ -55,6 +55,12 @@ void Tracing::InitializeInternal(const TracingInitArgs& args) {
   if (args.log_message_callback) {
     base::SetLogMessageCallback(args.log_message_callback);
   }
+
+  if (args.use_monotonic_raw_clock) {
+    internal::TrackEventInternal::SetClockId(
+        protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
+  }
+
   internal::TracingMuxerImpl::InitializeInstance(args);
   internal::TrackRegistry::InitializeInstance();
   g_was_initialized = true;
