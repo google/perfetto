@@ -1,0 +1,10 @@
+# Contains smoke tests which test the most fundamentally important
+# features of trace processor
+#
+# Note: new tests here should only be added by the Perfetto team.
+
+# Compute CPU time metric testing several core tables.
+../../data/example_android_trace_30s.pb thread_cpu_time_test.sql thread_cpu_time_example_android_trace_30s.out
+
+# Compute power proxy metric
+../../data/cpu_counters.pb proxy_power_test.sql proxy_power.out

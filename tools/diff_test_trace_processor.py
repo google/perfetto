@@ -30,7 +30,7 @@ sys.path.append(os.path.join(ROOT_DIR))
 
 from python.generators.diff_tests.testing import TestType
 from python.generators.diff_tests.utils import ctrl_c_handler
-from python.generators.diff_tests.runner import DiffTestSuiteRunner
+from python.generators.diff_tests.runner import DiffTestsRunner
 
 
 def main():
@@ -64,9 +64,9 @@ def main():
       'trace_processor', type=str, help='location of trace processor binary')
   args = parser.parse_args()
 
-  test_runner = DiffTestSuiteRunner(args.query_metric_filter, args.trace_filter,
-                                    args.trace_processor, args.trace_descriptor,
-                                    args.no_colors)
+  test_runner = DiffTestsRunner(args.query_metric_filter, args.trace_filter,
+                                args.trace_processor, args.trace_descriptor,
+                                args.no_colors)
   sys.stderr.write(f"[==========] Running {len(test_runner.tests)} tests.\n")
 
   results = test_runner.run_all_tests(args.metrics_descriptor, args.keep_input,

@@ -1,0 +1,4 @@
+# Sched table
+../common/synth_1.py filter_sched_test.sql synth_1_filter_sched.out
+../../data/android_sched_and_ps.pb b119496959_test.sql android_sched_and_ps_b119496959.out
+../../data/android_sched_and_ps.pb b119301023_test.sql android_sched_and_ps_b119301023.out

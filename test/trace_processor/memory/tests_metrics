@@ -1,0 +1,6 @@
+../../data/memory_counters.pb android_mem android_mem_counters.out
+../../data/memory_counters.pb trace_metadata trace_metadata.out
+android_mem_by_priority.py android_mem android_mem_by_priority.out
+android_systrace_lmk.py android_lmk android_mem_lmk.out
+../common/oom_kill.textproto android_lmk android_lmk_oom.out
+android_mem_delta.py android_mem android_mem_delta.out
