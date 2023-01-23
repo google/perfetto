@@ -25,7 +25,10 @@ _subprocess_supported =
     is_linux || is_chromeos || is_android || is_mac || is_win
 
 perfetto_component("base") {
-  deps = [ "../../gn:default_deps" ]
+  deps = [
+    "../../gn:base_platform",
+    "../../gn:default_deps",
+  ]
   public_deps = [
     "../../include/perfetto/base",
     "../../include/perfetto/ext/base",
@@ -77,6 +80,16 @@ perfetto_component("base") {
   if (enable_perfetto_stderr_crash_dump) {
     deps += [ ":debug_crash_stack_trace" ]
   }
+}
+
+# This target needs to be named as such because it's exposed directly in Bazel
+# and Android.bp.
+perfetto_component("perfetto_base_default_platform") {
+  deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/ext/base",
+  ]
+  sources = [ "default_platform.cc" ]
 }
 
 perfetto_component("version") {

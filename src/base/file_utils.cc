@@ -29,6 +29,7 @@
 #include "perfetto/base/platform_handle.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/platform.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
 
@@ -77,11 +78,15 @@ Optional<std::wstring> ToUtf16(const std::string str) {
 }  // namespace
 
 ssize_t Read(int fd, void* dst, size_t dst_size) {
+  ssize_t ret;
+  platform::BeforeMaybeBlockingSyscall();
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  return _read(fd, dst, static_cast<unsigned>(dst_size));
+  ret = _read(fd, dst, static_cast<unsigned>(dst_size));
 #else
-  return PERFETTO_EINTR(read(fd, dst, dst_size));
+  ret = PERFETTO_EINTR(read(fd, dst, dst_size));
 #endif
+  platform::AfterMaybeBlockingSyscall();
+  return ret;
 }
 
 bool ReadFileDescriptor(int fd, std::string* out) {
@@ -156,8 +161,10 @@ ssize_t WriteAll(int fd, const void* buf, size_t count) {
     // write() on windows takes an unsigned int size.
     uint32_t bytes_left = static_cast<uint32_t>(
         std::min(count - written, static_cast<size_t>(UINT32_MAX)));
+    platform::BeforeMaybeBlockingSyscall();
     ssize_t wr = PERFETTO_EINTR(
         write(fd, static_cast<const char*>(buf) + written, bytes_left));
+    platform::AfterMaybeBlockingSyscall();
     if (wr == 0)
       break;
     if (wr < 0)

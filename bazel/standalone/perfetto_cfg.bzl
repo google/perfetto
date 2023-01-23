@@ -40,6 +40,10 @@ PERFETTO_CONFIG = struct(
         # internal builds.
         version_header = ["//:cc_perfetto_version_header"],
 
+        # Target exposing platform-specific functionality for base. This is
+        # overriden in Google internal builds.
+        base_platform = ["//:perfetto_base_default_platform"],
+
         zlib = ["@perfetto_dep_zlib//:zlib"],
         jsoncpp = ["@perfetto_dep_jsoncpp//:jsoncpp"],
         linenoise = ["@perfetto_dep_linenoise//:linenoise"],
