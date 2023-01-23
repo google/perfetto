@@ -1,0 +1,5 @@
+drm_vblank.textproto drm_gpu_track_test.sql drm_vblank_gpu_track.out
+drm_sched.textproto drm_gpu_track_test.sql drm_sched_gpu_track.out
+drm_sched.textproto drm_thread_track_test.sql drm_sched_thread_track.out
+drm_dma_fence.textproto drm_gpu_track_test.sql drm_dma_fence_gpu_track.out
+drm_dma_fence.textproto drm_thread_track_test.sql drm_dma_fence_thread_track.out
