@@ -622,6 +622,11 @@ message FtraceConfig {
   // traces, if ftrace has been separately configured (e.g. via kernel
   // commandline).
   optional bool preserve_ftrace_buffer = 23;
+
+  // If true, overrides the default timestamp clock and uses a raw hardware
+  // based monotonic clock for getting timestamps.
+  // * Introduced in: Android U.
+  optional bool use_monotonic_raw_clock = 24;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
@@ -8049,6 +8054,7 @@ enum FtraceClock {
   FTRACE_CLOCK_UNKNOWN = 1;
   FTRACE_CLOCK_GLOBAL = 2;
   FTRACE_CLOCK_LOCAL = 3;
+  FTRACE_CLOCK_MONO_RAW = 4;
 }
 
 // End of protos/perfetto/trace/ftrace/ftrace_event_bundle.proto
