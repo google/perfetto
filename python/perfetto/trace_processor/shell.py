@@ -47,11 +47,12 @@ def load_shell(bin_path: str, unique_port: bool, verbose: bool,
 
   p = subprocess.Popen(
       tp_exec + args,
+      stdin=subprocess.DEVNULL,
       stdout=subprocess.DEVNULL,
       stderr=None if verbose else subprocess.DEVNULL)
 
   success = False
-  for i in range(3):
+  for _ in range(3):
     try:
       if p.poll() is None:
         _ = request.urlretrieve(f'http://{url}/status')
