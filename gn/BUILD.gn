@@ -405,6 +405,13 @@ if (enable_perfetto_llvm_demangle) {
   }
 }
 
+# Allows overriding platform-specific functionality used by base at a
+# build-system level. This allows e.g. different implementations of base
+# functions in Google3.
+group("base_platform") {
+  public_deps = [ "../src/base:perfetto_base_default_platform" ]
+}
+
 # Used by fuzzers.
 if (enable_perfetto_fuzzers && use_libfuzzer) {
   group("libfuzzer") {

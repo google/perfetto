@@ -16,6 +16,7 @@
 
 #include "perfetto/base/build_config.h"
 
+#include "perfetto/ext/base/platform.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 
 #include <errno.h>
@@ -77,8 +78,10 @@ void UnixTaskRunner::Run() {
     // returned.
     PostFileDescriptorWatches(ret);
 #else
+    platform::BeforeMaybeBlockingSyscall();
     int ret = PERFETTO_EINTR(poll(
         &poll_fds_[0], static_cast<nfds_t>(poll_fds_.size()), poll_timeout_ms));
+    platform::AfterMaybeBlockingSyscall();
     PERFETTO_CHECK(ret >= 0);
     PostFileDescriptorWatches(0 /*ignored*/);
 #endif

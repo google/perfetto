@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "perfetto/ext/base/platform.h"
 #include "perfetto/ext/base/watchdog.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_WATCHDOG)
@@ -231,7 +232,9 @@ void Watchdog::ThreadMain() {
     // We use the poll() timeout to drive the periodic ticks for the cpu/memory
     // checks. The only other case when the poll() unblocks is when we crash
     // (or have to quit via enabled_ == false, but that happens only in tests).
+    platform::BeforeMaybeBlockingSyscall();
     auto ret = poll(fds, kFdCount, static_cast<int>(polling_interval_ms_));
+    platform::AfterMaybeBlockingSyscall();
     if (!enabled_)
       return;
     if (ret < 0) {
