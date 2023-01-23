@@ -22,7 +22,8 @@ SELECT
   detail_level,
   pf.value AS private_footprint_kb,
   prs.value AS peak_resident_set_kb,
-  EXTRACT_ARG(p.arg_set_id, 'is_peak_rss_resettable') AS is_peak_rss_resettable
+  EXTRACT_ARG(p.arg_set_id, 'is_peak_rss_resettable')
+    AS is_peak_rss_resettable
 FROM process p
 LEFT JOIN memory_snapshot
 LEFT JOIN (
@@ -31,12 +32,14 @@ LEFT JOIN (
   WHERE name = 'chrome.private_footprint_kb'
   ) AS pct_pf
   ON p.upid = pct_pf.upid
-LEFT JOIN counter pf ON timestamp = pf.ts AND pct_pf.id = pf.track_id
+LEFT JOIN counter pf 
+  ON timestamp = pf.ts AND pct_pf.id = pf.track_id
 LEFT JOIN (
   SELECT id, upid
   FROM process_counter_track
   WHERE name = 'chrome.peak_resident_set_kb'
   ) AS pct_prs
   ON p.upid = pct_prs.upid
-LEFT JOIN counter prs ON timestamp = prs.ts AND pct_prs.id = prs.track_id
+LEFT JOIN counter prs 
+  ON timestamp = prs.ts AND pct_prs.id = prs.track_id
 ORDER BY timestamp;

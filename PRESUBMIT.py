@@ -17,7 +17,6 @@ import itertools
 import subprocess
 import time
 
-
 USE_PYTHON3 = True
 
 
@@ -45,7 +44,7 @@ def CheckChange(input, output):
             '.*[.]json$',
             '.*[.]sql$',
             '.*[.]out$',
-            'test/trace_processor/.*/index$',
+            'test/trace_processor/.*/tests.*$',
             '(.*/)?BUILD$',
             'WORKSPACE',
             '.*/Makefile$',

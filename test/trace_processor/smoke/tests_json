@@ -1,0 +1,8 @@
+# Contains smoke tests which test the most fundamentally important
+# features of trace processor
+#
+# Note: new tests here should only be added by the Perfetto team.
+
+# JSON trace parsing
+../../data/sfgate.json ../common/smoke_test.sql sfgate_smoke.out
+../../data/sfgate.json ../common/smoke_slices_test.sql sfgate_smoke_slices.out
