@@ -1605,11 +1605,13 @@ TEST_P(PerfettoApiTest, TrackEventNamespaces) {
 
   // Default namespace.
   TRACE_EVENT_INSTANT("test", "MainNamespaceEvent");
+  EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("test"));
 
   // Other namespace in a block scope.
   {
     PERFETTO_USE_CATEGORIES_FROM_NAMESPACE_SCOPED(other_ns);
     TRACE_EVENT_INSTANT("other_ns", "OtherNamespaceEvent");
+    EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("other_ns"));
   }
 
   // Back to the default namespace.
