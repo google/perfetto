@@ -41,15 +41,10 @@ def main():
   parser.add_argument('--metrics-descriptor', type=str)
   parser.add_argument('--perf-file', type=str)
   parser.add_argument(
-      '--query-metric-filter',
+      '--name-filter',
       default='.*',
       type=str,
-      help='Filter the name of query files or metrics to test (regex syntax)')
-  parser.add_argument(
-      '--trace-filter',
-      default='.*',
-      type=str,
-      help='Filter the name of trace files to test (regex syntax)')
+      help='Filter the name of the tests to run (regex syntax)')
   parser.add_argument(
       '--keep-input',
       action='store_true',
@@ -64,9 +59,8 @@ def main():
       'trace_processor', type=str, help='location of trace processor binary')
   args = parser.parse_args()
 
-  test_runner = DiffTestsRunner(args.query_metric_filter, args.trace_filter,
-                                args.trace_processor, args.trace_descriptor,
-                                args.no_colors)
+  test_runner = DiffTestsRunner(args.name_filter, args.trace_processor,
+                                args.trace_descriptor, args.no_colors)
   sys.stderr.write(f"[==========] Running {len(test_runner.tests)} tests.\n")
 
   results = test_runner.run_all_tests(args.metrics_descriptor, args.keep_input,

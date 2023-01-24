@@ -20,7 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class ProcessTracking(TestSuite):
-
+  # Tests for the core process and thread tracking logic. Smoke tests
   def test_process_tracking(self):
     return DiffTestBlueprint(
         trace=Path('synth_process_tracking.py'),
@@ -48,6 +48,7 @@ class ProcessTracking(TestSuite):
         40,40,"process_4","p4-t0"
         """))
 
+  # Short lived threads/processes
   def test_process_tracking_process_tracking_short_lived_1(self):
     return DiffTestBlueprint(
         trace=Path('process_tracking_short_lived_1.py'),
@@ -80,6 +81,7 @@ class ProcessTracking(TestSuite):
         11,11,"true_name","true_name"
         """))
 
+  # Process uid handling
   def test_process_tracking_uid(self):
     return DiffTestBlueprint(
         trace=Path('synth_process_tracking.py'),
@@ -97,6 +99,7 @@ class ProcessTracking(TestSuite):
         40,"[NULL]"
         """))
 
+  # Tracking across execs
   def test_process_tracking_process_tracking_exec(self):
     return DiffTestBlueprint(
         trace=Path('process_tracking_exec.py'),
@@ -113,6 +116,7 @@ class ProcessTracking(TestSuite):
         11,11,"true_process_name","true_name"
         """))
 
+  # Tracking parent threads
   def test_process_parent_pid_process_parent_pid_tracking_1(self):
     return DiffTestBlueprint(
         trace=Path('process_parent_pid_tracking_1.py'),
@@ -149,6 +153,7 @@ class ProcessTracking(TestSuite):
         20,10
         """))
 
+  # Tracking thread reuse
   def test_process_tracking_reused_thread_print(self):
     return DiffTestBlueprint(
         trace=Path('reused_thread_print.py'),
@@ -166,9 +171,35 @@ class ProcessTracking(TestSuite):
         11,10,"parent","true_name"
         """))
 
+  # TODO(lalitm): move this out of this folder.
   def test_slice_with_pid_sde_tracing_mark_write(self):
     return DiffTestBlueprint(
-        trace=Path('sde_tracing_mark_write.textproto'),
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 100
+              pid: 403
+              sde_tracing_mark_write {
+                pid: 403
+                trace_name: "test_event"
+                trace_begin: 1
+              }
+            }
+            event {
+              timestamp: 101
+              pid: 403
+              sde_tracing_mark_write {
+                pid: 403
+                trace_name: "test_event"
+                trace_begin: 0
+              }
+            }
+          }
+        }
+        
+        """),
         query="""
         SELECT s.name, dur, tid, pid
         FROM slice s
@@ -181,6 +212,7 @@ class ProcessTracking(TestSuite):
         "test_event",1,403,403
         """))
 
+  # Check that a <...> thread name doesn't overwrite a useful thread name
   def test_unknown_thread_name_tracking(self):
     return DiffTestBlueprint(
         trace=Path('unknown_thread_name.systrace'),

@@ -20,10 +20,57 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class AndroidGames(TestSuite):
-
+  # Ensure Android game intervention list are parsed correctly
   def test_game_intervention_list(self):
     return DiffTestBlueprint(
-        trace=Path('game_intervention_list_test.textproto'),
+        trace=TextProto(r"""
+        packet {
+            android_game_intervention_list {
+              parse_error: false
+              read_error: false
+              game_packages {
+                name: "com.test.game1"
+                uid: 1001
+                current_mode: 1
+                game_mode_info {
+                  mode: 1
+                  use_angle: true
+                  resolution_downscale: 1.0
+                  fps: 0.0
+                }
+                game_mode_info {
+                  mode: 2
+                  use_angle: false
+                  resolution_downscale: 1.0
+                  fps: 60.0
+                }
+                game_mode_info {
+                  mode: 3
+                  use_angle: true
+                  resolution_downscale: 0.75
+                  fps: 120.0
+                }
+              }
+              game_packages {
+                name: "com.test.game2"
+                uid: 1002
+                current_mode: 3
+                game_mode_info {
+                  mode: 1
+                  use_angle: false
+                  resolution_downscale: 1.0
+                  fps: 0.0
+                }
+                game_mode_info {
+                  mode: 3
+                  use_angle: false
+                  resolution_downscale:  0.95
+                  fps: 45.0
+                }
+              }
+            }
+        }
+        """),
         query="""
         SELECT
           package_name,

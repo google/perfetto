@@ -74,7 +74,53 @@ class PowerPowerRails(TestSuite):
 
   def test_power_rails_well_known_power_rails(self):
     return DiffTestBlueprint(
-        trace=Path('power_rails_well_known.textproto'),
+        trace=TextProto(r"""
+        packet {
+          power_rails {
+            rail_descriptor {
+              index: 4
+              rail_name: "S3M_VDD_CPUCL1"
+              subsys_name: "cpu"
+              sampling_rate: 1023
+            }
+          }
+        }
+        packet {
+          timestamp: 3000003
+          power_rails {
+            energy_data {
+              index: 4
+              timestamp_ms: 3
+              energy: 333
+            }
+          }
+        }
+        packet {
+          timestamp: 3000005
+          power_rails {
+            rail_descriptor {
+              index: 3
+              rail_name: "S2S_VDD_G3D"
+              subsys_name: "gpu"
+              sampling_rate: 1022
+            }
+            energy_data {
+              index: 4
+              timestamp_ms: 5
+              energy: 666
+            }
+            energy_data {
+              index: 3
+              energy: 999
+            }
+            energy_data {
+              index: 4
+              timestamp_ms: 3
+              energy: 0
+            }
+          }
+        }
+        """),
         query="""
         SELECT name, AVG(value), COUNT(*)
         FROM counters

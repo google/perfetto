@@ -20,7 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class PowerEnergyBreakdown(TestSuite):
-
+  # Energy Estimation Breakdown
   def test_energy_breakdown_table(self):
     return DiffTestBlueprint(
         trace=Path('energy_breakdown.textproto'),

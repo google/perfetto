@@ -48,6 +48,11 @@ class TextProto:
   contents: str
 
 
+@dataclass
+class Systrace:
+  contents: str
+
+
 class TestType(Enum):
   QUERY = 1
   METRIC = 2
@@ -65,6 +70,15 @@ class DiffTestBlueprint:
 
   def is_trace_file(self):
     return isinstance(self.trace, Path)
+
+  def is_trace_textproto(self):
+    return isinstance(self.trace, TextProto)
+
+  def is_trace_json(self):
+    return isinstance(self.trace, Json)
+
+  def is_trace_systrace(self):
+    return isinstance(self.trace, Systrace)
 
   def is_query_file(self):
     return isinstance(self.query, Path)
@@ -127,22 +141,9 @@ class TestCase:
 
   # Verifies that the test should be in test suite. If False, test will not be
   # executed.
-  def validate(self, query_metric_filter: str, trace_filter: str):
-    # Assertions until string passing is supported
-    if not (self.blueprint.is_trace_file()):
-      raise AssertionError("Test parameters should be passed as files.")
-
-    query_metric_pattern = re.compile(query_metric_filter)
-    trace_pattern = re.compile(trace_filter)
-    if self.query_path and not query_metric_pattern.match(
-        os.path.basename(self.name)):
-      return False
-
-    if self.trace_path and not trace_pattern.match(
-        os.path.basename(self.trace_path)):
-      False
-
-    return True
+  def validate(self, name_filter: str):
+    query_metric_pattern = re.compile(name_filter)
+    return bool(query_metric_pattern.match(os.path.basename(self.name)))
 
 
 # Virtual class responsible for fetching diff tests.

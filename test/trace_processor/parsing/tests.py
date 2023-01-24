@@ -20,7 +20,14 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class Parsing(TestSuite):
-
+  # Contains tests for parsing events which are applicable to more than one
+  # "area". Generally, events here are of high importance (e.g. sched_switch
+  # tested here is and is used by every embedder of trace processor)  Note:
+  # generally *not* advisable to add tests here. Check the guidance provided
+  # http://perfetto/dev/docs/analysis/trace-processor#diff-tests for choosing
+  # folder to add a new test to. TODO(lalitm): some tests here should be moved
+  # of here and into the area folders; they are only here because they predate
+  # modularisation of diff tests. Sched
   def test_ts_desc_filter_android_sched_and_ps(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_sched_and_ps.pb'),
@@ -46,6 +53,7 @@ class Parsing(TestSuite):
         81491096076181
         """))
 
+  # Sched reason
   def test_android_sched_and_ps_end_reason_eq(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_sched_and_ps.pb'),
@@ -78,12 +86,14 @@ class Parsing(TestSuite):
         "x",82
         """))
 
+  # CPU Frequency
   def test_cpu_counters_b120487929(self):
     return DiffTestBlueprint(
         trace=Path('../../data/cpu_counters.pb'),
         query=Path('b120487929_test.sql'),
         out=Path('cpu_counters_b120487929.out'))
 
+  # Test the filtering of ftrace events before tracing_start.
   def test_ftrace_with_tracing_start_list_sched_slice_spans(self):
     return DiffTestBlueprint(
         trace=Path('ftrace_with_tracing_start.py'),
@@ -99,6 +109,11 @@ class Parsing(TestSuite):
         110,-1,2
         """))
 
+  # Scheduling slices from sched_switch events. There are two tests, one for
+  # typical encoding of sched_switch events, and one for the same trace
+  # in the compact format. The output should be identical apart from the
+  # having one slice fewer for each cpu (the first compact sched_switch event
+  # start a slice). Six slices in this case.
   def test_sched_slices_sched_switch_original(self):
     return DiffTestBlueprint(
         trace=Path('../../data/sched_switch_original.pb'),
@@ -119,6 +134,8 @@ class Parsing(TestSuite):
         """,
         out=Path('sched_slices_sched_switch_compact.out'))
 
+  # Decoding of sched_waking events from a trace with compact scheduling
+  # Verifies the contents of raw & instants tables.
   def test_sched_waking_raw_compact_sched(self):
     return DiffTestBlueprint(
         trace=Path('../../data/compact_sched.pb'),
@@ -137,6 +154,7 @@ class Parsing(TestSuite):
         """,
         out=Path('sched_waking_instants_compact_sched.out'))
 
+  # Mm Event
   def test_mm_event(self):
     return DiffTestBlueprint(
         trace=Path('../../data/mm_event.pb'),
@@ -151,6 +169,7 @@ class Parsing(TestSuite):
         """,
         out=Path('mm_event.out'))
 
+  # Check the systrace conversion code in the raw table. Print events
   def test_print_systrace_lmk_userspace(self):
     return DiffTestBlueprint(
         trace=Path('../../data/lmk_userspace.pb'),
@@ -183,7 +202,55 @@ class Parsing(TestSuite):
 
   def test_kernel_dpu_tmw_counter_process_counter_and_track(self):
     return DiffTestBlueprint(
-        trace=Path('kernel_dpu_tmw_counter.textproto'),
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 795572805481
+              pid: 237
+              dpu_tracing_mark_write {
+                pid: 237
+                name: "dpu_vote_clock"
+                type: 67
+                value: 123
+              }
+            }
+            event {
+              timestamp: 795572870504
+              pid: 515
+              dpu_tracing_mark_write {
+                pid: 237
+                name: "dpu_vote_clock"
+                type: 67
+                value: 100
+              }
+            }
+            event {
+              timestamp: 795620516581
+              pid: 237
+              dpu_tracing_mark_write {
+                pid: 237
+                name: "dpu_vote_clock"
+                type: 67
+                value: 125
+              }
+            }
+            event {
+              timestamp: 795620943421
+              pid: 515
+              dpu_tracing_mark_write {
+                pid: 237
+                name: "dpu_vote_clock"
+                type: 67
+                value: 100
+              }
+            }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 3
+        }
+        """),
         query="""
         SELECT ts, pct.name, value, pid
         FROM counter c
@@ -199,6 +266,7 @@ class Parsing(TestSuite):
         795620943421,"dpu_vote_clock",100.000000,237
         """))
 
+  # Unsigned integers
   def test_print_systrace_unsigned(self):
     return DiffTestBlueprint(
         trace=Path('print_systrace_unsigned.py'),
@@ -208,9 +276,27 @@ class Parsing(TestSuite):
         """,
         out=Path('print_systrace_unsigned.out'))
 
+  # cgroup_attach_task systrace conversion.
   def test_cgroup_attach_task_pre_s_print_systrace(self):
     return DiffTestBlueprint(
-        trace=Path('cgroup_attach_task_pre_s.textproto'),
+        trace=TextProto(r"""
+        packet {
+            ftrace_events {
+              cpu: 3
+              event {
+                timestamp: 74289018336
+                pid: 1
+                cgroup_attach_task {
+                  dst_root: 1
+                  dst_id: 2
+                  pid: 3
+                  comm: "foo"
+                  cname: "bar"
+                }
+              }
+            }
+          }
+        """),
         query="""
         SELECT to_ftrace(id)
         FROM raw;
@@ -219,13 +305,32 @@ class Parsing(TestSuite):
 
   def test_cgroup_attach_task_post_s_print_systrace(self):
     return DiffTestBlueprint(
-        trace=Path('cgroup_attach_task_post_s.textproto'),
+        trace=TextProto(r"""
+        packet {
+            ftrace_events {
+              cpu: 3
+              event {
+                timestamp: 74289018336
+                pid: 1
+                cgroup_attach_task {
+                  dst_root: 1
+                  dst_id: 2
+                  pid: 3
+                  comm: "foo"
+                  dst_level: 4
+                  dst_path: "bar"
+                }
+              }
+            }
+          }
+        """),
         query="""
         SELECT to_ftrace(id)
         FROM raw;
         """,
         out=Path('cgroup_attach_task_post_s_print_systrace.out'))
 
+  # Parsing systrace files
   def test_systrace_html(self):
     return DiffTestBlueprint(
         trace=Path('../../data/systrace.html'),
@@ -249,6 +354,7 @@ class Parsing(TestSuite):
         2
         """))
 
+  # LMK handling
   def test_lmk_userspace_lmk(self):
     return DiffTestBlueprint(
         trace=Path('../../data/lmk_userspace.pb'),
@@ -268,7 +374,34 @@ class Parsing(TestSuite):
 
   def test_oom_kill(self):
     return DiffTestBlueprint(
-        trace=Path('../common/oom_kill.textproto'),
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 1000
+              ppid: 1
+              cmdline: "com.google.android.gm"
+            }
+            threads {
+              tid: 1001
+              tgid: 1000
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 4
+            event {
+              timestamp: 1234
+              pid: 4321
+              mark_victim {
+                pid: 1001
+              }
+            }
+          }
+        }
+        
+        """),
         query="""
         SELECT ts, instant.name, process.pid, process.name
         FROM instant
@@ -281,6 +414,7 @@ class Parsing(TestSuite):
         1234,"mem.oom_kill",1000,"com.google.android.gm"
         """))
 
+  # Logcat
   def test_android_log_counts(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_log.pb'),
@@ -313,6 +447,7 @@ class Parsing(TestSuite):
         26
         """))
 
+  # Oom Score
   def test_synth_oom_oom_query(self):
     return DiffTestBlueprint(
         trace=Path('synth_oom.py'),
@@ -333,6 +468,7 @@ class Parsing(TestSuite):
         """,
         out=Path('process_stats_poll_oom_score.out'))
 
+  # Stats
   def test_android_sched_and_ps_stats(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_sched_and_ps.pb'),
@@ -342,6 +478,7 @@ class Parsing(TestSuite):
         """,
         out=Path('android_sched_and_ps_stats.out'))
 
+  # Syscalls
   def test_sys_syscall(self):
     return DiffTestBlueprint(
         trace=Path('syscall.py'),
@@ -356,6 +493,7 @@ class Parsing(TestSuite):
         105,5,"sys_io_destroy"
         """))
 
+  # thread_slice tables.
   def test_thread_time_in_thread_slice(self):
     return DiffTestBlueprint(
         trace=Path('flow_events_json_v2.json'),
@@ -375,9 +513,31 @@ class Parsing(TestSuite):
         "SomeOtherSliceInstant","[NULL]","[NULL]"
         """))
 
+  # Initial display state
   def test_initial_display_state(self):
     return DiffTestBlueprint(
-        trace=Path('initial_display_state.textproto'),
+        trace=TextProto(r"""
+        packet: {
+          timestamp: 1
+          initial_display_state: {
+            display_state: 2
+            brightness: 0.5
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1000
+              pid: 1234
+              print {
+                buf: "C|5678|ScreenState|0\n"
+              }
+            }
+          }
+        }
+        
+        """),
         query="""
         SELECT t.name,
                c.ts,
@@ -392,9 +552,36 @@ class Parsing(TestSuite):
         "ScreenState",1000,0.000000
         """))
 
+  # Config & metadata
   def test_config_metadata(self):
     return DiffTestBlueprint(
-        trace=Path('config_metadata.textproto'),
+        trace=TextProto(r"""
+        packet {
+          clock_snapshot {
+            clocks {
+              clock_id: 6
+              timestamp: 101000002
+            }
+            clocks {
+              clock_id: 128
+              timestamp: 2
+            }
+          }
+          timestamp: 101000002
+        }
+        packet {
+          trace_config {
+            trace_uuid_msb: 1314564453825188563
+            trace_uuid_lsb: -6605018796207623390
+          }
+        }
+        packet {
+          system_info {
+            android_build_fingerprint: "the fingerprint"
+          }
+        }
+        
+        """),
         query="""
         SELECT name, str_value FROM metadata WHERE str_value IS NOT NULL ORDER BY name;
         """,
@@ -409,7 +596,25 @@ class Parsing(TestSuite):
 
   def test_triggers_packets_trigger_packet_trace(self):
     return DiffTestBlueprint(
-        trace=Path('trigger_packet_trace.textproto'),
+        trace=TextProto(r"""
+        packet {
+          trigger {
+            trigger_name: "test1"
+            trusted_producer_uid: 3
+            producer_name: "producer1"
+          }
+          timestamp: 101000002
+        }
+        packet {
+          trigger {
+            trigger_name: "test2"
+            trusted_producer_uid: 4
+            producer_name: "producer2"
+          }
+          timestamp: 101000004
+        }
+        
+        """),
         query=Path('triggers_packets_test.sql'),
         out=Csv("""
         "ts","name","string_value","int_value"
@@ -419,12 +624,36 @@ class Parsing(TestSuite):
 
   def test_chrome_metadata(self):
     return DiffTestBlueprint(
-        trace=Path('chrome_metadata.textproto'),
+        trace=TextProto(r"""
+        packet {
+          clock_snapshot {
+            clocks {
+              clock_id: 6
+              timestamp: 101000002
+            }
+          }
+          trusted_packet_sequence_id: 1
+          timestamp: 101000002
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 101000002
+          chrome_metadata {
+            background_tracing_metadata {
+              triggered_rule {}
+            }
+            chrome_version_code: 101
+            enabled_categories: "cat1,cat2,cat3"
+          }
+        }
+        
+        """),
         query="""
         SELECT * FROM metadata;
         """,
         out=Path('chrome_metadata.out'))
 
+  # CPU info
   def test_cpu(self):
     return DiffTestBlueprint(
         trace=Path('cpu_info.textproto'),
@@ -460,6 +689,7 @@ class Parsing(TestSuite):
         """,
         out=Path('cpu_freq.out'))
 
+  # Trace size
   def test_android_sched_and_ps_trace_size(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_sched_and_ps.pb'),
@@ -471,23 +701,75 @@ class Parsing(TestSuite):
         18761615
         """))
 
+  # Package list handling
   def test_android_package_list(self):
     return DiffTestBlueprint(
         trace=Path('android_package_list.py'),
         query=Metric('android_package_list'),
         out=TextProto(r"""
-android_package_list {
-  packages {
-    package_name: "com.my.pkg"
-    uid: 123
-    version_code: 456000
-  }
-}
-"""))
+        android_package_list {
+          packages {
+            package_name: "com.my.pkg"
+            uid: 123
+            version_code: 456000
+          }
+        }
+        """))
 
+  # Ensures process -> package matching works as expected.
   def test_process_metadata_matching(self):
     return DiffTestBlueprint(
-        trace=Path('process_metadata_matching.textproto'),
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 1
+              ppid: 0
+              cmdline: "init"
+              uid: 0
+            }
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "system_server"
+              uid: 1000
+            }
+            processes {
+              pid: 3
+              ppid: 1
+              cmdline: "com.google.android.gms"
+              uid: 10100
+            }
+            processes {
+              pid: 4
+              ppid: 1
+              cmdline: "com.google.android.gms.persistent"
+              uid: 10100
+            }
+            processes {
+              pid: 5
+              ppid: 1
+              cmdline: "com.google.android.gms"
+              uid: 1010100
+            }
+          }
+        }
+        packet {
+          packages_list {
+            packages {
+              name: "com.google.android.gms"
+              uid: 10100
+              version_code: 1234
+            }
+            packages {
+              name: "com.google.android.gsf"
+              uid: 10100
+              version_code: 1
+            }
+          }
+        }
+        
+        """),
         query="""
         CREATE TABLE TEST_TMP AS
         SELECT RUN_METRIC('android/process_metadata.sql');
@@ -507,6 +789,7 @@ android_package_list {
         5,"com.google.android.gms",10100,1,"com.google.android.gms",1234
         """))
 
+  # Flow events importing from json
   def test_flow_events_json_v1(self):
     return DiffTestBlueprint(
         trace=Path('flow_events_json_v1.json'),
@@ -538,9 +821,37 @@ android_package_list {
         "OtherSlice","SomeOtherSlice"
         """))
 
+  # Importing displayTimeUnit
   def test_display_time_unit_slices(self):
     return DiffTestBlueprint(
-        trace=Path('../../data/display_time_unit.json'),
+        trace=Json(r"""
+        {"displayTimeUnit":"ns","traceEvents":[
+          {
+            "name": "process_name",
+            "pid": 1,
+            "ph": "M",
+            "args": {
+              "name": "api-service-65fc94b8c7-68w9w"
+            }
+          },
+          {
+            "name": "add_graph",
+            "pid": 1,
+            "tid": 1,
+            "ph": "B",
+            "ts": 1597071955492308000
+          },
+          {
+            "name": "add_graph",
+            "pid": 1,
+            "tid": 1,
+            "ph": "E",
+            "ts": 1597071955703771000
+          }
+        ]
+        }
+        
+        """),
         query="""
         SELECT ts, dur, name FROM slice ORDER BY ts DESC;
         """,
@@ -549,6 +860,7 @@ android_package_list {
         -7794778920422990592,211463000000,"add_graph"
         """))
 
+  # Parsing sched_blocked_reason
   def test_sched_blocked_proto_sched_blocked_reason(self):
     return DiffTestBlueprint(
         trace=Path('sched_blocked_proto.py'),
@@ -581,6 +893,7 @@ android_package_list {
         21123838000,2172,1
         """))
 
+  # Kernel symbolization
   def test_sched_blocked_reason_symbolized_sched_blocked_reason_function(self):
     return DiffTestBlueprint(
         trace=Path('sched_blocked_reason_symbolized.textproto'),
@@ -614,9 +927,22 @@ android_package_list {
         """,
         out=Path('sched_blocked_reason_symbolized_to_systrace.out'))
 
+  # Floating point numbers
   def test_decimal_timestamp_slices(self):
     return DiffTestBlueprint(
-        trace=Path('../../data/decimal_timestamp.json'),
+        trace=Json(r"""
+        {
+          "traceEvents": [{
+            "pid": 1234,
+            "tid": 1234,
+            "ts": 5.1,
+            "dur": 500.1,
+            "name": "name.exec",
+            "ph": "XXX",
+            "cat": "aaa"
+          }]
+        }
+        """),
         query="""
         SELECT ts, dur, name FROM slice ORDER BY ts DESC;
         """,
@@ -625,9 +951,18 @@ android_package_list {
         5100,500100,"name.exec"
         """))
 
+  # JSON instants and counters
   def test_counters_json_counters(self):
     return DiffTestBlueprint(
-        trace=Path('../../data/counters.json'),
+        trace=Json(r"""
+        
+        [
+            {"pid": "1000", "name": "ctr", "ph": "C", "ts":  0, "args": {"cats":  0}},
+            {"pid": "1000", "name": "ctr", "ph": "C", "ts": 10, "args": {"cats": 10}},
+            {"pid": "1000", "name": "ctr", "ph": "C", "ts": 20, "args": {"cats":  0}}
+        ]
+        
+        """),
         query="""
         SELECT
           process_counter_track.name,
@@ -670,17 +1005,19 @@ android_package_list {
         1239523300,"NoneR",6790,"[NULL]"
         """))
 
+  # Trace quality metric
   def test_very_long_sched_android_trace_quality(self):
     return DiffTestBlueprint(
         trace=Path('very_long_sched.py'),
         query=Metric('android_trace_quality'),
         out=TextProto(r"""
-android_trace_quality {
-  failures {
-    name: "sched_slice_too_long"
-  }
-}"""))
+        android_trace_quality {
+          failures {
+            name: "sched_slice_too_long"
+          }
+        }"""))
 
+  # Regression test for b/193721088 (infra prepending " done\n" to atrace)
   def test_sched_smoke_trailing_empty_2(self):
     return DiffTestBlueprint(
         trace=Path('../../data/atrace_b_193721088.atr'),
@@ -693,17 +1030,19 @@ android_trace_quality {
         2
         """))
 
+  # Multiuser
   def test_android_multiuser_switch(self):
     return DiffTestBlueprint(
         trace=Path('android_multiuser_switch.textproto'),
         query=Metric('android_multiuser'),
         out=TextProto(r"""
-android_multiuser: {
-  user_switch: {
-    duration_ms: 4900
-  }
-}"""))
+        android_multiuser: {
+          user_switch: {
+            duration_ms: 4900
+          }
+        }"""))
 
+  # Output of atrace -z.
   def test_atrace_compressed_sched_count(self):
     return DiffTestBlueprint(
         trace=Path('../../data/atrace_compressed.ctrace'),
@@ -716,6 +1055,8 @@ android_multiuser: {
         1120
         """))
 
+  # Output of adb shell "atrace -t 1 sched" > out.txt". It has extra garbage
+  # from stderr before the TRACE: marker. See b/208691037.
   def test_atrace_uncompressed_sched_count(self):
     return DiffTestBlueprint(
         trace=Path('../../data/atrace_uncompressed_b_208691037'),
@@ -733,45 +1074,48 @@ android_multiuser: {
         trace=Path('otheruuids.textproto'),
         query=Metric('android_other_traces'),
         out=TextProto(r"""
-android_other_traces {
-  finalized_traces_uuid: "75e4c6d0-d8f6-4f82-fa4b-9e09c5512288"
-  finalized_traces_uuid: "ad836701-3113-3fb1-be4f-f7731e23fbbf"
-  finalized_traces_uuid: "0de1a010-efa1-a081-2345-969b1186a6ab"
-}
-"""))
+        android_other_traces {
+          finalized_traces_uuid: "75e4c6d0-d8f6-4f82-fa4b-9e09c5512288"
+          finalized_traces_uuid: "ad836701-3113-3fb1-be4f-f7731e23fbbf"
+          finalized_traces_uuid: "0de1a010-efa1-a081-2345-969b1186a6ab"
+        }
+        """))
 
+  # Per-process Binder transaction metrics
   def test_android_binder(self):
     return DiffTestBlueprint(
         trace=Path('android_binder.py'),
         query=Metric('android_binder'),
         out=TextProto(r"""
-android_binder {
-  process_breakdown {
-    process_name: "test_process_a"
-    pid: 1
-    slice_name: "binder transaction"
-    count: 2
-  }
-  process_breakdown {
-    process_name: "test_process_b"
-    pid: 2
-    slice_name: "binder reply"
-    count: 1
-  }
-  process_breakdown {
-    process_name: "test_process_c"
-    pid: 3
-    slice_name: "binder reply"
-    count: 1
-  }
-}"""))
+        android_binder {
+          process_breakdown {
+            process_name: "test_process_a"
+            pid: 1
+            slice_name: "binder transaction"
+            count: 2
+          }
+          process_breakdown {
+            process_name: "test_process_b"
+            pid: 2
+            slice_name: "binder reply"
+            count: 1
+          }
+          process_breakdown {
+            process_name: "test_process_c"
+            pid: 3
+            slice_name: "binder reply"
+            count: 1
+          }
+        }"""))
 
+  # Statsd Atoms
   def test_statsd_atoms_all_atoms(self):
     return DiffTestBlueprint(
         trace=Path('../../data/statsd_atoms.pb'),
         query=Path('all_atoms_test.sql'),
         out=Path('statsd_atoms_all_atoms.out'))
 
+  # Kernel function tracing.
   def test_funcgraph_trace_funcgraph(self):
     return DiffTestBlueprint(
         trace=Path('funcgraph_trace.textproto'),

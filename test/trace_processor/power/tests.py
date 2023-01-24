@@ -20,7 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class Power(TestSuite):
-
+  # Power states
   def test_cpu_counters_p_state(self):
     return DiffTestBlueprint(
         trace=Path('../../data/cpu_counters.pb'),
@@ -31,6 +31,7 @@ class Power(TestSuite):
         """,
         out=Path('cpu_counters_p_state_test.out'))
 
+  # CPU power ups
   def test_cpu_powerups(self):
     return DiffTestBlueprint(
         trace=Path('../../data/cpu_powerups_1.pb'),

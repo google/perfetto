@@ -20,7 +20,9 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class SmokeSchedEvents(TestSuite):
-
+  # Contains smoke tests which test the most fundamentally important features
+  # trace processor  Note: new tests here should only be added by the Perfetto
+  # Sched events
   def test_android_sched_and_ps_smoke(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_sched_and_ps.pb'),
@@ -51,6 +53,7 @@ class SmokeSchedEvents(TestSuite):
         81473010352792,2,32917,"S",120,26208
         """))
 
+  # Sched events from sythetic trace
   def test_synth_1_smoke(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),

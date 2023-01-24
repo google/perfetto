@@ -20,7 +20,8 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class Atrace(TestSuite):
-
+  # Match legacy Catapult behaviour when we see multiple S events b2b with the
+  # cookie name and upid.
   def test_android_b2b_async_begin_list_slices(self):
     return DiffTestBlueprint(
         trace=Path('android_b2b_async_begin.textproto'),
@@ -35,9 +36,38 @@ class Atrace(TestSuite):
         1030,20,"multistart"
         """))
 
+  # Android userspace async slices
   def test_process_track_slices_android_async_slice(self):
     return DiffTestBlueprint(
-        trace=Path('android_async_slice.textproto'),
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 3
+            event {
+              timestamp: 74289018336
+              pid: 4064
+              print {
+                ip: 18446743562018522420
+                buf: "S|1204|launching: com.android.chrome|0\n"
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 74662603008
+              pid: 1257
+              print {
+                ip: 18446743562018522420
+                buf: "F|1204|launching: com.android.chrome|0\n"
+              }
+            }
+          }
+        }
+        
+        """),
         query="""
         SELECT
           ts,
@@ -72,6 +102,7 @@ class Atrace(TestSuite):
         60,5,2,"ev","track"
         """))
 
+  # Resolving slice nesting issues when tracing both atrace and sys_write
   def test_sys_write_and_atrace(self):
     return DiffTestBlueprint(
         trace=Path('sys_write_and_atrace.py'),
