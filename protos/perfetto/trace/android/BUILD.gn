@@ -24,6 +24,7 @@ perfetto_proto_library("@TYPE@") {
     "gpu_mem_event.proto",
     "graphics_frame_event.proto",
     "initial_display_state.proto",
+    "network_trace.proto",
     "packages_list.proto",
   ]
 }
