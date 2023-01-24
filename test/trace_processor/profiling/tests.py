@@ -20,10 +20,47 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class Profiling(TestSuite):
-
+  # Perf profiling  tests.
   def test_profiler_smaps(self):
     return DiffTestBlueprint(
-        trace=Path('profiler_smaps.textproto'),
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 1
+              ppid: 0
+              cmdline: "init"
+              uid: 0
+            }
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "system_server"
+              uid: 1000
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 999
+          timestamp: 10
+          smaps_packet {
+            pid: 2
+            entries {
+              path: "/system/lib64/libc.so"
+              size_kb: 20
+              private_dirty_kb: 4
+              swap_kb: 4
+            }
+            entries {
+              path: "[anon: libc_malloc]"
+              size_kb: 30
+              private_dirty_kb: 10
+              swap_kb: 10
+            }
+          }
+        }
+        
+        """),
         query="""
         SELECT id, type, upid, ts, path, size_kb, private_dirty_kb, swap_kb
         FROM profiler_smaps;
@@ -36,31 +73,70 @@ class Profiling(TestSuite):
 
   def test_profiler_smaps_metric(self):
     return DiffTestBlueprint(
-        trace=Path('profiler_smaps.textproto'),
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 1
+              ppid: 0
+              cmdline: "init"
+              uid: 0
+            }
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "system_server"
+              uid: 1000
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 999
+          timestamp: 10
+          smaps_packet {
+            pid: 2
+            entries {
+              path: "/system/lib64/libc.so"
+              size_kb: 20
+              private_dirty_kb: 4
+              swap_kb: 4
+            }
+            entries {
+              path: "[anon: libc_malloc]"
+              size_kb: 30
+              private_dirty_kb: 10
+              swap_kb: 10
+            }
+          }
+        }
+        
+        """),
         query=Metric('profiler_smaps'),
         out=TextProto(r"""
-profiler_smaps {
-  instance {
-    process {
-      name: "system_server"
-      uid: 1000
-    }
-    mappings {
-      path: "[anon: libc_malloc]"
-      size_kb: 30
-      private_dirty_kb: 10
-      swap_kb: 10
-    }
-    mappings {
-      path: "/system/lib64/libc.so"
-      size_kb: 20
-      private_dirty_kb: 4
-      swap_kb: 4
-    }
-  }
-}
-"""))
+        profiler_smaps {
+          instance {
+            process {
+              name: "system_server"
+              uid: 1000
+            }
+            mappings {
+              path: "[anon: libc_malloc]"
+              size_kb: 30
+              private_dirty_kb: 10
+              swap_kb: 10
+            }
+            mappings {
+              path: "/system/lib64/libc.so"
+              size_kb: 20
+              private_dirty_kb: 4
+              swap_kb: 4
+            }
+          }
+        }
+        """))
 
+  # Regression test for b/222297079: when cumulative size in a flamegraph
+  # a signed 32-bit integer.
   def test_heap_graph_flamegraph_matches_objects(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph_huge_size.textproto'),
@@ -88,6 +164,8 @@ profiler_smaps {
         1,10,3000000036,3000000036
         """))
 
+  # TODO(b/153552977): Stop supporting legacy heap graphs. These never made it
+  # a public release, so we should eventually stop supporting workarounds for
   def test_heap_graph_flamegraph(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph_legacy.textproto'),
@@ -112,7 +190,54 @@ profiler_smaps {
 
   def test_stack_profile_tracker_empty_callstack(self):
     return DiffTestBlueprint(
-        trace=Path('stack_profile_tracker_empty_callstack.textproto'),
+        trace=TextProto(r"""
+        packet {
+          clock_snapshot {
+            clocks: {
+              clock_id: 6 # BOOTTIME
+              timestamp: 0
+            }
+            clocks: {
+              clock_id: 4 # MONOTONIC_COARSE
+              timestamp: 0
+            }
+          }
+        }
+        
+        packet {
+          previous_packet_dropped: true
+          incremental_state_cleared: true
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          interned_data {
+            callstacks {
+              iid: 1
+            }
+          }
+        }
+        
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          profile_packet {
+            index: 0
+            continued: false
+            process_dumps {
+              samples {
+                callstack_id: 1
+                self_allocated: 1
+                alloc_count: 1
+              }
+              samples {
+                callstack_id: 1
+                self_allocated: 1
+                alloc_count: 1
+              }
+            }
+          }
+        }
+        
+        """),
         query="""
         SELECT count(1) AS count FROM heap_profile_allocation;
         """,
@@ -121,6 +246,7 @@ profiler_smaps {
         0
         """))
 
+  # perf_sample table (traced_perf) with android R and S trace inputs.
   def test_perf_sample_rvc(self):
     return DiffTestBlueprint(
         trace=Path('../../data/perf_sample.pb'),

@@ -20,7 +20,11 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class Tables(TestSuite):
-
+  # Contains tests for the handling of tables by trace processor. The focus of
+  # here is to check that trace processor is correctly returning and handling
+  # on the really important tables in trace processor.  Note: It's generally
+  # advisable to add tests here. Check the guidance provided by
+  # for choosing which folder to add a new test to. Window table
   def test_android_sched_and_ps_smoke_window(self):
     return DiffTestBlueprint(
         trace=Path('../../data/android_sched_and_ps.pb'),
@@ -32,6 +36,7 @@ class Tables(TestSuite):
         0,9223372036854775807,0
         """))
 
+  # Null printing
   def test_nulls(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
@@ -66,9 +71,59 @@ class Tables(TestSuite):
         """,
         out=Path('nulls.out'))
 
+  # Thread table
   def test_thread_main_thread(self):
     return DiffTestBlueprint(
-        trace=Path('thread_main_thread.textproto'),
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1
+          process_tree {
+            processes {
+              pid: 5
+              ppid: 1
+              cmdline: "com.google.pid5"
+            }
+            threads {
+              tid: 5
+              tgid: 5
+            }
+            threads {
+              tid: 7
+              tgid: 5
+              name: "tid7"
+            }
+            processes {
+              pid: 11
+              ppid: 1
+              cmdline: "com.google.pid11"
+            }
+            threads {
+              tid: 11
+              tgid: 11
+              name: "tid11"
+            }
+            threads {
+              tid: 12
+              tgid: 11
+              name: "tid12"
+            }
+          }
+        }
+        packet {
+          timestamp: 2
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 2
+              pid: 99
+              lowmemory_kill {
+                pid: 99
+              }
+            }
+          }
+        }
+        
+        """),
         query="""
         SELECT
           tid,
@@ -86,32 +141,61 @@ class Tables(TestSuite):
         99,"[NULL]"
         """))
 
+  # Json output
   def test_trace_metadata(self):
     return DiffTestBlueprint(
         trace=Path('../../data/memory_counters.pb'),
         query=Metric('trace_metadata'),
         out=Path('trace_metadata.json.out'))
 
+  # Processes as a metric
   def test_android_task_names(self):
     return DiffTestBlueprint(
-        trace=Path('process_uids.textproto'),
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 1
+              ppid: 0
+              cmdline: "init"
+              uid: 0
+            }
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "com.google.android.gm:process"
+              uid: 10001
+            }
+          }
+        }
+        packet {
+          packages_list {
+            packages {
+              name: "com.google.android.gm"
+              uid: 10001
+            }
+          }
+        }
+        
+        """),
         query=Metric('android_task_names'),
         out=TextProto(r"""
-android_task_names {
-  process {
-    pid: 1
-    process_name: "init"
-    uid: 0
-  }
-  process {
-    pid: 2
-    process_name: "com.google.android.gm:process"
-    uid: 10001
-    uid_package_name: "com.google.android.gm"
-  }
-}
-"""))
+        android_task_names {
+          process {
+            pid: 1
+            process_name: "init"
+            uid: 0
+          }
+          process {
+            pid: 2
+            process_name: "com.google.android.gm:process"
+            uid: 10001
+            uid_package_name: "com.google.android.gm"
+          }
+        }
+        """))
 
+  # Ftrace stats imports in metadata and stats tables
   def test_ftrace_setup_errors(self):
     return DiffTestBlueprint(
         trace=Path('../../data/ftrace_error_stats.pftrace'),

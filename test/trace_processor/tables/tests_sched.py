@@ -20,7 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class TablesSched(TestSuite):
-
+  # Sched table
   def test_synth_1_filter_sched(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
