@@ -188,6 +188,18 @@ void TrackEventInternal::RemoveSessionObserver(
       registry, observer);
 }
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) && \
+    !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+static constexpr protos::pbzero::BuiltinClock kDefaultTraceClock =
+    protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
+#else
+static constexpr protos::pbzero::BuiltinClock kDefaultTraceClock =
+    protos::pbzero::BUILTIN_CLOCK_MONOTONIC;
+#endif
+
+// static
+protos::pbzero::BuiltinClock TrackEventInternal::clock_ = kDefaultTraceClock;
+
 // static
 void TrackEventInternal::EnableTracing(
     const TrackEventCategoryRegistry& registry,
@@ -351,8 +363,10 @@ bool TrackEventInternal::IsCategoryEnabled(
 uint64_t TrackEventInternal::GetTimeNs() {
   if (GetClockId() == protos::pbzero::BUILTIN_CLOCK_BOOTTIME)
     return static_cast<uint64_t>(perfetto::base::GetBootTimeNs().count());
-  PERFETTO_DCHECK(GetClockId() == protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
-  return static_cast<uint64_t>(perfetto::base::GetWallTimeNs().count());
+  else if (GetClockId() == protos::pbzero::BUILTIN_CLOCK_MONOTONIC)
+    return static_cast<uint64_t>(perfetto::base::GetWallTimeNs().count());
+  PERFETTO_DCHECK(GetClockId() == protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
+  return static_cast<uint64_t>(perfetto::base::GetWallTimeRawNs().count());
 }
 
 // static
@@ -372,7 +386,8 @@ void TrackEventInternal::ResetIncrementalState(
     const TrackEventTlsState& tls_state,
     const TraceTimestamp& timestamp) {
   auto sequence_timestamp = timestamp;
-  if (timestamp.clock_id != TrackEventInternal::GetClockId() &&
+  if (timestamp.clock_id !=
+          static_cast<uint32_t>(TrackEventInternal::GetClockId()) &&
       timestamp.clock_id != kClockIdIncremental) {
     sequence_timestamp = TrackEventInternal::GetTraceTime();
   }
@@ -401,11 +416,11 @@ void TrackEventInternal::ResetIncrementalState(
           thread_time_counter_track.uuid);
     }
 
-    if (tls_state.default_clock != GetClockId()) {
+    if (tls_state.default_clock != static_cast<uint32_t>(GetClockId())) {
       ClockSnapshot* clocks = packet->set_clock_snapshot();
       // Trace clock.
       ClockSnapshot::Clock* trace_clock = clocks->add_clocks();
-      trace_clock->set_clock_id(GetClockId());
+      trace_clock->set_clock_id(static_cast<uint32_t>(GetClockId()));
       trace_clock->set_timestamp(sequence_timestamp.value);
 
       if (PERFETTO_LIKELY(tls_state.default_clock == kClockIdIncremental)) {

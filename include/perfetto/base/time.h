@@ -53,6 +53,9 @@ void SleepMicroseconds(unsigned interval_us);
 
 TimeNanos GetWallTimeNs();
 TimeNanos GetThreadCPUTimeNs();
+inline TimeNanos GetWallTimeRawNs() {
+  return GetWallTimeNs();
+}
 
 // TODO: Clock that counts time during suspend is not implemented on Windows.
 inline TimeNanos GetBootTimeNs() {
@@ -70,6 +73,10 @@ inline TimeNanos GetWallTimeNs() {
 
   static uint64_t monotonic_timebase_factor = init_time_factor();
   return TimeNanos(mach_absolute_time() * monotonic_timebase_factor);
+}
+
+inline TimeNanos GetWallTimeRawNs() {
+  return GetWallTimeNs();
 }
 
 // TODO: Clock that counts time during suspend is not implemented on Mac.
@@ -102,6 +109,10 @@ inline TimeNanos GetWallTimeNs() {
   return TimeNanos(static_cast<uint64_t>(emscripten_get_now()) * 1000000);
 }
 
+inline TimeNanos GetWallTimeRawNs() {
+  return GetWallTimeNs();
+}
+
 inline TimeNanos GetThreadCPUTimeNs() {
   return TimeNanos(0);
 }
@@ -118,6 +129,10 @@ inline TimeNanos GetBootTimeNs() {
 // GetWallTimeNs(), but to prevent false hope we leave it unimplemented.
 
 inline TimeNanos GetWallTimeNs() {
+  return TimeNanos(0);
+}
+
+inline TimeNanos GetWallTimeRawNs() {
   return TimeNanos(0);
 }
 
@@ -153,6 +168,10 @@ inline TimeNanos GetBootTimeNs() {
 
 inline TimeNanos GetWallTimeNs() {
   return GetTimeInternalNs(kWallTimeClockSource);
+}
+
+inline TimeNanos GetWallTimeRawNs() {
+  return GetTimeInternalNs(CLOCK_MONOTONIC_RAW);
 }
 
 inline TimeNanos GetThreadCPUTimeNs() {

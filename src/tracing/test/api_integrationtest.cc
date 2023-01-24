@@ -188,7 +188,7 @@ template <>
 struct TraceTimestampTraits<MyTimestamp> {
   static TraceTimestamp ConvertTimestampToTraceTimeNs(
       const MyTimestamp& timestamp) {
-    return {TrackEvent::GetTraceClockId(), timestamp.ts};
+    return {static_cast<uint32_t>(TrackEvent::GetTraceClockId()), timestamp.ts};
   }
 };
 
@@ -1605,11 +1605,13 @@ TEST_P(PerfettoApiTest, TrackEventNamespaces) {
 
   // Default namespace.
   TRACE_EVENT_INSTANT("test", "MainNamespaceEvent");
+  EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("test"));
 
   // Other namespace in a block scope.
   {
     PERFETTO_USE_CATEGORIES_FROM_NAMESPACE_SCOPED(other_ns);
     TRACE_EVENT_INSTANT("other_ns", "OtherNamespaceEvent");
+    EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("other_ns"));
   }
 
   // Back to the default namespace.
@@ -1965,13 +1967,15 @@ TEST_P(PerfettoApiTest, TrackEventCustomTimestampClock) {
   // referencing that clock.
   perfetto::TrackEvent::Trace([](perfetto::TrackEvent::TraceContext ctx) {
     auto packet = ctx.NewTracePacket();
-    packet->set_timestamp_clock_id(perfetto::TrackEvent::GetTraceClockId());
+    packet->set_timestamp_clock_id(
+        static_cast<uint32_t>(perfetto::TrackEvent::GetTraceClockId()));
     packet->set_timestamp(perfetto::TrackEvent::GetTraceTimeNs());
     auto* clock_snapshot = packet->set_clock_snapshot();
     // First set the reference clock, i.e., the default trace clock in this
     // case.
     auto* clock = clock_snapshot->add_clocks();
-    clock->set_clock_id(perfetto::TrackEvent::GetTraceClockId());
+    clock->set_clock_id(
+        static_cast<uint32_t>(perfetto::TrackEvent::GetTraceClockId()));
     clock->set_timestamp(perfetto::TrackEvent::GetTraceTimeNs());
     // Then set the value of our reference clock at the same point in time. We
     // pretend our clock is one second behind trace time.

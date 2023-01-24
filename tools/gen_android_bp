@@ -58,6 +58,7 @@ default_targets = [
     '//:perfetto_unittests',
     '//protos/perfetto/trace:perfetto_trace_protos',
     '//src/android_internal:libperfetto_android_internal',
+    '//src/base:perfetto_base_default_platform',
     '//src/perfetto_cmd:perfetto',
     '//src/perfetto_cmd:trigger_perfetto',
     '//src/profiling/memory:heapprofd_client',
@@ -262,6 +263,10 @@ additional_args = {
 }
 
 
+def enable_base_platform(module):
+  module.srcs.add(':perfetto_base_default_platform')
+
+
 def enable_gtest_and_gmock(module):
   module.static_libs.add('libgmock')
   module.static_libs.add('libgtest')
@@ -357,6 +362,8 @@ builtin_deps = {
         lambda x: None,
     '//gn:protoc':
         lambda x: None,
+    '//gn:base_platform':
+        enable_base_platform,
     '//gn:gtest_and_gmock':
         enable_gtest_and_gmock,
     '//gn:libunwind':

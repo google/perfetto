@@ -18,6 +18,7 @@
 cc_binary {
     name: "heapprofd",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_ext_base_version",
@@ -200,6 +201,7 @@ cc_library_shared {
 cc_library_shared {
     name: "heapprofd_client",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_public_abi_base",
@@ -232,6 +234,7 @@ cc_library_shared {
 cc_library_shared {
     name: "heapprofd_client_api",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_public_abi_base",
@@ -280,6 +283,7 @@ cc_library_shared {
 cc_library_shared {
     name: "heapprofd_standalone_client",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_ext_base_version",
@@ -455,6 +459,7 @@ cc_library_shared {
 cc_binary_host {
     name: "ipc_plugin",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_public_abi_base",
@@ -478,6 +483,7 @@ cc_binary_host {
 cc_library_shared {
     name: "libperfetto",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_ext_base_version",
@@ -704,6 +710,7 @@ cc_library_shared {
 cc_library_static {
     name: "libperfetto_client_experimental",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_ext_base_version",
@@ -921,6 +928,7 @@ cc_library_static {
 cc_binary {
     name: "perfetto",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_ext_base_version",
@@ -1070,10 +1078,19 @@ cc_binary {
     ],
 }
 
+// GN: //src/base:perfetto_base_default_platform
+filegroup {
+    name: "perfetto_base_default_platform",
+    srcs: [
+        "src/base/default_platform.cc",
+    ],
+}
+
 // GN: //test/cts:perfetto_cts_deps
 cc_library_static {
     name: "perfetto_cts_deps",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_ext_base_version",
@@ -1364,6 +1381,7 @@ cc_library_static {
 cc_library_static {
     name: "perfetto_cts_jni_deps",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_ext_base_version",
@@ -1800,6 +1818,7 @@ filegroup {
 cc_test {
     name: "perfetto_integrationtests",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_ext_base_version",
@@ -8785,6 +8804,7 @@ filegroup {
 cc_binary_host {
     name: "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_public_abi_base",
@@ -11259,6 +11279,7 @@ cc_library_static {
 cc_test {
     name: "perfetto_unittests",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_ext_base_http_http",
@@ -11750,6 +11771,7 @@ cc_test {
 cc_library_static {
     name: "perfetto_vts_deps",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_ext_base_version",
@@ -12032,6 +12054,7 @@ cc_library_static {
 cc_binary_host {
     name: "protozero_plugin",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_public_abi_base",
@@ -12055,6 +12078,7 @@ cc_binary_host {
 cc_binary {
     name: "trace_processor_shell",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_ext_base_http_http",
@@ -12269,6 +12293,7 @@ cc_binary {
 cc_binary_host {
     name: "traceconv",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_ext_base_version",
@@ -12469,6 +12494,7 @@ cc_binary {
 cc_binary {
     name: "traced_perf",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_ext_base_version",
@@ -12663,6 +12689,7 @@ cc_binary {
 cc_binary {
     name: "trigger_perfetto",
     srcs: [
+        ":perfetto_base_default_platform",
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_ext_base_version",
