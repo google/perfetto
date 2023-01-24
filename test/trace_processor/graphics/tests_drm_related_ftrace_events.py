@@ -23,7 +23,38 @@ class GraphicsDrmRelatedFtraceEvents(TestSuite):
 
   def test_drm_vblank_gpu_track(self):
     return DiffTestBlueprint(
-        trace=Path('drm_vblank.textproto'),
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 6159770881976
+              pid: 0
+              drm_vblank_event {
+                crtc: 0
+                high_prec: 1
+                seq: 3551
+                time: 6159771267407
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 4
+            event {
+              timestamp: 6159770993376
+              pid: 144
+              drm_vblank_event_delivered {
+                crtc: 0
+                file: 18446743526216291840
+                seq: 3551
+              }
+            }
+          }
+        }
+        
+        """),
         query="""
         SELECT
           gpu_track.name,

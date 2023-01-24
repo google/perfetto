@@ -20,7 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class Dynamic(TestSuite):
-
+  # Tests for custom dynamic tables. Ancestor slice table.
   def test_ancestor_slice(self):
     return DiffTestBlueprint(
         trace=Path('relationship_tables.textproto'),
@@ -31,6 +31,7 @@ class Dynamic(TestSuite):
         """,
         out=Path('ancestor_slice.out'))
 
+  # Descendant slice table.
   def test_descendant_slice(self):
     return DiffTestBlueprint(
         trace=Path('relationship_tables.textproto'),
@@ -41,6 +42,7 @@ class Dynamic(TestSuite):
         """,
         out=Path('descendant_slice.out'))
 
+  # Ancestor slice by stack table.
   def test_ancestor_slice_by_stack(self):
     return DiffTestBlueprint(
         trace=Path('slice_stacks.textproto'),
@@ -59,6 +61,7 @@ class Dynamic(TestSuite):
         9000,"event_depth_1"
         """))
 
+  # Descendant slice by stack table.
   def test_descendant_slice_by_stack(self):
     return DiffTestBlueprint(
         trace=Path('slice_stacks.textproto'),
@@ -77,12 +80,14 @@ class Dynamic(TestSuite):
         10000,"event_depth_2"
         """))
 
+  # Connected/Following/Perceeding flow table.
   def test_connected_flow(self):
     return DiffTestBlueprint(
         trace=Path('connected_flow_data.json'),
         query=Path('connected_flow_test.sql'),
         out=Path('connected_flow.out'))
 
+  # Annotated callstacks.
   def test_perf_sample_sc_annotated_callstack(self):
     return DiffTestBlueprint(
         trace=Path('../../data/perf_sample_sc.pb'),
@@ -98,6 +103,7 @@ class Dynamic(TestSuite):
         """,
         out=Path('perf_sample_sc_annotated_callstack.out'))
 
+  # ABS_TIME_STR function
   def test_various_clocks_abs_time_str(self):
     return DiffTestBlueprint(
         trace=Path('various_clocks.textproto'),
@@ -111,7 +117,9 @@ class Dynamic(TestSuite):
 
   def test_empty_abs_time_str(self):
     return DiffTestBlueprint(
-        trace=Path('../common/empty.textproto'),
+        trace=TextProto(r"""
+        
+        """),
         query="""
         SELECT
           ABS_TIME_STR(15) AS t15,
@@ -123,6 +131,7 @@ class Dynamic(TestSuite):
         "[NULL]","[NULL]","[NULL]"
         """))
 
+  # TO_MONOTONIC function
   def test_various_clocks_to_monotonic(self):
     return DiffTestBlueprint(
         trace=Path('various_clocks.textproto'),
@@ -139,7 +148,9 @@ class Dynamic(TestSuite):
 
   def test_empty_to_monotonic(self):
     return DiffTestBlueprint(
-        trace=Path('../common/empty.textproto'),
+        trace=TextProto(r"""
+        
+        """),
         query="""
         SELECT
           TO_MONOTONIC(25) AS t15,

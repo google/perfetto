@@ -44,42 +44,69 @@ class MemoryMetrics(TestSuite):
         trace=Path('android_systrace_lmk.py'),
         query=Metric('android_lmk'),
         out=TextProto(r"""
-android_lmk {
-  total_count: 1
-    by_oom_score {
-    oom_score_adj: 900
-    count: 1
-  }
-  oom_victim_count: 0
-}
-"""))
+        android_lmk {
+          total_count: 1
+            by_oom_score {
+            oom_score_adj: 900
+            count: 1
+          }
+          oom_victim_count: 0
+        }
+        """))
 
   def test_android_lmk_oom(self):
     return DiffTestBlueprint(
-        trace=Path('../common/oom_kill.textproto'),
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 1000
+              ppid: 1
+              cmdline: "com.google.android.gm"
+            }
+            threads {
+              tid: 1001
+              tgid: 1000
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 4
+            event {
+              timestamp: 1234
+              pid: 4321
+              mark_victim {
+                pid: 1001
+              }
+            }
+          }
+        }
+        
+        """),
         query=Metric('android_lmk'),
         out=TextProto(r"""
-android_lmk {
-  total_count: 0
-  oom_victim_count: 1
-}"""))
+        android_lmk {
+          total_count: 0
+          oom_victim_count: 1
+        }"""))
 
   def test_android_mem_delta(self):
     return DiffTestBlueprint(
         trace=Path('android_mem_delta.py'),
         query=Metric('android_mem'),
         out=TextProto(r"""
-android_mem {
-  process_metrics {
-    process_name: "com.my.pkg"
-    total_counters {
-      file_rss {
-        min: 2000.0
-        max: 10000.0
-        avg: 6666.666666666667
-        delta: 7000.0
-      }
-    }
-  }
-}
-"""))
+        android_mem {
+          process_metrics {
+            process_name: "com.my.pkg"
+            total_counters {
+              file_rss {
+                min: 2000.0
+                max: 10000.0
+                avg: 6666.666666666667
+                delta: 7000.0
+              }
+            }
+          }
+        }
+        """))

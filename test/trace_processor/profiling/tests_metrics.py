@@ -26,33 +26,33 @@ class ProfilingMetrics(TestSuite):
         trace=Path('heap_profile_no_symbols.textproto'),
         query=Metric('unsymbolized_frames'),
         out=TextProto(r"""
-unsymbolized_frames {
-  frames {
-    module: "/liblib.so"
-    build_id: "6275696c642d6964"
-    address: 4096
-    google_lookup_id: "6275696c642d6964"
-  }
-  frames {
-    module: "/liblib.so"
-    build_id: "6275696c642d6964"
-    address: 8192
-    google_lookup_id: "6275696c642d6964"
-  }
-  frames {
-    module: "/libmonochrome_64.so"
-    build_id: "7f0715c286f8b16c10e4ad349cda3b9b56c7a773"
-    address: 4096
-    google_lookup_id: "c215077ff8866cb110e4ad349cda3b9b0"
-  }
-  frames {
-    module: "/libmonochrome_64.so"
-    build_id: "7f0715c286f8b16c10e4ad349cda3b9b56c7a773"
-    address: 8192
-    google_lookup_id: "c215077ff8866cb110e4ad349cda3b9b0"
-  }
-}
-"""))
+        unsymbolized_frames {
+          frames {
+            module: "/liblib.so"
+            build_id: "6275696c642d6964"
+            address: 4096
+            google_lookup_id: "6275696c642d6964"
+          }
+          frames {
+            module: "/liblib.so"
+            build_id: "6275696c642d6964"
+            address: 8192
+            google_lookup_id: "6275696c642d6964"
+          }
+          frames {
+            module: "/libmonochrome_64.so"
+            build_id: "7f0715c286f8b16c10e4ad349cda3b9b56c7a773"
+            address: 4096
+            google_lookup_id: "c215077ff8866cb110e4ad349cda3b9b0"
+          }
+          frames {
+            module: "/libmonochrome_64.so"
+            build_id: "7f0715c286f8b16c10e4ad349cda3b9b56c7a773"
+            address: 8192
+            google_lookup_id: "c215077ff8866cb110e4ad349cda3b9b0"
+          }
+        }
+        """))
 
   def test_simpleperf_event(self):
     return DiffTestBlueprint(
@@ -65,36 +65,36 @@ unsymbolized_frames {
         trace=Path('heap_graph.textproto'),
         query=Metric('java_heap_stats'),
         out=TextProto(r"""
-java_heap_stats {
-  instance_stats {
-    upid: 2
-    process {
-      name: "system_server"
-      uid: 1000
-    }
-    samples {
-      ts: 10
-      heap_size: 1760
-      heap_native_size: 0
-      reachable_heap_size: 352
-      reachable_heap_native_size: 0
-      obj_count: 6
-      reachable_obj_count: 3
-      anon_rss_and_swap_size: 4096000
-      roots {
-        root_type: "ROOT_JAVA_FRAME"
-        type_name: "DeobfuscatedA[]"
-        obj_count: 1
-      }
-      roots {
-        root_type: "ROOT_JAVA_FRAME"
-        type_name: "FactoryProducerDelegateImplActor"
-        obj_count: 1
-      }
-    }
-  }
-}
-"""))
+        java_heap_stats {
+          instance_stats {
+            upid: 2
+            process {
+              name: "system_server"
+              uid: 1000
+            }
+            samples {
+              ts: 10
+              heap_size: 1760
+              heap_native_size: 0
+              reachable_heap_size: 352
+              reachable_heap_native_size: 0
+              obj_count: 6
+              reachable_obj_count: 3
+              anon_rss_and_swap_size: 4096000
+              roots {
+                root_type: "ROOT_JAVA_FRAME"
+                type_name: "DeobfuscatedA[]"
+                obj_count: 1
+              }
+              roots {
+                root_type: "ROOT_JAVA_FRAME"
+                type_name: "FactoryProducerDelegateImplActor"
+                obj_count: 1
+              }
+            }
+          }
+        }
+        """))
 
   def test_heap_stats_closest_proc(self):
     return DiffTestBlueprint(

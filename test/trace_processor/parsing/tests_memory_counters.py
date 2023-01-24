@@ -114,7 +114,23 @@ class ParsingMemoryCounters(TestSuite):
 
   def test_ion_stat(self):
     return DiffTestBlueprint(
-        trace=Path('ion_stat.textproto'),
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 4
+            event {
+              timestamp: 1234
+              pid: 4321
+              ion_stat {
+                buffer_id: 101010
+                len: 100
+                total_allocated: 200
+              }
+            }
+          }
+        }
+        
+        """),
         query="""
         SELECT t.name, c.ts, c.value
         FROM counter c

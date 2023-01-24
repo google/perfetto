@@ -20,7 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class Scheduler(TestSuite):
-
+  # Scheduler
   def test_sched_cpu_util_cfs(self):
     return DiffTestBlueprint(
         trace=Path('sched_cpu_util_cfs.textproto'),

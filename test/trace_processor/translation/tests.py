@@ -41,7 +41,56 @@ class Translation(TestSuite):
 
   def test_chrome_performance_mark(self):
     return DiffTestBlueprint(
-        trace=Path('chrome_performance_mark.textproto'),
+        trace=TextProto(r"""
+        packet {
+          translation_table {
+            chrome_performance_mark {
+              site_hash_to_name { key: 10 value: "site1" }
+              mark_hash_to_name { key: 20 value: "mark2" }
+            }
+          }
+        }
+        packet {
+          timestamp: 0
+          trusted_packet_sequence_id: 1
+          track_descriptor {
+            uuid: 12345
+            thread {
+              pid: 123
+              tid: 345
+            }
+            parent_uuid: 0
+            chrome_thread {
+              thread_type: THREAD_POOL_FG_WORKER
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1
+          track_event {
+            categories: "cat1"
+            track_uuid: 12345
+            type: 1
+            name: "slice1"
+            [perfetto.protos.ChromeTrackEvent.chrome_hashed_performance_mark] {
+              site_hash: 10
+              mark_hash: 20
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 6000
+          track_event {
+            track_uuid: 12345
+            categories: "cat1"
+            name: "slice1"
+            type: 2
+          }
+        }
+        
+        """),
         query=Path('chrome_args_test.sql'),
         out=Path('chrome_performance_mark.out'))
 

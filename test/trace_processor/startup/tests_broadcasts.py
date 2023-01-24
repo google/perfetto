@@ -20,7 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class StartupBroadcasts(TestSuite):
-
+  # Test that broadcasts are correctly counted.
   def test_android_startup_broadcast(self):
     return DiffTestBlueprint(
         trace=Path('android_startup_broadcast.py'),

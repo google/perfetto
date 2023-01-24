@@ -20,7 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class Network(TestSuite):
-
+  # Network performance
   def test_netif_receive_skb(self):
     return DiffTestBlueprint(
         trace=Path('netif_receive_skb.textproto'),
@@ -109,7 +109,43 @@ class Network(TestSuite):
 
   def test_tcp_retransmit_skb(self):
     return DiffTestBlueprint(
-        trace=Path('tcp_retransmit_skb.textproto'),
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 110000000
+              pid: 234
+              tcp_retransmit_skb {
+                daddr: 19216801
+                saddr: 127001
+                dport: 5001
+                sport: 56789
+                state: 1
+                skaddr: 77889900
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 720000000
+              pid: 234
+              tcp_retransmit_skb {
+                daddr: 0
+                saddr: 0
+                dport: 5002
+                sport: 56790
+                state: 2
+                skaddr: 33445566
+              }
+            }
+          }
+        }
+        
+        """),
         query="""
         SELECT
           ts,
@@ -159,7 +195,57 @@ class Network(TestSuite):
 
   def test_kfree_skb(self):
     return DiffTestBlueprint(
-        trace=Path('kfree_skb.textproto'),
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 10000
+              pid: 200
+              kfree_skb {
+                protocol: 2048
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 10020
+              pid: 300
+              kfree_skb {
+                protocol: 34525
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 20000
+              pid: 200
+              kfree_skb {
+                protocol: 1536
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 20020
+              pid: 300
+              kfree_skb {
+                protocol: 2048
+              }
+            }
+          }
+        }
+        
+        """),
         query="""
         SELECT
           ts,

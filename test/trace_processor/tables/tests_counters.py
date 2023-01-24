@@ -20,7 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class TablesCounters(TestSuite):
-
+  # Counters table
   def test_synth_1_filter_counter(self):
     return DiffTestBlueprint(
         trace=Path('../common/synth_1.py'),
