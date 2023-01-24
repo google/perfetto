@@ -20,7 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class ChromeScrollJank(TestSuite):
-
+  # Scroll jank metrics
   def test_scroll_jank_general_validation(self):
     return DiffTestBlueprint(
         trace=Path('../../data/chrome_scroll_without_vsync.pftrace'),
@@ -385,6 +385,9 @@ class ChromeScrollJank(TestSuite):
             'long_task_tracking_trace_chrome_long_tasks_delaying_input_processing_test.out'
         ))
 
+  # TODO(b/264520610): Uncomment once fixed
+  # chrome_long_tasks_delaying_input_processing_compare_default_test.sql
+  # long_task_tracking_trace_chrome_long_tasks_delaying_input_processing_compare_default_test.out
   def test_experimental_reliable_chrome_tasks_delaying_input_processing(self):
     return DiffTestBlueprint(
         trace=Path('../../data/fling_with_input_delay.pftrace'),
@@ -456,18 +459,18 @@ class ChromeScrollJank(TestSuite):
         trace=Path('../../data/chrome_rendering_desktop.pftrace'),
         query=Metric('chrome_dropped_frames'),
         out=TextProto(r"""
-[perfetto.protos.chrome_dropped_frames]: {
-  dropped_frame: {
-    ts: 166479338462000
-    process_name: "Renderer"
-    pid: 12743
-  }
-  dropped_frame: {
-    ts: 166479355302000
-    process_name: "Renderer"
-    pid: 12743
-  }
-}"""))
+        [perfetto.protos.chrome_dropped_frames]: {
+          dropped_frame: {
+            ts: 166479338462000
+            process_name: "Renderer"
+            pid: 12743
+          }
+          dropped_frame: {
+            ts: 166479355302000
+            process_name: "Renderer"
+            pid: 12743
+          }
+        }"""))
 
   def test_chrome_long_latency_metric(self):
     return DiffTestBlueprint(

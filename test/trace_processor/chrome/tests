@@ -34,4 +34,4 @@ chrome_log_message.textproto chrome_log_message_args_test.sql chrome_log_message
 # Trace proto content
 ../../data/chrome_scroll_without_vsync.pftrace proto_content_test.sql proto_content.out
 # TODO(mayzner): Uncomment when it works
-# ../../data/chrome_scroll_without_vsync.pftrace proto_content_path_test.sql proto_content_path.out
+../../data/chrome_scroll_without_vsync.pftrace proto_content_path_test.sql proto_content_path.out

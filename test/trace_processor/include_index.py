@@ -74,7 +74,6 @@ from tables.tests_sched import TablesSched
 from track_event.tests import TrackEvent
 from translation.tests import Translation
 
-
 def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
   return [
       *Android(index_path, 'android', 'Android').fetch(),

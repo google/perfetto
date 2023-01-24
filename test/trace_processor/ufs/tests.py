@@ -20,7 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class Ufs(TestSuite):
-
+  # UFS command
   def test_ufshcd_command(self):
     return DiffTestBlueprint(
         trace=Path('ufshcd_command.textproto'),

@@ -23,7 +23,41 @@ class Android(TestSuite):
 
   def test_android_system_property_counter(self):
     return DiffTestBlueprint(
-        trace=Path('android_system_property.textproto'),
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          android_system_property {
+            values {
+              name: "debug.tracing.screen_state"
+              value: "2"
+            }
+            values {
+              name: "debug.tracing.device_state"
+              value: "some_state_from_sysprops"
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 2000
+              pid: 1
+              print {
+                buf: "C|1000|ScreenState|1\n"
+              }
+            }
+            event {
+              timestamp: 3000
+              pid: 1
+              print {
+                buf: "N|1000|DeviceStateChanged|some_state_from_atrace\n"
+              }
+            }
+          }
+        }
+        
+        """),
         query="""
         SELECT t.id, t.type, t.name, c.id, c.ts, c.type, c.value
         FROM counter_track t JOIN counter c ON t.id = c.track_id
@@ -37,7 +71,41 @@ class Android(TestSuite):
 
   def test_android_system_property_slice(self):
     return DiffTestBlueprint(
-        trace=Path('android_system_property.textproto'),
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          android_system_property {
+            values {
+              name: "debug.tracing.screen_state"
+              value: "2"
+            }
+            values {
+              name: "debug.tracing.device_state"
+              value: "some_state_from_sysprops"
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 2000
+              pid: 1
+              print {
+                buf: "C|1000|ScreenState|1\n"
+              }
+            }
+            event {
+              timestamp: 3000
+              pid: 1
+              print {
+                buf: "N|1000|DeviceStateChanged|some_state_from_atrace\n"
+              }
+            }
+          }
+        }
+        
+        """),
         query="""
         SELECT t.id, t.type, t.name, s.id, s.ts, s.dur, s.type, s.name
         FROM track t JOIN slice s ON s.track_id = t.id
