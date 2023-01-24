@@ -1870,7 +1870,9 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_stdlib_common_common",
     srcs = [
+        "src/trace_processor/stdlib/common/counters.sql",
         "src/trace_processor/stdlib/common/metadata.sql",
+        "src/trace_processor/stdlib/common/percentiles.sql",
         "src/trace_processor/stdlib/common/slices.sql",
         "src/trace_processor/stdlib/common/timestamps.sql",
     ],

@@ -105,6 +105,9 @@ def validate_columns(
 # parsed SQL data.
 def validate_args(docs: Union['stdlib.FunctionDocs', 'stdlib.ViewFunctionDocs']
                  ) -> Errors:
+  if not docs.args:
+    return []
+
   errors = validate_typed_comment(docs.args, "arg", docs)
 
   if errors:
@@ -141,7 +144,7 @@ def validate_args(docs: Union['stdlib.FunctionDocs', 'stdlib.ViewFunctionDocs']
 
   errors.append(
       f"Missing documentation of args: {list(args_from_sql.keys())}.\n"
-      f"{docs.path}\n")
+      f"'{docs.name}' in {docs.path}\n")
   return errors
 
 
