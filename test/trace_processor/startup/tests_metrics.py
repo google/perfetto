@@ -69,40 +69,41 @@ class StartupMetrics(TestSuite):
         query=Metric('android_startup'),
         out=Path('android_startup_attribution_slow.out'))
 
+  # Other metrics associated with startup.
   def test_android_batt_counters(self):
     return DiffTestBlueprint(
         trace=Path('android_startup_battery.py'),
         query=Metric('android_batt'),
         out=TextProto(r"""
-android_batt{
-   battery_counters{
-      timestamp_ns: 20
-      charge_counter_uah: 52
-      capacity_percent: 0.2
-      current_ua: 10
-      current_avg_ua: 12
-   }
-   battery_counters {
-      timestamp_ns: 52
-      charge_counter_uah: 32
-      capacity_percent: 0.8
-      current_ua: 8
-      current_avg_ua: 93
-   }
-   battery_counters {
-      timestamp_ns: 80
-      charge_counter_uah: 15
-      capacity_percent: 0.5
-      current_ua: 9
-      current_avg_ua: 5
-   }
-   battery_counters {
-      timestamp_ns: 92
-      charge_counter_uah: 21
-      capacity_percent: 0.3
-      current_avg_ua: 25
-   }
-}"""))
+        android_batt{
+           battery_counters{
+              timestamp_ns: 20
+              charge_counter_uah: 52
+              capacity_percent: 0.2
+              current_ua: 10
+              current_avg_ua: 12
+           }
+           battery_counters {
+              timestamp_ns: 52
+              charge_counter_uah: 32
+              capacity_percent: 0.8
+              current_ua: 8
+              current_avg_ua: 93
+           }
+           battery_counters {
+              timestamp_ns: 80
+              charge_counter_uah: 15
+              capacity_percent: 0.5
+              current_ua: 9
+              current_avg_ua: 5
+           }
+           battery_counters {
+              timestamp_ns: 92
+              charge_counter_uah: 21
+              capacity_percent: 0.3
+              current_avg_ua: 25
+           }
+        }"""))
 
   def test_android_startup_cpu(self):
     return DiffTestBlueprint(

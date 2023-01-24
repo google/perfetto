@@ -20,7 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class ProfilingLlvmSymbolizer(TestSuite):
-
+  # this uses llvm-symbolizer to test the offline symbolization built into
   def test_stack_profile_symbols(self):
     return DiffTestBlueprint(
         trace=Path('../../data/heapprofd_standalone_client_example-trace'),

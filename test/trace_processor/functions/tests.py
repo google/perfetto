@@ -23,7 +23,9 @@ class Functions(TestSuite):
 
   def test_first_non_null_frame(self):
     return DiffTestBlueprint(
-        trace=Path('../common/empty.textproto'),
+        trace=TextProto(r"""
+        
+        """),
         query="""
         CREATE TABLE TEST(id INTEGER, val INTEGER);
         
@@ -50,7 +52,9 @@ class Functions(TestSuite):
 
   def test_first_non_null_partition(self):
     return DiffTestBlueprint(
-        trace=Path('../common/empty.textproto'),
+        trace=TextProto(r"""
+        
+        """),
         query="""
         CREATE TABLE TEST(id INTEGER, part TEXT, val INTEGER);
         
@@ -81,7 +85,9 @@ class Functions(TestSuite):
 
   def test_first_non_null(self):
     return DiffTestBlueprint(
-        trace=Path('../common/empty.textproto'),
+        trace=TextProto(r"""
+        
+        """),
         query="""
         CREATE TABLE TEST(id INTEGER, val INTEGER);
         

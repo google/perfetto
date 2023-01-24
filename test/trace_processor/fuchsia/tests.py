@@ -20,7 +20,8 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class Fuchsia(TestSuite):
-
+  # Contains tests for parsing Fuchsia traces. Smoke test a bunch of different
+  # types.
   def test_fuchsia_smoke(self):
     return DiffTestBlueprint(
         trace=Path('../../data/fuchsia_trace.fxt'),
@@ -163,6 +164,7 @@ class Fuchsia(TestSuite):
         9,"[NULL]","thread_track"
         """))
 
+  # Smoke test a high-CPU trace.
   def test_fuchsia_workstation_smoke_slices(self):
     return DiffTestBlueprint(
         trace=Path('../../data/fuchsia_workstation.fxt'),

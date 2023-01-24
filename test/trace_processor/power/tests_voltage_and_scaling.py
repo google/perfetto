@@ -74,17 +74,17 @@ class PowerVoltageAndScaling(TestSuite):
         trace=Path('suspend_period.textproto'),
         query=Metric('android_batt'),
         out=TextProto(r"""
-android_batt {
-  battery_aggregates {
-    sleep_ns: 20000
-  }
-  suspend_period {
-    timestamp_ns: 30000
-    duration_ns: 10000
-  }
-  suspend_period {
-    timestamp_ns: 50000
-    duration_ns: 10000
-  }
-}
-"""))
+        android_batt {
+          battery_aggregates {
+            sleep_ns: 20000
+          }
+          suspend_period {
+            timestamp_ns: 30000
+            duration_ns: 10000
+          }
+          suspend_period {
+            timestamp_ns: 50000
+            duration_ns: 10000
+          }
+        }
+        """))

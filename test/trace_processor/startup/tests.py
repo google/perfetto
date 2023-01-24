@@ -20,7 +20,8 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class Startup(TestSuite):
-
+  # Contains tests related to the startup of Android apps. Test that
+  # running in parallel are flagged.
   def test_android_startup_installd_dex2oat(self):
     return DiffTestBlueprint(
         trace=Path('android_startup_installd_dex2oat.py'),
@@ -33,6 +34,7 @@ class Startup(TestSuite):
         query=Metric('android_startup'),
         out=Path('android_startup_installd_dex2oat_slow.out'))
 
+  # Test that unlocks running in parallel are flagged.
   def test_android_startup_unlock(self):
     return DiffTestBlueprint(
         trace=Path('android_startup_unlock.py'),

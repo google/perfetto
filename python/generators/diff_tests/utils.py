@@ -149,8 +149,7 @@ def get_trace_descriptor_path(out_path: str, trace_descriptor: str):
   return trace_descriptor_path
 
 
-def read_all_tests(query_metric_filter: str, trace_filter: str,
-                   root_dir: str) -> List[testing.TestCase]:
+def read_all_tests(name_filter: str, root_dir: str) -> List[testing.TestCase]:
   # Import
   INCLUDE_PATH = os.path.join(root_dir, 'test', 'trace_processor')
   sys.path.append(INCLUDE_PATH)
@@ -158,7 +157,4 @@ def read_all_tests(query_metric_filter: str, trace_filter: str,
   sys.path.pop()
   diff_tests = fetch_all_diff_tests(INCLUDE_PATH)
 
-  return [
-      test for test in diff_tests
-      if test.validate(query_metric_filter, trace_filter)
-  ]
+  return [test for test in diff_tests if test.validate(name_filter)]

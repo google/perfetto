@@ -20,13 +20,14 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class Performance(TestSuite):
-
+  # IRQ max runtime and count over 1ms
   def test_irq_runtime_metric(self):
     return DiffTestBlueprint(
         trace=Path('irq_runtime_metric.textproto'),
         query=Metric('android_irq_runtime'),
         out=Path('irq_runtime_metric.out'))
 
+  # CPU frequency maximum & minimum limits change
   def test_cpu_frequency_limits(self):
     return DiffTestBlueprint(
         trace=Path('cpu_frequency_limits.textproto'),
@@ -60,6 +61,7 @@ class Performance(TestSuite):
         130000000,800000.000000,"Cpu 4 Min"
         """))
 
+  # frame_timeline_metric collects App_Deadline_Missed metrics
   def test_frame_timeline_metric(self):
     return DiffTestBlueprint(
         trace=Path('frame_timeline_metric.py'),

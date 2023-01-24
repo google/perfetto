@@ -20,7 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class AtraceErrorHandling(TestSuite):
-
+  # Check error handling when parsing print events.
   def test_bad_print_textproto_list_slices(self):
     return DiffTestBlueprint(
         trace=Path('bad_print.textproto'),

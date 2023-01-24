@@ -20,7 +20,8 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class Graphics(TestSuite):
-
+  # Contains tests for graphics related events and tables. Graphics frame
+  # trace tests.
   def test_graphics_frame_events(self):
     return DiffTestBlueprint(
         trace=Path('graphics_frame_events.py'),
@@ -34,6 +35,7 @@ class Graphics(TestSuite):
         """,
         out=Path('graphics_frame_events.out'))
 
+  # GPU Memory ftrace packets
   def test_gpu_mem_total(self):
     return DiffTestBlueprint(
         trace=Path('gpu_mem_total.py'),
@@ -59,6 +61,7 @@ class Graphics(TestSuite):
         "GPU Memory","7","Total GPU memory used by this process",10,1,50
         """))
 
+  # Clock sync
   def test_clock_sync(self):
     return DiffTestBlueprint(
         trace=Path('clock_sync.py'),
@@ -80,6 +83,7 @@ class Graphics(TestSuite):
         3010,15
         """))
 
+  # Android SurfaceFlinger metrics
   def test_frame_missed_event_frame_missed(self):
     return DiffTestBlueprint(
         trace=Path('frame_missed.py'),
@@ -101,53 +105,54 @@ class Graphics(TestSuite):
         trace=Path('frame_missed.py'),
         query=Metric('android_surfaceflinger'),
         out=TextProto(r"""
-android_surfaceflinger {
-  missed_frames: 3
-  missed_hwc_frames: 0
-  missed_gpu_frames: 0
-  missed_frame_rate: 0.42857142857142855 # = 3/7
-  gpu_invocations: 0
-}
-"""))
+        android_surfaceflinger {
+          missed_frames: 3
+          missed_hwc_frames: 0
+          missed_gpu_frames: 0
+          missed_frame_rate: 0.42857142857142855 # = 3/7
+          gpu_invocations: 0
+        }
+        """))
 
   def test_surfaceflinger_gpu_invocation(self):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_gpu_invocation.py'),
         query=Metric('android_surfaceflinger'),
         out=TextProto(r"""
-android_surfaceflinger {
-  missed_frames: 0
-  missed_hwc_frames: 0
-  missed_gpu_frames: 0
-  gpu_invocations: 4
-  avg_gpu_waiting_dur_ms: 4
-  total_non_empty_gpu_waiting_dur_ms: 11
-}
-"""))
+        android_surfaceflinger {
+          missed_frames: 0
+          missed_hwc_frames: 0
+          missed_gpu_frames: 0
+          gpu_invocations: 4
+          avg_gpu_waiting_dur_ms: 4
+          total_non_empty_gpu_waiting_dur_ms: 11
+        }
+        """))
 
+  # GPU metrics
   def test_gpu_metric(self):
     return DiffTestBlueprint(
         trace=Path('gpu_metric.py'),
         query=Metric('android_gpu'),
         out=TextProto(r"""
-android_gpu {
-  processes {
-    name: "app_1"
-    mem_max: 8
-    mem_min: 2
-    mem_avg: 3
-  }
-  processes {
-    name: "app_2"
-    mem_max: 10
-    mem_min: 6
-    mem_avg: 8
-  }
-  mem_max: 4
-  mem_min: 1
-  mem_avg: 2
-}
-"""))
+        android_gpu {
+          processes {
+            name: "app_1"
+            mem_max: 8
+            mem_min: 2
+            mem_avg: 3
+          }
+          processes {
+            name: "app_2"
+            mem_max: 10
+            mem_min: 6
+            mem_avg: 8
+          }
+          mem_max: 4
+          mem_min: 1
+          mem_avg: 2
+        }
+        """))
 
   def test_gpu_frequency_metric(self):
     return DiffTestBlueprint(
@@ -155,6 +160,7 @@ android_gpu {
         query=Metric('android_gpu'),
         out=Path('gpu_frequency_metric.out'))
 
+  # Android Jank CUJ metric
   def test_android_jank_cuj(self):
     return DiffTestBlueprint(
         trace=Path('android_jank_cuj.py'),
@@ -167,6 +173,7 @@ android_gpu {
         query=Path('android_jank_cuj_query_test.sql'),
         out=Path('android_jank_cuj_query.out'))
 
+  # Frame Timeline event trace tests
   def test_expected_frame_timeline_events(self):
     return DiffTestBlueprint(
         trace=Path('frame_timeline_events.py'),
@@ -193,6 +200,7 @@ android_gpu {
         query=Path('actual_frame_timeline_events_test.sql'),
         out=Path('actual_frame_timeline_events.out'))
 
+  # Composition layer
   def test_composition_layer_count(self):
     return DiffTestBlueprint(
         trace=Path('composition_layer.py'),
@@ -207,12 +215,16 @@ android_gpu {
         3.000000
         """))
 
+  # G2D metrics TODO(rsavitski): find a real trace and double-check that the
+  # is realistic. One kernel's source I checked had tgid=0 for all counter
+  # Initial support was added/discussed in b/171296908.
   def test_g2d_metrics(self):
     return DiffTestBlueprint(
         trace=Path('g2d_metrics.textproto'),
         query=Metric('g2d'),
         out=Path('g2d_metrics.out'))
 
+  # Composer execution
   def test_composer_execution(self):
     return DiffTestBlueprint(
         trace=Path('composer_execution.py'),
@@ -235,64 +247,67 @@ android_gpu {
         "unskipped_validation",1,200
         """))
 
+  # Display metrics
   def test_display_metrics(self):
     return DiffTestBlueprint(
         trace=Path('display_metrics.py'),
         query=Metric('display_metrics'),
         out=TextProto(r"""
-display_metrics {
-  total_duplicate_frames: 0
-  duplicate_frames_logged: 0
-  total_dpu_underrun_count: 0
-  refresh_rate_switches: 5
-  refresh_rate_stats {
-    refresh_rate_fps: 60
-    count: 2
-    total_dur_ms: 2
-    avg_dur_ms: 1
-  }
-  refresh_rate_stats {
-    refresh_rate_fps: 90
-    count: 2
-    total_dur_ms: 2
-    avg_dur_ms: 1
-  }
-  refresh_rate_stats {
-    refresh_rate_fps: 120
-    count: 1
-    total_dur_ms: 2
-    avg_dur_ms: 2
-  }
-  update_power_state {
-    avg_runtime_micro_secs: 4000
-  }
-}
-"""))
+        display_metrics {
+          total_duplicate_frames: 0
+          duplicate_frames_logged: 0
+          total_dpu_underrun_count: 0
+          refresh_rate_switches: 5
+          refresh_rate_stats {
+            refresh_rate_fps: 60
+            count: 2
+            total_dur_ms: 2
+            avg_dur_ms: 1
+          }
+          refresh_rate_stats {
+            refresh_rate_fps: 90
+            count: 2
+            total_dur_ms: 2
+            avg_dur_ms: 1
+          }
+          refresh_rate_stats {
+            refresh_rate_fps: 120
+            count: 1
+            total_dur_ms: 2
+            avg_dur_ms: 2
+          }
+          update_power_state {
+            avg_runtime_micro_secs: 4000
+          }
+        }
+        """))
 
+  # DPU vote clock and bandwidth
   def test_dpu_vote_clock_bw(self):
     return DiffTestBlueprint(
         trace=Path('dpu_vote_clock_bw.textproto'),
         query=Metric('android_hwcomposer'),
         out=TextProto(r"""
-android_hwcomposer {
-  skipped_validation_count: 0
-  unskipped_validation_count: 0
-  separated_validation_count: 0
-  unknown_validation_count: 0
-  dpu_vote_metrics {
-    tid: 237
-    avg_dpu_vote_clock: 206250
-    avg_dpu_vote_avg_bw: 210000
-    avg_dpu_vote_peak_bw: 205000
-    avg_dpu_vote_rt_bw: 271000
-  }
-  dpu_vote_metrics {
-    tid: 299
-    avg_dpu_vote_clock: 250000
-  }
-}
-"""))
+        android_hwcomposer {
+          skipped_validation_count: 0
+          unskipped_validation_count: 0
+          separated_validation_count: 0
+          unknown_validation_count: 0
+          dpu_vote_metrics {
+            tid: 237
+            avg_dpu_vote_clock: 206250
+            avg_dpu_vote_avg_bw: 210000
+            avg_dpu_vote_peak_bw: 205000
+            avg_dpu_vote_rt_bw: 271000
+          }
+          dpu_vote_metrics {
+            tid: 299
+            avg_dpu_vote_clock: 250000
+          }
+        }
+        """))
 
+  # Video 4 Linux 2 related tests
   def test_v4l2_vidioc_slice(self):
     return DiffTestBlueprint(
         trace=Path('v4l2_vidioc.textproto'),
@@ -338,6 +353,7 @@ android_hwcomposer {
         593209502603,100000,"RESOURCE_QUEUE","virtio_video stream #4 Responses"
         """))
 
+  # virtgpu (drm/virtio) related tests
   def test_virtio_gpu(self):
     return DiffTestBlueprint(
         trace=Path('virtio_gpu.textproto'),
@@ -356,9 +372,50 @@ android_hwcomposer {
         1345090746311,1167135,"CTX_DETACH_RESOURCE"
         """))
 
+  # mali GPU events
   def test_mali(self):
     return DiffTestBlueprint(
-        trace=Path('mali.textproto'),
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 751796307210
+              pid: 2857
+              mali_mali_KCPU_CQS_WAIT_START {
+                info_val1: 1
+                info_val2: 0
+                kctx_tgid: 2201
+                kctx_id: 10
+                id: 0
+              }
+            }
+            event {
+              timestamp: 751800621175
+              pid: 2857
+              mali_mali_KCPU_CQS_WAIT_END {
+                info_val1: 412313493488
+                info_val2: 0
+                kctx_tgid: 2201
+                kctx_id: 10
+                id: 0
+              }
+            }
+            event {
+              timestamp: 751800638997
+              pid: 2857
+              mali_mali_KCPU_CQS_SET {
+                info_val1: 412313493480
+                info_val2: 0
+                kctx_tgid: 2201
+                kctx_id: 10
+                id: 0
+              }
+            }
+          }
+        }
+        
+        """),
         query="""
         SELECT ts, dur, name FROM slice WHERE name GLOB "mali_KCPU_CQS*";
         """,
@@ -370,7 +427,47 @@ android_hwcomposer {
 
   def test_mali_fence(self):
     return DiffTestBlueprint(
-        trace=Path('mali_fence.textproto'),
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 751796307210
+              pid: 2857
+              mali_mali_KCPU_FENCE_WAIT_START {
+                info_val1: 1
+                info_val2: 0
+                kctx_tgid: 2201
+                kctx_id: 10
+                id: 0
+              }
+            }
+            event {
+              timestamp: 751800621175
+              pid: 2857
+              mali_mali_KCPU_FENCE_WAIT_END {
+                info_val1: 412313493488
+                info_val2: 0
+                kctx_tgid: 2201
+                kctx_id: 10
+                id: 0
+              }
+            }
+            event {
+              timestamp: 751800638997
+              pid: 2857
+              mali_mali_KCPU_FENCE_SIGNAL {
+                info_val1: 412313493480
+                info_val2: 0
+                kctx_tgid: 2201
+                kctx_id: 10
+                id: 0
+              }
+            }
+          }
+        }
+        
+        """),
         query="""
         SELECT ts, dur, name FROM slice WHERE name GLOB "mali_KCPU_FENCE*";
         """,

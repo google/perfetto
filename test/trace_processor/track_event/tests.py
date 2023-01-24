@@ -20,10 +20,58 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class TrackEvent(TestSuite):
-
+  # Contains tests on the parsing and ingestion of TrackEvent packets. Same
+  # handling
   def test_track_event_same_tids_threads(self):
     return DiffTestBlueprint(
-        trace=Path('track_event_same_tids.textproto'),
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            thread {
+              pid: 5
+              tid: 1
+              thread_name: "t1"
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 2
+            thread {
+              pid: 10
+              tid: 1
+              thread_name: "t2"
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            track_uuid: 1
+            categories: "cat"
+            name: "name1"
+            type: 3
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2000
+          track_event {
+            track_uuid: 2
+            categories: "cat"
+            name: "name2"
+            type: 3
+          }
+        }
+        
+        """),
         query="""
         SELECT tid, pid, process.name AS pname, thread.name AS tname
         FROM thread
@@ -41,7 +89,54 @@ class TrackEvent(TestSuite):
 
   def test_track_event_same_tids_slices(self):
     return DiffTestBlueprint(
-        trace=Path('track_event_same_tids.textproto'),
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            thread {
+              pid: 5
+              tid: 1
+              thread_name: "t1"
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          track_descriptor {
+            uuid: 2
+            thread {
+              pid: 10
+              tid: 1
+              thread_name: "t2"
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            track_uuid: 1
+            categories: "cat"
+            name: "name1"
+            type: 3
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2000
+          track_event {
+            track_uuid: 2
+            categories: "cat"
+            name: "name2"
+            type: 3
+          }
+        }
+        
+        """),
         query="""
         SELECT
           track.name AS track,
@@ -67,6 +162,7 @@ class TrackEvent(TestSuite):
         "[NULL]","[NULL]","t2","[NULL]",2000,0,"cat","name2"
         """))
 
+  # Typed args
   def test_track_event_typed_args_slices(self):
     return DiffTestBlueprint(
         trace=Path('track_event_typed_args.textproto'),
@@ -105,6 +201,7 @@ class TrackEvent(TestSuite):
         query=Path('track_event_args_test.sql'),
         out=Path('track_event_typed_args_args.out'))
 
+  # Track handling
   def test_track_event_tracks_slices(self):
     return DiffTestBlueprint(
         trace=Path('track_event_tracks.textproto'),
@@ -191,9 +288,61 @@ class TrackEvent(TestSuite):
         "tid=1","[NULL]","[NULL]"
         """))
 
+  # Instant events
   def test_track_event_instant_slices(self):
     return DiffTestBlueprint(
-        trace=Path('track_event_instant.textproto'),
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1
+            thread {
+              pid: 5
+              tid: 1
+              thread_name: "t1"
+            }
+          }
+          trace_packet_defaults {
+            track_event_defaults {
+              track_uuid: 1
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          track_event {
+            categories: "cat"
+            name: "instant_on_t1"
+            type: 3
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 2000
+          track_event {
+            categories: "cat"
+            name: "legacy_instant_on_t1"
+            legacy_event {
+              phase: 73               # 'I'
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 3000
+          track_event {
+            categories: "cat"
+            name: "legacy_mark_on_t1"
+            legacy_event {
+              phase: 82               # 'R'
+            }
+          }
+        }
+        
+        """),
         query="""
         SELECT
           track.name AS track,
@@ -220,6 +369,7 @@ class TrackEvent(TestSuite):
         "[NULL]","[NULL]","t1","[NULL]",3000,0,"cat","legacy_mark_on_t1"
         """))
 
+  # Legacy async events
   def test_legacy_async_event(self):
     return DiffTestBlueprint(
         trace=Path('legacy_async_event.textproto'),
@@ -248,6 +398,7 @@ class TrackEvent(TestSuite):
         """,
         out=Path('legacy_async_event.out'))
 
+  # Legacy atrace
   def test_track_event_with_atrace(self):
     return DiffTestBlueprint(
         trace=Path('track_event_with_atrace.textproto'),
@@ -277,12 +428,14 @@ class TrackEvent(TestSuite):
         "[NULL]","[NULL]","t1","[NULL]",21000,7000,"[NULL]","atrace"
         """))
 
+  # Debug annotations
   def test_track_event_merged_debug_annotations_args(self):
     return DiffTestBlueprint(
         trace=Path('track_event_merged_debug_annotations.textproto'),
         query=Path('track_event_args_test.sql'),
         out=Path('track_event_merged_debug_annotations_args.out'))
 
+  # Counters
   def test_track_event_counters_slices(self):
     return DiffTestBlueprint(
         trace=Path('track_event_counters.textproto'),
@@ -339,9 +492,48 @@ class TrackEvent(TestSuite):
         """,
         out=Path('track_event_counters_counters.out'))
 
+  # Clock handling
   def test_track_event_monotonic_trace_clock_slices(self):
     return DiffTestBlueprint(
-        trace=Path('track_event_monotonic_trace_clock.textproto'),
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
+          clock_snapshot {
+            primary_trace_clock: 3  # BUILTIN_CLOCK_MONOTONIC
+            clocks {
+              clock_id: 3  # BUILTIN_CLOCK_MONOTONIC
+              timestamp: 1000
+            }
+            clocks {
+              clock_id: 6  # BUILTIN_CLOCK_BOOTTIME
+              timestamp: 11000
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 1000
+          timestamp_clock_id: 3  # BUILTIN_CLOCK_MONOTONIC
+          track_event {
+            track_uuid: 1
+            categories: "cat"
+            name: "name1"
+            type: 3
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 12000
+          timestamp_clock_id: 6  # BUILTIN_CLOCK_BOOTTIME
+          track_event {
+            track_uuid: 1
+            categories: "cat"
+            name: "name2"
+            type: 3
+          }
+        }
+        """),
         query="""
         SELECT
           track.name AS track,
@@ -367,12 +559,14 @@ class TrackEvent(TestSuite):
         "name1","[NULL]","[NULL]","[NULL]",2000,0,"cat","name2"
         """))
 
+  # HistogramName interning
   def test_track_event_chrome_histogram_sample_args(self):
     return DiffTestBlueprint(
         trace=Path('track_event_chrome_histogram_sample.textproto'),
         query=Path('track_event_args_test.sql'),
         out=Path('track_event_chrome_histogram_sample_args.out'))
 
+  # Flow events importing from proto
   def test_flow_events_track_event(self):
     return DiffTestBlueprint(
         trace=Path('flow_events_track_event.textproto'),
@@ -422,6 +616,7 @@ class TrackEvent(TestSuite):
         "FlowStepSlice","FlowEndSlice_2"
         """))
 
+  # Async slices starting and ending at the same time
   def test_experimental_slice_layout_depth(self):
     return DiffTestBlueprint(
         trace=Path('experimental_slice_layout_depth.py'),
@@ -436,6 +631,7 @@ class TrackEvent(TestSuite):
         0
         """))
 
+  # Descriptor merging regression test (bug: b/197203390)
   def test_merging_regression(self):
     return DiffTestBlueprint(
         trace=Path('../../data/trace_with_descriptor.pftrace'),
@@ -456,6 +652,7 @@ class TrackEvent(TestSuite):
         605361035040000
         """))
 
+  # Range of interest
   def test_range_of_interest(self):
     return DiffTestBlueprint(
         trace=Path('range_of_interest.textproto'),
