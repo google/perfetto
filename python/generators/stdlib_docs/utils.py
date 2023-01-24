@@ -107,6 +107,9 @@ def validate_name(name: str, module: str, upper: bool = False) -> Errors:
 
 # Parses string with multiple arguments with type separated by comma into dict.
 def parse_args_str(args_str: str) -> Tuple[dict, Errors]:
+  if not args_str.strip():
+    return None, []
+
   errors = []
   args = {}
   for arg_str in args_str.split(","):

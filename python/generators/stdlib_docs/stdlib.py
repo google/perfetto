@@ -24,6 +24,7 @@ import os
 import re
 import sys
 from typing import Union, List, Tuple, Dict
+from dataclasses import dataclass
 
 from python.generators.stdlib_docs.utils import *
 from python.generators.stdlib_docs.validate import *
@@ -35,15 +36,13 @@ AnyDocs = Union['TableViewDocs', 'FunctionDocs', 'ViewFunctionDocs']
 
 # Stores documentation for CREATE {TABLE|VIEW} with comment split into
 # segments.
+@dataclass
 class TableViewDocs:
-
-  def __init__(self, name: str, obj_type: str, desc: CommentLines,
-               columns: CommentLines, path: str):
-    self.name = name
-    self.obj_type = obj_type
-    self.desc = desc
-    self.columns = columns
-    self.path = path
+  name: str
+  obj_type: str
+  desc: CommentLines
+  columns: CommentLines
+  path: str
 
   # Contructs new TableViewDocs from the entire comment, by splitting it on
   # typed lines. Returns None for improperly structured schemas.
@@ -140,6 +139,9 @@ class FunctionDocs:
     errors = validate_name(name, module, upper=True)
     has_desc, start_args, start_ret = False, None, None
 
+    args_dict, parse_errors = parse_args_str(args)
+    errors += parse_errors
+
     # Splits code into segments by finding beginning of args and ret segments.
     for i, line in enumerate(comment):
       # Ignore only '--' line.
@@ -167,12 +169,14 @@ class FunctionDocs:
       errors.append(f"No description for '{name}' in {path}'\n")
       return None, errors
 
-    if not start_ret or not start_args:
+    if not start_ret or (args_dict and not start_args):
       errors.append(f"Function requires 'arg' and 'ret' comments.\n"
-                    f"'{name}' in {path}")
+                    f"'{name}' in {path}\n")
       return None, errors
 
-    args_dict, parse_errors = parse_args_str(args)
+    if not args_dict:
+      start_args = start_ret
+
     data_from_sql = {'name': name, 'args': args_dict, 'ret': ret, 'sql': sql}
     return (
         FunctionDocs(
@@ -181,10 +185,10 @@ class FunctionDocs:
             module,
             name,
             comment[:start_args],
-            comment[start_args:start_ret],
+            comment[start_args:start_ret] if args_dict else None,
             comment[start_ret:],
         ),
-        errors + parse_errors,
+        errors,
     )
 
   def check_comment(self) -> Errors:
@@ -237,6 +241,8 @@ class ViewFunctionDocs:
       return None, []
 
     errors = validate_name(name, module, upper=True)
+    args_dict, parse_errors = parse_args_str(args)
+    errors += parse_errors
     has_desc, start_args, start_cols = False, None, None
 
     # Splits code into segments by finding beginning of args and cols segments.
@@ -266,13 +272,13 @@ class ViewFunctionDocs:
       errors.append(f"No description for '{name}' in {path}'\n")
       return None, errors
 
-    if not start_cols or not start_args:
+    if not start_cols or (args_dict and not start_args):
       errors.append(f"Function requires 'arg' and 'column' comments.\n"
-                    f"'{name}' in {path}")
+                    f"'{name}' in {path}\n")
       return None, errors
 
-    args_dict, parse_errors = parse_args_str(args)
-    errors += parse_errors
+    if not args_dict:
+      start_args = start_cols
 
     cols_dict, parse_errors = parse_args_str(columns)
     errors += parse_errors
@@ -285,7 +291,7 @@ class ViewFunctionDocs:
             module,
             name,
             comment[:start_args],
-            comment[start_args:start_cols],
+            comment[start_args:start_cols] if args_dict else None,
             comment[start_cols:],
         ),
         errors,
