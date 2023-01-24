@@ -49,6 +49,9 @@ def parse_columns(docs: Union['stdlib.TableViewDocs', 'stdlib.ViewFunctionDocs']
 
 
 def parse_args(docs: "stdlib.FunctionDocs") -> dict:
+  if not docs.args:
+    return {}
+
   args = {}
   last_arg, last_desc, last_type = None, [], None
   for line in docs.args:
