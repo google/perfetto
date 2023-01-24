@@ -256,6 +256,11 @@ function main() {
     globals.rafScheduler.scheduleFullRedraw();
     maybeOpenTraceFromRoute(route);
   };
+
+  // This must be called before calling `globals.initialize` so that the
+  // `embeddedMode` global is set.
+  initGlobalsFromQueryString();
+
   globals.initialize(dispatch, router);
   globals.serviceWorkerController.install();
 
@@ -323,8 +328,6 @@ function onCssLoaded() {
   globals.rafScheduler.domRedraw = () => {
     m.render(main, globals.router.resolve());
   };
-
-  initGlobalsFromQueryString();
 
   initLiveReloadIfLocalhost();
 
