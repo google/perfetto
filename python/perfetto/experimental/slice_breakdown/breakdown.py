@@ -191,7 +191,7 @@ def compute_breakdown_for_startup(tp: TraceProcessor,
   # name.
   filter = "WHERE package = '{}'".format(package_name) if package_name else ''
   launches = tp.query(f'''
-    SELECT IMPORT('android.startups');
+    SELECT IMPORT('android.startup.startups');
 
     SELECT ts, ts_end, dur
     FROM android_startups
