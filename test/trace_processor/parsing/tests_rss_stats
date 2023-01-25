@@ -1,5 +1,0 @@
-rss_stat_mm_id.py rss_stat_test.sql rss_stat_mm_id.out
-rss_stat_mm_id_clone.py rss_stat_test.sql rss_stat_mm_id_clone.out
-rss_stat_mm_id_reuse.py rss_stat_test.sql rss_stat_mm_id_reuse.out
-rss_stat_legacy.py rss_stat_test.sql rss_stat_legacy.out
-rss_stat_after_free.py rss_stat_after_free_test.sql rss_stat_after_free.out

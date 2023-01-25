@@ -41,8 +41,6 @@ class Cros(TestSuite):
             }
           }
         }
-        
-        
         """),
         query="""
         SELECT

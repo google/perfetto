@@ -89,7 +89,6 @@ class Translation(TestSuite):
             type: 2
           }
         }
-        
         """),
         query=Path('chrome_args_test.sql'),
         out=Path('chrome_performance_mark.out'))

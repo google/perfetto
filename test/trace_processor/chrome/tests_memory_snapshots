@@ -1,7 +1,0 @@
-../../data/chrome_memory_snapshot.pftrace memory_snapshot_general_validation_test.sql memory_snapshot_general_validation.out
-../../data/chrome_memory_snapshot.pftrace memory_snapshot_os_dump_events_test.sql memory_snapshot_os_dump_events.out
-../../data/chrome_memory_snapshot.pftrace memory_snapshot_chrome_dump_events_test.sql memory_snapshot_chrome_dump_events.out
-../../data/chrome_memory_snapshot.pftrace memory_snapshot_nodes_test.sql memory_snapshot_nodes.out
-../../data/chrome_memory_snapshot.pftrace memory_snapshot_edges_test.sql memory_snapshot_edges.out
-../../data/chrome_memory_snapshot.pftrace memory_snapshot_node_args_test.sql memory_snapshot_node_args.out
-../../data/chrome_memory_snapshot.pftrace memory_snapshot_smaps_test.sql memory_snapshot_smaps.out
