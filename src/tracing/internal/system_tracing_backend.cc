@@ -34,17 +34,10 @@
 
 namespace perfetto {
 namespace internal {
+namespace {
 
-// static
-TracingBackend* SystemTracingBackend::GetInstance() {
-  static auto* instance = new SystemTracingBackend();
-  return instance;
-}
-
-SystemTracingBackend::SystemTracingBackend() {}
-
-std::unique_ptr<ProducerEndpoint> SystemTracingBackend::ConnectProducer(
-    const ConnectProducerArgs& args) {
+std::unique_ptr<ProducerEndpoint> CreateProducerEndpoint(
+    const TracingBackend::ConnectProducerArgs& args) {
   PERFETTO_DCHECK(args.task_runner->RunsTasksOnCurrentThread());
 
   std::unique_ptr<SharedMemory> shm;
@@ -74,6 +67,21 @@ std::unique_ptr<ProducerEndpoint> SystemTracingBackend::ConnectProducer(
   return endpoint;
 }
 
+}  // namespace
+
+// static
+TracingBackend* SystemTracingBackend::GetInstance() {
+  static auto* instance = new SystemTracingBackend();
+  return instance;
+}
+
+SystemTracingBackend::SystemTracingBackend() {}
+
+std::unique_ptr<ProducerEndpoint> SystemTracingBackend::ConnectProducer(
+    const ConnectProducerArgs& args) {
+  return CreateProducerEndpoint(args);
+}
+
 std::unique_ptr<ConsumerEndpoint> SystemTracingBackend::ConnectConsumer(
     const ConnectConsumerArgs& args) {
 #if PERFETTO_BUILDFLAG(PERFETTO_SYSTEM_CONSUMER)
@@ -86,6 +94,30 @@ std::unique_ptr<ConsumerEndpoint> SystemTracingBackend::ConnectConsumer(
   PERFETTO_FATAL("System backend consumer support disabled");
   return nullptr;
 #endif
+}
+
+// static
+TracingBackend* SystemTracingProducerOnlyBackend::GetInstance() {
+  static auto* instance = new SystemTracingProducerOnlyBackend();
+  return instance;
+}
+
+SystemTracingProducerOnlyBackend::SystemTracingProducerOnlyBackend() {}
+
+std::unique_ptr<ProducerEndpoint>
+SystemTracingProducerOnlyBackend::ConnectProducer(
+    const ConnectProducerArgs& args) {
+  return CreateProducerEndpoint(args);
+}
+
+std::unique_ptr<ConsumerEndpoint>
+SystemTracingProducerOnlyBackend::ConnectConsumer(
+    const ConnectConsumerArgs& args) {
+  base::ignore_result(args);
+  PERFETTO_FATAL(
+      "System backend consumer support disabled. "
+      "TracingInitArgs::enable_system_consumer was false");
+  return nullptr;
 }
 
 }  // namespace internal

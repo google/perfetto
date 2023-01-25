@@ -127,6 +127,13 @@ struct TracingInitArgs {
   // with CLOCK_MONOTONIC_RAW on platforms that support it.
   bool use_monotonic_raw_clock = false;
 
+  // This flag can be set to false in order to avoid enabling the system
+  // consumer in Tracing::Initialize(), so that the linker can remove the unused
+  // consumer IPC implementation to reduce binary size. When this option is
+  // false, calling Tracing::NewTrace() on the system backend will fail. This
+  // setting only has an effect if kSystemBackend is specified in |backends|.
+  bool enable_system_consumer = true;
+
  protected:
   friend class Tracing;
   friend class internal::TracingMuxerImpl;
@@ -136,11 +143,13 @@ struct TracingInitArgs {
   bool operator==(const TracingInitArgs& other) const {
     return std::tie(backends, custom_backend, platform, shmem_size_hint_kb,
                     shmem_page_size_hint_kb, in_process_backend_factory_,
-                    system_backend_factory_, dcheck_is_on_) ==
+                    system_backend_factory_, dcheck_is_on_,
+                    enable_system_consumer) ==
            std::tie(other.backends, other.custom_backend, other.platform,
                     other.shmem_size_hint_kb, other.shmem_page_size_hint_kb,
                     other.in_process_backend_factory_,
-                    other.system_backend_factory_, other.dcheck_is_on_);
+                    other.system_backend_factory_, other.dcheck_is_on_,
+                    other.enable_system_consumer);
   }
 
   using BackendFactoryFunction = TracingBackend* (*)();
@@ -173,8 +182,13 @@ class PERFETTO_EXPORT_COMPONENT Tracing {
           &internal::InProcessTracingBackend::GetInstance;
     }
     if (args.backends & kSystemBackend) {
-      args_copy.system_backend_factory_ =
-          &internal::SystemTracingBackend::GetInstance;
+      if (args.enable_system_consumer) {
+        args_copy.system_backend_factory_ =
+            &internal::SystemTracingBackend::GetInstance;
+      } else {
+        args_copy.system_backend_factory_ =
+            &internal::SystemTracingProducerOnlyBackend::GetInstance;
+      }
     }
     InitializeInternal(args_copy);
   }
@@ -184,8 +198,6 @@ class PERFETTO_EXPORT_COMPONENT Tracing {
 
   // Start a new tracing session using the given tracing backend. Use
   // |kUnspecifiedBackend| to select an available backend automatically.
-  // For the moment this can be used only when initializing tracing in
-  // kInProcess mode. For the system mode use the 'bin/perfetto' cmdline client.
   static std::unique_ptr<TracingSession> NewTrace(
       BackendType = kUnspecifiedBackend);
 
