@@ -1714,6 +1714,11 @@ filegroup {
     name: "perfetto_include_perfetto_ext_base_http_http",
 }
 
+// GN: //include/perfetto/ext/base/threading:threading
+filegroup {
+    name: "perfetto_include_perfetto_ext_base_threading_threading",
+}
+
 // GN: //include/perfetto/ext/base:version
 filegroup {
     name: "perfetto_include_perfetto_ext_base_version",
@@ -8122,6 +8127,22 @@ filegroup {
     ],
 }
 
+// GN: //src/base/threading:threading
+filegroup {
+    name: "perfetto_src_base_threading_threading",
+    srcs: [
+        "src/base/threading/thread_pool.cc",
+    ],
+}
+
+// GN: //src/base/threading:unittests
+filegroup {
+    name: "perfetto_src_base_threading_unittests",
+    srcs: [
+        "src/base/threading/thread_pool_unittest.cc",
+    ],
+}
+
 // GN: //src/base:unittests
 filegroup {
     name: "perfetto_src_base_unittests",
@@ -11284,6 +11305,7 @@ cc_test {
         ":perfetto_include_perfetto_base_base",
         ":perfetto_include_perfetto_ext_base_base",
         ":perfetto_include_perfetto_ext_base_http_http",
+        ":perfetto_include_perfetto_ext_base_threading_threading",
         ":perfetto_include_perfetto_ext_base_version",
         ":perfetto_include_perfetto_ext_ipc_ipc",
         ":perfetto_include_perfetto_ext_trace_processor_demangle",
@@ -11411,6 +11433,8 @@ cc_test {
         ":perfetto_src_base_http_http",
         ":perfetto_src_base_http_unittests",
         ":perfetto_src_base_test_support",
+        ":perfetto_src_base_threading_threading",
+        ":perfetto_src_base_threading_unittests",
         ":perfetto_src_base_unittests",
         ":perfetto_src_base_unix_socket",
         ":perfetto_src_base_version",
