@@ -32,7 +32,7 @@ class ChromeScrollJank(TestSuite):
         trace=Path('../../data/chrome_scroll_without_vsync.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/scroll_jank.sql');
-        
+
         SELECT
           gesture_scroll_id,
           trace_id,
@@ -49,7 +49,7 @@ class ChromeScrollJank(TestSuite):
         trace=Path('../../data/event_latency_with_args.perfetto-trace'),
         query="""
         SELECT RUN_METRIC('chrome/event_latency_to_breakdowns.sql');
-        
+
         SELECT
           event_latency_ts,
           event_latency_dur,
@@ -70,7 +70,7 @@ class ChromeScrollJank(TestSuite):
         trace=Path('../../data/event_latency_with_args.perfetto-trace'),
         query="""
         SELECT RUN_METRIC('chrome/event_latency_scroll_jank.sql');
-        
+
         SELECT
           jank,
           next_jank,
@@ -95,7 +95,7 @@ class ChromeScrollJank(TestSuite):
         trace=Path('../../data/event_latency_with_args.perfetto-trace'),
         query="""
         SELECT RUN_METRIC('chrome/event_latency_scroll_jank_cause.sql');
-        
+
         SELECT
           dur,
           ts,
@@ -117,7 +117,7 @@ class ChromeScrollJank(TestSuite):
         trace=Path('../../data/chrome_scroll_without_vsync.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/scroll_flow_event.sql');
-        
+
         SELECT
           trace_id,
           ts,
@@ -139,7 +139,7 @@ class ChromeScrollJank(TestSuite):
         trace=Path('../../data/chrome_scroll_without_vsync.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/scroll_flow_event.sql');
-        
+
         SELECT
           -- Each trace_id (in our example trace not true in general) has 8 steps. There
           -- are 139 scrolls. So we expect 1112 rows in total 72 of which are janky.
@@ -171,7 +171,7 @@ class ChromeScrollJank(TestSuite):
         trace=Path('../../data/chrome_scroll_without_vsync.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/scroll_jank_cause.sql');
-        
+
         SELECT
           COUNT(*) AS total,
           SUM(jank) AS total_jank,
@@ -199,7 +199,7 @@ class ChromeScrollJank(TestSuite):
         trace=Path('../../data/chrome_scroll_without_vsync.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/scroll_flow_event_queuing_delay.sql');
-        
+
         SELECT
           trace_id,
           jank,
@@ -226,7 +226,7 @@ class ChromeScrollJank(TestSuite):
         trace=Path('../../data/chrome_scroll_without_vsync.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/scroll_jank_cause_queuing_delay.sql');
-        
+
         SELECT
           process_name,
           thread_name,
@@ -245,7 +245,7 @@ class ChromeScrollJank(TestSuite):
         trace=Path('../../data/chrome_scroll_without_vsync.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/scroll_jank_cause_queuing_delay.sql');
-        
+
         SELECT
           process_name,
           thread_name,
@@ -264,7 +264,7 @@ class ChromeScrollJank(TestSuite):
         trace=Path('../../data/chrome_scroll_without_vsync.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/scroll_jank_cause_queuing_delay.sql');
-        
+
         SELECT
           COUNT(*) AS total,
           (
@@ -297,7 +297,7 @@ class ChromeScrollJank(TestSuite):
         trace=Path('../../data/chrome_scroll_without_vsync.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/chrome_thread_slice.sql');
-        
+
         SELECT
           EXTRACT_ARG(arg_set_id, 'chrome_latency_info.trace_id') AS trace_id,
           dur,
@@ -322,7 +322,7 @@ class ChromeScrollJank(TestSuite):
             '../../data/scrolling_with_blocked_nonblocked_frames.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/chrome_input_to_browser_intervals.sql');
-        
+
         SELECT
           *
         FROM chrome_input_to_browser_intervals
@@ -338,7 +338,7 @@ class ChromeScrollJank(TestSuite):
         SELECT RUN_METRIC('chrome/chrome_scroll_jank_caused_by_scheduling.sql',
           'dur_causes_jank_ms',
         /* dur_causes_jank_ms = */ '5');
-        
+
         SELECT
           full_name,
           total_duration_ms,
@@ -358,7 +358,7 @@ class ChromeScrollJank(TestSuite):
         SELECT RUN_METRIC('chrome/chrome_tasks_delaying_input_processing.sql',
           'duration_causing_jank_ms',
          /* duration_causing_jank_ms = */ '8');
-        
+
         SELECT
           full_name,
           duration_ms,
@@ -373,7 +373,7 @@ class ChromeScrollJank(TestSuite):
         trace=Path('../../data/long_task_tracking_trace'),
         query="""
         SELECT RUN_METRIC('chrome/chrome_long_tasks_delaying_input_processing.sql');
-        
+
         SELECT
           full_name,
           duration_ms,
@@ -395,7 +395,7 @@ class ChromeScrollJank(TestSuite):
         SELECT RUN_METRIC(
             'chrome/experimental_reliable_chrome_tasks_delaying_input_processing.sql',
             'duration_causing_jank_ms', '8');
-        
+
         SELECT
           full_name,
           duration_ms,
@@ -412,7 +412,7 @@ class ChromeScrollJank(TestSuite):
             '../../data/scrolling_with_blocked_nonblocked_frames.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/chrome_scroll_inputs_per_frame.sql');
-        
+
         SELECT
           count_for_frame,
           ts
@@ -429,7 +429,7 @@ class ChromeScrollJank(TestSuite):
         trace=Path('../track_event/track_event_counters.textproto'),
         query="""
         SELECT RUN_METRIC('chrome/chrome_thread_slice.sql');
-        
+
         SELECT
           name,
           ts,
@@ -470,14 +470,15 @@ class ChromeScrollJank(TestSuite):
             process_name: "Renderer"
             pid: 12743
           }
-        }"""))
+        }
+        """))
 
   def test_chrome_long_latency_metric(self):
     return DiffTestBlueprint(
         trace=Path('../chrome/long_event_latency.textproto'),
         query="""
         SELECT RUN_METRIC('experimental/chrome_long_latency.sql');
-        
+
         SELECT * FROM long_latency_with_process_info;
         """,
         out=Csv("""
@@ -492,7 +493,7 @@ class ChromeScrollJank(TestSuite):
         trace=Path('scroll_jank_mojo_simple_watcher.py'),
         query="""
         SELECT RUN_METRIC('chrome/scroll_jank_cause_queuing_delay.sql');
-        
+
         SELECT
           trace_id,
           jank,
@@ -508,7 +509,7 @@ class ChromeScrollJank(TestSuite):
         trace=Path('scroll_jank_gpu_check.py'),
         query="""
         SELECT RUN_METRIC('chrome/scroll_jank.sql');
-        
+
         SELECT ts, jank
         FROM scroll_jank
         ORDER BY ts ASC;

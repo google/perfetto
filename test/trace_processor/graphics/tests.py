@@ -89,7 +89,7 @@ class Graphics(TestSuite):
         trace=Path('frame_missed.py'),
         query="""
         SELECT RUN_METRIC('android/android_surfaceflinger.sql');
-        
+
         SELECT ts, dur
         FROM android_surfaceflinger_event;
         """,
@@ -206,7 +206,7 @@ class Graphics(TestSuite):
         trace=Path('composition_layer.py'),
         query="""
         SELECT RUN_METRIC('android/android_hwcomposer.sql');
-        
+
         SELECT AVG(value)
         FROM total_layers;
         """,
@@ -231,7 +231,7 @@ class Graphics(TestSuite):
         query="""
         SELECT RUN_METRIC('android/composer_execution.sql',
           'output', 'hwc_execution_spans');
-        
+
         SELECT
           validation_type,
           COUNT(*) AS count,
@@ -414,7 +414,6 @@ class Graphics(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         SELECT ts, dur, name FROM slice WHERE name GLOB "mali_KCPU_CQS*";
@@ -466,7 +465,6 @@ class Graphics(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         SELECT ts, dur, name FROM slice WHERE name GLOB "mali_KCPU_FENCE*";

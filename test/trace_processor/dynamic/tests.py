@@ -118,7 +118,7 @@ class Dynamic(TestSuite):
   def test_empty_abs_time_str(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
-        
+
         """),
         query="""
         SELECT
@@ -149,7 +149,7 @@ class Dynamic(TestSuite):
   def test_empty_to_monotonic(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
-        
+
         """),
         query="""
         SELECT

@@ -53,7 +53,6 @@ class GraphicsDrmRelatedFtraceEvents(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         SELECT

@@ -51,7 +51,7 @@ class Tables(TestSuite):
           start_double_nulls DOUBLE,
           all_nulls INTEGER
         );
-        
+
         INSERT INTO null_test(
           int_nulls,
           string_nulls,
@@ -66,7 +66,7 @@ class Tables(TestSuite):
         (1, "other", NULL, NULL, NULL, NULL),
         (4, NULL, NULL, NULL, NULL, 1.0),
         (NULL, "test", 1.0, 1, NULL, NULL);
-        
+
         SELECT * FROM null_test;
         """,
         out=Path('nulls.out'))
@@ -122,7 +122,6 @@ class Tables(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         SELECT
@@ -176,7 +175,6 @@ class Tables(TestSuite):
             }
           }
         }
-        
         """),
         query=Metric('android_task_names'),
         out=TextProto(r"""

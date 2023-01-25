@@ -39,7 +39,8 @@ class ChromeArgs(TestSuite):
              address: 234
              google_lookup_id: "c215077ff8866cb110e4ad349cda3b9b0"
            }
-        }"""))
+        }
+        """))
 
   def test_async_trace_1_count_slices(self):
     return DiffTestBlueprint(
@@ -83,7 +84,7 @@ class ChromeArgs(TestSuite):
             }
           }
         }
-        
+
         packet {
           trusted_packet_sequence_id: 1
           timestamp: 0
@@ -115,11 +116,10 @@ class ChromeArgs(TestSuite):
             }
           }
         }
-        
         """),
         query=Metric('chrome_args_class_names'),
         out=TextProto(r"""
-        
+
         [perfetto.protos.chrome_args_class_names] {
           class_names_per_version {
             class_name: "abc"
