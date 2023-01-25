@@ -103,7 +103,8 @@ class StartupMetrics(TestSuite):
               capacity_percent: 0.3
               current_avg_ua: 25
            }
-        }"""))
+        }
+        """))
 
   def test_android_startup_cpu(self):
     return DiffTestBlueprint(

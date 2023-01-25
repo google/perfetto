@@ -24,14 +24,14 @@ class Functions(TestSuite):
   def test_first_non_null_frame(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
-        
+
         """),
         query="""
         CREATE TABLE TEST(id INTEGER, val INTEGER);
-        
+
         INSERT INTO TEST
         VALUES (1, 1), (2, NULL), (3, 3), (4, 4), (5, NULL), (6, NULL), (7, NULL);
-        
+
         SELECT
           id,
           LAST_NON_NULL(val)
@@ -53,11 +53,11 @@ class Functions(TestSuite):
   def test_first_non_null_partition(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
-        
+
         """),
         query="""
         CREATE TABLE TEST(id INTEGER, part TEXT, val INTEGER);
-        
+
         INSERT INTO TEST
         VALUES
         (1, 'A', 1),
@@ -67,7 +67,7 @@ class Functions(TestSuite):
         (5, 'B', 5),
         (6, 'B', NULL),
         (7, 'B', 7);
-        
+
         SELECT id, LAST_NON_NULL(val) OVER (PARTITION BY part ORDER BY id ASC) AS val
         FROM TEST
         ORDER BY id ASC;
@@ -86,14 +86,14 @@ class Functions(TestSuite):
   def test_first_non_null(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
-        
+
         """),
         query="""
         CREATE TABLE TEST(id INTEGER, val INTEGER);
-        
+
         INSERT INTO TEST
         VALUES (1, 1), (2, NULL), (3, 3), (4, 4), (5, NULL), (6, NULL), (7, NULL);
-        
+
         SELECT id, LAST_NON_NULL(val) OVER (ORDER BY id ASC) AS val
         FROM TEST
         ORDER BY id ASC;

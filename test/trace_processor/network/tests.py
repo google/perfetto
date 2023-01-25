@@ -144,7 +144,6 @@ class Network(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         SELECT
@@ -244,7 +243,6 @@ class Network(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         SELECT

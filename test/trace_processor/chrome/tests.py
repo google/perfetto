@@ -51,7 +51,6 @@ class Chrome(TestSuite):
             }
           }
         }
-        
         """),
         query=Metric('chrome_histogram_hashes'),
         out=TextProto(r"""
@@ -91,8 +90,6 @@ class Chrome(TestSuite):
             }
           }
         }
-        
-        
         """),
         query=Metric('chrome_user_event_hashes'),
         out=TextProto(r"""
@@ -100,7 +97,6 @@ class Chrome(TestSuite):
           action_hash: 10
           action_hash: 20
         }
-        
         """))
 
   # Chrome performance mark
@@ -135,7 +131,6 @@ class Chrome(TestSuite):
             }
           }
         }
-        
         """),
         query=Metric('chrome_performance_mark_hashes'),
         out=TextProto(r"""
@@ -202,7 +197,6 @@ class Chrome(TestSuite):
             chrome_version_code: 123
           }
         }
-        
         """),
         query=Metric('chrome_slice_names'),
         out=TextProto(r"""
@@ -221,7 +215,7 @@ class Chrome(TestSuite):
         ),
         query="""
         SELECT RUN_METRIC('chrome/chrome_tasks.sql');
-        
+
         SELECT full_name, task_type, count() AS count
         FROM chrome_tasks
         GROUP BY full_name, task_type
@@ -240,7 +234,7 @@ class Chrome(TestSuite):
           'slice_table_name', 'slice',
           'function_prefix', ''
         );
-        
+
         SELECT
           full_name,
           task_type
@@ -262,7 +256,7 @@ class Chrome(TestSuite):
             'target_duration_ms', '0.000001',
             'thread_name', '"CrBrowserMain"',
             'task_name', '"sendTouchEvent"');
-        
+
         SELECT
           sample.description,
           sample.ts,
@@ -301,7 +295,7 @@ class Chrome(TestSuite):
             }
           }
         }
-        
+
         packet {
           trusted_packet_sequence_id: 1
           timestamp: 10
@@ -356,7 +350,7 @@ class Chrome(TestSuite):
             }
           }
         }
-        
+
         packet {
           trusted_packet_sequence_id: 1
           timestamp: 10
@@ -396,7 +390,7 @@ class Chrome(TestSuite):
         trace=Path('../../data/chrome_custom_navigation_trace.gz'),
         query="""
         SELECT RUN_METRIC('chrome/chrome_tasks.sql');
-        
+
         SELECT full_name, task_type, count() AS count
         FROM chrome_tasks
         WHERE full_name GLOB 'FrameHost::BeginNavigation*'

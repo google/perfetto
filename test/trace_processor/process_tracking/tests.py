@@ -198,7 +198,6 @@ class ProcessTracking(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         SELECT s.name, dur, tid, pid

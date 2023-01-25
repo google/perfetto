@@ -1,5 +1,0 @@
-
-"id","ts","dur","rail_mode"
-1,0,10000,"response"
-2,10000,25000,"animation"
-3,35000,10000,"background"

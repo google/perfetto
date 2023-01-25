@@ -135,7 +135,6 @@ class ProfilingHeapGraph(TestSuite):
             index: 0
           }
         }
-        
         """),
         query="""
         SELECT
