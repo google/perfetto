@@ -1,3 +1,0 @@
-# Test that broadcasts are correctly counted.
-android_startup_broadcast.py android_startup android_startup_broadcast.out
-android_startup_broadcast_multiple.py android_startup android_startup_broadcast_multiple.out

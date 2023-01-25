@@ -1,4 +1,0 @@
-../../data/power_rails.pb power_rails_test.sql power_rails_power_rails.out
-power_rails_custom_clock.textproto power_rails_event_test.sql power_rails_event_power_rails_custom_clock.out
-power_rails.textproto power_rails_timestamp_sort_test.sql power_rails_timestamp_sort.out
-power_rails_well_known.textproto power_rails_test.sql power_rails_well_known_power_rails.out

@@ -82,14 +82,14 @@ class MemoryMetrics(TestSuite):
             }
           }
         }
-        
         """),
         query=Metric('android_lmk'),
         out=TextProto(r"""
         android_lmk {
           total_count: 0
           oom_victim_count: 1
-        }"""))
+        }
+        """))
 
   def test_android_mem_delta(self):
     return DiffTestBlueprint(

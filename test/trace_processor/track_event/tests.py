@@ -70,7 +70,6 @@ class TrackEvent(TestSuite):
             type: 3
           }
         }
-        
         """),
         query="""
         SELECT tid, pid, process.name AS pname, thread.name AS tname
@@ -135,7 +134,6 @@ class TrackEvent(TestSuite):
             type: 3
           }
         }
-        
         """),
         query="""
         SELECT
@@ -341,7 +339,6 @@ class TrackEvent(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         SELECT

@@ -1,6 +1,0 @@
-
-"full_name","task_type","count"
-"FrameHost::BeginNavigation (SUBFRAME)","navigation_task",5
-"FrameHost::DidStopLoading (SUBFRAME)","navigation_task",3
-"FrameHost::BeginNavigation (PRIMARY_MAIN_FRAME)","navigation_task",1
-"FrameHost::DidCommitProvisionalLoad (SUBFRAME)","navigation_task",1

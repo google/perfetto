@@ -36,21 +36,21 @@ class SpanJoinRegression(TestSuite):
           dur BIGINT,
           PRIMARY KEY (ts, dur)
         ) WITHOUT ROWID;
-        
+
         CREATE TABLE t2(
           ts BIGINT,
           dur BIGINT,
           PRIMARY KEY (ts, dur)
         ) WITHOUT ROWID;
-        
+
         INSERT INTO t2(ts, dur)
         VALUES
         (1, 2),
         (5, 0),
         (1, 1);
-        
+
         CREATE VIRTUAL TABLE sp USING span_join(t1, t2);
-        
+
         SELECT ts, dur FROM sp;
         """,
         out=Csv("""

@@ -1,4 +1,0 @@
-dvfs_metric.textproto android_dvfs dvfs_metric.out
-wakesource.textproto wakesource_test.sql wakesource_wakesource.out
-suspend_resume.textproto suspend_resume_test.sql suspend_resume.out
-suspend_period.textproto android_batt suspend_period.out
