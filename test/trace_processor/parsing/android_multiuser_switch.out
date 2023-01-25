@@ -1,5 +1,0 @@
-android_multiuser: {
-  user_switch: {
-    duration_ms: 4900
-  }
-}

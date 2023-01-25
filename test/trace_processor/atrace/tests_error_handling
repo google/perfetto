@@ -1,5 +1,0 @@
-# Check error handling when parsing print events.
-bad_print.textproto ../common/list_slices_test.sql bad_print_textproto_list_slices.out
-bad_print.systrace ../common/list_slices_test.sql bad_print_systrace_list_slices.out
-instant_atrace.py instant_with_thread_test.sql instant_atrace_instant_with_thread.out
-instant_async_atrace.py instant_async_test.sql instant_async_atrace_instant_async.out

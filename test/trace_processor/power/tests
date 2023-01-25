@@ -1,5 +1,0 @@
-# Power states
-../../data/cpu_counters.pb p_state_test.sql cpu_counters_p_state_test.out
-
-# CPU power ups
-../../data/cpu_powerups_1.pb cpu_powerups_test.sql cpu_powerups_test.out

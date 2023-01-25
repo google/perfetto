@@ -129,7 +129,6 @@ class ParsingMemoryCounters(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         SELECT t.name, c.ts, c.value

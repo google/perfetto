@@ -1,3 +1,0 @@
-../common/empty.textproto first_non_null_frame_test.sql first_non_null_frame.out
-../common/empty.textproto first_non_null_partition_test.sql first_non_null_partition.out
-../common/empty.textproto first_non_null_test.sql first_non_null.out

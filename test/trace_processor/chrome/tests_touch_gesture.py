@@ -26,7 +26,7 @@ class ChromeTouchGesture(TestSuite):
         trace=Path('../../data/chrome_touch_gesture_scroll.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/touch_jank.sql');
-        
+
         SELECT
           touch_id,
           trace_id,
@@ -43,7 +43,7 @@ class ChromeTouchGesture(TestSuite):
         trace=Path('../../data/chrome_touch_gesture_scroll.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/touch_flow_event.sql');
-        
+
         SELECT
           trace_id,
           ts,
@@ -65,7 +65,7 @@ class ChromeTouchGesture(TestSuite):
         trace=Path('../../data/chrome_touch_gesture_scroll.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/touch_flow_event_queuing_delay.sql');
-        
+
         SELECT
           trace_id,
           jank,
@@ -85,7 +85,7 @@ class ChromeTouchGesture(TestSuite):
         trace=Path('touch_jank.py'),
         query="""
         SELECT RUN_METRIC('chrome/touch_jank.sql');
-        
+
         SELECT
           touch_id,
           trace_id,
@@ -107,7 +107,7 @@ class ChromeTouchGesture(TestSuite):
         trace=Path('touch_jank.py'),
         query="""
         SELECT RUN_METRIC('chrome/touch_flow_event.sql');
-        
+
         SELECT
           trace_id,
           ts,
@@ -129,7 +129,7 @@ class ChromeTouchGesture(TestSuite):
         trace=Path('touch_jank.py'),
         query="""
         SELECT RUN_METRIC('chrome/touch_flow_event_queuing_delay.sql');
-        
+
         SELECT
           trace_id,
           jank,

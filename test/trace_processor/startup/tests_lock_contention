@@ -1,3 +1,0 @@
-# Test lock contention is correctly attributed.
-android_startup_lock_contention.py android_startup android_startup_lock_contention.out
-android_startup_lock_contention_slow.py android_startup android_startup_lock_contention_slow.out

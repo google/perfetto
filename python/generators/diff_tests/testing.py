@@ -64,9 +64,9 @@ class TestType(Enum):
 @dataclass
 class DiffTestBlueprint:
 
-  trace: Union[str, Path]
+  trace: Union[Path, Json, Systrace, TextProto]
   query: Union[str, Path, Metric]
-  out: Union[Path, Json, Csv]
+  out: Union[Path, Json, Csv, TextProto]
 
   def is_trace_file(self):
     return isinstance(self.trace, Path)

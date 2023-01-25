@@ -1,7 +1,0 @@
-"ts","dur","name","name"
-593125003271,84500592,"Resource #102","virtio_video stream #4 OUTPUT"
-593125003785,100000,"RESOURCE_QUEUE","virtio_video stream #4 Requests"
-593125084611,709696,"Resource #62","virtio_video stream #3 OUTPUT"
-593125084935,100000,"RESOURCE_QUEUE","virtio_video stream #3 Requests"
-593125794194,100000,"RESOURCE_QUEUE","virtio_video stream #3 Responses"
-593209502603,100000,"RESOURCE_QUEUE","virtio_video stream #4 Responses"

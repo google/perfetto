@@ -66,7 +66,6 @@ class Atrace(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         SELECT

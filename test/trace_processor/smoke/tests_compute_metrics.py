@@ -53,13 +53,13 @@ class SmokeComputeMetrics(TestSuite):
         trace=Path('../../data/cpu_counters.pb'),
         query="""
         SELECT RUN_METRIC('android/android_proxy_power.sql');
-        
+
         DROP VIEW device;
-        
+
         CREATE TABLE device (name STRING);
-        
+
         INSERT INTO device VALUES ('walleye');
-        
+
         SELECT
           tid,
           SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
