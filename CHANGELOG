@@ -15,6 +15,8 @@ Unreleased:
       been deprecated in favor of this new functionality.
     * Deprecated the PERFETTO_COMPONENT_EXPORT macro in favor of
       PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE_WITH_ATTRS.
+    * Added TracingInitArgs::enable_system_consumer configuration option, that
+      allows the linker to discard the consumer IPC, if not required.
 
 
 v31.0 - 2022-11-10:
