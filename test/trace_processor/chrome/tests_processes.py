@@ -105,7 +105,25 @@ class ChromeProcesses(TestSuite):
 
   def test_track_with_chrome_process(self):
     return DiffTestBlueprint(
-        trace=Path('track_with_chrome_process.textproto'),
+        trace=TextProto(r"""
+        packet {
+          trusted_packet_sequence_id: 1
+          incremental_state_cleared: true
+          timestamp: 0
+          track_descriptor {
+            uuid: 10
+            process {
+              pid: 5
+              process_name: "p5"
+            }
+            # Empty Chrome process. This is similar to a process descriptor emitted by
+            # Chrome for a process with an unknown Chrome process_type. This process
+            # should still receive a "chrome_process_type" arg in the args table, but
+            # with a NULL value.
+            chrome_process {}
+          }
+        }
+        """),
         query="""
         SELECT pid, name, string_value AS chrome_process_type
         FROM
@@ -121,6 +139,7 @@ class ChromeProcesses(TestSuite):
         5,"p5","[NULL]"
         """))
 
+  # Missing processes.
   def test_chrome_missing_processes_default_trace(self):
     return DiffTestBlueprint(
         trace=Path('../../data/chrome_scroll_without_vsync.pftrace'),
@@ -139,7 +158,44 @@ class ChromeProcesses(TestSuite):
 
   def test_chrome_missing_processes(self):
     return DiffTestBlueprint(
-        trace=Path('chrome_missing_processes.textproto'),
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1
+          incremental_state_cleared: true
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "ActiveProcesses"
+            chrome_active_processes {
+              pid: 10
+              pid: 100
+              pid: 1000
+            }
+          }
+        }
+        packet {
+          timestamp: 1
+          trusted_packet_sequence_id: 2
+          track_descriptor {
+            uuid: 1
+            process {
+              pid: 10
+            }
+            parent_uuid: 0
+          }
+        }
+        packet {
+          timestamp: 1000000000
+          trusted_packet_sequence_id: 3
+          track_descriptor {
+            uuid: 2
+            process {
+              pid: 100
+            }
+            parent_uuid: 0
+          }
+        }
+        """),
         query="""
         SELECT upid, pid, reliable_from
         FROM
@@ -157,7 +213,44 @@ class ChromeProcesses(TestSuite):
 
   def test_chrome_missing_processes_args(self):
     return DiffTestBlueprint(
-        trace=Path('chrome_missing_processes.textproto'),
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1
+          incremental_state_cleared: true
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "ActiveProcesses"
+            chrome_active_processes {
+              pid: 10
+              pid: 100
+              pid: 1000
+            }
+          }
+        }
+        packet {
+          timestamp: 1
+          trusted_packet_sequence_id: 2
+          track_descriptor {
+            uuid: 1
+            process {
+              pid: 10
+            }
+            parent_uuid: 0
+          }
+        }
+        packet {
+          timestamp: 1000000000
+          trusted_packet_sequence_id: 3
+          track_descriptor {
+            uuid: 2
+            process {
+              pid: 100
+            }
+            parent_uuid: 0
+          }
+        }
+        """),
         query="""
         SELECT arg_set_id, key, int_value
         FROM
@@ -176,7 +269,44 @@ class ChromeProcesses(TestSuite):
 
   def test_chrome_missing_processes_2(self):
     return DiffTestBlueprint(
-        trace=Path('chrome_missing_processes_extension.textproto'),
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1
+          incremental_state_cleared: true
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "ActiveProcesses"
+            [perfetto.protos.ChromeTrackEvent.active_processes]: {
+              pid: 10
+              pid: 100
+              pid: 1000
+            }
+          }
+        }
+        packet {
+          timestamp: 1
+          trusted_packet_sequence_id: 2
+          track_descriptor {
+            uuid: 1
+            process {
+              pid: 10
+            }
+            parent_uuid: 0
+          }
+        }
+        packet {
+          timestamp: 1000000000
+          trusted_packet_sequence_id: 3
+          track_descriptor {
+            uuid: 2
+            process {
+              pid: 100
+            }
+            parent_uuid: 0
+          }
+        }
+        """),
         query="""
         SELECT upid, pid, reliable_from
         FROM
@@ -194,7 +324,44 @@ class ChromeProcesses(TestSuite):
 
   def test_chrome_missing_processes_extension_args(self):
     return DiffTestBlueprint(
-        trace=Path('chrome_missing_processes_extension.textproto'),
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1
+          incremental_state_cleared: true
+          trusted_packet_sequence_id: 1
+          track_event {
+            type: TYPE_INSTANT
+            name: "ActiveProcesses"
+            [perfetto.protos.ChromeTrackEvent.active_processes]: {
+              pid: 10
+              pid: 100
+              pid: 1000
+            }
+          }
+        }
+        packet {
+          timestamp: 1
+          trusted_packet_sequence_id: 2
+          track_descriptor {
+            uuid: 1
+            process {
+              pid: 10
+            }
+            parent_uuid: 0
+          }
+        }
+        packet {
+          timestamp: 1000000000
+          trusted_packet_sequence_id: 3
+          track_descriptor {
+            uuid: 2
+            process {
+              pid: 100
+            }
+            parent_uuid: 0
+          }
+        }
+        """),
         query="""
         SELECT arg_set_id, key, int_value
         FROM

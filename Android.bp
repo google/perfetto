@@ -681,7 +681,7 @@ cc_library_shared {
     ],
     shared_libs: [
         "android.hardware.atrace@1.0",
-        "android.hardware.health-V1-ndk",
+        "android.hardware.health-V2-ndk",
         "android.hardware.health@2.0",
         "android.hardware.power.stats-V1-cpp",
         "android.hardware.power.stats@1.0",
@@ -9922,7 +9922,9 @@ genrule {
         "src/trace_processor/stdlib/android/startup/internal_startups_minsdk33.sql",
         "src/trace_processor/stdlib/android/startup/startups.sql",
         "src/trace_processor/stdlib/chrome/cpu_powerups.sql",
+        "src/trace_processor/stdlib/common/counters.sql",
         "src/trace_processor/stdlib/common/metadata.sql",
+        "src/trace_processor/stdlib/common/percentiles.sql",
         "src/trace_processor/stdlib/common/slices.sql",
         "src/trace_processor/stdlib/common/timestamps.sql",
         "src/trace_processor/stdlib/experimental/android_broadcast.sql",

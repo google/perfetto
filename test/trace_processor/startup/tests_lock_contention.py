@@ -20,7 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class StartupLockContention(TestSuite):
-
+  # Test lock contention is correctly attributed.
   def test_android_startup_lock_contention(self):
     return DiffTestBlueprint(
         trace=Path('android_startup_lock_contention.py'),

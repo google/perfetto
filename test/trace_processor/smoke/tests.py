@@ -20,7 +20,9 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class Smoke(TestSuite):
-
+  # Contains smoke tests which test the most fundamentally important features
+  # trace processor  Note: new tests here should only be added by the Perfetto
+  # Compresesed traces
   def test_compressed_smoke(self):
     return DiffTestBlueprint(
         trace=Path('../../data/compressed.pb'),

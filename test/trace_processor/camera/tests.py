@@ -26,14 +26,14 @@ class Camera(TestSuite):
         trace=Path('../../data/camera-ion-mem-trace'),
         query=Metric('android_camera'),
         out=TextProto(r"""
-android_camera {
-  gc_rss_and_dma {
-    min: 47779840.0
-    max: 2529583104.0
-    avg: 1459479416.3297353
-  }
-}
-"""))
+        android_camera {
+          gc_rss_and_dma {
+            min: 47779840.0
+            max: 2529583104.0
+            avg: 1459479416.3297353
+          }
+        }
+        """))
 
   def test_camera_ion_mem_trace_android_camera_unagg(self):
     return DiffTestBlueprint(

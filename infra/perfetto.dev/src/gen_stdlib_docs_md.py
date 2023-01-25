@@ -103,13 +103,13 @@ class FileMd:
           f'**{data["name"]}**\n'
           f'{data["desc"]}\n\n'
           f'Returns: {data["return_type"]}, {data["return_desc"]}\n\n')
+      if data['args']:
+        self.funs.append('Argument | Type | Description\n'
+                         '-------- | ---- | -----------')
+        for name, arg_dict in data['args'].items():
+          self.funs.append(f'{name} | {arg_dict["type"]} | {arg_dict["desc"]}')
 
-      self.funs.append('Argument | Type | Description\n'
-                       '-------- | ---- | -----------')
-      for name, arg_dict in data['args'].items():
-        self.funs.append(f'{name} | {arg_dict["type"]} | {arg_dict["desc"]}')
-
-      self.funs.append("\n\n")
+        self.funs.append("\n\n")
 
     # Add view functions if in file
     for data in file_dict['view_functions']:
@@ -123,13 +123,13 @@ class FileMd:
       self.view_funs.append(f'\n\n<a name="{anchor}"></a>'
                             f'**{data["name"]}**\n'
                             f'{data["desc"]}\n\n')
-
-      self.view_funs.append('Argument | Type | Description\n'
-                            '-------- | ---- | -----------')
-      for name, arg_dict in data['args'].items():
-        self.view_funs.append(
-            f'{name} | {arg_dict["type"]} | {arg_dict["desc"]}')
-      self.view_funs.append('\n')
+      if data['args']:
+        self.view_funs.append('Argument | Type | Description\n'
+                              '-------- | ---- | -----------')
+        for name, arg_dict in data['args'].items():
+          self.view_funs.append(
+              f'{name} | {arg_dict["type"]} | {arg_dict["desc"]}')
+        self.view_funs.append('\n')
       self.view_funs.append('Column | Description\n' '------ | -----------')
       for name, desc in data['cols'].items():
         self.view_funs.append(f'{name} | {desc}')
