@@ -97,6 +97,31 @@ WHERE
   )
 GROUP BY utid;
 
+-- Finds Browser and Renderer processes with a missing main thread. If there
+-- is such a process, the trace definitely has thread data loss, and no part
+-- of the trace is trustworthy/reliable.
+-- As of Jan 2023, all tracing scenarios emit some data from the Browser and
+-- Renderer main thread (assuming that the corresponding process is present).
+DROP VIEW IF EXISTS chrome_processes_with_missing_main;
+
+CREATE VIEW chrome_processes_with_missing_main
+AS
+SELECT
+  upid
+FROM (
+  SELECT upid, utid
+  FROM process
+  LEFT JOIN
+    -- We can't use is_main_thread column for Chrome traces - Renderer
+    -- processes have is_main_thread = 0 for the logical main thread.
+    (SELECT utid, upid FROM thread WHERE thread.name GLOB '*[Mm]ain*')
+  USING (upid)
+  WHERE
+    EXTRACT_ARG(process.arg_set_id, 'chrome.process_type')
+      IN ('Browser', 'Renderer')
+)
+WHERE utid is NULL;
+
 DROP VIEW IF EXISTS chrome_processes_data_loss_free_period;
 
 CREATE VIEW chrome_processes_data_loss_free_period
@@ -105,7 +130,16 @@ SELECT
   upid AS limiting_upid,
   -- If reliable_from is NULL, the process has data loss until the end of the trace.
   IFNULL(reliable_from, (SELECT MAX(ts + dur) FROM slice)) AS start
-FROM experimental_missing_chrome_processes
+FROM
+  (
+    SELECT upid, reliable_from
+    FROM experimental_missing_chrome_processes
+    UNION ALL
+    -- A missing main thread means that the process data is unreliable for the
+    -- entire duration of the trace.
+    SELECT upid, NULL AS reliable_from
+    FROM chrome_processes_with_missing_main
+  )
 ORDER BY start DESC
 LIMIT 1;
 
@@ -115,14 +149,16 @@ CREATE VIEW chrome_reliable_range
 AS
 SELECT
   -- If the trace has a cropping packet, we don't want to recompute the reliable
-  -- based on cropped track events - the result might be incorrect.g
+  -- based on cropped track events - the result might be incorrect.
   IFNULL(EXTRACT_INT_METADATA('range_of_interest_start_us') * 1000,
          MAX(thread_start, data_loss_free_start)) AS start,
   IIF(EXTRACT_INT_METADATA('range_of_interest_start_us') IS NOT NULL,
       'Range of interest packet',
-      IIF(thread_start >= data_loss_free_start,
-          'First slice for utid=' || limiting_utid,
-          'Missing process data for upid=' || limiting_upid)) AS reason,
+      IIF(limiting_upid IN (SELECT upid FROM chrome_processes_with_missing_main),
+          'Missing main thread for upid=' || limiting_upid,
+          IIF(thread_start >= data_loss_free_start,
+              'First slice for utid=' || limiting_utid,
+               'Missing process data for upid=' || limiting_upid))) AS reason,
   limiting_upid AS debug_limiting_upid,
   limiting_utid AS debug_limiting_utid
 FROM
