@@ -31,6 +31,14 @@ perfetto_py_library("trace_processor_stdlib_docs") {
   ]
 }
 
+perfetto_py_library("trace_processor_diff_tests") {
+  sources = [
+    "generators/diff_tests/runner.py",
+    "generators/diff_tests/testing.py",
+    "generators/diff_tests/utils.py",
+  ]
+}
+
 perfetto_py_binary("trace_processor_py_example") {
   sources = [ "example.py" ]
   deps = [

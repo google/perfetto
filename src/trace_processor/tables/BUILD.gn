@@ -48,7 +48,6 @@ source_set("tables") {
 
 perfetto_tp_tables("py_tables_unittest") {
   sources = [ "py_tables_unittest.py" ]
-  generate_docs = true
 }
 
 source_set("unittests") {

@@ -33,6 +33,7 @@
 #include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/heap_profile_tracker.h"
 #include "src/trace_processor/importers/proto/metadata_tracker.h"
+#include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
@@ -133,6 +134,9 @@ void TraceProcessorStorageImpl::NotifyEndOfFile() {
   context_.chunk_reader->NotifyEndOfFile();
   for (std::unique_ptr<ProtoImporterModule>& module : context_.modules) {
     module->NotifyEndOfFile();
+  }
+  if (context_.content_analyzer) {
+    PacketAnalyzer::Get(&context_)->NotifyEndOfFile();
   }
   context_.event_tracker->FlushPendingEvents();
   context_.slice_tracker->FlushPendingSlices();

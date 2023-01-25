@@ -70,6 +70,7 @@ public_targets = [
 # These targets are required by internal build rules but don't need to be
 # exported publicly.
 default_targets = [
+    '//src/base:perfetto_base_default_platform',
     '//src/ipc:perfetto_ipc',
     '//src/ipc/protoc_plugin:ipc_plugin',
     '//src/protozero:protozero',
@@ -102,6 +103,7 @@ buildflags_dir = 'include/perfetto/base/build_configs/bazel'
 # depends on.
 external_deps = {
     '//gn:default_deps': [],
+    '//gn:base_platform': ['PERFETTO_CONFIG.deps.base_platform'],
     '//gn:jsoncpp': ['PERFETTO_CONFIG.deps.jsoncpp'],
     '//gn:linenoise': ['PERFETTO_CONFIG.deps.linenoise'],
     '//gn:protobuf_full': ['PERFETTO_CONFIG.deps.protobuf_full'],
@@ -547,7 +549,6 @@ def gen_cc_amalgamated_sql(target: GnParser.Target):
 
   label.comment = target.name
   label.namespace = find_arg('namespace')
-  label.root_dir = gn_utils.label_to_path(find_arg('root-dir'))
 
   label.deps += sorted(':' + get_bazel_label_name(x.name)
                        for x in target.transitive_deps)
@@ -641,7 +642,11 @@ def gen_target(gn_target: GnParser.Target):
       if dep_name.startswith('//gn:'):
         assert (dep_name in external_deps), dep
 
-      if dep_name in external_deps:
+      # tp_tables produces a filegroup not a cc_lbirary so should end up srcs
+      # not deps.
+      if dep.custom_action_type == 'tp_tables':
+        label.srcs += [':' + get_bazel_label_name(dep_name)]
+      elif dep_name in external_deps:
         assert (isinstance(external_deps[dep_name], list))
         label.external_deps += external_deps[dep_name]
       else:

@@ -29,7 +29,8 @@ namespace tables {
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                                    \
   C(base::Optional<ExperimentalProtoPathTable::Id>, parent_id)         \
   C(StringPool::Id, field_type)                                        \
-  C(base::Optional<StringPool::Id>, field_name)
+  C(base::Optional<StringPool::Id>, field_name)                        \
+  C(base::Optional<uint32_t>, arg_set_id)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_EXPERIMENTAL_PROTO_PATH_TABLE_DEF);
 
@@ -38,7 +39,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_EXPERIMENTAL_PROTO_PATH_TABLE_DEF);
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                                       \
   C(StringPool::Id, path)                                                 \
   C(ExperimentalProtoPathTable::Id, path_id)                              \
-  C(int64_t, total_size)
+  C(int64_t, total_size)                                                  \
+  C(int64_t, size)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_EXPERIMENTAL_PROTO_CONTENT_TABLE_DEF);
 

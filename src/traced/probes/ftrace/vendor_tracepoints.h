@@ -46,6 +46,13 @@ base::Status DiscoverVendorTracepointsWithFile(
     const std::string& vendor_atrace_categories_path,
     std::map<std::string, std::vector<GroupAndName>>* categories_map);
 
+// Like `DiscoverVendorTracepointsWithFile`, but does not return events that are
+// not accessible or do not actually exist on the tracing file system.
+base::Status DiscoverAccessibleVendorTracepointsWithFile(
+    const std::string& vendor_atrace_categories_path,
+    std::map<std::string, std::vector<GroupAndName>>* categories_map,
+    FtraceProcfs* ftrace);
+
 }  // namespace vendor_tracepoints
 }  // namespace perfetto
 

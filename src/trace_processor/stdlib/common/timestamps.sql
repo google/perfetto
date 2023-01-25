@@ -13,6 +13,34 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+--
+-- Trace bounds
+--
+
+-- Fetch start of the trace.
+-- @ret LONG  Start of the trace in nanoseconds.
+SELECT CREATE_FUNCTION(
+    'TRACE_START()',
+    'LONG',
+    'SELECT start_ts FROM trace_bounds;'
+);
+
+-- Fetch end of the trace.
+-- @ret LONG  End of the trace in nanoseconds.
+SELECT CREATE_FUNCTION(
+    'TRACE_END()',
+    'LONG',
+    'SELECT end_ts FROM trace_bounds;'
+);
+
+-- Fetch duration of the trace.
+-- @ret LONG  Duration of the trace in nanoseconds.
+SELECT CREATE_FUNCTION(
+    'TRACE_DUR()',
+    'LONG',
+    'SELECT TRACE_END() - TRACE_START();'
+);
+
 -- Checks whether two spans are overlapping.
 --
 -- @arg ts1 LONG      Start of first span.

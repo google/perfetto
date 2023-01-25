@@ -36,6 +36,7 @@ source_set("base") {
     "paged_memory.h",
     "periodic_task.h",
     "pipe.h",
+    "platform.h",
     "scoped_file.h",
     "small_set.h",
     "small_vector.h",

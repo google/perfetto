@@ -58,6 +58,7 @@ default_targets = [
     '//:perfetto_unittests',
     '//protos/perfetto/trace:perfetto_trace_protos',
     '//src/android_internal:libperfetto_android_internal',
+    '//src/base:perfetto_base_default_platform',
     '//src/perfetto_cmd:perfetto',
     '//src/perfetto_cmd:trigger_perfetto',
     '//src/profiling/memory:heapprofd_client',
@@ -124,7 +125,7 @@ shared_library_allowlist = [
     'android',
     'android.hardware.atrace@1.0',
     'android.hardware.health@2.0',
-    'android.hardware.health-V1-ndk',
+    'android.hardware.health-V2-ndk',
     'android.hardware.power.stats@1.0',
     "android.hardware.power.stats-V1-cpp",
     'base',
@@ -262,6 +263,10 @@ additional_args = {
 }
 
 
+def enable_base_platform(module):
+  module.srcs.add(':perfetto_base_default_platform')
+
+
 def enable_gtest_and_gmock(module):
   module.static_libs.add('libgmock')
   module.static_libs.add('libgtest')
@@ -357,6 +362,8 @@ builtin_deps = {
         lambda x: None,
     '//gn:protoc':
         lambda x: None,
+    '//gn:base_platform':
+        enable_base_platform,
     '//gn:gtest_and_gmock':
         enable_gtest_and_gmock,
     '//gn:libunwind':
@@ -826,7 +833,6 @@ def create_amalgamated_sql_module(blueprint: Blueprint, gn: GnParser,
         return target.args[i + 1]
 
   namespace = find_arg('namespace')
-  root_dir = gn_utils.label_to_path(find_arg('root-dir'))
 
   module = Module('genrule', bp_module_name, target.name)
   module.tool_files = [
@@ -835,7 +841,6 @@ def create_amalgamated_sql_module(blueprint: Blueprint, gn: GnParser,
   module.cmd = ' '.join([
       '$(location tools/gen_amalgamated_sql.py)',
       f'--namespace={namespace}',
-      f'--root-dir={root_dir}',
       '--cpp-out=$(out)',
       '$(in)',
   ])

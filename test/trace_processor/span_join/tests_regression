@@ -1,0 +1,2 @@
+../../data/android_sched_and_ps.pb slice_span_join_b118665515_test.sql android_sched_and_ps_slice_span_join_b118665515.out
+../../data/android_sched_and_ps.pb span_join_unpartitioned_empty_test.sql span_join_unpartitioned_empty.out

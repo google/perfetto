@@ -54,6 +54,7 @@ class HeapGraphTracker;
 class HeapProfileTracker;
 class PerfSampleTracker;
 class MetadataTracker;
+class PacketAnalyzer;
 class ProtoImporterModule;
 class TrackEventModule;
 class ProcessTracker;
@@ -117,6 +118,7 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> systrace_parser;         // SystraceParser
   std::unique_ptr<Destructible> thread_state_tracker;    // ThreadStateTracker
   std::unique_ptr<Destructible> i2c_tracker;             // I2CTracker
+  std::unique_ptr<Destructible> content_analyzer;
 
   // These fields are trace readers which will be called by |forwarding_parser|
   // once the format of the trace is discovered. They are placed here as they

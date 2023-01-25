@@ -30,6 +30,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/json/json_utils.h"
+#include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
@@ -262,6 +263,14 @@ class TrackEventParser::EventImporter {
 
     category_id_ = ParseTrackEventCategory();
     name_id_ = ParseTrackEventName();
+
+    if (context_->content_analyzer) {
+      PacketAnalyzer::SampleAnnotation annotation;
+      annotation.push_back({parser_->event_category_key_id_, category_id_});
+      annotation.push_back({parser_->event_name_key_id_, name_id_});
+      PacketAnalyzer::Get(context_)->ProcessPacket(
+          event_data_->trace_packet_data.packet, annotation);
+    }
 
     RETURN_IF_ERROR(ParseTrackAssociation());
 
@@ -1478,6 +1487,8 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
           context->storage->InternString("chrome.process_label")),
       chrome_process_type_id_(
           context_->storage->InternString("chrome.process_type")),
+      event_category_key_id_(context_->storage->InternString("event.category")),
+      event_name_key_id_(context_->storage->InternString("event.name")),
       chrome_string_lookup_(context->storage.get()),
       counter_unit_ids_{{kNullStringId, context_->storage->InternString("ns"),
                          context_->storage->InternString("count"),

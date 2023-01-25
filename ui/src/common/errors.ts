@@ -49,3 +49,22 @@ export function getErrorMessage(e: unknown|undefined|null) {
   }
   return asString;
 }
+
+// Occasionally operations using the cache API throw:
+// 'UnknownError: Unexpected internal error. {}'
+// It's not clear under which circumstances this can occur. A dive of
+// the Chromium code didn't shed much light:
+// https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/modules/cache_storage/cache_storage_error.cc;l=26;drc=4cfe86482b000e848009077783ba35f83f3c3cfe
+// https://source.chromium.org/chromium/chromium/src/+/main:content/browser/cache_storage/cache_storage_cache.cc;l=1686;drc=ab68c05beb790d04d1cb7fd8faa0a197fb40d399
+// Given the error is not actionable at present and caching is 'best
+// effort' in any case ignore this error. We will want to throw for
+// errors in general though so as not to hide errors we actually could
+// fix.
+// See b/227785665 for an example.
+export function ignoreCacheUnactionableErrors<T>(e: unknown, result: T): T {
+  if (getErrorMessage(e).includes('UnknownError')) {
+    return result;
+  } else {
+    throw e;
+  }
+}
