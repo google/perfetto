@@ -47,7 +47,7 @@ module.exports = {
     // https://github.com/typescript-eslint/typescript-eslint/issues/2621
     'no-unused-vars': 'off',
     '@typescript-eslint/no-unused-vars':
-        ['error', {'argsIgnorePattern': '^_.*'}],
+        ['error', {'argsIgnorePattern': '^_.*', 'varsIgnorePattern': '^_.*'}],
 
     // new Array() is banned (use [] instead) but new Array<Foo>() is
     // allowed since it can be clearer to put the type by the

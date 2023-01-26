@@ -19,7 +19,11 @@ import {TimeSpan} from '../common/time';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
-import {gridlines} from './gridline_helper';
+import {
+  TickGenerator,
+  TickType,
+  timeScaleForVisibleWindow,
+} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
 
 export interface BBox {
@@ -120,13 +124,15 @@ export class TimeSelectionPanel extends Panel {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
-    const range = globals.frontendLocalState.visibleWindowTime;
-    const timeScale = globals.frontendLocalState.timeScale;
-
     ctx.fillStyle = '#999';
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
-    for (const xAndTime of gridlines(size.width, range, timeScale)) {
-      ctx.fillRect(xAndTime[0], 0, 1, size.height);
+    const scale = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
+    if (scale.timeSpan.duration > 0 && scale.widthPx > 0) {
+      for (const {position, type} of new TickGenerator(scale)) {
+        if (type === TickType.MAJOR) {
+          ctx.fillRect(position, 0, 1, size.height);
+        }
+      }
     }
 
     const localArea = globals.frontendLocalState.selectedArea;
