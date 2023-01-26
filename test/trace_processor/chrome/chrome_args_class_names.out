@@ -1,9 +1,0 @@
-
-[perfetto.protos.chrome_args_class_names] {
-  class_names_per_version {
-    class_name: "abc"
-    class_name: "def"
-    class_name: "ghi"
-    class_name: "jkl"
-  }
-}

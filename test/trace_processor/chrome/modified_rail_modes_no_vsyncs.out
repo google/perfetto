@@ -1,5 +1,0 @@
-
-"id","ts","dur","mode"
-2,0,1000000000,"response"
-3,1000000000,2500000000,"foreground_idle"
-4,3500000000,1000000000,"background"

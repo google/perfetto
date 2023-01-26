@@ -400,7 +400,6 @@ class Parsing(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         SELECT ts, instant.name, process.pid, process.name
@@ -536,7 +535,6 @@ class Parsing(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         SELECT t.name,
@@ -580,7 +578,6 @@ class Parsing(TestSuite):
             android_build_fingerprint: "the fingerprint"
           }
         }
-        
         """),
         query="""
         SELECT name, str_value FROM metadata WHERE str_value IS NOT NULL ORDER BY name;
@@ -613,7 +610,6 @@ class Parsing(TestSuite):
           }
           timestamp: 101000004
         }
-        
         """),
         query=Path('triggers_packets_test.sql'),
         out=Csv("""
@@ -646,7 +642,6 @@ class Parsing(TestSuite):
             enabled_categories: "cat1,cat2,cat3"
           }
         }
-        
         """),
         query="""
         SELECT * FROM metadata;
@@ -768,14 +763,13 @@ class Parsing(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         CREATE TABLE TEST_TMP AS
         SELECT RUN_METRIC('android/process_metadata.sql');
-        
+
         DROP TABLE TEST_TMP;
-        
+
         SELECT upid, process_name, uid, shared_uid, package_name, version_code
         FROM process_metadata_table
         WHERE upid != 0;
@@ -850,7 +844,6 @@ class Parsing(TestSuite):
           }
         ]
         }
-        
         """),
         query="""
         SELECT ts, dur, name FROM slice ORDER BY ts DESC;
@@ -955,13 +948,12 @@ class Parsing(TestSuite):
   def test_counters_json_counters(self):
     return DiffTestBlueprint(
         trace=Json(r"""
-        
+
         [
             {"pid": "1000", "name": "ctr", "ph": "C", "ts":  0, "args": {"cats":  0}},
             {"pid": "1000", "name": "ctr", "ph": "C", "ts": 10, "args": {"cats": 10}},
             {"pid": "1000", "name": "ctr", "ph": "C", "ts": 20, "args": {"cats":  0}}
         ]
-        
         """),
         query="""
         SELECT
@@ -1015,7 +1007,8 @@ class Parsing(TestSuite):
           failures {
             name: "sched_slice_too_long"
           }
-        }"""))
+        }
+        """))
 
   # Regression test for b/193721088 (infra prepending " done\n" to atrace)
   def test_sched_smoke_trailing_empty_2(self):
@@ -1040,7 +1033,8 @@ class Parsing(TestSuite):
           user_switch: {
             duration_ms: 4900
           }
-        }"""))
+        }
+        """))
 
   # Output of atrace -z.
   def test_atrace_compressed_sched_count(self):
@@ -1106,7 +1100,8 @@ class Parsing(TestSuite):
             slice_name: "binder reply"
             count: 1
           }
-        }"""))
+        }
+        """))
 
   # Statsd Atoms
   def test_statsd_atoms_all_atoms(self):

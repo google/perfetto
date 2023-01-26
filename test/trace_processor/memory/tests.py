@@ -75,7 +75,6 @@ class Memory(TestSuite):
             }
           }
         }
-        
         """),
         query=Metric('android_ion'),
         out=TextProto(r"""
@@ -87,7 +86,8 @@ class Memory(TestSuite):
             max_size_bytes: 2000.0
             total_alloc_size_bytes: 1000.0
           }
-        }"""))
+        }
+        """))
 
   # DMA-BUF heap Metric
   def test_android_dma_heap_stat(self):
@@ -121,7 +121,6 @@ class Memory(TestSuite):
             }
           }
         }
-        
         """),
         query=Metric('android_dma_heap'),
         out=TextProto(r"""
@@ -164,7 +163,6 @@ class Memory(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         SELECT track.name, slice.ts, slice.dur, slice.name
@@ -208,7 +206,6 @@ class Memory(TestSuite):
             }
           }
         }
-        
         """),
         query=Metric('android_fastrpc'),
         out=TextProto(r"""

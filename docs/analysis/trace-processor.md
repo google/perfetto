@@ -785,10 +785,26 @@ the query/metric. The result is then compared to a 'golden' file and any
 difference is highlighted.
 
 All diff tests are organized under [test/trace_processor](/test/trace_processor)
+in `tests{_category name}.py` files as methods of a class in each file
 and are run by the script
 [`tools/diff_test_trace_processor.py`](/tools/diff_test_trace_processor.py).
-Add new tests by adding a line of `{trace_path} {query_file|metric} {out_file}` 
-into a `tests|tests_{something}` file in subirectory of `test/trace_processor`.
+To add a new test its enough to add a new method starting with `test_` in suitable
+python tests file.
+
+Methods can't take arguments and have to return `DiffTestBlueprint`:
+```python
+class DiffTestBlueprint:
+  trace: Union[Path, Json, Systrace, TextProto]
+  query: Union[str, Path, Metric]
+  out: Union[Path, Json, Csv, TextProto]
+```
+*Trace* and *Out*: For every type apart from `Path`, contents of the object will be treated as
+file contents so it has to follow the same rules.
+
+*Query*: For metric tests it is enough to provide the metric name. For query tests there
+can be a raw SQL statement, for example `"SELECT * FROM SLICE"` or path to an `.sql` file.
+
+
 
 NOTE: `trace_processor_shell` and associated proto descriptors needs to be
 built before running `tools/diff_test_trace_processor.py`. The easiest way
@@ -796,7 +812,7 @@ to do this is to run `tools/ninja -C <out directory>` both initially and on
 every change to trace processor code or builtin metrics.
 
 #### Choosing where to add diff tests
-Choosing a folter with a diff tests often can be confusing
+Choosing a folder with a diff tests often can be confusing
 as a test can fall into more than one category. This section is a guide
 to decide which folder to choose.
 

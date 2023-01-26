@@ -56,7 +56,6 @@ class Android(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         SELECT t.id, t.type, t.name, c.id, c.ts, c.type, c.value
@@ -104,7 +103,6 @@ class Android(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         SELECT t.id, t.type, t.name, s.id, s.ts, s.dur, s.type, s.name

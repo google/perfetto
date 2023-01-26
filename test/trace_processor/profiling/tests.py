@@ -59,7 +59,6 @@ class Profiling(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         SELECT id, type, upid, ts, path, size_kb, private_dirty_kb, swap_kb
@@ -109,7 +108,6 @@ class Profiling(TestSuite):
             }
           }
         }
-        
         """),
         query=Metric('profiler_smaps'),
         out=TextProto(r"""
@@ -203,7 +201,7 @@ class Profiling(TestSuite):
             }
           }
         }
-        
+
         packet {
           previous_packet_dropped: true
           incremental_state_cleared: true
@@ -215,7 +213,7 @@ class Profiling(TestSuite):
             }
           }
         }
-        
+
         packet {
           trusted_packet_sequence_id: 1
           timestamp: 0
@@ -236,7 +234,6 @@ class Profiling(TestSuite):
             }
           }
         }
-        
         """),
         query="""
         SELECT count(1) AS count FROM heap_profile_allocation;

@@ -126,5 +126,101 @@ TEST(FtracePrintFilterTest, TwoRulesMatchesSecond) {
   EXPECT_FALSE(filter.IsAllowed("word", 120));
 }
 
+TEST(FtracePrintFilterTest, AtraceRuleTypeDoesntMatch) {
+  FtraceConfig::PrintFilter conf;
+  auto* rule = conf.add_rules();
+  auto* atrace = rule->mutable_atrace_msg();
+  atrace->set_type("C");
+  atrace->set_type("mycounter");
+  rule->set_allow(false);
+  FtracePrintFilter filter(conf);
+
+  EXPECT_TRUE(filter.IsAllowed("B", 1));
+}
+
+TEST(FtracePrintFilterTest, AtraceRuleNoFirstSlash) {
+  FtraceConfig::PrintFilter conf;
+  auto* rule = conf.add_rules();
+  auto* atrace = rule->mutable_atrace_msg();
+  atrace->set_type("C");
+  atrace->set_prefix("mycounter");
+  rule->set_allow(false);
+  FtracePrintFilter filter(conf);
+
+  EXPECT_TRUE(filter.IsAllowed("Cnopipemycounter", 16));
+}
+
+TEST(FtracePrintFilterTest, AtraceRuleNoFirstSlashEnd) {
+  FtraceConfig::PrintFilter conf;
+  auto* rule = conf.add_rules();
+  auto* atrace = rule->mutable_atrace_msg();
+  atrace->set_type("C");
+  atrace->set_prefix("mycounter");
+  rule->set_allow(false);
+  FtracePrintFilter filter(conf);
+
+  EXPECT_TRUE(filter.IsAllowed("C", 1));
+}
+
+TEST(FtracePrintFilterTest, AtraceRuleNonIntPid) {
+  FtraceConfig::PrintFilter conf;
+  auto* rule = conf.add_rules();
+  auto* atrace = rule->mutable_atrace_msg();
+  atrace->set_type("C");
+  atrace->set_prefix("mycounter");
+  rule->set_allow(false);
+  FtracePrintFilter filter(conf);
+
+  EXPECT_TRUE(filter.IsAllowed("C|badpid|mycounter", 18));
+}
+
+TEST(FtracePrintFilterTest, AtraceRuleEndAfterPid) {
+  FtraceConfig::PrintFilter conf;
+  auto* rule = conf.add_rules();
+  auto* atrace = rule->mutable_atrace_msg();
+  atrace->set_type("C");
+  atrace->set_prefix("mycounter");
+  rule->set_allow(false);
+  FtracePrintFilter filter(conf);
+
+  EXPECT_TRUE(filter.IsAllowed("C|111111", 8));
+}
+
+TEST(FtracePrintFilterTest, AtraceRuleNoSecondSlash) {
+  FtraceConfig::PrintFilter conf;
+  auto* rule = conf.add_rules();
+  auto* atrace = rule->mutable_atrace_msg();
+  atrace->set_type("C");
+  atrace->set_prefix("mycounter");
+  rule->set_allow(false);
+  FtracePrintFilter filter(conf);
+
+  EXPECT_TRUE(filter.IsAllowed("C|111111Xmycounter", 18));
+}
+
+TEST(FtracePrintFilterTest, AtraceRuleAfterPrefixDoesntMatch) {
+  FtraceConfig::PrintFilter conf;
+  auto* rule = conf.add_rules();
+  auto* atrace = rule->mutable_atrace_msg();
+  atrace->set_type("C");
+  atrace->set_prefix("mycounter");
+  rule->set_allow(false);
+  FtracePrintFilter filter(conf);
+
+  EXPECT_TRUE(filter.IsAllowed("C|111111|nomatch", 16));
+}
+
+TEST(FtracePrintFilterTest, AtraceRuleMatches) {
+  FtraceConfig::PrintFilter conf;
+  auto* rule = conf.add_rules();
+  auto* atrace = rule->mutable_atrace_msg();
+  atrace->set_type("C");
+  atrace->set_prefix("mycounter");
+  rule->set_allow(false);
+  FtracePrintFilter filter(conf);
+
+  EXPECT_FALSE(filter.IsAllowed("C|111111|mycounter...", 21));
+}
+
 }  // namespace
 }  // namespace perfetto

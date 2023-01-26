@@ -37,21 +37,21 @@ class SpanJoinOuterJoin(TestSuite):
           part BIGINT,
           PRIMARY KEY (part, ts)
         ) WITHOUT ROWID;
-        
+
         CREATE TABLE t2(
           ts BIGINT,
           dur BIGINT,
           part BIGINT,
           PRIMARY KEY (part, ts)
         ) WITHOUT ROWID;
-        
+
         INSERT INTO t1(ts, dur, part)
         VALUES (500, 100, 10);
-        
-        
+
+
         CREATE VIRTUAL TABLE sp USING span_outer_join(t1 PARTITIONED part,
                                                       t2 PARTITIONED part);
-        
+
         SELECT * FROM sp;
         """,
         out=Csv("""
@@ -68,16 +68,16 @@ class SpanJoinOuterJoin(TestSuite):
           dur BIGINT,
           PRIMARY KEY (ts)
         ) WITHOUT ROWID;
-        
+
         CREATE TABLE t2(
           ts BIGINT,
           dur BIGINT,
           PRIMARY KEY (ts)
         ) WITHOUT ROWID;
-        
-        
+
+
         CREATE VIRTUAL TABLE sp USING span_outer_join(t1, t2);
-        
+
         SELECT * FROM sp;
         """,
         out=Csv("""
@@ -93,21 +93,21 @@ class SpanJoinOuterJoin(TestSuite):
           dur BIGINT,
           PRIMARY KEY (ts)
         ) WITHOUT ROWID;
-        
+
         CREATE TABLE t2(
           ts BIGINT,
           dur BIGINT,
           PRIMARY KEY (ts)
         ) WITHOUT ROWID;
-        
+
         INSERT INTO t2(ts, dur)
         VALUES
         (100, 400),
         (500, 50),
         (600, 100);
-        
+
         CREATE VIRTUAL TABLE sp USING span_outer_join(t1, t2);
-        
+
         SELECT * FROM sp;
         """,
         out=Csv("""
@@ -126,21 +126,21 @@ class SpanJoinOuterJoin(TestSuite):
           dur BIGINT,
           PRIMARY KEY (ts)
         ) WITHOUT ROWID;
-        
+
         CREATE TABLE t2(
           ts BIGINT,
           dur BIGINT,
           PRIMARY KEY (ts)
         ) WITHOUT ROWID;
-        
+
         INSERT INTO t1(ts, dur)
         VALUES
         (100, 400),
         (500, 50),
         (600, 100);
-        
+
         CREATE VIRTUAL TABLE sp USING span_outer_join(t1, t2);
-        
+
         SELECT * FROM sp;
         """,
         out=Csv("""
@@ -166,16 +166,16 @@ class SpanJoinOuterJoin(TestSuite):
           part BIGINT,
           PRIMARY KEY (part, ts)
         ) WITHOUT ROWID;
-        
+
         CREATE TABLE t2(
           ts BIGINT,
           dur BIGINT,
           PRIMARY KEY (ts)
         ) WITHOUT ROWID;
-        
-        
+
+
         CREATE VIRTUAL TABLE sp USING span_outer_join(t1 PARTITIONED part, t2);
-        
+
         SELECT * FROM sp;
         """,
         out=Csv("""
@@ -192,21 +192,21 @@ class SpanJoinOuterJoin(TestSuite):
           part BIGINT,
           PRIMARY KEY (part, ts)
         ) WITHOUT ROWID;
-        
+
         CREATE TABLE t2(
           ts BIGINT,
           dur BIGINT,
           PRIMARY KEY (ts)
         ) WITHOUT ROWID;
-        
+
         INSERT INTO t2(ts, dur)
         VALUES
         (100, 400),
         (500, 50),
         (600, 100);
-        
+
         CREATE VIRTUAL TABLE sp USING span_outer_join(t1 PARTITIONED part, t2);
-        
+
         SELECT * FROM sp;
         """,
         out=Csv("""
@@ -223,21 +223,21 @@ class SpanJoinOuterJoin(TestSuite):
           part BIGINT,
           PRIMARY KEY (part, ts)
         ) WITHOUT ROWID;
-        
+
         CREATE TABLE t2(
           ts BIGINT,
           dur BIGINT,
           PRIMARY KEY (ts)
         ) WITHOUT ROWID;
-        
+
         INSERT INTO t1(ts, dur, part)
         VALUES
         (100, 400, 0),
         (100, 50, 1),
         (600, 100, 1);
-        
+
         CREATE VIRTUAL TABLE sp USING span_outer_join(t2, t1 PARTITIONED part);
-        
+
         SELECT * FROM sp;
         """,
         out=Csv("""
@@ -257,22 +257,22 @@ class SpanJoinOuterJoin(TestSuite):
           part BIGINT,
           PRIMARY KEY (part, ts)
         ) WITHOUT ROWID;
-        
+
         CREATE TABLE t2(
           ts BIGINT,
           dur BIGINT,
           b BIGINT,
           PRIMARY KEY (ts)
         ) WITHOUT ROWID;
-        
+
         INSERT INTO t1(ts, dur, part)
         VALUES
         (100, 400, 0),
         (100, 50, 1),
         (600, 100, 1);
-        
+
         CREATE VIRTUAL TABLE sp USING span_outer_join(t1 PARTITIONED part, t2);
-        
+
         SELECT * FROM sp;
         """,
         out=Csv("""
@@ -292,22 +292,22 @@ class SpanJoinOuterJoin(TestSuite):
           part BIGINT,
           PRIMARY KEY (part, ts)
         ) WITHOUT ROWID;
-        
+
         CREATE TABLE t2(
           ts BIGINT,
           dur BIGINT,
           b BIGINT,
           PRIMARY KEY (ts)
         ) WITHOUT ROWID;
-        
+
         INSERT INTO t2(ts, dur)
         VALUES
         (100, 400),
         (500, 50),
         (600, 100);
-        
+
         CREATE VIRTUAL TABLE sp USING span_outer_join(t2, t1 PARTITIONED part);
-        
+
         SELECT * FROM sp;
         """,
         out=Csv("""
