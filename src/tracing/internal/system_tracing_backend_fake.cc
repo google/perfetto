@@ -27,5 +27,11 @@ TracingBackend* SystemTracingBackend::GetInstance() {
   return nullptr;
 }
 
+// static
+TracingBackend* SystemTracingProducerOnlyBackend::GetInstance() {
+  PERFETTO_FATAL("System tracing not implemented");
+  return nullptr;
+}
+
 }  // namespace internal
 }  // namespace perfetto
