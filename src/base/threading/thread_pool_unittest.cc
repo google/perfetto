@@ -86,20 +86,21 @@ TEST(ThreadPoolTest, ParallelSecondFinishFirst) {
 }
 
 TEST(ThreadPoolTest, StressTest) {
-  std::atomic<uint32_t> atomic(0);
+  std::mutex mu;
   std::condition_variable cv;
+  uint32_t count = 0;
   base::ThreadPool pool(128);
   for (uint32_t i = 0; i < 1024; ++i) {
-    pool.PostTask([&atomic, &cv] {
-      if (atomic.fetch_add(1) == 1023) {
+    pool.PostTask([&mu, &count, &cv] {
+      std::lock_guard<std::mutex> guard(mu);
+      if (++count == 1024) {
         cv.notify_one();
       }
     });
   }
 
-  std::mutex mu;
   std::unique_lock<std::mutex> lock(mu);
-  cv.wait(lock, [&atomic]() { return atomic.load() == 1024u; });
+  cv.wait(lock, [&count]() { return count == 1024u; });
 }
 
 }  // namespace
