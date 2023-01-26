@@ -170,6 +170,35 @@ class Chrome(TestSuite):
         1011,"Missing process data for upid=2",2,1
         """))
 
+  def test_chrome_reliable_range_missing_browser_main(self):
+    return DiffTestBlueprint(
+        trace=Path('chrome_reliable_range_missing_browser_main.textproto'),
+        query=Path('chrome_reliable_range_test.sql'),
+        out=Csv("""
+        "start","reason","debug_limiting_upid","debug_limiting_utid"
+        1011,"Missing main thread for upid=1",1,1
+        """))
+
+  def test_chrome_reliable_range_missing_renderer_main(self):
+    return DiffTestBlueprint(
+        trace=Path('chrome_reliable_range_missing_renderer_main.textproto'),
+        query=Path('chrome_reliable_range_test.sql'),
+        out=Csv("""
+        "start","reason","debug_limiting_upid","debug_limiting_utid"
+        1011,"Missing main thread for upid=1",1,1
+        """))
+
+  def test_chrome_reliable_range_non_chrome_process(self):
+    return DiffTestBlueprint(
+        # We need a trace with a large number of non-chrome slices, so that the
+        # reliable range is affected by their filtering.
+        trace=Path('../../data/example_android_trace_30s.pb'),
+        query=Path('chrome_reliable_range_test.sql'),
+        out=Csv("""
+        "start","reason","debug_limiting_upid","debug_limiting_utid"
+        0,"[NULL]","[NULL]","[NULL]"
+        """))
+
   # Chrome slices
   def test_chrome_slice_names(self):
     return DiffTestBlueprint(
