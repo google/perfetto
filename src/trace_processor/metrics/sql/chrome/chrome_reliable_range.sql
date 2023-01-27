@@ -19,6 +19,8 @@
 -- 3. The "reliable range" is an intersection of reliable thread ranges for all threads such that:
 --   a. The number of events on the thread is at or above 25p.
 --   b. The event rate for the thread is at or above 75p.
+-- Note: this metric considers only chrome processes and their threads, i.e. the ones coming
+-- from track_event's.
 SELECT IMPORT('common.metadata');
 
 DROP VIEW IF EXISTS chrome_event_stats_per_thread;
@@ -30,6 +32,7 @@ SELECT
 FROM thread_track
 JOIN slice
   ON thread_track.id = slice.track_id
+WHERE EXTRACT_ARG(source_arg_set_id, 'source') = 'descriptor'
 GROUP BY utid;
 
 DROP VIEW IF EXISTS chrome_event_cnt_cutoff;
