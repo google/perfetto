@@ -109,6 +109,9 @@ You need to wait for both CIs to go green before submitting. The only
 exceptions are UI-only, docs-only or GN-only changes, for which the Android CI
 can be bypassed, as those are not built as part of the Android tree.
 
+You can also
+[test a pending Perfetto CL against Chrome's TryBots](testing.md#chromium).
+
 ## Community
 
 You can reach us on our [Discord channel](https://discord.gg/35ShE3A).
