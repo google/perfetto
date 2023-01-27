@@ -137,11 +137,6 @@ ProbesProducer::CreateDSInstance<FtraceDataSource>(
       ftrace_creation_failed_ = true;
       return nullptr;
     }
-
-    if (!ftrace_config.preserve_ftrace_buffer()) {
-      ftrace_->DisableAllEvents();
-      ftrace_->ClearTrace();
-    }
   }
 
   PERFETTO_LOG("Ftrace setup (target_buf=%" PRIu32 ")", config.target_buffer());

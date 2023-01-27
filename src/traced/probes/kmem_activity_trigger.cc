@@ -52,7 +52,7 @@ KmemActivityTrigger::~KmemActivityTrigger() {
 KmemActivityTrigger::WorkerData::~WorkerData() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (ftrace_procfs_) {
-    ftrace_procfs_->DisableTracing();
+    ftrace_procfs_->SetTracingOn(false);
     ftrace_procfs_->ClearTrace();
   }
   DisarmFtraceFDWatches();
@@ -79,7 +79,7 @@ KmemActivityTrigger::WorkerData::WorkerData(base::TaskRunner* task_runner)
   ftrace_procfs_->DisableAllEvents();
   ftrace_procfs_->EnableEvent("vmscan", "mm_vmscan_direct_reclaim_begin");
   ftrace_procfs_->EnableEvent("compaction", "mm_compaction_begin");
-  ftrace_procfs_->EnableTracing();
+  ftrace_procfs_->SetTracingOn(true);
 
   num_cpus_ = ftrace_procfs_->NumberOfCpus();
   for (size_t cpu = 0; cpu < num_cpus_; cpu++) {
