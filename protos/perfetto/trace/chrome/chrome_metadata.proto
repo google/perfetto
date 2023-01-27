@@ -85,4 +85,7 @@ message BackgroundTracingMetadata {
 
   // List of all active triggers in current session, when trace was triggered.
   repeated TriggerRule active_rules = 2;
+
+  // Hash of the scenario name.
+  optional fixed32 scenario_name_hash = 3;
 }
