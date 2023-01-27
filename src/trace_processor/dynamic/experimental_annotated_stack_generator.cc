@@ -56,41 +56,56 @@ enum class MapType {
 //   /system/lib64/libc.so
 //   /system/framework/framework.jar
 //   /memfd:jit-cache (deleted)
+//   /data/dalvik-cache/arm64/<snip>.apk@classes.dex
+//   /data/app/<snip>/base.apk!libmonochrome_64.so
 //   [vdso]
 // TODO(rsavitski): consider moving this to a hidden column on
-// stack_profile_mapping, once this logic is sufficiently stable.
+// stack_profile_mapping.
 MapType ClassifyMap(NullTermStringView map) {
   if (map.empty())
     return MapType::kOther;
 
   // Primary mapping where modern ART puts jitted code.
-  // TODO(rsavitski): look into /memfd:jit-zygote-cache.
-  if (!strncmp(map.c_str(), "/memfd:jit-cache", 16))
+  // The Zygote's JIT region is inherited by all descendant apps, so it can
+  // still appear in their callstacks.
+  if (map.StartsWith("/memfd:jit-cache") ||
+      map.StartsWith("/memfd:jit-zygote-cache")) {
     return MapType::kArtJit;
+  }
 
   size_t last_slash_pos = map.rfind('/');
   if (last_slash_pos != NullTermStringView::npos) {
-    if (!strncmp(map.c_str() + last_slash_pos, "/libart.so", 10))
-      return MapType::kNativeLibart;
-    if (!strncmp(map.c_str() + last_slash_pos, "/libartd.so", 11))
+    base::StringView suffix = map.substr(last_slash_pos);
+    if (suffix.StartsWith("/libart.so") || suffix.StartsWith("/libartd.so"))
       return MapType::kNativeLibart;
   }
-
   size_t extension_pos = map.rfind('.');
   if (extension_pos != NullTermStringView::npos) {
-    if (!strncmp(map.c_str() + extension_pos, ".so", 3))
+    base::StringView suffix = map.substr(extension_pos);
+    if (suffix.StartsWith(".so"))
       return MapType::kNativeOther;
+    // unqualified dex
+    if (suffix.StartsWith(".dex"))
+      return MapType::kArtInterp;
     // dex with verification speedup info, produced by dex2oat
-    if (!strncmp(map.c_str() + extension_pos, ".vdex", 5))
+    if (suffix.StartsWith(".vdex"))
       return MapType::kArtInterp;
     // possibly uncompressed dex in a jar archive
-    if (!strncmp(map.c_str() + extension_pos, ".jar", 4))
+    if (suffix.StartsWith(".jar"))
+      return MapType::kArtInterp;
+    // android package (zip file), this can contain uncompressed dexes or
+    // native libraries that are mmap'd directly into the process. We rely on
+    // libunwindstack's MapInfo::GetFullName, which suffixes the mapping with
+    // "!lib.so" if it knows that the referenced piece of the archive is an
+    // uncompressed ELF file. So an unadorned ".apk" is assumed to be a dex
+    // file.
+    if (suffix.StartsWith(".apk"))
       return MapType::kArtInterp;
     // ahead of time compiled ELFs
-    if (!strncmp(map.c_str() + extension_pos, ".oat", 4))
+    if (suffix.StartsWith(".oat"))
       return MapType::kArtAot;
     // older/alternative name for .oat
-    if (!strncmp(map.c_str() + extension_pos, ".odex", 5))
+    if (suffix.StartsWith(".odex"))
       return MapType::kArtAot;
   }
   return MapType::kOther;
@@ -167,7 +182,8 @@ base::Status ExperimentalAnnotatedStackGenerator::ComputeTable(
 
   // Walk the callsites root-to-leaf, annotating:
   // * managed frames with their execution state (interpreted/jit/aot)
-  // * common ART frames, which are usually not relevant
+  // * common ART frames, which are usually not relevant to
+  //   visualisation/inspection
   //
   // This is not a per-frame decision, because we do not want to filter out ART
   // frames immediately after a JNI transition (such frames are often relevant).
@@ -175,13 +191,12 @@ base::Status ExperimentalAnnotatedStackGenerator::ComputeTable(
   // As a consequence of the logic being based on a root-to-leaf walk, a given
   // callsite will always have the same annotation, as the parent path is always
   // the same, and children callsites do not affect their parents' annotations.
-  //
-  // This could also be implemented as a hidden column on the callsite table
-  // (populated at import time), but we want to be more flexible for now.
   StringId art_jni_trampoline =
       context_->storage->InternString("art_jni_trampoline");
 
   StringId common_frame = context_->storage->InternString("common-frame");
+  StringId common_frame_interp =
+      context_->storage->InternString("common-frame-interp");
   StringId art_interp = context_->storage->InternString("interp");
   StringId art_jit = context_->storage->InternString("jit");
   StringId art_aot = context_->storage->InternString("aot");
@@ -249,12 +264,34 @@ base::Status ExperimentalAnnotatedStackGenerator::ComputeTable(
       continue;
     }
 
+    // Mixed callstack, tag libart frames as uninteresting (common-frame).
+    // Special case a subset of interpreter implementation frames as
+    // "common-frame-interp" using frame name prefixes. Those functions are
+    // actually executed, whereas the managed "interp" frames are synthesised
+    // as their caller by the unwinding library (based on the dex_pc virtual
+    // register restored using the libart's DWARF info). Example:
+    //
+    //  <towards root>
+    //  android.view.WindowLayout.computeFrames [interp]
+    //  nterp_op_iget_object_slow_path [common-frame-interp]
+    //
+    // This annotation is helpful when trying to answer "what mode was the
+    // process in?" based on the leaf frame of the callstack. As we want to
+    // classify such cases as interpreted, even though the leaf frame is
+    // libart.so.
     if (annotation_state == State::kEraseLibart &&
         map_type == MapType::kNativeLibart) {
+      NullTermStringView fname = context_->storage->GetString(fname_id);
+      if (fname.StartsWith("nterp_") || fname.StartsWith("Nterp") ||
+          fname.StartsWith("ExecuteNterp")) {
+        annotations_reversed.push_back(common_frame_interp);
+        continue;
+      }
       annotations_reversed.push_back(common_frame);
       continue;
     }
 
+    // default - no special annotation
     annotations_reversed.push_back(kNullStringId);
   }
 
