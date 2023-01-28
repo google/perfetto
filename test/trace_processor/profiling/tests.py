@@ -285,3 +285,52 @@ class Profiling(TestSuite):
         ORDER BY ps.ts ASC, eac.depth ASC;
         """,
         out=Path('perf_sample_sc.out'))
+
+  def test_perf_sample_annotations(self):
+    return DiffTestBlueprint(
+        trace=Path('../../data/perf_sample_annotations.pftrace'),
+        query="""
+        select
+          eac.depth, eac.annotation, spm.name as map_name,
+          ifnull(demangle(spf.name), spf.name) as frame_name
+        from experimental_annotated_callstack eac
+          join stack_profile_frame spf on (eac.frame_id = spf.id)
+          join stack_profile_mapping spm on (spf.mapping = spm.id)
+        where eac.start_id = (
+          select spc.id as callsite_id
+          from stack_profile_callsite spc
+          join stack_profile_frame spf on (spc.frame_id = spf.id)
+          where spf.name = "_ZN3art28ResolveFieldWithAccessChecksEPNS_6ThreadEPNS_11ClassLinkerEtPNS_9ArtMethodEbbm")
+        order by depth asc;
+        """,
+        out=Csv("""
+        "depth","annotation","map_name","frame_name"
+        0,"[NULL]","/apex/com.android.runtime/lib64/bionic/libc.so","__libc_init"
+        1,"[NULL]","/system/bin/app_process64","main"
+        2,"[NULL]","/system/lib64/libandroid_runtime.so","android::AndroidRuntime::start(char const*, android::Vector<android::String8> const&, bool)"
+        3,"[NULL]","/system/lib64/libandroid_runtime.so","_JNIEnv::CallStaticVoidMethod(_jclass*, _jmethodID*, ...)"
+        4,"[NULL]","/apex/com.android.art/lib64/libart.so","art::JNI<true>::CallStaticVoidMethodV(_JNIEnv*, _jclass*, _jmethodID*, std::__va_list)"
+        5,"[NULL]","/apex/com.android.art/lib64/libart.so","art::JValue art::InvokeWithVarArgs<_jmethodID*>(art::ScopedObjectAccessAlreadyRunnable const&, _jobject*, _jmethodID*, std::__va_list)"
+        6,"[NULL]","/apex/com.android.art/lib64/libart.so","art_quick_invoke_static_stub"
+        7,"aot","/system/framework/arm64/boot-framework.oat","com.android.internal.os.ZygoteInit.main"
+        8,"aot","/system/framework/arm64/boot-framework.oat","com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run"
+        9,"common-frame","/system/framework/arm64/boot.oat","art_jni_trampoline"
+        10,"[NULL]","/apex/com.android.art/lib64/libart.so","art::Method_invoke(_JNIEnv*, _jobject*, _jobject*, _jobjectArray*) (.__uniq.165753521025965369065708152063621506277)"
+        11,"common-frame","/apex/com.android.art/lib64/libart.so","_jobject* art::InvokeMethod<(art::PointerSize)8>(art::ScopedObjectAccessAlreadyRunnable const&, _jobject*, _jobject*, _jobject*, unsigned long)"
+        12,"common-frame","/apex/com.android.art/lib64/libart.so","art_quick_invoke_static_stub"
+        13,"aot","/system/framework/arm64/boot-framework.oat","android.app.ActivityThread.main"
+        14,"aot","/system/framework/arm64/boot-framework.oat","android.os.Looper.loop"
+        15,"aot","/system/framework/arm64/boot-framework.oat","android.os.Looper.loopOnce"
+        16,"aot","/system/framework/arm64/boot-framework.oat","android.os.Handler.dispatchMessage"
+        17,"aot","/system/framework/arm64/boot-framework.oat","android.view.Choreographer$FrameDisplayEventReceiver.run"
+        18,"aot","/system/framework/arm64/boot-framework.oat","android.view.Choreographer.doFrame"
+        19,"aot","/system/framework/arm64/boot-framework.oat","android.view.Choreographer.doCallbacks"
+        20,"aot","/system/framework/arm64/boot-framework.oat","android.view.ViewRootImpl$TraversalRunnable.run"
+        21,"aot","/system/framework/arm64/boot-framework.oat","android.view.ViewRootImpl.doTraversal"
+        22,"aot","/system/framework/arm64/boot-framework.oat","android.view.ViewRootImpl.performTraversals"
+        23,"interp","/system/framework/framework.jar","android.view.ViewRootImpl.notifyDrawStarted"
+        24,"common-frame-interp","/apex/com.android.art/lib64/libart.so","nterp_op_iget_object_slow_path"
+        25,"common-frame-interp","/apex/com.android.art/lib64/libart.so","nterp_get_instance_field_offset"
+        26,"common-frame-interp","/apex/com.android.art/lib64/libart.so","NterpGetInstanceFieldOffset"
+        27,"common-frame","/apex/com.android.art/lib64/libart.so","art::ResolveFieldWithAccessChecks(art::Thread*, art::ClassLinker*, unsigned short, art::ArtMethod*, bool, bool, unsigned long)"
+        """))

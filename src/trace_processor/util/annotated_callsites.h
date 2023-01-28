@@ -30,6 +30,7 @@ class TraceProcessorContext;
 enum class CallsiteAnnotation {
   kNone,
   kCommonFrame,
+  kCommonFrameInterp,
   kArtInterpreted,
   kArtJit,
   kArtAot,
@@ -38,7 +39,7 @@ enum class CallsiteAnnotation {
 // Helper class to augment callsite with (currently Android-specific)
 // annotations. A given callsite will always have the same annotation. This
 // class will internally cache already computed annotations. An annotation
-// depends only of the current callsite and the annotation sof its parent
+// depends only of the current callsite and the annotations of its parent
 // callsites (going to the root).
 class AnnotatedCallsites {
  public:

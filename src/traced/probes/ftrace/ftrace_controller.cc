@@ -365,8 +365,8 @@ void FtraceController::ClearTrace() {
   ftrace_procfs_->ClearTrace();
 }
 
-void FtraceController::DisableAllEvents() {
-  ftrace_procfs_->DisableAllEvents();
+bool FtraceController::IsTracingAvailable() {
+  return ftrace_procfs_->IsTracingAvailable();
 }
 
 void FtraceController::Flush(FlushRequestID flush_id) {
