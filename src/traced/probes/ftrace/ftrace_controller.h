@@ -77,8 +77,8 @@ class FtraceController {
                                                   bool preserve_ftrace_buffer);
   virtual ~FtraceController();
 
-  void DisableAllEvents();
   void ClearTrace();
+  bool IsTracingAvailable();
 
   bool AddDataSource(FtraceDataSource*) PERFETTO_WARN_UNUSED_RESULT;
   bool StartDataSource(FtraceDataSource*);

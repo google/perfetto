@@ -180,6 +180,12 @@ std::string FtraceProcfs::ReadEventFormat(const std::string& group,
   return ReadFileIntoString(path);
 }
 
+std::string FtraceProcfs::GetCurrentTracer() {
+  std::string path = root_ + "current_tracer";
+  std::string current_tracer = ReadFileIntoString(path);
+  return base::StripSuffix(current_tracer, "\n");
+}
+
 bool FtraceProcfs::SetCurrentTracer(const std::string& tracer) {
   std::string path = root_ + "current_tracer";
   return WriteToFile(path, tracer);
@@ -407,30 +413,43 @@ bool FtraceProcfs::SetCpuBufferSizeInPages(size_t pages) {
   return WriteNumberToFile(path, pages * (base::kPageSize / 1024ul));
 }
 
-bool FtraceProcfs::EnableTracing() {
-  KernelLogWrite("perfetto: enabled ftrace\n");
-  PERFETTO_LOG("enabled ftrace in %s", root_.c_str());
-  std::string path = root_ + "tracing_on";
-  return WriteToFile(path, "1");
-}
-
-bool FtraceProcfs::DisableTracing() {
-  KernelLogWrite("perfetto: disabled ftrace\n");
-  PERFETTO_LOG("disabled ftrace in %s", root_.c_str());
-  std::string path = root_ + "tracing_on";
-  return WriteToFile(path, "0");
-}
-
-bool FtraceProcfs::SetTracingOn(bool enable) {
-  return enable ? EnableTracing() : DisableTracing();
-}
-
-bool FtraceProcfs::IsTracingEnabled() {
+bool FtraceProcfs::GetTracingOn() {
   std::string path = root_ + "tracing_on";
   char tracing_on = ReadOneCharFromFile(path);
   if (tracing_on == '\0')
     PERFETTO_PLOG("Failed to read %s", path.c_str());
   return tracing_on == '1';
+}
+
+bool FtraceProcfs::SetTracingOn(bool on) {
+  std::string path = root_ + "tracing_on";
+  if (!WriteToFile(path, on ? "1" : "0")) {
+    PERFETTO_PLOG("Failed to write %s", path.c_str());
+    return false;
+  }
+  if (on) {
+    KernelLogWrite("perfetto: enabled ftrace\n");
+    PERFETTO_LOG("enabled ftrace in %s", root_.c_str());
+  } else {
+    KernelLogWrite("perfetto: disabled ftrace\n");
+    PERFETTO_LOG("disabled ftrace in %s", root_.c_str());
+  }
+
+  return true;
+}
+
+bool FtraceProcfs::IsTracingAvailable() {
+  std::string current_tracer = GetCurrentTracer();
+
+  // Ftrace tracing is available if current_tracer == "nop".
+  // events/enable could be 0, 1, X or 0*. 0* means events would be
+  // dynamically enabled so we need to treat as event tracing is in use.
+  // However based on the discussion in asop/2328817, on Android events/enable
+  // is "X" after boot up. To avoid causing more problem, the decision is just
+  // look at current_tracer.
+  // As the discussion in asop/2328817, if GetCurrentTracer failed to
+  // read file and return "", we treat it as tracing is available.
+  return current_tracer == "nop" || current_tracer == "";
 }
 
 bool FtraceProcfs::SetClock(const std::string& clock_name) {

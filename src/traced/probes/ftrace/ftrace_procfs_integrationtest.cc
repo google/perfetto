@@ -81,19 +81,18 @@ class FtraceProcfsIntegrationTest : public testing::Test {
 void FtraceProcfsIntegrationTest::SetUp() {
   ftrace_ = FtraceProcfs::Create(GetFtracePath());
   ASSERT_TRUE(ftrace_);
-  if (ftrace_->IsTracingEnabled()) {
+  if (!ftrace_->IsTracingAvailable()) {
     GTEST_SKIP() << "Something else is using ftrace, skipping";
   }
 
-  ftrace_->DisableAllEvents();
   ftrace_->ClearTrace();
-  ftrace_->EnableTracing();
+  ftrace_->SetTracingOn(true);
 }
 
 void FtraceProcfsIntegrationTest::TearDown() {
   ftrace_->DisableAllEvents();
   ftrace_->ClearTrace();
-  ftrace_->DisableTracing();
+  ftrace_->SetTracingOn(false);
 }
 
 TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(CreateWithBadPath)) {
@@ -123,18 +122,28 @@ TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(EnableDisableEvent)) {
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("sched_switch")));
 }
 
-TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(EnableDisableTracing)) {
-  EXPECT_TRUE(ftrace_->IsTracingEnabled());
+TEST_F(FtraceProcfsIntegrationTest,
+       ANDROID_ONLY_TEST(EnableDisableTraceBuffer)) {
   ftrace_->WriteTraceMarker("Before");
-  ftrace_->DisableTracing();
-  EXPECT_FALSE(ftrace_->IsTracingEnabled());
+  ftrace_->SetTracingOn(false);
   ftrace_->WriteTraceMarker("During");
-  ftrace_->EnableTracing();
-  EXPECT_TRUE(ftrace_->IsTracingEnabled());
+  ftrace_->SetTracingOn(true);
   ftrace_->WriteTraceMarker("After");
   EXPECT_THAT(GetTraceOutput(), HasSubstr("Before"));
   EXPECT_THAT(GetTraceOutput(), Not(HasSubstr("During")));
   EXPECT_THAT(GetTraceOutput(), HasSubstr("After"));
+}
+
+TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(IsTracingAvailable)) {
+  EXPECT_TRUE(ftrace_->IsTracingAvailable());
+  ftrace_->SetCurrentTracer("function");
+  EXPECT_FALSE(ftrace_->IsTracingAvailable());
+  ftrace_->SetCurrentTracer("nop");
+  EXPECT_TRUE(ftrace_->IsTracingAvailable());
+  ASSERT_TRUE(ftrace_->EnableEvent("sched", "sched_switch"));
+  EXPECT_FALSE(ftrace_->IsTracingAvailable());
+  ftrace_->DisableAllEvents();
+  EXPECT_TRUE(ftrace_->IsTracingAvailable());
 }
 
 TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(ReadFormatFile)) {
@@ -168,7 +177,6 @@ TEST_F(FtraceProcfsIntegrationTest, ANDROID_ONLY_TEST(CanSetBufferSize)) {
 TEST_F(FtraceProcfsIntegrationTest,
        ANDROID_ONLY_TEST(FtraceControllerHardReset)) {
   ftrace_->SetCpuBufferSizeInPages(4ul);
-  ftrace_->EnableTracing();
   ftrace_->EnableEvent("sched", "sched_switch");
   ftrace_->WriteTraceMarker("Hello, World!");
 
