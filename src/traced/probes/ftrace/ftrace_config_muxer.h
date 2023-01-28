@@ -185,6 +185,7 @@ class FtraceConfigMuxer {
     bool atrace_on = false;
     std::vector<std::string> atrace_apps;
     std::vector<std::string> atrace_categories;
+    bool saved_tracing_on;  // Backup for the original tracing_on.
   };
 
   FtraceConfigMuxer(const FtraceConfigMuxer&) = delete;
