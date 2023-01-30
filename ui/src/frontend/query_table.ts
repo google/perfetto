@@ -79,7 +79,12 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     const cells = [];
     const {row, columns} = vnode.attrs;
     for (const col of columns) {
-      cells.push(m('td', row[col]));
+      const value = row[col];
+      if (value instanceof Uint8Array) {
+        cells.push(m('td', `<BLOB sz=${value.length}>`));
+      } else {
+        cells.push(m('td', value));
+      }
     }
     const containsSliceLocation =
         QueryTableRow.columnsContainsSliceLocation(columns);
