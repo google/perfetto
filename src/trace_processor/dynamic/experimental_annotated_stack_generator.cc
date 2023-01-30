@@ -267,10 +267,12 @@ base::Status ExperimentalAnnotatedStackGenerator::ComputeTable(
     // Mixed callstack, tag libart frames as uninteresting (common-frame).
     // Special case a subset of interpreter implementation frames as
     // "common-frame-interp" using frame name prefixes. Those functions are
-    // actually executed, whereas the managed "interp" frames are synthesised
-    // as their caller by the unwinding library (based on the dex_pc virtual
-    // register restored using the libart's DWARF info). Example:
+    // actually executed, whereas the managed "interp" frames are synthesised as
+    // their caller by the unwinding library (based on the dex_pc virtual
+    // register restored using the libart's DWARF info). The heuristic covers
+    // the "nterp" and "switch" interpreter implementations.
     //
+    // Example:
     //  <towards root>
     //  android.view.WindowLayout.computeFrames [interp]
     //  nterp_op_iget_object_slow_path [common-frame-interp]
@@ -279,11 +281,16 @@ base::Status ExperimentalAnnotatedStackGenerator::ComputeTable(
     // process in?" based on the leaf frame of the callstack. As we want to
     // classify such cases as interpreted, even though the leaf frame is
     // libart.so.
+    //
+    // For "switch" interpreter, we match any frame starting with
+    // "art::interpreter::" according to itanium mangling.
     if (annotation_state == State::kEraseLibart &&
         map_type == MapType::kNativeLibart) {
       NullTermStringView fname = context_->storage->GetString(fname_id);
       if (fname.StartsWith("nterp_") || fname.StartsWith("Nterp") ||
-          fname.StartsWith("ExecuteNterp")) {
+          fname.StartsWith("ExecuteNterp") ||
+          fname.StartsWith("ExecuteSwitchImpl") ||
+          fname.StartsWith("_ZN3art11interpreter")) {
         annotations_reversed.push_back(common_frame_interp);
         continue;
       }
