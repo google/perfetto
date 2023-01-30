@@ -14,7 +14,10 @@
 
 import * as m from 'mithril';
 
+import {timeToString} from '../common/time';
+
 import {TRACK_SHELL_WIDTH} from './css_constants';
+import {globals} from './globals';
 import {
   TickGenerator,
   TickType,
@@ -31,6 +34,9 @@ export class TimeAxisPanel extends Panel {
     ctx.fillStyle = '#999';
     ctx.font = '10px Roboto Condensed';
     ctx.textAlign = 'left';
+
+    const startTime = timeToString(globals.state.traceTime.startSec);
+    ctx.fillText(startTime + ' +', 6, 11);
 
     // Draw time axis.
     const timeScale = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
