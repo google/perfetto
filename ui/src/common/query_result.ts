@@ -57,8 +57,10 @@ export const NUM = 0;
 export const STR = 'str';
 export const NUM_NULL: number|null = 1;
 export const STR_NULL: string|null = 'str_null';
+export const BLOB: Uint8Array = new Uint8Array();
+export const BLOB_NULL: Uint8Array|null = new Uint8Array();
 
-export type ColumnType = string|number|null;
+export type ColumnType = string|number|null|Uint8Array;
 
 // Info that could help debug a query error. For example the query
 // in question, the stack where the query was issued, the active
@@ -119,8 +121,29 @@ function columnTypeToString(t: ColumnType): string {
       return 'STR';
     case STR_NULL:
       return 'STR_NULL';
+    case BLOB:
+      return 'BLOB';
+    case BLOB_NULL:
+      return 'BLOB_NULL';
     default:
       return `INVALID(${t})`;
+  }
+}
+
+function isCompatible(actual: CellType, expected: ColumnType): boolean {
+  switch (actual) {
+    case CellType.CELL_NULL:
+      return expected === NUM_NULL || expected === STR_NULL ||
+          expected === BLOB_NULL;
+    case CellType.CELL_VARINT:
+    case CellType.CELL_FLOAT64:
+      return expected === NUM || expected === NUM_NULL;
+    case CellType.CELL_STRING:
+      return expected === STR || expected === STR_NULL;
+    case CellType.CELL_BLOB:
+      return expected === BLOB || expected === BLOB_NULL;
+    default:
+      throw new Error(`Unknown CellType ${actual}`);
   }
 }
 
@@ -652,8 +675,7 @@ class RowIteratorImpl implements RowIteratorBase {
 
         case CellType.CELL_BLOB:
           const blob = this.blobCells[this.nextBlobCell++];
-          throw new Error(`TODO implement BLOB support (${blob})`);
-          // outRow[colName] = blob;
+          rowData[colName] = blob;
           break;
 
         default:
@@ -721,20 +743,16 @@ class RowIteratorImpl implements RowIteratorBase {
       if (expType === undefined) continue;
 
       let err = '';
-      if (actualType === CellType.CELL_NULL &&
-          (expType !== STR_NULL && expType !== NUM_NULL)) {
-        err = 'SQL value is NULL but that was not expected' +
-            ` (expected type: ${columnTypeToString(expType)}). ` +
-            'Did you intend to use NUM_NULL or STR_NULL?';
-      } else if (
-          ((actualType === CellType.CELL_VARINT ||
-            actualType === CellType.CELL_FLOAT64) &&
-           (expType !== NUM && expType !== NUM_NULL)) ||
-          ((actualType === CellType.CELL_STRING) &&
-           (expType !== STR && expType !== STR_NULL))) {
-        err = `Incompatible cell type. Expected: ${
-            columnTypeToString(
-                expType)} actual: ${CELL_TYPE_NAMES[actualType]}`;
+      if (!isCompatible(actualType, expType)) {
+        if (actualType === CellType.CELL_NULL) {
+          err = 'SQL value is NULL but that was not expected' +
+              ` (expected type: ${columnTypeToString(expType)}). ` +
+              'Did you intend to use NUM_NULL, STR_NULL or BLOB_NULL?';
+        } else {
+          err = `Incompatible cell type. Expected: ${
+              columnTypeToString(
+                  expType)} actual: ${CELL_TYPE_NAMES[actualType]}`;
+        }
       }
       if (err.length > 0) {
         throw new Error(
