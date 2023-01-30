@@ -127,11 +127,7 @@ class StringView {
       return false;
     if (other.size() > size())
       return false;
-    for (uint32_t i = 0; i < other.size(); ++i) {
-      if (at(i) != other.at(i))
-        return false;
-    }
-    return true;
+    return memcmp(data(), other.data(), other.size()) == 0;
   }
 
   bool EndsWith(const StringView& other) const {
@@ -141,12 +137,8 @@ class StringView {
       return false;
     if (other.size() > size())
       return false;
-    const size_t off = size() - other.size();
-    for (size_t i = 0; i < other.size(); ++i) {
-      if (at(off + i) != other.at(i))
-        return false;
-    }
-    return true;
+    size_t off = size() - other.size();
+    return memcmp(data() + off, other.data(), other.size()) == 0;
   }
 
   std::string ToStdString() const {
