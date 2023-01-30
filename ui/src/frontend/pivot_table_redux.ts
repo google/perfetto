@@ -85,6 +85,8 @@ function renderDrillFilter(filter: DrillFilter): string {
     return `${column} IS NULL`;
   } else if (typeof filter.value === 'number') {
     return `${column} = ${filter.value}`;
+  } else if (filter.value instanceof Uint8Array) {
+    throw new Error(`BLOB as DrillFilter not implemented`);
   }
   return `${column} = ${sqliteString(filter.value)}`;
 }
