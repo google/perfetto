@@ -20,8 +20,13 @@ import {DropDirection} from '../common/dragndrop_logic';
 
 import {globals} from './globals';
 
+export interface ReorderableCell {
+  content: m.Children;
+  extraClass?: string;
+}
+
 export interface ReorderableCellGroupAttrs {
-  cells: m.Children[];
+  cells: ReorderableCell[];
   onReorder: (from: number, to: number, side: DropDirection) => void;
 }
 
@@ -62,7 +67,7 @@ export class ReorderableCellGroup implements
   view(vnode: m.Vnode<ReorderableCellGroupAttrs>): m.Children {
     return vnode.attrs.cells.map(
         (cell, index) => m(
-            'td.reorderable-cell',
+            `td.reorderable-cell${cell.extraClass ?? ''}`,
             {
               draggable: 'draggable',
               class: this.getClassForIndex(index),
@@ -138,7 +143,7 @@ export class ReorderableCellGroup implements
                 globals.rafScheduler.scheduleFullRedraw();
               },
             },
-            cell));
+            cell.content));
   }
 
   oncreate(vnode: m.VnodeDOM<ReorderableCellGroupAttrs, this>) {
