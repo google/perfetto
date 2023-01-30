@@ -106,27 +106,25 @@ void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_offset) {
 
     // This loop identifies the queue which starts with the earliest event and
     // also remembers the earliest event of the 2nd queue (in min_queue_ts[1]).
-    bool has_queues_with_expired_events = false;
+    bool all_queues_empty = true;
     for (size_t i = 0; i < queues_.size(); i++) {
       auto& queue = queues_[i];
       if (queue.events_.empty())
         continue;
+      all_queues_empty = false;
+
       PERFETTO_DCHECK(queue.min_ts_ >= global_min_ts_);
       PERFETTO_DCHECK(queue.max_ts_ <= global_max_ts_);
-      if (!has_queues_with_expired_events || queue.min_ts_ < min_queue_ts[0]) {
+      if (queue.min_ts_ < min_queue_ts[0]) {
         min_queue_ts[1] = min_queue_ts[0];
         min_queue_ts[0] = queue.min_ts_;
         min_queue_idx = i;
-        has_queues_with_expired_events = true;
       } else if (queue.min_ts_ < min_queue_ts[1]) {
         min_queue_ts[1] = queue.min_ts_;
       }
     }
-    if (!has_queues_with_expired_events) {
-      // All the queues have events that start after the window (i.e. they are
-      // too recent and not eligible to be extracted given the current window).
+    if (all_queues_empty)
       break;
-    }
 
     Queue& queue = queues_[min_queue_idx];
     auto& events = queue.events_;
@@ -140,8 +138,14 @@ void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_offset) {
     // limit, whichever comes first.
     size_t num_extracted = 0;
     for (auto& event : events) {
-      if (event.descriptor.offset() >= limit_offset ||
-          event.ts > min_queue_ts[1]) {
+      if (event.descriptor.offset() >= limit_offset) {
+        break;
+      }
+
+      if (event.ts > min_queue_ts[1]) {
+        // We should never hit this condition on the first extraction as by
+        // the algorithm above (event.ts =) min_queue_ts[0] <= min_queue[1].
+        PERFETTO_DCHECK(num_extracted > 0);
         break;
       }
 
@@ -149,11 +153,9 @@ void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_offset) {
       MaybePushAndEvictEvent(min_queue_idx, event);
     }  // for (event: events)
 
-    if (!num_extracted) {
-      // No events can be extracted from any of the queues. This means that
-      // either we hit the window or all queues are empty.
+    // The earliest event cannot be extracted without going past the limit.
+    if (!num_extracted)
       break;
-    }
 
     // Now remove the entries from the event buffer and update the queue-local
     // and global time bounds.
