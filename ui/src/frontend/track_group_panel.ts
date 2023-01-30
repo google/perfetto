@@ -215,8 +215,6 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
     drawGridLines(
         ctx,
-        globals.frontendLocalState.timeScale,
-        globals.frontendLocalState.visibleWindowTime,
         size.width,
         size.height);
 

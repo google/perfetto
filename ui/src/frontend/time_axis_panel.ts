@@ -14,11 +14,12 @@
 
 import * as m from 'mithril';
 
-import {timeToString} from '../common/time';
-
 import {TRACK_SHELL_WIDTH} from './css_constants';
-import {globals} from './globals';
-import {gridlines} from './gridline_helper';
+import {
+  TickGenerator,
+  TickType,
+  timeScaleForVisibleWindow,
+} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
 
 export class TimeAxisPanel extends Panel {
@@ -27,27 +28,20 @@ export class TimeAxisPanel extends Panel {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
-    const timeScale = globals.frontendLocalState.timeScale;
-    const range = globals.frontendLocalState.visibleWindowTime;
     ctx.fillStyle = '#999';
-
-    // Write trace offset time + line.
-    ctx.font = '12px Roboto Condensed';
-
-    ctx.textAlign = 'right';
-    const offsetTime =
-        timeToString(range.start - globals.state.traceTime.startSec);
-    ctx.fillText(offsetTime, TRACK_SHELL_WIDTH - 6, 11);
-
+    ctx.font = '10px Roboto Condensed';
     ctx.textAlign = 'left';
-    const startTime = timeToString(globals.state.traceTime.startSec);
-    ctx.fillText(startTime + ' +', 6, 11);
 
     // Draw time axis.
-    ctx.font = '10px Roboto Condensed';
-    for (const [x, time] of gridlines(size.width, range, timeScale)) {
-      ctx.fillRect(x, 0, 1, size.height);
-      ctx.fillText('+' + timeToString(time - range.start), x + 5, 10);
+    const timeScale = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
+    if (timeScale.timeSpan.duration > 0 && timeScale.widthPx > 0) {
+      const tickGen = new TickGenerator(timeScale);
+      for (const {type, time, position} of tickGen) {
+        if (type === TickType.MAJOR) {
+          ctx.fillRect(position, 0, 1, size.height);
+          ctx.fillText(time.toFixed(tickGen.digits) + ' s', position + 5, 10);
+        }
+      }
     }
 
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
