@@ -24,6 +24,12 @@ SELECT RUN_METRIC(
   'function_prefix', ''
 );
 
+SELECT CREATE_FUNCTION(
+  'IS_LONG_CHOREOGRAPHER_TASK(dur LONG)',
+  'BOOL',
+  'SELECT $dur >= 4 * 1e6'
+);
+
 -- Note that not all slices will be mojo slices; filter on interface_name IS
 -- NOT NULL for mojo slices specifically.
 DROP TABLE IF EXISTS long_tasks_extracted_slices;
@@ -72,7 +78,7 @@ WITH
     SELECT *
     FROM SELECT_BEGIN_MAIN_FRAME_JAVA_SLICES('LongTaskTracker')
     UNION ALL
-    SELECT * FROM chrome_choreographer_tasks
+    SELECT * FROM chrome_choreographer_tasks WHERE IS_LONG_CHOREOGRAPHER_TASK(dur)
   ),
   -- Intermediate step to allow us to sort java view names.
   root_slice_and_java_view_not_grouped AS (
@@ -101,6 +107,7 @@ WITH -- Generate full names for tasks with java views.
       GET_JAVA_VIEWS_TASK_TYPE(kind) AS task_type,
       id
     FROM long_task_slices_with_java_views
+    WHERE kind = "SingleThreadProxy::BeginMainFrame"
   ),
   scheduler_tasks_with_mojo AS (
     SELECT
@@ -129,7 +136,16 @@ SELECT
 FROM long_tasks_internal_tbl s1
 LEFT JOIN scheduler_tasks_with_mojo s2 ON s2.id = s1.id
 LEFT JOIN java_views_tasks s3 ON s3.id = s1.id
-LEFT JOIN navigation_tasks s4 ON s4.id = s1.id;
+LEFT JOIN navigation_tasks s4 ON s4.id = s1.id
+UNION ALL
+-- Choreographer slices won't necessarily be associated with an overlying
+-- LongTaskTracker slice, so join them separately.
+SELECT
+  printf('%s(java_views=%s)', kind, java_views) as full_name,
+  GET_JAVA_VIEWS_TASK_TYPE(kind) AS task_type,
+  id
+FROM long_task_slices_with_java_views
+WHERE kind = "Choreographer";
 
 DROP VIEW IF EXISTS chrome_long_tasks;
 CREATE VIEW chrome_long_tasks AS
