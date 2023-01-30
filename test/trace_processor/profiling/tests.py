@@ -286,7 +286,7 @@ class Profiling(TestSuite):
         """,
         out=Path('perf_sample_sc.out'))
 
-  def test_perf_sample_annotations(self):
+  def test_annotations(self):
     return DiffTestBlueprint(
         trace=Path('../../data/perf_sample_annotations.pftrace'),
         query="""
@@ -333,4 +333,26 @@ class Profiling(TestSuite):
         25,"common-frame-interp","/apex/com.android.art/lib64/libart.so","nterp_get_instance_field_offset"
         26,"common-frame-interp","/apex/com.android.art/lib64/libart.so","NterpGetInstanceFieldOffset"
         27,"common-frame","/apex/com.android.art/lib64/libart.so","art::ResolveFieldWithAccessChecks(art::Thread*, art::ClassLinker*, unsigned short, art::ArtMethod*, bool, bool, unsigned long)"
+        """))
+
+  def test_annotations_switch_interpreter(self):
+    return DiffTestBlueprint(
+        trace=Path('perf_sample_switch_interp.textproto'),
+        query="""
+        select
+          eac.depth, eac.annotation, spm.name as map_name,
+          ifnull(demangle(spf.name), spf.name) as frame_name
+        from experimental_annotated_callstack eac
+          join stack_profile_frame spf on (eac.frame_id = spf.id)
+          join stack_profile_mapping spm on (spf.mapping = spm.id)
+        where eac.start_id = (select callsite_id from perf_sample)
+        order by depth asc;
+        """,
+        out=Csv("""
+        "depth","annotation","map_name","frame_name"
+        0,"interp","/example.vdex","com.example.managed.frame"
+        1,"common-frame-interp","/apex/com.android.art/lib64/libart.so","ExecuteSwitchImplAsm"
+        2,"common-frame-interp","/apex/com.android.art/lib64/libart.so","void art::interpreter::ExecuteSwitchImplCpp<false>(art::interpreter::SwitchImplContext*)"
+        3,"common-frame-interp","/apex/com.android.art/lib64/libart.so","bool art::interpreter::DoCall<true>(art::ArtMethod*, art::Thread*, art::ShadowFrame&, art::Instruction const*, unsigned short, bool, art::JValue*)"
+        4,"common-frame","/apex/com.android.art/lib64/libart.so","art::ArtMethod::Invoke(art::Thread*, unsigned int*, unsigned int, art::JValue*, char const*)"
         """))
