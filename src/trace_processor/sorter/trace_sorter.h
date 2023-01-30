@@ -154,7 +154,7 @@ class TraceSorter {
         TracePacketData{std::move(event), std::move(state)});
     queue->Append(TimestampedDescriptor{
         timestamp, Descriptor(offset, EventType::kFtraceEvent)});
-    UpdateGlobalTs(queue);
+    UpdateAppendMaxTs(queue);
   }
   inline void PushInlineFtraceEvent(uint32_t cpu,
                                     int64_t timestamp,
@@ -170,7 +170,7 @@ class TraceSorter {
     uint32_t offset = variadic_queue_.Append(inline_sched_switch);
     queue->Append(TimestampedDescriptor{
         timestamp, Descriptor(offset, EventType::kInlineSchedSwitch)});
-    UpdateGlobalTs(queue);
+    UpdateAppendMaxTs(queue);
   }
   inline void PushInlineFtraceEvent(uint32_t cpu,
                                     int64_t timestamp,
@@ -180,7 +180,7 @@ class TraceSorter {
     uint32_t offset = variadic_queue_.Append(inline_sched_waking);
     queue->Append(TimestampedDescriptor{
         timestamp, Descriptor(offset, EventType::kInlineSchedWaking)});
-    UpdateGlobalTs(queue);
+    UpdateAppendMaxTs(queue);
   }
 
   void ExtractEventsForced() {
@@ -205,7 +205,7 @@ class TraceSorter {
     flushes_since_extraction_ = 0;
   }
 
-  int64_t max_timestamp() const { return global_max_ts_; }
+  int64_t max_timestamp() const { return append_max_ts_; }
 
  private:
   // Stores offset and type of metadata.
@@ -316,12 +316,11 @@ class TraceSorter {
                                    EventType type) {
     Queue* queue = GetQueue(0);
     queue->Append(TimestampedDescriptor{ts, Descriptor{offset, type}});
-    UpdateGlobalTs(queue);
+    UpdateAppendMaxTs(queue);
   }
 
-  inline void UpdateGlobalTs(Queue* queue) {
-    global_min_ts_ = std::min(global_min_ts_, queue->min_ts_);
-    global_max_ts_ = std::max(global_max_ts_, queue->max_ts_);
+  inline void UpdateAppendMaxTs(Queue* queue) {
+    append_max_ts_ = std::max(append_max_ts_, queue->max_ts_);
   }
 
   void ParseTracePacket(const TimestampedDescriptor& ts_desc);
@@ -361,11 +360,8 @@ class TraceSorter {
   // queues_[x] is the ftrace queue for CPU(x - 1).
   std::vector<Queue> queues_;
 
-  // max(e.timestamp for e in queues_).
-  int64_t global_max_ts_ = 0;
-
-  // min(e.timestamp for e in queues_).
-  int64_t global_min_ts_ = std::numeric_limits<int64_t>::max();
+  // max(e.ts for e appended to the sorter)
+  int64_t append_max_ts_ = 0;
 
   // Used for performance tests. True when setting
   // TRACE_PROCESSOR_SORT_ONLY=1.
