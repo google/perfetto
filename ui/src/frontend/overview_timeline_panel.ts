@@ -16,7 +16,7 @@ import * as m from 'mithril';
 
 import {assertExists} from '../base/logging';
 import {hueForCpu} from '../common/colorizer';
-import {TimeSpan, timeToString} from '../common/time';
+import {TimeSpan} from '../common/time';
 
 import {
   OVERVIEW_TIMELINE_NON_VISIBLE_COLOR,
@@ -29,6 +29,7 @@ import {InnerDragStrategy} from './drag/inner_drag_strategy';
 import {OuterDragStrategy} from './drag/outer_drag_strategy';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
+import {TickGenerator, TickType} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
 import {TimeScale} from './time_scale';
 
@@ -80,21 +81,28 @@ export class OverviewTimelinePanel extends Panel {
     if (this.timeScale === undefined) return;
     const headerHeight = 25;
     const tracksHeight = size.height - headerHeight;
+    const timeSpan = new TimeSpan(0, this.totTime.duration);
 
-    // Draw time labels on the top header.
-    ctx.font = '10px Roboto Condensed';
-    ctx.fillStyle = '#999';
-    for (let i = 0; i < 100; i++) {
-      const xPos =
-          (i * (this.width - TRACK_SHELL_WIDTH) / 100) + TRACK_SHELL_WIDTH;
-      const t = this.timeScale.pxToTime(xPos);
-      if (xPos <= 0) continue;
-      if (xPos > this.width) break;
-      if (i % 10 === 0) {
-        ctx.fillRect(xPos - 1, 0, 1, headerHeight - 5);
-        ctx.fillText(timeToString(t - this.totTime.start), xPos + 5, 18);
-      } else {
-        ctx.fillRect(xPos - 1, 0, 1, 5);
+    const timeScale = new TimeScale(timeSpan, [TRACK_SHELL_WIDTH, this.width]);
+
+    if (timeScale.widthPx > 0) {
+      const tickGen = new TickGenerator(timeScale);
+
+      // Draw time labels on the top header.
+      ctx.font = '10px Roboto Condensed';
+      ctx.fillStyle = '#999';
+      for (const {type, time, position} of tickGen) {
+        const xPos = Math.round(position);
+        if (xPos <= 0) continue;
+        if (xPos > this.width) break;
+        if (type === TickType.MAJOR) {
+          ctx.fillRect(xPos - 1, 0, 1, headerHeight - 5);
+          ctx.fillText(time.toFixed(tickGen.digits) + ' s', xPos + 5, 18);
+        } else if (type == TickType.MEDIUM) {
+          ctx.fillRect(xPos - 1, 0, 1, 8);
+        } else if (type == TickType.MINOR) {
+          ctx.fillRect(xPos - 1, 0, 1, 5);
+        }
       }
     }
 
