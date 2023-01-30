@@ -113,8 +113,7 @@ void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_offset) {
         continue;
       all_queues_empty = false;
 
-      PERFETTO_DCHECK(queue.min_ts_ >= global_min_ts_);
-      PERFETTO_DCHECK(queue.max_ts_ <= global_max_ts_);
+      PERFETTO_DCHECK(queue.max_ts_ <= append_max_ts_);
       if (queue.min_ts_ < min_queue_ts[0]) {
         min_queue_ts[1] = min_queue_ts[0];
         min_queue_ts[0] = queue.min_ts_;
@@ -131,7 +130,6 @@ void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_offset) {
     if (queue.needs_sorting())
       queue.Sort();
     PERFETTO_DCHECK(queue.min_ts_ == events.front().ts);
-    PERFETTO_DCHECK(queue.min_ts_ == global_min_ts_);
 
     // Now that we identified the min-queue, extract all events from it until
     // we hit either: (1) the min-ts of the 2nd queue or (2) the packet index
@@ -165,35 +163,14 @@ void TraceSorter::SortAndExtractEventsUntilPacket(uint64_t limit_offset) {
     // queue.
     variadic_queue_.FreeMemory();
 
-    // Update the global_{min,max}_ts to reflect the bounds after extraction.
+    // Update the queue timestamps to reflect the bounds after extraction.
     if (events.empty()) {
       queue.min_ts_ = kTsMax;
       queue.max_ts_ = 0;
-      global_min_ts_ = min_queue_ts[1];
-
-      // If we extraced the max entry from a queue (i.e. we emptied the queue)
-      // we need to recompute the global max, because it might have been the one
-      // just extracted.
-      global_max_ts_ = 0;
-      for (auto& q : queues_)
-        global_max_ts_ = std::max(global_max_ts_, q.max_ts_);
     } else {
       queue.min_ts_ = queue.events_.front().ts;
-      global_min_ts_ = std::min(queue.min_ts_, min_queue_ts[1]);
     }
   }  // for(;;)
-
-#if PERFETTO_DCHECK_IS_ON()
-  // Check that the global min/max are consistent.
-  int64_t dbg_min_ts = kTsMax;
-  int64_t dbg_max_ts = 0;
-  for (auto& q : queues_) {
-    dbg_min_ts = std::min(dbg_min_ts, q.min_ts_);
-    dbg_max_ts = std::max(dbg_max_ts, q.max_ts_);
-  }
-  PERFETTO_DCHECK(global_min_ts_ == dbg_min_ts);
-  PERFETTO_DCHECK(global_max_ts_ == dbg_max_ts);
-#endif
 }
 
 void TraceSorter::EvictVariadic(const TimestampedDescriptor& ts_desc) {
