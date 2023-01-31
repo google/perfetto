@@ -97,9 +97,7 @@
 }
 
 .details-panel {
-  font-family: "Roboto Condensed", sans-serif;
-  font-weight: 300;
-  color: #3c4b5d;
+  @include bottom-panel-font;
 
   .material-icons {
     @include transition(0.3s);
@@ -234,8 +232,7 @@
 
   table {
     @include transition(0.1s);
-    font-size: 14px;
-    line-height: 18px;
+    @include table-font-size;
     width: 100%;
     // Aggregation panel uses multiple table elements that need to be aligned,
     // which is done by using fixed table layout.
@@ -245,7 +242,7 @@
     tr:hover {
       td,
       th {
-        background-color: hsl(214, 22%, 90%);
+        background-color: $table-hover-color;
 
         &.no-highlight {
           background-color: white;
@@ -392,7 +389,7 @@
   font-weight: bolder;
   font-size: 12px;
   .sum-data {
-    border-bottom: 1px solid rgba(60, 76, 92, 0.4);
+    border-bottom: 1px solid $table-border-color;
   }
 }
 
@@ -543,7 +540,7 @@
         background-color: hsl(214, 22%, 95%);
       }
       &:hover {
-        background-color: hsl(214, 22%, 90%);
+        background-color: $table-hover-color;
       }
       .cell {
         font-size: 11px;
