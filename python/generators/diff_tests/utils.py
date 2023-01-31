@@ -151,7 +151,7 @@ def get_trace_descriptor_path(out_path: str, trace_descriptor: str):
 
 def read_all_tests(name_filter: str, root_dir: str) -> List[testing.TestCase]:
   # Import
-  INCLUDE_PATH = os.path.join(root_dir, 'test', 'trace_processor')
+  INCLUDE_PATH = os.path.join(root_dir, 'test', 'trace_processor', 'diff_tests')
   sys.path.append(INCLUDE_PATH)
   from include_index import fetch_all_diff_tests
   sys.path.pop()
