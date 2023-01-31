@@ -52,7 +52,7 @@ import {
   TableColumn,
 } from './pivot_table_redux_types';
 import {PopupMenuButton, PopupMenuItem} from './popup_menu';
-import {ReorderableCellGroup} from './reorderable_cells';
+import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 
 
 interface PathItem {
@@ -98,6 +98,13 @@ function readableColumnName(column: TableColumn) {
     case 'regular':
       return `${column.table}.${column.column}`;
   }
+}
+
+export function markFirst(index: number) {
+  if (index === 0) {
+    return '.first';
+  }
+  return '';
 }
 
 export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
@@ -167,7 +174,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
     for (let i = 0; i < tree.aggregates.length; i++) {
       const renderedValue = this.renderCell(
           result.metadata.aggregationColumns[i].column, tree.aggregates[i]);
-      renderedCells.push(m('td', renderedValue));
+      renderedCells.push(m('td' + markFirst(i), renderedValue));
     }
 
     const drillFilters: DrillFilter[] = [];
@@ -236,7 +243,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         const value = row[aggregationIndex(treeDepth, j)];
         const renderedValue = this.renderCell(
             result.metadata.aggregationColumns[j].column, value);
-        renderedCells.push(m('td', renderedValue));
+        renderedCells.push(m('td.aggregation' + markFirst(j), renderedValue));
       }
 
       renderedCells.push(this.renderDrillDownCell(area, drillFilters));
@@ -251,7 +258,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
            m('strong', 'Total values:'))];
     for (let i = 0; i < queryResult.tree.aggregates.length; i++) {
       overallValuesRow.push(
-          m('td',
+          m('td' + markFirst(i),
             this.renderCell(
                 queryResult.metadata.aggregationColumns[i].column,
                 queryResult.tree.aggregates[i])));
@@ -319,7 +326,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
 
   renderAggregationHeaderCell(
       aggregation: Aggregation, index: number,
-      removeItem: boolean): m.Children {
+      removeItem: boolean): ReorderableCell {
     const popupItems: PopupMenuItem[] = [];
     const state = globals.state.nonSerializableState.pivotTableRedux;
     let icon = 'more_horiz';
@@ -384,13 +391,16 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
       popupItems.push(sliceAggregationsItem);
     }
 
-    return [
-      this.readableAggregationName(aggregation),
-      m(PopupMenuButton, {
-        icon,
-        items: popupItems,
-      }),
-    ];
+    return {
+      extraClass: '.aggregation' + markFirst(index),
+      content: [
+        this.readableAggregationName(aggregation),
+        m(PopupMenuButton, {
+          icon,
+          items: popupItems,
+        }),
+      ],
+    };
   }
 
   showModal = false;
@@ -424,7 +434,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
 
   renderPivotColumnHeader(
       queryResult: PivotTableReduxResult, pivot: TableColumn,
-      selectedPivots: Set<string>): m.Children {
+      selectedPivots: Set<string>): ReorderableCell {
     const items: PopupMenuItem[] = [{
       itemType: 'regular',
       text: 'Add argument pivot',
@@ -478,10 +488,12 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
       });
     }
 
-    return [
-      readableColumnName(pivot),
-      m(PopupMenuButton, {icon: 'more_horiz', items}),
-    ];
+    return {
+      content: [
+        readableColumnName(pivot),
+        m(PopupMenuButton, {icon: 'more_horiz', items}),
+      ],
+    };
   }
 
   renderResultsTable(attrs: PivotTableReduxAttrs) {
@@ -519,13 +531,13 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
                 aggregation, index, removeItem));
 
     return m(
-        'table.query-table.pivot-table',
+        'table.pivot-table',
         m('thead',
           // First row of the table, containing names of pivot and aggregation
           // columns, as well as popup menus to modify the columns. Last cell
           // is empty because of an extra column with "drill down" button for
           // each pivot table row.
-          m('tr',
+          m('tr.header',
             m(ReorderableCellGroup, {
               cells: pivotTableHeaders,
               onReorder: (
