@@ -11,6 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+@import "fonts";
+
 :root {
   --sidebar-width: 256px;
   --topbar-height: 48px;
@@ -199,28 +202,64 @@ button.close {
   width: 100%;
 }
 
+@mixin table-font-size {
+  font-size: 14px;
+  line-height: 18px;
+}
+
+$table-hover-color: hsl(214, 22%, 90%);
+
+$table-border-color: rgba(60, 76, 92, 0.4);
+
+.pivot-table {
+  @include bottom-panel-font;
+  @include table-font-size;
+
+  width: 100%;
+  border-collapse: collapse;
+
+  thead,
+  i {
+    cursor: pointer;
+  }
+  thead {
+    font-weight: normal;
+  }
+  td {
+    padding: 2px 1px;
+  }
+  td.first {
+    border-left: 1px solid $table-border-color;
+    padding-left: 6px;
+  }
+  tr.header {
+    border-bottom: 1px solid $table-border-color;
+    text-align: center;
+  }
+  thead td.reorderable-cell {
+    cursor: grab;
+  }
+  tr:hover td {
+    background-color: $table-hover-color;
+  }
+  .disabled {
+    cursor: default;
+  }
+  .indent {
+    display: inline-block;
+    // 16px is the width of expand_more/expand_less icon to pad out cells
+    // without the button
+    width: 16px;
+  }
+  strong {
+    font-weight: 400;
+  }
+}
+
 .query-table {
   width: 100%;
   font-size: 14px;
   border: 0;
-  &.pivot-table {
-    thead,
-    i {
-      cursor: pointer;
-    }
-    thead td.reorderable-cell {
-      cursor: grab;
-    }
-    .disabled {
-      cursor: default;
-    }
-    .indent {
-      display: inline-block;
-      // 16px is the width of expand_more/expand_less icon to pad out cells
-      // without the button
-      width: 16px;
-    }
-  }
   thead td {
     position: sticky;
     top: 0;
@@ -755,17 +794,13 @@ button.query-ctrl {
 
 .pivot-table-redux {
   user-select: text;
+  padding: 10px;
 
   button.mode-button {
     border-radius: 10px;
     padding: 7px;
     margin: 5px;
     background-color: #c7d0db;
-  }
-
-  &.edit {
-    padding: 10px;
-    display: flex;
   }
 
   &.query-error {
@@ -817,11 +852,11 @@ button.query-ctrl {
   }
 
   &.highlight-left {
-    border-left-color: red;
+    background: linear-gradient(90deg, $table-border-color, transparent 20%);
   }
 
   &.highlight-right {
-    border-right-color: red;
+    background: linear-gradient(270deg, $table-border-color, transparent 20%);
   }
 }
 
