@@ -111,3 +111,16 @@ SELECT CREATE_FUNCTION(
     );
   '
 );
+
+-- Given a launch id, returns the most active process name.
+SELECT CREATE_FUNCTION(
+  'MOST_ACTIVE_PROCESS_FOR_LAUNCH(startup_id INT)',
+  'STRING',
+  '
+    SELECT process.name AS process_name
+    FROM top_mcyles_process_excluding_started_per_launch
+    JOIN process USING (upid)
+    WHERE startup_id = $startup_id
+    ORDER BY mcycles DESC LIMIT 1;
+  '
+);
