@@ -29,6 +29,11 @@ class Path:
 
 
 @dataclass
+class DataPath(Path):
+  filename: str
+
+
+@dataclass
 class Metric:
   name: str
 
@@ -64,9 +69,9 @@ class TestType(Enum):
 @dataclass
 class DiffTestBlueprint:
 
-  trace: Union[Path, Json, Systrace, TextProto]
-  query: Union[str, Path, Metric]
-  out: Union[Path, Json, Csv, TextProto]
+  trace: Union[Path, DataPath, Json, Systrace, TextProto]
+  query: Union[str, Path, DataPath, Metric]
+  out: Union[Path, DataPath, Json, Csv, TextProto]
 
   def is_trace_file(self):
     return isinstance(self.trace, Path)
@@ -105,39 +110,66 @@ class DiffTestBlueprint:
 # script.
 class TestCase:
 
+  def __get_query_path(self) -> str:
+    if not self.blueprint.is_query_file():
+      return None
+
+    if isinstance(self.blueprint.query, DataPath):
+      path = os.path.join(self.test_dir, 'data', self.blueprint.query.filename)
+    else:
+      path = os.path.abspath(
+          os.path.join(self.index_dir, self.blueprint.query.filename))
+
+    if not os.path.exists(path):
+      raise AssertionError(
+          f"Query file ({path}) for test '{self.name}' does not exist.")
+    return path
+
+  def __get_trace_path(self) -> str:
+    if not self.blueprint.is_trace_file():
+      return None
+
+    if isinstance(self.blueprint.trace, DataPath):
+      path = os.path.join(self.test_dir, 'data', self.blueprint.trace.filename)
+    else:
+      path = os.path.abspath(
+          os.path.join(self.index_dir, self.blueprint.trace.filename))
+
+    if not os.path.exists(path):
+      raise AssertionError(
+          f"Trace file ({path}) for test '{self.name}' does not exist.")
+    return path
+
+  def __get_out_path(self) -> str:
+    if not self.blueprint.is_out_file():
+      return None
+
+    if isinstance(self.blueprint.out, DataPath):
+      path = os.path.join(self.test_dir, 'data', self.blueprint.out.filename)
+    else:
+      path = os.path.abspath(
+          os.path.join(self.index_dir, self.blueprint.out.filename))
+
+    if not os.path.exists(path):
+      raise AssertionError(
+          f"Out file ({path}) for test '{self.name}' does not exist.")
+    return path
+
   def __init__(self, name: str, blueprint: DiffTestBlueprint,
                index_dir: str) -> None:
     self.name = name
     self.blueprint = blueprint
+    self.index_dir = index_dir
+    self.test_dir = os.path.dirname(os.path.dirname(os.path.dirname(index_dir)))
 
     if blueprint.is_metric():
       self.type = TestType.METRIC
     else:
       self.type = TestType.QUERY
 
-    if blueprint.is_query_file():
-      self.query_path = os.path.abspath(
-          os.path.join(index_dir, blueprint.query.filename))
-      if not os.path.exists(self.query_path):
-        raise AssertionError(f"Query file for {self.name} does not exist.")
-    else:
-      self.query_path = None
-
-    if blueprint.is_trace_file():
-      self.trace_path = os.path.abspath(
-          os.path.join(index_dir, blueprint.trace.filename))
-      if not os.path.exists(self.trace_path):
-        raise AssertionError(f"Trace file for {self.name} does not exist.")
-    else:
-      self.trace_path = None
-
-    if blueprint.is_out_file():
-      self.expected_path = os.path.abspath(
-          os.path.join(index_dir, blueprint.out.filename))
-      if not os.path.exists(self.expected_path):
-        raise AssertionError(f"Out file for {self.name} does not exist.")
-    else:
-      self.expected_path = None
+    self.query_path = self.__get_query_path()
+    self.trace_path = self.__get_trace_path()
+    self.expected_path = self.__get_out_path()
 
   # Verifies that the test should be in test suite. If False, test will not be
   # executed.
@@ -149,7 +181,7 @@ class TestCase:
 # Virtual class responsible for fetching diff tests.
 # All functions with name starting with `test_` have to return
 # DiffTestBlueprint and function name is a test name. All DiffTestModules have
-# to be included in `test/trace_processor/include_index.py`.
+# to be included in `test/diff_tests/trace_processor/include_index.py`.
 # `fetch_diff_test` function should not be overwritten.
 class TestSuite:
 
