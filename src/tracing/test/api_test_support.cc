@@ -51,6 +51,8 @@ class InProcessSystemService {
 
   void CleanEnv() { test_helper_.CleanEnv(); }
 
+  void Restart() { test_helper_.RestartService(); }
+
  private:
   perfetto::base::TestTaskRunner task_runner_;
   perfetto::TestHelper test_helper_;
@@ -94,12 +96,20 @@ void SystemService::Clean() {
   }
   valid_ = false;
 }
+
+void SystemService::Restart() {
+  PERFETTO_CHECK(valid_);
+  g_system_service->Restart();
+}
 #else   // !PERFETTO_BUILDFLAG(PERFETTO_IPC)
 // static
 SystemService SystemService::Start() {
   return SystemService();
 }
 void SystemService::Clean() {
+  valid_ = false;
+}
+void SystemService::Restart() {
   valid_ = false;
 }
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_IPC)

@@ -1921,6 +1921,25 @@ void TracingMuxerImpl::OnProducerDisconnected(ProducerImpl* producer) {
   for (RegisteredBackend& backend : backends_) {
     if (backend.producer.get() != producer)
       continue;
+
+    // The tracing service is disconnected. It does not make sense to keep
+    // tracing (we wouldn't be able to commit). On reconnection, the tracing
+    // service will restart the data sources.
+    for (const auto& rds : data_sources_) {
+      DataSourceStaticState* static_state = rds.static_state;
+      for (uint32_t i = 0; i < kMaxDataSourceInstances; i++) {
+        auto* internal_state = static_state->TryGet(i);
+        if (internal_state && internal_state->backend_id == backend.id &&
+            internal_state->backend_connection_id ==
+                backend.producer->connection_id_.load(
+                    std::memory_order_relaxed)) {
+          StopDataSource_AsyncBeginImpl(
+              FindDataSourceRes(static_state, internal_state, i,
+                                rds.requires_callbacks_under_lock));
+        }
+      }
+    }
+
     // Try reconnecting the disconnected producer. If the connection succeeds,
     // all the data sources will be automatically re-registered.
     if (producer->connection_id_.load(std::memory_order_relaxed) >
@@ -1931,19 +1950,13 @@ void TracingMuxerImpl::OnProducerDisconnected(ProducerImpl* producer) {
       PERFETTO_ELOG("Producer disconnected too many times; not reconnecting");
       continue;
     }
+
     backend.producer->Initialize(
         backend.backend->ConnectProducer(backend.producer_conn_args));
     // Don't use producer-provided SMBs for the next connection unless startup
     // tracing requires it again.
     backend.producer_conn_args.use_producer_provided_smb = false;
   }
-
-  // Increment the generation counter to atomically ensure that:
-  // 1. Old trace writers from the severed connection eventually get cleaned up
-  //    by DestroyStoppedTraceWritersForCurrentThread().
-  // 2. No new trace writers can be created for the SharedMemoryArbiter from the
-  //    old connection.
-  TracingMuxer::generation_++;
 }
 
 void TracingMuxerImpl::SweepDeadBackends() {
