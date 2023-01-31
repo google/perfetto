@@ -179,6 +179,15 @@ class Chrome(TestSuite):
         1011,"Missing main thread for upid=1",1,1
         """))
 
+  def test_chrome_reliable_range_missing_gpu_main(self):
+    return DiffTestBlueprint(
+        trace=Path('chrome_reliable_range_missing_gpu_main.textproto'),
+        query=Path('chrome_reliable_range_test.sql'),
+        out=Csv("""
+        "start","reason","debug_limiting_upid","debug_limiting_utid"
+        1011,"Missing main thread for upid=1",1,1
+        """))
+
   def test_chrome_reliable_range_missing_renderer_main(self):
     return DiffTestBlueprint(
         trace=Path('chrome_reliable_range_missing_renderer_main.textproto'),
