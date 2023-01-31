@@ -206,17 +206,17 @@ export class TraceController extends Controller<States> {
     switch (this.state) {
       case 'init':
         this.loadTrace()
-          .then((mode) => {
-            globals.dispatch(Actions.setEngineReady({
-              engineId: this.engineId,
-              ready: true,
-              mode,
-            }));
-          })
-          .catch((err) => {
-            this.updateStatus(`${err}`);
-            throw err;
-          });
+            .then((mode) => {
+              frontendGlobals.dispatch(Actions.setEngineReady({
+                engineId: this.engineId,
+                ready: true,
+                mode,
+              }));
+            })
+            .catch((err) => {
+              this.updateStatus(`${err}`);
+              throw err;
+            });
         this.updateStatus('Opening trace');
         this.setState('loading_trace');
         break;
@@ -349,8 +349,8 @@ export class TraceController extends Controller<States> {
       engineMode = 'HTTP_RPC';
       engine = new HttpRpcEngine(this.engineId, LoadingManager.getInstance);
       engine.errorHandler = (err) => {
-        globals.dispatch(
-          Actions.setEngineFailed({mode: 'HTTP_RPC', failure: `${err}`}));
+        frontendGlobals.dispatch(
+            Actions.setEngineFailed({mode: 'HTTP_RPC', failure: `${err}`}));
         throw err;
       };
     } else {
@@ -375,7 +375,7 @@ export class TraceController extends Controller<States> {
       new BottomTabList(engine.getProxy('BottomTabList'));
 
     frontendGlobals.engines.set(this.engineId, engine);
-    globals.dispatch(Actions.setEngineReady({
+    frontendGlobals.dispatch(Actions.setEngineReady({
       engineId: this.engineId,
       ready: false,
       mode: engineMode,
@@ -476,7 +476,7 @@ export class TraceController extends Controller<States> {
       resolution,
     }));
 
-    globals.dispatchMultiple(actions);
+    frontendGlobals.dispatchMultiple(actions);
     Router.navigate(`#!/viewer?local_cache_key=${traceUuid}`);
 
     // Make sure the helper views are available before we start adding tracks.
@@ -510,9 +510,9 @@ export class TraceController extends Controller<States> {
       publishHasFtrace(hasFtrace);
     }
 
-    globals.dispatch(Actions.removeDebugTrack({}));
-    globals.dispatch(Actions.sortThreadTracks({}));
-    globals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));
+    frontendGlobals.dispatch(Actions.removeDebugTrack({}));
+    frontendGlobals.dispatch(Actions.sortThreadTracks({}));
+    frontendGlobals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));
 
     await this.selectFirstHeapProfile();
     if (PERF_SAMPLE_FLAG.get()) {
@@ -531,7 +531,7 @@ export class TraceController extends Controller<States> {
     if (!isJsonTrace && ENABLE_CHROME_RELIABLE_RANGE_ANNOTATION_FLAG.get()) {
       const reliableRangeStart = await computeTraceReliableRangeStart(engine);
       if (reliableRangeStart > 0) {
-        globals.dispatch(Actions.addAutomaticNote({
+        frontendGlobals.dispatch(Actions.addAutomaticNote({
           timestamp: reliableRangeStart,
           color: '#ff0000',
           text: 'Reliable Range Start',
@@ -554,8 +554,8 @@ export class TraceController extends Controller<States> {
     const upid = row.upid;
     const leftTs = toNs(globals.state.traceTime.startSec);
     const rightTs = toNs(globals.state.traceTime.endSec);
-    globals.dispatch(Actions.selectPerfSamples(
-      {id: 0, upid, leftTs, rightTs, type: ProfileType.PERF_SAMPLE}));
+    frontendGlobals.dispatch(Actions.selectPerfSamples(
+        {id: 0, upid, leftTs, rightTs, type: ProfileType.PERF_SAMPLE}));
   }
 
   private async selectFirstHeapProfile() {
@@ -576,14 +576,15 @@ export class TraceController extends Controller<States> {
     const ts = row.ts;
     const type = profileType(row.type);
     const upid = row.upid;
-    globals.dispatch(Actions.selectHeapProfile({id: 0, upid, ts, type}));
+    frontendGlobals.dispatch(
+        Actions.selectHeapProfile({id: 0, upid, ts, type}));
   }
 
   private async listTracks() {
     this.updateStatus('Loading tracks');
     const engine = assertExists<Engine>(this.engine);
     const actions = await decideTracks(this.engineId, engine);
-    globals.dispatchMultiple(actions);
+    frontendGlobals.dispatchMultiple(actions);
   }
 
   private async listThreads() {
@@ -776,7 +777,7 @@ export class TraceController extends Controller<States> {
     for (const it = metricsResult.iter({name: STR}); it.valid(); it.next()) {
       availableMetrics.push(it.name);
     }
-    globals.dispatch(Actions.setAvailableMetrics({availableMetrics}));
+    frontendGlobals.dispatch(Actions.setAvailableMetrics({availableMetrics}));
 
     const availableMetricsSet = new Set<string>(availableMetrics);
     for (const [flag, metric] of FLAGGED_METRICS) {
@@ -895,7 +896,7 @@ export class TraceController extends Controller<States> {
   }
 
   private updateStatus(msg: string): void {
-    globals.dispatch(Actions.updateStatus({
+    frontendGlobals.dispatch(Actions.updateStatus({
       msg,
       timestamp: Date.now() / 1000,
     }));

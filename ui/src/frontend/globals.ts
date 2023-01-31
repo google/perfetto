@@ -293,6 +293,13 @@ class Globals {
     return assertExists(this._dispatch);
   }
 
+  dispatchMultiple(actions: DeferredAction[]): void {
+    const dispatch = this.dispatch;
+    for (const action of actions) {
+      dispatch(action);
+    }
+  }
+
   get frontendLocalState() {
     return assertExists(this._frontendLocalState);
   }

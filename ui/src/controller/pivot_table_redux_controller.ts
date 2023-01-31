@@ -26,6 +26,7 @@ import {
   PivotTableReduxResult,
   PivotTableReduxState,
 } from '../common/state';
+import {globals as frontendGlobals} from '../frontend/globals';
 import {
   aggregationIndex,
   generateQueryFromState,
@@ -219,7 +220,7 @@ export class PivotTableReduxController extends Controller<{}> {
     if (!it.valid()) {
       // Iterator is invalid after creation; means that there are no rows
       // satisfying filtering criteria. Return an empty tree.
-      globals.dispatch(Actions.setPivotStateQueryResult(
+      frontendGlobals.dispatch(Actions.setPivotStateQueryResult(
           {queryResult: createEmptyQueryResult(query.metadata)}));
       return;
     }
@@ -232,9 +233,9 @@ export class PivotTableReduxController extends Controller<{}> {
       treeBuilder.ingestRow(nextRow());
     }
 
-    globals.dispatch(Actions.setPivotStateQueryResult(
+    frontendGlobals.dispatch(Actions.setPivotStateQueryResult(
         {queryResult: {tree: treeBuilder.build(), metadata: query.metadata}}));
-    globals.dispatch(Actions.setCurrentTab({tab: 'pivot_table_redux'}));
+    frontendGlobals.dispatch(Actions.setCurrentTab({tab: 'pivot_table_redux'}));
   }
 
   async requestArgumentNames() {
@@ -250,7 +251,8 @@ export class PivotTableReduxController extends Controller<{}> {
       it.next();
     }
 
-    globals.dispatch(Actions.setPivotTableArgumentNames({argumentNames}));
+    frontendGlobals.dispatch(
+        Actions.setPivotTableArgumentNames({argumentNames}));
   }
 
 
@@ -269,17 +271,18 @@ export class PivotTableReduxController extends Controller<{}> {
     if (pivotTableState.queryRequested ||
         (selection !== null && selection.kind === 'AREA' &&
          this.shouldRerun(pivotTableState, selection))) {
-      globals.dispatch(
+      frontendGlobals.dispatch(
           Actions.setPivotTableQueryRequested({queryRequested: false}));
       // Need to re-run the existing query, clear the current result.
-      globals.dispatch(Actions.setPivotStateQueryResult({queryResult: null}));
+      frontendGlobals.dispatch(
+          Actions.setPivotStateQueryResult({queryResult: null}));
       this.processQuery(generateQueryFromState(pivotTableState));
     }
 
     if (selection !== null && selection.kind === 'AREA' &&
         (pivotTableState.selectionArea === undefined ||
          pivotTableState.selectionArea.areaId !== selection.areaId)) {
-      globals.dispatch(
+      frontendGlobals.dispatch(
           Actions.togglePivotTableRedux({areaId: selection.areaId}));
     }
   }
