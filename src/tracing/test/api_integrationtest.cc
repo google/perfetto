@@ -201,12 +201,15 @@ using perfetto::TracingInitArgs;
 using perfetto::internal::TrackEventIncrementalState;
 using perfetto::internal::TrackEventInternal;
 using ::testing::_;
+using ::testing::AllOf;
 using ::testing::ContainerEq;
 using ::testing::Contains;
+using ::testing::Each;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
 using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
+using ::testing::IsEmpty;
 using ::testing::NiceMock;
 using ::testing::Not;
 using ::testing::Property;
@@ -5548,6 +5551,54 @@ TEST_P(PerfettoApiTest, ActivateTriggers) {
                    &perfetto::protos::gen::TracePacket::trigger,
                    Property(&perfetto::protos::gen::Trigger::trigger_name,
                             "trigger1")))));
+}
+
+TEST_P(PerfettoApiTest, StartTracingWhileExecutingTracepoint) {
+  perfetto::TraceConfig cfg;
+  auto* buffer = cfg.add_buffers();
+  buffer->set_size_kb(64);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("my_data_source");
+
+  std::atomic<bool> quit = false;
+  WaitableTestEvent outside_tracing;
+  WaitableTestEvent tracing;
+  std::thread t([&] {
+    while (!quit) {
+      MockDataSource::Trace([&](MockDataSource::TraceContext ctx) {
+        {
+          auto packet = ctx.NewTracePacket();
+          packet->set_for_testing()->set_str("My String");
+        }
+        { auto packet = ctx.NewTracePacket(); }
+        tracing.Notify();
+      });
+      outside_tracing.Notify();
+      std::this_thread::yield();
+    }
+  });
+  outside_tracing.Wait();
+
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+  tracing.Wait();
+  tracing_session->get()->StopBlocking();
+
+  // The data source instance should be stopped.
+  auto* data_source = &data_sources_["my_data_source"];
+  data_source->on_stop.Wait();
+
+  quit = true;
+  t.join();
+
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+  std::vector<std::string> test_strings;
+  for (auto& trace_packet : trace.packet()) {
+    if (trace_packet.has_for_testing()) {
+      test_strings.push_back(trace_packet.for_testing().str());
+    }
+  }
+  EXPECT_THAT(test_strings, AllOf(Not(IsEmpty()), Each("My String")));
 }
 
 class PerfettoStartupTracingApiTest : public PerfettoApiTest {
