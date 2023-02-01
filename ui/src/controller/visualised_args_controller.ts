@@ -18,6 +18,7 @@ import {Actions, AddTrackArgs} from '../common/actions';
 import {Engine} from '../common/engine';
 import {NUM} from '../common/query_result';
 import {InThreadTrackSortKey} from '../common/state';
+import {globals as frontendGlobals} from '../frontend/globals';
 import {
   VISUALISED_ARGS_SLICE_TRACK_KIND,
 } from '../tracks/visualised_args/index';
@@ -48,7 +49,7 @@ export class VisualisedArgController extends Controller<'init'|'running'> {
 
   onDestroy() {
     this.engine.query(`drop table if exists ${this.tableName}`);
-    globals.dispatch(
+    frontendGlobals.dispatch(
         Actions.removeVisualisedArgTracks({trackIds: this.addedTrackIds}));
   }
 
@@ -113,8 +114,8 @@ export class VisualisedArgController extends Controller<'init'|'running'> {
         },
       });
     }
-    globals.dispatch(Actions.addTracks({tracks: tracksToAdd}));
-    globals.dispatch(Actions.sortThreadTracks({}));
+    frontendGlobals.dispatch(Actions.addTracks({tracks: tracksToAdd}));
+    frontendGlobals.dispatch(Actions.sortThreadTracks({}));
   }
 
   run() {
