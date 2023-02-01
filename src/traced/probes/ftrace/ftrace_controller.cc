@@ -419,10 +419,11 @@ bool FtraceController::AddDataSource(FtraceDataSource* data_source) {
   if (!ValidConfig(data_source->config()))
     return false;
 
-  auto config_id = ftrace_config_muxer_->SetupConfig(
-      data_source->config(), data_source->mutable_setup_errors());
-  if (!config_id)
+  FtraceConfigId config_id = next_cfg_id_++;
+  if (!ftrace_config_muxer_->SetupConfig(config_id, data_source->config(),
+                                         data_source->mutable_setup_errors())) {
     return false;
+  }
 
   const FtraceDataSourceConfig* ds_config =
       ftrace_config_muxer_->GetDataSourceConfig(config_id);

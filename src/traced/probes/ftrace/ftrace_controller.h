@@ -145,6 +145,7 @@ class FtraceController {
   std::vector<PerCpuState> per_cpu_;  // empty if tracing isn't active
   std::set<FtraceDataSource*> data_sources_;
   std::set<FtraceDataSource*> started_data_sources_;
+  FtraceConfigId next_cfg_id_ = 1;
   base::WeakPtrFactory<FtraceController> weak_factory_;  // Keep last.
 };
 

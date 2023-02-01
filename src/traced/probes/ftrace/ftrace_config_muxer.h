@@ -119,8 +119,9 @@ class FtraceConfigMuxer {
   // (if you enable an atrace category we try to give you the matching events).
   // If someone else is tracing we won't touch atrace (since it resets the
   // buffer).
-  FtraceConfigId SetupConfig(const FtraceConfig& request,
-                             FtraceSetupErrors* = nullptr);
+  bool SetupConfig(FtraceConfigId id,
+                   const FtraceConfig& request,
+                   FtraceSetupErrors* = nullptr);
 
   // Activate ftrace for the given config (if not already active).
   bool ActivateConfig(FtraceConfigId);
@@ -221,9 +222,6 @@ class FtraceConfigMuxer {
   // so the filter can be updated before ds_configs_.
   bool SetSyscallEventFilter(const EventFilter& extra_syscalls);
 
-  FtraceConfigId GetNextId();
-
-  FtraceConfigId last_id_ = 1;
   FtraceProcfs* ftrace_;
   ProtoTranslationTable* table_;
   SyscallTable syscalls_;

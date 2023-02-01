@@ -594,8 +594,9 @@ FtraceConfigMuxer::FtraceConfigMuxer(
       vendor_events_(vendor_events) {}
 FtraceConfigMuxer::~FtraceConfigMuxer() = default;
 
-FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
-                                              FtraceSetupErrors* errors) {
+bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
+                                    const FtraceConfig& request,
+                                    FtraceSetupErrors* errors) {
   EventFilter filter;
   if (ds_configs_.empty()) {
     PERFETTO_DCHECK(active_configs_.empty());
@@ -607,7 +608,7 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
       PERFETTO_ELOG(
           "ftrace in use by non-Perfetto. Check that %s current_tracer is nop.",
           ftrace_->GetRootPath().c_str());
-      return 0;
+      return false;
     }
 
     // Clear tracefs state, remembering which value of "tracing_on" to restore
@@ -653,7 +654,7 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
       PERFETTO_ELOG(
           "Concurrent atrace sessions are not supported before Android P, "
           "bailing out.");
-      return 0;
+      return false;
     }
     UpdateAtrace(request, errors ? &errors->atrace_errors : nullptr);
   }
@@ -699,7 +700,7 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
   EventFilter syscall_filter = BuildSyscallFilter(filter, request);
   if (!SetSyscallEventFilter(syscall_filter)) {
     PERFETTO_ELOG("Failed to set raw_syscall ftrace filter in SetupConfig");
-    return 0;
+    return false;
   }
 
   // Kernel function tracing (function_graph).
@@ -715,19 +716,19 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
   // through a trace (but some might get added).
   if (request.enable_function_graph()) {
     if (!current_state_.funcgraph_on && !ftrace_->ClearFunctionFilters())
-      return 0;
+      return false;
     if (!current_state_.funcgraph_on && !ftrace_->ClearFunctionGraphFilters())
-      return 0;
+      return false;
     if (!ftrace_->AppendFunctionFilters(request.function_filters()))
-      return 0;
+      return false;
     if (!ftrace_->AppendFunctionGraphFilters(request.function_graph_roots()))
-      return 0;
+      return false;
     if (!current_state_.funcgraph_on &&
         !ftrace_->SetCurrentTracer("function_graph")) {
       PERFETTO_LOG(
           "Unable to enable function_graph tracing since a concurrent ftrace "
           "data source is using a different tracer");
-      return 0;
+      return false;
     }
     current_state_.funcgraph_on = true;
   }
@@ -749,7 +750,6 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
 
   std::vector<std::string> apps(request.atrace_apps());
   std::vector<std::string> categories(request.atrace_categories());
-  FtraceConfigId id = ++last_id_;
   ds_configs_.emplace(
       std::piecewise_construct, std::forward_as_tuple(id),
       std::forward_as_tuple(std::move(filter), std::move(syscall_filter),
@@ -758,7 +758,7 @@ FtraceConfigId FtraceConfigMuxer::SetupConfig(const FtraceConfig& request,
                             request.symbolize_ksyms(),
                             request.preserve_ftrace_buffer(),
                             GetSyscallsReturningFds(syscalls_)));
-  return id;
+  return true;
 }
 
 bool FtraceConfigMuxer::ActivateConfig(FtraceConfigId id) {
