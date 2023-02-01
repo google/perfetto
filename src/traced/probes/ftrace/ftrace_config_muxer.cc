@@ -585,13 +585,15 @@ FtraceConfigMuxer::FtraceConfigMuxer(
     FtraceProcfs* ftrace,
     ProtoTranslationTable* table,
     SyscallTable syscalls,
-    std::map<std::string, std::vector<GroupAndName>> vendor_events)
+    std::map<std::string, std::vector<GroupAndName>> vendor_events,
+    bool secondary_instance)
     : ftrace_(ftrace),
       table_(table),
       syscalls_(std::move(syscalls)),
       current_state_(),
       ds_configs_(),
-      vendor_events_(vendor_events) {}
+      vendor_events_(vendor_events),
+      secondary_instance_(secondary_instance) {}
 FtraceConfigMuxer::~FtraceConfigMuxer() = default;
 
 bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
@@ -650,6 +652,12 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
   }
 
   if (RequiresAtrace(request)) {
+    if (secondary_instance_) {
+      PERFETTO_ELOG(
+          "Secondary ftrace instances do not support atrace_categories and "
+          "atrace_apps options as they affect global state");
+      return false;
+    }
     if (IsOldAtrace() && !ds_configs_.empty()) {
       PERFETTO_ELOG(
           "Concurrent atrace sessions are not supported before Android P, "

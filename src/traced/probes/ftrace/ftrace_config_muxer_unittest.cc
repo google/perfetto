@@ -1291,5 +1291,17 @@ TEST_F(FtraceConfigMuxerTest, Funcgraph) {
   ASSERT_TRUE(testing::Mock::VerifyAndClearExpectations(&ftrace));
 }
 
+TEST_F(FtraceConfigMuxerTest, SecondaryInstanceDoNotSupportAtrace) {
+  auto fake_table = CreateFakeTable();
+  NiceMock<MockFtraceProcfs> ftrace;
+  FtraceConfigMuxer model(&ftrace, fake_table.get(), GetSyscallTable(), {},
+                          /* secondary_instance= */ true);
+
+  FtraceConfig config = CreateFtraceConfig({"sched/sched_switch"});
+  *config.add_atrace_categories() = "sched";
+
+  ASSERT_FALSE(model.SetupConfig(/* id= */ 73, config));
+}
+
 }  // namespace
 }  // namespace perfetto

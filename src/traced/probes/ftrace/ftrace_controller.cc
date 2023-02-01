@@ -40,7 +40,6 @@
 #include "src/traced/probes/ftrace/atrace_hal_wrapper.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
-#include "src/traced/probes/ftrace/vendor_tracepoints.h"
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
@@ -48,6 +47,7 @@
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
+#include "src/traced/probes/ftrace/vendor_tracepoints.h"
 
 namespace perfetto {
 namespace {
