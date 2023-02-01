@@ -108,19 +108,20 @@ class FtraceConfigMuxer {
       FtraceProcfs* ftrace,
       ProtoTranslationTable* table,
       SyscallTable syscalls,
-      std::map<std::string, std::vector<GroupAndName>> vendor_events);
+      std::map<std::string, std::vector<GroupAndName>> vendor_events,
+      bool secondary_instance = false);
   virtual ~FtraceConfigMuxer();
 
   // Ask FtraceConfigMuxer to adjust ftrace procfs settings to
-  // match the requested config. Returns an id to manage this
-  // config or zero on failure.
+  // match the requested config. Returns true on success and false on failure.
   // This is best effort. FtraceConfigMuxer may not be able to adjust the
   // buffer size right now. Events may be missing or there may be extra events
   // (if you enable an atrace category we try to give you the matching events).
   // If someone else is tracing we won't touch atrace (since it resets the
   // buffer).
-  FtraceConfigId SetupConfig(const FtraceConfig& request,
-                             FtraceSetupErrors* = nullptr);
+  bool SetupConfig(FtraceConfigId id,
+                   const FtraceConfig& request,
+                   FtraceSetupErrors* = nullptr);
 
   // Activate ftrace for the given config (if not already active).
   bool ActivateConfig(FtraceConfigId);
@@ -221,9 +222,6 @@ class FtraceConfigMuxer {
   // so the filter can be updated before ds_configs_.
   bool SetSyscallEventFilter(const EventFilter& extra_syscalls);
 
-  FtraceConfigId GetNextId();
-
-  FtraceConfigId last_id_ = 1;
   FtraceProcfs* ftrace_;
   ProtoTranslationTable* table_;
   SyscallTable syscalls_;
@@ -236,11 +234,17 @@ class FtraceConfigMuxer {
   // sizes and events, but don't enable ftrace (i.e. tracing_on).
   std::map<FtraceConfigId, FtraceDataSourceConfig> ds_configs_;
 
-  std::map<std::string, std::vector<GroupAndName>> vendor_events_;
-
   // Subset of |ds_configs_| that are currently active. At any time ftrace is
   // enabled iff |active_configs_| is not empty.
   std::set<FtraceConfigId> active_configs_;
+
+  std::map<std::string, std::vector<GroupAndName>> vendor_events_;
+
+  // If true, this muxer is for a secondary ftrace instance
+  // (tracefs/instances/<name>). At the moment, we only support basic ftrace
+  // event recording in such instances. So only |ftrace_events| and
+  // |ftrace_buffer_size| options are guaranteed to work.
+  bool secondary_instance_;
 };
 
 size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb);

@@ -251,7 +251,8 @@ TEST_F(FtraceConfigMuxerTest, GenericSyscallFiltering) {
   EXPECT_CALL(ftrace, WriteToFile("/root/events/raw_syscalls/sys_exit/filter",
                                   "id == 0 || id == 1"));
 
-  FtraceConfigId id = model.SetupConfig(config);
+  FtraceConfigId id = 37;
+  ASSERT_TRUE(model.SetupConfig(id, config));
   ASSERT_TRUE(model.ActivateConfig(id));
 
   const std::set<size_t>& filter = model.GetSyscallFilterForTesting();
@@ -277,7 +278,7 @@ TEST_F(FtraceConfigMuxerTest, UnknownSyscallFilter) {
       .WillOnce(Return('1'));
 
   // Unknown syscall is ignored.
-  ASSERT_TRUE(model.SetupConfig(config));
+  ASSERT_TRUE(model.SetupConfig(/*id = */ 73, config));
   ASSERT_THAT(model.GetSyscallFilterForTesting(), UnorderedElementsAre(0));
 }
 
@@ -301,15 +302,17 @@ TEST_F(FtraceConfigMuxerTest, SyscallFilterMuxing) {
       .WillByDefault(Return("nop"));
 
   // Expect no filter for non-syscall config.
-  model.SetupConfig(empty_config);
+  ASSERT_TRUE(model.SetupConfig(/* id= */ 179239, empty_config));
   ASSERT_THAT(model.GetSyscallFilterForTesting(), UnorderedElementsAre());
 
   // Expect no filter for syscall config with no specified events.
-  FtraceConfigId syscall_id = model.SetupConfig(syscall_config);
+  FtraceConfigId syscall_id = 73;
+  ASSERT_TRUE(model.SetupConfig(syscall_id, syscall_config));
   ASSERT_THAT(model.GetSyscallFilterForTesting(), UnorderedElementsAre());
 
   // Still expect no filter to satisfy this and the above.
-  FtraceConfigId syscall_open_id = model.SetupConfig(syscall_open_config);
+  FtraceConfigId syscall_open_id = 101;
+  ASSERT_TRUE(model.SetupConfig(syscall_open_id, syscall_open_config));
   ASSERT_THAT(model.GetSyscallFilterForTesting(), UnorderedElementsAre());
 
   // After removing the generic syscall trace, only the one with filter is left.
@@ -317,7 +320,8 @@ TEST_F(FtraceConfigMuxerTest, SyscallFilterMuxing) {
   ASSERT_THAT(model.GetSyscallFilterForTesting(), UnorderedElementsAre(0));
 
   // With sys_read and sys_open traced separately, filter includes both.
-  FtraceConfigId syscall_read_id = model.SetupConfig(syscall_read_config);
+  FtraceConfigId syscall_read_id = 57;
+  ASSERT_TRUE(model.SetupConfig(syscall_read_id, syscall_read_config));
   ASSERT_THAT(model.GetSyscallFilterForTesting(), UnorderedElementsAre(0, 1));
 
   // After removing configs with filters, filter is reset to empty.
@@ -363,7 +367,8 @@ TEST_F(FtraceConfigMuxerTest, AddGenericEvent) {
   EXPECT_CALL(*mock_table,
               GetOrCreateEvent(GroupAndName("power", "cpu_frequency")));
 
-  FtraceConfigId id = model.SetupConfig(config);
+  FtraceConfigId id = 7;
+  ASSERT_TRUE(model.SetupConfig(id, config));
 
   EXPECT_CALL(ftrace, WriteToFile("/root/tracing_on", "1"));
   ASSERT_TRUE(model.ActivateConfig(id));
@@ -409,7 +414,8 @@ TEST_F(FtraceConfigMuxerTest, AddSameNameEvents) {
   ON_CALL(ftrace, ReadFileIntoString("/root/events/enable"))
       .WillByDefault(Return("0"));
 
-  FtraceConfigId id = model.SetupConfig(config);
+  FtraceConfigId id = 5;
+  ASSERT_TRUE(model.SetupConfig(id, config));
   ASSERT_TRUE(model.ActivateConfig(id));
 
   const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
@@ -474,7 +480,8 @@ TEST_F(FtraceConfigMuxerTest, AddAllEvents) {
   EXPECT_CALL(*mock_table,
               GetOrCreateEvent(GroupAndName("sched", "sched_new_event")));
 
-  FtraceConfigId id = model.SetupConfig(config);
+  FtraceConfigId id = 13;
+  ASSERT_TRUE(model.SetupConfig(id, config));
   ASSERT_TRUE(id);
 
   EXPECT_CALL(ftrace, WriteToFile("/root/tracing_on", "1"));
@@ -532,7 +539,8 @@ TEST_F(FtraceConfigMuxerTest, TwoWildcardGroups) {
   ON_CALL(ftrace, ReadFileIntoString("/root/events/enable"))
       .WillByDefault(Return("0"));
 
-  FtraceConfigId id = model.SetupConfig(config);
+  FtraceConfigId id = 23;
+  ASSERT_TRUE(model.SetupConfig(id, config));
   ASSERT_TRUE(model.ActivateConfig(id));
 
   const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
@@ -569,8 +577,8 @@ TEST_F(FtraceConfigMuxerTest, TurnFtraceOnOff) {
   EXPECT_CALL(ftrace,
               WriteToFile("/root/events/sched/sched_switch/enable", "1"));
 
-  FtraceConfigId id = model.SetupConfig(config);
-  ASSERT_TRUE(id);
+  FtraceConfigId id = 97;
+  ASSERT_TRUE(model.SetupConfig(id, config));
 
   EXPECT_CALL(ftrace, WriteToFile("/root/tracing_on", "1"));
   ASSERT_TRUE(model.ActivateConfig(id));
@@ -609,8 +617,7 @@ TEST_F(FtraceConfigMuxerTest, FtraceIsAlreadyOn) {
   // If someone is using ftrace already don't stomp on what they are doing.
   EXPECT_CALL(ftrace, ReadFileIntoString("/root/current_tracer"))
       .WillOnce(Return("function"));
-  FtraceConfigId id = model.SetupConfig(config);
-  ASSERT_FALSE(id);
+  ASSERT_FALSE(model.SetupConfig(/* id= */ 123, config));
 }
 
 TEST_F(FtraceConfigMuxerTest, Atrace) {
@@ -631,8 +638,8 @@ TEST_F(FtraceConfigMuxerTest, Atrace) {
                                 _))
       .WillOnce(Return(true));
 
-  FtraceConfigId id = model.SetupConfig(config);
-  ASSERT_TRUE(id);
+  FtraceConfigId id = 57;
+  ASSERT_TRUE(model.SetupConfig(id, config));
 
   // "ftrace" group events are always enabled, and therefore the "print" event
   // will show up in the per data source event filter (as we want to record it),
@@ -679,8 +686,8 @@ TEST_F(FtraceConfigMuxerTest, AtraceTwoApps) {
           _))
       .WillOnce(Return(true));
 
-  FtraceConfigId id = model.SetupConfig(config);
-  ASSERT_TRUE(id);
+  FtraceConfigId id = 97;
+  ASSERT_TRUE(model.SetupConfig(id, config));
 
   const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
   ASSERT_TRUE(ds_config);
@@ -722,8 +729,8 @@ TEST_F(FtraceConfigMuxerTest, AtraceMultipleConfigs) {
                                                   "-a", "app_a"}),
                                 _))
       .WillOnce(Return(true));
-  FtraceConfigId id_a = model.SetupConfig(config_a);
-  ASSERT_TRUE(id_a);
+  FtraceConfigId id_a = 3;
+  ASSERT_TRUE(model.SetupConfig(id_a, config_a));
 
   EXPECT_CALL(
       atrace,
@@ -731,8 +738,8 @@ TEST_F(FtraceConfigMuxerTest, AtraceMultipleConfigs) {
                                   "cat_a", "cat_b", "-a", "app_a,app_b"}),
                 _))
       .WillOnce(Return(true));
-  FtraceConfigId id_b = model.SetupConfig(config_b);
-  ASSERT_TRUE(id_b);
+  FtraceConfigId id_b = 13;
+  ASSERT_TRUE(model.SetupConfig(id_b, config_b));
 
   EXPECT_CALL(atrace,
               RunAtrace(ElementsAreArray({"atrace", "--async_start",
@@ -740,8 +747,8 @@ TEST_F(FtraceConfigMuxerTest, AtraceMultipleConfigs) {
                                           "cat_c", "-a", "app_a,app_b,app_c"}),
                         _))
       .WillOnce(Return(true));
-  FtraceConfigId id_c = model.SetupConfig(config_c);
-  ASSERT_TRUE(id_c);
+  FtraceConfigId id_c = 23;
+  ASSERT_TRUE(model.SetupConfig(id_c, config_c));
 
   EXPECT_CALL(
       atrace,
@@ -798,8 +805,8 @@ TEST_F(FtraceConfigMuxerTest, AtraceFailedConfig) {
                                   "cat_1", "cat_2", "-a", "app_1,app_2"}),
                 _))
       .WillOnce(Return(true));
-  FtraceConfigId id_a = model.SetupConfig(config_a);
-  ASSERT_TRUE(id_a);
+  FtraceConfigId id_a = 7;
+  ASSERT_TRUE(model.SetupConfig(id_a, config_a));
 
   EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
                                                   "--only_userspace", "cat_1",
@@ -807,8 +814,8 @@ TEST_F(FtraceConfigMuxerTest, AtraceFailedConfig) {
                                                   "app_1,app_2,app_fail"}),
                                 _))
       .WillOnce(Return(false));
-  FtraceConfigId id_b = model.SetupConfig(config_b);
-  ASSERT_TRUE(id_b);
+  FtraceConfigId id_b = 17;
+  ASSERT_TRUE(model.SetupConfig(id_b, config_b));
 
   EXPECT_CALL(atrace,
               RunAtrace(ElementsAreArray({"atrace", "--async_start",
@@ -816,8 +823,8 @@ TEST_F(FtraceConfigMuxerTest, AtraceFailedConfig) {
                                           "cat_3", "-a", "app_1,app_2,app_3"}),
                         _))
       .WillOnce(Return(true));
-  FtraceConfigId id_c = model.SetupConfig(config_c);
-  ASSERT_TRUE(id_c);
+  FtraceConfigId id_c = 47;
+  ASSERT_TRUE(model.SetupConfig(id_c, config_c));
 
   EXPECT_CALL(
       atrace,
@@ -862,11 +869,11 @@ TEST_F(FtraceConfigMuxerTest, AtraceDuplicateConfigs) {
                                                   "-a", "app_1"}),
                                 _))
       .WillOnce(Return(true));
-  FtraceConfigId id_a = model.SetupConfig(config_a);
-  ASSERT_TRUE(id_a);
+  FtraceConfigId id_a = 19;
+  ASSERT_TRUE(model.SetupConfig(id_a, config_a));
 
-  FtraceConfigId id_b = model.SetupConfig(config_b);
-  ASSERT_TRUE(id_b);
+  FtraceConfigId id_b = 29;
+  ASSERT_TRUE(model.SetupConfig(id_b, config_b));
 
   ASSERT_TRUE(model.RemoveConfig(id_a));
 
@@ -898,26 +905,26 @@ TEST_F(FtraceConfigMuxerTest, AtraceAndFtraceConfigs) {
       .WillByDefault(Return("nop"));
   ON_CALL(ftrace, ReadFileIntoString("/root/events/enable"))
       .WillByDefault(Return("0"));
-  FtraceConfigId id_a = model.SetupConfig(config_a);
-  ASSERT_TRUE(id_a);
+  FtraceConfigId id_a = 179;
+  ASSERT_TRUE(model.SetupConfig(id_a, config_a));
 
   EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
                                                   "--only_userspace", "b"}),
                                 _))
       .WillOnce(Return(true));
-  FtraceConfigId id_b = model.SetupConfig(config_b);
-  ASSERT_TRUE(id_b);
+  FtraceConfigId id_b = 239;
+  ASSERT_TRUE(model.SetupConfig(id_b, config_b));
 
-  FtraceConfigId id_c = model.SetupConfig(config_c);
-  ASSERT_TRUE(id_c);
+  FtraceConfigId id_c = 101;
+  ASSERT_TRUE(model.SetupConfig(id_c, config_c));
 
   EXPECT_CALL(atrace,
               RunAtrace(ElementsAreArray({"atrace", "--async_start",
                                           "--only_userspace", "b", "d"}),
                         _))
       .WillOnce(Return(true));
-  FtraceConfigId id_d = model.SetupConfig(config_d);
-  ASSERT_TRUE(id_d);
+  FtraceConfigId id_d = 47;
+  ASSERT_TRUE(model.SetupConfig(id_d, config_d));
 
   EXPECT_CALL(atrace, RunAtrace(ElementsAreArray({"atrace", "--async_start",
                                                   "--only_userspace", "b"}),
@@ -964,8 +971,8 @@ TEST_F(FtraceConfigMuxerTest, AtraceErrorsPropagated) {
       }));
 
   FtraceSetupErrors errors{};
-  FtraceConfigId id_a = model.SetupConfig(config, &errors);
-  ASSERT_TRUE(id_a);
+  FtraceConfigId id_a = 23;
+  ASSERT_TRUE(model.SetupConfig(id_a, config, &errors));
   EXPECT_EQ(errors.atrace_errors, "foo\nbar\n");
 }
 
@@ -1079,8 +1086,8 @@ TEST_F(FtraceConfigMuxerTest, FallbackOnSetEvent) {
       .WillOnce(Return(false));
   EXPECT_CALL(ftrace, AppendToFile("/root/set_event", "cgroup:cgroup_mkdir"))
       .WillOnce(Return(true));
-  FtraceConfigId id = model.SetupConfig(config);
-  ASSERT_TRUE(id);
+  FtraceConfigId id = 97;
+  ASSERT_TRUE(model.SetupConfig(id, config));
 
   EXPECT_CALL(ftrace, WriteToFile("/root/tracing_on", "1"));
   ASSERT_TRUE(model.ActivateConfig(id));
@@ -1138,8 +1145,8 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
       .WillByDefault(Return("0"));
 
   {
-    FtraceConfigId id = model.SetupConfig(config_enabled);
-    ASSERT_TRUE(id);
+    FtraceConfigId id = 73;
+    ASSERT_TRUE(model.SetupConfig(id, config_enabled));
     const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
     ASSERT_TRUE(ds_config);
     EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
@@ -1147,8 +1154,8 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
     EXPECT_TRUE(ds_config->compact_sched.enabled);
   }
   {
-    FtraceConfigId id = model.SetupConfig(config_disabled);
-    ASSERT_TRUE(id);
+    FtraceConfigId id = 87;
+    ASSERT_TRUE(model.SetupConfig(id, config_disabled));
     const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
     ASSERT_TRUE(ds_config);
     EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
@@ -1170,8 +1177,8 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfigWithInvalidFormat) {
   ON_CALL(ftrace, ReadFileIntoString("/root/events/enable"))
       .WillByDefault(Return("0"));
 
-  FtraceConfigId id = model.SetupConfig(config);
-  ASSERT_TRUE(id);
+  FtraceConfigId id = 67;
+  ASSERT_TRUE(model.SetupConfig(id, config));
 
   // The translation table says that the scheduling events' format didn't match
   // compile-time assumptions, so we won't enable compact events even if
@@ -1214,8 +1221,8 @@ print fmt: "unused")"));
       .WillByDefault(Return("0"));
 
   {
-    FtraceConfigId id = model.SetupConfig(config_default);
-    ASSERT_TRUE(id);
+    FtraceConfigId id = 123;
+    ASSERT_TRUE(model.SetupConfig(id, config_default));
     const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
     ASSERT_TRUE(ds_config);
     // Both events enabled for the data source by default.
@@ -1224,8 +1231,8 @@ print fmt: "unused")"));
         UnorderedElementsAre(kFakeSchedSwitchEventId, kFtraceGenericEventId));
   }
   {
-    FtraceConfigId id = model.SetupConfig(config_with_disable);
-    ASSERT_TRUE(id);
+    FtraceConfigId id = 321;
+    ASSERT_TRUE(model.SetupConfig(id, config_with_disable));
     const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
     ASSERT_TRUE(ds_config);
     // Only the statically known event is enabled.
@@ -1266,7 +1273,8 @@ TEST_F(FtraceConfigMuxerTest, Funcgraph) {
       .WillOnce(Return(true));
   EXPECT_CALL(ftrace, WriteToFile("/root/current_tracer", "function_graph"))
       .WillOnce(Return(true));
-  FtraceConfigId id = model.SetupConfig(config);
+  FtraceConfigId id = 43;
+  ASSERT_TRUE(model.SetupConfig(id, config));
   ASSERT_TRUE(testing::Mock::VerifyAndClearExpectations(&ftrace));
   // Toggle config on and off, tracer won't be reset yet:
   ASSERT_TRUE(model.ActivateConfig(id));
@@ -1281,6 +1289,18 @@ TEST_F(FtraceConfigMuxerTest, Funcgraph) {
       .WillOnce(Return(true));
   ASSERT_TRUE(model.ResetCurrentTracer());
   ASSERT_TRUE(testing::Mock::VerifyAndClearExpectations(&ftrace));
+}
+
+TEST_F(FtraceConfigMuxerTest, SecondaryInstanceDoNotSupportAtrace) {
+  auto fake_table = CreateFakeTable();
+  NiceMock<MockFtraceProcfs> ftrace;
+  FtraceConfigMuxer model(&ftrace, fake_table.get(), GetSyscallTable(), {},
+                          /* secondary_instance= */ true);
+
+  FtraceConfig config = CreateFtraceConfig({"sched/sched_switch"});
+  *config.add_atrace_categories() = "sched";
+
+  ASSERT_FALSE(model.SetupConfig(/* id= */ 73, config));
 }
 
 }  // namespace
