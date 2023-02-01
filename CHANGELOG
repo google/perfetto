@@ -1,5 +1,15 @@
 Unreleased:
   Tracing service and probes:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+v32 - 2023-02-01:
+  Tracing service and probes:
     * Added an explicit TraceUuid packet. The tracing service now always
       generates a UUID, even if TraceConfig.trace_uuid_msb/lsb is empty.
   Trace Processor:
