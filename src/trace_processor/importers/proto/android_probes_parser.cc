@@ -77,6 +77,8 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
           context->storage->InternString("batt.current.avg_ua")),
       screen_state_id_(context->storage->InternString("ScreenState")),
       device_state_id_(context->storage->InternString("DeviceStateChanged")),
+      battery_status_id_(context->storage->InternString("BatteryStatus")),
+      plug_type_id_(context->storage->InternString("PlugType")),
       net_arg_length_(context->storage->InternString("packet_length")),
       net_arg_ip_proto_(context->storage->InternString("packet_transport")),
       net_arg_tcp_flags_(context->storage->InternString("packet_tcp_flags")),
@@ -408,15 +410,9 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
   for (auto it = properties.values(); it; ++it) {
     protos::pbzero::AndroidSystemProperty::PropertyValue::Decoder kv(*it);
     base::StringView name(kv.name());
-    if (name == "debug.tracing.screen_state") {
-      base::Optional<int32_t> state =
-          base::StringToInt32(kv.value().ToStdString());
-      if (state) {
-        TrackId track =
-            context_->track_tracker->InternGlobalCounterTrack(screen_state_id_);
-        context_->event_tracker->PushCounter(ts, *state, track);
-      }
-    } else if (name == "debug.tracing.device_state") {
+    base::Optional<StringId> mapped_name_id;
+
+    if (name == "debug.tracing.device_state") {
       auto state = kv.value();
 
       StringId state_id = context_->storage->InternString(state);
@@ -435,6 +431,21 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
       if (state) {
         TrackId track =
             context_->track_tracker->InternGlobalCounterTrack(name_id);
+        context_->event_tracker->PushCounter(ts, *state, track);
+      }
+    } else if (name == "debug.tracing.screen_state") {
+      mapped_name_id = screen_state_id_;
+    } else if (name == "debug.tracing.battery_status") {
+      mapped_name_id = battery_status_id_;
+    } else if (name == "debug.tracing.plug_type") {
+      mapped_name_id = plug_type_id_;
+    }
+    if (mapped_name_id) {
+      base::Optional<int32_t> state =
+          base::StringToInt32(kv.value().ToStdString());
+      if (state) {
+        TrackId track =
+            context_->track_tracker->InternGlobalCounterTrack(*mapped_name_id);
         context_->event_tracker->PushCounter(ts, *state, track);
       }
     }
