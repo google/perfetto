@@ -15,6 +15,7 @@
 import {Actions} from '../common/actions';
 import {Engine} from '../common/engine';
 import {QueryError} from '../common/query_result';
+import {globals as frontendGlobals} from '../frontend/globals';
 import {publishMetricResult} from '../frontend/publish';
 
 import {Controller} from './controller';
@@ -48,7 +49,7 @@ export class MetricsController extends Controller<'main'> {
         throw e;
       }
     }
-    globals.dispatch(Actions.resetMetricRequest({name}));
+    frontendGlobals.dispatch(Actions.resetMetricRequest({name}));
     this.currentlyRunningMetric = undefined;
   }
 

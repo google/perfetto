@@ -29,6 +29,7 @@ import {
   isChromeTarget,
   RecordingTarget,
 } from '../common/state';
+import {globals as frontendGlobals} from '../frontend/globals';
 import {publishBufferUsage, publishTrackData} from '../frontend/publish';
 
 import {AdbOverWebUsb} from './adb';
@@ -208,7 +209,8 @@ export class RecordController extends Controller<'main'> implements Consumer {
       if (this.app.state.extensionInstalled) {
         this.extensionPort.postMessage({method: 'GetCategories'});
       }
-      globals.dispatch(Actions.setFetchChromeCategories({fetch: false}));
+      frontendGlobals.dispatch(
+          Actions.setFetchChromeCategories({fetch: false}));
     }
     if (this.app.state.recordConfig === this.config &&
         this.app.state.recordingInProgress === this.recordingInProgress) {
@@ -302,15 +304,15 @@ export class RecordController extends Controller<'main'> implements Consumer {
 
   onTraceComplete() {
     this.consumerPort.freeBuffers({});
-    globals.dispatch(Actions.setRecordingStatus({status: undefined}));
+    frontendGlobals.dispatch(Actions.setRecordingStatus({status: undefined}));
     if (globals.state.recordingCancelled) {
-      globals.dispatch(
+      frontendGlobals.dispatch(
           Actions.setLastRecordingError({error: 'Recording cancelled.'}));
       this.traceBuffer = [];
       return;
     }
     const trace = this.generateTrace();
-    globals.dispatch(Actions.openTraceFromBuffer({
+    frontendGlobals.dispatch(Actions.openTraceFromBuffer({
       title: 'Recorded trace',
       buffer: trace.buffer,
       fileName: `recorded_trace${this.recordedTraceSuffix}`,
@@ -346,13 +348,13 @@ export class RecordController extends Controller<'main'> implements Consumer {
   onError(message: string) {
     // TODO(octaviant): b/204998302
     console.error('Error in record controller: ', message);
-    globals.dispatch(
+    frontendGlobals.dispatch(
         Actions.setLastRecordingError({error: message.substr(0, 150)}));
-    globals.dispatch(Actions.stopRecording({}));
+    frontendGlobals.dispatch(Actions.stopRecording({}));
   }
 
   onStatus(message: string) {
-    globals.dispatch(Actions.setRecordingStatus({status: message}));
+    frontendGlobals.dispatch(Actions.setRecordingStatus({status: message}));
   }
 
   // Depending on the recording target, different implementation of the
