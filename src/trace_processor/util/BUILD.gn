@@ -34,6 +34,17 @@ source_set("stdlib") {
   sources = [ "sql_modules.h" ]
 }
 
+source_set("bump_allocator") {
+  sources = [
+    "bump_allocator.cc",
+    "bump_allocator.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+}
+
 source_set("gzip") {
   sources = [
     "gzip_utils.cc",
@@ -206,6 +217,7 @@ source_set("profile_builder") {
 
 source_set("unittests") {
   sources = [
+    "bump_allocator_unittest.cc",
     "debug_annotation_parser_unittest.cc",
     "glob_unittest.cc",
     "proto_profiler_unittest.cc",
@@ -217,6 +229,7 @@ source_set("unittests") {
   ]
   testonly = true
   deps = [
+    ":bump_allocator",
     ":descriptors",
     ":glob",
     ":gzip",
