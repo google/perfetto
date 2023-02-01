@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <sys/stat.h>
 
+#include <cctype>
 #include <cinttypes>
 #include <functional>
 #include <iostream>
