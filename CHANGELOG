@@ -8,6 +8,11 @@ Unreleased:
   SDK:
     *
 
+v32.1 - 2023-02-01:
+  Trace Processor:
+    * Fix build on windows.
+
+
 v32.0 - 2023-02-01:
   Tracing service and probes:
     * Added an explicit TraceUuid packet. The tracing service now always
