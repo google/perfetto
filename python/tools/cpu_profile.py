@@ -109,7 +109,8 @@ def parse_and_validate_args():
       "--partial-matching",
       help="If set, enables \"partial matching\" on the strings in --names/-n."
       "Processes that are already running when profiling is started, and whose "
-      "names include any of the values in --names/-n as substrings will be profiled.",
+      "names include any of the values in --names/-n as substrings will be "
+      "profiled.",
       action="store_true")
   parser.add_argument(
       "-c",
@@ -144,7 +145,8 @@ def parse_and_validate_args():
 
 
 def get_matching_processes(args, names_to_match):
-  """Returns a list of currently-running processes whose names match `names_to_match`.
+  """Returns a list of currently-running processes whose names match
+  `names_to_match`.
 
   Args:
     args: The command-line arguments provided to this script.
@@ -171,7 +173,8 @@ def get_matching_processes(args, names_to_match):
 
 
 def get_perfetto_config(args):
-  """Returns a Perfetto config with CPU profiling enabled for the selected processes.
+  """Returns a Perfetto config with CPU profiling enabled for the selected
+  processes.
 
   Args:
     args: The command-line arguments provided to this script.
@@ -261,7 +264,8 @@ def release_or_newer(release):
 
 
 def get_and_prepare_profile_target(args):
-  """Returns the target where the trace/profile will be output. Creates a new directory if necessary.
+  """Returns the target where the trace/profile will be output.  Creates a
+  new directory if necessary.
 
   Args:
     args: The command-line arguments provided to this script.
@@ -360,7 +364,8 @@ def concatenate_files(files_to_concatenate, output_file):
 
 
 def symbolize_trace(traceconv, profile_target):
-  """Attempts symbolization of the recorded trace/profile, if symbols are available.
+  """Attempts symbolization of the recorded trace/profile, if symbols are
+  available.
 
   Args:
     traceconv: The path to the `traceconv` binary used for symbolization.

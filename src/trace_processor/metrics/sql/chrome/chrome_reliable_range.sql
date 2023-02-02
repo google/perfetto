@@ -121,7 +121,7 @@ FROM (
   USING (upid)
   WHERE
     EXTRACT_ARG(process.arg_set_id, 'chrome.process_type')
-      IN ('Browser', 'Renderer')
+      IN ('Browser', 'Renderer', 'Gpu')
 )
 WHERE utid is NULL;
 
