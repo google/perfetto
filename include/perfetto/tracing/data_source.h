@@ -368,9 +368,24 @@ class DataSource : public DataSourceBase {
     constexpr auto kMaxDataSourceInstances = internal::kMaxDataSourceInstances;
 
     // See tracing_muxer.h for the structure of the TLS.
-    auto* tracing_impl = internal::TracingMuxer::Get();
-    if (PERFETTO_UNLIKELY(!tls_state_))
+    if (PERFETTO_UNLIKELY(!tls_state_)) {
+      // If the TLS hasn't been obtained yet, it's possible that this thread
+      // hasn't observed the initialization of global state like the muxer yet.
+      // To ensure that the thread "sees" the effects of such initialization,
+      // we have to reload |instances| with an acquire fence, ensuring that any
+      // initialization performed before instances was updated is visible
+      // in this thread.
+      instances &= Traits::GetActiveInstances(trace_point_data)
+                       ->load(std::memory_order_acquire);
+      if (!instances)
+        return;
       tls_state_ = GetOrCreateDataSourceTLS(&static_state_);
+    }
+
+    // |tls_state_| is valid, which means that the current thread must have
+    // observed the initialization of the muxer, and obtaining it without a
+    // fence is safe.
+    auto* tracing_impl = internal::TracingMuxer::Get();
 
     // Avoid re-entering the trace point recursively.
     if (PERFETTO_UNLIKELY(tls_state_->root_tls->is_in_trace_point))
@@ -435,8 +450,8 @@ class DataSource : public DataSourceBase {
         // Here we need an acquire barrier, which matches the release-store made
         // by TracingMuxerImpl::SetupDataSource(), to ensure that the backend_id
         // and buffer_id are consistent.
-        instances = Traits::GetActiveInstances(trace_point_data)
-                        ->load(std::memory_order_acquire);
+        instances &= Traits::GetActiveInstances(trace_point_data)
+                         ->load(std::memory_order_acquire);
         instance_state = static_state_.TryGetCached(instances, i);
         if (!instance_state || !instance_state->trace_lambda_enabled)
           continue;
