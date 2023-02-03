@@ -108,3 +108,115 @@ class Functions(TestSuite):
         6,4
         7,4
         """))
+
+  def test_spans_overlapping_dur_intersect_edge(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+
+        """),
+        query="""
+        SELECT IMPORT('common.timestamps');
+        SELECT SPANS_OVERLAPPING_DUR(0, 2, 1, 2) AS dur
+        """,
+        out=Csv("""
+        "dur"
+        1
+        """))
+
+  def test_spans_overlapping_dur_intersect_edge_reversed(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+
+        """),
+        query="""
+        SELECT IMPORT('common.timestamps');
+        SELECT SPANS_OVERLAPPING_DUR(1, 2, 0, 2) AS dur
+        """,
+        out=Csv("""
+        "dur"
+        1
+        """))
+
+  def test_spans_overlapping_dur_intersect_all(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+
+        """),
+        query="""
+        SELECT IMPORT('common.timestamps');
+        SELECT SPANS_OVERLAPPING_DUR(0, 3, 1, 1) AS dur
+        """,
+        out=Csv("""
+        "dur"
+        1
+        """))
+
+  def test_spans_overlapping_dur_intersect_all_reversed(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+
+        """),
+        query="""
+        SELECT IMPORT('common.timestamps');
+        SELECT SPANS_OVERLAPPING_DUR(1, 1, 0, 3) AS dur
+        """,
+        out=Csv("""
+        "dur"
+        1
+        """))
+
+  def test_spans_overlapping_dur_no_intersect(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+
+        """),
+        query="""
+        SELECT IMPORT('common.timestamps');
+        SELECT SPANS_OVERLAPPING_DUR(0, 1, 2, 1) AS dur
+        """,
+        out=Csv("""
+        "dur"
+        0
+        """))
+
+  def test_spans_overlapping_dur_no_intersect_reversed(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+
+        """),
+        query="""
+        SELECT IMPORT('common.timestamps');
+        SELECT SPANS_OVERLAPPING_DUR(2, 1, 0, 1) AS dur
+        """,
+        out=Csv("""
+        "dur"
+        0
+        """))
+
+  def test_spans_overlapping_dur_negative_dur(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+
+        """),
+        query="""
+        SELECT IMPORT('common.timestamps');
+        SELECT SPANS_OVERLAPPING_DUR(0, -1, 0, 1) AS dur
+        """,
+        out=Csv("""
+        "dur"
+        0
+        """))
+
+  def test_spans_overlapping_dur_negative_dur_reversed(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+
+        """),
+        query="""
+        SELECT IMPORT('common.timestamps');
+        SELECT SPANS_OVERLAPPING_DUR(0, 1, 0, -1) AS dur
+        """,
+        out=Csv("""
+        "dur"
+        0
+        """))
