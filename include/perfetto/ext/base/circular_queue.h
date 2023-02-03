@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include <cstddef>
 #include <iterator>
 
 #include "perfetto/base/logging.h"
@@ -234,6 +235,16 @@ class CircularQueue {
 
   void clear() { erase_front(size()); }
 
+  void shrink_to_fit() {
+    // We only bother shrinking if we can fit in quarter of the capacity we are
+    // currently using. Moreover, don't bother shrinking below 4096 elements as
+    // that will cause a lot of reallocations for little benefit.
+    if (size() > capacity() / 2 || capacity() <= 4096) {
+      return;
+    }
+    ChangeCapacity(capacity() / 2);
+  }
+
   T& at(size_t idx) {
     PERFETTO_DCHECK(idx < size());
     return *Get(begin_ + idx);
@@ -271,6 +282,13 @@ class CircularQueue {
     // On 32-bit systems this might hit the 4GB wall and overflow. We can't do
     // anything other than crash in this case.
     PERFETTO_CHECK(new_capacity > capacity_);
+
+    ChangeCapacity(new_capacity);
+  }
+
+  void ChangeCapacity(size_t new_capacity) {
+    // We should still have enough space to fit all the elements in the queue.
+    PERFETTO_CHECK(new_capacity >= size());
 
     AlignedUniquePtr<T[]> new_vec = AlignedAllocTyped<T[]>(new_capacity);
 
