@@ -56,3 +56,27 @@ SELECT CREATE_FUNCTION(
       < IIF($ts_end1 < $ts_end2, $ts_end1, $ts_end2))
   '
 );
+
+--Return the overlapping duration between two spans.
+--If either duration is less than 0 or there's no intersection, 0 is returned
+--
+-- @arg ts1 LONG Timestamp of first slice start.
+-- @arg dur1 LONG Duration of first slice.
+-- @arg ts2 LONG Timestamp of second slice start.
+-- @arg dur2 LONG Duration of second slice.
+-- @ret INT               Overlapping duration
+SELECT CREATE_FUNCTION(
+  'SPANS_OVERLAPPING_DUR(ts1 LONG, dur1 LONG, ts2 LONG, dur2 LONG)',
+  'INT',
+  '
+  SELECT
+  CASE
+    WHEN $dur1 = -1 OR $dur2 = -1 THEN 0
+    WHEN $ts1 + $dur1 < $ts2 OR $ts2 + $dur2 < $ts1 THEN 0
+    WHEN ($ts1 >= $ts2) AND ($ts1 + $dur1 <= $ts2 + $dur2) THEN $dur1
+    WHEN ($ts1 < $ts2) AND ($ts1 + $dur1 < $ts2 + $dur2) THEN $ts1 + $dur1 - $ts2
+    WHEN ($ts1 > $ts2) AND ($ts1 + $dur1 > $ts2 + $dur2) THEN $ts2 + $dur2 - $ts1
+    ELSE $dur2
+  END
+  '
+);

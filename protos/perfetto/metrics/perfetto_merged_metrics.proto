@@ -133,8 +133,12 @@ message AndroidBatteryMetric {
 
 // Begin of protos/perfetto/metrics/android/binder_metric.proto
 
-// This metric provides per-process Binder statistics for traces with binder_driver enabled
-// Specifically, transactions are categorized and counted
+// This metric provides the following:
+// 1. Per-process Binder statistics for traces with binder_driver enabled.
+//    Specifically, transactions are categorized and counted
+// 2. Unaggregated binder txn durations with per-txn aggregated thread state and
+// blocked function
+//    durations
 message AndroidBinderMetric {
   message PerProcessBreakdown {
     optional string process_name = 1;
@@ -143,8 +147,45 @@ message AndroidBinderMetric {
     optional uint32 count = 4;
   }
 
+  message UnaggregatedTxnBreakdown {
+    // General
+    optional string aidl_name = 1;
+    // Client
+    optional uint32 binder_txn_id = 2;
+    optional string client_process = 3;
+    optional string client_thread = 4;
+    optional bool is_main_thread = 5;
+    optional int64 client_ts = 6;
+    optional int64 client_dur = 7;
+    // Server
+    optional uint32 binder_reply_id = 8;
+    optional string server_process = 9;
+    optional string server_thread = 10;
+    optional int64 server_ts = 11;
+    optional int64 server_dur = 12;
+    // Aggregations
+    repeated ThreadStateBreakdown thread_states = 13;
+    repeated BlockedFunctionBreakdown blocked_functions = 14;
+  }
+
+  message ThreadStateBreakdown {
+    optional string thread_state_type = 1;
+    optional string thread_state = 2;
+    optional int64 thread_state_dur = 3;
+    optional int64 thread_state_count = 4;
+  }
+
+  message BlockedFunctionBreakdown {
+    optional string thread_state_type = 1;
+    optional string blocked_function = 2;
+    optional int64 blocked_function_dur = 3;
+    optional int64 blocked_function_count = 4;
+  }
+
   repeated PerProcessBreakdown process_breakdown = 1;
+  repeated UnaggregatedTxnBreakdown unaggregated_txn_breakdown = 2;
 }
+
 // End of protos/perfetto/metrics/android/binder_metric.proto
 
 // Begin of protos/perfetto/metrics/android/camera_metric.proto
