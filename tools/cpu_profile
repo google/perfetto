@@ -560,14 +560,23 @@ def record_trace(config, profile_target):
   }
   if not release_or_newer('R'):
     sys.exit("This tool requires Android R+ to run.")
+
+  # Push configuration to the device.
+  tf = tempfile.NamedTemporaryFile()
+  tf.file.write(config.encode('utf-8'))
+  tf.file.flush()
+  profile_config_path = '/data/misc/perfetto-configs/config-' + UUID
+  adb_check_output(['adb', 'push', tf.name, profile_config_path])
+  tf.close()
+
+
   profile_device_path = '/data/misc/perfetto-traces/profile-' + UUID
-  perfetto_command = ('CONFIG=\'{}\'; echo ${{CONFIG}} | '
-                      'perfetto --txt -c - -o {} -d')
+  perfetto_command = ('perfetto --txt -c {} -o {} -d')
   try:
     perfetto_pid = int(
         adb_check_output([
             'adb', 'exec-out',
-            perfetto_command.format(config, profile_device_path)
+            perfetto_command.format(profile_config_path, profile_device_path)
         ]).strip())
   except ValueError as error:
     sys.exit("Unable to start profiling: {}".format(error))
@@ -597,6 +606,7 @@ def record_trace(config, profile_target):
 
   profile_host_path = os.path.join(profile_target, 'raw-trace')
   adb_check_output(['adb', 'pull', profile_device_path, profile_host_path])
+  adb_check_output(['adb', 'shell', 'rm', profile_config_path])
   adb_check_output(['adb', 'shell', 'rm', profile_device_path])
 
 
