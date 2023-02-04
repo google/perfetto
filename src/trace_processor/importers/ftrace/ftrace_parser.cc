@@ -1702,6 +1702,8 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   proc_tracker->UpdateThreadNameByUtid(new_utid, new_comm,
                                        ThreadNamePriority::kFtrace);
   proc_tracker->AssociateThreads(source_utid, new_utid);
+
+  ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(timestamp, new_utid, source_utid);
 }
 
 void FtraceParser::ParseTaskRename(ConstBytes blob) {
