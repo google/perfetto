@@ -1126,3 +1126,46 @@ class Parsing(TestSuite):
         679375600673065,3797,385482,"__handle_mm_fault",0
         679375600673769,1726,385482,"alloc_pages_vma",1
         """))
+
+  # Kernel task_newtask waker_utid parsing
+  def test_task_newtask_waker_utid(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          first_packet_on_sequence: true
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 201315132677
+              pid: 518
+              task_newtask {
+                pid: 3294
+                comm: "adbd"
+                clone_flags: 18874368
+                oom_score_adj: -1000
+              }
+            }
+            event {
+              timestamp: 201319417828
+              pid: 518
+              task_newtask {
+                pid: 3295
+                comm: "adbd"
+                clone_flags: 4001536
+                oom_score_adj: -1000
+              }
+            }
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 2
+          trusted_pid: 521
+          previous_packet_dropped: true
+        }
+        """),
+        query="""
+        SELECT waker_utid FROM thread_state
+        """,
+        out=Csv("""
+        "waker_utid"
+        1
+        """))
