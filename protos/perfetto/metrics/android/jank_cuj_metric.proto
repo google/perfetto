@@ -78,7 +78,7 @@ message AndroidJankCujMetric {
     optional bool sf_missed = 6;
   }
 
-  // Next id: 12
+  // Next id: 16
   message Metrics {
     // Overall number of frames within the CUJ.
     optional int64 total_frames = 1;
@@ -96,28 +96,43 @@ message AndroidJankCujMetric {
     // Not available in timeline_metrics and trace_metrics.
     optional int64 missed_frames_max_successive = 5;
 
-    // Max frame duration.
-    // Not available in counter_metrics.
+    // Max frame duration in nanoseconds.
     optional int64 frame_dur_max = 6;
 
-    // Average frame duration.
+    // Average frame duration in nanoseconds.
     // Not available in counter_metrics.
     optional int64 frame_dur_avg = 7;
 
-    // Median frame duration.
+    // Median frame duration in nanoseconds.
     // Not available in counter_metrics.
     optional int64 frame_dur_p50 = 8;
 
-    // P90 frame duration.
+    // P90 frame duration in nanoseconds.
     // Not available in counter_metrics.
     optional int64 frame_dur_p90 = 9;
 
-    // P95 frame duration.
+    // P95 frame duration in nanoseconds.
     // Not available in counter_metrics.
     optional int64 frame_dur_p95 = 10;
 
-    // P99 frame duration.
+    // P99 frame duration in nanoseconds.
     // Not available in counter_metrics.
     optional int64 frame_dur_p99 = 11;
+
+    // Median frame duration in milliseconds.
+    // Not available in counter_metrics.
+    optional double frame_dur_ms_p50 = 12;
+
+    // P90 frame duration in milliseconds.
+    // Not available in counter_metrics.
+    optional double frame_dur_ms_p90 = 13;
+
+    // P95 frame duration in milliseconds.
+    // Not available in counter_metrics.
+    optional double frame_dur_ms_p95 = 14;
+
+    // P99 frame duration in milliseconds.
+    // Not available in counter_metrics.
+    optional double frame_dur_ms_p99 = 15;
   }
 }
