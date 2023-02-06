@@ -138,6 +138,10 @@ android_jank_cuj {
       frame_dur_p90: 34000000
       frame_dur_p95: 37000000
       frame_dur_p99: 39400000
+      frame_dur_ms_p50: 24.0
+      frame_dur_ms_p90: 34.0
+      frame_dur_ms_p95: 37.0
+      frame_dur_ms_p99: 39.400000000000006
     }
     trace_metrics {
       total_frames: 6
@@ -150,6 +154,10 @@ android_jank_cuj {
       frame_dur_p90: 34000000
       frame_dur_p95: 37000000
       frame_dur_p99: 39400000
+      frame_dur_ms_p50: 24.0
+      frame_dur_ms_p90: 34.0
+      frame_dur_ms_p95: 37.0
+      frame_dur_ms_p99: 39.400000000000006
     }
   }
   cuj {
@@ -354,6 +362,10 @@ android_jank_cuj {
       frame_dur_p90: 58900000
       frame_dur_p95: 61000000
       frame_dur_p99: 61000000
+      frame_dur_ms_p50: 22.5
+      frame_dur_ms_p90: 58.900000000000006
+      frame_dur_ms_p95: 61.0
+      frame_dur_ms_p99: 61.0
     }
     trace_metrics {
       total_frames: 12
@@ -366,6 +378,10 @@ android_jank_cuj {
       frame_dur_p90: 60500000
       frame_dur_p95: 61000000
       frame_dur_p99: 61000000
+      frame_dur_ms_p50: 25.3
+      frame_dur_ms_p90: 60.5
+      frame_dur_ms_p95: 61.0
+      frame_dur_ms_p99: 61.0
     }
   }
 }
