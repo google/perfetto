@@ -56,7 +56,13 @@
 // should be made visible outside the current module. (e.g., in Chrome's
 // component build).
 #if !defined(PERFETTO_COMPONENT_EXPORT)
+#if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_MSVC)
+// Workaround for C4003: not enough arguments for function-like macro invocation
+// 'PERFETTO_INTERNAL_DECLARE_TRACK_EVENT_DATA_SOURCE'
+#define PERFETTO_COMPONENT_EXPORT __declspec()
+#else
 #define PERFETTO_COMPONENT_EXPORT
+#endif
 #endif
 
 namespace perfetto {
