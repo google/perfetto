@@ -25,6 +25,10 @@
 
 #if __cplusplus >= 201703
 #define PERFETTO_IS_AT_LEAST_CPP17() 1
+#elif defined(_MSVC_LANG) && _MSVC_LANG >= 201703L
+// Without additional flags, MSVC is not standard compliant and keeps
+// __cplusplus stuck at an old value, even with C++17
+#define PERFETTO_IS_AT_LEAST_CPP17() 1
 #else
 #define PERFETTO_IS_AT_LEAST_CPP17() 0
 #endif
