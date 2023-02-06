@@ -149,6 +149,21 @@ tests:
 ui/run-unittests
 ```
 
+This command will perform the build first; which is not necessary if you
+already have a development server running. In this case, to avoid interference
+with the rebuild done by development server and to get the results faster, you
+can use
+
+```bash
+ui/run-unittests --no-build
+```
+
+to skip the build steps.
+
+Script `ui/run-unittests` also supports `--watch` parameter, which would
+restart the testing when the underlying source files are changed. This can be
+used in conjunction with `--no-build`, and on its own as well.
+
 ## Build files
 
 The source of truth of our build file is in the BUILD.gn files, which are based
