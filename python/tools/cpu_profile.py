@@ -186,7 +186,7 @@ def get_perfetto_config(args):
     except IOError as error:
       sys.exit("Unable to read config file: {}".format(error))
 
-  CONFIG_INDENT = '      '
+  CONFIG_INDENT = '          '
   CONFIG = textwrap.dedent('''\
   buffers {{
     size_kb: 2048
@@ -211,9 +211,15 @@ def get_perfetto_config(args):
       name: "linux.perf"
       target_buffer: 1
       perf_event_config {{
-        all_cpus: true
-        sampling_frequency: {frequency}
+        timebase {{
+          frequency: {frequency}
+          timestamp_clock: PERF_CLOCK_MONOTONIC
+        }}
+        callstack_sampling {{
+          scope {{
   {target_config}
+          }}
+        }}
       }}
     }}
   }}
