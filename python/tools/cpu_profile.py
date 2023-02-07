@@ -99,6 +99,12 @@ def parse_and_validate_args():
       type=int,
       default=0)
   parser.add_argument(
+      "-k",
+      "--kernel-frames",
+      help="Collect kernel frames.  Default: false.",
+      action="store_true",
+      default=False)
+  parser.add_argument(
       "-n",
       "--name",
       help="Comma-separated list of names of processes to be profiled.",
@@ -219,6 +225,7 @@ def get_perfetto_config(args):
           scope {{
   {target_config}
           }}
+          kernel_frames: {kernel_config}
         }}
       }}
     }}
@@ -241,6 +248,11 @@ def get_perfetto_config(args):
   target_config = "\n".join(
       [f'{CONFIG_INDENT}target_cmdline: "{p}"' for p in matching_processes])
 
+  if args.kernel_frames:
+    kernel_config = "true"
+  else:
+    kernel_config = "false"
+
   if not args.print_config:
     print("Configured profiling for these processes:\n")
     for matching_process in matching_processes:
@@ -250,7 +262,8 @@ def get_perfetto_config(args):
   config = CONFIG.format(
       frequency=args.frequency,
       duration=args.duration,
-      target_config=target_config)
+      target_config=target_config,
+      kernel_config=kernel_config)
 
   return config
 
