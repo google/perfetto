@@ -84,6 +84,7 @@ config("extra_warnings") {
       "-Wno-reserved-identifier",
       "-Wno-unknown-sanitizers",
       "-Wno-unknown-warning-option",
+      "-Wno-unsafe-buffer-usage",
     ]
   } else if (!is_clang && !is_win) {
     # Use return std::move(...) for compatibility with old GCC compilers.
