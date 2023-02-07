@@ -62,7 +62,8 @@ void SetTestingFields(T* msg) {
   msg->set_big_enum(decltype(msg->big_enum())::BEGIN);
 
   msg->set_field_string("FizzBuzz");
-  msg->set_field_bytes(reinterpret_cast<const uint8_t*>("\x11\x00\xBE\xEF"), 4);
+  msg->set_field_bytes(reinterpret_cast<const uint8_t*>("\x11\x00\xBE\xEF"),
+                       4u);
   msg->add_repeated_int32(1);
   msg->add_repeated_int32(-1);
   msg->add_repeated_int32(100);
@@ -100,7 +101,7 @@ TEST(ProtoCppConformanceTest, GenEncode_GoldDecode) {
   pbgold::EveryField gold_msg;
   gold_msg.ParseFromString(serialized);
   CheckTestingFields(gold_msg);
-  EXPECT_EQ(serialized.size(), static_cast<size_t>(gold_msg.ByteSize()));
+  EXPECT_EQ(serialized.size(), static_cast<size_t>(gold_msg.ByteSizeLong()));
 }
 
 TEST(ProtoCppConformanceTest, GoldEncode_GenDecode) {
