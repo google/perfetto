@@ -35,6 +35,10 @@ SELECT
   CAST(PERCENTILE(dur, 90) AS INTEGER) AS frame_dur_p90,
   CAST(PERCENTILE(dur, 95) AS INTEGER) AS frame_dur_p95,
   CAST(PERCENTILE(dur, 99) AS INTEGER) AS frame_dur_p99,
+  PERCENTILE(dur / 1e6, 50) AS frame_dur_ms_p50,
+  PERCENTILE(dur / 1e6, 90) AS frame_dur_ms_p90,
+  PERCENTILE(dur / 1e6, 95) AS frame_dur_ms_p95,
+  PERCENTILE(dur / 1e6, 99) AS frame_dur_ms_p99,
   CAST(AVG(dur) AS INTEGER) AS frame_dur_avg,
   MAX(dur) AS frame_dur_max
 FROM actual_frame_timeline_slice

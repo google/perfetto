@@ -83,17 +83,29 @@ export class NotesPanel extends Panel {
           },
         },
         isTraceLoaded() ?
-            m('button',
-              {
-                onclick: (e: Event) => {
-                  e.preventDefault();
-                  globals.dispatch(
-                      Actions.toggleAllTrackGroups({collapsed: !allCollapsed}));
+            [
+              m('button',
+                {
+                  onclick: (e: Event) => {
+                    e.preventDefault();
+                    globals.dispatch(Actions.toggleAllTrackGroups(
+                        {collapsed: !allCollapsed}));
+                  },
                 },
-              },
-              m('i.material-icons',
-                {title: allCollapsed ? 'Expand all' : 'Collapse all'},
-                allCollapsed ? 'unfold_more' : 'unfold_less')) :
+                m('i.material-icons',
+                  {title: allCollapsed ? 'Expand all' : 'Collapse all'},
+                  allCollapsed ? 'unfold_more' : 'unfold_less')),
+              m('button',
+                {
+                  onclick: (e: Event) => {
+                    e.preventDefault();
+                    globals.dispatch(Actions.clearAllPinnedTracks({}));
+                  },
+                },
+                m('i.material-icons',
+                  {title: 'Clear all pinned tracks'},
+                  'clear_all')),
+            ] :
             '');
   }
 

@@ -79,7 +79,7 @@ def parse_and_validate_args():
   traces if requested.
 
   For usage instructions, please see:
-  https://perfetto.dev/docs/quickstart/cpu-profiling
+  https://perfetto.dev/docs/quickstart/callstack-sampling
   """
   parser = argparse.ArgumentParser(description=DESCRIPTION)
   parser.add_argument(
