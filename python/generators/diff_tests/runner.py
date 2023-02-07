@@ -21,7 +21,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import List, Tuple, Optional
 
 from google.protobuf import text_format
 from python.generators.diff_tests.testing import TestCase, TestType
@@ -63,7 +63,7 @@ class TestResult:
   passed: bool
   stderr: str
   exit_code: int
-  perf_result: PerfResult
+  perf_result: Optional[PerfResult]
 
   def __init__(self, test: TestCase, gen_trace_path: str, cmd: List[str],
                expected_text: str, actual_text: str, stderr: str,
@@ -88,7 +88,10 @@ class TestResult:
     actual_content = self.actual.replace('\r\n', '\n')
     self.passed = (expected_content == actual_content)
 
-    self.perf_result = PerfResult(self.test, perf_lines)
+    if self.exit_code == 0:
+      self.perf_result = PerfResult(self.test, perf_lines)
+    else:
+      self.perf_result = None
 
   def write_diff(self):
     expected_lines = self.expected.splitlines(True)
