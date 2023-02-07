@@ -307,6 +307,11 @@ declare_args() {
   # typically handles only itanium mangling.
   enable_perfetto_llvm_demangle =
       enable_perfetto_trace_processor && perfetto_build_standalone
+
+  # Enables gRPC support. This is used as the RPC framework for cloud trace
+  # processor in open source but is disabled by default because of how
+  # heavyweight gRPC is.
+  enable_perfetto_grpc = false
 }
 
 declare_args() {
