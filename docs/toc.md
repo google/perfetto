@@ -67,6 +67,7 @@
   * [Trace Packet proto](reference/trace-packet-proto.autogen)
   * [perfetto cmdline](reference/perfetto-cli.md)
   * [heap_profile cmdline](reference/heap_profile-cli.md)
+  * [Synthetic TrackEvent](reference/synthetic-track-event.md)
 
 * [Contributing](#)
     * [Getting started](contributing/getting-started.md)

@@ -1,9 +1,6 @@
 # Tracing 101
-*This page provides a birds-eye view of performance analysis using Perfetto.
-The aim is for to orient even people who have no idea what "tracing" is. You
-should walk away from this page with a good understanding of the available
-capabilities in Perfetto and how they can be used to improve performance of a
-system.*
+*This page provides a birds-eye view of performance analysis.
+The aim is to orient people who have no idea what "tracing" is.*
 
 ## Introduction to...
 ### Performance
@@ -148,7 +145,7 @@ is to empower engineers to understand where resources are being used by their
 systems. It helps identify the changes they can make to improve performance
 and verify the impact of those changes.
 
-NOTE: In Perfetto, since profiles and traces can be collected simultaneously, 
+NOTE: In Perfetto, since profiles and traces can be collected simultaneously,
 we call everything a "trace" even if it may contain (only) profiling data
 inside.
 
