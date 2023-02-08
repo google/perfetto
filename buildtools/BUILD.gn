@@ -1340,3 +1340,46 @@ source_set("llvm_demangle") {
   ]
   deps = [ "//gn:default_deps" ]
 }
+
+if (enable_perfetto_grpc) {
+  config("grpc_absl_config") {
+    visibility = _buildtools_visibility
+    include_dirs = [ "grpc/src/third_party/abseil-cpp" ]
+    cflags = [ "-Wno-deprecated-builtins" ]
+  }
+
+  config("grpc_boringssl_config") {
+    visibility = _buildtools_visibility
+    include_dirs = [ "grpc/src/third_party/boringssl-with-bazel/src/include" ]
+  }
+
+  config("grpc_upb_config") {
+    visibility = _buildtools_visibility
+    include_dirs = [
+      "grpc/src/third_party/upb",
+      "grpc/src/src/core/ext/upb-generated",
+      "grpc/src/src/core/ext/upbdefs-generated",
+    ]
+  }
+
+  config("grpc_internal_config") {
+    visibility = _buildtools_visibility
+    include_dirs = [
+      "grpc/src/include",
+      "grpc/src",
+      "grpc/src/third_party/address_sorting/include",
+      "grpc/src/third_party/re2",
+      "grpc/src/src/core/ext/upb-generated",
+      "grpc/src/src/core/ext/upbdefs-generated",
+      "grpc/src/third_party/xxhash",
+    ]
+    cflags = [ "-DGRPC_ARES=0" ]
+  }
+
+  source_set("grpc") {
+    deps = [
+      "grpc:grpc++",
+      "//gn:default_deps",
+    ]
+  }
+}
