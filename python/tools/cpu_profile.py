@@ -99,6 +99,12 @@ def parse_and_validate_args():
       type=int,
       default=0)
   parser.add_argument(
+      "-k",
+      "--kernel-frames",
+      help="Collect kernel frames.  Default: false.",
+      action="store_true",
+      default=False)
+  parser.add_argument(
       "-n",
       "--name",
       help="Comma-separated list of names of processes to be profiled.",
@@ -186,7 +192,7 @@ def get_perfetto_config(args):
     except IOError as error:
       sys.exit("Unable to read config file: {}".format(error))
 
-  CONFIG_INDENT = '      '
+  CONFIG_INDENT = '          '
   CONFIG = textwrap.dedent('''\
   buffers {{
     size_kb: 2048
@@ -211,9 +217,16 @@ def get_perfetto_config(args):
       name: "linux.perf"
       target_buffer: 1
       perf_event_config {{
-        all_cpus: true
-        sampling_frequency: {frequency}
+        timebase {{
+          frequency: {frequency}
+          timestamp_clock: PERF_CLOCK_MONOTONIC
+        }}
+        callstack_sampling {{
+          scope {{
   {target_config}
+          }}
+          kernel_frames: {kernel_config}
+        }}
       }}
     }}
   }}
@@ -235,6 +248,11 @@ def get_perfetto_config(args):
   target_config = "\n".join(
       [f'{CONFIG_INDENT}target_cmdline: "{p}"' for p in matching_processes])
 
+  if args.kernel_frames:
+    kernel_config = "true"
+  else:
+    kernel_config = "false"
+
   if not args.print_config:
     print("Configured profiling for these processes:\n")
     for matching_process in matching_processes:
@@ -244,7 +262,8 @@ def get_perfetto_config(args):
   config = CONFIG.format(
       frequency=args.frequency,
       duration=args.duration,
-      target_config=target_config)
+      target_config=target_config,
+      kernel_config=kernel_config)
 
   return config
 
