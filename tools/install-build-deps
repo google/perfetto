@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import argparse
+import dataclasses as dc
 import hashlib
 import logging
 import os
@@ -26,6 +27,7 @@ import zipfile
 
 from collections import namedtuple
 from platform import system, machine
+
 
 # The format for the deps below is the following:
 # (target_folder, source_url, sha1, target_os, target_arch)
@@ -41,9 +43,15 @@ from platform import system, machine
 # in both cases the dep only applies on matching platforms
 # |target_arch| can be 'all' when 'target_os' is not 'all' for example in the
 # case of MacOS universal binaries.
-Dependency = namedtuple(
-    'Dependency',
-    ['target_folder', 'source_url', 'checksum', 'target_os', 'target_arch'])
+@dc.dataclass
+class Dependency:
+  target_folder: str
+  source_url: str
+  checksum: str
+  target_os: str
+  target_arch: str
+  submodules: bool = False
+
 
 # This is to remove old directories when build tools get {re,}moved. This is to
 # avoid accidentally referring to stale dir in custom user scripts.
@@ -357,6 +365,14 @@ UI_DEPS = [
         TYPEFACES_SHA256, TYPEFACES_SHA256, 'all', 'all')
 ]
 
+# Dependencies to build gRPC.
+GRPC_DEPS = [
+    Dependency(
+        'buildtools/grpc/src',
+        'https://chromium.googlesource.com/external/github.com/grpc/grpc.git',
+        '6943c1841f57cac4666b165aea4f618fe73b3ff1', 'all', 'all', True),
+]
+
 # Sysroots required to cross-compile Linux targets (linux-arm{,64}).
 # These are taken from Chromium's build/linux/sysroot_scripts/sysroots.json.
 BUILD_DEPS_LINUX_CROSS_SYSROOTS = [
@@ -467,6 +483,9 @@ def CheckoutGitRepo(path, git_url, revision, check_only):
   subprocess.check_call(
       ['git', 'fetch', '--quiet', '--depth', '1', git_url, revision], cwd=path)
   subprocess.check_call(['git', 'checkout', revision, '--quiet'], cwd=path)
+  subprocess.check_call(
+      ['git', 'submodule', 'update', '--init', '--recursive', '--quiet'],
+      cwd=path)
   assert (IsGitRepoCheckoutOutAtRevision(path, revision))
   return True
 
@@ -533,6 +552,10 @@ def Main():
       '--ui',
       action='store_true',
       help='Node and NPM packages to Build the Web-based UI via ./ui/build')
+  parser.add_argument(
+      '--grpc',
+      action='store_true',
+      help='Packages to build gRPC')
   parser.add_argument('--check-only')
   parser.add_argument('--filter', action='append')
   parser.add_argument('--verify', help='Check all URLs', action='store_true')
@@ -557,6 +580,8 @@ def Main():
     deps += BUILD_DEPS_LINUX_CROSS_SYSROOTS
   if args.ui:
     deps += UI_DEPS
+  if args.grpc:
+    deps += GRPC_DEPS
   deps_updated = False
   nodejs_updated = False
 

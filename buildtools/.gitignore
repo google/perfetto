@@ -17,6 +17,7 @@ debian_sid_arm64-sysroot/
 debian_sid_armel-sysroot/
 emulator/
 googletest/
+grpc/src
 jsoncpp/
 libbacktrace/
 libbase/
