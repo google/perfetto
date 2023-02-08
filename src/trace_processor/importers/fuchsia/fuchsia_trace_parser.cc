@@ -270,6 +270,11 @@ void FuchsiaTraceParser::ParseFuchsiaRecord(int64_t, FuchsiaRecord fr) {
               procs->GetOrCreateProcess(static_cast<uint32_t>(tinfo.pid));
           std::string name_str =
               context_->storage->GetString(name).ToStdString();
+          uint64_t counter_id;
+          if (!cursor.ReadUint64(&counter_id)) {
+            context_->storage->IncrementStats(stats::fuchsia_invalid_event);
+            return;
+          }
           // Note: In the Fuchsia trace format, counter values are stored in the
           // arguments for the record, with the data series defined by both the
           // record name and the argument name. In Perfetto, counters only have
@@ -278,6 +283,7 @@ void FuchsiaTraceParser::ParseFuchsiaRecord(int64_t, FuchsiaRecord fr) {
             std::string counter_name_str = name_str + ":";
             counter_name_str +=
                 context_->storage->GetString(arg.name).ToStdString();
+            counter_name_str += ":" + std::to_string(counter_id);
             bool is_valid_value = false;
             double counter_value = -1;
             switch (arg.value.Type()) {

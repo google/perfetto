@@ -80,7 +80,7 @@ Variadic ArgValue::ToStorageVariadic(TraceStorage* storage) const {
     case ArgType::kString:
       return Variadic::String(string_);
     case ArgType::kPointer:
-      return Variadic::Integer(static_cast<int64_t>(pointer_));
+      return Variadic::Pointer(pointer_);
     case ArgType::kKoid:
       return Variadic::Integer(static_cast<int64_t>(koid_));
     case ArgType::kUnknown:
