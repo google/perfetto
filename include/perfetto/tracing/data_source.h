@@ -459,7 +459,8 @@ class DataSource : public DataSourceBase {
         instances &= Traits::GetActiveInstances(trace_point_data)
                          ->load(std::memory_order_acquire);
         instance_state = static_state_.TryGetCached(instances, i);
-        if (!instance_state || !instance_state->trace_lambda_enabled)
+        if (!instance_state || !instance_state->trace_lambda_enabled.load(
+                                   std::memory_order_relaxed))
           continue;
         tls_inst.muxer_id_for_testing = instance_state->muxer_id_for_testing;
         tls_inst.backend_id = instance_state->backend_id;
