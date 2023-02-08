@@ -154,8 +154,8 @@ BUILD_DEPS_HOST = [
     # Keep in sync with Chromium's //third_party/protobuf.
     Dependency(
         'buildtools/protobuf',
-        'https://chromium.googlesource.com/external/github.com/google/protobuf.git',
-        '6a59a2ad1f61d9696092f79b6d74368b4d7970a3',  # refs/tags/v3.9.0
+        'https://chromium.googlesource.com/external/github.com/protocolbuffers/protobuf.git',
+        'fe271ab76f2ad2b2b28c10443865d2af21e27e0e',  # refs/tags/v3.20.3
         'all',
         'all'),
 
