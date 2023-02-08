@@ -98,6 +98,19 @@ def parse_and_validate_args():
       metavar="DURATION",
       type=int,
       default=0)
+  # Profiling using hardware counters.
+  parser.add_argument(
+      "-e",
+      "--event",
+      help="Use the specified hardware counter event for sampling.",
+      metavar="EVENT",
+      action="append",
+      # See: '//perfetto/protos/perfetto/trace/perfetto_trace.proto'.
+      choices=['HW_CPU_CYCLES', 'HW_INSTRUCTIONS', 'HW_CACHE_REFERENCES',
+               'HW_CACHE_MISSES', 'HW_BRANCH_INSTRUCTIONS', 'HW_BRANCH_MISSES',
+               'HW_BUS_CYCLES', 'HW_STALLED_CYCLES_FRONTEND',
+               'HW_STALLED_CYCLES_BACKEND'],
+      default=[])
   parser.add_argument(
       "-k",
       "--kernel-frames",
@@ -142,8 +155,11 @@ def parse_and_validate_args():
       default=None)
 
   args = parser.parse_args()
-  if args.config is not None and args.name is not None:
-    sys.exit("--name/-n should not be provided when --config/-c is provided.")
+  if args.config is not None:
+    if args.name is not None:
+      sys.exit("--name/-n should not be specified with --config/-c.")
+    elif args.event is not None:
+      sys.exit("-e/--event should not be specified with --config/-c.")
   elif args.config is None and args.name is None:
     sys.exit("One of --names/-n or --config/-c is required.")
 
@@ -212,25 +228,6 @@ def get_perfetto_config(args):
     }}
   }}
 
-  data_sources {{
-    config {{
-      name: "linux.perf"
-      target_buffer: 1
-      perf_event_config {{
-        timebase {{
-          frequency: {frequency}
-          timestamp_clock: PERF_CLOCK_MONOTONIC
-        }}
-        callstack_sampling {{
-          scope {{
-  {target_config}
-          }}
-          kernel_frames: {kernel_config}
-        }}
-      }}
-    }}
-  }}
-
   duration_ms: {duration}
   write_into_file: true
   flush_timeout_ms: 30000
@@ -247,6 +244,30 @@ def get_perfetto_config(args):
 
   target_config = "\n".join(
       [f'{CONFIG_INDENT}target_cmdline: "{p}"' for p in matching_processes])
+
+  events = args.event or ['SW_CPU_CLOCK']
+  for event in events:
+    CONFIG += (textwrap.dedent('''
+    data_sources {{
+      config {{
+        name: "linux.perf"
+        target_buffer: 1
+        perf_event_config {{
+          timebase {{
+            counter: %s
+            frequency: {frequency}
+            timestamp_clock: PERF_CLOCK_MONOTONIC
+          }}
+          callstack_sampling {{
+            scope {{
+    {target_config}
+            }}
+            kernel_frames: {kernel_config}
+          }}
+        }}
+      }}
+    }}
+    ''') % (event))
 
   if args.kernel_frames:
     kernel_config = "true"
