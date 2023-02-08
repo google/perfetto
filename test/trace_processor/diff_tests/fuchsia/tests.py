@@ -107,11 +107,11 @@ class Fuchsia(TestSuite):
         """,
         out=Csv("""
         "ts","value","name"
-        20329439768,30.331177,"cpu_usage:average_cpu_percentage"
-        21331281870,7.829745,"cpu_usage:average_cpu_percentage"
-        22332302017,9.669818,"cpu_usage:average_cpu_percentage"
-        23332974162,6.421237,"cpu_usage:average_cpu_percentage"
-        24333405767,12.079849,"cpu_usage:average_cpu_percentage"
+        20329439768,30.331177,"cpu_usage:average_cpu_percentage:0"
+        21331281870,7.829745,"cpu_usage:average_cpu_percentage:0"
+        22332302017,9.669818,"cpu_usage:average_cpu_percentage:0"
+        23332974162,6.421237,"cpu_usage:average_cpu_percentage:0"
+        24333405767,12.079849,"cpu_usage:average_cpu_percentage:0"
         """))
 
   def test_fuchsia_smoke_flow(self):
@@ -157,7 +157,7 @@ class Fuchsia(TestSuite):
         2,"[NULL]","thread_track"
         3,"[NULL]","thread_track"
         4,"[NULL]","thread_track"
-        5,"cpu_usage:average_cpu_percentage","process_counter_track"
+        5,"cpu_usage:average_cpu_percentage:0","process_counter_track"
         6,"[NULL]","thread_track"
         7,"[NULL]","thread_track"
         8,"[NULL]","thread_track"
