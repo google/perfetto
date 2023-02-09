@@ -41,6 +41,7 @@ def CheckChange(input, output):
         files_to_check='.*',
         files_to_skip=[
             'Android[.]bp',
+            "buildtools/grpc/BUILD.gn",
             '.*[.]json$',
             '.*[.]sql$',
             '.*[.]out$',
