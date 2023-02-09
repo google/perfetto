@@ -19,36 +19,15 @@ package android.perfetto.cts.app;
 import android.app.Activity;
 import android.os.Bundle;
 
-import java.util.ArrayList;
-
 public class JavaOomActivity extends Activity {
     @Override
     public void onCreate(Bundle state) {
         super.onCreate(state);
-
-        new Thread(new Runnable() {
-            public void run() {
-                try {
-                    runAllocationLoop();
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                }
+        new Thread(() -> {
+            try {
+                byte[] alloc = new byte[Integer.MAX_VALUE];
+            } catch (OutOfMemoryError e) {
             }
         }).start();
-    }
-
-    private static void runAllocationLoop() {
-        ArrayList<byte[]> leaky = new ArrayList<>();
-        try {
-            for (;;) {
-                leaky.add(new byte[1024 * 1024]);
-                try {
-                    Thread.sleep(10);
-                } catch (InterruptedException ignored) {
-                }
-            }
-        } catch (OutOfMemoryError e) {
-          leaky.clear();
-        }
     }
 }
