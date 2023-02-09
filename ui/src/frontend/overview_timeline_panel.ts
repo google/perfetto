@@ -85,7 +85,7 @@ export class OverviewTimelinePanel extends Panel {
 
     const timeScale = new TimeScale(timeSpan, [TRACK_SHELL_WIDTH, this.width]);
 
-    if (timeScale.widthPx > 0) {
+    if (timeScale.timeSpan.duration > 0 && timeScale.widthPx > 0) {
       const tickGen = new TickGenerator(timeScale);
 
       // Draw time labels on the top header.
