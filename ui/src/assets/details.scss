@@ -430,15 +430,12 @@
     .tag-container {
       height: auto;
       min-height: 34px;
-      border: 2px solid #737679;
-      padding: 8px;
-      margin: 8px;
+      padding: 2px;
+      margin: 2px;
       cursor: text;
       border-radius: 3px;
       display: flex;
       align-items: center;
-
-      box-shadow: 0 2px 6px rgba(25, 25, 25, 0.2);
 
       .chips .chip {
         display: inline-block;
