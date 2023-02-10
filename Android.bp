@@ -12890,6 +12890,8 @@ java_library_host {
     srcs: [
         "protos/perfetto/trace/perfetto_trace.proto",
     ],
+    // b/267831518: Pin tradefed and dependencies to Java 11.
+    java_version: "11",
 }
 
 java_library_host {
@@ -12900,6 +12902,8 @@ java_library_host {
     srcs: [
         "protos/perfetto/metrics/perfetto_merged_metrics.proto",
     ],
+    // b/267831518: Pin tradefed and dependencies to Java 11.
+    java_version: "11",
 }
 
 // This sample target shows how to use the perfetto client API from within the
