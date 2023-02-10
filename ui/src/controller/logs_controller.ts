@@ -24,10 +24,10 @@ import {NUM, STR} from '../common/query_result';
 import {escapeGlob, escapeQuery} from '../common/query_utils';
 import {LogFilteringCriteria} from '../common/state';
 import {fromNs, TimeSpan, toNsCeil, toNsFloor} from '../common/time';
+import {globals} from '../frontend/globals';
 import {publishTrackData} from '../frontend/publish';
 
 import {Controller} from './controller';
-import {App, globals} from './globals';
 
 async function updateLogBounds(
     engine: Engine, span: TimeSpan): Promise<LogBounds> {
@@ -164,7 +164,6 @@ class Pagination {
 
 export interface LogsControllerArgs {
   engine: Engine;
-  app: App;
 }
 
 /**
@@ -179,7 +178,6 @@ export interface LogsControllerArgs {
  * and keeps it up to date.
  */
 export class LogsController extends Controller<'main'> {
-  private app: App;
   private engine: Engine;
   private span: TimeSpan;
   private pagination: Pagination;
@@ -190,7 +188,6 @@ export class LogsController extends Controller<'main'> {
 
   constructor(args: LogsControllerArgs) {
     super('main');
-    this.app = args.app;
     this.engine = args.engine;
     this.span = new TimeSpan(0, 10);
     this.pagination = new Pagination(0, 0);
@@ -229,11 +226,11 @@ export class LogsController extends Controller<'main'> {
   }
 
   private async updateLogTracks() {
-    const traceTime = this.app.state.frontendLocalState.visibleState;
+    const traceTime = globals.state.frontendLocalState.visibleState;
     const newSpan = new TimeSpan(traceTime.startSec, traceTime.endSec);
     const oldSpan = this.span;
 
-    const pagination = this.app.state.logsPagination;
+    const pagination = globals.state.logsPagination;
     // This can occur when loading old traces.
     // TODO(hjd): Fix the problem of accessing state from a previous version of
     // the UI in a general way.
