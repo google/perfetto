@@ -8139,6 +8139,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_base_threading_unittests",
     srcs: [
+        "src/base/threading/channel_unittest.cc",
         "src/base/threading/thread_pool_unittest.cc",
     ],
 }
