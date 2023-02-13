@@ -5,8 +5,14 @@
 # tools/gen_grpc_build_gn.py > buildtools/grpc/BUILD.gn
 #
 
+import("../../gn/perfetto.gni")
+
 # Prevent the gRPC from being depended upon without explicitly being opted in.
 assert(enable_perfetto_grpc)
+
+# BoringSSL has assembly code which is tied to platform-specific. For now, we
+# only care about Linux x64 so assert this as the case.
+assert(is_linux && current_cpu == "x64")
 
 source_set("absl_algorithm_algorithm") {
   sources = [ "src/third_party/abseil-cpp/absl/algorithm/algorithm.h" ]
@@ -2659,7 +2665,7 @@ source_set("absl_utility_utility") {
   configs -= [ "//gn/standalone:extra_warnings" ]
 }
 
-source_set("upb") {
+static_library("upb") {
   sources = [
     "src/src/core/ext/upb-generated/google/protobuf/descriptor.upb.c",
     "src/src/core/ext/upb-generated/google/protobuf/descriptor.upb.h",
@@ -2722,9 +2728,85 @@ source_set("upb") {
   configs -= [ "//gn/standalone:extra_warnings" ]
 }
 
-source_set("boringssl") {
+static_library("re2") {
+  sources = [
+    "src/third_party/re2/re2/bitmap256.h",
+    "src/third_party/re2/re2/bitstate.cc",
+    "src/third_party/re2/re2/compile.cc",
+    "src/third_party/re2/re2/dfa.cc",
+    "src/third_party/re2/re2/filtered_re2.cc",
+    "src/third_party/re2/re2/filtered_re2.h",
+    "src/third_party/re2/re2/mimics_pcre.cc",
+    "src/third_party/re2/re2/nfa.cc",
+    "src/third_party/re2/re2/onepass.cc",
+    "src/third_party/re2/re2/parse.cc",
+    "src/third_party/re2/re2/perl_groups.cc",
+    "src/third_party/re2/re2/pod_array.h",
+    "src/third_party/re2/re2/prefilter.cc",
+    "src/third_party/re2/re2/prefilter.h",
+    "src/third_party/re2/re2/prefilter_tree.cc",
+    "src/third_party/re2/re2/prefilter_tree.h",
+    "src/third_party/re2/re2/prog.cc",
+    "src/third_party/re2/re2/prog.h",
+    "src/third_party/re2/re2/re2.cc",
+    "src/third_party/re2/re2/re2.h",
+    "src/third_party/re2/re2/regexp.cc",
+    "src/third_party/re2/re2/regexp.h",
+    "src/third_party/re2/re2/set.cc",
+    "src/third_party/re2/re2/set.h",
+    "src/third_party/re2/re2/simplify.cc",
+    "src/third_party/re2/re2/sparse_array.h",
+    "src/third_party/re2/re2/sparse_set.h",
+    "src/third_party/re2/re2/stringpiece.cc",
+    "src/third_party/re2/re2/stringpiece.h",
+    "src/third_party/re2/re2/tostring.cc",
+    "src/third_party/re2/re2/unicode_casefold.cc",
+    "src/third_party/re2/re2/unicode_casefold.h",
+    "src/third_party/re2/re2/unicode_groups.cc",
+    "src/third_party/re2/re2/unicode_groups.h",
+    "src/third_party/re2/re2/walker-inl.h",
+    "src/third_party/re2/util/benchmark.h",
+    "src/third_party/re2/util/flags.h",
+    "src/third_party/re2/util/logging.h",
+    "src/third_party/re2/util/malloc_counter.h",
+    "src/third_party/re2/util/mix.h",
+    "src/third_party/re2/util/mutex.h",
+    "src/third_party/re2/util/pcre.cc",
+    "src/third_party/re2/util/pcre.h",
+    "src/third_party/re2/util/rune.cc",
+    "src/third_party/re2/util/strutil.cc",
+    "src/third_party/re2/util/strutil.h",
+    "src/third_party/re2/util/test.h",
+    "src/third_party/re2/util/utf.h",
+    "src/third_party/re2/util/util.h",
+  ]
+  public_deps = []
+  public_configs = [ "..:grpc_re2_config" ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
+}
+
+static_library("boringssl") {
   sources = [
     "src/third_party/boringssl-with-bazel/err_data.c",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/chacha/chacha-x86_64.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/cipher_extra/aes128gcmsiv-x86_64.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/cipher_extra/chacha20_poly1305_x86_64.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/fipsmodule/aesni-gcm-x86_64.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/fipsmodule/aesni-x86_64.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/fipsmodule/ghash-ssse3-x86_64.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/fipsmodule/ghash-x86_64.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/fipsmodule/md5-x86_64.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/fipsmodule/p256-x86_64-asm.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/fipsmodule/p256_beeu-x86_64-asm.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/fipsmodule/rdrand-x86_64.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/fipsmodule/rsaz-avx2.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/fipsmodule/sha1-x86_64.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/fipsmodule/sha256-x86_64.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/fipsmodule/sha512-x86_64.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/fipsmodule/vpaes-x86_64.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/fipsmodule/x86_64-mont.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/fipsmodule/x86_64-mont5.S",
+    "src/third_party/boringssl-with-bazel/linux-x86_64/crypto/test/trampoline-x86_64.S",
     "src/third_party/boringssl-with-bazel/src/crypto/asn1/a_bitstr.c",
     "src/third_party/boringssl-with-bazel/src/crypto/asn1/a_bool.c",
     "src/third_party/boringssl-with-bazel/src/crypto/asn1/a_d2i_fp.c",
@@ -2943,6 +3025,7 @@ source_set("boringssl") {
     "src/third_party/boringssl-with-bazel/src/crypto/fipsmodule/tls/kdf.c",
     "src/third_party/boringssl-with-bazel/src/crypto/hkdf/hkdf.c",
     "src/third_party/boringssl-with-bazel/src/crypto/hpke/hpke.c",
+    "src/third_party/boringssl-with-bazel/src/crypto/hrss/asm/poly_rq_mul.S",
     "src/third_party/boringssl-with-bazel/src/crypto/hrss/hrss.c",
     "src/third_party/boringssl-with-bazel/src/crypto/hrss/internal.h",
     "src/third_party/boringssl-with-bazel/src/crypto/internal.h",
@@ -5611,7 +5694,7 @@ source_set("grpc_unsecure") {
   configs -= [ "//gn/standalone:extra_warnings" ]
 }
 
-source_set("grpc++") {
+static_library("grpc++") {
   sources = [
     "src/src/core/ext/transport/binder/client/binder_connector.cc",
     "src/src/core/ext/transport/binder/client/binder_connector.h",
@@ -6315,6 +6398,51 @@ source_set("grpc_authorization_provider") {
     ":gpr",
     ":upb",
   ]
+  public_configs = [ "..:grpc_internal_config" ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
+}
+
+source_set("grpc_plugin_support") {
+  sources = [
+    "src/src/compiler/config.h",
+    "src/src/compiler/config_protobuf.h",
+    "src/src/compiler/cpp_generator.cc",
+    "src/src/compiler/cpp_generator.h",
+    "src/src/compiler/cpp_generator_helpers.h",
+    "src/src/compiler/cpp_plugin.h",
+    "src/src/compiler/csharp_generator.cc",
+    "src/src/compiler/csharp_generator.h",
+    "src/src/compiler/csharp_generator_helpers.h",
+    "src/src/compiler/generator_helpers.h",
+    "src/src/compiler/node_generator.cc",
+    "src/src/compiler/node_generator.h",
+    "src/src/compiler/node_generator_helpers.h",
+    "src/src/compiler/objective_c_generator.cc",
+    "src/src/compiler/objective_c_generator.h",
+    "src/src/compiler/objective_c_generator_helpers.h",
+    "src/src/compiler/php_generator.cc",
+    "src/src/compiler/php_generator.h",
+    "src/src/compiler/php_generator_helpers.h",
+    "src/src/compiler/protobuf_plugin.h",
+    "src/src/compiler/python_generator.cc",
+    "src/src/compiler/python_generator.h",
+    "src/src/compiler/python_generator_helpers.h",
+    "src/src/compiler/python_private_generator.h",
+    "src/src/compiler/ruby_generator.cc",
+    "src/src/compiler/ruby_generator.h",
+    "src/src/compiler/ruby_generator_helpers-inl.h",
+    "src/src/compiler/ruby_generator_map-inl.h",
+    "src/src/compiler/ruby_generator_string-inl.h",
+    "src/src/compiler/schema_interface.h",
+  ]
+  public_deps = [ "..:protoc_lib" ]
+  public_configs = [ "..:grpc_internal_config" ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
+}
+
+executable("grpc_cpp_plugin") {
+  sources = [ "src/src/compiler/cpp_plugin.cc" ]
+  public_deps = [ ":grpc_plugin_support" ]
   public_configs = [ "..:grpc_internal_config" ]
   configs -= [ "//gn/standalone:extra_warnings" ]
 }
