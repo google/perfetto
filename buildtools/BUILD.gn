@@ -1473,6 +1473,11 @@ if (enable_perfetto_grpc) {
     ]
   }
 
+  config("grpc_re2_config") {
+    visibility = _buildtools_visibility
+    include_dirs = [ "grpc/src/third_party/re2" ]
+  }
+
   config("grpc_internal_config") {
     visibility = _buildtools_visibility
     include_dirs = [
@@ -1487,10 +1492,24 @@ if (enable_perfetto_grpc) {
     cflags = [ "-DGRPC_ARES=0" ]
   }
 
-  source_set("grpc") {
-    deps = [
-      "grpc:grpc++",
-      "//gn:default_deps",
+  config("grpc_gen_config") {
+    cflags = [
+      # Using -isystem instead of include_dirs (-I), so we don't need to
+      # suppress warnings coming from libprotobuf headers. Doing so would mask
+      # warnings in our own code.
+      perfetto_isystem_cflag,
+      rebase_path("grpc/src/include", root_build_dir),
+      perfetto_isystem_cflag,
+      rebase_path("grpc/src/third_party/abseil-cpp", root_build_dir),
     ]
+
+    # This issues appear in .grpc.pb.h files so we unfortunately need to leak
+    # the cflags outside of just compiling this code.
+    if (is_clang && !is_win) {
+      cflags += [
+        "-Wno-weak-vtables",
+        "-Wno-suggest-destructor-override",
+      ]
+    }
   }
 }
