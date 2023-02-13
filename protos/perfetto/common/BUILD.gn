@@ -36,4 +36,10 @@ perfetto_proto_library("@TYPE@") {
     "tracing_service_state.proto",
     "track_event_descriptor.proto",
   ]
+  proto_generators = [
+    "lite",
+    "zero",
+    "cpp",
+    "source_set",
+  ]
 }
