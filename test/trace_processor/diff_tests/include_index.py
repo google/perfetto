@@ -56,6 +56,7 @@ from diff_tests.parsing.tests_rss_stats import ParsingRssStats
 from diff_tests.performance.tests import Performance
 from diff_tests.power.tests import Power
 from diff_tests.power.tests_energy_breakdown import PowerEnergyBreakdown
+from diff_tests.power.tests_linux_sysfs_power import LinuxSysfsPower
 from diff_tests.power.tests_power_rails import PowerPowerRails
 from diff_tests.power.tests_voltage_and_scaling import PowerVoltageAndScaling
 from diff_tests.process_tracking.tests import ProcessTracking
@@ -113,6 +114,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *GraphicsDrmRelatedFtraceEvents(index_path, 'graphics',
                                       'GraphicsDrmRelatedFtraceEvents').fetch(),
       *Ufs(index_path, 'ufs', 'Ufs').fetch(),
+      *LinuxSysfsPower(index_path, 'power', 'LinuxSysfsPower').fetch(),
       *Memory(index_path, 'memory', 'Memory').fetch(),
       *MemoryMetrics(index_path, 'memory', 'MemoryMetrics').fetch(),
       *Network(index_path, 'network', 'Network').fetch(),
