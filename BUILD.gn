@@ -113,6 +113,9 @@ if (enable_perfetto_integration_tests) {
     "test:client_api_example",
     "test/stress_test",
   ]
+  if (!is_win) {
+    all_targets += [ "examples/shared_lib:example_shlib_data_source" ]
+  }
 }
 
 if (enable_perfetto_trace_processor_json) {

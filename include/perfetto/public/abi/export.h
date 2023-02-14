@@ -26,10 +26,23 @@
 #endif
 
 // PERFETTO_SDK_EXPORT: Exports a symbol from the perfetto SDK shared library.
-#if defined(PERFETTO_IMPLEMENTATION)
+//
+// This is controlled by two defines (that likely come from the compiler command
+// line):
+// * PERFETTO_SDK_DISABLE_SHLIB_EXPORT: If this is defined, no export
+//   annotations are added. This might be useful when static linking.
+// * PERFETTO_SDK_SHLIB_IMPLEMENTATION: This must be defined when compiling the
+//   shared library itself (in order to export the symbols), but must be
+//   undefined when compiling objects that use the shared library (in order to
+//   import the symbols).
+#if !defined(PERFETTO_SDK_DISABLE_SHLIB_EXPORT)
+#if defined(PERFETTO_SHLIB_SDK_IMPLEMENTATION)
 #define PERFETTO_SDK_EXPORT PERFETTO_INTERNAL_DLL_EXPORT
 #else
 #define PERFETTO_SDK_EXPORT PERFETTO_INTERNAL_DLL_IMPORT
 #endif
+#else  // defined(PERFETTO_SDK_DISABLE_SHLIB_EXPORT)
+#define PERFETTO_SDK_EXPORT
+#endif  // defined(PERFETTO_SDK_DISABLE_SHLIB_EXPORT)
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_ABI_EXPORT_H_
