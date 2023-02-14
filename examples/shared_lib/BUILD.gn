@@ -12,19 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-shared_library("libperfetto_c") {
+# On windows C11 (required for atomics) is not really supported, so we can't
+# really build a C executable.
+assert(!is_win)
+
+executable("example_shlib_data_source") {
+  testonly = true
   deps = [
     "../../gn:default_deps",
-    "../../include/perfetto/base",
-    "../../include/perfetto/protozero",
-    "../../include/perfetto/public:protozero",
-    "../tracing:client_api",
-    "../tracing:platform_impl",
+    "../../src/shared_lib:libperfetto_c",
   ]
-  sources = [
-    "producer.cc",
-    "stream_writer.cc",
-    "stream_writer.h",
-  ]
-  defines = [ "PERFETTO_SHLIB_SDK_IMPLEMENTATION" ]
+  sources = [ "example_shlib_data_source.c" ]
 }
