@@ -41,6 +41,12 @@ class LinuxPowerSysfsDataSource : public ProbesDataSource {
     // The current coloumb counter value in µAh.
     base::Optional<int64_t> GetChargeCounterUah(size_t battery_idx);
 
+    // The current energy counter in µWh.
+    base::Optional<int64_t> GetEnergyCounterUah(size_t battery_idx);
+
+    // The voltage in µV.
+    base::Optional<int64_t> GetVoltageUv(size_t battery_idx);
+
     // The battery capacity in percent.
     base::Optional<int64_t> GetCapacityPercent(size_t battery_idx);
 
