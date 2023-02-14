@@ -34,6 +34,7 @@ namespace perfetto {
 // * perfetto metatrace
 // * lazy heapprofd daemon starter (android only)
 // * lazy traced_perf daemon starter (android only)
+// * java_hprof oom data source counter (android only)
 class BuiltinProducer : public Producer {
  public:
   BuiltinProducer(base::TaskRunner* task_runner, uint32_t lazy_stop_delay_ms);
@@ -83,6 +84,7 @@ class BuiltinProducer : public Producer {
   MetatraceState metatrace_;
   LazyAndroidDaemonState lazy_heapprofd_;
   LazyAndroidDaemonState lazy_traced_perf_;
+  std::set<DataSourceInstanceID> java_hprof_oome_instances_;
 
   base::WeakPtrFactory<BuiltinProducer> weak_factory_;  // Keep last.
 };
