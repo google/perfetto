@@ -29,7 +29,7 @@ inline void UpdateStreamWriter(const protozero::ScatteredStreamWriter& sw,
   w->begin = sw.cur_range().begin;
   w->end = sw.cur_range().end;
   w->write_ptr = sw.write_ptr();
-  w->written_previously = sw.written_previously();
+  w->written_previously = static_cast<size_t>(sw.written_previously());
 }
 
 }  // namespace perfetto
