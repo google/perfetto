@@ -104,5 +104,41 @@ TEST(LinuxPowerSysfsDataSourceTest, MultipleBatteries) {
   EXPECT_EQ(*battery_info_->GetChargeCounterUah(main_battery_idx), 3074000);
 }
 
+TEST(LinuxPowerSysfsDataSourceTest, EnergyNow) {
+  base::TmpDirTree tmpdir;
+  std::unique_ptr<LinuxPowerSysfsDataSource::BatteryInfo> battery_info_;
+
+  tmpdir.AddDir("BAT0");
+  tmpdir.AddFile("BAT0/type", "Battery\n");
+  tmpdir.AddFile("BAT0/present", "1\n");
+  tmpdir.AddFile("BAT0/capacity", "95\n");          // 95 percent.
+  tmpdir.AddFile("BAT0/energy_now", "56680000\n");  // 56680000 µWh.
+
+  battery_info_.reset(
+      new LinuxPowerSysfsDataSource::BatteryInfo(tmpdir.path().c_str()));
+
+  EXPECT_EQ(battery_info_->num_batteries(), 1u);
+  EXPECT_EQ(*battery_info_->GetCapacityPercent(0), 95);
+  EXPECT_EQ(*battery_info_->GetEnergyCounterUah(0), 56680000);
+}
+
+TEST(LinuxPowerSysfsDataSourceTest, EnergyVoltageNow) {
+  base::TmpDirTree tmpdir;
+  std::unique_ptr<LinuxPowerSysfsDataSource::BatteryInfo> battery_info_;
+
+  tmpdir.AddDir("BAT0");
+  tmpdir.AddFile("BAT0/type", "Battery\n");
+  tmpdir.AddFile("BAT0/present", "1\n");
+  tmpdir.AddFile("BAT0/capacity", "95\n");           // 95 percent.
+  tmpdir.AddFile("BAT0/voltage_now", "17356000\n");  // Now at 17.356 µV.
+
+  battery_info_.reset(
+      new LinuxPowerSysfsDataSource::BatteryInfo(tmpdir.path().c_str()));
+
+  EXPECT_EQ(battery_info_->num_batteries(), 1u);
+  EXPECT_EQ(*battery_info_->GetCapacityPercent(0), 95);
+  EXPECT_EQ(*battery_info_->GetVoltageUv(0), 17356000);
+}
+
 }  // namespace
 }  // namespace perfetto
