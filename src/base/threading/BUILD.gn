@@ -28,6 +28,8 @@ perfetto_unittest_source_set("unittests") {
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
   ]
-
-  sources = [ "thread_pool_unittest.cc" ]
+  sources = [
+    "channel_unittest.cc",
+    "thread_pool_unittest.cc",
+  ]
 }
