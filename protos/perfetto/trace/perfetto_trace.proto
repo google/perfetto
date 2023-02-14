@@ -10204,6 +10204,12 @@ message BatteryCounters {
 
   // Battery name, emitted only on multiple batteries.
   optional string name = 5;
+
+  // Battery capacity in microwatt-hours(µWh).
+  optional int64 energy_counter_uwh = 6;
+
+  // Battery voltage in microvolts(µV).
+  optional int64 voltage_uv = 7;
 }
 
 // End of protos/perfetto/trace/power/battery_counters.proto

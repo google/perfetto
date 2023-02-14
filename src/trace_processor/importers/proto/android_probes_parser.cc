@@ -110,7 +110,18 @@ void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
         context_->track_tracker->InternGlobalCounterTrack(batt_charge_id);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.charge_counter_uah()), track);
+  } else if (evt.has_energy_counter_uwh() && evt.has_voltage_uv()) {
+    // Calculate charge counter from energy counter and voltage.
+    TrackId track =
+        context_->track_tracker->InternGlobalCounterTrack(batt_charge_id);
+    auto energy = evt.energy_counter_uwh();
+    auto voltage = evt.voltage_uv();
+    if (voltage > 0) {
+      context_->event_tracker->PushCounter(
+          ts, static_cast<double>(energy * 1000000 / voltage), track);
+    }
   }
+
   if (evt.has_capacity_percent()) {
     TrackId track =
         context_->track_tracker->InternGlobalCounterTrack(batt_capacity_id);
