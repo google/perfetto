@@ -724,28 +724,28 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
     perfetto::Tracing::ResetForTesting();
   }
 
-  template <typename DataSourceType>
+  template <typename DerivedDataSource>
   TestDataSourceHandle* RegisterDataSource(std::string name) {
     perfetto::DataSourceDescriptor dsd;
     dsd.set_name(name);
-    return RegisterDataSource<DataSourceType>(dsd);
+    return RegisterDataSource<DerivedDataSource>(dsd);
   }
 
-  template <typename DataSourceType>
+  template <typename DerivedDataSource>
   TestDataSourceHandle* RegisterDataSource(
       const perfetto::DataSourceDescriptor& dsd) {
     EXPECT_EQ(data_sources_.count(dsd.name()), 0u);
     TestDataSourceHandle* handle = &data_sources_[dsd.name()];
-    DataSourceType::Register(dsd);
+    DerivedDataSource::Register(dsd);
     return handle;
   }
 
-  template <typename DataSourceType>
+  template <typename DerivedDataSource>
   TestDataSourceHandle* UpdateDataSource(
       const perfetto::DataSourceDescriptor& dsd) {
     EXPECT_EQ(data_sources_.count(dsd.name()), 1u);
     TestDataSourceHandle* handle = &data_sources_[dsd.name()];
-    DataSourceType::UpdateDescriptor(dsd);
+    DerivedDataSource::UpdateDescriptor(dsd);
     return handle;
   }
 

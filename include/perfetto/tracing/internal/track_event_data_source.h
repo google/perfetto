@@ -194,10 +194,11 @@ struct TrackEventDataSourceTraits : public perfetto::DefaultDataSourceTraits {
 
 // A generic track event data source which is instantiated once per track event
 // category namespace.
-template <typename DataSourceType, const TrackEventCategoryRegistry* Registry>
+template <typename DerivedDataSource,
+          const TrackEventCategoryRegistry* Registry>
 class TrackEventDataSource
-    : public DataSource<DataSourceType, TrackEventDataSourceTraits> {
-  using Base = DataSource<DataSourceType, TrackEventDataSourceTraits>;
+    : public DataSource<DerivedDataSource, TrackEventDataSourceTraits> {
+  using Base = DataSource<DerivedDataSource, TrackEventDataSourceTraits>;
 
  public:
   static constexpr bool kRequiresCallbacksUnderLock = false;
