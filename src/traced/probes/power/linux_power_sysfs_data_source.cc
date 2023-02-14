@@ -85,6 +85,21 @@ LinuxPowerSysfsDataSource::BatteryInfo::GetChargeCounterUah(
 }
 
 base::Optional<int64_t>
+LinuxPowerSysfsDataSource::BatteryInfo::GetEnergyCounterUah(
+    size_t battery_idx) {
+  PERFETTO_CHECK(battery_idx < sysfs_battery_subdirs_.size());
+  return ReadFileAsInt64(power_supply_dir_path_ + "/" +
+                         sysfs_battery_subdirs_[battery_idx] + "/energy_now");
+}
+
+base::Optional<int64_t> LinuxPowerSysfsDataSource::BatteryInfo::GetVoltageUv(
+    size_t battery_idx) {
+  PERFETTO_CHECK(battery_idx < sysfs_battery_subdirs_.size());
+  return ReadFileAsInt64(power_supply_dir_path_ + "/" +
+                         sysfs_battery_subdirs_[battery_idx] + "/voltage_now");
+}
+
+base::Optional<int64_t>
 LinuxPowerSysfsDataSource::BatteryInfo::GetCapacityPercent(size_t battery_idx) {
   PERFETTO_CHECK(battery_idx < sysfs_battery_subdirs_.size());
   return ReadFileAsInt64(power_supply_dir_path_ + "/" +
@@ -174,6 +189,12 @@ void LinuxPowerSysfsDataSource::WriteBatteryCounters() {
     value = battery_info_->GetAverageCurrentUa(battery_idx);
     if (value)
       counters_proto->set_current_ua(*value);
+    value = battery_info_->GetEnergyCounterUah(battery_idx);
+    if (value)
+      counters_proto->set_energy_counter_uwh(*value);
+    value = battery_info_->GetVoltageUv(battery_idx);
+    if (value)
+      counters_proto->set_voltage_uv(*value);
     // On systems with multiple batteries, disambiguate with battery names.
     if (battery_info_->num_batteries() > 1)
       counters_proto->set_name(battery_info_->GetBatteryName(battery_idx));
