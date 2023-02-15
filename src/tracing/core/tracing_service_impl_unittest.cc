@@ -54,10 +54,12 @@ using ::testing::AssertionFailure;
 using ::testing::AssertionResult;
 using ::testing::AssertionSuccess;
 using ::testing::Contains;
+using ::testing::DoAll;
 using ::testing::Each;
 using ::testing::ElementsAreArray;
 using ::testing::Eq;
 using ::testing::ExplainMatchResult;
+using ::testing::HasSubstr;
 using ::testing::InSequence;
 using ::testing::Invoke;
 using ::testing::InvokeWithoutArgs;
@@ -66,6 +68,7 @@ using ::testing::Mock;
 using ::testing::Ne;
 using ::testing::Not;
 using ::testing::Property;
+using ::testing::SaveArg;
 using ::testing::StrictMock;
 using ::testing::StringMatchResultListener;
 using ::testing::StrNe;
@@ -4024,6 +4027,27 @@ TEST_F(TracingServiceImplTest, CloneSession) {
   // Check that the `timestamp` field is filtered out.
   EXPECT_THAT(packets,
               Each(Property(&protos::gen::TracePacket::has_timestamp, false)));
+}
+
+TEST_F(TracingServiceImplTest, InvalidBufferSizes) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_buffers()->set_size_kb(256);
+  trace_config.add_buffers()->set_size_kb(4 * 1024 * 1024);
+  auto* ds = trace_config.add_data_sources();
+  auto* ds_config = ds->mutable_config();
+  ds_config->set_name("data_source");
+  consumer->EnableTracing(trace_config);
+
+  std::string error;
+  auto checkpoint = task_runner.CreateCheckpoint("tracing_disabled");
+  EXPECT_CALL(*consumer, OnTracingDisabled(_))
+      .WillOnce(DoAll(SaveArg<0>(&error), checkpoint));
+  task_runner.RunUntilCheckpoint("tracing_disabled");
+  EXPECT_THAT(error, HasSubstr("Invalid buffer sizes"));
 }
 
 }  // namespace perfetto
