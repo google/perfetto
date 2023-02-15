@@ -15,9 +15,12 @@
  */
 
 #include "src/trace_processor/util/debug_annotation_parser.h"
+
 #include "perfetto/base/build_config.h"
-#include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "src/trace_processor/util/interned_message_view.h"
+
+#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
+#include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -81,6 +84,15 @@ DebugAnnotationParser::ParseDebugAnnotationValue(
     delegate.AddDouble(context_name, annotation.double_value());
   } else if (annotation.has_string_value()) {
     delegate.AddString(context_name, annotation.string_value());
+  } else if (annotation.has_string_value_iid()) {
+    auto* decoder = delegate.GetInternedMessage(
+        protos::pbzero::InternedData::kDebugAnnotationStringValues,
+        annotation.string_value_iid());
+    if (!decoder) {
+      return {base::ErrStatus("Debug annotation with invalid string_value_iid"),
+              false};
+    }
+    delegate.AddString(context_name, decoder->str().ToStdString());
   } else if (annotation.has_pointer_value()) {
     delegate.AddPointer(context_name, reinterpret_cast<const void*>(
                                           annotation.pointer_value()));
