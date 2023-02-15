@@ -8656,7 +8656,7 @@ message ChromeHistogramSample {
 //     }
 //   }
 //
-// Next ID: 17.
+// Next ID: 18.
 // Reserved ID: 15
 message DebugAnnotation {
   // Name fields are set only for dictionary entries.
@@ -8672,7 +8672,6 @@ message DebugAnnotation {
     uint64 uint_value = 3;
     int64 int_value = 4;
     double double_value = 5;
-    string string_value = 6;
     // Pointers are stored in a separate type as the JSON output treats them
     // differently from other uint64 values.
     uint64 pointer_value = 7;
@@ -8683,6 +8682,11 @@ message DebugAnnotation {
     // Legacy instrumentation may not support conversion of nested data to
     // NestedValue yet.
     string legacy_json_value = 9;
+
+    // interned and non-interned variants of strings.
+    string string_value = 6;
+    // Corresponds to |debug_annotation_string_values| field in InternedData.
+    uint64 string_value_iid = 17;
   }
 
   // Used to embed arbitrary proto messages (which are also typically used to
@@ -9850,7 +9854,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 29.
+// Next id: 30.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -9908,6 +9912,9 @@ message InternedData {
   // This is is NOT the real address. This is to avoid disclosing KASLR through
   // traces.
   repeated InternedString kernel_symbols = 26;
+
+  // Interned string values in the DebugAnnotation proto.
+  repeated InternedString debug_annotation_string_values = 29;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
