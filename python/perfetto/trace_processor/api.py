@@ -367,7 +367,9 @@ class TraceProcessor:
     if hasattr(self, 'subprocess'):
       self.subprocess.kill()
       self.subprocess.wait()
-    self.http.conn.close()
+
+    if hasattr(self, 'http'):
+      self.http.conn.close()
 
   def __del__(self):
     self.close()
