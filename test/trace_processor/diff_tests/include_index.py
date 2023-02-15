@@ -51,6 +51,7 @@ from diff_tests.memory.tests import Memory
 from diff_tests.memory.tests_metrics import MemoryMetrics
 from diff_tests.network.tests import Network
 from diff_tests.parsing.tests import Parsing
+from diff_tests.parsing.tests_debug_annotation import ParsingDebugAnnotation
 from diff_tests.parsing.tests_memory_counters import ParsingMemoryCounters
 from diff_tests.parsing.tests_rss_stats import ParsingRssStats
 from diff_tests.performance.tests import Performance
@@ -119,6 +120,8 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *MemoryMetrics(index_path, 'memory', 'MemoryMetrics').fetch(),
       *Network(index_path, 'network', 'Network').fetch(),
       *Parsing(index_path, 'parsing', 'Parsing').fetch(),
+      *ParsingDebugAnnotation(index_path, 'parsing',
+                              'ParsingDebugAnnotation').fetch(),
       *ParsingRssStats(index_path, 'parsing', 'ParsingRssStats').fetch(),
       *ParsingMemoryCounters(index_path, 'parsing',
                              'ParsingMemoryCounters').fetch(),
