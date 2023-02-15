@@ -151,7 +151,7 @@ SELECT
           MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.startup_id, 'Running'), 0
         ),
         'runnable_dur_ns', IFNULL(
-          MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.startup_id, 'R*'), 0
+          MAIN_THREAD_TIME_FOR_LAUNCH_IN_RUNNABLE_STATE(launches.startup_id), 0
         ),
         'uninterruptible_sleep_dur_ns', IFNULL(
           MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.startup_id, 'D*'), 0
@@ -320,7 +320,7 @@ SELECT
         UNION ALL
         SELECT 'Main Thread - Time spent in Runnable state'
           AS slow_cause
-        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.startup_id, 'R*') > 100e6
+        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_IN_RUNNABLE_STATE(launches.startup_id) > 100e6
 
         UNION ALL
         SELECT 'Main Thread - Time spent in interruptible sleep state'
@@ -361,7 +361,7 @@ SELECT
         SELECT 'Potential CPU contention with '
           || MOST_ACTIVE_PROCESS_FOR_LAUNCH(launches.startup_id)
           AS slow_cause
-        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.startup_id, 'R*') > 100e6
+        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_IN_RUNNABLE_STATE(launches.startup_id) > 100e6
           AND MOST_ACTIVE_PROCESS_FOR_LAUNCH(launches.startup_id) IS NOT NULL
 
         UNION ALL
