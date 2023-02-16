@@ -222,14 +222,14 @@ async function main() {
   console.log('Entering', cfg.outDir);
   process.chdir(cfg.outDir);
 
-  updateSymlinks();  // Links //ui/out -> //out/xxx/ui/
-
   // Enqueue empty task. This is needed only for --no-build --serve. The HTTP
   // server is started when the task queue reaches quiescence, but it takes at
   // least one task for that.
   addTask(() => {});
 
   if (!args.no_build) {
+    updateSymlinks();  // Links //ui/out -> //out/xxx/ui/
+
     buildWasm(args.no_wasm);
     scanDir('ui/src/assets');
     scanDir('ui/src/chrome_extension');
@@ -253,11 +253,18 @@ async function main() {
 
   // We should enter the loop only in watch mode, where tsc and rollup are
   // asynchronous because they run in watch mode.
-  const tStart = Date.now();
-  while (!isDistComplete()) {
-    const secs = Math.ceil((Date.now() - tStart) / 1000);
-    process.stdout.write(`\t\tWaiting for first build to complete... ${secs} s\r`);
-    await new Promise((r) => setTimeout(r, 500));
+  if (args.no_build && !isDistComplete()) {
+    console.log('No build was requested, but artifacts are not available.');
+    console.log('In case of execution error, re-run without --no-build.');
+  }
+  if (!args.no_build) {
+    const tStart = Date.now();
+    while (!isDistComplete()) {
+      const secs = Math.ceil((Date.now() - tStart) / 1000);
+      process.stdout.write(
+          `\t\tWaiting for first build to complete... ${secs} s\r`);
+      await new Promise((r) => setTimeout(r, 500));
+    }
   }
   if (cfg.watch) console.log('\nFirst build completed!');
 

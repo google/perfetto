@@ -17,10 +17,11 @@ import("proto_files.gni")
 
 perfetto_proto_library("@TYPE@") {
   proto_generators = [
+    "lite",
     "zero",
     "source_set",
   ]
-  deps = [ "../common:zero" ]  # ../common:zero needed for descriptor.proto.
+  deps = [ "../common:@TYPE@" ]  # needed for descriptor.proto.
   sources = []
   foreach(source, trace_processor_protos) {
     sources += [ "$source.proto" ]
@@ -33,4 +34,11 @@ perfetto_proto_library("metrics_impl_@TYPE@") {
     "source_set",
   ]
   sources = [ "metrics_impl.proto" ]
+}
+
+if (enable_perfetto_grpc) {
+  perfetto_grpc_library("cloud_trace_processor_grpc") {
+    deps = [ ":lite" ]
+    sources = [ "cloud_trace_processor.proto" ]
+  }
 }

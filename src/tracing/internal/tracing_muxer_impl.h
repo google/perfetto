@@ -439,6 +439,8 @@ class TracingMuxerImpl : public TracingMuxer {
     std::vector<std::unique_ptr<ConsumerImpl>> consumers;
 
     std::vector<RegisteredStartupSession> startup_sessions;
+
+    bool consumer_enabled = true;
   };
 
   void UpdateDataSourceOnAllBackends(RegisteredDataSource& rds,

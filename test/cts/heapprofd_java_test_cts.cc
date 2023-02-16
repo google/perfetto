@@ -89,7 +89,8 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(std::string app_name) {
   return helper.trace();
 }
 
-std::vector<protos::gen::TracePacket> TriggerOomHeapDump(std::string app_name) {
+std::vector<protos::gen::TracePacket> TriggerOomHeapDump(std::string app_name,
+                                                         std::string heap_dump_target) {
   base::TestTaskRunner task_runner;
 
   // (re)start the target app's main activity
@@ -118,6 +119,10 @@ std::vector<protos::gen::TracePacket> TriggerOomHeapDump(std::string app_name) {
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.java_hprof.oom");
   ds_config->set_target_buffer(0);
+
+  protos::gen::JavaHprofConfig java_hprof_config;
+  java_hprof_config.add_process_cmdline(heap_dump_target.c_str());
+  ds_config->set_java_hprof_config_raw(java_hprof_config.SerializeAsString());
 
   // start tracing
   helper.StartTracing(trace_config);
@@ -233,8 +238,16 @@ TEST(HeapprofdJavaCtsTest, DebuggableAppOom) {
   if (IsUserBuild()) return;
 
   std::string app_name = "android.perfetto.cts.app.debuggable";
-  const auto& packets = TriggerOomHeapDump(app_name);
+  const auto& packets = TriggerOomHeapDump(app_name, "*");
   AssertGraphPresent(packets);
+}
+
+TEST(HeapprofdJavaCtsTest, DebuggableAppOomNotSelected) {
+  if (IsUserBuild()) return;
+
+  std::string app_name = "android.perfetto.cts.app.debuggable";
+  const auto& packets = TriggerOomHeapDump(app_name, "not.this.app");
+  AssertNoProfileContents(packets);
 }
 
 }  // namespace

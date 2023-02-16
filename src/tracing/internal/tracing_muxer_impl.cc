@@ -875,6 +875,7 @@ void TracingMuxerImpl::Initialize(const TracingInitArgs& args) {
     rb.backend = backend;
     rb.id = backend_id;
     rb.type = type;
+    rb.consumer_enabled = type != kSystemBackend || args.enable_system_consumer;
     rb.producer.reset(new ProducerImpl(this, backend_id,
                                        args.shmem_batch_commits_duration_ms));
     rb.producer_conn_args.producer = rb.producer.get();
@@ -1313,7 +1314,8 @@ void TracingMuxerImpl::StartDataSourceImpl(const FindDataSourceRes& ds) {
   std::unique_lock<std::recursive_mutex> lock(ds.internal_state->lock);
   if (ds.internal_state->interceptor)
     ds.internal_state->interceptor->OnStart({});
-  ds.internal_state->trace_lambda_enabled = true;
+  ds.internal_state->trace_lambda_enabled.store(true,
+                                                std::memory_order_relaxed);
   PERFETTO_DCHECK(ds.internal_state->data_source != nullptr);
 
   if (!ds.requires_callbacks_under_lock)
@@ -1407,7 +1409,8 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(TracingBackendId backend_id,
   TracingSessionGlobalID startup_session_id;
   {
     std::lock_guard<std::recursive_mutex> guard(ds.internal_state->lock);
-    ds.internal_state->trace_lambda_enabled = false;
+    ds.internal_state->trace_lambda_enabled.store(false,
+                                                  std::memory_order_relaxed);
     ds.internal_state->data_source.reset();
     ds.internal_state->interceptor.reset();
     startup_buffer_reservation =
@@ -2048,6 +2051,10 @@ std::unique_ptr<TracingSession> TracingMuxerImpl::CreateTracingSession(
     for (RegisteredBackend& backend : backends_) {
       if (requested_backend_type && backend.type &&
           backend.type != requested_backend_type) {
+        continue;
+      }
+
+      if (!backend.consumer_enabled) {
         continue;
       }
 

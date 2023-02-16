@@ -204,6 +204,40 @@ template("ipc_library") {
   }
 }
 
+# Generates .grpc.{h,cc} stubs for services defined in .proto files.
+# We require explicit opt-in as gRPC is very heavyweight so we do not
+# want accidental dependencies on this.
+if (enable_perfetto_grpc) {
+  template("perfetto_grpc_library") {
+    proto_library(target_name) {
+      proto_in_dir = perfetto_root_path
+      proto_out_dir = perfetto_root_path
+      propagate_imports_configs = false
+
+      perfetto_root_path = perfetto_root_path
+      generate_cc = false
+      generate_python = false
+      generator_plugin_label =
+          "$perfetto_root_path/buildtools/grpc:grpc_cpp_plugin"
+      generator_plugin_suffix = ".grpc.pb"
+      deps = [ "$perfetto_root_path/buildtools/grpc:grpc++" ]
+      public_configs = [ "$perfetto_root_path/buildtools:grpc_gen_config" ]
+      if (defined(invoker.deps)) {
+        deps += invoker.deps
+      }
+      forward_variables_from(invoker,
+                             [
+                               "defines",
+                               "extra_configs",
+                               "include_dirs",
+                               "sources",
+                               "testonly",
+                               "visibility",
+                             ])
+    }
+  }
+}
+
 # The template used everywhere in the codebase.
 template("perfetto_proto_library") {
   if (defined(invoker.proto_generators)) {

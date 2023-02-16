@@ -1,2 +1,0 @@
-# Ensure Android game intervention list are parsed correctly
-game_intervention_list_test.textproto game_intervention_list_test.sql game_intervention_list_test.out

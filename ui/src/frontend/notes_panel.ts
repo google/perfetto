@@ -27,7 +27,11 @@ import {
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {PerfettoMouseEvent} from './events';
 import {globals} from './globals';
-import {gridlines} from './gridline_helper';
+import {
+  TickGenerator,
+  TickType,
+  timeScaleForVisibleWindow,
+} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
 import {isTraceLoaded} from './sidebar';
 
@@ -79,29 +83,43 @@ export class NotesPanel extends Panel {
           },
         },
         isTraceLoaded() ?
-            m('button',
-              {
-                onclick: (e: Event) => {
-                  e.preventDefault();
-                  globals.dispatch(
-                      Actions.toggleAllTrackGroups({collapsed: !allCollapsed}));
+            [
+              m('button',
+                {
+                  onclick: (e: Event) => {
+                    e.preventDefault();
+                    globals.dispatch(Actions.toggleAllTrackGroups(
+                        {collapsed: !allCollapsed}));
+                  },
                 },
-              },
-              m('i.material-icons',
-                {title: allCollapsed ? 'Expand all' : 'Collapse all'},
-                allCollapsed ? 'unfold_more' : 'unfold_less')) :
+                m('i.material-icons',
+                  {title: allCollapsed ? 'Expand all' : 'Collapse all'},
+                  allCollapsed ? 'unfold_more' : 'unfold_less')),
+              m('button',
+                {
+                  onclick: (e: Event) => {
+                    e.preventDefault();
+                    globals.dispatch(Actions.clearAllPinnedTracks({}));
+                  },
+                },
+                m('i.material-icons',
+                  {title: 'Clear all pinned tracks'},
+                  'clear_all')),
+            ] :
             '');
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const timeScale = globals.frontendLocalState.timeScale;
-    const range = globals.frontendLocalState.visibleWindowTime;
     let aNoteIsHovered = false;
 
     ctx.fillStyle = '#999';
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
-    for (const xAndTime of gridlines(size.width, range, timeScale)) {
-      ctx.fillRect(xAndTime[0], 0, 1, size.height);
+    const relScale = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
+    if (relScale.timeSpan.duration > 0 && relScale.widthPx > 0) {
+      for (const {type, position} of new TickGenerator(relScale)) {
+        if (type === TickType.MAJOR) ctx.fillRect(position, 0, 1, size.height);
+      }
     }
 
     ctx.textBaseline = 'bottom';

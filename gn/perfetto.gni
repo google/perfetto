@@ -307,6 +307,12 @@ declare_args() {
   # typically handles only itanium mangling.
   enable_perfetto_llvm_demangle =
       enable_perfetto_trace_processor && perfetto_build_standalone
+
+  # Enables gRPC in the Perfetto codebase. gRPC significantly increases build
+  # times and the general footprint of Perfetto. As it only required for
+  # cloud trace processor and even then only to build the final ready-to-ship
+  # binary, don't enable this by default.
+  enable_perfetto_grpc = false
 }
 
 declare_args() {

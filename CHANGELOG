@@ -1,5 +1,20 @@
 Unreleased:
   Tracing service and probes:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+v32.1 - 2023-02-01:
+  Trace Processor:
+    * Fix build on windows.
+
+
+v32.0 - 2023-02-01:
+  Tracing service and probes:
     * Added an explicit TraceUuid packet. The tracing service now always
       generates a UUID, even if TraceConfig.trace_uuid_msb/lsb is empty.
   Trace Processor:
@@ -15,6 +30,8 @@ Unreleased:
       been deprecated in favor of this new functionality.
     * Deprecated the PERFETTO_COMPONENT_EXPORT macro in favor of
       PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE_WITH_ATTRS.
+    * Added TracingInitArgs::enable_system_consumer configuration option, that
+      allows the linker to discard the consumer IPC, if not required.
 
 
 v31.0 - 2022-11-10:

@@ -45,6 +45,8 @@ base::StringView ToString(CallsiteAnnotation annotation) {
       return "jit";
     case CallsiteAnnotation::kCommonFrame:
       return "common-frame";
+    case CallsiteAnnotation::kCommonFrameInterp:
+      return "common-frame-interp";
   }
   PERFETTO_FATAL("For GCC");
 }

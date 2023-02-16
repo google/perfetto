@@ -79,6 +79,14 @@ export class TimeScale {
   get endPx(): number {
     return this._endPx;
   }
+
+  get widthPx(): number {
+    return this._endPx - this._startPx;
+  }
+
+  get timeSpan(): TimeSpan {
+    return this.timeBounds;
+  }
 }
 
 export function computeZoom(

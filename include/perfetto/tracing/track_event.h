@@ -17,7 +17,6 @@
 #ifndef INCLUDE_PERFETTO_TRACING_TRACK_EVENT_H_
 #define INCLUDE_PERFETTO_TRACING_TRACK_EVENT_H_
 
-#include "perfetto/base/time.h"
 #include "perfetto/tracing/internal/track_event_data_source.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 #include "perfetto/tracing/internal/track_event_macros.h"

@@ -35,7 +35,7 @@ PACKAGES_LIST_CFG = '''data_sources {
 }
 '''
 
-CFG_IDENT = '      '
+CFG_INDENT = '      '
 CFG = '''buffers {{
   size_kb: {size_kb}
   fill_policy: DISCARD
@@ -63,6 +63,9 @@ OOM_CFG = '''buffers: {{
 data_sources: {{
     config {{
         name: "android.java_hprof.oom"
+        java_hprof_config {{
+{process_cfg}
+        }}
     }}
 }}
 
@@ -133,12 +136,12 @@ def generate_heap_dump_config(args):
       except ValueError:
         print("FATAL: invalid PID %s" % pid, file=sys.stderr)
         fail = True
-      target_cfg += '{}pid: {}\n'.format(CFG_IDENT, pid)
+      target_cfg += '{}pid: {}\n'.format(CFG_INDENT, pid)
   if args.name:
     for name in args.name.split(','):
-      target_cfg += '{}process_cmdline: "{}"\n'.format(CFG_IDENT, name)
+      target_cfg += '{}process_cmdline: "{}"\n'.format(CFG_INDENT, name)
   if args.dump_smaps:
-    target_cfg += '{}dump_smaps: true\n'.format(CFG_IDENT)
+    target_cfg += '{}dump_smaps: true\n'.format(CFG_INDENT)
 
   if fail:
     return None
@@ -168,8 +171,13 @@ def generate_oom_config(args):
         file=sys.stderr)
     return None
 
-  if args.pid or args.name:
-    print("FATAL: Specifying process not supported in OOM mode",
+  if args.pid:
+    print("FATAL: Specifying pid not supported in OOM mode",
+        file=sys.stderr)
+    return None
+
+  if not args.name:
+    print("FATAL: Must specify process in OOM mode (use --name '*' to match all)",
         file=sys.stderr)
     return None
 
@@ -183,9 +191,14 @@ def generate_oom_config(args):
         file=sys.stderr)
     return None
 
+  process_cfg = ''
+  for name in args.name.split(','):
+    process_cfg += '{}process_cmdline: "{}"\n'.format(CFG_INDENT, name)
+
   return OOM_CFG.format(
       size_kb=convert_size_to_kb(args.buffer_size),
-      wait_duration_ms=args.oom_wait_seconds * 1000)
+      wait_duration_ms=args.oom_wait_seconds * 1000,
+      process_cfg=process_cfg)
 
 
 def main(argv):

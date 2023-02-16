@@ -21,6 +21,20 @@ Continue with the appropriate section below.
 
 ## a) Creating a new major version
 
+Make sure that the current master branch builds on
+[LUCI](https://luci-scheduler.appspot.com/jobs/perfetto) by triggering all the
+builds and waiting for their success. If any of the builds fail, fix the failure
+on master before proceeding.
+
+Create an entry in CHANGELOG with the new major version: this usually involves
+renaming the "Unreleased" entry to the version number you chose earlier
+([example](https://r.android.com/2417175)).
+
+Test that the perfetto build tools can parse the CHANGELOG: after building,
+running `perfetto --version` should show your new version number.
+
+Upload the CHANGELOG change and submit it on the master branch.
+
 Create a release branch for the new major version ("v16.x" here):
 
 ```bash

@@ -12,17 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../gn/perfetto_component.gni")
-
-perfetto_component("protozero") {
+shared_library("libperfetto_c") {
   deps = [
     "../../gn:default_deps",
     "../../include/perfetto/base",
     "../../include/perfetto/protozero",
     "../../include/perfetto/public:protozero",
+    "../tracing:client_api",
+    "../tracing:platform_impl",
   ]
   sources = [
+    "producer.cc",
     "stream_writer.cc",
     "stream_writer.h",
   ]
+  defines = [ "PERFETTO_SHLIB_SDK_IMPLEMENTATION" ]
 }

@@ -51,6 +51,10 @@ class ThreadStateTracker : public Destructible {
   // Will add a runnable state for utid and close the previously blocked one.
   void PushWakingEvent(int64_t event_ts, UniqueTid utid, UniqueTid waker_utid);
 
+  // Will add a runnable state for utid. For a new task there are no previous
+  // states to close.
+  void PushNewTaskEvent(int64_t event_ts, UniqueTid utid, UniqueTid waker_utid);
+
   // Updates the current blocked state for utid with blocked reason.
   void PushBlockedReason(UniqueTid utid,
                          base::Optional<bool> io_wait,

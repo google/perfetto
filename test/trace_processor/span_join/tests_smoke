@@ -1,3 +1,0 @@
-../common/synth_1.py span_join_unordered_cols_test.sql span_join_unordered_cols_synth_1.out
-../common/synth_1.py span_join_unordered_cols_reverse_test.sql span_join_unordered_cols_synth_1.out
-../../data/android_sched_and_ps.pb span_join_zero_negative_dur_test.sql span_join_zero_negative_dur.out

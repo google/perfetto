@@ -88,6 +88,23 @@ class RefPtr {
   // This case is really the move-assignment operator=(&&).
   void reset(T* new_obj) { *this = RefPtr<T>(new_obj); }
 
+  // Releases the pointer owned by this RefPtr *without* decrementing the
+  // refcount. Callers *must* call |FromReleasedUnsafe| at a later date with
+  // this pointer to avoid memory leaks.
+  T* ReleaseUnsafe() {
+    auto* old_ptr = ptr_;
+    ptr_ = nullptr;
+    return old_ptr;
+  }
+
+  // Creates a RefPtr from a pointer returned by |ReleaseUnsafe|. Passing a
+  // pointer from any other source results in undefined behaviour.
+  static RefPtr<T> FromReleasedUnsafe(T* ptr) {
+    RefPtr<T> res;
+    res.ptr_ = ptr;
+    return res;
+  }
+
   // Move operators.
   RefPtr(RefPtr&& move_from) noexcept {
     ptr_ = move_from.ptr_;

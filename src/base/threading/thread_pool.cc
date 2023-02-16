@@ -39,12 +39,10 @@ ThreadPool::~ThreadPool() {
 }
 
 void ThreadPool::PostTask(std::function<void()> fn) {
-  {
-    std::lock_guard<std::mutex> guard(mutex_);
-    pending_tasks_.emplace_back(std::move(fn));
+  std::lock_guard<std::mutex> guard(mutex_);
+  pending_tasks_.emplace_back(std::move(fn));
   if (thread_waiting_count_ == 0) {
     return;
-  }
   }
   thread_waiter_.notify_one();
 }
