@@ -117,6 +117,12 @@ proto_groups = {
     ],
 }
 
+needs_libfts = [
+    '//:perfetto_unittests',
+    '//src/trace_processor:trace_processor_shell',
+    '//src/traceconv:traceconv',
+]
+
 # All module names are prefixed with this string to avoid collisions.
 module_prefix = 'perfetto_'
 
@@ -507,6 +513,7 @@ class Module(object):
     self.tool_files: Optional[List[str]] = None
     self.android = Target('android')
     self.host = Target('host')
+    self.musl = Target('musl')
     self.lto: Optional[bool] = None
     self.stl = None
     self.dist = dict()
@@ -568,6 +575,7 @@ class Module(object):
     target_out = []
     self._output_field(target_out, 'android')
     self._output_field(target_out, 'host')
+    self._output_field(target_out, 'musl')
     if target_out:
       output.append('    target: {')
       for line in target_out:
@@ -984,6 +992,9 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
       gn_utils.label_to_path(src)
       for src in target.sources
       if is_supported_source_file(src))
+
+  if name_without_toolchain in needs_libfts:
+    module.musl.static_libs.add('libfts')
 
   if target.type in gn_utils.LINKER_UNIT_TYPES:
     module.cflags.update(_get_cflags(target))
