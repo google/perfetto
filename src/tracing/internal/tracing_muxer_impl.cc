@@ -896,11 +896,14 @@ void TracingMuxerImpl::Initialize(const TracingInitArgs& args) {
   };
 
   if (args.backends & kSystemBackend) {
-    PERFETTO_CHECK(args.system_backend_factory_);
-    auto* b = args.system_backend_factory_();
-    add_producer_backend(b, kSystemBackend);
-    if (args.enable_system_consumer)
-      add_consumer_backend(b, kSystemBackend);
+    PERFETTO_CHECK(args.system_producer_backend_factory_);
+    add_producer_backend(args.system_producer_backend_factory_(),
+                         kSystemBackend);
+    if (args.enable_system_consumer) {
+      PERFETTO_CHECK(args.system_consumer_backend_factory_);
+      add_consumer_backend(args.system_consumer_backend_factory_(),
+                           kSystemBackend);
+    }
   }
 
   if (args.backends & kInProcessBackend) {
