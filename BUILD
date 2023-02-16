@@ -574,6 +574,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "include_perfetto_public_abi_base",
     srcs = [
+        "include/perfetto/public/abi/atomic.h",
         "include/perfetto/public/abi/export.h",
     ],
 )
