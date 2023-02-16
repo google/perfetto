@@ -13,7 +13,10 @@
 # limitations under the License.
 
 source_set("base") {
-  sources = [ "export.h" ]
+  sources = [
+    "atomic.h",
+    "export.h",
+  ]
 }
 
 source_set("protozero") {

@@ -18,6 +18,9 @@ source_set("base") {
 }
 
 source_set("protozero") {
-  sources = [ "stream_writer.h" ]
+  sources = [
+    "pb_utils.h",
+    "stream_writer.h",
+  ]
   public_deps = [ "./abi:protozero" ]
 }
