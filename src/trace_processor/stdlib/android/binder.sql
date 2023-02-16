@@ -58,7 +58,21 @@ GROUP BY
 -- @column server_dur dur of the server txn
 CREATE VIEW android_sync_binder_metrics_by_txn AS
 WITH
-  binder_txn AS (
+  -- Adding MATERIALIZED here matters in cases where there are few/no binder
+  -- transactions in the trace. Our cost estimation is not good enough to allow
+  -- the query planner to see through to this fact. Instead, our cost estimation
+  -- causes repeated queries on this table which is slow because it's an O(n)
+  -- query.
+  --
+  -- We should fix this by doing some (ideally all) of the following:
+  --  1) Add support for columnar tables in SQL which will allow for
+  --     "subsetting" the slice table to only contain binder transactions.
+  --  2) Make this query faster by adding improving string filtering.
+  --  3) Add caching so that even if these queries happen many times, they are
+  --     fast.
+  --  4) Improve cost estimation algorithm to allow the joins to happen the
+  --     right way around.
+  binder_txn AS MATERIALIZED (
     SELECT
       slice.id AS binder_txn_id,
       process.name AS process_name,
@@ -69,15 +83,11 @@ WITH
       slice.dur,
       thread.is_main_thread
     FROM slice
-    INNER JOIN thread_track
-      ON slice.track_id = thread_track.id
-    INNER JOIN thread
-      USING (utid)
-    INNER JOIN process
-      USING (upid)
-    LEFT JOIN slice non_existent ON non_existent.parent_id = slice.id
+    JOIN thread_track ON slice.track_id = thread_track.id
+    JOIN thread USING (utid)
+    JOIN process USING (upid)
     WHERE slice.name = 'binder transaction'
-    AND non_existent.depth IS NULL
+      AND NOT EXISTS(SELECT 1 FROM slice child WHERE child.parent_id = slice.id)
   ),
   binder_reply AS (
     SELECT
@@ -85,20 +95,20 @@ WITH
       binder_reply.ts AS server_ts,
       binder_reply.dur AS server_dur,
       binder_reply.id AS binder_reply_id,
-      IIF(aidl.name LIKE 'AIDL::%' AND aidl.depth = binder_reply.depth + 1, aidl.name, NULL) AS aidl_name,
       reply_thread.name AS server_thread,
       reply_process.name AS server_process,
       reply_thread.utid AS server_utid,
-      reply_process.upid AS server_upid
+      reply_process.upid AS server_upid,
+      aidl.name AS aidl_name
     FROM binder_txn
-    INNER JOIN flow binder_flow
-      ON binder_txn.binder_txn_id = binder_flow.slice_out
-    INNER JOIN slice binder_reply
-      ON binder_flow.slice_in = binder_reply.id
-    INNER JOIN thread_track reply_thread_track ON binder_reply.track_id = reply_thread_track.id
-    INNER JOIN thread reply_thread ON reply_thread.utid = reply_thread_track.utid
-    INNER JOIN process reply_process ON reply_process.upid = reply_thread.upid
-    LEFT JOIN slice aidl ON aidl.parent_id = binder_reply.id
+    JOIN flow binder_flow ON binder_txn.binder_txn_id = binder_flow.slice_out
+    JOIN slice binder_reply ON binder_flow.slice_in = binder_reply.id
+    JOIN thread_track reply_thread_track
+      ON binder_reply.track_id = reply_thread_track.id
+    JOIN thread reply_thread ON reply_thread.utid = reply_thread_track.utid
+    JOIN process reply_process ON reply_process.upid = reply_thread.upid
+    LEFT JOIN slice aidl
+      ON aidl.parent_id = binder_reply.id AND aidl.name LIKE 'AIDL::%'
   )
 SELECT
   MIN(aidl_name) AS aidl_name,
@@ -118,7 +128,7 @@ SELECT
   server_ts,
   server_dur
 FROM binder_reply
-WHERE client_dur >= 0 AND server_dur >= 0 AND client_dur >= server_dur
+WHERE client_dur != -1 AND server_dur != -1 AND client_dur >= server_dur
 GROUP BY
   process_name,
   thread_name,
