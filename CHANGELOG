@@ -8,6 +8,11 @@ Unreleased:
   SDK:
     *
 
+v32.2 - 2023-02-16:
+  SDK:
+    * Fix MSVC warnings.
+
+
 v32.1 - 2023-02-01:
   Trace Processor:
     * Fix build on windows.
