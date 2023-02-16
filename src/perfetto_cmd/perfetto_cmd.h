@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
 #include "src/android_stats/perfetto_atoms.h"
@@ -162,6 +163,7 @@ class PerfettoCmd : public Consumer {
   // How long we expect to trace for or 0 if the trace is indefinite.
   uint32_t expected_duration_ms_ = 0;
   bool trace_data_timeout_armed_ = false;
+  base::WeakPtrFactory<PerfettoCmd> weak_factory_{this};
 };
 
 }  // namespace perfetto
