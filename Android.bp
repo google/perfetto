@@ -4838,6 +4838,7 @@ genrule {
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
+        "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",
         "protos/perfetto/trace/power/power_rails.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
@@ -6579,6 +6580,7 @@ genrule {
     name: "perfetto_protos_perfetto_trace_power_cpp_gen",
     srcs: [
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
+        "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",
         "protos/perfetto/trace/power/power_rails.proto",
     ],
@@ -6589,6 +6591,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
     out: [
         "external/perfetto/protos/perfetto/trace/power/android_energy_estimation_breakdown.gen.cc",
+        "external/perfetto/protos/perfetto/trace/power/android_entity_state_residency.gen.cc",
         "external/perfetto/protos/perfetto/trace/power/battery_counters.gen.cc",
         "external/perfetto/protos/perfetto/trace/power/power_rails.gen.cc",
     ],
@@ -6599,6 +6602,7 @@ genrule {
     name: "perfetto_protos_perfetto_trace_power_cpp_gen_headers",
     srcs: [
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
+        "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",
         "protos/perfetto/trace/power/power_rails.proto",
     ],
@@ -6609,6 +6613,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
     out: [
         "external/perfetto/protos/perfetto/trace/power/android_energy_estimation_breakdown.gen.h",
+        "external/perfetto/protos/perfetto/trace/power/android_entity_state_residency.gen.h",
         "external/perfetto/protos/perfetto/trace/power/battery_counters.gen.h",
         "external/perfetto/protos/perfetto/trace/power/power_rails.gen.h",
     ],
@@ -6623,6 +6628,7 @@ genrule {
     name: "perfetto_protos_perfetto_trace_power_lite_gen",
     srcs: [
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
+        "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",
         "protos/perfetto/trace/power/power_rails.proto",
     ],
@@ -6632,6 +6638,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
     out: [
         "external/perfetto/protos/perfetto/trace/power/android_energy_estimation_breakdown.pb.cc",
+        "external/perfetto/protos/perfetto/trace/power/android_entity_state_residency.pb.cc",
         "external/perfetto/protos/perfetto/trace/power/battery_counters.pb.cc",
         "external/perfetto/protos/perfetto/trace/power/power_rails.pb.cc",
     ],
@@ -6642,6 +6649,7 @@ genrule {
     name: "perfetto_protos_perfetto_trace_power_lite_gen_headers",
     srcs: [
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
+        "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",
         "protos/perfetto/trace/power/power_rails.proto",
     ],
@@ -6651,6 +6659,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
     out: [
         "external/perfetto/protos/perfetto/trace/power/android_energy_estimation_breakdown.pb.h",
+        "external/perfetto/protos/perfetto/trace/power/android_entity_state_residency.pb.h",
         "external/perfetto/protos/perfetto/trace/power/battery_counters.pb.h",
         "external/perfetto/protos/perfetto/trace/power/power_rails.pb.h",
     ],
@@ -6665,6 +6674,7 @@ genrule {
     name: "perfetto_protos_perfetto_trace_power_zero_gen",
     srcs: [
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
+        "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",
         "protos/perfetto/trace/power/power_rails.proto",
     ],
@@ -6675,6 +6685,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
     out: [
         "external/perfetto/protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace/power/android_entity_state_residency.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/power/battery_counters.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/power/power_rails.pbzero.cc",
     ],
@@ -6685,6 +6696,7 @@ genrule {
     name: "perfetto_protos_perfetto_trace_power_zero_gen_headers",
     srcs: [
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
+        "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",
         "protos/perfetto/trace/power/power_rails.proto",
     ],
@@ -6695,6 +6707,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
     out: [
         "external/perfetto/protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.h",
+        "external/perfetto/protos/perfetto/trace/power/android_entity_state_residency.pbzero.h",
         "external/perfetto/protos/perfetto/trace/power/battery_counters.pbzero.h",
         "external/perfetto/protos/perfetto/trace/power/power_rails.pbzero.h",
     ],
@@ -11136,6 +11149,7 @@ java_library {
         "protos/perfetto/trace/perfetto/perfetto_metatrace.proto",
         "protos/perfetto/trace/perfetto/tracing_service_event.proto",
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
+        "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",
         "protos/perfetto/trace/power/power_rails.proto",
         "protos/perfetto/trace/profiling/deobfuscation.proto",
