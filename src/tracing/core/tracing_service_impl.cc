@@ -282,10 +282,10 @@ bool ShouldLogEvent(const TraceConfig& cfg) {
     case TraceConfig::STATSD_LOGGING_DISABLED:
       return false;
     case TraceConfig::STATSD_LOGGING_UNSPECIFIED:
-      // For backward compatibility with older versions of perfetto_cmd.
-      return cfg.enable_extra_guardrails();
+      break;
   }
-  PERFETTO_FATAL("For GCC");
+  // For backward compatibility with older versions of perfetto_cmd.
+  return cfg.enable_extra_guardrails();
 }
 
 // Appends `data` (which has `size` bytes), to `*packet`. Splits the data in
