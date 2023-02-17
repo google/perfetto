@@ -3994,6 +3994,7 @@ perfetto_proto_library(
     name = "protos_perfetto_trace_power_protos",
     srcs = [
         "protos/perfetto/trace/power/android_energy_estimation_breakdown.proto",
+        "protos/perfetto/trace/power/android_entity_state_residency.proto",
         "protos/perfetto/trace/power/battery_counters.proto",
         "protos/perfetto/trace/power/power_rails.proto",
     ],
