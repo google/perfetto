@@ -46,9 +46,11 @@ namespace {
 
 constexpr char kHeapprofdDataSourceName[] = "android.heapprofd";
 constexpr char kJavaHprofDataSourceName[] = "android.java_hprof";
+constexpr char kJavaHprofOomDataSourceName[] = "android.java_hprof.oom";
 constexpr char kTracedPerfDataSourceName[] = "linux.perf";
 constexpr char kLazyHeapprofdPropertyName[] = "traced.lazy.heapprofd";
 constexpr char kLazyTracedPerfPropertyName[] = "traced.lazy.traced_perf";
+constexpr char kJavaHprofOomActivePropertyName[] = "traced.oome_heap_session.count";
 
 }  // namespace
 
@@ -64,6 +66,8 @@ BuiltinProducer::~BuiltinProducer() {
     SetAndroidProperty(kLazyHeapprofdPropertyName, "");
   if (!lazy_traced_perf_.instance_ids.empty())
     SetAndroidProperty(kLazyTracedPerfPropertyName, "");
+  if (!java_hprof_oome_instances_.empty())
+    SetAndroidProperty(kJavaHprofOomActivePropertyName, "");
 }
 
 void BuiltinProducer::ConnectInProcess(TracingService* svc) {
@@ -102,6 +106,11 @@ void BuiltinProducer::OnConnect() {
     lazy_traced_perf_dsd.set_name(kTracedPerfDataSourceName);
     endpoint_->RegisterDataSource(lazy_traced_perf_dsd);
   }
+  {
+    DataSourceDescriptor java_hprof_oome_dsd;
+    java_hprof_oome_dsd.set_name(kJavaHprofOomDataSourceName);
+    endpoint_->RegisterDataSource(java_hprof_oome_dsd);
+  }
 }
 
 void BuiltinProducer::SetupDataSource(DataSourceInstanceID ds_id,
@@ -118,6 +127,13 @@ void BuiltinProducer::SetupDataSource(DataSourceInstanceID ds_id,
     SetAndroidProperty(kLazyTracedPerfPropertyName, "1");
     lazy_traced_perf_.generation++;
     lazy_traced_perf_.instance_ids.emplace(ds_id);
+    return;
+  }
+
+  if (ds_config.name() == kJavaHprofOomDataSourceName) {
+    java_hprof_oome_instances_.emplace(ds_id);
+    SetAndroidProperty(kJavaHprofOomActivePropertyName,
+                       std::to_string(java_hprof_oome_instances_.size()));
     return;
   }
 }
@@ -152,6 +168,13 @@ void BuiltinProducer::StopDataSource(DataSourceInstanceID ds_id) {
 
   MaybeInitiateLazyStop(ds_id, &lazy_heapprofd_, kLazyHeapprofdPropertyName);
   MaybeInitiateLazyStop(ds_id, &lazy_traced_perf_, kLazyTracedPerfPropertyName);
+
+  auto oome_it = java_hprof_oome_instances_.find(ds_id);
+  if (oome_it != java_hprof_oome_instances_.end()) {
+    java_hprof_oome_instances_.erase(oome_it);
+    SetAndroidProperty(kJavaHprofOomActivePropertyName,
+                       std::to_string(java_hprof_oome_instances_.size()));
+  }
 }
 
 void BuiltinProducer::MaybeInitiateLazyStop(DataSourceInstanceID ds_id,
