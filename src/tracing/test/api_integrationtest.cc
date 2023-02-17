@@ -5560,7 +5560,7 @@ TEST_P(PerfettoApiTest, StartTracingWhileExecutingTracepoint) {
   auto* ds_cfg = cfg.add_data_sources()->mutable_config();
   ds_cfg->set_name("my_data_source");
 
-  std::atomic<bool> quit = false;
+  std::atomic<bool> quit{false};
   WaitableTestEvent outside_tracing;
   WaitableTestEvent tracing;
   std::thread t([&] {
