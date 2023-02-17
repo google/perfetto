@@ -81,6 +81,21 @@ struct EnergyEstimationBreakdown {
   int64_t energy_uws;
 };
 
+struct PowerEntityState {
+  int32_t entity_id;
+  int32_t state_id;
+  char entity_name[64];
+  char state_name[64];
+};
+
+struct PowerEntityStateResidency {
+  int32_t entity_id;
+  int32_t state_id;
+  uint64_t total_time_in_state_ms;
+  uint64_t total_state_entry_count;
+  uint64_t last_entry_timestamp_ms;
+};
+
 extern "C" {
 
 // These functions are not thread safe unless specified otherwise.
@@ -100,6 +115,13 @@ GetEnergyConsumerInfo(EnergyConsumerInfo* consumers, size_t* size_of_arr);
 // consumer.
 bool __attribute__((visibility("default")))
 GetEnergyConsumed(EnergyEstimationBreakdown* breakdown, size_t* size_of_arr);
+
+bool __attribute__((visibility("default")))
+GetPowerEntityStates(PowerEntityState* state, size_t* size_of_arr);
+
+bool __attribute__((visibility("default")))
+GetPowerEntityStateResidency(PowerEntityStateResidency* residency,
+                             size_t* size_of_arr);
 
 }  // extern "C"
 
