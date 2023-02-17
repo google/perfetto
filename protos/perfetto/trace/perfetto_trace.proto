@@ -760,6 +760,10 @@ message AndroidPowerConfig {
   // Provides a breakdown of energy estimation for various subsystem (e.g. GPU).
   // Available from Android S.
   optional bool collect_energy_estimation_breakdown = 4;
+
+  // Provides a breakdown of time in state for various subsystems.
+  // Available from Android U.
+  optional bool collect_entity_state_residency = 5;
 }
 
 // End of protos/perfetto/config/power/android_power_config.proto
@@ -10191,6 +10195,48 @@ message AndroidEnergyEstimationBreakdown {
 
 // End of protos/perfetto/trace/power/android_energy_estimation_breakdown.proto
 
+// Begin of protos/perfetto/trace/power/android_entity_state_residency.proto
+
+message EntityStateResidency {
+  message PowerEntityState {
+    // Index corresponding to the entity
+    optional int32 entity_index = 1;
+
+    // Index corresponding to the state
+    optional int32 state_index = 2;
+
+    // Name of the entity
+    optional string entity_name = 3;
+
+    // Name of the state
+    optional string state_name = 4;
+  }
+
+  // This is only emitted at the beginning of the trace.
+  repeated PowerEntityState power_entity_state = 1;
+
+  message StateResidency {
+    // Index corresponding to PowerEntityState.entity_index
+    optional int32 entity_index = 1;
+
+    // Index corresponding to PowerEntityState.state_index
+    optional int32 state_index = 2;
+
+    // Time since boot that this entity has been in this state
+    optional uint64 total_time_in_state_ms = 3;
+
+    // Total number of times since boot that the entity has entered this state
+    optional uint64 total_state_entry_count = 4;
+
+    // Timestamp of the last time the entity entered this state
+    optional uint64 last_entry_timestamp_ms = 5;
+  }
+
+  repeated StateResidency residency = 2;
+}
+
+// End of protos/perfetto/trace/power/android_entity_state_residency.proto
+
 // Begin of protos/perfetto/trace/power/battery_counters.proto
 
 message BatteryCounters {
@@ -11717,7 +11763,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 91.
+// Next id: 92.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -11786,6 +11832,7 @@ message TracePacket {
     AndroidGameInterventionList android_game_intervention_list = 83;
     StatsdAtom statsd_atom = 84;
     AndroidSystemProperty android_system_property = 86;
+    EntityStateResidency entity_state_residency = 91;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
