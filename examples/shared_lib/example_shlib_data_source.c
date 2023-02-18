@@ -14,10 +14,24 @@
  * limitations under the License.
  */
 
+#include <threads.h>
+#include <time.h>
+
+#include "perfetto/public/data_source.h"
 #include "perfetto/public/producer.h"
+
+static struct PerfettoDs custom = PERFETTO_DS_INIT();
 
 int main(void) {
   struct PerfettoProducerInitArgs args = {0};
   args.backends = PERFETTO_BACKEND_SYSTEM;
   PerfettoProducerInit(args);
+
+  PerfettoDsRegister(&custom, "com.example.custom_data_source",
+                     PerfettoDsNoCallbacks());
+
+  for (;;) {
+    PERFETTO_DS_TRACE(custom, ctx) {}
+    thrd_sleep(&(struct timespec){.tv_sec = 1}, NULL);
+  }
 }

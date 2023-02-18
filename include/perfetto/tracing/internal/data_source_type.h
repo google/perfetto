@@ -2,6 +2,7 @@
 #define INCLUDE_PERFETTO_TRACING_INTERNAL_DATA_SOURCE_TYPE_H_
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/export.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/internal/data_source_internal.h"
 #include "perfetto/tracing/internal/tracing_muxer.h"
@@ -21,7 +22,7 @@ namespace internal {
 // DataSourceStaticState from the specific DataSource<T>. The C API cannot
 // dynamically create template instances and it needs a way to decouple those at
 // runtime.
-class DataSourceType {
+class PERFETTO_EXPORT_COMPONENT DataSourceType {
  public:
   // Function pointer type used to create custom per instance thread local
   // state.
