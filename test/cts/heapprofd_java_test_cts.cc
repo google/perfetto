@@ -235,16 +235,27 @@ TEST(HeapprofdJavaCtsTest, DebuggableAppRuntimeByPid) {
 }
 
 TEST(HeapprofdJavaCtsTest, DebuggableAppOom) {
-  if (IsUserBuild()) return;
-
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = TriggerOomHeapDump(app_name, "*");
   AssertGraphPresent(packets);
 }
 
-TEST(HeapprofdJavaCtsTest, DebuggableAppOomNotSelected) {
-  if (IsUserBuild()) return;
+TEST(HeapprofdJavaCtsTest, ProfileableAppOom) {
+  std::string app_name = "android.perfetto.cts.app.profileable";
+  const auto& packets = TriggerOomHeapDump(app_name, "*");
+  AssertGraphPresent(packets);
+}
 
+TEST(HeapprofdJavaCtsTest, ReleaseAppOom) {
+  std::string app_name = "android.perfetto.cts.app.release";
+  const auto& packets = TriggerOomHeapDump(app_name, "*");
+  if (!IsUserBuild())
+    AssertGraphPresent(packets);
+  else
+    AssertNoProfileContents(packets);
+}
+
+TEST(HeapprofdJavaCtsTest, DebuggableAppOomNotSelected) {
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = TriggerOomHeapDump(app_name, "not.this.app");
   AssertNoProfileContents(packets);
