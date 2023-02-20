@@ -641,6 +641,11 @@ class TracingServiceImpl : public TracingService {
     // etc)
     base::PeriodicTask snapshot_periodic_task;
 
+    // Deferred task that stops the trace when |duration_ms| expires. This is
+    // to handle the case of |prefer_suspend_clock_for_duration| which cannot
+    // use PostDelayedTask.
+    base::PeriodicTask timed_stop_task;
+
     // When non-NULL the packets should be post-processed using the filter.
     std::unique_ptr<protozero::MessageFilter> trace_filter;
     uint64_t filter_input_packets = 0;
@@ -759,6 +764,8 @@ class TracingServiceImpl : public TracingService {
                             const std::string& trigger_name);
   size_t PurgeExpiredAndCountTriggerInWindow(int64_t now_ns,
                                              uint64_t trigger_name_hash);
+  static void StopOnDurationMsExpiry(base::WeakPtr<TracingServiceImpl>,
+                                     TracingSessionID);
 
   base::TaskRunner* const task_runner_;
   std::unique_ptr<SharedMemory::Factory> shm_factory_;
