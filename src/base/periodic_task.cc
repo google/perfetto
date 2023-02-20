@@ -33,34 +33,49 @@ namespace perfetto {
 namespace base {
 
 namespace {
-base::ScopedPlatformHandle CreateTimerFd(uint32_t period_ms) {
+
+uint32_t GetNextDelayMs(const TimeMillis& now_ms,
+                        const PeriodicTask::Args& args) {
+  if (args.one_shot)
+    return args.period_ms;
+
+  return args.period_ms -
+         static_cast<uint32_t>(now_ms.count() % args.period_ms);
+}
+
+ScopedPlatformHandle CreateTimerFd(const PeriodicTask::Args& args) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     (PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && __ANDROID_API__ >= 19)
-  base::ScopedPlatformHandle tfd(
+  ScopedPlatformHandle tfd(
       timerfd_create(CLOCK_BOOTTIME, TFD_CLOEXEC | TFD_NONBLOCK));
-  // The initial phase, aligned on wall clock.
-  uint32_t phase_ms =
-      period_ms -
-      static_cast<uint32_t>(base::GetBootTimeNs().count() % period_ms);
+  uint32_t phase_ms = GetNextDelayMs(GetBootTimeMs(), args);
+
   struct itimerspec its {};
   // The "1 +" is to make sure that we never pass a zero it_value in the
   // unlikely case of phase_ms being 0. That would cause the timer to be
   // considered disarmed by timerfd_settime.
   its.it_value.tv_sec = static_cast<time_t>(phase_ms / 1000u);
   its.it_value.tv_nsec = 1 + static_cast<long>((phase_ms % 1000u) * 1000000u);
-  its.it_interval.tv_sec = static_cast<time_t>(period_ms / 1000u);
-  its.it_interval.tv_nsec = static_cast<long>((period_ms % 1000u) * 1000000u);
+  if (args.one_shot) {
+    its.it_interval.tv_sec = 0;
+    its.it_interval.tv_nsec = 0;
+  } else {
+    const uint32_t period_ms = args.period_ms;
+    its.it_interval.tv_sec = static_cast<time_t>(period_ms / 1000u);
+    its.it_interval.tv_nsec = static_cast<long>((period_ms % 1000u) * 1000000u);
+  }
   if (timerfd_settime(*tfd, 0, &its, nullptr) < 0)
-    return base::ScopedPlatformHandle();
+    return ScopedPlatformHandle();
   return tfd;
 #else
-  base::ignore_result(period_ms);
-  return base::ScopedPlatformHandle();
+  ignore_result(args);
+  return ScopedPlatformHandle();
 #endif
 }
+
 }  // namespace
 
-PeriodicTask::PeriodicTask(base::TaskRunner* task_runner)
+PeriodicTask::PeriodicTask(TaskRunner* task_runner)
     : task_runner_(task_runner), weak_ptr_factory_(this) {}
 
 PeriodicTask::~PeriodicTask() {
@@ -77,7 +92,7 @@ void PeriodicTask::Start(Args args) {
   }
   args_ = std::move(args);
   if (args_.use_suspend_aware_timer) {
-    timer_fd_ = CreateTimerFd(args_.period_ms);
+    timer_fd_ = CreateTimerFd(args_);
     if (timer_fd_) {
       auto weak_this = weak_ptr_factory_.GetWeakPtr();
       task_runner_->AddFileDescriptorWatch(
@@ -99,9 +114,7 @@ void PeriodicTask::PostNextTask() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DCHECK(args_.period_ms > 0);
   PERFETTO_DCHECK(!timer_fd_);
-  uint32_t delay_ms =
-      args_.period_ms -
-      static_cast<uint32_t>(base::GetWallTimeMs().count() % args_.period_ms);
+  uint32_t delay_ms = GetNextDelayMs(GetWallTimeMs(), args_);
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
       std::bind(PeriodicTask::RunTaskAndPostNext, weak_this, generation_),
@@ -112,7 +125,7 @@ void PeriodicTask::PostNextTask() {
 // This function can be called in two ways (both from the TaskRunner):
 // 1. When using a timerfd, this task is registered as a FD watch.
 // 2. When using PostDelayedTask, this is the task posted on the TaskRunner.
-void PeriodicTask::RunTaskAndPostNext(base::WeakPtr<PeriodicTask> thiz,
+void PeriodicTask::RunTaskAndPostNext(WeakPtr<PeriodicTask> thiz,
                                       uint32_t generation) {
   if (!thiz || !thiz->args_.task || generation != thiz->generation_)
     return;  // Destroyed or Reset() in the meanwhile.
@@ -126,7 +139,7 @@ void PeriodicTask::RunTaskAndPostNext(base::WeakPtr<PeriodicTask> thiz,
     // just need to read() it.
     uint64_t ignored = 0;
     errno = 0;
-    auto rsize = base::Read(*thiz->timer_fd_, &ignored, sizeof(&ignored));
+    auto rsize = Read(*thiz->timer_fd_, &ignored, sizeof(&ignored));
     if (rsize != sizeof(uint64_t)) {
       if (errno == EAGAIN)
         return;  // A spurious wakeup. Rare, but can happen, just ignore.
@@ -135,15 +148,21 @@ void PeriodicTask::RunTaskAndPostNext(base::WeakPtr<PeriodicTask> thiz,
     }
 #endif
   }
+
+  // Create a copy of the task to deal with either:
+  // 1. one_shot causing a Reset().
+  // 2. task() invoking internally Reset().
+  // That would cause a reset of the args_.task itself, which would invalidate
+  // the task bind state while we are invoking it.
+  auto task = thiz->args_.task;
+
   // The repetition of the if() is to deal with the ResetTimerFd() case above.
-  if (!thiz->timer_fd_) {
+  if (thiz->args_.one_shot) {
+    thiz->Reset();
+  } else if (!thiz->timer_fd_) {
     thiz->PostNextTask();
   }
-  // Create a copy of the task in the unlikely event that the task ends up
-  // up destroying the PeriodicTask object or calling Reset() on it. That would
-  // cause a reset of the args_.task itself, which would invalidate the task
-  // bind state while we are invoking it.
-  auto task = thiz->args_.task;
+
   task();
 }
 
