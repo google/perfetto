@@ -1040,6 +1040,10 @@ void PerfettoCmd::OnConnect() {
   }
 
   // Failsafe mechanism to avoid waiting indefinitely if the service hangs.
+  // Note: when using prefer_suspend_clock_for_duration the actual duration
+  // might be < expected_duration_ms_ measured in in wall time. But this is fine
+  // because the resulting timeout will be conservative (it will be accurate
+  // if the device never suspends, and will be more lax if it does).
   if (expected_duration_ms_) {
     uint32_t trace_timeout = expected_duration_ms_ + 60000 +
                              trace_config_->flush_timeout_ms() +

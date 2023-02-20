@@ -25,6 +25,9 @@
 #include <unistd.h>
 #endif
 
+#include <chrono>
+#include <thread>
+
 namespace perfetto {
 namespace base {
 
@@ -47,6 +50,26 @@ TEST(PeriodicTaskTest, PostDelayedTaskMode) {
   EXPECT_EQ(num_callbacks, 1u);
   task_runner.RunUntilCheckpoint("all_timers_done");
   EXPECT_EQ(num_callbacks, 3u);
+}
+
+TEST(PeriodicTaskTest, OneShot) {
+  TestTaskRunner task_runner;
+  PeriodicTask pt(&task_runner);
+  uint32_t num_callbacks = 0;
+  auto quit_closure = task_runner.CreateCheckpoint("one_shot_done");
+
+  PeriodicTask::Args args;
+  args.use_suspend_aware_timer = true;
+  args.one_shot = true;
+  args.period_ms = 1;
+  args.task = [&] {
+    ASSERT_EQ(++num_callbacks, 1u);
+    quit_closure();
+  };
+  pt.Start(std::move(args));
+  std::this_thread::sleep_for(std::chrono::milliseconds(3));
+  task_runner.RunUntilCheckpoint("one_shot_done");
+  EXPECT_EQ(num_callbacks, 1u);
 }
 
 // Call Reset() from a callback, ensure no further calls are made.
