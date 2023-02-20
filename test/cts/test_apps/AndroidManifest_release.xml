@@ -58,5 +58,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
+        <activity
+          android:name="android.perfetto.cts.app.JavaOomActivity"
+          android:exported="true">
+        </activity>
+        <activity-alias
+          android:name="android.perfetto.cts.app.release.JavaOomActivity"
+          android:targetActivity="android.perfetto.cts.app.JavaOomActivity"
+          android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
     </application>
 </manifest>
