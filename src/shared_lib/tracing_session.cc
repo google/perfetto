@@ -19,22 +19,19 @@
 #include <condition_variable>
 #include <mutex>
 
-#include "perfetto/tracing/backend_type.h"
 #include "perfetto/tracing/tracing.h"
 #include "protos/perfetto/config/trace_config.gen.h"
 
-struct PerfettoTracingSessionImpl* PerfettoTracingSessionCreate(
-    PerfettoBackendTypes backend) {
-  uint32_t backend_type = 0;
-  if (backend & PERFETTO_BACKEND_IN_PROCESS) {
-    backend_type |= perfetto::kInProcessBackend;
-  }
-  if (backend & PERFETTO_BACKEND_SYSTEM) {
-    backend_type |= perfetto::kSystemBackend;
-  }
+struct PerfettoTracingSessionImpl* PerfettoTracingSessionSystemCreate() {
   std::unique_ptr<perfetto::TracingSession> tracing_session =
-      perfetto::Tracing::NewTrace(
-          static_cast<perfetto::BackendType>(backend_type));
+      perfetto::Tracing::NewTrace(perfetto::kSystemBackend);
+  return reinterpret_cast<struct PerfettoTracingSessionImpl*>(
+      tracing_session.release());
+}
+
+struct PerfettoTracingSessionImpl* PerfettoTracingSessionInProcessCreate() {
+  std::unique_ptr<perfetto::TracingSession> tracing_session =
+      perfetto::Tracing::NewTrace(perfetto::kInProcessBackend);
   return reinterpret_cast<struct PerfettoTracingSessionImpl*>(
       tracing_session.release());
 }
