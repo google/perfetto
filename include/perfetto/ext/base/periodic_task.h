@@ -31,14 +31,17 @@ class TaskRunner;
 // A periodic task utility class. It wraps the logic necessary to do periodic
 // tasks using a TaskRunner, taking care of subtleties like ensuring that
 // outstanding tasks are cancelled after reset/dtor.
-// Tasks are aligned on wall time, this is to ensure that when using multiple
-// periodic tasks, they happen at the same time, minimizing wakeups.
+// Tasks are aligned on wall time (unless they are |one_shot|). This is to
+// ensure that when using multiple periodic tasks, they happen at the same time,
+// minimizing context switches.
 // On Linux/Android it also supports suspend-aware mode (via timerfd). On other
 // operating systems it falls back to PostDelayedTask, which is not
 // suspend-aware.
 // TODO(primiano): this should probably become a periodic timer scheduler, so we
 // can use one FD for everything rather than one FD per task. For now we take
 // the hit of a FD-per-task to keep this low-risk.
+// TODO(primiano): consider renaming this class to TimerTask. When |one_shot|
+// is set, the "Periodic" part of the class name becomes a lie.
 class PeriodicTask {
  public:
   explicit PeriodicTask(base::TaskRunner*);
@@ -49,6 +52,7 @@ class PeriodicTask {
     std::function<void()> task = nullptr;
     bool start_first_task_immediately = false;
     bool use_suspend_aware_timer = false;
+    bool one_shot = false;
   };
 
   void Start(Args);
