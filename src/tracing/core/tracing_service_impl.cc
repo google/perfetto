@@ -1633,9 +1633,9 @@ void TracingServiceImpl::ActivateTriggers(
   }  // for (trigger_name : triggers)
 }
 
-// Always invoked kDataSourceStopTimeoutMs after DisableTracing(). In nominal
-// conditions all data sources should have acked the stop and this will early
-// out.
+// Always invoked TraceConfig.data_source_stop_timeout_ms (by default
+// kDataSourceStopTimeoutMs) after DisableTracing(). In nominal conditions all
+// data sources should have acked the stop and this will early out.
 void TracingServiceImpl::OnDisableTracingTimeout(TracingSessionID tsid) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   TracingSession* tracing_session = GetTracingSession(tsid);
