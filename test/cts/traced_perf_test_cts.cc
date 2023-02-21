@@ -27,6 +27,8 @@
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
 
+#include "protos/perfetto/common/perf_events.gen.h"
+#include "protos/perfetto/config/process_stats/process_stats_config.gen.h"
 #include "protos/perfetto/config/profiling/perf_event_config.gen.h"
 #include "protos/perfetto/trace/profiling/profile_common.gen.h"
 #include "protos/perfetto/trace/profiling/profile_packet.gen.h"
@@ -54,6 +56,20 @@ std::string RandomSessionName() {
   return result;
 }
 
+std::vector<protos::gen::TracePacket> CollectTrace(
+    base::TestTaskRunner* task_runner,
+    const TraceConfig& trace_config) {
+  TestHelper helper(task_runner);
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  helper.StartTracing(trace_config);
+  helper.WaitForTracingDisabled(15000 /*ms*/);
+  helper.ReadData();
+  helper.WaitForReadData();
+  return helper.trace();
+}
+
 std::vector<protos::gen::TracePacket> ProfileSystemWide(std::string app_name) {
   base::TestTaskRunner task_runner;
 
@@ -67,11 +83,7 @@ std::vector<protos::gen::TracePacket> ProfileSystemWide(std::string app_name) {
                    /*delay_ms=*/100);
   task_runner.RunUntilCheckpoint("target.app.running", 10000 /*ms*/);
 
-  // set up tracing
-  TestHelper helper(&task_runner);
-  helper.ConnectConsumer();
-  helper.WaitForConsumerConnect();
-
+  // build config
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(20 * 1024);
   trace_config.set_duration_ms(3000);
@@ -83,18 +95,11 @@ std::vector<protos::gen::TracePacket> ProfileSystemWide(std::string app_name) {
   ds_config->set_target_buffer(0);
 
   protos::gen::PerfEventConfig perf_config;
-
   perf_config.set_all_cpus(true);
   perf_config.set_sampling_frequency(10);  // Hz
   ds_config->set_perf_event_config_raw(perf_config.SerializeAsString());
 
-  // start tracing
-  helper.StartTracing(trace_config);
-  helper.WaitForTracingDisabled(15000 /*ms*/);
-  helper.ReadData();
-  helper.WaitForReadData();
-
-  return helper.trace();
+  return CollectTrace(&task_runner, trace_config);
 }
 
 void AssertHasSampledStacksForPid(std::vector<protos::gen::TracePacket> packets,
@@ -214,6 +219,56 @@ TEST(TracedPerfCtsTest, SystemWideReleaseApp) {
 
   PERFETTO_CHECK(IsAppRunning(app_name));
   StopApp(app_name);
+}
+
+// Loads a platform process with work (we use traced_probes which runs as
+// AID_NOBODY), and profiles it.
+TEST(TracedPerfCtsTest, ProfilePlatformProcess) {
+  if (!HasPerfLsmHooks())
+    GTEST_SKIP() << "skipped due to lack of perf_event_open LSM hooks";
+
+  int target_pid = PidForProcessName("/system/bin/traced_probes");
+  ASSERT_GT(target_pid, 0) << "failed to find pid for target process";
+
+  // Construct config.
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(20 * 1024);
+  trace_config.set_duration_ms(3000);
+  trace_config.set_data_source_stop_timeout_ms(8000);
+  trace_config.set_unique_session_name(RandomSessionName().c_str());
+
+  // process.stats to cause work in traced_probes
+  protos::gen::ProcessStatsConfig ps_config;
+  ps_config.set_proc_stats_poll_ms(100);
+  ps_config.set_record_thread_names(true);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("linux.process_stats");
+  ds_config->set_process_stats_config_raw(ps_config.SerializeAsString());
+
+  // profile traced_probes
+  protos::gen::PerfEventConfig perf_config;
+  auto* timebase = perf_config.mutable_timebase();
+  timebase->set_frequency(100);
+  auto* callstacks = perf_config.mutable_callstack_sampling();
+  auto* scope = callstacks->mutable_scope();
+  scope->add_target_pid(target_pid);
+
+  ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("linux.perf");
+  ds_config->set_perf_event_config_raw(perf_config.SerializeAsString());
+
+  // Collect trace.
+  base::TestTaskRunner task_runner;
+  auto packets = CollectTrace(&task_runner, trace_config);
+
+  int target_pid_after = PidForProcessName("/system/bin/traced_probes");
+  ASSERT_EQ(target_pid, target_pid_after) << "traced_probes died during test";
+
+  if (!IsUserBuild())
+    AssertHasSampledStacksForPid(packets, target_pid);
+  else
+    AssertNoStacksForPid(packets, target_pid);
 }
 
 }  // namespace
