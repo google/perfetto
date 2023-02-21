@@ -1823,8 +1823,6 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/sorter/trace_sorter.cc",
         "src/trace_processor/sorter/trace_sorter.h",
-        "src/trace_processor/sorter/trace_sorter_internal.h",
-        "src/trace_processor/sorter/trace_sorter_queue.h",
         "src/trace_processor/sorter/trace_token_buffer.cc",
         "src/trace_processor/sorter/trace_token_buffer.h",
     ],
