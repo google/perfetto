@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2023 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,17 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "typefaces";
-@import "common";
-@import "home_page";
-@import "analyze_page";
-@import "metrics_page";
-@import "sidebar";
-@import "topbar";
-@import "record";
-@import "modal";
-@import "details";
-@import "trace_info_page";
-@import "flags_page";
-@import "hiring_banner";
-@import "widgets/button";
+// It's common to want to have a class depending on a boolean flag, in which
+// case we use `flag && className` which evaluates to either false or a string,
+// which is why false is included in definition of ArgType.
+type ArgType = string|false|undefined|ArgType[];
+
+// Join class names together into valid HTML class attributes
+// Falsey elements are ignored
+// Nested arrays are flattened
+export function classNames(...args: ArgType[]): string {
+  return args.flat().filter((x) => x).join(' ');
+}
