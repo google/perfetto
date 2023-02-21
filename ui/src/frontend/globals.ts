@@ -114,11 +114,6 @@ export interface CounterDetails {
 export interface ThreadStateDetails {
   ts?: number;
   dur?: number;
-  state?: string;
-  utid?: number;
-  cpu?: number;
-  sliceId?: number;
-  blockedFunction?: string;
 }
 
 export interface FlamegraphDetails {

@@ -39,7 +39,7 @@ import {AnyAttrsVnode, PanelContainer} from './panel_container';
 import {PivotTableRedux} from './pivot_table_redux';
 import {QueryTable} from './query_table';
 import {SliceDetailsPanel} from './slice_details_panel';
-import {ThreadStatePanel} from './thread_state_panel';
+import {ThreadStateTab} from './thread_state_tab';
 
 const UP_ICON = 'keyboard_arrow_up';
 const DOWN_ICON = 'keyboard_arrow_down';
@@ -230,6 +230,15 @@ function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
         });
       }
       break;
+    case 'THREAD_STATE':
+      bottomTabList.addTab({
+        kind: ThreadStateTab.kind,
+        tag: currentSelectionTag,
+        config: {
+          id: newSelection.id,
+        },
+      });
+      break;
     default:
       bottomTabList.closeTabByTag(currentSelectionTag);
   }
@@ -313,13 +322,6 @@ export class DetailsPanel implements m.ClassComponent {
             key: 'current_selection',
             name: 'Current Selection',
             vnode: m(ChromeSliceDetailsPanel, {key: 'chrome_slice'}),
-          });
-          break;
-        case 'THREAD_STATE':
-          detailsPanels.push({
-            key: 'current_selection',
-            name: 'Current Selection',
-            vnode: m(ThreadStatePanel, {key: 'thread_state'}),
           });
           break;
         default:
