@@ -1,0 +1,90 @@
+// Copyright (C) 2023 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "theme";
+
+.pf-button {
+  font-family: $pf-font;
+  line-height: 1;
+  user-select: none;
+  color: $pf-primary-foreground;
+  background: $pf-primary-background;
+  transition: background $pf-anim-timing, box-shadow $pf-anim-timing;
+  border-radius: $pf-border-radius;
+  padding: 4px 8px;
+
+  & > .material-icons {
+    font-size: inherit;
+    line-height: inherit;
+    float: left;
+    margin-right: 4px; // Make some room between the icon and label
+  }
+
+  &:hover {
+    background: $pf-primary-background-hover;
+  }
+
+  &:active,
+  &.pf-active {
+    transition: none;
+    background: $pf-primary-background-active;
+    box-shadow: inset 1px 1px 4px #00000040;
+  }
+
+  &[disabled] {
+    background: $pf-primary-background-disabled;
+    color: $pf-primary-foreground-disabled;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+
+  // Remove default background in minimal mode, showing only the text
+  &.pf-minimal {
+    background: $pf-minimal-background;
+    color: $pf-minimal-foreground;
+
+    &:hover {
+      background: $pf-minimal-background-hover;
+    }
+
+    &:active,
+    &.pf-active {
+      background: $pf-minimal-background-active;
+    }
+
+    &[disabled] {
+      color: $pf-minimal-foreground-disabled;
+      background: $pf-minimal-background-disabled;
+      cursor: not-allowed;
+    }
+  }
+
+  // Reduce padding when compact
+  &.pf-compact {
+    padding: 2px 4px;
+  }
+
+  // Reduce padding when we are icon-only
+  &.pf-icon-only {
+    & > i {
+      margin: 0;
+    }
+
+    padding: 4px 4px;
+
+    &.pf-compact {
+      padding: 0;
+    }
+  }
+}
