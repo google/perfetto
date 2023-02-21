@@ -23,10 +23,11 @@ def CommonChecks(input_api, output_api):
   return input_api.RunTests([
       input_api.Command(
           'Run recipe tests',
-          ['python', recipes_py, 'test', 'run'],
+          ['python3', recipes_py, 'test', 'run'],
           {},
           output_api.PresubmitError,
-      )])
+      )
+  ])
 
 
 def CheckChangeOnUpload(input_api, output_api):
