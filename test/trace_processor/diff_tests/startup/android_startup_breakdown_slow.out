@@ -8,7 +8,7 @@ android_startup {
       dur_ns: 108000000000
       main_thread_by_task_state {
         running_dur_ns: 25000000000
-        runnable_dur_ns: 30000000000
+        runnable_dur_ns: 5000000000
         uninterruptible_sleep_dur_ns: 0
         interruptible_sleep_dur_ns: 0
         uninterruptible_io_sleep_dur_ns: 0
