@@ -33,16 +33,6 @@
 #define PERFETTO_IS_AT_LEAST_CPP17() 0
 #endif
 
-#if !PERFETTO_IS_AT_LEAST_CPP17() && !defined(PERFETTO_ALLOW_SUB_CPP17)
-#error Perfetto is exploring a switch to C++17 in v34 (Feb 2023). During this \
-transitionary period, we are throwing an error when compiling Perfetto \
-with a standard less than C++17. Please reach out to \
-perfetto-dev@googlegroups.com if you have objections or thoughts on \
-this move. To continue compiling this release of Perfetto with \
-C++11/14, specify the define PERFETTO_ALLOW_SUB_CPP17. \
-*Note*: this define *will* stop working in v34 (Feb 2023).
-#endif
-
 // __has_attribute is supported only by clang and recent versions of GCC.
 // Add a layer to wrap the __has_attribute macro.
 #if defined(__has_attribute)
