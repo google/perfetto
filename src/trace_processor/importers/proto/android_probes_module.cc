@@ -28,6 +28,7 @@
 #include "protos/perfetto/common/android_energy_consumer_descriptor.pbzero.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.h"
+#include "protos/perfetto/trace/power/android_entity_state_residency.pbzero.h"
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -88,6 +89,7 @@ AndroidProbesModule::AndroidProbesModule(TraceProcessorContext* context)
   RegisterForField(TracePacket::kPowerRailsFieldNumber, context);
   RegisterForField(TracePacket::kAndroidEnergyEstimationBreakdownFieldNumber,
                    context);
+  RegisterForField(TracePacket::kEntityStateResidencyFieldNumber, context);
   RegisterForField(TracePacket::kAndroidLogFieldNumber, context);
   RegisterForField(TracePacket::kPackagesListFieldNumber, context);
   RegisterForField(TracePacket::kAndroidGameInterventionListFieldNumber,
@@ -110,6 +112,11 @@ ModuleResult AndroidProbesModule::TokenizePacket(
   // handled at the tokenization phase.
   if (field_id == TracePacket::kAndroidEnergyEstimationBreakdownFieldNumber) {
     return ParseEnergyDescriptor(decoder.android_energy_estimation_breakdown());
+  } else if (field_id == TracePacket::kEntityStateResidencyFieldNumber) {
+    ParseEntityStateDescriptor(decoder.entity_state_residency());
+    // Ignore so that we get a go at parsing any actual residency data that
+    // should also be in the packet.
+    return ModuleResult::Ignored();
   }
 
   if (field_id != TracePacket::kPowerRailsFieldNumber) {
@@ -203,6 +210,9 @@ void AndroidProbesModule::ParseTracePacketData(
       parser_.ParseEnergyBreakdown(
           ts, decoder.android_energy_estimation_breakdown());
       return;
+    case TracePacket::kEntityStateResidencyFieldNumber:
+      parser_.ParseEntityStateResidency(ts, decoder.entity_state_residency());
+      return;
     case TracePacket::kAndroidLogFieldNumber:
       parser_.ParseAndroidLogPacket(decoder.android_log());
       return;
@@ -255,6 +265,28 @@ ModuleResult AndroidProbesModule::ParseEnergyDescriptor(
         context_->storage->InternString(consumer.type()), consumer.ordinal());
   }
   return ModuleResult::Handled();
+}
+
+void AndroidProbesModule::ParseEntityStateDescriptor(
+    protozero::ConstBytes blob) {
+  protos::pbzero::EntityStateResidency::Decoder event(blob);
+  if (!event.has_power_entity_state())
+    return;
+
+  for (auto it = event.power_entity_state(); it; ++it) {
+    protos::pbzero::EntityStateResidency::PowerEntityState::Decoder
+        entity_state(*it);
+
+    if (!entity_state.has_entity_index() || !entity_state.has_state_index()) {
+      context_->storage->IncrementStats(stats::energy_descriptor_invalid);
+      continue;
+    }
+
+    AndroidProbesTracker::GetOrCreate(context_)->SetEntityStateDescriptor(
+        entity_state.entity_index(), entity_state.state_index(),
+        context_->storage->InternString(entity_state.entity_name()),
+        context_->storage->InternString(entity_state.state_name()));
+  }
 }
 
 }  // namespace trace_processor

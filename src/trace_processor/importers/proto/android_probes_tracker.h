@@ -20,6 +20,7 @@
 #include <set>
 
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/string_view.h"
 
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -39,6 +40,12 @@ class AndroidProbesTracker : public Destructible {
     StringId name;
     StringId type;
     int32_t ordinal;
+  };
+
+  struct EntityStateDescriptor {
+    StringId entity_name;
+    StringId state_name;
+    StringId overall_name;
   };
 
   static AndroidProbesTracker* GetOrCreate(TraceProcessorContext* context) {
@@ -98,10 +105,50 @@ class AndroidProbesTracker : public Destructible {
         EnergyConsumerSpecs{name, type, ordinal};
   }
 
+  base::Optional<EntityStateDescriptor> GetEntityStateDescriptor(
+      int32_t entity_id,
+      int32_t state_id) {
+    uint64_t id = EntityStateKey(entity_id, state_id);
+    auto it = entity_state_descriptors_.find(id);
+    // Didn't receive the descriptor
+    if (it == entity_state_descriptors_.end()) {
+      return base::nullopt;
+    }
+    return it->second;
+  }
+
+  void SetEntityStateDescriptor(int32_t entity_id,
+                                int32_t state_id,
+                                StringId entity_name,
+                                StringId state_name) {
+    uint64_t id = EntityStateKey(entity_id, state_id);
+    auto it_descriptor = entity_state_descriptors_.find(id);
+
+    // Ignore repeated descriptors.
+    if (it_descriptor != entity_state_descriptors_.end())
+      return;
+
+    std::string overall_str =
+        "Entity residency: " + storage_->GetString(entity_name).ToStdString() +
+        " is " + storage_->GetString(state_name).ToStdString();
+
+    StringId overall = storage_->InternString(base::StringView(overall_str));
+
+    entity_state_descriptors_[id] =
+        EntityStateDescriptor{entity_name, state_name, overall};
+  }
+
  private:
+  TraceStorage* storage_;
   std::set<std::string> seen_packages_;
   std::vector<TrackId> power_rail_tracks_;
   std::unordered_map<int32_t, EnergyConsumerSpecs> energy_consumer_descriptors_;
+  std::unordered_map<uint64_t, EntityStateDescriptor> entity_state_descriptors_;
+
+  uint64_t EntityStateKey(int32_t entity_id, int32_t state_id) {
+    return (static_cast<uint64_t>(entity_id) << 32) |
+           static_cast<uint32_t>(state_id);
+  }
 };
 
 }  // namespace trace_processor
