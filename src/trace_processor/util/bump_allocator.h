@@ -22,6 +22,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <tuple>
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/utils.h"
@@ -80,17 +81,13 @@ class BumpAllocator {
     uint32_t chunk_index : kChunkIndexAllocIdBits;
     uint32_t chunk_offset : kChunkOffsetAllocIdBits;
 
-    uint32_t Serialize() const {
-      return static_cast<uint32_t>(chunk_index) << kChunkOffsetAllocIdBits |
-             chunk_offset;
+    // Comparision operators mainly for sorting.
+    bool operator<(const AllocId& other) const {
+      return std::tie(chunk_index, chunk_offset) <
+             std::tie(other.chunk_index, other.chunk_offset);
     }
-
-    static AllocId FromSerialized(uint32_t serialized) {
-      AllocId id;
-      id.chunk_index = serialized >> kChunkOffsetAllocIdBits;
-      id.chunk_offset = serialized;
-      return id;
-    }
+    bool operator>=(const AllocId& other) const { return !(*this < other); }
+    bool operator>(const AllocId& other) const { return other < *this; }
   };
   static_assert(sizeof(AllocId) == sizeof(uint32_t),
                 "AllocId should be 32-bit in size to allow serialization");
@@ -142,7 +139,7 @@ class BumpAllocator {
 
   // Returns a "past the end" serialized AllocId i.e. a serialized value
   // greater than all previously returned AllocIds.
-  uint32_t PastEndSerializedId();
+  AllocId PastTheEndId();
 
   // Returns the number of erased chunks from the start of this allocator.
   //
