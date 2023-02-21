@@ -40,6 +40,10 @@ struct alignas(8) InlineSchedWaking {
   StringPool::Id comm;
 };
 
+struct alignas(8) JsonEvent {
+  std::string value;
+};
+
 struct TracePacketData {
   TraceBlobView packet;
   RefPtr<PacketSequenceStateGeneration> sequence_state;
