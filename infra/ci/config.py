@@ -67,8 +67,7 @@ GCE_SCOPES = [
 JOB_CONFIGS = {
     'linux-clang-x86_64-debug': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=true is_hermetic_clang=false '
-                                 'non_hermetic_clang_stdlib="libc++" '
-                                 'perfetto_cpp11_until_q1_2023=true',
+                                 'non_hermetic_clang_stdlib="libc++"',
         'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
     },
     'linux-clang-x86_64-tsan': {
