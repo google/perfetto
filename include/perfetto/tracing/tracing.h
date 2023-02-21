@@ -124,6 +124,10 @@ struct TracingInitArgs {
   bool supports_multiple_data_source_instances = true;
 
   // If this flag is set the default clock for taking timestamps is overridden
+  // with CLOCK_MONOTONIC (for use in Chrome).
+  bool use_monotonic_clock = false;
+
+  // If this flag is set the default clock for taking timestamps is overridden
   // with CLOCK_MONOTONIC_RAW on platforms that support it.
   bool use_monotonic_raw_clock = false;
 
