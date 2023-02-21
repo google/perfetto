@@ -5986,8 +5986,12 @@ class ConcurrentSessionTest : public ::testing::Test {
   void TearDown() override { perfetto::Tracing::ResetForTesting(); }
 
   static std::unique_ptr<perfetto::TracingSession> StartTracing(
-      perfetto::BackendType backend_type) {
+      perfetto::BackendType backend_type,
+      bool short_stop_timeout = false) {
     perfetto::TraceConfig cfg;
+    if (short_stop_timeout) {
+      cfg.set_data_source_stop_timeout_ms(500);
+    }
     cfg.add_buffers()->set_size_kb(1024);
     auto* ds_cfg = cfg.add_data_sources()->mutable_config();
     ds_cfg->set_name("track_event");
@@ -6039,7 +6043,8 @@ TEST_F(ConcurrentSessionTest, DisallowMultipleSessionBasic) {
   auto tracing_session1 = StartTracing(perfetto::kInProcessBackend);
   TRACE_EVENT_BEGIN("test", "DrawGame1");
 
-  auto tracing_session2 = StartTracing(perfetto::kInProcessBackend);
+  auto tracing_session2 =
+      StartTracing(perfetto::kInProcessBackend, /*short_stop_timeout=*/true);
   TRACE_EVENT_BEGIN("test", "DrawGame2");
 
   auto slices1 = StopTracing(std::move(tracing_session1));
