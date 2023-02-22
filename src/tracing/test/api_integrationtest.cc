@@ -4557,6 +4557,51 @@ TEST_P(PerfettoApiTest, LegacyTraceEvents) {
           "[track=0]Legacy_e(unscoped_id=9001):cat.LegacyAsync3"));
 }
 
+TEST_P(PerfettoApiTest, LegacyTraceEventsAndClockSnapshots) {
+  auto* tracing_session = NewTraceWithCategories({"cat"});
+  tracing_session->get()->StartBlocking();
+
+  {
+    TRACE_EVENT_NESTABLE_ASYNC_BEGIN0("cat", "LegacyAsync", 5678);
+
+    perfetto::test::TracingMuxerImplInternalsForTest::ClearIncrementalState();
+
+    TRACE_EVENT_NESTABLE_ASYNC_BEGIN_WITH_TIMESTAMP0(
+        "cat", "LegacyAsyncWithTimestamp", 5678, MyTimestamp{1});
+    TRACE_EVENT_NESTABLE_ASYNC_END_WITH_TIMESTAMP0(
+        "cat", "LegacyAsyncWithTimestamp", 5678, MyTimestamp{2});
+
+    perfetto::test::TracingMuxerImplInternalsForTest::ClearIncrementalState();
+
+    TRACE_EVENT_NESTABLE_ASYNC_END0("cat", "LegacyAsync", 5678);
+  }
+
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+
+  // Check that clock snapshots are monotonic and don't contain timestamps from
+  // trace events with explicit timestamps.
+  std::unordered_map<uint64_t, uint64_t> last_clock_ts;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_clock_snapshot()) {
+      for (auto& clock : packet.clock_snapshot().clocks()) {
+        if (!clock.is_incremental()) {
+          uint64_t ts = clock.timestamp();
+          uint64_t id = clock.clock_id();
+          EXPECT_LE(last_clock_ts[id], ts);
+          last_clock_ts[id] = ts;
+        }
+      }
+
+      // Events that don't use explicit timestamps should have exactly the same
+      // timestamp as in the snapshot (i.e. the relative ts of 0).
+      // Here we assume that timestamps are incremental by default.
+      if (!packet.has_timestamp_clock_id()) {
+        EXPECT_EQ(packet.timestamp(), 0u);
+      }
+    }
+  }
+}
+
 TEST_P(PerfettoApiTest, LegacyTraceEventsWithCustomAnnotation) {
   // Create a new trace session.
   auto* tracing_session = NewTraceWithCategories({"cat"});
