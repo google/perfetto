@@ -45,3 +45,14 @@ export function constraintsToQueryFragment(c: SQLConstraints): string {
   }
   return result.join('\n');
 }
+
+// Trace Processor returns number | null for NUM_NULL, while most of the UI
+// code uses number | undefined. This functions provides a short-hand
+// conversion.
+// TODO(altimin): Support NUM_UNDEFINED as a first-class citizen.
+export function fromNumNull(n: number|null): number|undefined {
+  if (n === null) {
+    return undefined;
+  }
+  return n;
+}
