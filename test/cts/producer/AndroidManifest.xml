@@ -36,9 +36,7 @@
 
         <service
             android:name=".ProducerIsolatedService"
-            android:foregroundServiceType="specialUse"
             android:isolatedProcess="true">
-            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="perfetto" />
         </service>
     </application>
 </manifest>
