@@ -40,6 +40,7 @@
 #include "protos/perfetto/trace/android/network_trace.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.h"
+#include "protos/perfetto/trace/power/android_entity_state_residency.pbzero.h"
 #include "protos/perfetto/trace/power/battery_counters.pbzero.h"
 #include "protos/perfetto/trace/power/power_rails.pbzero.h"
 #include "protos/perfetto/trace/ps/process_stats.pbzero.h"
@@ -216,6 +217,36 @@ void AndroidProbesParser::ParseEnergyBreakdown(int64_t ts, ConstBytes blob) {
             consumer_name, consumer_id, breakdown.uid());
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(breakdown.energy_uws()), energy_uid_track);
+  }
+}
+
+void AndroidProbesParser::ParseEntityStateResidency(int64_t ts,
+                                                    ConstBytes blob) {
+  protos::pbzero::EntityStateResidency::Decoder event(blob.data, blob.size);
+
+  if (!event.has_residency()) {
+    context_->storage->IncrementStats(stats::entity_state_residency_invalid);
+    return;
+  }
+
+  auto* tracker = AndroidProbesTracker::GetOrCreate(context_);
+
+  for (auto it = event.residency(); it; ++it) {
+    protos::pbzero::EntityStateResidency::StateResidency::Decoder residency(
+        *it);
+
+    auto entity_state = tracker->GetEntityStateDescriptor(
+        residency.entity_index(), residency.state_index());
+    if (!entity_state) {
+      context_->storage->IncrementStats(
+          stats::entity_state_residency_lookup_failed);
+      return;
+    }
+
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        entity_state->overall_name);
+    context_->event_tracker->PushCounter(
+        ts, double(residency.total_time_in_state_ms()), track);
   }
 }
 
