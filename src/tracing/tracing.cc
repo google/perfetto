@@ -56,7 +56,11 @@ void Tracing::InitializeInternal(const TracingInitArgs& args) {
     base::SetLogMessageCallback(args.log_message_callback);
   }
 
-  if (args.use_monotonic_raw_clock) {
+  if (args.use_monotonic_clock) {
+    PERFETTO_CHECK(!args.use_monotonic_raw_clock);
+    internal::TrackEventInternal::SetClockId(
+        protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
+  } else if (args.use_monotonic_raw_clock) {
     internal::TrackEventInternal::SetClockId(
         protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
   }
