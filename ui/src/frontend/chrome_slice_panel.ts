@@ -391,7 +391,7 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
               contents));
         const value = row.contents.value;
         if (typeof value === 'string') {
-          renderedRow.push(m('td.value', value));
+          renderedRow.push(m('td.value', this.mayLinkify(value)));
         } else {
           // Type of value being a record is not propagated into the callback
           // for some reason, extracting necessary parts as constants instead.
@@ -421,5 +421,12 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
     }
 
     return m(`table.auto-layout${additionalClasses}`, rows);
+  }
+
+  private mayLinkify(what: string): string|m.Vnode {
+    if (what.startsWith('http://') || what.startsWith('https://')) {
+      return m('a', {href: what, target: '_blank'}, what);
+    }
+    return what;
   }
 }
