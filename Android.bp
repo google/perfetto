@@ -2019,6 +2019,7 @@ cc_test {
         ":perfetto_src_trace_processor_storage_storage",
         ":perfetto_src_trace_processor_tables_tables",
         ":perfetto_src_trace_processor_types_types",
+        ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_glob",
         ":perfetto_src_trace_processor_util_gzip",
@@ -9907,6 +9908,7 @@ filegroup {
     name: "perfetto_src_trace_processor_sorter_sorter",
     srcs: [
         "src/trace_processor/sorter/trace_sorter.cc",
+        "src/trace_processor/sorter/trace_token_buffer.cc",
     ],
 }
 
@@ -9916,6 +9918,7 @@ filegroup {
     srcs: [
         "src/trace_processor/sorter/trace_sorter_queue_unittest.cc",
         "src/trace_processor/sorter/trace_sorter_unittest.cc",
+        "src/trace_processor/sorter/trace_token_buffer_unittest.cc",
     ],
 }
 
@@ -12235,6 +12238,7 @@ cc_binary {
         ":perfetto_src_trace_processor_storage_storage",
         ":perfetto_src_trace_processor_tables_tables",
         ":perfetto_src_trace_processor_types_types",
+        ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_glob",
         ":perfetto_src_trace_processor_util_gzip",
@@ -12446,6 +12450,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_storage_storage",
         ":perfetto_src_trace_processor_tables_tables",
         ":perfetto_src_trace_processor_types_types",
+        ":perfetto_src_trace_processor_util_bump_allocator",
         ":perfetto_src_trace_processor_util_descriptors",
         ":perfetto_src_trace_processor_util_glob",
         ":perfetto_src_trace_processor_util_gzip",
