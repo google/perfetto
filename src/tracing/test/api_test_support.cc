@@ -184,5 +184,15 @@ bool TracingMuxerImplInternalsForTest::DoesSystemBackendHaveSMB() {
   return service && service->shared_memory();
 }
 
+// static
+void TracingMuxerImplInternalsForTest::ClearIncrementalState() {
+  auto* muxer =
+      reinterpret_cast<TracingMuxerImpl*>(TracingMuxerImpl::instance_);
+  for (const auto& data_source : muxer->data_sources_) {
+    data_source.static_state->incremental_state_generation.fetch_add(
+        1, std::memory_order_relaxed);
+  }
+}
+
 }  // namespace test
 }  // namespace perfetto
