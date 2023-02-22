@@ -202,7 +202,8 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
       }
 
       defaultBuilder.add(
-          'Slice ID', sliceInfo.id ? sliceInfo.id.toString() : 'Unknown');
+          'Slice ID',
+          (sliceInfo.id !== undefined) ? sliceInfo.id.toString() : 'Unknown');
       if (sliceInfo.description) {
         for (const [key, value] of sliceInfo.description) {
           defaultBuilder.add(key, value);
