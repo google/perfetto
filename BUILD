@@ -1825,6 +1825,8 @@ perfetto_filegroup(
         "src/trace_processor/sorter/trace_sorter.h",
         "src/trace_processor/sorter/trace_sorter_internal.h",
         "src/trace_processor/sorter/trace_sorter_queue.h",
+        "src/trace_processor/sorter/trace_token_buffer.cc",
+        "src/trace_processor/sorter/trace_token_buffer.h",
     ],
 )
 
@@ -1983,6 +1985,15 @@ perfetto_filegroup(
         "src/trace_processor/types/variadic.cc",
         "src/trace_processor/types/variadic.h",
         "src/trace_processor/types/version_number.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:bump_allocator
+perfetto_filegroup(
+    name = "src_trace_processor_util_bump_allocator",
+    srcs = [
+        "src/trace_processor/util/bump_allocator.cc",
+        "src/trace_processor/util/bump_allocator.h",
     ],
 )
 
@@ -4581,6 +4592,7 @@ perfetto_cc_library(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_tables_tables_python",
         ":src_trace_processor_types_types",
+        ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
@@ -4731,6 +4743,7 @@ perfetto_cc_binary(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_tables_tables_python",
         ":src_trace_processor_types_types",
+        ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
@@ -4936,6 +4949,7 @@ perfetto_cc_binary(
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_tables_tables_python",
         ":src_trace_processor_types_types",
+        ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
