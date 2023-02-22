@@ -49,10 +49,10 @@ struct alignas(8) TrackEventDataDescriptor {
   uint16_t intern_blob_index;
   uint16_t intern_seq_index;
   uint32_t intern_blob_offset : kMaxOffsetFromInternedBlobBits;
-  bool has_thread_timestamp : 1;
-  bool has_thread_instruction_count : 1;
-  bool has_counter_value : 1;
-  uint8_t extra_counter_count : kMaxExtraCountersBits;
+  uint32_t has_thread_timestamp : 1;
+  uint32_t has_thread_instruction_count : 1;
+  uint32_t has_counter_value : 1;
+  uint32_t extra_counter_count : kMaxExtraCountersBits;
 };
 static_assert(sizeof(TrackEventDataDescriptor) == 8,
               "CompressedTracePacketData must be small");
