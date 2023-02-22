@@ -147,18 +147,24 @@ struct TracingInitArgs {
   bool operator==(const TracingInitArgs& other) const {
     return std::tie(backends, custom_backend, platform, shmem_size_hint_kb,
                     shmem_page_size_hint_kb, in_process_backend_factory_,
-                    system_backend_factory_, dcheck_is_on_,
+                    system_producer_backend_factory_,
+                    system_consumer_backend_factory_, dcheck_is_on_,
                     enable_system_consumer) ==
            std::tie(other.backends, other.custom_backend, other.platform,
                     other.shmem_size_hint_kb, other.shmem_page_size_hint_kb,
                     other.in_process_backend_factory_,
-                    other.system_backend_factory_, other.dcheck_is_on_,
+                    other.system_producer_backend_factory_,
+                    other.system_consumer_backend_factory_, other.dcheck_is_on_,
                     other.enable_system_consumer);
   }
 
   using BackendFactoryFunction = TracingBackend* (*)();
+  using ProducerBackendFactoryFunction = TracingProducerBackend* (*)();
+  using ConsumerBackendFactoryFunction = TracingConsumerBackend* (*)();
+
   BackendFactoryFunction in_process_backend_factory_ = nullptr;
-  BackendFactoryFunction system_backend_factory_ = nullptr;
+  ProducerBackendFactoryFunction system_producer_backend_factory_ = nullptr;
+  ConsumerBackendFactoryFunction system_consumer_backend_factory_ = nullptr;
   bool dcheck_is_on_ = PERFETTO_DCHECK_IS_ON();
 };
 
@@ -186,12 +192,11 @@ class PERFETTO_EXPORT_COMPONENT Tracing {
           &internal::InProcessTracingBackend::GetInstance;
     }
     if (args.backends & kSystemBackend) {
+      args_copy.system_producer_backend_factory_ =
+          &internal::SystemProducerTracingBackend::GetInstance;
       if (args.enable_system_consumer) {
-        args_copy.system_backend_factory_ =
-            &internal::SystemTracingBackend::GetInstance;
-      } else {
-        args_copy.system_backend_factory_ =
-            &internal::SystemTracingProducerOnlyBackend::GetInstance;
+        args_copy.system_consumer_backend_factory_ =
+            &internal::SystemConsumerTracingBackend::GetInstance;
       }
     }
     InitializeInternal(args_copy);
