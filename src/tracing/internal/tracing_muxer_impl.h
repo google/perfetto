@@ -26,6 +26,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/time.h"
@@ -272,10 +273,7 @@ class TracingMuxerImpl : public TracingMuxer {
   // tracing sessions.
   class ConsumerImpl : public Consumer {
    public:
-    ConsumerImpl(TracingMuxerImpl*,
-                 BackendType,
-                 TracingBackendId,
-                 TracingSessionGlobalID);
+    ConsumerImpl(TracingMuxerImpl*, BackendType, TracingSessionGlobalID);
     ~ConsumerImpl() override;
 
     void Initialize(std::unique_ptr<ConsumerEndpoint> endpoint);
@@ -300,7 +298,6 @@ class TracingMuxerImpl : public TracingMuxer {
 
     TracingMuxerImpl* muxer_;
     BackendType const backend_type_;
-    TracingBackendId const backend_id_;
     TracingSessionGlobalID const session_id_;
     bool connected_ = false;
 
@@ -425,22 +422,25 @@ class TracingMuxerImpl : public TracingMuxer {
     std::function<void()> on_adopted;
   };
 
-  struct RegisteredBackend {
+  struct RegisteredProducerBackend {
     // Backends are supposed to have static lifetime.
-    TracingBackend* backend = nullptr;
+    TracingProducerBackend* backend = nullptr;
     TracingBackendId id = 0;
     BackendType type{};
 
     TracingBackend::ConnectProducerArgs producer_conn_args;
     std::unique_ptr<ProducerImpl> producer;
 
+    std::vector<RegisteredStartupSession> startup_sessions;
+  };
+
+  struct RegisteredConsumerBackend {
+    // Backends are supposed to have static lifetime.
+    TracingConsumerBackend* backend = nullptr;
+    BackendType type{};
     // The calling code can request more than one concurrently active tracing
     // session for the same backend. We need to create one consumer per session.
     std::vector<std::unique_ptr<ConsumerImpl>> consumers;
-
-    std::vector<RegisteredStartupSession> startup_sessions;
-
-    bool consumer_enabled = true;
   };
 
   void UpdateDataSourceOnAllBackends(RegisteredDataSource& rds,
@@ -448,6 +448,8 @@ class TracingMuxerImpl : public TracingMuxer {
   explicit TracingMuxerImpl(const TracingInitArgs&);
   void Initialize(const TracingInitArgs& args);
   ConsumerImpl* FindConsumer(TracingSessionGlobalID session_id);
+  std::pair<ConsumerImpl*, RegisteredConsumerBackend*> FindConsumerAndBackend(
+      TracingSessionGlobalID session_id);
   void InitializeConsumer(TracingSessionGlobalID session_id);
   void OnConsumerDisconnected(ConsumerImpl* consumer);
   void OnProducerDisconnected(ProducerImpl* producer);
@@ -493,7 +495,8 @@ class TracingMuxerImpl : public TracingMuxer {
   // WARNING: If you add new state here, be sure to update ResetForTesting.
   std::unique_ptr<base::TaskRunner> task_runner_;
   std::vector<RegisteredDataSource> data_sources_;
-  std::vector<RegisteredBackend> backends_;
+  std::vector<RegisteredProducerBackend> producer_backends_;
+  std::vector<RegisteredConsumerBackend> consumer_backends_;
   std::vector<RegisteredInterceptor> interceptors_;
   TracingPolicy* policy_ = nullptr;
 
@@ -512,7 +515,7 @@ class TracingMuxerImpl : public TracingMuxer {
   // After ResetForTesting() is called, holds tracing backends which needs to be
   // kept alive until all inbound references have gone away. See
   // SweepDeadBackends().
-  std::list<RegisteredBackend> dead_backends_;
+  std::list<RegisteredProducerBackend> dead_backends_;
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };
