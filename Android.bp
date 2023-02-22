@@ -9916,7 +9916,6 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_sorter_unittests",
     srcs: [
-        "src/trace_processor/sorter/trace_sorter_queue_unittest.cc",
         "src/trace_processor/sorter/trace_sorter_unittest.cc",
         "src/trace_processor/sorter/trace_token_buffer_unittest.cc",
     ],
