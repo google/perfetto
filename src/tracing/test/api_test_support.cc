@@ -168,15 +168,16 @@ TestTempFile CreateTempFile() {
 
 // static
 bool TracingMuxerImplInternalsForTest::DoesSystemBackendHaveSMB() {
-  using RegisteredBackend = TracingMuxerImpl::RegisteredBackend;
+  using RegisteredProducerBackend = TracingMuxerImpl::RegisteredProducerBackend;
   // Ideally we should be doing dynamic_cast and a DCHECK(muxer != nullptr);
   auto* muxer =
       reinterpret_cast<TracingMuxerImpl*>(TracingMuxerImpl::instance_);
-  const auto& backends = muxer->backends_;
-  const auto& backend = std::find_if(backends.begin(), backends.end(),
-                                     [](const RegisteredBackend& r_backend) {
-                                       return r_backend.type == kSystemBackend;
-                                     });
+  const auto& backends = muxer->producer_backends_;
+  const auto& backend =
+      std::find_if(backends.begin(), backends.end(),
+                   [](const RegisteredProducerBackend& r_backend) {
+                     return r_backend.type == kSystemBackend;
+                   });
   if (backend == backends.end())
     return false;
   const auto& service = backend->producer->service_;
