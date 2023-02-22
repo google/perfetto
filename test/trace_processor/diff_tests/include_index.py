@@ -57,6 +57,7 @@ from diff_tests.parsing.tests_rss_stats import ParsingRssStats
 from diff_tests.performance.tests import Performance
 from diff_tests.power.tests import Power
 from diff_tests.power.tests_energy_breakdown import PowerEnergyBreakdown
+from diff_tests.power.tests_entity_state_residency import EntityStateResidency
 from diff_tests.power.tests_linux_sysfs_power import LinuxSysfsPower
 from diff_tests.power.tests_power_rails import PowerPowerRails
 from diff_tests.power.tests_voltage_and_scaling import PowerVoltageAndScaling
@@ -107,6 +108,8 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *Chrome(index_path, 'chrome', 'Chrome').fetch(),
       *Cros(index_path, 'cros', 'Cros').fetch(),
       *Dynamic(index_path, 'dynamic', 'Dynamic').fetch(),
+      *EntityStateResidency(index_path, 'power',
+                            'EntityStateResidency').fetch(),
       *Fs(index_path, 'fs', 'Fs').fetch(),
       *Fuchsia(index_path, 'fuchsia', 'Fuchsia').fetch(),
       *Functions(index_path, 'functions', 'Functions').fetch(),
