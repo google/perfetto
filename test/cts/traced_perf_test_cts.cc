@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
 
@@ -21,6 +22,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/android_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "test/android_test_utils.h"
@@ -137,12 +139,15 @@ void AssertHasSampledStacksForPid(std::vector<protos::gen::TracePacket> packets,
       target_samples++;
   }
 
-  EXPECT_GT(target_samples, 0)
-      << "target_pid: " << target_pid << ", packets.size(): " << packets.size()
-      << ", total_perf_packets: " << total_perf_packets
-      << ", full_samples: " << full_samples
-      << ", lost_records_packets: " << lost_records_packets
-      << ", target_skipped_samples: " << target_skipped_samples << "\n";
+  // log summary even if successful
+  base::StackString<512> log(
+      "target_pid: %d, packets.size(): %zu, total_perf_packets: %d, "
+      "full_samples: %d, lost_records_packets: %d, target_skipped_samples: %d",
+      target_pid, packets.size(), total_perf_packets, full_samples,
+      lost_records_packets, target_skipped_samples);
+  PERFETTO_LOG("%s", log.c_str());
+
+  EXPECT_GT(target_samples, 0) << log.c_str() << "\n";
 }
 
 void AssertNoStacksForPid(std::vector<protos::gen::TracePacket> packets,
@@ -232,7 +237,8 @@ TEST(TracedPerfCtsTest, ProfilePlatformProcess) {
 
   // Construct config.
   TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(20 * 1024);
+  trace_config.add_buffers()->set_size_kb(64);
+  trace_config.add_buffers()->set_size_kb(1024);
   trace_config.set_duration_ms(3000);
   trace_config.set_data_source_stop_timeout_ms(8000);
   trace_config.set_unique_session_name(RandomSessionName().c_str());
@@ -246,16 +252,18 @@ TEST(TracedPerfCtsTest, ProfilePlatformProcess) {
   ds_config->set_name("linux.process_stats");
   ds_config->set_process_stats_config_raw(ps_config.SerializeAsString());
 
-  // profile traced_probes
+  // capture callstacks of traced_probes descheduling
   protos::gen::PerfEventConfig perf_config;
   auto* timebase = perf_config.mutable_timebase();
-  timebase->set_frequency(100);
+  timebase->set_counter(protos::gen::PerfEvents::SW_CONTEXT_SWITCHES);
+  timebase->set_period(1);
   auto* callstacks = perf_config.mutable_callstack_sampling();
   auto* scope = callstacks->mutable_scope();
   scope->add_target_pid(target_pid);
 
   ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("linux.perf");
+  ds_config->set_target_buffer(1);
   ds_config->set_perf_event_config_raw(perf_config.SerializeAsString());
 
   // Collect trace.
