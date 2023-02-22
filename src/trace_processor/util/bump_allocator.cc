@@ -98,11 +98,14 @@ uint32_t BumpAllocator::EraseFrontFreeChunks() {
   return to_erase_chunks;
 }
 
-uint32_t BumpAllocator::PastEndSerializedId() {
+BumpAllocator::AllocId BumpAllocator::PastTheEndId() {
   if (chunks_.empty()) {
-    return AllocId{erased_front_chunks_count_, 0}.Serialize();
+    return AllocId{erased_front_chunks_count_, 0};
   }
-  return AllocId{LastChunkIndex(), chunks_.back().bump_offset}.Serialize();
+  if (chunks_.back().bump_offset == kChunkSize) {
+    return AllocId{LastChunkIndex() + 1, 0};
+  }
+  return AllocId{LastChunkIndex(), chunks_.back().bump_offset};
 }
 
 base::Optional<BumpAllocator::AllocId> BumpAllocator::TryAllocInLastChunk(

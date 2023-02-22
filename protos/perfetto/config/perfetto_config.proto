@@ -2382,7 +2382,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 121
+// Next id: 123
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -2408,6 +2408,10 @@ message DataSourceConfig {
   // Set by the service to indicate the duration of the trace.
   // DO NOT SET in consumer as this will be overridden by the service.
   optional uint32 trace_duration_ms = 3;
+
+  // If true, |trace_duration_ms| should count also time in suspend. This
+  // is propagated from TraceConfig.prefer_suspend_clock_for_duration.
+  optional bool prefer_suspend_clock_for_duration = 122;
 
   // Set by the service to indicate how long it waits after StopDataSource.
   // DO NOT SET in consumer as this will be overridden by the service.
@@ -2526,7 +2530,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 35.
+// Next id: 37.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -2628,6 +2632,15 @@ message TraceConfig {
   // However in case of traces with triggers, see
   // TriggerConfig.trigger_timeout_ms instead.
   optional uint32 duration_ms = 3;
+
+  // If true, tries to use CLOCK_BOOTTIME for duration_ms rather than
+  // CLOCK_MONOTONIC (which doesn't count time in suspend). Supported only on
+  // Linux/Android, no-op on other platforms. This is used when dealing with
+  // long (e.g. 24h) traces, where suspend can inflate them to weeks of
+  // wall-time, making them more likely to hit device reboots (and hence loss).
+  // This option also changes consistently the semantic of
+  // TrigerConfig.stop_delay_ms.
+  optional bool prefer_suspend_clock_for_duration = 36;
 
   // This is set when --dropbox is passed to the Perfetto command line client
   // and enables guardrails that limit resource usage for traces requested
@@ -2795,6 +2808,8 @@ message TraceConfig {
 
       // After a trigger is received either in START_TRACING or STOP_TRACING
       // mode then the trace will end |stop_delay_ms| after triggering.
+      // If |prefer_suspend_clock_for_duration| is set, the duration will be
+      // based on wall-clock, counting also time in suspend.
       optional uint32 stop_delay_ms = 3;
 
       // Limits the number of traces this trigger can start/stop in a rolling
