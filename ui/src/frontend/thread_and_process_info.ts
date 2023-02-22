@@ -15,6 +15,7 @@
 import {EngineProxy} from '../common/engine';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../common/query_result';
 import {Upid, Utid} from './sql_types';
+import {fromNumNull} from './sql_utils';
 
 // Interface definitions for process and thread-related information
 // and functions to extract them from SQL.
@@ -43,7 +44,7 @@ async function getProcessInfo(
   }
   const result: ProcessInfo = {
     upid,
-    pid: it.pid || undefined,
+    pid: it.pid,
     name: it.name || undefined,
   };
 
@@ -106,7 +107,7 @@ export async function getThreadInfo(
       utid,
     };
   }
-  const upid = it.upid as (Upid | null);
+  const upid = fromNumNull(it.upid) as (Upid | undefined);
   return {
     utid,
     tid: it.tid,
