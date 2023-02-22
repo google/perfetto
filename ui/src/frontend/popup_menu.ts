@@ -23,6 +23,16 @@ export interface RegularPopupMenuItem {
   callback: () => void;
 }
 
+// Helper function for simplifying defining menus.
+export function menuItem(
+    text: string, action: () => void): RegularPopupMenuItem {
+  return {
+    itemType: 'regular',
+    text,
+    callback: action,
+  };
+}
+
 export interface GroupPopupMenuItem {
   itemType: 'group';
   text: string;
