@@ -45,6 +45,8 @@ TracingTLS::~TracingTLS() {
 
 }  // namespace internal
 
+TracingProducerBackend::~TracingProducerBackend() = default;
+TracingConsumerBackend::~TracingConsumerBackend() = default;
 TracingBackend::~TracingBackend() = default;
 
 }  // namespace perfetto
