@@ -29,7 +29,11 @@ import {
   toTraceTime,
   TPTimestamp,
 } from './sql_types';
-import {constraintsToQueryFragment, SQLConstraints} from './sql_utils';
+import {
+  constraintsToQueryFragment,
+  fromNumNull,
+  SQLConstraints,
+} from './sql_utils';
 import {
   getProcessName,
   getThreadInfo,
@@ -104,10 +108,10 @@ export async function getThreadStateFromConstraints(
     // query instead of one per row.
     result.push({
       threadStateSqlId: it.threadStateSqlId as ThreadStateSqlId,
-      schedSqlId: (it.schedSqlId as SchedSqlId | null) || undefined,
+      schedSqlId: fromNumNull(it.schedSqlId) as (SchedSqlId | undefined),
       ts: it.ts as TPTimestamp,
       dur: it.dur,
-      cpu: it.cpu || undefined,
+      cpu: fromNumNull(it.cpu),
       state: translateState(it.state || undefined, ioWait),
       blockedFunction: it.blockedFunction || undefined,
       thread: await getThreadInfo(engine, asUtid(it.utid)),
@@ -133,14 +137,16 @@ export async function getThreadState(
 }
 
 export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: TPTimestamp) {
-  let trackId;
+  let trackId: string|undefined;
   for (const track of Object.values(globals.state.tracks)) {
     if (track.kind === 'CpuSliceTrack' &&
         (track.config as {cpu: number}).cpu === cpu) {
       trackId = track.id;
     }
   }
-  if (!trackId) return;
+  if (trackId === undefined) {
+    return;
+  }
   globals.makeSelection(Actions.selectSlice({id, trackId}));
   scrollToTrackAndTs(trackId, ts);
 }
