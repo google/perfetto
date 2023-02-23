@@ -143,6 +143,9 @@ config("protobuf_full_public_config") {
   cflags = []
   if (is_clang) {
     cflags += [ "-Wno-switch-enum" ]
+    if (is_win) {
+      cflags += [ "-Wno-undef" ]
+    }
   }
 }
 
