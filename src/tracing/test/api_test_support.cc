@@ -147,21 +147,23 @@ TestTempFile CreateTempFile() {
   TestTempFile res{};
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   base::StackString<255> temp_file("%s\\perfetto-XXXXXX", getenv("TMP"));
-  PERFETTO_CHECK(_mktemp_s(temp_file.c_str(), temp_file.len() + 1) == 0);
+  PERFETTO_CHECK(_mktemp_s(temp_file.mutable_data(), temp_file.len() + 1) == 0);
   HANDLE handle =
-      ::CreateFileA(temp_file, GENERIC_READ | GENERIC_WRITE,
+      ::CreateFileA(temp_file.c_str(), GENERIC_READ | GENERIC_WRITE,
                     FILE_SHARE_DELETE | FILE_SHARE_READ, nullptr, CREATE_ALWAYS,
                     FILE_ATTRIBUTE_TEMPORARY, nullptr);
   PERFETTO_CHECK(handle && handle != INVALID_HANDLE_VALUE);
   res.fd = _open_osfhandle(reinterpret_cast<intptr_t>(handle), 0);
+  res.path = temp_file.ToStdString();
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   char temp_file[] = "/data/local/tmp/perfetto-XXXXXXXX";
   res.fd = mkstemp(temp_file);
+  res.path = temp_file;
 #else
   char temp_file[] = "/tmp/perfetto-XXXXXXXX";
   res.fd = mkstemp(temp_file);
-#endif
   res.path = temp_file;
+#endif
   PERFETTO_CHECK(res.fd > 0);
   return res;
 }

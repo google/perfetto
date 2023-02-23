@@ -211,6 +211,7 @@ class StackString {
   std::string ToStdString() const { return std::string(buf_, len_); }
   const char* c_str() const { return buf_; }
   size_t len() const { return len_; }
+  char* mutable_data() { return buf_; }
 
  private:
   char buf_[N];
