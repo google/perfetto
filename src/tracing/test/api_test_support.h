@@ -78,6 +78,7 @@ TestTempFile CreateTempFile();
 class TracingMuxerImplInternalsForTest {
  public:
   static bool DoesSystemBackendHaveSMB();
+  static void ClearIncrementalState();
 };
 
 }  // namespace test

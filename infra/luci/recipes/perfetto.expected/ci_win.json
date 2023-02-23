@@ -5,7 +5,7 @@
   },
   {
     "cmd": [
-      "vpython",
+      "vpython3",
       "-u",
       "RECIPE_MODULE[recipe_engine::file]\\resources\\fileutil.py",
       "--json-output",
@@ -16,6 +16,18 @@
       "[CACHE]\\builder\\perfetto"
     ],
     "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "git.ensure source dir",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@"
@@ -28,6 +40,18 @@
       "[CACHE]\\builder\\perfetto"
     ],
     "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "git.init",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@"
@@ -39,10 +63,22 @@
       "fetch",
       "--tags",
       "https://android.googlesource.com/platform/external/perfetto",
-      "refs/heads/master"
+      "refs/heads/main"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "git.fetch",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@"
@@ -56,6 +92,18 @@
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "git.checkout",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@"
@@ -69,6 +117,18 @@
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "git.rev-parse",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@"
@@ -81,6 +141,18 @@
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "build-deps"
   },
   {
@@ -98,6 +170,18 @@
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "ensure_installed",
     "~followup_annotations": [
       "@@@STEP_LOG_LINE@json.output@{@@@",
@@ -115,13 +199,25 @@
   },
   {
     "cmd": [
-      "python",
+      "python3",
       "-u",
-      "\nimport shutil\nimport sys\nshutil.copy(sys.argv[1], sys.argv[2])\n",
+      "RECIPE_MODULE[recipe_engine::json]\\resources\\read.py",
       "[CACHE]\\windows_sdk\\win_sdk\\bin\\SetEnv.x64.json",
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "read SetEnv.x64.json",
     "~followup_annotations": [
       "@@@STEP_LOG_LINE@json.output@{@@@",
@@ -163,6 +259,18 @@
         "[CACHE]\\windows_sdk\\win_sdk\\bin\\x64"
       ]
     },
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "gn gen"
   },
   {
@@ -185,6 +293,18 @@
         "[CACHE]\\windows_sdk\\win_sdk\\bin\\x64"
       ]
     },
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "ninja"
   },
   {
@@ -193,7 +313,7 @@
   },
   {
     "cmd": [
-      "python",
+      "python3",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
       "--",
@@ -205,6 +325,18 @@
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "Artifact upload.gsutil upload",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
@@ -225,6 +357,18 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "Artifact upload.build perfetto/trace_processor_shell/windows-amd64",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
@@ -250,6 +394,18 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "Artifact upload.register perfetto/trace_processor_shell/windows-amd64",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
@@ -265,7 +421,7 @@
   },
   {
     "cmd": [
-      "python",
+      "python3",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
       "--",
@@ -277,6 +433,18 @@
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "Artifact upload.gsutil upload (2)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
@@ -297,6 +465,18 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "Artifact upload.build perfetto/traceconv/windows-amd64",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
@@ -322,6 +502,18 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "Artifact upload.register perfetto/traceconv/windows-amd64",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
@@ -337,7 +529,7 @@
   },
   {
     "cmd": [
-      "python",
+      "python3",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
       "--",
@@ -349,6 +541,18 @@
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "Artifact upload.gsutil upload (3)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
@@ -369,6 +573,18 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "Artifact upload.build perfetto/perfetto/windows-amd64",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
@@ -394,6 +610,18 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "Artifact upload.register perfetto/perfetto/windows-amd64",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
@@ -409,7 +637,7 @@
   },
   {
     "cmd": [
-      "python",
+      "python3",
       "-u",
       "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
       "--",
@@ -421,6 +649,18 @@
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
     "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "Artifact upload.gsutil upload (4)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
@@ -441,6 +681,18 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "Artifact upload.build perfetto/traced/windows-amd64",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
@@ -466,6 +718,18 @@
       "/path/to/tmp/json"
     ],
     "cwd": "[CACHE]\\builder\\perfetto",
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
     "name": "Artifact upload.register perfetto/traced/windows-amd64",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
