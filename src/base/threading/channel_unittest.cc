@@ -15,6 +15,7 @@
  */
 
 #include "perfetto/ext/base/threading/channel.h"
+#include <array>
 #include <memory>
 
 #include "perfetto/base/platform_handle.h"
