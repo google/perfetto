@@ -6,7 +6,8 @@ Unreleased:
   UI:
     *
   SDK:
-    *
+    * Tracing::Initialize() can be called more than once to initialize different
+      backends separately.
 
 v32.2 - 2023-02-16:
   SDK:
