@@ -35,6 +35,7 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/producer.h"
+#include "perfetto/tracing/backend_type.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/core/trace_config.h"
@@ -134,7 +135,9 @@ class TracingMuxerImpl : public TracingMuxer {
 
   void ActivateTriggers(const std::vector<std::string>&, uint32_t) override;
 
-  std::unique_ptr<TracingSession> CreateTracingSession(BackendType);
+  std::unique_ptr<TracingSession> CreateTracingSession(
+      BackendType,
+      TracingConsumerBackend* (*system_backend_factory)());
   std::unique_ptr<StartupTracingSession> CreateStartupTracingSession(
       const TraceConfig& config,
       Tracing::SetupStartupTracingOpts);
@@ -447,9 +450,17 @@ class TracingMuxerImpl : public TracingMuxer {
                                      bool is_changed);
   explicit TracingMuxerImpl(const TracingInitArgs&);
   void Initialize(const TracingInitArgs& args);
+  void AddBackends(const TracingInitArgs& args);
+  void AddConsumerBackend(TracingConsumerBackend* backend, BackendType type);
+  void AddProducerBackend(TracingProducerBackend* backend,
+                          BackendType type,
+                          const TracingInitArgs& args);
   ConsumerImpl* FindConsumer(TracingSessionGlobalID session_id);
   std::pair<ConsumerImpl*, RegisteredConsumerBackend*> FindConsumerAndBackend(
       TracingSessionGlobalID session_id);
+  RegisteredProducerBackend* FindProducerBackendById(TracingBackendId id);
+  RegisteredProducerBackend* FindProducerBackendByType(BackendType type);
+  RegisteredConsumerBackend* FindConsumerBackendByType(BackendType type);
   void InitializeConsumer(TracingSessionGlobalID session_id);
   void OnConsumerDisconnected(ConsumerImpl* consumer);
   void OnProducerDisconnected(ProducerImpl* producer);
@@ -495,8 +506,11 @@ class TracingMuxerImpl : public TracingMuxer {
   // WARNING: If you add new state here, be sure to update ResetForTesting.
   std::unique_ptr<base::TaskRunner> task_runner_;
   std::vector<RegisteredDataSource> data_sources_;
-  std::vector<RegisteredProducerBackend> producer_backends_;
-  std::vector<RegisteredConsumerBackend> consumer_backends_;
+  // These lists can only have one backend per BackendType. The elements are
+  // sorted by BackendType priority (see BackendTypePriority). They always
+  // contain a fake low-priority kUnspecifiedBackend at the end.
+  std::list<RegisteredProducerBackend> producer_backends_;
+  std::list<RegisteredConsumerBackend> consumer_backends_;
   std::vector<RegisteredInterceptor> interceptors_;
   TracingPolicy* policy_ = nullptr;
 

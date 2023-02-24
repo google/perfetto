@@ -219,8 +219,8 @@ class TraceSorter {
 
     // The type of this event. GCC7 does not like bit-field enums (see
     // https://stackoverflow.com/questions/36005063/gcc-suppress-warning-too-small-to-hold-all-values-of)
-    // so use an uint8_t instead and cast to the enum type.
-    uint8_t event_type : kMaxTypeBits;
+    // so use an uint32_t instead and cast to the enum type.
+    uint32_t event_type : kMaxTypeBits;
 
     // Out-of-band data used to intepret data in the TraceTokenBuffer.
     // Exists outside of TraceTokenBuffer because we have a bunch of free

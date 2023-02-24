@@ -43,7 +43,7 @@ PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE(tracing_module,
 // linkage attributes.
 PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE_WITH_ATTRS(
     tracing_extra,
-    PERFETTO_SDK_EXPORT,
+    [[maybe_unused]],
     perfetto::Category("extra"),
     perfetto::Category("extra2"));
 
