@@ -346,34 +346,5 @@ std::string GetFileExtension(const std::string& filename) {
   return filename.substr(ext_idx);
 }
 
-base::Optional<size_t> GetFileSize(const std::string& file_path) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  HANDLE file =
-      CreateFileA(file_path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
-                  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-  if (file == INVALID_HANDLE_VALUE) {
-    return nullopt;
-  }
-  LARGE_INTEGER file_size;
-  file_size.QuadPart = 0;
-  BOOL ok = GetFileSizeEx(file, &file_size);
-  CloseHandle(file);
-  if (!ok) {
-    return nullopt;
-  }
-  return static_cast<size_t>(file_size.QuadPart);
-#else
-  base::ScopedFile fd(base::OpenFile(file_path, O_RDONLY | O_CLOEXEC));
-  if (!fd) {
-    return nullopt;
-  }
-  struct stat buf {};
-  if (fstat(*fd, &buf) == -1) {
-    return nullopt;
-  }
-  return static_cast<size_t>(buf.st_size);
-#endif
-}
-
 }  // namespace base
 }  // namespace perfetto
