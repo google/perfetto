@@ -18,6 +18,7 @@ import {globals} from './globals';
 import {createPage} from './pages';
 import {Button} from './widgets/button';
 import {Checkbox} from './widgets/checkbox';
+import {TextInput} from './widgets/text_input';
 
 interface WidgetShowcaseAttrs {
   initialOpts: any;
@@ -99,6 +100,17 @@ export const WidgetsPage = createPage({
         m(WidgetShowcase, {
           renderWidget: (opts) => m(Checkbox, {label: 'Checkbox', ...opts}),
           initialOpts: {
+            disabled: false,
+          },
+        }),
+        m('h2', 'Text Input'),
+        m(WidgetShowcase, {
+          renderWidget: ({placeholder, ...rest}) => m(TextInput, {
+            placeholder: placeholder ? 'Placeholder...' : '',
+            ...rest,
+          }),
+          initialOpts: {
+            placeholder: true,
             disabled: false,
           },
         }),
