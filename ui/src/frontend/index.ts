@@ -48,6 +48,7 @@ import {CheckHttpRpcConnection} from './rpc_http_dialog';
 import {TraceInfoPage} from './trace_info_page';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {ViewerPage} from './viewer_page';
+import {WidgetsPage} from './widgets_page';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
@@ -251,6 +252,7 @@ function main() {
     '/flags': FlagsPage,
     '/metrics': MetricsPage,
     '/info': TraceInfoPage,
+    '/widgets': WidgetsPage,
   });
   router.onRouteChanged = (route) => {
     globals.rafScheduler.scheduleFullRedraw();
