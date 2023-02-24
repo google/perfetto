@@ -1,0 +1,51 @@
+// Copyright (C) 2023 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "theme";
+
+.pf-text-input {
+  font-family: $pf-font;
+  font-size: inherit;
+  outline: none; // Disable the default outline
+  border: none; // Disable the default border
+  border-bottom: solid 1px $pf-minimal-foreground; // Thin underline
+  background: none;
+  transition: border $pf-anim-timing, box-shadow $pf-anim-timing,
+    background $pf-anim-timing;
+
+  // Round only the top corners to avoid rounding the edges of the underline
+  border-radius: $pf-border-radius $pf-border-radius 0 0;
+
+  // The gentle hover effect indicates this component is interactive
+  &:hover {
+    background: $pf-minimal-background-hover;
+  }
+
+  &:focus {
+    background: $pf-minimal-background-hover;
+    border-bottom: solid 1px $pf-primary-background;
+
+    // The box-shadow thickens the bottom border, without adding to the height.
+    // This is the same technique used by materializecss:
+    // See https://materializecss.com/text-inputs.html
+    box-shadow: 0 1px 0 $pf-primary-background;
+  }
+
+  &[disabled] {
+    border-bottom-color: $pf-minimal-foreground-disabled;
+    color: $pf-minimal-foreground-disabled;
+    background: $pf-minimal-background-disabled;
+    cursor: not-allowed;
+  }
+}
