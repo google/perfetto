@@ -27,7 +27,7 @@ namespace internal {
 // with the definition in tracing/core/basic_types.h
 using BufferId = uint16_t;
 
-// This is a direct index in the TracingMuxer::producer_backends_ vector.
+// This is an id of a backend in the TracingMuxer::producer_backends_ list.
 // Backends are only added and never removed.
 using TracingBackendId = size_t;
 
