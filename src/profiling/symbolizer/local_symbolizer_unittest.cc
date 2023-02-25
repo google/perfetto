@@ -28,6 +28,12 @@
 #include "src/profiling/symbolizer/local_symbolizer.h"
 #include "src/profiling/symbolizer/subprocess.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#include <unistd.h>
+#endif
+
 namespace perfetto {
 namespace profiling {
 namespace {
@@ -140,7 +146,13 @@ std::string CreateElfWithBuildId(const std::string& build_id) {
   return std::string(reinterpret_cast<const char*>(&e), sizeof e);
 }
 
-TEST(LocalBinaryIndexerTest, SimpleTree) {
+#if defined(MEMORY_SANITIZER)
+// fts_read() causes some error under msan.
+#define NOMSAN_SimpleTree DISABLED_SimpleTree
+#else
+#define NOMSAN_SimpleTree SimpleTree
+#endif
+TEST(LocalBinaryIndexerTest, NOMSAN_SimpleTree) {
   base::TmpDirTree tmp;
   tmp.AddDir("dir1");
   tmp.AddFile("dir1/elf1", CreateElfWithBuildId("AAAAAAAAAAAAAAAAAAAA"));
@@ -154,13 +166,90 @@ TEST(LocalBinaryIndexerTest, SimpleTree) {
   base::Optional<FoundBinary> bin1 =
       indexer.FindBinary("", "AAAAAAAAAAAAAAAAAAAA");
   ASSERT_TRUE(bin1.has_value());
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  EXPECT_EQ(bin1.value().file_name, tmp.path() + "/dir1\\elf1");
+#else
   EXPECT_EQ(bin1.value().file_name, tmp.path() + "/dir1/elf1");
+#endif
+  base::Optional<FoundBinary> bin2 =
+      indexer.FindBinary("", "BBBBBBBBBBBBBBBBBBBB");
+  ASSERT_TRUE(bin2.has_value());
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  EXPECT_EQ(bin2.value().file_name, tmp.path() + "/dir2\\elf1");
+#else
+  EXPECT_EQ(bin2.value().file_name, tmp.path() + "/dir2/elf1");
+#endif
+}
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+
+#if defined(MEMORY_SANITIZER)
+// fts_read() causes some error under msan.
+#define NOMSAN_Symlinks DISABLED_Symlinks
+#else
+#define NOMSAN_Symlinks Symlinks
+#endif
+TEST(LocalBinaryIndexerTest, NOMSAN_Symlinks) {
+  base::TmpDirTree tmp;
+  tmp.AddDir("real");
+  tmp.AddFile("real/elf1", CreateElfWithBuildId("AAAAAAAAAAAAAAAAAAAA"));
+  tmp.AddDir("real/dir1");
+  tmp.AddFile("real/dir1/elf2", CreateElfWithBuildId("BBBBBBBBBBBBBBBBBBBB"));
+  tmp.AddFile("real/dir1/elf3", CreateElfWithBuildId("CCCCCCCCCCCCCCCCCCCC"));
+  tmp.AddDir("sym");
+  symlink(tmp.AbsolutePath("real/elf1").c_str(),
+          tmp.AbsolutePath("sym/elf1").c_str());
+  tmp.TrackFile("sym/elf1");
+  symlink(tmp.AbsolutePath("real/dir1").c_str(),
+          tmp.AbsolutePath("sym/dir1").c_str());
+  tmp.TrackFile("sym/dir1");
+
+  LocalBinaryIndexer indexer({tmp.AbsolutePath("sym")});
+
+  base::Optional<FoundBinary> bin1 =
+      indexer.FindBinary("", "AAAAAAAAAAAAAAAAAAAA");
+  ASSERT_TRUE(bin1.has_value());
+  EXPECT_EQ(bin1.value().file_name, tmp.AbsolutePath("sym/elf1"));
 
   base::Optional<FoundBinary> bin2 =
       indexer.FindBinary("", "BBBBBBBBBBBBBBBBBBBB");
   ASSERT_TRUE(bin2.has_value());
-  EXPECT_EQ(bin2.value().file_name, tmp.path() + "/dir2/elf1");
+  EXPECT_EQ(bin2.value().file_name, tmp.AbsolutePath("sym/dir1/elf2"));
+
+  base::Optional<FoundBinary> bin3 =
+      indexer.FindBinary("", "CCCCCCCCCCCCCCCCCCCC");
+  ASSERT_TRUE(bin3.has_value());
+  EXPECT_EQ(bin3.value().file_name, tmp.AbsolutePath("sym/dir1/elf3"));
 }
+
+#if defined(MEMORY_SANITIZER)
+// fts_read() causes some error under msan.
+#define NOMSAN_RecursiveSymlinks DISABLED_RecursiveSymlinks
+#else
+#define NOMSAN_RecursiveSymlinks RecursiveSymlinks
+#endif
+TEST(LocalBinaryIndexerTest, NOMSAN_RecursiveSymlinks) {
+  base::TmpDirTree tmp;
+  tmp.AddDir("main");
+  tmp.AddFile("main/elf1", CreateElfWithBuildId("AAAAAAAAAAAAAAAAAAAA"));
+  tmp.AddDir("main/dir1");
+  symlink(tmp.AbsolutePath("main").c_str(),
+          tmp.AbsolutePath("main/dir1/sym").c_str());
+  tmp.TrackFile("main/dir1/sym");
+
+  LocalBinaryIndexer indexer({tmp.AbsolutePath("main")});
+
+  base::Optional<FoundBinary> bin1 =
+      indexer.FindBinary("", "AAAAAAAAAAAAAAAAAAAA");
+  ASSERT_TRUE(bin1.has_value());
+  EXPECT_EQ(bin1.value().file_name, tmp.AbsolutePath("main/elf1"));
+}
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||
+        // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) ||
+        // PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 
 TEST(LocalBinaryFinderTest, AbsolutePath) {
   base::TmpDirTree tmp;

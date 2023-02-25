@@ -211,10 +211,15 @@ class PERFETTO_EXPORT_COMPONENT Tracing {
     // allows the linker GC to get rid of the entire set of dependencies.
     TracingConsumerBackend* (*system_backend_factory)();
     system_backend_factory = nullptr;
+    // In case PERFETTO_IPC is disabled, a fake system backend is used, which
+    // always panics. NewTrace(kSystemBackend) should fail if PERFETTO_IPC is
+    // diabled, not panic.
+#if PERFETTO_BUILDFLAG(PERFETTO_IPC)
     if (backend & kSystemBackend) {
       system_backend_factory =
           &internal::SystemConsumerTracingBackend::GetInstance;
     }
+#endif
     return NewTraceInternal(backend, system_backend_factory);
   }
 
