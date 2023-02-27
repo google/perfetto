@@ -28,8 +28,7 @@ import {initWasm} from '../common/wasm_engine_proxy';
 import {
   isGetCategoriesResponse,
 } from '../controller/chrome_proxy_record_controller';
-import {globals as controllerGlobals} from '../controller/globals';
-import {initController} from '../controller/index';
+import {initController, runControllers} from '../controller/index';
 
 import {AnalyzePage} from './analyze_page';
 import {initCssConstants} from './css_constants';
@@ -106,7 +105,7 @@ class FrontendApi {
       // Need to avoid reentering the controller so move this to a
       // separate task.
       setTimeout(() => {
-        controllerGlobals.runControllers();
+        runControllers();
       }, 0);
     }
   }
