@@ -15,7 +15,7 @@
 import {createEmptyRecordConfig} from '../controller/record_config_types';
 import {
   Aggregation,
-} from '../frontend/pivot_table_redux_types';
+} from '../frontend/pivot_table_types';
 import {
   autosaveConfigStore,
   recordTargetStore,
@@ -57,7 +57,7 @@ export const COUNT_AGGREGATION: Aggregation = {
 
 export function createEmptyNonSerializableState(): NonSerializableState {
   return {
-    pivotTableRedux: {
+    pivotTable: {
       queryResult: null,
       selectedPivots: [{kind: 'regular', table: 'slice', column: 'name'}],
       selectedAggregations: [
