@@ -31,7 +31,7 @@ export interface PivotTree {
   rows: ColumnType[][];
 }
 
-export type AggregationFunction = 'COUNT'|'SUM'|'MIN'|'MAX';
+export type AggregationFunction = 'COUNT'|'SUM'|'MIN'|'MAX'|'AVG';
 
 // Queried "table column" is either:
 // 1. A real one, represented as object with table and column name.
