@@ -529,7 +529,11 @@ base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
       case ReadDictRes::kFoundDict:
         break;
     }
-
+    // fix issue(https://github.com/google/perfetto/issues/455)
+    base::Status res =  SetOutAndReturn(next, out);
+    if (!res.ok()) {
+      return res;
+    }
     base::Optional<std::string> opt_raw_ts;
     RETURN_IF_ERROR(ExtractValueForJsonKey(unparsed, "ts", &opt_raw_ts));
     base::Optional<int64_t> opt_ts =
