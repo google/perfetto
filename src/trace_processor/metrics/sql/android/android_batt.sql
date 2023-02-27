@@ -76,6 +76,14 @@ SELECT RUN_METRIC('android/process_counter_span_view.sql',
   'table_name', 'doze_deep_state',
   'counter_name', 'DozeDeepState');
 
+SELECT RUN_METRIC('android/global_counter_span_view_merged.sql',
+  'table_name', 'battery_status',
+  'counter_name', 'BatteryStatus');
+
+SELECT RUN_METRIC('android/global_counter_span_view_merged.sql',
+  'table_name', 'plug_type',
+  'counter_name', 'PlugType');
+
 DROP TABLE IF EXISTS screen_state_span_with_suspend;
 CREATE VIRTUAL TABLE screen_state_span_with_suspend
 USING span_join(screen_state_span, suspend_slice_);
@@ -134,7 +142,36 @@ SELECT ts,
        END AS slice_name,
        'Doze deep state' AS track_name,
        'slice' AS track_type
-FROM doze_deep_state_span;
+FROM doze_deep_state_span
+UNION ALL
+SELECT ts,
+       dur,
+       CASE battery_status_val
+       -- 0 and 1 are both unknown
+       WHEN 2 THEN 'Charging'
+       WHEN 3 THEN 'Discharging'
+       -- special case when charger is present but battery isn't charging
+       WHEN 4 THEN 'Not charging'
+       WHEN 5 THEN 'Full'
+       ELSE 'unknown'
+       END AS slice_name,
+       'Charging state' AS track_name,
+       'slice' AS track_type
+FROM battery_status_span
+UNION ALL
+SELECT ts,
+       dur,
+       CASE plug_type_val
+       WHEN 0 THEN 'None'
+       WHEN 1 THEN 'AC'
+       WHEN 2 THEN 'USB'
+       WHEN 4 THEN 'Wireless'
+       WHEN 8 THEN 'Dock'
+       ELSE 'unknown'
+       END AS slice_name,
+       'Plug type' AS track_name,
+       'slice' AS track_type
+FROM plug_type_span;
 
 DROP VIEW IF EXISTS android_batt_output;
 CREATE VIEW android_batt_output AS
