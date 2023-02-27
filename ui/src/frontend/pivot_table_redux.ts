@@ -171,7 +171,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
     renderedCells.push(
         m('td', {colspan}, button, `${path[path.length - 1].nextKey}`));
 
-    for (let i = 0; i < tree.aggregates.length; i++) {
+    for (let i = 0; i < result.metadata.aggregationColumns.length; i++) {
       const renderedValue = this.renderCell(
           result.metadata.aggregationColumns[i].column, tree.aggregates[i]);
       renderedCells.push(m('td' + markFirst(i), renderedValue));
@@ -256,7 +256,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         [m('td.total-values',
            {'colspan': queryResult.metadata.pivotColumns.length},
            m('strong', 'Total values:'))];
-    for (let i = 0; i < queryResult.tree.aggregates.length; i++) {
+    for (let i = 0; i < queryResult.metadata.aggregationColumns.length; i++) {
       overallValuesRow.push(
           m('td' + markFirst(i),
             this.renderCell(
@@ -341,7 +341,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
       icon = aggregation.sortDirection === 'DESC' ? 'arrow_drop_down' :
                                                     'arrow_drop_up';
     }
-    const otherAggs: AggregationFunction[] = ['SUM', 'MAX', 'MIN'];
+    const otherAggs: AggregationFunction[] = ['SUM', 'MAX', 'MIN', 'AVG'];
     if (aggregation.aggregationFunction !== 'COUNT') {
       for (const otherAgg of otherAggs) {
         if (aggregation.aggregationFunction === otherAgg) {
