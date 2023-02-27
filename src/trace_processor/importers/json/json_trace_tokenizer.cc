@@ -530,7 +530,7 @@ base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
         break;
     }
     // fix issue(https://github.com/google/perfetto/issues/455)
-    base::Status res =  SetOutAndReturn(next, out);
+    base::Status res = SetOutAndReturn(next, out);
     if (!res.ok()) {
       return res;
     }
