@@ -16,20 +16,15 @@ import '../gen/all_tracks';
 import '../common/recordingV2/target_factories';
 
 import {assertTrue} from '../base/logging';
-import {ControllerWorkerInitMessage} from '../common/worker_messages';
 import {AppController} from './app_controller';
 import {globals} from './globals';
 
 let initialized = false;
-export function initController(init: ControllerWorkerInitMessage) {
+export function initController(extensionPort: MessagePort) {
   assertTrue(!initialized);
   initialized = true;
-  const controllerPort = init.controllerPort;
-  const extensionPort = init.extensionPort;
-  controllerPort.onmessage = ({data}) => globals.patchState(data);
   globals.initialize(new AppController(extensionPort));
 }
-
 
 // For devtools-based debugging.
 (self as {} as {controllerGlobals: {}}).controllerGlobals = globals;

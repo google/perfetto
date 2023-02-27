@@ -15,11 +15,10 @@
 import {Engine} from '../common/engine';
 import {NUM, STR} from '../common/query_result';
 import {CallsiteInfo, CpuProfileSampleSelection} from '../common/state';
-import {CpuProfileDetails} from '../frontend/globals';
+import {CpuProfileDetails, globals} from '../frontend/globals';
 import {publishCpuProfileDetails} from '../frontend/publish';
 
 import {Controller} from './controller';
-import {globals} from './globals';
 
 export interface CpuProfileControllerArgs {
   engine: Engine;
