@@ -24,6 +24,7 @@ import {
 import {ChromeSliceSelection} from '../common/state';
 import {fromNs, toNs} from '../common/time';
 import {SliceDetails, ThreadStateDetails} from '../frontend/globals';
+import {globals} from '../frontend/globals';
 import {
   publishCounterDetails,
   publishSliceDetails,
@@ -33,7 +34,6 @@ import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 
 import {parseArgs} from './args_parser';
 import {Controller} from './controller';
-import {globals} from './globals';
 
 export interface SelectionControllerArgs {
   engine: Engine;
