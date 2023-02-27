@@ -21,6 +21,7 @@
 #include <stdint.h>
 
 #include <memory>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 
