@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {createEmptyState} from '../common/empty_state';
 import {AreaById} from '../common/state';
-import {globals as frontendGlobals} from '../frontend/globals';
+import {globals} from '../frontend/globals';
 
 import {AreaSelectionHandler} from './area_selection_handler';
-import {createEmptyState} from '../common/empty_state';
 
 test('validAreaAfterUndefinedArea', () => {
   const areaId = '0';
   const latestArea: AreaById = {startSec: 0, endSec: 1, tracks: [], id: areaId};
-  frontendGlobals.state = createEmptyState();
-  frontendGlobals.state.currentSelection = {kind: 'AREA', areaId};
-  frontendGlobals.state.areas[areaId] = latestArea;
+  globals.state = createEmptyState();
+  globals.state.currentSelection = {kind: 'AREA', areaId};
+  globals.state.areas[areaId] = latestArea;
 
   const areaSelectionHandler = new AreaSelectionHandler();
   const [hasAreaChanged, selectedArea] = areaSelectionHandler.getAreaChange();
@@ -36,17 +36,17 @@ test('UndefinedAreaAfterValidArea', () => {
   const previousAreaId = '0';
   const previous:
       AreaById = {startSec: 0, endSec: 1, tracks: [], id: previousAreaId};
-  frontendGlobals.state = createEmptyState();
-  frontendGlobals.state.currentSelection = {
+  globals.state = createEmptyState();
+  globals.state.currentSelection = {
     kind: 'AREA',
     areaId: previousAreaId,
   };
-  frontendGlobals.state.areas[previousAreaId] = previous;
+  globals.state.areas[previousAreaId] = previous;
   const areaSelectionHandler = new AreaSelectionHandler();
   areaSelectionHandler.getAreaChange();
 
   const currentAreaId = '1';
-  frontendGlobals.state.currentSelection = {
+  globals.state.currentSelection = {
     kind: 'AREA',
     areaId: currentAreaId,
   };
@@ -57,11 +57,11 @@ test('UndefinedAreaAfterValidArea', () => {
 });
 
 test('UndefinedAreaAfterUndefinedArea', () => {
-  frontendGlobals.state.currentSelection = {kind: 'AREA', areaId: '0'};
+  globals.state.currentSelection = {kind: 'AREA', areaId: '0'};
   const areaSelectionHandler = new AreaSelectionHandler();
   areaSelectionHandler.getAreaChange();
 
-  frontendGlobals.state.currentSelection = {kind: 'AREA', areaId: '1'};
+  globals.state.currentSelection = {kind: 'AREA', areaId: '1'};
   const [hasAreaChanged, selectedArea] = areaSelectionHandler.getAreaChange();
 
   expect(hasAreaChanged).toEqual(true);
@@ -72,23 +72,23 @@ test('validAreaAfterValidArea', () => {
   const previousAreaId = '0';
   const previous:
       AreaById = {startSec: 0, endSec: 1, tracks: [], id: previousAreaId};
-  frontendGlobals.state = createEmptyState();
-  frontendGlobals.state.currentSelection = {
+  globals.state = createEmptyState();
+  globals.state.currentSelection = {
     kind: 'AREA',
     areaId: previousAreaId,
   };
-  frontendGlobals.state.areas[previousAreaId] = previous;
+  globals.state.areas[previousAreaId] = previous;
   const areaSelectionHandler = new AreaSelectionHandler();
   areaSelectionHandler.getAreaChange();
 
   const currentAreaId = '1';
   const current:
       AreaById = {startSec: 1, endSec: 2, tracks: [], id: currentAreaId};
-  frontendGlobals.state.currentSelection = {
+  globals.state.currentSelection = {
     kind: 'AREA',
     areaId: currentAreaId,
   };
-  frontendGlobals.state.areas[currentAreaId] = current;
+  globals.state.areas[currentAreaId] = current;
   const [hasAreaChanged, selectedArea] = areaSelectionHandler.getAreaChange();
 
   expect(hasAreaChanged).toEqual(true);
@@ -99,23 +99,23 @@ test('sameAreaSelected', () => {
   const previousAreaId = '0';
   const previous:
       AreaById = {startSec: 0, endSec: 1, tracks: [], id: previousAreaId};
-  frontendGlobals.state = createEmptyState();
-  frontendGlobals.state.currentSelection = {
+  globals.state = createEmptyState();
+  globals.state.currentSelection = {
     kind: 'AREA',
     areaId: previousAreaId,
   };
-  frontendGlobals.state.areas[previousAreaId] = previous;
+  globals.state.areas[previousAreaId] = previous;
   const areaSelectionHandler = new AreaSelectionHandler();
   areaSelectionHandler.getAreaChange();
 
   const currentAreaId = '0';
   const current:
       AreaById = {startSec: 0, endSec: 1, tracks: [], id: currentAreaId};
-  frontendGlobals.state.currentSelection = {
+  globals.state.currentSelection = {
     kind: 'AREA',
     areaId: currentAreaId,
   };
-  frontendGlobals.state.areas[currentAreaId] = current;
+  globals.state.areas[currentAreaId] = current;
   const [hasAreaChanged, selectedArea] = areaSelectionHandler.getAreaChange();
 
   expect(hasAreaChanged).toEqual(false);
@@ -123,11 +123,11 @@ test('sameAreaSelected', () => {
 });
 
 test('NonAreaSelectionAfterUndefinedArea', () => {
-  frontendGlobals.state.currentSelection = {kind: 'AREA', areaId: '0'};
+  globals.state.currentSelection = {kind: 'AREA', areaId: '0'};
   const areaSelectionHandler = new AreaSelectionHandler();
   areaSelectionHandler.getAreaChange();
 
-  frontendGlobals.state
+  globals.state
       .currentSelection = {kind: 'COUNTER', leftTs: 0, rightTs: 0, id: 1};
   const [hasAreaChanged, selectedArea] = areaSelectionHandler.getAreaChange();
 
