@@ -21,10 +21,10 @@ import {
 import {Engine} from '../../common/engine';
 import {NUM} from '../../common/query_result';
 import {Area, Sorting} from '../../common/state';
+import {globals} from '../../frontend/globals';
 import {publishAggregateData} from '../../frontend/publish';
 import {AreaSelectionHandler} from '../area_selection_handler';
 import {Controller} from '../controller';
-import {globals} from '../globals';
 
 export interface AggregationControllerArgs {
   engine: Engine;

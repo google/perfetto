@@ -8755,6 +8755,8 @@ filegroup {
     srcs: [
         "src/profiling/symbolizer/breakpad_parser.cc",
         "src/profiling/symbolizer/breakpad_symbolizer.cc",
+        "src/profiling/symbolizer/filesystem_posix.cc",
+        "src/profiling/symbolizer/filesystem_windows.cc",
         "src/profiling/symbolizer/local_symbolizer.cc",
         "src/profiling/symbolizer/scoped_read_mmap_posix.cc",
         "src/profiling/symbolizer/scoped_read_mmap_windows.cc",
@@ -11822,6 +11824,13 @@ cc_test {
         "src/traced/probes/filesystem/testdata/**/*",
         "src/traced/probes/ftrace/test/data/**/*",
     ],
+    target: {
+        musl: {
+            static_libs: [
+                "libfts",
+            ],
+        },
+    },
 }
 
 // GN: //test/vts:perfetto_vts_deps
@@ -12344,6 +12353,11 @@ cc_binary {
                 ],
             },
         },
+        musl: {
+            static_libs: [
+                "libfts",
+            ],
+        },
     },
 }
 
@@ -12528,6 +12542,13 @@ cc_binary_host {
     cflags: [
         "-DHAVE_HIDDEN",
     ],
+    target: {
+        musl: {
+            static_libs: [
+                "libfts",
+            ],
+        },
+    },
 }
 
 // GN: //src/traced/service:traced
