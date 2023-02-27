@@ -406,6 +406,7 @@ export interface MetricsState {
 export interface PivotTableReduxQueryMetadata {
   pivotColumns: TableColumn[];
   aggregationColumns: Aggregation[];
+  countIndex: number;
 }
 
 // Everything that's necessary to run the query for pivot table
