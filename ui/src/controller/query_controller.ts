@@ -16,11 +16,10 @@ import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {Engine} from '../common/engine';
 import {runQuery} from '../common/queries';
-import {globals as frontendGlobals} from '../frontend/globals';
+import {globals} from '../frontend/globals';
 import {publishQueryResult} from '../frontend/publish';
 
 import {Controller} from './controller';
-import {globals} from './globals';
 
 export interface QueryControllerArgs {
   queryId: string;
@@ -40,7 +39,7 @@ export class QueryController extends Controller<'init'|'querying'> {
             .then((result) => {
               console.log(`Query ${config.query} took ${result.durationMs} ms`);
               publishQueryResult({id: this.args.queryId, data: result});
-              frontendGlobals.dispatch(
+              globals.dispatch(
                   Actions.deleteQuery({queryId: this.args.queryId}));
             });
         this.setState('querying');
