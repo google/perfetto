@@ -17,7 +17,7 @@ import {featureFlags} from '../common/feature_flags';
 import {NUM, STR_NULL} from '../common/query_result';
 import {Area} from '../common/state';
 import {fromNs, toNs} from '../common/time';
-import {Flow} from '../frontend/globals';
+import {Flow, globals} from '../frontend/globals';
 import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
@@ -29,7 +29,6 @@ import {
 } from '../tracks/chrome_slices';
 
 import {Controller} from './controller';
-import {globals} from './globals';
 
 export interface FlowEventsControllerArgs {
   engine: Engine;
