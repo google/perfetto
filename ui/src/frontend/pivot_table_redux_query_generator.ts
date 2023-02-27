@@ -149,6 +149,9 @@ export function generateQueryFromState(
   const aggregations = sliceTableAggregations.map(
       (agg, index) =>
           `${aggregationExpression(agg)} as ${aggregationAlias(index)}`);
+  const countIndex = aggregations.length;
+  // Extra count aggregation, needed in order to compute combined averages.
+  aggregations.push('COUNT() as hidden_count');
 
   const renderedPivots =
       pivots.map((pivot) => `${pivot.table}.${pivot.column}`);
@@ -184,6 +187,7 @@ export function generateQueryFromState(
     metadata: {
       pivotColumns: pivots,
       aggregationColumns: sliceTableAggregations,
+      countIndex,
     },
   };
 }
