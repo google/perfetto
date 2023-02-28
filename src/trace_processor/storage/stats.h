@@ -40,6 +40,7 @@ namespace stats {
   F(entity_state_residency_lookup_failed, kSingle,  kError,    kAnalysis, ""), \
   F(energy_uid_breakdown_missing_values,  kSingle,  kError,    kAnalysis, ""), \
   F(frame_timeline_event_parser_errors,   kSingle,  kInfo,     kAnalysis, ""), \
+  F(frame_timeline_unpaired_end_event,    kSingle,  kInfo,     kAnalysis, ""), \
   F(ftrace_bundle_tokenizer_errors,       kSingle,  kError,    kAnalysis, ""), \
   F(ftrace_cpu_bytes_read_begin,          kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_bytes_read_end,            kIndexed, kInfo,     kTrace,    ""), \
