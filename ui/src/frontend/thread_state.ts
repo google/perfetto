@@ -125,7 +125,7 @@ export async function getThreadStateFromConstraints(
 export async function getThreadState(
     engine: EngineProxy, id: number): Promise<ThreadState|undefined> {
   const result = await getThreadStateFromConstraints(engine, {
-    where: [`id=${id}`],
+    filters: [`id=${id}`],
   });
   if (result.length > 1) {
     throw new Error(`thread_state table has more than one row with id ${id}`);
