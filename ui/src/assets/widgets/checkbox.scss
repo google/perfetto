@@ -40,6 +40,7 @@
   $box-size: 18px;
   $tick-height: 9px;
   $tick-width: 5px;
+  $box-label-padding: 6px;
 
   display: inline-block;
   position: relative; // Turns this container into a positioned element
@@ -48,6 +49,7 @@
   color: $pf-minimal-foreground;
   user-select: none;
   cursor: pointer;
+  padding-left: $box-size + $box-label-padding;
 
   // Hide the default checkbox
   input {
@@ -58,10 +60,14 @@
 
   // The span forms the "box" of the checkbox
   span {
-    float: left;
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    margin-top: auto;
+    margin-bottom: auto;
     height: $box-size;
     width: $box-size;
-    margin-right: 3px; // Spacing betwen the checkbox box and the label text
     border-radius: $pf-border-radius;
     border: solid 2px $pf-minimal-foreground;
     transition: background $pf-anim-timing;
@@ -72,8 +78,8 @@
       content: "";
       display: block;
       position: absolute;
-      bottom: 10px;
-      left: 2.5px;
+      bottom: 7.5px;
+      left: 1px;
       width: 0px;
       height: 0px;
       border-color: $pf-primary-foreground;
@@ -99,7 +105,7 @@
   }
 
   input:focus-visible + span {
-    @include focus
+    @include focus;
   }
 
   input:checked + span:after {
