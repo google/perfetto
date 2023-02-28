@@ -23,34 +23,34 @@ import {COUNT_AGGREGATION} from '../common/empty_state';
 import {ColumnType} from '../common/query_result';
 import {
   Area,
-  PivotTableReduxAreaState,
-  PivotTableReduxResult,
+  PivotTableAreaState,
+  PivotTableResult,
   SortDirection,
 } from '../common/state';
 import {fromNs, timeToCode} from '../common/time';
 import {
-  PivotTableReduxController,
-} from '../controller/pivot_table_redux_controller';
+  PivotTableController,
+} from '../controller/pivot_table_controller';
 
 import {globals} from './globals';
 import {fullscreenModalContainer, ModalDefinition} from './modal';
 import {Panel} from './panel';
 import {AnyAttrsVnode} from './panel_container';
-import {ArgumentPopup} from './pivot_table_redux_argument_popup';
+import {ArgumentPopup} from './pivot_table_argument_popup';
 import {
   aggregationIndex,
   areaFilter,
   extractArgumentExpression,
   sliceAggregationColumns,
   tables,
-} from './pivot_table_redux_query_generator';
+} from './pivot_table_query_generator';
 import {
   Aggregation,
   AggregationFunction,
   columnKey,
   PivotTree,
   TableColumn,
-} from './pivot_table_redux_types';
+} from './pivot_table_types';
 import {PopupMenuButton, PopupMenuItem} from './popup_menu';
 import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 
@@ -60,8 +60,8 @@ interface PathItem {
   nextKey: ColumnType;
 }
 
-interface PivotTableReduxAttrs {
-  selectionArea: PivotTableReduxAreaState;
+interface PivotTableAttrs {
+  selectionArea: PivotTableAreaState;
 }
 
 interface DrillFilter {
@@ -107,12 +107,12 @@ export function markFirst(index: number) {
   return '';
 }
 
-export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
+export class PivotTable extends Panel<PivotTableAttrs> {
   get pivotState() {
-    return globals.state.nonSerializableState.pivotTableRedux;
+    return globals.state.nonSerializableState.pivotTable;
   }
   get constrainToArea() {
-    return globals.state.nonSerializableState.pivotTableRedux.constrainToArea;
+    return globals.state.nonSerializableState.pivotTable.constrainToArea;
   }
 
   renderCanvas(): void {}
@@ -139,7 +139,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
               // custom query is a temporary one, replace with a proper UI.
               globals.dispatch(Actions.executeQuery({
                 queryId: `pivot_table_details_${
-                    PivotTableReduxController.detailsCount++}`,
+                    PivotTableController.detailsCount++}`,
                 query,
               }));
             },
@@ -149,7 +149,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
 
   renderSectionRow(
       area: Area, path: PathItem[], tree: PivotTree,
-      result: PivotTableReduxResult): m.Vnode {
+      result: PivotTableResult): m.Vnode {
     const renderedCells = [];
     for (let j = 0; j + 1 < path.length; j++) {
       renderedCells.push(m('td', m('span.indent', ' '), `${path[j].nextKey}`));
@@ -200,8 +200,8 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
   }
 
   renderTree(
-      area: Area, path: PathItem[], tree: PivotTree,
-      result: PivotTableReduxResult, sink: m.Vnode[]) {
+      area: Area, path: PathItem[], tree: PivotTree, result: PivotTableResult,
+      sink: m.Vnode[]) {
     if (tree.isCollapsed) {
       sink.push(this.renderSectionRow(area, path, tree, result));
       return;
@@ -251,7 +251,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
     }
   }
 
-  renderTotalsRow(queryResult: PivotTableReduxResult) {
+  renderTotalsRow(queryResult: PivotTableResult) {
     const overallValuesRow =
         [m('td.total-values',
            {'colspan': queryResult.metadata.pivotColumns.length},
@@ -328,7 +328,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
       aggregation: Aggregation, index: number,
       removeItem: boolean): ReorderableCell {
     const popupItems: PopupMenuItem[] = [];
-    const state = globals.state.nonSerializableState.pivotTableRedux;
+    const state = globals.state.nonSerializableState.pivotTable;
     let icon = 'more_horiz';
     if (aggregation.sortDirection === undefined) {
       popupItems.push(
@@ -409,13 +409,14 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
   renderModal(): ModalDefinition {
     return {
       title: 'Enter argument name',
-      content: m(ArgumentPopup, {
-                 knownArguments: globals.state.nonSerializableState
-                                     .pivotTableRedux.argumentNames,
-                 onArgumentChange: (arg) => {
-                   this.typedArgument = arg;
-                 },
-               }) as AnyAttrsVnode,
+      content:
+          m(ArgumentPopup, {
+            knownArguments:
+                globals.state.nonSerializableState.pivotTable.argumentNames,
+            onArgumentChange: (arg) => {
+              this.typedArgument = arg;
+            },
+          }) as AnyAttrsVnode,
       buttons: [
         {
           text: 'Add',
@@ -433,7 +434,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
   }
 
   renderPivotColumnHeader(
-      queryResult: PivotTableReduxResult, pivot: TableColumn,
+      queryResult: PivotTableResult, pivot: TableColumn,
       selectedPivots: Set<string>): ReorderableCell {
     const items: PopupMenuItem[] = [{
       itemType: 'regular',
@@ -496,12 +497,12 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
     };
   }
 
-  renderResultsTable(attrs: PivotTableReduxAttrs) {
-    const state = globals.state.nonSerializableState.pivotTableRedux;
+  renderResultsTable(attrs: PivotTableAttrs) {
+    const state = globals.state.nonSerializableState.pivotTable;
     if (state.queryResult === null) {
       return m('div', 'Loading...');
     }
-    const queryResult: PivotTableReduxResult = state.queryResult;
+    const queryResult: PivotTableResult = state.queryResult;
 
     const renderedRows: m.Vnode[] = [];
     const tree = state.queryResult.tree;
@@ -566,7 +567,7 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
                       'Query data for the whole timeline' :
                       'Constrain to selected area',
                   callback: () => {
-                    globals.dispatch(Actions.setPivotTableReduxConstrainToArea(
+                    globals.dispatch(Actions.setPivotTableConstrainToArea(
                         {constrain: !state.constrainToArea}));
                     globals.dispatch(Actions.setPivotTableQueryRequested(
                         {queryRequested: true}));
@@ -576,11 +577,11 @@ export class PivotTableRedux extends Panel<PivotTableReduxAttrs> {
         m('tbody', this.renderTotalsRow(state.queryResult), renderedRows));
   }
 
-  view({attrs}: m.Vnode<PivotTableReduxAttrs>): m.Children {
+  view({attrs}: m.Vnode<PivotTableAttrs>): m.Children {
     if (this.showModal) {
       fullscreenModalContainer.updateVdom(this.renderModal());
     }
 
-    return m('.pivot-table-redux', this.renderResultsTable(attrs));
+    return m('.pivot-table', this.renderResultsTable(attrs));
   }
 }
