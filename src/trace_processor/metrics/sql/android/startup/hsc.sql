@@ -55,6 +55,18 @@ FROM functions
 JOIN android_startups launches ON launches.package GLOB '*' || functions.process_name || '*'
 WHERE functions.function_name GLOB "Choreographer#doFrame*" AND functions.ts > launches.ts;
 
+DROP VIEW IF EXISTS android_render_frame_times;
+CREATE VIEW android_render_frame_times AS
+SELECT
+  functions.ts AS ts,
+  functions.ts + functions.dur AS ts_end,
+  launches.package AS name,
+  launches.startup_id,
+  ROW_NUMBER() OVER(PARTITION BY launches.startup_id ORDER BY functions.ts ASC) AS number
+FROM functions
+JOIN android_startups launches ON launches.package GLOB '*' || functions.process_name || '*'
+WHERE functions.function_name GLOB "DrawFrame*" AND functions.ts > launches.ts;
+
 DROP VIEW IF EXISTS frame_times;
 CREATE VIEW frame_times AS
 SELECT startup_id AS launch_id, * FROM android_frame_times;
@@ -73,15 +85,15 @@ JOIN android_startups launches ON launches.package GLOB '*' || android_frame_tim
 WHERE android_frame_times.number = 2 AND android_frame_times.name GLOB "*roid.calcul*" AND android_frame_times.startup_id = launches.startup_id;
 
 -- Calendar
+-- Using the DrawFrame slice from the render thread due to Calendar delaying its rendering
 INSERT INTO hsc_based_startup_times
 SELECT
   launches.package AS package,
   launches.startup_id AS id,
-  android_frame_times.ts_end - launches.ts AS ts_total
-FROM android_frame_times
-JOIN android_startups launches ON launches.package GLOB '*' || android_frame_times.name || '*'
-WHERE android_frame_times.name GLOB "*id.calendar*" AND android_frame_times.startup_id = launches.startup_id
-ORDER BY ABS(android_frame_times.ts_end - (SELECT ts + dur FROM functions WHERE function_name GLOB "DrawFrame*" AND process_name GLOB "*id.calendar" ORDER BY ts LIMIT 1)) LIMIT 1;
+  android_render_frame_times.ts_end - launches.ts AS ts_total
+FROM android_render_frame_times
+JOIN android_startups launches ON launches.package GLOB '*' || android_render_frame_times.name || '*'
+WHERE android_render_frame_times.number = 5 AND android_render_frame_times.name GLOB "*id.calendar*" AND android_render_frame_times.startup_id = launches.startup_id;
 
 -- Camera
 INSERT INTO hsc_based_startup_times
