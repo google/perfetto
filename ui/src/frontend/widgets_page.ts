@@ -13,11 +13,12 @@
 // limitations under the License.
 
 import * as m from 'mithril';
-import {globals} from './globals';
 
+import {globals} from './globals';
 import {createPage} from './pages';
 import {Button} from './widgets/button';
 import {Checkbox} from './widgets/checkbox';
+import {EmptyState} from './widgets/empty_state';
 import {TextInput} from './widgets/text_input';
 
 interface WidgetShowcaseAttrs {
@@ -112,6 +113,19 @@ export const WidgetsPage = createPage({
           initialOpts: {
             placeholder: true,
             disabled: false,
+          },
+        }),
+        m('h2', 'Empty State'),
+        m(WidgetShowcase, {
+          renderWidget: ({header, content}) =>
+              m(EmptyState,
+                {
+                  header: header && 'No search results found...',
+                },
+                content && m(Button, {label: 'Try again'})),
+          initialOpts: {
+            header: true,
+            content: true,
           },
         }),
     );
