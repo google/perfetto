@@ -82,8 +82,8 @@ import {LogsController} from './logs_controller';
 import {MetricsController} from './metrics_controller';
 import {
   PIVOT_TABLE_REDUX_FLAG,
-  PivotTableReduxController,
-} from './pivot_table_redux_controller';
+  PivotTableController,
+} from './pivot_table_controller';
 import {QueryController, QueryControllerArgs} from './query_controller';
 import {SearchController} from './search_controller';
 import {
@@ -311,7 +311,7 @@ export class TraceController extends Controller<States> {
           app: globals,
         }));
         childControllers.push(
-          Child('pivot_table_redux', PivotTableReduxController, {engine}));
+            Child('pivot_table', PivotTableController, {engine}));
 
         childControllers.push(Child('logs', LogsController, {
           engine,
