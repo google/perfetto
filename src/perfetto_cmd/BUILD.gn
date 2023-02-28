@@ -55,6 +55,7 @@ source_set("perfetto_cmd") {
     "../../protos/perfetto/common:cpp",
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config/ftrace:cpp",
+    "../../protos/perfetto/config/sys_stats:cpp",
     "../android_stats",
     "../base",
     "../base:version",
