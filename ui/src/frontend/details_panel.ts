@@ -36,7 +36,7 @@ import {globals} from './globals';
 import {LogPanel} from './logs_panel';
 import {NotesEditorTab} from './notes_panel';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
-import {PivotTableRedux} from './pivot_table_redux';
+import {PivotTable} from './pivot_table';
 import {QueryTable} from './query_table';
 import {SliceDetailsPanel} from './slice_details_panel';
 import {ThreadStateTab} from './thread_state_tab';
@@ -355,15 +355,15 @@ export class DetailsPanel implements m.ClassComponent {
     }
 
 
-    if (globals.state.nonSerializableState.pivotTableRedux.selectionArea !==
+    if (globals.state.nonSerializableState.pivotTable.selectionArea !==
         undefined) {
       detailsPanels.push({
-        key: 'pivot_table_redux',
+        key: 'pivot_table',
         name: 'Pivot Table',
-        vnode: m(PivotTableRedux, {
-          key: 'pivot_table_redux',
+        vnode: m(PivotTable, {
+          key: 'pivot_table',
           selectionArea:
-              globals.state.nonSerializableState.pivotTableRedux.selectionArea,
+              globals.state.nonSerializableState.pivotTable.selectionArea,
         }),
       });
     }
