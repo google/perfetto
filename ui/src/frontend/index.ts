@@ -25,11 +25,10 @@ import {pluginManager, pluginRegistry} from '../common/plugins';
 import {onSelectionChanged} from '../common/selection_observer';
 import {State} from '../common/state';
 import {initWasm} from '../common/wasm_engine_proxy';
-import {ControllerWorkerInitMessage} from '../common/worker_messages';
 import {
   isGetCategoriesResponse,
 } from '../controller/chrome_proxy_record_controller';
-import {initController} from '../controller/index';
+import {initController, runControllers} from '../controller/index';
 
 import {AnalyzePage} from './analyze_page';
 import {initCssConstants} from './css_constants';
@@ -53,12 +52,10 @@ import {WidgetsPage} from './widgets_page';
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
 class FrontendApi {
-  private port: MessagePort;
   private state: State;
 
-  constructor(port: MessagePort) {
+  constructor() {
     this.state = createEmptyState();
-    this.port = port;
   }
 
   dispatchMultiple(actions: DeferredAction[]) {
@@ -105,7 +102,11 @@ class FrontendApi {
     }
 
     if (patches.length > 0) {
-      this.port.postMessage(patches);
+      // Need to avoid reentering the controller so move this to a
+      // separate task.
+      setTimeout(() => {
+        runControllers();
+      }, 0);
     }
   }
 
@@ -222,23 +223,11 @@ function main() {
   window.addEventListener('error', (e) => reportError(e));
   window.addEventListener('unhandledrejection', (e) => reportError(e));
 
-  const controllerChannel = new MessageChannel();
   const extensionLocalChannel = new MessageChannel();
-  const errorReportingChannel = new MessageChannel();
-
-  errorReportingChannel.port2.onmessage = (e) =>
-      maybeShowErrorDialog(`${e.data}`);
-
-  const msg: ControllerWorkerInitMessage = {
-    controllerPort: controllerChannel.port1,
-    extensionPort: extensionLocalChannel.port1,
-    errorReportingPort: errorReportingChannel.port1,
-  };
 
   initWasm(globals.root);
   initializeImmerJs();
-
-  initController(msg);
+  initController(extensionLocalChannel.port1);
 
   const dispatch = (action: DeferredAction) => {
     frontendApi.dispatchMultiple([action]);
@@ -266,7 +255,7 @@ function main() {
   globals.initialize(dispatch, router);
   globals.serviceWorkerController.install();
 
-  const frontendApi = new FrontendApi(controllerChannel.port2);
+  const frontendApi = new FrontendApi();
   globals.publishRedraw = () => globals.rafScheduler.scheduleFullRedraw();
 
   // We proxy messages between the extension and the controller because the

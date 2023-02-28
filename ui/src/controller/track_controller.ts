@@ -18,11 +18,11 @@ import {Registry} from '../common/registry';
 import {TraceTime, TrackState} from '../common/state';
 import {fromNs, toNs} from '../common/time';
 import {LIMIT, TrackData} from '../common/track_data';
+import {globals} from '../frontend/globals';
 import {publishTrackData} from '../frontend/publish';
 
 import {Controller} from './controller';
 import {ControllerFactory} from './controller';
-import {globals} from './globals';
 
 interface TrackConfig {}
 

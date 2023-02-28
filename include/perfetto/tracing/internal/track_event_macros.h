@@ -118,7 +118,7 @@
     namespace tns = PERFETTO_TRACK_EVENT_NAMESPACE;                            \
     /* Compute the category index outside the lambda to work around a */       \
     /* GCC 7 bug */                                                            \
-    static constexpr auto PERFETTO_UID(                                        \
+    constexpr auto PERFETTO_UID(                                               \
         kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_) =               \
         PERFETTO_GET_CATEGORY_INDEX(category);                                 \
     if (::PERFETTO_TRACK_EVENT_NAMESPACE::internal::IsDynamicCategory(         \

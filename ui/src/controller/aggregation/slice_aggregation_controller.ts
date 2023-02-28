@@ -16,6 +16,7 @@ import {ColumnDef} from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
 import {Area, Sorting} from '../../common/state';
 import {toNs} from '../../common/time';
+import {globals} from '../../frontend/globals';
 import {
   ASYNC_SLICE_TRACK_KIND,
   Config as AsyncSliceConfig,
@@ -24,7 +25,6 @@ import {
   Config as SliceConfig,
   SLICE_TRACK_KIND,
 } from '../../tracks/chrome_slices';
-import {globals} from '../globals';
 
 import {AggregationController} from './aggregation_controller';
 
