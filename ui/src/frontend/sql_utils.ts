@@ -21,7 +21,7 @@ interface OrderClause {
 
 // Interface for defining constraints which can be passed to a SQL query.
 export interface SQLConstraints {
-      where?: string[];
+  filters?: string[];
   orderBy?: OrderClause[];
   limit?: number;
 }
@@ -30,8 +30,8 @@ export interface SQLConstraints {
 // SQL query.
 export function constraintsToQueryFragment(c: SQLConstraints): string {
   const result: string[] = [];
-  if (c.where && c.where.length > 0) {
-    result.push(`WHERE ${c.where.join(' and ')}`);
+  if (c.filters && c.filters.length > 0) {
+    result.push(`WHERE ${c.filters.join(' and ')}`);
   }
   if (c.orderBy && c.orderBy.length > 0) {
     const orderBys = c.orderBy.map((clause) => {
