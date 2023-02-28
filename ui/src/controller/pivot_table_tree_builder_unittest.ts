@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {PivotTableTreeBuilder} from './pivot_table_redux_controller';
+import {PivotTableTreeBuilder} from './pivot_table_controller';
 
 describe('Pivot Table tree builder', () => {
   test('aggregates averages correctly', () => {
