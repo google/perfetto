@@ -501,7 +501,7 @@ void FtraceParser::ParseFtraceStats(ConstBytes blob,
 
   // Compute atrace + ftrace setup errors. We do two things here:
   // 1. We add up all the errors and put the counter in the stats table (which
-  //    can hold only numerals). This will raise an orange flag in the UI.
+  //    can hold only numerals).
   // 2. We concatenate together all the errors in a string and put that in the
   //    medatata table.
   // Both will be reported in the 'Info & stats' page in the UI.
