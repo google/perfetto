@@ -544,8 +544,10 @@ void FrameTimelineEventParser::ParseFrameEnd(int64_t timestamp,
 
   int64_t cookie = event.cookie();
   auto it = cookie_track_set_id_map_.find(cookie);
-  if (it == cookie_track_set_id_map_.end())
+  if (it == cookie_track_set_id_map_.end()) {
+    context_->storage->IncrementStats(stats::frame_timeline_unpaired_end_event);
     return;
+  }
   auto track_set_id = it->second;
   auto track_id = context_->async_track_set_tracker->End(track_set_id, cookie);
   context_->slice_tracker->End(timestamp, track_id);
