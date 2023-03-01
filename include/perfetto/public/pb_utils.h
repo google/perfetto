@@ -24,7 +24,9 @@
 // Type of fields that can be found in a protobuf serialized message.
 enum PerfettoPbWireType {
   PERFETTO_PB_WIRE_TYPE_VARINT = 0,
+  PERFETTO_PB_WIRE_TYPE_FIXED64 = 1,
   PERFETTO_PB_WIRE_TYPE_DELIMITED = 2,
+  PERFETTO_PB_WIRE_TYPE_FIXED32 = 5,
 };
 
 // Creates a field tag, which encodes the field type and the field id.
