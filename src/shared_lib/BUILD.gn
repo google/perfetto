@@ -16,7 +16,6 @@ shared_library("libperfetto_c") {
   deps = [
     "../../gn:default_deps",
     "../../include/perfetto/protozero",
-    "../../include/perfetto/public:protozero",
     "../tracing:client_api",
     "../tracing:platform_impl",
   ]
@@ -28,5 +27,6 @@ shared_library("libperfetto_c") {
     "stream_writer.h",
     "tracing_session.cc",
   ]
+  public_deps = [ "../../include/perfetto/public" ]
   defines = [ "PERFETTO_SHLIB_SDK_IMPLEMENTATION" ]
 }
