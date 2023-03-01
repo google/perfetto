@@ -13,9 +13,11 @@
 // limitations under the License.
 
 import * as m from 'mithril';
+
 import {Anchor} from './anchor';
 import {globals} from './globals';
 import {createPage} from './pages';
+import {TableShowcase} from './tables/table_showcase';
 import {Button} from './widgets/button';
 import {Checkbox} from './widgets/checkbox';
 import {EmptyState} from './widgets/empty_state';
@@ -29,6 +31,17 @@ interface WidgetShowcaseAttrs {
 // A little helper class to render any vnode with a dynamic set of options
 class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
   private opts?: any;
+
+  renderOptions(listItems: m.Child[]): m.Child {
+    if (listItems.length === 0) {
+      return null;
+    }
+    return m(
+        '.widget-controls',
+        m('h3', 'Options'),
+        m('ul', listItems),
+    );
+  }
   view({attrs}: m.CVnode<WidgetShowcaseAttrs>) {
     const {
       initialOpts,
@@ -62,11 +75,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
               '.widget-container',
               renderWidget(opts),
               ),
-          m(
-              '.widget-controls',
-              m('h3', 'Options'),
-              m('ul', listItems),
-              ),
+          this.renderOptions(listItems),
           ),
     ];
   }
@@ -143,6 +152,9 @@ export const WidgetsPage = createPage({
             icon: true,
           },
         }),
+        m('h2', 'Table'),
+        m(WidgetShowcase,
+          {renderWidget: () => m(TableShowcase), initialOpts: {}}),
     );
   },
 });
