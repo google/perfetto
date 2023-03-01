@@ -64,23 +64,23 @@ WHERE
   AND (slice.name = 'syscore_resume(0)' OR slice.name = 'timekeeping_freeze(0)')
   AND dur != -1;
 
-SELECT RUN_METRIC('android/global_counter_span_view_merged.sql',
+SELECT RUN_METRIC('android/counter_span_view_merged.sql',
   'table_name', 'screen_state',
   'counter_name', 'ScreenState');
 
-SELECT RUN_METRIC('android/process_counter_span_view.sql',
+SELECT RUN_METRIC('android/counter_span_view_merged.sql',
   'table_name', 'doze_light_state',
   'counter_name', 'DozeLightState');
 
-SELECT RUN_METRIC('android/process_counter_span_view.sql',
+SELECT RUN_METRIC('android/counter_span_view_merged.sql',
   'table_name', 'doze_deep_state',
   'counter_name', 'DozeDeepState');
 
-SELECT RUN_METRIC('android/global_counter_span_view_merged.sql',
+SELECT RUN_METRIC('android/counter_span_view_merged.sql',
   'table_name', 'battery_status',
   'counter_name', 'BatteryStatus');
 
-SELECT RUN_METRIC('android/global_counter_span_view_merged.sql',
+SELECT RUN_METRIC('android/counter_span_view_merged.sql',
   'table_name', 'plug_type',
   'counter_name', 'PlugType');
 
