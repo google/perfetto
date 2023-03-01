@@ -19,6 +19,14 @@ source_set("base") {
   ]
 }
 
-source_set("protozero") {
-  sources = [ "stream_writer_abi.h" ]
+source_set("public") {
+  sources = [
+    "backend_type.h",
+    "data_source_abi.h",
+    "heap_buffer.h",
+    "producer.h",
+    "stream_writer_abi.h",
+    "tracing_session_abi.h",
+  ]
+  public_deps = [ ":base" ]
 }
