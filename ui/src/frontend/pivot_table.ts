@@ -33,10 +33,7 @@ import {
 } from '../controller/pivot_table_controller';
 
 import {globals} from './globals';
-import {fullscreenModalContainer, ModalDefinition} from './modal';
 import {Panel} from './panel';
-import {AnyAttrsVnode} from './panel_container';
-import {ArgumentPopup} from './pivot_table_argument_popup';
 import {
   aggregationIndex,
   areaFilter,
@@ -51,8 +48,9 @@ import {
   PivotTree,
   TableColumn,
 } from './pivot_table_types';
-import {PopupMenuButton, PopupMenuItem} from './popup_menu';
+import {PopupMenuButton, popupMenuIcon, PopupMenuItem} from './popup_menu';
 import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
+import {AttributeModalHolder} from './tables/attribute_modal_holder';
 
 
 interface PathItem {
@@ -108,6 +106,18 @@ export function markFirst(index: number) {
 }
 
 export class PivotTable extends Panel<PivotTableAttrs> {
+  constructor() {
+    super();
+    this.attributeModalHolder = new AttributeModalHolder((arg) => {
+      globals.dispatch(Actions.setPivotTablePivotSelected({
+        column: {kind: 'argument', argument: arg},
+        selected: true,
+      }));
+      globals.dispatch(
+          Actions.setPivotTableQueryRequested({queryRequested: true}));
+    });
+  }
+
   get pivotState() {
     return globals.state.nonSerializableState.pivotTable;
   }
@@ -329,7 +339,6 @@ export class PivotTable extends Panel<PivotTableAttrs> {
       removeItem: boolean): ReorderableCell {
     const popupItems: PopupMenuItem[] = [];
     const state = globals.state.nonSerializableState.pivotTable;
-    let icon = 'more_horiz';
     if (aggregation.sortDirection === undefined) {
       popupItems.push(
           this.sortingItem(index, 'DESC'), this.sortingItem(index, 'ASC'));
@@ -338,8 +347,6 @@ export class PivotTable extends Panel<PivotTableAttrs> {
       // opposite direction.
       popupItems.push(this.sortingItem(
           index, aggregation.sortDirection === 'DESC' ? 'ASC' : 'DESC'));
-      icon = aggregation.sortDirection === 'DESC' ? 'arrow_drop_down' :
-                                                    'arrow_drop_up';
     }
     const otherAggs: AggregationFunction[] = ['SUM', 'MAX', 'MIN', 'AVG'];
     if (aggregation.aggregationFunction !== 'COUNT') {
@@ -396,42 +403,14 @@ export class PivotTable extends Panel<PivotTableAttrs> {
       content: [
         this.readableAggregationName(aggregation),
         m(PopupMenuButton, {
-          icon,
+          icon: popupMenuIcon(aggregation.sortDirection),
           items: popupItems,
         }),
       ],
     };
   }
 
-  showModal = false;
-  typedArgument = '';
-
-  renderModal(): ModalDefinition {
-    return {
-      title: 'Enter argument name',
-      content:
-          m(ArgumentPopup, {
-            knownArguments:
-                globals.state.nonSerializableState.pivotTable.argumentNames,
-            onArgumentChange: (arg) => {
-              this.typedArgument = arg;
-            },
-          }) as AnyAttrsVnode,
-      buttons: [
-        {
-          text: 'Add',
-          action: () => {
-            globals.dispatch(Actions.setPivotTablePivotSelected({
-              column: {kind: 'argument', argument: this.typedArgument},
-              selected: true,
-            }));
-            globals.dispatch(
-                Actions.setPivotTableQueryRequested({queryRequested: true}));
-          },
-        },
-      ],
-    };
-  }
+  attributeModalHolder: AttributeModalHolder;
 
   renderPivotColumnHeader(
       queryResult: PivotTableResult, pivot: TableColumn,
@@ -440,9 +419,7 @@ export class PivotTable extends Panel<PivotTableAttrs> {
       itemType: 'regular',
       text: 'Add argument pivot',
       callback: () => {
-        this.showModal = true;
-        this.typedArgument = '';
-        fullscreenModalContainer.createNew(this.renderModal());
+        this.attributeModalHolder.start();
       },
     }];
     if (queryResult.metadata.pivotColumns.length > 1) {
@@ -578,9 +555,7 @@ export class PivotTable extends Panel<PivotTableAttrs> {
   }
 
   view({attrs}: m.Vnode<PivotTableAttrs>): m.Children {
-    if (this.showModal) {
-      fullscreenModalContainer.updateVdom(this.renderModal());
-    }
+    this.attributeModalHolder.update();
 
     return m('.pivot-table', this.renderResultsTable(attrs));
   }

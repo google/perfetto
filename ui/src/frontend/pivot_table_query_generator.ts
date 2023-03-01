@@ -111,7 +111,7 @@ export function expression(column: TableColumn): string {
     case 'regular':
       return `${column.table}.${column.column}`;
     case 'argument':
-      return extractArgumentExpression(column.argument);
+      return extractArgumentExpression(column.argument, 'slice');
   }
 }
 
@@ -152,8 +152,7 @@ export function generateQueryFromState(state: PivotTableState):
   // Extra count aggregation, needed in order to compute combined averages.
   aggregations.push('COUNT() as hidden_count');
 
-  const renderedPivots =
-      pivots.map((pivot) => `${pivot.table}.${pivot.column}`);
+  const renderedPivots = pivots.map(expression);
   const sortClauses: string[] = [];
   for (let i = 0; i < sliceTableAggregations.length; i++) {
     const sortDirection = sliceTableAggregations[i].sortDirection;

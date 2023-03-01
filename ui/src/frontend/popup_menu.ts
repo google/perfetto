@@ -13,6 +13,9 @@
 // limitations under the License.
 
 import * as m from 'mithril';
+
+import {SortDirection} from '../common/state';
+
 import {globals} from './globals';
 
 export interface RegularPopupMenuItem {
@@ -42,7 +45,7 @@ export interface GroupPopupMenuItem {
 
 export type PopupMenuItem = RegularPopupMenuItem|GroupPopupMenuItem;
 
-interface PopupMenuButtonAttrs {
+export interface PopupMenuButtonAttrs {
   // Icon for button opening a menu
   icon: string;
   // List of popup menu items
@@ -99,6 +102,21 @@ class PopupHolder {
 
 // Singleton instance of PopupHolder
 const popupHolder = new PopupHolder();
+
+// For a table column that can be sorted; the standard popup icon should
+// reflect the current sorting direction. This function returns an icon
+// corresponding to optional SortDirection according to which the column is
+// sorted. (Optional because column might be unsorted)
+export function popupMenuIcon(sortDirection?: SortDirection) {
+  switch (sortDirection) {
+    case undefined:
+      return 'more_horiz';
+    case 'DESC':
+      return 'arrow_drop_down';
+    case 'ASC':
+      return 'arrow_drop_up';
+  }
+}
 
 // Component that displays a button that shows a popup menu on click.
 export class PopupMenuButton implements m.ClassComponent<PopupMenuButtonAttrs> {
