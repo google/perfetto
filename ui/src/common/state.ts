@@ -16,7 +16,6 @@ import {RecordConfig} from '../controller/record_config_types';
 import {
   Aggregation,
   PivotTree,
-  RegularColumn,
   TableColumn,
 } from '../frontend/pivot_table_types';
 
@@ -444,7 +443,7 @@ export interface PivotTableState {
   // pivots; therefore, those can't be put after slice pivots. In order to
   // maintain the separation more clearly, slice and non-slice pivots are
   // located in separate arrays.
-  selectedPivots: RegularColumn[];
+  selectedPivots: TableColumn[];
 
   // Selected aggregation columns. Stored same way as pivots.
   selectedAggregations: Aggregation[];
