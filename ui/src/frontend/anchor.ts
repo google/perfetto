@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2023 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,22 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "typefaces";
-@import "common";
-@import "home_page";
-@import "analyze_page";
-@import "metrics_page";
-@import "sidebar";
-@import "topbar";
-@import "record";
-@import "modal";
-@import "details";
-@import "trace_info_page";
-@import "flags_page";
-@import "hiring_banner";
-@import "widgets_page";
-@import "widgets/button";
-@import "widgets/checkbox";
-@import "widgets/text_input";
-@import "widgets/empty_state";
-@import "widgets/anchor";
+import * as m from 'mithril';
+
+interface AnchorAttrs {
+  // Optional icon to show at the end of the content.
+  icon?: string;
+  // Remaining items.
+  [htmlAttrs: string]: any;
+}
+
+export class Anchor implements m.ClassComponent<AnchorAttrs> {
+  view({attrs, children}: m.CVnode<AnchorAttrs>) {
+    const {icon, ...htmlAttrs} = attrs;
+
+    return m(
+        'a.pf-anchor',
+        htmlAttrs,
+        icon && m('i.material-icons', icon),
+        children,
+    );
+  }
+}
