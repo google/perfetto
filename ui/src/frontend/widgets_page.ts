@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import * as m from 'mithril';
-
+import {Anchor} from './anchor';
 import {globals} from './globals';
 import {createPage} from './pages';
 import {Button} from './widgets/button';
@@ -126,6 +126,21 @@ export const WidgetsPage = createPage({
           initialOpts: {
             header: true,
             content: true,
+          },
+        }),
+        m('h2', 'Anchor'),
+        m(WidgetShowcase, {
+          renderWidget: ({icon}) => m(
+              Anchor,
+              {
+                icon: icon && 'open_in_new',
+                href: 'https://perfetto.dev/docs/',
+                target: '_blank',
+              },
+              'Docs',
+              ),
+          initialOpts: {
+            icon: true,
           },
         }),
     );
