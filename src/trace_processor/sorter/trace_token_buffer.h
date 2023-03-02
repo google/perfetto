@@ -49,27 +49,9 @@ class TraceTokenBuffer {
   // Identifier returned when appending items to this buffer. This id can
   // later by passed to |Extract| to retrieve the event.
   struct Id {
-    // The number of bits available for store data "out-of-band" (i.e. by
-    // bitpacking in free bits available in another data structure). The value
-    // of this is set based on the available bits in
-    // TraceSorter::TimestampedDescriptor.
-    static constexpr uint32_t kOutOfBandBits = 28;
-    static constexpr uint32_t kMaxOutOfBandValue = (1u << kOutOfBandBits) - 1;
-
     // The allocation id of the object in the buffer.
     BumpAllocator::AllocId alloc_id;
-
-    // "Out-of-band" data for this object. This allows squeezing as much memory
-    // as possible by using free bits in other data structures to store parts
-    // of tokens.
-    // This size of this field (i.e. kOutOfBandBits) is chosen to match the
-    // available bits in TraceSorter: there is a static_assert in
-    // TraceSorter::TimestampedDescriptor.
-    uint32_t out_of_band : kOutOfBandBits;
   };
-  static_assert(protozero::proto_utils::kMaxMessageLength <=
-                    Id::kMaxOutOfBandValue,
-                "Packet length must fit in out-of-band field");
 
   // Appends an object of type |T| to the token buffer. Returns an id for
   // looking up the object later using |Extract|.
@@ -79,7 +61,7 @@ class TraceTokenBuffer {
     static_assert(alignof(T) == 8, "Alignment must be 8");
     BumpAllocator::AllocId id = AllocAndResizeInternedVectors(sizeof(T));
     new (allocator_.GetPointer(id)) T(std::move(object));
-    return Id{id, 0};
+    return Id{id};
   }
   PERFETTO_WARN_UNUSED_RESULT Id Append(TrackEventData);
   PERFETTO_WARN_UNUSED_RESULT Id Append(TracePacketData data) {
@@ -120,7 +102,7 @@ class TraceTokenBuffer {
     TraceBlob* blob;
     size_t offset_in_blob;
   };
-  using InternedIndex = uint32_t;
+  using InternedIndex = size_t;
   using BlobWithOffsets = std::vector<BlobWithOffset>;
   using SequenceStates = std::vector<PacketSequenceStateGeneration*>;
 
