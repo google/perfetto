@@ -3824,6 +3824,7 @@ perfetto_proto_library(
     ],
     deps = [
         ":protos_perfetto_common_protos",
+        ":protos_perfetto_trace_android_protos",
         ":protos_perfetto_trace_gpu_protos",
         ":protos_perfetto_trace_profiling_protos",
         ":protos_perfetto_trace_track_event_protos",
@@ -3835,6 +3836,7 @@ perfetto_cc_protozero_library(
     name = "protos_perfetto_trace_interned_data_zero",
     deps = [
         ":protos_perfetto_common_zero",
+        ":protos_perfetto_trace_android_zero",
         ":protos_perfetto_trace_gpu_zero",
         ":protos_perfetto_trace_interned_data_protos",
         ":protos_perfetto_trace_profiling_zero",
