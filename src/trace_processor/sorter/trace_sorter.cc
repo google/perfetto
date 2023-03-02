@@ -136,7 +136,7 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
     // limit, whichever comes first.
     size_t num_extracted = 0;
     for (auto& event : events) {
-      if (event.alloc_id >= limit_alloc_id) {
+      if (event.alloc_id() >= limit_alloc_id) {
         break;
       }
 
