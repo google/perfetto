@@ -39,6 +39,7 @@ cc_test {
   ],
   test_suites: [
     "cts",
+    "mts",
     "vts10",
     "general-tests",
   ],
@@ -61,6 +62,7 @@ cc_test {
         ":CtsPerfettoReporterApp"
   ],
   stl: "libc++_static",
+  min_sdk_version: "31",
   defaults: [
     "perfetto_defaults",
   ],
