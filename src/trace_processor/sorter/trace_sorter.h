@@ -214,18 +214,19 @@ class TraceSorter {
     // The timestamp of this event.
     int64_t ts;
 
-    // The AllocId of this tokenized object corresponding to this event.
-    BumpAllocator::AllocId alloc_id;
+    // The fields inside BumpAllocator::AllocId of this tokenized object
+    // corresponding to this event.
+    uint64_t chunk_index : BumpAllocator::kChunkIndexAllocIdBits;
+    uint64_t chunk_offset : BumpAllocator::kChunkOffsetAllocIdBits;
 
     // The type of this event. GCC7 does not like bit-field enums (see
     // https://stackoverflow.com/questions/36005063/gcc-suppress-warning-too-small-to-hold-all-values-of)
     // so use an uint32_t instead and cast to the enum type.
     uint32_t event_type : kMaxTypeBits;
 
-    // Out-of-band data used to intepret data in the TraceTokenBuffer.
-    // Exists outside of TraceTokenBuffer because we have a bunch of free
-    // bits here and we want to save as memory as much as possible.
-    uint32_t token_buffer_oob : TraceTokenBuffer::Id::kOutOfBandBits;
+    BumpAllocator::AllocId alloc_id() const {
+      return BumpAllocator::AllocId{chunk_index, chunk_offset};
+    }
 
     // For std::lower_bound().
     static inline bool Compare(const TimestampedEvent& x, int64_t ts) {
@@ -234,7 +235,8 @@ class TraceSorter {
 
     // For std::sort().
     inline bool operator<(const TimestampedEvent& evt) const {
-      return ts < evt.ts || (ts == evt.ts && alloc_id < evt.alloc_id);
+      return std::tie(ts, chunk_index, chunk_offset) <
+             std::tie(evt.ts, evt.chunk_index, evt.chunk_offset);
     }
   };
   static_assert(sizeof(TimestampedEvent) == 16,
@@ -255,9 +257,9 @@ class TraceSorter {
       {
         TimestampedEvent event;
         event.ts = ts;
-        event.alloc_id = id.alloc_id;
+        event.chunk_index = id.alloc_id.chunk_index;
+        event.chunk_offset = id.alloc_id.chunk_offset;
         event.event_type = static_cast<uint8_t>(type);
-        event.token_buffer_oob = id.out_of_band;
         events_.emplace_back(std::move(event));
       }
 
@@ -320,7 +322,7 @@ class TraceSorter {
   void ExtractAndDiscardTokenizedObject(const TimestampedEvent& event);
 
   TraceTokenBuffer::Id GetTokenBufferId(const TimestampedEvent& event) {
-    return TraceTokenBuffer::Id{event.alloc_id, event.token_buffer_oob};
+    return TraceTokenBuffer::Id{event.alloc_id()};
   }
 
   TraceProcessorContext* context_ = nullptr;
