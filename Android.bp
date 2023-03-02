@@ -2685,6 +2685,7 @@ genrule {
     name: "perfetto_protos_perfetto_config_cpp_gen",
     srcs: [
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
@@ -2698,6 +2699,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.gen.cc",
+        "external/perfetto/protos/perfetto/config/chrome/scenario_config.gen.cc",
         "external/perfetto/protos/perfetto/config/data_source_config.gen.cc",
         "external/perfetto/protos/perfetto/config/interceptor_config.gen.cc",
         "external/perfetto/protos/perfetto/config/stress_test_config.gen.cc",
@@ -2711,6 +2713,7 @@ genrule {
     name: "perfetto_protos_perfetto_config_cpp_gen_headers",
     srcs: [
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
@@ -2724,6 +2727,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(in)",
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.gen.h",
+        "external/perfetto/protos/perfetto/config/chrome/scenario_config.gen.h",
         "external/perfetto/protos/perfetto/config/data_source_config.gen.h",
         "external/perfetto/protos/perfetto/config/interceptor_config.gen.h",
         "external/perfetto/protos/perfetto/config/stress_test_config.gen.h",
@@ -2763,6 +2767,7 @@ genrule {
         "protos/perfetto/config/android/network_trace_config.proto",
         "protos/perfetto/config/android/packages_list_config.proto",
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/ftrace/ftrace_config.proto",
         "protos/perfetto/config/gpu/gpu_counter_config.proto",
@@ -3234,6 +3239,7 @@ genrule {
     name: "perfetto_protos_perfetto_config_lite_gen",
     srcs: [
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
@@ -3246,6 +3252,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.pb.cc",
+        "external/perfetto/protos/perfetto/config/chrome/scenario_config.pb.cc",
         "external/perfetto/protos/perfetto/config/data_source_config.pb.cc",
         "external/perfetto/protos/perfetto/config/interceptor_config.pb.cc",
         "external/perfetto/protos/perfetto/config/stress_test_config.pb.cc",
@@ -3259,6 +3266,7 @@ genrule {
     name: "perfetto_protos_perfetto_config_lite_gen_headers",
     srcs: [
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
@@ -3271,6 +3279,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.pb.h",
+        "external/perfetto/protos/perfetto/config/chrome/scenario_config.pb.h",
         "external/perfetto/protos/perfetto/config/data_source_config.pb.h",
         "external/perfetto/protos/perfetto/config/interceptor_config.pb.h",
         "external/perfetto/protos/perfetto/config/stress_test_config.pb.h",
@@ -4066,6 +4075,7 @@ genrule {
     name: "perfetto_protos_perfetto_config_zero_gen",
     srcs: [
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
@@ -4079,6 +4089,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.pbzero.cc",
+        "external/perfetto/protos/perfetto/config/chrome/scenario_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/data_source_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/interceptor_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/stress_test_config.pbzero.cc",
@@ -4092,6 +4103,7 @@ genrule {
     name: "perfetto_protos_perfetto_config_zero_gen_headers",
     srcs: [
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
@@ -4105,6 +4117,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
     out: [
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.pbzero.h",
+        "external/perfetto/protos/perfetto/config/chrome/scenario_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/data_source_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/interceptor_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/stress_test_config.pbzero.h",
@@ -4729,6 +4742,7 @@ genrule {
         "protos/perfetto/config/android/network_trace_config.proto",
         "protos/perfetto/config/android/packages_list_config.proto",
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/ftrace/ftrace_config.proto",
         "protos/perfetto/config/gpu/gpu_counter_config.proto",
@@ -11043,6 +11057,7 @@ java_library {
         "protos/perfetto/config/android/network_trace_config.proto",
         "protos/perfetto/config/android/packages_list_config.proto",
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/ftrace/ftrace_config.proto",
         "protos/perfetto/config/gpu/gpu_counter_config.proto",
