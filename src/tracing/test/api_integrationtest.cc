@@ -1647,6 +1647,9 @@ TEST_P(PerfettoApiTest, TrackEventDynamicCategories) {
   auto* tracing_session = NewTraceWithCategories({"dynamic"});
   tracing_session->get()->StartBlocking();
 
+  EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("dynamic"));
+  EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("dynamic_2"));
+
   // Session #2 enables "dynamic_2".
   auto* tracing_session2 = NewTraceWithCategories({"dynamic_2"});
   tracing_session2->get()->StartBlocking();
@@ -1663,6 +1666,9 @@ TEST_P(PerfettoApiTest, TrackEventDynamicCategories) {
   perfetto::DynamicCategory dynamic_2{"dynamic_2"};
   TRACE_EVENT_BEGIN(dynamic_2, "EventInSecondDynamicCategory");
   TRACE_EVENT_BEGIN("dynamic_2", "EventInSecondStaticallyNamedDynamicCategory");
+
+  EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED(dynamic));
+  EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED(dynamic_2));
 
   std::thread thread([] {
     // Make sure the category name can actually be computed at runtime.
