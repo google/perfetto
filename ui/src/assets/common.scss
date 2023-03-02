@@ -327,6 +327,10 @@ $bottom-tab-padding: 10px;
   position: relative;
 }
 
+.dropdown-button {
+  cursor: pointer;
+}
+
 .popup-menu {
   position: absolute;
   background-color: white;
