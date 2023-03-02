@@ -32,6 +32,10 @@ namespace base {
 template <typename T>
 class StatusOr {
  public:
+  // Matches naming of declarations in similar types e.g. std::optional,
+  // std::variant.
+  using value_type = T;
+
   // Intentionally implicit to allow idomatic usage (e.g. returning value/status
   // from base::StatusOr returning function).
   StatusOr(base::Status status) : StatusOr(std::move(status), base::nullopt) {
