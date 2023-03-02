@@ -3230,6 +3230,7 @@ perfetto_proto_library(
     name = "protos_perfetto_config_protos",
     srcs = [
         "protos/perfetto/config/chrome/chrome_config.proto",
+        "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/data_source_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
