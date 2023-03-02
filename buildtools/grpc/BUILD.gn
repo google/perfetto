@@ -4924,7 +4924,9 @@ source_set("grpc") {
     ":address_sorting",
     ":boringssl",
     ":gpr",
+    ":re2",
     ":upb",
+    "../../gn:zlib",
   ]
   public_configs = [ "..:grpc_internal_config" ]
   configs -= [ "//gn/standalone:extra_warnings" ]
@@ -6396,6 +6398,7 @@ source_set("grpc_authorization_provider") {
     ":absl_types_span",
     ":absl_utility_utility",
     ":gpr",
+    ":re2",
     ":upb",
   ]
   public_configs = [ "..:grpc_internal_config" ]
