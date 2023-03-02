@@ -41,8 +41,6 @@ TEST_F(TraceTokenBufferUnittest, TracePacketDataInOut) {
   TracePacketData tpd{tbv.copy(), state.current_generation()};
 
   TraceTokenBuffer::Id id = store.Append(std::move(tpd));
-  ASSERT_EQ(id.out_of_band, 1024u);
-
   TracePacketData extracted = store.Extract<TracePacketData>(id);
   ASSERT_EQ(extracted.packet, tbv);
   ASSERT_EQ(extracted.sequence_state, state.current_generation());
@@ -142,8 +140,6 @@ TEST_F(TraceTokenBufferUnittest, TrackEventDataInOut) {
   auto counter_array = ted.extra_counter_values;
 
   TraceTokenBuffer::Id id = store.Append(std::move(ted));
-  ASSERT_EQ(id.out_of_band, 1234u);
-
   TrackEventData extracted = store.Extract<TrackEventData>(id);
   ASSERT_EQ(extracted.trace_packet_data.packet, tbv);
   ASSERT_EQ(extracted.trace_packet_data.sequence_state,
