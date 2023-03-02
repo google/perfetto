@@ -16,9 +16,8 @@ import {RecordConfig} from '../controller/record_config_types';
 import {
   Aggregation,
   PivotTree,
-  RegularColumn,
   TableColumn,
-} from '../frontend/pivot_table_redux_types';
+} from '../frontend/pivot_table_types';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
@@ -403,48 +402,48 @@ export interface MetricsState {
 // Auxiliary metadata needed to parse the query result, as well as to render it
 // correctly. Generated together with the text of query and passed without the
 // change to the query response.
-export interface PivotTableReduxQueryMetadata {
+export interface PivotTableQueryMetadata {
   pivotColumns: TableColumn[];
   aggregationColumns: Aggregation[];
   countIndex: number;
 }
 
 // Everything that's necessary to run the query for pivot table
-export interface PivotTableReduxQuery {
+export interface PivotTableQuery {
   text: string;
-  metadata: PivotTableReduxQueryMetadata;
+  metadata: PivotTableQueryMetadata;
 }
 
 // Pivot table query result
-export interface PivotTableReduxResult {
+export interface PivotTableResult {
   // Hierarchical pivot structure on top of rows
   tree: PivotTree;
   // Copy of the query metadata from the request, bundled up with the query
   // result to ensure the correct rendering.
-  metadata: PivotTableReduxQueryMetadata;
+  metadata: PivotTableQueryMetadata;
 }
 
 // Input parameters to check whether the pivot table needs to be re-queried.
-export interface PivotTableReduxAreaState {
+export interface PivotTableAreaState {
   areaId: string;
   tracks: string[];
 }
 
 export type SortDirection = 'DESC'|'ASC';
 
-export interface PivotTableReduxState {
+export interface PivotTableState {
   // Currently selected area, if null, pivot table is not going to be visible.
-  selectionArea?: PivotTableReduxAreaState;
+  selectionArea?: PivotTableAreaState;
 
   // Query response
-  queryResult: PivotTableReduxResult|null;
+  queryResult: PivotTableResult|null;
 
   // Selected pivots for tables other than slice.
   // Because of the query generation, pivoting happens first on non-slice
   // pivots; therefore, those can't be put after slice pivots. In order to
   // maintain the separation more clearly, slice and non-slice pivots are
   // located in separate arrays.
-  selectedPivots: RegularColumn[];
+  selectedPivots: TableColumn[];
 
   // Selected aggregation columns. Stored same way as pivots.
   selectedAggregations: Aggregation[];
@@ -477,7 +476,7 @@ export type LoadedConfig =
     LoadedConfigNone|LoadedConfigAutomatic|LoadedConfigNamed;
 
 export interface NonSerializableState {
-  pivotTableRedux: PivotTableReduxState;
+  pivotTable: PivotTableState;
 }
 
 export interface LogFilteringCriteria {

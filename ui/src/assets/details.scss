@@ -120,6 +120,12 @@
     padding: 10px 0 5px 0;
     position: sticky;
     top: 0;
+
+    // Relative/absolute/etc.. (non static) elements stack on top of this sticky
+    // header, so setting the z-index here to 1 forces this header to render
+    // over the top of other elements in the underlying panels.
+    z-index: 1;
+
     display: flex;
     background: white;
     &.aggregation {
@@ -281,6 +287,37 @@
     border-radius: 0.25rem;
     margin-top: 12px;
     margin-left: 10px;
+  }
+
+  .slice-details-latency-panel {
+    // This panel is set to relative to make this panel a positioned element
+    // This is to allow the absolute text panels below to be positioned relative
+    // to this panel and not our parent.
+    position: relative;
+    font-size: 13px;
+    user-select: text;
+
+    .text-detail {
+      font-size: 10px;
+    }
+
+    .slice-details-wakeup-text {
+      position: absolute;
+      left: 40px;
+      top: 20px;
+    }
+
+    .slice-details-latency-text {
+      position: absolute;
+      left: 106px;
+      top: 90px;
+    }
+
+    .slice-details-image {
+      user-select: none;
+      width: 360px;
+      height: 300px;
+    }
   }
 }
 

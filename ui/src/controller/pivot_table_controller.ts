@@ -21,22 +21,22 @@ import {featureFlags} from '../common/feature_flags';
 import {ColumnType, STR} from '../common/query_result';
 import {
   AreaSelection,
-  PivotTableReduxQuery,
-  PivotTableReduxQueryMetadata,
-  PivotTableReduxResult,
-  PivotTableReduxState,
+  PivotTableQuery,
+  PivotTableQueryMetadata,
+  PivotTableResult,
+  PivotTableState,
 } from '../common/state';
 import {globals} from '../frontend/globals';
 import {
   aggregationIndex,
   generateQueryFromState,
-} from '../frontend/pivot_table_redux_query_generator';
-import {Aggregation, PivotTree} from '../frontend/pivot_table_redux_types';
+} from '../frontend/pivot_table_query_generator';
+import {Aggregation, PivotTree} from '../frontend/pivot_table_types';
 
 import {Controller} from './controller';
 
 export const PIVOT_TABLE_REDUX_FLAG = featureFlags.register({
-  id: 'pivotTableRedux',
+  id: 'pivotTable',
   name: 'Pivot tables V2',
   description: 'Second version of pivot table',
   // Enabled in canary and autopush by default.
@@ -53,7 +53,7 @@ function expectNumber(value: ColumnType): number {
 // Auxiliary class to build the tree from query response.
 export class PivotTableTreeBuilder {
   private readonly root: PivotTree;
-  queryMetadata: PivotTableReduxQueryMetadata;
+  queryMetadata: PivotTableQueryMetadata;
 
   get pivotColumnsCount(): number {
     return this.queryMetadata.pivotColumns.length;
@@ -63,8 +63,7 @@ export class PivotTableTreeBuilder {
     return this.queryMetadata.aggregationColumns;
   }
 
-  constructor(
-      queryMetadata: PivotTableReduxQueryMetadata, firstRow: ColumnType[]) {
+  constructor(queryMetadata: PivotTableQueryMetadata, firstRow: ColumnType[]) {
     this.queryMetadata = queryMetadata;
     this.root = this.createNode(firstRow);
     let tree = this.root;
@@ -163,8 +162,8 @@ export class PivotTableTreeBuilder {
   }
 }
 
-function createEmptyQueryResult(metadata: PivotTableReduxQueryMetadata):
-    PivotTableReduxResult {
+function createEmptyQueryResult(metadata: PivotTableQueryMetadata):
+    PivotTableResult {
   return {
     tree: {
       aggregates: [],
@@ -178,7 +177,7 @@ function createEmptyQueryResult(metadata: PivotTableReduxQueryMetadata):
 
 // Controller responsible for showing the panel with pivot table, as well as
 // executing its queries and post-processing query results.
-export class PivotTableReduxController extends Controller<{}> {
+export class PivotTableController extends Controller<{}> {
   static detailsCount = 0;
   engine: Engine;
   lastQueryAreaId = '';
@@ -205,7 +204,7 @@ export class PivotTableReduxController extends Controller<{}> {
     return true;
   }
 
-  shouldRerun(state: PivotTableReduxState, selection: AreaSelection) {
+  shouldRerun(state: PivotTableState, selection: AreaSelection) {
     if (state.selectionArea === undefined) {
       return false;
     }
@@ -220,7 +219,7 @@ export class PivotTableReduxController extends Controller<{}> {
     return false;
   }
 
-  async processQuery(query: PivotTableReduxQuery) {
+  async processQuery(query: PivotTableQuery) {
     const result = await this.engine.query(query.text);
     try {
       await result.waitAllRows();
@@ -256,7 +255,7 @@ export class PivotTableReduxController extends Controller<{}> {
 
     globals.dispatch(Actions.setPivotStateQueryResult(
         {queryResult: {tree: treeBuilder.build(), metadata: query.metadata}}));
-    globals.dispatch(Actions.setCurrentTab({tab: 'pivot_table_redux'}));
+    globals.dispatch(Actions.setCurrentTab({tab: 'pivot_table'}));
   }
 
   async requestArgumentNames() {
@@ -285,7 +284,7 @@ export class PivotTableReduxController extends Controller<{}> {
       this.requestArgumentNames();
     }
 
-    const pivotTableState = globals.state.nonSerializableState.pivotTableRedux;
+    const pivotTableState = globals.state.nonSerializableState.pivotTable;
     const selection = globals.state.currentSelection;
 
     if (pivotTableState.queryRequested ||
@@ -301,8 +300,7 @@ export class PivotTableReduxController extends Controller<{}> {
     if (selection !== null && selection.kind === 'AREA' &&
         (pivotTableState.selectionArea === undefined ||
          pivotTableState.selectionArea.areaId !== selection.areaId)) {
-      globals.dispatch(
-          Actions.togglePivotTableRedux({areaId: selection.areaId}));
+      globals.dispatch(Actions.togglePivotTable({areaId: selection.areaId}));
     }
   }
 }

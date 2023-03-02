@@ -21,7 +21,7 @@ function normalize(s: string): string {
 
 test('constraintsToQueryFragment: where', () => {
   expect(normalize(constraintsToQueryFragment({
-    where: ['ts > 1000', 'dur != 0'],
+    filters: ['ts > 1000', 'dur != 0'],
   }))).toEqual('WHERE ts > 1000 and dur != 0');
 });
 
@@ -37,7 +37,7 @@ test('constraintsToQueryFragment: limit', () => {
 
 test('constraintsToQueryFragment: all', () => {
   expect(normalize(constraintsToQueryFragment({
-    where: ['id != 1'],
+    filters: ['id != 1'],
     orderBy: [{fieldName: 'ts'}],
     limit: 1,
   }))).toEqual('WHERE id != 1 ORDER BY ts LIMIT 1');

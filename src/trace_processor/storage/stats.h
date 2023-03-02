@@ -40,6 +40,7 @@ namespace stats {
   F(entity_state_residency_lookup_failed, kSingle,  kError,    kAnalysis, ""), \
   F(energy_uid_breakdown_missing_values,  kSingle,  kError,    kAnalysis, ""), \
   F(frame_timeline_event_parser_errors,   kSingle,  kInfo,     kAnalysis, ""), \
+  F(frame_timeline_unpaired_end_event,    kSingle,  kInfo,     kAnalysis, ""), \
   F(ftrace_bundle_tokenizer_errors,       kSingle,  kError,    kAnalysis, ""), \
   F(ftrace_cpu_bytes_read_begin,          kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_bytes_read_end,            kIndexed, kInfo,     kTrace,    ""), \
@@ -65,7 +66,7 @@ namespace stats {
   F(ftrace_cpu_read_events_begin,         kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_read_events_end,           kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_read_events_delta,         kIndexed, kInfo,     kTrace,    ""), \
-  F(ftrace_setup_errors,                  kSingle,  kError,    kTrace,         \
+  F(ftrace_setup_errors,                  kSingle,  kInfo,     kTrace,         \
   "One or more atrace/ftrace categories were not found or failed to enable. "  \
   "See ftrace_setup_errors in the metadata table for more details."),          \
   F(fuchsia_non_numeric_counters,         kSingle,  kError,    kAnalysis, ""), \

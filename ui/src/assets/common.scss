@@ -211,36 +211,56 @@ $table-hover-color: hsl(214, 22%, 90%);
 
 $table-border-color: rgba(60, 76, 92, 0.4);
 
-.pivot-table {
+$bottom-tab-padding: 10px;
+
+@mixin table-component {
   @include bottom-panel-font;
   @include table-font-size;
 
   width: 100%;
   border-collapse: collapse;
 
-  thead,
-  i {
-    cursor: pointer;
-  }
   thead {
     font-weight: normal;
   }
+
+  tr:hover td {
+    background-color: $table-hover-color;
+  }
+
+  tr.header {
+    border-bottom: 1px solid $table-border-color;
+    text-align: center;
+  }
+
   td {
     padding: 2px 1px;
+
+    i.material-icons {
+      // Shrink the icons inside the table cells to increase the information
+      // density a little bit.
+      font-size: 16px;
+    }
+  }
+}
+
+.generic-table {
+  @include table-component;
+}
+
+.pivot-table {
+  @include table-component;
+
+  thead,
+  i {
+    cursor: pointer;
   }
   td.first {
     border-left: 1px solid $table-border-color;
     padding-left: 6px;
   }
-  tr.header {
-    border-bottom: 1px solid $table-border-color;
-    text-align: center;
-  }
   thead td.reorderable-cell {
     cursor: grab;
-  }
-  tr:hover td {
-    background-color: $table-hover-color;
   }
   .disabled {
     cursor: default;
@@ -792,9 +812,9 @@ button.query-ctrl {
   user-select: none;
 }
 
-.pivot-table-redux {
+.pivot-table {
   user-select: text;
-  padding: 10px;
+  padding: $bottom-tab-padding;
 
   button.mode-button {
     border-radius: 10px;
@@ -826,9 +846,6 @@ button.query-ctrl {
     // a separate line.
     white-space: pre;
 
-    i.material-icons {
-      font-size: 16px;
-    }
   }
 }
 
