@@ -5928,6 +5928,13 @@ message DrmSchedProcessJobFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/gpu_scheduler.proto
 
+// Begin of protos/perfetto/trace/ftrace/hyp.proto
+
+message HypEnterFtraceEvent {}
+message HypExitFtraceEvent {}
+
+// End of protos/perfetto/trace/ftrace/hyp.proto
+
 // Begin of protos/perfetto/trace/ftrace/i2c.proto
 
 message I2cReadFtraceEvent {
@@ -8013,6 +8020,8 @@ message FtraceEvent {
     MaliMaliKCPUFENCESIGNALFtraceEvent mali_mali_KCPU_FENCE_SIGNAL = 473;
     MaliMaliKCPUFENCEWAITSTARTFtraceEvent mali_mali_KCPU_FENCE_WAIT_START = 474;
     MaliMaliKCPUFENCEWAITENDFtraceEvent mali_mali_KCPU_FENCE_WAIT_END = 475;
+    HypEnterFtraceEvent hyp_enter = 476;
+    HypExitFtraceEvent hyp_exit = 477;
   }
 }
 

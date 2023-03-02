@@ -43,6 +43,8 @@ source_set("full") {
     "iostat_tracker.h",
     "mali_gpu_event_tracker.cc",
     "mali_gpu_event_tracker.h",
+    "pkvm_hyp_cpu_tracker.cc",
+    "pkvm_hyp_cpu_tracker.h",
     "rss_stat_tracker.cc",
     "rss_stat_tracker.h",
     "sched_event_tracker.cc",
