@@ -51,6 +51,15 @@ export const GRAY_COLOR: Color = {
   l: 62,
 };
 
+// A piece of wisdom from a long forgotten blog post: "Don't make
+// colors you want to change something normal like grey."
+export const UNEXPECTED_PINK_COLOR: Color = {
+  c: '#ff69b4',
+  h: 330,
+  s: 1.0,
+  l: 0.706,
+};
+
 function hash(s: string, max: number): number {
   let hash = 0x811c9dc5 & 0xfffffff;
   for (let i = 0; i < s.length; i++) {
