@@ -165,6 +165,8 @@ class FtraceConfigMuxer {
     return current_state_.syscall_filter;
   }
 
+  size_t GetDataSourcesCount() const { return ds_configs_.size(); }
+
   // Returns the syscall ids for the current architecture
   // matching the (subjectively) most commonly used syscalls
   // producing a new file descriptor as their return value.
