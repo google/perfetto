@@ -267,11 +267,12 @@ WHERE android_frame_times.ts > (SELECT ts + dur FROM slices WHERE slices.name GL
 ORDER BY ts_total LIMIT 1;
 
 -- Youtube
+-- Use the 10th frame that is rendered
 INSERT INTO hsc_based_startup_times
 SELECT
   launches.package AS package,
   launches.startup_id AS id,
-  android_frame_times.ts_end - launches.ts AS ts_total
-FROM android_frame_times
-JOIN android_startups launches ON launches.package GLOB '*' || android_frame_times.name || '*'
-WHERE android_frame_times.number = 2 AND android_frame_times.name GLOB "*id.youtube" AND android_frame_times.startup_id = launches.startup_id;
+  android_render_frame_times.ts_end - launches.ts AS ts_total
+FROM android_render_frame_times
+JOIN android_startups launches ON launches.package GLOB '*' || android_render_frame_times.name || '*'
+WHERE android_render_frame_times.number = 10 AND android_render_frame_times.name GLOB "*id.youtube" AND android_render_frame_times.startup_id = launches.startup_id;
