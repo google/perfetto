@@ -85,6 +85,7 @@ body > main {
   padding: 0;
   margin: 0;
   overscroll-behavior: none;
+  overflow: hidden;
 }
 
 pre,
@@ -324,6 +325,10 @@ $bottom-tab-padding: 10px;
 .dropdown {
   display: inline-block;
   position: relative;
+}
+
+.dropdown-button {
+  cursor: pointer;
 }
 
 .popup-menu {

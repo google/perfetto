@@ -509,7 +509,8 @@ base::Status JsonTraceTokenizer::ParseInternal(const char* start,
 base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
                                                   const char* end,
                                                   const char** out) {
-  for (const char* next = start; next < end;) {
+  const char* next = start;
+  while (next < end) {
     base::StringView unparsed;
     switch (ReadOneJsonDict(next, end, &unparsed, &next)) {
       case ReadDictRes::kEndOfArray: {
@@ -548,7 +549,7 @@ base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
     }
     context_->sorter->PushJsonValue(ts, unparsed.ToStdString());
   }
-  return base::OkStatus();
+  return SetOutAndReturn(next, out);
 }
 
 base::Status JsonTraceTokenizer::HandleDictionaryKey(const char* start,

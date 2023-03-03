@@ -51,35 +51,38 @@ namespace trace_processor {
 // [1] https://rust-hosted-langs.github.io/book/chapter-simple-bump.html
 class BumpAllocator {
  public:
-  // The limit on the total amount of memory which can be allocated. Required
-  // as we can only address 4GB of memory with AllocId.
-  static constexpr uint64_t kAllocLimit = 4ull * 1024 * 1024 * 1024;  // 4GB
+  // The limit on the total number of bits which can be used to represent
+  // the chunk id.
+  static constexpr uint64_t kMaxIdBits = 60;
+
+  // The limit on the total amount of memory which can be allocated.
+  static constexpr uint64_t kAllocLimit = 1ull << kMaxIdBits;
 
   // The size of the "large chunk" requested from the system allocator.
   // The size of this value trades-off between unused memory use vs CPU cost
   // of going to the system allocator. 64KB feels a good trade-off there.
-  static constexpr uint32_t kChunkSize = 64u * 1024;  // 64KB
+  static constexpr uint64_t kChunkSize = 64ull * 1024;  // 64KB
 
   // The maximum number of chunks which this allocator can have.
-  static constexpr uint32_t kMaxChunkCount = kAllocLimit / kChunkSize;
+  static constexpr uint64_t kMaxChunkCount = kAllocLimit / kChunkSize;
 
   // The number of bits used to represent the offset the chunk in AllocId.
   //
   // This is simply log2(kChunkSize): we have a separate constant as log2 is
   // not a constexpr function: the static assets below verify this stays in
   // sync.
-  static constexpr uint32_t kChunkOffsetAllocIdBits = 16u;
+  static constexpr uint64_t kChunkOffsetAllocIdBits = 16u;
 
   // The number of bits used to represent the chunk index in AllocId.
-  static constexpr uint32_t kChunkIndexAllocIdBits =
-      32u - kChunkOffsetAllocIdBits;
+  static constexpr uint64_t kChunkIndexAllocIdBits =
+      kMaxIdBits - kChunkOffsetAllocIdBits;
 
   // Represents an allocation returned from the allocator. We return this
   // instead of just returning a pointer to allow looking up a chunk an
   // allocation belongs to without needing having to scan chunks.
   struct AllocId {
-    uint32_t chunk_index : kChunkIndexAllocIdBits;
-    uint32_t chunk_offset : kChunkOffsetAllocIdBits;
+    uint64_t chunk_index : kChunkIndexAllocIdBits;
+    uint64_t chunk_offset : kChunkOffsetAllocIdBits;
 
     // Comparision operators mainly for sorting.
     bool operator<(const AllocId& other) const {
@@ -89,17 +92,14 @@ class BumpAllocator {
     bool operator>=(const AllocId& other) const { return !(*this < other); }
     bool operator>(const AllocId& other) const { return other < *this; }
   };
-  static_assert(sizeof(AllocId) == sizeof(uint32_t),
-                "AllocId should be 32-bit in size to allow serialization");
+  static_assert(sizeof(AllocId) == sizeof(uint64_t),
+                "AllocId should be 64-bit in size to allow serialization");
   static_assert(
-      kMaxChunkCount == (1 << kChunkIndexAllocIdBits),
+      kMaxChunkCount == (1ull << kChunkIndexAllocIdBits),
       "Max chunk count must match the number of bits used for chunk indices");
   static_assert(
       kChunkSize == (1 << kChunkOffsetAllocIdBits),
       "Chunk size must match the number of bits used for offset within chunk");
-  static_assert(kAllocLimit == 1ull << sizeof(AllocId) * 8,
-                "Total limit on allocations must be equal to the number of "
-                "bits used for AllocId");
 
   BumpAllocator();
 
@@ -135,7 +135,7 @@ class BumpAllocator {
   // in the chunks have been freed. This releases the memory back to the system.
   //
   // Returns the number of chunks freed.
-  uint32_t EraseFrontFreeChunks();
+  uint64_t EraseFrontFreeChunks();
 
   // Returns a "past the end" serialized AllocId i.e. a serialized value
   // greater than all previously returned AllocIds.
@@ -145,7 +145,7 @@ class BumpAllocator {
   //
   // This value may change any time |EraseFrontFreeChunks| is called but is
   // constant otherwise.
-  uint32_t erased_front_chunks_count() const {
+  uint64_t erased_front_chunks_count() const {
     return erased_front_chunks_count_;
   }
 
@@ -168,19 +168,19 @@ class BumpAllocator {
   // an AllocId if this was successful or base::nullopt otherwise.
   base::Optional<AllocId> TryAllocInLastChunk(uint32_t size);
 
-  uint32_t ChunkIndexToQueueIndex(uint32_t chunk_index) const {
+  uint64_t ChunkIndexToQueueIndex(uint64_t chunk_index) const {
     return chunk_index - erased_front_chunks_count_;
   }
-  uint32_t QueueIndexToChunkIndex(uint32_t index_in_chunks_vec) const {
+  uint64_t QueueIndexToChunkIndex(uint64_t index_in_chunks_vec) const {
     return erased_front_chunks_count_ + index_in_chunks_vec;
   }
-  uint32_t LastChunkIndex() const {
+  uint64_t LastChunkIndex() const {
     PERFETTO_DCHECK(!chunks_.empty());
-    return QueueIndexToChunkIndex(static_cast<uint32_t>(chunks_.size() - 1));
+    return QueueIndexToChunkIndex(static_cast<uint64_t>(chunks_.size() - 1));
   }
 
   base::CircularQueue<Chunk> chunks_;
-  uint32_t erased_front_chunks_count_ = 0;
+  uint64_t erased_front_chunks_count_ = 0;
 };
 
 }  // namespace trace_processor
