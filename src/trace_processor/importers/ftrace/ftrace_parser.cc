@@ -222,6 +222,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       iostat_tracker_(context),
       virtio_gpu_tracker_(context),
       mali_gpu_event_tracker_(context),
+      pkvm_hyp_cpu_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
@@ -547,10 +548,11 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
   PacketSequenceStateGeneration* seq_state = data.sequence_state.get();
   ProtoDecoder decoder(event.data(), event.length());
   uint64_t raw_pid = 0;
+  bool no_pid = false;
   if (auto pid_field = decoder.FindField(FtraceEvent::kPidFieldNumber)) {
     raw_pid = pid_field.as_uint64();
   } else {
-    return util::ErrStatus("Pid field not found in ftrace packet");
+    no_pid = true;
   }
   uint32_t pid = static_cast<uint32_t>(raw_pid);
 
@@ -560,12 +562,23 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
     if (is_metadata_field)
       continue;
 
+    // pKVM hypervisor events are recorded as ftrace events, however they are
+    // not associated with any pid. The rest of trace parsing logic for
+    // hypervisor events will use the pid 0.
+    if (no_pid && !PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(fld.id())) {
+      return util::ErrStatus("Pid field not found in ftrace packet");
+    }
+
     ConstBytes fld_bytes = fld.as_bytes();
     if (fld.id() == FtraceEvent::kGenericFieldNumber) {
       ParseGenericFtrace(ts, cpu, pid, fld_bytes);
     } else if (fld.id() != FtraceEvent::kSchedSwitchFieldNumber) {
       // sched_switch parsing populates the raw table by itself
       ParseTypedFtraceToRaw(fld.id(), ts, cpu, pid, fld_bytes, seq_state);
+    }
+
+    if (PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(fld.id())) {
+      pkvm_hyp_cpu_tracker_.ParseHypEvent(cpu, ts, fld.id());
     }
 
     switch (fld.id()) {
