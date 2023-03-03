@@ -42,6 +42,7 @@ import "protos/perfetto/trace/ftrace/ftrace.proto";
 import "protos/perfetto/trace/ftrace/g2d.proto";
 import "protos/perfetto/trace/ftrace/gpu_mem.proto";
 import "protos/perfetto/trace/ftrace/gpu_scheduler.proto";
+import "protos/perfetto/trace/ftrace/hyp.proto";
 import "protos/perfetto/trace/ftrace/i2c.proto";
 import "protos/perfetto/trace/ftrace/ion.proto";
 import "protos/perfetto/trace/ftrace/ipi.proto";
@@ -585,5 +586,7 @@ message FtraceEvent {
     MaliMaliKCPUFENCESIGNALFtraceEvent mali_mali_KCPU_FENCE_SIGNAL = 473;
     MaliMaliKCPUFENCEWAITSTARTFtraceEvent mali_mali_KCPU_FENCE_WAIT_START = 474;
     MaliMaliKCPUFENCEWAITENDFtraceEvent mali_mali_KCPU_FENCE_WAIT_END = 475;
+    HypEnterFtraceEvent hyp_enter = 476;
+    HypExitFtraceEvent hyp_exit = 477;
   }
 }
