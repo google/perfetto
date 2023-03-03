@@ -98,11 +98,11 @@ Trace Processor diff tests
 Trace processor is mainly tested using so called "diff tests".
 
 For these tests, trace processor parses a known trace and executes a query
-file. The output of these queries is then compared (i.e. "diff"ed) against
+string or file. The output of these queries is then compared (i.e. "diff"ed) against
 an expected output file and discrepencies are highlighted.
 
 Similar diff tests are also available when writing metrics - instead of a
-query file, the metric name is used and the expected output file contains
+query, the metric name is used and the expected output string contains
 the expected result of computing the metric.
 
 These tests (for both queries and metrics) can be run as follows:
@@ -110,11 +110,6 @@ These tests (for both queries and metrics) can be run as follows:
 tools/ninja -C <out directory>
 tools/diff_test_trace_processor.py <out directory>/trace_processor_shell
 ```
-
-To add a new diff test (for query tests only), the `tools/add_tp_diff_test.py`
-script is useful. It will automatically create the query and expected output
-files and adds them both to the index. For metrics, this has to be done
-manually for now.
 
 TIP: Query diff tests are expected to only have a single query which produces
 output in the whole file (usually at the end). Calling
