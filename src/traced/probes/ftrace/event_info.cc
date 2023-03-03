@@ -4850,6 +4850,8 @@ std::vector<Event> GetStaticEventInfo() {
        kUnsetFtraceId,
        413,
        kUnsetSize},
+      {"hyp_enter", "hyp", {}, kUnsetFtraceId, 476, kUnsetSize},
+      {"hyp_exit", "hyp", {}, kUnsetFtraceId, 477, kUnsetSize},
       {"i2c_read",
        "i2c",
        {
