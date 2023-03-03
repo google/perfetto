@@ -274,7 +274,7 @@ class TrackEventDataSource
       const DynamicCategory& dynamic_category) {
     bool enabled = false;
     Base::template Trace([&](typename Base::TraceContext ctx) {
-      enabled = IsDynamicCategoryEnabled(&ctx, dynamic_category);
+      enabled = enabled || IsDynamicCategoryEnabled(&ctx, dynamic_category);
     });
     return enabled;
   }
