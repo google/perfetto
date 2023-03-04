@@ -38,7 +38,6 @@
 #include "protos/perfetto/trace/android/android_system_property.pbzero.h"
 #include "protos/perfetto/trace/android/initial_display_state.pbzero.h"
 #include "protos/perfetto/trace/android/network_trace.pbzero.h"
-#include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.h"
 #include "protos/perfetto/trace/power/android_entity_state_residency.pbzero.h"
 #include "protos/perfetto/trace/power/battery_counters.pbzero.h"
@@ -344,29 +343,6 @@ void AndroidProbesParser::ParseStatsdMetadata(ConstBytes blob) {
     context_->metadata_tracker->SetMetadata(
         metadata::statsd_triggering_subscription_id,
         Variadic::Integer(metadata.triggering_subscription_id()));
-  }
-}
-
-void AndroidProbesParser::ParseAndroidPackagesList(ConstBytes blob) {
-  protos::pbzero::PackagesList::Decoder pkg_list(blob.data, blob.size);
-  context_->storage->SetStats(stats::packages_list_has_read_errors,
-                              pkg_list.read_error());
-  context_->storage->SetStats(stats::packages_list_has_parse_errors,
-                              pkg_list.parse_error());
-
-  AndroidProbesTracker* tracker = AndroidProbesTracker::GetOrCreate(context_);
-  for (auto it = pkg_list.packages(); it; ++it) {
-    protos::pbzero::PackagesList_PackageInfo::Decoder pkg(*it);
-    std::string pkg_name = pkg.name().ToStdString();
-    if (!tracker->ShouldInsertPackage(pkg_name)) {
-      continue;
-    }
-    context_->storage->mutable_package_list_table()->Insert(
-        {context_->storage->InternString(pkg.name()),
-         static_cast<int64_t>(pkg.uid()), pkg.debuggable(),
-         pkg.profileable_from_shell(),
-         static_cast<int64_t>(pkg.version_code())});
-    tracker->InsertedPackage(std::move(pkg_name));
   }
 }
 
