@@ -221,8 +221,8 @@ class TraceSorter {
 
     // The type of this event. GCC7 does not like bit-field enums (see
     // https://stackoverflow.com/questions/36005063/gcc-suppress-warning-too-small-to-hold-all-values-of)
-    // so use an uint32_t instead and cast to the enum type.
-    uint32_t event_type : kMaxTypeBits;
+    // so use an uint64_t instead and cast to the enum type.
+    uint64_t event_type : kMaxTypeBits;
 
     BumpAllocator::AllocId alloc_id() const {
       return BumpAllocator::AllocId{chunk_index, chunk_offset};
