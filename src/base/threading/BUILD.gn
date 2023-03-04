@@ -30,6 +30,7 @@ perfetto_unittest_source_set("unittests") {
   ]
   sources = [
     "channel_unittest.cc",
+    "future_unittest.cc",
     "thread_pool_unittest.cc",
   ]
 }
