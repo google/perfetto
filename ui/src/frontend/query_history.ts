@@ -17,6 +17,8 @@ import * as m from 'mithril';
 import {Actions} from '../common/actions';
 
 import {globals} from './globals';
+import {STAR} from './icons';
+
 import {
   arrayOf,
   bool,
@@ -60,15 +62,17 @@ export class HistoryItemComponent implements
     return m(
         '.history-item',
         m('.history-item-buttons',
-          m('button',
-            {
-              onclick: () => {
-                queryHistoryStorage.setStarred(
-                    vnode.attrs.index, !vnode.attrs.entry.starred);
-                globals.rafScheduler.scheduleFullRedraw();
+          m(
+              'button',
+              {
+                onclick: () => {
+                  queryHistoryStorage.setStarred(
+                      vnode.attrs.index, !vnode.attrs.entry.starred);
+                  globals.rafScheduler.scheduleFullRedraw();
+                },
               },
-            },
-            m(Icon, {icon: 'star', filled: vnode.attrs.entry.starred})),
+              m(Icon, {icon: STAR, filled: vnode.attrs.entry.starred}),
+              ),
           m('button',
             {
               onclick: () => {
