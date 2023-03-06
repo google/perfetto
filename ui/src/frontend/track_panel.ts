@@ -22,7 +22,7 @@ import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {PerfettoMouseEvent} from './events';
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
-import {BLANK_CHECKBOX, CHECKBOX, STAR, STAR_BORDER} from './icons';
+import {BLANK_CHECKBOX, CHECKBOX, PIN} from './icons';
 import {Panel, PanelSize} from './panel';
 import {verticalScrollToTrack} from './scroll_helper';
 import {SliceRect, Track} from './track';
@@ -99,7 +99,8 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
               globals.dispatch(
                   Actions.toggleTrackPinned({trackId: attrs.trackState.id}));
             },
-            i: isPinned(attrs.trackState.id) ? STAR : STAR_BORDER,
+            i: PIN,
+            filledIcon: isPinned(attrs.trackState.id),
             tooltip: isPinned(attrs.trackState.id) ? 'Unpin' : 'Pin to top',
             showButton: isPinned(attrs.trackState.id),
             fullHeight: true,
@@ -268,15 +269,17 @@ export interface TrackButtonAttrs {
   tooltip: string;
   showButton: boolean;
   fullHeight?: boolean;
+  filledIcon?: boolean;
 }
 export class TrackButton implements m.ClassComponent<TrackButtonAttrs> {
   view({attrs}: m.CVnode<TrackButtonAttrs>) {
     return m(
-        'i.material-icons.track-button',
+        'i.track-button',
         {
           class: [
             (attrs.showButton ? 'show' : ''),
             (attrs.fullHeight ? 'full-height' : ''),
+            (attrs.filledIcon ? 'material-icons-filled' : 'material-icons'),
           ].filter(Boolean)
                      .join(' '),
           onclick: attrs.action,
