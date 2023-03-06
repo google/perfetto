@@ -159,10 +159,9 @@ bool HardResetFtraceState() {
 // static
 std::unique_ptr<FtraceController> FtraceController::Create(
     base::TaskRunner* runner,
-    Observer* observer,
-    bool preserve_ftrace_buffer) {
+    Observer* observer) {
   std::unique_ptr<FtraceProcfs> ftrace_procfs =
-      FtraceProcfs::CreateGuessingMountPoint("", preserve_ftrace_buffer);
+      FtraceProcfs::CreateGuessingMountPoint("");
   if (!ftrace_procfs)
     return nullptr;
 
