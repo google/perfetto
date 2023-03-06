@@ -29,7 +29,7 @@ import {NewTrackArgs, SliceRect, Track} from '../../frontend/track';
 
 export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
 const SLICE_HEIGHT = 18;
-const TRACK_PADDING = 4;
+const TRACK_PADDING = 2;
 const CHEVRON_WIDTH_PX = 10;
 const HALF_CHEVRON_WIDTH_PX = CHEVRON_WIDTH_PX / 2;
 const INNER_CHEVRON_OFFSET = -3;
