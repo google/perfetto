@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "widgets/theme";
+
 .home-page {
   text-align: center;
   align-items: center;
@@ -31,15 +33,15 @@
       font-size: 60px;
       margin: 25px;
       text-align: center;
-      font-family: "Raleway", sans-serif;
-      font-weight: 100;
+      font-family: "Roboto", sans-serif;
+      font-weight: 400;
       color: #333;
     }
 
     .channel-select {
       font-family: "Roboto", sans-serif;
       font-size: 1.2rem;
-      font-weight: 200;
+      font-weight: 400;
       margin-top: 3em;
       --chan-width: 100px;
       --chan-num: 2;
@@ -69,7 +71,7 @@
         padding: 0;
         position: relative;
         background-color: hsl(218, 8%, 30%);
-        border-radius: 3px;
+        border-radius: $pf-border-radius;
         box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4);
         border: 0;
         width: calc(var(--chan-width) * var(--chan-num));
@@ -88,7 +90,7 @@
         z-index: 2;
         text-transform: uppercase;
         font-size: 16px;
-        font-family: "Raleway";
+        font-family: "Roboto";
         font-weight: 400;
         letter-spacing: 0.3px;
       }
@@ -106,7 +108,7 @@
         left: 0;
         z-index: 1;
         border-radius: inherit;
-        @include transition();
+        @include transition(0.2s);
       }
 
       .home-page-reload {
@@ -114,7 +116,7 @@
         opacity: 0;
         color: #da4534;
         font-weight: 400;
-        @include transition();
+        @include transition(0.2s);
         &.show {
           opacity: 1;
         }
@@ -126,7 +128,7 @@
     grid-area: footer;
     text-decoration: none;
     font-family: "Roboto", sans-serif;
-    font-weight: 200;
+    font-weight: 400;
     color: #333;
     font-size: 15px;
   }
