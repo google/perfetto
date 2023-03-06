@@ -232,7 +232,7 @@ export class NotesPanel extends Panel {
     const prevBaseline = ctx.textBaseline;
     ctx.textBaseline = 'alphabetic';
     // Adjust height for icon font.
-    ctx.font = '24px Material Icons';
+    ctx.font = '24px Material Symbols Sharp';
     ctx.fillStyle = color;
     ctx.strokeStyle = color;
     // The ligatures have padding included that means the icon is not drawn

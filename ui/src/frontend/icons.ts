@@ -20,3 +20,4 @@ export const EXPAND_DOWN = 'expand_more';
 export const EXPAND_UP = 'expand_less';
 
 export const PIN = 'push_pin';
+export const STAR = 'star';
