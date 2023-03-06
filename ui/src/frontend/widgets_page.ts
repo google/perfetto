@@ -15,6 +15,7 @@
 import * as m from 'mithril';
 
 import {Anchor} from './anchor';
+import {classNames} from './classnames';
 import {globals} from './globals';
 import {createPage} from './pages';
 import {TableShowcase} from './tables/table_showcase';
@@ -105,6 +106,7 @@ type Options = {
 interface WidgetShowcaseAttrs {
   initialOpts?: Options;
   renderWidget: (options: any) => any;
+  wide?: boolean;
 }
 
 class EnumOption {
@@ -144,7 +146,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
     }
   }
 
-  view({attrs: {renderWidget}}: m.CVnode<WidgetShowcaseAttrs>) {
+  view({attrs: {renderWidget, wide}}: m.CVnode<WidgetShowcaseAttrs>) {
     const listItems = [];
 
     if (this.opts) {
@@ -159,7 +161,13 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       m(
           '.widget-block',
           m(
-              '.widget-container',
+              'div',
+              {
+                class: classNames(
+                    'widget-container',
+                    wide && 'widget-container-wide',
+                    ),
+              },
               renderWidget(this.optValues),
               ),
           this.renderOptions(listItems),
@@ -278,7 +286,7 @@ export const WidgetsPage = createPage({
         }),
         m('h2', 'Table'),
         m(WidgetShowcase,
-          {renderWidget: () => m(TableShowcase), initialOpts: {}}),
+          {renderWidget: () => m(TableShowcase), initialOpts: {}, wide: true}),
         m('h2', 'Portal'),
         m('p', `A portal is a div rendered out of normal flow of the
         hierarchy.`),
