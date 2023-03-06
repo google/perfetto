@@ -19,5 +19,4 @@ export const INDETERMINATE_CHECKBOX = 'indeterminate_check_box';
 export const EXPAND_DOWN = 'expand_more';
 export const EXPAND_UP = 'expand_less';
 
-export const STAR = 'star';
-export const STAR_BORDER = 'star_border';
+export const PIN = 'push_pin';
