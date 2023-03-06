@@ -21,6 +21,7 @@ import {TableShowcase} from './tables/table_showcase';
 import {Button} from './widgets/button';
 import {Checkbox} from './widgets/checkbox';
 import {EmptyState} from './widgets/empty_state';
+import {Icon} from './widgets/icon';
 import {Popup, PopupPosition} from './widgets/popup';
 import {Portal} from './widgets/portal';
 import {TextInput} from './widgets/text_input';
@@ -325,6 +326,10 @@ export const WidgetsPage = createPage({
           renderWidget: (opts) => m(ControlledPopup, opts),
           initialOpts: {},
         }),
-    );
+        m('h2', 'Icon'),
+        m(WidgetShowcase, {
+          renderWidget: (opts) => m(Icon, {icon: 'star', ...opts}),
+          initialOpts: {filled: false},
+        }));
   },
 });

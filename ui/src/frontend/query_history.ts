@@ -26,6 +26,7 @@ import {
   ValidatedType,
 } from '../controller/validators';
 import {assertTrue} from '../base/logging';
+import {Icon} from './widgets/icon';
 
 const QUERY_HISTORY_KEY = 'queryHistory';
 
@@ -67,8 +68,7 @@ export class HistoryItemComponent implements
                 globals.rafScheduler.scheduleFullRedraw();
               },
             },
-            m('i.material-icons',
-              vnode.attrs.entry.starred ? 'star' : 'star_outline')),
+            m(Icon, {icon: 'star', filled: vnode.attrs.entry.starred})),
           m('button',
             {
               onclick: () => {
@@ -76,7 +76,7 @@ export class HistoryItemComponent implements
                     {queryId: 'analyze-page-query', query}));
               },
             },
-            m('i.material-icons', 'play_arrow')),
+            m(Icon, {icon: 'play_arrow'})),
           m('button',
             {
               onclick: () => {
@@ -84,7 +84,7 @@ export class HistoryItemComponent implements
                 globals.rafScheduler.scheduleFullRedraw();
               },
             },
-            m('i.material-icons', 'delete'))),
+            m(Icon, {icon: 'delete'}))),
         m('pre', query));
   }
 }
