@@ -34,12 +34,10 @@ class FtraceProcfs {
   // Takes an optional |instance_path| such as "instances/wifi/", in which case
   // the returned object will be for that ftrace instance path.
   static std::unique_ptr<FtraceProcfs> CreateGuessingMountPoint(
-      const std::string& instance_path = "",
-      bool preserve_ftrace_buffer = false);
+      const std::string& instance_path = "");
 
-  static std::unique_ptr<FtraceProcfs> Create(
-      const std::string& root,
-      bool preserve_ftrace_buffer = false);
+  static std::unique_ptr<FtraceProcfs> Create(const std::string& root);
+
   static int g_kmesg_fd;
 
   explicit FtraceProcfs(const std::string& root);

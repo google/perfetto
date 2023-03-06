@@ -70,10 +70,7 @@ class FtraceController {
   };
 
   // The passed Observer must outlive the returned FtraceController instance.
-  // TODO(rsavitski): remove |preserve_ftrace_buffer|.
-  static std::unique_ptr<FtraceController> Create(base::TaskRunner*,
-                                                  Observer*,
-                                                  bool preserve_ftrace_buffer);
+  static std::unique_ptr<FtraceController> Create(base::TaskRunner*, Observer*);
   virtual ~FtraceController();
 
   bool AddDataSource(FtraceDataSource*) PERFETTO_WARN_UNUSED_RESULT;
