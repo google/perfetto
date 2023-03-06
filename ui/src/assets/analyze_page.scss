@@ -15,6 +15,8 @@
 .analyze-page {
   overflow-y: auto;
   overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
   .query-input {
     width: 100%;
     background-color: #111;
@@ -29,5 +31,6 @@
     padding: 0.5em;
     overflow: auto;
     resize: vertical;
+    outline: none;
   }
 }

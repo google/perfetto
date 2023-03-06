@@ -41,14 +41,14 @@
         padding: 3px 10px 0 10px;
         margin-top: 3px;
         font-size: 13px;
-        border-radius: 5px 5px 0 0;
-        background-color: hsla(0, 0%, 75%, 1);
-        border-top: solid 1px hsla(0, 0%, 75%, 1);
-        border-left: solid 1px hsla(0, 0%, 75%, 1);
+        border-radius: 3px 3px 0 0;
+        background-color: #0000000f;
         border-right: solid 1px hsla(0, 0%, 75%, 1);
         overflow: hidden;
         white-space: nowrap;
         text-overflow: ellipsis;
+        z-index: 5;
+        box-shadow: #0000003b 0px 0px 3px 1px;
 
         &[active] {
           background-color: white;
@@ -61,6 +61,10 @@
         &:hover {
           cursor: pointer;
           background-color: hsla(0, 0%, 85%, 1);
+        }
+
+        &:nth-child(1) {
+          margin-left: 3px;
         }
       }
     }
