@@ -167,8 +167,8 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
   }
 }
 
-const MARGIN_TOP = 4;
-const RECT_HEIGHT = 14;
+const MARGIN_TOP = 3;
+const RECT_HEIGHT = 12;
 const EXCESS_WIDTH = 10;
 
 class ThreadStateTrack extends Track<Config, Data> {
