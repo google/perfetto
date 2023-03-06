@@ -129,8 +129,7 @@ ProbesProducer::CreateDSInstance<FtraceDataSource>(
   ftrace_config.ParseFromString(config.ftrace_config_raw());
   // Lazily create on the first instance.
   if (!ftrace_) {
-    ftrace_ = FtraceController::Create(task_runner_, this,
-                                       ftrace_config.preserve_ftrace_buffer());
+    ftrace_ = FtraceController::Create(task_runner_, this);
 
     if (!ftrace_) {
       PERFETTO_ELOG("Failed to create FtraceController");
