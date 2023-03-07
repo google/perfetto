@@ -129,10 +129,13 @@ struct DataSourceTraits {
       perfetto::internal::DataSourceStaticState* static_state,
       perfetto::internal::TracingTLS* root_tls) {
     auto* ds_tls = &root_tls->data_sources_tls[static_state->index];
-    // The per-type TLS is either zero-initialized or must have been
-    // initialized for this specific data source type.
-    PERFETTO_DCHECK(!ds_tls->static_state ||
-                    ds_tls->static_state->index == static_state->index);
+    // ds_tls->static_state can be:
+    // * nullptr
+    // * equal to static_state
+    // * equal to the static state of a different data source, in tests (when
+    //   ResetForTesting() has been used)
+    // In any case, there's no need to do anything, the caller will reinitialize
+    // static_state.
     return ds_tls;
   }
 };
