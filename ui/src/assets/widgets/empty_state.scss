@@ -23,7 +23,7 @@
 
   & > i {
     margin: auto;
-    font-size: 5em; // Size of the icon is relative to the font size
+    font-size: 5em; // Size of the icon is relative to the font size.
     color: $pf-minimal-foreground;
     margin-bottom: 10px;
   }
@@ -31,6 +31,14 @@
   .pf-empty-state-header {
     margin-bottom: 10px;
     color: $pf-minimal-foreground;
+    text-align: center;
+
+    // Limit width to the size of the container and use no wrap & elipsis to
+    // stop the size getting out of control.
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .pf-empty-state-detail {

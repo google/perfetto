@@ -17,15 +17,34 @@ import * as m from 'mithril';
 import {Anchor} from './anchor';
 import {classNames} from './classnames';
 import {globals} from './globals';
+import {LIBRARY_ADD_CHECK} from './icons';
 import {createPage} from './pages';
 import {TableShowcase} from './tables/table_showcase';
 import {Button} from './widgets/button';
 import {Checkbox} from './widgets/checkbox';
 import {EmptyState} from './widgets/empty_state';
 import {Icon} from './widgets/icon';
+import {MultiSelect, MultiSelectDiff} from './widgets/multiselect';
 import {Popup, PopupPosition} from './widgets/popup';
 import {Portal} from './widgets/portal';
 import {TextInput} from './widgets/text_input';
+
+const options: {[key: string]: boolean} = {
+  foobar: false,
+  foo: false,
+  bar: false,
+  baz: false,
+  qux: false,
+  quux: false,
+  corge: false,
+  grault: false,
+  garply: false,
+  waldo: false,
+  fred: false,
+  plugh: false,
+  xyzzy: false,
+  thud: false,
+};
 
 function PortalButton() {
   let portalOpen = false;
@@ -338,6 +357,34 @@ export const WidgetsPage = createPage({
         m(WidgetShowcase, {
           renderWidget: (opts) => m(Icon, {icon: 'star', ...opts}),
           initialOpts: {filled: false},
-        }));
+        }),
+        m('h2', 'MultiSelect'),
+        m(WidgetShowcase, {
+          renderWidget: ({icon, ...rest}) => m(MultiSelect, {
+            options: Object.entries(options).map(([key, value]) => {
+              return {
+                id: key,
+                name: key,
+                checked: value,
+              };
+            }),
+            popupPosition: PopupPosition.Top,
+            label: 'Multi Select',
+            icon: icon ? LIBRARY_ADD_CHECK : undefined,
+            onChange: (diffs: MultiSelectDiff[]) => {
+              diffs.forEach(({id, checked}) => {
+                options[id] = checked;
+              });
+              globals.rafScheduler.scheduleFullRedraw();
+            },
+            ...rest,
+          }),
+          initialOpts: {
+            icon: true,
+            showNumSelected: true,
+            repeatCheckedItemsAtTop: true,
+          },
+        }),
+    );
   },
 });
