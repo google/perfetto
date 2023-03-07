@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "typefaces";
 @import "fonts";
 
 :root {
@@ -35,19 +36,7 @@
 }
 
 @mixin material-icon($content) {
-  direction: ltr;
-  display: inline-block;
-  font-family: "Material Icons";
-  font-size: 24px;
-  font-style: normal;
-  font-weight: normal;
-  letter-spacing: normal;
-  line-height: 1;
-  text-transform: none;
-  white-space: nowrap;
-  word-wrap: normal;
-  -webkit-font-feature-settings: "liga";
-  -webkit-font-smoothing: antialiased;
+  @include icon;
   content: $content;
 }
 
@@ -908,7 +897,7 @@ button.query-ctrl {
   button {
     margin: 0 0.5rem;
 
-    i.material-icons {
+    i.material-icons, i.material-icons-filled {
       font-size: 18px;
     }
   }

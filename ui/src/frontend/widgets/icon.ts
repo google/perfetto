@@ -1,4 +1,4 @@
-// Copyright (C) 2020 The Android Open Source Project
+// Copyright (C) 2023 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,11 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export const BLANK_CHECKBOX = 'check_box_outline_blank';
-export const CHECKBOX = 'check_box';
-export const INDETERMINATE_CHECKBOX = 'indeterminate_check_box';
+import * as m from 'mithril';
 
-export const EXPAND_DOWN = 'expand_more';
-export const EXPAND_UP = 'expand_less';
+export interface IconAttrs {
+  icon: string;
+  filled?: boolean;
+}
 
-export const PIN = 'push_pin';
+export class Icon implements m.ClassComponent<IconAttrs> {
+  view(vnode: m.Vnode<IconAttrs>): m.Child {
+    return m(
+        vnode.attrs.filled ? 'i.material-icons-filled' : 'i.material-icons',
+        vnode.attrs.icon);
+  }
+}
