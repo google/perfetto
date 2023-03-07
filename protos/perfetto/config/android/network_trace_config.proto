@@ -27,4 +27,28 @@ message NetworkPacketTraceConfig {
   // The minimum polling rate is 100ms (values below this are ignored).
   // Introduced in Android 14 (U).
   optional uint32 poll_ms = 1;
+
+  // The aggregation_threshold is the number of packets at which an event will
+  // switch from per-packet details to aggregate details. For example, a value
+  // of 50 means that if a particular event (grouped by the unique combinations
+  // of metadata fields: {interface, direction, uid, etc}) has fewer than 50
+  // packets, the exact timestamp and length are recorded for each packet. If
+  // there were 50 or more packets in an event, it would only record the total
+  // duration, packets, and length. A value of zero or unspecified will always
+  /// record per-packet details. A value of 1 always records aggregate details.
+  optional uint32 aggregation_threshold = 2;
+
+  // Specifies the maximum number of packet contexts to intern at a time. This
+  // prevents the interning table from growing too large and controls whether
+  // interning is enabled or disabled (a value of zero disables interning and
+  // is the default). When a data sources interning table reaches this amount,
+  // packet contexts will be inlined into NetworkPacketEvents.
+  optional uint32 intern_limit = 3;
+
+  // The following fields specify whether certain fields should be dropped from
+  // the output. Dropping fields improves normalization results, reduces the
+  // size of the interning table, and slightly reduces event size.
+  optional bool drop_local_port = 4;
+  optional bool drop_remote_port = 5;
+  optional bool drop_tcp_flags = 6;
 }

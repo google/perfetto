@@ -94,7 +94,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 92.
+// Next id: 93.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -202,6 +202,9 @@ message TracePacket {
 
     // Represents a single packet sent or received by the network.
     NetworkPacketEvent network_packet = 88;
+
+    // Represents one or more packets sent or received by the network.
+    NetworkPacketBundle network_packet_bundle = 92;
 
     // The "range of interest" for track events. See the message definition
     // comments for more details.
