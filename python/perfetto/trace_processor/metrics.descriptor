@@ -12,12 +12,13 @@
 
 debuggable (R
 debuggableJJJJ
-Ø
-Cprotos/perfetto/metrics/android/android_frame_timeline_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Ç
+¦
+Cprotos/perfetto/metrics/android/android_frame_timeline_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"•
 AndroidFrameTimelineMetric!
 total_frames (RtotalFrames*
-missed_app_frames (RmissedAppFramesV
-process (2<.perfetto.protos.AndroidFrameTimelineMetric.ProcessBreakdownRprocessû
+missed_app_frames (RmissedAppFrames%
+dropped_frames (RdroppedFramesV
+process (2<.perfetto.protos.AndroidFrameTimelineMetric.ProcessBreakdownRprocess¢
 ProcessBreakdownA
 process (2'.perfetto.protos.AndroidProcessMetadataRprocess!
 total_frames (RtotalFrames#
@@ -34,7 +35,8 @@ Cprotos/perfetto/metrics/android/android_frame_timeline_metric.protoperfetto.p
 frame_dur_ms_p50 (RframeDurMsP50'
 frame_dur_ms_p90 (RframeDurMsP90'
 frame_dur_ms_p95 (RframeDurMsP95'
-frame_dur_ms_p99 (RframeDurMsP99JJJ
+frame_dur_ms_p99 (RframeDurMsP99%
+dropped_frames (RdroppedFramesJJJ
 ¤
 1protos/perfetto/metrics/android/batt_metric.protoperfetto.protos"Ý
 AndroidBatteryMetric`

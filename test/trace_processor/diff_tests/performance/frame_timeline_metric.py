@@ -30,6 +30,7 @@ class JankType:
   JANK_BUFFER_STUFFING = 128
   JANK_UNKNOWN = 256
   JANK_SF_STUFFING = 512
+  JANK_DROPPED = 1024
 
 
 class PresentType:
@@ -123,5 +124,17 @@ trace.add_actual_surface_frame_start_event(
     gpu_composition=0,
     jank_type=JankType.JANK_SF_CPU_DEADLINE_MISSED,
     prediction_type=PredictionType.PREDICTION_VALID)
-trace.add_frame_end_event(ts=85, cookie=15)
+trace.add_actual_surface_frame_start_event(
+    ts=90,
+    cookie=15,
+    token=8,
+    display_frame_token=9,
+    pid=1003,
+    layer_name="Layer1",
+    present_type=PresentType.PRESENT_DROPPED,
+    on_time_finish=0,
+    gpu_composition=0,
+    jank_type=JankType.JANK_DROPPED,
+    prediction_type=PredictionType.PREDICTION_VALID)
+trace.add_frame_end_event(ts=95, cookie=15)
 sys.stdout.buffer.write(trace.trace.SerializeToString())

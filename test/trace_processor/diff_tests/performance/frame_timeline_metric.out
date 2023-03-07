@@ -1,6 +1,7 @@
 android_frame_timeline_metric {
-  total_frames: 5
+  total_frames: 6
   missed_app_frames: 3
+  dropped_frames: 1
 
   process {
     process {
@@ -16,6 +17,7 @@ android_frame_timeline_metric {
     frame_dur_p90: 33
     frame_dur_p95: 33
     frame_dur_p99: 33
+    dropped_frames: 0
   }
 
   process {
@@ -32,21 +34,23 @@ android_frame_timeline_metric {
     frame_dur_p90: 16
     frame_dur_p95: 16
     frame_dur_p99: 16
+    dropped_frames: 0
   }
   
   process {
     process {
       name: "process3"
     }
-    total_frames: 1
-    missed_frames: 1
+    total_frames: 2
+    missed_frames: 2
     missed_app_frames: 0
     missed_sf_frames: 1
-    frame_dur_max: 4
-    frame_dur_avg: 4
-    frame_dur_p50: 4
+    frame_dur_max: 5
+    frame_dur_avg: 2
+    frame_dur_p50: 2
     frame_dur_p90: 4
     frame_dur_p95: 4
     frame_dur_p99: 4
+    dropped_frames: 1
     }
 }
