@@ -25,16 +25,25 @@ export interface CheckboxAttrs {
   // events will be fired.
   // Defaults to false.
   disabled?: boolean;
+  // Extra classes
+  classes?: string|string[];
   // Remaining attributes forwarded to the underlying HTML <label>.
   [htmlAttrs: string]: any;
 }
 
 export class Checkbox implements m.ClassComponent<CheckboxAttrs> {
   view({attrs}: m.CVnode<CheckboxAttrs>) {
-    const {label, checked, disabled = false, ...htmlAttrs} = attrs;
+    const {
+      label,
+      checked,
+      disabled = false,
+      classes: extraClasses,
+      ...htmlAttrs
+    } = attrs;
 
     const classes = classNames(
         disabled && 'pf-disabled',
+        extraClasses,
     );
 
     // The default checkbox is removed and an entirely new one created inside
