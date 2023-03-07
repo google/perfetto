@@ -42,6 +42,7 @@ message FrameTimelineEvent {
     JANK_BUFFER_STUFFING = 128;
     JANK_UNKNOWN = 256;
     JANK_SF_STUFFING = 512;
+    JANK_DROPPED = 1024;
   };
 
   // Specifies how a frame was presented on screen w.r.t. timing.
