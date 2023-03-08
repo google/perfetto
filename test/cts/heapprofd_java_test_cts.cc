@@ -146,10 +146,13 @@ std::vector<protos::gen::TracePacket> TriggerOomHeapDump(std::string app_name,
   helper.StartTracing(trace_config);
   StartAppActivity(app_name, "JavaOomActivity", "target.app.running", &task_runner,
                    /*delay_ms=*/100);
+  task_runner.RunUntilCheckpoint("target.app.running", 10000 /*ms*/);
 
-  helper.WaitForTracingDisabled();
-  helper.ReadData();
-  helper.WaitForReadData();
+  if (SupportsOomHeapDump()) {
+    helper.WaitForTracingDisabled();
+    helper.ReadData();
+    helper.WaitForReadData();
+  }
 
   PERFETTO_CHECK(IsAppRunning(app_name));
   StopApp(app_name, "new.app.stopped", &task_runner);
