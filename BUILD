@@ -1787,6 +1787,8 @@ perfetto_filegroup(
         "src/trace_processor/prelude/functions/register_function.h",
         "src/trace_processor/prelude/functions/sqlite3_str_split.cc",
         "src/trace_processor/prelude/functions/sqlite3_str_split.h",
+        "src/trace_processor/prelude/functions/stack_functions.cc",
+        "src/trace_processor/prelude/functions/stack_functions.h",
         "src/trace_processor/prelude/functions/utils.h",
         "src/trace_processor/prelude/functions/window_functions.h",
     ],
@@ -1912,6 +1914,7 @@ perfetto_filegroup(
     name = "src_trace_processor_stdlib_experimental_experimental",
     srcs = [
         "src/trace_processor/stdlib/experimental/android_broadcast.sql",
+        "src/trace_processor/stdlib/experimental/proto_path.sql",
     ],
 )
 
@@ -4061,6 +4064,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/trace_processor/cloud_trace_processor.proto",
         "protos/perfetto/trace_processor/metatrace_categories.proto",
+        "protos/perfetto/trace_processor/stack.proto",
         "protos/perfetto/trace_processor/trace_processor.proto",
     ],
     visibility = [
