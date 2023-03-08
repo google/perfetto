@@ -21,6 +21,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "protos/perfetto/trace_processor/stack.pbzero.h"
 #include "protos/third_party/pprof/profile.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -62,8 +63,9 @@ class GProfileBuilder {
                   bool annotated);
   ~GProfileBuilder();
 
-  // Returns false if the callsite_id was not found and no sample was added.
-  bool AddSample(uint32_t callsite_id, const protozero::PackedVarInt& values);
+  // Returns false if the operation fails (e.g callsite_id was not found)
+  bool AddSample(const protos::pbzero::Stack_Decoder& stack,
+                 const protozero::PackedVarInt& values);
 
   // Finalizes the profile and returns the serialized proto. Can be called
   // multiple times but after the first invocation `AddSample` calls will have
@@ -267,7 +269,12 @@ class GProfileBuilder {
       uint64_t mapping_id);
 
   uint64_t WriteLocationIfNeeded(
-      const tables::StackProfileCallsiteTable::ConstRowReference& callsite);
+      const tables::StackProfileCallsiteTable::ConstRowReference& callsite) {
+    return WriteLocationIfNeeded(callsite.frame_id(), GetAnnotation(callsite));
+  }
+  uint64_t WriteLocationIfNeeded(FrameId frame_id,
+                                 CallsiteAnnotation annotation);
+  uint64_t WriteFakeLocationIfNeeded(const std::string& name);
 
   uint64_t WriteFunctionIfNeeded(
       const tables::SymbolTable::ConstRowReference& symbol,
@@ -278,6 +285,8 @@ class GProfileBuilder {
       const tables::StackProfileFrameTable::ConstRowReference& frame,
       CallsiteAnnotation annotation,
       uint64_t mapping_id);
+
+  uint64_t WriteFakeFunctionIfNeeded(int64_t name_id);
 
   uint64_t WriteMappingIfNeeded(
       const tables::StackProfileMappingTable::ConstRowReference& mapping);
@@ -297,6 +306,9 @@ class GProfileBuilder {
   // Goes over the list of staged mappings and tries to determine which is the
   // most likely main binary.
   base::Optional<uint64_t> GuessMainBinary() const;
+
+  bool AddSample(const protozero::PackedVarInt& location_ids,
+                 const protozero::PackedVarInt& values);
 
   // Profile proto being serialized.
   protozero::HeapBuffered<third_party::perftools::profiles::pbzero::Profile>
@@ -319,6 +331,7 @@ class GProfileBuilder {
   std::unordered_map<AnnotatedFrameId, uint64_t, AnnotatedFrameId::Hash>
       seen_functions_;
   std::unordered_map<MappingId, uint64_t> seen_mappings_;
+  std::unordered_map<int64_t, uint64_t> seen_fake_locations_;
 
   // Helpers to deduplicate entries. Map entity to its id. These also serve as a
   // staging area until written out to the profile proto during `Finalize`. Ids

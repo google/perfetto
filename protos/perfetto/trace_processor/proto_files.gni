@@ -18,4 +18,5 @@ trace_processor_protos = [
   "cloud_trace_processor",
   "trace_processor",
   "metatrace_categories",
+  "stack",
 ]

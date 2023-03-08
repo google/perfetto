@@ -161,6 +161,7 @@ struct PERFETTO_EXPORT_COMPONENT SqlValue {
     kDouble,
     kString,
     kBytes,
+    kLastType = kBytes,
   };
 
   SqlValue() = default;
