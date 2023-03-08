@@ -198,27 +198,6 @@
         display: inline-flex;
         justify-content: flex-end;
       }
-      button {
-        width: fit-content;
-        height: 20px;
-        padding: 3px;
-        padding-top: 0;
-        margin: 2px;
-        font-size: 12px;
-        opacity: 0.5;
-        &.download {
-          opacity: 1;
-          padding-top: 3px;
-          height: 21px;
-        }
-        &.chosen {
-          opacity: 1;
-        }
-        .material-icons {
-          font-size: 15px;
-          margin-right: 3px;
-        }
-      }
       .title {
         justify-self: start;
         margin-left: 5px;
@@ -278,19 +257,6 @@
 
   .auto-layout {
     table-layout: auto;
-  }
-
-  button {
-    background-color: #262f3c;
-    color: #fff;
-    font-size: 0.875rem;
-    padding-left: 1rem;
-    padding-right: 1rem;
-    padding-top: 0.5rem;
-    padding-bottom: 0.5rem;
-    border-radius: 0.25rem;
-    margin-top: 12px;
-    margin-left: 10px;
   }
 
   .slice-details-latency-panel {
