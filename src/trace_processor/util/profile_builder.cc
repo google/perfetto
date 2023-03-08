@@ -17,8 +17,10 @@
 #include "src/trace_processor/util/profile_builder.h"
 #include <algorithm>
 #include <cstdint>
+#include <deque>
 #include <iostream>
 #include <iterator>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/optional.h"
@@ -26,12 +28,15 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/trace_processor/demangle.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/annotated_callsites.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace {
+
+using protos::pbzero::Stack;
 
 base::StringView ToString(CallsiteAnnotation annotation) {
   switch (annotation) {
@@ -218,12 +223,9 @@ void GProfileBuilder::WriteSampleTypes(
   }
 }
 
-bool GProfileBuilder::AddSample(uint32_t callsite_id,
+bool GProfileBuilder::AddSample(const protozero::PackedVarInt& location_ids,
                                 const protozero::PackedVarInt& values) {
   PERFETTO_CHECK(!finalized_);
-
-  const protozero::PackedVarInt& location_ids =
-      GetLocationIdsForCallsite(CallsiteId(callsite_id));
   if (location_ids.size() == 0) {
     return false;
   }
@@ -231,6 +233,50 @@ bool GProfileBuilder::AddSample(uint32_t callsite_id,
   sample->set_value(values);
   sample->set_location_id(location_ids);
   return true;
+}
+
+bool GProfileBuilder::AddSample(const Stack::Decoder& stack,
+                                const protozero::PackedVarInt& values) {
+  PERFETTO_CHECK(!finalized_);
+
+  auto it = stack.entries();
+  if (!it) {
+    return true;
+  }
+
+  auto next = it;
+  ++next;
+  if (!next) {
+    Stack::Entry::Decoder entry(it->as_bytes());
+    if (entry.has_callsite_id()) {
+      return AddSample(
+          GetLocationIdsForCallsite(CallsiteId(entry.callsite_id())), values);
+    }
+  }
+
+  // Note pprof orders the stacks leafs first. That is also the ordering
+  // StackBlob uses for entries
+  protozero::PackedVarInt location_ids;
+  for (; it; ++it) {
+    Stack::Entry::Decoder entry(it->as_bytes());
+    if (entry.has_name()) {
+      location_ids.Append(
+          WriteFakeLocationIfNeeded(entry.name().ToStdString()));
+    } else if (entry.has_callsite_id()) {
+      const protozero::PackedVarInt& ids =
+          GetLocationIdsForCallsite(CallsiteId(entry.callsite_id()));
+      for (auto* p = ids.data(); p < ids.data() + ids.size();) {
+        uint64_t location_id;
+        p = protozero::proto_utils::ParseVarInt(p, ids.data() + ids.size(),
+                                                &location_id);
+        location_ids.Append(location_id);
+      }
+    } else if (entry.has_frame_id()) {
+      location_ids.Append(WriteLocationIfNeeded(FrameId(entry.frame_id()),
+                                                CallsiteAnnotation::kNone));
+    }
+  }
+  return AddSample(location_ids, values);
 }
 
 void GProfileBuilder::Finalize() {
@@ -286,9 +332,9 @@ const protozero::PackedVarInt& GProfileBuilder::GetLocationIdsForCallsite(
   return location_ids;
 }
 
-uint64_t GProfileBuilder::WriteLocationIfNeeded(
-    const tables::StackProfileCallsiteTable::ConstRowReference& callsite) {
-  AnnotatedFrameId key{callsite.frame_id(), GetAnnotation(callsite)};
+uint64_t GProfileBuilder::WriteLocationIfNeeded(FrameId frame_id,
+                                                CallsiteAnnotation annotation) {
+  AnnotatedFrameId key{frame_id, annotation};
   auto it = seen_locations_.find(key);
   if (it != seen_locations_.end()) {
     return it->second;
@@ -314,14 +360,34 @@ uint64_t GProfileBuilder::WriteLocationIfNeeded(
   return id;
 }
 
+uint64_t GProfileBuilder::WriteFakeLocationIfNeeded(const std::string& name) {
+  int64_t name_id = string_table_.InternString(base::StringView(name));
+  auto it = seen_fake_locations_.find(name_id);
+  if (it != seen_fake_locations_.end()) {
+    return it->second;
+  }
+
+  uint64_t& id =
+      locations_[Location{0, 0, {{WriteFakeFunctionIfNeeded(name_id), 0}}}];
+
+  if (id == 0) {
+    id = locations_.size();
+  }
+
+  seen_fake_locations_.insert({name_id, id});
+
+  return id;
+}
+
 void GProfileBuilder::WriteLocations() {
   for (const auto& entry : locations_) {
     auto* location = result_->add_location();
     location->set_id(entry.second);
     location->set_mapping_id(entry.first.mapping_id);
-    location->set_address(entry.first.rel_pc +
-                          GetMapping(entry.first.mapping_id).memory_start);
-
+    if (entry.first.mapping_id != 0) {
+      location->set_address(entry.first.rel_pc +
+                            GetMapping(entry.first.mapping_id).memory_start);
+    }
     for (const Line& line : entry.first.lines) {
       auto* l = location->add_line();
       l->set_function_id(line.function_id);
@@ -378,6 +444,13 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForSymbolSetId(
   GetMapping(mapping_id).debug_info.has_line_numbers = true;
 
   return lines;
+}
+
+uint64_t GProfileBuilder::WriteFakeFunctionIfNeeded(int64_t name_id) {
+  auto ins = functions_.insert(
+      {Function{name_id, kEmptyStringIndex, kEmptyStringIndex},
+       functions_.size() + 1});
+  return ins.first->second;
 }
 
 uint64_t GProfileBuilder::WriteFunctionIfNeeded(
