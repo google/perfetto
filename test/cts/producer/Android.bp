@@ -33,6 +33,7 @@ android_test_helper_app {
     compile_multilib: "both",
     srcs: ["src/**/*.java"],
     sdk_version: "current",
+    min_sdk_version: "31",
     jni_libs: [
         "libperfettocts_jni",
     ],
