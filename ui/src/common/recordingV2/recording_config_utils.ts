@@ -28,6 +28,7 @@ import {
   JavaHprofConfig,
   MeminfoCounters,
   NativeContinuousDumpConfig,
+  NetworkPacketTraceConfig,
   ProcessStatsConfig,
   SysStatsConfig,
   TraceConfig,
@@ -365,6 +366,25 @@ export function genTraceConfig(
     ds.config.name = 'android.game_interventions';
     if (targetInfo.targetType !== 'CHROME') {
       protoCfg.dataSources.push(ds);
+    }
+  }
+
+  if (uiCfg.androidNetworkTracing) {
+    if (targetInfo.targetType !== 'CHROME') {
+      const net = new TraceConfig.DataSource();
+      net.config = new DataSourceConfig();
+      net.config.name = 'android.network_packets';
+      net.config.networkPacketTraceConfig = new NetworkPacketTraceConfig();
+      net.config.networkPacketTraceConfig.pollMs =
+          uiCfg.androidNetworkTracingPollMs;
+      protoCfg.dataSources.push(net);
+
+      // Record package info so that Perfetto can display the package name for
+      // network packet events based on the event uid.
+      const pkg = new TraceConfig.DataSource();
+      pkg.config = new DataSourceConfig();
+      pkg.config.name = 'android.packages_list';
+      protoCfg.dataSources.push(pkg);
     }
   }
 
