@@ -25,6 +25,7 @@ source_set("shared_lib") {
     "heap_buffer.cc",
     "pb_decoder.cc",
     "producer.cc",
+    "reset_for_testing.h",
     "stream_writer.cc",
     "stream_writer.h",
     "tracing_session.cc",

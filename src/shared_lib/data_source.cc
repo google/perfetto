@@ -22,6 +22,7 @@
 #include "perfetto/tracing/internal/basic_types.h"
 #include "protos/perfetto/common/data_source_descriptor.gen.h"
 #include "protos/perfetto/config/data_source_config.gen.h"
+#include "src/shared_lib/reset_for_testing.h"
 #include "src/shared_lib/stream_writer.h"
 
 namespace {
@@ -69,6 +70,22 @@ struct PerfettoDsImpl {
            perfetto::internal::kMaxDataSources;
   }
 };
+
+namespace perfetto {
+namespace shlib {
+
+// These are only exposed to tests.
+
+void ResetDataSourceTls() {
+  memset(g_tls_cache, 0, sizeof(g_tls_cache));
+}
+
+void DsImplDestroy(struct PerfettoDsImpl* ds_impl) {
+  delete ds_impl;
+}
+
+}  // namespace shlib
+}  // namespace perfetto
 
 namespace {
 

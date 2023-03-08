@@ -60,6 +60,10 @@ namespace base {
 class TaskRunner;
 }
 
+namespace shlib {
+void ResetForTesting();
+}
+
 namespace test {
 class TracingMuxerImplInternalsForTest;
 }
@@ -191,6 +195,7 @@ class TracingMuxerImpl : public TracingMuxer {
 
  private:
   friend class test::TracingMuxerImplInternalsForTest;
+  friend void shlib::ResetForTesting();
 
   // For each TracingBackend we create and register one ProducerImpl instance.
   // This talks to the producer-side of the service, gets start/stop requests
