@@ -196,3 +196,26 @@ class Android(TestSuite):
         trace=DataPath('android_binder_metric_trace.atr'),
         query=Metric('android_binder'),
         out=Path('android_binder_metric.out'))
+
+  def test_android_blocking_calls_cuj(self):
+    return DiffTestBlueprint(
+        trace=Path('android_blocking_calls_cuj_metric.py'),
+        query=Metric('android_blocking_calls_cuj_metric'),
+        out=Path('android_blocking_calls_cuj_metric.out'))
+
+  def test_android_blocking_calls_on_jank_cujs(self):
+    return DiffTestBlueprint(
+        trace=Path('../graphics/android_jank_cuj.py'),
+        query=Metric('android_blocking_calls_cuj_metric'),
+        out=Path('android_blocking_calls_on_jank_cuj_metric.out'))
+
+  def test_android_slices_standardization_for_aggregation(self):
+    return DiffTestBlueprint(
+        trace=Path('android_slice_standardization.py'),
+        query="""
+        SELECT IMPORT('android.slices');
+        SELECT ANDROID_STANDARDIZE_SLICE_NAME(slice.name) name
+        FROM slice
+        ORDER BY name;
+        """,
+        out=Path('android_slice_standardization.out'))

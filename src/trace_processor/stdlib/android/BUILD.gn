@@ -20,5 +20,6 @@ perfetto_sql_source_set("android") {
     "battery.sql",
     "binder.sql",
     "process_metadata.sql",
+    "slices.sql",
   ]
 }
