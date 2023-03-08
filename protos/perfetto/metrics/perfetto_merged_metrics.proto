@@ -47,6 +47,47 @@ message AndroidProcessMetadata {
 
 // End of protos/perfetto/metrics/android/process_metadata.proto
 
+// Begin of protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto
+
+// Blocking calls inside Android CUJs. Shows count and total duration for each.
+message AndroidBlockingCallsCujMetric {
+  repeated Cuj cuj = 1;
+
+  // Next id: 7
+  message Cuj {
+    // ID of the CUJ that is unique within the trace.
+    optional int32 id = 1;
+
+    // Name of the CUJ, extracted from the CUJ jank or latency trace marker.
+    // For example SHADE_EXPAND_COLLAPSE from J<SHADE_EXPAND_COLLAPSE>.
+    optional string name = 2;
+
+    // Details about the process (uid, version, etc)
+    optional AndroidProcessMetadata process = 3;
+
+    // ts of the CUJ trace marker slice, in ns.
+    optional int64 ts = 4;
+
+    // dur of the CUJ trace marker slice, in ns.
+    optional int64 dur = 5;
+
+    // List of blocking calls on the process main thread.
+    repeated BlockingCall blocking_calls = 6;
+  }
+
+  // Blocking call on the main thread.
+  message BlockingCall {
+    // Name of the blocking call
+    optional string name = 1;
+    // Number of times it happened within the CUJ
+    optional int64 cnt = 2;
+    // Total duration within the CUJ
+    optional int64 total_dur_ms = 3;
+  }
+}
+
+// End of protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto
+
 // Begin of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
 
 message AndroidFrameTimelineMetric {
@@ -1806,7 +1847,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 49
+// Next id: 50
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -1937,6 +1978,9 @@ message TraceMetrics {
 
   // Metrics for app deadline missed.
   optional AndroidFrameTimelineMetric android_frame_timeline_metric = 47;
+
+  // Blocking calls (e.g. binder calls) for CUJs (important UI transitions).
+  optional AndroidBlockingCallsCujMetric android_blocking_calls_cuj_metric = 49;
 
   // Demo extensions.
   extensions 450 to 499;
