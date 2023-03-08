@@ -27,6 +27,7 @@ import {Icon} from './widgets/icon';
 import {MultiSelect, MultiSelectDiff} from './widgets/multiselect';
 import {Popup, PopupPosition} from './widgets/popup';
 import {Portal} from './widgets/portal';
+import {Select} from './widgets/select';
 import {TextInput} from './widgets/text_input';
 
 const options: {[key: string]: boolean} = {
@@ -223,7 +224,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       return m('option', {value: option}, option);
     });
     return m(
-        'select',
+        Select,
         {
           value: this.optValues[key],
           onchange: (e: Event) => {
@@ -273,6 +274,20 @@ export const WidgetsPage = createPage({
           }),
           initialOpts: {
             placeholder: true,
+            disabled: false,
+          },
+        }),
+        m('h2', 'Select'),
+        m(WidgetShowcase, {
+          renderWidget: (opts) =>
+              m(Select,
+                opts,
+                [
+                  m('option', {value: 'foo', label: 'Foo'}),
+                  m('option', {value: 'bar', label: 'Bar'}),
+                  m('option', {value: 'baz', label: 'Baz'}),
+                ]),
+          initialOpts: {
             disabled: false,
           },
         }),
