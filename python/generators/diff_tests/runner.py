@@ -175,8 +175,10 @@ class TestCaseRunner:
                        'pprof', 'profile.descriptor'))
       proto = create_message_factory(descriptor_paths, out.message_type)()
       proto.ParseFromString(raw_data)
-      if out.post_processing:
-        out.post_processing(proto)
+      try:
+        return out.post_processing(proto)
+      except:
+        return '<Proto post processing failed>'
       return text_format.MessageToString(proto)
     except:
       return '<Invalid input for proto deserializaiton>'

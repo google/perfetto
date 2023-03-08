@@ -20,6 +20,8 @@ from typing import List, Union, Callable
 from enum import Enum
 import re
 
+from google.protobuf import text_format
+
 TestName = str
 
 
@@ -62,7 +64,7 @@ class BinaryProto:
   # that will be called with the actual proto message object before converting
   # it to text representation and doing the comparison with `contents`. This
   # gives us a chance to e.g. sort messages in a repeated field.
-  post_processing: Union[Callable, None] = None
+  post_processing: Callable = text_format.MessageToString
 
 
 @dataclass
