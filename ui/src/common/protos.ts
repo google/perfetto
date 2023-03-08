@@ -25,6 +25,8 @@ import BufferConfig = protos.perfetto.protos.TraceConfig.BufferConfig;
 import ChromeConfig = protos.perfetto.protos.ChromeConfig;
 import TrackEventConfig = protos.perfetto.protos.TrackEventConfig;
 import ConsumerPort = protos.perfetto.protos.ConsumerPort;
+import NetworkPacketTraceConfig =
+    protos.perfetto.protos.NetworkPacketTraceConfig;
 import NativeContinuousDumpConfig =
     protos.perfetto.protos.HeapprofdConfig.ContinuousDumpConfig;
 import JavaContinuousDumpConfig =
@@ -112,6 +114,7 @@ export {
   JavaHprofConfig,
   MeminfoCounters,
   NativeContinuousDumpConfig,
+  NetworkPacketTraceConfig,
   ProcessStatsConfig,
   PerfettoMetatrace,
   ReadBuffersRequest,
