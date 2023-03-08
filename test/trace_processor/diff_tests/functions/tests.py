@@ -14,9 +14,15 @@
 # limitations under the License.
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric
-from python.generators.diff_tests.testing import Csv, Json, TextProto
+from python.generators.diff_tests.testing import Csv, Json, TextProto, BinaryProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
+
+
+def SortProfileProto(profile):
+  profile.location.sort(key=lambda l: l.id)
+  profile.function.sort(key=lambda f: f.id)
+  profile.mapping.sort(key=lambda m: m.id)
 
 
 class Functions(TestSuite):
@@ -219,4 +225,223 @@ class Functions(TestSuite):
         out=Csv("""
         "dur"
         0
+        """))
+
+  def test_stacks(self):
+    return DiffTestBlueprint(
+        trace=DataPath("perf_sample.pb"),
+        query="""
+        SELECT HEX(
+          CAT_STACKS(
+            "A",
+            CAT_STACKS(
+              "B",
+              CAT_STACKS(
+                "C",
+                STACK_FROM_STACK_PROFILE_CALLSITE(5),
+                "D")
+              ),
+            "E",
+            NULL,
+            STACK_FROM_STACK_PROFILE_CALLSITE(14),
+            STACK_FROM_STACK_PROFILE_CALLSITE(NULL),
+            STACK_FROM_STACK_PROFILE_FRAME(4),
+            STACK_FROM_STACK_PROFILE_FRAME(NULL)))
+        """,
+        out=BinaryProto(
+            message_type="perfetto.protos.Stack",
+            contents="""
+              entries {
+                frame_id: 4
+              }
+              entries {
+                callsite_id: 14
+              }
+              entries {
+                name: "E"
+              }
+              entries {
+                name: "D"
+              }
+              entries {
+                callsite_id: 5
+              }
+              entries {
+                name: "C"
+              }
+              entries {
+                name: "B"
+              }
+              entries {
+                name: "A"
+              }
+        """))
+
+  def test_profile_default_sample_types(self):
+    return DiffTestBlueprint(
+        trace=DataPath("perf_sample.pb"),
+        query="""
+        SELECT HEX(
+          EXPERIMENTAL_PROFILE(
+            CAT_STACKS(
+              "A",
+              STACK_FROM_STACK_PROFILE_CALLSITE(2),
+              "B"
+        )))
+        """,
+        out=BinaryProto(
+            message_type="perfetto.third_party.perftools.profiles.Profile",
+            post_processing=SortProfileProto,
+            contents="""
+            sample_type {
+              type: 1
+              unit: 2
+            }
+            sample {
+              location_id: 1
+              location_id: 2
+              location_id: 3
+              location_id: 4
+              location_id: 5
+              value: 1
+            }
+            mapping {
+              id: 1
+              memory_start: 525083627520
+              memory_limit: 525084442624
+              file_offset: 155648
+              filename: 5
+              build_id: 4
+              has_functions: true
+            }
+            mapping {
+              id: 2
+              memory_start: 525082697728
+              memory_limit: 525083201536
+              file_offset: 241664
+              filename: 11
+              build_id: 10
+              has_functions: true
+            }
+            location {
+              id: 1
+              line {
+                function_id: 1
+              }
+            }
+            location {
+              id: 2
+              mapping_id: 1
+              address: 525084062512
+              line {
+                function_id: 2
+              }
+            }
+            location {
+              id: 3
+              mapping_id: 1
+              address: 525084370520
+              line {
+                function_id: 3
+              }
+            }
+            location {
+              id: 4
+              mapping_id: 2
+              address: 525082997664
+              line {
+                function_id: 4
+              }
+            }
+            location {
+              id: 5
+              line {
+                function_id: 5
+              }
+            }
+            function {
+              id: 1
+              name: 3
+            }
+            function {
+              id: 2
+              name: 7
+              system_name: 6
+            }
+            function {
+              id: 3
+              name: 9
+              system_name: 8
+            }
+            function {
+              id: 4
+              name: 12
+              system_name: 12
+            }
+            function {
+              id: 5
+              name: 13
+            }
+            string_table: ""
+            string_table: "samples"
+            string_table: "count"
+            string_table: "B"
+            string_table: "ec2fd72b19ae22c597fdd10451c25026"
+            string_table: "/system/lib64/libperfetto.so"
+            string_table: "_ZN8perfetto4base14UnixTaskRunner3RunEv"
+            string_table: "perfetto::base::UnixTaskRunner::Run()"
+            string_table: "_ZN8perfetto11ServiceMainEiPPc"
+            string_table: "perfetto::ServiceMain(int, char**)"
+            string_table: "04f0867d28ed6d6d36d30798cfe738ac"
+            string_table: "/apex/com.android.runtime/lib64/bionic/libc.so"
+            string_table: "__libc_init"
+            string_table: "A"
+        """))
+
+  def test_profile_with_sample_types(self):
+    return DiffTestBlueprint(
+        trace=DataPath("perf_sample.pb"),
+        query="""
+        SELECT HEX(
+          EXPERIMENTAL_PROFILE(
+            CAT_STACKS("A", "B"), "type", "units", 42))
+        """,
+        out=BinaryProto(
+            message_type="perfetto.third_party.perftools.profiles.Profile",
+            post_processing=SortProfileProto,
+            contents="""
+            sample_type {
+              type: 1
+              unit: 2
+            }
+            sample {
+              location_id: 1
+              location_id: 2
+              value: 42
+            }
+            location {
+              id: 1
+              line {
+                function_id: 1
+              }
+            }
+            location {
+              id: 2
+              line {
+                function_id: 2
+              }
+            }
+            function {
+              id: 1
+              name: 3
+            }
+            function {
+              id: 2
+              name: 4
+            }
+            string_table: ""
+            string_table: "type"
+            string_table: "units"
+            string_table: "B"
+            string_table: "A"
         """))

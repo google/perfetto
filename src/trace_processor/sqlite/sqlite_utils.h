@@ -19,12 +19,15 @@
 
 #include <math.h>
 #include <sqlite3.h>
+#include <bitset>
 #include <cstddef>
 #include <cstring>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -250,6 +253,60 @@ base::Status TypeCheckSqliteValue(sqlite3_value* value,
 base::Status TypeCheckSqliteValue(sqlite3_value* value,
                                   SqlValue::Type expected_type,
                                   const char* expected_type_str);
+
+namespace internal {
+
+static_assert(sizeof(size_t) * 8 > SqlValue::kLastType);
+using ExpectedTypesSet = std::bitset<SqlValue::kLastType + 1>;
+
+template <typename... args>
+constexpr ExpectedTypesSet ToExpectedTypesSet(args... expected_type_args) {
+  ExpectedTypesSet set;
+  for (const SqlValue::Type t : {expected_type_args...}) {
+    set.set(static_cast<size_t>(t));
+  }
+  return set;
+}
+
+base::StatusOr<SqlValue> ExtractArgument(size_t argc,
+                                         sqlite3_value** argv,
+                                         const char* argument_name,
+                                         size_t arg_index,
+                                         ExpectedTypesSet expected_types);
+base::Status InvalidArgumentTypeError(const char* argument_name,
+                                      size_t arg_index,
+                                      SqlValue::Type actual_type,
+                                      ExpectedTypesSet expected_types);
+}  // namespace internal
+
+template <typename... args>
+base::Status InvalidArgumentTypeError(const char* argument_name,
+                                      size_t arg_index,
+                                      SqlValue::Type actual_type,
+                                      SqlValue::Type expected_type,
+                                      args... expected_type_args) {
+  return internal::InvalidArgumentTypeError(
+      argument_name, arg_index, actual_type,
+      internal::ToExpectedTypesSet(expected_type, expected_type_args...));
+}
+
+base::Status MissingArgumentError(const char* argument_name);
+
+base::Status ToInvalidArgumentError(const char* argument_name,
+                                    size_t arg_index,
+                                    const base::Status error);
+
+template <typename... args>
+base::StatusOr<SqlValue> ExtractArgument(size_t argc,
+                                         sqlite3_value** argv,
+                                         const char* argument_name,
+                                         size_t arg_index,
+                                         SqlValue::Type expected_type,
+                                         args... expected_type_args) {
+  return internal::ExtractArgument(
+      argc, argv, argument_name, arg_index,
+      internal::ToExpectedTypesSet(expected_type, expected_type_args...));
+}
 
 }  // namespace sqlite_utils
 }  // namespace trace_processor
