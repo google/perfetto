@@ -21,3 +21,9 @@ perfetto_proto_library("@TYPE@") {
   ]
   sources = [ "profile.proto" ]
 }
+
+perfetto_proto_library("profile_descriptor") {
+  proto_generators = [ "descriptor" ]
+  generate_descriptor = "profile.descriptor"
+  sources = [ "profile.proto" ]
+}

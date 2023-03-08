@@ -62,6 +62,7 @@
 #include "src/trace_processor/prelude/functions/pprof_functions.h"
 #include "src/trace_processor/prelude/functions/register_function.h"
 #include "src/trace_processor/prelude/functions/sqlite3_str_split.h"
+#include "src/trace_processor/prelude/functions/stack_functions.h"
 #include "src/trace_processor/prelude/functions/utils.h"
 #include "src/trace_processor/prelude/functions/window_functions.h"
 #include "src/trace_processor/prelude/operators/span_join_operator.h"
@@ -747,6 +748,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // functions are supported.
   RegisterLastNonNullFunction(db);
   RegisterValueAtMaxTsFunction(db);
+  {
+    base::Status status = RegisterStackFunctions(db, &context_);
+    if (!status.ok())
+      PERFETTO_ELOG("%s", status.c_message());
+  }
   {
     base::Status status = PprofFunctions::Register(db, &context_);
     if (!status.ok())
