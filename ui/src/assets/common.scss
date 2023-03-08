@@ -379,7 +379,7 @@ $bottom-tab-padding: 10px;
 
   .track-shell {
     @include transition();
-    padding-left: 5px;
+    padding-left: 10px;
     display: grid;
     cursor: grab;
     grid-template-areas: "title buttons";
