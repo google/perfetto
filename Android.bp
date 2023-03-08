@@ -6787,6 +6787,7 @@ genrule {
     srcs: [
         "protos/perfetto/trace_processor/cloud_trace_processor.proto",
         "protos/perfetto/trace_processor/metatrace_categories.proto",
+        "protos/perfetto/trace_processor/stack.proto",
         "protos/perfetto/trace_processor/trace_processor.proto",
     ],
     tools: [
@@ -6797,6 +6798,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace_processor/cloud_trace_processor.pbzero.cc",
         "external/perfetto/protos/perfetto/trace_processor/metatrace_categories.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace_processor/stack.pbzero.cc",
         "external/perfetto/protos/perfetto/trace_processor/trace_processor.pbzero.cc",
     ],
 }
@@ -6807,6 +6809,7 @@ genrule {
     srcs: [
         "protos/perfetto/trace_processor/cloud_trace_processor.proto",
         "protos/perfetto/trace_processor/metatrace_categories.proto",
+        "protos/perfetto/trace_processor/stack.proto",
         "protos/perfetto/trace_processor/trace_processor.proto",
     ],
     tools: [
@@ -6817,6 +6820,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace_processor/cloud_trace_processor.pbzero.h",
         "external/perfetto/protos/perfetto/trace_processor/metatrace_categories.pbzero.h",
+        "external/perfetto/protos/perfetto/trace_processor/stack.pbzero.h",
         "external/perfetto/protos/perfetto/trace_processor/trace_processor.pbzero.h",
     ],
     export_include_dirs: [
@@ -9880,6 +9884,7 @@ filegroup {
         "src/trace_processor/prelude/functions/pprof_functions.cc",
         "src/trace_processor/prelude/functions/register_function.cc",
         "src/trace_processor/prelude/functions/sqlite3_str_split.cc",
+        "src/trace_processor/prelude/functions/stack_functions.cc",
     ],
 }
 
@@ -10000,6 +10005,7 @@ genrule {
         "src/trace_processor/stdlib/common/slices.sql",
         "src/trace_processor/stdlib/common/timestamps.sql",
         "src/trace_processor/stdlib/experimental/android_broadcast.sql",
+        "src/trace_processor/stdlib/experimental/proto_path.sql",
     ],
     cmd: "$(location tools/gen_amalgamated_sql.py) --namespace=stdlib --cpp-out=$(out) $(in)",
     out: [
