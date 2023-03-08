@@ -20,3 +20,10 @@ export const EXPAND_DOWN = 'expand_more';
 export const EXPAND_UP = 'expand_less';
 
 export const PIN = 'push_pin';
+
+export const LIBRARY_ADD_CHECK = 'library_add_check';
+
+export const SELECT_ALL = 'select_all';
+export const DESELECT = 'deselect';
+
+export const STAR = 'star';

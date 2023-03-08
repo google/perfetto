@@ -30,7 +30,9 @@ SELECT
   SUM(jank_type GLOB '*App Deadline Missed*'
     OR jank_type GLOB '*SurfaceFlinger*'
     OR jank_type GLOB '*Prediction Error*'
-    OR jank_type GLOB '*Display HAL*') AS missed_frames,
+    OR jank_type GLOB '*Display HAL*'
+    OR jank_type GLOB '*Dropped Frame*') AS missed_frames,
+  SUM(jank_type GLOB '*Dropped Frame*') AS dropped_frames,
   CAST(PERCENTILE(dur, 50) AS INTEGER) AS frame_dur_p50,
   CAST(PERCENTILE(dur, 90) AS INTEGER) AS frame_dur_p90,
   CAST(PERCENTILE(dur, 95) AS INTEGER) AS frame_dur_p95,
@@ -53,6 +55,7 @@ SELECT
   AndroidFrameTimelineMetric(
     'total_frames', SUM(total_frames),
     'missed_app_frames', SUM(missed_app_frames),
+    'dropped_frames', SUM(dropped_frames),
     'process', (
       SELECT
         RepeatedField(
@@ -67,6 +70,7 @@ SELECT
             'frame_dur_p50', frame_dur_p50,
             'frame_dur_p90', frame_dur_p90,
             'frame_dur_p95', frame_dur_p95,
-            'frame_dur_p99', frame_dur_p99))
+            'frame_dur_p99', frame_dur_p99,
+            'dropped_frames', dropped_frames))
       FROM android_frame_timeline_metric_per_process))
 FROM android_frame_timeline_metric_per_process;

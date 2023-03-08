@@ -93,7 +93,7 @@ const KERNEL_WAKELOCK_REGEX = new RegExp('^Wakelock.*$');
 const KERNEL_WAKELOCK_GROUP = 'Kernel wakelocks';
 const NETWORK_TRACK_REGEX = new RegExp('^.* (Received|Transmitted)( KB)?$');
 const NETWORK_TRACK_GROUP = 'Networking';
-const ENTITY_RESIDENCY_REGEX = new RegExp('^Entity residency: (.*)$');
+const ENTITY_RESIDENCY_REGEX = new RegExp('^Entity residency:');
 const ENTITY_RESIDENCY_GROUP = 'Entity residency';
 
 // Sets the default 'scale' for counter tracks. If the regex matches
@@ -632,17 +632,11 @@ class TrackDecider {
     }
   }
 
-  async groupTracksByRegex(
-      regex: RegExp, groupName: string,
-      renameToCapturingGroup?: number): Promise<void> {
+  async groupTracksByRegex(regex: RegExp, groupName: string): Promise<void> {
     let groupUuid = undefined;
 
     for (const track of this.tracksToAdd) {
-      const matches = regex.exec(track.name);
-      if (matches !== null) {
-        if (renameToCapturingGroup) {
-          track.name = matches[renameToCapturingGroup];
-        }
+      if (regex.test(track.name)) {
         if (groupUuid === undefined) {
           groupUuid = uuidv4();
         }
@@ -1695,7 +1689,7 @@ class TrackDecider {
     await this.groupTracksByRegex(KERNEL_WAKELOCK_REGEX, KERNEL_WAKELOCK_GROUP);
     await this.groupTracksByRegex(NETWORK_TRACK_REGEX, NETWORK_TRACK_GROUP);
     await this.groupTracksByRegex(
-        ENTITY_RESIDENCY_REGEX, ENTITY_RESIDENCY_GROUP, 1);
+        ENTITY_RESIDENCY_REGEX, ENTITY_RESIDENCY_GROUP);
 
     // Pre-group all kernel "threads" (actually processes) if this is a linux
     // system trace. Below, addProcessTrackGroups will skip them due to an
