@@ -25,12 +25,16 @@
 
 from __future__ import print_function
 import argparse
-import itertools
 import json
 import os
 import re
 import sys
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Union
 
+from gn_utils import GnParser
 import gn_utils
 
 from compat import itervalues, iteritems, basestring
@@ -66,6 +70,7 @@ public_targets = [
 # These targets are required by internal build rules but don't need to be
 # exported publicly.
 default_targets = [
+    '//src/base:perfetto_base_default_platform',
     '//src/ipc:perfetto_ipc',
     '//src/ipc/protoc_plugin:ipc_plugin',
     '//src/protozero:protozero',
@@ -98,6 +103,7 @@ buildflags_dir = 'include/perfetto/base/build_configs/bazel'
 # depends on.
 external_deps = {
     '//gn:default_deps': [],
+    '//gn:base_platform': ['PERFETTO_CONFIG.deps.base_platform'],
     '//gn:jsoncpp': ['PERFETTO_CONFIG.deps.jsoncpp'],
     '//gn:linenoise': ['PERFETTO_CONFIG.deps.linenoise'],
     '//gn:protobuf_full': ['PERFETTO_CONFIG.deps.protobuf_full'],
@@ -114,28 +120,25 @@ external_deps = {
     gn_utils.GEN_VERSION_TARGET: ['PERFETTO_CONFIG.deps.version_header'],
 }
 
-
 # These are Python targets which are exposed with public visibility.
 public_python_targets = [
-  '//python:batch_trace_processor',
-  '//python:trace_processor_py',
+    '//python:batch_trace_processor',
+    '//python:trace_processor_py',
 ]
-
 
 # These are Python targets which are exposed by default.
 default_python_targets = [
-  '//python:batch_trace_processor',
-  '//python:experimental_slice_breakdown_bin',
-  '//python:trace_processor_table_generator',
-  '//python:trace_processor_py_example',
+    '//python:batch_trace_processor',
+    '//python:experimental_slice_breakdown_bin',
+    '//python:trace_processor_table_generator',
+    '//python:trace_processor_py_example',
 ]
 
-
 # Internal equivalents for third-party Python libraries.
-external_python_deps = {
-  '//gn:pandas_py': ['PERFETTO_CONFIG.deps.pandas_py'],
-  '//gn:protobuf_py': ['PERFETTO_CONFIG.deps.protobuf_py'],
-  '//gn:tp_vendor_py': ['PERFETTO_CONFIG.deps.tp_vendor_py'],
+external_python_deps: Dict[str, List[str]] = {
+    '//gn:pandas_py': ['PERFETTO_CONFIG.deps.pandas_py'],
+    '//gn:protobuf_py': ['PERFETTO_CONFIG.deps.protobuf_py'],
+    '//gn:tp_vendor_py': ['PERFETTO_CONFIG.deps.tp_vendor_py'],
 }
 
 
@@ -166,28 +169,24 @@ class PythonBuildGenerator:
   content.
   '''
 
-
-  def populate_python_deps(self, target, label):
+  def populate_python_deps(self, target: GnParser.Target, label: 'BazelLabel'):
     '''Populates deps for a GN target into Bazel Python label.'''
-    for dep in sorted(target.deps):
-      if dep in external_python_deps:
-        assert (isinstance(external_python_deps[dep], list))
-        label.external_deps += external_python_deps[dep]
+    for dep in sorted(target.non_proto_or_source_set_deps()):
+      if dep.name in external_python_deps:
+        assert (isinstance(external_python_deps[dep.name], list))
+        label.external_deps += external_python_deps[dep.name]
       else:
-        label.deps += [':' + get_bazel_python_label_name(dep)]
+        label.deps += [':' + get_bazel_python_label_name(dep.name)]
 
-
-  def python_label_to_path(self, gn_name):
+  def python_label_to_path(self, gn_name: str):
     """Converts a Python GN path label into a Bazel path."""
     return re.sub(r'^python/', '', gn_utils.label_to_path(gn_name))
 
-
-  def python_data_to_path(self, gn_name):
+  def python_data_to_path(self, gn_name: str):
     """Converts a Python GN data label into a Bazel data label."""
     return re.sub(r'^\.\.(.*)', r'PERFETTO_CONFIG.root + "\1"', gn_name)
 
-
-  def gen_python_library(self, target):
+  def gen_python_library(self, target: GnParser.Target):
     """Creates a Bazel target for a Python library GN target."""
     label = BazelLabel(
         get_bazel_python_label_name(target.name), 'perfetto_py_library')
@@ -197,11 +196,9 @@ class PythonBuildGenerator:
     self.populate_python_deps(target, label)
     if target.name in public_python_targets:
       label.visibility = ['//visibility:public']
-
     return [label]
 
-
-  def gen_python_binary(self, target):
+  def gen_python_binary(self, target: GnParser.Target):
     """Creates a Bazel target for a Python binary GN target."""
     label = BazelLabel(
         get_bazel_python_label_name(target.name), 'perfetto_py_binary')
@@ -216,23 +213,20 @@ class PythonBuildGenerator:
     self.populate_python_deps(target, label)
     return [label]
 
-
-  def gen_target(self, gn_target):
+  def gen_target(self, gn_target: GnParser.Target):
     """Creates a Bazel target for a Python GN target."""
-    assert(gn_target.type == 'action')
+    assert (gn_target.type == 'action')
     if gn_target.name in external_python_deps:
       return []
     if gn_target.custom_action_type == 'python_library':
       return self.gen_python_library(gn_target)
     if gn_target.custom_action_type == 'python_binary':
       return self.gen_python_binary(gn_target)
-    assert(False)
+    assert (False)
 
-
-  def gen_target_str(self, gn_target):
+  def gen_target_str(self, gn_target: GnParser.Target):
     """Creates a Bazel target string for a Python GN target."""
     return ''.join(str(x) for x in self.gen_target(gn_target))
-
 
   def generate(self, gn_desc):
     """Creates a Python BUILD file for the GN description."""
@@ -290,10 +284,10 @@ class Error(Exception):
 class BazelLabel(object):
 
   def __init__(self, name, type):
-    self.comment = None
+    self.comment: Optional[str] = None
     self.name = name
     self.type = type
-    self.visibility = []
+    self.visibility: Union[List[str], str] = []
     self.srcs = []
     self.hdrs = []
     self.data = []
@@ -304,7 +298,10 @@ class BazelLabel(object):
     self.outs = []
     self.exports = []
     self.main = None
-    self.python_version = None
+    self.cmd: Optional[str] = None
+    self.python_version: Optional[str] = None
+    self.root_dir: Optional[str] = None
+    self.namespace: Optional[str] = None
 
   def __lt__(self, other):
     if isinstance(other, self.__class__):
@@ -371,7 +368,7 @@ class BazelLabel(object):
 PUBLIC_VISIBILITY = 'PERFETTO_CONFIG.public_visibility'
 
 
-def get_bazel_label_name(gn_name):
+def get_bazel_label_name(gn_name: str):
   """Converts a GN target name into a Bazel label name.
 
   If target is in the public target list, returns only the GN target name,
@@ -385,19 +382,19 @@ def get_bazel_label_name(gn_name):
   return gn_utils.label_to_target_name_with_path(gn_name)
 
 
-def get_bazel_python_label_name(gn_name):
+def get_bazel_python_label_name(gn_name: str):
   """Converts a Python GN label into a Bazel label."""
   name = re.sub(r'^//python:?', '', gn_name)
   return gn_utils.label_to_target_name_with_path(name)
 
 
-def get_bazel_proto_sources_label(target_name):
+def get_bazel_proto_sources_label(target_name: str):
   """Converts a GN target name into a Bazel proto label name."""
   return re.sub('_(lite|zero|cpp|ipc|source_set|descriptor)$', '',
                 get_bazel_label_name(target_name)) + '_protos'
 
 
-def gen_proto_label(target):
+def gen_proto_label(target: GnParser.Target):
   """ Generates the xx_proto_library label for proto targets."""
   assert (target.type == 'proto_library')
 
@@ -412,8 +409,8 @@ def gen_proto_label(target):
     assert (all(x.endswith('.proto') for x in target.sources))
     sources_label.srcs = sorted([x[2:] for x in target.sources])  # Strip //.
     sources_label.deps = sorted([
-        ':' + get_bazel_proto_sources_label(x)
-        for x in target.transitive_proto_deps
+        ':' + get_bazel_proto_sources_label(x.name)
+        for x in target.transitive_proto_deps()
     ])
 
     # In Bazel, proto_paths are not a supported concept becauase strong
@@ -457,7 +454,8 @@ def gen_proto_label(target):
   # common.gen.{cc,h}.
   if target.proto_plugin in ('cppgen', 'ipc', 'protozero'):
     plugin_label.deps += [
-        ':' + get_bazel_label_name(x) for x in target.transitive_proto_deps
+        ':' + get_bazel_label_name(x.name)
+        for x in target.transitive_proto_deps()
     ]
 
   # Add any dependencies on source_set targets (i.e. targets containing proto
@@ -466,7 +464,8 @@ def gen_proto_label(target):
   # implicit.
   if target.proto_plugin == 'descriptor':
     plugin_label.deps += [
-        ':' + get_bazel_proto_sources_label(x) for x in target.proto_deps
+        ':' + get_bazel_proto_sources_label(x.name)
+        for x in target.proto_deps()
     ]
   else:
     plugin_label.deps += [':' + sources_label_name]
@@ -479,13 +478,13 @@ def gen_proto_label(target):
   return plugin_label
 
 
-def gen_proto_group_target(gn, name, target_names):
+def gen_proto_group_target(gn: GnParser, name: str, target_names: List[str]):
   # Get a recursive list of the proto_library targets rooted here which
   # have src.
   deps_set = set(target_names)
   for target_name in target_names:
     target = gn.get_target(target_name)
-    deps_set.update(target.transitive_proto_deps)
+    deps_set.update(d.name for d in target.transitive_proto_deps())
 
   # First, create a root source set target which references all the child
   # source set targets. We publish this as well as depending on this in all
@@ -522,11 +521,13 @@ def gen_proto_group_target(gn, name, target_names):
   return [sources_label, cc_label, java_label, java_lite_label, py_label]
 
 
-def gen_cc_proto_descriptor(target):
+def gen_cc_proto_descriptor(target: GnParser.Target):
   label = BazelLabel(
       get_bazel_label_name(target.name), 'perfetto_cc_proto_descriptor')
   label.comment = target.name
-  label.deps += [':' + get_bazel_label_name(x) for x in target.proto_deps]
+  label.deps += [
+      ':' + get_bazel_label_name(x.name) for x in target.proto_deps()
+  ]
   label.deps += [
       gn_utils.label_to_path(src)
       for src in target.inputs
@@ -537,7 +538,7 @@ def gen_cc_proto_descriptor(target):
   return [label]
 
 
-def gen_cc_amalgamated_sql(target):
+def gen_cc_amalgamated_sql(target: GnParser.Target):
   label = BazelLabel(
       get_bazel_label_name(target.name), 'perfetto_cc_amalgamated_sql')
 
@@ -548,25 +549,29 @@ def gen_cc_amalgamated_sql(target):
 
   label.comment = target.name
   label.namespace = find_arg('namespace')
-  label.root_dir = gn_utils.label_to_path(find_arg('root-dir'))
 
-  label.deps += sorted(
-      ':' + get_bazel_label_name(x) for x in target.source_set_deps)
+  label.deps += sorted(':' + get_bazel_label_name(x.name)
+                       for x in target.transitive_deps)
   label.outs += target.outputs
-
   return [label]
 
 
-def gen_cc_tp_tables(target):
-  label = BazelLabel(
-      get_bazel_label_name(target.name), 'perfetto_cc_tp_tables')
+def gen_sql_source_set(target: GnParser.Target):
+  label = BazelLabel(get_bazel_label_name(target.name), 'perfetto_filegroup')
+  label.comment = target.name
+  label.srcs += (gn_utils.label_to_path(x) for x in target.inputs)
+  return [label]
+
+
+def gen_cc_tp_tables(target: GnParser.Target):
+  label = BazelLabel(get_bazel_label_name(target.name), 'perfetto_cc_tp_tables')
   label.comment = target.name
   label.srcs += (gn_utils.label_to_path(x) for x in target.sources)
   label.outs += target.outputs
   return [label]
 
 
-def gen_target(gn_target):
+def gen_target(gn_target: GnParser.Target):
   if gn_target.type == 'proto_library':
     return [gen_proto_label(gn_target)]
   elif gn_target.type == 'action':
@@ -574,6 +579,8 @@ def gen_target(gn_target):
       return custom_actions[gn_target.name](gn_target)
     if gn_target.custom_action_type == 'sql_amalgamation':
       return gen_cc_amalgamated_sql(gn_target)
+    if gn_target.custom_action_type == 'sql_source_set':
+      return gen_sql_source_set(gn_target)
     if gn_target.custom_action_type == 'cc_proto_descriptor':
       return gen_cc_proto_descriptor(gn_target)
     if gn_target.custom_action_type == 'tp_tables':
@@ -585,7 +592,6 @@ def gen_target(gn_target):
     bazel_type = 'perfetto_cc_binary'
   elif gn_target.type == 'shared_library':
     bazel_type = 'perfetto_cc_binary'
-    vars['linkshared'] = True
   elif gn_target.type == 'static_library':
     bazel_type = 'perfetto_cc_library'
   elif gn_target.type == 'source_set':
@@ -624,24 +630,30 @@ def gen_target(gn_target):
 
   if gn_target.type in gn_utils.LINKER_UNIT_TYPES:
     # |source_sets| contains the transitive set of source_set deps.
-    for trans_dep in gn_target.source_set_deps:
-      name = ':' + get_bazel_label_name(trans_dep)
+    for trans_dep in gn_target.transitive_source_set_deps():
+      name = ':' + get_bazel_label_name(trans_dep.name)
       if name.startswith(
           ':include_perfetto_') and gn_target.type != 'executable':
         label.hdrs += [name]
       else:
         label.srcs += [name]
-    for dep in sorted(gn_target.deps):
-      if dep.startswith('//gn:'):
-        assert (dep in external_deps), dep
+    for dep in sorted(gn_target.non_proto_or_source_set_deps()):
+      dep_name = dep.name
+      if dep_name.startswith('//gn:'):
+        assert (dep_name in external_deps), dep
 
-      if dep in external_deps:
-        assert (isinstance(external_deps[dep], list))
-        label.external_deps += external_deps[dep]
+      # tp_tables produces a filegroup not a cc_lbirary so should end up srcs
+      # not deps.
+      if dep.custom_action_type == 'tp_tables':
+        label.srcs += [':' + get_bazel_label_name(dep_name)]
+      elif dep_name in external_deps:
+        assert (isinstance(external_deps[dep_name], list))
+        label.external_deps += external_deps[dep_name]
       else:
-        label.deps += [':' + get_bazel_label_name(dep)]
+        label.deps += [':' + get_bazel_label_name(dep_name)]
     label.deps += [
-        ':' + get_bazel_label_name(x) for x in gn_target.transitive_proto_deps
+        ':' + get_bazel_label_name(x.name)
+        for x in gn_target.transitive_cpp_proto_deps()
     ]
 
   # All items starting with : need to be sorted to the end of the list.

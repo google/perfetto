@@ -31,7 +31,7 @@ namespace vendor_tracepoints {
 
 // Path to the vendor categories file in Android (since Android 14).
 constexpr const char* kCategoriesFile =
-    "/vendor/etc/atrace/atrace_categories.pb";
+    "/vendor/etc/atrace/atrace_categories.txt";
 
 // Returns a map from vendor category to events we should enable. Queries the
 // atrace HAL.
@@ -45,6 +45,13 @@ DiscoverVendorTracepointsWithHal(AtraceHalWrapper* hal, FtraceProcfs* ftrace);
 base::Status DiscoverVendorTracepointsWithFile(
     const std::string& vendor_atrace_categories_path,
     std::map<std::string, std::vector<GroupAndName>>* categories_map);
+
+// Like `DiscoverVendorTracepointsWithFile`, but does not return events that are
+// not accessible or do not actually exist on the tracing file system.
+base::Status DiscoverAccessibleVendorTracepointsWithFile(
+    const std::string& vendor_atrace_categories_path,
+    std::map<std::string, std::vector<GroupAndName>>* categories_map,
+    FtraceProcfs* ftrace);
 
 }  // namespace vendor_tracepoints
 }  // namespace perfetto

@@ -27,6 +27,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/ctrl_c_handler.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -452,7 +453,7 @@ void StressTestMain(int argc, char** argv) {
   }
 
   g_sig = new SigHandlerCtx();
-  base::InstallCtrCHandler(&CtrlCHandler);
+  base::InstallCtrlCHandler(&CtrlCHandler);
 
   for (size_t i = 0; i < base::ArraySize(kStressTestConfigs) && !g_sig->aborted;
        ++i) {

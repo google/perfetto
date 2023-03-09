@@ -15,7 +15,28 @@
 import("../gn/perfetto_python.gni")
 
 perfetto_py_library("trace_processor_table_generator") {
-  sources = [ "generators/trace_processor_table/public.py" ]
+  sources = [
+    "generators/trace_processor_table/public.py",
+    "generators/trace_processor_table/serialize.py",
+    "generators/trace_processor_table/util.py",
+  ]
+}
+
+perfetto_py_library("trace_processor_stdlib_docs") {
+  sources = [
+    "generators/stdlib_docs/parse.py",
+    "generators/stdlib_docs/stdlib.py",
+    "generators/stdlib_docs/utils.py",
+    "generators/stdlib_docs/validate.py",
+  ]
+}
+
+perfetto_py_library("trace_processor_diff_tests") {
+  sources = [
+    "generators/diff_tests/runner.py",
+    "generators/diff_tests/testing.py",
+    "generators/diff_tests/utils.py",
+  ]
 }
 
 perfetto_py_binary("trace_processor_py_example") {

@@ -16,7 +16,10 @@ import("../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("common") {
   sources = [
+    "counters.sql",
     "metadata.sql",
-    "parent_slice.sql",
+    "percentiles.sql",
+    "slices.sql",
+    "timestamps.sql",
   ]
 }

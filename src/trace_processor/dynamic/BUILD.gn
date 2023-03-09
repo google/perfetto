@@ -62,6 +62,9 @@ source_set("dynamic") {
 source_set("unittests") {
   testonly = true
   sources = [
+    "ancestor_generator_unittest.cc",
+    "connected_flow_generator_unittest.cc",
+    "descendant_generator_unittest.cc",
     "experimental_counter_dur_generator_unittest.cc",
     "experimental_flat_slice_generator_unittest.cc",
     "experimental_slice_layout_generator_unittest.cc",

@@ -73,8 +73,6 @@ def main():
   parser.add_argument('--namespace', required=True)
   parser.add_argument('--cpp-out', required=True)
   parser.add_argument('--input-list-file')
-  parser.add_argument('--root-dir', required=True)
-  parser.add_argument('--depfile')
   parser.add_argument('sql_files', nargs='*')
   args = parser.parse_args()
 
@@ -90,11 +88,23 @@ def main():
   else:
     sql_files = args.sql_files
 
+  # Unfortunately we cannot pass this in as an arg as soong does not provide
+  # us a way to get the path to the Perfetto source directory. This fails on
+  # empty path but it's a price worth paying to have to use gross hacks in
+  # Soong.
+  root_dir = os.path.commonpath(sql_files)
+
   # Extract the SQL output from each file.
   sql_outputs = {}
   for file_name in sql_files:
     with open(file_name, 'r') as f:
-      relpath = os.path.relpath(file_name, args.root_dir)
+      relpath = os.path.relpath(file_name, root_dir)
+
+      # We've had bugs (e.g. b/264711057) when Soong's common path logic breaks
+      # and ends up with a bunch of ../ prefixing the path: disallow any ../
+      # as this should never be a valid in our C++ output.
+      assert '../' not in relpath
+
       sql_outputs[relpath] = "".join(
           x.lstrip() for x in f.readlines() if not x.lstrip().startswith('--'))
 
@@ -134,12 +144,6 @@ def main():
     output.write("};\n")
 
     output.write(NAMESPACE_END.format(args.namespace))
-
-  if args.depfile:
-    with open(args.depfile, 'w', encoding='utf-8') as f:
-      f.write(args.cpp_out + ":")
-      for line in sql_files:
-        f.write(' ' + line)
 
   return 0
 

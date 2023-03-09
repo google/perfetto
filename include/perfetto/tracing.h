@@ -23,6 +23,7 @@
 // The only exception to this should be large projects where build time is a
 // concern (e.g. chromium), which migh prefer sticking to strict IWYU.
 
+#include "perfetto/base/time.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/console_interceptor.h"
 #include "perfetto/tracing/core/data_source_config.h"

@@ -55,6 +55,8 @@ class AndroidProbesParser {
   const StringId batt_current_avg_id_;
   const StringId screen_state_id_;
   const StringId device_state_id_;
+  const StringId battery_status_id_;
+  const StringId plug_type_id_;
 
   const StringId net_arg_length_;
   const StringId net_arg_ip_proto_;

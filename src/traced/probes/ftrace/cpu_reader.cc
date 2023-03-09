@@ -186,9 +186,10 @@ size_t CpuReader::ReadCycle(
                              metatrace::FTRACE_CPU_READ_CYCLE);
 
   // Work in batches to keep cache locality, and limit memory usage.
-  size_t batch_pages = std::min(parsing_buf_size_pages, max_pages);
   size_t total_pages_read = 0;
   for (bool is_first_batch = true;; is_first_batch = false) {
+    size_t batch_pages =
+        std::min(parsing_buf_size_pages, max_pages - total_pages_read);
     size_t pages_read = ReadAndProcessBatch(
         parsing_buf, batch_pages, is_first_batch, started_data_sources);
 

@@ -70,6 +70,12 @@ void ThreadStateTracker::PushWakingEvent(int64_t event_ts,
   AddOpenState(event_ts, utid, runnable_string_id_, base::nullopt, waker_utid);
 }
 
+void ThreadStateTracker::PushNewTaskEvent(int64_t event_ts,
+                                         UniqueTid utid,
+                                         UniqueTid waker_utid) {
+  AddOpenState(event_ts, utid, runnable_string_id_, base::nullopt, waker_utid);
+}
+
 void ThreadStateTracker::PushBlockedReason(
     UniqueTid utid,
     base::Optional<bool> io_wait,

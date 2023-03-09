@@ -22,17 +22,23 @@ Here is an [example change](https://android-review.googlesource.com/c/platform/e
 
 Files inside the standard library have to be formatted in a very specific way, as its structure is used to generate documentation. There are presubmit checks, but they are not infallible.
 
-- Running the file cannot generate any data. There can be only `CREATE_FUNCTION` or `CREATE TABLE/VIEW` inside.
+- Running the file cannot generate any data. There can be only `CREATE_FUNCTION`, `CREATE TABLE/VIEW` or `CREATE_VIEW_FUNCTION` inside.
 - The name of each table/view/function needs to start with `{module_name}_` or `{internal_}`. Views/tables are must be `[a-z_]`, while functions are `[A-Z_]`. When a module is imported (using the `IMPORT` function), objects prefixed with internal should not be used.
   - The only exception is the `common` module. The name of functions/views/tables inside should not be prefixed with `common_`, as they are supposed to be module agnostic and widely used.
 - Every non internal object has be prefixed with an SQL comment following a particular documentation schema e.g. similar to javadoc. The schema is a comment directly over the SQL which creates it, without empty lines. Any text is going to be parsed as markdown, so usage of markdown functionality (code, links, lists) is encouraged. Whitespaces in anything apart from descriptions are ignored, so comments can be formatted neatly. If the line with description exceeds 80 chars, description can be continued in following lines.
-  - Table/view: each has to have object description and list of columns.
+  - **Table/view**: each has to have object description and list of columns.
     - Description is any text above column comments.
     - For each column there has to be a comment line `-- @column {col name} {col description}`.
-  - Functions: each has to have a function description, list of arguments (names, types, description) and description of return value in this order.
+  - **Functions**: each has to have a function description, list of arguments (names, types, description) and description of return value in this order.
     - Function description is any text above argument comments.
     - For each argument there has to be a comment line `-- @arg {arg name} {arg type} {arg description}`. Arg name should follow `[a-z_]*`, arg type has to be exactly the same as specified in the function, so `[A-Z]*`.
     - Return comment is `-- @ret {return type} {return description}`. Return type should be exactly the same as specified in the function, so `[A-Z]*`.
+  - **View functions**: each has to have a function description, list of arguments (names, types, description) and list of columns.
+    - Function description is any text above argument comments.
+    - For each argument there has to be a comment line `-- @arg {arg name} {arg type} {arg description}`. Arg name should follow `[a-z_]*`, arg type has to be exactly the same as specified in the function, so `[A-Z]*`.
+    - For each column there has to be a comment line `-- @column {col name} {col description}`.
+
+NOTE: Break lines outside of import description will be ignored.
 
 Example of properly formatted view in module `android`:
 ```sql
@@ -71,6 +77,28 @@ SELECT CREATE_FUNCTION(
     'SELECT int_value FROM metadata WHERE name = ($name)');
 ```
 
+Example of view function in module `android`:
+```sql
+-- Given a launch id and GLOB for a slice name, returns columns for matching slices.
+--
+-- @arg launch_id INT         Id of launch.
+-- @arg slice_name STRING     Name of slice with launch.
+-- @column slice_name         Name of slice with launch.
+-- @column slice_ts INT       Timestamp of slice start.
+-- @column slice_dur INT      Duration of slice.
+-- @column thread_name STRING Name of thread with slice
+-- @column arg_set_id INT     Arg set id.
+SELECT CREATE_VIEW_FUNCTION(
+  'ANDROID_SLICES_FOR_LAUNCH_AND_SLICE_NAME(launch_id INT, slice_name STRING)',
+  'slice_name STRING, slice_ts INT, slice_dur INT, thread_name STRING, arg_set_id INT',
+  '
+    SELECT slice_name, slice_ts, slice_dur, thread_name, arg_set_id
+    FROM thread_slices_for_all_launches
+    WHERE launch_id = $launch_id AND slice_name GLOB $slice_name
+  '
+);
+```
+
 
 ## {#new-metric} Add a new trace-based metric
 
@@ -84,11 +112,9 @@ SELECT CREATE_FUNCTION(
   * To learn how to write new metrics, see the [trace-based metrics documentation](/docs/analysis/metrics.md).
 5. Build all targets in your out directory with `tools/ninja -C out/YOUR_BUILD_DIRECTORY`.
 6. Add a new diff test for the metric. This can be done by adding files to
-the [test/trace_processor](/test/trace_processor) folder and modifying one
-of the index files listed in
-[/test/trace_processor/include_index](/test/trace_processor/include_index).
-7. Run the newly added test with `tools/diff_test_trace_processor.py <path to trace processor binary>`.
-8. Upload and land your change as normal.
+the `tests.*.py` files in a proper [test/trace_processor](/test/trace_processor) subfolder.
+1. Run the newly added test with `tools/diff_test_trace_processor.py <path to trace processor binary>`.
+2. Upload and land your change as normal.
 
 Here is an [example change](https://android-review.googlesource.com/c/platform/external/perfetto/+/1290643) which added the `time_in_state` metric.
 

@@ -113,6 +113,9 @@ if (enable_perfetto_integration_tests) {
     "test:client_api_example",
     "test/stress_test",
   ]
+  if (!is_win) {
+    all_targets += [ "examples/shared_lib:example_shlib_data_source" ]
+  }
 }
 
 if (enable_perfetto_trace_processor_json) {
@@ -297,7 +300,7 @@ if (build_with_chromium) {
       ]
       public_deps += [ "include/perfetto/ext/tracing/ipc:ipc" ]
     }
-    if (!is_nacl && !is_ios) {
+    if (!is_nacl) {
       deps += [
         "src/trace_processor:export_json",
         "src/trace_processor:storage_minimal",

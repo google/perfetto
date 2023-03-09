@@ -20,8 +20,10 @@
 
 namespace perfetto {
 
+#if !PERFETTO_IS_AT_LEAST_CPP17()
 // static
 constexpr size_t AlignedBufferTest::kNumPages;
+#endif
 
 void AlignedBufferTest::SetUp() {
   page_size_ = GetParam();

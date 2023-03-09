@@ -17,7 +17,6 @@ import itertools
 import subprocess
 import time
 
-
 USE_PYTHON3 = True
 
 
@@ -42,10 +41,11 @@ def CheckChange(input, output):
         files_to_check='.*',
         files_to_skip=[
             'Android[.]bp',
+            "buildtools/grpc/BUILD.gn",
             '.*[.]json$',
             '.*[.]sql$',
             '.*[.]out$',
-            'test/trace_processor/.*/index$',
+            'test/trace_processor/.*/tests.*$',
             '(.*/)?BUILD$',
             'WORKSPACE',
             '.*/Makefile$',

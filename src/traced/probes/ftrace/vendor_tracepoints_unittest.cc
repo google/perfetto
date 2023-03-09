@@ -20,7 +20,6 @@
 
 #include "test/gtest_and_gmock.h"
 
-#include "protos/perfetto/android_vendor/atrace_categories.gen.h"
 #include "src/base/test/tmp_dir_tree.h"
 #include "src/traced/probes/ftrace/atrace_hal_wrapper.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
@@ -28,6 +27,7 @@
 using testing::_;
 using testing::AnyNumber;
 using testing::ElementsAre;
+using testing::HasSubstr;
 using testing::NiceMock;
 using testing::Pair;
 using testing::Return;
@@ -60,6 +60,7 @@ class MockFtraceProcfs : public FtraceProcfs {
                bool(const std::string& path, const std::string& str));
   MOCK_METHOD1(ReadOneCharFromFile, char(const std::string& path));
   MOCK_METHOD1(ClearFile, bool(const std::string& path));
+  MOCK_METHOD1(IsFileWriteable, bool(const std::string& path));
   MOCK_CONST_METHOD1(ReadFileIntoString, std::string(const std::string& path));
   MOCK_METHOD0(ReadEnabledEvents, std::vector<std::string>());
   MOCK_CONST_METHOD0(NumberOfCpus, size_t());
@@ -94,46 +95,21 @@ TEST(DiscoverVendorTracepointsTest, DiscoverVendorTracepointsWithHal) {
                                                   GroupAndName("a", "b")))));
 }
 
-TEST(DiscoverVendorTracepointsTest, DiscoverVendorTracepointsWithFile) {
+TEST(DiscoverVendorTracepointsTest, DiscoverVendorTracepointsWithFileOk) {
   base::TmpDirTree tree;
-
-  perfetto::protos::atrace::gen::Categories categories;
-
-  {
-    auto* cat = categories.add_categories();
-    cat->set_name("gfx");
-    {
-      auto* grp = cat->add_groups();
-      grp->set_name("empty");
-    }
-    {
-      auto* grp = cat->add_groups();
-      grp->set_name("foo");
-      grp->add_events("bar");
-    }
-    {
-      auto* grp = cat->add_groups();
-      grp->set_name("g");
-      grp->add_events("a");
-      grp->add_events("b");
-    }
-  }
-
-  {
-    auto* cat = categories.add_categories();
-    cat->set_name("memory");
-    {
-      auto* grp = cat->add_groups();
-      grp->set_name("grp");
-      grp->add_events("evt");
-    }
-  }
-
-  tree.AddFile("vendor_atrace.pb", categories.SerializeAsString());
+  std::string contents =
+      "gfx\n"
+      " foo/bar\n"
+      " g/a\n"
+      " g/b\n"
+      "memory\n"
+      " grp/evt\n";
+  tree.AddFile("vendor_atrace.txt", contents);
 
   std::map<std::string, std::vector<GroupAndName>> result;
   base::Status status = DiscoverVendorTracepointsWithFile(
-      tree.AbsolutePath("vendor_atrace.pb"), &result);
+      tree.AbsolutePath("vendor_atrace.txt"), &result);
+
   ASSERT_TRUE(status.ok()) << status.message();
   EXPECT_THAT(
       result,
@@ -141,6 +117,154 @@ TEST(DiscoverVendorTracepointsTest, DiscoverVendorTracepointsWithFile) {
                                           GroupAndName("g", "a"),
                                           GroupAndName("g", "b"))),
                   Pair("memory", ElementsAre(GroupAndName("grp", "evt")))));
+}
+
+TEST(DiscoverVendorTracepointsTest,
+     DiscoverVendorTracepointsWithFileEmptyLines) {
+  base::TmpDirTree tree;
+  std::string contents =
+      "\n"
+      "gfx\n"
+      "   \n"
+      " foo/bar\n"
+      "\n";
+  tree.AddFile("vendor_atrace.txt", contents);
+
+  std::map<std::string, std::vector<GroupAndName>> result;
+  base::Status status = DiscoverVendorTracepointsWithFile(
+      tree.AbsolutePath("vendor_atrace.txt"), &result);
+
+  ASSERT_TRUE(status.ok()) << status.message();
+  EXPECT_THAT(result, ElementsAre(Pair(
+                          "gfx", ElementsAre(GroupAndName("foo", "bar")))));
+}
+
+TEST(DiscoverVendorTracepointsTest,
+     DiscoverVendorTracepointsWithFileWhitespaces) {
+  base::TmpDirTree tree;
+  std::string contents =
+      "gfx\n"
+      " path/1\n"
+      "\tpath/2\n"
+      "  path/3\n"
+      "\t\tpath/4\n";
+  tree.AddFile("vendor_atrace.txt", contents);
+
+  std::map<std::string, std::vector<GroupAndName>> result;
+  base::Status status = DiscoverVendorTracepointsWithFile(
+      tree.AbsolutePath("vendor_atrace.txt"), &result);
+
+  ASSERT_TRUE(status.ok()) << status.message();
+  EXPECT_THAT(result,
+              ElementsAre(Pair("gfx", ElementsAre(GroupAndName("path", "1"),
+                                                  GroupAndName("path", "2"),
+                                                  GroupAndName("path", "3"),
+                                                  GroupAndName("path", "4")))));
+}
+
+TEST(DiscoverVendorTracepointsTest,
+     DiscoverVendorTracepointsWithFileNoCategory) {
+  base::TmpDirTree tree;
+  std::string contents =
+      " foo/bar\n"
+      " g/a\n"
+      " g/b\n";
+  tree.AddFile("vendor_atrace.txt", contents);
+
+  std::map<std::string, std::vector<GroupAndName>> result;
+  base::Status status = DiscoverVendorTracepointsWithFile(
+      tree.AbsolutePath("vendor_atrace.txt"), &result);
+
+  EXPECT_THAT(status.message(), HasSubstr("Ftrace event path before category"));
+}
+
+TEST(DiscoverVendorTracepointsTest, DiscoverVendorTracepointsWithFileNoSlash) {
+  base::TmpDirTree tree;
+  std::string contents =
+      "gfx\n"
+      " event\n";
+  tree.AddFile("vendor_atrace.txt", contents);
+
+  std::map<std::string, std::vector<GroupAndName>> result;
+  base::Status status = DiscoverVendorTracepointsWithFile(
+      tree.AbsolutePath("vendor_atrace.txt"), &result);
+
+  EXPECT_THAT(status.message(),
+              HasSubstr("Ftrace event path not in group/event format"));
+}
+
+TEST(DiscoverVendorTracepointsTest,
+     DiscoverVendorTracepointsWithFileEmptyGroup) {
+  base::TmpDirTree tree;
+  std::string contents =
+      "gfx\n"
+      " /event\n";
+  tree.AddFile("vendor_atrace.txt", contents);
+
+  std::map<std::string, std::vector<GroupAndName>> result;
+  base::Status status = DiscoverVendorTracepointsWithFile(
+      tree.AbsolutePath("vendor_atrace.txt"), &result);
+
+  EXPECT_THAT(status.message(), HasSubstr("group is empty"));
+}
+
+TEST(DiscoverVendorTracepointsTest,
+     DiscoverVendorTracepointsWithFileTooManySlash) {
+  base::TmpDirTree tree;
+  std::string contents =
+      "gfx\n"
+      " group/dir/event\n";
+  tree.AddFile("vendor_atrace.txt", contents);
+
+  std::map<std::string, std::vector<GroupAndName>> result;
+  base::Status status = DiscoverVendorTracepointsWithFile(
+      tree.AbsolutePath("vendor_atrace.txt"), &result);
+
+  EXPECT_THAT(status.message(), HasSubstr("extra /"));
+}
+
+TEST(DiscoverVendorTracepointsTest,
+     DiscoverVendorTracepointsWithFileNameEmpty) {
+  base::TmpDirTree tree;
+  std::string contents =
+      "gfx\n"
+      " group/\n";
+  tree.AddFile("vendor_atrace.txt", contents);
+
+  std::map<std::string, std::vector<GroupAndName>> result;
+  base::Status status = DiscoverVendorTracepointsWithFile(
+      tree.AbsolutePath("vendor_atrace.txt"), &result);
+
+  EXPECT_THAT(status.message(), HasSubstr("name empty"));
+}
+
+TEST(DiscoverVendorTracepointsTest,
+     DiscoverAccessibleVendorTracepointsWithFile) {
+  base::TmpDirTree tree;
+  std::string contents =
+      "gfx\n"
+      " g/a\n"
+      " g/b\n"
+      "memory\n"
+      " g/c\n";
+  tree.AddFile("vendor_atrace.txt", contents);
+  MockFtraceProcfs ftrace;
+
+  EXPECT_CALL(ftrace, IsFileWriteable("/root/events/g/a/enable"))
+      .WillOnce(Return(false));
+  EXPECT_CALL(ftrace, IsFileWriteable("/root/events/g/b/enable"))
+      .WillOnce(Return(true));
+  EXPECT_CALL(ftrace, IsFileWriteable("/root/events/g/c/enable"))
+      .WillOnce(Return(false));
+
+  std::map<std::string, std::vector<GroupAndName>> result;
+  base::Status status = DiscoverAccessibleVendorTracepointsWithFile(
+      tree.AbsolutePath("vendor_atrace.txt"), &result, &ftrace);
+
+  ASSERT_TRUE(status.ok()) << status.message();
+  EXPECT_THAT(result,
+              ElementsAre(Pair("gfx", ElementsAre(GroupAndName("g", "b"))),
+                          Pair("memory", ElementsAre())));
 }
 
 }  // namespace

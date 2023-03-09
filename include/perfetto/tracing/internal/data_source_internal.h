@@ -59,7 +59,7 @@ struct DataSourceState {
   // Keep this flag as the first field. This allows the compiler to directly
   // dereference the DataSourceState* pointer in the trace fast-path without
   // doing extra pointr arithmetic.
-  bool trace_lambda_enabled = false;
+  std::atomic<bool> trace_lambda_enabled = false;
 
   // The overall TracingMuxerImpl instance id, which gets incremented by
   // ResetForTesting.
@@ -161,6 +161,14 @@ struct DataSourceStaticState {
   void CompilerAsserts() {
     static_assert(sizeof(valid_instances.load()) * 8 >= kMaxDataSourceInstances,
                   "kMaxDataSourceInstances too high");
+  }
+
+  void ResetForTesting() {
+    id = 0;
+    index = kMaxDataSources;
+    valid_instances.store(0, std::memory_order_release);
+    instances = {};
+    incremental_state_generation.store(0, std::memory_order_release);
   }
 };
 

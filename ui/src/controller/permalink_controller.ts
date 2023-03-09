@@ -79,7 +79,7 @@ export class PermalinkController extends Controller<'main'> {
 
       PermalinkController.createPermalink(isRecordingConfig)
           .then((hash) => {
-            globals.dispatch(Actions.setPermalink({requestId, hash}));
+            frontendGlobals.dispatch(Actions.setPermalink({requestId, hash}));
           })
           .finally(() => {
             publishConversionJobStatusUpdate({
@@ -99,11 +99,12 @@ export class PermalinkController extends Controller<'main'> {
             const validConfig =
                 runValidator(recordConfigValidator, stateOrConfig as unknown)
                     .result;
-            globals.dispatch(Actions.setRecordConfig({config: validConfig}));
+            frontendGlobals.dispatch(
+                Actions.setRecordConfig({config: validConfig}));
             Router.navigate('#!/record');
             return;
           }
-          globals.dispatch(Actions.setState({newState: stateOrConfig}));
+          frontendGlobals.dispatch(Actions.setState({newState: stateOrConfig}));
           this.lastRequestId = stateOrConfig.permalink.requestId;
         });
   }
@@ -215,7 +216,7 @@ export class PermalinkController extends Controller<'main'> {
 
   private static updateStatus(msg: string): void {
     // TODO(hjd): Unify loading updates.
-    globals.dispatch(Actions.updateStatus({
+    frontendGlobals.dispatch(Actions.updateStatus({
       msg,
       timestamp: Date.now() / 1000,
     }));

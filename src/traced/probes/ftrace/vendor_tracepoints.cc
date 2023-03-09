@@ -23,8 +23,9 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "protos/perfetto/android_vendor/atrace_categories.gen.h"
+#include "perfetto/ext/base/string_splitter.h"
 #include "src/traced/probes/ftrace/atrace_hal_wrapper.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
@@ -32,6 +33,8 @@
 namespace perfetto {
 namespace vendor_tracepoints {
 namespace {
+
+using EmptyTokenMode = ::perfetto::base::StringSplitter::EmptyTokenMode;
 
 std::vector<GroupAndName> DiscoverTracepoints(AtraceHalWrapper* hal,
                                               FtraceProcfs* ftrace,
@@ -52,6 +55,38 @@ std::vector<GroupAndName> DiscoverTracepoints(AtraceHalWrapper* hal,
   return events;
 }
 
+base::Status ParseEventLine(base::StringView line,
+                            std::vector<GroupAndName>* category) {
+  // `line` is a line in the vendor file that starts with one or more whitespace
+  // and is expected to contain the path to an ftrace event like:
+  // ```
+  //  cma/cma_alloc_start
+  // ```
+  while (!line.empty() && (line.at(0) == ' ' || line.at(0) == '\t')) {
+    line = line.substr(1);
+  }
+  if (line.empty()) {
+    return base::OkStatus();
+  }
+  size_t pos = line.find('/');
+  if (pos == line.npos) {
+    return base::ErrStatus("Ftrace event path not in group/event format");
+  }
+  base::StringView group = line.substr(0, pos);
+  if (group.empty()) {
+    return base::ErrStatus("Ftrace event path group is empty");
+  }
+  base::StringView name = line.substr(pos + 1);
+  if (name.find('/') != name.npos) {
+    return base::ErrStatus("Ftrace event path has extra / in event name");
+  }
+  if (name.empty()) {
+    return base::ErrStatus("Ftrace event name empty");
+  }
+  category->push_back(GroupAndName(group.ToStdString(), name.ToStdString()));
+  return base::OkStatus();
+}
+
 }  // namespace
 
 std::map<std::string, std::vector<GroupAndName>>
@@ -66,27 +101,71 @@ DiscoverVendorTracepointsWithHal(AtraceHalWrapper* hal, FtraceProcfs* ftrace) {
 base::Status DiscoverVendorTracepointsWithFile(
     const std::string& vendor_atrace_categories_path,
     std::map<std::string, std::vector<GroupAndName>>* categories_map) {
-  std::string contents;
-  bool res = base::ReadFile(vendor_atrace_categories_path, &contents);
-  if (!res) {
+  std::string content;
+  if (!base::ReadFile(vendor_atrace_categories_path, &content)) {
     return base::ErrStatus("Cannot read vendor atrace file: %s (errno: %d, %s)",
                            vendor_atrace_categories_path.c_str(), errno,
                            strerror(errno));
   }
-  protos::atrace::gen::Categories categories;
-  res = categories.ParseFromString(contents);
-  if (!res) {
-    return base::Status("Cannot parse vendor atrace file");
-  }
-  for (const protos::atrace::gen::Category& cat : categories.categories()) {
-    std::vector<GroupAndName> events;
-    for (const protos::atrace::gen::FtraceGroup& group : cat.groups()) {
-      for (const std::string& event : group.events()) {
-        events.push_back(GroupAndName(group.name(), event));
-      }
+  // The file should contain a list of categories (one per line) and, for each
+  // category, a list of ftrace events (one per line, nested):
+  // ```
+  // gfx
+  //  mali/gpu_power_state
+  //  mali/mali_pm_status
+  // thermal_tj
+  //  thermal_exynos/thermal_cpu_pressure
+  //  thermal_exynos/thermal_exynos_arm_update
+  // ```
+  std::vector<GroupAndName>* category = nullptr;
+  for (base::StringSplitter lines(std::move(content), '\n',
+                                  EmptyTokenMode::DISALLOW_EMPTY_TOKENS);
+       lines.Next();) {
+    base::StringView line(lines.cur_token());
+    if (line.empty()) {
+      continue;
     }
-    (*categories_map)[cat.name()] = std::move(events);
+    char firstchar = line.at(0);
+    if (firstchar == '\t' || firstchar == ' ') {
+      // The line begins with a whitespace. It should contain an ftrace event
+      // path, part of a previously defined category.
+      if (category == nullptr) {
+        return base::ErrStatus(
+            "Ftrace event path before category. Malformed vendor atrace file");
+      }
+      base::Status status = ParseEventLine(line, category);
+      if (!status.ok()) {
+        return status;
+      }
+    } else {
+      // The line doesn't begin with a whitespace. Start a new category.
+      category = &(*categories_map)[line.ToStdString()];
+    }
   }
+  return base::OkStatus();
+}
+
+base::Status DiscoverAccessibleVendorTracepointsWithFile(
+    const std::string& vendor_atrace_categories_path,
+    std::map<std::string, std::vector<GroupAndName>>* categories_map,
+    FtraceProcfs* ftrace) {
+  categories_map->clear();
+  base::Status status = DiscoverVendorTracepointsWithFile(
+      vendor_atrace_categories_path, categories_map);
+  if (!status.ok()) {
+    return status;
+  }
+
+  for (auto& it : *categories_map) {
+    std::vector<GroupAndName>& events = it.second;
+    events.erase(std::remove_if(events.begin(), events.end(),
+                                [ftrace](const GroupAndName& event) {
+                                  return !ftrace->IsEventAccessible(
+                                      event.group(), event.name());
+                                }),
+                 events.end());
+  }
+
   return base::OkStatus();
 }
 

@@ -274,18 +274,17 @@ std::string Proto::ToString() {
   return s;
 }
 
-void Proto::MergeFrom(const Proto& other) {
-  // Always keep number from the left hand side.
-  PERFETTO_CHECK(name == other.name);
-  for (const auto& p : other.fields) {
-    auto it = fields.find(p.first);
-    if (it == fields.end()) {
-      Proto::Field field = p.second;
-      field.number = ++max_id;
-      AddField(std::move(field));
-    } else {
-      it->second.type = GetCommon(it->second.type, p.second.type);
+void Proto::UnionFields(const std::vector<Proto::Field>& candidate_fields) {
+  for (const auto& candidate : candidate_fields) {
+    auto it = fields.find(candidate.name);
+    if (it != fields.end()) {
+      // potentially expand proto type to cover both cases
+      it->second.type = GetCommon(it->second.type, candidate.type);
+      continue;
     }
+    Proto::Field new_field = candidate;
+    new_field.number = ++max_id;
+    AddField(std::move(new_field));
   }
 }
 

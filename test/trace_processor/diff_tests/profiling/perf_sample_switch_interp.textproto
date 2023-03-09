@@ -1,0 +1,127 @@
+packet {
+  interned_data {
+    build_ids {
+      iid: 0
+      str: ""
+    }
+    mapping_paths {
+      iid: 0
+      str: ""
+    }
+    function_names {
+      iid: 0
+      str: ""
+    }
+  }
+  sequence_flags: 1
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+  trusted_pid: 24388
+}
+packet {
+  timestamp: 214681394021835
+  interned_data {
+    mappings {
+      iid: 1
+      path_string_ids: 1
+      path_string_ids: 2
+      path_string_ids: 3
+      path_string_ids: 4
+      build_id: 1
+    }
+    build_ids {
+      iid: 1
+      str: ""
+    }
+    mapping_paths {
+      iid: 1
+      str: "apex"
+    }
+    mapping_paths {
+      iid: 2
+      str: "com.android.art"
+    }
+    mapping_paths {
+      iid: 3
+      str: "lib64"
+    }
+    mapping_paths {
+      iid: 4
+      str: "libart.so"
+    }
+    mappings {
+      iid: 2
+      path_string_ids: 6
+      build_id: 1
+    }
+    mapping_paths {
+      iid: 6
+      str: "example.vdex"
+    }
+    frames {
+      iid: 1
+      function_name_id: 1
+      mapping_id: 2
+    }
+    function_names {
+      iid: 1
+      str: "com.example.managed.frame"
+    }
+    frames {
+      iid: 2
+      function_name_id: 2
+      mapping_id: 1
+    }
+    function_names {
+      iid: 2
+      str: "ExecuteSwitchImplAsm"
+    }
+    frames {
+      iid: 3
+      function_name_id: 3
+      mapping_id: 1
+    }
+    function_names {
+      iid: 3
+      str: "_ZN3art11interpreter20ExecuteSwitchImplCppILb0EEEvPNS0_17SwitchImplContextE"
+    }
+    frames {
+      iid: 4
+      function_name_id: 4
+      mapping_id: 1
+    }
+    function_names {
+      iid: 4
+      str: "_ZN3art11interpreter6DoCallILb1EEEbPNS_9ArtMethodEPNS_6ThreadERNS_11ShadowFrameEPKNS_11InstructionEtbPNS_6JValueE"
+    }
+    frames {
+      iid: 5
+      function_name_id: 5
+      mapping_id: 1
+    }
+    function_names {
+      iid: 5
+      str: "_ZN3art9ArtMethod6InvokeEPNS_6ThreadEPjjPNS_6JValueEPKc"
+    }
+    callstacks {
+      iid: 1
+      frame_ids: 1
+      frame_ids: 2
+      frame_ids: 3
+      frame_ids: 4
+      frame_ids: 5
+    }
+  }
+  perf_sample {
+    cpu: 0
+    pid: 1000
+    tid: 1000
+    cpu_mode: MODE_USER
+    timebase_count: 42
+    callstack_iid: 1
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 2
+  trusted_pid: 24388
+}
+

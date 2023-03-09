@@ -11,3 +11,45 @@ message MaliTracingMarkWriteFtraceEvent {
   optional uint32 type = 3;
   optional int32 value = 4;
 }
+message MaliMaliKCPUCQSSETFtraceEvent {
+  optional uint32 id = 1;
+  optional uint64 info_val1 = 2;
+  optional uint64 info_val2 = 3;
+  optional uint32 kctx_id = 4;
+  optional int32 kctx_tgid = 5;
+}
+message MaliMaliKCPUCQSWAITSTARTFtraceEvent {
+  optional uint32 id = 1;
+  optional uint64 info_val1 = 2;
+  optional uint64 info_val2 = 3;
+  optional uint32 kctx_id = 4;
+  optional int32 kctx_tgid = 5;
+}
+message MaliMaliKCPUCQSWAITENDFtraceEvent {
+  optional uint32 id = 1;
+  optional uint64 info_val1 = 2;
+  optional uint64 info_val2 = 3;
+  optional uint32 kctx_id = 4;
+  optional int32 kctx_tgid = 5;
+}
+message MaliMaliKCPUFENCESIGNALFtraceEvent {
+  optional uint64 info_val1 = 1;
+  optional uint64 info_val2 = 2;
+  optional int32 kctx_tgid = 3;
+  optional uint32 kctx_id = 4;
+  optional uint32 id = 5;
+}
+message MaliMaliKCPUFENCEWAITSTARTFtraceEvent {
+  optional uint64 info_val1 = 1;
+  optional uint64 info_val2 = 2;
+  optional int32 kctx_tgid = 3;
+  optional uint32 kctx_id = 4;
+  optional uint32 id = 5;
+}
+message MaliMaliKCPUFENCEWAITENDFtraceEvent {
+  optional uint64 info_val1 = 1;
+  optional uint64 info_val2 = 2;
+  optional int32 kctx_tgid = 3;
+  optional uint32 kctx_id = 4;
+  optional uint32 id = 5;
+}

@@ -94,7 +94,7 @@ TEST(ProtoZeroConformanceTest, SimpleFieldsNoNesting) {
   EXPECT_EQ(-1, gold_msg.repeated_int32(1));
   EXPECT_EQ(100, gold_msg.repeated_int32(2));
   EXPECT_EQ(2000000, gold_msg.repeated_int32(3));
-  EXPECT_EQ(serialized.size(), static_cast<size_t>(gold_msg.ByteSize()));
+  EXPECT_EQ(serialized.size(), static_cast<size_t>(gold_msg.ByteSizeLong()));
 }
 
 TEST(ProtoZeroConformanceTest, NestedMessages) {

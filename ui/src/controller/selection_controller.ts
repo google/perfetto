@@ -466,7 +466,7 @@ export class SelectionController extends Controller<'main'> {
 
     // If this is the first sched slice for this utid or if the wakeup found
     // was after the previous slice then we know the wakeup was for this slice.
-    if (prevSchedResult.numRows() === 0 ||
+    if (prevSchedResult.numRows() !== 0 &&
         wakeupTs < prevSchedResult.firstRow({ts: NUM}).ts) {
       return undefined;
     }

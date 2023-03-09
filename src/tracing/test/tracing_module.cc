@@ -24,12 +24,49 @@
 // This file is for checking that multiple sets of trace event categories can be
 // combined into the same program.
 
-PERFETTO_TRACK_EVENT_STATIC_STORAGE();
+PERFETTO_TRACK_EVENT_STATIC_STORAGE_IN_NAMESPACE(tracing_module);
+PERFETTO_TRACK_EVENT_STATIC_STORAGE_IN_NAMESPACE_WITH_ATTRS(
+    tracing_extra,
+    PERFETTO_SDK_EXPORT);
+
+namespace tracing_extra {
+namespace {
+
+void EmitEventFromExtraNamespace() {
+  TRACE_EVENT_BEGIN("extra", "ExtraNamespaceFromModule");
+  TRACE_EVENT_BEGIN("extra2", "ExtraNamespaceFromModuleNotEnabled");
+}
+
+}  // namespace
+}  // namespace tracing_extra
 
 namespace tracing_module {
 
+// The following two functions test selecting the category set on a
+// per-namespace level.
+namespace test_ns1 {
+PERFETTO_USE_CATEGORIES_FROM_NAMESPACE(tracing_extra);
+
+void EmitEvent();
+void EmitEvent() {
+  TRACE_EVENT_BEGIN("extra", "DefaultNamespace");
+}
+
+}  // namespace test_ns1
+
+namespace test_ns2 {
+PERFETTO_USE_CATEGORIES_FROM_NAMESPACE(tracing_module);
+
+void EmitEvent();
+void EmitEvent() {
+  TRACE_EVENT_BEGIN("cat1", "DefaultNamespace");
+}
+
+}  // namespace test_ns2
+
 void InitializeCategories() {
   TrackEvent::Register();
+  tracing_extra::TrackEvent::Register();
 }
 
 void AddSessionObserver(perfetto::TrackEventSessionObserver* observer) {
@@ -53,6 +90,22 @@ void EmitTrackEvents() {
   TRACE_EVENT_END("cat9");
   TRACE_EVENT_BEGIN("foo", "FooEventFromModule");
   TRACE_EVENT_END("foo");
+}
+
+void EmitTrackEventsFromAllNamespaces() {
+  // Since we're in the `tracing_module` namespace, that registry is used by
+  // default.
+  TRACE_EVENT_BEGIN("cat1", "DefaultNamespaceFromModule");
+
+  // Emit an event from the other namespace.
+  tracing_extra::EmitEventFromExtraNamespace();
+
+  // Make the other namespace the default.
+  PERFETTO_USE_CATEGORIES_FROM_NAMESPACE_SCOPED(tracing_extra);
+  TRACE_EVENT_BEGIN("extra", "OverrideNamespaceFromModule");
+
+  test_ns1::EmitEvent();
+  test_ns2::EmitEvent();
 }
 
 perfetto::internal::TrackEventIncrementalState* GetIncrementalState() {

@@ -46,4 +46,17 @@ template("perfetto_tp_tables") {
       perfetto_action_type_for_generator = [ "tp_tables" ]
     }
   }
+
+  if (defined(invoker.generate_docs) && invoker.generate_docs &&
+      perfetto_build_standalone) {
+    docs_name = target_name + "_docs"
+    action(docs_name) {
+      sources = invoker.sources
+      script = "$perfetto_root_path/tools/gen_tp_table_docs.py"
+      deps = [ "$perfetto_root_path/python:trace_processor_table_generator" ]
+      outputs = [ "$target_gen_dir/$docs_name.json" ]
+      args = [ "--out" ] + rebase_path(outputs, root_build_dir) +
+             rebase_path(invoker.sources, root_build_dir)
+    }
+  }
 }

@@ -20,6 +20,7 @@ source_set("protozero") {
     "cpp_message_obj.h",
     "field.h",
     "field_writer.h",
+    "gen_field_helpers.h",
     "message.h",
     "message_arena.h",
     "message_handle.h",

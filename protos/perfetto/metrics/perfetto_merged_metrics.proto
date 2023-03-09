@@ -64,6 +64,10 @@ message AndroidFrameTimelineMetric {
     optional int64 frame_dur_p90 = 11;
     optional int64 frame_dur_p95 = 12;
     optional int64 frame_dur_p99 = 13;
+    optional double frame_dur_ms_p50 = 14;
+    optional double frame_dur_ms_p90 = 15;
+    optional double frame_dur_ms_p95 = 16;
+    optional double frame_dur_ms_p99 = 17;
 
     reserved 1, 2;
   }
@@ -133,8 +137,12 @@ message AndroidBatteryMetric {
 
 // Begin of protos/perfetto/metrics/android/binder_metric.proto
 
-// This metric provides per-process Binder statistics for traces with binder_driver enabled
-// Specifically, transactions are categorized and counted
+// This metric provides the following:
+// 1. Per-process Binder statistics for traces with binder_driver enabled.
+//    Specifically, transactions are categorized and counted
+// 2. Unaggregated binder txn durations with per-txn aggregated thread state and
+// blocked function
+//    durations
 message AndroidBinderMetric {
   message PerProcessBreakdown {
     optional string process_name = 1;
@@ -143,8 +151,45 @@ message AndroidBinderMetric {
     optional uint32 count = 4;
   }
 
+  message UnaggregatedTxnBreakdown {
+    // General
+    optional string aidl_name = 1;
+    // Client
+    optional uint32 binder_txn_id = 2;
+    optional string client_process = 3;
+    optional string client_thread = 4;
+    optional bool is_main_thread = 5;
+    optional int64 client_ts = 6;
+    optional int64 client_dur = 7;
+    // Server
+    optional uint32 binder_reply_id = 8;
+    optional string server_process = 9;
+    optional string server_thread = 10;
+    optional int64 server_ts = 11;
+    optional int64 server_dur = 12;
+    // Aggregations
+    repeated ThreadStateBreakdown thread_states = 13;
+    repeated BlockedFunctionBreakdown blocked_functions = 14;
+  }
+
+  message ThreadStateBreakdown {
+    optional string thread_state_type = 1;
+    optional string thread_state = 2;
+    optional int64 thread_state_dur = 3;
+    optional int64 thread_state_count = 4;
+  }
+
+  message BlockedFunctionBreakdown {
+    optional string thread_state_type = 1;
+    optional string blocked_function = 2;
+    optional int64 blocked_function_dur = 3;
+    optional int64 blocked_function_count = 4;
+  }
+
   repeated PerProcessBreakdown process_breakdown = 1;
+  repeated UnaggregatedTxnBreakdown unaggregated_txn_breakdown = 2;
 }
+
 // End of protos/perfetto/metrics/android/binder_metric.proto
 
 // Begin of protos/perfetto/metrics/android/camera_metric.proto
@@ -744,7 +789,7 @@ message AndroidJankCujMetric {
     optional bool sf_missed = 6;
   }
 
-  // Next id: 12
+  // Next id: 16
   message Metrics {
     // Overall number of frames within the CUJ.
     optional int64 total_frames = 1;
@@ -762,29 +807,44 @@ message AndroidJankCujMetric {
     // Not available in timeline_metrics and trace_metrics.
     optional int64 missed_frames_max_successive = 5;
 
-    // Max frame duration.
-    // Not available in counter_metrics.
+    // Max frame duration in nanoseconds.
     optional int64 frame_dur_max = 6;
 
-    // Average frame duration.
+    // Average frame duration in nanoseconds.
     // Not available in counter_metrics.
     optional int64 frame_dur_avg = 7;
 
-    // Median frame duration.
+    // Median frame duration in nanoseconds.
     // Not available in counter_metrics.
     optional int64 frame_dur_p50 = 8;
 
-    // P90 frame duration.
+    // P90 frame duration in nanoseconds.
     // Not available in counter_metrics.
     optional int64 frame_dur_p90 = 9;
 
-    // P95 frame duration.
+    // P95 frame duration in nanoseconds.
     // Not available in counter_metrics.
     optional int64 frame_dur_p95 = 10;
 
-    // P99 frame duration.
+    // P99 frame duration in nanoseconds.
     // Not available in counter_metrics.
     optional int64 frame_dur_p99 = 11;
+
+    // Median frame duration in milliseconds.
+    // Not available in counter_metrics.
+    optional double frame_dur_ms_p50 = 12;
+
+    // P90 frame duration in milliseconds.
+    // Not available in counter_metrics.
+    optional double frame_dur_ms_p90 = 13;
+
+    // P95 frame duration in milliseconds.
+    // Not available in counter_metrics.
+    optional double frame_dur_ms_p95 = 14;
+
+    // P99 frame duration in milliseconds.
+    // Not available in counter_metrics.
+    optional double frame_dur_ms_p99 = 15;
   }
 }
 
@@ -1637,36 +1697,6 @@ message AndroidSurfaceflingerMetric {
 
 // End of protos/perfetto/metrics/android/surfaceflinger.proto
 
-// Begin of protos/perfetto/metrics/android/sysui_cuj_metrics.proto
-
-// Metric that stores frame information and potential jank root causes
-// for a single Android system UI interaction/user journey.
-message AndroidSysUiCujMetrics {
-  // A list of all frames within the SysUi user journey.
-  repeated Frame frames = 1;
-
-  optional string cuj_name = 2;
-  optional int64 cuj_start = 3;
-  optional int64 cuj_dur = 4;
-
-  // Details about the process (uid, version, etc)
-  optional AndroidProcessMetadata process = 5;
-
-  message Frame {
-    // Index of the frame within the single user journey.
-    optional int64 number = 1;
-    optional int64 vsync = 5;
-    optional int64 ts = 2;
-    optional int64 dur = 3;
-
-    // A list of identified potential causes for jank.
-    // Optional.
-    repeated string jank_cause = 4;
-  }
-}
-
-// End of protos/perfetto/metrics/android/sysui_cuj_metrics.proto
-
 // Begin of protos/perfetto/metrics/android/task_names.proto
 
 message AndroidTaskNames {
@@ -1844,8 +1874,8 @@ message TraceMetrics {
   // GPU metrics on Android.
   optional AndroidGpuMetric android_gpu = 26;
 
-  // Frame timing and jank root causes for system UI interactions.
-  optional AndroidSysUiCujMetrics android_sysui_cuj = 27;
+  // Deprecated AndroidSysUiCujMetrics.
+  reserved 27;
 
   // Interaction and frame timings for CUJs (important UI transitions).
   optional AndroidJankCujMetric android_jank_cuj = 48;

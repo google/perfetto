@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+SELECT IMPORT('android.startup.startups');
+
 -- Create the base CPU span join table.
 SELECT RUN_METRIC('android/android_cpu_agg.sql');
 SELECT RUN_METRIC('android/cpu_info.sql');
@@ -21,17 +23,21 @@ SELECT RUN_METRIC('android/cpu_info.sql');
 -- Create a span join safe launches view; since both views
 -- being span joined have an "id" column, we need to rename
 -- the id column for launches to disambiguate the two.
+DROP VIEW IF EXISTS android_launches_span_join_safe;
+CREATE VIEW android_launches_span_join_safe AS
+SELECT ts, dur, startup_id
+FROM android_startups;
+
 DROP VIEW IF EXISTS launches_span_join_safe;
 CREATE VIEW launches_span_join_safe AS
-SELECT ts, dur, id AS launch_id
-FROM launches;
+SELECT startup_id AS launch_id, * FROM android_launches_span_join_safe;
 
 -- Span join the CPU table with the launches table to get the
 -- breakdown per-cpu.
 DROP TABLE IF EXISTS cpu_freq_sched_per_thread_per_launch;
 CREATE VIRTUAL TABLE cpu_freq_sched_per_thread_per_launch
 USING SPAN_JOIN(
-  launches_span_join_safe,
+  android_launches_span_join_safe,
   cpu_freq_sched_per_thread PARTITIONED cpu
 );
 
@@ -39,7 +45,7 @@ USING SPAN_JOIN(
 DROP TABLE IF EXISTS mcycles_per_core_type_per_launch;
 CREATE TABLE mcycles_per_core_type_per_launch AS
 SELECT
-  launch_id,
+  startup_id,
   IFNULL(core_type_per_cpu.core_type, 'unknown') AS core_type,
   CAST(SUM(dur * freq_khz / 1000) / 1e9 AS INT) AS mcycles
 FROM cpu_freq_sched_per_thread_per_launch
@@ -50,12 +56,12 @@ GROUP BY 1, 2;
 -- Given a launch id and core type, returns the number of mcycles consumed
 -- on CPUs of that core type during the launch.
 SELECT CREATE_FUNCTION(
-  'MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(launch_id INT, core_type STRING)',
+  'MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(startup_id INT, core_type STRING)',
   'INT',
   '
     SELECT mcycles
     FROM mcycles_per_core_type_per_launch m
-    WHERE m.launch_id = $launch_id AND m.core_type = $core_type
+    WHERE m.startup_id = $startup_id AND m.core_type = $core_type
   '
 );
 
@@ -66,7 +72,7 @@ DROP TABLE IF EXISTS top_mcyles_process_excluding_started_per_launch;
 CREATE TABLE top_mcyles_process_excluding_started_per_launch AS
 WITH mcycles_per_launch_and_process AS MATERIALIZED (
   SELECT
-    launch_id,
+    startup_id,
     upid,
     CAST(SUM(dur * freq_khz / 1000) / 1e9 AS INT) AS mcycles
   FROM cpu_freq_sched_per_thread_per_launch c
@@ -76,15 +82,15 @@ WITH mcycles_per_launch_and_process AS MATERIALIZED (
     utid != 0
     AND upid NOT IN (
       SELECT upid
-      FROM launch_processes l
+      FROM android_startup_processes l
     )
-  GROUP BY launch_id, upid
+  GROUP BY startup_id, upid
 )
 SELECT *
 FROM (
   SELECT
     *,
-    ROW_NUMBER() OVER (PARTITION BY launch_id ORDER BY mcycles DESC) AS mcycles_rank
+    ROW_NUMBER() OVER (PARTITION BY startup_id ORDER BY mcycles DESC) AS mcycles_rank
   FROM mcycles_per_launch_and_process
 )
 WHERE mcycles_rank <= 5;
@@ -92,7 +98,7 @@ WHERE mcycles_rank <= 5;
 -- Given a launch id, returns the name of the processes consuming the most
 -- mcycles during the launch excluding the process being started.
 SELECT CREATE_FUNCTION(
-  'N_MOST_ACTIVE_PROCESS_NAMES_FOR_LAUNCH(launch_id INT)',
+  'N_MOST_ACTIVE_PROCESS_NAMES_FOR_LAUNCH(startup_id INT)',
   'STRING',
   '
     SELECT RepeatedField(process_name)
@@ -100,8 +106,21 @@ SELECT CREATE_FUNCTION(
       SELECT IFNULL(process.name, "[NULL]") AS process_name
       FROM top_mcyles_process_excluding_started_per_launch
       JOIN process USING (upid)
-      WHERE launch_id = $launch_id
+      WHERE startup_id = $startup_id
       ORDER BY mcycles DESC
     );
+  '
+);
+
+-- Given a launch id, returns the most active process name.
+SELECT CREATE_FUNCTION(
+  'MOST_ACTIVE_PROCESS_FOR_LAUNCH(startup_id INT)',
+  'STRING',
+  '
+    SELECT process.name AS process_name
+    FROM top_mcyles_process_excluding_started_per_launch
+    JOIN process USING (upid)
+    WHERE startup_id = $startup_id
+    ORDER BY mcycles DESC LIMIT 1;
   '
 );

@@ -836,10 +836,10 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 
   if (cfg.write_into_file()) {
     if (!fd ^ !cfg.output_path().empty()) {
-      tracing_sessions_.erase(tsid);
       MaybeLogUploadEvent(
           tracing_session->config, uuid,
           PerfettoStatsdAtom::kTracedEnableTracingInvalidFdOutputFile);
+      tracing_sessions_.erase(tsid);
       return PERFETTO_SVC_ERR(
           "When write_into_file==true either a FD needs to be passed or "
           "output_path must be populated (but not both)");
@@ -868,6 +868,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 
   // Initialize the log buffers.
   bool did_allocate_all_buffers = true;
+  bool invalid_buffer_config = false;
 
   // Allocate the trace buffers. Also create a map to translate a consumer
   // relative index (TraceConfig.DataSourceConfig.target_buffer) into the
@@ -884,14 +885,24 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       break;
     }
     tracing_session->buffers_index.push_back(global_id);
-    const size_t buf_size_bytes = buffer_cfg.size_kb() * 1024u;
-    total_buf_size_kb += buffer_cfg.size_kb();
+    // TraceBuffer size is limited to 32-bit.
+    const uint32_t buf_size_kb = buffer_cfg.size_kb();
+    const uint64_t buf_size_bytes = buf_size_kb * static_cast<uint64_t>(1024);
+    const size_t buf_size = static_cast<size_t>(buf_size_bytes);
+    if (buf_size_bytes == 0 ||
+        buf_size_bytes > std::numeric_limits<uint32_t>::max() ||
+        buf_size != buf_size_bytes) {
+      invalid_buffer_config = true;
+      did_allocate_all_buffers = false;
+      break;
+    }
+    total_buf_size_kb += buf_size_kb;
     TraceBuffer::OverwritePolicy policy =
         buffer_cfg.fill_policy() == TraceConfig::BufferConfig::DISCARD
             ? TraceBuffer::kDiscard
             : TraceBuffer::kOverwrite;
-    auto it_and_inserted = buffers_.emplace(
-        global_id, TraceBuffer::Create(buf_size_bytes, policy));
+    auto it_and_inserted =
+        buffers_.emplace(global_id, TraceBuffer::Create(buf_size, policy));
     PERFETTO_DCHECK(it_and_inserted.second);  // buffers_.count(global_id) == 0.
     std::unique_ptr<TraceBuffer>& trace_buffer = it_and_inserted.first->second;
     if (!trace_buffer) {
@@ -900,24 +911,28 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     }
   }
 
-  UpdateMemoryGuardrail();
-
   // This can happen if either:
   // - All the kMaxTraceBufferID slots are taken.
-  // - OOM, or, more relistically, we exhausted virtual memory.
+  // - OOM, or, more realistically, we exhausted virtual memory.
+  // - The buffer size in the config is invalid.
   // In any case, free all the previously allocated buffers and abort.
-  // TODO(fmayer): add a test to cover this case, this is quite subtle.
   if (!did_allocate_all_buffers) {
     for (BufferID global_id : tracing_session->buffers_index) {
       buffer_ids_.Free(global_id);
       buffers_.erase(global_id);
     }
-    tracing_sessions_.erase(tsid);
     MaybeLogUploadEvent(tracing_session->config, uuid,
                         PerfettoStatsdAtom::kTracedEnableTracingOom);
+    tracing_sessions_.erase(tsid);
+    if (invalid_buffer_config) {
+      return PERFETTO_SVC_ERR(
+          "Failed to allocate tracing buffers: Invalid buffer sizes");
+    }
     return PERFETTO_SVC_ERR(
         "Failed to allocate tracing buffers: OOM or too many buffers");
   }
+
+  UpdateMemoryGuardrail();
 
   consumer->tracing_session_id_ = tsid;
 

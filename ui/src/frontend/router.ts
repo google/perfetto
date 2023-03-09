@@ -155,20 +155,20 @@ export class Router {
     const prefixLength = ROUTE_PREFIX.length;
     let route = '';
     if (hash.startsWith(ROUTE_PREFIX)) {
-      route = hash.substr(prefixLength).split('?')[0];
+      route = hash.substring(prefixLength).split('?')[0];
     }
 
     let page = route;
     let subpage = '';
     const splittingPoint = route.indexOf('/', 1);
     if (splittingPoint > 0) {
-      page = route.substr(0, splittingPoint);
-      subpage = route.substr(splittingPoint);
+      page = route.substring(0, splittingPoint);
+      subpage = route.substring(splittingPoint);
     }
 
     const argsStart = hash.indexOf('?');
-    const argsStr = argsStart < 0 ? '' : hash.substr(argsStart + 1);
-    const args = argsStr ? m.parseQueryString(hash.substr(argsStart)) : {};
+    const argsStr = argsStart < 0 ? '' : hash.substring(argsStart + 1);
+    const args = argsStr ? m.parseQueryString(hash.substring(argsStart)) : {};
 
     return {page, subpage, args};
   }
@@ -176,7 +176,7 @@ export class Router {
   // Like parseFragment() but takes a full URL.
   static parseUrl(url: string): Route {
     const hashPos = url.indexOf('#');
-    const fragment = hashPos < 0 ? '' : url.substr(hashPos);
+    const fragment = hashPos < 0 ? '' : url.substring(hashPos);
     return Router.parseFragment(fragment);
   }
 

@@ -57,6 +57,7 @@
 #include "protos/perfetto/trace/ftrace/irq.pbzero.h"
 #include "protos/perfetto/trace/ftrace/kmem.pbzero.h"
 #include "protos/perfetto/trace/ftrace/lowmemorykiller.pbzero.h"
+#include "protos/perfetto/trace/ftrace/lwis.pbzero.h"
 #include "protos/perfetto/trace/ftrace/mali.pbzero.h"
 #include "protos/perfetto/trace/ftrace/mm_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/net.pbzero.h"
@@ -219,6 +220,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       rss_stat_tracker_(context),
       drm_tracker_(context),
       iostat_tracker_(context),
+      virtio_gpu_tracker_(context),
+      mali_gpu_event_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
@@ -288,7 +291,6 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       shrink_priority_id_(context->storage->InternString("priority")),
       trusty_category_id_(context_->storage->InternString("tipc")),
       trusty_name_trusty_std_id_(context_->storage->InternString("trusty_std")),
-      trusty_name_tipc_tx_id_(context_->storage->InternString("tipc_tx")),
       trusty_name_tipc_rx_id_(context_->storage->InternString("tipc_rx")),
       cma_alloc_id_(context_->storage->InternString("mm_cma_alloc")),
       cma_name_id_(context_->storage->InternString("cma_name")),
@@ -784,6 +786,15 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseMaliTracingMarkWrite(ts, pid, fld_bytes);
         break;
       }
+      case FtraceEvent::kLwisTracingMarkWriteFieldNumber: {
+        ParseLwisTracingMarkWrite(ts, pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kVirtioGpuCmdQueueFieldNumber:
+      case FtraceEvent::kVirtioGpuCmdResponseFieldNumber: {
+        virtio_gpu_tracker_.ParseVirtioGpu(ts, fld.id(), pid, fld_bytes);
+        break;
+      }
       case FtraceEvent::kCpuhpPauseFieldNumber: {
         ParseCpuhpPause(ts, pid, fld_bytes);
         break;
@@ -971,14 +982,6 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseTrustyIpcPoll(pid, ts, fld_bytes);
         break;
       }
-      case FtraceEvent::kTrustyIpcPollEndFieldNumber: {
-        ParseTrustyIpcPollEnd(pid, ts, fld_bytes);
-        break;
-      }
-      case FtraceEvent::kTrustyIpcTxFieldNumber: {
-        ParseTrustyIpcTx(pid, ts, fld_bytes);
-        break;
-      }
       case FtraceEvent::kTrustyIpcRxFieldNumber: {
         ParseTrustyIpcRx(pid, ts, fld_bytes);
         break;
@@ -987,6 +990,16 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseTrustyEnqueueNop(pid, ts, fld_bytes);
         break;
       }
+      case FtraceEvent::kMaliMaliKCPUCQSSETFieldNumber:
+      case FtraceEvent::kMaliMaliKCPUCQSWAITSTARTFieldNumber:
+      case FtraceEvent::kMaliMaliKCPUCQSWAITENDFieldNumber:
+      case FtraceEvent::kMaliMaliKCPUFENCESIGNALFieldNumber:
+      case FtraceEvent::kMaliMaliKCPUFENCEWAITSTARTFieldNumber:
+      case FtraceEvent::kMaliMaliKCPUFENCEWAITENDFieldNumber: {
+        mali_gpu_event_tracker_.ParseMaliGpuEvent(ts, fld.id(), pid);
+        break;
+      }
+
       default:
         break;
     }
@@ -1360,6 +1373,23 @@ void FtraceParser::ParseMaliTracingMarkWrite(int64_t timestamp,
       evt.name(), tgid, evt.value());
 }
 
+void FtraceParser::ParseLwisTracingMarkWrite(int64_t timestamp,
+                                             uint32_t pid,
+                                             ConstBytes blob) {
+  protos::pbzero::LwisTracingMarkWriteFtraceEvent::Decoder evt(blob.data,
+                                                               blob.size);
+  if (!evt.type()) {
+    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    return;
+  }
+
+  uint32_t tgid = static_cast<uint32_t>(evt.pid());
+  SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
+      timestamp, pid, static_cast<char>(evt.type()), false /*trace_begin*/,
+      evt.func_name(), tgid, evt.value());
+}
+
+
 /** Parses ion heap events present in Pixel kernels. */
 void FtraceParser::ParseIonHeapGrowOrShrink(int64_t timestamp,
                                             uint32_t pid,
@@ -1672,6 +1702,8 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   proc_tracker->UpdateThreadNameByUtid(new_utid, new_comm,
                                        ThreadNamePriority::kFtrace);
   proc_tracker->AssociateThreads(source_utid, new_utid);
+
+  ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(timestamp, new_utid, source_utid);
 }
 
 void FtraceParser::ParseTaskRename(ConstBytes blob) {
@@ -2726,31 +2758,8 @@ void FtraceParser::ParseTrustyIpcPoll(uint32_t pid,
   base::StackString<256> name("tipc_poll: %s",
                               evt.srv_name().ToStdString().c_str());
   StringId name_generic = context_->storage->InternString(name.string_view());
-  context_->slice_tracker->Begin(timestamp, track, trusty_category_id_,
-                                 name_generic);
-}
-
-void FtraceParser::ParseTrustyIpcPollEnd(uint32_t pid,
-                                         int64_t timestamp,
-                                         protozero::ConstBytes blob) {
-  protos::pbzero::TrustyIpcPollEndFtraceEvent::Decoder evt(blob.data,
-                                                           blob.size);
-
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId track = context_->track_tracker->InternThreadTrack(utid);
-  context_->slice_tracker->End(timestamp, track, trusty_category_id_);
-}
-
-void FtraceParser::ParseTrustyIpcTx(uint32_t pid,
-                                    int64_t ts,
-                                    protozero::ConstBytes blob) {
-  protos::pbzero::TrustyIpcTxFtraceEvent::Decoder evt(blob.data, blob.size);
-
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId track = context_->track_tracker->InternThreadTrack(utid);
-
-  context_->slice_tracker->Scoped(ts, track, trusty_category_id_,
-                                  trusty_name_tipc_tx_id_, 0);
+  context_->slice_tracker->Scoped(timestamp, track, trusty_category_id_,
+                                  name_generic, 0);
 }
 
 void FtraceParser::ParseTrustyIpcRx(uint32_t pid,

@@ -275,13 +275,8 @@ config("protobuf_gen_config") {
     "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
   ]
   cflags = []
-  if (is_clang || !is_win) {
-    cflags += [
-      "-Wno-unknown-warning-option",
-      "-Wno-deprecated",
-      "-Wno-undef",
-      "-Wno-zero-as-null-pointer-constant",
-    ]
+  if (!is_clang || !is_win) {
+    cflags += [ "-Wno-deprecated-declarations" ]
   }
   if (is_clang && is_win) {
     cflags += [
@@ -403,6 +398,13 @@ if (enable_perfetto_llvm_demangle) {
   group("llvm_demangle") {
     public_deps = [ "//buildtools:llvm_demangle" ]
   }
+}
+
+# Allows overriding platform-specific functionality used by base at a
+# build-system level. This allows e.g. different implementations of base
+# functions in Google3.
+group("base_platform") {
+  public_deps = [ "../src/base:perfetto_base_default_platform" ]
 }
 
 # Used by fuzzers.

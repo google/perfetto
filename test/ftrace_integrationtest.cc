@@ -173,7 +173,7 @@ TEST_F(PerfettoFtraceIntegrationTest, TestFtraceFlush) {
   helper.StartTracing(trace_config);
 
   // Wait for traced_probes to start.
-  helper.WaitFor([&] { return ftrace_procfs_->IsTracingEnabled(); }, "ftrace");
+  helper.WaitFor([&] { return ftrace_procfs_->GetTracingOn(); }, "ftrace");
 
   // Do a first flush just to synchronize with the producer. The problem here
   // is that, on a Linux workstation, the producer can take several seconds just

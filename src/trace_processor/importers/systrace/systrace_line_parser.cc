@@ -48,11 +48,19 @@ SystraceLineParser::SystraceLineParser(TraceProcessorContext* ctx)
       sched_blocked_reason_id_(
           ctx->storage->InternString("sched_blocked_reason")),
       io_wait_id_(ctx->storage->InternString("io_wait")),
-      waker_utid_id_(ctx->storage->InternString("waker_utid")) {}
+      waker_utid_id_(ctx->storage->InternString("waker_utid")),
+      unknown_thread_name_id_(ctx->storage->InternString("<...>")) {}
 
 util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
+  const StringId line_task_id{
+      context_->storage->InternString(base::StringView(line.task))};
   auto utid = context_->process_tracker->UpdateThreadName(
-      line.pid, context_->storage->InternString(base::StringView(line.task)),
+      line.pid,
+      // Ftrace doesn't always know the thread name (see ftrace documentation
+      // for saved_cmdlines) so some lines name a process "<...>". Don't use
+      // this bogus name for thread naming otherwise a real name from a previous
+      // line could be overwritten.
+      line_task_id == unknown_thread_name_id_ ? StringId::Null() : line_task_id,
       ThreadNamePriority::kFtrace);
 
   if (!line.tgid_str.empty() && line.tgid_str != "-----") {

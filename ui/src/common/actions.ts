@@ -1024,6 +1024,13 @@ export const StateActions = {
     }
   },
 
+  clearAllPinnedTracks(state: StateDraft, _: {}) {
+    if (state.pinnedTracks.length > 0) {
+      // Clear pinnedTracks array
+      state.pinnedTracks.length = 0;
+    }
+  },
+
   togglePivotTableRedux(state: StateDraft, args: {areaId: string|null}) {
     state.nonSerializableState.pivotTableRedux.selectionArea =
         args.areaId === null ?

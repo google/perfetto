@@ -254,7 +254,7 @@ No. Within Chrome processes (the browser app, not CrOS) Perfetto doesn't use
 any doesn't use any unix socket. Instead it uses the functionally equivalent
 Mojo endpoints [`Producer{Client,Host}` and `Consumer{Client,Host}`][mojom].
 
-### Shared memory
+### {#shmem-abi} Shared memory
 
 This section describes the binary interface of the memory buffer shared between
 a producer process and the tracing service (SMB).
@@ -396,7 +396,7 @@ the producer ID that wrote it matches the Producer ID of the patch request over
 IPC (the Producer ID is not spoofable and is tied to the IPC socket file
 descriptor).
 
-### Proto definitions
+### {#protos} Proto definitions
 
 The following protobuf messages are part of the overall trace protocol ABI and
 are updated maintaining backward-compatibility, unless marked as experimental

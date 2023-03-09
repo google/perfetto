@@ -126,7 +126,7 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       cpu_times_softirq_ns_id_(
           context->storage->InternString("cpu.times.softirq_ns")),
       oom_score_adj_id_(context->storage->InternString("oom_score_adj")),
-      cpu_freq_id_(context_->storage->InternString("freq")) {
+      cpu_freq_id_(context_->storage->InternString("cpufreq")) {
   for (const auto& name : BuildMeminfoCounterNames()) {
     meminfo_strs_id_.emplace_back(context->storage->InternString(name));
   }
@@ -264,11 +264,10 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
                                          track);
   }
 
-  int c = 0;
+  uint32_t c = 0;
   for (auto it = sys_stats.cpufreq_khz(); it; ++it, ++c) {
-    base::StackString<255> counter_name("CPU %d Freq in kHz", c);
-    StringId name = context_->storage->InternString(counter_name.string_view());
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
+    TrackId track =
+        context_->track_tracker->InternCpuCounterTrack(cpu_freq_id_, c);
     context_->event_tracker->PushCounter(ts, static_cast<double>(*it), track);
   }
 

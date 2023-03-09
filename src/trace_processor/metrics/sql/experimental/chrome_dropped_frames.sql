@@ -18,7 +18,7 @@
 DROP VIEW IF EXISTS dropped_pipeline_reporter_slice;
 CREATE VIEW dropped_pipeline_reporter_slice AS
 SELECT slice.* FROM slice
-INNER JOIN args
+JOIN args
   ON slice.arg_set_id = args.arg_set_id
 WHERE
   slice.name = 'PipelineReporter'
@@ -31,7 +31,7 @@ SELECT
   dropped_pipeline_reporter_slice.ts,
   process_track.upid
 FROM dropped_pipeline_reporter_slice
-INNER JOIN process_track
+JOIN process_track
   ON dropped_pipeline_reporter_slice.track_id = process_track.id;
 
 -- Find the name and pid of the processes.
@@ -50,7 +50,7 @@ SELECT
     '') AS process_name,
   process.pid AS process_id
 FROM dropped_frames_with_upid
-INNER JOIN process
+JOIN process
   ON dropped_frames_with_upid.upid = process.upid;
 
 -- Create the derived event track for dropped frames.
@@ -75,7 +75,7 @@ GROUP BY ts
 UNION ALL
 SELECT
   'slice' AS track_type,
-  process_name || ' ' || process_id AS track_name,
+  COALESCE(process_name, 'Process') || ' ' || process_id AS track_name,
   ts,
   0 AS dur,
   'Dropped Frame' AS slice_name,

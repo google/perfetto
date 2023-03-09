@@ -32,7 +32,10 @@
 #include "src/traceconv/trace_to_systrace.h"
 #include "src/traceconv/trace_to_text.h"
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <fcntl.h>
+#include <io.h>
+#else
 #include <unistd.h>
 #endif
 
@@ -137,11 +140,17 @@ int Main(int argc, char** argv) {
     input_stream = &std::cin;
   }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // We don't want the runtime to replace "\n" with "\r\n" on `std::cout`.
+  _setmode(_fileno(stdout), _O_BINARY);
+#endif
+
   std::ostream* output_stream;
   std::ofstream file_ostream;
   if (positional_args.size() > 2) {
     const char* file_path = positional_args[2];
-    file_ostream.open(file_path, std::ios_base::out | std::ios_base::trunc);
+    file_ostream.open(file_path, std::ios_base::out | std::ios_base::trunc |
+                                     std::ios_base::binary);
     if (!file_ostream.is_open())
       PERFETTO_FATAL("Could not open %s", file_path);
     output_stream = &file_ostream;

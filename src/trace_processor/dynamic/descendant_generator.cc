@@ -27,20 +27,6 @@ namespace perfetto {
 namespace trace_processor {
 namespace tables {
 
-#define PERFETTO_TP_DESCENDANT_SLICE_TABLE_DEF(NAME, PARENT, C) \
-  NAME(DescendantSliceTable, "descendant_slice")                \
-  PARENT(PERFETTO_TP_SLICE_TABLE_DEF, C)                        \
-  C(uint32_t, start_id, Column::Flag::kHidden)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_DESCENDANT_SLICE_TABLE_DEF);
-
-#define PERFETTO_TP_DESCENDANT_SLICE_BY_STACK_TABLE_DEF(NAME, PARENT, C) \
-  NAME(DescendantSliceByStackTable, "descendant_slice_by_stack")         \
-  PARENT(PERFETTO_TP_SLICE_TABLE_DEF, C)                                 \
-  C(int64_t, start_id, Column::Flag::kHidden)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_DESCENDANT_SLICE_BY_STACK_TABLE_DEF);
-
 DescendantSliceTable::~DescendantSliceTable() = default;
 DescendantSliceByStackTable::~DescendantSliceByStackTable() = default;
 
@@ -96,18 +82,27 @@ base::Status GetDescendants(
   return base::OkStatus();
 }
 
+uint32_t GetConstraintColumnIndex(DescendantGenerator::Descendant type) {
+  switch (type) {
+    case DescendantGenerator::Descendant::kSlice:
+      return tables::DescendantSliceTable::ColumnIndex::start_id;
+    case DescendantGenerator::Descendant::kSliceByStack:
+      return tables::DescendantSliceByStackTable::ColumnIndex::start_stack_id;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 }  // namespace
 
 DescendantGenerator::DescendantGenerator(Descendant type,
-                                         TraceProcessorContext* context)
-    : type_(type), context_(context) {}
+                                         const TraceStorage* storage)
+    : type_(type), storage_(storage) {}
 
 base::Status DescendantGenerator::ValidateConstraints(
     const QueryConstraints& qc) {
   const auto& cs = qc.constraints();
 
-  int column =
-      static_cast<int>(tables::DescendantSliceTable::ColumnIndex::start_id);
+  int column = static_cast<int>(GetConstraintColumnIndex(type_));
   auto id_fn = [column](const QueryConstraints::Constraint& c) {
     return c.column == column && sqlite_utils::IsOpEq(c.op);
   };
@@ -121,17 +116,33 @@ base::Status DescendantGenerator::ComputeTable(
     const std::vector<Order>&,
     const BitVector&,
     std::unique_ptr<Table>& table_return) {
-  const auto& slices = context_->storage->slice_table();
+  const auto& slices = storage_->slice_table();
 
-  uint32_t column = tables::DescendantSliceTable::ColumnIndex::start_id;
+  uint32_t column = GetConstraintColumnIndex(type_);
   auto constraint_it =
       std::find_if(cs.begin(), cs.end(), [column](const Constraint& c) {
         return c.col_idx == column && c.op == FilterOp::kEq;
       });
-  PERFETTO_DCHECK(constraint_it != cs.end());
-  if (constraint_it == cs.end() ||
-      constraint_it->value.type != SqlValue::Type::kLong) {
-    return base::ErrStatus("invalid start_id");
+  if (constraint_it == cs.end()) {
+    return base::ErrStatus("no start id specified.");
+  }
+  if (constraint_it->value.type == SqlValue::Type::kNull) {
+    // Nothing matches a null id so return an empty table.
+    switch (type_) {
+      case Descendant::kSlice:
+        table_return = tables::DescendantSliceTable::SelectAndExtendParent(
+            storage_->slice_table(), {}, {});
+        break;
+      case Descendant::kSliceByStack:
+        table_return =
+            tables::DescendantSliceByStackTable::SelectAndExtendParent(
+                storage_->slice_table(), {}, {});
+        break;
+    }
+    return base::OkStatus();
+  }
+  if (constraint_it->value.type != SqlValue::Type::kLong) {
+    return base::ErrStatus("start id should be an integer.");
   }
 
   int64_t start_id = constraint_it->value.AsLong();

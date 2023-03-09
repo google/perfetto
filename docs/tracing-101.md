@@ -1,9 +1,6 @@
 # Tracing 101
-*This page provides a birds-eye view of performance analysis using Perfetto.
-The aim is for to orient even people who have no idea what "tracing" is. You
-should walk away from this page with a good understanding of the available
-capabilities in Perfetto and how they can be used to improve performance of a
-system.*
+*This page provides a birds-eye view of performance analysis.
+The aim is to orient people who have no idea what "tracing" is.*
 
 ## Introduction to...
 ### Performance
@@ -140,6 +137,146 @@ application instrumentation and low-level kernel events together provide
 deep insight into why code was run in the first place.
 
 NOTE: Perfetto supports collecting, analyzing and visualizing both profiles
-and traces at the same time so you can have the best of both worlds! Due to this
+and traces at the same time so you can have the best of both worlds!
+
+## Perfetto
+Perfetto is a suite of tools for performance analysis of software. Its purpose
+is to empower engineers to understand where resources are being used by their
+systems. It helps identify the changes they can make to improve performance
+and verify the impact of those changes.
+
+NOTE: In Perfetto, since profiles and traces can be collected simultaneously,
 we call everything a "trace" even if it may contain (only) profiling data
 inside.
+
+### Recording traces
+Perfetto is highly configurable when it comes to recording traces. There are
+literally hundreds of knobs which can be tweaked to control what data is
+collected, how it should be collected, how much information a trace should
+contain etc.
+
+[Record traces on Linux quickstart](/docs/quickstart/linux-tracing.md) is
+a good place to start if you're unfamiliar with Perfetto. For Android
+developers,
+[Record traces on Android quickstart](/docs/quickstart/android-tracing.md) will
+be more applicable. The [trace configuration](/docs/concepts/config.md) page
+is also useful to consult as a reference.
+
+The following sub-sections give an overview of various points worth considering
+when recording Perfetto traces.
+
+#### Kernel tracing
+Perfetto integrates closely with the Linux kernel's
+[ftrace](https://www.kernel.org/doc/Documentation/trace/ftrace.txt) tracing
+system to record kernel events (e.g. scheduling, syscalls, wakeups). The
+[scheduling](/docs/data-sources/cpu-scheduling.md),
+[syscall](/docs/data-sources/syscalls.md) and
+[CPU frequency](/docs/data-sources/cpu-freq.md) data source pages give
+examples of configuring ftrace collection.
+
+Natively supported ftrace events can be found in the fields of
+[this proto message](/docs/reference/trace-packet-proto.autogen#FtraceEvent).
+Perfetto also supports collecting ftrace events it does not natively understand
+(i.e. it does not have a protobuf message for) as a
+["generic"](/docs/reference/trace-packet-proto.autogen#GenericFtraceEvent)
+events. These events are encoded as key-value pairs, similar to a JSON
+dictionary.
+
+It is strongly discouraged to rely on generic events for production use cases:
+the inefficient encoding causes trace size bloat and the
+[trace processor](/docs/analysis/trace-processor.md) cannot parse them
+meaningfully. Instead, support should be added for parsing important ftrace
+events to Perfetto:
+[here](/docs/contributing/common-tasks.md#add-a-new-ftrace-event) is a simple
+set of steps to follow which are found.
+
+#### Instrumentation with Perfetto SDK
+Perfetto has a [C++ SDK](https://perfetto.dev/docs/instrumentation/tracing-sdk)
+which can be used to instrument programs to emit tracing events. The SDK is
+designed to be very low-overhead and is distributed in an "amalgamated" form
+of a one `.cc` and one `.h` file, making it easy to integrate in any build
+system.
+
+A C SDK is under active development and should be available for general
+usage by Q2 2023. See [this doc](https://bit.ly/perfetto-c) for details (note
+viewing this doc requires being a member of
+[this group](https://groups.google.com/forum/#!forum/perfetto-dev))
+
+A Java/Kotlin SDK for Android (as a
+[JetPack library](https://developer.android.com/jetpack/androidx)).
+This is under development but there is no set timescale for when an official
+release will happen.
+
+##### android.os.Trace (atrace) vs Perfetto SDK
+NOTE: This section is only relevant for Android platform developers or Android
+app developers with tracing experience. Other readers can safely skip this
+section.
+
+Perfetto has significant advantages over atrace. Some of the biggest advantages
+include:
+* performance: tracing to Perfetto from system/app code requires just a memory
+  write which is far faster than the syscall latency imposed by atrace. This
+  generally makes Perfetto anywhere from 3-4x faster than atrace
+* features: atrace's API is extremely limited, lacking support for debug
+  arguments, custom clocks, flow events. Perfetto has a far richer API allowing
+  natural representation of data-flow.
+* trace size: Perfetto supports various features (delta encoded timestamps,
+  interned strings, protobuf encoding) which vastly reduce to size of trace
+  files.
+
+Unfortunately, there are also some downsides:
+* dedicated thread: a thread dedicated to Perfetto is necessary for every
+  process which wants to trace to Perfetto.
+* wakeups on tracing start: currently, when tracing starts, every process
+  registered for tracing is woken up which significantly limits how many
+  processes can be traced. This limitation should be removed in coming quarters.
+
+For now, the recommendation from the Perfetto team is to continue utilizing
+atrace for most usecases: if you think you have a usecase which would benefit
+from the SDK, please reach out to the team directly. By mid-2023, significant
+progress should be made addressing the limitations of the current SDK allowing
+more widespread adoption of the SDK.
+
+<!--
+TODO(lalitm): write the remainder of the doc using the following template
+
+#### Native heap profiling
+
+#### Java heap graphs
+
+#### Callstack sampling
+
+
+#### Flight recorder tracing
+TODO(lalitm): write this.
+
+##### Field tracing
+TODO(lalitm): write this.
+
+#### Clock sync
+TODO(lalitm): write this.
+
+
+#### Analysis
+TODO(lalitm): write this.
+* Trace processing
+* UI
+* httpd mode
+* metrics
+* Python
+
+
+The remainder of this
+page will focus on the applications of Perfetto to solve various performance
+related problems.
+
+## Solving problems with Perfetto
+TODO(lalitm): write this.
+* When to look into callstack sampling
+* When to use memory profiling
+* When to look at scheduling latency
+
+
+TODO(lalitm): write this.
+
+-->
