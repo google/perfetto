@@ -132,6 +132,13 @@ const HIRING_BANNER_FLAG = featureFlags.register({
   defaultValue: false,
 });
 
+const WIDGETS_PAGE_IN_NAV_FLAG = featureFlags.register({
+  id: 'showWidgetsPageInNav',
+  name: 'Show widgets page',
+  description: 'Show a link to the widgets page in the side bar.',
+  defaultValue: false,
+});
+
 function shouldShowHiringBanner(): boolean {
   return globals.isInternalUser && HIRING_BANNER_FLAG.get();
 }
@@ -199,6 +206,12 @@ const SECTIONS: Section[] = [
         i: 'filter_none',
       },
       {t: 'Record new trace', a: navigateRecord, i: 'fiber_smart_record'},
+      {
+        t: 'Widgets',
+        a: navigateWidgets,
+        i: 'widgets',
+        isVisible: () => WIDGETS_PAGE_IN_NAV_FLAG.get(),
+      },
     ],
   },
 
@@ -544,6 +557,11 @@ function openInOldUIWithSizeCheck(trace: Blob) {
 function navigateRecord(e: Event) {
   e.preventDefault();
   Router.navigate('#!/record');
+}
+
+function navigateWidgets(e: Event) {
+  e.preventDefault();
+  Router.navigate('#!/widgets');
 }
 
 function navigateAnalyze(e: Event) {
@@ -996,6 +1014,7 @@ export class Sidebar implements m.ClassComponent {
         {
           class: globals.state.sidebarVisible ? 'show-sidebar' : 'hide-sidebar',
           // 150 here matches --sidebar-timing in the css.
+          // TODO(hjd): Should link to the CSS variable.
           ontransitionstart: () => this._redrawWhileAnimating.start(150),
           ontransitionend: () => this._redrawWhileAnimating.stop(),
         },
