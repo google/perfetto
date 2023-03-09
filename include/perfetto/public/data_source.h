@@ -17,7 +17,7 @@
 #ifndef INCLUDE_PERFETTO_PUBLIC_DATA_SOURCE_H_
 #define INCLUDE_PERFETTO_PUBLIC_DATA_SOURCE_H_
 
-#include <malloc.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "perfetto/public/abi/atomic.h"
