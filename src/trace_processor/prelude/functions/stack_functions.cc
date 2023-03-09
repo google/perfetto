@@ -23,12 +23,14 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/optional.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
 #include "protos/perfetto/trace_processor/stack.pbzero.h"
 #include "src/trace_processor/prelude/functions/register_function.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -106,13 +108,18 @@ struct CatStacksFunction : public SqlFunction {
   }
 };
 
-// STACK_FROM_STACK_PROFILE_CALLSITE(callsite_id LONG)
+// STACK_FROM_STACK_PROFILE_CALLSITE(callsite_id LONG, [annotate BOOLEAN])
 // Creates a stack by taking a callsite_id (reference to the
 // stack_profile_callsite table) and generating a list of frames (by walking the
 // stack_profile_callsite table)
+// Optionally annotates frames (annotate param has a default value of false)
+//
+// Important: Annotations might interfere with certain aggregations, as we
+// will could have a frame that is annotated with different annotations. That
+// will lead to multiple functions being generated (same name, line etc, but
+// different annotation).
 struct StackFromStackProfileCallsiteFunction : public SqlFunction {
   static constexpr char kFunctionName[] = "STACK_FROM_STACK_PROFILE_CALLSITE";
-  static constexpr int kArgc = 1;
   using Context = TraceStorage;
 
   static base::Status Run(TraceStorage* storage,
@@ -132,17 +139,19 @@ struct StackFromStackProfileCallsiteFunction : public SqlFunction {
                               sqlite3_value** argv,
                               SqlValue& out,
                               Destructors& destructors) {
-    PERFETTO_CHECK(argc == kArgc);
+    if (argc != 1 && argc != 2) {
+      return base::ErrStatus(
+          "%s; Invalid number of arguments: expected 1 or 2, actual %zu",
+          kFunctionName, argc);
+    }
 
     base::StatusOr<SqlValue> value = sqlite_utils::ExtractArgument(
         argc, argv, "callsite_id", 0, SqlValue::kNull, SqlValue::kLong);
-
     if (!value.ok()) {
       return value.status();
     }
-
     if (value->is_null()) {
-      return util::OkStatus();
+      return base::OkStatus();
     }
 
     if (value->AsLong() > std::numeric_limits<uint32_t>::max() ||
@@ -157,8 +166,24 @@ struct StackFromStackProfileCallsiteFunction : public SqlFunction {
     }
 
     uint32_t callsite_id = static_cast<uint32_t>(value->AsLong());
+
+    bool annotate = false;
+    if (argc == 2) {
+      value = sqlite_utils::ExtractArgument(argc, argv, "annotate", 1,
+                                            SqlValue::Type::kLong);
+      if (!value.ok()) {
+        return value.status();
+      }
+      // true = 1 and false = 0 in SQL
+      annotate = (value->AsLong() != 0);
+    }
+
     protozero::HeapBuffered<Stack> stack;
-    stack->add_entries()->set_callsite_id(callsite_id);
+    if (annotate) {
+      stack->add_entries()->set_annotated_callsite_id(callsite_id);
+    } else {
+      stack->add_entries()->set_callsite_id(callsite_id);
+    }
     return SetBytesOutputValue(stack.SerializeAsArray(), out, destructors);
   }
 };
@@ -224,7 +249,7 @@ base::Status RegisterStackFunctions(sqlite3* db,
       db, StackFromStackProfileFrameFunction::kFunctionName, 1,
       context->storage.get()));
   return RegisterSqlFunction<StackFromStackProfileCallsiteFunction>(
-      db, StackFromStackProfileCallsiteFunction::kFunctionName, 1,
+      db, StackFromStackProfileCallsiteFunction::kFunctionName, -1,
       context->storage.get());
 }
 
