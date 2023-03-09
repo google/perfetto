@@ -54,5 +54,9 @@ message AndroidBlockingCallsCujMetric {
     optional int64 cnt = 2;
     // Total duration within the CUJ
     optional int64 total_dur_ms = 3;
+    // Maximal duration within the CUJ
+    optional int64 max_dur_ms = 4;
+    // Minimal duration within the CUJ
+    optional int64 min_dur_ms = 5;
   }
 }
