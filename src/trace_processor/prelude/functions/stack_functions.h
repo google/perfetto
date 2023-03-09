@@ -34,10 +34,15 @@ class TraceProcessorContext;
 // Creates a stack with just the frame referenced by frame_id (reference to the
 // stack_profile_frame table)
 //
-// STACK_FROM_STACK_PROFILE_CALLSITE(callsite_id LONG)
+// STACK_FROM_STACK_PROFILE_CALLSITE(callsite_id LONG, [annotate BOOLEAN])
 // Creates a stack by taking a callsite_id (reference to the
 // stack_profile_callsite table) and generating a list of frames (by walking the
 // stack_profile_callsite table)
+// Optionally annotates frames (annotate param has a default value of false)
+// *Important*: Annotations might interfere with certain aggregations, as we
+// will could have a frame that is annotated with different annotations. That
+// will lead to multiple functions being generated (same name, line etc, but
+// different annotation).
 //
 // CAT_STACKS(root BLOB/STRING, level_1 BLOB/STRING, …, leaf BLOB/STRING)
 // Creates a Stack by concatenating other Stacks. Also accepts strings for which

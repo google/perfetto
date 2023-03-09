@@ -28,7 +28,8 @@ message Stack {
     oneof entry {
       string name = 1;
       uint32 callsite_id = 2;
-      uint32 frame_id = 3;
+      uint32 annotated_callsite_id = 3;
+      uint32 frame_id = 4;
     }
   }
   // Ordered list of "frames" in the stack. Leaf is at index 0.

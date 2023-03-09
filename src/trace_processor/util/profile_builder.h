@@ -59,8 +59,7 @@ class GProfileBuilder {
   // for example you will have one separate slice for each of these same
   // functions with different annotations.
   GProfileBuilder(const TraceProcessorContext* context,
-                  const std::vector<ValueType>& sample_types,
-                  bool annotated);
+                  const std::vector<ValueType>& sample_types);
   ~GProfileBuilder();
 
   // Returns false if the operation fails (e.g callsite_id was not found)
@@ -252,11 +251,9 @@ class GProfileBuilder {
     }
   };
 
-  CallsiteAnnotation GetAnnotation(
-      const tables::StackProfileCallsiteTable::ConstRowReference& callsite);
-
   const protozero::PackedVarInt& GetLocationIdsForCallsite(
-      const CallsiteId& callsite_id);
+      const CallsiteId& callsite_id,
+      bool annotated);
 
   std::vector<Line> GetLinesForSymbolSetId(
       base::Optional<uint32_t> symbol_set_id,
@@ -268,10 +265,10 @@ class GProfileBuilder {
       CallsiteAnnotation annotation,
       uint64_t mapping_id);
 
-  uint64_t WriteLocationIfNeeded(
-      const tables::StackProfileCallsiteTable::ConstRowReference& callsite) {
-    return WriteLocationIfNeeded(callsite.frame_id(), GetAnnotation(callsite));
-  }
+  int64_t GetNameForFrame(
+      const tables::StackProfileFrameTable::ConstRowReference& frame,
+      CallsiteAnnotation annotation);
+
   uint64_t WriteLocationIfNeeded(FrameId frame_id,
                                  CallsiteAnnotation annotation);
   uint64_t WriteFakeLocationIfNeeded(const std::string& name);
@@ -318,11 +315,29 @@ class GProfileBuilder {
   StringTable string_table_;
 
   bool finalized_{false};
-  base::Optional<AnnotatedCallsites> annotations_;
+  AnnotatedCallsites annotations_;
 
-  // Caches a CallsiteId (callstack) to the list of locations emitted to the
-  // profile.
-  std::unordered_map<CallsiteId, protozero::PackedVarInt> cached_location_ids_;
+  // Caches a (possibly annotated) CallsiteId (callstack) to the list of
+  // locations emitted to the profile.
+  struct MaybeAnnotatedCallsiteId {
+    struct Hash {
+      size_t operator()(const MaybeAnnotatedCallsiteId& id) const {
+        return static_cast<size_t>(
+            perfetto::base::Hasher::Combine(id.callsite_id.value, id.annotate));
+      }
+    };
+
+    CallsiteId callsite_id;
+    bool annotate;
+
+    bool operator==(const MaybeAnnotatedCallsiteId& other) const {
+      return callsite_id == other.callsite_id && annotate == other.annotate;
+    }
+  };
+  std::unordered_map<MaybeAnnotatedCallsiteId,
+                     protozero::PackedVarInt,
+                     MaybeAnnotatedCallsiteId::Hash>
+      cached_location_ids_;
 
   // Helpers to map TraceProcessor rows to already written Profile entities
   // (their ids).
