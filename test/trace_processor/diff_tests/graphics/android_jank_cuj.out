@@ -1,7 +1,7 @@
 android_jank_cuj {
   cuj {
     id: 1
-    name: "SHOULD_BE_IGNORED"
+    name: "FIRST_CUJ"
     process {
       name: "com.android.systemui"
       uid: 10001
