@@ -116,6 +116,12 @@ void TestHelper::StartServiceIfRequired() {
     env_cleaner_ = service_thread_.Start();
 }
 
+void TestHelper::RestartService() {
+  PERFETTO_CHECK(mode_ == Mode::kStartDaemons);
+  service_thread_.Stop();
+  service_thread_.Start();
+}
+
 FakeProducer* TestHelper::ConnectFakeProducer() {
   fake_producer_thread_.Connect();
   // This will wait until the service has seen the RegisterDataSource() call
