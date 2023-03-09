@@ -430,6 +430,30 @@ message NetworkPacketTraceConfig {
   // The minimum polling rate is 100ms (values below this are ignored).
   // Introduced in Android 14 (U).
   optional uint32 poll_ms = 1;
+
+  // The aggregation_threshold is the number of packets at which an event will
+  // switch from per-packet details to aggregate details. For example, a value
+  // of 50 means that if a particular event (grouped by the unique combinations
+  // of metadata fields: {interface, direction, uid, etc}) has fewer than 50
+  // packets, the exact timestamp and length are recorded for each packet. If
+  // there were 50 or more packets in an event, it would only record the total
+  // duration, packets, and length. A value of zero or unspecified will always
+  /// record per-packet details. A value of 1 always records aggregate details.
+  optional uint32 aggregation_threshold = 2;
+
+  // Specifies the maximum number of packet contexts to intern at a time. This
+  // prevents the interning table from growing too large and controls whether
+  // interning is enabled or disabled (a value of zero disables interning and
+  // is the default). When a data sources interning table reaches this amount,
+  // packet contexts will be inlined into NetworkPacketEvents.
+  optional uint32 intern_limit = 3;
+
+  // The following fields specify whether certain fields should be dropped from
+  // the output. Dropping fields improves normalization results, reduces the
+  // size of the interning table, and slightly reduces event size.
+  optional bool drop_local_port = 4;
+  optional bool drop_remote_port = 5;
+  optional bool drop_tcp_flags = 6;
 }
 
 // End of protos/perfetto/config/android/network_trace_config.proto
@@ -481,7 +505,7 @@ message ChromeConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 24.
+// Next id: 26.
 message FtraceConfig {
   repeated string ftrace_events = 1;
   repeated string atrace_categories = 2;
@@ -639,6 +663,22 @@ message FtraceConfig {
   // based monotonic clock for getting timestamps.
   // * Introduced in: Android U.
   optional bool use_monotonic_raw_clock = 24;
+
+  // Caution: under development as of 2023/03/01.
+  // If |instance_name| is not empty, then attempt to use that tracefs instance
+  // for event recording. Normally, this means
+  // `/sys/kernel/tracing/instances/$instance_name`.
+  //
+  // The name "hyp" is reserved.
+  //
+  // The instance must already exist, the tracing daemon *will not* create it
+  // for you as it typically doesn't have such permissions.
+  // Only a subset of features is guaranteed to work with non-default instances,
+  // at the time of writing:
+  //  * ftrace_events
+  //  * buffer_size_kb
+  // TODO(b/249050813): reword comment once instance support is stable.
+  optional string instance_name = 25;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
@@ -760,6 +800,10 @@ message AndroidPowerConfig {
   // Provides a breakdown of energy estimation for various subsystem (e.g. GPU).
   // Available from Android S.
   optional bool collect_energy_estimation_breakdown = 4;
+
+  // Provides a breakdown of time in state for various subsystems.
+  // Available from Android U.
+  optional bool collect_entity_state_residency = 5;
 }
 
 // End of protos/perfetto/config/power/android_power_config.proto
@@ -2378,7 +2422,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 121
+// Next id: 123
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -2404,6 +2448,10 @@ message DataSourceConfig {
   // Set by the service to indicate the duration of the trace.
   // DO NOT SET in consumer as this will be overridden by the service.
   optional uint32 trace_duration_ms = 3;
+
+  // If true, |trace_duration_ms| should count also time in suspend. This
+  // is propagated from TraceConfig.prefer_suspend_clock_for_duration.
+  optional bool prefer_suspend_clock_for_duration = 122;
 
   // Set by the service to indicate how long it waits after StopDataSource.
   // DO NOT SET in consumer as this will be overridden by the service.
@@ -2522,7 +2570,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 35.
+// Next id: 37.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -2624,6 +2672,15 @@ message TraceConfig {
   // However in case of traces with triggers, see
   // TriggerConfig.trigger_timeout_ms instead.
   optional uint32 duration_ms = 3;
+
+  // If true, tries to use CLOCK_BOOTTIME for duration_ms rather than
+  // CLOCK_MONOTONIC (which doesn't count time in suspend). Supported only on
+  // Linux/Android, no-op on other platforms. This is used when dealing with
+  // long (e.g. 24h) traces, where suspend can inflate them to weeks of
+  // wall-time, making them more likely to hit device reboots (and hence loss).
+  // This option also changes consistently the semantic of
+  // TrigerConfig.stop_delay_ms.
+  optional bool prefer_suspend_clock_for_duration = 36;
 
   // This is set when --dropbox is passed to the Perfetto command line client
   // and enables guardrails that limit resource usage for traces requested
@@ -2791,6 +2848,8 @@ message TraceConfig {
 
       // After a trigger is received either in START_TRACING or STOP_TRACING
       // mode then the trace will end |stop_delay_ms| after triggering.
+      // If |prefer_suspend_clock_for_duration| is set, the duration will be
+      // based on wall-clock, counting also time in suspend.
       optional uint32 stop_delay_ms = 3;
 
       // Limits the number of traces this trigger can start/stop in a rolling
@@ -3454,6 +3513,7 @@ message FrameTimelineEvent {
     JANK_BUFFER_STUFFING = 128;
     JANK_UNKNOWN = 256;
     JANK_SF_STUFFING = 512;
+    JANK_DROPPED = 1024;
   };
 
   // Specifies how a frame was presented on screen w.r.t. timing.
@@ -3672,7 +3732,9 @@ message NetworkPacketEvent {
   // The name of the interface if available (e.g. 'rmnet0').
   optional string interface = 2;
 
-  // The length of the packet in bytes (wire_size - L2_header_size).
+  // The length of the packet in bytes (wire_size - L2_header_size). Ignored
+  // when using NetworkPacketEvent as the ctx in either NetworkPacketBundle or
+  // NetworkPacketContext.
   optional uint32 length = 3;
 
   // The Linux user id associated with the packet's socket.
@@ -3692,6 +3754,39 @@ message NetworkPacketEvent {
 
   // The remote udp/tcp port of the packet.
   optional uint32 remote_port = 9;
+}
+
+// NetworkPacketBundle bundles one or more packets sharing the same attributes.
+message NetworkPacketBundle {
+  oneof packet_context {
+    // The intern id for looking up the associated packet context.
+    uint64 iid = 1;
+
+    // The inlined context for events in this bundle.
+    NetworkPacketEvent ctx = 2;
+  }
+
+  // The timestamp of the i-th packet encoded as the nanoseconds since the
+  // enclosing TracePacket's timestamp.
+  repeated uint64 packet_timestamps = 3 [packed = true];
+
+  // The length of the i-th packet in bytes (wire_size - L2_header_size).
+  repeated uint32 packet_lengths = 4 [packed = true];
+
+  // Total number of packets in the bundle (when above aggregation_threshold).
+  optional uint32 total_packets = 5;
+
+  // Duration between first and last packet (when above aggregation_threshold).
+  optional uint64 total_duration = 6;
+
+  // Total packet length in bytes (when above aggregation_threshold).
+  optional uint64 total_length = 7;
+}
+
+// An internable packet context.
+message NetworkPacketContext {
+  optional uint64 iid = 1;
+  optional NetworkPacketEvent ctx = 2;
 }
 
 // End of protos/perfetto/trace/android/network_trace.proto
@@ -3816,6 +3911,9 @@ message BackgroundTracingMetadata {
       optional fixed64 content_trigger_name_hash = 2;
     }
     optional NamedRule named_rule = 3;
+
+    // Hash of the rule name.
+    optional fixed32 name_hash = 4;
   }
 
   // Specifies the rule that caused the trace to be uploaded.
@@ -5892,6 +5990,13 @@ message DrmSchedProcessJobFtraceEvent {
 }
 
 // End of protos/perfetto/trace/ftrace/gpu_scheduler.proto
+
+// Begin of protos/perfetto/trace/ftrace/hyp.proto
+
+message HypEnterFtraceEvent {}
+message HypExitFtraceEvent {}
+
+// End of protos/perfetto/trace/ftrace/hyp.proto
 
 // Begin of protos/perfetto/trace/ftrace/i2c.proto
 
@@ -7978,6 +8083,8 @@ message FtraceEvent {
     MaliMaliKCPUFENCESIGNALFtraceEvent mali_mali_KCPU_FENCE_SIGNAL = 473;
     MaliMaliKCPUFENCEWAITSTARTFtraceEvent mali_mali_KCPU_FENCE_WAIT_START = 474;
     MaliMaliKCPUFENCEWAITENDFtraceEvent mali_mali_KCPU_FENCE_WAIT_END = 475;
+    HypEnterFtraceEvent hyp_enter = 476;
+    HypExitFtraceEvent hyp_exit = 477;
   }
 }
 
@@ -9854,7 +9961,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 30.
+// Next id: 31.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -9915,6 +10022,9 @@ message InternedData {
 
   // Interned string values in the DebugAnnotation proto.
   repeated InternedString debug_annotation_string_values = 29;
+
+  // Interned packet context for android.network_packets.
+  repeated NetworkPacketContext packet_context = 30;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
@@ -10190,6 +10300,48 @@ message AndroidEnergyEstimationBreakdown {
 }
 
 // End of protos/perfetto/trace/power/android_energy_estimation_breakdown.proto
+
+// Begin of protos/perfetto/trace/power/android_entity_state_residency.proto
+
+message EntityStateResidency {
+  message PowerEntityState {
+    // Index corresponding to the entity
+    optional int32 entity_index = 1;
+
+    // Index corresponding to the state
+    optional int32 state_index = 2;
+
+    // Name of the entity
+    optional string entity_name = 3;
+
+    // Name of the state
+    optional string state_name = 4;
+  }
+
+  // This is only emitted at the beginning of the trace.
+  repeated PowerEntityState power_entity_state = 1;
+
+  message StateResidency {
+    // Index corresponding to PowerEntityState.entity_index
+    optional int32 entity_index = 1;
+
+    // Index corresponding to PowerEntityState.state_index
+    optional int32 state_index = 2;
+
+    // Time since boot that this entity has been in this state
+    optional uint64 total_time_in_state_ms = 3;
+
+    // Total number of times since boot that the entity has entered this state
+    optional uint64 total_state_entry_count = 4;
+
+    // Timestamp of the last time the entity entered this state
+    optional uint64 last_entry_timestamp_ms = 5;
+  }
+
+  repeated StateResidency residency = 2;
+}
+
+// End of protos/perfetto/trace/power/android_entity_state_residency.proto
 
 // Begin of protos/perfetto/trace/power/battery_counters.proto
 
@@ -11717,7 +11869,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 91.
+// Next id: 93.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -11786,6 +11938,7 @@ message TracePacket {
     AndroidGameInterventionList android_game_intervention_list = 83;
     StatsdAtom statsd_atom = 84;
     AndroidSystemProperty android_system_property = 86;
+    EntityStateResidency entity_state_residency = 91;
 
     // Only used in profile packets.
     ProfiledFrameSymbols profiled_frame_symbols = 55;
@@ -11824,6 +11977,9 @@ message TracePacket {
 
     // Represents a single packet sent or received by the network.
     NetworkPacketEvent network_packet = 88;
+
+    // Represents one or more packets sent or received by the network.
+    NetworkPacketBundle network_packet_bundle = 92;
 
     // The "range of interest" for track events. See the message definition
     // comments for more details.

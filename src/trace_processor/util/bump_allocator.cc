@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/util/bump_allocator.h"
+#include <limits>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -75,18 +76,22 @@ BumpAllocator::AllocId BumpAllocator::Alloc(uint32_t size) {
 }
 
 void BumpAllocator::Free(AllocId id) {
-  Chunk& chunk = chunks_.at(ChunkIndexToQueueIndex(id.chunk_index));
+  uint64_t queue_index = ChunkIndexToQueueIndex(id.chunk_index);
+  PERFETTO_DCHECK(queue_index <= std::numeric_limits<size_t>::max());
+  Chunk& chunk = chunks_.at(static_cast<size_t>(queue_index));
   PERFETTO_DCHECK(chunk.unfreed_allocations > 0);
   chunk.unfreed_allocations--;
 }
 
 void* BumpAllocator::GetPointer(AllocId id) {
-  uint32_t queue_index = ChunkIndexToQueueIndex(id.chunk_index);
-  return chunks_.at(queue_index).allocation.get() + id.chunk_offset;
+  uint64_t queue_index = ChunkIndexToQueueIndex(id.chunk_index);
+  PERFETTO_CHECK(queue_index <= std::numeric_limits<size_t>::max());
+  return chunks_.at(static_cast<size_t>(queue_index)).allocation.get() +
+         id.chunk_offset;
 }
 
-uint32_t BumpAllocator::EraseFrontFreeChunks() {
-  uint32_t to_erase_chunks = 0;
+uint64_t BumpAllocator::EraseFrontFreeChunks() {
+  size_t to_erase_chunks = 0;
   for (; to_erase_chunks < chunks_.size(); ++to_erase_chunks) {
     // Break on the first chunk which still has unfreed allocations.
     if (chunks_.at(to_erase_chunks).unfreed_allocations > 0) {
@@ -98,11 +103,14 @@ uint32_t BumpAllocator::EraseFrontFreeChunks() {
   return to_erase_chunks;
 }
 
-uint32_t BumpAllocator::PastEndSerializedId() {
+BumpAllocator::AllocId BumpAllocator::PastTheEndId() {
   if (chunks_.empty()) {
-    return AllocId{erased_front_chunks_count_, 0}.Serialize();
+    return AllocId{erased_front_chunks_count_, 0};
   }
-  return AllocId{LastChunkIndex(), chunks_.back().bump_offset}.Serialize();
+  if (chunks_.back().bump_offset == kChunkSize) {
+    return AllocId{LastChunkIndex() + 1, 0};
+  }
+  return AllocId{LastChunkIndex(), chunks_.back().bump_offset};
 }
 
 base::Optional<BumpAllocator::AllocId> BumpAllocator::TryAllocInLastChunk(

@@ -129,8 +129,7 @@ ProbesProducer::CreateDSInstance<FtraceDataSource>(
   ftrace_config.ParseFromString(config.ftrace_config_raw());
   // Lazily create on the first instance.
   if (!ftrace_) {
-    ftrace_ = FtraceController::Create(task_runner_, this,
-                                       ftrace_config.preserve_ftrace_buffer());
+    ftrace_ = FtraceController::Create(task_runner_, this);
 
     if (!ftrace_) {
       PERFETTO_ELOG("Failed to create FtraceController");
@@ -433,6 +432,10 @@ void ProbesProducer::StartDataSource(DataSourceInstanceID instance_id,
     // We need to ensure this timeout is worse than the worst case
     // time from us starting to traced managing to disable us.
     // See b/236814186#comment8 for context
+    // Note: when using prefer_suspend_clock_for_duration the actual duration
+    // might be < timeout measured in in wall time. But this is fine
+    // because the resulting timeout will be conservative (it will be accurate
+    // if the device never suspends, and will be more lax if it does).
     uint32_t timeout =
         2 * (kDefaultFlushTimeoutMs + config.trace_duration_ms() +
              config.stop_timeout_ms());

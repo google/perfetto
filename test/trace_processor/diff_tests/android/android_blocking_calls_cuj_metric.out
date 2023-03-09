@@ -1,0 +1,178 @@
+android_blocking_calls_cuj_metric {
+  cuj {
+    id: 1
+    name: "TEST_SYSUI_LATENCY_EVENT"
+    process {
+      name: "com.android.systemui"
+      uid: 10001
+    }
+    ts: 2000000
+    dur: 15000000
+    blocking_calls {
+      name: "binder transaction"
+      cnt: 4
+      total_dur_ms: 6
+      max_dur_ms: 3
+      min_dur_ms: 1
+    }
+  }
+  cuj {
+    id: 2
+    name: "TEST_LAUNCHER_LATENCY_EVENT"
+    process {
+      name: "com.google.android.apps.nexuslauncher"
+      uid: 10002
+    }
+    ts: 2000000
+    dur: 15000000
+    blocking_calls {
+      name: "binder transaction"
+      cnt: 4
+      total_dur_ms: 6
+      max_dur_ms: 3
+      min_dur_ms: 1
+    }
+  }
+  cuj {
+    id: 3
+    name: "CUJ_WITH_MANY_BLOCKING_CALLS"
+    process {
+      name: "com.google.android.third.process"
+      uid: 10003
+    }
+    ts: 2000000
+    dur: 150000000
+    blocking_calls {
+      name: "Contending for pthread mutex"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "CoroutineContinuation"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "ImageDecoder#decodeBitmap"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "ImageDecoder#decodeDrawable"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "LoadApkAssetsFd <...>"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "Lock contention on <...>"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "SuspendThreadByThreadId <...>"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "binder transaction"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "configChanged"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "inflate"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "layout"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "measure"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "monitor contention with <...>"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "relayoutWindow <...>"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+  }
+  cuj {
+    id: 4
+    name: "OVERLAPPING_CUJ_1"
+    process {
+      name: "com.android.systemui"
+      uid: 10001
+    }
+    ts: 20000000
+    dur: 10000000
+    blocking_calls {
+      name: "monitor contention with <...>"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+  }
+  cuj {
+    id: 5
+    name: "OVERLAPPING_CUJ_2"
+    process {
+      name: "com.android.systemui"
+      uid: 10001
+    }
+    ts: 22000000
+    dur: 10000000
+    blocking_calls {
+      name: "monitor contention with <...>"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+  }
+}

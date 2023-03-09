@@ -25,9 +25,8 @@
 // combined into the same program.
 
 PERFETTO_TRACK_EVENT_STATIC_STORAGE_IN_NAMESPACE(tracing_module);
-PERFETTO_TRACK_EVENT_STATIC_STORAGE_IN_NAMESPACE_WITH_ATTRS(
-    tracing_extra,
-    PERFETTO_SDK_EXPORT);
+PERFETTO_TRACK_EVENT_STATIC_STORAGE_IN_NAMESPACE_WITH_ATTRS(tracing_extra,
+                                                            [[maybe_unused]]);
 
 namespace tracing_extra {
 namespace {

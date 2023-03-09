@@ -1,0 +1,56 @@
+android_blocking_calls_cuj_metric {
+  cuj {
+    id: 1
+    name: "FIRST_CUJ"
+    process {
+      name: "com.android.systemui"
+      uid: 10001
+      package {
+        package_name: "com.android.systemui"
+        apk_version_code: 1
+        debuggable: false
+      }
+      packages_for_uid {
+        package_name: "com.android.systemui"
+        apk_version_code: 1
+        debuggable: false
+      }
+    }
+    ts: 0
+    dur: 115000000
+    blocking_calls {
+      name: "binder transaction"
+      cnt: 11
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 0
+    }
+  }
+  cuj {
+    id: 2
+    name: "SHADE_ROW_EXPAND"
+    process {
+      name: "com.android.systemui"
+      uid: 10001
+      package {
+        package_name: "com.android.systemui"
+        apk_version_code: 1
+        debuggable: false
+      }
+      packages_for_uid {
+        package_name: "com.android.systemui"
+        apk_version_code: 1
+        debuggable: false
+      }
+    }
+    ts: 0
+    dur: 802000000
+    blocking_calls {
+      name: "binder transaction"
+      cnt: 13
+      total_dur_ms: 68
+      max_dur_ms: 49
+      min_dur_ms: 0
+    }
+  }
+}

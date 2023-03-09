@@ -20,6 +20,8 @@
 #include <sys/wait.h>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/android_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "test/android_test_utils.h"
@@ -33,6 +35,22 @@
 
 namespace perfetto {
 namespace {
+
+// Even though ART is a mainline module, there are dependencies on perfetto for
+// OOM heap dumps to work correctly.
+bool SupportsOomHeapDump() {
+  auto sdk = base::StringToInt32(base::GetAndroidProp("ro.build.version.sdk"));
+  if (sdk && *sdk >= 34) {
+    PERFETTO_LOG("SDK supports OOME heap dumps");
+    return true;
+  }
+  if (base::GetAndroidProp("ro.build.version.codename") == "UpsideDownCake") {
+    PERFETTO_LOG("Codename supports OOME heap dumps");
+    return true;
+  }
+  PERFETTO_LOG("OOME heap dumps not supported");
+  return false;
+}
 
 std::string RandomSessionName() {
   std::random_device rd;
@@ -128,10 +146,13 @@ std::vector<protos::gen::TracePacket> TriggerOomHeapDump(std::string app_name,
   helper.StartTracing(trace_config);
   StartAppActivity(app_name, "JavaOomActivity", "target.app.running", &task_runner,
                    /*delay_ms=*/100);
+  task_runner.RunUntilCheckpoint("target.app.running", 10000 /*ms*/);
 
-  helper.WaitForTracingDisabled();
-  helper.ReadData();
-  helper.WaitForReadData();
+  if (SupportsOomHeapDump()) {
+    helper.WaitForTracingDisabled();
+    helper.ReadData();
+    helper.WaitForReadData();
+  }
 
   PERFETTO_CHECK(IsAppRunning(app_name));
   StopApp(app_name, "new.app.stopped", &task_runner);
@@ -235,16 +256,32 @@ TEST(HeapprofdJavaCtsTest, DebuggableAppRuntimeByPid) {
 }
 
 TEST(HeapprofdJavaCtsTest, DebuggableAppOom) {
-  if (IsUserBuild()) return;
-
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = TriggerOomHeapDump(app_name, "*");
-  AssertGraphPresent(packets);
+  if (SupportsOomHeapDump()) {
+    AssertGraphPresent(packets);
+  }
+}
+
+TEST(HeapprofdJavaCtsTest, ProfileableAppOom) {
+  std::string app_name = "android.perfetto.cts.app.profileable";
+  const auto& packets = TriggerOomHeapDump(app_name, "*");
+  if (SupportsOomHeapDump()) {
+    AssertGraphPresent(packets);
+  }
+}
+
+TEST(HeapprofdJavaCtsTest, ReleaseAppOom) {
+  std::string app_name = "android.perfetto.cts.app.release";
+  const auto& packets = TriggerOomHeapDump(app_name, "*");
+  if (IsUserBuild()) {
+    AssertNoProfileContents(packets);
+  } else if (SupportsOomHeapDump()) {
+    AssertGraphPresent(packets);
+  }
 }
 
 TEST(HeapprofdJavaCtsTest, DebuggableAppOomNotSelected) {
-  if (IsUserBuild()) return;
-
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = TriggerOomHeapDump(app_name, "not.this.app");
   AssertNoProfileContents(packets);

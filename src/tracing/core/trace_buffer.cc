@@ -100,13 +100,13 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
                                      bool chunk_complete,
                                      const uint8_t* src,
                                      size_t size) {
-  TRACE_BUFFER_DLOG("CopyChunk @ %lu, size=%zu", wptr_ - begin(), record_size);
   PERFETTO_CHECK(!read_only_);
 
   // |record_size| = |size| + sizeof(ChunkRecord), rounded up to avoid to end
   // up in a fragmented state where size_to_end() < sizeof(ChunkRecord).
   const size_t record_size =
       base::AlignUp<sizeof(ChunkRecord)>(size + sizeof(ChunkRecord));
+  TRACE_BUFFER_DLOG("CopyChunk @ %lu, size=%zu", wptr_ - begin(), record_size);
   if (PERFETTO_UNLIKELY(record_size > max_chunk_size_)) {
     stats_.set_abi_violations(stats_.abi_violations() + 1);
     PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);

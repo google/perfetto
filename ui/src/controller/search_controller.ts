@@ -18,20 +18,18 @@ import {NUM, STR} from '../common/query_result';
 import {escapeSearchQuery} from '../common/query_utils';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {TimeSpan} from '../common/time';
+import {toNs} from '../common/time';
+import {globals} from '../frontend/globals';
 import {publishSearch, publishSearchResult} from '../frontend/publish';
 
 import {Controller} from './controller';
-import {App} from './globals';
-import {toNs} from '../common/time';
 
 export interface SearchControllerArgs {
   engine: Engine;
-  app: App;
 }
 
 export class SearchController extends Controller<'main'> {
   private engine: Engine;
-  private app: App;
   private previousSpan: TimeSpan;
   private previousResolution: number;
   private previousSearch: string;
@@ -41,7 +39,6 @@ export class SearchController extends Controller<'main'> {
   constructor(args: SearchControllerArgs) {
     super('main');
     this.engine = args.engine;
-    this.app = args.app;
     this.previousSpan = new TimeSpan(0, 1);
     this.previousSearch = '';
     this.updateInProgress = false;
@@ -67,8 +64,8 @@ export class SearchController extends Controller<'main'> {
       return;
     }
 
-    const visibleState = this.app.state.frontendLocalState.visibleState;
-    const omniboxState = this.app.state.omniboxState;
+    const visibleState = globals.state.frontendLocalState.visibleState;
+    const omniboxState = globals.state.omniboxState;
     if (visibleState === undefined || omniboxState === undefined ||
         omniboxState.mode === 'COMMAND') {
       return;
@@ -210,7 +207,7 @@ export class SearchController extends Controller<'main'> {
     // TODO(hjd): we should avoid recomputing this every time. This will be
     // easier once the track table has entries for all the tracks.
     const cpuToTrackId = new Map();
-    for (const track of Object.values(this.app.state.tracks)) {
+    for (const track of Object.values(globals.state.tracks)) {
       if (track.kind === 'CpuSliceTrack') {
         cpuToTrackId.set((track.config as {cpu: number}).cpu, track.id);
         continue;
@@ -286,9 +283,9 @@ export class SearchController extends Controller<'main'> {
       if (it.source === 'cpu') {
         trackId = cpuToTrackId.get(it.sourceId);
       } else if (it.source === 'track') {
-        trackId = this.app.state.uiTrackIdByTraceTrackId[it.sourceId];
+        trackId = globals.state.uiTrackIdByTraceTrackId[it.sourceId];
       } else if (it.source === 'log') {
-        const logTracks = Object.values(this.app.state.tracks)
+        const logTracks = Object.values(globals.state.tracks)
                               .filter((t) => t.kind === 'AndroidLogTrack');
         if (logTracks.length > 0) {
           trackId = logTracks[0].id;

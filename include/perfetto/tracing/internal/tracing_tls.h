@@ -81,6 +81,10 @@ class TracingTLS : public Platform::ThreadLocalObject {
   // handlers. See comment in TracingTLS::~TracingTLS().
   bool is_in_trace_point = false;
 
+  // Used inside a trace point (only one trace point per thread can be active at
+  // any time) to cache the instances bitmap.
+  uint32_t cached_instances = 0;
+
   // By default all data source instances have independent thread-local state
   // (see above).
   std::array<DataSourceThreadLocalState, kMaxDataSources> data_sources_tls{};

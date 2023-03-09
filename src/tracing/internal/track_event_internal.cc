@@ -386,9 +386,7 @@ void TrackEventInternal::ResetIncrementalState(
     const TrackEventTlsState& tls_state,
     const TraceTimestamp& timestamp) {
   auto sequence_timestamp = timestamp;
-  if (timestamp.clock_id !=
-          static_cast<uint32_t>(TrackEventInternal::GetClockId()) &&
-      timestamp.clock_id != kClockIdIncremental) {
+  if (timestamp.clock_id != kClockIdIncremental) {
     sequence_timestamp = TrackEventInternal::GetTraceTime();
   }
 

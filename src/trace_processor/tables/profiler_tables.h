@@ -220,12 +220,12 @@ PERFETTO_TP_TABLE(PERFETTO_TP_PERF_SAMPLE_DEF);
 // exact line for the corresponding program counter, not the beginning of the
 // function.
 // @tablegroup Callstack profilers
-#define PERFETTO_TP_SYMBOL_DEF(NAME, PARENT, C) \
-  NAME(SymbolTable, "stack_profile_symbol")     \
-  PERFETTO_TP_ROOT_TABLE(PARENT, C)             \
-  C(uint32_t, symbol_set_id)                    \
-  C(StringPool::Id, name)                       \
-  C(StringPool::Id, source_file)                \
+#define PERFETTO_TP_SYMBOL_DEF(NAME, PARENT, C)                            \
+  NAME(SymbolTable, "stack_profile_symbol")                                \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                                        \
+  C(uint32_t, symbol_set_id, Column::Flag::kSorted | Column::Flag::kSetId) \
+  C(StringPool::Id, name)                                                  \
+  C(StringPool::Id, source_file)                                           \
   C(uint32_t, line_number)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_SYMBOL_DEF);

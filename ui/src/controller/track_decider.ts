@@ -93,6 +93,8 @@ const KERNEL_WAKELOCK_REGEX = new RegExp('^Wakelock.*$');
 const KERNEL_WAKELOCK_GROUP = 'Kernel wakelocks';
 const NETWORK_TRACK_REGEX = new RegExp('^.* (Received|Transmitted)( KB)?$');
 const NETWORK_TRACK_GROUP = 'Networking';
+const ENTITY_RESIDENCY_REGEX = new RegExp('^Entity residency:');
+const ENTITY_RESIDENCY_GROUP = 'Entity residency';
 
 // Sets the default 'scale' for counter tracks. If the regex matches
 // then the paired mode is used. Entries are in priority order so the
@@ -103,7 +105,9 @@ const COUNTER_REGEX: [RegExp, CounterScaleOptions][] = [
   // value.
   [new RegExp('^power\..*$'), 'RATE'],
   // Same for network counters.
-  [new RegExp('^.* (Received|Transmitted) KB$'), 'RATE'],
+  [NETWORK_TRACK_REGEX, 'RATE'],
+  // Entity residency
+  [ENTITY_RESIDENCY_REGEX, 'RATE'],
 ];
 
 function getCounterScale(name: string): CounterScaleOptions|undefined {
@@ -1684,6 +1688,8 @@ class TrackDecider {
     await this.groupGlobalBuddyInfoTracks();
     await this.groupTracksByRegex(KERNEL_WAKELOCK_REGEX, KERNEL_WAKELOCK_GROUP);
     await this.groupTracksByRegex(NETWORK_TRACK_REGEX, NETWORK_TRACK_GROUP);
+    await this.groupTracksByRegex(
+        ENTITY_RESIDENCY_REGEX, ENTITY_RESIDENCY_GROUP);
 
     // Pre-group all kernel "threads" (actually processes) if this is a linux
     // system trace. Below, addProcessTrackGroups will skip them due to an

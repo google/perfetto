@@ -17,6 +17,8 @@ import * as m from 'mithril';
 import {Actions} from '../common/actions';
 
 import {globals} from './globals';
+import {STAR} from './icons';
+
 import {
   arrayOf,
   bool,
@@ -26,6 +28,7 @@ import {
   ValidatedType,
 } from '../controller/validators';
 import {assertTrue} from '../base/logging';
+import {Icon} from './widgets/icon';
 
 const QUERY_HISTORY_KEY = 'queryHistory';
 
@@ -59,16 +62,17 @@ export class HistoryItemComponent implements
     return m(
         '.history-item',
         m('.history-item-buttons',
-          m('button',
-            {
-              onclick: () => {
-                queryHistoryStorage.setStarred(
-                    vnode.attrs.index, !vnode.attrs.entry.starred);
-                globals.rafScheduler.scheduleFullRedraw();
+          m(
+              'button',
+              {
+                onclick: () => {
+                  queryHistoryStorage.setStarred(
+                      vnode.attrs.index, !vnode.attrs.entry.starred);
+                  globals.rafScheduler.scheduleFullRedraw();
+                },
               },
-            },
-            m('i.material-icons',
-              vnode.attrs.entry.starred ? 'star' : 'star_outline')),
+              m(Icon, {icon: STAR, filled: vnode.attrs.entry.starred}),
+              ),
           m('button',
             {
               onclick: () => {
@@ -76,7 +80,7 @@ export class HistoryItemComponent implements
                     {queryId: 'analyze-page-query', query}));
               },
             },
-            m('i.material-icons', 'play_arrow')),
+            m(Icon, {icon: 'play_arrow'})),
           m('button',
             {
               onclick: () => {
@@ -84,7 +88,7 @@ export class HistoryItemComponent implements
                 globals.rafScheduler.scheduleFullRedraw();
               },
             },
-            m('i.material-icons', 'delete'))),
+            m(Icon, {icon: 'delete'}))),
         m('pre', query));
   }
 }

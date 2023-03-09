@@ -21,6 +21,7 @@
 #include <stdint.h>
 
 #include <memory>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 
@@ -92,6 +93,7 @@ class RefPtr {
   // refcount. Callers *must* call |FromReleasedUnsafe| at a later date with
   // this pointer to avoid memory leaks.
   T* ReleaseUnsafe() {
+    PERFETTO_DCHECK(ptr_->refcount_ > 0);
     auto* old_ptr = ptr_;
     ptr_ = nullptr;
     return old_ptr;
@@ -100,6 +102,7 @@ class RefPtr {
   // Creates a RefPtr from a pointer returned by |ReleaseUnsafe|. Passing a
   // pointer from any other source results in undefined behaviour.
   static RefPtr<T> FromReleasedUnsafe(T* ptr) {
+    PERFETTO_DCHECK(ptr->refcount_ > 0);
     RefPtr<T> res;
     res.ptr_ = ptr;
     return res;
@@ -135,6 +138,10 @@ class RefPtr {
   template <typename U>
   bool operator==(const RefPtr<U>& rhs) const {
     return ptr_ == rhs.ptr_;
+  }
+  template <typename U>
+  bool operator!=(const RefPtr<U>& rhs) const {
+    return !(*this == rhs);
   }
 
   T* get() const { return ptr_; }

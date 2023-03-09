@@ -111,40 +111,8 @@ config("no_rtti") {
   }
 }
 
-config("c++11") {
-  if (!perfetto_cpp11_until_q1_2023) {
-    visibility = []
-  }
-
-  # C++11 is the default on Windows.
-  if (!is_win) {
-    cflags_cc = [ "-std=c++11" ]
-  } else if (is_win && !is_clang) {
-    # Enable standards-conforming compiler behavior.
-    cflags_cc = [ "/permissive-" ]
-  }
-  defines = [ "PERFETTO_ALLOW_SUB_CPP17" ]
-}
-
-# Used in buildtools dependencies for standalone builds.
-config("c++14") {
-  if (perfetto_cpp11_until_q1_2023) {
-    visibility = [ "//buildtools:llvm_demangle" ]
-  } else {
-    visibility = []
-  }
-  if (is_win) {
-    cflags_cc = [ "/std:c++14" ]
-  } else {
-    cflags_cc = [ "-std=c++14" ]
-  }
-}
-
 # Used in buildtools dependencies for standalone builds.
 config("c++17") {
-  if (perfetto_cpp11_until_q1_2023) {
-    visibility = [ "//buildtools:libunwindstack" ]
-  }
   if (is_win) {
     cflags_cc = [ "/std:c++17" ]
   } else {

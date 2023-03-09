@@ -23,7 +23,7 @@ import {
   TableColumn,
   tableColumnEquals,
   toggleEnabled,
-} from '../frontend/pivot_table_redux_types';
+} from '../frontend/pivot_table_types';
 
 import {randomColor} from './colorizer';
 import {
@@ -44,7 +44,7 @@ import {
   LogsPagination,
   NewEngineMode,
   OmniboxState,
-  PivotTableReduxResult,
+  PivotTableResult,
   PrimaryTrackSortKey,
   ProfileType,
   RecordingTarget,
@@ -1031,25 +1031,23 @@ export const StateActions = {
     }
   },
 
-  togglePivotTableRedux(state: StateDraft, args: {areaId: string|null}) {
-    state.nonSerializableState.pivotTableRedux.selectionArea =
-        args.areaId === null ?
+  togglePivotTable(state: StateDraft, args: {areaId: string|null}) {
+    state.nonSerializableState.pivotTable.selectionArea = args.areaId === null ?
         undefined :
         {areaId: args.areaId, tracks: globals.state.areas[args.areaId].tracks};
     if (args.areaId !==
-        state.nonSerializableState.pivotTableRedux.selectionArea?.areaId) {
-      state.nonSerializableState.pivotTableRedux.queryResult = null;
+        state.nonSerializableState.pivotTable.selectionArea?.areaId) {
+      state.nonSerializableState.pivotTable.queryResult = null;
     }
   },
 
   setPivotStateQueryResult(
-      state: StateDraft, args: {queryResult: PivotTableReduxResult|null}) {
-    state.nonSerializableState.pivotTableRedux.queryResult = args.queryResult;
+      state: StateDraft, args: {queryResult: PivotTableResult|null}) {
+    state.nonSerializableState.pivotTable.queryResult = args.queryResult;
   },
 
-  setPivotTableReduxConstrainToArea(
-      state: StateDraft, args: {constrain: boolean}) {
-    state.nonSerializableState.pivotTableRedux.constrainToArea = args.constrain;
+  setPivotTableConstrainToArea(state: StateDraft, args: {constrain: boolean}) {
+    state.nonSerializableState.pivotTable.constrainToArea = args.constrain;
   },
 
   dismissFlamegraphModal(state: StateDraft, _: {}) {
@@ -1058,41 +1056,40 @@ export const StateActions = {
 
   addPivotTableAggregation(
       state: StateDraft, args: {aggregation: Aggregation, after: number}) {
-    state.nonSerializableState.pivotTableRedux.selectedAggregations.splice(
+    state.nonSerializableState.pivotTable.selectedAggregations.splice(
         args.after, 0, args.aggregation);
   },
 
   removePivotTableAggregation(state: StateDraft, args: {index: number}) {
-    state.nonSerializableState.pivotTableRedux.selectedAggregations.splice(
+    state.nonSerializableState.pivotTable.selectedAggregations.splice(
         args.index, 1);
   },
 
   setPivotTableQueryRequested(
       state: StateDraft, args: {queryRequested: boolean}) {
-    state.nonSerializableState.pivotTableRedux.queryRequested =
-        args.queryRequested;
+    state.nonSerializableState.pivotTable.queryRequested = args.queryRequested;
   },
 
   setPivotTablePivotSelected(
       state: StateDraft, args: {column: TableColumn, selected: boolean}) {
     toggleEnabled(
         tableColumnEquals,
-        state.nonSerializableState.pivotTableRedux.selectedPivots,
+        state.nonSerializableState.pivotTable.selectedPivots,
         args.column,
         args.selected);
   },
 
   setPivotTableAggregationFunction(
       state: StateDraft, args: {index: number, function: AggregationFunction}) {
-    state.nonSerializableState.pivotTableRedux.selectedAggregations[args.index]
+    state.nonSerializableState.pivotTable.selectedAggregations[args.index]
         .aggregationFunction = args.function;
   },
 
   setPivotTableSortColumn(
       state: StateDraft,
       args: {aggregationIndex: number, order: SortDirection}) {
-    state.nonSerializableState.pivotTableRedux.selectedAggregations =
-        state.nonSerializableState.pivotTableRedux.selectedAggregations.map(
+    state.nonSerializableState.pivotTable.selectedAggregations =
+        state.nonSerializableState.pivotTable.selectedAggregations.map(
             (agg, index) => ({
               column: agg.column,
               aggregationFunction: agg.aggregationFunction,
@@ -1114,26 +1111,24 @@ export const StateActions = {
 
   setPivotTableArgumentNames(
       state: StateDraft, args: {argumentNames: string[]}) {
-    state.nonSerializableState.pivotTableRedux.argumentNames =
-        args.argumentNames;
+    state.nonSerializableState.pivotTable.argumentNames = args.argumentNames;
   },
 
   changePivotTablePivotOrder(
       state: StateDraft,
       args: {from: number, to: number, direction: DropDirection}) {
-    const pivots = state.nonSerializableState.pivotTableRedux.selectedPivots;
-    state.nonSerializableState.pivotTableRedux.selectedPivots =
-        performReordering(
-            computeIntervals(pivots.length, args.from, args.to, args.direction),
-            pivots);
+    const pivots = state.nonSerializableState.pivotTable.selectedPivots;
+    state.nonSerializableState.pivotTable.selectedPivots = performReordering(
+        computeIntervals(pivots.length, args.from, args.to, args.direction),
+        pivots);
   },
 
   changePivotTableAggregationOrder(
       state: StateDraft,
       args: {from: number, to: number, direction: DropDirection}) {
     const aggregations =
-        state.nonSerializableState.pivotTableRedux.selectedAggregations;
-    state.nonSerializableState.pivotTableRedux.selectedAggregations =
+        state.nonSerializableState.pivotTable.selectedAggregations;
+    state.nonSerializableState.pivotTable.selectedAggregations =
         performReordering(
             computeIntervals(
                 aggregations.length, args.from, args.to, args.direction),

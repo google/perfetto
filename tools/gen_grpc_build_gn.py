@@ -94,6 +94,10 @@ def bazel_label_to_gn_target(dep: str) -> str:
 def get_deps_for_target(target: str) -> List[str]:
   if target == 'grpc_plugin_support':
     return ['..:protoc_lib']
+  if target == 'grpc':
+    return [':re2', '../../gn:zlib']
+  if target == 'grpc_authorization_provider':
+    return [':re2']
   return []
 
 

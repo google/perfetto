@@ -32,6 +32,7 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/profiling/symbolizer/elf.h"
+#include "src/profiling/symbolizer/filesystem.h"
 #include "src/profiling/symbolizer/scoped_read_mmap.h"
 
 namespace perfetto {
@@ -216,36 +217,31 @@ struct BuildIdAndLoadBias {
   uint64_t load_bias;
 };
 
-base::Optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(
-    const std::string& fname) {
-  base::Optional<size_t> size = base::GetFileSize(fname);
-  if (!size.has_value()) {
-    PERFETTO_PLOG("Failed to get file size %s", fname.c_str());
-    return base::nullopt;
-  }
+base::Optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(const char* fname,
+                                                         size_t size) {
   static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
-  if (*size <= EI_CLASS)
+  if (size <= EI_CLASS)
     return base::nullopt;
-  ScopedReadMmap map(fname.c_str(), *size);
+  ScopedReadMmap map(fname, size);
   if (!map.IsValid()) {
     PERFETTO_PLOG("mmap");
     return base::nullopt;
   }
   char* mem = static_cast<char*>(*map);
 
-  if (!IsElf(mem, *size))
+  if (!IsElf(mem, size))
     return base::nullopt;
 
   base::Optional<std::string> build_id;
   base::Optional<uint64_t> load_bias;
   switch (mem[EI_CLASS]) {
     case ELFCLASS32:
-      build_id = GetBuildId<Elf32>(mem, *size);
-      load_bias = GetLoadBias<Elf32>(mem, *size);
+      build_id = GetBuildId<Elf32>(mem, size);
+      load_bias = GetLoadBias<Elf32>(mem, size);
       break;
     case ELFCLASS64:
-      build_id = GetBuildId<Elf64>(mem, *size);
-      load_bias = GetLoadBias<Elf64>(mem, *size);
+      build_id = GetBuildId<Elf64>(mem, size);
+      load_bias = GetLoadBias<Elf64>(mem, size);
       break;
     default:
       return base::nullopt;
@@ -256,48 +252,35 @@ base::Optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(
   return base::nullopt;
 }
 
-bool StartsWithElfMagic(const std::string& fname) {
-  base::ScopedFile fd(base::OpenFile(fname, O_RDONLY));
-  char magic[EI_MAG3 + 1];
-  if (!fd) {
-    PERFETTO_PLOG("Failed to open %s", fname.c_str());
-    return false;
-  }
-  ssize_t rd = base::Read(*fd, &magic, sizeof(magic));
-  if (rd != sizeof(magic)) {
-    PERFETTO_PLOG("Failed to read %s", fname.c_str());
-    return false;
-  }
-  if (!IsElf(magic, static_cast<size_t>(rd))) {
-    PERFETTO_DLOG("%s not an ELF.", fname.c_str());
-    return false;
-  }
-  return true;
-}
-
 std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
   std::map<std::string, FoundBinary> result;
-  for (const std::string& dir : dirs) {
-    std::vector<std::string> files;
-    base::Status status = base::ListFilesRecursive(dir, files);
-    if (!status.ok()) {
-      PERFETTO_PLOG("Failed to list directory %s", dir.c_str());
-      continue;
-    }
-    for (const std::string& basename : files) {
-      std::string fname = dir + "/" + basename;
-      if (!StartsWithElfMagic(fname)) {
-        continue;
+  WalkDirectories(std::move(dirs), [&result](const char* fname, size_t size) {
+    char magic[EI_MAG3 + 1];
+    // Scope file access. On windows OpenFile opens an exclusive lock.
+    // This lock needs to be released before mapping the file.
+    {
+      base::ScopedFile fd(base::OpenFile(fname, O_RDONLY));
+      if (!fd) {
+        PERFETTO_PLOG("Failed to open %s", fname);
+        return;
       }
-      base::Optional<BuildIdAndLoadBias> build_id_and_load_bias =
-          GetBuildIdAndLoadBias(fname);
-      if (build_id_and_load_bias) {
-        result.emplace(build_id_and_load_bias->build_id,
-                       FoundBinary{fname, build_id_and_load_bias->load_bias});
+      ssize_t rd = base::Read(*fd, &magic, sizeof(magic));
+      if (rd != sizeof(magic)) {
+        PERFETTO_PLOG("Failed to read %s", fname);
+        return;
+      }
+      if (!IsElf(magic, static_cast<size_t>(rd))) {
+        PERFETTO_DLOG("%s not an ELF.", fname);
+        return;
       }
     }
-  }
-
+    base::Optional<BuildIdAndLoadBias> build_id_and_load_bias =
+        GetBuildIdAndLoadBias(fname, size);
+    if (build_id_and_load_bias) {
+      result.emplace(build_id_and_load_bias->build_id,
+                     FoundBinary{fname, build_id_and_load_bias->load_bias});
+    }
+  });
   return result;
 }
 
@@ -368,8 +351,15 @@ base::Optional<FoundBinary> LocalBinaryFinder::IsCorrectFile(
   if (!base::FileExists(symbol_file)) {
     return base::nullopt;
   }
+  // Openfile opens the file with an exclusive lock on windows.
+  size_t size = GetFileSize(symbol_file);
+
+  if (size == 0) {
+    return base::nullopt;
+  }
+
   base::Optional<BuildIdAndLoadBias> build_id_and_load_bias =
-      GetBuildIdAndLoadBias(symbol_file);
+      GetBuildIdAndLoadBias(symbol_file.c_str(), size);
   if (!build_id_and_load_bias)
     return base::nullopt;
   if (build_id_and_load_bias->build_id != build_id) {

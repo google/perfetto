@@ -22,8 +22,8 @@ source_set("sorter") {
   sources = [
     "trace_sorter.cc",
     "trace_sorter.h",
-    "trace_sorter_internal.h",
-    "trace_sorter_queue.h",
+    "trace_token_buffer.cc",
+    "trace_token_buffer.h",
   ]
   deps = [
     "../../../gn:default_deps",
@@ -35,14 +35,15 @@ source_set("sorter") {
     "../importers/systrace:systrace_line",
     "../storage",
     "../types",
+    "../util:bump_allocator",
   ]
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
-    "trace_sorter_queue_unittest.cc",
     "trace_sorter_unittest.cc",
+    "trace_token_buffer_unittest.cc",
   ]
   deps = [
     ":sorter",

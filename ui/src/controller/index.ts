@@ -15,21 +15,31 @@
 import '../gen/all_tracks';
 import '../common/recordingV2/target_factories';
 
-import {assertTrue} from '../base/logging';
-import {ControllerWorkerInitMessage} from '../common/worker_messages';
-import {AppController} from './app_controller';
-import {globals} from './globals';
+import {assertExists, assertTrue} from '../base/logging';
 
-let initialized = false;
-export function initController(init: ControllerWorkerInitMessage) {
-  assertTrue(!initialized);
-  initialized = true;
-  const controllerPort = init.controllerPort;
-  const extensionPort = init.extensionPort;
-  controllerPort.onmessage = ({data}) => globals.patchState(data);
-  globals.initialize(new AppController(extensionPort));
+import {AppController} from './app_controller';
+import {ControllerAny} from './controller';
+
+let rootController: ControllerAny;
+let runningControllers = false;
+
+export function initController(extensionPort: MessagePort) {
+  assertTrue(rootController === undefined);
+  rootController = new AppController(extensionPort);
 }
 
+export function runControllers() {
+  if (runningControllers) throw new Error('Re-entrant call detected');
 
-// For devtools-based debugging.
-(self as {} as {controllerGlobals: {}}).controllerGlobals = globals;
+  // Run controllers locally until all state machines reach quiescence.
+  let runAgain = true;
+  for (let iter = 0; runAgain; iter++) {
+    if (iter > 100) throw new Error('Controllers are stuck in a livelock');
+    runningControllers = true;
+    try {
+      runAgain = assertExists(rootController).invoke();
+    } finally {
+      runningControllers = false;
+    }
+  }
+}

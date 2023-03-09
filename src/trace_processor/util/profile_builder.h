@@ -21,6 +21,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "protos/perfetto/trace_processor/stack.pbzero.h"
 #include "protos/third_party/pprof/profile.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -58,12 +59,12 @@ class GProfileBuilder {
   // for example you will have one separate slice for each of these same
   // functions with different annotations.
   GProfileBuilder(const TraceProcessorContext* context,
-                  const std::vector<ValueType>& sample_types,
-                  bool annotated);
+                  const std::vector<ValueType>& sample_types);
   ~GProfileBuilder();
 
-  // Returns false if the callsite_id was not found and no sample was added.
-  bool AddSample(uint32_t callsite_id, const protozero::PackedVarInt& values);
+  // Returns false if the operation fails (e.g callsite_id was not found)
+  bool AddSample(const protos::pbzero::Stack_Decoder& stack,
+                 const protozero::PackedVarInt& values);
 
   // Finalizes the profile and returns the serialized proto. Can be called
   // multiple times but after the first invocation `AddSample` calls will have
@@ -250,11 +251,9 @@ class GProfileBuilder {
     }
   };
 
-  CallsiteAnnotation GetAnnotation(
-      const tables::StackProfileCallsiteTable::ConstRowReference& callsite);
-
   const protozero::PackedVarInt& GetLocationIdsForCallsite(
-      const CallsiteId& callsite_id);
+      const CallsiteId& callsite_id,
+      bool annotated);
 
   std::vector<Line> GetLinesForSymbolSetId(
       base::Optional<uint32_t> symbol_set_id,
@@ -266,8 +265,13 @@ class GProfileBuilder {
       CallsiteAnnotation annotation,
       uint64_t mapping_id);
 
-  uint64_t WriteLocationIfNeeded(
-      const tables::StackProfileCallsiteTable::ConstRowReference& callsite);
+  int64_t GetNameForFrame(
+      const tables::StackProfileFrameTable::ConstRowReference& frame,
+      CallsiteAnnotation annotation);
+
+  uint64_t WriteLocationIfNeeded(FrameId frame_id,
+                                 CallsiteAnnotation annotation);
+  uint64_t WriteFakeLocationIfNeeded(const std::string& name);
 
   uint64_t WriteFunctionIfNeeded(
       const tables::SymbolTable::ConstRowReference& symbol,
@@ -278,6 +282,8 @@ class GProfileBuilder {
       const tables::StackProfileFrameTable::ConstRowReference& frame,
       CallsiteAnnotation annotation,
       uint64_t mapping_id);
+
+  uint64_t WriteFakeFunctionIfNeeded(int64_t name_id);
 
   uint64_t WriteMappingIfNeeded(
       const tables::StackProfileMappingTable::ConstRowReference& mapping);
@@ -298,6 +304,9 @@ class GProfileBuilder {
   // most likely main binary.
   base::Optional<uint64_t> GuessMainBinary() const;
 
+  bool AddSample(const protozero::PackedVarInt& location_ids,
+                 const protozero::PackedVarInt& values);
+
   // Profile proto being serialized.
   protozero::HeapBuffered<third_party::perftools::profiles::pbzero::Profile>
       result_;
@@ -306,11 +315,29 @@ class GProfileBuilder {
   StringTable string_table_;
 
   bool finalized_{false};
-  base::Optional<AnnotatedCallsites> annotations_;
+  AnnotatedCallsites annotations_;
 
-  // Caches a CallsiteId (callstack) to the list of locations emitted to the
-  // profile.
-  std::unordered_map<CallsiteId, protozero::PackedVarInt> cached_location_ids_;
+  // Caches a (possibly annotated) CallsiteId (callstack) to the list of
+  // locations emitted to the profile.
+  struct MaybeAnnotatedCallsiteId {
+    struct Hash {
+      size_t operator()(const MaybeAnnotatedCallsiteId& id) const {
+        return static_cast<size_t>(
+            perfetto::base::Hasher::Combine(id.callsite_id.value, id.annotate));
+      }
+    };
+
+    CallsiteId callsite_id;
+    bool annotate;
+
+    bool operator==(const MaybeAnnotatedCallsiteId& other) const {
+      return callsite_id == other.callsite_id && annotate == other.annotate;
+    }
+  };
+  std::unordered_map<MaybeAnnotatedCallsiteId,
+                     protozero::PackedVarInt,
+                     MaybeAnnotatedCallsiteId::Hash>
+      cached_location_ids_;
 
   // Helpers to map TraceProcessor rows to already written Profile entities
   // (their ids).
@@ -319,6 +346,7 @@ class GProfileBuilder {
   std::unordered_map<AnnotatedFrameId, uint64_t, AnnotatedFrameId::Hash>
       seen_functions_;
   std::unordered_map<MappingId, uint64_t> seen_mappings_;
+  std::unordered_map<int64_t, uint64_t> seen_fake_locations_;
 
   // Helpers to deduplicate entries. Map entity to its id. These also serve as a
   // staging area until written out to the profile proto during `Finalize`. Ids

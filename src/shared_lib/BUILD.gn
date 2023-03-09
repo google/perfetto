@@ -15,16 +15,19 @@
 shared_library("libperfetto_c") {
   deps = [
     "../../gn:default_deps",
-    "../../include/perfetto/base",
     "../../include/perfetto/protozero",
-    "../../include/perfetto/public:protozero",
     "../tracing:client_api",
     "../tracing:platform_impl",
   ]
   sources = [
+    "data_source.cc",
+    "heap_buffer.cc",
+    "pb_decoder.cc",
     "producer.cc",
     "stream_writer.cc",
     "stream_writer.h",
+    "tracing_session.cc",
   ]
+  public_deps = [ "../../include/perfetto/public" ]
   defines = [ "PERFETTO_SHLIB_SDK_IMPLEMENTATION" ]
 }

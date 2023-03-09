@@ -52,6 +52,9 @@ class SystemService {
 
   void Clean();
 
+  // Restarts this SystemService. Producer and consumers will be disconnected.
+  void Restart();
+
  private:
   SystemService(const SystemService&) = delete;
   SystemService& operator=(const SystemService&) = delete;
@@ -78,6 +81,7 @@ TestTempFile CreateTempFile();
 class TracingMuxerImplInternalsForTest {
  public:
   static bool DoesSystemBackendHaveSMB();
+  static void ClearIncrementalState();
 };
 
 }  // namespace test

@@ -1,0 +1,137 @@
+// Copyright (C) 2023 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "theme";
+
+// This checkbox element is expected to contain a checkbox type input followed
+// by an empty span element.
+// The input is completely hidden and an entirely new checkbox is drawn inside
+// the span element. This allows us to style it how we like, and also add some
+// fancy transitions.
+// The box of the checkbox is a fixed sized span element. The tick is also a
+// fixed sized rectange rotated 45 degrees with only the bottom and right
+// borders visible.
+// When unchecked, the tick size and border width is 0, so the tick is
+// completely invsible. When we transition to checked, the border size on the
+// bottom and right sides is immmdiately set to full width, and the tick morphs
+// into view first by expanding along the x axis first, then expanding up the
+// y-axis. This has the effect of making the tick look like it's being drawn
+// onto the page with a pen.
+// When transitioning from checked to unchecked, the animation plays in reverse,
+// and the border width is set to 0 right at the end in order to make the tick
+// completely invisible again.
+.pf-checkbox {
+  $tick-anim-time-width: 100ms;
+  $tick-anim-time-height: 150ms;
+  $tick-anim-time: $tick-anim-time-width + $tick-anim-time-height;
+  $tick-easing: linear;
+
+  $box-size: 18px;
+  $tick-height: 9px;
+  $tick-width: 5px;
+  $box-label-padding: 6px;
+
+  display: inline-block;
+  position: relative; // Turns this container into a positioned element
+  font-family: $pf-font;
+  font-size: inherit;
+  color: $pf-minimal-foreground;
+  user-select: none;
+  cursor: pointer;
+  padding-left: $box-size + $box-label-padding;
+
+  // Hide the default checkbox
+  input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  // The span forms the "box" of the checkbox
+  span {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    margin-top: auto;
+    margin-bottom: auto;
+    height: $box-size;
+    width: $box-size;
+    border-radius: $pf-border-radius;
+    border: solid 2px $pf-minimal-foreground;
+    transition: background $pf-anim-timing;
+    background: none;
+
+    // The :after element forms the "tick" of the checkbox
+    &:after {
+      content: "";
+      display: block;
+      position: absolute;
+      bottom: 7.5px;
+      left: 1px;
+      width: 0px;
+      height: 0px;
+      border-color: $pf-primary-foreground;
+      border-style: solid;
+      border-width: 0;
+      transform-origin: 0% 100%; // Put the origin at the short edge of the tick
+      transform: rotate(45deg);
+      transition: height $tick-anim-time-height $tick-easing,
+        width $tick-anim-time-width $tick-anim-time-height $tick-easing,
+        border-width 0ms $tick-anim-time;
+    }
+  }
+
+  &:hover {
+    span {
+      background: $pf-minimal-background-hover;
+    }
+  }
+
+  input:checked + span {
+    border-color: $pf-primary-background;
+    background: $pf-primary-background;
+  }
+
+  input:focus-visible + span {
+    @include focus;
+  }
+
+  input:checked + span:after {
+    width: $tick-width;
+    height: $tick-height;
+    border-width: 0 2px 2px 0;
+    transition: width $tick-anim-time-height $tick-easing,
+      height $tick-anim-time-height $tick-anim-time-width $tick-easing,
+      border-width 0ms;
+  }
+
+  &.pf-disabled {
+    cursor: not-allowed;
+    color: $pf-minimal-foreground-disabled;
+
+    span {
+      border-color: $pf-minimal-foreground-disabled;
+      background: none;
+      &:after {
+        border-color: $pf-primary-foreground;
+      }
+    }
+
+    input:checked ~ span {
+      border-color: $pf-primary-background-disabled;
+      background: $pf-primary-background-disabled;
+    }
+  }
+}

@@ -29,7 +29,7 @@ import {
   isChromeTarget,
   RecordingTarget,
 } from '../common/state';
-import {globals as frontendGlobals} from '../frontend/globals';
+import {globals} from '../frontend/globals';
 import {publishBufferUsage, publishTrackData} from '../frontend/publish';
 
 import {AdbOverWebUsb} from './adb';
@@ -46,7 +46,6 @@ import {
   isReadBuffersResponse,
 } from './consumer_port_types';
 import {Controller} from './controller';
-import {App, globals} from './globals';
 import {RecordConfig} from './record_config_types';
 import {Consumer, RpcConsumerPort} from './record_controller_interfaces';
 
@@ -177,7 +176,6 @@ export function toPbtxt(configBuffer: Uint8Array): string {
 }
 
 export class RecordController extends Controller<'main'> implements Consumer {
-  private app: App;
   private config: RecordConfig|null = null;
   private readonly extensionPort: MessagePort;
   private recordingInProgress = false;
@@ -194,9 +192,8 @@ export class RecordController extends Controller<'main'> implements Consumer {
   // char, it is the 'targetOS'
   private controllerPromises = new Map<string, Promise<RpcConsumerPort>>();
 
-  constructor(args: {app: App, extensionPort: MessagePort}) {
+  constructor(args: {extensionPort: MessagePort}) {
     super('main');
-    this.app = args.app;
     this.consumerPort = ConsumerPort.create(this.rpcImpl.bind(this));
     this.extensionPort = args.extensionPort;
   }
@@ -204,22 +201,21 @@ export class RecordController extends Controller<'main'> implements Consumer {
   run() {
     // TODO(eseckler): Use ConsumerPort's QueryServiceState instead
     // of posting a custom extension message to retrieve the category list.
-    if (this.app.state.fetchChromeCategories && !this.fetchedCategories) {
+    if (globals.state.fetchChromeCategories && !this.fetchedCategories) {
       this.fetchedCategories = true;
-      if (this.app.state.extensionInstalled) {
+      if (globals.state.extensionInstalled) {
         this.extensionPort.postMessage({method: 'GetCategories'});
       }
-      frontendGlobals.dispatch(
-          Actions.setFetchChromeCategories({fetch: false}));
+      globals.dispatch(Actions.setFetchChromeCategories({fetch: false}));
     }
-    if (this.app.state.recordConfig === this.config &&
-        this.app.state.recordingInProgress === this.recordingInProgress) {
+    if (globals.state.recordConfig === this.config &&
+        globals.state.recordingInProgress === this.recordingInProgress) {
       return;
     }
-    this.config = this.app.state.recordConfig;
+    this.config = globals.state.recordConfig;
 
     const configProto =
-        genConfigProto(this.config, this.app.state.recordingTarget);
+        genConfigProto(this.config, globals.state.recordingTarget);
     const configProtoText = toPbtxt(configProto);
     const configProtoBase64 = base64Encode(configProto);
     const commandline = `
@@ -229,7 +225,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
       adb pull /data/misc/perfetto-traces/trace /tmp/trace
     `;
     const traceConfig =
-        convertToRecordingV2Input(this.config, this.app.state.recordingTarget);
+        convertToRecordingV2Input(this.config, globals.state.recordingTarget);
     // TODO(hjd): This should not be TrackData after we unify the stores.
     publishTrackData({
       id: 'config',
@@ -243,8 +239,8 @@ export class RecordController extends Controller<'main'> implements Consumer {
 
     // If the recordingInProgress boolean state is different, it means that we
     // have to start or stop recording a trace.
-    if (this.app.state.recordingInProgress === this.recordingInProgress) return;
-    this.recordingInProgress = this.app.state.recordingInProgress;
+    if (globals.state.recordingInProgress === this.recordingInProgress) return;
+    this.recordingInProgress = globals.state.recordingInProgress;
 
     if (this.recordingInProgress) {
       this.startRecordTrace(traceConfig);
@@ -304,15 +300,15 @@ export class RecordController extends Controller<'main'> implements Consumer {
 
   onTraceComplete() {
     this.consumerPort.freeBuffers({});
-    frontendGlobals.dispatch(Actions.setRecordingStatus({status: undefined}));
+    globals.dispatch(Actions.setRecordingStatus({status: undefined}));
     if (globals.state.recordingCancelled) {
-      frontendGlobals.dispatch(
+      globals.dispatch(
           Actions.setLastRecordingError({error: 'Recording cancelled.'}));
       this.traceBuffer = [];
       return;
     }
     const trace = this.generateTrace();
-    frontendGlobals.dispatch(Actions.openTraceFromBuffer({
+    globals.dispatch(Actions.openTraceFromBuffer({
       title: 'Recorded trace',
       buffer: trace.buffer,
       fileName: `recorded_trace${this.recordedTraceSuffix}`,
@@ -348,13 +344,13 @@ export class RecordController extends Controller<'main'> implements Consumer {
   onError(message: string) {
     // TODO(octaviant): b/204998302
     console.error('Error in record controller: ', message);
-    frontendGlobals.dispatch(
+    globals.dispatch(
         Actions.setLastRecordingError({error: message.substr(0, 150)}));
-    frontendGlobals.dispatch(Actions.stopRecording({}));
+    globals.dispatch(Actions.stopRecording({}));
   }
 
   onStatus(message: string) {
-    frontendGlobals.dispatch(Actions.setRecordingStatus({status: message}));
+    globals.dispatch(Actions.setRecordingStatus({status: message}));
   }
 
   // Depending on the recording target, different implementation of the
@@ -417,7 +413,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
       method: RPCImplMethod, requestData: Uint8Array,
       _callback: RPCImplCallback) {
     try {
-      const state = this.app.state;
+      const state = globals.state;
       // TODO(hjd): This is a bit weird. We implicity send each RPC message to
       // whichever target is currently selected (creating that target if needed)
       // it would be nicer if the setup/teardown was more explicit.

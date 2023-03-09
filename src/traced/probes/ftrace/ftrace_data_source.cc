@@ -123,7 +123,7 @@ void FtraceDataSource::Start() {
 
 void FtraceDataSource::DumpFtraceStats(FtraceStats* stats) {
   if (controller_weak_)
-    controller_weak_->DumpFtraceStats(stats);
+    controller_weak_->DumpFtraceStats(this, stats);
   stats->setup_errors = std::move(setup_errors_);
 }
 

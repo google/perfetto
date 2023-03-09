@@ -82,6 +82,8 @@ static StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
     jank_reasons.emplace_back("Unknown Jank");
   if (jank_type & FrameTimelineEvent::JANK_SF_STUFFING)
     jank_reasons.emplace_back("SurfaceFlinger Stuffing");
+  if (jank_type & FrameTimelineEvent::JANK_DROPPED)
+    jank_reasons.emplace_back("Dropped Frame");
 
   std::string jank_str(
       std::accumulate(jank_reasons.begin(), jank_reasons.end(), std::string(),
@@ -544,8 +546,10 @@ void FrameTimelineEventParser::ParseFrameEnd(int64_t timestamp,
 
   int64_t cookie = event.cookie();
   auto it = cookie_track_set_id_map_.find(cookie);
-  if (it == cookie_track_set_id_map_.end())
+  if (it == cookie_track_set_id_map_.end()) {
+    context_->storage->IncrementStats(stats::frame_timeline_unpaired_end_event);
     return;
+  }
   auto track_set_id = it->second;
   auto track_id = context_->async_track_set_tracker->End(track_set_id, cookie);
   context_->slice_tracker->End(timestamp, track_id);

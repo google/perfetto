@@ -26,18 +26,22 @@
 namespace perfetto {
 namespace trace_processor {
 
-struct InlineSchedSwitch {
+struct alignas(8) InlineSchedSwitch {
   int64_t prev_state;
   int32_t next_pid;
   int32_t next_prio;
   StringPool::Id next_comm;
 };
 
-struct InlineSchedWaking {
+struct alignas(8) InlineSchedWaking {
   int32_t pid;
   int32_t target_cpu;
   int32_t prio;
   StringPool::Id comm;
+};
+
+struct alignas(8) JsonEvent {
+  std::string value;
 };
 
 struct TracePacketData {
@@ -53,7 +57,15 @@ struct TrackEventData {
   explicit TrackEventData(TracePacketData tpd)
       : trace_packet_data(std::move(tpd)) {}
 
-  static constexpr size_t kMaxNumExtraCounters = 8;
+  static constexpr uint8_t kMaxNumExtraCounters = 8;
+
+  uint8_t CountExtraCounterValues() const {
+    for (uint8_t i = 0; i < TrackEventData::kMaxNumExtraCounters; ++i) {
+      if (std::equal_to<double>()(extra_counter_values[i], 0))
+        return i;
+    }
+    return TrackEventData::kMaxNumExtraCounters;
+  }
 
   TracePacketData trace_packet_data;
   base::Optional<int64_t> thread_timestamp;
