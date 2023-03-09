@@ -190,6 +190,8 @@ class FakeHost : public base::UnixSocket::EventListener {
   }
 
   void Reply(const Frame& frame) {
+    if (suppress_replies_)
+      return;
     auto buf = BufferedFrameDeserializer::Serialize(frame);
     ASSERT_TRUE(client_sock_->is_connected());
     EXPECT_TRUE(client_sock_->Send(buf.data(), buf.size(), next_reply_fd_));
@@ -203,6 +205,9 @@ class FakeHost : public base::UnixSocket::EventListener {
   ServiceID last_service_id_ = 0;
   int next_reply_fd_ = -1;
   base::ScopedFile received_fd_;
+  // This flag can be set to true to prevent the host from sending replies.
+  // Useful to test race conditions in ClientImpl.
+  bool suppress_replies_ = false;
 };  // FakeHost.
 
 class ClientImplTest : public ::testing::Test {
@@ -596,6 +601,28 @@ TEST_F(ClientImplTest, HostDisconnection) {
 
   auto on_disconnect = task_runner_->CreateCheckpoint("on_disconnect");
   EXPECT_CALL(proxy_events_, OnDisconnect()).WillOnce(Invoke(on_disconnect));
+  host_.reset();
+  task_runner_->RunUntilCheckpoint("on_disconnect");
+}
+
+// Test that OnDisconnect() is invoked if the host shuts down prematurely.
+TEST_F(ClientImplTest, HostDisconnectionBeforeBindReply) {
+  host_->AddFakeService("FakeSvc");
+
+  std::unique_ptr<FakeProxy> proxy(new FakeProxy("FakeSvc", &proxy_events_));
+
+  // Prevent the host from replying
+  host_->suppress_replies_ = true;
+
+  // Bind |proxy| to the fake host. The host will receive the request, but it
+  // will not reply.
+  cli_->BindService(proxy->GetWeakPtr());
+  task_runner_->RunUntilIdle();
+  auto on_disconnect = task_runner_->CreateCheckpoint("on_disconnect");
+  EXPECT_CALL(proxy_events_, OnDisconnect()).WillOnce(Invoke(on_disconnect));
+  // Shutdown the host before it's able to send the Bind reply. The ClientImpl
+  // should receive an OnDisconnect() callback and propagate that to the service
+  // proxy.
   host_.reset();
   task_runner_->RunUntilCheckpoint("on_disconnect");
 }
