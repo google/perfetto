@@ -15,6 +15,8 @@
  */
 
 #include "src/trace_processor/prelude/functions/stack_functions.h"
+
+#include <stdlib.h>
 #include <cstdint>
 #include <cstring>
 #include <deque>
