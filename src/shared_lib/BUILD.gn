@@ -22,6 +22,7 @@ shared_library("libperfetto_c") {
   sources = [
     "data_source.cc",
     "heap_buffer.cc",
+    "pb_decoder.cc",
     "producer.cc",
     "stream_writer.cc",
     "stream_writer.h",
