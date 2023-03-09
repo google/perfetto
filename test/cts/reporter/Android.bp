@@ -27,4 +27,5 @@ android_test_helper_app {
     srcs: ["src/**/*.java"],
     platform_apis: true,
     privileged: true,
+    min_sdk_version: "31",
 }
