@@ -277,6 +277,16 @@ class Trace(object):
     pinfo.uid = uid
     pinfo.version_code = version_code
 
+  def add_debuggable_package_list(self, ts, name, uid, version_code):
+    packet = self.add_packet()
+    packet.timestamp = ts
+    plist = packet.packages_list
+    pinfo = plist.packages.add()
+    pinfo.name = name
+    pinfo.uid = uid
+    pinfo.version_code = version_code
+    pinfo.debuggable = True
+
   def add_profile_packet(self, ts):
     packet = self.add_packet()
     packet.timestamp = ts
