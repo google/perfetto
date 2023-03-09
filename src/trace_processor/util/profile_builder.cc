@@ -27,6 +27,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/trace_processor/demangle.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -195,13 +196,10 @@ int64_t GProfileBuilder::Mapping::ComputeMainBinaryScore() const {
 }
 
 GProfileBuilder::GProfileBuilder(const TraceProcessorContext* context,
-                                 const std::vector<ValueType>& sample_types,
-                                 bool annotated)
+                                 const std::vector<ValueType>& sample_types)
     : context_(*context),
-      string_table_(&result_, &context->storage->string_pool()) {
-  if (annotated) {
-    annotations_.emplace(context);
-  }
+      string_table_(&result_, &context->storage->string_pool()),
+      annotations_(context) {
   WriteSampleTypes(sample_types);
 }
 
@@ -248,9 +246,14 @@ bool GProfileBuilder::AddSample(const Stack::Decoder& stack,
   ++next;
   if (!next) {
     Stack::Entry::Decoder entry(it->as_bytes());
-    if (entry.has_callsite_id()) {
+    if (entry.has_callsite_id() || entry.has_annotated_callsite_id()) {
+      bool annotated = entry.has_annotated_callsite_id();
+      uint32_t callsite_id = entry.has_callsite_id()
+                                 ? entry.callsite_id()
+                                 : entry.annotated_callsite_id();
       return AddSample(
-          GetLocationIdsForCallsite(CallsiteId(entry.callsite_id())), values);
+          GetLocationIdsForCallsite(CallsiteId(callsite_id), annotated),
+          values);
     }
   }
 
@@ -262,9 +265,13 @@ bool GProfileBuilder::AddSample(const Stack::Decoder& stack,
     if (entry.has_name()) {
       location_ids.Append(
           WriteFakeLocationIfNeeded(entry.name().ToStdString()));
-    } else if (entry.has_callsite_id()) {
+    } else if (entry.has_callsite_id() || entry.has_annotated_callsite_id()) {
+      bool annotated = entry.has_annotated_callsite_id();
+      uint32_t callsite_id = entry.has_callsite_id()
+                                 ? entry.callsite_id()
+                                 : entry.annotated_callsite_id();
       const protozero::PackedVarInt& ids =
-          GetLocationIdsForCallsite(CallsiteId(entry.callsite_id()));
+          GetLocationIdsForCallsite(CallsiteId(callsite_id), annotated);
       for (auto* p = ids.data(); p < ids.data() + ids.size();) {
         uint64_t location_id;
         p = protozero::proto_utils::ParseVarInt(p, ids.data() + ids.size(),
@@ -294,23 +301,16 @@ std::string GProfileBuilder::Build() {
   return result_.SerializeAsString();
 }
 
-CallsiteAnnotation GProfileBuilder::GetAnnotation(
-    const tables::StackProfileCallsiteTable::ConstRowReference& callsite) {
-  if (!annotations_) {
-    return CallsiteAnnotation::kNone;
-  }
-
-  return annotations_->GetAnnotation(callsite);
-}
-
 const protozero::PackedVarInt& GProfileBuilder::GetLocationIdsForCallsite(
-    const CallsiteId& callsite_id) {
-  auto it = cached_location_ids_.find(callsite_id);
+    const CallsiteId& callsite_id,
+    bool annotated) {
+  auto it = cached_location_ids_.find({callsite_id, annotated});
   if (it != cached_location_ids_.end()) {
     return it->second;
   }
 
-  protozero::PackedVarInt& location_ids = cached_location_ids_[callsite_id];
+  protozero::PackedVarInt& location_ids =
+      cached_location_ids_[{callsite_id, annotated}];
 
   const auto& cs_table = context_.storage->stack_profile_callsite_table();
 
@@ -320,12 +320,17 @@ const protozero::PackedVarInt& GProfileBuilder::GetLocationIdsForCallsite(
     return location_ids;
   }
 
-  location_ids.Append(WriteLocationIfNeeded(*start_ref));
+  location_ids.Append(WriteLocationIfNeeded(
+      start_ref->frame_id(), annotated ? annotations_.GetAnnotation(*start_ref)
+                                       : CallsiteAnnotation::kNone));
 
   base::Optional<CallsiteId> parent_id = start_ref->parent_id();
   while (parent_id) {
     auto parent_ref = cs_table.FindById(*parent_id);
-    location_ids.Append(WriteLocationIfNeeded(*parent_ref));
+    location_ids.Append(WriteLocationIfNeeded(
+        parent_ref->frame_id(), annotated
+                                    ? annotations_.GetAnnotation(*parent_ref)
+                                    : CallsiteAnnotation::kNone));
     parent_id = parent_ref->parent_id();
   }
 
@@ -476,6 +481,28 @@ uint64_t GProfileBuilder::WriteFunctionIfNeeded(
   return id;
 }
 
+int64_t GProfileBuilder::GetNameForFrame(
+    const tables::StackProfileFrameTable::ConstRowReference& frame,
+    CallsiteAnnotation annotation) {
+  NullTermStringView system_name = context_.storage->GetString(frame.name());
+  int64_t name = kEmptyStringIndex;
+  if (frame.deobfuscated_name()) {
+    name = string_table_.GetAnnotatedString(*frame.deobfuscated_name(),
+                                            annotation);
+  } else if (!system_name.empty()) {
+    std::unique_ptr<char, base::FreeDeleter> demangled =
+        demangle::Demangle(system_name.c_str());
+    if (demangled) {
+      name = string_table_.GetAnnotatedString(demangled.get(), annotation);
+    } else {
+      // demangling failed, expected if the name wasn't mangled. In any case
+      // reuse the system_name as this is what UI will usually display.
+      name = string_table_.GetAnnotatedString(frame.name(), annotation);
+    }
+  }
+  return name;
+}
+
 uint64_t GProfileBuilder::WriteFunctionIfNeeded(
     const tables::StackProfileFrameTable::ConstRowReference& frame,
     CallsiteAnnotation annotation,
@@ -486,31 +513,15 @@ uint64_t GProfileBuilder::WriteFunctionIfNeeded(
     return it->second;
   }
 
-  int64_t system_name = string_table_.InternString(frame.name());
-  int64_t name = kEmptyStringIndex;
-
-  if (frame.deobfuscated_name()) {
-    name = string_table_.GetAnnotatedString(*frame.deobfuscated_name(),
-                                            annotation);
-  } else if (system_name != kEmptyStringIndex) {
-    std::unique_ptr<char, base::FreeDeleter> demangled =
-        demangle::Demangle(context_.storage->GetString(frame.name()).c_str());
-    if (demangled) {
-      name = string_table_.GetAnnotatedString(demangled.get(), annotation);
-    } else {
-      // demangling failed, expected if the name wasn't mangled. In any case
-      // reuse the system_name as this is what UI will usually display.
-      name = string_table_.GetAnnotatedString(frame.name(), annotation);
-    }
-  }
-
   auto ins = functions_.insert(
-      {Function{name, system_name, kEmptyStringIndex}, functions_.size() + 1});
+      {Function{GetNameForFrame(frame, annotation),
+                string_table_.InternString(frame.name()), kEmptyStringIndex},
+       functions_.size() + 1});
   uint64_t id = ins.first->second;
   seen_functions_.insert({key, id});
 
-  if (ins.second &&
-      (name != kEmptyStringIndex || system_name != kEmptyStringIndex)) {
+  if (ins.second && (ins.first->first.name != kEmptyStringIndex ||
+                     ins.first->first.system_name != kEmptyStringIndex)) {
     GetMapping(mapping_id).debug_info.has_functions = true;
   }
 
