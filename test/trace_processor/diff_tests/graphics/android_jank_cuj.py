@@ -205,10 +205,10 @@ trace.add_thread(
 trace.add_thread(
     tid=SF_RETID, tgid=SF_PID, cmdline="RenderEngine", name="RenderEngine")
 trace.add_ftrace_packet(cpu=0)
-trace.add_atrace_async_begin(ts=5, tid=PID, pid=PID, buf="J<SHOULD_BE_IGNORED>")
+trace.add_atrace_async_begin(ts=5, tid=PID, pid=PID, buf="J<FIRST_CUJ>")
 trace.add_atrace_async_begin(ts=10, tid=PID, pid=PID, buf="J<SHADE_ROW_EXPAND>")
 trace.add_atrace_async_end(
-    ts=100_000_000, tid=PID, pid=PID, buf="J<SHOULD_BE_IGNORED>")
+    ts=100_000_000, tid=PID, pid=PID, buf="J<FIRST_CUJ>")
 trace.add_atrace_async_begin(
     ts=100_100_000, tid=PID, pid=PID, buf="J<CANCELED>")
 trace.add_atrace_async_end(
@@ -219,31 +219,31 @@ trace.add_atrace_counter(
     ts=150_000_000,
     tid=PID,
     pid=PID,
-    buf="J<SHOULD_BE_IGNORED>#totalFrames",
+    buf="J<FIRST_CUJ>#totalFrames",
     cnt=6)
 trace.add_atrace_counter(
     ts=150_100_000,
     tid=PID,
     pid=PID,
-    buf="J<SHOULD_BE_IGNORED>#missedFrames",
+    buf="J<FIRST_CUJ>#missedFrames",
     cnt=5)
 trace.add_atrace_counter(
     ts=150_200_000,
     tid=PID,
     pid=PID,
-    buf="J<SHOULD_BE_IGNORED>#missedAppFrames",
+    buf="J<FIRST_CUJ>#missedAppFrames",
     cnt=5)
 trace.add_atrace_counter(
     ts=150_300_000,
     tid=PID,
     pid=PID,
-    buf="J<SHOULD_BE_IGNORED>#missedSfFrames",
+    buf="J<FIRST_CUJ>#missedSfFrames",
     cnt=1)
 trace.add_atrace_counter(
     ts=150_400_000,
     tid=PID,
     pid=PID,
-    buf="J<SHOULD_BE_IGNORED>#maxFrameTimeMillis",
+    buf="J<FIRST_CUJ>#maxFrameTimeMillis",
     cnt=40)
 
 trace.add_atrace_counter(
