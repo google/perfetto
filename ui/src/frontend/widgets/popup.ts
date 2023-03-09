@@ -17,6 +17,7 @@ import type {StrictModifiers} from '@popperjs/core';
 import * as m from 'mithril';
 import {globals} from '../globals';
 import {Portal} from './portal';
+import {classNames} from '../classnames';
 
 function isOrContains(container?: HTMLElement, target?: HTMLElement): boolean {
   if (!container || !target) return false;
@@ -78,6 +79,11 @@ export interface PopupAttrs {
   isOpen?: boolean;
   // Called when the popup isOpen state should be changed in controlled mode.
   onChange?: OnChangeCallback;
+  // Close the popup if clicked on.
+  // Defaults to false.
+  closeOnContentClick?: boolean;
+  // Space delimited class names applied to the popup div.
+  className?: string;
 }
 
 // A popup is a portal whose position is dynamically updated so that it floats
@@ -92,6 +98,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   private onChange: OnChangeCallback = (_) => {};
   private closeOnEscape?: boolean;
   private closeOnOutsideClick?: boolean;
+  private closeOnContentClick?: boolean;
 
   private static readonly TRIGGER_REF = 'trigger';
   private static readonly POPUP_REF = 'popup';
@@ -103,12 +110,14 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       onChange = (_) => {},
       closeOnEscape = true,
       closeOnOutsideClick = true,
+      closeOnContentClick = false,
     } = attrs;
 
     this.isOpen = isOpen;
     this.onChange = onChange;
     this.closeOnEscape = closeOnEscape;
     this.closeOnOutsideClick = closeOnOutsideClick;
+    this.closeOnContentClick = closeOnContentClick;
 
     return [
       this.renderTrigger(trigger),
@@ -127,19 +136,25 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   }
 
   private renderPopup(attrs: PopupAttrs, children: any): m.Children {
+    const {
+      className,
+    } = attrs;
+
     const portalAttrs = {
       onContentMount: (dom: HTMLElement) => {
         this.popupElement = findRef(dom, Popup.POPUP_REF);
         this.createOrUpdatePopper(attrs);
         document.addEventListener('mousedown', this.handleDocMouseDown);
         document.addEventListener('keydown', this.handleDocKeyPress);
+        dom.addEventListener('click', this.handleContentClick);
       },
       onContentUpdate: () => {
         // The content inside the portal has updated, so we call popper to
         // recompute the popup's position, in case it has changed size.
         this.popper && this.popper.update();
       },
-      onContentUnmount: () => {
+      onContentUnmount: (dom: HTMLElement) => {
+        dom.removeEventListener('click', this.handleContentClick);
         document.removeEventListener('keydown', this.handleDocKeyPress);
         document.removeEventListener('mousedown', this.handleDocMouseDown);
         this.popper && this.popper.destroy();
@@ -147,15 +162,17 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
         this.popupElement = undefined;
       },
     };
+
     return m(
         Portal,
         portalAttrs,
-        m(
-            '.pf-popup',
-            {ref: Popup.POPUP_REF},
-            m('.pf-popup-arrow[data-popper-arrow]'),
-            children,
-            ),
+        m('.pf-popup',
+          {
+            class: classNames(className),
+            ref: Popup.POPUP_REF,
+          },
+          m('.pf-popup-arrow[data-popper-arrow]'),
+          m('.pf-popup-content', children)),
     );
   }
 
@@ -212,6 +229,12 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
 
   private handleDocKeyPress = (e: KeyboardEvent) => {
     if (this.closeOnEscape && e.key === 'Escape') {
+      this.closePopup();
+    }
+  };
+
+  private handleContentClick = (_: Event) => {
+    if (this.closeOnContentClick) {
       this.closePopup();
     }
   };
