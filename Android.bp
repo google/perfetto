@@ -4250,6 +4250,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_metrics_chrome_descriptor",
     srcs: [
+        "protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto",
         "protos/perfetto/metrics/android/android_frame_timeline_metric.proto",
         "protos/perfetto/metrics/android/android_trusty_workqueues.proto",
         "protos/perfetto/metrics/android/batt_metric.proto",
@@ -4321,6 +4322,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_metrics_descriptor",
     srcs: [
+        "protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto",
         "protos/perfetto/metrics/android/android_frame_timeline_metric.proto",
         "protos/perfetto/metrics/android/android_trusty_workqueues.proto",
         "protos/perfetto/metrics/android/batt_metric.proto",
@@ -6787,6 +6789,7 @@ genrule {
     srcs: [
         "protos/perfetto/trace_processor/cloud_trace_processor.proto",
         "protos/perfetto/trace_processor/metatrace_categories.proto",
+        "protos/perfetto/trace_processor/stack.proto",
         "protos/perfetto/trace_processor/trace_processor.proto",
     ],
     tools: [
@@ -6797,6 +6800,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace_processor/cloud_trace_processor.pbzero.cc",
         "external/perfetto/protos/perfetto/trace_processor/metatrace_categories.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace_processor/stack.pbzero.cc",
         "external/perfetto/protos/perfetto/trace_processor/trace_processor.pbzero.cc",
     ],
 }
@@ -6807,6 +6811,7 @@ genrule {
     srcs: [
         "protos/perfetto/trace_processor/cloud_trace_processor.proto",
         "protos/perfetto/trace_processor/metatrace_categories.proto",
+        "protos/perfetto/trace_processor/stack.proto",
         "protos/perfetto/trace_processor/trace_processor.proto",
     ],
     tools: [
@@ -6817,6 +6822,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace_processor/cloud_trace_processor.pbzero.h",
         "external/perfetto/protos/perfetto/trace_processor/metatrace_categories.pbzero.h",
+        "external/perfetto/protos/perfetto/trace_processor/stack.pbzero.h",
         "external/perfetto/protos/perfetto/trace_processor/trace_processor.pbzero.h",
     ],
     export_include_dirs: [
@@ -9694,6 +9700,7 @@ genrule {
     srcs: [
         "src/trace_processor/metrics/sql/android/android_batt.sql",
         "src/trace_processor/metrics/sql/android/android_binder.sql",
+        "src/trace_processor/metrics/sql/android/android_blocking_calls_cuj_metric.sql",
         "src/trace_processor/metrics/sql/android/android_camera.sql",
         "src/trace_processor/metrics/sql/android/android_camera_unagg.sql",
         "src/trace_processor/metrics/sql/android/android_cpu.sql",
@@ -9881,6 +9888,7 @@ filegroup {
         "src/trace_processor/prelude/functions/pprof_functions.cc",
         "src/trace_processor/prelude/functions/register_function.cc",
         "src/trace_processor/prelude/functions/sqlite3_str_split.cc",
+        "src/trace_processor/prelude/functions/stack_functions.cc",
     ],
 }
 
@@ -9990,6 +9998,7 @@ genrule {
         "src/trace_processor/stdlib/android/battery.sql",
         "src/trace_processor/stdlib/android/binder.sql",
         "src/trace_processor/stdlib/android/process_metadata.sql",
+        "src/trace_processor/stdlib/android/slices.sql",
         "src/trace_processor/stdlib/android/startup/internal_startups_maxsdk28.sql",
         "src/trace_processor/stdlib/android/startup/internal_startups_minsdk29.sql",
         "src/trace_processor/stdlib/android/startup/internal_startups_minsdk33.sql",
@@ -10001,6 +10010,7 @@ genrule {
         "src/trace_processor/stdlib/common/slices.sql",
         "src/trace_processor/stdlib/common/timestamps.sql",
         "src/trace_processor/stdlib/experimental/android_broadcast.sql",
+        "src/trace_processor/stdlib/experimental/proto_path.sql",
     ],
     cmd: "$(location tools/gen_amalgamated_sql.py) --namespace=stdlib --cpp-out=$(out) $(in)",
     out: [

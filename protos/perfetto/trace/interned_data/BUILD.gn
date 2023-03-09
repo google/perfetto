@@ -17,6 +17,7 @@ import("../../../../gn/proto_library.gni")
 perfetto_proto_library("@TYPE@") {
   sources = [ "interned_data.proto" ]
   deps = [
+    "../android:@TYPE@",
     "../gpu:@TYPE@",
     "../profiling:@TYPE@",
     "../track_event:@TYPE@",
