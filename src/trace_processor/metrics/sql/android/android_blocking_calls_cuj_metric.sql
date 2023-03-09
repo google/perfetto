@@ -141,6 +141,8 @@ FROM all_main_thread_relevant_slices s
 SELECT
     name,
     COUNT(*) AS occurrences,
+    CAST(MAX(dur) / 1e6 AS INT) AS max_dur_ms,
+    CAST(MIN(dur) / 1e6 AS INT) AS min_dur_ms,
     CAST(SUM(dur) / 1e6 AS INT) AS total_dur_ms,
     upid,
     cuj_id,
@@ -167,7 +169,9 @@ SELECT AndroidBlockingCallsCujMetric('cuj', (
                      AndroidBlockingCallsCujMetric_BlockingCall(
                         'name', b.name,
                         'cnt', b.occurrences,
-                        'total_dur_ms', b.total_dur_ms
+                        'total_dur_ms', b.total_dur_ms,
+                        'max_dur_ms', b.max_dur_ms,
+                        'min_dur_ms', b.min_dur_ms
                     )
                 )
                 FROM android_blocking_calls_cuj_calls b

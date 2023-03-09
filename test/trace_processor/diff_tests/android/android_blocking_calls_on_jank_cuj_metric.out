@@ -22,6 +22,8 @@ android_blocking_calls_cuj_metric {
       name: "binder transaction"
       cnt: 11
       total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 0
     }
   }
   cuj {
@@ -47,6 +49,8 @@ android_blocking_calls_cuj_metric {
       name: "binder transaction"
       cnt: 13
       total_dur_ms: 68
+      max_dur_ms: 49
+      min_dur_ms: 0
     }
   }
 }
