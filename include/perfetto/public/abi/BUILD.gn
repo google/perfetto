@@ -24,7 +24,8 @@ source_set("public") {
     "backend_type.h",
     "data_source_abi.h",
     "heap_buffer.h",
-    "producer.h",
+    "pb_decoder_abi.h",
+    "producer_abi.h",
     "stream_writer_abi.h",
     "tracing_session_abi.h",
   ]

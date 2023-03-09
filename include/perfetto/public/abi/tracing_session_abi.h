@@ -21,7 +21,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "perfetto/public/abi/backend_type.h"
 #include "perfetto/public/abi/export.h"
 
 #ifdef __cplusplus
@@ -32,7 +31,10 @@ extern "C" {
 struct PerfettoTracingSessionImpl;
 
 PERFETTO_SDK_EXPORT struct PerfettoTracingSessionImpl*
-PerfettoTracingSessionCreate(PerfettoBackendTypes backend);
+PerfettoTracingSessionSystemCreate(void);
+
+PERFETTO_SDK_EXPORT struct PerfettoTracingSessionImpl*
+PerfettoTracingSessionInProcessCreate(void);
 
 PERFETTO_SDK_EXPORT void PerfettoTracingSessionSetup(
     struct PerfettoTracingSessionImpl*,
