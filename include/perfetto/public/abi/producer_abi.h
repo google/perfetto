@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_PUBLIC_ABI_PRODUCER_H_
-#define INCLUDE_PERFETTO_PUBLIC_ABI_PRODUCER_H_
+#ifndef INCLUDE_PERFETTO_PUBLIC_ABI_PRODUCER_ABI_H_
+#define INCLUDE_PERFETTO_PUBLIC_ABI_PRODUCER_ABI_H_
 
 #include <stdint.h>
 
@@ -31,11 +31,8 @@ PERFETTO_SDK_EXPORT void PerfettoProducerSystemInit(void);
 // Initializes the global in-process perfetto producer.
 PERFETTO_SDK_EXPORT void PerfettoProducerInProcessInit(void);
 
-// Initializes both the global in-process and system perfetto producer.
-PERFETTO_SDK_EXPORT void PerfettoProducerInProcessAndSystemInit(void);
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // INCLUDE_PERFETTO_PUBLIC_ABI_PRODUCER_H_
+#endif  // INCLUDE_PERFETTO_PUBLIC_ABI_PRODUCER_ABI_H_
