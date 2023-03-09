@@ -16,6 +16,15 @@
 
 #include "src/trace_processor/prelude/functions/pprof_functions.h"
 
+#include <stdlib.h>
+#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
@@ -27,15 +36,6 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/profile_builder.h"
 #include "src/trace_processor/util/status_macros.h"
-
-#include <malloc.h>
-#include <cinttypes>
-#include <cstddef>
-#include <cstdint>
-#include <limits>
-#include <string>
-#include <utility>
-#include <vector>
 
 // TODO(carlscab): We currently recreate the GProfileBuilder for every group. We
 // should cache this somewhere maybe even have a helper table that stores all
