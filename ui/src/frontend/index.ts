@@ -155,8 +155,7 @@ function setupContentSecurityPolicy() {
   const policy = {
     'default-src': [
       `'self'`,
-      // Google Tag Manager bootstrap.
-      `'sha256-LirUKeorCU4uRNtNzr8tlB11uy8rzrdmqHCX38JSwHY='`,
+      `'unsafe-inline'`,
     ],
     'script-src': [
       `'self'`,
