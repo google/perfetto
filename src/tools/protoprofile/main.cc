@@ -34,7 +34,9 @@ SELECT IMPORT('experimental.proto_path');
 
 SELECT
   EXPERIMENTAL_PROFILE(
-    EXPERIMENTAL_PROTO_PATH_TO_STACK(path_id), 'size', 'bytes', size)
+    EXPERIMENTAL_PROTO_PATH_TO_STACK(path_id),
+    'size', 'bytes', size,
+    'proto', 'count', count)
 FROM EXPERIMENTAL_PROTO_CONTENT;
 
 )";
