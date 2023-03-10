@@ -119,11 +119,7 @@ class ServiceThread {
                 const std::string& consumer_socket)
       : producer_socket_(producer_socket), consumer_socket_(consumer_socket) {}
 
-  ~ServiceThread() {
-    if (!runner_)
-      return;
-    runner_->PostTaskAndWaitForTesting([this]() { svc_.reset(); });
-  }
+  ~ServiceThread() { Stop(); }
 
   TestEnvCleaner Start() {
     TestEnvCleaner env_cleaner(
@@ -149,6 +145,13 @@ class ServiceThread {
       }
     });
     return env_cleaner;
+  }
+
+  void Stop() {
+    if (!runner_)
+      return;
+    runner_->PostTaskAndWaitForTesting([this]() { svc_.reset(); });
+    runner_.reset();
   }
 
   base::ThreadTaskRunner* runner() { return runner_ ? &*runner_ : nullptr; }
@@ -289,6 +292,9 @@ class TestHelper : public Consumer {
 
   // Starts the tracing service if in kStartDaemons mode.
   void StartServiceIfRequired();
+
+  // Restarts the tracing service. Only valid in kStartDaemons mode.
+  void RestartService();
 
   // Connects the producer and waits that the service has seen the
   // RegisterDataSource() call.

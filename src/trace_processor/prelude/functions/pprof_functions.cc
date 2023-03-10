@@ -16,6 +16,15 @@
 
 #include "src/trace_processor/prelude/functions/pprof_functions.h"
 
+#include <stdlib.h>
+#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
@@ -28,15 +37,6 @@
 #include "src/trace_processor/util/profile_builder.h"
 #include "src/trace_processor/util/status_macros.h"
 
-#include <malloc.h>
-#include <cinttypes>
-#include <cstddef>
-#include <cstdint>
-#include <limits>
-#include <string>
-#include <utility>
-#include <vector>
-
 // TODO(carlscab): We currently recreate the GProfileBuilder for every group. We
 // should cache this somewhere maybe even have a helper table that stores all
 // this data.
@@ -47,9 +47,11 @@ namespace {
 
 using protos::pbzero::Stack;
 
-template <typename T, typename... Args>
-std::unique_ptr<T> MakeUnique(Args&&... args) {
-  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+constexpr char kFunctionName[] = "EXPERIMENTAL_PROFILE";
+
+template <typename T>
+std::unique_ptr<T> WrapUnique(T* ptr) {
+  return std::unique_ptr<T>(ptr);
 }
 
 void SetSqliteError(sqlite3_context* ctx, const base::Status& status) {
@@ -64,80 +66,42 @@ void SetSqliteError(sqlite3_context* ctx,
                                       status.c_message()));
 }
 
-// EXPERIMENTAL_[ANNOTATED_]PROFILE(
-//      stack BLOB<Stack>, [type STRING, units STRING, value LONG])
-//
-// Aggregate function to create profiles in pprof format.
-// Each row into the aggregation will become one sample in the profile. If only
-// one argument is provides samples will have the value 1 associated to them
-// with a type of "sample" and units "count". Alternatively you can specify the
-// different values with each stack. If you do so you must also specify the type
-// and the units for each of them.
-//
-// Note that type and units must be constants, undefined behaviour will result
-// otherwise.
-class ProfileFunction {
+class AggregateContext {
  public:
-  static base::Status Register(sqlite3* db,
-                               std::unique_ptr<ProfileFunction> function) {
-    int flags = SQLITE_UTF8 | SQLITE_DETERMINISTIC;
-    // Keep a copy of the name. If registration fails function will be deleted
-    // and thus the name will no longer be available for the error message.
-    std::string function_name = function->name();
-    int ret = sqlite3_create_function_v2(db, function_name.c_str(), -1, flags,
-                                         function.release(), nullptr, Step,
-                                         Final, Destroy);
-    if (ret != SQLITE_OK) {
-      return base::ErrStatus("Unable to register function with name %s",
-                             function_name.c_str());
+  static base::StatusOr<std::unique_ptr<AggregateContext>>
+  Create(TraceProcessorContext* tp_context, size_t argc, sqlite3_value** argv) {
+    base::StatusOr<std::vector<GProfileBuilder::ValueType>> sample_types =
+        GetSampleTypes(argc, argv);
+    if (!sample_types.ok()) {
+      return sample_types.status();
     }
-    return base::OkStatus();
+    return WrapUnique(new AggregateContext(tp_context, sample_types.value()));
   }
 
-  ~ProfileFunction() = default;
+  base::Status Step(size_t argc, sqlite3_value** argv) {
+    RETURN_IF_ERROR(UpdateSampleValue(argc, argv));
 
-  ProfileFunction(const TraceProcessorContext* tp_context,
-                  std::string name,
-                  bool annotate_callsites)
-      : tp_context_(tp_context),
-        name_(std::move(name)),
-        annotate_callsites_(annotate_callsites) {
-    sample_value_.Append(1);
-  }
-
- private:
-  static std::unique_ptr<GProfileBuilder> ReleaseProfileBuilder(
-      sqlite3_context* ctx) {
-    GProfileBuilder** builder =
-        reinterpret_cast<GProfileBuilder**>(sqlite3_aggregate_context(ctx, 0));
-
-    if (!builder) {
-      return nullptr;
+    base::StatusOr<SqlValue> value =
+        sqlite_utils::ExtractArgument(argc, argv, "stack", 0, SqlValue::kBytes);
+    if (!value.ok()) {
+      return value.status();
     }
 
-    return std::unique_ptr<GProfileBuilder>(*builder);
+    Stack::Decoder stack(static_cast<const uint8_t*>(value->bytes_value),
+                         value->bytes_count);
+    if (stack.bytes_left() != 0) {
+      return sqlite_utils::ToInvalidArgumentError(
+          "stack", 0, base::ErrStatus("failed to deserialize Stack proto"));
+    }
+    if (!builder_.AddSample(stack, sample_value_)) {
+      return base::ErrStatus("Failed to add callstack");
+    }
+    return util::OkStatus();
   }
 
-  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-    PERFETTO_CHECK(argc >= 0);
-    ProfileFunction* func =
-        reinterpret_cast<ProfileFunction*>(sqlite3_user_data(ctx));
-
-    base::Status status = func->StepImpl(ctx, static_cast<size_t>(argc), argv);
-
-    if (!status.ok()) {
-      SetSqliteError(ctx, func->name(), status);
-    }
-  }
-
-  static void Final(sqlite3_context* ctx) {
-    std::unique_ptr<GProfileBuilder> builder = ReleaseProfileBuilder(ctx);
-    if (!builder) {
-      return;
-    }
-
+  void Final(sqlite3_context* ctx) {
     // TODO(carlscab): A lot of copies are happening here.
-    std::string profile_proto = builder->Build();
+    std::string profile_proto = builder_.Build();
 
     std::unique_ptr<uint8_t[], base::FreeDeleter> data(
         static_cast<uint8_t*>(malloc(profile_proto.size())));
@@ -146,11 +110,8 @@ class ProfileFunction {
                         static_cast<int>(profile_proto.size()), free);
   }
 
-  static void Destroy(void* p_app) {
-    delete static_cast<ProfileFunction*>(p_app);
-  }
-
-  base::StatusOr<std::vector<GProfileBuilder::ValueType>> GetSampleTypes(
+ private:
+  static base::StatusOr<std::vector<GProfileBuilder::ValueType>> GetSampleTypes(
       size_t argc,
       sqlite3_value** argv) {
     std::vector<GProfileBuilder::ValueType> sample_types;
@@ -177,6 +138,12 @@ class ProfileFunction {
     return std::move(sample_types);
   }
 
+  AggregateContext(TraceProcessorContext* tp_context,
+                   const std::vector<GProfileBuilder::ValueType>& sample_types)
+      : builder_(tp_context, sample_types) {
+    sample_value_.Append(1);
+  }
+
   base::Status UpdateSampleValue(size_t argc, sqlite3_value** argv) {
     if (argc == 1) {
       return base::OkStatus();
@@ -195,64 +162,70 @@ class ProfileFunction {
     return base::OkStatus();
   }
 
-  const std::string& name() const { return name_; }
-
-  base::Status StepImpl(sqlite3_context* ctx,
-                        size_t argc,
-                        sqlite3_value** argv) {
-    GProfileBuilder** builder = reinterpret_cast<GProfileBuilder**>(
-        sqlite3_aggregate_context(ctx, sizeof(GProfileBuilder*)));
-    if (!builder) {
-      return base::ErrStatus("Failed to allocate aggregate context");
-    }
-
-    if (!*builder) {
-      base::StatusOr<std::vector<GProfileBuilder::ValueType>> sample_types =
-          GetSampleTypes(argc, argv);
-      if (!sample_types.ok()) {
-        return sample_types.status();
-      }
-      *builder = new GProfileBuilder(
-          tp_context_, std::move(sample_types.value()), annotate_callsites_);
-    }
-
-    RETURN_IF_ERROR(UpdateSampleValue(argc, argv));
-
-    base::StatusOr<SqlValue> value =
-        sqlite_utils::ExtractArgument(argc, argv, "stack", 0, SqlValue::kBytes);
-    if (!value.ok()) {
-      return value.status();
-    }
-
-    Stack::Decoder stack(static_cast<const uint8_t*>(value->bytes_value),
-                         value->bytes_count);
-    if (stack.bytes_left() != 0) {
-      return sqlite_utils::ToInvalidArgumentError(
-          "stack", 0, base::ErrStatus("failed to deserialize Stack proto"));
-    }
-    if (!(*builder)->AddSample(stack, sample_value_)) {
-      return base::ErrStatus("Failed to add callstack");
-    }
-    return util::OkStatus();
-  }
-
-  const TraceProcessorContext* const tp_context_;
-  const std::string name_;
-  const bool annotate_callsites_;
+  GProfileBuilder builder_;
   protozero::PackedVarInt sample_value_;
 };
+
+static base::Status Step(sqlite3_context* ctx,
+                         size_t argc,
+                         sqlite3_value** argv) {
+  AggregateContext** agg_context_ptr = static_cast<AggregateContext**>(
+      sqlite3_aggregate_context(ctx, sizeof(AggregateContext*)));
+  if (!agg_context_ptr) {
+    return base::ErrStatus("Failed to allocate aggregate context");
+  }
+
+  if (!*agg_context_ptr) {
+    TraceProcessorContext* tp_context =
+        static_cast<TraceProcessorContext*>(sqlite3_user_data(ctx));
+    base::StatusOr<std::unique_ptr<AggregateContext>> agg_context =
+        AggregateContext::Create(tp_context, argc, argv);
+    if (!agg_context.ok()) {
+      return agg_context.status();
+    }
+
+    *agg_context_ptr = agg_context->release();
+  }
+
+  return (*agg_context_ptr)->Step(argc, argv);
+}
+
+static void StepWrapper(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+  PERFETTO_CHECK(argc >= 0);
+
+  base::Status status = Step(ctx, static_cast<size_t>(argc), argv);
+
+  if (!status.ok()) {
+    SetSqliteError(ctx, kFunctionName, status);
+  }
+}
+
+static void FinalWrapper(sqlite3_context* ctx) {
+  AggregateContext** agg_context_ptr =
+      static_cast<AggregateContext**>(sqlite3_aggregate_context(ctx, 0));
+
+  if (!agg_context_ptr) {
+    return;
+  }
+
+  (*agg_context_ptr)->Final(ctx);
+
+  delete (*agg_context_ptr);
+}
 
 }  // namespace
 
 base::Status PprofFunctions::Register(sqlite3* db,
                                       TraceProcessorContext* context) {
-  RETURN_IF_ERROR(ProfileFunction::Register(
-      db, MakeUnique<ProfileFunction>(context, "EXPERIMENTAL_ANNOTATED_PROFILE",
-                                      true)));
-  RETURN_IF_ERROR(ProfileFunction::Register(
-      db, MakeUnique<ProfileFunction>(context, "EXPERIMENTAL_PROFILE", false)));
-
-  return util::OkStatus();
+  int flags = SQLITE_UTF8 | SQLITE_DETERMINISTIC;
+  int ret =
+      sqlite3_create_function_v2(db, kFunctionName, -1, flags, context, nullptr,
+                                 StepWrapper, FinalWrapper, nullptr);
+  if (ret != SQLITE_OK) {
+    return base::ErrStatus("Unable to register function with name %s",
+                           kFunctionName);
+  }
+  return base::OkStatus();
 }
 
 }  // namespace trace_processor

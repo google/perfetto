@@ -17,12 +17,23 @@ from python.generators.diff_tests.testing import Path, DataPath, Metric
 from python.generators.diff_tests.testing import Csv, Json, TextProto, BinaryProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
+from google.protobuf import text_format
 
 
-def SortProfileProto(profile):
-  profile.location.sort(key=lambda l: l.id)
-  profile.function.sort(key=lambda f: f.id)
-  profile.mapping.sort(key=lambda m: m.id)
+def PrintProfileProto(profile):
+  locations = {l.id: l for l in profile.location}
+  functions = {f.id: f for f in profile.function}
+  samples = []
+  for s in profile.sample:
+    stack = []
+    for location in [locations[id] for id in s.location_id]:
+      for function in [functions[l.function_id] for l in location.line]:
+        stack.append("{name} ({address})".format(
+            name=profile.string_table[function.name],
+            address=hex(location.address)))
+    samples.append('Sample:\nValues: {values}\nStack:\n{stack}'.format(
+        values=', '.join(map(str, s.value)), stack='\n'.join(stack)))
+  return '\n\n'.join(sorted(samples)) + '\n'
 
 
 class Functions(TestSuite):
@@ -291,112 +302,17 @@ class Functions(TestSuite):
         """,
         out=BinaryProto(
             message_type="perfetto.third_party.perftools.profiles.Profile",
-            post_processing=SortProfileProto,
+            post_processing=PrintProfileProto,
             contents="""
-            sample_type {
-              type: 1
-              unit: 2
-            }
-            sample {
-              location_id: 1
-              location_id: 2
-              location_id: 3
-              location_id: 4
-              location_id: 5
-              value: 1
-            }
-            mapping {
-              id: 1
-              memory_start: 525083627520
-              memory_limit: 525084442624
-              file_offset: 155648
-              filename: 5
-              build_id: 4
-              has_functions: true
-            }
-            mapping {
-              id: 2
-              memory_start: 525082697728
-              memory_limit: 525083201536
-              file_offset: 241664
-              filename: 11
-              build_id: 10
-              has_functions: true
-            }
-            location {
-              id: 1
-              line {
-                function_id: 1
-              }
-            }
-            location {
-              id: 2
-              mapping_id: 1
-              address: 525084062512
-              line {
-                function_id: 2
-              }
-            }
-            location {
-              id: 3
-              mapping_id: 1
-              address: 525084370520
-              line {
-                function_id: 3
-              }
-            }
-            location {
-              id: 4
-              mapping_id: 2
-              address: 525082997664
-              line {
-                function_id: 4
-              }
-            }
-            location {
-              id: 5
-              line {
-                function_id: 5
-              }
-            }
-            function {
-              id: 1
-              name: 3
-            }
-            function {
-              id: 2
-              name: 7
-              system_name: 6
-            }
-            function {
-              id: 3
-              name: 9
-              system_name: 8
-            }
-            function {
-              id: 4
-              name: 12
-              system_name: 12
-            }
-            function {
-              id: 5
-              name: 13
-            }
-            string_table: ""
-            string_table: "samples"
-            string_table: "count"
-            string_table: "B"
-            string_table: "ec2fd72b19ae22c597fdd10451c25026"
-            string_table: "/system/lib64/libperfetto.so"
-            string_table: "_ZN8perfetto4base14UnixTaskRunner3RunEv"
-            string_table: "perfetto::base::UnixTaskRunner::Run()"
-            string_table: "_ZN8perfetto11ServiceMainEiPPc"
-            string_table: "perfetto::ServiceMain(int, char**)"
-            string_table: "04f0867d28ed6d6d36d30798cfe738ac"
-            string_table: "/apex/com.android.runtime/lib64/bionic/libc.so"
-            string_table: "__libc_init"
-            string_table: "A"
-        """))
+            Sample:
+              Values: 1
+              Stack:
+                B (0x0)
+                perfetto::base::UnixTaskRunner::Run() (0x7a4172f330)
+                perfetto::ServiceMain(int, char**) (0x7a4177a658)
+                __libc_init (0x7a4162b3a0)
+                A (0x0)
+            """))
 
   def test_profile_with_sample_types(self):
     return DiffTestBlueprint(
@@ -408,40 +324,54 @@ class Functions(TestSuite):
         """,
         out=BinaryProto(
             message_type="perfetto.third_party.perftools.profiles.Profile",
-            post_processing=SortProfileProto,
+            post_processing=PrintProfileProto,
             contents="""
-            sample_type {
-              type: 1
-              unit: 2
-            }
-            sample {
-              location_id: 1
-              location_id: 2
-              value: 42
-            }
-            location {
-              id: 1
-              line {
-                function_id: 1
-              }
-            }
-            location {
-              id: 2
-              line {
-                function_id: 2
-              }
-            }
-            function {
-              id: 1
-              name: 3
-            }
-            function {
-              id: 2
-              name: 4
-            }
-            string_table: ""
-            string_table: "type"
-            string_table: "units"
-            string_table: "B"
-            string_table: "A"
-        """))
+            Sample:
+              Values: 42
+                Stack:
+                  B (0x0)
+                  A (0x0)
+            """))
+
+def test_annotated_callstack(self):
+    return DiffTestBlueprint(
+        trace=DataPath("perf_sample_annotations.pftrace"),
+        query="""
+        SELECT HEX(EXPERIMENTAL_PROFILE(STACK_FROM_STACK_PROFILE_CALLSITE(251, TRUE)))
+        """,
+        out=BinaryProto(
+            message_type="perfetto.third_party.perftools.profiles.Profile",
+            post_processing=PrintProfileProto,
+            contents="""
+            Sample:
+              Values: 1
+              Stack:
+                art::ResolveFieldWithAccessChecks(art::Thread*, art::ClassLinker*, unsigned short, art::ArtMethod*, bool, bool, unsigned long) [common-frame] (0x724da79a74)
+                NterpGetInstanceFieldOffset [common-frame-interp] (0x724da794b0)
+                nterp_get_instance_field_offset [common-frame-interp] (0x724dcfc070)
+                nterp_op_iget_object_slow_path [common-frame-interp] (0x724dcf5884)
+                android.view.ViewRootImpl.notifyDrawStarted [interp] (0x7248f894d2)
+                android.view.ViewRootImpl.performTraversals [aot] (0x71b8d378)
+                android.view.ViewRootImpl.doTraversal [aot] (0x71b93220)
+                android.view.ViewRootImpl$TraversalRunnable.run [aot] (0x71ab0384)
+                android.view.Choreographer.doCallbacks [aot] (0x71a91b6c)
+                android.view.Choreographer.doFrame [aot] (0x71a92550)
+                android.view.Choreographer$FrameDisplayEventReceiver.run [aot] (0x71b26fb0)
+                android.os.Handler.dispatchMessage [aot] (0x71975924)
+                android.os.Looper.loopOnce [aot] (0x71978d6c)
+                android.os.Looper.loop [aot] (0x719788a0)
+                android.app.ActivityThread.main [aot] (0x717454cc)
+                art_quick_invoke_static_stub [common-frame] (0x724db2de00)
+                _jobject* art::InvokeMethod<(art::PointerSize)8>(art::ScopedObjectAccessAlreadyRunnable const&, _jobject*, _jobject*, _jobject*, unsigned long) [common-frame] (0x724db545ec)
+                art::Method_invoke(_JNIEnv*, _jobject*, _jobject*, _jobjectArray*) (.__uniq.165753521025965369065708152063621506277) (0x724db53ad0)
+                art_jni_trampoline [common-frame] (0x6ff5c578)
+                com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run [aot] (0x71c4ab6c)
+                com.android.internal.os.ZygoteInit.main [aot] (0x71c54c7c)
+                art_quick_invoke_static_stub (0x724db2de00)
+                art::JValue art::InvokeWithVarArgs<_jmethodID*>(art::ScopedObjectAccessAlreadyRunnable const&, _jobject*, _jmethodID*, std::__va_list) (0x724dc422a8)
+                art::JNI<true>::CallStaticVoidMethodV(_JNIEnv*, _jclass*, _jmethodID*, std::__va_list) (0x724dcc57c8)
+                _JNIEnv::CallStaticVoidMethod(_jclass*, _jmethodID*, ...) (0x74e1b03ca8)
+                android::AndroidRuntime::start(char const*, android::Vector<android::String8> const&, bool) (0x74e1b0feac)
+                main (0x63da9c354c)
+                __libc_init (0x74ff4a0728)
+            """))

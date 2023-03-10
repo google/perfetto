@@ -12,6 +12,8 @@ android_blocking_calls_cuj_metric {
       name: "binder transaction"
       cnt: 4
       total_dur_ms: 6
+      max_dur_ms: 3
+      min_dur_ms: 1
     }
   }
   cuj {
@@ -27,6 +29,8 @@ android_blocking_calls_cuj_metric {
       name: "binder transaction"
       cnt: 4
       total_dur_ms: 6
+      max_dur_ms: 3
+      min_dur_ms: 1
     }
   }
   cuj {
@@ -42,71 +46,99 @@ android_blocking_calls_cuj_metric {
       name: "Contending for pthread mutex"
       cnt: 1
       total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
     }
     blocking_calls {
       name: "CoroutineContinuation"
       cnt: 1
       total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
     }
     blocking_calls {
       name: "ImageDecoder#decodeBitmap"
       cnt: 1
       total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
     }
     blocking_calls {
       name: "ImageDecoder#decodeDrawable"
       cnt: 1
       total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
     }
     blocking_calls {
       name: "LoadApkAssetsFd <...>"
       cnt: 1
       total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
     }
     blocking_calls {
       name: "Lock contention on <...>"
       cnt: 1
       total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
     }
     blocking_calls {
       name: "SuspendThreadByThreadId <...>"
       cnt: 1
       total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
     }
     blocking_calls {
       name: "binder transaction"
       cnt: 1
       total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
     }
     blocking_calls {
       name: "configChanged"
       cnt: 1
       total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
     }
     blocking_calls {
       name: "inflate"
       cnt: 1
       total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
     }
     blocking_calls {
       name: "layout"
       cnt: 1
       total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
     }
     blocking_calls {
       name: "measure"
       cnt: 1
       total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
     }
     blocking_calls {
       name: "monitor contention with <...>"
       cnt: 1
       total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
     }
     blocking_calls {
       name: "relayoutWindow <...>"
       cnt: 1
       total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
     }
   }
   cuj {
@@ -122,6 +154,8 @@ android_blocking_calls_cuj_metric {
       name: "monitor contention with <...>"
       cnt: 1
       total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
     }
   }
   cuj {
@@ -137,6 +171,8 @@ android_blocking_calls_cuj_metric {
       name: "monitor contention with <...>"
       cnt: 1
       total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
     }
   }
 }
