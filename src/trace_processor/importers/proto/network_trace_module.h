@@ -19,6 +19,7 @@
 
 #include <cstdint>
 
+#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -33,6 +34,18 @@ class NetworkTraceModule : public ProtoImporterModule {
   explicit NetworkTraceModule(TraceProcessorContext* context);
   ~NetworkTraceModule() override = default;
 
+  // Tokenize and de-intern NetworkPacketBundles so that bundles of multiple
+  // packets are sorted appropriately. This splits bundles with per-packet
+  // details (packet_timestamps and packet_lengths) into one NetworkTraceEvent
+  // per packet. Bundles with aggregates (i.e. total_packets) are forwarded
+  // after de-interning the packet context.
+  ModuleResult TokenizePacket(
+      const protos::pbzero::TracePacket::Decoder& decoder,
+      TraceBlobView* packet,
+      int64_t ts,
+      PacketSequenceState* state,
+      uint32_t field_id) override;
+
   void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
                             int64_t ts,
                             const TracePacketData&,
@@ -41,7 +54,12 @@ class NetworkTraceModule : public ProtoImporterModule {
  private:
   void ParseNetworkPacketEvent(int64_t ts, protozero::ConstBytes blob);
 
+  // Helper to simplify pushing a TracePacket to the sorter. The caller fills in
+  // the packet buffer and uses this to push for sorting and reset the buffer.
+  void PushPacketBufferForSort(int64_t timestamp, PacketSequenceState* state);
+
   TraceProcessorContext* context_;
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet_buffer_;
 
   const StringId net_arg_length_;
   const StringId net_arg_ip_proto_;

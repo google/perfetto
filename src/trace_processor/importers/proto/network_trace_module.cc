@@ -18,9 +18,12 @@
 
 #include "perfetto/ext/base/string_writer.h"
 #include "protos/perfetto/trace/android/network_trace.pbzero.h"
+#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/tcp_state.h"
 
@@ -43,6 +46,7 @@ base::StackString<12> GetTcpFlagMask(uint32_t tcp_flags) {
 }
 }  // namespace
 
+using ::perfetto::protos::pbzero::NetworkPacketBundle;
 using ::perfetto::protos::pbzero::NetworkPacketEvent;
 using ::perfetto::protos::pbzero::TracePacket;
 using ::perfetto::protos::pbzero::TrafficDirection;
@@ -59,6 +63,64 @@ NetworkTraceModule::NetworkTraceModule(TraceProcessorContext* context)
       net_ipproto_tcp_(context->storage->InternString("IPPROTO_TCP")),
       net_ipproto_udp_(context->storage->InternString("IPPROTO_UDP")) {
   RegisterForField(TracePacket::kNetworkPacketFieldNumber, context);
+  RegisterForField(TracePacket::kNetworkPacketBundleFieldNumber, context);
+}
+
+ModuleResult NetworkTraceModule::TokenizePacket(
+    const protos::pbzero::TracePacket::Decoder& decoder,
+    TraceBlobView*,
+    int64_t ts,
+    PacketSequenceState* state,
+    uint32_t field_id) {
+  if (field_id != TracePacket::kNetworkPacketBundleFieldNumber) {
+    return ModuleResult::Ignored();
+  }
+
+  auto seq_state = state->current_generation();
+  NetworkPacketBundle::Decoder evt(decoder.network_packet_bundle());
+
+  ConstBytes context = evt.ctx();
+  if (evt.has_iid()) {
+    auto* interned = seq_state->LookupInternedMessage<
+        protos::pbzero::InternedData::kPacketContextFieldNumber,
+        protos::pbzero::NetworkPacketContext>(evt.iid());
+    if (!interned) {
+      context_->storage->IncrementStats(stats::network_trace_intern_errors);
+    } else {
+      context = interned->ctx();
+    }
+  }
+
+  if (evt.has_total_length()) {
+    // Forward the bundle with (possibly de-interned) context.
+    packet_buffer_->set_timestamp(static_cast<uint64_t>(ts));
+    auto* event = packet_buffer_->set_network_packet_bundle();
+    event->set_ctx()->AppendRawProtoBytes(context.data, context.size);
+    event->set_total_length(evt.total_length());
+    event->set_total_packets(evt.total_packets());
+    event->set_total_duration(evt.total_duration());
+    PushPacketBufferForSort(ts, state);
+  } else {
+    // Push a NetworkPacketEvent for each packet in the packed arrays.
+    bool parse_error = false;
+    auto length_iter = evt.packet_lengths(&parse_error);
+    auto timestamp_iter = evt.packet_timestamps(&parse_error);
+    if (parse_error) {
+      context_->storage->IncrementStats(stats::network_trace_parse_errors);
+      return ModuleResult::Handled();
+    }
+
+    for (; timestamp_iter && length_iter; ++timestamp_iter, ++length_iter) {
+      int64_t real_ts = ts + static_cast<int64_t>(*timestamp_iter);
+      packet_buffer_->set_timestamp(static_cast<uint64_t>(real_ts));
+      auto* event = packet_buffer_->set_network_packet();
+      event->AppendRawProtoBytes(context.data, context.size);
+      event->set_length(*length_iter);
+      PushPacketBufferForSort(real_ts, state);
+    }
+  }
+
+  return ModuleResult::Handled();
 }
 
 void NetworkTraceModule::ParseTracePacketData(
@@ -136,6 +198,15 @@ void NetworkTraceModule::ParseNetworkPacketEvent(int64_t ts, ConstBytes blob) {
         i->AddArg(net_arg_local_port_, Variadic::Integer(evt.local_port()));
         i->AddArg(net_arg_remote_port_, Variadic::Integer(evt.remote_port()));
       });
+}
+
+void NetworkTraceModule::PushPacketBufferForSort(int64_t timestamp,
+                                                 PacketSequenceState* state) {
+  std::vector<uint8_t> v = packet_buffer_.SerializeAsArray();
+  context_->sorter->PushTracePacket(
+      timestamp, state->current_generation(),
+      TraceBlobView(TraceBlob::CopyFrom(v.data(), v.size())));
+  packet_buffer_.Reset();
 }
 
 }  // namespace trace_processor
