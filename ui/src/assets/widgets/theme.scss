@@ -40,6 +40,8 @@ $pf-minimal-background-hover: #0001;
 $pf-minimal-background-active: #0002;
 $pf-minimal-background-disabled: none;
 
+$pf-colour-thin-border: gray;
+
 @mixin focus {
     outline: 2px auto #64b5f6;
 }
