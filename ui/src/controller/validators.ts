@@ -86,19 +86,19 @@ abstract class PrimitiveValidator<T> implements Validator<T> {
 }
 
 
-class StringValidator extends PrimitiveValidator<string> {
+export class StringValidator extends PrimitiveValidator<string> {
   predicate(input: unknown): input is string {
     return typeof input === 'string';
   }
 }
 
-class NumberValidator extends PrimitiveValidator<number> {
+export class NumberValidator extends PrimitiveValidator<number> {
   predicate(input: unknown): input is number {
     return typeof input === 'number';
   }
 }
 
-class BooleanValidator extends PrimitiveValidator<boolean> {
+export class BooleanValidator extends PrimitiveValidator<boolean> {
   predicate(input: unknown): input is boolean {
     return typeof input === 'boolean';
   }
@@ -120,7 +120,7 @@ export type RecordValidatedType<T> = {
 // Generic parameter T is instantiated to type of record of validators, and
 // should be provided implicitly by type inference due to verbosity of its
 // instantiations.
-class RecordValidator<T extends Record<string, Validator<unknown>>> implements
+export class RecordValidator<T extends Record<string, Validator<unknown>>> implements
     Validator<RecordValidatedType<T>> {
   validators: T;
 
@@ -170,7 +170,7 @@ class RecordValidator<T extends Record<string, Validator<unknown>>> implements
 
 // Validator checking whether a value is one of preset values. Used in order to
 // provide easy validation for union of literal types.
-class OneOfValidator<T> implements Validator<T> {
+export class OneOfValidator<T> implements Validator<T> {
   validValues: readonly T[];
   defaultValue: T;
 
@@ -191,7 +191,7 @@ class OneOfValidator<T> implements Validator<T> {
 
 // Validator for an array of elements, applying the same element validator for
 // each element of an array. Uses empty array as a default value.
-class ArrayValidator<T> implements Validator<T[]> {
+export class ArrayValidator<T> implements Validator<T[]> {
   elementValidator: Validator<T>;
 
   constructor(elementValidator: Validator<T>) {

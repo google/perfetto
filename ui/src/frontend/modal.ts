@@ -230,7 +230,7 @@ export class ModalContainer {
   // This is the mithril component that is exposed to the embedder (e.g. see
   // pages.ts). The caller is supposed to hyperscript this while building the
   // vdom tree that should host the modal dialog.
-  readonly mithrilComponent = {
+  readonly mithrilComponent: m.ClassComponent & {container: ModalContainer} = {
     container: this,
     view:
         function() {

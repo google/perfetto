@@ -53,6 +53,8 @@ import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {ViewerPage} from './viewer_page';
 import {WidgetsPage} from './widgets_page';
 
+export {ViewerPage} from './viewer_page';
+
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
 class FrontendApi {
