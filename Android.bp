@@ -8195,6 +8195,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_base_threading_threading",
     srcs: [
+        "src/base/threading/stream_combinators.cc",
         "src/base/threading/thread_pool.cc",
     ],
 }
@@ -8205,6 +8206,7 @@ filegroup {
     srcs: [
         "src/base/threading/channel_unittest.cc",
         "src/base/threading/future_unittest.cc",
+        "src/base/threading/stream_unittest.cc",
         "src/base/threading/thread_pool_unittest.cc",
     ],
 }
