@@ -34,9 +34,9 @@ android_test_helper_app {
 
     compile_multilib: "both",
     srcs: ["src/**/*.java"],
-    sdk_version: "current",
     // This test is also run via Mainline Testing against the ART Mainline
     // Module, which is updatable since Android 12 (API level 31).
+    sdk_version: "31",
     min_sdk_version: "31",
     jni_libs: [
         "libperfettocts_native",
@@ -57,9 +57,9 @@ android_test_helper_app {
 
     compile_multilib: "both",
     srcs: ["src/**/*.java"],
-    sdk_version: "current",
     // This test is also run via Mainline Testing against the ART Mainline
     // Module, which is updatable since Android 12 (API level 31).
+    sdk_version: "31",
     min_sdk_version: "31",
     jni_libs: [
         "libperfettocts_native",
@@ -80,9 +80,9 @@ android_test_helper_app {
 
     compile_multilib: "both",
     srcs: ["src/**/*.java"],
-    sdk_version: "current",
     // This test is also run via Mainline Testing against the ART Mainline
     // Module, which is updatable since Android 12 (API level 31).
+    sdk_version: "31",
     min_sdk_version: "31",
     jni_libs: [
         "libperfettocts_native",
@@ -103,9 +103,9 @@ android_test_helper_app {
 
     compile_multilib: "both",
     srcs: ["src/**/*.java"],
-    sdk_version: "current",
     // This test is also run via Mainline Testing against the ART Mainline
     // Module, which is updatable since Android 12 (API level 31).
+    sdk_version: "31",
     min_sdk_version: "31",
     jni_libs: [
         "libperfettocts_native",
