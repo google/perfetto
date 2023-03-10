@@ -96,6 +96,68 @@ class FuturePollable {
   virtual FuturePollResult<T> Poll(PollContext*) = 0;
 };
 
+// Indicates that the Stream has been exhausted and no more values will be
+// returned.
+struct DonePollResult {};
+
+// Return value of Stream<T>::Poll.
+//
+// Essentially a wrapper around std::variant<T, PendingPollResult,
+// DonePollResult> but with higher level API.
+template <typename T>
+class StreamPollResult {
+ public:
+  using PollT = T;
+
+  // Intentionally implicit to allow idiomatic returns.
+  StreamPollResult(const PendingPollResult&) : inner_(PendingPollResult()) {}
+  StreamPollResult(const DonePollResult&) : inner_(DonePollResult()) {}
+  StreamPollResult(T item) : inner_(std::move(item)) {}
+
+  // Returns whether the Stream is still pending.
+  bool IsPending() const {
+    return std::holds_alternative<PendingPollResult>(inner_);
+  }
+
+  // Returns whether the Stream is done.
+  bool IsDone() const { return std::holds_alternative<DonePollResult>(inner_); }
+
+  // The real value inside this result: requires !IsPending() and !IsDone().
+  T& item() {
+    PERFETTO_DCHECK(!IsPending());
+    PERFETTO_DCHECK(!IsDone());
+    return std::get<T>(inner_);
+  }
+  const T& item() const {
+    PERFETTO_DCHECK(!IsPending());
+    PERFETTO_DCHECK(!IsDone());
+    return std::get<T>(inner_);
+  }
+
+  // The real value inside this result: requires !IsPending() and !IsDone().
+  T* operator->() { return &item(); }
+  const T* operator->() const { return &item(); }
+
+ private:
+  std::variant<PendingPollResult, DonePollResult, T> inner_;
+};
+
+// Interface for implementing the Stream<T>::Poll function.
+//
+// This is essentially analagous to FuturePollable<T> for streams: check the
+// documentation of that class for why this exists.
+template <typename T>
+class StreamPollable {
+ public:
+  using PollT = T;
+
+  virtual ~StreamPollable() = default;
+
+  // Implementation of the Poll function of a Stream: see Stream documentation
+  // for how this should be implemented.
+  virtual StreamPollResult<T> PollNext(PollContext*) = 0;
+};
+
 // Context class passed to Pollable classes.
 //
 // Implementations of Pollable which simply wrap another Pollable will use
@@ -151,12 +213,30 @@ class PollContext {
 //   ASSIGN_OR_RETURN_IF_PENDING_FUTURE(res, MyIntReturningFutureFn());
 //   return std::to_string(*foo);
 // }
-//
 #define ASSIGN_OR_RETURN_IF_PENDING_FUTURE(var, expr) \
   auto assign_and_return_if_poll_##var = (expr);      \
   if (assign_and_return_if_poll_##var.IsPending())    \
     return base::PendingPollResult();                 \
   auto var = std::move(assign_and_return_if_poll_##var.item())
+
+// Evaluates |expr|, which should return a PollResult. If IsPending is
+// true, returns base::PendingPollResult().
+//
+// Example usage:
+//
+// Strean<int> MyIntReturningStreamFn();
+//
+// StreamPollResult<std::string> Poll(PollContext* ctx) {
+//   ASSIGN_OR_RETURN_IF_PENDING_STREAM(res, MyIntReturningStreamFn());
+//   if (res.IsDone()) {
+//     return DonePollResult();
+//   }
+//   return std::to_string(*foo);
+// }
+#define ASSIGN_OR_RETURN_IF_PENDING_STREAM(var, expr) \
+  auto var = (expr);                                  \
+  if (var.IsPending())                                \
+  return base::PendingPollResult()
 
 }  // namespace base
 }  // namespace perfetto
