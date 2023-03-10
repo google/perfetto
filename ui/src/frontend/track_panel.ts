@@ -241,6 +241,9 @@ interface TrackComponentAttrs {
 }
 class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
   view({attrs}: m.CVnode<TrackComponentAttrs>) {
+    // TODO(hjd): The min height below must match the track_shell_title
+    // max height in common.scss so we should read it from CSS to avoid
+    // them going out of sync.
     return m(
         '.track',
         {

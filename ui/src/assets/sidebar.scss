@@ -55,10 +55,10 @@
       display: block;
       position: absolute;
       font-size: 10px;
-      line-height: 10px;
+      line-height: 5px;
       font-family: "Roboto", sans-serif;
-      left: 155px;
       top: 7px;
+      right: 48px;
     }
     &.canary::before {
       content: "CANARY";
