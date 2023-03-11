@@ -19,13 +19,16 @@ import {classNames} from './classnames';
 import {globals} from './globals';
 import {LIBRARY_ADD_CHECK} from './icons';
 import {createPage} from './pages';
+import {PopupMenuButton} from './popup_menu';
 import {TableShowcase} from './tables/table_showcase';
 import {Button} from './widgets/button';
 import {Checkbox} from './widgets/checkbox';
 import {EmptyState} from './widgets/empty_state';
 import {Icon} from './widgets/icon';
+import {Menu, MenuDivider, MenuItem} from './widgets/menu';
 import {MultiSelect, MultiSelectDiff} from './widgets/multiselect';
 import {Popup, PopupPosition} from './widgets/popup';
+import {PopupMenu2} from './widgets/popup_menu_2';
 import {Portal} from './widgets/portal';
 import {Select} from './widgets/select';
 import {TextInput} from './widgets/text_input';
@@ -398,6 +401,66 @@ export const WidgetsPage = createPage({
             icon: true,
             showNumSelected: true,
             repeatCheckedItemsAtTop: true,
+          },
+        }),
+        m('h2', 'PopupMenu'),
+        m(WidgetShowcase, {
+          renderWidget: () => {
+            return m(PopupMenuButton, {
+              icon: 'description',
+              items: [
+                {itemType: 'regular', text: 'New', callback: () => {}},
+                {itemType: 'regular', text: 'Open', callback: () => {}},
+                {itemType: 'regular', text: 'Save', callback: () => {}},
+                {itemType: 'regular', text: 'Delete', callback: () => {}},
+                {
+                  itemType: 'group',
+                  text: 'Share',
+                  itemId: 'foo',
+                  children: [
+                    {itemType: 'regular', text: 'Friends', callback: () => {}},
+                    {itemType: 'regular', text: 'Family', callback: () => {}},
+                    {itemType: 'regular', text: 'Everyone', callback: () => {}},
+                  ],
+                },
+              ],
+            });
+          },
+        }),
+        m('h2', 'Menu'),
+        m(WidgetShowcase, {
+          renderWidget: ({disabled}) => m(
+              Menu,
+              m(MenuItem, {label: 'New', icon: 'add'}),
+              m(MenuItem, {label: 'Open', icon: 'folder_open'}),
+              m(MenuItem, {label: 'Save', icon: 'save', disabled}),
+              m(MenuDivider),
+              m(MenuItem, {label: 'Delete', icon: 'delete'}),
+              ),
+          initialOpts: {
+            disabled: false,
+          },
+        }),
+        m('h2', 'PopupMenu2'),
+        m(WidgetShowcase, {
+          renderWidget: (opts) => m(
+              PopupMenu2,
+              {
+                trigger: m(Button, {label: 'File', icon: 'expand_more'}),
+                ...opts,
+              },
+              m(MenuItem, {label: 'New', icon: 'add'}),
+              m(MenuItem, {label: 'Open', icon: 'folder_open'}),
+              m(MenuItem, {label: 'Save', icon: 'save'}),
+              m(MenuDivider),
+              m(MenuItem, {label: 'Delete', icon: 'delete'}),
+              ),
+          initialOpts: {
+            closeOnItemClick: true,
+            popupPosition: new EnumOption(
+                PopupPosition.Bottom,
+                Object.values(PopupPosition),
+                ),
           },
         }),
     );
