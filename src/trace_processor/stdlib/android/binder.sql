@@ -58,6 +58,16 @@ GROUP BY
 -- @column server_dur dur of the server txn
 CREATE VIEW android_sync_binder_metrics_by_txn AS
 WITH
+  -- Fetch the broken binder txns first, i.e, the txns that have children slices
+  -- They are definietly broken because synchronous txns are blocked sleeping while
+  -- waiting for a response.
+  -- These broken txns will be excluded below in the binder_txn CTE
+  broken_binder_txn AS (
+    SELECT ancestor.id FROM slice
+    JOIN slice ancestor ON ancestor.id = slice.parent_id
+    WHERE ancestor.name = 'binder transaction'
+    GROUP BY ancestor.id
+  ),
   -- Adding MATERIALIZED here matters in cases where there are few/no binder
   -- transactions in the trace. Our cost estimation is not good enough to allow
   -- the query planner to see through to this fact. Instead, our cost estimation
@@ -86,8 +96,9 @@ WITH
     JOIN thread_track ON slice.track_id = thread_track.id
     JOIN thread USING (utid)
     JOIN process USING (upid)
+    LEFT JOIN broken_binder_txn ON broken_binder_txn.id = slice.id
     WHERE slice.name = 'binder transaction'
-      AND NOT EXISTS(SELECT 1 FROM slice child WHERE child.parent_id = slice.id)
+    AND broken_binder_txn.id IS NULL
   ),
   binder_reply AS (
     SELECT
