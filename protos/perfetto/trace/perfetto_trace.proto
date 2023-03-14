@@ -5995,6 +5995,18 @@ message DrmSchedProcessJobFtraceEvent {
 
 message HypEnterFtraceEvent {}
 message HypExitFtraceEvent {}
+message HostHcallFtraceEvent {
+  optional uint32 id = 1;
+  optional uint32 invalid = 2;
+}
+message HostSmcFtraceEvent {
+  optional uint64 id = 1;
+  optional uint32 forwarded = 2;
+}
+message HostMemAbortFtraceEvent {
+  optional uint64 esr = 1;
+  optional uint64 addr = 2;
+}
 
 // End of protos/perfetto/trace/ftrace/hyp.proto
 
@@ -8085,6 +8097,9 @@ message FtraceEvent {
     MaliMaliKCPUFENCEWAITENDFtraceEvent mali_mali_KCPU_FENCE_WAIT_END = 475;
     HypEnterFtraceEvent hyp_enter = 476;
     HypExitFtraceEvent hyp_exit = 477;
+    HostHcallFtraceEvent host_hcall = 478;
+    HostSmcFtraceEvent host_smc = 479;
+    HostMemAbortFtraceEvent host_mem_abort = 480;
   }
 }
 
