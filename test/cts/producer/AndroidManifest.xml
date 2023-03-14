@@ -18,7 +18,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="android.perfetto.producer">
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
 
     <application>
         <activity android:name=".ProducerActivity" android:exported="true">
@@ -29,10 +28,7 @@
         </activity>
 
         <service
-            android:name=".ProducerService"
-            android:foregroundServiceType="specialUse">
-            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="perfetto" />
-        </service>
+            android:name=".ProducerService" />
 
         <service
             android:name=".ProducerIsolatedService"
