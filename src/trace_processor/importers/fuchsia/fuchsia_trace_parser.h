@@ -17,8 +17,13 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FUCHSIA_FUCHSIA_TRACE_PARSER_H_
 
+#include <functional>
+#include <optional>
+#include <vector>
+
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
+#include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
 
 namespace perfetto {
@@ -35,6 +40,22 @@ class FuchsiaTraceParser : public TraceParser {
   void ParseFuchsiaRecord(int64_t timestamp, FuchsiaRecord fr) override;
   void ParseTrackEvent(int64_t, TrackEventData) override;
   void ParseTracePacket(int64_t ts, TracePacketData data) override;
+
+  struct Arg {
+    StringId name;
+    fuchsia_trace_utils::ArgValue value;
+  };
+
+  // Utility to parse record arguments. Exposed here to provide consistent
+  // parsing between trace parsing and tokenization.
+  //
+  // Returns an empty optional on error, otherwise a vector containing zero or
+  // more arguments.
+  static std::optional<std::vector<Arg>> ParseArgs(
+      fuchsia_trace_utils::RecordCursor& cursor,
+      uint32_t n_args,
+      std::function<StringId(base::StringView string)> intern_string,
+      std::function<StringId(uint32_t index)> get_string);
 
  private:
   TraceProcessorContext* const context_;
