@@ -22,7 +22,7 @@ export interface PortalAttrs {
   // Called after content is mounted in the portal
   onContentMount?: (rootElement: HTMLElement) => void;
   // Called after the content is unmounted from the portal
-  onContentUnmount?: () => void;
+  onContentUnmount?: (rootElement: HTMLElement) => void;
   // Called when the content is updated
   onContentUpdate?: () => void;
 }
@@ -91,12 +91,13 @@ export class Portal implements m.ClassComponent<PortalAttrs> {
     const {onContentUnmount = () => {}} = attrs;
     // If the body contains our rootelement, unmount it (mount null?) and
     // remove the div from the root element
-    if (document.body.contains(this.rootElement!)) {
-      m.mount(this.rootElement!, null);
-      document.body.removeChild(this.rootElement!);
+    if (this.rootElement) {
+      if (document.body.contains(this.rootElement)) {
+        onContentUnmount(this.rootElement);
+        m.mount(this.rootElement!, null);
+        document.body.removeChild(this.rootElement);
+      }
     }
-
-    onContentUnmount();
   }
 
   view(_: m.Vnode<PortalAttrs, this>): void|m.Children {
