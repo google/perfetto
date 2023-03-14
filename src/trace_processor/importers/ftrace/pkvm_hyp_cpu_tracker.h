@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_PKVM_HYP_CPU_TRACKER_H_
 
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -33,16 +34,24 @@ class PkvmHypervisorCpuTracker {
 
   static bool IsPkvmHypervisorEvent(uint16_t);
 
-  void ParseHypEvent(uint32_t cput, int64_t timestamp, uint16_t event_id);
+  void ParseHypEvent(uint32_t cput,
+                     int64_t timestamp,
+                     uint16_t event_id,
+                     protozero::ConstBytes blob);
 
  private:
   void ParseHypEnter(uint32_t cpu, int64_t timestamp);
   void ParseHypExit(uint32_t cpu, int64_t timestamp);
+  void ParseHostHcall(uint32_t cpu, protozero::ConstBytes blob);
+  void ParseHostSmc(uint32_t cpu, protozero::ConstBytes blob);
+  void ParseHostMemAbort(uint32_t cpu, protozero::ConstBytes blob);
 
-  StringId GetHypCpuTrackId(uint32_t cpu);
+  TrackId GetHypCpuTrackId(uint32_t cpu);
 
   TraceProcessorContext* context_;
-  const StringId pkvm_hyp_id_;
+  const StringId category_;
+  const StringId slice_name_;
+  const StringId hyp_enter_reason_;
 };
 
 }  // namespace trace_processor
