@@ -578,7 +578,7 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
     }
 
     if (PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(fld.id())) {
-      pkvm_hyp_cpu_tracker_.ParseHypEvent(cpu, ts, fld.id());
+      pkvm_hyp_cpu_tracker_.ParseHypEvent(cpu, ts, fld.id(), fld_bytes);
     }
 
     switch (fld.id()) {
