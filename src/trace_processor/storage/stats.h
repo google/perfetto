@@ -246,7 +246,9 @@ namespace stats {
   F(unknown_extension_fields,             kSingle,  kError,    kTrace,         \
       "TraceEvent had unknown extension fields, which might result in "        \
       "missing some arguments. You may need a newer version of trace "         \
-      "processor to parse them.")
+      "processor to parse them."),                                             \
+  F(network_trace_intern_errors,          kSingle,  kInfo,     kAnalysis, ""), \
+  F(network_trace_parse_errors,           kSingle,  kInfo,     kAnalysis, "")
 // clang-format on
 
 enum Type {
