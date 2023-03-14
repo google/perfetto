@@ -31,6 +31,7 @@ import {Popup, PopupPosition} from './widgets/popup';
 import {PopupMenu2} from './widgets/popup_menu_2';
 import {Portal} from './widgets/portal';
 import {Select} from './widgets/select';
+import {Spinner} from './widgets/spinner';
 import {TextInput} from './widgets/text_input';
 
 const options: {[key: string]: boolean} = {
@@ -461,6 +462,20 @@ export const WidgetsPage = createPage({
                 PopupPosition.Bottom,
                 Object.values(PopupPosition),
                 ),
+          },
+        }),
+        m('h2', 'Spinner'),
+        m('p', `Simple spinner, rotates forever. Width and height match the font
+         size.`),
+        m(WidgetShowcase, {
+          renderWidget: ({fontSize, easing}) =>
+              m('', {style: {fontSize}}, m(Spinner, {easing})),
+          initialOpts: {
+            fontSize: new EnumOption(
+                '16px',
+                ['12px', '16px', '24px', '32px', '64px', '128px'],
+                ),
+            easing: false,
           },
         }),
     );
