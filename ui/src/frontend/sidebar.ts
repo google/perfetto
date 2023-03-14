@@ -31,6 +31,7 @@ import * as version from '../gen/perfetto_version';
 
 import {Animation} from './animation';
 import {onClickCopy} from './clipboard';
+import {downloadData, downloadUrl} from './download_utils';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {
@@ -625,17 +626,6 @@ function shareTrace(e: Event) {
   }
 }
 
-function downloadUrl(url: string, fileName: string) {
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  a.target = '_blank';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
 function downloadTrace(e: Event) {
   e.preventDefault();
   if (!isDownloadable() || !isTraceLoaded()) return;
@@ -666,7 +656,7 @@ function downloadTrace(e: Event) {
   } else {
     throw new Error(`Download from ${JSON.stringify(src)} is not supported`);
   }
-  downloadUrl(url, fileName);
+  downloadUrl(fileName, url);
 }
 
 function getCurrentEngine(): Engine|undefined {
@@ -738,11 +728,7 @@ async function finaliseMetatrace(e: Event) {
     throw new Error(`Failed to read metatrace: ${result.error}`);
   }
 
-  const blob = new Blob(
-      [result.metatrace, jsEvents], {type: 'application/octet-stream'});
-  const url = URL.createObjectURL(blob);
-
-  downloadUrl(url, 'metatrace');
+  downloadData('metatrace', result.metatrace, jsEvents);
 }
 
 
