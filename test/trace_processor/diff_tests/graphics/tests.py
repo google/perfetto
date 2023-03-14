@@ -207,12 +207,14 @@ class Graphics(TestSuite):
         query="""
         SELECT RUN_METRIC('android/android_hwcomposer.sql');
 
-        SELECT AVG(value)
-        FROM total_layers;
+        SELECT display_id, AVG(value)
+        FROM total_layers
+        GROUP BY display_id;
         """,
         out=Csv("""
-        "AVG(value)"
-        3.000000
+        "display_id","AVG(value)"
+        "0",3.000000
+        "1",5.000000
         """))
 
   # G2D metrics TODO(rsavitski): find a real trace and double-check that the
@@ -234,17 +236,20 @@ class Graphics(TestSuite):
 
         SELECT
           validation_type,
+          display_id,
           COUNT(*) AS count,
           SUM(execution_time_ns) AS total
         FROM hwc_execution_spans
-        GROUP BY validation_type
-        ORDER BY validation_type;
+        GROUP BY validation_type, display_id
+        ORDER BY validation_type, display_id;
         """,
         out=Csv("""
-        "validation_type","count","total"
-        "separated_validation",1,200
-        "skipped_validation",2,200
-        "unskipped_validation",1,200
+        "validation_type","display_id","count","total"
+        "separated_validation","1",1,200
+        "skipped_validation","0",2,200
+        "skipped_validation","1",1,100
+        "unknown","1",1,0
+        "unskipped_validation","0",1,200
         """))
 
   # Display metrics
