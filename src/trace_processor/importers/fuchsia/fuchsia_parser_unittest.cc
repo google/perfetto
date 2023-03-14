@@ -421,6 +421,132 @@ TEST_F(FuchsiaTraceParserTest, FxtWithProtos) {
   context_.sorter->ExtractEventsForced();
 }
 
+TEST_F(FuchsiaTraceParserTest, SchedulerEvents) {
+  uint64_t thread1_tid = 0x1AAA'AAAA'AAAA'AAAA;
+  uint64_t thread2_tid = 0x2CCC'CCCC'CCCC'CCCC;
+
+  // We'll emit a wake up for thread 1, a switch to thread 2, and a switch back
+  // to thread 1 and expect to see that the process tracker was properly updated
+
+  uint64_t wakeup_record_type = uint64_t{2} << 60;
+  uint64_t context_switch_record_type = uint64_t{1} << 60;
+  uint64_t cpu = 1 << 20;
+  uint64_t record_type = 8;
+
+  uint64_t wakeup_size = uint64_t{3} << 4;
+  uint64_t context_switch_size = uint64_t{4} << 4;
+
+  uint64_t wakeup_header = wakeup_record_type | cpu | record_type | wakeup_size;
+  push_word(wakeup_header);
+  // Timestamp
+  push_word(0x1);
+  // wakeup tid
+  push_word(thread1_tid);
+
+  uint64_t context_switch_header =
+      context_switch_record_type | cpu | record_type | context_switch_size;
+  push_word(context_switch_header);
+  // Timestamp
+  push_word(0x2);
+  // outgoing tid
+  push_word(thread1_tid);
+  // incoming tid
+  push_word(thread2_tid);
+
+  push_word(context_switch_header);
+  // Timestamp
+  push_word(0x3);
+  // outgoing tid
+  push_word(thread2_tid);
+  // incoming tid
+  push_word(thread1_tid);
+
+  // We should get:
+  // - A thread1 update call on wake up
+  // - thread1 & thread2 update calls on the first context switch
+  // - thread2 & thread1 update cals on the second context switch
+  EXPECT_CALL(*process_, UpdateThread(static_cast<uint32_t>(thread1_tid), _))
+      .Times(3);
+  EXPECT_CALL(*process_, UpdateThread(static_cast<uint32_t>(thread2_tid), _))
+      .Times(2);
+
+  EXPECT_TRUE(Tokenize().ok());
+  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_invalid_event].value, 0);
+
+  context_.sorter->ExtractEventsForced();
+}
+
+TEST_F(FuchsiaTraceParserTest, LegacySchedulerEvents) {
+  uint64_t thread1_pid = 0x1AAA'AAAA'AAAA'AAAA;
+  uint64_t thread1_tid = 0x1BBB'BBBB'BBBB'BBBB;
+  uint64_t thread2_pid = 0x2CCC'CCCC'CCCC'CCCC;
+  uint64_t thread2_tid = 0x2DDD'DDDD'DDDD'DDDD;
+
+  // We'll emit a wake up for thread 1, a switch to thread 2, and a switch back
+  // to thread 1 and expect to see that the process tracker was properly updated
+
+  uint64_t context_switch_size = uint64_t{6} << 4;
+  uint64_t cpu = 1 << 16;
+  uint64_t record_type = 8;
+  uint64_t outoing_state = 2 << 24;
+  uint64_t outoing_thread = 0;   // Inline thread-ref
+  uint64_t incoming_thread = 0;  // Inline thread-ref
+  uint64_t outgoing_prio = uint64_t{1} << 44;
+  uint64_t incoming_prio = uint64_t{1} << 52;
+  uint64_t outgoing_idle_prio = uint64_t{0} << 44;
+
+  uint64_t context_switch_header =
+      record_type | context_switch_size | cpu | outoing_state | outoing_thread |
+      incoming_thread | outgoing_prio | incoming_prio;
+  uint64_t wakeup_header = record_type | context_switch_size | cpu |
+                           outoing_state | outoing_thread | incoming_thread |
+                           outgoing_idle_prio | incoming_prio;
+
+  push_word(wakeup_header);
+  // Timestamp
+  push_word(0x1);
+  // outgoing pid+tid
+  push_word(0);  // Idle thread
+  push_word(0);  // Idle thread
+  // incoming pid+tid
+  push_word(thread1_pid);
+  push_word(thread1_tid);
+
+  push_word(context_switch_header);
+  // Timestamp
+  push_word(0x2);
+  // outgoing pid+tid
+  push_word(thread1_pid);
+  push_word(thread1_tid);
+  // incoming pid+tid
+  push_word(thread2_pid);
+  push_word(thread2_tid);
+
+  push_word(context_switch_header);
+  // Timestamp
+  push_word(0x3);
+  // outgoing pid+tid
+  push_word(thread2_pid);
+  push_word(thread2_tid);
+  // incoming pid+tid
+  push_word(thread1_pid);
+  push_word(thread1_tid);
+
+  // We should get:
+  // - A thread1 update call on wake up
+  // - thread1 & thread2 update calls on the first context switch
+  // - thread2 & thread1 update cals on the second context switch
+  EXPECT_CALL(*process_, UpdateThread(static_cast<uint32_t>(thread1_tid), _))
+      .Times(3);
+  EXPECT_CALL(*process_, UpdateThread(static_cast<uint32_t>(thread2_tid), _))
+      .Times(2);
+
+  EXPECT_TRUE(Tokenize().ok());
+  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_invalid_event].value, 0);
+
+  context_.sorter->ExtractEventsForced();
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
