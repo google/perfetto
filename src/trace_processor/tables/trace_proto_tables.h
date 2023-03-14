@@ -40,7 +40,8 @@ PERFETTO_TP_TABLE(PERFETTO_TP_EXPERIMENTAL_PROTO_PATH_TABLE_DEF);
   C(StringPool::Id, path)                                                 \
   C(ExperimentalProtoPathTable::Id, path_id)                              \
   C(int64_t, total_size)                                                  \
-  C(int64_t, size)
+  C(int64_t, size)                                                        \
+  C(int64_t, count)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_EXPERIMENTAL_PROTO_CONTENT_TABLE_DEF);
 
