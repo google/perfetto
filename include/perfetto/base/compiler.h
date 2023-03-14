@@ -147,6 +147,13 @@ extern "C" void __asan_unpoison_memory_region(void const volatile*, size_t);
 #define PERFETTO_NO_THREAD_SAFETY_ANALYSIS
 #endif
 
+// Disables undefined behavior analysis for a function.
+#if defined(__clang__)
+#define PERFETTO_NO_SANITIZE_UNDEFINED __attribute__((no_sanitize("undefined")))
+#else
+#define PERFETTO_NO_SANITIZE_UNDEFINED
+#endif
+
 // Avoid calling the exit-time destructor on an object with static lifetime.
 #if PERFETTO_HAS_ATTRIBUTE(no_destroy)
 #define PERFETTO_HAS_NO_DESTROY() 1
