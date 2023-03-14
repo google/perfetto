@@ -133,7 +133,7 @@ shared_library_allowlist = [
     'android.hardware.health@2.0',
     'android.hardware.health-V2-ndk',
     'android.hardware.power.stats@1.0',
-    "android.hardware.power.stats-V1-cpp",
+    'android.hardware.power.stats-V1-cpp',
     'base',
     'binder',
     'binder_ndk',
@@ -145,7 +145,7 @@ shared_library_allowlist = [
     'log',
     'services',
     'statssocket',
-    "tracingproxy",
+    'tracingproxy',
     'utils',
 ]
 
