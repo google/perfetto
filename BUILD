@@ -844,7 +844,7 @@ perfetto_genrule(
         "perfetto_version.gen.h",
     ],
     cmd = "$(location gen_version_header_py) --cpp_out=$@ --changelog=$(location CHANGELOG)",
-    exec_tools = [
+    tools = [
         ":gen_version_header_py",
     ],
 )
