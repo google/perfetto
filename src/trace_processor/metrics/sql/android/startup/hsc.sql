@@ -137,6 +137,7 @@ JOIN android_startups launches ON launches.package GLOB '*' || android_frame_tim
 WHERE android_frame_times.number = 3 AND android_frame_times.name GLOB "*id.contacts" AND android_frame_times.startup_id = launches.startup_id;
 
 -- Dialer
+-- Dialer only runs one animation at startup, use the last animation frame to indicate startup.
 INSERT INTO hsc_based_startup_times
 SELECT
   launches.package AS package,
@@ -144,7 +145,7 @@ SELECT
   android_frame_times.ts_end - launches.ts AS ts_total
 FROM android_frame_times
 JOIN android_startups launches ON launches.package GLOB '*' || android_frame_times.name || '*'
-WHERE android_frame_times.number = 1 AND android_frame_times.name GLOB "*id.dialer" AND android_frame_times.startup_id = launches.startup_id;
+WHERE android_frame_times.ts > (SELECT ts + dur FROM animators WHERE process_name GLOB "*id.dialer" AND animator_name GLOB "*animator*" ORDER BY (ts + dur) DESC LIMIT 1) AND android_frame_times.name GLOB "*id.dialer" AND android_frame_times.startup_id = launches.startup_id LIMIT 1;
 
 -- Facebook
 INSERT INTO hsc_based_startup_times
