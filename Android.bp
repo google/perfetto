@@ -8208,6 +8208,7 @@ filegroup {
         "src/base/threading/future_unittest.cc",
         "src/base/threading/stream_unittest.cc",
         "src/base/threading/thread_pool_unittest.cc",
+        "src/base/threading/util_unittest.cc",
     ],
 }
 
