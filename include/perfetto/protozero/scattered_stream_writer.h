@@ -85,7 +85,12 @@ class PERFETTO_EXPORT_COMPONENT ScatteredStreamWriter {
     write_ptr_ = end;
   }
 
-  inline void WriteBytes(const uint8_t* src, size_t size) {
+  inline void WriteBytes(const uint8_t* src,
+                         size_t size) PERFETTO_NO_SANITIZE_UNDEFINED {
+    // If the stream writer hasn't been initialized, constructing the end
+    // pointer below invokes undefined behavior because `write_ptr_` is null.
+    // Since this function is on the hot path, we suppress the warning instead
+    // of adding a conditional branch.
     uint8_t* const end = write_ptr_ + size;
     if (PERFETTO_LIKELY(end <= cur_range_.end))
       return WriteBytesUnsafe(src, size);
