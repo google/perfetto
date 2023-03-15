@@ -844,7 +844,7 @@ perfetto_genrule(
         "perfetto_version.gen.h",
     ],
     cmd = "$(location gen_version_header_py) --cpp_out=$@ --changelog=$(location CHANGELOG)",
-    exec_tools = [
+    tools = [
         ":gen_version_header_py",
     ],
 )
@@ -1443,6 +1443,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/metadata_minimal_module.h",
         "src/trace_processor/importers/proto/metadata_tracker.cc",
         "src/trace_processor/importers/proto/metadata_tracker.h",
+        "src/trace_processor/importers/proto/network_trace_module.cc",
+        "src/trace_processor/importers/proto/network_trace_module.h",
         "src/trace_processor/importers/proto/packet_analyzer.cc",
         "src/trace_processor/importers/proto/packet_analyzer.h",
         "src/trace_processor/importers/proto/packet_sequence_state.h",
