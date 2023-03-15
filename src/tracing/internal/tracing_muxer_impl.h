@@ -27,6 +27,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -232,6 +233,7 @@ class TracingMuxerImpl : public TracingMuxer {
 
     bool SweepDeadServices();
     void SendOnConnectTriggers();
+    void NotifyFlushForDataSourceDone(DataSourceInstanceID, FlushRequestID);
 
     PERFETTO_THREAD_CHECKER(thread_checker_)
     TracingMuxerImpl* muxer_;
@@ -260,6 +262,8 @@ class TracingMuxerImpl : public TracingMuxer {
     // Triggers that should be sent when the service connects (trigger_name,
     // expiration).
     std::list<std::pair<std::string, base::TimeMillis>> on_connect_triggers_;
+
+    std::map<FlushRequestID, std::set<DataSourceInstanceID>> pending_flushes_;
 
     // The currently active service endpoint is maintained as an atomic shared
     // pointer so it won't get deleted from underneath threads that are creating
@@ -507,6 +511,14 @@ class TracingMuxerImpl : public TracingMuxer {
                                uint32_t backend_connection_id,
                                DataSourceInstanceID,
                                const FindDataSourceRes&);
+  bool FlushDataSource_AsyncBegin(TracingBackendId,
+                                  DataSourceInstanceID,
+                                  FlushRequestID);
+  void FlushDataSource_AsyncEnd(TracingBackendId,
+                                uint32_t backend_connection_id,
+                                DataSourceInstanceID,
+                                const FindDataSourceRes&,
+                                FlushRequestID);
   void AbortStartupTracingSession(TracingSessionGlobalID, BackendType);
   // When ResetForTesting() is executed, `cb` will be called on the calling
   // thread and on the muxer thread.
