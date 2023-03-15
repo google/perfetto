@@ -23,6 +23,7 @@ source_set("threading") {
     "stream.h",
     "stream_combinators.h",
     "thread_pool.h",
+    "util.h",
   ]
   deps = [
     "..:base",
