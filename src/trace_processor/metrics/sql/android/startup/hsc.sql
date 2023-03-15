@@ -179,6 +179,7 @@ WHERE android_frame_times.ts > (SELECT ts + dur FROM slices WHERE slices.name GL
 ORDER BY ts_total LIMIT 1;
 
 -- Maps
+-- Use the 8th choreographer frame to indicate startup.
 INSERT INTO hsc_based_startup_times
 SELECT
   launches.package AS package,
@@ -186,7 +187,7 @@ SELECT
   android_frame_times.ts_end - launches.ts AS ts_total
 FROM android_frame_times
 JOIN android_startups launches ON launches.package GLOB '*' || android_frame_times.name || '*'
-WHERE android_frame_times.number = 1 AND android_frame_times.name GLOB "*maps*" AND android_frame_times.startup_id = launches.startup_id;
+WHERE android_frame_times.number = 8 AND android_frame_times.name GLOB "*maps*" AND android_frame_times.startup_id = launches.startup_id;
 
 -- Messages
 INSERT INTO hsc_based_startup_times
