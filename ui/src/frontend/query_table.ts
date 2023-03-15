@@ -19,8 +19,10 @@ import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 import {Row} from '../common/query_result';
 import {fromNs} from '../common/time';
+import {Anchor} from './anchor';
 
 import {copyToClipboard, queryResponseToClipboard} from './clipboard';
+import {downloadData} from './download_utils';
 import {globals} from './globals';
 import {Panel} from './panel';
 import {Router} from './router';
@@ -81,7 +83,13 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     for (const col of columns) {
       const value = row[col];
       if (value instanceof Uint8Array) {
-        cells.push(m('td', `<BLOB sz=${value.length}>`));
+        cells.push(
+            m('td',
+              m(Anchor,
+                {
+                  onclick: () => downloadData(`${col}.blob`, value),
+                },
+                `Blob (${value.length} bytes)`)));
       } else {
         cells.push(m('td', value));
       }
