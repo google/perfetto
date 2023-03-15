@@ -36,5 +36,6 @@ perfetto_unittest_source_set("unittests") {
     "future_unittest.cc",
     "stream_unittest.cc",
     "thread_pool_unittest.cc",
+    "util_unittest.cc",
   ]
 }
