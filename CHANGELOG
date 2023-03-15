@@ -1,6 +1,7 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * --continuous-dump in tools/java_heap_dump now keeps recording until it
+      receives CTRL+C.
   Trace Processor:
     *
   UI:
