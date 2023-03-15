@@ -225,6 +225,7 @@ WHERE android_frame_times.ts < (SELECT ts FROM animators WHERE animator_name GLO
 ORDER BY ts_total DESC LIMIT 1;
 
 -- Photos
+-- Use the animator:translationZ slice as startup indicator.
 INSERT INTO hsc_based_startup_times
 SELECT
   launches.package AS package,
@@ -232,7 +233,7 @@ SELECT
   android_frame_times.ts_end - launches.ts AS ts_total
 FROM android_frame_times
 JOIN android_startups launches ON launches.package GLOB '*' || android_frame_times.name || '*'
-WHERE android_frame_times.number = 1 AND android_frame_times.name GLOB "*apps.photos*" AND android_frame_times.startup_id = launches.startup_id;
+WHERE android_frame_times.ts > (SELECT ts + dur FROM animators WHERE process_name GLOB "*apps.photos" AND animator_name GLOB "animator:translationZ" ORDER BY (ts + dur) DESC LIMIT 1) AND android_frame_times.name GLOB "*apps.photos*" AND android_frame_times.startup_id = launches.startup_id LIMIT 1;
 
 -- Settings was deprecated in favor of reportFullyDrawn b/169694037.
 
