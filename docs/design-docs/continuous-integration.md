@@ -317,6 +317,13 @@ but this involves:
 
    `make -C infra/ci restart-workers`
 
+### Purging the job queue
+
+This can be useful when there is an outage and too many jobs pile up.
+ - Stop the workers: `make -C infra/ci stop-workers`
+ - Open https://console.firebase.google.com/u/0/project/perfetto-ci/database/perfetto-ci/data/~2Fci
+ - Delete the `jobs_running`, `jobs_queued`, `workers` subtrees
+ - Restart the workers: `make -C infra/ci start-workers`
 
 ## Security considerations
 
