@@ -847,6 +847,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->track_table());
   RegisterDbTable(storage->thread_track_table());
   RegisterDbTable(storage->process_track_table());
+  RegisterDbTable(storage->cpu_track_table());
   RegisterDbTable(storage->gpu_track_table());
 
   RegisterDbTable(storage->counter_table());
