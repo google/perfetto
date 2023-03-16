@@ -10029,6 +10029,7 @@ genrule {
         "src/trace_processor/stdlib/common/timestamps.sql",
         "src/trace_processor/stdlib/experimental/android_broadcast.sql",
         "src/trace_processor/stdlib/experimental/proto_path.sql",
+        "src/trace_processor/stdlib/pkvm/hypervisor.sql",
     ],
     cmd: "$(location tools/gen_amalgamated_sql.py) --namespace=stdlib --cpp-out=$(out) $(in)",
     out: [
