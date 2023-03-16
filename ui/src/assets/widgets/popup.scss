@@ -14,14 +14,16 @@
 
 @import "theme";
 
+.pf-popup-portal {
+  position: absolute;
+  z-index: 10; // Hack to show popups over certain other elements
+}
+
 .pf-popup {
   background: white;
   border: solid 1px $pf-colour-thin-border;
   border-radius: $pf-border-radius;
   box-shadow: 2px 2px 16px rgba(0, 0, 0, 0.2);
-  padding: 4px;
-  position: absolute;
-  z-index: 10; // Hack to show popups over certain other elements
   .pf-popup-content {
     // Ensures all content is rendered above the arrow
     position: relative;
