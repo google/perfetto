@@ -29,6 +29,11 @@ export class TextInput implements m.ClassComponent<TextInputAttrs> {
   view({attrs}: m.CVnode<TextInputAttrs>) {
     const {extraClasses = '', ...htmlAttrs} = attrs;
     const classes = classNames(extraClasses);
-    return m('input.pf-text-input', {class: classes, ...htmlAttrs});
+    return m('input.pf-text-input', {
+      class: classes,
+      // Stop keydown events from triggering hotkeys
+      onkeydown: (e: Event) => e.stopPropagation(),
+      ...htmlAttrs,
+    });
   }
 }

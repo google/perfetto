@@ -32,6 +32,7 @@ import {
   FlowEventsAreaSelectedPanel,
   FlowEventsPanel,
 } from './flow_events_panel';
+import {FtracePanel} from './ftrace_panel';
 import {globals} from './globals';
 import {LogPanel} from './logs_panel';
 import {NotesEditorTab} from './notes_panel';
@@ -334,6 +335,18 @@ export class DetailsPanel implements m.ClassComponent {
         name: 'Android Logs',
         vnode: m(LogPanel, {key: 'logs_panel'}),
       });
+    }
+
+    const trackGroup = globals.state.trackGroups['ftrace-track-group'];
+    if (trackGroup) {
+      const {collapsed} = trackGroup;
+      if (!collapsed) {
+        detailsPanels.push({
+          key: 'ftrace_events',
+          name: 'Ftrace Events',
+          vnode: m(FtracePanel, {key: 'ftrace_panel'}),
+        });
+      }
     }
 
     const queryResults = [];
