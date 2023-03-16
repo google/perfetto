@@ -45,7 +45,7 @@
   }
 
   &:focus-visible {
-    @include focus
+    @include focus;
   }
 
   &[disabled] {

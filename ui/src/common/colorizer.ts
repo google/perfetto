@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import {hsl} from 'color-convert';
+
+import {hash} from '../common/hash';
 import {cachedHsluvToHex} from '../frontend/hsluv_cache';
 
 export interface Color {
@@ -59,15 +61,6 @@ export const UNEXPECTED_PINK_COLOR: Color = {
   s: 1.0,
   l: 0.706,
 };
-
-function hash(s: string, max: number): number {
-  let hash = 0x811c9dc5 & 0xfffffff;
-  for (let i = 0; i < s.length; i++) {
-    hash ^= s.charCodeAt(i);
-    hash = (hash * 16777619) & 0xffffffff;
-  }
-  return Math.abs(hash) % max;
-}
 
 export function hueForCpu(cpu: number): number {
   return (128 + (32 * cpu)) % 256;
@@ -132,9 +125,13 @@ export function textColorForState(stateCode: string): string {
   return background.l > 80 ? '#404040' : '#fff';
 }
 
-export function colorForTid(tid: number): Color {
-  const colorIdx = hash(tid.toString(), MD_PALETTE.length);
+export function colorForString(identifier: string): Color {
+  const colorIdx = hash(identifier, MD_PALETTE.length);
   return Object.assign({}, MD_PALETTE[colorIdx]);
+}
+
+export function colorForTid(tid: number): Color {
+  return colorForString(tid.toString());
 }
 
 export function colorForThread(thread?: {pid?: number, tid: number}): Color {
