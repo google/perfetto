@@ -18,6 +18,7 @@ cc_library(
     name = "zlib",
     srcs = [
         "adler32.c",
+        "chromeconf.h",
         "compress.c",
         "contrib/optimizations/insert_string.h",
         "cpu_features.c",
@@ -43,13 +44,9 @@ cc_library(
         "trees.h",
         "uncompr.c",
         "zconf.h",
-        "zlib.h",
         "zutil.c",
         "zutil.h",
-    ] + select({
-      "@perfetto//bazel:cpu_arm64": ["contrib/optimizations/slide_hash_neon.h"],
-      "//conditions:default": [],
-    }),
+    ],
     hdrs = [
         "zlib.h",
     ],
@@ -58,7 +55,8 @@ cc_library(
       "//conditions:default": [],
     }) + [
         "-Wno-unused-function",
-        "-DHAVE_HIDDEN",
+        "-DZLIB_IMPLEMENTATION",
+        "-DCHROMIUM_ZLIB_NO_CHROMECONF",
     ] + PERFETTO_CONFIG.deps_copts.zlib,
     includes = ["zlib"],
     visibility = ["//visibility:public"],
