@@ -1079,7 +1079,7 @@ cc_binary {
         "perfetto_defaults",
     ],
     cflags: [
-        "-DHAVE_HIDDEN",
+        "-DZLIB_IMPLEMENTATION",
     ],
 }
 
@@ -2230,7 +2230,7 @@ cc_test {
     cflags: [
         "-DGOOGLE_PROTOBUF_NO_RTTI",
         "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-        "-DHAVE_HIDDEN",
+        "-DZLIB_IMPLEMENTATION",
     ],
     header_libs: [
         "bionic_libc_platform_headers",
@@ -11871,7 +11871,7 @@ cc_test {
     cflags: [
         "-DGOOGLE_PROTOBUF_NO_RTTI",
         "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-        "-DHAVE_HIDDEN",
+        "-DZLIB_IMPLEMENTATION",
     ],
     include_dirs: [
         "bionic/libc/kernel",
@@ -12382,7 +12382,7 @@ cc_binary {
     cflags: [
         "-DGOOGLE_PROTOBUF_NO_RTTI",
         "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-        "-DHAVE_HIDDEN",
+        "-DZLIB_IMPLEMENTATION",
     ],
     strip: {
         all: true,
@@ -12603,7 +12603,7 @@ cc_binary_host {
         "perfetto_defaults",
     ],
     cflags: [
-        "-DHAVE_HIDDEN",
+        "-DZLIB_IMPLEMENTATION",
     ],
     target: {
         musl: {
