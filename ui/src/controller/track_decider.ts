@@ -51,6 +51,7 @@ import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices';
 import {
   EXPECTED_FRAMES_SLICE_TRACK_KIND,
 } from '../tracks/expected_frames';
+import {FTRACE_RAW_TRACK_KIND} from '../tracks/ftrace';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile';
 import {NULL_TRACK_KIND} from '../tracks/null_track';
 import {
@@ -692,6 +693,54 @@ class TrackDecider {
         trackGroup: SCROLLING_TRACK_GROUP,
         config: {},
       });
+    }
+  }
+
+  async addFtraceTrack(engine: EngineProxy): Promise<void> {
+    const query = `select cpu, count(*) as cnt from raw
+          where cpu + 1 > 1 or utid + 1 > 1
+          group by cpu`;
+
+    const result = await engine.query(query);
+    const it = result.iter({cpu: NUM, cnt: NUM});
+
+    let groupUuid = undefined;
+    let summaryTrackId = undefined;
+
+    // use the first one as the summary track
+    for (let row = 0; it.valid(); it.next(), row++) {
+      if (groupUuid === undefined) {
+        groupUuid = 'ftrace-track-group';
+        summaryTrackId = uuidv4();
+        this.tracksToAdd.push({
+          engineId: this.engineId,
+          kind: NULL_TRACK_KIND,
+          trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
+          name: `Ftrace Events`,
+          trackGroup: undefined,
+          config: {},
+          id: summaryTrackId,
+        });
+      }
+      this.tracksToAdd.push({
+        engineId: this.engineId,
+        kind: FTRACE_RAW_TRACK_KIND,
+        trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
+        name: `Ftrace Events Cpu ${it.cpu}`,
+        trackGroup: groupUuid,
+        config: {cpu: it.cpu},
+      });
+    }
+
+    if (groupUuid !== undefined && summaryTrackId !== undefined) {
+      const addGroup = Actions.addTrackGroup({
+        engineId: this.engineId,
+        name: 'Ftrace Events',
+        id: groupUuid,
+        collapsed: true,
+        summaryTrackId,
+      });
+      this.addTrackGroupActions.push(addGroup);
     }
   }
 
@@ -1668,6 +1717,8 @@ class TrackDecider {
     await this.defineMaxLayoutDepthSqlFunction();
 
     await this.addCpuSchedulingTracks();
+    await this.addFtraceTrack(
+        this.engine.getProxy('TrackDecider::addFtraceTrack'));
     await this.addCpuFreqTracks(
         this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
     await this.addGlobalAsyncTracks(
