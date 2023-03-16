@@ -1,4 +1,4 @@
-# Copyright (C) 2022 The Android Open Source Project
+# Copyright (C) 2023 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,20 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../gn/perfetto.gni")
-import("../../../gn/perfetto_sql.gni")
+import("../../../../gn/perfetto_sql.gni")
 
-assert(enable_perfetto_trace_processor_sqlite)
-
-perfetto_amalgamated_sql_header("gen_amalgamated_stdlib") {
-  deps = [
-    "android",
-    "chrome:chrome_sql",
-    "common",
-    "experimental",
-    "pkvm",
-  ]
-  generated_header = "amalgamated_stdlib.h"
-  namespace = "stdlib"
-  generate_docs = true
+perfetto_sql_source_set("pkvm") {
+  sources = [ "hypervisor.sql" ]
 }
