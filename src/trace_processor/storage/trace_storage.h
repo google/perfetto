@@ -828,7 +828,7 @@ class TraceStorage {
   tables::ClockSnapshotTable clock_snapshot_table_{&string_pool_, nullptr};
 
   // Metadata for tracks.
-  tables::TrackTable track_table_{&string_pool_, nullptr};
+  tables::TrackTable track_table_{&string_pool_};
   tables::ThreadStateTable thread_state_table_{&string_pool_, nullptr};
   tables::GpuTrackTable gpu_track_table_{&string_pool_, &track_table_};
   tables::ProcessTrackTable process_track_table_{&string_pool_, &track_table_};

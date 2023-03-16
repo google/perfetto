@@ -18,22 +18,18 @@
 #define SRC_TRACE_PROCESSOR_TABLES_TRACK_TABLES_H_
 
 #include "src/trace_processor/tables/macros.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace tables {
 
-// @tablegroup Tracks
-// @param source_arg_set_id {@joinable args.arg_set_id}
-// @param parent_id id of a parent track {@joinable track.id}
+// TODO(lalitm): delete this once none of the child classes depends on this.
 #define PERFETTO_TP_TRACK_TABLE_DEF(NAME, PARENT, C) \
-  NAME(TrackTable, "track")                          \
-  PERFETTO_TP_ROOT_TABLE(PARENT, C)                  \
+  NAME(TrackTable, "unused")                         \
   C(StringPool::Id, name)                            \
   C(base::Optional<TrackTable::Id>, parent_id)       \
   C(base::Optional<uint32_t>, source_arg_set_id)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_TRACK_TABLE_DEF);
 
 // @tablegroup Tracks
 #define PERFETTO_TP_PROCESS_TRACK_TABLE_DEF(NAME, PARENT, C) \
