@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_GZIP_UTILS_H_
 #define SRC_TRACE_PROCESSOR_UTIL_GZIP_UTILS_H_
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 
