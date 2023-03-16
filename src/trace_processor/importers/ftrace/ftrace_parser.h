@@ -350,6 +350,7 @@ class FtraceParser {
   const StringId cma_nr_test_fail_id_;
   const StringId syscall_ret_id_;
   const StringId syscall_args_id_;
+  const StringId replica_slice_id_;
   std::vector<StringId> syscall_arg_name_ids_;
 
   struct FtraceMessageStrings {
@@ -395,6 +396,9 @@ class FtraceParser {
   // A name collision is possible, always show if active wakelock exists
   // with a give name
   std::unordered_map<std::string, uint32_t> active_wakelock_to_count_;
+
+  // Record whether a suspend resume action is ongoing.
+  std::unordered_map<std::string, bool> ongoing_suspend_resume_actions;
 
   bool has_seen_first_ftrace_packet_ = false;
 
