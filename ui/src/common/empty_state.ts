@@ -130,7 +130,7 @@ export function createEmptyState(): State {
     },
 
     ftraceFilter: {
-      excludedNames: new Set<string>(),
+      excludedNames: [],
     },
 
     status: {msg: '', timestamp: 0},
