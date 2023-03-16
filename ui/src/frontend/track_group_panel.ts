@@ -237,11 +237,11 @@ export class TrackGroupPanel extends Panel<Attrs> {
           size.height,
           `#aaa`);
     }
-    if (globals.state.hoveredLogsTimestamp !== -1) {
+    if (globals.state.hoverCursorTimestamp !== -1) {
       drawVerticalLineAtTime(
           ctx,
           localState.timeScale,
-          globals.state.hoveredLogsTimestamp,
+          globals.state.hoverCursorTimestamp,
           size.height,
           `#344596`);
     }

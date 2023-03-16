@@ -80,11 +80,11 @@ export class LogPanel extends Panel<{}> {
   }
 
   onRowOver(ts: number) {
-    globals.dispatch(Actions.setHoveredLogsTimestamp({ts}));
+    globals.dispatch(Actions.setHoverCursorTimestamp({ts}));
   }
 
   onRowOut() {
-    globals.dispatch(Actions.setHoveredLogsTimestamp({ts: -1}));
+    globals.dispatch(Actions.setHoverCursorTimestamp({ts: -1}));
   }
 
   private totalRows():
