@@ -85,6 +85,7 @@ ExperimentalFlatSliceTable::~ExperimentalFlatSliceTable() = default;
 TrackTable::~TrackTable() = default;
 ProcessTrackTable::~ProcessTrackTable() = default;
 ThreadTrackTable::~ThreadTrackTable() = default;
+CpuTrackTable::~CpuTrackTable() = default;
 GpuTrackTable::~GpuTrackTable() = default;
 CounterTrackTable::~CounterTrackTable() = default;
 ThreadCounterTrackTable::~ThreadCounterTrackTable() = default;
