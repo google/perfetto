@@ -209,7 +209,7 @@ For example, to find the type of track for `measure` events, the following query
 could be used.
 
 ```sql
-SELECT type
+SELECT track.type
 FROM slice
 JOIN track ON track.id = slice.track_id
 WHERE slice.name = 'measure'
