@@ -31,8 +31,8 @@ PkvmHypervisorCpuTracker::PkvmHypervisorCpuTracker(
     TraceProcessorContext* context)
     : context_(context),
       category_(context->storage->InternString("pkvm_hyp")),
-      slice_name_(context->storage->InternString("in hyp")),
-      hyp_enter_reason_(context->storage->InternString("hyp enter reason")) {}
+      slice_name_(context->storage->InternString("hyp")),
+      hyp_enter_reason_(context->storage->InternString("hyp_enter_reason")) {}
 
 // static
 bool PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(uint16_t event_id) {
