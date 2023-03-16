@@ -470,11 +470,11 @@ class Globals {
     return Boolean(this._ftraceCounters && this._ftraceCounters.length > 0);
   }
 
-  get ftraceCounters() {
-    return assertExists(this._ftraceCounters);
+  get ftraceCounters(): FtraceStat[]|undefined {
+    return this._ftraceCounters;
   }
 
-  set ftraceCounters(value: FtraceStat[]) {
+  set ftraceCounters(value: FtraceStat[]|undefined) {
     this._ftraceCounters = value;
   }
 

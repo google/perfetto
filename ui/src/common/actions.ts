@@ -833,14 +833,19 @@ export const StateActions = {
   },
 
   updateFtraceFilter(state: StateDraft, patch: FtraceFilterPatch) {
-    const {excludedNames} = patch;
-    for (const [addRemove, name] of excludedNames) {
+    const {excludedNames: diffs} = patch;
+    const excludedNames = state.ftraceFilter.excludedNames;
+    for (const [addRemove, name] of diffs) {
       switch (addRemove) {
         case 'add':
-          state.ftraceFilter.excludedNames.add(name);
+          if (!excludedNames.some((excluded: string) => excluded === name)) {
+            excludedNames.push(name);
+          }
           break;
         case 'remove':
-          state.ftraceFilter.excludedNames.delete(name);
+          state.ftraceFilter.excludedNames =
+              state.ftraceFilter.excludedNames.filter(
+                  (excluded: string) => excluded !== name);
           break;
         default:
           assertUnreachable(addRemove);
