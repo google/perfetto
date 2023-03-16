@@ -36,28 +36,27 @@ interface RetVal {
 
 function cloneFtraceFilterState(other: FtraceFilterState): FtraceFilterState {
   return {
-    excludedNames: new Set<string>(other.excludedNames),
+    excludedNames: [...other.excludedNames],
   };
 }
 
 function ftraceFilterStateEq(
     a: FtraceFilterState, b: FtraceFilterState): boolean {
-  if (!eqSet(a.excludedNames, b.excludedNames)) {
-    return false;
+  if (a.excludedNames === b.excludedNames) return true;
+  if (a.excludedNames.length !== b.excludedNames.length) return false;
+
+  for (let i = 0; i < a.excludedNames.length; ++i) {
+    if (a.excludedNames[i] !== b.excludedNames[i]) return false;
   }
 
   return true;
-}
-
-function eqSet(xs: Set<string>, ys: Set<string>): boolean {
-  return xs.size === ys.size && [...xs].every((x) => ys.has(x));
 }
 
 export class FtraceController extends Controller<'main'> {
   private engine: Engine;
   private oldSpan: TimeSpan = new TimeSpan(0, 0);
   private oldFtraceFilter: FtraceFilterState = {
-    excludedNames: new Set<string>(),
+    excludedNames: [],
   };
   constructor({engine}: FtraceControllerArgs) {
     super('main');
@@ -118,7 +117,7 @@ export class FtraceController extends Controller<'main'> {
     const startNs = toNsFloor(start);
     const endNs = toNsCeil(end);
 
-    const excludeList = Array.from(appState.ftraceFilter.excludedNames);
+    const excludeList = appState.ftraceFilter.excludedNames;
     const excludeListSql = excludeList.map((s) => `'${s}'`).join(',');
 
     let queryRes = await this.engine.query(`
