@@ -18,7 +18,9 @@
 
 #include <vector>
 
+#include "perfetto/base/platform_handle.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/threading/future_combinators.h"
 #include "perfetto/ext/base/threading/poll.h"
 #include "test/gtest_and_gmock.h"
@@ -30,6 +32,7 @@ namespace {
 using testing::_;
 using testing::ElementsAre;
 using testing::Return;
+using testing::UnorderedElementsAre;
 
 template <typename T>
 class MockPollable : public FuturePollable<T> {
@@ -258,10 +261,13 @@ TEST_F(StreamUnittest, OnDestroyStream) {
 }
 
 TEST_F(StreamUnittest, FlattenStreams) {
+  EventFd event_fd1, event_fd2, event_fd3, event_fd4;
+  const PlatformHandle fd1 = event_fd1.fd(), fd2 = event_fd2.fd(),
+                       fd3 = event_fd3.fd(), fd4 = event_fd4.fd();
   std::unique_ptr<MockStreamPollable<int>> a(new MockStreamPollable<int>());
   EXPECT_CALL(*a, PollNext(_))
-      .WillOnce([](PollContext* ctx) {
-        ctx->RegisterInterested(1);
+      .WillOnce([fd1](PollContext* ctx) {
+        ctx->RegisterInterested(fd1);
         return PendingPollResult();
       })
       .WillOnce(Return(StreamPollResult<int>(1)))
@@ -269,12 +275,12 @@ TEST_F(StreamUnittest, FlattenStreams) {
 
   std::unique_ptr<MockStreamPollable<int>> b(new MockStreamPollable<int>());
   EXPECT_CALL(*b, PollNext(_))
-      .WillOnce([](PollContext* ctx) {
-        ctx->RegisterInterested(2);
+      .WillOnce([fd2](PollContext* ctx) {
+        ctx->RegisterInterested(fd2);
         return PendingPollResult();
       })
-      .WillOnce([](PollContext* ctx) {
-        ctx->RegisterInterested(2);
+      .WillOnce([fd2](PollContext* ctx) {
+        ctx->RegisterInterested(fd2);
         return PendingPollResult();
       })
       .WillOnce(Return(StreamPollResult<int>(2)))
@@ -283,9 +289,9 @@ TEST_F(StreamUnittest, FlattenStreams) {
   std::unique_ptr<MockStreamPollable<int>> c(new MockStreamPollable<int>());
   EXPECT_CALL(*c, PollNext(_))
       .WillOnce(Return(StreamPollResult<int>(3)))
-      .WillOnce([](PollContext* ctx) {
-        ctx->RegisterInterested(3);
-        ctx->RegisterInterested(4);
+      .WillOnce([fd3, fd4](PollContext* ctx) {
+        ctx->RegisterInterested(fd3);
+        ctx->RegisterInterested(fd4);
         return PendingPollResult();
       })
       .WillOnce(Return(DonePollResult()));
@@ -300,25 +306,25 @@ TEST_F(StreamUnittest, FlattenStreams) {
   ASSERT_THAT(interested_, ElementsAre());
 
   ASSERT_TRUE(stream.PollNext(&ctx_).IsPending());
-  ASSERT_THAT(interested_, ElementsAre(1, 2, 3, 4));
+  ASSERT_THAT(interested_, UnorderedElementsAre(fd1, fd2, fd3, fd4));
 
   interested_.clear();
   ASSERT_TRUE(stream.PollNext(&ctx_).IsPending());
-  ASSERT_THAT(interested_, ElementsAre(1, 2, 3, 4));
+  ASSERT_THAT(interested_, UnorderedElementsAre(fd1, fd2, fd3, fd4));
 
   interested_.clear();
-  ready_ = {1};
+  ready_ = {fd1};
   ASSERT_EQ(stream.PollNext(&ctx_).item(), 1);
   ASSERT_TRUE(stream.PollNext(&ctx_).IsPending());
-  ASSERT_THAT(interested_, ElementsAre(2, 3, 4));
+  ASSERT_THAT(interested_, UnorderedElementsAre(fd2, fd3, fd4));
 
   interested_.clear();
   ready_ = {};
   ASSERT_TRUE(stream.PollNext(&ctx_).IsPending());
-  ASSERT_THAT(interested_, ElementsAre(2, 3, 4));
+  ASSERT_THAT(interested_, ElementsAre(fd2, fd3, fd4));
 
   interested_.clear();
-  ready_ = {1, 2, 3};
+  ready_ = {fd1, fd2, fd3};
   ASSERT_TRUE(stream.PollNext(&ctx_).IsPending());
   ASSERT_EQ(stream.PollNext(&ctx_).item(), 2);
   ASSERT_TRUE(stream.PollNext(&ctx_).IsDone());
