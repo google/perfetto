@@ -139,7 +139,8 @@ export class FtracePanel extends Panel<{}> {
           return {
             id: name,
             name: `${name} (${count})`,
-            checked: !globals.state.ftraceFilter.excludedNames.has(name),
+            checked: !globals.state.ftraceFilter.excludedNames.some(
+                (excluded: string) => excluded === name),
           };
         });
 
