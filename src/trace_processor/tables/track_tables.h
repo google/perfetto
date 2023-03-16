@@ -52,6 +52,14 @@ PERFETTO_TP_TABLE(PERFETTO_TP_PROCESS_TRACK_TABLE_DEF);
 PERFETTO_TP_TABLE(PERFETTO_TP_THREAD_TRACK_TABLE_DEF);
 
 // @tablegroup Tracks
+#define PERFETTO_TP_CPU_TRACK_TABLE_DEF(NAME, PARENT, C) \
+  NAME(CpuTrackTable, "cpu_track")                       \
+  PARENT(PERFETTO_TP_TRACK_TABLE_DEF, C)                 \
+  C(uint32_t, cpu)
+
+PERFETTO_TP_TABLE(PERFETTO_TP_CPU_TRACK_TABLE_DEF);
+
+// @tablegroup Tracks
 #define PERFETTO_TP_GPU_TRACK_DEF(NAME, PARENT, C) \
   NAME(GpuTrackTable, "gpu_track")                 \
   PARENT(PERFETTO_TP_TRACK_TABLE_DEF, C)           \

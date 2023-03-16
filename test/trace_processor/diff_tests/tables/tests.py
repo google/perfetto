@@ -211,3 +211,55 @@ class Tables(TestSuite):
         error enabling tracing category "bar"
         "
         """))
+
+  # cpu_track table
+  def test_cpu_track_table(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 100001000000
+              pid: 10
+              irq_handler_entry {
+                irq: 100
+                name : "resource1"
+              }
+            }
+            event {
+              timestamp: 100002000000
+              pid: 10
+              irq_handler_exit {
+                irq: 100
+                ret: 1
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 100003000000
+              pid: 15
+              irq_handler_entry {
+                irq: 100
+                name : "resource1"
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          type,
+          cpu
+        FROM cpu_track
+        ORDER BY type, cpu;
+        """,
+        out=Csv("""
+        "type","cpu"
+        "cpu_track",0
+        "cpu_track",1
+        """))
