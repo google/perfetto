@@ -70,8 +70,9 @@ TrackId TrackTracker::InternCpuTrack(StringId name, uint32_t cpu) {
     return it->second;
   }
 
-  tables::TrackTable::Row row(name);
-  auto id = context_->storage->mutable_track_table()->Insert(row).id;
+  tables::CpuTrackTable::Row row(name);
+  row.cpu = cpu;
+  auto id = context_->storage->mutable_cpu_track_table()->Insert(row).id;
   cpu_tracks_[std::make_pair(name, cpu)] = id;
 
   return id;
