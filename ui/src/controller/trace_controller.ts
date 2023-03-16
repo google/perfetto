@@ -32,13 +32,14 @@ import {TimeSpan, toNs, toNsCeil, toNsFloor} from '../common/time';
 import {resetEngineWorker, WasmEngineProxy} from '../common/wasm_engine_proxy';
 import {BottomTabList} from '../frontend/bottom_tab';
 import {
+  FtraceStat,
   globals,
   QuantizedLoad,
   ThreadDesc,
 } from '../frontend/globals';
 import {showModal} from '../frontend/modal';
 import {
-  publishHasFtrace,
+  publishFtraceCounters,
   publishMetricError,
   publishOverviewData,
   publishThreads,
@@ -77,6 +78,7 @@ import {
   FlowEventsController,
   FlowEventsControllerArgs,
 } from './flow_events_controller';
+import {FtraceController} from './ftrace_controller';
 import {LoadingManager} from './loading_manager';
 import {LogsController} from './logs_controller';
 import {MetricsController} from './metrics_controller';
@@ -317,6 +319,10 @@ export class TraceController extends Controller<States> {
           engine,
           app: globals,
         }));
+
+        childControllers.push(
+            Child('ftrace', FtraceController, {engine, app: globals}));
+
         childControllers.push(
           Child('traceError', TraceErrorController, {engine}));
         childControllers.push(Child('metrics', MetricsController, {engine}));
@@ -492,20 +498,17 @@ export class TraceController extends Controller<States> {
     await this.loadTimelineOverview(traceTime);
 
     {
-      // A quick heuristic to check if the trace has ftrace events. This is
-      // based on the assumption that most traces that have ftrace either:
-      // - Are proto traces captured via perfetto, in which case traced_probes
-      //   emits ftrace per-cpu stats that end up in the stats table.
-      // - Have a raw event with non-zero cpu or utid.
-      // Notes:
-      // - The "+1 > 1" is to avoid pushing down the constraints to the "raw"
-      //   table, which would compute a full column filter without being aware
-      //   of the limit 1, and instead delegate the filtering to the iterator.
-      const query = `select '_' as _ from raw
-          where cpu + 1 > 1 or utid + 1 > 1 limit 1`;
+      // Pull out the counts ftrace events by name
+      const query = `select name, count(*) as cnt from raw
+          group by name
+          order by cnt desc`;
       const result = await assertExists(this.engine).query(query);
-      const hasFtrace = result.numRows() > 0;
-      publishHasFtrace(hasFtrace);
+      const counters: FtraceStat[] = [];
+      const it = result.iter({name: STR, cnt: NUM});
+      for (let row = 0; it.valid(); it.next(), row++) {
+        counters.push({name: it.name, count: it.cnt});
+      }
+      publishFtraceCounters(counters);
     }
 
     globals.dispatch(Actions.removeDebugTrack({}));
