@@ -299,7 +299,10 @@ class TrackDecider {
           count(1) cnt
         from track
         join slice on slice.track_id = track.id
-        where track.type = "track" or track.type = "gpu_track"
+        where
+          track.type = "track"
+          or track.type = "gpu_track"
+          or track.type = "cpu_track"
         group by 1
         having cnt > 0
       ),
