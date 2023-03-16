@@ -16,6 +16,20 @@ packet {
   ftrace_events {
     cpu: 0
     event {
+      timestamp: 15000
+      pid: 0
+      suspend_resume {
+        action: "suspend_enter"
+        val: 3
+        start: 1
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
       timestamp: 20000
       pid: 0
       suspend_resume {

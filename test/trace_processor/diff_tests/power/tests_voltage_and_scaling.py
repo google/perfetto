@@ -64,7 +64,8 @@ class PowerVoltageAndScaling(TestSuite):
         """,
         out=Csv("""
         "ts","dur","action"
-        10000,10000,"suspend_enter(3)"
+        10000,5000,"suspend_enter(3)"
+        15000,5000,"suspend_enter(3)"
         30000,10000,"CPU(0)"
         50000,10000,"timekeeping_freeze(0)"
         """))
