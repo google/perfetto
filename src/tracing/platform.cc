@@ -25,6 +25,10 @@ Platform::~Platform() = default;
 
 void Platform::Shutdown() {}
 
+base::PlatformThreadId Platform::GetCurrentThreadId() {
+  return base::GetThreadId();
+}
+
 // static
 std::unique_ptr<PlatformThreadLocalObject>
 PlatformThreadLocalObject::CreateInstance() {
