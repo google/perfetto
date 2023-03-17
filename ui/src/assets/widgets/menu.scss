@@ -28,6 +28,7 @@
     padding: 6px 12px;
     white-space: nowrap;
     min-width: max-content;
+    cursor: pointer;
 
     background: $pf-minimal-background;
     color: $pf-minimal-foreground;
@@ -62,6 +63,10 @@
       background: $pf-minimal-background-disabled;
       box-shadow: none;
       cursor: not-allowed;
+    }
+
+    &:focus-visible {
+      @include focus;
     }
   }
 
