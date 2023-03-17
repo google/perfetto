@@ -27,6 +27,7 @@
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/proc_utils.h"
+#include "perfetto/base/thread_utils.h"
 #include "perfetto/tracing/tracing.h"
 
 namespace perfetto {
@@ -107,6 +108,11 @@ class PERFETTO_EXPORT_COMPONENT Platform {
   // Tear down any persistent platform state (e.g., TLS variables). The platform
   // interface must not be used after calling this function.
   virtual void Shutdown();
+
+  // Returns the thread ID provided by the OS by default. Chromium uses
+  // different thread IDs on some platforms, so it needs the ability to
+  // override this method.
+  virtual base::PlatformThreadId GetCurrentThreadId();
 
  private:
   static base::PlatformProcessId process_id_;
