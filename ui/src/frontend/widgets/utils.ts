@@ -39,6 +39,6 @@ export function toHTMLElement(el: Element): HTMLElement {
 }
 
 // Check if a mithril component vnode has children
-export function hasChildren({children}: m.CVnode<any>): boolean {
+export function hasChildren({children}: m.Vnode<any>): boolean {
   return Array.isArray(children) && children.length > 0;
 }
