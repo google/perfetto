@@ -251,9 +251,9 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
 
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
-    auto trace_ts = context_->clock_tracker->ToTraceTime(
+    base::StatusOr<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
         protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
-    if (trace_ts.has_value())
+    if (trace_ts.ok())
       timestamp = trace_ts.value();
   } else if (int64_t ts_absolute_us = event.timestamp_absolute_us()) {
     // One-off absolute timestamps don't affect delta computation.
@@ -261,9 +261,9 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
 
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
-    auto trace_ts = context_->clock_tracker->ToTraceTime(
+    base::StatusOr<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
         protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
-    if (trace_ts.has_value())
+    if (trace_ts.ok())
       timestamp = trace_ts.value();
   } else if (packet.has_timestamp()) {
     timestamp = packet_timestamp;
