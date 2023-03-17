@@ -16,7 +16,7 @@
 
 $pf-font: "Roboto Condensed", sans-serif;
 $pf-border-radius: 2px;
-$pf-anim-timing: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+$pf-anim-timing: 150ms cubic-bezier(0.4, 0, 0.2, 1);
 
 // Here we describe two colour schemes: primary and minimal
 // It is assumed widgets exist on a light background
@@ -40,7 +40,7 @@ $pf-minimal-background-hover: #0001;
 $pf-minimal-background-active: #0002;
 $pf-minimal-background-disabled: none;
 
-$pf-colour-thin-border: gray;
+$pf-colour-thin-border: #aaa;
 
 @mixin focus {
   outline: 2px auto #64b5f6;
