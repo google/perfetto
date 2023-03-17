@@ -584,7 +584,6 @@ export interface State {
 
   fetchChromeCategories: boolean;
   chromeCategories: string[]|undefined;
-  analyzePageQuery?: string;
 
   // Special key: this part of the state is not going to be serialized when
   // using permalink. Can be used to store those parts of the state that can't
