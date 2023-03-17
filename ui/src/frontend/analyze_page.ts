@@ -15,11 +15,14 @@
 
 import * as m from 'mithril';
 
-import {Actions} from '../common/actions';
+import {EngineProxy} from '../common/engine';
+import {QueryResponse, runQuery} from '../common/queries';
 
+import {addTab} from './bottom_tab';
 import {globals} from './globals';
 import {createPage} from './pages';
 import {QueryHistoryComponent, queryHistoryStorage} from './query_history';
+import {QueryResultTab} from './query_result_tab';
 import {QueryTable} from './query_table';
 
 const INPUT_PLACEHOLDER = 'Enter query and press Cmd/Ctrl + Enter';
@@ -28,7 +31,50 @@ const INPUT_MAX_LINES = 10;
 const INPUT_LINE_HEIGHT_EM = 1.2;
 const TAB_SPACES = 2;
 const TAB_SPACES_STRING = ' '.repeat(TAB_SPACES);
-const QUERY_ID = 'analyze-page-query';
+
+interface AnalyzePageState {
+  enteredText: string;
+  executedQuery?: string;
+  queryResult?: QueryResponse;
+}
+
+const state: AnalyzePageState = {
+  enteredText: '',
+};
+
+export function runAnalyzeQuery(query: string) {
+  state.executedQuery = query;
+  state.queryResult = undefined;
+  const engine = getEngine();
+  if (engine) {
+    runQuery(query, engine).then((resp: QueryResponse) => {
+      addTab({
+        kind: QueryResultTab.kind,
+        tag: 'analyze_page_query',
+        config: {
+          query: query,
+          title: 'Standalone Query',
+          prefetchedResponse: resp,
+        },
+      });
+      // We might have started to execute another query. Ignore it in that case.
+      if (state.executedQuery !== query) {
+        return;
+      }
+      state.queryResult = resp;
+      globals.rafScheduler.scheduleFullRedraw();
+    });
+  }
+}
+
+function getEngine(): EngineProxy|undefined {
+  const engineId = globals.getCurrentEngine()?.id;
+  if (engineId === undefined) {
+    return undefined;
+  }
+  const engine = globals.engines.get(engineId)?.getProxy('AnalyzePage');
+  return engine;
+}
 
 class QueryInput implements m.ClassComponent {
   // How many lines to display if the user hasn't resized the input box.
@@ -47,7 +93,8 @@ class QueryInput implements m.ClassComponent {
       }
       if (!query) return;
       queryHistoryStorage.saveQuery(query);
-      globals.dispatch(Actions.executeQuery({queryId: QUERY_ID, query}));
+
+      runAnalyzeQuery(query);
     }
 
     if (event.code === 'Tab') {
@@ -114,7 +161,7 @@ class QueryInput implements m.ClassComponent {
     const clampedNumLines =
         Math.min(Math.max(textareaLines, INPUT_MIN_LINES), INPUT_MAX_LINES);
     this.displayLines = clampedNumLines;
-    globals.dispatch(Actions.setAnalyzePageQuery({query: textareaValue}));
+    state.enteredText = textareaValue;
     globals.rafScheduler.scheduleFullRedraw();
   }
 
@@ -135,7 +182,7 @@ class QueryInput implements m.ClassComponent {
   oncreate(vnode: m.VnodeDOM) {
     // This makes sure query persists if user navigates to other pages and comes
     // back to analyze page.
-    const existingQuery = globals.state.analyzePageQuery;
+    const existingQuery = state.enteredText;
     const textarea = vnode.dom as HTMLTextAreaElement;
     if (existingQuery) {
       textarea.value = existingQuery;
@@ -165,7 +212,15 @@ export const AnalyzePage = createPage({
     return m(
         '.analyze-page',
         m(QueryInput),
-        m(QueryTable, {queryId: QUERY_ID}),
+        state.executedQuery === undefined ? null : m(QueryTable, {
+          query: state.executedQuery,
+          resp: state.queryResult,
+          onClose: () => {
+            state.executedQuery = undefined;
+            state.queryResult = undefined;
+            globals.rafScheduler.scheduleFullRedraw();
+          },
+        }),
         m(QueryHistoryComponent));
   },
 });
