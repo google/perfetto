@@ -15,15 +15,31 @@
 import * as m from 'mithril';
 import {classNames} from '../classnames';
 import {Icon} from './icon';
-import {ActivationMode, Popup, PopupPosition} from './popup';
+import {Popup, PopupPosition} from './popup';
 import {hasChildren} from './utils';
 
 export interface MenuItemAttrs {
+  // Text to display on the menu button.
   label: string;
+  // Optional left icon.
   icon?: string;
+  // Optional right icon.
   rightIcon?: string;
+  // Make the item appear greyed out block any interaction with it. No events
+  // will be fired.
+  // Defaults to false.
   disabled?: boolean;
+  // Always show the button as if the "active" pseudo class were applied, which
+  // makes the button look permanently pressed.
+  // Useful for when the button represents some toggleable state, such as
+  // showing/hiding a popup menu.
+  // Defaults to false.
   active?: boolean;
+  // If this menu item is a descendant of a popup, this setting means that
+  // clicking it will result in the popup being dismissed.
+  // Defaults to false when menuitem has children, true otherwise.
+  closePopupOnClick?: boolean;
+  // Remaining attributes forwarded to the underlying HTML element.
   [htmlAttrs: string]: any;
 }
 
@@ -39,7 +55,8 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
   }
 
   private renderNested({attrs, children}: m.CVnode<MenuItemAttrs>) {
-    const {rightIcon = 'chevron_right', ...rest} = attrs;
+    const {rightIcon = 'chevron_right', closePopupOnClick = false, ...rest} =
+        attrs;
 
     return m(
         PopupMenu2,
@@ -47,9 +64,9 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
           popupPosition: PopupPosition.RightStart,
           trigger: m(MenuItem, {
             rightIcon: rightIcon ?? 'chevron_right',
+            closePopupOnClick,
             ...rest,
           }),
-          activationMode: ActivationMode.Hover,
           showArrow: false,
         },
         children,
@@ -57,10 +74,19 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
   }
 
   private renderSingle({attrs}: m.CVnode<MenuItemAttrs>) {
-    const {label, icon, rightIcon, disabled, active, ...htmlAttrs} = attrs;
+    const {
+      label,
+      icon,
+      rightIcon,
+      disabled,
+      active,
+      closePopupOnClick = true,
+      ...htmlAttrs
+    } = attrs;
 
     const classes = classNames(
         active && 'pf-active',
+        !disabled && closePopupOnClick && 'pf-close-parent-popup-on-click',
     );
 
     return m(
@@ -102,9 +128,6 @@ interface PopupMenu2Attrs {
   // Which side of the trigger to place to popup.
   // Defaults to "bottom".
   popupPosition?: PopupPosition;
-  // How the popup is opened.
-  // Defaults to "click".
-  activationMode?: ActivationMode;
   // Whether we should show the little arrow pointing to the trigger.
   // Defaults to true.
   showArrow?: boolean;
