@@ -50,6 +50,7 @@ import {ViewerPage} from './viewer_page';
 import {WidgetsPage} from './widgets_page';
 
 export {ViewerPage} from './viewer_page';
+export {globals} from './globals';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
