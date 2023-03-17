@@ -10102,6 +10102,7 @@ genrule {
     srcs: [
         "src/trace_processor/tables/android_tables.py",
         "src/trace_processor/tables/metadata_tables.py",
+        "src/trace_processor/tables/track_tables.py",
     ],
     tools: [
         "perfetto_src_trace_processor_tables_tables_python_binary",
@@ -10110,6 +10111,7 @@ genrule {
     out: [
         "src/trace_processor/tables/android_tables_py.h",
         "src/trace_processor/tables/metadata_tables_py.h",
+        "src/trace_processor/tables/track_tables_py.h",
     ],
 }
 
@@ -10122,6 +10124,7 @@ python_binary_host {
         "python/generators/trace_processor_table/util.py",
         "src/trace_processor/tables/android_tables.py",
         "src/trace_processor/tables/metadata_tables.py",
+        "src/trace_processor/tables/track_tables.py",
         "tools/gen_tp_table_headers.py",
     ],
     main: "tools/gen_tp_table_headers.py",
