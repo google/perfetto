@@ -43,11 +43,6 @@ export enum PopupPosition {
   LeftEnd = 'left-end',
 }
 
-export enum ActivationMode {
-  Click,
-  Hover,
-}
-
 type OnChangeCallback = (shouldOpen: boolean) => void;
 
 export interface PopupAttrs {
@@ -75,9 +70,6 @@ export interface PopupAttrs {
   closeOnContentClick?: boolean;
   // Space delimited class names applied to the popup div.
   className?: string;
-  // Whether to activate on click or hover
-  // Defaults to click
-  activationMode?: ActivationMode;
   // Whether to show a little arrow pointing to our trigger element.
   // Defaults to true.
   showArrow?: boolean;
@@ -91,19 +83,13 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   private isOpen: boolean = false;
   private triggerElement?: Element;
   private popupElement?: HTMLElement;
-  private popupContainerElement?: Element;
   private popper?: Instance;
   private onChange: OnChangeCallback = () => {};
   private closeOnEscape?: boolean;
   private closeOnOutsideClick?: boolean;
-  private closeOnContentClick?: boolean;
-  private closeTimeout?: ReturnType<typeof setTimeout>;
-  private activationMode: ActivationMode = ActivationMode.Click;
 
   private static readonly TRIGGER_REF = 'trigger';
   private static readonly POPUP_REF = 'popup';
-  private static readonly POPUP_CONTAINER_REF = 'popup-container';
-  private static readonly HOVER_TIMEOUT_MS = 100;
 
   view({attrs, children}: m.CVnode<PopupAttrs>): m.Children {
     const {
@@ -112,16 +98,12 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       onChange = () => {},
       closeOnEscape = true,
       closeOnOutsideClick = true,
-      closeOnContentClick = false,
-      activationMode = ActivationMode.Click,
     } = attrs;
 
     this.isOpen = isOpen;
     this.onChange = onChange;
     this.closeOnEscape = closeOnEscape;
     this.closeOnOutsideClick = closeOnOutsideClick;
-    this.closeOnContentClick = closeOnContentClick;
-    this.activationMode = activationMode;
 
     return [
       this.renderTrigger(trigger),
@@ -134,16 +116,9 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       ...trigger.attrs,
       ref: Popup.TRIGGER_REF,
       onclick: () => {
-        if (this.activationMode == ActivationMode.Click) {
-          this.togglePopup();
-        }
+        this.togglePopup();
       },
       active: this.isOpen,
-      onmouseenter: () => {
-        if (this.activationMode == ActivationMode.Hover) {
-          this.openPopup();
-        }
-      },
     };
     return trigger;
   }
@@ -162,17 +137,14 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
         // This handles the case where popups are placed inside the other popups
         // we nest outselves in their containers instead of document body which
         // means we become part of their hitbox for mouse events.
-        const closestPopup = dom.closest(`[ref=${Popup.POPUP_CONTAINER_REF}]`);
+        const closestPopup = dom.closest(`[ref=${Popup.POPUP_REF}]`);
         return {container: closestPopup ?? undefined};
       },
       onContentMount: (dom: HTMLElement) => {
         this.popupElement =
             toHTMLElement(assertExists(findRef(dom, Popup.POPUP_REF)));
-        this.popupContainerElement =
-            assertExists(findRef(dom, Popup.POPUP_CONTAINER_REF));
         this.createOrUpdatePopper(attrs);
         document.addEventListener('mousedown', this.handleDocMouseDown);
-        document.addEventListener('mouseover', this.handleDocMouseOver);
         document.addEventListener('keydown', this.handleDocKeyPress);
         dom.addEventListener('click', this.handleContentClick);
       },
@@ -184,11 +156,9 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       onContentUnmount: (dom: HTMLElement) => {
         dom.removeEventListener('click', this.handleContentClick);
         document.removeEventListener('keydown', this.handleDocKeyPress);
-        document.removeEventListener('mouseover', this.handleDocMouseOver);
         document.removeEventListener('mousedown', this.handleDocMouseDown);
         this.popper && this.popper.destroy();
         this.popper = undefined;
-        this.popupContainerElement = undefined;
         this.popupElement = undefined;
       },
     };
@@ -196,15 +166,13 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     return m(
         Portal,
         portalAttrs,
-        m('.pf-popup-container',
-          {ref: Popup.POPUP_CONTAINER_REF},
-          m('.pf-popup',
-            {
-              class: classNames(className),
-              ref: Popup.POPUP_REF,
-            },
-            showArrow && m('.pf-popup-arrow[data-popper-arrow]'),
-            m('.pf-popup-content', children))),
+        m('.pf-popup',
+          {
+            class: classNames(className),
+            ref: Popup.POPUP_REF,
+          },
+          showArrow && m('.pf-popup-arrow[data-popper-arrow]'),
+          m('.pf-popup-content', children)),
     );
   }
 
@@ -232,7 +200,10 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       placement: position,
       modifiers: [
         // Move the popup away from the target allowing room for the arrow
-        {name: 'offset', options: {offset: [0, showArrow ? 8 : 0]}},
+        {
+          name: 'offset',
+          options: {offset: [0, showArrow ? 8 : 0]},
+        },
         // Don't let the popup touch the edge of the viewport
         {name: 'preventOverflow', options: {padding: 8}},
         // Don't let the arrow reach the end of the popup, which looks odd when
@@ -254,8 +225,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   private eventInPopupOrTrigger(e: Event): boolean {
     const target = e.target as HTMLElement;
     const onTrigger = isOrContains(assertExists(this.triggerElement), target);
-    const onPopup =
-        isOrContains(assertExists(this.popupContainerElement), target);
+    const onPopup = isOrContains(assertExists(this.popupElement), target);
     return onTrigger || onPopup;
   }
 
@@ -265,27 +235,15 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     }
   };
 
-  private handleDocMouseOver = (e: Event) => {
-    if (this.activationMode === ActivationMode.Hover) {
-      if (!this.eventInPopupOrTrigger(e)) {
-        this.closePopupWithTimeout();
-      } else {
-        if (this.closeTimeout) {
-          clearTimeout(this.closeTimeout);
-          this.closeTimeout = undefined;
-        }
-      }
-    }
-  };
-
   private handleDocKeyPress = (e: KeyboardEvent) => {
     if (this.closeOnEscape && e.key === 'Escape') {
       this.closePopup();
     }
   };
 
-  private handleContentClick = (_: Event) => {
-    if (this.closeOnContentClick) {
+  private handleContentClick = (e: Event) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('.pf-close-parent-popup-on-click')) {
       this.closePopup();
     }
   };
@@ -293,23 +251,6 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   private closePopup() {
     if (this.isOpen) {
       this.isOpen = false;
-      this.onChange(this.isOpen);
-      globals.rafScheduler.scheduleFullRedraw();
-    }
-  }
-
-  private closePopupWithTimeout() {
-    if (this.isOpen && !this.closeTimeout) {
-      this.closeTimeout = setTimeout(() => {
-        this.closeTimeout = undefined;
-        this.closePopup();
-      }, Popup.HOVER_TIMEOUT_MS);
-    }
-  }
-
-  private openPopup() {
-    if (!this.isOpen) {
-      this.isOpen = true;
       this.onChange(this.isOpen);
       globals.rafScheduler.scheduleFullRedraw();
     }
