@@ -429,11 +429,11 @@ export const WidgetsPage = createPage({
         }),
         m('h2', 'Menu'),
         m(WidgetShowcase, {
-          renderWidget: ({disabled}) => m(
+          renderWidget: () => m(
               Menu,
               m(MenuItem, {label: 'New', icon: 'add'}),
               m(MenuItem, {label: 'Open', icon: 'folder_open'}),
-              m(MenuItem, {label: 'Save', icon: 'save', disabled}),
+              m(MenuItem, {label: 'Save', icon: 'save', disabled: true}),
               m(MenuDivider),
               m(MenuItem, {label: 'Delete', icon: 'delete'}),
               m(MenuDivider),
@@ -449,10 +449,15 @@ export const WidgetsPage = createPage({
                       m(MenuItem, {label: 'Bob', icon: 'person'}),
                       ),
                   ),
+              m(
+                  MenuItem,
+                  {label: 'More', icon: 'more_horiz'},
+                  m(MenuItem, {label: 'Query', icon: 'database'}),
+                  m(MenuItem, {label: 'Download', icon: 'download'}),
+                  m(MenuItem, {label: 'Clone', icon: 'copy_all'}),
+                  ),
               ),
-          initialOpts: {
-            disabled: false,
-          },
+
         }),
         m('h2', 'PopupMenu2'),
         m(WidgetShowcase, {
@@ -464,7 +469,7 @@ export const WidgetsPage = createPage({
               },
               m(MenuItem, {label: 'New', icon: 'add'}),
               m(MenuItem, {label: 'Open', icon: 'folder_open'}),
-              m(MenuItem, {label: 'Save', icon: 'save'}),
+              m(MenuItem, {label: 'Save', icon: 'save', disabled: true}),
               m(MenuDivider),
               m(MenuItem, {label: 'Delete', icon: 'delete'}),
               m(MenuDivider),
@@ -479,6 +484,13 @@ export const WidgetsPage = createPage({
                       m(MenuItem, {label: 'Alice', icon: 'person'}),
                       m(MenuItem, {label: 'Bob', icon: 'person'}),
                       ),
+                  ),
+              m(
+                  MenuItem,
+                  {label: 'More', icon: 'more_horiz'},
+                  m(MenuItem, {label: 'Query', icon: 'database'}),
+                  m(MenuItem, {label: 'Download', icon: 'download'}),
+                  m(MenuItem, {label: 'Clone', icon: 'copy_all'}),
                   ),
               ),
           initialOpts: {
