@@ -176,15 +176,13 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
       // chrome and then remove this.
       auto trace_ts = context_->clock_tracker->ToTraceTime(
           protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
-      if (trace_ts.has_value())
+      if (trace_ts.ok())
         timestamp = trace_ts.value();
     } else if (timestamp_clock_id) {
       // If the TracePacket specifies a non-zero clock-id, translate the
       // timestamp into the trace-time clock domain.
       ClockTracker::ClockId converted_clock_id = timestamp_clock_id;
-      bool is_seq_scoped =
-          ClockTracker::IsReservedSeqScopedClockId(converted_clock_id);
-      if (is_seq_scoped) {
+      if (ClockTracker::IsSequenceClock(converted_clock_id)) {
         if (!seq_id) {
           return util::ErrStatus(
               "TracePacket specified a sequence-local clock id (%" PRIu32
@@ -193,11 +191,11 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
               timestamp_clock_id);
         }
         converted_clock_id =
-            ClockTracker::SeqScopedClockIdToGlobal(seq_id, timestamp_clock_id);
+            ClockTracker::SeqenceToGlobalClock(seq_id, timestamp_clock_id);
       }
       auto trace_ts =
           context_->clock_tracker->ToTraceTime(converted_clock_id, timestamp);
-      if (!trace_ts.has_value()) {
+      if (!trace_ts.ok()) {
         // ToTraceTime() will increase the |clock_sync_failure| stat on failure.
         // We don't return an error here as it will cause the trace to stop
         // parsing. Instead, we rely on the stat increment in ToTraceTime() to
@@ -338,7 +336,7 @@ void ProtoTraceReader::ParseInternedData(
 
 util::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
                                                   uint32_t seq_id) {
-  std::vector<ClockTracker::ClockValue> clocks;
+  std::vector<ClockTracker::ClockTimestamp> clock_timestamps;
   protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);
   if (evt.primary_trace_clock()) {
     context_->clock_tracker->SetTraceTimeClock(
@@ -347,53 +345,55 @@ util::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
   for (auto it = evt.clocks(); it; ++it) {
     protos::pbzero::ClockSnapshot::Clock::Decoder clk(*it);
     ClockTracker::ClockId clock_id = clk.clock_id();
-    if (ClockTracker::IsReservedSeqScopedClockId(clk.clock_id())) {
+    if (ClockTracker::IsSequenceClock(clk.clock_id())) {
       if (!seq_id) {
         return util::ErrStatus(
             "ClockSnapshot packet is specifying a sequence-scoped clock id "
             "(%" PRIu64 ") but the TracePacket sequence_id is zero",
             clock_id);
       }
-      clock_id = ClockTracker::SeqScopedClockIdToGlobal(seq_id, clk.clock_id());
+      clock_id = ClockTracker::SeqenceToGlobalClock(seq_id, clk.clock_id());
     }
     int64_t unit_multiplier_ns =
         clk.unit_multiplier_ns()
             ? static_cast<int64_t>(clk.unit_multiplier_ns())
             : 1;
-    clocks.emplace_back(clock_id, clk.timestamp(), unit_multiplier_ns,
-                        clk.is_incremental());
+    clock_timestamps.emplace_back(clock_id, clk.timestamp(), unit_multiplier_ns,
+                                  clk.is_incremental());
   }
 
-  uint32_t snapshot_id = context_->clock_tracker->AddSnapshot(clocks);
+  uint32_t snapshot_id = context_->clock_tracker->AddSnapshot(clock_timestamps);
 
-  // Add the all the clock values to the clock snapshot table.
+  // Add the all the clock snapshots to the clock snapshot table.
   base::Optional<int64_t> trace_ts_for_check;
-  for (const auto& clock : clocks) {
+  for (const auto& clock_timestamp : clock_timestamps) {
     // If the clock is incremental, we need to use 0 to map correctly to
     // |absolute_timestamp|.
-    int64_t ts_to_convert = clock.is_incremental ? 0 : clock.absolute_timestamp;
-    base::Optional<int64_t> opt_trace_ts =
-        context_->clock_tracker->ToTraceTime(clock.clock_id, ts_to_convert);
-    if (!opt_trace_ts) {
+    int64_t ts_to_convert =
+        clock_timestamp.clock.is_incremental ? 0 : clock_timestamp.timestamp;
+    base::StatusOr<int64_t> opt_trace_ts = context_->clock_tracker->ToTraceTime(
+        clock_timestamp.clock.id, ts_to_convert);
+    if (!opt_trace_ts.ok()) {
       // This can happen if |AddSnapshot| failed to resolve this clock. Just
       // ignore this and move on.
+      PERFETTO_DLOG("%s", opt_trace_ts.status().c_message());
       continue;
     }
 
     // Double check that all the clocks in this snapshot resolve to the same
     // trace timestamp value.
-    PERFETTO_DCHECK(!trace_ts_for_check || opt_trace_ts == trace_ts_for_check);
+    PERFETTO_DCHECK(!trace_ts_for_check ||
+                    opt_trace_ts.value() == trace_ts_for_check.value());
     trace_ts_for_check = *opt_trace_ts;
 
     tables::ClockSnapshotTable::Row row;
     row.ts = *opt_trace_ts;
-    row.clock_id = static_cast<int64_t>(clock.clock_id);
-    row.clock_value = clock.absolute_timestamp;
-    row.clock_name = GetBuiltinClockNameOrNull(clock.clock_id);
+    row.clock_id = static_cast<int64_t>(clock_timestamp.clock.id);
+    row.clock_value = clock_timestamp.timestamp;
+    row.clock_name = GetBuiltinClockNameOrNull(clock_timestamp.clock.id);
     row.snapshot_id = snapshot_id;
 
-    auto* snapshot_table = context_->storage->mutable_clock_snapshot_table();
-    snapshot_table->Insert(row);
+    context_->storage->mutable_clock_snapshot_table()->Insert(row);
   }
   return util::OkStatus();
 }

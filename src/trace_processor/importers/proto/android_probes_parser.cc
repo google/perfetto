@@ -282,15 +282,19 @@ void AndroidProbesParser::ParseAndroidLogEvent(ConstBytes blob) {
     msg_id = context_->storage->InternString(&arg_msg[1]);
   }
   UniquePid utid = tid ? context_->process_tracker->UpdateThread(tid, pid) : 0;
-  base::Optional<int64_t> opt_trace_time = context_->clock_tracker->ToTraceTime(
+  base::StatusOr<int64_t> trace_time = context_->clock_tracker->ToTraceTime(
       protos::pbzero::BUILTIN_CLOCK_REALTIME, ts);
-  if (!opt_trace_time)
+  if (!trace_time.ok()) {
+    static std::atomic<uint32_t> dlog_count(0);
+    if (dlog_count++ < 10)
+      PERFETTO_DLOG("%s", trace_time.status().c_message());
     return;
+  }
 
   // Log events are NOT required to be sorted by trace_time. The virtual table
   // will take care of sorting on-demand.
   context_->storage->mutable_android_log_table()->Insert(
-      {opt_trace_time.value(), utid, prio, tag_id, msg_id});
+      {trace_time.value(), utid, prio, tag_id, msg_id});
 }
 
 void AndroidProbesParser::ParseAndroidLogStats(ConstBytes blob) {

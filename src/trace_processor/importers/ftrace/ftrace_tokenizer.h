@@ -61,6 +61,12 @@ class FtraceTokenizer {
                                  int64_t boot_ts,
                                  uint32_t packet_sequence_id);
 
+  void DlogWithLimit(base::Status status) {
+    static std::atomic<uint32_t> dlog_count(0);
+    if (dlog_count++ < 10)
+      PERFETTO_DLOG("%s", status.c_message());
+  }
+
   int64_t latest_ftrace_clock_snapshot_ts_ = 0;
   TraceProcessorContext* context_;
 };
