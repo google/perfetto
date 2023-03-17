@@ -25,10 +25,9 @@ import {Button} from './widgets/button';
 import {Checkbox} from './widgets/checkbox';
 import {EmptyState} from './widgets/empty_state';
 import {Icon} from './widgets/icon';
-import {Menu, MenuDivider, MenuItem} from './widgets/menu';
+import {Menu, MenuDivider, MenuItem, PopupMenu2} from './widgets/menu';
 import {MultiSelect, MultiSelectDiff} from './widgets/multiselect';
 import {Popup, PopupPosition} from './widgets/popup';
-import {PopupMenu2} from './widgets/popup_menu_2';
 import {Portal} from './widgets/portal';
 import {Select} from './widgets/select';
 import {Spinner} from './widgets/spinner';
@@ -437,6 +436,19 @@ export const WidgetsPage = createPage({
               m(MenuItem, {label: 'Save', icon: 'save', disabled}),
               m(MenuDivider),
               m(MenuItem, {label: 'Delete', icon: 'delete'}),
+              m(MenuDivider),
+              m(
+                  MenuItem,
+                  {label: 'Share', icon: 'share'},
+                  m(MenuItem, {label: 'Everyone', icon: 'public'}),
+                  m(MenuItem, {label: 'Friends', icon: 'group'}),
+                  m(
+                      MenuItem,
+                      {label: 'Specific people', icon: 'person_add'},
+                      m(MenuItem, {label: 'Alice', icon: 'person'}),
+                      m(MenuItem, {label: 'Bob', icon: 'person'}),
+                      ),
+                  ),
               ),
           initialOpts: {
             disabled: false,
@@ -447,7 +459,7 @@ export const WidgetsPage = createPage({
           renderWidget: (opts) => m(
               PopupMenu2,
               {
-                trigger: m(Button, {label: 'File', icon: 'expand_more'}),
+                trigger: m(Button, {label: 'Menu', icon: 'arrow_drop_down'}),
                 ...opts,
               },
               m(MenuItem, {label: 'New', icon: 'add'}),
@@ -455,9 +467,21 @@ export const WidgetsPage = createPage({
               m(MenuItem, {label: 'Save', icon: 'save'}),
               m(MenuDivider),
               m(MenuItem, {label: 'Delete', icon: 'delete'}),
+              m(MenuDivider),
+              m(
+                  MenuItem,
+                  {label: 'Share', icon: 'share'},
+                  m(MenuItem, {label: 'Everyone', icon: 'public'}),
+                  m(MenuItem, {label: 'Friends', icon: 'group'}),
+                  m(
+                      MenuItem,
+                      {label: 'Specific people', icon: 'person_add'},
+                      m(MenuItem, {label: 'Alice', icon: 'person'}),
+                      m(MenuItem, {label: 'Bob', icon: 'person'}),
+                      ),
+                  ),
               ),
           initialOpts: {
-            closeOnItemClick: true,
             popupPosition: new EnumOption(
                 PopupPosition.Bottom,
                 Object.values(PopupPosition),
