@@ -14,8 +14,6 @@
 
 import * as m from 'mithril';
 
-import {Actions} from '../common/actions';
-
 import {globals} from './globals';
 import {STAR} from './icons';
 
@@ -29,6 +27,7 @@ import {
 } from '../controller/validators';
 import {assertTrue} from '../base/logging';
 import {Icon} from './widgets/icon';
+import {runAnalyzeQuery} from './analyze_page';
 
 const QUERY_HISTORY_KEY = 'queryHistory';
 
@@ -75,10 +74,7 @@ export class HistoryItemComponent implements
               ),
           m('button',
             {
-              onclick: () => {
-                globals.dispatch(Actions.executeQuery(
-                    {queryId: 'analyze-page-query', query}));
-              },
+              onclick: () => runAnalyzeQuery(query),
             },
             m(Icon, {icon: 'play_arrow'})),
           m('button',

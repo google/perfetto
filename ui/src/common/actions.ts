@@ -399,20 +399,6 @@ export const StateActions = {
     state.tracks[args.id].config = args.config;
   },
 
-  executeQuery(
-      state: StateDraft,
-      args: {queryId: string; query: string, engineId?: string}): void {
-    state.queries[args.queryId] = {
-      id: args.queryId,
-      query: args.query,
-      engineId: args.engineId,
-    };
-  },
-
-  deleteQuery(state: StateDraft, args: {queryId: string}): void {
-    delete state.queries[args.queryId];
-  },
-
   moveTrack(
       state: StateDraft,
       args: {srcId: string; op: 'before' | 'after', dstId: string}): void {
@@ -970,10 +956,6 @@ export const StateActions = {
   setRecordingStatus(state: StateDraft, args: {status?: string}): void {
     state.recordingStatus = args.status;
     state.lastRecordingError = undefined;
-  },
-
-  setAnalyzePageQuery(state: StateDraft, args: {query: string}): void {
-    state.analyzePageQuery = args.query;
   },
 
   requestSelectedMetric(state: StateDraft, _: {}): void {
