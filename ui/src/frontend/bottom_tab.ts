@@ -39,6 +39,12 @@ export interface BottomTabCreator {
 
 export const bottomTabRegistry = Registry.kindRegistry<BottomTabCreator>();
 
+// Period to wait for the newly-added tabs which are loading before showing
+// them to the user. This period is short enough to not be user-visible,
+// while being long enough for most of the simple queries to complete, reducing
+// flickering in the UI.
+const NEW_LOADING_TAB_DELAY_MS = 50;
+
 // An interface representing a bottom tab displayed on the panel in the bottom
 // of the ui (e.g. "Current Selection").
 //
@@ -81,6 +87,18 @@ export abstract class BottomTabBase<Config = {}> {
 
   // Generate a mithril node for this component.
   abstract createPanelVnode(): PanelVNode;
+
+  // API for the tab to notify the TabList that it's still preparing the data.
+  // If true, adding a new tab will be delayed for a short while (~50ms) to
+  // reduce the flickering.
+  //
+  // Note: it's a "poll" rather than "push" API: there is no explicit API
+  // for the tabs to notify the tab list, as the tabs are expected to schedule
+  // global redraw anyway and the tab list will poll the tabs as necessary
+  // during the redraw.
+  isLoading(): boolean {
+    return false;
+  }
 }
 
 
@@ -159,12 +177,27 @@ closeTab(uuid: string) {
   globals.rafScheduler.scheduleFullRedraw();
 }
 
+interface PendingTab {
+  tab: BottomTabBase, args: AddTabArgs, startTime: number,
+}
+
+function tabSelectionKey(tab: BottomTabBase) {
+  return tab.tag ?? tab.uuid;
+}
+
 export class BottomTabList {
-  tabs: BottomTabBase[] = [];
+  private tabs: BottomTabBase[] = [];
+  private pendingTabs: PendingTab[] = [];
   private engine: EngineProxy;
+  private scheduledFlushSetTimeoutId?: number;
 
   constructor(engine: EngineProxy) {
     this.engine = engine;
+  }
+
+  getTabs(): BottomTabBase[] {
+    this.flushPendingTabs();
+    return this.tabs;
   }
 
   // Add and create a new panel with given kind and config, replacing an
@@ -179,17 +212,12 @@ export class BottomTabList {
       tag: args.tag,
     });
 
-    const index =
-        args.tag ? this.tabs.findIndex((tab) => tab.tag === args.tag) : -1;
-    if (index === -1) {
-      this.tabs.push(newPanel);
-    } else {
-      this.tabs[index] = newPanel;
-    }
-
-    if (args.select === undefined || args.select === true) {
-      globals.dispatch(Actions.setCurrentTab({tab: uuid}));
-    }
+    this.pendingTabs.push({
+      tab: newPanel,
+      args,
+      startTime: window.performance.now(),
+    });
+    this.flushPendingTabs();
 
     return {
       uuid,
@@ -201,6 +229,9 @@ export class BottomTabList {
     if (index !== -1) {
       this.removeTabAtIndex(index);
     }
+    // User closing a tab by tag should affect pending tabs as well, as these
+    // tabs were requested to be added to the tab list before this call.
+    this.pendingTabs = this.pendingTabs.filter(({tab}) => tab.tag !== tag);
   }
 
   closeTabById(uuid: string) {
@@ -208,6 +239,9 @@ export class BottomTabList {
     if (index !== -1) {
       this.removeTabAtIndex(index);
     }
+    // User closing a tab by id should affect pending tabs as well, as these
+    // tabs were requested to be added to the tab list before this call.
+    this.pendingTabs = this.pendingTabs.filter(({tab}) => tab.uuid !== uuid);
   }
 
   private removeTabAtIndex(index: number) {
@@ -218,9 +252,73 @@ export class BottomTabList {
     // that became last.
     if (tab.uuid === globals.state.currentTab && this.tabs.length > 0) {
       const newActiveIndex = index === this.tabs.length ? index - 1 : index;
-      globals.dispatch(
-          Actions.setCurrentTab({tab: this.tabs[newActiveIndex].uuid}));
+      globals.dispatch(Actions.setCurrentTab(
+          {tab: tabSelectionKey(this.tabs[newActiveIndex])}));
     }
     globals.rafScheduler.scheduleFullRedraw();
+  }
+
+  // Check the list of the pending tabs and add the ones that are ready
+  // (either tab.isLoading returns false or NEW_LOADING_TAB_DELAY_MS ms elapsed
+  // since this tab was added).
+  // Note: the pending tabs are stored in a queue to preserve the action order,
+  // which matters for cases like adding tabs with the same tag.
+  private flushPendingTabs() {
+    const currentTime = window.performance.now();
+    while (this.pendingTabs.length > 0) {
+      const {tab, args, startTime} = this.pendingTabs[0];
+
+      // This is a dirty hack^W^W low-lift solution for the world where some
+      // "current selection" panels are implemented by BottomTabs and some by
+      // details_panel.ts computing vnodes dynamically. Naive implementation
+      // will: a) stop showing the old panel (because
+      // globals.state.currentSelection changes). b) not showing the new
+      // 'current_selection' tab yet. This will result in temporary shifting
+      // focus to another tab (as no tab with 'current_selection' tag will
+      // exist).
+      //
+      // To counteract this, short-circuit this logic and when:
+      // a) no tag with 'current_selection' tag exists in the list of currently
+      // displayed tabs and b) we are adding a tab with 'current_selection' tag.
+      // add it immediately without waiting.
+      // TODO(altimin): Remove this once all places have switched to be using
+      // BottomTab to display panels.
+      const currentSelectionTabAlreadyExists =
+          this.tabs.filter((tab) => tab.tag === 'current_selection').length > 0;
+      const dirtyHackForCurrentSelectionApplies =
+          tab.tag === 'current_selection' && !currentSelectionTabAlreadyExists;
+
+      const elapsedTimeMs = currentTime - startTime;
+      if (tab.isLoading() && elapsedTimeMs < NEW_LOADING_TAB_DELAY_MS &&
+          !dirtyHackForCurrentSelectionApplies) {
+        this.schedulePendingTabsFlush(NEW_LOADING_TAB_DELAY_MS - elapsedTimeMs);
+        // The first tab is not ready yet, wait.
+        return;
+      }
+      this.pendingTabs.shift();
+
+      const index =
+          args.tag ? this.tabs.findIndex((tab) => tab.tag === args.tag) : -1;
+      if (index === -1) {
+        this.tabs.push(tab);
+      } else {
+        this.tabs[index] = tab;
+      }
+
+      if (args.select === undefined || args.select === true) {
+        globals.dispatch(Actions.setCurrentTab({tab: tabSelectionKey(tab)}));
+      }
+    }
+  }
+
+  private schedulePendingTabsFlush(waitTimeMs: number) {
+    if (this.scheduledFlushSetTimeoutId) {
+      // The flush is already pending, no action is required.
+      return;
+    }
+    setTimeout(() => {
+      this.scheduledFlushSetTimeoutId = undefined;
+      this.flushPendingTabs();
+    }, waitTimeMs);
   }
 }
