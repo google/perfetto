@@ -233,9 +233,9 @@ export class DetailsPanel implements m.ClassComponent {
     const detailsPanels: DetailsPanel[] = [];
 
     if (globals.bottomTabList) {
-      for (const tab of globals.bottomTabList.tabs) {
+      for (const tab of globals.bottomTabList.getTabs()) {
         detailsPanels.push({
-          key: tab.uuid,
+          key: tab.tag ?? tab.uuid,
           name: tab.getTitle(),
           vnode: tab.createPanelVnode(),
         });
