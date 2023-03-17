@@ -227,7 +227,7 @@ class Android(TestSuite):
       SELECT IMPORT('android.monitor_contention');
       SELECT
         *
-      FROM monitor_contention
+      FROM android_monitor_contention
       WHERE binder_reply_id IS NOT NULL
       ORDER BY dur DESC
       LIMIT 1;
@@ -262,7 +262,7 @@ class Android(TestSuite):
         dur,
         track_id,
         IIF(binder_reply_id IS NULL, "", binder_reply_id) AS binder_reply_id
-      FROM monitor_contention_chain
+      FROM android_monitor_contention_chain
       ORDER BY dur DESC
       LIMIT 1;
       """,

@@ -1,0 +1,72 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 84798810112835
+      hyp_enter {
+      }
+    }
+    event {
+      timestamp: 84798810113690
+      host_smc {
+        id: 281474976710656
+        forwarded: 0
+      }
+    }
+    event {
+      timestamp: 84798810113771
+      hyp_exit {
+      }
+    }
+    event {
+      timestamp: 84798810182293
+      hyp_enter {
+      }
+    }
+    event {
+      timestamp: 84798810182578
+      hyp_exit {
+      }
+    }
+  }
+}
+
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 84798810660565
+      hyp_enter {
+      }
+    }
+    event {
+      timestamp: 84798810671185
+      host_mem_abort {
+        esr: 1970324836974592
+        addr: 13635773771771052544
+      }
+    }
+    event {
+      timestamp: 84798810671755
+      hyp_exit {
+      }
+    }
+    event {
+      timestamp: 84798811118003
+      hyp_enter {
+      }
+    }
+    event {
+      timestamp: 84798811121624
+      host_hcall {
+        id: 2818048
+        invalid: 0
+      }
+    }
+    event {
+      timestamp: 84798811121706
+      hyp_exit {
+      }
+    }
+  }
+}
