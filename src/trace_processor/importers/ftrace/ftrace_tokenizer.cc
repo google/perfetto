@@ -43,7 +43,7 @@ namespace {
 
 static constexpr uint32_t kFtraceGlobalClockIdForOldKernels = 64;
 
-PERFETTO_ALWAYS_INLINE base::Optional<int64_t> ResolveTraceTime(
+PERFETTO_ALWAYS_INLINE base::StatusOr<int64_t> ResolveTraceTime(
     TraceProcessorContext* context,
     ClockTracker::ClockId clock_id,
     int64_t ts) {
@@ -84,7 +84,7 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
       clock_id = BuiltinClock::BUILTIN_CLOCK_BOOTTIME;
       break;
     case FtraceClock::FTRACE_CLOCK_GLOBAL:
-      clock_id = ClockTracker::SeqScopedClockIdToGlobal(
+      clock_id = ClockTracker::SeqenceToGlobalClock(
           packet_sequence_id, kFtraceGlobalClockIdForOldKernels);
       break;
     case FtraceClock::FTRACE_CLOCK_MONO_RAW:
@@ -153,10 +153,12 @@ void FtraceTokenizer::TokenizeFtraceEvent(uint32_t cpu,
   // ClockTracker will increment some error stats if it failed to convert the
   // timestamp so just return.
   int64_t int64_timestamp = static_cast<int64_t>(raw_timestamp);
-  base::Optional<int64_t> timestamp =
+  base::StatusOr<int64_t> timestamp =
       ResolveTraceTime(context_, clock_id, int64_timestamp);
-  if (!timestamp)
+  if (!timestamp.ok()) {
+    DlogWithLimit(timestamp.status());
     return;
+  }
   context_->sorter->PushFtraceEvent(cpu, *timestamp, std::move(event),
                                     state->current_generation());
 }
@@ -212,10 +214,12 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedSwitch(
     event.next_pid = *npid_it;
     event.next_prio = *nprio_it;
 
-    base::Optional<int64_t> timestamp =
+    base::StatusOr<int64_t> timestamp =
         ResolveTraceTime(context_, clock_id, event_timestamp);
-    if (!timestamp)
+    if (!timestamp.ok()) {
+      DlogWithLimit(timestamp.status());
       return;
+    }
     context_->sorter->PushInlineFtraceEvent(cpu, *timestamp, event);
   }
 
@@ -260,10 +264,12 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedWaking(
     event.target_cpu = *tcpu_it;
     event.prio = *prio_it;
 
-    base::Optional<int64_t> timestamp =
+    base::StatusOr<int64_t> timestamp =
         ResolveTraceTime(context_, clock_id, event_timestamp);
-    if (!timestamp)
+    if (!timestamp.ok()) {
+      DlogWithLimit(timestamp.status());
       return;
+    }
     context_->sorter->PushInlineFtraceEvent(cpu, *timestamp, event);
   }
 
@@ -283,12 +289,12 @@ void FtraceTokenizer::HandleFtraceClockSnapshot(int64_t ftrace_ts,
     return;
   latest_ftrace_clock_snapshot_ts_ = ftrace_ts;
 
-  ClockTracker::ClockId global_id = ClockTracker::SeqScopedClockIdToGlobal(
+  ClockTracker::ClockId global_id = ClockTracker::SeqenceToGlobalClock(
       packet_sequence_id, kFtraceGlobalClockIdForOldKernels);
   context_->clock_tracker->AddSnapshot(
-      {ClockTracker::ClockValue(global_id, ftrace_ts),
-       ClockTracker::ClockValue(BuiltinClock::BUILTIN_CLOCK_BOOTTIME,
-                                boot_ts)});
+      {ClockTracker::ClockTimestamp(global_id, ftrace_ts),
+       ClockTracker::ClockTimestamp(BuiltinClock::BUILTIN_CLOCK_BOOTTIME,
+                                    boot_ts)});
 }
 
 }  // namespace trace_processor
