@@ -1995,10 +1995,12 @@ perfetto_cc_tp_tables(
     srcs = [
         "src/trace_processor/tables/android_tables.py",
         "src/trace_processor/tables/metadata_tables.py",
+        "src/trace_processor/tables/track_tables.py",
     ],
     outs = [
         "src/trace_processor/tables/android_tables_py.h",
         "src/trace_processor/tables/metadata_tables_py.h",
+        "src/trace_processor/tables/track_tables_py.h",
     ],
 )
 
