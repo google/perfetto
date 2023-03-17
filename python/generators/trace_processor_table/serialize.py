@@ -56,6 +56,19 @@ class ColumnSerializer:
       return None
     return f'{self.name}(std::move(in_{self.name}))'
 
+  def const_row_ref_getter(self) -> Optional[str]:
+    return f'''ColumnType::{self.name}::type {self.name}() const {{
+      return table_->{self.name}()[row_number_];
+    }}'''
+
+  def row_ref_getter(self) -> Optional[str]:
+    if self.col._is_auto_added_id or self.col._is_auto_added_type:
+      return None
+    return f'''void set_{self.name}(
+        ColumnType::{self.name}::non_optional_type v) {{
+      return mutable_table()->mutable_{self.name}()->Set(row_number_, v);
+    }}'''
+
   def flag(self) -> Optional[str]:
     if self.col._is_auto_added_id or self.col._is_auto_added_type:
       return None
@@ -155,13 +168,50 @@ class TableSerializer(object):
         ColumnSerializer.row_initializer, delimiter=',\n          ')
     return f'''
   struct Row : public macros_internal::RootParentTable::Row {{
-    Row({param})
+    Row({param},
+        std::nullptr_t = nullptr)
         : macros_internal::RootParentTable::Row(nullptr),
           {row_init} {{
       type_ = "{self.table.sql_name}";
     }}
     {self.foreach_col(ColumnSerializer.row_field)}
   }};
+    '''
+
+  def const_row_reference_struct(self) -> str:
+    row_ref_getters = self.foreach_col(
+        ColumnSerializer.const_row_ref_getter, delimiter='\n    ')
+    return f'''
+  class ConstRowReference : public macros_internal::AbstractConstRowReference<
+    {self.table_name}, RowNumber> {{
+   public:
+    ConstRowReference(const {self.table_name}* table, uint32_t row_number)
+        : AbstractConstRowReference(table, row_number) {{}}
+
+    {row_ref_getters}
+  }};
+  static_assert(std::is_trivially_destructible<ConstRowReference>::value,
+                "Inheritance used without trivial destruction");
+    '''
+
+  def row_reference_struct(self) -> str:
+    row_ref_getters = self.foreach_col(
+        ColumnSerializer.row_ref_getter, delimiter='\n    ')
+    return f'''
+  class RowReference : public ConstRowReference {{
+   public:
+    RowReference(const {self.table_name}* table, uint32_t row_number)
+        : ConstRowReference(table, row_number) {{}}
+
+    {row_ref_getters}
+
+   private:
+    {self.table_name}* mutable_table() const {{
+      return const_cast<{self.table_name}*>(table_);
+    }}
+  }};
+  static_assert(std::is_trivially_destructible<RowReference>::value,
+                "Inheritance used without trivial destruction");
     '''
 
   def constructor(self) -> str:
@@ -190,10 +240,27 @@ class {self.table_name} : public macros_internal::MacroTable {{
   {self.row_struct().strip()}
   struct IdAndRow {{
     uint32_t row;
+    Id id;
   }};
   struct ColumnFlag {{
     {self.foreach_col(ColumnSerializer.flag)}
   }};
+
+  class RowNumber;
+  class ConstRowReference;
+  class RowReference;
+
+  class RowNumber : public macros_internal::AbstractRowNumber<
+      {self.table_name}, ConstRowReference, RowReference> {{
+   public:
+    explicit RowNumber(uint32_t row_number)
+        : AbstractRowNumber(row_number) {{}}
+  }};
+  static_assert(std::is_trivially_destructible<RowNumber>::value,
+                "Inheritance used without trivial destruction");
+
+  {self.const_row_reference_struct().strip()}
+  {self.row_reference_struct().strip()}
 
   {self.constructor().strip()}
   ~{self.table_name}() override;
@@ -204,12 +271,26 @@ class {self.table_name} : public macros_internal::MacroTable {{
     {self.foreach_col(ColumnSerializer.shrink_to_fit)}
   }}
 
+  base::Optional<ConstRowReference> FindById(Id find_id) const {{
+    base::Optional<uint32_t> row = id().IndexOf(find_id);
+    if (!row)
+      return base::nullopt;
+    return ConstRowReference(this, *row);
+  }}
+
+  base::Optional<RowReference> FindById(Id find_id) {{
+    base::Optional<uint32_t> row = id().IndexOf(find_id);
+    if (!row)
+      return base::nullopt;
+    return RowReference(this, *row);
+  }}
+
   IdAndRow Insert(const Row& row) {{
     uint32_t row_number = row_count();
     type_.Append(string_pool_->InternString(row.type()));
     {self.foreach_col(ColumnSerializer.append)}
     UpdateSelfOverlayAfterInsert();
-    return IdAndRow{{row_number}};
+    return IdAndRow{{row_number, Id{{row_number}}}};
   }}
 
   {self.foreach_col(ColumnSerializer.accessor)}

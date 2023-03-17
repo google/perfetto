@@ -34,8 +34,6 @@ namespace tables {
 // @param private_dirty_kb KB of this mapping that are private dirty  RSS.
 // @param swap_kb KB of this mapping that are in swap.
 // @param file_name
-// @param file_name_iid
-// @param path_iid
 // @param start_address
 // @param module_timestamp
 // @param module_debugid
@@ -159,9 +157,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_STACK_PROFILE_CALLSITE_DEF);
 PERFETTO_TP_TABLE(PERFETTO_TP_STACK_SAMPLE_DEF);
 
 // Samples from the Chromium stack sampler.
-// @param ts timestamp this sample was taken at.
 // @param utid thread that was active when the sample was taken.
-// @param callsite_id callstack in active thread at time of sample.
 // @tablegroup Callstack profilers
 #define PERFETTO_TP_CPU_PROFILE_STACK_SAMPLE_DEF(NAME, PARENT, C) \
   NAME(CpuProfileStackSampleTable, "cpu_profile_stack_sample")    \
