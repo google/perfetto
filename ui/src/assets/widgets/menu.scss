@@ -18,26 +18,34 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  padding: 5px 0;
 
   .pf-menu-item {
     font-family: $pf-font;
     font-size: inherit;
     user-select: none;
     text-align: left;
-    padding: 4px 8px;
+    padding: 6px 12px;
     white-space: nowrap;
     min-width: max-content;
-    border-radius: $pf-border-radius;
-    
+
     background: $pf-minimal-background;
     color: $pf-minimal-foreground;
-    transition: background $pf-anim-timing, box-shadow $pf-anim-timing;
+    transition: background $pf-anim-timing;
 
     & > .material-icons {
       font-size: inherit;
       line-height: inherit;
+    }
+
+    & > .pf-left-icon {
       float: left;
       margin-right: 6px; // Make some room between the icon and label
+    }
+
+    & > .pf-right-icon {
+      float: right;
+      margin-left: 6px; // Make some room between the icon and label
     }
 
     &:hover {
@@ -46,8 +54,6 @@
 
     &:active,
     &.pf-active {
-      transition: none;
-      box-shadow: inset 1px 1px 4px #00000040;
       background: $pf-minimal-background-active;
     }
 
@@ -61,6 +67,6 @@
 
   .pf-menu-divider {
     border-bottom: solid 1px $pf-colour-thin-border;
-    margin: 4px 0 4px 0;
+    margin: 5px 0 5px 0;
   }
 }
