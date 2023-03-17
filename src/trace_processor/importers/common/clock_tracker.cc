@@ -42,7 +42,8 @@ ClockTracker::ClockTracker(TraceStorage* storage)
 
 ClockTracker::~ClockTracker() = default;
 
-uint32_t ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
+uint32_t ClockTracker::AddSnapshot(
+    const std::vector<ClockTimestamp>& clock_timestamps) {
   const auto snapshot_id = cur_snapshot_id_++;
 
   // Clear the cache
@@ -51,16 +52,17 @@ uint32_t ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
   // Compute the fingerprint of the snapshot by hashing all clock ids. This is
   // used by the clock pathfinding logic.
   base::Hasher hasher;
-  for (const auto& clock : clocks)
-    hasher.Update(clock.clock_id);
+  for (const auto& clock_ts : clock_timestamps)
+    hasher.Update(clock_ts.clock.id);
   const auto snapshot_hash = static_cast<SnapshotHash>(hasher.digest());
 
   // Add a new entry in each clock's snapshot vector.
-  for (const auto& clock : clocks) {
-    ClockId clock_id = clock.clock_id;
+  for (const auto& clock_ts : clock_timestamps) {
+    ClockId clock_id = clock_ts.clock.id;
     ClockDomain& domain = clocks_[clock_id];
     if (domain.snapshots.empty()) {
-      if (clock.is_incremental && !ClockIsSeqScoped(clock_id)) {
+      if (clock_ts.clock.is_incremental &&
+          !IsConvertedSequenceClock(clock_id)) {
         PERFETTO_ELOG("Clock sync error: the global clock with id=%" PRIu64
                       " cannot use incremental encoding; this is only "
                       "supported for sequence-scoped clocks.",
@@ -68,22 +70,23 @@ uint32_t ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
         storage_->IncrementStats(stats::invalid_clock_snapshots);
         return snapshot_id;
       }
-      domain.unit_multiplier_ns = clock.unit_multiplier_ns;
-      domain.is_incremental = clock.is_incremental;
-    } else if (PERFETTO_UNLIKELY(
-                   domain.unit_multiplier_ns != clock.unit_multiplier_ns ||
-                   domain.is_incremental != clock.is_incremental)) {
+      domain.unit_multiplier_ns = clock_ts.clock.unit_multiplier_ns;
+      domain.is_incremental = clock_ts.clock.is_incremental;
+    } else if (PERFETTO_UNLIKELY(domain.unit_multiplier_ns !=
+                                     clock_ts.clock.unit_multiplier_ns ||
+                                 domain.is_incremental !=
+                                     clock_ts.clock.is_incremental)) {
       PERFETTO_ELOG("Clock sync error: the clock domain with id=%" PRIu64
                     " (unit=%" PRIu64
                     ", incremental=%d), was previously registered with "
                     "different properties (unit=%" PRIu64 ", incremental=%d).",
-                    clock_id, clock.unit_multiplier_ns, clock.is_incremental,
-                    domain.unit_multiplier_ns, domain.is_incremental);
+                    clock_id, clock_ts.clock.unit_multiplier_ns,
+                    clock_ts.clock.is_incremental, domain.unit_multiplier_ns,
+                    domain.is_incremental);
       storage_->IncrementStats(stats::invalid_clock_snapshots);
       return snapshot_id;
     }
-    const int64_t timestamp_ns =
-        clock.absolute_timestamp * domain.unit_multiplier_ns;
+    const int64_t timestamp_ns = clock_ts.timestamp * domain.unit_multiplier_ns;
     domain.last_timestamp_ns = timestamp_ns;
 
     ClockSnapshots& vect = domain.snapshots[snapshot_hash];
@@ -99,7 +102,7 @@ uint32_t ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
     // Clock ids in the range [64, 128) are sequence-scoped and must be
     // translated to global ids via SeqScopedClockIdToGlobal() before calling
     // this function.
-    PERFETTO_DCHECK(!IsReservedSeqScopedClockId(clock_id));
+    PERFETTO_DCHECK(!IsSequenceClock(clock_id));
 
     // Snapshot IDs must be always monotonic.
     PERFETTO_DCHECK(vect.snapshot_ids.empty() ||
@@ -149,15 +152,16 @@ uint32_t ClockTracker::AddSnapshot(const std::vector<ClockValue>& clocks) {
   // snapshots of type (hash).
   // Clocks that were previously marked as non-monotonic won't be added as
   // valid sources.
-  for (auto it1 = clocks.begin(); it1 != clocks.end(); ++it1) {
+  for (auto it1 = clock_timestamps.begin(); it1 != clock_timestamps.end();
+       ++it1) {
     auto it2 = it1;
     ++it2;
-    for (; it2 != clocks.end(); ++it2) {
-      if (!non_monotonic_clocks_.count(it1->clock_id))
-        graph_.emplace(it1->clock_id, it2->clock_id, snapshot_hash);
+    for (; it2 != clock_timestamps.end(); ++it2) {
+      if (!non_monotonic_clocks_.count(it1->clock.id))
+        graph_.emplace(it1->clock.id, it2->clock.id, snapshot_hash);
 
-      if (!non_monotonic_clocks_.count(it2->clock_id))
-        graph_.emplace(it2->clock_id, it1->clock_id, snapshot_hash);
+      if (!non_monotonic_clocks_.count(it2->clock.id))
+        graph_.emplace(it2->clock.id, it1->clock.id, snapshot_hash);
     }
   }
   return snapshot_id;
@@ -210,25 +214,21 @@ ClockTracker::ClockPath ClockTracker::FindPath(ClockId src, ClockId target) {
   return ClockPath();  // invalid path.
 }
 
-base::Optional<int64_t> ClockTracker::ConvertSlowpath(ClockId src_clock_id,
+base::StatusOr<int64_t> ClockTracker::ConvertSlowpath(ClockId src_clock_id,
                                                       int64_t src_timestamp,
                                                       ClockId target_clock_id) {
-  PERFETTO_DCHECK(!IsReservedSeqScopedClockId(src_clock_id));
-  PERFETTO_DCHECK(!IsReservedSeqScopedClockId(target_clock_id));
+  PERFETTO_DCHECK(!IsSequenceClock(src_clock_id));
+  PERFETTO_DCHECK(!IsSequenceClock(target_clock_id));
 
   storage_->IncrementStats(stats::clock_sync_cache_miss);
 
   ClockPath path = FindPath(src_clock_id, target_clock_id);
   if (!path.valid()) {
     // Too many logs maybe emitted when path is invalid.
-    static std::atomic<uint32_t> dlog_count(0);
-    if (dlog_count++ < 10) {
-      PERFETTO_DLOG("No path from clock %" PRIu64 " to %" PRIu64
-                    " at timestamp %" PRId64,
-                    src_clock_id, target_clock_id, src_timestamp);
-    }
     storage_->IncrementStats(stats::clock_sync_failure);
-    return base::nullopt;
+    return base::ErrStatus("No path from clock %" PRIu64 " to %" PRIu64
+                           " at timestamp %" PRId64,
+                           src_clock_id, target_clock_id, src_timestamp);
   }
 
   // We can cache only single-path resolutions between two clocks.
@@ -316,13 +316,13 @@ base::Optional<int64_t> ClockTracker::ConvertSlowpath(ClockId src_clock_id,
   return ns;
 }
 
-base::Optional<std::string> ClockTracker::FromTraceTimeAsISO8601(
+base::StatusOr<std::string> ClockTracker::FromTraceTimeAsISO8601(
     int64_t timestamp) {
   constexpr ClockId unix_epoch_clock =
       protos::pbzero::ClockSnapshot::Clock::REALTIME;
-  base::Optional<int64_t> opt_ts = FromTraceTime(unix_epoch_clock, timestamp);
-  if (!opt_ts) {
-    return base::nullopt;
+  base::StatusOr<int64_t> opt_ts = FromTraceTime(unix_epoch_clock, timestamp);
+  if (!opt_ts.ok()) {
+    return opt_ts.status();
   }
   int64_t ts = opt_ts.value();
 
