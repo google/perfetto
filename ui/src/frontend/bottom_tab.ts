@@ -15,8 +15,10 @@
 import * as m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
 
+import {Actions} from '../common/actions';
 import {EngineProxy} from '../common/engine';
 import {Registry} from '../common/registry';
+import {globals} from './globals';
 
 import {Panel, PanelSize, PanelVNode} from './panel';
 
@@ -123,10 +125,38 @@ export type AddTabArgs = {
   kind: string,
   config: {},
   tag?: string,
+  // Whether to make the new tab current. True by default.
+  select?: boolean;
 };
 
-export type AddTabResult = {
-  uuid: string;
+export type AddTabResult =
+    {
+      uuid: string;
+    }
+
+// Shorthand for globals.bottomTabList.addTab(...) & redraw.
+// Ignored when bottomTabList does not exist (e.g. no trace is open in the UI).
+export function
+addTab(args: AddTabArgs) {
+  const tabList = globals.bottomTabList;
+  if (!tabList) {
+    return;
+  }
+  tabList.addTab(args);
+  globals.rafScheduler.scheduleFullRedraw();
+}
+
+
+// Shorthand for globals.bottomTabList.closeTabById(...) & redraw.
+// Ignored when bottomTabList does not exist (e.g. no trace is open in the UI).
+export function
+closeTab(uuid: string) {
+  const tabList = globals.bottomTabList;
+  if (!tabList) {
+    return;
+  }
+  tabList.closeTabById(uuid);
+  globals.rafScheduler.scheduleFullRedraw();
 }
 
 export class BottomTabList {
@@ -157,16 +187,40 @@ export class BottomTabList {
       this.tabs[index] = newPanel;
     }
 
+    if (args.select === undefined || args.select === true) {
+      globals.dispatch(Actions.setCurrentTab({tab: uuid}));
+    }
+
     return {
       uuid,
     };
   }
 
   closeTabByTag(tag: string) {
-    this.tabs = this.tabs.filter((panel) => panel.tag !== tag);
+    const index = this.tabs.findIndex((tab) => tab.tag === tag);
+    if (index !== -1) {
+      this.removeTabAtIndex(index);
+    }
   }
 
   closeTabById(uuid: string) {
-    this.tabs = this.tabs.filter((panel) => panel.uuid !== uuid);
+    const index = this.tabs.findIndex((tab) => tab.uuid === uuid);
+    if (index !== -1) {
+      this.removeTabAtIndex(index);
+    }
+  }
+
+  private removeTabAtIndex(index: number) {
+    const tab = this.tabs[index];
+    this.tabs.splice(index, 1);
+    // If the current tab was closed, select the tab to the right of it.
+    // If the closed tab was current and last in the tab list, select the tab
+    // that became last.
+    if (tab.uuid === globals.state.currentTab && this.tabs.length > 0) {
+      const newActiveIndex = index === this.tabs.length ? index - 1 : index;
+      globals.dispatch(
+          Actions.setCurrentTab({tab: this.tabs[newActiveIndex].uuid}));
+    }
+    globals.rafScheduler.scheduleFullRedraw();
   }
 }

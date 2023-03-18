@@ -14,7 +14,7 @@
 
 import {v4 as uuidv4} from 'uuid';
 
-import {Actions, AddTrackArgs} from '../../common/actions';
+import {AddTrackArgs} from '../../common/actions';
 import {Engine} from '../../common/engine';
 import {featureFlags} from '../../common/feature_flags';
 import {
@@ -22,11 +22,11 @@ import {
 } from '../../common/plugin_api';
 import {NUM} from '../../common/query_result';
 import {InThreadTrackSortKey} from '../../common/state';
-import {globals} from '../../frontend/globals';
 import {
   NamedSliceTrack,
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
+import {runQueryInNewTab} from '../../frontend/query_result_tab';
 import {NewTrackArgs, Track} from '../../frontend/track';
 
 export {Data} from '../chrome_slices';
@@ -113,10 +113,7 @@ select RUN_METRIC(
    'duration_causing_jank_ms',
    /* duration_causing_jank_ms = */ '8');`);
 
-
-  globals.dispatch(Actions.executeQuery({
-    queryId: 'chrome_scroll_jank_long_tasks',
-    query: `
+  const query = `
      select
        s1.full_name,
        s1.duration_ms,
@@ -128,8 +125,8 @@ select RUN_METRIC(
        s2.track_id
      from chrome_tasks_delaying_input_processing s1
      join slice s2 on s1.slice_id=s2.id
-     `,
-  }));
+     `;
+  runQueryInNewTab(query, 'Scroll Jank: long tasks');
 
   return result;
 }

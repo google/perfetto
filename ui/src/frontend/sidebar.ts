@@ -39,6 +39,7 @@ import {
   openFileWithLegacyTraceViewer,
 } from './legacy_trace_viewer';
 import {showModal} from './modal';
+import {runQueryInNewTab} from './query_result_tab';
 import {Router} from './router';
 import {isDownloadable, isShareable} from './trace_attrs';
 import {
@@ -144,13 +145,10 @@ function shouldShowHiringBanner(): boolean {
   return globals.isInternalUser && HIRING_BANNER_FLAG.get();
 }
 
-function createCannedQuery(query: string): (_: Event) => void {
+function createCannedQuery(query: string, title: string): (_: Event) => void {
   return (e: Event) => {
     e.preventDefault();
-    globals.dispatch(Actions.executeQuery({
-      queryId: 'command',
-      query,
-    }));
+    runQueryInNewTab(query, title);
   };
 }
 
@@ -337,32 +335,35 @@ const SECTIONS: Section[] = [
       },
       {
         t: 'All Processes',
-        a: createCannedQuery(ALL_PROCESSES_QUERY),
+        a: createCannedQuery(ALL_PROCESSES_QUERY, 'All Processes'),
         i: 'search',
       },
       {
         t: 'CPU Time by process',
-        a: createCannedQuery(CPU_TIME_FOR_PROCESSES),
+        a: createCannedQuery(CPU_TIME_FOR_PROCESSES, 'CPU Time by process'),
         i: 'search',
       },
       {
         t: 'Cycles by p-state by CPU',
-        a: createCannedQuery(CYCLES_PER_P_STATE_PER_CPU),
+        a: createCannedQuery(
+            CYCLES_PER_P_STATE_PER_CPU, 'Cycles by p-state by CPU'),
         i: 'search',
       },
       {
         t: 'CPU Time by CPU by process',
-        a: createCannedQuery(CPU_TIME_BY_CPU_BY_PROCESS),
+        a: createCannedQuery(
+            CPU_TIME_BY_CPU_BY_PROCESS, 'CPU Time by CPU by process'),
         i: 'search',
       },
       {
         t: 'Heap Graph: Bytes per type',
-        a: createCannedQuery(HEAP_GRAPH_BYTES_PER_TYPE),
+        a: createCannedQuery(
+            HEAP_GRAPH_BYTES_PER_TYPE, 'Heap Graph: Bytes per type'),
         i: 'search',
       },
       {
         t: 'Debug SQL performance',
-        a: createCannedQuery(SQL_STATS),
+        a: createCannedQuery(SQL_STATS, 'Recent SQL queries'),
         i: 'bug_report',
       },
     ],
