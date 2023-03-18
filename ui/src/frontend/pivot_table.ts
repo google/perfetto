@@ -28,9 +28,6 @@ import {
   SortDirection,
 } from '../common/state';
 import {fromNs, timeToCode} from '../common/time';
-import {
-  PivotTableController,
-} from '../controller/pivot_table_controller';
 
 import {globals} from './globals';
 import {Panel} from './panel';
@@ -49,6 +46,7 @@ import {
   TableColumn,
 } from './pivot_table_types';
 import {PopupMenuButton, popupMenuIcon, PopupMenuItem} from './popup_menu';
+import {runQueryInNewTab} from './query_result_tab';
 import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
 
@@ -147,11 +145,7 @@ export class PivotTable extends Panel<PivotTableAttrs> {
               `;
               // TODO(ddrone): the UI of running query as if it was a canned or
               // custom query is a temporary one, replace with a proper UI.
-              globals.dispatch(Actions.executeQuery({
-                queryId: `pivot_table_details_${
-                    PivotTableController.detailsCount++}`,
-                query,
-              }));
+              runQueryInNewTab(query, 'Pivot table details');
             },
           },
           m('i.material-icons', 'arrow_right')));
