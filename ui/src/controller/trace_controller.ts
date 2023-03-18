@@ -86,7 +86,6 @@ import {
   PIVOT_TABLE_REDUX_FLAG,
   PivotTableController,
 } from './pivot_table_controller';
-import {QueryController, QueryControllerArgs} from './query_controller';
 import {SearchController} from './search_controller';
 import {
   SelectionController,
@@ -242,21 +241,6 @@ export class TraceController extends Controller<States> {
           const trackCtlFactory = trackControllerRegistry.get(trackCfg.kind);
           const trackArgs: TrackControllerArgs = {trackId, engine};
           childControllers.push(Child(trackId, trackCtlFactory, trackArgs));
-        }
-
-        // Create a QueryController for each query.
-        for (const queryId of Object.keys(globals.state.queries)) {
-          // If the expected engineId was not specified in the query, we
-          // assume it's current engine id. The engineId is not specified
-          // for instances with queries created prior to the creation of the
-          // first engine.
-          const expectedEngineId = globals.state.engine?.id;
-          // Check that we are executing the query on the correct engine.
-          if (expectedEngineId !== engine.id) {
-            continue;
-          }
-          const queryArgs: QueryControllerArgs = {queryId, engine};
-          childControllers.push(Child(queryId, QueryController, queryArgs));
         }
 
         for (const argName of globals.state.visualisedArgs) {
