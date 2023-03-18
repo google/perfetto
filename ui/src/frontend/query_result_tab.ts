@@ -79,6 +79,10 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
     });
   }
 
+  isLoading() {
+    return this.queryResponse === undefined;
+  }
+
   renderTabCanvas() {}
 }
 
