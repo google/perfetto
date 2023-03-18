@@ -1079,7 +1079,7 @@ cc_binary {
         "perfetto_defaults",
     ],
     cflags: [
-        "-DHAVE_HIDDEN",
+        "-DZLIB_IMPLEMENTATION",
     ],
 }
 
@@ -2230,7 +2230,7 @@ cc_test {
     cflags: [
         "-DGOOGLE_PROTOBUF_NO_RTTI",
         "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-        "-DHAVE_HIDDEN",
+        "-DZLIB_IMPLEMENTATION",
     ],
     header_libs: [
         "bionic_libc_platform_headers",
@@ -10103,6 +10103,7 @@ genrule {
     srcs: [
         "src/trace_processor/tables/android_tables.py",
         "src/trace_processor/tables/metadata_tables.py",
+        "src/trace_processor/tables/track_tables.py",
     ],
     tools: [
         "perfetto_src_trace_processor_tables_tables_python_binary",
@@ -10111,6 +10112,7 @@ genrule {
     out: [
         "src/trace_processor/tables/android_tables_py.h",
         "src/trace_processor/tables/metadata_tables_py.h",
+        "src/trace_processor/tables/track_tables_py.h",
     ],
 }
 
@@ -10123,6 +10125,7 @@ python_binary_host {
         "python/generators/trace_processor_table/util.py",
         "src/trace_processor/tables/android_tables.py",
         "src/trace_processor/tables/metadata_tables.py",
+        "src/trace_processor/tables/track_tables.py",
         "tools/gen_tp_table_headers.py",
     ],
     main: "tools/gen_tp_table_headers.py",
@@ -11873,7 +11876,7 @@ cc_test {
     cflags: [
         "-DGOOGLE_PROTOBUF_NO_RTTI",
         "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-        "-DHAVE_HIDDEN",
+        "-DZLIB_IMPLEMENTATION",
     ],
     include_dirs: [
         "bionic/libc/kernel",
@@ -12384,7 +12387,7 @@ cc_binary {
     cflags: [
         "-DGOOGLE_PROTOBUF_NO_RTTI",
         "-DGOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
-        "-DHAVE_HIDDEN",
+        "-DZLIB_IMPLEMENTATION",
     ],
     strip: {
         all: true,
@@ -12605,7 +12608,7 @@ cc_binary_host {
         "perfetto_defaults",
     ],
     cflags: [
-        "-DHAVE_HIDDEN",
+        "-DZLIB_IMPLEMENTATION",
     ],
     target: {
         musl: {

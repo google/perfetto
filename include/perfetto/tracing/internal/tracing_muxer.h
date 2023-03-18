@@ -103,6 +103,10 @@ class PERFETTO_EXPORT_COMPONENT TracingMuxer {
   virtual void ActivateTriggers(const std::vector<std::string>&,
                                 uint32_t ttl_ms) = 0;
 
+  base::PlatformThreadId GetCurrentThreadId() {
+    return platform_->GetCurrentThreadId();
+  }
+
  protected:
   explicit TracingMuxer(Platform* platform) : platform_(platform) {}
 

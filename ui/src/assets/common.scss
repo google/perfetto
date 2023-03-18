@@ -843,7 +843,6 @@ button.query-ctrl {
     // In regular pivot table cells, avoids wrapping the icon spacer to go on
     // a separate line.
     white-space: pre;
-
   }
 }
 
@@ -901,7 +900,8 @@ button.query-ctrl {
   button {
     margin: 0 0.5rem;
 
-    i.material-icons, i.material-icons-filled {
+    i.material-icons,
+    i.material-icons-filled {
       font-size: 18px;
     }
   }

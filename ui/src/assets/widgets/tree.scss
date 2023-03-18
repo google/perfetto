@@ -1,0 +1,126 @@
+@import "theme";
+
+$indent: 20px;
+
+.pf-tree-left {
+  min-width: max-content;
+  padding: 2px 8px 2px 4px;
+  font-weight: 600;
+}
+
+.pf-tree-right {
+  padding: 2px 4px;
+}
+
+// In tree mode, the values and keys are represented simply using a nested set
+// of divs, where each child is pushed in with a left margin which creates the
+// effect of indenting nested subtrees.
+.pf-ptree {
+  .pf-tree-children {
+    padding-left: $indent;
+    border-left: dotted 1px gray;
+  }
+
+  .pf-tree-node {
+    display: grid;
+    width: max-content;
+    grid-template-columns: [left]auto [right]1fr;
+    border-radius: $pf-border-radius;
+
+    &:hover {
+      background: lightgray;
+    }
+
+    .pf-tree-left {
+      grid-column: left;
+      &:after {
+        content: ":";
+        font-weight: 600;
+        padding-left: 4px;
+        padding-right: 8px;
+      }
+    }
+
+    .pf-tree-right {
+      grid-column: right;
+    }
+  }
+}
+
+// In grid mode, right elements should be horizontally aligned, regardless
+// of indentation level.
+// "Subgrid" is a convenient tool for aligning nested grids to an outer grid's
+// columns, but it is not supported in Chrome as of March 2023.
+// See https://caniuse.com/css-subgrid
+// See https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Grid_Layout/Subgrid
+//
+// For future reference - this is what a subgrid implementation might look like:
+//
+// .pf-ptree-grid {
+//   display: grid;
+//   grid-template-columns: auto 1fr;
+//
+//   .pf-tree-children {
+//     display: grid;
+//     grid-column: span 2;
+//     grid-template-columns: subgrid;
+//     padding-left: $indent;
+//     border-left: dotted 1px gray;
+//   }
+
+//   .pf-tree-node {
+//     display: grid;
+//     grid-column: span 2;
+//     grid-template-columns: subgrid;
+//     width: max-content;
+//     border-radius: $pf-border-radius;
+
+//     &:hover {
+//       background: lightgray;
+//     }
+//   }
+// }
+
+@mixin indentation($max, $level) {
+  @if $level <= $max {
+    .pf-tree-children {
+      .pf-tree-left {
+        margin-left: $level * $indent;
+      }
+      @include indentation($max, $level + 1);
+    }
+  }
+}
+
+.pf-ptree-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+
+  .pf-tree-children {
+    display: contents;
+  }
+
+  .pf-tree-node {
+    display: contents;
+
+    &:hover {
+      background: lightgray;
+    }
+
+    .pf-tree-left {
+      background: inherit;
+      border-radius: $pf-border-radius 0 0 $pf-border-radius;
+    }
+
+    .pf-tree-right {
+      background: inherit;
+      border-radius: 0 $pf-border-radius $pf-border-radius 0;
+    }
+  }
+
+  @include indentation(16, 1);
+}
+
+.pf-tree-children.pf-pgrid-hidden {
+  display: none;
+}
