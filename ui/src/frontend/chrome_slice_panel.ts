@@ -15,39 +15,43 @@
 import * as m from 'mithril';
 
 import {sqliteString} from '../base/string_utils';
-import {Actions, DeferredAction} from '../common/actions';
+import {Actions} from '../common/actions';
 import {Arg, ArgsTree, isArgTreeArray, isArgTreeMap} from '../common/arg_types';
 import {timeToCode} from '../common/time';
 
 import {FlowPoint, globals, SliceDetails} from './globals';
 import {PanelSize} from './panel';
 import {PopupMenuButton, PopupMenuItem} from './popup_menu';
+import {runQueryInNewTab} from './query_result_tab';
 import {verticalScrollToTrack} from './scroll_helper';
 import {SlicePanel} from './slice_panel';
 
 interface ContextMenuItem {
   name: string;
   shouldDisplay(slice: SliceDetails): boolean;
-  getAction(slice: SliceDetails): DeferredAction;
+  getAction(slice: SliceDetails): void;
 }
 
 const ITEMS: ContextMenuItem[] = [
   {
     name: 'Average duration',
     shouldDisplay: (slice: SliceDetails) => slice.name !== undefined,
-    getAction: (slice: SliceDetails) => Actions.executeQuery({
-      queryId: 'command',
-      query: `SELECT AVG(dur) / 1e9 FROM slice WHERE name = '${slice.name!}'`,
-    }),
+    getAction: (slice: SliceDetails) => runQueryInNewTab(
+        `SELECT AVG(dur) / 1e9 FROM slice WHERE name = '${slice.name!}'`,
+        `${slice.name} average dur`,
+        ),
   },
   {
     name: 'Binder by TXN',
     shouldDisplay: () => true,
-    getAction: () => Actions.executeQuery({
-      queryId: 'command',
-      query:
-          `SELECT IMPORT('android.binder'); SELECT * FROM android_sync_binder_metrics_by_txn ORDER BY client_dur DESC`,
-    }),
+    getAction: () => runQueryInNewTab(
+        `SELECT IMPORT('android.binder');
+
+         SELECT *
+         FROM android_sync_binder_metrics_by_txn
+         ORDER BY client_dur DESC`,
+        'Binder by TXN',
+        ),
   },
 ];
 
@@ -56,9 +60,7 @@ function getSliceContextMenuItems(slice: SliceDetails): PopupMenuItem[] {
     return {
       itemType: 'regular',
       text: item.name,
-      callback: () => {
-        globals.dispatch(item.getAction(slice));
-      },
+      callback: () => item.getAction(slice),
     };
   });
 }
@@ -328,16 +330,15 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
         itemType: 'regular',
         text: 'Find slices with the same arg value',
         callback: () => {
-          globals.dispatch(Actions.executeQuery({
-            queryId: `slices_with_arg_value_${fullKey}=${argValue}`,
-            query: `
+          runQueryInNewTab(
+              `
               select slice.*
               from slice
               join args using (arg_set_id)
               where key=${sqliteString(fullKey)} and display_value=${
-                sqliteString(argValue)}
+                  sqliteString(argValue)}
           `,
-          }));
+              `Arg: ${sqliteString(fullKey)}=${sqliteString(argValue)}`);
         },
       },
       {
