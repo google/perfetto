@@ -18,6 +18,7 @@ import {Actions} from '../common/actions';
 import * as version from '../gen/perfetto_version';
 
 import {globals} from './globals';
+import {runQueryInNewTab} from './query_result_tab';
 import {executeSearch} from './search_handler';
 import {taskTracker} from './task_tracker';
 
@@ -34,7 +35,6 @@ export const DISMISSED_PANNING_HINT_KEY = 'dismissedPanningHint';
 
 let mode: Mode = SEARCH;
 let displayStepThrough = false;
-let queryCount = 0;
 
 function onKeyDown(e: Event) {
   const event = (e as KeyboardEvent);
@@ -62,9 +62,12 @@ function onKeyDown(e: Event) {
   }
 
   if (mode === COMMAND && key === 'Enter') {
-    const queryId =
-        (event.metaKey || event.ctrlKey) ? `command_${queryCount++}` : 'command';
-    globals.dispatch(Actions.executeQuery({queryId, query: txt.value}));
+    const openInPinnedTab = event.metaKey || event.ctrlKey;
+    runQueryInNewTab(
+        txt.value,
+        openInPinnedTab ? 'Pinned query' : 'Omnibox query',
+        openInPinnedTab ? undefined : 'omnibox_query',
+    );
   }
 }
 
@@ -75,7 +78,6 @@ function onKeyUp(e: Event) {
   const txt = e.target as HTMLInputElement;
 
   if (key === 'Escape') {
-    globals.dispatch(Actions.deleteQuery({queryId: 'command'}));
     mode = SEARCH;
     txt.value = '';
     txt.blur();
