@@ -443,6 +443,10 @@ SELECT
         SELECT 'Unlock running during launch'
         WHERE IS_UNLOCK_RUNNING_DURING_LAUNCH(launches.startup_id)
 
+        UNION ALL
+        SELECT 'App in debuggable mode'
+        WHERE IS_PROCESS_DEBUGGABLE(launches.package)
+
       )
     )
   ) AS startup

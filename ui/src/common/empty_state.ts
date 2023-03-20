@@ -124,6 +124,15 @@ export function createEmptyState(): State {
       count: 0,
     },
 
+    ftracePagination: {
+      offset: 0,
+      count: 0,
+    },
+
+    ftraceFilter: {
+      excludedNames: [],
+    },
+
     status: {msg: '', timestamp: 0},
     currentSelection: null,
     currentFlamegraphState: null,
@@ -133,7 +142,7 @@ export function createEmptyState(): State {
     sidebarVisible: true,
     hoveredUtid: -1,
     hoveredPid: -1,
-    hoveredLogsTimestamp: -1,
+    hoverCursorTimestamp: -1,
     hoveredNoteTimestamp: -1,
     highlightedSliceId: -1,
     focusedFlowIdLeft: -1,

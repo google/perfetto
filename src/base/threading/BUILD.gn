@@ -17,7 +17,10 @@ import("../../../gn/test.gni")
 source_set("threading") {
   deps = [ "../../../gn:default_deps" ]
   public_deps = [ "../../../include/perfetto/ext/base/threading" ]
-  sources = [ "thread_pool.cc" ]
+  sources = [
+    "stream_combinators.cc",
+    "thread_pool.cc",
+  ]
 }
 
 perfetto_unittest_source_set("unittests") {
@@ -31,6 +34,8 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "channel_unittest.cc",
     "future_unittest.cc",
+    "stream_unittest.cc",
     "thread_pool_unittest.cc",
+    "util_unittest.cc",
   ]
 }

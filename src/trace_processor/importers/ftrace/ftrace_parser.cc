@@ -306,7 +306,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
           context_->storage->InternString("cma_nr_migrate_fail")),
       cma_nr_test_fail_id_(context_->storage->InternString("cma_nr_test_fail")),
       syscall_ret_id_(context->storage->InternString("ret")),
-      syscall_args_id_(context->storage->InternString("args")) {
+      syscall_args_id_(context->storage->InternString("args")),
+      replica_slice_id_(context->storage->InternString("replica_slice")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -578,7 +579,7 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
     }
 
     if (PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(fld.id())) {
-      pkvm_hyp_cpu_tracker_.ParseHypEvent(cpu, ts, fld.id());
+      pkvm_hyp_cpu_tracker_.ParseHypEvent(cpu, ts, fld.id(), fld_bytes);
     }
 
     switch (fld.id()) {
@@ -2871,26 +2872,42 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
   auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
       suspend_resume_name_id_);
 
+  std::string action_name = evt.action().ToStdString();
+
   // Hard code fix the timekeeping_freeze action's value to zero, the value is
   // processor_id and device could enter suspend/resume from different
   // processor.
-  auto val =
-      (evt.action().ToStdString() == "timekeeping_freeze") ? 0 : evt.val();
+  auto val = (action_name == "timekeeping_freeze") ? 0 : evt.val();
 
-  base::StackString<64> str("%s(%" PRIu32 ")",
-                            evt.action().ToStdString().c_str(), val);
+  base::StackString<64> str("%s(%" PRIu32 ")", action_name.c_str(), val);
+  std::string current_action = str.ToStdString();
+
   StringId slice_name_id = context_->storage->InternString(str.string_view());
 
-  if (evt.start()) {
-    TrackId start_id = context_->async_track_set_tracker->Begin(
-        async_track, static_cast<int64_t>(val));
-    context_->slice_tracker->Begin(timestamp, start_id, suspend_resume_name_id_,
-                                   slice_name_id);
-  } else {
+  if (!evt.start()) {
     TrackId end_id = context_->async_track_set_tracker->End(
         async_track, static_cast<int64_t>(val));
     context_->slice_tracker->End(timestamp, end_id);
+    ongoing_suspend_resume_actions[current_action] = false;
+    return;
   }
+
+  // Complete the previous action before starting a new one.
+  if (ongoing_suspend_resume_actions[current_action]) {
+    TrackId end_id = context_->async_track_set_tracker->End(
+        async_track, static_cast<int64_t>(val));
+    auto args_inserter = [this](ArgsTracker::BoundInserter* inserter) {
+      inserter->AddArg(replica_slice_id_, Variadic::Boolean(true));
+    };
+    context_->slice_tracker->End(timestamp, end_id, kNullStringId,
+                                 kNullStringId, args_inserter);
+  }
+
+  TrackId start_id = context_->async_track_set_tracker->Begin(
+      async_track, static_cast<int64_t>(val));
+  context_->slice_tracker->Begin(timestamp, start_id, suspend_resume_name_id_,
+                                 slice_name_id);
+  ongoing_suspend_resume_actions[current_action] = true;
 }
 
 void FtraceParser::ParseSchedCpuUtilCfs(int64_t timestamp,

@@ -60,6 +60,7 @@ class Column:
   # Private fields used by the generator. Do not set these manually.
   _is_auto_added_id: bool = False
   _is_auto_added_type: bool = False
+  _is_self_column: bool = True
 
 
 @dataclass
@@ -124,15 +125,17 @@ class Table:
     class_name: Name of the C++ table class.
     sql_name: Name of the table in SQL.
     columns: The columns in this table.
-    wrapping_sql_view: See |WrappingSqlView|.
     tabledoc: Documentation for this table. Can include
     documentation overrides for auto-added columns (i.e.
     id and type) and aliases added in |wrapping_sql_view|.
+    parent: The parent ("super-class") table for this table.
+    wrapping_sql_view: See |WrappingSqlView|.
   """
   class_name: str
   sql_name: str
   columns: List[Column]
   tabledoc: TableDoc
+  parent: Optional['Table'] = None
   wrapping_sql_view: Optional[WrappingSqlView] = None
 
 
@@ -149,6 +152,11 @@ class CppUint32(CppColumnType):
 @dataclass
 class CppInt32(CppColumnType):
   """Represents the int32_t C++ type."""
+
+
+@dataclass
+class CppDouble(CppColumnType):
+  """Represents the double C++ type."""
 
 
 @dataclass

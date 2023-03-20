@@ -14,7 +14,7 @@
 
 import {Draft} from 'immer';
 
-import {assertExists, assertTrue} from '../base/logging';
+import {assertExists, assertTrue, assertUnreachable} from '../base/logging';
 import {RecordConfig} from '../controller/record_config_types';
 import {globals} from '../frontend/globals';
 import {
@@ -40,10 +40,11 @@ import {
   CallsiteInfo,
   EngineMode,
   FlamegraphStateViewingOption,
+  FtraceFilterPatch,
   LoadedConfig,
-  LogsPagination,
   NewEngineMode,
   OmniboxState,
+  Pagination,
   PivotTableResult,
   PrimaryTrackSortKey,
   ProfileType,
@@ -396,20 +397,6 @@ export const StateActions = {
   updateTrackConfig(state: StateDraft, args: {id: string, config: {}}) {
     if (state.tracks[args.id] === undefined) return;
     state.tracks[args.id].config = args.config;
-  },
-
-  executeQuery(
-      state: StateDraft,
-      args: {queryId: string; query: string, engineId?: string}): void {
-    state.queries[args.queryId] = {
-      id: args.queryId,
-      query: args.query,
-      engineId: args.engineId,
-    };
-  },
-
-  deleteQuery(state: StateDraft, args: {queryId: string}): void {
-    delete state.queries[args.queryId];
   },
 
   moveTrack(
@@ -823,8 +810,34 @@ export const StateActions = {
     state.currentSelection = null;
   },
 
-  updateLogsPagination(state: StateDraft, args: LogsPagination): void {
+  updateLogsPagination(state: StateDraft, args: Pagination): void {
     state.logsPagination = args;
+  },
+
+  updateFtracePagination(state: StateDraft, args: Pagination): void {
+    state.ftracePagination = args;
+  },
+
+  updateFtraceFilter(state: StateDraft, patch: FtraceFilterPatch) {
+    const {excludedNames: diffs} = patch;
+    const excludedNames = state.ftraceFilter.excludedNames;
+    for (const [addRemove, name] of diffs) {
+      switch (addRemove) {
+        case 'add':
+          if (!excludedNames.some((excluded: string) => excluded === name)) {
+            excludedNames.push(name);
+          }
+          break;
+        case 'remove':
+          state.ftraceFilter.excludedNames =
+              state.ftraceFilter.excludedNames.filter(
+                  (excluded: string) => excluded !== name);
+          break;
+        default:
+          assertUnreachable(addRemove);
+          break;
+      }
+    }
   },
 
   startRecording(state: StateDraft, _: {}): void {
@@ -945,10 +958,6 @@ export const StateActions = {
     state.lastRecordingError = undefined;
   },
 
-  setAnalyzePageQuery(state: StateDraft, args: {query: string}): void {
-    state.analyzePageQuery = args.query;
-  },
-
   requestSelectedMetric(state: StateDraft, _: {}): void {
     if (!state.metrics.availableMetrics) throw Error('No metrics available');
     if (state.metrics.selectedIndex === undefined) {
@@ -1006,8 +1015,8 @@ export const StateActions = {
     state.searchIndex = args.index;
   },
 
-  setHoveredLogsTimestamp(state: StateDraft, args: {ts: number}) {
-    state.hoveredLogsTimestamp = args.ts;
+  setHoverCursorTimestamp(state: StateDraft, args: {ts: number}) {
+    state.hoverCursorTimestamp = args.ts;
   },
 
   setHoveredNoteTimestamp(state: StateDraft, args: {ts: number}) {

@@ -19,16 +19,20 @@ import {classNames} from './classnames';
 import {globals} from './globals';
 import {LIBRARY_ADD_CHECK} from './icons';
 import {createPage} from './pages';
+import {PopupMenuButton} from './popup_menu';
 import {TableShowcase} from './tables/table_showcase';
 import {Button} from './widgets/button';
 import {Checkbox} from './widgets/checkbox';
 import {EmptyState} from './widgets/empty_state';
 import {Icon} from './widgets/icon';
+import {Menu, MenuDivider, MenuItem, PopupMenu2} from './widgets/menu';
 import {MultiSelect, MultiSelectDiff} from './widgets/multiselect';
 import {Popup, PopupPosition} from './widgets/popup';
 import {Portal} from './widgets/portal';
 import {Select} from './widgets/select';
+import {Spinner} from './widgets/spinner';
 import {TextInput} from './widgets/text_input';
+import {Tree, TreeLayout, TreeNode} from './widgets/tree';
 
 const options: {[key: string]: boolean} = {
   foobar: false,
@@ -399,6 +403,175 @@ export const WidgetsPage = createPage({
             showNumSelected: true,
             repeatCheckedItemsAtTop: true,
           },
+        }),
+        m('h2', 'PopupMenu'),
+        m(WidgetShowcase, {
+          renderWidget: () => {
+            return m(PopupMenuButton, {
+              icon: 'description',
+              items: [
+                {itemType: 'regular', text: 'New', callback: () => {}},
+                {itemType: 'regular', text: 'Open', callback: () => {}},
+                {itemType: 'regular', text: 'Save', callback: () => {}},
+                {itemType: 'regular', text: 'Delete', callback: () => {}},
+                {
+                  itemType: 'group',
+                  text: 'Share',
+                  itemId: 'foo',
+                  children: [
+                    {itemType: 'regular', text: 'Friends', callback: () => {}},
+                    {itemType: 'regular', text: 'Family', callback: () => {}},
+                    {itemType: 'regular', text: 'Everyone', callback: () => {}},
+                  ],
+                },
+              ],
+            });
+          },
+        }),
+        m('h2', 'Menu'),
+        m(WidgetShowcase, {
+          renderWidget: () => m(
+              Menu,
+              m(MenuItem, {label: 'New', icon: 'add'}),
+              m(MenuItem, {label: 'Open', icon: 'folder_open'}),
+              m(MenuItem, {label: 'Save', icon: 'save', disabled: true}),
+              m(MenuDivider),
+              m(MenuItem, {label: 'Delete', icon: 'delete'}),
+              m(MenuDivider),
+              m(
+                  MenuItem,
+                  {label: 'Share', icon: 'share'},
+                  m(MenuItem, {label: 'Everyone', icon: 'public'}),
+                  m(MenuItem, {label: 'Friends', icon: 'group'}),
+                  m(
+                      MenuItem,
+                      {label: 'Specific people', icon: 'person_add'},
+                      m(MenuItem, {label: 'Alice', icon: 'person'}),
+                      m(MenuItem, {label: 'Bob', icon: 'person'}),
+                      ),
+                  ),
+              m(
+                  MenuItem,
+                  {label: 'More', icon: 'more_horiz'},
+                  m(MenuItem, {label: 'Query', icon: 'database'}),
+                  m(MenuItem, {label: 'Download', icon: 'download'}),
+                  m(MenuItem, {label: 'Clone', icon: 'copy_all'}),
+                  ),
+              ),
+
+        }),
+        m('h2', 'PopupMenu2'),
+        m(WidgetShowcase, {
+          renderWidget: (opts) => m(
+              PopupMenu2,
+              {
+                trigger: m(Button, {label: 'Menu', icon: 'arrow_drop_down'}),
+                ...opts,
+              },
+              m(MenuItem, {label: 'New', icon: 'add'}),
+              m(MenuItem, {label: 'Open', icon: 'folder_open'}),
+              m(MenuItem, {label: 'Save', icon: 'save', disabled: true}),
+              m(MenuDivider),
+              m(MenuItem, {label: 'Delete', icon: 'delete'}),
+              m(MenuDivider),
+              m(
+                  MenuItem,
+                  {label: 'Share', icon: 'share'},
+                  m(MenuItem, {label: 'Everyone', icon: 'public'}),
+                  m(MenuItem, {label: 'Friends', icon: 'group'}),
+                  m(
+                      MenuItem,
+                      {label: 'Specific people', icon: 'person_add'},
+                      m(MenuItem, {label: 'Alice', icon: 'person'}),
+                      m(MenuItem, {label: 'Bob', icon: 'person'}),
+                      ),
+                  ),
+              m(
+                  MenuItem,
+                  {label: 'More', icon: 'more_horiz'},
+                  m(MenuItem, {label: 'Query', icon: 'database'}),
+                  m(MenuItem, {label: 'Download', icon: 'download'}),
+                  m(MenuItem, {label: 'Clone', icon: 'copy_all'}),
+                  ),
+              ),
+          initialOpts: {
+            popupPosition: new EnumOption(
+                PopupPosition.Bottom,
+                Object.values(PopupPosition),
+                ),
+          },
+        }),
+        m('h2', 'Spinner'),
+        m('p', `Simple spinner, rotates forever. Width and height match the font
+         size.`),
+        m(WidgetShowcase, {
+          renderWidget: ({fontSize, easing}) =>
+              m('', {style: {fontSize}}, m(Spinner, {easing})),
+          initialOpts: {
+            fontSize: new EnumOption(
+                '16px',
+                ['12px', '16px', '24px', '32px', '64px', '128px'],
+                ),
+            easing: false,
+          },
+        }),
+        m('h2', 'Tree'),
+        m(WidgetShowcase, {
+          renderWidget: (opts) => m(
+              Tree,
+              opts,
+              m(TreeNode, {left: 'Name', right: 'my_event'}),
+              m(TreeNode, {left: 'CPU', right: '2'}),
+              m(TreeNode, {
+                left: 'SQL',
+                right: m(
+                    PopupMenu2,
+                    {
+                      trigger: m(Anchor, {
+                        text: 'SELECT * FROM raw WHERE id = 123',
+                        icon: 'unfold_more',
+                      }),
+                    },
+                    m(MenuItem, {
+                      label: 'Copy SQL Query',
+                      icon: 'content_copy',
+                    }),
+                    m(MenuItem, {
+                      label: 'Execute Query in new tab',
+                      icon: 'open_in_new',
+                    }),
+                    ),
+              }),
+              m(TreeNode, {
+                left: 'Thread',
+                right: m(Anchor, {text: 'my_thread[456]', icon: 'open_in_new'}),
+              }),
+              m(TreeNode, {
+                left: 'Process',
+                right: m(Anchor, {text: '/bin/foo[789]', icon: 'open_in_new'}),
+              }),
+              m(
+                  TreeNode,
+                  {left: 'Args', right: 'foo: bar, baz: qux'},
+                  m(TreeNode, {left: 'foo', right: 'bar'}),
+                  m(TreeNode, {left: 'baz', right: 'qux'}),
+                  m(
+                      TreeNode,
+                      {left: 'quux'},
+                      m(TreeNode, {left: '[0]', right: 'corge'}),
+                      m(TreeNode, {left: '[1]', right: 'grault'}),
+                      m(TreeNode, {left: '[2]', right: 'garply'}),
+                      m(TreeNode, {left: '[3]', right: 'waldo'}),
+                      ),
+                  ),
+              ),
+          initialOpts: {
+            layout: new EnumOption(
+                TreeLayout.Grid,
+                Object.values(TreeLayout),
+                ),
+          },
+          wide: true,
         }),
     );
   },

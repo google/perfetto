@@ -106,27 +106,36 @@ def parse_type(table: Table, col_type: CppColumnType) -> ParsedType:
   raise Exception(f'Unknown type {col_type}')
 
 
-def augment_table_with_auto_cols(table: Table) -> Table:
-  """Adds auto-added columns (i.e. id and type) to the user defined table."""
+def normalize_table_columns(table: Table):
+  """Normalizes the table by doing the following:
 
-  auto_cols = [
-      Column('id', CppSelfTableId(), ColumnFlag.SORTED, _is_auto_added_id=True),
-      Column('type', CppString(), ColumnFlag.NONE, _is_auto_added_type=True),
-  ]
-  public_sql_name = public_sql_name_for_table(table)
-  new_cols_doc: Dict[str, Union[ColumnDoc, str]] = {
-      'id':
-          ColumnDoc(doc=f'Unique idenitifier for this {public_sql_name}.'),
-      'type':
-          ColumnDoc(doc='''
-                The name of the "most-specific" child table containing this row.
-              '''),
-  }
-  new_cols_doc.update(table.tabledoc.columns)
-  return dataclasses.replace(
-      table,
-      columns=auto_cols + table.columns,
-      tabledoc=dataclasses.replace(table.tabledoc, columns=new_cols_doc))
+  1. Adding any columns from the parent, if this table is not a root.
+  2. Adding auto-defined columns (i.e. id and type), if this table is a root."""
+  if table.parent:
+    auto_cols = []
+    for col in table.parent.columns:
+      auto_cols.append(dataclasses.replace(col, _is_self_column=False))
+    new_cols_doc = table.tabledoc.columns
+  else:
+    auto_cols = [
+        Column(
+            'id', CppSelfTableId(), ColumnFlag.SORTED, _is_auto_added_id=True),
+        Column('type', CppString(), ColumnFlag.NONE, _is_auto_added_type=True),
+    ]
+    public_sql_name = public_sql_name_for_table(table)
+    new_cols_doc: Dict[str, Union[ColumnDoc, str]] = {
+        'id':
+            ColumnDoc(doc=f'Unique idenitifier for this {public_sql_name}.'),
+        'type':
+            ColumnDoc(doc='''
+                  The name of the "most-specific" child table containing this
+                  row.
+                '''),
+    }
+    new_cols_doc.update(table.tabledoc.columns)
+
+  table.columns = auto_cols + table.columns
+  table.tabledoc.columns = new_cols_doc
 
 
 def find_table_deps(table: Table) -> Set[str]:
@@ -135,6 +144,8 @@ def find_table_deps(table: Table) -> Set[str]:
   By "depends", we mean this table in C++ would need the dependency to be
   defined (or included) before this table is defined."""
   deps: Set[str] = set()
+  if table.parent:
+    deps.add(table.parent.class_name)
   for c in table.columns:
     id_table = parse_type(table, c.type).id_table
     if id_table:

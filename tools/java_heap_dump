@@ -151,11 +151,22 @@ def generate_heap_dump_config(args):
     continuous_dump_cfg = CONTINUOUS_DUMP.format(
         dump_interval=args.continuous_dump)
 
-  if args.stop_when_done:
+  if args.continuous_dump:
+    # Unlimited trace duration
+    duration_ms = 0
+  elif args.stop_when_done:
+    # Oneshot heapdump and the system supports data_source_stop_timeout_ms, we
+    # can use a short duration.
     duration_ms = 1000
+  else:
+    # Oneshot heapdump, but the system doesn't supports
+    # data_source_stop_timeout_ms, we have to use a longer duration in the hope
+    # of giving enough time to capture the whole dump.
+    duration_ms = 20000
+
+  if args.stop_when_done:
     data_source_stop_timeout_ms = 100000
   else:
-    duration_ms = 20000
     data_source_stop_timeout_ms = 0
 
   return CFG.format(
@@ -230,7 +241,8 @@ def main(argv):
   parser.add_argument(
       "-c",
       "--continuous-dump",
-      help="Dump interval in ms. 0 to disable continuous dump.",
+      help="Dump interval in ms. 0 to disable continuous dump. When continuous "
+      "dump is enabled, use CTRL+C to stop",
       type=int,
       default=0)
   parser.add_argument(
@@ -314,11 +326,21 @@ def main(argv):
     print("Dumping Java Heap.")
 
   exists = True
+  ctrl_c_count = 0
   # Wait for perfetto cmd to return.
   while exists:
-    exists = subprocess.call(
-        ['adb', 'shell', '[ -d /proc/{} ]'.format(perfetto_pid)]) == 0
-    time.sleep(1)
+    try:
+      exists = subprocess.call(
+          ['adb', 'shell', '[ -d /proc/{} ]'.format(perfetto_pid)]) == 0
+      time.sleep(1)
+    except KeyboardInterrupt as e:
+      ctrl_c_count += 1
+      subprocess.check_call(
+          ['adb', 'shell', 'kill -TERM {}'.format(perfetto_pid)])
+      if ctrl_c_count == 1:
+        print("Stopping perfetto and waiting for data...")
+      else:
+        raise e
 
   subprocess.check_call(['adb', 'pull', PROFILE_PATH, output_file], stdout=NULL)
 

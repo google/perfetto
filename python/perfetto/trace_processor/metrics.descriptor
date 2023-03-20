@@ -63,8 +63,8 @@ current_ua (R	currentUa$
 timestamp_ns (RtimestampNs
 duration_ns (R
 durationNs
-Ç
-Gprotos/perfetto/metrics/android/android_blocking_calls_cuj_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"²
+„
+Gprotos/perfetto/metrics/android/android_blocking_calls_cuj_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ï
 AndroidBlockingCallsCujMetricD
 cuj (22.perfetto.protos.AndroidBlockingCallsCujMetric.CujRcujò
 Cuj
@@ -73,12 +73,16 @@ Gprotos/perfetto/metrics/android/android_blocking_calls_cuj_metric.protoperfet
 process (2'.perfetto.protos.AndroidProcessMetadataRprocess
 ts (Rts
 dur (Rdurb
-blocking_calls (2;.perfetto.protos.AndroidBlockingCallsCujMetric.BlockingCallRblockingCallsV
+blocking_calls (2;.perfetto.protos.AndroidBlockingCallsCujMetric.BlockingCallRblockingCalls’
 BlockingCall
 name (	Rname
 cnt (Rcnt 
 total_dur_ms (R
-totalDurMs
+totalDurMs
+
+max_dur_ms (RmaxDurMs
+
+min_dur_ms (RminDurMs
 Ô
 0protos/perfetto/metrics/android/cpu_metric.protoperfetto.protos"Ž
 AndroidCpuMetricL
@@ -231,14 +235,15 @@ used_freqs (2E.perfetto.protos.AndroidGpuMetric.FrequencyMetric.MetricsPerFr
 
 percentage (R
 percentage
-Â	
-0protos/perfetto/metrics/android/hwcomposer.protoperfetto.protos"ü
+ò
+0protos/perfetto/metrics/android/hwcomposer.protoperfetto.protos"¬
 AndroidHwcomposerMetrics8
 composition_total_layers (RcompositionTotalLayers4
 composition_dpu_layers (RcompositionDpuLayers4
 composition_gpu_layers (RcompositionGpuLayersA
 composition_dpu_cached_layers (RcompositionDpuCachedLayers?
-composition_sf_cached_layers (RcompositionSfCachedLayers8
+composition_sf_cached_layers (RcompositionSfCachedLayers4
+composition_rcd_layers (RcompositionRcdLayers8
 skipped_validation_count (RskippedValidationCount<
 unskipped_validation_count (RunskippedValidationCount<
 separated_validation_count (RseparatedValidationCount8
@@ -248,13 +253,32 @@ percentage
 avg_skipped_execution_time_ms (RavgSkippedExecutionTimeMsD
 avg_unskipped_execution_time_ms (RavgUnskippedExecutionTimeMsD
 avg_separated_execution_time_ms (RavgSeparatedExecutionTimeMsb
-dpu_vote_metrics (28.perfetto.protos.AndroidHwcomposerMetrics.DpuVoteMetricsRdpuVoteMetricsÙ
+dpu_vote_metrics (28.perfetto.protos.AndroidHwcomposerMetrics.DpuVoteMetricsRdpuVoteMetricsk
+metrics_per_display (2;.perfetto.protos.AndroidHwcomposerMetrics.MetricsPerDisplayRmetricsPerDisplayÙ
 DpuVoteMetrics
 tid (Rtid+
 avg_dpu_vote_clock (RavgDpuVoteClock,
 avg_dpu_vote_avg_bw (RavgDpuVoteAvgBw.
 avg_dpu_vote_peak_bw (RavgDpuVotePeakBw*
-avg_dpu_vote_rt_bw (RavgDpuVoteRtBw
+avg_dpu_vote_rt_bw (RavgDpuVoteRtBwŠ
+MetricsPerDisplay
+
+display_id (	R	displayId8
+composition_total_layers (RcompositionTotalLayers4
+composition_dpu_layers (RcompositionDpuLayers4
+composition_gpu_layers (RcompositionGpuLayersA
+composition_dpu_cached_layers (RcompositionDpuCachedLayers?
+composition_sf_cached_layers (RcompositionSfCachedLayers4
+composition_rcd_layers (RcompositionRcdLayers8
+skipped_validation_count (RskippedValidationCount<
+unskipped_validation_count	 (RunskippedValidationCount<
+separated_validation_count
+ (RseparatedValidationCount8
+unknown_validation_count (RunknownValidationCount8
+avg_all_execution_time_ms (RavgAllExecutionTimeMs@
+avg_skipped_execution_time_ms (RavgSkippedExecutionTimeMsD
+avg_unskipped_execution_time_ms (RavgUnskippedExecutionTimeMsD
+avg_separated_execution_time_ms (RavgSeparatedExecutionTimeMs
 †
 1protos/perfetto/metrics/android/hwui_metric.protoperfetto.protos"ã
 ProcessRenderInfo!

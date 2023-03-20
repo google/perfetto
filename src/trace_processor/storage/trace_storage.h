@@ -44,7 +44,7 @@
 #include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/tables/slice_tables.h"
 #include "src/trace_processor/tables/trace_proto_tables.h"
-#include "src/trace_processor/tables/track_tables.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/views/slice_views.h"
 
@@ -621,6 +621,11 @@ class TraceStorage {
     return &heap_graph_reference_table_;
   }
 
+  const tables::CpuTrackTable& cpu_track_table() const {
+    return cpu_track_table_;
+  }
+  tables::CpuTrackTable* mutable_cpu_track_table() { return &cpu_track_table_; }
+
   const tables::GpuTrackTable& gpu_track_table() const {
     return gpu_track_table_;
   }
@@ -828,8 +833,9 @@ class TraceStorage {
   tables::ClockSnapshotTable clock_snapshot_table_{&string_pool_, nullptr};
 
   // Metadata for tracks.
-  tables::TrackTable track_table_{&string_pool_, nullptr};
+  tables::TrackTable track_table_{&string_pool_};
   tables::ThreadStateTable thread_state_table_{&string_pool_, nullptr};
+  tables::CpuTrackTable cpu_track_table_{&string_pool_, &track_table_};
   tables::GpuTrackTable gpu_track_table_{&string_pool_, &track_table_};
   tables::ProcessTrackTable process_track_table_{&string_pool_, &track_table_};
   tables::ThreadTrackTable thread_track_table_{&string_pool_, &track_table_};

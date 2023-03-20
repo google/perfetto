@@ -643,7 +643,7 @@ void ProcessStatsDataSource::WriteFds(int32_t pid) {
     return;
   }
 
-  base::StackString<64> path("%s/%" PRId32 "/fd", GetProcMountpoint(), pid);
+  base::StackString<256> path("%s/%" PRId32 "/fd", GetProcMountpoint(), pid);
   base::ScopedDir proc_dir(opendir(path.c_str()));
   if (!proc_dir) {
     PERFETTO_DPLOG("Failed to opendir(%s)", path.c_str());

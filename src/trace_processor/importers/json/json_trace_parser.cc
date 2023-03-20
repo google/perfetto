@@ -277,7 +277,8 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
         context_->storage->IncrementStats(stats::json_parser_failure);
         break;
       }
-      context_->slice_tracker->Scoped(timestamp, track_id, cat_id, name_id, 0);
+      context_->slice_tracker->Scoped(timestamp, track_id, cat_id, name_id, 0,
+                                      args_inserter);
       break;
     }
     case 's': {  // TRACE_EVENT_FLOW_START

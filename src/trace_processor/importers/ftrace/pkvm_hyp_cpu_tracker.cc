@@ -19,6 +19,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
+#include "protos/perfetto/trace/ftrace/hyp.pbzero.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -29,7 +30,9 @@ namespace trace_processor {
 PkvmHypervisorCpuTracker::PkvmHypervisorCpuTracker(
     TraceProcessorContext* context)
     : context_(context),
-      pkvm_hyp_id_(context->storage->InternString("pkvm_hyp")) {}
+      category_(context->storage->InternString("pkvm_hyp")),
+      slice_name_(context->storage->InternString("hyp")),
+      hyp_enter_reason_(context->storage->InternString("hyp_enter_reason")) {}
 
 // static
 bool PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(uint16_t event_id) {
@@ -37,6 +40,9 @@ bool PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(uint16_t event_id) {
   switch (event_id) {
     case FtraceEvent::kHypEnterFieldNumber:
     case FtraceEvent::kHypExitFieldNumber:
+    case FtraceEvent::kHostHcallFieldNumber:
+    case FtraceEvent::kHostMemAbortFieldNumber:
+    case FtraceEvent::kHostSmcFieldNumber:
       return true;
     default:
       return false;
@@ -45,7 +51,8 @@ bool PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(uint16_t event_id) {
 
 void PkvmHypervisorCpuTracker::ParseHypEvent(uint32_t cpu,
                                              int64_t timestamp,
-                                             uint16_t event_id) {
+                                             uint16_t event_id,
+                                             protozero::ConstBytes blob) {
   using protos::pbzero::FtraceEvent;
   switch (event_id) {
     case FtraceEvent::kHypEnterFieldNumber:
@@ -53,6 +60,15 @@ void PkvmHypervisorCpuTracker::ParseHypEvent(uint32_t cpu,
       break;
     case FtraceEvent::kHypExitFieldNumber:
       ParseHypExit(cpu, timestamp);
+      break;
+    case FtraceEvent::kHostHcallFieldNumber:
+      ParseHostHcall(cpu, blob);
+      break;
+    case FtraceEvent::kHostMemAbortFieldNumber:
+      ParseHostMemAbort(cpu, blob);
+      break;
+    case FtraceEvent::kHostSmcFieldNumber:
+      ParseHostSmc(cpu, blob);
       break;
     // TODO(b/249050813): add remaining hypervisor events
     default:
@@ -63,28 +79,71 @@ void PkvmHypervisorCpuTracker::ParseHypEvent(uint32_t cpu,
 void PkvmHypervisorCpuTracker::ParseHypEnter(uint32_t cpu, int64_t timestamp) {
   // TODO(b/249050813): handle bad events (e.g. 2 hyp_enter in a row)
 
-  // TODO(b/249050813): ideally we want to add here a reason for entering
-  // hypervisor (e.g. host_hcall). However, such reason comes in a separate
-  // hypevisor event, so for the time being use a very generic "in hyp" name.
-  // TODO(b/249050813): figure out the UI story once we add hyp events.
-  base::StackString<255> slice_name("in hyp");
-  StringId slice_id = context_->storage->InternString(slice_name.string_view());
-
-  StringId track_id = GetHypCpuTrackId(cpu);
-  TrackId track = context_->track_tracker->InternCpuTrack(track_id, cpu);
-  context_->slice_tracker->Begin(timestamp, track, pkvm_hyp_id_, slice_id);
+  TrackId track_id = GetHypCpuTrackId(cpu);
+  context_->slice_tracker->Begin(timestamp, track_id, category_, slice_name_);
 }
 
 void PkvmHypervisorCpuTracker::ParseHypExit(uint32_t cpu, int64_t timestamp) {
   // TODO(b/249050813): handle bad events (e.g. 2 hyp_exit in a row)
-  StringId track_id = GetHypCpuTrackId(cpu);
-  TrackId track = context_->track_tracker->InternCpuTrack(track_id, cpu);
-  context_->slice_tracker->End(timestamp, track);
+  TrackId track_id = GetHypCpuTrackId(cpu);
+  context_->slice_tracker->End(timestamp, track_id);
 }
 
-StringId PkvmHypervisorCpuTracker::GetHypCpuTrackId(uint32_t cpu) {
+void PkvmHypervisorCpuTracker::ParseHostHcall(uint32_t cpu,
+                                              protozero::ConstBytes blob) {
+  protos::pbzero::HostHcallFtraceEvent::Decoder evt(blob.data, blob.size);
+  TrackId track_id = GetHypCpuTrackId(cpu);
+
+  auto args_inserter = [this, &evt](ArgsTracker::BoundInserter* inserter) {
+    StringId host_hcall = context_->storage->InternString("host_hcall");
+    StringId id = context_->storage->InternString("id");
+    StringId invalid = context_->storage->InternString("invalid");
+    inserter->AddArg(hyp_enter_reason_, Variadic::String(host_hcall));
+    inserter->AddArg(id, Variadic::UnsignedInteger(evt.id()));
+    inserter->AddArg(invalid, Variadic::UnsignedInteger(evt.invalid()));
+  };
+  context_->slice_tracker->AddArgs(track_id, category_, slice_name_,
+                                   args_inserter);
+}
+
+void PkvmHypervisorCpuTracker::ParseHostSmc(uint32_t cpu,
+                                            protozero::ConstBytes blob) {
+  protos::pbzero::HostSmcFtraceEvent::Decoder evt(blob.data, blob.size);
+  TrackId track_id = GetHypCpuTrackId(cpu);
+
+  auto args_inserter = [this, &evt](ArgsTracker::BoundInserter* inserter) {
+    StringId host_smc = context_->storage->InternString("host_smc");
+    StringId id = context_->storage->InternString("id");
+    StringId forwarded = context_->storage->InternString("forwarded");
+    inserter->AddArg(hyp_enter_reason_, Variadic::String(host_smc));
+    inserter->AddArg(id, Variadic::UnsignedInteger(evt.id()));
+    inserter->AddArg(forwarded, Variadic::UnsignedInteger(evt.forwarded()));
+  };
+  context_->slice_tracker->AddArgs(track_id, category_, slice_name_,
+                                   args_inserter);
+}
+
+void PkvmHypervisorCpuTracker::ParseHostMemAbort(uint32_t cpu,
+                                                 protozero::ConstBytes blob) {
+  protos::pbzero::HostMemAbortFtraceEvent::Decoder evt(blob.data, blob.size);
+  TrackId track_id = GetHypCpuTrackId(cpu);
+
+  auto args_inserter = [this, &evt](ArgsTracker::BoundInserter* inserter) {
+    StringId host_mem_abort = context_->storage->InternString("host_mem_abort");
+    StringId esr = context_->storage->InternString("esr");
+    StringId addr = context_->storage->InternString("addr");
+    inserter->AddArg(hyp_enter_reason_, Variadic::String(host_mem_abort));
+    inserter->AddArg(esr, Variadic::UnsignedInteger(evt.esr()));
+    inserter->AddArg(addr, Variadic::UnsignedInteger(evt.addr()));
+  };
+  context_->slice_tracker->AddArgs(track_id, category_, slice_name_,
+                                   args_inserter);
+}
+
+TrackId PkvmHypervisorCpuTracker::GetHypCpuTrackId(uint32_t cpu) {
   base::StackString<255> track_name("pkVM Hypervisor CPU %d", cpu);
-  return context_->storage->InternString(track_name.string_view());
+  StringId track = context_->storage->InternString(track_name.string_view());
+  return context_->track_tracker->InternCpuTrack(track, cpu);
 }
 
 }  // namespace trace_processor

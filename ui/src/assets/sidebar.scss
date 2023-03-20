@@ -55,10 +55,10 @@
       display: block;
       position: absolute;
       font-size: 10px;
-      line-height: 10px;
+      line-height: 5px;
       font-family: "Roboto", sans-serif;
-      left: 155px;
       top: 7px;
+      right: 48px;
     }
     &.canary::before {
       content: "CANARY";
@@ -222,7 +222,7 @@
           }
           .material-icons {
             margin-right: 10px;
-            font-size: 20px
+            font-size: 20px;
           }
           &:hover {
             background-color: #373f4b;

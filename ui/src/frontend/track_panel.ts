@@ -241,6 +241,9 @@ interface TrackComponentAttrs {
 }
 class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
   view({attrs}: m.CVnode<TrackComponentAttrs>) {
+    // TODO(hjd): The min height below must match the track_shell_title
+    // max height in common.scss so we should read it from CSS to avoid
+    // them going out of sync.
     return m(
         '.track',
         {
@@ -388,11 +391,11 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
           size.height,
           `#aaa`);
     }
-    if (globals.state.hoveredLogsTimestamp !== -1) {
+    if (globals.state.hoverCursorTimestamp !== -1) {
       drawVerticalLineAtTime(
           ctx,
           localState.timeScale,
-          globals.state.hoveredLogsTimestamp,
+          globals.state.hoverCursorTimestamp,
           size.height,
           `#344596`);
     }

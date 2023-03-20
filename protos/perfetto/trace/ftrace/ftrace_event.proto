@@ -588,5 +588,8 @@ message FtraceEvent {
     MaliMaliKCPUFENCEWAITENDFtraceEvent mali_mali_KCPU_FENCE_WAIT_END = 475;
     HypEnterFtraceEvent hyp_enter = 476;
     HypExitFtraceEvent hyp_exit = 477;
+    HostHcallFtraceEvent host_hcall = 478;
+    HostSmcFtraceEvent host_smc = 479;
+    HostMemAbortFtraceEvent host_mem_abort = 480;
   }
 }

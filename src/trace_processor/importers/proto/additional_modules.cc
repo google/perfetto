@@ -21,6 +21,7 @@
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
 #include "src/trace_processor/importers/proto/metadata_module.h"
+#include "src/trace_processor/importers/proto/network_trace_module.h"
 #include "src/trace_processor/importers/proto/statsd_module.h"
 #include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "src/trace_processor/importers/proto/translation_table_module.h"
@@ -30,6 +31,7 @@ namespace trace_processor {
 
 void RegisterAdditionalModules(TraceProcessorContext* context) {
   context->modules.emplace_back(new AndroidProbesModule(context));
+  context->modules.emplace_back(new NetworkTraceModule(context));
   context->modules.emplace_back(new GraphicsEventModule(context));
   context->modules.emplace_back(new HeapGraphModule(context));
   context->modules.emplace_back(new SystemProbesModule(context));

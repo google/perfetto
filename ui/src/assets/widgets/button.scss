@@ -23,6 +23,8 @@
   transition: background $pf-anim-timing, box-shadow $pf-anim-timing;
   border-radius: $pf-border-radius;
   padding: 4px 8px;
+  white-space: nowrap;
+  min-width: max-content;
 
   & > .material-icons {
     font-size: inherit;
@@ -43,7 +45,7 @@
   }
 
   &:focus-visible {
-    @include focus
+    @include focus;
   }
 
   &[disabled] {

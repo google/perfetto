@@ -37,7 +37,6 @@
 #include "protos/perfetto/trace/android/android_log.pbzero.h"
 #include "protos/perfetto/trace/android/android_system_property.pbzero.h"
 #include "protos/perfetto/trace/android/initial_display_state.pbzero.h"
-#include "protos/perfetto/trace/android/network_trace.pbzero.h"
 #include "protos/perfetto/trace/power/android_energy_estimation_breakdown.pbzero.h"
 #include "protos/perfetto/trace/power/android_entity_state_residency.pbzero.h"
 #include "protos/perfetto/trace/power/battery_counters.pbzero.h"
@@ -51,22 +50,6 @@
 
 namespace perfetto {
 namespace trace_processor {
-namespace {
-// Convert the bitmask into a string where '.' indicates an unset bit
-// and each bit gets a unique letter if set. The letters correspond to
-// the bitfields in tcphdr (fin, syn, rst, etc).
-base::StackString<12> GetTcpFlagMask(uint32_t tcp_flags) {
-  static constexpr char kBitNames[] = "fsrpauec";
-  static constexpr int kBitCount = 8;
-
-  char flags[kBitCount + 1] = {'\0'};
-  for (int f = 0; f < kBitCount; f++) {
-    flags[f] = (tcp_flags & (1 << f)) ? kBitNames[f] : '.';
-  }
-
-  return base::StackString<12>("%s", flags);
-}
-}  // namespace
 
 AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
     : context_(context),
@@ -78,15 +61,7 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
       screen_state_id_(context->storage->InternString("ScreenState")),
       device_state_id_(context->storage->InternString("DeviceStateChanged")),
       battery_status_id_(context->storage->InternString("BatteryStatus")),
-      plug_type_id_(context->storage->InternString("PlugType")),
-      net_arg_length_(context->storage->InternString("packet_length")),
-      net_arg_ip_proto_(context->storage->InternString("packet_transport")),
-      net_arg_tcp_flags_(context->storage->InternString("packet_tcp_flags")),
-      net_arg_tag_(context->storage->InternString("socket_tag")),
-      net_arg_local_port_(context->storage->InternString("local_port")),
-      net_arg_remote_port_(context->storage->InternString("remote_port")),
-      net_ipproto_tcp_(context->storage->InternString("IPPROTO_TCP")),
-      net_ipproto_udp_(context->storage->InternString("IPPROTO_UDP")) {}
+      plug_type_id_(context->storage->InternString("PlugType")) {}
 
 void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   protos::pbzero::BatteryCounters::Decoder evt(blob.data, blob.size);
@@ -307,15 +282,19 @@ void AndroidProbesParser::ParseAndroidLogEvent(ConstBytes blob) {
     msg_id = context_->storage->InternString(&arg_msg[1]);
   }
   UniquePid utid = tid ? context_->process_tracker->UpdateThread(tid, pid) : 0;
-  base::Optional<int64_t> opt_trace_time = context_->clock_tracker->ToTraceTime(
+  base::StatusOr<int64_t> trace_time = context_->clock_tracker->ToTraceTime(
       protos::pbzero::BUILTIN_CLOCK_REALTIME, ts);
-  if (!opt_trace_time)
+  if (!trace_time.ok()) {
+    static std::atomic<uint32_t> dlog_count(0);
+    if (dlog_count++ < 10)
+      PERFETTO_DLOG("%s", trace_time.status().c_message());
     return;
+  }
 
   // Log events are NOT required to be sorted by trace_time. The virtual table
   // will take care of sorting on-demand.
   context_->storage->mutable_android_log_table()->Insert(
-      {opt_trace_time.value(), utid, prio, tag_id, msg_id});
+      {trace_time.value(), utid, prio, tag_id, msg_id});
 }
 
 void AndroidProbesParser::ParseAndroidLogStats(ConstBytes blob) {
@@ -468,71 +447,6 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
       }
     }
   }
-}
-
-void AndroidProbesParser::ParseNetworkPacketEvent(int64_t ts, ConstBytes blob) {
-  using protos::pbzero::NetworkPacketEvent;
-  using protos::pbzero::TrafficDirection;
-  NetworkPacketEvent::Decoder evt(blob);
-
-  // Tracks are per interface and per direction.
-  const char* track_suffix =
-      evt.direction() == TrafficDirection::DIR_INGRESS  ? " Received"
-      : evt.direction() == TrafficDirection::DIR_EGRESS ? " Transmitted"
-                                                        : " DIR_UNKNOWN";
-
-  base::StackString<64> name("%.*s%s", static_cast<int>(evt.interface().size),
-                             evt.interface().data, track_suffix);
-  StringId name_id = context_->storage->InternString(name.string_view());
-
-  // Event titles are the package name, if available.
-  StringId title_id = kNullStringId;
-  if (evt.uid() > 0) {
-    const auto& package_list = context_->storage->package_list_table();
-    base::Optional<uint32_t> pkg_row = package_list.uid().IndexOf(evt.uid());
-    if (pkg_row) {
-      title_id = package_list.package_name()[*pkg_row];
-    }
-  }
-
-  // If the above fails, fall back to the uid.
-  if (title_id == kNullStringId) {
-    base::StackString<32> title_str("uid=%" PRIu32, evt.uid());
-    title_id = context_->storage->InternString(title_str.string_view());
-  }
-
-  TrackId track_id = context_->async_track_set_tracker->Scoped(
-      context_->async_track_set_tracker->InternGlobalTrackSet(name_id), ts, 0);
-
-  context_->slice_tracker->Scoped(
-      ts, track_id, name_id, title_id, 0, [&](ArgsTracker::BoundInserter* i) {
-        i->AddArg(net_arg_length_, Variadic::Integer(evt.length()));
-
-        StringId ip_proto;
-        if (evt.ip_proto() == kIpprotoTcp) {
-          ip_proto = net_ipproto_tcp_;
-        } else if (evt.ip_proto() == kIpprotoUdp) {
-          ip_proto = net_ipproto_udp_;
-        } else {
-          base::StackString<32> proto("IPPROTO (%d)", evt.ip_proto());
-          ip_proto = context_->storage->InternString(proto.string_view());
-        }
-
-        i->AddArg(net_arg_ip_proto_, Variadic::String(ip_proto));
-
-        base::StackString<16> tag("0x%x", evt.tag());
-        i->AddArg(net_arg_tag_,
-                  Variadic::String(
-                      context_->storage->InternString(tag.string_view())));
-
-        base::StackString<12> flags = GetTcpFlagMask(evt.tcp_flags());
-        i->AddArg(net_arg_tcp_flags_,
-                  Variadic::String(
-                      context_->storage->InternString(flags.string_view())));
-
-        i->AddArg(net_arg_local_port_, Variadic::Integer(evt.local_port()));
-        i->AddArg(net_arg_remote_port_, Variadic::Integer(evt.remote_port()));
-      });
 }
 
 }  // namespace trace_processor

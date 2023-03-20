@@ -22,6 +22,7 @@
 #include "perfetto/tracing/internal/basic_types.h"
 #include "protos/perfetto/common/data_source_descriptor.gen.h"
 #include "protos/perfetto/config/data_source_config.gen.h"
+#include "src/shared_lib/reset_for_testing.h"
 #include "src/shared_lib/stream_writer.h"
 
 namespace {
@@ -69,6 +70,22 @@ struct PerfettoDsImpl {
            perfetto::internal::kMaxDataSources;
   }
 };
+
+namespace perfetto {
+namespace shlib {
+
+// These are only exposed to tests.
+
+void ResetDataSourceTls() {
+  memset(g_tls_cache, 0, sizeof(g_tls_cache));
+}
+
+void DsImplDestroy(struct PerfettoDsImpl* ds_impl) {
+  delete ds_impl;
+}
+
+}  // namespace shlib
+}  // namespace perfetto
 
 namespace {
 
@@ -129,10 +146,13 @@ struct DataSourceTraits {
       perfetto::internal::DataSourceStaticState* static_state,
       perfetto::internal::TracingTLS* root_tls) {
     auto* ds_tls = &root_tls->data_sources_tls[static_state->index];
-    // The per-type TLS is either zero-initialized or must have been
-    // initialized for this specific data source type.
-    PERFETTO_DCHECK(!ds_tls->static_state ||
-                    ds_tls->static_state->index == static_state->index);
+    // ds_tls->static_state can be:
+    // * nullptr
+    // * equal to static_state
+    // * equal to the static state of a different data source, in tests (when
+    //   ResetForTesting() has been used)
+    // In any case, there's no need to do anything, the caller will reinitialize
+    // static_state.
     return ds_tls;
   }
 };

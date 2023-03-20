@@ -133,7 +133,7 @@ shared_library_allowlist = [
     'android.hardware.health@2.0',
     'android.hardware.health-V2-ndk',
     'android.hardware.power.stats@1.0',
-    "android.hardware.power.stats-V1-cpp",
+    'android.hardware.power.stats-V1-cpp',
     'base',
     'binder',
     'binder_ndk',
@@ -145,7 +145,7 @@ shared_library_allowlist = [
     'log',
     'services',
     'statssocket',
-    "tracingproxy",
+    'tracingproxy',
     'utils',
 ]
 
@@ -171,7 +171,7 @@ android_protobuf_src = 'external/protobuf/src'
 cflag_allowlist = r'^-DPERFETTO.*$'
 
 # Compiler defines which are passed through to the blueprint.
-define_allowlist = r'^(GOOGLE_PROTO.*)|(ZLIB_.*)|(USE_MMAP)|(HAVE_HIDDEN)$'
+define_allowlist = r'^(GOOGLE_PROTO.*)|(ZLIB_.*)|(USE_MMAP)$'
 
 # The directory where the generated perfetto_build_flags.h will be copied into.
 buildflags_dir = 'include/perfetto/base/build_configs/android_tree'

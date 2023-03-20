@@ -97,7 +97,6 @@ AndroidProbesModule::AndroidProbesModule(TraceProcessorContext* context)
                    context);
   RegisterForField(TracePacket::kInitialDisplayStateFieldNumber, context);
   RegisterForField(TracePacket::kAndroidSystemPropertyFieldNumber, context);
-  RegisterForField(TracePacket::kNetworkPacketFieldNumber, context);
 }
 
 ModuleResult AndroidProbesModule::TokenizePacket(
@@ -228,9 +227,6 @@ void AndroidProbesModule::ParseTracePacketData(
       return;
     case TracePacket::kAndroidSystemPropertyFieldNumber:
       parser_.ParseAndroidSystemProperty(ts, decoder.android_system_property());
-      return;
-    case TracePacket::kNetworkPacketFieldNumber:
-      parser_.ParseNetworkPacketEvent(ts, decoder.network_packet());
       return;
   }
 }

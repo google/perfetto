@@ -204,6 +204,29 @@ bool DoUnwind(WireMessage* msg, UnwindingMetadata* metadata, AllocRecord* out) {
   return true;
 }
 
+UnwindingWorker::~UnwindingWorker() {
+  if (thread_task_runner_.get() == nullptr) {
+    return;
+  }
+  std::mutex mutex;
+  std::condition_variable cv;
+
+  std::unique_lock<std::mutex> lock(mutex);
+  bool done = false;
+  thread_task_runner_.PostTask([&mutex, &cv, &done, this] {
+    for (auto& it : client_data_) {
+      auto& client_data = it.second;
+      client_data.sock->Shutdown(false);
+    }
+    client_data_.clear();
+
+    std::lock_guard<std::mutex> inner_lock(mutex);
+    done = true;
+    cv.notify_one();
+  });
+  cv.wait(lock, [&done] { return done; });
+}
+
 void UnwindingWorker::OnDisconnect(base::UnixSocket* self) {
   pid_t peer_pid = self->peer_pid_linux();
   auto it = client_data_.find(peer_pid);

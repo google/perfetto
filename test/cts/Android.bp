@@ -14,7 +14,6 @@ cc_test {
     "end_to_end_integrationtest_cts.cc",
     "heapprofd_java_test_cts.cc",
     "heapprofd_test_cts.cc",
-    "reporter_test_cts.cc",
     "traced_perf_test_cts.cc",
     ":perfetto_protos_perfetto_config_cpp_gen",
     ":perfetto_protos_perfetto_common_cpp_gen"
@@ -39,6 +38,7 @@ cc_test {
   ],
   test_suites: [
     "cts",
+    "mts",
     "vts10",
     "general-tests",
   ],
@@ -58,9 +58,11 @@ cc_test {
         ":CtsPerfettoProducerApp",
         ":CtsPerfettoReleaseApp",
         ":CtsPerfettoDebuggableApp",
-        ":CtsPerfettoReporterApp"
   ],
   stl: "libc++_static",
+  // This test is also run via Mainline Testing against the ART Mainline
+  // Module, which is updatable since Android 12 (API level 31).
+  min_sdk_version: "31",
   defaults: [
     "perfetto_defaults",
   ],

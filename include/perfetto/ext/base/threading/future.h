@@ -80,15 +80,15 @@ class Future final {
   Future(T item) : pollable_(new ImmediateImpl<T>(std::move(item))) {}
 
   // Intentionally implicit to allow for egonomic definition of functions
-  // returning Future<base::StatusOr<T>> by simply returning base::ErrStatus.
+  // returning Future<StatusOr<T>> by simply returning ErrStatus.
   // The enable_if is necessary because this definition is the same as the above
   // constructor in cases where T = base::Status.
   template <typename U = T,
-            typename = std::enable_if_t<!std::is_same_v<base::Status, U>>>
-  Future(base::Status status) : Future(T(std::move(status))) {}
+            typename = std::enable_if_t<!std::is_same_v<Status, U>>>
+  Future(Status status) : Future(T(std::move(status))) {}
 
   // Intentionally implicit to allow for egonomic definition of functions
-  // returning Future<base::StatusOr<T>> by simply returning T.
+  // returning Future<StatusOr<T>> by simply returning T.
   template <typename U = T, typename = typename U::value_type>
   Future(typename U::value_type val) : Future(T(std::move(val))) {}
 
@@ -132,12 +132,12 @@ class Future final {
 
 // Alias to shorten type defintions for Future<Status> which is common in
 // the codebase.
-using StatusFuture = base::Future<base::Status>;
+using StatusFuture = Future<Status>;
 
 // Alias to shorten type defintions for Future<StatusOr<T>> which is common
 // in the codebase.
 template <typename T>
-using StatusOrFuture = base::Future<base::StatusOr<T>>;
+using StatusOrFuture = Future<StatusOr<T>>;
 
 }  // namespace base
 }  // namespace perfetto

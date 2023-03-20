@@ -1176,39 +1176,50 @@ source_set("zlib") {
   visibility = _buildtools_visibility
   sources = [
     "zlib/adler32.c",
+    "zlib/chromeconf.h",
     "zlib/compress.c",
+    "zlib/contrib/optimizations/insert_string.h",
     "zlib/cpu_features.c",
+    "zlib/cpu_features.h",
     "zlib/crc32.c",
+    "zlib/crc32.h",
     "zlib/deflate.c",
+    "zlib/deflate.h",
     "zlib/gzclose.c",
+    "zlib/gzguts.h",
     "zlib/gzlib.c",
     "zlib/gzread.c",
     "zlib/gzwrite.c",
     "zlib/infback.c",
     "zlib/inffast.c",
+    "zlib/inffast.h",
+    "zlib/inffixed.h",
     "zlib/inflate.c",
+    "zlib/inflate.h",
     "zlib/inftrees.c",
+    "zlib/inftrees.h",
     "zlib/trees.c",
+    "zlib/trees.h",
     "zlib/uncompr.c",
+    "zlib/zconf.h",
+    "zlib/zlib.h",
     "zlib/zutil.c",
+    "zlib/zutil.h",
   ]
   configs -= [ "//gn/standalone:extra_warnings" ]
-  cflags = []
   public_configs = [ ":zlib_config" ]
   deps = [ "//gn:default_deps" ]
 
   # TODO(primiano): look into ADLER32_SIMD_SSSE3 and other SIMD optimizations
   # (from chromium's third_party/zlib/BUILD.gn).
-  if (is_win) {
-    defines = [ "X86_WINDOWS" ]
-  }
 }
 
 config("zlib_config") {
   visibility = _buildtools_visibility
-  if (!is_win) {
-    defines = [ "HAVE_HIDDEN" ]
-  }
+  defines = [
+    "ZLIB_IMPLEMENTATION",
+    "CHROMIUM_ZLIB_NO_CHROMECONF",
+  ]
   cflags = [
     # Using -isystem instead of include_dirs (-I), so we don't need to suppress
     # warnings coming from third-party headers. Doing so would mask warnings in

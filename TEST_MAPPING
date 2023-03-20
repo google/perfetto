@@ -9,6 +9,16 @@
       "name": "libsurfaceflinger_unittest"
     }
   ],
+  "mainline-presubmit": [
+    {
+      "name": "CtsPerfettoTestCases[com.google.android.art.apex]",
+      "options": [
+        {
+          "include-filter": "HeapprofdJavaCtsTest*"
+        }
+      ]
+    }
+  ],
   "hwasan-presubmit": [
     {
       "name": "CtsPerfettoTestCases"

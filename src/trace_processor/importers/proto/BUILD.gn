@@ -36,6 +36,8 @@ source_set("minimal") {
     "metadata_minimal_module.h",
     "metadata_tracker.cc",
     "metadata_tracker.h",
+    "network_trace_module.cc",
+    "network_trace_module.h",
     "packet_analyzer.cc",
     "packet_analyzer.h",
     "packet_sequence_state.h",
