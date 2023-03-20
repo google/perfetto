@@ -122,27 +122,30 @@ export class FtraceController extends Controller<'main'> {
 
     let queryRes = await this.engine.query(`
       select count(id) as numEvents
-      from raw
-      where name not in (${excludeListSql}) and ts >= ${startNs} and ts <= ${
-        endNs};`);
+      from ftrace_event
+      where
+        ftrace_event.name not in (${excludeListSql}) and
+        ts >= ${startNs} and ts <= ${endNs}
+      `);
     const {numEvents} = queryRes.firstRow({numEvents: NUM});
 
     queryRes = await this.engine.query(`
       select
-        raw.id as id,
-        raw.ts as ts,
-        raw.name as name,
-        raw.cpu as cpu,
+        ftrace_event.id as id,
+        ftrace_event.ts as ts,
+        ftrace_event.name as name,
+        ftrace_event.cpu as cpu,
         thread.name as thread,
         process.name as process,
-        to_ftrace(raw.id) as args
-      from raw
+        to_ftrace(ftrace_event.id) as args
+      from ftrace_event
       left join thread
-      on raw.utid = thread.utid
+      on ftrace_event.utid = thread.utid
       left join process
       on thread.upid = process.upid
-      where raw.name not in (${excludeListSql}) and ts >= ${
-        startNs} and ts <= ${endNs}
+      where
+        ftrace_event.name not in (${excludeListSql}) and
+        ts >= ${startNs} and ts <= ${endNs}
       order by id
       limit ${count} offset ${offset};`);
     const events: FtraceEvent[] = [];
