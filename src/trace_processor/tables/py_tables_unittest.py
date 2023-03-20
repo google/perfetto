@@ -29,6 +29,15 @@ EVENT_TABLE = Table(
     ],
     tabledoc=TableDoc(doc='', group='', columns={}))
 
+SLICE_TABLE = Table(
+    class_name="TestSliceTable",
+    sql_name="slice",
+    parent=EVENT_TABLE,
+    columns=[
+        C("dur", CppInt64()),
+    ],
+    tabledoc=TableDoc(doc='', group='', columns={}))
+
 ARGS_TABLE = Table(
     class_name="TestArgsTable",
     sql_name="args",
@@ -43,4 +52,5 @@ ARGS_TABLE = Table(
 ALL_TABLES = [
     ARGS_TABLE,
     EVENT_TABLE,
+    SLICE_TABLE,
 ]
