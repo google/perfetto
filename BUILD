@@ -2459,6 +2459,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_traced_probes_statsd_client_statsd_client",
     srcs = [
+        "src/traced/probes/statsd_client/common.cc",
+        "src/traced/probes/statsd_client/common.h",
         "src/traced/probes/statsd_client/statsd_data_source.cc",
         "src/traced/probes/statsd_client/statsd_data_source.h",
     ],
