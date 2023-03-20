@@ -700,7 +700,10 @@ class TrackDecider {
   }
 
   async addFtraceTrack(engine: EngineProxy): Promise<void> {
-    const query = `select cpu, count(*) as cnt from raw
+    const query = `select
+            cpu,
+            count(*) as cnt
+          from ftrace_event
           where cpu + 1 > 1 or utid + 1 > 1
           group by cpu`;
 
