@@ -23,6 +23,7 @@
 #include <array>
 #include <atomic>
 #include <bitset>
+#include <functional>
 #include <list>
 #include <map>
 #include <memory>
@@ -57,6 +58,10 @@ struct TracingInitArgs;
 
 namespace base {
 class TaskRunner;
+}
+
+namespace shlib {
+void ResetForTesting();
 }
 
 namespace test {
@@ -190,6 +195,7 @@ class TracingMuxerImpl : public TracingMuxer {
 
  private:
   friend class test::TracingMuxerImplInternalsForTest;
+  friend void shlib::ResetForTesting();
 
   // For each TracingBackend we create and register one ProducerImpl instance.
   // This talks to the producer-side of the service, gets start/stop requests
@@ -502,6 +508,9 @@ class TracingMuxerImpl : public TracingMuxer {
                                DataSourceInstanceID,
                                const FindDataSourceRes&);
   void AbortStartupTracingSession(TracingSessionGlobalID, BackendType);
+  // When ResetForTesting() is executed, `cb` will be called on the calling
+  // thread and on the muxer thread.
+  void AppendResetForTestingCallback(std::function<void()> cb);
 
   // WARNING: If you add new state here, be sure to update ResetForTesting.
   std::unique_ptr<base::TaskRunner> task_runner_;
@@ -530,6 +539,11 @@ class TracingMuxerImpl : public TracingMuxer {
   // kept alive until all inbound references have gone away. See
   // SweepDeadBackends().
   std::list<RegisteredProducerBackend> dead_backends_;
+
+  // Test only member.
+  // Executes these cleanup functions on the calling thread and on the muxer
+  // thread when ResetForTesting() is called.
+  std::list<std::function<void()>> reset_callbacks_;
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };

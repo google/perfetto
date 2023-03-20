@@ -206,5 +206,13 @@ void TracingMuxerImplInternalsForTest::ClearIncrementalState() {
   }
 }
 
+// static
+void TracingMuxerImplInternalsForTest::AppendResetForTestingCallback(
+    std::function<void()> f) {
+  auto* muxer =
+      reinterpret_cast<TracingMuxerImpl*>(TracingMuxerImpl::instance_);
+  muxer->AppendResetForTestingCallback(f);
+}
+
 }  // namespace test
 }  // namespace perfetto
