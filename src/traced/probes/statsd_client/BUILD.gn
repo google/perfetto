@@ -31,8 +31,10 @@ source_set("statsd_client") {
     "../common",
   ]
   sources = [
-    "statsd_data_source.cc",
-    "statsd_data_source.h",
+    "common.cc",
+    "common.h",
+    "statsd_exec_data_source.cc",
+    "statsd_exec_data_source.h",
   ]
 }
 
@@ -52,5 +54,5 @@ perfetto_unittest_source_set("unittests") {
     "../../../../src/tracing/test:test_support",
     "../common:test_support",
   ]
-  sources = [ "statsd_data_source_unittest.cc" ]
+  sources = [ "common_unittest.cc" ]
 }
