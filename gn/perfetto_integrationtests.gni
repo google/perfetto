@@ -17,14 +17,14 @@ import("perfetto.gni")
 perfetto_integrationtests_targets = [
   "gn:default_deps",
   "src/tracing/test:client_api_integrationtests",
+  "src/shared_lib/test:integrationtests",
 ]
 
 if (enable_perfetto_ipc && enable_perfetto_system_consumer) {
-  perfetto_integrationtests_targets +=
-      [
-        "src/tracing/test:tracing_integration_test",
-        "src/tracing:integrationtests",
-      ]
+  perfetto_integrationtests_targets += [
+    "src/tracing/test:tracing_integration_test",
+    "src/tracing:integrationtests",
+  ]
 }
 
 if (enable_perfetto_traced_probes) {

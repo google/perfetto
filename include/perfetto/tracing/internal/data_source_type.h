@@ -294,7 +294,8 @@ class PERFETTO_EXPORT_COMPONENT DataSourceType {
     DataSourceThreadLocalState* ds_tls =
         DataSourceTraits::GetDataSourceTLS(&state_, root_tls);
     // We keep re-initializing as the initialization is idempotent and not worth
-    // the code for extra checks.
+    // the code for extra checks. Also, ds_tls->static_state might point to
+    // another data source if ResetForTesting() has been used.
     ds_tls->static_state = &state_;
     assert(!ds_tls->root_tls || ds_tls->root_tls == root_tls);
     ds_tls->root_tls = root_tls;
