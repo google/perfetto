@@ -97,7 +97,7 @@ constexpr ProcessName kProcessNames[] = {
     {ChromeProcessDescriptor::PROCESS_SERVICE_MEDIAPARSER,
      "Service: chrome.mojom.MediaParserFactory"},
     {ChromeProcessDescriptor::PROCESS_SERVICE_QRCODEGENERATOR,
-     "Service: qrcode_generator.mojom.QRCodeGeneratorService"},
+     "Service: qrcode_generator.mojom.QRCodeService"},
     {ChromeProcessDescriptor::PROCESS_SERVICE_PROFILEIMPORT,
      "Service: chrome.mojom.ProfileImport"},
     {ChromeProcessDescriptor::PROCESS_SERVICE_IME,
