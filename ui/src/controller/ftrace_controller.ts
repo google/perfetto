@@ -137,9 +137,9 @@ export class FtraceController extends Controller<'main'> {
         process.name as process,
         to_ftrace(raw.id) as args
       from raw
-      join thread
+      left join thread
       on raw.utid = thread.utid
-      join process
+      left join process
       on thread.upid = process.upid
       where raw.name not in (${excludeListSql}) and ts >= ${
         startNs} and ts <= ${endNs}
