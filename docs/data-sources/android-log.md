@@ -48,10 +48,10 @@ ts | tid | pid | process | prio | tag | msg
 ### TraceConfig
 
 Trace proto:
-[AndroidLogConfig](/docs/reference/trace-packet-proto.autogen#AndroidLogConfig)
+[AndroidLogPacket](/docs/reference/trace-packet-proto.autogen#AndroidLogPacket)
 
 Config proto:
-[AndroidPowerConfig](/docs/reference/trace-config-proto.autogen#AndroidPowerConfig)
+[AndroidLogConfig](/docs/reference/trace-config-proto.autogen#AndroidLogConfig)
 
 Sample config:
 
