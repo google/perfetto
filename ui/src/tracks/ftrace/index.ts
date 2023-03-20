@@ -70,9 +70,10 @@ class FtraceRawTrackController extends TrackController<Config, Data> {
         type,
         count(type) as numEvents,
         name
-      from raw
-      where name not in (${excludeListSql}) and ts >= ${startNs} and ts <= ${
-        endNs} ${cpuFilter}
+      from ftrace_event
+      where
+        name not in (${excludeListSql}) and
+        ts >= ${startNs} and ts <= ${endNs} ${cpuFilter}
       group by tsQuant
       order by tsQuant limit ${LIMIT};`);
 
