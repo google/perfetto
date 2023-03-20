@@ -157,7 +157,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../base",
       "../protozero",
       "db",
-      "dynamic",
       "importers/android_bugreport",
       "importers/common",
       "importers/ftrace:full",
@@ -172,6 +171,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "metrics",
       "prelude/functions",
       "prelude/operators",
+      "prelude/table_functions",
       "sqlite",
       "stdlib:gen_amalgamated_stdlib",
       "storage",
@@ -287,9 +287,9 @@ perfetto_unittest_source_set("unittests") {
   }
   if (enable_perfetto_trace_processor_sqlite) {
     deps += [
-      "dynamic:unittests",
       "prelude/functions:unittests",
       "prelude/operators:unittests",
+      "prelude/table_functions:unittests",
       "sqlite:unittests",
     ]
   }
