@@ -31,7 +31,7 @@ from python.generators.trace_processor_table.public import Alias
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.serialize import serialize_header
 from python.generators.trace_processor_table.util import find_table_deps
-from python.generators.trace_processor_table.util import augment_table_with_auto_cols
+from python.generators.trace_processor_table.util import normalize_table_columns
 from python.generators.trace_processor_table.util import topological_sort_tables
 #pylint: enable=wrong-import-position
 
@@ -42,22 +42,6 @@ class Header:
   out_path: str
   relout_path: str
   tables: List[Table]
-
-
-def normalize_table_for_serialization(table: Table) -> Table:
-  """Normalize the table for generating headers.
-
-  Normalizing = taking the table the user define and converting it into
-  the form needed by the seralizer. Speficially this means:
-  1. Adding the 'id' and 'type" columns.
-  2. Removing any alias columns (for now, these are handled in SQL not C++.
-     This may change in the future.
-  """
-  augmented = augment_table_with_auto_cols(table)
-  augmented.columns = [
-      c for c in augmented.columns if not isinstance(c.type, Alias)
-  ]
-  return augmented
 
 
 def main():
@@ -86,10 +70,20 @@ def main():
       table_class_name_to_relout[table.class_name] = header.relout_path
 
   for header in headers:
+    # Remove any alias columns. Today these are handled in SQL not C++: this may
+    # change in the future.
+    for table in header.tables:
+      table.columns = [
+          c for c in table.columns if not isinstance(c.type, Alias)
+      ]
+
     # Topologically sort the tables in this header to ensure that any deps are
     # defined *before* the table itself.
-    sorted_tables = topological_sort_tables(
-        [normalize_table_for_serialization(table) for table in header.tables])
+    sorted_tables = topological_sort_tables(header.tables)
+
+    # Normalize all the columns to ensure that they are ready for serialization.
+    for table in sorted_tables:
+      normalize_table_columns(table)
 
     # Find all headers depended on by this table. These will be #include-ed when
     # generating the header file below so ensure we remove ourself.

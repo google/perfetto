@@ -18,7 +18,7 @@
 #define SRC_TRACE_PROCESSOR_TABLES_SLICE_TABLES_H_
 
 #include "src/trace_processor/tables/macros.h"
-#include "src/trace_processor/tables/track_tables.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 
 namespace perfetto {
 namespace trace_processor {

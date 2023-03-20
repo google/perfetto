@@ -60,6 +60,7 @@ class Column:
   # Private fields used by the generator. Do not set these manually.
   _is_auto_added_id: bool = False
   _is_auto_added_type: bool = False
+  _is_self_column: bool = True
 
 
 @dataclass
