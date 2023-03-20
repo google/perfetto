@@ -44,7 +44,7 @@
 #include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/tables/slice_tables.h"
 #include "src/trace_processor/tables/trace_proto_tables.h"
-#include "src/trace_processor/tables/track_tables.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/views/slice_views.h"
 

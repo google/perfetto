@@ -34,7 +34,7 @@ class RootParentTable : public Table {
  public:
   struct Row {
    public:
-    Row(std::nullptr_t) {}
+    Row(std::nullptr_t = nullptr) {}
 
     const char* type() const { return type_; }
 
@@ -87,7 +87,7 @@ struct IdHelper<RootParentTable, Class> {
 class MacroTable : public Table {
  protected:
   // Constructors for tables created by the regular constructor.
-  MacroTable(StringPool* pool, const Table* parent)
+  MacroTable(StringPool* pool, const Table* parent = nullptr)
       : Table(pool), allow_inserts_(true), parent_(parent) {
     if (!parent) {
       overlays_.emplace_back();

@@ -94,22 +94,24 @@ def main():
 
   tables: List[Table] = []
   for in_path in args.inputs:
-    for table in runpy.run_path(in_path)['ALL_TABLES']:
-      tables.append(util.augment_table_with_auto_cols(table))
+    tables.extend(runpy.run_path(in_path)['ALL_TABLES'])
+  for table in tables:
+    util.normalize_table_columns(table)
 
   table_docs = []
   for table in tables:
     doc = table.tabledoc
     cols = (
         gen_json_for_column(table, c, doc.columns[c.name])
-        for c in table.columns)
+        for c in table.columns
+        if c._is_self_column)
     table_docs.append({
         'name': util.public_sql_name_for_table(table),
         'cppClassName': table.class_name,
         'defMacro': table.class_name,
-        'comment': doc.doc,
+        'comment': '\n'.join(l.strip() for l in doc.doc.splitlines()),
         'parent': None,
-        'parentDefName': '',
+        'parentDefName': table.parent.class_name if table.parent else '',
         'tablegroup': doc.group,
         'cols': [c for c in cols if c]
     })
