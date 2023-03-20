@@ -200,6 +200,7 @@ namespace {
 using perfetto::TracingInitArgs;
 using perfetto::internal::TrackEventIncrementalState;
 using perfetto::internal::TrackEventInternal;
+using ::perfetto::test::DataSourceInternalForTest;
 using ::testing::_;
 using ::testing::AllOf;
 using ::testing::ContainerEq;
@@ -739,6 +740,12 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
   void TearDown() override {
     instance = nullptr;
     sessions_.clear();
+    perfetto::test::TracingMuxerImplInternalsForTest::
+        ClearDataSourceTlsStateOnReset<MockDataSource>();
+    perfetto::test::TracingMuxerImplInternalsForTest::
+        ClearDataSourceTlsStateOnReset<CustomDataSource>();
+    perfetto::test::TracingMuxerImplInternalsForTest::
+        ClearDataSourceTlsStateOnReset<perfetto::TrackEvent>();
     perfetto::Tracing::ResetForTesting();
   }
 
@@ -1491,6 +1498,8 @@ TEST_P(PerfettoApiTest, ClearIncrementalState) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   tracing_session->get()->StopBlocking();
+  perfetto::test::TracingMuxerImplInternalsForTest::
+      ClearDataSourceTlsStateOnReset<TestIncrementalDataSource>();
 }
 
 TEST_P(PerfettoApiTest, TrackEventRegistrationWithModule) {
@@ -3950,6 +3959,8 @@ TEST_P(PerfettoApiTest, BlockingStartAndStop) {
   tracing_session->get()->StopBlocking();
   EXPECT_TRUE(data_source->on_stop.notified());
   EXPECT_TRUE(tracing_session->on_stop.notified());
+  perfetto::test::TracingMuxerImplInternalsForTest::
+      ClearDataSourceTlsStateOnReset<MockDataSource2>();
 }
 
 TEST_P(PerfettoApiTest, BlockingStartAndStopOnEmptySession) {
@@ -4155,6 +4166,8 @@ TEST_P(PerfettoApiTest, CustomIncrementalState) {
         EXPECT_EQ(100, state->count);
       });
   tracing_session->get()->StopBlocking();
+  perfetto::test::TracingMuxerImplInternalsForTest::
+      ClearDataSourceTlsStateOnReset<TestIncrementalDataSource>();
 }
 
 // Regression test for b/139110180. Checks that GetDataSourceLocked() can be
@@ -4408,6 +4421,8 @@ TEST_P(PerfettoApiTest, QueryServiceState) {
   for (const auto& ds : state.data_sources())
     found_ds |= ds.ds_descriptor().name() == "query_test_data_source";
   EXPECT_TRUE(found_ds);
+  perfetto::test::TracingMuxerImplInternalsForTest::
+      ClearDataSourceTlsStateOnReset<QueryTestDataSource>();
 }
 
 TEST_P(PerfettoApiTest, UpdateDataSource) {
@@ -4453,6 +4468,8 @@ TEST_P(PerfettoApiTest, UpdateDataSource) {
     }
   }
   EXPECT_TRUE(found_ds);
+  perfetto::test::TracingMuxerImplInternalsForTest::
+      ClearDataSourceTlsStateOnReset<UpdateTestDataSource>();
 }
 
 TEST_P(PerfettoApiTest, LegacyTraceEventsCopyDynamicString) {
@@ -6360,6 +6377,8 @@ TEST(PerfettoApiInitTest, SeparateInitializations) {
                     Property(&perfetto::protos::gen::DataSourceDescriptor::name,
                              "CustomDataSource"))));
   }
+  perfetto::test::TracingMuxerImplInternalsForTest::
+      ClearDataSourceTlsStateOnReset<CustomDataSource>();
 
   perfetto::Tracing::ResetForTesting();
 }
