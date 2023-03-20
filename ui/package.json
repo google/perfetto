@@ -32,6 +32,12 @@
     "util": "^0.12.3",
     "uuid": "^9.0.0"
   },
+  "files": [
+    "out/tsc",
+    "src",
+    "css"
+  ],
+  "style": "css/perfetto.css",
   "devDependencies": {
     "@rollup/plugin-commonjs": "^24.0.1",
     "@rollup/plugin-node-resolve": "^15.0.1",
