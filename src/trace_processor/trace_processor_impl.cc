@@ -334,6 +334,15 @@ void CreateBuiltinViews(sqlite3* db) {
                "WHERE thread_dur is NOT NULL",
                nullptr, nullptr, &error);
   MaybeRegisterError(error);
+
+  sqlite3_exec(db,
+               "CREATE VIEW ftrace_event AS "
+               "SELECT * FROM raw "
+               "WHERE "
+               "  name NOT LIKE 'chrome_event.%' AND"
+               "  name NOT LIKE 'track_event.%'",
+               nullptr, nullptr, &error);
+  MaybeRegisterError(error);
 }
 
 struct ValueAtMaxTsContext {
