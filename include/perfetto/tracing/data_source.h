@@ -70,6 +70,10 @@ template <typename, const internal::TrackEventCategoryRegistry*>
 class TrackEventDataSource;
 }  // namespace internal
 
+namespace test {
+class DataSourceInternalForTest;
+}  // namespace test
+
 // Base class with the virtual methods to get start/stop notifications.
 // Embedders are supposed to derive the templated version below, not this one.
 class PERFETTO_EXPORT_COMPONENT DataSourceBase {
@@ -157,10 +161,13 @@ struct DefaultDataSourceTraits {
       internal::DataSourceStaticState* static_state,
       internal::TracingTLS* root_tls) {
     auto* ds_tls = &root_tls->data_sources_tls[static_state->index];
-    // The per-type TLS is either zero-initialized or must have been initialized
-    // for this specific data source type.
-    assert(!ds_tls->static_state ||
-           ds_tls->static_state->index == static_state->index);
+    // ds_tls->static_state can be:
+    // * nullptr
+    // * equal to static_state
+    // * equal to the static state of a different data source, in tests (when
+    //   ResetForTesting() has been used)
+    // In any case, there's no need to do anything, the caller will reinitialize
+    // static_state.
     return ds_tls;
   }
 };
@@ -414,6 +421,7 @@ class DataSource : public DataSourceBase {
   }
 
  private:
+  friend ::perfetto::test::DataSourceInternalForTest;
   // Traits for customizing the behavior of a specific trace point.
   struct DefaultTracePointTraits {
     // By default, every call to DataSource::Trace() will record trace events
