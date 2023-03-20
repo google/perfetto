@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACED_PROBES_STATSD_CLIENT_STATSD_DATA_SOURCE_H_
-#define SRC_TRACED_PROBES_STATSD_CLIENT_STATSD_DATA_SOURCE_H_
+#ifndef SRC_TRACED_PROBES_STATSD_CLIENT_STATSD_EXEC_DATA_SOURCE_H_
+#define SRC_TRACED_PROBES_STATSD_CLIENT_STATSD_EXEC_DATA_SOURCE_H_
 
 #include <array>
 #include <limits>
@@ -47,26 +47,6 @@ class Statsd_Process;
 }  // namespace pbzero
 }  // namespace protos
 
-// We have two ways to talk to statsd:
-// - via execing cmd
-// - via binder:
-// https://cs.android.com/android/platform/superproject/+/master:frameworks/native/libs/binder/ndk/include_cpp/android/binder_interface_utils.h;l=239?q=android%2Fbinder_interface_utils.h
-// TODO(hjd): Implement binder backend.
-class StatsdBackend {
- public:
-  // output is a file descriptor that StatsdBackend will continously
-  // write to until the backend is destoied. Normally ths would be the
-  // 'write' side of a pipe.
-  StatsdBackend(std::string input, base::ScopedFile output_wr);
-  virtual ~StatsdBackend();
-
- protected:
-  // Encoded ShellConfig which will be written to statsd stdin.
-  std::string input_;
-  // stdout file descriptor. Normally one end of a pipe.
-  base::ScopedFile output_wr_;
-};
-
 class SizetPrefixedMessageReader final
     : public protozero::RingBufferMessageReader {
  public:
@@ -79,45 +59,40 @@ class SizetPrefixedMessageReader final
       const uint8_t* end) override;
 };
 
-class StatsdDataSource : public ProbesDataSource {
+class StatsdExecDataSource : public ProbesDataSource {
  public:
   static const ProbesDataSource::Descriptor descriptor;
 
-  StatsdDataSource(base::TaskRunner*,
-                   TracingSessionID,
-                   std::unique_ptr<TraceWriter> writer,
-                   const DataSourceConfig&);
-  ~StatsdDataSource() override;
-
-  base::WeakPtr<StatsdDataSource> GetWeakPtr() const;
+  StatsdExecDataSource(base::TaskRunner*,
+                       TracingSessionID,
+                       std::unique_ptr<TraceWriter> writer,
+                       const DataSourceConfig&);
+  ~StatsdExecDataSource() override;
 
   // ProbesDataSource implementation.
   void Start() override;
   void Flush(FlushRequestID, std::function<void()> callback) override;
   void ClearIncrementalState() override;
 
-  // public for testing
-  static std::string GenerateShellConfig(const DataSourceConfig& config);
-
  private:
   // Common functions.
-  StatsdDataSource(const StatsdDataSource&) = delete;
-  StatsdDataSource& operator=(const StatsdDataSource&) = delete;
+  StatsdExecDataSource(const StatsdExecDataSource&) = delete;
+  StatsdExecDataSource& operator=(const StatsdExecDataSource&) = delete;
 
   void OnStatsdWakeup();
   void DoRead();
 
   base::TaskRunner* const task_runner_;
   std::unique_ptr<TraceWriter> writer_;
-  std::unique_ptr<StatsdBackend> backend_{};
   base::Pipe output_;
+  base::Subprocess subprocess_;
   std::string shell_subscription_;
   bool read_in_progress_ = false;
   SizetPrefixedMessageReader buffer_;
 
-  base::WeakPtrFactory<StatsdDataSource> weak_factory_;  // Keep last.
+  base::WeakPtrFactory<StatsdExecDataSource> weak_factory_;  // Keep last.
 };
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACED_PROBES_STATSD_CLIENT_STATSD_DATA_SOURCE_H_
+#endif  // SRC_TRACED_PROBES_STATSD_CLIENT_STATSD_EXEC_DATA_SOURCE_H_

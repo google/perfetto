@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/statsd_client/statsd_data_source.h"
+#include "src/traced/probes/statsd_client/statsd_exec_data_source.h"
 
 #include <stdlib.h>
 
@@ -24,110 +24,17 @@
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/core/data_source_config.h"
+#include "src/traced/probes/statsd_client/common.h"
 
-#include "protos/perfetto/config/statsd/statsd_tracing_config.pbzero.h"
 #include "protos/perfetto/trace/statsd/statsd_atom.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "protos/third_party/statsd/shell_config.pbzero.h"
-
-using ::perfetto::protos::pbzero::StatsdPullAtomConfig;
-using ::perfetto::protos::pbzero::StatsdShellSubscription;
-using ::perfetto::protos::pbzero::StatsdTracingConfig;
 
 namespace perfetto {
 namespace {
 
 static constexpr const size_t kHeaderSize = sizeof(size_t);
 
-void AddPullAtoms(const StatsdPullAtomConfig::Decoder& cfg,
-                  protozero::RepeatedFieldIterator<int32_t> it,
-                  StatsdShellSubscription* msg) {
-  constexpr int32_t kDefaultPullFreqMs = 5000;
-  int32_t pull_freq_ms = kDefaultPullFreqMs;
-  if (cfg.has_pull_frequency_ms()) {
-    pull_freq_ms = cfg.pull_frequency_ms();
-  }
-
-  for (; it; ++it) {
-    auto* pulled_msg = msg->add_pulled();
-    pulled_msg->set_freq_millis(pull_freq_ms);
-
-    for (auto package = cfg.packages(); package; ++package) {
-      pulled_msg->add_packages(*package);
-    }
-
-    auto* matcher_msg = pulled_msg->set_matcher();
-    matcher_msg->set_atom_id(*it);
-  }
-}
-
-void AddPushAtoms(protozero::RepeatedFieldIterator<int32_t> it,
-                  StatsdShellSubscription* msg) {
-  for (; it; ++it) {
-    auto* matcher_msg = msg->add_pushed();
-    matcher_msg->set_atom_id(*it);
-  }
-}
-
-// Exec "cmd stats data-subscribe" and read/write stdin/stdout. This is
-// the only way to make this work when side loading but for in tree
-// builds this causes to many denials:
-// avc: denied { execute_no_trans } for comm="traced_probes"
-// path="/system/bin/cmd" dev="dm-0" ino=200 scontext=u:r:traced_probes:s0
-// tcontext=u:object_r:system_file:s0 tclass=file permissive=1 avc: denied {
-// call } for comm="cmd" scontext=u:r:traced_probes:s0 tcontext=u:r:statsd:s0
-// tclass=binder permissive=1 avc: denied { use } for comm="cmd"
-// path="pipe:[51149]" dev="pipefs" ino=51149 scontext=u:r:statsd:s0
-// tcontext=u:r:traced_probes:s0 tclass=fd permissive=1 avc: denied { read } for
-// comm="cmd" path="pipe:[51149]" dev="pipefs" ino=51149 scontext=u:r:statsd:s0
-// tcontext=u:r:traced_probes:s0 tclass=fifo_file permissive=1 avc: denied {
-// write } for comm="cmd" path="pipe:[51148]" dev="pipefs" ino=51148
-// scontext=u:r:statsd:s0 tcontext=u:r:traced_probes:s0 tclass=fifo_file
-// permissive=1 avc: denied { transfer } for comm="cmd"
-// scontext=u:r:traced_probes:s0 tcontext=u:r:statsd:s0 tclass=binder
-// permissive=1
-class ExecStatsdBackend : public StatsdBackend {
- public:
-  ExecStatsdBackend(std::string input, base::ScopedFile output_wr);
-  virtual ~ExecStatsdBackend() override;
-
- private:
-  base::Subprocess subprocess_;
-};
-
-ExecStatsdBackend::ExecStatsdBackend(std::string input,
-                                     base::ScopedFile output_wr)
-    : StatsdBackend(std::move(input), std::move(output_wr)),
-      subprocess_({"/system/bin/cmd", "stats", "data-subscribe"}) {
-  subprocess_.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
-  subprocess_.args.stdout_mode = base::Subprocess::OutputMode::kFd;
-  subprocess_.args.stderr_mode = base::Subprocess::OutputMode::kInherit;
-  subprocess_.args.input = std::move(input_);
-  subprocess_.args.out_fd = std::move(output_wr_);
-  subprocess_.Start();
-  // Have to Poll at least once so the subprocess has a chance to
-  // consume the input.
-  // TODO(hjd): Might not manage to push the whole stdin here in which
-  // case we can be stuck here forever. We should re-posttask the Poll
-  // until the whole stdin is consumed.
-  subprocess_.Poll();
-}
-
-// virtual
-ExecStatsdBackend::~ExecStatsdBackend() = default;
-
-std::unique_ptr<StatsdBackend> GetStatsdBackend(std::string in,
-                                                base::ScopedFile&& out) {
-  return std::unique_ptr<StatsdBackend>(
-      new ExecStatsdBackend(std::move(in), std::move(out)));
-}
-
 }  // namespace
-
-StatsdBackend::StatsdBackend(std::string input, base::ScopedFile output_wr)
-    : input_(std::move(input)), output_wr_(std::move(output_wr)) {}
-
-StatsdBackend::~StatsdBackend() = default;
 
 SizetPrefixedMessageReader::SizetPrefixedMessageReader()
     : RingBufferMessageReader() {}
@@ -155,30 +62,47 @@ SizetPrefixedMessageReader::Message SizetPrefixedMessageReader::TryReadMessage(
 }
 
 // static
-const ProbesDataSource::Descriptor StatsdDataSource::descriptor = {
+const ProbesDataSource::Descriptor StatsdExecDataSource::descriptor = {
     /*name*/ "android.statsd",
     /*flags*/ Descriptor::kHandlesIncrementalState,
     /*fill_descriptor_func*/ nullptr,
 };
 
-StatsdDataSource::StatsdDataSource(base::TaskRunner* task_runner,
-                                   TracingSessionID session_id,
-                                   std::unique_ptr<TraceWriter> writer,
-                                   const DataSourceConfig& ds_config)
+// This datasource works by execing "cmd stats data-subscribe" and
+// read/write stdin/stdout. This is the only way to make this work when
+// side loading but for in tree builds this causes to many denials:
+// avc: denied { execute_no_trans } for comm="traced_probes"
+// path="/system/bin/cmd" dev="dm-0" ino=200 scontext=u:r:traced_probes:s0
+// tcontext=u:object_r:system_file:s0 tclass=file permissive=1 avc: denied {
+// call } for comm="cmd" scontext=u:r:traced_probes:s0 tcontext=u:r:statsd:s0
+// tclass=binder permissive=1 avc: denied { use } for comm="cmd"
+// path="pipe:[51149]" dev="pipefs" ino=51149 scontext=u:r:statsd:s0
+// tcontext=u:r:traced_probes:s0 tclass=fd permissive=1 avc: denied { read } for
+// comm="cmd" path="pipe:[51149]" dev="pipefs" ino=51149 scontext=u:r:statsd:s0
+// tcontext=u:r:traced_probes:s0 tclass=fifo_file permissive=1 avc: denied {
+// write } for comm="cmd" path="pipe:[51148]" dev="pipefs" ino=51148
+// scontext=u:r:statsd:s0 tcontext=u:r:traced_probes:s0 tclass=fifo_file
+// permissive=1 avc: denied { transfer } for comm="cmd"
+// scontext=u:r:traced_probes:s0 tcontext=u:r:statsd:s0 tclass=binder
+// permissive=1
+StatsdExecDataSource::StatsdExecDataSource(base::TaskRunner* task_runner,
+                                           TracingSessionID session_id,
+                                           std::unique_ptr<TraceWriter> writer,
+                                           const DataSourceConfig& ds_config)
     : ProbesDataSource(session_id, &descriptor),
       task_runner_(task_runner),
       writer_(std::move(writer)),
       output_(base::Pipe::Create(base::Pipe::Flags::kRdNonBlock)),
-      shell_subscription_(GenerateShellConfig(ds_config)),
+      shell_subscription_(CreateStatsdShellConfig(ds_config)),
       weak_factory_(this) {}
 
-StatsdDataSource::~StatsdDataSource() {
+StatsdExecDataSource::~StatsdExecDataSource() {
   if (output_.rd) {
     task_runner_->RemoveFileDescriptorWatch(output_.rd.get());
   }
 }
 
-void StatsdDataSource::Start() {
+void StatsdExecDataSource::Start() {
   // Don't bother actually connecting to statsd if no pull/push atoms
   // were configured:
   if (shell_subscription_.empty()) {
@@ -196,7 +120,21 @@ void StatsdDataSource::Start() {
   memcpy(&input[0], &size, sizeof(size));
   memcpy(&input[0] + sizeof(size), body.data(), size);
 
-  backend_ = GetStatsdBackend(std::move(input), std::move(output_.wr));
+  subprocess_ =
+      base::Subprocess({"/system/bin/cmd", "stats", "data-subscribe"});
+  subprocess_.args.stdin_mode = base::Subprocess::InputMode::kBuffer;
+  subprocess_.args.stdout_mode = base::Subprocess::OutputMode::kFd;
+  subprocess_.args.stderr_mode = base::Subprocess::OutputMode::kInherit;
+  subprocess_.args.input = std::move(input);
+  subprocess_.args.out_fd = std::move(output_.wr);
+  subprocess_.Start();
+
+  // Have to Poll at least once so the subprocess has a chance to
+  // consume the input.
+  // TODO(hjd): Might not manage to push the whole stdin here in which
+  // case we can be stuck here forever. We should re-posttask the Poll
+  // until the whole stdin is consumed.
+  subprocess_.Poll();
 
   // Watch is removed on destruction.
   auto weak_this = weak_factory_.GetWeakPtr();
@@ -218,7 +156,7 @@ void StatsdDataSource::Start() {
 // - DoRead does a single read and either:
 //    - No data = we're finished so unset read_in_progress_
 //    - Some data so PostTask another DoRead.
-void StatsdDataSource::OnStatsdWakeup() {
+void StatsdExecDataSource::OnStatsdWakeup() {
   if (read_in_progress_) {
     return;
   }
@@ -228,7 +166,7 @@ void StatsdDataSource::OnStatsdWakeup() {
 
 // Do a single read. If there is potentially more data to read schedule
 // another DoRead.
-void StatsdDataSource::DoRead() {
+void StatsdExecDataSource::DoRead() {
   PERFETTO_CHECK(read_in_progress_);
 
   uint8_t data[4098];
@@ -245,7 +183,7 @@ void StatsdDataSource::DoRead() {
     // EOF so clean everything up.
     read_in_progress_ = false;
     task_runner_->RemoveFileDescriptorWatch(output_.rd.get());
-    backend_.reset();
+    subprocess_.KillAndWaitForTermination();
   }
 
   buffer_.Append(data, static_cast<size_t>(rd));
@@ -282,29 +220,11 @@ void StatsdDataSource::DoRead() {
   });
 }
 
-// static
-std::string StatsdDataSource::GenerateShellConfig(
-    const DataSourceConfig& config) {
-  StatsdTracingConfig::Decoder cfg(config.statsd_tracing_config_raw());
-  protozero::HeapBuffered<StatsdShellSubscription> msg;
-  for (auto pull_it = cfg.pull_config(); pull_it; ++pull_it) {
-    StatsdPullAtomConfig::Decoder pull_cfg(*pull_it);
-    AddPullAtoms(pull_cfg, pull_cfg.raw_pull_atom_id(), msg.get());
-    AddPullAtoms(pull_cfg, pull_cfg.pull_atom_id(), msg.get());
-  }
-  AddPushAtoms(cfg.push_atom_id(), msg.get());
-  AddPushAtoms(cfg.raw_push_atom_id(), msg.get());
-  return msg.SerializeAsString();
-}
-
-base::WeakPtr<StatsdDataSource> StatsdDataSource::GetWeakPtr() const {
-  return weak_factory_.GetWeakPtr();
-}
-
-void StatsdDataSource::Flush(FlushRequestID, std::function<void()> callback) {
+void StatsdExecDataSource::Flush(FlushRequestID,
+                                 std::function<void()> callback) {
   writer_->Flush(callback);
 }
 
-void StatsdDataSource::ClearIncrementalState() {}
+void StatsdExecDataSource::ClearIncrementalState() {}
 
 }  // namespace perfetto
