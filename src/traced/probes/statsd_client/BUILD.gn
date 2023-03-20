@@ -33,8 +33,8 @@ source_set("statsd_client") {
   sources = [
     "common.cc",
     "common.h",
-    "statsd_data_source.cc",
-    "statsd_data_source.h",
+    "statsd_exec_data_source.cc",
+    "statsd_exec_data_source.h",
   ]
 }
 

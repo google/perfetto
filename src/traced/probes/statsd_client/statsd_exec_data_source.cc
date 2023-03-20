@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/statsd_client/statsd_data_source.h"
+#include "src/traced/probes/statsd_client/statsd_exec_data_source.h"
 
 #include <stdlib.h>
 
@@ -62,7 +62,7 @@ SizetPrefixedMessageReader::Message SizetPrefixedMessageReader::TryReadMessage(
 }
 
 // static
-const ProbesDataSource::Descriptor StatsdDataSource::descriptor = {
+const ProbesDataSource::Descriptor StatsdExecDataSource::descriptor = {
     /*name*/ "android.statsd",
     /*flags*/ Descriptor::kHandlesIncrementalState,
     /*fill_descriptor_func*/ nullptr,
@@ -85,10 +85,10 @@ const ProbesDataSource::Descriptor StatsdDataSource::descriptor = {
 // permissive=1 avc: denied { transfer } for comm="cmd"
 // scontext=u:r:traced_probes:s0 tcontext=u:r:statsd:s0 tclass=binder
 // permissive=1
-StatsdDataSource::StatsdDataSource(base::TaskRunner* task_runner,
-                                   TracingSessionID session_id,
-                                   std::unique_ptr<TraceWriter> writer,
-                                   const DataSourceConfig& ds_config)
+StatsdExecDataSource::StatsdExecDataSource(base::TaskRunner* task_runner,
+                                           TracingSessionID session_id,
+                                           std::unique_ptr<TraceWriter> writer,
+                                           const DataSourceConfig& ds_config)
     : ProbesDataSource(session_id, &descriptor),
       task_runner_(task_runner),
       writer_(std::move(writer)),
@@ -96,13 +96,13 @@ StatsdDataSource::StatsdDataSource(base::TaskRunner* task_runner,
       shell_subscription_(CreateStatsdShellConfig(ds_config)),
       weak_factory_(this) {}
 
-StatsdDataSource::~StatsdDataSource() {
+StatsdExecDataSource::~StatsdExecDataSource() {
   if (output_.rd) {
     task_runner_->RemoveFileDescriptorWatch(output_.rd.get());
   }
 }
 
-void StatsdDataSource::Start() {
+void StatsdExecDataSource::Start() {
   // Don't bother actually connecting to statsd if no pull/push atoms
   // were configured:
   if (shell_subscription_.empty()) {
@@ -156,7 +156,7 @@ void StatsdDataSource::Start() {
 // - DoRead does a single read and either:
 //    - No data = we're finished so unset read_in_progress_
 //    - Some data so PostTask another DoRead.
-void StatsdDataSource::OnStatsdWakeup() {
+void StatsdExecDataSource::OnStatsdWakeup() {
   if (read_in_progress_) {
     return;
   }
@@ -166,7 +166,7 @@ void StatsdDataSource::OnStatsdWakeup() {
 
 // Do a single read. If there is potentially more data to read schedule
 // another DoRead.
-void StatsdDataSource::DoRead() {
+void StatsdExecDataSource::DoRead() {
   PERFETTO_CHECK(read_in_progress_);
 
   uint8_t data[4098];
@@ -220,10 +220,11 @@ void StatsdDataSource::DoRead() {
   });
 }
 
-void StatsdDataSource::Flush(FlushRequestID, std::function<void()> callback) {
+void StatsdExecDataSource::Flush(FlushRequestID,
+                                 std::function<void()> callback) {
   writer_->Flush(callback);
 }
 
-void StatsdDataSource::ClearIncrementalState() {}
+void StatsdExecDataSource::ClearIncrementalState() {}
 
 }  // namespace perfetto
