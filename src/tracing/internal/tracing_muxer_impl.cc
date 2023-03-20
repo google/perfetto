@@ -2505,11 +2505,12 @@ void TracingMuxerImpl::ResetForTesting() {
 
   base::WaitableEvent reset_done;
   auto do_reset = [muxer, &reset_done] {
+    muxer->DestroyStoppedTraceWritersForCurrentThread();
     // Unregister all data sources so they don't interfere with any future
     // tracing sessions.
     for (RegisteredDataSource& rds : muxer->data_sources_) {
       for (RegisteredProducerBackend& backend : muxer->producer_backends_) {
-        if (!backend.producer->service_)
+        if (!backend.producer->service_ || !backend.producer->connected_)
           continue;
         backend.producer->service_->UnregisterDataSource(rds.descriptor.name());
       }
@@ -2546,6 +2547,12 @@ void TracingMuxerImpl::ResetForTesting() {
 
     g_prev_instance = muxer;
     instance_ = TracingMuxerFake::Get();
+
+    // Call the user provided cleanups on the muxer thread.
+    for (auto& cb : muxer->reset_callbacks_) {
+      cb();
+    }
+
     reset_done.Notify();
   };
 
@@ -2554,9 +2561,15 @@ void TracingMuxerImpl::ResetForTesting() {
   if (muxer->task_runner_->RunsTasksOnCurrentThread()) {
     do_reset();
   } else {
+    muxer->DestroyStoppedTraceWritersForCurrentThread();
     muxer->task_runner_->PostTask(std::move(do_reset));
     reset_done.Wait();
+    // Call the user provided cleanups also on this thread.
+    for (auto& cb : muxer->reset_callbacks_) {
+      cb();
+    }
   }
+  muxer->reset_callbacks_.clear();
 }
 
 // static
@@ -2593,6 +2606,10 @@ void TracingMuxerImpl::Shutdown() {
     shutdown_done.Notify();
   });
   shutdown_done.Wait();
+}
+
+void TracingMuxerImpl::AppendResetForTestingCallback(std::function<void()> cb) {
+  reset_callbacks_.push_back(std::move(cb));
 }
 
 TracingMuxer::~TracingMuxer() = default;
