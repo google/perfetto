@@ -44,6 +44,8 @@ class ColumnSerializer:
   def row_field(self) -> Optional[str]:
     if self.col._is_auto_added_id or self.col._is_auto_added_type:
       return None
+    if not self.col._is_self_column:
+      return None
     return f'    {self.cpp_type} {self.name};'
 
   def row_param(self) -> Optional[str]:
@@ -51,8 +53,17 @@ class ColumnSerializer:
       return None
     return f'{self.cpp_type} in_{self.name} = {{}}'
 
+  def parent_row_initializer(self) -> Optional[str]:
+    if self.col._is_auto_added_id or self.col._is_auto_added_type:
+      return None
+    if self.col._is_self_column:
+      return None
+    return f'std::move(in_{self.name})'
+
   def row_initializer(self) -> Optional[str]:
     if self.col._is_auto_added_id or self.col._is_auto_added_type:
+      return None
+    if not self.col._is_self_column:
       return None
     return f'{self.name}(std::move(in_{self.name}))'
 
@@ -72,17 +83,21 @@ class ColumnSerializer:
   def flag(self) -> Optional[str]:
     if self.col._is_auto_added_id or self.col._is_auto_added_type:
       return None
+    if not self.col._is_self_column:
+      return None
     default = f'ColumnType::{self.name}::default_flags()'
     if self.flags == ColumnFlag.NONE:
       flags = default
     else:
       flags = f'static_cast<uint32_t>({to_cpp_flags(self.flags)}) | {default}'
     return f'''
-      static constexpr uint32_t {self.name} = {flags};
+    static constexpr uint32_t {self.name} = {flags};
     '''
 
   def storage_init(self) -> Optional[str]:
     if self.col._is_auto_added_id or self.col._is_auto_added_type:
+      return None
+    if not self.col._is_self_column:
       return None
 
     storage = f'ColumnStorage<ColumnType::{self.name}::stored_type>'
@@ -92,19 +107,25 @@ class ColumnSerializer:
   def column_init(self) -> Optional[str]:
     if self.col._is_auto_added_id or self.col._is_auto_added_type:
       return None
+    if not self.col._is_self_column:
+      return None
     return f'''
     columns_.emplace_back("{self.name}", &{self.name}_, ColumnFlag::{self.name},
                           this, static_cast<uint32_t>(columns_.size()),
-                          overlay_count);
+                          overlay_idx);
     '''
 
   def shrink_to_fit(self) -> Optional[str]:
     if self.col._is_auto_added_id:
       return None
+    if not self.col._is_self_column:
+      return None
     return f'    {self.name}_.ShrinkToFit();'
 
   def append(self) -> Optional[str]:
     if self.col._is_auto_added_id or self.col._is_auto_added_type:
+      return None
+    if not self.col._is_self_column:
       return None
     return f'    mutable_{self.name}()->Append(std::move(row.{self.name}));'
 
@@ -129,6 +150,8 @@ class ColumnSerializer:
   def storage(self) -> Optional[str]:
     if self.col._is_auto_added_id or self.col._is_auto_added_type:
       return None
+    if not self.col._is_self_column:
+      return None
     name = self.name
     return f'  ColumnStorage<ColumnType::{name}::stored_type> {name}_;'
 
@@ -139,6 +162,13 @@ class TableSerializer(object):
   def __init__(self, table: Table):
     self.table = table
     self.table_name = table.class_name
+    self.column_serializers = []
+
+    if table.parent:
+      self.parent_class_name = table.parent.class_name
+    else:
+      self.parent_class_name = 'macros_internal::RootParentTable'
+
     self.column_serializers = [
         ColumnSerializer(table, i) for i in range(len(table.columns))
     ]
@@ -152,6 +182,10 @@ class TableSerializer(object):
     return delimiter.join(lines).strip()
 
   def id_defn(self) -> str:
+    if self.table.parent:
+      return f'''
+  using Id = {self.table.parent.class_name}::Id;
+    '''
     return '''
   struct Id : public BaseId {
     Id() = default;
@@ -164,13 +198,15 @@ class TableSerializer(object):
   def row_struct(self) -> str:
     param = self.foreach_col(
         ColumnSerializer.row_param, delimiter=',\n        ')
+    parent_row_init = self.foreach_col(
+        ColumnSerializer.parent_row_initializer, delimiter=', ')
     row_init = self.foreach_col(
         ColumnSerializer.row_initializer, delimiter=',\n          ')
     return f'''
-  struct Row : public macros_internal::RootParentTable::Row {{
+  struct Row : public {self.parent_class_name}::Row {{
     Row({param},
         std::nullptr_t = nullptr)
-        : macros_internal::RootParentTable::Row(nullptr),
+        : {self.parent_class_name}::Row({parent_row_init}),
           {row_init} {{
       type_ = "{self.table.sql_name}";
     }}
@@ -217,14 +253,40 @@ class TableSerializer(object):
   def constructor(self) -> str:
     col_init = self.foreach_col(
         ColumnSerializer.storage_init, delimiter=',\n        ')
+    if self.table.parent:
+      parent_param = f', {self.parent_class_name}* parent'
+      parent_arg = 'parent'
+      parent_init = 'parent_(parent), '
+    else:
+      parent_param = ''
+      parent_arg = 'nullptr'
+      parent_init = ''
     return f'''
-  explicit {self.table_name}(StringPool* pool)
-      : macros_internal::MacroTable(pool, nullptr),
-        {col_init} {{
-    uint32_t overlay_count = static_cast<uint32_t>(overlays_.size()) - 1;
+  explicit {self.table_name}(StringPool* pool{parent_param})
+      : macros_internal::MacroTable(pool, {parent_arg}),
+        {parent_init}{col_init} {{
+    uint32_t overlay_idx = static_cast<uint32_t>(overlays_.size()) - 1;
     {self.foreach_col(ColumnSerializer.column_init)}
   }}
     '''
+
+  def parent_field(self) -> str:
+    if self.table.parent:
+      return f'''
+  {self.parent_class_name}* parent_ = nullptr;
+      '''
+    return ''
+
+  def insert_common(self) -> str:
+    if self.table.parent:
+      return '''
+    Id id = Id{parent_->Insert(row).id};
+    UpdateOverlaysAfterParentInsert();
+      '''
+    return '''
+    Id id = Id{row_number};
+    type_.Append(string_pool_->InternString(row.type()));
+      '''
 
   def serialize(self) -> str:
     return f'''
@@ -273,24 +335,21 @@ class {self.table_name} : public macros_internal::MacroTable {{
 
   base::Optional<ConstRowReference> FindById(Id find_id) const {{
     base::Optional<uint32_t> row = id().IndexOf(find_id);
-    if (!row)
-      return base::nullopt;
-    return ConstRowReference(this, *row);
+    return row ? base::make_optional(ConstRowReference(this, *row))
+               : base::nullopt;
   }}
 
   base::Optional<RowReference> FindById(Id find_id) {{
     base::Optional<uint32_t> row = id().IndexOf(find_id);
-    if (!row)
-      return base::nullopt;
-    return RowReference(this, *row);
+    return row ? base::make_optional(RowReference(this, *row)) : base::nullopt;
   }}
 
   IdAndRow Insert(const Row& row) {{
     uint32_t row_number = row_count();
-    type_.Append(string_pool_->InternString(row.type()));
+    {self.insert_common().strip()}
     {self.foreach_col(ColumnSerializer.append)}
     UpdateSelfOverlayAfterInsert();
-    return IdAndRow{{row_number, Id{{row_number}}}};
+    return IdAndRow{{row_number, std::move(id)}};
   }}
 
   {self.foreach_col(ColumnSerializer.accessor)}
@@ -298,6 +357,7 @@ class {self.table_name} : public macros_internal::MacroTable {{
   {self.foreach_col(ColumnSerializer.mutable_accessor)}
 
  private:
+  {self.parent_field().strip()}
   {self.foreach_col(ColumnSerializer.storage)}
 }};
   '''.strip('\n')

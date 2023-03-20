@@ -20,7 +20,7 @@
 #include "src/trace_processor/db/view.h"
 #include "src/trace_processor/tables/metadata_tables.h"
 #include "src/trace_processor/tables/slice_tables.h"
-#include "src/trace_processor/tables/track_tables.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/views/macros.h"
 
 namespace perfetto {
