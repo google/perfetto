@@ -63,11 +63,12 @@ std::vector<std::vector<SymbolizedFrame>> BreakpadSymbolizer::Symbolize(
   size_t num_symbolized_frames = 0;
   result.reserve(address.size());
   std::string file_path;
+  std::string raw_build_id = base::ToHex(build_id.c_str(), build_id.length());
 
   // Check to see if the |file_path_for_testing_| member is populated. If it is,
   // this file must be used.
   if (file_path_for_testing_.empty()) {
-    file_path = MakeFilePath(build_id, symbol_dir_path_).c_str();
+    file_path = MakeFilePath(raw_build_id, symbol_dir_path_).c_str();
   } else {
     file_path = file_path_for_testing_;
   }
