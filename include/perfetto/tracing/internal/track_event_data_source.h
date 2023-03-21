@@ -24,6 +24,7 @@
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/tracing/event_context.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
+#include "perfetto/tracing/internal/track_event_legacy.h"
 #include "perfetto/tracing/internal/write_track_event_args.h"
 #include "perfetto/tracing/track.h"
 #include "perfetto/tracing/track_event_category_registry.h"
@@ -143,6 +144,22 @@ inline void ValidateEventNameType() {
 }
 
 }  // namespace
+
+inline ::perfetto::DynamicString DecayEventNameType(
+    ::perfetto::DynamicString name) {
+  return name;
+}
+
+inline ::perfetto::StaticString DecayEventNameType(
+    ::perfetto::StaticString name) {
+  return name;
+}
+
+// Convert all static strings of different length to StaticString to avoid
+// unnecessary template instantiations.
+inline ::perfetto::StaticString DecayEventNameType(const char* name) {
+  return ::perfetto::StaticString{name};
+}
 
 // Traits for dynamic categories.
 template <typename CategoryType>
@@ -431,6 +448,135 @@ class TrackEventDataSource
           }
         });
   }
+
+// Additional trace points used in legacy macros.
+// It's possible to implement legacy macros using a common TraceForCategory,
+// by supplying a lambda that sets all necessary legacy fields. But this
+// results in a binary size bloat because every trace point generates its own
+// template instantiation with its own lambda. ICF can't eliminate those as
+// each lambda captures different variables and so the code is not completely
+// identical.
+// What we do instead is define additional TraceForCategoryLegacy templates
+// that take legacy arguments directly. Their instantiations can have the same
+// binary code for at least some macro invocations and so can be successfully
+// folded by the linker.
+#if PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
+  template <typename TrackType,
+            typename CategoryType,
+            typename EventNameType,
+            typename... Arguments,
+            typename TrackTypeCheck = typename std::enable_if<
+                std::is_convertible<TrackType, Track>::value>::type>
+  static void TraceForCategoryLegacy(
+      uint32_t instances,
+      const CategoryType& category,
+      const EventNameType& event_name,
+      perfetto::protos::pbzero::TrackEvent::Type type,
+      TrackType&& track,
+      char phase,
+      uint32_t flags,
+      Arguments&&... args) PERFETTO_NO_INLINE {
+    TraceForCategoryImpl(instances, category, event_name, type, track,
+                         TrackEventInternal::GetTraceTime(),
+                         [&](perfetto::EventContext ctx)
+                             PERFETTO_NO_THREAD_SAFETY_ANALYSIS {
+                               using ::perfetto::internal::TrackEventLegacy;
+                               TrackEventLegacy::WriteLegacyEvent(
+                                   std::move(ctx), phase, flags, args...);
+                             });
+  }
+
+  template <typename TrackType,
+            typename CategoryType,
+            typename EventNameType,
+            typename TimestampType = uint64_t,
+            typename... Arguments,
+            typename TrackTypeCheck = typename std::enable_if<
+                std::is_convertible<TrackType, Track>::value>::type,
+            typename TimestampTypeCheck = typename std::enable_if<
+                IsValidTimestamp<TimestampType>()>::type>
+  static void TraceForCategoryLegacy(
+      uint32_t instances,
+      const CategoryType& category,
+      const EventNameType& event_name,
+      perfetto::protos::pbzero::TrackEvent::Type type,
+      TrackType&& track,
+      char phase,
+      uint32_t flags,
+      TimestampType&& timestamp,
+      Arguments&&... args) PERFETTO_NO_INLINE {
+    TraceForCategoryImpl(
+        instances, category, event_name, type, track, timestamp,
+        [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {
+          using ::perfetto::internal::TrackEventLegacy;
+          TrackEventLegacy::WriteLegacyEvent(std::move(ctx), phase, flags,
+                                             args...);
+        });
+  }
+
+  template <typename TrackType,
+            typename CategoryType,
+            typename EventNameType,
+            typename ThreadIdType,
+            typename LegacyIdType,
+            typename... Arguments,
+            typename TrackTypeCheck = typename std::enable_if<
+                std::is_convertible<TrackType, Track>::value>::type>
+  static void TraceForCategoryLegacyWithId(
+      uint32_t instances,
+      const CategoryType& category,
+      const EventNameType& event_name,
+      perfetto::protos::pbzero::TrackEvent::Type type,
+      TrackType&& track,
+      char phase,
+      uint32_t flags,
+      ThreadIdType thread_id,
+      LegacyIdType legacy_id,
+      Arguments&&... args) PERFETTO_NO_INLINE {
+    TraceForCategoryImpl(
+        instances, category, event_name, type, track,
+        TrackEventInternal::GetTraceTime(),
+        [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {
+          using ::perfetto::internal::TrackEventLegacy;
+          ::perfetto::internal::LegacyTraceId trace_id{legacy_id};
+          TrackEventLegacy::WriteLegacyEventWithIdAndTid(
+              std::move(ctx), phase, flags, trace_id, thread_id, args...);
+        });
+  }
+
+  template <typename TrackType,
+            typename CategoryType,
+            typename EventNameType,
+            typename ThreadIdType,
+            typename LegacyIdType,
+            typename TimestampType = uint64_t,
+            typename... Arguments,
+            typename TrackTypeCheck = typename std::enable_if<
+                std::is_convertible<TrackType, Track>::value>::type,
+            typename TimestampTypeCheck = typename std::enable_if<
+                IsValidTimestamp<TimestampType>()>::type>
+  static void TraceForCategoryLegacyWithId(
+      uint32_t instances,
+      const CategoryType& category,
+      const EventNameType& event_name,
+      perfetto::protos::pbzero::TrackEvent::Type type,
+      TrackType&& track,
+      char phase,
+      uint32_t flags,
+      ThreadIdType thread_id,
+      LegacyIdType legacy_id,
+      TimestampType&& timestamp,
+      Arguments&&... args) PERFETTO_NO_INLINE {
+    TraceForCategoryImpl(
+        instances, category, event_name, type, track, timestamp,
+        [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {
+          using ::perfetto::internal::TrackEventLegacy;
+          ::perfetto::internal::LegacyTraceId trace_id{legacy_id};
+          TrackEventLegacy::WriteLegacyEventWithIdAndTid(
+              std::move(ctx), phase, flags, trace_id, thread_id, args...);
+        });
+  }
+#endif  // PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
 
   // Initialize the track event library. Should be called before tracing is
   // enabled.
