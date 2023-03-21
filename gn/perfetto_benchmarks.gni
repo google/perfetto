@@ -20,6 +20,7 @@ perfetto_benchmarks_targets = [
   "src/kallsyms:benchmarks",
   "src/protozero:benchmarks",
   "src/protozero/filtering:benchmarks",
+  "src/shared_lib/test:benchmarks",
   "src/trace_processor/containers:benchmarks",
   "src/trace_processor/db:benchmarks",
   "src/trace_processor/rpc:benchmarks",

@@ -421,7 +421,7 @@ def parse_and_validate_args():
   if args.config is not None:
     if args.name is not None:
       sys.exit("--name/-n should not be specified with --config/-c.")
-    elif args.event is not None:
+    elif args.event:
       sys.exit("-e/--event should not be specified with --config/-c.")
   elif args.config is None and args.name is None:
     sys.exit("One of --names/-n or --config/-c is required.")

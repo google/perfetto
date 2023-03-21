@@ -130,7 +130,7 @@ SELECT
 
 CREATE TABLE internal_broken_android_monitor_contention
 AS
-SELECT ancestor.id FROM slice
+SELECT ancestor.parent_id AS id FROM slice
     JOIN slice ancestor ON ancestor.id = slice.parent_id
     WHERE ancestor.name LIKE 'Lock contention on a monitor lock%'
     GROUP BY ancestor.id;

@@ -71,7 +71,7 @@ const NULL_TRACKS_FLAG = featureFlags.register({
 });
 
 const TRACKS_V2_FLAG = featureFlags.register({
-  id: 'tracksV2',
+  id: 'tracksV2.1',
   name: 'Tracks V2',
   description: 'Show tracks built on top of the Track V2 API.',
   defaultValue: false,
@@ -700,7 +700,10 @@ class TrackDecider {
   }
 
   async addFtraceTrack(engine: EngineProxy): Promise<void> {
-    const query = `select cpu, count(*) as cnt from raw
+    const query = `select
+            cpu,
+            count(*) as cnt
+          from ftrace_event
           where cpu + 1 > 1 or utid + 1 > 1
           group by cpu`;
 
