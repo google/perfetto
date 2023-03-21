@@ -214,6 +214,18 @@ inline base::Status StepStmtUntilDone(sqlite3_stmt* stmt) {
   return base::OkStatus();
 }
 
+inline void SetSqliteError(sqlite3_context* ctx, const base::Status& status) {
+  PERFETTO_CHECK(!status.ok());
+  sqlite3_result_error(ctx, status.c_message(), -1);
+}
+
+inline void SetSqliteError(sqlite3_context* ctx,
+                           const std::string& function_name,
+                           const base::Status& status) {
+  SetSqliteError(ctx, base::ErrStatus("%s: %s", function_name.c_str(),
+                                      status.c_message()));
+}
+
 // Exracts the given type from the SqlValue if |value| can fit
 // in the provided optional. Note that SqlValue::kNull will always
 // succeed and cause base::nullopt to be set.

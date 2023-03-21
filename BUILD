@@ -1796,6 +1796,8 @@ perfetto_filegroup(
         "src/trace_processor/prelude/functions/create_view_function.h",
         "src/trace_processor/prelude/functions/import.cc",
         "src/trace_processor/prelude/functions/import.h",
+        "src/trace_processor/prelude/functions/layout_functions.cc",
+        "src/trace_processor/prelude/functions/layout_functions.h",
         "src/trace_processor/prelude/functions/pprof_functions.cc",
         "src/trace_processor/prelude/functions/pprof_functions.h",
         "src/trace_processor/prelude/functions/register_function.cc",
