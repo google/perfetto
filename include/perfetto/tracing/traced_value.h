@@ -286,11 +286,10 @@ class PERFETTO_EXPORT_COMPONENT TracedDictionary {
   // Create a |TracedDictionary| which will populate the given field of the
   // given |message|.
   template <typename MessageType, typename FieldMetadata>
-  inline TracedDictionary(
-      MessageType* message,
-      protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>,
-      EventContext* event_context,
-      internal::CheckedScope* parent_scope)
+  inline TracedDictionary(MessageType* message,
+                          FieldMetadata,
+                          EventContext* event_context,
+                          internal::CheckedScope* parent_scope)
       : message_(message),
         field_id_(FieldMetadata::kFieldId),
         event_context_(event_context),

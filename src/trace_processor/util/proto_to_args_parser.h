@@ -99,7 +99,7 @@ class ProtoToArgsParser {
 
     template <typename FieldMetadata>
     typename FieldMetadata::cpp_field_type::Decoder* GetInternedMessage(
-        protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>,
+        FieldMetadata,
         uint64_t iid) {
       static_assert(std::is_base_of<protozero::proto_utils::FieldMetadataBase,
                                     FieldMetadata>::value,

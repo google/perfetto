@@ -7,7 +7,15 @@ Unreleased:
   UI:
     *
   SDK:
-    *
+    * Changed the type of the static constexpr metadata on protozero
+      generated bindings from a function returning the metadata to
+      metadata itself. For a field 'foo' the variable kFoo previously
+      defined as:
+      `static constexpr FieldMetadata_Foo kFoo() = { return {}; };`
+      it is now defined as:
+      `static constexpr FieldMetadata_Foo kFoo;`
+      This is a breaking change for users who directly access field
+      metadata.
 
 v33.0 - 2023-03-02:
   All:
