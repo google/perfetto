@@ -463,4 +463,8 @@ export class EngineProxy {
   query(sqlQuery: string, tag?: string): Promise<QueryResult>&QueryResult {
     return this.engine.query(sqlQuery, tag || this.tag);
   }
+
+  get engineId(): string {
+    return this.engine.id;
+  }
 }
