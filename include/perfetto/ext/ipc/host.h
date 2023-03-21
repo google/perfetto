@@ -72,6 +72,9 @@ class Host {
   virtual void AdoptConnectedSocket_Fuchsia(
       base::ScopedSocketHandle,
       std::function<bool(int)> send_fd_cb) = 0;
+
+  // Overrides the default send timeout for the per-connection sockets.
+  virtual void SetSocketSendTimeoutMs(uint32_t timeout_ms) = 0;
 };
 
 }  // namespace ipc
