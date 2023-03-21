@@ -37,7 +37,6 @@ def PrintProfileProto(profile):
 
 
 class Functions(TestSuite):
-
   def test_first_non_null_frame(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
@@ -333,7 +332,7 @@ class Functions(TestSuite):
                   A (0x0)
             """))
 
-def test_annotated_callstack(self):
+  def test_annotated_callstack(self):
     return DiffTestBlueprint(
         trace=DataPath("perf_sample_annotations.pftrace"),
         query="""
@@ -375,3 +374,111 @@ def test_annotated_callstack(self):
                 main (0x63da9c354c)
                 __libc_init (0x74ff4a0728)
             """))
+
+  def test_layout(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        """),
+        query="""
+        CREATE TABLE TEST(start INTEGER, end INTEGER);
+
+        INSERT INTO TEST
+        VALUES
+        (1, 5),
+        (2, 4),
+        (3, 8),
+        (6, 7),
+        (6, 7),
+        (6, 7);
+
+        WITH custom_slices as (
+          SELECT
+            start as ts,
+            end - start as dur
+          FROM test
+        )
+        SELECT
+          ts,
+          INTERNAL_LAYOUT(ts, dur) over (
+            order by ts
+            rows between unbounded preceding and current row
+          ) as depth
+        FROM custom_slices
+        """,
+        out=Csv("""
+        "ts","depth"
+        1,0
+        2,1
+        3,2
+        6,0
+        6,1
+        6,3
+        """))
+
+  def test_layout_with_instant_events(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        """),
+        query="""
+        CREATE TABLE TEST(start INTEGER, end INTEGER);
+
+        INSERT INTO TEST
+        VALUES
+        (1, 5),
+        (2, 2),
+        (3, 3),
+        (4, 4);
+
+        WITH custom_slices as (
+          SELECT
+            start as ts,
+            end - start as dur
+          FROM test
+        )
+        SELECT
+          ts,
+          INTERNAL_LAYOUT(ts, dur) over (
+            order by ts
+            rows between unbounded preceding and current row
+          ) as depth
+        FROM custom_slices
+        """,
+        out=Csv("""
+        "ts","depth"
+        1,0
+        2,1
+        3,1
+        4,1
+        """))
+
+  def test_layout_with_events_without_end(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        """),
+        query="""
+        CREATE TABLE TEST(ts INTEGER, dur INTEGER);
+
+        INSERT INTO TEST
+        VALUES
+        (1, -1),
+        (2, -1),
+        (3, 5),
+        (4, 1),
+        (5, 1);
+
+        SELECT
+          ts,
+          INTERNAL_LAYOUT(ts, dur) over (
+            order by ts
+            rows between unbounded preceding and current row
+          ) as depth
+        FROM test
+        """,
+        out=Csv("""
+        "ts","depth"
+        1,0
+        2,1
+        3,2
+        4,3
+        5,3
+        """))
