@@ -913,14 +913,7 @@ using $field_metadata_type$ =
     $cpp_type$,
     $message_cpp_type$>;
 
-// Ceci n'est pas une pipe.
-// This is actually a variable of FieldMetadataHelper<FieldMetadata<...>>
-// type (and users are expected to use it as such, hence kCamelCase name).
-// It is declared as a function to keep protozero bindings header-only as
-// inline constexpr variables are not available until C++17 (while inline
-// functions are).
-// TODO(altimin): Use inline variable instead after adopting C++17.
-static constexpr $field_metadata_type$ $field_metadata_var$() { return {}; }
+static constexpr $field_metadata_type$ $field_metadata_var${};
 )";
 
     stub_h_->Print(code_stub, "field_id", std::to_string(field->number()),
