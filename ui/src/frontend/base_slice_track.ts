@@ -21,7 +21,7 @@ import {
   UNEXPECTED_PINK_COLOR,
 } from '../common/colorizer';
 import {NUM} from '../common/query_result';
-import {SelectionKind} from '../common/state';
+import {Selection, SelectionKind} from '../common/state';
 import {fromNs, toNs} from '../common/time';
 
 import {checkerboardExcept} from './checkerboard';
@@ -204,13 +204,6 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   // TODO(hjd): Replace once we have cancellable query sequences.
   private isDestroyed = false;
 
-  // TODO(hjd): Remove when updating selection.
-  // We shouldn't know here about CHROME_SLICE. Maybe should be set by
-  // whatever deals with that. Dunno the namespace of selection is weird. For
-  // most cases in non-ambiguous (because most things are a 'slice'). But some
-  // others (e.g. THREAD_SLICE) have their own ID namespace so we need this.
-  protected selectionKinds: SelectionKind[] = ['SLICE', 'CHROME_SLICE'];
-
   // Extension points.
   // Each extension point should take a dedicated argument type (e.g.,
   // OnSliceOverArgs {slice?: T['slice']}) so it makes future extensions
@@ -266,6 +259,16 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     this.onUpdatedSlices(this.slices);
   }
 
+  protected isSelectionHandled(selection: Selection): boolean {
+    // TODO(hjd): Remove when updating selection.
+    // We shouldn't know here about CHROME_SLICE. Maybe should be set by
+    // whatever deals with that. Dunno the namespace of selection is weird. For
+    // most cases in non-ambiguous (because most things are a 'slice'). But some
+    // others (e.g. THREAD_SLICE) have their own ID namespace so we need this.
+    const supportedSelectionKinds: SelectionKind[] = ['SLICE', 'CHROME_SLICE'];
+    return supportedSelectionKinds.includes(selection.kind);
+  }
+
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
@@ -299,7 +302,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
 
     let selection = globals.state.currentSelection;
 
-    if (!selection || !this.selectionKinds.includes(selection.kind)) {
+    if (!selection || !this.isSelectionHandled(selection)) {
       selection = null;
     }
 

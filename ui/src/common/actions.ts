@@ -24,6 +24,7 @@ import {
   tableColumnEquals,
   toggleEnabled,
 } from '../frontend/pivot_table_types';
+import {DebugTrackV2Config} from '../tracks/debug/slice_track';
 
 import {randomColor} from './colorizer';
 import {
@@ -62,7 +63,7 @@ import {
 } from './state';
 import {toNs} from './time';
 
-const DEBUG_SLICE_TRACK_KIND = 'DebugSliceTrack';
+export const DEBUG_SLICE_TRACK_KIND = 'DebugSliceTrack';
 
 type StateDraft = Draft<State>;
 
@@ -275,11 +276,12 @@ export const StateActions = {
     };
   },
 
-  addDebugTrack(state: StateDraft, args: {engineId: string, name: string}):
+  addDebugTrack(
+      state: StateDraft,
+      args: {engineId: string, name: string, config: DebugTrackV2Config}):
       void {
         if (state.debugTrackId !== undefined) return;
         const trackId = generateNextId(state);
-        state.debugTrackId = trackId;
         this.addTrack(state, {
           id: trackId,
           engineId: args.engineId,
@@ -287,18 +289,15 @@ export const StateActions = {
           name: args.name,
           trackSortKey: PrimaryTrackSortKey.DEBUG_SLICE_TRACK,
           trackGroup: SCROLLING_TRACK_GROUP,
-          config: {
-            maxDepth: 1,
-          },
+          config: args.config,
         });
         this.toggleTrackPinned(state, {trackId});
       },
 
-  removeDebugTrack(state: StateDraft, _: {}): void {
-    const {debugTrackId} = state;
-    if (debugTrackId === undefined) return;
-    removeTrack(state, debugTrackId);
-    state.debugTrackId = undefined;
+  removeDebugTrack(state: StateDraft, args: {trackId: string}): void {
+    const track = state.tracks[args.trackId];
+    assertTrue(track.kind === DEBUG_SLICE_TRACK_KIND);
+    removeTrack(state, args.trackId);
   },
 
   removeVisualisedArgTracks(state: StateDraft, args: {trackIds: string[]}) {
@@ -781,6 +780,23 @@ export const StateActions = {
         };
         state.pendingScrollId = args.scroll ? args.id : undefined;
       },
+
+  selectDebugSlice(state: StateDraft, args: {
+    id: number,
+    sqlTableName: string,
+    startS: number,
+    durationS: number,
+    trackId: string,
+  }): void {
+    state.currentSelection = {
+      kind: 'DEBUG_SLICE',
+      id: args.id,
+      sqlTableName: args.sqlTableName,
+      startS: args.startS,
+      durationS: args.durationS,
+      trackId: args.trackId,
+    };
+  },
 
   clearPendingScrollId(state: StateDraft, _: {}): void {
     state.pendingScrollId = undefined;
