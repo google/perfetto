@@ -291,17 +291,13 @@ struct FieldMetadata : public FieldMetadataBase {
 
 namespace internal {
 
-// Ideally we would create variables of FieldMetadata<...> type directly,
-// but before C++17's support for constexpr inline variables arrive, we have to
-// actually use pointers to inline functions instead to avoid having to define
-// symbols in *.pbzero.cc files.
-//
-// Note: protozero bindings will generate Message::kFieldName variable and which
-// can then be passed to TRACE_EVENT macro for inline writing of typed messages.
-// The fact that the former can be passed to the latter is a part of the stable
-// API, while the particular type is not and users should not rely on it.
+// Prior to C++17 FieldMetadata<...> had to be a function type since
+// constexpr inline variables were not supported. This helper was used
+// to account for that. Now the helper doesn't do anything useful so
+// can be removed once all the uses are gone.
+// TODO(hjd): Remove once all uses are gone.
 template <typename T>
-using FieldMetadataHelper = T (*)(void);
+using FieldMetadataHelper = T;
 
 }  // namespace internal
 }  // namespace proto_utils
