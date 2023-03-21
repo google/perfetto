@@ -112,7 +112,7 @@
 
 // Efficiently determines whether tracing is enabled for the given category, and
 // if so, emits one trace event with the given arguments.
-#define PERFETTO_INTERNAL_TRACK_EVENT(category, name, ...)                     \
+#define PERFETTO_INTERNAL_TRACK_EVENT_WITH_METHOD(method, category, name, ...) \
   do {                                                                         \
     ::perfetto::internal::ValidateEventNameType<decltype(name)>();             \
     namespace tns = PERFETTO_TRACK_EVENT_NAMESPACE;                            \
@@ -125,14 +125,13 @@
             category)) {                                                       \
       tns::TrackEvent::CallIfEnabled(                                          \
           [&](uint32_t instances) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {         \
-            tns::TrackEvent::TraceForCategory(instances, category, name,       \
-                                              ##__VA_ARGS__);                  \
+            tns::TrackEvent::method(instances, category, name, ##__VA_ARGS__); \
           });                                                                  \
     } else {                                                                   \
       tns::TrackEvent::CallIfCategoryEnabled(                                  \
           PERFETTO_UID(kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_), \
           [&](uint32_t instances) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {         \
-            tns::TrackEvent::TraceForCategory(                                 \
+            tns::TrackEvent::method(                                           \
                 instances,                                                     \
                 PERFETTO_UID(                                                  \
                     kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_),    \
@@ -140,6 +139,19 @@
           });                                                                  \
     }                                                                          \
   } while (false)
+
+#define PERFETTO_INTERNAL_TRACK_EVENT(...) \
+  PERFETTO_INTERNAL_TRACK_EVENT_WITH_METHOD(TraceForCategory, ##__VA_ARGS__)
+
+#if PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
+#define PERFETTO_INTERNAL_LEGACY_TRACK_EVENT(...)                   \
+  PERFETTO_INTERNAL_TRACK_EVENT_WITH_METHOD(TraceForCategoryLegacy, \
+                                            ##__VA_ARGS__)
+
+#define PERFETTO_INTERNAL_LEGACY_TRACK_EVENT_WITH_ID(...)                 \
+  PERFETTO_INTERNAL_TRACK_EVENT_WITH_METHOD(TraceForCategoryLegacyWithId, \
+                                            ##__VA_ARGS__)
+#endif  // PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
 
 // C++17 doesn't like a move constructor being defined for the EventFinalizer
 // class but C++11 and MSVC doesn't compile without it being defined so support
@@ -150,7 +162,7 @@
 #define PERFETTO_INTERNAL_EVENT_FINALIZER_KEYWORD default
 #endif
 
-#define PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(category, name, ...)             \
+#define PERFETTO_INTERNAL_SCOPED_EVENT_FINALIZER(category)                    \
   struct PERFETTO_UID(ScopedEvent) {                                          \
     struct EventFinalizer {                                                   \
       /* The parameter is an implementation detail. It allows the          */ \
@@ -170,12 +182,33 @@
           PERFETTO_INTERNAL_EVENT_FINALIZER_KEYWORD;                          \
       EventFinalizer& operator=(EventFinalizer&&) = delete;                   \
     } finalizer;                                                              \
-  } PERFETTO_UID(scoped_event) {                                              \
-    [&]() {                                                                   \
-      TRACE_EVENT_BEGIN(category, name, ##__VA_ARGS__);                       \
-      return 0;                                                               \
-    }()                                                                       \
   }
+
+#define PERFETTO_INTERNAL_SCOPED_TRACK_EVENT(category, name, ...) \
+  PERFETTO_INTERNAL_SCOPED_EVENT_FINALIZER(category)              \
+  PERFETTO_UID(scoped_event) {                                    \
+    [&]() {                                                       \
+      TRACE_EVENT_BEGIN(category, name, ##__VA_ARGS__);           \
+      return 0;                                                   \
+    }()                                                           \
+  }
+
+#if PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
+// Required for TRACE_EVENT_WITH_FLOW legacy macros, which pass the bind_id as
+// id.
+#define PERFETTO_INTERNAL_SCOPED_LEGACY_TRACK_EVENT_WITH_ID(               \
+    category, name, track, flags, thread_id, id, ...)                      \
+  PERFETTO_INTERNAL_SCOPED_EVENT_FINALIZER(category)                       \
+  PERFETTO_UID(scoped_event) {                                             \
+    [&]() {                                                                \
+      PERFETTO_INTERNAL_LEGACY_TRACK_EVENT_WITH_ID(                        \
+          category, name,                                                  \
+          ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_BEGIN, track, \
+          'B', flags, thread_id, id, ##__VA_ARGS__);                       \
+      return 0;                                                            \
+    }()                                                                    \
+  }
+#endif  // PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
 
 #if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
 // On GCC versions <9 there's a bug that prevents using captured constant
