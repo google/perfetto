@@ -294,8 +294,9 @@ class TrackDecider {
     const rawGlobalAsyncTracks = await engine.query(`
       with global_tracks as materialized (
         select
-          track.id,
-          track.name,
+          track.parent_id as parent_id,
+          track.id as track_id,
+          track.name as name,
           count(1) cnt
         from track
         join slice on slice.track_id = track.id
@@ -303,18 +304,20 @@ class TrackDecider {
           track.type = "track"
           or track.type = "gpu_track"
           or track.type = "cpu_track"
-        group by 1
+        group by track_id
         having cnt > 0
       ),
       global_tracks_grouped as (
         select
-          track.name,
-          group_concat(track.id) as trackIds,
-          count(track.id) as trackCount
+          parent_id,
+          name,
+          group_concat(track_id) as trackIds,
+          count(track_id) as trackCount
         from global_tracks track
-        group by track.name
+        group by parent_id, name
       )
       select
+        parent_id as parentId,
         t.name as name,
         t.trackIds as trackIds,
         max_layout_depth(t.trackCount, t.trackIds) as maxDepth
@@ -323,27 +326,64 @@ class TrackDecider {
     `);
     const it = rawGlobalAsyncTracks.iter({
       name: STR_NULL,
+      parentId: NUM_NULL,
       trackIds: STR,
       maxDepth: NUM,
     });
 
+    const parentIdToGroupId = new Map<number, string>();
+
     for (; it.valid(); it.next()) {
-      const name = it.name === null ? undefined : it.name;
+      const kind = ASYNC_SLICE_TRACK_KIND;
+      const rawName = it.name === null ? undefined : it.name;
+      const name = TrackDecider.getTrackName({name: rawName, kind});
       const rawTrackIds = it.trackIds;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
+      const parentTrackId = it.parentId;
       const maxDepth = it.maxDepth;
-      const kind = ASYNC_SLICE_TRACK_KIND;
+      let trackGroup = SCROLLING_TRACK_GROUP;
+
+      if (parentTrackId) {
+        const groupId = parentIdToGroupId.get(parentTrackId);
+        if (groupId === undefined) {
+          trackGroup = uuidv4();
+          parentIdToGroupId.set(parentTrackId, trackGroup);
+
+          const summaryTrackId = uuidv4();
+          this.tracksToAdd.push({
+            id: summaryTrackId,
+            engineId: this.engineId,
+            kind: NULL_TRACK_KIND,
+            trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
+            name,
+            trackGroup: undefined,
+            config: {},
+          });
+
+          this.addTrackGroupActions.push(Actions.addTrackGroup({
+            engineId: this.engineId,
+            summaryTrackId,
+            name,
+            id: trackGroup,
+            collapsed: true,
+          }));
+        } else {
+          trackGroup = groupId;
+        }
+      }
+
       const track = {
         engineId: this.engineId,
         kind,
         trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-        trackGroup: SCROLLING_TRACK_GROUP,
-        name: TrackDecider.getTrackName({name, kind}),
+        trackGroup,
+        name,
         config: {
           maxDepth,
           trackIds,
         },
       };
+
       this.tracksToAdd.push(track);
     }
   }
