@@ -73,6 +73,24 @@ static constexpr bool IsValidTraceLambdaTakingReference() {
   return IsValidTraceLambdaTakingReferenceImpl<T>(nullptr);
 }
 
+template <typename T>
+static constexpr bool IsFieldMetadataTypeImpl(
+    typename std::enable_if<
+        std::is_base_of<protozero::proto_utils::FieldMetadataBase,
+                        T>::value>::type* = nullptr) {
+  return true;
+}
+
+template <typename T>
+static constexpr bool IsFieldMetadataTypeImpl(...) {
+  return false;
+}
+
+template <typename T>
+static constexpr bool IsFieldMetadataType() {
+  return IsFieldMetadataTypeImpl<T>(nullptr);
+}
+
 }  // namespace
 
 // Write an old-style lambda taking an EventContext (without a reference)
@@ -95,13 +113,15 @@ PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(EventContext event_ctx,
                                                 ArgValue&& arg_value,
                                                 Args&&... args);
 
-template <typename FieldMetadataType, typename ArgValue, typename... Args>
-PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(
-    EventContext event_ctx,
-    protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadataType>
-        field_name,
-    ArgValue&& arg_value,
-    Args&&... args);
+template <typename FieldMetadataType,
+          typename ArgValue,
+          typename... Args,
+          typename FieldMetadataTypeCheck = typename std::enable_if<
+              IsFieldMetadataType<FieldMetadataType>()>::type>
+PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(EventContext event_ctx,
+                                                FieldMetadataType field_name,
+                                                ArgValue&& arg_value,
+                                                Args&&... args);
 
 template <typename ArgumentFunction,
           typename... Args,
@@ -119,13 +139,14 @@ PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(
 }
 
 // Write one typed message and recursively write the rest of the arguments.
-template <typename FieldMetadataType, typename ArgValue, typename... Args>
-PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(
-    EventContext event_ctx,
-    protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadataType>
-        field_name,
-    ArgValue&& arg_value,
-    Args&&... args) {
+template <typename FieldMetadataType,
+          typename ArgValue,
+          typename... Args,
+          typename FieldMetadataTypeCheck>
+PERFETTO_ALWAYS_INLINE void WriteTrackEventArgs(EventContext event_ctx,
+                                                FieldMetadataType field_name,
+                                                ArgValue&& arg_value,
+                                                Args&&... args) {
   static_assert(std::is_base_of<protozero::proto_utils::FieldMetadataBase,
                                 FieldMetadataType>::value,
                 "");
