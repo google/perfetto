@@ -32,6 +32,8 @@
 namespace perfetto {
 namespace ipc {
 
+constexpr uint32_t kDefaultIpcTxTimeoutMs = 10000;
+
 class HostImpl : public Host, public base::UnixSocket::EventListener {
  public:
   HostImpl(const char* socket_name, base::TaskRunner*);
@@ -40,6 +42,7 @@ class HostImpl : public Host, public base::UnixSocket::EventListener {
 
   // Host implementation.
   bool ExposeService(std::unique_ptr<Service>) override;
+  void SetSocketSendTimeoutMs(uint32_t timeout_ms) override;
 
   // base::UnixSocket::EventListener implementation.
   void OnNewIncomingConnection(base::UnixSocket*,
@@ -88,6 +91,7 @@ class HostImpl : public Host, public base::UnixSocket::EventListener {
   std::map<base::UnixSocket*, ClientConnection*> clients_by_socket_;
   ServiceID last_service_id_ = 0;
   ClientID last_client_id_ = 0;
+  uint32_t socket_tx_timeout_ms_ = kDefaultIpcTxTimeoutMs;
   PERFETTO_THREAD_CHECKER(thread_checker_)
   base::WeakPtrFactory<HostImpl> weak_ptr_factory_;  // Keep last.
 };

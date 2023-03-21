@@ -59,6 +59,9 @@ class Host {
   // case of errors (e.g., another service with the same name is already
   // registered).
   virtual bool ExposeService(std::unique_ptr<Service>) = 0;
+
+  // Overrides the default send timeout for the per-connection sockets.
+  virtual void SetSocketSendTimeoutMs(uint32_t timeout_ms) = 0;
 };
 
 }  // namespace ipc

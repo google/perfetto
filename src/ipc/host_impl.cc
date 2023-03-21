@@ -116,6 +116,12 @@ bool HostImpl::ExposeService(std::unique_ptr<Service> service) {
   return true;
 }
 
+void HostImpl::SetSocketSendTimeoutMs(uint32_t timeout_ms) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
+  // Should be less than the watchdog period (30s).
+  socket_tx_timeout_ms_ = timeout_ms;
+}
+
 void HostImpl::OnNewIncomingConnection(
     base::UnixSocket*,
     std::unique_ptr<base::UnixSocket> new_conn) {
@@ -125,8 +131,7 @@ void HostImpl::OnNewIncomingConnection(
   clients_by_socket_[new_conn.get()] = client.get();
   client->id = client_id;
   client->sock = std::move(new_conn);
-  // Watchdog is 30 seconds, so set the socket timeout to 10 seconds.
-  client->sock->SetTxTimeout(10000);
+  client->sock->SetTxTimeout(socket_tx_timeout_ms_);
   clients_[client_id] = std::move(client);
 }
 
