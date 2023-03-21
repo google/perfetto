@@ -54,18 +54,6 @@ std::unique_ptr<T> WrapUnique(T* ptr) {
   return std::unique_ptr<T>(ptr);
 }
 
-void SetSqliteError(sqlite3_context* ctx, const base::Status& status) {
-  PERFETTO_CHECK(!status.ok());
-  sqlite3_result_error(ctx, status.c_message(), -1);
-}
-
-void SetSqliteError(sqlite3_context* ctx,
-                    const std::string& function_name,
-                    const base::Status& status) {
-  SetSqliteError(ctx, base::ErrStatus("%s: %s", function_name.c_str(),
-                                      status.c_message()));
-}
-
 class AggregateContext {
  public:
   static base::StatusOr<std::unique_ptr<AggregateContext>>
@@ -196,7 +184,7 @@ static void StepWrapper(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   base::Status status = Step(ctx, static_cast<size_t>(argc), argv);
 
   if (!status.ok()) {
-    SetSqliteError(ctx, kFunctionName, status);
+    sqlite_utils::SetSqliteError(ctx, kFunctionName, status);
   }
 }
 
