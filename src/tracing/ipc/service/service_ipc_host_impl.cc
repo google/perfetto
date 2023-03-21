@@ -31,6 +31,10 @@
 
 namespace perfetto {
 
+namespace {
+constexpr uint32_t kProducerSocketTxTimeoutMs = 10;
+}
+
 // TODO(fmayer): implement per-uid connection limit (b/69093705).
 
 // Implements the publicly exposed factory method declared in
@@ -97,6 +101,16 @@ bool ServiceIPCHostImpl::DoStart() {
     Shutdown();
     return false;
   }
+
+  // Lower the timeout for blocking socket sends to producers as we shouldn't
+  // normally exhaust the kernel send buffer unless the producer is
+  // unresponsive. We'll drop the connection if the timeout is hit (see
+  // UnixSocket::Send). Context in b/236813972, b/193234818.
+  // Consumer port continues using the default timeout (10s) as there are
+  // generally fewer consumer processes, and they're better behaved. Also the
+  // consumer port ipcs might exhaust the send buffer under normal operation
+  // due to large messages such as ReadBuffersResponse.
+  producer_ipc_port_->SetSocketSendTimeoutMs(kProducerSocketTxTimeoutMs);
 
   // TODO(fmayer): add a test that destroyes the ServiceIPCHostImpl soon after
   // Start() and checks that no spurious callbacks are issued.
