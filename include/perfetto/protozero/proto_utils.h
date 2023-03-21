@@ -289,17 +289,6 @@ struct FieldMetadata : public FieldMetadataBase {
   using message_type = MessageType;
 };
 
-namespace internal {
-
-// Prior to C++17 FieldMetadata<...> had to be a function type since
-// constexpr inline variables were not supported. This helper was used
-// to account for that. Now the helper doesn't do anything useful so
-// can be removed once all the uses are gone.
-// TODO(hjd): Remove once all uses are gone.
-template <typename T>
-using FieldMetadataHelper = T;
-
-}  // namespace internal
 }  // namespace proto_utils
 }  // namespace protozero
 
