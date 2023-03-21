@@ -55,7 +55,7 @@ SELECT RUN_METRIC(
 );
 
 
-DROP VIEW iF EXISTS display_ids;
+DROP VIEW IF EXISTS display_ids;
 CREATE VIEW display_ids AS
 SELECT DISTINCT display_id
 FROM (
@@ -74,7 +74,7 @@ FROM (
   SELECT display_id FROM hwc_execution_spans
 );
 
-DROP VIEW iF EXISTS metrics_per_display;
+DROP VIEW IF EXISTS metrics_per_display;
 CREATE VIEW metrics_per_display AS
 SELECT AndroidHwcomposerMetrics_MetricsPerDisplay(
   'display_id', display_id,
