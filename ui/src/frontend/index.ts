@@ -32,6 +32,7 @@ import {initController, runControllers} from '../controller/index';
 
 import {AnalyzePage} from './analyze_page';
 import {initCssConstants} from './css_constants';
+import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
 import {FlagsPage} from './flags_page';
@@ -287,10 +288,8 @@ function main() {
     if (extensionPort) extensionPort.postMessage(data);
   };
 
-  // Put these variables in the global scope for better debugging.
-  (window as {} as {m: {}}).m = m;
-  (window as {} as {globals: {}}).globals = globals;
-  (window as {} as {Actions: {}}).Actions = Actions;
+  // Put debug variables in the global scope for better debugging.
+  registerDebugGlobals();
 
   // Prevent pinch zoom.
   document.body.addEventListener('wheel', (e: MouseEvent) => {
