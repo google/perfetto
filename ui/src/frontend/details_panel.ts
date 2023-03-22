@@ -19,6 +19,7 @@ import {isEmptyData} from '../common/aggregation_data';
 import {LogExists, LogExistsKey} from '../common/logs';
 import {addSelectionChangeObserver} from '../common/selection_observer';
 import {Selection} from '../common/state';
+import {DebugSliceDetailsTab} from '../tracks/debug/details_tab';
 
 import {AggregationPanel} from './aggregation_panel';
 import {ChromeSliceDetailsPanel} from './chrome_slice_panel';
@@ -210,6 +211,16 @@ function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
         kind: ThreadStateTab.kind,
         tag: currentSelectionTag,
         config: {
+          id: newSelection.id,
+        },
+      });
+      break;
+    case 'DEBUG_SLICE':
+      bottomTabList.addTab({
+        kind: DebugSliceDetailsTab.kind,
+        tag: currentSelectionTag,
+        config: {
+          sqlTableName: newSelection.sqlTableName,
           id: newSelection.id,
         },
       });
