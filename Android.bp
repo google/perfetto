@@ -9920,6 +9920,7 @@ filegroup {
         "src/trace_processor/prelude/functions/create_function_internal.cc",
         "src/trace_processor/prelude/functions/create_view_function.cc",
         "src/trace_processor/prelude/functions/import.cc",
+        "src/trace_processor/prelude/functions/layout_functions.cc",
         "src/trace_processor/prelude/functions/pprof_functions.cc",
         "src/trace_processor/prelude/functions/register_function.cc",
         "src/trace_processor/prelude/functions/sqlite3_str_split.cc",

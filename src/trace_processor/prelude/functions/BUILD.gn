@@ -26,6 +26,8 @@ source_set("functions") {
     "create_view_function.h",
     "import.cc",
     "import.h",
+    "layout_functions.cc",
+    "layout_functions.h",
     "pprof_functions.cc",
     "pprof_functions.h",
     "register_function.cc",
