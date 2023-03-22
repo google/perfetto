@@ -317,15 +317,18 @@ class TrackDecider {
         group by parent_id, name
       )
       select
-        parent_id as parentId,
+        t.parent_id as parentId,
+        p.name as parentName,
         t.name as name,
         t.trackIds as trackIds,
         max_layout_depth(t.trackCount, t.trackIds) as maxDepth
       from global_tracks_grouped AS t
-      order by t.name;
+      left join track p on (t.parent_id = p.id)
+      order by p.name, t.name;
     `);
     const it = rawGlobalAsyncTracks.iter({
       name: STR_NULL,
+      parentName: STR_NULL,
       parentId: NUM_NULL,
       trackIds: STR,
       maxDepth: NUM,
@@ -336,6 +339,7 @@ class TrackDecider {
     for (; it.valid(); it.next()) {
       const kind = ASYNC_SLICE_TRACK_KIND;
       const rawName = it.name === null ? undefined : it.name;
+      const rawParentName = it.parentName === null ? undefined : it.name;
       const name = TrackDecider.getTrackName({name: rawName, kind});
       const rawTrackIds = it.trackIds;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
@@ -349,21 +353,24 @@ class TrackDecider {
           trackGroup = uuidv4();
           parentIdToGroupId.set(parentTrackId, trackGroup);
 
+          const parentName =
+              TrackDecider.getTrackName({name: rawParentName, kind});
+
           const summaryTrackId = uuidv4();
           this.tracksToAdd.push({
             id: summaryTrackId,
             engineId: this.engineId,
             kind: NULL_TRACK_KIND,
             trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-            name,
             trackGroup: undefined,
+            name: parentName,
             config: {},
           });
 
           this.addTrackGroupActions.push(Actions.addTrackGroup({
             engineId: this.engineId,
             summaryTrackId,
-            name,
+            name: parentName,
             id: trackGroup,
             collapsed: true,
           }));
