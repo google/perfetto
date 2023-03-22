@@ -14,51 +14,88 @@
 // limitations under the License.
 
 import * as m from 'mithril';
+import {getErrorMessage} from '../common/errors';
 
 import {globals} from './globals';
+import {
+  KeyboardLayoutMap,
+  nativeKeyboardLayoutMap,
+  NotSupportedError,
+} from './keyboard_layout_map';
 import {showModal} from './modal';
+import {KeyMapping} from './pan_and_zoom_handler';
+import {Spinner} from './widgets/spinner';
 
 export function toggleHelp() {
   globals.logging.logEvent('User Actions', 'Show help');
   showHelp();
 }
 
-function keycap(key: string) {
-  return m('.keycap', key);
+function keycap(glyph: m.Children): m.Children {
+  return m('.keycap', glyph);
 }
 
-function showHelp() {
-  const ctrlOrCmd =
-      window.navigator.platform.indexOf('Mac') !== -1 ? 'Cmd' : 'Ctrl';
-  showModal({
-    title: 'Perfetto Help',
-    content: m(
+// A fallback keyboard map based on the QWERTY keymap. Converts keyboard event
+// codes to their associated glyphs on an English QWERTY keyboard.
+class EnglishQwertyKeyboardLayoutMap implements KeyboardLayoutMap {
+  get(code: string): string {
+    // Converts 'KeyX' -> 'x'
+    return code.replace(/^Key([A-Z])$/, '$1').toLowerCase();
+  }
+}
+
+class KeyMappingsHelp implements m.ClassComponent {
+  private keyMap?: KeyboardLayoutMap;
+
+  oninit() {
+    nativeKeyboardLayoutMap()
+        .then((keyMap: KeyboardLayoutMap) => {
+          this.keyMap = keyMap;
+          globals.rafScheduler.scheduleFullRedraw();
+        })
+        .catch((e) => {
+          if (e instanceof NotSupportedError ||
+              getErrorMessage(e).includes('SecurityError')) {
+            // Keyboard layout is unavailable. Since showing the keyboard
+            // mappings correct for the user's keyboard layout is a nice-to-
+            // have, and users with non-QWERTY layouts are usually aware of the
+            // fact that the are using non-QWERTY layouts, we resort to showing
+            // English QWERTY mappings as a best-effort approach.
+            // The alternative would be to show key mappings for all keyboard
+            // layouts which is not feasible.
+            this.keyMap = new EnglishQwertyKeyboardLayoutMap();
+            globals.rafScheduler.scheduleFullRedraw();
+          } else {
+            // Something unexpected happened. Either the browser doesn't conform
+            // to the keyboard API spec, or the keyboard API spec has changed!
+            throw e;
+          }
+        });
+  }
+
+  view(_: m.Vnode): m.Children {
+    const ctrlOrCmd =
+        window.navigator.platform.indexOf('Mac') !== -1 ? 'Cmd' : 'Ctrl';
+
+    return m(
         '.help',
         m('h2', 'Navigation'),
         m(
             'table',
             m(
                 'tr',
-                m('td', keycap('w'), '/', keycap('s')),
+                m('td',
+                  this.codeToKeycap(KeyMapping.KEY_ZOOM_IN),
+                  '/',
+                  this.codeToKeycap(KeyMapping.KEY_ZOOM_OUT)),
                 m('td', 'Zoom in/out'),
                 ),
             m(
                 'tr',
-                m('td', keycap('a'), '/', keycap('d')),
-                m('td', 'Pan left/right'),
-                ),
-            ),
-        m('h2', 'Navigation (Dvorak)'),
-        m(
-            'table',
-            m(
-                'tr',
-                m('td', keycap(','), '/', keycap('o')),
-                m('td', 'Zoom in/out'),
-                ),
-            m(
-                'tr',
-                m('td', keycap('a'), '/', keycap('e')),
+                m('td',
+                  this.codeToKeycap(KeyMapping.KEY_PAN_LEFT),
+                  '/',
+                  this.codeToKeycap(KeyMapping.KEY_PAN_RIGHT)),
                 m('td', 'Pan left/right'),
                 ),
             ),
@@ -130,7 +167,22 @@ function showHelp() {
               m('td', keycap(ctrlOrCmd), ' + ', keycap('b')),
               m('td', 'Toggle display of sidebar')),
             m('tr', m('td', keycap('?')), m('td', 'Show help')),
-            )),
+            ));
+  }
+
+  private codeToKeycap(code: string): m.Children {
+    if (this.keyMap) {
+      return keycap(this.keyMap.get(code));
+    } else {
+      return keycap(m(Spinner));
+    }
+  }
+}
+
+function showHelp() {
+  showModal({
+    title: 'Perfetto Help',
+    content: () => m(KeyMappingsHelp),
     buttons: [],
   });
 }
