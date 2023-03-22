@@ -245,6 +245,13 @@ function findTimeRangeOfSelection(): {startTs: number, endTs: number} {
     }
   } else if (selection.kind === 'LOG') {
     // TODO(hjd): Make focus selection work for logs.
+  } else if (selection.kind === 'DEBUG_SLICE') {
+    startTs = selection.startS;
+    if (selection.durationS > 0) {
+      endTs = startTs + selection.durationS;
+    } else {
+      endTs = startTs + INSTANT_FOCUS_DURATION_S;
+    }
   }
 
   return {startTs, endTs};
