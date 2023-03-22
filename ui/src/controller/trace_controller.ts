@@ -498,7 +498,6 @@ export class TraceController extends Controller<States> {
       publishFtraceCounters(counters);
     }
 
-    globals.dispatch(Actions.removeDebugTrack({}));
     globals.dispatch(Actions.sortThreadTracks({}));
     globals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));
 

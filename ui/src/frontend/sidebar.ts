@@ -152,18 +152,6 @@ function createCannedQuery(query: string, title: string): (_: Event) => void {
   };
 }
 
-function showDebugTrack(): (_: Event) => void {
-  return (e: Event) => {
-    e.preventDefault();
-    globals.dispatch(Actions.addDebugTrack({
-      // The debug track will only be shown once we have a currentEngineId which
-      // is not undefined.
-      engineId: assertExists(globals.state.engine).id,
-      name: 'Debug Slices',
-    }));
-  };
-}
-
 const EXAMPLE_ANDROID_TRACE_URL =
     'https://storage.googleapis.com/perfetto-misc/example_android_trace_15s';
 
@@ -315,12 +303,6 @@ const SECTIONS: Section[] = [
     title: 'Sample queries',
     summary: 'Compute summary statistics',
     items: [
-      {
-        t: 'Show Debug Track',
-        a: showDebugTrack(),
-        i: 'view_day',
-        isVisible: () => globals.state.engine !== undefined,
-      },
       {
         t: 'Record metatrace',
         a: recordMetatrace,
