@@ -269,7 +269,6 @@ class Subprocess {
   void TryPushStdin();
   void TryReadStdoutAndErr();
   void TryReadExitStatus();
-  void KillAtMostOnce();
   bool PollInternal(int poll_timeout_ms);
 #endif
 
