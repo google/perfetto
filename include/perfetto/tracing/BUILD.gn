@@ -48,6 +48,7 @@ source_set("tracing") {
     "internal/track_event_data_source.h",
     "internal/track_event_internal.h",
     "internal/track_event_interned_fields.h",
+    "internal/track_event_legacy.h",
     "internal/track_event_macros.h",
     "internal/write_track_event_args.h",
     "locked_handle.h",
