@@ -274,3 +274,9 @@ class Android(TestSuite):
         "parent_id","blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","upid","process_name","id","ts","dur","track_id","is_blocked_thread_main","is_blocking_thread_main","binder_reply_id","binder_reply_ts","binder_reply_tid"
         "","void java.lang.Object.wait(long, int)","void android.opengl.GLSurfaceView$GLThread.requestRenderAndNotify(java.lang.Runnable)","java.lang.Object.wait","android.opengl.GLSurfaceView$GLThread.requestRenderAndNotify","Object.java:-2","GLSurfaceView.java:1658",0,313,"droid.gallery3d",1769,"GLThread 33",313,"com.android.gallery3d",289064,155411562446,51012448,2036,1,0,"","",""
       """))
+
+  def test_monitor_contention_metric(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query=Metric('android_monitor_contention'),
+        out=Path('android_monitor_contention.out'))
