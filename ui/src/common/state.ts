@@ -18,6 +18,7 @@ import {
   PivotTree,
   TableColumn,
 } from '../frontend/pivot_table_types';
+import {Direction} from './event_set';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
@@ -446,7 +447,7 @@ export interface PivotTableAreaState {
   tracks: string[];
 }
 
-export type SortDirection = 'DESC'|'ASC';
+export type SortDirection = keyof typeof Direction;
 
 export interface PivotTableState {
   // Currently selected area, if null, pivot table is not going to be visible.
