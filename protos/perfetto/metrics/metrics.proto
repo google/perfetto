@@ -56,7 +56,6 @@ import "protos/perfetto/metrics/android/trace_quality.proto";
 import "protos/perfetto/metrics/android/android_trusty_workqueues.proto";
 import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
 import "protos/perfetto/metrics/android/binder_metric.proto";
-import "protos/perfetto/metrics/android/monitor_contention_metric.proto";
 
 // Trace processor metadata
 message TraceMetadata {
@@ -236,8 +235,6 @@ message TraceMetrics {
 
   // Blocking calls (e.g. binder calls) for CUJs (important UI transitions).
   optional AndroidBlockingCallsCujMetric android_blocking_calls_cuj_metric = 49;
-
-  optional AndroidMonitorContentionMetric android_monitor_contention = 50;
 
   // Demo extensions.
   extensions 450 to 499;
