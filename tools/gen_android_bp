@@ -147,6 +147,7 @@ shared_library_allowlist = [
     'statssocket',
     'tracingproxy',
     'utils',
+    'statspull',
 ]
 
 # Static libraries which are directly translated to Android system equivalents.

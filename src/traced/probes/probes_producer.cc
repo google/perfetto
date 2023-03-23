@@ -48,6 +48,7 @@
 #include "src/traced/probes/power/linux_power_sysfs_data_source.h"
 #include "src/traced/probes/probes_data_source.h"
 #include "src/traced/probes/ps/process_stats_data_source.h"
+#include "src/traced/probes/statsd_client/statsd_binder_data_source.h"
 #include "src/traced/probes/statsd_client/statsd_exec_data_source.h"
 #include "src/traced/probes/sys_stats/sys_stats_data_source.h"
 #include "src/traced/probes/system_info/system_info_data_source.h"
@@ -183,6 +184,17 @@ ProbesProducer::CreateDSInstance<StatsdExecDataSource>(
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
   return std::unique_ptr<StatsdExecDataSource>(new StatsdExecDataSource(
+      task_runner_, session_id, endpoint_->CreateTraceWriter(buffer_id),
+      config));
+}
+
+template <>
+std::unique_ptr<ProbesDataSource>
+ProbesProducer::CreateDSInstance<StatsdBinderDataSource>(
+    TracingSessionID session_id,
+    const DataSourceConfig& config) {
+  auto buffer_id = static_cast<BufferID>(config.target_buffer());
+  return std::unique_ptr<StatsdBinderDataSource>(new StatsdBinderDataSource(
       task_runner_, session_id, endpoint_->CreateTraceWriter(buffer_id),
       config));
 }
@@ -325,7 +337,11 @@ constexpr const DataSourceTraits kAllDataSources[] = {
     Ds<MetatraceDataSource>(),
     Ds<PackagesListDataSource>(),
     Ds<ProcessStatsDataSource>(),
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+    Ds<StatsdBinderDataSource>(),
+#else
     Ds<StatsdExecDataSource>(),
+#endif
     Ds<SysStatsDataSource>(),
     Ds<SystemInfoDataSource>(),
 };
