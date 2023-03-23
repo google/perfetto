@@ -36,14 +36,16 @@ message AndroidBinderMetric {
     // General
     optional string aidl_name = 1;
     // Client
-    optional uint32 binder_txn_id = 2;
+    // Removed: was binder_txn_id
+    reserved 2;
     optional string client_process = 3;
     optional string client_thread = 4;
     optional bool is_main_thread = 5;
     optional int64 client_ts = 6;
     optional int64 client_dur = 7;
     // Server
-    optional uint32 binder_reply_id = 8;
+    // Removed: was binder_reply_id
+    reserved 8;
     optional string server_process = 9;
     optional string server_thread = 10;
     optional int64 server_ts = 11;
@@ -51,6 +53,9 @@ message AndroidBinderMetric {
     // Aggregations
     repeated ThreadStateBreakdown thread_states = 13;
     repeated BlockedFunctionBreakdown blocked_functions = 14;
+
+    optional uint32 client_tid = 15;
+    optional uint32 server_tid = 16;
   }
 
   message ThreadStateBreakdown {
