@@ -53,6 +53,7 @@ if (perfetto_build_with_android) {
       "services",
       "tracingproxy",
       "utils",
+      "libstatspull",
     ]
 
     # This target should never depend on any other perfetto target to avoid ODR
@@ -75,6 +76,7 @@ source_set("headers") {
     "health_hal.h",
     "incident_service.h",
     "power_stats.h",
+    "statsd.h",
     "statsd_logging.h",
     "tracing_service_proxy.h",
   ]
