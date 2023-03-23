@@ -233,8 +233,8 @@ class Android(TestSuite):
       LIMIT 1;
       """,
         out=Csv("""
-        "blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","upid","process_name","id","ts","dur","track_id","binder_reply_id"
-        "float com.android.server.wm.WindowManagerService.getCurrentAnimatorScale()","android.app.ActivityTaskManager$RootTaskInfo com.android.server.wm.ActivityTaskManagerService.getFocusedRootTaskInfo()","com.android.server.wm.WindowManagerService.getCurrentAnimatorScale","com.android.server.wm.ActivityTaskManagerService.getFocusedRootTaskInfo","WindowManagerService.java:3511","ActivityTaskManagerService.java:1977",2,555,"binder:642_3",527,"android.anim",279,"system_server",69099,146987786843,24888520,1317,69097
+        "blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","upid","process_name","id","ts","dur","track_id","is_blocked_thread_main","is_blocking_thread_main","binder_reply_id","binder_reply_ts","binder_reply_tid"
+        "float com.android.server.wm.WindowManagerService.getCurrentAnimatorScale()","android.app.ActivityTaskManager$RootTaskInfo com.android.server.wm.ActivityTaskManagerService.getFocusedRootTaskInfo()","com.android.server.wm.WindowManagerService.getCurrentAnimatorScale","com.android.server.wm.ActivityTaskManagerService.getFocusedRootTaskInfo","WindowManagerService.java:3511","ActivityTaskManagerService.java:1977",2,555,"binder:642_3",527,"android.anim",279,"system_server",69099,146987786843,24888520,1317,0,0,69097,146987701011,1559
       """))
 
   def test_monitor_contention_chain_extraction(self):
@@ -261,12 +261,22 @@ class Android(TestSuite):
         ts,
         dur,
         track_id,
-        IIF(binder_reply_id IS NULL, "", binder_reply_id) AS binder_reply_id
+        is_blocked_thread_main,
+        is_blocking_thread_main,
+        IIF(binder_reply_id IS NULL, "", binder_reply_id) AS binder_reply_id,
+        IIF(binder_reply_ts IS NULL, "", binder_reply_ts) AS binder_reply_ts,
+        IIF(binder_reply_tid IS NULL, "", binder_reply_tid) AS binder_reply_tid
       FROM android_monitor_contention_chain
       ORDER BY dur DESC
       LIMIT 1;
       """,
         out=Csv("""
-        "parent_id","blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","upid","process_name","id","ts","dur","track_id","binder_reply_id"
-        "","void java.lang.Object.wait(long, int)","void android.opengl.GLSurfaceView$GLThread.requestRenderAndNotify(java.lang.Runnable)","java.lang.Object.wait","android.opengl.GLSurfaceView$GLThread.requestRenderAndNotify","Object.java:-2","GLSurfaceView.java:1658",0,313,"droid.gallery3d",1769,"GLThread 33",313,"com.android.gallery3d",289064,155411562446,51012448,2036,""
+        "parent_id","blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","upid","process_name","id","ts","dur","track_id","is_blocked_thread_main","is_blocking_thread_main","binder_reply_id","binder_reply_ts","binder_reply_tid"
+        "","void java.lang.Object.wait(long, int)","void android.opengl.GLSurfaceView$GLThread.requestRenderAndNotify(java.lang.Runnable)","java.lang.Object.wait","android.opengl.GLSurfaceView$GLThread.requestRenderAndNotify","Object.java:-2","GLSurfaceView.java:1658",0,313,"droid.gallery3d",1769,"GLThread 33",313,"com.android.gallery3d",289064,155411562446,51012448,2036,1,0,"","",""
       """))
+
+  def test_monitor_contention_metric(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query=Metric('android_monitor_contention'),
+        out=Path('android_monitor_contention.out'))

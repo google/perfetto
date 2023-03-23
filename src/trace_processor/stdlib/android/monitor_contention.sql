@@ -152,7 +152,11 @@ SELECT ancestor.parent_id AS id FROM slice
 -- @column ts timestamp of lock contention start
 -- @column dur duration of lock contention
 -- @column track_id thread track id of blocked thread
+-- @column is_blocked_main_thread whether the blocked thread is the main thread
+-- @column is_blocking_main_thread whether the blocking thread is the main thread
 -- @column binder_reply_id slice id of binder reply slice if lock contention was part of a binder txn
+-- @column binder_reply_ts timestamp of binder reply slice if lock contention was part of a binder txn
+-- @column binder_reply_tid tid of binder reply slice if lock contention was part of a binder txn
 CREATE TABLE android_monitor_contention
 AS
 SELECT
@@ -173,7 +177,11 @@ SELECT
   slice.ts,
   slice.dur,
   slice.track_id,
-  binder_reply.id AS binder_reply_id
+  thread.is_main_thread AS is_blocked_thread_main,
+  blocking_thread.is_main_thread AS is_blocking_thread_main,
+  binder_reply.id AS binder_reply_id,
+  binder_reply.ts AS binder_reply_ts,
+  binder_reply_thread.tid AS binder_reply_tid
 FROM slice
 JOIN thread_track
   ON thread_track.id = slice.track_id
@@ -183,6 +191,8 @@ LEFT JOIN process
   USING (upid)
 LEFT JOIN internal_broken_android_monitor_contention ON internal_broken_android_monitor_contention.id = slice.id
 LEFT JOIN ANCESTOR_SLICE(slice.id) binder_reply ON binder_reply.name = 'binder reply'
+LEFT JOIN thread_track binder_reply_thread_track ON binder_reply.track_id = binder_reply_thread_track.id
+LEFT JOIN thread binder_reply_thread ON binder_reply_thread_track.utid = binder_reply_thread.utid
 JOIN thread blocking_thread ON blocking_thread.name = blocking_thread_name AND blocking_thread.upid = thread.upid
 WHERE slice.name LIKE 'monitor contention%'
   AND slice.dur != -1
@@ -209,7 +219,11 @@ GROUP BY slice.id;
 -- @column ts timestamp of lock contention start
 -- @column dur duration of lock contention
 -- @column track_id thread track id of blocked thread
+-- @column is_blocked_main_thread whether the blocked thread is the main thread
+-- @column is_blocking_main_thread whether the blocking thread is the main thread
 -- @column binder_reply_id slice id of binder reply slice if lock contention was part of a binder txn
+-- @column binder_reply_ts timestamp of binder reply slice if lock contention was part of a binder txn
+-- @column binder_reply_tid tid of binder reply slice if lock contention was part of a binder txn
 CREATE TABLE android_monitor_contention_chain
 AS
 SELECT parent.id AS parent_id, child.* FROM android_monitor_contention child
