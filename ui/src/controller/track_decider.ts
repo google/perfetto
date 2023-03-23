@@ -347,7 +347,7 @@ class TrackDecider {
       const maxDepth = it.maxDepth;
       let trackGroup = SCROLLING_TRACK_GROUP;
 
-      if (parentTrackId) {
+      if (parentTrackId !== null) {
         const groupId = parentIdToGroupId.get(parentTrackId);
         if (groupId === undefined) {
           trackGroup = uuidv4();
