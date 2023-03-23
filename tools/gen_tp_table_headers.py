@@ -65,7 +65,7 @@ def main():
   # Build a mapping from table class name to the output path of the header
   # which will be generated for it. This is used to include one header into
   # another for Id dependencies.
-  table_class_name_to_relout = {}
+  table_class_name_to_relout: Dict[str, str] = {}
   for header in headers.values():
     for table in header.tables:
       table_class_name_to_relout[table.table.class_name] = header.relout_path
@@ -75,8 +75,8 @@ def main():
     # generating the header file below so ensure we remove ourself.
     header_relout_deps: Set[str] = set()
     for table in header.tables:
-      header_relout_deps.union(
-          table_class_name_to_relout[c] for c in table.find_table_deps())
+      header_relout_deps = header_relout_deps.union(
+          [table_class_name_to_relout[c] for c in table.find_table_deps()])
     header_relout_deps.discard(header.relout_path)
 
     with open(header.out_path, 'w', encoding='utf8') as out:

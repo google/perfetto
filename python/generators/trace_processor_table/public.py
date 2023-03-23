@@ -40,6 +40,8 @@ class ColumnFlag(enum_Flag):
   """
   NONE = 0
   SORTED = auto()
+  HIDDEN = auto()
+  DENSE = auto()
   SET_ID = auto()
 
 
@@ -122,8 +124,7 @@ class Table:
     columns: The columns in this table.
     tabledoc: Documentation for this table. Can include documentation overrides
     for auto-added columns (i.e. id and type) and aliases added in
-    |wrapping_sql_view|. parent: The parent ("super-class") table for this
-    table.
+    |wrapping_sql_view|.
     parent: The parent table for this table. All columns are inherited from the
     specified table.
     wrapping_sql_view: See |WrappingSqlView|.
@@ -131,8 +132,8 @@ class Table:
   class_name: str
   sql_name: str
   columns: List[Column]
-  tabledoc: TableDoc
   parent: Optional['Table'] = None
+  tabledoc: Optional[TableDoc] = None
   wrapping_sql_view: Optional[WrappingSqlView] = None
 
 

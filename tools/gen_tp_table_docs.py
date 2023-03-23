@@ -36,6 +36,7 @@ from python.generators.trace_processor_table.util import ParsedColumn
 def gen_json_for_column(table: ParsedTable,
                         col: ParsedColumn) -> Optional[Dict[str, Any]]:
   """Generates the JSON documentation for a column in a table."""
+  assert table.table.tabledoc
 
   # id and type columns should be skipped if the table specifies so.
   is_skippable_col = col.is_implicit_id or col.is_implicit_type
@@ -55,7 +56,8 @@ def gen_json_for_column(table: ParsedTable,
     comment = col.doc
     join_table, join_col = None, None
   else:
-    raise Exception('Unknown column documentation type')
+    raise Exception('Unknown column documentation type '
+                    f'{table.table.class_name}::{col.column.name}')
 
   parsed_type = table.parse_type(col.column.type)
   docs_type = parsed_type.cpp_type
@@ -93,6 +95,7 @@ def main():
   for parsed in tables:
     table = parsed.table
     doc = table.tabledoc
+    assert doc
     cols = (
         gen_json_for_column(parsed, c)
         for c in parsed.columns

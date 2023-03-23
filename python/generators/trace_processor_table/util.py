@@ -19,12 +19,14 @@ from typing import Dict
 from typing import List
 from typing import Set
 from typing import Optional
+from typing import Union
 
 from python.generators.trace_processor_table.public import Alias
 from python.generators.trace_processor_table.public import Column
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppColumnType
+from python.generators.trace_processor_table.public import CppDouble
 from python.generators.trace_processor_table.public import CppInt32
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
@@ -101,6 +103,8 @@ class ParsedTable:
       return ParsedType('int32_t')
     if isinstance(col_type, CppUint32):
       return ParsedType('uint32_t')
+    if isinstance(col_type, CppDouble):
+      return ParsedType('double')
     if isinstance(col_type, CppString):
       return ParsedType('StringPool::Id')
 
@@ -161,36 +165,24 @@ def public_sql_name(table: Table) -> str:
   wrapping_view = table.wrapping_sql_view
   return wrapping_view.view_name if wrapping_view else table.sql_name
 
-
-def to_cpp_flags(raw_flag: ColumnFlag) -> str:
-  """Converts a ColumnFlag to the C++ flags which it represents
-
-  It is not valid to call this function with ColumnFlag.NONE as in this case
-  defaults for that column should be implicitly used."""
-
-  assert raw_flag != ColumnFlag.NONE
-  flags = []
-  if ColumnFlag.SORTED in raw_flag:
-    flags.append('Column::Flag::kSorted')
-  if ColumnFlag.SET_ID in raw_flag:
-    flags.append('Column::Flag::kSetId')
-  return ' | '.join(flags)
-
-
 def _create_implicit_columns_for_root(parsed: ParsedTable
                                      ) -> List[ParsedColumn]:
   """Given a root table, returns the implicit id and type columns."""
-  assert parsed.table.parent is None
+  table = parsed.table
+  assert table.parent is None
 
-  sql_name = public_sql_name(parsed.table)
+  sql_name = public_sql_name(table)
+  id_doc = table.tabledoc.columns.get('id') if table.tabledoc else None
+  type_doc = table.tabledoc.columns.get('type') if table.tabledoc else None
   return [
       ParsedColumn(
           Column('id', CppSelfTableId(), ColumnFlag.SORTED),
-          ColumnDoc(doc=f'Unique idenitifier for this {sql_name}.'),
+          _to_column_doc(id_doc) if id_doc else ColumnDoc(
+              doc=f'Unique idenitifier for this {sql_name}.'),
           is_implicit_id=True),
       ParsedColumn(
           Column('type', CppString(), ColumnFlag.NONE),
-          ColumnDoc(doc='''
+          _to_column_doc(type_doc) if type_doc else ColumnDoc(doc='''
                 The name of the "most-specific" child table containing this
                 row.
               '''),
@@ -226,6 +218,14 @@ def _topological_sort_tables(parsed: List[ParsedTable]) -> List[ParsedTable]:
   return result
 
 
+def _to_column_doc(doc: Union[ColumnDoc, str, None]) -> Optional[ColumnDoc]:
+  """Cooerces a user specified ColumnDoc or string into a ColumnDoc."""
+
+  if doc is None or isinstance(doc, ColumnDoc):
+    return doc
+  return ColumnDoc(doc=doc)
+
+
 def parse_tables_from_files(input_paths: List[str]) -> List[ParsedTable]:
   """Creates a list of tables with the associated paths."""
 
@@ -244,9 +244,10 @@ def parse_tables_from_files(input_paths: List[str]) -> List[ParsedTable]:
   # Create the list of parsed columns
   for i, parsed in enumerate(sorted_tables):
     parsed_columns: List[ParsedColumn]
+    table = parsed.table
 
-    if parsed.table.parent:
-      parsed_parent = parsed_tables[parsed.table.parent.class_name]
+    if table.parent:
+      parsed_parent = parsed_tables[table.parent.class_name]
       parsed_columns = [
           dataclasses.replace(c, is_ancestor=True)
           for c in parsed_parent.columns
@@ -254,19 +255,11 @@ def parse_tables_from_files(input_paths: List[str]) -> List[ParsedTable]:
     else:
       parsed_columns = _create_implicit_columns_for_root(parsed)
 
-    for c in parsed.table.columns:
-      doc = parsed.table.tabledoc.columns.get(c.name)
-      columndoc: Optional[ColumnDoc]
-      if not doc:
-        columndoc = None
-      elif isinstance(doc, ColumnDoc):
-        columndoc = doc
-      else:
-        columndoc = ColumnDoc(doc=doc)
-      parsed_columns.append(ParsedColumn(c, columndoc))
+    for c in table.columns:
+      doc = table.tabledoc.columns.get(c.name) if table.tabledoc else None
+      parsed_columns.append(ParsedColumn(c, _to_column_doc(doc)))
 
-    new_table = dataclasses.replace(parsed, columns=parsed_columns)
-    parsed_tables[parsed.table.class_name] = new_table
-    sorted_tables[i] = new_table
+    sorted_tables[i] = dataclasses.replace(parsed, columns=parsed_columns)
+    parsed_tables[parsed.table.class_name] = sorted_tables[i]
 
   return sorted_tables

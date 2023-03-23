@@ -19,7 +19,6 @@ from python.generators.trace_processor_table.public import Alias
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.util import ParsedTable
 from python.generators.trace_processor_table.util import ParsedColumn
-from python.generators.trace_processor_table.util import to_cpp_flags
 
 
 class ColumnSerializer:
@@ -104,8 +103,8 @@ class ColumnSerializer:
       return None
 
     storage = f'ColumnStorage<ColumnType::{self.name}::stored_type>'
-    # TODO(lalitm): add support for dense columns.
-    return f'''{self.name}_({storage}::Create<false>())'''
+    dense = str(ColumnFlag.DENSE in self.flags).lower()
+    return f'''{self.name}_({storage}::Create<{dense}>())'''
 
   def column_init(self) -> Optional[str]:
     if self.is_implicit_id or self.is_implicit_type:
@@ -158,6 +157,41 @@ class ColumnSerializer:
     name = self.name
     return f'  ColumnStorage<ColumnType::{name}::stored_type> {name}_;'
 
+  def iterator_getter(self) -> Optional[str]:
+    name = self.name
+    return f'''
+    ColumnType::{self.name}::type {name}() const {{
+      const auto& col = table_->{name}();
+      return col.GetAtIdx(its_[col.overlay_index()].index());
+    }}
+    '''
+
+  def iterator_setter(self) -> Optional[str]:
+    if self.is_implicit_id or self.is_implicit_type:
+      return None
+    return f'''
+      void set_{self.name}(ColumnType::{self.name}::non_optional_type v) {{
+        auto* col = mutable_table_->mutable_{self.name}();
+        col->SetAtIdx(its_[col->overlay_index()].index(), v);
+      }}
+    '''
+
+  def static_schema(self) -> Optional[str]:
+    if self.is_implicit_id or self.is_implicit_type:
+      return None
+    return f'''
+      schema.columns.emplace_back(Table::Schema::Column{{
+          "{self.name}", ColumnType::{self.name}::SqlValueType(), false,
+          {str(ColumnFlag.SORTED in self.flags).lower()},
+          {str(ColumnFlag.HIDDEN in self.flags).lower()},
+          {str(ColumnFlag.SET_ID in self.flags).lower()}}});
+    '''
+
+  def row_eq(self) -> Optional[str]:
+    if self.is_implicit_id or self.is_implicit_type:
+      return None
+    return f'ColumnType::{self.name}::Equals({self.name}, other.{self.name})'
+
 
 class TableSerializer(object):
   """Functions for seralizing a single Table into C++."""
@@ -209,6 +243,7 @@ class TableSerializer(object):
         ColumnSerializer.parent_row_initializer, delimiter=', ')
     row_init = self.foreach_col(
         ColumnSerializer.row_initializer, delimiter=',\n          ')
+    row_eq = self.foreach_col(ColumnSerializer.row_eq, delimiter=' &&\n       ')
     return f'''
   struct Row : public {self.parent_class_name}::Row {{
     Row({param},
@@ -218,6 +253,10 @@ class TableSerializer(object):
       type_ = "{self.table.sql_name}";
     }}
     {self.foreach_col(ColumnSerializer.row_field)}
+
+    bool operator==(const {self.table_name}::Row& other) const {{
+      return type() == other.type() && {row_eq};
+    }}
   }};
     '''
 
@@ -295,6 +334,55 @@ class TableSerializer(object):
     type_.Append(string_pool_->InternString(row.type()));
       '''
 
+  def const_iterator(self) -> str:
+    iterator_getters = self.foreach_col(
+        ColumnSerializer.iterator_getter, delimiter='\n')
+    return f'''
+  class ConstIterator;
+  class ConstIterator : public macros_internal::AbstractConstIterator<
+    ConstIterator, {self.table_name}, RowNumber, ConstRowReference> {{
+   public:
+    {iterator_getters}
+
+   protected:
+    explicit ConstIterator(const {self.table_name}* table,
+                           std::vector<ColumnStorageOverlay> overlays)
+        : AbstractConstIterator(table, std::move(overlays)) {{}}
+
+    uint32_t CurrentRowNumber() const {{
+      return its_.back().index();
+    }}
+
+   private:
+    friend class {self.table_name};
+    friend class AbstractConstIterator;
+  }};
+      '''
+
+  def iterator(self) -> str:
+    iterator_setters = self.foreach_col(
+        ColumnSerializer.iterator_setter, delimiter='\n')
+    return f'''
+  class Iterator : public ConstIterator {{
+    public:
+    {iterator_setters}
+
+    RowReference row_reference() const {{
+      return RowReference(mutable_table_, CurrentRowNumber());
+    }}
+
+    private:
+    friend class {self.table_name};
+
+    explicit Iterator({self.table_name}* table,
+                      std::vector<ColumnStorageOverlay> overlays)
+        : ConstIterator(table, std::move(overlays)),
+          mutable_table_(table) {{}}
+
+    {self.table_name}* mutable_table_ = nullptr;
+  }};
+      '''
+
   def serialize(self) -> str:
     return f'''
 class {self.table_name} : public macros_internal::MacroTable {{
@@ -307,10 +395,6 @@ class {self.table_name} : public macros_internal::MacroTable {{
     {self.foreach_col(ColumnSerializer.coltype_enum)}
   }};
   {self.row_struct().strip()}
-  struct IdAndRow {{
-    uint32_t row;
-    Id id;
-  }};
   struct ColumnFlag {{
     {self.foreach_col(ColumnSerializer.flag)}
   }};
@@ -331,10 +415,48 @@ class {self.table_name} : public macros_internal::MacroTable {{
   {self.const_row_reference_struct().strip()}
   {self.row_reference_struct().strip()}
 
+  {self.const_iterator().strip()}
+  {self.iterator().strip()}
+
+  struct IdAndRow {{
+    Id id;
+    uint32_t row;
+    RowReference row_reference;
+    RowNumber row_number;
+  }};
+
   {self.constructor().strip()}
   ~{self.table_name}() override;
 
   static const char* Name() {{ return "{self.table.sql_name}"; }}
+
+  static Table::Schema ComputeStaticSchema() {{
+    Table::Schema schema;
+    schema.columns.emplace_back(Table::Schema::Column{{
+        "id", SqlValue::Type::kLong, true, true, false, false}});
+    schema.columns.emplace_back(Table::Schema::Column{{
+        "type", SqlValue::Type::kString, false, false, false, false}});
+    {self.foreach_col(ColumnSerializer.static_schema)}
+    return schema;
+  }}
+
+  ConstIterator IterateRows() const {{
+    return ConstIterator(this, CopyOverlays());
+  }}
+
+  Iterator IterateRows() {{ return Iterator(this, CopyOverlays()); }}
+
+  ConstIterator FilterToIterator(
+      const std::vector<Constraint>& cs,
+      RowMap::OptimizeFor opt = RowMap::OptimizeFor::kMemory) const {{
+    return ConstIterator(this, FilterAndApplyToOverlays(cs, opt));
+  }}
+
+  Iterator FilterToIterator(
+      const std::vector<Constraint>& cs,
+      RowMap::OptimizeFor opt = RowMap::OptimizeFor::kMemory) {{
+    return Iterator(this, FilterAndApplyToOverlays(cs, opt));
+  }}
 
   void ShrinkToFit() {{
     {self.foreach_col(ColumnSerializer.shrink_to_fit)}
@@ -356,7 +478,8 @@ class {self.table_name} : public macros_internal::MacroTable {{
     {self.insert_common().strip()}
     {self.foreach_col(ColumnSerializer.append)}
     UpdateSelfOverlayAfterInsert();
-    return IdAndRow{{row_number, std::move(id)}};
+    return IdAndRow{{std::move(id), row_number, RowReference(this, row_number),
+                     RowNumber(row_number)}};
   }}
 
   {self.foreach_col(ColumnSerializer.accessor)}
@@ -395,3 +518,22 @@ namespace tables {{
 
 #endif  // {ifdef_guard}
   '''.strip()
+
+
+def to_cpp_flags(raw_flag: ColumnFlag) -> str:
+  """Converts a ColumnFlag to the C++ flags which it represents
+
+  It is not valid to call this function with ColumnFlag.NONE as in this case
+  defaults for that column should be implicitly used."""
+
+  assert raw_flag != ColumnFlag.NONE
+  flags = []
+  if ColumnFlag.SORTED in raw_flag:
+    flags.append('Column::Flag::kSorted')
+  if ColumnFlag.HIDDEN in raw_flag:
+    flags.append('Column::Flag::kHidden')
+  if ColumnFlag.DENSE in raw_flag:
+    flags.append('Column::Flag::kDense')
+  if ColumnFlag.SET_ID in raw_flag:
+    flags.append('Column::Flag::kSetId')
+  return ' | '.join(flags)
