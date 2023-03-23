@@ -1158,36 +1158,6 @@ message AndroidMemoryUnaggregatedMetric {
 
 // End of protos/perfetto/metrics/android/mem_unagg_metric.proto
 
-// Begin of protos/perfetto/metrics/android/monitor_contention_metric.proto
-
-// This metric provides information about the monitor contention graph in a trace
-message AndroidMonitorContentionMetric {
-  message Node {
-      optional int64 node_parent_id = 1;
-      optional int64 node_id = 2;
-      optional int64 ts = 3;
-      optional int64 dur = 4;
-      optional string blocking_method = 5;
-      optional string blocked_method = 6;
-      optional string short_blocking_method = 7;
-      optional string short_blocked_method = 8;
-      optional string blocking_src = 9;
-      optional string blocked_src = 10;
-      optional uint32 waiter_count = 11;
-      optional string blocked_thread_name = 12;
-      optional string blocking_thread_name = 13;
-      optional string process_name = 14;
-      optional bool is_blocked_thread_main = 15;
-      optional bool is_blocking_thread_main = 16;
-      optional int64 binder_reply_ts = 17;
-      optional int64 binder_reply_tid = 18;
-  }
-
-  repeated Node node = 1;
-}
-
-// End of protos/perfetto/metrics/android/monitor_contention_metric.proto
-
 // Begin of protos/perfetto/metrics/android/multiuser_metric.proto
 
 // Metrics for Multiuser events, such as switching users.
@@ -2071,8 +2041,6 @@ message TraceMetrics {
 
   // Blocking calls (e.g. binder calls) for CUJs (important UI transitions).
   optional AndroidBlockingCallsCujMetric android_blocking_calls_cuj_metric = 49;
-
-  optional AndroidMonitorContentionMetric android_monitor_contention = 50;
 
   // Demo extensions.
   extensions 450 to 499;
