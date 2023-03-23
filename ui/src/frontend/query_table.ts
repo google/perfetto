@@ -117,19 +117,47 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
   }
 }
 
-interface QueryTableAttrs {
-  query: string;
-  resp?: QueryResponse;
-  onClose: () => void;
+interface QueryTableContentAttrs {
+  resp: QueryResponse;
 }
 
-export class QueryTable extends Panel<QueryTableAttrs> {
+class QueryTableContent implements m.ClassComponent<QueryTableContentAttrs> {
   private previousResponse?: QueryResponse;
 
-  onbeforeupdate(vnode: m.CVnode<QueryTableAttrs>) {
+  onbeforeupdate(vnode: m.CVnode<QueryTableContentAttrs>) {
     return vnode.attrs.resp !== this.previousResponse;
   }
 
+  view(vnode: m.CVnode<QueryTableContentAttrs>) {
+    const resp = vnode.attrs.resp;
+    this.previousResponse = resp;
+    const cols = [];
+    for (const col of resp.columns) {
+      cols.push(m('td', col));
+    }
+    const tableHeader = m('tr', cols);
+
+    const rows =
+        resp.rows.map((row) => m(QueryTableRow, {row, columns: resp.columns}));
+
+    if (resp.error) {
+      return m('.query-error', `SQL error: ${resp.error}`);
+    } else {
+      return m(
+          '.query-table-container.x-scrollable',
+          m('table.query-table', m('thead', tableHeader), m('tbody', rows)));
+    }
+  }
+}
+
+interface QueryTableAttrs {
+  query: string;
+  onClose: () => void;
+  resp?: QueryResponse;
+  contextButtons?: m.Child[];
+}
+
+export class QueryTable extends Panel<QueryTableAttrs> {
   view(vnode: m.CVnode<QueryTableAttrs>) {
     const resp = vnode.attrs.resp;
 
@@ -139,6 +167,7 @@ export class QueryTable extends Panel<QueryTableAttrs> {
                `Query - running`),
       m('span.code.text-select', vnode.attrs.query),
       m('span.spacer'),
+      ...(vnode.attrs.contextButtons ?? []),
       m(Button, {
         label: 'Copy query',
         minimal: true,
@@ -170,18 +199,6 @@ export class QueryTable extends Panel<QueryTableAttrs> {
       return m('div', ...headers);
     }
 
-    this.previousResponse = resp;
-    const cols = [];
-    for (const col of resp.columns) {
-      cols.push(m('td', col));
-    }
-    const tableHeader = m('tr', cols);
-
-    const rows = [];
-    for (let i = 0; i < resp.rows.length; i++) {
-      rows.push(m(QueryTableRow, {row: resp.rows[i], columns: resp.columns}));
-    }
-
     if (resp.statementWithOutputCount > 1) {
       headers.push(
           m('header.overview',
@@ -190,14 +207,7 @@ export class QueryTable extends Panel<QueryTableAttrs> {
                 `statement are displayed in the table below.`));
     }
 
-    return m(
-        'div',
-        ...headers,
-        resp.error ? m('.query-error', `SQL error: ${resp.error}`) :
-                     m('.query-table-container.x-scrollable',
-                       m('table.query-table',
-                         m('thead', tableHeader),
-                         m('tbody', rows))));
+    return m('div', ...headers, m(QueryTableContent, {resp}));
   }
 
   renderCanvas() {}

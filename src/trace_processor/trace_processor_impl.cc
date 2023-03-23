@@ -49,6 +49,7 @@
 #include "src/trace_processor/prelude/functions/create_function.h"
 #include "src/trace_processor/prelude/functions/create_view_function.h"
 #include "src/trace_processor/prelude/functions/import.h"
+#include "src/trace_processor/prelude/functions/layout_functions.h"
 #include "src/trace_processor/prelude/functions/pprof_functions.h"
 #include "src/trace_processor/prelude/functions/register_function.h"
 #include "src/trace_processor/prelude/functions/sqlite3_str_split.h"
@@ -765,6 +766,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   }
   {
     base::Status status = PprofFunctions::Register(db, &context_);
+    if (!status.ok())
+      PERFETTO_ELOG("%s", status.c_message());
+  }
+  {
+    base::Status status = LayoutFunctions::Register(db, &context_);
     if (!status.ok())
       PERFETTO_ELOG("%s", status.c_message());
   }
