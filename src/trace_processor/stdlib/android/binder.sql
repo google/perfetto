@@ -39,6 +39,7 @@ GROUP BY
   slice_name;
 
 -- Breakdown synchronous binder transactions per txn.
+-- It returns data about the client and server ends of every binder transaction.
 --
 -- @column aidl_name name of the binder interface if existing
 -- @column binder_txn_id slice id of the binder txn
@@ -88,6 +89,7 @@ WITH
       process.name AS process_name,
       thread.name AS thread_name,
       thread.utid AS utid,
+      thread.tid AS tid,
       process.upid AS upid,
       slice.ts,
       slice.dur,
@@ -109,6 +111,7 @@ WITH
       reply_thread.name AS server_thread,
       reply_process.name AS server_process,
       reply_thread.utid AS server_utid,
+      reply_thread.tid AS server_tid,
       reply_process.upid AS server_upid,
       aidl.name AS aidl_name
     FROM binder_txn
@@ -128,6 +131,7 @@ SELECT
   thread_name AS client_thread,
   upid AS client_upid,
   utid AS client_utid,
+  tid AS client_tid,
   is_main_thread,
   ts AS client_ts,
   dur AS client_dur,
@@ -136,6 +140,7 @@ SELECT
   server_thread,
   server_upid,
   server_utid,
+  server_tid,
   server_ts,
   server_dur
 FROM binder_reply
@@ -165,6 +170,12 @@ USING
   SPAN_JOIN(internal_binder_reply PARTITIONED utid, thread_state PARTITIONED utid);
 
 -- Aggregated thread_states on the client and server side per binder txn
+-- This builds on the data from |android_sync_binder_metrics_by_txn| and
+-- for each end (client and server) of the transaction, it returns
+-- the aggregated sum of all the thread state durations.
+-- The |thread_state_type| column represents whether a given 'aggregated thread_state'
+-- row is on the client or server side. 'binder_txn' is client side and 'binder_reply'
+-- is server side.
 --
 -- @column binder_txn_id slice id of the binder txn
 -- @column binder_reply_id slice id of the binder reply
@@ -176,7 +187,11 @@ CREATE VIEW android_sync_binder_thread_state_by_txn
 AS
 SELECT
   binder_txn_id,
+  client_ts,
+  client_tid,
   binder_reply_id,
+  server_ts,
+  server_tid,
   'binder_txn' AS thread_state_type,
   state AS thread_state,
   SUM(dur) AS thread_state_dur,
@@ -186,7 +201,11 @@ GROUP BY binder_txn_id, binder_reply_id, thread_state_type, thread_state
 UNION ALL
 SELECT
   binder_txn_id,
+  client_ts,
+  client_tid,
   binder_reply_id,
+  server_ts,
+  server_tid,
   'binder_reply' AS thread_state_type,
   state AS thread_state,
   SUM(dur) AS thread_state_dur,
@@ -195,6 +214,12 @@ FROM internal_sp_binder_reply_thread_state
 GROUP BY binder_txn_id, binder_reply_id, thread_state_type, thread_state;
 
 -- Aggregated blocked_functions on the client and server side per binder txn
+-- This builds on the data from |android_sync_binder_metrics_by_txn| and
+-- for each end (client and server) of the transaction, it returns
+-- the aggregated sum of all the kernel blocked function durations.
+-- The |thread_state_type| column represents whether a given 'aggregated blocked_function'
+-- row is on the client or server side. 'binder_txn' is client side and 'binder_reply'
+-- is server side.
 --
 -- @column binder_txn_id slice id of the binder txn
 -- @column binder_reply_id slice id of the binder reply
@@ -206,7 +231,11 @@ CREATE VIEW android_sync_binder_blocked_functions_by_txn
 AS
 SELECT
   binder_txn_id,
+  client_ts,
+  client_tid,
   binder_reply_id,
+  server_ts,
+  server_tid,
   'binder_txn' AS thread_state_type,
   blocked_function,
   SUM(dur) AS blocked_function_dur,
@@ -217,7 +246,11 @@ GROUP BY binder_txn_id, binder_reply_id, blocked_function
 UNION ALL
 SELECT
   binder_txn_id,
+  client_ts,
+  client_tid,
   binder_reply_id,
+  server_ts,
+  server_tid,
   'binder_reply' AS thread_state_type,
   blocked_function,
   SUM(dur) AS blocked_function_dur,
