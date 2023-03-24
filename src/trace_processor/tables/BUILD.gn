@@ -18,7 +18,13 @@ import("../../../gn/test.gni")
 perfetto_tp_tables("tables_python") {
   sources = [
     "android_tables.py",
+    "counter_tables.py",
+    "flow_tables.py",
+    "memory_tables.py",
     "metadata_tables.py",
+    "profiler_tables.py",
+    "slice_tables.py",
+    "trace_proto_tables.py",
     "track_tables.py",
   ]
   generate_docs = true
@@ -26,17 +32,13 @@ perfetto_tp_tables("tables_python") {
 
 source_set("tables") {
   sources = [
-    "android_tables.h",
     "counter_tables.h",
     "flow_tables.h",
     "macros.h",
     "macros_internal.h",
-    "memory_tables.h",
-    "metadata_tables.h",
     "profiler_tables.h",
     "slice_tables.h",
     "table_destructors.cc",
-    "trace_proto_tables.h",
   ]
   deps = [
     "../../../gn:default_deps",

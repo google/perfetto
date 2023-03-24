@@ -32,8 +32,6 @@ namespace tables {
   C(SliceTable::Id, slice_in)                       \
   C(uint32_t, arg_set_id)
 
-PERFETTO_TP_TABLE(PERFETTO_TP_FLOW_TABLE_DEF);
-
 }  // namespace tables
 }  // namespace trace_processor
 }  // namespace perfetto

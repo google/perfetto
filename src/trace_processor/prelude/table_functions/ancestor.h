@@ -20,6 +20,8 @@
 #include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/prelude/table_functions/table_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables.h"
+#include "src/trace_processor/tables/slice_tables.h"
 
 namespace perfetto {
 namespace trace_processor {
