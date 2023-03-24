@@ -37,7 +37,7 @@ package perfetto.protos;
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 9.
+// Next id: 10.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -84,4 +84,11 @@ message TrackDescriptor {
   // TYPE_COUNTER TrackEvents (and values provided via TrackEvent's
   // |extra_counter_values|).
   optional CounterDescriptor counter = 8;
+
+  // If true, forces Trace Processor to use separate tracks for track events
+  // and system events for the same thread.
+  // Track events timestamps in Chrome have microsecond resolution, while
+  // system events use nanoseconds. It results in broken event nesting when
+  // track events and system events share a track.
+  optional bool disallow_merging_with_system_tracks = 9;
 }

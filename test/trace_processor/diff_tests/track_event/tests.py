@@ -425,6 +425,35 @@ class TrackEvent(TestSuite):
         "[NULL]","[NULL]","t1","[NULL]",21000,7000,"[NULL]","atrace"
         """))
 
+  def test_track_event_with_atrace_separate_tracks(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_with_atrace_separate_tracks.textproto'),
+        query="""
+        SELECT
+          track.name AS track,
+          process.name AS process,
+          thread.name AS thread,
+          thread_process.name AS thread_process,
+          slice.ts,
+          slice.dur,
+          slice.category,
+          slice.name
+        FROM slice
+        LEFT JOIN track ON slice.track_id = track.id
+        LEFT JOIN process_track ON slice.track_id = process_track.id
+        LEFT JOIN process ON process_track.upid = process.upid
+        LEFT JOIN thread_track ON slice.track_id = thread_track.id
+        LEFT JOIN thread ON thread_track.utid = thread.utid
+        LEFT JOIN process thread_process ON thread.upid = thread_process.upid
+        ORDER BY ts ASC;
+        """,
+        out=Csv("""
+        "track","process","thread","thread_process","ts","dur","category","name"
+        "[NULL]","[NULL]","t1","[NULL]",10000,1000,"cat","event1"
+        "[NULL]","[NULL]","t1","[NULL]",20000,8000,"cat","event2"
+        "[NULL]","[NULL]","t1","[NULL]",21000,8000,"[NULL]","atrace"
+        """))
+
   # Debug annotations
   def test_track_event_merged_debug_annotations_args(self):
     return DiffTestBlueprint(
