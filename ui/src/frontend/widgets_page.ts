@@ -31,6 +31,7 @@ import {Popup, PopupPosition} from './widgets/popup';
 import {Portal} from './widgets/portal';
 import {Select} from './widgets/select';
 import {Spinner} from './widgets/spinner';
+import {Switch} from './widgets/switch';
 import {TextInput} from './widgets/text_input';
 import {Tree, TreeLayout, TreeNode} from './widgets/tree';
 
@@ -267,6 +268,15 @@ export const WidgetsPage = createPage({
         m(WidgetShowcase, {
           renderWidget: (opts) => m(Checkbox, {label: 'Checkbox', ...opts}),
           initialOpts: {
+            disabled: false,
+          },
+        }),
+        m('h2', 'Switch'),
+        m(WidgetShowcase, {
+          renderWidget: ({label, ...rest}: any) =>
+              m(Switch, {label: label ? 'Switch' : undefined, ...rest}),
+          initialOpts: {
+            label: true,
             disabled: false,
           },
         }),
