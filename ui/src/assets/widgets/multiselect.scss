@@ -46,6 +46,8 @@
     z-index: 1;
     font-size: 0.75em;
     border-bottom: solid 1px $pf-minimal-foreground;
+    padding-bottom: 2px;
+    min-width: max-content;
     & > span {
       margin-right: auto;
     }
