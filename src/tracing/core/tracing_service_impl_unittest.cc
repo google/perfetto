@@ -432,6 +432,31 @@ TEST_F(TracingServiceImplTest, StartTracingTriggerTimeOut) {
   EXPECT_THAT(consumer->ReadBuffers(), IsEmpty());
 }
 
+// Regression test for b/274931668. An unkonwn trigger should not cause a trace
+// that runs indefinitely.
+TEST_F(TracingServiceImplTest, FailOnUnknownTrigger) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("ds_1");
+  auto* trigger_config = trace_config.mutable_trigger_config();
+  trigger_config->set_trigger_mode(
+      static_cast<TraceConfig::TriggerConfig::TriggerMode>(
+          TraceConfig::TriggerConfig::TriggerMode_MAX + 1));
+  auto* trigger = trigger_config->add_triggers();
+  trigger->set_name("trigger_from_the_future");
+  trigger_config->set_trigger_timeout_ms(1);
+
+  consumer->EnableTracing(trace_config);
+  consumer->WaitForTracingDisabled();
+}
+
 // Creates a tracing session with a START_TRACING trigger and checks that
 // the session is not started when the configured trigger producer is different
 // than the producer that sent the trigger.
