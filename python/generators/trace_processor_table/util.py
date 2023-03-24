@@ -14,11 +14,11 @@
 
 import dataclasses
 from dataclasses import dataclass
+import runpy
 from typing import Dict
 from typing import List
 from typing import Set
 from typing import Optional
-from typing import Union
 
 from python.generators.trace_processor_table.public import Alias
 from python.generators.trace_processor_table.public import Column
@@ -54,8 +54,8 @@ class ParsedType:
     # directly into vectors using them) and it was decided this behaviour was
     # too expensive in engineering cost to fix given the trivial benefit. For
     # this reason, continue to maintain this illusion.
-    if self.id_table and (self.id_table.class_name == 'ThreadTable' or
-                          self.id_table.class_name == 'ProcessTable'):
+    if self.id_table and self.id_table.class_name in ('ThreadTable',
+                                                      'ProcessTable'):
       cpp_type = 'uint32_t'
     else:
       cpp_type = self.cpp_type
@@ -64,124 +64,102 @@ class ParsedType:
     return cpp_type
 
 
-def public_sql_name_for_table(table: Table) -> str:
+@dataclass(frozen=True)
+class ParsedColumn:
+  """Representation of a column parsed from a Python definition."""
+
+  column: Column
+  doc: Optional[ColumnDoc]
+
+  # Whether this column is the implicit "id" column which is added by while
+  # parsing the tables rather than by the user.
+  is_implicit_id: bool = False
+
+  # Whether this column is the implicit "type" column which is added by while
+  # parsing the tables rather than by the user.
+  is_implicit_type: bool = False
+
+  # Whether this column comes from copying a column from the ancestor. If this
+  # is set to false, the user explicitly specified it for this table.
+  is_ancestor: bool = False
+
+
+@dataclass(frozen=True)
+class ParsedTable:
+  """Representation of a table parsed from a Python definition."""
+
+  table: Table
+  columns: List[ParsedColumn]
+  input_path: str
+
+  def parse_type(self, col_type: CppColumnType) -> ParsedType:
+    """Parses a CppColumnType into its constiuent parts."""
+
+    if isinstance(col_type, CppInt64):
+      return ParsedType('int64_t')
+    if isinstance(col_type, CppInt32):
+      return ParsedType('int32_t')
+    if isinstance(col_type, CppUint32):
+      return ParsedType('uint32_t')
+    if isinstance(col_type, CppString):
+      return ParsedType('StringPool::Id')
+
+    if isinstance(col_type, Alias):
+      col = next(c for c in self.columns
+                 if c.column.name == col_type.underlying_column)
+      return ParsedType(
+          self.parse_type(col.column.type).cpp_type,
+          is_alias=True,
+          alias_underlying_name=col.column.name)
+
+    if isinstance(col_type, CppTableId):
+      return ParsedType(
+          f'{col_type.table.class_name}::Id', id_table=col_type.table)
+
+    if isinstance(col_type, CppSelfTableId):
+      return ParsedType(
+          f'{self.table.class_name}::Id', is_self_id=True, id_table=self.table)
+
+    if isinstance(col_type, CppOptional):
+      inner = self.parse_type(col_type.inner)
+      assert not inner.is_optional, 'Nested optional not allowed'
+      return dataclasses.replace(inner, is_optional=True)
+
+    raise Exception(f'Unknown type {col_type}')
+
+  def typed_column_type(self, col: ParsedColumn) -> str:
+    """Returns the TypedColumn/IdColumn C++ type for a given column."""
+
+    parsed = self.parse_type(col.column.type)
+    if col.is_implicit_id:
+      return f'IdColumn<{parsed.cpp_type}>'
+    return f'TypedColumn<{parsed.cpp_type_with_optionality()}>'
+
+  def find_table_deps(self) -> Set[str]:
+    """Finds all the other table class names this table depends on.
+
+    By "depends", we mean this table in C++ would need the dependency to be
+    defined (or included) before this table is defined."""
+
+    deps: Set[str] = set()
+    if self.table.parent:
+      deps.add(self.table.parent.class_name)
+    for c in self.table.columns:
+      # Aliases cannot have dependencies so simply ignore them: trying to parse
+      # them before adding implicit columns can cause issues.
+      if isinstance(c.type, Alias):
+        continue
+      id_table = self.parse_type(c.type).id_table
+      if id_table:
+        deps.add(id_table.class_name)
+    return deps
+
+
+def public_sql_name(table: Table) -> str:
   """Extracts SQL name for the table which should be publicised."""
 
   wrapping_view = table.wrapping_sql_view
   return wrapping_view.view_name if wrapping_view else table.sql_name
-
-
-def parse_type(table: Table, col_type: CppColumnType) -> ParsedType:
-  """Parses a CppColumnType into its constiuient parts."""
-
-  if isinstance(col_type, CppInt64):
-    return ParsedType('int64_t')
-  if isinstance(col_type, CppInt32):
-    return ParsedType('int32_t')
-  if isinstance(col_type, CppUint32):
-    return ParsedType('uint32_t')
-  if isinstance(col_type, CppString):
-    return ParsedType('StringPool::Id')
-
-  if isinstance(col_type, Alias):
-    col = next(c for c in table.columns if c.name == col_type.underlying_column)
-    return ParsedType(
-        parse_type(table, col.type).cpp_type,
-        is_alias=True,
-        alias_underlying_name=col.name)
-
-  if isinstance(col_type, CppTableId):
-    return ParsedType(
-        f'{col_type.table.class_name}::Id', id_table=col_type.table)
-
-  if isinstance(col_type, CppSelfTableId):
-    return ParsedType(
-        f'{table.class_name}::Id', is_self_id=True, id_table=table)
-
-  if isinstance(col_type, CppOptional):
-    inner = parse_type(table, col_type.inner)
-    assert not inner.is_optional, 'Nested optional not allowed'
-    return dataclasses.replace(inner, is_optional=True)
-
-  raise Exception(f'Unknown type {col_type}')
-
-
-def normalize_table_columns(table: Table):
-  """Normalizes the table by doing the following:
-
-  1. Adding any columns from the parent, if this table is not a root.
-  2. Adding auto-defined columns (i.e. id and type), if this table is a root."""
-  if table.parent:
-    auto_cols = []
-    for col in table.parent.columns:
-      auto_cols.append(dataclasses.replace(col, _is_self_column=False))
-    new_cols_doc = table.tabledoc.columns
-  else:
-    auto_cols = [
-        Column(
-            'id', CppSelfTableId(), ColumnFlag.SORTED, _is_auto_added_id=True),
-        Column('type', CppString(), ColumnFlag.NONE, _is_auto_added_type=True),
-    ]
-    public_sql_name = public_sql_name_for_table(table)
-    new_cols_doc: Dict[str, Union[ColumnDoc, str]] = {
-        'id':
-            ColumnDoc(doc=f'Unique idenitifier for this {public_sql_name}.'),
-        'type':
-            ColumnDoc(doc='''
-                  The name of the "most-specific" child table containing this
-                  row.
-                '''),
-    }
-    new_cols_doc.update(table.tabledoc.columns)
-
-  table.columns = auto_cols + table.columns
-  table.tabledoc.columns = new_cols_doc
-
-
-def find_table_deps(table: Table) -> Set[str]:
-  """Finds all the other table class names this table depends on.
-
-  By "depends", we mean this table in C++ would need the dependency to be
-  defined (or included) before this table is defined."""
-  deps: Set[str] = set()
-  if table.parent:
-    deps.add(table.parent.class_name)
-  for c in table.columns:
-    id_table = parse_type(table, c.type).id_table
-    if id_table:
-      deps.add(id_table.class_name)
-  return deps
-
-
-def topological_sort_tables(tables: List[Table]) -> List[Table]:
-  """Topologically sorts a list of tables (i.e. dependenices appear earlier).
-
-  See [1] for information on a topological sort. We do this to allow
-  dependencies to be processed and appear ealier than their dependents.
-
-  [1] https://en.wikipedia.org/wiki/Topological_sorting"""
-  tables_by_name: dict[str, Table] = dict((t.class_name, t) for t in tables)
-  visited: Set[str] = set()
-  result: List[Table] = []
-
-  # Topological sorting is really just a DFS where we put the nodes in the list
-  # after any dependencies.
-  def dfs(table_class_name: str):
-    table = tables_by_name.get(table_class_name)
-    # If the table is not found, that might be because it's not in this list of
-    # tables. Just ignore this as its up to the caller to make sure any external
-    # deps are handled correctly.
-    if not table or table.class_name in visited:
-      return
-    visited.add(table.class_name)
-
-    for dep in find_table_deps(table):
-      dfs(dep)
-    result.append(table)
-
-  for table in tables:
-    dfs(table.class_name)
-  return result
 
 
 def to_cpp_flags(raw_flag: ColumnFlag) -> str:
@@ -199,10 +177,96 @@ def to_cpp_flags(raw_flag: ColumnFlag) -> str:
   return ' | '.join(flags)
 
 
-def typed_column_type(table: Table, col: Column) -> str:
-  """Returns the TypedColumn/IdColumn C++ type for a given column."""
+def _create_implicit_columns_for_root(parsed: ParsedTable
+                                     ) -> List[ParsedColumn]:
+  """Given a root table, returns the implicit id and type columns."""
+  assert parsed.table.parent is None
 
-  parsed = parse_type(table, col.type)
-  if col._is_auto_added_id:
-    return f'IdColumn<{parsed.cpp_type}>'
-  return f'TypedColumn<{parsed.cpp_type_with_optionality()}>'
+  sql_name = public_sql_name(parsed.table)
+  return [
+      ParsedColumn(
+          Column('id', CppSelfTableId(), ColumnFlag.SORTED),
+          ColumnDoc(doc=f'Unique idenitifier for this {sql_name}.'),
+          is_implicit_id=True),
+      ParsedColumn(
+          Column('type', CppString(), ColumnFlag.NONE),
+          ColumnDoc(doc='''
+                The name of the "most-specific" child table containing this
+                row.
+              '''),
+          is_implicit_type=True,
+      )
+  ]
+
+
+def _topological_sort_tables(parsed: List[ParsedTable]) -> List[ParsedTable]:
+  """Topologically sorts a list of tables (i.e. dependenices appear earlier).
+
+  See [1] for information on a topological sort. We do this to allow
+  dependencies to be processed and appear ealier than their dependents.
+
+  [1] https://en.wikipedia.org/wiki/Topological_sorting"""
+  table_to_parsed_table = {p.table.class_name: p for p in parsed}
+  visited: Set[str] = set()
+  result: List[ParsedTable] = []
+
+  # Topological sorting is really just a DFS where we put the nodes in the list
+  # after any dependencies.
+  def dfs(t: ParsedTable):
+    if t.table.class_name in visited:
+      return
+    visited.add(t.table.class_name)
+
+    for dep in t.find_table_deps():
+      dfs(table_to_parsed_table[dep])
+    result.append(t)
+
+  for p in parsed:
+    dfs(p)
+  return result
+
+
+def parse_tables_from_files(input_paths: List[str]) -> List[ParsedTable]:
+  """Creates a list of tables with the associated paths."""
+
+  # Create a mapping from the table to a "parsed" version of the table.
+  parsed_tables: Dict[str, ParsedTable] = {}
+  for in_path in input_paths:
+    tables: List[Table] = runpy.run_path(in_path)['ALL_TABLES']
+    for table in tables:
+      existing_table = parsed_tables.get(table.class_name)
+      assert not existing_table or existing_table.table == table
+      parsed_tables[table.class_name] = ParsedTable(table, [], in_path)
+
+  # Sort all the tables to be in order.
+  sorted_tables = _topological_sort_tables(list(parsed_tables.values()))
+
+  # Create the list of parsed columns
+  for i, parsed in enumerate(sorted_tables):
+    parsed_columns: List[ParsedColumn]
+
+    if parsed.table.parent:
+      parsed_parent = parsed_tables[parsed.table.parent.class_name]
+      parsed_columns = [
+          dataclasses.replace(c, is_ancestor=True)
+          for c in parsed_parent.columns
+      ]
+    else:
+      parsed_columns = _create_implicit_columns_for_root(parsed)
+
+    for c in parsed.table.columns:
+      doc = parsed.table.tabledoc.columns.get(c.name)
+      columndoc: Optional[ColumnDoc]
+      if not doc:
+        columndoc = None
+      elif isinstance(doc, ColumnDoc):
+        columndoc = doc
+      else:
+        columndoc = ColumnDoc(doc=doc)
+      parsed_columns.append(ParsedColumn(c, columndoc))
+
+    new_table = dataclasses.replace(parsed, columns=parsed_columns)
+    parsed_tables[parsed.table.class_name] = new_table
+    sorted_tables[i] = new_table
+
+  return sorted_tables

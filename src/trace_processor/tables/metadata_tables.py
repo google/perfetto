@@ -78,10 +78,12 @@ PROCESS_TABLE = Table(
                   (e.g. sched_process_free ftrace event on Linux/Android).
                 ''',
             'parent_upid':
-                '''
+                ColumnDoc(
+                    '''
                   The upid of the process which caused this process to be
                   spawned.
                 ''',
+                    joinable='process.upid'),
             'uid':
                 ColumnDoc(
                     'The Unix user id of the process.',
@@ -144,7 +146,9 @@ THREAD_TABLE = Table(
                   sched_process_free ftrace event on Linux/Android).
                 ''',
             'upid':
-                'The process hosting this thread.',
+                ColumnDoc(
+                    'The process hosting this thread.',
+                    joinable='process.upid'),
             'is_main_thread':
                 '''
                   Boolean indicating if this thread is the main thread

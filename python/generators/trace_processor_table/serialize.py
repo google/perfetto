@@ -16,24 +16,27 @@ from typing import List
 from typing import Optional
 
 from python.generators.trace_processor_table.public import Alias
-from python.generators.trace_processor_table.public import Column
 from python.generators.trace_processor_table.public import ColumnFlag
-from python.generators.trace_processor_table.public import Table
-from python.generators.trace_processor_table.util import parse_type
-from python.generators.trace_processor_table.util import typed_column_type
+from python.generators.trace_processor_table.util import ParsedTable
+from python.generators.trace_processor_table.util import ParsedColumn
 from python.generators.trace_processor_table.util import to_cpp_flags
 
 
 class ColumnSerializer:
   """Functions for serializing a single Column in a table into C++."""
 
-  def __init__(self, table: Table, col_index: int):
+  def __init__(self, table: ParsedTable, column: ParsedColumn, col_index: int):
     self.col_index = col_index
-    self.col = table.columns[col_index]
+    self.parsed_col = column
+    self.col = self.parsed_col.column
     self.name = self.col.name
     self.flags = self.col.flags
-    self.typed_column_type = typed_column_type(table, self.col)
-    self.cpp_type = parse_type(table, self.col.type).cpp_type_with_optionality()
+    self.typed_column_type = table.typed_column_type(self.parsed_col)
+    self.cpp_type = table.parse_type(self.col.type).cpp_type_with_optionality()
+
+    self.is_implicit_id = self.parsed_col.is_implicit_id
+    self.is_implicit_type = self.parsed_col.is_implicit_type
+    self.is_ancestor = self.parsed_col.is_ancestor
 
   def colindex(self) -> str:
     return f'    static constexpr uint32_t {self.name} = {self.col_index};'
@@ -42,28 +45,28 @@ class ColumnSerializer:
     return f'    using {self.name} = {self.typed_column_type};'
 
   def row_field(self) -> Optional[str]:
-    if self.col._is_auto_added_id or self.col._is_auto_added_type:
+    if self.is_implicit_id or self.is_implicit_type:
       return None
-    if not self.col._is_self_column:
+    if self.is_ancestor:
       return None
     return f'    {self.cpp_type} {self.name};'
 
   def row_param(self) -> Optional[str]:
-    if self.col._is_auto_added_id or self.col._is_auto_added_type:
+    if self.is_implicit_id or self.is_implicit_type:
       return None
     return f'{self.cpp_type} in_{self.name} = {{}}'
 
   def parent_row_initializer(self) -> Optional[str]:
-    if self.col._is_auto_added_id or self.col._is_auto_added_type:
+    if self.is_implicit_id or self.is_implicit_type:
       return None
-    if self.col._is_self_column:
+    if not self.is_ancestor:
       return None
     return f'std::move(in_{self.name})'
 
   def row_initializer(self) -> Optional[str]:
-    if self.col._is_auto_added_id or self.col._is_auto_added_type:
+    if self.is_implicit_id or self.is_implicit_type:
       return None
-    if not self.col._is_self_column:
+    if self.is_ancestor:
       return None
     return f'{self.name}(std::move(in_{self.name}))'
 
@@ -73,7 +76,7 @@ class ColumnSerializer:
     }}'''
 
   def row_ref_getter(self) -> Optional[str]:
-    if self.col._is_auto_added_id or self.col._is_auto_added_type:
+    if self.is_implicit_id or self.is_implicit_type:
       return None
     return f'''void set_{self.name}(
         ColumnType::{self.name}::non_optional_type v) {{
@@ -81,9 +84,9 @@ class ColumnSerializer:
     }}'''
 
   def flag(self) -> Optional[str]:
-    if self.col._is_auto_added_id or self.col._is_auto_added_type:
+    if self.is_implicit_id or self.is_implicit_type:
       return None
-    if not self.col._is_self_column:
+    if self.is_ancestor:
       return None
     default = f'ColumnType::{self.name}::default_flags()'
     if self.flags == ColumnFlag.NONE:
@@ -95,9 +98,9 @@ class ColumnSerializer:
     '''
 
   def storage_init(self) -> Optional[str]:
-    if self.col._is_auto_added_id or self.col._is_auto_added_type:
+    if self.is_implicit_id or self.is_implicit_type:
       return None
-    if not self.col._is_self_column:
+    if self.is_ancestor:
       return None
 
     storage = f'ColumnStorage<ColumnType::{self.name}::stored_type>'
@@ -105,9 +108,9 @@ class ColumnSerializer:
     return f'''{self.name}_({storage}::Create<false>())'''
 
   def column_init(self) -> Optional[str]:
-    if self.col._is_auto_added_id or self.col._is_auto_added_type:
+    if self.is_implicit_id or self.is_implicit_type:
       return None
-    if not self.col._is_self_column:
+    if self.is_ancestor:
       return None
     return f'''
     columns_.emplace_back("{self.name}", &{self.name}_, ColumnFlag::{self.name},
@@ -116,16 +119,16 @@ class ColumnSerializer:
     '''
 
   def shrink_to_fit(self) -> Optional[str]:
-    if self.col._is_auto_added_id:
+    if self.is_implicit_id:
       return None
-    if not self.col._is_self_column:
+    if self.is_ancestor:
       return None
     return f'    {self.name}_.ShrinkToFit();'
 
   def append(self) -> Optional[str]:
-    if self.col._is_auto_added_id or self.col._is_auto_added_type:
+    if self.is_implicit_id or self.is_implicit_type:
       return None
-    if not self.col._is_self_column:
+    if self.is_ancestor:
       return None
     return f'    mutable_{self.name}()->Append(std::move(row.{self.name}));'
 
@@ -138,7 +141,7 @@ class ColumnSerializer:
   '''
 
   def mutable_accessor(self) -> Optional[str]:
-    if self.col._is_auto_added_id or self.col._is_auto_added_type:
+    if self.is_implicit_id or self.is_implicit_type:
       return None
     return f'''
   {self.typed_column_type}* mutable_{self.name}() {{
@@ -148,9 +151,9 @@ class ColumnSerializer:
   '''
 
   def storage(self) -> Optional[str]:
-    if self.col._is_auto_added_id or self.col._is_auto_added_type:
+    if self.is_implicit_id or self.is_implicit_type:
       return None
-    if not self.col._is_self_column:
+    if self.is_ancestor:
       return None
     name = self.name
     return f'  ColumnStorage<ColumnType::{name}::stored_type> {name}_;'
@@ -159,19 +162,23 @@ class ColumnSerializer:
 class TableSerializer(object):
   """Functions for seralizing a single Table into C++."""
 
-  def __init__(self, table: Table):
-    self.table = table
-    self.table_name = table.class_name
+  def __init__(self, parsed: ParsedTable):
+    self.table = parsed.table
+    self.table_name = parsed.table.class_name
     self.column_serializers = []
 
-    if table.parent:
-      self.parent_class_name = table.parent.class_name
+    if parsed.table.parent:
+      self.parent_class_name = parsed.table.parent.class_name
     else:
       self.parent_class_name = 'macros_internal::RootParentTable'
 
-    self.column_serializers = [
-        ColumnSerializer(table, i) for i in range(len(table.columns))
-    ]
+    self.column_serializers = []
+    for c in parsed.columns:
+      # Aliases should be ignored as they are handled in SQL currently.
+      if isinstance(c.column.type, Alias):
+        continue
+      self.column_serializers.append(
+          ColumnSerializer(parsed, c, len(self.column_serializers)))
 
   def foreach_col(self, serialize_fn, delimiter='\n') -> str:
     lines = []
@@ -363,7 +370,7 @@ class {self.table_name} : public macros_internal::MacroTable {{
   '''.strip('\n')
 
 
-def serialize_header(ifdef_guard: str, tables: List[Table],
+def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
                      include_paths: List[str]) -> str:
   """Serializes a table header file containing the given set of tables."""
   include_paths_str = '\n'.join([f'#include "{i}"' for i in include_paths])
