@@ -47,16 +47,19 @@ def main():
   parser.add_argument('--gen-dir', required=True)
   parser.add_argument('--inputs', required=True, nargs='*')
   parser.add_argument('--outputs', required=True, nargs='*')
+  parser.add_argument('--header-prefix')
   args = parser.parse_args()
 
   if len(args.inputs) != len(args.outputs):
     raise Exception('Number of inputs must match number of outputs')
 
+  header_prefix = args.header_prefix if args.header_prefix else ''
   in_to_out = dict(zip(args.inputs, args.outputs))
   headers: Dict[str, Header] = {}
   for table in parse_tables_from_files(args.inputs):
     out_path = in_to_out[table.input_path]
-    relout_path = os.path.relpath(out_path, args.gen_dir)
+    relout_path = os.path.join(header_prefix,
+                               os.path.relpath(out_path, args.gen_dir))
 
     header = headers.get(table.input_path, Header(out_path, relout_path, []))
     header.tables.append(table)
