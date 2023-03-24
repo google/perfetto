@@ -114,7 +114,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     track_event_tracker_->ReserveDescriptorThreadTrack(
         track.uuid(), track.parent_uuid(), name_id,
         static_cast<uint32_t>(thread.pid()),
-        static_cast<uint32_t>(thread.tid()), packet_timestamp);
+        static_cast<uint32_t>(thread.tid()), packet_timestamp,
+        track.disallow_merging_with_system_tracks());
   } else if (track.has_process()) {
     protos::pbzero::ProcessDescriptor::Decoder process(track.process());
 
