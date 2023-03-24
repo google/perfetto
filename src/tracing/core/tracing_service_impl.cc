@@ -611,9 +611,9 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 
   const bool has_trigger_config = cfg.trigger_config().trigger_mode() !=
                                   TraceConfig::TriggerConfig::UNSPECIFIED;
-  if (has_trigger_config && (cfg.trigger_config().trigger_timeout_ms() == 0 ||
-                             cfg.trigger_config().trigger_timeout_ms() >
-                                 kGuardrailsMaxTracingDurationMillis)) {
+  if (has_trigger_config &&
+      (cfg.trigger_config().trigger_timeout_ms() == 0 ||
+       cfg.trigger_config().trigger_timeout_ms() > max_duration_ms)) {
     MaybeLogUploadEvent(
         cfg, uuid,
         PerfettoStatsdAtom::kTracedEnableTracingInvalidTriggerTimeout);

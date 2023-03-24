@@ -317,7 +317,8 @@ class CpuSliceTrack extends Track<Config, Data> {
           title = `${threadInfo.threadName} [${threadInfo.tid}]`;
         }
       }
-      const right = Math.min(timeScale.timeToPx(visibleWindowTime.end), rectEnd);
+      const right =
+          Math.min(timeScale.timeToPx(visibleWindowTime.end), rectEnd);
       const left = Math.max(rectStart, 0);
       const visibleWidth = Math.max(right - left, 1);
       title = cropText(title, charWidth, visibleWidth);

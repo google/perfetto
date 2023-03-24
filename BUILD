@@ -707,6 +707,7 @@ perfetto_filegroup(
         "src/android_internal/health_hal.h",
         "src/android_internal/incident_service.h",
         "src/android_internal/power_stats.h",
+        "src/android_internal/statsd.h",
         "src/android_internal/statsd_logging.h",
         "src/android_internal/tracing_service_proxy.h",
     ],
@@ -1530,6 +1531,7 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/android/android_lmk_reason.sql",
         "src/trace_processor/metrics/sql/android/android_mem.sql",
         "src/trace_processor/metrics/sql/android/android_mem_unagg.sql",
+        "src/trace_processor/metrics/sql/android/android_monitor_contention.sql",
         "src/trace_processor/metrics/sql/android/android_multiuser.sql",
         "src/trace_processor/metrics/sql/android/android_multiuser_populator.sql",
         "src/trace_processor/metrics/sql/android/android_netperf.sql",
@@ -2463,6 +2465,8 @@ perfetto_filegroup(
     srcs = [
         "src/traced/probes/statsd_client/common.cc",
         "src/traced/probes/statsd_client/common.h",
+        "src/traced/probes/statsd_client/statsd_binder_data_source.cc",
+        "src/traced/probes/statsd_client/statsd_binder_data_source.h",
         "src/traced/probes/statsd_client/statsd_exec_data_source.cc",
         "src/traced/probes/statsd_client/statsd_exec_data_source.h",
     ],
@@ -3556,6 +3560,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/android/lmk_reason_metric.proto",
         "protos/perfetto/metrics/android/mem_metric.proto",
         "protos/perfetto/metrics/android/mem_unagg_metric.proto",
+        "protos/perfetto/metrics/android/monitor_contention_metric.proto",
         "protos/perfetto/metrics/android/multiuser_metric.proto",
         "protos/perfetto/metrics/android/network_metric.proto",
         "protos/perfetto/metrics/android/other_traces.proto",
@@ -4370,6 +4375,7 @@ perfetto_proto_library(
     name = "protos_third_party_statsd_config_protos",
     srcs = [
         "protos/third_party/statsd/shell_config.proto",
+        "protos/third_party/statsd/shell_data.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
