@@ -57,7 +57,8 @@ class TrackEventTracker {
                                     StringId name,
                                     uint32_t pid,
                                     uint32_t tid,
-                                    int64_t timestamp);
+                                    int64_t timestamp,
+                                    bool use_separate_track);
 
   // Associate a TrackDescriptor track identified by the given |uuid| with a
   // parent track (usually a process- or thread-associated track). This is
@@ -125,6 +126,13 @@ class TrackEventTracker {
   // GetDescriptorTrack is moved back.
   TrackId GetOrCreateDefaultDescriptorTrack();
 
+  // Track events timestamps in Chrome have microsecond resolution, while
+  // system events use nanoseconds. It results in broken event nesting when
+  // track events and system events share a track.
+  // So TrackEventTracker needs to support its own tracks, separate from the
+  // ones in the TrackTracker.
+  TrackId InternThreadTrack(UniqueTid utid);
+
   // Called by ProtoTraceReader whenever incremental state is cleared on a
   // packet sequence. Resets counter values for any incremental counters of
   // the sequence identified by |packet_sequence_id|.
@@ -147,6 +155,7 @@ class TrackEventTracker {
     base::Optional<uint32_t> tid;
     int64_t min_timestamp = 0;  // only set if |pid| and/or |tid| is set.
     StringId name = kNullStringId;
+    bool use_separate_track = false;
 
     // For counter tracks.
     bool is_counter = false;
@@ -181,7 +190,8 @@ class TrackEventTracker {
                                            bool is_root);
     static ResolvedDescriptorTrack Thread(UniqueTid utid,
                                           bool is_counter,
-                                          bool is_root);
+                                          bool is_root,
+                                          bool use_separate_track);
     static ResolvedDescriptorTrack Global(bool is_counter, bool is_root);
 
     Scope scope() const { return scope_; }
@@ -195,11 +205,13 @@ class TrackEventTracker {
       return upid_;
     }
     UniqueTid is_root_in_scope() const { return is_root_in_scope_; }
+    bool use_separate_track() const { return use_separate_track_; }
 
    private:
     Scope scope_;
     bool is_counter_;
     bool is_root_in_scope_;
+    bool use_separate_track_;
 
     // Only set when |scope| == |Scope::kThread|.
     UniqueTid utid_;
@@ -219,6 +231,7 @@ class TrackEventTracker {
       uint64_t uuid,
       const DescriptorTrackReservation&,
       std::vector<uint64_t>* descendent_uuids);
+  TrackId InsertThreadTrack(UniqueTid utid);
 
   static constexpr uint64_t kDefaultDescriptorTrackUuid = 0u;
 
