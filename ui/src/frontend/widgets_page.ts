@@ -249,14 +249,16 @@ export const WidgetsPage = createPage({
         m('h1', 'Widgets'),
         m('h2', 'Button'),
         m(WidgetShowcase, {
-          renderWidget: ({label, icon, ...rest}) => m(Button, {
+          renderWidget: ({label, icon, rightIcon, ...rest}) => m(Button, {
             icon: icon ? 'send' : undefined,
+            rightIcon: rightIcon ? 'arrow_forward' : undefined,
             label: label ? 'Button' : '',
             ...rest,
           }),
           initialOpts: {
             label: true,
-            icon: false,
+            icon: true,
+            rightIcon: false,
             disabled: false,
             minimal: false,
             active: false,
