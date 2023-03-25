@@ -20,6 +20,7 @@ source_set("threading") {
     "future.h",
     "future_combinators.h",
     "poll.h",
+    "spawn.h",
     "stream.h",
     "stream_combinators.h",
     "thread_pool.h",
