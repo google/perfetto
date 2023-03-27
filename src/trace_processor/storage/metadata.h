@@ -50,6 +50,7 @@ namespace metadata {
   F(system_version,                    KeyType::kSingle,  Variadic::kString), \
   F(trace_config_pbtxt,                KeyType::kSingle,  Variadic::kString), \
   F(trace_size_bytes,                  KeyType::kSingle,  Variadic::kInt),    \
+  F(trace_time_clock_id,               KeyType::kSingle,  Variadic::kInt),    \
   F(trace_type,                        KeyType::kSingle,  Variadic::kString), \
   F(trace_uuid,                        KeyType::kSingle,  Variadic::kString), \
   F(tracing_disabled_ns,               KeyType::kSingle,  Variadic::kInt),    \
