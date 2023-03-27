@@ -23,9 +23,7 @@ const OUT_SYMLINK = path.join(ROOT_DIR, 'ui/out');
 
 function defBundle(bundle, distDir) {
   return {
-    input: [
-      `${OUT_SYMLINK}/tsc/${bundle}/index.js`,
-    ],
+    input: `${OUT_SYMLINK}/tsc/${bundle}/index.js`,
     output: {
       name: bundle,
       format: 'iife',
@@ -39,16 +37,9 @@ function defBundle(bundle, distDir) {
         browser: true,
         preferBuiltins: false,
       }),
-      // emscripten conditionally executes require('fs') (likewise for
-      // others), when running under node. Rollup can't find those libraries
-      // so expects these to be present in the global scope, which then fails
-      // at runtime. To avoid this we ignore require('fs') and the like.
+
       commonjs({
-        ignore: [
-          'fs',
-          'path',
-          'crypto',
-        ],
+        strictRequires: false,
       }),
 
       replace({

@@ -19,8 +19,6 @@ import * as pixelmatch from 'pixelmatch';
 import {PNG} from 'pngjs';
 import * as puppeteer from 'puppeteer';
 
-console.log(PNG);
-
 // These constants have been hand selected by comparing the diffs of screenshots
 // between Linux on Mac. Unfortunately font-rendering is platform-specific.
 // Even though we force the same antialiasing and hinting settings, some minimal
