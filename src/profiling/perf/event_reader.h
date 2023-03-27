@@ -71,10 +71,6 @@ class PerfRingBuffer {
 
 class EventReader {
  public:
-  // Allow base::Optional<EventReader> without making the constructor public.
-  template <typename EventReader, bool>
-  friend struct base::internal::OptionalStorageBase;
-
   static base::Optional<EventReader> ConfigureEvents(
       uint32_t cpu,
       const EventConfig& event_cfg);
