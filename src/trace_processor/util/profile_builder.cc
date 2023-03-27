@@ -200,6 +200,11 @@ GProfileBuilder::GProfileBuilder(const TraceProcessorContext* context,
     : context_(*context),
       string_table_(&result_, &context->storage->string_pool()),
       annotations_(context) {
+  // Make sure the empty function always gets id 0 which will be ignored when
+  // writing the proto file.
+  functions_.insert(
+      {Function{kEmptyStringIndex, kEmptyStringIndex, kEmptyStringIndex},
+       kNullFunctionId});
   WriteSampleTypes(sample_types);
 }
 
@@ -409,8 +414,13 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLines(
     uint64_t mapping_id) {
   std::vector<Line> lines =
       GetLinesForSymbolSetId(frame.symbol_set_id(), annotation, mapping_id);
-  if (lines.empty()) {
-    uint64_t function_id = WriteFunctionIfNeeded(frame, annotation, mapping_id);
+  if (!lines.empty()) {
+    return lines;
+  }
+
+  if (uint64_t function_id =
+          WriteFunctionIfNeeded(frame, annotation, mapping_id);
+      function_id != kNullFunctionId) {
     lines.push_back({function_id, 0});
   }
 
@@ -441,8 +451,11 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForSymbolSetId(
 
   std::vector<GProfileBuilder::Line> lines;
   for (const RowRef& symbol : symbol_set) {
-    lines.push_back({WriteFunctionIfNeeded(symbol, annotation, mapping_id),
-                     symbol.line_number()});
+    if (uint64_t function_id =
+            WriteFunctionIfNeeded(symbol, annotation, mapping_id);
+        function_id != kNullFunctionId) {
+      lines.push_back({function_id, symbol.line_number()});
+    }
   }
 
   GetMapping(mapping_id).debug_info.has_inline_frames = true;
@@ -503,6 +516,11 @@ int64_t GProfileBuilder::GetNameForFrame(
   return name;
 }
 
+int64_t GProfileBuilder::GetSystemNameForFrame(
+    const tables::StackProfileFrameTable::ConstRowReference& frame) {
+  return string_table_.InternString(frame.name());
+}
+
 uint64_t GProfileBuilder::WriteFunctionIfNeeded(
     const tables::StackProfileFrameTable::ConstRowReference& frame,
     CallsiteAnnotation annotation,
@@ -515,7 +533,7 @@ uint64_t GProfileBuilder::WriteFunctionIfNeeded(
 
   auto ins = functions_.insert(
       {Function{GetNameForFrame(frame, annotation),
-                string_table_.InternString(frame.name()), kEmptyStringIndex},
+                GetSystemNameForFrame(frame), kEmptyStringIndex},
        functions_.size() + 1});
   uint64_t id = ins.first->second;
   seen_functions_.insert({key, id});
@@ -530,6 +548,9 @@ uint64_t GProfileBuilder::WriteFunctionIfNeeded(
 
 void GProfileBuilder::WriteFunctions() {
   for (const auto& entry : functions_) {
+    if (entry.second == kNullFunctionId) {
+      continue;
+    }
     auto* func = result_->add_function();
     func->set_id(entry.second);
     if (entry.first.name != 0) {
