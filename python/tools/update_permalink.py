@@ -14,6 +14,65 @@ BUCKET_NAME = "perfetto-ui-data"
 CURRENT_STATE_VERSION = 28
 
 
+def upgrade_15(old):
+  new = copy.deepcopy(old)
+  new["version"] = 16
+  new["flamegraphModalDismissed"] = False
+  return new
+
+
+def upgrade_16(old):
+  new = copy.deepcopy(old)
+  new["version"] = 17
+  new["nextId"] = max(old["nextId"], old["nextNoteId"], old["nextAreaId"])
+  engines = old["engines"]
+  if len(engines) > 0:
+    new["currentEngineId"] = list(engines.values())[0]['id']
+  return new
+
+
+def upgrade_17(old):
+  new = copy.deepcopy(old)
+  new["version"] = 18
+  # TODO(hjd): Update
+  return new
+
+
+def upgrade_18(old):
+  new = copy.deepcopy(old)
+  new["version"] = 19
+  # TODO(hjd): Update
+  return new
+
+
+def upgrade_19(old):
+  new = copy.deepcopy(old)
+  new["version"] = 20
+  # TODO(hjd): Update
+  return new
+
+
+def upgrade_20(old):
+  new = copy.deepcopy(old)
+  new["version"] = 21
+  # TODO(hjd): Update
+  return new
+
+
+def upgrade_20(old):
+  new = copy.deepcopy(old)
+  new["version"] = 22
+  # TODO(hjd): Update
+  return new
+
+
+def upgrade_21(old):
+  new = copy.deepcopy(old)
+  new["version"] = 22
+  # TODO(hjd): Update
+  return new
+
+
 def upgrade_22(old):
   new = copy.deepcopy(old)
   new["version"] = 23
@@ -121,6 +180,8 @@ def main():
       "--target-version",
       help=f"Target state version (default: {CURRENT_STATE_VERSION})",
       default=CURRENT_STATE_VERSION)
+  parser.add_argument(
+      "--verbose", help=f"Show debug information", action="store_true")
   args = parser.parse_args()
 
   permalink_url = args.permalink
@@ -132,7 +193,16 @@ def main():
   old_state_version = old_json["version"]
   new_state_version = args.target_version
 
+  print(json.dumps(old_json, sort_keys=True, indent=4))
+
   UPGRADE = {
+      15: upgrade_15,
+      16: upgrade_16,
+      17: upgrade_17,
+      18: upgrade_18,
+      19: upgrade_19,
+      20: upgrade_20,
+      21: upgrade_21,
       22: upgrade_22,
       23: upgrade_23,
       24: upgrade_24,
