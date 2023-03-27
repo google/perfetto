@@ -18,6 +18,8 @@
 
 #include <string.h>
 
+#include "perfetto/base/logging.h"
+
 namespace perfetto {
 namespace trace_processor {
 namespace ftrace_utils {

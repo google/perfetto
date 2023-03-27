@@ -8256,7 +8256,6 @@ filegroup {
         "src/base/logging_unittest.cc",
         "src/base/metatrace_unittest.cc",
         "src/base/no_destructor_unittest.cc",
-        "src/base/optional_unittest.cc",
         "src/base/paged_memory_unittest.cc",
         "src/base/periodic_task_unittest.cc",
         "src/base/scoped_file_unittest.cc",
