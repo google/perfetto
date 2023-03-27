@@ -19,7 +19,7 @@
 #include <iostream>
 
 #include "perfetto/ext/base/optional.h"
-#include "src/trace_processor/tables/profiler_tables.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {

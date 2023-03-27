@@ -213,7 +213,7 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> FocusTable(
       ComputeFocusedState(*in, Matcher(focus_str));
   std::unique_ptr<ExperimentalFlamegraphNodesTable> tbl(
       new tables::ExperimentalFlamegraphNodesTable(
-          storage->mutable_string_pool(), nullptr));
+          storage->mutable_string_pool()));
 
   // Recompute cumulative counts
   std::vector<CumulativeCounts> node_to_cumulatives(in->row_count());

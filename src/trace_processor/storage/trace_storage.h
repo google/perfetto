@@ -36,14 +36,14 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
-#include "src/trace_processor/tables/android_tables.h"
-#include "src/trace_processor/tables/counter_tables.h"
-#include "src/trace_processor/tables/flow_tables.h"
-#include "src/trace_processor/tables/memory_tables.h"
-#include "src/trace_processor/tables/metadata_tables.h"
-#include "src/trace_processor/tables/profiler_tables.h"
-#include "src/trace_processor/tables/slice_tables.h"
-#include "src/trace_processor/tables/trace_proto_tables.h"
+#include "src/trace_processor/tables/android_tables_py.h"
+#include "src/trace_processor/tables/counter_tables_py.h"
+#include "src/trace_processor/tables/flow_tables_py.h"
+#include "src/trace_processor/tables/memory_tables_py.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/trace_proto_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/views/slice_views.h"
@@ -827,14 +827,14 @@ class TraceStorage {
   // Extra data extracted from the trace. Includes:
   // * metadata from chrome and benchmarking infrastructure
   // * descriptions of android packages
-  tables::MetadataTable metadata_table_{&string_pool_, nullptr};
+  tables::MetadataTable metadata_table_{&string_pool_};
 
   // Contains data from all the clock snapshots in the trace.
-  tables::ClockSnapshotTable clock_snapshot_table_{&string_pool_, nullptr};
+  tables::ClockSnapshotTable clock_snapshot_table_{&string_pool_};
 
   // Metadata for tracks.
   tables::TrackTable track_table_{&string_pool_};
-  tables::ThreadStateTable thread_state_table_{&string_pool_, nullptr};
+  tables::ThreadStateTable thread_state_table_{&string_pool_};
   tables::CpuTrackTable cpu_track_table_{&string_pool_, &track_table_};
   tables::GpuTrackTable gpu_track_table_{&string_pool_, &track_table_};
   tables::ProcessTrackTable process_track_table_{&string_pool_, &track_table_};
@@ -860,26 +860,26 @@ class TraceStorage {
                                                         &counter_track_table_};
   tables::EnergyPerUidCounterTrackTable energy_per_uid_counter_track_table_{
       &string_pool_, &uid_counter_track_table_};
-  tables::GpuCounterGroupTable gpu_counter_group_table_{&string_pool_, nullptr};
+  tables::GpuCounterGroupTable gpu_counter_group_table_{&string_pool_};
   tables::PerfCounterTrackTable perf_counter_track_table_{
       &string_pool_, &counter_track_table_};
 
   // Args for all other tables.
-  tables::ArgTable arg_table_{&string_pool_, nullptr};
+  tables::ArgTable arg_table_{&string_pool_};
 
   // Information about all the threads and processes in the trace.
   tables::ThreadTable thread_table_{&string_pool_};
   tables::ProcessTable process_table_{&string_pool_};
-  tables::FiledescriptorTable filedescriptor_table_{&string_pool_, nullptr};
+  tables::FiledescriptorTable filedescriptor_table_{&string_pool_};
 
   // Slices coming from userspace events (e.g. Chromium TRACE_EVENT macros).
-  tables::SliceTable slice_table_{&string_pool_, nullptr};
+  tables::SliceTable slice_table_{&string_pool_};
 
   // Flow events from userspace events (e.g. Chromium TRACE_EVENT macros).
-  tables::FlowTable flow_table_{&string_pool_, nullptr};
+  tables::FlowTable flow_table_{&string_pool_};
 
   // Slices from CPU scheduling data.
-  tables::SchedSliceTable sched_slice_table_{&string_pool_, nullptr};
+  tables::SchedSliceTable sched_slice_table_{&string_pool_};
 
   // Additional attributes for virtual track slices (sub-type of
   // NestableSlices).
@@ -891,7 +891,7 @@ class TraceStorage {
 
   // The values from the Counter events from the trace. This includes CPU
   // frequency events as well systrace trace_marker counter events.
-  tables::CounterTable counter_table_{&string_pool_, nullptr};
+  tables::CounterTable counter_table_{&string_pool_};
 
   SqlStats sql_stats_;
 
@@ -899,55 +899,49 @@ class TraceStorage {
   // the timestamp and the pid. The args for the raw event will be in the
   // args table. This table can be used to generate a text version of the
   // trace.
-  tables::RawTable raw_table_{&string_pool_, nullptr};
+  tables::RawTable raw_table_{&string_pool_};
 
-  tables::CpuTable cpu_table_{&string_pool_, nullptr};
+  tables::CpuTable cpu_table_{&string_pool_};
 
-  tables::CpuFreqTable cpu_freq_table_{&string_pool_, nullptr};
+  tables::CpuFreqTable cpu_freq_table_{&string_pool_};
 
   tables::AndroidLogTable android_log_table_{&string_pool_};
 
-  tables::AndroidDumpstateTable android_dumpstate_table_{&string_pool_,
-                                                         nullptr};
+  tables::AndroidDumpstateTable android_dumpstate_table_{&string_pool_};
 
-  tables::StackProfileMappingTable stack_profile_mapping_table_{&string_pool_,
-                                                                nullptr};
-  tables::StackProfileFrameTable stack_profile_frame_table_{&string_pool_,
-                                                            nullptr};
-  tables::StackProfileCallsiteTable stack_profile_callsite_table_{&string_pool_,
-                                                                  nullptr};
-  tables::StackSampleTable stack_sample_table_{&string_pool_, nullptr};
+  tables::StackProfileMappingTable stack_profile_mapping_table_{&string_pool_};
+  tables::StackProfileFrameTable stack_profile_frame_table_{&string_pool_};
+  tables::StackProfileCallsiteTable stack_profile_callsite_table_{
+      &string_pool_};
+  tables::StackSampleTable stack_sample_table_{&string_pool_};
   tables::HeapProfileAllocationTable heap_profile_allocation_table_{
-      &string_pool_, nullptr};
+      &string_pool_};
   tables::CpuProfileStackSampleTable cpu_profile_stack_sample_table_{
       &string_pool_, &stack_sample_table_};
-  tables::PerfSampleTable perf_sample_table_{&string_pool_, nullptr};
-  tables::PackageListTable package_list_table_{&string_pool_, nullptr};
+  tables::PerfSampleTable perf_sample_table_{&string_pool_};
+  tables::PackageListTable package_list_table_{&string_pool_};
   tables::AndroidGameInterventionListTable
-      android_game_intervention_list_table_{&string_pool_, nullptr};
-  tables::ProfilerSmapsTable profiler_smaps_table_{&string_pool_, nullptr};
+      android_game_intervention_list_table_{&string_pool_};
+  tables::ProfilerSmapsTable profiler_smaps_table_{&string_pool_};
 
   // Symbol tables (mappings from frames to symbol names)
-  tables::SymbolTable symbol_table_{&string_pool_, nullptr};
-  tables::HeapGraphObjectTable heap_graph_object_table_{&string_pool_, nullptr};
-  tables::HeapGraphClassTable heap_graph_class_table_{&string_pool_, nullptr};
-  tables::HeapGraphReferenceTable heap_graph_reference_table_{&string_pool_,
-                                                              nullptr};
+  tables::SymbolTable symbol_table_{&string_pool_};
+  tables::HeapGraphObjectTable heap_graph_object_table_{&string_pool_};
+  tables::HeapGraphClassTable heap_graph_class_table_{&string_pool_};
+  tables::HeapGraphReferenceTable heap_graph_reference_table_{&string_pool_};
 
   tables::VulkanMemoryAllocationsTable vulkan_memory_allocations_table_{
-      &string_pool_, nullptr};
+      &string_pool_};
 
   tables::GraphicsFrameSliceTable graphics_frame_slice_table_{&string_pool_,
                                                               &slice_table_};
 
   // Metadata for memory snapshot.
-  tables::MemorySnapshotTable memory_snapshot_table_{&string_pool_, nullptr};
+  tables::MemorySnapshotTable memory_snapshot_table_{&string_pool_};
   tables::ProcessMemorySnapshotTable process_memory_snapshot_table_{
-      &string_pool_, nullptr};
-  tables::MemorySnapshotNodeTable memory_snapshot_node_table_{&string_pool_,
-                                                              nullptr};
-  tables::MemorySnapshotEdgeTable memory_snapshot_edge_table_{&string_pool_,
-                                                              nullptr};
+      &string_pool_};
+  tables::MemorySnapshotNodeTable memory_snapshot_node_table_{&string_pool_};
+  tables::MemorySnapshotEdgeTable memory_snapshot_edge_table_{&string_pool_};
 
   // FrameTimeline tables
   tables::ExpectedFrameTimelineSliceTable expected_frame_timeline_slice_table_{
@@ -956,12 +950,12 @@ class TraceStorage {
       &string_pool_, &slice_table_};
 
   tables::ExperimentalProtoPathTable experimental_proto_path_table_{
-      &string_pool_, nullptr};
+      &string_pool_};
   tables::ExperimentalProtoContentTable experimental_proto_content_table_{
-      &string_pool_, nullptr};
+      &string_pool_};
 
   tables::ExpMissingChromeProcTable
-      experimental_missing_chrome_processes_table_{&string_pool_, nullptr};
+      experimental_missing_chrome_processes_table_{&string_pool_};
 
   views::ThreadSliceView thread_slice_view_{&slice_table_, &thread_track_table_,
                                             &thread_table_};
