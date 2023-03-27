@@ -118,7 +118,7 @@ base::Optional<ObjectTable::Id> GetReferredObj(const TraceStorage& storage,
       {refs_tbl.reference_set_id().eq(ref_set_id),
        refs_tbl.field_name().eq(NullTermStringView(field_name))});
   if (!refs_it) {
-    return {};
+    return base::nullopt;
   }
   return refs_it.owned_id();
 }
