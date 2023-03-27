@@ -33,6 +33,7 @@ if (perfetto_build_with_android) {
       "incident_service.cc",
       "power_stats.cc",
       "statsd_logging.cc",
+      "statsd.cc",
       "tracing_service_proxy.cc",
     ]
     libs = [
