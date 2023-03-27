@@ -74,7 +74,7 @@ ExperimentalFlatSlice::ComputeFlatSliceTable(const tables::SliceTable& slice,
                                              int64_t start_bound,
                                              int64_t end_bound) {
   std::unique_ptr<tables::ExperimentalFlatSliceTable> out(
-      new tables::ExperimentalFlatSliceTable(pool, nullptr));
+      new tables::ExperimentalFlatSliceTable(pool));
 
   auto insert_slice = [&](uint32_t i, int64_t ts,
                           tables::TrackTable::Id track_id) {

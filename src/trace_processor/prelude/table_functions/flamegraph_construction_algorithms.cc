@@ -104,7 +104,7 @@ static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
 
   std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl(
       new tables::ExperimentalFlamegraphNodesTable(
-          storage->mutable_string_pool(), nullptr));
+          storage->mutable_string_pool()));
 
   // FORWARD PASS:
   // Aggregate callstacks by frame name / mapping name. Use symbolization
@@ -405,7 +405,7 @@ BuildNativeCallStackSamplingFlamegraph(
   if (filtered.row_count() == 0) {
     std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> empty_tbl(
         new tables::ExperimentalFlamegraphNodesTable(
-            storage->mutable_string_pool(), nullptr));
+            storage->mutable_string_pool()));
     return empty_tbl;
   }
 

@@ -34,8 +34,6 @@ namespace tables {
   C(double, value)                                     \
   C(base::Optional<uint32_t>, arg_set_id)
 
-PERFETTO_TP_TABLE(PERFETTO_TP_COUNTER_TABLE_DEF);
-
 }  // namespace tables
 }  // namespace trace_processor
 }  // namespace perfetto
