@@ -240,10 +240,8 @@ base::Optional<EventReader> EventReader::ConfigureEvents(
   if (!ring_buffer.has_value()) {
     return base::nullopt;
   }
-
-  return base::make_optional<EventReader>(cpu, *event_cfg.perf_attr(),
-                                          std::move(leader_fd),
-                                          std::move(ring_buffer.value()));
+  return EventReader(cpu, *event_cfg.perf_attr(), std::move(leader_fd),
+                     std::move(ring_buffer.value()));
 }
 
 base::Optional<ParsedSample> EventReader::ReadUntilSample(
