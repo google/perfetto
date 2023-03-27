@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/proto/metadata_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 
 #include "perfetto/ext/base/crash_keys.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
