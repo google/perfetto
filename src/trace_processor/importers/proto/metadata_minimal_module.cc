@@ -17,7 +17,7 @@
 #include "src/trace_processor/importers/proto/metadata_minimal_module.h"
 
 #include "perfetto/ext/base/base64.h"
-#include "src/trace_processor/importers/proto/metadata_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
