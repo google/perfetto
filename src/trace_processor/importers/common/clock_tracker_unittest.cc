@@ -19,6 +19,7 @@
 #include <random>
 
 #include "perfetto/ext/base/optional.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
@@ -31,9 +32,15 @@ namespace trace_processor {
 
 class ClockTrackerTest : public ::testing::Test {
  public:
+  ClockTrackerTest() {
+    context_.storage.reset(new TraceStorage());
+    context_.metadata_tracker.reset(
+        new MetadataTracker(context_.storage.get()));
+  }
+
   // using ClockId = uint64_t;
-  TraceStorage storage_;
-  ClockTracker ct_{&storage_};
+  TraceProcessorContext context_;
+  ClockTracker ct_{&context_};
   base::StatusOr<int64_t> Convert(ClockTracker::ClockId src_clock_id,
                                   int64_t src_timestamp,
                                   ClockTracker::ClockId target_clock_id) {

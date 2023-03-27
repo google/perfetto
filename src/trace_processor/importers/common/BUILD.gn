@@ -33,6 +33,8 @@ source_set("common") {
     "flow_tracker.h",
     "global_args_tracker.cc",
     "global_args_tracker.h",
+    "metadata_tracker.cc",
+    "metadata_tracker.h",
     "process_tracker.cc",
     "process_tracker.h",
     "slice_tracker.cc",
