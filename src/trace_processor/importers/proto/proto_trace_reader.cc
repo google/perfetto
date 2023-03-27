@@ -28,9 +28,9 @@
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
-#include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
@@ -399,7 +399,7 @@ util::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
 }
 
 base::Optional<StringId> ProtoTraceReader::GetBuiltinClockNameOrNull(
-    uint64_t clock_id) {
+    int64_t clock_id) {
   switch (clock_id) {
     case protos::pbzero::ClockSnapshot::Clock::REALTIME:
       return context_->storage->InternString("REALTIME");
