@@ -96,7 +96,7 @@ tables::SliceTable::Id Insert(
 
 TEST(ExperimentalSliceLayoutTest, SingleRow) {
   StringPool pool;
-  tables::SliceTable slice_table(&pool, nullptr);
+  tables::SliceTable slice_table(&pool);
   StringId name = pool.InternString("SingleRow");
 
   Insert(&slice_table, 1 /*ts*/, 5 /*dur*/, 1 /*track_id*/, name,
@@ -116,7 +116,7 @@ TEST(ExperimentalSliceLayoutTest, SingleRow) {
 
 TEST(ExperimentalSliceLayoutTest, DoubleRow) {
   StringPool pool;
-  tables::SliceTable slice_table(&pool, nullptr);
+  tables::SliceTable slice_table(&pool);
   StringId name = pool.InternString("SingleRow");
 
   auto id = Insert(&slice_table, 1 /*ts*/, 5 /*dur*/, 1 /*track_id*/, name,
@@ -138,7 +138,7 @@ TEST(ExperimentalSliceLayoutTest, DoubleRow) {
 
 TEST(ExperimentalSliceLayoutTest, MultipleRows) {
   StringPool pool;
-  tables::SliceTable slice_table(&pool, nullptr);
+  tables::SliceTable slice_table(&pool);
   StringId name = pool.InternString("MultipleRows");
 
   auto a = Insert(&slice_table, 1 /*ts*/, 5 /*dur*/, 1 /*track_id*/, name,
@@ -167,7 +167,7 @@ TEST(ExperimentalSliceLayoutTest, MultipleRows) {
 
 TEST(ExperimentalSliceLayoutTest, MultipleTracks) {
   StringPool pool;
-  tables::SliceTable slice_table(&pool, nullptr);
+  tables::SliceTable slice_table(&pool);
   StringId name1 = pool.InternString("Slice1");
   StringId name2 = pool.InternString("Slice2");
   StringId name3 = pool.InternString("Slice3");
@@ -199,7 +199,7 @@ TEST(ExperimentalSliceLayoutTest, MultipleTracks) {
 
 TEST(ExperimentalSliceLayoutTest, MultipleTracksWithGap) {
   StringPool pool;
-  tables::SliceTable slice_table(&pool, nullptr);
+  tables::SliceTable slice_table(&pool);
   StringId name1 = pool.InternString("Slice1");
   StringId name2 = pool.InternString("Slice2");
   StringId name3 = pool.InternString("Slice3");
@@ -237,7 +237,7 @@ TEST(ExperimentalSliceLayoutTest, MultipleTracksWithGap) {
 
 TEST(ExperimentalSliceLayoutTest, PreviousGroupFullyNested) {
   StringPool pool;
-  tables::SliceTable slice_table(&pool, nullptr);
+  tables::SliceTable slice_table(&pool);
   StringId name = pool.InternString("Slice");
 
   // This test ensures that our bounding box logic works when the bounding box
@@ -285,7 +285,7 @@ TEST(ExperimentalSliceLayoutTest, PreviousGroupFullyNested) {
 
 TEST(ExperimentalSliceLayoutTest, FilterOutTracks) {
   StringPool pool;
-  tables::SliceTable slice_table(&pool, nullptr);
+  tables::SliceTable slice_table(&pool);
   StringId name1 = pool.InternString("Slice1");
   StringId name2 = pool.InternString("Slice2");
   StringId name3 = pool.InternString("Slice3");
