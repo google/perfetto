@@ -31,6 +31,8 @@ def PrintProfileProto(profile):
         stack.append("{name} ({address})".format(
             name=profile.string_table[function.name],
             address=hex(location.address)))
+      if len(location.line) == 0:
+        stack.append("({address})".format(address=hex(location.address)))
     samples.append('Sample:\nValues: {values}\nStack:\n{stack}'.format(
         values=', '.join(map(str, s.value)), stack='\n'.join(stack)))
   return '\n\n'.join(sorted(samples)) + '\n'
@@ -285,6 +287,42 @@ class Functions(TestSuite):
               entries {
                 name: "A"
               }
+        """))
+
+  def test_profile_no_functions(self):
+    return DiffTestBlueprint(
+        trace=DataPath("perf_sample_no_functions.pb"),
+        query="""
+        SELECT HEX(
+          EXPERIMENTAL_PROFILE(STACK_FROM_STACK_PROFILE_CALLSITE(callsite_id))
+        )
+        FROM PERF_SAMPLE
+    """,
+        out=BinaryProto(
+            message_type="perfetto.third_party.perftools.profiles.Profile",
+            post_processing=PrintProfileProto,
+            contents="""
+        Sample:
+          Values: 1
+          Stack:
+            (0x7a4167d3f8)
+            (0x783153c8e4)
+            (0x7a4161ef8c)
+            (0x7a42c3d8b0)
+            (0x7a4167d9f4)
+            (0x7a4163bc44)
+            (0x7a4172f330)
+            (0x7a4177a658)
+            (0x7a4162b3a0)
+
+        Sample:
+          Values: 1
+          Stack:
+            (0x7a4167d9f8)
+            (0x7a4163bc44)
+            (0x7a4172f330)
+            (0x7a4177a658)
+            (0x7a4162b3a0)
         """))
 
   def test_profile_default_sample_types(self):

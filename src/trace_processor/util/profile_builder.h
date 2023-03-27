@@ -73,6 +73,7 @@ class GProfileBuilder {
 
  private:
   static constexpr int64_t kEmptyStringIndex = 0;
+  static constexpr uint64_t kNullFunctionId = 0;
 
   // Strings are stored in the `Profile` in a table and referenced by their
   // index. This helper class takes care of all the book keeping.
@@ -269,6 +270,9 @@ class GProfileBuilder {
       const tables::StackProfileFrameTable::ConstRowReference& frame,
       CallsiteAnnotation annotation);
 
+  int64_t GetSystemNameForFrame(
+      const tables::StackProfileFrameTable::ConstRowReference& frame);
+
   uint64_t WriteLocationIfNeeded(FrameId frame_id,
                                  CallsiteAnnotation annotation);
   uint64_t WriteFakeLocationIfNeeded(const std::string& name);
@@ -276,8 +280,8 @@ class GProfileBuilder {
   uint64_t WriteFunctionIfNeeded(
       const tables::SymbolTable::ConstRowReference& symbol,
       CallsiteAnnotation annotation,
-
       uint64_t mapping_id);
+
   uint64_t WriteFunctionIfNeeded(
       const tables::StackProfileFrameTable::ConstRowReference& frame,
       CallsiteAnnotation annotation,
