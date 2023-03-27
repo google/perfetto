@@ -25,7 +25,7 @@
 #include "protos/third_party/pprof/profile.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/profiler_tables.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/util/annotated_callsites.h"
 
 #include <algorithm>

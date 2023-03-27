@@ -20,7 +20,7 @@
 #include "protos/perfetto/trace/memory_graph.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/tables/memory_tables.h"
+#include "src/trace_processor/tables/memory_tables_py.h"
 
 namespace perfetto {
 namespace trace_processor {

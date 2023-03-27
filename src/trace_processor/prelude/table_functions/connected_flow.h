@@ -19,6 +19,7 @@
 
 #include "src/trace_processor/prelude/table_functions/table_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/flow_tables.h"
 
 #include <queue>
 #include <set>
