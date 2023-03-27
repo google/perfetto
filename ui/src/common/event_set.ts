@@ -43,7 +43,6 @@ export type KeySet = {
 export interface EmptyKeySet extends KeySet {
   readonly id: typeof IdType;
 }
-;
 
 // A particular key/value pair on an Event matches the relevant entry
 // on the KeySet if the KeyType and the value type 'match':
