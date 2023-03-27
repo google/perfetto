@@ -31,7 +31,7 @@ tables::CounterTable::Row CounterRow(int64_t ts, uint32_t track_id) {
 
 TEST(ExperimentalCounterDur, SmokeDur) {
   StringPool pool;
-  tables::CounterTable table(&pool, nullptr);
+  tables::CounterTable table(&pool);
 
   table.Insert(CounterRow(100 /* ts */, 1 /* track_id */));
   table.Insert(CounterRow(102 /* ts */, 2 /* track_id */));

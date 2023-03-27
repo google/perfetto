@@ -21,7 +21,7 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/proto/profiler_util.h"
-#include "src/trace_processor/tables/profiler_tables.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -938,7 +938,7 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
 
   std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl(
       new tables::ExperimentalFlamegraphNodesTable(
-          storage_->mutable_string_pool(), nullptr));
+          storage_->mutable_string_pool()));
 
   auto it = roots_.find(std::make_pair(current_upid, current_ts));
   if (it == roots_.end()) {
