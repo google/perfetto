@@ -49,7 +49,7 @@ export async function waitForPerfettoIdle(
     const hasPendingRedraws =
         await (
             await page.evaluateHandle('globals.rafScheduler.hasPendingRedraws'))
-            .jsonValue<number>();
+            .jsonValue();
 
     if (isShowingAnim || isShowingMsg || hasPendingRedraws) {
       consecutiveIdleTicks = 0;

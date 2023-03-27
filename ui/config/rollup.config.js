@@ -23,7 +23,9 @@ const OUT_SYMLINK = path.join(ROOT_DIR, 'ui/out');
 
 function defBundle(bundle, distDir) {
   return {
-    input: `${OUT_SYMLINK}/tsc/${bundle}/index.js`,
+    input: [
+      `${OUT_SYMLINK}/tsc/${bundle}/index.js`,
+    ],
     output: {
       name: bundle,
       format: 'iife',

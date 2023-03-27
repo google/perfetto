@@ -135,27 +135,27 @@ const subprocesses = [];
 
 async function main() {
   const parser = new argparse.ArgumentParser();
-  parser.addArgument('--out', {help: 'Output directory'});
-  parser.addArgument(['--watch', '-w'], {action: 'storeTrue'});
-  parser.addArgument(['--serve', '-s'], {action: 'storeTrue'});
-  parser.addArgument('--serve-host', {help: '--serve bind host'});
-  parser.addArgument('--serve-port', {help: '--serve bind port', type: 'int'});
-  parser.addArgument(['--verbose', '-v'], {action: 'storeTrue'});
-  parser.addArgument(['--no-build', '-n'], {action: 'storeTrue'});
-  parser.addArgument(['--no-wasm', '-W'], {action: 'storeTrue'});
-  parser.addArgument(['--run-unittests', '-t'], {action: 'storeTrue'});
-  parser.addArgument(['--run-integrationtests', '-T'], {action: 'storeTrue'});
-  parser.addArgument(['--debug', '-d'], {action: 'storeTrue'});
-  parser.addArgument(['--interactive', '-i'], {action: 'storeTrue'});
-  parser.addArgument(['--rebaseline', '-r'], {action: 'storeTrue'});
-  parser.addArgument(['--no-depscheck'], {action: 'storeTrue'});
-  parser.addArgument('--cross-origin-isolation', {action: 'storeTrue'});
-  parser.addArgument(
-      ['--test-filter', '-f'],
-      {help: 'filter Jest tests by regex, e.g. \'chrome_render\''});
-  parser.addArgument(['--no-override-gn-args'], {action: 'storeTrue'});
+  parser.add_argument('--out', {help: 'Output directory'});
+  parser.add_argument('--watch', '-w', {action: 'store_true'});
+  parser.add_argument('--serve', '-s', {action: 'store_true'});
+  parser.add_argument('--serve-host', {help: '--serve bind host'});
+  parser.add_argument('--serve-port', {help: '--serve bind port', type: 'int'});
+  parser.add_argument('--verbose', '-v', {action: 'store_true'});
+  parser.add_argument('--no-build', '-n', {action: 'store_true'});
+  parser.add_argument('--no-wasm', '-W', {action: 'store_true'});
+  parser.add_argument('--run-unittests', '-t', {action: 'store_true'});
+  parser.add_argument('--run-integrationtests', '-T', {action: 'store_true'});
+  parser.add_argument('--debug', '-d', {action: 'store_true'});
+  parser.add_argument('--interactive', '-i', {action: 'store_true'});
+  parser.add_argument('--rebaseline', '-r', {action: 'store_true'});
+  parser.add_argument('--no-depscheck', {action: 'store_true'});
+  parser.add_argument('--cross-origin-isolation', {action: 'store_true'});
+  parser.add_argument('--test-filter', '-f', {
+    help: 'filter Jest tests by regex, e.g. \'chrome_render\'',
+  });
+  parser.add_argument('--no-override-gn-args', {action: 'store_true'});
 
-  const args = parser.parseArgs();
+  const args = parser.parse_args();
   const clean = !args.no_build;
   cfg.outDir = path.resolve(ensureDir(args.out || cfg.outDir));
   cfg.outUiDir = ensureDir(pjoin(cfg.outDir, 'ui'), clean);
