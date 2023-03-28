@@ -15,6 +15,8 @@
 import("../../../../gn/perfetto.gni")
 import("../../../../gn/proto_library.gni")
 
-perfetto_proto_library("@TYPE@") {
-  sources = [ "chrome_config.proto" ]
+perfetto_proto_library("scenario_descriptor") {
+  proto_generators = [ "descriptor" ]
+  generate_descriptor = "scenario_config.descriptor"
+  sources = [ "scenario_config.proto" ]
 }
