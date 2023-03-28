@@ -399,21 +399,21 @@ SELECT
           SELECT COUNT(1)
           FROM ANDROID_SLICES_FOR_STARTUP_AND_SLICE_NAME(launches.startup_id, 'JIT compiling*')
           WHERE thread_name = 'Jit thread pool'
-        ) > 40
+        ) > 65
 
         UNION ALL
         SELECT 'Broadcast dispatched count'
         WHERE COUNT_SLICES_CONCURRENT_TO_LAUNCH(
           launches.startup_id,
           'Broadcast dispatched*'
-        ) > 10
+        ) > 15
 
         UNION ALL
         SELECT 'Broadcast received count'
         WHERE COUNT_SLICES_CONCURRENT_TO_LAUNCH(
           launches.startup_id,
           'broadcastReceiveReg*'
-        ) > 10
+        ) > 50
 
         UNION ALL
         SELECT 'No baseline or cloud profiles'

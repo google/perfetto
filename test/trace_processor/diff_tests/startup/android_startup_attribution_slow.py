@@ -123,7 +123,7 @@ trace.add_atrace_begin(
     ts=to_s(260), pid=APP_PID, tid=SECOND_APP_TID, buf='VerifyClass vp')
 trace.add_atrace_end(ts=to_s(280), pid=APP_PID, tid=SECOND_APP_TID)
 
-for t in range(100, 160, 2):
+for t in range(100, 160, 1):
   # JIT compilation slices
   trace.add_atrace_begin(
       ts=to_s(t), pid=APP_PID, tid=JIT_TID, buf='JIT compiling someting')
