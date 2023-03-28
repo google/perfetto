@@ -40,6 +40,8 @@ template("wasm_lib") {
       "-s",
       "WASM=1",
       "-s",
+      "ENVIRONMENT=web,worker",
+      "-s",
       "DISABLE_EXCEPTION_CATCHING=1",
       "-s",
       "NO_DYNAMIC_EXECUTION=1",
