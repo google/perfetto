@@ -19,7 +19,7 @@ syntax = "proto2";
 package perfetto.protos;
 
 // Configuration for go/heapprofd.
-// Next id: 27
+// Next id: 28
 message HeapprofdConfig {
   message ContinuousDumpConfig {
     // ms to wait before first dump.
