@@ -31,7 +31,7 @@ trace.add_ftrace_packet(cpu=0)
 trace.add_atrace_async_begin(ts=100, tid=2, pid=2, buf='launchingActivity#1')
 trace.add_atrace_async_end(ts=200, tid=2, pid=2, buf='launchingActivity#1')
 
-for t in range(105, 129, 2):
+for t in range(105, 129, 1):
   trace.add_atrace_begin(
       ts=t,
       tid=1,
@@ -39,7 +39,7 @@ for t in range(105, 129, 2):
       buf='Broadcast dispatched from android (2005:system/1000) x')
   trace.add_atrace_end(ts=t + 1, tid=1, pid=1)
 
-for t in range(130, 152, 2):
+for t in range(100, 152, 1):
   trace.add_atrace_begin(ts=t, tid=2, pid=2, buf='broadcastReceiveReg: x')
   trace.add_atrace_end(ts=t + 1, tid=2, pid=2)
 
