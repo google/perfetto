@@ -906,6 +906,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/perfetto_cmd:bugreport_path
+perfetto_filegroup(
+    name = "src_perfetto_cmd_bugreport_path",
+    srcs = [
+        "src/perfetto_cmd/bugreport_path.h",
+    ],
+)
+
 # GN target: //src/perfetto_cmd:gen_cc_config_descriptor
 perfetto_cc_proto_descriptor(
     name = "src_perfetto_cmd_gen_cc_config_descriptor",
@@ -4537,6 +4545,7 @@ perfetto_cc_binary(
         ":include_perfetto_tracing_tracing",
         ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
+        ":src_perfetto_cmd_bugreport_path",
         ":src_perfetto_cmd_perfetto_cmd",
         ":src_perfetto_cmd_trigger_producer",
         ":src_tracing_common",
