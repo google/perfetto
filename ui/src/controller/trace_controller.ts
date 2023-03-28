@@ -122,8 +122,9 @@ const METRICS = [
 ];
 const FLAGGED_METRICS: Array<[Flag, string]> = METRICS.map((m) => {
   const id = `forceMetric${m}`;
-  let name = m.split('_').join(' ') + ' metric';
+  let name = m.split('_').join(' ');
   name = name[0].toUpperCase() + name.slice(1);
+  name = 'Metric: ' + name;
   const flag = featureFlags.register({
     id,
     name,
