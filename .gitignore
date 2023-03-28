@@ -23,7 +23,6 @@
 /bazel-*
 /compile_commands.json
 /fuzz_out/
-/node_modules/
 /out*
 /ui/dist
 /venv/*
