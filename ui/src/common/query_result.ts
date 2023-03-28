@@ -49,6 +49,14 @@
 
 import * as protobuf from 'protobufjs/minimal';
 
+// Disable Long.js support in protobuf. This seems to be enabled only in tests
+// but not in production code. In any case, for now we want casting to number
+// accepting the 2**53 limitation. This is consistent with passing
+// --force-number in the protobuf.js codegen invocation in //ui/BUILD.gn .
+// See also https://github.com/protobufjs/protobuf.js/issues/1253 .
+protobuf.util.Long = undefined as any;
+protobuf.configure();
+
 import {defer, Deferred} from '../base/deferred';
 import {assertExists, assertFalse, assertTrue} from '../base/logging';
 import {utf8Decode} from '../base/string_utils';
@@ -146,14 +154,6 @@ function isCompatible(actual: CellType, expected: ColumnType): boolean {
       throw new Error(`Unknown CellType ${actual}`);
   }
 }
-
-// Disable Long.js support in protobuf. This seems to be enabled only in tests
-// but not in production code. In any case, for now we want casting to number
-// accepting the 2**53 limitation. This is consistent with passing
-// --force-number in the protobuf.js codegen invocation in //ui/BUILD.gn .
-// See also https://github.com/protobufjs/protobuf.js/issues/1253 .
-(protobuf.util as {} as {Long: undefined}).Long = undefined;
-protobuf.configure();
 
 // This has to match CellType in trace_processor.proto.
 enum CellType {
