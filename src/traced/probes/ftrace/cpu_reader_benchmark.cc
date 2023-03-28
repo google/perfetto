@@ -14,6 +14,8 @@
 
 #include <benchmark/benchmark.h>
 
+#include <optional>
+
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/root_message.h"
 #include "perfetto/protozero/scattered_stream_null_delegate.h"
@@ -24,6 +26,7 @@
 #include "src/traced/probes/ftrace/ftrace_print_filter.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 #include "src/traced/probes/ftrace/test/cpu_reader_support.h"
+#include "src/tracing/core/null_trace_writer.h"
 
 namespace perfetto {
 namespace {
@@ -821,6 +824,8 @@ ExamplePage g_full_page_atrace_print{
     )",
 };
 
+// Low level benchmark for the CpuReader::ParsePageHeader and
+// CpuReader::ParsePagePayload functions.
 void DoParse(const ExamplePage& test_case,
              const std::vector<GroupAndName>& enabled_events,
              std::optional<FtraceConfig::PrintFilter> print_filter,
@@ -915,6 +920,68 @@ void BM_ParsePageFullOfAtracePrintWithFilterRules(benchmark::State& state) {
           state);
 }
 BENCHMARK(BM_ParsePageFullOfAtracePrintWithFilterRules)->DenseRange(0, 16, 1);
+
+// Higher level benchmark for the CpuReader::ProcessPagesForDataSource function.
+void DoProcessPages(const ExamplePage& test_case,
+                    const size_t page_repetition,
+                    const std::vector<GroupAndName>& enabled_events,
+                    std::optional<FtraceConfig::PrintFilter> print_filter,
+                    benchmark::State& state) {
+  perfetto::NullTraceWriter writer;
+
+  ProtoTranslationTable* table = GetTable(test_case.name);
+
+  auto repeated_pages =
+      std::make_unique<uint8_t[]>(base::kPageSize * page_repetition);
+  {
+    auto page = PageFromXxd(test_case.data);
+    for (size_t i = 0; i < page_repetition; i++) {
+      memcpy(&repeated_pages[i * base::kPageSize], &page[0], base::kPageSize);
+    }
+  }
+
+  FtraceDataSourceConfig ds_config{EventFilter{},
+                                   EventFilter{},
+                                   DisabledCompactSchedConfigForTesting(),
+                                   std::nullopt,
+                                   {},
+                                   {},
+                                   false /*symbolize_ksyms*/,
+                                   false /*preserve_ftrace_buffer*/,
+                                   {}};
+  if (print_filter.has_value()) {
+    ds_config.print_filter =
+        FtracePrintFilterConfig::Create(print_filter.value(), table);
+    PERFETTO_CHECK(ds_config.print_filter.has_value());
+  }
+  for (const GroupAndName& enabled_event : enabled_events) {
+    ds_config.event_filter.AddEnabledEvent(
+        table->EventToFtraceId(enabled_event));
+  }
+
+  FtraceMetadata metadata{};
+  while (state.KeepRunning()) {
+    CpuReader::ProcessPagesForDataSource(
+        &writer, &metadata, /*cpu=*/0, &ds_config, repeated_pages.get(),
+        page_repetition, table,
+        /*symbolizer=*/nullptr, /*ftrace_clock_snapshot=*/nullptr,
+        /*ftrace_clock=*/protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+
+    metadata.Clear();
+  }
+}
+
+void BM_ProcessPagesFullOfSchedSwitch(benchmark::State& state) {
+  DoProcessPages(g_full_page_sched_switch, static_cast<size_t>(state.range(0)),
+                 {GroupAndName("sched", "sched_switch")}, std::nullopt, state);
+}
+BENCHMARK(BM_ProcessPagesFullOfSchedSwitch)->Range(1, 64);
+
+void BM_ProcessPagesFullOfPrint(benchmark::State& state) {
+  DoProcessPages(g_full_page_print, static_cast<size_t>(state.range(0)),
+                 {GroupAndName("ftrace", "print")}, std::nullopt, state);
+}
+BENCHMARK(BM_ProcessPagesFullOfPrint)->Range(1, 64);
 
 }  // namespace
 }  // namespace perfetto
