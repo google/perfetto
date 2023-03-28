@@ -830,9 +830,13 @@ void DoParse(const ExamplePage& test_case,
              const std::vector<GroupAndName>& enabled_events,
              std::optional<FtraceConfig::PrintFilter> print_filter,
              benchmark::State& state) {
-  ScatteredStreamWriterNullDelegate delegate(base::kPageSize);
-  ScatteredStreamWriter stream(&delegate);
-  protozero::RootMessage<FtraceEventBundle> writer;
+  NullTraceWriter writer;
+  FtraceMetadata metadata{};
+  CpuReader::Bundler bundler(
+      &writer, &metadata, /*symbolizer=*/nullptr, /*cpu=*/0,
+      /*ftrace_clock_snapshot=*/nullptr,
+      /*ftrace_clock=*/protos::pbzero::FTRACE_CLOCK_UNSPECIFIED,
+      /*compact_sched_enabled=*/false);
 
   ProtoTranslationTable* table = GetTable(test_case.name);
   auto page = PageFromXxd(test_case.data);
@@ -856,10 +860,7 @@ void DoParse(const ExamplePage& test_case,
         table->EventToFtraceId(enabled_event));
   }
 
-  FtraceMetadata metadata{};
   while (state.KeepRunning()) {
-    writer.Reset(&stream);
-
     std::unique_ptr<CompactSchedBuffer> compact_buffer(
         new CompactSchedBuffer());
     const uint8_t* parse_pos = page.get();
@@ -870,10 +871,10 @@ void DoParse(const ExamplePage& test_case,
       return;
 
     CpuReader::ParsePagePayload(parse_pos, &page_header.value(), table,
-                                &ds_config, compact_buffer.get(), &writer,
-                                &metadata);
+                                &ds_config, &bundler, &metadata);
 
     metadata.Clear();
+    bundler.FinalizeAndRunSymbolizer();
   }
 }
 

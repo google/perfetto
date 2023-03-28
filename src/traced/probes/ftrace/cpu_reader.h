@@ -85,16 +85,27 @@ class CpuReader {
 
     ~Bundler() { FinalizeAndRunSymbolizer(); }
 
-    protos::pbzero::FtraceEventBundle* StartNewPacket(bool lost_events);
+    protos::pbzero::FtraceEventBundle* GetOrCreateBundle() {
+      if (!bundle_) {
+        StartNewPacket(false);
+      }
+      return bundle_;
+    }
+
+    // Forces the creation of a new TracePacket.
+    void StartNewPacket(bool lost_events);
+
+    // This function is called after the contents of a FtraceBundle are written.
+    void FinalizeAndRunSymbolizer();
 
     CompactSchedBuffer* compact_sched_buffer() {
+      // FinalizeAndRunSymbolizer will only process the compact_sched_buffer_ if
+      // there is an open bundle.
+      GetOrCreateBundle();
       return &compact_sched_buffer_;
     }
 
    private:
-    // This function is called after the contents of a FtraceBundle are written.
-    void FinalizeAndRunSymbolizer();
-
     TraceWriter* const trace_writer_;         // Never nullptr.
     FtraceMetadata* const metadata_;          // Never nullptr.
     LazyKernelSymbolizer* const symbolizer_;  // Can be nullptr.
@@ -240,8 +251,7 @@ class CpuReader {
                                  const PageHeader* page_header,
                                  const ProtoTranslationTable* table,
                                  const FtraceDataSourceConfig* ds_config,
-                                 CompactSchedBuffer* compact_sched_buffer,
-                                 FtraceEventBundle* bundle,
+                                 Bundler* bundler,
                                  FtraceMetadata* metadata);
 
   // Parse a single raw ftrace event beginning at |start| and ending at |end|

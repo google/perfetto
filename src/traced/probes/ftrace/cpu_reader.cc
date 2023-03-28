@@ -311,8 +311,7 @@ size_t CpuReader::ReadAndProcessBatch(
   return pages_read;
 }
 
-protos::pbzero::FtraceEventBundle* CpuReader::Bundler::StartNewPacket(
-    bool lost_events) {
+void CpuReader::Bundler::StartNewPacket(bool lost_events) {
   FinalizeAndRunSymbolizer();
   packet_ = trace_writer_->NewTracePacket();
   bundle_ = packet_->set_ftrace_events();
@@ -329,7 +328,6 @@ protos::pbzero::FtraceEventBundle* CpuReader::Bundler::StartNewPacket(
   if (lost_events) {
     bundle_->set_lost_events(true);
   }
-  return bundle_;
 }
 
 void CpuReader::Bundler::FinalizeAndRunSymbolizer() {
@@ -418,8 +416,6 @@ size_t CpuReader::ProcessPagesForDataSource(
                   ftrace_clock_snapshot, ftrace_clock,
                   ds_config->compact_sched.enabled);
 
-  protos::pbzero::FtraceEventBundle* bundle =
-      bundler.StartNewPacket(/*lost_events=*/false);
   size_t pages_parsed = 0;
   bool compact_sched_enabled = ds_config->compact_sched.enabled;
   for (; pages_parsed < pages_read; pages_parsed++) {
@@ -447,17 +443,18 @@ size_t CpuReader::ProcessPagesForDataSource(
         bundler.compact_sched_buffer()->interner().interned_comms_size() >
             kCompactSchedInternerThreshold;
 
-    if (page_header->lost_events || interner_past_threshold)
-      bundle = bundler.StartNewPacket(page_header->lost_events);
+    if (page_header->lost_events || interner_past_threshold) {
+      bundler.StartNewPacket(page_header->lost_events);
+    }
 
-    size_t evt_size =
-        ParsePagePayload(parse_pos, &page_header.value(), table, ds_config,
-                         bundler.compact_sched_buffer(), bundle, metadata);
+    size_t evt_size = ParsePagePayload(parse_pos, &page_header.value(), table,
+                                       ds_config, &bundler, metadata);
 
     if (evt_size != page_header->size) {
       break;
     }
   }
+  // bundler->FinalizeAndRunSymbolizer() will run as part of the destructor.
 
   return pages_parsed;
 }
@@ -523,8 +520,7 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
                                    const PageHeader* page_header,
                                    const ProtoTranslationTable* table,
                                    const FtraceDataSourceConfig* ds_config,
-                                   CompactSchedBuffer* compact_sched_buffer,
-                                   FtraceEventBundle* bundle,
+                                   Bundler* bundler,
                                    FtraceMetadata* metadata) {
   const uint8_t* ptr = start_of_payload;
   const uint8_t* const end = ptr + page_header->size;
@@ -633,7 +629,7 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
               return 0;
 
             ParseSchedSwitchCompact(start, timestamp, &sched_switch_format,
-                                    compact_sched_buffer, metadata);
+                                    bundler->compact_sched_buffer(), metadata);
 
             // compact sched_waking
           } else if (compact_sched_enabled &&
@@ -642,12 +638,13 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
               return 0;
 
             ParseSchedWakingCompact(start, timestamp, &sched_waking_format,
-                                    compact_sched_buffer, metadata);
+                                    bundler->compact_sched_buffer(), metadata);
 
           } else if (ftrace_print_filter_enabled &&
                      ftrace_event_id == ds_config->print_filter->event_id()) {
             if (ds_config->print_filter->IsEventInteresting(start, next)) {
-              protos::pbzero::FtraceEvent* event = bundle->add_event();
+              protos::pbzero::FtraceEvent* event =
+                  bundler->GetOrCreateBundle()->add_event();
               event->set_timestamp(timestamp);
               if (!ParseEvent(ftrace_event_id, start, next, table, ds_config,
                               event, metadata))
@@ -655,7 +652,8 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
             }
           } else {
             // Common case: parse all other types of enabled events.
-            protos::pbzero::FtraceEvent* event = bundle->add_event();
+            protos::pbzero::FtraceEvent* event =
+                bundler->GetOrCreateBundle()->add_event();
             event->set_timestamp(timestamp);
             if (!ParseEvent(ftrace_event_id, start, next, table, ds_config,
                             event, metadata))
