@@ -119,7 +119,9 @@ export abstract class BottomTab<Config = {}> extends BottomTabBase<Config> {
   abstract viewTab(): void|m.Children;
 
   createPanelVnode(): m.Vnode<any, any> {
-    return m(BottomTabAdapter, {key: this.uuid, panel: this});
+    return m(
+        BottomTabAdapter,
+        {key: this.uuid, panel: this} as BottomTabAdapterAttrs);
   }
 }
 
