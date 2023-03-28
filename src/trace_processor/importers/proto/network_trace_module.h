@@ -20,7 +20,9 @@
 #include <cstdint>
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "protos/perfetto/trace/android/network_trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -52,7 +54,14 @@ class NetworkTraceModule : public ProtoImporterModule {
                             uint32_t field_id) override;
 
  private:
+  void ParseGenericEvent(
+      int64_t ts,
+      int64_t dur,
+      protos::pbzero::NetworkPacketEvent::Decoder& evt,
+      std::function<void(ArgsTracker::BoundInserter*)> extra_args);
+
   void ParseNetworkPacketEvent(int64_t ts, protozero::ConstBytes blob);
+  void ParseNetworkPacketBundle(int64_t ts, protozero::ConstBytes blob);
 
   // Helper to simplify pushing a TracePacket to the sorter. The caller fills in
   // the packet buffer and uses this to push for sorting and reset the buffer.
@@ -69,6 +78,7 @@ class NetworkTraceModule : public ProtoImporterModule {
   const StringId net_arg_remote_port_;
   const StringId net_ipproto_tcp_;
   const StringId net_ipproto_udp_;
+  const StringId packet_count_;
 };
 
 }  // namespace trace_processor
