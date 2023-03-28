@@ -9628,6 +9628,7 @@ filegroup {
         "src/trace_processor/importers/proto/active_chrome_processes_tracker_unittest.cc",
         "src/trace_processor/importers/proto/heap_graph_tracker_unittest.cc",
         "src/trace_processor/importers/proto/heap_profile_tracker_unittest.cc",
+        "src/trace_processor/importers/proto/network_trace_module_unittest.cc",
         "src/trace_processor/importers/proto/perf_sample_tracker_unittest.cc",
         "src/trace_processor/importers/proto/proto_trace_parser_unittest.cc",
     ],
