@@ -39,7 +39,7 @@ function defBundle(bundle, distDir) {
       }),
 
       commonjs({
-        strictRequires: false,
+        strictRequires: true,
       }),
 
       replace({
