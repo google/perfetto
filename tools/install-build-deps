@@ -327,7 +327,7 @@ TEST_DEPS_ANDROID = [
 # This variable is updated by tools/roll-catapult-trace-viewer.
 CATAPULT_SHA256 = 'b30108e05268ce6c65bb4126b65f6bfac165d17f5c1fd285046e7e6fd76c209f'
 
-TYPEFACES_SHA256 = '727fc9d7fd2f7b4b77d89a4e048ed210ef63497546411c2ec9e4f44bb9744519'
+TYPEFACES_SHA256 = '1065172aaf0e9c22bc4f206ed9fdf5f1b4355d233fb21f9f26a89cd66c941940'
 
 UI_DEPS = [
     Dependency(
