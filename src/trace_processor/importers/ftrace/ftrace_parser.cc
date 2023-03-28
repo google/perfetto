@@ -22,6 +22,7 @@
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
@@ -29,7 +30,6 @@
 #include "src/trace_processor/importers/ftrace/v4l2_tracker.h"
 #include "src/trace_processor/importers/ftrace/virtio_video_tracker.h"
 #include "src/trace_processor/importers/i2c/i2c_tracker.h"
-#include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
@@ -1403,7 +1403,6 @@ void FtraceParser::ParseLwisTracingMarkWrite(int64_t timestamp,
       evt.func_name(), tgid, evt.value());
 }
 
-
 /** Parses ion heap events present in Pixel kernels. */
 void FtraceParser::ParseIonHeapGrowOrShrink(int64_t timestamp,
                                             uint32_t pid,
@@ -1717,7 +1716,8 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
                                        ThreadNamePriority::kFtrace);
   proc_tracker->AssociateThreads(source_utid, new_utid);
 
-  ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(timestamp, new_utid, source_utid);
+  ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
+      timestamp, new_utid, source_utid);
 }
 
 void FtraceParser::ParseTaskRename(ConstBytes blob) {

@@ -17,6 +17,7 @@
 #ifndef SRC_ANDROID_INTERNAL_STATSD_H_
 #define SRC_ANDROID_INTERNAL_STATSD_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
 // This header declares proxy functions defined in
