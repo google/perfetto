@@ -20,7 +20,7 @@ export function ratelimit(f: Function, ms: number): Function {
       return;
     }
     inProgess = true;
-    window.setTimeout(() => {
+    setTimeout(() => {
       f();
       inProgess = false;
     }, ms);
@@ -30,12 +30,12 @@ export function ratelimit(f: Function, ms: number): Function {
 // Returns a wrapper around |f| which waits for a |ms|ms pause in calls
 // before calling |f|.
 export function debounce(f: Function, ms: number): Function {
-  let timerId: undefined|number;
+  let timerId: undefined|ReturnType<typeof setTimeout>;
   return () => {
     if (timerId) {
-      window.clearTimeout(timerId);
+      clearTimeout(timerId);
     }
-    timerId = window.setTimeout(() => {
+    timerId = setTimeout(() => {
       f();
       timerId = undefined;
     }, ms);
