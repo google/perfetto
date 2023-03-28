@@ -469,7 +469,7 @@ function buildWasm(skipWasmBuild) {
 function transpileTsProject(project, options) {
   const args = ['--project', pjoin(ROOT_DIR, project)];
 
-  if (options?.watch) {
+  if (options !== undefined && options.watch) {
     args.push('--watch', '--preserveWatchOutput');
     addTask(execNode, ['tsc', args, {async: true}]);
   } else {
