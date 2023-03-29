@@ -40,6 +40,8 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include "src/tracing/ipc/shared_memory_windows.h"
 #else
+#include <signal.h>
+
 #include "src/traced/probes/probes_producer.h"
 #include "src/tracing/ipc/posix_shared_memory.h"
 #endif
@@ -309,7 +311,6 @@ class TestHelper : public Consumer {
   void FreeBuffers();
   void DetachConsumer(const std::string& key);
   bool AttachConsumer(const std::string& key);
-  bool SaveTraceForBugreportAndWait();
   void CreateProducerProvidedSmb();
   bool IsShmemProvidedByProducer();
   void ProduceStartupEventBatch(const protos::gen::TestConfig& config);
@@ -427,6 +428,12 @@ class Exec {
     constexpr bool kUseSystemBinaries = true;
 #endif
 
+    auto pass_env = [](const std::string& var, base::Subprocess* proc) {
+      const char* val = getenv(var.c_str());
+      if (val)
+        proc->args.env.push_back(var + "=" + val);
+    };
+
     std::vector<std::string>& cmd = subprocess_.args.exec_cmd;
     if (kUseSystemBinaries) {
       PERFETTO_CHECK(TestHelper::kDefaultMode ==
@@ -442,6 +449,9 @@ class Exec {
       subprocess_.args.env.push_back(
           std::string("PERFETTO_CONSUMER_SOCK_NAME=") +
           TestHelper::GetDefaultModeConsumerSocketName());
+      pass_env("TMPDIR", &subprocess_);
+      pass_env("TMP", &subprocess_);
+      pass_env("TEMP", &subprocess_);
       cmd.push_back(base::GetCurExecutableDir() + "/" + argv0);
       cmd.insert(cmd.end(), args.begin(), args.end());
     }
@@ -477,6 +487,16 @@ class Exec {
 
     subprocess_.Start();
     sync_pipe_.rd.reset();
+  }
+
+  void SendSigterm() {
+#ifdef SIGTERM
+    kill(subprocess_.pid(), SIGTERM);
+#else
+    // This code is never used on Windows tests, not bothering.
+    if (subprocess_.pid())  // Always true, but avoids Wnoreturn compile errors.
+      PERFETTO_FATAL("SendSigterm() not implemented on this platform");
+#endif
   }
 
  private:
