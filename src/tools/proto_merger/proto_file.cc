@@ -263,10 +263,10 @@ ProtoFile::Message MessageFromDescriptor(
 }  // namespace
 
 ProtoFile ProtoFileFromDescriptor(
-    std::string premable,
+    std::string preamble,
     const google::protobuf::FileDescriptor& desc) {
   ProtoFile file;
-  file.preamble = std::move(premable);
+  file.preamble = std::move(preamble);
   for (int i = 0; i < desc.enum_type_count(); ++i) {
     file.enums.push_back(EnumFromDescriptor(*desc.enum_type(i)));
   }

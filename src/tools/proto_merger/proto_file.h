@@ -27,7 +27,7 @@
 namespace perfetto {
 namespace proto_merger {
 
-/// Simplified representation of the coomponents of a .proto file.
+// Simplified representation of the components of a .proto file.
 struct ProtoFile {
   struct Option {
     std::string key;
@@ -85,7 +85,7 @@ struct ProtoFile {
 };
 
 // Creates a ProtoFile struct from a libprotobuf-full descriptor clas.
-ProtoFile ProtoFileFromDescriptor(std::string premable,
+ProtoFile ProtoFileFromDescriptor(std::string preamble,
                                   const google::protobuf::FileDescriptor&);
 
 }  // namespace proto_merger
