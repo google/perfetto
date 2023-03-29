@@ -37,7 +37,7 @@ export class MetricsController extends Controller<'main'> {
       const metricResult = await this.engine.computeMetric([name]);
       publishMetricResult({
         name,
-        resultString: metricResult.metricsAsPrototext,
+        resultString: metricResult.metricsAsPrototext || undefined,
       });
     } catch (e) {
       if (e instanceof QueryError) {

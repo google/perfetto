@@ -194,7 +194,6 @@ perfetto_unittest_source_set("unittests") {
     "hash_unittest.cc",
     "logging_unittest.cc",
     "no_destructor_unittest.cc",
-    "optional_unittest.cc",
     "paged_memory_unittest.cc",
     "periodic_task_unittest.cc",
     "scoped_file_unittest.cc",

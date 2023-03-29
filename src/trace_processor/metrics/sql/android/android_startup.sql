@@ -325,11 +325,11 @@ SELECT
         UNION ALL
         SELECT 'Main Thread - Time spent in interruptible sleep state'
           AS slow_cause
-        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.startup_id, 'S') > 250e6
+        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.startup_id, 'S') > 2900e6
 
         UNION ALL
         SELECT 'Main Thread - Time spent in Blocking I/O'
-        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.startup_id, 'D*', TRUE) > 300e6
+        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.startup_id, 'D*', TRUE) > 155e6
 
         UNION ALL
         SELECT 'Time spent in OpenDexFilesFromOat*'
@@ -339,18 +339,18 @@ SELECT
         UNION ALL
         SELECT 'Time spent in bindApplication'
           AS slow_cause
-        WHERE ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(launches.startup_id, 'bindApplication') > 10e6
+        WHERE ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(launches.startup_id, 'bindApplication') > 1250e6
 
         UNION ALL
         SELECT 'Time spent in view inflation'
           AS slow_cause
-        WHERE ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(launches.startup_id, 'inflate') > 600e6
+        WHERE ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(launches.startup_id, 'inflate') > 450e6
 
         UNION ALL
         SELECT 'Time spent in ResourcesManager#getResources'
           AS slow_cause
         WHERE ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(
-          launches.startup_id, 'ResourcesManager#getResources') > 10e6
+          launches.startup_id, 'ResourcesManager#getResources') > 130e6
 
         UNION ALL
         SELECT 'Time spent verifying classes'
@@ -371,7 +371,7 @@ SELECT
           launches.startup_id,
           'Running',
           'Jit thread pool'
-        ) > 120e6
+        ) > 100e6
 
         UNION ALL
         SELECT 'Main Thread - Lock contention'
@@ -399,21 +399,21 @@ SELECT
           SELECT COUNT(1)
           FROM ANDROID_SLICES_FOR_STARTUP_AND_SLICE_NAME(launches.startup_id, 'JIT compiling*')
           WHERE thread_name = 'Jit thread pool'
-        ) > 40
+        ) > 65
 
         UNION ALL
         SELECT 'Broadcast dispatched count'
         WHERE COUNT_SLICES_CONCURRENT_TO_LAUNCH(
           launches.startup_id,
           'Broadcast dispatched*'
-        ) > 10
+        ) > 15
 
         UNION ALL
         SELECT 'Broadcast received count'
         WHERE COUNT_SLICES_CONCURRENT_TO_LAUNCH(
           launches.startup_id,
           'broadcastReceiveReg*'
-        ) > 10
+        ) > 50
 
         UNION ALL
         SELECT 'No baseline or cloud profiles'
