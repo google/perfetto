@@ -251,7 +251,7 @@ void ProfileModule::ParsePerfSample(
       sequence_state->state()->sequence_stack_profile_tracker();
   ProfilePacketInternLookup intern_lookup(sequence_state);
   uint64_t callstack_iid = sample.callstack_iid();
-  base::Optional<CallsiteId> cs_id =
+  std::optional<CallsiteId> cs_id =
       stack_tracker.FindOrInsertCallstack(callstack_iid, &intern_lookup);
 
   // A failed lookup of the interned callstack can mean either:
@@ -285,7 +285,7 @@ void ProfileModule::ParsePerfSample(
   StringPool::Id cpu_mode_id =
       storage->InternString(ProfilePacketUtils::StringifyCpuMode(cpu_mode));
 
-  base::Optional<StringPool::Id> unwind_error_id;
+  std::optional<StringPool::Id> unwind_error_id;
   if (sample.has_unwind_error()) {
     auto unwind_error =
         static_cast<Profiling::StackUnwindError>(sample.unwind_error());

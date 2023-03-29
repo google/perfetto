@@ -68,7 +68,7 @@ FtraceDataSourceConfig EmptyConfig() {
   return FtraceDataSourceConfig{EventFilter{},
                                 EventFilter{},
                                 DisabledCompactSchedConfigForTesting(),
-                                base::nullopt,
+                                std::nullopt,
                                 {},
                                 {},
                                 false /*symbolize_ksyms*/,
@@ -393,7 +393,7 @@ TEST(CpuReaderTest, ParseSinglePrint) {
   FtraceMetadata metadata{};
   std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
-  base::Optional<CpuReader::PageHeader> page_header =
+  std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
   const uint8_t* page_end = page.get() + base::kPageSize;
@@ -521,7 +521,7 @@ TEST(CpuReaderTest, ReallyLongEvent) {
   std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
 
   const uint8_t* parse_pos = page.get();
-  base::Optional<CpuReader::PageHeader> page_header =
+  std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
   const uint8_t* page_end = page.get() + base::kPageSize;
@@ -569,7 +569,7 @@ TEST(CpuReaderTest, ParseSinglePrintNonNullTerminated) {
   FtraceMetadata metadata{};
   std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
-  base::Optional<CpuReader::PageHeader> page_header =
+  std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
   const uint8_t* page_end = page.get() + base::kPageSize;
@@ -617,7 +617,7 @@ TEST(CpuReaderTest, ParseSinglePrintZeroSize) {
   FtraceMetadata metadata{};
   std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
-  base::Optional<CpuReader::PageHeader> page_header =
+  std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
   const uint8_t* page_end = page.get() + base::kPageSize;
@@ -653,7 +653,7 @@ TEST(CpuReaderTest, FilterByEvent) {
   FtraceMetadata metadata{};
   std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
-  base::Optional<CpuReader::PageHeader> page_header =
+  std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
   ASSERT_TRUE(page_header.has_value());
@@ -718,7 +718,7 @@ TEST(CpuReaderTest, ParseThreePrint) {
   FtraceMetadata metadata{};
   std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
-  base::Optional<CpuReader::PageHeader> page_header =
+  std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
   const uint8_t* page_end = page.get() + base::kPageSize;
@@ -767,7 +767,7 @@ TEST(CpuReaderTest, ParsePrintWithAndWithoutFilter) {
   FtraceMetadata metadata{};
   std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
-  base::Optional<CpuReader::PageHeader> page_header =
+  std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
   const uint8_t* page_end = page.get() + base::kPageSize;
@@ -907,7 +907,7 @@ TEST(CpuReaderTest, ParseSixSchedSwitch) {
   FtraceMetadata metadata{};
   std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
-  base::Optional<CpuReader::PageHeader> page_header =
+  std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
   const uint8_t* page_end = page.get() + base::kPageSize;
@@ -948,7 +948,7 @@ TEST(CpuReaderTest, ParseSixSchedSwitchCompactFormat) {
   FtraceDataSourceConfig ds_config{EventFilter{},
                                    EventFilter{},
                                    EnabledCompactSchedConfigForTesting(),
-                                   base::nullopt,
+                                   std::nullopt,
                                    {},
                                    {},
                                    false /* symbolize_ksyms*/,
@@ -960,7 +960,7 @@ TEST(CpuReaderTest, ParseSixSchedSwitchCompactFormat) {
   FtraceMetadata metadata{};
   std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
-  base::Optional<CpuReader::PageHeader> page_header =
+  std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
   const uint8_t* page_end = page.get() + base::kPageSize;
@@ -1705,7 +1705,7 @@ TEST(CpuReaderTest, ParseAbsoluteTimestamp) {
   FtraceMetadata metadata{};
   std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
-  base::Optional<CpuReader::PageHeader> page_header =
+  std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
   const uint8_t* page_end = page.get() + base::kPageSize;
@@ -2193,7 +2193,7 @@ TEST(CpuReaderTest, ParseFullPageSchedSwitch) {
   FtraceMetadata metadata{};
   std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
-  base::Optional<CpuReader::PageHeader> page_header =
+  std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
   const uint8_t* page_end = page.get() + base::kPageSize;
@@ -2281,7 +2281,7 @@ TEST(CpuReaderTest, ParseSuspendResume) {
   FtraceMetadata metadata{};
   std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
-  base::Optional<CpuReader::PageHeader> page_header =
+  std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
   ASSERT_TRUE(page_header.has_value());
 
@@ -2725,7 +2725,7 @@ TEST(CpuReaderTest, ParseExt4WithOverwrite) {
   FtraceMetadata metadata{};
   std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
-  base::Optional<CpuReader::PageHeader> page_header =
+  std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
   const uint8_t* page_end = page.get() + base::kPageSize;
@@ -2834,7 +2834,7 @@ TEST(CpuReaderTest, ZeroLengthDataLoc) {
   FtraceMetadata metadata{};
   std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
-  base::Optional<CpuReader::PageHeader> page_header =
+  std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
   const uint8_t* page_end = page.get() + base::kPageSize;
@@ -3140,7 +3140,7 @@ TEST(CpuReaderTest, ZeroPaddedPageWorkaround) {
   FtraceMetadata metadata{};
   std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
-  base::Optional<CpuReader::PageHeader> page_header =
+  std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
   const uint8_t* page_end = page.get() + base::kPageSize;

@@ -18,8 +18,8 @@
 #define SRC_TRACED_PROBES_INITIAL_DISPLAY_STATE_INITIAL_DISPLAY_STATE_DATA_SOURCE_H_
 
 #include <memory>
+#include <optional>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "src/traced/probes/probes_data_source.h"
@@ -44,8 +44,7 @@ class InitialDisplayStateDataSource : public ProbesDataSource {
   void Flush(FlushRequestID, std::function<void()> callback) override;
 
   // Virtual for testing.
-  virtual const base::Optional<std::string> ReadProperty(
-      const std::string name);
+  virtual const std::optional<std::string> ReadProperty(const std::string name);
 
  private:
   void Tick();

@@ -140,21 +140,21 @@ StackRange GetMainThreadStackRange() {
 }
 
 // static
-base::Optional<base::UnixSocketRaw> Client::ConnectToHeapprofd(
+std::optional<base::UnixSocketRaw> Client::ConnectToHeapprofd(
     const std::string& sock_name) {
   auto sock = base::UnixSocketRaw::CreateMayFail(base::SockFamily::kUnix,
                                                  base::SockType::kStream);
   if (!sock || !sock.Connect(sock_name)) {
     PERFETTO_PLOG("Failed to connect to %s", sock_name.c_str());
-    return base::nullopt;
+    return std::nullopt;
   }
   if (!sock.SetTxTimeout(kClientSockTimeoutMs)) {
     PERFETTO_PLOG("Failed to set send timeout for %s", sock_name.c_str());
-    return base::nullopt;
+    return std::nullopt;
   }
   if (!sock.SetRxTimeout(kClientSockTimeoutMs)) {
     PERFETTO_PLOG("Failed to set receive timeout for %s", sock_name.c_str());
-    return base::nullopt;
+    return std::nullopt;
   }
   return std::move(sock);
 }

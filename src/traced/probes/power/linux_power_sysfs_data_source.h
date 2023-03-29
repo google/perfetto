@@ -17,7 +17,8 @@
 #ifndef SRC_TRACED_PROBES_POWER_LINUX_POWER_SYSFS_DATA_SOURCE_H_
 #define SRC_TRACED_PROBES_POWER_LINUX_POWER_SYSFS_DATA_SOURCE_H_
 
-#include "perfetto/ext/base/optional.h"
+#include <optional>
+
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/traced/probes/probes_data_source.h"
@@ -39,22 +40,22 @@ class LinuxPowerSysfsDataSource : public ProbesDataSource {
     ~BatteryInfo();
 
     // The current coloumb counter value in µAh.
-    base::Optional<int64_t> GetChargeCounterUah(size_t battery_idx);
+    std::optional<int64_t> GetChargeCounterUah(size_t battery_idx);
 
     // The current energy counter in µWh.
-    base::Optional<int64_t> GetEnergyCounterUah(size_t battery_idx);
+    std::optional<int64_t> GetEnergyCounterUah(size_t battery_idx);
 
     // The voltage in µV.
-    base::Optional<int64_t> GetVoltageUv(size_t battery_idx);
+    std::optional<int64_t> GetVoltageUv(size_t battery_idx);
 
     // The battery capacity in percent.
-    base::Optional<int64_t> GetCapacityPercent(size_t battery_idx);
+    std::optional<int64_t> GetCapacityPercent(size_t battery_idx);
 
     // The current reading of the battery in µA.
-    base::Optional<int64_t> GetCurrentNowUa(size_t battery_idx);
+    std::optional<int64_t> GetCurrentNowUa(size_t battery_idx);
 
     // The smoothed current reading of the battery in µA.
-    base::Optional<int64_t> GetAverageCurrentUa(size_t battery_idx);
+    std::optional<int64_t> GetAverageCurrentUa(size_t battery_idx);
 
     // Name of the battery.
     std::string GetBatteryName(size_t battery_idx);

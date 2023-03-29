@@ -77,7 +77,7 @@ TEST_F(ProtoBuilderTest, AppendLong) {
   DescriptorPool pool;
   ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
                              ".perfetto.protos.TestProto",
-                             ProtoDescriptor::Type::kMessage, base::nullopt);
+                             ProtoDescriptor::Type::kMessage, std::nullopt);
   descriptor.AddField(FieldDescriptor(
       "int_value", 1, FieldDescriptorProto::TYPE_INT64, "", false));
 
@@ -100,7 +100,7 @@ TEST_F(ProtoBuilderTest, AppendDouble) {
   DescriptorPool pool;
   ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
                              ".perfetto.protos.TestProto",
-                             ProtoDescriptor::Type::kMessage, base::nullopt);
+                             ProtoDescriptor::Type::kMessage, std::nullopt);
   descriptor.AddField(FieldDescriptor(
       "double_value", 1, FieldDescriptorProto::TYPE_DOUBLE, "", false));
 
@@ -123,7 +123,7 @@ TEST_F(ProtoBuilderTest, AppendString) {
   DescriptorPool pool;
   ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
                              ".perfetto.protos.TestProto",
-                             ProtoDescriptor::Type::kMessage, base::nullopt);
+                             ProtoDescriptor::Type::kMessage, std::nullopt);
   descriptor.AddField(FieldDescriptor(
       "string_value", 1, FieldDescriptorProto::TYPE_STRING, "", false));
 
@@ -149,13 +149,13 @@ TEST_F(ProtoBuilderTest, AppendNested) {
   DescriptorPool pool;
   ProtoDescriptor nested("file.proto", ".perfetto.protos",
                          ".perfetto.protos.TestProto.NestedProto",
-                         ProtoDescriptor::Type::kMessage, base::nullopt);
+                         ProtoDescriptor::Type::kMessage, std::nullopt);
   nested.AddField(FieldDescriptor("nested_int_value", 1,
                                   FieldDescriptorProto::TYPE_INT64, "", false));
 
   ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
                              ".perfetto.protos.TestProto",
-                             ProtoDescriptor::Type::kMessage, base::nullopt);
+                             ProtoDescriptor::Type::kMessage, std::nullopt);
   auto field =
       FieldDescriptor("nested_value", 1, FieldDescriptorProto::TYPE_MESSAGE,
                       ".perfetto.protos.TestProto.NestedProto", false);
@@ -197,7 +197,7 @@ TEST_F(ProtoBuilderTest, AppendRepeatedPrimitive) {
   DescriptorPool pool;
   ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
                              ".perfetto.protos.TestProto",
-                             ProtoDescriptor::Type::kMessage, base::nullopt);
+                             ProtoDescriptor::Type::kMessage, std::nullopt);
   descriptor.AddField(FieldDescriptor(
       "rep_int_value", 1, FieldDescriptorProto::TYPE_INT64, "", true));
 
@@ -235,7 +235,7 @@ TEST_F(ProtoBuilderTest, AppendEnums) {
   DescriptorPool pool;
   ProtoDescriptor enum_descriptor("file.proto", ".perfetto.protos",
                                   ".perfetto.protos.TestEnum",
-                                  ProtoDescriptor::Type::kEnum, base::nullopt);
+                                  ProtoDescriptor::Type::kEnum, std::nullopt);
   enum_descriptor.AddEnumValue(1, "FIRST");
   enum_descriptor.AddEnumValue(2, "SECOND");
   enum_descriptor.AddEnumValue(3, "THIRD");
@@ -243,7 +243,7 @@ TEST_F(ProtoBuilderTest, AppendEnums) {
 
   ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
                              ".perfetto.protos.TestMessage",
-                             ProtoDescriptor::Type::kMessage, base::nullopt);
+                             ProtoDescriptor::Type::kMessage, std::nullopt);
   FieldDescriptor enum_field("enum_value", 1, FieldDescriptorProto::TYPE_ENUM,
                              ".perfetto.protos.TestEnum", false);
   enum_field.set_resolved_type_name(".perfetto.protos.TestEnum");

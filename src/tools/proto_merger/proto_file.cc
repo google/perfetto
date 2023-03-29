@@ -60,8 +60,8 @@ const char* const
         "repeated",  // LABEL_REPEATED
 };
 
-base::Optional<std::string> MinimizeType(const std::string& a,
-                                         const std::string& b) {
+std::optional<std::string> MinimizeType(const std::string& a,
+                                        const std::string& b) {
   auto a_pieces = base::SplitString(a, ".");
   auto b_pieces = base::SplitString(b, ".");
 
@@ -71,7 +71,7 @@ base::Optional<std::string> MinimizeType(const std::string& a,
       return a.substr(skip);
     skip += a_pieces[i].size() + 1;
   }
-  return base::nullopt;
+  return std::nullopt;
 }
 
 std::string SimpleFieldTypeFromDescriptor(

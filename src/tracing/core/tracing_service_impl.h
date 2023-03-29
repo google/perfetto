@@ -22,6 +22,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <random>
 #include <set>
 #include <utility>
@@ -31,7 +32,6 @@
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/circular_queue.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/periodic_task.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
@@ -143,11 +143,11 @@ class TracingServiceImpl : public TracingService {
       return allowed_target_buffers_.count(buffer_id);
     }
 
-    base::Optional<BufferID> buffer_id_for_writer(WriterID writer_id) const {
+    std::optional<BufferID> buffer_id_for_writer(WriterID writer_id) const {
       const auto it = writers_.find(writer_id);
       if (it != writers_.end())
         return it->second;
-      return base::nullopt;
+      return std::nullopt;
     }
 
     uid_t uid() const { return uid_; }

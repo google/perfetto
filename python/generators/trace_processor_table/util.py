@@ -62,7 +62,7 @@ class ParsedType:
     else:
       cpp_type = self.cpp_type
     if self.is_optional:
-      return f'base::Optional<{cpp_type}>'
+      return f'std::optional<{cpp_type}>'
     return cpp_type
 
 

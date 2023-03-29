@@ -16,8 +16,9 @@
 
 #include "src/trace_processor/importers/common/process_tracker.h"
 
+#include <optional>
+
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "test/gtest_and_gmock.h"
@@ -46,7 +47,7 @@ class ProcessTrackerTest : public ::testing::Test {
 };
 
 TEST_F(ProcessTrackerTest, PushProcess) {
-  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test",
+  context.process_tracker->SetProcessMetadata(1, std::nullopt, "test",
                                               base::StringView());
   auto opt_upid = context.process_tracker->UpidForPidForTesting(1);
   ASSERT_EQ(opt_upid.value_or(-1), 1u);
@@ -65,18 +66,18 @@ TEST_F(ProcessTrackerTest, StartNewProcess) {
 }
 
 TEST_F(ProcessTrackerTest, PushTwoProcessEntries_SamePidAndName) {
-  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test",
+  context.process_tracker->SetProcessMetadata(1, std::nullopt, "test",
                                               base::StringView());
-  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test",
+  context.process_tracker->SetProcessMetadata(1, std::nullopt, "test",
                                               base::StringView());
   auto opt_upid = context.process_tracker->UpidForPidForTesting(1);
   ASSERT_EQ(opt_upid.value_or(-1), 1u);
 }
 
 TEST_F(ProcessTrackerTest, PushTwoProcessEntries_DifferentPid) {
-  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test",
+  context.process_tracker->SetProcessMetadata(1, std::nullopt, "test",
                                               base::StringView());
-  context.process_tracker->SetProcessMetadata(3, base::nullopt, "test",
+  context.process_tracker->SetProcessMetadata(3, std::nullopt, "test",
                                               base::StringView());
   auto opt_upid = context.process_tracker->UpidForPidForTesting(1);
   ASSERT_EQ(opt_upid.value_or(-1), 1u);
@@ -85,7 +86,7 @@ TEST_F(ProcessTrackerTest, PushTwoProcessEntries_DifferentPid) {
 }
 
 TEST_F(ProcessTrackerTest, AddProcessEntry_CorrectName) {
-  context.process_tracker->SetProcessMetadata(1, base::nullopt, "test",
+  context.process_tracker->SetProcessMetadata(1, std::nullopt, "test",
                                               base::StringView());
   auto name = context.storage->process_table().name().GetString(1);
 
@@ -108,12 +109,12 @@ TEST_F(ProcessTrackerTest, UpdateThreadCreate) {
 
 TEST_F(ProcessTrackerTest, PidReuseWithoutStartAndEndThread) {
   UniquePid p1 = context.process_tracker->StartNewProcess(
-      base::nullopt, base::nullopt, /*pid=*/1, kNullStringId,
+      std::nullopt, std::nullopt, /*pid=*/1, kNullStringId,
       ThreadNamePriority::kFtrace);
   UniqueTid t1 = context.process_tracker->UpdateThread(/*tid=*/2, /*pid=*/1);
 
   UniquePid p2 = context.process_tracker->StartNewProcess(
-      base::nullopt, base::nullopt, /*pid=*/1, kNullStringId,
+      std::nullopt, std::nullopt, /*pid=*/1, kNullStringId,
       ThreadNamePriority::kFtrace);
   UniqueTid t2 = context.process_tracker->UpdateThread(/*tid=*/2, /*pid=*/1);
 
@@ -128,7 +129,7 @@ TEST_F(ProcessTrackerTest, PidReuseWithoutStartAndEndThread) {
 
 TEST_F(ProcessTrackerTest, Cmdline) {
   UniquePid upid = context.process_tracker->SetProcessMetadata(
-      1, base::nullopt, "test", "cmdline blah");
+      1, std::nullopt, "test", "cmdline blah");
   ASSERT_EQ(context.storage->process_table().cmdline().GetString(upid),
             "cmdline blah");
 }
@@ -158,7 +159,7 @@ TEST_F(ProcessTrackerTest, UpdateThreadName) {
 
 TEST_F(ProcessTrackerTest, SetStartTsIfUnset) {
   auto upid = context.process_tracker->StartNewProcess(
-      /*timestamp=*/base::nullopt, 0u, 123, kNullStringId,
+      /*timestamp=*/std::nullopt, 0u, 123, kNullStringId,
       ThreadNamePriority::kFtrace);
   context.process_tracker->SetStartTsIfUnset(upid, 1000);
   ASSERT_EQ(context.storage->process_table().start_ts()[upid], 1000);
@@ -188,7 +189,7 @@ TEST_F(ProcessTrackerTest, TidReuseAfterExplicitEnd) {
 
 TEST_F(ProcessTrackerTest, EndThreadAfterProcessEnd) {
   context.process_tracker->StartNewProcess(
-      100, base::nullopt, 123, kNullStringId, ThreadNamePriority::kFtrace);
+      100, std::nullopt, 123, kNullStringId, ThreadNamePriority::kFtrace);
   context.process_tracker->UpdateThread(124, 123);
 
   context.process_tracker->EndThread(200, 123);
@@ -237,7 +238,7 @@ TEST_F(ProcessTrackerTest, NamespacedProcessesAndThreads) {
 
   // Don't resolve if the process/thread isn't namespaced.
   ASSERT_EQ(context.process_tracker->ResolveNamespacedTid(2001, 2002),
-            base::nullopt);
+            std::nullopt);
 
   // Resolve from namespace-local PID to root-level PID.
   ASSERT_EQ(context.process_tracker->ResolveNamespacedTid(1001, 1).value(),

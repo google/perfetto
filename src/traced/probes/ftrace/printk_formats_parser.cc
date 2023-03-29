@@ -19,10 +19,10 @@
 #include <stdio.h>
 
 #include <cinttypes>
+#include <optional>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 
@@ -52,7 +52,7 @@ PrintkMap ParsePrintkFormats(const std::string& format) {
     if (name.empty())
       continue;
 
-    base::Optional<uint64_t> address = base::StringToUInt64(raw_address, 16);
+    std::optional<uint64_t> address = base::StringToUInt64(raw_address, 16);
     if (address && address.value() != 0)
       mapping.insert(address.value(), name);
   }

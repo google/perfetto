@@ -1,8 +1,8 @@
 #include "perfetto/tracing/tracing.h"
 
 #include <stdio.h>
+#include <optional>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/base/waitable_event.h"
 #include "perfetto/ext/tracing/ipc/service_ipc_host.h"
@@ -53,7 +53,7 @@ class TracingMuxerImplIntegrationTest : public testing::Test {
 
   struct EnvVar {
     const char* name;
-    base::Optional<std::string> value;
+    std::optional<std::string> value;
   };
   // Stores previous values of environment variables overridden by tests. We
   // need to to this because some android integration tests need to talk to the

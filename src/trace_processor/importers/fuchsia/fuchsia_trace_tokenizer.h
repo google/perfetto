@@ -73,8 +73,8 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
 
     FuchsiaThreadInfo info;
     int64_t last_ts{0};
-    base::Optional<tables::SchedSliceTable::RowNumber> last_slice_row;
-    base::Optional<tables::ThreadStateTable::RowNumber> last_state_row;
+    std::optional<tables::SchedSliceTable::RowNumber> last_slice_row;
+    std::optional<tables::ThreadStateTable::RowNumber> last_state_row;
   };
 
   void SwitchFrom(Thread* thread,

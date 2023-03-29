@@ -17,7 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_PROFILE_BUILDER_H_
 #define SRC_TRACE_PROCESSOR_UTIL_PROFILE_BUILDER_H_
 
-#include "perfetto/ext/base/optional.h"
+#include <optional>
+
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -257,7 +258,7 @@ class GProfileBuilder {
       bool annotated);
 
   std::vector<Line> GetLinesForSymbolSetId(
-      base::Optional<uint32_t> symbol_set_id,
+      std::optional<uint32_t> symbol_set_id,
       CallsiteAnnotation annotation,
       uint64_t mapping_id);
 
@@ -306,7 +307,7 @@ class GProfileBuilder {
 
   // Goes over the list of staged mappings and tries to determine which is the
   // most likely main binary.
-  base::Optional<uint64_t> GuessMainBinary() const;
+  std::optional<uint64_t> GuessMainBinary() const;
 
   bool AddSample(const protozero::PackedVarInt& location_ids,
                  const protozero::PackedVarInt& values);

@@ -140,9 +140,9 @@ class MockEventTracker : public EventTracker {
                     int32_t next_prio));
 
   MOCK_METHOD3(PushCounter,
-               base::Optional<CounterId>(int64_t timestamp,
-                                         double value,
-                                         TrackId track_id));
+               std::optional<CounterId>(int64_t timestamp,
+                                        double value,
+                                        TrackId track_id));
 };
 
 class MockProcessTracker : public ProcessTracker {
@@ -152,7 +152,7 @@ class MockProcessTracker : public ProcessTracker {
 
   MOCK_METHOD4(SetProcessMetadata,
                UniquePid(uint32_t pid,
-                         base::Optional<uint32_t> ppid,
+                         std::optional<uint32_t> ppid,
                          base::StringView process_name,
                          base::StringView cmdline));
 
@@ -195,29 +195,29 @@ class MockSliceTracker : public SliceTracker {
       : SliceTracker(context) {}
 
   MOCK_METHOD5(Begin,
-               base::Optional<SliceId>(int64_t timestamp,
-                                       TrackId track_id,
-                                       StringId cat,
-                                       StringId name,
-                                       SetArgsCallback args_callback));
+               std::optional<SliceId>(int64_t timestamp,
+                                      TrackId track_id,
+                                      StringId cat,
+                                      StringId name,
+                                      SetArgsCallback args_callback));
   MOCK_METHOD5(End,
-               base::Optional<SliceId>(int64_t timestamp,
-                                       TrackId track_id,
-                                       StringId cat,
-                                       StringId name,
-                                       SetArgsCallback args_callback));
+               std::optional<SliceId>(int64_t timestamp,
+                                      TrackId track_id,
+                                      StringId cat,
+                                      StringId name,
+                                      SetArgsCallback args_callback));
   MOCK_METHOD6(Scoped,
-               base::Optional<SliceId>(int64_t timestamp,
-                                       TrackId track_id,
-                                       StringId cat,
-                                       StringId name,
-                                       int64_t duration,
-                                       SetArgsCallback args_callback));
+               std::optional<SliceId>(int64_t timestamp,
+                                      TrackId track_id,
+                                      StringId cat,
+                                      StringId name,
+                                      int64_t duration,
+                                      SetArgsCallback args_callback));
   MOCK_METHOD4(StartSlice,
-               base::Optional<SliceId>(int64_t timestamp,
-                                       TrackId track_id,
-                                       SetArgsCallback args_callback,
-                                       std::function<SliceId()> inserter));
+               std::optional<SliceId>(int64_t timestamp,
+                                      TrackId track_id,
+                                      SetArgsCallback args_callback,
+                                      std::function<SliceId()> inserter));
 };
 
 class ProtoTraceParserTest : public ::testing::Test {

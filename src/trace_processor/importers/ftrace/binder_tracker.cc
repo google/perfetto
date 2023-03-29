@@ -170,7 +170,7 @@ void BinderTracker::TransactionReceived(int64_t ts,
     return;
   }
 
-  base::Optional<SliceId> recv_slice_id;
+  std::optional<SliceId> recv_slice_id;
   if (transaction.is_oneway) {
     recv_slice_id = context_->slice_tracker->Scoped(
         ts, track_id, binder_category_id_, async_rcv_id_, 0,

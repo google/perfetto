@@ -17,9 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PACKET_SEQUENCE_STATE_GENERATION_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PACKET_SEQUENCE_STATE_GENERATION_H_
 
+#include <optional>
 #include <unordered_map>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/util/interned_message_view.h"
 
@@ -106,7 +106,7 @@ class PacketSequenceStateGeneration : public RefCounted {
   PacketSequenceState* state_;
   size_t generation_index_;
   InternedFieldMap interned_data_;
-  base::Optional<InternedMessageView> trace_packet_defaults_;
+  std::optional<InternedMessageView> trace_packet_defaults_;
 };
 
 }  // namespace trace_processor

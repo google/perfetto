@@ -82,7 +82,7 @@ void ArgsTracker::Flush() {
     ArgSetId set_id =
         context_->global_args_tracker->AddArgSet(&args_[0], i, next_rid_idx);
     if (col->IsNullable()) {
-      TypedColumn<base::Optional<uint32_t>>::FromColumn(col)->Set(row, set_id);
+      TypedColumn<std::optional<uint32_t>>::FromColumn(col)->Set(row, set_id);
     } else {
       TypedColumn<uint32_t>::FromColumn(col)->Set(row, set_id);
     }

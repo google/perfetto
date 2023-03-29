@@ -22,10 +22,10 @@
 #include <vector>
 
 #include <time.h>
+#include <optional>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/event_fd.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_task_runner.h"
@@ -53,10 +53,10 @@ class PerfettoCmd : public Consumer {
   // with traced. This is to allow tools like tracebox to avoid spawning the
   // service for no reason if the cmdline parsing fails.
   // Return value:
-  //   nullopt: no error, the caller should call
+  //   std::nullopt: no error, the caller should call
   //   ConnectToServiceRunAndMaybeNotify.
   //   0-N: the caller should exit() with the given exit code.
-  base::Optional<int> ParseCmdlineAndMaybeDaemonize(int argc, char** argv);
+  std::optional<int> ParseCmdlineAndMaybeDaemonize(int argc, char** argv);
   int ConnectToServiceRunAndMaybeNotify();
 
   // perfetto::Consumer implementation.
@@ -158,7 +158,7 @@ class PerfettoCmd : public Consumer {
   bool upload_flag_ = false;
   bool connected_ = false;
   std::string uuid_;
-  base::Optional<TracingSessionID> clone_tsid_{};
+  std::optional<TracingSessionID> clone_tsid_{};
 
   // How long we expect to trace for or 0 if the trace is indefinite.
   uint32_t expected_duration_ms_ = 0;

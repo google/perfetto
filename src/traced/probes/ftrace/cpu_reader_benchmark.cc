@@ -823,7 +823,7 @@ ExamplePage g_full_page_atrace_print{
 
 void DoParse(const ExamplePage& test_case,
              const std::vector<GroupAndName>& enabled_events,
-             base::Optional<FtraceConfig::PrintFilter> print_filter,
+             std::optional<FtraceConfig::PrintFilter> print_filter,
              benchmark::State& state) {
   ScatteredStreamWriterNullDelegate delegate(base::kPageSize);
   ScatteredStreamWriter stream(&delegate);
@@ -835,7 +835,7 @@ void DoParse(const ExamplePage& test_case,
   FtraceDataSourceConfig ds_config{EventFilter{},
                                    EventFilter{},
                                    DisabledCompactSchedConfigForTesting(),
-                                   base::nullopt,
+                                   std::nullopt,
                                    {},
                                    {},
                                    false /*symbolize_ksyms*/,
@@ -858,7 +858,7 @@ void DoParse(const ExamplePage& test_case,
     std::unique_ptr<CompactSchedBuffer> compact_buffer(
         new CompactSchedBuffer());
     const uint8_t* parse_pos = page.get();
-    base::Optional<CpuReader::PageHeader> page_header =
+    std::optional<CpuReader::PageHeader> page_header =
         CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
     if (!page_header.has_value())
@@ -874,12 +874,12 @@ void DoParse(const ExamplePage& test_case,
 
 void BM_ParsePageFullOfSchedSwitch(benchmark::State& state) {
   DoParse(g_full_page_sched_switch, {GroupAndName("sched", "sched_switch")},
-          base::nullopt, state);
+          std::nullopt, state);
 }
 BENCHMARK(BM_ParsePageFullOfSchedSwitch);
 
 void BM_ParsePageFullOfPrint(benchmark::State& state) {
-  DoParse(g_full_page_print, {GroupAndName("ftrace", "print")}, base::nullopt,
+  DoParse(g_full_page_print, {GroupAndName("ftrace", "print")}, std::nullopt,
           state);
 }
 BENCHMARK(BM_ParsePageFullOfPrint);
@@ -898,7 +898,7 @@ BENCHMARK(BM_ParsePageFullOfPrintWithFilterRules)->DenseRange(0, 16, 1);
 
 void BM_ParsePageFullOfAtracePrint(benchmark::State& state) {
   DoParse(g_full_page_atrace_print, {GroupAndName("ftrace", "print")},
-          base::nullopt, state);
+          std::nullopt, state);
 }
 BENCHMARK(BM_ParsePageFullOfAtracePrint);
 

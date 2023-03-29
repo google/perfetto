@@ -59,9 +59,9 @@ TEST(LinuxPowerSysfsDataSourceTest, HidDeviceCounters) {
 
   EXPECT_EQ(battery_info_->num_batteries(), 1u);
   EXPECT_EQ(*battery_info_->GetCapacityPercent(0), 88);
-  EXPECT_EQ(battery_info_->GetCurrentNowUa(0), base::nullopt);
-  EXPECT_EQ(battery_info_->GetAverageCurrentUa(0), base::nullopt);
-  EXPECT_EQ(battery_info_->GetChargeCounterUah(0), base::nullopt);
+  EXPECT_EQ(battery_info_->GetCurrentNowUa(0), std::nullopt);
+  EXPECT_EQ(battery_info_->GetAverageCurrentUa(0), std::nullopt);
+  EXPECT_EQ(battery_info_->GetChargeCounterUah(0), std::nullopt);
 }
 
 TEST(LinuxPowerSysfsDataSourceTest, MultipleBatteries) {
@@ -92,11 +92,11 @@ TEST(LinuxPowerSysfsDataSourceTest, MultipleBatteries) {
   size_t second_battery_idx = main_battery_idx == 0 ? 1 : 0;
 
   EXPECT_EQ(*battery_info_->GetCapacityPercent(second_battery_idx), 88);
-  EXPECT_EQ(battery_info_->GetCurrentNowUa(second_battery_idx), base::nullopt);
+  EXPECT_EQ(battery_info_->GetCurrentNowUa(second_battery_idx), std::nullopt);
   EXPECT_EQ(battery_info_->GetAverageCurrentUa(second_battery_idx),
-            base::nullopt);
+            std::nullopt);
   EXPECT_EQ(battery_info_->GetChargeCounterUah(second_battery_idx),
-            base::nullopt);
+            std::nullopt);
 
   EXPECT_EQ(*battery_info_->GetCapacityPercent(main_battery_idx), 95);
   EXPECT_EQ(*battery_info_->GetCurrentNowUa(main_battery_idx), 245000);

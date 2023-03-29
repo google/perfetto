@@ -16,8 +16,7 @@
 
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_QUERY_CACHE_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_QUERY_CACHE_H_
-
-#include "perfetto/ext/base/optional.h"
+#include <optional>
 
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/sqlite/query_constraints.h"

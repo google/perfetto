@@ -16,19 +16,20 @@
 
 #include "src/tools/proto_merger/proto_merger.h"
 
+#include <optional>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/optional.h"
 
 namespace perfetto {
 namespace proto_merger {
 namespace {
 
 template <typename Key, typename Value>
-base::Optional<Value> FindInMap(const std::map<Key, Value>& map,
-                                const Key& key) {
+std::optional<Value> FindInMap(const std::map<Key, Value>& map,
+                               const Key& key) {
   auto it = map.find(key);
-  return it == map.end() ? base::nullopt : base::make_optional(it->second);
+  return it == map.end() ? std::nullopt : std::make_optional(it->second);
 }
 
 // Finds the given 'name' in the vector by comparing against

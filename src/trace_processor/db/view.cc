@@ -55,10 +55,10 @@ base::Status View::Create(Table* root_table,
                           std::initializer_list<JoinTable> joins,
                           std::initializer_list<OutputColumn> cols,
                           View* view) {
-  // Insert the node for the root table; the column indices being nullopt
+  // Insert the node for the root table; the column indices being std::nullopt
   // indicates this is the root.
   std::unique_ptr<TableNode> root_node(
-      new TableNode{root_table, base::nullopt, base::nullopt, JoinFlag::kNoFlag,
+      new TableNode{root_table, std::nullopt, std::nullopt, JoinFlag::kNoFlag,
                     TableNode::Children{}});
   base::FlatHashMap<base::StringView, TableNode*> node_map;
   node_map.Insert(root_table_name, root_node.get());
@@ -78,7 +78,7 @@ base::Status View::Create(Table* root_table,
     TableNode* prev_node = *prev_node_it;
 
     // Verify that the previous table's column exists.
-    base::Optional<uint32_t> opt_prev_col_idx =
+    std::optional<uint32_t> opt_prev_col_idx =
         prev_node->table->GetColumnIndexByName(join.prev_col);
     if (!opt_prev_col_idx) {
       return base::ErrStatus(
@@ -87,7 +87,7 @@ base::Status View::Create(Table* root_table,
     }
 
     // Verify that the current table's column exists.
-    base::Optional<uint32_t> opt_col_idx =
+    std::optional<uint32_t> opt_col_idx =
         join.table->GetColumnIndexByName(join.col);
     if (!opt_col_idx) {
       return base::ErrStatus(
@@ -304,7 +304,7 @@ void View::QueryHelper::FilterAndJoinRecursive(TableNode* node) {
     right_rm_iv.reserve(left_rm.size());
     left_col.overlay().FilterInto(&left_rm, [&](uint32_t idx) {
       // Check if the right table has the value from the left table.
-      base::Optional<uint32_t> opt_idx =
+      std::optional<uint32_t> opt_idx =
           right_col.IndexOf(left_col.GetAtIdx(idx));
 
       // If it doesn't, return false indicating that this row should be

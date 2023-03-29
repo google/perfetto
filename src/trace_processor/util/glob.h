@@ -17,9 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_UTIL_GLOB_H_
 #define SRC_TRACE_PROCESSOR_UTIL_GLOB_H_
 
+#include <optional>
 #include <vector>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_view.h"

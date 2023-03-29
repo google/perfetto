@@ -22,13 +22,13 @@
 #include <iterator>
 #include <memory>
 #include <numeric>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "src/trace_processor/containers/bit_vector.h"
@@ -208,11 +208,11 @@ class View {
     // The index of the id column in |table|.
     // In practice, this will always be zero (as id columns are implicitly the
     // first column) but having this allows flexibility for the future.
-    base::Optional<uint32_t> join_col_idx;
+    std::optional<uint32_t> join_col_idx;
 
     // The index of the column in the parent table which is selecting the rows
     // in |table|.
-    base::Optional<uint32_t> parent_join_col_idx;
+    std::optional<uint32_t> parent_join_col_idx;
 
     // Set of bitwise-ORed flags modifying how the join should be perfomed. See
     // |JoinFlag| struct for potential flags.

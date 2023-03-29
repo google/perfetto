@@ -756,7 +756,7 @@ TEST(FtraceControllerTest, DefaultAndSecondaryInstance) {
 }
 
 TEST(FtraceControllerTest, TracefsInstanceFilepaths) {
-  base::Optional<std::string> path;
+  std::optional<std::string> path;
   path = FtraceController::AbsolutePathForInstance("/root/", "test");
   EXPECT_EQ(*path, "/root/instances/test/");
 

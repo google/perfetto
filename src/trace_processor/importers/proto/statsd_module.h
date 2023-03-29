@@ -18,9 +18,9 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_STATSD_MODULE_H_
 
 #include <cstdint>
+#include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/optional.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
@@ -76,7 +76,7 @@ class StatsdModule : public ProtoImporterModule {
   base::FlatHashMap<uint32_t, StringId> atom_names_;
   PoolAndDescriptor pool_;
   util::ProtoToArgsParser args_parser_;
-  base::Optional<AsyncTrackSetTracker::TrackSetId> track_set_id_;
+  std::optional<AsyncTrackSetTracker::TrackSetId> track_set_id_;
 };
 
 }  // namespace trace_processor

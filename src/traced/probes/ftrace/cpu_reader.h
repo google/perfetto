@@ -23,10 +23,10 @@
 #include <array>
 #include <atomic>
 #include <memory>
+#include <optional>
 #include <set>
 #include <thread>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
@@ -174,7 +174,7 @@ class CpuReader {
   }
 
   // Returns a parsed representation of the given raw ftrace page's header.
-  static base::Optional<CpuReader::PageHeader> ParsePageHeader(
+  static std::optional<CpuReader::PageHeader> ParsePageHeader(
       const uint8_t** ptr,
       uint16_t page_header_size_len);
 
