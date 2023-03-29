@@ -305,12 +305,12 @@ SELECT
       FROM (
         SELECT 'dex2oat running during launch' AS slow_cause
         WHERE
-          DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.startup_id, '*dex2oat64') > 20e6
+          DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.startup_id, '*dex2oat64') > 0
 
         UNION ALL
         SELECT 'installd running during launch' AS slow_cause
         WHERE
-          DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.startup_id, '*installd') > 150e6
+          DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.startup_id, '*installd') > 0
 
         UNION ALL
         SELECT 'Main Thread - Time spent in Running state'
