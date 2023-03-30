@@ -33,7 +33,6 @@
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
 #include "src/android_stats/perfetto_atoms.h"
-#include "src/perfetto_cmd/rate_limiter.h"
 
 namespace perfetto {
 

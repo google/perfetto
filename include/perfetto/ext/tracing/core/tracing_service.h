@@ -42,9 +42,6 @@ class Producer;
 class SharedMemoryArbiter;
 class TraceWriter;
 
-// Exposed for testing.
-std::string GetBugreportPath();
-
 // TODO: for the moment this assumes that all the calls happen on the same
 // thread/sequence. Not sure this will be the case long term in Chrome.
 
@@ -192,6 +189,8 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
   // Clones an existing tracing session and attaches to it. The session is
   // cloned in read-only mode and can only be used to read a snapshot of an
   // existing tracing session. Will invoke Consumer::OnSessionCloned().
+  // If TracingSessionID == kBugreportSessionId (0xff...ff) the session with the
+  // highest bugreport score is cloned (if any exists).
   // TODO(primiano): make pure virtual after various 3way patches.
   virtual void CloneSession(TracingSessionID);
 

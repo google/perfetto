@@ -76,6 +76,11 @@ constexpr uid_t kInvalidUid = ::perfetto::base::kInvalidUid;
 
 constexpr uint32_t kDefaultFlushTimeoutMs = 5000;
 
+// The special id 0xffff..ffff represents the tracing session with the highest
+// bugreport score. This is used for CloneSession(kBugreportSessionId).
+constexpr TracingSessionID kBugreportSessionId =
+    static_cast<TracingSessionID>(-1);
+
 }  // namespace perfetto
 
 #endif  // INCLUDE_PERFETTO_EXT_TRACING_CORE_BASIC_TYPES_H_

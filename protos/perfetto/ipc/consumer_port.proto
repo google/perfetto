@@ -270,7 +270,7 @@ message SaveTraceForBugreportRequest {}
 // or something failed.
 message SaveTraceForBugreportResponse {
   // If true, an eligible the trace was saved into a known location (on Android
-  // /data/misc/perfetto-traces, see GetBugreportPath()).
+  // /data/misc/perfetto-traces, see GetBugreportTracePath()).
   // If false no trace with bugreport_score > 0 was found or an error occurred.
   // see |msg| in that case for details about the failure.
   optional bool success = 1;
@@ -279,6 +279,8 @@ message SaveTraceForBugreportResponse {
 
 // Arguments for rpc CloneSession.
 message CloneSessionRequest {
+  // The session ID to clone. If session_id == kBugreportSessionId (0xff...ff)
+  // the session with the highest bugreport score is cloned (if any exists).
   optional uint64 session_id = 1;
 }
 
