@@ -60,6 +60,8 @@ message TracingServiceEvent {
     // the contents are routed onto the bugreport file. This event flags the
     // situation explicitly. Traces that contain this marker should be discarded
     // by test infrastructures / pipelines.
+    // Deprecated since Android U, where --save-for-bugreport uses
+    // non-destructive cloning.
     bool seized_for_bugreport = 6;
   }
 }
