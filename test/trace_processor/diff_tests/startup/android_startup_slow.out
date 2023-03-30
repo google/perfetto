@@ -63,7 +63,6 @@ android_startup {
       dex2oat_dur_ns: 0
     }
     startup_type: "warm"
-    slow_start_reason: "Main Thread - Time spent in Running state"
     slow_start_reason: "Main Thread - Time spent in Runnable state"
     slow_start_reason: "Main Thread - Time spent in interruptible sleep state"
     slow_start_reason: "Main Thread - Time spent in Blocking I/O"
