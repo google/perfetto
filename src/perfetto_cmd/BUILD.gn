@@ -49,6 +49,7 @@ source_set("perfetto_cmd") {
     "../../include/perfetto/ext/traced",
   ]
   deps = [
+    ":bugreport_path",
     ":gen_cc_config_descriptor",
     ":trigger_producer",
     "../../gn:default_deps",
@@ -81,6 +82,15 @@ source_set("perfetto_cmd") {
     deps += [ "../android_internal:lazy_library_loader" ]
     sources += [ "perfetto_cmd_android.cc" ]
   }
+}
+
+source_set("bugreport_path") {
+  sources = [ "bugreport_path.h" ]
+  deps = [ "../../gn:default_deps" ]
+  public_deps = [
+    "../../include/perfetto/base",
+    "../../include/perfetto/ext/base",
+  ]
 }
 
 perfetto_cc_proto_descriptor("gen_cc_config_descriptor") {
