@@ -632,11 +632,6 @@ class TracingServiceImpl : public TracingService {
     uint64_t max_file_size_bytes = 0;
     uint64_t bytes_written_into_file = 0;
 
-    // Set when using SaveTraceForBugreport(). This callback will be called
-    // when the tracing session ends and the data has been saved into the file.
-    std::function<void()> on_disable_callback_for_bugreport;
-    bool seized_for_bugreport = false;
-
     // Periodic task for snapshotting service events (e.g. clocks, sync markers
     // etc)
     base::PeriodicTask snapshot_periodic_task;
@@ -680,6 +675,10 @@ class TracingServiceImpl : public TracingService {
   // session doesn't exists.
   TracingSession* GetTracingSession(TracingSessionID);
 
+  // Returns a pointer to the tracing session that has the highest
+  // TraceConfig.bugreport_score, if any, or nullptr.
+  TracingSession* FindTracingSessionWithMaxBugreportScore();
+
   // Returns a pointer to the |tracing_sessions_| entry, matching the given
   // uid and detach key, or nullptr if no such session exists.
   TracingSession* GetDetachedSession(uid_t, const std::string& key);
@@ -708,12 +707,10 @@ class TracingServiceImpl : public TracingService {
   void EmitStats(TracingSession*, std::vector<TracePacket>*);
   TraceStats GetTraceStats(TracingSession*);
   void EmitLifecycleEvents(TracingSession*, std::vector<TracePacket>*);
-  void EmitSeizedForBugreportLifecycleEvent(std::vector<TracePacket>*);
   void MaybeEmitUuidAndTraceConfig(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitSystemInfo(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void MaybeNotifyAllDataSourcesStarted(TracingSession*);
-  bool MaybeSaveTraceForBugreport(std::function<void()> callback);
   void OnFlushTimeout(TracingSessionID, FlushRequestID);
   void OnDisableTracingTimeout(TracingSessionID);
   void DisableTracingNotifyConsumerAndFlushFile(TracingSession*);
