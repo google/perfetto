@@ -38,6 +38,7 @@ if (!build_with_chromium && enable_perfetto_integration_tests) {
       "../protos/perfetto/trace/sys_stats:cpp",
       "../src/base:base",
       "../src/base:test_support",
+      "../src/perfetto_cmd:bugreport_path",
     ]
     if (enable_perfetto_traced_probes) {
       deps += [
