@@ -209,7 +209,11 @@ class NewVersionNotification implements m.ClassComponent {
 class HelpPanningNotification implements m.ClassComponent {
   view() {
     const dismissed = localStorage.getItem(DISMISSED_PANNING_HINT_KEY);
-    if (dismissed === 'true' || !globals.frontendLocalState.showPanningHint) {
+    // Do not show the help notification in embedded mode because local storage
+    // does not persist for iFrames. The host is responsible for communicating
+    // to users that they can press '?' for help.
+    if (globals.embeddedMode || dismissed === 'true' ||
+        !globals.frontendLocalState.showPanningHint) {
       return;
     }
     return m(
