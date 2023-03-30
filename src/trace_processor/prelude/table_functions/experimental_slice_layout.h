@@ -59,7 +59,7 @@ class ExperimentalSliceLayout : public TableFunction {
   tables::SliceTable::Id InsertSlice(
       std::map<tables::SliceTable::Id, tables::SliceTable::Id>& id_map,
       tables::SliceTable::Id id,
-      base::Optional<tables::SliceTable::Id> parent_id);
+      std::optional<tables::SliceTable::Id> parent_id);
 
   // TODO(lalitm): remove this cache and move to having explicitly scoped
   // lifetimes of dynamic tables.

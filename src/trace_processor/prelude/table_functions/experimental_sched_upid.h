@@ -41,7 +41,7 @@ class ExperimentalSchedUpid : public TableFunction {
                             std::unique_ptr<Table>& table_return) override;
 
  private:
-  ColumnStorage<base::Optional<UniquePid>> ComputeUpidColumn();
+  ColumnStorage<std::optional<UniquePid>> ComputeUpidColumn();
 
   const tables::SchedSliceTable* sched_slice_table_;
   const tables::ThreadTable* thread_table_;

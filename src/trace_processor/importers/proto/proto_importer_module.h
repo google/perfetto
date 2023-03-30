@@ -17,8 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_IMPORTER_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_IMPORTER_MODULE_H_
 
+#include <optional>
+
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 
 namespace perfetto {
@@ -54,8 +55,8 @@ class ModuleResult {
   // Allow auto conversion from util::Status to Handled / Error result.
   ModuleResult(base::Status status)
       : ignored_(false),
-        error_(status.ok() ? base::nullopt
-                           : base::make_optional(status.message())) {}
+        error_(status.ok() ? std::nullopt
+                           : std::make_optional(status.message())) {}
 
   // Constructs a result that indicates the module ignored the packet and is
   // deferring the handling of the packet to other modules.
@@ -88,7 +89,7 @@ class ModuleResult {
       : ignored_(false), error_(error) {}
 
   bool ignored_;
-  base::Optional<std::string> error_;
+  std::optional<std::string> error_;
 };
 
 // Base class for modules.

@@ -23,9 +23,9 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <optional>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "src/profiling/memory/client.h"
 
@@ -43,7 +43,7 @@ std::shared_ptr<Client> ConstructClient(
   PERFETTO_LOG("Constructing client for central daemon.");
   using perfetto::profiling::Client;
 
-  perfetto::base::Optional<perfetto::base::UnixSocketRaw> sock =
+  std::optional<perfetto::base::UnixSocketRaw> sock =
       Client::ConnectToHeapprofd(perfetto::profiling::kHeapprofdSocketFile);
   if (!sock) {
     PERFETTO_ELOG("Failed to connect to %s. This is benign on user builds.",

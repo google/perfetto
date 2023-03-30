@@ -78,19 +78,19 @@ util::Status SystraceLineTokenizer::Tokenize(const std::string& buffer,
   line->event_name = matches[5].str();
   line->args_str = SubstrTrim(matches.suffix());
 
-  base::Optional<uint32_t> maybe_pid = base::StringToUInt32(pid_str);
+  std::optional<uint32_t> maybe_pid = base::StringToUInt32(pid_str);
   if (!maybe_pid.has_value()) {
     return util::Status("Could not convert pid " + pid_str);
   }
   line->pid = maybe_pid.value();
 
-  base::Optional<uint32_t> maybe_cpu = base::StringToUInt32(cpu_str);
+  std::optional<uint32_t> maybe_cpu = base::StringToUInt32(cpu_str);
   if (!maybe_cpu.has_value()) {
     return util::Status("Could not convert cpu " + cpu_str);
   }
   line->cpu = maybe_cpu.value();
 
-  base::Optional<double> maybe_ts = base::StringToDouble(ts_str);
+  std::optional<double> maybe_ts = base::StringToDouble(ts_str);
   if (!maybe_ts.has_value()) {
     return util::Status("Could not convert ts");
   }

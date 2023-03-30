@@ -1902,7 +1902,7 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
       // reset to 0 by the service when the chunk was freed).
 
       WriterID writer_id = chunk.writer_id();
-      base::Optional<BufferID> target_buffer_id =
+      std::optional<BufferID> target_buffer_id =
           producer->buffer_id_for_writer(writer_id);
 
       // We can only scrape this chunk if we know which log buffer to copy it
@@ -2833,7 +2833,7 @@ void TracingServiceImpl::CopyProducerPageIntoLogBuffer(
 
   // If the writer was registered by the producer, it should only write into the
   // buffer it was registered with.
-  base::Optional<BufferID> associated_buffer =
+  std::optional<BufferID> associated_buffer =
       producer->buffer_id_for_writer(writer_id);
   if (associated_buffer && *associated_buffer != buffer_id) {
     PERFETTO_ELOG("Writer %" PRIu16 " of producer %" PRIu16
@@ -3334,7 +3334,7 @@ void TracingServiceImpl::MaybeEmitSystemInfo(
   }
 
   std::string sdk_str_value = base::GetAndroidProp("ro.build.version.sdk");
-  base::Optional<uint64_t> sdk_value = base::StringToUInt64(sdk_str_value);
+  std::optional<uint64_t> sdk_value = base::StringToUInt64(sdk_str_value);
   if (sdk_value.has_value()) {
     info->set_android_sdk_version(*sdk_value);
   } else {

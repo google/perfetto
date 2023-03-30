@@ -20,9 +20,8 @@
 #include <string.h>
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <string>
-
-#include "perfetto/ext/base/optional.h"
 
 namespace perfetto {
 namespace base {

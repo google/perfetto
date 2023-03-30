@@ -78,9 +78,9 @@ class SizeProfileComputer {
   // TODO(kraskevich): consider switching to internal DescriptorPool.
   void Reset(const uint8_t* ptr, size_t size);
 
-  // Returns the next sample size, or nullopt if data is exhausted. The
+  // Returns the next sample size, or std::nullopt if data is exhausted. The
   // associated path can be queried with GetPath().
-  base::Optional<size_t> GetNext();
+  std::optional<size_t> GetNext();
 
   // Returns the field path associated with the last sample returned by
   // GetNext().

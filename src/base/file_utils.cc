@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <deque>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -28,7 +29,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/platform_handle.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/platform.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
@@ -54,11 +54,11 @@ int CloseFindHandle(HANDLE h) {
   return FindClose(h) ? 0 : -1;
 }
 
-Optional<std::wstring> ToUtf16(const std::string str) {
+std::optional<std::wstring> ToUtf16(const std::string str) {
   int len = MultiByteToWideChar(CP_UTF8, 0, str.data(),
                                 static_cast<int>(str.size()), nullptr, 0);
   if (len < 0) {
-    return base::nullopt;
+    return std::nullopt;
   }
   std::vector<wchar_t> tmp;
   tmp.resize(static_cast<std::vector<wchar_t>::size_type>(len));
@@ -66,7 +66,7 @@ Optional<std::wstring> ToUtf16(const std::string str) {
       MultiByteToWideChar(CP_UTF8, 0, str.data(), static_cast<int>(str.size()),
                           tmp.data(), static_cast<int>(tmp.size()));
   if (len < 0) {
-    return base::nullopt;
+    return std::nullopt;
   }
   PERFETTO_CHECK(static_cast<std::vector<wchar_t>::size_type>(len) ==
                  tmp.size());

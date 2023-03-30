@@ -20,10 +20,10 @@
 
 #include <map>
 #include <mutex>
+#include <optional>
 
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/no_destructor.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/core/data_source_config.h"

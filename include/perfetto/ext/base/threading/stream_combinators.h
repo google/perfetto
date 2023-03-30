@@ -18,11 +18,11 @@
 #define INCLUDE_PERFETTO_EXT_BASE_THREADING_STREAM_COMBINATORS_H_
 
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/threading/future_combinators.h"
 #include "perfetto/ext/base/threading/poll.h"
@@ -87,14 +87,14 @@ class MapFutureStreamImpl : public StreamPollable<FutureReturn<Function, T>> {
       future_ = map_fn_(std::move(res.item()));
     }
     ASSIGN_OR_RETURN_IF_PENDING_FUTURE(res, future_->Poll(context));
-    future_ = nullopt;
+    future_ = std::nullopt;
     return res;
   }
 
  private:
   Stream<T> stream_;
   Function map_fn_;
-  Optional<Future<U>> future_;
+  std::optional<Future<U>> future_;
 };
 
 // Implementation of a StreamPollable for creating a concatenating two streams
@@ -111,13 +111,13 @@ class ConcatStreamImpl : public StreamPollable<T> {
       if (!res.IsDone()) {
         return res.item();
       }
-      first_ = base::nullopt;
+      first_ = std::nullopt;
     }
     return second_.PollNext(context);
   }
 
  private:
-  base::Optional<Stream<T>> first_;
+  std::optional<Stream<T>> first_;
   Stream<T> second_;
 };
 
@@ -140,7 +140,7 @@ class FlattenImpl : public StreamPollable<T> {
       if (!stream) {
         continue;
       }
-      Optional<PollContext> ctx = PollContextForStream(upstream, i);
+      std::optional<PollContext> ctx = PollContextForStream(upstream, i);
       if (!ctx) {
         continue;
       }
@@ -154,7 +154,7 @@ class FlattenImpl : public StreamPollable<T> {
       }
       // StreamPollable has returned EOF. Clear it and the registered handles
       // out.
-      stream = nullopt;
+      stream = std::nullopt;
       ++eof_streams_;
       registered_handles_[i].clear();
     }
@@ -172,8 +172,8 @@ class FlattenImpl : public StreamPollable<T> {
   }
 
  private:
-  Optional<PollContext> PollContextForStream(PollContext* upstream,
-                                             uint32_t stream_idx) {
+  std::optional<PollContext> PollContextForStream(PollContext* upstream,
+                                                  uint32_t stream_idx) {
     FlatSet<PlatformHandle>& state = registered_handles_[stream_idx];
     if (state.empty()) {
       return PollContext(&state, &upstream->ready_handles());
@@ -184,10 +184,10 @@ class FlattenImpl : public StreamPollable<T> {
         return PollContext(&state, &upstream->ready_handles());
       }
     }
-    return base::nullopt;
+    return std::nullopt;
   }
 
-  std::vector<Optional<Stream<T>>> streams_;
+  std::vector<std::optional<Stream<T>>> streams_;
   std::vector<FlatSet<PlatformHandle>> registered_handles_;
   uint32_t eof_streams_ = 0;
 };
@@ -226,12 +226,12 @@ class Collector {
 
   // Receives the next item from a Stream<T>. If the wrapping Future<U> can be
   // completed, returns the a value U which completes that future. Otherwise,
-  // returns base::nullopt.
-  virtual Optional<U> OnNext(T value) = 0;
+  // returns std::nullopt.
+  virtual std::optional<U> OnNext(T value) = 0;
 
   // Called when the stream has completed and returns the |U| which will be
   // used to complete the future. This method will only be called if OnNext
-  // returned nullopt for every element in the stream.
+  // returned std::nullopt for every element in the stream.
   virtual U OnDone() = 0;
 };
 
@@ -250,7 +250,7 @@ class CollectImpl : public FuturePollable<U> {
       if (res.IsDone()) {
         return collector_->OnDone();
       }
-      Optional<U> collected = collector_->OnNext(std::move(res.item()));
+      std::optional<U> collected = collector_->OnNext(std::move(res.item()));
       if (collected.has_value()) {
         return std::move(collected.value());
       }
@@ -267,8 +267,8 @@ class AllOkCollectorImpl : public Collector<Status, Status> {
  public:
   ~AllOkCollectorImpl() override;
 
-  Optional<Status> OnNext(Status status) override {
-    return status.ok() ? nullopt : make_optional(std::move(status));
+  std::optional<Status> OnNext(Status status) override {
+    return status.ok() ? std::nullopt : std::make_optional(std::move(status));
   }
   Status OnDone() override { return OkStatus(); }
 };
@@ -277,15 +277,15 @@ class AllOkCollectorImpl : public Collector<Status, Status> {
 template <typename T>
 class FutureCheckedCollectorImpl : public Collector<T, T> {
  public:
-  Optional<T> OnNext(T value) override {
+  std::optional<T> OnNext(T value) override {
     PERFETTO_CHECK(!prev_value_);
     prev_value_ = value;
-    return nullopt;
+    return std::nullopt;
   }
   T OnDone() override { return *prev_value_; }
 
  private:
-  Optional<T> prev_value_;
+  std::optional<T> prev_value_;
 };
 
 // Implementation for |StatusOrVectorCollector|.
@@ -293,13 +293,13 @@ template <typename T>
 class StatusOrVectorCollectorImpl
     : public Collector<base::StatusOr<T>, base::StatusOr<std::vector<T>>> {
  public:
-  Optional<base::StatusOr<std::vector<T>>> OnNext(
+  std::optional<base::StatusOr<std::vector<T>>> OnNext(
       base::StatusOr<T> val_or) override {
     if (!val_or.ok()) {
-      return make_optional(val_or.status());
+      return std::make_optional(val_or.status());
     }
     values_.emplace_back(std::move(val_or.value()));
-    return nullopt;
+    return std::nullopt;
   }
   base::StatusOr<std::vector<T>> OnDone() override {
     return std::move(values_);

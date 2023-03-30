@@ -17,18 +17,17 @@
 #ifndef SRC_PROFILING_PERF_UNWINDING_H_
 #define SRC_PROFILING_PERF_UNWINDING_H_
 
+#include <stdint.h>
 #include <condition_variable>
 #include <map>
+#include <optional>
 #include <thread>
 
 #include <linux/perf_event.h>
-#include <stdint.h>
-
 #include <unwindstack/Error.h>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -137,7 +136,7 @@ class Unwinder {
 
     Status status = Status::kInitial;
     // Present iff status == kFdsResolved.
-    base::Optional<UnwindingMetadata> unwind_state;
+    std::optional<UnwindingMetadata> unwind_state;
     // Used to distinguish first-time unwinding attempts for a process, for
     // logging purposes.
     bool attempted_unwinding = false;

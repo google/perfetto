@@ -17,7 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_PRELUDE_TABLE_FUNCTIONS_DESCENDANT_H_
 #define SRC_TRACE_PROCESSOR_PRELUDE_TABLE_FUNCTIONS_DESCENDANT_H_
 
-#include "perfetto/ext/base/optional.h"
+#include <optional>
+
 #include "src/trace_processor/prelude/table_functions/table_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -64,9 +65,9 @@ class Descendant : public TableFunction {
                             std::unique_ptr<Table>& table_return) override;
 
   // Returns a vector of slice rows which are descendants of |slice_id|. Returns
-  // base::nullopt if an invalid |slice_id| is given. This is used by
+  // std::nullopt if an invalid |slice_id| is given. This is used by
   // ConnectedFlow to traverse flow indirectly connected flow events.
-  static base::Optional<std::vector<tables::SliceTable::RowNumber>>
+  static std::optional<std::vector<tables::SliceTable::RowNumber>>
   GetDescendantSlices(const tables::SliceTable& slices, SliceId slice_id);
 
  private:

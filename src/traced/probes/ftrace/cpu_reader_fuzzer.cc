@@ -57,7 +57,7 @@ void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size) {
   FtraceDataSourceConfig ds_config{EventFilter{},
                                    EventFilter{},
                                    DisabledCompactSchedConfigForTesting(),
-                                   base::nullopt,
+                                   std::nullopt,
                                    {},
                                    {},
                                    /*symbolize_ksyms=*/false,

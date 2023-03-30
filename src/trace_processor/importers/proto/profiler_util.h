@@ -17,9 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILER_UTIL_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILER_UTIL_H_
 
+#include <optional>
 #include <string>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -32,8 +32,8 @@ std::string FullyQualifiedDeobfuscatedName(
     protos::pbzero::ObfuscatedClass::Decoder& cls,
     protos::pbzero::ObfuscatedMember::Decoder& member);
 
-base::Optional<std::string> PackageFromLocation(TraceStorage* storage,
-                                                base::StringView location);
+std::optional<std::string> PackageFromLocation(TraceStorage* storage,
+                                               base::StringView location);
 
 }  // namespace trace_processor
 }  // namespace perfetto

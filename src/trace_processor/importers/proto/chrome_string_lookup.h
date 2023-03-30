@@ -19,9 +19,9 @@
 
 #include <map>
 
+#include <optional>
 #include "src/trace_processor/storage/trace_storage.h"
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 
 namespace perfetto {

@@ -60,7 +60,7 @@ class ArgsSerializer {
   ArgsSerializer(TraceProcessorContext*,
                  ArgSetId arg_set_id,
                  NullTermStringView event_name,
-                 std::vector<base::Optional<uint32_t>>* field_id_to_arg_index,
+                 std::vector<std::optional<uint32_t>>* field_id_to_arg_index,
                  base::StringWriter*);
 
   void SerializeArgs();
@@ -71,7 +71,7 @@ class ArgsSerializer {
 
   // Arg writing functions.
   void WriteArgForField(uint32_t field_id, ValueWriter writer) {
-    base::Optional<uint32_t> row = FieldIdToRow(field_id);
+    std::optional<uint32_t> row = FieldIdToRow(field_id);
     if (!row)
       return;
     WriteArgAtRow(*row, writer);
@@ -79,7 +79,7 @@ class ArgsSerializer {
   void WriteArgForField(uint32_t field_id,
                         base::StringView key,
                         ValueWriter writer) {
-    base::Optional<uint32_t> row = FieldIdToRow(field_id);
+    std::optional<uint32_t> row = FieldIdToRow(field_id);
     if (!row)
       return;
     WriteArg(key, storage_->GetArgValue(*row), writer);
@@ -93,7 +93,7 @@ class ArgsSerializer {
 
   // Value writing functions.
   void WriteValueForField(uint32_t field_id, ValueWriter writer) {
-    base::Optional<uint32_t> row = FieldIdToRow(field_id);
+    std::optional<uint32_t> row = FieldIdToRow(field_id);
     if (!row)
       return;
     writer(storage_->GetArgValue(*row));
@@ -116,21 +116,21 @@ class ArgsSerializer {
   }
 
   // Converts a field id to a row in the args table.
-  base::Optional<uint32_t> FieldIdToRow(uint32_t field_id) {
+  std::optional<uint32_t> FieldIdToRow(uint32_t field_id) {
     PERFETTO_DCHECK(field_id > 0);
     PERFETTO_DCHECK(field_id < field_id_to_arg_index_->size());
-    base::Optional<uint32_t> index_in_arg_set =
+    std::optional<uint32_t> index_in_arg_set =
         (*field_id_to_arg_index_)[field_id];
     return index_in_arg_set.has_value()
-               ? base::make_optional(start_row_ + *index_in_arg_set)
-               : base::nullopt;
+               ? std::make_optional(start_row_ + *index_in_arg_set)
+               : std::nullopt;
   }
 
   const TraceStorage* storage_ = nullptr;
   TraceProcessorContext* context_ = nullptr;
   ArgSetId arg_set_id_ = kInvalidArgSetId;
   NullTermStringView event_name_;
-  std::vector<base::Optional<uint32_t>>* field_id_to_arg_index_;
+  std::vector<std::optional<uint32_t>>* field_id_to_arg_index_;
 
   RowMap row_map_;
   uint32_t start_row_ = 0;
@@ -142,7 +142,7 @@ ArgsSerializer::ArgsSerializer(
     TraceProcessorContext* context,
     ArgSetId arg_set_id,
     NullTermStringView event_name,
-    std::vector<base::Optional<uint32_t>>* field_id_to_arg_index,
+    std::vector<std::optional<uint32_t>>* field_id_to_arg_index,
     base::StringWriter* writer)
     : context_(context),
       arg_set_id_(arg_set_id),
@@ -205,7 +205,7 @@ void ArgsSerializer::SerializeArgs() {
     WriteArgForField(SS::kPrevStateFieldNumber, [this](const Variadic& value) {
       PERFETTO_DCHECK(value.type == Variadic::Type::kInt);
       auto state = static_cast<uint16_t>(value.int_value);
-      base::Optional<VersionNumber> kernel_version =
+      std::optional<VersionNumber> kernel_version =
           SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
       writer_->AppendString(
           ftrace_utils::TaskState::FromRawPrevState(state, kernel_version)

@@ -18,9 +18,9 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_ARGS_TRANSLATION_TABLE_H_
 
 #include <cstdint>
+#include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/deobfuscation_mapping_table.h"
@@ -86,23 +86,23 @@ class ArgsTranslationTable {
     deobfuscation_mapping_table_ = std::move(deobfuscation_mapping_table);
   }
 
-  base::Optional<base::StringView> TranslateChromeHistogramHashForTesting(
+  std::optional<base::StringView> TranslateChromeHistogramHashForTesting(
       uint64_t hash) const {
     return TranslateChromeHistogramHash(hash);
   }
-  base::Optional<base::StringView> TranslateChromeUserEventHashForTesting(
+  std::optional<base::StringView> TranslateChromeUserEventHashForTesting(
       uint64_t hash) const {
     return TranslateChromeUserEventHash(hash);
   }
-  base::Optional<base::StringView>
+  std::optional<base::StringView>
   TranslateChromePerformanceMarkSiteHashForTesting(uint64_t hash) const {
     return TranslateChromePerformanceMarkSiteHash(hash);
   }
-  base::Optional<base::StringView>
+  std::optional<base::StringView>
   TranslateChromePerformanceMarkMarkHashForTesting(uint64_t hash) const {
     return TranslateChromePerformanceMarkMarkHash(hash);
   }
-  base::Optional<StringId> TranslateClassNameForTesting(
+  std::optional<StringId> TranslateClassNameForTesting(
       StringId obfuscated_class_name_id) const {
     return TranslateClassName(obfuscated_class_name_id);
   }
@@ -180,29 +180,30 @@ class ArgsTranslationTable {
   DeobfuscationMappingTable deobfuscation_mapping_table_;
 
   // Returns the corresponding SupportedKey enum if the table knows how to
-  // translate the argument with the given key and type, and nullopt otherwise.
-  base::Optional<KeyType> KeyIdAndTypeToEnum(StringId flat_key_id,
-                                             StringId key_id,
-                                             Variadic::Type type) const;
+  // translate the argument with the given key and type, and std::nullopt
+  // otherwise.
+  std::optional<KeyType> KeyIdAndTypeToEnum(StringId flat_key_id,
+                                            StringId key_id,
+                                            Variadic::Type type) const;
 
-  base::Optional<base::StringView> TranslateChromeHistogramHash(
+  std::optional<base::StringView> TranslateChromeHistogramHash(
       uint64_t hash) const;
-  base::Optional<base::StringView> TranslateChromeUserEventHash(
+  std::optional<base::StringView> TranslateChromeUserEventHash(
       uint64_t hash) const;
-  base::Optional<base::StringView> TranslateChromePerformanceMarkSiteHash(
+  std::optional<base::StringView> TranslateChromePerformanceMarkSiteHash(
       uint64_t hash) const;
-  base::Optional<base::StringView> TranslateChromePerformanceMarkMarkHash(
+  std::optional<base::StringView> TranslateChromePerformanceMarkMarkHash(
       uint64_t hash) const;
-  base::Optional<SourceLocation> TranslateNativeSymbol(MappingId mapping_id,
-                                                       uint64_t rel_pc) const;
+  std::optional<SourceLocation> TranslateNativeSymbol(MappingId mapping_id,
+                                                      uint64_t rel_pc) const;
 
-  // Returns the deobfuscated name of a Java class or base::nullopt if
+  // Returns the deobfuscated name of a Java class or std::nullopt if
   // translation is not found.
-  base::Optional<StringId> TranslateClassName(
+  std::optional<StringId> TranslateClassName(
       StringId obfuscated_class_name_id) const;
 
-  void EmitMojoMethodLocation(base::Optional<uint64_t> mapping_id,
-                              base::Optional<uint64_t> rel_pc,
+  void EmitMojoMethodLocation(std::optional<uint64_t> mapping_id,
+                              std::optional<uint64_t> rel_pc,
                               ArgsTracker::BoundInserter& inserter) const;
 };
 

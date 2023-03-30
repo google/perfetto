@@ -34,17 +34,17 @@ class MockSliceTracker : public SliceTracker {
   virtual ~MockSliceTracker() = default;
 
   MOCK_METHOD5(Begin,
-               base::Optional<SliceId>(int64_t timestamp,
-                                       TrackId track_id,
-                                       StringId cat,
-                                       StringId name,
-                                       SetArgsCallback args_callback));
+               std::optional<SliceId>(int64_t timestamp,
+                                      TrackId track_id,
+                                      StringId cat,
+                                      StringId name,
+                                      SetArgsCallback args_callback));
   MOCK_METHOD5(End,
-               base::Optional<SliceId>(int64_t timestamp,
-                                       TrackId track_id,
-                                       StringId cat,
-                                       StringId name,
-                                       SetArgsCallback args_callback));
+               std::optional<SliceId>(int64_t timestamp,
+                                      TrackId track_id,
+                                      StringId cat,
+                                      StringId name,
+                                      SetArgsCallback args_callback));
 };
 
 class SyscallTrackerTest : public ::testing::Test {
@@ -68,9 +68,9 @@ TEST_F(SyscallTrackerTest, ReportUnknownSyscalls) {
   StringId begin_name = kNullStringId;
   StringId end_name = kNullStringId;
   EXPECT_CALL(*slice_tracker, Begin(100, track, kNullStringId, _, _))
-      .WillOnce(DoAll(SaveArg<3>(&begin_name), Return(base::nullopt)));
+      .WillOnce(DoAll(SaveArg<3>(&begin_name), Return(std::nullopt)));
   EXPECT_CALL(*slice_tracker, End(110, track, kNullStringId, _, _))
-      .WillOnce(DoAll(SaveArg<3>(&end_name), Return(base::nullopt)));
+      .WillOnce(DoAll(SaveArg<3>(&end_name), Return(std::nullopt)));
 
   SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
   syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 57 /*sys_read*/);
@@ -84,9 +84,9 @@ TEST_F(SyscallTrackerTest, Aarch64) {
   StringId begin_name = kNullStringId;
   StringId end_name = kNullStringId;
   EXPECT_CALL(*slice_tracker, Begin(100, track, kNullStringId, _, _))
-      .WillOnce(DoAll(SaveArg<3>(&begin_name), Return(base::nullopt)));
+      .WillOnce(DoAll(SaveArg<3>(&begin_name), Return(std::nullopt)));
   EXPECT_CALL(*slice_tracker, End(110, track, kNullStringId, _, _))
-      .WillOnce(DoAll(SaveArg<3>(&end_name), Return(base::nullopt)));
+      .WillOnce(DoAll(SaveArg<3>(&end_name), Return(std::nullopt)));
 
   SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
   syscall_tracker->SetArchitecture(kAarch64);
@@ -101,9 +101,9 @@ TEST_F(SyscallTrackerTest, x8664) {
   StringId begin_name = kNullStringId;
   StringId end_name = kNullStringId;
   EXPECT_CALL(*slice_tracker, Begin(100, track, kNullStringId, _, _))
-      .WillOnce(DoAll(SaveArg<3>(&begin_name), Return(base::nullopt)));
+      .WillOnce(DoAll(SaveArg<3>(&begin_name), Return(std::nullopt)));
   EXPECT_CALL(*slice_tracker, End(110, track, kNullStringId, _, _))
-      .WillOnce(DoAll(SaveArg<3>(&end_name), Return(base::nullopt)));
+      .WillOnce(DoAll(SaveArg<3>(&end_name), Return(std::nullopt)));
 
   SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
   syscall_tracker->SetArchitecture(kX86_64);

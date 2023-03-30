@@ -20,10 +20,10 @@
 #include <stdint.h>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/bit_vector_iterators.h"
 
@@ -305,24 +305,24 @@ class RowMap {
   }
 
   // Returns the first row of the given |index| in the RowMap.
-  base::Optional<InputRow> RowOf(OutputIndex index) const {
+  std::optional<InputRow> RowOf(OutputIndex index) const {
     switch (mode_) {
       case Mode::kRange: {
         if (index < start_index_ || index >= end_index_)
-          return base::nullopt;
+          return std::nullopt;
         return index - start_index_;
       }
       case Mode::kBitVector: {
         return index < bit_vector_.size() && bit_vector_.IsSet(index)
-                   ? base::make_optional(bit_vector_.CountSetBits(index))
-                   : base::nullopt;
+                   ? std::make_optional(bit_vector_.CountSetBits(index))
+                   : std::nullopt;
       }
       case Mode::kIndexVector: {
         auto it = std::find(index_vector_.begin(), index_vector_.end(), index);
         return it != index_vector_.end()
-                   ? base::make_optional(static_cast<InputRow>(
+                   ? std::make_optional(static_cast<InputRow>(
                          std::distance(index_vector_.begin(), it)))
-                   : base::nullopt;
+                   : std::nullopt;
       }
     }
     PERFETTO_FATAL("For GCC");
