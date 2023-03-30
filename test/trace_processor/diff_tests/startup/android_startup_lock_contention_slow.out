@@ -33,12 +33,12 @@ android_startup {
         dur_ms: 2000.0
       }
       time_lock_contention_thread_main {
-        dur_ns: 20000000000
-        dur_ms: 20000.0
+        dur_ns: 27000000000
+        dur_ms: 27000.0
       }
       time_monitor_contention_thread_main {
-        dur_ns: 10000000000
-        dur_ms: 10000.0
+        dur_ns: 17000000000
+        dur_ms: 17000.0
       }
     }
     activity_hosting_process_count: 1
