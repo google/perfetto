@@ -253,7 +253,7 @@ void SysStatsDataSource::ReadDiskStat(protos::pbzero::SysStats* sys_stats) {
       if (index == 2) {  // index for device name (string)
         disk_stat->set_device_name(words.cur_token());
       } else if (index >= 5) {  // integer values from index 5
-        base::Optional<uint64_t> value_address =
+        std::optional<uint64_t> value_address =
             base::CStringToUInt64(words.cur_token());
         uint64_t value = value_address ? *value_address : 0;
 

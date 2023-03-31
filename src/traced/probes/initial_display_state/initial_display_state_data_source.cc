@@ -15,11 +15,11 @@
  */
 
 #include "src/traced/probes/initial_display_state/initial_display_state_data_source.h"
+#include <optional>
 
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/android_utils.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
 
@@ -87,15 +87,15 @@ void InitialDisplayStateDataSource::Tick() {
 void InitialDisplayStateDataSource::WriteState() {
   auto packet = writer_->NewTracePacket();
   packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
-  const base::Optional<std::string> screen_state_str =
+  const std::optional<std::string> screen_state_str =
       ReadProperty("debug.tracing.screen_state");
-  const base::Optional<std::string> screen_brightness_str =
+  const std::optional<std::string> screen_brightness_str =
       ReadProperty("debug.tracing.screen_brightness");
-  const base::Optional<int> screen_state =
-      screen_state_str ? base::StringToInt32(*screen_state_str) : base::nullopt;
-  const base::Optional<double> screen_brightness =
+  const std::optional<int> screen_state =
+      screen_state_str ? base::StringToInt32(*screen_state_str) : std::nullopt;
+  const std::optional<double> screen_brightness =
       screen_brightness_str ? base::StringToDouble(*screen_brightness_str)
-                            : base::nullopt;
+                            : std::nullopt;
   if (screen_state || screen_brightness) {
     auto* state = packet->set_initial_display_state();
     if (screen_state) {
@@ -116,20 +116,20 @@ void InitialDisplayStateDataSource::WriteState() {
 }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-const base::Optional<std::string> InitialDisplayStateDataSource::ReadProperty(
+const std::optional<std::string> InitialDisplayStateDataSource::ReadProperty(
     const std::string name) {
   std::string value = base::GetAndroidProp(name.c_str());
   if (value.empty()) {
     PERFETTO_ELOG("Unable to read %s", name.c_str());
-    return base::nullopt;
+    return std::nullopt;
   }
-  return base::make_optional(value);
+  return std::make_optional(value);
 }
 #else
-const base::Optional<std::string> InitialDisplayStateDataSource::ReadProperty(
+const std::optional<std::string> InitialDisplayStateDataSource::ReadProperty(
     const std::string name __attribute__((unused))) {
   PERFETTO_ELOG("Initial display state only supported on Android.");
-  return base::nullopt;
+  return std::nullopt;
 }
 #endif
 

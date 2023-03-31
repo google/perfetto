@@ -16,9 +16,9 @@
 
 #ifndef SRC_TRACE_PROCESSOR_UTIL_SQL_ARGUMENT_H_
 #define SRC_TRACE_PROCESSOR_UTIL_SQL_ARGUMENT_H_
+#include <optional>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 
@@ -79,8 +79,8 @@ bool IsValidName(base::StringView name);
 
 // Parses a string containing a type from SQL and converts it to a Type enum
 // value.
-// Returns base::nullopt if |type| did not correspond to any of the enum values.
-base::Optional<Type> ParseType(base::StringView type);
+// Returns std::nullopt if |type| did not correspond to any of the enum values.
+std::optional<Type> ParseType(base::StringView type);
 
 // Converts an argument type to a string for printing (e.g. in error messages
 // etc).

@@ -20,6 +20,7 @@
 #include <array>
 #include <deque>
 #include <map>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -28,7 +29,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/hash.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -154,13 +154,13 @@ class TraceStorage {
       return thread_instruction_deltas_;
     }
 
-    base::Optional<uint32_t> FindRowForSliceId(SliceId slice_id) const {
+    std::optional<uint32_t> FindRowForSliceId(SliceId slice_id) const {
       auto it =
           std::lower_bound(slice_ids().begin(), slice_ids().end(), slice_id);
       if (it != slice_ids().end() && *it == slice_id) {
         return static_cast<uint32_t>(std::distance(slice_ids().begin(), it));
       }
-      return base::nullopt;
+      return std::nullopt;
     }
 
     void UpdateThreadDeltasForSliceId(SliceId slice_id,
@@ -251,14 +251,14 @@ class TraceStorage {
   }
 
   // Example usage: opt_cpu_failure = GetIndexedStats(stats::cpu_failure, 1);
-  base::Optional<int64_t> GetIndexedStats(size_t key, int index) {
+  std::optional<int64_t> GetIndexedStats(size_t key, int index) {
     PERFETTO_DCHECK(key < stats::kNumKeys);
     PERFETTO_DCHECK(stats::kTypes[key] == stats::kIndexed);
     auto kv = stats_[key].indexed_values.find(index);
     if (kv != stats_[key].indexed_values.end()) {
       return kv->second;
     }
-    return base::nullopt;
+    return std::nullopt;
   }
 
   class ScopedStatsTracer {
@@ -739,12 +739,12 @@ class TraceStorage {
 
   util::Status ExtractArg(uint32_t arg_set_id,
                           const char* key,
-                          base::Optional<Variadic>* result) {
+                          std::optional<Variadic>* result) {
     const auto& args = arg_table();
     RowMap filtered = args.FilterToRowMap(
         {args.arg_set_id().eq(arg_set_id), args.key().eq(key)});
     if (filtered.empty()) {
-      *result = base::nullopt;
+      *result = std::nullopt;
       return util::OkStatus();
     }
     if (filtered.size() > 1) {
@@ -799,11 +799,11 @@ class TraceStorage {
     return variadic_type_ids_[type];
   }
 
-  base::Optional<Variadic::Type> GetVariadicTypeForId(StringId id) const {
+  std::optional<Variadic::Type> GetVariadicTypeForId(StringId id) const {
     auto it =
         std::find(variadic_type_ids_.begin(), variadic_type_ids_.end(), id);
     if (it == variadic_type_ids_.end())
-      return base::nullopt;
+      return std::nullopt;
 
     int64_t idx = std::distance(variadic_type_ids_.begin(), it);
     return static_cast<Variadic::Type>(idx);
@@ -1003,8 +1003,8 @@ struct std::hash<
 
   result_type operator()(const argument_type& r) const {
     return std::hash<::perfetto::trace_processor::StringId>{}(r.name) ^
-           std::hash<::perfetto::base::Optional<
-               ::perfetto::trace_processor::MappingId>>{}(r.mapping) ^
+           std::hash<std::optional<::perfetto::trace_processor::MappingId>>{}(
+               r.mapping) ^
            std::hash<int64_t>{}(r.rel_pc);
   }
 };
@@ -1018,8 +1018,8 @@ struct std::hash<
 
   result_type operator()(const argument_type& r) const {
     return std::hash<int64_t>{}(r.depth) ^
-           std::hash<::perfetto::base::Optional<
-               ::perfetto::trace_processor::CallsiteId>>{}(r.parent_id) ^
+           std::hash<std::optional<::perfetto::trace_processor::CallsiteId>>{}(
+               r.parent_id) ^
            std::hash<::perfetto::trace_processor::FrameId>{}(r.frame_id);
   }
 };

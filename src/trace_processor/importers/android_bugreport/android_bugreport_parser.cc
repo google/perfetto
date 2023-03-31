@@ -17,9 +17,9 @@
 #include "src/trace_processor/importers/android_bugreport/android_bugreport_parser.h"
 
 #include <algorithm>
+#include <optional>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -247,7 +247,7 @@ bool AndroidBugreportParser::DetectYearAndBrFilename() {
   // Typical name: "bugreport-product-TP1A.220623.001-2022-06-24-16-24-37.txt".
   auto year_str = br_file->name().substr(
       br_file->name().size() - strlen("2022-12-31-23-59-00.txt"), 4);
-  base::Optional<int32_t> year = base::StringToInt32(year_str);
+  std::optional<int32_t> year = base::StringToInt32(year_str);
   if (!year.has_value()) {
     PERFETTO_ELOG("Could not parse the year from %s", br_file->name().c_str());
     return false;

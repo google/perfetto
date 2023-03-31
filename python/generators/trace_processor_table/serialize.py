@@ -462,15 +462,15 @@ class {self.table_name} : public macros_internal::MacroTable {{
     {self.foreach_col(ColumnSerializer.shrink_to_fit)}
   }}
 
-  base::Optional<ConstRowReference> FindById(Id find_id) const {{
-    base::Optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? base::make_optional(ConstRowReference(this, *row))
-               : base::nullopt;
+  std::optional<ConstRowReference> FindById(Id find_id) const {{
+    std::optional<uint32_t> row = id().IndexOf(find_id);
+    return row ? std::make_optional(ConstRowReference(this, *row))
+               : std::nullopt;
   }}
 
-  base::Optional<RowReference> FindById(Id find_id) {{
-    base::Optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? base::make_optional(RowReference(this, *row)) : base::nullopt;
+  std::optional<RowReference> FindById(Id find_id) {{
+    std::optional<uint32_t> row = id().IndexOf(find_id);
+    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
   }}
 
   IdAndRow Insert(const Row& row) {{

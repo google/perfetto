@@ -186,7 +186,7 @@ SharedRingBuffer::Buffer SharedRingBuffer::BeginWrite(
   PERFETTO_DCHECK(spinlock.locked());
   Buffer result;
 
-  base::Optional<PointerPositions> opt_pos = GetPointerPositions();
+  std::optional<PointerPositions> opt_pos = GetPointerPositions();
   if (!opt_pos) {
     meta_->stats.num_writes_corrupt++;
     errno = EBADF;
@@ -245,7 +245,7 @@ void SharedRingBuffer::EndWrite(Buffer buf) {
 }
 
 SharedRingBuffer::Buffer SharedRingBuffer::BeginRead() {
-  base::Optional<PointerPositions> opt_pos = GetPointerPositions();
+  std::optional<PointerPositions> opt_pos = GetPointerPositions();
   if (!opt_pos) {
     meta_->stats.num_reads_corrupt++;
     errno = EBADF;
@@ -322,20 +322,20 @@ SharedRingBuffer& SharedRingBuffer::operator=(
 }
 
 // static
-base::Optional<SharedRingBuffer> SharedRingBuffer::Create(size_t size) {
+std::optional<SharedRingBuffer> SharedRingBuffer::Create(size_t size) {
   auto buf = SharedRingBuffer(CreateFlag(), size);
   if (!buf.is_valid())
-    return base::nullopt;
-  return base::make_optional(std::move(buf));
+    return std::nullopt;
+  return std::make_optional(std::move(buf));
 }
 
 // static
-base::Optional<SharedRingBuffer> SharedRingBuffer::Attach(
+std::optional<SharedRingBuffer> SharedRingBuffer::Attach(
     base::ScopedFile mem_fd) {
   auto buf = SharedRingBuffer(AttachFlag(), std::move(mem_fd));
   if (!buf.is_valid())
-    return base::nullopt;
-  return base::make_optional(std::move(buf));
+    return std::nullopt;
+  return std::make_optional(std::move(buf));
 }
 
 }  // namespace profiling

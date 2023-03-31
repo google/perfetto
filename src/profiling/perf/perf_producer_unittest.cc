@@ -17,9 +17,9 @@
 #include "src/profiling/perf/perf_producer.h"
 
 #include <stdint.h>
+#include <optional>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {

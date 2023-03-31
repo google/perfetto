@@ -18,8 +18,8 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRANSLATION_TABLE_MODULE_H_
 
 #include <cstdint>
+#include <optional>
 
-#include "perfetto/ext/base/optional.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/types/trace_processor_context.h"

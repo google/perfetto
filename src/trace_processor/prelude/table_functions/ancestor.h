@@ -16,8 +16,8 @@
 
 #ifndef SRC_TRACE_PROCESSOR_PRELUDE_TABLE_FUNCTIONS_ANCESTOR_H_
 #define SRC_TRACE_PROCESSOR_PRELUDE_TABLE_FUNCTIONS_ANCESTOR_H_
+#include <optional>
 
-#include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/prelude/table_functions/table_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables.h"
@@ -75,9 +75,9 @@ class Ancestor : public TableFunction {
                             std::unique_ptr<Table>& table_return) override;
 
   // Returns a vector of rows numbers which are ancestors of |slice_id|.
-  // Returns base::nullopt if an invalid |slice_id| is given. This is used by
+  // Returns std::nullopt if an invalid |slice_id| is given. This is used by
   // ConnectedFlow to traverse flow indirectly connected flow events.
-  static base::Optional<std::vector<tables::SliceTable::RowNumber>>
+  static std::optional<std::vector<tables::SliceTable::RowNumber>>
   GetAncestorSlices(const tables::SliceTable& slices, SliceId slice_id);
 
  private:

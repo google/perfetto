@@ -132,7 +132,7 @@ class FuzzerFakeProducerThread {
   }
 
  private:
-  base::Optional<base::ThreadTaskRunner> runner_;  // Keep first.
+  std::optional<base::ThreadTaskRunner> runner_;  // Keep first.
 
   std::unique_ptr<FakeProducer> producer_;
   const uint8_t* data_;

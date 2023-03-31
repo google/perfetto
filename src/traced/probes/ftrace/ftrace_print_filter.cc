@@ -108,12 +108,12 @@ bool FtracePrintFilter::IsAllowed(const char* start, size_t size) const {
 }
 
 // static
-base::Optional<FtracePrintFilterConfig> FtracePrintFilterConfig::Create(
+std::optional<FtracePrintFilterConfig> FtracePrintFilterConfig::Create(
     const protos::gen::FtraceConfig::PrintFilter& config,
     ProtoTranslationTable* table) {
   const Event* print_event = table->GetEvent(GroupAndName("ftrace", "print"));
   if (!print_event) {
-    return base::nullopt;
+    return std::nullopt;
   }
   const Field* buf_field = nullptr;
   for (const Field& field : print_event->fields) {
@@ -123,11 +123,11 @@ base::Optional<FtracePrintFilterConfig> FtracePrintFilterConfig::Create(
     }
   }
   if (!buf_field) {
-    return base::nullopt;
+    return std::nullopt;
   }
 
   if (buf_field->strategy != kCStringToString) {
-    return base::nullopt;
+    return std::nullopt;
   }
   FtracePrintFilterConfig ret{FtracePrintFilter{config}};
   ret.event_id_ = print_event->ftrace_event_id;

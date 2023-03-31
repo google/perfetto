@@ -75,7 +75,7 @@ TEST_F(GetColumnsForTableTest, UnknownTableName) {
 }
 
 TEST(SqliteUtilsTest, ExtractFromSqlValueInt32) {
-  base::Optional<int32_t> int32;
+  std::optional<int32_t> int32;
 
   static constexpr int64_t kMin = std::numeric_limits<int32_t>::min();
   static constexpr int64_t kMax = std::numeric_limits<int32_t>::max();
@@ -98,7 +98,7 @@ TEST(SqliteUtilsTest, ExtractFromSqlValueInt32) {
 }
 
 TEST(SqliteUtilsTest, ExtractFromSqlValueUint32) {
-  base::Optional<uint32_t> uint32;
+  std::optional<uint32_t> uint32;
 
   static constexpr int64_t kMin = std::numeric_limits<uint32_t>::min();
   static constexpr int64_t kMax = std::numeric_limits<uint32_t>::max();
@@ -121,7 +121,7 @@ TEST(SqliteUtilsTest, ExtractFromSqlValueUint32) {
 }
 
 TEST(SqliteUtilsTest, ExtractFromSqlValueInt64) {
-  base::Optional<int64_t> int64;
+  std::optional<int64_t> int64;
 
   static constexpr int64_t kMin = std::numeric_limits<int64_t>::min();
   static constexpr int64_t kMax = std::numeric_limits<int64_t>::max();
@@ -143,7 +143,7 @@ TEST(SqliteUtilsTest, ExtractFromSqlValueInt64) {
 }
 
 TEST(SqliteUtilsTest, ExtractFromSqlValueDouble) {
-  base::Optional<double> doub;
+  std::optional<double> doub;
 
   static constexpr double kMin = std::numeric_limits<double>::min();
   static constexpr double kMax = std::numeric_limits<double>::max();
@@ -165,7 +165,7 @@ TEST(SqliteUtilsTest, ExtractFromSqlValueDouble) {
 }
 
 TEST(SqliteUtilsTest, ExtractFromSqlValueString) {
-  base::Optional<const char*> string;
+  std::optional<const char*> string;
 
   ASSERT_TRUE(ExtractFromSqlValue(SqlValue::String("foo"), string).ok());
   ASSERT_STREQ(*string, "foo");

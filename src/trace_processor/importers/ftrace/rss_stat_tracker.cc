@@ -47,8 +47,8 @@ void RssStatTracker::ParseRssStat(int64_t ts,
                                   ConstBytes blob) {
   uint32_t member;
   int64_t size;
-  base::Optional<bool> curr;
-  base::Optional<int64_t> mm_id;
+  std::optional<bool> curr;
+  std::optional<int64_t> mm_id;
 
   if (field_id == FtraceEvent::kRssStatFieldNumber) {
     protos::pbzero::RssStatFtraceEvent::Decoder rss(blob.data, blob.size);
@@ -56,10 +56,10 @@ void RssStatTracker::ParseRssStat(int64_t ts,
     member = static_cast<uint32_t>(rss.member());
     size = rss.size();
     if (rss.has_curr()) {
-      curr = base::make_optional(static_cast<bool>(rss.curr()));
+      curr = std::make_optional(static_cast<bool>(rss.curr()));
     }
     if (rss.has_mm_id()) {
-      mm_id = base::make_optional(rss.mm_id());
+      mm_id = std::make_optional(rss.mm_id());
     }
 
     ParseRssStat(ts, pid, size, member, curr, mm_id);
@@ -69,8 +69,8 @@ void RssStatTracker::ParseRssStat(int64_t ts,
 
     member = static_cast<uint32_t>(rss.member());
     size = rss.size();
-    curr = base::make_optional(static_cast<bool>(rss.curr()));
-    mm_id = base::make_optional(rss.mm_id());
+    curr = std::make_optional(static_cast<bool>(rss.curr()));
+    mm_id = std::make_optional(rss.mm_id());
 
     ParseRssStat(ts, pid, size, member, curr, mm_id);
   } else {
@@ -82,8 +82,8 @@ void RssStatTracker::ParseRssStat(int64_t ts,
                                   uint32_t pid,
                                   int64_t size,
                                   uint32_t member,
-                                  base::Optional<bool> curr,
-                                  base::Optional<int64_t> mm_id) {
+                                  std::optional<bool> curr,
+                                  std::optional<int64_t> mm_id) {
   const auto kRssStatUnknown = static_cast<uint32_t>(rss_members_.size()) - 1;
   if (member >= rss_members_.size()) {
     context_->storage->IncrementStats(stats::rss_stat_unknown_keys);
@@ -95,7 +95,7 @@ void RssStatTracker::ParseRssStat(int64_t ts,
     return;
   }
 
-  base::Optional<UniqueTid> utid;
+  std::optional<UniqueTid> utid;
   if (mm_id.has_value() && curr.has_value()) {
     utid = FindUtidForMmId(*mm_id, *curr, pid);
   } else {
@@ -110,9 +110,9 @@ void RssStatTracker::ParseRssStat(int64_t ts,
   }
 }
 
-base::Optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
-                                                          bool is_curr,
-                                                          uint32_t pid) {
+std::optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
+                                                         bool is_curr,
+                                                         uint32_t pid) {
   // If curr is true, we can just overwrite the state in the map and return
   // the utid correspodning to |pid|.
   if (is_curr) {
@@ -125,7 +125,7 @@ base::Optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
   // mm id.
   auto* it = mm_id_to_utid_.Find(mm_id);
   if (!it)
-    return base::nullopt;
+    return std::nullopt;
 
   // If the utid in the map is the same as our current utid but curr is false,
   // that means we are in the middle of a process changing mm structs (i.e. in
@@ -135,7 +135,7 @@ base::Optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
   const UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   if (mm_utid == utid) {
     mm_id_to_utid_.Erase(mm_id);
-    return base::nullopt;
+    return std::nullopt;
   }
 
   // Verify that the utid in the map is still alive. This can happen if an mm
@@ -143,7 +143,7 @@ base::Optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
   // know the new process that struct will be associated with.
   if (!context_->process_tracker->IsThreadAlive(mm_utid)) {
     mm_id_to_utid_.Erase(mm_id);
-    return base::nullopt;
+    return std::nullopt;
   }
 
   // This case happens when a process is changing the VM of another process and

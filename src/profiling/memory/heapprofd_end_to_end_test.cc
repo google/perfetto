@@ -25,11 +25,11 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <optional>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/subprocess.h"
@@ -97,7 +97,7 @@ struct FlamegraphNode {
   int64_t cumulative_alloc_count;
   int64_t alloc_size;
   int64_t cumulative_alloc_size;
-  base::Optional<int64_t> parent_id;
+  std::optional<int64_t> parent_id;
 };
 
 std::vector<FlamegraphNode> GetFlamegraph(trace_processor::TraceProcessor* tp) {
@@ -116,8 +116,8 @@ std::vector<FlamegraphNode> GetFlamegraph(trace_processor::TraceProcessor* tp) {
         it.Get(8).AsLong(),
         it.Get(9).AsLong(),
         it.Get(10).AsLong(),
-        it.Get(11).is_null() ? base::nullopt
-                             : base::Optional<int64_t>(it.Get(11).AsLong()),
+        it.Get(11).is_null() ? std::nullopt
+                             : std::optional<int64_t>(it.Get(11).AsLong()),
     });
   }
   PERFETTO_CHECK(it.Status().ok());

@@ -34,11 +34,11 @@ TEST(RowMapUnittest, SmokeRange) {
   ASSERT_EQ(rm.Get(1), 31u);
   ASSERT_EQ(rm.Get(16), 46u);
 
-  ASSERT_EQ(rm.RowOf(29), base::nullopt);
+  ASSERT_EQ(rm.RowOf(29), std::nullopt);
   ASSERT_EQ(rm.RowOf(30), 0u);
   ASSERT_EQ(rm.RowOf(37), 7u);
   ASSERT_EQ(rm.RowOf(46), 16u);
-  ASSERT_EQ(rm.RowOf(47), base::nullopt);
+  ASSERT_EQ(rm.RowOf(47), std::nullopt);
 }
 
 TEST(RowMapUnittest, SmokeBitVector) {
@@ -54,8 +54,8 @@ TEST(RowMapUnittest, SmokeBitVector) {
   ASSERT_EQ(rm.RowOf(4u), 1u);
   ASSERT_EQ(rm.RowOf(5u), 2u);
 
-  ASSERT_EQ(rm.RowOf(1u), base::nullopt);
-  ASSERT_EQ(rm.RowOf(100u), base::nullopt);
+  ASSERT_EQ(rm.RowOf(1u), std::nullopt);
+  ASSERT_EQ(rm.RowOf(100u), std::nullopt);
 }
 
 TEST(RowMapUnittest, SmokeIndexVector) {

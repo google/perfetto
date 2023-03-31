@@ -145,7 +145,7 @@ class TrackTracker {
     }
   };
   struct ChromeTrackTuple {
-    base::Optional<int64_t> upid;
+    std::optional<int64_t> upid;
     int64_t source_id = 0;
     StringId source_scope = StringId::Null();
 
@@ -178,8 +178,8 @@ class TrackTracker {
   std::map<std::pair<StringId, int32_t>, TrackId>
       energy_per_uid_counter_tracks_;
 
-  base::Optional<TrackId> chrome_global_instant_track_id_;
-  base::Optional<TrackId> trigger_track_id_;
+  std::optional<TrackId> chrome_global_instant_track_id_;
+  std::optional<TrackId> trigger_track_id_;
 
   const StringId source_key_ = kNullStringId;
   const StringId source_id_key_ = kNullStringId;

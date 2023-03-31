@@ -15,12 +15,13 @@
  */
 
 #include "perfetto/ext/base/threading/channel.h"
+
 #include <array>
 #include <memory>
+#include <optional>
 
 #include "perfetto/base/platform_handle.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/utils.h"
 #include "test/gtest_and_gmock.h"
 
@@ -71,7 +72,7 @@ TEST(ChannelUnittest, SingleElementBuffer) {
   ASSERT_TRUE(IsReady(channel.read_fd()));
 
   ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(100, false));
-  ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(base::nullopt, false));
+  ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(std::nullopt, false));
 
   ASSERT_TRUE(IsReady(channel.write_fd()));
   ASSERT_FALSE(IsReady(channel.read_fd()));
@@ -98,7 +99,7 @@ TEST(ChannelUnittest, MultiElementBuffer) {
   ASSERT_TRUE(IsReady(channel.write_fd()));
   ASSERT_FALSE(IsReady(channel.read_fd()));
 
-  ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(base::nullopt, false));
+  ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(std::nullopt, false));
   ASSERT_TRUE(IsReady(channel.write_fd()));
   ASSERT_FALSE(IsReady(channel.read_fd()));
 }
@@ -106,13 +107,13 @@ TEST(ChannelUnittest, MultiElementBuffer) {
 TEST(ChannelUnittest, CloseEmptyChannel) {
   Channel<int> channel(1);
 
-  ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(base::nullopt, false));
+  ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(std::nullopt, false));
   ASSERT_FALSE(IsReady(channel.read_fd()));
 
   channel.Close();
 
-  ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(base::nullopt, true));
-  ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(base::nullopt, true));
+  ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(std::nullopt, true));
+  ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(std::nullopt, true));
 
   ASSERT_TRUE(IsReady(channel.read_fd()));
   ASSERT_TRUE(IsReady(channel.read_fd()));
@@ -139,12 +140,12 @@ TEST(ChannelUnittest, WriteDoesNotMoveIfFalse) {
 
 TEST(ChannelUnittest, ReadAfterClose) {
   Channel<int> channel(1);
-  ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(base::nullopt, false));
+  ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(std::nullopt, false));
   ASSERT_EQ(channel.WriteNonBlocking(100), WriteResult(true, false));
   channel.Close();
 
   ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(100, true));
-  ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(base::nullopt, true));
+  ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(std::nullopt, true));
 }
 
 TEST(ChannelUnittest, WriteAfterClose) {
@@ -164,7 +165,7 @@ TEST(ChannelUnittest, EmptyClosedChannel) {
   channel.Close();
   ASSERT_TRUE(IsReady(channel.write_fd()));
   ASSERT_TRUE(IsReady(channel.write_fd()));
-  ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(base::nullopt, true));
+  ASSERT_EQ(channel.ReadNonBlocking(), ReadResult(std::nullopt, true));
   ASSERT_TRUE(IsReady(channel.write_fd()));
   ASSERT_TRUE(IsReady(channel.read_fd()));
 }

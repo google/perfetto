@@ -18,12 +18,12 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_DEOBFUSCATION_MAPPING_TABLE_H_
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -58,16 +58,16 @@ class DeobfuscationMappingTable {
   // These functions return the deobfuscated class/member name from an
   // obfuscated class/member name.
   // If a package is not provided, the |default_package_id_| is used.
-  // If translation is not found, returns base::nullopt.
+  // If translation is not found, returns std::nullopt.
 
-  base::Optional<StringId> TranslateClass(StringId obfuscated_class_name) const;
+  std::optional<StringId> TranslateClass(StringId obfuscated_class_name) const;
 
-  base::Optional<StringId> TranslateClass(const PackageId& package,
-                                          StringId obfuscated_class_name) const;
+  std::optional<StringId> TranslateClass(const PackageId& package,
+                                         StringId obfuscated_class_name) const;
 
-  base::Optional<StringId> TranslateMember(const PackageId& package,
-                                           StringId obfuscated_class_name,
-                                           StringId obfuscated_member) const;
+  std::optional<StringId> TranslateMember(const PackageId& package,
+                                          StringId obfuscated_class_name,
+                                          StringId obfuscated_member) const;
 
  private:
   struct PackageIdHash {
@@ -94,7 +94,7 @@ class DeobfuscationMappingTable {
   // We need this because curently TraceProcessor doesn't use the package
   // version of the arguments.
   // TODO(b/244700870): start use the package version of arguments.
-  base::Optional<PackageId> default_package_id_;
+  std::optional<PackageId> default_package_id_;
 };
 
 }  // namespace trace_processor

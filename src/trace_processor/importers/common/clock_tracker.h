@@ -22,12 +22,12 @@
 #include <array>
 #include <cinttypes>
 #include <map>
+#include <optional>
 #include <random>
 #include <set>
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"

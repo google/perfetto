@@ -523,7 +523,7 @@ EventFilter FtraceConfigMuxer::BuildSyscallFilter(
   }
 
   for (const std::string& syscall : request.syscall_events()) {
-    base::Optional<size_t> id = syscalls_.GetByName(syscall);
+    std::optional<size_t> id = syscalls_.GetByName(syscall);
     if (!id.has_value()) {
       PERFETTO_ELOG("Can't enable %s, syscall not known", syscall.c_str());
       continue;
@@ -744,7 +744,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
   auto compact_sched =
       CreateCompactSchedConfig(request, table_->compact_sched_format());
 
-  base::Optional<FtracePrintFilterConfig> ftrace_print_filter;
+  std::optional<FtracePrintFilterConfig> ftrace_print_filter;
   if (request.has_print_filter()) {
     ftrace_print_filter =
         FtracePrintFilterConfig::Create(request.print_filter(), table_);
