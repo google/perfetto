@@ -245,18 +245,8 @@ export class TrackGroupPanel extends Panel<Attrs> {
           size.height,
           `#344596`);
     }
+
     if (globals.state.currentSelection !== null) {
-      if (globals.state.currentSelection.kind === 'NOTE') {
-        const note = globals.state.notes[globals.state.currentSelection.id];
-        if (note.noteType === 'DEFAULT') {
-          drawVerticalLineAtTime(
-              ctx,
-              localState.timeScale,
-              note.timestamp,
-              size.height,
-              note.color);
-        }
-      }
       if (globals.state.currentSelection.kind === 'SLICE' &&
           globals.sliceDetails.wakeupTs !== undefined) {
         drawVerticalLineAtTime(
@@ -287,6 +277,9 @@ export class TrackGroupPanel extends Panel<Attrs> {
             size.height,
             transparentNoteColor,
             1);
+      } else if (note.noteType === 'DEFAULT') {
+        drawVerticalLineAtTime(
+            ctx, localState.timeScale, note.timestamp, size.height, note.color);
       }
     }
   }
