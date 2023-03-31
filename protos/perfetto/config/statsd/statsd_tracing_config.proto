@@ -26,9 +26,12 @@ import "protos/perfetto/config/statsd/atom_ids.proto";
 // the existing statsd_config.proto for configuring statsd itself.
 // Same for the config proto itself.
 message StatsdTracingConfig {
+  // This is for the common case of the atom id being known in the enum AtomId.
   repeated AtomId push_atom_id = 1;
-  repeated int32 raw_push_atom_id = 2;
 
+  // Escape hatch for Atom IDs that are not yet in the AtomId enum
+  // (e.g. non-upstream atoms that don't exist in AOSP).
+  repeated int32 raw_push_atom_id = 2;
   repeated StatsdPullAtomConfig pull_config = 3;
 }
 
