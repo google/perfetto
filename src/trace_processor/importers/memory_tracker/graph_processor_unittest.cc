@@ -71,8 +71,8 @@ class GraphProcessorTest : public testing::Test {
     GraphProcessor::PropagateNumericsAndDiagnosticsRecursively(node);
   }
 
-  base::Optional<uint64_t> AggregateSizeForDescendantNode(Node* root,
-                                                          Node* descendant) {
+  std::optional<uint64_t> AggregateSizeForDescendantNode(Node* root,
+                                                         Node* descendant) {
     return GraphProcessor::AggregateSizeForDescendantNode(root, descendant);
   }
 

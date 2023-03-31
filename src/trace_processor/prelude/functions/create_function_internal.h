@@ -18,10 +18,10 @@
 #define SRC_TRACE_PROCESSOR_PRELUDE_FUNCTIONS_CREATE_FUNCTION_INTERNAL_H_
 
 #include <sqlite3.h>
+#include <optional>
 #include <string>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/util/sql_argument.h"

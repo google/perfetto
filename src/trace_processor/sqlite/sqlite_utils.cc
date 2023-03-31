@@ -196,9 +196,9 @@ base::Status TypeCheckSqliteValue(sqlite3_value* value,
 
 template <typename T>
 base::Status ExtractFromSqlValueInt(const SqlValue& value,
-                                    base::Optional<T>& out) {
+                                    std::optional<T>& out) {
   if (value.is_null()) {
-    out = base::nullopt;
+    out = std::nullopt;
     return base::OkStatus();
   }
   if (value.type != SqlValue::kLong) {
@@ -221,21 +221,21 @@ base::Status ExtractFromSqlValueInt(const SqlValue& value,
 }
 
 base::Status ExtractFromSqlValue(const SqlValue& value,
-                                 base::Optional<int64_t>& out) {
+                                 std::optional<int64_t>& out) {
   return ExtractFromSqlValueInt(value, out);
 }
 base::Status ExtractFromSqlValue(const SqlValue& value,
-                                 base::Optional<int32_t>& out) {
+                                 std::optional<int32_t>& out) {
   return ExtractFromSqlValueInt(value, out);
 }
 base::Status ExtractFromSqlValue(const SqlValue& value,
-                                 base::Optional<uint32_t>& out) {
+                                 std::optional<uint32_t>& out) {
   return ExtractFromSqlValueInt(value, out);
 }
 base::Status ExtractFromSqlValue(const SqlValue& value,
-                                 base::Optional<double>& out) {
+                                 std::optional<double>& out) {
   if (value.is_null()) {
-    out = base::nullopt;
+    out = std::nullopt;
     return base::OkStatus();
   }
   if (value.type != SqlValue::kDouble) {
@@ -248,9 +248,9 @@ base::Status ExtractFromSqlValue(const SqlValue& value,
   return base::OkStatus();
 }
 base::Status ExtractFromSqlValue(const SqlValue& value,
-                                 base::Optional<const char*>& out) {
+                                 std::optional<const char*>& out) {
   if (value.is_null()) {
-    out = base::nullopt;
+    out = std::nullopt;
     return base::OkStatus();
   }
   if (value.type != SqlValue::kString) {

@@ -16,8 +16,9 @@
 
 #include "src/trace_processor/sorter/trace_token_buffer.h"
 
+#include <optional>
+
 #include "perfetto/base/compiler.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
@@ -145,7 +146,7 @@ TEST_F(TraceTokenBufferUnittest, TrackEventDataInOut) {
   ASSERT_EQ(extracted.trace_packet_data.sequence_state,
             state.current_generation());
   ASSERT_EQ(extracted.thread_instruction_count, 123);
-  ASSERT_EQ(extracted.thread_timestamp, base::nullopt);
+  ASSERT_EQ(extracted.thread_timestamp, std::nullopt);
   ASSERT_DOUBLE_EQ(extracted.counter_value, 0.0);
   ASSERT_EQ(extracted.extra_counter_values, counter_array);
 }

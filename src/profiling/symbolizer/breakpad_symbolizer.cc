@@ -16,9 +16,10 @@
 
 #include "src/profiling/symbolizer/breakpad_symbolizer.h"
 
+#include <optional>
+
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "src/profiling/symbolizer/breakpad_parser.h"
@@ -83,7 +84,7 @@ std::vector<std::vector<SymbolizedFrame>> BreakpadSymbolizer::Symbolize(
   // Add each address's function name to the |result| vector in the same order.
   for (uint64_t addr : address) {
     SymbolizedFrame frame;
-    base::Optional<std::string> opt_func_name = parser.GetSymbol(addr);
+    std::optional<std::string> opt_func_name = parser.GetSymbol(addr);
     if (opt_func_name) {
       frame.function_name = *opt_func_name;
       num_symbolized_frames++;

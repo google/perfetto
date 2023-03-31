@@ -226,7 +226,7 @@ TEST(JsonTraceTokenizerTest, ReadSystraceEndOfData) {
 }
 
 TEST(JsonTraceTokenizerTest, ExtractValueForJsonKey) {
-  base::Optional<std::string> line;
+  std::optional<std::string> line;
 
   ASSERT_TRUE(ExtractValueForJsonKey(R"({"ts": 149029})", "ts", &line).ok());
   ASSERT_EQ(*line, "149029");

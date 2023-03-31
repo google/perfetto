@@ -34,7 +34,7 @@ namespace tables {
   NAME(StackProfileCallsiteTable, "stack_profile_callsite")     \
   PERFETTO_TP_ROOT_TABLE(PARENT, C)                             \
   C(uint32_t, depth)                                            \
-  C(base::Optional<StackProfileCallsiteTable::Id>, parent_id)   \
+  C(std::optional<StackProfileCallsiteTable::Id>, parent_id)    \
   C(StackProfileFrameTable::Id, frame_id)
 
 }  // namespace tables

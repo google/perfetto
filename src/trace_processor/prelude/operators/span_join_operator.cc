@@ -43,7 +43,7 @@ bool IsRequiredColumn(const std::string& name) {
   return name == kTsColumnName || name == kDurColumnName;
 }
 
-base::Optional<std::string> HasDuplicateColumns(
+std::optional<std::string> HasDuplicateColumns(
     const std::vector<SqliteTable::Column>& cols) {
   std::set<std::string> names;
   for (const auto& col : cols) {
@@ -51,7 +51,7 @@ base::Optional<std::string> HasDuplicateColumns(
       return col.name();
     names.insert(col.name());
   }
-  return base::nullopt;
+  return std::nullopt;
 }
 
 std::string OpToString(int op) {

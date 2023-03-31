@@ -49,7 +49,7 @@ TEST(SqlArgumentTest, IsValidName) {
 TEST(SqlArgumentTest, ParseType) {
   ASSERT_EQ(ParseType("PROTO"), Type::kProto);
   ASSERT_EQ(ParseType("BOOL"), Type::kBool);
-  ASSERT_EQ(ParseType("UNKNOWN"), base::nullopt);
+  ASSERT_EQ(ParseType("UNKNOWN"), std::nullopt);
   ASSERT_EQ(ParseType("UINT"), Type::kUint);
 }
 

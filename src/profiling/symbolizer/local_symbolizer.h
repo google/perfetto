@@ -17,12 +17,13 @@
 #ifndef SRC_PROFILING_SYMBOLIZER_LOCAL_SYMBOLIZER_H_
 #define SRC_PROFILING_SYMBOLIZER_LOCAL_SYMBOLIZER_H_
 
+#include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/symbolizer/subprocess.h"
 #include "src/profiling/symbolizer/symbolizer.h"
@@ -44,7 +45,7 @@ struct FoundBinary {
 class BinaryFinder {
  public:
   virtual ~BinaryFinder();
-  virtual base::Optional<FoundBinary> FindBinary(
+  virtual std::optional<FoundBinary> FindBinary(
       const std::string& abspath,
       const std::string& build_id) = 0;
 };
@@ -53,8 +54,8 @@ class LocalBinaryIndexer : public BinaryFinder {
  public:
   explicit LocalBinaryIndexer(std::vector<std::string> roots);
 
-  base::Optional<FoundBinary> FindBinary(const std::string& abspath,
-                                         const std::string& build_id) override;
+  std::optional<FoundBinary> FindBinary(const std::string& abspath,
+                                        const std::string& build_id) override;
   ~LocalBinaryIndexer() override;
 
  private:
@@ -65,22 +66,22 @@ class LocalBinaryFinder : public BinaryFinder {
  public:
   explicit LocalBinaryFinder(std::vector<std::string> roots);
 
-  base::Optional<FoundBinary> FindBinary(const std::string& abspath,
-                                         const std::string& build_id) override;
+  std::optional<FoundBinary> FindBinary(const std::string& abspath,
+                                        const std::string& build_id) override;
 
   ~LocalBinaryFinder() override;
 
  private:
-  base::Optional<FoundBinary> IsCorrectFile(const std::string& symbol_file,
-                                            const std::string& build_id);
+  std::optional<FoundBinary> IsCorrectFile(const std::string& symbol_file,
+                                           const std::string& build_id);
 
-  base::Optional<FoundBinary> FindBinaryInRoot(const std::string& root_str,
-                                               const std::string& abspath,
-                                               const std::string& build_id);
+  std::optional<FoundBinary> FindBinaryInRoot(const std::string& root_str,
+                                              const std::string& abspath,
+                                              const std::string& build_id);
 
  private:
   std::vector<std::string> roots_;
-  std::map<std::string, base::Optional<FoundBinary>> cache_;
+  std::map<std::string, std::optional<FoundBinary>> cache_;
 };
 
 class LLVMSymbolizerProcess {

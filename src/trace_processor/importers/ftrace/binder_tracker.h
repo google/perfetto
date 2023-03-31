@@ -18,10 +18,10 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_BINDER_TRACKER_H_
 
 #include <stdint.h>
+#include <optional>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/destructible.h"
@@ -72,8 +72,8 @@ class BinderTracker : public Destructible {
     bool is_reply = false;
     bool is_oneway = false;
     SetArgsCallback args_inserter;
-    base::Optional<TrackId> send_track_id;
-    base::Optional<SliceId> send_slice_id;
+    std::optional<TrackId> send_track_id;
+    std::optional<SliceId> send_slice_id;
   };
 
   TraceProcessorContext* const context_;

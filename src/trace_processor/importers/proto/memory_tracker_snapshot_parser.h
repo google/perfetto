@@ -90,7 +90,7 @@ class MemoryTrackerSnapshotParser {
   void EmitMemorySnapshotNodeRowsRecursively(
       GlobalNodeGraph::Node& node,
       const std::string&,
-      base::Optional<tables::MemorySnapshotNodeTable::Id> parent_node_row_id,
+      std::optional<tables::MemorySnapshotNodeTable::Id> parent_node_row_id,
       ProcessMemorySnapshotId& proc_snapshot_row_id,
       IdNodeMap& id_node_map);
 
@@ -99,10 +99,10 @@ class MemoryTrackerSnapshotParser {
   // ProcessMemorySnapshotId |proc_snapshot_row_id|. Generates map of
   // MemoryAllocatorNodeId and MemorySnapshotNodeTable::Id |id_node_map| which
   // is used at time of filling out of MemorySnapshotEdgeTable.
-  base::Optional<tables::MemorySnapshotNodeTable::Id> EmitNode(
+  std::optional<tables::MemorySnapshotNodeTable::Id> EmitNode(
       const GlobalNodeGraph::Node& node,
       const std::string& path,
-      base::Optional<tables::MemorySnapshotNodeTable::Id> parent_node_row_id,
+      std::optional<tables::MemorySnapshotNodeTable::Id> parent_node_row_id,
       ProcessMemorySnapshotId& proc_snapshot_row_id,
       IdNodeMap& id_node_map);
 

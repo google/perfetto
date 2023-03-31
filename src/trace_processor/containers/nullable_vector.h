@@ -20,9 +20,9 @@
 #include <stdint.h>
 
 #include <deque>
+#include <optional>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/containers/row_map.h"
 
 namespace perfetto {
@@ -67,14 +67,14 @@ class NullableVector {
   // Creates a dense nullable vector
   static NullableVector<T> Dense() { return NullableVector<T>(Mode::kDense); }
 
-  // Returns the optional value at |idx| or base::nullopt if the value is null.
-  base::Optional<T> Get(uint32_t idx) const {
+  // Returns the optional value at |idx| or std::nullopt if the value is null.
+  std::optional<T> Get(uint32_t idx) const {
     bool contains = valid_.IsSet(idx);
     if (mode_ == Mode::kDense) {
-      return contains ? base::make_optional(data_[idx]) : base::nullopt;
+      return contains ? std::make_optional(data_[idx]) : std::nullopt;
     } else {
-      return contains ? base::make_optional(data_[valid_.CountSetBits(idx)])
-                      : base::nullopt;
+      return contains ? std::make_optional(data_[valid_.CountSetBits(idx)])
+                      : std::nullopt;
     }
   }
 
@@ -85,7 +85,7 @@ class NullableVector {
   }
 
   // Adds the given optional value to the NullableVector.
-  void Append(base::Optional<T> val) {
+  void Append(std::optional<T> val) {
     if (val) {
       Append(*val);
     } else {

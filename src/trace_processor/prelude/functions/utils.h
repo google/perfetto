@@ -255,7 +255,7 @@ base::Status ExtractArg::Run(TraceStorage* storage,
   uint32_t arg_set_id = static_cast<uint32_t>(sqlite3_value_int(argv[0]));
   const char* key = reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
 
-  base::Optional<Variadic> opt_value;
+  std::optional<Variadic> opt_value;
   RETURN_IF_ERROR(storage->ExtractArg(arg_set_id, key, &opt_value));
 
   if (!opt_value)

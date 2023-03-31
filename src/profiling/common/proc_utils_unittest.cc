@@ -15,7 +15,8 @@
  */
 
 #include "src/profiling/common/proc_utils.h"
-#include "perfetto/ext/base/optional.h"
+
+#include <optional>
 
 #include "perfetto/ext/base/utils.h"
 #include "test/gtest_and_gmock.h"
@@ -131,9 +132,9 @@ TEST(ProcUtilsTest, GetRssAnonAndSwap) {
 }
 
 TEST(ProcUtilsTest, GetRssAnonAndSwapInvalidInput) {
-  EXPECT_EQ(GetRssAnonAndSwap(""), base::nullopt);
-  EXPECT_EQ(GetRssAnonAndSwap("RssAnon: 10000 kB"), base::nullopt);
-  EXPECT_EQ(GetRssAnonAndSwap("VmSwap: 10000"), base::nullopt);
+  EXPECT_EQ(GetRssAnonAndSwap(""), std::nullopt);
+  EXPECT_EQ(GetRssAnonAndSwap("RssAnon: 10000 kB"), std::nullopt);
+  EXPECT_EQ(GetRssAnonAndSwap("VmSwap: 10000"), std::nullopt);
 }
 
 TEST(ProcUtilsTest, GetUids) {
@@ -141,7 +142,7 @@ TEST(ProcUtilsTest, GetUids) {
       "Name: foo\nRssAnon:  10000 kB\nVmSwap:\t10000 kB\n"
       "Uid: 1 2 3 4\n";
   auto uids = GetUids(status);
-  ASSERT_NE(uids, base::nullopt);
+  ASSERT_NE(uids, std::nullopt);
   EXPECT_EQ(uids->real, 1u);
   EXPECT_EQ(uids->effective, 2u);
   EXPECT_EQ(uids->saved_set, 3u);
@@ -153,7 +154,7 @@ TEST(ProcUtilsTest, GetUidsInvalidInt) {
       "Name: foo\nRssAnon:  10000 kB\nVmSwap:\t10000 kB\n"
       "Uid: 1a 2 3 4\n";
   auto uids = GetUids(status);
-  EXPECT_EQ(uids, base::nullopt);
+  EXPECT_EQ(uids, std::nullopt);
 }
 
 TEST(ProcUtilsTest, GetUidsInvalidTooFew) {
@@ -161,7 +162,7 @@ TEST(ProcUtilsTest, GetUidsInvalidTooFew) {
       "Name: foo\nRssAnon:  10000 kB\nVmSwap:\t10000 kB\n"
       "Uid: 1 2 3\n";
   auto uids = GetUids(status);
-  EXPECT_EQ(uids, base::nullopt);
+  EXPECT_EQ(uids, std::nullopt);
 }
 
 }  // namespace

@@ -15,7 +15,9 @@
  */
 
 #include "src/trace_processor/importers/common/args_translation_table.h"
-#include "perfetto/ext/base/optional.h"
+
+#include <optional>
+
 #include "src/trace_processor/importers/common/deobfuscation_mapping_table.h"
 #include "test/gtest_and_gmock.h"
 
@@ -26,8 +28,8 @@ namespace {
 TEST(ArgsTranslationTable, EmptyTableByDefault) {
   TraceStorage storage;
   ArgsTranslationTable table(&storage);
-  EXPECT_EQ(table.TranslateChromeHistogramHashForTesting(1), base::nullopt);
-  EXPECT_EQ(table.TranslateChromeUserEventHashForTesting(1), base::nullopt);
+  EXPECT_EQ(table.TranslateChromeHistogramHashForTesting(1), std::nullopt);
+  EXPECT_EQ(table.TranslateChromeUserEventHashForTesting(1), std::nullopt);
 }
 
 TEST(ArgsTranslationTable, TranslatesHistogramHashes) {
@@ -36,10 +38,10 @@ TEST(ArgsTranslationTable, TranslatesHistogramHashes) {
   table.AddChromeHistogramTranslationRule(1, "hash1");
   table.AddChromeHistogramTranslationRule(10, "hash2");
   EXPECT_EQ(table.TranslateChromeHistogramHashForTesting(1),
-            base::Optional<base::StringView>("hash1"));
+            std::optional<base::StringView>("hash1"));
   EXPECT_EQ(table.TranslateChromeHistogramHashForTesting(10),
-            base::Optional<base::StringView>("hash2"));
-  EXPECT_EQ(table.TranslateChromeHistogramHashForTesting(2), base::nullopt);
+            std::optional<base::StringView>("hash2"));
+  EXPECT_EQ(table.TranslateChromeHistogramHashForTesting(2), std::nullopt);
 }
 
 TEST(ArgsTranslationTable, TranslatesUserEventHashes) {
@@ -48,10 +50,10 @@ TEST(ArgsTranslationTable, TranslatesUserEventHashes) {
   table.AddChromeUserEventTranslationRule(1, "action1");
   table.AddChromeUserEventTranslationRule(10, "action2");
   EXPECT_EQ(table.TranslateChromeUserEventHashForTesting(1),
-            base::Optional<base::StringView>("action1"));
+            std::optional<base::StringView>("action1"));
   EXPECT_EQ(table.TranslateChromeUserEventHashForTesting(10),
-            base::Optional<base::StringView>("action2"));
-  EXPECT_EQ(table.TranslateChromeUserEventHashForTesting(2), base::nullopt);
+            std::optional<base::StringView>("action2"));
+  EXPECT_EQ(table.TranslateChromeUserEventHashForTesting(2), std::nullopt);
 }
 
 TEST(ArgsTranslationTable, TranslatesPerformanceMarkSiteHashes) {
@@ -60,11 +62,11 @@ TEST(ArgsTranslationTable, TranslatesPerformanceMarkSiteHashes) {
   table.AddChromePerformanceMarkSiteTranslationRule(1, "hash1");
   table.AddChromePerformanceMarkSiteTranslationRule(10, "hash2");
   EXPECT_EQ(table.TranslateChromePerformanceMarkSiteHashForTesting(1),
-            base::Optional<base::StringView>("hash1"));
+            std::optional<base::StringView>("hash1"));
   EXPECT_EQ(table.TranslateChromePerformanceMarkSiteHashForTesting(10),
-            base::Optional<base::StringView>("hash2"));
+            std::optional<base::StringView>("hash2"));
   EXPECT_EQ(table.TranslateChromePerformanceMarkSiteHashForTesting(2),
-            base::nullopt);
+            std::nullopt);
 }
 
 TEST(ArgsTranslationTable, TranslatesPerformanceMarkMarkHashes) {
@@ -73,11 +75,11 @@ TEST(ArgsTranslationTable, TranslatesPerformanceMarkMarkHashes) {
   table.AddChromePerformanceMarkMarkTranslationRule(1, "hash1");
   table.AddChromePerformanceMarkMarkTranslationRule(10, "hash2");
   EXPECT_EQ(table.TranslateChromePerformanceMarkMarkHashForTesting(1),
-            base::Optional<base::StringView>("hash1"));
+            std::optional<base::StringView>("hash1"));
   EXPECT_EQ(table.TranslateChromePerformanceMarkMarkHashForTesting(10),
-            base::Optional<base::StringView>("hash2"));
+            std::optional<base::StringView>("hash2"));
   EXPECT_EQ(table.TranslateChromePerformanceMarkMarkHashForTesting(2),
-            base::nullopt);
+            std::nullopt);
 }
 
 TEST(ArgsTranslationTable, TranslateClassName) {
@@ -93,8 +95,8 @@ TEST(ArgsTranslationTable, TranslateClassName) {
   table.AddDeobfuscationMappingTable(std::move(deobfuscation_mapping));
 
   EXPECT_EQ(table.TranslateClassNameForTesting(xyz_id),
-            base::Optional<StringId>(class_x_id));
-  EXPECT_EQ(table.TranslateClassNameForTesting(abc_id), base::nullopt);
+            std::optional<StringId>(class_x_id));
+  EXPECT_EQ(table.TranslateClassNameForTesting(abc_id), std::nullopt);
 }
 
 TEST(ArgsTranslationTable, NeedsTranslation) {

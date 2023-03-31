@@ -88,7 +88,7 @@ class FtraceController {
   }
 
   // public for testing
-  static base::Optional<std::string> AbsolutePathForInstance(
+  static std::optional<std::string> AbsolutePathForInstance(
       const std::string& tracefs_root,
       const std::string& raw_cfg_name);
 

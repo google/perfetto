@@ -98,13 +98,13 @@ SyscallTable SyscallTable::FromCurrentArch() {
   return SyscallTable(arch);
 }
 
-base::Optional<size_t> SyscallTable::GetByName(const std::string& name) const {
+std::optional<size_t> SyscallTable::GetByName(const std::string& name) const {
   for (size_t i = 0; i < syscall_count_; i++) {
     if (name == syscall_table_[i]) {
       return i;
     }
   }
-  return base::nullopt;
+  return std::nullopt;
 }
 
 const char* SyscallTable::GetById(size_t id) const {

@@ -21,12 +21,12 @@
 #include <signal.h>
 
 #include <algorithm>
+#include <optional>
 #include <utility>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/metatrace.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
@@ -267,7 +267,7 @@ size_t CpuReader::ReadAndProcessBatch(
       // prematurely.
       static constexpr size_t kRoughlyAPage = base::kPageSize - 512;
       const uint8_t* scratch_ptr = curr_page;
-      base::Optional<PageHeader> hdr =
+      std::optional<PageHeader> hdr =
           ParsePageHeader(&scratch_ptr, table_->page_header_size_len());
       PERFETTO_DCHECK(hdr && hdr->size > 0 && hdr->size <= base::kPageSize);
       if (!hdr.has_value()) {
@@ -426,7 +426,7 @@ size_t CpuReader::ProcessPagesForDataSource(
     const uint8_t* curr_page = parsing_buf + (pages_parsed * base::kPageSize);
     const uint8_t* curr_page_end = curr_page + base::kPageSize;
     const uint8_t* parse_pos = curr_page;
-    base::Optional<PageHeader> page_header =
+    std::optional<PageHeader> page_header =
         ParsePageHeader(&parse_pos, table->page_header_size_len());
 
     if (!page_header.has_value() || page_header->size == 0 ||
@@ -477,7 +477,7 @@ size_t CpuReader::ProcessPagesForDataSource(
 // flag (RB_MISSED_STORED).
 //
 // static
-base::Optional<CpuReader::PageHeader> CpuReader::ParsePageHeader(
+std::optional<CpuReader::PageHeader> CpuReader::ParsePageHeader(
     const uint8_t** ptr,
     uint16_t page_header_size_len) {
   // Mask for the data length portion of the |commit| field. Note that the
@@ -493,7 +493,7 @@ base::Optional<CpuReader::PageHeader> CpuReader::ParsePageHeader(
   PageHeader page_header;
   if (!CpuReader::ReadAndAdvance<uint64_t>(ptr, end_of_page,
                                            &page_header.timestamp))
-    return base::nullopt;
+    return std::nullopt;
 
   uint32_t size_and_flags;
 
@@ -501,7 +501,7 @@ base::Optional<CpuReader::PageHeader> CpuReader::ParsePageHeader(
   // number later.
   if (!CpuReader::ReadAndAdvance<uint32_t>(
           ptr, end_of_page, base::AssumeLittleEndian(&size_and_flags)))
-    return base::nullopt;
+    return std::nullopt;
 
   page_header.size = size_and_flags & kDataSizeMask;
   page_header.lost_events = bool(size_and_flags & kMissedEventsFlag);
@@ -513,7 +513,7 @@ base::Optional<CpuReader::PageHeader> CpuReader::ParsePageHeader(
   PERFETTO_DCHECK(page_header_size_len >= 4);
   *ptr += page_header_size_len - 4;
 
-  return base::make_optional(page_header);
+  return std::make_optional(page_header);
 }
 
 // A raw ftrace buffer page consists of a header followed by a sequence of
