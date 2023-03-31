@@ -71,6 +71,10 @@ SELECT
             'frame_dur_p90', frame_dur_p90,
             'frame_dur_p95', frame_dur_p95,
             'frame_dur_p99', frame_dur_p99,
+            'frame_dur_ms_p50', frame_dur_ms_p50,
+            'frame_dur_ms_p90', frame_dur_ms_p90,
+            'frame_dur_ms_p95', frame_dur_ms_p95,
+            'frame_dur_ms_p99', frame_dur_ms_p99,
             'dropped_frames', dropped_frames))
       FROM android_frame_timeline_metric_per_process))
 FROM android_frame_timeline_metric_per_process;
