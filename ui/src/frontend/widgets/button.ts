@@ -14,6 +14,7 @@
 
 import * as m from 'mithril';
 import {classNames} from '../classnames';
+import {Icon} from './icon';
 
 interface CommonAttrs {
   // Always show the button as if the "active" pseudo class were applied, which
@@ -32,6 +33,8 @@ interface CommonAttrs {
   // will be fired.
   // Defaults to false.
   disabled?: boolean;
+  // Optional right icon.
+  rightIcon?: string;
   // Remaining attributes forwarded to the underlying HTML <button>.
   [htmlAttrs: string]: any;
 }
@@ -59,6 +62,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       compact = false,
       minimal = false,
       disabled = false,
+      rightIcon,
       ...htmlAttrs
     } = attrs;
 
@@ -76,7 +80,8 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
           class: classes,
           ...htmlAttrs,
         },
-        icon && m('i.material-icons', icon),
+        icon && m(Icon, {className: 'pf-left-icon', icon}),
+        rightIcon && m(Icon, {className: 'pf-right-icon', icon: rightIcon}),
         label || '\u200B',  // Zero width space keeps button in-flow
     );
   }

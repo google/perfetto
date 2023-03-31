@@ -26,11 +26,19 @@
   white-space: nowrap;
   min-width: max-content;
 
+  & > .pf-left-icon {
+    float: left;
+    margin-right: 6px; // Make some room between the icon and label
+  }
+
+  & > .pf-right-icon {
+    float: right;
+    margin-left: 6px; // Make some room between the icon and label
+  }
+
   & > .material-icons {
     font-size: inherit;
     line-height: inherit;
-    float: left;
-    margin-right: 4px; // Make some room between the icon and label
   }
 
   &:hover {
