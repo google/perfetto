@@ -18,11 +18,11 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_HEAP_GRAPH_TRACKER_H_
 
 #include <map>
+#include <optional>
 #include <set>
 #include <utility>
 #include <vector>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
@@ -64,7 +64,7 @@ void FindPathFromRoot(TraceStorage* storage,
                       tables::HeapGraphObjectTable::RowReference,
                       PathFromRoot* path);
 
-base::Optional<base::StringView> GetStaticClassTypeName(base::StringView type);
+std::optional<base::StringView> GetStaticClassTypeName(base::StringView type);
 size_t NumberOfArrays(base::StringView type);
 NormalizedType GetNormalizedType(base::StringView type);
 base::StringView NormalizeTypeName(base::StringView type);
@@ -85,7 +85,7 @@ class HeapGraphTracker : public Destructible {
 
     // If this object is an instance of `libcore.util.NativeAllocationRegistry`,
     // this is the value of its `size` field.
-    base::Optional<int64_t> native_allocation_registry_size;
+    std::optional<int64_t> native_allocation_registry_size;
   };
 
   struct SourceRoot {
@@ -108,7 +108,7 @@ class HeapGraphTracker : public Destructible {
   void AddInternedType(uint32_t seq_id,
                        uint64_t intern_id,
                        StringId strid,
-                       base::Optional<uint64_t> location_id,
+                       std::optional<uint64_t> location_id,
                        uint64_t object_size,
                        std::vector<uint64_t> field_name_ids,
                        uint64_t superclass_id,
@@ -128,7 +128,7 @@ class HeapGraphTracker : public Destructible {
   ~HeapGraphTracker() override;
 
   const std::vector<tables::HeapGraphClassTable::RowNumber>* RowsForType(
-      base::Optional<StringId> package_name,
+      std::optional<StringId> package_name,
       StringId type_name) const {
     auto it = class_to_rows_.find(std::make_pair(package_name, type_name));
     if (it == class_to_rows_.end())
@@ -156,7 +156,7 @@ class HeapGraphTracker : public Destructible {
   };
   struct InternedType {
     StringId name;
-    base::Optional<uint64_t> location_id;
+    std::optional<uint64_t> location_id;
     uint64_t object_size;
     std::vector<uint64_t> field_name_ids;
     uint64_t superclass_id;
@@ -192,7 +192,7 @@ class HeapGraphTracker : public Destructible {
     std::map<tables::HeapGraphClassTable::Id,
              std::vector<tables::HeapGraphObjectTable::RowNumber>>
         deferred_reference_objects_for_type_;
-    base::Optional<uint64_t> prev_index;
+    std::optional<uint64_t> prev_index;
     // For most objects, we need not store the size in the object's message
     // itself, because all instances of the type have the same type. In this
     // case, we defer setting self_size in the table until we process the class
@@ -220,7 +220,7 @@ class HeapGraphTracker : public Destructible {
   bool IsTruncated(UniquePid upid, int64_t ts);
 
   // Returns the object pointed to by `field` in `obj`.
-  base::Optional<tables::HeapGraphObjectTable::Id> GetReferenceByFieldName(
+  std::optional<tables::HeapGraphObjectTable::Id> GetReferenceByFieldName(
       tables::HeapGraphObjectTable::Id obj,
       StringId field);
 
@@ -234,14 +234,14 @@ class HeapGraphTracker : public Destructible {
   TraceStorage* const storage_;
   std::map<uint32_t, SequenceState> sequence_state_;
 
-  std::map<std::pair<base::Optional<StringId>, StringId>,
+  std::map<std::pair<std::optional<StringId>, StringId>,
            std::vector<tables::HeapGraphClassTable::RowNumber>>
       class_to_rows_;
   base::FlatHashMap<StringId,
                     std::vector<tables::HeapGraphReferenceTable::RowNumber>>
       field_to_rows_;
 
-  std::map<std::pair<base::Optional<StringId>, StringId>, StringId>
+  std::map<std::pair<std::optional<StringId>, StringId>, StringId>
       deobfuscation_mapping_;
   std::map<std::pair<UniquePid, int64_t>,
            std::set<tables::HeapGraphObjectTable::RowNumber>>

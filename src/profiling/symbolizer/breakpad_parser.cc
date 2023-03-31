@@ -32,18 +32,18 @@ bool SymbolComparator(const uint64_t i, const BreakpadParser::Symbol& sym) {
   return i < sym.start_address;
 }
 
-base::Optional<std::string> GetFileContents(const std::string& file_path) {
+std::optional<std::string> GetFileContents(const std::string& file_path) {
   std::string file_contents;
   base::ScopedFile fd = base::OpenFile(file_path, O_RDONLY);
   // Read the contents of the file into |file_contents|.
   if (!fd) {
-    return base::nullopt;
+    return std::nullopt;
   }
   if (!base::ReadFileDescriptor(fd.get(), &file_contents)) {
-    return base::nullopt;
+    return std::nullopt;
   }
 
-  return base::make_optional(std::move(file_contents));
+  return std::make_optional(std::move(file_contents));
 }
 
 // Parses the given string and determines if it begins with the label
@@ -65,7 +65,7 @@ BreakpadParser::BreakpadParser(const std::string& file_path)
     : file_path_(file_path) {}
 
 bool BreakpadParser::ParseFile() {
-  base::Optional<std::string> file_contents = GetFileContents(file_path_);
+  std::optional<std::string> file_contents = GetFileContents(file_path_);
   if (!file_contents) {
     PERFETTO_ELOG("Could not get file contents of %s.", file_path_.c_str());
     return false;
@@ -111,7 +111,7 @@ bool BreakpadParser::ParseFromString(const std::string& file_contents) {
   return true;
 }
 
-base::Optional<std::string> BreakpadParser::GetSymbol(uint64_t address) const {
+std::optional<std::string> BreakpadParser::GetSymbol(uint64_t address) const {
   // Returns an iterator pointing to the first element where the symbol's start
   // address is greater than |address|.
   auto it = std::upper_bound(symbols_.begin(), symbols_.end(), address,
@@ -119,7 +119,7 @@ base::Optional<std::string> BreakpadParser::GetSymbol(uint64_t address) const {
   // If the first symbol's address is greater than |address| then |address| is
   // too low to appear in |symbols_|.
   if (it == symbols_.begin()) {
-    return base::nullopt;
+    return std::nullopt;
   }
   // upper_bound() returns the first symbol who's start address is greater than
   // |address|. Therefore to find the symbol with a range of addresses that
@@ -130,7 +130,7 @@ base::Optional<std::string> BreakpadParser::GetSymbol(uint64_t address) const {
       address < it->start_address + it->function_size) {
     return it->symbol_name;
   }
-  return base::nullopt;
+  return std::nullopt;
 }
 
 base::Status BreakpadParser::ParseIfFuncRecord(base::StringView current_line) {
@@ -170,7 +170,7 @@ base::Status BreakpadParser::ParseIfFuncRecord(base::StringView current_line) {
   }
 
   // Get the start address.
-  base::Optional<uint64_t> optional_address =
+  std::optional<uint64_t> optional_address =
       base::CStringToUInt64(words.cur_token(), 16);
   if (!optional_address) {
     return base::Status("Address should be hexadecimal.");
@@ -179,7 +179,7 @@ base::Status BreakpadParser::ParseIfFuncRecord(base::StringView current_line) {
 
   // Get the function size.
   words.Next();
-  base::Optional<size_t> optional_func_size =
+  std::optional<size_t> optional_func_size =
       base::CStringToUInt32(words.cur_token(), 16);
   if (!optional_func_size) {
     return base::Status("Function size should be hexadecimal.");

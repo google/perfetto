@@ -15,7 +15,6 @@
  */
 
 #include "src/trace_processor/db/table.h"
-#include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/db/typed_column.h"
 #include "src/trace_processor/tables/macros.h"
 

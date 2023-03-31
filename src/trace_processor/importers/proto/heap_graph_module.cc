@@ -239,7 +239,7 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
 
     StringId kind = context_->storage->InternString(
         HeapGraphTypeKindToString(entry.kind()));
-    base::Optional<uint64_t> location_id;
+    std::optional<uint64_t> location_id;
     if (entry.has_location_id())
       location_id = entry.location_id();
 
@@ -289,7 +289,7 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
 }
 
 void HeapGraphModule::DeobfuscateClass(
-    base::Optional<StringId> package_name_id,
+    std::optional<StringId> package_name_id,
     StringId obfuscated_class_name_id,
     const protos::pbzero::ObfuscatedClass::Decoder& cls) {
   auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
@@ -320,7 +320,7 @@ void HeapGraphModule::ParseDeobfuscationMapping(protozero::ConstBytes blob) {
   auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
   protos::pbzero::DeobfuscationMapping::Decoder deobfuscation_mapping(
       blob.data, blob.size);
-  base::Optional<StringId> package_name_id;
+  std::optional<StringId> package_name_id;
   if (deobfuscation_mapping.package_name().size > 0) {
     package_name_id = context_->storage->string_pool().GetId(
         deobfuscation_mapping.package_name());
@@ -340,7 +340,7 @@ void HeapGraphModule::ParseDeobfuscationMapping(protozero::ConstBytes blob) {
       // TODO(b/153552977): Remove this work-around for legacy traces.
       // For traces without location information, deobfuscate all matching
       // classes.
-      DeobfuscateClass(base::nullopt, *obfuscated_class_name_id, cls);
+      DeobfuscateClass(std::nullopt, *obfuscated_class_name_id, cls);
       if (package_name_id) {
         DeobfuscateClass(package_name_id, *obfuscated_class_name_id, cls);
       }

@@ -16,7 +16,8 @@
 
 #include "src/trace_processor/prelude/table_functions/experimental_annotated_stack.h"
 
-#include "perfetto/ext/base/optional.h"
+#include <optional>
+
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -173,7 +174,7 @@ base::Status ExperimentalAnnotatedStack::ComputeTable(
   // entries, each pointing at a frame.
   std::vector<CallsiteTable::RowNumber> cs_rows;
   cs_rows.push_back(opt_start_ref->ToRowNumber());
-  base::Optional<CallsiteId> maybe_parent_id = opt_start_ref->parent_id();
+  std::optional<CallsiteId> maybe_parent_id = opt_start_ref->parent_id();
   while (maybe_parent_id) {
     auto parent_ref = *cs_table.FindById(*maybe_parent_id);
     cs_rows.push_back(parent_ref.ToRowNumber());

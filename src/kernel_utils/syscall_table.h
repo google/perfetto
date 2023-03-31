@@ -18,9 +18,9 @@
 #define SRC_KERNEL_UTILS_SYSCALL_TABLE_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 
 namespace perfetto {
@@ -52,8 +52,8 @@ class SyscallTable {
   static SyscallTable FromCurrentArch();
 
   // Returns the syscall id for the syscall with the given name. If the syscall
-  // is not found, returns nullopt.
-  base::Optional<size_t> GetByName(const std::string& name) const;
+  // is not found, returns std::nullopt.
+  std::optional<size_t> GetByName(const std::string& name) const;
 
   // Returns the syscall name for the syscall with the given id. If the syscall
   // is not found, returns nullptr.

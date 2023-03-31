@@ -327,7 +327,7 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
       return;
     }
 
-    base::Optional<double> value;
+    std::optional<double> value;
     if (event.has_counter_value()) {
       value = track_event_tracker_->ConvertToAbsoluteCounterValue(
           track_uuid, packet.trusted_packet_sequence_id(),
@@ -408,7 +408,7 @@ base::Status TrackEventTokenizer::AddExtraCounterValues(
           "Ignoring TrackEvent with more extra_{double_,}counter_values than "
           "TrackEventData::kMaxNumExtraCounters");
     }
-    base::Optional<double> abs_value =
+    std::optional<double> abs_value =
         track_event_tracker_->ConvertToAbsoluteCounterValue(
             *track_uuid_it, trusted_packet_sequence_id,
             static_cast<double>(*value_it));

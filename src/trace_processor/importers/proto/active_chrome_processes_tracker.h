@@ -17,9 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ACTIVE_CHROME_PROCESSES_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ACTIVE_CHROME_PROCESSES_TRACKER_H_
 
+#include <optional>
 #include <set>
 #include <vector>
-#include "perfetto/ext/base/optional.h"
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -30,9 +30,9 @@ namespace trace_processor {
 
 struct ProcessWithDataLoss {
   UniquePid upid;
-  // If not nullopt, the process data is reliable from this point until
+  // If not std::nullopt, the process data is reliable from this point until
   // the end of the trace.
-  base::Optional<int64_t> reliable_from;
+  std::optional<int64_t> reliable_from;
 };
 
 // Tracks ActiveProcesses metadata packets from ChromeTrackEvent,

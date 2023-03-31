@@ -20,8 +20,8 @@
 #include <stdint.h>
 
 #include <algorithm>
+#include <optional>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 
@@ -112,7 +112,7 @@ inline int String(base::StringView a, base::StringView b) {
 // This method was defined from observing the behaviour of SQLite when sorting
 // on columns containing nulls.
 template <typename T>
-inline int NullableNumeric(base::Optional<T> a, base::Optional<T> b) {
+inline int NullableNumeric(std::optional<T> a, std::optional<T> b) {
   if (!a)
     return b ? -1 : 0;
 

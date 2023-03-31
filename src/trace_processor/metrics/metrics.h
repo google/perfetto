@@ -46,12 +46,12 @@ struct SqlMetricFile {
   // Optional because not all protos need to have a field associated with them
   // in the root proto; most files will be just be run using RUN_METRIC by
   // other files.
-  base::Optional<std::string> proto_field_name;
+  std::optional<std::string> proto_field_name;
 
   // The table name which will be created by the SQL below to read the proto
   // bytes from.
   // Should only be set when |proto_field_name| is set.
-  base::Optional<std::string> output_table_name;
+  std::optional<std::string> output_table_name;
 
   // The SQL run by this metric.
   std::string sql;

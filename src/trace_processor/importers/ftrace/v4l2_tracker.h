@@ -19,9 +19,9 @@
 
 #include <stdint.h>
 #include <cstdint>
+#include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/optional.h"
 
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -58,9 +58,9 @@ class V4l2Tracker : public Destructible {
   struct BufferEvent {
    public:
     int32_t device_minor;
-    base::Optional<uint32_t> index;
-    base::Optional<uint32_t> type;
-    base::Optional<uint32_t> bytesused;
+    std::optional<uint32_t> index;
+    std::optional<uint32_t> type;
+    std::optional<uint32_t> bytesused;
     uint32_t flags;
     uint32_t field;
     int64_t timestamp;
@@ -155,13 +155,13 @@ class V4l2Tracker : public Destructible {
   };
 
   struct QueuedBuffer {
-    base::Optional<SliceId> queue_slice_id;
+    std::optional<SliceId> queue_slice_id;
   };
 
-  base::Optional<SliceId> AddSlice(StringId buf_name_id,
-                                   int64_t timestamp,
-                                   uint32_t pid,
-                                   const BufferEvent& evt);
+  std::optional<SliceId> AddSlice(StringId buf_name_id,
+                                  int64_t timestamp,
+                                  uint32_t pid,
+                                  const BufferEvent& evt);
 
   void AddArgs(const BufferEvent& evt, ArgsTracker::BoundInserter* inserter);
 

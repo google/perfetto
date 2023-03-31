@@ -155,7 +155,7 @@ bool IsUserBuild() {
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 }
 
-base::Optional<PerfettoStatsdAtom> ConvertRateLimiterResponseToAtom(
+std::optional<PerfettoStatsdAtom> ConvertRateLimiterResponseToAtom(
     RateLimiter::ShouldTraceResponse resp) {
   switch (resp) {
     case RateLimiter::kNotAllowedOnUserBuild:
@@ -167,7 +167,7 @@ base::Optional<PerfettoStatsdAtom> ConvertRateLimiterResponseToAtom(
     case RateLimiter::kHitUploadLimit:
       return PerfettoStatsdAtom::kCmdHitUploadLimit;
     case RateLimiter::kOkToTrace:
-      return base::nullopt;
+      return std::nullopt;
   }
   PERFETTO_FATAL("For GCC");
 }
@@ -270,8 +270,8 @@ Detach mode. DISCOURAGED, read https://perfetto.dev/docs/concepts/detached-mode
           argv0);
 }
 
-base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
-                                                               char** argv) {
+std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
+                                                              char** argv) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   umask(0000);  // make sure that file creation is not affected by umask.
 #endif
@@ -831,8 +831,8 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     background_wait_pipe_.rd.reset();
   }
 
-  return base::nullopt;  // Continues in ConnectToServiceRunAndMaybeNotify()
-                         // below.
+  return std::nullopt;  // Continues in ConnectToServiceRunAndMaybeNotify()
+                        // below.
 }
 
 void PerfettoCmd::NotifyBgProcessPipe(BgProcessStatus status) {

@@ -111,7 +111,7 @@ function parseTableDef(tableDefName, tableDef) {
     if (m = line.match(/^\s*C\(([^,]+)\s*,\s*(\w+)/)) {
       const col = getOrCreateColumn(/*name=*/ m[2]);
       col.type = m[1];
-      if (m = col.type.match(/Optional<(.*)>/)) {
+      if (m = col.type.match(/std::optional<(.*)>/)) {
         col.type = m[1];
         col.optional = true;
       }
@@ -168,7 +168,7 @@ function parseTablesInCppFile(filePath) {
     // C(StringPool::Id, name)                                    \
     // C(StackProfileMappingTable::Id, mapping)                   \
     // C(int64_t, rel_pc)                                         \
-    // C(base::Optional<uint32_t>, symbol_set_id)
+    // C(std::optional<uint32_t>, symbol_set_id)
     //
     // Where PERFETTO_TP_STACK_PROFILE_FRAME_DEF is |tableDefName|.
     let pattern = `(^[ ]*//.*\n)*`;

@@ -16,8 +16,9 @@
 
 #include "perfetto/ext/base/threading/spawn.h"
 
+#include <optional>
+
 #include "perfetto/ext/base/event_fd.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/base/threading/future.h"
 #include "perfetto/ext/base/threading/poll.h"
@@ -65,10 +66,10 @@ TEST(SpawnUnittest, SpawnFuture) {
       });
 
   task_runner.RunUntilIdle();
-  ASSERT_EQ(res.channel()->ReadNonBlocking().item, base::nullopt);
+  ASSERT_EQ(res.channel()->ReadNonBlocking().item, std::nullopt);
 
   task_runner.RunUntilIdle();
-  ASSERT_EQ(res.channel()->ReadNonBlocking().item, base::nullopt);
+  ASSERT_EQ(res.channel()->ReadNonBlocking().item, std::nullopt);
 
   fd.Notify();
   task_runner.RunUntilIdle();
@@ -108,7 +109,7 @@ TEST(SpawnUnittest, SpawnStream) {
       });
 
   task_runner.RunUntilIdle();
-  ASSERT_EQ(res.channel()->ReadNonBlocking().item, base::nullopt);
+  ASSERT_EQ(res.channel()->ReadNonBlocking().item, std::nullopt);
 
   fd.Notify();
   task_runner.RunUntilIdle();
@@ -118,7 +119,7 @@ TEST(SpawnUnittest, SpawnStream) {
   ASSERT_FALSE(read.is_closed);
 
   task_runner.RunUntilIdle();
-  ASSERT_EQ(res.channel()->ReadNonBlocking().item, base::nullopt);
+  ASSERT_EQ(res.channel()->ReadNonBlocking().item, std::nullopt);
 
   fd.Notify();
   task_runner.RunUntilIdle();

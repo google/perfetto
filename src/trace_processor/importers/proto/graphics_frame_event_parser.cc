@@ -154,7 +154,7 @@ bool GraphicsFrameEventParser::CreateBufferEvent(
       row.acquire_to_latch_time = latch_ts - acquire_ts;
       row.latch_to_present_time = timestamp - latch_ts;
     }
-    base::Optional<SliceId> opt_slice_id =
+    std::optional<SliceId> opt_slice_id =
         context_->slice_tracker->ScopedTyped(graphics_frame_slice_table, row);
     if (event.type() == GraphicsFrameEvent::DEQUEUE) {
       if (opt_slice_id) {

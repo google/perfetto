@@ -23,13 +23,13 @@
 #include <condition_variable>
 #include <iterator>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/getopt.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/heap_profile.h"
 
@@ -87,21 +87,21 @@ int main(int argc, char** argv) {
     PERFETTO_FATAL("%s NUMBER_THREADS RUNTIME_MS PENDING_ALLOCS", argv[0]);
   }
 
-  perfetto::base::Optional<uint64_t> opt_no_threads =
+  std::optional<uint64_t> opt_no_threads =
       perfetto::base::CStringToUInt64(argv[1]);
   if (!opt_no_threads) {
     PERFETTO_FATAL("Invalid number of threads: %s", argv[1]);
   }
   uint64_t no_threads = *opt_no_threads;
 
-  perfetto::base::Optional<uint64_t> opt_runtime_ms =
+  std::optional<uint64_t> opt_runtime_ms =
       perfetto::base::CStringToUInt64(argv[2]);
   if (!opt_runtime_ms) {
     PERFETTO_FATAL("Invalid runtime: %s", argv[2]);
   }
   uint64_t runtime_ms = *opt_runtime_ms;
 
-  perfetto::base::Optional<uint64_t> opt_pending_allocs =
+  std::optional<uint64_t> opt_pending_allocs =
       perfetto::base::CStringToUInt64(argv[3]);
   if (!opt_runtime_ms) {
     PERFETTO_FATAL("Invalid number of pending allocs: %s", argv[3]);

@@ -38,7 +38,7 @@ class SystraceSerializer {
 
  private:
   using StringIdMap =
-      base::FlatHashMap<StringId, std::vector<base::Optional<uint32_t>>>;
+      base::FlatHashMap<StringId, std::vector<std::optional<uint32_t>>>;
 
   void SerializePrefix(uint32_t raw_row, base::StringWriter* writer);
 

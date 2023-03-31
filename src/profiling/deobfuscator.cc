@@ -16,12 +16,12 @@
 
 #include "src/profiling/deobfuscator.h"
 
+#include <optional>
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -36,39 +36,39 @@ struct ProguardClass {
   std::string deobfuscated_name;
 };
 
-base::Optional<ProguardClass> ParseClass(std::string line) {
+std::optional<ProguardClass> ParseClass(std::string line) {
   base::StringSplitter ss(std::move(line), ' ');
 
   if (!ss.Next()) {
     PERFETTO_ELOG("Missing deobfuscated name.");
-    return base::nullopt;
+    return std::nullopt;
   }
   std::string deobfuscated_name(ss.cur_token(), ss.cur_token_size());
 
   if (!ss.Next() || ss.cur_token_size() != 2 ||
       strncmp("->", ss.cur_token(), 2) != 0) {
     PERFETTO_ELOG("Missing ->");
-    return base::nullopt;
+    return std::nullopt;
   }
 
   if (!ss.Next()) {
     PERFETTO_ELOG("Missing obfuscated name.");
-    return base::nullopt;
+    return std::nullopt;
   }
   std::string obfuscated_name(ss.cur_token(), ss.cur_token_size());
   if (obfuscated_name.empty()) {
     PERFETTO_ELOG("Empty obfuscated name.");
-    return base::nullopt;
+    return std::nullopt;
   }
   if (obfuscated_name.back() != ':') {
     PERFETTO_ELOG("Expected colon.");
-    return base::nullopt;
+    return std::nullopt;
   }
 
   obfuscated_name.resize(obfuscated_name.size() - 1);
   if (ss.Next()) {
     PERFETTO_ELOG("Unexpected data.");
-    return base::nullopt;
+    return std::nullopt;
   }
   return ProguardClass{std::move(obfuscated_name),
                        std::move(deobfuscated_name)};
@@ -85,36 +85,36 @@ struct ProguardMember {
   std::string deobfuscated_name;
 };
 
-base::Optional<ProguardMember> ParseMember(std::string line) {
+std::optional<ProguardMember> ParseMember(std::string line) {
   base::StringSplitter ss(std::move(line), ' ');
 
   if (!ss.Next()) {
     PERFETTO_ELOG("Missing type name.");
-    return base::nullopt;
+    return std::nullopt;
   }
   std::string type_name(ss.cur_token(), ss.cur_token_size());
 
   if (!ss.Next()) {
     PERFETTO_ELOG("Missing deobfuscated name.");
-    return base::nullopt;
+    return std::nullopt;
   }
   std::string deobfuscated_name(ss.cur_token(), ss.cur_token_size());
 
   if (!ss.Next() || ss.cur_token_size() != 2 ||
       strncmp("->", ss.cur_token(), 2) != 0) {
     PERFETTO_ELOG("Missing ->");
-    return base::nullopt;
+    return std::nullopt;
   }
 
   if (!ss.Next()) {
     PERFETTO_ELOG("Missing obfuscated name.");
-    return base::nullopt;
+    return std::nullopt;
   }
   std::string obfuscated_name(ss.cur_token(), ss.cur_token_size());
 
   if (ss.Next()) {
     PERFETTO_ELOG("Unexpected data.");
-    return base::nullopt;
+    return std::nullopt;
   }
 
   ProguardMemberType member_type;

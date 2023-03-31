@@ -381,7 +381,7 @@ int CreatedViewFunction::Cursor::Next() {
     table_->SetErrorMessage(sqlite3_mprintf(
         "%s: SQLite error while stepping statement: %s",
         table_->prototype_.function_name.c_str(),
-        sqlite_utils::FormatErrorMessage(stmt_, base::nullopt, table_->db_, ret)
+        sqlite_utils::FormatErrorMessage(stmt_, std::nullopt, table_->db_, ret)
             .c_message()));
     return ret;
   }
