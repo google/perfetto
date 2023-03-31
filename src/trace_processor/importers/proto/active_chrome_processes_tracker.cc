@@ -31,8 +31,8 @@ ActiveChromeProcessesTracker::GetProcessesWithDataLoss() const {
   for (auto it = process_data_.GetIterator(); it; ++it) {
     UniquePid upid = it.key();
     const auto& process_data = it.value();
-    base::Optional<int64_t> last_loss_moment;
-    base::Optional<int64_t> next_no_loss_moment;
+    std::optional<int64_t> last_loss_moment;
+    std::optional<int64_t> next_no_loss_moment;
     for (int64_t metadata_ts : process_data.metadata_timestamps) {
       // Looks for a matching process descriptor in the [t - 0.2s, t + 0.2s]
       // window. The window size is somewhat arbitrary, and can be changed in
@@ -60,7 +60,7 @@ ActiveChromeProcessesTracker::GetProcessesWithDataLoss() const {
           // trace.
           next_no_loss_moment = *global_metadata_it;
         } else {
-          next_no_loss_moment = base::nullopt;
+          next_no_loss_moment = std::nullopt;
         }
       }
     }

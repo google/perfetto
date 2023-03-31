@@ -174,7 +174,7 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
   const auto& class_table = context.storage->heap_graph_class_table();
   size_t count_bitmaps = 0;
   for (uint32_t obj_row = 0; obj_row < objs_table.row_count(); ++obj_row) {
-    base::Optional<uint32_t> class_row =
+    std::optional<uint32_t> class_row =
         class_table.id().IndexOf(objs_table.type_id()[obj_row]);
     ASSERT_TRUE(class_row.has_value());
     if (context.storage->string_pool().Get(class_table.name()[*class_row]) ==

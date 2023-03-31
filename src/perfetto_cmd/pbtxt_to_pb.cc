@@ -14,19 +14,18 @@
  * limitations under the License.
  */
 
-#include <ctype.h>
+#include "src/perfetto_cmd/pbtxt_to_pb.h"
 
+#include <ctype.h>
 #include <limits>
 #include <map>
+#include <optional>
 #include <set>
 #include <stack>
 #include <string>
 
-#include "src/perfetto_cmd/pbtxt_to_pb.h"
-
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
@@ -442,7 +441,7 @@ class ParserDelegate {
   template <typename T>
   void FixedFloatField(const FieldDescriptorProto* field, Token t) {
     uint32_t field_id = static_cast<uint32_t>(field->number());
-    base::Optional<double> opt_n = base::StringToDouble(t.ToStdString());
+    std::optional<double> opt_n = base::StringToDouble(t.ToStdString());
     msg()->AppendFixed<T>(field_id, static_cast<T>(opt_n.value_or(0l)));
   }
 

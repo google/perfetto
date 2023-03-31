@@ -17,8 +17,8 @@
 #include "src/traced/probes/ftrace/compact_sched.h"
 
 #include <stdint.h>
+#include <optional>
 
-#include "perfetto/ext/base/optional.h"
 #include "protos/perfetto/config/ftrace/ftrace_config.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
@@ -32,7 +32,7 @@ namespace {
 // Pre-parse the format of sched_switch, checking if our simplifying
 // assumptions about possible widths/signedness hold, and record the subset
 // of the format that will be used during parsing.
-base::Optional<CompactSchedSwitchFormat> ValidateSchedSwitchFormat(
+std::optional<CompactSchedSwitchFormat> ValidateSchedSwitchFormat(
     const Event& event) {
   using protos::pbzero::SchedSwitchFtraceEvent;
 
@@ -85,15 +85,15 @@ base::Optional<CompactSchedSwitchFormat> ValidateSchedSwitchFormat(
 
   if (!prev_state_valid || !next_pid_valid || !next_prio_valid ||
       !next_comm_valid) {
-    return base::nullopt;
+    return std::nullopt;
   }
-  return base::make_optional(switch_format);
+  return std::make_optional(switch_format);
 }
 
 // Pre-parse the format of sched_waking, checking if our simplifying
 // assumptions about possible widths/signedness hold, and record the subset
 // of the format that will be used during parsing.
-base::Optional<CompactSchedWakingFormat> ValidateSchedWakingFormat(
+std::optional<CompactSchedWakingFormat> ValidateSchedWakingFormat(
     const Event& event) {
   using protos::pbzero::SchedWakingFtraceEvent;
 
@@ -143,9 +143,9 @@ base::Optional<CompactSchedWakingFormat> ValidateSchedWakingFormat(
   }
 
   if (!pid_valid || !target_cpu_valid || !prio_valid || !comm_valid) {
-    return base::nullopt;
+    return std::nullopt;
   }
-  return base::make_optional(waking_format);
+  return std::make_optional(waking_format);
 }
 
 }  // namespace
@@ -157,8 +157,8 @@ CompactSchedEventFormat ValidateFormatForCompactSched(
     const std::vector<Event>& events) {
   using protos::pbzero::FtraceEvent;
 
-  base::Optional<CompactSchedSwitchFormat> switch_format;
-  base::Optional<CompactSchedWakingFormat> waking_format;
+  std::optional<CompactSchedSwitchFormat> switch_format;
+  std::optional<CompactSchedWakingFormat> waking_format;
   for (const Event& event : events) {
     if (event.proto_field_id == FtraceEvent::kSchedSwitchFieldNumber) {
       switch_format = ValidateSchedSwitchFormat(event);

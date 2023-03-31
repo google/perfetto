@@ -22,7 +22,7 @@ namespace tables {
 #define PERFETTO_TP_SCHED_UPID_TABLE_DEF(NAME, PARENT, C)     \
   NAME(ExperimentalSchedUpidTable, "experimental_sched_upid") \
   PARENT(PERFETTO_TP_SCHED_SLICE_TABLE_DEF, C)                \
-  C(base::Optional<UniquePid>, upid)
+  C(std::optional<UniquePid>, upid)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_SCHED_UPID_TABLE_DEF);
 
@@ -65,9 +65,9 @@ base::Status ExperimentalSchedUpid::ComputeTable(
   return base::OkStatus();
 }
 
-ColumnStorage<base::Optional<UniquePid>>
+ColumnStorage<std::optional<UniquePid>>
 ExperimentalSchedUpid::ComputeUpidColumn() {
-  ColumnStorage<base::Optional<UniquePid>> upid;
+  ColumnStorage<std::optional<UniquePid>> upid;
   for (uint32_t i = 0; i < sched_slice_table_->row_count(); ++i) {
     upid.Append(thread_table_->upid()[sched_slice_table_->utid()[i]]);
   }

@@ -96,13 +96,13 @@ bool ClearFile(const char* path) {
   return !!fd;
 }
 
-base::Optional<int64_t> ReadFtraceNowTs(const base::ScopedFile& cpu_stats_fd) {
+std::optional<int64_t> ReadFtraceNowTs(const base::ScopedFile& cpu_stats_fd) {
   PERFETTO_CHECK(cpu_stats_fd);
 
   char buf[512];
   ssize_t res = PERFETTO_EINTR(pread(*cpu_stats_fd, buf, sizeof(buf) - 1, 0));
   if (res <= 0)
-    return base::nullopt;
+    return std::nullopt;
   buf[res] = '\0';
 
   FtraceCpuStats stats{};
@@ -635,7 +635,7 @@ void FtraceController::DestroyIfUnusedSeconaryInstance(
 // TODO(rsavitski): dedupe with FtraceController::Create.
 std::unique_ptr<FtraceController::FtraceInstanceState>
 FtraceController::CreateSecondaryInstance(const std::string& instance_name) {
-  base::Optional<std::string> instance_path = AbsolutePathForInstance(
+  std::optional<std::string> instance_path = AbsolutePathForInstance(
       primary_.ftrace_procfs->GetRootPath(), instance_name);
   if (!instance_path.has_value()) {
     PERFETTO_ELOG("Invalid ftrace instance name: \"%s\"",
@@ -675,12 +675,12 @@ FtraceController::CreateSecondaryInstance(const std::string& instance_name) {
 // to be careful to distinguish the tracefs mount point from the default
 // instance path.
 // static
-base::Optional<std::string> FtraceController::AbsolutePathForInstance(
+std::optional<std::string> FtraceController::AbsolutePathForInstance(
     const std::string& tracefs_root,
     const std::string& raw_cfg_name) {
   if (base::Contains(raw_cfg_name, '/') ||
       base::StartsWith(raw_cfg_name, "..")) {
-    return base::nullopt;
+    return std::nullopt;
   }
 
   // ARM64 pKVM hypervisor tracing emulates an instance, but is not under
@@ -690,7 +690,7 @@ base::Optional<std::string> FtraceController::AbsolutePathForInstance(
     PERFETTO_LOG(
         "Config specified reserved \"hyp\" instance name, using %s for events.",
         hyp_path.c_str());
-    return base::make_optional(hyp_path);
+    return std::make_optional(hyp_path);
   }
 
   return tracefs_root + "instances/" + raw_cfg_name + "/";

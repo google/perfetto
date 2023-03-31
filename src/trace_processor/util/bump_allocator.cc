@@ -15,11 +15,12 @@
  */
 
 #include "src/trace_processor/util/bump_allocator.h"
+
 #include <limits>
+#include <optional>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
@@ -55,7 +56,7 @@ BumpAllocator::AllocId BumpAllocator::Alloc(uint32_t size) {
 
   // Fast path: check if we have space to service this allocation in the current
   // chunk.
-  base::Optional<AllocId> alloc_id = TryAllocInLastChunk(size);
+  std::optional<AllocId> alloc_id = TryAllocInLastChunk(size);
   if (alloc_id) {
     return *alloc_id;
   }
@@ -113,10 +114,10 @@ BumpAllocator::AllocId BumpAllocator::PastTheEndId() {
   return AllocId{LastChunkIndex(), chunks_.back().bump_offset};
 }
 
-base::Optional<BumpAllocator::AllocId> BumpAllocator::TryAllocInLastChunk(
+std::optional<BumpAllocator::AllocId> BumpAllocator::TryAllocInLastChunk(
     uint32_t size) {
   if (chunks_.empty()) {
-    return base::nullopt;
+    return std::nullopt;
   }
 
   // TODO(266983484): consider switching this to bump downwards instead of
@@ -134,7 +135,7 @@ base::Optional<BumpAllocator::AllocId> BumpAllocator::TryAllocInLastChunk(
   uint32_t alloc_offset = chunk.bump_offset;
   uint32_t new_bump_offset = chunk.bump_offset + size;
   if (new_bump_offset > kChunkSize) {
-    return base::nullopt;
+    return std::nullopt;
   }
 
   // Set the new offset equal to the end of this allocation and increment the

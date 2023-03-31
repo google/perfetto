@@ -17,9 +17,9 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 
 #include <math.h>
+#include <optional>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -36,7 +36,7 @@ EventTracker::EventTracker(TraceProcessorContext* context)
 
 EventTracker::~EventTracker() = default;
 
-base::Optional<CounterId> EventTracker::PushProcessCounterForThread(
+std::optional<CounterId> EventTracker::PushProcessCounterForThread(
     int64_t timestamp,
     double value,
     StringId name_id,
@@ -52,15 +52,15 @@ base::Optional<CounterId> EventTracker::PushProcessCounterForThread(
   return opt_id;
 }
 
-base::Optional<CounterId> EventTracker::PushCounter(int64_t timestamp,
-                                                    double value,
-                                                    TrackId track_id) {
+std::optional<CounterId> EventTracker::PushCounter(int64_t timestamp,
+                                                   double value,
+                                                   TrackId track_id) {
   if (timestamp < max_timestamp_) {
     PERFETTO_DLOG(
         "counter event (ts: %" PRId64 ") out of order by %.4f ms, skipping",
         timestamp, static_cast<double>(max_timestamp_ - timestamp) / 1e6);
     context_->storage->IncrementStats(stats::counter_events_out_of_order);
-    return base::nullopt;
+    return std::nullopt;
   }
   max_timestamp_ = timestamp;
 
@@ -68,7 +68,7 @@ base::Optional<CounterId> EventTracker::PushCounter(int64_t timestamp,
   return counter_values->Insert({timestamp, track_id, value}).id;
 }
 
-base::Optional<CounterId> EventTracker::PushCounter(
+std::optional<CounterId> EventTracker::PushCounter(
     int64_t timestamp,
     double value,
     TrackId track_id,
@@ -85,7 +85,7 @@ void EventTracker::FlushPendingEvents() {
   const auto& thread_table = context_->storage->thread_table();
   for (const auto& pending_counter : pending_upid_resolution_counter_) {
     UniqueTid utid = pending_counter.utid;
-    base::Optional<UniquePid> upid = thread_table.upid()[utid];
+    std::optional<UniquePid> upid = thread_table.upid()[utid];
 
     TrackId track_id = kInvalidTrackId;
     if (upid.has_value()) {

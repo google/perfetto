@@ -136,17 +136,17 @@ ssize_t Base64Decode(const char* src,
   return static_cast<ssize_t>(wr_size);
 }
 
-Optional<std::string> Base64Decode(const char* src, size_t src_size) {
+std::optional<std::string> Base64Decode(const char* src, size_t src_size) {
   std::string dst;
   dst.resize(Base64DecSize(src_size));
   auto res = Base64Decode(src, src_size, reinterpret_cast<uint8_t*>(&dst[0]),
                           dst.size());
   if (res < 0)
-    return nullopt;  // Decoding error.
+    return std::nullopt;  // Decoding error.
 
   PERFETTO_CHECK(res <= static_cast<ssize_t>(dst.size()));
   dst.resize(static_cast<size_t>(res));
-  return base::make_optional(dst);
+  return std::make_optional(dst);
 }
 
 }  // namespace base

@@ -17,9 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GPU_EVENT_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GPU_EVENT_PARSER_H_
 
+#include <optional>
 #include <vector>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/android/gpu_mem_event.pbzero.h"
@@ -82,8 +82,8 @@ class GpuEventParser {
   void InsertGpuTrack(
       const protos::pbzero::
           GpuRenderStageEvent_Specifications_Description_Decoder& hw_queue);
-  base::Optional<std::string> FindDebugName(int32_t vk_object_type,
-                                            uint64_t vk_handle) const;
+  std::optional<std::string> FindDebugName(int32_t vk_object_type,
+                                           uint64_t vk_handle) const;
   const StringId ParseRenderSubpasses(
       const protos::pbzero::GpuRenderStageEvent_Decoder& event) const;
 
@@ -94,7 +94,7 @@ class GpuEventParser {
   // For GpuRenderStageEvent
   const StringId description_id_;
   const StringId gpu_render_stage_scope_id_;
-  std::vector<perfetto::base::Optional<TrackId>> gpu_hw_queue_ids_;
+  std::vector<std::optional<TrackId>> gpu_hw_queue_ids_;
   size_t gpu_hw_queue_counter_ = 0;
   // Map of stage ID -> pair(stage name, stage description)
   std::vector<std::pair<StringId, StringId>> gpu_render_stage_ids_;

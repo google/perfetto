@@ -379,7 +379,7 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
   // Unlikely: handle a callstack sampling option that shares a random decision
   // between all data sources within a tracing session. Instead of introducing
   // session-scoped data, we replicate the decision in each per-DS EventConfig.
-  base::Optional<ProcessSharding> process_sharding;
+  std::optional<ProcessSharding> process_sharding;
   uint32_t shard_count =
       event_config_pb.callstack_sampling().scope().process_shard_count();
   if (shard_count > 0) {
@@ -387,7 +387,7 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
         GetOrChooseCallstackProcessShard(tracing_session_id, shard_count);
   }
 
-  base::Optional<EventConfig> event_config = EventConfig::Create(
+  std::optional<EventConfig> event_config = EventConfig::Create(
       event_config_pb, config, process_sharding, tracepoint_id_lookup);
   if (!event_config.has_value()) {
     PERFETTO_ELOG("PerfEventConfig rejected.");
@@ -397,7 +397,7 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
   size_t num_cpus = NumberOfCpus();
   std::vector<EventReader> per_cpu_readers;
   for (uint32_t cpu = 0; cpu < num_cpus; cpu++) {
-    base::Optional<EventReader> event_reader =
+    std::optional<EventReader> event_reader =
         EventReader::ConfigureEvents(cpu, event_config.value());
     if (!event_reader.has_value()) {
       PERFETTO_ELOG("Failed to set up perf events for cpu%" PRIu32
@@ -632,7 +632,7 @@ bool PerfProducer::ReadAndParsePerCpuBuffer(EventReader* reader,
   };
 
   for (uint64_t i = 0; i < max_samples; i++) {
-    base::Optional<ParsedSample> sample =
+    std::optional<ParsedSample> sample =
         reader->ReadUntilSample(records_lost_callback);
     if (!sample) {
       return false;  // caught up to the writer
@@ -1082,7 +1082,7 @@ void PerfProducer::PurgeDataSource(DataSourceInstanceID ds_id) {
 // * reuse a choice made previously by a data source within this tracing
 //   session. The config option requires that all data sources within one config
 //   have the same shard count.
-base::Optional<ProcessSharding> PerfProducer::GetOrChooseCallstackProcessShard(
+std::optional<ProcessSharding> PerfProducer::GetOrChooseCallstackProcessShard(
     uint64_t tracing_session_id,
     uint32_t shard_count) {
   for (auto& it : data_sources_) {

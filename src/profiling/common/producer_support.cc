@@ -16,9 +16,10 @@
 
 #include "src/profiling/common/producer_support.h"
 
+#include <optional>
+
 #include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/traced/probes/packages_list/packages_list_parser.h"
@@ -27,26 +28,26 @@ namespace perfetto {
 namespace profiling {
 
 namespace {
-base::Optional<Package> FindInPackagesList(
+std::optional<Package> FindInPackagesList(
     uint64_t lookup_uid,
     const std::string& packages_list_path) {
   std::string content;
   if (!base::ReadFile(packages_list_path, &content)) {
     PERFETTO_ELOG("Failed to read %s", packages_list_path.c_str());
-    return base::nullopt;
+    return std::nullopt;
   }
   for (base::StringSplitter ss(std::move(content), '\n'); ss.Next();) {
     Package pkg;
     if (!ReadPackagesListLine(ss.cur_token(), &pkg)) {
       PERFETTO_ELOG("Failed to parse packages.list");
-      return base::nullopt;
+      return std::nullopt;
     }
 
     if (pkg.uid == lookup_uid) {
       return std::move(pkg);  // -Wreturn-std-move-in-c++11
     }
   }
-  return base::nullopt;
+  return std::nullopt;
 }
 
 bool AllPackagesProfileableByTrustedInitiator(
@@ -156,7 +157,7 @@ bool CanProfileAndroid(const DataSourceConfig& ds_config,
     return false;
   }
 
-  base::Optional<Package> pkg =
+  std::optional<Package> pkg =
       FindInPackagesList(uid_for_lookup, packages_list_path);
 
   if (!pkg)

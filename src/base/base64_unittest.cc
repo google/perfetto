@@ -341,14 +341,14 @@ TEST(Base64Test, Decode) {
 
   for (size_t i = 0; i < ArraySize(kPatterns); ++i) {
     const auto& p = kPatterns[i];
-    Optional<std::string> dec = Base64Decode(StringView(p.encoded));
+    std::optional<std::string> dec = Base64Decode(StringView(p.encoded));
     EXPECT_TRUE(dec.has_value());
     EXPECT_EQ(dec.value(), StringView(p.decoded, p.decoded_len).ToStdString());
   }
 
   // Error cases:
-  EXPECT_EQ(Base64Decode("Z"), nullopt);
-  EXPECT_EQ(Base64Decode("Zm9vY"), nullopt);
+  EXPECT_EQ(Base64Decode("Z"), std::nullopt);
+  EXPECT_EQ(Base64Decode("Zm9vY"), std::nullopt);
 
   uint8_t buf[4];
   EXPECT_EQ(Base64Decode("", 0, buf, 2), 0);       // Valid, 0 len.

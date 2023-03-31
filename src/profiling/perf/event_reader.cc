@@ -111,9 +111,8 @@ PerfRingBuffer::~PerfRingBuffer() {
     PERFETTO_PLOG("failed munmap");
 }
 
-base::Optional<PerfRingBuffer> PerfRingBuffer::Allocate(
-    int perf_fd,
-    size_t data_page_count) {
+std::optional<PerfRingBuffer> PerfRingBuffer::Allocate(int perf_fd,
+                                                       size_t data_page_count) {
   // perf_event_open requires the ring buffer to be a power of two in size.
   PERFETTO_DCHECK(IsPowerOfTwo(data_page_count));
 
@@ -128,7 +127,7 @@ base::Optional<PerfRingBuffer> PerfRingBuffer::Allocate(
                          MAP_SHARED, perf_fd, 0);
   if (mmap_addr == MAP_FAILED) {
     PERFETTO_PLOG("failed mmap");
-    return base::nullopt;
+    return std::nullopt;
   }
 
   // Expected layout is [ metadata page ] [ data pages ... ]
@@ -139,7 +138,7 @@ base::Optional<PerfRingBuffer> PerfRingBuffer::Allocate(
 
   PERFETTO_DCHECK(IsPowerOfTwo(ret.data_buf_sz_));
 
-  return base::make_optional(std::move(ret));
+  return std::make_optional(std::move(ret));
 }
 
 // See |perf_output_put_handle| for the necessary synchronization between the
@@ -224,39 +223,39 @@ EventReader& EventReader::operator=(EventReader&& other) noexcept {
   return *this;
 }
 
-base::Optional<EventReader> EventReader::ConfigureEvents(
+std::optional<EventReader> EventReader::ConfigureEvents(
     uint32_t cpu,
     const EventConfig& event_cfg) {
   auto leader_fd = PerfEventOpen(cpu, event_cfg.perf_attr());
   if (!leader_fd) {
     PERFETTO_PLOG("Failed perf_event_open");
-    return base::nullopt;
+    return std::nullopt;
   }
   if (!MaybeApplyTracepointFilter(leader_fd.get(), event_cfg.timebase_event()))
-    return base::nullopt;
+    return std::nullopt;
 
   auto ring_buffer =
       PerfRingBuffer::Allocate(leader_fd.get(), event_cfg.ring_buffer_pages());
   if (!ring_buffer.has_value()) {
-    return base::nullopt;
+    return std::nullopt;
   }
   return EventReader(cpu, *event_cfg.perf_attr(), std::move(leader_fd),
                      std::move(ring_buffer.value()));
 }
 
-base::Optional<ParsedSample> EventReader::ReadUntilSample(
+std::optional<ParsedSample> EventReader::ReadUntilSample(
     std::function<void(uint64_t)> records_lost_callback) {
   for (;;) {
     char* event = ring_buffer_.ReadRecordNonconsuming();
     if (!event)
-      return base::nullopt;  // caught up with the writer
+      return std::nullopt;  // caught up with the writer
 
     auto* event_hdr = reinterpret_cast<const perf_event_header*>(event);
 
     if (event_hdr->type == PERF_RECORD_SAMPLE) {
       ParsedSample sample = ParseSampleRecord(cpu_, event);
       ring_buffer_.Consume(event_hdr->size);
-      return base::make_optional(std::move(sample));
+      return std::make_optional(std::move(sample));
     }
 
     if (event_hdr->type == PERF_RECORD_LOST) {

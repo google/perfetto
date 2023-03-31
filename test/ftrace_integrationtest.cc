@@ -319,7 +319,7 @@ TEST_F(PerfettoFtraceIntegrationTest, ReportFtraceFailuresInStats) {
   const auto& packets = helper.trace();
   ASSERT_GT(packets.size(), 0u);
 
-  base::Optional<protos::gen::FtraceStats> stats;
+  std::optional<protos::gen::FtraceStats> stats;
   for (const auto& packet : packets) {
     if (!packet.has_ftrace_stats() ||
         packet.ftrace_stats().phase() !=

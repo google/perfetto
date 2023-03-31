@@ -17,11 +17,11 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_THREADING_FUTURE_COMBINATORS_H_
 #define INCLUDE_PERFETTO_EXT_BASE_THREADING_FUTURE_COMBINATORS_H_
 
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/threading/poll.h"
 
 namespace perfetto {
@@ -57,17 +57,17 @@ class ContinueWithImpl : public FuturePollable<B> {
     PERFETTO_CHECK((first_ && second_fn_) || second_);
     if (first_) {
       ASSIGN_OR_RETURN_IF_PENDING_FUTURE(res, first_->Poll(context));
-      first_ = nullopt;
+      first_ = std::nullopt;
       second_ = (*second_fn_)(std::move(res));
-      second_fn_ = base::nullopt;
+      second_fn_ = std::nullopt;
     }
     return second_->Poll(context);
   }
 
  private:
-  Optional<Future<A>> first_;
-  Optional<Function> second_fn_;
-  Optional<Future<B>> second_;
+  std::optional<Future<A>> first_;
+  std::optional<Function> second_fn_;
+  std::optional<Future<B>> second_;
 };
 
 }  // namespace base

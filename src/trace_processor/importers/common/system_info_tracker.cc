@@ -26,7 +26,7 @@ SystemInfoTracker::~SystemInfoTracker() = default;
 void SystemInfoTracker::SetKernelVersion(base::StringView name,
                                          base::StringView release) {
   if (name.empty() || release.empty() || name != "Linux") {
-    version_ = base::nullopt;
+    version_ = std::nullopt;
     return;
   }
 

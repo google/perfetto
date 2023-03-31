@@ -19,8 +19,8 @@
 
 #include <stdint.h>
 #include <array>
+#include <optional>
 
-#include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/types/version_number.h"
 
 namespace perfetto {
@@ -87,7 +87,7 @@ class TaskState {
 
   static TaskState FromRawPrevState(
       uint16_t raw_state,
-      base::Optional<VersionNumber> kernel_version);
+      std::optional<VersionNumber> kernel_version);
   static TaskState FromSystrace(const char* state_str);
   static TaskState FromParsedFlags(uint16_t parsed_state);
 
@@ -115,7 +115,7 @@ class TaskState {
  private:
   TaskState() = default;
   explicit TaskState(uint16_t raw_state,
-                     base::Optional<VersionNumber> kernel_version);
+                     std::optional<VersionNumber> kernel_version);
   explicit TaskState(const char* state_str);
 
   bool is_runnable() const { return !(parsed_ & ~kPreempted); }

@@ -157,7 +157,7 @@ void NetworkTraceModule::ParseGenericEvent(
   StringId title_id = kNullStringId;
   if (evt.uid() > 0) {
     const auto& package_list = context_->storage->package_list_table();
-    base::Optional<uint32_t> pkg_row = package_list.uid().IndexOf(evt.uid());
+    std::optional<uint32_t> pkg_row = package_list.uid().IndexOf(evt.uid());
     if (pkg_row) {
       title_id = package_list.package_name()[*pkg_row];
     }

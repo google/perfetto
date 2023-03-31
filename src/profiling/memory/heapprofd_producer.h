@@ -21,10 +21,10 @@
 #include <cinttypes>
 #include <functional>
 #include <map>
+#include <optional>
 #include <vector>
 
 #include "perfetto/base/task_runner.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -317,7 +317,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
 
   // Specific to mode_ == kChild
   Process target_process_{base::kInvalidPid, ""};
-  base::Optional<std::function<void()>> data_source_callback_;
+  std::optional<std::function<void()>> data_source_callback_;
 
   SocketDelegate socket_delegate_;
 

@@ -590,7 +590,7 @@ uint32_t FtraceProcfs::ReadEventId(const std::string& group,
   if (str.size() && str[str.size() - 1] == '\n')
     str.resize(str.size() - 1);
 
-  base::Optional<uint32_t> id = base::StringToUInt32(str);
+  std::optional<uint32_t> id = base::StringToUInt32(str);
   if (!id)
     return 0;
   return *id;

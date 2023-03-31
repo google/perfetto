@@ -50,8 +50,8 @@ ProtoToArgsParser::ScopedNestedKeyContext::ScopedNestedKeyContext(
     : key_(other.key_),
       old_flat_key_length_(other.old_flat_key_length_),
       old_key_length_(other.old_key_length_) {
-  other.old_flat_key_length_ = base::nullopt;
-  other.old_key_length_ = base::nullopt;
+  other.old_flat_key_length_ = std::nullopt;
+  other.old_key_length_ = std::nullopt;
 }
 
 ProtoToArgsParser::ScopedNestedKeyContext::~ScopedNestedKeyContext() {
@@ -63,8 +63,8 @@ void ProtoToArgsParser::ScopedNestedKeyContext::RemoveFieldSuffix() {
     key_.flat_key.resize(old_flat_key_length_.value());
   if (old_key_length_)
     key_.key.resize(old_key_length_.value());
-  old_flat_key_length_ = base::nullopt;
-  old_key_length_ = base::nullopt;
+  old_flat_key_length_ = std::nullopt;
+  old_key_length_ = std::nullopt;
 }
 
 ProtoToArgsParser::Delegate::~Delegate() = default;
@@ -171,7 +171,7 @@ base::Status ProtoToArgsParser::ParseField(
 
   // If we have an override parser then use that instead and move onto the
   // next loop.
-  if (base::Optional<base::Status> status =
+  if (std::optional<base::Status> status =
           MaybeApplyOverrideForField(field, delegate)) {
     return *status;
   }
@@ -200,23 +200,23 @@ void ProtoToArgsParser::AddParsingOverrideForType(const std::string& type,
   type_overrides_[type] = std::move(func);
 }
 
-base::Optional<base::Status> ProtoToArgsParser::MaybeApplyOverrideForField(
+std::optional<base::Status> ProtoToArgsParser::MaybeApplyOverrideForField(
     const protozero::Field& field,
     Delegate& delegate) {
   auto it = field_overrides_.find(key_prefix_.flat_key);
   if (it == field_overrides_.end())
-    return base::nullopt;
+    return std::nullopt;
   return it->second(field, delegate);
 }
 
-base::Optional<base::Status> ProtoToArgsParser::MaybeApplyOverrideForType(
+std::optional<base::Status> ProtoToArgsParser::MaybeApplyOverrideForType(
     const std::string& message_type,
     ScopedNestedKeyContext& key,
     const protozero::ConstBytes& data,
     Delegate& delegate) {
   auto it = type_overrides_.find(message_type);
   if (it == type_overrides_.end())
-    return base::nullopt;
+    return std::nullopt;
   return it->second(key, data, delegate);
 }
 
