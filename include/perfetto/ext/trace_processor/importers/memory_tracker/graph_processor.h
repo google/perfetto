@@ -80,7 +80,7 @@ class PERFETTO_EXPORT_COMPONENT GraphProcessor {
   static void PropagateNumericsAndDiagnosticsRecursively(
       GlobalNodeGraph::Node* node);
 
-  static base::Optional<uint64_t> AggregateSizeForDescendantNode(
+  static std::optional<uint64_t> AggregateSizeForDescendantNode(
       GlobalNodeGraph::Node* root,
       GlobalNodeGraph::Node* descendant);
 

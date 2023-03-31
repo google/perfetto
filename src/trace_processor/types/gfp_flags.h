@@ -17,7 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_TYPES_GFP_FLAGS_H_
 #define SRC_TRACE_PROCESSOR_TYPES_GFP_FLAGS_H_
 
-#include "perfetto/ext/base/optional.h"
+#include <optional>
+
 #include "perfetto/ext/base/string_writer.h"
 #include "src/trace_processor/types/version_number.h"
 
@@ -28,7 +29,7 @@ namespace trace_processor {
 // the kernel version. This function writes a human readable version of the
 // flag.
 void WriteGfpFlag(uint64_t value,
-                  base::Optional<VersionNumber> version,
+                  std::optional<VersionNumber> version,
                   base::StringWriter* writer);
 
 }  // namespace trace_processor

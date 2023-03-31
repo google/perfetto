@@ -593,7 +593,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           // artificial koids which have the 2^63 bit set. This is used for
           // things such as virtual threads.
           procs->SetProcessMetadata(
-              static_cast<uint32_t>(obj_id), base::Optional<uint32_t>(),
+              static_cast<uint32_t>(obj_id), std::optional<uint32_t>(),
               base::StringView(storage->GetString(name)), base::StringView());
           break;
         }

@@ -40,7 +40,7 @@ FlowTracker::~FlowTracker() = default;
   it is a bit tricky to make it here.
   We suspect that this case is too rare or impossible */
 void FlowTracker::Begin(TrackId track_id, FlowId flow_id) {
-  base::Optional<SliceId> open_slice_id =
+  std::optional<SliceId> open_slice_id =
       context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
   if (!open_slice_id) {
     context_->storage->IncrementStats(stats::flow_no_enclosing_slice);
@@ -58,7 +58,7 @@ void FlowTracker::Begin(SliceId slice_id, FlowId flow_id) {
 }
 
 void FlowTracker::Step(TrackId track_id, FlowId flow_id) {
-  base::Optional<SliceId> open_slice_id =
+  std::optional<SliceId> open_slice_id =
       context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
   if (!open_slice_id) {
     context_->storage->IncrementStats(stats::flow_no_enclosing_slice);
@@ -86,7 +86,7 @@ void FlowTracker::End(TrackId track_id,
     pending_flow_ids_map_[track_id].push_back(flow_id);
     return;
   }
-  base::Optional<SliceId> open_slice_id =
+  std::optional<SliceId> open_slice_id =
       context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
   if (!open_slice_id) {
     context_->storage->IncrementStats(stats::flow_no_enclosing_slice);

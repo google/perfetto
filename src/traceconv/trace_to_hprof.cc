@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -25,7 +26,6 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/endian.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/traceconv/utils.h"
 
@@ -141,7 +141,7 @@ class ClassData {
 // until S.
 class RawClassData {
  public:
-  void AddClass(uint64_t id, base::Optional<uint64_t> superclass_id) {
+  void AddClass(uint64_t id, std::optional<uint64_t> superclass_id) {
     ids_.push_back(std::make_pair(id, superclass_id));
   }
 
@@ -162,7 +162,7 @@ class RawClassData {
 
  private:
   // Pair contains class ID and super class ID.
-  std::vector<std::pair<uint64_t, base::Optional<uint64_t>>> ids_;
+  std::vector<std::pair<uint64_t, std::optional<uint64_t>>> ids_;
   // Class id of the template
   std::vector<uint64_t> template_ids_;
 };
@@ -217,10 +217,10 @@ class HeapDump {
       uint64_t name_id = IngestString(dname);
 
       auto raw_super_id = it.Get(2);
-      base::Optional<uint64_t> maybe_super_id =
+      std::optional<uint64_t> maybe_super_id =
           raw_super_id.is_null()
-              ? base::nullopt
-              : base::Optional<uint64_t>(
+              ? std::nullopt
+              : std::optional<uint64_t>(
                     static_cast<uint64_t>(raw_super_id.AsLong()));
 
       std::string location(it.Get(3).AsString());

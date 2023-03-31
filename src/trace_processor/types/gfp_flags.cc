@@ -215,7 +215,7 @@ const FlagArray* GetBitmaskVersion(VersionNumber version = VersionNumber{4,
 }  // namespace
 
 void WriteGfpFlag(uint64_t value,
-                  base::Optional<VersionNumber> version,
+                  std::optional<VersionNumber> version,
                   base::StringWriter* writer) {
   // On all kernel versions if this flag is not set, return GFP_NOWAIT.
   if (value == 0) {

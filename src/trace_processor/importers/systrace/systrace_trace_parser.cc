@@ -143,9 +143,9 @@ util::Status SystraceTraceParser::Parse(TraceBlobView blob) {
                    tokens.size() >= 10) {
           // Format is:
           // user pid ppid vsz rss wchan pc s name my cmd line
-          const base::Optional<uint32_t> pid =
+          const std::optional<uint32_t> pid =
               base::StringToUInt32(tokens[1].ToStdString());
-          const base::Optional<uint32_t> ppid =
+          const std::optional<uint32_t> ppid =
               base::StringToUInt32(tokens[2].ToStdString());
           base::StringView name = tokens[8];
           // Command line may contain spaces, merge all remaining tokens:
@@ -163,9 +163,9 @@ util::Status SystraceTraceParser::Parse(TraceBlobView blob) {
                    tokens.size() >= 4) {
           // Format is:
           // username pid tid my cmd line
-          const base::Optional<uint32_t> tgid =
+          const std::optional<uint32_t> tgid =
               base::StringToUInt32(tokens[1].ToStdString());
-          const base::Optional<uint32_t> tid =
+          const std::optional<uint32_t> tid =
               base::StringToUInt32(tokens[2].ToStdString());
           // Command line may contain spaces, merge all remaining tokens:
           const char* cmd_start = tokens[3].data();

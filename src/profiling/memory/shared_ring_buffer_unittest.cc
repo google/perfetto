@@ -18,11 +18,11 @@
 
 #include <array>
 #include <mutex>
+#include <optional>
 #include <random>
 #include <thread>
 #include <unordered_map>
 
-#include "perfetto/ext/base/optional.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -147,18 +147,18 @@ void StructuredTest(SharedRingBuffer* wr, SharedRingBuffer* rd) {
 
 TEST(SharedRingBufferTest, ReadShutdown) {
   constexpr auto kBufSize = base::kPageSize * 4;
-  base::Optional<SharedRingBuffer> wr = SharedRingBuffer::Create(kBufSize);
+  std::optional<SharedRingBuffer> wr = SharedRingBuffer::Create(kBufSize);
   ASSERT_TRUE(wr);
   SharedRingBuffer rd =
       *SharedRingBuffer::Attach(base::ScopedFile(dup(wr->fd())));
   auto buf = rd.BeginRead();
-  wr = base::nullopt;
+  wr = std::nullopt;
   rd.EndRead(std::move(buf));
 }
 
 TEST(SharedRingBufferTest, WriteShutdown) {
   constexpr auto kBufSize = base::kPageSize * 4;
-  base::Optional<SharedRingBuffer> rd = SharedRingBuffer::Create(kBufSize);
+  std::optional<SharedRingBuffer> rd = SharedRingBuffer::Create(kBufSize);
   ASSERT_TRUE(rd);
   SharedRingBuffer wr =
       *SharedRingBuffer::Attach(base::ScopedFile(dup(rd->fd())));
@@ -167,21 +167,21 @@ TEST(SharedRingBufferTest, WriteShutdown) {
     auto lock = wr.AcquireLock(ScopedSpinlock::Mode::Blocking);
     buf = wr.BeginWrite(lock, 10);
   }
-  rd = base::nullopt;
+  rd = std::nullopt;
   memset(buf.data, 0, buf.size);
   wr.EndWrite(std::move(buf));
 }
 
 TEST(SharedRingBufferTest, SingleThreadSameInstance) {
   constexpr auto kBufSize = base::kPageSize * 4;
-  base::Optional<SharedRingBuffer> buf = SharedRingBuffer::Create(kBufSize);
+  std::optional<SharedRingBuffer> buf = SharedRingBuffer::Create(kBufSize);
   StructuredTest(&*buf, &*buf);
 }
 
 TEST(SharedRingBufferTest, SingleThreadAttach) {
   constexpr auto kBufSize = base::kPageSize * 4;
-  base::Optional<SharedRingBuffer> buf1 = SharedRingBuffer::Create(kBufSize);
-  base::Optional<SharedRingBuffer> buf2 =
+  std::optional<SharedRingBuffer> buf1 = SharedRingBuffer::Create(kBufSize);
+  std::optional<SharedRingBuffer> buf2 =
       SharedRingBuffer::Attach(base::ScopedFile(dup(buf1->fd())));
   StructuredTest(&*buf1, &*buf2);
 }
@@ -256,13 +256,13 @@ TEST(SharedRingBufferTest, MultiThreadingTest) {
 
 TEST(SharedRingBufferTest, InvalidSize) {
   constexpr auto kBufSize = base::kPageSize * 4 + 1;
-  base::Optional<SharedRingBuffer> wr = SharedRingBuffer::Create(kBufSize);
-  EXPECT_EQ(wr, base::nullopt);
+  std::optional<SharedRingBuffer> wr = SharedRingBuffer::Create(kBufSize);
+  EXPECT_EQ(wr, std::nullopt);
 }
 
 TEST(SharedRingBufferTest, EmptyWrite) {
   constexpr auto kBufSize = base::kPageSize * 4;
-  base::Optional<SharedRingBuffer> wr = SharedRingBuffer::Create(kBufSize);
+  std::optional<SharedRingBuffer> wr = SharedRingBuffer::Create(kBufSize);
   ASSERT_TRUE(wr);
   SharedRingBuffer::Buffer buf;
   {

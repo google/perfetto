@@ -22,6 +22,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -31,7 +32,6 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/threading/channel.h"
 #include "perfetto/ext/base/threading/future.h"
@@ -110,7 +110,7 @@ PERFETTO_WARN_UNUSED_RESULT inline ResultSpawnHandle<T> SpawnResultStream(
     std::function<Stream<T>()> fn) {
   class AllVoidCollector : public Collector<FVoid, FVoid> {
    public:
-    Optional<FVoid> OnNext(FVoid) override { return nullopt; }
+    std::optional<FVoid> OnNext(FVoid) override { return std::nullopt; }
     FVoid OnDone() override { return FVoid(); }
   };
   auto channel = std::make_shared<Channel<T>>(4);

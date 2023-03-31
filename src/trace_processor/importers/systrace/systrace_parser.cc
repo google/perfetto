@@ -16,7 +16,8 @@
 
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 
-#include "perfetto/ext/base/optional.h"
+#include <optional>
+
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"

@@ -17,11 +17,11 @@
 #ifndef SRC_PROFILING_SYMBOLIZER_BREAKPAD_PARSER_H_
 #define SRC_PROFILING_SYMBOLIZER_BREAKPAD_PARSER_H_
 
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 
 namespace perfetto {
@@ -64,7 +64,7 @@ class BreakpadParser {
   // Returns the function name corresponding to |address| as a string. The
   // search is log(N) on the number of functions in the binary. |address| is the
   // relative offset from the start of the binary.
-  base::Optional<std::string> GetSymbol(uint64_t address) const;
+  std::optional<std::string> GetSymbol(uint64_t address) const;
 
   const std::vector<Symbol>& symbols_for_testing() const { return symbols_; }
 

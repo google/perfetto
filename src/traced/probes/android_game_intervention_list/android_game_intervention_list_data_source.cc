@@ -17,9 +17,9 @@
 #include "src/traced/probes/android_game_intervention_list/android_game_intervention_list_data_source.h"
 
 #include <stddef.h>
+#include <optional>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -140,9 +140,9 @@ bool AndroidGameInterventionListDataSource::
         break;
       }
       case 1: {
-        base::Optional<uint64_t> uid =
+        std::optional<uint64_t> uid =
             base::CStringToUInt64(string_splitter.cur_token());
-        if (uid == base::nullopt) {
+        if (uid == std::nullopt) {
           PERFETTO_DLOG("Failed to parse game_mode_intervention.list uid.");
           return false;
         }
@@ -150,9 +150,9 @@ bool AndroidGameInterventionListDataSource::
         break;
       }
       case 2: {
-        base::Optional<uint32_t> cur_mode =
+        std::optional<uint32_t> cur_mode =
             base::CStringToUInt32(string_splitter.cur_token());
-        if (cur_mode == base::nullopt) {
+        if (cur_mode == std::nullopt) {
           PERFETTO_DLOG(
               "Failed to parse game_mode_intervention.list cur_mode.");
           return false;
@@ -163,9 +163,9 @@ bool AndroidGameInterventionListDataSource::
       case 3:
       case 5:
       case 7: {
-        base::Optional<uint32_t> game_mode =
+        std::optional<uint32_t> game_mode =
             base::CStringToUInt32(string_splitter.cur_token());
-        if (game_mode == base::nullopt) {
+        if (game_mode == std::nullopt) {
           PERFETTO_DLOG(
               "Failed to parse game_mode_intervention.list game_mode.");
           return false;
@@ -186,9 +186,9 @@ bool AndroidGameInterventionListDataSource::
           char* key = value_splitter.cur_token();
           if (strcmp(key, "angle") == 0) {
             value_splitter.Next();
-            base::Optional<uint32_t> use_angle =
+            std::optional<uint32_t> use_angle =
                 base::CStringToUInt32(value_splitter.cur_token());
-            if (use_angle == base::nullopt) {
+            if (use_angle == std::nullopt) {
               PERFETTO_DLOG(
                   "Failed to parse game_mode_intervention.list use_angle.");
               return false;
@@ -196,9 +196,9 @@ bool AndroidGameInterventionListDataSource::
             game_mode_info->set_use_angle(use_angle.value());
           } else if (strcmp(key, "scaling") == 0) {
             value_splitter.Next();
-            base::Optional<double> resolution_downscale =
+            std::optional<double> resolution_downscale =
                 base::CStringToDouble(value_splitter.cur_token());
-            if (resolution_downscale == base::nullopt) {
+            if (resolution_downscale == std::nullopt) {
               PERFETTO_DLOG(
                   "Failed to parse game_mode_intervention.list "
                   "resolution_downscale.");
@@ -208,9 +208,9 @@ bool AndroidGameInterventionListDataSource::
                 static_cast<float>(resolution_downscale.value()));
           } else if (strcmp(key, "fps") == 0) {
             value_splitter.Next();
-            base::Optional<double> fps =
+            std::optional<double> fps =
                 base::CStringToDouble(value_splitter.cur_token());
-            if (fps == base::nullopt) {
+            if (fps == std::nullopt) {
               PERFETTO_DLOG("Failed to parse game_mode_intervention.list fps.");
               return false;
             }

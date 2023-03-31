@@ -18,9 +18,9 @@
 #define SRC_TRACED_PROBES_ANDROID_SYSTEM_PROPERTY_ANDROID_SYSTEM_PROPERTY_DATA_SOURCE_H_
 
 #include <memory>
+#include <optional>
 #include <vector>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "src/traced/probes/probes_data_source.h"
@@ -45,7 +45,7 @@ class AndroidSystemPropertyDataSource : public ProbesDataSource {
   void Flush(FlushRequestID, std::function<void()> callback) override;
 
   // Virtual for testing.
-  virtual const base::Optional<std::string> ReadProperty(
+  virtual const std::optional<std::string> ReadProperty(
       const std::string& name);
 
  private:

@@ -37,7 +37,7 @@ bool IsJsonSupported() {
 #endif
 }
 
-base::Optional<int64_t> CoerceToTs(const Json::Value& value) {
+std::optional<int64_t> CoerceToTs(const Json::Value& value) {
   PERFETTO_DCHECK(IsJsonSupported());
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
@@ -50,36 +50,36 @@ base::Optional<int64_t> CoerceToTs(const Json::Value& value) {
     case Json::stringValue:
       return CoerceToTs(value.asString());
     default:
-      return base::nullopt;
+      return std::nullopt;
   }
 #else
   perfetto::base::ignore_result(value);
-  return base::nullopt;
+  return std::nullopt;
 #endif
 }
 
-base::Optional<int64_t> CoerceToTs(const std::string& s) {
+std::optional<int64_t> CoerceToTs(const std::string& s) {
   PERFETTO_DCHECK(IsJsonSupported());
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   size_t lhs_end = std::min<size_t>(s.find('.'), s.size());
   size_t rhs_start = std::min<size_t>(lhs_end + 1, s.size());
-  base::Optional<int64_t> lhs = base::StringToInt64(s.substr(0, lhs_end));
-  base::Optional<double> rhs =
+  std::optional<int64_t> lhs = base::StringToInt64(s.substr(0, lhs_end));
+  std::optional<double> rhs =
       base::StringToDouble("0." + s.substr(rhs_start, std::string::npos));
   if ((!lhs.has_value() && lhs_end > 0) ||
       (!rhs.has_value() && rhs_start < s.size())) {
-    return base::nullopt;
+    return std::nullopt;
   }
   return lhs.value_or(0) * 1000 +
          static_cast<int64_t>(rhs.value_or(0) * 1000.0);
 #else
   perfetto::base::ignore_result(s);
-  return base::nullopt;
+  return std::nullopt;
 #endif
 }
 
-base::Optional<int64_t> CoerceToInt64(const Json::Value& value) {
+std::optional<int64_t> CoerceToInt64(const Json::Value& value) {
   PERFETTO_DCHECK(IsJsonSupported());
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
@@ -94,36 +94,36 @@ base::Optional<int64_t> CoerceToInt64(const Json::Value& value) {
       char* end;
       int64_t n = strtoll(s.c_str(), &end, 10);
       if (end != s.data() + s.size())
-        return base::nullopt;
+        return std::nullopt;
       return n;
     }
     default:
-      return base::nullopt;
+      return std::nullopt;
   }
 #else
   perfetto::base::ignore_result(value);
-  return base::nullopt;
+  return std::nullopt;
 #endif
 }
 
-base::Optional<uint32_t> CoerceToUint32(const Json::Value& value) {
+std::optional<uint32_t> CoerceToUint32(const Json::Value& value) {
   PERFETTO_DCHECK(IsJsonSupported());
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-  base::Optional<int64_t> result = CoerceToInt64(value);
+  std::optional<int64_t> result = CoerceToInt64(value);
   if (!result.has_value())
-    return base::nullopt;
+    return std::nullopt;
   int64_t n = result.value();
   if (n < 0 || n > std::numeric_limits<uint32_t>::max())
-    return base::nullopt;
+    return std::nullopt;
   return static_cast<uint32_t>(n);
 #else
   perfetto::base::ignore_result(value);
-  return base::nullopt;
+  return std::nullopt;
 #endif
 }
 
-base::Optional<Json::Value> ParseJsonString(base::StringView raw_string) {
+std::optional<Json::Value> ParseJsonString(base::StringView raw_string) {
   PERFETTO_DCHECK(IsJsonSupported());
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
@@ -133,11 +133,11 @@ base::Optional<Json::Value> ParseJsonString(base::StringView raw_string) {
   Json::Value value;
   const char* begin = raw_string.data();
   return reader->parse(begin, begin + raw_string.size(), &value, nullptr)
-             ? base::make_optional(std::move(value))
-             : base::nullopt;
+             ? std::make_optional(std::move(value))
+             : std::nullopt;
 #else
   perfetto::base::ignore_result(raw_string);
-  return base::nullopt;
+  return std::nullopt;
 #endif
 }
 

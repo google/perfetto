@@ -1007,7 +1007,7 @@ void TraceProcessorImpl::InterruptQuery() {
 }
 
 bool TraceProcessorImpl::IsRootMetricField(const std::string& metric_name) {
-  base::Optional<uint32_t> desc_idx =
+  std::optional<uint32_t> desc_idx =
       pool_.FindDescriptorIdx(".perfetto.protos.TraceMetrics");
   if (!desc_idx.has_value())
     return false;

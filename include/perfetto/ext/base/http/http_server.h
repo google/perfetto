@@ -21,10 +21,10 @@
 #include <initializer_list>
 #include <list>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "perfetto/base/task_runner.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/unix_socket.h"
@@ -37,7 +37,7 @@ class HttpServerConnection;
 struct HttpRequest {
   explicit HttpRequest(HttpServerConnection* c) : conn(c) {}
 
-  Optional<StringView> GetHeader(StringView name) const;
+  std::optional<StringView> GetHeader(StringView name) const;
 
   HttpServerConnection* conn;
 

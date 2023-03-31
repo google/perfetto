@@ -27,7 +27,7 @@ bool IsValidName(base::StringView str) {
   return std::find_if(str.begin(), str.end(), pred) == str.end();
 }
 
-base::Optional<Type> ParseType(base::StringView str) {
+std::optional<Type> ParseType(base::StringView str) {
   if (str == "BOOL") {
     return Type::kBool;
   } else if (str == "INT") {
@@ -47,7 +47,7 @@ base::Optional<Type> ParseType(base::StringView str) {
   } else if (str == "BYTES") {
     return Type::kBytes;
   }
-  return base::nullopt;
+  return std::nullopt;
 }
 
 const char* TypeToHumanFriendlyString(sql_argument::Type type) {

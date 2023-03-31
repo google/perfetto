@@ -39,50 +39,50 @@ bool DeobfuscationMappingTable::AddClassTranslation(
       .second;
 }
 
-base::Optional<StringId> DeobfuscationMappingTable::TranslateClass(
+std::optional<StringId> DeobfuscationMappingTable::TranslateClass(
     StringId obfuscated_class_name) const {
   if (PERFETTO_UNLIKELY(!default_package_id_.has_value())) {
-    return base::nullopt;
+    return std::nullopt;
   }
   return TranslateClass(default_package_id_.value(), obfuscated_class_name);
 }
 
-base::Optional<StringId> DeobfuscationMappingTable::TranslateClass(
+std::optional<StringId> DeobfuscationMappingTable::TranslateClass(
     const PackageId& package,
     StringId obfuscated_class_name) const {
   const ObfuscatedClassesToMembers* classes_translation_ptr =
       class_per_package_translation_.Find(package);
   if (classes_translation_ptr == nullptr) {
-    return base::nullopt;
+    return std::nullopt;
   }
   const ClassTranslation* class_translation_ptr =
       classes_translation_ptr->Find(obfuscated_class_name);
   if (class_translation_ptr == nullptr) {
-    return base::nullopt;
+    return std::nullopt;
   }
   return class_translation_ptr->deobfuscated_class_name;
 }
 
-base::Optional<StringId> DeobfuscationMappingTable::TranslateMember(
+std::optional<StringId> DeobfuscationMappingTable::TranslateMember(
     const PackageId& package,
     StringId obfuscated_class_name,
     StringId obfuscated_member) const {
   const ObfuscatedClassesToMembers* classes_translation_ptr =
       class_per_package_translation_.Find(package);
   if (classes_translation_ptr == nullptr) {
-    return base::nullopt;
+    return std::nullopt;
   }
 
   const ClassTranslation* class_translation_ptr =
       classes_translation_ptr->Find(obfuscated_class_name);
   if (class_translation_ptr == nullptr) {
-    return base::nullopt;
+    return std::nullopt;
   }
 
   const StringId* member_translation_ptr =
       class_translation_ptr->members.Find(obfuscated_member);
   if (member_translation_ptr == nullptr) {
-    return base::nullopt;
+    return std::nullopt;
   }
   return *member_translation_ptr;
 }

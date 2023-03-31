@@ -8696,6 +8696,7 @@ filegroup {
     name: "perfetto_src_profiling_memory_end_to_end_tests",
     srcs: [
         "src/profiling/memory/heapprofd_end_to_end_test.cc",
+        "src/profiling/memory/heapprofd_producer_integrationtest.cc",
     ],
 }
 

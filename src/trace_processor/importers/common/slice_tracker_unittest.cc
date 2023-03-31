@@ -322,7 +322,7 @@ TEST(SliceTrackerTest, ParentId) {
   SliceId parent = context.storage->slice_table().id()[0];
   SliceId child = context.storage->slice_table().id()[1];
   EXPECT_THAT(context.storage->slice_table().parent_id().ToVectorForTesting(),
-              ElementsAre(base::nullopt, parent, child));
+              ElementsAre(std::nullopt, parent, child));
 }
 
 TEST(SliceTrackerTest, IgnoreMismatchedEnds) {
@@ -460,7 +460,7 @@ TEST(SliceTrackerTest, GetTopmostSliceOnTrack) {
   TrackId track{1u};
   TrackId track2{2u};
 
-  EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track), base::nullopt);
+  EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track), std::nullopt);
 
   tracker.Begin(100, track, StringId::Raw(11), StringId::Raw(11));
   SliceId slice1 = context.storage->slice_table().id()[0];
@@ -472,7 +472,7 @@ TEST(SliceTrackerTest, GetTopmostSliceOnTrack) {
 
   EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track).value(), slice2);
 
-  EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track2), base::nullopt);
+  EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track2), std::nullopt);
 
   tracker.End(140, track, StringId::Raw(22), StringId::Raw(22));
 
@@ -480,7 +480,7 @@ TEST(SliceTrackerTest, GetTopmostSliceOnTrack) {
 
   tracker.End(330, track, StringId::Raw(11), StringId::Raw(11));
 
-  EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track), base::nullopt);
+  EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track), std::nullopt);
 }
 
 TEST(SliceTrackerTest, OnSliceBeginCallback) {
