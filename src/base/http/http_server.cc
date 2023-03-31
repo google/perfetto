@@ -565,12 +565,12 @@ HttpServerConnection::HttpServerConnection(std::unique_ptr<UnixSocket> s)
 
 HttpServerConnection::~HttpServerConnection() = default;
 
-Optional<StringView> HttpRequest::GetHeader(StringView name) const {
+std::optional<StringView> HttpRequest::GetHeader(StringView name) const {
   for (size_t i = 0; i < num_headers; i++) {
     if (headers[i].name.CaseInsensitiveEq(name))
       return headers[i].value;
   }
-  return nullopt;
+  return std::nullopt;
 }
 
 HttpRequestHandler::~HttpRequestHandler() = default;

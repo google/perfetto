@@ -15,8 +15,8 @@
  */
 
 #include "src/trace_processor/util/protozero_to_text.h"
+#include <optional>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/proto_decoder.h"
@@ -389,7 +389,7 @@ void ProtozeroToTextInternal(const std::string& type,
                              const DescriptorPool& pool,
                              std::string* indents,
                              std::string* output) {
-  base::Optional<uint32_t> opt_proto_desc_idx = pool.FindDescriptorIdx(type);
+  std::optional<uint32_t> opt_proto_desc_idx = pool.FindDescriptorIdx(type);
   const ProtoDescriptor* opt_proto_descriptor =
       opt_proto_desc_idx ? &pool.descriptors()[*opt_proto_desc_idx] : nullptr;
   const bool include_new_lines = new_lines_mode == kIncludeNewLines;

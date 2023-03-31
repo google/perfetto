@@ -33,13 +33,13 @@ PERFETTO_TP_TABLE(PERFETTO_TP_TEST_EVENT_TABLE_DEF);
 #define PERFETTO_TP_TEST_COUNTER_TABLE_DEF(NAME, PARENT, C) \
   NAME(TestCounterTable, "counter")                         \
   PARENT(PERFETTO_TP_TEST_EVENT_TABLE_DEF, C)               \
-  C(base::Optional<double>, value)
+  C(std::optional<double>, value)
 PERFETTO_TP_TABLE(PERFETTO_TP_TEST_COUNTER_TABLE_DEF);
 
 #define PERFETTO_TP_TEST_SLICE_TABLE_DEF(NAME, PARENT, C) \
   NAME(TestSliceTable, "slice")                           \
   PARENT(PERFETTO_TP_TEST_EVENT_TABLE_DEF, C)             \
-  C(base::Optional<int64_t>, dur)                         \
+  C(std::optional<int64_t>, dur)                          \
   C(int64_t, depth)
 PERFETTO_TP_TABLE(PERFETTO_TP_TEST_SLICE_TABLE_DEF);
 
@@ -107,7 +107,7 @@ TEST_F(TableMacrosUnittest, InsertParent) {
   ASSERT_EQ(slice_.dur()[0], 10);
   ASSERT_EQ(slice_.depth()[0], 0);
 
-  id = slice_.Insert(TestSliceTable::Row(210, 456, base::nullopt, 0)).id;
+  id = slice_.Insert(TestSliceTable::Row(210, 456, std::nullopt, 0)).id;
   ASSERT_EQ(id.value, 2u);
 
   ASSERT_EQ(event_.type().GetString(2), "slice");
@@ -116,7 +116,7 @@ TEST_F(TableMacrosUnittest, InsertParent) {
   ASSERT_EQ(slice_.type().GetString(1), "slice");
   ASSERT_EQ(slice_.ts()[1], 210);
   ASSERT_EQ(slice_.arg_set_id()[1], 456);
-  ASSERT_EQ(slice_.dur()[1], base::nullopt);
+  ASSERT_EQ(slice_.dur()[1], std::nullopt);
   ASSERT_EQ(slice_.depth()[1], 0);
 }
 

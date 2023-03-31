@@ -20,11 +20,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <tuple>
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/hash.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
@@ -129,7 +129,7 @@ class ConsoleInterceptor::Delegate : public TrackEventStateTracker::Delegate {
   using SelfHandle = LockedHandle<ConsoleInterceptor>;
 
   InterceptorContext& context_;
-  base::Optional<SelfHandle> locked_self_;
+  std::optional<SelfHandle> locked_self_;
 };
 
 ConsoleInterceptor::~ConsoleInterceptor() = default;
@@ -157,7 +157,7 @@ ConsoleInterceptor::Delegate::GetSessionState() {
   if (locked_self_.has_value())
     return &locked_self_.value()->session_state_;
   locked_self_ =
-      base::make_optional<SelfHandle>(context_.GetInterceptorLocked());
+      std::make_optional<SelfHandle>(context_.GetInterceptorLocked());
   return &locked_self_.value()->session_state_;
 }
 

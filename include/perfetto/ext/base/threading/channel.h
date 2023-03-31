@@ -18,12 +18,12 @@
 #define INCLUDE_PERFETTO_EXT_BASE_THREADING_CHANNEL_H_
 
 #include <mutex>
+#include <optional>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/platform_handle.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/event_fd.h"
-#include "perfetto/ext/base/optional.h"
 
 namespace perfetto {
 namespace base {
@@ -43,24 +43,24 @@ template <typename T>
 class Channel {
  public:
   struct ReadResult {
-    ReadResult(base::Optional<T> _item, bool _is_closed)
+    ReadResult(std::optional<T> _item, bool _is_closed)
         : item(std::move(_item)), is_closed(_is_closed) {}
 
     bool operator==(const ReadResult& res) const {
       return item == res.item && is_closed == res.is_closed;
     }
 
-    // The item read from the channel or base::nullopt if the channel is empty.
+    // The item read from the channel or std::nullopt if the channel is empty.
     // If so, callers can use |read_fd| to be notified when a read operation
     // would succeed.
-    base::Optional<T> item;
+    std::optional<T> item;
 
     // Indicates the channel is closed. Readers can continue to read from the
     // channel and any buffered elements will be correctly returned. Moreover,
     // any future reads will also have |is_closed| == true and |read_fd| will be
     // ready forever.
     //
-    // Once a ReadResult is returned with |item| == base::nullopt and
+    // Once a ReadResult is returned with |item| == std::nullopt and
     // |is_closed| == true, no further values will ever be returned.
     bool is_closed;
   };
@@ -103,7 +103,7 @@ class Channel {
   PERFETTO_WARN_UNUSED_RESULT ReadResult ReadNonBlocking() {
     std::lock_guard<std::mutex> lock(mutex_);
     if (elements_.empty()) {
-      return ReadResult(base::nullopt, is_closed_);
+      return ReadResult(std::nullopt, is_closed_);
     }
     if (elements_.capacity() == elements_.size()) {
       write_fd_.Notify();

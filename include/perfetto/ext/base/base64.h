@@ -17,9 +17,9 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_BASE64_H_
 #define INCLUDE_PERFETTO_EXT_BASE_BASE64_H_
 
+#include <optional>
 #include <string>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"  // For ssize_t.
 
@@ -56,9 +56,9 @@ ssize_t Base64Decode(const char* src,
                      uint8_t* dst,
                      size_t dst_size);
 
-Optional<std::string> Base64Decode(const char* src, size_t src_size);
+std::optional<std::string> Base64Decode(const char* src, size_t src_size);
 
-inline Optional<std::string> Base64Decode(StringView sv) {
+inline std::optional<std::string> Base64Decode(StringView sv) {
   return Base64Decode(sv.data(), sv.size());
 }
 

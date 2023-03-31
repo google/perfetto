@@ -26,23 +26,23 @@ TEST(NullableVector, Append) {
   NullableVector<int64_t> sv;
   sv.Append(10);
   sv.Append(20);
-  sv.Append(base::nullopt);
+  sv.Append(std::nullopt);
   sv.Append(40);
 
   ASSERT_FALSE(sv.IsDense());
   ASSERT_EQ(sv.size(), 4u);
-  ASSERT_EQ(sv.Get(0), base::Optional<int64_t>(10));
-  ASSERT_EQ(sv.Get(1), base::Optional<int64_t>(20));
-  ASSERT_EQ(sv.Get(2), base::nullopt);
-  ASSERT_EQ(sv.Get(3), base::Optional<int64_t>(40));
+  ASSERT_EQ(sv.Get(0), std::optional<int64_t>(10));
+  ASSERT_EQ(sv.Get(1), std::optional<int64_t>(20));
+  ASSERT_EQ(sv.Get(2), std::nullopt);
+  ASSERT_EQ(sv.Get(3), std::optional<int64_t>(40));
 }
 
 TEST(NullableVector, Set) {
   NullableVector<int64_t> sv;
   sv.Append(10);
   sv.Append(20);
-  sv.Append(base::nullopt);
-  sv.Append(base::nullopt);
+  sv.Append(std::nullopt);
+  sv.Append(std::nullopt);
   sv.Append(40);
 
   sv.Set(0, 15);
@@ -50,7 +50,7 @@ TEST(NullableVector, Set) {
 
   ASSERT_EQ(*sv.Get(0), 15);
   ASSERT_EQ(*sv.Get(1), 20);
-  ASSERT_EQ(sv.Get(2), base::nullopt);
+  ASSERT_EQ(sv.Get(2), std::nullopt);
   ASSERT_EQ(*sv.Get(3), 30);
   ASSERT_EQ(*sv.Get(4), 40);
 }
@@ -64,27 +64,27 @@ TEST(NullableVector, SetNonNull) {
 
   sv.Set(1, 22);
 
-  ASSERT_EQ(sv.Get(0), base::Optional<int64_t>(1));
-  ASSERT_EQ(sv.Get(1), base::Optional<int64_t>(22));
-  ASSERT_EQ(sv.Get(2), base::Optional<int64_t>(3));
-  ASSERT_EQ(sv.Get(3), base::Optional<int64_t>(4));
+  ASSERT_EQ(sv.Get(0), std::optional<int64_t>(1));
+  ASSERT_EQ(sv.Get(1), std::optional<int64_t>(22));
+  ASSERT_EQ(sv.Get(2), std::optional<int64_t>(3));
+  ASSERT_EQ(sv.Get(3), std::optional<int64_t>(4));
 }
 
 TEST(NullableVector, Dense) {
   auto sv = NullableVector<int64_t>::Dense();
 
   sv.Append(0);
-  sv.Append(base::nullopt);
+  sv.Append(std::nullopt);
   sv.Append(2);
   sv.Append(3);
-  sv.Append(base::nullopt);
+  sv.Append(std::nullopt);
 
   ASSERT_TRUE(sv.IsDense());
   ASSERT_EQ(sv.Get(0), 0);
-  ASSERT_EQ(sv.Get(1), base::nullopt);
+  ASSERT_EQ(sv.Get(1), std::nullopt);
   ASSERT_EQ(sv.Get(2), 2);
   ASSERT_EQ(sv.Get(3), 3);
-  ASSERT_EQ(sv.Get(4), base::nullopt);
+  ASSERT_EQ(sv.Get(4), std::nullopt);
 
   sv.Set(1, 1);
   ASSERT_EQ(sv.Get(1), 1);

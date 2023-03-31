@@ -17,10 +17,11 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_THREADING_POLL_H_
 #define INCLUDE_PERFETTO_EXT_BASE_THREADING_POLL_H_
 
+#include <optional>
+
 #include <variant>
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/platform_handle.h"
-#include "perfetto/ext/base/optional.h"
 
 namespace perfetto {
 namespace base {

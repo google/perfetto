@@ -20,9 +20,9 @@
 
 #include <cinttypes>
 #include <map>
+#include <optional>
 
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "test/gtest_and_gmock.h"
 

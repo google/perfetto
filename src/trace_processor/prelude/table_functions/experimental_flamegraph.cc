@@ -119,8 +119,8 @@ ExperimentalFlamegraph::InputValues GetFlamegraphInputValues(
     }
   }
 
-  base::Optional<UniquePid> upid;
-  base::Optional<std::string> upid_group;
+  std::optional<UniquePid> upid;
+  std::optional<std::string> upid_group;
   if (upid_it != cs.end()) {
     upid = static_cast<UniquePid>(upid_it->value.AsLong());
   } else {

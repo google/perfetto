@@ -20,10 +20,10 @@
 #include <stdint.h>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/bit_vector_iterators.h"
 #include "src/trace_processor/containers/row_map.h"
@@ -113,7 +113,7 @@ class ColumnStorageOverlay {
   OutputIndex Get(uint32_t row) const { return row_map_.Get(row); }
 
   // Returns the first row of the given |index| in the ColumnStorageOverlay.
-  base::Optional<InputRow> RowOf(OutputIndex index) const {
+  std::optional<InputRow> RowOf(OutputIndex index) const {
     return row_map_.RowOf(index);
   }
 

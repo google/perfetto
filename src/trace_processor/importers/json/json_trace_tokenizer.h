@@ -79,7 +79,7 @@ ReadKeyRes ReadOneJsonKey(const char* start,
 // Visible for testing.
 base::Status ExtractValueForJsonKey(base::StringView dict,
                                     const std::string& key,
-                                    base::Optional<std::string>* value);
+                                    std::optional<std::string>* value);
 
 enum class ReadSystemLineRes {
   kFoundLine,

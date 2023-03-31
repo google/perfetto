@@ -62,7 +62,7 @@ class ProcessTracker {
 
   // Called when a task_newtask is observed. This force the tracker to start
   // a new UTID for the thread, which is needed for TID-recycling resolution.
-  UniqueTid StartNewThread(base::Optional<int64_t> timestamp, uint32_t tid);
+  UniqueTid StartNewThread(std::optional<int64_t> timestamp, uint32_t tid);
 
   // Returns whether a thread is considered alive by the process tracker.
   bool IsThreadAlive(UniqueTid utid);
@@ -71,8 +71,8 @@ class ProcessTracker {
   // end the thread lifetime for the utid associated with the given tid.
   void EndThread(int64_t timestamp, uint32_t tid);
 
-  // Returns the thread utid or base::nullopt if it doesn't exist.
-  base::Optional<UniqueTid> GetThreadOrNull(uint32_t tid);
+  // Returns the thread utid or std::nullopt if it doesn't exist.
+  std::optional<UniqueTid> GetThreadOrNull(uint32_t tid);
 
   // Returns the thread utid (or creates a new entry if not present)
   UniqueTid GetOrCreateThread(uint32_t tid);
@@ -97,23 +97,23 @@ class ProcessTracker {
   // Associates trusted_pid with track UUID.
   void UpdateTrustedPid(uint32_t trusted_pid, uint64_t uuid);
 
-  // Returns the trusted_pid associated with the track UUID, or base::nullopt if
+  // Returns the trusted_pid associated with the track UUID, or std::nullopt if
   // not found.
-  base::Optional<uint32_t> GetTrustedPid(uint64_t uuid);
+  std::optional<uint32_t> GetTrustedPid(uint64_t uuid);
 
   // Performs namespace-local to root-level resolution of thread or process id,
   // given tid (can be root-level or namespace-local, but we don't know
   // beforehand) and root-level pid/tgid that the thread belongs to.
   // Returns the root-level thread id for tid on successful resolution;
-  // otherwise, returns base::nullopt on resolution failure, or the thread of
+  // otherwise, returns std::nullopt on resolution failure, or the thread of
   // tid isn't running in a pid namespace.
-  base::Optional<uint32_t> ResolveNamespacedTid(uint32_t root_level_pid,
-                                                uint32_t tid);
+  std::optional<uint32_t> ResolveNamespacedTid(uint32_t root_level_pid,
+                                               uint32_t tid);
 
   // Called when a task_newtask without the CLONE_THREAD flag is observed.
   // This force the tracker to start both a new UTID and a new UPID.
-  UniquePid StartNewProcess(base::Optional<int64_t> timestamp,
-                            base::Optional<uint32_t> parent_tid,
+  UniquePid StartNewProcess(std::optional<int64_t> timestamp,
+                            std::optional<uint32_t> parent_tid,
                             uint32_t pid,
                             StringId main_thread_name,
                             ThreadNamePriority priority);
@@ -122,7 +122,7 @@ class ProcessTracker {
   // for that pid or assigns a new one.
   // Virtual for testing.
   virtual UniquePid SetProcessMetadata(uint32_t pid,
-                                       base::Optional<uint32_t> ppid,
+                                       std::optional<uint32_t> ppid,
                                        base::StringView name,
                                        base::StringView cmdline);
 
@@ -149,9 +149,9 @@ class ProcessTracker {
   virtual UniquePid GetOrCreateProcess(uint32_t pid);
 
   // Returns the upid for a given pid.
-  base::Optional<UniquePid> UpidForPidForTesting(uint32_t pid) {
+  std::optional<UniquePid> UpidForPidForTesting(uint32_t pid) {
     auto it = pids_.Find(pid);
-    return it ? base::make_optional(*it) : base::nullopt;
+    return it ? std::make_optional(*it) : std::nullopt;
   }
 
   // Returns the bounds of a range that includes all UniqueTids that have the
@@ -191,10 +191,10 @@ class ProcessTracker {
 
  private:
   // Returns the utid of a thread having |tid| and |pid| as the parent process.
-  // pid == base::nullopt matches all processes.
-  // Returns base::nullopt if such a thread doesn't exist.
-  base::Optional<uint32_t> GetThreadOrNull(uint32_t tid,
-                                           base::Optional<uint32_t> pid);
+  // pid == std::nullopt matches all processes.
+  // Returns std::nullopt if such a thread doesn't exist.
+  std::optional<uint32_t> GetThreadOrNull(uint32_t tid,
+                                          std::optional<uint32_t> pid);
 
   // Called whenever we discover that the passed thread belongs to the passed
   // process. The |pending_assocs_| vector is scanned to see if there are any

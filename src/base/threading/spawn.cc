@@ -16,8 +16,9 @@
 
 #include "perfetto/ext/base/threading/spawn.h"
 
+#include <optional>
+
 #include "perfetto/base/task_runner.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/threading/future.h"
 #include "perfetto/ext/base/threading/poll.h"
@@ -74,7 +75,7 @@ class PolledFuture {
   }
 
   void ClearFutureAndWatches(FlatSet<PlatformHandle> interested) {
-    future_ = nullopt;
+    future_ = std::nullopt;
     for (PlatformHandle fd : interested) {
       task_runner_->RemoveFileDescriptorWatch(fd);
     }
@@ -94,7 +95,7 @@ class PolledFuture {
 
   TaskRunner* const task_runner_ = nullptr;
 
-  Optional<Future<FVoid>> future_;
+  std::optional<Future<FVoid>> future_;
   FlatSet<PlatformHandle> interested_;
   FlatSet<PlatformHandle> ready_;
   PollContext context_{&interested_, &ready_};

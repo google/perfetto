@@ -70,7 +70,7 @@ void ProtoContentAnalyzer::NotifyEndOfFile() {
         path_ids;
     for (auto sample = annotated_map.value().GetIterator(); sample; ++sample) {
       std::string path_string;
-      base::Optional<tables::ExperimentalProtoPathTable::Id> previous_path_id;
+      std::optional<tables::ExperimentalProtoPathTable::Id> previous_path_id;
       util::SizeProfileComputer::FieldPath path;
       for (const auto& field : sample.key()) {
         if (field.has_field_name()) {

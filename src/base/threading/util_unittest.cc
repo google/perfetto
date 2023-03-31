@@ -16,11 +16,12 @@
 
 #include "perfetto/ext/base/threading/util.h"
 
+#include <optional>
+
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/platform_handle.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/event_fd.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/threading/channel.h"
 #include "perfetto/ext/base/threading/poll.h"
 #include "perfetto/ext/base/threading/stream.h"
@@ -45,7 +46,7 @@ int WaitForFutureReady(base::Future<int>& stream,
   return res.item();
 }
 
-base::Optional<int> WaitForStreamReady(
+std::optional<int> WaitForStreamReady(
     base::Stream<int>& stream,
     base::FlatSet<base::PlatformHandle>& interested,
     PollContext& ctx) {
@@ -55,7 +56,7 @@ base::Optional<int> WaitForStreamReady(
     base::BlockUntilReadableFd(*interested.begin());
     interested = {};
   }
-  return res.IsDone() ? base::nullopt : base::make_optional(res.item());
+  return res.IsDone() ? std::nullopt : std::make_optional(res.item());
 }
 
 TEST(UtilUnittest, BlockUntilReadableFd) {
@@ -113,7 +114,7 @@ TEST(UtilUnittest, WriteChannelFuture) {
   interested = {};
 
   ASSERT_EQ(channel.ReadNonBlocking().item, 1);
-  ASSERT_EQ(channel.ReadNonBlocking().item, base::nullopt);
+  ASSERT_EQ(channel.ReadNonBlocking().item, std::nullopt);
 
   ASSERT_FALSE(future.Poll(&ctx).IsPending());
   ASSERT_EQ(channel.ReadNonBlocking().item, 3);
@@ -127,11 +128,11 @@ TEST(UtilUnittest, RunOnThreadPool) {
   base::ThreadPool pool(1);
   base::Stream<int> stream =
       base::RunOnThreadPool<int>(&pool, [counter = 0]() mutable {
-        return counter == 2 ? base::nullopt : base::make_optional(counter++);
+        return counter == 2 ? std::nullopt : std::make_optional(counter++);
       });
   ASSERT_EQ(WaitForStreamReady(stream, interested, ctx), 0);
   ASSERT_EQ(WaitForStreamReady(stream, interested, ctx), 1);
-  ASSERT_EQ(WaitForStreamReady(stream, interested, ctx), base::nullopt);
+  ASSERT_EQ(WaitForStreamReady(stream, interested, ctx), std::nullopt);
 }
 
 TEST(UtilUnittest, RunOnceOnThreadPool) {

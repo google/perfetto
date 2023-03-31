@@ -17,29 +17,29 @@
 #include "src/profiling/common/profiler_guardrails.h"
 
 #include <unistd.h>
-
 #include <algorithm>
+#include <optional>
+
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/watchdog_posix.h"
 
 namespace perfetto {
 namespace profiling {
 
-base::Optional<uint64_t> GetCputimeSecForCurrentProcess() {
+std::optional<uint64_t> GetCputimeSecForCurrentProcess() {
   return GetCputimeSecForCurrentProcess(
       base::OpenFile("/proc/self/stat", O_RDONLY));
 }
 
-base::Optional<uint64_t> GetCputimeSecForCurrentProcess(
+std::optional<uint64_t> GetCputimeSecForCurrentProcess(
     base::ScopedFile stat_fd) {
   if (!stat_fd)
-    return base::nullopt;
+    return std::nullopt;
   base::ProcStat stat;
   if (!ReadProcStat(stat_fd.get(), &stat)) {
     PERFETTO_ELOG("Failed to read stat file to enforce guardrails.");
-    return base::nullopt;
+    return std::nullopt;
   }
   return (stat.utime + stat.stime) /
          static_cast<unsigned long>(sysconf(_SC_CLK_TCK));

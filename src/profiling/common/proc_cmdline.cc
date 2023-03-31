@@ -49,7 +49,7 @@ namespace glob_aware {
 // Keep them as STL-free as possible to allow for both implementations to be
 // close to verbatim copies.
 
-// TODO(rsavitski): consider changing to Optional<> return type.
+// TODO(rsavitski): consider changing to std::optional<> return type.
 bool ReadProcCmdlineForPID(pid_t pid, std::string* cmdline_out) {
   std::string filename = "/proc/" + std::to_string(pid) + "/cmdline";
   base::ScopedFile fd(base::OpenFile(filename, O_RDONLY));

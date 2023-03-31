@@ -91,8 +91,8 @@ void SizeProfileComputer::Reset(const uint8_t* ptr, size_t size) {
   field_path_.emplace_back(0, nullptr, root_message_idx_, descriptor);
 }
 
-base::Optional<size_t> SizeProfileComputer::GetNext() {
-  base::Optional<size_t> result;
+std::optional<size_t> SizeProfileComputer::GetNext() {
+  std::optional<size_t> result;
   if (state_stack_.empty())
     return result;
 

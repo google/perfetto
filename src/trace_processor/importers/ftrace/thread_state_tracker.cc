@@ -67,19 +67,19 @@ void ThreadStateTracker::PushWakingEvent(int64_t event_ts,
 
   // Close the sleeping state and open runnable state.
   ClosePendingState(event_ts, utid, false);
-  AddOpenState(event_ts, utid, runnable_string_id_, base::nullopt, waker_utid);
+  AddOpenState(event_ts, utid, runnable_string_id_, std::nullopt, waker_utid);
 }
 
 void ThreadStateTracker::PushNewTaskEvent(int64_t event_ts,
                                          UniqueTid utid,
                                          UniqueTid waker_utid) {
-  AddOpenState(event_ts, utid, runnable_string_id_, base::nullopt, waker_utid);
+  AddOpenState(event_ts, utid, runnable_string_id_, std::nullopt, waker_utid);
 }
 
 void ThreadStateTracker::PushBlockedReason(
     UniqueTid utid,
-    base::Optional<bool> io_wait,
-    base::Optional<StringId> blocked_function) {
+    std::optional<bool> io_wait,
+    std::optional<StringId> blocked_function) {
   // Return if there is no state, as there is are no previous rows available.
   if (!HasPreviousRowNumbersForUtid(utid))
     return;
@@ -102,8 +102,8 @@ void ThreadStateTracker::PushBlockedReason(
 void ThreadStateTracker::AddOpenState(int64_t ts,
                                       UniqueTid utid,
                                       StringId state,
-                                      base::Optional<uint32_t> cpu,
-                                      base::Optional<UniqueTid> waker_utid) {
+                                      std::optional<uint32_t> cpu,
+                                      std::optional<UniqueTid> waker_utid) {
   // Ignore utid 0 because it corresponds to the swapper thread which doesn't
   // make sense to insert.
   if (utid == 0)
@@ -124,11 +124,11 @@ void ThreadStateTracker::AddOpenState(int64_t ts,
   }
 
   if (!prev_row_numbers_for_thread_[utid].has_value()) {
-    prev_row_numbers_for_thread_[utid] = RelatedRows{base::nullopt, row_num};
+    prev_row_numbers_for_thread_[utid] = RelatedRows{std::nullopt, row_num};
   }
 
   if (IsRunning(state)) {
-    prev_row_numbers_for_thread_[utid] = RelatedRows{base::nullopt, row_num};
+    prev_row_numbers_for_thread_[utid] = RelatedRows{std::nullopt, row_num};
   } else if (IsBlocked(state)) {
     prev_row_numbers_for_thread_[utid] = RelatedRows{row_num, row_num};
   } else /* if (IsRunnable(state)) */ {

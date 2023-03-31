@@ -17,10 +17,10 @@
 #ifndef SRC_TRACED_PROBES_FTRACE_FTRACE_PRINT_FILTER_H_
 #define SRC_TRACED_PROBES_FTRACE_FTRACE_PRINT_FILTER_H_
 
+#include <optional>
 #include <string>
 #include <vector>
 
-#include "perfetto/ext/base/optional.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
 namespace perfetto {
@@ -62,7 +62,7 @@ class FtracePrintFilter {
 
 class FtracePrintFilterConfig {
  public:
-  static base::Optional<FtracePrintFilterConfig> Create(
+  static std::optional<FtracePrintFilterConfig> Create(
       const protos::gen::FtraceConfig_PrintFilter&,
       ProtoTranslationTable* table);
 

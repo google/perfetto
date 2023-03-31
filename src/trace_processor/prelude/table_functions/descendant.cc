@@ -193,13 +193,13 @@ uint32_t Descendant::EstimateRowCount() {
 }
 
 // static
-base::Optional<std::vector<tables::SliceTable::RowNumber>>
+std::optional<std::vector<tables::SliceTable::RowNumber>>
 Descendant::GetDescendantSlices(const tables::SliceTable& slices,
                                 SliceId slice_id) {
   std::vector<tables::SliceTable::RowNumber> ret;
   auto status = GetDescendants(slices, slice_id, ret);
   if (!status.ok())
-    return base::nullopt;
+    return std::nullopt;
   return std::move(ret);
 }
 

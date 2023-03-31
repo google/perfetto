@@ -15,8 +15,8 @@
  */
 
 #include "src/trace_processor/importers/proto/profiler_util.h"
+#include <optional>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -29,32 +29,32 @@ namespace {
 // * /data/app/~~[randomStringA]/[packageName]-[randomStringB]/base.apk
 // The latter is newer (R+), and was added to avoid leaking package names via
 // mountinfo of incremental apk mounts.
-base::Optional<base::StringView> PackageFromApp(base::StringView location) {
+std::optional<base::StringView> PackageFromApp(base::StringView location) {
   location = location.substr(base::StringView("/data/app/").size());
   size_t start = 0;
   if (location.at(0) == '~') {
     size_t slash = location.find('/');
     if (slash == base::StringView::npos) {
-      return base::nullopt;
+      return std::nullopt;
     }
     start = slash + 1;
   }
   size_t end = location.find('/', start + 1);
   if (end == base::StringView::npos) {
-    return base::nullopt;
+    return std::nullopt;
   }
   location = location.substr(start, end);
   size_t minus = location.find('-');
   if (minus == base::StringView::npos) {
-    return base::nullopt;
+    return std::nullopt;
   }
   return location.substr(0, minus);
 }
 
 }  // namespace
 
-base::Optional<std::string> PackageFromLocation(TraceStorage* storage,
-                                                base::StringView location) {
+std::optional<std::string> PackageFromLocation(TraceStorage* storage,
+                                               base::StringView location) {
   // List of some hardcoded apps that do not follow the scheme used in
   // PackageFromApp. Ask for yours to be added.
   //
@@ -146,12 +146,12 @@ base::Optional<std::string> PackageFromLocation(TraceStorage* storage,
   // Deal with paths to /data/app/...
 
   auto extract_package =
-      [storage](base::StringView path) -> base::Optional<std::string> {
+      [storage](base::StringView path) -> std::optional<std::string> {
     auto package = PackageFromApp(path);
     if (!package) {
       PERFETTO_DLOG("Failed to parse %s", path.ToStdString().c_str());
       storage->IncrementStats(stats::deobfuscate_location_parse_error);
-      return base::nullopt;
+      return std::nullopt;
     }
     return package->ToStdString();
   };
@@ -176,7 +176,7 @@ base::Optional<std::string> PackageFromLocation(TraceStorage* storage,
     return extract_package(data_app_path);
   }
 
-  return base::nullopt;
+  return std::nullopt;
 }
 
 std::string FullyQualifiedDeobfuscatedName(

@@ -22,10 +22,10 @@
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "src/profiling/deobfuscator.h"
 

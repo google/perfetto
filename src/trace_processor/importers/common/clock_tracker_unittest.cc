@@ -16,9 +16,9 @@
 
 #include "src/trace_processor/importers/common/clock_tracker.h"
 
+#include <optional>
 #include <random>
 
-#include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"

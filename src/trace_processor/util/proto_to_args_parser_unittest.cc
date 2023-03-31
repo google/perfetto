@@ -311,7 +311,7 @@ TEST_F(ProtoToArgsParserTest, NestedProtoParsingOverrideSkipped) {
         ++val;
         EXPECT_EQ(1, val);
         EXPECT_EQ(field.type(), protozero::proto_utils::ProtoWireType::kVarInt);
-        return base::nullopt;
+        return std::nullopt;
       });
 
   status = parser.ParseMessage(
@@ -358,13 +358,13 @@ TEST_F(ProtoToArgsParserTest, LookingUpInternedStateParsingOverride) {
   // multiple args rows.
   parser.AddParsingOverrideForField(
       "super_nested.value_c",
-      [](const protozero::Field& field, ProtoToArgsParser::Delegate& delegate)
-          -> base::Optional<base::Status> {
+      [](const protozero::Field& field,
+         ProtoToArgsParser::Delegate& delegate) -> std::optional<base::Status> {
         auto* decoder = delegate.GetInternedMessage(
             protos::pbzero::InternedData::kSourceLocations, field.as_uint64());
         if (!decoder) {
           // Lookup failed fall back on default behaviour.
-          return base::nullopt;
+          return std::nullopt;
         }
         delegate.AddString(ProtoToArgsParser::Key("file_name"),
                            protozero::ConstChars{"file", 4});

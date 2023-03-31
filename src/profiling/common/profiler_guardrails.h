@@ -21,9 +21,9 @@
 #include <unistd.h>
 
 #include <cinttypes>
+#include <optional>
 
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "src/profiling/common/proc_utils.h"
@@ -31,14 +31,14 @@
 namespace perfetto {
 namespace profiling {
 
-base::Optional<uint64_t> GetCputimeSecForCurrentProcess();
+std::optional<uint64_t> GetCputimeSecForCurrentProcess();
 // For testing.
-base::Optional<uint64_t> GetCputimeSecForCurrentProcess(
+std::optional<uint64_t> GetCputimeSecForCurrentProcess(
     base::ScopedFile stat_fd);
 
 struct GuardrailConfig {
   uint64_t cpu_guardrail_sec = 0;
-  base::Optional<uint64_t> cpu_start_secs;
+  std::optional<uint64_t> cpu_start_secs;
   uint32_t memory_guardrail_kb = 0;
 };
 
@@ -51,7 +51,7 @@ class ProfilerCpuGuardrails {
   bool IsOverCpuThreshold(const GuardrailConfig& ds);
 
  private:
-  base::Optional<uint64_t> opt_cputime_sec_;
+  std::optional<uint64_t> opt_cputime_sec_;
 };
 
 class ProfilerMemoryGuardrails {
@@ -63,7 +63,7 @@ class ProfilerMemoryGuardrails {
   bool IsOverMemoryThreshold(const GuardrailConfig& ds);
 
  private:
-  base::Optional<uint32_t> anon_and_swap_;
+  std::optional<uint32_t> anon_and_swap_;
 };
 
 }  // namespace profiling

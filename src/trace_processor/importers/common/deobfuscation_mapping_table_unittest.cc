@@ -30,8 +30,8 @@ TEST(DeobfuscationMappingTable, EmptyTableByDefault) {
   StringId xyz_id = storage.InternString("xyz");
 
   DeobfuscationMappingTable table;
-  EXPECT_EQ(table.TranslateClass(xyz_id), base::nullopt);
-  EXPECT_EQ(table.TranslateClass(PackageId{"app", 123}, xyz_id), base::nullopt);
+  EXPECT_EQ(table.TranslateClass(xyz_id), std::nullopt);
+  EXPECT_EQ(table.TranslateClass(PackageId{"app", 123}, xyz_id), std::nullopt);
 }
 
 TEST(DeobfuscationMappingTable, TranslateClassSingleInsert) {
@@ -45,8 +45,8 @@ TEST(DeobfuscationMappingTable, TranslateClassSingleInsert) {
                             base::FlatHashMap<StringId, StringId>{});
   EXPECT_EQ(table.TranslateClass(xyz_id), class_x_id);
   EXPECT_EQ(table.TranslateClass(PackageId{"app", 123}, xyz_id), class_x_id);
-  EXPECT_EQ(table.TranslateClass(PackageId{"app", 124}, xyz_id), base::nullopt);
-  EXPECT_EQ(table.TranslateClass(PackageId{"app", 123}, abc_id), base::nullopt);
+  EXPECT_EQ(table.TranslateClass(PackageId{"app", 124}, xyz_id), std::nullopt);
+  EXPECT_EQ(table.TranslateClass(PackageId{"app", 123}, abc_id), std::nullopt);
 }
 
 TEST(DeobfuscationMappingTable, TranslateClassMultipleInsert) {
@@ -65,11 +65,10 @@ TEST(DeobfuscationMappingTable, TranslateClassMultipleInsert) {
   table.AddClassTranslation(PackageId{"app3", 123}, abc_id, class_a_id,
                             base::FlatHashMap<StringId, StringId>{});
   EXPECT_EQ(table.TranslateClass(xyz_id), class_x_id);
-  EXPECT_EQ(table.TranslateClass(abc_id), base::nullopt);
+  EXPECT_EQ(table.TranslateClass(abc_id), std::nullopt);
   EXPECT_EQ(table.TranslateClass(PackageId{"app1", 123}, xyz_id), class_x_id);
   EXPECT_EQ(table.TranslateClass(PackageId{"app2", 123}, xyz_id), class_y_id);
-  EXPECT_EQ(table.TranslateClass(PackageId{"app1", 123}, abc_id),
-            base::nullopt);
+  EXPECT_EQ(table.TranslateClass(PackageId{"app1", 123}, abc_id), std::nullopt);
 }
 
 TEST(DeobfuscationMappingTable, TranslateMember) {
@@ -95,11 +94,11 @@ TEST(DeobfuscationMappingTable, TranslateMember) {
   EXPECT_EQ(table.TranslateMember(PackageId{"app1", 123}, xyz_id, mmm_2_id),
             member_2_id);
   EXPECT_EQ(table.TranslateMember(PackageId{"app1", 123}, xyz_id, mmm_4_id),
-            base::nullopt);
+            std::nullopt);
   EXPECT_EQ(table.TranslateMember(PackageId{"app1", 123}, abc_id, mmm_2_id),
-            base::nullopt);
+            std::nullopt);
   EXPECT_EQ(table.TranslateMember(PackageId{"app1", 124}, xyz_id, mmm_2_id),
-            base::nullopt);
+            std::nullopt);
 }
 
 }  // namespace

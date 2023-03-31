@@ -25,9 +25,9 @@
 #include <linux/perf_event.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <optional>
 
 #include "perfetto/base/flat_set.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/tracing/core/data_source_config.h"
 
 #include "protos/perfetto/common/perf_events.gen.h"
@@ -56,7 +56,7 @@ struct TargetFilter {
   std::vector<std::string> exclude_cmdlines;
   base::FlatSet<pid_t> pids;
   base::FlatSet<pid_t> exclude_pids;
-  base::Optional<ProcessSharding> process_sharding;
+  std::optional<ProcessSharding> process_sharding;
   uint32_t additional_cmdline_count = 0;
 };
 
@@ -118,10 +118,10 @@ class EventConfig {
   using tracepoint_id_fn_t =
       std::function<uint32_t(const std::string&, const std::string&)>;
 
-  static base::Optional<EventConfig> Create(
+  static std::optional<EventConfig> Create(
       const protos::gen::PerfEventConfig& pb_config,
       const DataSourceConfig& raw_ds_config,
-      base::Optional<ProcessSharding> process_sharding,
+      std::optional<ProcessSharding> process_sharding,
       tracepoint_id_fn_t tracepoint_id_lookup);
 
   uint32_t ring_buffer_pages() const { return ring_buffer_pages_; }

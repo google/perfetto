@@ -24,23 +24,23 @@ namespace perfetto {
 namespace trace_processor {
 namespace tables {
 
-#define PERFETTO_TP_SLICE_TABLE_DEF(NAME, PARENT, C)   \
-  NAME(SliceTable, "internal_slice")                   \
-  PERFETTO_TP_ROOT_TABLE(PARENT, C)                    \
-  C(int64_t, ts, Column::Flag::kSorted)                \
-  C(int64_t, dur)                                      \
-  C(TrackTable::Id, track_id)                          \
-  C(base::Optional<StringPool::Id>, category)          \
-  C(base::Optional<StringPool::Id>, name)              \
-  C(uint32_t, depth)                                   \
-  C(int64_t, stack_id)                                 \
-  C(int64_t, parent_stack_id)                          \
-  C(base::Optional<SliceTable::Id>, parent_id)         \
-  C(uint32_t, arg_set_id)                              \
-  C(base::Optional<int64_t>, thread_ts)                \
-  C(base::Optional<int64_t>, thread_dur)               \
-  C(base::Optional<int64_t>, thread_instruction_count) \
-  C(base::Optional<int64_t>, thread_instruction_delta)
+#define PERFETTO_TP_SLICE_TABLE_DEF(NAME, PARENT, C)  \
+  NAME(SliceTable, "internal_slice")                  \
+  PERFETTO_TP_ROOT_TABLE(PARENT, C)                   \
+  C(int64_t, ts, Column::Flag::kSorted)               \
+  C(int64_t, dur)                                     \
+  C(TrackTable::Id, track_id)                         \
+  C(std::optional<StringPool::Id>, category)          \
+  C(std::optional<StringPool::Id>, name)              \
+  C(uint32_t, depth)                                  \
+  C(int64_t, stack_id)                                \
+  C(int64_t, parent_stack_id)                         \
+  C(std::optional<SliceTable::Id>, parent_id)         \
+  C(uint32_t, arg_set_id)                             \
+  C(std::optional<int64_t>, thread_ts)                \
+  C(std::optional<int64_t>, thread_dur)               \
+  C(std::optional<int64_t>, thread_instruction_count) \
+  C(std::optional<int64_t>, thread_instruction_delta)
 
 #define PERFETTO_TP_SCHED_SLICE_TABLE_DEF(NAME, PARENT, C) \
   NAME(SchedSliceTable, "sched_slice")                     \

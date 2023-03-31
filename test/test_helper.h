@@ -19,10 +19,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <optional>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/subprocess.h"
 #include "perfetto/ext/base/thread_task_runner.h"
@@ -109,7 +109,7 @@ class TestEnvCleaner {
  private:
   struct Var {
     const char* name;
-    base::Optional<std::string> value;
+    std::optional<std::string> value;
   };
   std::vector<Var> prev_state_;
 };
@@ -159,7 +159,7 @@ class ServiceThread {
   base::ThreadTaskRunner* runner() { return runner_ ? &*runner_ : nullptr; }
 
  private:
-  base::Optional<base::ThreadTaskRunner> runner_;  // Keep first.
+  std::optional<base::ThreadTaskRunner> runner_;  // Keep first.
 
   std::string producer_socket_;
   std::string consumer_socket_;
@@ -196,7 +196,7 @@ class ProbesProducerThread {
   }
 
  private:
-  base::Optional<base::ThreadTaskRunner> runner_;  // Keep first.
+  std::optional<base::ThreadTaskRunner> runner_;  // Keep first.
 
   std::string producer_socket_;
   std::unique_ptr<ProbesProducer> producer_;
@@ -253,7 +253,7 @@ class FakeProducerThread {
   }
 
  private:
-  base::Optional<base::ThreadTaskRunner> runner_;  // Keep first.
+  std::optional<base::ThreadTaskRunner> runner_;  // Keep first.
 
   std::string producer_socket_;
   std::unique_ptr<FakeProducer> producer_;
