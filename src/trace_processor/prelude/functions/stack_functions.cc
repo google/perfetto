@@ -21,12 +21,12 @@
 #include <cstring>
 #include <deque>
 #include <iterator>
+#include <optional>
 #include <type_traits>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"

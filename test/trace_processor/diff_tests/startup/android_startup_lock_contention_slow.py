@@ -60,7 +60,7 @@ trace.add_atrace_begin(
     tid=3,
     pid=3,
     buf='Lock contention on a monitor lock (owner tid: 2)')
-trace.add_atrace_end(ts=to_s(150), tid=3, pid=3)
+trace.add_atrace_end(ts=to_s(157), tid=3, pid=3)
 
 # Lock contention on non-main thread should not be counted.
 trace.add_atrace_begin(

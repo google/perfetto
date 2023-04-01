@@ -174,17 +174,17 @@ TEST_F(HeapProfileTrackerDupTest, Callstack) {
   EXPECT_EQ(depth[0], 0u);
   EXPECT_EQ(depth[1], 1u);
 
-  EXPECT_EQ(parent_id[0], base::nullopt);
+  EXPECT_EQ(parent_id[0], std::nullopt);
   EXPECT_EQ(parent_id[1], CallsiteId{0});
 
   EXPECT_EQ(frame_id[0], FrameId{0});
   EXPECT_EQ(frame_id[1], FrameId{0});
 }
 
-base::Optional<CallsiteId> FindCallstack(const TraceStorage& storage,
-                                         int64_t depth,
-                                         base::Optional<CallsiteId> parent,
-                                         FrameId frame_id) {
+std::optional<CallsiteId> FindCallstack(const TraceStorage& storage,
+                                        int64_t depth,
+                                        std::optional<CallsiteId> parent,
+                                        FrameId frame_id) {
   const auto& callsites = storage.stack_profile_callsite_table();
   for (uint32_t i = 0; i < callsites.row_count(); ++i) {
     if (callsites.depth()[i] == depth && callsites.parent_id()[i] == parent &&
@@ -192,7 +192,7 @@ base::Optional<CallsiteId> FindCallstack(const TraceStorage& storage,
       return callsites.id()[i];
     }
   }
-  return base::nullopt;
+  return std::nullopt;
 }
 
 TEST(HeapProfileTrackerTest, SourceMappingPath) {
@@ -224,7 +224,7 @@ TEST(HeapProfileTrackerTest, SourceMappingPath) {
   spt->AddMapping(0, mapping);
   hpt->CommitAllocations(kDefaultSequence, spt.get(), nullptr);
   auto foo_bar_id = context.storage->string_pool().GetId("/foo/bar");
-  ASSERT_NE(foo_bar_id, base::nullopt);
+  ASSERT_NE(foo_bar_id, std::nullopt);
   EXPECT_THAT(context.storage->stack_profile_mapping_table().name()[0],
               *foo_bar_id);
 }
@@ -331,12 +331,12 @@ TEST(HeapProfileTrackerTest, Functional) {
   hpt->CommitAllocations(kDefaultSequence, spt.get(), nullptr);
 
   for (size_t i = 0; i < base::ArraySize(callstacks); ++i) {
-    base::Optional<CallsiteId> parent;
+    std::optional<CallsiteId> parent;
     const SequenceStackProfileTracker::SourceCallstack& callstack =
         callstacks[i];
     for (size_t depth = 0; depth < callstack.size(); ++depth) {
       auto frame_id = spt->GetDatabaseFrameIdForTesting(callstack[depth]);
-      base::Optional<CallsiteId> self = FindCallstack(
+      std::optional<CallsiteId> self = FindCallstack(
           *context.storage, static_cast<int64_t>(depth), parent, frame_id);
       ASSERT_TRUE(self.has_value());
       parent = self;

@@ -82,11 +82,11 @@ class DbSqliteTable : public SqliteTable {
     std::unique_ptr<Table> dynamic_table_;
 
     // Only valid for Mode::kSingleRow.
-    base::Optional<uint32_t> single_row_;
+    std::optional<uint32_t> single_row_;
 
     // Only valid for Mode::kTable.
-    base::Optional<Table> db_table_;
-    base::Optional<Table::Iterator> iterator_;
+    std::optional<Table> db_table_;
+    std::optional<Table::Iterator> iterator_;
 
     bool eof_ = true;
 

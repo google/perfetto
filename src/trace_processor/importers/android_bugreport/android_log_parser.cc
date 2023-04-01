@@ -17,10 +17,10 @@
 #include "src/trace_processor/importers/android_bugreport/android_log_parser.h"
 
 #include <string.h>
+#include <optional>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -42,9 +42,9 @@ namespace {
 //      input="123",  decimal_scale=1000 -> res=123
 //      input="1234", decimal_scale=1000 -> res=123
 //      input="1234", decimal_scale=1000000 -> res=123400
-base::Optional<int> ReadNumAndAdvance(base::StringView* it,
-                                      char sep,
-                                      int decimal_scale = 0) {
+std::optional<int> ReadNumAndAdvance(base::StringView* it,
+                                     char sep,
+                                     int decimal_scale = 0) {
   int num = 0;
   bool sep_found = false;
   size_t next_it = 0;
@@ -73,13 +73,14 @@ base::Optional<int> ReadNumAndAdvance(base::StringView* it,
     invalid_chars_found = true;
   }
   if (!sep_found)
-    return base::nullopt;
+    return std::nullopt;
   // If we find non-digit characters, we want to still skip the token but return
-  // nullopt. The parser below relies on token skipping to deal with cases where
-  // the uid (which we don't care about) is literal ("root" rather than 0).
+  // std::nullopt. The parser below relies on token skipping to deal with cases
+  // where the uid (which we don't care about) is literal ("root" rather than
+  // 0).
   *it = it->substr(next_it);
   if (invalid_chars_found)
-    return base::nullopt;
+    return std::nullopt;
   return num;
 }
 
@@ -146,18 +147,18 @@ void AndroidLogParser::ParseLogLines(std::vector<base::StringView> lines,
     // 06-24 16:24:23.441532 23153 23153 I wm_on_stop_called: message ...
     // 07-28 14:25:13.506  root     0     0 I x86/fpu : Supporting XSAVE feature
     // 0x002: 'SSE registers'
-    base::Optional<int> month = ReadNumAndAdvance(&it, '-');
-    base::Optional<int> day = ReadNumAndAdvance(&it, ' ');
-    base::Optional<int> hour = ReadNumAndAdvance(&it, ':');
-    base::Optional<int> minute = ReadNumAndAdvance(&it, ':');
-    base::Optional<int> sec = ReadNumAndAdvance(&it, '.');
-    base::Optional<int> ns = ReadNumAndAdvance(&it, ' ', 1000 * 1000 * 1000);
+    std::optional<int> month = ReadNumAndAdvance(&it, '-');
+    std::optional<int> day = ReadNumAndAdvance(&it, ' ');
+    std::optional<int> hour = ReadNumAndAdvance(&it, ':');
+    std::optional<int> minute = ReadNumAndAdvance(&it, ':');
+    std::optional<int> sec = ReadNumAndAdvance(&it, '.');
+    std::optional<int> ns = ReadNumAndAdvance(&it, ' ', 1000 * 1000 * 1000);
 
     if (fmt == LogcatFormat::kBugreport)
       ReadNumAndAdvance(&it, ' ');  // Skip the UID column.
 
-    base::Optional<int> pid = ReadNumAndAdvance(&it, ' ');
-    base::Optional<int> tid = ReadNumAndAdvance(&it, ' ');
+    std::optional<int> pid = ReadNumAndAdvance(&it, ' ');
+    std::optional<int> tid = ReadNumAndAdvance(&it, ' ');
 
     if (!month || !day || !hour || !minute || !sec || !ns || !pid || !tid) {
       ++parse_failures;

@@ -74,7 +74,7 @@ class Client {
       base::UnixSocketRaw sock,
       UnhookedAllocator<Client> unhooked_allocator);
 
-  static base::Optional<base::UnixSocketRaw> ConnectToHeapprofd(
+  static std::optional<base::UnixSocketRaw> ConnectToHeapprofd(
       const std::string& sock_name);
 
   bool RecordMalloc(uint32_t heap_id,

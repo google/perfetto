@@ -20,10 +20,10 @@
 #include <deque>
 #include <iostream>
 #include <iterator>
+#include <optional>
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/trace_processor/demangle.h"
@@ -319,7 +319,7 @@ const protozero::PackedVarInt& GProfileBuilder::GetLocationIdsForCallsite(
 
   const auto& cs_table = context_.storage->stack_profile_callsite_table();
 
-  base::Optional<tables::StackProfileCallsiteTable::ConstRowReference>
+  std::optional<tables::StackProfileCallsiteTable::ConstRowReference>
       start_ref = cs_table.FindById(callsite_id);
   if (!start_ref) {
     return location_ids;
@@ -329,7 +329,7 @@ const protozero::PackedVarInt& GProfileBuilder::GetLocationIdsForCallsite(
       start_ref->frame_id(), annotated ? annotations_.GetAnnotation(*start_ref)
                                        : CallsiteAnnotation::kNone));
 
-  base::Optional<CallsiteId> parent_id = start_ref->parent_id();
+  std::optional<CallsiteId> parent_id = start_ref->parent_id();
   while (parent_id) {
     auto parent_ref = cs_table.FindById(*parent_id);
     location_ids.Append(WriteLocationIfNeeded(
@@ -428,7 +428,7 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLines(
 }
 
 std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForSymbolSetId(
-    base::Optional<uint32_t> symbol_set_id,
+    std::optional<uint32_t> symbol_set_id,
     CallsiteAnnotation annotation,
     uint64_t mapping_id) {
   if (!symbol_set_id) {
@@ -601,7 +601,7 @@ void GProfileBuilder::WriteMapping(uint64_t mapping_id) {
 void GProfileBuilder::WriteMappings() {
   // The convention in pprof files is to write the mapping for the main binary
   // first. So lets do just that.
-  base::Optional<uint64_t> main_mapping_id = GuessMainBinary();
+  std::optional<uint64_t> main_mapping_id = GuessMainBinary();
   if (main_mapping_id) {
     WriteMapping(*main_mapping_id);
   }
@@ -615,7 +615,7 @@ void GProfileBuilder::WriteMappings() {
   }
 }
 
-base::Optional<uint64_t> GProfileBuilder::GuessMainBinary() const {
+std::optional<uint64_t> GProfileBuilder::GuessMainBinary() const {
   std::vector<int64_t> mapping_scores;
 
   for (const auto& mapping : mappings_) {
@@ -625,7 +625,7 @@ base::Optional<uint64_t> GProfileBuilder::GuessMainBinary() const {
   auto it = std::max_element(mapping_scores.begin(), mapping_scores.end());
 
   if (it == mapping_scores.end()) {
-    return base::nullopt;
+    return std::nullopt;
   }
 
   return static_cast<uint64_t>(std::distance(mapping_scores.begin(), it) + 1);

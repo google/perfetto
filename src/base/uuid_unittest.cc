@@ -16,9 +16,9 @@
 
 #include "perfetto/ext/base/uuid.h"
 
-#include "test/gtest_and_gmock.h"
+#include <optional>
 
-#include "perfetto/ext/base/optional.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace base {

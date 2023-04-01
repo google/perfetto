@@ -22,11 +22,11 @@
 #include <cstring>
 #include <functional>
 #include <limits>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
 #include "perfetto/base/compiler.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"

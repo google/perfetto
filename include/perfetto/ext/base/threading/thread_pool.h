@@ -21,11 +21,11 @@
 #include <functional>
 #include <list>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <vector>
 
 #include "perfetto/base/task_runner.h"
-#include "perfetto/ext/base/optional.h"
 
 namespace perfetto {
 namespace base {

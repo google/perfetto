@@ -298,7 +298,7 @@ ReadKeyRes ReadOneJsonKey(const char* start,
 
 base::Status ExtractValueForJsonKey(base::StringView dict,
                                     const std::string& key,
-                                    base::Optional<std::string>* value) {
+                                    std::optional<std::string>* value) {
   PERFETTO_DCHECK(dict.size() >= 2);
 
   const char* start = dict.data();
@@ -398,7 +398,7 @@ base::Status ExtractValueForJsonKey(base::StringView dict,
   if (state != kAfterDict)
     return base::ErrStatus("Failure parsing JSON: malformed dictionary");
 
-  *value = base::nullopt;
+  *value = std::nullopt;
   return base::OkStatus();
 }
 
@@ -531,16 +531,16 @@ base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
         break;
     }
 
-    base::Optional<std::string> opt_raw_ts;
+    std::optional<std::string> opt_raw_ts;
     RETURN_IF_ERROR(ExtractValueForJsonKey(unparsed, "ts", &opt_raw_ts));
-    base::Optional<int64_t> opt_ts =
-        opt_raw_ts ? json::CoerceToTs(*opt_raw_ts) : base::nullopt;
+    std::optional<int64_t> opt_ts =
+        opt_raw_ts ? json::CoerceToTs(*opt_raw_ts) : std::nullopt;
     int64_t ts = 0;
     if (opt_ts.has_value()) {
       ts = opt_ts.value();
     } else {
       // Metadata events may omit ts. In all other cases error:
-      base::Optional<std::string> opt_raw_ph;
+      std::optional<std::string> opt_raw_ph;
       RETURN_IF_ERROR(ExtractValueForJsonKey(unparsed, "ph", &opt_raw_ph));
       if (!opt_raw_ph || *opt_raw_ph != "M") {
         context_->storage->IncrementStats(stats::json_tokenizer_failure);

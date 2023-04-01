@@ -302,7 +302,7 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(
     actual_row.jank_tag = jank_tag_none_id_;
   }
 
-  base::Optional<SliceId> opt_slice_id = context_->slice_tracker->BeginTyped(
+  std::optional<SliceId> opt_slice_id = context_->slice_tracker->BeginTyped(
       context_->storage->mutable_actual_frame_timeline_slice_table(),
       actual_row,
       [this, token, jank_type, present_type, prediction_type,
@@ -508,7 +508,7 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(
       is_buffer = context_->storage->InternString("No");
   }
 
-  base::Optional<SliceId> opt_slice_id = context_->slice_tracker->BeginTyped(
+  std::optional<SliceId> opt_slice_id = context_->slice_tracker->BeginTyped(
       context_->storage->mutable_actual_frame_timeline_slice_table(),
       actual_row,
       [this, jank_type, present_type, token, layer_name_id, display_frame_token,

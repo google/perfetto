@@ -20,10 +20,10 @@
 #include <time.h>
 
 #include <unwindstack/Regs.h>
+#include <optional>
 #include <vector>
 
 #include "perfetto/base/flat_set.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/profiling/perf/regs_parsing.h"
 
@@ -56,7 +56,7 @@ std::pair<std::string, std::string> SplitTracepointString(
 }
 
 // If set, the returned id is guaranteed to be non-zero.
-base::Optional<uint32_t> ParseTracepointAndResolveId(
+std::optional<uint32_t> ParseTracepointAndResolveId(
     const protos::gen::PerfEvents::Tracepoint& tracepoint,
     EventConfig::tracepoint_id_fn_t tracepoint_id_lookup) {
   std::string full_name = tracepoint.name();
@@ -68,7 +68,7 @@ base::Optional<uint32_t> ParseTracepointAndResolveId(
         "Invalid tracepoint format: %s. Should be a full path like "
         "sched:sched_switch or sched/sched_switch.",
         full_name.c_str());
-    return base::nullopt;
+    return std::nullopt;
   }
 
   uint32_t tracepoint_id = tracepoint_id_lookup(tp_group, tp_name);
@@ -77,9 +77,9 @@ base::Optional<uint32_t> ParseTracepointAndResolveId(
         "Failed to resolve tracepoint %s to its id. Check that tracefs is "
         "accessible and the event exists.",
         full_name.c_str());
-    return base::nullopt;
+    return std::nullopt;
   }
-  return base::make_optional(tracepoint_id);
+  return std::make_optional(tracepoint_id);
 }
 
 // |T| is either gen::PerfEventConfig or gen::PerfEventConfig::Scope.
@@ -91,7 +91,7 @@ base::Optional<uint32_t> ParseTracepointAndResolveId(
 template <typename T>
 TargetFilter ParseTargetFilter(
     const T& cfg,
-    base::Optional<ProcessSharding> process_sharding) {
+    std::optional<ProcessSharding> process_sharding) {
   TargetFilter filter;
   for (const auto& str : cfg.target_cmdline()) {
     filter.cmdlines.push_back(str);
@@ -114,22 +114,22 @@ constexpr bool IsPowerOfTwo(size_t v) {
   return (v != 0 && ((v & (v - 1)) == 0));
 }
 
-// returns |base::nullopt| if the input is invalid.
-base::Optional<uint32_t> ChooseActualRingBufferPages(uint32_t config_value) {
+// returns |std::nullopt| if the input is invalid.
+std::optional<uint32_t> ChooseActualRingBufferPages(uint32_t config_value) {
   if (!config_value) {
     static_assert(IsPowerOfTwo(kDefaultDataPagesPerRingBuffer), "");
-    return base::make_optional(kDefaultDataPagesPerRingBuffer);
+    return std::make_optional(kDefaultDataPagesPerRingBuffer);
   }
 
   if (!IsPowerOfTwo(config_value)) {
     PERFETTO_ELOG("kernel buffer size must be a power of two pages");
-    return base::nullopt;
+    return std::nullopt;
   }
 
-  return base::make_optional(config_value);
+  return std::make_optional(config_value);
 }
 
-base::Optional<PerfCounter> ToPerfCounter(
+std::optional<PerfCounter> ToPerfCounter(
     std::string name,
     protos::gen::PerfEvents::Counter pb_enum) {
   using protos::gen::PerfEvents;
@@ -218,7 +218,7 @@ base::Optional<PerfCounter> ToPerfCounter(
     default:
       PERFETTO_ELOG("Unrecognised PerfEvents::Counter enum value: %zu",
                     static_cast<size_t>(pb_enum));
-      return base::nullopt;
+      return std::nullopt;
   }
 }
 
@@ -294,10 +294,10 @@ PerfCounter PerfCounter::RawEvent(std::string name,
 }
 
 // static
-base::Optional<EventConfig> EventConfig::Create(
+std::optional<EventConfig> EventConfig::Create(
     const protos::gen::PerfEventConfig& pb_config,
     const DataSourceConfig& raw_ds_config,
-    base::Optional<ProcessSharding> process_sharding,
+    std::optional<ProcessSharding> process_sharding,
     tracepoint_id_fn_t tracepoint_id_lookup) {
   // Timebase: sampling interval.
   uint64_t sampling_frequency = 0;
@@ -321,15 +321,15 @@ base::Optional<EventConfig> EventConfig::Create(
     auto maybe_counter =
         ToPerfCounter(timebase_name, pb_config.timebase().counter());
     if (!maybe_counter)
-      return base::nullopt;
+      return std::nullopt;
     timebase_event = *maybe_counter;
 
   } else if (pb_config.timebase().has_tracepoint()) {
     const auto& tracepoint_pb = pb_config.timebase().tracepoint();
-    base::Optional<uint32_t> maybe_id =
+    std::optional<uint32_t> maybe_id =
         ParseTracepointAndResolveId(tracepoint_pb, tracepoint_id_lookup);
     if (!maybe_id)
-      return base::nullopt;
+      return std::nullopt;
     timebase_event = PerfCounter::Tracepoint(
         timebase_name, tracepoint_pb.name(), tracepoint_pb.filter(), *maybe_id);
 
@@ -370,7 +370,7 @@ base::Optional<EventConfig> EventConfig::Create(
         // enum value from the future that we don't yet know, refuse the config
         // TODO(rsavitski): double-check that both pbzero and ::gen propagate
         // unknown enum values.
-        return base::nullopt;
+        return std::nullopt;
     }
 
     // Process scoping. Sharding parameter is supplied from outside as it is
@@ -388,10 +388,10 @@ base::Optional<EventConfig> EventConfig::Create(
   }
 
   // Ring buffer options.
-  base::Optional<uint32_t> ring_buffer_pages =
+  std::optional<uint32_t> ring_buffer_pages =
       ChooseActualRingBufferPages(pb_config.ring_buffer_pages());
   if (!ring_buffer_pages.has_value())
-    return base::nullopt;
+    return std::nullopt;
 
   uint32_t read_tick_period_ms = pb_config.ring_buffer_read_period_ms()
                                      ? pb_config.ring_buffer_read_period_ms()
@@ -421,7 +421,7 @@ base::Optional<EventConfig> EventConfig::Create(
   PERFETTO_DLOG("Capping samples (not records) per tick to [%" PRIu64 "]",
                 samples_per_tick_limit);
   if (samples_per_tick_limit == 0)
-    return base::nullopt;
+    return std::nullopt;
 
   // Optional footprint controls.
   uint64_t max_enqueued_footprint_bytes =

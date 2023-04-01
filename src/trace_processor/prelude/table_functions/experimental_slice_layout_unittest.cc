@@ -72,18 +72,17 @@ void ExpectOutput(const Table& table, const std::string& expected) {
       << "Actual:" << actual << "\nExpected:" << expected;
 }
 
-tables::SliceTable::Id Insert(
-    tables::SliceTable* table,
-    int64_t ts,
-    int64_t dur,
-    uint32_t track_id,
-    StringId name,
-    base::Optional<tables::SliceTable::Id> parent_id) {
+tables::SliceTable::Id Insert(tables::SliceTable* table,
+                              int64_t ts,
+                              int64_t dur,
+                              uint32_t track_id,
+                              StringId name,
+                              std::optional<tables::SliceTable::Id> parent_id) {
   tables::SliceTable::Row row;
   row.ts = ts;
   row.dur = dur;
   row.depth = 0;
-  base::Optional<tables::SliceTable::Id> id = parent_id;
+  std::optional<tables::SliceTable::Id> id = parent_id;
   while (id) {
     row.depth++;
     id = table->parent_id()[id.value().value];
@@ -100,7 +99,7 @@ TEST(ExperimentalSliceLayoutTest, SingleRow) {
   StringId name = pool.InternString("SingleRow");
 
   Insert(&slice_table, 1 /*ts*/, 5 /*dur*/, 1 /*track_id*/, name,
-         base::nullopt /*parent*/);
+         std::nullopt /*parent*/);
 
   ExperimentalSliceLayout gen(&pool, &slice_table);
 
@@ -120,7 +119,7 @@ TEST(ExperimentalSliceLayoutTest, DoubleRow) {
   StringId name = pool.InternString("SingleRow");
 
   auto id = Insert(&slice_table, 1 /*ts*/, 5 /*dur*/, 1 /*track_id*/, name,
-                   base::nullopt);
+                   std::nullopt);
   Insert(&slice_table, 1 /*ts*/, 5 /*dur*/, 1 /*track_id*/, name, id);
 
   ExperimentalSliceLayout gen(&pool, &slice_table);
@@ -142,7 +141,7 @@ TEST(ExperimentalSliceLayoutTest, MultipleRows) {
   StringId name = pool.InternString("MultipleRows");
 
   auto a = Insert(&slice_table, 1 /*ts*/, 5 /*dur*/, 1 /*track_id*/, name,
-                  base::nullopt);
+                  std::nullopt);
   auto b = Insert(&slice_table, 1 /*ts*/, 4 /*dur*/, 1 /*track_id*/, name, a);
   auto c = Insert(&slice_table, 1 /*ts*/, 3 /*dur*/, 1 /*track_id*/, name, b);
   auto d = Insert(&slice_table, 1 /*ts*/, 2 /*dur*/, 1 /*track_id*/, name, c);
@@ -174,10 +173,10 @@ TEST(ExperimentalSliceLayoutTest, MultipleTracks) {
   StringId name4 = pool.InternString("Track4");
 
   auto a = Insert(&slice_table, 1 /*ts*/, 4 /*dur*/, 1 /*track_id*/, name1,
-                  base::nullopt);
+                  std::nullopt);
   auto b = Insert(&slice_table, 1 /*ts*/, 2 /*dur*/, 1 /*track_id*/, name2, a);
   auto x = Insert(&slice_table, 4 /*ts*/, 4 /*dur*/, 2 /*track_id*/, name3,
-                  base::nullopt);
+                  std::nullopt);
   auto y = Insert(&slice_table, 4 /*ts*/, 2 /*dur*/, 2 /*track_id*/, name4, x);
   base::ignore_result(b);
   base::ignore_result(y);
@@ -208,13 +207,13 @@ TEST(ExperimentalSliceLayoutTest, MultipleTracksWithGap) {
   StringId name6 = pool.InternString("Slice6");
 
   auto a = Insert(&slice_table, 0 /*ts*/, 4 /*dur*/, 1 /*track_id*/, name1,
-                  base::nullopt);
+                  std::nullopt);
   auto b = Insert(&slice_table, 0 /*ts*/, 2 /*dur*/, 1 /*track_id*/, name2, a);
   auto p = Insert(&slice_table, 3 /*ts*/, 4 /*dur*/, 2 /*track_id*/, name3,
-                  base::nullopt);
+                  std::nullopt);
   auto q = Insert(&slice_table, 3 /*ts*/, 2 /*dur*/, 2 /*track_id*/, name4, p);
   auto x = Insert(&slice_table, 5 /*ts*/, 4 /*dur*/, 1 /*track_id*/, name5,
-                  base::nullopt);
+                  std::nullopt);
   auto y = Insert(&slice_table, 5 /*ts*/, 2 /*dur*/, 1 /*track_id*/, name6, x);
   base::ignore_result(b);
   base::ignore_result(q);
@@ -246,20 +245,20 @@ TEST(ExperimentalSliceLayoutTest, PreviousGroupFullyNested) {
 
   // Group 1 exists just to create push group 2 down one row.
   auto a = Insert(&slice_table, 0 /*ts*/, 1 /*dur*/, 1 /*track_id*/, name,
-                  base::nullopt);
+                  std::nullopt);
   base::ignore_result(a);
 
   // Group 2 has a depth of 2 so it theoretically "nests" inside a group of
   // depth 4.
   auto c = Insert(&slice_table, 0 /*ts*/, 10 /*dur*/, 2 /*track_id*/, name,
-                  base::nullopt);
+                  std::nullopt);
   auto d = Insert(&slice_table, 0 /*ts*/, 9 /*dur*/, 2 /*track_id*/, name, c);
   base::ignore_result(d);
 
   // Group 3 has a depth of 4 so it could cause group 2 to "nest" if our
   // layout algorithm did not work correctly.
   auto p = Insert(&slice_table, 3 /*ts*/, 4 /*dur*/, 3 /*track_id*/, name,
-                  base::nullopt);
+                  std::nullopt);
   auto q = Insert(&slice_table, 3 /*ts*/, 3 /*dur*/, 3 /*track_id*/, name, p);
   auto r = Insert(&slice_table, 3 /*ts*/, 2 /*dur*/, 3 /*track_id*/, name, q);
   auto s = Insert(&slice_table, 3 /*ts*/, 1 /*dur*/, 3 /*track_id*/, name, r);
@@ -293,14 +292,14 @@ TEST(ExperimentalSliceLayoutTest, FilterOutTracks) {
   StringId name5 = pool.InternString("Slice5");
 
   auto a = Insert(&slice_table, 0 /*ts*/, 4 /*dur*/, 1 /*track_id*/, name1,
-                  base::nullopt);
+                  std::nullopt);
   auto b = Insert(&slice_table, 0 /*ts*/, 2 /*dur*/, 1 /*track_id*/, name2, a);
   auto p = Insert(&slice_table, 3 /*ts*/, 4 /*dur*/, 2 /*track_id*/, name3,
-                  base::nullopt);
+                  std::nullopt);
   auto q = Insert(&slice_table, 3 /*ts*/, 2 /*dur*/, 2 /*track_id*/, name4, p);
   // This slice should be ignored as it's not in the filter below:
   Insert(&slice_table, 0 /*ts*/, 9 /*dur*/, 3 /*track_id*/, name5,
-         base::nullopt);
+         std::nullopt);
   base::ignore_result(b);
   base::ignore_result(q);
 

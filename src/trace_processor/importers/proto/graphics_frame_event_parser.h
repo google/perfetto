@@ -17,9 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GRAPHICS_FRAME_EVENT_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_GRAPHICS_FRAME_EVENT_PARSER_H_
 
+#include <optional>
 #include <vector>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/args_tracker.h"

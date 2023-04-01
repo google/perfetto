@@ -42,7 +42,7 @@ class HeapGraphModule : public ProtoImporterModule {
  private:
   void ParseHeapGraph(uint32_t seq_id, int64_t ts, protozero::ConstBytes);
   void ParseDeobfuscationMapping(protozero::ConstBytes);
-  void DeobfuscateClass(base::Optional<StringPool::Id> package_name_id,
+  void DeobfuscateClass(std::optional<StringPool::Id> package_name_id,
                         StringPool::Id obfuscated_class_id,
                         const protos::pbzero::ObfuscatedClass::Decoder& cls);
 

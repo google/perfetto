@@ -34,10 +34,10 @@ struct Serializer {
   static serialized_type Serialize(T value) { return value; }
   static T Deserialize(serialized_type value) { return value; }
 
-  static base::Optional<serialized_type> Serialize(base::Optional<T> value) {
+  static std::optional<serialized_type> Serialize(std::optional<T> value) {
     return value;
   }
-  static base::Optional<T> Deserialize(base::Optional<serialized_type> value) {
+  static std::optional<T> Deserialize(std::optional<serialized_type> value) {
     return value;
   }
 };
@@ -53,11 +53,11 @@ struct Serializer<T, typename std::enable_if<is_id<T>::value>::type> {
   static serialized_type Serialize(T value) { return value.value; }
   static T Deserialize(serialized_type value) { return T{value}; }
 
-  static base::Optional<serialized_type> Serialize(base::Optional<T> value) {
-    return value ? base::make_optional(Serialize(*value)) : base::nullopt;
+  static std::optional<serialized_type> Serialize(std::optional<T> value) {
+    return value ? std::make_optional(Serialize(*value)) : std::nullopt;
   }
-  static base::Optional<T> Deserialize(base::Optional<serialized_type> value) {
-    return value ? base::make_optional(Deserialize(*value)) : base::nullopt;
+  static std::optional<T> Deserialize(std::optional<serialized_type> value) {
+    return value ? std::make_optional(Deserialize(*value)) : std::nullopt;
   }
 };
 
@@ -69,10 +69,10 @@ struct Serializer<StringPool::Id> {
   static serialized_type Serialize(StringPool::Id value) { return value; }
   static StringPool::Id Deserialize(serialized_type value) { return value; }
 
-  static serialized_type Serialize(base::Optional<StringPool::Id> value) {
+  static serialized_type Serialize(std::optional<StringPool::Id> value) {
     // Since StringPool::Id == 0 is always treated as null, rewrite
-    // base::nullopt -> 0 to remove an extra check at filter time for
-    // base::nullopt. Instead, that code can assume that the ColumnStorage
+    // std::nullopt -> 0 to remove an extra check at filter time for
+    // std::nullopt. Instead, that code can assume that the ColumnStorage
     // layer always returns a valid id and can handle the nullability at the
     // stringpool level.
     // TODO(lalitm): remove this special casing if we migrate all tables over
@@ -80,8 +80,8 @@ struct Serializer<StringPool::Id> {
     // in the stringpool.
     return value ? Serialize(*value) : StringPool::Id::Null();
   }
-  static base::Optional<serialized_type> Deserialize(
-      base::Optional<StringPool::Id> value) {
+  static std::optional<serialized_type> Deserialize(
+      std::optional<StringPool::Id> value) {
     return value;
   }
 };
@@ -113,12 +113,12 @@ struct TypeHandler {
 
 // Specialization for Optional types.
 template <typename T>
-struct TypeHandler<base::Optional<T>> {
+struct TypeHandler<std::optional<T>> {
   using non_optional_type = T;
   using sql_value_type =
       typename Serializer<non_optional_type>::serialized_type;
   using stored_type =
-      base::Optional<typename Serializer<non_optional_type>::serialized_type>;
+      std::optional<typename Serializer<non_optional_type>::serialized_type>;
 
   static constexpr bool is_optional = true;
   static constexpr bool is_string = false;
@@ -127,7 +127,7 @@ struct TypeHandler<base::Optional<T>> {
     return nv.Get(idx);
   }
 
-  static bool Equals(base::Optional<T> a, base::Optional<T> b) {
+  static bool Equals(std::optional<T> a, std::optional<T> b) {
     // We need to use equal_to here as it could be T == double and because we
     // enable all compile time warnings, we will get complaints if we just use
     // a == b. This is the same reason why we can't also just use equal_to using
@@ -138,7 +138,7 @@ struct TypeHandler<base::Optional<T>> {
   }
 };
 
-// Specialization for Optional<StringId> types.
+// Specialization for std::optional<StringId> types.
 template <>
 struct TypeHandler<StringPool::Id> {
   using non_optional_type = StringPool::Id;
@@ -156,30 +156,29 @@ struct TypeHandler<StringPool::Id> {
   static bool Equals(StringPool::Id a, StringPool::Id b) { return a == b; }
 };
 
-// Specialization for Optional<StringId> types.
+// Specialization for std::optional<StringId> types.
 template <>
-struct TypeHandler<base::Optional<StringPool::Id>> {
-  // get_type removes the base::Optional since we convert base::nullopt ->
+struct TypeHandler<std::optional<StringPool::Id>> {
+  // get_type removes the base::Optional since we convert std::nullopt ->
   // StringPool::Id::Null (see Serializer<StringPool> above).
   using non_optional_type = StringPool::Id;
   using sql_value_type = NullTermStringView;
   using stored_type = StringPool::Id;
 
   // is_optional is false again because we always unwrap
-  // base::Optional<StringPool::Id> into StringPool::Id.
+  // std::optional<StringPool::Id> into StringPool::Id.
   static constexpr bool is_optional = false;
   static constexpr bool is_string = true;
 
-  static base::Optional<StringPool::Id> Get(
-      const ColumnStorage<stored_type>& nv,
-      uint32_t idx) {
+  static std::optional<StringPool::Id> Get(const ColumnStorage<stored_type>& nv,
+                                           uint32_t idx) {
     StringPool::Id id = nv.Get(idx);
-    return id.is_null() ? base::nullopt : base::make_optional(id);
+    return id.is_null() ? std::nullopt : std::make_optional(id);
   }
 
-  static bool Equals(base::Optional<StringPool::Id> a,
-                     base::Optional<StringPool::Id> b) {
-    // To match our handling of treating base::nullopt ==
+  static bool Equals(std::optional<StringPool::Id> a,
+                     std::optional<StringPool::Id> b) {
+    // To match our handling of treating std::nullopt ==
     // StringPool::Id::Null(), ensure that they both compare equal to each
     // other.
     return a == b || (!a && b->is_null()) || (!b && a->is_null());

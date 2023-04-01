@@ -32,7 +32,6 @@ source_set("base") {
     "metatrace.h",
     "metatrace_events.h",
     "no_destructor.h",
-    "optional.h",
     "paged_memory.h",
     "periodic_task.h",
     "pipe.h",

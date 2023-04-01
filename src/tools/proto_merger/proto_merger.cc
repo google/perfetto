@@ -16,19 +16,20 @@
 
 #include "src/tools/proto_merger/proto_merger.h"
 
+#include <optional>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/optional.h"
 
 namespace perfetto {
 namespace proto_merger {
 namespace {
 
 template <typename Key, typename Value>
-base::Optional<Value> FindInMap(const std::map<Key, Value>& map,
-                                const Key& key) {
+std::optional<Value> FindInMap(const std::map<Key, Value>& map,
+                               const Key& key) {
   auto it = map.find(key);
-  return it == map.end() ? base::nullopt : base::make_optional(it->second);
+  return it == map.end() ? std::nullopt : std::make_optional(it->second);
 }
 
 // Finds the given 'name' in the vector by comparing against
@@ -181,7 +182,7 @@ base::Status MergeField(const ProtoFile::Field& input,
         input.packageless_type.c_str(), upstream.packageless_type.c_str());
   }
 
-  // If the packageless type mathces, the type should also match.
+  // If the packageless type matches, the type should also match.
   PERFETTO_CHECK(input.type == upstream.type);
 
   // Get the comments, label and the name from the source of truth.
@@ -253,8 +254,8 @@ base::Status MergeRecursive(
       continue;
 
     // If the input value doesn't exist, create a fake "input" that we can pass
-    // to the merge functon. This basically has the effect that the upstream
-    // item is taken but *not* recrusively; i.e. any fields which are inside the
+    // to the merge function. This basically has the effect that the upstream
+    // item is taken but *not* recursively; i.e. any fields which are inside the
     // message/oneof are checked against the allowlist individually. If we just
     // took the whole upstream here, we could add fields which were not
     // allowlisted.

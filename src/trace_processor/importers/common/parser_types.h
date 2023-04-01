@@ -68,8 +68,8 @@ struct TrackEventData {
   }
 
   TracePacketData trace_packet_data;
-  base::Optional<int64_t> thread_timestamp;
-  base::Optional<int64_t> thread_instruction_count;
+  std::optional<int64_t> thread_timestamp;
+  std::optional<int64_t> thread_instruction_count;
   double counter_value = 0;
   std::array<double, kMaxNumExtraCounters> extra_counter_values = {};
 };

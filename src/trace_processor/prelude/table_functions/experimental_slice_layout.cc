@@ -16,7 +16,8 @@
 
 #include "src/trace_processor/prelude/table_functions/experimental_slice_layout.h"
 
-#include "perfetto/ext/base/optional.h"
+#include <optional>
+
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
@@ -88,7 +89,7 @@ base::Status ExperimentalSliceLayout::ComputeTable(
     if (is_filter_track_ids && is_equal && is_string) {
       filter_string = c.value.AsString();
       for (base::StringSplitter sp(filter_string, ','); sp.Next();) {
-        base::Optional<uint32_t> maybe = base::CStringToUInt32(sp.cur_token());
+        std::optional<uint32_t> maybe = base::CStringToUInt32(sp.cur_token());
         if (maybe) {
           selected_tracks.insert(TrackId{maybe.value()});
         }
@@ -129,7 +130,7 @@ base::Status ExperimentalSliceLayout::ComputeTable(
 tables::SliceTable::Id ExperimentalSliceLayout::InsertSlice(
     std::map<tables::SliceTable::Id, tables::SliceTable::Id>& id_map,
     tables::SliceTable::Id id,
-    base::Optional<tables::SliceTable::Id> parent_id) {
+    std::optional<tables::SliceTable::Id> parent_id) {
   if (parent_id) {
     tables::SliceTable::Id root_id = id_map[parent_id.value()];
     id_map[id] = root_id;
