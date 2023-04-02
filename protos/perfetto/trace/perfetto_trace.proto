@@ -11240,14 +11240,14 @@ message ProcessTree {
 
 // Begin of protos/perfetto/trace/statsd/statsd_atom.proto
 
-// OpaqueAtom should be filled with an Atom proto from:
+// Atom should be filled with an Atom proto from:
 // https://cs.android.com/android/platform/superproject/+/master:frameworks/proto_logging/stats/atoms.proto?q=f:stats%2Fatoms.proto$%20message%5C%20Atom
-// We don't reference Atom directly here since we don't  want to import
+// We don't reference Atom directly here since we don't want to import
 // Atom.proto and all its transitive dependencies into Perfetto.
-message OpaqueAtom {}
+message Atom {}
 
 message StatsdAtom {
-  repeated OpaqueAtom nested = 1;
+  repeated Atom nested = 1;
 }
 
 // End of protos/perfetto/trace/statsd/statsd_atom.proto
