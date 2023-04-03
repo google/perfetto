@@ -62,8 +62,8 @@ class MockRateLimiter : public RateLimiter {
     return RateLimiter::SaveState(state);
   }
 
-  MOCK_METHOD1(LoadState, bool(gen::PerfettoCmdState*));
-  MOCK_METHOD1(SaveState, bool(const gen::PerfettoCmdState&));
+  MOCK_METHOD(bool, LoadState, (gen::PerfettoCmdState*), (override));
+  MOCK_METHOD(bool, SaveState, (const gen::PerfettoCmdState&), (override));
 
  private:
   base::TempDir dir_;

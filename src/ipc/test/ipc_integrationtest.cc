@@ -41,21 +41,23 @@ using namespace ::ipc_test::gen;
 
 class MockEventListener : public ServiceProxy::EventListener {
  public:
-  MOCK_METHOD0(OnConnect, void());
-  MOCK_METHOD0(OnDisconnect, void());
+  MOCK_METHOD(void, OnConnect, (), (override));
+  MOCK_METHOD(void, OnDisconnect, (), (override));
 };
 
 class MockGreeterService : public ::ipc_test::gen::Greeter {
  public:
-  MOCK_METHOD2(OnSayHello,
-               void(const GreeterRequestMsg&, DeferredGreeterReplyMsg*));
+  MOCK_METHOD(void,
+              OnSayHello,
+              (const GreeterRequestMsg&, DeferredGreeterReplyMsg*));
   void SayHello(const GreeterRequestMsg& request,
                 DeferredGreeterReplyMsg reply) override {
     OnSayHello(request, &reply);
   }
 
-  MOCK_METHOD2(OnWaveGoodbye,
-               void(const GreeterRequestMsg&, DeferredGreeterReplyMsg*));
+  MOCK_METHOD(void,
+              OnWaveGoodbye,
+              (const GreeterRequestMsg&, DeferredGreeterReplyMsg*));
   void WaveGoodbye(const GreeterRequestMsg& request,
                    DeferredGreeterReplyMsg reply) override {
     OnWaveGoodbye(request, &reply);

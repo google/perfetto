@@ -115,7 +115,7 @@ class TestSystemInfoDataSource : public SystemInfoDataSource {
             std::move(writer),
             std::move(cpu_freq_info)) {}
 
-  MOCK_METHOD1(ReadFile, std::string(std::string));
+  MOCK_METHOD(std::string, ReadFile, (std::string), (override));
 };
 
 class SystemInfoDataSourceTest : public ::testing::Test {

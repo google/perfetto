@@ -70,16 +70,20 @@ class MockConsumer : public Consumer {
   }
 
   // Consumer implementation.
-  MOCK_METHOD0(OnConnect, void());
-  MOCK_METHOD0(OnDisconnect, void());
-  MOCK_METHOD1(OnTracingDisabled, void(const std::string& /*error*/));
-  MOCK_METHOD2(OnTraceData,
-               void(std::vector<TracePacket>* /*packets*/, bool /*has_more*/));
-  MOCK_METHOD1(OnDetach, void(bool));
-  MOCK_METHOD2(OnAttach, void(bool, const TraceConfig&));
-  MOCK_METHOD2(OnTraceStats, void(bool, const TraceStats&));
-  MOCK_METHOD1(OnObservableEvents, void(const ObservableEvents&));
-  MOCK_METHOD2(OnSessionCloned, void(bool, const std::string&));
+  MOCK_METHOD(void, OnConnect, (), (override));
+  MOCK_METHOD(void, OnDisconnect, (), (override));
+  MOCK_METHOD(void,
+              OnTracingDisabled,
+              (const std::string& /*error*/),
+              (override));
+  MOCK_METHOD(void,
+              OnTraceData,
+              (std::vector<TracePacket>* /*packets*/, bool /*has_more*/));
+  MOCK_METHOD(void, OnDetach, (bool), (override));
+  MOCK_METHOD(void, OnAttach, (bool, const TraceConfig&), (override));
+  MOCK_METHOD(void, OnTraceStats, (bool, const TraceStats&), (override));
+  MOCK_METHOD(void, OnObservableEvents, (const ObservableEvents&), (override));
+  MOCK_METHOD(void, OnSessionCloned, (bool, const std::string&), (override));
 
   // gtest doesn't support move-only types. This wrapper is here jut to pass
   // a pointer to the vector (rather than the vector itself) to the mock method.
