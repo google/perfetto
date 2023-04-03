@@ -692,8 +692,10 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
   }
 
   bool success = true;
-  for (const Field& field : table->common_fields())
-    success &= ParseField(field, start, end, table, message, metadata);
+  const Field* common_pid_field = table->common_pid();
+  if (PERFETTO_LIKELY(common_pid_field))
+    success &=
+        ParseField(*common_pid_field, start, end, table, message, metadata);
 
   protozero::Message* nested =
       message->BeginNestedMessage<protozero::Message>(info.proto_field_id);
@@ -989,6 +991,10 @@ void CpuReader::ParseSchedWakingCompact(const uint8_t* start,
       reinterpret_cast<const char*>(start + format->comm_offset);
   size_t iid = compact_buf->interner().InternComm(comm_ptr);
   compact_buf->sched_waking().comm_index().Append(iid);
+
+  uint32_t common_flags =
+      ReadValue<uint8_t>(start + format->common_flags_offset);
+  compact_buf->sched_waking().common_flags().Append(common_flags);
 }
 
 }  // namespace perfetto

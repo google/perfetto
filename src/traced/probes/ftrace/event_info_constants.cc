@@ -16,6 +16,8 @@
 
 #include "src/traced/probes/ftrace/event_info_constants.h"
 
+#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
+
 namespace perfetto {
 using protozero::proto_utils::ProtoSchemaType;
 
@@ -32,10 +34,15 @@ Field StaticField(const char* ftrace_name,
 }  // namespace
 
 std::vector<Field> GetStaticCommonFieldsInfo() {
+  using protos::pbzero::FtraceEvent;
   std::vector<Field> fields;
-
-  fields.push_back(StaticField("common_pid", 2, ProtoSchemaType::kInt32));
-
+  fields.push_back(StaticField("common_pid", FtraceEvent::kPidFieldNumber,
+                               ProtoSchemaType::kInt32));
+  // note: we won't be serialising the flags, this is only for the
+  // proto_translation_table to be aware of the field.
+  fields.push_back(StaticField("common_flags",
+                               FtraceEvent::kCommonFlagsFieldNumber,
+                               ProtoSchemaType::kUint32));
   return fields;
 }
 
