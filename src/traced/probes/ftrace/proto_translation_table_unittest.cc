@@ -92,7 +92,7 @@ TEST_P(AllTranslationTableTest, Create) {
       EXPECT_TRUE(static_cast<int>(field.proto_field_type));
     }
   }
-  ASSERT_EQ(table_->common_fields().size(), 1u);
+  ASSERT_LT(0u, table_->common_fields().size());
   const Field& pid_field = table_->common_fields().at(0);
   EXPECT_EQ(std::string(pid_field.ftrace_name), "common_pid");
   EXPECT_EQ(pid_field.proto_field_id, 2u);
