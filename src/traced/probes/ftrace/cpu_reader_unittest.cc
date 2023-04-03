@@ -1067,6 +1067,128 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseSixSchedSwitchCompactFormat) {
   EXPECT_EQ("sleep", next_comm);
 }
 
+// clang-format off
+// # tracer: nop
+// #
+// # entries-in-buffer/entries-written: 23/23   #P:8
+// #
+// #                                _-----=> irqs-off/BH-disabled
+// #                               / _----=> need-resched
+// #                              | / _---=> hardirq/softirq
+// #                              || / _--=> preempt-depth
+// #                              ||| / _-=> migrate-disable
+// #                              |||| /     delay
+// #           TASK-PID     CPU#  |||||  TIMESTAMP  FUNCTION
+// #              | |         |   |||||     |         |
+//           <idle>-0       [000] d..2. 701500.111507: sched_switch: prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=bash next_pid=219057 next_prio=120
+//               ls-219057  [000] d..3. 701500.115222: sched_waking: comm=kworker/u16:17 pid=203967 prio=120 target_cpu=006
+//               ls-219057  [000] d..3. 701500.115327: sched_waking: comm=kworker/u16:17 pid=203967 prio=120 target_cpu=006
+//               ls-219057  [000] d..3. 701500.115412: sched_waking: comm=kworker/u16:5 pid=205556 prio=120 target_cpu=004
+//               ls-219057  [000] d..3. 701500.115416: sched_waking: comm=kworker/u16:17 pid=203967 prio=120 target_cpu=006
+//               ls-219057  [000] dN.5. 701500.115801: sched_waking: comm=bash pid=217958 prio=120 target_cpu=006
+//               ls-219057  [000] d..2. 701500.115817: sched_switch: prev_comm=ls prev_pid=219057 prev_prio=120 prev_state=Z ==> next_comm=swapper/0 next_pid=0 next_prio=120
+// clang-format on
+
+static ExamplePage g_sched_page{
+    "synthetic_alt",
+    R"(
+    00000000: 67ce f4b8 027e 0200 5801 0000 0000 0000  g....~..X.......
+    00000010: 1e00 0000 0000 0000 1000 0000 3d01 0102  ............=...
+    00000020: 0000 0000 7377 6170 7065 722f 3000 0000  ....swapper/0...
+    00000030: 0000 0000 0000 0000 7800 0000 0000 0000  ........x.......
+    00000040: 0000 0000 6261 7368 0000 0000 0000 0000  ....bash........
+    00000050: 0000 0000 b157 0300 7800 0000 a9d2 1507  .....W..x.......
+    00000060: 4001 0103 b157 0300 6b77 6f72 6b65 722f  @....W..kworker/
+    00000070: 7531 363a 3137 0000 bf1c 0300 7800 0000  u16:17......x...
+    00000080: 0600 0000 c953 3300 4001 0103 b157 0300  .....S3.@....W..
+    00000090: 6b77 6f72 6b65 722f 7531 363a 3137 0000  kworker/u16:17..
+    000000a0: bf1c 0300 7800 0000 0600 0000 0981 2900  ....x.........).
+    000000b0: 4001 0103 b157 0300 6b77 6f72 6b65 722f  @....W..kworker/
+    000000c0: 7531 363a 3500 0000 f422 0300 7800 0000  u16:5...."..x...
+    000000d0: 0400 0000 89e0 0100 4001 0103 b157 0300  ........@....W..
+    000000e0: 6b77 6f72 6b65 722f 7531 363a 3137 0000  kworker/u16:17..
+    000000f0: bf1c 0300 7800 0000 0600 0000 e92c bc00  ....x........,..
+    00000100: 4001 2505 b157 0300 6261 7368 0000 0000  @.%..W..bash....
+    00000110: 0000 0000 0000 0000 6653 0300 7800 0000  ........fS..x...
+    00000120: 0600 0000 10f8 0700 3d01 0102 b157 0300  ........=....W..
+    00000130: 6c73 0000 0000 0000 0000 0000 0000 0000  ls..............
+    00000140: b157 0300 7800 0000 2000 0000 0000 0000  .W..x... .......
+    00000150: 7377 6170 7065 722f 3000 0000 0000 0000  swapper/0.......
+    00000160: 0000 0000 7800 0000 0000 0000 0000 0000  ....x...........
+    )",
+};
+
+TEST_F(CpuReaderParsePagePayloadTest, ParseCompactSchedSwitchAndWaking) {
+  const ExamplePage* test_case = &g_sched_page;
+
+  ProtoTranslationTable* table = GetTable(test_case->name);
+  auto page = PageFromXxd(test_case->data);
+
+  FtraceDataSourceConfig ds_config{EventFilter{},
+                                   EventFilter{},
+                                   EnabledCompactSchedConfigForTesting(),
+                                   std::nullopt,
+                                   {},
+                                   {},
+                                   false /* symbolize_ksyms*/,
+                                   false /*preserve_ftrace_buffer*/,
+                                   {}};
+  ds_config.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
+  ds_config.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(GroupAndName("sched", "sched_waking")));
+
+  const uint8_t* parse_pos = page.get();
+  std::optional<CpuReader::PageHeader> page_header =
+      CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
+
+  const uint8_t* page_end = page.get() + base::kPageSize;
+  ASSERT_TRUE(page_header.has_value());
+  EXPECT_FALSE(page_header->lost_events);
+  EXPECT_LE(parse_pos + page_header->size, page_end);
+
+  size_t evt_bytes = CpuReader::ParsePagePayload(
+      parse_pos, &page_header.value(), table, &ds_config,
+      CreateBundler(ds_config), &metadata_);
+
+  EXPECT_LT(0u, evt_bytes);
+
+  // sched fields were buffered:
+  EXPECT_LT(0u, bundler_->compact_sched_buffer()->sched_switch().size());
+  EXPECT_LT(0u, bundler_->compact_sched_buffer()->sched_waking().size());
+  EXPECT_LT(0u,
+            bundler_->compact_sched_buffer()->interner().interned_comms_size());
+
+  // Write the buffer out & check the serialized format:
+  auto bundle = GetBundle();
+  const auto& compact_sched = bundle.compact_sched();
+  // 2 sched_switch events:
+  EXPECT_EQ(2u, compact_sched.switch_timestamp().size());
+  EXPECT_EQ(2u, compact_sched.switch_prev_state().size());
+  EXPECT_EQ(2u, compact_sched.switch_next_pid().size());
+  EXPECT_EQ(2u, compact_sched.switch_next_prio().size());
+  EXPECT_EQ(2u, compact_sched.switch_next_comm_index().size());
+  // 5 sched_waking events:
+  EXPECT_EQ(5u, compact_sched.waking_timestamp().size());
+  EXPECT_EQ(5u, compact_sched.waking_pid().size());
+  EXPECT_EQ(5u, compact_sched.waking_target_cpu().size());
+  EXPECT_EQ(5u, compact_sched.waking_prio().size());
+  EXPECT_EQ(5u, compact_sched.waking_comm_index().size());
+  EXPECT_EQ(5u, compact_sched.waking_common_flags().size());
+  // 4 unique interned comm strings:
+  EXPECT_EQ(4u, compact_sched.intern_table().size());
+
+  // First sched waking as expected:
+  EXPECT_EQ(compact_sched.waking_timestamp()[0], 701500115221756ull);
+  EXPECT_EQ(compact_sched.waking_pid()[0], 203967);
+  EXPECT_EQ(compact_sched.waking_target_cpu()[0], 6);
+  EXPECT_EQ(compact_sched.waking_prio()[0], 120);
+  EXPECT_EQ(compact_sched.waking_common_flags()[0], 1u);
+  auto comm_intern_idx = compact_sched.waking_comm_index()[0];
+  std::string comm = compact_sched.intern_table()[comm_intern_idx];
+  EXPECT_EQ("kworker/u16:17", comm);
+}
+
 TEST_F(CpuReaderTableTest, ParseAllFields) {
   using FakeEventProvider =
       ProtoProvider<pbzero::FakeFtraceEvent, gen::FakeFtraceEvent>;
@@ -1074,18 +1196,6 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
   uint16_t ftrace_event_id = 102;
 
   std::vector<Field> common_fields;
-  {
-    common_fields.emplace_back(Field{});
-    Field* field = &common_fields.back();
-    field->ftrace_offset = 0;
-    field->ftrace_size = 4;
-    field->ftrace_type = kFtraceUint32;
-    field->proto_field_id = 1;
-    field->proto_field_type = ProtoSchemaType::kUint32;
-    SetTranslationStrategy(field->ftrace_type, field->proto_field_type,
-                           &field->strategy);
-  }
-
   {
     common_fields.emplace_back(Field{});
     Field* field = &common_fields.back();
@@ -1271,7 +1381,6 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
 
   auto event = provider.ParseProto();
   ASSERT_TRUE(event);
-  EXPECT_EQ(event->common_field(), 1001ul);
   EXPECT_EQ(event->common_pid(), 9999ul);
   EXPECT_TRUE(event->has_all_fields());
   EXPECT_EQ(event->all_fields().field_uint32(), 1003u);
