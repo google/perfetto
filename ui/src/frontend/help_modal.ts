@@ -14,7 +14,6 @@
 // limitations under the License.
 
 import * as m from 'mithril';
-import {getErrorMessage} from '../common/errors';
 
 import {globals} from './globals';
 import {
@@ -55,7 +54,7 @@ class KeyMappingsHelp implements m.ClassComponent {
         })
         .catch((e) => {
           if (e instanceof NotSupportedError ||
-              getErrorMessage(e).includes('SecurityError')) {
+              e.toString().includes('SecurityError')) {
             // Keyboard layout is unavailable. Since showing the keyboard
             // mappings correct for the user's keyboard layout is a nice-to-
             // have, and users with non-QWERTY layouts are usually aware of the
@@ -76,6 +75,23 @@ class KeyMappingsHelp implements m.ClassComponent {
   view(_: m.Vnode): m.Children {
     const ctrlOrCmd =
         window.navigator.platform.indexOf('Mac') !== -1 ? 'Cmd' : 'Ctrl';
+
+    const queryPageInstructions = globals.hideSidebar ? [] : [
+      m('h2', 'Making SQL queries from the query page'),
+      m('table',
+        m('tr',
+          m('td', keycap('Ctrl'), ' + ', keycap('Enter')),
+          m('td', 'Execute query')),
+        m('tr',
+          m('td', keycap('Ctrl'), ' + ', keycap('Enter'), ' (with selection)'),
+          m('td', 'Execute selection'))),
+    ];
+
+    const sidebarInstructions = globals.hideSidebar ?
+        [] :
+        [m('tr',
+           m('td', keycap(ctrlOrCmd), ' + ', keycap('b')),
+           m('td', 'Toggle display of sidebar'))];
 
     return m(
         '.help',
@@ -116,18 +132,7 @@ class KeyMappingsHelp implements m.ClassComponent {
             m('td',
               'Execute query and pin output ' +
                   '(output will not be replaced by regular query input)'))),
-        m('h2', 'Making SQL queries from the query page'),
-        m('table',
-          m('tr',
-            m('td', keycap('Ctrl'), ' + ', keycap('Enter')),
-            m('td', 'Execute query')),
-          m('tr',
-            m('td',
-              keycap('Ctrl'),
-              ' + ',
-              keycap('Enter'),
-              ' (with selection)'),
-            m('td', 'Execute selection'))),
+        ...queryPageInstructions,
         m('h2', 'Other'),
         m(
             'table',
@@ -163,9 +168,7 @@ class KeyMappingsHelp implements m.ClassComponent {
             m('tr',
               m('td', keycap(ctrlOrCmd), ' + ', keycap('a')),
               m('td', 'Select all')),
-            m('tr',
-              m('td', keycap(ctrlOrCmd), ' + ', keycap('b')),
-              m('td', 'Toggle display of sidebar')),
+            ...sidebarInstructions,
             m('tr', m('td', keycap('?')), m('td', 'Show help')),
             ));
   }
