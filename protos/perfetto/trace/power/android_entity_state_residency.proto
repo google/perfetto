@@ -40,6 +40,7 @@ message EntityStateResidency {
   repeated PowerEntityState power_entity_state = 1;
 
   message StateResidency {
+    // Index corresponding to PowerEntityState.entity_index
     optional int32 entity_index = 1;
 
     // Index corresponding to PowerEntityState.state_index

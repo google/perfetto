@@ -560,7 +560,7 @@ message FtraceConfig {
   // It does not disclose KASLR, symbol addresses are mangled.
   optional bool symbolize_ksyms = 13;
 
-  // When symbolize_ksyms=true, tetermines whether the traced_probes daemon
+  // When symbolize_ksyms=true, determines whether the traced_probes daemon
   // should keep the symbol map in memory (and reuse it for future tracing
   // sessions) or clear it (saving memory) and re-create it on each tracing
   // session (wasting cpu and wall time).
