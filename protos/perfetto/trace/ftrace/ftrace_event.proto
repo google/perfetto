@@ -88,7 +88,6 @@ message FtraceEvent {
   // Nanoseconds since an epoch.
   // Epoch is configurable by writing into trace_clock.
   // By default this timestamp is CPU local.
-  // TODO: Figure out a story for reconciling the various clocks.
   optional uint64 timestamp = 1;
 
   // Kernel pid (do not confuse with userspace pid aka tgid)
