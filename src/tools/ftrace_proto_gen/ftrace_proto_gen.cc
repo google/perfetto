@@ -121,13 +121,17 @@ void GenerateFtraceEventProto(const std::vector<FtraceEventName>& raw_eventlist,
   *fout << "\n";
   *fout << "package perfetto.protos;\n\n";
   *fout << R"(message FtraceEvent {
-  // Nanoseconds since an epoch.
-  // Epoch is configurable by writing into trace_clock.
-  // By default this timestamp is CPU local.
+  // Timestamp in nanoseconds using .../tracing/trace_clock.
   optional uint64 timestamp = 1;
 
-  // Kernel pid (do not confuse with userspace pid aka tgid)
+  // Kernel pid (do not confuse with userspace pid aka tgid).
   optional uint32 pid = 2;
+
+  // Not populated in actual traces. Wire format might change.
+  // Placeholder declaration so that the ftrace parsing code accepts the
+  // existence of this common field. If this becomes needed for all events:
+  // consider merging with common_preempt_count to avoid extra proto tags.
+  optional uint32 common_flags = 5;
 
   oneof event {
 )";
