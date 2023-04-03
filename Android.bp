@@ -10847,7 +10847,6 @@ filegroup {
     srcs: [
         "src/traced/probes/statsd_client/common.cc",
         "src/traced/probes/statsd_client/statsd_binder_data_source.cc",
-        "src/traced/probes/statsd_client/statsd_exec_data_source.cc",
     ],
 }
 
