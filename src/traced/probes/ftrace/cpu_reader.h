@@ -35,6 +35,11 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_handle.h"
+#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/kallsyms/kernel_symbol_map.h"
+#include "src/kallsyms/lazy_kernel_symbolizer.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/ftrace_metadata.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
@@ -59,6 +64,62 @@ enum FtraceClock : int32_t;
 class CpuReader {
  public:
   using FtraceEventBundle = protos::pbzero::FtraceEventBundle;
+
+  // Helper class to generate `TracePacket`s when needed. Public for testing.
+  class Bundler {
+   public:
+    Bundler(TraceWriter* trace_writer,
+            FtraceMetadata* metadata,
+            LazyKernelSymbolizer* symbolizer,
+            size_t cpu,
+            const FtraceClockSnapshot* ftrace_clock_snapshot,
+            protos::pbzero::FtraceClock ftrace_clock,
+            bool compact_sched_enabled)
+        : trace_writer_(trace_writer),
+          metadata_(metadata),
+          symbolizer_(symbolizer),
+          cpu_(cpu),
+          ftrace_clock_snapshot_(ftrace_clock_snapshot),
+          ftrace_clock_(ftrace_clock),
+          compact_sched_enabled_(compact_sched_enabled) {}
+
+    ~Bundler() { FinalizeAndRunSymbolizer(); }
+
+    protos::pbzero::FtraceEventBundle* GetOrCreateBundle() {
+      if (!bundle_) {
+        StartNewPacket(false);
+      }
+      return bundle_;
+    }
+
+    // Forces the creation of a new TracePacket.
+    void StartNewPacket(bool lost_events);
+
+    // This function is called after the contents of a FtraceBundle are written.
+    void FinalizeAndRunSymbolizer();
+
+    CompactSchedBuffer* compact_sched_buffer() {
+      // FinalizeAndRunSymbolizer will only process the compact_sched_buffer_ if
+      // there is an open bundle.
+      GetOrCreateBundle();
+      return &compact_sched_buffer_;
+    }
+
+   private:
+    TraceWriter* const trace_writer_;         // Never nullptr.
+    FtraceMetadata* const metadata_;          // Never nullptr.
+    LazyKernelSymbolizer* const symbolizer_;  // Can be nullptr.
+    const size_t cpu_;
+    const FtraceClockSnapshot* const ftrace_clock_snapshot_;
+    protos::pbzero::FtraceClock const ftrace_clock_;
+    const bool compact_sched_enabled_;
+
+    TraceWriter::TracePacketHandle packet_;
+    protos::pbzero::FtraceEventBundle* bundle_ = nullptr;
+    // Allocate the buffer for compact scheduler events (which will be unused if
+    // the compact option isn't enabled).
+    CompactSchedBuffer compact_sched_buffer_;
+  };
 
   struct PageHeader {
     uint64_t timestamp;
@@ -190,8 +251,7 @@ class CpuReader {
                                  const PageHeader* page_header,
                                  const ProtoTranslationTable* table,
                                  const FtraceDataSourceConfig* ds_config,
-                                 CompactSchedBuffer* compact_sched_buffer,
-                                 FtraceEventBundle* bundle,
+                                 Bundler* bundler,
                                  FtraceMetadata* metadata);
 
   // Parse a single raw ftrace event beginning at |start| and ending at |end|
