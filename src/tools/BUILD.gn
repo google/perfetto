@@ -22,7 +22,6 @@ group("tools") {
   testonly = true
   deps = [
     ":copy_protoc",
-    "compact_reencode",
     "ftrace_proto_gen",
     "proto_filter",
     "proto_merger",

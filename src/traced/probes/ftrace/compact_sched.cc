@@ -94,7 +94,9 @@ std::optional<CompactSchedSwitchFormat> ValidateSchedSwitchFormat(
 // assumptions about possible widths/signedness hold, and record the subset
 // of the format that will be used during parsing.
 std::optional<CompactSchedWakingFormat> ValidateSchedWakingFormat(
-    const Event& event) {
+    const Event& event,
+    const std::vector<Field>& common_fields) {
+  using protos::pbzero::FtraceEvent;
   using protos::pbzero::SchedWakingFtraceEvent;
 
   CompactSchedWakingFormat waking_format;
@@ -105,7 +107,19 @@ std::optional<CompactSchedWakingFormat> ValidateSchedWakingFormat(
   bool target_cpu_valid = false;
   bool prio_valid = false;
   bool comm_valid = false;
-  for (const auto& field : event.fields) {
+  bool common_flags_valid = false;
+
+  for (const Field& field : common_fields) {
+    if (field.proto_field_id == FtraceEvent::kCommonFlagsFieldNumber) {
+      waking_format.common_flags_offset = field.ftrace_offset;
+      waking_format.common_flags_type = field.ftrace_type;
+
+      common_flags_valid = (field.ftrace_type == kFtraceUint8);
+      break;
+    }
+  }
+
+  for (const Field& field : event.fields) {
     switch (field.proto_field_id) {
       case SchedWakingFtraceEvent::kPidFieldNumber:
         waking_format.pid_offset = field.ftrace_offset;
@@ -142,7 +156,8 @@ std::optional<CompactSchedWakingFormat> ValidateSchedWakingFormat(
     }
   }
 
-  if (!pid_valid || !target_cpu_valid || !prio_valid || !comm_valid) {
+  if (!pid_valid || !target_cpu_valid || !prio_valid || !comm_valid ||
+      !common_flags_valid) {
     return std::nullopt;
   }
   return std::make_optional(waking_format);
@@ -154,7 +169,8 @@ std::optional<CompactSchedWakingFormat> ValidateSchedWakingFormat(
 // work to remember the relevant events (translation table construction already
 // loops over them).
 CompactSchedEventFormat ValidateFormatForCompactSched(
-    const std::vector<Event>& events) {
+    const std::vector<Event>& events,
+    const std::vector<Field>& common_fields) {
   using protos::pbzero::FtraceEvent;
 
   std::optional<CompactSchedSwitchFormat> switch_format;
@@ -164,7 +180,7 @@ CompactSchedEventFormat ValidateFormatForCompactSched(
       switch_format = ValidateSchedSwitchFormat(event);
     }
     if (event.proto_field_id == FtraceEvent::kSchedWakingFieldNumber) {
-      waking_format = ValidateSchedWakingFormat(event);
+      waking_format = ValidateSchedWakingFormat(event, common_fields);
     }
   }
 
@@ -237,6 +253,7 @@ void CompactSchedWakingBuffer::Write(
   compact_out->set_waking_target_cpu(target_cpu_);
   compact_out->set_waking_prio(prio_);
   compact_out->set_waking_comm_index(comm_index_);
+  compact_out->set_waking_common_flags(common_flags_);
 }
 
 void CompactSchedWakingBuffer::Reset() {
@@ -246,6 +263,7 @@ void CompactSchedWakingBuffer::Reset() {
   target_cpu_.Reset();
   prio_.Reset();
   comm_index_.Reset();
+  common_flags_.Reset();
 }
 
 void CommInterner::Write(
