@@ -130,7 +130,6 @@ perfetto_cc_library(
         "src/protozero/gen_field_helpers.cc",
         "src/protozero/message.cc",
         "src/protozero/message_arena.cc",
-        "src/protozero/message_handle.cc",
         "src/protozero/packed_repeated_fields.cc",
         "src/protozero/proto_decoder.cc",
         "src/protozero/scattered_heap_buffer.cc",
