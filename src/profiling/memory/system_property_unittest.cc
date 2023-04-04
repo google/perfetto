@@ -27,8 +27,10 @@ using ::testing::Return;
 
 class MockSystemProperties : public SystemProperties {
  public:
-  MOCK_METHOD2(SetAndroidProperty,
-               bool(const std::string&, const std::string&));
+  MOCK_METHOD(bool,
+              SetAndroidProperty,
+              (const std::string&, const std::string&),
+              (override));
 };
 
 TEST(SystemPropertyTest, All) {

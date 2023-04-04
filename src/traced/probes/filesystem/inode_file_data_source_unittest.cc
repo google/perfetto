@@ -62,10 +62,12 @@ class TestInodeFileDataSource : public InodeFileDataSource {
         base::GetTestDataPath("src/traced/probes/filesystem/testdata"));
   }
 
-  MOCK_METHOD3(FillInodeEntry,
-               void(InodeFileMap* destination,
-                    Inode inode_number,
-                    const InodeMapValue& inode_map_value));
+  MOCK_METHOD(void,
+              FillInodeEntry,
+              (InodeFileMap * destination,
+               Inode inode_number,
+               const InodeMapValue& inode_map_value),
+              (override));
 };
 
 class InodeFileDataSourceTest : public ::testing::Test {
