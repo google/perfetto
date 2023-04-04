@@ -50,7 +50,7 @@ ipc::TestSocket kTestSocket{"host_impl_unittest"};
 
 class FakeService : public Service {
  public:
-  MOCK_METHOD2(OnFakeMethod1, void(const RequestProto&, DeferredBase*));
+  MOCK_METHOD(void, OnFakeMethod1, (const RequestProto&, DeferredBase*));
 
   static void Invoker(Service* service,
                       const ProtoMessage& req,
@@ -82,12 +82,12 @@ class FakeService : public Service {
 
 class FakeClient : public base::UnixSocket::EventListener {
  public:
-  MOCK_METHOD0(OnConnect, void());
-  MOCK_METHOD0(OnDisconnect, void());
-  MOCK_METHOD1(OnServiceBound, void(const Frame::BindServiceReply&));
-  MOCK_METHOD1(OnInvokeMethodReply, void(const Frame::InvokeMethodReply&));
-  MOCK_METHOD1(OnFileDescriptorReceived, void(int));
-  MOCK_METHOD0(OnRequestError, void());
+  MOCK_METHOD(void, OnConnect, ());
+  MOCK_METHOD(void, OnDisconnect, ());
+  MOCK_METHOD(void, OnServiceBound, (const Frame::BindServiceReply&));
+  MOCK_METHOD(void, OnInvokeMethodReply, (const Frame::InvokeMethodReply&));
+  MOCK_METHOD(void, OnFileDescriptorReceived, (int));
+  MOCK_METHOD(void, OnRequestError, ());
 
   explicit FakeClient(base::TaskRunner* task_runner) {
     sock_ = base::UnixSocket::Connect(kTestSocket.name(), this, task_runner,
