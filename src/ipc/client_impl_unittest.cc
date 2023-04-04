@@ -74,8 +74,8 @@ class FakeProxy : public ServiceProxy {
 
 class MockEventListener : public ServiceProxy::EventListener {
  public:
-  MOCK_METHOD0(OnConnect, void());
-  MOCK_METHOD0(OnDisconnect, void());
+  MOCK_METHOD(void, OnConnect, (), (override));
+  MOCK_METHOD(void, OnDisconnect, (), (override));
 };
 
 // A fake host implementation. Listens on |kTestSocket.name()| and replies to
@@ -84,8 +84,9 @@ class FakeHost : public base::UnixSocket::EventListener {
  public:
   struct FakeMethod {
     MethodID id;
-    MOCK_METHOD2(OnInvoke,
-                 void(const Frame::InvokeMethod&, Frame::InvokeMethodReply*));
+    MOCK_METHOD(void,
+                OnInvoke,
+                (const Frame::InvokeMethod&, Frame::InvokeMethodReply*));
   };  // FakeMethod.
 
   struct FakeService {

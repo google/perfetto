@@ -47,10 +47,11 @@ class MockFtraceProcfs : public FtraceProcfs {
  public:
   MockFtraceProcfs() : FtraceProcfs("/root/") {}
 
-  MOCK_CONST_METHOD0(ReadPageHeaderFormat, std::string());
-  MOCK_CONST_METHOD2(ReadEventFormat,
-                     std::string(const std::string& group,
-                                 const std::string& name));
+  MOCK_METHOD(std::string, ReadPageHeaderFormat, (), (const, override));
+  MOCK_METHOD(std::string,
+              ReadEventFormat,
+              (const std::string& group, const std::string& name),
+              (const, override));
 };
 
 class AllTranslationTableTest : public TestWithParam<const char*> {
