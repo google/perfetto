@@ -70,6 +70,7 @@ source_set("filter_util") {
   ]
   deps = [
     ":bytecode_generator",
+    ":bytecode_parser",
     "..:protozero",
     "../../../gn:default_deps",
     "../../../gn:protobuf_full",
