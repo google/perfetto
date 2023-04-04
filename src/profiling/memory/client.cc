@@ -82,6 +82,9 @@ uint64_t GetMaxTries(const ClientConfiguration& client_config) {
 }
 
 StackRange GetThreadStackRange() {
+  // In glibc pthread_getattr_np can call realloc, even for a non-main-thread.
+  // This is fine, because the heapprofd wrapper for glibc prevents re-entering
+  // malloc.
   pthread_attr_t attr;
   if (pthread_getattr_np(pthread_self(), &attr) != 0)
     return {nullptr, nullptr};
@@ -112,9 +115,10 @@ StackRange GetSigAltStackRange() {
           static_cast<char*>(altstack.ss_sp) + altstack.ss_size};
 }
 
-// The implementation of pthread_getattr_np for the main thread uses malloc,
-// so we cannot use it in GetStackEnd, which we use inside of RecordMalloc
-// (which is called from malloc). We would re-enter malloc if we used it.
+// The implementation of pthread_getattr_np for the main thread on bionic uses
+// malloc, so we cannot use it in GetStackEnd, which we use inside of
+// RecordMalloc (which is called from malloc). We would re-enter malloc if we
+// used it.
 //
 // This is why we find the stack base for the main-thread when constructing
 // the client and remember it.
