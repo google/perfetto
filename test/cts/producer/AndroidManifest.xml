@@ -32,8 +32,7 @@
 
         <service
             android:name=".ProducerIsolatedService"
-            android:isolatedProcess="true">
-        </service>
+            android:isolatedProcess="true" />
     </application>
 </manifest>
 
