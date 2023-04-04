@@ -189,8 +189,8 @@ TEST(HeapprofdProducerIntegrationTest, Restart) {
   HeapprofdThread heapprofd_service(tmpdir_.AbsolutePath("producer.sock"),
                                     tmpdir_.AbsolutePath("heapprofd.sock"));
 
-  std::unique_ptr<NiceMock<MockConsumer>> consumer = StartHeapprofdTrace(
-      tmpdir_.AbsolutePath("consumer.sock"), &task_runner);
+  std::unique_ptr<NiceMock<MockConsumer>> consumer =
+      StartHeapprofdTrace(tmpdir_.AbsolutePath("consumer.sock"), &task_runner);
   ASSERT_THAT(consumer, NotNull());
 
   std::optional<base::UnixSocketRaw> client_sock =
@@ -221,8 +221,8 @@ TEST(HeapprofdProducerIntegrationTest, Restart) {
   tracing_service.emplace(tmpdir_.AbsolutePath("producer.sock"),
                           tmpdir_.AbsolutePath("consumer.sock"));
 
-  consumer = StartHeapprofdTrace(tmpdir_.AbsolutePath("consumer.sock"),
-                                   &task_runner);
+  consumer =
+      StartHeapprofdTrace(tmpdir_.AbsolutePath("consumer.sock"), &task_runner);
   ASSERT_THAT(consumer, NotNull());
 
   consumer->ForceDisconnect();
