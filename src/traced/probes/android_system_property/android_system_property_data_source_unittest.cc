@@ -44,8 +44,10 @@ class TestAndroidSystemPropertyDataSource
                                         /* session_id */ 0,
                                         std::move(writer)) {}
 
-  MOCK_METHOD1(ReadProperty,
-               const std::optional<std::string>(const std::string&));
+  MOCK_METHOD(const std::optional<std::string>,
+              ReadProperty,
+              (const std::string&),
+              (override));
 };
 
 class AndroidSystemPropertyDataSourceTest : public ::testing::Test {

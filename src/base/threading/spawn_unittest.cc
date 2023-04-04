@@ -37,13 +37,13 @@ using ::testing::Return;
 template <typename T>
 class MockFuturePollable : public FuturePollable<T> {
  public:
-  MOCK_METHOD1(Poll, FuturePollResult<T>(PollContext*));
+  MOCK_METHOD(FuturePollResult<T>, Poll, (PollContext*), (override));
 };
 
 template <typename T>
 class MockStreamPollable : public StreamPollable<T> {
  public:
-  MOCK_METHOD1(PollNext, StreamPollResult<T>(PollContext*));
+  MOCK_METHOD(StreamPollResult<T>, PollNext, (PollContext*), (override));
 };
 
 TEST(SpawnUnittest, SpawnFuture) {

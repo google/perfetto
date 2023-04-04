@@ -25,24 +25,44 @@ namespace perfetto {
 
 class MockProducerEndpoint : public TracingService::ProducerEndpoint {
  public:
-  MOCK_METHOD0(Disconnect, void());
-  MOCK_METHOD1(RegisterDataSource, void(const DataSourceDescriptor&));
-  MOCK_METHOD1(UpdateDataSource, void(const DataSourceDescriptor&));
-  MOCK_METHOD1(UnregisterDataSource, void(const std::string&));
-  MOCK_METHOD2(RegisterTraceWriter, void(uint32_t, uint32_t));
-  MOCK_METHOD1(UnregisterTraceWriter, void(uint32_t));
-  MOCK_METHOD2(CommitData, void(const CommitDataRequest&, CommitDataCallback));
-  MOCK_CONST_METHOD0(shared_memory, SharedMemory*());
-  MOCK_CONST_METHOD0(shared_buffer_page_size_kb, size_t());
-  MOCK_METHOD2(CreateTraceWriter,
-               std::unique_ptr<TraceWriter>(BufferID, BufferExhaustedPolicy));
-  MOCK_METHOD0(MaybeSharedMemoryArbiter, SharedMemoryArbiter*());
-  MOCK_CONST_METHOD0(IsShmemProvidedByProducer, bool());
-  MOCK_METHOD1(NotifyFlushComplete, void(FlushRequestID));
-  MOCK_METHOD1(NotifyDataSourceStarted, void(DataSourceInstanceID));
-  MOCK_METHOD1(NotifyDataSourceStopped, void(DataSourceInstanceID));
-  MOCK_METHOD1(ActivateTriggers, void(const std::vector<std::string>&));
-  MOCK_METHOD1(Sync, void(std::function<void()>));
+  MOCK_METHOD(void, Disconnect, (), (override));
+  MOCK_METHOD(void,
+              RegisterDataSource,
+              (const DataSourceDescriptor&),
+              (override));
+  MOCK_METHOD(void,
+              UpdateDataSource,
+              (const DataSourceDescriptor&),
+              (override));
+  MOCK_METHOD(void, UnregisterDataSource, (const std::string&), (override));
+  MOCK_METHOD(void, RegisterTraceWriter, (uint32_t, uint32_t), (override));
+  MOCK_METHOD(void, UnregisterTraceWriter, (uint32_t), (override));
+  MOCK_METHOD(void,
+              CommitData,
+              (const CommitDataRequest&, CommitDataCallback),
+              (override));
+  MOCK_METHOD(SharedMemory*, shared_memory, (), (const, override));
+  MOCK_METHOD(size_t, shared_buffer_page_size_kb, (), (const, override));
+  MOCK_METHOD(std::unique_ptr<TraceWriter>,
+              CreateTraceWriter,
+              (BufferID, BufferExhaustedPolicy),
+              (override));
+  MOCK_METHOD(SharedMemoryArbiter*, MaybeSharedMemoryArbiter, (), (override));
+  MOCK_METHOD(bool, IsShmemProvidedByProducer, (), (const, override));
+  MOCK_METHOD(void, NotifyFlushComplete, (FlushRequestID), (override));
+  MOCK_METHOD(void,
+              NotifyDataSourceStarted,
+              (DataSourceInstanceID),
+              (override));
+  MOCK_METHOD(void,
+              NotifyDataSourceStopped,
+              (DataSourceInstanceID),
+              (override));
+  MOCK_METHOD(void,
+              ActivateTriggers,
+              (const std::vector<std::string>&),
+              (override));
+  MOCK_METHOD(void, Sync, (std::function<void()>), (override));
 };
 
 }  // namespace perfetto

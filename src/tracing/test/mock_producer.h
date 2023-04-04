@@ -86,18 +86,26 @@ class MockProducer : public Producer {
   }
 
   // Producer implementation.
-  MOCK_METHOD0(OnConnect, void());
-  MOCK_METHOD0(OnDisconnect, void());
-  MOCK_METHOD2(SetupDataSource,
-               void(DataSourceInstanceID, const DataSourceConfig&));
-  MOCK_METHOD2(StartDataSource,
-               void(DataSourceInstanceID, const DataSourceConfig&));
-  MOCK_METHOD1(StopDataSource, void(DataSourceInstanceID));
-  MOCK_METHOD0(OnTracingSetup, void());
-  MOCK_METHOD3(Flush,
-               void(FlushRequestID, const DataSourceInstanceID*, size_t));
-  MOCK_METHOD2(ClearIncrementalState,
-               void(const DataSourceInstanceID*, size_t));
+  MOCK_METHOD(void, OnConnect, (), (override));
+  MOCK_METHOD(void, OnDisconnect, (), (override));
+  MOCK_METHOD(void,
+              SetupDataSource,
+              (DataSourceInstanceID, const DataSourceConfig&),
+              (override));
+  MOCK_METHOD(void,
+              StartDataSource,
+              (DataSourceInstanceID, const DataSourceConfig&),
+              (override));
+  MOCK_METHOD(void, StopDataSource, (DataSourceInstanceID), (override));
+  MOCK_METHOD(void, OnTracingSetup, (), (override));
+  MOCK_METHOD(void,
+              Flush,
+              (FlushRequestID, const DataSourceInstanceID*, size_t),
+              (override));
+  MOCK_METHOD(void,
+              ClearIncrementalState,
+              (const DataSourceInstanceID*, size_t),
+              (override));
 
  private:
   base::TestTaskRunner* const task_runner_;

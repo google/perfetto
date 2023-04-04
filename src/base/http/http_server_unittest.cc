@@ -37,9 +37,12 @@ constexpr int kTestPort = 5127;  // Chosen with a fair dice roll.
 
 class MockHttpHandler : public HttpRequestHandler {
  public:
-  MOCK_METHOD1(OnHttpRequest, void(const HttpRequest&));
-  MOCK_METHOD1(OnHttpConnectionClosed, void(HttpServerConnection*));
-  MOCK_METHOD1(OnWebsocketMessage, void(const WebsocketMessage&));
+  MOCK_METHOD(void, OnHttpRequest, (const HttpRequest&), (override));
+  MOCK_METHOD(void,
+              OnHttpConnectionClosed,
+              (HttpServerConnection*),
+              (override));
+  MOCK_METHOD(void, OnWebsocketMessage, (const WebsocketMessage&), (override));
 };
 
 class HttpCli {

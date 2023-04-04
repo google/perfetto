@@ -53,10 +53,10 @@ ipc::TestSocket kTestSocket{"unix_socket_unittest"};
 
 class MockEventListener : public UnixSocket::EventListener {
  public:
-  MOCK_METHOD2(OnNewIncomingConnection, void(UnixSocket*, UnixSocket*));
-  MOCK_METHOD2(OnConnect, void(UnixSocket*, bool));
-  MOCK_METHOD1(OnDisconnect, void(UnixSocket*));
-  MOCK_METHOD1(OnDataAvailable, void(UnixSocket*));
+  MOCK_METHOD(void, OnNewIncomingConnection, (UnixSocket*, UnixSocket*));
+  MOCK_METHOD(void, OnConnect, (UnixSocket*, bool), (override));
+  MOCK_METHOD(void, OnDisconnect, (UnixSocket*), (override));
+  MOCK_METHOD(void, OnDataAvailable, (UnixSocket*), (override));
 
   // GMock doesn't support mocking methods with non-copiable args.
   void OnNewIncomingConnection(

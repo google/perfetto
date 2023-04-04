@@ -42,11 +42,10 @@ class MockTraceParser : public ProtoTraceParser {
  public:
   MockTraceParser(TraceProcessorContext* context) : ProtoTraceParser(context) {}
 
-  MOCK_METHOD4(MOCK_ParseFtracePacket,
-               void(uint32_t cpu,
-                    int64_t timestamp,
-                    const uint8_t* data,
-                    size_t length));
+  MOCK_METHOD(
+      void,
+      MOCK_ParseFtracePacket,
+      (uint32_t cpu, int64_t timestamp, const uint8_t* data, size_t length));
 
   void ParseFtraceEvent(uint32_t cpu,
                         int64_t timestamp,
@@ -55,8 +54,9 @@ class MockTraceParser : public ProtoTraceParser {
                            data.packet.length());
   }
 
-  MOCK_METHOD3(MOCK_ParseTracePacket,
-               void(int64_t ts, const uint8_t* data, size_t length));
+  MOCK_METHOD(void,
+              MOCK_ParseTracePacket,
+              (int64_t ts, const uint8_t* data, size_t length));
 
   void ParseTrackEvent(int64_t, TrackEventData) override {}
 
@@ -70,7 +70,7 @@ class MockTraceStorage : public TraceStorage {
  public:
   MockTraceStorage() : TraceStorage() {}
 
-  MOCK_METHOD1(InternString, StringId(base::StringView view));
+  MOCK_METHOD(StringId, InternString, (base::StringView view), (override));
 };
 
 class TraceSorterTest : public ::testing::Test {
