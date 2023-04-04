@@ -201,6 +201,9 @@ static constexpr protos::pbzero::BuiltinClock kDefaultTraceClock =
 protos::pbzero::BuiltinClock TrackEventInternal::clock_ = kDefaultTraceClock;
 
 // static
+bool TrackEventInternal::disallow_merging_with_system_tracks_ = false;
+
+// static
 void TrackEventInternal::EnableTracing(
     const TrackEventCategoryRegistry& registry,
     const protos::gen::TrackEventConfig& config,

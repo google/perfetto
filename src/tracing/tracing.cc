@@ -55,6 +55,10 @@ void Tracing::InitializeInternal(const TracingInitArgs& args) {
       internal::TrackEventInternal::SetClockId(
           protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
     }
+
+    if (args.disallow_merging_with_system_tracks) {
+      internal::TrackEventInternal::SetDisallowMergingWithSystemTracks(true);
+    }
   }
 
   internal::TracingMuxerImpl::InitializeInstance(args);
