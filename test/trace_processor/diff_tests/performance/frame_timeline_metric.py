@@ -59,8 +59,8 @@ trace.add_process(1003, 0, "process3")
 trace.add_actual_surface_frame_start_event(
     ts=21000000,
     cookie=6,
-    token=1,
-    display_frame_token=4,
+    token=100201,
+    display_frame_token=100211,
     pid=1002,
     layer_name="Layer1",
     present_type=PresentType.PRESENT_ON_TIME,
@@ -73,8 +73,8 @@ trace.add_frame_end_event(ts=37000000, cookie=6)
 trace.add_actual_surface_frame_start_event(
     ts=31000000,
     cookie=7,
-    token=1,
-    display_frame_token=4,
+    token=100202,
+    display_frame_token=100212,
     pid=1002,
     layer_name="Layer1",
     present_type=PresentType.PRESENT_ON_TIME,
@@ -83,13 +83,26 @@ trace.add_actual_surface_frame_start_event(
     jank_type=JankType.JANK_APP_DEADLINE_MISSED,
     prediction_type=PredictionType.PREDICTION_VALID)
 trace.add_frame_end_event(ts=47000000, cookie=7)
+trace.add_actual_surface_frame_start_event(
+    ts=32000000,
+    cookie=8,
+    token=100202,
+    display_frame_token=100212,
+    pid=1002,
+    layer_name="Layer1",
+    present_type=PresentType.PRESENT_ON_TIME,
+    on_time_finish=1,
+    gpu_composition=0,
+    jank_type=JankType.JANK_APP_DEADLINE_MISSED,
+    prediction_type=PredictionType.PREDICTION_VALID)
+trace.add_frame_end_event(ts=40000000, cookie=8)
 
 # DisplayFrame with a janky SurfaceFrame
 trace.add_actual_surface_frame_start_event(
     ts=41000000,
     cookie=10,
-    token=5,
-    display_frame_token=6,
+    token=100101,
+    display_frame_token=100111,
     pid=1001,
     layer_name="Layer1",
     present_type=PresentType.PRESENT_LATE,
@@ -101,8 +114,8 @@ trace.add_frame_end_event(ts=74000000, cookie=10)
 trace.add_actual_surface_frame_start_event(
     ts=41000000,
     cookie=11,
-    token=5,
-    display_frame_token=6,
+    token=100102,
+    display_frame_token=100112,
     pid=1001,
     layer_name="Layer1",
     present_type=PresentType.PRESENT_LATE,
@@ -115,8 +128,8 @@ trace.add_frame_end_event(ts=75000000, cookie=11)
 trace.add_actual_surface_frame_start_event(
     ts=81000000,
     cookie=15,
-    token=8,
-    display_frame_token=9,
+    token=100301,
+    display_frame_token=100311,
     pid=1003,
     layer_name="Layer1",
     present_type=PresentType.PRESENT_LATE,
@@ -127,8 +140,8 @@ trace.add_actual_surface_frame_start_event(
 trace.add_actual_surface_frame_start_event(
     ts=90000000,
     cookie=15,
-    token=8,
-    display_frame_token=9,
+    token=100302,
+    display_frame_token=100312,
     pid=1003,
     layer_name="Layer1",
     present_type=PresentType.PRESENT_DROPPED,
