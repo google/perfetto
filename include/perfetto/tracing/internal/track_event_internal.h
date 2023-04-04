@@ -275,6 +275,14 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
     clock_ = clock;
   }
 
+  static inline bool GetDisallowMergingWithSystemTracks() {
+    return disallow_merging_with_system_tracks_;
+  }
+  static inline void SetDisallowMergingWithSystemTracks(
+      bool disallow_merging_with_system_tracks) {
+    disallow_merging_with_system_tracks_ = disallow_merging_with_system_tracks;
+  }
+
   static int GetSessionCount();
 
   // Represents the default track for the calling thread.
@@ -305,6 +313,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
   static std::atomic<int> session_count_;
 
   static protos::pbzero::BuiltinClock clock_;
+  static bool disallow_merging_with_system_tracks_;
 };
 
 template <typename TraceContext>
