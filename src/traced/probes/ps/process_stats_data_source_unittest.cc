@@ -58,9 +58,12 @@ class TestProcessStatsDataSource : public ProcessStatsDataSource {
                                config,
                                std::move(cpu_freq_info)) {}
 
-  MOCK_METHOD0(GetProcMountpoint, const char*());
-  MOCK_METHOD0(OpenProcDir, base::ScopedDir());
-  MOCK_METHOD2(ReadProcPidFile, std::string(int32_t pid, const std::string&));
+  MOCK_METHOD(const char*, GetProcMountpoint, (), (override));
+  MOCK_METHOD(base::ScopedDir, OpenProcDir, (), (override));
+  MOCK_METHOD(std::string,
+              ReadProcPidFile,
+              (int32_t pid, const std::string&),
+              (override));
 };
 
 class ProcessStatsDataSourceTest : public ::testing::Test {

@@ -41,8 +41,8 @@ class TestAndroidLogDataSource : public AndroidLogDataSource {
                            std::unique_ptr<TraceWriter> writer)
       : AndroidLogDataSource(config, task_runner, id, std::move(writer)) {}
 
-  MOCK_METHOD0(ReadEventLogDefinitions, std::string());
-  MOCK_METHOD0(ConnectLogdrSocket, base::UnixSocketRaw());
+  MOCK_METHOD(std::string, ReadEventLogDefinitions, (), (override));
+  MOCK_METHOD(base::UnixSocketRaw, ConnectLogdrSocket, (), (override));
 };
 
 class AndroidLogDataSourceTest : public ::testing::Test {
