@@ -21,6 +21,8 @@
 #include "src/protozero/filtering/filter_bytecode_parser.h"
 #include "src/protozero/filtering/filter_util.h"
 
+#include <regex>
+
 namespace protozero {
 
 namespace {
@@ -30,6 +32,22 @@ perfetto::base::TempFile MkTemp(const char* str) {
   perfetto::base::WriteAll(*tmp, str, strlen(str));
   perfetto::base::FlushFile(*tmp);
   return tmp;
+}
+
+std::string FilterToText(FilterUtil& filter,
+                         std::optional<std::string> bytecode = {}) {
+  perfetto::base::TempFile tmp = perfetto::base::TempFile::Create();
+  {
+    perfetto::base::ScopedFstream tmp_stream(fopen(tmp.path().c_str(), "w"));
+    filter.set_print_stream_for_testing(*tmp_stream);
+    filter.PrintAsText(bytecode);
+    filter.set_print_stream_for_testing(stdout);
+  }
+  std::string output;
+  PERFETTO_CHECK(perfetto::base::ReadFile(tmp.path(), &output));
+  // Make the output a bit more compact.
+  output = std::regex_replace(output, std::regex(" +"), " ");
+  return std::regex_replace(output, std::regex(" +\\n"), "\n");
 }
 
 TEST(SchemaParserTest, SchemaToBytecode_Simple) {
@@ -176,6 +194,112 @@ TEST(SchemaParserTest, FieldLookup) {
 
   fld = {1, 2, 8, 5, 8, 5, 7};
   ASSERT_EQ(filter.LookupField(fld.data(), fld.size()), ".n.x2.c1.c2.c1.c2.f4");
+}
+
+TEST(SchemaParserTest, PrintAsText) {
+  auto schema = MkTemp(R"(
+  syntax = "proto2";
+  message Root {
+    optional int32 i32 = 13;
+    optional Child1 c1 = 2;
+    optional Child2 c2 = 7;
+  }
+  message Child1 {
+    optional int32 f1 = 3;
+    optional int64 f2 = 4;
+  }
+  message Child2 {
+    optional int32 f1 = 3;
+    optional int64 f2 = 4;
+    repeated Root c1 = 5;
+    repeated Nested n1 = 6;
+    message Nested {
+      optional int64 f1 = 1;
+    }
+  }
+  )");
+
+  FilterUtil filter;
+  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "Root", ""));
+
+  EXPECT_EQ(R"(Root 2 message c1 Child1
+Root 7 message c2 Child2
+Root 13 int32 i32
+Child1 3 int32 f1
+Child1 4 int64 f2
+Child2 3 int32 f1
+Child2 4 int64 f2
+Child2 5 message c1 Root
+Child2 6 message n1 Child2.Nested
+Child2.Nested 1 int64 f1
+)",
+            FilterToText(filter));
+
+  // If we generate bytecode from the schema itself, all fields are allowed and
+  // the result is identical to the unfiltered output.
+  EXPECT_EQ(FilterToText(filter),
+            FilterToText(filter, filter.GenerateFilterBytecode()));
+}
+
+TEST(SchemaParserTest, PrintAsTextWithBytecodeFiltering) {
+  auto schema = MkTemp(R"(
+  syntax = "proto2";
+  message Root {
+    optional int32 i32 = 13;
+    optional Child1 c1 = 2;
+    optional Child2 c2 = 7;
+  }
+  message Child1 {
+    optional int32 f1 = 3;
+    optional int64 f2 = 4;
+  }
+  message Child2 {
+    optional int32 f1 = 3;
+    optional int64 f2 = 4;
+    repeated Root c1 = 5;
+    repeated Nested n1 = 6;
+    message Nested {
+      optional int64 f1 = 1;
+    }
+  }
+  )");
+
+  FilterUtil filter;
+  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "Root", ""));
+
+  auto schema_subset = MkTemp(R"(
+  syntax = "proto2";
+  message Root {
+    optional Child2 c2 = 7;
+  }
+  message Child1 {
+    optional int32 f1 = 3;
+    optional int64 f2 = 4;
+  }
+  message Child2 {
+    optional int64 f2 = 4;
+    repeated Root c1 = 5;
+    repeated Nested n1 = 6;
+    message Nested {
+      optional int64 f1 = 1;
+    }
+  }
+  )");
+
+  FilterUtil filter_subset;
+  ASSERT_TRUE(
+      filter_subset.LoadMessageDefinition(schema_subset.path(), "Root", ""));
+  std::string bytecode = filter_subset.GenerateFilterBytecode();
+
+  // Note: Child1 isn't listed even though the filter allows it, because it
+  // isn't reachable from the root message.
+  EXPECT_EQ(R"(Root 7 message c2 Child2
+Child2 4 int64 f2
+Child2 5 message c1 Root
+Child2 6 message n1 Child2.Nested
+Child2.Nested 1 int64 f1
+)",
+            FilterToText(filter, bytecode));
 }
 
 }  // namespace
