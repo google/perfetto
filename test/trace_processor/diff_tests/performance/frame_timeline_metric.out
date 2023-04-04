@@ -33,7 +33,7 @@ android_frame_timeline_metric {
     missed_app_frames: 1
     missed_sf_frames: 0
     frame_dur_max: 16000000
-    frame_dur_avg: 16000000
+    frame_dur_avg: 13333333
     frame_dur_p50: 16000000
     frame_dur_p90: 16000000
     frame_dur_p95: 16000000
