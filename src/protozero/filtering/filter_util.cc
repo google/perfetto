@@ -17,6 +17,7 @@
 #include "src/protozero/filtering/filter_util.h"
 
 #include <algorithm>
+#include <deque>
 #include <map>
 #include <memory>
 #include <set>
@@ -29,6 +30,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/protozero/filtering/filter_bytecode_generator.h"
+#include "src/protozero/filtering/filter_bytecode_parser.h"
 
 namespace protozero {
 
@@ -215,23 +217,59 @@ void FilterUtil::Dedupe() {
 }
 
 // Prints the list of messages and fields in a diff-friendly text format.
-void FilterUtil::PrintAsText() {
+void FilterUtil::PrintAsText(std::optional<std::string> filter_bytecode) {
   using perfetto::base::StripPrefix;
   const std::string& root_name = descriptors_.front().full_name;
   std::string root_prefix = root_name.substr(0, root_name.rfind('.'));
   if (!root_prefix.empty())
     root_prefix.append(".");
 
-  for (const auto& descr : descriptors_) {
+  FilterBytecodeParser parser;
+  if (filter_bytecode) {
+    PERFETTO_CHECK(
+        parser.Load(filter_bytecode->data(), filter_bytecode->size()));
+  }
+
+  // <Filter msg_index, Message>
+  std::deque<std::pair<uint32_t, const Message*>> queue;
+  std::set<const Message*> seen_msgs{&descriptors_.front()};
+  queue.emplace_back(0u, &descriptors_.front());
+
+  while (!queue.empty()) {
+    auto index_and_descr = queue.front();
+    queue.pop_front();
+    uint32_t msg_index = index_and_descr.first;
+    const auto& descr = *index_and_descr.second;
+
     for (const auto& id_and_field : descr.fields) {
       const uint32_t field_id = id_and_field.first;
       const auto& field = id_and_field.second;
+
+      FilterBytecodeParser::QueryResult result{};
+      if (filter_bytecode) {
+        result = parser.Query(msg_index, field_id);
+        if (!result.allowed)
+          continue;
+      }
+
       const Message* nested_type = id_and_field.second.nested_type;
+      if (nested_type) {
+        PERFETTO_CHECK(!result.simple_field() || !filter_bytecode);
+        if (seen_msgs.find(nested_type) == seen_msgs.end()) {
+          seen_msgs.insert(nested_type);
+          queue.emplace_back(result.nested_msg_index, nested_type);
+        }
+      } else {  // simple field
+        PERFETTO_CHECK(result.simple_field() || !filter_bytecode);
+      }
+
       auto stripped_name = StripPrefix(descr.full_name, root_prefix);
       std::string stripped_nested =
-          nested_type ? StripPrefix(nested_type->full_name, root_prefix) : "";
-      printf("%-60s %3u %-8s %-32s %s\n", stripped_name.c_str(), field_id,
-             field.type.c_str(), field.name.c_str(), stripped_nested.c_str());
+          nested_type ? " " + StripPrefix(nested_type->full_name, root_prefix)
+                      : "";
+      fprintf(print_stream_, "%-60s %3u %-8s %-32s%s\n", stripped_name.c_str(),
+              field_id, field.type.c_str(), field.name.c_str(),
+              stripped_nested.c_str());
     }
   }
 }

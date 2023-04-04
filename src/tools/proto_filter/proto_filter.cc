@@ -60,6 +60,11 @@ Example usage:
 
   proto_filter -i test/data/example_android_trace_30s.pb -f /tmp/bytecode \
                -o /tmp/filtered_trace
+
+# Show which fields are allowed by a filter bytecode
+
+  proto_filter -r perfetto.protos.Trace -s protos/perfetto/trace/trace.proto \
+               -f /tmp/bytecode
 )";
 
 int Main(int argc, char** argv) {
@@ -273,7 +278,8 @@ int Main(int argc, char** argv) {
              num_occurrences < 0 ? "DROP" : "PASS", std::abs(num_occurrences));
     }
   } else if (!schema_in.empty()) {
-    filter.PrintAsText();
+    filter.PrintAsText(!filter_data.empty() ? std::make_optional(filter_data)
+                                            : std::nullopt);
   }
 
   if ((!filter_out.empty() || !filter_oct_out.empty()) && !dedupe) {
