@@ -58,30 +58,35 @@ void* const kDataSource2UserArg = reinterpret_cast<void*>(0x555);
 
 class MockDs2Callbacks : testing::Mock {
  public:
-  MOCK_METHOD4(OnSetup,
-               void*(PerfettoDsInstanceIndex inst_id,
-                     void* ds_config,
-                     size_t ds_config_size,
-                     void* user_arg));
-  MOCK_METHOD3(OnStart,
-               void(PerfettoDsInstanceIndex inst_id,
-                    void* user_arg,
-                    void* inst_ctx));
-  MOCK_METHOD4(OnStop,
-               void(PerfettoDsInstanceIndex inst_id,
-                    void* user_arg,
-                    void* inst_ctx,
-                    struct PerfettoDsOnStopArgs* args));
-  MOCK_METHOD3(OnCreateTls,
-               void*(PerfettoDsInstanceIndex inst_id,
-                     struct PerfettoDsTracerImpl* tracer,
-                     void* user_arg));
-  MOCK_METHOD1(OnDeleteTls, void(void*));
-  MOCK_METHOD3(OnCreateIncr,
-               void*(PerfettoDsInstanceIndex inst_id,
-                     struct PerfettoDsTracerImpl* tracer,
-                     void* user_arg));
-  MOCK_METHOD1(OnDeleteIncr, void(void*));
+  MOCK_METHOD(void*,
+              OnSetup,
+              (PerfettoDsInstanceIndex inst_id,
+               void* ds_config,
+               size_t ds_config_size,
+               void* user_arg));
+  MOCK_METHOD(void,
+              OnStart,
+              (PerfettoDsInstanceIndex inst_id,
+               void* user_arg,
+               void* inst_ctx));
+  MOCK_METHOD(void,
+              OnStop,
+              (PerfettoDsInstanceIndex inst_id,
+               void* user_arg,
+               void* inst_ctx,
+               struct PerfettoDsOnStopArgs* args));
+  MOCK_METHOD(void*,
+              OnCreateTls,
+              (PerfettoDsInstanceIndex inst_id,
+               struct PerfettoDsTracerImpl* tracer,
+               void* user_arg));
+  MOCK_METHOD(void, OnDeleteTls, (void*));
+  MOCK_METHOD(void*,
+              OnCreateIncr,
+              (PerfettoDsInstanceIndex inst_id,
+               struct PerfettoDsTracerImpl* tracer,
+               void* user_arg));
+  MOCK_METHOD(void, OnDeleteIncr, (void*));
 };
 
 class Notification {

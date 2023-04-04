@@ -44,7 +44,7 @@ class MetatraceTest : public ::testing::Test {
     m::Enable([this] { ReadCallback(); }, &task_runner_, tags);
   }
 
-  MOCK_METHOD0(ReadCallback, void());
+  MOCK_METHOD(void, ReadCallback, ());
   base::TestTaskRunner task_runner_;
 };
 

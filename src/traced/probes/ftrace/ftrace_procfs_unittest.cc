@@ -30,12 +30,17 @@ class MockFtraceProcfs : public FtraceProcfs {
  public:
   MockFtraceProcfs() : FtraceProcfs("/root/") {}
 
-  MOCK_METHOD2(WriteToFile,
-               bool(const std::string& path, const std::string& str));
-  MOCK_METHOD1(ReadOneCharFromFile, char(const std::string& path));
-  MOCK_METHOD1(ClearFile, bool(const std::string& path));
-  MOCK_CONST_METHOD1(ReadFileIntoString, std::string(const std::string& path));
-  MOCK_CONST_METHOD0(NumberOfCpus, size_t());
+  MOCK_METHOD(bool,
+              WriteToFile,
+              (const std::string& path, const std::string& str),
+              (override));
+  MOCK_METHOD(char, ReadOneCharFromFile, (const std::string& path), (override));
+  MOCK_METHOD(bool, ClearFile, (const std::string& path), (override));
+  MOCK_METHOD(std::string,
+              ReadFileIntoString,
+              (const std::string& path),
+              (const, override));
+  MOCK_METHOD(size_t, NumberOfCpus, (), (const, override));
 };
 
 TEST(FtraceProcfsTest, ParseAvailableClocks) {

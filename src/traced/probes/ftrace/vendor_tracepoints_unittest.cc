@@ -40,9 +40,12 @@ namespace {
 class MockHal : public AtraceHalWrapper {
  public:
   MockHal() : AtraceHalWrapper() {}
-  MOCK_METHOD0(ListCategories, std::vector<std::string>());
-  MOCK_METHOD1(EnableCategories, bool(const std::vector<std::string>&));
-  MOCK_METHOD0(DisableAllCategories, bool());
+  MOCK_METHOD(std::vector<std::string>, ListCategories, (), (override));
+  MOCK_METHOD(bool,
+              EnableCategories,
+              (const std::vector<std::string>&),
+              (override));
+  MOCK_METHOD(bool, DisableAllCategories, (), (override));
 };
 
 class MockFtraceProcfs : public FtraceProcfs {
@@ -54,18 +57,27 @@ class MockFtraceProcfs : public FtraceProcfs {
     EXPECT_CALL(*this, NumberOfCpus()).Times(AnyNumber());
   }
 
-  MOCK_METHOD2(WriteToFile,
-               bool(const std::string& path, const std::string& str));
-  MOCK_METHOD2(AppendToFile,
-               bool(const std::string& path, const std::string& str));
-  MOCK_METHOD1(ReadOneCharFromFile, char(const std::string& path));
-  MOCK_METHOD1(ClearFile, bool(const std::string& path));
-  MOCK_METHOD1(IsFileWriteable, bool(const std::string& path));
-  MOCK_CONST_METHOD1(ReadFileIntoString, std::string(const std::string& path));
-  MOCK_METHOD0(ReadEnabledEvents, std::vector<std::string>());
-  MOCK_CONST_METHOD0(NumberOfCpus, size_t());
-  MOCK_CONST_METHOD1(GetEventNamesForGroup,
-                     const std::set<std::string>(const std::string& path));
+  MOCK_METHOD(bool,
+              WriteToFile,
+              (const std::string& path, const std::string& str),
+              (override));
+  MOCK_METHOD(bool,
+              AppendToFile,
+              (const std::string& path, const std::string& str),
+              (override));
+  MOCK_METHOD(char, ReadOneCharFromFile, (const std::string& path), (override));
+  MOCK_METHOD(bool, ClearFile, (const std::string& path), (override));
+  MOCK_METHOD(bool, IsFileWriteable, (const std::string& path), (override));
+  MOCK_METHOD(std::string,
+              ReadFileIntoString,
+              (const std::string& path),
+              (const, override));
+  MOCK_METHOD(std::vector<std::string>, ReadEnabledEvents, (), (override));
+  MOCK_METHOD(size_t, NumberOfCpus, (), (const, override));
+  MOCK_METHOD(const std::set<std::string>,
+              GetEventNamesForGroup,
+              (const std::string& path),
+              (const, override));
 };
 
 TEST(DiscoverVendorTracepointsTest, DiscoverVendorTracepointsWithHal) {

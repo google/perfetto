@@ -218,8 +218,11 @@ class TestSysStatsDataSource : public SysStatsDataSource {
                            std::move(cpu_freq_info),
                            open_fn) {}
 
-  MOCK_METHOD0(OpenDevfreqDir, base::ScopedDir());
-  MOCK_METHOD1(ReadDevfreqCurFreq, const char*(const std::string& deviceName));
+  MOCK_METHOD(base::ScopedDir, OpenDevfreqDir, (), (override));
+  MOCK_METHOD(const char*,
+              ReadDevfreqCurFreq,
+              (const std::string& deviceName),
+              (override));
 };
 
 base::ScopedFile MockOpenReadOnly(const char* path) {
