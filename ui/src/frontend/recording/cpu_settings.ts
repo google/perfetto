@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {Probe, ProbeAttrs, Slider, SliderAttrs} from '../record_widgets';
 import {POLL_INTERVAL_MS, RecordingSectionAttrs} from './recording_sections';
