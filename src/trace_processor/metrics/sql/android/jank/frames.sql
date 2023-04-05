@@ -41,7 +41,10 @@ SELECT
   -- for a given vsync but using MAX here in case this changes in the future.
   -- In case expected timeline is missing, as a fallback we use the typical frame deadline
   -- for 60Hz.
-  COALESCE(MAX(expected.dur), 16600000) AS dur_expected
+  COALESCE(MAX(expected.dur), 16600000) AS dur_expected,
+  COUNT(DISTINCT timeline.layer_name) as number_of_layers_for_frame,
+  -- we use MAX to get at least one of the frame's layer names
+  MAX(timeline.layer_name) as frame_layer_name
 FROM android_jank_cuj_vsync_boundary boundary
 JOIN actual_timeline_with_vsync timeline
   ON boundary.upid = timeline.upid
@@ -49,8 +52,24 @@ JOIN actual_timeline_with_vsync timeline
     AND vsync <= vsync_max
 LEFT JOIN expected_frame_timeline_slice expected
   ON expected.upid = timeline.upid AND expected.name = timeline.name
+WHERE
+  boundary.layer_id IS NULL
+  OR (
+    timeline.layer_name GLOB '*#*'
+    AND boundary.layer_id
+      = CAST(STR_SPLIT(timeline.layer_name, '#', 1) AS INTEGER))
 GROUP BY cuj_id, vsync;
 
+DROP TABLE IF EXISTS android_jank_cuj_layer_name;
+CREATE TABLE android_jank_cuj_layer_name AS
+SELECT
+    cuj_id,
+    MAX(frame_layer_name) as layer_name
+FROM android_jank_cuj_frame_timeline timeline
+GROUP BY cuj_id
+-- Return only cujs where the max number of layers for all frames in the whole cuj equals 1,
+-- this is to infer the layer name if the cuj marker for layer id is not present
+HAVING MAX(number_of_layers_for_frame) = 1;
 
 -- Matches slices and boundaries to compute estimated frame boundaries across
 -- all threads. Joins with the actual timeline to figure out which frames missed
