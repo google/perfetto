@@ -39,7 +39,25 @@ SELECT AndroidMonitorContentionMetric(
         'is_blocked_thread_main', is_blocked_thread_main,
         'is_blocking_thread_main', is_blocking_thread_main,
         'binder_reply_ts', binder_reply_ts,
-        'binder_reply_tid', binder_reply_tid
+        'binder_reply_tid', binder_reply_tid,
+        'thread_states', (
+          SELECT RepeatedField(
+            AndroidMonitorContentionMetric_ThreadStateBreakdown(
+              'thread_state', thread_state,
+              'thread_state_dur', thread_state_dur,
+              'thread_state_count', thread_state_count
+            )
+          ) FROM android_monitor_contention_chain_thread_state_by_txn t WHERE t.id = android_monitor_contention_chain.id
+        ),
+        'blocked_functions', (
+          SELECT RepeatedField(
+            AndroidMonitorContentionMetric_BlockedFunctionBreakdown(
+              'blocked_function', blocked_function,
+              'blocked_function_dur', blocked_function_dur,
+              'blocked_function_count', blocked_function_count
+            )
+          ) FROM android_monitor_contention_chain_blocked_functions_by_txn b WHERE b.id = android_monitor_contention_chain.id
+        )
       )
     )
     FROM android_monitor_contention_chain
