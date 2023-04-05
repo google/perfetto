@@ -40,6 +40,21 @@ message AndroidMonitorContentionMetric {
     optional bool is_blocking_thread_main = 16;
     optional int64 binder_reply_ts = 17;
     optional uint32 binder_reply_tid = 18;
+
+    repeated ThreadStateBreakdown thread_states = 19;
+    repeated BlockedFunctionBreakdown blocked_functions = 20;
+  }
+
+  message ThreadStateBreakdown {
+    optional string thread_state = 1;
+    optional int64 thread_state_dur = 2;
+    optional int64 thread_state_count = 3;
+  }
+
+  message BlockedFunctionBreakdown {
+    optional string blocked_function = 1;
+    optional int64 blocked_function_dur = 2;
+    optional int64 blocked_function_count = 3;
   }
 
   repeated Node node = 1;
