@@ -32,6 +32,9 @@ SF_PID = 1050
 SF_RETID = 1055
 
 
+def add_main_thread_instant(trace, ts, buf):
+  trace.add_atrace_instant(ts=ts, tid=PID, pid=PID, buf=buf)
+
 def add_main_thread_atrace(trace, ts, ts_end, buf):
   trace.add_atrace_begin(ts=ts, tid=PID, pid=PID, buf=buf)
   trace.add_atrace_end(ts=ts_end, tid=PID, pid=PID)
@@ -162,7 +165,8 @@ def add_actual_surface_frame_events(ts,
                                     cookie=None,
                                     jank=None,
                                     on_time_finish_override=None,
-                                    display_frame_token_override=None):
+                                    display_frame_token_override=None,
+                                    layer_name=LAYER):
   if cookie is None:
     cookie = token + 1
   jank_type = jank if jank is not None else 1
@@ -183,7 +187,7 @@ def add_actual_surface_frame_events(ts,
       gpu_composition=0,
       jank_type=jank_type,
       prediction_type=3,
-      layer_name=LAYER)
+      layer_name=layer_name)
   trace.add_frame_end_event(ts=ts + dur, cookie=100002 + cookie)
 
 
@@ -207,6 +211,7 @@ trace.add_thread(
 trace.add_ftrace_packet(cpu=0)
 trace.add_atrace_async_begin(ts=5, tid=PID, pid=PID, buf="J<FIRST_CUJ>")
 trace.add_atrace_async_begin(ts=10, tid=PID, pid=PID, buf="J<SHADE_ROW_EXPAND>")
+add_main_thread_instant(trace, ts=11, buf="J<SHADE_ROW_EXPAND>#FT#layerId#0")
 trace.add_atrace_async_end(
     ts=100_000_000, tid=PID, pid=PID, buf="J<FIRST_CUJ>")
 trace.add_atrace_async_begin(
@@ -605,8 +610,7 @@ add_frame(
     ts_gpu=1_400_000_000,
     ts_end_gpu=1_500_000_000)
 
-add_main_thread_atrace(
-    trace, ts=990_000_000, ts_end=995_000_000, buf="J<CANCELED>#FT#cancel#0")
+add_main_thread_instant(trace, ts=990_000_000, buf="J<CANCELED>#FT#cancel#0")
 
 add_expected_display_frame_events(ts=1_000_000_000, dur=16_000_000, token=10)
 add_actual_display_frame_events(ts=1_000_000_000, dur=16_000_000, token=10)
@@ -665,7 +669,10 @@ add_actual_surface_frame_events(
     ts=200_000_000, dur=22_000_000, token=100, jank=34)
 
 add_expected_surface_frame_events(ts=300_000_000, dur=20_000_000, token=110)
-add_actual_surface_frame_events(ts=300_000_000, dur=61_000_000, token=110)
+add_actual_surface_frame_events(ts=300_000_000, cookie=112, dur=61_000_000,
+                                token=110)
+add_actual_surface_frame_events(ts=300_000_000, cookie=114, dur=80_000_000,
+                                token=110, jank=64, layer_name="TX - JankyLayer#1")
 
 add_expected_surface_frame_events(ts=400_000_000, dur=20_000_000, token=120)
 add_actual_surface_frame_events(
