@@ -54,8 +54,10 @@ cuj_state_markers AS (
       WHEN cuj_state_marker.name GLOB '*#FT#deferMonitoring*' THEN 'deferMonitoring'
       WHEN cuj_state_marker.name GLOB '*#FT#end*' THEN 'end'
       WHEN cuj_state_marker.name GLOB '*#FT#cancel*' THEN 'cancel'
-      ELSE 'other'
-    END AS marker_type
+      WHEN cuj_state_marker.name GLOB '*#FT#layerId*' THEN 'layerId'
+    ELSE 'other'
+    END AS marker_type,
+    cuj_state_marker.name as marker_name
   FROM cujs
   LEFT JOIN slice cuj_state_marker
     ON cuj_state_marker.ts >= cujs.ts
@@ -79,7 +81,13 @@ SELECT
         AND csm.marker_type = 'end')
       THEN 'completed'
     ELSE NULL
-  END AS state
+  END AS state,
+  (
+    SELECT CAST(STR_SPLIT(csm.marker_name, 'layerId#', 1) AS INTEGER)
+    FROM cuj_state_markers csm
+    WHERE csm.cuj_id = cujs.cuj_id AND csm.marker_name GLOB '*layerId#*'
+    LIMIT 1
+  ) AS layer_id
 FROM cujs
 WHERE
   state != 'canceled'
