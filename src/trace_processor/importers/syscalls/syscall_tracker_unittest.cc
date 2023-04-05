@@ -31,20 +31,24 @@ using ::testing::SaveArg;
 class MockSliceTracker : public SliceTracker {
  public:
   MockSliceTracker(TraceProcessorContext* context) : SliceTracker(context) {}
-  virtual ~MockSliceTracker() = default;
+  ~MockSliceTracker() override = default;
 
-  MOCK_METHOD5(Begin,
-               std::optional<SliceId>(int64_t timestamp,
-                                      TrackId track_id,
-                                      StringId cat,
-                                      StringId name,
-                                      SetArgsCallback args_callback));
-  MOCK_METHOD5(End,
-               std::optional<SliceId>(int64_t timestamp,
-                                      TrackId track_id,
-                                      StringId cat,
-                                      StringId name,
-                                      SetArgsCallback args_callback));
+  MOCK_METHOD(std::optional<SliceId>,
+              Begin,
+              (int64_t timestamp,
+               TrackId track_id,
+               StringId cat,
+               StringId name,
+               SetArgsCallback args_callback),
+              (override));
+  MOCK_METHOD(std::optional<SliceId>,
+              End,
+              (int64_t timestamp,
+               TrackId track_id,
+               StringId cat,
+               StringId name,
+               SetArgsCallback args_callback),
+              (override));
 };
 
 class SyscallTrackerTest : public ::testing::Test {

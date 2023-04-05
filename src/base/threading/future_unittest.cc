@@ -32,7 +32,7 @@ using testing::Return;
 template <typename T>
 class MockPollable : public FuturePollable<T> {
  public:
-  MOCK_METHOD1(Poll, FuturePollResult<T>(PollContext*));
+  MOCK_METHOD(FuturePollResult<T>, Poll, (PollContext*), (override));
 };
 
 class FutureUnittest : public ::testing::Test {

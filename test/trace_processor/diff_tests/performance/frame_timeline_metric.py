@@ -51,16 +51,16 @@ class PredictionType:
 
 trace = synth_common.create_trace()
 
-trace.add_packet(ts=5)
+trace.add_packet(ts=5000000)
 trace.add_process(1001, 0, "process1")
 trace.add_process(1002, 0, "process2")
 trace.add_process(1003, 0, "process3")
 
 trace.add_actual_surface_frame_start_event(
-    ts=21,
+    ts=21000000,
     cookie=6,
-    token=1,
-    display_frame_token=4,
+    token=100201,
+    display_frame_token=100211,
     pid=1002,
     layer_name="Layer1",
     present_type=PresentType.PRESENT_ON_TIME,
@@ -68,13 +68,13 @@ trace.add_actual_surface_frame_start_event(
     gpu_composition=0,
     jank_type=JankType.JANK_NONE,
     prediction_type=PredictionType.PREDICTION_VALID)
-trace.add_frame_end_event(ts=37, cookie=6)
+trace.add_frame_end_event(ts=37000000, cookie=6)
 
 trace.add_actual_surface_frame_start_event(
-    ts=31,
+    ts=31000000,
     cookie=7,
-    token=1,
-    display_frame_token=4,
+    token=100202,
+    display_frame_token=100212,
     pid=1002,
     layer_name="Layer1",
     present_type=PresentType.PRESENT_ON_TIME,
@@ -82,14 +82,27 @@ trace.add_actual_surface_frame_start_event(
     gpu_composition=0,
     jank_type=JankType.JANK_APP_DEADLINE_MISSED,
     prediction_type=PredictionType.PREDICTION_VALID)
-trace.add_frame_end_event(ts=47, cookie=7)
+trace.add_frame_end_event(ts=47000000, cookie=7)
+trace.add_actual_surface_frame_start_event(
+    ts=32000000,
+    cookie=8,
+    token=100202,
+    display_frame_token=100212,
+    pid=1002,
+    layer_name="Layer1",
+    present_type=PresentType.PRESENT_ON_TIME,
+    on_time_finish=1,
+    gpu_composition=0,
+    jank_type=JankType.JANK_APP_DEADLINE_MISSED,
+    prediction_type=PredictionType.PREDICTION_VALID)
+trace.add_frame_end_event(ts=40000000, cookie=8)
 
 # DisplayFrame with a janky SurfaceFrame
 trace.add_actual_surface_frame_start_event(
-    ts=41,
+    ts=41000000,
     cookie=10,
-    token=5,
-    display_frame_token=6,
+    token=100101,
+    display_frame_token=100111,
     pid=1001,
     layer_name="Layer1",
     present_type=PresentType.PRESENT_LATE,
@@ -97,12 +110,12 @@ trace.add_actual_surface_frame_start_event(
     gpu_composition=0,
     jank_type=JankType.JANK_APP_DEADLINE_MISSED,
     prediction_type=PredictionType.PREDICTION_VALID)
-trace.add_frame_end_event(ts=74, cookie=10)
+trace.add_frame_end_event(ts=74000000, cookie=10)
 trace.add_actual_surface_frame_start_event(
-    ts=41,
+    ts=41000000,
     cookie=11,
-    token=5,
-    display_frame_token=6,
+    token=100102,
+    display_frame_token=100112,
     pid=1001,
     layer_name="Layer1",
     present_type=PresentType.PRESENT_LATE,
@@ -110,13 +123,13 @@ trace.add_actual_surface_frame_start_event(
     gpu_composition=0,
     jank_type=JankType.JANK_APP_DEADLINE_MISSED | JankType.JANK_BUFFER_STUFFING,
     prediction_type=PredictionType.PREDICTION_VALID)
-trace.add_frame_end_event(ts=75, cookie=11)
+trace.add_frame_end_event(ts=75000000, cookie=11)
 
 trace.add_actual_surface_frame_start_event(
-    ts=81,
+    ts=81000000,
     cookie=15,
-    token=8,
-    display_frame_token=9,
+    token=100301,
+    display_frame_token=100311,
     pid=1003,
     layer_name="Layer1",
     present_type=PresentType.PRESENT_LATE,
@@ -125,10 +138,10 @@ trace.add_actual_surface_frame_start_event(
     jank_type=JankType.JANK_SF_CPU_DEADLINE_MISSED,
     prediction_type=PredictionType.PREDICTION_VALID)
 trace.add_actual_surface_frame_start_event(
-    ts=90,
+    ts=90000000,
     cookie=15,
-    token=8,
-    display_frame_token=9,
+    token=100302,
+    display_frame_token=100312,
     pid=1003,
     layer_name="Layer1",
     present_type=PresentType.PRESENT_DROPPED,
@@ -136,5 +149,5 @@ trace.add_actual_surface_frame_start_event(
     gpu_composition=0,
     jank_type=JankType.JANK_DROPPED,
     prediction_type=PredictionType.PREDICTION_VALID)
-trace.add_frame_end_event(ts=95, cookie=15)
+trace.add_frame_end_event(ts=95000000, cookie=15)
 sys.stdout.buffer.write(trace.trace.SerializeToString())
