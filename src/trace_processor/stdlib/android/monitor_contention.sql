@@ -135,28 +135,28 @@ SELECT ancestor.parent_id AS id FROM slice
     WHERE ancestor.name LIKE 'Lock contention on a monitor lock%'
     GROUP BY ancestor.id;
 
--- Contains parsed monitor contention slices
+-- Contains parsed monitor contention slices.
 --
--- @column blocking_method name of the method holding the lock
--- @column blocked_methhod name of the method trying to acquire the lock
--- @column short_blocking_method blocking_method without arguments and return types
--- @column short_blocked_method blocked_method without arguments and return types
--- @column blocking_src file location of blocking_method in form <filename:linenumber>
--- @column blocked_src file location of blocked_method in form <filename:linenumber>
--- @column waiter_count zero indexed number of threads trying to acquire the lock
--- @column blocking_utid utid of thread holding the lock
--- @column blocking_thread_name thread name of thread holding the lock
--- @column upid upid of process experiencing lock contention
--- @column process_name process name of process experiencing lock contention
--- @column id slice id of lock contention
--- @column ts timestamp of lock contention start
--- @column dur duration of lock contention
--- @column track_id thread track id of blocked thread
--- @column is_blocked_main_thread whether the blocked thread is the main thread
--- @column is_blocking_main_thread whether the blocking thread is the main thread
--- @column binder_reply_id slice id of binder reply slice if lock contention was part of a binder txn
--- @column binder_reply_ts timestamp of binder reply slice if lock contention was part of a binder txn
--- @column binder_reply_tid tid of binder reply slice if lock contention was part of a binder txn
+-- @column blocking_method Name of the method holding the lock.
+-- @column blocked_methhod Name of the method trying to acquire the lock.
+-- @column short_blocking_method Blocking_method without arguments and return types.
+-- @column short_blocked_method Blocked_method without arguments and return types.
+-- @column blocking_src File location of blocking_method in form <filename:linenumber>.
+-- @column blocked_src File location of blocked_method in form <filename:linenumber>.
+-- @column waiter_count Zero indexed number of threads trying to acquire the lock.
+-- @column blocking_utid Utid of thread holding the lock.
+-- @column blocking_thread_name Thread name of thread holding the lock.
+-- @column upid Upid of process experiencing lock contention.
+-- @column process_name Process name of process experiencing lock contention.
+-- @column id Slice id of lock contention.
+-- @column ts Timestamp of lock contention start.
+-- @column dur Duration of lock contention.
+-- @column track_id Thread track id of blocked thread.
+-- @column is_blocked_main_thread Whether the blocked thread is the main thread.
+-- @column is_blocking_main_thread Whether the blocking thread is the main thread.
+-- @column binder_reply_id Slice id of binder reply slice if lock contention was part of a binder txn.
+-- @column binder_reply_ts Timestamp of binder reply slice if lock contention was part of a binder txn.
+-- @column binder_reply_tid Tid of binder reply slice if lock contention was part of a binder txn.
 CREATE TABLE android_monitor_contention
 AS
 SELECT
@@ -201,31 +201,113 @@ WHERE slice.name LIKE 'monitor contention%'
   AND short_blocked_method IS NOT NULL
 GROUP BY slice.id;
 
--- Contains parsed monitor contention slices with the parent-child relationships
+-- Contains parsed monitor contention slices with the parent-child relationships.
 --
--- @column parent_id id of slice blocking the blocking_thread
--- @column blocking_method name of the method holding the lock
--- @column blocked_methhod name of the method trying to acquire the lock
--- @column short_blocking_method blocking_method without arguments and return types
--- @column short_blocked_method blocked_method without arguments and return types
--- @column blocking_src file location of blocking_method in form <filename:linenumber>
--- @column blocked_src file location of blocked_method in form <filename:linenumber>
--- @column waiter_count zero indexed number of threads trying to acquire the lock
--- @column blocking_utid utid of thread holding the lock
--- @column blocking_thread_name thread name of thread holding the lock
--- @column upid upid of process experiencing lock contention
--- @column process_name process name of process experiencing lock contention
--- @column id slice id of lock contention
--- @column ts timestamp of lock contention start
--- @column dur duration of lock contention
--- @column track_id thread track id of blocked thread
--- @column is_blocked_main_thread whether the blocked thread is the main thread
--- @column is_blocking_main_thread whether the blocking thread is the main thread
--- @column binder_reply_id slice id of binder reply slice if lock contention was part of a binder txn
--- @column binder_reply_ts timestamp of binder reply slice if lock contention was part of a binder txn
--- @column binder_reply_tid tid of binder reply slice if lock contention was part of a binder txn
+-- @column parent_id Id of slice blocking the blocking_thread.
+-- @column blocking_method Name of the method holding the lock.
+-- @column blocked_methhod Name of the method trying to acquire the lock.
+-- @column short_blocking_method Blocking_method without arguments and return types.
+-- @column short_blocked_method Blocked_method without arguments and return types.
+-- @column blocking_src File location of blocking_method in form <filename:linenumber>.
+-- @column blocked_src File location of blocked_method in form <filename:linenumber>.
+-- @column waiter_count Zero indexed number of threads trying to acquire the lock.
+-- @column blocking_utid Utid of thread holding the lock.
+-- @column blocking_thread_name Thread name of thread holding the lock.
+-- @column upid Upid of process experiencing lock contention.
+-- @column process_name Process name of process experiencing lock contention.
+-- @column id Slice id of lock contention.
+-- @column ts Timestamp of lock contention start.
+-- @column dur Duration of lock contention.
+-- @column track_id Thread track id of blocked thread.
+-- @column is_blocked_main_thread Whether the blocked thread is the main thread.
+-- @column is_blocking_main_thread Whether the blocking thread is the main thread.
+-- @column binder_reply_id Slice id of binder reply slice if lock contention was part of a binder txn.
+-- @column binder_reply_ts Timestamp of binder reply slice if lock contention was part of a binder txn.
+-- @column binder_reply_tid Tid of binder reply slice if lock contention was part of a binder txn.
 CREATE TABLE android_monitor_contention_chain
 AS
 SELECT parent.id AS parent_id, child.* FROM android_monitor_contention child
 LEFT JOIN android_monitor_contention parent ON child.blocked_utid = parent.blocking_utid
     AND parent.ts BETWEEN child.ts AND child.ts + child.dur;
+
+CREATE VIEW internal_blocking_thread_state
+AS
+SELECT utid AS blocking_utid, ts, dur, state, blocked_function
+FROM thread_state;
+
+-- Contains the span join of the |android_monitor_contention_chain| with their
+-- blocking thread thread state.
+--
+-- @column parent_id Id of slice blocking the blocking_thread.
+-- @column blocking_method Name of the method holding the lock.
+-- @column blocked_methhod Name of the method trying to acquire the lock.
+-- @column short_blocking_method Blocking_method without arguments and return types.
+-- @column short_blocked_method Blocked_method without arguments and return types.
+-- @column blocking_src File location of blocking_method in form <filename:linenumber>.
+-- @column blocked_src File location of blocked_method in form <filename:linenumber>.
+-- @column waiter_count Zero indexed number of threads trying to acquire the lock.
+-- @column blocking_utid Utid of thread holding the lock.
+-- @column blocking_thread_name Thread name of thread holding the lock.
+-- @column upid Upid of process experiencing lock contention.
+-- @column process_name Process name of process experiencing lock contention.
+-- @column id Slice id of lock contention.
+-- @column ts Timestamp of lock contention start.
+-- @column dur Duration of lock contention.
+-- @column track_id Thread track id of blocked thread.
+-- @column is_blocked_main_thread Whether the blocked thread is the main thread.
+-- @column is_blocking_main_thread Whether the blocking thread is the main thread.
+-- @column binder_reply_id Slice id of binder reply slice if lock contention was part of a binder txn.
+-- @column binder_reply_ts Timestamp of binder reply slice if lock contention was part of a binder txn.
+-- @column binder_reply_tid Tid of binder reply slice if lock contention was part of a binder txn.
+-- @column blocking_utid Utid of the blocking |thread_state|.
+-- @column ts Timestamp of the blocking |thread_state|.
+-- @column state Thread state of the blocking thread.
+-- @column blocked_function Blocked kernel function of the blocking thread.
+CREATE VIRTUAL TABLE android_monitor_contention_chain_thread_state
+USING
+  SPAN_JOIN(android_monitor_contention_chain PARTITIONED blocking_utid,
+            internal_blocking_thread_state PARTITIONED blocking_utid);
+
+-- Aggregated blocked_functions on the 'blocking thread', the thread holding the lock.
+-- This builds on the data from |android_monitor_contention_chain| and
+-- for each contention slice, it returns the aggregated sum of all the thread states on the
+-- blocking thread.
+--
+-- @column id Slice id of the monitor contention.
+-- @column thread_state A |thread_state| that occurred in the blocking thread during the contention.
+-- @column thread_state_dur Total time the blocking thread spent in the |thread_state| during
+-- contention.
+-- @column thread_state_count Count of all times the blocking thread entered |thread_state| during
+-- the contention.
+CREATE VIEW android_monitor_contention_chain_thread_state_by_txn
+AS
+SELECT
+  id,
+  state AS thread_state,
+  SUM(dur) AS thread_state_dur,
+  COUNT(dur) AS thread_state_count
+FROM android_monitor_contention_chain_thread_state
+GROUP BY id, thread_state;
+
+-- Aggregated blocked_functions on the 'blocking thread', the thread holding the lock.
+-- This builds on the data from |android_monitor_contention_chain| and
+-- for each contention, it returns the aggregated sum of all the kernel
+-- blocked function durations on the blocking thread.
+--
+-- @column id Slice id of the monitor contention.
+-- @column blocked_function Blocked kernel function in a thread state in the blocking thread during
+-- the contention.
+-- @column blocked_function_dur Total time the blocking thread spent in the |blocked_function|
+-- during the contention.
+-- @column blocked_function_count Count of all times the blocking thread executed the
+-- |blocked_function| during the contention.
+CREATE VIEW android_monitor_contention_chain_blocked_functions_by_txn
+AS
+SELECT
+  id,
+  blocked_function,
+  SUM(dur) AS blocked_function_dur,
+  COUNT(dur) AS blocked_function_count
+FROM android_monitor_contention_chain_thread_state
+WHERE blocked_function IS NOT NULL
+GROUP BY id, blocked_function;
