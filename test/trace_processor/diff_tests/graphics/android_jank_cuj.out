@@ -2,6 +2,7 @@ android_jank_cuj {
   cuj {
     id: 1
     name: "FIRST_CUJ"
+    layer_name: "TX - NotificationShade#0"
     process {
       name: "com.android.systemui"
       uid: 10001
@@ -163,6 +164,7 @@ android_jank_cuj {
   cuj {
     id: 2
     name: "SHADE_ROW_EXPAND"
+    layer_name: "TX - NotificationShade#0"
     process {
       name: "com.android.systemui"
       uid: 10001
