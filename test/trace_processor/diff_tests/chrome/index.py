@@ -1411,3 +1411,17 @@ ORDER BY total_size DESC, path
 LIMIT 10;
 """,
         out=Path('proto_content.out'))
+
+  def test_chrome_scroll_jank_v2(self):
+    return DiffTestBlueprint(
+        trace=Path('../../data/event_latency_with_args.perfetto-trace'),
+        query="""
+SELECT RUN_METRIC('chrome/chrome_scroll_jank_v2.sql');
+
+SELECT
+  scroll_processing_ms,
+  scroll_jank_processing_ms,
+  scroll_jank_percentage
+FROM chrome_scroll_jank_v2_output;
+""",
+        out=Path('chrome_scroll_jank_v2.out'))
