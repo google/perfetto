@@ -185,13 +185,8 @@ class TraceWriterImplTest : public AlignedBufferTest {
   std::unique_ptr<SharedMemoryArbiterImpl> arbiter_;
 };
 
-using TraceWriterImplDeathTest = TraceWriterImplTest;
-
 size_t const kPageSizes[] = {4096, 65536};
 INSTANTIATE_TEST_SUITE_P(PageSize, TraceWriterImplTest, ValuesIn(kPageSizes));
-INSTANTIATE_TEST_SUITE_P(PageSize,
-                         TraceWriterImplDeathTest,
-                         ValuesIn(kPageSizes));
 
 TEST_P(TraceWriterImplTest, NewTracePacket) {
   const BufferID kBufId = 42;
@@ -290,6 +285,11 @@ TEST_P(TraceWriterImplTest, NewTracePacketTakeWriter) {
 }
 
 #if defined(GTEST_HAS_DEATH_TEST)
+using TraceWriterImplDeathTest = TraceWriterImplTest;
+INSTANTIATE_TEST_SUITE_P(PageSize,
+                         TraceWriterImplDeathTest,
+                         ValuesIn(kPageSizes));
+
 TEST_P(TraceWriterImplDeathTest, NewTracePacketTakeWriterNoFinish) {
   const BufferID kBufId = 42;
   std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(kBufId);
