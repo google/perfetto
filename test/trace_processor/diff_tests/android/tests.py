@@ -247,6 +247,41 @@ class Android(TestSuite):
         "float com.android.server.wm.WindowManagerService.getCurrentAnimatorScale()","android.app.ActivityTaskManager$RootTaskInfo com.android.server.wm.ActivityTaskManagerService.getFocusedRootTaskInfo()","com.android.server.wm.WindowManagerService.getCurrentAnimatorScale","com.android.server.wm.ActivityTaskManagerService.getFocusedRootTaskInfo","WindowManagerService.java:3511","ActivityTaskManagerService.java:1977",2,555,"binder:642_3",527,"android.anim",279,"system_server",69099,146987786843,24888520,1317,0,0,69097,146987701011,1559
       """))
 
+  def test_monitor_contention_chain_blocked_functions(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query="""
+      SELECT IMPORT('android.monitor_contention');
+      SELECT
+        *
+      FROM android_monitor_contention_chain_blocked_functions_by_txn
+      WHERE id = 302506
+      ORDER BY blocked_function_dur;
+      """,
+        out=Csv("""
+        "id","blocked_function","blocked_function_dur","blocked_function_count"
+        302506,"__fdget_pos",29143,1
+      """))
+
+  def test_monitor_contention_chain_thread_states(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query="""
+      SELECT IMPORT('android.monitor_contention');
+      SELECT
+        *
+      FROM android_monitor_contention_chain_thread_state_by_txn
+      WHERE id = 302506
+      ORDER BY thread_state_dur;
+      """,
+        out=Csv("""
+        "id","thread_state","thread_state_dur","thread_state_count"
+        302506,"D",29143,1
+        302506,"R",51099,3
+        302506,"R+",299066,2
+        302506,"Running",601786,4
+      """))
+
   def test_monitor_contention_chain_extraction(self):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
