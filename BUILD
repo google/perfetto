@@ -2482,8 +2482,6 @@ perfetto_filegroup(
         "src/traced/probes/statsd_client/common.h",
         "src/traced/probes/statsd_client/statsd_binder_data_source.cc",
         "src/traced/probes/statsd_client/statsd_binder_data_source.h",
-        "src/traced/probes/statsd_client/statsd_exec_data_source.cc",
-        "src/traced/probes/statsd_client/statsd_exec_data_source.h",
     ],
 )
 
