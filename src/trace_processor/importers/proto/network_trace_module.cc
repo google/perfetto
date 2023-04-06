@@ -29,6 +29,9 @@
 namespace perfetto {
 namespace trace_processor {
 namespace {
+// From android.os.UserHandle.PER_USER_RANGE
+constexpr int kPerUserRange = 100000;
+
 // Convert the bitmask into a string where '.' indicates an unset bit
 // and each bit gets a unique letter if set. The letters correspond to
 // the bitfields in tcphdr (fin, syn, rst, etc).
@@ -57,6 +60,7 @@ NetworkTraceModule::NetworkTraceModule(TraceProcessorContext* context)
       net_arg_ip_proto_(context->storage->InternString("packet_transport")),
       net_arg_tcp_flags_(context->storage->InternString("packet_tcp_flags")),
       net_arg_tag_(context->storage->InternString("socket_tag")),
+      net_arg_uid_(context->storage->InternString("socket_uid")),
       net_arg_local_port_(context->storage->InternString("local_port")),
       net_arg_remote_port_(context->storage->InternString("remote_port")),
       net_ipproto_tcp_(context->storage->InternString("IPPROTO_TCP")),
@@ -153,11 +157,15 @@ void NetworkTraceModule::ParseGenericEvent(
                              evt.interface().data, track_suffix);
   StringId name_id = context_->storage->InternString(name.string_view());
 
+  // Android stores the app id in the lower part of the uid. The actual uid will
+  // be `user_id * kPerUserRange + app_id`. For package lookup, we want app id.
+  int app_id = evt.uid() % kPerUserRange;
+
   // Event titles are the package name, if available.
   StringId title_id = kNullStringId;
   if (evt.uid() > 0) {
     const auto& package_list = context_->storage->package_list_table();
-    std::optional<uint32_t> pkg_row = package_list.uid().IndexOf(evt.uid());
+    std::optional<uint32_t> pkg_row = package_list.uid().IndexOf(app_id);
     if (pkg_row) {
       title_id = package_list.package_name()[*pkg_row];
     }
@@ -187,6 +195,7 @@ void NetworkTraceModule::ParseGenericEvent(
 
         i->AddArg(net_arg_ip_proto_, Variadic::String(ip_proto));
 
+        i->AddArg(net_arg_uid_, Variadic::Integer(evt.uid()));
         base::StackString<16> tag("0x%x", evt.tag());
         i->AddArg(net_arg_tag_,
                   Variadic::String(
