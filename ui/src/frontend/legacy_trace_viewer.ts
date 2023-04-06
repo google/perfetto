@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 import {inflate} from 'pako';
 import {assertTrue} from '../base/logging';
 import {globals} from './globals';

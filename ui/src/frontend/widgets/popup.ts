@@ -14,7 +14,7 @@
 
 import {createPopper, Instance, OptionsGeneric} from '@popperjs/core';
 import type {StrictModifiers} from '@popperjs/core';
-import * as m from 'mithril';
+import m from 'mithril';
 import {globals} from '../globals';
 import {MountOptions, Portal, PortalAttrs} from './portal';
 import {classNames} from '../classnames';
