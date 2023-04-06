@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as rpc from 'noice-json-rpc';
+import rpc from 'noice-json-rpc';
 
 // To really understand how this works it is useful to see the implementation
 // of noice-json-rpc.

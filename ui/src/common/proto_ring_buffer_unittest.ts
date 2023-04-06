@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as protobuf from 'protobufjs/minimal';
+import protobuf from 'protobufjs/minimal';
 import {assertTrue} from '../base/logging';
 
 import {ProtoRingBuffer} from './proto_ring_buffer';

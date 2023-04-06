@@ -14,7 +14,7 @@
 
 import {Protocol} from 'devtools-protocol';
 import {ProtocolProxyApi} from 'devtools-protocol/types/protocol-proxy-api';
-import * as rpc from 'noice-json-rpc';
+import rpc from 'noice-json-rpc';
 
 import {base64Encode} from '../base/string_utils';
 import {
