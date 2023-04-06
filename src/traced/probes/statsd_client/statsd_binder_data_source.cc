@@ -261,9 +261,9 @@ void StatsdBinderDataSource::OnData(uint32_t reason,
         packet->set_timestamp(
             static_cast<uint64_t>(base::GetBootTimeNs().count()));
       }
-      auto* atom = packet->set_statsd_atom();
-      auto* nested = atom->add_nested();
-      nested->AppendRawProtoBytes(it->data(), it->size());
+      auto* statsd_atom = packet->set_statsd_atom();
+      auto* atom = statsd_atom->add_atom();
+      atom->AppendRawProtoBytes(it->data(), it->size());
       packet->Finalize();
     }
   }
