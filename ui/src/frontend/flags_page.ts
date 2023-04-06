@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {channelChanged, getNextChannel, setChannel} from '../common/channels';
 import {featureFlags, Flag, OverrideState} from '../common/feature_flags';

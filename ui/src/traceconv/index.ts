@@ -18,7 +18,7 @@ import {
   ConversionJobName,
   ConversionJobStatus,
 } from '../common/conversion_jobs';
-import * as traceconv from '../gen/traceconv';
+import traceconv from '../gen/traceconv';
 
 const selfWorker = self as {} as Worker;
 

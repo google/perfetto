@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Draft, produce} from 'immer';
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';

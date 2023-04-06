@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
 
 import {assertExists} from '../base/logging';

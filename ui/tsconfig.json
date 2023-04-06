@@ -16,5 +16,7 @@
     "paths": {
       "*" : ["*", "./node_modules/@tsundoku/micromodal_types/*"]
     },
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
   }
 }
