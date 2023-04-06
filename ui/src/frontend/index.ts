@@ -16,7 +16,7 @@
 import '../common/query_result';
 
 import {Patch, produce} from 'immer';
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {defer} from '../base/deferred';
 import {assertExists, reportError, setErrorHandler} from '../base/logging';

@@ -1,4 +1,4 @@
-import * as m from 'mithril';
+import m from 'mithril';
 import {classNames} from '../classnames';
 import {globals} from '../globals';
 import {Button} from './button';

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 
-import * as m from 'mithril';
+import m from 'mithril';
 import {Attributes} from 'mithril';
 
 import {assertExists} from '../base/logging';
