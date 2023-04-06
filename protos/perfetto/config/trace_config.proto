@@ -290,6 +290,10 @@ message TraceConfig {
       // |stop_delay_ms| and any data in the buffer will be returned to the
       // consumer.
       STOP_TRACING = 2;
+
+      // NOTE: do not add new enum values here because of a subtle backward
+      // compat bug which might cause indefinite tracing on older versions of
+      // the service. See b/274931668 .
     }
     optional TriggerMode trigger_mode = 1;
 
