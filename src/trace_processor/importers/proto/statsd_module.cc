@@ -172,7 +172,7 @@ void StatsdModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
   }
   const auto& atoms_wrapper =
       protos::pbzero::StatsdAtom::Decoder(decoder.statsd_atom());
-  for (auto it = atoms_wrapper.nested(); it; ++it) {
+  for (auto it = atoms_wrapper.atom(); it; ++it) {
     ParseAtom(ts, *it);
   }
 }
