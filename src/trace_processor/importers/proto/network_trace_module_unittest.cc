@@ -114,6 +114,7 @@ TEST_F(NetworkTraceModuleTest, ParseAndFormatPacket) {
   EXPECT_EQ(slices.ts()[0], 123);
 
   EXPECT_TRUE(HasArg(1u, "packet_length", Variadic::Integer(72)));
+  EXPECT_TRUE(HasArg(1u, "socket_uid", Variadic::Integer(1010)));
   EXPECT_TRUE(HasArg(1u, "local_port", Variadic::Integer(5100)));
   EXPECT_TRUE(HasArg(1u, "remote_port", Variadic::Integer(443)));
   EXPECT_TRUE(HasArg(1u, "packet_transport",
