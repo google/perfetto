@@ -13,7 +13,7 @@
 // limitations under the License.
 
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {EngineProxy} from '../common/engine';
 import {QueryResponse, runQuery} from '../common/queries';

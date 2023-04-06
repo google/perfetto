@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {HttpRpcEngine, RPC_URL} from '../common/http_rpc_engine';
 import {StatusResult} from '../common/protos';
-import * as version from '../gen/perfetto_version';
+import {VERSION} from '../gen/perfetto_version';
 import {perfetto} from '../gen/protos';
 
 import {globals} from './globals';
@@ -62,7 +62,7 @@ curl -LO https://get.perfetto.dev/trace_processor
 chmod +x ./trace_processor
 ./trace_processor --httpd
 
-UI version: ${version.VERSION}
+UI version: ${VERSION}
 TraceProcessor RPC API required: ${CURRENT_API_VERSION} or higher
 
 TraceProcessor version: $tpVersion
